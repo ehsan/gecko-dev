@@ -120,6 +120,8 @@ nsWidget::nsWidget()
 
   mWidget = nsnull;
   mParent = nsnull;
+  mPreferredWidth  = 0;
+  mPreferredHeight = 0;
   mShown = PR_FALSE;
   mBounds.x = 0;
   mBounds.y = 0;
@@ -245,7 +247,7 @@ NS_METHOD nsWidget::Show( PRBool bState ) {
 
 		  if( mWidget->rid == -1 ) {
 			  //EnableDamage( mWidget, PR_TRUE );
-			  NS_ERROR("nsWidget::Show mWidget's rid == -1\n");
+			  NS_ASSERTION(0,"nsWidget::Show mWidget's rid == -1\n");
 			  mShown = PR_FALSE; 
 			  return NS_ERROR_FAILURE;
 		  	}
@@ -544,7 +546,7 @@ NS_METHOD nsWidget::SetCursor( nsCursor aCursor ) {
 		  break;
 
 		default:
-		  NS_ERROR("Invalid cursor type");
+		  NS_ASSERTION(0, "Invalid cursor type");
 		  break;
   		}
 
@@ -561,6 +563,17 @@ NS_METHOD nsWidget::SetCursor( nsCursor aCursor ) {
 	return NS_OK;
 	}
 
+
+NS_METHOD nsWidget::Invalidate( PRBool aIsSynchronous ) {
+
+	// mWidget will be null during printing
+	if( !mWidget || !PtWidgetIsRealized( mWidget ) ) return NS_OK;
+
+	PtWidget_t *aWidget = (PtWidget_t *)GetNativeData(NS_NATIVE_WIDGET);
+	PtDamageWidget( aWidget );
+	if( aIsSynchronous ) PtFlush();
+	return NS_OK;
+	}
 
 NS_METHOD nsWidget::Invalidate( const nsRect & aRect, PRBool aIsSynchronous ) {
 
@@ -591,13 +604,13 @@ NS_IMETHODIMP nsWidget::InvalidateRegion( const nsIRegion *aRegion, PRBool aIsSy
 	}
 
 nsresult nsWidget::CreateWidget(nsIWidget *aParent,
-                                nsNativeWidget aNativeParent,
                                 const nsRect &aRect,
                                 EVENT_CALLBACK aHandleEventFunction,
                                 nsIDeviceContext *aContext,
                                 nsIAppShell *aAppShell,
                                 nsIToolkit *aToolkit,
-                                nsWidgetInitData *aInitData)
+                                nsWidgetInitData *aInitData,
+                                nsNativeWidget aNativeParent)
 {
 
   PtWidget_t *parentWidget = nsnull;

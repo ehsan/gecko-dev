@@ -86,7 +86,6 @@ struct _oggz_stream_t {
   int preroll;
   ogg_int64_t granulerate_n;
   ogg_int64_t granulerate_d;
-  ogg_int64_t first_granule;
   ogg_int64_t basegranule;
   int granuleshift;
 
@@ -283,8 +282,6 @@ oggz_get_granulerate (OGGZ * oggz, long serialno,
 int oggz_set_granuleshift (OGGZ * oggz, long serialno, int granuleshift);
 int oggz_get_granuleshift (OGGZ * oggz, long serialno);
 
-int oggz_set_first_granule (OGGZ * oggz, long serialno, ogg_int64_t first_granule);
-
 int oggz_set_preroll (OGGZ * oggz, long serialno, int preroll);
 int oggz_get_preroll (OGGZ * oggz, long serialno);
 
@@ -318,8 +315,5 @@ size_t oggz_io_write (OGGZ * oggz, void * buf, size_t n);
 int oggz_io_seek (OGGZ * oggz, long offset, int whence);
 long oggz_io_tell (OGGZ * oggz);
 int oggz_io_flush (OGGZ * oggz);
-
-/* oggz_read */
-OggzDListIterResponse oggz_read_free_pbuffers(void *elem);
 
 #endif /* __OGGZ_PRIVATE_H__ */

@@ -51,13 +51,10 @@
 #include "nsDisplayList.h"
 
 nsIFrame*
-NS_NewPlaceholderFrame(nsIPresShell* aPresShell, nsStyleContext* aContext,
-                       nsFrameState aTypeBit)
+NS_NewPlaceholderFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
-  return new (aPresShell) nsPlaceholderFrame(aContext, aTypeBit);
+  return new (aPresShell) nsPlaceholderFrame(aContext);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsPlaceholderFrame)
 
 nsPlaceholderFrame::~nsPlaceholderFrame()
 {
@@ -130,16 +127,19 @@ nsPlaceholderFrame::Destroy()
 {
   nsIPresShell* shell = PresContext()->GetPresShell();
   if (shell && mOutOfFlowFrame) {
-    if (shell->FrameManager()->GetPlaceholderFrameFor(mOutOfFlowFrame)) {
-      NS_ERROR("Placeholder relationship should have been torn down; see "
-               "comments in nsPlaceholderFrame.h.  Unregistering ourselves, "
-               "but this might cause our out-of-flow to be unable to destroy "
-               "itself properly.  Not that it could anyway, with us dead.");
-      shell->FrameManager()->UnregisterPlaceholderFrame(this);
-    }
+    NS_ASSERTION(!shell->FrameManager()->GetPlaceholderFrameFor(mOutOfFlowFrame),
+                 "Placeholder relationship should have been torn down; see "
+                 "comments in nsPlaceholderFrame.h");
   }
 
-  nsFrame::Destroy();
+  nsSplittableFrame::Destroy();
+}
+
+nsSplittableType
+nsPlaceholderFrame::GetSplittableType() const
+{
+  NS_ASSERTION(mOutOfFlowFrame, "GetSplittableType called at the wrong time");
+  return mOutOfFlowFrame->GetSplittableType();
 }
 
 nsIAtom*
@@ -241,9 +241,6 @@ nsPlaceholderFrame::List(FILE* out, PRInt32 aIndent) const
   }
   if (nsnull != nextInFlow) {
     fprintf(out, " next-in-flow=%p", static_cast<void*>(nextInFlow));
-  }
-  if (nsnull != mContent) {
-    fprintf(out, " [content=%p]", static_cast<void*>(mContent));
   }
   if (mOutOfFlowFrame) {
     fprintf(out, " outOfFlowFrame=");

@@ -146,11 +146,7 @@ class nsWaveDecoder : public nsMediaDecoder
   nsWaveDecoder();
   ~nsWaveDecoder();
 
-  virtual nsMediaDecoder* Clone() { return new nsWaveDecoder(); }
-
-  virtual PRBool Init(nsHTMLMediaElement* aElement);
-
-  virtual nsMediaStream* GetCurrentStream();
+  virtual void GetCurrentURI(nsIURI** aURI);
   virtual already_AddRefed<nsIPrincipal> GetCurrentPrincipal();
 
   // Return the current playback position in the media in seconds.
@@ -178,8 +174,7 @@ class nsWaveDecoder : public nsMediaDecoder
 
   // Start downloading the media at the specified URI.  The media's metadata
   // will be parsed and made available as the load progresses.
-  virtual nsresult Load(nsMediaStream* aStream,
-                        nsIStreamListener** aStreamListener);
+  virtual nsresult Load(nsIURI* aURI, nsIChannel* aChannel, nsIStreamListener** aStreamListener);
 
   // Called by mStream (and possibly the nsChannelToPipeListener used
   // internally by mStream) when the stream has completed loading.
@@ -244,14 +239,17 @@ private:
   // Notifies the element that playback has completed.
   void PlaybackEnded();
 
-  // Notifies the element that decoding has failed.
-  void DecodeError();
+  // Notifies the element that metadata loading has failed.
+  void MediaErrorDecode();
 
   void RegisterShutdownObserver();
   void UnregisterShutdownObserver();
 
   // Volume that the audio backend will be initialized with.
   float mInitialVolume;
+
+  // URI of the current resource.
+  nsCOMPtr<nsIURI> mURI;
 
   // Thread that handles audio playback, including data download.
   nsCOMPtr<nsIThread> mPlaybackThread;
@@ -275,6 +273,9 @@ private:
   // values after the state machine has been destroyed.
   float mEndedDuration;
   PRPackedBool mEnded;
+
+  // True if we have registered a shutdown observer.
+  PRPackedBool mNotifyOnShutdown;
 
   // True if the media resource is seekable.
   PRPackedBool mSeekable;

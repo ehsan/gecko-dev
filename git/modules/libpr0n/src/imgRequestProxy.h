@@ -111,15 +111,14 @@ protected:
   /* non-virtual imgIDecoderObserver methods */
   void OnStartDecode   ();
   void OnStartContainer(imgIContainer *aContainer);
-  void OnStartFrame    (PRUint32 aFrame);
-  void OnDataAvailable (PRBool aCurrentFrame, const nsIntRect * aRect);
-  void OnStopFrame     (PRUint32 aFrame);
+  void OnStartFrame    (gfxIImageFrame *aFrame);
+  void OnDataAvailable (gfxIImageFrame *aFrame, const nsIntRect * aRect);
+  void OnStopFrame     (gfxIImageFrame *aFrame);
   void OnStopContainer (imgIContainer *aContainer);
   void OnStopDecode    (nsresult status, const PRUnichar *statusArg); 
-  void OnDiscard       ();
 
   /* non-virtual imgIContainerObserver methods */
-  void FrameChanged(imgIContainer *aContainer, nsIntRect * aDirtyRect);
+  void FrameChanged(imgIContainer *aContainer, gfxIImageFrame *aFrame, nsIntRect * aDirtyRect);
 
   /* non-virtual nsIRequestObserver (plus some) methods */
   void OnStartRequest(nsIRequest *request, nsISupports *ctxt);
@@ -153,9 +152,7 @@ private:
   nsCOMPtr<nsILoadGroup> mLoadGroup;
 
   nsLoadFlags mLoadFlags;
-  PRUint32    mLocksHeld;
   PRPackedBool mCanceled;
   PRPackedBool mIsInLoadGroup;
   PRPackedBool mListenerIsStrongRef;
-  PRPackedBool mDecodeRequested;
 };

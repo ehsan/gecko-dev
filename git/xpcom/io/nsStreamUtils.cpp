@@ -41,7 +41,6 @@
 #include "nsIPipe.h"
 #include "nsIEventTarget.h"
 #include "nsIRunnable.h"
-#include "nsISafeOutputStream.h"
 #include "nsAutoLock.h"
 #include "nsString.h"
 
@@ -312,15 +311,12 @@ public:
             cancelStatus = mCancelStatus;
         }
 
-        // Copy data from the source to the sink until we hit failure or have
-        // copied all the data.
+        // ok, copy data from source to sink.
         for (;;) {
-            // Note: copyFailed will be true if the source or the sink have
-            //       reported an error, or if we failed to write any bytes
-            //       because we have consumed all of our data.
+            PRUint32 n;
             PRBool copyFailed = PR_FALSE;
             if (!canceled) {
-                PRUint32 n = DoCopy(&sourceCondition, &sinkCondition);
+                n = DoCopy(&sourceCondition, &sinkCondition);
                 copyFailed = NS_FAILED(sourceCondition) ||
                              NS_FAILED(sinkCondition) || n == 0;
 
@@ -370,35 +366,20 @@ public:
                     if (mAsyncSink)
                         mAsyncSink->CloseWithStatus(canceled ? cancelStatus :
                                                                sourceCondition);
-                    else {
-                        // If we have an nsISafeOutputStream, and our
-                        // sourceCondition and sinkCondition are not set to a
-                        // failure state, finish writing.
-                        nsCOMPtr<nsISafeOutputStream> sostream =
-                            do_QueryInterface(mSink);
-                        if (sostream && NS_SUCCEEDED(sourceCondition) &&
-                            NS_SUCCEEDED(sinkCondition))
-                            sostream->Finish();
-                        else
-                            mSink->Close();
-                    }
+                    else
+                        mSink->Close();
                 }
                 mAsyncSink = nsnull;
                 mSink = nsnull;
 
                 // notify state complete...
                 if (mCallback) {
-                    nsresult status;
-                    if (!canceled) {
-                        status = sourceCondition;
-                        if (NS_SUCCEEDED(status))
-                            status = sinkCondition;
-                        if (status == NS_BASE_STREAM_CLOSED)
-                            status = NS_OK;
-                    } else {
-                        status = cancelStatus; 
-                    }
-                    mCallback(mClosure, status);
+                    nsresult status = sourceCondition;
+                    if (NS_SUCCEEDED(status))
+                        status = sinkCondition;
+                    if (status == NS_BASE_STREAM_CLOSED)
+                        status = NS_OK;
+                    mCallback(mClosure, canceled ? cancelStatus : status);
                 }
                 break;
             }

@@ -59,21 +59,12 @@ class nsTextFragment;
 class nsIDocShell;
 #ifdef MOZ_SMIL
 class nsISMILAttr;
-class nsIDOMCSSStyleDeclaration;
 #endif // MOZ_SMIL
 
-enum nsLinkState {
-  eLinkState_Unknown    = 0,
-  eLinkState_Unvisited  = 1,
-  eLinkState_Visited    = 2,
-  eLinkState_NotLink    = 3
-};
-
 // IID for the nsIContent interface
-// c726e716-a4be-4202-8a5e-32d0525903e8
 #define NS_ICONTENT_IID       \
-{ 0xc726e716, 0xa4be, 0x4202, \
-  { 0x8a, 0x5e, 0x32, 0xd0, 0x52, 0x59, 0x03, 0xe8 } }
+{ 0x08dadcc4, 0x057a, 0x4b8d, \
+  { 0x89, 0x43, 0x30, 0x0e, 0x61, 0xc6, 0x9d, 0x36 } }
 
 /**
  * A node of content in a document's content model. This interface
@@ -219,7 +210,7 @@ public:
   {
     nsIDocument* doc = GetOwnerDoc();
     return doc && // XXX clean up after bug 335998 lands
-           doc->IsHTML();
+           !doc->IsCaseSensitive();
   }
 
   /**
@@ -247,27 +238,6 @@ public:
   nsINodeInfo *NodeInfo() const
   {
     return mNodeInfo;
-  }
-
-  inline PRBool IsInNamespace(PRInt32 aNamespace) const {
-    return mNodeInfo->NamespaceID() == aNamespace;
-  }
-
-  inline PRBool IsHTML() const {
-    return IsInNamespace(kNameSpaceID_XHTML);
-  }
-
-  inline PRBool IsSVG() const {
-    /* Some things in the SVG namespace are not in fact SVG elements */
-    return IsNodeOfType(eSVG);
-  }
-
-  inline PRBool IsXUL() const {
-    return IsInNamespace(kNameSpaceID_XUL);
-  }
-
-  inline PRBool IsMathML() const {
-    return IsInNamespace(kNameSpaceID_MathML);
   }
 
   /**
@@ -628,49 +598,24 @@ public:
    */
   virtual PRBool IsLink(nsIURI** aURI) const = 0;
 
-   /**
-   * If the implementing element is a link, calling this method forces it to
-   * clear its cached href, if it has one.
-   *
-   * This function does not notify the document that it may need to restyle the
-   * link.
-   */
-  virtual void DropCachedHref()
-  {
-  }
-
   /**
-   * Get the cached state of the link.  If the state is unknown, 
-   * return eLinkState_Unknown.
+   * Give this element a chance to fire links that should be fired
+   * automatically when loaded. If the element was an autoloading link
+   * and it was successfully handled, we will throw special nsresult values.
    *
-   * @return The cached link state of the link.
+   * @param aShell the current doc shell (to possibly load the link on)
+   * @throws NS_OK if nothing happened
+   * @throws NS_XML_AUTOLINK_EMBED if the caller is loading the link embedded
+   * @throws NS_XML_AUTOLINK_NEW if the caller is loading the link in a new
+   *         window
+   * @throws NS_XML_AUTOLINK_REPLACE if it is loading a link that will replace
+   *         the current window (and thus the caller must stop parsing)
+   * @throws NS_XML_AUTOLINK_UNDEFINED if it is loading in any other way--in
+   *         which case, the caller should stop parsing as well.
    */
-  virtual nsLinkState GetLinkState() const
+  virtual nsresult MaybeTriggerAutoLink(nsIDocShell *aShell)
   {
-    return eLinkState_NotLink;
-  }
-
-  /**
-   * Set the cached state of the link.
-   *
-   * @param aState The cached link state of the link.
-   */
-  virtual void SetLinkState(nsLinkState aState)
-  {
-    NS_ASSERTION(aState == eLinkState_NotLink,
-                 "Need to override SetLinkState?");
-  }
-
-  /**
-    * Get a pointer to the full href URI (fully resolved and canonicalized,
-    * since it's an nsIURI object) for link elements.
-    *
-    * @return A pointer to the URI or null if the element is not a link or it
-    *         has no HREF attribute.
-    */
-  virtual already_AddRefed<nsIURI> GetHrefURI() const
-  {
-    return nsnull;
+    return NS_OK;
   }
 
   /**
@@ -878,31 +823,6 @@ public:
    * The CALLER OWNS the result and is responsible for deleting it.
    */
   virtual nsISMILAttr* GetAnimatedAttr(const nsIAtom* aName) = 0;
-
-   /**
-    * Get the SMIL override style for this content node.  This is a style
-    * declaration that is applied *after* the inline style, and it can be used
-    * e.g. to store animated style values.
-    *
-    * Note: This method is analogous to the 'GetStyle' method in
-    * nsGenericHTMLElement and nsStyledElement.
-    */
-  virtual nsresult GetSMILOverrideStyle(nsIDOMCSSStyleDeclaration** aStyle) = 0;
-
-  /**
-   * Get the SMIL override style rule for this content node.  If the rule
-   * hasn't been created (or if this nsIContent object doesn't support SMIL
-   * override style), this method simply returns null.
-   */
-  virtual nsICSSStyleRule* GetSMILOverrideStyleRule() = 0;
-
-  /**
-   * Set the SMIL override style rule for this node.  If aNotify is true, this
-   * method will notify the document's pres context, so that the style changes
-   * will be noticed.
-   */
-  virtual nsresult SetSMILOverrideStyleRule(nsICSSStyleRule* aStyleRule,
-                                            PRBool aNotify) = 0;
 #endif // MOZ_SMIL
 
 private:

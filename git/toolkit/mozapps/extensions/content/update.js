@@ -65,7 +65,7 @@ var gUpdateWizard = {
     var em = Components.classes["@mozilla.org/extensions/manager;1"]
                         .getService(nsIExtensionManager);
     // Retrieve all items in order to sync their app compatibility information
-    this.items = em.getItemList(nsIUpdateItem.TYPE_ANY);
+    this.items = em.getItemList(nsIUpdateItem.TYPE_ANY, { });
     this.inactiveItemIDs = window.arguments[0];
     var pref =
         Components.classes["@mozilla.org/preferences-service;1"].
@@ -191,8 +191,7 @@ var gVersionInfoPage = {
     var em = Components.classes["@mozilla.org/extensions/manager;1"]
                        .getService(nsIExtensionManager);
     // Synchronize the app compatibility info for all items.
-    em.update([], 0, nsIExtensionManager.UPDATE_SYNC_COMPATIBILITY, this,
-              nsIExtensionManager.UPDATE_WHEN_NEW_APP_INSTALLED);
+    em.update([], 0, nsIExtensionManager.UPDATE_SYNC_COMPATIBILITY, this);
   },
 
   /////////////////////////////////////////////////////////////////////////////
@@ -205,9 +204,9 @@ var gVersionInfoPage = {
     var em = Components.classes["@mozilla.org/extensions/manager;1"]
                        .getService(nsIExtensionManager);
     // Retrieve the remaining incompatible items.
-    gUpdateWizard.items = em.getIncompatibleItemList(null, null,
+    gUpdateWizard.items = em.getIncompatibleItemList(null, null, null,
                                                      nsIUpdateItem.TYPE_ANY,
-                                                     true);
+                                                     true, { });
     gUpdateWizard.items = gUpdateWizard.items.filter(function(item) {
       return gUpdateWizard.inactiveItemIDs.indexOf(item.id) < 0;
     });
@@ -305,8 +304,7 @@ var gUpdatePage = {
     var em = Components.classes["@mozilla.org/extensions/manager;1"]
                        .getService(nsIExtensionManager);
     em.update(gUpdateWizard.items, this._totalCount,
-              nsIExtensionManager.UPDATE_CHECK_NEWVERSION, this,
-              nsIExtensionManager.UPDATE_WHEN_NEW_APP_INSTALLED);
+              nsIExtensionManager.UPDATE_CHECK_NEWVERSION, this);
   },
 
   /////////////////////////////////////////////////////////////////////////////

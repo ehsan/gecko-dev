@@ -3,8 +3,6 @@
 @AB_CD@.jar:
 % locale global @AB_CD@ %locale/@AB_CD@/global/
   locale/@AB_CD@/global/about.dtd                       (%chrome/global/about.dtd)
-  locale/@AB_CD@/global/aboutRights.dtd                 (%chrome/global/aboutRights.dtd)
-  locale/@AB_CD@/global/aboutRights.properties          (%chrome/global/aboutRights.properties)
   locale/@AB_CD@/global/appPicker.dtd                   (%chrome/global/appPicker.dtd)
   locale/@AB_CD@/global/brand.dtd                       (generic/chrome/global/brand.dtd)
 + locale/@AB_CD@/global/browser.properties              (%chrome/global/browser.properties)
@@ -45,7 +43,7 @@
 + locale/@AB_CD@/global/printPageSetup.dtd              (%chrome/global/printPageSetup.dtd)
 + locale/@AB_CD@/global/printPreview.dtd                (%chrome/global/printPreview.dtd)
 + locale/@AB_CD@/global/printPreviewProgress.dtd        (%chrome/global/printPreviewProgress.dtd)
-  locale/@AB_CD@/global/printdialog.properties          (%chrome/global/printdialog.properties)
+  locale/@AB_CD@/global/gnomeprintdialog.properties     (%chrome/global/gnomeprintdialog.properties)
 + locale/@AB_CD@/global/printProgress.dtd               (%chrome/global/printProgress.dtd)
 + locale/@AB_CD@/global/regionNames.properties          (%chrome/global/regionNames.properties)
 + locale/@AB_CD@/global/dialog.properties               (%chrome/global/dialog.properties)

@@ -308,14 +308,14 @@ txMozillaXMLOutput::endElement()
 
     // Handle html-elements
     if (!mNoFixup) {
-        if (element->IsHTML()) {
+        if (element->IsNodeOfType(nsINode::eHTML)) {
             rv = endHTMLElement(element);
             NS_ENSURE_SUCCESS(rv, rv);
         }
 
         // Handle script elements
         if (element->Tag() == nsGkAtoms::script &&
-            (element->IsHTML() ||
+            (element->IsNodeOfType(nsINode::eHTML) ||
             element->GetNameSpaceID() == kNameSpaceID_SVG)) {
 
             rv = element->DoneAddingChildren(PR_TRUE);
@@ -480,7 +480,7 @@ txMozillaXMLOutput::startElement(nsIAtom* aPrefix,
         lname = do_GetAtom(aLocalName);
     }
 
-    // No biggie if we lose the prefix due to OOM
+    // No biggie if we loose the prefix due to OOM
     NS_ENSURE_TRUE(lname, NS_ERROR_OUT_OF_MEMORY);
 
     // Check that it's a valid name

@@ -20,7 +20,6 @@
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
-#   Serge Gautherie <sgautherie.bz@free.fr>
 #   Ted Mielczarek <ted.mielczarek@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
@@ -45,7 +44,7 @@ import sys, shutil, os, os.path
 SCRIPT_DIRECTORY = os.path.abspath(os.path.realpath(os.path.dirname(sys.argv[0])))
 sys.path.append(SCRIPT_DIRECTORY)
 import automation
-from automationutils import *
+from automationutils import addCommonOptions
 from optparse import OptionParser
 from tempfile import mkdtemp
 
@@ -57,27 +56,18 @@ def getFullPath(path):
   return os.path.normpath(os.path.join(oldcwd, os.path.expanduser(path)))
 
 def createReftestProfile(options, profileDir):
-  "Sets up a profile for reftest."
+  "Sets up a clean profile for reftest."
 
-  # Set preferences.
+  # Start with a clean slate.
+  shutil.rmtree(profileDir, True)
+  os.mkdir(profileDir)
+  # reftest should only need the dump pref set
   prefsFile = open(os.path.join(profileDir, "user.js"), "w")
   prefsFile.write("""user_pref("browser.dom.window.dump.enabled", true);
 """)
-  prefsFile.write('user_pref("reftest.timeout", %d);\n' % (options.timeout * 1000))
-  prefsFile.write('user_pref("ui.caretBlinkTime", -1);\n')
+  prefsFile.write('user_pref("reftest.timeout", %d);' % options.timeout)
 
-  for v in options.extraPrefs:
-    thispref = v.split("=")
-    if len(thispref) < 2:
-      print "Error: syntax error in --setpref=" + v
-      sys.exit(1)
-    part = 'user_pref("%s", %s);\n' % (thispref[0], thispref[1])
-    prefsFile.write(part)
-  # no slow script dialogs
-  prefsFile.write('user_pref("dom.max_script_run_time", 0);')
-  prefsFile.write('user_pref("dom.max_chrome_script_run_time", 0);')
   prefsFile.close()
-
   # install the reftest extension bits into the profile
   profileExtensionsPath = os.path.join(profileDir, "extensions")
   os.mkdir(profileExtensionsPath)
@@ -91,7 +81,6 @@ def main():
 
   # we want to pass down everything from automation.__all__
   addCommonOptions(parser, defaults=dict(zip(automation.__all__, [getattr(automation, x) for x in automation.__all__])))
-  automation.addExtraCommonOptions(parser)
   parser.add_option("--appname",
                     action = "store", type = "string", dest = "app",
                     default = os.path.join(SCRIPT_DIRECTORY, automation.DEFAULT_APP),
@@ -102,8 +91,8 @@ def main():
                     help = "copy specified files/dirs to testing profile")
   parser.add_option("--timeout",              
                     action = "store", dest = "timeout", type = "int", 
-                    default = 5 * 60, # 5 minutes per bug 479518
-                    help = "reftest will timeout in specified number of seconds. [default %default s].")
+                    default = 5 * 60 * 1000, # 5 minutes per bug 479518
+                    help = "reftest will timeout in specified number of milleseconds. [default %default ms].")
   parser.add_option("--leak-threshold",
                     action = "store", type = "int", dest = "leakThreshold",
                     default = 0,
@@ -111,11 +100,6 @@ def main():
                            "refcounted objects (or bytes in classes with "
                            "MOZ_COUNT_CTOR and MOZ_COUNT_DTOR) is greater "
                            "than the given number")
-  parser.add_option("--utility-path",
-                    action = "store", type = "string", dest = "utilityPath",
-                    default = automation.DIST_BIN,
-                    help = "absolute path to directory containing utility "
-                           "programs (xpcshell, ssltunnel, certutil)")
 
   options, args = parser.parse_args()
 
@@ -136,13 +120,6 @@ Are you executing $objdir/_tests/reftest/runreftest.py?""" \
     # allow relative paths
     options.xrePath = getFullPath(options.xrePath)
 
-  if options.symbolsPath:
-    options.symbolsPath = getFullPath(options.symbolsPath)
-  options.utilityPath = getFullPath(options.utilityPath)
-
-  debuggerInfo = getDebuggerInfo(oldcwd, options.debugger, options.debuggerArgs,
-     options.debuggerInteractive);
-
   profileDir = None
   try:
     profileDir = mkdtemp()
@@ -150,8 +127,16 @@ Are you executing $objdir/_tests/reftest/runreftest.py?""" \
     copyExtraFilesToProfile(options, profileDir)
 
     # browser environment
-    browserEnv = automation.environment(xrePath = options.xrePath)
-    browserEnv["XPCOM_DEBUG_BREAK"] = "stack"
+    browserEnv = dict(os.environ)
+
+    # These variables are necessary for correct application startup; change
+    # via the commandline at your own risk.
+    browserEnv["NO_EM_RESTART"] = "1"
+    browserEnv["XPCOM_DEBUG_BREAK"] = "warn"
+    if automation.UNIXISH:
+      browserEnv["LD_LIBRARY_PATH"] = options.xrePath
+      browserEnv["MOZILLA_FIVE_HOME"] = options.xrePath
+      browserEnv["GNOME_DISABLE_CRASH_DIALOG"] = "1"
 
     # Enable leaks detection to its own log file.
     leakLogFile = os.path.join(profileDir, "runreftest_leaks.log")
@@ -162,11 +147,10 @@ Are you executing $objdir/_tests/reftest/runreftest.py?""" \
     automation.log.info("REFTEST INFO | runreftest.py | Performing extension manager registration: start.\n")
     # Don't care about this |status|: |runApp()| reporting it should be enough.
     status = automation.runApp(None, browserEnv, options.app, profileDir,
-                               ["-silent"],
-                               utilityPath = options.utilityPath,
-                               xrePath=options.xrePath,
-                               symbolsPath=options.symbolsPath)
-    # We don't care to call |processLeakLog()| for this step.
+                               extraArgs = ["-silent"],
+                               symbolsPath=options.symbolsPath,
+                               xrePath=options.xrePath)
+    # We don't care to call |automation.processLeakLog()| for this step.
     automation.log.info("\nREFTEST INFO | runreftest.py | Performing extension manager registration: end.")
 
     # Remove the leak detection file so it can't "leak" to the tests run.
@@ -178,18 +162,13 @@ Are you executing $objdir/_tests/reftest/runreftest.py?""" \
     automation.log.info("REFTEST INFO | runreftest.py | Running tests: start.\n")
     reftestlist = getFullPath(args[0])
     status = automation.runApp(None, browserEnv, options.app, profileDir,
-                               ["-reftest", reftestlist],
-                               utilityPath = options.utilityPath,
-                               xrePath=options.xrePath,
-                               debuggerInfo=debuggerInfo,
+                               extraArgs = ["-reftest", reftestlist],
                                symbolsPath=options.symbolsPath,
-                               # give the JS harness 30 seconds to deal
-                               # with its own timeouts
-                               timeout=options.timeout + 30.0)
-    processLeakLog(leakLogFile, options.leakThreshold)
+                               xrePath=options.xrePath)
+    automation.processLeakLog(leakLogFile, options.leakThreshold)
     automation.log.info("\nREFTEST INFO | runreftest.py | Running tests: end.")
   finally:
-    if profileDir:
+    if profileDir is not None:
       shutil.rmtree(profileDir)
   sys.exit(status)
 

@@ -51,9 +51,6 @@
 // FLAG_RESOLVING is used to tag an XPCNativeWrapper when while it's calling
 // the newResolve hook on the XPCWrappedNative's scriptable info.
 #define FLAG_RESOLVING 0x4
-// FLAG_IS_UXPC_OBJECT is used to tag a XPCCrossOriginWrapper that we created
-// to deal with a cross origin XOW that has UniversalXPConnect privileges.
-#define FLAG_IS_UXPC_OBJECT (1 << 29)
 
 #define HAS_FLAGS(_val, _flags) \
   ((PRUint32(JSVAL_TO_INT(_val)) & (_flags)) != 0)
@@ -82,11 +79,15 @@ XPC_XOW_WrapperMoved(JSContext *cx, XPCWrappedNative *innerObj,
                      XPCWrappedNativeScope *newScope);
 
 nsresult
-CanAccessWrapper(JSContext *cx, JSObject *wrappedObj, JSBool *privilegeEnabled);
+CanAccessWrapper(JSContext *cx, JSObject *wrappedObj);
 
 // Used by UnwrapSOW below.
 JSBool
 AllowedToAct(JSContext *cx, jsval idval);
+
+JSBool
+XPCNativeWrapperCtor(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+                     jsval *rval);
 
 inline JSBool
 XPC_XOW_ClassNeedsXOW(const char *name)
@@ -110,7 +111,6 @@ XPC_XOW_ClassNeedsXOW(const char *name)
   return JS_FALSE;
 }
 
-extern JSExtendedClass sXPC_COW_JSClass;
 extern JSExtendedClass sXPC_SJOW_JSClass;
 extern JSExtendedClass sXPC_SOW_JSClass;
 extern JSExtendedClass sXPC_XOW_JSClass;
@@ -218,13 +218,6 @@ public:
     return JS_TRUE;
   }
 
-  static JSBool IsSecurityWrapper(JSObject *wrapper)
-  {
-    JSClass *clasp = STOBJ_GET_CLASS(wrapper);
-    return (clasp->flags & JSCLASS_IS_EXTENDED) &&
-      ((JSExtendedClass*)clasp)->wrappedObject;
-  }
-
   /**
    * Given an arbitrary object, Unwrap will return the wrapped object if the
    * passed-in object is a wrapper that Unwrap knows about *and* the
@@ -283,22 +276,7 @@ public:
       return nsnull;
     }
 
-    nsresult rv = CanAccessWrapper(cx, wrapper, nsnull);
-    if (NS_FAILED(rv)) {
-      JS_ClearPendingException(cx);
-      wrapper = nsnull;
-    }
-
-    return wrapper;
-  }
-
-  static JSObject *UnwrapCOW(JSContext *cx, JSObject *wrapper) {
-    wrapper = UnwrapGeneric(cx, &sXPC_COW_JSClass, wrapper);
-    if (!wrapper) {
-      return nsnull;
-    }
-
-    nsresult rv = CanAccessWrapper(cx, wrapper, nsnull);
+    nsresult rv = CanAccessWrapper(cx, wrapper);
     if (NS_FAILED(rv)) {
       JS_ClearPendingException(cx);
       wrapper = nsnull;
@@ -399,6 +377,7 @@ public:
                                uintN argc, jsval *argv, jsval *rval,
                                JSBool isNativeWrapper);
 
+private:
   /**
    * Looks up a property on obj. If it exists, then the parameters are filled
    * in with useful values.

@@ -72,15 +72,13 @@ class TableBackgroundPainter
       * relative to aRenderingContext
       * @param aPt               - offset of the table frame relative to
       * aRenderingContext
-      * @param aBGPaintFlags - Flags of the nsCSSRendering::PAINTBG_* variety
       */
     TableBackgroundPainter(nsTableFrame*        aTableFrame,
                            Origin               aOrigin,
                            nsPresContext*       aPresContext,
                            nsIRenderingContext& aRenderingContext,
                            const nsRect&        aDirtyRect,
-                           const nsPoint&       aPt,
-                           PRUint32             aBGPaintFlags);
+                           const nsPoint&       aPt);
 
     /** Destructor */
     ~TableBackgroundPainter();
@@ -95,26 +93,21 @@ class TableBackgroundPainter
     /* ~*~ Using nsTablePainter Background Painting ~*~
 
        A call to PaintTable will normally paint all of the table's
-       elements (except for the table background, if aPaintTableBackground
-       is false).
-       Elements with views however, will be skipped and must create their
-       own painter to call the appropriate paint function in their ::Paint
+       elements (except the cells in non-BC). Elements with views
+       however, will be skipped and must create their own painter
+       to call the appropriate paint function in their ::Paint
        method (e.g. painter.PaintRow in nsTableRow::Paint)
     */
 
-    /** Paint background for the table frame (if requested) and its children
-      * down through cells.
+    /** Paint background for the table frame and its children down through cells
       * (Cells themselves will only be painted in border collapse)
       * Table must do a flagged TABLE_BG_PAINT ::Paint call on its
       * children afterwards
       * @param aTableFrame - the table frame
       * @param aDeflate    - deflation needed to bring table's mRect
       *                      to the outer grid lines in border-collapse
-      * @param aPaintTableBackground - if true, the table background
-      * is included, otherwise it isn't
       */
-    nsresult PaintTable(nsTableFrame* aTableFrame, const nsMargin& aDeflate,
-                        PRBool aPaintTableBackground);
+    nsresult PaintTable(nsTableFrame* aTableFrame, nsMargin* aDeflate);
 
     /** Paint background for the row group and its children down through cells
       * (Cells themselves will only be painted in border collapse)
@@ -150,7 +143,7 @@ class TableBackgroundPainter
     nsresult PaintTableFrame(nsTableFrame*         aTableFrame,
                              nsTableRowGroupFrame* aFirstRowGroup,
                              nsTableRowGroupFrame* aLastRowGroup,
-                             const nsMargin&       aDeflate);
+                             nsMargin*             aDeflate = nsnull);
 
     /* aPassThrough params indicate whether to paint the element or to just
      * pass through and paint underlying layers only
@@ -249,7 +242,6 @@ class TableBackgroundPainter
     nsRect               mCellRect; //current cell's rect
 
     nsStyleBorder        mZeroBorder;  //cached zero-width border
-    PRUint32             mBGPaintFlags;
 };
 
 #endif

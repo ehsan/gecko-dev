@@ -43,6 +43,7 @@
 #include "nsIThread.h"
 #include "nsIThreadPool.h"
 
+#include "nsAutoLock.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsComponentManagerUtils.h"
@@ -50,9 +51,6 @@
 #include "nsThreadUtils.h"
 #include "nsXPCOMCIDInternal.h"
 #include "prlog.h"
-
-#include "mozilla/Mutex.h"
-using namespace mozilla;
 
 typedef nsresult(*TestFuncPtr)();
 
@@ -215,7 +213,7 @@ private:
 class IncrementingRunnable : public SimpleRunnable
 {
 public:
-  IncrementingRunnable(PRUint32* aCounter, Mutex* aLock = nsnull)
+  IncrementingRunnable(PRUint32* aCounter, PRLock* aLock = nsnull)
   : SimpleRunnable("IncrementingRunnable"), mCounter(aCounter), mLock(aLock)
   { }
 
@@ -225,19 +223,19 @@ public:
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (mLock)
-      mLock->Lock();
+      PR_Lock(mLock);
 
     (*mCounter)++;
 
     if (mLock)
-      mLock->Unlock();
+      PR_Unlock(mLock);
 
     return NS_OK;
   }
 
 private:
   PRUint32* mCounter;
-  Mutex* mLock;
+  PRLock* mLock;
 };
 
 class NonThreadsafeRunnable : public nsIRunnable
@@ -705,7 +703,7 @@ TestAsyncProxy()
 
   // Now test async proxies to another thread.
 
-  Mutex* counterLock = new Mutex("counterLock");
+  PRLock* counterLock = nsAutoLock::NewLock("counterLock");
   NS_ENSURE_TRUE(counterLock, NS_ERROR_OUT_OF_MEMORY);
 
   counter = 0;
@@ -726,11 +724,11 @@ TestAsyncProxy()
     rv = NS_ProcessPendingEvents(gMainThread, PR_SecondsToInterval(1));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    MutexAutoLock lock(*counterLock);
+    nsAutoLock lock(counterLock);
     safeCounter = counter;
   }
 
-  delete counterLock;
+  nsAutoLock::DestroyLock(counterLock);
 
   // Now test async proxies to another thread that create sync proxies to this
   // thread.

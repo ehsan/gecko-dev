@@ -118,8 +118,6 @@ function run_test() {
     var lastModified = bmsvc.getItemLastModified(testItemId);
     // Verify that lastModified equals dateAdded before we set the annotation.
     do_check_eq(lastModified, bmsvc.getItemDateAdded(testItemId));
-    // Workaround possible VM timers issues moving last modified to the past.
-    bmsvc.setItemLastModified(testItemId, --lastModified);
     annosvc.setItemAnnotation(testItemId, testAnnoName, testAnnoVal, 0, 0);
     var lastModified2 = bmsvc.getItemLastModified(testItemId);
     // verify that setting the annotation updates the last modified time
@@ -131,6 +129,7 @@ function run_test() {
   do_check_eq(annoObserver.ITEM_lastSet_AnnoName, testAnnoName);
 
   try {
+    var lastModified = bmsvc.getItemLastModified(testItemId);
     var annoVal = annosvc.getItemAnnotation(testItemId, testAnnoName);
     // verify the anno value
     do_check_true(testAnnoVal === annoVal);
@@ -141,7 +140,7 @@ function run_test() {
   // test getPagesWithAnnotation
   var uri2 = uri("http://www.tests.tld");
   annosvc.setPageAnnotation(uri2, testAnnoName, testAnnoVal, 0, 0);
-  var pages = annosvc.getPagesWithAnnotation(testAnnoName);
+  var pages = annosvc.getPagesWithAnnotation(testAnnoName, { });
   do_check_eq(pages.length, 2);
   // Don't rely on the order
   do_check_false(pages[0].equals(pages[1]));
@@ -151,7 +150,7 @@ function run_test() {
   // test getItemsWithAnnotation
   var testItemId2 = bmsvc.insertBookmark(bmsvc.bookmarksMenuFolder, uri2, -1, "");
   annosvc.setItemAnnotation(testItemId2, testAnnoName, testAnnoVal, 0, 0);
-  var items = annosvc.getItemsWithAnnotation(testAnnoName);
+  var items = annosvc.getItemsWithAnnotation(testAnnoName, { });
   do_check_eq(items.length, 2);
   // Don't rely on the order
   do_check_true(items[0] != items[1]);
@@ -182,20 +181,20 @@ function run_test() {
   do_check_eq(storageType.value, Ci.nsIAnnotationService.TYPE_STRING);
 
   // get annotation names for a uri
-  var annoNames = annosvc.getPageAnnotationNames(testURI);
+  var annoNames = annosvc.getPageAnnotationNames(testURI, {});
   do_check_eq(annoNames.length, 1);
   do_check_eq(annoNames[0], "moz-test-places/annotations");
 
   // get annotation names for an item
-  var annoNames = annosvc.getItemAnnotationNames(testItemId);
+  var annoNames = annosvc.getItemAnnotationNames(testItemId, {});
   do_check_eq(annoNames.length, 1);
   do_check_eq(annoNames[0], "moz-test-places/annotations");
 
   /* copy annotations to another uri
   var newURI = uri("http://mozilla.org");
-  var oldAnnoNames = annosvc.getPageAnnotationNames(testURI);
+  var oldAnnoNames = annosvc.getPageAnnotationNames(testURI, {});
   annosvc.copyAnnotations(testURI, newURI, false);
-  var newAnnoNames = annosvc.getPageAnnotationNames(newURI);
+  var newAnnoNames = annosvc.getPageAnnotationNames(newURI, {});
   do_check_eq(oldAnnoNames.length, newAnnoNames.length);
   */
 
@@ -306,14 +305,13 @@ function run_test() {
   annosvc.setItemAnnotation(testItemId, testAnnoName, testAnnoVal, 0, 0);
   // verify that removing an annotation updates the last modified date
   var lastModified3 = bmsvc.getItemLastModified(testItemId);
-  // Workaround possible VM timers issues moving last modified to the past.
-  bmsvc.setItemLastModified(testItemId, --lastModified3);
   annosvc.removeItemAnnotation(testItemId, int32Key);
   var lastModified4 = bmsvc.getItemLastModified(testItemId);
   LOG("verify that removing an annotation updates the last modified date");
   LOG("lastModified3 = " + lastModified3);
   LOG("lastModified4 = " + lastModified4);
-  do_check_true(lastModified4 > lastModified3);
+  // XXX bug 381240
+  //do_check_true(lastModified4 >= lastModified3);
 
   do_check_eq(annoObserver.PAGE_lastRemoved_URI, testURI.spec);
   do_check_eq(annoObserver.PAGE_lastRemoved_AnnoName, int32Key);
@@ -322,8 +320,8 @@ function run_test() {
 
   // test that getItems/PagesWithAnnotation returns an empty array after
   // removing all items/pages which had the annotation set, see bug 380317.
-  do_check_eq(annosvc.getItemsWithAnnotation(int32Key).length, 0);
-  do_check_eq(annosvc.getPagesWithAnnotation(int32Key).length, 0);
+  do_check_eq(annosvc.getItemsWithAnnotation(int32Key, { }).length, 0);
+  do_check_eq(annosvc.getPagesWithAnnotation(int32Key, { }).length, 0);
 
   // Setting item annotations on invalid item ids should throw
   var invalidIds = [-1, 0, 37643];

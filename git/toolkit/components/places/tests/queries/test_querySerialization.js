@@ -267,8 +267,8 @@ const querySwitches = [
   {
     desc:    "nsINavHistoryQuery.getFolders",
     matches: function (aQuery1, aQuery2) {
-      var q1Folders = aQuery1.getFolders();
-      var q2Folders = aQuery2.getFolders();
+      var q1Folders = aQuery1.getFolders({}, {});
+      var q2Folders = aQuery2.getFolders({}, {});
       if (q1Folders.length !== q2Folders.length)
         return false;
       for (let i = 0; i < q1Folders.length; i++) {
@@ -460,6 +460,17 @@ const queryOptionSwitches = [
     runs:     [
       function (aQuery, aQueryOptions) {
         aQueryOptions.includeHidden = true;
+      }
+    ]
+  },
+  // showSessions
+  {
+    property: "showSessions",
+    desc:     "nsINavHistoryQueryOptions.showSessions",
+    matches:  simplePropertyMatches,
+    runs:     [
+      function (aQuery, aQueryOptions) {
+        aQueryOptions.showSessions = true;
       }
     ]
   },
@@ -671,14 +682,12 @@ function flagSwitchMatches(aQuery1, aQuery2)
 {
   if (aQuery1[this.flag] && aQuery2[this.flag]) {
     for (let p in this.subswitches) {
-      if (p in aQuery1 && p in aQuery2) {
-        if (aQuery1[p] instanceof Ci.nsIURI) {
-          if (!aQuery1[p].equals(aQuery2[p]))
-            return false;
-        }
-        else if (aQuery1[p] !== aQuery2[p])
+      if (aQuery1[p] instanceof Ci.nsIURI) {
+        if (!aQuery1[p].equals(aQuery2[p]))
           return false;
       }
+      else if (aQuery1[p] !== aQuery2[p])
+        return false;
     }
   }
   else if (aQuery1[this.flag] || aQuery2[this.flag])

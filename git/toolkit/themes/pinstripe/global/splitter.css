@@ -53,10 +53,6 @@ splitter {
   background: url("chrome://global/skin/splitter/dimple.png") transparent no-repeat center;  
 }
 
-splitter:-moz-lwtheme {
-  background: none;
-}
-
 /* ::::: splitter (horizontal) ::::: */
 
 splitter[orient="vertical"] {
@@ -79,7 +75,7 @@ grippy {
 }
 
 grippy:hover {
-  background-color: ThreeDHighlight;
+  background-color: #CCCCFF;
 }
 
 splitter[orient="vertical"] > grippy {

@@ -150,7 +150,7 @@ public:
   // Functions for manipulating the frame model
   NS_HIDDEN_(nsresult) AppendFrames(nsIFrame*       aParentFrame,
                                     nsIAtom*        aListName,
-                                    nsFrameList&    aFrameList)
+                                    nsIFrame*       aFrameList)
   {
     return aParentFrame->AppendFrames(aListName, aFrameList);
   }
@@ -158,7 +158,7 @@ public:
   NS_HIDDEN_(nsresult) InsertFrames(nsIFrame*       aParentFrame,
                                     nsIAtom*        aListName,
                                     nsIFrame*       aPrevFrame,
-                                    nsFrameList&    aFrameList);
+                                    nsIFrame*       aFrameList);
 
   NS_HIDDEN_(nsresult) RemoveFrame(nsIFrame*       aParentFrame,
                                    nsIAtom*        aListName,
@@ -191,12 +191,10 @@ public:
                           nsChangeHint aMinChange);
 
   // Determine whether an attribute affects style
-  // If aAttrHasChanged is false, the attribute's value is about to
-  // change. If it's true, it has already changed.
   NS_HIDDEN_(nsReStyleHint) HasAttributeDependentStyle(nsIContent *aContent,
                                                        nsIAtom *aAttribute,
                                                        PRInt32 aModType,
-                                                       PRBool aAttrHasChanged);
+                                                       PRUint32 aStateMask);
 
   /*
    * Capture/restore frame state for the frame subtree rooted at aFrame.
@@ -242,8 +240,7 @@ private:
                           nsIFrame          *aFrame,
                           nsIContent        *aParentContent,
                           nsStyleChangeList *aChangeList, 
-                          nsChangeHint       aMinChange,
-                          PRBool             aFireAccessibilityEvents);
+                          nsChangeHint       aMinChange);
 };
 
 #endif

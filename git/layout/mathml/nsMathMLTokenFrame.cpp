@@ -53,9 +53,6 @@ NS_NewMathMLTokenFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsMathMLTokenFrame(aContext);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsMathMLTokenFrame)
-
 nsMathMLTokenFrame::~nsMathMLTokenFrame()
 {
 }
@@ -135,14 +132,14 @@ nsMathMLTokenFrame::Init(nsIContent*      aContent,
 
 NS_IMETHODIMP
 nsMathMLTokenFrame::SetInitialChildList(nsIAtom*        aListName,
-                                        nsFrameList&    aChildList)
+                                        nsIFrame*       aChildList)
 {
   // First, let the base class do its work
   nsresult rv = nsMathMLContainerFrame::SetInitialChildList(aListName, aChildList);
   if (NS_FAILED(rv))
     return rv;
 
-  SetQuotes(PR_FALSE);
+  SetQuotes();
   ProcessTextData();
   return rv;
 }
@@ -218,9 +215,9 @@ nsMathMLTokenFrame::Place(nsIRenderingContext& aRenderingContext,
 
   aDesiredSize.mBoundingMetrics = mBoundingMetrics;
   aDesiredSize.width = mBoundingMetrics.width;
-  aDesiredSize.ascent = NS_MAX(mBoundingMetrics.ascent, ascent);
+  aDesiredSize.ascent = PR_MAX(mBoundingMetrics.ascent, ascent);
   aDesiredSize.height = aDesiredSize.ascent +
-                        NS_MAX(mBoundingMetrics.descent, descent);
+                        PR_MAX(mBoundingMetrics.descent, descent);
 
   if (aPlaceOrigin) {
     nscoord dy, dx = 0;
@@ -259,7 +256,7 @@ nsMathMLTokenFrame::AttributeChanged(PRInt32         aNameSpaceID,
 {
   if (nsGkAtoms::lquote_ == aAttribute ||
       nsGkAtoms::rquote_ == aAttribute) {
-    SetQuotes(PR_TRUE);
+    SetQuotes();
   }
 
   return nsMathMLContainerFrame::
@@ -378,44 +375,57 @@ nsMathMLTokenFrame::SetTextStyle()
 // So the main idea in this code is to see if there are lquote and 
 // rquote attributes. If these are there, we ovewrite the default
 // quotes in the text frames.
-// XXX this is somewhat bogus, we probably should map lquote and rquote
-// to 'content' style rules
 //
 // But what if the mathml.css file wasn't loaded? 
 // We also check that we are not relying on null pointers...
 
 static void
-SetQuote(nsIFrame* aFrame, nsString& aValue, PRBool aNotify)
+SetQuote(nsIFrame*       aFrame, 
+         nsString&       aValue)
 {
-  if (!aFrame)
-    return;
-
-  nsIFrame* textFrame = aFrame->GetFirstChild(nsnull);
-  if (!textFrame)
-    return;
-
-  nsIContent* quoteContent = textFrame->GetContent();
-  if (!quoteContent->IsNodeOfType(nsINode::eTEXT))
-    return;
-
-  quoteContent->SetText(aValue, aNotify);
+  nsIFrame* textFrame;
+  do {
+    // walk down the hierarchy of first children because they could be wrapped
+    textFrame = aFrame->GetFirstChild(nsnull);
+    if (textFrame) {
+      if (textFrame->GetType() == nsGkAtoms::textFrame)
+        break;
+    }
+    aFrame = textFrame;
+  } while (textFrame);
+  if (textFrame) {
+    nsIContent* quoteContent = textFrame->GetContent();
+    if (quoteContent && quoteContent->IsNodeOfType(nsINode::eTEXT)) {
+      quoteContent->SetText(aValue, PR_FALSE); // no notify since we don't want a reflow yet
+    }
+  }
 }
 
 void
-nsMathMLTokenFrame::SetQuotes(PRBool aNotify)
+nsMathMLTokenFrame::SetQuotes()
 {
   if (mContent->Tag() != nsGkAtoms::ms_)
+    return;
+
+  nsIFrame* rightFrame = nsnull;
+  nsIFrame* baseFrame = nsnull;
+  nsIFrame* leftFrame = mFrames.FirstChild();
+  if (leftFrame)
+    baseFrame = leftFrame->GetNextSibling();
+  if (baseFrame)
+    rightFrame = baseFrame->GetNextSibling();
+  if (!leftFrame || !baseFrame || !rightFrame)
     return;
 
   nsAutoString value;
   // lquote
   if (GetAttribute(mContent, mPresentationData.mstyle,
                    nsGkAtoms::lquote_, value)) {
-    SetQuote(nsLayoutUtils::GetBeforeFrame(this), value, aNotify);
+    SetQuote(leftFrame, value);
   }
   // rquote
   if (GetAttribute(mContent, mPresentationData.mstyle,
                    nsGkAtoms::rquote_, value)) {
-    SetQuote(nsLayoutUtils::GetAfterFrame(this), value, aNotify);
+    SetQuote(rightFrame, value);
   }
 }

@@ -54,6 +54,7 @@
 #include "nsIDocument.h"
 #include "nsIGenericFactory.h"
 #include "nsIObserver.h"
+#include "nsIPref.h"
 #include "nsIPresShell.h"
 #include "nsIStyleSheetService.h"
 #include "nsIWebProgress.h"
@@ -135,7 +136,7 @@ private:
   void AttachWindowListeners(nsIDOMWindow *aDOMWin);
   PRBool IsXULNode(nsIDOMNode *aNode, PRUint32 *aType = 0);
   nsresult GetDOMWindowByNode(nsIDOMNode *aNode, nsIDOMWindow * *aDOMWindow);
-  nsresult UpdateFromEvent(nsIDOMEvent *aDOMEvent);
+  nsresult UpdateFromEvent(nsIDOMEvent *aDOMEvent, nsIWidget * *aWidget = nsnull, nsIViewManager * *aViewManager = nsnull);
 
   static void StopPanningCallback(nsITimer *timer, void *closure);
 
@@ -165,7 +166,7 @@ nsWidgetUtils::Init()
 }
 
 nsresult
-nsWidgetUtils::UpdateFromEvent(nsIDOMEvent *aDOMEvent)
+nsWidgetUtils::UpdateFromEvent(nsIDOMEvent *aDOMEvent, nsIWidget * *aWidget, nsIViewManager * *aViewManager)
 {
   nsCOMPtr <nsIDOMMouseEvent> mouseEvent;
   mouseEvent = do_QueryInterface(aDOMEvent);
@@ -215,8 +216,12 @@ nsWidgetUtils::UpdateFromEvent(nsIDOMEvent *aDOMEvent)
   NS_ENSURE_TRUE(shell, NS_ERROR_FAILURE);
   mViewManager = shell->GetViewManager();
   NS_ENSURE_TRUE(mViewManager, NS_ERROR_FAILURE);
-  mViewManager->GetRootWidget(getter_AddRefs(mWidget));
+  mViewManager->GetWidget(getter_AddRefs(mWidget));
   NS_ENSURE_TRUE(mWidget, NS_ERROR_FAILURE);
+  if (aWidget)
+    NS_ADDREF(*aWidget = mWidget);
+  if (aViewManager)
+    NS_ADDREF(*aViewManager = mViewManager);
   return NS_OK;
 }
 
@@ -293,8 +298,8 @@ nsWidgetUtils::MouseMove(nsIDOMEvent* aDOMEvent)
   nsEventStatus statusX;
   nsMouseScrollEvent scrollEventX(PR_TRUE, NS_MOUSE_SCROLL, mWidget);
   scrollEventX.delta = dx;
-  scrollEventX.scrollFlags = nsMouseScrollEvent::kIsHorizontal | nsMouseScrollEvent::kHasPixels;
-  mViewManager->DispatchEvent(&scrollEventX, aView, &statusX);
+  scrollEventX.scrollFlags = nsMouseScrollEvent::kIsHorizontal | nsMouseScrollEvent::kIsPixels;
+  mViewManager->DispatchEvent(&scrollEventX, &statusX);
   if(statusX != nsEventStatus_eIgnore ){
     if (dx > 5)
       g_panning = PR_TRUE;
@@ -304,8 +309,8 @@ nsWidgetUtils::MouseMove(nsIDOMEvent* aDOMEvent)
   nsEventStatus statusY;
   nsMouseScrollEvent scrollEventY(PR_TRUE, NS_MOUSE_SCROLL, mWidget);
   scrollEventY.delta = dy;
-  scrollEventY.scrollFlags = nsMouseScrollEvent::kIsVertical | nsMouseScrollEvent::kHasPixels;
-  mViewManager->DispatchEvent(&scrollEventY, aView, &statusY);
+  scrollEventY.scrollFlags = nsMouseScrollEvent::kIsVertical | nsMouseScrollEvent::kIsPixels;
+  mViewManager->DispatchEvent(&scrollEventY, &statusY);
   if(statusY != nsEventStatus_eIgnore ){
     if (dy > 5)
       g_panning = PR_TRUE;

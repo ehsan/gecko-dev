@@ -353,8 +353,7 @@ nsMediaQueryResultCacheKey::Matches(nsPresContext* aPresContext) const
   for (PRUint32 i = 0; i < mFeatureCache.Length(); ++i) {
     const FeatureEntry *entry = &mFeatureCache[i];
     nsCSSValue actual;
-    nsresult rv =
-      (entry->mFeature->mGetter)(aPresContext, entry->mFeature, actual);
+    nsresult rv = (entry->mFeature->mGetter)(aPresContext, actual);
     NS_ENSURE_SUCCESS(rv, PR_FALSE); // any better ideas?
 
     for (PRUint32 j = 0; j < entry->mExpressions.Length(); ++j) {
@@ -463,7 +462,7 @@ nsMediaQuery::AppendToString(nsAString& aString) const
                        "bad unit");
           AppendASCIItoUTF16(
               nsCSSProps::ValueToKeyword(expr.mValue.GetIntValue(),
-                                         feature->mData.mKeywordTable),
+                                         feature->mKeywordTable),
               aString);
           break;
       }
@@ -495,8 +494,7 @@ nsMediaQuery::Matches(nsPresContext* aPresContext,
   for (PRUint32 i = 0, i_end = mExpressions.Length(); match && i < i_end; ++i) {
     const nsMediaExpression &expr = mExpressions[i];
     nsCSSValue actual;
-    nsresult rv =
-      (expr.mFeature->mGetter)(aPresContext, expr.mFeature, actual);
+    nsresult rv = (expr.mFeature->mGetter)(aPresContext, actual);
     NS_ENSURE_SUCCESS(rv, PR_FALSE); // any better ideas?
 
     match = expr.Matches(aPresContext, actual);
@@ -603,7 +601,6 @@ nsMediaList::Clone(nsMediaList** aResult)
       return NS_ERROR_OUT_OF_MEMORY;
     }
   }
-  result->mIsEmpty = mIsEmpty;
   NS_ADDREF(*aResult = result);
   return NS_OK;
 }
@@ -962,7 +959,7 @@ nsCSSStyleSheetInner::RebuildNameSpaces()
 nsresult
 nsCSSStyleSheetInner::CreateNamespaceMap()
 {
-  mNameSpaceMap = nsXMLNameSpaceMap::Create(PR_FALSE);
+  mNameSpaceMap = nsXMLNameSpaceMap::Create();
   NS_ENSURE_TRUE(mNameSpaceMap, NS_ERROR_OUT_OF_MEMORY);
   // Override the default namespace map behavior for the null prefix to
   // return the wildcard namespace instead of the null namespace.

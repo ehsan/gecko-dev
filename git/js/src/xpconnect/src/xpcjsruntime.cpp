@@ -61,9 +61,12 @@ const char* XPCJSRuntime::mStrings[] = {
     "createInstance",       // IDX_CREATE_INSTANCE
     "item",                 // IDX_ITEM
     "__proto__",            // IDX_PROTO
-    "__iterator__",         // IDX_ITERATOR
-    "__parent__",           // IDX_PARENT
-    "__exposedProps__"      // IDX_EXPOSEDPROPS
+    "__iterator__"          // IDX_ITERATOR
+#ifdef XPC_IDISPATCH_SUPPORT
+    , "GeckoActiveXObject"  // IDX_ACTIVEX_OBJECT
+    , "COMObject"           // IDX_COMOBJECT
+    , "supports"            // IDX_ACTIVEX_SUPPORTS
+#endif
 };
 
 /***************************************************************************/
@@ -116,6 +119,7 @@ static JSDHashOperator
 NativeInterfaceSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
                        uint32 number, void *arg)
 {
+    CX_AND_XPCRT_Data* data = (CX_AND_XPCRT_Data*) arg;
     XPCNativeInterface* iface = ((IID2NativeInterfaceMap::Entry*)hdr)->value;
     if(iface->IsMarked())
     {
@@ -128,7 +132,7 @@ NativeInterfaceSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
             JS_GetStringBytes(JSVAL_TO_STRING(iface->GetName())));
 #endif
 
-    XPCNativeInterface::DestroyInstance(iface);
+    XPCNativeInterface::DestroyInstance(data->cx, data->rt, iface);
     return JS_DHASH_REMOVE;
 }
 
@@ -410,13 +414,13 @@ void XPCJSRuntime::AddXPConnectRoots(JSContext* cx,
     JSContext *iter = nsnull, *acx;
     while((acx = JS_ContextIterator(GetJSRuntime(), &iter)))
     {
-        // Only skip JSContexts with outstanding requests if the
-        // callback does not want all traces (a debug feature).
-        // Otherwise, we do want to know about all JSContexts to get
-        // better graphs and explanations.
-        if(!cb.WantAllTraces() &&
-           nsXPConnect::GetXPConnect()->GetRequestDepth(acx) != 0)
+#ifndef DEBUG_CC
+        // Only skip JSContexts with outstanding requests if DEBUG_CC is not
+        // defined, else we do want to know about all JSContexts to get better
+        // graphs and explanations.
+        if(nsXPConnect::GetXPConnect()->GetRequestDepth(acx) != 0)
             continue;
+#endif
         cb.NoteRoot(nsIProgrammingLanguage::CPLUSPLUS, acx,
                     nsXPConnect::JSContextParticipant());
     }
@@ -444,8 +448,7 @@ void XPCJSRuntime::UnrootContextGlobals()
     {
         NS_ASSERTION(!JS_HAS_OPTION(acx, JSOPTION_UNROOTED_GLOBAL),
                      "unrooted global should be set only during CC");
-        if(XPCPerThreadData::IsMainThreadContext(acx) &&
-           nsXPConnect::GetXPConnect()->GetRequestDepth(acx) == 0)
+        if(nsXPConnect::GetXPConnect()->GetRequestDepth(acx) == 0)
         {
             JS_ClearNewbornRoots(acx);
             if(acx->globalObject)
@@ -641,8 +644,10 @@ JSBool XPCJSRuntime::GCCallback(JSContext *cx, JSGCStatus status)
                 self->mNativeSetMap->
                     Enumerate(NativeSetSweeper, nsnull);
 
+                CX_AND_XPCRT_Data data = {cx, self};
+
                 self->mIID2NativeInterfaceMap->
-                    Enumerate(NativeInterfaceSweeper, nsnull);
+                    Enumerate(NativeInterfaceSweeper, &data);
 
 #ifdef DEBUG
                 XPCWrappedNativeScope::ASSERT_NoInterfaceSetsAreMarked();
@@ -1094,13 +1099,11 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
         xpc_InstallJSDebuggerKeywordHandler(mJSRuntime);
 #endif
 
-    if (mWatchdogWakeup) {
-        AutoLockJSGC lock(mJSRuntime);
+    AutoLockJSGC lock(mJSRuntime);
 
-        mWatchdogThread = PR_CreateThread(PR_USER_THREAD, WatchdogMain, this,
-                                          PR_PRIORITY_NORMAL, PR_LOCAL_THREAD,
-                                          PR_UNJOINABLE_THREAD, 0);
-    }
+    mWatchdogThread = PR_CreateThread(PR_USER_THREAD, WatchdogMain, this,
+                                      PR_PRIORITY_NORMAL, PR_LOCAL_THREAD,
+                                      PR_UNJOINABLE_THREAD, 0);
 }
 
 // static

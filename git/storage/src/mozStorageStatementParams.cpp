@@ -41,9 +41,7 @@
 #include "nsMemory.h"
 #include "nsString.h"
 
-#include "mozStoragePrivateHelpers.h"
 #include "mozStorageStatementParams.h"
-#include "mozIStorageStatement.h"
 
 namespace mozilla {
 namespace storage {
@@ -88,13 +86,12 @@ StatementParams::SetProperty(nsIXPConnectWrappedNative *aWrapper,
   if (JSVAL_IS_INT(aId)) {
     int idx = JSVAL_TO_INT(aId);
 
-    PRBool res = bindJSValue(aCtx, mStatement, idx, *_vp);
+    PRBool res = JSValStorageStatementBinder(aCtx, mStatement, idx, *_vp);
     NS_ENSURE_TRUE(res, NS_ERROR_UNEXPECTED);
   }
   else if (JSVAL_IS_STRING(aId)) {
     JSString *str = JSVAL_TO_STRING(aId);
-    NS_ConvertUTF16toUTF8 name(reinterpret_cast<const PRUnichar *>
-                                   (::JS_GetStringChars(str)),
+    NS_ConvertUTF16toUTF8 name(::JS_GetStringChars(str),
                                ::JS_GetStringLength(str));
 
     // check to see if there's a parameter with this name
@@ -102,7 +99,7 @@ StatementParams::SetProperty(nsIXPConnectWrappedNative *aWrapper,
     nsresult rv = mStatement->GetParameterIndex(name, &index);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    PRBool res = bindJSValue(aCtx, mStatement, index, *_vp);
+    PRBool res = JSValStorageStatementBinder(aCtx, mStatement, index, *_vp);
     NS_ENSURE_TRUE(res, NS_ERROR_UNEXPECTED);
   }
   else {
@@ -211,8 +208,7 @@ StatementParams::NewResolve(nsIXPConnectWrappedNative *aWrapper,
 
     // Check to see if there's a parameter with this name, and if not, let
     // the rest of the prototype chain be checked.
-    NS_ConvertUTF16toUTF8 name(reinterpret_cast<const PRUnichar *>(nameChars),
-                               nameLength);
+    NS_ConvertUTF16toUTF8 name(nameChars, nameLength);
     nsresult rv = mStatement->GetParameterIndex(name, &idx);
     if (NS_FAILED(rv)) {
       *_objp = NULL;

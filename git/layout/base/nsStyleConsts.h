@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   Mats Palmgren <mats.palmgren@bredband.net>
- *   Jonathon Jongsma <jonathon.jongsma@collabora.co.uk>, Collabora Ltd.
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -270,15 +269,10 @@
 #define NS_STYLE_BG_POSITION_RIGHT   (1<<4)
 
 // See nsStyleBackground
-// Code depends on (BG_REPEAT_X | BG_REPEAT_Y) == BG_REPEAT_XY
 #define NS_STYLE_BG_REPEAT_OFF                  0x00
 #define NS_STYLE_BG_REPEAT_X                    0x01
 #define NS_STYLE_BG_REPEAT_Y                    0x02
 #define NS_STYLE_BG_REPEAT_XY                   0x03
-
-// See nsStyleBackground
-#define NS_STYLE_BG_SIZE_CONTAIN  0
-#define NS_STYLE_BG_SIZE_COVER    1
 
 // See nsStyleTable
 #define NS_STYLE_BORDER_COLLAPSE                0
@@ -584,18 +578,6 @@
 // See nsStyleMargin
 #define NS_STYLE_MARGIN_SIZE_AUTO               0
 
-// See nsStyleDisplay
-#define NS_STYLE_POINTER_EVENTS_NONE            0
-#define NS_STYLE_POINTER_EVENTS_VISIBLEPAINTED  1
-#define NS_STYLE_POINTER_EVENTS_VISIBLEFILL     2
-#define NS_STYLE_POINTER_EVENTS_VISIBLESTROKE   3
-#define NS_STYLE_POINTER_EVENTS_VISIBLE         4
-#define NS_STYLE_POINTER_EVENTS_PAINTED         5
-#define NS_STYLE_POINTER_EVENTS_FILL            6
-#define NS_STYLE_POINTER_EVENTS_STROKE          7
-#define NS_STYLE_POINTER_EVENTS_ALL             8
-#define NS_STYLE_POINTER_EVENTS_AUTO            9
-
 // See nsStyleText
 #define NS_STYLE_TEXT_ALIGN_DEFAULT               0
 #define NS_STYLE_TEXT_ALIGN_LEFT                  1
@@ -631,13 +613,6 @@
 #define NS_STYLE_TEXT_TRANSFORM_LOWERCASE       2
 #define NS_STYLE_TEXT_TRANSFORM_UPPERCASE       3
 
-// See nsStyleDisplay
-#define NS_STYLE_TRANSITION_TIMING_FUNCTION_EASE         0
-#define NS_STYLE_TRANSITION_TIMING_FUNCTION_LINEAR       1
-#define NS_STYLE_TRANSITION_TIMING_FUNCTION_EASE_IN      2
-#define NS_STYLE_TRANSITION_TIMING_FUNCTION_EASE_OUT     3
-#define NS_STYLE_TRANSITION_TIMING_FUNCTION_EASE_IN_OUT  4
-
 // See nsStyleText
 // Note: these values pickup after the text-align values because there
 // are a few html cases where an object can have both types of
@@ -656,9 +631,6 @@
 #define NS_STYLE_VISIBILITY_HIDDEN              0
 #define NS_STYLE_VISIBILITY_VISIBLE             1
 #define NS_STYLE_VISIBILITY_COLLAPSE            2
-
-// See nsStyleText
-#define NS_STYLE_TABSIZE_INITIAL                8
 
 // See nsStyleText
 #define NS_STYLE_WHITESPACE_NORMAL              0
@@ -748,16 +720,7 @@
 #define NS_STYLE_IME_MODE_DISABLED              3
 #define NS_STYLE_IME_MODE_INACTIVE              4
 
-// See nsStyleGradient
-#define NS_STYLE_GRADIENT_SHAPE_LINEAR          0
-#define NS_STYLE_GRADIENT_SHAPE_ELLIPTICAL      1
-#define NS_STYLE_GRADIENT_SHAPE_CIRCULAR        2
-
-#define NS_STYLE_GRADIENT_SIZE_CLOSEST_SIDE     0
-#define NS_STYLE_GRADIENT_SIZE_CLOSEST_CORNER   1
-#define NS_STYLE_GRADIENT_SIZE_FARTHEST_SIDE    2
-#define NS_STYLE_GRADIENT_SIZE_FARTHEST_CORNER  3
-
+#ifdef MOZ_SVG
 // See nsStyleSVG
 
 // dominant-baseline
@@ -783,6 +746,17 @@
 #define NS_STYLE_IMAGE_RENDERING_OPTIMIZESPEED    1
 #define NS_STYLE_IMAGE_RENDERING_OPTIMIZEQUALITY  2
 #define NS_STYLE_IMAGE_RENDERING_CRISPEDGES       3
+
+// pointer-events
+#define NS_STYLE_POINTER_EVENTS_NONE            0
+#define NS_STYLE_POINTER_EVENTS_VISIBLEPAINTED  1
+#define NS_STYLE_POINTER_EVENTS_VISIBLEFILL     2
+#define NS_STYLE_POINTER_EVENTS_VISIBLESTROKE   3
+#define NS_STYLE_POINTER_EVENTS_VISIBLE         4
+#define NS_STYLE_POINTER_EVENTS_PAINTED         5
+#define NS_STYLE_POINTER_EVENTS_FILL            6
+#define NS_STYLE_POINTER_EVENTS_STROKE          7
+#define NS_STYLE_POINTER_EVENTS_ALL             8
 
 // shape-rendering
 #define NS_STYLE_SHAPE_RENDERING_AUTO               0
@@ -815,6 +789,8 @@
 #define NS_STYLE_COLOR_INTERPOLATION_AUTO           0
 #define NS_STYLE_COLOR_INTERPOLATION_SRGB           1
 #define NS_STYLE_COLOR_INTERPOLATION_LINEARRGB      2
+
+#endif // MOZ_SVG
 
 /*****************************************************************************
  * Constants for media features.                                             *

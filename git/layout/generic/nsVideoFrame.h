@@ -58,8 +58,7 @@ public:
   nsVideoFrame(nsStyleContext* aContext);
 
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
-
+  
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
@@ -101,12 +100,6 @@ public:
   
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
 
-  nsIContent* GetPosterImage() { return mPosterImage; }
-
-  // Returns PR_TRUE if we should display the poster. Note that once we show
-  // a video frame, the poster will never be displayed again.
-  PRBool ShouldDisplayPoster();
-
 #ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
@@ -121,10 +114,13 @@ protected:
   // when we're the frame for an audio element, or we've created a video
   // element for a media which is audio-only.
   PRBool HasVideoData();
+  
+  // Returns PR_TRUE if we should display the poster. Note that once we show
+  // a video frame, the poster will never be displayed again.
+  PRBool ShouldDisplayPoster();
 
   // Sets the mPosterImage's src attribute to be the video's poster attribute,
-  // if we're the frame for a video element. Only call on frames for video
-  // elements, not for frames for audio elements.
+  // if we're the frame for a video element.
   nsresult UpdatePosterSource(PRBool aNotify);
 
   virtual ~nsVideoFrame();

@@ -50,6 +50,9 @@ JS_BEGIN_EXTERN_C
 
 #define ARRAY_CAPACITY_MIN      7
 
+/* Generous sanity-bound on length (in elements) of array initialiser. */
+#define ARRAY_INIT_LIMIT        JS_BIT(24)
+
 extern JSBool
 js_IdIsIndex(jsval id, jsuint *indexp);
 
@@ -93,16 +96,6 @@ js_GetProtoIfDenseArray(JSContext *cx, JSObject *obj)
 
 extern JSObject *
 js_InitArrayClass(JSContext *cx, JSObject *obj);
-
-extern bool
-js_InitContextBusyArrayTable(JSContext *cx);
-
-/*
- * Creates a new array with the given length and proto (NB: NULL is not
- * translated to Array.prototype), with len slots preallocated.
- */
-extern JSObject * JS_FASTCALL
-js_NewArrayWithSlots(JSContext* cx, JSObject* proto, uint32 len);
 
 extern JSObject *
 js_NewArrayObject(JSContext *cx, jsuint length, jsval *vector,
@@ -169,7 +162,7 @@ typedef JSBool (*JSComparator)(void *arg, const void *a, const void *b,
  * comparator function cmp returns an error inside a comparison, so remember
  * to check the return value of this function.
  */
-extern JSBool
+extern JS_REQUIRES_STACK JSBool
 js_MergeSort(void *vec, size_t nel, size_t elsize, JSComparator cmp,
              void *arg, void *tmp);
 
@@ -210,24 +203,6 @@ js_PrototypeHasIndexedProperties(JSContext *cx, JSObject *obj);
 JSBool
 js_GetDenseArrayElementValue(JSContext *cx, JSObject *obj, JSProperty *prop,
                              jsval *vp);
-
-/* Array constructor native. Exposed only so the JIT can know its address. */
-JSBool
-js_Array(JSContext* cx, JSObject* obj, uintN argc, jsval* argv, jsval* rval);
-
-/*
- * Friend api function that allows direct creation of an array object with a
- * given capacity.  Non-null return value means allocation of the internal
- * buffer for a capacity of at least |capacity| succeeded.  A pointer to the
- * first element of this internal buffer is returned in the |vector| out
- * parameter.  The caller promises to fill in the first |capacity| values
- * starting from that pointer immediately after this function returns and
- * without triggering GC (so this method is allowed to leave those
- * uninitialized) and to set them to non-JSVAL_HOLE values, so that the
- * resulting array has length and count both equal to |capacity|.
- */
-JS_FRIEND_API(JSObject *)
-js_NewArrayObjectWithCapacity(JSContext *cx, jsuint capacity, jsval **vector);
 
 JS_END_EXTERN_C
 

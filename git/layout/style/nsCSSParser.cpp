@@ -26,9 +26,6 @@
  *   Boris Zbarsky <bzbarsky@mit.edu>
  *   Mats Palmgren <mats.palmgren@bredband.net>
  *   Christian Biesinger <cbiesinger@web.de>
- *   Jeff Walden <jwalden+code@mit.edu>
- *   Jonathon Jongsma <jonathon.jongsma@collabora.co.uk>, Collabora Ltd.
- *   Siraj Razick <siraj.razick@collabora.co.uk>, Collabora Ltd.
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -68,6 +65,7 @@
 #include "nsIAtom.h"
 #include "nsCOMArray.h"
 #include "nsColor.h"
+#include "nsStyleConsts.h"
 #include "nsCSSPseudoClasses.h"
 #include "nsCSSPseudoElements.h"
 #include "nsCSSAnonBoxes.h"
@@ -108,12 +106,6 @@
 #define VARIANT_NONE            0x040000  // O
 #define VARIANT_NORMAL          0x080000  // M
 #define VARIANT_SYSFONT         0x100000  // eCSSUnit_System_Font
-#define VARIANT_GRADIENT        0x200000  // eCSSUnit_Gradient
-#define VARIANT_CUBIC_BEZIER    0x400000  // CSS transition timing function
-#define VARIANT_ALL             0x800000  //
-#define VARIANT_IMAGE_RECT    0x01000000  // eCSSUnit_Function
-// This is an extra bit that says that a VARIANT_ANGLE allows unitless zero:
-#define VARIANT_ZERO_ANGLE    0x02000000  // unitless zero for angles
 
 // Common combinations of variants
 #define VARIANT_AL   (VARIANT_AUTO | VARIANT_LENGTH)
@@ -123,11 +115,12 @@
 #define VARIANT_AHI  (VARIANT_AH | VARIANT_INTEGER)
 #define VARIANT_AHK  (VARIANT_AH | VARIANT_KEYWORD)
 #define VARIANT_AHKLP (VARIANT_AHLP | VARIANT_KEYWORD)
+#define VARIANT_AUK  (VARIANT_AUTO | VARIANT_URL | VARIANT_KEYWORD)
+#define VARIANT_AHUK (VARIANT_AH | VARIANT_URL | VARIANT_KEYWORD)
 #define VARIANT_AHL  (VARIANT_AH | VARIANT_LENGTH)
 #define VARIANT_AHKL (VARIANT_AHK | VARIANT_LENGTH)
 #define VARIANT_HK   (VARIANT_INHERIT | VARIANT_KEYWORD)
 #define VARIANT_HKF  (VARIANT_HK | VARIANT_FREQUENCY)
-#define VARIANT_HKI  (VARIANT_HK | VARIANT_INTEGER)
 #define VARIANT_HKL  (VARIANT_HK | VARIANT_LENGTH)
 #define VARIANT_HKLP (VARIANT_HK | VARIANT_LP)
 #define VARIANT_HKLPO (VARIANT_HKLP | VARIANT_NONE)
@@ -138,18 +131,16 @@
 #define VARIANT_HLPO (VARIANT_HLP | VARIANT_NONE)
 #define VARIANT_HTP  (VARIANT_INHERIT | VARIANT_TIME | VARIANT_PERCENT)
 #define VARIANT_HMK  (VARIANT_HK | VARIANT_NORMAL)
+#define VARIANT_HMKI (VARIANT_HMK | VARIANT_INTEGER)
 #define VARIANT_HC   (VARIANT_INHERIT | VARIANT_COLOR)
 #define VARIANT_HCK  (VARIANT_HK | VARIANT_COLOR)
-#define VARIANT_HUK  (VARIANT_HK | VARIANT_URL)
 #define VARIANT_HUO  (VARIANT_INHERIT | VARIANT_URL | VARIANT_NONE)
 #define VARIANT_AHUO (VARIANT_AUTO | VARIANT_HUO)
 #define VARIANT_HPN  (VARIANT_INHERIT | VARIANT_PERCENT | VARIANT_NUMBER)
+#define VARIANT_HOK  (VARIANT_HK | VARIANT_NONE)
 #define VARIANT_HN   (VARIANT_INHERIT | VARIANT_NUMBER)
 #define VARIANT_HON  (VARIANT_HN | VARIANT_NONE)
 #define VARIANT_HOS  (VARIANT_INHERIT | VARIANT_NONE | VARIANT_STRING)
-#define VARIANT_TIMING_FUNCTION (VARIANT_KEYWORD | VARIANT_CUBIC_BEZIER)
-#define VARIANT_UK   (VARIANT_URL | VARIANT_KEYWORD)
-#define VARIANT_ANGLE_OR_ZERO (VARIANT_ANGLE | VARIANT_ZERO_ANGLE)
 
 //----------------------------------------------------------------------
 
@@ -162,6 +153,8 @@ public:
   NS_DECL_ISUPPORTS
 
   NS_IMETHOD SetStyleSheet(nsICSSStyleSheet* aSheet);
+
+  NS_IMETHOD SetCaseSensitive(PRBool aCaseSensitive);
 
   NS_IMETHOD SetQuirkMode(PRBool aQuirkMode);
 
@@ -266,16 +259,8 @@ protected:
 #endif
 
   PRBool GetToken(PRBool aSkipWS);
+  PRBool GetURLToken();
   void UngetToken();
-
-  // get the part in paretheses of the url() function, which is really a
-  // part of a token in the CSS grammar, but we're using a combination
-  // of the parser and the scanner to do it to handle the backtracking
-  // required by the error handling of the tokenization (since if we
-  // fail to scan the full token, we should fall back to tokenizing as
-  // FUNCTION ... ')').
-  // Note that this function WILL WRITE TO aURL IN SOME FAILURE CASES.
-  PRBool GetURLInParens(nsString& aURL);
 
   void AssertInitialState() {
     NS_PRECONDITION(!mHTMLMediaMode, "Bad initial state");
@@ -289,7 +274,7 @@ protected:
   nsSubstring* NextIdent();
   void SkipUntil(PRUnichar aStopSymbol);
   void SkipUntilOneOf(const PRUnichar* aStopSymbolChars);
-  void SkipRuleSet(PRBool aInsideBraces);
+  void SkipRuleSet();
   PRBool SkipAtRule();
   PRBool SkipDeclaration(PRBool aCheckForBraces);
   PRBool GetNonCloseParenToken(PRBool aSkipWS);
@@ -297,8 +282,7 @@ protected:
   PRBool PushGroup(nsICSSGroupRule* aRule);
   void PopGroup(void);
 
-  PRBool ParseRuleSet(RuleAppendFunc aAppendFunc, void* aProcessData,
-                      PRBool aInsideBraces = PR_FALSE);
+  PRBool ParseRuleSet(RuleAppendFunc aAppendFunc, void* aProcessData);
   PRBool ParseAtRule(RuleAppendFunc aAppendFunc, void* aProcessData);
   PRBool ParseCharsetRule(RuleAppendFunc aAppendFunc, void* aProcessData);
   PRBool ParseImportRule(RuleAppendFunc aAppendFunc, void* aProcessData);
@@ -346,16 +330,9 @@ protected:
   nsSelectorParsingStatus ParseClassSelector(PRInt32&       aDataMask,
                                              nsCSSSelector& aSelector);
 
-  // aPseudoElement and aPseudoElementArgs are the location where
-  // pseudo-elements (as opposed to pseudo-classes) are stored;
-  // pseudo-classes are stored on aSelector.  aPseudoElement and
-  // aPseudoElementArgs must be non-null iff !aIsNegated.
   nsSelectorParsingStatus ParsePseudoSelector(PRInt32&       aDataMask,
                                               nsCSSSelector& aSelector,
-                                              PRBool         aIsNegated,
-                                              nsIAtom**      aPseudoElement,
-                                              nsPseudoClassList** aPseudoElementArgs,
-                                              nsCSSPseudoElements::Type* aPseudoElementType);
+                                              PRBool         aIsNegated);
 
   nsSelectorParsingStatus ParseAttributeSelector(PRInt32&       aDataMask,
                                                  nsCSSSelector& aSelector);
@@ -365,20 +342,15 @@ protected:
                                                        PRBool         aIsNegated);
 
   nsSelectorParsingStatus ParsePseudoClassWithIdentArg(nsCSSSelector& aSelector,
-                                                       nsIAtom*       aPseudo,
-                                                       nsCSSPseudoClasses::Type aType);
+                                                       nsIAtom*       aPseudo);
 
   nsSelectorParsingStatus ParsePseudoClassWithNthPairArg(nsCSSSelector& aSelector,
-                                                         nsIAtom*       aPseudo,
-                                                         nsCSSPseudoClasses::Type aType);
+                                                         nsIAtom*       aPseudo);
 
   nsSelectorParsingStatus ParseNegatedSimpleSelector(PRInt32&       aDataMask,
                                                      nsCSSSelector& aSelector);
 
-  nsSelectorParsingStatus ParseSelector(nsCSSSelector& aSelectorResult,
-                                        nsIAtom** aPseudoElement,
-                                        nsPseudoClassList** aPseudoElementArgs,
-                                        nsCSSPseudoElements::Type* aPseudoElementType);
+  nsSelectorParsingStatus ParseSelector(nsCSSSelector& aSelectorResult);
 
   // If aTerminateAtBrace is true, the selector list is done when we
   // hit a '{'.  Otherwise, it's done when we hit EOF.
@@ -406,18 +378,12 @@ protected:
                           nsCSSProperty aPropID, PRBool aIsImportant,
                           PRBool aMustCallValueAppended,
                           PRBool* aChanged);
-  // Used to do a fast copy of a property value from source location to
-  // destination location.  It's the caller's responsibility to make sure that
-  // the source and destination locations point to the right kind of objects
-  // for the property id.  This can only be used for non-shorthand properties.
-  void CopyValue(void *aSource, void *aDest, nsCSSProperty aPropID,
-                 PRBool* aChanged);
   PRBool ParseProperty(nsCSSProperty aPropID);
   PRBool ParseSingleValueProperty(nsCSSValue& aValue,
                                   nsCSSProperty aPropID);
 
 #ifdef MOZ_XUL
-  PRBool ParseTreePseudoElement(nsPseudoClassList **aPseudoElementArgs);
+  PRBool ParseTreePseudoElement(nsCSSSelector& aSelector);
 #endif
 
   void InitBoxPropsAsPhysical(const nsCSSProperty *aSourceProperties);
@@ -435,7 +401,6 @@ protected:
     nsCSSValuePair mPosition;
     nsCSSValue mClip;
     nsCSSValue mOrigin;
-    nsCSSValuePair mSize;
     // The background-color is set as a side-effect, and if so, mLastItem
     // is set to true.
     PRBool mLastItem;
@@ -449,9 +414,7 @@ protected:
 
   PRBool ParseBackgroundList(nsCSSProperty aPropID); // a single value prop-id
   PRBool ParseBackgroundPosition();
-  PRBool ParseBoxPositionValues(nsCSSValuePair& aOut, PRBool aAcceptsInherit);
-  PRBool ParseBackgroundSize();
-  PRBool ParseBackgroundSizeValues(nsCSSValuePair& aOut);
+  PRBool ParseBoxPositionValues(nsCSSValuePair& aOut);
   PRBool ParseBorderColor();
   PRBool ParseBorderColors(nsCSSValueList** aResult,
                            nsCSSProperty aProperty);
@@ -494,14 +457,6 @@ protected:
   nsCSSValueList* ParseCSSShadowList(PRBool aIsBoxShadow);
   PRBool ParseTextShadow();
   PRBool ParseBoxShadow();
-  PRBool ParseTransitionTime(nsCSSProperty aPropID);
-  PRBool ParseTransitionProperty();
-  PRBool ParseTransition();
-  PRBool ParseTransitionTimingFunction();
-  PRBool ParseTransitionTimingFunctionValues(nsCSSValue& aValue);
-  PRBool ParseTransitionTimingFunctionValueComponent(float& aComponent, char aStop);
-  PRBool AppendValueToList(nsCSSValueList**& aListTail,
-                           const nsCSSValue& aValue);
 
 #ifdef MOZ_SVG
   PRBool ParsePaint(nsCSSValuePair* aResult,
@@ -542,14 +497,9 @@ protected:
                                      const PRInt32 aKeywordTable[]);
   PRBool ParseCounter(nsCSSValue& aValue);
   PRBool ParseAttr(nsCSSValue& aValue);
-  PRBool SetValueToURL(nsCSSValue& aValue, const nsString& aURL);
   PRBool ParseURL(nsCSSValue& aValue);
   PRBool TranslateDimension(nsCSSValue& aValue, PRInt32 aVariantMask,
                             float aNumber, const nsString& aUnit);
-  PRBool ParseImageRect(nsCSSValue& aImage);
-  PRBool ParseColorStop(nsCSSValueGradient* aGradient);
-  PRBool ParseGradient(nsCSSValue& aValue, PRBool aIsRadial,
-                       PRBool aIsRepeating);
 
   void SetParsingCompoundProperty(PRBool aBool) {
     NS_ASSERTION(aBool == PR_TRUE || aBool == PR_FALSE, "bad PRBool value");
@@ -637,6 +587,9 @@ protected:
   // True for parsing media lists for HTML attributes, where we have to
   // ignore CSS comments.
   PRPackedBool mHTMLMediaMode : 1;
+
+  // True if tagnames and attributes are case-sensitive
+  PRPackedBool  mCaseSensitive : 1;
 
   // This flag is set when parsing a non-box shorthand; it's used to not apply
   // some quirks during shorthand parsing
@@ -738,6 +691,7 @@ CSSParserImpl::CSSParserImpl()
     mNavQuirkMode(PR_FALSE),
     mUnsafeRulesEnabled(PR_FALSE),
     mHTMLMediaMode(PR_FALSE),
+    mCaseSensitive(PR_FALSE),
     mParsingCompoundProperty(PR_FALSE),
     mUnresolvablePrefixException(PR_FALSE)
 #ifdef DEBUG
@@ -768,6 +722,14 @@ CSSParserImpl::SetStyleSheet(nsICSSStyleSheet* aSheet)
     }
   }
 
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+CSSParserImpl::SetCaseSensitive(PRBool aCaseSensitive)
+{
+  NS_ASSERTION(aCaseSensitive == PR_TRUE || aCaseSensitive == PR_FALSE, "bad PRBool value");
+  mCaseSensitive = aCaseSensitive;
   return NS_OK;
 }
 
@@ -1117,31 +1079,11 @@ CSSParserImpl::ParseProperty(const nsCSSProperty aPropID,
 
   mData.AssertInitialState();
   mTempData.AssertInitialState();
-
-  // We know that our new value is not !important, and that we don't need to
-  // force a ValueAppended call for it.  So if there's already a value for this
-  // property in the declaration, and it's not !important, and our prop is not
-  // a shorthand, we parse successfully, then we can just directly copy our
-  // parsed value into the declaration without going through the whole
-  // expand/compress thing.
-  if (!aDeclaration->EnsureMutable()) {
-    NS_WARNING("out of memory");
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-  void* valueSlot = aDeclaration->SlotForValue(aPropID);
-  if (!valueSlot) {
-    // Do it the slow way
-    aDeclaration->ExpandTo(&mData);
-  }
+  aDeclaration->ExpandTo(&mData);
   nsresult result = NS_OK;
   PRBool parsedOK = ParseProperty(aPropID);
   if (parsedOK && !GetToken(PR_TRUE)) {
-    if (valueSlot) {
-      CopyValue(mTempData.PropertyAt(aPropID), valueSlot, aPropID, aChanged);
-      mTempData.ClearPropertyBit(aPropID);
-    } else {
-      TransferTempData(aDeclaration, aPropID, PR_FALSE, PR_FALSE, aChanged);
-    }
+    TransferTempData(aDeclaration, aPropID, PR_FALSE, PR_FALSE, aChanged);
   } else {
     if (parsedOK) {
       // Junk at end of property value.
@@ -1159,9 +1101,7 @@ CSSParserImpl::ParseProperty(const nsCSSProperty aPropID,
   }
   CLEAR_ERROR();
 
-  if (!valueSlot) {
-    aDeclaration->CompressFrom(&mData);
-  }
+  aDeclaration->CompressFrom(&mData);
 
   ReleaseScanner();
   return result;
@@ -1314,34 +1254,21 @@ CSSParserImpl::GetToken(PRBool aSkipWS)
 }
 
 PRBool
-CSSParserImpl::GetURLInParens(nsString& aURL)
+CSSParserImpl::GetURLToken()
 {
-  if (!ExpectSymbol('(', PR_FALSE))
-    return PR_FALSE;
-
-  NS_ASSERTION(!mHavePushBack,
-               "ExpectSymbol returning success shouldn't leave pushback");
-  do {
-    if (! mScanner.NextURL(mToken)) {
-      return PR_FALSE;
+  for (;;) {
+    // XXXldb This pushback code doesn't make sense.
+    if (! mHavePushBack) {
+      if (! mScanner.NextURL(mToken)) {
+        break;
+      }
     }
-  } while (eCSSToken_WhiteSpace == mToken.mType);
-
-  aURL = mToken.mIdent;
-
-  if ((eCSSToken_String != mToken.mType && eCSSToken_URL != mToken.mType) ||
-      !ExpectSymbol(')', PR_TRUE)) {
-    // in the failure case, we have to match parentheses, as if this
-    // weren't treated as a URL token by the tokenization
-
-    // XXX We really need to push aURL back into the buffer before this
-    // SkipUntil, but we won't do it as it will make no difference anyway,
-    // and it will make parsing slower.
-    SkipUntil(')');
-    return PR_FALSE;
+    mHavePushBack = PR_FALSE;
+    if (eCSSToken_WhiteSpace != mToken.mType) {
+      return PR_TRUE;
+    }
   }
-
-  return PR_TRUE;
+  return PR_FALSE;
 }
 
 void
@@ -1548,8 +1475,14 @@ CSSParserImpl::GatherURL(nsString& aURL)
   }
   else if (eCSSToken_Function == mToken.mType &&
            mToken.mIdent.LowerCaseEqualsLiteral("url") &&
-           GetURLInParens(aURL)) {
-    return PR_TRUE;
+           ExpectSymbol('(', PR_FALSE) &&
+           GetURLToken() &&
+           (eCSSToken_String == mToken.mType ||
+            eCSSToken_URL == mToken.mType)) {
+    aURL = mToken.mIdent;
+    if (ExpectSymbol(')', PR_TRUE)) {
+      return PR_TRUE;
+    }
   }
   return PR_FALSE;
 }
@@ -1817,12 +1750,12 @@ CSSParserImpl::ParseMediaQueryExpression(nsMediaQuery* aQuery)
       }
       break;
     case nsMediaFeature::eResolution:
-      rv = GetToken(PR_TRUE) && mToken.mType == eCSSToken_Dimension &&
+      rv = GetToken(PR_TRUE) && mToken.IsDimension() &&
            mToken.mIntegerValid && mToken.mNumber > 0.0f;
       if (rv) {
         // No worries about whether unitless zero is allowed, since the
         // value must be positive (and we checked that above).
-        NS_ASSERTION(!mToken.mIdent.IsEmpty(), "unit lied");
+        NS_ASSERTION(!mToken.mIdent.IsEmpty(), "IsDimension lied");
         if (mToken.mIdent.LowerCaseEqualsLiteral("dpi")) {
           expr->mValue.SetFloatValue(mToken.mNumber, eCSSUnit_Inch);
         } else if (mToken.mIdent.LowerCaseEqualsLiteral("dpcm")) {
@@ -1834,7 +1767,7 @@ CSSParserImpl::ParseMediaQueryExpression(nsMediaQuery* aQuery)
       break;
     case nsMediaFeature::eEnumerated:
       rv = ParseVariant(expr->mValue, VARIANT_KEYWORD,
-                        feature->mData.mKeywordTable);
+                        feature->mKeywordTable);
       break;
   }
   if (!rv || !ExpectSymbol(')', PR_TRUE)) {
@@ -1946,7 +1879,7 @@ CSSParserImpl::ParseGroupRule(nsICSSGroupRule* aRule,
       continue;
     }
     UngetToken();
-    ParseRuleSet(AppendRuleToSheet, this, PR_TRUE);
+    ParseRuleSet(AppendRuleToSheet, this);
   }
   PopGroup();
 
@@ -2015,9 +1948,15 @@ CSSParserImpl::ParseMozDocumentRule(RuleAppendFunc aAppendFunc, void* aData)
       cur->func = nsCSSDocumentRule::eDomain;
     }
 
-    nsAutoString url;
-    if (!GetURLInParens(url)) {
+    if (!ExpectSymbol('(', PR_FALSE) ||
+        !GetURLToken() ||
+        (eCSSToken_String != mToken.mType &&
+         eCSSToken_URL != mToken.mType)) {
       REPORT_UNEXPECTED_TOKEN(PEMozDocRuleNotURI);
+      delete urls;
+      return PR_FALSE;
+    }
+    if (!ExpectSymbol(')', PR_TRUE)) {
       delete urls;
       return PR_FALSE;
     }
@@ -2025,7 +1964,7 @@ CSSParserImpl::ParseMozDocumentRule(RuleAppendFunc aAppendFunc, void* aData)
     // We could try to make the URL (as long as it's not domain())
     // canonical and absolute with NS_NewURI and GetSpec, but I'm
     // inclined to think we shouldn't.
-    CopyUTF16toUTF8(url, cur->url);
+    CopyUTF16toUTF8(mToken.mIdent, cur->url);
   } while (ExpectSymbol(',', PR_TRUE));
 
   nsRefPtr<nsCSSDocumentRule> rule(new nsCSSDocumentRule());
@@ -2069,10 +2008,18 @@ CSSParserImpl::ParseNameSpaceRule(RuleAppendFunc aAppendFunc, void* aData)
   }
   else if ((eCSSToken_Function == mToken.mType) &&
            (mToken.mIdent.LowerCaseEqualsLiteral("url"))) {
-    if (GetURLInParens(url) &&
-        ExpectSymbol(';', PR_TRUE)) {
-      ProcessNameSpace(prefix, url, aAppendFunc, aData);
-      return PR_TRUE;
+    if (ExpectSymbol('(', PR_FALSE)) {
+      if (GetURLToken()) {
+        if ((eCSSToken_String == mToken.mType) || (eCSSToken_URL == mToken.mType)) {
+          url = mToken.mIdent;
+          if (ExpectSymbol(')', PR_TRUE)) {
+            if (ExpectSymbol(';', PR_TRUE)) {
+              ProcessNameSpace(prefix, url, aAppendFunc, aData);
+              return PR_TRUE;
+            }
+          }
+        }
+      }
     }
   }
   REPORT_UNEXPECTED_TOKEN(PEAtNSUnexpected);
@@ -2324,7 +2271,7 @@ CSSParserImpl::SkipDeclaration(PRBool aCheckForBraces)
 }
 
 void
-CSSParserImpl::SkipRuleSet(PRBool aInsideBraces)
+CSSParserImpl::SkipRuleSet()
 {
   nsCSSToken* tk = &mToken;
   for (;;) {
@@ -2334,14 +2281,11 @@ CSSParserImpl::SkipRuleSet(PRBool aInsideBraces)
     }
     if (eCSSToken_Symbol == tk->mType) {
       PRUnichar symbol = tk->mSymbol;
-      if ('}' == symbol && aInsideBraces) {
-        // leave block closer for higher-level grammar to consume
-        UngetToken();
-        break;
-      } else if ('{' == symbol) {
+      if ('{' == symbol) {
         SkipUntil('}');
         break;
-      } else if ('(' == symbol) {
+      }
+      if ('(' == symbol) {
         SkipUntil(')');
       } else if ('[' == symbol) {
         SkipUntil(']');
@@ -2381,8 +2325,7 @@ CSSParserImpl::AppendRule(nsICSSRule* aRule)
 }
 
 PRBool
-CSSParserImpl::ParseRuleSet(RuleAppendFunc aAppendFunc, void* aData,
-                            PRBool aInsideBraces)
+CSSParserImpl::ParseRuleSet(RuleAppendFunc aAppendFunc, void* aData)
 {
   // First get the list of selectors for the rule
   nsCSSSelectorList* slist = nsnull;
@@ -2390,7 +2333,7 @@ CSSParserImpl::ParseRuleSet(RuleAppendFunc aAppendFunc, void* aData,
   if (! ParseSelectorList(slist, PR_TRUE)) {
     REPORT_UNEXPECTED(PEBadSelectorRSIgnored);
     OUTPUT_ERROR();
-    SkipRuleSet(aInsideBraces);
+    SkipRuleSet();
     return PR_FALSE;
   }
   NS_ASSERTION(nsnull != slist, "null selector list");
@@ -2478,16 +2421,27 @@ CSSParserImpl::ParseSelectorList(nsCSSSelectorList*& aListHead,
   return PR_FALSE;
 }
 
-static PRBool IsUniversalSelector(const nsCSSSelector& aSelector)
+static PRBool IsSinglePseudoClass(const nsCSSSelector& aSelector)
 {
   return PRBool((aSelector.mNameSpace == kNameSpaceID_Unknown) &&
-                (aSelector.mLowercaseTag == nsnull) &&
+                (aSelector.mTag == nsnull) &&
                 (aSelector.mIDList == nsnull) &&
                 (aSelector.mClassList == nsnull) &&
                 (aSelector.mAttrList == nsnull) &&
                 (aSelector.mNegations == nsnull) &&
-                (aSelector.mPseudoClassList == nsnull));
+                (aSelector.mPseudoClassList != nsnull) &&
+                (aSelector.mPseudoClassList->mNext == nsnull));
 }
+
+#ifdef MOZ_XUL
+static PRBool IsTreePseudoElement(nsIAtom* aPseudo)
+{
+  const char* str;
+  aPseudo->GetUTF8String(&str);
+  static const char moz_tree[] = ":-moz-tree-";
+  return nsCRT::strncmp(str, moz_tree, PRInt32(sizeof(moz_tree)-1)) == 0;
+}
+#endif
 
 PRBool
 CSSParserImpl::ParseSelectorGroup(nsCSSSelectorList*& aList)
@@ -2503,14 +2457,8 @@ CSSParserImpl::ParseSelectorGroup(nsCSSSelectorList*& aList)
       mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
       return PR_FALSE;
     }
-    nsCOMPtr<nsIAtom> pseudoElement;
-    nsAutoPtr<nsPseudoClassList> pseudoElementArgs;
-    nsCSSPseudoElements::Type pseudoElementType =
-      nsCSSPseudoElements::ePseudo_NotPseudoElement;
     nsSelectorParsingStatus parsingStatus =
-      ParseSelector(*newSelector, getter_AddRefs(pseudoElement),
-                    getter_Transfers(pseudoElementArgs),
-                    &pseudoElementType);
+      ParseSelector(*newSelector);
     if (parsingStatus == eSelectorParsingStatus_Empty) {
       if (!list) {
         REPORT_UNEXPECTED(PESelectorGroupNoSelector);
@@ -2521,12 +2469,6 @@ CSSParserImpl::ParseSelectorGroup(nsCSSSelectorList*& aList)
       list = nsnull;
       break;
     }
-    if (pseudoElementType == nsCSSPseudoElements::ePseudo_AnonBox &&
-        (list || !IsUniversalSelector(*newSelector))) {
-      REPORT_UNEXPECTED(PEAnonBoxNotAlone);
-      list = nsnull;
-      break;
-    }
     if (nsnull == list) {
       list = new nsCSSSelectorList();
       if (nsnull == list) {
@@ -2534,35 +2476,65 @@ CSSParserImpl::ParseSelectorGroup(nsCSSSelectorList*& aList)
         return PR_FALSE;
       }
     }
-
     list->AddSelector(newSelector);
     nsCSSSelector* listSel = list->mSelectors;
 
-    // We got a pseudo-element (or anonymous box).  We actually
-    // represent pseudo-elements as a child of the rest of the selector.
-    if (pseudoElement) {
-      if (pseudoElementType != nsCSSPseudoElements::ePseudo_AnonBox) {
-        // We need to put the pseudo-element on a new selector that's a
-        // child of the current one.
-        listSel->mOperator = PRUnichar('>');
-        nsAutoPtr<nsCSSSelector> empty(new nsCSSSelector());
-        if (!empty) {
-          mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
-          return PR_FALSE;
+    // pull out pseudo elements here
+    nsPseudoClassList* prevList = nsnull;
+    nsPseudoClassList* pseudoClassList = listSel->mPseudoClassList;
+    while (nsnull != pseudoClassList) {
+      if (! nsCSSPseudoClasses::IsPseudoClass(pseudoClassList->mAtom)) {
+        havePseudoElement = PR_TRUE;
+        if (IsSinglePseudoClass(*listSel)) {  // convert to pseudo element selector
+          nsIAtom* pseudoElement = pseudoClassList->mAtom;  // steal ref count
+          pseudoClassList->mAtom = nsnull;
+          listSel->Reset();
+          if (listSel->mNext) {// more to the selector
+            listSel->mOperator = PRUnichar('>');
+            nsAutoPtr<nsCSSSelector> empty(new nsCSSSelector());
+            if (!empty) {
+              mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
+              return PR_FALSE;
+            }
+            list->AddSelector(empty); // leave a blank (universal) selector in the middle
+            listSel = list->mSelectors; // use the new one for the pseudo
+          }
+          listSel->mTag = pseudoElement;
         }
-        list->AddSelector(empty);
-        // Save the weight of the non-pseudo-element part of this selector now
-        weight += listSel->CalcWeight();
-        listSel = list->mSelectors; // use the new one for the pseudo
+        else {  // append new pseudo element selector
+          nsAutoPtr<nsCSSSelector> pseudoTagSelector(new nsCSSSelector());
+          if (!pseudoTagSelector) {
+            mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
+            return PR_FALSE;
+          }
+          pseudoTagSelector->mTag = pseudoClassList->mAtom; // steal ref count
+#ifdef MOZ_XUL
+          if (IsTreePseudoElement(pseudoTagSelector->mTag)) {
+            // Take the remaining "pseudoclasses" that we parsed
+            // inside the tree pseudoelement's ()-list, and
+            // make our new selector have these pseudoclasses
+            // in its pseudoclass list.
+            pseudoTagSelector->mPseudoClassList = pseudoClassList->mNext;
+            pseudoClassList->mNext = nsnull;
+          }
+#endif
+          list->AddSelector(pseudoTagSelector);
+          pseudoClassList->mAtom = nsnull;
+          listSel->mOperator = PRUnichar('>');
+          if (nsnull == prevList) { // delete list entry
+            listSel->mPseudoClassList = pseudoClassList->mNext;
+          }
+          else {
+            prevList->mNext = pseudoClassList->mNext;
+          }
+          pseudoClassList->mNext = nsnull;
+          delete pseudoClassList;
+          weight += listSel->CalcWeight(); // capture weight from remainder
+        }
+        break;  // only one pseudo element per selector
       }
-      NS_ASSERTION(!listSel->mLowercaseTag &&
-                   !listSel->mCasedTag &&
-                   !listSel->mPseudoClassList,
-                   "already initialized");
-      listSel->mLowercaseTag.swap(pseudoElement);
-      listSel->mPseudoClassList = pseudoElementArgs.forget();
-      listSel->SetPseudoType(pseudoElementType);
-      havePseudoElement = PR_TRUE;
+      prevList = pseudoClassList;
+      pseudoClassList = pseudoClassList->mNext;
     }
 
     combinator = PRUnichar(0);
@@ -2684,8 +2656,13 @@ CSSParserImpl::ParseTypeOrUniversalSelector(PRInt32&       aDataMask,
       }
       if (eCSSToken_Ident == mToken.mType) {  // element name
         aDataMask |= SEL_MASK_ELEM;
-
-        aSelector.SetTag(mToken.mIdent);
+        if (mCaseSensitive) {
+          aSelector.SetTag(mToken.mIdent);
+        }
+        else {
+          ToLowerCase(mToken.mIdent, buffer);
+          aSelector.SetTag(buffer);
+        }
       }
       else if (mToken.IsSymbol('*')) {  // universal selector
         aDataMask |= SEL_MASK_ELEM;
@@ -2723,7 +2700,13 @@ CSSParserImpl::ParseTypeOrUniversalSelector(PRInt32&       aDataMask,
       }
       if (eCSSToken_Ident == mToken.mType) {  // element name
         aDataMask |= SEL_MASK_ELEM;
-        aSelector.SetTag(mToken.mIdent);
+        if (mCaseSensitive) {
+          aSelector.SetTag(mToken.mIdent);
+        }
+        else {
+          ToLowerCase(mToken.mIdent, buffer);
+          aSelector.SetTag(buffer);
+        }
       }
       else if (mToken.IsSymbol('*')) {  // universal selector
         aDataMask |= SEL_MASK_ELEM;
@@ -2737,8 +2720,13 @@ CSSParserImpl::ParseTypeOrUniversalSelector(PRInt32&       aDataMask,
     }
     else {  // was element name
       SetDefaultNamespaceOnSelector(aSelector);
-      aSelector.SetTag(buffer);
-
+      if (mCaseSensitive) {
+        aSelector.SetTag(buffer);
+      }
+      else {
+        ToLowerCase(buffer);
+        aSelector.SetTag(buffer);
+      }
       aDataMask |= SEL_MASK_ELEM;
     }
     if (! GetToken(PR_FALSE)) {   // premature eof is ok (here!)
@@ -2756,7 +2744,13 @@ CSSParserImpl::ParseTypeOrUniversalSelector(PRInt32&       aDataMask,
     }
     if (eCSSToken_Ident == mToken.mType) {  // element name
       aDataMask |= SEL_MASK_ELEM;
-      aSelector.SetTag(mToken.mIdent);
+      if (mCaseSensitive) {
+        aSelector.SetTag(mToken.mIdent);
+      }
+      else {
+        ToLowerCase(mToken.mIdent, buffer);
+        aSelector.SetTag(buffer);
+      }
     }
     else if (mToken.IsSymbol('*')) {  // universal selector
       aDataMask |= SEL_MASK_ELEM;
@@ -2858,6 +2852,9 @@ CSSParserImpl::ParseAttributeSelector(PRInt32&       aDataMask,
     return eSelectorParsingStatus_Error;
   }
 
+  if (! mCaseSensitive) {
+    ToLowerCase(attr);
+  }
   if (! GetToken(PR_TRUE)) { // premature EOF
     REPORT_UNEXPECTED_EOF(PEAttSelInnerEOF);
     return eSelectorParsingStatus_Error;
@@ -2911,12 +2908,11 @@ CSSParserImpl::ParseAttributeSelector(PRInt32&       aDataMask,
         if (mToken.IsSymbol(']')) {
           PRBool isCaseSensitive = PR_TRUE;
 
-          // For cases when this style sheet is applied to an HTML
-          // element in an HTML document, and the attribute selector is
-          // for a non-namespaced attribute, then check to see if it's
-          // one of the known attributes whose VALUE is
-          // case-insensitive.
-          if (nameSpaceID == kNameSpaceID_None) {
+          // If we're parsing a style sheet for an HTML document, and
+          // the attribute selector is for a non-namespaced attribute,
+          // then check to see if it's one of the known attributes whose
+          // VALUE is case-insensitive.
+          if (!mCaseSensitive && nameSpaceID == kNameSpaceID_None) {
             static const char* caseInsensitiveHTMLAttribute[] = {
               // list based on http://www.w3.org/TR/html4/
               "lang",
@@ -3007,16 +3003,8 @@ CSSParserImpl::ParseAttributeSelector(PRInt32&       aDataMask,
 CSSParserImpl::nsSelectorParsingStatus
 CSSParserImpl::ParsePseudoSelector(PRInt32&       aDataMask,
                                    nsCSSSelector& aSelector,
-                                   PRBool         aIsNegated,
-                                   nsIAtom**      aPseudoElement,
-                                   nsPseudoClassList** aPseudoElementArgs,
-                                   nsCSSPseudoElements::Type* aPseudoElementType)
+                                   PRBool         aIsNegated)
 {
-  NS_ASSERTION(aIsNegated || (aPseudoElement && aPseudoElementArgs),
-               "expected location to store pseudo element");
-  NS_ASSERTION(!aIsNegated || (!aPseudoElement && !aPseudoElementArgs),
-               "negated selectors shouldn't have a place to store "
-               "pseudo elements");
   if (! GetToken(PR_FALSE)) { // premature eof
     REPORT_UNEXPECTED_EOF(PEPseudoSelEOF);
     return eSelectorParsingStatus_Error;
@@ -3047,17 +3035,11 @@ CSSParserImpl::ParsePseudoSelector(PRInt32&       aDataMask,
   buffer.Append(mToken.mIdent);
   ToLowerCase(buffer);
   nsCOMPtr<nsIAtom> pseudo = do_GetAtom(buffer);
-  if (!pseudo) {
-    mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
-    return eSelectorParsingStatus_Error;
-  }
 
   // stash away some info about this pseudo so we only have to get it once.
   PRBool isTreePseudo = PR_FALSE;
-  nsCSSPseudoElements::Type pseudoElementType =
-    nsCSSPseudoElements::GetPseudoType(pseudo);
 #ifdef MOZ_XUL
-  isTreePseudo = (pseudoElementType == nsCSSPseudoElements::ePseudo_XULTree);
+  isTreePseudo = IsTreePseudoElement(pseudo);
   // If a tree pseudo-element is using the function syntax, it will
   // get isTree set here and will pass the check below that only
   // allows functions if they are in our list of things allowed to be
@@ -3067,23 +3049,12 @@ CSSParserImpl::ParsePseudoSelector(PRInt32&       aDataMask,
   // desired.
   PRBool isTree = (eCSSToken_Function == mToken.mType) && isTreePseudo;
 #endif
-  PRBool isPseudoElement =
-    (pseudoElementType < nsCSSPseudoElements::ePseudo_PseudoElementCount);
+  PRBool isPseudoElement = nsCSSPseudoElements::IsPseudoElement(pseudo);
   // anonymous boxes are only allowed if they're the tree boxes or we have
   // enabled unsafe rules
-  PRBool isAnonBox = isTreePseudo ||
-    (pseudoElementType == nsCSSPseudoElements::ePseudo_AnonBox &&
-     mUnsafeRulesEnabled);
-  nsCSSPseudoClasses::Type pseudoClassType =
-    nsCSSPseudoClasses::GetPseudoType(pseudo);
-  PRBool isPseudoClass =
-    (pseudoClassType != nsCSSPseudoClasses::ePseudoClass_NotPseudoClass);
-
-  NS_ASSERTION(!isPseudoClass ||
-               pseudoElementType == nsCSSPseudoElements::ePseudo_NotPseudoElement,
-               "Why is this atom both a pseudo-class and a pseudo-element?");
-  NS_ASSERTION(isPseudoClass + isPseudoElement + isAnonBox <= 1,
-               "Shouldn't be more than one of these");
+  PRBool isAnonBox = nsCSSAnonBoxes::IsAnonBox(pseudo) &&
+    (mUnsafeRulesEnabled || isTreePseudo);
+  PRBool isPseudoClass = nsCSSPseudoClasses::IsPseudoClass(pseudo);
 
   if (!isPseudoClass && !isPseudoElement && !isAnonBox) {
     // Not a pseudo-class, not a pseudo-element.... forget it
@@ -3134,20 +3105,20 @@ CSSParserImpl::ParsePseudoSelector(PRInt32&       aDataMask,
     aDataMask |= SEL_MASK_PCLASS;
     if (nsCSSPseudoClasses::HasStringArg(pseudo)) {
       nsSelectorParsingStatus parsingStatus =
-        ParsePseudoClassWithIdentArg(aSelector, pseudo, pseudoClassType);
+        ParsePseudoClassWithIdentArg(aSelector, pseudo);
       if (eSelectorParsingStatus_Continue != parsingStatus) {
         return parsingStatus;
       }
     }
     else if (nsCSSPseudoClasses::HasNthPairArg(pseudo)) {
       nsSelectorParsingStatus parsingStatus =
-        ParsePseudoClassWithNthPairArg(aSelector, pseudo, pseudoClassType);
+        ParsePseudoClassWithNthPairArg(aSelector, pseudo);
       if (eSelectorParsingStatus_Continue != parsingStatus) {
         return parsingStatus;
       }
     }
     else {
-      aSelector.AddPseudoClass(pseudo, pseudoClassType);
+      aSelector.AddPseudoClass(pseudo);
     }
   }
   else if (isPseudoElement || isAnonBox) {
@@ -3175,8 +3146,7 @@ CSSParserImpl::ParsePseudoSelector(PRInt32&       aDataMask,
 
     if (0 == (aDataMask & SEL_MASK_PELEM)) {
       aDataMask |= SEL_MASK_PELEM;
-      NS_ADDREF(*aPseudoElement = pseudo);
-      *aPseudoElementType = pseudoElementType;
+      aSelector.AddPseudoClass(pseudo); // store it here, it gets pulled later
 
 #ifdef MOZ_XUL
       if (isTree) {
@@ -3184,7 +3154,7 @@ CSSParserImpl::ParsePseudoSelector(PRInt32&       aDataMask,
         // -moz-tree-xxxx(a,b,c).  We parse (a,b,c) and add each
         // item in the list to the pseudoclass list.  They will be pulled
         // from the list later along with the pseudo-element.
-        if (!ParseTreePseudoElement(aPseudoElementArgs)) {
+        if (!ParseTreePseudoElement(aSelector)) {
           return eSelectorParsingStatus_Error;
         }
       }
@@ -3267,8 +3237,7 @@ CSSParserImpl::ParseNegatedSimpleSelector(PRInt32&       aDataMask,
     parsingStatus = ParseClassSelector(aDataMask, *newSel);
   }
   else if (mToken.IsSymbol(':')) {    // :pseudo
-    parsingStatus = ParsePseudoSelector(aDataMask, *newSel, PR_TRUE,
-                                        nsnull, nsnull, nsnull);
+    parsingStatus = ParsePseudoSelector(aDataMask, *newSel, PR_TRUE);
   }
   else if (mToken.IsSymbol('[')) {    // [attribute
     parsingStatus = ParseAttributeSelector(aDataMask, *newSel);
@@ -3300,8 +3269,7 @@ CSSParserImpl::ParseNegatedSimpleSelector(PRInt32&       aDataMask,
 //
 CSSParserImpl::nsSelectorParsingStatus
 CSSParserImpl::ParsePseudoClassWithIdentArg(nsCSSSelector& aSelector,
-                                            nsIAtom*       aPseudo,
-                                            nsCSSPseudoClasses::Type aType)
+                                            nsIAtom*       aPseudo)
 {
   // Check if we have the first parenthesis
   if (!ExpectSymbol('(', PR_FALSE)) {
@@ -3321,16 +3289,8 @@ CSSParserImpl::ParsePseudoClassWithIdentArg(nsCSSSelector& aSelector,
     return eSelectorParsingStatus_Error;
   }
 
-  // -moz-locale-dir can only have values of 'ltr' or 'rtl'.
-  if (aPseudo == nsCSSPseudoClasses::mozLocaleDir) {
-    if (!mToken.mIdent.EqualsLiteral("ltr") &&
-        !mToken.mIdent.EqualsLiteral("rtl")) {
-      return eSelectorParsingStatus_Error;
-    }
-  }
-
   // Add the pseudo with the language parameter
-  aSelector.AddPseudoClass(aPseudo, aType, mToken.mIdent.get());
+  aSelector.AddPseudoClass(aPseudo, mToken.mIdent.get());
 
   // close the parenthesis
   if (!ExpectSymbol(')', PR_TRUE)) {
@@ -3344,8 +3304,7 @@ CSSParserImpl::ParsePseudoClassWithIdentArg(nsCSSSelector& aSelector,
 
 CSSParserImpl::nsSelectorParsingStatus
 CSSParserImpl::ParsePseudoClassWithNthPairArg(nsCSSSelector& aSelector,
-                                              nsIAtom*       aPseudo,
-                                              nsCSSPseudoClasses::Type aType)
+                                              nsIAtom*       aPseudo)
 {
   PRInt32 numbers[2] = { 0, 0 };
   PRBool lookForB = PR_TRUE;
@@ -3468,7 +3427,7 @@ CSSParserImpl::ParsePseudoClassWithNthPairArg(nsCSSSelector& aSelector,
     // XXX Call SkipUntil to the next ")"?
     return eSelectorParsingStatus_Error;
   }
-  aSelector.AddPseudoClass(aPseudo, aType, numbers);
+  aSelector.AddPseudoClass(aPseudo, numbers);
   return eSelectorParsingStatus_Continue;
 }
 
@@ -3478,10 +3437,7 @@ CSSParserImpl::ParsePseudoClassWithNthPairArg(nsCSSSelector& aSelector,
  * operator? [[namespace |]? element_name]? [ ID | class | attrib | pseudo ]*
  */
 CSSParserImpl::nsSelectorParsingStatus
-CSSParserImpl::ParseSelector(nsCSSSelector& aSelector,
-                             nsIAtom** aPseudoElement,
-                             nsPseudoClassList** aPseudoElementArgs,
-                             nsCSSPseudoElements::Type* aPseudoElementType)
+CSSParserImpl::ParseSelector(nsCSSSelector& aSelector)
 {
   if (! GetToken(PR_TRUE)) {
     REPORT_UNEXPECTED_EOF(PESelectorEOF);
@@ -3503,9 +3459,7 @@ CSSParserImpl::ParseSelector(nsCSSSelector& aSelector,
       parsingStatus = ParseClassSelector(dataMask, aSelector);
     }
     else if (mToken.IsSymbol(':')) {    // :pseudo
-      parsingStatus = ParsePseudoSelector(dataMask, aSelector, PR_FALSE,
-                                          aPseudoElement, aPseudoElementArgs,
-                                          aPseudoElementType);
+      parsingStatus = ParsePseudoSelector(dataMask, aSelector, PR_FALSE);
     }
     else if (mToken.IsSymbol('[')) {    // [attribute
       parsingStatus = ParseAttributeSelector(dataMask, aSelector);
@@ -3887,9 +3841,7 @@ CSSParserImpl::ParseColorOpacity(PRUint8& aOpacity)
   }
 
   PRUint8 value = nsStyleUtil::FloatToColorComponent(mToken.mNumber);
-  // Need to compare to something slightly larger
-  // than 0.5 due to floating point inaccuracies.
-  NS_ASSERTION(fabs(255.0f*mToken.mNumber - value) <= 0.51f,
+  NS_ASSERTION(fabs(mToken.mNumber - value/255.0f) <= 0.5f,
                "FloatToColorComponent did something weird");
 
   if (!ExpectSymbol(')', PR_TRUE)) {
@@ -3904,29 +3856,23 @@ CSSParserImpl::ParseColorOpacity(PRUint8& aOpacity)
 
 #ifdef MOZ_XUL
 PRBool
-CSSParserImpl::ParseTreePseudoElement(nsPseudoClassList **aPseudoElementArgs)
+CSSParserImpl::ParseTreePseudoElement(nsCSSSelector& aSelector)
 {
-  // The argument to a tree pseudo-element is a sequence of identifiers
-  // that are either space- or comma-separated.  (Was the intent to
-  // allow only comma-separated?  That's not what was done.)
-  nsCSSSelector fakeSelector; // so we can reuse AddPseudoClass
   if (ExpectSymbol('(', PR_FALSE)) {
     while (!ExpectSymbol(')', PR_TRUE)) {
       if (!GetToken(PR_TRUE)) {
         return PR_FALSE;
       }
-      if (eCSSToken_Ident == mToken.mType) {
+      else if (eCSSToken_Ident == mToken.mType) {
         nsCOMPtr<nsIAtom> pseudo = do_GetAtom(mToken.mIdent);
-        fakeSelector.AddPseudoClass(pseudo,
-                                    nsCSSPseudoClasses::ePseudoClass_NotPseudoClass);
+        aSelector.AddPseudoClass(pseudo);
       }
-      else if (!mToken.IsSymbol(',')) {
-        SkipUntil(')');
-        return PR_FALSE;
+      else if (eCSSToken_Symbol == mToken.mType) {
+        if (!mToken.IsSymbol(','))
+          return PR_FALSE;
       }
+      else return PR_FALSE;
     }
-    *aPseudoElementArgs = fakeSelector.mPseudoClassList;
-    fakeSelector.mPseudoClassList = nsnull;
     return PR_TRUE;
   }
   return PR_FALSE;
@@ -4138,17 +4084,10 @@ CSSParserImpl::DoTransferTempData(nsCSSDeclaration* aDeclaration,
    */
   void *v_source = mTempData.PropertyAt(aPropID);
   void *v_dest = mData.PropertyAt(aPropID);
-  CopyValue(v_source, v_dest, aPropID, aChanged);
-}
-
-void
-CSSParserImpl::CopyValue(void *aSource, void *aDest, nsCSSProperty aPropID,
-                         PRBool* aChanged)
-{
   switch (nsCSSProps::kTypeTable[aPropID]) {
     case eCSSType_Value: {
-      nsCSSValue *source = static_cast<nsCSSValue*>(aSource);
-      nsCSSValue *dest = static_cast<nsCSSValue*>(aDest);
+      nsCSSValue *source = static_cast<nsCSSValue*>(v_source);
+      nsCSSValue *dest = static_cast<nsCSSValue*>(v_dest);
       if (*source != *dest)
         *aChanged = PR_TRUE;
       dest->~nsCSSValue();
@@ -4157,8 +4096,8 @@ CSSParserImpl::CopyValue(void *aSource, void *aDest, nsCSSProperty aPropID,
     } break;
 
     case eCSSType_Rect: {
-      nsCSSRect *source = static_cast<nsCSSRect*>(aSource);
-      nsCSSRect *dest = static_cast<nsCSSRect*>(aDest);
+      nsCSSRect *source = static_cast<nsCSSRect*>(v_source);
+      nsCSSRect *dest = static_cast<nsCSSRect*>(v_dest);
       if (*source != *dest)
         *aChanged = PR_TRUE;
       dest->~nsCSSRect();
@@ -4167,8 +4106,8 @@ CSSParserImpl::CopyValue(void *aSource, void *aDest, nsCSSProperty aPropID,
     } break;
 
     case eCSSType_ValuePair: {
-      nsCSSValuePair *source = static_cast<nsCSSValuePair*>(aSource);
-      nsCSSValuePair *dest = static_cast<nsCSSValuePair*>(aDest);
+      nsCSSValuePair *source = static_cast<nsCSSValuePair*>(v_source);
+      nsCSSValuePair *dest = static_cast<nsCSSValuePair*>(v_dest);
       if (*source != *dest)
         *aChanged = PR_TRUE;
       dest->~nsCSSValuePair();
@@ -4177,8 +4116,8 @@ CSSParserImpl::CopyValue(void *aSource, void *aDest, nsCSSProperty aPropID,
     } break;
 
     case eCSSType_ValueList: {
-      nsCSSValueList **source = static_cast<nsCSSValueList**>(aSource);
-      nsCSSValueList **dest = static_cast<nsCSSValueList**>(aDest);
+      nsCSSValueList **source = static_cast<nsCSSValueList**>(v_source);
+      nsCSSValueList **dest = static_cast<nsCSSValueList**>(v_dest);
       if (!nsCSSValueList::Equal(*source, *dest))
         *aChanged = PR_TRUE;
       delete *dest;
@@ -4188,9 +4127,9 @@ CSSParserImpl::CopyValue(void *aSource, void *aDest, nsCSSProperty aPropID,
 
     case eCSSType_ValuePairList: {
       nsCSSValuePairList **source =
-        static_cast<nsCSSValuePairList**>(aSource);
+        static_cast<nsCSSValuePairList**>(v_source);
       nsCSSValuePairList **dest =
-        static_cast<nsCSSValuePairList**>(aDest);
+        static_cast<nsCSSValuePairList**>(v_dest);
       if (!nsCSSValuePairList::Equal(*source, *dest))
         *aChanged = PR_TRUE;
       delete *dest;
@@ -4335,10 +4274,16 @@ CSSParserImpl::TranslateDimension(nsCSSValue& aValue,
       type = VARIANT_LENGTH;
     }
     else if ((VARIANT_ANGLE & aVariantMask) != 0) {
-      NS_ASSERTION(aVariantMask & VARIANT_ZERO_ANGLE,
-                   "must have allowed zero angle");
       units = eCSSUnit_Degree;
       type = VARIANT_ANGLE;
+    }
+    else if ((VARIANT_FREQUENCY & aVariantMask) != 0) {
+      units = eCSSUnit_Hertz;
+      type = VARIANT_FREQUENCY;
+    }
+    else if ((VARIANT_TIME & aVariantMask) != 0) {
+      units = eCSSUnit_Seconds;
+      type = VARIANT_TIME;
     }
     else {
       NS_ERROR("Variant mask does not include dimension; why were we called?");
@@ -4364,10 +4309,7 @@ CSSParserImpl::TranslateDimension(nsCSSValue& aValue,
   VARIANT_INHERIT | \
   VARIANT_NONE | \
   VARIANT_NORMAL | \
-  VARIANT_SYSFONT | \
-  VARIANT_GRADIENT | \
-  VARIANT_CUBIC_BEZIER | \
-  VARIANT_ALL
+  VARIANT_SYSFONT
 
 PRBool
 CSSParserImpl::ParseNonNegativeVariant(nsCSSValue& aValue,
@@ -4444,7 +4386,7 @@ CSSParserImpl::ParseVariant(nsCSSValue& aValue,
     return PR_FALSE;
   }
   nsCSSToken* tk = &mToken;
-  if (((aVariantMask & (VARIANT_AHK | VARIANT_NORMAL | VARIANT_NONE | VARIANT_ALL)) != 0) &&
+  if (((aVariantMask & (VARIANT_AHK | VARIANT_NORMAL | VARIANT_NONE)) != 0) &&
       (eCSSToken_Ident == tk->mType)) {
     nsCSSKeyword keyword = nsCSSKeywords::LookupKeyword(tk->mIdent);
     if (eCSSKeyword_UNKNOWN < keyword) { // known keyword
@@ -4473,12 +4415,6 @@ CSSParserImpl::ParseVariant(nsCSSValue& aValue,
           return PR_TRUE;
         }
       }
-      if ((aVariantMask & VARIANT_ALL) != 0) {
-        if (eCSSKeyword_all == keyword) {
-          aValue.SetAllValue();
-          return PR_TRUE;
-        }
-      }
       if ((aVariantMask & VARIANT_NORMAL) != 0) {
         if (eCSSKeyword_normal == keyword) {
           aValue.SetNormalValue();
@@ -4501,12 +4437,8 @@ CSSParserImpl::ParseVariant(nsCSSValue& aValue,
       }
     }
   }
-  if (((aVariantMask & (VARIANT_LENGTH | VARIANT_ANGLE |
-                        VARIANT_FREQUENCY | VARIANT_TIME)) != 0 &&
-       eCSSToken_Dimension == tk->mType) ||
-      ((aVariantMask & (VARIANT_LENGTH | VARIANT_ZERO_ANGLE)) != 0 &&
-       eCSSToken_Number == tk->mType &&
-       tk->mNumber == 0.0f)) {
+  if (((aVariantMask & (VARIANT_LENGTH | VARIANT_ANGLE | VARIANT_FREQUENCY | VARIANT_TIME)) != 0) &&
+      tk->IsDimension()) {
     if (TranslateDimension(aValue, aVariantMask, tk->mNumber, tk->mIdent)) {
       return PR_TRUE;
     }
@@ -4557,26 +4489,6 @@ CSSParserImpl::ParseVariant(nsCSSValue& aValue,
     }
     return PR_FALSE;
   }
-  if ((aVariantMask & VARIANT_GRADIENT) != 0 &&
-      eCSSToken_Function == tk->mType) {
-    // a generated gradient
-    if (tk->mIdent.LowerCaseEqualsLiteral("-moz-linear-gradient"))
-      return ParseGradient(aValue, PR_FALSE, PR_FALSE);
-
-    if (tk->mIdent.LowerCaseEqualsLiteral("-moz-radial-gradient"))
-      return ParseGradient(aValue, PR_TRUE, PR_FALSE);
-
-    if (tk->mIdent.LowerCaseEqualsLiteral("-moz-repeating-linear-gradient"))
-      return ParseGradient(aValue, PR_FALSE, PR_TRUE);
-
-    if (tk->mIdent.LowerCaseEqualsLiteral("-moz-repeating-radial-gradient"))
-      return ParseGradient(aValue, PR_TRUE, PR_TRUE);
-  }
-  if ((aVariantMask & VARIANT_IMAGE_RECT) != 0 &&
-      eCSSToken_Function == tk->mType &&
-      tk->mIdent.LowerCaseEqualsLiteral("-moz-image-rect")) {
-    return ParseImageRect(aValue);
-  }
   if ((aVariantMask & VARIANT_COLOR) != 0) {
     if ((mNavQuirkMode && !IsParsingCompoundProperty()) || // NONSTANDARD: Nav interprets 'xxyyzz' values even without '#' prefix
         (eCSSToken_ID == tk->mType) ||
@@ -4620,12 +4532,6 @@ CSSParserImpl::ParseVariant(nsCSSValue& aValue,
       (eCSSToken_Function == tk->mType) &&
       tk->mIdent.LowerCaseEqualsLiteral("attr")) {
     return ParseAttr(aValue);
-  }
-  if (((aVariantMask & VARIANT_CUBIC_BEZIER) != 0) &&
-      (eCSSToken_Function == tk->mType)) {
-     if (tk->mIdent.LowerCaseEqualsLiteral("cubic-bezier")) {
-      return ParseTransitionTimingFunctionValues(aValue);
-    }
   }
 
   UngetToken();
@@ -4677,8 +4583,12 @@ CSSParserImpl::ParseCounter(nsCSSValue& aValue)
                      (keyword = nsCSSKeywords::LookupKeyword(mToken.mIdent)) !=
                       eCSSKeyword_UNKNOWN;
     if (success) {
-      success = nsCSSProps::FindKeyword(keyword,
-                                        nsCSSProps::kListStyleKTable, type);
+      if (keyword == eCSSKeyword_none) {
+        type = NS_STYLE_LIST_STYLE_NONE;
+      } else {
+        success = nsCSSProps::FindKeyword(keyword,
+                                          nsCSSProps::kListStyleKTable, type);
+      }
     }
     if (!success) {
       SkipUntil(')');
@@ -4686,7 +4596,11 @@ CSSParserImpl::ParseCounter(nsCSSValue& aValue)
     }
   }
   PRInt32 typeItem = eCSSUnit_Counters == unit ? 2 : 1;
-  val->Item(typeItem).SetIntValue(type, eCSSUnit_Enumerated);
+  if (type == NS_STYLE_LIST_STYLE_NONE) {
+    val->Item(typeItem).SetNoneValue();
+  } else {
+    val->Item(typeItem).SetIntValue(type, eCSSUnit_Enumerated);
+  }
 
   if (!ExpectSymbol(')', PR_TRUE)) {
     SkipUntil(')');
@@ -4717,7 +4631,13 @@ CSSParserImpl::ParseAttr(nsCSSValue& aValue)
             return PR_FALSE;
           }
           if (eCSSToken_Ident == mToken.mType) {
-            attr.Append(mToken.mIdent);
+            if (mCaseSensitive) {
+              attr.Append(mToken.mIdent);
+            } else {
+              nsAutoString buffer;
+              ToLowerCase(mToken.mIdent, buffer);
+              attr.Append(buffer);
+            }
           }
           else {
             REPORT_UNEXPECTED_TOKEN(PEAttributeNameExpected);
@@ -4726,7 +4646,12 @@ CSSParserImpl::ParseAttr(nsCSSValue& aValue)
           }
         }
         else {  // no namespace
-          attr = holdIdent;
+          if (mCaseSensitive) {
+            attr = holdIdent;
+          }
+          else {
+            ToLowerCase(holdIdent, attr);
+          }
         }
       }
       else if (mToken.IsSymbol('*')) {  // namespace wildcard
@@ -4741,7 +4666,13 @@ CSSParserImpl::ParseAttr(nsCSSValue& aValue)
           return PR_FALSE;
         }
         if (eCSSToken_Ident == mToken.mType) {
-          attr.Append(mToken.mIdent);
+          if (mCaseSensitive) {
+            attr.Append(mToken.mIdent);
+          } else {
+            nsAutoString buffer;
+            ToLowerCase(mToken.mIdent, buffer);
+            attr.Append(buffer);
+          }
         }
         else {
           REPORT_UNEXPECTED_TOKEN(PEAttributeNameExpected);
@@ -4764,7 +4695,7 @@ CSSParserImpl::ParseAttr(nsCSSValue& aValue)
 }
 
 PRBool
-CSSParserImpl::SetValueToURL(nsCSSValue& aValue, const nsString& aURL)
+CSSParserImpl::ParseURL(nsCSSValue& aValue)
 {
   if (!mSheetPrincipal) {
     NS_NOTREACHED("Codepaths that expect to parse URLs MUST pass in an "
@@ -4772,12 +4703,25 @@ CSSParserImpl::SetValueToURL(nsCSSValue& aValue, const nsString& aURL)
     return PR_FALSE;
   }
 
+  if (!ExpectSymbol('(', PR_FALSE))
+    return PR_FALSE;
+  if (!GetURLToken())
+    return PR_FALSE;
+
+  nsCSSToken* tk = &mToken;
+  if (eCSSToken_String != tk->mType && eCSSToken_URL != tk->mType)
+    return PR_FALSE;
+
+  nsString url = tk->mIdent;
+  if (!ExpectSymbol(')', PR_TRUE))
+    return PR_FALSE;
+
   // Translate url into an absolute url if the url is relative to the
   // style sheet.
   nsCOMPtr<nsIURI> uri;
-  NS_NewURI(getter_AddRefs(uri), aURL, nsnull, mBaseURL);
+  NS_NewURI(getter_AddRefs(uri), url, nsnull, mBaseURL);
 
-  nsStringBuffer* buffer = nsCSSValue::BufferFromString(aURL);
+  nsStringBuffer* buffer = nsCSSValue::BufferFromString(url);
   if (NS_UNLIKELY(!buffer)) {
     mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
     return PR_FALSE;
@@ -4791,253 +4735,6 @@ CSSParserImpl::SetValueToURL(nsCSSValue& aValue, const nsString& aURL)
     return PR_FALSE;
   }
   aValue.SetURLValue(urlVal);
-  return PR_TRUE;
-}
-
-PRBool
-CSSParserImpl::ParseURL(nsCSSValue& aValue)
-{
-  nsAutoString url;
-  if (!GetURLInParens(url))
-    return PR_FALSE;
-
-  return SetValueToURL(aValue, url);
-}
-
-/**
- * Parse the arguments of -moz-image-rect() function.
- * -moz-image-rect(<uri>, <top>, <right>, <bottom>, <left>)
- */
-PRBool
-CSSParserImpl::ParseImageRect(nsCSSValue& aImage)
-{
-  if (!ExpectSymbol('(', PR_TRUE))
-    return PR_FALSE;
-
-  // A non-iterative for loop to break out when an error occurs.
-  for (;;) {
-    nsCSSValue newFunction;
-    static const PRUint32 kNumArgs = 5;
-    nsCSSValue::Array* func =
-      newFunction.InitFunction(eCSSKeyword__moz_image_rect, kNumArgs);
-    if (!func) {
-      mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
-      break;
-    }
-
-    // func->Item(0) is reserved for the function name.
-    nsCSSValue& url    = func->Item(1);
-    nsCSSValue& top    = func->Item(2);
-    nsCSSValue& right  = func->Item(3);
-    nsCSSValue& bottom = func->Item(4);
-    nsCSSValue& left   = func->Item(5);
-
-    if (!GetToken(PR_TRUE))
-      break;
-    if (mToken.mType == eCSSToken_String) {
-      if (!SetValueToURL(url, mToken.mIdent))
-        break;
-    } else if (mToken.mType == eCSSToken_Function &&
-               mToken.mIdent.LowerCaseEqualsLiteral("url")) {
-      if (!ParseURL(url))
-        break;
-    } else {
-      break;
-    }
-    if (!ExpectSymbol(',', PR_TRUE))
-      break;
-
-    static const PRInt32 VARIANT_SIDE = VARIANT_NUMBER | VARIANT_PERCENT;
-    if (!ParseNonNegativeVariant(top, VARIANT_SIDE, nsnull) ||
-        !ExpectSymbol(',', PR_TRUE) ||
-        !ParseNonNegativeVariant(right, VARIANT_SIDE, nsnull) ||
-        !ExpectSymbol(',', PR_TRUE) ||
-        !ParseNonNegativeVariant(bottom, VARIANT_SIDE, nsnull) ||
-        !ExpectSymbol(',', PR_TRUE) ||
-        !ParseNonNegativeVariant(left, VARIANT_SIDE, nsnull) ||
-        !ExpectSymbol(')', PR_TRUE))
-      break;
-
-    aImage = newFunction;
-    return PR_TRUE;
-  }
-
-  // If we detect a syntax error, we must match the opening parenthesis of the
-  // function with the closing parenthesis and skip all the tokens in between.
-  SkipUntil(')');
-  return PR_FALSE;
-}
-
-// <color-stop> : <color> [ <percentage> | <length> ]?
-PRBool
-CSSParserImpl::ParseColorStop(nsCSSValueGradient* aGradient)
-{
-  nsCSSValueGradientStop* stop = aGradient->mStops.AppendElement();
-  if (!stop) {
-    mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
-    return PR_FALSE;
-  }
-
-  if (!ParseVariant(stop->mColor, VARIANT_COLOR, nsnull)) {
-    return PR_FALSE;
-  }
-
-  // Stop positions do not have to fall between the starting-point and
-  // ending-point, so we don't use ParseNonNegativeVariant.
-  if (!ParseVariant(stop->mLocation, VARIANT_LP, nsnull)) {
-    stop->mLocation.SetNoneValue();
-  }
-  return PR_TRUE;
-}
-
-// <gradient>
-//    : linear-gradient( <gradient-line>? <color-stops> ')'
-//    : radial-gradient( <gradient-line>? <gradient-shape-size>?
-//                       <color-stops> ')'
-//
-// <gradient-line> : [<bg-position> || <angle>] ,
-//
-// <gradient-shape-size> : [<gradient-shape> || <gradient-size>] ,
-// <gradient-shape> : circle | ellipse
-// <gradient-size> : closest-side | closest-corner
-//                 | farthest-side | farthest-corner
-//                 | contain | cover
-//
-// <color-stops> : <color-stop> , <color-stop> [, <color-stop>]*
-
-
-PRBool
-CSSParserImpl::ParseGradient(nsCSSValue& aValue, PRBool aIsRadial,
-                             PRBool aIsRepeating)
-{
-  if (!ExpectSymbol('(', PR_FALSE)) {
-    NS_ABORT_IF_FALSE(PR_FALSE, "function token without (");
-  }
-
-  nsRefPtr<nsCSSValueGradient> cssGradient
-    = new nsCSSValueGradient(aIsRadial, aIsRepeating);
-
-  // <gradient-line>
-  // N.B. ParseBoxPositionValues is not guaranteed to put back
-  // everything it scanned if it fails, so we must only call it
-  // if there is no alternative to consuming a <box-position>.
-  // ParseVariant, as used here, will either succeed and consume
-  // a single token, or fail and consume none, so we can be more
-  // cavalier about calling it.
-
-  if (!GetToken(PR_TRUE)) {
-    return PR_FALSE;
-  }
-  nsCSSTokenType ty = mToken.mType;
-  nsString id = mToken.mIdent;
-  UngetToken();
-
-  PRBool haveGradientLine = PR_FALSE;
-  switch (ty) {
-  case eCSSToken_Percentage:
-  case eCSSToken_Number:
-  case eCSSToken_Dimension:
-    haveGradientLine = PR_TRUE;
-    break;
-
-  case eCSSToken_Function:
-  case eCSSToken_ID:
-  case eCSSToken_Ref:
-    // this is a color
-    break;
-
-  case eCSSToken_Ident: {
-    // This is only a gradient line if it's a box position keyword.
-    nsCSSKeyword kw = nsCSSKeywords::LookupKeyword(id);
-    PRInt32 junk;
-    if (kw != eCSSKeyword_UNKNOWN &&
-        nsCSSProps::FindKeyword(kw, nsCSSProps::kBackgroundPositionKTable,
-                                junk)) {
-      haveGradientLine = PR_TRUE;
-    }
-    break;
-  }
-
-  default:
-    // error
-    SkipUntil(')');
-    return PR_FALSE;
-  }
-
-  if (haveGradientLine) {
-    PRBool haveAngle =
-      ParseVariant(cssGradient->mAngle, VARIANT_ANGLE, nsnull);
-
-    // if we got an angle, we might now have a comma, ending the gradient-line
-    if (!haveAngle || !ExpectSymbol(',', PR_TRUE)) {
-      // This intermediate is necessary because nsCSSValueGradient cannot
-      // contain a nsCSSValuePair (because the latter type is defined in
-      // nsCSSStruct.h rather than nsCSSValue.h).
-      nsCSSValuePair bgPos;
-      if (ParseBoxPositionValues(bgPos, PR_FALSE)) {
-        cssGradient->mBgPosX = bgPos.mXValue;
-        cssGradient->mBgPosY = bgPos.mYValue;
-      } else {
-        SkipUntil(')');
-        return PR_FALSE;
-      }
-
-      if (!ExpectSymbol(',', PR_TRUE) &&
-          // if we didn't already get an angle, we might have one now,
-          // otherwise it's an error
-          (haveAngle ||
-           !ParseVariant(cssGradient->mAngle, VARIANT_ANGLE, nsnull) ||
-           // now we better have a comma
-           !ExpectSymbol(',', PR_TRUE))) {
-        SkipUntil(')');
-        return PR_FALSE;
-      }
-    }
-  }
-
-  // radial gradients might have a <gradient-shape-size> here
-  if (aIsRadial) {
-    PRBool haveShape =
-      ParseVariant(cssGradient->mRadialShape, VARIANT_KEYWORD,
-                   nsCSSProps::kRadialGradientShapeKTable);
-    PRBool haveSize =
-      ParseVariant(cssGradient->mRadialSize, VARIANT_KEYWORD,
-                   nsCSSProps::kRadialGradientSizeKTable);
-
-    // could be in either order
-    if (!haveShape) {
-      haveShape =
-        ParseVariant(cssGradient->mRadialShape, VARIANT_KEYWORD,
-                     nsCSSProps::kRadialGradientShapeKTable);
-    }
-    if ((haveShape || haveSize) && !ExpectSymbol(',', PR_TRUE)) {
-      SkipUntil(')');
-      return PR_FALSE;
-    }
-  }
-
-  // At least two color stops are required
-  if (!ParseColorStop(cssGradient) ||
-      !ExpectSymbol(',', PR_TRUE) ||
-      !ParseColorStop(cssGradient)) {
-    SkipUntil(')');
-    return PR_FALSE;
-  }
-
-  // Additional color stops
-  while (ExpectSymbol(',', PR_TRUE)) {
-    if (!ParseColorStop(cssGradient)) {
-      SkipUntil(')');
-      return PR_FALSE;
-    }
-  }
-
-  if (!ExpectSymbol(')', PR_TRUE)) {
-    SkipUntil(')');
-    return PR_FALSE;
-  }
-
-  aValue.SetGradientValue(cssGradient);
   return PR_TRUE;
 }
 
@@ -5323,8 +5020,6 @@ CSSParserImpl::ParseProperty(nsCSSProperty aPropID)
   case eCSSProperty__moz_background_origin:
   case eCSSProperty_background_repeat:
     return ParseBackgroundList(aPropID);
-  case eCSSProperty__moz_background_size:
-    return ParseBackgroundSize();
   case eCSSProperty_border:
     return ParseBorderSide(kBorderTopIDs, PR_TRUE);
   case eCSSProperty_border_color:
@@ -5487,15 +5182,6 @@ CSSParserImpl::ParseProperty(nsCSSProperty aPropID)
     return ParseMozTransform();
   case eCSSProperty__moz_transform_origin:
     return ParseMozTransformOrigin();
-  case eCSSProperty_transition:
-      return ParseTransition();
-  case eCSSProperty_transition_property:
-    return ParseTransitionProperty();
-  case eCSSProperty_transition_timing_function:
-    return ParseTransitionTimingFunction();
-  case eCSSProperty_transition_duration:
-  case eCSSProperty_transition_delay:
-    return ParseTransitionTime(aPropID);
 
 #ifdef MOZ_SVG
   case eCSSProperty_fill:
@@ -5614,7 +5300,6 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_border_start:
   case eCSSProperty_border_top:
   case eCSSProperty_border_width:
-  case eCSSProperty__moz_background_size:
   case eCSSProperty__moz_border_radius:
   case eCSSProperty__moz_border_radius_topLeft:
   case eCSSProperty__moz_border_radius_topRight:
@@ -5654,11 +5339,6 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_text_shadow:
   case eCSSProperty__moz_transform:
   case eCSSProperty__moz_transform_origin:
-  case eCSSProperty_transition:
-  case eCSSProperty_transition_property:
-  case eCSSProperty_transition_timing_function:
-  case eCSSProperty_transition_duration:
-  case eCSSProperty_transition_delay:
   case eCSSProperty_COUNT:
 #ifdef MOZ_SVG
   case eCSSProperty_fill:
@@ -5666,8 +5346,6 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_stroke_dasharray:
   case eCSSProperty_marker:
 #endif
-  case eCSSPropertyExtra_no_properties:
-  case eCSSPropertyExtra_all_properties:
     NS_ERROR("not a single value property");
     return PR_FALSE;
 
@@ -5716,9 +5394,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HC, nsnull);
   case eCSSProperty_background_image:
     // Used only internally.
-    return ParseVariant(aValue,
-                        VARIANT_HUO | VARIANT_GRADIENT | VARIANT_IMAGE_RECT,
-                        nsnull);
+    return ParseVariant(aValue, VARIANT_HUO, nsnull);
   case eCSSProperty__moz_background_inline_policy:
     return ParseVariant(aValue, VARIANT_HK,
                         nsCSSProps::kBackgroundInlinePolicyKTable);
@@ -5751,7 +5427,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_border_start_style_value: // for internal use
   case eCSSProperty_border_top_style:
   case eCSSProperty__moz_column_rule_style:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_HOK,
                         nsCSSProps::kBorderStyleKTable);
   case eCSSProperty_border_bottom_width:
   case eCSSProperty_border_end_width_value: // for internal use
@@ -5799,10 +5475,10 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
                         nsCSSProps::kFillRuleKTable);
   case eCSSProperty_color_interpolation:
   case eCSSProperty_color_interpolation_filters:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_AHK,
                         nsCSSProps::kColorInterpolationKTable);
   case eCSSProperty_dominant_baseline:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_AHK,
                         nsCSSProps::kDominantBaselineKTable);
   case eCSSProperty_fill_opacity:
     return ParseVariant(aValue, VARIANT_HN,
@@ -5817,7 +5493,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_flood_opacity:
     return ParseVariant(aValue, VARIANT_HN, nsnull);
   case eCSSProperty_image_rendering:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_AHK,
                         nsCSSProps::kImageRenderingKTable);
   case eCSSProperty_lighting_color:
     return ParseVariant(aValue, VARIANT_HC, nsnull);
@@ -5827,8 +5503,11 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HUO, nsnull);
   case eCSSProperty_mask:
     return ParseVariant(aValue, VARIANT_HUO, nsnull);
+  case eCSSProperty_pointer_events:
+    return ParseVariant(aValue, VARIANT_HOK,
+                        nsCSSProps::kPointerEventsKTable);
   case eCSSProperty_shape_rendering:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_AHK,
                         nsCSSProps::kShapeRenderingKTable);
   case eCSSProperty_stop_color:
     return ParseVariant(aValue, VARIANT_HC,
@@ -5859,7 +5538,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HK,
                         nsCSSProps::kTextAnchorKTable);
   case eCSSProperty_text_rendering:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_AHK,
                         nsCSSProps::kTextRenderingKTable);
 #endif
   case eCSSProperty_box_sizing:
@@ -5876,7 +5555,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HK,
                         nsCSSProps::kCaptionSideKTable);
   case eCSSProperty_clear:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_HOK,
                         nsCSSProps::kClearKTable);
   case eCSSProperty_color:
     return ParseVariant(aValue, VARIANT_HC, nsnull);
@@ -5887,7 +5566,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HK,
                         nsCSSProps::kDirectionKTable);
   case eCSSProperty_display:
-    if (ParseVariant(aValue, VARIANT_HK, nsCSSProps::kDisplayKTable)) {
+    if (ParseVariant(aValue, VARIANT_HOK, nsCSSProps::kDisplayKTable)) {
       if (aValue.GetUnit() == eCSSUnit_Enumerated) {
         switch (aValue.GetIntValue()) {
           case NS_STYLE_DISPLAY_MARKER:        // bug 2055
@@ -5906,7 +5585,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HK,
                         nsCSSProps::kEmptyCellsKTable);
   case eCSSProperty_float:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_HOK,
                         nsCSSProps::kFloatKTable);
   case eCSSProperty_float_edge:
     return ParseVariant(aValue, VARIANT_HK,
@@ -5921,21 +5600,19 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HON | VARIANT_SYSFONT,
                         nsnull);
   case eCSSProperty_font_stretch:
-    return ParseVariant(aValue, VARIANT_HK | VARIANT_SYSFONT,
+    return ParseVariant(aValue, VARIANT_HMK | VARIANT_SYSFONT,
                         nsCSSProps::kFontStretchKTable);
   case eCSSProperty_font_style:
-    return ParseVariant(aValue, VARIANT_HK | VARIANT_SYSFONT,
+    return ParseVariant(aValue, VARIANT_HMK | VARIANT_SYSFONT,
                         nsCSSProps::kFontStyleKTable);
   case eCSSProperty_font_variant:
-    return ParseVariant(aValue, VARIANT_HK | VARIANT_SYSFONT,
+    return ParseVariant(aValue, VARIANT_HMK | VARIANT_SYSFONT,
                         nsCSSProps::kFontVariantKTable);
   case eCSSProperty_font_weight:
     return ParseFontWeight(aValue);
   case eCSSProperty_ime_mode:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_AHK | VARIANT_NORMAL,
                         nsCSSProps::kIMEModeKTable);
-  case eCSSProperty__moz_tab_size:
-    return ParseNonNegativeVariant(aValue, VARIANT_HI, nsnull);
   case eCSSProperty_letter_spacing:
   case eCSSProperty_word_spacing:
     return ParseVariant(aValue, VARIANT_HL | VARIANT_NORMAL, nsnull);
@@ -5946,7 +5623,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_list_style_position:
     return ParseVariant(aValue, VARIANT_HK, nsCSSProps::kListStylePositionKTable);
   case eCSSProperty_list_style_type:
-    return ParseVariant(aValue, VARIANT_HK, nsCSSProps::kListStyleKTable);
+    return ParseVariant(aValue, VARIANT_HOK, nsCSSProps::kListStyleKTable);
   case eCSSProperty_margin_bottom:
   case eCSSProperty_margin_end_value: // for internal use
   case eCSSProperty_margin_left_value: // for internal use
@@ -5977,7 +5654,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HCK,
                         nsCSSProps::kOutlineColorKTable);
   case eCSSProperty_outline_style:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_HOK | VARIANT_AUTO,
                         nsCSSProps::kOutlineStyleKTable);
   case eCSSProperty_outline_width:
     return ParseNonNegativeVariant(aValue, VARIANT_HKL,
@@ -5986,7 +5663,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HL, nsnull);
   case eCSSProperty_overflow_x:
   case eCSSProperty_overflow_y:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_AHK,
                         nsCSSProps::kOverflowSubKTable);
   case eCSSProperty_padding_bottom:
   case eCSSProperty_padding_end_value: // for internal use
@@ -5999,10 +5676,10 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_AUTO | VARIANT_IDENTIFIER, nsnull);
   case eCSSProperty_page_break_after:
   case eCSSProperty_page_break_before:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_AHK,
                         nsCSSProps::kPageBreakKTable);
   case eCSSProperty_page_break_inside:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_AHK,
                         nsCSSProps::kPageBreakInsideKTable);
   case eCSSProperty_pause_after:
   case eCSSProperty_pause_before:
@@ -6011,9 +5688,6 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HKF, nsCSSProps::kPitchKTable);
   case eCSSProperty_pitch_range:
     return ParseVariant(aValue, VARIANT_HN, nsnull);
-  case eCSSProperty_pointer_events:
-    return ParseVariant(aValue, VARIANT_HK,
-                        nsCSSProps::kPointerEventsKTable);
   case eCSSProperty_position:
     return ParseVariant(aValue, VARIANT_HK, nsCSSProps::kPositionKTable);
   case eCSSProperty_richness:
@@ -6029,7 +5703,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HI, nsnull);
 #endif
   case eCSSProperty_speak:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_HMK | VARIANT_NONE,
                         nsCSSProps::kSpeakKTable);
   case eCSSProperty_speak_header:
     return ParseVariant(aValue, VARIANT_HK,
@@ -6038,7 +5712,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HK,
                         nsCSSProps::kSpeakNumeralKTable);
   case eCSSProperty_speak_punctuation:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_HOK,
                         nsCSSProps::kSpeakPunctuationKTable);
   case eCSSProperty_speech_rate:
     return ParseVariant(aValue, VARIANT_HN | VARIANT_KEYWORD,
@@ -6049,7 +5723,7 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_stress:
     return ParseVariant(aValue, VARIANT_HN, nsnull);
   case eCSSProperty_table_layout:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_AHK,
                         nsCSSProps::kTableLayoutKTable);
   case eCSSProperty_text_align:
     // When we support aligning on a string, we can parse text-align
@@ -6061,22 +5735,22 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
   case eCSSProperty_text_indent:
     return ParseVariant(aValue, VARIANT_HLP, nsnull);
   case eCSSProperty_text_transform:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_HOK,
                         nsCSSProps::kTextTransformKTable);
   case eCSSProperty_unicode_bidi:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_HMK,
                         nsCSSProps::kUnicodeBidiKTable);
   case eCSSProperty_user_focus:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_HMK | VARIANT_NONE,
                         nsCSSProps::kUserFocusKTable);
   case eCSSProperty_user_input:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_AHK | VARIANT_NONE,
                         nsCSSProps::kUserInputKTable);
   case eCSSProperty_user_modify:
     return ParseVariant(aValue, VARIANT_HK,
                         nsCSSProps::kUserModifyKTable);
   case eCSSProperty_user_select:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_AHK | VARIANT_NONE,
                         nsCSSProps::kUserSelectKTable);
   case eCSSProperty_vertical_align:
     return ParseVariant(aValue, VARIANT_HKLP,
@@ -6090,13 +5764,13 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
     return ParseVariant(aValue, VARIANT_HPN | VARIANT_KEYWORD,
                         nsCSSProps::kVolumeKTable);
   case eCSSProperty_white_space:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_HMK,
                         nsCSSProps::kWhitespaceKTable);
   case eCSSProperty__moz_window_shadow:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_HOK,
                         nsCSSProps::kWindowShadowKTable);
   case eCSSProperty_word_wrap:
-    return ParseVariant(aValue, VARIANT_HK,
+    return ParseVariant(aValue, VARIANT_HMK,
                         nsCSSProps::kWordwrapKTable);
   case eCSSProperty_z_index:
     return ParseVariant(aValue, VARIANT_AHI, nsnull);
@@ -6173,11 +5847,12 @@ CSSParserImpl::ParseFontDescriptorValue(nsCSSFontDesc aDescID,
               aValue.GetIntValue() != NS_STYLE_FONT_WEIGHT_LIGHTER)));
 
   case eCSSFontDesc_Stretch:
-    // property is VARIANT_HK|VARIANT_SYSFONT
-    return (ParseVariant(aValue, VARIANT_KEYWORD,
+    // property is VARIANT_HMK|VARIANT_SYSFONT
+    return (ParseVariant(aValue, VARIANT_KEYWORD | VARIANT_NORMAL,
                          nsCSSProps::kFontStretchKTable) &&
-            (aValue.GetIntValue() != NS_STYLE_FONT_STRETCH_WIDER &&
-             aValue.GetIntValue() != NS_STYLE_FONT_STRETCH_NARROWER));
+            (aValue.GetUnit() != eCSSUnit_Enumerated ||
+             (aValue.GetIntValue() != NS_STYLE_FONT_STRETCH_WIDER &&
+              aValue.GetIntValue() != NS_STYLE_FONT_STRETCH_NARROWER)));
 
     // These two are unique to @font-face and have their own special grammar.
   case eCSSFontDesc_Src:
@@ -6270,7 +5945,6 @@ CSSParserImpl::ParseBackground()
 
   BackgroundItem bgitem;
   nsCSSValuePairList *positionHead = nsnull, **positionTail = &positionHead;
-  nsCSSValuePairList *sizeHead = nsnull, **sizeTail = &sizeHead;
   static const BackgroundItemSimpleValueInfo simpleValues[] = {
     { &BackgroundItem::mImage,      eCSSProperty_background_image },
     { &BackgroundItem::mRepeat,     eCSSProperty_background_repeat },
@@ -6288,7 +5962,6 @@ CSSParserImpl::ParseBackground()
     if (!ParseBackgroundItem(bgitem, !positionHead)) {
       break;
     }
-
     nsCSSValuePairList *positionItem = new nsCSSValuePairList;
     if (!positionItem) {
       mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
@@ -6298,16 +5971,6 @@ CSSParserImpl::ParseBackground()
     positionItem->mYValue = bgitem.mPosition.mYValue;
     *positionTail = positionItem;
     positionTail = &positionItem->mNext;
-
-    nsCSSValuePairList *sizeItem = new nsCSSValuePairList;
-    if (!sizeItem) {
-      mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
-      break;
-    }
-    sizeItem->mXValue = bgitem.mSize.mXValue;
-    sizeItem->mYValue = bgitem.mSize.mYValue;
-    *sizeTail = sizeItem;
-    sizeTail = &sizeItem->mNext;
 
     PRBool fail = PR_FALSE;
     for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(simpleValues); ++i) {
@@ -6333,7 +5996,6 @@ CSSParserImpl::ParseBackground()
     }
 
     mTempData.mColor.mBackPosition = positionHead;
-    mTempData.mColor.mBackSize = sizeHead;
     for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(simpleValues); ++i) {
       nsCSSValueList **source = static_cast<nsCSSValueList**>(
         mTempData.PropertyAt(simpleValues[i].propID));
@@ -6346,11 +6008,9 @@ CSSParserImpl::ParseBackground()
     mTempData.SetPropertyBit(eCSSProperty_background_position);
     mTempData.SetPropertyBit(eCSSProperty__moz_background_clip);
     mTempData.SetPropertyBit(eCSSProperty__moz_background_origin);
-    mTempData.SetPropertyBit(eCSSProperty__moz_background_size);
     return PR_TRUE;
   }
   delete positionHead;
-  delete sizeHead;
   for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(simpleValues); ++i) {
     delete simpleHeads[i];
   }
@@ -6372,8 +6032,6 @@ CSSParserImpl::ParseBackgroundItem(CSSParserImpl::BackgroundItem& aItem,
   aItem.mPosition.mYValue.SetPercentValue(0.0f);
   aItem.mClip.SetIntValue(NS_STYLE_BG_CLIP_BORDER, eCSSUnit_Enumerated);
   aItem.mOrigin.SetIntValue(NS_STYLE_BG_ORIGIN_PADDING, eCSSUnit_Enumerated);
-  aItem.mSize.mXValue.SetAutoValue();
-  aItem.mSize.mYValue.SetAutoValue();
   aItem.mLastItem = PR_FALSE;
 
   PRBool haveColor = PR_FALSE,
@@ -6414,8 +6072,6 @@ CSSParserImpl::ParseBackgroundItem(CSSParserImpl::BackgroundItem& aItem,
         aItem.mPosition.SetBothValuesTo(val);
         aItem.mClip = val;
         aItem.mOrigin = val;
-        aItem.mSize.mXValue = val;
-        aItem.mSize.mYValue = val;
         aItem.mLastItem = PR_TRUE;
         haveSomething = PR_TRUE;
         break;
@@ -6453,7 +6109,7 @@ CSSParserImpl::ParseBackgroundItem(CSSParserImpl::BackgroundItem& aItem,
         if (havePosition)
           return PR_FALSE;
         havePosition = PR_TRUE;
-        if (!ParseBoxPositionValues(aItem.mPosition, PR_FALSE)) {
+        if (!ParseBoxPositionValues(aItem.mPosition)) {
           return PR_FALSE;
         }
 #if 0
@@ -6463,9 +6119,9 @@ CSSParserImpl::ParseBackgroundItem(CSSParserImpl::BackgroundItem& aItem,
     // support for content-box on background-clip.
       } else if (nsCSSProps::FindKeyword(keyword,
                    nsCSSProps::kBackgroundClipKTable, dummy)) {
-        // For now, we use the background-clip table rather than have a special
-        // background-origin table, because we don't support 'content-box' on
-        // background-origin.
+        // For now, we use the background-clip table, because we don't
+        // support 'content' on background-clip.  But that's dangerous
+        // if we eventually support no-clip.
         NS_ASSERTION(
           nsCSSProps::kBackgroundClipKTable[0] == eCSSKeyword_border &&
           nsCSSProps::kBackgroundClipKTable[2] == eCSSKeyword_padding &&
@@ -6500,12 +6156,7 @@ CSSParserImpl::ParseBackgroundItem(CSSParserImpl::BackgroundItem& aItem,
         aItem.mLastItem = PR_TRUE;
       }
     } else if (eCSSToken_Function == tt &&
-               (mToken.mIdent.LowerCaseEqualsLiteral("url") ||
-                mToken.mIdent.LowerCaseEqualsLiteral("-moz-linear-gradient") ||
-                mToken.mIdent.LowerCaseEqualsLiteral("-moz-radial-gradient") ||
-                mToken.mIdent.LowerCaseEqualsLiteral("-moz-repeating-linear-gradient") ||
-                mToken.mIdent.LowerCaseEqualsLiteral("-moz-repeating-radial-gradient") ||
-                mToken.mIdent.LowerCaseEqualsLiteral("-moz-image-rect"))) {
+               mToken.mIdent.LowerCaseEqualsLiteral("url")) {
       if (haveImage)
         return PR_FALSE;
       haveImage = PR_TRUE;
@@ -6513,12 +6164,11 @@ CSSParserImpl::ParseBackgroundItem(CSSParserImpl::BackgroundItem& aItem,
                                     eCSSProperty_background_image)) {
         return PR_FALSE;
       }
-    } else if (tt == eCSSToken_Dimension || tt == eCSSToken_Number ||
-               tt == eCSSToken_Percentage) {
+    } else if (mToken.IsDimension() || tt == eCSSToken_Percentage) {
       if (havePosition)
         return PR_FALSE;
       havePosition = PR_TRUE;
-      if (!ParseBoxPositionValues(aItem.mPosition, PR_FALSE)) {
+      if (!ParseBoxPositionValues(aItem.mPosition)) {
         return PR_FALSE;
       }
     } else {
@@ -6539,8 +6189,7 @@ CSSParserImpl::ParseBackgroundItem(CSSParserImpl::BackgroundItem& aItem,
   return haveSomething;
 }
 
-// This function is very similar to ParseBackgroundPosition and
-// ParseBackgroundSize.
+// This function is very similar to ParseBackgroundPosition.
 PRBool
 CSSParserImpl::ParseBackgroundList(nsCSSProperty aPropID)
 {
@@ -6581,7 +6230,7 @@ CSSParserImpl::ParseBackgroundList(nsCSSProperty aPropID)
   return PR_FALSE;
 }
 
-// This function is very similar to ParseBackgroundList and ParseBackgroundSize.
+// This function is very similar to ParseBackgroundList.
 PRBool
 CSSParserImpl::ParseBackgroundPosition()
 {
@@ -6589,11 +6238,15 @@ CSSParserImpl::ParseBackgroundPosition()
   nsCSSValuePair valuePair;
   nsCSSValuePairList *head = nsnull, **tail = &head;
   for (;;) {
-    if (!ParseBoxPositionValues(valuePair, !head)) {
+    if (!ParseBoxPositionValues(valuePair)) {
       break;
     }
     PRBool inheritOrInitial = valuePair.mXValue.GetUnit() == eCSSUnit_Inherit ||
                               valuePair.mXValue.GetUnit() == eCSSUnit_Initial;
+    if (inheritOrInitial && head) {
+      // inherit and initial are only allowed on their own
+      break;
+    }
     nsCSSValuePairList *item = new nsCSSValuePairList;
     if (!item) {
       mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
@@ -6622,18 +6275,15 @@ CSSParserImpl::ParseBackgroundPosition()
  * values corresponding to percentages of the box, raw offsets, or keywords
  * like "top," "left center," etc.
  *
- * @param aOut The nsCSSValuePair in which to place the result.
- * @param aAcceptsInherit If true, 'inherit' and 'initial' are legal values
+ * @param aOut The nsCSSValuePair where to place the result.
  * @return Whether or not the operation succeeded.
  */
-PRBool CSSParserImpl::ParseBoxPositionValues(nsCSSValuePair &aOut,
-                                             PRBool aAcceptsInherit)
+PRBool CSSParserImpl::ParseBoxPositionValues(nsCSSValuePair &aOut)
 {
   // First try a percentage or a length value
   nsCSSValue &xValue = aOut.mXValue,
              &yValue = aOut.mYValue;
-  PRInt32 variantMask = aAcceptsInherit ? VARIANT_HLP : VARIANT_LP;
-  if (ParseVariant(xValue, variantMask, nsnull)) {
+  if (ParseVariant(xValue, VARIANT_HLP, nsnull)) {
     if (eCSSUnit_Inherit == xValue.GetUnit() ||
         eCSSUnit_Initial == xValue.GetUnit()) {  // both are inherited or both are set to initial
       yValue = xValue;
@@ -6704,90 +6354,6 @@ PRBool CSSParserImpl::ParseBoxPositionValues(nsCSSValuePair &aOut,
   // Create style values
   xValue = BoxPositionMaskToCSSValue(mask, PR_TRUE);
   yValue = BoxPositionMaskToCSSValue(mask, PR_FALSE);
-  return PR_TRUE;
-}
-
-// This function is very similar to ParseBackgroundList and
-// ParseBackgroundPosition.
-PRBool
-CSSParserImpl::ParseBackgroundSize()
-{
-  nsCSSValuePair valuePair;
-  nsCSSValuePairList *head = nsnull, **tail = &head;
-  if (ParseVariant(valuePair.mXValue, VARIANT_INHERIT, nsnull)) {
-    // 'initial' and 'inherit' stand alone, no second value.
-    head = new nsCSSValuePairList;
-    if (!head) {
-      mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
-      return PR_FALSE;
-    }
-    head->mXValue = valuePair.mXValue;
-    head->mYValue.Reset();
-    mTempData.mColor.mBackSize = head;
-    mTempData.SetPropertyBit(eCSSProperty__moz_background_size);
-    return ExpectEndProperty();
-  }
-
-  for (;;) {
-    if (!ParseBackgroundSizeValues(valuePair)) {
-      break;
-    }
-    nsCSSValuePairList *item = new nsCSSValuePairList;
-    if (!item) {
-      mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
-      break;
-    }
-    item->mXValue = valuePair.mXValue;
-    item->mYValue = valuePair.mYValue;
-    *tail = item;
-    tail = &item->mNext;
-    if (ExpectSymbol(',', PR_TRUE)) {
-      continue;
-    }
-    if (!ExpectEndProperty()) {
-      break;
-    }
-    mTempData.mColor.mBackSize = head;
-    mTempData.SetPropertyBit(eCSSProperty__moz_background_size);
-    return PR_TRUE;
-  }
-  delete head;
-  return PR_FALSE;
-}
-
-/**
- * Parses two values that correspond to lengths for the -moz-background-size
- * property.  These can be one or two lengths (or the 'auto' keyword) or
- * percentages corresponding to the element's dimensions or the single keywords
- * 'contain' or 'cover'.  'initial' and 'inherit' must be handled by the caller
- * if desired.
- *
- * @param aOut The nsCSSValuePair in which to place the result.
- * @return Whether or not the operation succeeded.
- */
-PRBool CSSParserImpl::ParseBackgroundSizeValues(nsCSSValuePair &aOut)
-{
-  // First try a percentage or a length value
-  nsCSSValue &xValue = aOut.mXValue,
-             &yValue = aOut.mYValue;
-  if (ParseNonNegativeVariant(xValue, VARIANT_LP | VARIANT_AUTO, nsnull)) {
-    // We have one percentage/length/auto. Get the optional second
-    // percentage/length/keyword.
-    if (ParseNonNegativeVariant(yValue, VARIANT_LP | VARIANT_AUTO, nsnull)) {
-      // We have a second percentage/length/auto.
-      return PR_TRUE;
-    }
-
-    // If only one percentage or length value is given, it sets the
-    // horizontal size only, and the vertical size will be as if by 'auto'.
-    yValue.SetAutoValue();
-    return PR_TRUE;
-  }
-
-  // Now address 'contain' and 'cover'.
-  if (!ParseEnum(xValue, nsCSSProps::kBackgroundSizeKTable))
-    return PR_FALSE;
-  yValue.Reset();
   return PR_TRUE;
 }
 
@@ -6939,7 +6505,7 @@ CSSParserImpl::ParseBorderSide(const nsCSSProperty aPropIDs[],
     values[0].SetIntValue(NS_STYLE_BORDER_WIDTH_MEDIUM, eCSSUnit_Enumerated);
   }
   if ((found & 2) == 0) { // Provide default border-style
-    values[1].SetIntValue(NS_STYLE_BORDER_STYLE_NONE, eCSSUnit_Enumerated);
+    values[1].SetNoneValue();
   }
   if ((found & 4) == 0) { // text color will be used
     values[2].SetIntValue(NS_STYLE_COLOR_MOZ_USE_TEXT_COLOR, eCSSUnit_Enumerated);
@@ -6997,7 +6563,7 @@ CSSParserImpl::ParseDirectionalBorderSide(const nsCSSProperty aPropIDs[],
     values[0].SetIntValue(NS_STYLE_BORDER_WIDTH_MEDIUM, eCSSUnit_Enumerated);
   }
   if ((found & 2) == 0) { // Provide default border-style
-    values[1].SetIntValue(NS_STYLE_BORDER_STYLE_NONE, eCSSUnit_Enumerated);
+    values[1].SetNoneValue();
   }
   if ((found & 4) == 0) { // text color will be used
     values[2].SetIntValue(NS_STYLE_COLOR_MOZ_USE_TEXT_COLOR, eCSSUnit_Enumerated);
@@ -7319,7 +6885,7 @@ CSSParserImpl::ParseCursor()
       break;
     }
     if (!ParseVariant(cur->mValue,
-                      (cur == list) ? VARIANT_HUK : VARIANT_UK,
+                      (cur == list) ? VARIANT_AHUK : VARIANT_AUK,
                       nsCSSProps::kCursorKTable)) {
       break;
     }
@@ -7411,15 +6977,15 @@ CSSParserImpl::ParseFont()
   }
   if ((found & 1) == 0) {
     // Provide default font-style
-    values[0].SetIntValue(NS_FONT_STYLE_NORMAL, eCSSUnit_Enumerated);
+    values[0].SetNormalValue();
   }
   if ((found & 2) == 0) {
     // Provide default font-variant
-    values[1].SetIntValue(NS_FONT_VARIANT_NORMAL, eCSSUnit_Enumerated);
+    values[1].SetNormalValue();
   }
   if ((found & 4) == 0) {
     // Provide default font-weight
-    values[2].SetIntValue(NS_FONT_WEIGHT_NORMAL, eCSSUnit_Enumerated);
+    values[2].SetNormalValue();
   }
 
   // Get mandatory font-size
@@ -7453,8 +7019,7 @@ CSSParserImpl::ParseFont()
       AppendValue(eCSSProperty_font_weight, values[2]);
       AppendValue(eCSSProperty_font_size, size);
       AppendValue(eCSSProperty_line_height, lineHeight);
-      AppendValue(eCSSProperty_font_stretch,
-                  nsCSSValue(NS_FONT_STRETCH_NORMAL, eCSSUnit_Enumerated));
+      AppendValue(eCSSProperty_font_stretch, nsCSSValue(eCSSUnit_Normal));
       AppendValue(eCSSProperty_font_size_adjust, nsCSSValue(eCSSUnit_None));
       return PR_TRUE;
     }
@@ -7465,8 +7030,7 @@ CSSParserImpl::ParseFont()
 PRBool
 CSSParserImpl::ParseFontWeight(nsCSSValue& aValue)
 {
-  if (ParseVariant(aValue, VARIANT_HKI | VARIANT_SYSFONT,
-                   nsCSSProps::kFontWeightKTable)) {
+  if (ParseVariant(aValue, VARIANT_HMKI | VARIANT_SYSFONT, nsCSSProps::kFontWeightKTable)) {
     if (eCSSUnit_Integer == aValue.GetUnit()) { // ensure unit value
       PRInt32 intValue = aValue.GetIntValue();
       if ((100 <= intValue) &&
@@ -7672,8 +7236,8 @@ static PRBool GetFunctionParseInformation(nsCSSKeyword aToken,
   static const PRInt32 kVariantMasks[eNumVariantMasks][kMaxElemsPerFunction] = {
     {VARIANT_LENGTH | VARIANT_PERCENT},
     {VARIANT_LENGTH | VARIANT_PERCENT, VARIANT_LENGTH | VARIANT_PERCENT},
-    {VARIANT_ANGLE_OR_ZERO},
-    {VARIANT_ANGLE_OR_ZERO, VARIANT_ANGLE_OR_ZERO},
+    {VARIANT_ANGLE},
+    {VARIANT_ANGLE, VARIANT_ANGLE},
     {VARIANT_NUMBER},
     {VARIANT_NUMBER, VARIANT_NUMBER},
     {VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER, VARIANT_NUMBER,
@@ -7890,7 +7454,7 @@ PRBool CSSParserImpl::ParseMozTransform()
 PRBool CSSParserImpl::ParseMozTransformOrigin()
 {
   /* Read in a box position, fail if we can't. */
-  if (!ParseBoxPositionValues(mTempData.mDisplay.mTransformOrigin, PR_TRUE) ||
+  if (!ParseBoxPositionValues(mTempData.mDisplay.mTransformOrigin) ||
       !ExpectEndProperty())
     return PR_FALSE;
 
@@ -7975,14 +7539,10 @@ CSSParserImpl::ParseFontSrc(nsCSSValue& aValue)
       nsAutoString family;
       if (!ExpectSymbol('(', PR_FALSE))
         return PR_FALSE;
-      if (!ParseOneFamily(family)) {
-        SkipUntil(')');
+      if (!ParseOneFamily(family))
         return PR_FALSE;
-      }
-      if (!ExpectSymbol(')', PR_TRUE)) {
-        SkipUntil(')');
+      if (!ExpectSymbol(')', PR_TRUE))
         return PR_FALSE;
-      }
 
       // the style parameters to the nsFont constructor are ignored,
       // because it's only being used to call EnumerateFamilies
@@ -8003,15 +7563,10 @@ CSSParserImpl::ParseFontSrc(nsCSSValue& aValue)
       break;
   }
 
-  if (values.Length() == 0)
-    return PR_FALSE;
-
   nsRefPtr<nsCSSValue::Array> srcVals
     = nsCSSValue::Array::Create(values.Length());
-  if (!srcVals) {
-    mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
+  if (!srcVals)
     return PR_FALSE;
-  }
 
   PRUint32 i;
   for (i = 0; i < values.Length(); i++)
@@ -8035,76 +7590,24 @@ CSSParserImpl::ParseFontSrcFormat(nsTArray<nsCSSValue> & values)
 
   do {
     if (!GetToken(PR_TRUE))
-      return PR_FALSE; // EOF - no need for SkipUntil
-
-    if (mToken.mType != eCSSToken_String) {
-      SkipUntil(')');
       return PR_FALSE;
-    }
+
+    if (mToken.mType != eCSSToken_String)
+      return PR_FALSE;
 
     nsCSSValue cur(mToken.mIdent, eCSSUnit_Font_Format);
     values.AppendElement(cur);
   } while (ExpectSymbol(',', PR_TRUE));
 
-  if (!ExpectSymbol(')', PR_TRUE)) {
-    SkipUntil(')');
-    return PR_FALSE;
-  }
-
-  return PR_TRUE;
+  return ExpectSymbol(')', PR_TRUE);
 }
 
 // font-ranges: urange ( ',' urange )*
 PRBool
 CSSParserImpl::ParseFontRanges(nsCSSValue& aValue)
 {
-  nsTArray<PRUint32> ranges;
-  for (;;) {
-    if (!GetToken(PR_TRUE))
-      break;
-
-    if (mToken.mType != eCSSToken_URange) {
-      UngetToken();
-      break;
-    }
-
-    // An invalid range token is a parsing error, causing the entire
-    // descriptor to be ignored.
-    if (!mToken.mIntegerValid)
-      return PR_FALSE;
-
-    PRUint32 low = mToken.mInteger;
-    PRUint32 high = mToken.mInteger2;
-
-    // A range that descends, or a range that is entirely outside the
-    // current range of Unicode (U+0-10FFFF) is ignored, but does not
-    // invalidate the descriptor.  A range that straddles the high end
-    // is clipped.
-    if (low <= 0x10FFFF && low <= high) {
-      if (high > 0x10FFFF)
-        high = 0x10FFFF;
-
-      ranges.AppendElement(low);
-      ranges.AppendElement(high);
-    }
-    if (!ExpectSymbol(',', PR_TRUE))
-      break;
-  }
-
-  if (ranges.Length() == 0)
-    return PR_FALSE;
-
-  nsRefPtr<nsCSSValue::Array> srcVals
-    = nsCSSValue::Array::Create(ranges.Length());
-  if (!srcVals) {
-    mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
-    return PR_FALSE;
-  }
-
-  for (PRUint32 i = 0; i < ranges.Length(); i++)
-    srcVals->Item(i).SetIntValue(ranges[i], eCSSUnit_Integer);
-  aValue.SetArrayValue(srcVals, eCSSUnit_Array);
-  return PR_TRUE;
+  // not currently implemented (bug 443976)
+  return PR_FALSE;
 }
 
 PRBool
@@ -8145,7 +7648,7 @@ CSSParserImpl::ParseListStyle()
   // Provide default values
   if ((found & 2) == 0) {
     if (found & 1) {
-      values[1].SetIntValue(NS_STYLE_LIST_STYLE_NONE, eCSSUnit_Enumerated);
+      values[1].SetNoneValue();
     } else {
       values[1].SetIntValue(NS_STYLE_LIST_STYLE_DISC, eCSSUnit_Enumerated);
     }
@@ -8191,18 +7694,13 @@ CSSParserImpl::ParseMargin()
 PRBool
 CSSParserImpl::ParseMarks(nsCSSValue& aValue)
 {
-  if (ParseVariant(aValue, VARIANT_HK, nsCSSProps::kPageMarksKTable)) {
+  if (ParseVariant(aValue, VARIANT_HOK, nsCSSProps::kPageMarksKTable)) {
     if (eCSSUnit_Enumerated == aValue.GetUnit()) {
-      if (NS_STYLE_PAGE_MARKS_NONE != aValue.GetIntValue() &&
-          PR_FALSE == CheckEndProperty()) {
-        nsCSSValue second;
+      if (PR_FALSE == CheckEndProperty()) {
+        nsCSSValue  second;
         if (ParseEnum(second, nsCSSProps::kPageMarksKTable)) {
-          // 'none' keyword in conjuction with others is not allowed
-          if (NS_STYLE_PAGE_MARKS_NONE != second.GetIntValue()) {
-            aValue.SetIntValue(aValue.GetIntValue() | second.GetIntValue(),
-                               eCSSUnit_Enumerated);
-            return PR_TRUE;
-          }
+          aValue.SetIntValue(aValue.GetIntValue() | second.GetIntValue(), eCSSUnit_Enumerated);
+          return PR_TRUE;
         }
         return PR_FALSE;
       }
@@ -8229,17 +7727,17 @@ CSSParserImpl::ParseOutline()
   }
 
   // Provide default values
-  if ((found & 1) == 0) { // Provide default outline-color
+  if ((found & 1) == 0) {
 #ifdef GFX_HAS_INVERT
     values[0].SetIntValue(NS_STYLE_COLOR_INVERT, eCSSUnit_Enumerated);
 #else
     values[0].SetIntValue(NS_STYLE_COLOR_MOZ_USE_TEXT_COLOR, eCSSUnit_Enumerated);
 #endif
   }
-  if ((found & 2) == 0) { // Provide default outline-style
-    values[1].SetIntValue(NS_STYLE_BORDER_STYLE_NONE, eCSSUnit_Enumerated);
+  if ((found & 2) == 0) {
+    values[1].SetNoneValue();
   }
-  if ((found & 4) == 0) { // Provide default outline-width
+  if ((found & 4) == 0) {
     values[2].SetIntValue(NS_STYLE_BORDER_WIDTH_MEDIUM, eCSSUnit_Enumerated);
   }
 
@@ -8254,8 +7752,8 @@ PRBool
 CSSParserImpl::ParseOverflow()
 {
   nsCSSValue overflow;
-  if (!ParseVariant(overflow, VARIANT_HK,
-                    nsCSSProps::kOverflowKTable) ||
+  if (!ParseVariant(overflow, VARIANT_AHK,
+                   nsCSSProps::kOverflowKTable) ||
       !ExpectEndProperty())
     return PR_FALSE;
 
@@ -8403,428 +7901,29 @@ CSSParserImpl::ParseSize()
 PRBool
 CSSParserImpl::ParseTextDecoration(nsCSSValue& aValue)
 {
-  if (ParseVariant(aValue, VARIANT_HK, nsCSSProps::kTextDecorationKTable)) {
-    if (eCSSUnit_Enumerated == aValue.GetUnit()) {
+  if (ParseVariant(aValue, VARIANT_HOK, nsCSSProps::kTextDecorationKTable)) {
+    if (eCSSUnit_Enumerated == aValue.GetUnit()) {  // look for more keywords
       PRInt32 intValue = aValue.GetIntValue();
-      if (intValue != NS_STYLE_TEXT_DECORATION_NONE) {
-        // look for more keywords
-        nsCSSValue  keyword;
-        PRInt32 index;
-        for (index = 0; index < 3; index++) {
-          if (ParseEnum(keyword, nsCSSProps::kTextDecorationKTable)) {
-            PRInt32 newValue = keyword.GetIntValue();
-            if (newValue == NS_STYLE_TEXT_DECORATION_NONE ||
-                newValue & intValue) {
-              // 'none' keyword in conjuction with others is not allowed, and
-              // duplicate keyword is not allowed.
-              return PR_FALSE;
-            }
-            intValue |= newValue;
+      nsCSSValue  keyword;
+      PRInt32 index;
+      for (index = 0; index < 3; index++) {
+        if (ParseEnum(keyword, nsCSSProps::kTextDecorationKTable)) {
+          PRInt32 newValue = keyword.GetIntValue();
+          if (newValue & intValue) {
+            // duplicate keyword is not allowed
+            return PR_FALSE;
           }
-          else {
-            break;
-          }
+          intValue |= newValue;
         }
-        aValue.SetIntValue(intValue, eCSSUnit_Enumerated);
+        else {
+          break;
+        }
       }
+      aValue.SetIntValue(intValue, eCSSUnit_Enumerated);
     }
     return PR_TRUE;
   }
   return PR_FALSE;
-}
-
-
-PRBool
-CSSParserImpl::ParseTransitionTime(nsCSSProperty aPropID)
-{
-  NS_ABORT_IF_FALSE(aPropID == eCSSProperty_transition_duration ||
-                    aPropID == eCSSProperty_transition_delay,
-                    "Invalid property");
-  nsCSSValueList** storage =
-    aPropID == eCSSProperty_transition_duration
-      ? &mTempData.mDisplay.mTransitionDuration
-      : &mTempData.mDisplay.mTransitionDelay;
-
-  nsCSSValue timeval;
-  // first see if 'inherit' or '-moz-initial' is specified.  If one is,
-  // it can be the only thing specified, so don't attempt to parse any
-  // additional properties
-  if (ParseVariant(timeval, VARIANT_INHERIT, nsnull)) {
-    nsCSSValueList* list = new nsCSSValueList();
-    if (!list) {
-      mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
-      return PR_FALSE;
-    }
-    list->mValue = timeval;
-    mTempData.SetPropertyBit(aPropID);
-    *storage = list;
-    return PR_TRUE;
-  }
-
-  // now try to parse normal time values
-  nsCSSValueList *listHead = nsnull;
-  nsCSSValueList **next = &listHead;
-
-  for (;;) {
-    if (!ParseVariant(timeval, VARIANT_TIME, nsnull)) {
-      break;
-    }
-    if (!AppendValueToList(next, timeval)) {
-      mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
-      break;
-    }
-    if (CheckEndProperty()) {
-      mTempData.SetPropertyBit(aPropID);
-      *storage = listHead;
-      return PR_TRUE;
-    }
-    if (!ExpectSymbol(',', PR_TRUE)) {
-      break;
-    }
-  }
-  delete listHead;
-  return PR_FALSE;
-}
-
-PRBool
-CSSParserImpl::ParseTransitionProperty()
-{
-  nsCSSValue value;
-  // first see if 'inherit', '-moz-initial', 'none', or 'all' is
-  // specified.  If one is, it can be the only thing specified, so don't
-  // attempt to parse any additional properties
-  if (ParseVariant(value, VARIANT_INHERIT | VARIANT_NONE | VARIANT_ALL,
-                   nsnull)) {
-    nsCSSValueList* list = new nsCSSValueList();
-    if (!list) {
-      mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
-      return PR_FALSE;
-    }
-    list->mValue = value;
-    mTempData.SetPropertyBit(eCSSProperty_transition_property);
-    mTempData.mDisplay.mTransitionProperty = list;
-    return PR_TRUE;
-  }
-
-  // Accept a list of arbitrary identifiers.  They should be CSS
-  // properties, but we want to accept any so that we accept properties
-  // that we don't know about yet, e.g.
-  // transition-property: invalid-property, left, opacity;
-  nsCSSValueList *listHead = nsnull;
-  nsCSSValueList **next = &listHead;
-
-  for (;;) {
-    if (!ParseVariant(value, VARIANT_IDENTIFIER, nsnull)) {
-      break;
-    }
-    // Exclude 'none' and 'all' and 'inherit' and 'initial' according to
-    // the same rules as for 'counter-reset' in CSS 2.1 (except
-    // 'counter-reset' doesn't exclude 'all' since it doesn't support
-    // 'all' as a special value).
-    nsDependentString str(value.GetStringBufferValue());
-    if (str.EqualsLiteral("none") || str.EqualsLiteral("all") ||
-        str.EqualsLiteral("inherit") || str.EqualsLiteral("initial")) {
-      break;
-    }
-
-    if (!AppendValueToList(next, value)) {
-      mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
-      break;
-    }
-    if (CheckEndProperty()) {
-      mTempData.SetPropertyBit(eCSSProperty_transition_property);
-      mTempData.mDisplay.mTransitionProperty = listHead;
-      return PR_TRUE;
-    }
-    if (!ExpectSymbol(',', PR_TRUE)) {
-      break;
-    }
-  }
-  delete listHead;
-  return PR_FALSE;
-}
-
-PRBool
-CSSParserImpl::ParseTransitionTimingFunction()
-{
-  nsCSSValue timeFunction;
-  // first see if 'inherit' or '-moz-initial' is specified.  If one is,
-  // it can be the only thing specified, so don't attempt to parse any
-  // additional properties
-  if (ParseVariant(timeFunction, VARIANT_INHERIT, nsnull)) {
-    nsCSSValueList* list = new nsCSSValueList();
-    if (!list) {
-      mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
-      return PR_FALSE;
-    }
-    list->mValue = timeFunction;
-    mTempData.SetPropertyBit(eCSSProperty_transition_timing_function);
-    mTempData.mDisplay.mTransitionTimingFunction = list;
-    return PR_TRUE;
-  }
-
-  nsCSSValueList *listHead = nsnull;
-  nsCSSValueList **next = &listHead;
-
-  for (;;) {
-    if (!ParseVariant(timeFunction, VARIANT_TIMING_FUNCTION,
-                      nsCSSProps::kTransitionTimingFunctionKTable)) {
-      break;
-    }
-    if (!AppendValueToList(next, timeFunction)) {
-      mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
-      break;
-    }
-    if (CheckEndProperty()) {
-      mTempData.SetPropertyBit(eCSSProperty_transition_timing_function);
-      mTempData.mDisplay.mTransitionTimingFunction = listHead;
-      return PR_TRUE;
-    }
-    if (!ExpectSymbol (',', PR_TRUE)) {
-      break;
-    }
-  }
-
-  delete listHead;
-  return PR_FALSE;
-}
-
-PRBool
-CSSParserImpl::ParseTransitionTimingFunctionValues(nsCSSValue& aValue)
-{
-  NS_ASSERTION(!mHavePushBack &&
-               mToken.mType == eCSSToken_Function &&
-               mToken.mIdent.LowerCaseEqualsLiteral("cubic-bezier"),
-               "unexpected initial state");
-
-  nsRefPtr<nsCSSValue::Array> val = nsCSSValue::Array::Create(4);
-  if (!val) {
-    mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
-    return PR_FALSE;
-  }
-
-  float x1, x2, y1, y2;
-  if (!ExpectSymbol('(', PR_FALSE) ||
-      !ParseTransitionTimingFunctionValueComponent(x1, ',') ||
-      !ParseTransitionTimingFunctionValueComponent(y1, ',') ||
-      !ParseTransitionTimingFunctionValueComponent(x2, ',') ||
-      !ParseTransitionTimingFunctionValueComponent(y2, ')')) {
-    return PR_FALSE;
-  }
-
-  val->Item(0).SetFloatValue(x1, eCSSUnit_Number);
-  val->Item(1).SetFloatValue(y1, eCSSUnit_Number);
-  val->Item(2).SetFloatValue(x2, eCSSUnit_Number);
-  val->Item(3).SetFloatValue(y2, eCSSUnit_Number);
-
-  aValue.SetArrayValue(val, eCSSUnit_Cubic_Bezier);
-
-  return PR_TRUE;
-}
-
-PRBool
-CSSParserImpl::ParseTransitionTimingFunctionValueComponent(float& aComponent,
-                                                           char aStop)
-{
-  if (!GetToken(PR_TRUE)) {
-    return PR_FALSE;
-  }
-  nsCSSToken* tk = &mToken;
-  if (tk->mType == eCSSToken_Number) {
-    aComponent = tk->mNumber;
-    if (ExpectSymbol(aStop, PR_TRUE)) {
-      return PR_TRUE;
-    }
-  }
-  return PR_FALSE;
-}
-
-PRBool
-CSSParserImpl::AppendValueToList(nsCSSValueList**& aListTail,
-                                 const nsCSSValue& aValue)
-{
-  NS_ABORT_IF_FALSE(!*aListTail, "should not have a next entry");
-  nsCSSValueList *entry = new nsCSSValueList();
-  if (!entry) {
-    mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
-    return PR_FALSE;
-  }
-  entry->mValue = aValue;
-  *aListTail = entry;
-  aListTail = &entry->mNext;
-  return PR_TRUE;
-}
-
-PRBool
-CSSParserImpl::ParseTransition()
-{
-  static const nsCSSProperty kTransitionProperties[] = {
-    eCSSProperty_transition_duration,
-    eCSSProperty_transition_timing_function,
-    // Must check 'transition-delay' after 'transition-duration', since
-    // that's our assumption about what the spec means for the shorthand
-    // syntax (the first time given is the duration, and the second
-    // given is the delay).
-    eCSSProperty_transition_delay,
-    // Must check 'transition-property' after
-    // 'transition-timing-function' since 'transition-property' accepts
-    // any keyword.
-    eCSSProperty_transition_property
-  };
-  static const PRUint32 numProps = NS_ARRAY_LENGTH(kTransitionProperties);
-  // this is a shorthand property that accepts -property, -delay,
-  // -duration, and -timing-function with some components missing.
-  // there can be multiple transitions, separated with commas
-
-  nsCSSValue tempValue;
-  // first see if 'inherit' or '-moz-initial' is specified.  If one is,
-  // it can be the only thing specified, so don't attempt to parse any
-  // additional properties
-  if (ParseVariant(tempValue, VARIANT_INHERIT, nsnull)) {
-    for (PRUint32 i = 0; i < numProps; ++i) {
-      nsCSSValueList* list = new nsCSSValueList();
-      if (!list) {
-        mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
-        return PR_FALSE;
-      }
-      list->mValue = tempValue;
-      nsCSSProperty prop = kTransitionProperties[i];
-      *static_cast<nsCSSValueList**>(mTempData.PropertyAt(prop)) = list;
-      mTempData.SetPropertyBit(prop);
-    }
-    return PR_TRUE;
-  }
-
-  nsAutoPtr<nsCSSValueList> values[numProps];
-  nsCSSValueList **tails[numProps] = { getter_Transfers(values[0]),
-                                       getter_Transfers(values[1]),
-                                       getter_Transfers(values[2]),
-                                       getter_Transfers(values[3]) };
-  PRBool atEOP = PR_FALSE; // at end of property?
-  for (;;) { // loop over comma-separated transitions
-    // whether a particular subproperty was specified for this transition
-    PRBool parsedProperty[numProps] =
-      { PR_FALSE, PR_FALSE, PR_FALSE, PR_FALSE };
-    for (;;) { // loop over values within a transition
-      PRBool foundProperty = PR_FALSE;
-      // check to see if we're at the end of one full transition definition
-      // (either because we hit a comma or because we hit the end of the
-      // property definition)
-      if (ExpectSymbol(',', PR_TRUE))
-        break;
-      if (CheckEndProperty()) {
-        atEOP = PR_TRUE;
-        break;
-      }
-
-      // else, try to parse the next transition sub-property
-      for (PRUint32 i = 0; !foundProperty && i < numProps; ++i) {
-        if (!parsedProperty[i]) {
-          // if we haven't found this property yet, try to parse it
-          PRInt32 variantMask;
-          const PRInt32* table = nsnull;
-          switch (kTransitionProperties[i]) {
-            case eCSSProperty_transition_property:
-              variantMask = VARIANT_IDENTIFIER | VARIANT_NONE | VARIANT_ALL;
-              break;
-            case eCSSProperty_transition_duration:
-            case eCSSProperty_transition_delay:
-              variantMask = VARIANT_TIME;
-              break;
-            case eCSSProperty_transition_timing_function:
-              variantMask = VARIANT_TIMING_FUNCTION;
-              table = nsCSSProps::kTransitionTimingFunctionKTable;
-              break;
-            default:
-              NS_ABORT_IF_FALSE(PR_FALSE, "Invalid transition property");
-          }
-          if (ParseVariant(tempValue, variantMask, table)) {
-            parsedProperty[i] = PR_TRUE;
-            if (!AppendValueToList(tails[i], tempValue)) {
-              return PR_FALSE;
-            }
-            foundProperty = PR_TRUE;
-            break; // out of inner loop; continue looking for next sub-property
-          }
-        }
-      }
-      if (!foundProperty) {
-        // We're not at a ',' or at the end of the property, but we couldn't
-        // parse any of the sub-properties, so the declaration is invalid.
-        return PR_FALSE;
-      }
-    }
-
-    // We hit the end of the property or the end of one transition
-    // definition, add its components to the list.
-    for (PRUint32 i = 0; i < numProps; ++i) {
-      // If all of the subproperties were not explicitly specified, fill
-      // in the missing ones with initial values.
-      if (!parsedProperty[i]) {
-        switch (kTransitionProperties[i]) {
-          case eCSSProperty_transition_property:
-            tempValue.SetAllValue();
-            break;
-          case eCSSProperty_transition_duration:
-          case eCSSProperty_transition_delay:
-            tempValue.SetFloatValue(0.0, eCSSUnit_Seconds);
-            break;
-          case eCSSProperty_transition_timing_function:
-            tempValue.SetIntValue(NS_STYLE_TRANSITION_TIMING_FUNCTION_EASE,
-                                  eCSSUnit_Enumerated);
-            break;
-          default:
-            NS_ABORT_IF_FALSE(PR_FALSE, "Invalid transition property");
-        }
-        if (!AppendValueToList(tails[i], tempValue)) {
-          return PR_FALSE;
-        }
-      }
-    }
-
-    if (atEOP)
-      break;
-    // else we just hit a ',' so continue parsing the next compound transition
-  }
-
-  // Make two checks on the list for 'transition-property':
-  //   + If there is more than one item, then none of the items can be
-  //     'none' or 'all'.
-  //   + None of the items can be 'inherit' or 'initial' (this is the case,
-  //     like with counter-reset &c., where CSS 2.1 specifies 'initial', so
-  //     we should check it without the -moz- prefix).
-  {
-    NS_ABORT_IF_FALSE(kTransitionProperties[3] ==
-                        eCSSProperty_transition_property,
-                      "array index mismatch");
-    nsCSSValueList *l = values[3];
-    PRBool multipleItems = !!l->mNext;
-    do {
-      const nsCSSValue& val = l->mValue;
-      if (val.GetUnit() != eCSSUnit_Ident) {
-        NS_ABORT_IF_FALSE(val.GetUnit() == eCSSUnit_None ||
-                          val.GetUnit() == eCSSUnit_All, "unexpected unit");
-        if (multipleItems) {
-          // This is a syntax error.
-          return PR_FALSE;
-        }
-        continue;
-      }
-      nsDependentString str(val.GetStringBufferValue());
-      if (str.EqualsLiteral("inherit") || str.EqualsLiteral("initial")) {
-        return PR_FALSE;
-      }
-    } while ((l = l->mNext));
-  }
-
-  // Save all parsed transition sub-properties in mTempData
-  for (PRUint32 i = 0; i < numProps; ++i) {
-    nsCSSProperty prop = kTransitionProperties[i];
-    *static_cast<nsCSSValueList**>(mTempData.PropertyAt(prop)) =
-      values[i].forget();
-    mTempData.SetPropertyBit(prop);
-  }
-  return PR_TRUE;
 }
 
 nsCSSValueList*

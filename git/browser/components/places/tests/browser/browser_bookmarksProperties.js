@@ -67,9 +67,6 @@ const TYPE_BOOKMARK = 1;
 
 const TEST_URL = "http://www.mozilla.org/";
 
-const DIALOG_URL = "chrome://browser/content/places/bookmarkProperties.xul";
-const DIALOG_URL_MINIMAL_UI = "chrome://browser/content/places/bookmarkProperties2.xul";
-
 var wm = Cc["@mozilla.org/appshell/window-mediator;1"].
          getService(Ci.nsIWindowMediator);
 var win = wm.getMostRecentWindow("navigator:browser");
@@ -211,7 +208,7 @@ gTests.push({
     // Add a tag to this bookmark.
     PlacesUtils.tagging.tagURI(PlacesUtils._uri(TEST_URL),
                                ["testTag"]);
-    var tags = PlacesUtils.tagging.getTagsForURI(PlacesUtils._uri(TEST_URL));
+    var tags = PlacesUtils.tagging.getTagsForURI(PlacesUtils._uri(TEST_URL), {});
     is(tags[0], "testTag", "Correctly added a tag");
   },
 
@@ -227,8 +224,7 @@ gTests.push({
 
     var windowObserver = {
       observe: function(aSubject, aTopic, aData) {
-        if (aTopic === "domwindowclosed" &&
-            aSubject.QueryInterface(Ci.nsIDOMWindow).location == DIALOG_URL) {
+        if (aTopic === "domwindowclosed") {
           ww.unregisterNotification(this);
           tagsField.popup.removeEventListener("popuphidden", popupListener, true);
           ok(false, "Dialog window should not be closed by pressing Enter on the autocomplete popup");
@@ -259,7 +255,7 @@ gTests.push({
             tagsField.popup.selectedIndex = 0;
             is(tree.view.selection.count, 1,
                "We have selected a tag from the autocomplete popup");
-            info("About to focus the autocomplete results tree");
+            dump("About to focus the autocomplete results tree\n");
             tree.focus();
             EventUtils.synthesizeKey("VK_RETURN", {}, self.window);
             break;
@@ -273,7 +269,7 @@ gTests.push({
     tagsField.popup.addEventListener("popuphidden", popupListener, true);
 
     // Open tags autocomplete popup.
-    info("About to focus the tagsField");
+    dump("About to focus the tagsField\n");
     tagsField.focus();
     tagsField.value = "";
     EventUtils.synthesizeKey("t", {}, this.window);
@@ -286,7 +282,7 @@ gTests.push({
 
   cleanup: function() {
     // Check tags have not changed.
-    var tags = PlacesUtils.tagging.getTagsForURI(PlacesUtils._uri(TEST_URL));
+    var tags = PlacesUtils.tagging.getTagsForURI(PlacesUtils._uri(TEST_URL), {});
     is(tags[0], "testTag", "Tag on node has not changed");
 
     // Cleanup.
@@ -331,7 +327,7 @@ gTests.push({
       }, false);
     namePicker.value = "n";
     userEnteredName.label = "n";
-    info("About to focus the namePicker field");
+    dump("About to focus the namePicker field\n");
     namePicker.focus();
     EventUtils.synthesizeKey("VK_RETURN", {}, this.window);
   },
@@ -370,7 +366,7 @@ gTests.push({
     // Add a tag to this bookmark.
     PlacesUtils.tagging.tagURI(PlacesUtils._uri(TEST_URL),
                                ["testTag"]);
-    var tags = PlacesUtils.tagging.getTagsForURI(PlacesUtils._uri(TEST_URL));
+    var tags = PlacesUtils.tagging.getTagsForURI(PlacesUtils._uri(TEST_URL), {});
     is(tags[0], "testTag", "Correctly added a tag");
   },
 
@@ -386,8 +382,7 @@ gTests.push({
 
     var windowObserver = {
       observe: function(aSubject, aTopic, aData) {
-        if (aTopic === "domwindowclosed" &&
-            aSubject.QueryInterface(Ci.nsIDOMWindow).location == DIALOG_URL) {
+        if (aTopic === "domwindowclosed") {
           ww.unregisterNotification(this);
           tagsField.popup.removeEventListener("popuphidden", popupListener, true);
           ok(false, "Dialog window should not be closed by pressing Escape on the autocomplete popup");
@@ -418,7 +413,7 @@ gTests.push({
             tagsField.popup.selectedIndex = 0;
             is(tree.view.selection.count, 1,
                "We have selected a tag from the autocomplete popup");
-            info("About to focus the autocomplete results tree");
+            dump("About to focus the autocomplete results tree\n");
             tree.focus();
             EventUtils.synthesizeKey("VK_ESCAPE", {}, self.window);
             break;
@@ -432,7 +427,7 @@ gTests.push({
     tagsField.popup.addEventListener("popuphidden", popupListener, true);
 
     // Open tags autocomplete popup.
-    info("About to focus the tagsField");
+    dump("About to focus the tagsField\n");
     tagsField.focus();
     tagsField.value = "";
     EventUtils.synthesizeKey("t", {}, this.window);
@@ -445,7 +440,7 @@ gTests.push({
 
   cleanup: function() {
     // Check tags have not changed.
-    var tags = PlacesUtils.tagging.getTagsForURI(PlacesUtils._uri(TEST_URL));
+    var tags = PlacesUtils.tagging.getTagsForURI(PlacesUtils._uri(TEST_URL), {});
     is(tags[0], "testTag", "Tag on node has not changed");
 
     // Cleanup.
@@ -488,8 +483,7 @@ gTests.push({
 
     var windowObserver = {
       observe: function(aSubject, aTopic, aData) {
-        if (aTopic === "domwindowclosed" &&
-            aSubject.QueryInterface(Ci.nsIDOMWindow).location == DIALOG_URL_MINIMAL_UI) {
+        if (aTopic === "domwindowclosed") {
           ww.unregisterNotification(this);
           ok(self._cleanShutdown,
              "Dialog window should not be closed by pressing ESC in folder name textbox");
@@ -535,6 +529,7 @@ gTests.push({
 //------------------------------------------------------------------------------
 
 function test() {
+  dump("Starting test browser_bookmarksProperties.js\n");
   waitForExplicitFinish();
   // Sanity checks.
   ok(PlacesUtils, "PlacesUtils in context");
@@ -548,16 +543,14 @@ function runNextTest() {
   // Cleanup from previous test.
   if (gCurrentTest) {
     gCurrentTest.cleanup();
-    info("End of test: " + gCurrentTest.desc);
-    gCurrentTest = null;
-    executeSoon(runNextTest);
-    return;
+    ok(true, "*** FINISHED TEST ***");
   }
 
   if (gTests.length > 0) {
     // Goto next tests.
     gCurrentTest = gTests.shift();
-    info("Start of test: " + gCurrentTest.desc);
+    ok(true, "*** TEST: " + gCurrentTest.desc);
+    dump("*** TEST: " + gCurrentTest.desc + "\n");
     gCurrentTest.setup();
     execute_test_in_sidebar();
   }
@@ -606,8 +599,8 @@ function open_properties_dialog() {
         if (aTopic === "domwindowopened") {
           ww.unregisterNotification(this);
           var win = aSubject.QueryInterface(Ci.nsIDOMWindow);
-          win.addEventListener("focus", function(event) {
-            win.removeEventListener("focus", arguments.callee, false);
+          win.addEventListener("load", function onLoad(event) {
+            win.removeEventListener("load", onLoad, false);
             // Windows has been loaded, execute our test now.
             executeSoon(function () {
               // Ensure overlay is loaded

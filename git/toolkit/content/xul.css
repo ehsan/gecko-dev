@@ -19,17 +19,6 @@
 
 :root {
   text-rendering: optimizeLegibility;
-  -moz-binding: url("chrome://global/content/bindings/general.xml#root-element");
-}
-
-%ifdef XP_MACOSX
-:root[drawintitlebar="true"] {
-  padding-top: 22px;
-}
-%endif
-
-:root:-moz-locale-dir(rtl) {
-  direction: rtl;
 }
 
 /* hide the content and destroy the frame */
@@ -141,13 +130,6 @@ button[type="menu"], button[type="panel"] {
 button[type="menu-button"] {
   -moz-binding: url("chrome://global/content/bindings/button.xml#menu-button");
 }
-
-%ifdef MOZ_WIDGET_GTK2
-/********* detection of system setting to use icons in buttons ***********/
-.button-icon:not(:-moz-system-metric(images-in-buttons)) {
-  display: none;
-}
-%endif
 
 /********** toolbarbutton **********/
 
@@ -624,6 +606,17 @@ tabs {
   -moz-box-orient: horizontal;
 }
 
+/**
+ * XXXben - this looks like something added specifically for tabbrowser.
+ *          if it turns out no one uses this that can't easily be evangelized to
+ *          use their own roll-your-own binding, then we should get rid of this
+ *          to tighten up the toolkit api. This binding made obsolete in Firefox
+ *          by 308396. 
+ */
+tabs[closebutton="true"] {
+  -moz-binding: url("chrome://global/content/bindings/tabbox.xml#tabs-closebutton");
+}
+
 tab {
   -moz-binding: url("chrome://global/content/bindings/tabbox.xml#tab");
   -moz-box-align: center;
@@ -710,7 +703,7 @@ textbox[type="number"] {
   -moz-binding: url("chrome://global/content/bindings/numberbox.xml#numberbox");
 }
 
-.textbox-contextmenu:-moz-locale-dir(rtl) {
+.textbox-contextmenu[chromedir="rtl"] {
   direction: rtl;
 }
 
@@ -774,6 +767,7 @@ panel[type="autocomplete-richlistbox"] {
 .autocomplete-richlistbox {
   -moz-binding: url("chrome://global/content/bindings/autocomplete.xml#autocomplete-richlistbox");
   -moz-user-focus: ignore;
+  -moz-appearance: none;
 }
 
 .autocomplete-richlistbox > scrollbox {
@@ -1002,8 +996,7 @@ stringbundle {
 
 /********** dialog **********/
 
-dialog,
-dialog:root /* override :root from above */ {
+dialog {
   -moz-binding: url("chrome://global/content/bindings/dialog.xml#dialog");
   -moz-box-orient: vertical;
 }
@@ -1020,8 +1013,7 @@ page {
 
 /********** wizard **********/
 
-wizard,
-wizard:root /* override :root from above */ {
+wizard {
   -moz-binding: url("chrome://global/content/bindings/wizard.xml#wizard");
   -moz-box-orient: vertical;
   width: 40em;
@@ -1044,8 +1036,7 @@ wizardpage {
 
 /********** preferences ********/
 
-prefwindow,
-prefwindow:root /* override :root from above */ {
+prefwindow {
   -moz-binding: url("chrome://global/content/bindings/preferences.xml#prefwindow");  
   -moz-box-orient: vertical;
 }
@@ -1085,6 +1076,7 @@ preference {
 radio[pane] {
   -moz-binding: url("chrome://global/content/bindings/preferences.xml#panebutton") !important; 
   -moz-box-orient: vertical;
+  -moz-appearance: none;
   -moz-box-align: center;
 }
 
@@ -1105,6 +1097,7 @@ expander {
 richlistbox {
   -moz-binding: url('chrome://global/content/bindings/richlistbox.xml#richlistbox');
   -moz-user-focus: normal;
+  -moz-appearance: listbox;
   -moz-box-orient: vertical;
 }
 

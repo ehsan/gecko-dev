@@ -62,7 +62,6 @@ class nsILayoutHistoryState;
 class nsIEditor;
 struct nsRect;
 struct nsSize;
-class nsHTMLFormElement;
 
 typedef nsMappedAttributeElement nsGenericHTMLElementBase;
 
@@ -75,14 +74,12 @@ public:
   nsGenericHTMLElement(nsINodeInfo *aNodeInfo)
     : nsGenericHTMLElementBase(aNodeInfo)
   {
-    NS_ASSERTION(aNodeInfo->NamespaceID() == kNameSpaceID_XHTML,
-                 "Unexpected namespace");
   }
 
   /** Typesafe, non-refcounting cast from nsIContent.  Cheaper than QI. **/
   static nsGenericHTMLElement* FromContent(nsIContent *aContent)
   {
-    if (aContent->IsHTML())
+    if (aContent->IsNodeOfType(eHTML))
       return static_cast<nsGenericHTMLElement*>(aContent);
     return nsnull;
   }
@@ -143,7 +140,7 @@ public:
   nsresult GetOffsetParent(nsIDOMElement** aOffsetParent);
   virtual nsresult GetInnerHTML(nsAString& aInnerHTML);
   virtual nsresult SetInnerHTML(const nsAString& aInnerHTML);
-  nsresult ScrollIntoView(PRBool aTop, PRUint8 optional_argc);
+  nsresult ScrollIntoView(PRBool aTop);
   // Declare Focus(), Blur(), GetTabIndex(), SetTabIndex(), GetSpellcheck(),
   // SetSpellcheck(), and GetDraggable() such that classes that inherit interfaces
   // with those methods properly override them
@@ -199,7 +196,7 @@ public:
   PRBool IsHTMLLink(nsIURI** aURI) const;
 
   // Used by A, AREA, LINK, and STYLE.
-  already_AddRefed<nsIURI> GetHrefURIForAnchors() const;
+  nsresult GetHrefURIForAnchors(nsIURI** aURI) const;
 
   // As above, but makes sure to return a URI object that we can mutate with
   // impunity without changing our current URI.  That is, if the URI is cached
@@ -208,6 +205,10 @@ public:
 
   // HTML element methods
   void Compact() { mAttrsAndChildren.Compact(); }
+  const nsAttrValue* GetParsedAttr(nsIAtom* aAttr) const
+  {
+    return mAttrsAndChildren.GetAttr(aAttr);
+  }
 
   virtual void UpdateEditableState();
 
@@ -507,7 +508,7 @@ public:
    *        returned.  This is needed to handle cases when HTML elements have a
    *        current form that they're not descendants of.
    */
-  nsHTMLFormElement* FindForm(nsHTMLFormElement* aCurrentForm = nsnull);
+  already_AddRefed<nsIDOMHTMLFormElement> FindForm(nsIForm* aCurrentForm = nsnull);
 
   virtual void RecompileScriptEventListeners();
 
@@ -856,7 +857,7 @@ protected:
   FocusTristate FocusState();
 
   /** The form that contains this control */
-  nsHTMLFormElement* mForm;
+  nsIForm* mForm;
 };
 
 // If this flag is set on an nsGenericHTMLFormElement, that means that we have
@@ -917,8 +918,6 @@ public:
                            PRBool aNotify);
   virtual void DestroyContent();
 
-  nsresult CopyInnerTo(nsGenericElement* aDest) const;
-
   // nsIDOMNSHTMLElement 
   NS_IMETHOD GetTabIndex(PRInt32 *aTabIndex);
   NS_IMETHOD SetTabIndex(PRInt32 aTabIndex);
@@ -933,7 +932,7 @@ protected:
   nsresult LoadSrc();
   nsresult GetContentDocument(nsIDOMDocument** aContentDocument);
 
-  nsRefPtr<nsFrameLoader> mFrameLoader;
+  nsCOMPtr<nsIFrameLoader> mFrameLoader;
 };
 
 //----------------------------------------------------------------------

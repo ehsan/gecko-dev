@@ -1,7 +1,5 @@
 function closeWindow(aClose, aPromptFunction)
 {
-# Closing the last window doesn't quit the application on OS X.
-#ifndef XP_MACOSX
   var windowCount = 0;
   var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
                      .getService(Components.interfaces.nsIWindowMediator);
@@ -13,19 +11,12 @@ function closeWindow(aClose, aPromptFunction)
       break;
   }
 
-  var inPrivateBrowsing = false;
-  try {
-    var pbSvc = Components.classes["@mozilla.org/privatebrowsing;1"]
-                          .getService(Components.interfaces.nsIPrivateBrowsingService);
-    inPrivateBrowsing = pbSvc.privateBrowsingEnabled;
-  } catch(e) {
-    // safe to ignore
-  }
-
+# Closing the last window doesn't quit the application on OS X.
+#ifndef XP_MACOSX
   // If we're down to the last window and someone tries to shut down, check to make sure we can!
   if (windowCount == 1 && !canQuitApplication())
     return false;
-  else if (windowCount != 1 || inPrivateBrowsing)
+  else if (windowCount != 1)
 #endif
     if (typeof(aPromptFunction) == "function" && !aPromptFunction())
       return false;
@@ -178,11 +169,33 @@ function visitLink(aEvent) {
     protocolSvc.loadUrl(uri);
 }
 
+function isValidLeftClick(aEvent, aName)
+{
+  return (aEvent.button == 0 && aEvent.originalTarget.localName == aName);
+}
+
 function setTooltipText(aID, aTooltipText)
 {
   var element = document.getElementById(aID);
   if (element)
     element.setAttribute("tooltiptext", aTooltipText);
+}
+
+function FillInTooltip ( tipElement )
+{
+  var retVal = false;
+  var textNode = document.getElementById("TOOLTIP-tooltipText");
+  if (textNode) {
+    while (textNode.hasChildNodes())
+      textNode.removeChild(textNode.firstChild);
+    var tipText = tipElement.getAttribute("tooltiptext");
+    if (tipText) {
+      var node = document.createTextNode(tipText);
+      textNode.appendChild(node);
+      retVal = true;
+    }
+  }
+  return retVal;
 }
 
 __defineGetter__("NS_ASSERT", function() {

@@ -22,7 +22,6 @@
  *
  * Contributor(s):
  *   Scott MacGregor <mscott@netscape.com>
- *   Bobby Holley <bobbyholley@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -47,6 +46,7 @@
 
 #include "imgIContainer.h"
 #include "imgIDecoderObserver.h"
+#include "gfxIImageFrame.h"
 
 #define NS_ICONDECODER_CID                           \
 { /* FFC08380-256C-11d5-9905-001083010E9B */         \
@@ -85,27 +85,10 @@ public:
   nsIconDecoder();
   virtual ~nsIconDecoder();
 
+private:
   nsCOMPtr<imgIContainer> mImage;
-  nsCOMPtr<imgIDecoderObserver> mObserver;
-  PRUint32 mFlags;
-  PRUint8 mWidth;
-  PRUint8 mHeight;
-  PRUint32 mPixBytesRead;
-  PRUint32 mPixBytesTotal;
-  PRUint8* mImageData;
-  PRUint32 mState;
-
-  PRBool mNotifiedDone;
-  void NotifyDone(PRBool aSuccess);
+  nsCOMPtr<gfxIImageFrame> mFrame;
+  nsCOMPtr<imgIDecoderObserver> mObserver; // this is just qi'd from mRequest for speed
 };
-
-enum {
-  iconStateStart      = 0,
-  iconStateHaveHeight = 1,
-  iconStateReadPixels = 2,
-  iconStateFinished   = 3,
-  iconStateError      = 4
-};
-
 
 #endif // nsIconDecoder_h__

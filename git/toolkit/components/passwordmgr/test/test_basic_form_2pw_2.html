@@ -103,12 +103,10 @@ function getFormSubmitButton(formNum) {
 function countLogins() {
   netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
 
-  var logins = pwmgr.getAllLogins();
+  var logins = pwmgr.getAllLogins({});
 
   return logins.length;
 }
-
-commonInit();
 
 // Get the pwmgr service
 netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');

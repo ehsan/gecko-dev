@@ -42,8 +42,6 @@
 
 #include "nsContainerFrame.h"
 #include "gfxPoint.h"
-#include "nsIDeviceContext.h"
-
 class nsString;
 class nsAbsoluteFrame;
 class nsPlaceholderFrame;
@@ -56,8 +54,10 @@ class nsLineBox;
 // Some macros for container classes to do sanity checking on
 // width/height/x/y values computed during reflow.
 #ifdef DEBUG
-#define CRAZY_W (1000000*nsIDeviceContext::AppUnitsPerCSSPixel())
-#define CRAZY_H CRAZY_W
+#define CRAZY_W 500000
+
+// 100000 lines, approximately. Assumes p2t is 15 and 15 pixels per line
+#define CRAZY_H 22500000
 
 #define CRAZY_WIDTH(_x) (((_x) < -CRAZY_W) || ((_x) > CRAZY_W))
 #define CRAZY_HEIGHT(_y) (((_y) < -CRAZY_H) || ((_y) > CRAZY_H))
@@ -69,7 +69,20 @@ class nsDisplayTextDecoration;
 // functionality.
 class nsHTMLContainerFrame : public nsContainerFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
+
+  /**
+   * Helper method to create next-in-flows if necessary. If aFrame
+   * already has a next-in-flow then this method does
+   * nothing. Otherwise, a new continuation frame is created and
+   * linked into the flow. In addition, the new frame becomes the
+   * next-sibling of aFrame. If aPlaceholderResult is not null and
+   * aFrame is a float or positioned, then *aPlaceholderResult holds
+   * a placeholder.
+   */
+  static nsresult CreateNextInFlow(nsPresContext* aPresContext,
+                                   nsIFrame*       aOuterFrame,
+                                   nsIFrame*       aFrame,
+                                   nsIFrame*&      aNextInFlowResult);
 
   /**
    * Helper method to wrap views around frames. Used by containers
@@ -83,27 +96,10 @@ public:
                                     nsIFrame*       aOldParentFrame,
                                     nsIFrame*       aNewParentFrame);
 
-  static nsresult ReparentFrameViewList(nsPresContext*     aPresContext,
-                                        const nsFrameList& aChildFrameList,
-                                        nsIFrame*          aOldParentFrame,
-                                        nsIFrame*          aNewParentFrame);
-
-  /**
-   * Helper method to create next-in-flows if necessary. If aFrame
-   * already has a next-in-flow then this method does
-   * nothing. Otherwise, a new continuation frame is created and
-   * linked into the flow. In addition, the new frame is inserted
-   * into the principal child list after aFrame.
-   * @note calling this method on a block frame is illegal. Use
-   * nsBlockFrame::CreateContinuationFor() instead.
-   * @param aNextInFlowResult will contain the next-in-flow
-   *        <b>if and only if</b> one is created. If a next-in-flow already
-   *        exists aNextInFlowResult is set to nsnull.
-   * @return NS_OK if a next-in-flow already exists or is successfully created.
-   */
-  nsresult CreateNextInFlow(nsPresContext* aPresContext,
-                            nsIFrame*       aFrame,
-                            nsIFrame*&      aNextInFlowResult);
+  static nsresult ReparentFrameViewList(nsPresContext* aPresContext,
+                                        nsIFrame*       aChildFrameList,
+                                        nsIFrame*       aOldParentFrame,
+                                        nsIFrame*       aNewParentFrame);
 
   /**
    * Displays the standard border, background and outline for the frame
@@ -181,10 +177,6 @@ protected:
                                        gfxFloat aAscent,
                                        gfxFloat aSize,
                                        const PRUint8 aDecoration);
-
-  virtual void AdjustForTextIndent(const nsLineBox* aLine,
-                                   nscoord& start,
-                                   nscoord& width);
 
   friend class nsDisplayTextDecoration;
   friend class nsDisplayTextShadow;

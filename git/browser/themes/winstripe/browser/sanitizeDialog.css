@@ -50,7 +50,10 @@
 /* Progressive disclosure button */
 #detailsExpanderWrapper {
   padding: 0;
-  margin: 6px 0;
+  margin-top: 6px;
+  margin-bottom: 6px;
+  -moz-margin-start: -1px;
+  -moz-margin-end: 0;
 }
 
 .expander-up,
@@ -59,8 +62,8 @@
   margin: 0;
 }
 
-.expander-up > .button-box,
-.expander-down > .button-box {
+.expander-up > hbox,
+.expander-down > hbox {
   padding: 0;
 }
 

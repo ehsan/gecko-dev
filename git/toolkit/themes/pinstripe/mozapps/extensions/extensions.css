@@ -28,7 +28,8 @@
   -moz-appearance: dialog;
 }
 
-#commandBarBottom button {
+#commandBarBottom button,
+#getMore {
   margin: 0;
   font: menu;
 }
@@ -127,14 +128,6 @@ richlistitem:not([selected="true"]) .addon-description {
 .addonIcon > image {
   max-width: 32px;
   max-height: 32px;
-}
-
-richlistitem[plugin] .addonIcon > image {
-  list-style-image: url("chrome://mozapps/skin/plugins/pluginGeneric.png");
-}
-
-richlistitem[lwtheme] .addonIcon > image {
-  list-style-image: url("chrome://mozapps/skin/extensions/themeGeneric.png");
 }
 
 .updateBadge,

@@ -53,8 +53,6 @@ NS_NewViewportFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) ViewportFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(ViewportFrame)
-
 NS_IMETHODIMP
 ViewportFrame::Init(nsIContent*      aContent,
                     nsIFrame*        aParent,
@@ -72,7 +70,7 @@ ViewportFrame::Destroy()
 
 NS_IMETHODIMP
 ViewportFrame::SetInitialChildList(nsIAtom*        aListName,
-                                   nsFrameList&    aChildList)
+                                   nsIFrame*       aChildList)
 {
   nsresult rv = NS_OK;
 
@@ -99,8 +97,7 @@ ViewportFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // mark our visible out-of-flow frames (i.e., the fixed position frames) so
   // that display list construction is guaranteed to recurse into their
   // ancestors.
-  aBuilder->MarkFramesForDisplayList(this, mFixedContainer.GetChildList(),
-                                     aDirtyRect);
+  aBuilder->MarkFramesForDisplayList(this, mFixedContainer.GetFirstChild(), aDirtyRect);
 
   nsIFrame* kid = mFrames.FirstChild();
   if (!kid)
@@ -114,7 +111,7 @@ ViewportFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
 NS_IMETHODIMP
 ViewportFrame::AppendFrames(nsIAtom*        aListName,
-                            nsFrameList&    aFrameList)
+                            nsIFrame*       aFrameList)
 {
   nsresult rv = NS_OK;
 
@@ -123,7 +120,7 @@ ViewportFrame::AppendFrames(nsIAtom*        aListName,
   }
   else {
     NS_ASSERTION(!aListName, "unexpected child list");
-    NS_ASSERTION(GetChildList(nsnull).IsEmpty(), "Shouldn't have any kids!");
+    NS_ASSERTION(!GetFirstChild(nsnull), "Shouldn't have any kids!");
     rv = nsContainerFrame::AppendFrames(aListName, aFrameList);
   }
 
@@ -133,7 +130,7 @@ ViewportFrame::AppendFrames(nsIAtom*        aListName,
 NS_IMETHODIMP
 ViewportFrame::InsertFrames(nsIAtom*        aListName,
                             nsIFrame*       aPrevFrame,
-                            nsFrameList&    aFrameList)
+                            nsIFrame*       aFrameList)
 {
   nsresult rv = NS_OK;
 
@@ -142,7 +139,7 @@ ViewportFrame::InsertFrames(nsIAtom*        aListName,
   }
   else {
     NS_ASSERTION(!aListName, "unexpected child list");
-    NS_ASSERTION(GetChildList(nsnull).IsEmpty(), "Shouldn't have any kids!");
+    NS_ASSERTION(!GetFirstChild(nsnull), "Shouldn't have any kids!");
     rv = nsContainerFrame::InsertFrames(aListName, aPrevFrame, aFrameList);
   }
 
@@ -156,8 +153,7 @@ ViewportFrame::RemoveFrame(nsIAtom*        aListName,
   nsresult rv = NS_OK;
 
   if (nsGkAtoms::fixedList == aListName) {
-    mFixedContainer.RemoveFrame(this, aListName, aOldFrame);
-    rv = NS_OK;
+    rv = mFixedContainer.RemoveFrame(this, aListName, aOldFrame);
   }
   else {
     NS_ASSERTION(!aListName, "unexpected child list");
@@ -179,13 +175,13 @@ ViewportFrame::GetAdditionalChildListName(PRInt32 aIndex) const
   return nsnull;
 }
 
-nsFrameList
-ViewportFrame::GetChildList(nsIAtom* aListName) const
+nsIFrame*
+ViewportFrame::GetFirstChild(nsIAtom* aListName) const
 {
   if (nsGkAtoms::fixedList == aListName)
-    return mFixedContainer.GetChildList();
+    return mFixedContainer.GetFirstChild();
 
-  return nsContainerFrame::GetChildList(aListName);
+  return nsContainerFrame::GetFirstChild(aListName);
 }
 
 /* virtual */ nscoord
@@ -308,8 +304,8 @@ ViewportFrame::Reflow(nsPresContext*           aPresContext,
   nsPoint offset = AdjustReflowStateForScrollbars(&reflowState);
   
 #ifdef DEBUG
-  NS_ASSERTION(mFixedContainer.GetChildList().IsEmpty() ||
-               (offset.x == 0 && offset.y == 0),
+  nsIFrame* f = mFixedContainer.GetFirstChild();
+  NS_ASSERTION(!f || (offset.x == 0 && offset.y == 0),
                "We don't handle correct positioning of fixed frames with "
                "scrollbars in odd positions");
 #endif
@@ -353,7 +349,7 @@ ViewportFrame::InvalidateInternal(const nsRect& aDamageRect,
                                   PRUint32 aFlags)
 {
   nsRect r = aDamageRect + nsPoint(aX, aY);
-  PresContext()->NotifyInvalidation(r, aFlags);
+  PresContext()->NotifyInvalidation(r, (aFlags & INVALIDATE_CROSS_DOC) != 0);
 
   nsIFrame* parent = nsLayoutUtils::GetCrossDocParentFrame(this);
   if (parent) {

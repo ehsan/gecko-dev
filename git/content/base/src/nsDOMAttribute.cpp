@@ -85,21 +85,13 @@ nsDOMAttribute::~nsDOMAttribute()
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMAttribute)
 
-NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsDOMAttribute)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
-NS_IMPL_CYCLE_COLLECTION_ROOT_END
-
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMAttribute)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mNodeInfo)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mChild)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_LISTENERMANAGER
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_USERDATA
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsDOMAttribute)
-  NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
-NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMAttribute)
   if (tmp->mChild) {
@@ -108,6 +100,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMAttribute)
   }
   NS_IMPL_CYCLE_COLLECTION_UNLINK_LISTENERMANAGER
   NS_IMPL_CYCLE_COLLECTION_UNLINK_USERDATA
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 // QueryInterface implementation for nsDOMAttribute
 NS_INTERFACE_TABLE_HEAD(nsDOMAttribute)
@@ -706,9 +699,8 @@ nsDOMAttribute::AppendChildTo(nsIContent* aKid, PRBool aNotify)
 }
 
 nsresult
-nsDOMAttribute::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent)
+nsDOMAttribute::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
 {
-  NS_ASSERTION(aMutationEvent, "Someone tried to inhibit mutations on attribute child removal.");
   if (aIndex != 0 || !mChild) {
     return NS_OK;
   }
@@ -723,7 +715,7 @@ nsDOMAttribute::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationE
       nsContentUtils::HasMutationListeners(mChild,
                                            NS_EVENT_BITS_MUTATION_NODEREMOVED,
                                            this)) {
-    mozAutoRemovableBlockerRemover blockerRemover(GetOwnerDoc());
+    mozAutoRemovableBlockerRemover blockerRemover;
     nsMutationEvent mutation(PR_TRUE, NS_MUTATION_NODEREMOVED);
     mutation.mRelatedNode =
       do_QueryInterface(static_cast<nsIAttribute*>(this));

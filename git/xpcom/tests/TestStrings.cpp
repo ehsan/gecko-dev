@@ -36,11 +36,10 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include <stdio.h>
-#include <stdlib.h>
 #include "nsString.h"
 #include "nsStringBuffer.h"
 #include "nsReadableUtils.h"
-#include "nsCRTGlue.h"
+#include "nsCRT.h"
 
 namespace TestStrings {
 
@@ -588,7 +587,7 @@ PRBool test_xpidl_string()
       return PR_FALSE;
 
     const char text[] = "hello world";
-    *getter_Copies(a) = NS_strdup(text);
+    *getter_Copies(a) = nsCRT::strdup(text);
     if (strcmp(a, text) != 0)
       return PR_FALSE;
 
@@ -658,59 +657,6 @@ PRBool test_substring()
     if (r)
       return PR_FALSE;
 
-    return PR_TRUE;
-  }
-
-#define test_append(str, int, suffix) \
-  str.Truncate(); \
-  str.AppendInt(suffix = int ## suffix); \
-  if (!str.EqualsLiteral(#int)) { \
-    fputs("Error appending " #int "\n", stderr); \
-    return PR_FALSE; \
-  }
-
-#define test_appends(int, suffix) \
-  test_append(str, int, suffix) \
-  test_append(cstr, int, suffix)
-
-#define test_appendbase(str, prefix, int, suffix, base) \
-  str.Truncate(); \
-  str.AppendInt(suffix = prefix ## int ## suffix, base); \
-  if (!str.EqualsLiteral(#int)) { \
-    fputs("Error appending " #prefix #int "\n", stderr); \
-    return PR_FALSE; \
-  }
-
-#define test_appendbases(prefix, int, suffix, base) \
-  test_appendbase(str, prefix, int, suffix, base) \
-  test_appendbase(cstr, prefix, int, suffix, base)
-
-PRBool test_appendint()
-  {
-    nsString str;
-    nsCString cstr;
-    PRInt32 L;
-    PRUint32 UL;
-    PRInt64 LL;
-    PRUint64 ULL;
-    test_appends(2147483647, L)
-    test_appends(-2147483648, L)
-    test_appends(4294967295, UL)
-    test_appends(9223372036854775807, LL)
-    test_appends(-9223372036854775808, LL)
-    test_appends(18446744073709551615, ULL)
-    test_appendbases(0, 17777777777, L, 8)
-    test_appendbases(0, 20000000000, L, 8)
-    test_appendbases(0, 37777777777, UL, 8)
-    test_appendbases(0, 777777777777777777777, LL, 8)
-    test_appendbases(0, 1000000000000000000000, LL, 8)
-    test_appendbases(0, 1777777777777777777777, ULL, 8)
-    test_appendbases(0x, 7fffffff, L, 16)
-    test_appendbases(0x, 80000000, L, 16)
-    test_appendbases(0x, ffffffff, UL, 16)
-    test_appendbases(0x, 7fffffffffffffff, LL, 16)
-    test_appendbases(0x, 8000000000000000, LL, 16)
-    test_appendbases(0x, ffffffffffffffff, ULL, 16)
     return PR_TRUE;
   }
 
@@ -950,21 +896,6 @@ PRBool test_voided_autostr()
     return PR_TRUE;
   }
 
-PRBool test_voided_assignment()
-  {
-    nsCString a, b;
-    b.SetIsVoid(PR_TRUE);
-    a = b;
-    return a.IsVoid() && a.get() == b.get();
-  }
-
-PRBool test_empty_assignment()
-  {
-    nsCString a, b;
-    a = b;
-    return a.get() == b.get();
-  }
-
 struct ToIntegerTest
 {
   const char *str;
@@ -1072,7 +1003,6 @@ tests[] =
     { "test_empty_assign", test_empty_assign },
     { "test_set_length", test_set_length },
     { "test_substring", test_substring },
-    { "test_appendint", test_appendint },
     { "test_appendint64", test_appendint64 },
     { "test_appendfloat", test_appendfloat },
     { "test_findcharinset", test_findcharinset },
@@ -1080,8 +1010,6 @@ tests[] =
     { "test_stringbuffer", test_stringbuffer },
     { "test_voided", test_voided },
     { "test_voided_autostr", test_voided_autostr },
-    { "test_voided_assignment", test_voided_assignment },
-    { "test_empty_assignment", test_empty_assignment },
     { "test_string_tointeger", test_string_tointeger },
     { "test_parse_string", test_parse_string },
     { nsnull, nsnull }

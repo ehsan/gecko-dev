@@ -87,6 +87,7 @@
 #include "nsWeakReference.h"
 #include "nsUnicharUtils.h"
 #include "nsNodeInfoManager.h"
+#include "nsTimer.h"
 #include "nsIAppShell.h"
 #include "nsIWidget.h"
 #include "nsWidgetsCID.h"
@@ -357,11 +358,13 @@ nsContentSink::ScriptAvailable(nsresult aResult,
 
   // Check if this is the element we were waiting for
   if (count == 0 || aElement != mScriptElements[count - 1]) {
+    if (mDidGetReadyToCallDidBuildModelCall &&
+        !mScriptLoader->HasPendingOrCurrentScripts() &&
+        mParser && mParser->IsParserEnabled()) {
+      ContinueInterruptedParsingAsync();
+    }
     return NS_OK;
   }
-
-  NS_ASSERTION(!aElement->GetScriptDeferred(), "defer script was in mScriptElements");
-  NS_ASSERTION(!aElement->GetScriptAsync(), "async script was in mScriptElements");
 
   if (mParser && !mParser->IsParserEnabled()) {
     // make sure to unblock the parser before evaluating the script,
@@ -402,11 +405,13 @@ nsContentSink::ScriptEvaluated(nsresult aResult,
   // Check if this is the element we were waiting for
   PRInt32 count = mScriptElements.Count();
   if (count == 0 || aElement != mScriptElements[count - 1]) {
+    if (mDidGetReadyToCallDidBuildModelCall &&
+        !mScriptLoader->HasPendingOrCurrentScripts() &&
+        mParser && mParser->IsParserEnabled()) {
+      ContinueInterruptedParsingAsync();
+    }
     return NS_OK;
   }
-
-  NS_ASSERTION(!aElement->GetScriptDeferred(), "defer script was in mScriptElements");
-  NS_ASSERTION(!aElement->GetScriptAsync(), "async script was in mScriptElements");
 
   // Pop the script element stack
   mScriptElements.RemoveObjectAt(count - 1); 
@@ -439,19 +444,8 @@ nsContentSink::ProcessHTTPHeaders(nsIChannel* aChannel)
   nsresult rv = httpchannel->GetResponseHeader(NS_LITERAL_CSTRING("link"),
                                                linkHeader);
   if (NS_SUCCEEDED(rv) && !linkHeader.IsEmpty()) {
-    mDocument->SetHeaderData(nsGkAtoms::link,
-                             NS_ConvertASCIItoUTF16(linkHeader));
-
-    NS_ASSERTION(!mProcessLinkHeaderEvent.get(),
-                 "Already dispatched an event?");
-
-    mProcessLinkHeaderEvent =
-      new nsNonOwningRunnableMethod<nsContentSink>(this,
-                                           &nsContentSink::DoProcessLinkHeader);
-    rv = NS_DispatchToCurrentThread(mProcessLinkHeaderEvent.get());
-    if (NS_FAILED(rv)) {
-      mProcessLinkHeaderEvent.Forget();
-    }
+    ProcessHeaderData(nsGkAtoms::link,
+                      NS_ConvertASCIItoUTF16(linkHeader));
   }
   
   return NS_OK;
@@ -545,14 +539,6 @@ nsContentSink::ProcessHeaderData(nsIAtom* aHeader, const nsAString& aValue,
   return rv;
 }
 
-
-void
-nsContentSink::DoProcessLinkHeader()
-{
-  nsAutoString value;
-  mDocument->GetHeaderData(nsGkAtoms::link, value);
-  ProcessLinkHeader(nsnull, value);
-}
 
 static const PRUnichar kSemiCh = PRUnichar(';');
 static const PRUnichar kCommaCh = PRUnichar(',');
@@ -808,7 +794,7 @@ nsContentSink::ProcessStyleLink(nsIContent* aElement,
 nsresult
 nsContentSink::ProcessMETATag(nsIContent* aContent)
 {
-  NS_ASSERTION(aContent, "missing meta-element");
+  NS_ASSERTION(aContent, "missing base-element");
 
   nsresult rv = NS_OK;
 
@@ -823,26 +809,6 @@ nsContentSink::ProcessMETATag(nsIContent* aContent)
       nsCOMPtr<nsIAtom> fieldAtom(do_GetAtom(header));
       rv = ProcessHeaderData(fieldAtom, result, aContent); 
     }
-  }
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name,
-                            nsGkAtoms::handheldFriendly, eIgnoreCase)) {
-    nsAutoString result;
-    aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::content, result);
-    if (!result.IsEmpty()) {
-      ToLowerCase(result);
-      mDocument->SetHeaderData(nsGkAtoms::handheldFriendly, result);
-    }
-  }
-
-  /* Look for the viewport meta tag. If we find it, process it and put the
-   * data into the document header. */
-  if (aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name,
-                            nsGkAtoms::viewport, eIgnoreCase)) {
-    nsAutoString value;
-    aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::content, value);
-    rv = nsContentUtils::ProcessViewportInfo(mDocument, value);
   }
 
   return rv;
@@ -1374,7 +1340,11 @@ nsContentSink::NotifyAppend(nsIContent* aContainer, PRUint32 aStartIndex)
   }
 
   mInNotification++;
-  
+
+  MOZ_TIMER_DEBUGLOG(("Save and stop: nsHTMLContentSink::NotifyAppend()\n"));
+  MOZ_TIMER_SAVE(mWatch)
+  MOZ_TIMER_STOP(mWatch);
+
   {
     // Scope so we call EndUpdate before we decrease mInNotification
     MOZ_AUTO_DOC_UPDATE(mDocument, UPDATE_CONTENT_MODEL, !mBeganUpdate);
@@ -1382,12 +1352,18 @@ nsContentSink::NotifyAppend(nsIContent* aContainer, PRUint32 aStartIndex)
     mLastNotificationTime = PR_Now();
   }
 
+  MOZ_TIMER_DEBUGLOG(("Restore: nsHTMLContentSink::NotifyAppend()\n"));
+  MOZ_TIMER_RESTORE(mWatch);
+
   mInNotification--;
 }
 
 NS_IMETHODIMP
 nsContentSink::Notify(nsITimer *timer)
 {
+  MOZ_TIMER_DEBUGLOG(("Start: nsHTMLContentSink::Notify()\n"));
+  MOZ_TIMER_START(mWatch);
+
   if (mParsing) {
     // We shouldn't interfere with our normal DidProcessAToken logic
     mDroppedTimer = PR_TRUE;
@@ -1425,6 +1401,8 @@ nsContentSink::Notify(nsITimer *timer)
   }
 
   mNotificationTimer = nsnull;
+  MOZ_TIMER_DEBUGLOG(("Stop: nsHTMLContentSink::Notify()\n"));
+  MOZ_TIMER_STOP(mWatch);
   return NS_OK;
 }
 
@@ -1553,7 +1531,7 @@ nsContentSink::DidProcessATokenImpl()
     nsIViewManager* vm = shell->GetViewManager();
     NS_ENSURE_TRUE(vm, NS_ERROR_FAILURE);
     nsCOMPtr<nsIWidget> widget;
-    vm->GetRootWidget(getter_AddRefs(widget));
+    vm->GetWidget(getter_AddRefs(widget));
     mHasPendingEvent = widget && widget->HasPendingInputEvent();
   }
 
@@ -1593,7 +1571,7 @@ void
 nsContentSink::BeginUpdate(nsIDocument *aDocument, nsUpdateType aUpdateType)
 {
   // Remember nested updates from updates that we started.
-  if (mInNotification > 0 && mUpdatesInNotification < 2) {
+  if (mInNotification && mUpdatesInNotification < 2) {
     ++mUpdatesInNotification;
   }
 
@@ -1638,16 +1616,8 @@ nsContentSink::EndUpdate(nsIDocument *aDocument, nsUpdateType aUpdateType)
 }
 
 void
-nsContentSink::DidBuildModelImpl(PRBool aTerminated)
+nsContentSink::DidBuildModelImpl(void)
 {
-  if (mDocument && !aTerminated) {
-    mDocument->SetReadyStateInternal(nsIDocument::READYSTATE_INTERACTIVE);
-  }
-
-  if (mScriptLoader) {
-    mScriptLoader->ParsingComplete(aTerminated);
-  }
-
   if (!mDocument->HaveFiredDOMTitleChange()) {
     mDocument->NotifyPossibleTitleChange(PR_FALSE);
   }
@@ -1747,12 +1717,6 @@ nsContentSink::WillBuildModelImpl()
   }
 
   mScrolledToRefAlready = PR_FALSE;
-
-  if (mProcessLinkHeaderEvent.get()) {
-    mProcessLinkHeaderEvent.Revoke();
-
-    DoProcessLinkHeader();
-  }
 }
 
 void
@@ -1770,6 +1734,26 @@ nsContentSink::ContinueInterruptedParsingAsync()
     &nsContentSink::ContinueInterruptedParsingIfEnabled);
 
   NS_DispatchToCurrentThread(ev);
+}
+
+PRBool
+nsContentSink::ReadyToCallDidBuildModelImpl(PRBool aTerminated)
+{
+  if (!mDidGetReadyToCallDidBuildModelCall) {
+    if (mDocument && !aTerminated) {
+      mDocument->SetReadyStateInternal(nsIDocument::READYSTATE_INTERACTIVE);
+    }
+
+    if (mScriptLoader) {
+      mScriptLoader->EndDeferringScripts(aTerminated);
+    }
+  }
+
+  mDidGetReadyToCallDidBuildModelCall = PR_TRUE;
+  
+  // If we're terminated we always want to call DidBuildModel.
+  return aTerminated || !mScriptLoader ||
+         !mScriptLoader->HasPendingOrCurrentScripts();
 }
 
 // URIs: action, href, src, longdesc, usemap, cite

@@ -86,7 +86,7 @@ protected:
   NPStream mNPStream;
   PRUint32 mStreamBufferSize;
   PRInt32 mStreamBufferByteCount;
-  PRInt32 mStreamType;
+  nsPluginStreamType mStreamType;
   PRPackedBool mStreamStarted;
   PRPackedBool mStreamCleanedUp;
   PRPackedBool mCallNotify;

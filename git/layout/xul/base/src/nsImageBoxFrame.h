@@ -59,7 +59,8 @@ public:
   NS_IMETHOD OnStopDecode(imgIRequest *request, nsresult status,
                           const PRUnichar *statusArg);
   // imgIContainerObserver (override nsStubImageDecoderObserver)
-  NS_IMETHOD FrameChanged(imgIContainer *container, nsIntRect *dirtyRect);
+  NS_IMETHOD FrameChanged(imgIContainer *container, gfxIImageFrame *newframe,
+                          nsIntRect *dirtyRect);
 
   void SetFrame(nsImageBoxFrame *frame) { mFrame = frame; }
 
@@ -70,7 +71,6 @@ private:
 class nsImageBoxFrame : public nsLeafBoxFrame
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
 
   // nsIBox
   virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState);
@@ -121,13 +121,15 @@ public:
   NS_IMETHOD OnStopDecode(imgIRequest *request,
                           nsresult status,
                           const PRUnichar *statusArg);
-  NS_IMETHOD FrameChanged(imgIContainer *container, nsIntRect *dirtyRect);
+  NS_IMETHOD FrameChanged(imgIContainer *container,
+                          gfxIImageFrame *newframe,
+                          nsIntRect *dirtyRect);
 
   virtual ~nsImageBoxFrame();
 
   void  PaintImage(nsIRenderingContext& aRenderingContext,
                    const nsRect& aDirtyRect,
-                   nsPoint aPt, PRUint32 aFlags);
+                   nsPoint aPt);
 
 protected:
   nsImageBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext);

@@ -73,7 +73,7 @@ nsMathMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                             nsIContent* aBindingParent,
                             PRBool aCompileEventHandlers)
 {
-  static const char kMathMLStyleSheetURI[] = "resource://gre-resources/mathml.css";
+  static const char kMathMLStyleSheetURI[] = "resource://gre/res/mathml.css";
 
   nsresult rv = nsMathMLElementBase::BindToTree(aDocument, aParent,
                                                 aBindingParent,
@@ -353,7 +353,7 @@ nsMathMLElement::MapMathMLAttributesInto(const nsMappedAttributes* aAttributes,
           NS_STYLE_FONT_SIZE_LARGE
         };
         str.CompressWhitespace();
-        for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(sizes); ++i) {
+        for (PRInt32 i = 0; i < NS_ARRAY_LENGTH(sizes); ++i) {
           if (str.EqualsASCII(sizes[i])) {
             aData->mFontData->mSize.SetIntValue(values[i], eCSSUnit_Enumerated);
             break;
@@ -410,7 +410,7 @@ nsMathMLElement::IntrinsicState() const
 PRBool
 nsMathMLElement::IsNodeOfType(PRUint32 aFlags) const
 {
-  return !(aFlags & ~(eCONTENT | eELEMENT));
+  return !(aFlags & ~(eCONTENT | eELEMENT | eMATHML));
 }
 
 void

@@ -91,8 +91,13 @@ public:
 
   nsCSSDeclaration* Clone() const;
 
-  nsCSSCompressedDataBlock* GetNormalBlock() const { return mData; }
-  nsCSSCompressedDataBlock* GetImportantBlock() const { return mImportantData; }
+  nsresult MapRuleInfoInto(nsRuleData *aRuleData) const {
+    return mData->MapRuleInfoInto(aRuleData);
+  }
+
+  nsresult MapImportantRuleInfoInto(nsRuleData *aRuleData) const {
+    return mImportantData->MapRuleInfoInto(aRuleData);
+  }
 
   /**
    * Initialize this declaration as holding no data.  Return false on
@@ -107,9 +112,7 @@ public:
   void CompressFrom(nsCSSExpandedDataBlock *aExpandedData) {
     NS_ASSERTION(!mData, "oops");
     NS_ASSERTION(!mImportantData, "oops");
-    aExpandedData->Compress(getter_AddRefs(mData),
-                            getter_AddRefs(mImportantData));
-    aExpandedData->AssertInitialState();
+    aExpandedData->Compress(&mData, &mImportantData);
   }
 
   /**
@@ -129,46 +132,16 @@ public:
   }
 
   /**
-   * Return a pointer to our current value for this property.  This only
-   * returns non-null if the property is set and it not !important.  This
-   * should only be called when not expanded.  Always returns null for
-   * shorthand properties.
-   *
-   * The caller must call EnsureMutable first.
-   */
-  void* SlotForValue(nsCSSProperty aProperty) {
-    NS_PRECONDITION(mData, "How did that happen?");
-    if (nsCSSProps::IsShorthand(aProperty)) {
-      return nsnull;
-    }
-
-    void* slot = mData->SlotForValue(aProperty);
-
-    NS_ASSERTION(!slot || !mImportantData ||
-                 !mImportantData->StorageFor(aProperty),
-                 "Property both important and not?");
-    return slot;
-  }
-
-  PRBool HasNonImportantValueFor(nsCSSProperty aProperty) const {
-    NS_ABORT_IF_FALSE(!nsCSSProps::IsShorthand(aProperty), "must be longhand");
-    return !!mData->StorageFor(aProperty);
-  }
-
-  /**
-   * Ensures that IsMutable on both data blocks will return true by
-   * cloning data blocks if needed.  Returns false on out-of-memory
-   * (which means IsMutable won't return true).
-   */
-  PRBool EnsureMutable();
-
-  /**
    * Clear the data, in preparation for its replacement with entirely
    * new data by a call to |CompressFrom|.
    */
   void ClearData() {
+    mData->Destroy();
     mData = nsnull;
-    mImportantData = nsnull;
+    if (mImportantData) {
+      mImportantData->Destroy();
+      mImportantData = nsnull;
+    }
     mOrder.Clear();
   }
 
@@ -180,11 +153,6 @@ public:
   static PRBool AppendCSSValueToString(nsCSSProperty aProperty,
                                        const nsCSSValue& aValue,
                                        nsAString& aResult);
-
-  // return whether there was a value in |aStorage| (i.e., it was non-null)
-  static PRBool AppendStorageToString(nsCSSProperty aProperty,
-                                      const void* aStorage,
-                                      nsAString& aResult);
 
 private:
   // Not implemented, and not supported.
@@ -243,12 +211,8 @@ private:
 private:
     nsAutoTArray<PRUint8, 8> mOrder;
     nsAutoRefCnt mRefCnt;
-
-    // never null, except while expanded
-    nsRefPtr<nsCSSCompressedDataBlock> mData;
-
-    // may be null
-    nsRefPtr<nsCSSCompressedDataBlock> mImportantData;
+    nsCSSCompressedDataBlock *mData; // never null, except while expanded
+    nsCSSCompressedDataBlock *mImportantData; // may be null
 };
 
 #endif /* nsCSSDeclaration_h___ */

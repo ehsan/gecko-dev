@@ -53,7 +53,6 @@
 #include "nsPIDOMWindow.h"
 #include "nsGUIEvent.h"
 #include "nsEventDispatcher.h"
-#include "nsContentUtils.h"
 
 //
 // NS_NewResizerFrame
@@ -64,9 +63,7 @@ nsIFrame*
 NS_NewResizerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsResizerFrame(aPresShell, aContext);
-}
-
-NS_IMPL_FRAMEARENA_HELPERS(nsResizerFrame)
+} // NS_NewResizerFrame
 
 nsResizerFrame::nsResizerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 :nsTitleBarFrame(aPresShell, aContext)
@@ -111,7 +108,8 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
            mTrackingMouseMove = PR_TRUE;
 
            // start capture.
-           nsIPresShell::SetCapturingContent(GetContent(), CAPTURE_IGNOREALLOWED);
+           aEvent->widget->CaptureMouse(PR_TRUE);
+           CaptureMouseEvents(aPresContext,PR_TRUE);
 
            // remember current mouse coordinates.
            mLastPoint = aEvent->refPoint;
@@ -135,7 +133,8 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
          mTrackingMouseMove = PR_FALSE;
 
          // end capture
-         nsIPresShell::SetCapturingContent(nsnull, 0);
+         aEvent->widget->CaptureMouse(PR_FALSE);
+         CaptureMouseEvents(aPresContext,PR_FALSE);
 
          *aEventStatus = nsEventStatus_eConsumeNoDefault;
          doDefault = PR_FALSE;
@@ -260,7 +259,10 @@ void
 nsResizerFrame::MouseClicked(nsPresContext* aPresContext, nsGUIEvent *aEvent)
 {
   // Execute the oncommand event handler.
-  nsContentUtils::DispatchXULCommand(mContent,
-                                     aEvent ?
-                                       NS_IS_TRUSTED_EVENT(aEvent) : PR_FALSE);
+  nsEventStatus status = nsEventStatus_eIgnore;
+
+  nsXULCommandEvent event(aEvent ? NS_IS_TRUSTED_EVENT(aEvent) : PR_FALSE,
+                          NS_XUL_COMMAND, nsnull);
+
+  nsEventDispatcher::Dispatch(mContent, aPresContext, &event, nsnull, &status);
 }

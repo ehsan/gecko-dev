@@ -52,7 +52,6 @@
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jsstr.h"
-#include "jsvector.h"
 
 /* Check pseudo-booleans values. */
 JS_STATIC_ASSERT(!(JSVAL_TRUE & JSVAL_HOLE_FLAG));
@@ -64,9 +63,9 @@ JS_STATIC_ASSERT(!(JSVAL_ARETURN & JSVAL_HOLE_FLAG));
 
 JSClass js_BooleanClass = {
     "Boolean",
-    JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_HAS_CACHED_PROTO(JSProto_Boolean),
+    JSCLASS_HAS_PRIVATE | JSCLASS_HAS_CACHED_PROTO(JSProto_Boolean),
     JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,
-    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   NULL,
+    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   JS_FinalizeStub,
     JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
@@ -136,11 +135,12 @@ Boolean(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     bval = (argc != 0)
            ? BOOLEAN_TO_JSVAL(js_ValueToBoolean(argv[0]))
            : JSVAL_FALSE;
-    if (!JS_IsConstructing(cx))
+    if (!JS_IsConstructing(cx)) {
         *rval = bval;
-    else
-        obj->fslots[JSSLOT_PRIMITIVE_THIS] = bval;
-    return true;
+        return JS_TRUE;
+    }
+    STOBJ_SET_SLOT(obj, JSSLOT_PRIVATE, bval);
+    return JS_TRUE;
 }
 
 JSObject *
@@ -152,7 +152,7 @@ js_InitBooleanClass(JSContext *cx, JSObject *obj)
                         NULL, boolean_methods, NULL, NULL);
     if (!proto)
         return NULL;
-    proto->fslots[JSSLOT_PRIMITIVE_THIS] = JSVAL_FALSE;
+    STOBJ_SET_SLOT(proto, JSSLOT_PRIVATE, JSVAL_FALSE);
     return proto;
 }
 
@@ -160,13 +160,6 @@ JSString *
 js_BooleanToString(JSContext *cx, JSBool b)
 {
     return ATOM_TO_STRING(cx->runtime->atomState.booleanAtoms[b ? 1 : 0]);
-}
-
-/* This function implements E-262-3 section 9.8, toString. */
-JSBool
-js_BooleanToCharBuffer(JSContext *cx, JSBool b, JSCharBuffer &cb)
-{
-    return b ? js_AppendLiteral(cb, "true") : js_AppendLiteral(cb, "false");
 }
 
 JSBool

@@ -17,7 +17,7 @@
         buttonpack="center">
     
   <script type="application/javascript" src="chrome://global/content/commonDialog.js"/>
-  <script type="application/javascript" src="chrome://global/content/globalOverlay.js"/>
+  <script type="application/x-javascript" src="chrome://global/content/globalOverlay.js"/>
 
   <commandset id="selectEditMenuItems">
     <command id="cmd_copy" oncommand="goDoCommand('cmd_copy')" disabled="true"/>
@@ -60,7 +60,7 @@
           <description id="info.title" class="dialogTitle"/>
 #endif
           <description id="info.header" class="header"/>
-          <description id="info.body" context="contentAreaContextMenu" noinitialfocus="true"/>
+          <description id="info.body" context="contentAreaContextMenu" tabindex="-1"/>
         </vbox>
       </row>
       <row id="loginContainer" hidden="true" align="center">

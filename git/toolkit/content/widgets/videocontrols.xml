@@ -194,8 +194,8 @@
     <xbl:content xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
                  class="mediaControlsFrame">
         <stack flex="1">
-            <vbox flex="1" class="statusOverlay" hidden="true">
-                <box class="statusIcon"/>
+            <vbox class="statusOverlay" hidden="true">
+                <box class="statusIcon" flex="1"/>
             </vbox>
 
             <vbox>
@@ -353,7 +353,7 @@
                         (this.video.paused || this.video.ended
                          ? this.video.readyState < this.video.HAVE_CURRENT_DATA
                          : this.video.readyState < this.video.HAVE_FUTURE_DATA) ||
-                        (this.timeUpdateCount <= 1 && !this.video.ended &&
+                        (this.timeUpdateCount <= 1 &&
                          this.video.readyState < this.video.HAVE_ENOUGH_DATA &&
                          this.video.networkState >= this.video.NETWORK_LOADING))
                         this.startFadeIn(this.statusFader, immediate);

@@ -68,9 +68,7 @@ ifdef MOZ_MEMORY
 tier_base_dirs += memory/jemalloc
 endif
 
-ifdef COMPILE_ENVIRONMENT
 include $(topsrcdir)/$(MOZ_BUILD_APP)/build.mk
-endif
 
 TIERS += testharness
 
@@ -105,9 +103,6 @@ export::
 ifdef ENABLE_TESTS
 # Additional makefile targets to call automated test suites
 include $(topsrcdir)/testing/testsuite-targets.mk
-else
-# OS X Universal builds will want to call this, so stub it out
-package-tests:
 endif
 
 include $(topsrcdir)/config/rules.mk
@@ -129,6 +124,16 @@ endif
 distclean::
 	cat unallmakefiles | $(XARGS) rm -f
 	rm -f unallmakefiles $(DIST_GARBAGE)
+
+ifeq ($(OS_ARCH),WINNT)
+rebase:
+ifdef MOZILLA_OFFICIAL
+	echo rebasing $(DIST)
+	/bin/find $(DIST) -name "*.dll" -a -not -name "msvc*" > rebase.lst
+	rebase -b 60000000 -R . -G rebase.lst
+	rm rebase.lst
+endif
+endif # WINNT
 
 ifeq ($(OS_ARCH),WINNT)
 # we want to copy PDB files on Windows
@@ -186,15 +191,27 @@ ifdef MOZ_CRASHREPORTER
 	  $(MAKE_SYM_STORE_PATH) >                                        \
 	  $(DIST)/crashreporter-symbols/$(SYMBOL_INDEX_NAME)
 	echo packing symbols
-	$(NSINSTALL) -D $(DIST)/$(PKG_PATH)
+	mkdir -p $(topsrcdir)/../$(BUILDID)
 	cd $(DIST)/crashreporter-symbols && \
-          zip -r9D "../$(PKG_PATH)$(SYMBOL_ARCHIVE_BASENAME).zip" .
+          zip -r9D ../"$(SYMBOL_ARCHIVE_BASENAME).zip" .
 endif # MOZ_CRASHREPORTER
 
 uploadsymbols:
 ifdef MOZ_CRASHREPORTER
-	$(SHELL) $(topsrcdir)/toolkit/crashreporter/tools/upload_symbols.sh "$(DIST)/$(PKG_PATH)$(SYMBOL_ARCHIVE_BASENAME).zip"
+	$(SHELL) $(topsrcdir)/toolkit/crashreporter/tools/upload_symbols.sh "$(DIST)/$(SYMBOL_ARCHIVE_BASENAME).zip"
 endif
+
+ifeq ($(OS_ARCH),WINNT)
+signnss:
+ifdef MOZILLA_OFFICIAL
+	echo signing NSS libs
+	cd $(DIST)/bin; ./shlibsign.exe -v -i softokn3.dll
+	cd $(DIST)/bin; ./shlibsign.exe -v -i freebl3.dll
+endif # MOZILLA_OFFICIAL
+
+deliver: rebase signnss
+
+endif # WINNT
 
 ifneq (,$(wildcard $(DIST)/bin/application.ini))
 BUILDID = $(shell $(PYTHON) $(srcdir)/config/printconfigsetting.py $(DIST)/bin/application.ini App BuildID)
@@ -207,7 +224,7 @@ endif
 ifneq ($(OS_ARCH)_$(GNU_CC), WINNT_)
 # No point in clobbering if PGO has been explicitly disabled.
 ifndef NO_PROFILE_GUIDED_OPTIMIZE
-maybe_clobber_profiledbuild: clean
+maybe_clobber_profiledbuild: clobber_all
 else
 maybe_clobber_profiledbuild:
 endif

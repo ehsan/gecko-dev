@@ -332,8 +332,7 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
 #ifndef WINCE
       idx = COLOR_HOTLIGHT;
 #else
-      aColor = NS_RGB(0, 0, 0xee);
-      return NS_OK;
+      idx = COLOR_HIGHLIGHTTEXT;
 #endif
       break;
     default:
@@ -438,6 +437,16 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
         // we want XUL popups to be able to overlap the task bar.
         aMetric = 1;
         break;
+    case eMetric_DragFullWindow:
+        // This will default to the Windows' default
+        // (on by default) on error.
+#ifndef WINCE
+        aMetric = GetSystemParam(SPI_GETDRAGFULLWINDOWS, 1);
+#else
+        aMetric = 1;
+#endif
+        break;
+
 #ifndef WINCE
     case eMetric_DragThresholdX:
         // The system metric is the number of pixels at which a drag should
@@ -493,23 +502,6 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
         aMetric = 0;
 #endif
         break;
-    case eMetric_TouchEnabled:
-        aMetric = 0;
-#ifndef WINCE
-        PRInt32 touchCapabilities;
-        touchCapabilities = ::GetSystemMetrics(SM_DIGITIZER);
-        if ((touchCapabilities & NID_READY) && 
-           (touchCapabilities & (NID_EXTERNAL_TOUCH | NID_INTEGRATED_TOUCH))) {
-            aMetric = 1;
-        }
-#elif defined(WINCE_WINDOWS_MOBILE)
-        WCHAR platformType[MAX_PATH];
-        SystemParametersInfo(SPI_GETPLATFORMTYPE, sizeof(platformType),
-                             platformType, 0);
-        if (!wcscmp(platformType, L"PocketPC"))
-            aMetric = 1;
-#endif
-        break;
     case eMetric_WindowsDefaultTheme:
         aMetric = 0;
 #ifndef WINCE
@@ -524,7 +516,7 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
           // users a handful of clock cycles by skipping checks for the
           // 5.x themes (or vice-versa), we can use a single loop for all
           // the different Windows versions.
-          if (hresult == S_OK && nsWindow::GetWindowsVersion() <= WIN7_VERSION) {
+          if (hresult == S_OK && GetWindowsVersion() <= WIN7_VERSION) {
             LPCWSTR defThemes[] = {
               L"luna.msstyles",
               L"royale.msstyles",
@@ -551,7 +543,6 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
         }
         break;
     case eMetric_MacGraphiteTheme:
-    case eMetric_MaemoClassic:
         aMetric = 0;
         res = NS_ERROR_NOT_IMPLEMENTED;
         break;
@@ -670,18 +661,15 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricFloatID aID, float & aMetri
 /* virtual */
 PRUnichar nsLookAndFeel::GetPasswordCharacter()
 {
-#define UNICODE_BLACK_CIRCLE_CHAR 0x25cf
-#ifdef WINCE
-  return UNICODE_BLACK_CIRCLE_CHAR;
-#else
   static PRUnichar passwordCharacter = 0;
   if (!passwordCharacter) {
     passwordCharacter = '*';
+#ifndef WINCE
     if (nsUXThemeData::sIsXPOrLater)
-      passwordCharacter = UNICODE_BLACK_CIRCLE_CHAR;
+      passwordCharacter = 0x25cf;
+#endif
   }
   return passwordCharacter;
-#endif
 }
 
 #ifdef NS_DEBUG

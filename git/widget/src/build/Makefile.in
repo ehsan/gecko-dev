@@ -50,6 +50,17 @@ RESFILE		= widget.res
 MODULE_NAME	= nsWidgetModule
 LIBXUL_LIBRARY = 1
 
+REQUIRES	= xpcom \
+		  string \
+		  necko \
+		  uconv \
+		  gfx \
+		  dom \
+		  timer \
+		  accessibility \
+		  thebes \
+		  cairo \
+		  $(NULL)
 
 CPPSRCS		= nsWinWidgetFactory.cpp
 
@@ -66,7 +77,7 @@ LOCAL_INCLUDES	= \
 OS_LIBS		+= $(call EXPAND_LIBNAME, uuid ole32 oleaut32 winspool)
 
 ifneq ($(OS_ARCH), WINCE)
-OS_LIBS		+= $(call EXPAND_LIBNAME, comctl32 comdlg32 shell32 imm32 shlwapi)
+OS_LIBS		+= $(call EXPAND_LIBNAME, comctl32 comdlg32 shell32 imm32)
 endif
 
 SHARED_LIBRARY_LIBS = \

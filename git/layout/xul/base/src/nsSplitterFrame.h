@@ -52,8 +52,6 @@ nsIFrame* NS_NewSplitterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext
 class nsSplitterFrame : public nsBoxFrame
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   nsSplitterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
   virtual void Destroy();
 
@@ -82,9 +80,8 @@ public:
                          nsEventStatus*  aEventStatus);
 
   NS_IMETHOD HandleMultiplePress(nsPresContext* aPresContext,
-                                 nsGUIEvent *    aEvent,
-                                 nsEventStatus*  aEventStatus,
-                                 PRBool aControlHeld);
+                         nsGUIEvent *    aEvent,
+                         nsEventStatus*  aEventStatus);
 
   NS_IMETHOD HandleDrag(nsPresContext* aPresContext,
                         nsGUIEvent *    aEvent,
@@ -103,6 +100,8 @@ public:
                               const nsDisplayListSet& aLists);
 
   virtual void GetInitialOrientation(PRBool& aIsHorizontal); 
+
+  virtual nsIView* GetMouseCapturer() const { return GetView(); }
 
 private:
 

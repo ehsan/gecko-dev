@@ -62,8 +62,8 @@
 #include "nsIContentSink.h"
 #include "prlog.h"
 #include "nsIRequest.h"
+#include "nsTimer.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsThreadUtils.h"
 
 class nsIDocument;
 class nsIURI;
@@ -133,7 +133,8 @@ class nsContentSink : public nsICSSLoaderObserver,
   NS_HIDDEN_(nsresult) WillResumeImpl(void);
   NS_HIDDEN_(nsresult) DidProcessATokenImpl(void);
   NS_HIDDEN_(void) WillBuildModelImpl(void);
-  NS_HIDDEN_(void) DidBuildModelImpl(PRBool aTerminated);
+  NS_HIDDEN_(void) DidBuildModelImpl(void);
+  NS_HIDDEN_(PRBool) ReadyToCallDidBuildModelImpl(PRBool aTerminated);
   NS_HIDDEN_(void) DropParserAndPerfHint(void);
   PRBool IsScriptExecutingImpl();
 
@@ -144,8 +145,6 @@ class nsContentSink : public nsICSSLoaderObserver,
   virtual void EndUpdate(nsIDocument *aDocument, nsUpdateType aUpdateType);
 
   virtual void UpdateChildCounts() = 0;
-
-  PRBool IsTimeToNotify();
 
 protected:
   nsContentSink();
@@ -242,14 +241,12 @@ protected:
                                        nsIURI **aManifestURI,
                                        CacheSelectionAction *aAction);
 
-public:
   // Searches for the offline cache manifest attribute and calls one
   // of the above defined methods to select the document's application
   // cache, let it be associated with the document and eventually
   // schedule the cache update process.
   void ProcessOfflineManifest(nsIContent *aElement);
 
-protected:
   // Tries to scroll to the URI's named anchor. Once we've successfully
   // done that, further calls to this method will be ignored.
   void ScrollToRef();
@@ -258,9 +255,10 @@ protected:
   // Start layout.  If aIgnorePendingSheets is true, this will happen even if
   // we still have stylesheet loads pending.  Otherwise, we'll wait until the
   // stylesheets are all done loading.
-public:
   void StartLayout(PRBool aIgnorePendingSheets);
-protected:
+
+  PRBool IsTimeToNotify();
+
   void
   FavorPerformanceHint(PRBool perfOverStarvation, PRUint32 starvationDelay);
 
@@ -282,8 +280,6 @@ protected:
   // Later on we might want to make this more involved somehow
   // (e.g. stop waiting after some timeout or whatnot).
   PRBool WaitForPendingSheets() { return mPendingSheetCount > 0; }
-
-  void DoProcessLinkHeader();
 
 private:
   // People shouldn't be allocating this class directly.  All subclasses should
@@ -337,6 +333,8 @@ protected:
   PRUint8 mDeferredLayoutStart : 1;
   // If true, we deferred notifications until sheets load
   PRUint8 mDeferredFlushTags : 1;
+  // If true, we did get a ReadyToCallDidBuildModel call
+  PRUint8 mDidGetReadyToCallDidBuildModelCall : 1;
   // If false, we're not ourselves a document observer; that means we
   // shouldn't be performing any more content model notifications,
   // since we're not longer updating our child counts.
@@ -393,8 +391,8 @@ protected:
 
   PRUint32 mPendingSheetCount;
 
-  nsRevocableEventPtr<nsNonOwningRunnableMethod<nsContentSink> >
-    mProcessLinkHeaderEvent;
+  // Measures content model creation time for current document
+  MOZ_TIMER_DECLARE(mWatch)
 };
 
 // sanitizing content sink whitelists

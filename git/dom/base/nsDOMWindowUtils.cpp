@@ -40,7 +40,7 @@
 #include "nsDOMClassInfo.h"
 #include "nsDOMError.h"
 #include "nsIDOMNSEvent.h"
-#include "nsIPrivateDOMEvent.h"
+
 #include "nsDOMWindowUtils.h"
 #include "nsGlobalWindow.h"
 #include "nsIDocument.h"
@@ -251,7 +251,7 @@ nsDOMWindowUtils::SendMouseEvent(const nsAString& aType,
 
   event.clickCount = aClickCount;
   event.time = PR_IntervalNow();
-  event.flags |= NS_EVENT_FLAG_SYNTHETIC_TEST_EVENT;
+  event.flags |= NS_EVENT_FLAG_SYNTETIC_TEST_EVENT;
 
   float appPerDev = float(widget->GetDeviceContext()->AppUnitsPerDevPixel());
   event.refPoint.x =
@@ -392,27 +392,6 @@ nsDOMWindowUtils::SendNativeKeyEvent(PRInt32 aNativeKeyboardLayout,
 }
 
 NS_IMETHODIMP
-nsDOMWindowUtils::SendNativeMouseEvent(PRInt32 aScreenX,
-                                       PRInt32 aScreenY,
-                                       PRInt32 aNativeMessage,
-                                       PRInt32 aModifierFlags,
-                                       nsIDOMElement* aElement)
-{
-  PRBool hasCap = PR_FALSE;
-  if (NS_FAILED(nsContentUtils::GetSecurityManager()->IsCapabilityEnabled("UniversalXPConnect", &hasCap))
-      || !hasCap)
-    return NS_ERROR_DOM_SECURITY_ERR;
-
-  // get the widget to send the event to
-  nsCOMPtr<nsIWidget> widget = GetWidgetForElement(aElement);
-  if (!widget)
-    return NS_ERROR_FAILURE;
-
-  return widget->SynthesizeNativeMouseEvent(nsIntPoint(aScreenX, aScreenY),
-                                            aNativeMessage, aModifierFlags);
-}
-
-NS_IMETHODIMP
 nsDOMWindowUtils::ActivateNativeMenuItemAt(const nsAString& indexString)
 {
   PRBool hasCap = PR_FALSE;
@@ -458,28 +437,6 @@ nsDOMWindowUtils::GetWidget(nsPoint* aOffset)
           return frame->GetView()->GetNearestWidget(aOffset);
       }
     }
-  }
-
-  return nsnull;
-}
-
-nsIWidget*
-nsDOMWindowUtils::GetWidgetForElement(nsIDOMElement* aElement)
-{
-  if (!aElement)
-    return GetWidget();
-
-  nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
-  nsIDocument* doc = content->GetCurrentDoc();
-  nsIPresShell* presShell = doc ? doc->GetPrimaryShell() : nsnull;
-
-  if (presShell) {
-    nsIFrame* frame = presShell->GetPrimaryFrameFor(content);
-    if (!frame) {
-      frame = presShell->GetRootFrame();
-    }
-    if (frame)
-      return frame->GetWindow();
   }
 
   return nsnull;
@@ -841,111 +798,3 @@ nsDOMWindowUtils::GetIMEStatus(PRUint32 *aState)
   return widget->GetIMEEnabled(aState);
 }
 
-NS_IMETHODIMP
-nsDOMWindowUtils::GetScreenPixelsPerCSSPixel(float* aScreenPixels)
-{
-  *aScreenPixels = 1;
-
-  if (!nsContentUtils::IsCallerTrustedForRead())
-    return NS_ERROR_DOM_SECURITY_ERR;
-  nsPresContext* presContext = GetPresContext();
-  if (!presContext)
-    return NS_OK;
-
-  *aScreenPixels = float(nsPresContext::AppUnitsPerCSSPixel())/
-      presContext->AppUnitsPerDevPixel();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::GetCOWForObject()
-{
-  PRBool hasCap = PR_FALSE;
-  if (NS_FAILED(nsContentUtils::GetSecurityManager()->
-                IsCapabilityEnabled("UniversalXPConnect", &hasCap))
-      || !hasCap)
-    return NS_ERROR_DOM_SECURITY_ERR;
-
-  nsresult rv = NS_OK;
-  nsCOMPtr<nsIXPConnect> xpc = do_GetService("@mozilla.org/js/xpc/XPConnect;1",
-                                             &rv);
-  if (NS_FAILED(rv))
-    return NS_ERROR_FAILURE;
-
-  // get the xpconnect native call context
-  nsAXPCNativeCallContext *cc = nsnull;
-  xpc->GetCurrentNativeCallContext(&cc);
-  if(!cc)
-    return NS_ERROR_FAILURE;
-
-  // Get JSContext of current call
-  JSContext* cx;
-  rv = cc->GetJSContext(&cx);
-  if(NS_FAILED(rv) || !cx)
-    return NS_ERROR_FAILURE;
-
-  // get place for return value
-  jsval *rval = nsnull;
-  rv = cc->GetRetValPtr(&rval);
-  if(NS_FAILED(rv) || !rval)
-    return NS_ERROR_FAILURE;
-
-  // get argc and argv and verify arg count
-  PRUint32 argc;
-  rv = cc->GetArgc(&argc);
-  if(NS_FAILED(rv))
-    return NS_ERROR_FAILURE;
-
-  if(argc < 2)
-    return NS_ERROR_XPC_NOT_ENOUGH_ARGS;
-
-  jsval* argv;
-  rv = cc->GetArgvPtr(&argv);
-  if(NS_FAILED(rv) || !argv)
-    return NS_ERROR_FAILURE;
-
-  // first and second params must be JSObjects
-  if(JSVAL_IS_PRIMITIVE(argv[0]) ||
-     JSVAL_IS_PRIMITIVE(argv[1]))
-    return NS_ERROR_XPC_BAD_CONVERT_JS;
-
-  JSObject *scope = JSVAL_TO_OBJECT(argv[0]);
-  JSObject *object = JSVAL_TO_OBJECT(argv[1]);
-  rv = xpc->GetCOWForObject(cx, JS_GetGlobalForObject(cx, scope),
-                            object, rval);
-
-  if (NS_FAILED(rv))
-    return rv;
-
-  cc->SetReturnValueWasSet(PR_TRUE);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::DispatchDOMEventViaPresShell(nsIDOMNode* aTarget,
-                                               nsIDOMEvent* aEvent,
-                                               PRBool aTrusted,
-                                               PRBool* aRetVal)
-{
-  if (!nsContentUtils::IsCallerTrustedForRead()) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
-
-  nsPresContext* presContext = GetPresContext();
-  NS_ENSURE_STATE(presContext);
-  nsCOMPtr<nsIPresShell> shell = presContext->GetPresShell();
-  NS_ENSURE_STATE(shell);
-  nsCOMPtr<nsIPrivateDOMEvent> event = do_QueryInterface(aEvent);
-  NS_ENSURE_STATE(event);
-  event->SetTrusted(aTrusted);
-  nsEvent* internalEvent = event->GetInternalNSEvent();
-  NS_ENSURE_STATE(internalEvent);
-  nsCOMPtr<nsIContent> content = do_QueryInterface(aTarget);
-  NS_ENSURE_STATE(content);
-
-  nsEventStatus status = nsEventStatus_eIgnore;
-  shell->HandleEventWithTarget(internalEvent, nsnull, content,
-                               &status);
-  *aRetVal = (status != nsEventStatus_eConsumeNoDefault);
-  return NS_OK;
-}

@@ -69,9 +69,12 @@
 #include "jsparse.h"
 #include "jsscope.h"
 #include "jsscript.h"
-#include "jstracer.h"
 
 #include "prmjtime.h"
+
+#ifdef LIVECONNECT
+#include "jsjava.h"
+#endif
 
 #ifdef JSDEBUGGER
 #include "jsdebug.h"
@@ -124,8 +127,6 @@ static size_t gScriptStackQuota = JS_DEFAULT_SCRIPT_STACK_QUOTA;
 static jsdouble MAX_TIMEOUT_INTERVAL = 1800.0;
 static jsdouble gTimeoutInterval = -1.0;
 static volatile bool gCanceled = false;
-
-static bool enableJit = false;
 
 static JSBool
 SetTimeoutValue(JSContext *cx, jsdouble t);
@@ -200,9 +201,8 @@ typedef enum JSShellErrNum {
 
 static const JSErrorFormatString *
 my_GetErrorMessage(void *userRef, const char *locale, const uintN errorNumber);
-
 static JSObject *
-split_setup(JSContext *cx, JSBool evalcx);
+split_setup(JSContext *cx);
 
 #ifdef EDITLINE
 JS_BEGIN_EXTERN_C
@@ -210,33 +210,6 @@ JS_EXTERN_API(char)    *readline(const char *prompt);
 JS_EXTERN_API(void)     add_history(char *line);
 JS_END_EXTERN_C
 #endif
-
-class ToString {
-public:
-    ToString(JSContext *aCx, jsval v, JSBool aThrow = JS_FALSE)
-    : cx(aCx)
-    , mThrow(aThrow)
-    {
-        mStr = JS_ValueToString(cx, v);
-        if (!aThrow && !mStr && JS_IsExceptionPending(cx)) {
-            if (!JS_ReportPendingException(cx))
-                JS_ClearPendingException(cx);
-        }
-        JS_AddNamedRoot(cx, &mStr, "Value ToString helper");
-    }
-    ~ToString() {
-        JS_RemoveRoot(cx, &mStr);
-    }
-    JSBool threw() { return !mStr; }
-    jsval getJSVal() { return STRING_TO_JSVAL(mStr); }
-    const char *getBytes() {
-        return mStr ? JS_GetStringBytes(mStr) : "(error converting value)";
-    }
-private:
-    JSContext *cx;
-    JSString *mStr;
-    JSBool mThrow;
-};
 
 static char *
 GetLine(FILE *file, const char * prompt)
@@ -531,7 +504,7 @@ Process(JSContext *cx, JSObject *obj, char *filename, JSBool forceTTY)
             if (!compileOnly) {
                 ok = JS_ExecuteScript(cx, obj, script, &result);
                 if (ok && !JSVAL_IS_VOID(result)) {
-                    str = JS_ValueToSource(cx, result);
+                    str = JS_ValueToString(cx, result);
                     if (str)
                         fprintf(gOutFile, "%s\n", JS_GetStringBytes(str));
                     else
@@ -720,7 +693,6 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
             break;
 
         case 'j':
-            enableJit = !enableJit;
             JS_ToggleOptions(cx, JSOPTION_JIT);
 #if defined(JS_TRACER) && defined(DEBUG)
 extern struct JSClass jitstats_class;
@@ -822,7 +794,7 @@ extern void js_InitJITStatsClass(JSContext *cx, JSObject *glob);
             break;
 
         case 'z':
-            obj = split_setup(cx, JS_FALSE);
+            obj = split_setup(cx);
             if (!obj)
                 return gExitCode;
             break;
@@ -1061,6 +1033,10 @@ Help(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval);
 static JSBool
 Quit(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
+#ifdef LIVECONNECT
+    JSJ_SimpleShutdown();
+#endif
+
     JS_ConvertArguments(cx, argc, argv,"/ i", &gExitCode);
 
     gQuitting = JS_TRUE;
@@ -1082,28 +1058,19 @@ ToSource(JSContext *cx, jsval *vp)
 static JSBool
 AssertEq(JSContext *cx, uintN argc, jsval *vp)
 {
-    if (!(argc == 2 || (argc == 3 && JSVAL_IS_STRING(JS_ARGV(cx, vp)[2])))) {
+    if (argc != 2) {
         JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL,
-                             (argc < 2)
-                             ? JSSMSG_NOT_ENOUGH_ARGS
-                             : (argc == 3)
-                             ? JSSMSG_INVALID_ARGS
-                             : JSSMSG_TOO_MANY_ARGS,
+                             (argc > 2) ? JSSMSG_TOO_MANY_ARGS : JSSMSG_NOT_ENOUGH_ARGS,
                              "assertEq");
         return JS_FALSE;
     }
 
     jsval *argv = JS_ARGV(cx, vp);
-    if (!JS_SameValue(cx, argv[0], argv[1])) {
+    if (!JS_StrictlyEqual(cx, argv[0], argv[1])) {
         const char *actual = ToSource(cx, &argv[0]);
         const char *expected = ToSource(cx, &argv[1]);
-        if (argc == 2) {
-            JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_ASSERT_EQ_FAILED,
-                                 actual, expected);
-        } else {
-            JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_ASSERT_EQ_FAILED_MSG,
-                                 actual, expected, JS_GetStringBytes(JSVAL_TO_STRING(argv[2])));
-        }
+        JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_ASSERT_EQ_FAILED,
+                             actual, expected);
         return JS_FALSE;
     }
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
@@ -1123,7 +1090,7 @@ GC(JSContext *cx, uintN argc, jsval *vp)
     char buf[256];
     JS_snprintf(buf, sizeof(buf), "before %lu, after %lu, break %08lx\n",
                 (unsigned long)preBytes, (unsigned long)rt->gcBytes,
-#ifdef HAVE_SBRK
+#ifdef XP_UNIX
                 (unsigned long)sbrk(0)
 #else
                 0
@@ -1588,7 +1555,7 @@ SrcNotes(JSContext *cx, JSScript *script)
 
     fprintf(gOutFile, "\nSource notes:\n");
     offset = 0;
-    notes = script->notes();
+    notes = SCRIPT_NOTES(script);
     switchTableEnd = switchTableStart = 0;
     for (sn = notes; !SN_IS_TERMINATOR(sn); sn = SN_NEXT(sn)) {
         delta = SN_DELTA(sn);
@@ -1633,7 +1600,7 @@ SrcNotes(JSContext *cx, JSScript *script)
           case SRC_BREAK2LABEL:
           case SRC_CONT2LABEL:
             index = js_GetSrcNoteOffset(sn, 0);
-            JS_GET_SCRIPT_ATOM(script, NULL, index, atom);
+            JS_GET_SCRIPT_ATOM(script, index, atom);
             JS_ASSERT(ATOM_IS_STRING(atom));
             str = ATOM_TO_STRING(atom);
             fprintf(gOutFile, " atom %u (", index);
@@ -1646,18 +1613,10 @@ SrcNotes(JSContext *cx, JSScript *script)
             JSFunction *fun;
 
             index = js_GetSrcNoteOffset(sn, 0);
-            obj = script->getObject(index);
+            JS_GET_SCRIPT_OBJECT(script, index, obj);
             fun = (JSFunction *) JS_GetPrivate(cx, obj);
             str = JS_DecompileFunction(cx, fun, JS_DONT_PRETTY_PRINT);
-            if (str) {
-              bytes = JS_GetStringBytes(str);
-            } else {
-              if (JS_IsExceptionPending(cx)) {
-                if (!JS_ReportPendingException(cx))
-                  JS_ClearPendingException(cx);
-              }
-              bytes = "N/A";
-            }
+            bytes = str ? JS_GetStringBytes(str) : "N/A";
             fprintf(gOutFile, " function %u (%s)", index, bytes);
             break;
           }
@@ -1714,8 +1673,8 @@ TryNotes(JSContext *cx, JSScript *script)
     if (script->trynotesOffset == 0)
         return JS_TRUE;
 
-    tn = script->trynotes()->vector;
-    tnlimit = tn + script->trynotes()->length;
+    tn = JS_SCRIPT_TRYNOTES(script)->vector;
+    tnlimit = tn + JS_SCRIPT_TRYNOTES(script)->length;
     fprintf(gOutFile, "\nException table:\n"
             "kind      stack    start      end\n");
     do {
@@ -1750,7 +1709,7 @@ DisassembleValue(JSContext *cx, jsval v, bool lines, bool recursive)
             SHOW_FLAG(THISP_NUMBER);
             SHOW_FLAG(THISP_BOOLEAN);
             SHOW_FLAG(EXPR_CLOSURE);
-            SHOW_FLAG(TRCINFO);
+            SHOW_FLAG(TRACEABLE);
 
 #undef SHOW_FLAG
 
@@ -1768,7 +1727,7 @@ DisassembleValue(JSContext *cx, jsval v, bool lines, bool recursive)
     TryNotes(cx, script);
 
     if (recursive && script->objectsOffset != 0) {
-        JSObjectArray *objects = script->objects();
+        JSObjectArray *objects = JS_SCRIPT_OBJECTS(script);
         for (uintN i = 0; i != objects->length; ++i) {
             JSObject *obj = objects->vector[i];
             if (HAS_FUNCTION_CLASS(obj)) {
@@ -1938,7 +1897,8 @@ Tracing(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
       case JSTYPE_NUMBER:
       case JSTYPE_BOOLEAN: {
         JSBool bval;
-        JS_ValueToBoolean(cx, argv[0], &bval);
+        if (!JS_ValueToBoolean(cx, argv[0], &bval))
+            goto bad_argument;
         file = bval ? stderr : NULL;
         break;
       }
@@ -1974,13 +1934,16 @@ static void
 DumpScope(JSContext *cx, JSObject *obj, FILE *fp)
 {
     uintN i;
+    JSScope *scope;
     JSScopeProperty *sprop;
     jsval v;
     JSString *str;
 
     i = 0;
-    sprop = NULL;
-    while (JS_PropertyIterator(obj, &sprop)) {
+    scope = OBJ_SCOPE(obj);
+    for (sprop = SCOPE_LAST_PROP(scope); sprop; sprop = sprop->parent) {
+        if (SCOPE_HAD_MIDDLE_DELETE(scope) && !SCOPE_HAS_PROPERTY(scope, sprop))
+            continue;
         fprintf(fp, "%3u %p ", i, (void *)sprop);
 
         v = ID_TO_VALUE(sprop->id);
@@ -2043,8 +2006,8 @@ DumpStats(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
             if (!js_FindProperty(cx, id, &obj, &obj2, &prop))
                 return JS_FALSE;
             if (prop) {
-                obj2->dropProperty(cx, prop);
-                if (!obj->getProperty(cx, id, &value))
+                OBJ_DROP_PROPERTY(cx, obj2, prop);
+                if (!OBJ_GET_PROPERTY(cx, obj, id, &value))
                     return JS_FALSE;
             }
             if (!prop || !JSVAL_IS_OBJECT(value)) {
@@ -2254,7 +2217,7 @@ ConvertArgs(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     JSBool ok;
 
     if (!JS_AddArgumentFormatter(cx, "ZZ", ZZ_formatter))
-        return JS_FALSE;
+        return JS_FALSE;;
     ok = JS_ConvertArguments(cx, argc, argv, "b/ciujdIsSWofvZZ*",
                              &b, &c, &i, &u, &j, &d, &I, &s, &str, &w, &obj2,
                              &fun, &v, &re, &im);
@@ -2264,26 +2227,13 @@ ConvertArgs(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     fprintf(gOutFile,
             "b %u, c %x (%c), i %ld, u %lu, j %ld\n",
             b, c, (char)c, i, u, j);
-    ToString obj2string(cx, obj2);
-    ToString valueString(cx, v);
-    JSString *tmpstr = JS_DecompileFunction(cx, fun, 4);
-    const char *func;
-    if (tmpstr) {
-        func = JS_GetStringBytes(tmpstr);
-    } else {
-        if (JS_IsExceptionPending(cx)) {
-            if (!JS_ReportPendingException(cx))
-                JS_ClearPendingException(cx);
-        }
-        func = "error decompiling fun";
-    }
     fprintf(gOutFile,
             "d %g, I %g, s %s, S %s, W %s, obj %s, fun %s\n"
             "v %s, re %g, im %g\n",
             d, I, s, str ? JS_GetStringBytes(str) : "", EscapeWideString(w),
-            obj2string.getBytes(),
-            fun ? func : "",
-            valueString.getBytes(), re, im);
+            JS_GetStringBytes(JS_ValueToString(cx, OBJECT_TO_JSVAL(obj2))),
+            fun ? JS_GetStringBytes(JS_DecompileFunction(cx, fun, 4)) : "",
+            JS_GetStringBytes(JS_ValueToString(cx, v)), re, im);
     return JS_TRUE;
 }
 #endif
@@ -2541,7 +2491,8 @@ split_addProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
         /* Make sure to define this property on the inner object. */
         if (!JS_ValueToId(cx, *vp, &asId))
             return JS_FALSE;
-        return JS_DefinePropertyById(cx, cpx->inner, asId, *vp, NULL, NULL, JSPROP_ENUMERATE);
+        return OBJ_DEFINE_PROPERTY(cx, cpx->inner, asId, *vp, NULL, NULL,
+                                   JSPROP_ENUMERATE, NULL);
     }
     return JS_TRUE;
 }
@@ -2554,13 +2505,6 @@ split_getProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
     cpx = split_get_private(cx, obj);
     if (!cpx)
         return JS_TRUE;
-
-    if (JSVAL_IS_STRING(id) &&
-        !strcmp(JS_GetStringBytes(JSVAL_TO_STRING(id)), "isInner")) {
-        *vp = BOOLEAN_TO_JSVAL(cpx->isInner);
-        return JS_TRUE;
-    }
-
     if (!cpx->isInner && cpx->inner) {
         if (JSVAL_IS_STRING(id)) {
             JSString *str;
@@ -2614,7 +2558,7 @@ split_delProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
         /* Make sure to define this property on the inner object. */
         if (!JS_ValueToId(cx, *vp, &asId))
             return JS_FALSE;
-        return cpx->inner->deleteProperty(cx, asId, vp);
+        return OBJ_DELETE_PROPERTY(cx, cpx->inner, asId, vp);
     }
     return JS_TRUE;
 }
@@ -2661,16 +2605,10 @@ split_enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
 }
 
 static JSBool
-split_resolve(JSContext *cx, JSObject *obj, jsval id, uintN flags, JSObject **objp)
+split_resolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
+                JSObject **objp)
 {
     ComplexObject *cpx;
-
-    if (JSVAL_IS_STRING(id) &&
-        !strcmp(JS_GetStringBytes(JSVAL_TO_STRING(id)), "isInner")) {
-        *objp = obj;
-        return JS_DefineProperty(cx, obj, "isInner", JSVAL_VOID, NULL, NULL,
-                                 JSPROP_SHARED);
-    }
 
     cpx = split_get_private(cx, obj);
     if (!cpx)
@@ -2682,10 +2620,10 @@ split_resolve(JSContext *cx, JSObject *obj, jsval id, uintN flags, JSObject **ob
         if (!JS_ValueToId(cx, id, &asId))
             return JS_FALSE;
 
-        if (!cpx->inner->lookupProperty(cx, asId, objp, &prop))
+        if (!OBJ_LOOKUP_PROPERTY(cx, cpx->inner, asId, objp, &prop))
             return JS_FALSE;
         if (prop)
-            cpx->inner->dropProperty(cx, prop);
+            OBJ_DROP_PROPERTY(cx, cpx->inner, prop);
 
         return JS_TRUE;
     }
@@ -2738,28 +2676,6 @@ split_outerObject(JSContext *cx, JSObject *obj)
     return cpx->isInner ? cpx->outer : obj;
 }
 
-static JSObject *
-split_thisObject(JSContext *cx, JSObject *obj)
-{
-    OBJ_TO_OUTER_OBJECT(cx, obj);
-    if (!obj)
-        return NULL;
-    return obj;
-}
-
-static JSObjectOps split_objectops;
-
-static JSObjectOps *
-split_getObjectOps(JSContext *cx, JSClass *clasp)
-{
-    if (!split_objectops.thisObject) {
-        memcpy(&split_objectops, &js_ObjectOps, sizeof split_objectops);
-        split_objectops.thisObject = split_thisObject;
-    }
-
-    return &split_objectops;
-}
-
 static JSBool
 split_equality(JSContext *cx, JSObject *obj, jsval v, JSBool *bp);
 
@@ -2785,7 +2701,7 @@ static JSExtendedClass split_global_class = {
     (JSEnumerateOp)split_enumerate,
     (JSResolveOp)split_resolve,
     JS_ConvertStub, split_finalize,
-    split_getObjectOps, NULL, NULL, NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL, NULL, NULL,
     split_mark, NULL},
     split_equality, split_outerObject, split_innerObject,
     NULL, NULL, NULL, NULL, NULL
@@ -2887,10 +2803,8 @@ sandbox_enumerate(JSContext *cx, JSObject *obj)
     jsval v;
     JSBool b;
 
-    if (!JS_GetProperty(cx, obj, "lazy", &v))
+    if (!JS_GetProperty(cx, obj, "lazy", &v) || !JS_ValueToBoolean(cx, v, &b))
         return JS_FALSE;
-
-    JS_ValueToBoolean(cx, v, &b);
     return !b || JS_EnumerateStandardClasses(cx, obj);
 }
 
@@ -2901,10 +2815,8 @@ sandbox_resolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
     jsval v;
     JSBool b, resolved;
 
-    if (!JS_GetProperty(cx, obj, "lazy", &v))
+    if (!JS_GetProperty(cx, obj, "lazy", &v) || !JS_ValueToBoolean(cx, v, &b))
         return JS_FALSE;
-
-    JS_ValueToBoolean(cx, v, &b);
     if (b && (flags & JSRESOLVE_ASSIGNING) == 0) {
         if (!JS_ResolveStandardClass(cx, obj, id, &resolved))
             return JS_FALSE;
@@ -2923,7 +2835,7 @@ static JSClass sandbox_class = {
     JS_PropertyStub,   JS_PropertyStub,
     JS_PropertyStub,   JS_PropertyStub,
     sandbox_enumerate, (JSResolveOp)sandbox_resolve,
-    JS_ConvertStub,    NULL,
+    JS_ConvertStub,    JS_FinalizeStub,
     JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
@@ -2936,7 +2848,7 @@ EvalInContext(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     JSContext *scx;
     const jschar *src;
     size_t srclen;
-    JSBool lazy, split, ok;
+    JSBool lazy, ok;
     jsval v;
     JSStackFrame *fp;
 
@@ -2956,23 +2868,15 @@ EvalInContext(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     JS_BeginRequest(scx);
     src = JS_GetStringChars(str);
     srclen = JS_GetStringLength(str);
-    split = lazy = JS_FALSE;
-    if (srclen == 4) {
-        if (src[0] == 'l' && src[1] == 'a' && src[2] == 'z' && src[3] == 'y') {
-            lazy = JS_TRUE;
-            srclen = 0;
-        }
-    } else if (srclen == 5) {
-        if (src[0] == 's' && src[1] == 'p' && src[2] == 'l' && src[3] == 'i' && src[4] == 't') {
-            split = lazy = JS_TRUE;
-            srclen = 0;
-        }
+    lazy = JS_FALSE;
+    if (srclen == 4 &&
+        src[0] == 'l' && src[1] == 'a' && src[2] == 'z' && src[3] == 'y') {
+        lazy = JS_TRUE;
+        srclen = 0;
     }
 
     if (!sobj) {
-        sobj = split
-               ? split_setup(scx, JS_TRUE)
-               : JS_NewObject(scx, &sandbox_class, NULL, NULL);
+        sobj = JS_NewObject(scx, &sandbox_class, NULL, NULL);
         if (!sobj || (!lazy && !JS_InitStandardClasses(scx, sobj))) {
             ok = JS_FALSE;
             goto out;
@@ -2981,8 +2885,6 @@ EvalInContext(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
         ok = JS_SetProperty(cx, sobj, "lazy", &v);
         if (!ok)
             goto out;
-        if (split)
-            sobj = split_outerObject(cx, sobj);
     }
 
     if (srclen == 0) {
@@ -2992,11 +2894,6 @@ EvalInContext(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
         fp = JS_GetScriptedCaller(cx, NULL);
         JS_SetGlobalObject(scx, sobj);
         JS_ToggleOptions(scx, JSOPTION_DONT_REPORT_UNCAUGHT);
-        OBJ_TO_INNER_OBJECT(cx, sobj);
-        if (!sobj) {
-            ok = JS_FALSE;
-            goto out;
-        }
         ok = JS_EvaluateUCScript(scx, sobj, src, srclen,
                                  fp->script->filename,
                                  JS_PCToLineNumber(cx, fp->script,
@@ -3669,6 +3566,7 @@ Snarf(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
                 if (buf) {
                     cc = fread(buf, 1, len, file);
                     if (cc != len) {
+                        JS_free(cx, buf);
                         JS_ReportError(cx, "can't read %s: %s", pathname,
                                        (ptrdiff_t(cc) < 0) ? strerror(errno) : "short read");
                     } else {
@@ -3706,7 +3604,7 @@ static JSFunctionSpec shell_functions[] = {
     JS_FS("help",           Help,           0,0,0),
     JS_FS("quit",           Quit,           0,0,0),
     JS_FN("assertEq",       AssertEq,       2,0),
-    JS_FN("gc",             ::GC,           0,0),
+    JS_FN("gc",             GC,             0,0),
     JS_FN("gcparam",        GCParameter,    2,0),
     JS_FN("countHeap",      CountHeap,      0,0),
 #ifdef JS_GC_ZEAL
@@ -3788,9 +3686,8 @@ static const char *const shell_help_messages[] = {
 "print([exp ...])         Evaluate and print expressions",
 "help([name ...])         Display usage and help messages",
 "quit()                   Quit the shell",
-"assertEq(actual, expected[, msg])\n"
-"  Throw if the first two arguments are not the same (both +0 or both -0,\n"
-"  both NaN, or non-zero and ===)",
+"assertEq(actual, expected)\n"
+"                         Throw if the two arguments are not ===",
 "gc()                     Run the garbage collector",
 "gcparam(name, value)\n"
 "  Wrapper for JS_SetGCParameter. The name must be either 'maxBytes' or\n"
@@ -3836,8 +3733,7 @@ static const char *const shell_help_messages[] = {
 "evalcx(s[, o])\n"
 "  Evaluate s in optional sandbox object o\n"
 "  if (s == '' && !o) return new o with eager standard classes\n"
-"  if (s == 'lazy' && !o) return new o with lazy standard classes\n"
-"  if (s == 'split' && !o) return new split-object o with lazy standard classes",
+"  if (s == 'lazy' && !o) return new o with lazy standard classes",
 "shapeOf(obj)             Get the shape of obj (an implementation detail)",
 #ifdef MOZ_SHARK
 "startShark()             Start a Shark session.\n"
@@ -3954,7 +3850,7 @@ Help(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 }
 
 static JSObject *
-split_setup(JSContext *cx, JSBool evalcx)
+split_setup(JSContext *cx)
 {
     JSObject *outer, *inner, *arguments;
 
@@ -3967,20 +3863,17 @@ split_setup(JSContext *cx, JSBool evalcx)
     if (!inner)
         return NULL;
 
-    if (!evalcx) {
-        if (!JS_DefineFunctions(cx, inner, shell_functions))
-            return NULL;
-
-        /* Create a dummy arguments object. */
-        arguments = JS_NewArrayObject(cx, 0, NULL);
-        if (!arguments ||
-            !JS_DefineProperty(cx, inner, "arguments", OBJECT_TO_JSVAL(arguments),
-                               NULL, NULL, 0)) {
-            return NULL;
-        }
-    }
-
+    if (!JS_DefineFunctions(cx, inner, shell_functions))
+        return NULL;
     JS_ClearScope(cx, outer);
+
+    /* Create a dummy arguments object. */
+    arguments = JS_NewArrayObject(cx, 0, NULL);
+    if (!arguments ||
+        !JS_DefineProperty(cx, inner, "arguments", OBJECT_TO_JSVAL(arguments),
+                           NULL, NULL, 0)) {
+        return NULL;
+    }
 
 #ifndef LAZY_STANDARD_CLASSES
     if (!JS_InitStandardClasses(cx, inner))
@@ -4052,6 +3945,15 @@ static JSPropertySpec its_props[] = {
 };
 
 static JSBool
+its_item(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
+{
+    *rval = OBJECT_TO_JSVAL(obj);
+    if (argc != 0)
+        JS_SetCallReturnValue2(cx, argv[0]);
+    return JS_TRUE;
+}
+
+static JSBool
 its_bindMethod(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
                jsval *rval)
 {
@@ -4079,6 +3981,7 @@ its_bindMethod(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
 }
 
 static JSFunctionSpec its_methods[] = {
+    {"item",            its_item,       0,0,0},
     {"bindMethod",      its_bindMethod, 2,0,0},
     {NULL,NULL,0,0,0}
 };
@@ -4125,59 +4028,58 @@ static JSBool its_enum_fail;/* whether to fail when enumerating it */
 static JSBool
 its_addProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
-    if (!its_noisy)
-        return JS_TRUE;
-
-    ToString idString(cx, id);
-    fprintf(gOutFile, "adding its property %s,", idString.getBytes());
-    ToString valueString(cx, *vp);
-    fprintf(gOutFile, " initial value %s\n", valueString.getBytes());
+    if (its_noisy) {
+        fprintf(gOutFile, "adding its property %s,",
+               JS_GetStringBytes(JS_ValueToString(cx, id)));
+        fprintf(gOutFile, " initial value %s\n",
+               JS_GetStringBytes(JS_ValueToString(cx, *vp)));
+    }
     return JS_TRUE;
 }
 
 static JSBool
 its_delProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
-    if (!its_noisy)
-        return JS_TRUE;
-
-    ToString idString(cx, id);
-    fprintf(gOutFile, "deleting its property %s,", idString.getBytes());
-    ToString valueString(cx, *vp);
-    fprintf(gOutFile, " initial value %s\n", valueString.getBytes());
+    if (its_noisy) {
+        fprintf(gOutFile, "deleting its property %s,",
+               JS_GetStringBytes(JS_ValueToString(cx, id)));
+        fprintf(gOutFile, " current value %s\n",
+               JS_GetStringBytes(JS_ValueToString(cx, *vp)));
+    }
     return JS_TRUE;
 }
 
 static JSBool
 its_getProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
-    if (!its_noisy)
-        return JS_TRUE;
-
-    ToString idString(cx, id);
-    fprintf(gOutFile, "getting its property %s,", idString.getBytes());
-    ToString valueString(cx, *vp);
-    fprintf(gOutFile, " initial value %s\n", valueString.getBytes());
+    if (its_noisy) {
+        fprintf(gOutFile, "getting its property %s,",
+               JS_GetStringBytes(JS_ValueToString(cx, id)));
+        fprintf(gOutFile, " current value %s\n",
+               JS_GetStringBytes(JS_ValueToString(cx, *vp)));
+    }
     return JS_TRUE;
 }
 
 static JSBool
 its_setProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
-    ToString idString(cx, id);
+    char *str;
     if (its_noisy) {
-        fprintf(gOutFile, "setting its property %s,", idString.getBytes());
-        ToString valueString(cx, *vp);
-        fprintf(gOutFile, " new value %s\n", valueString.getBytes());
+        fprintf(gOutFile, "setting its property %s,",
+               JS_GetStringBytes(JS_ValueToString(cx, id)));
+        fprintf(gOutFile, " new value %s\n",
+               JS_GetStringBytes(JS_ValueToString(cx, *vp)));
     }
 
     if (!JSVAL_IS_STRING(id))
         return JS_TRUE;
 
-    if (!strcmp(idString.getBytes(), "noisy"))
-        JS_ValueToBoolean(cx, *vp, &its_noisy);
-    else if (!strcmp(idString.getBytes(), "enum_fail"))
-        JS_ValueToBoolean(cx, *vp, &its_enum_fail);
+    str = JS_GetStringBytes(JSVAL_TO_STRING(id));
+    if (!strcmp(str, "noisy"))
+        return JS_ValueToBoolean(cx, *vp, &its_noisy);
+    else if (!strcmp(str, "enum_fail"))
+        return JS_ValueToBoolean(cx, *vp, &its_enum_fail);
 
     return JS_TRUE;
 }
@@ -4234,9 +4136,8 @@ its_resolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
             JSObject **objp)
 {
     if (its_noisy) {
-        ToString idString(cx, id);
         fprintf(gOutFile, "resolving its property %s, flags {%s,%s,%s}\n",
-               idString.getBytes(),
+               JS_GetStringBytes(JS_ValueToString(cx, id)),
                (flags & JSRESOLVE_QUALIFIED) ? "qualified" : "",
                (flags & JSRESOLVE_ASSIGNING) ? "assigning" : "",
                (flags & JSRESOLVE_DETECTING) ? "detecting" : "");
@@ -4513,17 +4414,19 @@ env_setProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
 /* XXX porting may be easy, but these don't seem to supply setenv by default */
 #if !defined XP_BEOS && !defined XP_OS2 && !defined SOLARIS
+    JSString *idstr, *valstr;
+    const char *name, *value;
     int rv;
 
-    ToString idstr(cx, id, JS_TRUE);
-    if (idstr.threw())
+    idstr = JS_ValueToString(cx, id);
+    valstr = JS_ValueToString(cx, *vp);
+    if (!idstr || !valstr)
         return JS_FALSE;
-    ToString valstr(cx, *vp, JS_TRUE);
-    if (valstr.threw())
-        return JS_FALSE;
+    name = JS_GetStringBytes(idstr);
+    value = JS_GetStringBytes(valstr);
 #if defined XP_WIN || defined HPUX || defined OSF1 || defined IRIX
     {
-        char *waste = JS_smprintf("%s=%s", idstr.getBytes(), valstr.getBytes());
+        char *waste = JS_smprintf("%s=%s", name, value);
         if (!waste) {
             JS_ReportOutOfMemory(cx);
             return JS_FALSE;
@@ -4537,17 +4440,17 @@ env_setProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
          * that will crash if you pass it an auto char array (so it must place
          * its argument directly in the char *environ[] array).
          */
-        JS_smprintf_free(waste);
+        free(waste);
 #endif
     }
 #else
-    rv = setenv(idstr.getBytes(), valstr.getBytes(), 1);
+    rv = setenv(name, value, 1);
 #endif
     if (rv < 0) {
-        JS_ReportError(cx, "can't set env variable %s to %s", idstr.getBytes(), valstr.getBytes());
+        JS_ReportError(cx, "can't set envariable %s to %s", name, value);
         return JS_FALSE;
     }
-    *vp = valstr.getJSVal();
+    *vp = STRING_TO_JSVAL(valstr);
 #endif /* !defined XP_BEOS && !defined XP_OS2 && !defined SOLARIS */
     return JS_TRUE;
 }
@@ -4588,17 +4491,16 @@ static JSBool
 env_resolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
             JSObject **objp)
 {
-    JSString *valstr;
+    JSString *idstr, *valstr;
     const char *name, *value;
 
     if (flags & JSRESOLVE_ASSIGNING)
         return JS_TRUE;
 
-    ToString idstr(cx, id, JS_TRUE);
-    if (idstr.threw())
+    idstr = JS_ValueToString(cx, id);
+    if (!idstr)
         return JS_FALSE;
-
-    name = idstr.getBytes();
+    name = JS_GetStringBytes(idstr);
     value = getenv(name);
     if (value) {
         valstr = JS_NewStringCopyZ(cx, value);
@@ -4618,7 +4520,7 @@ static JSClass env_class = {
     JS_PropertyStub,  JS_PropertyStub,
     JS_PropertyStub,  env_setProperty,
     env_enumerate, (JSResolveOp) env_resolve,
-    JS_ConvertStub,   NULL,
+    JS_ConvertStub,   JS_FinalizeStub,
     JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
@@ -4697,8 +4599,6 @@ ContextCallback(JSContext *cx, uintN contextOp)
         JS_SetErrorReporter(cx, my_ErrorReporter);
         JS_SetVersion(cx, JSVERSION_LATEST);
         SetContextOptions(cx);
-        if (enableJit)
-            JS_ToggleOptions(cx, JSOPTION_JIT);
         break;
       case JSCONTEXT_DESTROY:
         data = GetContextData(cx);
@@ -4721,6 +4621,9 @@ main(int argc, char **argv, char **envp)
     JSContext *cx;
     JSObject *glob, *it, *envobj;
     int result;
+#ifdef LIVECONNECT
+    JavaVM *java_vm = NULL;
+#endif
 #ifdef JSDEBUGGER
     JSDContext *jsdc;
 #ifdef JSDEBUGGER_JAVA_UI
@@ -4822,6 +4725,10 @@ main(int argc, char **argv, char **envp)
         return 1;
     JSDJ_SetJSDContext(jsdjc, jsdc);
     java_env = JSDJ_CreateJavaVMAndStartDebugger(jsdjc);
+#ifdef LIVECONNECT
+    if (java_env)
+        (*java_env)->GetJavaVM(java_env, &java_vm);
+#endif
     /*
     * XXX This would be the place to wait for the debugger to start.
     * Waiting would be nice in general, but especially when a js file
@@ -4832,6 +4739,11 @@ main(int argc, char **argv, char **envp)
     jsdbc = JSDB_InitDebugger(rt, jsdc, 0);
 #endif /* JSDEBUGGER_C_UI */
 #endif /* JSDEBUGGER */
+
+#ifdef LIVECONNECT
+    if (!JSJ_SimpleInit(cx, glob, java_vm, getenv("CLASSPATH")))
+        return 1;
+#endif
 
     envobj = JS_DefineObject(cx, glob, "environment", &env_class, NULL, 0);
     if (!envobj || !JS_SetPrivate(cx, envobj, envp))
@@ -4870,8 +4782,6 @@ main(int argc, char **argv, char **envp)
 #endif  /* JSDEBUGGER */
 
     JS_EndRequest(cx);
-
-    JS_CommenceRuntimeShutDown(rt);
 
     WITH_LOCKED_CONTEXT_LIST( 
         JS_DestroyContext(cx)

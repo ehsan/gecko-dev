@@ -45,10 +45,8 @@
 #include "nsIURI.h"
 #include "nsILoadGroup.h"
 #include "nsNetUtil.h"
-#include "nsStreamUtils.h"
 #include "nsThreadUtils.h"
 #include "nsIUploadChannel.h"
-#include "nsIUploadChannel2.h"
 #include "nsIDOMSerializer.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
@@ -64,10 +62,7 @@
 #include "nsIScriptGlobalObject.h"
 #include "nsIDOMClassInfo.h"
 #include "nsIDOMElement.h"
-#include "nsIDOMFileInternal.h"
 #include "nsIDOMWindow.h"
-#include "nsIMIMEService.h"
-#include "nsCExternalHandlerService.h"
 #include "nsIVariant.h"
 #include "nsVariant.h"
 #include "nsIParser.h"
@@ -96,7 +91,6 @@
 #include "nsIPromptFactory.h"
 #include "nsIWindowWatcher.h"
 #include "nsCommaSeparatedTokenizer.h"
-#include "nsIConsoleService.h"
 
 #define LOAD_STR "load"
 #define ERROR_STR "error"
@@ -501,21 +495,11 @@ nsACProxyListener::GetInterface(const nsIID & aIID, void **aResult)
 
 /////////////////////////////////////////////
 
-nsXHREventTarget::~nsXHREventTarget()
-{
-  nsISupports *supports = static_cast<nsIXMLHttpRequestEventTarget*>(this);
-  nsContentUtils::ReleaseWrapper(supports, this);
-}
-
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsXHREventTarget)
-
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsXHREventTarget)
-  NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
-NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXHREventTarget,
                                                   nsDOMEventTargetHelper)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_PRESERVED_WRAPPER
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnLoadListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnErrorListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnAbortListener)
@@ -523,12 +507,9 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXHREventTarget,
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnProgressListener)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsXHREventTarget)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
-NS_IMPL_CYCLE_COLLECTION_ROOT_END
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsXHREventTarget,
                                                 nsDOMEventTargetHelper)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnLoadListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnErrorListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnAbortListener)
@@ -1754,12 +1735,30 @@ nsXMLHttpRequest::OpenRequest(const nsACString& method,
 
 /* void open (in AUTF8String method, in AUTF8String url); */
 NS_IMETHODIMP
-nsXMLHttpRequest::Open(const nsACString& method, const nsACString& url,
-                       PRBool async, const nsAString& user,
-                       const nsAString& password, PRUint8 optional_argc)
+nsXMLHttpRequest::Open(const nsACString& method, const nsACString& url)
 {
-  if (nsContentUtils::GetCurrentJSContext()) {
-    // We're (likely) called from JS
+  nsresult rv = NS_OK;
+  PRBool async = PR_TRUE;
+  nsAutoString user, password;
+
+  nsAXPCNativeCallContext *cc = nsnull;
+  nsIXPConnect *xpc = nsContentUtils::XPConnect();
+  if (xpc) {
+    rv = xpc->GetCurrentNativeCallContext(&cc);
+  }
+
+  if (NS_SUCCEEDED(rv) && cc) {
+    PRUint32 argc;
+    rv = cc->GetArgc(&argc);
+    if (NS_FAILED(rv)) return NS_ERROR_FAILURE;
+
+    jsval* argv;
+    rv = cc->GetArgvPtr(&argv);
+    if (NS_FAILED(rv)) return NS_ERROR_FAILURE;
+
+    JSContext* cx;
+    rv = cc->GetJSContext(&cx);
+    if (NS_FAILED(rv)) return NS_ERROR_FAILURE;
 
     // Find out if UniversalBrowserRead privileges are enabled
     if (nsContentUtils::IsCallerTrustedForRead()) {
@@ -1767,11 +1766,33 @@ nsXMLHttpRequest::Open(const nsACString& method, const nsACString& url,
     } else {
       mState &= ~XML_HTTP_REQUEST_XSITEENABLED;
     }
-  }
 
-  if (!optional_argc) {
-    // No optional arguments were passed in. Default async to true.
-    async = PR_TRUE;
+    if (argc > 2) {
+      JSAutoRequest ar(cx);
+      JSBool asyncBool;
+      ::JS_ValueToBoolean(cx, argv[2], &asyncBool);
+      async = (PRBool)asyncBool;
+
+      if (argc > 3 && !JSVAL_IS_NULL(argv[3]) && !JSVAL_IS_VOID(argv[3])) {
+        JSString* userStr = ::JS_ValueToString(cx, argv[3]);
+
+        if (userStr) {
+          user.Assign(reinterpret_cast<PRUnichar *>
+                                      (::JS_GetStringChars(userStr)),
+                      ::JS_GetStringLength(userStr));
+        }
+
+        if (argc > 4 && !JSVAL_IS_NULL(argv[4]) && !JSVAL_IS_VOID(argv[4])) {
+          JSString* passwdStr = JS_ValueToString(cx, argv[4]);
+
+          if (passwdStr) {
+            password.Assign(reinterpret_cast<PRUnichar *>
+                                            (::JS_GetStringChars(passwdStr)),
+                            ::JS_GetStringLength(passwdStr));
+          }
+        }
+      }
+    }
   }
 
   return OpenRequest(method, url, async, user, password);
@@ -2108,6 +2129,13 @@ nsXMLHttpRequest::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult
     ChangeState(XML_HTTP_REQUEST_STOPPED, PR_FALSE);
   }
 
+  if (mScriptContext) {
+    // Force a GC since we could be loading a lot of documents
+    // (especially if streaming), and not doing anything that would
+    // normally trigger a GC.
+    mScriptContext->GC();
+  }
+
   mState &= ~XML_HTTP_REQUEST_SYNCLOOPING;
 
   return rv;
@@ -2237,25 +2265,6 @@ nsXMLHttpRequest::Send(nsIVariant *aBody)
 
       httpChannel->SetReferrer(codebase);
     }
-
-    // Some extensions override the http protocol handler and provide their own
-    // implementation. The channels returned from that implementation doesn't
-    // seem to always implement the nsIUploadChannel2 interface, presumably
-    // because it's a new interface.
-    // Eventually we should remove this and simply require that http channels
-    // implement the new interface.
-    // See bug 529041
-    nsCOMPtr<nsIUploadChannel2> uploadChannel2 =
-      do_QueryInterface(httpChannel);
-    if (!uploadChannel2) {
-      nsCOMPtr<nsIConsoleService> consoleService =
-        do_GetService(NS_CONSOLESERVICE_CONTRACTID);
-      if (consoleService) {
-        consoleService->LogStringMessage(NS_LITERAL_STRING(
-          "Http channel implementation doesn't support nsIUploadChannel2. An extension has supplied a non-functional http protocol handler. This will break behavior and in future releases not work at all."
-                                                           ).get());
-      }
-    }
   }
 
   mUploadTransferred = 0;
@@ -2336,37 +2345,6 @@ nsXMLHttpRequest::Send(nsIVariant *aBody)
               postDataStream = stream;
               charset.Truncate();
             }
-            else {
-              // nsIDOMFile?
-              nsCOMPtr<nsIDOMFileInternal> file(do_QueryInterface(supports));
-
-              if (file) {
-                nsCOMPtr<nsIFile> internalFile;
-                rv = file->GetInternalFile(getter_AddRefs(internalFile));
-                NS_ENSURE_SUCCESS(rv, rv);
-
-                nsCOMPtr<nsIInputStream> stream;
-                rv = NS_NewLocalFileInputStream(getter_AddRefs(stream), internalFile); 
-                NS_ENSURE_SUCCESS(rv, rv);
-
-                // Feed local file input stream into our upload channel
-                if (stream) {
-                  postDataStream = stream;
-                  charset.Truncate();
-                  defaultContentType.Truncate();
-
-                  nsCOMPtr<nsIMIMEService> mimeService =
-                      do_GetService(NS_MIMESERVICE_CONTRACTID, &rv);
-                  NS_ENSURE_SUCCESS(rv, rv);
-
-                  nsCAutoString mediaType;
-                  rv = mimeService->GetTypeFromFile(internalFile, mediaType);
-                  if (NS_SUCCEEDED(rv)) {
-                    defaultContentType = mediaType;
-                  }
-                }
-              }
-            }
           }
         }
       }
@@ -2397,6 +2375,9 @@ nsXMLHttpRequest::Send(nsIVariant *aBody)
     }
 
     if (postDataStream) {
+      nsCOMPtr<nsIUploadChannel> uploadChannel(do_QueryInterface(httpChannel));
+      NS_ASSERTION(uploadChannel, "http must support nsIUploadChannel");
+
       // If no content type header was set by the client, we set it to
       // application/xml.
       nsCAutoString contentType;
@@ -2433,42 +2414,13 @@ nsXMLHttpRequest::Send(nsIVariant *aBody)
         }
       }
 
-      // If necessary, wrap the stream in a buffered stream so as to guarantee
-      // support for our upload when calling ExplicitSetUploadStream.
-      if (!NS_InputStreamIsBuffered(postDataStream)) {
-        nsCOMPtr<nsIInputStream> bufferedStream;
-        rv = NS_NewBufferedInputStream(getter_AddRefs(bufferedStream),
-                                       postDataStream, 
-                                       4096);
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        postDataStream = bufferedStream;
-      }
-
       mUploadComplete = PR_FALSE;
       PRUint32 uploadTotal = 0;
       postDataStream->Available(&uploadTotal);
       mUploadTotal = uploadTotal;
-
-      // We want to use a newer version of the upload channel that won't
-      // ignore the necessary headers for an empty Content-Type.
-      nsCOMPtr<nsIUploadChannel2> uploadChannel2(do_QueryInterface(httpChannel));
-      // This assertion will fire if buggy extensions are installed
-      NS_ASSERTION(uploadChannel2, "http must support nsIUploadChannel");
-      if (uploadChannel2) {
-          uploadChannel2->ExplicitSetUploadStream(postDataStream, contentType,
-                                                 -1, method, PR_FALSE);
-      }
-      else {
-        // http channel doesn't support the new nsIUploadChannel2. Emulate
-        // as best we can using nsIUploadChannel
-        if (contentType.IsEmpty()) {
-          contentType.AssignLiteral("application/octet-stream");
-        }
-        nsCOMPtr<nsIUploadChannel> uploadChannel =
-          do_QueryInterface(httpChannel);
-        uploadChannel->SetUploadStream(postDataStream, contentType, -1);
-        // Reset the method to its original value
+      rv = uploadChannel->SetUploadStream(postDataStream, contentType, -1);
+      // Reset the method to its original value
+      if (httpChannel) {
         httpChannel->SetRequestMethod(method);
       }
     }

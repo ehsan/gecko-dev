@@ -55,6 +55,7 @@
 #include "nsIDocShell.h"
 #include "nsIContentViewer.h"
 #include "nsIContentViewerFile.h"
+#include "nsIFrameDebug.h"
 #include "nsIFrame.h"
 #include "nsStyleStruct.h"
 #include "nsIFrameUtil.h"
@@ -91,10 +92,7 @@ nsRegressionTester::DumpFrameModel(nsIDOMWindow *aWindowToDump, nsILocalFile *aD
   PRBool      stillLoading;
 
   *aResult = DUMP_RESULT_ERROR;
-
-#ifndef DEBUG
-  return NS_ERROR_NOT_AVAILABLE;
-#else
+  
   nsCOMPtr<nsIDocShell> docShell;
   rv = GetDocShellFromWindow(aWindowToDump, getter_AddRefs(docShell));
   if (NS_FAILED(rv)) return rv;
@@ -107,11 +105,14 @@ nsRegressionTester::DumpFrameModel(nsIDOMWindow *aWindowToDump, nsILocalFile *aD
     *aResult = DUMP_RESULT_LOADING;
     return NS_OK;
   }
-
+  
   nsCOMPtr<nsIPresShell> presShell;
   docShell->GetPresShell(getter_AddRefs(presShell));
 
   nsIFrame* root = presShell->GetRootFrame();
+
+  nsIFrameDebug*  fdbg = do_QueryFrame(root);
+  if (NS_FAILED(rv)) return rv;
 
   FILE* fp = stdout;
   if (aDestFile)
@@ -130,13 +131,12 @@ nsRegressionTester::DumpFrameModel(nsIDOMWindow *aWindowToDump, nsILocalFile *aD
     }
   }
   else {
-    root->DumpRegressionData(presShell->GetPresContext(), fp, 0);
+    fdbg->DumpRegressionData(presShell->GetPresContext(), fp, 0);
   }
   if (fp != stdout)
     fclose(fp);
   *aResult = DUMP_RESULT_COMPLETED;
   return NS_OK;
-#endif
 }
 
 NS_IMETHODIMP

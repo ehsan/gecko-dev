@@ -47,7 +47,6 @@
 #include "jsdhash.h"
 #include "jsbit.h"
 #include "jsutil.h"
-#include "jstask.h"
 
 JS_BEGIN_EXTERN_C
 
@@ -58,7 +57,30 @@ JS_BEGIN_EXTERN_C
  */
 #define JSTRACE_LIMIT       4
 
-const uintN JS_EXTERNAL_STRING_LIMIT = 8;
+/*
+ * We use the trace kinds as the types for all GC things except external
+ * strings.
+ */
+#define GCX_OBJECT              JSTRACE_OBJECT      /* JSObject */
+#define GCX_DOUBLE              JSTRACE_DOUBLE      /* jsdouble */
+#define GCX_STRING              JSTRACE_STRING      /* JSString */
+#define GCX_XML                 JSTRACE_XML         /* JSXML */
+#define GCX_EXTERNAL_STRING     JSTRACE_LIMIT       /* JSString with external
+                                                       chars */
+/*
+ * The number of defined GC types and the maximum limit for the number of
+ * possible GC types.
+ */
+#define GCX_NTYPES              (GCX_EXTERNAL_STRING + 8)
+#define GCX_LIMIT_LOG2         4           /* type index bits */
+#define GCX_LIMIT              JS_BIT(GCX_LIMIT_LOG2)
+
+/* GC flag definitions, must fit in 8 bits (type index goes in the low bits). */
+#define GCF_TYPEMASK    JS_BITMASK(GCX_LIMIT_LOG2)
+#define GCF_MARK        JS_BIT(GCX_LIMIT_LOG2)
+#define GCF_FINAL       JS_BIT(GCX_LIMIT_LOG2 + 1)
+#define GCF_LOCKSHIFT   (GCX_LIMIT_LOG2 + 2)   /* lock bit shift */
+#define GCF_LOCK        JS_BIT(GCF_LOCKSHIFT)   /* lock request bit in API */
 
 /*
  * Get the type of the external string or -1 if the string was not created
@@ -87,6 +109,26 @@ js_GetGCStringRuntime(JSString *str);
 #else
 #define GC_POKE(cx, oldval) ((cx)->runtime->gcPoke = JSVAL_IS_GCTHING(oldval))
 #endif
+
+/*
+ * Write barrier macro monitoring property update from oldval to newval in
+ * scope->object.
+ *
+ * Since oldval is used only for the branded scope case, and the oldval actual
+ * argument expression is typically not used otherwise by callers, performance
+ * benefits if oldval is *not* evaluated into a callsite temporary variable,
+ * and instead passed to GC_WRITE_BARRIER for conditional evaluation (we rely
+ * on modern compilers to do a good CSE job). Yay, C macros.
+ */
+#define GC_WRITE_BARRIER(cx,scope,oldval,newval)                              \
+    JS_BEGIN_MACRO                                                            \
+        if (SCOPE_IS_BRANDED(scope) &&                                        \
+            (oldval) != (newval) &&                                           \
+            (VALUE_IS_FUNCTION(cx,oldval) || VALUE_IS_FUNCTION(cx,newval))) { \
+            js_MakeScopeShapeUnique(cx, scope);                               \
+        }                                                                     \
+        GC_POKE(cx, oldval);                                                  \
+    JS_END_MACRO
 
 extern JSBool
 js_InitGC(JSRuntime *rt, uint32 maxbytes);
@@ -125,6 +167,28 @@ typedef struct JSPtrTable {
 
 extern JSBool
 js_RegisterCloseableIterator(JSContext *cx, JSObject *obj);
+
+/*
+ * The private JSGCThing struct, which describes a gcFreeList element.
+ */
+struct JSGCThing {
+    JSGCThing   *next;
+    uint8       *flagp;
+};
+
+#define GC_NBYTES_MAX           (10 * sizeof(JSGCThing))
+#define GC_NUM_FREELISTS        (GC_NBYTES_MAX / sizeof(JSGCThing))
+#define GC_FREELIST_NBYTES(i)   (((i) + 1) * sizeof(JSGCThing))
+#define GC_FREELIST_INDEX(n)    (((n) / sizeof(JSGCThing)) - 1)
+
+/*
+ * Allocates a new GC thing of the given size. After a successful allocation
+ * the caller must fully initialize the thing before calling any function that
+ * can potentially trigger GC. This will ensure that GC tracing never sees junk
+ * values stored in the partially initialized thing.
+ */
+extern void *
+js_NewGCThing(JSContext *cx, uintN flags, size_t nbytes);
 
 /*
  * Allocate a new double jsval and store the result in *vp. vp must be a root.
@@ -167,9 +231,9 @@ js_IsAboutToBeFinalized(JSContext *cx, void *thing);
 #endif
 
 /*
- * Trace jsval when JSVAL_IS_OBJECT(v) can be a GC thing pointer tagged as a
- * jsval. NB: punning an arbitrary JSString * as an untagged (object-tagged)
- * jsval no longer works due to static int and unit strings!
+ * Trace jsval when JSVAL_IS_OBJECT(v) can be an arbitrary GC thing casted as
+ * JSVAL_OBJECT and js_GetGCThingTraceKind has to be used to find the real
+ * type behind v.
  */
 extern void
 js_CallValueTracerIfGCThing(JSTracer *trc, jsval v);
@@ -230,158 +294,79 @@ typedef enum JSGCInvocationKind {
 extern void
 js_GC(JSContext *cx, JSGCInvocationKind gckind);
 
-/*
- * The kind of GC thing with a finalizer. The external strings follow the
- * ordinary string to simplify js_GetExternalStringGCType.
- */
-enum JSFinalizeGCThingKind {
-    FINALIZE_OBJECT,
-    FINALIZE_FUNCTION,
-#if JS_HAS_XML_SUPPORT
-    FINALIZE_XML,
-#endif
-    FINALIZE_STRING,
-    FINALIZE_EXTERNAL_STRING0,
-    FINALIZE_EXTERNAL_STRING1,
-    FINALIZE_EXTERNAL_STRING2,
-    FINALIZE_EXTERNAL_STRING3,
-    FINALIZE_EXTERNAL_STRING4,
-    FINALIZE_EXTERNAL_STRING5,
-    FINALIZE_EXTERNAL_STRING6,
-    FINALIZE_EXTERNAL_STRING7,
-    FINALIZE_EXTERNAL_STRING_LAST = FINALIZE_EXTERNAL_STRING7,
-    FINALIZE_LIMIT
-};
+/* Call this after succesful malloc of memory for GC-related things. */
+extern void
+js_UpdateMallocCounter(JSContext *cx, size_t nbytes);
 
-static inline bool
-IsFinalizableStringKind(unsigned thingKind)
-{
-    return unsigned(FINALIZE_STRING) <= thingKind &&
-           thingKind <= unsigned(FINALIZE_EXTERNAL_STRING_LAST);
-}
-
-/*
- * Allocates a new GC thing. After a successful allocation the caller must
- * fully initialize the thing before calling any function that can potentially
- * trigger GC. This will ensure that GC tracing never sees junk values stored
- * in the partially initialized thing.
- */
-extern void *
-js_NewFinalizableGCThing(JSContext *cx, unsigned thingKind);
-
-static inline JSObject *
-js_NewGCObject(JSContext *cx)
-{
-    return (JSObject *) js_NewFinalizableGCThing(cx, FINALIZE_OBJECT);
-}
-
-static inline JSString *
-js_NewGCString(JSContext *cx)
-{
-    return (JSString *) js_NewFinalizableGCThing(cx, FINALIZE_STRING);
-}
-
-static inline JSString *
-js_NewGCExternalString(JSContext *cx, uintN type)
-{
-    JS_ASSERT(type < JS_EXTERNAL_STRING_LIMIT);
-    type += FINALIZE_EXTERNAL_STRING0;
-    return (JSString *) js_NewFinalizableGCThing(cx, type);
-}
-
-static inline JSFunction*
-js_NewGCFunction(JSContext *cx)
-{
-    return (JSFunction *) js_NewFinalizableGCThing(cx, FINALIZE_FUNCTION);
-}
-
-#if JS_HAS_XML_SUPPORT
-static inline JSXML *
-js_NewGCXML(JSContext *cx)
-{
-    return (JSXML *) js_NewFinalizableGCThing(cx, FINALIZE_XML);
-}
-#endif
-
-struct JSGCArenaInfo;
-struct JSGCChunkInfo;
+typedef struct JSGCArenaInfo JSGCArenaInfo;
+typedef struct JSGCArenaList JSGCArenaList;
+typedef struct JSGCChunkInfo JSGCChunkInfo;
 
 struct JSGCArenaList {
-    JSGCArenaInfo   *head;          /* list start */
-    JSGCArenaInfo   *cursor;        /* arena with free things */
-    uint32          thingKind;      /* one of JSFinalizeGCThingKind */
-    uint32          thingSize;      /* size of things to allocate on this list
+    JSGCArenaInfo   *last;          /* last allocated GC arena */
+    uint16          lastCount;      /* number of allocated things in the last
+                                       arena */
+    uint16          thingSize;      /* size of things to allocate on this list
                                      */
+    JSGCThing       *freeList;      /* list of free GC things */
 };
 
-struct JSGCDoubleArenaList {
-    JSGCArenaInfo   *head;          /* list start */
-    JSGCArenaInfo   *cursor;        /* next arena with free cells */
+typedef union JSGCDoubleCell JSGCDoubleCell;
+
+union JSGCDoubleCell {
+    double          number;
+    JSGCDoubleCell  *link;
 };
 
-struct JSGCFreeLists {
-    JSGCThing       *doubles;
-    JSGCThing       *finalizables[FINALIZE_LIMIT];
+typedef struct JSGCDoubleArenaList {
+    JSGCArenaInfo   *first;             /* first allocated GC arena */
+    jsbitmap        *nextDoubleFlags;   /* bitmask with flags to check for free
+                                           things */
+} JSGCDoubleArenaList;
 
-    void purge();
-    void moveTo(JSGCFreeLists * another);
+typedef struct JSGCFreeListSet JSGCFreeListSet;
 
-#ifdef DEBUG
-    bool isEmpty() const {
-        if (doubles)
-            return false;
-        for (size_t i = 0; i != JS_ARRAY_LENGTH(finalizables); ++i) {
-            if (finalizables[i])
-                return false;
-        }
-        return true;
-    }
-#endif
+struct JSGCFreeListSet {
+    JSGCThing           *array[GC_NUM_FREELISTS];
+    JSGCFreeListSet     *link;
 };
+
+extern const JSGCFreeListSet js_GCEmptyFreeListSet;
+
+extern void
+js_RevokeGCLocalFreeLists(JSContext *cx);
 
 extern void
 js_DestroyScriptsToGC(JSContext *cx, JSThreadData *data);
 
 struct JSWeakRoots {
     /* Most recently created things by type, members of the GC's root set. */
-    void            *finalizableNewborns[FINALIZE_LIMIT];
-    jsdouble        *newbornDouble;
+    void            *newborn[GCX_NTYPES];
 
     /* Atom root for the last-looked-up atom on this context. */
     jsval           lastAtom;
 
     /* Root for the result of the most recent js_InternalInvoke call. */
     jsval           lastInternalResult;
-
-    void mark(JSTracer *trc);
 };
 
 #define JS_CLEAR_WEAK_ROOTS(wr) (memset((wr), 0, sizeof(JSWeakRoots)))
 
-#ifdef JS_THREADSAFE
-class JSFreePointerListTask : public JSBackgroundTask {
-    void *head;
-  public:
-    JSFreePointerListTask() : head(NULL) {}
-
-    void add(void* ptr) {
-        *(void**)ptr = head;
-        head = ptr;
-    }
-
-    void run() {
-        void *ptr = head;
-        while (ptr) {
-            void *next = *(void **)ptr;
-            js_free(ptr);
-            ptr = next;
-        }
-    }
-};
-#endif
+/*
+ * Increase runtime->gcBytes by sz bytes to account for an allocation outside
+ * the GC that will be freed only after the GC is run. The function may run
+ * the last ditch GC to ensure that gcBytes does not exceed gcMaxBytes. It will
+ * fail if the latter is not possible.
+ *
+ * This function requires that runtime->gcLock is held on entry. On successful
+ * return the lock is still held and on failure it will be released with
+ * the error reported.
+ */
+extern JSBool
+js_AddAsGCBytes(JSContext *cx, size_t sz);
 
 extern void
-js_FinalizeStringRT(JSRuntime *rt, JSString *str);
+js_RemoveAsGCBytes(JSRuntime* rt, size_t sz);
 
 #ifdef DEBUG_notme
 #define JS_GCMETER 1
@@ -430,7 +415,7 @@ typedef struct JSGCStats {
     uint32  closelater; /* number of close hooks scheduled to run */
     uint32  maxcloselater; /* max number of close hooks scheduled to run */
 
-    JSGCArenaStats  arenaStats[FINALIZE_LIST_LIMIT];
+    JSGCArenaStats  arenaStats[GC_NUM_FREELISTS];
     JSGCArenaStats  doubleArenaStats;
 } JSGCStats;
 
@@ -438,13 +423,6 @@ extern JS_FRIEND_API(void)
 js_DumpGCStats(JSRuntime *rt, FILE *fp);
 
 #endif /* JS_GCMETER */
-
-/*
- * This function is defined in jsdbgapi.cpp but is declared here to avoid
- * polluting jsdbgapi.h, a public API header, with internal functions.
- */
-extern void
-js_MarkTraps(JSTracer *trc);
 
 JS_END_EXTERN_C
 

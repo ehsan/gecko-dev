@@ -49,6 +49,11 @@ DIRS            = \
                   httpserver \
                   $(NULL)
 
+REQUIRES	= xpcom \
+		  string \
+		  necko \
+		  pref \
+		  $(NULL)
 
 CPPSRCS		= \
 		TestIncrementalDownload.cpp \

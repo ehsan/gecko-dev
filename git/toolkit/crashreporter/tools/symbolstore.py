@@ -485,7 +485,6 @@ class Dumper:
     def ProcessFile(self, file):
         """Dump symbols from this file into a symbol file, stored
         in the proper directory structure in  |symbol_path|."""
-        print >> sys.stderr, "Processing file: %s" % file
         result = False
         sourceFileStream = ''
         # tries to get the vcs root from the .mozconfig first - if it's not set
@@ -546,11 +545,11 @@ class Dumper:
                     # we output relative paths so callers can get a list of what
                     # was generated
                     print rel_path
-                    if self.srcsrv and vcs_root:
-                        # add source server indexing to the pdb file
-                        self.SourceServerIndexing(file, guid, sourceFileStream, vcs_root)
                     if self.copy_debug:
                         self.CopyDebug(file, debug_file, guid)
+                    if self.srcsrv and vcs_root:
+                        # Call on SourceServerIndexing
+                        self.SourceServerIndexing(debug_file, guid, sourceFileStream, vcs_root)
             except StopIteration:
                 pass
             except:
@@ -616,17 +615,20 @@ class Dumper_Win32(Dumper):
         
     def SourceServerIndexing(self, debug_file, guid, sourceFileStream, vcs_root):
         # Creates a .pdb.stream file in the mozilla\objdir to be used for source indexing
-        debug_file = os.path.abspath(debug_file)
+        cwd = os.getcwd()
         streamFilename = debug_file + ".stream"
-        stream_output_path = os.path.abspath(streamFilename)
+        stream_output_path = os.path.join(cwd, streamFilename)
         # Call SourceIndex to create the .stream file
         result = SourceIndex(sourceFileStream, stream_output_path, vcs_root)
+        
         if self.copy_debug:
             pdbstr_path = os.environ.get("PDBSTR_PATH")
             pdbstr = os.path.normpath(pdbstr_path)
-            call([pdbstr, "-w", "-p:" + os.path.basename(debug_file),
-                  "-i:" + os.path.basename(streamFilename), "-s:srcsrv"],
-                 cwd=os.path.dirname(stream_output_path))
+            pdb_rel_path = os.path.join(debug_file, guid, debug_file)
+            pdb_filename = os.path.normpath(os.path.join(self.symbol_path, pdb_rel_path))
+            # move to the dir with the stream files to call pdbstr
+            os.chdir(os.path.dirname(stream_output_path))
+            os.spawnv(os.P_WAIT, pdbstr, [pdbstr, "-w", "-p:" + pdb_filename, "-i:" + streamFilename, "-s:srcsrv"])
             # clean up all the .stream files when done
             os.remove(stream_output_path)
         return result

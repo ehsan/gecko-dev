@@ -51,6 +51,29 @@ MODULE		= layout
 LIBRARY_NAME	= gkstyle_s
 LIBXUL_LIBRARY	= 1
 
+REQUIRES	= xpcom \
+		  string \
+		  dom \
+		  content \
+		  gfx \
+		  thebes \
+		  widget \
+		  caps \
+		  locale \
+		  unicharutil \
+		  js \
+		  necko \
+		  mimetype \
+		  webshell \
+		  uconv \
+		  xuldoc \
+		  xpconnect \
+		  view \
+		  intl \
+		  pref \
+		  imglib2 \
+		  docshell \
+		  $(NULL)
 
 EXPORTS		= \
 		nsCSSAnonBoxList.h \
@@ -83,14 +106,15 @@ EXPORTS		= \
 		nsICSSStyleRule.h \
 		nsICSSStyleRuleDOMWrapper.h \
 		nsICSSStyleSheet.h \
+		nsIComputedDOMStyle.h \
 		nsIHTMLCSSStyleSheet.h \
+		nsIInspectorCSSUtils.h \
 		nsIStyleRule.h \
 		nsIStyleRuleProcessor.h \
 		nsIStyleSheet.h \
 		nsLayoutStylesheetCache.h \
 		nsRuleData.h \
 		nsRuleNode.h \
-		nsRuleProcessorData.h \
 		nsRuleWalker.h \
 		nsStyleContext.h \
 		nsStyleCoord.h \
@@ -130,18 +154,17 @@ CPPSRCS		= \
 		nsFontFaceLoader.cpp \
 		nsHTMLCSSStyleSheet.cpp \
 		nsHTMLStyleSheet.cpp \
+		nsInspectorCSSUtils.cpp \
 		nsLayoutStylesheetCache.cpp \
 		nsMediaFeatures.cpp \
 		nsROCSSPrimitiveValue.cpp \
 		nsRuleNode.cpp \
-		nsStyleAnimation.cpp \
 		nsStyleContext.cpp \
 		nsStyleCoord.cpp \
 		nsStyleSet.cpp \
 		nsStyleStruct.cpp \
 		nsStyleTransformMatrix.cpp \
 		nsStyleUtil.cpp \
-		nsTransitionManager.cpp \
 		$(NULL)
 
 FORCE_STATIC_LIB = 1
@@ -156,11 +179,29 @@ LOCAL_INCLUDES	= \
 		$(NULL)
 
 _FILES	= \
+	ua.css \
+	html.css \
+	quirk.css \
+	viewsource.css \
+	arrow.gif \
+	arrowd.gif \
 	contenteditable.css \
 	designmode.css \
 	$(NULL)
 
 GARBAGE		+= $(addprefix $(DIST)/bin/res/,$(_FILES))
+
+FORMS_CSS_SRC = $(srcdir)/forms.css
+PREPROCESS_FORMS_CSS = $(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py --marker=% $(DEFINES) $(ACDEFINES) $(FORMS_CSS_SRC)
+
+$(DIST)/bin/res/forms.css $(DESTDIR)$(mozappdir)/res/forms.css: $(FORMS_CSS_SRC) Makefile
+	if test ! -d $(@D); then rm -rf $(@D); $(NSINSTALL) -D $(@D); else true; fi
+	rm -f $@
+	$(PREPROCESS_FORMS_CSS) > $@
+
+libs:: $(DIST)/bin/res/forms.css
+
+install:: $(DESTDIR)$(mozappdir)/res/forms.css
 
 libs:: $(_FILES)
 	$(INSTALL) $^ $(DIST)/bin/res

@@ -9,6 +9,8 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE		= testy
 
+REQUIRES	= \
+		$(NULL)
 
 TESTCPPSRCS	= Testy.cpp
 

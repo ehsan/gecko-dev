@@ -89,30 +89,12 @@ public:
   virtual nsIContent* GetNodeAt(PRUint32 aIndex);
   virtual PRInt32 IndexOf(nsIContent* aContent);
   
-  PRUint32 Length() const { 
-    return mElements.Count();
-  }
-
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsBaseContentList, nsINodeList)
 
   void AppendElement(nsIContent *aContent);
-
-  /**
-   * Insert the element at a given index, shifting the objects at
-   * the given index and later to make space.
-   * @param aContent Element to insert, must not be null
-   * @param aIndex Index to insert the element at.
-   */
-  void InsertElementAt(nsIContent* aContent, PRInt32 aIndex);
-
-  void RemoveElement(nsIContent *aContent); 
-
-  void Reset() {
-    mElements.Clear();
-  }
-
-
+  void RemoveElement(nsIContent *aContent);
   virtual PRInt32 IndexOf(nsIContent *aContent, PRBool aDoFlush);
+  void Reset();
 
   static void Shutdown();
 
@@ -269,7 +251,7 @@ public:
   virtual nsISupports* GetNamedItem(const nsAString& aName, nsresult* aResult);
 
   // nsContentList public methods
-  NS_HIDDEN_(nsINode*) GetParentObject() { return mRootNode; }
+  NS_HIDDEN_(nsISupports*) GetParentObject();
   NS_HIDDEN_(PRUint32) Length(PRBool aDoFlush);
   NS_HIDDEN_(nsIContent*) Item(PRUint32 aIndex, PRBool aDoFlush);
   NS_HIDDEN_(nsIContent*) NamedItem(const nsAString& aName, PRBool aDoFlush);

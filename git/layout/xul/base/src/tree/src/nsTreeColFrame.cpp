@@ -62,9 +62,7 @@ nsIFrame*
 NS_NewTreeColFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsTreeColFrame(aPresShell, aContext);
-}
-
-NS_IMPL_FRAMEARENA_HELPERS(nsTreeColFrame)
+} // NS_NewTreeColFrame
 
 // Destructor
 nsTreeColFrame::~nsTreeColFrame()
@@ -118,18 +116,12 @@ nsDisplayXULTreeColSplitterTarget::HitTest(nsDisplayListBuilder* aBuilder,
   else if (nsPresContext::CSSPixelsToAppUnits(4) > pt.x)
     left = PR_TRUE;
 
-  // Swap left and right for RTL trees in order to find the correct splitter
-  if (mFrame->GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL) {
-    PRBool tmp = left;
-    left = right;
-    right = tmp;
-  }
-
   if (left || right) {
     // We are a header. Look for the correct splitter.
+    nsFrameList frames(mFrame->GetParent()->GetFirstChild(nsnull));
     nsIFrame* child;
     if (left)
-      child = mFrame->GetPrevSibling();
+      child = frames.GetPrevSiblingFor(mFrame);
     else
       child = mFrame->GetNextSibling();
 

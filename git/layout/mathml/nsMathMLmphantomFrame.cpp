@@ -57,8 +57,6 @@ NS_NewMathMLmphantomFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsMathMLmphantomFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsMathMLmphantomFrame)
-
 nsMathMLmphantomFrame::~nsMathMLmphantomFrame()
 {
 }

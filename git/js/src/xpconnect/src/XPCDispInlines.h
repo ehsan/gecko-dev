@@ -610,6 +610,17 @@ void * XPCDispParams::GetOutputBuffer(PRUint32 index)
 }
 
 //=============================================================================
+// XPCDispParamPropJSClass inlines
+inline
+JSBool XPCDispParamPropJSClass::Invoke(XPCCallContext& ccx, 
+                                       XPCDispObject::CallMode mode,
+                                       jsval* retval)
+{
+    return XPCDispObject::Dispatch(ccx, mDispObj, mDispID, mode, mDispParams,
+                                   retval);
+}
+
+//=============================================================================
 // Other helper functions
 
 /**

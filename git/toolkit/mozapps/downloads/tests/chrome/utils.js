@@ -127,18 +127,21 @@ function populateDM(DownloadData)
            getService(Ci.nsIDownloadManager);
   let db = dm.DBConnection;
 
-  let stmt = db.createStatement(
+  let rawStmt = db.createStatement(
     "INSERT INTO moz_downloads (name, source, target, startTime, endTime, " +
       "state, currBytes, maxBytes, preferredAction, autoResume) " +
     "VALUES (:name, :source, :target, :startTime, :endTime, :state, " +
       ":currBytes, :maxBytes, :preferredAction, :autoResume)");
+  let stmt = Cc["@mozilla.org/storage/statement-wrapper;1"].
+             createInstance(Ci.mozIStorageStatementWrapper)
+  stmt.initialize(rawStmt);
   for each (let dl in DownloadData) {
     for (let prop in dl)
       stmt.params[prop] = dl[prop];
 
     stmt.execute();
   }
-  stmt.finalize();
+  stmt.statement.finalize();
 }
 
 /**

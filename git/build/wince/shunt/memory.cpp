@@ -40,9 +40,25 @@
 #include <stdlib.h>
 
 #ifdef MOZ_MEMORY
+void * operator new(size_t _Size)
+{
+  void *p = malloc(_Size);
+  return (p);
+}
 
-// declare the nothrow object
-const std::nothrow_t std::nothrow;
+void operator delete(void * ptr)
+{
+  free(ptr);  
+}
+void *operator new[](size_t size)
+{
+  void* p = malloc(size);
+  return (p);
+}
+void operator delete[](void *ptr)
+{
+  free(ptr);
+}
 
 char*
 _strndup(const char *src, size_t len) {

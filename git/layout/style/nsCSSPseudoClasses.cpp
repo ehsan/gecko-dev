@@ -73,8 +73,7 @@ nsCSSPseudoClasses::HasStringArg(nsIAtom* aAtom)
 {
   return aAtom == nsCSSPseudoClasses::lang ||
          aAtom == nsCSSPseudoClasses::mozEmptyExceptChildrenWithLocalname ||
-         aAtom == nsCSSPseudoClasses::mozSystemMetric ||
-         aAtom == nsCSSPseudoClasses::mozLocaleDir;
+         aAtom == nsCSSPseudoClasses::mozSystemMetric;
 }
 
 PRBool
@@ -84,16 +83,4 @@ nsCSSPseudoClasses::HasNthPairArg(nsIAtom* aAtom)
          aAtom == nsCSSPseudoClasses::nthLastChild ||
          aAtom == nsCSSPseudoClasses::nthOfType ||
          aAtom == nsCSSPseudoClasses::nthLastOfType;
-}
-
-nsCSSPseudoClasses::Type
-nsCSSPseudoClasses::GetPseudoType(nsIAtom* aAtom)
-{
-  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(CSSPseudoClasses_info); ++i) {
-    if (*CSSPseudoClasses_info[i].mAtom == aAtom) {
-      return Type(i);
-    }
-  }
-
-  return nsCSSPseudoClasses::ePseudoClass_NotPseudoClass;
 }

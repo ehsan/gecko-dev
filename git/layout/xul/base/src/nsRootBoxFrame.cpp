@@ -81,7 +81,6 @@ public:
   nsRootBoxFrame(nsIPresShell* aShell, nsStyleContext *aContext);
 
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
   virtual nsPopupSetFrame* GetPopupSetFrame();
   virtual void SetPopupSetFrame(nsPopupSetFrame* aPopupSet);
@@ -91,10 +90,10 @@ public:
   virtual nsresult RemoveTooltipSupport(nsIContent* aNode);
 
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
 
@@ -143,8 +142,6 @@ NS_NewRootBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsRootBoxFrame (aPresShell, aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsRootBoxFrame)
-
 nsRootBoxFrame::nsRootBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext):
   nsBoxFrame(aShell, aContext, PR_TRUE)
 {
@@ -157,7 +154,7 @@ nsRootBoxFrame::nsRootBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext):
 
 NS_IMETHODIMP
 nsRootBoxFrame::AppendFrames(nsIAtom*        aListName,
-                             nsFrameList&    aFrameList)
+                             nsIFrame*       aFrameList)
 {
   nsresult  rv;
 
@@ -181,7 +178,7 @@ nsRootBoxFrame::AppendFrames(nsIAtom*        aListName,
 NS_IMETHODIMP
 nsRootBoxFrame::InsertFrames(nsIAtom*        aListName,
                              nsIFrame*       aPrevFrame,
-                             nsFrameList&    aFrameList)
+                             nsIFrame*       aFrameList)
 {
   nsresult  rv;
 

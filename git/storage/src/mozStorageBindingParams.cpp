@@ -136,7 +136,6 @@ BindingParams::BindingParams(BindingParamsArray *aOwningArray,
 , mLocked(false)
 {
   (void)mOwningStatement->GetParameterCount(&mParamCount);
-  (void)mParameters.SetCapacity(mParamCount);
 }
 
 void
@@ -150,13 +149,6 @@ BindingParams::lock()
   // statement.
   mOwningStatement = nsnull;
   mOwningArray = nsnull;
-}
-
-void
-BindingParams::unlock()
-{
-  NS_ASSERTION(mLocked == true, "Parameters were not yet locked!");
-  mLocked = false;
 }
 
 const BindingParamsArray *
@@ -293,7 +285,7 @@ BindingParams::BindByIndex(PRUint32 aIndex,
   ENSURE_INDEX_VALUE(aIndex, mParamCount);
 
   // Store the variant for later use.
-  NS_ENSURE_TRUE(mParameters.ReplaceObjectAt(aValue, aIndex),
+  NS_ENSURE_TRUE(mParameters.InsertObjectAt(aValue, aIndex),
                  NS_ERROR_OUT_OF_MEMORY);
   return NS_OK;
 }

@@ -41,7 +41,6 @@
 /*
  * JS execution context.
  */
-#include <new>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
@@ -59,7 +58,6 @@
 #include "jsfun.h"
 #include "jsgc.h"
 #include "jslock.h"
-#include "jsmath.h"
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jsopcode.h"
@@ -75,86 +73,59 @@ static void
 FreeContext(JSContext *cx);
 
 static void
-MarkLocalRoots(JSTracer *trc, JSLocalRootStack *lrs);
-
-void
-JSThreadData::init()
+InitThreadData(JSThreadData *data)
 {
 #ifdef DEBUG
     /* The data must be already zeroed. */
-    for (size_t i = 0; i != sizeof(*this); ++i)
-        JS_ASSERT(reinterpret_cast<uint8*>(this)[i] == 0);
+    for (size_t i = 0; i != sizeof(*data); ++i)
+        JS_ASSERT(reinterpret_cast<uint8*>(data)[i] == 0);
 #endif
 #ifdef JS_TRACER
-    js_InitJIT(&traceMonitor);
+    js_InitJIT(&data->traceMonitor);
 #endif
-    js_InitRandom(this);
 }
 
-void
-JSThreadData::finish()
+static void
+FinishThreadData(JSThreadData *data)
 {
 #ifdef DEBUG
     /* All GC-related things must be already removed at this point. */
-    JS_ASSERT(gcFreeLists.isEmpty());
-    for (size_t i = 0; i != JS_ARRAY_LENGTH(scriptsToGC); ++i)
-        JS_ASSERT(!scriptsToGC[i]);
-    for (size_t i = 0; i != JS_ARRAY_LENGTH(nativeEnumCache); ++i)
-        JS_ASSERT(!nativeEnumCache[i]);
-    JS_ASSERT(!localRootStack);
+    for (size_t i = 0; i != JS_ARRAY_LENGTH(data->scriptsToGC); ++i)
+        JS_ASSERT(!data->scriptsToGC[i]);
 #endif
 
-    js_FinishGSNCache(&gsnCache);
-    js_FinishPropertyCache(&propertyCache);
+    js_FinishGSNCache(&data->gsnCache);
+    js_FinishPropertyCache(&data->propertyCache);
 #if defined JS_TRACER
-    js_FinishJIT(&traceMonitor);
+    js_FinishJIT(&data->traceMonitor);
 #endif
 }
 
-void
-JSThreadData::mark(JSTracer *trc)
+static void
+PurgeThreadData(JSContext *cx, JSThreadData *data)
 {
-#ifdef JS_TRACER
-    traceMonitor.mark(trc);
-#endif
-    if (localRootStack)
-        MarkLocalRoots(trc, localRootStack);
-}
+# ifdef JS_TRACER
+    JSTraceMonitor *tm = &data->traceMonitor;
+    tm->reservedDoublePoolPtr = tm->reservedDoublePool;
+    tm->needFlush = JS_TRUE;
 
-void
-JSThreadData::purge(JSContext *cx)
-{
-    purgeGCFreeLists();
+    if (tm->recorder)
+        tm->recorder->deepAbort();
 
-    js_PurgeGSNCache(&gsnCache);
-
-    /* FIXME: bug 506341. */
-    js_PurgePropertyCache(cx, &propertyCache);
-
-#ifdef JS_TRACER
     /*
-     * If we are about to regenerate shapes, we have to flush the JIT cache,
-     * which will eventually abort any current recording.
+     * We want to keep tm->reservedObjects after the GC. So, unless we are
+     * shutting down, we don't purge them here and rather mark them during
+     * the GC, see MarkReservedObjects in jsgc.cpp.
      */
-    if (cx->runtime->gcRegenShapes)
-        traceMonitor.needFlush = JS_TRUE;
-#endif
+    if (cx->runtime->state == JSRTS_LANDING)
+        tm->reservedObjects = NULL;
+# endif
 
     /* Destroy eval'ed scripts. */
-    js_DestroyScriptsToGC(cx, this);
+    js_DestroyScriptsToGC(cx, data);
 
-    js_PurgeCachedNativeEnumerators(cx, this);
-}
-
-void
-JSThreadData::purgeGCFreeLists()
-{
-    if (!localRootStack) {
-        gcFreeLists.purge();
-    } else {
-        JS_ASSERT(gcFreeLists.isEmpty());
-        localRootStack->gcFreeLists.purge();
-    }
+    js_PurgeGSNCache(&data->gsnCache);
+    js_PurgePropertyCache(cx, &data->propertyCache);
 }
 
 #ifdef JS_THREADSAFE
@@ -163,12 +134,12 @@ static JSThread *
 NewThread(jsword id)
 {
     JS_ASSERT(js_CurrentThreadId() == id);
-    JSThread *thread = (JSThread *) js_calloc(sizeof(JSThread));
+    JSThread *thread = (JSThread *) calloc(1, sizeof(JSThread));
     if (!thread)
         return NULL;
     JS_INIT_CLIST(&thread->contextList);
     thread->id = id;
-    thread->data.init();
+    InitThreadData(&thread->data);
     return thread;
 }
 
@@ -178,14 +149,16 @@ DestroyThread(JSThread *thread)
     /* The thread must have zero contexts. */
     JS_ASSERT(JS_CLIST_IS_EMPTY(&thread->contextList));
     JS_ASSERT(!thread->titleToShare);
-    thread->data.finish();
-    js_free(thread);
+    FinishThreadData(&thread->data);
+    free(thread);
 }
 
-JSThread *
-js_CurrentThread(JSRuntime *rt)
+JSBool
+js_InitContextThread(JSContext *cx)
 {
+    JS_ASSERT(!cx->thread);
     jsword id = js_CurrentThreadId();
+    JSRuntime *rt = cx->runtime;
     JS_LOCK_GC(rt);
 
     /*
@@ -205,7 +178,7 @@ js_CurrentThread(JSRuntime *rt)
         JS_UNLOCK_GC(rt);
         thread = NewThread(id);
         if (!thread)
-            return NULL;
+            return false;
         JS_LOCK_GC(rt);
         js_WaitForGC(rt);
         entry = (JSThreadsHashEntry *)
@@ -214,23 +187,13 @@ js_CurrentThread(JSRuntime *rt)
         if (!entry) {
             JS_UNLOCK_GC(rt);
             DestroyThread(thread);
-            return NULL;
+            return false;
         }
 
         /* Another thread cannot initialize entry->thread. */
         JS_ASSERT(!entry->thread);
         entry->thread = thread;
     }
-
-    return thread;
-}
-
-JSBool
-js_InitContextThread(JSContext *cx)
-{
-    JSThread *thread = js_CurrentThread(cx->runtime);
-    if (!thread)
-        return false;
 
     JS_APPEND_LINK(&cx->threadLinks, &thread->contextList);
     cx->thread = thread;
@@ -288,45 +251,14 @@ thread_purger(JSDHashTable *table, JSDHashEntryHdr *hdr, uint32 /* index */,
     if (JS_CLIST_IS_EMPTY(&thread->contextList)) {
         JS_ASSERT(cx->thread != thread);
         js_DestroyScriptsToGC(cx, &thread->data);
-
-        /*
-         * The following is potentially suboptimal as it also zeros the caches
-         * in data, but the code simplicity wins here.
-         */
-        thread->data.purgeGCFreeLists();
-        js_PurgeCachedNativeEnumerators(cx, &thread->data);
         DestroyThread(thread);
         return JS_DHASH_REMOVE;
     }
-    thread->data.purge(cx);
-    thread->gcThreadMallocBytes = JS_GC_THREAD_MALLOC_LIMIT;
-    return JS_DHASH_NEXT;
-}
-
-static JSDHashOperator
-thread_marker(JSDHashTable *table, JSDHashEntryHdr *hdr, uint32 /* index */,
-              void *arg)
-{
-    JSThread *thread = ((JSThreadsHashEntry *) hdr)->thread;
-    thread->data.mark((JSTracer *) arg);
+    PurgeThreadData(cx, &thread->data);
     return JS_DHASH_NEXT;
 }
 
 #endif /* JS_THREADSAFE */
-
-JSThreadData *
-js_CurrentThreadData(JSRuntime *rt)
-{
-#ifdef JS_THREADSAFE
-    JSThread *thread = js_CurrentThread(rt);
-    if (!thread)
-        return NULL;
-
-    return &thread->data;
-#else
-    return &rt->threadData;
-#endif
-}
 
 JSBool
 js_InitThreads(JSRuntime *rt)
@@ -338,7 +270,7 @@ js_InitThreads(JSRuntime *rt)
         return false;
     }
 #else
-    rt->threadData.init();
+    InitThreadData(&rt->threadData);
 #endif
     return true;
 }
@@ -353,7 +285,7 @@ js_FinishThreads(JSRuntime *rt)
     JS_DHashTableFinish(&rt->threads);
     rt->threads.ops = NULL;
 #else
-    rt->threadData.finish();
+    FinishThreadData(&rt->threadData);
 #endif
 }
 
@@ -363,17 +295,7 @@ js_PurgeThreads(JSContext *cx)
 #ifdef JS_THREADSAFE
     JS_DHashTableEnumerate(&cx->runtime->threads, thread_purger, cx);
 #else
-    cx->runtime->threadData.purge(cx);
-#endif
-}
-
-void
-js_TraceThreads(JSRuntime *rt, JSTracer *trc)
-{
-#ifdef JS_THREADSAFE
-    JS_DHashTableEnumerate(&rt->threads, thread_marker, trc);
-#else
-    rt->threadData.mark(trc);
+    PurgeThreadData(cx, &cx->runtime->threadData);
 #endif
 }
 
@@ -439,33 +361,31 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
      * runtime list. After that it can be accessed from another thread via
      * js_ContextIterator.
      */
-    void *mem = js_calloc(sizeof *cx);
-    if (!mem)
+    cx = (JSContext *) calloc(1, sizeof *cx);
+    if (!cx)
         return NULL;
 
-    cx = new (mem) JSContext(rt);
+    cx->runtime = rt;
     cx->debugHooks = &rt->globalDebugHooks;
 #if JS_STACK_GROWTH_DIRECTION > 0
     cx->stackLimit = (jsuword) -1;
 #endif
     cx->scriptStackQuota = JS_DEFAULT_SCRIPT_STACK_QUOTA;
+#ifdef JS_THREADSAFE
+    cx->gcLocalFreeLists = (JSGCFreeListSet *) &js_GCEmptyFreeListSet;
+#endif
     JS_STATIC_ASSERT(JSVERSION_DEFAULT == 0);
     JS_ASSERT(cx->version == JSVERSION_DEFAULT);
     VOUCH_DOES_NOT_REQUIRE_STACK();
-    JS_InitArenaPool(&cx->stackPool, "stack", stackChunkSize, sizeof(jsval),
-                     &cx->scriptStackQuota);
+    JS_INIT_ARENA_POOL(&cx->stackPool, "stack", stackChunkSize, sizeof(jsval),
+                       &cx->scriptStackQuota);
 
-    JS_InitArenaPool(&cx->tempPool, "temp",
-                     1024,  /* FIXME: bug 421435 */
-                     sizeof(jsdouble), &cx->scriptStackQuota);
+    JS_INIT_ARENA_POOL(&cx->tempPool, "temp",
+                       1024,  /* FIXME: bug 421435 */
+                       sizeof(jsdouble), &cx->scriptStackQuota);
 
     js_InitRegExpStatics(cx);
     JS_ASSERT(cx->resolveFlags == 0);
-
-    if (!js_InitContextBusyArrayTable(cx)) {
-        FreeContext(cx);
-        return NULL;
-    }
 
 #ifdef JS_THREADSAFE
     if (!js_InitContextThread(cx)) {
@@ -605,8 +525,7 @@ DumpEvalCacheMeter(JSContext *cx)
             );
     for (uintN i = 0; i < JS_ARRAY_LENGTH(table); ++i) {
         fprintf(fp, "%-8.8s  %llu\n",
-                table[i].name,
-                (unsigned long long int) *(uint64 *)((uint8 *)ecm + table[i].offset));
+                table[i].name, *(uint64 *)((uint8 *)ecm + table[i].offset));
     }
     fprintf(fp, "hit ratio %g%%\n", ecm->hit * 100. / ecm->probe);
     fprintf(fp, "avg steps %g\n", double(ecm->step) / ecm->probe);
@@ -701,6 +620,7 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
      */
     if (cx->requestDepth == 0)
         js_WaitForGC(rt);
+    js_RevokeGCLocalFreeLists(cx);
 #endif
     JS_REMOVE_LINK(&cx->link);
     last = (rt->contextList.next == &rt->contextList);
@@ -759,9 +679,21 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
 #endif
 
         if (last) {
+            /* Clear builtin functions, which are recreated on demand. */
+            memset(rt->builtinFunctions, 0, sizeof rt->builtinFunctions);
+
             js_GC(cx, GC_LAST_CONTEXT);
             DUMP_EVAL_CACHE_METER(cx);
             DUMP_FUNCTION_METER(cx);
+
+            /*
+             * Free the script filename table if it exists and is empty. Do this
+             * after the last GC to avoid finalizers tripping on free memory.
+             */
+            if (rt->scriptFilenameTable &&
+                rt->scriptFilenameTable->nentries == 0) {
+                js_FinishRuntimeScriptState(rt);
+            }
 
             /* Take the runtime down, now that it has no contexts or atoms. */
             JS_LOCK_GC(rt);
@@ -786,6 +718,10 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
 static void
 FreeContext(JSContext *cx)
 {
+    JSArgumentFormatMap *map;
+    JSLocalRootStack *lrs;
+    JSLocalRootChunk *lrc;
+
 #ifdef JS_THREADSAFE
     JS_ASSERT(!cx->thread);
 #endif
@@ -797,20 +733,14 @@ FreeContext(JSContext *cx)
     JS_FinishArenaPool(&cx->tempPool);
 
     if (cx->lastMessage)
-        js_free(cx->lastMessage);
+        free(cx->lastMessage);
 
     /* Remove any argument formatters. */
-    JSArgumentFormatMap *map = cx->argumentFormatMap;
+    map = cx->argumentFormatMap;
     while (map) {
         JSArgumentFormatMap *temp = map;
         map = map->next;
-        cx->free(temp);
-    }
-
-    /* Destroy the busy array table. */
-    if (cx->busyArrayTable) {
-        JS_HashTableDestroy(cx->busyArrayTable);
-        cx->busyArrayTable = NULL;
+        JS_free(cx, temp);
     }
 
     /* Destroy the resolve recursion damper. */
@@ -819,8 +749,17 @@ FreeContext(JSContext *cx)
         cx->resolvingTable = NULL;
     }
 
+    lrs = cx->localRootStack;
+    if (lrs) {
+        while ((lrc = lrs->topChunk) != &lrs->firstChunk) {
+            lrs->topChunk = lrc->down;
+            JS_free(cx, lrc);
+        }
+        JS_free(cx, lrs);
+    }
+
     /* Finally, free cx itself. */
-    js_free(cx);
+    free(cx);
 }
 
 JSBool
@@ -864,7 +803,7 @@ js_NextActiveContext(JSRuntime *rt, JSContext *cx)
     return cx;
 #else
     return js_ContextIterator(rt, JS_FALSE, &iter);
-#endif
+#endif           
 }
 
 #ifdef JS_THREADSAFE
@@ -1053,28 +992,27 @@ js_StopResolving(JSContext *cx, JSResolvingKey *key, uint32 flag,
 JSBool
 js_EnterLocalRootScope(JSContext *cx)
 {
-    JSThreadData *td = JS_THREAD_DATA(cx);
-    JSLocalRootStack *lrs = td->localRootStack;
+    JSLocalRootStack *lrs;
+    int mark;
+
+    lrs = cx->localRootStack;
     if (!lrs) {
-        lrs = (JSLocalRootStack *) js_malloc(sizeof *lrs);
-        if (!lrs) {
-            js_ReportOutOfMemory(cx);
-            return false;
-        }
+        lrs = (JSLocalRootStack *) JS_malloc(cx, sizeof *lrs);
+        if (!lrs)
+            return JS_FALSE;
         lrs->scopeMark = JSLRS_NULL_MARK;
         lrs->rootCount = 0;
         lrs->topChunk = &lrs->firstChunk;
         lrs->firstChunk.down = NULL;
-        td->gcFreeLists.moveTo(&lrs->gcFreeLists);
-        td->localRootStack = lrs;
+        cx->localRootStack = lrs;
     }
 
     /* Push lrs->scopeMark to save it for restore when leaving. */
-    int mark = js_PushLocalRoot(cx, lrs, INT_TO_JSVAL(lrs->scopeMark));
+    mark = js_PushLocalRoot(cx, lrs, INT_TO_JSVAL(lrs->scopeMark));
     if (mark < 0)
         return JS_FALSE;
     lrs->scopeMark = (uint32) mark;
-    return true;
+    return JS_TRUE;
 }
 
 void
@@ -1085,7 +1023,7 @@ js_LeaveLocalRootScopeWithResult(JSContext *cx, jsval rval)
     JSLocalRootChunk *lrc;
 
     /* Defend against buggy native callers. */
-    lrs = JS_THREAD_DATA(cx)->localRootStack;
+    lrs = cx->localRootStack;
     JS_ASSERT(lrs && lrs->rootCount != 0);
     if (!lrs || lrs->rootCount == 0)
         return;
@@ -1102,7 +1040,7 @@ js_LeaveLocalRootScopeWithResult(JSContext *cx, jsval rval)
         lrc = lrs->topChunk;
         JS_ASSERT(lrc != &lrs->firstChunk);
         lrs->topChunk = lrc->down;
-        js_free(lrc);
+        JS_free(cx, lrc);
         --n;
     }
 
@@ -1141,14 +1079,11 @@ js_LeaveLocalRootScopeWithResult(JSContext *cx, jsval rval)
      * the data is no longer needed) memory back to the malloc heap.
      */
     if (mark == 0) {
-        JSThreadData *td = JS_THREAD_DATA(cx);
-        JS_ASSERT(td->gcFreeLists.isEmpty());
-        lrs->gcFreeLists.moveTo(&td->gcFreeLists);
-        td->localRootStack = NULL;
-        js_free(lrs);
+        cx->localRootStack = NULL;
+        JS_free(cx, lrs);
     } else if (m == 0) {
         lrs->topChunk = lrc->down;
-        js_free(lrc);
+        JS_free(cx, lrc);
     }
 }
 
@@ -1160,7 +1095,7 @@ js_ForgetLocalRoot(JSContext *cx, jsval v)
     JSLocalRootChunk *lrc, *lrc2;
     jsval top;
 
-    lrs = JS_THREAD_DATA(cx)->localRootStack;
+    lrs = cx->localRootStack;
     JS_ASSERT(lrs && lrs->rootCount);
     if (!lrs || lrs->rootCount == 0)
         return;
@@ -1207,7 +1142,7 @@ js_ForgetLocalRoot(JSContext *cx, jsval v)
         JS_ASSERT(n != 0);
         JS_ASSERT(lrc != &lrs->firstChunk);
         lrs->topChunk = lrc->down;
-        cx->free(lrc);
+        JS_free(cx, lrc);
     }
 }
 
@@ -1236,11 +1171,9 @@ js_PushLocalRoot(JSContext *cx, JSLocalRootStack *lrs, jsval v)
          * After lrs->firstChunk, trying to index at a power-of-two chunk
          * boundary: need a new chunk.
          */
-        lrc = (JSLocalRootChunk *) js_malloc(sizeof *lrc);
-        if (!lrc) {
-            js_ReportOutOfMemory(cx);
+        lrc = (JSLocalRootChunk *) JS_malloc(cx, sizeof *lrc);
+        if (!lrc)
             return -1;
-        }
         lrc->down = lrs->topChunk;
         lrs->topChunk = lrc;
     }
@@ -1249,8 +1182,8 @@ js_PushLocalRoot(JSContext *cx, JSLocalRootStack *lrs, jsval v)
     return (int) n;
 }
 
-static void
-MarkLocalRoots(JSTracer *trc, JSLocalRootStack *lrs)
+void
+js_TraceLocalRoots(JSTracer *trc, JSLocalRootStack *lrs)
 {
     uint32 n, m, mark;
     JSLocalRootChunk *lrc;
@@ -1401,37 +1334,6 @@ js_ReportAllocationOverflow(JSContext *cx)
     JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_ALLOC_OVERFLOW);
 }
 
-/*
- * Given flags and the state of cx, decide whether we should report an
- * error, a warning, or just continue execution normally.  Return
- * true if we should continue normally, without reporting anything;
- * otherwise, adjust *flags as appropriate and return false.
- */
-static bool
-checkReportFlags(JSContext *cx, uintN *flags)
-{
-    if (JSREPORT_IS_STRICT_MODE_ERROR(*flags)) {
-        /* Error in strict code; warning with strict option; okay otherwise. */
-        JS_ASSERT(JS_IsRunning(cx));
-        if (js_GetTopStackFrame(cx)->script->strictModeCode)
-            *flags &= ~JSREPORT_WARNING;
-        else if (JS_HAS_STRICT_OPTION(cx))
-            *flags |= JSREPORT_WARNING;
-        else
-            return true;
-    } else if (JSREPORT_IS_STRICT(*flags)) {
-        /* Warning/error only when JSOPTION_STRICT is set. */
-        if (!JS_HAS_STRICT_OPTION(cx))
-            return true;
-    }
-
-    /* Warnings become errors when JSOPTION_WERROR is set. */
-    if (JSREPORT_IS_WARNING(*flags) && JS_HAS_WERROR_OPTION(cx))
-        *flags &= ~JSREPORT_WARNING;
-
-    return false;
-}
-
 JSBool
 js_ReportErrorVA(JSContext *cx, uintN flags, const char *format, va_list ap)
 {
@@ -1441,7 +1343,7 @@ js_ReportErrorVA(JSContext *cx, uintN flags, const char *format, va_list ap)
     JSErrorReport report;
     JSBool warning;
 
-    if (checkReportFlags(cx, &flags))
+    if ((flags & JSREPORT_STRICT) && !JS_HAS_STRICT_OPTION(cx))
         return JS_TRUE;
 
     message = JS_vsmprintf(format, ap);
@@ -1456,10 +1358,14 @@ js_ReportErrorVA(JSContext *cx, uintN flags, const char *format, va_list ap)
     PopulateReportBlame(cx, &report);
 
     warning = JSREPORT_IS_WARNING(report.flags);
+    if (warning && JS_HAS_WERROR_OPTION(cx)) {
+        report.flags &= ~JSREPORT_WARNING;
+        warning = JS_FALSE;
+    }
 
     ReportError(cx, message, &report);
-    js_free(message);
-    cx->free(ucmessage);
+    free(message);
+    JS_free(cx, ucmessage);
     return warning;
 }
 
@@ -1478,11 +1384,17 @@ JSBool
 js_ExpandErrorArguments(JSContext *cx, JSErrorCallback callback,
                         void *userRef, const uintN errorNumber,
                         char **messagep, JSErrorReport *reportp,
-                        bool charArgs, va_list ap)
+                        JSBool *warningp, JSBool charArgs, va_list ap)
 {
     const JSErrorFormatString *efs;
     int i;
     int argCount;
+
+    *warningp = JSREPORT_IS_WARNING(reportp->flags);
+    if (*warningp && JS_HAS_WERROR_OPTION(cx)) {
+        reportp->flags &= ~JSREPORT_WARNING;
+        *warningp = JS_FALSE;
+    }
 
     *messagep = NULL;
 
@@ -1504,7 +1416,7 @@ js_ExpandErrorArguments(JSContext *cx, JSErrorCallback callback,
              * pointers later.
              */
             reportp->messageArgs = (const jschar **)
-                cx->malloc(sizeof(jschar *) * (argCount + 1));
+                JS_malloc(cx, sizeof(jschar *) * (argCount + 1));
             if (!reportp->messageArgs)
                 return JS_FALSE;
             reportp->messageArgs[argCount] = NULL;
@@ -1548,9 +1460,9 @@ js_ExpandErrorArguments(JSContext *cx, JSErrorCallback callback,
                 * is used once and only once in the expansion !!!
                 */
                 reportp->ucmessage = out = (jschar *)
-                    cx->malloc((expandedLength + 1) * sizeof(jschar));
+                    JS_malloc(cx, (expandedLength + 1) * sizeof(jschar));
                 if (!out) {
-                    cx->free(buffer);
+                    JS_free (cx, buffer);
                     goto error;
                 }
                 while (*fmt) {
@@ -1570,7 +1482,7 @@ js_ExpandErrorArguments(JSContext *cx, JSErrorCallback callback,
                 }
                 JS_ASSERT(expandedArgs == argCount);
                 *out = 0;
-                cx->free(buffer);
+                JS_free (cx, buffer);
                 *messagep =
                     js_DeflateString(cx, reportp->ucmessage,
                                      (size_t)(out - reportp->ucmessage));
@@ -1599,7 +1511,7 @@ js_ExpandErrorArguments(JSContext *cx, JSErrorCallback callback,
         const char *defaultErrorMessage
             = "No error message available for error number %d";
         size_t nbytes = strlen(defaultErrorMessage) + 16;
-        *messagep = (char *)cx->malloc(nbytes);
+        *messagep = (char *)JS_malloc(cx, nbytes);
         if (!*messagep)
             goto error;
         JS_snprintf(*messagep, nbytes, defaultErrorMessage, errorNumber);
@@ -1612,17 +1524,17 @@ error:
         if (charArgs) {
             i = 0;
             while (reportp->messageArgs[i])
-                cx->free((void *)reportp->messageArgs[i++]);
+                JS_free(cx, (void *)reportp->messageArgs[i++]);
         }
-        cx->free((void *)reportp->messageArgs);
+        JS_free(cx, (void *)reportp->messageArgs);
         reportp->messageArgs = NULL;
     }
     if (reportp->ucmessage) {
-        cx->free((void *)reportp->ucmessage);
+        JS_free(cx, (void *)reportp->ucmessage);
         reportp->ucmessage = NULL;
     }
     if (*messagep) {
-        cx->free((void *)*messagep);
+        JS_free(cx, (void *)*messagep);
         *messagep = NULL;
     }
     return JS_FALSE;
@@ -1637,9 +1549,8 @@ js_ReportErrorNumberVA(JSContext *cx, uintN flags, JSErrorCallback callback,
     char *message;
     JSBool warning;
 
-    if (checkReportFlags(cx, &flags))
+    if ((flags & JSREPORT_STRICT) && !JS_HAS_STRICT_OPTION(cx))
         return JS_TRUE;
-    warning = JSREPORT_IS_WARNING(flags);
 
     memset(&report, 0, sizeof (struct JSErrorReport));
     report.flags = flags;
@@ -1647,14 +1558,14 @@ js_ReportErrorNumberVA(JSContext *cx, uintN flags, JSErrorCallback callback,
     PopulateReportBlame(cx, &report);
 
     if (!js_ExpandErrorArguments(cx, callback, userRef, errorNumber,
-                                 &message, &report, charArgs, ap)) {
+                                 &message, &report, &warning, charArgs, ap)) {
         return JS_FALSE;
     }
 
     ReportError(cx, message, &report);
 
     if (message)
-        cx->free(message);
+        JS_free(cx, message);
     if (report.messageArgs) {
         /*
          * js_ExpandErrorArguments owns its messageArgs only if it had to
@@ -1663,12 +1574,12 @@ js_ReportErrorNumberVA(JSContext *cx, uintN flags, JSErrorCallback callback,
         if (charArgs) {
             int i = 0;
             while (report.messageArgs[i])
-                cx->free((void *)report.messageArgs[i++]);
+                JS_free(cx, (void *)report.messageArgs[i++]);
         }
-        cx->free((void *)report.messageArgs);
+        JS_free(cx, (void *)report.messageArgs);
     }
     if (report.ucmessage)
-        cx->free((void *)report.ucmessage);
+        JS_free(cx, (void *)report.ucmessage);
 
     return warning;
 }
@@ -1682,7 +1593,7 @@ js_ReportErrorAgain(JSContext *cx, const char *message, JSErrorReport *reportp)
         return;
 
     if (cx->lastMessage)
-        js_free(cx->lastMessage);
+        free(cx->lastMessage);
     cx->lastMessage = JS_strdup(cx, message);
     if (!cx->lastMessage)
         return;
@@ -1730,17 +1641,17 @@ js_ReportIsNullOrUndefined(JSContext *cx, intN spindex, jsval v,
     } else if (JSVAL_IS_VOID(v)) {
         ok = JS_ReportErrorFlagsAndNumber(cx, JSREPORT_ERROR,
                                           js_GetErrorMessage, NULL,
-                                          JSMSG_UNEXPECTED_TYPE, bytes,
+                                          JSMSG_NULL_OR_UNDEFINED, bytes,
                                           js_undefined_str, NULL);
     } else {
         JS_ASSERT(JSVAL_IS_NULL(v));
         ok = JS_ReportErrorFlagsAndNumber(cx, JSREPORT_ERROR,
                                           js_GetErrorMessage, NULL,
-                                          JSMSG_UNEXPECTED_TYPE, bytes,
+                                          JSMSG_NULL_OR_UNDEFINED, bytes,
                                           js_null_str, NULL);
     }
 
-    cx->free(bytes);
+    JS_free(cx, bytes);
     return ok;
 }
 
@@ -1763,7 +1674,7 @@ js_ReportMissingArg(JSContext *cx, jsval *vp, uintN arg)
     JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                          JSMSG_MISSING_FUN_ARG, argbuf,
                          bytes ? bytes : "");
-    cx->free(bytes);
+    JS_free(cx, bytes);
 }
 
 JSBool
@@ -1782,7 +1693,7 @@ js_ReportValueErrorFlags(JSContext *cx, uintN flags, const uintN errorNumber,
 
     ok = JS_ReportErrorFlagsAndNumber(cx, flags, js_GetErrorMessage,
                                       NULL, errorNumber, bytes, arg1, arg2);
-    cx->free(bytes);
+    JS_free(cx, bytes);
     return ok;
 }
 
@@ -1811,10 +1722,10 @@ JSBool
 js_InvokeOperationCallback(JSContext *cx)
 {
     JS_ASSERT(cx->operationCallbackFlag);
-
+    
     /*
      * Reset the callback flag first, then yield. If another thread is racing
-     * us here we will accumulate another callback request which will be
+     * us here we will accumulate another callback request which will be 
      * serviced at the next opportunity.
      */
     cx->operationCallbackFlag = 0;
@@ -1828,7 +1739,7 @@ js_InvokeOperationCallback(JSContext *cx)
      */
     if (cx->runtime->gcIsNeeded)
         js_GC(cx, GC_NORMAL);
-#ifdef JS_THREADSAFE
+#ifdef JS_THREADSAFE    
     else
         JS_YieldRequest(cx);
 #endif
@@ -1902,49 +1813,4 @@ js_GetCurrentBytecodePC(JSContext* cx)
      * imacro, for the benefit of callers doing bytecode inspection.
      */
     return (*pc == JSOP_CALL && imacpc) ? imacpc : pc;
-}
-
-bool
-js_CurrentPCIsInImacro(JSContext *cx)
-{
-#ifdef JS_TRACER
-    VOUCH_DOES_NOT_REQUIRE_STACK();
-    return (JS_ON_TRACE(cx) ? cx->bailExit->imacpc : cx->fp->imacpc) != NULL;
-#else
-    return false;
-#endif
-}
-
-void
-JSContext::checkMallocGCPressure(void *p)
-{
-    if (!p) {
-        js_ReportOutOfMemory(this);
-        return;
-    }
-
-#ifdef JS_THREADSAFE
-    JS_ASSERT(thread->gcThreadMallocBytes <= 0);
-    ptrdiff_t n = JS_GC_THREAD_MALLOC_LIMIT - thread->gcThreadMallocBytes;
-    thread->gcThreadMallocBytes = JS_GC_THREAD_MALLOC_LIMIT;
-
-    JS_LOCK_GC(runtime);
-    runtime->gcMallocBytes -= n;
-    if (runtime->isGCMallocLimitReached())
-#endif
-    {
-        JS_ASSERT(runtime->isGCMallocLimitReached());
-        runtime->gcMallocBytes = -1;
-
-        /*
-         * Empty the GC free lists to trigger a last-ditch GC when allocating
-         * any GC thing later on this thread. This minimizes the amount of
-         * checks on the fast path of the GC allocator. Note that we cannot
-         * touch the free lists on other threads as their manipulation is not
-         * thread-safe.
-         */
-        JS_THREAD_DATA(this)->purgeGCFreeLists();
-        js_TriggerGC(this, true);
-    }
-    JS_UNLOCK_GC(runtime);
 }

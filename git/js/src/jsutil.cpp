@@ -49,8 +49,6 @@
 
 #ifdef WIN32
 #    include <windows.h>
-#else
-#    include <signal.h>
 #endif
 
 /*
@@ -65,10 +63,10 @@ JS_PUBLIC_API(void) JS_Assert(const char *s, const char *file, JSIntn ln)
 #if defined(WIN32)
     DebugBreak();
     exit(3);
-#else
-    /* In GDB, you can continue from here with the command "signal 0". */
-    raise(SIGABRT);
+#elif defined(XP_OS2) || (defined(__GNUC__) && defined(__i386))
+    asm("int $3");
 #endif
+    abort();
 }
 
 #ifdef JS_BASIC_STATS
@@ -299,7 +297,7 @@ CallTree(void **bp)
             return NULL;
 
         /* Create a new callsite record. */
-        site = (JSCallsite *) js_malloc(sizeof(JSCallsite));
+        site = (JSCallsite *) malloc(sizeof(JSCallsite));
         if (!site)
             return NULL;
 

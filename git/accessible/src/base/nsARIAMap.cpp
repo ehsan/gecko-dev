@@ -123,7 +123,7 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     eSortAction,
     eNoLiveAttr,
     kNoReqStates,
-    eARIASelectable,
+    eARIASelected,
     eARIAReadonly
   },
   {
@@ -174,7 +174,7 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     eNoAction,
     eNoLiveAttr,
     kNoReqStates,
-    eARIASelectable,
+    eARIASelected,
     eARIAReadonly
   },
   {
@@ -251,7 +251,7 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     eNoAction, // XXX: should depend on state, parent accessible
     eNoLiveAttr,
     nsIAccessibleStates::STATE_READONLY,
-    eARIASelectable,
+    eARIASelected,
     eARIACheckedMixed
   },
   {
@@ -338,7 +338,7 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     eSelectAction,
     eNoLiveAttr,
     kNoReqStates,
-    eARIASelectable,
+    eARIASelected,
     eARIACheckedMixed
   },
   {
@@ -395,7 +395,7 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     eNoAction,
     eNoLiveAttr,
     kNoReqStates,
-    eARIASelectable
+    eARIASelected
   },
   {
     "rowheader",
@@ -405,8 +405,17 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
     eSortAction,
     eNoLiveAttr,
     kNoReqStates,
-    eARIASelectable,
+    eARIASelected,
     eARIAReadonly
+  },
+  {
+    "section",
+    nsIAccessibleRole::ROLE_SECTION,
+    kUseMapRole,
+    eNoValue,
+    eNoAction,
+    eNoLiveAttr,
+    kNoReqStates
   },
   {
     "separator",
@@ -543,7 +552,7 @@ nsRoleMapEntry nsARIAMap::gWAIRoleMap[] =
                      // on states
     eNoLiveAttr,
     kNoReqStates,
-    eARIASelectable,
+    eARIASelected,
     eARIACheckedMixed
   }
 };
@@ -646,11 +655,10 @@ nsStateMapEntry nsARIAMap::gWAIStateMap[] = {
   nsStateMapEntry(&nsAccessibilityAtoms::aria_required, kBoolType, 0,
                   nsIAccessibleStates::STATE_REQUIRED, 0),
 
-  // eARIASelectable
+  // eARIASelected
   nsStateMapEntry(&nsAccessibilityAtoms::aria_selected, kBoolType,
                   nsIAccessibleStates::STATE_SELECTABLE,
-                  nsIAccessibleStates::STATE_SELECTED, 0,
-                  0, 0, PR_TRUE)
+                  nsIAccessibleStates::STATE_SELECTED, 0)
 };
 
 /**

@@ -90,6 +90,7 @@ public:
   // nsIDOMCompositionListener
   NS_IMETHOD HandleStartComposition(nsIDOMEvent* aCompositionEvent);
   NS_IMETHOD HandleEndComposition(nsIDOMEvent* aCompositionEvent);
+  NS_IMETHOD HandleQueryComposition(nsIDOMEvent* aCompositionEvent);
 
   // nsIDOMFormListener
   NS_IMETHOD Submit(nsIDOMEvent* aEvent);
@@ -131,7 +132,6 @@ protected:
   static PLDHashOperator RemoveForDOMDocumentEnumerator(nsISupports* aKey,
                                                         PRInt32& aEntry,
                                                         void* aUserData);
-  PRBool IsEventTrusted(nsIDOMEvent *aEvent);
   // members //////////////////////////////////////////
 
   nsCOMPtr<nsIAutoCompleteController> mController;

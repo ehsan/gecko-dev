@@ -198,14 +198,14 @@ XPCWrappedNativeScope::SetComponents(nsXPCComponents* aComponents)
 // scopes. By doing this we avoid allocating a new scope for every
 // wrapper on creation of the wrapper, and most wrappers won't need
 // their own scope at all for the lifetime of the wrapper.
-// WRAPPER_SLOTS is key here (even though there's never anything
+// JSCLASS_HAS_PRIVATE is key here (even though there's never anything
 // in the private data slot in these prototypes), as the number of
 // reserved slots in this class needs to match that of the wrappers
 // for the JS engine to share scopes.
 
 JSClass XPC_WN_NoHelper_Proto_JSClass = {
     "XPC_WN_NoHelper_Proto_JSClass",// name;
-    WRAPPER_SLOTS,                  // flags;
+    JSCLASS_HAS_PRIVATE,            // flags;
 
     /* Mandatory non-null function pointer members. */
     JS_PropertyStub,                // addProperty;
@@ -215,7 +215,7 @@ JSClass XPC_WN_NoHelper_Proto_JSClass = {
     JS_EnumerateStub,               // enumerate;
     JS_ResolveStub,                 // resolve;
     JS_ConvertStub,                 // convert;
-    nsnull,                         // finalize;
+    JS_FinalizeStub,                // finalize;
 
     /* Optionally non-null members start here. */
     XPC_WN_Proto_GetObjectOps,      // getObjectOps;
@@ -412,11 +412,11 @@ WrappedNativeSuspecter(JSDHashTable *table, JSDHashEntryHdr *hdr,
         NS_ASSERTION(NS_IsMainThread(), 
                      "Suspecting wrapped natives from non-main thread");
 
-        // Only record objects that might be part of a cycle as roots, unless
-        // the callback wants all traces (a debug feature).
-        if(!(closure->cb.WantAllTraces()) && 
-           !JS_IsAboutToBeFinalized(closure->cx, wrapper->GetFlatJSObject()))
+#ifndef DEBUG_CC
+        // Only record objects that might be part of a cycle as roots.
+        if(!JS_IsAboutToBeFinalized(closure->cx, wrapper->GetFlatJSObject()))
             return JS_DHASH_NEXT;
+#endif
 
         closure->cb.NoteRoot(nsIProgrammingLanguage::JAVASCRIPT,
                              wrapper->GetFlatJSObject(),
@@ -720,12 +720,9 @@ GetScopeOfObject(JSObject* obj)
 {
     nsISupports* supports;
     JSClass* clazz = STOBJ_GET_CLASS(obj);
-    JSBool isWrapper = IS_WRAPPER_CLASS(clazz);
 
-    if(isWrapper && IS_SLIM_WRAPPER_OBJECT(obj))
-        return GetSlimWrapperProto(obj)->GetScope();
-
-    if(!isWrapper || !(supports = (nsISupports*) xpc_GetJSPrivate(obj)))
+    if(!IS_WRAPPER_CLASS(clazz) ||
+       !(supports = (nsISupports*) xpc_GetJSPrivate(obj)))
     {
 #ifdef DEBUG
         {

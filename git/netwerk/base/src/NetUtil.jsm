@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: sw=4 ts=4 sts=4 et filetype=javascript
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/*
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -22,7 +22,6 @@
  *
  * Contributor(s):
  *    Boris Zbarsky <bzbarsky@mit.edu> (original author)
- *    Shawn Wilsher <me@shawnwilsher.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -38,25 +37,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-let EXPORTED_SYMBOLS = [
-  "NetUtil",
-];
-
 /**
  * Necko utilities
  */
 
-////////////////////////////////////////////////////////////////////////////////
-//// Constants
-
 const Ci = Components.interfaces;
 const Cc = Components.classes;
-const Cr = Components.results;
-
-const PR_UINT32_MAX = 0xffffffff;
-
-////////////////////////////////////////////////////////////////////////////////
-//// NetUtil Object
 
 const NetUtil = {
     /**
@@ -64,38 +50,30 @@ const NetUtil = {
      * to aSink (an output stream).  The copy will happen on some background
      * thread.  Both streams will be closed when the copy completes.
      *
-     * @param aSource
-     *        The input stream to read from
-     * @param aSink
-     *        The output stream to write to
-     * @param aCallback [optional]
-     *        A function that will be called at copy completion with a single
-     *        argument: the nsresult status code for the copy operation.
+     * @param aSource the input stream to read from
+     * @param aSink the output stream to write to
+     * @param aCallback [optional] a function that will be called at copy
+     *        completion with a single argument: the nsresult status code for
+     *        the copy operation.
      *
-     * @return An nsIRequest representing the copy operation (for example, this
+     * @return an nsIRequest representing the copy operation (for example, this
      *         can be used to cancel the copying).  The consumer can ignore the
      *         return value if desired.
      */
-    asyncCopy: function NetUtil_asyncCopy(aSource, aSink, aCallback)
-    {
+    asyncCopy: function _asyncCopy(aSource, aSink, aCallback) {
         if (!aSource || !aSink) {
-            let exception = new Components.Exception(
-                "Must have a source and a sink",
-                Cr.NS_ERROR_INVALID_ARG,
-                Components.stack.caller
-            );
-            throw exception;
+            throw "Must have a source and a sink";
         }
 
+        const ioUtil = Cc["@mozilla.org/io-util;1"].getService(Ci.nsIIOUtil);
         var sourceBuffered = ioUtil.inputStreamIsBuffered(aSource);
         var sinkBuffered = ioUtil.outputStreamIsBuffered(aSink);
 
-        var ostream = aSink;
         if (!sourceBuffered && !sinkBuffered) {
             // wrap the sink in a buffered stream.
-            ostream = Cc["@mozilla.org/network/buffered-output-stream;1"].
-                      createInstance(Ci.nsIBufferedOutputStream);
-            ostream.init(aSink, 0x8000);
+            var bostream = Cc["@mozilla.org/network/buffered-output-stream;1"].
+                createInstance(Ci.nsIBufferedOutputStream);
+            bostream.init(aSink, 0x8000);
             sinkBuffered = true;
         }
 
@@ -107,16 +85,15 @@ const NetUtil = {
         // buffer our buffered stream is using, for best performance.  If we're
         // not using our own buffered stream, that's ok too.  But maybe we
         // should just use the default net segment size here?
-        copier.init(aSource, ostream, null, sourceBuffered, sinkBuffered,
+        copier.init(aSource, bostream, null, sourceBuffered, sinkBuffered,
                     0x8000, true, true);
 
         var observer;
         if (aCallback) {
             observer = {
-                onStartRequest: function(aRequest, aContext) {},
-                onStopRequest: function(aRequest, aContext, aStatusCode) {
-                    aCallback(aStatusCode);
-                }
+            onStartRequest: function(aRequest, aContext) {},
+            onStopRequest: function(aRequest, aContext, aStatusCode) {
+              aCallback(aStatusCode);
             }
         } else {
             observer = null;
@@ -125,96 +102,5 @@ const NetUtil = {
         // start the copying
         copier.asyncCopy(observer, null);
         return copier;
-    },
-
-    /**
-     * Asynchronously opens a channel and fetches the response.  The provided
-     * callback will get an input stream containing the response, and the result
-     * code.
-     *
-     * @param aChannel
-     *        The nsIChannel to open.
-     * @param aCallback
-     *        The callback function that will be notified upon completion.  It
-     *        will get two arguments:
-     *        1) An nsIInputStream containing the data from the channel, if any.
-     *        2) The status code from opening the channel.
-     */
-    asyncFetch: function NetUtil_asyncOpen(aChannel, aCallback)
-    {
-        if (!aChannel || !aCallback) {
-            let exception = new Components.Exception(
-                "Must have a channel and a callback",
-                Cr.NS_ERROR_INVALID_ARG,
-                Components.stack.caller
-            );
-            throw exception;
-        }
-
-        // Create a pipe that will create our output stream that we can use once
-        // we have gotten all the data.
-        let pipe = Cc["@mozilla.org/pipe;1"].
-                   createInstance(Ci.nsIPipe);
-        pipe.init(true, true, 0, PR_UINT32_MAX, null);
-
-        // Create a listener that will give data to the pipe's output stream.
-        let listener = Cc["@mozilla.org/network/simple-stream-listener;1"].
-                       createInstance(Ci.nsISimpleStreamListener);
-        listener.init(pipe.outputStream, {
-            onStartRequest: function(aRequest, aContext) {},
-            onStopRequest: function(aRequest, aContext, aStatusCode) {
-                pipe.outputStream.close();
-                aCallback(pipe.inputStream, aStatusCode);
-            }
-        });
-
-        aChannel.asyncOpen(listener, null);
-    },
-
-    /**
-     * Constructs a new URI for the given spec, character set, and base URI.
-     *
-     * @param aSpec
-     *        The spec for the desired URI.
-     * @param aOriginCharset [optional]
-     *        The character set for the URI.
-     * @param aBaseURI [optional]
-     *        The base URI for the spec.
-     *
-     * @return an nsIURI object.
-     */
-    newURI: function NetUtil_newURI(aSpec, aOriginCharset, aBaseURI)
-    {
-        if (!aSpec) {
-            let exception = new Components.Exception(
-                "Must have a non-null spec",
-                Cr.NS_ERROR_INVALID_ARG,
-                Components.stack.caller
-            );
-            throw exception;
-        }
-
-        return this.ioService.newURI(aSpec, aOriginCharset, aBaseURI);
-    },
-
-    /**
-     * Returns a reference to nsIIOService.
-     *
-     * @return a reference to nsIIOService.
-     */
-    get ioService()
-    {
-        delete this.ioService;
-        return this.ioService = Cc["@mozilla.org/network/io-service;1"].
-                                getService(Ci.nsIIOService);
-    },
+    }
 };
-
-////////////////////////////////////////////////////////////////////////////////
-//// Initialization
-
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-
-// Define our lazy getters.
-XPCOMUtils.defineLazyServiceGetter(this, "ioUtil", "@mozilla.org/io-util;1",
-                                   "nsIIOUtil");

@@ -34,36 +34,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/*
- * The behavior implemented by gDownloadLastDir is documented here.
- *
- * In normal browsing sessions, gDownloadLastDir uses the browser.download.lastDir
- * preference to store the last used download directory. The first time the user
- * switches into the private browsing mode, the last download directory is
- * preserved to the pref value, but if the user switches to another directory
- * during the private browsing mode, that directory is not stored in the pref,
- * and will be merely kept in memory.  When leaving the private browsing mode,
- * this in-memory value will be discarded, and the last download directory
- * will be reverted to the pref value.
- *
- * Both the pref and the in-memory value will be cleared when clearing the
- * browsing history.  This effectively changes the last download directory
- * to the default download directory on each platform.
- */
-
-const LAST_DIR_PREF = "browser.download.lastDir";
-const PBSVC_CID = "@mozilla.org/privatebrowsing;1";
-const nsILocalFile = Components.interfaces.nsILocalFile;
-
 var EXPORTED_SYMBOLS = [ "gDownloadLastDir" ];
-
-let pbSvc = null;
-if (PBSVC_CID in Components.classes) {
-  pbSvc = Components.classes[PBSVC_CID]
-                    .getService(Components.interfaces.nsIPrivateBrowsingService);
-}
-let prefSvc = Components.classes["@mozilla.org/preferences-service;1"]
-                        .getService(Components.interfaces.nsIPrefBranch);
 
 let observer = {
   QueryInterface: function (aIID) {
@@ -74,58 +45,26 @@ let observer = {
     throw Components.results.NS_NOINTERFACE;
   },
   observe: function (aSubject, aTopic, aData) {
-    switch (aTopic) {
-      case "private-browsing":
-        if (aData == "enter")
-          gDownloadLastDirFile = readLastDirPref();
-        else if (aData == "exit")
-          gDownloadLastDirFile = null;
-        break;
-      case "browser:purge-session-history":
-        gDownloadLastDirFile = null;
-        if (prefSvc.prefHasUserValue(LAST_DIR_PREF))
-          prefSvc.clearUserPref(LAST_DIR_PREF);
-        break;
-    }
+    gDownloadLastDirFile = null;
   }
 };
 
-let os = Components.classes["@mozilla.org/observer-service;1"]
-                   .getService(Components.interfaces.nsIObserverService);
-os.addObserver(observer, "private-browsing", true);
-os.addObserver(observer, "browser:purge-session-history", true);
+Components.classes["@mozilla.org/observer-service;1"]
+          .getService(Components.interfaces.nsIObserverService)
+          .addObserver(observer, "private-browsing", true);
 
-function readLastDirPref() {
-  try {
-    return prefSvc.getComplexValue(LAST_DIR_PREF, nsILocalFile);
-  }
-  catch (e) {
-    return null;
-  }
-}
-
-let gDownloadLastDirFile = readLastDirPref();
+let gDownloadLastDirFile = null;
 let gDownloadLastDir = {
   get file() {
     if (gDownloadLastDirFile && !gDownloadLastDirFile.exists())
       gDownloadLastDirFile = null;
 
-    if (pbSvc && pbSvc.privateBrowsingEnabled)
-      return gDownloadLastDirFile;
-    else
-      return readLastDirPref();
+    return gDownloadLastDirFile;
   },
   set file(val) {
-    if (pbSvc && pbSvc.privateBrowsingEnabled) {
-      if (val instanceof Components.interfaces.nsIFile)
-        gDownloadLastDirFile = val.clone();
-      else
-        gDownloadLastDirFile = null;
-    } else {
-      if (val instanceof Components.interfaces.nsIFile)
-        prefSvc.setComplexValue(LAST_DIR_PREF, nsILocalFile, val);
-      else if (prefSvc.prefHasUserValue(LAST_DIR_PREF))
-        prefSvc.clearUserPref(LAST_DIR_PREF);
-    }
+    if (val instanceof Components.interfaces.nsIFile)
+      gDownloadLastDirFile = val.clone();
+    else
+      gDownloadLastDirFile = null;
   }
 };

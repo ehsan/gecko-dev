@@ -12,10 +12,7 @@ function run_test()
 
   /**********
    * Check behavior when disabled.
-   * XXX: don't run these tests right now, there's a race condition in
-   * Breakpad with the handler thread. See:
-   * http://code.google.com/p/google-breakpad/issues/detail?id=334
-   **********
+   **********/
 
   // Crash reporting is enabled by default in </testing/xpcshell/head.js>.
   dump("INFO | test_crashreporter.js | Disable crashreporter.\n");
@@ -56,12 +53,11 @@ function run_test()
 
   /**********
    * Check behavior when enabled.
-   **********
+   **********/
 
   dump("INFO | test_crashreporter.js | Re-enable crashreporter (in default state).\n");
   // check that we can enable the crashreporter
   cr.enabled = true;
-*/
   do_check_true(cr.enabled);
   // ensure that double-enabling doesn't error
   cr.enabled = true;
@@ -140,15 +136,12 @@ function run_test()
   // Add more data.
   cr.appendAppNotesToCrashReport("additional testData4");
 
-  /*
-   * These tests are also disabled, see comment above.
   // check that we can disable the crashreporter
   cr.enabled = false;
   do_check_false(cr.enabled);
   // ensure that double-disabling doesn't error
   cr.enabled = false;
   do_check_false(cr.enabled);
-*/
 
   /**********
    * Reset to initial state.

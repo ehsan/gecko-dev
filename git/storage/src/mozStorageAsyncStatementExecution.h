@@ -45,7 +45,6 @@
 #include "nsAutoPtr.h"
 #include "nsThreadUtils.h"
 #include "mozilla/Mutex.h"
-#include "mozilla/TimeStamp.h"
 
 #include "mozIStoragePendingStatement.h"
 #include "mozIStorageStatementCallback.h"
@@ -104,8 +103,6 @@ public:
    * events posted back to the calling thread should call this see if they
    * should run or not.
    *
-   * @pre mMutex is not held
-   *
    * @returns true if the event should notify still, false otherwise.
    */
   bool shouldNotify();
@@ -151,7 +148,7 @@ private:
   /**
    * Executes a statement to completion, properly handling any error conditions.
    *
-   * @pre mMutex is not held
+   * @pre mMutex is held
    *
    * @param aStatement
    *        The statement to execute to completion.
@@ -163,7 +160,7 @@ private:
    * Builds a result set up with a row from a given statement.  If we meet the
    * right criteria, go ahead and notify about this results too.
    *
-   * @pre mMutex is not held
+   * @pre mMutex is held
    *
    * @param aStatement
    *        The statement to get the row data from.
@@ -210,12 +207,12 @@ private:
    * The maximum amount of time we want to wait between results.  Defined by
    * MAX_MILLISECONDS_BETWEEN_RESULTS and set at construction.
    */
-  const TimeDuration mMaxWait;
+  const PRIntervalTime mMaxIntervalWait;
 
   /**
    * The start time since our last set of results.
    */
-  TimeStamp mIntervalStart;
+  PRIntervalTime mIntervalStart;
 
   /**
    * Indicates our state of execution.
@@ -228,8 +225,9 @@ private:
   bool mCancelRequested;
 
   /**
-   * This is the mutex that protects our state from changing between threads.
+   * This is the mutex tat protects our state from changing between threads.
    * This includes the following variables:
+   *   - mState
    *   - mCancelRequested is only set on the calling thread while the lock is
    *     held.  It is always read from within the lock on the background thread,
    *     but not on the calling thread (see shouldNotify for why).

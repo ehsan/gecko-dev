@@ -118,8 +118,7 @@ static NS_DEFINE_CID(kWindowCID,           NS_WINDOW_CID);
 
 #define SIZE_PERSISTENCE_TIMEOUT 500 // msec
 
-nsWebShellWindow::nsWebShellWindow(PRUint32 aChromeFlags)
-  : nsXULWindow(aChromeFlags)
+nsWebShellWindow::nsWebShellWindow() : nsXULWindow()
 {
   mSPTimerLock = PR_NewLock();
 }
@@ -150,8 +149,7 @@ NS_INTERFACE_MAP_BEGIN(nsWebShellWindow)
 NS_INTERFACE_MAP_END_INHERITING(nsXULWindow)
 
 nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
-                                      nsIXULWindow* aOpener,
-                                      nsIAppShell* aShell, nsIURI* aUrl,
+                                      nsIAppShell* aShell, nsIURI* aUrl, 
                                       PRInt32 aInitialWidth,
                                       PRInt32 aInitialHeight,
                                       PRBool aIsHiddenWindow,
@@ -161,18 +159,7 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
   nsCOMPtr<nsIWidget> parentWidget;
 
   mIsHiddenWindow = aIsHiddenWindow;
-
-  nsCOMPtr<nsIBaseWindow> base(do_QueryInterface(aOpener));
-  if (base) {
-    rv = base->GetPositionAndSize(&mOpenerScreenRect.x,
-                                  &mOpenerScreenRect.y,
-                                  &mOpenerScreenRect.width,
-                                  &mOpenerScreenRect.height);
-    if (NS_FAILED(rv)) {
-      mOpenerScreenRect.Empty();
-    }
-  }
-
+  
   // XXX: need to get the default window size from prefs...
   // Doesn't come from prefs... will come from CSS/XUL/RDF
   nsIntRect r(0, 0, aInitialWidth, aInitialHeight);
@@ -202,7 +189,6 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
 
   mWindow->SetClientData(this);
   mWindow->Create((nsIWidget *)parentWidget,          // Parent nsIWidget
-                  nsnull,                             // Native parent widget
                   r,                                  // Widget dimensions
                   nsWebShellWindow::HandleEvent,      // Event handler function
                   nsnull,                             // Device context
@@ -238,7 +224,7 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
   }
 
   if (nsnull != aUrl)  {
-    nsCString tmpStr;
+    nsCAutoString tmpStr;
 
     rv = aUrl->GetSpec(tmpStr);
     if (NS_FAILED(rv)) return rv;
@@ -350,7 +336,7 @@ nsWebShellWindow::HandleEvent(nsGUIEvent *aEvent)
         // persist size, but not immediately, in case this OS is firing
         // repeated size events as the user drags the sizing handle
         if (!eventWindow->IsLocked())
-          eventWindow->SetPersistenceTimer(PAD_POSITION | PAD_SIZE | PAD_MISC);
+          eventWindow->SetPersistenceTimer(PAD_SIZE | PAD_MISC);
         result = nsEventStatus_eConsumeNoDefault;
         break;
       }
@@ -361,8 +347,7 @@ nsWebShellWindow::HandleEvent(nsGUIEvent *aEvent)
         // normal browser windows. here we just drop a raised window
         // to the normal zlevel if it's maximized. we make no provision
         // for automatically re-raising it when restored.
-        if (modeEvent->mSizeMode == nsSizeMode_Maximized ||
-            modeEvent->mSizeMode == nsSizeMode_Fullscreen) {
+        if (modeEvent->mSizeMode == nsSizeMode_Maximized) {
           PRUint32 zLevel;
           eventWindow->GetZLevel(&zLevel);
           if (zLevel > nsIXULWindow::normalZ)

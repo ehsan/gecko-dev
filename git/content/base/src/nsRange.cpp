@@ -57,9 +57,6 @@
 #include "nsGkAtoms.h"
 #include "nsContentUtils.h"
 #include "nsGenericDOMDataNode.h"
-#include "nsClientRect.h"
-#include "nsLayoutUtils.h"
-#include "nsTextFrame.h"
 
 nsresult NS_NewContentIterator(nsIContentIterator** aInstancePtrResult);
 nsresult NS_NewContentSubtreeIterator(nsIContentIterator** aInstancePtrResult);
@@ -320,10 +317,8 @@ nsRange::ContentRemoved(nsIDocument* aDocument,
   nsINode* container = NODE_FROM(aContainer, aDocument);
 
   // Adjust position if a sibling was removed...
-  if (container == mStartParent) {
-    if (aIndexInContainer < mStartOffset) {
-      --mStartOffset;
-    }
+  if (container == mStartParent && aIndexInContainer < mStartOffset) {
+    --mStartOffset;
   }
   // ...or gravitate if an ancestor was removed.
   else if (nsContentUtils::ContentIsDescendantOf(mStartParent, aChild)) {
@@ -332,10 +327,8 @@ nsRange::ContentRemoved(nsIDocument* aDocument,
   }
 
   // Do same thing for end boundry.
-  if (container == mEndParent) {
-    if (aIndexInContainer < mEndOffset) {
-      --mEndOffset;
-    }
+  if (container == mEndParent && aIndexInContainer < mEndOffset) {
+    --mEndOffset;
   }
   else if (nsContentUtils::ContentIsDescendantOf(mEndParent, aChild)) {
     mEndParent = container;
@@ -1152,16 +1145,24 @@ RemoveNode(nsIDOMNode* aNode)
 }
 
 /**
- * Split a data node into two parts.
+ * Split a data node into two or three parts.
  *
- * @param aStartNode          The original node we are trying to split.
- * @param aStartIndex         The index at which to split.
- * @param aEndNode            The second node.
+ * @param aStartNode          The original node we are trying to split,
+ *                            and first of three.
+ * @param aStartIndex         The index at which to split the first and second
+ *                            parts.
+ * @param aEndIndex           The index at which to split the second and third
+ *                            parts.
+ * @param aMiddleNode         The second node of three.
+ * @param aEndNode            The third node of three.  May be null to indicate
+ *                            aEndIndex doesn't apply.
  * @param aCloneAfterOriginal Set PR_FALSE if the original node should be the
  *                            latter one after split.
  */
 static nsresult SplitDataNode(nsIDOMCharacterData* aStartNode,
                               PRUint32 aStartIndex,
+                              PRUint32 aEndIndex,
+                              nsIDOMCharacterData** aMiddleNode,
                               nsIDOMCharacterData** aEndNode,
                               PRBool aCloneAfterOriginal = PR_TRUE)
 {
@@ -1169,12 +1170,21 @@ static nsresult SplitDataNode(nsIDOMCharacterData* aStartNode,
   nsCOMPtr<nsINode> node = do_QueryInterface(aStartNode);
   NS_ENSURE_STATE(node && node->IsNodeOfType(nsINode::eDATA_NODE));
   nsGenericDOMDataNode* dataNode = static_cast<nsGenericDOMDataNode*>(node.get());
+  // Split the main node, starting with the end.
+  if (aEndNode && aEndIndex > aStartIndex) {
+    nsCOMPtr<nsIContent> newData;
+    rv = dataNode->SplitData(aEndIndex, getter_AddRefs(newData),
+                             aCloneAfterOriginal);
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = CallQueryInterface(newData, aEndNode);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
 
   nsCOMPtr<nsIContent> newData;
   rv = dataNode->SplitData(aStartIndex, getter_AddRefs(newData),
                            aCloneAfterOriginal);
   NS_ENSURE_SUCCESS(rv, rv);
-  return CallQueryInterface(newData, aEndNode);
+  return CallQueryInterface(newData, aMiddleNode);
 }
 
 nsresult PrependChild(nsIDOMNode* aParent, nsIDOMNode* aChild)
@@ -1284,20 +1294,13 @@ nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
 
           if (endOffset > startOffset)
           {
-            if (retval) {
-              nsAutoString cutValue;
-              rv = charData->SubstringData(startOffset, endOffset - startOffset,
-                                           cutValue);
-              NS_ENSURE_SUCCESS(rv, rv);
-              nsCOMPtr<nsIDOMNode> clone;
-              rv = charData->CloneNode(PR_FALSE, getter_AddRefs(clone));
-              NS_ENSURE_SUCCESS(rv, rv);
-              clone->SetNodeValue(cutValue);
-              nodeToResult = clone;
-            }
-
-            rv = charData->DeleteData(startOffset, endOffset - startOffset);
+            nsCOMPtr<nsIDOMCharacterData> cutNode;
+            nsCOMPtr<nsIDOMCharacterData> endNode;
+            rv = SplitDataNode(charData, startOffset, endOffset,
+                               getter_AddRefs(cutNode),
+                               getter_AddRefs(endNode));
             NS_ENSURE_SUCCESS(rv, rv);
+            nodeToResult = cutNode;
           }
 
           handled = PR_TRUE;
@@ -1312,7 +1315,8 @@ nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
           if (dataLength >= (PRUint32)startOffset)
           {
             nsCOMPtr<nsIDOMCharacterData> cutNode;
-            rv = SplitDataNode(charData, startOffset, getter_AddRefs(cutNode));
+            rv = SplitDataNode(charData, startOffset, dataLength,
+                               getter_AddRefs(cutNode), nsnull);
             NS_ENSURE_SUCCESS(rv, rv);
             nodeToResult = cutNode;
           }
@@ -1330,8 +1334,8 @@ nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
           /* The Range spec clearly states clones get cut and original nodes
              remain behind, so use PR_FALSE as the last parameter.
           */
-          rv = SplitDataNode(charData, endOffset, getter_AddRefs(cutNode),
-                             PR_FALSE);
+          rv = SplitDataNode(charData, endOffset, endOffset,
+                             getter_AddRefs(cutNode), nsnull, PR_FALSE);
           NS_ENSURE_SUCCESS(rv, rv);
           nodeToResult = cutNode;
         }
@@ -1807,26 +1811,27 @@ nsresult nsRange::InsertNode(nsIDOMNode* aN)
     res = tStartContainer->GetParentNode(getter_AddRefs(tSCParentNode));
     if(NS_FAILED(res)) return res;
     NS_ENSURE_STATE(tSCParentNode);
+    
+    PRBool isCollapsed;
+    res = GetCollapsed(&isCollapsed);
+    if(NS_FAILED(res)) return res;
 
     PRInt32 tEndOffset;
     GetEndOffset(&tEndOffset);
 
-    nsCOMPtr<nsIDOMNode> tEndContainer;
-    res = this->GetEndContainer(getter_AddRefs(tEndContainer));
-    if(NS_FAILED(res)) return res;
-
     nsCOMPtr<nsIDOMText> secondPart;
     res = startTextNode->SplitText(tStartOffset, getter_AddRefs(secondPart));
     if (NS_FAILED(res)) return res;
-
-    nsCOMPtr<nsIDOMNode> tResultNode;
-    res = tSCParentNode->InsertBefore(aN, secondPart, getter_AddRefs(tResultNode));
-    if (NS_FAILED(res)) return res;
-
-    if (tEndContainer == tStartContainer && tEndOffset != tStartOffset)
+    
+    // SplitText collapses the range; fix that (bug 253609)
+    if (!isCollapsed)
+    {
       res = SetEnd(secondPart, tEndOffset - tStartOffset);
-
-    return res;
+      if(NS_FAILED(res)) return res;
+    }
+    
+    nsCOMPtr<nsIDOMNode> tResultNode;
+    return tSCParentNode->InsertBefore(aN, secondPart, getter_AddRefs(tResultNode));
   }  
 
   nsCOMPtr<nsIDOMNodeList>tChildList;
@@ -2038,188 +2043,3 @@ nsRange::CreateContextualFragment(const nsAString& aFragment,
   }
   return NS_ERROR_FAILURE;
 }
-
-static void ExtractRectFromOffset(nsIFrame* aFrame,
-                                  const nsIFrame* aRelativeTo, 
-                                  const PRInt32 aOffset, nsRect* aR, PRBool aKeepLeft)
-{
-  nsPoint point;
-  aFrame->GetPointFromOffset(aOffset, &point);
-
-  point += aFrame->GetOffsetTo(aRelativeTo);
-
-  //given a point.x, extract left or right portion of rect aR
-  //point.x has to be within this rect
-  NS_ASSERTION(aR->x <= point.x && point.x <= aR->XMost(),
-                   "point.x should not be outside of rect r");
-
-  if (aKeepLeft) {
-    aR->width = point.x - aR->x;
-  } else {
-    aR->width = aR->XMost() - point.x;
-    aR->x = point.x;
-  }
-}
-
-static nsresult GetPartialTextRect(nsLayoutUtils::RectCallback* aCallback, nsIPresShell* aPresShell, 
-                                   nsIContent* aContent, PRInt32 aStartOffset, PRInt32 aEndOffset)
-{
-  nsIFrame* frame = aPresShell->GetPrimaryFrameFor(aContent);
-  if (frame && frame->GetType() == nsGkAtoms::textFrame) {
-    nsTextFrame* textFrame = static_cast<nsTextFrame*>(frame);
-    nsIFrame* relativeTo = nsLayoutUtils::GetContainingBlockForClientRect(textFrame);
-    for (nsTextFrame* f = textFrame; f; f = static_cast<nsTextFrame*>(f->GetNextContinuation())) {
-      PRInt32 fstart = f->GetContentOffset(), fend = f->GetContentEnd();
-      PRBool rtl = f->GetTextRun()->IsRightToLeft();
-      if (fend <= aStartOffset || fstart >= aEndOffset)
-        continue;
-
-      //overlaping with the offset we want
-      nsRect r(f->GetOffsetTo(relativeTo), f->GetSize());
-      if (fstart < aStartOffset) {
-        //aStartOffset is within this frame
-        ExtractRectFromOffset(f, relativeTo, aStartOffset, &r, rtl);
-      }
-      if (fend > aEndOffset) {
-        //aEndOffset is in the middle of this frame
-        ExtractRectFromOffset(f, relativeTo, aEndOffset, &r, !rtl);
-      }
-      aCallback->AddRect(r);
-    }
-  }
-  return NS_OK;
-}
-
-static nsIPresShell* GetPresShell(nsINode* aNode, PRBool aFlush)
-{
-  nsCOMPtr<nsIDocument> document = aNode->GetCurrentDoc();
-  if (!document)
-    return nsnull;
-
-  if (aFlush) {
-    document->FlushPendingNotifications(Flush_Layout);
-  }
-
-  return document->GetPrimaryShell();
-}
-
-static void CollectClientRects(nsLayoutUtils::RectCallback* aCollector, 
-                               nsRange* aRange,
-                               nsINode* aStartParent, PRInt32 aStartOffset,
-                               nsINode* aEndParent, PRInt32 aEndOffset)
-{
-  nsCOMPtr<nsIDOMNode> startContainer = do_QueryInterface(aStartParent);
-  nsCOMPtr<nsIDOMNode> endContainer = do_QueryInterface(aEndParent);
-
-  nsIPresShell* presShell = GetPresShell(aStartParent, PR_TRUE);
-  if (!presShell) {
-    //not in the document
-    return;
-  }
-
-  RangeSubtreeIterator iter;
-
-  nsresult rv = iter.Init(aRange);
-  if (NS_FAILED(rv)) return;
-
-  if (iter.IsDone()) {
-    // the range is collapsed, only continue if the cursor is in a text node
-    nsCOMPtr<nsIContent> content = do_QueryInterface(aStartParent);
-    if (content->IsNodeOfType(nsINode::eTEXT)) {
-      nsIFrame* frame = presShell->GetPrimaryFrameFor(content);
-      if (frame && frame->GetType() == nsGkAtoms::textFrame) {
-        nsTextFrame* textFrame = static_cast<nsTextFrame*>(frame);
-        PRInt32 outOffset;
-        nsIFrame* outFrame;
-        textFrame->GetChildFrameContainingOffset(aStartOffset, PR_FALSE, 
-          &outOffset, &outFrame);
-        if (outFrame) {
-           nsIFrame* relativeTo = 
-             nsLayoutUtils::GetContainingBlockForClientRect(outFrame);
-           nsRect r(outFrame->GetOffsetTo(relativeTo), outFrame->GetSize());
-           ExtractRectFromOffset(outFrame, relativeTo, aStartOffset, &r, PR_FALSE);
-           r.width = 0;
-           aCollector->AddRect(r);
-        }
-      }
-    }
-    return;
-  }
-
-  do {
-    nsCOMPtr<nsIDOMNode> node(iter.GetCurrentNode());
-    iter.Next();
-    nsCOMPtr<nsIContent> content = do_QueryInterface(node);
-    if (content->IsNodeOfType(nsINode::eTEXT)) {
-       if (node == startContainer) {
-         PRInt32 offset = startContainer == endContainer ? 
-           aEndOffset : content->GetText()->GetLength();
-         GetPartialTextRect(aCollector, presShell, content, 
-           aStartOffset, offset);
-         continue;
-       } else if (node == endContainer) {
-         GetPartialTextRect(aCollector, presShell, content, 
-           0, aEndOffset);
-         continue;	 
-       }
-    }
-
-    nsIFrame* frame = presShell->GetPrimaryFrameFor(content);
-    if (frame) {
-      nsLayoutUtils::GetAllInFlowRects(frame,
-        nsLayoutUtils::GetContainingBlockForClientRect(frame), aCollector);
-    }
-  } while (!iter.IsDone());
-}
-
-NS_IMETHODIMP
-nsRange::GetBoundingClientRect(nsIDOMClientRect** aResult)
-{
-  // Weak ref, since we addref it below
-  nsClientRect* rect = new nsClientRect();
-  if (!rect)
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  NS_ADDREF(*aResult = rect);
-
-  nsIPresShell* presShell = GetPresShell(mStartParent, PR_FALSE);
-  if (!presShell)
-    return NS_OK;
-
-  nsLayoutUtils::RectAccumulator accumulator;
-  
-  CollectClientRects(&accumulator, this, mStartParent, mStartOffset, 
-    mEndParent, mEndOffset);
-
-  nsRect r = accumulator.mResultRect.IsEmpty() ? accumulator.mFirstRect : 
-    accumulator.mResultRect;
-  rect->SetLayoutRect(r);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsRange::GetClientRects(nsIDOMClientRectList** aResult)
-{
-  *aResult = nsnull;
-
-  nsRefPtr<nsClientRectList> rectList = new nsClientRectList();
-  if (!rectList)
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  nsIPresShell* presShell = GetPresShell(mStartParent, PR_FALSE);
-  if (!presShell) {
-    rectList.forget(aResult);
-    return NS_OK;
-  }
-
-  nsLayoutUtils::RectListBuilder builder(rectList);
-
-  CollectClientRects(&builder, this, mStartParent, mStartOffset, 
-    mEndParent, mEndOffset);
-
-  if (NS_FAILED(builder.mRV))
-    return builder.mRV;
-  rectList.forget(aResult);
-  return NS_OK;
-}
-

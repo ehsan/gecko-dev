@@ -102,7 +102,12 @@ else
 MAKE_JARS_TARGET = $(FINAL_TARGET)
 endif
 
+#
 # The VERSION_NUMBER is suffixed onto the end of the DLLs we ship.
+# Since the longest of these is 5 characters without the suffix,
+# be sure to not set VERSION_NUMBER to anything longer than 3 
+# characters for Win16's sake.
+#
 VERSION_NUMBER		= 50
 
 ifeq ($(HOST_OS_ARCH),WINNT)
@@ -154,7 +159,7 @@ MOZ_WIDGET_SUPPORT_LIBS    = $(DIST)/lib/$(LIB_PREFIX)widgetsupport_s.$(LIB_SUFF
 
 ifdef MOZ_MEMORY
 ifneq (,$(filter-out WINNT WINCE,$(OS_ARCH)))
-JEMALLOC_LIBS = $(MKSHLIB_FORCE_ALL) $(call EXPAND_MOZLIBNAME,jemalloc) $(MKSHLIB_UNFORCE_ALL)
+JEMALLOC_LIBS = $(MKSHLIB_FORCE_ALL) $(call EXPAND_LIBNAME_PATH,jemalloc,$(DIST)/lib) $(MKSHLIB_UNFORCE_ALL)
 endif
 endif
 
@@ -215,12 +220,20 @@ ifeq ($(first_match), $(MODULE))
   _DEBUG_CFLAGS += $(MOZ_DEBUG_FLAGS)
   _DEBUG_LDFLAGS += $(MOZ_DEBUG_LDFLAGS)
 else
-  ifneq ($(first_match), ^$(MODULE))
+  ifeq ($(first_match), ^$(MODULE))
+    # the user specified explicitly that this module 
+    # should not be compiled with -g (nothing to do)
+  else
     ifeq ($(first_match), ALL_MODULES)
       # the user didn't mention this module explicitly, 
       # but wanted all modules to be compiled with -g
       _DEBUG_CFLAGS += $(MOZ_DEBUG_FLAGS)
       _DEBUG_LDFLAGS += $(MOZ_DEBUG_LDFLAGS)      
+    else
+      ifeq ($(first_match), ^ALL_MODULES)
+        # the user didn't mention this module explicitly, 
+        # but wanted all modules to be compiled without -g (nothing to do)
+      endif
     endif
   endif
 endif
@@ -255,7 +268,7 @@ endif
 ifdef MOZ_DEBUG_SYMBOLS
 OS_CXXFLAGS += -Zi -UDEBUG -DNDEBUG
 OS_CFLAGS += -Zi -UDEBUG -DNDEBUG
-OS_LDFLAGS += -DEBUG -OPT:REF
+OS_LDFLAGS += -DEBUG -OPT:REF -OPT:nowin98
 endif
 
 ifdef MOZ_QUANTIFY
@@ -415,6 +428,7 @@ DEFINES += \
 		-D_IMPL_NS_COM \
 		-DEXPORT_XPT_API \
 		-DEXPORT_XPTC_API \
+		-D_IMPL_NS_COM_OBSOLETE \
 		-D_IMPL_NS_GFX \
 		-D_IMPL_NS_WIDGET \
 		-DIMPL_XREAPI \
@@ -581,8 +595,8 @@ OS_COMPILE_CMFLAGS += -fobjc-exceptions
 OS_COMPILE_CMMFLAGS += -fobjc-exceptions
 endif
 
-COMPILE_CFLAGS	= $(VISIBILITY_FLAGS) $(DEFINES) $(INCLUDES) $(DSO_CFLAGS) $(DSO_PIC_CFLAGS) $(CFLAGS) $(RTL_FLAGS) $(OS_COMPILE_CFLAGS)
-COMPILE_CXXFLAGS = $(VISIBILITY_FLAGS) $(DEFINES) $(INCLUDES) $(DSO_CFLAGS) $(DSO_PIC_CFLAGS) $(CXXFLAGS) $(RTL_FLAGS) $(OS_COMPILE_CXXFLAGS)
+COMPILE_CFLAGS	= $(VISIBILITY_FLAGS) $(DEFINES) $(INCLUDES) $(XCFLAGS) $(PROFILER_CFLAGS) $(DSO_CFLAGS) $(DSO_PIC_CFLAGS) $(CFLAGS) $(RTL_FLAGS) $(OS_COMPILE_CFLAGS)
+COMPILE_CXXFLAGS = $(VISIBILITY_FLAGS) $(DEFINES) $(INCLUDES) $(XCFLAGS) $(PROFILER_CFLAGS) $(DSO_CFLAGS) $(DSO_PIC_CFLAGS)  $(CXXFLAGS) $(RTL_FLAGS) $(OS_COMPILE_CXXFLAGS)
 COMPILE_CMFLAGS = $(OS_COMPILE_CMFLAGS)
 COMPILE_CMMFLAGS = $(OS_COMPILE_CMMFLAGS)
 
@@ -622,6 +636,10 @@ SDK_BIN_DIR = $(DIST)/sdk/bin
 DEPENDENCIES	= .md
 
 MOZ_COMPONENT_LIBS=$(XPCOM_LIBS) $(MOZ_COMPONENT_NSPR_LIBS)
+
+ifdef GC_LEAK_DETECTOR
+XPCOM_LIBS += -lboehm
+endif
 
 ifeq (xpconnect, $(findstring xpconnect, $(BUILD_MODULES)))
 DEFINES +=  -DXPCONNECT_STANDALONE
@@ -707,6 +725,18 @@ endif
 endif
 endif
 
+# Flags needed to link against the component library
+ifdef MOZ_COMPONENTLIB
+MOZ_COMPONENTLIB_EXTRA_DSO_LIBS = mozcomps xpcom_compat
+
+# Tell the linker where NSS is, if we're building crypto
+ifeq ($(OS_ARCH),Darwin)
+ifeq (,$(findstring crypto,$(MOZ_META_COMPONENTS)))
+MOZ_COMPONENTLIB_EXTRA_LIBS = $(foreach library, $(patsubst -l%, $(LIB_PREFIX)%$(DLL_SUFFIX), $(filter -l%, $(NSS_LIBS))), -dylib_file @executable_path/$(library):$(DIST)/bin/$(library))
+endif
+endif
+endif
+
 # If we're building a component on MSVC, we don't want to generate an
 # import lib, because that import lib will collide with the name of a
 # static version of the same library.
@@ -729,6 +759,18 @@ endif
 DEFINES		+= -DOSTYPE=\"$(OS_CONFIG)\"
 DEFINES		+= -DOSARCH=$(OS_ARCH)
 
+# For profiling
+ifdef ENABLE_EAZEL_PROFILER
+ifndef INTERNAL_TOOLS
+ifneq ($(LIBRARY_NAME), xpt)
+ifneq (, $(findstring $(shell $(topsrcdir)/build/unix/print-depth-path.sh | awk -F/ '{ print $$2; }'), $(MOZ_PROFILE_MODULES)))
+PROFILER_CFLAGS	= $(EAZEL_PROFILER_CFLAGS) -DENABLE_EAZEL_PROFILER
+PROFILER_LIBS	= $(EAZEL_PROFILER_LIBS)
+endif
+endif
+endif
+endif
+
 ######################################################################
 
 GARBAGE		+= $(DEPENDENCIES) $(MKDEPENDENCIES) $(MKDEPENDENCIES).bak core $(wildcard core.[0-9]*) $(wildcard *.err) $(wildcard *.pure) $(wildcard *_pure_*.o) Templates.DB
@@ -743,11 +785,15 @@ endif
 ifdef NSINSTALL_BIN
 NSINSTALL	= $(CYGWIN_WRAPPER) $(NSINSTALL_BIN)
 else
+ifeq (WINNT,$(CROSS_COMPILE)$(OS_ARCH))
+NSINSTALL	= $(CYGWIN_WRAPPER) $(MOZ_TOOLS_DIR)/bin/nsinstall
+else
 ifeq (OS2,$(CROSS_COMPILE)$(OS_ARCH))
 NSINSTALL	= $(MOZ_TOOLS_DIR)/nsinstall
 else
-NSINSTALL	= $(CONFIG_TOOLS)/nsinstall$(HOST_BIN_SUFFIX)
+NSINSTALL	= $(CONFIG_TOOLS)/nsinstall
 endif # OS2
+endif # WINNT
 endif # NSINSTALL_BIN
 
 
@@ -771,6 +817,11 @@ INSTALL		= $(NSINSTALL) -R
 endif # absolute_symlink
 endif # copy
 endif # WINNT/OS2
+
+ifeq (,$(filter-out WINCE,$(OS_ARCH)))
+NSINSTALL	= $(CYGWIN_WRAPPER) nsinstall
+INSTALL     = $(CYGWIN_WRAPPER) nsinstall 
+endif
 
 # Use nsinstall in copy mode to install files on the system
 SYSINSTALL	= $(NSINSTALL) -t

@@ -120,10 +120,6 @@
 #include "secerr.h"
 #include "sslerr.h"
 
-#ifdef XP_WIN
-#include "nsILocalFileWin.h"
-#endif
-
 extern "C" {
 #include "pkcs12.h"
 #include "p12plcy.h"
@@ -284,7 +280,7 @@ nsTokenEventRunnable::Run()
 PRBool EnsureNSSInitialized(EnsureNSSOperator op)
 {
   static PRBool loading = PR_FALSE;
-  static PRInt32 haveLoaded = 0;
+  static PRBool haveLoaded = PR_FALSE;
 
   switch (op)
   {
@@ -300,7 +296,7 @@ PRBool EnsureNSSInitialized(EnsureNSSOperator op)
   case nssInitSucceeded:
     NS_ASSERTION(loading, "Bad call to EnsureNSSInitialized(nssInitSucceeded)");
     loading = PR_FALSE;
-    PR_AtomicSet(&haveLoaded, 1);
+    haveLoaded = PR_TRUE;
     return PR_TRUE;
 
   case nssInitFailed:
@@ -309,7 +305,7 @@ PRBool EnsureNSSInitialized(EnsureNSSOperator op)
     // no break
 
   case nssShutdown:
-    PR_AtomicSet(&haveLoaded, 0);
+    haveLoaded = PR_FALSE;
     return PR_FALSE;
 
     // In this case we are called from a component to ensure nss initilization.
@@ -317,7 +313,7 @@ PRBool EnsureNSSInitialized(EnsureNSSOperator op)
     // call do_GetService for nss component to ensure it.
   case nssEnsure:
     // We are reentered during nss component creation or nss component is already up
-    if (PR_AtomicAdd(&haveLoaded, 0) || loading)
+    if (haveLoaded || loading)
       return PR_TRUE;
 
     {
@@ -676,15 +672,9 @@ nsNSSComponent::LaunchSmartCardThreads()
 {
   nsNSSShutDownPreventionLock locker;
   {
-    SECMODModuleList *list;
+    SECMODModuleList *list = SECMOD_GetDefaultModuleList();
     SECMODListLock *lock = SECMOD_GetDefaultModuleListLock();
-    if (!lock) {
-        PR_LOG(gPIPNSSLog, PR_LOG_ERROR,
-               ("Couldn't get the module list lock, can't launch smart card threads\n"));
-        return;
-    }
     SECMOD_GetReadLock(lock);
-    list = SECMOD_GetDefaultModuleList();
 
     while (list) {
       SECMODModule *module = list->module;
@@ -779,15 +769,9 @@ nsNSSComponent::InstallLoadableRoots()
   {
     // Find module containing root certs
 
-    SECMODModuleList *list;
+    SECMODModuleList *list = SECMOD_GetDefaultModuleList();
     SECMODListLock *lock = SECMOD_GetDefaultModuleListLock();
-    if (!lock) {
-        PR_LOG(gPIPNSSLog, PR_LOG_ERROR,
-               ("Couldn't get the module list lock, can't install loadable roots\n"));
-        return;
-    }
     SECMOD_GetReadLock(lock);
-    list = SECMOD_GetDefaultModuleList();
 
     while (!RootsModule && list) {
       SECMODModule *module = list->module;
@@ -1077,7 +1061,6 @@ static CipherPref CipherPrefs[] = {
  {"security.ssl3.dhe_dss_des_sha", SSL_DHE_DSS_WITH_DES_CBC_SHA}, // 56-bit DES encryption with DSA, DHE, and a SHA1 MAC
  {"security.ssl3.rsa_null_sha", SSL_RSA_WITH_NULL_SHA}, // No encryption with RSA authentication and a SHA1 MAC
  {"security.ssl3.rsa_null_md5", SSL_RSA_WITH_NULL_MD5}, // No encryption with RSA authentication and an MD5 MAC
- {"security.ssl3.rsa_seed_sha", TLS_RSA_WITH_SEED_CBC_SHA}, // SEED encryption with RSA and a SHA1 MAC
  {NULL, 0} /* end marker */
 };
 
@@ -1589,15 +1572,7 @@ nsNSSComponent::InitializeNSS(PRBool showWarningBox)
       return rv;
   #endif
 
-  #if defined(XP_WIN)
-    // Native path will drop Unicode characters that cannot be mapped to system's
-    // codepage, using short (canonical) path as workaround.
-    nsCOMPtr<nsILocalFileWin> profilePathWin(do_QueryInterface(profilePath, &rv));
-    if (profilePathWin)
-      rv = profilePathWin->GetNativeCanonicalPath(profileStr);
-  #else
     rv = profilePath->GetNativePath(profileStr);
-  #endif
     if (NS_FAILED(rv)) 
       return rv;
 
@@ -1629,14 +1604,7 @@ nsNSSComponent::InitializeNSS(PRBool showWarningBox)
 
     ConfigureInternalPKCS11Token();
 
-    // The NSS_INIT_NOROOTINIT flag turns off the loading of the root certs
-    // module by NSS_Initialize because we will load it in InstallLoadableRoots
-    // later.  It also allows us to work around a bug in the system NSS in
-    // Ubuntu 8.04, which loads any nonexistent "<configdir>/libnssckbi.so" as
-    // "/usr/lib/nss/libnssckbi.so".
-    PRUint32 init_flags = NSS_INIT_NOROOTINIT | NSS_INIT_OPTIMIZESPACE;
-    SECStatus init_rv = ::NSS_Initialize(profileStr.get(), "", "",
-                                         SECMOD_DB, init_flags);
+    SECStatus init_rv = ::NSS_InitReadWrite(profileStr.get());
 
     if (init_rv != SECSuccess) {
       PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("can not init NSS r/w in %s\n", profileStr.get()));
@@ -1649,9 +1617,7 @@ nsNSSComponent::InitializeNSS(PRBool showWarningBox)
       }
 
       // try to init r/o
-      init_flags |= NSS_INIT_READONLY;
-      init_rv = ::NSS_Initialize(profileStr.get(), "", "",
-                                 SECMOD_DB, init_flags);
+      init_rv = NSS_Init(profileStr.get());
 
       if (init_rv != SECSuccess) {
         PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("can not init in r/o either\n"));
@@ -1702,9 +1668,7 @@ nsNSSComponent::InitializeNSS(PRBool showWarningBox)
 
       // Now only set SSL/TLS ciphers we knew about at compile time
       for (CipherPref* cp = CipherPrefs; cp->pref; ++cp) {
-        rv = mPrefBranch->GetBoolPref(cp->pref, &enabled);
-        if (NS_FAILED(rv))
-          enabled = PR_FALSE;
+        mPrefBranch->GetBoolPref(cp->pref, &enabled);
 
         SSL_CipherPrefSetDefault(cp->id, enabled);
       }
@@ -1787,7 +1751,6 @@ nsNSSComponent::ShutdownNSS()
     CleanupIdentityInfo();
     PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("evaporating psm resources\n"));
     mShutdownObjectList->evaporateAllNSSResources();
-    EnsureNSSInitialized(nssShutdown);
     if (SECSuccess != ::NSS_Shutdown()) {
       PR_LOG(gPIPNSSLog, PR_LOG_ALWAYS, ("NSS SHUTDOWN FAILURE\n"));
       rv = NS_ERROR_FAILURE;
@@ -2587,34 +2550,13 @@ nsNSSComponent::IsNSSInitialized(PRBool *initialized)
 
 nsCryptoHash::nsCryptoHash()
   : mHashContext(nsnull)
-  , mInitialized(PR_FALSE)
 {
 }
 
 nsCryptoHash::~nsCryptoHash()
 {
-  nsNSSShutDownPreventionLock locker;
-
-  if (isAlreadyShutDown())
-    return;
-
-  destructorSafeDestroyNSSReference();
-  shutdown(calledFromObject);
-}
-
-void nsCryptoHash::virtualDestroyNSSReference()
-{
-  destructorSafeDestroyNSSReference();
-}
-
-void nsCryptoHash::destructorSafeDestroyNSSReference()
-{
-  if (isAlreadyShutDown())
-    return;
-
   if (mHashContext)
     HASH_Destroy(mHashContext);
-  mHashContext = nsnull;
 }
 
 NS_IMPL_ISUPPORTS1(nsCryptoHash, nsICryptoHash)
@@ -2622,30 +2564,14 @@ NS_IMPL_ISUPPORTS1(nsCryptoHash, nsICryptoHash)
 NS_IMETHODIMP 
 nsCryptoHash::Init(PRUint32 algorithm)
 {
-  nsNSSShutDownPreventionLock locker;
-
-  HASH_HashType hashType = (HASH_HashType)algorithm;
   if (mHashContext)
-  {
-    if ((!mInitialized) && (HASH_GetType(mHashContext) == hashType))
-    {
-      mInitialized = PR_TRUE;
-      HASH_Begin(mHashContext);
-      return NS_OK;
-    }
-
-    // Destroy current hash context if the type was different
-    // or Finish method wasn't called.
     HASH_Destroy(mHashContext);
-    mInitialized = PR_FALSE;
-  }
 
-  mHashContext = HASH_Create(hashType);
+  mHashContext = HASH_Create((HASH_HashType) algorithm);
   if (!mHashContext)
     return NS_ERROR_INVALID_ARG;
 
   HASH_Begin(mHashContext);
-  mInitialized = PR_TRUE;
   return NS_OK; 
 }
 
@@ -2676,9 +2602,7 @@ nsCryptoHash::InitWithString(const nsACString & aAlgorithm)
 NS_IMETHODIMP
 nsCryptoHash::Update(const PRUint8 *data, PRUint32 len)
 {
-  nsNSSShutDownPreventionLock locker;
-  
-  if (!mInitialized)
+  if (!mHashContext)
     return NS_ERROR_NOT_INITIALIZED;
 
   HASH_Update(mHashContext, data, len);
@@ -2688,7 +2612,7 @@ nsCryptoHash::Update(const PRUint8 *data, PRUint32 len)
 NS_IMETHODIMP
 nsCryptoHash::UpdateFromStream(nsIInputStream *data, PRUint32 len)
 {
-  if (!mInitialized)
+  if (!mHashContext)
     return NS_ERROR_NOT_INITIALIZED;
 
   if (!data)
@@ -2736,9 +2660,7 @@ nsCryptoHash::UpdateFromStream(nsIInputStream *data, PRUint32 len)
 NS_IMETHODIMP
 nsCryptoHash::Finish(PRBool ascii, nsACString & _retval)
 {
-  nsNSSShutDownPreventionLock locker;
-  
-  if (!mInitialized)
+  if (!mHashContext)
     return NS_ERROR_NOT_INITIALIZED;
   
   PRUint32 hashLen = 0;
@@ -2746,8 +2668,9 @@ nsCryptoHash::Finish(PRBool ascii, nsACString & _retval)
   unsigned char* pbuffer = buffer;
 
   HASH_End(mHashContext, pbuffer, &hashLen, HASH_LENGTH_MAX);
+  HASH_Destroy(mHashContext);
 
-  mInitialized = PR_FALSE;
+  mHashContext = nsnull;
 
   if (ascii)
   {
@@ -2778,35 +2701,13 @@ nsCryptoHMAC::nsCryptoHMAC()
 
 nsCryptoHMAC::~nsCryptoHMAC()
 {
-  nsNSSShutDownPreventionLock locker;
-
-  if (isAlreadyShutDown())
-    return;
-
-  destructorSafeDestroyNSSReference();
-  shutdown(calledFromObject);
-}
-
-void nsCryptoHMAC::virtualDestroyNSSReference()
-{
-  destructorSafeDestroyNSSReference();
-}
-
-void nsCryptoHMAC::destructorSafeDestroyNSSReference()
-{
-  if (isAlreadyShutDown())
-    return;
-
   if (mHMACContext)
     PK11_DestroyContext(mHMACContext, PR_TRUE);
-  mHMACContext = nsnull;
 }
 
 /* void init (in unsigned long aAlgorithm, in nsIKeyObject aKeyObject); */
 NS_IMETHODIMP nsCryptoHMAC::Init(PRUint32 aAlgorithm, nsIKeyObject *aKeyObject)
 {
-  nsNSSShutDownPreventionLock locker;
-
   if (mHMACContext)
   {
     PK11_DestroyContext(mHMACContext, PR_TRUE);
@@ -2863,8 +2764,6 @@ NS_IMETHODIMP nsCryptoHMAC::Init(PRUint32 aAlgorithm, nsIKeyObject *aKeyObject)
 /* void update ([array, size_is (aLen), const] in octet aData, in unsigned long aLen); */
 NS_IMETHODIMP nsCryptoHMAC::Update(const PRUint8 *aData, PRUint32 aLen)
 {
-  nsNSSShutDownPreventionLock locker;
-
   if (!mHMACContext)
     return NS_ERROR_NOT_INITIALIZED;
 
@@ -2930,8 +2829,6 @@ NS_IMETHODIMP nsCryptoHMAC::UpdateFromStream(nsIInputStream *aStream, PRUint32 a
 /* ACString finish (in PRBool aASCII); */
 NS_IMETHODIMP nsCryptoHMAC::Finish(PRBool aASCII, nsACString & _retval)
 {
-  nsNSSShutDownPreventionLock locker;
-
   if (!mHMACContext)
     return NS_ERROR_NOT_INITIALIZED;
   
@@ -2959,8 +2856,6 @@ NS_IMETHODIMP nsCryptoHMAC::Finish(PRBool aASCII, nsACString & _retval)
 /* void reset (); */
 NS_IMETHODIMP nsCryptoHMAC::Reset()
 {
-  nsNSSShutDownPreventionLock locker;
-
   SECStatus ss = PK11_DigestBegin(mHMACContext);
   NS_ENSURE_TRUE(ss == SECSuccess, NS_ERROR_FAILURE);
 

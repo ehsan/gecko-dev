@@ -79,6 +79,7 @@ class DeleteTextTxn;
 class SplitElementTxn;
 class JoinElementTxn;
 class EditAggregateTxn;
+class nsILocale;
 class IMETextTxn;
 class AddStyleSheetTxn;
 class RemoveStyleSheetTxn;
@@ -356,8 +357,6 @@ protected:
    * Return true if spellchecking should be enabled for this editor.
    */
   PRBool GetDesiredSpellCheckState();
-
-  nsresult QueryComposition(nsTextEventReply* aReply);
 
 public:
 

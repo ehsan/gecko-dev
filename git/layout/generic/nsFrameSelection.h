@@ -49,10 +49,10 @@
 #include "nsIRange.h"
 
 // IID for the nsFrameSelection interface
-// 3c6ae2d0-4cf1-44a1-9e9d-2411867f19c6
+// 0ea74459-e3f9-48b0-8aa4-5dfef53bf1f7
 #define NS_FRAME_SELECTION_IID      \
-{ 0x3c6ae2d0, 0x4cf1, 0x44a1, \
-  { 0x9e, 0x9d, 0x24, 0x11, 0x86, 0x7f, 0x19, 0xc6 } }
+{ 0xea74459, 0xe3f9, 0x48b0, \
+  { 0x8a, 0xa4, 0x5d, 0xfe, 0xf5, 0x3b, 0xf1, 0xf7 } }
 
 #ifdef IBMBIDI // Constant for Set/Get CaretBidiLevel
 #define BIDI_LEVEL_UNDEFINED 0x80
@@ -141,39 +141,39 @@ struct NS_STACK_CLASS nsPeekOffsetStruct
   //            Used with: eSelectLine.
   nscoord mDesiredX;
 
+  // mJumpLines: Whether to allow jumping across line boundaries.
+  //             Used with: eSelectCharacter, eSelectWord.
+  PRBool mJumpLines;
+
+  // mScrollViewStop: Whether to stop when reaching a scroll view boundary.
+  //                  Used with: eSelectCharacter, eSelectWord, eSelectLine.
+  PRBool mScrollViewStop;
+
+  // mIsKeyboardSelect: Whether the peeking is done in response to a keyboard action.
+  //                    Used with: eSelectWord.
+  PRBool mIsKeyboardSelect;
+
+  // mVisual: Whether bidi caret behavior is visual (PR_TRUE) or logical (PR_FALSE).
+  //          Used with: eSelectCharacter, eSelectWord, eSelectBeginLine, eSelectEndLine.
+  PRBool mVisual;
+
   // mWordMovementType: An enum that determines whether to prefer the start or end of a word
   //                    or to use the default beahvior, which is a combination of 
   //                    direction and the platform-based pref
   //                    "layout.word_select.eat_space_to_next_word"
   EWordMovementType mWordMovementType;
 
-  // mJumpLines: Whether to allow jumping across line boundaries.
-  //             Used with: eSelectCharacter, eSelectWord.
-  PRPackedBool mJumpLines;
-
-  // mScrollViewStop: Whether to stop when reaching a scroll view boundary.
-  //                  Used with: eSelectCharacter, eSelectWord, eSelectLine.
-  PRPackedBool mScrollViewStop;
-
-  // mIsKeyboardSelect: Whether the peeking is done in response to a keyboard action.
-  //                    Used with: eSelectWord.
-  PRPackedBool mIsKeyboardSelect;
-
-  // mVisual: Whether bidi caret behavior is visual (PR_TRUE) or logical (PR_FALSE).
-  //          Used with: eSelectCharacter, eSelectWord, eSelectBeginLine, eSelectEndLine.
-  PRPackedBool mVisual;
-
   /*** Output arguments ***/
 
   // mResultContent: Content reached as a result of the peek.
   nsCOMPtr<nsIContent> mResultContent;
 
+  // mContentOffset: Offset into content reached as a result of the peek.
+  PRInt32 mContentOffset;
+
   // mResultFrame: Frame reached as a result of the peek.
   //               Used with: eSelectCharacter, eSelectWord.
   nsIFrame *mResultFrame;
-
-  // mContentOffset: Offset into content reached as a result of the peek.
-  PRInt32 mContentOffset;
 
   // mAttachForward: When the result position is between two frames,
   //                 indicates which of the two frames the caret should be painted in.
@@ -291,58 +291,6 @@ public:
                                 PRInt32 aContentOffset,
                                 PRInt32 aTarget,
                                 nsMouseEvent *aMouseEvent);
-
-  /**
-   * Add cell to the selection.
-   *
-   * @param  aCell  [in] HTML td element.
-   */
-  virtual nsresult SelectCellElement(nsIContent *aCell);
-
-  /**
-   * Add cells to the selection inside of the given cells range.
-   *
-   * @param  aTable             [in] HTML table element
-   * @param  aStartRowIndex     [in] row index where the cells range starts
-   * @param  aStartColumnIndex  [in] column index where the cells range starts
-   * @param  aEndRowIndex       [in] row index where the cells range ends
-   * @param  aEndColumnIndex    [in] column index where the cells range ends
-   */
-  virtual nsresult AddCellsToSelection(nsIContent *aTable,
-                                       PRInt32 aStartRowIndex,
-                                       PRInt32 aStartColumnIndex,
-                                       PRInt32 aEndRowIndex,
-                                       PRInt32 aEndColumnIndex);
-
-  /**
-   * Remove cells from selection inside of the given cell range.
-   *
-   * @param  aTable             [in] HTML table element
-   * @param  aStartRowIndex     [in] row index where the cells range starts
-   * @param  aStartColumnIndex  [in] column index where the cells range starts
-   * @param  aEndRowIndex       [in] row index where the cells range ends
-   * @param  aEndColumnIndex    [in] column index where the cells range ends
-   */
-  virtual nsresult RemoveCellsFromSelection(nsIContent *aTable,
-                                            PRInt32 aStartRowIndex,
-                                            PRInt32 aStartColumnIndex,
-                                            PRInt32 aEndRowIndex,
-                                            PRInt32 aEndColumnIndex);
-
-  /**
-   * Remove cells from selection outside of the given cell range.
-   *
-   * @param  aTable             [in] HTML table element
-   * @param  aStartRowIndex     [in] row index where the cells range starts
-   * @param  aStartColumnIndex  [in] column index where the cells range starts
-   * @param  aEndRowIndex       [in] row index where the cells range ends
-   * @param  aEndColumnIndex    [in] column index where the cells range ends
-   */
-  virtual nsresult RestrictCellsToSelection(nsIContent *aTable,
-                                            PRInt32 aStartRowIndex,
-                                            PRInt32 aStartColumnIndex,
-                                            PRInt32 aEndRowIndex,
-                                            PRInt32 aEndColumnIndex);
 
   /** StartAutoScrollTimer is responsible for scrolling views so that aPoint is always
    *  visible, and for selecting any frame that contains aPoint. The timer will also reset
@@ -658,6 +606,7 @@ private:
   void         InvalidateDesiredX(); //do not listen to mDesiredX you must get another.
   void         SetDesiredX(nscoord aX); //set the mDesiredX
 
+  nsresult     GetRootForContentSubtree(nsIContent *aContent, nsIContent **aParent);
   nsresult     ConstrainFrameAndPointToAnchorSubtree(nsIFrame *aFrame, nsPoint& aPoint, nsIFrame **aRetFrame, nsPoint& aRetPoint);
 
   PRUint32     GetBatching() const {return mBatching; }
@@ -677,11 +626,6 @@ private:
 
   nsresult SelectBlockOfCells(nsIContent *aStartNode, nsIContent *aEndNode);
   nsresult SelectRowOrColumn(nsIContent *aCellContent, PRUint32 aTarget);
-  nsresult UnselectCells(nsIContent *aTable,
-                         PRInt32 aStartRowIndex, PRInt32 aStartColumnIndex,
-                         PRInt32 aEndRowIndex, PRInt32 aEndColumnIndex,
-                         PRBool aRemoveOutsideOfCellRange);
-
   nsresult GetCellIndexes(nsIContent *aCell, PRInt32 &aRowIndex, PRInt32 &aColIndex);
 
   // Get our first range, if its first selected node is a cell.  If this does
@@ -697,6 +641,7 @@ private:
   nsIContent* IsInSameTable(nsIContent *aContent1, nsIContent *aContent2) const;
   // Might return null
   nsIContent* GetParentTable(nsIContent *aCellNode) const;
+  nsresult SelectCellElement(nsIContent* aCellElement);
   nsresult CreateAndAddRange(nsINode *aParentNode, PRInt32 aOffset);
   nsresult ClearNormalSelection();
 

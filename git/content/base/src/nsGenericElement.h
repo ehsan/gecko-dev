@@ -83,7 +83,6 @@ class nsIDOMNSFeatureFactory;
 class nsIEventListenerManager;
 class nsIScrollableView;
 class nsContentList;
-class nsDOMTokenList;
 struct nsRect;
 
 typedef PRUptrdiff PtrBits;
@@ -111,13 +110,13 @@ public:
   // nsINodeList interface
   virtual nsIContent* GetNodeAt(PRUint32 aIndex);
   virtual PRInt32 IndexOf(nsIContent* aContent);
-
+  
   void DropReference()
   {
     mNode = nsnull;
   }
 
-  nsINode* GetParentObject()
+  nsISupports* GetParentObject()
   {
     return mNode;
   }
@@ -355,7 +354,7 @@ public:
   virtual PRInt32 IndexOf(nsINode* aPossibleChild) const;
   virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                                  PRBool aNotify);
-  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent = PR_TRUE);
+  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify);
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
   virtual nsresult DispatchDOMEvent(nsEvent* aEvent, nsIDOMEvent* aDOMEvent,
@@ -436,10 +435,6 @@ public:
   {
     return nsnull;
   }
-  virtual nsresult GetSMILOverrideStyle(nsIDOMCSSStyleDeclaration** aStyle);
-  virtual nsICSSStyleRule* GetSMILOverrideStyleRule();
-  virtual nsresult SetSMILOverrideStyleRule(nsICSSStyleRule* aStyleRule,
-                                            PRBool aNotify);
 #endif // MOZ_SMIL
 
 #ifdef DEBUG
@@ -459,7 +454,7 @@ public:
   NS_IMETHOD SetInlineStyleRule(nsICSSStyleRule* aStyleRule, PRBool aNotify);
   NS_IMETHOD_(PRBool)
     IsAttributeMapped(const nsIAtom* aAttribute) const;
-  virtual nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute,
+  virtual nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute, 
                                               PRInt32 aModType) const;
   /*
    * Attribute Mapping Helpers
@@ -467,7 +462,7 @@ public:
   struct MappedAttributeEntry {
     nsIAtom** attribute;
   };
-
+  
   /**
    * A common method where you can just pass in a list of maps to check
    * for attribute dependence. Most implementations of
@@ -545,7 +540,7 @@ public:
 
   /**
    * Add a script event listener with the given event handler name
-   * (like onclick) and with the value as JS
+   * (like onclick) and with the value as JS   
    * @param aEventName the event listener name
    * @param aValue the JS to attach
    * @param aDefer indicates if deferred execution is allowed
@@ -584,7 +579,7 @@ public:
                                      const nsAString& aFeature,
                                      const nsAString& aVersion,
                                      nsISupports** aReturn);
-
+  
   static already_AddRefed<nsIDOMNSFeatureFactory>
     GetDOMFeatureFactory(const nsAString& aFeature, const nsAString& aVersion);
 
@@ -659,8 +654,7 @@ public:
   static nsresult doRemoveChildAt(PRUint32 aIndex, PRBool aNotify,
                                   nsIContent* aKid, nsIContent* aParent,
                                   nsIDocument* aDocument,
-                                  nsAttrAndChildArray& aChildArray,
-                                  PRBool aMutationEvent);
+                                  nsAttrAndChildArray& aChildArray);
 
   /**
    * Helper methods for implementing querySelector/querySelectorAll
@@ -670,7 +664,6 @@ public:
   static nsresult doQuerySelectorAll(nsINode* aRoot,
                                      const nsAString& aSelector,
                                      nsIDOMNodeList **aReturn);
-  static PRBool doMatchesSelector(nsIContent* aNode, const nsAString& aSelector);
 
   /**
    * Default event prehandling for content objects. Handles event retargeting.
@@ -690,7 +683,7 @@ public:
                                      nsIContent* aTarget,
                                      PRBool aFullDispatch,
                                      nsEventStatus* aStatus);
-
+  
   /**
    * Method to dispatch aEvent to aTarget. If aFullDispatch is true, the event
    * will be dispatched through the full dispatching of the presshell of the
@@ -708,7 +701,7 @@ public:
    * Get the primary frame for this content without flushing (see
    * GetPrimaryFrameFor)
    *
-   * @return the primary frame
+   * @return the primary frame 
    */
   nsIFrame* GetPrimaryFrame();
 
@@ -741,15 +734,10 @@ public:
       mName(aName), mValue(aValue) {}
     nsAttrInfo(const nsAttrInfo& aOther) :
       mName(aOther.mName), mValue(aOther.mValue) {}
-
+      
     const nsAttrName* mName;
     const nsAttrValue* mValue;
   };
-
-  const nsAttrValue* GetParsedAttr(nsIAtom* aAttr) const
-  {
-    return mAttrsAndChildren.GetAttr(aAttr);
-  }
 
   /**
    * Returns the attribute map, if there is one.
@@ -767,7 +755,7 @@ public:
   {
   }
 
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsGenericElement)
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsGenericElement)
 
 protected:
   /**
@@ -935,17 +923,6 @@ public:
     nsRefPtr<nsDOMCSSDeclaration> mStyle;
 
     /**
-     * SMIL Overridde style rules (for SMIL animation of CSS properties)
-     * @see nsIContent::GetSMILOverrideStyle
-     */
-    nsRefPtr<nsDOMCSSDeclaration> mSMILOverrideStyle;
-
-    /**
-     * Holds any SMIL override style rules for this element.
-     */
-    nsCOMPtr<nsICSSStyleRule> mSMILOverrideStyleRule;
-
-    /**
      * An object implementing nsIDOMNamedNodeMap for this content (attributes)
      * @see nsGenericElement::GetAttributes
      */
@@ -963,16 +940,16 @@ public:
       */
       nsIControllers* mControllers; // [OWNER]
     };
+    
+    /**
+     * Weak reference to this node
+     */
+    nsNodeWeakReference* mWeakReference;
 
     /**
      * An object implementing the .children property for this element.
      */
     nsRefPtr<nsContentList> mChildrenList;
-
-    /**
-     * An object implementing the .classList property for this element.
-     */
-    nsRefPtr<nsDOMTokenList> mClassList;
   };
 
 protected:
@@ -1118,7 +1095,7 @@ public:
   nsNSElementTearoff(nsGenericElement *aContent) : mContent(aContent)
   {
   }
-
+  
 private:
   nsContentList* GetChildrenList();
 

@@ -72,12 +72,10 @@ function differentPressed()
 {
   keyCheck($("list"), "O", 1, "different letter pressed");
 
-  if (navigator.platform.indexOf("Mac") == -1) {
-    $("button1").focus();
-    synthesizeKeyExpectEvent("VK_TAB", { }, $("list"), "focus", "focus to menulist");
-    synthesizeKeyExpectEvent("VK_TAB", { }, $("button2"), "focus", "focus to button");
-    is(document.activeElement, $("button2"), "tab from menulist focused button");
-  }
+  $("button1").focus();
+  synthesizeKeyExpectEvent("VK_TAB", { }, $("list"), "focus", "focus to menulist");
+  synthesizeKeyExpectEvent("VK_TAB", { }, $("button2"), "focus", "focus to button");
+  is(document.activeElement, $("button2"), "tab from menulist focused button");
 
   SimpleTest.finish();
 }

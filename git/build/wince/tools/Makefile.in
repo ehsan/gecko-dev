@@ -56,5 +56,3 @@ include $(topsrcdir)/build/wince/tools/Makefile
 export::
 
 tools::
-
-.NOTPARALLEL:

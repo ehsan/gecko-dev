@@ -67,6 +67,14 @@ struct JSXMLArray {
 #define JSXML_CAPACITY_MASK     JS_BITMASK(31)
 #define JSXML_CAPACITY(array)   ((array)->capacity & JSXML_CAPACITY_MASK)
 
+struct JSXMLArrayCursor {
+    JSXMLArray          *array;
+    uint32              index;
+    JSXMLArrayCursor    *next;
+    JSXMLArrayCursor    **prevp;
+    void                *root;
+};
+
 /*
  * NB: don't reorder this enum without changing all array initializers that
  * depend on it in jsxml.c.
@@ -112,16 +120,16 @@ struct JSXML {
     void                *domnode;       /* DOM node if mapped info item */
     JSXML               *parent;
     JSObject            *name;
-    uint32              xml_class;      /* discriminates u, below */
-    uint32              xml_flags;      /* flags, see below */
+    uint16              xml_class;      /* discriminates u, below */
+    uint16              xml_flags;      /* flags, see below */
     union {
         JSXMLListVar    list;
         JSXMLElemVar    elem;
         JSString        *value;
     } u;
-};
 
-JS_STATIC_ASSERT(sizeof(JSXML) % JSVAL_ALIGN == 0);
+    /* Don't add anything after u -- see js_NewXML for why. */
+};
 
 /* union member shorthands */
 #define xml_kids        u.list.kids

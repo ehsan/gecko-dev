@@ -74,7 +74,6 @@ nsIFrame* NS_NewBoxFrame(nsIPresShell* aPresShell,
 class nsBoxFrame : public nsContainerFrame
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
 
   friend nsIFrame* NS_NewBoxFrame(nsIPresShell* aPresShell, 
                                   nsStyleContext* aContext,
@@ -130,11 +129,11 @@ public:
                     nsReflowStatus&          aStatus);
 
   NS_IMETHOD  AppendFrames(nsIAtom*        aListName,
-                           nsFrameList&    aFrameList);
+                           nsIFrame*       aFrameList);
 
   NS_IMETHOD  InsertFrames(nsIAtom*        aListName,
                            nsIFrame*       aPrevFrame,
-                           nsFrameList&    aFrameList);
+                           nsIFrame*       aFrameList);
 
   NS_IMETHOD  RemoveFrame(nsIAtom*        aListName,
                           nsIFrame*       aOldFrame);
@@ -142,7 +141,7 @@ public:
   virtual nsIFrame* GetContentInsertionFrame();
 
   NS_IMETHOD  SetInitialChildList(nsIAtom*        aListName,
-                                  nsFrameList&    aChildList);
+                                  nsIFrame*       aChildList);
 
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 

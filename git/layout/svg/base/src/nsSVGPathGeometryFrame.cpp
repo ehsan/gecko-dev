@@ -39,6 +39,7 @@
 #include "nsSVGPathGeometryFrame.h"
 #include "nsGkAtoms.h"
 #include "nsSVGMarkerFrame.h"
+#include "nsSVGMatrix.h"
 #include "nsSVGUtils.h"
 #include "nsSVGEffects.h"
 #include "nsSVGGraphicElement.h"
@@ -56,8 +57,6 @@ NS_NewSVGPathGeometryFrame(nsIPresShell* aPresShell,
 {
   return new (aPresShell) nsSVGPathGeometryFrame(aContext);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsSVGPathGeometryFrame)
 
 //----------------------------------------------------------------------
 // nsQueryFrame methods
@@ -183,8 +182,8 @@ nsSVGPathGeometryFrame::GetFrameForPoint(const nsPoint &aPoint)
 
   if (mask & HITTEST_MASK_FILL)
     isHit = context.PointInFill(userSpacePoint);
-  if (!isHit && (mask & HITTEST_MASK_STROKE)) {
-    SetupCairoStrokeHitGeometry(&context);
+  if (!isHit && (mask & HITTEST_MASK_STROKE) &&
+      SetupCairoStrokeHitGeometry(&context)) {
     isHit = context.PointInStroke(userSpacePoint);
   }
 
@@ -268,8 +267,7 @@ nsSVGPathGeometryFrame::UpdateCoveredRegion()
   // # If the stroke is very thin, cairo won't paint any stroke, and so the
   //   stroke bounds that it will return will be empty.
 
-  if (HasStroke()) {
-    SetupCairoStrokeGeometry(&context);
+  if (SetupCairoStrokeGeometry(&context)) {
     extent = nsSVGUtils::PathExtentsToMaxStrokeExtents(extent, this);
   } else if (GetStyleSVG()->mFill.mType == eStyleSVGPaintType_None) {
     extent = gfxRect(0, 0, 0, 0);
@@ -424,6 +422,11 @@ nsSVGPathGeometryFrame::Render(nsSVGRenderState *aContext)
 
   PRUint16 renderMode = aContext->GetRenderMode();
 
+  /* save/restore the state so we don't screw up the xform */
+  gfx->Save();
+
+  GeneratePath(gfx);
+
   switch (GetStyleSVG()->mShapeRendering) {
   case NS_STYLE_SHAPE_RENDERING_OPTIMIZESPEED:
   case NS_STYLE_SHAPE_RENDERING_CRISPEDGES:
@@ -434,14 +437,7 @@ nsSVGPathGeometryFrame::Render(nsSVGRenderState *aContext)
     break;
   }
 
-  /* save/restore the state so we don't screw up the xform */
-  gfx->Save();
-
-  GeneratePath(gfx);
-
   if (renderMode != nsSVGRenderState::NORMAL) {
-    gfx->Restore();
-
     if (GetClipRule() == NS_STYLE_FILL_RULE_EVENODD)
       gfx->SetFillRule(gfxContext::FILL_RULE_EVEN_ODD);
     else
@@ -452,6 +448,7 @@ nsSVGPathGeometryFrame::Render(nsSVGRenderState *aContext)
       gfx->Fill();
       gfx->NewPath();
     }
+    gfx->Restore();
 
     return;
   }
@@ -497,11 +494,10 @@ nsSVGPathGeometryFrame::GetHittestMask()
 {
   PRUint16 mask = 0;
 
-  switch(GetStyleVisibility()->mPointerEvents) {
+  switch(GetStyleSVG()->mPointerEvents) {
     case NS_STYLE_POINTER_EVENTS_NONE:
       break;
     case NS_STYLE_POINTER_EVENTS_VISIBLEPAINTED:
-    case NS_STYLE_POINTER_EVENTS_AUTO:
       if (GetStyleVisibility()->IsVisible()) {
         if (GetStyleSVG()->mFill.mType != eStyleSVGPaintType_None)
           mask |= HITTEST_MASK_FILL;

@@ -177,7 +177,7 @@ PrepareAndDispatch(nsXPTCStubBase* self, PRUint64 methodIndex, PRUint64* args, P
                                          dp->val.wc  = (wchar_t)  *ap++;
                                      break;
         default:
-            NS_ERROR("bad type");
+            NS_ASSERTION(0, "bad type");
             break;
         }
     }
@@ -195,7 +195,7 @@ PrepareAndDispatch(nsXPTCStubBase* self, PRUint64 methodIndex, PRUint64* args, P
 #define SENTINEL_ENTRY(n) \
 nsresult nsXPTCStubBase::Sentinel##n() \
 { \
-    NS_ERROR("nsXPTCStubBase::Sentinel called"); \
+    NS_ASSERTION(0,"nsXPTCStubBase::Sentinel called"); \
     return NS_ERROR_NOT_IMPLEMENTED; \
 }
 

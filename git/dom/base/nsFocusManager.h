@@ -73,14 +73,7 @@ public:
   /**
    * Retrieve the single focus manager.
    */
-  static nsFocusManager* GetFocusManager() { return sInstance; }
-
-  /**
-   * A faster version of nsIFocusManager::GetFocusedElement, returning a
-   * raw nsIContent pointer (instead of having AddRef-ed nsIDOMElement
-   * pointer filled in to an out-parameter).
-   */
-  nsIContent* GetFocusedContent() { return mFocusedContent; }
+  static nsIFocusManager* GetFocusManager() { return sInstance; }
 
   /**
    * Returns the content node that would be focused if aWindow was in an
@@ -150,7 +143,7 @@ protected:
    * the active top-level window and navigate down the currently focused
    * elements for each frame in the tree to get to aNewWindow.
    */
-  void AdjustWindowFocus(nsPIDOMWindow* aNewWindow, PRBool aCheckPermission);
+  void AdjustWindowFocus(nsPIDOMWindow* aNewWindow);
 
   /**
    * Returns true if aWindow is visible.
@@ -230,15 +223,12 @@ protected:
    *
    * aType should be either NS_FOCUS_CONTENT or NS_BLUR_CONTENT. For blur
    * events, aFocusMethod should normally be non-zero.
-   *
-   * aWindowRaised should only be true if called from WindowRaised.
    */
   void SendFocusOrBlurEvent(PRUint32 aType,
                             nsIPresShell* aPresShell,
                             nsIDocument* aDocument,
                             nsISupports* aTarget,
-                            PRUint32 aFocusMethod,
-                            PRBool aWindowRaised);
+                            PRUint32 aFocusMethod);
 
   /**
    * Scrolls aContent into view unless the FLAG_NOSCROLL flag is set.
@@ -316,9 +306,6 @@ protected:
    * node, in the case of recursive or looping calls.
    *
    * aStartContent is the starting point for this call of this method.
-   * If aStartContent doesn't have visual representation, the next content
-   * object, which does have a primary frame, will be used as a start.
-   * If that content object is focusable, the method may return it.
    *
    * aForward should be true for forward navigation or false for backward
    * navigation.
@@ -450,7 +437,7 @@ protected:
   nsTArray<nsDelayedBlurOrFocusEvent> mDelayedBlurFocusEvents;
 
   // the single focus manager
-  static nsFocusManager* sInstance;
+  static nsIFocusManager* sInstance;
 };
 
 nsresult

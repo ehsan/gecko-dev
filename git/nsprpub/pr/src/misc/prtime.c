@@ -586,9 +586,6 @@ void _PR_InitTime(void)
 #ifdef HAVE_LOCALTIME_MONITOR
     monitor = PR_NewLock();
 #endif
-#ifdef WINCE
-    _MD_InitTime();
-#endif
 }
 
 void _PR_CleanupTime(void)

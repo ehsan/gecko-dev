@@ -43,7 +43,6 @@
 #include "nsIObserver.h"
 #include "nsIURI.h"
 
-#include "nsWeakPtr.h"
 #include "nsCycleCollectionParticipant.h"
 
 #include "nsIDOMGeoGeolocation.h"
@@ -113,20 +112,16 @@ public:
   NS_DECL_NSIGEOLOCATIONUPDATE
   NS_DECL_NSIOBSERVER
 
-  nsGeolocationService() {mTimeout = 6000;};
-
-  nsresult Init();
+  nsGeolocationService();
 
   // Management of the nsGeolocation objects
   void AddLocator(nsGeolocation* locator);
   void RemoveLocator(nsGeolocation* locator);
 
-  PRBool IsBetterPosition(nsIDOMGeoPosition* aPosition);
-
   void SetCachedPosition(nsIDOMGeoPosition* aPosition);
   nsIDOMGeoPosition* GetCachedPosition();
 
-  // Returns true if there is at least one geolocation provider.
+  // Returns true if there is a geolocation provider registered.
   PRBool   HasGeolocationProvider();
 
   // Find and startup a geolocation device (gps, nmea, etc.)
@@ -151,10 +146,10 @@ private:
   PRInt32 mTimeout;
 
   // The object providing geo location information to us.
-  nsCOMArray<nsIGeolocationProvider> mProviders;
+  nsCOMPtr<nsIGeolocationProvider> mProvider;
 
   // mGeolocators are not owned here.  Their constructor
-  // adds them to this list, and their destructor removes
+  // addes them to this list, and their destructor removes
   // them from this list.
   nsTArray<nsGeolocation*> mGeolocators;
 
@@ -175,9 +170,7 @@ public:
 
   NS_DECL_CYCLE_COLLECTION_CLASS(nsGeolocation)
 
-  nsGeolocation();
-
-  nsresult Init(nsIDOMWindow* contentDom=nsnull);
+  nsGeolocation(nsIDOMWindow* contentDom);
 
   // Called by the geolocation device to notify that a location has changed.
   void Update(nsIDOMGeoPosition* aPosition);
@@ -191,14 +184,14 @@ public:
   // Shutting down.
   void Shutdown();
 
-  // Getter for the URI that this nsGeolocation was loaded from
+  // Setter and Getter of the URI that this nsGeolocation was loaded from
   nsIURI* GetURI() { return mURI; }
 
-  // Getter for the window that this nsGeolocation is owned by
-  nsIWeakReference* GetOwner() { return mOwner; }
+  // Setter and Getter of the window that this nsGeolocation is owned by
+  nsIDOMWindow* GetOwner() { return mOwner; }
 
   // Check to see if the widnow still exists
-  PRBool WindowOwnerStillExists();
+  PRBool OwnerStillExists();
 
 private:
 
@@ -215,7 +208,7 @@ private:
   PRBool mUpdateInProgress;
 
   // window that this was created for.  Weak reference.
-  nsWeakPtr mOwner;
+  nsPIDOMWindow* mOwner;
 
   // where the content was loaded from
   nsCOMPtr<nsIURI> mURI;

@@ -60,6 +60,10 @@
 #include "nsMemory.h"
 #include "prefapi.h"
 
+#ifndef MOZ_NO_XPCOM_OBSOLETE
+#include "nsIFileSpec.h"
+#endif
+
 #include "nsString.h"
 #include "nsILocalFile.h"
 #include "nsIPrefBranch.h"
@@ -443,8 +447,7 @@ NS_IMETHODIMP nsPref::SetUnicharPref(const char *pref, const PRUnichar *value)
   if (NS_SUCCEEDED(rv)) {
     nsCOMPtr<nsISupportsString> theString = do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID, &rv);
     if (NS_SUCCEEDED(rv)) {
-      nsAutoString val(value);
-      theString->SetData(val);
+      theString->SetData(nsDependentString(value));
       rv = prefBranch->SetComplexValue(pref, NS_GET_IID(nsISupportsString), theString);
     }
   }
@@ -457,8 +460,7 @@ NS_IMETHODIMP nsPref::SetDefaultUnicharPref(const char *pref, const PRUnichar *v
 
   nsCOMPtr<nsISupportsString> theString = do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID, &rv);
   if (NS_SUCCEEDED(rv)) {
-    nsAutoString val(value);
-    theString->SetData(val);
+    theString->SetData(nsDependentString(value));
     rv = mDefaultBranch->SetComplexValue(pref, NS_GET_IID(nsISupportsString), theString);
   }
   return rv;
@@ -496,12 +498,34 @@ NS_IMETHODIMP nsPref::GetDefaultLocalizedUnicharPref(const char *pref, PRUnichar
 
 NS_IMETHODIMP nsPref::GetFilePref(const char *pref, nsIFileSpec **_retval)
 {
+#ifdef MOZ_NO_XPCOM_OBSOLETE
   return NS_ERROR_NOT_IMPLEMENTED;
+#else
+  nsresult rv;
+
+  nsCOMPtr<nsIPrefBranch> prefBranch = do_QueryInterface(mPrefService, &rv);
+  if (NS_SUCCEEDED(rv))
+    rv = prefBranch->GetComplexValue(pref, NS_GET_IID(nsIFileSpec), (void **)_retval);
+  return rv;
+#endif
 }
 
 NS_IMETHODIMP nsPref::SetFilePref(const char *pref, nsIFileSpec *value, PRBool setDefault)
 {
+#ifdef MOZ_NO_XPCOM_OBSOLETE
   return NS_ERROR_NOT_IMPLEMENTED;
+#else
+  nsresult  rv;
+
+  if (setDefault) {
+    rv = mDefaultBranch->SetComplexValue(pref, NS_GET_IID(nsIFileSpec), value);
+  } else {
+    nsCOMPtr<nsIPrefBranch> prefBranch = do_QueryInterface(mPrefService, &rv);
+    if (NS_SUCCEEDED(rv))
+      rv = prefBranch->SetComplexValue(pref, NS_GET_IID(nsIFileSpec), value);
+  }
+    return rv;
+#endif
 }
 
 NS_IMETHODIMP nsPref::GetFileXPref(const char *pref, nsILocalFile **_retval)

@@ -60,12 +60,15 @@ public:
                             void** aInstancePtr);
 
   //nsIScrollableView interface
+  NS_IMETHOD  CreateScrollControls(nsNativeWidget aNative = nsnull);
   NS_IMETHOD  GetContainerSize(nscoord *aWidth, nscoord *aHeight) const;
   NS_IMETHOD  SetScrolledView(nsIView *aScrolledView);
   NS_IMETHOD  GetScrolledView(nsIView *&aScrolledView) const;
 
   NS_IMETHOD  GetScrollPosition(nscoord &aX, nscoord &aY) const;
   NS_IMETHOD  ScrollTo(nscoord aX, nscoord aY, PRUint32 aUpdateFlags);
+  NS_IMETHOD  SetScrollProperties(PRUint32 aProperties);
+  NS_IMETHOD  GetScrollProperties(PRUint32 *aProperties);
   NS_IMETHOD  SetLineHeight(nscoord aHeight);
   NS_IMETHOD  GetLineHeight(nscoord *aHeight);
   NS_IMETHOD  ScrollByLines(PRInt32 aNumLinesX, PRInt32 aNumLinesY,
@@ -106,14 +109,13 @@ protected:
   virtual ~nsScrollPortView();
 
   //private
-  void Scroll(nsView *aScrolledView, nsPoint aTwipsDelta,
-              nsIntPoint aPixDelta, nscoord aP2A,
-              const nsTArray<nsIWidget::Configuration>& aConfigurations);
+  void Scroll(nsView *aScrolledView, nsPoint aTwipsDelta, nsIntPoint aPixDelta, nscoord aP2A);
   PRBool CannotBitBlt(nsView* aScrolledView);
   nsresult CalcScrollOverflow(nscoord aX, nscoord aY, PRInt32& aOverflowX, PRInt32& aOverflowY);
 
   nscoord             mOffsetX, mOffsetY;
   nscoord             mDestinationX, mDestinationY;
+  PRUint32            mScrollProperties;
   nscoord             mLineHeight;
   nsISupportsArray   *mListeners;
 };

@@ -46,9 +46,10 @@
 class nsIRenderingContext;
 class nsGUIEvent;
 
+// 52b3b616-23a9-4516-a8d3-452b4126eb2b
 #define NS_IVIEWOBSERVER_IID  \
-  { 0xc85d474d, 0x316e, 0x491c, \
-    { 0x8b, 0xc5, 0x24, 0xba, 0xb7, 0xbb, 0x68, 0x9e } }
+{ 0x52b3b616, 0x23a9, 0x4516, \
+  { 0xa8, 0xd3, 0x45, 0x2b, 0x41, 0x26, 0xeb, 0x2b } }
 
 class nsIViewObserver : public nsISupports
 {
@@ -96,8 +97,7 @@ public:
   NS_IMETHOD ComputeRepaintRegionForCopy(nsIView*      aRootView,
                                          nsIView*      aMovingView,
                                          nsPoint       aDelta,
-                                         const nsRect& aUpdateRect,
-                                         nsRegion*     aBlitRegion,
+                                         const nsRect& aCopyRect,
                                          nsRegion*     aRepaintRegion) = 0;
 
   /* called when the observer needs to handle an event
@@ -138,17 +138,9 @@ public:
 
   /**
    * Notify the observer that it should invalidate the frame bounds for
-   * the frame associated with this view, due to scrolling.
+   * the frame associated with this view.
    */
-  NS_IMETHOD_(void) InvalidateFrameForScrolledView(nsIView *aView) = 0;
-
-  /**
-   * Notify the observer that some areas of the root view have been
-   * invalidated/blitted due to scrolling. A bitblit-scroll occurred
-   * so we can be sure that rootView->NeedsInvalidateFrameOnScroll is false.
-   */
-  NS_IMETHOD_(void) NotifyInvalidateForScrolledView(const nsRegion& aBlitRegion,
-                                                    const nsRegion& aInvalidateRegion) = 0;
+  NS_IMETHOD_(void) InvalidateFrameForView(nsIView *aView) = 0;
 
   /**
    * Dispatch the given synthesized mouse move event, and if
@@ -157,13 +149,6 @@ public:
    */
   NS_IMETHOD_(void) DispatchSynthMouseMove(nsGUIEvent *aEvent,
                                            PRBool aFlushOnHoverChange) = 0;
-
-  /**
-   * If something within aView is capturing the mouse, clear the capture.
-   * if aView is null, clear the mouse capture no matter what is capturing it.
-   */
-  NS_IMETHOD_(void) ClearMouseCapture(nsIView* aView) = 0;
-
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIViewObserver, NS_IVIEWOBSERVER_IID)

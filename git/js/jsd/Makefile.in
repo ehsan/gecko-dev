@@ -53,7 +53,17 @@ LIBRARY_NAME	= jsd$(MOZ_BITS)$(VERSION_NUMBER)
 endif
 
 # REQUIRES	= java js
+REQUIRES	= js
 
+ifndef JSD_STANDALONE
+REQUIRES += \
+		  string \
+		  xpcom \
+		  xpconnect \
+		  widget \
+		  dom \
+		  $(NULL)
+endif
 
 EXTRA_DSO_LDOPTS += \
 		$(MOZ_COMPONENT_LIBS) \
@@ -92,10 +102,6 @@ FORCE_SHARED_LIB=
 MODULE_NAME = JavaScript_Debugger
 EXPORT_LIBRARY = 1
 endif
-endif
-
-ifdef ENABLE_TESTS
-TOOL_DIRS		+= test
 endif
 
 include $(topsrcdir)/config/rules.mk

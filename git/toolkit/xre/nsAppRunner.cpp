@@ -112,11 +112,6 @@
 
 #ifdef XP_WIN
 #include "nsIWinAppHelper.h"
-#include <windows.h>
-
-#ifndef PROCESS_DEP_ENABLE
-#define PROCESS_DEP_ENABLE 0x1
-#endif
 #endif
 
 #include "nsCRT.h"
@@ -205,41 +200,72 @@
 #include "nsExceptionHandler.h"
 #include "nsICrashReporter.h"
 #define NS_CRASHREPORTER_CONTRACTID "@mozilla.org/toolkit/crash-reporter;1"
-#include "nsIPrefService.h"
 #endif
 
-#ifdef WINCE
-class WindowsMutex {
-public:
-  WindowsMutex(const wchar_t *name) {
-    mHandle = CreateMutexW(0, FALSE, name);
-  }
+// on x86 linux, the current builds of some popular plugins (notably
+// flashplayer and real) expect a few builtin symbols from libgcc
+// which were available in some older versions of gcc.  However,
+// they're _NOT_ available in newer versions of gcc (eg 3.1), so if
+// we want those plugin to work with a gcc-3.1 built binary, we need
+// to provide these symbols.  MOZ_ENABLE_OLD_ABI_COMPAT_WRAPPERS defaults
+// to true on x86 linux, and false everywhere else.
+//
+// The fact that the new and free operators are mismatched 
+// mirrors the way the original functions in egcs 1.1.2 worked.
 
-  ~WindowsMutex() {
-    Unlock();
-    CloseHandle(mHandle);
-  }
+#ifdef MOZ_ENABLE_OLD_ABI_COMPAT_WRAPPERS
 
-  PRBool Lock(DWORD timeout = INFINITE) {
-    DWORD state = WaitForSingleObject(mHandle, timeout);
-    return state == WAIT_OBJECT_0;
-  }
-  
-  void Unlock() {
-    if (mHandle)
-      ReleaseMutex(mHandle);
-  }
+extern "C" {
 
-protected:
-  HANDLE mHandle;
-};
+# ifndef HAVE___BUILTIN_VEC_NEW
+  void *__builtin_vec_new(size_t aSize, const std::nothrow_t &aNoThrow) throw()
+  {
+    return ::operator new(aSize, aNoThrow);
+  }
+# endif
+
+# ifndef HAVE___BUILTIN_VEC_DELETE
+  void __builtin_vec_delete(void *aPtr, const std::nothrow_t &) throw ()
+  {
+    if (aPtr) {
+      free(aPtr);
+    }
+  }
+# endif
+
+# ifndef HAVE___BUILTIN_NEW
+	void *__builtin_new(int aSize)
+  {
+    return malloc(aSize);
+  }
+# endif
+
+# ifndef HAVE___BUILTIN_DELETE
+	void __builtin_delete(void *aPtr)
+  {
+    free(aPtr);
+  }
+# endif
+
+# ifndef HAVE___PURE_VIRTUAL
+  void __pure_virtual(void) {
+#ifdef WRAP_SYSTEM_INCLUDES
+#pragma GCC visibility push(default)
+#endif
+    extern void __cxa_pure_virtual(void);
+#ifdef WRAP_SYSTEM_INCLUDES
+#pragma GCC visibility pop
+#endif
+
+    __cxa_pure_virtual();
+  }
+# endif
+}
 #endif
 
 #if defined(XP_UNIX) || defined(XP_BEOS)
   extern void InstallUnixSignalHandlers(const char *ProgramName);
 #endif
-
-#define FILE_COMPATIBILITY_INFO NS_LITERAL_CSTRING("compatibility.ini")
 
 int    gArgc;
 char **gArgv;
@@ -432,7 +458,7 @@ static void RemoveArg(char **argv)
  *        allocated, but rather a pointer to the argv data.
  */
 static ArgResult
-CheckArg(const char* aArg, PRBool aCheckOSInt = PR_FALSE, const char **aParam = nsnull, PRBool aRemArg = PR_TRUE)
+CheckArg(const char* aArg, PRBool aCheckOSInt = PR_FALSE, const char **aParam = nsnull)
 {
   char **curarg = gArgv + 1; // skip argv[0]
   ArgResult ar = ARG_NONE;
@@ -450,8 +476,7 @@ CheckArg(const char* aArg, PRBool aCheckOSInt = PR_FALSE, const char **aParam = 
         ++arg;
 
       if (strimatch(aArg, arg)) {
-        if (aRemArg)
-          RemoveArg(curarg);
+        RemoveArg(curarg);
         if (!aParam) {
           ar = ARG_FOUND;
           break;
@@ -466,8 +491,7 @@ CheckArg(const char* aArg, PRBool aCheckOSInt = PR_FALSE, const char **aParam = 
             return ARG_BAD;
 
           *aParam = *curarg;
-          if (aRemArg)
-            RemoveArg(curarg);
+          RemoveArg(curarg);
           ar = ARG_FOUND;
           break;
         }
@@ -575,7 +599,7 @@ class nsXULAppInfo : public nsIXULAppInfo,
                      public nsICrashReporter,
 #endif
                      public nsIXULRuntime
-
+                     
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -712,48 +736,6 @@ NS_IMETHODIMP
 nsXULAppInfo::GetWidgetToolkit(nsACString& aResult)
 {
   aResult.AssignLiteral(MOZ_WIDGET_TOOLKIT);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsXULAppInfo::InvalidateCachesOnRestart()
-{
-  nsCOMPtr<nsIFile> file;
-  nsresult rv = NS_GetSpecialDirectory(NS_APP_PROFILE_DIR_STARTUP, 
-                                       getter_AddRefs(file));
-  if (NS_FAILED(rv))
-    return rv;
-  if (!file)
-    return NS_ERROR_NOT_AVAILABLE;
-  
-  file->AppendNative(FILE_COMPATIBILITY_INFO);
-
-  nsCOMPtr<nsILocalFile> localFile(do_QueryInterface(file));
-  nsINIParser parser;
-  rv = parser.Init(localFile);
-  if (NS_FAILED(rv)) {
-    // This fails if compatibility.ini is not there, so we'll
-    // flush the caches on the next restart anyways.
-    return NS_OK;
-  }
-  
-  nsCAutoString buf;
-  rv = parser.GetString("Compatibility", "InvalidateCaches", buf);
-  
-  if (NS_FAILED(rv)) {
-    PRFileDesc *fd = nsnull;
-    localFile->OpenNSPRFileDesc(PR_RDWR | PR_APPEND, 0600, &fd);
-    if (!fd) {
-      NS_ERROR("could not create output stream");
-      return NS_ERROR_NOT_AVAILABLE;
-    }
-    static const char kInvalidationHeader[] = NS_LINEBREAK "InvalidateCaches=1" NS_LINEBREAK;
-    rv = PR_Write(fd, kInvalidationHeader, sizeof(kInvalidationHeader) - 1);
-    PR_Close(fd);
-    
-    if (NS_FAILED(rv))
-      return rv;
-  }
   return NS_OK;
 }
 
@@ -1023,7 +1005,7 @@ ScopedXPCOMStartup::~ScopedXPCOMStartup()
 #define APPINFO_CID \
   { 0x95d89e3e, 0xa169, 0x41a3, { 0x8e, 0x56, 0x71, 0x99, 0x78, 0xe1, 0x5b, 0x12 } }
 
-static const nsModuleComponentInfo kComponents[] =
+static nsModuleComponentInfo kComponents[] =
 {
   {
     "nsXULAppInfo",
@@ -1223,9 +1205,7 @@ static void DumpArbitraryHelp()
 
   {
     nsXREDirProvider dirProvider;
-    rv = dirProvider.Initialize(gAppData->directory, gAppData->xreDirectory);
-    if (NS_FAILED(rv))
-      return;
+    dirProvider.Initialize(nsnull, gAppData->xreDirectory);
 
     ScopedXPCOMStartup xpcom;
     xpcom.Initialize();
@@ -1254,28 +1234,28 @@ DumpHelp()
 
 #ifdef MOZ_X11
   printf("X11 options\n"
-         "  --display=DISPLAY  X display to use\n"
-         "  --sync             Make X calls synchronous\n"
-         "  --no-xshm          Don't use X shared memory extension\n"
-         "  --xim-preedit=STYLE\n"
-         "  --xim-status=STYLE\n");
+         "\t--display=DISPLAY\t\tX display to use\n"
+         "\t--sync\t\tMake X calls synchronous\n"
+         "\t--no-xshm\t\tDon't use X shared memory extension\n"
+         "\t--xim-preedit=STYLE\n"
+         "\t--xim-status=STYLE\n");
 #endif
 #ifdef XP_UNIX
-  printf("  --g-fatal-warnings Make all warnings fatal\n"
+  printf("\t--g-fatal-warnings\t\tMake all warnings fatal\n"
          "\n%s options\n", gAppData->name);
 #endif
 
-  printf("  -h or -help        Print this message.\n"
-         "  -v or -version     Print %s version.\n"
-         "  -P <profile>       Start with <profile>.\n"
-         "  -migration         Start with migration wizard.\n"
-         "  -ProfileManager    Start with ProfileManager.\n"
-         "  -no-remote         Open new instance, not a new window in running instance.\n"
-         "  -UILocale <locale> Start with <locale> resources as UI Locale.\n"
-         "  -safe-mode         Disables extensions and themes for this session.\n", gAppData->name);
+  printf("\t-h or -help\t\tPrint this message.\n"
+         "\t-v or -version\t\tPrint %s version.\n"
+         "\t-P <profile>\t\tStart with <profile>.\n"
+         "\t-migration\t\tStart with migration wizard.\n"
+         "\t-ProfileManager\t\tStart with ProfileManager.\n"
+         "\t-no-remote\t\tOpen new instance, not a new window in running instance.\n"
+         "\t-UILocale <locale>\tStart with <locale> resources as UI Locale.\n"
+         "\t-safe-mode\t\tDisables extensions and themes for this session.\n", gAppData->name);
 
 #if defined(XP_WIN) || defined(XP_OS2)
-  printf("  -console           Start %s with a debugging console.\n", gAppData->name);
+  printf("\t-console\t\tStart %s with a debugging console.\n", gAppData->name);
 #endif
 
   // this works, but only after the components have registered.  so if you drop in a new command line handler, -help
@@ -2012,14 +1992,6 @@ SelectProfile(nsIProfileLock* *aResult, nsINativeAppSupport* aNative,
 
     nsCOMPtr<nsIProfileUnlocker> unlocker;
 
-    // Check if the profile path exists and it's a directory.
-    PRBool exists;
-    lf->Exists(&exists);
-    if (!exists) {
-        rv = lf->Create(nsIFile::DIRECTORY_TYPE, 0644);
-        NS_ENSURE_SUCCESS(rv, rv);
-    }
-
     // If a profile path is specified directory on the command line, then
     // assume that the temp directory is the same as the given directory.
     rv = NS_LockProfilePath(lf, lf, getter_AddRefs(unlocker), aResult);
@@ -2202,19 +2174,13 @@ SelectProfile(nsIProfileLock* *aResult, nsINativeAppSupport* aNative,
   return ShowProfileManager(profileSvc, aNative);
 }
 
-/** 
- * Checks the compatibility.ini file to see if we have updated our application
- * or otherwise invalidated our caches. If the application has been updated, 
- * we return PR_FALSE; otherwise, we return PR_TRUE. We also write the status 
- * of the caches (valid/invalid) into the return param aCachesOK. The aCachesOK
- * is always invalid if the application has been updated. 
- */
+#define FILE_COMPATIBILITY_INFO NS_LITERAL_CSTRING("compatibility.ini")
+
 static PRBool
 CheckCompatibility(nsIFile* aProfileDir, const nsCString& aVersion,
                    const nsCString& aOSABI, nsIFile* aXULRunnerDir,
-                   nsIFile* aAppDir, PRBool* aCachesOK)
+                   nsIFile* aAppDir)
 {
-  *aCachesOK = false;
   nsCOMPtr<nsIFile> file;
   aProfileDir->Clone(getter_AddRefs(file));
   if (!file)
@@ -2266,10 +2232,6 @@ CheckCompatibility(nsIFile* aProfileDir, const nsCString& aVersion,
       return PR_FALSE;
   }
 
-  rv = parser.GetString("Compatibility", "InvalidateCaches", buf);
-  
-  // If we see this flag, caches are invalid.
-  *aCachesOK = (NS_FAILED(rv) || !buf.EqualsLiteral("1"));
   return PR_TRUE;
 }
 
@@ -2336,6 +2298,19 @@ WriteVersion(nsIFile* aProfileDir, const nsCString& aVersion,
   PR_Close(fd);
 }
 
+static PRBool ComponentsListChanged(nsIFile* aProfileDir)
+{
+  nsCOMPtr<nsIFile> file;
+  aProfileDir->Clone(getter_AddRefs(file));
+  if (!file)
+    return PR_TRUE;
+  file->AppendNative(NS_LITERAL_CSTRING(".autoreg"));
+
+  PRBool exists = PR_FALSE;
+  file->Exists(&exists);
+  return exists;
+}
+
 static void RemoveComponentRegistries(nsIFile* aProfileDir, nsIFile* aLocalProfileDir,
                                       PRBool aRemoveEMFiles)
 {
@@ -2363,9 +2338,6 @@ static void RemoveComponentRegistries(nsIFile* aProfileDir, nsIFile* aLocalProfi
     return;
 
   file->AppendNative(NS_LITERAL_CSTRING("XUL" PLATFORM_FASL_SUFFIX));
-  file->Remove(PR_FALSE);
-  
-  file->SetNativeLeafName(NS_LITERAL_CSTRING("XPC" PLATFORM_FASL_SUFFIX));
   file->Remove(PR_FALSE);
 }
 
@@ -2585,7 +2557,7 @@ static void MOZ_gdk_display_close(GdkDisplay *display)
  * By defining the symbol here, we can avoid the wasted lookup and hopefully
  * improve startup performance.
  */
-NS_VISIBILITY_DEFAULT PRBool nspr_use_zone_allocator = PR_FALSE;
+PRBool nspr_use_zone_allocator = PR_FALSE;
 
 #ifdef MOZ_SPLASHSCREEN
 #define MOZ_SPLASHSCREEN_UPDATE(_i)  do { if (splashScreen) splashScreen->Update(_i); } while(0)
@@ -2593,29 +2565,14 @@ NS_VISIBILITY_DEFAULT PRBool nspr_use_zone_allocator = PR_FALSE;
 #define MOZ_SPLASHSCREEN_UPDATE(_i)  do { } while(0)
 #endif
 
-#ifdef XP_WIN
-typedef BOOL (WINAPI* SetProcessDEPPolicyFunc)(DWORD dwFlags);
-#endif
-
 int
 XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 {
 #ifdef MOZ_SPLASHSCREEN
-  nsSplashScreen *splashScreen = nsnull;
-#endif
-
-#ifdef XP_WIN
-  /* On Windows XPSP3 and Windows Vista if DEP is configured off-by-default
-     we still want DEP protection: enable it explicitly and programmatically.
-     
-     This function is not available on WinXPSP2 so we dynamically load it.
-  */
-
-  HMODULE kernel32 = GetModuleHandleW(L"kernel32.dll");
-  SetProcessDEPPolicyFunc _SetProcessDEPPolicy =
-    (SetProcessDEPPolicyFunc) GetProcAddress(kernel32, "SetProcessDEPPolicy");
-  if (_SetProcessDEPPolicy)
-    _SetProcessDEPPolicy(PROCESS_DEP_ENABLE);
+  nsSplashScreen *splashScreen =
+    nsSplashScreen::GetOrCreate();
+  if (splashScreen)
+    splashScreen->Open();
 #endif
 
   nsresult rv;
@@ -2722,6 +2679,8 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     }
   }
 
+  MOZ_SPLASHSCREEN_UPDATE(10);
+
   ScopedAppData appData(aAppData);
   gAppData = &appData;
 
@@ -2735,64 +2694,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     Output(PR_TRUE, "Error: App:BuildID not specified in application.ini\n");
     return 1;
   }
-
-#ifdef MOZ_SPLASHSCREEN
-  // check to see if we need to do a splash screen
-  PRBool wantsSplash = PR_TRUE;
-  PRBool isNoSplash = (CheckArg("nosplash", PR_FALSE, NULL, PR_FALSE) == ARG_FOUND);
-  PRBool isNoRemote = (CheckArg("no-remote", PR_FALSE, NULL, PR_FALSE) == ARG_FOUND);
-
-#ifdef WINCE
-  // synchronize startup; if it looks like we're going to have to
-  // wait, then open up a splash screen
-  WindowsMutex winStartupMutex(L"FirefoxStartupMutex");
-
-  // try to lock the mutex, but only wait 100ms to do so
-  PRBool needsMutexLock = ! winStartupMutex.Lock(100);
-
-  // If we failed to lock the mutex quickly, then we'll want
-  // a splash screen for sure.
-  //
-  // If we did manage to lock it, then we'll only want one
-  // a splash screen if there is no existing message window;
-  // that is, if we are the first instance of the app.
-  if (!needsMutexLock && !isNoRemote) {
-    // check to see if there's a remote firefox up
-    static PRUnichar classNameBuffer[128];
-    _snwprintf(classNameBuffer, sizeof(classNameBuffer) / sizeof(PRUnichar),
-               L"%S%s",
-               gAppData->name, L"MessageWindow");
-    HANDLE h = FindWindowW(classNameBuffer, 0);
-    if (h) {
-      // Someone else has the window, and we were able to grab the mutex,
-      // meaning the other instance ahs presumably already finished starting
-      // up by now.  So no need for a splash screen.
-      wantsSplash = PR_FALSE;
-      CloseHandle(h);
-    } else {
-      // We couldn't find another window, and we were able to lock the mutex;
-      // we're likely the first instance starting up, so make sure a splash
-      // screen gets thrown up.
-      wantsSplash = PR_TRUE;
-    }
-  }
-#endif //WINCE
-
-  if (wantsSplash && !isNoSplash)
-    splashScreen = nsSplashScreen::GetOrCreate();
-
-  if (splashScreen)
-    splashScreen->Open();
-
-#ifdef WINCE
-  // Now that the splash screen is open, wait indefinitely
-  // for the startup mutex on this thread if we need to.
-  if (needsMutexLock)
-    winStartupMutex.Lock();
-#endif //WINCE
-
-#endif //MOZ_SPLASHSCREEN
-
 
   ScopedLogging log;
 
@@ -2869,9 +2770,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
   if ((appData.flags & NS_XRE_ENABLE_CRASH_REPORTER) &&
       NS_SUCCEEDED(
          CrashReporter::SetExceptionHandler(appData.xreDirectory))) {
-    if (appData.crashReporterURL)
-      CrashReporter::SetServerURL(nsDependentCString(appData.crashReporterURL));
-
+    CrashReporter::SetServerURL(nsDependentCString(appData.crashReporterURL));
     // pass some basic info from the app data
     if (appData.vendor)
       CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("Vendor"),
@@ -3200,11 +3099,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     rv = dirProvider.SetProfile(profD, profLD);
     NS_ENSURE_SUCCESS(rv, 1);
 
-#if defined(WINCE) && defined(MOZ_SPLASHSCREEN)
-    // give up the mutex, let other app startups happen
-    winStartupMutex.Unlock();
-#endif
-
     //////////////////////// NOW WE HAVE A PROFILE ////////////////////////
 
 #ifdef MOZ_CRASHREPORTER
@@ -3227,12 +3121,9 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     // Check for version compatibility with the last version of the app this 
     // profile was started with.  The format of the version stamp is defined
     // by the BuildVersion function.
-    // Also check to see if something has happened to invalidate our
-    // fastload caches, like an extension upgrade or installation.
-    PRBool cachesOK;
-    PRBool versionOK = CheckCompatibility(profD, version, osABI, 
+    PRBool versionOK = CheckCompatibility(profD, version, osABI,
                                           dirProvider.GetGREDir(),
-                                          gAppData->directory, &cachesOK);
+                                          gAppData->directory);
 
     // Every time a profile is loaded by a build with a different version,
     // it updates the compatibility.ini file saying what version last wrote
@@ -3247,15 +3138,11 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
                    dirProvider.GetGREDir(), gAppData->directory);
     }
     else if (versionOK) {
-      if (!cachesOK) {
+      if (ComponentsListChanged(profD)) {
         // Remove compreg.dat and xpti.dat, forcing component re-registration.
         // The new list of additional components directories is derived from
         // information in "extensions.ini".
         RemoveComponentRegistries(profD, profLD, PR_FALSE);
-        
-        // Rewrite compatibility.ini to remove the flag
-        WriteVersion(profD, version, osABI,
-                     dirProvider.GetGREDir(), gAppData->directory);
       }
       // Nothing need be done for the normal startup case.
     }
@@ -3293,23 +3180,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       rv |= xpcom.SetWindowCreator(nativeApp);
       NS_ENSURE_SUCCESS(rv, 1);
 
-#ifdef MOZ_CRASHREPORTER
-      // tell the crash reporter to also send the release channel
-      nsCOMPtr<nsIPrefService> prefs = do_GetService("@mozilla.org/preferences-service;1", &rv);
-      if (NS_SUCCEEDED(rv)) {
-        nsCOMPtr<nsIPrefBranch> defaultPrefBranch;
-        rv = prefs->GetDefaultBranch(nsnull, getter_AddRefs(defaultPrefBranch));
-
-        if (NS_SUCCEEDED(rv)) {
-          nsXPIDLCString sval;
-          rv = defaultPrefBranch->GetCharPref("app.update.channel", getter_Copies(sval));
-          if (NS_SUCCEEDED(rv)) {
-            CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("ReleaseChannel"),
-                                               sval);
-          }
-        }
-      }
-#endif
       {
         if (startOffline) {
           nsCOMPtr<nsIIOService2> io (do_GetService("@mozilla.org/network/io-service;1"));
@@ -3365,6 +3235,13 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
         nsCOMPtr<nsICommandLineRunner> cmdLine;
 
+#if defined(HAVE_DESKTOP_STARTUP_ID) && defined(MOZ_WIDGET_GTK2)
+        nsRefPtr<nsGTKToolkit> toolkit = GetGTKToolkit();
+        if (toolkit && !desktopStartupID.IsEmpty()) {
+          toolkit->SetDesktopStartupID(desktopStartupID);
+        }
+#endif
+
         nsCOMPtr<nsIFile> workingDir;
         rv = NS_GetSpecialDirectory(NS_OS_CURRENT_WORKING_DIR, getter_AddRefs(workingDir));
         NS_ENSURE_SUCCESS(rv, 1);
@@ -3379,10 +3256,10 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
           /* Special-case services that need early access to the command
              line. */
-          nsCOMPtr<nsIObserverService> obsService
-            (do_GetService("@mozilla.org/observer-service;1"));
-          if (obsService) {
-            obsService->NotifyObservers(cmdLine, "command-line-startup", nsnull);
+          nsCOMPtr<nsIObserver> chromeObserver
+            (do_GetService("@mozilla.org/chrome/chrome-registry;1"));
+          if (chromeObserver) {
+            chromeObserver->Observe(cmdLine, "command-line-startup", nsnull);
           }
 
           NS_TIMELINE_ENTER("appStartup->CreateHiddenWindow");
@@ -3391,13 +3268,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
           NS_ENSURE_SUCCESS(rv, 1);
 
           MOZ_SPLASHSCREEN_UPDATE(50);
-
-#if defined(HAVE_DESKTOP_STARTUP_ID) && defined(MOZ_WIDGET_GTK2)
-          nsRefPtr<nsGTKToolkit> toolkit = GetGTKToolkit();
-          if (toolkit && !desktopStartupID.IsEmpty()) {
-            toolkit->SetDesktopStartupID(desktopStartupID);
-          }
-#endif
 
           // Extension Compatibility Checking and Startup
           if (gAppData->flags & NS_XRE_ENABLE_EXTENSION_MANAGER) {

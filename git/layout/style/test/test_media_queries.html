@@ -24,14 +24,11 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=156716
 
 SimpleTest.waitForExplicitFinish();
 
-var iframe;
-
 function run() {
-  iframe = document.getElementById("subdoc");
-  var subdoc = iframe.contentDocument;
-  var subwin = iframe.contentWindow;
+  var subdoc = document.getElementById("subdoc").contentDocument;
+  var subwin = document.getElementById("subdoc").contentWindow;
   var style = subdoc.getElementById("style");
-  var iframe_style = iframe.style;
+  var iframe_style = document.getElementById("subdoc").style;
   var body_cs = subdoc.defaultView.getComputedStyle(subdoc.body, "");
 
   function query_applies(q) {
@@ -41,21 +38,9 @@ function run() {
 
   function should_apply(q) {
     ok(query_applies(q), q + " should apply");
-    test_serialization(q, true, true);
   }
 
   function should_not_apply(q) {
-    ok(!query_applies(q), q + " should not apply");
-    test_serialization(q, true, false);
-  }
-
-  /* for queries that are parseable standalone but not within CSS */
-  function should_apply_unbalanced(q) {
-    ok(query_applies(q), q + " should apply");
-  }
-
-  /* for queries that are parseable standalone but not within CSS */
-  function should_not_apply_unbalanced(q) {
     ok(!query_applies(q), q + " should not apply");
   }
 
@@ -84,7 +69,6 @@ function run() {
 
   function query_should_be_parseable(q) {
     ok(query_is_parseable(q), "query " + q + " should be parseable");
-    test_serialization(q, false, false);
   }
 
   function query_should_not_be_parseable(q) {
@@ -102,55 +86,11 @@ function run() {
   function expression_should_be_parseable(e) {
     ok(expression_is_parseable(e),
        "expression " + e + " should be parseable");
-    test_serialization("all and (" + e + ")", false, false);
   }
 
   function expression_should_not_be_parseable(e) {
     ok(!expression_is_parseable(e),
        "expression " + e + " should not be parseable");
-  }
-
-  function test_serialization(q, test_application, should_apply) {
-    style.setAttribute("media", q);
-    var ser1 = style.sheet.media.mediaText;
-    isnot(ser1, "", "serialization of '" + q + "' should not be empty");
-    style.setAttribute("media", ser1);
-    var ser2 = style.sheet.media.mediaText;
-    is(ser2, ser1, "parse+serialize of '" + q + "' should be idempotent");
-    if (test_application) {
-      var applies = body_cs.getPropertyValue("text-decoration") == "underline";
-      is(applies, should_apply,
-         "Media query '" + q + "' should " + (should_apply ? "" : "NOT ") +
-         "apply after serialize + reparse");
-    }
-
-    // Test cloning
-    var sheet = "@media " + q + " { body { text-decoration: underline } }"
-    var sheeturl = "data:text/css," + escape(sheet);
-    var link = "<link rel='stylesheet' href='" + sheeturl + "'>";
-    var htmldoc = "<!DOCTYPE HTML>" + link + link  + "<body>";
-    var docurl = "data:text/html," + escape(htmldoc);
-    post_clone_test(docurl, function() {
-      var clonedoc = iframe.contentDocument;
-      var clonewin = iframe.contentWindow;
-      var links = clonedoc.getElementsByTagName("link");
-      // cause a clone
-      var clonedsheet = links[1].sheet;
-      clonedsheet.insertRule("#nonexistent { color: purple}", 1);
-      // remove the uncloned sheet
-      links[0].parentNode.removeChild(links[0]);
-
-      var ser3 = clonedsheet.cssRules[0].media.mediaText;
-      is(ser3, ser1, "cloning query '" + q + "' should not change " +
-                     "serialization");
-      if (test_application) {
-        var applies = clonewin.getComputedStyle(clonedoc.body, "").
-                        textDecoration == "underline";
-        is(applies, should_apply,
-           "Media query '" + q + "' should " + (should_apply ? "" : "NOT ") +
-           "apply after cloning");
-      }
-    });
   }
 
   // The no-type syntax doesn't mix with the not and only keywords.
@@ -194,10 +134,8 @@ function run() {
   // in this test, assume the common underlying implementation is correct
   var width_val = 117; // pick two not-too-round numbers
   var height_val = 76;
-  change_state(function() {
-    iframe_style.width = width_val + "px";
-    iframe_style.height = height_val + "px";
-  });
+  iframe_style.width = width_val + "px";
+  iframe_style.height = height_val + "px";
   var device_width = window.screen.width;
   var device_height = window.screen.height;
   features = { "width": width_val,
@@ -225,34 +163,24 @@ function run() {
                      (Math.floor(value/em_size) - 1) + "em)");
   }
 
-  change_state(function() {
-    iframe_style.width = "0";
-  });
+  iframe_style.width = "0";
   should_apply("all and (height)");
   should_not_apply("all and (width)");
-  change_state(function() {
-    iframe_style.height = "0";
-  });
+  iframe_style.height = "0";
   should_not_apply("all and (height)");
   should_not_apply("all and (width)");
   should_apply("all and (device-height)");
   should_apply("all and (device-width)");
-  change_state(function() {
-    iframe_style.width = width_val + "px";
-  });
+  iframe_style.width = width_val + "px";
   should_not_apply("all and (height)");
   should_apply("all and (width)");
-  change_state(function() {
-    iframe_style.height = height_val + "px";
-  });
+  iframe_style.height = height_val + "px";
   should_apply("all and (height)");
   should_apply("all and (width)");
 
   // ratio that reduces to 59/40
-  change_state(function() {
-    iframe_style.width = "236px";
-    iframe_style.height = "160px";
-  });
+  iframe_style.width = "236px";
+  iframe_style.height = "160px";
   expression_should_be_parseable("orientation");
   expression_should_be_parseable("orientation: portrait");
   expression_should_be_parseable("orientation: landscape");
@@ -267,9 +195,7 @@ function run() {
   should_not_apply("(orientation: portrait)");
   should_apply("not all and (orientation: portrait)");
   // ratio that reduces to 59/80
-  change_state(function() {
-    iframe_style.height = "320px";
-  });
+  iframe_style.height = "320px";
   should_apply("(orientation)");
   should_not_apply("(orientation: landscape)");
   should_apply("not all and (orientation: landscape)");
@@ -350,9 +276,7 @@ function run() {
   }
 
   var is_monochrome = query_applies("all and (min-monochrome: 1)");
-  test_serialization("all and (min-monochrome: 1)", true, is_monochrome);
   var is_color = query_applies("all and (min-color: 1)");
-  test_serialization("all and (min-color: 1)", true, is_color);
   isnot(is_monochrome, is_color, "should be either monochrome or color");
 
   function depth_query(prefix, depth) {
@@ -492,89 +416,18 @@ function run() {
   should_not_apply("(grid: 2)");
   should_not_apply("(grid: -1)");
 
-  // System metrics
-  expression_should_be_parseable("-moz-scrollbar-start-backward");
-  expression_should_be_parseable("-moz-scrollbar-start-forward");
-  expression_should_be_parseable("-moz-scrollbar-end-backward");
-  expression_should_be_parseable("-moz-scrollbar-end-forward");
-  expression_should_be_parseable("-moz-scrollbar-thumb-proportional");
-  expression_should_be_parseable("-moz-images-in-menus");
-  expression_should_be_parseable("-moz-images-in-buttons");
-  expression_should_be_parseable("-moz-windows-default-theme");
-  expression_should_be_parseable("-moz-mac-graphite-theme");
-  expression_should_be_parseable("-moz-windows-compositor");
-  expression_should_be_parseable("-moz-windows-classic");
-  expression_should_be_parseable("-moz-touch-enabled");
-  expression_should_be_parseable("-moz-maemo-classic");
-
-  expression_should_be_parseable("-moz-scrollbar-start-backward: 0");
-  expression_should_be_parseable("-moz-scrollbar-start-forward: 0");
-  expression_should_be_parseable("-moz-scrollbar-end-backward: 0");
-  expression_should_be_parseable("-moz-scrollbar-end-forward: 0");
-  expression_should_be_parseable("-moz-scrollbar-thumb-proportional: 0");
-  expression_should_be_parseable("-moz-images-in-menus: 0");
-  expression_should_be_parseable("-moz-images-in-buttons: 0");
-  expression_should_be_parseable("-moz-windows-default-theme: 0");
-  expression_should_be_parseable("-moz-mac-graphite-theme: 0");
-  expression_should_be_parseable("-moz-windows-compositor: 0");
-  expression_should_be_parseable("-moz-windows-classic: 0");
-  expression_should_be_parseable("-moz-touch-enabled: 0");
-  expression_should_be_parseable("-moz-maemo-classic: 0");
-
-  expression_should_be_parseable("-moz-scrollbar-start-backward: 1");
-  expression_should_be_parseable("-moz-scrollbar-start-forward: 1");
-  expression_should_be_parseable("-moz-scrollbar-end-backward: 1");
-  expression_should_be_parseable("-moz-scrollbar-end-forward: 1");
-  expression_should_be_parseable("-moz-scrollbar-thumb-proportional: 1");
-  expression_should_be_parseable("-moz-images-in-menus: 1");
-  expression_should_be_parseable("-moz-images-in-buttons: 1");
-  expression_should_be_parseable("-moz-windows-default-theme: 1");
-  expression_should_be_parseable("-moz-mac-graphite-theme: 1");
-  expression_should_be_parseable("-moz-windows-compositor: 1");
-  expression_should_be_parseable("-moz-windows-classic: 1");
-  expression_should_be_parseable("-moz-touch-enabled: 1");
-  expression_should_be_parseable("-moz-maemo-classic: 1");
-
-  expression_should_not_be_parseable("-moz-scrollbar-start-backward: -1");
-  expression_should_not_be_parseable("-moz-scrollbar-start-forward: -1");
-  expression_should_not_be_parseable("-moz-scrollbar-end-backward: -1");
-  expression_should_not_be_parseable("-moz-scrollbar-end-forward: -1");
-  expression_should_not_be_parseable("-moz-scrollbar-thumb-proportional: -1");
-  expression_should_not_be_parseable("-moz-images-in-menus: -1");
-  expression_should_not_be_parseable("-moz-images-in-buttons: -1");
-  expression_should_not_be_parseable("-moz-windows-default-theme: -1");
-  expression_should_not_be_parseable("-moz-mac-graphite-theme: -1");
-  expression_should_not_be_parseable("-moz-windows-compositor: -1");
-  expression_should_not_be_parseable("-moz-windows-classic: -1");
-  expression_should_not_be_parseable("-moz-touch-enabled: -1");
-  expression_should_not_be_parseable("-moz-maemo-classic: -1");
-
-  expression_should_not_be_parseable("-moz-scrollbar-start-backward: true");
-  expression_should_not_be_parseable("-moz-scrollbar-start-forward: true");
-  expression_should_not_be_parseable("-moz-scrollbar-end-backward: true");
-  expression_should_not_be_parseable("-moz-scrollbar-end-forward: true");
-  expression_should_not_be_parseable("-moz-scrollbar-thumb-proportional: true");
-  expression_should_not_be_parseable("-moz-images-in-menus: true");
-  expression_should_not_be_parseable("-moz-images-in-buttons: true");
-  expression_should_not_be_parseable("-moz-windows-default-theme: true");
-  expression_should_not_be_parseable("-moz-mac-graphite-theme: true");
-  expression_should_not_be_parseable("-moz-windows-compositor: true");
-  expression_should_not_be_parseable("-moz-windows-classic: true");
-  expression_should_not_be_parseable("-moz-touch-enabled: true");
-  expression_should_not_be_parseable("-moz-maemo-classic: true");
-
   // Parsing tests
   // bug 454227
-  should_apply_unbalanced("(orientation");
-  should_not_apply_unbalanced("not all and (orientation");
-  should_not_apply_unbalanced("(orientation:");
-  should_apply_unbalanced("all,(orientation:");
-  should_not_apply_unbalanced("(orientation:,all");
-  should_apply_unbalanced("not all and (grid");
-  should_not_apply_unbalanced("only all and (grid");
-  should_not_apply_unbalanced("(grid");
-  should_apply_unbalanced("all,(grid");
-  should_not_apply_unbalanced("(grid,all");
+  should_apply("(orientation");
+  should_not_apply("not all and (orientation");
+  should_not_apply("(orientation:");
+  should_apply("all,(orientation:");
+  should_not_apply("(orientation:,all");
+  should_apply("not all and (grid");
+  should_not_apply("only all and (grid");
+  should_not_apply("(grid");
+  should_apply("all,(grid");
+  should_not_apply("(grid,all");
   // bug 454226
   should_apply(",all");
   should_apply("all,");
@@ -591,57 +444,7 @@ function run() {
   should_not_apply("badmedium,[badsyntax]");
   should_not_apply("[badsyntax],badmedium");
 
-  handle_posted_items();
-}
-
-/*
- * The cloning tests have to post tests that wait for onload.  However,
- * we also make a bunch of state changes during the tests above.  So we
- * always change state using the change_state call, with both makes the
- * change immediately and posts an item in the same queue so that we
- * make the same state change again later.
- */
-
-var posted_items = [];
-
-function change_state(func)
-{
-  func();
-  posted_items.push({state: func});
-}
-
-function post_clone_test(docurl, testfunc)
-{
-  posted_items.push({docurl: docurl, testfunc: testfunc});
-}
-
-function handle_posted_items()
-{
-  if (posted_items.length == 0) {
-    SimpleTest.finish();
-    return;
-  }
-
-  if ("state" in posted_items[0]) {
-    var item = posted_items.shift();
-    item.state();
-    handle_posted_items();
-    return;
-  }
-
-  var docurl = posted_items[0].docurl;
-  iframe.onload = handle_iframe_onload;
-  iframe.src = docurl;
-}
-
-function handle_iframe_onload(event)
-{
-  if (event.target != iframe)
-    return;
-
-  var item = posted_items.shift();
-  item.testfunc();
-  handle_posted_items();
+  SimpleTest.finish();
 }
 
 </script>

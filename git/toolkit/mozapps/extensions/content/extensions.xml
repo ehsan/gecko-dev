@@ -43,8 +43,10 @@
 
 <!DOCTYPE bindings [
   <!ENTITY % brandDTD SYSTEM "chrome://branding/locale/brand.dtd" >
+  <!ENTITY % globalDTD SYSTEM "chrome://global/locale/global.dtd">
   <!ENTITY % extensionsDTD SYSTEM "chrome://mozapps/locale/extensions/extensions.dtd" >
   %brandDTD;
+  %globalDTD;
   %extensionsDTD;
 ]>
 
@@ -94,7 +96,6 @@
       <property name="isCompatible" onget="return this.getAttribute('compatible') == 'true';"/>
       <property name="isBlocklisted" onget="return this.getAttribute('blocklisted') == 'true';"/>
       <property name="isSoftBlocklisted" onget="return this.getAttribute('blocklistedsoft') == 'true';"/>
-      <property name="isOutdated" onget="return this.getAttribute('outdated') == 'true';"/>
       <property name="isDisabled" onget="return this.getAttribute('isDisabled') == 'true';"/>
       <property name="providesUpdatesSecurely" onget="return this.getAttribute('providesUpdatesSecurely') == 'true';"/>
       <property name="satisfiesDependencies" onget="return this.getAttribute('satisfiesDependencies') == 'true';"/>
@@ -137,7 +138,6 @@
             <xul:hbox flex="1" class="blocklistedBox attention" align="center">
               <xul:label class="blocklistedLabel" value="&blocklisted.label;" crop="end"/>
               <xul:label class="softBlocklistedLabel" value="&softBlocklisted.label;" crop="end"/>
-              <xul:label class="outdatedLabel" value="&outdated.label;" crop="end"/>
               <xul:label anonid="blocklistMoreInfo" class="text-link" value="&moreInfo.label;"
                          onclick="if (event.button == 0) { openURL(this.getAttribute('moreInfoURL')); }" />
             </xul:hbox>
@@ -148,17 +148,14 @@
     <implementation implements="nsIAccessibleProvider, nsIDOMXULSelectControlItemElement">
       <constructor>
         <![CDATA[
-          if (this.isBlocklisted || this.isSoftBlocklisted || this.isOutdated) {
+          if (this.isBlocklisted || this.isSoftBlocklisted) {
             try {
               var blocklistMoreInfo = document.getAnonymousElementByAttribute(this, "anonid", "blocklistMoreInfo");
               var prefs = Components.classes["@mozilla.org/preferences-service;1"]
                                     .getService(Components.interfaces.nsIPrefBranch);
               var formatter = Components.classes["@mozilla.org/toolkit/URLFormatterService;1"]
                                         .getService(Components.interfaces.nsIURLFormatter);
-              if (this.isOutdated)
-                var url = formatter.formatURLPref("plugins.update.url");
-              else
-                var url = formatter.formatURLPref("extensions.blocklist.detailsURL");
+              var url = formatter.formatURLPref("extensions.blocklist.detailsURL");
               blocklistMoreInfo.setAttribute("moreInfoURL", url);
             } catch(e) {
               blocklistMoreInfo.hidden = true;
@@ -246,7 +243,6 @@
             <xul:hbox flex="1" class="blocklistedBox attention" align="center">
               <xul:label class="blocklistedLabel" value="&blocklisted.label;" crop="end"/>
               <xul:label class="softBlocklistedLabel" value="&softBlocklisted.label;" crop="end"/>
-              <xul:label class="outdatedLabel" value="&outdated.label;" crop="end"/>
               <xul:label anonid="blocklistMoreInfo" class="text-link" value="&moreInfo.label;"
                          onclick="if (event.button == 0) { openURL(this.getAttribute('moreInfoURL')); }" />
             </xul:hbox>
@@ -291,17 +287,14 @@
     <implementation implements="nsIAccessibleProvider, nsIDOMXULSelectControlItemElement">
       <constructor>
         <![CDATA[
-          if (this.isBlocklisted || this.isSoftBlocklisted || this.isOutdated) {
+          if (this.isBlocklisted || this.isSoftBlocklisted) {
             try {
               var blocklistMoreInfo = document.getAnonymousElementByAttribute(this, "anonid", "blocklistMoreInfo");
               var prefs = Components.classes["@mozilla.org/preferences-service;1"]
                                     .getService(Components.interfaces.nsIPrefBranch);
               var formatter = Components.classes["@mozilla.org/toolkit/URLFormatterService;1"]
                                         .getService(Components.interfaces.nsIURLFormatter);
-              if (this.isOutdated)
-                var url = formatter.formatURLPref("plugins.update.url");
-              else
-                var url = formatter.formatURLPref("extensions.blocklist.detailsURL");
+              var url = formatter.formatURLPref("extensions.blocklist.detailsURL");
               blocklistMoreInfo.setAttribute("moreInfoURL", url);
             } catch(e) {
               blocklistMoreInfo.hidden = true;
@@ -465,16 +458,10 @@
         var image = new Image();
         var id = this.id;
         image.onload = function() {
-          var self = document.getElementById(id);
-          // This element might have gone away in the meantime
-          if (self)
-            self._imageLoaded(image);
+          document.getElementById(id)._imageLoaded(image);
         };
         image.onerror = function() {
-          var self = document.getElementById(id);
-          // This element might have gone away in the meantime
-          if (self)
-            self._hideImage();
+          document.getElementById(id)._hideImage();
         };
         image.src = this.getAttribute("thumbnailURL");
       </constructor>
@@ -728,6 +715,9 @@
         <xul:vbox pack="center" align="center" class="addonIcon">
           <xul:image xbl:inherits="src=iconURL"/>
         </xul:vbox>
+        <xul:vbox pack="start" align="start" class="addonIcon pluginIcon">
+          <xul:image src="chrome://mozapps/skin/plugins/pluginGeneric.png"/>
+        </xul:vbox>
         <xul:vbox pack="end" align="start">
           <xul:image class="notifyBadge"/>
         </xul:vbox>
@@ -820,8 +810,7 @@
           <xul:hbox pack="end" align="end">
             <xul:checkbox anonid="includeUpdate" class="includeUpdate" checked="true"
             label="&includeUpdate.label;" tooltiptext="&includeUpdate.tooltip;"
-            includeUpdateAccesskey="&includeUpdate.accesskey;" accesskey="&includeUpdate.accesskey;"
-            oncommand="toggleInstallUpdates();"/>
+            includeUpdateAccesskey="&includeUpdate.accesskey;" accesskey="&includeUpdate.accesskey;"/>
           </xul:hbox>
         </xul:vbox>
       </xul:hbox>

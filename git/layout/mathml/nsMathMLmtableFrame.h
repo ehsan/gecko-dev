@@ -53,7 +53,6 @@ public:
   friend nsIFrame* NS_NewMathMLmtableOuterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
   // Overloaded nsIMathMLFrame methods
 
@@ -105,19 +104,17 @@ protected:
 class nsMathMLmtableFrame : public nsTableFrame
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   friend nsIFrame* NS_NewMathMLmtableFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   // Overloaded nsTableFrame methods
 
   NS_IMETHOD
   SetInitialChildList(nsIAtom*  aListName,
-                      nsFrameList& aChildList);
+                      nsIFrame* aChildList);
 
   NS_IMETHOD
   AppendFrames(nsIAtom*  aListName,
-               nsFrameList& aFrameList)
+               nsIFrame* aFrameList)
   {
     nsresult rv = nsTableFrame::AppendFrames(aListName, aFrameList);
     RestyleTable();
@@ -127,7 +124,7 @@ public:
   NS_IMETHOD
   InsertFrames(nsIAtom*  aListName,
                nsIFrame* aPrevFrame,
-               nsFrameList& aFrameList)
+               nsIFrame* aFrameList)
   {
     nsresult rv = nsTableFrame::InsertFrames(aListName, aPrevFrame, aFrameList);
     RestyleTable();
@@ -163,8 +160,6 @@ protected:
 class nsMathMLmtrFrame : public nsTableRowFrame
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   friend nsIFrame* NS_NewMathMLmtrFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   // overloaded nsTableRowFrame methods
@@ -176,7 +171,7 @@ public:
 
   NS_IMETHOD
   AppendFrames(nsIAtom*  aListName,
-               nsFrameList& aFrameList)
+               nsIFrame* aFrameList)
   {
     nsresult rv = nsTableRowFrame::AppendFrames(aListName, aFrameList);
     RestyleTable();
@@ -186,7 +181,7 @@ public:
   NS_IMETHOD
   InsertFrames(nsIAtom*  aListName,
                nsIFrame* aPrevFrame,
-               nsFrameList& aFrameList)
+               nsIFrame* aFrameList)
   {
     nsresult rv = nsTableRowFrame::InsertFrames(aListName, aPrevFrame, aFrameList);
     RestyleTable();
@@ -227,8 +222,6 @@ protected:
 class nsMathMLmtdFrame : public nsTableCellFrame
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   friend nsIFrame* NS_NewMathMLmtdFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   // overloaded nsTableCellFrame methods
@@ -258,7 +251,6 @@ public:
   friend nsIFrame* NS_NewMathMLmtdInnerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
   // Overloaded nsIMathMLFrame methods
 

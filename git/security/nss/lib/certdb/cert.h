@@ -37,7 +37,7 @@
 /*
  * cert.h - public data structures and prototypes for the certificate library
  *
- * $Id: cert.h,v 1.78 2009/05/14 01:33:36 julien.pierre.boogz%sun.com Exp $
+ * $Id: cert.h,v 1.77 2009/04/17 22:46:27 julien.pierre.boogz%sun.com Exp $
  */
 
 #ifndef _CERT_H_
@@ -1610,25 +1610,25 @@ CERT_EncodeNoticeReference(PLArenaPool *arena,
  * Returns a pointer to a static structure.
  */
 extern const CERTRevocationFlags*
-CERT_GetPKIXVerifyNistRevocationPolicy(void);
+CERT_GetPKIXVerifyNistRevocationPolicy();
 
 /*
  * Returns a pointer to a static structure.
  */
 extern const CERTRevocationFlags*
-CERT_GetClassicOCSPEnabledSoftFailurePolicy(void);
+CERT_GetClassicOCSPEnabledSoftFailurePolicy();
 
 /*
  * Returns a pointer to a static structure.
  */
 extern const CERTRevocationFlags*
-CERT_GetClassicOCSPEnabledHardFailurePolicy(void);
+CERT_GetClassicOCSPEnabledHardFailurePolicy();
 
 /*
  * Returns a pointer to a static structure.
  */
 extern const CERTRevocationFlags*
-CERT_GetClassicOCSPDisabledPolicy(void);
+CERT_GetClassicOCSPDisabledPolicy();
 
 /*
  * Verify a Cert with libpkix
@@ -1662,7 +1662,7 @@ SECStatus CERT_SetUsePKIXForValidation(PRBool enable);
 
 /* The function return PR_TRUE if cert validation should use
  * libpkix cert validation engine. */
-PRBool CERT_GetUsePKIXForValidation(void);
+PRBool CERT_GetUsePKIXForValidation();
 
 SEC_END_PROTOS
 

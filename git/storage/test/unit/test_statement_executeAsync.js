@@ -96,11 +96,11 @@ function test_add_data()
     "INSERT INTO test (id, string, number, nuller, blober) " +
     "VALUES (?, ?, ?, ?, ?)"
   );
-  stmt.bindBlobParameter(4, BLOB, BLOB.length);
-  stmt.bindNullParameter(3);
-  stmt.bindDoubleParameter(2, REAL);
-  stmt.bindStringParameter(1, TEXT);
   stmt.bindInt32Parameter(0, INTEGER);
+  stmt.bindStringParameter(1, TEXT);
+  stmt.bindDoubleParameter(2, REAL);
+  stmt.bindNullParameter(3);
+  stmt.bindBlobParameter(4, BLOB, BLOB.length);
 
   stmt.executeAsync({
     handleResult: function(aResultSet)
@@ -167,25 +167,21 @@ function test_get_data()
       do_check_neq(null, tuple);
 
       // Check that it's what we expect
-      do_check_false(tuple.getIsNull(0));
       do_check_eq(tuple.getResultByName("string"), tuple.getResultByIndex(0));
       do_check_eq(TEXT, tuple.getResultByName("string"));
       do_check_eq(Ci.mozIStorageValueArray.VALUE_TYPE_TEXT,
                   tuple.getTypeOfIndex(0));
 
-      do_check_false(tuple.getIsNull(1));
       do_check_eq(tuple.getResultByName("number"), tuple.getResultByIndex(1));
       do_check_eq(REAL, tuple.getResultByName("number"));
       do_check_eq(Ci.mozIStorageValueArray.VALUE_TYPE_FLOAT,
                   tuple.getTypeOfIndex(1));
 
-      do_check_true(tuple.getIsNull(2));
       do_check_eq(tuple.getResultByName("nuller"), tuple.getResultByIndex(2));
       do_check_eq(null, tuple.getResultByName("nuller"));
       do_check_eq(Ci.mozIStorageValueArray.VALUE_TYPE_NULL,
                   tuple.getTypeOfIndex(2));
 
-      do_check_false(tuple.getIsNull(3));
       var blobByName = tuple.getResultByName("blober");
       do_check_eq(BLOB.length, blobByName.length);
       var blobByIndex = tuple.getResultByIndex(3);
@@ -203,7 +199,6 @@ function test_get_data()
       do_check_eq(Ci.mozIStorageValueArray.VALUE_TYPE_BLOB,
                   tuple.getTypeOfIndex(3));
 
-      do_check_false(tuple.getIsNull(4));
       do_check_eq(tuple.getResultByName("id"), tuple.getResultByIndex(4));
       do_check_eq(INTEGER, tuple.getResultByName("id"));
       do_check_eq(Ci.mozIStorageValueArray.VALUE_TYPE_INTEGER,
@@ -373,6 +368,7 @@ function test_immediate_cancellation()
     "DELETE FROM test WHERE id = ?"
   );
   stmt.bindInt32Parameter(0, 0);
+  let reason = Ci.mozIStorageStatementCallback.REASON_CANCELED;
   var pendingStatement = stmt.executeAsync({
     handleResult: function(aResultSet)
     {
@@ -388,9 +384,7 @@ function test_immediate_cancellation()
     {
       print("handleCompletion(" + aReason +
             ") for test_immediate_cancellation");
-      // It is possible that we finished before we canceled.
-      do_check_true(aReason == Ci.mozIStorageStatementCallback.REASON_FINISHED ||
-                    aReason == Ci.mozIStorageStatementCallback.REASON_CANCELED);
+      do_check_eq(reason, aReason);
 
       // Run the next test.
       run_next_test();
@@ -398,7 +392,10 @@ function test_immediate_cancellation()
   });
 
   // Cancel immediately
-  pendingStatement.cancel()
+  if (!pendingStatement.cancel()) {
+    // It is possible that we finished before we canceled
+    reason = Ci.mozIStorageStatementCallback.REASON_FINISHED;
+  }
 
   stmt.finalize();
 }
@@ -409,6 +406,7 @@ function test_double_cancellation()
     "DELETE FROM test WHERE id = ?"
   );
   stmt.bindInt32Parameter(0, 0);
+  let reason = Ci.mozIStorageStatementCallback.REASON_CANCELED;
   var pendingStatement = stmt.executeAsync({
     handleResult: function(aResultSet)
     {
@@ -424,9 +422,7 @@ function test_double_cancellation()
     {
       print("handleCompletion(" + aReason +
             ") for test_double_cancellation");
-      // It is possible that we finished before we canceled.
-      do_check_true(aReason == Ci.mozIStorageStatementCallback.REASON_FINISHED ||
-                    aReason == Ci.mozIStorageStatementCallback.REASON_CANCELED);
+      do_check_eq(reason, aReason);
 
       // Run the next test.
       run_next_test();
@@ -434,7 +430,10 @@ function test_double_cancellation()
   });
 
   // Cancel immediately
-  pendingStatement.cancel()
+  if (!pendingStatement.cancel()) {
+    // It is possible that we finished before we canceled
+    reason = Ci.mozIStorageStatementCallback.REASON_FINISHED;
+  }
 
   // And cancel again - expect an exception
   try {

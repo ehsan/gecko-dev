@@ -66,12 +66,11 @@ class nsLegendFrame;
 
 class nsFieldSetFrame : public nsHTMLContainerFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
 
   nsFieldSetFrame(nsStyleContext* aContext);
 
   NS_IMETHOD SetInitialChildList(nsIAtom*       aListName,
-                                 nsFrameList&   aChildList);
+                                 nsIFrame*      aChildList);
 
   NS_HIDDEN_(nscoord)
     GetIntrinsicWidth(nsIRenderingContext* aRenderingContext,
@@ -82,7 +81,6 @@ public:
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
                              PRBool aShrinkWrap);
-  virtual nscoord GetBaseline() const;
 
   NS_IMETHOD Reflow(nsPresContext*           aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -94,13 +92,13 @@ public:
                               const nsDisplayListSet& aLists);
 
   void PaintBorderBackground(nsIRenderingContext& aRenderingContext,
-    nsPoint aPt, const nsRect& aDirtyRect, PRUint32 aBGFlags);
+    nsPoint aPt, const nsRect& aDirtyRect);
 
   NS_IMETHOD AppendFrames(nsIAtom*       aListName,
-                          nsFrameList&   aFrameList);
+                          nsIFrame*      aFrameList);
   NS_IMETHOD InsertFrames(nsIAtom*       aListName,
                           nsIFrame*      aPrevFrame,
-                          nsFrameList&   aFrameList);
+                          nsIFrame*      aFrameList);
   NS_IMETHOD RemoveFrame(nsIAtom*       aListName,
                          nsIFrame*      aOldFrame);
 
@@ -120,7 +118,7 @@ public:
 protected:
 
   virtual PRIntn GetSkipSides() const;
-  void ReParentFrameList(const nsFrameList& aFrameList);
+  void ReParentFrameList(nsIFrame* aFrameList);
 
   nsIFrame* mLegendFrame;
   nsIFrame* mContentFrame;
@@ -133,8 +131,6 @@ NS_NewFieldSetFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsFieldSetFrame(aContext);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsFieldSetFrame)
 
 nsFieldSetFrame::nsFieldSetFrame(nsStyleContext* aContext)
   : nsHTMLContainerFrame(aContext)
@@ -158,15 +154,14 @@ nsFieldSetFrame::IsContainingBlock() const
 
 NS_IMETHODIMP
 nsFieldSetFrame::SetInitialChildList(nsIAtom*       aListName,
-                                     nsFrameList&   aChildList)
+                                     nsIFrame*      aChildList)
 {
   // Get the content and legend frames.
-  if (!aChildList.OnlyChild()) {
-    NS_ASSERTION(aChildList.GetLength() == 2, "Unexpected child list");
-    mContentFrame = aChildList.LastChild();
-    mLegendFrame  = aChildList.FirstChild();
+  if (aChildList->GetNextSibling()) {
+    mContentFrame = aChildList->GetNextSibling();
+    mLegendFrame  = aChildList;
   } else {
-    mContentFrame = aChildList.FirstChild();
+    mContentFrame = aChildList;
     mLegendFrame  = nsnull;
   }
 
@@ -188,8 +183,8 @@ public:
 
   virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
                             HitTestState* aState);
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
+     const nsRect& aDirtyRect);
   NS_DISPLAY_DECL_NAME("FieldSetBorderBackground")
 };
 
@@ -204,11 +199,10 @@ nsIFrame* nsDisplayFieldSetBorderBackground::HitTest(nsDisplayListBuilder* aBuil
 
 void
 nsDisplayFieldSetBorderBackground::Paint(nsDisplayListBuilder* aBuilder,
-                                         nsIRenderingContext* aCtx)
+     nsIRenderingContext* aCtx, const nsRect& aDirtyRect)
 {
   static_cast<nsFieldSetFrame*>(mFrame)->
-    PaintBorderBackground(*aCtx, aBuilder->ToReferenceFrame(mFrame),
-                          mVisibleRect, aBuilder->GetBackgroundPaintFlags());
+    PaintBorderBackground(*aCtx, aBuilder->ToReferenceFrame(mFrame), aDirtyRect);
 }
 
 NS_IMETHODIMP
@@ -267,7 +261,7 @@ nsFieldSetFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
 void
 nsFieldSetFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
-    nsPoint aPt, const nsRect& aDirtyRect, PRUint32 aBGFlags)
+    nsPoint aPt, const nsRect& aDirtyRect)
 {
   PRIntn skipSides = GetSkipSides();
   const nsStyleBorder* borderStyle = GetStyleBorder();
@@ -284,7 +278,7 @@ nsFieldSetFrame::PaintBorderBackground(nsIRenderingContext& aRenderingContext,
   nsRect rect(aPt.x, aPt.y + yoff, mRect.width, mRect.height - yoff);
 
   nsCSSRendering::PaintBackground(presContext, aRenderingContext, this,
-                                  aDirtyRect, rect, aBGFlags);
+                                  aDirtyRect, rect, 0);
 
   nsCSSRendering::PaintBoxShadowInner(presContext, aRenderingContext,
                                       this, rect, aDirtyRect);
@@ -366,7 +360,7 @@ nsFieldSetFrame::GetIntrinsicWidth(nsIRenderingContext* aRenderingContext,
                                            aType);
   }
       
-  return NS_MAX(legendWidth, contentWidth);
+  return PR_MAX(legendWidth, contentWidth);
 }
 
 
@@ -512,15 +506,15 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     // by the amount of content-height the legend is eating up, unless our
     // height is unconstrained (in which case the child's will be too).
     if (aReflowState.ComputedHeight() != NS_UNCONSTRAINEDSIZE) {
-      kidReflowState.SetComputedHeight(NS_MAX(0, aReflowState.ComputedHeight() - mLegendSpace));
+      kidReflowState.SetComputedHeight(PR_MAX(0, aReflowState.ComputedHeight() - mLegendSpace));
     }
 
     kidReflowState.mComputedMinHeight =
-      NS_MAX(0, aReflowState.mComputedMinHeight - mLegendSpace);
+      PR_MAX(0, aReflowState.mComputedMinHeight - mLegendSpace);
 
     if (aReflowState.mComputedMaxHeight != NS_UNCONSTRAINEDSIZE) {
       kidReflowState.mComputedMaxHeight =
-        NS_MAX(0, aReflowState.mComputedMaxHeight - mLegendSpace);
+        PR_MAX(0, aReflowState.mComputedMaxHeight - mLegendSpace);
     }
 
     nsHTMLReflowMetrics kidDesiredSize(aDesiredSize.mFlags);
@@ -618,28 +612,34 @@ nsFieldSetFrame::GetSkipSides() const
 
 NS_IMETHODIMP
 nsFieldSetFrame::AppendFrames(nsIAtom*       aListName,
-                              nsFrameList&   aFrameList)
+                              nsIFrame*      aFrameList)
 {
-  // aFrameList is not allowed to contain "the legend" for this fieldset
-  ReParentFrameList(aFrameList);
-  return mContentFrame->AppendFrames(aListName, aFrameList);
+  if (aFrameList) {
+    // aFrameList is not allowed to contain "the legend" for this fieldset
+    ReParentFrameList(aFrameList);
+    return mContentFrame->AppendFrames(aListName, aFrameList);
+  }
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsFieldSetFrame::InsertFrames(nsIAtom*       aListName,
                               nsIFrame*      aPrevFrame,
-                              nsFrameList&   aFrameList)
+                              nsIFrame*      aFrameList)
 {
   NS_ASSERTION(!aPrevFrame || aPrevFrame->GetParent() == this ||
                aPrevFrame->GetParent() == mContentFrame,
                "inserting after sibling frame with different parent");
 
-  // aFrameList is not allowed to contain "the legend" for this fieldset
-  ReParentFrameList(aFrameList);
-  if (NS_UNLIKELY(aPrevFrame == mLegendFrame)) {
-    aPrevFrame = nsnull;
+  if (aFrameList) {
+    // aFrameList is not allowed to contain "the legend" for this fieldset
+    ReParentFrameList(aFrameList);
+    if (NS_UNLIKELY(aPrevFrame == mLegendFrame)) {
+      aPrevFrame = nsnull;
+    }
+    return mContentFrame->InsertFrames(aListName, aPrevFrame, aFrameList);
   }
-  return mContentFrame->InsertFrames(aListName, aPrevFrame, aFrameList);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -665,24 +665,14 @@ NS_IMETHODIMP nsFieldSetFrame::GetAccessible(nsIAccessible** aAccessible)
 #endif
 
 void
-nsFieldSetFrame::ReParentFrameList(const nsFrameList& aFrameList)
+nsFieldSetFrame::ReParentFrameList(nsIFrame* aFrameList)
 {
   nsFrameManager* frameManager = PresContext()->FrameManager();
-  for (nsFrameList::Enumerator e(aFrameList); !e.AtEnd(); e.Next()) {
-    NS_ASSERTION(mLegendFrame || e.get()->GetType() != nsGkAtoms::legendFrame,
+  for (nsIFrame* frame = aFrameList; frame; frame = frame->GetNextSibling()) {
+    NS_ASSERTION(mLegendFrame || frame->GetType() != nsGkAtoms::legendFrame,
                  "The fieldset's legend is not allowed in this list");
-    e.get()->SetParent(mContentFrame);
-    frameManager->ReParentStyleContext(e.get());
+    frame->SetParent(mContentFrame);
+    frameManager->ReParentStyleContext(frame);
   }
   mContentFrame->AddStateBits(GetStateBits() & NS_FRAME_HAS_CHILD_WITH_VIEW);
-}
-
-nscoord
-nsFieldSetFrame::GetBaseline() const
-{
-  // We know mContentFrame is a block, so calling GetBaseline() on it will do
-  // the right thing (that being to return the baseline of the last line).
-  NS_ASSERTION(nsLayoutUtils::GetAsBlock(mContentFrame),
-               "Unexpected mContentFrame");
-  return mContentFrame->GetPosition().y + mContentFrame->GetBaseline();
 }

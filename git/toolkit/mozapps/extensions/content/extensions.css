@@ -147,7 +147,7 @@ richlistitem[opType="needs-disable"] hbox.addon-description {
   -moz-binding: url("chrome://mozapps/content/extensions/extensions.xml#addon-needs-disable");
 }
 
-#viewGroup > radio {
+#viewGroup radio {
   -moz-binding: url("chrome://mozapps/content/extensions/extensions.xml#viewbutton");
   -moz-box-orient: vertical;
   -moz-box-align: center;
@@ -192,6 +192,11 @@ richlistitem[type="4"] .disableHide {
   display: none;
 }
 
+richlistitem:not([plugin]) .pluginIcon ,
+richlistitem[plugin] .addonIcon:not(.pluginIcon) {
+  display: none;
+}
+
 richlistitem[action] .addonInstallButton {
   display: none;
 }
@@ -233,7 +238,6 @@ richlistitem[compatible="false"] .notifyBadge,
 richlistitem[providesUpdatesSecurely="false"] .notifyBadge,
 richlistitem[blocklisted="true"] .notifyBadge,
 richlistitem[blocklistedsoft="true"] .notifyBadge,
-richlistitem[outdated="true"] .notifyBadge,
 richlistitem[satisfiesDependencies="false"] .notifyBadge,
 richlistitem[loading="true"] .updateBadge {
   display: -moz-box;
@@ -243,11 +247,10 @@ richlistitem[loading="true"] .updateBadge {
 richlistitem[compatible="true"] .incompatibleBox,
 richlistitem[providesUpdatesSecurely="true"] .insecureUpdateBox,
 richlistitem[satisfiesDependencies="true"] .needsDependenciesBox,
-richlistitem:not([blocklisted="true"]):not([blocklistedsoft="true"]):not([outdated="true"]) .blocklistedBox,
-richlistitem[blocklistedsoft="false"][outdated="false"]:not([selected="true"]) .blocklistedBox,
+richlistitem:not([blocklisted="true"]):not([blocklistedsoft="true"]) .blocklistedBox,
+richlistitem[blocklistedsoft="false"]:not([selected="true"]) .blocklistedBox,
 richlistitem[blocklisted="false"] .blocklistedLabel,
 richlistitem[blocklistedsoft="false"] .softBlocklistedLabel,
-richlistitem:not([outdated="true"]) .outdatedLabel,
 richlistitem[opType="needs-uninstall"] .blocklistedBox,
 richlistitem[opType="needs-uninstall"] .incompatibleBox,
 richlistitem[opType="needs-uninstall"] .needsDependenciesBox,

@@ -48,8 +48,11 @@ LIBRARY_NAME	= xpcombase_s
 GRE_MODULE	= 1
 MOZILLA_INTERNAL_API =1
 
+REQUIRES	= string \
+		  $(NULL)
 
 CPPSRCS		= \
+		nsAllocator.cpp \
 		nsVersionComparatorImpl.cpp \
 		nsConsoleMessage.cpp \
 		nsConsoleService.cpp \
@@ -66,7 +69,13 @@ CPPSRCS		= \
 		nsMemoryReporterManager.cpp \
 		$(NULL)
 
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+ifdef GC_LEAK_DETECTOR
+CSRCS += nsGarbageCollector.c
+CPPSRCS += nsLeakDetector.cpp
+REQUIRES	+= boehm
+endif
+
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 CPPSRCS		+= nsMacUtilsImpl.cpp
 endif
 
@@ -123,7 +132,11 @@ XPIDLSRCS	= \
 		nsIMemoryReporter.idl \
 		$(NULL)
 
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+ifdef GC_LEAK_DETECTOR
+XPIDLSRCS       += nsILeakDetector.idl
+endif
+
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 XPIDLSRCS	+= nsIMacUtils.idl
 endif
 

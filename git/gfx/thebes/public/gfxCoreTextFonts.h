@@ -15,7 +15,7 @@
  * The Original Code is thebes gfx code.
  *
  * The Initial Developer of the Original Code is Mozilla Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2006-2009
+ * Portions created by the Initial Developer are Copyright (C) 2006-2008
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
@@ -52,6 +52,7 @@
 class gfxCoreTextFontGroup;
 
 class MacOSFontEntry;
+class MacOSFamilyEntry;
 
 class gfxCoreTextFont : public gfxFont {
 public:
@@ -108,7 +109,7 @@ public:
     // clean up static objects that may have been cached
     static void Shutdown();
 
-    static CTFontRef CreateCTFontWithDisabledLigatures(ATSFontRef aFont, CGFloat aSize);
+    static CTFontRef CreateCopyWithDisabledLigatures(CTFontRef aFont);
 
 protected:
     const gfxFontStyle *mFontStyle;
@@ -219,7 +220,7 @@ protected:
                               PRInt32 aLayoutLength);
 
     // cache the most recent pref font to avoid general pref font lookup
-    nsRefPtr<gfxFontFamily>       mLastPrefFamily;
+    nsRefPtr<MacOSFamilyEntry>    mLastPrefFamily;
     nsRefPtr<gfxCoreTextFont>     mLastPrefFont;
     eFontPrefLang                 mLastPrefLang;       // lang group for last pref font
     PRBool                        mLastPrefFirstFont;  // is this the first font in the list of pref fonts for this lang group?

@@ -43,6 +43,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+REQUIRES = txmgr xpcom
 
 CPP_UNIT_TESTS = TestTXMgr.cpp
 

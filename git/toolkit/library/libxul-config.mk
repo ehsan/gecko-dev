@@ -95,8 +95,10 @@ STATIC_LIBS += \
 	xpcom_core \
 	ucvutil_s \
 	gkgfx \
+	gfxshared_s \
 	$(NULL)
 
+#ifndef MOZ_EMBEDDING_LEVEL_DEFAULT
 ifndef WINCE
 ifdef MOZ_XPINSTALL
 STATIC_LIBS += \
@@ -104,6 +106,7 @@ STATIC_LIBS += \
 	$(NULL)
 endif
 endif
+#endif
 
 # component libraries
 COMPONENT_LIBS += \
@@ -130,12 +133,12 @@ COMPONENT_LIBS += \
 	pipnss \
 	$(NULL)
 
-ifdef BUILD_CTYPES
+ifdef MOZ_XMLEXTRAS
 COMPONENT_LIBS += \
-	jsctypes \
+	xmlextras \
 	$(NULL)
 endif
-
+  
 ifdef MOZ_PLUGINS
 DEFINES += -DMOZ_PLUGINS
 COMPONENT_LIBS += \
@@ -179,6 +182,10 @@ COMPONENT_LIBS += \
 	$(NULL)
 endif
 
+ifdef MOZ_PERF_METRICS
+EXTRA_DSO_LIBS  += mozutil_s
+endif
+
 ifdef MOZ_XPINSTALL
 DEFINES += -DMOZ_XPINSTALL
 COMPONENT_LIBS += \
@@ -197,6 +204,13 @@ ifdef MOZ_PREF_EXTENSIONS
 DEFINES += -DMOZ_PREF_EXTENSIONS
 COMPONENT_LIBS += \
 	autoconfig \
+	$(NULL)
+endif
+
+ifdef MOZ_WEBSERVICES
+DEFINES += -DMOZ_WEBSERVICES
+COMPONENT_LIBS += \
+	websrvcs \
 	$(NULL)
 endif
 
@@ -233,7 +247,7 @@ COMPONENT_LIBS += \
 endif
 endif
 
-ifeq (,$(filter qt beos os2 photon cocoa windows,$(MOZ_WIDGET_TOOLKIT)))
+ifeq (,$(filter qt beos os2 mac photon cocoa windows,$(MOZ_WIDGET_TOOLKIT)))
 ifdef MOZ_XUL
 ifdef MOZ_XPFE_COMPONENTS
 COMPONENT_LIBS += fileview
@@ -312,7 +326,7 @@ endif
 ifeq (os2,$(MOZ_WIDGET_TOOLKIT))
 COMPONENT_LIBS += wdgtos2
 endif
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 COMPONENT_LIBS += widget_mac
 endif
 ifeq (qt,$(MOZ_WIDGET_TOOLKIT))
@@ -345,32 +359,6 @@ ifneq (,$(filter layout-debug,$(MOZ_EXTENSIONS)))
 COMPONENT_LIBS += gkdebug
 endif
 
-ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
-EXTRA_DSO_LDOPTS += -framework OpenGL -lcups
-endif
-
-EXTRA_DSO_LDOPTS += \
-	$(LIBS_DIR) \
-	$(JPEG_LIBS) \
-	$(PNG_LIBS) \
-	$(QCMS_LIBS) \
-	$(MOZ_JS_LIBS) \
-	$(NSS_LIBS) \
-	$(MOZ_CAIRO_LIBS) \
-	$(NULL)
-
-ifdef MOZ_NATIVE_ZLIB
-EXTRA_DSO_LDOPTS += $(ZLIB_LIBS)
-else
-EXTRA_DSO_LDOPTS += $(MOZ_ZLIB_LIBS)
-endif
-
-ifdef MOZ_NATIVE_HUNSPELL
-EXTRA_DSO_LDOPTS += $(MOZ_HUNSPELL_LIBS)
-endif
-
-ifdef MOZ_SYDNEYAUDIO
-ifeq ($(OS_ARCH),Linux)
-EXTRA_DSO_LDOPTS += $(MOZ_ALSA_LIBS)
-endif
+ifdef GC_LEAK_DETECTOR
+EXTRA_DSO_LIBS += boehm
 endif

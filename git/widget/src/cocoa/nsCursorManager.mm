@@ -107,7 +107,6 @@ static NSArray* sSpinCursorFrames = nil;
 
   switch(aCursor)
   {
-    SEL cursorSelector;
     case eCursor_standard:
       return [nsMacCursor cursorWithCursor: [NSCursor arrowCursor]];
     case eCursor_wait:
@@ -124,20 +123,12 @@ static NSArray* sSpinCursorFrames = nil;
     case eCursor_help:
       return [nsMacCursor cursorWithImageNamed: @"help" hotSpot: NSMakePoint(1,1)];
     case eCursor_copy:
-      cursorSelector = @selector(dragCopyCursor);
-      return [nsMacCursor cursorWithCursor: [NSCursor respondsToSelector: cursorSelector] ?
-              [NSCursor performSelector: cursorSelector] :
-              [NSCursor arrowCursor]];
+      return [nsMacCursor cursorWithCursor: [NSCursor arrowCursor]]; //XXX needs real implementation
     case eCursor_alias:
-      cursorSelector = @selector(dragLinkCursor);
-      return [nsMacCursor cursorWithCursor: [NSCursor respondsToSelector: cursorSelector] ?
-              [NSCursor performSelector: cursorSelector] :
-              [NSCursor arrowCursor]];
+      return [nsMacCursor cursorWithCursor: [NSCursor arrowCursor]]; //XXX needs real implementation
     case eCursor_context_menu:
-      cursorSelector = @selector(contextualMenuCursor);
-      return [nsMacCursor cursorWithCursor: [NSCursor respondsToSelector: cursorSelector] ?
-              [NSCursor performSelector: cursorSelector] :
-              [NSCursor arrowCursor]];
+      return [nsMacCursor cursorWithCursor: [NSCursor arrowCursor]]; //XXX needs real implementation
+
     case eCursor_cell:
       return [nsMacCursor cursorWithCursor: [NSCursor crosshairCursor]];
     case eCursor_grab:
@@ -154,10 +145,8 @@ static NSArray* sSpinCursorFrames = nil;
       return [nsMacCursor cursorWithCursor: [NSCursor openHandCursor]];;
     case eCursor_not_allowed:
     case eCursor_no_drop:
-      cursorSelector = @selector(operationNotAllowedCursor);
-      return [nsMacCursor cursorWithCursor: [NSCursor respondsToSelector: cursorSelector] ?
-              [NSCursor performSelector: cursorSelector] :
-              [NSCursor arrowCursor]];
+      return [nsMacCursor cursorWithCursor: [NSCursor arrowCursor]]; //XXX needs real implementation
+
     // Resize Cursors:
     //North
     case eCursor_n_resize:
@@ -224,27 +213,18 @@ static NSArray* sSpinCursorFrames = nil;
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  // Some plugins mess with our cursors and set a cursor that even
-  // [NSCursor currentCursor] doesn't know about. In case that happens, just
-  // reset the state.
-  [[NSCursor currentCursor] set];
-
-  nsMacCursor* currentCursor = [self getCursor: mCurrentCursor];
-
-  if (aCursor != mCurrentCursor || ![currentCursor isSet]) {
-    [currentCursor unset];
+  if (aCursor != mCurrentCursor) {
+    [[self getCursor: mCurrentCursor] unset];
     [[self getCursor: aCursor] set];
-  }
 
-  if (mCurrentCursor != aCursor) {
     if (aCursor == eCursor_none) {
       [NSCursor hide];
     } else if (mCurrentCursor == eCursor_none) {
       [NSCursor unhide];
     }
-  }
 
-  mCurrentCursor = aCursor;
+    mCurrentCursor = aCursor;
+  }
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }

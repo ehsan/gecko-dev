@@ -65,7 +65,7 @@
 #include "nsIPrefService.h"
 
 // windowless plugin support
-#include "npapi.h"
+#include "nsplugindefs.h"
 
 #include "nsITimer.h"
 #include "nsIServiceManager.h"
@@ -78,9 +78,7 @@
 #include "nsOS2Uni.h"
 
 #include "imgIContainer.h"
-
-#include "nsTHashtable.h"
-#include "nsHashKeys.h"
+#include "gfxIImageFrame.h"
 
 #include <stdlib.h>
 #include <ctype.h>
@@ -103,6 +101,9 @@ static const char *sScreenManagerContractID = "@mozilla.org/gfx/screenmanager;1"
 // NS2PM methods for conversion of points & rectangles; position is a bit
 // different in that it's the *parent* window whose height must be used.
 //
+// Deferred window positioning is emulated using WinSetMultWindowPos in
+// the hopes that there was a good reason for adding it to nsIWidget.
+//
 // SetColorSpace() is not implemented on purpose.  So there.
 //
 // John Fairhurst 17-09-98 first version
@@ -124,6 +125,9 @@ nsIWidget         * gRollupWidget             = nsnull;
 PRBool              gRollupConsumeRollupEvent = PR_FALSE;
 ////////////////////////////////////////////////////
 
+PRBool gJustGotActivate = PR_FALSE;
+PRBool gJustGotDeactivate = PR_FALSE;
+
 ////////////////////////////////////////////////////
 // Mouse Clicks - static variable defintions 
 // for figuring out 1 - 3 Clicks
@@ -138,6 +142,11 @@ static PRBool gGlobalsInitialized = PR_FALSE;
 static HPOINTER gPtrArray[IDC_COUNT];
 static PRBool gIsTrackPoint = PR_FALSE;
 static PRBool gIsDBCS = PR_FALSE;
+
+// The last user input event time in milliseconds. If there are any pending
+// native toolkit input events it returns the current time. The value is
+// compatible with PR_IntervalToMicroseconds(PR_IntervalNow()).
+static PRUint32 gLastInputEventTime = 0;
 
 #ifdef DEBUG_FOCUS
 int currentWindowIdentifier = 0;
@@ -182,9 +191,6 @@ static PRUint32  gDragStatus = 0;
 #define FAPPCOMMAND_MASK  0xF000
 #define GET_APPCOMMAND_LPARAM(lParam) ((USHORT)(HIUSHORT(lParam) & ~FAPPCOMMAND_MASK))
 
-// used to identify plugin widgets (copied from nsPluginNativeWindowOS2.cpp)
-#define NS_PLUGIN_WINDOW_PROPERTY_ASSOCIATION "MozillaPluginWindowPropertyAssociation"
-
 //-------------------------------------------------------------------------
 //
 // nsWindow constructor
@@ -197,6 +203,9 @@ nsWindow::nsWindow() : nsBaseWidget()
     mPrevWndProc        = NULL;
     mParent             = 0;
     mNextID             = 1;
+    mSWPs               = 0;
+    mlHave              = 0;
+    mlUsed              = 0;
     mFrameIcon          = 0;
     mDeadKey            = 0;
     mHaveDeadKey        = FALSE;
@@ -213,7 +222,6 @@ nsWindow::nsWindow() : nsBaseWidget()
     mDragHps            = 0;
     mDragStatus         = 0;
     mCssCursorHPtr      = 0;
-    mClipWnd            = 0;
 
     mIsTopWidgetWindow = PR_FALSE;
     mThebesSurface = nsnull;
@@ -303,6 +311,59 @@ NS_METHOD nsWindow::CaptureMouse(PRBool aCapture)
   return NS_OK;
 }
 
+
+//-------------------------------------------------------------------------
+//
+// Deferred Window positioning
+//
+//-------------------------------------------------------------------------
+
+NS_METHOD nsWindow::BeginResizingChildren(void)
+{
+   if( !mSWPs)
+   {
+      mlHave = 10;
+      mlUsed = 0;
+      mSWPs = (PSWP) malloc( 10 * sizeof( SWP));
+   }
+   return NS_OK;
+}
+
+void nsWindow::DeferPosition( HWND hwnd, HWND hwndInsertBehind,
+                              long x, long y, long cx, long cy, ULONG flags)
+{
+   if( mSWPs)
+   {
+      if( mlHave == mlUsed) // need more swps
+      {
+         mlHave += 10;
+         mSWPs = (PSWP) realloc( mSWPs, mlHave * sizeof( SWP));
+      }
+      mSWPs[ mlUsed].hwnd = hwnd;
+      mSWPs[ mlUsed].hwndInsertBehind = hwndInsertBehind;
+      mSWPs[ mlUsed].x = x;
+      mSWPs[ mlUsed].y = y;
+      mSWPs[ mlUsed].cx = cx;
+      mSWPs[ mlUsed].cy = cy;
+      mSWPs[ mlUsed].fl = flags;
+      mSWPs[ mlUsed].ulReserved1 = 0;
+      mSWPs[ mlUsed].ulReserved2 = 0;
+      mlUsed++;
+   }
+}
+
+NS_METHOD nsWindow::EndResizingChildren(void)
+{
+   if( nsnull != mSWPs)
+   {
+      WinSetMultWindowPos( 0/*hab*/, mSWPs, mlUsed);
+      free( mSWPs);
+      mSWPs = nsnull;
+      mlUsed = mlHave = 0;
+   }
+   return NS_OK;
+}
+
 nsIntPoint nsWindow::WidgetToScreenOffset()
 {
   POINTL point = { 0, 0 };
@@ -369,6 +430,11 @@ NS_IMETHODIMP nsWindow::DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus
   {
     if (nsnull != mEventCallback) {
       aStatus = (*mEventCallback)( event);
+    }
+   
+    // Dispatch to event listener if event was not consumed
+    if ((aStatus != nsEventStatus_eIgnore) && (nsnull != mEventListener)) {
+      aStatus = mEventListener->ProcessEvent(*event);
     }
   }
 
@@ -730,8 +796,8 @@ void nsWindow::DoCreate( HWND hwndP, nsWindow *aParent,
     mIsTopWidgetWindow = PR_FALSE;
 
    if( aInitData != nsnull) {
-     mWindowType = aInitData->mWindowType;
-     mBorderStyle = aInitData->mBorderStyle;
+     SetWindowType(aInitData->mWindowType);
+     SetBorderStyle(aInitData->mBorderStyle);
    }
 
    // Must ensure toolkit before attempting to thread-switch!
@@ -758,9 +824,20 @@ void nsWindow::DoCreate( HWND hwndP, nsWindow *aParent,
       mOS2Toolkit = (nsToolkit*) mToolkit;
    }
 
-   // This is potentially virtual; overridden in nsFrameWindow
-   RealDoCreate( hwndP, aParent, aRect, aHandleEventFunction,
-                 aContext, aAppShell, aInitData);
+   // Switch to the PM thread if necessary...
+   if(mOS2Toolkit && !mOS2Toolkit->IsGuiThread())
+   {
+      ULONG args[7] = { hwndP, (ULONG) aParent, (ULONG) &aRect,
+                        (ULONG) aHandleEventFunction,
+                        (ULONG) aContext, (ULONG) aAppShell,
+                        (ULONG) aInitData };
+      MethodInfo info( this, nsWindow::CREATE, 7, args);
+      mOS2Toolkit->CallMethod( &info);
+   }
+   else
+      // This is potentially virtual; overridden in nsFrameWindow
+      RealDoCreate( hwndP, aParent, aRect, aHandleEventFunction,
+                    aContext, aAppShell, aInitData);
 
    mWindowState = nsWindowState_eLive;
 }
@@ -887,6 +964,7 @@ void nsWindow::RealDoCreate( HWND              hwndP,
    //     have happened!
    mBounds = aRect;
    mBounds.height = aRect.height;
+
    mEventCallback = aHandleEventFunction;
 
    if( mParent)
@@ -910,34 +988,55 @@ void nsWindow::RealDoCreate( HWND              hwndP,
 //
 //-------------------------------------------------------------------------
 NS_METHOD nsWindow::Create(nsIWidget *aParent,
-                           nsNativeWidget aNativeParent,
-                           const nsIntRect &aRect,
-                           EVENT_CALLBACK aHandleEventFunction,
-                           nsIDeviceContext *aContext,
-                           nsIAppShell *aAppShell,
-                           nsIToolkit *aToolkit,
-                           nsWidgetInitData *aInitData)
+                      const nsIntRect &aRect,
+                      EVENT_CALLBACK aHandleEventFunction,
+                      nsIDeviceContext *aContext,
+                      nsIAppShell *aAppShell,
+                      nsIToolkit *aToolkit,
+                      nsWidgetInitData *aInitData)
 {
-  HWND hwndP;
-  nsWindow *pParent;
+   HWND hwndP = aParent ? (HWND)aParent->GetNativeData( NS_NATIVE_WINDOW)
+                        : HWND_DESKTOP;
 
-  if (aParent) {
-    hwndP = (HWND)aParent->GetNativeData(NS_NATIVE_WINDOW);
-    pParent = (nsWindow*)aParent;
-  } else {
-    if (aNativeParent && (HWND)aNativeParent != HWND_DESKTOP) {
-      hwndP = (HWND)aNativeParent;
+   DoCreate( hwndP, (nsWindow*) aParent, aRect, aHandleEventFunction,
+             aContext, aAppShell, aToolkit, aInitData);
+
+   return NS_OK;
+}
+
+
+//-------------------------------------------------------------------------
+//
+// create with a native parent
+//
+//-------------------------------------------------------------------------
+
+NS_METHOD nsWindow::Create(nsNativeWidget aParent,
+                         const nsIntRect &aRect,
+                         EVENT_CALLBACK aHandleEventFunction,
+                         nsIDeviceContext *aContext,
+                         nsIAppShell *aAppShell,
+                         nsIToolkit *aToolkit,
+                         nsWidgetInitData *aInitData)
+{
+   // We need to find the nsWindow that goes with the native window, or controls
+   // all get the ID of 0, and a zillion toolkits get created.
+   //
+   nsWindow *pParent = nsnull;
+   HWND      hwndP = (HWND) aParent;
+
+   if( hwndP && hwndP != HWND_DESKTOP)
       pParent = GetNSWindowPtr(hwndP);
-    } else {
-      hwndP = HWND_DESKTOP;
-      pParent = 0;
-    }
-  }
 
-  DoCreate(hwndP, pParent, aRect, aHandleEventFunction,
-           aContext, aAppShell, aToolkit, aInitData);
+   // XXX WC_MOZILLA will probably need a change here
+   //
+   if( !hwndP)
+     hwndP = HWND_DESKTOP;
 
-  return NS_OK;
+   DoCreate( hwndP, pParent, aRect, aHandleEventFunction, aContext,
+             aAppShell, aToolkit, aInitData);
+
+   return NS_OK;
 }
 
 //-------------------------------------------------------------------------
@@ -960,28 +1059,36 @@ gfxASurface* nsWindow::GetThebesSurface()
 //-------------------------------------------------------------------------
 NS_METHOD nsWindow::Destroy()
 {
-  // avoid calling into other objects if we're being deleted, 'cos
-  // they must have no references to us.
-  if ((mWindowState & nsWindowState_eLive) && mParent) {
-    nsBaseWidget::Destroy();
-  }
-
-  // just to be safe. If we're going away and for some reason we're still
-  // the rollup widget, rollup and turn off capture.
-  if (this == gRollupWidget) {
-    if (gRollupListener) {
-      gRollupListener->Rollup(PR_UINT32_MAX, nsnull);
+  // Switch to the "main gui thread" if necessary... This method must
+  // be executed on the "gui thread"...
+  // Switch to the PM thread if necessary...
+  if (mToolkit && !mOS2Toolkit->IsGuiThread()) {
+    MethodInfo info(this, nsWindow::DESTROY);
+    mOS2Toolkit->CallMethod(&info);
+  } else {
+    // avoid calling into other objects if we're being deleted, 'cos
+    // they must have no references to us.
+    if ((mWindowState & nsWindowState_eLive) && mParent) {
+      nsBaseWidget::Destroy();
     }
-    CaptureRollupEvents(nsnull, PR_FALSE, PR_TRUE);
-  }
 
-  if (mWnd) {
-    HWND hwndBeingDestroyed = mFrameWnd ? mFrameWnd : mWnd;
-    DEBUGFOCUS(Destroy);
-    if (hwndBeingDestroyed == WinQueryFocus(HWND_DESKTOP)) {
-      WinSetFocus(HWND_DESKTOP, WinQueryWindow(hwndBeingDestroyed, QW_PARENT));
+    // just to be safe. If we're going away and for some reason we're still
+    // the rollup widget, rollup and turn off capture.
+    if (this == gRollupWidget) {
+      if (gRollupListener) {
+        gRollupListener->Rollup(PR_UINT32_MAX, nsnull);
+      }
+      CaptureRollupEvents(nsnull, PR_FALSE, PR_TRUE);
     }
-    WinDestroyWindow(hwndBeingDestroyed);
+
+    if (mWnd) {
+      HWND hwndBeingDestroyed = mFrameWnd ? mFrameWnd : mWnd;
+      DEBUGFOCUS(Destroy);
+      if (hwndBeingDestroyed == WinQueryFocus(HWND_DESKTOP)) {
+        WinSetFocus(HWND_DESKTOP, WinQueryWindow(hwndBeingDestroyed, QW_PARENT));
+      }
+      WinDestroyWindow(hwndBeingDestroyed);
+    }
   }
   return NS_OK;
 }
@@ -1141,18 +1248,19 @@ NS_METHOD nsWindow::SetZIndex(PRInt32 aZIndex)
 
 NS_IMETHODIMP nsWindow::SetSizeMode(PRInt32 aMode)
 {
-  PRInt32 previousMode;
-  GetSizeMode(&previousMode);
+  nsresult rv;
 
-  // save the new state
-  nsresult rv = nsBaseWidget::SetSizeMode(aMode);
+  // save the requested state
+  rv = nsBaseWidget::SetSizeMode(aMode);
 
-  // Minimized windows would get restored involuntarily if we fired an
-  // NS_ACTIVATE when the user clicks on them.  Instead, we defer the
-  // activation event until the window has explicitly been restored.
-  if (previousMode == nsSizeMode_Minimized && previousMode != aMode) {
+  // this is part of a kludge to keep minimized windows from getting
+  // restored when they get the focus - we defer the activation event
+  // until the window has actually been restored;  see WM_FOCUSCHANGED
+  if (gJustGotActivate) {
     DEBUGFOCUS(deferred NS_ACTIVATE);
-    ActivateTopLevelWidget();
+    gJustGotActivate = PR_FALSE;
+    gJustGotDeactivate = PR_FALSE;
+    DispatchFocus(NS_ACTIVATE);
   }
 
   // nothing to do in these cases
@@ -1249,12 +1357,8 @@ NS_METHOD nsWindow::ConstrainPosition(PRBool aAllowSlop,
 //-------------------------------------------------------------------------
 NS_METHOD nsWindow::Move(PRInt32 aX, PRInt32 aY)
 {
-  if (mWindowType == eWindowType_toplevel ||
-      mWindowType == eWindowType_dialog) {
-    SetSizeMode(nsSizeMode_Normal);
-  }
-  Resize(aX, aY, mBounds.width, mBounds.height, PR_FALSE);
-  return NS_OK;
+   Resize( aX, aY, mBounds.width, mBounds.height, PR_FALSE);
+   return NS_OK;
 }
 
 //-------------------------------------------------------------------------
@@ -1281,9 +1385,8 @@ NS_METHOD nsWindow::Resize(PRInt32 aX,
 {
    // For mWnd & eWindowType_child set the cached values upfront, see bug 286555.
    // For other mWnd types we defer transfer of values to mBounds to
-   // WinSetWindowPos(), see bug 391421.
-   if( !mWnd || mWindowType == eWindowType_child ||
-       mWindowType == eWindowType_plugin ) 
+   // SetWindowPos(), see bug 391421.
+   if( !mWnd || mWindowType == eWindowType_child) 
    {
       // Set cached value for lightweight and printing
       mBounds.x      = aX ;
@@ -1310,12 +1413,9 @@ NS_METHOD nsWindow::Resize(PRInt32 aX,
          ptl.y = WinQuerySysValue(HWND_DESKTOP, SV_CYSCREEN) - h - 1 - aY;
       }
 
-      if (!WinSetWindowPos(GetMainWindow(), 0, ptl.x, ptl.y, w, h,
-                           SWP_MOVE | SWP_SIZE)) {
-         if (aRepaint && mWnd) {
-            WinInvalidateRect( mWnd, 0, FALSE);
-         }
-      }
+      if( !SetWindowPos( 0, ptl.x, ptl.y, w, h, SWP_MOVE | SWP_SIZE))
+         if( aRepaint)
+            Invalidate(PR_FALSE);
 
 #if DEBUG_sobotka
       printf("+++++++++++Resized 0x%lx at %ld, %ld to %d x %d (%d,%d)\n",
@@ -1356,6 +1456,17 @@ NS_METHOD nsWindow::IsEnabled(PRBool *aState)
 //-------------------------------------------------------------------------
 NS_METHOD nsWindow::SetFocus(PRBool aRaise)
 {
+    //
+    // Switch to the "main gui thread" if necessary... This method must
+    // be executed on the "gui thread"...
+    //
+    // Switch to the PM thread if necessary...
+    if( !mOS2Toolkit->IsGuiThread())
+    {
+        MethodInfo info(this, nsWindow::SET_FOCUS);
+        mOS2Toolkit->CallMethod(&info);
+    }
+    else
     if (mWnd) {
         if (!mInSetFocus) {
            DEBUGFOCUS(SetFocus);
@@ -1570,7 +1681,7 @@ NS_METHOD nsWindow::SetCursor(nsCursor aCursor)
       break;
   
     default:
-      NS_ERROR("Invalid cursor type");
+      NS_ASSERTION(0, "Invalid cursor type");
       break;
   }
 
@@ -1600,21 +1711,39 @@ NS_IMETHODIMP nsWindow::SetCursor(imgIContainer* aCursor,
     return NS_OK;
   }
 
-  nsRefPtr<gfxImageSurface> frame;
-  aCursor->CopyFrame(imgIContainer::FRAME_CURRENT,
-                     imgIContainer::FLAG_SYNC_DECODE,
-                     getter_AddRefs(frame));
+  nsCOMPtr<gfxIImageFrame> frame;
+  aCursor->GetFrameAt(0, getter_AddRefs(frame));
   if (!frame)
     return NS_ERROR_NOT_AVAILABLE;
 
   // if the image is ridiculously large, exit because
   // it will be unrecognizable when shrunk to 32x32
-  PRInt32 width = frame->Width();
-  PRInt32 height = frame->Height();
+  PRInt32 width, height;
+  frame->GetWidth(&width);
+  frame->GetHeight(&height);
   if (width > 128 || height > 128)
     return NS_ERROR_FAILURE;
 
-  PRUint8* data = frame->Data();
+  gfx_format format;
+  nsresult rv = frame->GetFormat(&format);
+  if (NS_FAILED(rv))
+    return rv;
+
+  // only 24-bit images with 0, 1, or 8-bit alpha data are supported.
+  // These are all the formats used in Cairo, and all map to the RGB24 resp. ARGB32 Cairo formats.
+  if (format != gfxIFormats::BGR_A1 && format != gfxIFormats::RGB_A1 &&
+      format != gfxIFormats::BGR_A8 && format != gfxIFormats::RGB_A8 &&
+      format != gfxIFormats::BGR && format != gfxIFormats::RGB)
+    return NS_ERROR_UNEXPECTED;
+
+  frame->LockImageData();
+  PRUint32 dataLen;
+  PRUint8* data;
+  rv = frame->GetImageData(&data, &dataLen);
+  if (NS_FAILED(rv)) {
+    frame->UnlockImageData();
+    return rv;
+  }
 
   // create the color bitmap
   HBITMAP hBmp = CreateBitmapRGB(data, width, height);
@@ -1622,11 +1751,14 @@ NS_IMETHODIMP nsWindow::SetCursor(imgIContainer* aCursor,
     return NS_ERROR_FAILURE;
 
   // create a transparency mask from the alpha bytes
-  HBITMAP hAlpha = CreateTransparencyMask(frame->Format(), data, width, height);
+  HBITMAP hAlpha = CreateTransparencyMask(format, data, width, height);
   if (!hAlpha) {
     GpiDeleteBitmap(hBmp);
     return NS_ERROR_FAILURE;
   }
+
+  // Unlock image data after both processing colors and alpha data
+  frame->UnlockImageData();
 
   POINTERINFO info = {0};
   info.fPointer = TRUE;
@@ -1681,9 +1813,9 @@ HBITMAP nsWindow::DataToBitmap(PRUint8* aImageData, PRUint32 aWidth,
   } bi;
 
   memset( &bi, 0, sizeof(bi));
-  bi.white.bBlue = (BYTE)255;
-  bi.white.bGreen = (BYTE)255;
-  bi.white.bRed = (BYTE)255;
+  bi.white.bBlue = 255;
+  bi.white.bGreen = 255;
+  bi.white.bRed = 255;
 
   // fill in the particulars
   bi.head.cbFix = sizeof(bi.head);
@@ -1743,7 +1875,7 @@ HBITMAP nsWindow::CreateBitmapRGB(PRUint8* aImageData,
 
 // create a monochrome AND/XOR bitmap from 0, 1, or 8-bit alpha data
 
-HBITMAP nsWindow::CreateTransparencyMask(gfxASurface::gfxImageFormat format,
+HBITMAP nsWindow::CreateTransparencyMask(gfx_format format,
                                          PRUint8* aImageData,
                                          PRUint32 aWidth,
                                          PRUint32 aHeight)
@@ -1757,29 +1889,36 @@ HBITMAP nsWindow::CreateTransparencyMask(gfxASurface::gfxImageFormat format,
   if (!mono)
     return NULL;
 
-  if (format == gfxASurface::ImageFormatARGB32) {
-    // Non-alpha formats are already taken care of by initializing the XOR and
-    // AND masks to zero
+  switch (format) {
+    // gfxIFormats::BGR and case gfxIFormats::RGB are already
+    // taken care of by initializing XOR and AND masks to zero
 
     // make the AND mask the inverse of the 8-bit alpha data
-    PRInt32* pSrc = (PRInt32*)aImageData;
-    for (PRUint32 row = aHeight; row > 0; --row) {
-      // Point to the right row in the AND mask
-      PRUint8* pDst = mono + cbData + abpr * (row - 1);
-      PRUint8 mask = 0x80;
-      for (PRUint32 col = aWidth; col > 0; --col) {
-        // Use sign bit to test for transparency, as alpha byte is highest byte
-        // Positive means, alpha < 128, so consider as transparent and set the AND mask
-        if (*pSrc++ >= 0) {
-          *pDst |= mask;
-        }
+    case gfxIFormats::BGR_A1:
+    case gfxIFormats::RGB_A1:
+    case gfxIFormats::RGB_A8:
+    case gfxIFormats::BGR_A8: {
+      PRInt32* pSrc = (PRInt32*)aImageData;
+      for (PRUint32 row = aHeight; row > 0; --row) {
+        // Point to the right row in the AND mask
+        PRUint8* pDst = mono + cbData + abpr * (row - 1);
+        PRUint8 mask = 0x80;
+        for (PRUint32 col = aWidth; col > 0; --col) {
+          // Use sign bit to test for transparency, as alpha byte is highest byte
+          // Positive means, alpha < 128, so consider as transparent and set the AND mask
+          if (*pSrc++ >= 0) {
+            *pDst |= mask;
+          }
 
-        mask >>= 1;
-        if (!mask) {
-          pDst++;
-          mask = 0x80;
+          mask >>= 1;
+          if (!mask) {
+            pDst++;
+            mask = 0x80;
+          }
         }
       }
+
+      break;
     }
   }
 
@@ -1849,6 +1988,26 @@ NS_IMETHODIMP nsWindow::HideWindowChrome(PRBool aShouldHide)
 // Invalidate this component visible area
 //
 //-------------------------------------------------------------------------
+NS_METHOD nsWindow::Invalidate(PRBool aIsSynchronous)
+{
+    if (mWnd)
+    {
+      WinInvalidateRect( mWnd, 0, FALSE);
+#if 0
+      if( PR_TRUE == aIsSynchronous) {
+         Update();
+      }
+#endif
+    }
+
+    return NS_OK;
+}
+
+//-------------------------------------------------------------------------
+//
+// Invalidate this component visible area
+//
+//-------------------------------------------------------------------------
 NS_METHOD nsWindow::Invalidate(const nsIntRect &aRect, PRBool aIsSynchronous)
 {
   if (mWnd)
@@ -1873,6 +2032,13 @@ NS_METHOD nsWindow::Invalidate(const nsIntRect &aRect, PRBool aIsSynchronous)
 //-------------------------------------------------------------------------
 NS_IMETHODIMP nsWindow::Update()
 {
+  // Switch to the PM thread if necessary...
+  if( !mOS2Toolkit->IsGuiThread())
+  {
+    MethodInfo info(this, nsWindow::UPDATE_WINDOW);
+    mOS2Toolkit->CallMethod(&info);
+  }
+  else 
   if (mWnd)
     WinUpdateWindow( mWnd);
   return NS_OK;
@@ -1929,286 +2095,137 @@ void nsWindow::FreeNativeData(void * data, PRUint32 aDataType)
 
 //-------------------------------------------------------------------------
 //
-// Configure the child widgets used for plugins
+// Notify a child window of a coming move by sending it a WM_VRNDISABLED
+// message. Only do that if it's not one of ours like e.g. plugin windows.
 //
 //-------------------------------------------------------------------------
-
-// This is invoked on a window that has plugin widget children
-// to resize and clip those child windows.
-
-nsresult
-nsWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
+BOOL nsWindow::NotifyForeignChildWindows(HWND aWnd)
 {
-  for (PRUint32 i = 0; i < aConfigurations.Length(); ++i) {
-    const Configuration& configuration = aConfigurations[i];
-    nsWindow* w = static_cast<nsWindow*>(configuration.mChild);
-    NS_ASSERTION(w->GetParent() == this,
-                 "Configured widget is not a child");
-    w->SetPluginClipRegion(configuration);
+  HENUM hEnum = WinBeginEnumWindows(aWnd);
+  HWND hwnd;
+
+  while ((hwnd = WinGetNextWindow(hEnum)) != NULLHANDLE) {
+    char className[19];
+    WinQueryClassName(hwnd, 19, className);
+    if (strcmp(className, WindowClass()) != 0) {
+      // This window is not one of our windows so notify it (and wait for
+      // the call to return so that the plugin has time to react)
+      WinSendMsg(hwnd, WM_VRNDISABLED, MPVOID, MPVOID);
+    } else {
+      // Recurse starting at this Mozilla child window.
+      NotifyForeignChildWindows(hwnd);
+    }
   }
-  return NS_OK;
+  return WinEndEnumWindows(hEnum);
 }
 
 //-------------------------------------------------------------------------
-
-// This is invoked on a plugin window to resize it and set a persistent
-// clipping region for it.  Since the latter isn't possible on OS/2, it
-// inserts a dummy window between the plugin widget and its parent to
-// act as a clipping rectangle.  The dummy window's dimensions and the
-// plugin widget's position within the window are adjusted to correspond
-// to the bounding box of the supplied array of clipping rectangles.
-// Note: this uses PM calls rather than existing methods like Resize()
-// and Update() because none of them support the options needed here.
-
-void nsWindow::SetPluginClipRegion(const Configuration& aConfiguration)
-{
-  NS_ASSERTION((mParent && mParent->mWnd), "Child window has no parent");
-
-  // If nothing has changed, exit.
-  if (!StoreWindowClipRegion(aConfiguration.mClipRegion) &&
-      mBounds == aConfiguration.mBounds) {
-    return;
-  }
-
-  // Set the widget's x/y to its nominal unclipped value.  It doesn't
-  // affect our calculations but other code relies on it being correct.
-  mBounds.MoveTo(aConfiguration.mBounds.TopLeft());
-
-  // Get or create the PM window we use as a clipping rectangle.
-  HWND hClip = GetPluginClipWindow(mParent->mWnd);
-  NS_ASSERTION(hClip, "No clipping window for plugin");
-  if (!hClip) {
-    return;
-  }
-
-  // Create the bounding box for the clip region.
-  const nsTArray<nsIntRect>& rects = aConfiguration.mClipRegion;
-  nsIntRect r;
-  for (PRUint32 i = 0; i < rects.Length(); ++i) {
-    r.UnionRect(r, rects[i]);
-  }
-
-  // Size and position hClip to match the bounding box.
-  SWP    swp;
-  POINTL ptl;
-  WinQueryWindowPos(hClip, &swp);
-  ptl.x = aConfiguration.mBounds.x + r.x;
-  ptl.y = mParent->mBounds.height
-          - (aConfiguration.mBounds.y + r.y + r.height);
-
-  ULONG  clipFlags = 0;
-  if (swp.x != ptl.x || swp.y != ptl.y) {
-    clipFlags |= SWP_MOVE;
-  }
-  if (swp.cx != r.width || swp.cy != r.height) {
-    clipFlags |= SWP_SIZE;
-  }
-  if (clipFlags) {
-    WinSetWindowPos(hClip, 0, ptl.x, ptl.y, r.width, r.height, clipFlags);
-  }
-
-  // Reducing the size of hClip clips the right & top sides of the
-  // plugin widget.  To clip the left & bottom sides, we have to move
-  // the widget so its origin's x and/or y is negative wrt hClip.
-  WinQueryWindowPos(mWnd, &swp);
-  ptl.x = -r.x;
-  ptl.y = r.height + r.y - aConfiguration.mBounds.height;
-
-  ULONG  wndFlags = 0;
-  if (swp.x != ptl.x || swp.y != ptl.y) {
-    wndFlags |= SWP_MOVE;
-  }
-  if (mBounds.Size() != aConfiguration.mBounds.Size()) {
-    wndFlags |= SWP_SIZE;
-  }
-  if (wndFlags) {
-    WinSetWindowPos(mWnd, 0, ptl.x, ptl.y,
-                    aConfiguration.mBounds.width,
-                    aConfiguration.mBounds.height, wndFlags);
-  }
-
-  // Some plugins don't resize themselves when the plugin widget changes
-  // size, so help them out by resizing the first child (usually a frame).
-  if (wndFlags & SWP_SIZE) {
-    HWND hChild = WinQueryWindow(mWnd, QW_TOP);
-    if (hChild) {
-      WinSetWindowPos(hChild, 0, 0, 0, 
-                      aConfiguration.mBounds.width,
-                      aConfiguration.mBounds.height,
-                      SWP_MOVE | SWP_SIZE);
-    }
-  }
-
-  // When hClip is resized, mWnd and its children may not get updated
-  // automatically, so invalidate & repaint them
-  if (clipFlags & SWP_SIZE) {
-    WinInvalidateRect(mWnd, 0, TRUE);
-    WinUpdateWindow(mWnd);
-  }
-}
-
+//
+// Force a resize of child windows after a scroll to reset hover positions.
+//
 //-------------------------------------------------------------------------
-
-// This gets or creates a window that's inserted between the main window
-// and its plugin children.  This window does nothing except act as a
-// clipping rectangle for the plugin widget.
-
-HWND nsWindow::GetPluginClipWindow(HWND aParentWnd)
+void nsWindow::ScrollChildWindows(PRInt32 aX, PRInt32 aY)
 {
-  static PRBool registered = FALSE;
-
-  if (mClipWnd) {
-    return mClipWnd;
+  nsIWidget *child = GetFirstChild();
+  while (child) {
+    nsIntRect rect;
+    child->GetBounds(rect);
+    child->Resize(rect.x + aX, rect.y + aY, rect.width, rect.height, PR_FALSE);
+    child = child->GetNextSibling();
   }
-
-  // Register our dummy window class - note the lack of a wndproc.
-  if (!registered) {
-    registered = WinRegisterClass(0, "nsClipWnd", 0, 0, 4);
-    if (!registered) {
-      return 0;
-    }
-  }
-
-  // Insert a new clip window in the hierarchy between mWnd & aParentWnd.
-  mClipWnd = WinCreateWindow(aParentWnd, "nsClipWnd", "",
-                             WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
-                             0, 0, 0, 0, 0, mWnd, 0, 0, 0);
-  if (mClipWnd) {
-    if (!WinSetParent(mWnd, mClipWnd, FALSE)) {
-      WinDestroyWindow(mClipWnd);
-      mClipWnd = 0;
-    }
-  }
-
-  return mClipWnd;
 }
-
 //-------------------------------------------------------------------------
 //
 // Scroll the bits of a window
 //
 //-------------------------------------------------------------------------
-
-static PRBool
-ClipRegionContainedInRect(const nsTArray<nsIntRect>& aClipRects,
-                          const nsIntRect& aRect)
+NS_METHOD nsWindow::Scroll(PRInt32 aDx, PRInt32 aDy, nsIntRect *aClipRect)
 {
-  for (PRUint32 i = 0; i < aClipRects.Length(); ++i) {
-    if (!aRect.Contains(aClipRects[i])) {
-      return PR_FALSE;
-    }
-  }
-  return PR_TRUE;
-}
+  RECTL rcl;
 
-void
-nsWindow::Scroll(const nsIntPoint& aDelta,
-                 const nsTArray<nsIntRect>& aDestRects,
-                 const nsTArray<Configuration>& aConfigurations)
-{
-  // Build the set of widgets that are to be moved by the scroll
-  // amount.
-  nsTHashtable<nsPtrHashKey<nsWindow> > scrolledWidgets;
-  scrolledWidgets.Init();
-  for (PRUint32 i = 0; i < aConfigurations.Length(); ++i) {
-    const Configuration& configuration = aConfigurations[i];
-    nsWindow* w = static_cast<nsWindow*>(configuration.mChild);
-    NS_ASSERTION(w->GetParent() == this,
-                 "Configured widget is not a child");
-    if (configuration.mBounds == w->mBounds + aDelta) {
-      scrolledWidgets.PutEntry(w);
-    }
+  if (nsnull != aClipRect)
+  {
+    rcl.xLeft = aClipRect->x;
+    rcl.yBottom = aClipRect->y + aClipRect->height;
+    rcl.xRight = rcl.xLeft + aClipRect->width;
+    rcl.yTop = rcl.yBottom + aClipRect->height;
+    NS2PM(rcl);
+    // this rect is inex
   }
 
-  // This prevents screen corruption while scrolling during
-  // a Moz-originated drag - the hps isn't actually used but
-  // fetching it unlocks the screen so it can be updated.
+  // this prevents screen corruption while scrolling during a
+  // Moz-originated drag - during a native drag, the screen
+  // isn't updated until the drag ends. so there's no corruption
   HPS hps = 0;
   CheckDragStatus(ACTION_SCROLL, &hps);
 
-  // Step through each rectangle to be scrolled.
-  for (BlitRectIter iter(aDelta, aDestRects); !iter.IsDone(); ++iter) {
-    nsIntRect affectedRect;
-    affectedRect.UnionRect(iter.Rect(), iter.Rect() - aDelta);
-
-    ULONG flags = SW_INVALIDATERGN;
-
-    // For each child window, see if it intersects the scroll rect.
-    for (nsWindow* w = static_cast<nsWindow*>(GetFirstChild()); w;
-         w = static_cast<nsWindow*>(w->GetNextSibling())) {
-
-      // If it intersects, we want to scroll it but only if it
-      // hasn't been scrolled previously;  keep track of this
-      // using the entries in scrolledWidgets.
-      if (w->mBounds.Intersects(affectedRect)) {
-        nsPtrHashKey<nsWindow>* entry = scrolledWidgets.GetEntry(w);
-
-        // If there's an entry for this child, it hasn't been
-        // scrolled yet, so enable SW_SCROLLCHILDREN & remove
-        // its entry to prevent it from being scrolled again.
-        if (entry) {
-          flags |= SW_SCROLLCHILDREN;
-          scrolledWidgets.RawRemoveEntry(entry);
-        } else {
-          // Otherwise, if it has already been scrolled (or wasn't supposed
-          // to be scrolled), disable SW_SCROLLCHILDREN.  This may result in
-          // some children not being scrolled when they should be.  That's
-          // OK because ConfigureChildren() will reposition them later.
-          flags &= ~SW_SCROLLCHILDREN;
-          break;
-        }
-      }
-    }
-
-    if (flags & SW_SCROLLCHILDREN) {
-      for (PRUint32 i = 0; i < aConfigurations.Length(); ++i) {
-        const Configuration& configuration = aConfigurations[i];
-        nsWindow* w = static_cast<nsWindow*>(configuration.mChild);
-
-        // If a widget straddles the scroll area, SW_SCROLLCHILDREN
-        // will cause the part in the scroll area to be updated,
-        // but not the part outside it [at least on Windows].  For
-        // these widgets, we have to invalidate them to get both
-        // parts updated after the scroll.
-        if (w->mBounds.Intersects(affectedRect)) {
-          if (!ClipRegionContainedInRect(configuration.mClipRegion,
-                                         affectedRect - (w->mBounds.TopLeft()
-                                                         + aDelta)) && mWnd) {
-            WinInvalidateRect( mWnd, 0, FALSE);
-          }
-
-          // Send a WM_VRNDISABLED to the plugin child of this widget.
-          // If it's a plugin that blits directly to the screen, this
-          // will halt its output during the scroll.  If it's anything
-          // else, this will have no effect.
-          HWND hPlugin = WinQueryWindow(w->mWnd, QW_TOP);
-          if (hPlugin) {
-            WinSendMsg(hPlugin, WM_VRNDISABLED, 0, 0);
-          }
-        }
-      }
-    }
-
-    // Note that when SW_SCROLLCHILDREN is used, WM_MOVE messages
-    // are sent which will update the mBounds of the children.
-    RECTL clip;
-    clip.xLeft   = affectedRect.x;
-    clip.xRight  = affectedRect.x + affectedRect.width;
-    clip.yTop    = mBounds.height - affectedRect.y;
-    clip.yBottom = clip.yTop - affectedRect.height;
-
-    WinScrollWindow(mWnd, aDelta.x, -aDelta.y, &clip, &clip, NULL, NULL, flags);
-    Update();
-  }
-
-  // Make sure all children actually get positioned, sized & clipped
-  // correctly.  If SW_SCROLLCHILDREN already moved widgets to their
-  // correct locations, then the WinSetWindowPos calls this triggers
-  // will just be no-ops.
-  ConfigureChildren(aConfigurations);
+  NotifyForeignChildWindows(mWnd);
+  WinScrollWindow(mWnd, aDx, -aDy, aClipRect ? &rcl : 0, 0, 0,
+                  0, SW_SCROLLCHILDREN | SW_INVALIDATERGN);
+  ScrollChildWindows(aDx, aDy);
+  Update();
 
   if (hps)
     ReleaseIfDragHPS(hps);
+
+  return NS_OK;
+}
+
+//-------------------------------------------------------------------------
+//
+// Every function that needs a thread switch goes through this function
+// by calling SendMessage (..WM_CALLMETHOD..) in nsToolkit::CallMethod.
+//
+//-------------------------------------------------------------------------
+BOOL nsWindow::CallMethod(MethodInfo *info)
+{
+    BOOL bRet = TRUE;
+
+    switch (info->methodId) {
+        case nsWindow::CREATE:
+            NS_ASSERTION(info->nArgs == 7, "Wrong number of arguments to CallMethod Create");
+            DoCreate( (HWND)               info->args[0],
+                      (nsWindow*)          info->args[1],
+                      (const nsIntRect&)*(nsIntRect*) (info->args[2]),
+                      (EVENT_CALLBACK)    (info->args[3]), 
+                      (nsIDeviceContext*) (info->args[4]),
+                      (nsIAppShell*)      (info->args[5]),
+                      nsnull, /* toolkit */
+                      (nsWidgetInitData*) (info->args[6]));
+            break;
+
+        case nsWindow::DESTROY:
+            NS_ASSERTION(info->nArgs == 0, "Wrong number of arguments to CallMethod Destroy");
+            Destroy();
+            break;
+
+        case nsWindow::SET_FOCUS:
+            NS_ASSERTION(info->nArgs == 0, "Wrong number of arguments to CallMethod SetFocus");
+            SetFocus(PR_FALSE);
+            break;
+
+        case nsWindow::UPDATE_WINDOW:
+            NS_ASSERTION(info->nArgs == 0, "Wrong number of arguments to CallMethod UpdateWindow");
+            Update();
+            break;
+
+        case nsWindow::SET_TITLE:
+            NS_ASSERTION(info->nArgs == 1, "Wrong number of arguments to CallMethod SetTitle");
+            SetTitle( (const nsAString &) info->args[0]);
+            break;
+
+        case nsWindow::GET_TITLE:
+            NS_ASSERTION(info->nArgs == 2, "Wrong number of arguments to CallMethod GetTitle");
+            GetWindowText( *((nsString*) info->args[0]),
+                           (PRUint32*)info->args[1]);
+            break;
+
+        default:
+            bRet = FALSE;
+            break;
+    }
+
+    return bRet;
 }
 
 //-------------------------------------------------------------------------
@@ -2387,7 +2404,6 @@ void nsWindow::ConstrainZLevel(HWND *aAfter) {
   NS_IF_RELEASE(event.mActualBelow);
 }
 
-//-----------------------------------------------------------------------
 
 // 'Window procedure'
 PRBool nsWindow::ProcessMessage( ULONG msg, MPARAM mp1, MPARAM mp2, MRESULT &rc)
@@ -2470,7 +2486,28 @@ PRBool nsWindow::ProcessMessage( ULONG msg, MPARAM mp1, MPARAM mp2, MRESULT &rc)
         case WM_QUERYCONVERTPOS:
           {
             PRECTL pCursorRect = (PRECTL)mp1;
-            rc = (MRESULT)QCP_NOCONVERT;
+            nsCompositionEvent event(PR_TRUE, NS_COMPOSITION_QUERY, this);
+            nsIntPoint point;
+            point.x = 0;
+            point.y = 0;
+            InitEvent(event,&point);
+            DispatchWindowEvent(&event);
+            if ((event.theReply.mCursorPosition.x) || 
+                (event.theReply.mCursorPosition.y)) 
+            {
+              pCursorRect->xLeft = event.theReply.mCursorPosition.x + 1;
+              pCursorRect->xRight = pCursorRect->xLeft + event.theReply.mCursorPosition.width - 1;
+              pCursorRect->yTop = GetClientHeight() - event.theReply.mCursorPosition.y;
+              pCursorRect->yBottom = pCursorRect->yTop - event.theReply.mCursorPosition.height;
+
+              point.x = 0;
+              point.y = 0;
+
+              rc = (MRESULT)QCP_CONVERT;
+            }
+            else
+              rc = (MRESULT)QCP_NOCONVERT;
+
             result = PR_TRUE;
             break;
           }
@@ -2482,10 +2519,12 @@ PRBool nsWindow::ProcessMessage( ULONG msg, MPARAM mp1, MPARAM mp2, MRESULT &rc)
         case WM_BUTTON1DOWN:
           if (!mIsScrollBar)
             WinSetCapture( HWND_DESKTOP, mWnd);
-          DispatchMouseEvent( NS_MOUSE_BUTTON_DOWN, mp1, mp2);
+          result = DispatchMouseEvent( NS_MOUSE_BUTTON_DOWN, mp1, mp2);
             // there's no need to clear this on button-up
           gLastButton1Down.x = XFROMMP(mp1);
           gLastButton1Down.y = YFROMMP(mp1);
+          WinSetActiveWindow(HWND_DESKTOP, mWnd);
+          result = PR_TRUE;
           break;
         case WM_BUTTON1UP:
           if (!mIsScrollBar)
@@ -2643,25 +2682,58 @@ PRBool nsWindow::ProcessMessage( ULONG msg, MPARAM mp1, MPARAM mp2, MRESULT &rc)
           result = OnScroll( msg, mp1, mp2);
           break;
 
-        // Do not act on WM_ACTIVATE - it is handled by nsFrameWindow.
-        // case WM_ACTIVATE:
-        //   break;
-
-        // This msg is used to activate top-level and plugin widgets
-        // after PM is done changing the focus.  We're only interested
-        // in windows gaining focus, not in those losing it.
-        case WM_FOCUSCHANGED:
-          DEBUGFOCUS(WM_FOCUSCHANGED);
-          if (SHORT1FROMMP(mp2)) {
-            ActivateTopLevelWidget();
-            ActivatePlugin(HWNDFROMMP(mp1));
-          }
+        case WM_ACTIVATE:
+          DEBUGFOCUS(WM_ACTIVATE);
+          if (mp1)
+            gJustGotActivate = PR_TRUE;
+          else
+            gJustGotDeactivate = PR_TRUE;
           break;
+
+        case WM_FOCUSCHANGED:
+        {
+          DEBUGFOCUS(WM_FOCUSCHANGED);
+
+          // If the frame was activated earlier or mp1 is 0, dispatch
+          // focus & activation events.  However, if the frame is minimized,
+          // defer activation and let SetSizeMode() dispatch it after the
+          // window has been restored by the user - otherwise, Show() will
+          // restore it involuntarily.  
+
+          if (SHORT1FROMMP(mp2)) {
+            if (gJustGotActivate || mp1 == 0) {
+              HWND hActive = WinQueryActiveWindow( HWND_DESKTOP);
+              if (!(WinQueryWindowULong( hActive, QWL_STYLE) & WS_MINIMIZED)) {
+                DEBUGFOCUS(NS_ACTIVATE);
+                gJustGotActivate = PR_FALSE;
+                gJustGotDeactivate = PR_FALSE;
+                result = DispatchFocus(NS_ACTIVATE);
+              }
+            }
+
+            if ( WinIsChild( mWnd, HWNDFROMMP(mp1)) && mNextID == 1) {
+              DEBUGFOCUS(NS_PLUGIN_ACTIVATE);
+              result = DispatchFocus(NS_PLUGIN_ACTIVATE);
+              WinSetFocus(HWND_DESKTOP, mWnd);
+            }
+          }
+          // We are losing focus
+          else {
+            if (gJustGotDeactivate) {
+              DEBUGFOCUS(NS_DEACTIVATE);
+              gJustGotDeactivate = PR_FALSE;
+              result = DispatchFocus(NS_DEACTIVATE);
+            }
+          }
+
+          break;
+        }
 
         case WM_WINDOWPOSCHANGED: 
           result = OnReposition( (PSWP) mp1);
           break;
-
+    
+    
         case WM_PRESPARAMCHANGED:
           // This is really for font-change notifies.  Do that first.
           rc = GetPrevWP()( mWnd, msg, mp1, mp2);
@@ -2683,73 +2755,6 @@ PRBool nsWindow::ProcessMessage( ULONG msg, MPARAM mp1, MPARAM mp2, MRESULT &rc)
     return result;
 }
 
-//-------------------------------------------------------------------------
-
-// When a window gets the focus, call nsFrameWindow's version of this
-// method.  It will fire an NS_ACTIVATE event on the top-level widget
-// if appropriate.
-
-void    nsWindow::ActivateTopLevelWidget()
-{
-  nsWindow * top = static_cast<nsWindow*>(GetTopLevelWidget());
-  if (top) {
-    top->ActivateTopLevelWidget();
-  }
-  return;
-}
-
-//-------------------------------------------------------------------------
-
-// Fire an NS_PLUGIN_ACTIVATE event whenever a window associated with
-// a plugin widget get the focus.
-
-void    nsWindow::ActivatePlugin(HWND aWnd)
-{
-  // avoid acting on recursive WM_FOCUSCHANGED msgs
-  static PRBool inPluginActivate = FALSE;
-  if (inPluginActivate) {
-    return;
-  }
-
-  // This property is used by the plugin window to store a pointer
-  // to its plugin object.  We just use it as a convenient marker.
-  if (!WinQueryProperty(mWnd, NS_PLUGIN_WINDOW_PROPERTY_ASSOCIATION)) {
-    return;
-  }
-
-  // Fire a plugin activation event on the plugin widget.
-  inPluginActivate = TRUE;
-  DEBUGFOCUS(NS_PLUGIN_ACTIVATE);
-  DispatchFocus(NS_PLUGIN_ACTIVATE);
-
-  // Activating the plugin moves the focus off the child that had it,
-  // so try to restore it.  If the WM_FOCUSCHANGED msg was synthesized
-  // by the plugin, then mp1 contains the child window that lost focus.
-  // Otherwise, just move it to the plugin's first child unless this
-  // is the mplayer plugin - doing so will put us into an endless loop.
-  // Since its children belong to another process, use the PID as a test.
-  HWND hFocus = 0;
-  if (WinIsChild(aWnd, mWnd)) {
-    hFocus = aWnd;
-  } else {
-    hFocus = WinQueryWindow(mWnd, QW_TOP);
-    if (hFocus) {
-      PID pidFocus, pidThis;
-      TID tid;
-      WinQueryWindowProcess(hFocus, &pidFocus, &tid);
-      WinQueryWindowProcess(mWnd, &pidThis, &tid);
-      if (pidFocus != pidThis) {
-        hFocus = 0;
-      }
-    }
-  }
-  if (hFocus) {
-    WinSetFocus(HWND_DESKTOP, hFocus);
-  }
-
-  inPluginActivate = FALSE;
-  return;
-}
 
 // -----------------------------------------------------------------------
 //
@@ -2827,6 +2832,11 @@ void nsWindow::OnDestroy()
    SubclassWindow( PR_FALSE);
    mWnd = 0;
 
+   // if we were in the middle of deferred window positioning then free up
+   if( mSWPs) free( mSWPs);
+   mSWPs = 0;
+   mlHave = mlUsed = 0;
+
    // release references to context, toolkit, appshell, children
    nsBaseWidget::OnDestroy();
 
@@ -2886,7 +2896,7 @@ PRBool nsWindow::OnPaint()
   } // if paint flashing
 #endif
 
-  if (mContext && mEventCallback) {
+  if (mContext && (mEventCallback || mEventListener)) {
     // Get rect to redraw and validate window
     RECTL rcl = { 0 };
 
@@ -2960,7 +2970,7 @@ PRBool nsWindow::OnPaint()
     if (hpsDrag) {
       ReleaseIfDragHPS(hpsDrag);
     }
-  } // if (mContext && mEventCallback)
+  } // if (mContext && (mEventCallback || mEventListener))
 
 #ifdef NS_DEBUG
   if (debug_WantPaintFlashing()) {
@@ -3086,7 +3096,7 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, MPARAM mp1, MPARAM mp2,
     event.clickCount = 1;
   }
 
-  NPEvent pluginEvent;
+  nsPluginEvent pluginEvent;
 
   switch (aEventType)
   {
@@ -3149,7 +3159,7 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, MPARAM mp1, MPARAM mp2,
 */
   pluginEvent.lParam = MAKELONG(event.refPoint.x, event.refPoint.y);
 
-  event.pluginEvent = (void *)&pluginEvent;
+  event.nativeMsg = (void *)&pluginEvent;
 
   // call the event callback 
   if (nsnull != mEventCallback) {
@@ -3176,7 +3186,7 @@ PRBool nsWindow::DispatchFocus(PRUint32 aEventType)
     event.refPoint.x = 0;
     event.refPoint.y = 0;
 
-    NPEvent pluginEvent;
+    nsPluginEvent pluginEvent;
 
     switch (aEventType)
     {
@@ -3193,7 +3203,7 @@ PRBool nsWindow::DispatchFocus(PRUint32 aEventType)
         break;
     }
 
-    event.pluginEvent = (void *)&pluginEvent;
+    event.nativeMsg = (void *)&pluginEvent;
     return DispatchWindowEvent(&event);
   }
   return PR_FALSE;
@@ -3284,7 +3294,14 @@ PRBool nsWindow::OnHScroll( MPARAM mp1, MPARAM mp2)
 
 NS_METHOD nsWindow::SetTitle(const nsAString& aTitle) 
 {
-   if (mWnd)
+   // Switch to the PM thread if necessary...
+   if( mOS2Toolkit && !mOS2Toolkit->IsGuiThread())
+   {
+      ULONG ulong = (ULONG) &aTitle;
+      MethodInfo info( this, nsWindow::SET_TITLE, 1, &ulong);
+      mOS2Toolkit->CallMethod( &info);
+   }
+   else if (mWnd)
    {
       PRUnichar* uchtemp = ToNewUnicode(aTitle);
       for (PRUint32 i=0;i<aTitle.Length();i++) {
@@ -3373,9 +3390,33 @@ nsWindow::HasPendingInputEvent()
 // OS2-specific routines to emulate Windows behaviors
 // --------------------------------------------------------------------------
 
+BOOL nsWindow::SetWindowPos( HWND ib, long x, long y, long cx, long cy, ULONG flags)
+{
+   BOOL bDeferred = FALSE;
+
+   if( mParent && mParent->mSWPs) // XXX bit implicit...
+   {
+      mParent->DeferPosition( GetMainWindow(), ib, x, y, cx, cy, flags);
+      bDeferred = TRUE;
+   }
+   else // WinSetWindowPos appears not to need msgq (hmm)
+      WinSetWindowPos( GetMainWindow(), ib, x, y, cx, cy, GetSWPFlags(flags));
+
+   // When the window is actually sized, mBounds will be updated in the fnwp.
+
+   return bDeferred;
+}
+
 nsresult nsWindow::GetWindowText( nsString &aStr, PRUint32 *rc)
 {
-   if( mWnd)
+   // Switch to the PM thread if necessary...
+   if( !mOS2Toolkit->IsGuiThread())
+   {
+      ULONG args[] = { (ULONG) &aStr, (ULONG) rc };
+      MethodInfo info( this, nsWindow::GET_TITLE, 2, args);
+      mOS2Toolkit->CallMethod( &info);
+   }
+   else if( mWnd)
    {
       // XXX there must be some way to query the text straight into the string!
       int length = WinQueryWindowTextLength( mWnd);
@@ -3579,14 +3620,13 @@ PRBool nsWindow::CheckDragStatus(PRUint32 aAction, HPS * oHps)
     // for this window, get the hps;  otherwise, return zero;
     // (if we provide a 2nd hps for a window, the cursor in text
     // fields won't be erased when it's moved to another position)
-  if (oHps) {
+  if (oHps)
     if (getHps && !mDragHps) {
       mDragHps = DrgGetPS(mWnd);
       *oHps = mDragHps;
-    } else {
-      *oHps = 0;
     }
-  }
+    else
+      *oHps = 0;
 
   return rtn;
 }

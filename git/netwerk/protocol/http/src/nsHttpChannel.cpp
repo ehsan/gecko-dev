@@ -83,7 +83,6 @@
 #include "nsAuthInformationHolder.h"
 #include "nsICacheService.h"
 #include "nsDNSPrefetch.h"
-#include "nsNetSegmentUtils.h"
 
 // True if the local cache should be bypassed when processing a request.
 #define BYPASS_LOCAL_CACHE(loadFlags) \
@@ -126,7 +125,6 @@ nsHttpChannel::nsHttpChannel()
     , mTransactionReplaced(PR_FALSE)
     , mUploadStreamHasHeaders(PR_FALSE)
     , mAuthRetryPending(PR_FALSE)
-    , mProxyAuth(PR_FALSE)
     , mSuppressDefensiveAuth(PR_FALSE)
     , mResuming(PR_FALSE)
     , mInitedCacheEntry(PR_FALSE)
@@ -138,7 +136,6 @@ nsHttpChannel::nsHttpChannel()
     , mLoadedFromApplicationCache(PR_FALSE)
     , mTracingEnabled(PR_TRUE)
     , mForceAllowThirdPartyCookie(PR_FALSE)
-    , mCustomConditionalRequest(PR_FALSE)
 {
     LOG(("Creating nsHttpChannel @%x\n", this));
 
@@ -272,6 +269,17 @@ nsHttpChannel::AsyncCall(nsAsyncCallback funcPtr,
     }
 
     return rv;
+}
+
+PRBool
+nsHttpChannel::RequestIsConditional()
+{
+    // Is our consumer issuing a conditional request?
+    return mRequestHead.PeekHeader(nsHttp::If_Modified_Since) ||
+           mRequestHead.PeekHeader(nsHttp::If_None_Match) ||
+           mRequestHead.PeekHeader(nsHttp::If_Unmodified_Since) ||
+           mRequestHead.PeekHeader(nsHttp::If_Match) ||
+           mRequestHead.PeekHeader(nsHttp::If_Range);
 }
 
 nsresult
@@ -841,32 +849,8 @@ nsHttpChannel::CallOnStartRequest()
 
     // install stream converter if required
     rv = ApplyContentConversions();
-    if (NS_FAILED(rv)) return rv;
 
-    if (!mCanceled) {
-        // create offline cache entry if offline caching was requested
-        if (mCacheForOfflineUse) {
-            PRBool shouldCacheForOfflineUse;
-            rv = ShouldUpdateOfflineCacheEntry(&shouldCacheForOfflineUse);
-            if (NS_FAILED(rv)) return rv;
-            
-            if (shouldCacheForOfflineUse) {
-                LOG(("writing to the offline cache"));
-                rv = InitOfflineCacheEntry();
-                if (NS_FAILED(rv)) return rv;
-                
-                if (mOfflineCacheEntry) {
-                  rv = InstallOfflineCacheListener();
-                  if (NS_FAILED(rv)) return rv;
-                }
-            } else {
-                LOG(("offline cache is up to date, not updating"));
-                CloseOfflineCacheEntry();
-            }
-        }
-    }
-
-    return NS_OK;
+    return rv;
 }
 
 nsresult
@@ -1150,8 +1134,28 @@ nsHttpChannel::ProcessNormal()
         rv = InstallCacheListener();
         if (NS_FAILED(rv)) return rv;
     }
+    // create offline cache entry if offline caching was requested
+    if (mCacheForOfflineUse) {
+        PRBool shouldCacheForOfflineUse;
+        rv = ShouldUpdateOfflineCacheEntry(&shouldCacheForOfflineUse);
+        if (NS_FAILED(rv)) return rv;
 
-    return NS_OK;
+        if (shouldCacheForOfflineUse) {
+            LOG(("writing to the offline cache"));
+            rv = InitOfflineCacheEntry();
+            if (NS_FAILED(rv)) return rv;
+
+            if (mOfflineCacheEntry) {
+                rv = InstallOfflineCacheListener();
+                if (NS_FAILED(rv)) return rv;
+            }
+        } else {
+            LOG(("offline cache is up to date, not updating"));
+            CloseOfflineCacheEntry();
+        }
+    }
+
+    return rv;
 }
 
 nsresult
@@ -1269,15 +1273,8 @@ nsHttpChannel::DoReplaceWithProxy(nsIProxyInfo* pi)
         return rv;
 
     mStatus = NS_BINDING_REDIRECTED;
-
-    // disconnect from the old listeners...
     mListener = nsnull;
     mListenerContext = nsnull;
-
-    // ...and the old callbacks
-    mCallbacks = nsnull;
-    mProgressSink = nsnull;
-
     return rv;
 }
 
@@ -1491,11 +1488,6 @@ nsHttpChannel::ProcessNotModified()
 
     LOG(("nsHttpChannel::ProcessNotModified [this=%x]\n", this)); 
 
-    if (mCustomConditionalRequest) {
-        LOG(("Bypassing ProcessNotModified due to custom conditional headers")); 
-        return NS_ERROR_FAILURE;
-    }
-
     NS_ENSURE_TRUE(mCachedResponseHead, NS_ERROR_NOT_INITIALIZED);
     NS_ENSURE_TRUE(mCacheEntry, NS_ERROR_NOT_INITIALIZED);
 
@@ -1676,6 +1668,12 @@ nsHttpChannel::OpenCacheEntry(PRBool offline, PRBool *delayed)
     // byte range requests.
     if (IsSubRangeRequest(mRequestHead))
         return NS_OK;
+
+    if (RequestIsConditional()) {
+        // don't use the cache if our consumer is making a conditional request
+        // (see bug 331825).
+        return NS_OK;
+    }
 
     GenerateCacheKey(mPostID, cacheKey);
 
@@ -1870,6 +1868,12 @@ nsHttpChannel::OpenOfflineCacheEntryForWriting()
     // byte range requests.
     if (IsSubRangeRequest(mRequestHead))
         return NS_OK;
+
+    if (RequestIsConditional()) {
+        // don't use the cache if our consumer is making a conditional request
+        // (see bug 331825).
+        return NS_OK;
+    }
 
     nsCAutoString cacheKey;
     GenerateCacheKey(mPostID, cacheKey);
@@ -2089,14 +2093,10 @@ nsHttpChannel::CheckCache()
     }
 
     PRBool doValidation = PR_FALSE;
-    PRBool canAddImsHeader = PR_TRUE;
 
-    mCustomConditionalRequest = 
-        mRequestHead.PeekHeader(nsHttp::If_Modified_Since) ||
-        mRequestHead.PeekHeader(nsHttp::If_None_Match) ||
-        mRequestHead.PeekHeader(nsHttp::If_Unmodified_Since) ||
-        mRequestHead.PeekHeader(nsHttp::If_Match) ||
-        mRequestHead.PeekHeader(nsHttp::If_Range);
+    // Be optimistic: assume that we won't need to do validation
+    mRequestHead.ClearHeader(nsHttp::If_Modified_Since);
+    mRequestHead.ClearHeader(nsHttp::If_None_Match);
 
     // If the LOAD_FROM_CACHE flag is set, any cached data can simply be used.
     if (mLoadFlags & LOAD_FROM_CACHE) {
@@ -2133,7 +2133,6 @@ nsHttpChannel::CheckCache()
 
     else if (ResponseWouldVary()) {
         LOG(("Validating based on Vary headers returning TRUE\n"));
-        canAddImsHeader = PR_FALSE;
         doValidation = PR_TRUE;
     }
     
@@ -2171,20 +2170,6 @@ nsHttpChannel::CheckCache()
             doValidation = PR_TRUE;
 
         LOG(("%salidating based on expiration time\n", doValidation ? "V" : "Not v"));
-    }
-
-    if (!doValidation && mRequestHead.PeekHeader(nsHttp::If_Match) &&
-        (method == nsHttp::Get || method == nsHttp::Head)) {
-        const char *requestedETag, *cachedETag;
-        cachedETag = mCachedResponseHead->PeekHeader(nsHttp::ETag);
-        requestedETag = mRequestHead.PeekHeader(nsHttp::If_Match);
-        if (cachedETag && (!strncmp(cachedETag, "W/", 2) ||
-            strcmp(requestedETag, cachedETag))) {
-            // User has defined If-Match header, if the cached entry is not 
-            // matching the provided header value or the cached ETag is weak,
-            // force validation.
-            doValidation = PR_TRUE;
-        }
     }
 
     if (!doValidation) {
@@ -2226,20 +2211,15 @@ nsHttpChannel::CheckCache()
         //
         // the request method MUST be either GET or HEAD (see bug 175641).
         //
-        // do not override conditional headers when consumer has defined its own
         if (!mCachedResponseHead->NoStore() &&
             (mRequestHead.Method() == nsHttp::Get ||
-             mRequestHead.Method() == nsHttp::Head) &&
-             !mCustomConditionalRequest) {
+             mRequestHead.Method() == nsHttp::Head)) {
             const char *val;
             // Add If-Modified-Since header if a Last-Modified was given
-            // and we are allowed to do this (see bugs 510359 and 269303)
-            if (canAddImsHeader) {
-                val = mCachedResponseHead->PeekHeader(nsHttp::Last_Modified);
-                if (val)
-                    mRequestHead.SetHeader(nsHttp::If_Modified_Since,
-                                           nsDependentCString(val));
-            }
+            val = mCachedResponseHead->PeekHeader(nsHttp::Last_Modified);
+            if (val)
+                mRequestHead.SetHeader(nsHttp::If_Modified_Since,
+                                       nsDependentCString(val));
             // Add If-None-Match header if an ETag was given in the response
             val = mCachedResponseHead->PeekHeader(nsHttp::ETag);
             if (val)
@@ -2375,6 +2355,27 @@ nsHttpChannel::ReadFromCache()
             LOG(("skipping read from cache based on LOAD_ONLY_IF_MODIFIED "
                  "load flag\n"));
             return AsyncCall(&nsHttpChannel::HandleAsyncNotModified);
+        }
+    }
+
+    // set up the offline cache entry for writing
+    if (mCacheForOfflineUse) {
+        PRBool shouldUpdateOffline;
+        rv = ShouldUpdateOfflineCacheEntry(&shouldUpdateOffline);
+        if (NS_FAILED(rv)) return rv;
+
+        if (shouldUpdateOffline) {
+            LOG(("writing to the offline cache"));
+            rv = InitOfflineCacheEntry();
+            if (NS_FAILED(rv)) return rv;
+
+            if (mOfflineCacheEntry) {
+                rv = InstallOfflineCacheListener();
+                if (NS_FAILED(rv)) return rv;
+            }
+        } else {
+            LOG(("offline cache is up to date, not updating"));
+            CloseOfflineCacheEntry();
         }
     }
 
@@ -2675,7 +2676,7 @@ nsHttpChannel::InstallCacheListener(PRUint32 offset)
         do_CreateInstance(kStreamListenerTeeCID, &rv);
     if (NS_FAILED(rv)) return rv;
 
-    rv = tee->Init(mListener, out, nsnull);
+    rv = tee->Init(mListener, out);
     if (NS_FAILED(rv)) return rv;
 
     mListener = tee;
@@ -2701,7 +2702,7 @@ nsHttpChannel::InstallOfflineCacheListener()
         do_CreateInstance(kStreamListenerTeeCID, &rv);
     if (NS_FAILED(rv)) return rv;
 
-    rv = tee->Init(mListener, out, nsnull);
+    rv = tee->Init(mListener, out);
     if (NS_FAILED(rv)) return rv;
 
     mListener = tee;
@@ -2773,55 +2774,27 @@ nsHttpChannel::SetupReplacementChannel(nsIURI       *newURI,
         return NS_OK; // no other options to set
 
     if (preserveMethod) {
-        nsCOMPtr<nsIUploadChannel> uploadChannel =
-            do_QueryInterface(httpChannel);
-        nsCOMPtr<nsIUploadChannel2> uploadChannel2 =
-            do_QueryInterface(httpChannel);
-        if (mUploadStream && (uploadChannel2 || uploadChannel)) {
+        nsCOMPtr<nsIUploadChannel> uploadChannel = do_QueryInterface(httpChannel);
+        if (mUploadStream && uploadChannel) {
             // rewind upload stream
             nsCOMPtr<nsISeekableStream> seekable = do_QueryInterface(mUploadStream);
             if (seekable)
                 seekable->Seek(nsISeekableStream::NS_SEEK_SET, 0);
 
             // replicate original call to SetUploadStream...
-            if (uploadChannel2) {
-                const char *ctype = mRequestHead.PeekHeader(nsHttp::Content_Type);
-                if (!ctype)
-                    ctype = "";
-                const char *clen  = mRequestHead.PeekHeader(nsHttp::Content_Length);
-                if (clen)
-                    uploadChannel2->ExplicitSetUploadStream(
-                        mUploadStream,
-                        nsDependentCString(ctype),
-                        nsCRT::atoll(clen),
-                        nsDependentCString(mRequestHead.Method()),
-                        mUploadStreamHasHeaders);
-            }
+            if (mUploadStreamHasHeaders)
+                uploadChannel->SetUploadStream(mUploadStream, EmptyCString(), -1);
             else {
-                if (mUploadStreamHasHeaders)
-                    uploadChannel->SetUploadStream(mUploadStream, EmptyCString(),
-                                                   -1);
-                else {
-                    const char *ctype =
-                        mRequestHead.PeekHeader(nsHttp::Content_Type);
-                    const char *clen =
-                        mRequestHead.PeekHeader(nsHttp::Content_Length);
-                    if (!ctype) {
-                        ctype = "application/octet-stream";
-                    }
-                    if (clen) {
-                        uploadChannel->SetUploadStream(mUploadStream,
-                                                       nsDependentCString(ctype),
-                                                       atoi(clen));
-                    }
-                }
+                const char *ctype = mRequestHead.PeekHeader(nsHttp::Content_Type);
+                const char *clen  = mRequestHead.PeekHeader(nsHttp::Content_Length);
+                if (ctype && clen)
+                    uploadChannel->SetUploadStream(mUploadStream,
+                                                   nsDependentCString(ctype),
+                                                   atoi(clen));
             }
         }
-        // since preserveMethod is true, we need to ensure that the appropriate 
-        // request method gets set on the channel, regardless of whether or not 
-        // we set the upload stream above. This means SetRequestMethod() will
-        // be called twice if ExplicitSetUploadStream() gets called above.
-
+        // must happen after setting upload stream since SetUploadStream
+        // may change the request method.
         httpChannel->SetRequestMethod(nsDependentCString(mRequestHead.Method()));
     }
     // convey the referrer if one was used for this channel to the next one
@@ -2834,9 +2807,6 @@ nsHttpChannel::SetupReplacementChannel(nsIURI       *newURI,
 
     nsCOMPtr<nsIHttpChannelInternal> httpInternal = do_QueryInterface(newChannel);
     if (httpInternal) {
-        // convey the mForceAllowThirdPartyCookie flag
-        httpInternal->SetForceAllowThirdPartyCookie(mForceAllowThirdPartyCookie);
-
         // update the DocumentURI indicator since we are being redirected.
         // if this was a top-level document channel, then the new channel
         // should have its mDocumentURI point to newURI; otherwise, we
@@ -3164,13 +3134,13 @@ nsHttpChannel::ProcessAuthentication(PRUint32 httpStatus)
     }
 
     const char *challenges;
-    mProxyAuth = (httpStatus == 407);
+    PRBool proxyAuth = (httpStatus == 407);
 
-    nsresult rv = PrepareForAuthentication(mProxyAuth);
+    nsresult rv = PrepareForAuthentication(proxyAuth);
     if (NS_FAILED(rv))
         return rv;
 
-    if (mProxyAuth) {
+    if (proxyAuth) {
         // only allow a proxy challenge if we have a proxy server configured.
         // otherwise, we could inadvertantly expose the user's proxy
         // credentials to an origin server.  We could attempt to proceed as
@@ -3195,24 +3165,12 @@ nsHttpChannel::ProcessAuthentication(PRUint32 httpStatus)
     NS_ENSURE_TRUE(challenges, NS_ERROR_UNEXPECTED);
 
     nsCAutoString creds;
-    rv = GetCredentials(challenges, mProxyAuth, creds);
-    if (rv == NS_ERROR_IN_PROGRESS)  {
-        // authentication prompt has been invoked and result
-        // is expected asynchronously
-        mAuthRetryPending = PR_TRUE;
-        // suspend the transaction pump to stop receiving the
-        // unauthenticated content data. We will throw that data
-        // away when user provides credentials or resume the pump
-        // when user refuses to authenticate.
-        LOG(("Suspending the transaction, asynchronously prompting for credentials"));
-        mTransactionPump->Suspend();
-        return NS_OK;
-    }
-    else if (NS_FAILED(rv))
+    rv = GetCredentials(challenges, proxyAuth, creds);
+    if (NS_FAILED(rv))
         LOG(("unable to authenticate\n"));
     else {
         // set the authentication credentials
-        if (mProxyAuth)
+        if (proxyAuth)
             mRequestHead.SetHeader(nsHttp::Proxy_Authorization, creds);
         else
             mRequestHead.SetHeader(nsHttp::Authorization, creds);
@@ -3339,15 +3297,6 @@ nsHttpChannel::GetCredentials(const char *challenges,
 
                 break;
             }
-            else if (rv == NS_ERROR_IN_PROGRESS) {
-                // authentication prompt has been invoked and result is
-                // expected asynchronously, save current challenge being
-                // processed and all remaining challenges to use later in
-                // OnAuthAvailable and now immediately return
-                mCurrentChallenge = challenge;
-                mRemainingChallenges = eol ? eol+1 : nsnull;
-                return rv;
-            }
 
             // reset the auth type and continuation state
             NS_IF_RELEASE(*currentContinuationState);
@@ -3365,43 +3314,6 @@ nsHttpChannel::GetCredentials(const char *challenges,
     }
 
     return rv;
-}
-
-nsresult
-nsHttpChannel::GetAuthorizationMembers(PRBool proxyAuth,
-                                       nsCSubstring& scheme,
-                                       const char*& host,
-                                       PRInt32& port,
-                                       nsCSubstring& path,
-                                       nsHttpAuthIdentity*& ident,
-                                       nsISupports**& continuationState)
-{
-    if (proxyAuth) {
-        NS_ASSERTION (mConnectionInfo->UsingHttpProxy(), "proxyAuth is true, but no HTTP proxy is configured!");
-
-        host = mConnectionInfo->ProxyHost();
-        port = mConnectionInfo->ProxyPort();
-        ident = &mProxyIdent;
-        scheme.AssignLiteral("http");
-
-        continuationState = &mProxyAuthContinuationState;
-    }
-    else {
-        host = mConnectionInfo->Host();
-        port = mConnectionInfo->Port();
-        ident = &mIdent;
-
-        nsresult rv;
-        rv = GetCurrentPath(path);
-        if (NS_FAILED(rv)) return rv;
-
-        rv = mURI->GetScheme(scheme);
-        if (NS_FAILED(rv)) return rv;
-
-        continuationState = &mAuthContinuationState;
-    }
-
-    return NS_OK;
 }
 
 nsresult
@@ -3445,16 +3357,35 @@ nsHttpChannel::GetCredentialsForChallenge(const char *challenge,
     PRBool identFromURI = PR_FALSE;
     nsISupports **continuationState;
 
-    rv = GetAuthorizationMembers(proxyAuth, scheme, host, port, path, ident, continuationState);
-    if (NS_FAILED(rv)) return rv;
+    if (proxyAuth) {
+        NS_ASSERTION (mConnectionInfo->UsingHttpProxy(), "proxyAuth is true, but no HTTP proxy is configured!");
 
-    if (!proxyAuth) {
+        host = mConnectionInfo->ProxyHost();
+        port = mConnectionInfo->ProxyPort();
+        ident = &mProxyIdent;
+        scheme.AssignLiteral("http");
+
+        continuationState = &mProxyAuthContinuationState;
+    }
+    else {
+        host = mConnectionInfo->Host();
+        port = mConnectionInfo->Port();
+        ident = &mIdent;
+
+        rv = GetCurrentPath(path);
+        if (NS_FAILED(rv)) return rv;
+
+        rv = mURI->GetScheme(scheme);
+        if (NS_FAILED(rv)) return rv;
+
         // if this is the first challenge, then try using the identity
         // specified in the URL.
         if (mIdent.IsEmpty()) {
             GetIdentityFromURI(authFlags, mIdent);
             identFromURI = !mIdent.IsEmpty();
         }
+
+        continuationState = &mAuthContinuationState;
     }
 
     //
@@ -3708,163 +3639,23 @@ nsHttpChannel::PromptForIdentity(PRUint32    level,
                                   nsDependentCString(authType));
     if (!holder)
         return NS_ERROR_OUT_OF_MEMORY;
-
-    rv = authPrompt->AsyncPromptAuth(this, this, nsnull, level, holder,
-                     getter_AddRefs(mAsyncPromptAuthCancelable));
-
-    if (NS_SUCCEEDED(rv)) {
-        // indicate using this error code that authentication prompt
-        // result is expected asynchronously
-        rv = NS_ERROR_IN_PROGRESS;
-    }
-    else {
-        // Fall back to synchronous prompt
-        PRBool retval = PR_FALSE;
-        rv = authPrompt->PromptAuth(this, level, holder, &retval);
-        if (NS_FAILED(rv))
-            return rv;
-
-        if (!retval)
-            rv = NS_ERROR_ABORT;
-        else
-            holder->SetToHttpAuthIdentity(authFlags, ident);
-    }
+    PRBool retval = PR_FALSE;
+    rv = authPrompt->PromptAuth(this,
+                                level,
+                                holder, &retval);
+    if (NS_FAILED(rv))
+        return rv;
 
     // remember that we successfully showed the user an auth dialog
     if (!proxyAuth)
         mSuppressDefensiveAuth = PR_TRUE;
 
-    return rv;
-}
-
-NS_IMETHODIMP nsHttpChannel::OnAuthAvailable(nsISupports *aContext,
-                                             nsIAuthInformation *aAuthInfo)
-{
-    LOG(("nsHttpChannel::OnAuthAvailable [this=%x]", this));
-    mAsyncPromptAuthCancelable = nsnull;
-
-    nsresult rv;
-
-    const char *host;
-    PRInt32 port;
-    nsHttpAuthIdentity *ident;
-    nsCAutoString path, scheme;
-    nsISupports **continuationState;
-    rv = GetAuthorizationMembers(mProxyAuth, scheme, host, port, path, ident, continuationState);
-    if (NS_FAILED(rv))
-        OnAuthCancelled(aContext, PR_FALSE);
-
-    nsCAutoString realm;
-    ParseRealm(mCurrentChallenge.get(), realm);
-
-    nsHttpAuthCache *authCache = gHttpHandler->AuthCache();
-    nsHttpAuthEntry *entry = nsnull;
-    authCache->GetAuthEntryForDomain(scheme.get(), host, port, realm.get(), &entry);
-
-    nsCOMPtr<nsISupports> sessionStateGrip;
-    if (entry)
-        sessionStateGrip = entry->mMetaData;
-
-    nsAuthInformationHolder* holder =
-            static_cast<nsAuthInformationHolder*>(aAuthInfo);
-    ident->Set(holder->Domain().get(),
-               holder->User().get(),
-               holder->Password().get());
-
-    nsCAutoString unused;
-    nsCOMPtr<nsIHttpAuthenticator> auth;
-    rv = GetAuthenticator(mCurrentChallenge.get(), unused, getter_AddRefs(auth));
-    if (NS_FAILED(rv)) {
-        NS_ASSERTION(PR_FALSE, "GetAuthenticator failed");
-        OnAuthCancelled(aContext, PR_TRUE);
-        return NS_OK;
-    }
-
-    nsXPIDLCString creds;
-    rv = GenCredsAndSetEntry(auth, mProxyAuth,
-                             scheme.get(), host, port, path.get(),
-                             realm.get(), mCurrentChallenge.get(), *ident, sessionStateGrip,
-                             getter_Copies(creds));
-
-    mCurrentChallenge.Truncate();
-    if (NS_FAILED(rv)) {
-        OnAuthCancelled(aContext, PR_TRUE);
-        return NS_OK;
-    }
-
-    return ContinueOnAuthAvailable(creds);
-}
-
-NS_IMETHODIMP nsHttpChannel::OnAuthCancelled(nsISupports *aContext, 
-                                             PRBool userCancel)
-{
-    LOG(("nsHttpChannel::OnAuthCancelled [this=%x]", this));
-    mAsyncPromptAuthCancelable = nsnull;
-    if (userCancel) {
-        if (!mRemainingChallenges.IsEmpty()) {
-            // there are still some challenges to process, do so
-            nsresult rv;
-
-            nsCAutoString creds;
-            rv = GetCredentials(mRemainingChallenges.get(), mProxyAuth, creds);
-            if (NS_SUCCEEDED(rv)) {
-                // GetCredentials loaded the credentials from the cache or
-                // some other way in a synchronous manner, process those
-                // credentials now
-                mRemainingChallenges.Truncate();
-                return ContinueOnAuthAvailable(creds);
-            }
-            else if (rv == NS_ERROR_IN_PROGRESS) {
-                // GetCredentials successfully queued another authprompt for
-                // a challenge from the list, we are now waiting for the user
-                // to provide the credentials
-                return NS_OK;
-            }
-
-            // otherwise, we failed...
-        }
-
-        mRemainingChallenges.Truncate();
-
-        // ensure call of OnStartRequest of the current listener here,
-        // it would not be called otherwise at all
-        nsresult rv = CallOnStartRequest();
-
-        // drop mAuthRetryPending flag and resume the transaction
-        // this resumes load of the unauthenticated content data
-        mAuthRetryPending = PR_FALSE;
-        LOG(("Resuming the transaction, user cancelled the auth dialog"));
-        mTransactionPump->Resume();
-
-        if (NS_FAILED(rv))
-            mTransactionPump->Cancel(rv);
-    }
-
-    return NS_OK;
-}
-
-nsresult
-nsHttpChannel::ContinueOnAuthAvailable(const nsCSubstring& creds)
-{
-    if (mProxyAuth)
-        mRequestHead.SetHeader(nsHttp::Proxy_Authorization, creds);
+    if (!retval)
+        rv = NS_ERROR_ABORT;
     else
-        mRequestHead.SetHeader(nsHttp::Authorization, creds);
-
-    // drop our remaining list of challenges.  We don't need them, because we
-    // have now authenticated against a challenge and will be sending that
-    // information to the server (or proxy).  If it doesn't accept our
-    // authentication it'll respond with failure and resend the challenge list
-    mRemainingChallenges.Truncate();
-
-    // setting mAuthRetryPending flag and resuming the transaction
-    // triggers process of throwing away the unauthenticated data already
-    // coming from the network
-    mAuthRetryPending = PR_TRUE;
-    LOG(("Resuming the transaction, we got credentials from user"));
-    mTransactionPump->Resume();
-
-    return NS_OK;
+        holder->SetToHttpAuthIdentity(authFlags, ident);
+  
+    return rv;
 }
 
 PRBool
@@ -4111,7 +3902,6 @@ NS_INTERFACE_MAP_BEGIN(nsHttpChannel)
     NS_INTERFACE_MAP_ENTRY(nsIHttpChannel)
     NS_INTERFACE_MAP_ENTRY(nsICachingChannel)
     NS_INTERFACE_MAP_ENTRY(nsIUploadChannel)
-    NS_INTERFACE_MAP_ENTRY(nsIUploadChannel2)
     NS_INTERFACE_MAP_ENTRY(nsICacheListener)
     NS_INTERFACE_MAP_ENTRY(nsIEncodedChannel)
     NS_INTERFACE_MAP_ENTRY(nsIHttpChannelInternal)
@@ -4123,7 +3913,6 @@ NS_INTERFACE_MAP_BEGIN(nsHttpChannel)
     NS_INTERFACE_MAP_ENTRY(nsITraceableChannel)
     NS_INTERFACE_MAP_ENTRY(nsIApplicationCacheContainer)
     NS_INTERFACE_MAP_ENTRY(nsIApplicationCacheChannel)
-    NS_INTERFACE_MAP_ENTRY(nsIAuthPromptCallback)
 NS_INTERFACE_MAP_END_INHERITING(nsHashPropertyBag)
 
 //-----------------------------------------------------------------------------
@@ -4171,8 +3960,6 @@ nsHttpChannel::Cancel(nsresult status)
         mTransactionPump->Cancel(status);
     if (mCachePump)
         mCachePump->Cancel(status);
-    if (mAsyncPromptAuthCancelable)
-        mAsyncPromptAuthCancelable->Cancel(status);
     return NS_OK;
 }
 
@@ -4719,9 +4506,7 @@ nsHttpChannel::GetUploadStream(nsIInputStream **stream)
 }
 
 NS_IMETHODIMP
-nsHttpChannel::SetUploadStream(nsIInputStream *stream,
-                               const nsACString &contentType,
-                               PRInt32 contentLength)
+nsHttpChannel::SetUploadStream(nsIInputStream *stream, const nsACString &contentType, PRInt32 contentLength)
 {
     // NOTE: for backwards compatibility and for compatibility with old style
     // plugins, |stream| may include headers, specifically Content-Type and
@@ -4739,8 +4524,7 @@ nsHttpChannel::SetUploadStream(nsIInputStream *stream,
                     return NS_ERROR_FAILURE;
                 }
             }
-            mRequestHead.SetHeader(nsHttp::Content_Length,
-                                   nsPrintfCString("%d", contentLength));
+            mRequestHead.SetHeader(nsHttp::Content_Length, nsPrintfCString("%d", contentLength));
             mRequestHead.SetHeader(nsHttp::Content_Type, contentType);
             mUploadStreamHasHeaders = PR_FALSE;
             mRequestHead.SetMethod(nsHttp::Put); // PUT request
@@ -4755,37 +4539,6 @@ nsHttpChannel::SetUploadStream(nsIInputStream *stream,
         mRequestHead.SetMethod(nsHttp::Get); // revert to GET request
     }
     mUploadStream = stream;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHttpChannel::ExplicitSetUploadStream(nsIInputStream *aStream,
-                                       const nsACString &aContentType,
-                                       PRInt64 aContentLength,
-                                       const nsACString &aMethod,
-                                       PRBool aStreamHasHeaders)
-{
-    // Ensure stream is set and method is valid 
-    NS_ENSURE_TRUE(aStream, NS_ERROR_FAILURE);
-
-    if (aContentLength < 0) {
-        PRUint32 streamLength;
-        aStream->Available(&streamLength);
-        aContentLength = streamLength;
-        if (aContentLength < 0) {
-            NS_ERROR("unable to determine content length");
-            return NS_ERROR_FAILURE;
-        }
-    }
-
-    nsresult rv = SetRequestMethod(aMethod);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    mRequestHead.SetHeader(nsHttp::Content_Length, nsPrintfCString("%lld", aContentLength));
-    mRequestHead.SetHeader(nsHttp::Content_Type, aContentType);
-
-    mUploadStreamHasHeaders = aStreamHasHeaders;
-    mUploadStream = aStream;
     return NS_OK;
 }
 
@@ -5237,14 +4990,8 @@ nsHttpChannel::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult st
         // keep the connection around after the transaction is finished.
         //
         nsRefPtr<nsAHttpConnection> conn;
-        if (authRetry && (mCaps & NS_HTTP_STICKY_CONNECTION)) {
+        if (authRetry && (mCaps & NS_HTTP_STICKY_CONNECTION))
             conn = mTransaction->Connection();
-            // This is so far a workaround to fix leak when reusing unpersistent
-            // connection for authentication retry. See bug 459620 comment 4
-            // for details.
-            if (conn && !conn->IsPersistent())
-                conn = nsnull;
-        }
 
         // at this point, we're done with the transaction
         NS_RELEASE(mTransaction);
@@ -5344,8 +5091,8 @@ nsHttpChannel::OnDataAvailable(nsIRequest *request, nsISupports *ctxt,
         // of a byte range request, the content length stored in the cached
         // response headers is what we want to use here.
 
-        PRUint64 progressMax(PRUint64(mResponseHead->ContentLength()));
-        PRUint64 progress = mLogicalOffset + PRUint64(count);
+        nsUint64 progressMax(PRUint64(mResponseHead->ContentLength()));
+        nsUint64 progress = mLogicalOffset + nsUint64(count);
         NS_ASSERTION(progress <= progressMax, "unexpected progress values");
 
         OnTransportStatus(nsnull, transportStatus, progress, progressMax);

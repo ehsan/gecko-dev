@@ -98,11 +98,6 @@ enum nsCSSTokenType {
   eCSSToken_Endsmatch,      // "$="
   eCSSToken_Containsmatch,  // "*="
 
-  eCSSToken_URange,         // Low in mInteger, high in mInteger2;
-                            // mIntegerValid is true if the token is a
-                            // valid range; mIdent preserves the textual
-                            // form of the token for error reporting
-
   // A special token indicating that there was an error in tokenization.
   // It's always an unterminated string.
   eCSSToken_Error           // mSymbol + mIdent
@@ -112,13 +107,17 @@ struct nsCSSToken {
   nsAutoString    mIdent NS_OKONHEAP;
   float           mNumber;
   PRInt32         mInteger;
-  PRInt32         mInteger2;
   nsCSSTokenType  mType;
   PRUnichar       mSymbol;
-  PRPackedBool    mIntegerValid; // for number, dimension, urange
+  PRPackedBool    mIntegerValid; // for number and dimension
   PRPackedBool    mHasSign; // for number, percentage, and dimension
 
   nsCSSToken();
+
+  PRBool IsDimension() {
+    return PRBool((eCSSToken_Dimension == mType) ||
+                  ((eCSSToken_Number == mType) && (mNumber == 0.0f)));
+  }
 
   PRBool IsSymbol(PRUnichar aSymbol) {
     return PRBool((eCSSToken_Symbol == mType) && (mSymbol == aSymbol));
@@ -220,7 +219,6 @@ protected:
   PRBool ParseNumber(PRInt32 aChar, nsCSSToken& aResult);
   PRBool ParseRef(PRInt32 aChar, nsCSSToken& aResult);
   PRBool ParseString(PRInt32 aChar, nsCSSToken& aResult);
-  PRBool ParseURange(PRInt32 aChar, nsCSSToken& aResult);
   PRBool SkipCComment();
 
   PRBool GatherIdent(PRInt32 aChar, nsString& aIdent);

@@ -52,6 +52,7 @@ static nsEventStatus HandleEvent(nsGUIEvent *aEvent);
 
 
 //#define SHOW_VIEW_BORDERS
+//#define HIDE_ALL_WIDGETS
 
 // {34297A07-A8FD-d811-87C6-000244212BCB}
 #define VIEW_WRAPPER_IID \
@@ -164,7 +165,7 @@ nsEventStatus HandleEvent(nsGUIEvent *aEvent)
   if (view)
   {
     nsCOMPtr<nsIViewManager> vm = view->GetViewManager();
-    vm->DispatchEvent(aEvent, view, &result);
+    vm->DispatchEvent(aEvent, &result);
   }
 
   return result;
@@ -185,11 +186,13 @@ nsView::nsView(nsViewManager* aViewManager, nsViewVisibility aVisibility)
   mDeletionObserver = nsnull;
 }
 
-void nsView::DropMouseGrabbing()
-{
-  nsCOMPtr<nsIViewObserver> viewObserver = mViewManager->GetViewObserver();
-  if (viewObserver) {
-    viewObserver->ClearMouseCapture(this);
+void nsView::DropMouseGrabbing() {
+  // check to see if we are grabbing events
+  if (mViewManager->GetMouseEventGrabber() == this) {
+    // we are grabbing events. Move the grab to the parent if we can.
+    PRBool boolResult; //not used
+    // if GetParent() returns null, then we release the grab, which is the best we can do
+    mViewManager->GrabMouseEvents(GetParent(), boolResult);
   }
 }
 
@@ -248,7 +251,9 @@ nsView::~nsView()
     NS_IF_RELEASE(wrapper);
 
     mWindow->SetClientData(nsnull);
-    mWindow->Destroy();
+    if (!(mVFlags & NS_VIEW_DISOWNS_WIDGET)) {
+      mWindow->Destroy();
+    }
     NS_RELEASE(mWindow);
   }
   delete mDirtyRegion;
@@ -335,15 +340,6 @@ void nsView::ResetWidgetBounds(PRBool aRecurse, PRBool aMoveOnly,
   }
 }
 
-PRBool nsView::IsEffectivelyVisible()
-{
-  for (nsView* v = this; v; v = v->mParent) {
-    if (v->GetVisibility() == nsViewVisibility_kHide)
-      return PR_FALSE;
-  }
-  return PR_TRUE;
-}
-
 nsIntRect nsView::CalcWidgetBounds(nsWindowType aType)
 {
   nsCOMPtr<nsIDeviceContext> dx;
@@ -360,7 +356,7 @@ nsIntRect nsView::CalcWidgetBounds(nsWindowType aType)
     viewBounds += offset;
 
     if (parentWidget && aType == eWindowType_popup &&
-        IsEffectivelyVisible()) {
+        mVis == nsViewVisibility_kShow) {
       nsIntPoint screenPoint = parentWidget->WidgetToScreenOffset();
       viewBounds += nsPoint(NSIntPixelsToAppUnits(screenPoint.x, p2a),
                             NSIntPixelsToAppUnits(screenPoint.y, p2a));
@@ -439,38 +435,29 @@ void nsView::SetDimensions(const nsRect& aRect, PRBool aPaint, PRBool aResizeWid
   }
 }
 
-void nsView::NotifyEffectiveVisibilityChanged(PRBool aEffectivelyVisible)
+NS_IMETHODIMP nsView::SetVisibility(nsViewVisibility aVisibility)
 {
-  if (!aEffectivelyVisible)
+
+  mVis = aVisibility;
+
+  if (aVisibility == nsViewVisibility_kHide)
   {
     DropMouseGrabbing();
   }
 
   if (nsnull != mWindow)
   {
-    if (aEffectivelyVisible)
+#ifndef HIDE_ALL_WIDGETS
+    if (mVis == nsViewVisibility_kShow)
     {
       DoResetWidgetBounds(PR_FALSE, PR_TRUE);
       mWindow->Show(PR_TRUE);
     }
     else
+#endif
       mWindow->Show(PR_FALSE);
   }
 
-  for (nsView* child = mFirstChild; child; child = child->mNextSibling) {
-    if (child->mVis == nsViewVisibility_kHide) {
-      // It was effectively hidden and still is
-      continue;
-    }
-    // Our child is visible if we are
-    child->NotifyEffectiveVisibilityChanged(aEffectivelyVisible);
-  }
-}
-
-NS_IMETHODIMP nsView::SetVisibility(nsViewVisibility aVisibility)
-{
-  mVis = aVisibility;
-  NotifyEffectiveVisibilityChanged(IsEffectivelyVisible());
   return NS_OK;
 }
 
@@ -493,6 +480,15 @@ NS_IMETHODIMP nsView::SetFloating(PRBool aFloatingView)
 
 void nsView::InvalidateHierarchy(nsViewManager *aViewManagerParent)
 {
+  if (aViewManagerParent) {
+    // We're removed from the view hierarchy of aRemovalPoint, so make sure
+    // we're not still grabbing mouse events.
+    if (aViewManagerParent->GetMouseEventGrabber() == this) {
+      PRBool res;
+      aViewManagerParent->GrabMouseEvents(nsnull, res);
+    }
+  }
+
   if (mViewManager->GetRootView() == this)
     mViewManager->InvalidateHierarchy();
 
@@ -648,7 +644,7 @@ nsresult nsIView::CreateWidget(const nsIID &aWindowIID,
       aWidgetInitData->mContentType = aContentType;
 
       if (aNative && aWidgetInitData->mWindowType != eWindowType_popup)
-        mWindow->Create(nsnull, aNative, trect, ::HandleEvent, dx, nsnull, nsnull, aWidgetInitData);
+        mWindow->Create(aNative, trect, ::HandleEvent, dx, nsnull, nsnull, aWidgetInitData);
       else
       {
         if (!initDataPassedIn && GetParent() && 
@@ -657,7 +653,7 @@ nsresult nsIView::CreateWidget(const nsIID &aWindowIID,
         if (aParentWidget) {
           NS_ASSERTION(aWidgetInitData->mWindowType == eWindowType_popup,
                        "popup widget type expected");
-          mWindow->Create(aParentWidget, nsnull, trect,
+          mWindow->Create(aParentWidget, trect,
                           ::HandleEvent, dx, nsnull, nsnull, aWidgetInitData);
         }
         else {
@@ -668,10 +664,10 @@ nsresult nsIView::CreateWidget(const nsIID &aWindowIID,
             // when printing
             if (!parentWidget)
               return NS_ERROR_FAILURE;
-            mWindow->Create(nsnull, parentWidget->GetNativeData(NS_NATIVE_WIDGET), trect,
+            mWindow->Create(parentWidget->GetNativeData(NS_NATIVE_WIDGET), trect,
                             ::HandleEvent, dx, nsnull, nsnull, aWidgetInitData);
           } else {
-            mWindow->Create(parentWidget, nsnull, trect,
+            mWindow->Create(parentWidget, trect,
                             ::HandleEvent, dx, nsnull, nsnull, aWidgetInitData);
           }
         }
@@ -732,31 +728,6 @@ nsresult nsView::LoadWidget(const nsCID &aClassIID)
   }
 
   return rv;
-}
-
-EVENT_CALLBACK nsIView::AttachWidgetEventHandler(nsIWidget* aWidget)
-{
-#ifdef DEBUG
-  void* data = nsnull;
-  aWidget->GetClientData(data);
-  NS_ASSERTION(!data, "Already got client data");
-#endif
-
-  nsView* v = static_cast<nsView*>(this);
-  ViewWrapper* wrapper = new ViewWrapper(v);
-  if (!wrapper)
-    return nsnull;
-  NS_ADDREF(wrapper); // Will be released in DetachWidgetEventHandler
-  aWidget->SetClientData(wrapper);
-  return ::HandleEvent;
-}
-
-void nsIView::DetachWidgetEventHandler(nsIWidget* aWidget)
-{
-  ViewWrapper* wrapper = GetWrapperFor(aWidget);
-  NS_ASSERTION(!wrapper || wrapper->GetView() == this, "Wrong view");
-  NS_IF_RELEASE(wrapper);
-  aWidget->SetClientData(nsnull);
 }
 
 #ifdef DEBUG
@@ -848,7 +819,7 @@ nsIWidget* nsIView::GetNearestWidget(nsPoint* aOffset) const
     if (aOffset) {
       *aOffset = pt;
     }
-    return nsnull;
+    return static_cast<const nsView*>(this)->GetViewManager()->GetWidget();
   }
 
   // pt is now the offset from v's origin to this's origin

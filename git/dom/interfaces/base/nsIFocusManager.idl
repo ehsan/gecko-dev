@@ -39,7 +39,7 @@
 interface nsIDocument;
 interface nsIContent;
 
-[scriptable, uuid(64CAE24B-8C2D-4B75-9047-BC9668D85975)]
+[scriptable, uuid(CD6040A8-243F-412A-8A16-0BF2AA1083B9)]
 /**
  * The focus manager deals with all focus related behaviour. Only one element
  * in the entire application may have the focus at a time; this element
@@ -198,14 +198,6 @@ interface nsIFocusManager : nsISupports
    */
   const unsigned long FLAG_BYKEY = 0x2000;
 
-  /**
-   * Focus is changing due to a call to MoveFocus. This flag will be implied
-   * when MoveFocus is called except when one of the other mechanisms (mouse
-   * or key) is specified, or when the type is MOVEFOCUS_ROOT or
-   * MOVEFOCUS_CARET.
-   */
-  const unsigned long FLAG_BYMOVEFOCUS = 0x4000;
-
   // these constants are used with the aType argument to MoveFocus
 
   /** move focus forward one element, used when pressing TAB */
@@ -245,11 +237,8 @@ interface nsIFocusManager : nsISupports
 
   /**
    * Called when a new document in a window is shown.
-   *
-   * If aNeedsFocus is true, then focus events are expected to be fired on the
-   * window if this window is in the focused window chain.
    */
-  [noscript] void windowShown(in nsIDOMWindow aWindow, in PRBool aNeedsFocus);
+  [noscript] void windowShown(in nsIDOMWindow aWindow);
 
   /**
    * Called when a document in a window has been hidden or otherwise can no

@@ -8,10 +8,6 @@
  *  * Support the Test.Simple API used by MochiKit, to be able to test MochiKit
  * itself against IE 5.5
  *
- * NOTE: Pay attention to cross-browser compatibility in this file. For
- * instance, do not use const or JS > 1.5 features which are not yet
- * implemented everywhere.
- *
 **/
 
 if (typeof(SimpleTest) == "undefined") {
@@ -38,7 +34,7 @@ SimpleTest._stopOnLoad = true;
  * Something like assert.
 **/
 SimpleTest.ok = function (condition, name, diag) {
-    var test = {'result': !!condition, 'name': name, 'diag': diag};
+    var test = {'result': !!condition, 'name': name, 'diag': diag || ""};
     if (SimpleTest._logEnabled)
         SimpleTest._logResult(test, "TEST-PASS", "TEST-UNEXPECTED-FAIL");
     SimpleTest._tests.push(test);
@@ -60,7 +56,7 @@ SimpleTest.isnot = function (a, b, name) {
 //  --------------- Test.Builder/Test.More todo() -----------------
 
 SimpleTest.todo = function(condition, name, diag) {
-  var test = {'result': !!condition, 'name': name, 'diag': diag, todo: true};
+  var test = {'result': !!condition, 'name': name, 'diag': diag || "", todo: true};
   if (SimpleTest._logEnabled)
       SimpleTest._logResult(test, "TEST-UNEXPECTED-PASS", "TEST-KNOWN-FAIL");
   SimpleTest._tests.push(test);
@@ -72,7 +68,9 @@ SimpleTest._logResult = function(test, passString, failString) {
   if (parentRunner.currentTestURL)
     msg += parentRunner.currentTestURL;
   msg += " | " + test.name;
-  var diag = test.diag ? " - " + test.diag : "";
+  var diag = "";
+  if (test.diag)
+    diag = " - " + test.diag;
   if (test.result) {
       if (test.todo)
           parentRunner.logger.error(msg + diag);
@@ -118,19 +116,18 @@ SimpleTest.report = function () {
     var results = MochiKit.Base.map(
         function (test) {
             var cls, msg;
-            var diag = test.diag ? " - " + test.diag : "";
             if (test.todo && !test.result) {
                 todo++;
                 cls = "test_todo";
-                msg = "todo | " + test.name + diag;
+                msg = "todo - " + test.name + " " + test.diag;
             } else if (test.result && !test.todo) {
                 passed++;
                 cls = "test_ok";
-                msg = "passed | " + test.name;
+                msg = "ok - " + test.name;
             } else {
                 failed++;
                 cls = "test_not_ok";
-                msg = "failed | " + test.name + diag;
+                msg = "not ok - " + test.name + " " + test.diag;
             }
             return DIV({"class": cls}, msg);
         },
@@ -215,109 +212,6 @@ SimpleTest.showReport = function() {
 **/
 SimpleTest.waitForExplicitFinish = function () {
     SimpleTest._stopOnLoad = false;
-};
-
-/**
- * Multiply the timeout the parent runner uses for this test by the
- * given factor.
- *
- * For example, in a test that may take a long time to complete, using
- * "SimpleTest.requestLongerTimeout(5)" will give it 5 times as long to
- * finish.
- */
-SimpleTest.requestLongerTimeout = function (factor) {
-    if (parentRunner) {
-        parentRunner.requestLongerTimeout(factor);
-    }
-}
-
-SimpleTest.waitForFocus_started = false;
-SimpleTest.waitForFocus_loaded = false;
-SimpleTest.waitForFocus_focused = false;
-
-/**
- * If the page is not yet loaded, waits for the load event. If the page is
- * not yet focused, focuses and waits for the window to be focused. Calls
- * the callback when completed.
- *
- * targetWindow should be specified if it is different than 'window'.
- */
-SimpleTest.waitForFocus = function (callback, targetWindow) {
-    if (!targetWindow)
-      targetWindow = window;
-
-    SimpleTest.waitForFocus_started = false;
-
-    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-    var fm = Components.classes["@mozilla.org/focus-manager;1"].
-                        getService(Components.interfaces.nsIFocusManager);
-
-    var usedTargetWindow = {};
-    fm.getFocusedElementForWindow(targetWindow, true, usedTargetWindow);
-    targetWindow = usedTargetWindow.value;
-
-    function debugFocusLog(prefix) {
-        netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-
-        var baseWindow = targetWindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                                     .getInterface(Components.interfaces.nsIWebNavigation)
-                                     .QueryInterface(Components.interfaces.nsIBaseWindow);
-        ok(true, prefix + " -- loaded: " + targetWindow.document.readyState +
-           " active window: " +
-               (fm.activeWindow ? "(" + fm.activeWindow + ") " + fm.activeWindow.location : "<no window active>") +
-           " focused window: " +
-               (fm.focusedWindow ? "(" + fm.focusedWindow + ") " + fm.focusedWindow.location : "<no window focused>") +
-           " desired window: (" + targetWindow + ") " + targetWindow.location +
-           " docshell visible: " + baseWindow.visibility);
-    }
-
-    debugFocusLog("before wait for focus");
-
-    function maybeRunTests() {
-        debugFocusLog("maybe run tests <load:" +
-                      SimpleTest.waitForFocus_loaded + ", focus:" + SimpleTest.waitForFocus_focused + ">");
-        if (SimpleTest.waitForFocus_loaded &&
-            SimpleTest.waitForFocus_focused &&
-            !SimpleTest.waitForFocus_started) {
-            SimpleTest.waitForFocus_started = true;
-            setTimeout(callback, 0, targetWindow);
-        }
-    }
-
-    function waitForEvent(event) {
-        SimpleTest["waitForFocus_" + event.type + "ed"] = true;
-        targetWindow.removeEventListener(event.type, waitForEvent, false);
-        if (event.type == "MozAfterPaint")
-          ok(true, "MozAfterPaint event received");
-        maybeRunTests();
-    }
-
-    // wait for the page to load if it hasn't already
-    SimpleTest.waitForFocus_loaded = (targetWindow.document.readyState == "complete");
-    if (!SimpleTest.waitForFocus_loaded) {
-        ok(true, "must wait for load");
-        targetWindow.addEventListener("load", waitForEvent, false);
-    }
-
-    // check if the window is focused, and focus it if it is not
-    var focusedWindow = { };
-    if (fm.activeWindow)
-      fm.getFocusedElementForWindow(fm.activeWindow, true, focusedWindow);
-
-    // if this is a child frame, ensure that the frame is focused
-    SimpleTest.waitForFocus_focused = (focusedWindow.value == targetWindow);
-    if (SimpleTest.waitForFocus_focused) {
-        ok(true, "already focused");
-        // if the frame is already focused and loaded, call the callback directly
-        maybeRunTests();
-    }
-    else {
-        ok(true, "must wait for focus");
-        targetWindow.addEventListener("focus", waitForEvent, false);
-        targetWindow.focus();
-    }
-
-    targetWindow.addEventListener("MozAfterPaint", waitForEvent, false);
 };
 
 /**
@@ -571,25 +465,18 @@ var todo_is = SimpleTest.todo_is;
 var todo_isnot = SimpleTest.todo_isnot;
 var isDeeply = SimpleTest.isDeeply;
 
-var gOldOnError = window.onerror;
-window.onerror = function simpletestOnerror(errorMsg, url, lineNumber) {
-  var funcIdentifier = "[SimpleTest/SimpleTest.js, window.onerror] ";
-
-  // Log the message.
-  ok(false, funcIdentifier + "An error occurred", errorMsg + " at " + url + ":" + lineNumber);
-  // There is no Components.stack.caller to log. (See bug 511888.)
+const oldOnError = window.onerror;
+window.onerror = function (ev) {
+  // Log the error.
+  ok(false, "[SimpleTest/SimpleTest.js, window.onerror] An error occurred: [ " + ev + " ]");
 
   // Call previous handler.
-  if (gOldOnError) {
+  if (oldOnError) {
     try {
-      // Ignore return value: always run default handler.
-      gOldOnError(errorMsg, url, lineNumber);
+      oldOnError(ev);
     } catch (e) {
-      // Log the error.
-      ok(false, funcIdentifier + "Exception thrown by gOldOnError()", e);
-      // Log its stack.
-      if (e.stack)
-        ok(false, funcIdentifier + "JavaScript error stack:\n" + e.stack);
+      // Log the exception.
+      ok(false, "[SimpleTest/SimpleTest.js, window.onerror] Exception thrown by oldOnError(): [ " + e + " ]");
     }
   }
 

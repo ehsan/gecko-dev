@@ -1,25 +1,28 @@
-var currentHandler;
-var browser;
+function url(spec) {
+  var ios = Components.classes["@mozilla.org/network/io-service;1"]
+                      .getService(Components.interfaces.nsIIOService);
+  return ios.newURI(spec, null, null);
+}
 
-function doc() browser.contentDocument;
+var gTestPage = null;
+var gBrowserHandler;
 
 function setHandlerFunc(aResultFunc) {
-  if (currentHandler)
-    gBrowser.removeEventListener("DOMLinkAdded", currentHandler, false);
-  gBrowser.addEventListener("DOMLinkAdded", aResultFunc, false);
-  currentHandler = aResultFunc;
+  DOMLinkHandler.handleEvent = function (event) {
+    gBrowserHandler.call(DOMLinkHandler, event);
+    aResultFunc();
+  }
 }
 
 function test() {
-  waitForExplicitFinish();
+  gBrowserHandler = DOMLinkHandler.handleEvent;
+  ok(gBrowserHandler, "found browser handler");
 
-  gBrowser.selectedTab = gBrowser.addTab();
-  browser = gBrowser.selectedBrowser;
-  browser.addEventListener("load", function (event) {
-    event.currentTarget.removeEventListener("load", arguments.callee, true);
-    iconDiscovery();
-  }, true);
-  content.location = "chrome://mochikit/content/browser/browser/base/content/test/discovery.html";
+  waitForExplicitFinish();
+  var activeWin = Application.activeWindow;
+  gTestPage = activeWin.open(url("chrome://mochikit/content/browser/browser/base/content/test/discovery.html"));
+  gTestPage.focus();
+  setTimeout(iconDiscovery, 1000);
 }
 
 var iconDiscoveryTests = [
@@ -35,7 +38,7 @@ var iconDiscoveryTests = [
 
 function runIconDiscoveryTest() {
   var test = iconDiscoveryTests[0];
-  var head = doc().getElementById("linkparent");
+  var head = gTestPage.document.getElementById("linkparent");
   var hasSrc = gProxyFavIcon.hasAttribute("src");
   if (test.pass)
     ok(hasSrc, test.text);
@@ -53,8 +56,8 @@ function iconDiscovery() {
     gProxyFavIcon.removeAttribute("src");
 
     var test = iconDiscoveryTests[0];
-    var head = doc().getElementById("linkparent");
-    var link = doc().createElement("link");
+    var head = gTestPage.document.getElementById("linkparent");
+    var link = gTestPage.document.createElement("link");
 
     var rel = test.rel || "icon";
     var href = test.href || "chrome://mochikit/content/browser/browser/base/content/test/moz.png";
@@ -88,6 +91,7 @@ var searchDiscoveryTests = [
 ];
 
 function runSearchDiscoveryTest() {
+  var browser = gBrowser.getBrowserForDocument(gTestPage.document);
   var test = searchDiscoveryTests[0];
   var title = test.title || searchDiscoveryTests.length;
   if (browser.engines) {
@@ -112,22 +116,27 @@ function runMultipleEnginesTestAndFinalize() {
     ranOnce = true;
     return;
   }
+  var browser = gBrowser.getBrowserForDocument(gTestPage.document);
   ok(browser.engines, "has engines");
   is(browser.engines.length, 1, "only one engine");
   is(browser.engines[0].uri, "http://first.mozilla.com/search.xml", "first engine wins");
 
-  gBrowser.removeCurrentTab();
-  gBrowser.removeEventListener("DOMLinkAdded", currentHandler, false);
+  gTestPage.close();
+
+  // Reset the default link handler
+  DOMLinkHandler.handleEvent = gBrowserHandler;
+
   finish();
 }
 
 function searchDiscovery() {
-  var head = doc().getElementById("linkparent");
+  var head = gTestPage.document.getElementById("linkparent");
+  var browser = gBrowser.getBrowserForDocument(gTestPage.document);
 
   if (searchDiscoveryTests.length) {
     setHandlerFunc(runSearchDiscoveryTest);
     var test = searchDiscoveryTests[0];
-    var link = doc().createElement("link");
+    var link = gTestPage.document.createElement("link");
 
     var rel = test.rel || "search";
     var href = test.href || "http://so.not.here.mozilla.com/search.xml";
@@ -144,7 +153,7 @@ function searchDiscovery() {
   } else {
     setHandlerFunc(runMultipleEnginesTestAndFinalize);
     // Test multiple engines with the same title
-    var link = doc().createElement("link");
+    var link = gTestPage.document.createElement("link");
     link.rel = "search";
     link.href = "http://first.mozilla.com/search.xml";
     link.type = "application/opensearchdescription+xml";

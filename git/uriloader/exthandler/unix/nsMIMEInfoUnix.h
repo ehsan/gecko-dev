@@ -57,7 +57,7 @@ protected:
   virtual NS_HIDDEN_(nsresult) LoadUriInternal(nsIURI *aURI);
 
   virtual NS_HIDDEN_(nsresult) LaunchDefaultWithFile(nsIFile *aFile);
-#if defined (MOZ_PLATFORM_HILDON) && defined (MOZ_ENABLE_GNOMEVFS)
+#ifdef MOZ_PLATFORM_HILDON
   nsresult LaunchDefaultWithDBus(const char *aFilePath);
   NS_IMETHOD GetPossibleApplicationHandlers(nsIMutableArray * *aPossibleAppHandlers);
 #endif

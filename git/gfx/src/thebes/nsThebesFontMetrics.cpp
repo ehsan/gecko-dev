@@ -58,8 +58,6 @@ nsThebesFontMetrics::nsThebesFontMetrics()
 
 nsThebesFontMetrics::~nsThebesFontMetrics()
 {
-    if (mDeviceContext)
-        mDeviceContext->FontMetricsDeleted(this);
     delete mFontStyle;
     //delete mFontGroup;
 }
@@ -104,7 +102,6 @@ nsThebesFontMetrics::Init(const nsFont& aFont, nsIAtom* aLangGroup,
 NS_IMETHODIMP
 nsThebesFontMetrics::Destroy()
 {
-    mDeviceContext = nsnull;
     return NS_OK;
 }
 
@@ -443,7 +440,7 @@ GetTextRunBoundingMetrics(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aLengt
     gfxTextRun::Metrics theMetrics =
         aTextRun->MeasureText(aStart, aLength, gfxFont::TIGHT_HINTED_OUTLINE_EXTENTS,
                               aContext->ThebesContext(), &provider);
-        // note that TIGHT_HINTED_OUTLINE_EXTENTS can be expensive (on Windows)
+        // note that TIGHT_UNHINTED_OUTLINE_EXTENTS can be expensive (on Windows)
         // but this is only used for MathML positioning so it's not critical
 
     aBoundingMetrics.leftBearing = NSToCoordFloor(theMetrics.mBoundingBox.X());

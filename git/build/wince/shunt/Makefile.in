@@ -63,7 +63,6 @@ EXPORTS_mozce_shunt = \
   include/fcntl.h \
   include/io.h \
   include/mbstring.h \
-  include/environment.h \
   include/mozce_shunt.h \
   include/process.h \
   include/signal.h \
@@ -72,6 +71,7 @@ EXPORTS_mozce_shunt = \
 DIRS += include/sys
 
 ifdef MOZ_MEMORY
+REQUIRES = jemalloc 
 CFLAGS += -DMOZ_MEMORY
 CXXFLAGS += -DMOZ_MEMORY
 EXPORTS_mozce_shunt += $(topsrcdir)/memory/jemalloc/jemalloc.h
@@ -82,8 +82,6 @@ EXTRA_LIBS += $(OBJDIR)/memory/jemalloc/jemalloc.obj
 endif
 
 DEFFILE = mozce_shunt.def
-
-OS_LIBS += $(call EXPAND_LIBNAME, libcmt)
 
 CPPSRCS = \
 	shunt.cpp \
@@ -98,6 +96,4 @@ include $(topsrcdir)/config/rules.mk
 
 mozce_shunt.def: mozce_shunt.def.in
 	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) $^ > $@
-
-.NOTPARALLEL:
 

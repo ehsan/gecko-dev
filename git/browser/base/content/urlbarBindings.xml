@@ -124,17 +124,15 @@
           if (aTriggeringEvent && aTriggeringEvent.altKey) {
             this.handleRevert();
             content.focus();
-            gBrowser.loadOneTab(url, {
-                                postData: postData,
-                                inBackground: false,
-                                allowThirdPartyFixup: true});
+            gBrowser.loadOneTab(url, null, null, postData, false,
+                                true /* allow third party fixup */);
             aTriggeringEvent.preventDefault();
             aTriggeringEvent.stopPropagation();
           }
           else
             loadURI(url, null, postData, true /* allow third party fixup */);
 
-          gBrowser.selectedBrowser.focus();
+          focusElement(content);
         ]]></body>
       </method>
 
@@ -285,8 +283,10 @@
           if (val == this.value &&
               this.getAttribute("pageproxystate") == "valid") {
             let uri;
+            let ioService = Cc["@mozilla.org/network/io-service;1"]
+                              .getService(Ci.nsIIOService);
             try {
-              uri = makeURI(val);
+              uri = ioService.newURI(val, null, null);
             } catch (e) {}
 
             if (uri && !uri.schemeIs("javascript") && !uri.schemeIs("data")) {
@@ -387,7 +387,10 @@
         <setter>
           <![CDATA[
           try {
-            val = losslessDecodeURI(makeURI(val));
+            let uri = Cc["@mozilla.org/network/io-service;1"].
+                      getService(Ci.nsIIOService).
+                      newURI(val, null, null);
+            val = losslessDecodeURI(uri);
           } catch (ex) { }
           this.value = val;
 

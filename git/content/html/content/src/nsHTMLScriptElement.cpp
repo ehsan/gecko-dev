@@ -36,7 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 #include "nsIDOMHTMLScriptElement.h"
-#include "nsIDOMNSHTMLScriptElement.h"
 #include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
@@ -225,13 +224,22 @@ nsHTMLScriptEventHandler::Invoke(nsISupports *aTargetObject,
 
   // wrap the target object...
   JSContext *cx = (JSContext *)scriptContext->GetNativeContext();
+  JSObject *scriptObject = nsnull;
   JSObject *scope = sgo->GetGlobalJSObject();
 
   nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-  jsval v;
-  rv = nsContentUtils::WrapNative(cx, scope, aTargetObject, &v,
-                                  getter_AddRefs(holder));
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsContentUtils::XPConnect()->WrapNative(cx, scope,
+                                          aTargetObject,
+                                          NS_GET_IID(nsISupports),
+                                          getter_AddRefs(holder));
+  if (holder) {
+    holder->GetJSObject(&scriptObject);
+  }
+
+  // Fail if wrapping the native object failed...
+  if (!scriptObject) {
+    return NS_ERROR_FAILURE;
+  }
 
   // Build up the array of argument names...
   //
@@ -269,7 +277,7 @@ nsHTMLScriptEventHandler::Invoke(nsISupports *aTargetObject,
   void* funcObject = nsnull;
   NS_NAMED_LITERAL_CSTRING(funcName, "anonymous");
 
-  rv = scriptContext->CompileFunction(JSVAL_TO_OBJECT(v),
+  rv = scriptContext->CompileFunction(scriptObject,
                                       funcName,   // method name
                                       argc,       // no of arguments
                                       args,       // argument names
@@ -305,7 +313,6 @@ nsHTMLScriptEventHandler::Invoke(nsISupports *aTargetObject,
 
 class nsHTMLScriptElement : public nsGenericHTMLElement,
                             public nsIDOMHTMLScriptElement,
-                            public nsIDOMNSHTMLScriptElement,
                             public nsScriptElement
 {
 public:
@@ -324,14 +331,15 @@ public:
   // nsIDOMHTMLElement
   NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
 
+  // nsIDOMHTMLScriptElement
   NS_DECL_NSIDOMHTMLSCRIPTELEMENT
-  NS_DECL_NSIDOMNSHTMLSCRIPTELEMENT
 
   // nsIScriptElement
   virtual void GetScriptType(nsAString& type);
+  virtual already_AddRefed<nsIURI> GetScriptURI();
   virtual void GetScriptText(nsAString& text);
   virtual void GetScriptCharset(nsAString& charset);
-  virtual void FreezeUriAsyncDefer();
+  virtual PRBool GetScriptDeferred();
 
   // nsIContent
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
@@ -379,11 +387,10 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLScriptElement, nsGenericElement)
 
 // QueryInterface implementation for nsHTMLScriptElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLScriptElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE5(nsHTMLScriptElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE4(nsHTMLScriptElement,
                                    nsIDOMHTMLScriptElement,
                                    nsIScriptLoaderObserver,
                                    nsIScriptElement,
-                                   nsIDOMNSHTMLScriptElement,
                                    nsIMutationObserver)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLScriptElement,
                                                nsGenericHTMLElement)
@@ -452,7 +459,6 @@ nsHTMLScriptElement::SetText(const nsAString& aValue)
 
 NS_IMPL_STRING_ATTR(nsHTMLScriptElement, Charset, charset)
 NS_IMPL_BOOL_ATTR(nsHTMLScriptElement, Defer, defer)
-NS_IMPL_BOOL_ATTR(nsHTMLScriptElement, Async, async)
 NS_IMPL_URI_ATTR(nsHTMLScriptElement, Src, src)
 NS_IMPL_STRING_ATTR(nsHTMLScriptElement, Type, type)
 NS_IMPL_STRING_ATTR(nsHTMLScriptElement, HtmlFor, _for)
@@ -475,14 +481,7 @@ nsresult
 nsHTMLScriptElement::DoneAddingChildren(PRBool aHaveNotified)
 {
   mDoneAddingChildren = PR_TRUE;
-  nsresult rv = MaybeProcessScript();
-  if (!mIsEvaluated) {
-    // Need to thaw the script uri here to allow another script to cause
-    // execution later.
-    mFrozen = PR_FALSE;
-    mUri = nsnull;
-  }
-  return rv;
+  return MaybeProcessScript();
 }
 
 PRBool
@@ -500,6 +499,20 @@ nsHTMLScriptElement::GetScriptType(nsAString& type)
   GetType(type);
 }
 
+// variation of this code in nsSVGScriptElement - check if changes
+// need to be transfered when modifying
+
+already_AddRefed<nsIURI>
+nsHTMLScriptElement::GetScriptURI()
+{
+  nsIURI *uri = nsnull;
+  nsAutoString src;
+  GetSrc(src);
+  if (!src.IsEmpty())
+    NS_NewURI(&uri, src);
+  return uri;
+}
+
 void
 nsHTMLScriptElement::GetScriptText(nsAString& text)
 {
@@ -512,35 +525,19 @@ nsHTMLScriptElement::GetScriptCharset(nsAString& charset)
   GetCharset(charset);
 }
 
-void
-nsHTMLScriptElement::FreezeUriAsyncDefer()
+PRBool
+nsHTMLScriptElement::GetScriptDeferred()
 {
-  if (mFrozen) {
-    return;
-  }
-  
-  // variation of this code in nsSVGScriptElement - check if changes
-  // need to be transfered when modifying
-  if (HasAttr(kNameSpaceID_None, nsGkAtoms::src)) {
-    nsAutoString src;
-    GetSrc(src);
-    NS_NewURI(getter_AddRefs(mUri), src);
+  PRBool defer;
+  GetDefer(&defer);
 
-    PRBool defer, async;
-    GetAsync(&async);
-    GetDefer(&defer);
-
-    mDefer = !async && defer;
-    mAsync = async;
-  }
-  
-  mFrozen = PR_TRUE;
+  return defer;
 }
 
 PRBool
 nsHTMLScriptElement::HasScriptContent()
 {
-  return (mFrozen ? !!mUri : HasAttr(kNameSpaceID_None, nsGkAtoms::src)) ||
+  return HasAttr(kNameSpaceID_None, nsGkAtoms::src) ||
          nsContentUtils::HasNonEmptyTextContent(this);
 }
 

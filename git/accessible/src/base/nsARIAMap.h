@@ -178,7 +178,7 @@ enum eStateMapEntryID
   eARIAReadonly,
   eARIAReadonlyOrEditable,
   eARIARequired,
-  eARIASelectable
+  eARIASelected
 };
 
 class nsStateMapEntry

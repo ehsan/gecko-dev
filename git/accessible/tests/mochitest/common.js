@@ -32,7 +32,6 @@ const nsIAccessibleHyperText = Components.interfaces.nsIAccessibleHyperText;
 const nsIAccessibleImage = Components.interfaces.nsIAccessibleImage;
 const nsIAccessibleSelectable = Components.interfaces.nsIAccessibleSelectable;
 const nsIAccessibleTable = Components.interfaces.nsIAccessibleTable;
-const nsIAccessibleTableCell = Components.interfaces.nsIAccessibleTableCell;
 const nsIAccessibleValue = Components.interfaces.nsIAccessibleValue;
 
 const nsIObserverService = Components.interfaces.nsIObserverService;
@@ -95,9 +94,9 @@ const WIN = (navigator.platform.indexOf("Win") != -1)? true : false;
 var gAccRetrieval = null;
 
 /**
- * Invokes the given function when document is loaded and focused. Preferable
- * to mochitests 'addLoadEvent' function -- additionally ensures state of the
- * document accessible is not busy.
+ * Invokes the given function when document is loaded. Preferable to mochitests
+ * 'addLoadEvent' function -- additionally ensures state of the document
+ * accessible is not busy.
  *
  * @param aFunc  the function to invoke
  */
@@ -120,7 +119,7 @@ function addA11yLoadEvent(aFunc)
     );
   }
 
-  SimpleTest.waitForFocus(waitForDocLoad);
+  addLoadEvent(waitForDocLoad);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -164,7 +163,7 @@ const DONOTFAIL_IF_NO_INTERFACE = 2;
 
 /**
  * Return accessible for the given identifier (may be ID attribute or DOM
- * element or accessible object) or null.
+ * element or accessible object).
  *
  * @param aAccOrElmOrID      [in] identifier to get an accessible implementing
  *                           the given interfaces
@@ -178,7 +177,7 @@ const DONOTFAIL_IF_NO_INTERFACE = 2;
 function getAccessible(aAccOrElmOrID, aInterfaces, aElmObj, aDoNotFailIf)
 {
   if (!aAccOrElmOrID)
-    return null;
+    return;
 
   var elm = null;
 
@@ -254,52 +253,6 @@ function isAccessible(aAccOrElmOrID, aInterfaces)
 }
 
 /**
- * Return root accessible for the given identifier.
- */
-function getRootAccessible(aAccOrElmOrID)
-{
-  var acc = getAccessible(aAccOrElmOrID ? aAccOrElmOrID : document);
-  while (acc) {
-    var parent = acc.parent;
-    if (parent && !parent.parent)
-      return acc;
-
-    acc = parent;
-  }
-
-  return null;
-}
-
-/**
- * Return application accessible.
- */
-function getApplicationAccessible()
-{
-  var acc = getAccessible(document), parent = null;
-  while (acc) {
-
-    try {
-      parent = acc.parent;
-    } catch (e) {
-      ok(false, "Can't get a parent for " + prettyName(acc));
-      return null;
-    }
-
-    if (!parent) {
-      if (acc.role == ROLE_APP_ROOT)
-        return acc;
-
-      ok(false, "No application accessible!");
-      return null;
-    }
-
-    acc = parent;
-  }
-
-  return null;
-}
-
-/**
  * Run through accessible tree of the given identifier so that we ensure
  * accessible tree is created.
  */
@@ -322,15 +275,6 @@ function ensureAccessibleTree(aAccOrElmOrID)
 
 /**
  * Compare expected and actual accessibles trees.
- *
- * @param  aAccOrElmOrID  [in] accessible identifier
- * @param  aAccTree       [in] JS object, each field corresponds to property of
- *                         accessible object. Additionally special properties
- *                         are presented:
- *                          children - an array of JS objects representing
- *                                      children of accessible
- *                          states   - an object having states and extraStates
- *                                      fields
  */
 function testAccessibleTree(aAccOrElmOrID, aAccTree)
 {
@@ -339,7 +283,7 @@ function testAccessibleTree(aAccOrElmOrID, aAccTree)
     return;
 
   for (var prop in aAccTree) {
-    var msg = "Wrong value of property '" + prop + "' for " + prettyName(acc) + ".";
+    var msg = "Wrong value of property '" + prop + "'.";
     if (prop == "role") {
       is(roleToString(acc[prop]), roleToString(aAccTree[prop]), msg);
 
@@ -358,138 +302,13 @@ function testAccessibleTree(aAccOrElmOrID, aAccTree)
     is(children.length, aAccTree.children.length,
        "Different amount of expected children of " + prettyName(acc) + ".");
 
-    if (aAccTree.children.length == children.length) {
-      var childCount = children.length;
-
-      // nsIAccessible::firstChild
-      var expectedFirstChild = childCount > 0 ?
-        children.queryElementAt(0, nsIAccessible) : null;
-      var firstChild = null;
-      try { firstChild = acc.firstChild; } catch (e) {}
-      is(firstChild, expectedFirstChild,
-         "Wrong first child of " + prettyName(acc));
-
-      // nsIAccessible::lastChild
-      var expectedLastChild = childCount > 0 ?
-        children.queryElementAt(childCount - 1, nsIAccessible) : null;
-      var lastChild = null;
-      try { lastChild = acc.lastChild; } catch (e) {}
-      is(lastChild, expectedLastChild,
-         "Wrong last child of " + prettyName(acc));
-
+    if (aAccTree.children.length == children.length) { 
       for (var i = 0; i < children.length; i++) {
         var child = children.queryElementAt(i, nsIAccessible);
-
-        // nsIAccessible::parent
-        var parent = null;
-        try { parent = child.parent; } catch (e) {}
-        is(parent, acc, "Wrong parent of " + prettyName(child));
-
-        // nsIAccessible::indexInParent
-        var indexInParent = -1;
-        try { indexInParent = child.indexInParent; } catch(e) {}
-        is(indexInParent, i,
-           "Wrong index in parent of " + prettyName(child));
-
-        // nsIAccessible::nextSibling
-        var expectedNextSibling = (i < childCount - 1) ?
-          children.queryElementAt(i + 1, nsIAccessible) : null;
-        var nextSibling = null;
-        try { nextSibling = child.nextSibling; } catch (e) {}
-        is(nextSibling, expectedNextSibling,
-           "Wrong next sibling of " + prettyName(child));
-
-        // nsIAccessible::previousSibling
-        var expectedPrevSibling = (i > 0) ?
-          children.queryElementAt(i - 1, nsIAccessible) : null;
-        var prevSibling = null;
-        try { prevSibling = child.previousSibling; } catch (e) {}
-        is(prevSibling, expectedPrevSibling,
-           "Wrong previous sibling of " + prettyName(child));
-
-        // Go down through subtree
         testAccessibleTree(child, aAccTree.children[i]);
       }
     }
   }
-}
-
-/**
- * Test accessible tree for defunct accessible.
- *
- * @param  aAcc       [in] the defunct accessible
- * @param  aNodeOrId  [in] the DOM node identifier for the defunct accessible
- */
-function testDefunctAccessible(aAcc, aNodeOrId)
-{
-  if (aNodeOrId)
-    ok(!isAccessible(aNodeOrId),
-       "Accessible for " + aNodeOrId + " wasn't properly shut down!");
-
-  var msg = " doesn't fail for shut down accessible " + prettyName(aNodeOrId) + "!";
-
-  // firstChild
-  var success = false;
-  try {
-    aAcc.firstChild;
-  } catch (e) {
-    success = (e.result == Components.results.NS_ERROR_FAILURE)
-  }
-  ok(success, "firstChild" + msg);
-
-  // lastChild
-  success = false;
-  try {
-    aAcc.lastChild;
-  } catch (e) {
-    success = (e.result == Components.results.NS_ERROR_FAILURE)
-  }
-  ok(success, "lastChild" + msg);
-
-  // childCount
-  success = false;
-  try {
-    aAcc.childCount;
-  } catch (e) {
-    success = (e.result == Components.results.NS_ERROR_FAILURE)
-  }
-  ok(success, "childCount" + msg);
-
-  // children
-  success = false;
-  try {
-    aAcc.children;
-  } catch (e) {
-    success = (e.result == Components.results.NS_ERROR_FAILURE)
-  }
-  ok(success, "children" + msg);
-
-  // nextSibling
-  success = false;
-  try {
-    aAcc.nextSibling;
-  } catch (e) {
-    success = (e.result == Components.results.NS_ERROR_FAILURE);
-  }
-  ok(success, "nextSibling" + msg);
-
-  // previousSibling
-  success = false;
-  try {
-    aAcc.previousSibling;
-  } catch (e) {
-    success = (e.result == Components.results.NS_ERROR_FAILURE);
-  }
-  ok(success, "previousSibling" + msg);
-
-  // parent
-  success = false;
-  try {
-    aAcc.parent;
-  } catch (e) {
-    success = (e.result == Components.results.NS_ERROR_FAILURE);
-  }
-  ok(success, "parent" + msg);
 }
 
 
@@ -577,9 +396,6 @@ function getNodePrettyName(aNode)
   try {
     if (aNode.nodeType == nsIDOMNode.ELEMENT_NODE && aNode.hasAttribute("id"))
       return " '" + aNode.getAttribute("id") + "' ";
-
-    if (aNode.nodeType == nsIDOMNode.DOCUMENT_NODE)
-      return " 'document node' ";
 
     return " '" + aNode.localName + " node' ";
   } catch (e) {

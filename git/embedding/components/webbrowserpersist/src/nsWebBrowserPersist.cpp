@@ -986,8 +986,8 @@ NS_IMETHODIMP nsWebBrowserPersist::OnProgress(
     else
     {
       // have to truncate 64-bit to 32bit
-      mProgressListener->OnProgressChange(nsnull, request, PRUint64(aProgress),
-              PRUint64(aProgressMax), mTotalCurrentProgress, mTotalMaxProgress);
+      mProgressListener->OnProgressChange(nsnull, request, nsUint64(aProgress),
+              nsUint64(aProgressMax), mTotalCurrentProgress, mTotalMaxProgress);
     }
 
     // If our progress listener implements nsIProgressEventSink,
@@ -3908,7 +3908,7 @@ static PRBool IsSpecialXHTMLTag(nsIDOMNode *aNode)
         return PR_FALSE;
 
     aNode->GetLocalName(tmp);
-    for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(kSpecialXHTMLTags); i++) {
+    for (PRInt32 i = 0; i < NS_ARRAY_LENGTH(kSpecialXHTMLTags); i++) {
         if (tmp.EqualsASCII(kSpecialXHTMLTags[i]))
         {
             // XXX This element MAY have URI attributes, but

@@ -48,12 +48,13 @@
 
 class gfxContext;
 class nsPresContext;
+class nsIDOMSVGMatrix;
 class nsSVGRenderState;
 
 class nsISVGChildFrame : public nsQueryFrame
 {
 public:
-  NS_DECL_QUERYFRAME_TARGET(nsISVGChildFrame)
+  NS_DECLARE_FRAME_ACCESSOR(nsISVGChildFrame)
 
   // Paint this frame - aDirtyRect is the area being redrawn, in frame
   // offset pixel coordinates

@@ -67,8 +67,6 @@ NS_NewPopupSetFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsPopupSetFrame (aPresShell, aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsPopupSetFrame)
-
 NS_IMETHODIMP
 nsPopupSetFrame::Init(nsIContent*      aContent,
                       nsIFrame*        aParent,
@@ -94,7 +92,7 @@ nsPopupSetFrame::GetType() const
 
 NS_IMETHODIMP
 nsPopupSetFrame::AppendFrames(nsIAtom*        aListName,
-                              nsFrameList&    aFrameList)
+                              nsIFrame*       aFrameList)
 {
   if (aListName == nsGkAtoms::popupList) {
     return AddPopupFrameList(aFrameList);
@@ -115,7 +113,7 @@ nsPopupSetFrame::RemoveFrame(nsIAtom*        aListName,
 NS_IMETHODIMP
 nsPopupSetFrame::InsertFrames(nsIAtom*        aListName,
                               nsIFrame*       aPrevFrame,
-                              nsFrameList&    aFrameList)
+                              nsIFrame*       aFrameList)
 {
   if (aListName == nsGkAtoms::popupList) {
     return AddPopupFrameList(aFrameList);
@@ -125,7 +123,7 @@ nsPopupSetFrame::InsertFrames(nsIAtom*        aListName,
 
 NS_IMETHODIMP
 nsPopupSetFrame::SetInitialChildList(nsIAtom*        aListName,
-                                     nsFrameList&    aChildList)
+                                     nsIFrame*       aChildList)
 {
   if (aListName == nsGkAtoms::popupList) {
     return AddPopupFrameList(aChildList);
@@ -265,15 +263,10 @@ nsPopupSetFrame::RemovePopupFrame(nsIFrame* aPopup)
 }
 
 nsresult
-nsPopupSetFrame::AddPopupFrameList(nsFrameList& aPopupFrameList)
+nsPopupSetFrame::AddPopupFrameList(nsIFrame* aPopupFrameList)
 {
-  while (!aPopupFrameList.IsEmpty()) {
-    nsIFrame* f = aPopupFrameList.FirstChild();
-    // Clears out prev/next sibling points appropriately. Every frame
-    // in our popup list has null next and prev pointers, they're logically
-    // each in their own list.
-    aPopupFrameList.RemoveFrame(f);
-    nsresult rv = AddPopupFrame(f);
+  for (nsIFrame* kid = aPopupFrameList; kid; kid = kid->GetNextSibling()) {
+    nsresult rv = AddPopupFrame(kid);
     NS_ENSURE_SUCCESS(rv, rv);
   }
   return NS_OK;
@@ -321,8 +314,8 @@ nsPopupSetFrame::List(FILE* out, PRInt32 aIndent) const
   if (HasView()) {
     fprintf(out, " [view=%p]", static_cast<void*>(GetView()));
   }
-  if (GetNextSibling()) {
-    fprintf(out, " next=%p", static_cast<void*>(GetNextSibling()));
+  if (nsnull != mNextSibling) {
+    fprintf(out, " next=%p", static_cast<void*>(mNextSibling));
   }
   if (nsnull != GetPrevContinuation()) {
     fprintf(out, " prev-continuation=%p", static_cast<void*>(GetPrevContinuation()));
@@ -342,7 +335,7 @@ nsPopupSetFrame::List(FILE* out, PRInt32 aIndent) const
             overflowArea.width, overflowArea.height);
   }
   fprintf(out, " [sc=%p]", static_cast<void*>(mStyleContext));
-  nsIAtom* pseudoTag = mStyleContext->GetPseudo();
+  nsIAtom* pseudoTag = mStyleContext->GetPseudoType();
   if (pseudoTag) {
     nsAutoString atomString;
     pseudoTag->ToString(atomString);
@@ -372,7 +365,10 @@ nsPopupSetFrame::List(FILE* out, PRInt32 aIndent) const
         NS_ASSERTION(kid->GetParent() == (nsIFrame*)this, "bad parent frame pointer");
 
         // Have the child frame list
-        kid->List(out, aIndent + 1);
+        nsIFrameDebug*  frameDebug = do_QueryFrame(kid);
+        if (frameDebug) {
+          frameDebug->List(out, aIndent + 1);
+        }
         kid = kid->GetNextSibling();
       }
       IndentBy(out, aIndent);
@@ -396,7 +392,10 @@ nsPopupSetFrame::List(FILE* out, PRInt32 aIndent) const
     fputs(" <\n", out);
     ++aIndent;
     for (nsPopupFrameList* l = mPopupList; l; l = l->mNextPopup) {
-      l->mPopupFrame->List(out, aIndent);
+      nsIFrameDebug* frameDebug = do_QueryFrame(l->mPopupFrame);
+      if (frameDebug) {
+        frameDebug->List(out, aIndent);
+      }
     }
     --aIndent;
     IndentBy(out, aIndent);

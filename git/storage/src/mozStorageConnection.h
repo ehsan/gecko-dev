@@ -41,7 +41,6 @@
 #ifndef _MOZSTORAGECONNECTION_H_
 #define _MOZSTORAGECONNECTION_H_
 
-#include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "mozilla/Mutex.h"
 
@@ -49,16 +48,16 @@
 #include "nsInterfaceHashtable.h"
 #include "mozIStorageProgressHandler.h"
 #include "mozIStorageConnection.h"
-#include "mozStorageService.h"
 
 #include "nsIMutableArray.h"
 
-#include "sqlite3.h"
+#include <sqlite3.h>
 
 struct PRLock;
 class nsIFile;
 class nsIEventTarget;
 class nsIThread;
+class mozIStorageService;
 
 namespace mozilla {
 namespace storage {
@@ -69,7 +68,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_MOZISTORAGECONNECTION
 
-  Connection(Service *aService);
+  Connection(mozIStorageService* aService);
 
   /**
    * Creates the connection to the database.
@@ -99,11 +98,6 @@ public:
    * asynchronous statements (they are serialized on mAsyncExecutionThread).
    */
   Mutex sharedAsyncExecutionMutex;
-
-  /**
-   * References the thread this database was opened on.
-   */
-  const nsCOMPtr<nsIThread> threadOpenedOn;
 
 private:
   ~Connection();
@@ -172,10 +166,9 @@ private:
   PRLock *mProgressHandlerMutex;
   nsCOMPtr<mozIStorageProgressHandler> mProgressHandler;
 
-  // This is here for two reasons: 1) It's used to make sure that the
-  // connections do not outlive the service.  2) Our custom collating functions
-  // call its localeCompareStrings() method.
-  nsRefPtr<Service> mStorageService;
+  // This isn't accessed but is used to make sure that the connections do
+  // not outlive the service.
+  nsCOMPtr<mozIStorageService> mStorageService;
 };
 
 } // namespace storage

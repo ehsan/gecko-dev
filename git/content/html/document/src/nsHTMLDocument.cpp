@@ -141,7 +141,6 @@
 #include "nsRange.h"
 #include "mozAutoDocUpdate.h"
 #include "nsCCUncollectableMarker.h"
-#include "nsHtml5Module.h"
 #include "prprf.h"
 
 #define NS_MAX_DOCUMENT_WRITE_DEPTH 20
@@ -238,7 +237,7 @@ nsHTMLDocument::nsHTMLDocument()
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsHTMLDocument)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLDocument, nsDocument)
-  NS_ASSERTION(!nsCCUncollectableMarker::InGeneration(cb, tmp->GetMarkedCCGeneration()),
+  NS_ASSERTION(!nsCCUncollectableMarker::InGeneration(tmp->GetMarkedCCGeneration()),
                "Shouldn't traverse nsHTMLDocument!");
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mImageMaps)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mImages)
@@ -246,27 +245,11 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLDocument, nsDocument)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mEmbeds)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLinks)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mAnchors)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFragmentParser)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mForms, nsIDOMNodeList)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mFormControls,
                                                        nsIDOMNodeList)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mWyciwygChannel)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mMidasCommandManager)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFragmentParser)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsHTMLDocument, nsDocument)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mImageMaps)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mImages)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mApplets)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mEmbeds)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mLinks)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mAnchors)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mForms)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFormControls)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mWyciwygChannel)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mMidasCommandManager)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFragmentParser)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_ADDREF_INHERITED(nsHTMLDocument, nsDocument)
 NS_IMPL_RELEASE_INHERITED(nsHTMLDocument, nsDocument)
@@ -290,8 +273,10 @@ nsHTMLDocument::Init()
   nsresult rv = nsDocument::Init();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Now reset the compatibility mode of the CSSLoader
-  // to match our compat mode.
+  // Now reset the case-sensitivity of the CSSLoader, since we default
+  // to being HTML, not XHTML.  Also, reset the compatibility mode to
+  // match our compat mode.
+  CSSLoader()->SetCaseSensitive(IsXHTML());
   CSSLoader()->SetCompatibilityMode(mCompatMode);
 
   PrePopulateIdentifierMap();
@@ -342,11 +327,11 @@ nsHTMLDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
 nsStyleSet::sheetType
 nsHTMLDocument::GetAttrSheetType()
 {
-  if (IsHTML()) {
-    return nsStyleSet::eHTMLPresHintSheet;
+  if (IsXHTML()) {
+    return nsDocument::GetAttrSheetType();
   }
-
-  return nsDocument::GetAttrSheetType();
+  
+  return nsStyleSet::eHTMLPresHintSheet;
 }
 
 nsresult
@@ -669,11 +654,6 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
                                   PRBool aReset,
                                   nsIContentSink* aSink)
 {
-  PRBool loadAsHtml5 = nsHtml5Module::sEnabled;
-  if (aSink) {
-    loadAsHtml5 = PR_FALSE;
-  }
-
   nsCAutoString contentType;
   aChannel->GetContentType(contentType);
 
@@ -683,11 +663,6 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
 
     mIsRegularHTML = PR_FALSE;
     mCompatMode = eCompatibility_FullStandards;
-    loadAsHtml5 = PR_FALSE;
-  }
-  
-  if (!(contentType.EqualsLiteral("text/html") && aCommand && !nsCRT::strcmp(aCommand, "view"))) {
-    loadAsHtml5 = PR_FALSE;
   }
 #ifdef DEBUG
   else {
@@ -696,6 +671,7 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
   }
 #endif
 
+  CSSLoader()->SetCaseSensitive(IsXHTML());
   CSSLoader()->SetCompatibilityMode(mCompatMode);
   
   PRBool needsParser = PR_TRUE;
@@ -733,13 +709,8 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
   }
 
   if (needsParser) {
-    if (loadAsHtml5) {
-      mParser = nsHtml5Module::NewHtml5Parser();
-      mParser->MarkAsNotScriptCreated();
-    } else {
-      mParser = do_CreateInstance(kCParserCID, &rv);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
+    mParser = do_CreateInstance(kCParserCID, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   PRInt32 textType = GET_BIDI_OPTION_TEXTTYPE(GetBidiOptions());
@@ -754,7 +725,7 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
   nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(aContainer));
 
   // No support yet for docshell-less HTML
-  NS_ENSURE_TRUE(docShell || !IsHTML(), NS_ERROR_FAILURE);
+  NS_ENSURE_TRUE(docShell || IsXHTML(), NS_ERROR_FAILURE);
 
   nsCOMPtr<nsIDocShellTreeItem> docShellAsItem(do_QueryInterface(docShell));
 
@@ -814,7 +785,7 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
 
   nsCOMPtr<nsIWyciwygChannel> wyciwygChannel;
   
-  if (!IsHTML()) {
+  if (IsXHTML()) {
     charsetSource = kCharsetFromDocTypeDefault;
     charset.AssignLiteral("UTF-8");
     TryChannelCharset(aChannel, charsetSource, charset);
@@ -939,7 +910,7 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
 
   // Set the parser as the stream listener for the document loader...
   if (mParser) {
-    rv = mParser->GetStreamListener(aDocListener);
+    rv = CallQueryInterface(mParser, aDocListener);
     if (NS_FAILED(rv)) {
       return rv;
     }
@@ -954,28 +925,22 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
     // create the content sink
     nsCOMPtr<nsIContentSink> sink;
 
-    if (aSink) {
-      NS_ASSERTION(!loadAsHtml5, "Panic: We are loading as HTML5 and someone tries to set an external sink!");
+    if (aSink)
       sink = aSink;
-    } else {
-      if (!IsHTML()) {
+    else {
+      if (IsXHTML()) {
         nsCOMPtr<nsIXMLContentSink> xmlsink;
         rv = NS_NewXMLContentSink(getter_AddRefs(xmlsink), this, uri,
                                   docShell, aChannel);
 
         sink = xmlsink;
       } else {
-        if (loadAsHtml5) {
-          nsHtml5Module::Initialize(mParser, this, uri, docShell, aChannel);
-          sink = mParser->GetContentSink();
-        } else {
-          nsCOMPtr<nsIHTMLContentSink> htmlsink;
+        nsCOMPtr<nsIHTMLContentSink> htmlsink;
 
-          rv = NS_NewHTMLContentSink(getter_AddRefs(htmlsink), this, uri,
-                                     docShell, aChannel);
+        rv = NS_NewHTMLContentSink(getter_AddRefs(htmlsink), this, uri,
+                                   docShell, aChannel);
 
-          sink = htmlsink;
-        }
+        sink = htmlsink;
       }
       NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1159,7 +1124,7 @@ nsHTMLDocument::GetImageMap(const nsAString& aMapName)
     PRBool match;
     nsresult rv;
 
-    if (!IsHTML()) {
+    if (IsXHTML()) {
       rv = map->GetId(name);
 
       match = name.Equals(aMapName);
@@ -1196,7 +1161,7 @@ nsHTMLDocument::GetImageMap(const nsAString& aMapName)
 void
 nsHTMLDocument::SetCompatibilityMode(nsCompatibility aMode)
 {
-  NS_ASSERTION(IsHTML() || aMode == eCompatibility_FullStandards,
+  NS_ASSERTION(!IsXHTML() || aMode == eCompatibility_FullStandards,
                "Bad compat mode for XHTML document!");
 
   mCompatMode = aMode;
@@ -1208,6 +1173,12 @@ nsHTMLDocument::SetCompatibilityMode(nsCompatibility aMode)
       pc->CompatibilityModeChanged();
     }
   }
+}
+
+PRBool
+nsHTMLDocument::IsCaseSensitive()
+{
+  return IsXHTML();
 }
 
 //
@@ -1233,7 +1204,7 @@ nsHTMLDocument::CreateElement(const nsAString& aTagName,
   rv = nsContentUtils::CheckQName(tagName, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (IsHTML()) {
+  if (!IsXHTML()) {
     ToLowerCase(tagName);
   }
 
@@ -1260,7 +1231,7 @@ nsHTMLDocument::CreateProcessingInstruction(const nsAString& aTarget,
                                             const nsAString& aData,
                                             nsIDOMProcessingInstruction** aReturn)
 {
-  if (!IsHTML()) {
+  if (IsXHTML()) {
     return nsDocument::CreateProcessingInstruction(aTarget, aData, aReturn);
   }
 
@@ -1274,7 +1245,7 @@ NS_IMETHODIMP
 nsHTMLDocument::CreateCDATASection(const nsAString& aData,
                                    nsIDOMCDATASection** aReturn)
 {
-  if (!IsHTML()) {
+  if (IsXHTML()) {
     return nsDocument::CreateCDATASection(aData, aReturn);
   }
 
@@ -1288,7 +1259,7 @@ NS_IMETHODIMP
 nsHTMLDocument::CreateEntityReference(const nsAString& aName,
                                       nsIDOMEntityReference** aReturn)
 {
-  if (!IsHTML()) {
+  if (IsXHTML()) {
     return nsDocument::CreateEntityReference(aName, aReturn);
   }
 
@@ -1345,7 +1316,7 @@ nsHTMLDocument::GetElementsByTagName(const nsAString& aTagname,
                                      nsIDOMNodeList** aReturn)
 {
   nsAutoString tmp(aTagname);
-  if (IsHTML()) {
+  if (!IsXHTML()) {
     ToLowerCase(tmp); // HTML elements are lower case internally.
   }
   return nsDocument::GetElementsByTagName(tmp, aReturn);
@@ -1375,7 +1346,7 @@ nsHTMLDocument::GetBaseURI(nsAString &aURI)
 NS_IMETHODIMP
 nsHTMLDocument::GetXmlEncoding(nsAString& aXmlEncoding)
 {
-  if (!IsHTML()) {
+  if (IsXHTML()) {
     return nsDocument::GetXmlEncoding(aXmlEncoding);
   }
 
@@ -1387,7 +1358,7 @@ nsHTMLDocument::GetXmlEncoding(nsAString& aXmlEncoding)
 NS_IMETHODIMP
 nsHTMLDocument::GetXmlStandalone(PRBool *aXmlStandalone)
 {
-  if (!IsHTML()) {
+  if (IsXHTML()) {
     return nsDocument::GetXmlStandalone(aXmlStandalone);
   }
 
@@ -1399,7 +1370,7 @@ nsHTMLDocument::GetXmlStandalone(PRBool *aXmlStandalone)
 NS_IMETHODIMP
 nsHTMLDocument::SetXmlStandalone(PRBool aXmlStandalone)
 {
-  if (!IsHTML()) {
+  if (IsXHTML()) {
     return nsDocument::SetXmlStandalone(aXmlStandalone);
   }
 
@@ -1410,7 +1381,7 @@ nsHTMLDocument::SetXmlStandalone(PRBool aXmlStandalone)
 NS_IMETHODIMP
 nsHTMLDocument::GetXmlVersion(nsAString& aXmlVersion)
 {
-  if (!IsHTML()) {
+  if (IsXHTML()) {
     return nsDocument::GetXmlVersion(aXmlVersion);
   }
 
@@ -1422,7 +1393,7 @@ nsHTMLDocument::GetXmlVersion(nsAString& aXmlVersion)
 NS_IMETHODIMP
 nsHTMLDocument::SetXmlVersion(const nsAString& aXmlVersion)
 {
-  if (!IsHTML()) {
+  if (IsXHTML()) {
     return nsDocument::SetXmlVersion(aXmlVersion);
   }
 
@@ -1573,13 +1544,13 @@ nsHTMLDocument::GetBody(nsIDOMHTMLElement** aBody)
   nsCOMPtr<nsIDOMNodeList> nodeList;
 
   nsresult rv;
-  if (IsHTML()) {
-    rv = GetElementsByTagName(NS_LITERAL_STRING("frameset"),
-                              getter_AddRefs(nodeList));
-  } else {
+  if (IsXHTML()) {
     rv = GetElementsByTagNameNS(NS_LITERAL_STRING("http://www.w3.org/1999/xhtml"),
                                 NS_LITERAL_STRING("frameset"),
                                 getter_AddRefs(nodeList));
+  } else {
+    rv = GetElementsByTagName(NS_LITERAL_STRING("frameset"),
+                              getter_AddRefs(nodeList));
   }
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1600,7 +1571,7 @@ nsHTMLDocument::SetBody(nsIDOMHTMLElement* aBody)
   // body.
   if (!newBody || !(newBody->Tag() == nsGkAtoms::body ||
                     newBody->Tag() == nsGkAtoms::frameset) ||
-      !root || !root->IsHTML() ||
+      !root || !root->IsNodeOfType(nsINode::eHTML) ||
       root->Tag() != nsGkAtoms::html) {
     return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
   }
@@ -1807,13 +1778,11 @@ nsHTMLDocument::SetCookie(const nsAString& aCookie)
 nsresult
 nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
 {
-  if (!IsHTML() || mDisableDocWrite) {
+  if (IsXHTML()) {
     // No calling document.open() on XHTML
 
-    return NS_ERROR_DOM_INVALID_ACCESS_ERR;
+    return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
   }
-
-  PRBool loadAsHtml5 = nsHtml5Module::sEnabled;
 
   nsresult rv = NS_OK;
 
@@ -1887,7 +1856,7 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
 
     if (cv) {
       PRBool okToUnload;
-      rv = cv->PermitUnload(PR_FALSE, &okToUnload);
+      rv = cv->PermitUnload(&okToUnload);
 
       if (NS_SUCCEEDED(rv) && !okToUnload) {
         // We don't want to unload, so stop here, but don't throw an
@@ -1932,17 +1901,8 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
     // Remember the old scope in case the call to SetNewDocument changes it.
     nsCOMPtr<nsIScriptGlobalObject> oldScope(do_QueryReferent(mScopeObject));
 
-#ifdef DEBUG
-    PRBool willReparent = mWillReparent;
-    mWillReparent = PR_TRUE;
-#endif
-
     rv = window->SetNewDocument(this, nsnull, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
-
-#ifdef DEBUG
-    mWillReparent = willReparent;
-#endif
 
     // Now make sure we're not flagged as the initial document anymore, now
     // that we've had stuff done to us.  From now on, if anyone tries to
@@ -1975,12 +1935,7 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
   // resetting the document.
   mSecurityInfo = securityInfo;
 
-  if (loadAsHtml5) {
-    mParser = nsHtml5Module::NewHtml5Parser();
-    rv = NS_OK;
-  } else {
-    mParser = do_CreateInstance(kCParserCID, &rv);  
-  }
+  mParser = do_CreateInstance(kCParserCID, &rv);
 
   // This will be propagated to the parser when someone actually calls write()
   mContentType = aContentType;
@@ -1988,22 +1943,18 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
   mWriteState = eDocumentOpened;
 
   if (NS_SUCCEEDED(rv)) {
-    if (loadAsHtml5) {
-      nsHtml5Module::Initialize(mParser, this, uri, shell, channel);
-    } else {
-      nsCOMPtr<nsIHTMLContentSink> sink;
+    nsCOMPtr<nsIHTMLContentSink> sink;
 
-      rv = NS_NewHTMLContentSink(getter_AddRefs(sink), this, uri, shell,
-                                 channel);
-      if (NS_FAILED(rv)) {
-        // Don't use a parser without a content sink.
-        mParser = nsnull;
-        mWriteState = eNotWriting;
-        return rv;
-      }
-
-      mParser->SetContentSink(sink);
+    rv = NS_NewHTMLContentSink(getter_AddRefs(sink), this, uri, shell,
+                               channel);
+    if (NS_FAILED(rv)) {
+      // Don't use a parser without a content sink.
+      mParser = nsnull;
+      mWriteState = eNotWriting;
+      return rv;
     }
+
+    mParser->SetContentSink(sink);
   }
 
   // Prepare the docshell and the document viewer for the impending
@@ -2067,10 +2018,10 @@ nsHTMLDocument::Clear()
 NS_IMETHODIMP
 nsHTMLDocument::Close()
 {
-  if (!IsHTML()) {
+  if (IsXHTML()) {
     // No calling document.close() on XHTML!
 
-    return NS_ERROR_DOM_INVALID_ACCESS_ERR;
+    return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
   }
 
   nsresult rv = NS_OK;
@@ -2132,10 +2083,10 @@ nsHTMLDocument::WriteCommon(const nsAString& aText,
     (mWriteLevel > NS_MAX_DOCUMENT_WRITE_DEPTH || mTooDeepWriteRecursion);
   NS_ENSURE_STATE(!mTooDeepWriteRecursion);
 
-  if (!IsHTML() || mDisableDocWrite) {
+  if (IsXHTML()) {
     // No calling document.write*() on XHTML!
 
-    return NS_ERROR_DOM_INVALID_ACCESS_ERR;
+    return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
   }
 
   nsresult rv = NS_OK;
@@ -2143,8 +2094,7 @@ nsHTMLDocument::WriteCommon(const nsAString& aText,
   void *key = GenerateParserKey();
   if (mWriteState == eDocumentClosed ||
       (mWriteState == ePendingClose &&
-       !mPendingScripts.Contains(key)) ||
-      (mParser && !mParser->IsInsertionPointDefined())) {
+       !mPendingScripts.Contains(key))) {
     mWriteState = eDocumentClosed;
     mParser->Terminate();
     NS_ASSERTION(!mParser, "mParser should have been null'd out");
@@ -2207,6 +2157,77 @@ NS_IMETHODIMP
 nsHTMLDocument::Writeln(const nsAString& aText)
 {
   return WriteCommon(aText, PR_TRUE);
+}
+
+nsresult
+nsHTMLDocument::ScriptWriteCommon(PRBool aNewlineTerminate)
+{
+  nsAXPCNativeCallContext *ncc = nsnull;
+
+  nsresult rv = nsContentUtils::XPConnect()->
+    GetCurrentNativeCallContext(&ncc);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (ncc) {
+    // We're called from JS, concatenate the extra arguments into
+    // string_buffer
+    PRUint32 i, argc;
+
+    ncc->GetArgc(&argc);
+
+    JSContext *cx = nsnull;
+    rv = ncc->GetJSContext(&cx);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    jsval *argv = nsnull;
+    ncc->GetArgvPtr(&argv);
+    NS_ENSURE_TRUE(argv, NS_ERROR_UNEXPECTED);
+
+    if (argc == 1) {
+      JSAutoRequest ar(cx);
+
+      JSString *jsstr = JS_ValueToString(cx, argv[0]);
+      NS_ENSURE_TRUE(jsstr, NS_ERROR_OUT_OF_MEMORY);
+
+      nsDependentString str(reinterpret_cast<const PRUnichar *>
+                                            (::JS_GetStringChars(jsstr)),
+                          ::JS_GetStringLength(jsstr));
+
+      return WriteCommon(str, aNewlineTerminate);
+    }
+
+    if (argc > 1) {
+      nsAutoString string_buffer;
+
+      for (i = 0; i < argc; ++i) {
+        JSAutoRequest ar(cx);
+
+        JSString *str = JS_ValueToString(cx, argv[i]);
+        NS_ENSURE_TRUE(str, NS_ERROR_OUT_OF_MEMORY);
+
+        string_buffer.Append(reinterpret_cast<const PRUnichar *>
+                                             (::JS_GetStringChars(str)),
+                             ::JS_GetStringLength(str));
+      }
+
+      return WriteCommon(string_buffer, aNewlineTerminate);
+    }
+  }
+
+  // No arguments...
+  return WriteCommon(EmptyString(), aNewlineTerminate);
+}
+
+NS_IMETHODIMP
+nsHTMLDocument::Write()
+{
+  return ScriptWriteCommon(PR_FALSE);
+}
+
+NS_IMETHODIMP
+nsHTMLDocument::Writeln()
+{
+  return ScriptWriteCommon(PR_TRUE);
 }
 
 NS_IMETHODIMP
@@ -2513,13 +2534,8 @@ nsHTMLDocument::GetSelection(nsAString& aReturn)
     consoleService->LogStringMessage(NS_LITERAL_STRING("Deprecated method document.getSelection() called.  Please use window.getSelection() instead.").get());
   }
 
-  nsCOMPtr<nsIDOMWindow> window = do_QueryInterface(GetScopeObject());
-  nsCOMPtr<nsPIDOMWindow> pwin = do_QueryInterface(window);
-  NS_ENSURE_TRUE(pwin, NS_OK);
-  NS_ASSERTION(pwin->IsInnerWindow(), "Should have inner window here!");
-  NS_ENSURE_TRUE(pwin->GetOuterWindow() &&
-                 pwin->GetOuterWindow()->GetCurrentInnerWindow() == pwin,
-                 NS_OK);
+  nsIDOMWindow *window = GetWindow();
+  NS_ENSURE_TRUE(window, NS_OK);
 
   nsCOMPtr<nsISelection> selection;
   nsresult rv = window->GetSelection(getter_AddRefs(selection));
@@ -2634,6 +2650,11 @@ nsHTMLDocument::ResolveName(const nsAString& aName,
                             nsISupports **aResult)
 {
   *aResult = nsnull;
+
+  if (!mIsRegularHTML) {
+    // We don't dynamically resolve names on non-HTML documents.
+    return NS_OK;
+  }
 
   nsCOMPtr<nsIAtom> name(do_GetAtom(aName));
 
@@ -2757,7 +2778,7 @@ nsHTMLDocument::ResolveName(const nsAString& aName,
 
   nsIContent *e = entry->GetIdContent();
 
-  if (e && e->IsHTML()) {
+  if (e && e->IsNodeOfType(nsINode::eHTML)) {
     nsIAtom *tag = e->Tag();
 
     if ((tag == nsGkAtoms::embed  ||
@@ -2932,21 +2953,7 @@ nsHTMLDocument::GenerateParserKey(void)
 
   // The script loader provides us with the currently executing script element,
   // which is guaranteed to be unique per script.
-  if (nsHtml5Module::sEnabled) {
-    nsIScriptElement* script = mScriptLoader->GetCurrentScript();
-    if (script && mParser && mParser->IsScriptCreated()) {
-      nsCOMPtr<nsIParser> creatorParser = script->GetCreatorParser();
-      if (creatorParser != mParser) {
-        // Make scripts that aren't inserted by the active parser of this document
-        // participate in the context of the script that document.open()ed 
-        // this document.
-        return mParser->GetRootContextKey();
-      }
-    }
-    return script;
-  } else {
-    return mScriptLoader->GetCurrentScript();
-  }
+  return mScriptLoader->GetCurrentScript();
 }
 
 /* attribute DOMString designMode; */

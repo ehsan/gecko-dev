@@ -43,14 +43,18 @@
 #include "nsString.h"
 #include "nsPresContext.h"
 #include "nsIStyleRule.h"
+#include "nsCRT.h"
 
 #include "nsCOMPtr.h"
 #include "nsStyleSet.h"
 #include "nsIPresShell.h"
+#include "prenv.h"
 
 #include "nsRuleNode.h"
 #include "nsStyleContext.h"
-#include "prlog.h"
+#include "imgIRequest.h"
+
+#include "nsPrintfCString.h"
 
 #ifdef DEBUG
 // #define NOISY_DEBUG
@@ -61,7 +65,6 @@
 
 nsStyleContext::nsStyleContext(nsStyleContext* aParent,
                                nsIAtom* aPseudoTag,
-                               nsCSSPseudoElements::Type aPseudoType,
                                nsRuleNode* aRuleNode,
                                nsPresContext* aPresContext)
   : mParent(aParent),
@@ -69,12 +72,9 @@ nsStyleContext::nsStyleContext(nsStyleContext* aParent,
     mEmptyChild(nsnull),
     mPseudoTag(aPseudoTag),
     mRuleNode(aRuleNode),
-    mBits(((PRUint32)aPseudoType) << NS_STYLE_CONTEXT_TYPE_SHIFT),
+    mBits(0),
     mRefCnt(0)
 {
-  PR_STATIC_ASSERT((PR_UINT32_MAX >> NS_STYLE_CONTEXT_TYPE_SHIFT) >
-                   nsCSSPseudoElements::ePseudo_MAX);
-
   mNextSibling = this;
   mPrevSibling = this;
   if (mParent) {
@@ -96,8 +96,6 @@ nsStyleContext::nsStyleContext(nsStyleContext* aParent,
   NS_ASSERTION(NS_STYLE_INHERIT_MASK & NS_STYLE_INHERIT_BIT(LastItem),
                "NS_STYLE_INHERIT_MASK must be bigger, and other bits shifted");
   #undef eStyleStruct_LastItem
-
-  mRuleNode->AddRef();
 }
 
 nsStyleContext::~nsStyleContext()
@@ -105,8 +103,6 @@ nsStyleContext::~nsStyleContext()
   NS_ASSERTION((nsnull == mChild) && (nsnull == mEmptyChild), "destructing context with children");
 
   nsPresContext *presContext = mRuleNode->GetPresContext();
-
-  mRuleNode->Release();
 
   presContext->PresShell()->StyleSet()->
     NotifyStyleContextDestroyed(presContext, this);
@@ -312,9 +308,6 @@ nsStyleContext::SetStyle(nsStyleStructID aSID, void* aStruct)
     }
   }
   char* dataSlot = resetOrInherit + info.mInheritResetOffset;
-  NS_ASSERTION(!*reinterpret_cast<void**>(dataSlot) ||
-               (mBits & nsCachedStyleData::GetBitForSID(aSID)),
-               "Going to leak style data");
   *reinterpret_cast<void**>(dataSlot) = aStruct;
 }
 
@@ -331,10 +324,6 @@ nsStyleContext::ApplyStyleFixups(nsPresContext* aPresContext)
     if (text->mTextDecoration != NS_STYLE_TEXT_DECORATION_NONE &&
         text->mTextDecoration != NS_STYLE_TEXT_DECORATION_OVERRIDE_ALL)
       mBits |= NS_STYLE_HAS_TEXT_DECORATIONS;
-  }
-
-  if ((mParent && mParent->HasPseudoElementData()) || mPseudoTag) {
-    mBits |= NS_STYLE_HAS_PSEUDO_ELEMENT_DATA;
   }
 
   // Correct tables.
@@ -410,7 +399,7 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
                        PeekStyleData(eStyleStruct_##struct_));                \
     if (this##struct_) {                                                      \
       const nsStyle##struct_* other##struct_ = aOther->GetStyle##struct_();   \
-      if ((compare || nsStyle##struct_::ForceCompare()) &&                    \
+      if (compare &&                                                          \
           !NS_IsHintSubset(maxHint, hint) &&                                  \
           this##struct_ != other##struct_) {                                  \
         NS_ASSERTION(NS_IsHintSubset(                                         \
@@ -442,9 +431,11 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
   // a framechange here and a reflow should be sufficient.  See bug 35768.
   DO_STRUCT_DIFFERENCE(Quotes);
 
+#ifdef MOZ_SVG
   maxHint = nsChangeHint(NS_STYLE_HINT_REFLOW | nsChangeHint_UpdateEffects);
   DO_STRUCT_DIFFERENCE(SVGReset);
   DO_STRUCT_DIFFERENCE(SVG);
+#endif
 
   // At this point, we know that the worst kind of damage we could do is
   // a reflow.
@@ -575,13 +566,11 @@ nsStyleContext::Destroy()
 already_AddRefed<nsStyleContext>
 NS_NewStyleContext(nsStyleContext* aParentContext,
                    nsIAtom* aPseudoTag,
-                   nsCSSPseudoElements::Type aPseudoType,
                    nsRuleNode* aRuleNode,
                    nsPresContext* aPresContext)
 {
-  nsStyleContext* context =
-    new (aPresContext) nsStyleContext(aParentContext, aPseudoTag, aPseudoType,
-                                      aRuleNode, aPresContext);
+  nsStyleContext* context = new (aPresContext) nsStyleContext(aParentContext, aPseudoTag, 
+                                                              aRuleNode, aPresContext);
   if (context)
     context->AddRef();
   return context;

@@ -50,8 +50,6 @@
 
 class nsMathMLmsupFrame : public nsMathMLContainerFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   friend nsIFrame* NS_NewMathMLmsupFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   NS_IMETHOD

@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4; -*-
- * vim: set ts=4 sw=4 et tw=99:
+ * vim: set ts=8 sw=4 et tw=99:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -48,7 +48,6 @@
 #include "jscntxt.h"
 #include "jsgc.h"
 #include "jsiter.h"
-#include "jsnum.h"
 #include "jslibmath.h"
 #include "jsmath.h"
 #include "jsnum.h"
@@ -58,14 +57,11 @@
 #include "jsstr.h"
 #include "jsbuiltins.h"
 #include "jstracer.h"
-#include "jsvector.h"
-
-#include "jsatominlines.h"
-#include "jsobjinlines.h"
-#include "jsscopeinlines.h"
 
 using namespace avmplus;
 using namespace nanojit;
+
+extern jsdouble js_NaN;
 
 JS_FRIEND_API(void)
 js_SetTraceableNativeFailed(JSContext *cx)
@@ -87,7 +83,15 @@ js_dmod(jsdouble a, jsdouble b)
         u.s.lo = 0xffffffff;
         return u.d;
     }
-    return js_fmod(a, b);
+    jsdouble r;
+#ifdef XP_WIN
+    /* Workaround MS fmod bug where 42 % (1/0) => NaN, not 42. */
+    if (JSDOUBLE_IS_FINITE(a) && JSDOUBLE_IS_INFINITE(b))
+        r = a;
+    else
+#endif
+        r = fmod(a, b);
+    return r;
 }
 JS_DEFINE_CALLINFO_2(extern, DOUBLE, js_dmod, DOUBLE, DOUBLE, 1, 1)
 
@@ -130,7 +134,7 @@ js_BoxInt32(JSContext* cx, int32 i)
     if (!js_NewDoubleInRootedValue(cx, d, &v))
         return JSVAL_ERROR_COOKIE;
     return v;
-}
+} 
 JS_DEFINE_CALLINFO_2(extern, JSVAL, js_BoxInt32, CONTEXT, INT32, 1, 1)
 
 jsdouble FASTCALL
@@ -150,24 +154,6 @@ js_UnboxInt32(jsval v)
     return js_DoubleToECMAInt32(*JSVAL_TO_DOUBLE(v));
 }
 JS_DEFINE_CALLINFO_1(extern, INT32, js_UnboxInt32, JSVAL, 1, 1)
-
-JSBool FASTCALL
-js_TryUnboxInt32(jsval v, int32* i32p)
-{
-    if (JS_LIKELY(JSVAL_IS_INT(v))) {
-        *i32p = JSVAL_TO_INT(v);
-        return JS_TRUE;
-    }
-    if (!JSVAL_IS_DOUBLE(v))
-        return JS_FALSE;
-    int32 i;
-    jsdouble d = *JSVAL_TO_DOUBLE(v);
-    if (!JSDOUBLE_IS_INT(d, i))
-        return JS_FALSE;
-    *i32p = i;
-    return JS_TRUE;
-}
-JS_DEFINE_CALLINFO_2(extern, BOOL, js_TryUnboxInt32, JSVAL, INT32PTR, 1, 1)
 
 int32 FASTCALL
 js_DoubleToInt32(jsdouble d)
@@ -210,43 +196,69 @@ js_StringToInt32(JSContext* cx, JSString* str)
     const jschar* ep;
     jsdouble d;
 
-    if (str->length() == 1) {
-        jschar c = str->chars()[0];
-        if ('0' <= c && c <= '9')
-            return c - '0';
-        return 0;	
-    }
-
     str->getCharsAndEnd(bp, end);
-    if ((!js_strtod(cx, bp, end, &ep, &d) ||
-         js_SkipWhiteSpace(ep, end) != end) &&
-        (!js_strtointeger(cx, bp, end, &ep, 0, &d) ||
-         js_SkipWhiteSpace(ep, end) != end)) {
+    if (!js_strtod(cx, bp, end, &ep, &d) || js_SkipWhiteSpace(ep, end) != end)
         return 0;
-    }
     return js_DoubleToECMAInt32(d);
 }
 JS_DEFINE_CALLINFO_2(extern, INT32, js_StringToInt32, CONTEXT, STRING, 1, 1)
 
+SideExit* FASTCALL
+js_CallTree(InterpState* state, Fragment* f)
+{
+    union { NIns *code; GuardRecord* (FASTCALL *func)(InterpState*, Fragment*); } u;
+
+    u.code = f->code();
+    JS_ASSERT(u.code);
+
+    GuardRecord* rec;
+#if defined(JS_NO_FASTCALL) && defined(NANOJIT_IA32)
+    SIMULATE_FASTCALL(rec, state, NULL, u.func);
+#else
+    rec = u.func(state, NULL);
+#endif
+    VMSideExit* lr = (VMSideExit*)rec->exit;
+
+    if (lr->exitType == NESTED_EXIT) {
+        /* This only occurs once a tree call guard mismatches and we unwind the tree call stack.
+           We store the first (innermost) tree call guard in state and we will try to grow
+           the outer tree the failing call was in starting at that guard. */
+        if (!state->lastTreeCallGuard) {
+            state->lastTreeCallGuard = lr;
+            FrameInfo** rp = (FrameInfo**)state->rp;
+            state->rpAtLastTreeCall = rp + lr->calldepth;
+        }
+    } else {
+        /* If the tree exits on a regular (non-nested) guard, keep updating lastTreeExitGuard
+           with that guard. If we mismatch on a tree call guard, this will contain the last
+           non-nested guard we encountered, which is the innermost loop or branch guard. */
+        state->lastTreeExitGuard = lr;
+    }
+
+    return lr;
+}
+JS_DEFINE_CALLINFO_2(extern, SIDEEXIT, js_CallTree, INTERPSTATE, FRAGMENT, 0, 0)
+
 JSBool FASTCALL
 js_AddProperty(JSContext* cx, JSObject* obj, JSScopeProperty* sprop)
 {
+    JS_ASSERT(OBJ_IS_NATIVE(obj));
+    JS_ASSERT(SPROP_HAS_STUB_SETTER(sprop));
+
     JS_LOCK_OBJ(cx, obj);
 
-    uint32 slot = sprop->slot;
     JSScope* scope = OBJ_SCOPE(obj);
-    JS_ASSERT(slot == scope->freeslot);
-    JS_ASSERT(sprop->parent == scope->lastProperty());
-
-    if (scope->owned()) {
-        JS_ASSERT(!scope->hasProperty(sprop));
+    uint32 slot;
+    if (scope->object == obj) {
+        JS_ASSERT(!SCOPE_HAS_PROPERTY(scope, sprop));
     } else {
         scope = js_GetMutableScope(cx, obj);
         if (!scope)
             goto exit_trace;
     }
 
-    if (!scope->table) {
+    slot = sprop->slot;
+    if (!scope->table && sprop->parent == scope->lastProp && slot == scope->freeslot) {
         if (slot < STOBJ_NSLOTS(obj) && !OBJ_GET_CLASS(cx, obj)->reserveSlots) {
             JS_ASSERT(JSVAL_IS_VOID(STOBJ_GET_SLOT(obj, scope->freeslot)));
             ++scope->freeslot;
@@ -260,11 +272,17 @@ js_AddProperty(JSContext* cx, JSObject* obj, JSScopeProperty* sprop)
             }
         }
 
-        scope->extend(cx, sprop);
+        js_ExtendScopeShape(cx, scope, sprop);
+        ++scope->entryCount;
+        scope->lastProp = sprop;
     } else {
-        JSScopeProperty *sprop2 =
-            scope->addProperty(cx, sprop->id, sprop->getter, sprop->setter, SPROP_INVALID_SLOT,
-                               sprop->attrs, sprop->flags, sprop->shortid);
+        JSScopeProperty *sprop2 = js_AddScopeProperty(cx, scope, sprop->id,
+                                                      sprop->getter,
+                                                      sprop->setter,
+                                                      SPROP_INVALID_SLOT,
+                                                      sprop->attrs,
+                                                      sprop->flags,
+                                                      sprop->shortid);
         if (sprop2 != sprop)
             goto exit_trace;
     }
@@ -287,18 +305,18 @@ HasProperty(JSContext* cx, JSObject* obj, jsid id)
     // Check that we know how the lookup op will behave.
     for (JSObject* pobj = obj; pobj; pobj = OBJ_GET_PROTO(cx, pobj)) {
         if (pobj->map->ops->lookupProperty != js_LookupProperty)
-            return JSVAL_TO_SPECIAL(JSVAL_VOID);
+            return JSVAL_TO_PSEUDO_BOOLEAN(JSVAL_VOID);
         JSClass* clasp = OBJ_GET_CLASS(cx, pobj);
         if (clasp->resolve != JS_ResolveStub && clasp != &js_StringClass)
-            return JSVAL_TO_SPECIAL(JSVAL_VOID);
+            return JSVAL_TO_PSEUDO_BOOLEAN(JSVAL_VOID);
     }
 
     JSObject* obj2;
     JSProperty* prop;
-    if (js_LookupPropertyWithFlags(cx, obj, id, JSRESOLVE_QUALIFIED, &obj2, &prop) < 0)
-        return JSVAL_TO_SPECIAL(JSVAL_VOID);
+    if (!js_LookupPropertyWithFlags(cx, obj, id, JSRESOLVE_QUALIFIED, &obj2, &prop))
+        return JSVAL_TO_PSEUDO_BOOLEAN(JSVAL_VOID);
     if (prop)
-        obj2->dropProperty(cx, prop);
+        OBJ_DROP_PROPERTY(cx, obj2, prop);
     return prop != NULL;
 }
 
@@ -324,6 +342,17 @@ js_HasNamedPropertyInt32(JSContext* cx, JSObject* obj, int32 index)
 }
 JS_DEFINE_CALLINFO_3(extern, BOOL, js_HasNamedPropertyInt32, CONTEXT, OBJECT, INT32, 0, 0)
 
+jsval FASTCALL
+js_CallGetter(JSContext* cx, JSObject* obj, JSScopeProperty* sprop)
+{
+    JS_ASSERT(!SPROP_HAS_STUB_GETTER(sprop));
+    jsval v;
+    if (!js_GetSprop(cx, sprop, obj, &v))
+        return JSVAL_ERROR_COOKIE;
+    return v;
+}
+JS_DEFINE_CALLINFO_3(extern, JSVAL, js_CallGetter, CONTEXT, OBJECT, SCOPEPROP, 0, 0)
+
 JSString* FASTCALL
 js_TypeOfObject(JSContext* cx, JSObject* obj)
 {
@@ -336,7 +365,7 @@ JSString* FASTCALL
 js_TypeOfBoolean(JSContext* cx, int32 unboxed)
 {
     /* Watch out for pseudo-booleans. */
-    jsval boxed = SPECIAL_TO_JSVAL(unboxed);
+    jsval boxed = PSEUDO_BOOLEAN_TO_JSVAL(unboxed);
     JS_ASSERT(JSVAL_IS_VOID(boxed) || JSVAL_IS_BOOLEAN(boxed));
     JSType type = JS_TypeOfValue(cx, boxed);
     return ATOM_TO_STRING(cx->runtime->atomState.typeAtoms[type]);
@@ -346,7 +375,7 @@ JS_DEFINE_CALLINFO_2(extern, STRING, js_TypeOfBoolean, CONTEXT, INT32, 1, 1)
 jsdouble FASTCALL
 js_BooleanOrUndefinedToNumber(JSContext* cx, int32 unboxed)
 {
-    if (unboxed == JSVAL_TO_SPECIAL(JSVAL_VOID))
+    if (unboxed == JSVAL_TO_PSEUDO_BOOLEAN(JSVAL_VOID))
         return js_NaN;
     JS_ASSERT(unboxed == JS_TRUE || unboxed == JS_FALSE);
     return unboxed;
@@ -362,6 +391,13 @@ js_BooleanOrUndefinedToString(JSContext *cx, int32 unboxed)
 JS_DEFINE_CALLINFO_2(extern, STRING, js_BooleanOrUndefinedToString, CONTEXT, INT32, 1, 1)
 
 JSObject* FASTCALL
+js_Arguments(JSContext* cx)
+{
+    return NULL;
+}
+JS_DEFINE_CALLINFO_1(extern, OBJECT, js_Arguments, CONTEXT, 0, 0)
+
+JSObject* FASTCALL
 js_NewNullClosure(JSContext* cx, JSObject* funobj, JSObject* proto, JSObject* parent)
 {
     JS_ASSERT(HAS_FUNCTION_CLASS(funobj));
@@ -371,90 +407,20 @@ js_NewNullClosure(JSContext* cx, JSObject* funobj, JSObject* proto, JSObject* pa
     JSFunction *fun = (JSFunction*) funobj;
     JS_ASSERT(GET_FUNCTION_PRIVATE(cx, funobj) == fun);
 
-    JSObject* closure = js_NewGCObject(cx);
+    JSObject* closure = (JSObject*) js_NewGCThing(cx, GCX_OBJECT, sizeof(JSObject));
     if (!closure)
         return NULL;
 
-    closure->initSharingEmptyScope(&js_FunctionClass, proto, parent,
-                                   reinterpret_cast<jsval>(fun));
+    js_HoldScope(OBJ_SCOPE(proto));
+    closure->map = proto->map;
+    closure->classword = jsuword(&js_FunctionClass);
+    closure->fslots[JSSLOT_PROTO] = OBJECT_TO_JSVAL(proto);
+    closure->fslots[JSSLOT_PARENT] = OBJECT_TO_JSVAL(parent);
+    closure->fslots[JSSLOT_PRIVATE] = PRIVATE_TO_JSVAL(fun);
+    for (unsigned i = JSSLOT_PRIVATE + 1; i != JS_INITIAL_NSLOTS; ++i)
+        closure->fslots[i] = JSVAL_VOID;
+    closure->dslots = NULL;
     return closure;
 }
 JS_DEFINE_CALLINFO_4(extern, OBJECT, js_NewNullClosure, CONTEXT, OBJECT, OBJECT, OBJECT, 0, 0)
 
-JS_REQUIRES_STACK JSBool FASTCALL
-js_PopInterpFrame(JSContext* cx, InterpState* state)
-{
-    JS_ASSERT(cx->fp && cx->fp->down);
-    JSInlineFrame* ifp = (JSInlineFrame*)cx->fp;
-
-    /*
-     * Mirror frame popping code from inline_return in js_Interpret. There are
-     * some things we just don't want to handle. In those cases, the trace will
-     * MISMATCH_EXIT.
-     */
-    if (ifp->hookData)
-        return JS_FALSE;
-    if (cx->version != ifp->callerVersion)
-        return JS_FALSE;
-    if (cx->fp->flags & JSFRAME_CONSTRUCTING)
-        return JS_FALSE;
-    if (cx->fp->imacpc)
-        return JS_FALSE;
-
-    cx->fp->putActivationObjects(cx);
-    
-    /* Update display table. */
-    if (cx->fp->script->staticLevel < JS_DISPLAY_SIZE)
-        cx->display[cx->fp->script->staticLevel] = cx->fp->displaySave;
-
-    /* Pop the frame and its memory. */
-    cx->fp = cx->fp->down;
-    JS_ASSERT(cx->fp->regs == &ifp->callerRegs);
-    cx->fp->regs = ifp->frame.regs;
-
-    JS_ARENA_RELEASE(&cx->stackPool, ifp->mark);
-
-    /* Update the inline call count. */
-    *state->inlineCallCountp = *state->inlineCallCountp - 1;
-    return JS_TRUE;
-}
-JS_DEFINE_CALLINFO_2(extern, BOOL, js_PopInterpFrame, CONTEXT, INTERPSTATE, 0, 0)
-
-JSString* FASTCALL
-js_ConcatN(JSContext *cx, JSString **strArray, uint32 size)
-{
-    /* Calculate total size. */
-    size_t numChar = 1;
-    for (uint32 i = 0; i < size; ++i) {
-        size_t before = numChar;
-        numChar += strArray[i]->length();
-        if (numChar < before)
-            return NULL;
-    }
-
-
-    /* Allocate buffer. */
-    if (numChar & js::tl::MulOverflowMask<sizeof(jschar)>::result)
-        return NULL;
-    jschar *buf = (jschar *)cx->malloc(numChar * sizeof(jschar));
-    if (!buf)
-        return NULL;
-
-    /* Fill buffer. */
-    jschar *ptr = buf;
-    for (uint32 i = 0; i < size; ++i) {
-        const jschar *chars;
-        size_t length;
-        strArray[i]->getCharsAndLength(chars, length);
-        js_strncpy(ptr, chars, length);
-        ptr += length;
-    }
-    *ptr = '\0';
-
-    /* Create string. */
-    JSString *str = js_NewString(cx, buf, numChar - 1);
-    if (!str)
-        cx->free(buf);
-    return str;
-}
-JS_DEFINE_CALLINFO_3(extern, STRING, js_ConcatN, CONTEXT, STRINGPTR, UINT32, 0, 0)

@@ -53,10 +53,6 @@
 #include <usp10.h>
 #include <cairo-win32.h>
 
-// xxx - used in FontEntry.  should be trimmed, moz code doesn't use
-//       exceptions.  use gfxSparseBitSet instead?
-#include <bitset>
-
 /**
  * List of different types of fonts we support on Windows.
  * These can generally be lumped in to 3 categories where we have to
@@ -87,7 +83,7 @@ class FontFamily : public gfxFontFamily
 {
 public:
     FontFamily(const nsAString& aName) :
-        gfxFontFamily(aName), mIsBadUnderlineFontFamily(PR_FALSE) { }
+        gfxFontFamily(aName), mIsBadUnderlineFontFamily(PR_FALSE), mHasStyles(PR_FALSE) { }
 
     FontEntry *FindFontEntry(const gfxFontStyle& aFontStyle);
 
@@ -101,11 +97,14 @@ private:
                                             DWORD fontType, LPARAM data);
 
 protected:
-    PRBool FindWeightsForStyle(gfxFontEntry* aFontsForWeights[],
-                               PRBool anItalic, PRInt16 aStretch);
+    PRBool FindWeightsForStyle(gfxFontEntry* aFontsForWeights[], const gfxFontStyle& aFontStyle);
 
 public:
+    nsTArray<nsRefPtr<FontEntry> > mVariations;
     PRPackedBool mIsBadUnderlineFontFamily;
+
+private:
+    PRPackedBool mHasStyles;
 };
 
 class FontEntry : public gfxFontEntry
@@ -116,7 +115,7 @@ public:
         gfxFontEntry(aFaceName), mFontType(aFontType),
         mForceGDI(PR_FALSE), mUnknownCMAP(PR_FALSE),
         mUnicodeFont(PR_FALSE), mSymbolFont(PR_FALSE),
-        mCharset(), mUnicodeRanges()
+        mCharset(0), mUnicodeRanges(0)
     {
         mUserFontData = aUserFontData;
         mItalic = aItalic;
@@ -144,6 +143,7 @@ public:
 
     // create a font entry from downloaded font data
     static FontEntry* LoadFont(const gfxProxyFontEntry &aProxyEntry,
+                               nsISupports *aLoader,
                                const PRUint8 *aFontData,
                                PRUint32 aLength);
 
@@ -339,8 +339,7 @@ public:
     FontEntry *GetFontEntry();
 
     static already_AddRefed<gfxWindowsFont>
-    GetOrMakeFont(FontEntry *aFontEntry, const gfxFontStyle *aStyle,
-                  PRBool aNeedsBold = PR_FALSE);
+    GetOrMakeFont(FontEntry *aFontEntry, const gfxFontStyle *aStyle);
 
 protected:
     HFONT MakeHFONT();
@@ -403,8 +402,7 @@ public:
 
     virtual gfxWindowsFont *GetFontAt(PRInt32 i);
 
-    void GroupFamilyListToArrayList(nsTArray<nsRefPtr<FontEntry> > *list,
-                                    nsTArray<PRPackedBool> *aNeedsBold);
+    void GroupFamilyListToArrayList(nsTArray<nsRefPtr<FontEntry> > *list);
     void FamilyListToArrayList(const nsString& aFamilies,
                                const nsCString& aLangGroup,
                                nsTArray<nsRefPtr<FontEntry> > *list);
@@ -431,7 +429,6 @@ private:
 
     nsCString mGenericFamily;
     nsTArray<nsRefPtr<FontEntry> > mFontEntries;
-    nsTArray<PRPackedBool> mFontNeedsBold;
 
     const char *mItemLangGroup;  // used by pref-lang handling code
 

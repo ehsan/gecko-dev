@@ -43,8 +43,6 @@ class nsIContent;
 class nsSelectsAreaFrame : public nsBlockFrame
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   friend nsIFrame* NS_NewSelectsAreaFrame(nsIPresShell* aShell, nsStyleContext* aContext, PRUint32 aFlags);
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,

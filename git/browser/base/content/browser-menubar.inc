@@ -40,7 +40,7 @@
                 style="border:0px;padding:0px;margin:0px;-moz-appearance:none">
             <menu id="file-menu" label="&fileMenu.label;"
                   accesskey="&fileMenu.accesskey;">
-              <menupopup id="menu_FilePopup">
+              <menupopup id="menu_FilePopup" onpopupshowing="getContentAreaFrameCount();">
                 <menuitem id="menu_newNavigator"
                           label="&newNavigatorCmd.label;"
                           accesskey="&newNavigatorCmd.accesskey;"
@@ -78,12 +78,16 @@
                           accesskey="&savePageCmd.accesskey;"
                           key="key_savePage"
                           command="Browser:SavePage"/>
+                <menuitem id="menu_saveFrame"
+                          label="&saveFrameCmd.label;"
+                          accesskey="&saveFrameCmd.accesskey;"
+                          command="Browser:SaveFrame"
+                          hidden="true"/>
                 <menuitem id="menu_sendLink"
                           label="&sendPageCmd.label;"
                           accesskey="&sendPageCmd.accesskey;"
                           command="Browser:SendLink"/>
                 <menuseparator/>
-#ifndef WINCE
                 <menuitem id="menu_printSetup"
                           label="&printSetupCmd.label;"
                           accesskey="&printSetupCmd.accesskey;"
@@ -106,7 +110,6 @@
                           oncommand="BrowserImport();"/>
 #ifndef XP_MACOSX
                 <menuseparator/>
-#endif
 #endif
                 <menuitem id="goOfflineMenuitem"
                           label="&goOfflineCmd.label;"
@@ -224,11 +227,7 @@
                           accesskey="&taskbarCmd.accesskey;"
                           type="checkbox"
                           command="cmd_toggleTaskbar"
-#ifndef WINCE
                           checked="true" />
-#else
-                          checked="false" />
-#endif
                 <menu id="viewSidebarMenuMenu"
                       label="&viewSidebarMenu.label;"
                       accesskey="&viewSidebarMenu.accesskey;">
@@ -428,18 +427,14 @@
                           label="&pageSourceCmd.label;"
                           key="key_viewSource"
                           command="View:PageSource"/>
+#ifndef XP_MACOSX
                 <menuitem id="fullScreenItem"
                           accesskey="&fullScreenCmd.accesskey;"
                           label="&fullScreenCmd.label;"
                           key="key_fullScreen"
                           type="checkbox"
-                          observes="View:FullScreen"/>
-                <menuitem id="menu_showAllTabs"
-                          hidden="true"
-                          accesskey="&showAllTabsCmd.accesskey;"
-                          label="&showAllTabsCmd.label;"
-                          command="Browser:ShowAllTabs"
-                          key="key_showAllTabs"/>
+                          command="View:FullScreen"/>
+#endif
                 <menuseparator hidden="true" id="documentDirection-separator"/>
                 <menuitem id="documentDirection-swap"
                           hidden="true"
@@ -459,7 +454,7 @@
                          onpopupshowing="HistoryMenu.onPopupShowing(event);"
                          onpopuphidden="HistoryMenu.onPopupHidden(event);"
                          place="place:redirectsMode=2&amp;sort=4&amp;maxResults=10"
-                         tooltip="bhTooltip" popupsinherittooltip="true">
+                         tooltip="btTooltip">
                 <menuitem id="historyMenuBack"
                           label="&backCmd.label;"
 #ifdef XP_MACOSX
@@ -467,6 +462,7 @@
 #else
                           key="goBackKb"
 #endif
+                          chromedir="&locale.dir;"
                           command="Browser:BackOrBackDuplicate"
                           onclick="checkForMiddleClick(this, event);"/>
                 <menuitem id="historyMenuForward"
@@ -476,6 +472,7 @@
 #else
                           key="goForwardKb"
 #endif
+                          chromedir="&locale.dir;"
                           command="Browser:ForwardOrForwardDuplicate"
                           onclick="checkForMiddleClick(this, event);"/>
                 <menuitem id="historyMenuHome"
@@ -494,13 +491,13 @@
                 <menu id="historyUndoMenu"
                       label="&historyUndoMenu.label;"
                       disabled="true">
-                  <menupopup id="historyUndoPopup" placespopup="true"
+                  <menupopup id="historyUndoPopup"
                              onpopupshowing="HistoryMenu.populateUndoSubmenu();"/>
                 </menu>
                 <menu id="historyUndoWindowMenu"
                       label="&historyUndoWindowMenu.label;"
                       disabled="true">
-                  <menupopup id="historyUndoWindowPopup" placespopup="true"
+                  <menupopup id="historyUndoWindowPopup"
                              onpopupshowing="HistoryMenu.populateUndoWindowSubmenu();"/>
                 </menu>
               </menupopup>
@@ -521,7 +518,7 @@
                oncommand="BookmarksEventHandler.onCommand(event);"
                onclick="BookmarksEventHandler.onClick(event);"
                onpopupshowing="BookmarksEventHandler.onPopupShowing(event);"
-               tooltip="bhTooltip" popupsinherittooltip="true">
+               tooltip="btTooltip">
       <menuitem id="menu_bookmarkThisPage"
                 label="&bookmarkThisPageCmd.label;"
                 command="Browser:AddBookmarkAs"

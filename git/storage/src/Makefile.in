@@ -43,6 +43,9 @@ VPATH   = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+# FIXME: bug 419893
+NO_PROFILE_GUIDED_OPTIMIZE = 1
+
 MODULE           = storage
 LIBRARY_NAME     = storage_s
 MODULE_NAME      = mozStorageModule
@@ -50,6 +53,13 @@ FORCE_STATIC_LIB = 1
 GRE_MODULE       = 1
 LIBXUL_LIBRARY = 1
 
+REQUIRES = xpcom \
+           string \
+           sqlite3 \
+           js \
+           xpconnect \
+           necko \
+           $(NULL)
 
 EXPORTS_NAMESPACES = mozilla/storage
 
@@ -75,7 +85,6 @@ CPPSRCS = \
   mozStoragePrivateHelpers.cpp \
   mozStorageBindingParamsArray.cpp \
   mozStorageBindingParams.cpp \
-  SQLCollations.cpp \
   $(NULL)
 
 LOCAL_INCLUDES = \

@@ -56,10 +56,6 @@ splitter {
   background-color: ThreeDFace;
 }
 
-splitter:-moz-lwtheme {
-  background: none;
-}
-
 /* ::::: splitter (horizontal) ::::: */
 
 splitter[orient="vertical"] {
@@ -83,7 +79,7 @@ grippy {
 }
 
 grippy:hover {
-  background-color: ThreeDHighlight;
+  background-color: #CCCCFF;
 }
 
 splitter[orient="vertical"] > grippy {

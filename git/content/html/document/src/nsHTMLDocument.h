@@ -123,6 +123,8 @@ public:
  
   virtual NS_HIDDEN_(nsContentList*) GetFormControls();
  
+  virtual PRBool IsCaseSensitive();
+
   // nsIDOMDocument interface
   NS_DECL_NSIDOMDOCUMENT
 
@@ -177,9 +179,9 @@ public:
   virtual PRInt32 GetNumFormsSynchronous();
   virtual void TearingDownEditor(nsIEditor *aEditor);
   virtual void SetIsXHTML(PRBool aXHTML) { mIsRegularHTML = !aXHTML; }
-  virtual void SetDocWriteDisabled(PRBool aDisabled)
+  PRBool IsXHTML()
   {
-    mDisableDocWrite = aDisabled;
+    return !mIsRegularHTML;
   }
 
   nsresult ChangeContentEditableCount(nsIContent *aElement, PRInt32 aChange);
@@ -214,7 +216,7 @@ public:
 
   void EndUpdate(nsUpdateType aUpdateType);
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsHTMLDocument, nsDocument)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLDocument, nsDocument)
 
   virtual already_AddRefed<nsIParser> GetFragmentParser() {
     return mFragmentParser.forget();
@@ -250,6 +252,7 @@ protected:
 
   nsresult WriteCommon(const nsAString& aText,
                        PRBool aNewlineTerminate);
+  nsresult ScriptWriteCommon(PRBool aNewlineTerminate);
   nsresult OpenCommon(const nsACString& aContentType, PRBool aReplace);
 
   nsresult CreateAndAddWyciwygChannel(void);
@@ -341,8 +344,6 @@ protected:
   PRPackedBool mIsFrameset;
 
   PRPackedBool mTooDeepWriteRecursion;
-
-  PRPackedBool mDisableDocWrite;
 
   nsCOMPtr<nsIWyciwygChannel> mWyciwygChannel;
 

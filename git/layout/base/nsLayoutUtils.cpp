@@ -61,10 +61,12 @@
 #include "nsFrameManager.h"
 #include "nsBlockFrame.h"
 #include "nsBidiPresUtils.h"
+#include "gfxIImageFrame.h"
 #include "imgIContainer.h"
 #include "gfxRect.h"
 #include "gfxContext.h"
 #include "gfxFont.h"
+#include "nsIImage.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsCSSRendering.h"
 #include "nsContentUtils.h"
@@ -78,17 +80,14 @@
 #include "gfxTypes.h"
 #include "gfxUserFontSet.h"
 #include "nsTArray.h"
+#include "nsTextFragment.h"
 #include "nsICanvasElement.h"
 #include "nsICanvasRenderingContextInternal.h"
 #include "gfxPlatform.h"
-#include "nsClientRect.h"
-#ifdef MOZ_MEDIA
 #include "nsHTMLVideoElement.h"
-#endif
 #include "imgIRequest.h"
 #include "imgIContainer.h"
 #include "nsIImageLoadingContent.h"
-#include "nsCOMPtr.h"
 
 #ifdef MOZ_SVG
 #include "nsSVGUtils.h"
@@ -159,8 +158,14 @@ GetLastChildFrame(nsIFrame*       aFrame,
   // Get the last continuation frame that's a parent
   nsIFrame* lastParentContinuation = nsLayoutUtils::GetLastContinuationWithChild(aFrame);
 
-  nsIFrame* lastChildFrame = lastParentContinuation->GetLastChild(nsnull);
-  if (lastChildFrame) {
+  // Get the last child frame
+  nsIFrame* firstChildFrame = lastParentContinuation->GetFirstChild(nsnull);
+  if (firstChildFrame) {
+    nsFrameList frameList(firstChildFrame);
+    nsIFrame*   lastChildFrame = frameList.LastChild();
+
+    NS_ASSERTION(lastChildFrame, "unexpected error");
+
     // Get the frame's first continuation. This matters in case the frame has
     // been continued across multiple lines or split by BiDi resolution.
     lastChildFrame = lastChildFrame->GetFirstContinuation();
@@ -226,28 +231,15 @@ nsLayoutUtils::GetClosestFrameOfType(nsIFrame* aFrame, nsIAtom* aFrameType)
   return nsnull;
 }
 
-// static
-nsIFrame*
-nsLayoutUtils::GetStyleFrame(nsIFrame* aFrame)
-{
-  if (aFrame->GetType() == nsGkAtoms::tableOuterFrame) {
-    nsIFrame* inner = aFrame->GetFirstChild(nsnull);
-    NS_ASSERTION(inner, "Outer table must have an inner");
-    return inner;
-  }
-
-  return aFrame;
-}
-
 nsIFrame*
 nsLayoutUtils::GetFloatFromPlaceholder(nsIFrame* aFrame) {
-  NS_ASSERTION(nsGkAtoms::placeholderFrame == aFrame->GetType(),
-               "Must have a placeholder here");
-  if (aFrame->GetStateBits() & PLACEHOLDER_FOR_FLOAT) {
-    nsIFrame *outOfFlowFrame =
-      nsPlaceholderFrame::GetRealFrameForPlaceholder(aFrame);
-    NS_ASSERTION(outOfFlowFrame->GetStyleDisplay()->IsFloating(),
-                 "How did that happen?");
+  if (nsGkAtoms::placeholderFrame != aFrame->GetType()) {
+    return nsnull;
+  }
+
+  nsIFrame *outOfFlowFrame =
+    nsPlaceholderFrame::GetRealFrameForPlaceholder(aFrame);
+  if (outOfFlowFrame->GetStyleDisplay()->IsFloating()) {
     return outOfFlowFrame;
   }
 
@@ -327,16 +319,6 @@ nsLayoutUtils::IsProperAncestorFrameCrossDoc(nsIFrame* aAncestorFrame, nsIFrame*
 
 // static
 PRBool
-nsLayoutUtils::IsAncestorFrameCrossDoc(nsIFrame* aAncestorFrame, nsIFrame* aFrame,
-                                       nsIFrame* aCommonAncestor)
-{
-  if (aFrame == aAncestorFrame)
-    return PR_TRUE;
-  return IsProperAncestorFrameCrossDoc(aAncestorFrame, aFrame, aCommonAncestor);
-}
-
-// static
-PRBool
 nsLayoutUtils::IsProperAncestorFrame(nsIFrame* aAncestorFrame, nsIFrame* aFrame,
                                      nsIFrame* aCommonAncestor)
 {
@@ -363,7 +345,7 @@ nsLayoutUtils::DoCompareTreePosition(nsIContent* aContent1,
                                      nsIContent* aContent2,
                                      PRInt32 aIf1Ancestor,
                                      PRInt32 aIf2Ancestor,
-                                     const nsIContent* aCommonAncestor)
+                                     nsIContent* aCommonAncestor)
 {
   NS_PRECONDITION(aContent1, "aContent1 must not be null");
   NS_PRECONDITION(aContent2, "aContent2 must not be null");
@@ -656,7 +638,6 @@ nsLayoutUtils::GetEventCoordinatesRelativeTo(const nsEvent* aEvent, nsIFrame* aF
                   aEvent->eventStructType != NS_MOUSE_SCROLL_EVENT &&
                   aEvent->eventStructType != NS_DRAG_EVENT &&
                   aEvent->eventStructType != NS_SIMPLE_GESTURE_EVENT &&
-                  aEvent->eventStructType != NS_GESTURENOTIFY_EVENT &&
                   aEvent->eventStructType != NS_QUERY_CONTENT_EVENT))
     return nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
 
@@ -911,6 +892,13 @@ nsLayoutUtils::CombineBreakType(PRUint8 aOrigBreakType,
   return breakType;
 }
 
+PRBool
+nsLayoutUtils::IsRootElementFrame(nsIFrame* aFrame)
+{
+  return aFrame ==
+    aFrame->PresContext()->PresShell()->FrameConstructor()->GetRootElementFrame();
+}
+
 #ifdef DEBUG
 #include <stdio.h>
 
@@ -950,10 +938,10 @@ nsLayoutUtils::GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt,
 #ifdef DEBUG
   if (gDumpEventList) {
     fprintf(stderr, "Event handling --- (%d,%d):\n", aPt.x, aPt.y);
-    nsFrame::PrintDisplayList(&builder, list);
+    nsIFrameDebug::PrintDisplayList(&builder, list);
   }
 #endif
-
+  
   nsDisplayItem::HitTestState hitTestState;
   nsIFrame* result = list.HitTest(&builder, aPt, &hitTestState);
   list.DeleteAll();
@@ -1057,26 +1045,19 @@ GetNextPage(nsIFrame* aPageContentFrame)
 
 nsresult
 nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFrame,
-                          const nsRegion& aDirtyRegion, nscolor aBackstop,
-                          PRUint32 aFlags)
+                          const nsRegion& aDirtyRegion, nscolor aBackground)
 {
   nsAutoDisableGetUsedXAssertions disableAssert;
 
   nsDisplayListBuilder builder(aFrame, PR_FALSE, PR_TRUE);
   nsDisplayList list;
   nsRect dirtyRect = aDirtyRegion.GetBounds();
-  if (aFlags & PAINT_IN_TRANSFORM) {
-    builder.SetInTransform(PR_TRUE);
-  }
-  if (aFlags & PAINT_SYNC_DECODE_IMAGES) {
-    builder.SetSyncDecodeImages(PR_TRUE);
-  }
-  nsresult rv;
 
   builder.EnterPresShell(aFrame, dirtyRect);
 
-  rv = aFrame->BuildDisplayListForStackingContext(&builder, dirtyRect, &list);
-
+  nsresult rv =
+    aFrame->BuildDisplayListForStackingContext(&builder, dirtyRect, &list);
+    
   if (NS_SUCCEEDED(rv) && aFrame->GetType() == nsGkAtoms::pageContentFrame) {
     // We may need to paint out-of-flow frames whose placeholders are
     // on other pages. Add those pages to our display list. Note that
@@ -1095,91 +1076,62 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
     }
   }
 
-  nsIAtom* frameType = aFrame->GetType();
-  // For the viewport frame in print preview/page layout we want to paint
-  // the grey background behind the page, not the canvas color.
-  if (frameType == nsGkAtoms::viewportFrame &&
-      aFrame->PresContext()->IsRootPaginatedDocument() &&
-      (aFrame->PresContext()->Type() == nsPresContext::eContext_PrintPreview ||
-       aFrame->PresContext()->Type() == nsPresContext::eContext_PageLayout)) {
-    nsRect bounds = nsRect(builder.ToReferenceFrame(aFrame),
-                           aFrame->GetSize());
-    rv = list.AppendNewToBottom(new (&builder) nsDisplaySolidColor(
-           aFrame, bounds, NS_RGB(115, 115, 115)));
-  } else if (frameType != nsGkAtoms::pageFrame) {
-    // For printing, this function is first called on an nsPageFrame, which
-    // creates a display list with a PageContent item. The PageContent item's
-    // paint function calls this function on the nsPageFrame's child which is
-    // an nsPageContentFrame. We only want to add the canvas background color
-    // item once, for the nsPageContentFrame.
-
-    // Add the canvas background color.
-    rv = aFrame->PresContext()->PresShell()->AddCanvasBackgroundColorItem(
-           builder, list, aFrame, nsnull, aBackstop);
-  }
-
   builder.LeavePresShell(aFrame, dirtyRect);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  if (NS_GET_A(aBackground) > 0) {
+    // Fill the visible area with a background color. In the common case,
+    // the visible area is entirely covered by the background of the root
+    // document (at least!) so this will be removed by the optimizer. In some
+    // cases we might not have a root frame, so this will prevent garbage
+    // from being drawn.
+    rv = list.AppendNewToBottom(new (&builder) nsDisplaySolidColor(
+           aFrame,
+           nsRect(builder.ToReferenceFrame(aFrame), aFrame->GetSize()),
+           aBackground));
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
 
 #ifdef DEBUG
   if (gDumpPaintList) {
     fprintf(stderr, "Painting --- before optimization (dirty %d,%d,%d,%d):\n",
             dirtyRect.x, dirtyRect.y, dirtyRect.width, dirtyRect.height);
-    nsFrame::PrintDisplayList(&builder, list);
+    nsIFrameDebug::PrintDisplayList(&builder, list);
   }
 #endif
-
+  
   nsRegion visibleRegion = aDirtyRegion;
-  list.ComputeVisibility(&builder, &visibleRegion, nsnull);
+  list.OptimizeVisibility(&builder, &visibleRegion);
 
 #ifdef DEBUG
   if (gDumpPaintList) {
     fprintf(stderr, "Painting --- after optimization:\n");
-    nsFrame::PrintDisplayList(&builder, list);
+    nsIFrameDebug::PrintDisplayList(&builder, list);
   }
 #endif
-
-  list.Paint(&builder, aRenderingContext);
+  
+  list.Paint(&builder, aRenderingContext, aDirtyRegion.GetBounds());
   // Flush the list so we don't trigger the IsEmpty-on-destruction assertion
   list.DeleteAll();
   return NS_OK;
 }
 
-#ifdef DEBUG
 static void
-PrintAddedRegion(const char* aFormat, nsIFrame* aFrame,
-                 const nsRegion& aRegion)
-{
-  if (!gDumpRepaintRegionForCopy)
-    return;
-  fprintf(stderr, aFormat, (void*)aFrame);
-  fprintf(stderr, " : [");
-  nsRegionRectIterator iter(aRegion);
-  PRBool first = PR_TRUE;
-  const nsRect* r;
-  while ((r = iter.Next()) != nsnull) {
-    if (!first) {
-      fprintf(stderr, ",");
-    }
-    fprintf(stderr, "(%d,%d,%d,%d)",
-            r->x, r->y, r->XMost(), r->YMost());
-  }
-  fprintf(stderr, "]\n");
-}
-#endif
-
-static void
-AccumulateItemInRegion(nsRegion* aRegion, const nsRect& aUpdateRect,
+AccumulateItemInRegion(nsRegion* aRegion, const nsRect& aAreaRect,
                        const nsRect& aItemRect, const nsRect& aExclude,
                        nsDisplayItem* aItem)
 {
   nsRect damageRect;
-  if (damageRect.IntersectRect(aUpdateRect, aItemRect)) {
+  if (damageRect.IntersectRect(aAreaRect, aItemRect)) {
     nsRegion r;
     r.Sub(damageRect, aExclude);
 #ifdef DEBUG
-    PrintAddedRegion("Adding rect for frame %p",
-                     aItem->GetUnderlyingFrame(), r);
+    if (gDumpRepaintRegionForCopy) {
+      nsRect bounds = r.GetBounds();
+      fprintf(stderr, "Adding rect %d,%d,%d,%d for frame %p\n",
+              bounds.x, bounds.y, bounds.width, bounds.height,
+              (void*)aItem->GetUnderlyingFrame());
+    }
 #endif
     aRegion->Or(*aRegion, r);
   }
@@ -1187,7 +1139,7 @@ AccumulateItemInRegion(nsRegion* aRegion, const nsRect& aUpdateRect,
 
 static void
 AddItemsToRegion(nsDisplayListBuilder* aBuilder, nsDisplayList* aList,
-                 const nsRect& aUpdateRect, const nsRect& aClipRect, nsPoint aDelta,
+                 const nsRect& aRect, const nsRect& aClipRect, nsPoint aDelta,
                  nsRegion* aRegion)
 {
   for (nsDisplayItem* item = aList->GetBottom(); item; item = item->GetAbove()) {
@@ -1201,10 +1153,6 @@ AddItemsToRegion(nsDisplayListBuilder* aBuilder, nsDisplayList* aList,
           // Invalidate the whole thing
           nsRect r;
           r.IntersectRect(aClipRect, effectsItem->GetBounds(aBuilder));
- #ifdef DEBUG
-          PrintAddedRegion("Adding region for SVG effects frame %p",
-                           effectsItem->GetEffectsFrame(), nsRegion(r));
- #endif
           aRegion->Or(*aRegion, r);
         }
       } else
@@ -1215,44 +1163,24 @@ AddItemsToRegion(nsDisplayListBuilder* aBuilder, nsDisplayList* aList,
         // If the clipping frame is moving, then it isn't clipping any
         // non-moving content (see ApplyAbsPosClipping), so we don't need
         // to do anything special, but we should not restrict aClipRect.
-        // If the clipping frame is not moving, but the moving frames
-        // are not in its descendants, then again we don't need to
-        // do anything special.
-        nsIFrame* clipFrame = clipItem->GetClippingFrame();
-        if (!aBuilder->IsMovingFrame(clipFrame) &&
-            nsLayoutUtils::IsProperAncestorFrameCrossDoc(clipFrame, aBuilder->GetRootMovingFrame())) {
-          nscoord appUnitsPerDevPixel = clipFrame->PresContext()->AppUnitsPerDevPixel();
-          // We know the nsDisplayClip will snap because we're in a context
-          // where pixels can be blitted and we don't traverse down through
-          // an nsDisplayTransform.
-          nsRect snappedClip =
-            clipItem->GetClipRect().ToNearestPixels(appUnitsPerDevPixel).
-            ToAppUnits(appUnitsPerDevPixel);
-          clip.IntersectRect(clip, snappedClip);
+        if (!aBuilder->IsMovingFrame(clipItem->GetClippingFrame())) {
+          clip.IntersectRect(clip, clipItem->GetClipRect());
 
           // Invalidate the translation of the source area that was clipped out
           nsRegion clippedOutSource;
-          clippedOutSource.Sub(aUpdateRect - aDelta, clip);
+          clippedOutSource.Sub(aRect, clip);
           clippedOutSource.MoveBy(aDelta);
- #ifdef DEBUG
-          PrintAddedRegion("Adding region for clipped out source frame %p",
-                           clipFrame, clippedOutSource);
- #endif
           aRegion->Or(*aRegion, clippedOutSource);
 
           // Invalidate the destination area that is clipped out
           nsRegion clippedOutDestination;
-          clippedOutDestination.Sub(aUpdateRect, clip);
- #ifdef DEBUG
-          PrintAddedRegion("Adding region for clipped out source frame %p",
-                           clipFrame, clippedOutDestination);
- #endif
+          clippedOutDestination.Sub(aRect + aDelta, clip);
           aRegion->Or(*aRegion, clippedOutDestination);
         }
-        AddItemsToRegion(aBuilder, sublist, aUpdateRect, clip, aDelta, aRegion);
+        AddItemsToRegion(aBuilder, sublist, aRect, clip, aDelta, aRegion);
       } else {
         // opacity, or a generic sublist
-        AddItemsToRegion(aBuilder, sublist, aUpdateRect, aClipRect, aDelta, aRegion);
+        AddItemsToRegion(aBuilder, sublist, aRect, aClipRect, aDelta, aRegion);
       }
     } else {
       nsRect r;
@@ -1264,7 +1192,7 @@ AddItemsToRegion(nsDisplayListBuilder* aBuilder, nsDisplayList* aList,
           if (item->IsVaryingRelativeToMovingFrame(aBuilder)) {
             // something like background-attachment:fixed that varies
             // its drawing when it moves
-            AccumulateItemInRegion(aRegion, aUpdateRect, r, exclude, item);
+            AccumulateItemInRegion(aRegion, aRect + aDelta, r, exclude, item);
           }
         } else {
           // not moving.
@@ -1274,11 +1202,11 @@ AddItemsToRegion(nsDisplayListBuilder* aBuilder, nsDisplayList* aList,
             exclude.IntersectRect(r, r + aDelta);
           }
           // area where a non-moving element is visible must be repainted
-          AccumulateItemInRegion(aRegion, aUpdateRect, r, exclude, item);
+          AccumulateItemInRegion(aRegion, aRect + aDelta, r, exclude, item);
           // we may have bitblitted an area that was painted by a non-moving
           // element. This bitblitted data is invalid and was copied to
           // "r + aDelta".
-          AccumulateItemInRegion(aRegion, aUpdateRect, r + aDelta,
+          AccumulateItemInRegion(aRegion, aRect + aDelta, r + aDelta,
                                  exclude, item);
         }
       }
@@ -1290,8 +1218,7 @@ nsresult
 nsLayoutUtils::ComputeRepaintRegionForCopy(nsIFrame* aRootFrame,
                                            nsIFrame* aMovingFrame,
                                            nsPoint aDelta,
-                                           const nsRect& aUpdateRect,
-                                           nsRegion* aBlitRegion,
+                                           const nsRect& aCopyRect,
                                            nsRegion* aRepaintRegion)
 {
   NS_ASSERTION(aRootFrame != aMovingFrame,
@@ -1306,81 +1233,60 @@ nsLayoutUtils::ComputeRepaintRegionForCopy(nsIFrame* aRootFrame,
   // are the same ones we would have gotten if we had constructed the
   // 'before' display list. So opaque moving items are only considered to
   // cover the intersection of their old and new bounds (see
-  // nsDisplayItem::ComputeVisibility). A moving clip item is not allowed
+  // nsDisplayItem::OptimizeVisibility). A moving clip item is not allowed
   // to clip non-moving items --- this is enforced by the code that sets
   // up nsDisplayClip items, in particular see ApplyAbsPosClipping.
   // XXX but currently a non-moving clip item can incorrectly clip
   // moving items! See bug 428156.
+  nsRect rect;
+  rect.UnionRect(aCopyRect, aCopyRect + aDelta);
   nsDisplayListBuilder builder(aRootFrame, PR_FALSE, PR_TRUE);
-  // Retrieve the area of the moving content (considered in both its
-  // before- and after-movement positions) that's visible. This is the
-  // only area that needs to be blitted or repainted.
-  nsRegion visibleRegionOfMovingContent;
-  builder.SetMovingFrame(aMovingFrame, aDelta, &visibleRegionOfMovingContent);
+  builder.SetMovingFrame(aMovingFrame, aDelta);
   nsDisplayList list;
 
-  builder.EnterPresShell(aRootFrame, aUpdateRect);
+  builder.EnterPresShell(aRootFrame, rect);
 
   nsresult rv =
-    aRootFrame->BuildDisplayListForStackingContext(&builder, aUpdateRect, &list);
+    aRootFrame->BuildDisplayListForStackingContext(&builder, rect, &list);
 
-  builder.LeavePresShell(aRootFrame, aUpdateRect);
+  builder.LeavePresShell(aRootFrame, rect);
   NS_ENSURE_SUCCESS(rv, rv);
 
 #ifdef DEBUG
   if (gDumpRepaintRegionForCopy) {
     fprintf(stderr,
             "Repaint region for copy --- before optimization (area %d,%d,%d,%d, frame %p):\n",
-            aUpdateRect.x, aUpdateRect.y, aUpdateRect.width, aUpdateRect.height,
-            (void*)aMovingFrame);
-    nsFrame::PrintDisplayList(&builder, list);
+            rect.x, rect.y, rect.width, rect.height, (void*)aMovingFrame);
+    nsIFrameDebug::PrintDisplayList(&builder, list);
   }
 #endif
 
   // Optimize for visibility, but frames under aMovingFrame will not be
   // considered opaque, so they don't cover non-moving frames.
-  nsRegion visibleRegion(aUpdateRect);
-  nsRegion visibleRegionBeforeMove(aUpdateRect);
-  list.ComputeVisibility(&builder, &visibleRegion, &visibleRegionBeforeMove);
+  nsRegion visibleRegion(aCopyRect);
+  visibleRegion.Or(visibleRegion, aCopyRect + aDelta);
+  list.OptimizeVisibility(&builder, &visibleRegion);
 
 #ifdef DEBUG
   if (gDumpRepaintRegionForCopy) {
     fprintf(stderr, "Repaint region for copy --- after optimization:\n");
-    nsFrame::PrintDisplayList(&builder, list);
+    nsIFrameDebug::PrintDisplayList(&builder, list);
   }
 #endif
-
-  // It's possible that there was moving content which was visible but
-  // has now been scrolled out of view so it does not intersect aUpdateRect,
-  // so it's not in our display list. So compute the region that that content
-  // could have occupied --- the complete region that has been scrolled out
-  // of view --- and add it to visibleRegionOfMovingContent.
-  // Note that aRepaintRegion does not depend on moving content which has
-  // been scrolled out of view.
-  nsRegion scrolledOutOfView;
-  scrolledOutOfView.Sub(aUpdateRect, aUpdateRect - aDelta);
-  visibleRegionOfMovingContent.Or(visibleRegionOfMovingContent, scrolledOutOfView);
 
   aRepaintRegion->SetEmpty();
   // Any visible non-moving display items get added to the repaint region
   // a) at their current location and b) offset by -aPt (their position in
   // the 'before' display list) (unless they're uniform and we can exclude them).
   // Also, any visible position-varying display items get added to the
-  // repaint region. All these areas are confined to aUpdateRect.
+  // repaint region. All these areas are confined to aCopyRect+aDelta.
   // We could do more work here: e.g., do another optimize-visibility pass
   // with the moving items taken into account, either on the before-list
   // or the after-list, or even both if we cloned the display lists ... but
   // it's probably not worth it.
-  AddItemsToRegion(&builder, &list, aUpdateRect, aUpdateRect, aDelta, aRepaintRegion);
+  AddItemsToRegion(&builder, &list, aCopyRect, rect, aDelta, aRepaintRegion);
   // Flush the list so we don't trigger the IsEmpty-on-destruction assertion
   list.DeleteAll();
-
-  // Finalize output regions. The region of moving content that's not
-  // visible --- hidden by overlaid opaque non-moving content --- need not
-  // be blitted or repainted.
-  visibleRegionOfMovingContent.And(visibleRegionOfMovingContent, aUpdateRect);
-  aRepaintRegion->And(*aRepaintRegion, visibleRegionOfMovingContent);
-  aBlitRegion->Sub(visibleRegionOfMovingContent, *aRepaintRegion);
   return NS_OK;
 }
 
@@ -1460,7 +1366,7 @@ static void
 AddBoxesForFrame(nsIFrame* aFrame,
                  nsLayoutUtils::BoxCallback* aCallback)
 {
-  nsIAtom* pseudoType = aFrame->GetStyleContext()->GetPseudo();
+  nsIAtom* pseudoType = aFrame->GetStyleContext()->GetPseudoType();
 
   if (pseudoType == nsCSSAnonBoxes::tableOuter) {
     AddBoxesForFrame(aFrame->GetFirstChild(nsnull), aCallback);
@@ -1516,40 +1422,21 @@ nsLayoutUtils::GetAllInFlowRects(nsIFrame* aFrame, nsIFrame* aRelativeTo,
   GetAllInFlowBoxes(aFrame, &converter);
 }
 
-nsLayoutUtils::RectAccumulator::RectAccumulator() : mSeenFirstRect(PR_FALSE) {}
+struct RectAccumulator : public nsLayoutUtils::RectCallback {
+  nsRect       mResultRect;
+  nsRect       mFirstRect;
+  PRPackedBool mSeenFirstRect;
 
-void nsLayoutUtils::RectAccumulator::AddRect(const nsRect& aRect) {
-  mResultRect.UnionRect(mResultRect, aRect);
-  if (!mSeenFirstRect) {
-    mSeenFirstRect = PR_TRUE;
-    mFirstRect = aRect;
+  RectAccumulator() : mSeenFirstRect(PR_FALSE) {}
+
+  virtual void AddRect(const nsRect& aRect) {
+    mResultRect.UnionRect(mResultRect, aRect);
+    if (!mSeenFirstRect) {
+      mSeenFirstRect = PR_TRUE;
+      mFirstRect = aRect;
+    }
   }
-}
-
-nsLayoutUtils::RectListBuilder::RectListBuilder(nsClientRectList* aList)
-  : mRectList(aList), mRV(NS_OK) {}
-
-void nsLayoutUtils::RectListBuilder::AddRect(const nsRect& aRect) {
-  nsRefPtr<nsClientRect> rect = new nsClientRect();
-  if (!rect) {
-    mRV = NS_ERROR_OUT_OF_MEMORY;
-    return;
-  }
-
-  rect->SetLayoutRect(aRect);
-  mRectList->Append(rect);
-}
-
-nsIFrame* nsLayoutUtils::GetContainingBlockForClientRect(nsIFrame* aFrame)
-{
-  // get the nearest enclosing SVG foreign object frame or the root frame
-  while (aFrame->GetParent() &&
-         !aFrame->IsFrameOfType(nsIFrame::eSVGForeignObject)) {
-    aFrame = aFrame->GetParent();
-  }
-
-  return aFrame;
-}
+};
 
 nsRect
 nsLayoutUtils::GetAllInFlowRectsUnion(nsIFrame* aFrame, nsIFrame* aRelativeTo) {
@@ -1658,7 +1545,7 @@ nsLayoutUtils::GetParentOrPlaceholderFor(nsFrameManager* aFrameManager,
                                          nsIFrame* aFrame)
 {
   if ((aFrame->GetStateBits() & NS_FRAME_OUT_OF_FLOW)
-      && !aFrame->GetPrevInFlow()) {
+      && !(aFrame->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER)) {
     return aFrameManager->GetPlaceholderFrameFor(aFrame);
   }
   return aFrame->GetParent();
@@ -2157,10 +2044,8 @@ nsLayoutUtils::ComputeWidthValue(
 {
   NS_PRECONDITION(aFrame, "non-null frame expected");
   NS_PRECONDITION(aRenderingContext, "non-null rendering context expected");
-  NS_WARN_IF_FALSE(aContainingBlockWidth != NS_UNCONSTRAINEDSIZE,
-                   "have unconstrained width; this should only result from "
-                   "very large sizes, not attempts at intrinsic width "
-                   "calculation");
+  NS_PRECONDITION(aContainingBlockWidth != NS_UNCONSTRAINEDSIZE,
+                  "unconstrained widths no longer supported");
   NS_PRECONDITION(aContainingBlockWidth >= 0,
                   "width less than zero");
 
@@ -2190,7 +2075,7 @@ nsLayoutUtils::ComputeWidthValue(
                    min = aFrame->GetMinWidth(aRenderingContext),
                   fill = aContainingBlockWidth -
                          (aBoxSizingToMarginEdge + aContentEdgeToBoxSizing);
-          result = NS_MAX(min, NS_MIN(pref, fill));
+          result = PR_MAX(min, PR_MIN(pref, fill));
           NS_ASSERTION(result >= 0, "width less than zero");
         }
         break;
@@ -2736,11 +2621,11 @@ CalculateBlockContentBottom(nsBlockFrame* aFrame)
     if (line->IsBlock()) {
       nsIFrame* child = line->mFirstChild;
       nscoord offset = child->GetRect().y - child->GetRelativeOffset().y;
-      contentBottom = NS_MAX(contentBottom,
+      contentBottom = PR_MAX(contentBottom,
                         nsLayoutUtils::CalculateContentBottom(child) + offset);
     }
     else {
-      contentBottom = NS_MAX(contentBottom, line->mBounds.YMost());
+      contentBottom = PR_MAX(contentBottom, line->mBounds.YMost());
     }
   }
   return contentBottom;
@@ -2759,7 +2644,7 @@ nsLayoutUtils::CalculateContentBottom(nsIFrame* aFrame)
     PRIntn nextListID = 0;
     do {
       if (childList == nsnull && blockFrame) {
-        contentBottom = NS_MAX(contentBottom, CalculateBlockContentBottom(blockFrame));
+        contentBottom = PR_MAX(contentBottom, CalculateBlockContentBottom(blockFrame));
       }
       else if (childList != nsGkAtoms::overflowList &&
                childList != nsGkAtoms::excessOverflowContainersList &&
@@ -2769,7 +2654,7 @@ nsLayoutUtils::CalculateContentBottom(nsIFrame* aFrame)
             child; child = child->GetNextSibling())
         {
           nscoord offset = child->GetRect().y - child->GetRelativeOffset().y;
-          contentBottom = NS_MAX(contentBottom,
+          contentBottom = PR_MAX(contentBottom,
                                  CalculateContentBottom(child) + offset);
         }
       }
@@ -2802,7 +2687,7 @@ nsLayoutUtils::GetGraphicsFilterForFrame(nsIFrame* aForFrame)
 {
 #ifdef MOZ_SVG
   nsIFrame *frame = nsCSSRendering::IsCanvasFrame(aForFrame) ?
-    nsCSSRendering::FindBackgroundStyleFrame(aForFrame) : aForFrame;
+    nsCSSRendering::FindRootFrame(aForFrame) : aForFrame;
 
   switch (frame->GetStyleSVG()->mImageRendering) {
   case NS_STYLE_IMAGE_RENDERING_OPTIMIZESPEED:
@@ -2853,16 +2738,18 @@ MapToFloatUserPixels(const gfxSize& aSize,
 
 static nsresult
 DrawImageInternal(nsIRenderingContext* aRenderingContext,
-                  imgIContainer*       aImage,
+                  nsIImage*            aImage,
                   gfxPattern::GraphicsFilter aGraphicsFilter,
                   const nsRect&        aDest,
                   const nsRect&        aFill,
                   const nsPoint&       aAnchor,
                   const nsRect&        aDirty,
                   const nsIntSize&     aImageSize,
-                  PRUint32             aImageFlags)
+                  const nsIntRect&     aInnerRect)
 {
   if (aDest.IsEmpty() || aFill.IsEmpty())
+    return NS_OK;
+  if (aImageSize.width == 0 || aImageSize.height == 0)
     return NS_OK;
 
   nsCOMPtr<nsIDeviceContext> dc;
@@ -2958,27 +2845,29 @@ DrawImageInternal(nsIRenderingContext* aRenderingContext,
   if (finalFillRect.IsEmpty())
     return NS_OK;
 
-  aImage->Draw(ctx, aGraphicsFilter, transform, finalFillRect, intSubimage,
-               aImageFlags);
+  nsIntMargin padding(aInnerRect.x, aInnerRect.y,
+                      imageSize.width - aInnerRect.XMost(),
+                      imageSize.height - aInnerRect.YMost());
+  aImage->Draw(ctx, aGraphicsFilter, transform, finalFillRect, padding, intSubimage);
   return NS_OK;
 }
 
-/* static */ nsresult
-nsLayoutUtils::DrawSingleUnscaledImage(nsIRenderingContext* aRenderingContext,
-                                       imgIContainer*       aImage,
-                                       const nsPoint&       aDest,
-                                       const nsRect&        aDirty,
-                                       PRUint32             aImageFlags,
-                                       const nsRect*        aSourceArea)
+/* Workhorse for DrawSingleUnscaledImage.  */
+static nsresult
+DrawSingleUnscaledImageInternal(nsIRenderingContext* aRenderingContext,
+                                nsIImage*            aImage,
+                                const nsPoint&       aDest,
+                                const nsRect&        aDirty,
+                                const nsRect*        aSourceArea,
+                                const nsIntSize&     aImageSize,
+                                const nsIntRect&     aInnerRect)
 {
-  nsIntSize imageSize;
-  aImage->GetWidth(&imageSize.width);
-  aImage->GetHeight(&imageSize.height);
-  NS_ENSURE_TRUE(imageSize.width > 0 && imageSize.height > 0, NS_ERROR_FAILURE);
+  if (aImageSize.width == 0 || aImageSize.height == 0)
+    return NS_OK;
 
   nscoord appUnitsPerCSSPixel = nsIDeviceContext::AppUnitsPerCSSPixel();
-  nsSize size(imageSize.width*appUnitsPerCSSPixel,
-              imageSize.height*appUnitsPerCSSPixel);
+  nsSize size(aImageSize.width*appUnitsPerCSSPixel,
+              aImageSize.height*appUnitsPerCSSPixel);
 
   nsRect source;
   if (aSourceArea) {
@@ -2994,33 +2883,33 @@ nsLayoutUtils::DrawSingleUnscaledImage(nsIRenderingContext* aRenderingContext,
   // translation but we don't want to actually tile the image.
   fill.IntersectRect(fill, dest);
   return DrawImageInternal(aRenderingContext, aImage, gfxPattern::FILTER_NEAREST,
-                           dest, fill, aDest, aDirty, imageSize, aImageFlags);
+                           dest, fill, aDest, aDirty, aImageSize, aInnerRect);
 }
- 
-/* static */ nsresult
-nsLayoutUtils::DrawSingleImage(nsIRenderingContext* aRenderingContext,
-                               imgIContainer*       aImage,
-                               gfxPattern::GraphicsFilter aGraphicsFilter,
-                               const nsRect&        aDest,
-                               const nsRect&        aDirty,
-                               PRUint32             aImageFlags,
-                               const nsRect*        aSourceArea)
+
+/* Workhorse for DrawSingleImage.  */
+static nsresult
+DrawSingleImageInternal(nsIRenderingContext* aRenderingContext,
+                        nsIImage*            aImage,
+                        gfxPattern::GraphicsFilter aGraphicsFilter,
+                        const nsRect&        aDest,
+                        const nsRect&        aDirty,
+                        const nsRect*        aSourceArea,
+                        const nsIntSize&     aImageSize,
+                        const nsIntRect&     aInnerRect)
 {
-  nsIntSize imageSize;
-  aImage->GetWidth(&imageSize.width);
-  aImage->GetHeight(&imageSize.height);
-  NS_ENSURE_TRUE(imageSize.width > 0 && imageSize.height > 0, NS_ERROR_FAILURE);
+  if (aImageSize.width == 0 || aImageSize.height == 0)
+    return NS_OK;
 
   nsRect source;
   if (aSourceArea) {
     source = *aSourceArea;
   } else {
     nscoord appUnitsPerCSSPixel = nsIDeviceContext::AppUnitsPerCSSPixel();
-    source.SizeTo(imageSize.width*appUnitsPerCSSPixel,
-                  imageSize.height*appUnitsPerCSSPixel);
+    source.SizeTo(aImageSize.width*appUnitsPerCSSPixel,
+                  aImageSize.height*appUnitsPerCSSPixel);
   }
 
-  nsRect dest = nsLayoutUtils::GetWholeImageDestination(imageSize, source,
+  nsRect dest = nsLayoutUtils::GetWholeImageDestination(aImageSize, source,
                                                         aDest);
   // Ensure that only a single image tile is drawn. If aSourceArea extends
   // outside the image bounds, we want to honor the aSourceArea-to-aDest
@@ -3028,8 +2917,11 @@ nsLayoutUtils::DrawSingleImage(nsIRenderingContext* aRenderingContext,
   nsRect fill;
   fill.IntersectRect(aDest, dest);
   return DrawImageInternal(aRenderingContext, aImage, aGraphicsFilter, dest, fill,
-                           fill.TopLeft(), aDirty, imageSize, aImageFlags);
+                           fill.TopLeft(), aDirty, aImageSize, aInnerRect);
 }
+
+/* The exposed Draw*Image functions just do interface conversion and call the
+   appropriate Draw*ImageInternal workhorse.  */
 
 /* static */ nsresult
 nsLayoutUtils::DrawImage(nsIRenderingContext* aRenderingContext,
@@ -3038,18 +2930,110 @@ nsLayoutUtils::DrawImage(nsIRenderingContext* aRenderingContext,
                          const nsRect&        aDest,
                          const nsRect&        aFill,
                          const nsPoint&       aAnchor,
-                         const nsRect&        aDirty,
-                         PRUint32             aImageFlags)
+                         const nsRect&        aDirty)
 {
+  nsCOMPtr<gfxIImageFrame> imgFrame;
+  aImage->GetCurrentFrame(getter_AddRefs(imgFrame));
+  if (!imgFrame) return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIImage> img(do_GetInterface(imgFrame));
+  if (!img) return NS_ERROR_FAILURE;
+
+  nsIntRect innerRect;
+  imgFrame->GetRect(innerRect);
+
   nsIntSize imageSize;
   aImage->GetWidth(&imageSize.width);
   aImage->GetHeight(&imageSize.height);
-  NS_ENSURE_TRUE(imageSize.width > 0 && imageSize.height > 0, NS_ERROR_FAILURE);
 
+  return DrawImageInternal(aRenderingContext, img, aGraphicsFilter,
+                           aDest, aFill, aAnchor, aDirty,
+                           imageSize, innerRect);
+}
+
+/* static */ nsresult
+nsLayoutUtils::DrawImage(nsIRenderingContext* aRenderingContext,
+                         nsIImage*            aImage,
+                         gfxPattern::GraphicsFilter aGraphicsFilter,
+                         const nsRect&        aDest,
+                         const nsRect&        aFill,
+                         const nsPoint&       aAnchor,
+                         const nsRect&        aDirty)
+{
+  nsIntSize imageSize(aImage->GetWidth(), aImage->GetHeight());
   return DrawImageInternal(aRenderingContext, aImage, aGraphicsFilter,
                            aDest, aFill, aAnchor, aDirty,
-                           imageSize, aImageFlags);
+                           imageSize, nsIntRect(nsIntPoint(0,0), imageSize));
 }
+
+/* static */ nsresult
+nsLayoutUtils::DrawSingleUnscaledImage(nsIRenderingContext* aRenderingContext,
+                                       imgIContainer*       aImage,
+                                       const nsPoint&       aDest,
+                                       const nsRect&        aDirty,
+                                       const nsRect*        aSourceArea)
+{
+  nsCOMPtr<gfxIImageFrame> imgFrame;
+  aImage->GetCurrentFrame(getter_AddRefs(imgFrame));
+  if (!imgFrame) return NS_ERROR_FAILURE;
+ 
+  nsCOMPtr<nsIImage> img(do_GetInterface(imgFrame));
+  if (!img) return NS_ERROR_FAILURE;
+ 
+  nsIntRect innerRect;
+  imgFrame->GetRect(innerRect);
+
+  nsIntSize imageSize;
+  aImage->GetWidth(&imageSize.width);
+  aImage->GetHeight(&imageSize.height);
+
+  return DrawSingleUnscaledImageInternal(aRenderingContext, img,
+                                         aDest, aDirty, aSourceArea,
+                                         imageSize, innerRect);
+}
+ 
+/* static */ nsresult
+nsLayoutUtils::DrawSingleImage(nsIRenderingContext* aRenderingContext,
+                               imgIContainer*       aImage,
+                               gfxPattern::GraphicsFilter aGraphicsFilter,
+                               const nsRect&        aDest,
+                               const nsRect&        aDirty,
+                               const nsRect*        aSourceArea)
+{
+  nsCOMPtr<gfxIImageFrame> imgFrame;
+  aImage->GetCurrentFrame(getter_AddRefs(imgFrame));
+  if (!imgFrame) return NS_ERROR_FAILURE;
+ 
+  nsCOMPtr<nsIImage> img(do_GetInterface(imgFrame));
+  if (!img) return NS_ERROR_FAILURE;
+ 
+  nsIntRect innerRect;
+  imgFrame->GetRect(innerRect);
+
+  nsIntSize imageSize;
+  aImage->GetWidth(&imageSize.width);
+  aImage->GetHeight(&imageSize.height);
+
+  return DrawSingleImageInternal(aRenderingContext, img, aGraphicsFilter,
+                                 aDest, aDirty, aSourceArea,
+                                 imageSize, innerRect);
+}
+
+/* static */ nsresult
+nsLayoutUtils::DrawSingleImage(nsIRenderingContext* aRenderingContext,
+                               nsIImage*            aImage,
+                               gfxPattern::GraphicsFilter aGraphicsFilter,
+                               const nsRect&        aDest,
+                               const nsRect&        aDirty,
+                               const nsRect*        aSourceArea)
+{
+  nsIntSize imageSize(aImage->GetWidth(), aImage->GetHeight());
+  return DrawSingleImageInternal(aRenderingContext, aImage, aGraphicsFilter,
+                                 aDest, aDirty, aSourceArea,
+                                 imageSize,
+                                 nsIntRect(nsIntPoint(0, 0), imageSize));
+}
+
 
 /* static */ nsRect
 nsLayoutUtils::GetWholeImageDestination(const nsIntSize& aWholeImageSize,
@@ -3138,34 +3122,31 @@ nsLayoutUtils::HasNonZeroCornerOnSide(const nsStyleCorners& aCorners,
 }
 
 /* static */ nsTransparencyMode
-nsLayoutUtils::GetFrameTransparency(nsIFrame* aBackgroundFrame,
-                                    nsIFrame* aCSSRootFrame) {
-  if (aCSSRootFrame->GetStyleContext()->GetStyleDisplay()->mOpacity < 1.0f)
+nsLayoutUtils::GetFrameTransparency(nsIFrame* aFrame) {
+  if (aFrame->GetStyleContext()->GetStyleDisplay()->mOpacity < 1.0f)
     return eTransparencyTransparent;
 
-  if (HasNonZeroCorner(aCSSRootFrame->GetStyleContext()->GetStyleBorder()->mBorderRadius))
+  if (HasNonZeroCorner(aFrame->GetStyleContext()->GetStyleBorder()->mBorderRadius))
     return eTransparencyTransparent;
 
   nsTransparencyMode transparency;
-  if (aCSSRootFrame->IsThemed(&transparency))
+  if (aFrame->IsThemed(&transparency))
     return transparency;
 
-  if (aCSSRootFrame->GetStyleDisplay()->mAppearance == NS_THEME_WIN_GLASS)
+  if (aFrame->GetStyleDisplay()->mAppearance == NS_THEME_WIN_GLASS)
     return eTransparencyGlass;
 
   // We need an uninitialized window to be treated as opaque because
   // doing otherwise breaks window display effects on some platforms,
   // specifically Vista. (bug 450322)
-  if (aBackgroundFrame->GetType() == nsGkAtoms::viewportFrame &&
-      !aBackgroundFrame->GetFirstChild(nsnull)) {
+  if (aFrame->GetType() == nsGkAtoms::viewportFrame &&
+      !aFrame->GetFirstChild(nsnull)) {
     return eTransparencyOpaque;
   }
 
   const nsStyleBackground* bg;
-  if (!nsCSSRendering::FindBackground(aBackgroundFrame->PresContext(),
-                                      aBackgroundFrame, &bg)) {
+  if (!nsCSSRendering::FindBackground(aFrame->PresContext(), aFrame, &bg))
     return eTransparencyTransparent;
-  }
   if (NS_GET_A(bg->mBackgroundColor) < 255 ||
       // bottom layer's clip is used for the color
       bg->BottomLayer().mClip != NS_STYLE_BG_CLIP_BORDER)
@@ -3213,10 +3194,10 @@ nsLayoutUtils::GetRectDifferenceStrips(const nsRect& aR1, const nsRect& aR2,
                                        nsRect* aHStrip, nsRect* aVStrip) {
   NS_ASSERTION(aR1.TopLeft() == aR2.TopLeft(),
                "expected rects at the same position");
-  nsRect unionRect(aR1.x, aR1.y, NS_MAX(aR1.width, aR2.width),
-                   NS_MAX(aR1.height, aR2.height));
-  nscoord VStripStart = NS_MIN(aR1.width, aR2.width);
-  nscoord HStripStart = NS_MIN(aR1.height, aR2.height);
+  nsRect unionRect(aR1.x, aR1.y, PR_MAX(aR1.width, aR2.width),
+                   PR_MAX(aR1.height, aR2.height));
+  nscoord VStripStart = PR_MIN(aR1.width, aR2.width);
+  nscoord HStripStart = PR_MIN(aR1.height, aR2.height);
   *aVStrip = unionRect;
   aVStrip->x += VStripStart;
   aVStrip->width -= VStripStart;
@@ -3242,13 +3223,13 @@ nsLayoutUtils::GetDeviceContextForScreenInfo(nsIDocShell* aDocShell)
 
     win->EnsureSizeUpToDate();
 
-    nsRefPtr<nsPresContext> presContext;
-    docShell->GetPresContext(getter_AddRefs(presContext));
-    if (presContext) {
-      nsIDeviceContext* context = presContext->DeviceContext();
-      if (context) {
-        return context;
-      }
+    nsCOMPtr<nsIBaseWindow> baseWindow = do_QueryInterface(docShell);
+    NS_ENSURE_TRUE(baseWindow, nsnull);
+
+    nsCOMPtr<nsIWidget> mainWidget;
+    baseWindow->GetMainWidget(getter_AddRefs(mainWidget));
+    if (mainWidget) {
+      return mainWidget->GetDeviceContext();
     }
 
     nsCOMPtr<nsIDocShellTreeItem> curItem = do_QueryInterface(docShell);
@@ -3272,6 +3253,48 @@ nsLayoutUtils::IsReallyFixedPos(nsIFrame* aFrame)
   nsIAtom *parentType = aFrame->GetParent()->GetType();
   return parentType == nsGkAtoms::viewportFrame ||
          parentType == nsGkAtoms::pageContentFrame;
+}
+
+static void DeleteTextFragment(void* aObject, nsIAtom* aPropertyName,
+                               void* aPropertyValue, void* aData)
+{
+  delete static_cast<nsTextFragment*>(aPropertyValue);
+}
+
+/* static */ nsTextFragment*
+nsLayoutUtils::GetTextFragmentForPrinting(const nsIFrame* aFrame)
+{
+  nsPresContext* presContext = aFrame->PresContext();
+  NS_PRECONDITION(!presContext->IsDynamic(),
+                  "Shouldn't call this with dynamic PresContext");
+#ifdef MOZ_SVG
+  NS_PRECONDITION(aFrame->GetType() == nsGkAtoms::textFrame ||
+                  aFrame->GetType() == nsGkAtoms::svgGlyphFrame,
+                  "Wrong frame type!");
+#else
+  NS_PRECONDITION(aFrame->GetType() == nsGkAtoms::textFrame,
+                  "Wrong frame type!");
+#endif // MOZ_SVG
+
+  nsIContent* content = aFrame->GetContent();
+  nsTextFragment* frag =
+    static_cast<nsTextFragment*>(presContext->PropertyTable()->
+      GetProperty(content, nsGkAtoms::clonedTextForPrint));
+
+  if (!frag) {
+    frag = new nsTextFragment();
+    NS_ENSURE_TRUE(frag, nsnull);
+    *frag = *content->GetText();
+    nsresult rv = presContext->PropertyTable()->
+                    SetProperty(content, nsGkAtoms::clonedTextForPrint, frag,
+                                DeleteTextFragment, nsnull);
+    if (NS_FAILED(rv)) {
+      delete frag;
+      return nsnull;
+    }
+  }
+
+  return frag;
 }
 
 nsLayoutUtils::SurfaceFromElementResult
@@ -3369,6 +3392,7 @@ nsLayoutUtils::SurfaceFromElement(nsIDOMElement *aElement,
 #endif
 
   // Finally, check if it's a normal image
+  nsCOMPtr<imgIContainer> imgContainer;
   nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(aElement);
 
   if (!imageLoader)
@@ -3407,33 +3431,34 @@ nsLayoutUtils::SurfaceFromElement(nsIDOMElement *aElement,
       return result;
   }
 
-  nsCOMPtr<imgIContainer> imgContainer;
   rv = imgRequest->GetImage(getter_AddRefs(imgContainer));
   if (NS_FAILED(rv) || !imgContainer)
     return result;
 
-  PRUint32 whichFrame = (aSurfaceFlags & SFE_WANT_FIRST_FRAME)
-                        ? (PRUint32) imgIContainer::FRAME_FIRST
-                        : (PRUint32) imgIContainer::FRAME_CURRENT;
-  nsRefPtr<gfxASurface> framesurf;
-  rv = imgContainer->GetFrame(whichFrame,
-                              imgIContainer::FLAG_SYNC_DECODE,
-                              getter_AddRefs(framesurf));
+  nsCOMPtr<gfxIImageFrame> frame;
+  rv = imgContainer->GetCurrentFrame(getter_AddRefs(frame));
   if (NS_FAILED(rv))
+    return result;
+
+  nsCOMPtr<nsIImage> img(do_GetInterface(frame));
+  if (!img)
     return result;
 
   PRInt32 imgWidth, imgHeight;
-  rv = imgContainer->GetWidth(&imgWidth);
-  rv |= imgContainer->GetHeight(&imgHeight);
+  rv = frame->GetWidth(&imgWidth);
+  rv |= frame->GetHeight(&imgHeight);
   if (NS_FAILED(rv))
     return result;
 
-  if (wantImageSurface && framesurf->GetType() != gfxASurface::SurfaceTypeImage) {
+  nsRefPtr<gfxPattern> gfxpattern;
+  img->GetPattern(getter_AddRefs(gfxpattern));
+  nsRefPtr<gfxASurface> gfxsurf = gfxpattern->GetSurface();
+
+  if (wantImageSurface && gfxsurf->GetType() != gfxASurface::SurfaceTypeImage) {
     forceCopy = PR_TRUE;
   }
 
-  nsRefPtr<gfxASurface> gfxsurf = framesurf;
-  if (forceCopy) {
+  if (forceCopy || !gfxsurf) {
     if (wantImageSurface) {
       gfxsurf = new gfxImageSurface (gfxIntSize(imgWidth, imgHeight), gfxASurface::ImageFormatARGB32);
     } else {
@@ -3444,7 +3469,7 @@ nsLayoutUtils::SurfaceFromElement(nsIDOMElement *aElement,
     nsRefPtr<gfxContext> ctx = new gfxContext(gfxsurf);
 
     ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
-    ctx->SetSource(framesurf);
+    ctx->SetPattern(gfxpattern);
     ctx->Paint();
   }
 

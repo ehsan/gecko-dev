@@ -60,8 +60,6 @@ protected:
     mInUse2(PR_FALSE) {}
 
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   // nsIFrame interface:
 #ifdef DEBUG
   NS_IMETHOD Init(nsIContent*      aContent,
@@ -102,6 +100,11 @@ private:
 
   // nsSVGContainerFrame methods:
   virtual gfxMatrix GetCanvasTM();
+
+  // VC6 does not allow the inner class to access protected members
+  // of the outer class
+  class AutoMarkerReferencer;
+  friend class AutoMarkerReferencer;
 
   // A helper class to allow us to paint markers safely. The helper
   // automatically sets and clears the mInUse flag on the marker frame (to

@@ -77,10 +77,12 @@ members = [
     'nsIDOMScreen.height',
     'nsIDOMScreen.width',
     'nsIDOMScreen.left',
-    'nsIDOMClientRect.*',
-    'nsIDOMClientRectList.*',
-    'nsIDOMPaintRequest.*',
-    'nsIDOMPaintRequestList.*',
+    'nsIDOMClientRect.top',
+    'nsIDOMClientRect.right',
+    'nsIDOMClientRect.bottom',
+    'nsIDOMClientRect.left',
+    'nsIDOMClientRectList.item',
+    'nsIDOMClientRectList.length',
     # nsLocationSH has ~ALLOW_PROP_MODS_TO_PROTOTYPE, so don't try.
     #'nsIDOMLocation.hostname',
     #'nsIDOMLocation.href',
@@ -89,7 +91,7 @@ members = [
     #
     # nsIDOMCanvasRenderingContext2D
     # NOTE: attributes strokeStyle and fillStyle are nsIVariant
-    # NOTE: getImageData(), and putImageData() use
+    # NOTE: drawImage(), getImageData(), and putImageData() use
     #       GetCurrentNativeCallContext
     'nsIDOMCanvasRenderingContext2D.canvas',
     'nsIDOMCanvasRenderingContext2D.save',
@@ -126,7 +128,6 @@ members = [
     'nsIDOMCanvasRenderingContext2D.fillText',
     'nsIDOMCanvasRenderingContext2D.strokeText',
     'nsIDOMCanvasRenderingContext2D.measureText',
-    'nsIDOMCanvasRenderingContext2D.drawImage',
     'nsIDOMCanvasRenderingContext2D.isPointInPath',
     'nsIDOMTextMetrics.width',
 
@@ -227,12 +228,27 @@ members = [
     'nsIDOMNSElement.clientHeight',
     'nsIDOMNSElement.clientWidth',
     'nsIDOMNSElement.clientTop',
-    'nsIDOMNSElement.mozMatchesSelector',
 
     # dom/public/idl/css
     'nsIDOMElementCSSInlineStyle.style',
-    'nsIDOMCSS2Properties.*',
-    'nsIDOMNSCSS2Properties.*',
+    'nsIDOMCSS2Properties.background',
+    'nsIDOMCSS2Properties.height',
+    'nsIDOMCSS2Properties.textAlign',
+    'nsIDOMCSS2Properties.right',
+    'nsIDOMCSS2Properties.bottom',
+    'nsIDOMCSS2Properties.fontSize',
+    'nsIDOMCSS2Properties.backgroundColor',
+    'nsIDOMCSS2Properties.letterSpacing',
+    'nsIDOMCSS2Properties.verticalAlign',
+    'nsIDOMCSS2Properties.color',
+    'nsIDOMCSS2Properties.top',
+    'nsIDOMCSS2Properties.width',
+    'nsIDOMCSS2Properties.display',
+    'nsIDOMCSS2Properties.zIndex',
+    'nsIDOMCSS2Properties.position',
+    'nsIDOMCSS2Properties.left',
+    'nsIDOMCSS2Properties.visibility',
+    'nsIDOMNSCSS2Properties.opacity',
     'nsIDOMRect.top',
     'nsIDOMRect.right',
     'nsIDOMRect.left',
@@ -240,6 +256,16 @@ members = [
     'nsIDOMViewCSS.getComputedStyle',
 
     # dom/public/idl/events
+    'nsIDOMEvent.target',
+    'nsIDOMEvent.preventDefault',
+    'nsIDOMEvent.cancelable',
+    'nsIDOMEvent.currentTarget',
+    'nsIDOMEvent.timeStamp',
+    'nsIDOMEvent.bubbles',
+    'nsIDOMEvent.type',
+    'nsIDOMEvent.initEvent',
+    'nsIDOMEvent.stopPropagation',
+    'nsIDOMEvent.eventPhase',
     'nsIDOMEventTarget.dispatchEvent',
     'nsIDOMEventTarget.removeEventListener',
     # Conflicts with nsIDOMNSEventTarget.addEventListener;
@@ -247,22 +273,30 @@ members = [
     # (See bug 453331.)
     #'nsIDOMEventTarget.addEventListener',
     'nsIDOMDocumentEvent.createEvent',
-
-    'nsIDOMEvent.*',
-    'nsIDOMMouseEvent.*',
-    'nsIDOMKeyEvent.*',
-    'nsIDOMMutationEvent.*',
-    'nsIDOMDragEvent.*',
-    'nsIDOMScrollAreaEvent.*',
-    'nsIDOMNotifyPaintEvent.*',
-    'nsIDOMMessageEvent.*',
-    'nsIDOMMouseScrollEvent.*',
-    'nsIDOMProgressEvent.lengthComputable',
-    'nsIDOMProgressEvent.loaded',
-    'nsIDOMProgressEvent.total',
-    #XXX Can't quickstub initProgressEvent because it has long long parameters.
+    'nsIDOMMouseEvent.clientX',
+    'nsIDOMMouseEvent.clientY',
+    'nsIDOMMouseEvent.relatedTarget',
+    'nsIDOMMouseEvent.shiftKey',
+    'nsIDOMMouseEvent.button',
+    'nsIDOMMouseEvent.altKey',
+    'nsIDOMMouseEvent.metaKey',
+    'nsIDOMMouseEvent.ctrlKey',
+    'nsIDOMMouseEvent.screenY',
+    'nsIDOMMouseEvent.screenX',
     'nsIDOMNSEvent.originalTarget',
+    'nsIDOMNSEvent.preventCapture',
     'nsIDOMNSEvent.getPreventDefault',
+    'nsIDOMKeyEvent.ctrlKey',
+    'nsIDOMKeyEvent.shiftKey',
+    'nsIDOMKeyEvent.keyCode',
+    'nsIDOMKeyEvent.metaKey',
+    'nsIDOMKeyEvent.charCode',
+    'nsIDOMKeyEvent.altKey',
+    'nsIDOMMutationEvent.attrName',
+    'nsIDOMMutationEvent.relatedNode',
+    'nsIDOMMutationEvent.attrChange',
+    'nsIDOMMutationEvent.newValue',
+    'nsIDOMMutationEvent.prevValue',
     'nsIDOMNSUIEvent.which',
     'nsIDOMNSUIEvent.rangeParent',
     'nsIDOMNSUIEvent.rangeOffset',
@@ -298,8 +332,6 @@ members = [
     'nsIDOMHTMLDocument.forms',
     'nsIDOMHTMLDocument.cookie',
     'nsIDOMHTMLDocument.images',
-    'nsIDOMHTMLDocument.write',
-    'nsIDOMHTMLDocument.writeln',
     'nsIDOMHTMLElement.className',
     'nsIDOMHTMLElement.id',
     'nsIDOMHTMLElement.title',
@@ -387,7 +419,7 @@ members = [
     'nsIDOMHTMLCanvasElement.width',
     'nsIDOMHTMLCanvasElement.height',
     'nsIDOMHTMLCanvasElement.getContext',
-    'nsIDOMHTMLCanvasElement.toDataURL',
+    # 'nsIDOMHTMLCanvasElement.toDataURL',  # uses GetCurrentNativeCallContext
     'nsIDOMNSHTMLAnchorElement.text',
     'nsIDOMNSHTMLAnchorElement.search',
     'nsIDOMNSHTMLAnchorElement.hash',
@@ -396,6 +428,8 @@ members = [
     'nsIDOMNSHTMLDocument.domain',
     'nsIDOMNSHTMLDocument.getSelection',
     'nsIDOMNSHTMLDocument.designMode',
+    #'nsIDOMNSHTMLDocument.write',  # uses GetCurrentNativeCallContext
+    #'nsIDOMNSHTMLDocument.writeln',  # uses GetCurrentNativeCallContext
     'nsIDOMNSHTMLElement.contentEditable',
     'nsIDOMNSHTMLElement.offsetParent',
     'nsIDOMNSHTMLElement.innerHTML',
@@ -403,7 +437,6 @@ members = [
     'nsIDOMNSHTMLElement.offsetTop',
     'nsIDOMNSHTMLElement.offsetHeight',
     'nsIDOMNSHTMLElement.offsetWidth',
-    'nsIDOMNSHTMLElement.scrollIntoView',
     'nsIDOMNSHTMLFrameElement.contentWindow',
     'nsIDOMNSHTMLImageElement.complete',
     'nsIDOMNSHTMLInputElement.files',
@@ -412,7 +445,6 @@ members = [
     'nsIDOMNSHTMLInputElement.selectionEnd',
     'nsIDOMNSHTMLInputElement.setSelectionRange',
     'nsIDOMNSHTMLOptionCollection.selectedIndex',
-    'nsIDOMNSHTMLOptionCollection.add',
     'nsIDOMNSHTMLOptionElement.text',
     'nsIDOMNSHTMLSelectElement.item',
     'nsIDOMNSHTMLTextAreaElement.setSelectionRange',
@@ -492,45 +524,14 @@ customIncludes = [
     'nsINode.h',
     'nsIContent.h',
     'nsIDocument.h',
-    'nsINodeList.h',
-    'nsCSSPropertiesQS.h'
+    'nsINodeList.h'
     ]
 
 nsIDOMNode_GetChildNodes_customMethodCallCode = """
     nsIDOMNodeList* result = self->GetChildNodesList();
-    rv = result ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
+    if (!result)
+        return xpc_qsThrowGetterSetterFailed(cx, NS_ERROR_OUT_OF_MEMORY, JSVAL_TO_OBJECT(*vp), id);
 """
-
-nsIDOMHTMLDocument_Write_customMethodCallCode = """
-    nsAString &str = arg0;
-    for (uintN i = 1; i < argc; ++i) {
-      xpc_qsDOMString next_arg(cx, argv[i], &argv[i],
-                               xpc_qsDOMString::eStringify,
-                               xpc_qsDOMString::eStringify);
-      if (!next_arg.IsValid())
-        return JS_FALSE;
-
-      str.Append(next_arg);
-    }
-
-    rv = self->%s(arg0);
-"""
-
-nsIDOMStorage_Clear_customMethodCallCode = """
-    nsresult rv = self->Clear();
-    if (NS_SUCCEEDED(rv))
-        JS_ClearScope(cx, obj);
-"""
-
-CSS2Properties_ = {
-    'thisType': 'nsICSSDeclaration',
-    'additionalArguments': 'const nsCSSProperty prop',
-    'additionalArgumentValues': 'QS_CSS_PROP_%s',
-    'getter_code': '    nsString result;\n' + 
-                   '    rv = self->GetPropertyValue(prop, result);',
-    'setter_code': '    rv = self->SetPropertyValue(prop, arg0);',
-    'canFail': True
-}
 
 customMethodCalls = {
     'nsIDOMNode_GetNextSibling': {
@@ -543,8 +544,7 @@ customMethodCalls = {
         },
     'nsIDOMNode_GetChildNodes': {
         'thisType': 'nsINode',
-        'code': nsIDOMNode_GetChildNodes_customMethodCallCode,
-        'canFail': True
+        'code': nsIDOMNode_GetChildNodes_customMethodCallCode
         },
     'nsIDOMNode_GetPreviousSibling': {
         'thisType': 'nsINode',
@@ -565,19 +565,5 @@ customMethodCalls = {
     'nsIDOMNodeList_Item': {
         'thisType': 'nsINodeList',
         'code': '    nsINode* result = self->GetNodeAt(arg0);'
-        },
-    'nsIDOMHTMLDocument_Write': {
-        'code': nsIDOMHTMLDocument_Write_customMethodCallCode % 'Write',
-        'canFail': True
-        },
-    'nsIDOMHTMLDocument_Writeln': {
-        'code': nsIDOMHTMLDocument_Write_customMethodCallCode % 'Writeln',
-        'canFail': True
-        },
-    'nsIDOMStorage_Clear': {
-        'code': nsIDOMStorage_Clear_customMethodCallCode
-       }, 
-    'nsIDOMCSS2Properties_': CSS2Properties_,
-    'nsIDOMNSCSS2Properties_': CSS2Properties_
+        }
     }
-

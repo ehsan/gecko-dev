@@ -21,8 +21,6 @@
  *
  * Contributor(s):
  *   Brian Ryner <bryner@brianryner.com> (original author)
- *   Dietrich Ayala <dietrich@mozilla.com>
- *   Marco Bonardo <mak77@bonardo.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -47,7 +45,6 @@
 #include "nsNavHistory.h"
 #include "nsNavHistoryResult.h" // need for Int64 hashtable
 #include "nsToolkitCompsCID.h"
-#include "nsCategoryCache.h"
 
 class nsIOutputStream;
 
@@ -62,29 +59,19 @@ public:
   NS_DECL_NSIANNOTATIONOBSERVER
 
   nsNavBookmarks();
-
-  /**
-   * Obtains the service's object.
-   */
-  static nsNavBookmarks *GetSingleton();
-
-  /**
-   * Initializes the service's object.  This should only be called once.
-   */
   nsresult Init();
 
   // called by nsNavHistory::Init
   static nsresult InitTables(mozIStorageConnection* aDBConn);
 
-  static nsNavBookmarks * GetBookmarksService() {
-    if (!gBookmarksService) {
-      nsCOMPtr<nsINavBookmarksService> serv =
-        do_GetService(NS_NAVBOOKMARKSSERVICE_CONTRACTID);
-      NS_ENSURE_TRUE(serv, nsnull);
-      NS_ASSERTION(gBookmarksService,
-                   "Should have static instance pointer now");
+  static nsNavBookmarks* GetBookmarksService() {
+    if (!sInstance) {
+      nsresult rv;
+      nsCOMPtr<nsINavBookmarksService> serv(do_GetService(NS_NAVBOOKMARKSSERVICE_CONTRACTID, &rv));
+      NS_ENSURE_SUCCESS(rv, nsnull);
+      NS_ASSERTION(sInstance, "Should have static instance pointer now");
     }
-    return gBookmarksService;
+    return sInstance;
   }
 
   nsresult AddBookmarkToHash(PRInt64 aBookmarkId, PRTime aMinTime);
@@ -118,6 +105,9 @@ public:
    */
   PRBool IsRealBookmark(PRInt64 aPlaceId);
 
+  // Called by History service when quitting.
+  nsresult OnQuit();
+
   nsresult BeginUpdateBatch();
   nsresult EndUpdateBatch();
 
@@ -129,7 +119,7 @@ public:
   nsresult FinalizeStatements();
 
 private:
-  static nsNavBookmarks *gBookmarksService;
+  static nsNavBookmarks *sInstance;
 
   ~nsNavBookmarks();
 
@@ -143,23 +133,13 @@ private:
   nsresult AdjustIndices(PRInt64 aFolder,
                          PRInt32 aStartIndex, PRInt32 aEndIndex,
                          PRInt32 aDelta);
-
-  NS_HIDDEN_(nsresult) RemoveFolder(PRInt64 aFolderId);
-
-  /**
-   * Calculates number of children for the given folder.
-   *
-   * @param aFolderId Folder to count children for.
-   *
-   * @return aFolderCount The number of children in this folder.
-   *
-   * @throws If folder does not exist.
-   */
-  nsresult FolderCount(PRInt64 aFolderId, PRInt32 *aFolderCount);
-
+  PRInt32 FolderCount(PRInt64 aFolder);
   nsresult GetFolderType(PRInt64 aFolder, nsACString &aType);
 
   nsresult GetLastChildId(PRInt64 aFolder, PRInt64* aItemId);
+
+  // remove me when there is better query initialization
+  nsNavHistory* History() { return nsNavHistory::GetHistoryService(); }
 
   nsCOMPtr<mozIStorageConnection> mDBConn;
 
@@ -266,14 +246,6 @@ private:
                               const nsAString &aServiceContractId,
                               PRInt64 *_retval);
 
-  /**
-   * TArray version of getBookmarksIdForURI for ease of use in C++ code.
-   * Pass in a reference to a TArray; it will get filled with the
-   * resulting list of bookmark IDs.
-   */
-  nsresult GetBookmarkIdsForURITArray(nsIURI *aURI,
-                                      nsTArray<PRInt64> &aResult);
-
   // kGetInfoIndex_* results + kGetChildrenIndex_* results
   nsCOMPtr<mozIStorageStatement> mDBGetChildren;
   static const PRInt32 kGetChildrenIndex_Position;
@@ -341,7 +313,7 @@ private:
 
     NS_IMETHOD DoTransaction() {
       nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
-      NS_ENSURE_TRUE(bookmarks, NS_ERROR_OUT_OF_MEMORY);
+
       nsresult rv = bookmarks->GetParentAndIndexOfFolder(mID, &mParent, &mIndex);
       NS_ENSURE_SUCCESS(rv, rv);
 
@@ -358,7 +330,6 @@ private:
 
     NS_IMETHOD UndoTransaction() {
       nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
-      NS_ENSURE_TRUE(bookmarks, NS_ERROR_OUT_OF_MEMORY);
       PRInt64 newFolder;
       return bookmarks->CreateContainerWithID(mID, mParent, mTitle, mType, PR_TRUE,
                                               &mIndex, &newFolder); 
@@ -385,26 +356,12 @@ private:
     nsString mType;
     PRInt32 mIndex;
   };
-
-  // Used to enable and disable the observer notifications.
-  bool mCanNotify;
-  nsCategoryCache<nsINavBookmarkObserver> mCacheObservers;
 };
 
 struct nsBookmarksUpdateBatcher
 {
-  nsBookmarksUpdateBatcher()
-  {
-    nsNavBookmarks *bookmarks = nsNavBookmarks::GetBookmarksService();
-    if (bookmarks)
-      bookmarks->BeginUpdateBatch();
-  }
-  ~nsBookmarksUpdateBatcher()
-  {
-    nsNavBookmarks *bookmarks = nsNavBookmarks::GetBookmarksService();
-    if (bookmarks)
-      bookmarks->EndUpdateBatch();
-  }
+  nsBookmarksUpdateBatcher() { nsNavBookmarks::GetBookmarksService()->BeginUpdateBatch(); }
+  ~nsBookmarksUpdateBatcher() { nsNavBookmarks::GetBookmarksService()->EndUpdateBatch(); }
 };
 
 

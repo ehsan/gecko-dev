@@ -39,12 +39,7 @@
 
 /**
  * This test ensures that the delete key removes a download.  This was added by
- * bug 411172.      SimpleTest.waitForFocus(function () { closeDM(aSubject) }, aSubject);
-    }
-  };
-
-  function closeDM(win) {
-
+ * bug 411172.
  */
 -->
 
@@ -132,18 +127,21 @@ function test()
 
   // First, we populate the database with some fake data
   db.executeSimpleSQL("DELETE FROM moz_downloads");
-  var stmt = db.createStatement(
+  var rawStmt = db.createStatement(
     "INSERT INTO moz_downloads (name, source, target, startTime, endTime, " +
       "state, currBytes, maxBytes, preferredAction, autoResume) " +
     "VALUES (:name, :source, :target, :startTime, :endTime, :state, " +
       ":currBytes, :maxBytes, :preferredAction, :autoResume)");
+  var stmt = Cc["@mozilla.org/storage/statement-wrapper;1"].
+             createInstance(Ci.mozIStorageStatementWrapper)
+  stmt.initialize(rawStmt);
   for each (var dl in DownloadData) {
     for (var prop in dl)
       stmt.params[prop] = dl[prop];
 
     stmt.execute();
   }
-  stmt.finalize();
+  stmt.statement.finalize();
 
   // See if the DM is already open, and if it is, close it!
   var wm = Cc["@mozilla.org/appshell/window-mediator;1"].
@@ -162,41 +160,38 @@ function test()
       if (aTopic != DLMGR_UI_DONE)
         return;
 
-      SimpleTest.waitForFocus(function () { deleteDownload(aSubject) }, aSubject);
+      let win = aSubject.QueryInterface(Ci.nsIDOMWindow);
+      let doc = win.document;
+
+      let stmt = db.createStatement("SELECT COUNT(*) FROM moz_downloads");
+      try {
+        stmt.executeStep();
+        let richlistbox = doc.getElementById("downloadView");
+        is(stmt.getInt32(0), richlistbox.children.length,
+           "The database and the number of downloads display matches");
+        stmt.reset();
+
+        let len = DownloadData.length;
+        for (let i = 0; i < len; i++) {
+          synthesizeKey("VK_DELETE", {}, win);
+
+          stmt.executeStep();
+          is(stmt.getInt32(0), len - (i + 1),
+             "The download was properly removed");
+          stmt.reset();
+        }
+      }
+      finally {
+        stmt.reset();
+        stmt.finalize();
+      }
+
+      win.close();
+      dmFile.remove(false);
+      os.removeObserver(testObs, DLMGR_UI_DONE);
+      SimpleTest.finish();
     }
   };
-
-  function deleteDownload(win) {
-    let doc = win.document;
-
-    let stmt = db.createStatement("SELECT COUNT(*) FROM moz_downloads");
-    try {
-      stmt.executeStep();
-      let richlistbox = doc.getElementById("downloadView");
-      is(stmt.getInt32(0), richlistbox.children.length,
-         "The database and the number of downloads display matches");
-      stmt.reset();
-
-      let len = DownloadData.length;
-      for (let i = 0; i < len; i++) {
-        synthesizeKey("VK_DELETE", {}, win);
-
-        stmt.executeStep();
-        is(stmt.getInt32(0), len - (i + 1),
-           "The download was properly removed");
-        stmt.reset();
-      }
-    }
-    finally {
-      stmt.reset();
-      stmt.finalize();
-    }
-
-    win.close();
-    dmFile.remove(false);
-    os.removeObserver(testObs, DLMGR_UI_DONE);
-    SimpleTest.finish();
-  }
 
   // Register with the observer service
   os.addObserver(testObs, DLMGR_UI_DONE, false);

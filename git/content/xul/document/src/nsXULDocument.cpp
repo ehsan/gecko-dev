@@ -126,7 +126,6 @@
 #include "nsXULPopupManager.h"
 #include "nsCCUncollectableMarker.h"
 #include "nsURILoader.h"
-#include "nsCSSFrameConstructor.h"
 
 //----------------------------------------------------------------------
 //
@@ -223,8 +222,6 @@ nsRefMapEntry::RemoveContent(nsIContent* aContent)
 
 nsXULDocument::nsXULDocument(void)
     : nsXMLDocument("application/vnd.mozilla.xul+xml"),
-      mDocDirection(Direction_Uninitialized),
-      mDocLWTheme(Doc_Theme_Uninitialized),
       mState(eState_Master),
       mResolutionPhase(nsForwardReference::eStart)
 {
@@ -262,10 +259,6 @@ nsXULDocument::~nsXULDocument()
     }
 
     delete mTemplateBuilderTable;
-
-    nsContentUtils::UnregisterPrefCallback("intl.uidirection.",
-                                           nsXULDocument::DirectionChanged,
-                                           this);
 
     if (--gRefCnt == 0) {
         NS_IF_RELEASE(gRDFService);
@@ -342,7 +335,7 @@ TraverseObservers(nsIURI* aKey, nsIObserver* aData, void* aContext)
 }
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
-    NS_ASSERTION(!nsCCUncollectableMarker::InGeneration(cb, tmp->GetMarkedCCGeneration()),
+    NS_ASSERTION(!nsCCUncollectableMarker::InGeneration(tmp->GetMarkedCCGeneration()),
                  "Shouldn't traverse nsXULDocument!");
     // XXX tmp->mForwardReferences?
     // XXX tmp->mContextStack?
@@ -712,11 +705,10 @@ nsXULDocument::SynchronizeBroadcastListener(nsIDOMElement   *aBroadcaster,
     }
     nsCOMPtr<nsIContent> broadcaster = do_QueryInterface(aBroadcaster);
     nsCOMPtr<nsIContent> listener = do_QueryInterface(aListener);
-    PRBool notify = mInitialLayoutComplete || mHandlingDelayedBroadcasters;
 
-    // We may be copying event handlers etc, so we must also copy
-    // the script-type to the listener.
-    listener->SetScriptTypeID(broadcaster->GetScriptTypeID());
+	// We may be copying event handlers etc, so we must also copy
+	// the script-type to the listener.
+	listener->SetScriptTypeID(broadcaster->GetScriptTypeID());
 
     if (aAttr.EqualsLiteral("*")) {
         PRUint32 count = broadcaster->GetAttrCount();
@@ -741,7 +733,7 @@ nsXULDocument::SynchronizeBroadcastListener(nsIDOMElement   *aBroadcaster,
             nsAutoString value;
             if (broadcaster->GetAttr(nameSpaceID, name, value)) {
               listener->SetAttr(nameSpaceID, name, attributes[count].mPrefix,
-                                value, notify);
+                                value, mInitialLayoutComplete);
             }
 
 #if 0
@@ -760,9 +752,11 @@ nsXULDocument::SynchronizeBroadcastListener(nsIDOMElement   *aBroadcaster,
 
         nsAutoString value;
         if (broadcaster->GetAttr(kNameSpaceID_None, name, value)) {
-            listener->SetAttr(kNameSpaceID_None, name, value, notify);
+            listener->SetAttr(kNameSpaceID_None, name, value,
+                              mInitialLayoutComplete);
         } else {
-            listener->UnsetAttr(kNameSpaceID_None, name, notify);
+            listener->UnsetAttr(kNameSpaceID_None, name,
+                                mInitialLayoutComplete);
         }
 
 #if 0
@@ -966,9 +960,8 @@ nsXULDocument::ExecuteOnBroadcastHandlerFor(nsIContent* aBroadcaster,
 }
 
 void
-nsXULDocument::AttributeWillChange(nsIDocument* aDocument,
-                                   nsIContent* aContent, PRInt32 aNameSpaceID,
-                                   nsIAtom* aAttribute, PRInt32 aModType)
+nsXULDocument::AttributeWillChange(nsIContent* aContent, PRInt32 aNameSpaceID,
+                                   nsIAtom* aAttribute)
 {
     NS_ABORT_IF_FALSE(aContent, "Null content!");
     NS_PRECONDITION(aAttribute, "Must have an attribute that's changing!");
@@ -980,20 +973,20 @@ nsXULDocument::AttributeWillChange(nsIDocument* aDocument,
         RemoveElementFromRefMap(aContent);
     }
     
-    nsXMLDocument::AttributeWillChange(aDocument, aContent, aNameSpaceID,
-                                       aAttribute, aModType);
+    nsXMLDocument::AttributeWillChange(aContent, aNameSpaceID, aAttribute);
 }
 
 void
 nsXULDocument::AttributeChanged(nsIDocument* aDocument,
                                 nsIContent* aElement, PRInt32 aNameSpaceID,
-                                nsIAtom* aAttribute, PRInt32 aModType)
+                                nsIAtom* aAttribute, PRInt32 aModType,
+                                PRUint32 aStateMask)
 {
     NS_ASSERTION(aDocument == this, "unexpected doc");
 
     // Do this here so that all the exit paths below don't leave this undone
     nsXMLDocument::AttributeChanged(aDocument, aElement, aNameSpaceID,
-                                    aAttribute, aModType);
+            aAttribute, aModType, aStateMask);
 
     // XXXbz check aNameSpaceID, dammit!
     // See if we need to update our ref map.
@@ -1029,35 +1022,36 @@ nsXULDocument::AttributeChanged(nsIDocument* aDocument,
                         = do_QueryReferent(bl->mListener);
                     nsCOMPtr<nsIContent> l = do_QueryInterface(listenerEl);
                     if (l) {
-                        nsAutoString currentValue;
-                        PRBool hasAttr = l->GetAttr(kNameSpaceID_None,
-                                                    aAttribute,
-                                                    currentValue);
-                        // We need to update listener only if we're
-                        // (1) removing an existing attribute,
-                        // (2) adding a new attribute or
-                        // (3) changing the value of an attribute.
-                        PRBool needsAttrChange =
-                            attrSet != hasAttr || !value.Equals(currentValue);
-                        nsDelayedBroadcastUpdate delayedUpdate(domele,
-                                                               listenerEl,
-                                                               aAttribute,
-                                                               value,
-                                                               attrSet,
-                                                               needsAttrChange);
-
-                        PRUint32 index =
-                            mDelayedAttrChangeBroadcasts.IndexOf(delayedUpdate,
-                                0, nsDelayedBroadcastUpdate::Comparator());
-                        if (index != mDelayedAttrChangeBroadcasts.NoIndex) {
-                            if (mHandlingDelayedAttrChange) {
-                                NS_WARNING("Broadcasting loop!");
-                                continue;
+                        PRBool possibleCycle = PR_FALSE;
+                        for (PRUint32 j = 0; j < mDelayedAttrChangeBroadcasts.Length(); ++j) {
+                            if (mDelayedAttrChangeBroadcasts[j].mListener == listenerEl &&
+                                mDelayedAttrChangeBroadcasts[j].mAttrName == aAttribute) {
+                                possibleCycle = PR_TRUE;
+                                break;
                             }
-                            mDelayedAttrChangeBroadcasts.RemoveElementAt(index);
                         }
 
-                        mDelayedAttrChangeBroadcasts.AppendElement(delayedUpdate);
+                        if (possibleCycle) {
+                            NS_WARNING("Broadcasting loop!");
+                        } else {
+                            nsAutoString currentValue;
+                            PRBool hasAttr = l->GetAttr(kNameSpaceID_None,
+                                                        aAttribute,
+                                                        currentValue);
+                            // We need to update listener only if we're
+                            // (1) removing an existing attribute,
+                            // (2) adding a new attribute or
+                            // (3) changing the value of an attribute.
+                            PRBool needsAttrChange =
+                                attrSet != hasAttr || !value.Equals(currentValue);
+                            nsDelayedBroadcastUpdate delayedUpdate(domele,
+                                                                   listenerEl,
+                                                                   aAttribute,
+                                                                   value,
+                                                                   attrSet,
+                                                                   needsAttrChange);
+                            mDelayedAttrChangeBroadcasts.AppendElement(delayedUpdate);
+                        }
                     }
                 }
             }
@@ -1184,15 +1178,13 @@ nsXULDocument::AddForwardReference(nsForwardReference* aRef)
     return NS_OK;
 }
 
+
 nsresult
 nsXULDocument::ResolveForwardReferences()
 {
     if (mResolutionPhase == nsForwardReference::eDone)
         return NS_OK;
 
-    NS_ASSERTION(mResolutionPhase == nsForwardReference::eStart,
-                 "nested ResolveForwardReferences()");
-        
     // Resolve each outstanding 'forward' reference. We iterate
     // through the list of forward references until no more forward
     // references can be resolved. This annealing process is
@@ -1224,13 +1216,6 @@ nsXULDocument::ResolveForwardReferences()
                     case nsForwardReference::eResolve_Later:
                         // do nothing. we'll try again later
                         ;
-                    }
-
-                    if (mResolutionPhase == nsForwardReference::eStart) {
-                        // Resolve() loaded a dynamic overlay,
-                        // (see nsXULDocument::LoadOverlayInternal()).
-                        // Return for now, we will be called again.
-                        return NS_OK;
                     }
                 }
             }
@@ -2001,10 +1986,6 @@ nsXULDocument::Init()
           return NS_ERROR_FAILURE;
         }
     }
-
-    nsContentUtils::RegisterPrefCallback("intl.uidirection.",
-                                         nsXULDocument::DirectionChanged,
-                                         this);
 
 #ifdef PR_LOGGING
     if (! gXULLog)
@@ -2891,8 +2872,7 @@ nsXULDocument::ResumeWalk()
     // <html:script src="..." />) can be properly re-loaded if the
     // cached copy of the document becomes stale.
     nsresult rv;
-    nsCOMPtr<nsIURI> overlayURI =
-        mCurrentPrototype ? mCurrentPrototype->GetURI() : nsnull;
+    nsCOMPtr<nsIURI> overlayURI = mCurrentPrototype->GetURI();
 
     while (1) {
         // Begin (or resume) walking the current prototype.
@@ -3347,8 +3327,6 @@ nsXULDocument::MaybeBroadcast()
 
         PRUint32 length = mDelayedBroadcasters.Length();
         if (length) {
-            PRBool oldValue = mHandlingDelayedBroadcasters;
-            mHandlingDelayedBroadcasters = PR_TRUE;
             nsTArray<nsDelayedBroadcastUpdate> delayedBroadcasters;
             mDelayedBroadcasters.SwapElements(delayedBroadcasters);
             for (PRUint32 i = 0; i < length; ++i) {
@@ -3356,7 +3334,6 @@ nsXULDocument::MaybeBroadcast()
                                              delayedBroadcasters[i].mListener,
                                              delayedBroadcasters[i].mAttr);
             }
-            mHandlingDelayedBroadcasters = oldValue;
         }
     }
 }
@@ -3517,10 +3494,6 @@ nsXULDocument::OnStreamComplete(nsIStreamLoader* aLoader,
 
     NS_ASSERTION(mCurrentScriptProto && mCurrentScriptProto->mSrcLoading,
                  "script source not loading on unichar stream complete?");
-    if (!mCurrentScriptProto) {
-        // XXX Wallpaper for bug 270042
-        return NS_OK;
-    }
 
     // Clear mCurrentScriptProto now, but save it first for use below in
     // the compile/execute code, and in the while loop that resumes walks
@@ -4650,126 +4623,6 @@ nsXULDocument::GetFocusController(nsIFocusController** aFocusController)
         NS_IF_ADDREF(*aFocusController = windowPrivate->GetRootFocusController());
     } else
         *aFocusController = nsnull;
-}
-
-PRBool
-nsXULDocument::IsDocumentRightToLeft()
-{
-    if (mDocDirection == Direction_Uninitialized) {
-        mDocDirection = Direction_LeftToRight; // default to ltr on failure
-
-        // setting the localedir attribute on the root element forces a
-        // specific direction for the document.
-        nsIContent* content = GetRootContent();
-        if (content) {
-            static nsIContent::AttrValuesArray strings[] =
-                {&nsGkAtoms::ltr, &nsGkAtoms::rtl, nsnull};
-            switch (content->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::localedir,
-                                             strings, eCaseMatters)) {
-                case 0: mDocDirection = Direction_LeftToRight; return PR_FALSE;
-                case 1: mDocDirection = Direction_RightToLeft; return PR_TRUE;
-                default: break;// otherwise, not a valid value, so fall through
-            }
-        }
-
-        // otherwise, get the locale from the chrome registry and
-        // look up the intl.uidirection.<locale> preference
-        nsCOMPtr<nsIXULChromeRegistry> reg =
-            do_GetService(NS_CHROMEREGISTRY_CONTRACTID);
-        if (reg) {
-            nsCAutoString package;
-            PRBool isChrome;
-            if (NS_SUCCEEDED(mDocumentURI->SchemeIs("chrome", &isChrome)) &&
-                isChrome) {
-                mDocumentURI->GetHostPort(package);
-            }
-            else {
-                // use the 'global' package for about and resource uris.
-                // otherwise, just default to left-to-right.
-                PRBool isAbout, isResource;
-                if (NS_SUCCEEDED(mDocumentURI->SchemeIs("about", &isAbout)) &&
-                    isAbout) {
-                    package.AssignLiteral("global");
-                }
-                else if (NS_SUCCEEDED(mDocumentURI->SchemeIs("resource", &isResource)) &&
-                    isResource) {
-                    package.AssignLiteral("global");
-                }
-                else {
-                    return PR_FALSE;
-                }
-            }
-
-            nsCAutoString locale;
-            reg->GetSelectedLocale(package, locale);
-            if (locale.Length() >= 2) {
-                // first check the intl.uidirection.<locale> preference,
-                // and if that is not set, check the same preference but
-                // with just the first two characters of the locale. If
-                // that isn't set, default to left-to-right.
-                nsCAutoString prefString =
-                    NS_LITERAL_CSTRING("intl.uidirection.") + locale;
-                nsAdoptingCString dir = nsContentUtils::GetCharPref(prefString.get());
-                if (dir.IsEmpty()) {
-                    PRInt32 hyphen = prefString.FindChar('-');
-                    if (hyphen >= 1) {
-                        nsCAutoString shortPref(Substring(prefString, 0, hyphen));
-                        dir = nsContentUtils::GetCharPref(shortPref.get());
-                    }
-                }
-
-                mDocDirection = dir.EqualsLiteral("rtl") ?
-                                Direction_RightToLeft : Direction_LeftToRight;
-            }
-        }
-    }
-
-    return (mDocDirection == Direction_RightToLeft);
-}
-
-int
-nsXULDocument::DirectionChanged(const char* aPrefName, void* aData)
-{
-  // reset the direction and reflow the document. This will happen if
-  // the direction isn't actually being used, but that doesn't really
-  // matter too much
-  nsXULDocument* doc = (nsXULDocument *)aData;
-  if (doc)
-      doc->ResetDocumentDirection();
-
-  nsIPresShell *shell = doc->GetPrimaryShell();
-  if (shell) {
-      shell->FrameConstructor()->
-          PostRestyleEvent(doc->GetRootContent(), eReStyle_Self, NS_STYLE_HINT_NONE);
-  }
-
-  return 0;
-}
-
-int
-nsXULDocument::GetDocumentLWTheme()
-{
-    if (mDocLWTheme == Doc_Theme_Uninitialized) {
-        mDocLWTheme = Doc_Theme_None; // No lightweight theme by default
-
-        nsIContent* content = GetRootContent();
-        nsAutoString hasLWTheme;
-        if (content &&
-            content->GetAttr(kNameSpaceID_None, nsGkAtoms::lwtheme, hasLWTheme) &&
-            !(hasLWTheme.IsEmpty()) &&
-            hasLWTheme.EqualsLiteral("true")) {
-            mDocLWTheme = Doc_Theme_Neutral;
-            nsAutoString lwTheme;
-            content->GetAttr(kNameSpaceID_None, nsGkAtoms::lwthemetextcolor, lwTheme);
-            if (!(lwTheme.IsEmpty())) {
-                if (lwTheme.EqualsLiteral("dark"))
-                    mDocLWTheme = Doc_Theme_Dark;
-                else if (lwTheme.EqualsLiteral("bright"))
-                    mDocLWTheme = Doc_Theme_Bright;
-            }
-        }
-    }
-    return mDocLWTheme;
 }
 
 NS_IMETHODIMP

@@ -2,28 +2,25 @@
 <?xml-stylesheet href="chrome://global/skin" type="text/css"?>
 
 <window id="other-document"
+        title="Focus Tests" onfocus="focused()"
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
-
-<script type="application/javascript"
-        src="chrome://mochikit/content/MochiKit/packed.js"></script>
-<script type="application/javascript"
-        src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
 
 <script>
 <![CDATA[
 
+var gFocused = false;
+
 function focused()
 {
-  if (window.arguments)
+  if (window.arguments && !gFocused)
     setTimeout(function () window.arguments[0](window, window.arguments[1]), 0);
+  gFocused = true;
 }
-
-SimpleTest.waitForFocus(focused);
 
 ]]>
 </script>
 
 <button id="other" label="OK"/>
-<textbox id="other-textbox" value="test"/>
+<button id="other2" label="Cancel"/>
 
 </window>

@@ -49,8 +49,6 @@
 
 class nsMathMLmfencedFrame : public nsMathMLContainerFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   friend nsIFrame* NS_NewMathMLmfencedFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   virtual void
@@ -64,7 +62,7 @@ public:
 
   NS_IMETHOD
   SetInitialChildList(nsIAtom*        aListName,
-                      nsFrameList&    aChildList);
+                      nsIFrame*       aChildList);
 
   NS_IMETHOD
   Reflow(nsPresContext*          aPresContext,

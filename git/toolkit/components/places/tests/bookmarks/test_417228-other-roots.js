@@ -112,7 +112,7 @@ tests.push({
 
   validate: function validate() {
     // validate tags restored
-    var tags = PlacesUtils.tagging.getTagsForURI(this._testURI);
+    var tags = PlacesUtils.tagging.getTagsForURI(this._testURI, {});
     // also validates that litter tags are gone
     do_check_eq(this._tags.toString(), tags.toString());
 
@@ -179,7 +179,7 @@ function run_test() {
   });
 
   try {
-    PlacesUtils.backups.saveBookmarksToJSONFile(jsonFile);
+    PlacesUtils.backupBookmarksToFile(jsonFile);
   } catch(ex) { do_throw("couldn't export to file: " + ex); }
 
   tests.forEach(function(aTest) {

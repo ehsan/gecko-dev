@@ -97,7 +97,6 @@ public:
   ~nsComboboxControlFrame();
 
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIAnonymousContentCreator
@@ -142,9 +141,9 @@ public:
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
   virtual void Destroy();
-  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
+  virtual nsIFrame* GetFirstChild(nsIAtom* aListName) const;
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
-                                 nsFrameList&    aChildList);
+                                 nsIFrame*       aChildList);
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
 
   virtual nsIFrame* GetContentInsertionFrame();
@@ -254,7 +253,7 @@ protected:
    * @note This method might destroy |this|.
    * @return PR_FALSE if this frame is destroyed, PR_TRUE if still alive.
    */
-  PRBool ShowList(PRBool aShowList);
+  PRBool ShowList(nsPresContext* aPresContext, PRBool aShowList);
   void CheckFireOnChange();
   void FireValueChangeEvent();
   nsresult RedisplayText(PRInt32 aIndex);

@@ -70,7 +70,6 @@ nsFrameWindow::nsFrameWindow() : nsWindow()
 {
    fnwpDefFrame = 0;
    mWindowType  = eWindowType_toplevel;
-   mNeedActivation = PR_FALSE;
 }
 
 nsFrameWindow::~nsFrameWindow()
@@ -323,29 +322,6 @@ nsresult nsFrameWindow::Show( PRBool bState)
    return NS_OK;
 }
 
-// When WM_ACTIVATE is received with the "gaining activation" flag set,
-// the frame's wndproc sets mNeedActivation.  Later, when an nsWindow
-// gets a WM_FOCUSCHANGED msg with the "gaining focus" flag set, it
-// invokes this method on nsFrameWindow to fire an NS_ACTIVATE event.
-
-void    nsFrameWindow::ActivateTopLevelWidget()
-{
-  // Don't fire event if we're minimized or else the window will
-  // be restored as soon as the user clicks on it.  When the user
-  // explicitly restores it, SetSizeMode() will call this method.
-
-  if (mNeedActivation) {
-    PRInt32 sizeMode;
-    GetSizeMode(&sizeMode);
-    if (sizeMode != nsSizeMode_Minimized) {
-      mNeedActivation = PR_FALSE;
-      DEBUGFOCUS(NS_ACTIVATE);
-      DispatchFocus(NS_ACTIVATE);
-    }
-  }
-  return;
-}
-
 // Subclass for frame window
 MRESULT EXPENTRY fnwpFrame( HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
 {
@@ -492,24 +468,6 @@ MRESULT nsFrameWindow::FrameMessage( ULONG msg, MPARAM mp1, MPARAM mp2)
             }
          }
          break;
-
-      // When the frame is activated, set a flag to be acted on after
-      // PM has finished changing focus.  When deactivated, dispatch
-      // the event immediately because it doesn't affect the focus.
-      case WM_ACTIVATE:
-         DEBUGFOCUS(WM_ACTIVATE);
-         if (mp1) {
-            mNeedActivation = PR_TRUE;
-         } else {
-            mNeedActivation = PR_FALSE;
-            DEBUGFOCUS(NS_DEACTIVATE);
-            DispatchFocus(NS_DEACTIVATE);
-            // Prevent the frame from automatically focusing any window
-            // when it's reactivated.  Let moz set the focus to avoid
-            // having non-widget children of plugins focused in error.
-            WinSetWindowULong(mFrameWnd, QWL_HWNDFOCUSSAVE, 0);
-         }
-         break;
    }
 
    if( !bDone)
@@ -517,4 +475,3 @@ MRESULT nsFrameWindow::FrameMessage( ULONG msg, MPARAM mp1, MPARAM mp2)
 
    return mresult;
 }
-

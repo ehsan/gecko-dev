@@ -84,69 +84,6 @@ nsCoreUtils::HasListener(nsIContent *aContent, const nsAString& aEventType)
   return listenerManager && listenerManager->HasListenersFor(aEventType);  
 }
 
-void
-nsCoreUtils::DispatchClickEvent(nsITreeBoxObject *aTreeBoxObj,
-                                PRInt32 aRowIndex, nsITreeColumn *aColumn,
-                                const nsCString& aPseudoElt)
-{
-  nsCOMPtr<nsIDOMElement> tcElm;
-  aTreeBoxObj->GetTreeBody(getter_AddRefs(tcElm));
-  if (!tcElm)
-    return;
-
-  nsCOMPtr<nsIContent> tcContent(do_QueryInterface(tcElm));
-  nsIDocument *document = tcContent->GetCurrentDoc();
-  if (!document)
-    return;
-
-  nsIPresShell *presShell = nsnull;
-  presShell = document->GetPrimaryShell();
-  if (!presShell)
-    return;
-
-  // Ensure row is visible.
-  aTreeBoxObj->EnsureRowIsVisible(aRowIndex);
-
-  // Calculate x and y coordinates.
-  PRInt32 x = 0, y = 0, width = 0, height = 0;
-  nsresult rv = aTreeBoxObj->GetCoordsForCellItem(aRowIndex, aColumn,
-                                                  aPseudoElt,
-                                                  &x, &y, &width, &height);
-  if (NS_FAILED(rv))
-    return;
-
-  nsCOMPtr<nsIDOMXULElement> tcXULElm(do_QueryInterface(tcElm));
-  nsCOMPtr<nsIBoxObject> tcBoxObj;
-  tcXULElm->GetBoxObject(getter_AddRefs(tcBoxObj));
-
-  PRInt32 tcX = 0;
-  tcBoxObj->GetX(&tcX);
-
-  PRInt32 tcY = 0;
-  tcBoxObj->GetY(&tcY);
-
-  // Dispatch mouse events.
-  nsIFrame* tcFrame = presShell->GetPrimaryFrameFor(tcContent);  
-  nsIFrame* rootFrame = presShell->GetRootFrame();
-
-  nsPoint offset;
-  nsIWidget *rootWidget =
-    rootFrame->GetViewExternal()->GetNearestWidget(&offset);
-
-  nsPresContext* presContext = presShell->GetPresContext();
-
-  PRInt32 cnvdX = presContext->CSSPixelsToDevPixels(tcX + x + 1) +
-    presContext->AppUnitsToDevPixels(offset.x);
-  PRInt32 cnvdY = presContext->CSSPixelsToDevPixels(tcY + y + 1) +
-    presContext->AppUnitsToDevPixels(offset.y);
-
-  DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, cnvdX, cnvdY,
-                     tcContent, tcFrame, presShell, rootWidget);
-
-  DispatchMouseEvent(NS_MOUSE_BUTTON_UP, cnvdX, cnvdY,
-                     tcContent, tcFrame, presShell, rootWidget);
-}
-
 PRBool
 nsCoreUtils::DispatchMouseEvent(PRUint32 aEventType,
                                 nsIPresShell *aPresShell,
@@ -172,28 +109,21 @@ nsCoreUtils::DispatchMouseEvent(PRUint32 aEventType,
 
   PRInt32 x = presContext->AppUnitsToDevPixels(point.x + size.width / 2);
   PRInt32 y = presContext->AppUnitsToDevPixels(point.y + size.height / 2);
-
+  
   // Fire mouse event.
-  DispatchMouseEvent(aEventType, x, y, aContent, frame, aPresShell, rootWidget);
-  return PR_TRUE;
-}
-
-void
-nsCoreUtils::DispatchMouseEvent(PRUint32 aEventType, PRInt32 aX, PRInt32 aY,
-                                nsIContent *aContent, nsIFrame *aFrame,
-                                nsIPresShell *aPresShell, nsIWidget *aRootWidget)
-{
-  nsMouseEvent event(PR_TRUE, aEventType, aRootWidget,
+  nsMouseEvent event(PR_TRUE, aEventType, rootWidget,
                      nsMouseEvent::eReal, nsMouseEvent::eNormal);
 
-  event.refPoint = nsIntPoint(aX, aY);
-
+  event.refPoint = nsIntPoint(x, y);
+  
   event.clickCount = 1;
   event.button = nsMouseEvent::eLeftButton;
   event.time = PR_IntervalNow();
-
+  
   nsEventStatus status = nsEventStatus_eIgnore;
-  aPresShell->HandleEventWithTarget(&event, aFrame, aContent, &status);
+  aPresShell->HandleEventWithTarget(&event, frame, aContent, &status);
+
+  return PR_TRUE;
 }
 
 PRUint32
@@ -760,7 +690,7 @@ nsCoreUtils::FindDescendantPointingToIDImpl(nsCString& aIdWithSpaces,
 nsIContent*
 nsCoreUtils::GetLabelContent(nsIContent *aForNode)
 {
-  if (aForNode->IsXUL())
+  if (aForNode->IsNodeOfType(nsINode::eXUL))
     return FindNeighbourPointingToNode(aForNode, nsAccessibilityAtoms::control,
                                        nsAccessibilityAtoms::label);
 
@@ -960,192 +890,4 @@ nsCoreUtils::GetTreeBodyBoxObject(nsITreeBoxObject *aTreeBoxObj)
   nsIBoxObject *boxObj = nsnull;
   tcXULElm->GetBoxObject(&boxObj);
   return boxObj;
-}
-
-void
-nsCoreUtils::GetTreeBoxObject(nsIDOMNode *aDOMNode,
-                              nsITreeBoxObject **aBoxObject)
-{
-  nsAutoString name;
-  nsCOMPtr<nsIDOMNode> parentNode, currentNode;
-  
-  // Find DOMNode's parents recursively until reach the <tree> tag
-  currentNode = aDOMNode;
-  while (currentNode) {
-    currentNode->GetLocalName(name);
-    if (name.EqualsLiteral("tree")) {
-      // We will get the nsITreeBoxObject from the tree node
-      nsCOMPtr<nsIDOMXULElement> xulElement(do_QueryInterface(currentNode));
-      if (xulElement) {
-        nsCOMPtr<nsIBoxObject> box;
-        xulElement->GetBoxObject(getter_AddRefs(box));
-        nsCOMPtr<nsITreeBoxObject> treeBox(do_QueryInterface(box));
-        if (treeBox) {
-          *aBoxObject = treeBox;
-          NS_ADDREF(*aBoxObject);
-          return;
-        }
-      }
-    }
-    currentNode->GetParentNode(getter_AddRefs(parentNode));
-    currentNode = parentNode;
-  }
-  
-  *aBoxObject = nsnull;
-}
-
-already_AddRefed<nsITreeColumn>
-nsCoreUtils::GetFirstSensibleColumn(nsITreeBoxObject *aTree)
-{
-  nsCOMPtr<nsITreeColumns> cols;
-  aTree->GetColumns(getter_AddRefs(cols));
-  if (!cols)
-    return nsnull;
-
-  nsCOMPtr<nsITreeColumn> column;
-  cols->GetFirstColumn(getter_AddRefs(column));
-  if (column && IsColumnHidden(column))
-    return GetNextSensibleColumn(column);
-
-  return column.forget();
-}
-
-already_AddRefed<nsITreeColumn>
-nsCoreUtils::GetLastSensibleColumn(nsITreeBoxObject *aTree)
-{
-  nsCOMPtr<nsITreeColumns> cols;
-  aTree->GetColumns(getter_AddRefs(cols));
-  if (!cols)
-    return nsnull;
-
-  nsCOMPtr<nsITreeColumn> column;
-  cols->GetLastColumn(getter_AddRefs(column));
-  if (column && IsColumnHidden(column))
-    return GetPreviousSensibleColumn(column);
-
-  return column.forget();
-}
-
-PRUint32
-nsCoreUtils::GetSensibleColumnCount(nsITreeBoxObject *aTree)
-{
-  PRUint32 count = 0;
-
-  nsCOMPtr<nsITreeColumns> cols;
-  aTree->GetColumns(getter_AddRefs(cols));
-  if (!cols)
-    return count;
-
-  nsCOMPtr<nsITreeColumn> column;
-  cols->GetFirstColumn(getter_AddRefs(column));
-
-  while (column) {
-    if (!IsColumnHidden(column))
-      count++;
-
-    nsCOMPtr<nsITreeColumn> nextColumn;
-    column->GetNext(getter_AddRefs(nextColumn));
-    column.swap(nextColumn);
-  }
-
-  return count;
-}
-
-already_AddRefed<nsITreeColumn>
-nsCoreUtils::GetSensibleColumnAt(nsITreeBoxObject *aTree, PRUint32 aIndex)
-{
-  PRUint32 idx = aIndex;
-
-  nsCOMPtr<nsITreeColumn> column = GetFirstSensibleColumn(aTree);
-  while (column) {
-    if (idx == 0)
-      return column.forget();
-
-    idx--;
-    column = GetNextSensibleColumn(column);
-  }
-
-  return nsnull;
-}
-
-already_AddRefed<nsITreeColumn>
-nsCoreUtils::GetNextSensibleColumn(nsITreeColumn *aColumn)
-{
-  nsCOMPtr<nsITreeColumn> nextColumn;
-  aColumn->GetNext(getter_AddRefs(nextColumn));
-
-  while (nextColumn && IsColumnHidden(nextColumn)) {
-    nsCOMPtr<nsITreeColumn> tempColumn;
-    nextColumn->GetNext(getter_AddRefs(tempColumn));
-    nextColumn.swap(tempColumn);
-  }
-
-  return nextColumn.forget();
-}
-
-already_AddRefed<nsITreeColumn>
-nsCoreUtils::GetPreviousSensibleColumn(nsITreeColumn *aColumn)
-{
-  nsCOMPtr<nsITreeColumn> prevColumn;
-  aColumn->GetPrevious(getter_AddRefs(prevColumn));
-
-  while (prevColumn && IsColumnHidden(prevColumn)) {
-    nsCOMPtr<nsITreeColumn> tempColumn;
-    prevColumn->GetPrevious(getter_AddRefs(tempColumn));
-    prevColumn.swap(tempColumn);
-  }
-
-  return prevColumn.forget();
-}
-
-PRBool
-nsCoreUtils::IsColumnHidden(nsITreeColumn *aColumn)
-{
-  nsCOMPtr<nsIDOMElement> element;
-  aColumn->GetElement(getter_AddRefs(element));
-  nsCOMPtr<nsIContent> content = do_QueryInterface(element);
-  return content->AttrValueIs(kNameSpaceID_None, nsAccessibilityAtoms::hidden,
-                              nsAccessibilityAtoms::_true, eCaseMatters);
-}
-
-void
-nsCoreUtils::GeneratePopupTree(nsIDOMNode *aNode, PRBool aIsAnon)
-{
-  // Set menugenerated="true" on the menupopup node to generate the sub-menu
-  // items if they have not been generated.
-
-  nsCOMPtr<nsIDOMNodeList> list;
-  if (aIsAnon) {
-    nsCOMPtr<nsIContent> content(do_QueryInterface(aNode));
-    nsIDocument* document = content->GetCurrentDoc();
-    if (document)
-      document->GetXBLChildNodesFor(content, getter_AddRefs(list));
-
-  } else {
-    aNode->GetChildNodes(getter_AddRefs(list));
-  }
-
-  PRUint32 length = 0;
-  if (!list || NS_FAILED(list->GetLength(&length)))
-    return;
-
-  for (PRUint32 idx = 0; idx < length; idx++) {
-    nsCOMPtr<nsIDOMNode> childNode;
-    list->Item(idx, getter_AddRefs(childNode));
-    nsCOMPtr<nsIContent> child(do_QueryInterface(childNode));
-
-    PRBool isPopup = child->NodeInfo()->Equals(nsAccessibilityAtoms::menupopup,
-                                               kNameSpaceID_XUL) ||
-                     child->NodeInfo()->Equals(nsAccessibilityAtoms::panel,
-                                               kNameSpaceID_XUL);
-    if (isPopup && !child->AttrValueIs(kNameSpaceID_None,
-                                       nsAccessibilityAtoms::menugenerated,
-                                       nsAccessibilityAtoms::_true,
-                                       eCaseMatters)) {
-
-      child->SetAttr(kNameSpaceID_None, nsAccessibilityAtoms::menugenerated,
-                     NS_LITERAL_STRING("true"), PR_TRUE);
-      return;
-    }
-  }
 }

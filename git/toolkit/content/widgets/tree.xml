@@ -1,6 +1,8 @@
 <?xml version="1.0"?>
 
 <!DOCTYPE bindings [
+<!ENTITY % globalDTD SYSTEM "chrome://global/locale/global.dtd">
+%globalDTD;
 <!ENTITY % treeDTD SYSTEM "chrome://global/locale/tree.dtd">
 %treeDTD;
 ]>
@@ -30,7 +32,7 @@
   </binding>
 
   <binding id="tree" extends="chrome://global/content/bindings/tree.xml#tree-base">
-    <content hidevscroll="true" hidehscroll="true">
+    <content hidevscroll="true" hidehscroll="true" chromedir="&locale.dir;">
       <children includes="treecols"/>
       <xul:stack class="tree-stack" flex="1">
         <xul:treerows class="tree-rows" flex="1" xbl:inherits="hidevscroll">
@@ -207,35 +209,25 @@
         <parameter name="aThresh"/>
         <parameter name="aPos"/>
         <body><![CDATA[
-          var isRTL = document.defaultView.getComputedStyle(this, "")
-                              .direction == "rtl";
+          if (aPos) aPos.value = "before";
 
-          if (aPos)
-            aPos.value = isRTL ? "after" : "before";
-
-          var columns = [];
           var col = this.columns.getFirstColumn();
-          while (col) {
-            columns.push(col);
-            col = col.getNext();
-          }
-          if (isRTL)
-            columns.reverse();
+          var lastCol = null;
           var currentX = this.boxObject.x;
           var adjustedX = aX + this.treeBoxObject.horizontalPosition;
-          for (var i = 0; i < columns.length; ++i) {
-            col = columns[i];
+          while (col) {
             var cw = col.element.boxObject.width;
             if (cw > 0) {
               currentX += cw;
               if (currentX - (cw * aThresh) > adjustedX)
                 return col.element;
             }
+            lastCol = col;
+            col = col.getNext();
           }
 
-          if (aPos)
-            aPos.value = isRTL ? "before" : "after";
-          return columns.pop().element;
+          if (aPos) aPos.value = "after";
+          return lastCol.element;
         ]]></body>
       </method>
 
@@ -273,6 +265,13 @@
           ]]>
         </getter>
       </property>
+
+      <constructor><![CDATA[
+          // Bindings that extend this one wouldn't inherit the
+          // chromedir attribute if it would only be set in <content>.
+          this.setAttribute("chromedir", "]]>&locale.dir;<![CDATA[");
+        ]]>
+      </constructor>
 
       <method name="_getNextColumn">
         <parameter name="row"/>
@@ -410,14 +409,12 @@
               return;
 
             var input = this.inputField;
-            var editingRow = this._editingRow;
-            var editingColumn = this._editingColumn;
-            this._editingRow = -1;
-            this._editingColumn = null;
             if (accept) {
               var value = input.value;
-              this.view.setCellText(editingRow, editingColumn, value);
+              this.view.setCellText(this._editingRow, this._editingColumn, value);
             }
+            this._editingRow = -1;
+            this._editingColumn = null;
 
             input.hidden = true;
             input.value = "";
@@ -910,14 +907,6 @@
           ]]>
         </getter>
       </property>
-      <constructor><![CDATA[
-        // Set resizeafter="farthest" on the splitters if nothing else has been
-        // specified.
-        Array.forEach(this.getElementsByTagName("splitter"), function (splitter) {
-          if (!splitter.hasAttribute("resizeafter"))
-            splitter.setAttribute("resizeafter", "farthest");
-        });
-      ]]></constructor>
     </implementation>
   </binding>
 

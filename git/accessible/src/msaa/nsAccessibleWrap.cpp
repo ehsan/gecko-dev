@@ -519,21 +519,15 @@ __try {
     nsAutoString roleString;
     if (msaaRole != ROLE_SYSTEM_CLIENT &&
         !content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::role, roleString)) {
-      nsIDocument * document = content->GetCurrentDoc();
-      if (!document)
-        return E_FAIL;
-
       nsINodeInfo *nodeInfo = content->NodeInfo();
       nodeInfo->GetName(roleString);
-
-      // Only append name space if different from that of current document.
-      if (!nodeInfo->NamespaceEquals(document->GetDefaultNamespaceID())) {
-        nsAutoString nameSpaceURI;
-        nodeInfo->GetNamespaceURI(nameSpaceURI);
+      nsAutoString nameSpaceURI;
+      nodeInfo->GetNamespaceURI(nameSpaceURI);
+      if (!nameSpaceURI.IsEmpty()) {
+        // Only append name space if different from that of current document
         roleString += NS_LITERAL_STRING(", ") + nameSpaceURI;
       }
     }
-
     if (!roleString.IsEmpty()) {
       pvarRole->vt = VT_BSTR;
       pvarRole->bstrVal = ::SysAllocString(roleString.get());
@@ -1105,23 +1099,28 @@ __try {
   if (mEnumVARIANTPosition == kIEnumVariantDisconnected)
     return CO_E_OBJNOTCONNECTED;
 
-  PRUint32 numElementsFetched = 0;
-  for (; numElementsFetched < aNumElementsRequested;
-       numElementsFetched++, mEnumVARIANTPosition++) {
+  nsCOMPtr<nsIAccessible> traversedAcc;
+  nsresult rv = GetChildAt(mEnumVARIANTPosition, getter_AddRefs(traversedAcc));
+  if (!traversedAcc)
+    return S_FALSE;
 
-    nsIAccessible* accessible = GetChildAt(mEnumVARIANTPosition);
-    if (!accessible)
+  for (PRUint32 i = 0; i < aNumElementsRequested; i++) {
+    VariantInit(&aPVar[i]);
+
+    aPVar[i].pdispVal = NativeAccessible(traversedAcc);
+    aPVar[i].vt = VT_DISPATCH;
+    (*aNumElementsFetched)++;
+
+    nsCOMPtr<nsIAccessible> nextAcc;
+    traversedAcc->GetNextSibling(getter_AddRefs(nextAcc));
+    if (!nextAcc)
       break;
 
-    VariantInit(&aPVar[numElementsFetched]);
-
-    aPVar[numElementsFetched].pdispVal = NativeAccessible(accessible);
-    aPVar[numElementsFetched].vt = VT_DISPATCH;
+    traversedAcc = nextAcc;
   }
 
-  (*aNumElementsFetched) = numElementsFetched;
-
-  return numElementsFetched < aNumElementsRequested ? S_FALSE : S_OK;
+  mEnumVARIANTPosition += *aNumElementsFetched;
+  return (*aNumElementsFetched) < aNumElementsRequested ? S_FALSE : S_OK;
 
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;
@@ -1289,15 +1288,6 @@ __try {
                "MSAA role map skewed");
 
   *aRole = gWindowsRoleMap[xpRole].ia2Role;
-
-  // Special case, if there is a ROLE_ROW inside of a ROLE_TREE_TABLE, then call
-  // the IA2 role a ROLE_OUTLINEITEM.
-  if (xpRole == nsIAccessibleRole::ROLE_ROW) {
-    nsCOMPtr<nsIAccessible> parent = GetParent();
-    if (nsAccUtils::Role(parent) == nsIAccessibleRole::ROLE_TREE_TABLE)
-      *aRole = ROLE_SYSTEM_OUTLINEITEM;
-  }
-
   return S_OK;
 
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
@@ -1683,7 +1673,8 @@ nsAccessibleWrap::FirePlatformEvent(nsIAccessibleEvent *aEvent)
 
   // See if we're in a scrollable area with its own window
   nsCOMPtr<nsIAccessible> newAccessible;
-  if (eventType == nsIAccessibleEvent::EVENT_HIDE) {
+  if (eventType == nsIAccessibleEvent::EVENT_ASYNCH_HIDE ||
+      eventType == nsIAccessibleEvent::EVENT_DOM_DESTROY) {
     // Don't use frame from current accessible when we're hiding that
     // accessible.
     accessible->GetParent(getter_AddRefs(newAccessible));

@@ -92,13 +92,6 @@
 # define JS_EXTERN_DATA(__type) extern __declspec(dllexport) __type
 # define JS_EXPORT_DATA(__type) __declspec(dllexport) __type
 
-#elif defined(__SYMBIAN32__)
-
-# define JS_EXTERN_API(__type) extern EXPORT_C __type
-# define JS_EXPORT_API(__type) EXPORT_C __type
-# define JS_EXTERN_DATA(__type) extern EXPORT_C __type
-# define JS_EXPORT_DATA(__type) EXPORT_C __type
-
 #else /* Unix */
 
 # ifdef HAVE_VISIBILITY_ATTRIBUTE
@@ -124,8 +117,6 @@
 # endif
 #elif defined(XP_OS2) && defined(__declspec)
 # define JS_IMPORT_API(__x)     __declspec(dllimport) __x
-#elif defined(__SYMBIAN32__)
-# define JS_IMPORT_API(__x)     IMPORT_C __x
 #else
 # define JS_IMPORT_API(__x)     JS_EXPORT_API (__x)
 #endif
@@ -134,12 +125,6 @@
 # define JS_IMPORT_DATA(__x)      __declspec(dllimport) __x
 #elif defined(XP_OS2) && defined(__declspec)
 # define JS_IMPORT_DATA(__x)      __declspec(dllimport) __x
-#elif defined(__SYMBIAN32__)
-# if defined(__CW32__)
-#   define JS_IMPORT_DATA(__x)    __declspec(dllimport) __x
-# else
-#   define JS_IMPORT_DATA(__x)    IMPORT_C __x
-# endif
 #else
 # define JS_IMPORT_DATA(__x)     JS_EXPORT_DATA (__x)
 #endif
@@ -213,14 +198,9 @@
  */
 # define JS_REQUIRES_STACK   __attribute__((user("JS_REQUIRES_STACK")))
 # define JS_FORCES_STACK     __attribute__((user("JS_FORCES_STACK")))
-/*
- * Skip the JS_REQUIRES_STACK analysis within functions with this annotation.
- */
-# define JS_IGNORE_STACK     __attribute__((user("JS_IGNORE_STACK")))
 #else
 # define JS_REQUIRES_STACK
 # define JS_FORCES_STACK
-# define JS_IGNORE_STACK
 #endif
 
 /***********************************************************************
@@ -295,9 +275,6 @@
 
 #ifdef _MSC_VER
 # include "jscpucfg.h"  /* We can't auto-detect MSVC configuration */
-# if _MSC_VER < 1400
-#  define NJ_NO_VARIADIC_MACROS
-# endif
 #else
 # include "jsautocfg.h" /* Use auto-detected configuration */
 #endif
@@ -454,14 +431,6 @@ typedef JSUintPtr JSUword;
 /* Use an extra (void *) cast for MSVC. */
 # define JS_FUNC_TO_DATA_PTR(type, fun) ((type) (void *) (fun))
 # define JS_DATA_TO_FUNC_PTR(type, ptr) ((type) (void *) (ptr))
-#endif
-
-#ifdef __GNUC__
-# define JS_EXTENSION __extension__
-# define JS_EXTENSION_(s) __extension__ ({ s; })
-#else
-# define JS_EXTENSION
-# define JS_EXTENSION_(s) s
 #endif
 
 JS_END_EXTERN_C

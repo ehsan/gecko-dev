@@ -41,7 +41,6 @@
 
 #include "nsIEventStateManager.h"
 #include "nsEvent.h"
-#include "nsGUIEvent.h"
 #include "nsIContent.h"
 #include "nsIObserver.h"
 #include "nsWeakReference.h"
@@ -59,6 +58,7 @@ class nsIPresShell;
 class nsIDocShell;
 class nsIDocShellTreeNode;
 class nsIDocShellTreeItem;
+class nsIFocusController;
 class imgIContainer;
 class nsDOMDataTransfer;
 
@@ -78,7 +78,6 @@ class nsEventStateManager : public nsSupportsWeakReference,
                             public nsIEventStateManager,
                             public nsIObserver
 {
-  friend class nsMouseWheelTransaction;
 public:
   nsEventStateManager();
   virtual ~nsEventStateManager();
@@ -199,12 +198,6 @@ protected:
                            nsIContent* aRelatedTarget,
                            nsIContent* aTargetContent,
                            nsWeakFrame& aTargetFrame);
-  /**
-   * Update the initial drag session data transfer with any changes that occur
-   * on cloned data transfer objects used for events.
-   */
-  void UpdateDragDataTransfer(nsDragEvent* dragEvent);
-
   nsresult SetClickCount(nsPresContext* aPresContext, nsMouseEvent *aEvent, nsEventStatus* aStatus);
   nsresult CheckForAndDispatchClick(nsPresContext* aPresContext, nsMouseEvent *aEvent, nsEventStatus* aStatus);
   void EnsureDocument(nsPresContext* aPresContext);
@@ -277,24 +270,13 @@ protected:
   nsresult DoScrollText(nsPresContext* aPresContext,
                         nsIFrame* aTargetFrame,
                         nsMouseScrollEvent* aMouseEvent,
-                        ScrollQuantity aScrollQuantity,
-                        PRBool aAllowScrollSpeedOverride);
+                        ScrollQuantity aScrollQuantity);
   void DoScrollHistory(PRInt32 direction);
   void DoScrollZoom(nsIFrame *aTargetFrame, PRInt32 adjustment);
   nsresult GetMarkupDocumentViewer(nsIMarkupDocumentViewer** aMv);
   nsresult ChangeTextSize(PRInt32 change);
   nsresult ChangeFullZoom(PRInt32 change);
   // end mousewheel functions
-
-  /*
-   * When a touch gesture is about to start, this function determines what
-   * kind of gesture interaction we will want to use, based on what is
-   * underneath the initial touch point.
-   * Currently it decides between panning (finger scrolling) or dragging
-   * the target element, as well as the orientation to trigger panning and
-   * display visual boundary feedback. The decision is stored back in aEvent.
-   */
-  void DecideGestureEvent(nsGestureNotifyEvent* aEvent, nsIFrame* targetFrame);
 
   // routines for the d&d gesture tracking state machine
   void BeginTrackingDragGesture ( nsPresContext* aPresContext, nsMouseEvent* inDownEvent,
@@ -322,19 +304,18 @@ protected:
 
   /*
    * Perform the default handling for the dragstart/draggesture event and set up a
-   * drag for aDataTransfer if it contains any data. Returns true if a drag has
-   * started.
+   * drag for aDataTransfer if it contains any data.
    *
    * aDragEvent - the dragstart/draggesture event
    * aDataTransfer - the data transfer that holds the data to be dragged
    * aDragTarget - the target of the drag
    * aIsSelection - true if a selection is being dragged
    */
-  PRBool DoDefaultDragStart(nsPresContext* aPresContext,
-                            nsDragEvent* aDragEvent,
-                            nsDOMDataTransfer* aDataTransfer,
-                            nsIContent* aDragTarget,
-                            PRBool aIsSelection);
+  void DoDefaultDragStart(nsPresContext* aPresContext,
+                          nsDragEvent* aDragEvent,
+                          nsDOMDataTransfer* aDataTransfer,
+                          nsIContent* aDragTarget,
+                          PRBool aIsSelection);
 
   PRBool IsTrackingDragGesture ( ) const { return mGestureDownContent != nsnull; }
   /**
@@ -344,8 +325,6 @@ protected:
    * mCurrentTarget->GetWindow().
    */
   void FillInEventFromGestureDown(nsMouseEvent* aEvent);
-
-  nsresult DoContentCommandEvent(nsContentCommandEvent* aEvent);
 
   PRInt32     mLockCursor;
 
@@ -419,22 +398,15 @@ protected:
   static PRInt32 sUserInputEventDepth;
 };
 
-/**
- * This class is used while processing real user input. During this time, popups
- * are allowed. For mousedown events, mouse capturing is also permitted.
- */
+
 class nsAutoHandlingUserInputStatePusher
 {
 public:
-  nsAutoHandlingUserInputStatePusher(PRBool aIsHandlingUserInput, PRBool aIsMouseDown)
-    : mIsHandlingUserInput(aIsHandlingUserInput), mIsMouseDown(aIsMouseDown)
+  nsAutoHandlingUserInputStatePusher(PRBool aIsHandlingUserInput)
+    : mIsHandlingUserInput(aIsHandlingUserInput)
   {
     if (aIsHandlingUserInput) {
       nsEventStateManager::StartHandlingUserInput();
-      if (aIsMouseDown) {
-        nsIPresShell::SetCapturingContent(nsnull, 0);
-        nsIPresShell::AllowMouseCapture(PR_TRUE);
-      }
     }
   }
 
@@ -442,15 +414,11 @@ public:
   {
     if (mIsHandlingUserInput) {
       nsEventStateManager::StopHandlingUserInput();
-      if (mIsMouseDown) {
-        nsIPresShell::AllowMouseCapture(PR_FALSE);
-      }
     }
   }
 
 protected:
   PRBool mIsHandlingUserInput;
-  PRBool mIsMouseDown;
 
 private:
   // Hide so that this class can only be stack-allocated

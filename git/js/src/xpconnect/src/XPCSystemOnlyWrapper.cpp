@@ -93,7 +93,7 @@ JSExtendedClass sXPC_SOW_JSClass = {
     XPC_SOW_AddProperty, XPC_SOW_DelProperty,
     XPC_SOW_GetProperty, XPC_SOW_SetProperty,
     XPC_SOW_Enumerate,   (JSResolveOp)XPC_SOW_NewResolve,
-    XPC_SOW_Convert,     nsnull,
+    XPC_SOW_Convert,     JS_FinalizeStub,
     nsnull,              XPC_SOW_CheckAccess,
     nsnull,              nsnull,
     nsnull,              XPC_SOW_HasInstance,
@@ -160,11 +160,9 @@ GetWrappedObject(JSContext *cx, JSObject *wrapper)
   return XPCWrapper::UnwrapGeneric(cx, &sXPC_SOW_JSClass, wrapper);
 }
 
-// If you change this code, change also nsContentUtils::CanAccessNativeAnon()!
 JSBool
 AllowedToAct(JSContext *cx, jsval idval)
 {
-  // TODO bug 508928: Refactor this with the XOW security checking code.
   nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
   if (!ssm) {
     return JS_TRUE;
@@ -186,14 +184,15 @@ AllowedToAct(JSContext *cx, jsval idval)
     // Some code is running, we can't make the assumption, as above, but we
     // can't use a native frame, so clear fp.
     fp = nsnull;
-  } else if (!fp->script) {
-    fp = nsnull;
   }
 
+  void *annotation = fp ? JS_GetFrameAnnotation(cx, fp) : nsnull;
   PRBool privileged;
-  if (NS_SUCCEEDED(ssm->IsSystemPrincipal(principal, &privileged)) &&
+  if (NS_SUCCEEDED(principal->IsCapabilityEnabled("UniversalXPConnect",
+                                                  annotation,
+                                                  &privileged)) &&
       privileged) {
-    // Chrome things are allowed to touch us.
+    // UniversalXPConnect things are allowed to touch us.
     return JS_TRUE;
   }
 
@@ -204,12 +203,6 @@ AllowedToAct(JSContext *cx, jsval idval)
   if (fp &&
       (filename = fp->script->filename) &&
       !strncmp(filename, prefix, NS_ARRAY_LENGTH(prefix) - 1)) {
-    return JS_TRUE;
-  }
-
-  // Before we throw, check for UniversalXPConnect.
-  nsresult rv = ssm->IsCapabilityEnabled("UniversalXPConnect", &privileged);
-  if (NS_SUCCEEDED(rv) && privileged) {
     return JS_TRUE;
   }
 
@@ -704,13 +697,6 @@ JSBool
 XPC_SOW_WrapObject(JSContext *cx, JSObject *parent, jsval v,
                    jsval *vp)
 {
-  // Slim wrappers don't expect to be wrapped, so morph them to fat wrappers
-  // if we're about to wrap one.
-  JSObject *innerObj = JSVAL_TO_OBJECT(v);
-  if (IS_SLIM_WRAPPER(innerObj) && !MorphSlimWrapper(cx, innerObj)) {
-    return ThrowException(NS_ERROR_FAILURE, cx);
-  }
-
   JSObject *wrapperObj =
     JS_NewObjectWithGivenProto(cx, &sXPC_SOW_JSClass.base, NULL, parent);
   if (!wrapperObj) {

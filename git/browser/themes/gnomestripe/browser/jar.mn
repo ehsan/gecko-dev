@@ -1,4 +1,4 @@
-browser.jar:
+classic.jar:
 % skin browser classic/1.0 %skin/classic/browser/
 % override chrome://global/skin/icons/warning-16.png moz-icon://stock/gtk-dialog-warning?size=menu
   skin/classic/browser/sanitizeDialog.css             (sanitizeDialog.css)
@@ -8,12 +8,10 @@ browser.jar:
   skin/classic/browser/aboutCertError.css             (aboutCertError.css)
 * skin/classic/browser/browser.css                    (browser.css)
 * skin/classic/browser/engineManager.css              (engineManager.css)
-  skin/classic/browser/fullscreen-video.css
   skin/classic/browser/Geo.png
   skin/classic/browser/Go-arrow.png
   skin/classic/browser/identity.png
   skin/classic/browser/Info.png
-  skin/classic/browser/KUI-close.png
   skin/classic/browser/monitor.png
   skin/classic/browser/monitor_16-10.png
 * skin/classic/browser/pageInfo.css
@@ -46,7 +44,7 @@ browser.jar:
   skin/classic/browser/places/starred48.png           (places/starred48.png)
   skin/classic/browser/places/unstarred48.png         (places/unstarred48.png)
   skin/classic/browser/places/places.css              (places/places.css)
-  skin/classic/browser/places/organizer.css           (places/organizer.css)
+* skin/classic/browser/places/organizer.css           (places/organizer.css)
 * skin/classic/browser/places/organizer.xml           (places/organizer.xml)
   skin/classic/browser/places/query.png               (places/query.png)
   skin/classic/browser/places/searching_16.png        (places/searching_16.png)
@@ -60,6 +58,6 @@ browser.jar:
 * skin/classic/browser/preferences/preferences.css    (preferences/preferences.css)
   skin/classic/browser/preferences/applications.css   (preferences/applications.css)
   skin/classic/browser/tabbrowser/alltabs.png          (tabbrowser/alltabs.png)
-  skin/classic/browser/tabbrowser/progress.png         (tabbrowser/progress.png)
-  skin/classic/browser/tabbrowser/progress-pulsing.png (tabbrowser/progress-pulsing.png)
   skin/classic/browser/tabbrowser/tabDragIndicator.png (tabbrowser/tabDragIndicator.png)
+  icon.png
+  preview.png

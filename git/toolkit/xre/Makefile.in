@@ -47,9 +47,43 @@ MODULE = xulapp
 LIBRARY_NAME = xulapp_s
 LIBXUL_LIBRARY = 1
 
+REQUIRES = \
+	appcomps \
+	toolkitcomps \
+	appshell \
+	chrome \
+	content \
+	docshell \
+	dom \
+	embed_base \
+	embedcomponents \
+	extensions \
+	gfx \
+	intl \
+	js \
+	necko \
+	pref \
+	profile \
+	string \
+	uriloader \
+	widget \
+	windowwatcher \
+	xpcom \
+	xpconnect \
+	xpinstall \
+	$(NULL)
 
+ifdef MOZ_JPROF
+REQUIRES += jprof
+endif
 
+ifdef NS_TRACE_MALLOC
+REQUIRES += tracemalloc
+endif
 
+ifdef MOZ_CRASHREPORTER
+REQUIRES += crashreporter
+endif
 
 FORCE_STATIC_LIB = 1
 
@@ -60,6 +94,11 @@ XPIDLSRCS = \
 ifneq (,$(filter WINCE WINNT,$(OS_ARCH)))
 XPIDLSRCS += nsIWinAppHelper.idl
 endif
+
+EXPORTS = \
+	xrecore.h \
+	nsXULAppAPI.h \
+	$(NULL)
 
 CPPSRCS = \
 	nsAppRunner.cpp \
@@ -151,7 +190,6 @@ endif
 ifeq ($(OS_ARCH),Linux)
 SHARED_LIBRARY_LIBS += \
   $(DEPTH)/toolkit/crashreporter/google-breakpad/src/client/linux/handler/$(LIB_PREFIX)exception_handler_s.$(LIB_SUFFIX) \
-  $(DEPTH)/toolkit/crashreporter/google-breakpad/src/client/linux/minidump_writer/$(LIB_PREFIX)minidump_writer_s.$(LIB_SUFFIX) \
   $(DEPTH)/toolkit/crashreporter/google-breakpad/src/client/$(LIB_PREFIX)minidump_file_writer_s.$(LIB_SUFFIX) \
   $(DEPTH)/toolkit/crashreporter/google-breakpad/src/common/$(LIB_PREFIX)breakpad_common_s.$(LIB_SUFFIX) \
   $(DEPTH)/toolkit/crashreporter/google-breakpad/src/common/linux/$(LIB_PREFIX)breakpad_linux_common_s.$(LIB_SUFFIX) \
@@ -176,7 +214,10 @@ include $(topsrcdir)/config/rules.mk
 
 ifdef BUILD_STATIC_LIBS
 export::
-	@$(PYTHON) $(MOZILLA_DIR)/config/buildlist.py $(FINAL_LINK_COMP_NAMES) Apprunner
+	@$(PERL) -I$(MOZILLA_DIR)/config $(MOZILLA_DIR)/config/build-list.pl $(FINAL_LINK_COMP_NAMES) Apprunner
+#	embedding/browser/gtk/src/Makefile.in sucks! we need to add an empty line to 
+# FINAL_LINK_COMPS to keep the two lists in sync :-(
+	@$(PERL) -I$(MOZILLA_DIR)/config $(MOZILLA_DIR)/config/build-list.pl $(FINAL_LINK_COMPS) ""
 endif
 
 LOCAL_INCLUDES += \
@@ -218,7 +259,7 @@ DEFINES     += -DHAVE_USR_LIB64_DIR
 endif
 endif
 
-SOURCE_STAMP := $(shell cd $(topsrcdir) && hg identify . 2>/dev/null | cut -f1 -d' ')
+SOURCE_STAMP := $(shell cd $(topsrcdir) && hg identify 2>/dev/null | cut -f1 -d' ')
 # strip a trailing slash from the repo URL because it's not always present,
 # and we want to construct a working URL in buildconfig.html
 # make+shell+sed = awful

@@ -37,6 +37,7 @@
 import codecs
 import encodings.idna
 import re
+import sets
 import sys
 
 """
@@ -50,7 +51,7 @@ http://wiki.mozilla.org/Gecko:Effective_TLD_Service
 
 def getEffectiveTLDs(path):
   file = codecs.open(path, "r", "UTF-8")
-  domains = set()
+  domains = sets.Set()
   while True:
     line = file.readline()
     # line always contains a line terminator unless the file is empty

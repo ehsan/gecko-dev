@@ -53,10 +53,12 @@
 #include <string.h>
 #include <direct.h>
 
-#ifdef WINCE
-// CSIDL_LOCAL_APPDATA is not defined on WinCE:
-// fall back to CSIDL_APPDATA.
-#define CSIDL_LOCAL_APPDATA CSIDL_APPDATA
+// These are not defined by VC6.
+#ifndef CSIDL_LOCAL_APPDATA
+#define CSIDL_LOCAL_APPDATA             0x001C
+#endif
+#ifndef CSIDL_PROGRAM_FILES
+#define CSIDL_PROGRAM_FILES             0x0026
 #endif
 
 #elif defined(XP_OS2)
@@ -176,15 +178,8 @@ static nsresult GetWindowsFolder(int folder, nsILocalFile** aFile)
 {
 #ifdef WINCE
 #define SHGetSpecialFolderPathW SHGetSpecialFolderPath
-
-#ifndef WINCE_WINDOWS_MOBILE
-    if (folder == CSIDL_APPDATA || folder == CSIDL_LOCAL_APPDATA)
-        folder = CSIDL_PROFILE;
 #endif
-#endif
-
-    WCHAR path_orig[MAX_PATH + 3];
-    WCHAR *path = path_orig+1;
+    WCHAR path[MAX_PATH + 2];
     HRESULT result = SHGetSpecialFolderPathW(NULL, path, folder, true);
 
     if (!SUCCEEDED(result))
@@ -198,55 +193,8 @@ static nsresult GetWindowsFolder(int folder, nsILocalFile** aFile)
         path[++len] = L'\0';
     }
 
-#if defined(WINCE) && !defined(WINCE_WINDOWS_MOBILE)
-    // sometimes CSIDL_PROFILE shows up without a root slash
-    if (folder == CSIDL_PROFILE && path[0] != '\\') {
-        path_orig[0] = '\\';
-        path = path_orig;
-        len++;
-    }
-#endif
-
     return NS_NewLocalFile(nsDependentString(path, len), PR_TRUE, aFile);
 }
-
-#ifndef WINCE
-/**
- * Provides a fallback for getting the path to APPDATA or LOCALAPPDATA by
- * querying the registry when the call to SHGetSpecialFolderPathW is unable to
- * provide these paths (Bug 513958).
- */
-static nsresult GetRegWindowsAppDataFolder(PRBool aLocal, nsILocalFile** aFile)
-{
-    HKEY key;
-    NS_NAMED_LITERAL_STRING(keyName,
-    "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders");
-    DWORD res = ::RegOpenKeyExW(HKEY_CURRENT_USER, keyName.get(), 0, KEY_READ,
-                                &key);
-    if (res != ERROR_SUCCESS)
-        return NS_ERROR_FAILURE;
-
-    WCHAR path[MAX_PATH + 2];
-    DWORD type, size;
-    res = RegQueryValueExW(key, (aLocal ? L"Local AppData" : L"AppData"), NULL,
-                           &type, (LPBYTE)&path, &size);
-    ::RegCloseKey(key);
-    // The call to RegQueryValueExW must succeed, the type must be REG_SZ, the
-    // buffer size must not equal 0, and the buffer size be a multiple of 2.
-    if (res != ERROR_SUCCESS || type != REG_SZ || size == 0 || size % 2 != 0)
-        return NS_ERROR_FAILURE;
-
-    // Append the trailing slash
-    int len = wcslen(path);
-    if (len > 1 && path[len - 1] != L'\\')
-    {
-        path[len]   = L'\\';
-        path[++len] = L'\0';
-    }
-
-    return NS_NewLocalFile(nsDependentString(path, len), PR_TRUE, aFile);
-}
-#endif
 
 #endif // XP_WIN
 
@@ -865,22 +813,12 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
 #endif
         case Win_Appdata:
         {
-            nsresult rv = GetWindowsFolder(CSIDL_APPDATA, aFile);
-#ifndef WINCE
-            if (NS_FAILED(rv))
-                rv = GetRegWindowsAppDataFolder(PR_FALSE, aFile);
-#endif
-            return rv;
+            return GetWindowsFolder(CSIDL_APPDATA, aFile);
         }
 
         case Win_LocalAppdata:
         {
-            nsresult rv = GetWindowsFolder(CSIDL_LOCAL_APPDATA, aFile);
-#ifndef WINCE
-            if (NS_FAILED(rv))
-                rv = GetRegWindowsAppDataFolder(PR_TRUE, aFile);
-#endif
-            return rv;
+            return GetWindowsFolder(CSIDL_LOCAL_APPDATA, aFile);
         }
 #endif  // XP_WIN
 

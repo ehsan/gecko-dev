@@ -72,7 +72,9 @@
 #include "jsxml.h"
 #endif
 
-JS_STATIC_ASSERT(JSSLOT_ITER_FLAGS < JS_INITIAL_NSLOTS);
+#if JSSLOT_ITER_FLAGS >= JS_INITIAL_NSLOTS
+#error JS_INITIAL_NSLOTS must be greater than JSSLOT_ITER_FLAGS.
+#endif
 
 #if JS_HAS_GENERATORS
 
@@ -99,7 +101,7 @@ js_CloseNativeIterator(JSContext *cx, JSObject *iterobj)
         return;
 
     /* Protect against failure to fully initialize obj. */
-    iterable = iterobj->getParent();
+    iterable = STOBJ_GET_PARENT(iterobj);
     if (iterable) {
 #if JS_HAS_XML_SUPPORT
         uintN flags = JSVAL_TO_INT(STOBJ_GET_SLOT(iterobj, JSSLOT_ITER_FLAGS));
@@ -108,38 +110,18 @@ js_CloseNativeIterator(JSContext *cx, JSObject *iterobj)
                                   NULL, NULL);
         } else
 #endif
-            iterable->enumerate(cx, JSENUMERATE_DESTROY, &state, NULL);
+            OBJ_ENUMERATE(cx, iterable, JSENUMERATE_DESTROY, &state, NULL);
     }
     STOBJ_SET_SLOT(iterobj, JSSLOT_ITER_STATE, JSVAL_NULL);
-}
-
-static void
-iterator_trace(JSTracer *trc, JSObject *obj)
-{
-    /*
-     * The GC marks iter_state during the normal slot scanning if
-     * JSVAL_IS_TRACEABLE(iter_state) is true duplicating the efforts of
-     * js_MarkEnumeratorState. But this is rare so we optimize for code
-     * simplicity.
-     */
-    JSObject *iterable = obj->getParent();
-    if (!iterable) {
-        /* for (x in null) creates an iterator object with a null parent. */
-        return;
-    }
-    jsval iter_state = obj->fslots[JSSLOT_ITER_STATE];
-    js_MarkEnumeratorState(trc, iterable, iter_state);
 }
 
 JSClass js_IteratorClass = {
     "Iterator",
     JSCLASS_HAS_RESERVED_SLOTS(2) | /* slots for state and flags */
-    JSCLASS_HAS_CACHED_PROTO(JSProto_Iterator) |
-    JSCLASS_MARK_IS_TRACE,
+    JSCLASS_HAS_CACHED_PROTO(JSProto_Iterator),
     JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,
-    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   NULL,
-    NULL,             NULL,            NULL,            NULL,
-    NULL,             NULL,            JS_CLASS_TRACE(iterator_trace), NULL
+    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   JS_FinalizeStub,
+    JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
 static JSBool
@@ -165,7 +147,7 @@ InitNativeIterator(JSContext *cx, JSObject *iterobj, JSObject *obj, uintN flags)
          ? js_EnumerateXMLValues(cx, obj, JSENUMERATE_INIT, &state, NULL, NULL)
          :
 #endif
-           obj->enumerate(cx, JSENUMERATE_INIT, &state, NULL);
+           OBJ_ENUMERATE(cx, obj, JSENUMERATE_INIT, &state, NULL);
     if (!ok)
         return JS_FALSE;
 
@@ -255,7 +237,7 @@ IteratorNextImpl(JSContext *cx, JSObject *obj, jsval *rval)
                                  &id, rval)
          :
 #endif
-           iterable->enumerate(cx, JSENUMERATE_NEXT, &state, &id);
+           OBJ_ENUMERATE(cx, iterable, JSENUMERATE_NEXT, &state, &id);
     if (!ok)
         return JS_FALSE;
 
@@ -266,7 +248,7 @@ IteratorNextImpl(JSContext *cx, JSObject *obj, jsval *rval)
     if (foreach) {
 #if JS_HAS_XML_SUPPORT
         if (!OBJECT_IS_XML(cx, iterable) &&
-            !iterable->getProperty(cx, id, rval)) {
+            !OBJ_GET_PROPERTY(cx, iterable, id, rval)) {
             return JS_FALSE;
         }
 #endif
@@ -394,7 +376,7 @@ js_ValueToIterator(JSContext *cx, uintN flags, jsval *vp)
         *vp = OBJECT_TO_JSVAL(iterobj);
     } else {
         atom = cx->runtime->atomState.iteratorAtom;
-        if (!js_GetMethod(cx, obj, ATOM_TO_JSID(atom), JSGET_NO_METHOD_BARRIER, vp))
+        if (!js_GetMethod(cx, obj, ATOM_TO_JSID(atom), false, vp))
             goto bad;
         if (JSVAL_IS_VOID(*vp)) {
           default_iter:
@@ -406,7 +388,7 @@ js_ValueToIterator(JSContext *cx, uintN flags, jsval *vp)
              * we use the parent slot to keep track of the iterable, we must
              * fix it up after.
              */
-            iterobj = js_NewObject(cx, &js_IteratorClass, NULL, NULL);
+            iterobj = js_NewObject(cx, &js_IteratorClass, NULL, NULL, 0);
             if (!iterobj)
                 goto bad;
 
@@ -500,7 +482,7 @@ CallEnumeratorNext(JSContext *cx, JSObject *iterobj, uintN flags, jsval *rval)
                 return JS_FALSE;
             }
         } else {
-            if (!obj->enumerate(cx, JSENUMERATE_NEXT, &state, &id))
+            if (!OBJ_ENUMERATE(cx, obj, JSENUMERATE_NEXT, &state, &id))
                 return JS_FALSE;
         }
         STOBJ_SET_SLOT(iterobj, JSSLOT_ITER_STATE, state);
@@ -510,7 +492,7 @@ CallEnumeratorNext(JSContext *cx, JSObject *iterobj, uintN flags, jsval *rval)
 #endif
     {
       restart:
-        if (!obj->enumerate(cx, JSENUMERATE_NEXT, &state, &id))
+        if (!OBJ_ENUMERATE(cx, obj, JSENUMERATE_NEXT, &state, &id))
             return JS_FALSE;
 
         STOBJ_SET_SLOT(iterobj, JSSLOT_ITER_STATE, state);
@@ -531,7 +513,7 @@ CallEnumeratorNext(JSContext *cx, JSObject *iterobj, uintN flags, jsval *rval)
                 obj = OBJ_GET_PROTO(cx, obj);
                 if (obj) {
                     STOBJ_SET_PARENT(iterobj, obj);
-                    if (!obj->enumerate(cx, JSENUMERATE_INIT, &state, NULL))
+                    if (!OBJ_ENUMERATE(cx, obj, JSENUMERATE_INIT, &state, NULL))
                         return JS_FALSE;
                     STOBJ_SET_SLOT(iterobj, JSSLOT_ITER_STATE, state);
                     if (!JSVAL_IS_NULL(state))
@@ -542,16 +524,16 @@ CallEnumeratorNext(JSContext *cx, JSObject *iterobj, uintN flags, jsval *rval)
         }
 
         /* Skip properties not in obj when looking from origobj. */
-        if (!origobj->lookupProperty(cx, id, &obj2, &prop))
+        if (!OBJ_LOOKUP_PROPERTY(cx, origobj, id, &obj2, &prop))
             return JS_FALSE;
         if (!prop)
             goto restart;
-        obj2->dropProperty(cx, prop);
+        OBJ_DROP_PROPERTY(cx, obj2, prop);
 
         /*
          * If the id was found in a prototype object or an unrelated object
          * (specifically, not in an inner object for obj), skip it. This step
-         * means that all lookupProperty implementations must return an
+         * means that all OBJ_LOOKUP_PROPERTY implementations must return an
          * object further along on the prototype chain, or else possibly an
          * object returned by the JSExtendedClass.outerObject optional hook.
          */
@@ -569,7 +551,7 @@ CallEnumeratorNext(JSContext *cx, JSObject *iterobj, uintN flags, jsval *rval)
 
         if (foreach) {
             /* Get property querying the original object. */
-            if (!origobj->getProperty(cx, id, rval))
+            if (!OBJ_GET_PROPERTY(cx, origobj, id, rval))
                 return JS_FALSE;
         }
     }
@@ -645,7 +627,7 @@ JSClass js_StopIterationClass = {
     JS_PropertyStub,  JS_PropertyStub,
     JS_PropertyStub,  JS_PropertyStub,
     JS_EnumerateStub, JS_ResolveStub,
-    JS_ConvertStub,   NULL,
+    JS_ConvertStub,   JS_FinalizeStub,
     NULL,             NULL,
     NULL,             NULL,
     NULL,             stopiter_hasInstance,
@@ -657,24 +639,26 @@ JSClass js_StopIterationClass = {
 static void
 generator_finalize(JSContext *cx, JSObject *obj)
 {
-    JSGenerator *gen = (JSGenerator *) obj->getPrivate();
-    if (!gen)
-        return;
+    JSGenerator *gen;
 
-    /*
-     * gen is open when a script has not called its close method while
-     * explicitly manipulating it.
-     */
-    JS_ASSERT(gen->state == JSGEN_NEWBORN ||
-              gen->state == JSGEN_CLOSED ||
-              gen->state == JSGEN_OPEN);
-    cx->free(gen);
+    gen = (JSGenerator *) JS_GetPrivate(cx, obj);
+    if (gen) {
+        /*
+         * gen can be open on shutdown when close hooks are ignored or when
+         * the embedding cancels scheduled close hooks.
+         */
+        JS_ASSERT(gen->state == JSGEN_NEWBORN || gen->state == JSGEN_CLOSED ||
+                  gen->state == JSGEN_OPEN);
+        JS_free(cx, gen);
+    }
 }
 
 static void
 generator_trace(JSTracer *trc, JSObject *obj)
 {
-    JSGenerator *gen = (JSGenerator *) obj->getPrivate();
+    JSGenerator *gen;
+
+    gen = (JSGenerator *) JS_GetPrivate(trc->context, obj);
     if (!gen)
         return;
 
@@ -720,7 +704,8 @@ js_NewGenerator(JSContext *cx, JSStackFrame *fp)
     JSGenerator *gen;
     jsval *slots;
 
-    obj = js_NewObject(cx, &js_GeneratorClass, NULL, NULL);
+    /* After the following return, failing control flow must goto bad. */
+    obj = js_NewObject(cx, &js_GeneratorClass, NULL, NULL, 0);
     if (!obj)
         return NULL;
 
@@ -731,30 +716,31 @@ js_NewGenerator(JSContext *cx, JSStackFrame *fp)
 
     /* Allocate obj's private data struct. */
     gen = (JSGenerator *)
-        cx->malloc(sizeof(JSGenerator) + (nslots - 1) * sizeof(jsval));
+          JS_malloc(cx, sizeof(JSGenerator) + (nslots - 1) * sizeof(jsval));
     if (!gen)
-        return NULL;
+        goto bad;
 
     gen->obj = obj;
 
     /* Steal away objects reflecting fp and point them at gen->frame. */
     gen->frame.callobj = fp->callobj;
     if (fp->callobj) {
-        fp->callobj->setPrivate(&gen->frame);
+        JS_SetPrivate(cx, fp->callobj, &gen->frame);
         fp->callobj = NULL;
     }
     gen->frame.argsobj = fp->argsobj;
     if (fp->argsobj) {
-        JSVAL_TO_OBJECT(fp->argsobj)->setPrivate(&gen->frame);
+        JS_SetPrivate(cx, fp->argsobj, &gen->frame);
         fp->argsobj = NULL;
     }
 
     /* These two references can be shared with fp until it goes away. */
     gen->frame.varobj = fp->varobj;
-    gen->frame.thisv = fp->thisv;
+    gen->frame.thisp = fp->thisp;
 
     /* Copy call-invariant script and function references. */
     gen->frame.script = fp->script;
+    gen->frame.callee = fp->callee;
     gen->frame.fun = fp->fun;
 
     /* Use slots to carve space out of gen->slots. */
@@ -766,7 +752,7 @@ js_NewGenerator(JSContext *cx, JSStackFrame *fp)
     /* Copy rval, argv and vars. */
     gen->frame.rval = fp->rval;
     memcpy(slots, fp->argv - 2, (2 + nargs) * sizeof(jsval));
-    gen->frame.argc = fp->argc;
+    gen->frame.argc = nargs;
     gen->frame.argv = slots + 2;
     slots += 2 + nargs;
     memcpy(slots, fp->slots, fp->script->nfixed * sizeof(jsval));
@@ -783,9 +769,12 @@ js_NewGenerator(JSContext *cx, JSStackFrame *fp)
     gen->savedRegs.pc = fp->regs->pc;
     gen->frame.regs = &gen->savedRegs;
 
+    /* Copy remaining state (XXX sharp* and xml* should be local vars). */
+    gen->frame.sharpDepth = 0;
+    gen->frame.sharpArray = NULL;
     gen->frame.flags = (fp->flags & ~JSFRAME_ROOTED_ARGV) | JSFRAME_GENERATOR;
     gen->frame.dormantNext = NULL;
-
+    gen->frame.xmlNamespace = NULL;
     /* JSOP_GENERATOR appears in the prologue, outside all blocks.  */
     JS_ASSERT(!fp->blockChain);
     gen->frame.blockChain = NULL;
@@ -793,8 +782,15 @@ js_NewGenerator(JSContext *cx, JSStackFrame *fp)
     /* Note that gen is newborn. */
     gen->state = JSGEN_NEWBORN;
 
-    obj->setPrivate(gen);
+    if (!JS_SetPrivate(cx, obj, gen)) {
+        JS_free(cx, gen);
+        goto bad;
+    }
     return obj;
+
+  bad:
+    cx->weakRoots.newborn[GCX_OBJECT] = NULL;
+    return NULL;
 }
 
 typedef enum JSGeneratorOp {
@@ -901,9 +897,10 @@ SendToGenerator(JSContext *cx, JSGeneratorOp op, JSObject *obj,
 static JS_REQUIRES_STACK JSBool
 CloseGenerator(JSContext *cx, JSObject *obj)
 {
-    JS_ASSERT(STOBJ_GET_CLASS(obj) == &js_GeneratorClass);
+    JSGenerator *gen;
 
-    JSGenerator *gen = (JSGenerator *) obj->getPrivate();
+    JS_ASSERT(STOBJ_GET_CLASS(obj) == &js_GeneratorClass);
+    gen = (JSGenerator *) JS_GetPrivate(cx, obj);
     if (!gen) {
         /* Generator prototype object. */
         return JS_TRUE;
@@ -922,6 +919,7 @@ static JSBool
 generator_op(JSContext *cx, JSGeneratorOp op, jsval *vp, uintN argc)
 {
     JSObject *obj;
+    JSGenerator *gen;
     jsval arg;
 
     js_LeaveTrace(cx);
@@ -930,8 +928,8 @@ generator_op(JSContext *cx, JSGeneratorOp op, jsval *vp, uintN argc)
     if (!JS_InstanceOf(cx, obj, &js_GeneratorClass, vp + 2))
         return JS_FALSE;
 
-    JSGenerator *gen = (JSGenerator *) obj->getPrivate();
-    if (!gen) {
+    gen = (JSGenerator *) JS_GetPrivate(cx, obj);
+    if (gen == NULL) {
         /* This happens when obj is the generator prototype. See bug 352885. */
         goto closed_generator;
     }
@@ -1030,7 +1028,6 @@ js_InitIteratorClasses(JSContext *cx, JSObject *obj)
     if (!proto)
         return NULL;
     STOBJ_SET_SLOT(proto, JSSLOT_ITER_STATE, JSVAL_NULL);
-    STOBJ_SET_SLOT(proto, JSSLOT_ITER_FLAGS, JSVAL_ZERO);
 
 #if JS_HAS_GENERATORS
     /* Initialize the generator internals if configured. */

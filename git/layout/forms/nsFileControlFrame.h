@@ -64,8 +64,7 @@ public:
                               const nsDisplayListSet& aLists);
 
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
-
+  
   // nsIFormControlFrame
   virtual nsresult SetFormProperty(nsIAtom* aName, const nsAString& aValue);
   virtual nsresult GetFormProperty(nsIAtom* aName, nsAString& aValue) const;

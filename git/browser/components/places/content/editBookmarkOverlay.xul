@@ -61,7 +61,6 @@
       <rows id="editBMPanel_rows">
         <row align="center" id="editBMPanel_nameRow">
           <label value="&editBookmarkOverlay.name.label;"
-                 class="editBMPanel_rowLabel"
                  accesskey="&editBookmarkOverlay.name.accesskey;"
                  control="editBMPanel_namePicker"
                  observes="paneElementsBroadcaster"/>
@@ -85,7 +84,6 @@
 
         <row align="center" id="editBMPanel_locationRow">
           <label value="&editBookmarkOverlay.location.label;"
-                 class="editBMPanel_rowLabel"
                  accesskey="&editBookmarkOverlay.location.accesskey;"
                  control="editBMPanel_locationField"
                  observes="paneElementsBroadcaster"/>
@@ -97,7 +95,6 @@
 
         <row align="center" id="editBMPanel_feedLocationRow">
           <label value="&editBookmarkOverlay.feedLocation.label;"
-                 class="editBMPanel_rowLabel"
                  accesskey="&editBookmarkOverlay.feedLocation.accesskey;"
                  control="editBMPanel_feedLocationField"
                  observes="paneElementsBroadcaster"/>
@@ -109,7 +106,6 @@
 
         <row align="center" id="editBMPanel_siteLocationRow">
           <label value="&editBookmarkOverlay.siteLocation.label;"
-                 class="editBMPanel_rowLabel"
                  accesskey="&editBookmarkOverlay.siteLocation.accesskey;"
                  control="editBMPanel_siteLocationField"
                  observes="paneElementsBroadcaster"/>
@@ -121,7 +117,6 @@
 
         <row align="center" id="editBMPanel_folderRow">
           <label value="&editBookmarkOverlay.folder.label;"
-                 class="editBMPanel_rowLabel"
                  control="editBMPanel_folderMenuList"
                  observes="paneElementsBroadcaster"/>
           <hbox flex="1" align="center">
@@ -183,7 +178,6 @@
 
         <row align="center" id="editBMPanel_tagsRow">
           <label value="&editBookmarkOverlay.tags.label;"
-                 class="editBMPanel_rowLabel"
                  accesskey="&editBookmarkOverlay.tags.accesskey;"
                  control="editBMPanel_tagsField"
                  observes="paneElementsBroadcaster"/>
@@ -219,9 +213,7 @@
         </row>
 
         <row align="center" id="editBMPanel_keywordRow">
-          <observes element="additionalInfoBroadcaster" attribute="hidden"/>
           <label value="&editBookmarkOverlay.keyword.label;"
-                 class="editBMPanel_rowLabel"
                  accesskey="&editBookmarkOverlay.keyword.accesskey;"
                  control="editBMPanel_keywordField"
                  observes="paneElementsBroadcaster"/>
@@ -231,9 +223,7 @@
         </row>
 
         <row id="editBMPanel_descriptionRow">
-          <observes element="additionalInfoBroadcaster" attribute="hidden"/>
           <label value="&editBookmarkOverlay.description.label;"
-                 class="editBMPanel_rowLabel"
                  accesskey="&editBookmarkOverlay.description.accesskey;"
                  control="editBMPanel_descriptionField"
                  observes="paneElementsBroadcaster"/>
@@ -249,13 +239,7 @@
               label="&editBookmarkOverlay.loadInSidebar.label;"
               accesskey="&editBookmarkOverlay.loadInSidebar.accesskey;"
               oncommand="gEditItemOverlay.onLoadInSidebarCheckboxCommand();"
-              observes="paneElementsBroadcaster">
-      <observes element="additionalInfoBroadcaster" attribute="hidden"/>
-    </checkbox>
-
-    <!-- If the ids are changing or additional fields are being added, be sure
-         to sync the values in places.js -->
-    <broadcaster id="additionalInfoBroadcaster"/>
+              observes="paneElementsBroadcaster"/>
 
   </vbox>
 </overlay>

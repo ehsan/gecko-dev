@@ -103,7 +103,8 @@ public:
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
 
 protected:
-  already_AddRefed<nsIURI> GetStyleSheetURL(PRBool* aIsInline);
+  void GetStyleSheetURL(PRBool* aIsInline,
+                        nsIURI** aURI);
   void GetStyleSheetInfo(nsAString& aTitle,
                          nsAString& aType,
                          nsAString& aMedia,
@@ -311,11 +312,24 @@ nsHTMLStyleElement::SetInnerHTML(const nsAString& aInnerHTML)
   return rv;
 }
 
-already_AddRefed<nsIURI>
-nsHTMLStyleElement::GetStyleSheetURL(PRBool* aIsInline)
+void
+nsHTMLStyleElement::GetStyleSheetURL(PRBool* aIsInline,
+                                     nsIURI** aURI)
 {
-  *aIsInline = PR_TRUE;
-  return nsnull;
+  *aURI = nsnull;
+  *aIsInline = !HasAttr(kNameSpaceID_None, nsGkAtoms::src);
+  if (*aIsInline) {
+    return;
+  }
+  if (!IsInHTMLDocument()) {
+    // We stopped supporting <style src="..."> for XHTML as it is
+    // non-standard.
+    *aIsInline = PR_TRUE;
+    return;
+  }
+
+  GetHrefURIForAnchors(aURI);
+  return;
 }
 
 void

@@ -139,10 +139,6 @@ nsScriptLoader::~nsScriptLoader()
     mRequests[i]->FireScriptAvailable(NS_ERROR_ABORT);
   }
 
-  for (PRInt32 i = 0; i < mAsyncRequests.Count(); i++) {
-    mAsyncRequests[i]->FireScriptAvailable(NS_ERROR_ABORT);
-  }
-
   // Unblock the kids, in case any of them moved to a different document
   // subtree in the meantime and therefore aren't actually going away.
   for (PRUint32 j = 0; j < mPendingChildLoaders.Length(); ++j) {
@@ -265,10 +261,6 @@ nsScriptLoader::StartLoad(nsScriptLoadRequest *aRequest, const nsAString &aType)
   nsCOMPtr<nsIStreamLoader> loader;
 
   nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(mDocument->GetScriptGlobalObject()));
-  if (!window) {
-    return NS_ERROR_NULL_POINTER;
-  }
-
   nsIDocShell *docshell = window->GetDocShell();
 
   nsCOMPtr<nsIInterfaceRequestor> prompter(do_QueryInterface(docshell));
@@ -505,8 +497,7 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
       request = mPreloads[i].mRequest;
       request->mElement = aElement;
       request->mJSVersion = version;
-      request->mDefer = mDeferEnabled && aElement->GetScriptDeferred() &&
-        !aElement->GetScriptAsync();
+      request->mDefer = mDeferEnabled && aElement->GetScriptDeferred();
       mPreloads.RemoveElementAt(i);
 
       rv = CheckContentPolicy(mDocument, aElement, request->mURI, type);
@@ -515,34 +506,21 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
         return rv;
       }
 
-      // Can we run the script now?
-      // This is true if we're done loading, the script isn't deferred and
-      // there are either no scripts or stylesheets to wait for, or the
-      // script is async
-      PRBool readyToRun =
-        !request->mLoading && !request->mDefer &&
-        ((!hadPendingRequests && ReadyToExecuteScripts()) ||
-         aElement->GetScriptAsync());
-
-      if (readyToRun && nsContentUtils::IsSafeToRunScript()) {
+      if (!request->mLoading && !request->mDefer && !hadPendingRequests &&
+            ReadyToExecuteScripts() && nsContentUtils::IsSafeToRunScript()) {
         return ProcessRequest(request);
       }
 
       // Not done loading yet. Move into the real requests queue and wait.
-      if (aElement->GetScriptAsync()) {
-        mAsyncRequests.AppendObject(request);
-      }
-      else {
-        mRequests.AppendObject(request);
-      }
+      mRequests.AppendObject(request);
 
-      if (readyToRun) {
+      if (!request->mLoading && !hadPendingRequests && ReadyToExecuteScripts() &&
+          !request->mDefer) {
         nsContentUtils::AddScriptRunner(new nsRunnableMethod<nsScriptLoader>(this,
           &nsScriptLoader::ProcessPendingRequests));
       }
 
-      return request->mDefer || aElement->GetScriptAsync() ?
-        NS_OK : NS_ERROR_HTMLPARSER_BLOCK;
+      return request->mDefer ? NS_OK : NS_ERROR_HTMLPARSER_BLOCK;
     }
   }
 
@@ -550,10 +528,10 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
   request = new nsScriptLoadRequest(aElement, version);
   NS_ENSURE_TRUE(request, NS_ERROR_OUT_OF_MEMORY);
 
+  request->mDefer = mDeferEnabled && aElement->GetScriptDeferred();
+
   // First check to see if this is an external script
   if (scriptURI) {
-    request->mDefer = mDeferEnabled && aElement->GetScriptDeferred() &&
-      !aElement->GetScriptAsync();
     request->mURI = scriptURI;
     request->mIsInline = PR_FALSE;
     request->mLoading = PR_TRUE;
@@ -563,7 +541,6 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
       return rv;
     }
   } else {
-    request->mDefer = PR_FALSE;
     request->mLoading = PR_FALSE;
     request->mIsInline = PR_TRUE;
     request->mURI = mDocument->GetDocumentURI();
@@ -572,19 +549,17 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
 
     // If we've got existing pending requests, add ourselves
     // to this list.
-    if (!hadPendingRequests && ReadyToExecuteScripts() &&
-        nsContentUtils::IsSafeToRunScript()) {
+    if (!request->mDefer && !hadPendingRequests &&
+        ReadyToExecuteScripts() && nsContentUtils::IsSafeToRunScript()) {
       return ProcessRequest(request);
     }
   }
 
   // Add the request to our requests list
-  NS_ENSURE_TRUE(aElement->GetScriptAsync() ?
-                 mAsyncRequests.AppendObject(request) :
-                 mRequests.AppendObject(request),
+  NS_ENSURE_TRUE(mRequests.AppendObject(request),
                  NS_ERROR_OUT_OF_MEMORY);
 
-  if (request->mDefer || aElement->GetScriptAsync()) {
+  if (request->mDefer) {
     return NS_OK;
   }
 
@@ -622,9 +597,7 @@ nsScriptLoader::ProcessRequest(nsScriptLoadRequest* aRequest)
   }
 
   FireScriptAvailable(NS_OK, aRequest);
-  aRequest->mElement->BeginEvaluating();
   nsresult rv = EvaluateScript(aRequest, *script);
-  aRequest->mElement->EndEvaluating();
   FireScriptEvaluated(rv, aRequest);
 
   return rv;
@@ -759,30 +732,11 @@ nsScriptLoader::ProcessPendingRequestsAsync()
 void
 nsScriptLoader::ProcessPendingRequests()
 {
-  while (1) {
-    nsRefPtr<nsScriptLoadRequest> request;
-    if (ReadyToExecuteScripts()) {
-      request = GetFirstPendingRequest();
-      if (request && !request->mLoading) {
-        mRequests.RemoveObject(request);
-      }
-      else {
-        request = nsnull;
-      }
-    }
-
-    for (PRInt32 i = 0;
-         !request && mEnabled && i < mAsyncRequests.Count();
-         ++i) {
-      if (!mAsyncRequests[i]->mLoading) {
-        request = mAsyncRequests[i];
-        mAsyncRequests.RemoveObjectAt(i);
-      }
-    }
-
-    if (!request)
-      break;
-
+  nsRefPtr<nsScriptLoadRequest> request;
+  while (ReadyToExecuteScripts() &&
+         (request = GetFirstPendingRequest()) &&
+         !request->mLoading) {
+    mRequests.RemoveObject(request);
     ProcessRequest(request);
   }
 
@@ -793,7 +747,7 @@ nsScriptLoader::ProcessPendingRequests()
   }
 
   if (mUnblockOnloadWhenDoneProcessing && mDocument &&
-      !GetFirstPendingRequest() && !mAsyncRequests.Count()) {
+      !GetFirstPendingRequest()) {
     // No more pending scripts; time to unblock onload.
     // OK to unblock onload synchronously here, since callers must be
     // prepared for the world changing anyway.
@@ -962,11 +916,10 @@ nsScriptLoader::OnStreamComplete(nsIStreamLoader* aLoader,
   nsresult rv = PrepareLoadedRequest(request, aLoader, aStatus, aStringLen,
                                      aString);
   if (NS_FAILED(rv)) {
-    if (mRequests.RemoveObject(request) ||
-        mAsyncRequests.RemoveObject(request)) {
-      FireScriptAvailable(rv, request);
-    } else {
+    if (!mRequests.RemoveObject(request)) {
       mPreloads.RemoveElement(request, PreloadRequestComparator());
+    } else {
+      FireScriptAvailable(rv, request);
     }
   }
 
@@ -1036,7 +989,6 @@ nsScriptLoader::PrepareLoadedRequest(nsScriptLoadRequest* aRequest,
   // so if you see this assertion it is likely something else that is
   // wrong, especially if you see it more than once.
   NS_ASSERTION(mRequests.IndexOf(aRequest) >= 0 ||
-               mAsyncRequests.IndexOf(aRequest) >= 0 ||
                mPreloads.Contains(aRequest, PreloadRequestComparator()),
                "aRequest should be pending!");
 
@@ -1077,24 +1029,23 @@ nsScriptLoader::ShouldExecuteScript(nsIDocument* aDocument,
 }
 
 void
-nsScriptLoader::ParsingComplete(PRBool aTerminated)
+nsScriptLoader::EndDeferringScripts(PRBool aKillDeferred)
 {
   if (mDeferEnabled) {
-    // Have to check because we apparently get ParsingComplete
+    // Have to check because we apparently get EndDeferringScripts
     // without BeginDeferringScripts in some cases
     mUnblockOnloadWhenDoneProcessing = PR_TRUE;
   }
   mDeferEnabled = PR_FALSE;
-  if (aTerminated) {
-    mRequests.Clear();
-  } else {
-    for (PRUint32 i = 0; i < (PRUint32)mRequests.Count(); ++i) {
+  for (PRUint32 i = 0; i < (PRUint32)mRequests.Count(); ++i) {
+    if (aKillDeferred && mRequests[i]->mDefer) {
+      mRequests.RemoveObjectAt(i--);
+    }
+    else {
       mRequests[i]->mDefer = PR_FALSE;
     }
   }
 
-  // Have to call this even if aTerminated so we'll correctly unblock
-  // onload and all.
   ProcessPendingRequests();
 }
 

@@ -204,15 +204,15 @@ nsXBLProtoImplMethod::CompileMember(nsIScriptContext* aContext, const nsCString&
     args = new char*[paramCount];
     if (!args)
       return NS_ERROR_OUT_OF_MEMORY;
+  }
 
-    // Add our parameters to our args array.
-    PRInt32 argPos = 0; 
-    for (nsXBLParameter* curr = uncompiledMethod->mParameters; 
-         curr; 
-         curr = curr->mNext) {
-      args[argPos] = curr->mName;
-      argPos++;
-    }
+  // Add our parameters to our args array.
+  PRInt32 argPos = 0; 
+  for (nsXBLParameter* curr = uncompiledMethod->mParameters; 
+       curr; 
+       curr = curr->mNext) {
+    args[argPos] = curr->mName;
+    argPos++;
   }
 
   // Get the body
@@ -295,13 +295,16 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
   JSObject* globalObject = global->GetGlobalJSObject();
 
   nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
-  jsval v;
   nsresult rv =
-    nsContentUtils::WrapNative(cx, globalObject, aBoundElement, &v,
-                               getter_AddRefs(wrapper));
+    nsContentUtils::XPConnect()->WrapNative(cx, globalObject,
+                                            aBoundElement,
+                                            NS_GET_IID(nsISupports),
+                                            getter_AddRefs(wrapper));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  JSObject* thisObject = JSVAL_TO_OBJECT(v);
+  JSObject* thisObject;
+  rv = wrapper->GetJSObject(&thisObject);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   JSAutoRequest ar(cx);
 

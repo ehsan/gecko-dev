@@ -64,7 +64,6 @@ enum nsDOMClassInfoID {
   eDOMClassInfo_DocumentType_id,
   eDOMClassInfo_DOMImplementation_id,
   eDOMClassInfo_DOMException_id,
-  eDOMClassInfo_DOMTokenList_id,
   eDOMClassInfo_DocumentFragment_id,
   eDOMClassInfo_Element_id,
   eDOMClassInfo_Attr_id,
@@ -85,7 +84,6 @@ enum nsDOMClassInfoID {
   eDOMClassInfo_DragEvent_id,
   eDOMClassInfo_KeyboardEvent_id,
   eDOMClassInfo_PopupBlockedEvent_id,
-  eDOMClassInfo_OrientationEvent_id,
 
   // HTML classes
   eDOMClassInfo_HTMLDocument_id,
@@ -354,10 +352,12 @@ enum nsDOMClassInfoID {
 
   // Canvas
   eDOMClassInfo_HTMLCanvasElement_id,
+#ifdef MOZ_ENABLE_CANVAS
   eDOMClassInfo_CanvasRenderingContext2D_id,
   eDOMClassInfo_CanvasGradient_id,
   eDOMClassInfo_CanvasPattern_id,
   eDOMClassInfo_TextMetrics_id,
+#endif
 
   // SmartCard Events
   eDOMClassInfo_SmartCardEvent_id,
@@ -415,8 +415,6 @@ enum nsDOMClassInfoID {
   eDOMClassInfo_FileList_id,
   eDOMClassInfo_File_id,
   eDOMClassInfo_FileException_id,
-  eDOMClassInfo_FileError_id,
-  eDOMClassInfo_FileReader_id,
 
   // DOM modal content window class, almost identical to Window
   eDOMClassInfo_ModalContentWindow_id,
@@ -462,32 +460,6 @@ enum nsDOMClassInfoID {
 #endif
 
   eDOMClassInfo_Worker_id,
-
-  // WebGL
-  eDOMClassInfo_CanvasRenderingContextWebGL_id,
-  eDOMClassInfo_WebGLBuffer_id,
-  eDOMClassInfo_WebGLTexture_id,
-  eDOMClassInfo_WebGLProgram_id,
-  eDOMClassInfo_WebGLShader_id,
-  eDOMClassInfo_WebGLFramebuffer_id,
-  eDOMClassInfo_WebGLRenderbuffer_id,
-
-  // WebGL Buffers
-  eDOMClassInfo_WebGLArrayBuffer_id,
-  eDOMClassInfo_WebGLFloatArray_id,
-  eDOMClassInfo_WebGLByteArray_id,
-  eDOMClassInfo_WebGLUnsignedByteArray_id,
-  eDOMClassInfo_WebGLShortArray_id,
-  eDOMClassInfo_WebGLUnsignedShortArray_id,
-  eDOMClassInfo_WebGLIntArray_id,
-  eDOMClassInfo_WebGLUnsignedIntArray_id,
-
-  eDOMClassInfo_PaintRequest_id,
-  eDOMClassInfo_PaintRequestList_id,
-
-  eDOMClassInfo_ScrollAreaEvent_id,
-
-  eDOMClassInfo_EventListenerInfo_id,
 
   // This one better be the last one in this list
   eDOMClassInfoIDCount

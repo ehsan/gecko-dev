@@ -46,11 +46,20 @@
 // <maction> -- bind actions to a subexpression
 //
 
-class nsMathMLmactionFrame : public nsMathMLContainerFrame {
-public:
-  NS_DECL_FRAMEARENA_HELPERS
+//#define DEBUG_mouse 1
 
+#if DEBUG_mouse
+#define MOUSE(_msg) printf("maction:%p MOUSE: "#_msg" ...\n", this);
+#else
+#define MOUSE(_msg)
+#endif
+
+class nsMathMLmactionFrame : public nsMathMLContainerFrame,
+                             public nsIDOMMouseListener {
+public:
   friend nsIFrame* NS_NewMathMLmactionFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+
+  NS_DECL_ISUPPORTS_INHERITED
 
   NS_IMETHOD
   Init(nsIContent*      aContent,
@@ -59,7 +68,7 @@ public:
 
   NS_IMETHOD
   SetInitialChildList(nsIAtom*        aListName,
-                      nsFrameList&    aChildList);
+                      nsIFrame*       aChildList);
 
   virtual nsresult
   ChildListChanged(PRInt32 aModType);
@@ -79,37 +88,16 @@ public:
          const nsHTMLReflowState& aReflowState,
          nsReflowStatus&          aStatus);
 
-private:
-  void MouseClick();
-  void MouseOver();
-  void MouseOut();
+  // nsIDOMMouseListener methods
+  NS_IMETHOD MouseDown(nsIDOMEvent* aMouseEvent)  { MOUSE(down) return NS_OK; }
+  NS_IMETHOD MouseUp(nsIDOMEvent* aMouseEvent) { MOUSE(up) return NS_OK; }
+  NS_IMETHOD MouseClick(nsIDOMEvent* aMouseEvent);// { MOUSE(click) return NS_OK; }
+  NS_IMETHOD MouseDblClick(nsIDOMEvent* aMouseEvent) { MOUSE(dblclik) return NS_OK; }
+  NS_IMETHOD MouseOver(nsIDOMEvent* aMouseEvent);// { MOUSE(over) return NS_OK; }
+  NS_IMETHOD MouseOut(nsIDOMEvent* aMouseEvent);// { MOUSE(out) return NS_OK; }
 
-  class MouseListener : public nsIDOMMouseListener {
-    NS_DECL_ISUPPORTS
-
-    MouseListener(nsMathMLmactionFrame* aOwner) : mOwner(aOwner) { };
-
-//#define DEBUG_mouse 1
-
-#if DEBUG_mouse
-#define MOUSE(_msg) printf("maction:%p MOUSE: "#_msg" ...\n", mOwner);
-#else
-#define MOUSE(_msg)
-#endif
-
-    // nsIDOMMouseListener methods
-    NS_IMETHOD MouseDown(nsIDOMEvent* aMouseEvent)  { MOUSE(down) return NS_OK; }
-    NS_IMETHOD MouseUp(nsIDOMEvent* aMouseEvent) { MOUSE(up) return NS_OK; }
-    NS_IMETHOD MouseClick(nsIDOMEvent* aMouseEvent);// { MOUSE(click) return NS_OK; }
-    NS_IMETHOD MouseDblClick(nsIDOMEvent* aMouseEvent) { MOUSE(dblclik) return NS_OK; }
-    NS_IMETHOD MouseOver(nsIDOMEvent* aMouseEvent);// { MOUSE(over) return NS_OK; }
-    NS_IMETHOD MouseOut(nsIDOMEvent* aMouseEvent);// { MOUSE(out) return NS_OK; }
-
-    // nsIDOMEventListener methods
-    NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent)  { MOUSE(event); return NS_OK; }
-
-    nsMathMLmactionFrame* mOwner;
-  };
+  // nsIDOMEventListener methods
+  NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent)  { MOUSE(event); return NS_OK; }
 
 protected:
   nsMathMLmactionFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
@@ -123,11 +111,15 @@ private:
   PRInt32         mSelection;
   nsIFrame*       mSelectedFrame;
   nsString        mRestyle;
-  nsCOMPtr<MouseListener> mListener;
 
   // helper to return the frame for the attribute selection="number"
   nsIFrame* 
   GetSelectedFrame();
+
+  // helper to display a message on the status bar
+  static nsresult
+  ShowStatus(nsPresContext* aPresContext, 
+             nsString&       aStatusMsg);
 };
 
 #endif /* nsMathMLmactionFrame_h___ */

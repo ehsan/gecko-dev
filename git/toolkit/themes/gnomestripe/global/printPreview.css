@@ -4,7 +4,7 @@
   list-style-image: url("moz-icon://stock/gtk-goto-first-ltr?size=menu");
 }
 
-.home-arrow:-moz-locale-dir(rtl) {
+.home-arrow[chromedir="rtl"] {
   list-style-image: url("moz-icon://stock/gtk-goto-first-rtl?size=menu");
 }
 
@@ -12,23 +12,23 @@
   list-style-image: url("moz-icon://stock/gtk-goto-last-ltr?size=menu");
 }
 
-.end-arrow:-moz-locale-dir(rtl) {
+.end-arrow[chromedir="rtl"] {
   list-style-image: url("moz-icon://stock/gtk-goto-last-rtl?size=menu");
 }
 
-.previous-arrow {
+.left-arrow {
   list-style-image: url("moz-icon://stock/gtk-go-back-ltr?size=menu");
 }
 
-.previous-arrow:-moz-locale-dir(rtl) {
+.left-arrow[chromedir="rtl"] {
   list-style-image: url("moz-icon://stock/gtk-go-back-rtl?size=menu");
 }
 
-.next-arrow {
+.right-arrow {
   list-style-image: url("moz-icon://stock/gtk-go-forward-ltr?size=menu");
 }
 
-.next-arrow:-moz-locale-dir(rtl) {
+.right-arrow[chromedir="rtl"] {
   list-style-image: url("moz-icon://stock/gtk-go-forward-rtl?size=menu");
 }
 

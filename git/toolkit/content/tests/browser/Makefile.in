@@ -42,19 +42,13 @@ VPATH          = @srcdir@
 relativesrcdir = toolkit/content/tests/browser
 
 include $(DEPTH)/config/autoconf.mk
-
-DIRS = \
-  common \
-  data \
-  $(NULL)
-
 include $(topsrcdir)/config/rules.mk
 
-_BROWSER_TEST_FILES = \
+_BROWSER_FILES = \
+  bug471962_testpage_inner.sjs \
+  bug471962_testpage_outer.sjs \
   browser_bug471962.js \
-  browser_keyevents_during_autoscrolling.js \
-  browser_bug295977_autoscroll_overflow.js \
   $(NULL)
 
-libs:: $(_BROWSER_TEST_FILES)
+libs:: $(_BROWSER_FILES)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)

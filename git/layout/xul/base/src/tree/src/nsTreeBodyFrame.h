@@ -87,9 +87,9 @@ public:
   nsTreeBodyFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
   ~nsTreeBodyFrame();
 
-  NS_DECL_QUERYFRAME_TARGET(nsTreeBodyFrame)
+  NS_DECLARE_FRAME_ACCESSOR(nsTreeBodyFrame)
+
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
   // non-virtual signatures like nsITreeBodyFrame
   nsresult GetColumns(nsITreeColumns **aColumns);
@@ -173,21 +173,18 @@ public:
   friend class nsTreeColumn;
 
   struct ScrollParts {
-    nsIScrollbarFrame*   mVScrollbar;
-    nsCOMPtr<nsIContent> mVScrollbarContent;
-    nsIScrollbarFrame*   mHScrollbar;
-    nsCOMPtr<nsIContent> mHScrollbarContent;
-    nsIFrame*            mColumnsFrame;
-    nsIScrollableView*   mColumnsScrollableView;
+    nsIScrollbarFrame* mVScrollbar;
+    nsIContent*        mVScrollbarContent;
+    nsIScrollbarFrame* mHScrollbar;
+    nsIContent*        mHScrollbarContent;
+    nsIFrame*          mColumnsFrame;
+    nsIScrollableView* mColumnsScrollableView;
   };
 
   void PaintTreeBody(nsIRenderingContext& aRenderingContext,
                      const nsRect& aDirtyRect, nsPoint aPt);
 
   nsITreeBoxObject* GetTreeBoxObject() const { return mTreeBoxObject; }
-
-  PRBool GetVerticalOverflow() const { return mVerticalOverflow; }
-  PRBool GetHorizontalOverflow() const {return mHorizontalOverflow; }
 
 protected:
   friend class nsOverflowChecker;
@@ -362,7 +359,7 @@ protected:
   void UpdateScrollbars(const ScrollParts& aParts);
 
   // Update the maxpos of the scrollbar.
-  void InvalidateScrollbars(const ScrollParts& aParts, nsWeakFrame& aWeakColumnsFrame);
+  void InvalidateScrollbars(const ScrollParts& aParts);
 
   // Check overflow and generate events.
   void CheckOverflow(const ScrollParts& aParts);

@@ -49,7 +49,6 @@
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "nsIDOMRange.h"
-#include "imgIContainer.h"
 
 #include "nsIDocShell.h"
 #include "nsIContentViewerEdit.h"
@@ -66,6 +65,7 @@
 // image copy stuff
 #include "nsIImageLoadingContent.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsIImage.h"
 #include "nsContentUtils.h"
 #include "nsContentCID.h"
 
@@ -115,18 +115,8 @@ SelectionCopyHelper(nsISelection *aSel, nsIDocument *aDoc,
   NS_ENSURE_TRUE(docEncoder, NS_ERROR_FAILURE);
 
   // We always require a plaintext version
-  
-  // note that we assign text/unicode as mime type, but in fact nsHTMLCopyEncoder
-  // ignore it and use text/html or text/plain depending where the selection
-  // is. if it is a selection into input/textarea element or in a html content
-  // with pre-wrap style : text/plain. Otherwise text/html.
-  // see nsHTMLCopyEncoder::SetSelection
   mimeType.AssignLiteral(kUnicodeMime);
-  
-  // we want preformatted for the case where the selection is inside input/textarea
-  // and we don't want pretty printing for others cases, to not have additionnal
-  // line breaks which are then converted into spaces by the htmlConverter (see bug #524975)
-  PRUint32 flags = nsIDocumentEncoder::OutputPreformatted | nsIDocumentEncoder::OutputRaw;
+  PRUint32 flags = nsIDocumentEncoder::OutputPreformatted;
 
   nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(aDoc);
   NS_ASSERTION(domDoc, "Need a document");
@@ -359,7 +349,7 @@ nsresult nsCopySupport::IsPlainTextContext(nsISelection *aSel, nsIDocument *aDoc
   {
     // checking for selection inside a plaintext form widget
 
-    if (!selContent->IsHTML()) {
+    if (!selContent->IsNodeOfType(nsINode::eHTML)) {
       continue;
     }
 
@@ -393,7 +383,7 @@ nsresult nsCopySupport::IsPlainTextContext(nsISelection *aSel, nsIDocument *aDoc
   // copy it properly (all the copy code for non-plaintext assumes using HTML
   // serializers and parsers is OK, and those mess up XHTML).
   nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(aDoc);
-  if (!(htmlDoc && aDoc->IsHTML()))
+  if (!htmlDoc || aDoc->IsCaseSensitive())
     *aIsPlainTextContext = PR_TRUE;
 
   return NS_OK;
@@ -473,7 +463,7 @@ nsCopySupport::ImageCopy(nsIImageLoadingContent* aImageElement,
 
   if (aCopyFlags & nsIContentViewerEdit::COPY_IMAGE_DATA) {
     // get the image data from the element
-    nsCOMPtr<imgIContainer> image =
+    nsCOMPtr<nsIImage> image =
       nsContentUtils::GetImageFromContent(aImageElement);
     NS_ENSURE_TRUE(image, NS_ERROR_FAILURE);
 
@@ -551,7 +541,7 @@ static nsresult AppendDOMNode(nsITransferable *aTransferable,
   nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(domDocument, &rv);
   NS_ENSURE_SUCCESS(rv, NS_OK);
 
-  NS_ENSURE_TRUE(document->IsHTML(), NS_OK);
+  NS_ENSURE_TRUE(!(document->IsCaseSensitive()), NS_OK);
 
   // init encoder with document and node
   rv = docEncoder->Init(domDocument, NS_LITERAL_STRING(kHTMLMime),

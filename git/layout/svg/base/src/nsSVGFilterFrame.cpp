@@ -36,6 +36,7 @@
 
 #include "nsSVGFilterFrame.h"
 #include "nsIDocument.h"
+#include "nsSVGMatrix.h"
 #include "nsSVGOuterSVGFrame.h"
 #include "nsGkAtoms.h"
 #include "nsSVGUtils.h"
@@ -53,8 +54,6 @@ NS_NewSVGFilterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsSVGFilterFrame(aContext);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsSVGFilterFrame)
 
 static nsIntRect
 MapDeviceRectToFilterSpace(const gfxMatrix& aMatrix,
@@ -142,34 +141,36 @@ nsAutoFilterInstance::nsAutoFilterInstance(nsIFrame *aTarget,
     return;
   }
 
-  gfxMatrix userToDeviceSpace = nsSVGUtils::GetCanvasTM(aTarget);
+  nsCOMPtr<nsIDOMSVGMatrix> userToDeviceSpace =
+    NS_NewSVGMatrix(nsSVGUtils::GetCanvasTM(aTarget));
   
   // Calculate filterRes (the width and height of the pixel buffer of the
   // temporary offscreen surface that we'll paint into):
 
   gfxIntSize filterRes;
+  PRBool intOverflow;
+
   if (filter->HasAttr(kNameSpaceID_None, nsGkAtoms::filterRes)) {
     PRInt32 filterResX, filterResY;
     filter->GetAnimatedIntegerValues(&filterResX, &filterResY, nsnull);
     // XXX what if the 'filterRes' attribute has a bad value? error console warning?
 
-    // We don't care if this overflows, because we can handle upscaling/
-    // downscaling to filterRes
-    PRBool overflow;
     filterRes =
       nsSVGUtils::ConvertToSurfaceSize(gfxSize(filterResX, filterResY),
-                                       &overflow);
+                                       &intOverflow);
     // XXX we could send a warning to the error console if the author specified
     // filterRes doesn't align well with our outer 'svg' device space.
+
+    // XXX we should check intOverflow and warn the user if we are going to
+    // clip their insanely large filterRes.
   } else {
     // Match filterRes as closely as possible to the pixel density of the nearest
     // outer 'svg' device space:
+
     float scale = nsSVGUtils::MaxExpansion(userToDeviceSpace);
-    // We don't care if this overflows, because we can handle upscaling/
-    // downscaling to filterRes
-    PRBool overflow;
     filterRes = nsSVGUtils::ConvertToSurfaceSize(filterRegion.size * scale,
-                                                 &overflow);
+                                                 &intOverflow);
+    NS_ASSERTION(!intOverflow, "filterRegion must be huge! clip it?");
   }
 
   if (filterRes.width <= 0 || filterRes.height <= 0) {
@@ -182,14 +183,16 @@ nsAutoFilterInstance::nsAutoFilterInstance(nsIFrame *aTarget,
 
   // Convert the dirty rects to filter space, and create our nsSVGFilterInstance:
 
-  gfxMatrix filterToUserSpace(filterRegion.Width() / filterRes.width, 0.0f,
-                              0.0f, filterRegion.Height() / filterRes.height,
-                              filterRegion.X(), filterRegion.Y());
-  gfxMatrix filterToDeviceSpace = filterToUserSpace * userToDeviceSpace;
+  nsCOMPtr<nsIDOMSVGMatrix> filterToUserSpace, filterToDeviceSpace;
+  NS_NewSVGMatrix(getter_AddRefs(filterToUserSpace),
+                  filterRegion.Width() / filterRes.width, 0.0f,
+                  0.0f, filterRegion.Height() / filterRes.height,
+                  filterRegion.X(), filterRegion.Y());
+  userToDeviceSpace->Multiply(filterToUserSpace, getter_AddRefs(filterToDeviceSpace));
   
   // filterToDeviceSpace is always invertible
-  gfxMatrix deviceToFilterSpace = filterToDeviceSpace;
-  deviceToFilterSpace.Invert();
+  gfxMatrix deviceToFilterSpace
+    = nsSVGUtils::ConvertSVGMatrixToThebes(filterToDeviceSpace).Invert();
 
   nsIntRect dirtyOutputRect =
     MapDeviceRectToFilterSpace(deviceToFilterSpace, filterRes, aDirtyOutputRect);
@@ -231,7 +234,8 @@ nsSVGFilterFrame::FilterPaint(nsSVGRenderState *aContext,
 static nsresult
 TransformFilterSpaceToDeviceSpace(nsSVGFilterInstance *aInstance, nsIntRect *aRect)
 {
-  gfxMatrix m = aInstance->GetFilterSpaceToDeviceSpaceTransform();
+  gfxMatrix m = nsSVGUtils::ConvertSVGMatrixToThebes(
+    aInstance->GetFilterSpaceToDeviceSpaceTransform());
   gfxRect r(aRect->x, aRect->y, aRect->width, aRect->height);
   r = m.TransformBounds(r);
   r.RoundOut();

@@ -56,12 +56,10 @@ protected:
     mInUse(PR_FALSE) {}
 
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   // nsSVGMaskFrame method:
   already_AddRefed<gfxPattern> ComputeMaskAlpha(nsSVGRenderState *aContext,
                                                 nsIFrame* aParent,
-                                                const gfxMatrix &aMatrix,
+                                                nsIDOMSVGMatrix* aMatrix,
                                                 float aOpacity = 1.0f);
 
 #ifdef DEBUG

@@ -100,8 +100,6 @@ NS_NewMenuPopupFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsMenuPopupFrame (aPresShell, aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsMenuPopupFrame)
-
 //
 // nsMenuPopupFrame ctor
 //
@@ -253,7 +251,7 @@ nsMenuPopupFrame::CreateWidgetForView(nsIView* aView)
   widgetData.clipSiblings = PR_TRUE;
   widgetData.mPopupHint = mPopupType;
 
-  nsTransparencyMode mode = nsLayoutUtils::GetFrameTransparency(this, this);
+  nsTransparencyMode mode = nsLayoutUtils::GetFrameTransparency(this);
   PRBool viewHasTransparentContent = !mInContentShell &&
                                      (eTransparencyTransparent ==
                                       mode);
@@ -319,10 +317,10 @@ private:
 
 NS_IMETHODIMP
 nsMenuPopupFrame::SetInitialChildList(nsIAtom* aListName,
-                                      nsFrameList& aChildList)
+                                      nsIFrame* aChildList)
 {
   // unless the list is empty, indicate that children have been generated.
-  if (aChildList.NotEmpty())
+  if (aChildList)
     mGeneratedChildren = PR_TRUE;
   return nsBoxFrame::SetInitialChildList(aListName, aChildList);
 }
@@ -489,8 +487,8 @@ nsMenuPopupFrame::InitializePopup(nsIContent* aAnchorContent,
       mPopupAlignment = POPUPALIGNMENT_TOPLEFT;
     }
     else if (position.EqualsLiteral("after_pointer")) {
-      mPopupAnchor = POPUPALIGNMENT_TOPLEFT;
-      mPopupAlignment = POPUPALIGNMENT_TOPLEFT;
+      mPopupAnchor = POPUPALIGNMENT_NONE;
+      mPopupAlignment = POPUPALIGNMENT_NONE;
       // XXXndeakin this is supposed to anchor vertically after, but with the
       // horizontal position as the mouse pointer.
       mYPos += 21;
@@ -639,7 +637,7 @@ nsMenuPopupFrame::ShowPopup(PRBool aIsContextMenu, PRBool aSelectFirstItem)
     if (mPopupType == ePopupTypeMenu) {
       nsCOMPtr<nsISound> sound(do_CreateInstance("@mozilla.org/sound;1"));
       if (sound)
-        sound->PlayEventSound(nsISound::EVENT_MENU_POPUP);
+        sound->PlaySystemSound(NS_SYSSOUND_MENU_POPUP);
     }
   }
 

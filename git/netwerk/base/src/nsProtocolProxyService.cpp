@@ -406,8 +406,6 @@ nsProtocolProxyService::PrefsChanged(nsIPrefBranch *prefBranch,
 
         if (mProxyConfig == eProxyConfig_System) {
             mSystemProxySettings = do_GetService(NS_SYSTEMPROXYSETTINGS_CONTRACTID);
-            if (!mSystemProxySettings)
-                mProxyConfig = eProxyConfig_Direct;
         } else {
             mSystemProxySettings = nsnull;
         }
@@ -1066,13 +1064,15 @@ nsProtocolProxyService::LoadHostFilters(const char *filters)
         const char *portLocation = 0; 
         const char *maskLocation = 0;
 
+        //
+        // XXX this needs to be fixed to support IPv6 address literals,
+        // which in this context will need to be []-escaped.
+        //
         while (*endhost && (*endhost != ',' && !IS_ASCII_SPACE(*endhost))) {
             if (*endhost == ':')
                 portLocation = endhost;
             else if (*endhost == '/')
                 maskLocation = endhost;
-            else if (*endhost == ']') // IPv6 address literals
-                portLocation = 0;
             endhost++;
         }
 
@@ -1241,8 +1241,14 @@ nsProtocolProxyService::Resolve_Internal(nsIURI *uri,
 
     if (mSystemProxySettings) {
         nsCAutoString PACURI;
-        if (NS_FAILED(mSystemProxySettings->GetPACURI(PACURI)) ||
-            PACURI.IsEmpty()) {
+        if (NS_SUCCEEDED(mSystemProxySettings->GetPACURI(PACURI)) &&
+            !PACURI.IsEmpty()) {
+            // Switch to new PAC file if that setting has changed. If the setting
+            // hasn't changed, ConfigureFromPAC will exit early.
+            nsresult rv = ConfigureFromPAC(PACURI, PR_FALSE);
+            if (NS_FAILED(rv))
+                return rv;
+        } else {
             nsCAutoString proxy;
             nsresult rv = mSystemProxySettings->GetProxyForURI(uri, proxy);
             if (NS_SUCCEEDED(rv)) {
@@ -1252,19 +1258,13 @@ nsProtocolProxyService::Resolve_Internal(nsIURI *uri,
             // no proxy, stop search
             return NS_OK;
         }
-
-        // Switch to new PAC file if that setting has changed. If the setting
-        // hasn't changed, ConfigureFromPAC will exit early.
-        nsresult rv = ConfigureFromPAC(PACURI, PR_FALSE);
-        if (NS_FAILED(rv))
-            return rv;
     }
 
     // if proxies are enabled and this host:port combo is supposed to use a
     // proxy, check for a proxy.
     if (mProxyConfig == eProxyConfig_Direct ||
-        (mProxyConfig == eProxyConfig_Manual &&
-         !CanUseProxy(uri, info.defaultPort)))
+            (mProxyConfig == eProxyConfig_Manual &&
+             !CanUseProxy(uri, info.defaultPort)))
         return NS_OK;
 
     // Proxy auto config magic...

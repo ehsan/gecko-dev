@@ -52,7 +52,7 @@ function run_test() {
   overrideXHR(callHandleEvent);
   startAUS();
   startUpdateChecker();
-  do_timeout(0, run_test_pt1);
+  do_timeout(0, "run_test_pt1()");
 }
 
 function end_test() {
@@ -76,7 +76,7 @@ function check_test_helper_pt1() {
   gNextRunFunc();
 }
 
-// Callback function used by the custom XMLHttpRequest implementation to
+// Callback function used by the custom XMLHttpRequest implemetation to
 // call the nsIDOMEventListener's handleEvent method for onload.
 function callHandleEvent() {
   gXHR.status = 400;

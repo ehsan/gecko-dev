@@ -44,7 +44,6 @@
 #include "mozIStorageConnection.h"
 #include "mozIStorageValueArray.h"
 #include "mozIStorageStatement.h"
-#include "nsToolkitCompsCID.h"
 
 // Favicons bigger than this size should not be saved to the db to avoid
 // bloating it with large image blobs.
@@ -61,15 +60,6 @@ class nsFaviconService : public nsIFaviconService
 {
 public:
   nsFaviconService();
-
-  /**
-   * Obtains the service's object.
-   */
-  static nsFaviconService * GetSingleton();
-
-  /**
-   * Initializes the service's object.  This should only be called once.
-   */
   nsresult Init();
 
   // called by nsNavHistory::Init
@@ -79,14 +69,21 @@ public:
    * Returns a cached pointer to the favicon service for consumers in the
    * places directory.
    */
-  static nsFaviconService * GetFaviconService()
+  static nsFaviconService* GetFaviconService()
   {
-    if (!gFaviconService) {
-      nsCOMPtr<nsIFaviconService> serv =
-        do_GetService(NS_FAVICONSERVICE_CONTRACTID);
-      NS_ENSURE_TRUE(serv, nsnull);
-      NS_ASSERTION(gFaviconService, "Should have static instance pointer now");
+    if (! gFaviconService) {
+      // note that we actually have to set the service to a variable here
+      // because the work in do_GetService actually happens during assignment >:(
+      nsresult rv;
+      nsCOMPtr<nsIFaviconService> serv(do_GetService("@mozilla.org/browser/favicon-service;1", &rv));
+      NS_ENSURE_SUCCESS(rv, nsnull);
+
+      // our constructor should have set the static variable. If it didn't,
+      // something is wrong.
+      NS_ASSERTION(gFaviconService, "Favicon service creation failed");
     }
+    // the service manager will keep the pointer to our service around, so
+    // this should always be valid even if nobody currently has a reference.
     return gFaviconService;
   }
 
@@ -98,9 +95,9 @@ public:
   nsresult GetFaviconLinkForIconString(const nsCString& aIcon, nsIURI** aOutput);
   void GetFaviconSpecForIconString(const nsCString& aIcon, nsACString& aOutput);
 
-  nsresult OptimizeFaviconImage(const PRUint8* aData, PRUint32 aDataLen,
-                                const nsACString& aMimeType,
-                                nsACString& aNewData, nsACString& aNewMimeType);
+  static nsresult OptimizeFaviconImage(const PRUint8* aData, PRUint32 aDataLen,
+                                       const nsACString& aMimeType,
+                                       nsACString& aNewData, nsACString& aNewMimeType);
 
   /**
    * Obtains the favicon data asynchronously.
@@ -114,17 +111,6 @@ public:
    */
   nsresult GetFaviconDataAsync(nsIURI *aFaviconURI,
                                mozIStorageStatementCallback *aCallback);
-
-  /**
-   * Checks to see if a favicon's URI has changed, and notifies callers if it
-   * has.
-   *
-   * @param aPageURI
-   *        The URI of the page aFaviconURI is for.
-   * @param aFaviconURI
-   *        The URI for the favicon we want to test for on aPageURI.
-   */
-  void checkAndNotify(nsIURI *aPageURI, nsIURI *aFaviconURI);
 
   /**
    * Finalize all internal statements.
@@ -146,7 +132,7 @@ private:
   nsCOMPtr<mozIStorageStatement> mDBUpdateIcon;
   nsCOMPtr<mozIStorageStatement> mDBSetPageFavicon;
 
-  static nsFaviconService *gFaviconService;
+  static nsFaviconService* gFaviconService;
 
   /**
    * A cached URI for the default icon. We return this a lot, and don't want to
@@ -156,15 +142,9 @@ private:
    */
   nsCOMPtr<nsIURI> mDefaultIcon;
 
-  // Set to true during favicons expiration, addition of new favicons won't be
-  // allowed till expiration has finished since those should then be expired.
-  bool mFaviconsExpirationRunning;
-
-  // The target dimension, in pixels, for favicons we optimize.
-  // If we find images that are as large or larger than an uncompressed RGBA
-  // image of this size (mOptimizedIconDimension*mOptimizedIconDimension*4),
-  // we will try to optimize it.
-  PRInt32 mOptimizedIconDimension;
+  // Set to true during expiration, addition of new favicons won't be allowed
+  // till expiration has finished.
+  bool mExpirationRunning;
 
   PRUint32 mFailedFaviconSerial;
   nsDataHashtable<nsCStringHashKey, PRUint32> mFailedFavicons;

@@ -43,12 +43,10 @@
 #include "nsIDOMClassInfo.h"
 #include "nsIXPCScriptable.h"
 #include "jsapi.h"
-#include "jsobj.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIScriptContext.h"
 #include "nsDOMJSUtils.h" // for GetScriptContextFromJSContext
 #include "nsIScriptGlobalObject.h"
-#include "nsContentUtils.h"
 
 class nsIDOMWindow;
 class nsIDOMNSHTMLOptionCollection;
@@ -102,16 +100,10 @@ typedef PRUptrdiff PtrBits;
 #define IS_EXTERNAL(_ptr) (PtrBits(_ptr) & 0x1)
 
 
-#define NS_DOMCLASSINFO_IID   \
-{ 0x7da6858c, 0x5c12, 0x4588, \
- { 0x82, 0xbe, 0x01, 0xa2, 0x45, 0xc5, 0xc0, 0xb0 } }
-
 class nsDOMClassInfo : public nsIXPCScriptable,
                        public nsIClassInfo
 {
 public:
-  NS_DECLARE_STATIC_IID_ACCESSOR(NS_DOMCLASSINFO_IID)
-
   nsDOMClassInfo(nsDOMClassInfoData* aData);
   virtual ~nsDOMClassInfo();
 
@@ -141,33 +133,19 @@ public:
 
   static nsresult WrapNative(JSContext *cx, JSObject *scope,
                              nsISupports *native, const nsIID* aIID,
-                             PRBool aAllowWrapping, jsval *vp,
-                             // If non-null aHolder will keep the jsval alive
-                             // while there's a ref to it
-                             nsIXPConnectJSObjectHolder** aHolder = nsnull)
-  {
-    return nsContentUtils::WrapNative(cx, scope, native, aIID, vp, aHolder,
-                                      aAllowWrapping);
-  }
-
-  // Used for cases where PreCreate needs to wrap the native parent, and the
-  // native parent is likely to have been wrapped already.  |native| must
-  // implement nsWrapperCache, and nativeWrapperCache must be |native|'s
-  // nsWrapperCache.
-  static inline nsresult WrapNativeParent(JSContext *cx, JSObject *scope,
-                                          nsISupports *native,
-                                          nsWrapperCache *nativeWrapperCache,
-                                          JSObject **parentObj);
-
-  // Same as the WrapNative above, but use this one if aIID is nsISupports' IID.
-  static nsresult WrapNative(JSContext *cx, JSObject *scope,
-                             nsISupports *native, PRBool aAllowWrapping,
                              jsval *vp,
                              // If non-null aHolder will keep the jsval alive
                              // while there's a ref to it
+                             nsIXPConnectJSObjectHolder** aHolder = nsnull);
+
+  // Same as the WrapNative above, but use this one if aIID is nsISupports' IID.
+  static nsresult WrapNative(JSContext *cx, JSObject *scope,
+                             nsISupports *native, jsval *vp,
+                             // If non-null aHolder will keep the jsval alive
+                             // while there's a ref to it
                              nsIXPConnectJSObjectHolder** aHolder = nsnull)
   {
-    return WrapNative(cx, scope, native, nsnull, aAllowWrapping, vp, aHolder);
+    return WrapNative(cx, scope, native, nsnull, vp, aHolder);
   }
 
   static nsresult ThrowJSException(JSContext *cx, nsresult aResult);
@@ -178,7 +156,7 @@ public:
   static const JSClass* GetXPCNativeWrapperClass() {
     return sXPCNativeWrapperClass;
   }
-
+  
   /**
    * Set our JSClass pointer for the XPCNativeWrapper class
    */
@@ -206,26 +184,10 @@ public:
 
   static void PreserveNodeWrapper(nsIXPConnectWrappedNative *aWrapper);
 
-  static inline nsISupports *GetNative(nsIXPConnectWrappedNative *wrapper,
-                                       JSObject *obj)
-  {
-    return wrapper ? wrapper->Native() :
-                     static_cast<nsISupports*>(obj->getPrivate());
-  }
-
-  static nsIXPConnect *XPConnect()
-  {
-    return sXPConnect;
-  }
-
 protected:
   friend nsIClassInfo* NS_GetDOMClassInfoInstance(nsDOMClassInfoID aID);
 
   const nsDOMClassInfoData* mData;
-
-  virtual void PreserveWrapper(nsISupports *aNative)
-  {
-  }
 
   static nsresult Init();
   static nsresult RegisterClassName(PRInt32 aDOMClassInfoID);
@@ -297,7 +259,6 @@ protected:
   static jsval sLocationbar_id;
   static jsval sPersonalbar_id;
   static jsval sStatusbar_id;
-  static jsval sDialogArguments_id;
   static jsval sDirectories_id;
   static jsval sControllers_id;
   static jsval sLength_id;
@@ -329,7 +290,6 @@ protected:
   static jsval sOnload_id;
   static jsval sOnbeforeunload_id;
   static jsval sOnunload_id;
-  static jsval sOnhashchange_id;
   static jsval sOnpageshow_id;
   static jsval sOnpagehide_id;
   static jsval sOnabort_id;
@@ -344,6 +304,7 @@ protected:
   static jsval sOndragover_id;
   static jsval sOndragstart_id;
   static jsval sOndrop_id;
+  static jsval sScrollIntoView_id;
   static jsval sScrollX_id;
   static jsval sScrollY_id;
   static jsval sScrollMaxX_id;
@@ -358,6 +319,7 @@ protected:
   static jsval sFrames_id;
   static jsval sSelf_id;
   static jsval sOpener_id;
+  static jsval sAdd_id;
   static jsval sAll_id;
   static jsval sTags_id;
   static jsval sAddEventListener_id;
@@ -372,43 +334,6 @@ protected:
 
   static const JSClass *sXPCNativeWrapperClass;
 };
-
-
-inline
-const nsQueryInterface
-do_QueryWrappedNative(nsIXPConnectWrappedNative *wrapper, JSObject *obj)
-{
-  return nsQueryInterface(nsDOMClassInfo::GetNative(wrapper, obj));
-}
-
-inline
-const nsQueryInterfaceWithError
-do_QueryWrappedNative(nsIXPConnectWrappedNative *wrapper, JSObject *obj,
-                      nsresult *aError)
-
-{
-  return nsQueryInterfaceWithError(nsDOMClassInfo::GetNative(wrapper, obj),
-                                   aError);
-}
-
-inline
-nsQueryInterface
-do_QueryWrapper(JSContext *cx, JSObject *obj)
-{
-  nsISupports *native =
-    nsDOMClassInfo::XPConnect()->GetNativeOfWrapper(cx, obj);
-  return nsQueryInterface(native);
-}
-
-inline
-nsQueryInterfaceWithError
-do_QueryWrapper(JSContext *cx, JSObject *obj, nsresult* error)
-{
-  nsISupports *native =
-    nsDOMClassInfo::XPConnect()->GetNativeOfWrapper(cx, obj);
-  return nsQueryInterfaceWithError(native, error);
-}
-
 
 typedef nsDOMClassInfo nsDOMGenericSH;
 
@@ -484,8 +409,6 @@ public:
                         JSObject **objp, PRBool *_retval);
   NS_IMETHOD AddProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                          JSObject *obj, jsval id, jsval *vp, PRBool *_retval);
-
-  virtual void PreserveWrapper(nsISupports *aNative);
 
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
@@ -670,8 +593,6 @@ public:
                          JSObject *obj, jsval id, jsval *vp, PRBool *_retval);
   NS_IMETHOD GetFlags(PRUint32 *aFlags);
 
-  virtual void PreserveWrapper(nsISupports *aNative);
-
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
     return new nsNodeSH(aData);
@@ -693,8 +614,6 @@ protected:
   }
 
 public:
-  NS_IMETHOD PreCreate(nsISupports *nativeObj, JSContext *cx,
-                       JSObject *globalObj, JSObject **parentObj);
   NS_IMETHOD PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                         JSObject *obj);
   NS_IMETHOD Enumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
@@ -920,6 +839,10 @@ public:
   }
 
 public:
+  NS_IMETHOD AddProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                         JSObject *obj, jsval id, jsval *vp, PRBool *_retval);
+  NS_IMETHOD DelProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                         JSObject *obj, jsval id, jsval *vp, PRBool *_retval);
   NS_IMETHOD NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                         JSObject *obj, jsval id, PRUint32 flags,
                         JSObject **objp, PRBool *_retval);
@@ -990,44 +913,40 @@ public:
 };
 
 
-// HTMLBodyElement helper
+// HTMLElement helper
 
-class nsHTMLBodyElementSH : public nsElementSH
+class nsHTMLElementSH : public nsElementSH
 {
 protected:
-  nsHTMLBodyElementSH(nsDOMClassInfoData* aData) : nsElementSH(aData)
+  nsHTMLElementSH(nsDOMClassInfoData* aData) : nsElementSH(aData)
   {
   }
 
-  virtual ~nsHTMLBodyElementSH()
+  virtual ~nsHTMLElementSH()
   {
   }
+
+  static JSBool ScrollIntoView(JSContext *cx, JSObject *obj, uintN argc,
+                               jsval *argv, jsval *rval);
 
 public:
   NS_IMETHOD NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                         JSObject *obj, jsval id, PRUint32 flags,
                         JSObject **objp, PRBool *_retval);
 
-  NS_IMETHOD GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                         JSObject *obj, jsval id, jsval *vp,
-                         PRBool *_retval);
-
-  NS_IMETHOD SetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                         JSObject *obj, jsval id, jsval *vp, PRBool *_retval);
-
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
-    return new nsHTMLBodyElementSH(aData);
+    return new nsHTMLElementSH(aData);
   }
 };
 
 
 // HTMLFormElement helper
 
-class nsHTMLFormElementSH : public nsElementSH
+class nsHTMLFormElementSH : public nsHTMLElementSH
 {
 protected:
-  nsHTMLFormElementSH(nsDOMClassInfoData* aData) : nsElementSH(aData)
+  nsHTMLFormElementSH(nsDOMClassInfoData* aData) : nsHTMLElementSH(aData)
   {
   }
 
@@ -1060,10 +979,10 @@ public:
 
 // HTMLSelectElement helper
 
-class nsHTMLSelectElementSH : public nsElementSH
+class nsHTMLSelectElementSH : public nsHTMLElementSH
 {
 protected:
-  nsHTMLSelectElementSH(nsDOMClassInfoData* aData) : nsElementSH(aData)
+  nsHTMLSelectElementSH(nsDOMClassInfoData* aData) : nsHTMLElementSH(aData)
   {
   }
 
@@ -1090,11 +1009,11 @@ public:
 
 // HTMLEmbed/Object/AppletElement helper
 
-class nsHTMLPluginObjElementSH : public nsElementSH
+class nsHTMLPluginObjElementSH : public nsHTMLElementSH
 {
 protected:
   nsHTMLPluginObjElementSH(nsDOMClassInfoData* aData)
-    : nsElementSH(aData)
+    : nsHTMLElementSH(aData)
   {
   }
 
@@ -1103,7 +1022,6 @@ protected:
   }
 
   static nsresult GetPluginInstanceIfSafe(nsIXPConnectWrappedNative *aWrapper,
-                                          JSObject *obj,
                                           nsIPluginInstance **aResult);
 
   static nsresult GetPluginJSObject(JSContext *cx, JSObject *obj,
@@ -1111,9 +1029,15 @@ protected:
                                     JSObject **plugin_obj,
                                     JSObject **plugin_proto);
 
+  static nsresult GetJavaPluginJSObject(JSContext *cx, JSObject *obj,
+                                        nsIPluginInstance *plugin_inst,
+                                        JSObject **plugin_obj,
+                                        JSObject **plugin_proto);
+
 public:
-  NS_IMETHOD PreCreate(nsISupports *nativeObj, JSContext *cx,
-                       JSObject *globalObj, JSObject **parentObj);
+  NS_IMETHOD NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                        JSObject *obj, jsval id, PRUint32 flags,
+                        JSObject **objp, PRBool *_retval);
   NS_IMETHOD PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                         JSObject *obj);
   NS_IMETHOD GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
@@ -1149,9 +1073,15 @@ protected:
   {
   }
 
+  static JSBool Add(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+                    jsval *rval);
+
 public:
   NS_IMETHOD SetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                          JSObject *obj, jsval id, jsval *vp, PRBool *_retval);
+  NS_IMETHOD NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                        JSObject *obj, jsval id, PRUint32 flags,
+                        JSObject **objp, PRBool *_retval);
   
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
@@ -1321,31 +1251,6 @@ public:
 };
 
 
-// DOMTokenList scriptable helper
-
-class nsDOMTokenListSH : public nsStringArraySH
-{
-protected:
-  nsDOMTokenListSH(nsDOMClassInfoData* aData) : nsStringArraySH(aData)
-  {
-  }
-
-  virtual ~nsDOMTokenListSH()
-  {
-  }
-
-  virtual nsresult GetStringAt(nsISupports *aNative, PRInt32 aIndex,
-                               nsAString& aResult);
-
-public:
-
-  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
-  {
-    return new nsDOMTokenListSH(aData);
-  }
-};
-
-
 // MediaList helper
 
 class nsMediaListSH : public nsStringArraySH
@@ -1435,9 +1340,6 @@ protected:
                                nsAString& aResult);
 
 public:
-  NS_IMETHOD PreCreate(nsISupports *nativeObj, JSContext *cx,
-                       JSObject *globalObj, JSObject **parentObj);
-
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
     return new nsCSSStyleDeclSH(aData);
@@ -1488,30 +1390,6 @@ public:
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
     return new nsClientRectListSH(aData);
-  }
-};
-
-
-// PaintRequestList helper
-
-class nsPaintRequestListSH : public nsArraySH
-{
-protected:
-  nsPaintRequestListSH(nsDOMClassInfoData* aData) : nsArraySH(aData)
-  {
-  }
-
-  virtual ~nsPaintRequestListSH()
-  {
-  }
-
-  virtual nsISupports* GetItemAt(nsISupports *aNative, PRUint32 aIndex,
-                                 nsresult *aResult);
-
-public:
-  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
-  {
-    return new nsPaintRequestListSH(aData);
   }
 };
 

@@ -39,17 +39,15 @@
 #ifndef _nsHTMLTableAccessible_H_
 #define _nsHTMLTableAccessible_H_
 
-#include "nsHyperTextAccessibleWrap.h"
+#include "nsBaseWidgetAccessible.h"
 #include "nsIAccessibleTable.h"
 
 class nsITableLayout;
-class nsITableCellLayout;
 
 /**
  * HTML table cell accessible (html:td).
  */
-class nsHTMLTableCellAccessible : public nsHyperTextAccessibleWrap,
-                                  public nsIAccessibleTableCell
+class nsHTMLTableCellAccessible : public nsHyperTextAccessibleWrap
 {
 public:
   nsHTMLTableCellAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell);
@@ -57,54 +55,77 @@ public:
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
-  // nsIAccessibleTableCell
-  NS_DECL_NSIACCESSIBLETABLECELL
-
+  // nsIAccessible
+  NS_IMETHOD GetRelationByType(PRUint32 aRelationType,
+                               nsIAccessibleRelation **aRelation);
+  
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
-  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
 
 protected:
-  /**
-   * Return host table accessible.
-   */
   already_AddRefed<nsIAccessibleTable> GetTableAccessible();
-  
-  /**
-   * Return nsITableCellLayout of the table cell frame.
-   */
-  nsITableCellLayout* GetCellLayout();
+  nsresult GetCellIndexes(PRInt32& aRowIdx, PRInt32& aColIdx);
 
   /**
-   * Return row and column indices of the cell.
+   * Search hint enum constants. Used by FindCellsForRelation method.
    */
-  nsresult GetCellIndexes(PRInt32& aRowIdx, PRInt32& aColIdx);
-  
+  enum {
+    // search for header cells, up-left direction search
+    eHeadersForCell,
+    // search for row header cell, right direction search
+    eCellsForRowHeader,
+    // search for column header cell, down direction search
+    eCellsForColumnHeader
+  };
+
   /**
-   * Return an array of row or column header cells.
+   * Add found cells as relation targets.
+   *
+   * @param  aSearchHint    [in] enum constan defined above, defines an
+   *                         algorithm to search cells
+   * @param  aRelationType  [in] relation type
+   * @param  aRelation      [in, out] relation object
    */
-  nsresult GetHeaderCells(PRInt32 aRowOrColumnHeaderCell,
-                          nsIArray **aHeaderCells);
+  nsresult FindCellsForRelation(PRInt32 aSearchHint, PRUint32 aRelationType,
+                                nsIAccessibleRelation **aRelation);
+
+  /**
+   * Return the cell or header cell at the given row and column.
+   *
+   * @param  aTableAcc       [in] table accessible the search is prepared in
+   * @param  aAnchorCell     [in] anchor cell, found cell should be different
+   *                          from it
+   * @param  aRowIdx         [in] row index
+   * @param  aColIdx         [in] column index
+   * @param  aLookForHeader  [in] flag specifies if found cell must be a header
+   * @return                 found cell content
+   */
+  nsIContent* FindCell(nsHTMLTableAccessible *aTableAcc, nsIContent *aAnchorCell,
+                       PRInt32 aRowIdx, PRInt32 aColIdx,
+                       PRInt32 aLookForHeader);
 };
 
 
 /**
  * HTML table row/column header accessible (html:th or html:td@scope).
  */
-class nsHTMLTableHeaderCellAccessible : public nsHTMLTableCellAccessible
+class nsHTMLTableHeaderAccessible : public nsHTMLTableCellAccessible
 {
 public:
-  nsHTMLTableHeaderCellAccessible(nsIDOMNode* aDomNode,
-                                  nsIWeakReference* aShell);
+  nsHTMLTableHeaderAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell);
 
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
+
+  // nsIAccessible
+  NS_IMETHOD GetRelationByType(PRUint32 aRelationType,
+                               nsIAccessibleRelation **aRelation);
 };
 
 
 /**
- * HTML table accessible (html:table).
+ * HTML table accessible.
  */
 
 // To turn on table debugging descriptions define SHOW_LAYOUT_HEURISTIC
@@ -144,56 +165,54 @@ public:
   // nsHTMLTableAccessible
 
   /**
+    * Returns true if the column index is in the valid column range.
+    *
+    * @param aColumn  The index to check for validity.
+    */
+  PRBool IsValidColumn(PRInt32 aColumn);
+
+  /**
+    * Returns true if the given index is in the valid row range.
+    *
+    * @param aRow  The index to check for validity.
+    */
+  PRBool IsValidRow(PRInt32 aRow);
+
+  /**
    * Retun cell element at the given row and column index.
    */
   nsresult GetCellAt(PRInt32 aRowIndex, PRInt32 aColIndex,
                      nsIDOMElement* &aCell);
-
-  /**
-   * Return nsITableLayout for the frame of the accessible table.
-   */
-  nsITableLayout* GetTableLayout();
-
 protected:
 
-  // nsAccessible
-  virtual void CacheChildren();
-
-  // nsHTMLTableAccessible
-
   /**
-   * Add row or column to selection.
+   * Selects or unselects row or column.
    *
-   * @param aIndex   [in] index of row or column to be selected
-   * @param aTarget  [in] indicates what should be selected, either row or column
+   * @param aIndex - index of row or column to be selected
+   * @param aTarget - indicates what should be selected, either row or column
    *                  (see nsISelectionPrivate)
+   * @param aDoSelect - indicates whether row or column should selected or
+   *                    unselected
    */
-  nsresult AddRowOrColumnToSelection(PRInt32 aIndex, PRUint32 aTarget);
+  nsresult SelectRowOrColumn(PRInt32 aIndex, PRUint32 aTarget, PRBool aDoSelect);
 
   /**
-   * Removes rows or columns at the given index or outside it from selection.
+   * Selects or unselects the cell.
    *
-   * @param  aIndex    [in] row or column index
-   * @param  aTarget   [in] indicates whether row or column should unselected
-   * @param  aIsOuter  [in] indicates whether all rows or column excepting
-   *                    the given one should be unselected or the given one
-   *                    should be unselected only
+   * @param aSelection - the selection of document
+   * @param aDocument - the document that contains the cell
+   * @param aCellElement - the cell of table
+   * @param aDoSelect - indicates whether cell should be selected or unselected
    */
-  nsresult RemoveRowsOrColumnsFromSelection(PRInt32 aIndex,
-                                            PRUint32 aTarget,
-                                            PRBool aIsOuter);
+  nsresult SelectCell(nsISelection *aSelection, nsIDocument *aDocument,
+                      nsIDOMElement *aCellElement, PRBool aDoSelect);
 
-  /**
-   * Return true if table has an element with the given tag name.
-   *
-   * @param  aTagName     [in] tag name of searched element
-   * @param  aAllowEmpty  [in, optional] points if found element can be empty
-   *                       or contain whitespace text only.
-   */
-  PRBool HasDescendant(const nsAString& aTagName, PRBool aAllowEmpty = PR_TRUE);
-
+  virtual void CacheChildren();
+  nsresult GetTableNode(nsIDOMNode **_retval);
+  nsresult GetTableLayout(nsITableLayout **aLayoutObject);
+  PRBool HasDescendant(const char *aTagName, PRBool aAllowEmpty = PR_TRUE);
 #ifdef SHOW_LAYOUT_HEURISTIC
-  nsString mLayoutHeuristic;
+  nsAutoString mLayoutHeuristic;
 #endif
 };
 
@@ -201,9 +220,23 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsHTMLTableAccessible,
                               NS_TABLEACCESSIBLE_IMPL_CID)
 
 
-/**
- * HTML caption accessible (html:caption).
- */
+class nsHTMLTableHeadAccessible : public nsHTMLTableAccessible
+{
+public:
+  NS_DECL_ISUPPORTS_INHERITED
+
+  nsHTMLTableHeadAccessible(nsIDOMNode *aDomNode, nsIWeakReference *aShell);
+
+  /* nsIAccessibleTable */
+  NS_IMETHOD GetCaption(nsIAccessible **aCaption);
+  NS_IMETHOD GetSummary(nsAString &aSummary);
+  NS_IMETHOD GetColumnHeader(nsIAccessibleTable **aColumnHeader);
+  NS_IMETHOD GetRows(PRInt32 *aRows);
+
+  // nsAccessible
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+};
+
 class nsHTMLCaptionAccessible : public nsHyperTextAccessibleWrap
 {
 public:

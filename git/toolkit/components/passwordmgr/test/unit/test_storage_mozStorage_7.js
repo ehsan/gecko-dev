@@ -94,7 +94,6 @@ do_check_eq(0, logins.length, "bogus value should return 0 results");
 
 matchData = Cc["@mozilla.org/hash-property-bag;1"].createInstance(Ci.nsIWritablePropertyBag2);
 matchData.setPropertyAsAString("error", "value");
-let error;
 try {
     logins = storage.searchLogins({}, matchData);
 } catch (e) {
@@ -121,7 +120,7 @@ LoginTest.checkStorageData(storage, [], [dummyuser1, dummyuser2, dummyuser3, dum
 
 matchData = Cc["@mozilla.org/hash-property-bag;1"].createInstance(Ci.nsIWritablePropertyBag2);
 logins = storage.searchLogins({}, matchData);
-let loginsF = storage.findLogins({}, "", "", "");
+loginsF = storage.findLogins({}, "", "", "");
 LoginTest.checkLogins(loginsF, logins);
 
 matchData = Cc["@mozilla.org/hash-property-bag;1"].createInstance(Ci.nsIWritablePropertyBag2);

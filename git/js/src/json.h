@@ -54,7 +54,7 @@ js_InitJSONClass(JSContext *cx, JSObject *obj);
 
 extern JSBool
 js_Stringify(JSContext *cx, jsval *vp, JSObject *replacer, jsval space,
-             JSCharBuffer &cb);
+             JSONWriteCallback callback, void *data);
 
 extern JSBool js_TryJSON(JSContext *cx, jsval *vp);
 
@@ -81,7 +81,18 @@ enum JSONDataType {
     JSON_DATA_KEYWORD
 };
 
-struct JSONParser;
+struct JSONParser {
+    /* Used while handling \uNNNN in strings */
+    jschar hexChar;
+    uint8 numHex;
+
+    JSONParserState *statep;
+    JSONParserState stateStack[JSON_MAX_DEPTH];
+    jsval *rootVal;
+    JSStringBuffer objectKey;
+    JSStringBuffer buffer;
+    JSObject *objectStack;
+};
 
 extern JSONParser *
 js_BeginJSONParse(JSContext *cx, jsval *rootVal);

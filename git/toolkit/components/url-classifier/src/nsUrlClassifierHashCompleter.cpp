@@ -125,10 +125,7 @@ nsUrlClassifierHashCompleterRequest::OpenChannel()
   LOG(("nsUrlClassifierHashCompleterRequest::OpenChannel [%p]", this));
   nsresult rv;
 
-  PRUint32 loadFlags = nsIChannel::INHIBIT_CACHING |
-                       nsIChannel::LOAD_BYPASS_CACHE;
-  rv = NS_NewChannel(getter_AddRefs(mChannel), mURI, nsnull, nsnull, nsnull,
-                     loadFlags);
+  rv = NS_NewChannel(getter_AddRefs(mChannel), mURI);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCAutoString requestBody;

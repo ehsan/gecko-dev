@@ -63,6 +63,12 @@ LIBRARY_NAME=XUL
 MAKE_FRAMEWORK=1
 endif
 
+REQUIRES = \
+	xpcom \
+	string \
+	$(ZLIB_REQUIRES) \
+	xulapp \
+	$(NULL)
 
 ifeq ($(OS_ARCH)_$(GNU_CC),WINNT_)
 CPPSRCS += dlldeps-xul.cpp
@@ -127,6 +133,10 @@ EXTRA_DEPS += \
 	$(topsrcdir)/intl/unicharutil/util/objs.mk \
 	$(NULL)
 
+REQUIRES += \
+	uconv \
+	unicharutil \
+	$(NULL)
 
 CPPSRCS += \
 	$(INTL_UNICHARUTIL_UTIL_LCPPSRCS) \
@@ -145,6 +155,10 @@ EXTRA_DEPS += \
 	$(topsrcdir)/rdf/util/src/objs.mk \
 	$(NULL)
 
+REQUIRES += \
+	rdf \
+	rdfutil \
+	$(NULL)
 
 CPPSRCS += \
 	$(RDF_UTIL_SRC_LCPPSRCS) \
@@ -162,9 +176,16 @@ else
 SDK_LIBRARY = $(SHARED_LIBRARY)
 endif
 
+include $(topsrcdir)/config/rules.mk
+
+export:: $(RDF_UTIL_SRC_CPPSRCS) $(INTL_UNICHARUTIL_UTIL_CPPSRCS)
+	$(INSTALL) $^ .
+
 EXTRA_DSO_LDOPTS += $(LIBS_DIR) $(EXTRA_DSO_LIBS)
 
-ifndef MOZ_ENABLE_LIBXUL
+ifdef MOZ_ENABLE_LIBXUL
+include $(srcdir)/libxul-rules.mk
+else
 EXTRA_DSO_LDOPTS += \
 	$(MOZ_COMPONENT_LIBS) \
 	$(MOZ_JS_LIBS) \
@@ -198,12 +219,8 @@ endif
 endif
 
 ifdef MOZ_PLATFORM_HILDON
-EXTRA_DSO_LDOPTS += $(LIBHILDONMIME_LIBS) $(LIBHILDONFM_LIBS)
+EXTRA_DSO_LDOPTS += $(LIBHILDONMIME_LIBS)
 endif 
-
-ifdef MOZ_ENABLE_LIBCONIC
-EXTRA_DSO_LDOPTS += $(LIBCONIC_LIBS)
-endif
 
 ifdef NS_OSSO
 EXTRA_DSO_LDOPTS += $(LIBOSSO_LIBS)
@@ -227,6 +244,8 @@ ifdef MOZ_TREE_FREETYPE
 EXTRA_DSO_LDOPTS += $(FT2_LIBS)
 endif
 
+EXTRA_DSO_LDOPTS += $(MOZ_LOCATION_LIBS)
+
 ifdef MOZ_ENABLE_STARTUP_NOTIFICATION
 EXTRA_DSO_LDOPTS += $(MOZ_STARTUP_NOTIFICATION_LIBS)
 endif
@@ -236,25 +255,22 @@ EXTRA_DSO_LDOPTS += -lbe -ltracker
 endif
 
 ifeq ($(OS_ARCH),SunOS)
-EXTRA_DSO_LDOPTS += -lelf -ldemangle
+EXTRA_DSO_LDOPTS += -lelf -ldemangle -lCstd
 endif
 
 ifeq ($(OS_ARCH),WINNT)
-OS_LIBS += $(call EXPAND_LIBNAME,shell32 ole32 uuid version winspool comdlg32 imm32 winmm wsock32 msimg32 shlwapi)
+EXTRA_DSO_LDOPTS += $(call EXPAND_LIBNAME,shell32 ole32 uuid version winspool comdlg32 imm32 winmm wsock32 msimg32)
 ifneq (,$(MOZ_DEBUG)$(NS_TRACE_MALLOC))
-OS_LIBS += $(call EXPAND_LIBNAME,imagehlp)
+EXTRA_DSO_LDOPTS += $(call EXPAND_LIBNAME,imagehlp)
 endif
 endif # WINNT
 ifeq ($(OS_ARCH),WINCE)
-OS_LIBS += $(call EXPAND_LIBNAME, aygshell uuid ole32 oleaut32 Ws2 ddraw)
-OS_LIBS += $(call EXPAND_LIBNAME, ceosutil libcmt comsuppw)
+EXTRA_DSO_LDOPTS += $(call EXPAND_LIBNAME, aygshell uuid ole32 oleaut32 Ws2 ddraw)
 ifdef WINCE_WINDOWS_MOBILE
-OS_LIBS += $(call EXPAND_LIBNAME, cellcore)
-endif
-ifdef HAS_OGLES
-OS_LIBS += $(call EXPAND_LIBNAME, libGLESv2 libEGL)
+EXTRA_DSO_LDOPTS += $(call EXPAND_LIBNAME, cellcore)
 endif
 endif
+
 
 ifdef MOZ_JPROF
 EXTRA_DSO_LDOPTS += -ljprof
@@ -262,15 +278,6 @@ endif
 
 ifdef MOZ_ENABLE_QT
 EXTRA_DSO_LDOPTS += $(MOZ_QT_LDFLAGS)
-endif
-
-include $(topsrcdir)/config/rules.mk
-
-export:: $(RDF_UTIL_SRC_CPPSRCS) $(INTL_UNICHARUTIL_UTIL_CPPSRCS)
-	$(INSTALL) $^ .
-
-ifdef MOZ_ENABLE_LIBXUL
-include $(srcdir)/libxul-rules.mk
 endif
 
 ifdef MOZ_JAVAXPCOM

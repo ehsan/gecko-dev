@@ -20,7 +20,6 @@
 #
 # Contributor(s):
 #  John Wolfe <wolfe@lobo.us>
-#  Vladimir Vukicevic <vladimir@pobox.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -40,8 +39,7 @@
 # make-wince-cab.py --- Given a directory, walk it and make an
 #          installer based upon the contents of that directory
 #
-# Usage:
-#   python make-wince-inf.py [-s] [CABWIZ_PATH] SOURCE_DIR PROGRAM_NAME CAB_FINAL_NAME
+# Usage: python make-wince-inf.py CABWIZ_PATH SOURCE_DIR PROGRAM_NAME CAB_FINAL_NAME
 #
 # Walk through the relative directory SOURCE_DIR, parsing filenames
 #   Checks for duplicate filenames and renames where needed
@@ -59,18 +57,15 @@
 #   python make_wince_inf.py /c/Program\ Files/Microsoft\ Visual\ Studio\ 9.0/SmartDevices/SDK/SDKTools/cabwiz.exe dist/fennec Fennec fennec-0.11.en-US.wince-arm.cab
 #
 # ARGS:
-#   -s - Don't pass /compress to cabwiz (generate CAB compatible with Windows CE)
+#   cabiz_path - Path to CABWIZ.EXE executable inside Visual Studio
 #
-#   CABWIZ_PATH - If specified, will use this cabwiz.exe executable.  Otherwise, will attempt
-#                 to find one using $VSINSTALLDIR.
-#
-#   SOURCE_DIR - sub-directory which contains the target program 
+#   source_dir - sub-directory which contains the target program 
 #                NOTE: It is assumed that the application name is SOURCE_DIR.exe
 #                EXAMPLE: source_dir=fennec, there should be a fennec/fennec.exe application
 #
-#   PROGRAM_NAME - Name of the program to place inside the INF file
+#   program_name - Name of the program to place inside the INF file
 #
-#   CAB_FINAL_NAME - actual final name for the produced CAB file
+#   cab_final_name - actual final name for the produced CAB file
 #
 # NOTE: In our example, "fennec" is the directory [source_name]
 #                       "fennec.exe" is the application [$(source_name).exe], and
@@ -85,8 +80,6 @@ import fnmatch
 import string
 import shutil
 
-CompressFlag = "/compress"
-FaststartFlag = 0
 
 class FileEntry:
     def __init__(self, dirpath, dircount, filename, filecount, actual_filename):
@@ -286,10 +279,8 @@ HKCU,Software\%AppName%,MinorVersion,0x00010001,0
 
 
 def output_shortcuts_section(f, app_name):
-    f.write("[Shortcuts]\n")
-    f.write("%%AppName%%,0,%s,%%CE11%%\n" % app_name)
-    if FaststartFlag:
-        f.write("%%AppName%%faststart,0,%sfaststart.exe,%%CE4%%\n" % os.path.splitext(app_name)[0]);
+    f.write("[Shortcuts]                         ; Shortcut created in destination dir, %CE14%\n")
+    f.write("%%AppName%%,0,%s\n" % app_name)
 
 
 def output_inf_file(program_name, app_name):
@@ -310,12 +301,12 @@ def output_inf_file(program_name, app_name):
 
 
 def make_cab_file(cabwiz_path, program_name, cab_final_name):
-    make_cab_command = "\"%s\" %s %s.inf" % (cabwiz_path, CompressFlag, program_name)
+    make_cab_command = "\"%s\" %s.inf /compress" % (cabwiz_path, program_name)
     print "INFORMATION: Executing command to make %s CAB file (only works on BASH)" % program_name
     print "    [%s]" % make_cab_command
     sys.stdout.flush()
 
-    success = call([cabwiz_path, "%s.inf" % program_name, CompressFlag],
+    success = call([cabwiz_path, "%s.inf" % program_name, "/compress"],
                    stdout=open("NUL:","w"), stderr=STDOUT)
 
     if not os.path.isfile("%s.CAB" % program_name):
@@ -330,7 +321,7 @@ ERROR: CAB FILE NOT CREATED.
  this may mean that your PYTHON is outputting Windows files WITHOUT CR-LF
  line endings.  Please verify that your INF file has CR-LF line endings.
 ***************************************************************************"""
-        sys.exit(2)
+        return
 
     print "INFORMATION: Executing command to move %s.CAB to %s" % (program_name, cab_final_name)
     sys.stdout.flush()
@@ -345,40 +336,21 @@ def purge_copied_files():
 
 
 def main():
-    args = sys.argv
-    if len(args) < 4 or len(args) > 7:
-        print >> sys.stderr, "Usage: %s [-s] [-faststart] [CABWIZ_PATH] SOURCE_DIR PROGRAM_NAME CAB_FINAL_NAME" % args[0]
-        print >> sys.stderr, "Example: %s /c/Program\ Files/Microsoft\ Visual\ Studio\ 9.0/ fennec Fennec fennec-0.11.en-US.wince-arm.cab" % args[0]
+    if len(sys.argv) != 5:
+        print >> sys.stderr, "Usage: %s CABWIZ_PATH SOURCE_DIR PROGRAM_NAME CAB_FINAL_NAME" % sys.argv[0]
+        print >> sys.stderr, "Example: %s /c/Program\ Files/Microsoft\ Visual\ Studio\ 9.0/ fennec Fennec fennec-0.11.en-US.wince-arm.cab" % sys.argv[0]
         sys.exit(1)
 
-    args = args[1:]
-
-    if args[0] == "-s":
-        global CompressFlag
-        CompressFlag = ""
-        args = args[1:]
-
-    if args[0] == "-faststart":
-        global FaststartFlag
-        FaststartFlag = 1
-        args = args[1:]
-
-    cabwiz_path = None
-    if len(args) == 4:
-        cabwiz_path = args[0]
-        args = args[1:]
-    else:
-        if "VSINSTALLDIR" in os.environ:
-            cabwiz_path = os.path.join(os.environ["VSINSTALLDIR"], "SmartDevices", "SDK", "SDKTools", "cabwiz.exe")
-
-    source_dir = args[0]
-    program_name = args[1]
+    cabwiz_path = sys.argv[1]
+    source_dir = sys.argv[2]
+    program_name = sys.argv[3]
     app_name = "%s.exe" % source_dir
-    cab_final_name = args[2]
+    cab_final_name = sys.argv[4]
 
-    if cabwiz_path is None or not os.path.isfile(cabwiz_path):
+    if not os.path.isfile(cabwiz_path):
         print """***************************************************************************
-ERROR: CABWIZ_PATH is not a valid file, or cabwiz couldn't be found!
+ERROR: CABWIZ_PATH is not a valid file!
+       Perhaps your VSINSTALLDIR is not properly set up?
        EXITING...
 ***************************************************************************"""
         sys.exit(2)

@@ -99,8 +99,8 @@ protected:
   }
 
   // nsStyleLinkElement overrides
-  already_AddRefed<nsIURI> GetStyleSheetURL(PRBool* aIsInline);
-
+  void GetStyleSheetURL(PRBool* aIsInline,
+                        nsIURI** aURI);
   void GetStyleSheetInfo(nsAString& aTitle,
                          nsAString& aType,
                          nsAString& aMedia,
@@ -311,11 +311,14 @@ NS_IMETHODIMP nsSVGStyleElement::SetTitle(const nsAString & aTitle)
 //----------------------------------------------------------------------
 // nsStyleLinkElement methods
 
-already_AddRefed<nsIURI>
-nsSVGStyleElement::GetStyleSheetURL(PRBool* aIsInline)
+void
+nsSVGStyleElement::GetStyleSheetURL(PRBool* aIsInline,
+                                    nsIURI** aURI)
 {
+  *aURI = nsnull;
   *aIsInline = PR_TRUE;
-  return nsnull;
+
+  return;
 }
 
 void

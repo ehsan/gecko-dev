@@ -71,3 +71,4 @@ interface nsPIWidgetCocoa : nsISupports
   readonly attribute boolean isSheet;
   
 }; // nsPIWidgetCocoa
+

@@ -202,7 +202,7 @@ TableBackgroundPainter::TableBackgroundData::ShouldSetBCBorder()
   }
 
   NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, mBackground) {
-    if (!mBackground->mLayers[i].mImage.IsEmpty())
+    if (mBackground->mLayers[i].mImage)
       return PR_TRUE;
   }
   return PR_FALSE;
@@ -232,16 +232,14 @@ TableBackgroundPainter::TableBackgroundPainter(nsTableFrame*        aTableFrame,
                                                nsPresContext*       aPresContext,
                                                nsIRenderingContext& aRenderingContext,
                                                const nsRect&        aDirtyRect,
-                                               const nsPoint&       aRenderPt,
-                                               PRUint32             aBGPaintFlags)
+                                               const nsPoint&       aRenderPt)
   : mPresContext(aPresContext),
     mRenderingContext(aRenderingContext),
     mRenderPt(aRenderPt),
     mDirtyRect(aDirtyRect),
     mOrigin(aOrigin),
     mCols(nsnull),
-    mZeroBorder(aPresContext),
-    mBGPaintFlags(aBGPaintFlags)
+    mZeroBorder(aPresContext)
 {
   MOZ_COUNT_CTOR(TableBackgroundPainter);
 
@@ -284,13 +282,15 @@ nsresult
 TableBackgroundPainter::PaintTableFrame(nsTableFrame*         aTableFrame,
                                         nsTableRowGroupFrame* aFirstRowGroup,
                                         nsTableRowGroupFrame* aLastRowGroup,
-                                        const nsMargin&       aDeflate)
+                                        nsMargin*             aDeflate)
 {
   NS_PRECONDITION(aTableFrame, "null frame");
   TableBackgroundData tableData;
   tableData.SetFull(aTableFrame);
   tableData.mRect.MoveTo(0,0); //using table's coords
-  tableData.mRect.Deflate(aDeflate);
+  if (aDeflate) {
+    tableData.mRect.Deflate(*aDeflate);
+  }
   if (mIsBorderCollapse && tableData.ShouldSetBCBorder()) {
     if (aFirstRowGroup && aLastRowGroup && mNumCols > 0) {
       //only handle non-degenerate tables; we need a more robust BC model
@@ -326,7 +326,7 @@ TableBackgroundPainter::PaintTableFrame(nsTableFrame*         aTableFrame,
                                           tableData.mRect + mRenderPt,
                                           *tableData.mBackground,
                                           *tableData.mBorder,
-                                          mBGPaintFlags);
+                                          0);
   }
   tableData.Destroy(mPresContext);
   return NS_OK;
@@ -354,9 +354,8 @@ TableBackgroundPainter::TranslateContext(nscoord aDX,
 }
 
 nsresult
-TableBackgroundPainter::PaintTable(nsTableFrame*   aTableFrame,
-                                   const nsMargin& aDeflate,
-                                   PRBool          aPaintTableBackground)
+TableBackgroundPainter::PaintTable(nsTableFrame* aTableFrame,
+                                   nsMargin*     aDeflate)
 {
   NS_PRECONDITION(aTableFrame, "null table frame");
 
@@ -364,17 +363,13 @@ TableBackgroundPainter::PaintTable(nsTableFrame*   aTableFrame,
   aTableFrame->OrderRowGroups(rowGroups);
 
   if (rowGroups.Length() < 1) { //degenerate case
-    if (aPaintTableBackground) {
-      PaintTableFrame(aTableFrame, nsnull, nsnull, nsMargin(0,0,0,0));
-    }
+    PaintTableFrame(aTableFrame, nsnull, nsnull, nsnull);
     /* No cells; nothing else to paint */
     return NS_OK;
   }
 
-  if (aPaintTableBackground) {
-    PaintTableFrame(aTableFrame, rowGroups[0], rowGroups[rowGroups.Length() - 1],
-                    aDeflate);
-  }
+  PaintTableFrame(aTableFrame, rowGroups[0], rowGroups[rowGroups.Length() - 1],
+                  aDeflate);
 
   /*Set up column background/border data*/
   if (mNumCols > 0) {
@@ -636,7 +631,7 @@ TableBackgroundPainter::PaintCell(nsTableCellFrame* aCell,
                                           mCols[colIndex].mColGroup->mRect + mRenderPt,
                                           *mCols[colIndex].mColGroup->mBackground,
                                           *mCols[colIndex].mColGroup->mBorder,
-                                          mBGPaintFlags, &mCellRect);
+                                          0, &mCellRect);
   }
 
   //Paint column background
@@ -646,7 +641,7 @@ TableBackgroundPainter::PaintCell(nsTableCellFrame* aCell,
                                           mCols[colIndex].mCol.mRect + mRenderPt,
                                           *mCols[colIndex].mCol.mBackground,
                                           *mCols[colIndex].mCol.mBorder,
-                                          mBGPaintFlags, &mCellRect);
+                                          0, &mCellRect);
   }
 
   //Paint row group background
@@ -655,7 +650,7 @@ TableBackgroundPainter::PaintCell(nsTableCellFrame* aCell,
                                           mRowGroup.mFrame, mDirtyRect,
                                           mRowGroup.mRect + mRenderPt,
                                           *mRowGroup.mBackground, *mRowGroup.mBorder,
-                                          mBGPaintFlags, &mCellRect);
+                                          0, &mCellRect);
   }
 
   //Paint row background
@@ -664,13 +659,13 @@ TableBackgroundPainter::PaintCell(nsTableCellFrame* aCell,
                                           mRow.mFrame, mDirtyRect,
                                           mRow.mRect + mRenderPt,
                                           *mRow.mBackground, *mRow.mBorder,
-                                          mBGPaintFlags, &mCellRect);
+                                          0, &mCellRect);
   }
 
   //Paint cell background in border-collapse unless we're just passing
   if (mIsBorderCollapse && !aPassSelf) {
     aCell->PaintCellBackground(mRenderingContext, mDirtyRect,
-                               mCellRect.TopLeft(), mBGPaintFlags);
+                               mCellRect.TopLeft());
   }
 
   return NS_OK;

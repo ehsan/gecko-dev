@@ -46,7 +46,6 @@ function test() {
     "browser/components/sessionstore/test/browser/browser_456342_sample.xhtml";
   let tab = gBrowser.addTab(testURL);
   tab.linkedBrowser.addEventListener("load", function(aEvent) {
-    this.removeEventListener("load", arguments.callee, true);
     gBrowser.removeTab(tab);
     
     let ss = Cc["@mozilla.org/browser/sessionstore;1"]
@@ -66,8 +65,7 @@ function test() {
     is(countBad,  0, "Didn't save text for ignored field types");
     
     // clean up
-    if (gPrefService.prefHasUserValue("browser.sessionstore.privacy_level"))
-      gPrefService.clearUserPref("browser.sessionstore.privacy_level");
+    gPrefService.clearUserPref("browser.sessionstore.privacy_level");
     finish();
   }, true);
 }

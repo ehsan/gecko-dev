@@ -57,9 +57,25 @@ SHORT_LIBNAME	= xpc$(MOZ_BITS)$(VERSION_NUMBER)
 endif
 LIBXUL_LIBRARY = 1
 
+REQUIRES	= xpcom \
+		  string \
+		  js \
+		  caps \
+		  necko \
+		  dom \
+		  $(NULL)
 
 # These modules are required because the auto-generated file
 # dom_quickstubs.cpp #includes header files from many places.
+REQUIRES	+= content \
+		   editor \
+		   layout \
+		   rdf \
+		   svg \
+		   xuldoc \
+		   xultmpl \
+		   widget \
+		   $(NULL)
 
 
 CPPSRCS		= \
@@ -93,7 +109,6 @@ CPPSRCS		= \
 		xpcJSWeakReference.cpp \
 		XPCSafeJSObjectWrapper.cpp \
 		XPCCrossOriginWrapper.cpp \
-		XPCChromeObjectWrapper.cpp \
 		XPCSystemOnlyWrapper.cpp \
 		XPCWrapper.cpp \
 		xpcquickstubs.cpp \
@@ -107,6 +122,7 @@ CPPSRCS +=	XPCDispObject.cpp	\
 		XPCDispTearOff.cpp \
 		XPCIDispatchExtension.cpp \
 		XPCDispParams.cpp \
+		XPCDispParamPropJSClass.cpp \
 		XPCIDispatchClassInfo.cpp \
 		nsDispatchSupport.cpp \
 		$(NULL)
@@ -139,13 +155,13 @@ DEFINES += \
   -DEXPORT_XPC_API \
   $(NULL)
 
-CONFIG := $(shell cat $(DEPTH)/js/src/js-confdefs.h)
+CONFIG := $(shell cat $(DEPTH)/js/src/mozilla-config.h)
 
 ENABLE_JIT = $(filter JS_TRACER, $(CONFIG))
 
 ifneq (,$(ENABLE_JIT))
 
-# Ugly! We need the AVMPLUS defines out of js/src/js-confdefs.h to make the
+# Ugly! We need the AVMPLUS defines out of js/src/mozilla-config.h to make the
 # nanojit headers happy. Gotta figure out a better way to get them, bug 483677.
 DEFINES += \
   -DJS_TRACER=1 \
@@ -159,6 +175,7 @@ endif # ENABLE_JIT
 
 ifdef MOZ_XPCTOOLS
 DEFINES         +=  -DXPC_TOOLS_SUPPORT
+REQUIRES	+= xpctools
 endif
 
 ifdef XPC_IDISPATCH_SUPPORT
@@ -193,9 +210,8 @@ dom_quickstubs.cpp: $(srcdir)/dom_quickstubs.qsconf \
                     $(srcdir)/qsgen.py \
                     $(topsrcdir)/xpcom/idl-parser/header.py \
                     $(topsrcdir)/xpcom/idl-parser/xpidl.py \
-                    $(DEPTH)/js/src/js-confdefs.h
+                    $(DEPTH)/js/src/mozilla-config.h
 	$(PYTHON) $(topsrcdir)/config/pythonpath.py \
-	  -I$(topsrcdir)/other-licenses/ply \
 	  -I$(topsrcdir)/xpcom/idl-parser \
 	  $(srcdir)/qsgen.py \
 	  --idlpath=$(DEPTH)/dist/idl \

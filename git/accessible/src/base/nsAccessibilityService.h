@@ -84,16 +84,6 @@ public:
    */
   static nsresult GetAccessibilityService(nsIAccessibilityService** aResult);
 
-  /**
-   * Return cached accessibility service.
-   */
-  static nsIAccessibilityService* GetAccessibilityService();
-
-  /**
-   * Indicates whether accessibility service was shutdown.
-   */
-  static PRBool gIsShutdown;
-
 private:
   /**
    * Return presentation shell, DOM node for the given frame.
@@ -136,15 +126,6 @@ private:
   nsresult GetAccessibleForDeckChildren(nsIDOMNode *aNode,
                                         nsIAccessible **aAccessible);
 
-#ifdef MOZ_XUL
-  /**
-   * Create accessible for XUL tree element.
-   */
-  nsresult GetAccessibleForXULTree(nsIDOMNode *aNode,
-                                   nsIWeakReference *aWeakShell,
-                                   nsIAccessible **aAccessible);
-#endif
-  
   static nsAccessibilityService *gAccessibilityService;
 
   /**
@@ -289,8 +270,7 @@ static const char kRoleNames[][20] = {
   "listbox rich option", //ROLE_RICH_OPTION
   "listbox",             //ROLE_LISTBOX
   "flat equation",       //ROLE_FLAT_EQUATION  
-  "gridcell",            //ROLE_GRID_CELL
-  "embedded object"      //ROLE_EMBEDDED_OBJECT
+  "gridcell"             //ROLE_GRID_CELL
 };
 
 /**
@@ -299,9 +279,12 @@ static const char kRoleNames[][20] = {
  */
 static const char kEventTypeNames[][40] = {
   "unknown",                                 //
-  "show",                                    // EVENT_SHOW
-  "hide",                                    // EVENT_HIDE
-  "reorder",                                 // EVENT_REORDER
+  "DOM node create",                         // EVENT_DOM_CREATE
+  "DOM node destroy",                        // EVENT_DOM_DESTROY
+  "DOM node significant change",             // EVENT_DOM_SIGNIFICANT_CHANGE
+  "async show",                              // EVENT_ASYNCH_SHOW
+  "async hide",                              // EVENT_ASYNCH_HIDE
+  "async significant change",                // EVENT_ASYNCH_SIGNIFICANT_CHANGE
   "active decendent change",                 // EVENT_ACTIVE_DECENDENT_CHANGED
   "focus",                                   // EVENT_FOCUS
   "state change",                            // EVENT_STATE_CHANGE
@@ -386,7 +369,8 @@ static const char kEventTypeNames[][40] = {
   "hypertext links count changed",           // EVENT_HYPERTEXT_NLINKS_CHANGED
   "object attribute changed",                // EVENT_OBJECT_ATTRIBUTE_CHANGED
   "page changed",                            // EVENT_PAGE_CHANGED
-  "internal load"                            // EVENT_INTERNAL_LOAD
+  "internal load",                           // EVENT_INTERNAL_LOAD
+  "reorder"                                  // EVENT_REORDER
 };
 
 /**

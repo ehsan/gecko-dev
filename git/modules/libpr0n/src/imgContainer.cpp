@@ -26,7 +26,6 @@
  *   Arron Mogge <paper@animecity.nu>
  *   Andrew Smith
  *   Federico Mena-Quintero <federico@novell.com>
- *   Bobby Holley <bobbyholley@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -45,6 +44,8 @@
 #include "nsComponentManagerUtils.h"
 #include "imgIContainerObserver.h"
 #include "ImageErrors.h"
+#include "nsIImage.h"
+#include "imgILoad.h"
 #include "imgIDecoder.h"
 #include "imgIDecoderObserver.h"
 #include "imgContainer.h"
@@ -55,8 +56,6 @@
 #include "prmem.h"
 #include "prlog.h"
 #include "prenv.h"
-#include "nsTime.h"
-#include "ImageLogging.h"
 
 #include "gfxContext.h"
 
@@ -67,102 +66,25 @@ static PRLogModuleInfo *gCompressedImageAccountingLog = PR_NewLogModule ("Compre
 #define gCompressedImageAccountingLog
 #endif
 
-/* We define our own error checking macros here for 2 reasons:
- *
- * 1) Most of the failures we encounter here will (hopefully) be
- * the result of decoding failures (ie, bad data) and not code
- * failures. As such, we don't want to clutter up debug consoles
- * with spurious messages about NS_ENSURE_SUCCESS failures.
- *
- * 2) We want to set the internal error flag, shutdown properly,
- * and end up in an error state.
- *
- * So this macro should be called when the desired failure behavior
- * is to put the container into an error state and return failure.
- * It goes without saying that macro won't compile outside of a
- * non-static imgContainer method.
- */
-#define LOG_CONTAINER_ERROR                      \
-  PR_BEGIN_MACRO                                 \
-  PR_LOG (gImgLog, PR_LOG_ERROR,                 \
-          ("ImgContainer: [this=%p] Error "      \
-           "detected at line %u for image of "   \
-           "type %s\n", this, __LINE__,          \
-           mSourceDataMimeType.get()));          \
-  PR_END_MACRO
-
-#define CONTAINER_ENSURE_SUCCESS(status)      \
-  PR_BEGIN_MACRO                              \
-  nsresult _status = status; /* eval once */  \
-  if (_status) {                              \
-    LOG_CONTAINER_ERROR;                      \
-    DoError();                                \
-    return _status;                           \
-  }                                           \
- PR_END_MACRO
-
-#define CONTAINER_ENSURE_TRUE(arg, rv)  \
-  PR_BEGIN_MACRO                        \
-  if (!(arg)) {                         \
-    LOG_CONTAINER_ERROR;                \
-    DoError();                          \
-    return rv;                          \
-  }                                     \
-  PR_END_MACRO
+static int num_containers_with_discardable_data;
+static PRInt64 num_compressed_image_bytes;
 
 
-
-static int num_containers;
-static int num_discardable_containers;
-static PRInt64 total_source_bytes;
-static PRInt64 discardable_source_bytes;
-
-/* Are we globally disabling image discarding? */
-static PRBool
-DiscardingEnabled()
-{
-  static PRBool inited;
-  static PRBool enabled;
-
-  if (!inited) {
-    inited = PR_TRUE;
-
-    enabled = (PR_GetEnv("MOZ_DISABLE_IMAGE_DISCARD") == nsnull);
-  }
-
-  return enabled;
-}
-
-NS_IMPL_ISUPPORTS4(imgContainer, imgIContainer, nsITimerCallback, nsIProperties,
-                   nsISupportsWeakReference)
+NS_IMPL_ISUPPORTS3(imgContainer, imgIContainer, nsITimerCallback, nsIProperties)
 
 //******************************************************************************
 imgContainer::imgContainer() :
   mSize(0,0),
-  mHasSize(PR_FALSE),
+  mNumFrames(0),
   mAnim(nsnull),
   mAnimationMode(kNormalAnimMode),
   mLoopCount(-1),
   mObserver(nsnull),
-  mDecodeOnDraw(PR_FALSE),
-  mMultipart(PR_FALSE),
-  mInitialized(PR_FALSE),
   mDiscardable(PR_FALSE),
-  mLockCount(0),
-  mDiscardTimer(nsnull),
-  mHasSourceData(PR_FALSE),
-  mDecoded(PR_FALSE),
-  mHasBeenDecoded(PR_FALSE),
-  mDecoder(nsnull),
-  mWorker(nsnull),
-  mBytesDecoded(0),
-  mDecoderFlags(imgIDecoder::DECODER_FLAG_NONE),
-  mWorkerPending(PR_FALSE),
-  mInDecoder(PR_FALSE),
-  mError(PR_FALSE)
+  mDiscarded(PR_FALSE),
+  mRestoreDataDone(PR_FALSE),
+  mDiscardTimer(nsnull)
 {
-  // Statistics
-  num_containers++;
 }
 
 //******************************************************************************
@@ -171,170 +93,53 @@ imgContainer::~imgContainer()
   if (mAnim)
     delete mAnim;
 
-  for (unsigned int i = 0; i < mFrames.Length(); ++i)
-    delete mFrames[i];
-
-  // Discardable statistics
-  if (mDiscardable) {
-    num_discardable_containers--;
-    discardable_source_bytes -= mSourceData.Length();
+  if (!mRestoreData.IsEmpty()) {
+    num_containers_with_discardable_data--;
+    num_compressed_image_bytes -= mRestoreData.Length();
 
     PR_LOG (gCompressedImageAccountingLog, PR_LOG_DEBUG,
             ("CompressedImageAccounting: destroying imgContainer %p.  "
-             "Total Containers: %d, Discardable containers: %d, "
-             "Total source bytes: %lld, Source bytes for discardable containers %lld",
+             "Compressed containers: %d, Compressed data bytes: %lld",
              this,
-             num_containers,
-             num_discardable_containers,
-             total_source_bytes,
-             discardable_source_bytes));
+             num_containers_with_discardable_data,
+             num_compressed_image_bytes));
   }
 
   if (mDiscardTimer) {
-    mDiscardTimer->Cancel();
+    mDiscardTimer->Cancel ();
     mDiscardTimer = nsnull;
   }
-
-  // If we have a decoder open, shut it down
-  if (mDecoder) {
-    nsresult rv = ShutdownDecoder(eShutdownIntent_Interrupted);
-    if (NS_FAILED(rv))
-      NS_WARNING("Failed to shut down decoder in destructor!");
-  }
-
-  // Total statistics
-  num_containers--;
-  total_source_bytes -= mSourceData.Length();
 }
 
 //******************************************************************************
-/* void init(in imgIDecoderObserver aObserver, in string aMimeType,
-             in PRUint32 aFlags); */
-NS_IMETHODIMP imgContainer::Init(imgIDecoderObserver *aObserver,
-                                 const char* aMimeType,
-                                 PRUint32 aFlags)
+/* void init (in PRInt32 aWidth, in PRInt32 aHeight, 
+              in imgIContainerObserver aObserver); */
+NS_IMETHODIMP imgContainer::Init(PRInt32 aWidth, PRInt32 aHeight,
+                                 imgIContainerObserver *aObserver)
 {
-  // We don't support re-initialization
-  if (mInitialized)
-    return NS_ERROR_ILLEGAL_VALUE;
-
-  // Not sure an error can happen before init, but be safe
-  if (mError)
+  if (aWidth <= 0 || aHeight <= 0) {
+    NS_WARNING("error - negative image size\n");
     return NS_ERROR_FAILURE;
+  }
 
-  NS_ENSURE_ARG_POINTER(aMimeType);
+  mSize.SizeTo(aWidth, aHeight);
+  
+  // As we are reloading it means we are no longer in 'discarded' state
+  mDiscarded = PR_FALSE;
 
-  // We must be non-discardable and non-decode-on-draw for
-  // multipart channels
-  NS_ABORT_IF_FALSE(!(aFlags & INIT_FLAG_MULTIPART) ||
-                    (!(aFlags & INIT_FLAG_DISCARDABLE) &&
-                     !(aFlags & INIT_FLAG_DECODE_ON_DRAW)),
-                    "Can't be discardable or decode-on-draw for multipart");
-
-  // Store initialization data
   mObserver = do_GetWeakReference(aObserver);
-  mSourceDataMimeType.Assign(aMimeType);
-  mDiscardable = aFlags & INIT_FLAG_DISCARDABLE;
-  mDecodeOnDraw = aFlags & INIT_FLAG_DECODE_ON_DRAW;;
-  mMultipart = aFlags & INIT_FLAG_MULTIPART;
-
-  // Statistics
-  if (mDiscardable) {
-    num_discardable_containers++;
-    discardable_source_bytes += mSourceData.Length();
-  }
-
-  // If we're being called from ExtractFrame (used by borderimage),
-  // we don't actually do any decoding. Bail early.
-  // XXX - This should be removed when we fix borderimage
-  if (mSourceDataMimeType.Length() == 0) {
-    mInitialized = PR_TRUE;
-    return NS_OK;
-  }
-
-  // Determine our decoder flags. If we're doing decode-on-draw,
-  // we want to do a quick first pass to get the size but nothing
-  // else. We instantiate another decoder later to do the full
-  // decoding.
-  PRUint32 dFlags = imgIDecoder::DECODER_FLAG_NONE;
-  if (mDecodeOnDraw)
-    dFlags |= imgIDecoder::DECODER_FLAG_HEADERONLY;
-
-  // Instantiate the decoder
-  nsresult rv = InitDecoder(dFlags);
-  CONTAINER_ENSURE_SUCCESS(rv);
-
-  // Mark us as initialized
-  mInitialized = PR_TRUE;
-
+  
   return NS_OK;
 }
 
 //******************************************************************************
-/* [noscript] imgIContainer extractFrame(PRUint32 aWhichFrame,
- *                                       [const] in nsIntRect aRegion,
- *                                       in PRUint32 aFlags); */
-NS_IMETHODIMP imgContainer::ExtractFrame(PRUint32 aWhichFrame,
-                                         const nsIntRect &aRegion,
-                                         PRUint32 aFlags,
-                                         imgIContainer **_retval)
+/* readonly attribute gfx_format preferredAlphaChannelFormat; */
+NS_IMETHODIMP imgContainer::GetPreferredAlphaChannelFormat(gfx_format *aFormat)
 {
-  NS_ENSURE_ARG_POINTER(_retval);
+  NS_ENSURE_ARG_POINTER(aFormat);
 
-  nsresult rv;
-
-  if (aWhichFrame > FRAME_MAX_VALUE)
-    return NS_ERROR_INVALID_ARG;
-
-  if (mError)
-    return NS_ERROR_FAILURE;
-
-  // Make a new container. This should switch to another class with bug 505959.
-  nsRefPtr<imgContainer> img(new imgContainer());
-  NS_ENSURE_TRUE(img, NS_ERROR_OUT_OF_MEMORY);
-
-  // We don't actually have a mimetype in this case. The empty string tells the
-  // init routine not to try to instantiate a decoder. This should be fixed in
-  // bug 505959.
-  img->Init(nsnull, "", INIT_FLAG_NONE);
-  img->SetSize(aRegion.width, aRegion.height);
-  img->mDecoded = PR_TRUE; // Also, we need to mark the image as decoded
-  img->mHasBeenDecoded = PR_TRUE;
-
-  // If a synchronous decode was requested, do it
-  if (aFlags & FLAG_SYNC_DECODE) {
-    rv = SyncDecode();
-    CONTAINER_ENSURE_SUCCESS(rv);
-  }
-
-  // Get the frame. If it's not there, it's probably the caller's fault for
-  // not waiting for the data to be loaded from the network or not passing
-  // FLAG_SYNC_DECODE
-  PRUint32 frameIndex = (aWhichFrame == FRAME_FIRST) ?
-                        0 : GetCurrentImgFrameIndex();
-  imgFrame *frame = GetDrawableImgFrame(frameIndex);
-  if (!frame) {
-    *_retval = nsnull;
-    return NS_ERROR_FAILURE;
-  }
-
-  // The frame can be smaller than the image. We want to extract only the part
-  // of the frame that actually exists.
-  nsIntRect framerect = frame->GetRect();
-  framerect.IntersectRect(framerect, aRegion);
-
-  if (framerect.IsEmpty())
-    return NS_ERROR_NOT_AVAILABLE;
-
-  nsAutoPtr<imgFrame> subframe;
-  rv = frame->Extract(framerect, getter_Transfers(subframe));
-  if (NS_FAILED(rv))
-    return rv;
-
-  img->mFrames.AppendElement(subframe.forget());
-
-  *_retval = img.forget().get();
-
+  /* default.. platforms should probably overwrite this */
+  *aFormat = gfxIFormats::RGB_A8;
   return NS_OK;
 }
 
@@ -343,9 +148,6 @@ NS_IMETHODIMP imgContainer::ExtractFrame(PRUint32 aWhichFrame,
 NS_IMETHODIMP imgContainer::GetWidth(PRInt32 *aWidth)
 {
   NS_ENSURE_ARG_POINTER(aWidth);
-
-  if (mError)
-    return NS_ERROR_FAILURE;
 
   *aWidth = mSize.width;
   return NS_OK;
@@ -357,123 +159,33 @@ NS_IMETHODIMP imgContainer::GetHeight(PRInt32 *aHeight)
 {
   NS_ENSURE_ARG_POINTER(aHeight);
 
-  if (mError)
-    return NS_ERROR_FAILURE;
-
   *aHeight = mSize.height;
   return NS_OK;
 }
 
-imgFrame *imgContainer::GetImgFrame(PRUint32 framenum)
+gfxIImageFrame *imgContainer::GetCurrentFrameNoRef()
 {
-  nsresult rv = WantDecodedFrames();
-  CONTAINER_ENSURE_TRUE(NS_SUCCEEDED(rv), nsnull);
+  nsresult rv = RestoreDiscardedData();
+  NS_ENSURE_SUCCESS(rv, nsnull);
 
-  if (!mAnim) {
-    NS_ASSERTION(framenum == 0, "Don't ask for a frame > 0 if we're not animated!");
-    return mFrames.SafeElementAt(0, nsnull);
-  }
-  if (mAnim->lastCompositedFrameIndex == PRInt32(framenum))
+  if (!mAnim)
+    return mFrames.SafeObjectAt(0);
+  if (mAnim->lastCompositedFrameIndex == mAnim->currentAnimationFrameIndex)
     return mAnim->compositingFrame;
-  return mFrames.SafeElementAt(framenum, nsnull);
-}
-
-imgFrame *imgContainer::GetDrawableImgFrame(PRUint32 framenum)
-{
-  imgFrame *frame = GetImgFrame(framenum);
-
-  // We will return a paletted frame if it's not marked as compositing failed
-  // so we can catch crashes for reasons we haven't investigated.
-  if (frame && frame->GetCompositingFailed())
-    return nsnull;
-  return frame;
-}
-
-PRUint32 imgContainer::GetCurrentImgFrameIndex() const
-{
-  if (mAnim)
-    return mAnim->currentAnimationFrameIndex;
-
-  return 0;
-}
-
-imgFrame *imgContainer::GetCurrentImgFrame()
-{
-  return GetImgFrame(GetCurrentImgFrameIndex());
-}
-
-imgFrame *imgContainer::GetCurrentDrawableImgFrame()
-{
-  return GetDrawableImgFrame(GetCurrentImgFrameIndex());
+  return mFrames.SafeObjectAt(mAnim->currentAnimationFrameIndex);
 }
 
 //******************************************************************************
-/* readonly attribute boolean currentFrameIsOpaque; */
-NS_IMETHODIMP imgContainer::GetCurrentFrameIsOpaque(PRBool *aIsOpaque)
+/* readonly attribute gfxIImageFrame currentFrame; */
+NS_IMETHODIMP imgContainer::GetCurrentFrame(gfxIImageFrame **aCurrentFrame)
 {
-  NS_ENSURE_ARG_POINTER(aIsOpaque);
-
-  if (mError)
-    return NS_ERROR_FAILURE;
-
-  // See if we can get an image frame
-  imgFrame *curframe = GetCurrentImgFrame();
-
-  // If we don't get a frame, the safe answer is "not opaque"
-  if (!curframe)
-    *aIsOpaque = PR_FALSE;
-
-  // Otherwise, we can make a more intelligent decision
-  else {
-    *aIsOpaque = !curframe->GetNeedsBackground();
-
-    // We are also transparent if the current frame's size doesn't cover our
-    // entire area.
-    nsIntRect framerect = curframe->GetRect();
-    *aIsOpaque = *aIsOpaque && (framerect != nsIntRect(0, 0, mSize.width, mSize.height));
-  }
-
-  return NS_OK;
-}
-
-//******************************************************************************
-/* [noscript] void getCurrentFrameRect(nsIntRect rect); */
-NS_IMETHODIMP imgContainer::GetCurrentFrameRect(nsIntRect &aRect)
-{
-  if (mError)
-    return NS_ERROR_FAILURE;
-
-  // Get the current frame
-  imgFrame *curframe = GetCurrentImgFrame();
-
-  // If we have the frame, use that rectangle
-  if (curframe)
-    aRect = curframe->GetRect();
-
-  // If the frame doesn't exist, we pass the empty rectangle. It's not clear
-  // whether this is appropriate in general, but at the moment the only
-  // consumer of this method is imgRequest (when it wants to figure out dirty
-  // rectangles to send out batched observer updates). This should probably be
-  // revisited when we fix bug 503973.
-  else {
-    aRect.MoveTo(0, 0);
-    aRect.SizeTo(0, 0);
-  }
-
-  return NS_OK;
-}
-
-//******************************************************************************
-/* readonly attribute unsigned long currentFrameIndex; */
-NS_IMETHODIMP imgContainer::GetCurrentFrameIndex(PRUint32 *aCurrentFrameIdx)
-{
-  if (mError)
-    return NS_ERROR_FAILURE;
-
-  NS_ENSURE_ARG_POINTER(aCurrentFrameIdx);
+  NS_ENSURE_ARG_POINTER(aCurrentFrame);
   
-  *aCurrentFrameIdx = GetCurrentImgFrameIndex();
+  *aCurrentFrame = GetCurrentFrameNoRef();
+  NS_ENSURE_TRUE(*aCurrentFrame, NS_ERROR_FAILURE);
 
+  NS_ADDREF(*aCurrentFrame);
+  
   return NS_OK;
 }
 
@@ -481,224 +193,52 @@ NS_IMETHODIMP imgContainer::GetCurrentFrameIndex(PRUint32 *aCurrentFrameIdx)
 /* readonly attribute unsigned long numFrames; */
 NS_IMETHODIMP imgContainer::GetNumFrames(PRUint32 *aNumFrames)
 {
-  if (mError)
-    return NS_ERROR_FAILURE;
-
   NS_ENSURE_ARG_POINTER(aNumFrames);
 
-  *aNumFrames = mFrames.Length();
+  *aNumFrames = mNumFrames;
   
   return NS_OK;
 }
 
 //******************************************************************************
-/* readonly attribute boolean animated; */
-NS_IMETHODIMP imgContainer::GetAnimated(PRBool *aAnimated)
+/* gfxIImageFrame getFrameAt (in unsigned long index); */
+NS_IMETHODIMP imgContainer::GetFrameAt(PRUint32 index, gfxIImageFrame **_retval)
 {
-  if (mError)
-    return NS_ERROR_FAILURE;
+  NS_ENSURE_ARG_POINTER(_retval);
 
-  NS_ENSURE_ARG_POINTER(aAnimated);
+  *_retval = nsnull;
+  if (mNumFrames == 0)
+    return NS_OK;
 
-  // If we have mAnim, we can know for sure
-  if (mAnim) {
-    *aAnimated = PR_TRUE;
+  NS_ENSURE_ARG((int) index < mNumFrames);
+
+  nsresult rv = RestoreDiscardedData();
+  NS_ENSURE_SUCCESS(rv, rv);
+  
+  *_retval = mFrames[index];
+  NS_ENSURE_TRUE(*_retval, NS_ERROR_FAILURE);
+
+  NS_ADDREF(*_retval);
+  
+  return NS_OK;
+}
+
+//******************************************************************************
+/* void appendFrame (in gfxIImageFrame item); */
+NS_IMETHODIMP imgContainer::AppendFrame(gfxIImageFrame *item)
+{
+  NS_ENSURE_ARG_POINTER(item);
+
+  if (mFrames.Count() == 0) {
+    // This may not be an animated image, don't do all the animation stuff.
+    mFrames.AppendObject(item);
+
+    mNumFrames++;
+
     return NS_OK;
   }
-
-  // Otherwise, we need to have been decoded to know for sure, since if we were
-  // decoded at least once mAnim would have been created for animated images
-  if (!mHasBeenDecoded)
-    return NS_ERROR_NOT_AVAILABLE;
-
-  // We know for sure
-  *aAnimated = PR_FALSE;
-
-  return NS_OK;
-}
-
-
-//******************************************************************************
-/* [noscript] gfxImageSurface copyFrame(in PRUint32 aWhichFrame,
- *                                      in PRUint32 aFlags); */
-NS_IMETHODIMP imgContainer::CopyFrame(PRUint32 aWhichFrame,
-                                      PRUint32 aFlags,
-                                      gfxImageSurface **_retval)
-{
-  if (aWhichFrame > FRAME_MAX_VALUE)
-    return NS_ERROR_INVALID_ARG;
-
-  if (mError)
-    return NS_ERROR_FAILURE;
-
-  nsresult rv;
-
-  // If requested, synchronously flush any data we have lying around to the decoder
-  if (aFlags & FLAG_SYNC_DECODE) {
-    rv = SyncDecode();
-    CONTAINER_ENSURE_SUCCESS(rv);
-  }
-
-  NS_ENSURE_ARG_POINTER(_retval);
-
-  // Get the frame. If it's not there, it's probably the caller's fault for
-  // not waiting for the data to be loaded from the network or not passing
-  // FLAG_SYNC_DECODE
-  PRUint32 frameIndex = (aWhichFrame == FRAME_FIRST) ?
-                        0 : GetCurrentImgFrameIndex();
-  imgFrame *frame = GetDrawableImgFrame(frameIndex);
-  if (!frame) {
-    *_retval = nsnull;
-    return NS_ERROR_FAILURE;
-  }
-
-  nsRefPtr<gfxPattern> pattern;
-  frame->GetPattern(getter_AddRefs(pattern));
-  nsIntRect intframerect = frame->GetRect();
-  gfxRect framerect(intframerect.x, intframerect.y, intframerect.width, intframerect.height);
-
-  // Create a 32-bit image surface of our size, but draw using the frame's
-  // rect, implicitly padding the frame out to the image's size.
-  nsRefPtr<gfxImageSurface> imgsurface = new gfxImageSurface(gfxIntSize(mSize.width, mSize.height),
-                                                             gfxASurface::ImageFormatARGB32);
-  gfxContext ctx(imgsurface);
-  ctx.SetOperator(gfxContext::OPERATOR_SOURCE);
-  ctx.SetPattern(pattern);
-  ctx.Rectangle(framerect);
-  ctx.Fill();
-
-  *_retval = imgsurface.forget().get();
-  return NS_OK;
-}
-
-//******************************************************************************
-/* [noscript] gfxASurface getFrame(in PRUint32 aWhichFrame,
- *                                 in PRUint32 aFlags); */
-NS_IMETHODIMP imgContainer::GetFrame(PRUint32 aWhichFrame,
-                                     PRUint32 aFlags,
-                                     gfxASurface **_retval)
-{
-  if (aWhichFrame > FRAME_MAX_VALUE)
-    return NS_ERROR_INVALID_ARG;
-
-  if (mError)
-    return NS_ERROR_FAILURE;
-
-  nsresult rv = NS_OK;
-
-  // If the caller requested a synchronous decode, do it
-  if (aFlags & FLAG_SYNC_DECODE) {
-    rv = SyncDecode();
-    CONTAINER_ENSURE_SUCCESS(rv);
-  }
-
-  // Get the frame. If it's not there, it's probably the caller's fault for
-  // not waiting for the data to be loaded from the network or not passing
-  // FLAG_SYNC_DECODE
-  PRUint32 frameIndex = (aWhichFrame == FRAME_FIRST) ?
-                          0 : GetCurrentImgFrameIndex();
-  imgFrame *frame = GetDrawableImgFrame(frameIndex);
-  if (!frame) {
-    *_retval = nsnull;
-    return NS_ERROR_FAILURE;
-  }
-
-  nsRefPtr<gfxASurface> framesurf;
-
-  // If this frame covers the entire image, we can just reuse its existing
-  // surface.
-  nsIntRect framerect = frame->GetRect();
-  if (framerect.x == 0 && framerect.y == 0 &&
-      framerect.width == mSize.width &&
-      framerect.height == mSize.height)
-    rv = frame->GetSurface(getter_AddRefs(framesurf));
-
-  // The image doesn't have a surface because it's been optimized away. Create
-  // one.
-  if (!framesurf) {
-    nsRefPtr<gfxImageSurface> imgsurf;
-    rv = CopyFrame(aWhichFrame, aFlags, getter_AddRefs(imgsurf));
-    framesurf = imgsurf;
-  }
-
-  *_retval = framesurf.forget().get();
-
-  return rv;
-}
-
-//******************************************************************************
-/* readonly attribute unsigned long dataSize; */
-NS_IMETHODIMP imgContainer::GetDataSize(PRUint32 *_retval)
-{
-  if (mError)
-    return NS_ERROR_FAILURE;
-
-  NS_ENSURE_ARG_POINTER(_retval);
-
-  // Start with 0
-  *_retval = 0;
-
-  // Account for any compressed source data
-  *_retval += mSourceData.Length();
-  NS_ABORT_IF_FALSE(StoringSourceData() || (*_retval == 0),
-                    "Non-zero source data size when we aren't storing it?");
-
-  // Account for any uncompressed frames
-  for (PRUint32 i = 0; i < mFrames.Length(); ++i) {
-    imgFrame *frame = mFrames.SafeElementAt(i, nsnull);
-    NS_ABORT_IF_FALSE(frame, "Null frame in frame array!");
-    *_retval += frame->GetImageDataLength();
-  }
-
-  return NS_OK;
-}
-
-nsresult imgContainer::InternalAddFrameHelper(PRUint32 framenum, imgFrame *aFrame,
-                                              PRUint8 **imageData, PRUint32 *imageLength,
-                                              PRUint32 **paletteData, PRUint32 *paletteLength)
-{
-  NS_ABORT_IF_FALSE(framenum <= mFrames.Length(), "Invalid frame index!");
-  if (framenum > mFrames.Length())
-    return NS_ERROR_INVALID_ARG;
-
-  nsAutoPtr<imgFrame> frame(aFrame);
-
-  if (paletteData && paletteLength)
-    frame->GetPaletteData(paletteData, paletteLength);
-
-  frame->GetImageData(imageData, imageLength);
-
-  mFrames.InsertElementAt(framenum, frame.forget());
-
-  return NS_OK;
-}
-                                  
-nsresult imgContainer::InternalAddFrame(PRUint32 framenum,
-                                        PRInt32 aX, PRInt32 aY,
-                                        PRInt32 aWidth, PRInt32 aHeight,
-                                        gfxASurface::gfxImageFormat aFormat,
-                                        PRUint8 aPaletteDepth,
-                                        PRUint8 **imageData,
-                                        PRUint32 *imageLength,
-                                        PRUint32 **paletteData,
-                                        PRUint32 *paletteLength)
-{
-  NS_ABORT_IF_FALSE(framenum <= mFrames.Length(), "Invalid frame index!");
-  if (framenum > mFrames.Length())
-    return NS_ERROR_INVALID_ARG;
-
-  nsAutoPtr<imgFrame> frame(new imgFrame());
-  NS_ENSURE_TRUE(frame, NS_ERROR_OUT_OF_MEMORY);
-
-  nsresult rv = frame->Init(aX, aY, aWidth, aHeight, aFormat, aPaletteDepth);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (mFrames.Length() == 0) {
-    return InternalAddFrameHelper(framenum, frame.forget(), imageData, imageLength, 
-                                  paletteData, paletteLength);
-  }
-
-  if (mFrames.Length() == 1) {
+  
+  if (mFrames.Count() == 1) {
     // Since we're about to add our second frame, initialize animation stuff
     if (!ensureAnimExists())
       return NS_ERROR_OUT_OF_MEMORY;
@@ -706,253 +246,31 @@ nsresult imgContainer::InternalAddFrame(PRUint32 framenum,
     // If we dispose of the first frame by clearing it, then the
     // First Frame's refresh area is all of itself.
     // RESTORE_PREVIOUS is invalid (assumed to be DISPOSE_CLEAR)
-    PRInt32 frameDisposalMethod = mFrames[0]->GetFrameDisposalMethod();
+    PRInt32 frameDisposalMethod;
+    mFrames[0]->GetFrameDisposalMethod(&frameDisposalMethod);
     if (frameDisposalMethod == imgIContainer::kDisposeClear ||
         frameDisposalMethod == imgIContainer::kDisposeRestorePrevious)
-      mAnim->firstFrameRefreshArea = mFrames[0]->GetRect();
+      mFrames[0]->GetRect(mAnim->firstFrameRefreshArea);
   }
-
+  
   // Calculate firstFrameRefreshArea
   // Some gifs are huge but only have a small area that they animate
   // We only need to refresh that small area when Frame 0 comes around again
-  nsIntRect frameRect = frame->GetRect();
+  nsIntRect itemRect;
+  item->GetRect(itemRect);
   mAnim->firstFrameRefreshArea.UnionRect(mAnim->firstFrameRefreshArea, 
-                                         frameRect);
+                                         itemRect);
   
-  rv = InternalAddFrameHelper(framenum, frame.forget(), imageData, imageLength,
-                              paletteData, paletteLength);
+  mFrames.AppendObject(item);
+
+  mNumFrames++;
   
   // If this is our second frame (We've just added our second frame above),
   // count should now be 2.  This must be called after we AppendObject 
   // because StartAnimation checks for > 1 frames
-  if (mFrames.Length() == 2)
+  if (mFrames.Count() == 2)
     StartAnimation();
   
-  return rv;
-}
-
-/* [noscript] void appendFrame (in PRInt32 aX, in PRInt32 aY, in PRInt32 aWidth, in PRInt32 aHeight, in gfxImageFormat aFormat, [array, size_is (imageLength)] out PRUint8 imageData, out unsigned long imageLength); */
-NS_IMETHODIMP imgContainer::AppendFrame(PRInt32 aX, PRInt32 aY, PRInt32 aWidth,
-                                        PRInt32 aHeight, 
-                                        gfxASurface::gfxImageFormat aFormat,
-                                        PRUint8 **imageData,
-                                        PRUint32 *imageLength)
-{
-  if (mError)
-    return NS_ERROR_FAILURE;
-
-  NS_ENSURE_ARG_POINTER(imageData);
-  NS_ENSURE_ARG_POINTER(imageLength);
-
-  return InternalAddFrame(mFrames.Length(), aX, aY, aWidth, aHeight, aFormat, 
-                          /* aPaletteDepth = */ 0, imageData, imageLength,
-                          /* aPaletteData = */ nsnull, 
-                          /* aPaletteLength = */ nsnull);
-}
-
-/* [noscript] void appendPalettedFrame (in PRInt32 aX, in PRInt32 aY, in PRInt32 aWidth, in PRInt32 aHeight, in gfxImageFormat aFormat, in PRUint8 aPaletteDepth, [array, size_is (imageLength)] out PRUint8 imageData, out unsigned long imageLength, [array, size_is (paletteLength)] out PRUint32 paletteData, out unsigned long paletteLength); */
-NS_IMETHODIMP imgContainer::AppendPalettedFrame(PRInt32 aX, PRInt32 aY,
-                                                PRInt32 aWidth, PRInt32 aHeight,
-                                                gfxASurface::gfxImageFormat aFormat,
-                                                PRUint8 aPaletteDepth,
-                                                PRUint8 **imageData,
-                                                PRUint32 *imageLength,
-                                                PRUint32 **paletteData,
-                                                PRUint32 *paletteLength)
-{
-  if (mError)
-    return NS_ERROR_FAILURE;
-
-  NS_ENSURE_ARG_POINTER(imageData);
-  NS_ENSURE_ARG_POINTER(imageLength);
-  NS_ENSURE_ARG_POINTER(paletteData);
-  NS_ENSURE_ARG_POINTER(paletteLength);
-
-  return InternalAddFrame(mFrames.Length(), aX, aY, aWidth, aHeight, aFormat, 
-                          aPaletteDepth, imageData, imageLength,
-                          paletteData, paletteLength);
-}
-
-/*  [noscript] void setSize(in long aWidth, in long aHeight); */
-NS_IMETHODIMP imgContainer::SetSize(PRInt32 aWidth, PRInt32 aHeight)
-{
-  if (mError)
-    return NS_ERROR_FAILURE;
-
-  // Ensure that we have positive values
-  // XXX - Why isn't the size unsigned? Should this be changed?
-  if ((aWidth < 0) || (aHeight < 0))
-    return NS_ERROR_INVALID_ARG;
-
-  // if we already have a size, check the new size against the old one
-  if (mHasSize &&
-      ((aWidth != mSize.width) || (aHeight != mSize.height))) {
-
-    // Alter the warning depending on whether the channel is multipart
-    if (!mMultipart)
-      NS_WARNING("Image changed size on redecode! This should not happen!");
-    else
-      NS_WARNING("Multipart channel sent an image of a different size");
-
-    DoError();
-    return NS_ERROR_UNEXPECTED;
-  }
-
-  // Set the size and flag that we have it
-  mSize.SizeTo(aWidth, aHeight);
-  mHasSize = PR_TRUE;
-
-  return NS_OK;
-}
-
-/*  [noscript] void ensureCleanFrame(in unsigned long aFramenum, in PRInt32 aX, 
-                                     in PRInt32 aY, in PRInt32 aWidth, 
-                                     in PRInt32 aHeight, in gfxImageFormat aFormat, 
-                                     [array, size_is(imageLength)]
-                                       out PRUint8 imageData,
-                                     out unsigned long imageLength); */
-NS_IMETHODIMP imgContainer::EnsureCleanFrame(PRUint32 aFrameNum, PRInt32 aX, PRInt32 aY,
-                                             PRInt32 aWidth, PRInt32 aHeight, 
-                                             gfxASurface::gfxImageFormat aFormat,
-                                             PRUint8 **imageData, PRUint32 *imageLength)
-{
-  if (mError)
-    return NS_ERROR_FAILURE;
-
-  NS_ENSURE_ARG_POINTER(imageData);
-  NS_ENSURE_ARG_POINTER(imageLength);
-  NS_ABORT_IF_FALSE(aFrameNum <= mFrames.Length(), "Invalid frame index!");
-  if (aFrameNum > mFrames.Length())
-    return NS_ERROR_INVALID_ARG;
-
-  // Adding a frame that doesn't already exist.
-  if (aFrameNum == mFrames.Length())
-    return InternalAddFrame(aFrameNum, aX, aY, aWidth, aHeight, aFormat, 
-                            /* aPaletteDepth = */ 0, imageData, imageLength,
-                            /* aPaletteData = */ nsnull, 
-                            /* aPaletteLength = */ nsnull);
-
-  imgFrame *frame = GetImgFrame(aFrameNum);
-  if (!frame)
-    return InternalAddFrame(aFrameNum, aX, aY, aWidth, aHeight, aFormat, 
-                            /* aPaletteDepth = */ 0, imageData, imageLength,
-                            /* aPaletteData = */ nsnull, 
-                            /* aPaletteLength = */ nsnull);
-
-  // See if we can re-use the frame that already exists.
-  nsIntRect rect = frame->GetRect();
-  if (rect.x != aX || rect.y != aY || rect.width != aWidth || rect.height != aHeight ||
-      frame->GetFormat() != aFormat) {
-    delete frame;
-    return InternalAddFrame(aFrameNum, aX, aY, aWidth, aHeight, aFormat, 
-                            /* aPaletteDepth = */ 0, imageData, imageLength,
-                            /* aPaletteData = */ nsnull, 
-                            /* aPaletteLength = */ nsnull);
-  }
-
-  // We can re-use the frame.
-  frame->GetImageData(imageData, imageLength);
-
-  return NS_OK;
-}
-
-
-//******************************************************************************
-/* void frameUpdated (in unsigned long framenumber, in nsIntRect rect); */
-NS_IMETHODIMP imgContainer::FrameUpdated(PRUint32 aFrameNum, nsIntRect &aUpdatedRect)
-{
-  NS_ASSERTION(aFrameNum < mFrames.Length(), "Invalid frame index!");
-  if (aFrameNum >= mFrames.Length())
-    return NS_ERROR_INVALID_ARG;
-
-  imgFrame *frame = GetImgFrame(aFrameNum);
-  NS_ABORT_IF_FALSE(frame, "Calling FrameUpdated on frame that doesn't exist!");
-  NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
-
-  frame->ImageUpdated(aUpdatedRect);
-
-  return NS_OK;
-}
-
-//******************************************************************************
-/* void setFrameDisposalMethod (in unsigned long framenumber, in PRInt32 aDisposalMethod); */
-NS_IMETHODIMP imgContainer::SetFrameDisposalMethod(PRUint32 aFrameNum, PRInt32 aDisposalMethod)
-{
-  if (mError)
-    return NS_ERROR_FAILURE;
-
-  NS_ABORT_IF_FALSE(aFrameNum < mFrames.Length(), "Invalid frame index!");
-  if (aFrameNum >= mFrames.Length())
-    return NS_ERROR_INVALID_ARG;
-
-  imgFrame *frame = GetImgFrame(aFrameNum);
-  NS_ABORT_IF_FALSE(frame,
-                    "Calling SetFrameDisposalMethod on frame that doesn't exist!");
-  NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
-
-  frame->SetFrameDisposalMethod(aDisposalMethod);
-
-  return NS_OK;
-}
-
-//******************************************************************************
-/* void setFrameTimeout (in unsigned long framenumber, in PRInt32 aTimeout); */
-NS_IMETHODIMP imgContainer::SetFrameTimeout(PRUint32 aFrameNum, PRInt32 aTimeout)
-{
-  if (mError)
-    return NS_ERROR_FAILURE;
-
-  NS_ABORT_IF_FALSE(aFrameNum < mFrames.Length(), "Invalid frame index!");
-  if (aFrameNum >= mFrames.Length())
-    return NS_ERROR_INVALID_ARG;
-
-  imgFrame *frame = GetImgFrame(aFrameNum);
-  NS_ABORT_IF_FALSE(frame, "Calling SetFrameTimeout on frame that doesn't exist!");
-  NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
-
-  frame->SetTimeout(aTimeout);
-
-  return NS_OK;
-}
-
-//******************************************************************************
-/* void setFrameBlendMethod (in unsigned long framenumber, in PRInt32 aBlendMethod); */
-NS_IMETHODIMP imgContainer::SetFrameBlendMethod(PRUint32 aFrameNum, PRInt32 aBlendMethod)
-{
-  if (mError)
-    return NS_ERROR_FAILURE;
-
-  NS_ABORT_IF_FALSE(aFrameNum < mFrames.Length(), "Invalid frame index!");
-  if (aFrameNum >= mFrames.Length())
-    return NS_ERROR_INVALID_ARG;
-
-  imgFrame *frame = GetImgFrame(aFrameNum);
-  NS_ABORT_IF_FALSE(frame, "Calling SetFrameBlendMethod on frame that doesn't exist!");
-  NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
-
-  frame->SetBlendMethod(aBlendMethod);
-
-  return NS_OK;
-}
-
-
-//******************************************************************************
-/* void setFrameHasNoAlpha (in unsigned long framenumber); */
-NS_IMETHODIMP imgContainer::SetFrameHasNoAlpha(PRUint32 aFrameNum)
-{
-  if (mError)
-    return NS_ERROR_FAILURE;
-
-  NS_ABORT_IF_FALSE(aFrameNum < mFrames.Length(), "Invalid frame index!");
-  if (aFrameNum >= mFrames.Length())
-    return NS_ERROR_INVALID_ARG;
-
-  imgFrame *frame = GetImgFrame(aFrameNum);
-  NS_ABORT_IF_FALSE(frame, "Calling SetFrameHasNoAlpha on frame that doesn't exist!");
-  NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
-
-  frame->SetHasNoAlpha();
-
   return NS_OK;
 }
 
@@ -960,9 +278,6 @@ NS_IMETHODIMP imgContainer::SetFrameHasNoAlpha(PRUint32 aFrameNum)
 /* void endFrameDecode (in unsigned long framenumber); */
 NS_IMETHODIMP imgContainer::EndFrameDecode(PRUint32 aFrameNum)
 {
-  if (mError)
-    return NS_ERROR_FAILURE;
-
   // Assume there's another frame.
   // currentDecodingFrameIndex is 0 based, aFrameNum is 1 based
   if (mAnim)
@@ -975,37 +290,12 @@ NS_IMETHODIMP imgContainer::EndFrameDecode(PRUint32 aFrameNum)
 /* void decodingComplete (); */
 NS_IMETHODIMP imgContainer::DecodingComplete(void)
 {
-  if (mError)
-    return NS_ERROR_FAILURE;
-
-  // Flag that we're done decoding.
-  // XXX - these should probably be combined when we fix animated image
-  // discarding with bug 500402.
-  mDecoded = PR_TRUE;
-  mHasBeenDecoded = PR_TRUE;
   if (mAnim)
     mAnim->doneDecoding = PR_TRUE;
-
-  nsresult rv;
-
-  // We now have one of the qualifications for discarding. Re-evaluate.
-  if (CanDiscard()) {
-    NS_ABORT_IF_FALSE(!mDiscardTimer,
-                      "We shouldn't have been discardable before this");
-    rv = ResetDiscardTimer();
-    CONTAINER_ENSURE_SUCCESS(rv);
-  }
-
-  // If there's only 1 frame, optimize it. Optimizing animated images
-  // is not supported.
-  //
-  // We don't optimize the frame for multipart images because we reuse
-  // the frame.
-  if ((mFrames.Length() == 1) && !mMultipart) {
-    rv = mFrames[0]->Optimize();
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
+  // If there's only 1 frame, optimize it.
+  // Optimizing animated images is not supported
+  if (mNumFrames == 1)
+    mFrames[0]->SetMutable(PR_FALSE);
   return NS_OK;
 }
 
@@ -1013,9 +303,6 @@ NS_IMETHODIMP imgContainer::DecodingComplete(void)
 /* attribute unsigned short animationMode; */
 NS_IMETHODIMP imgContainer::GetAnimationMode(PRUint16 *aAnimationMode)
 {
-  if (mError)
-    return NS_ERROR_FAILURE;
-
   NS_ENSURE_ARG_POINTER(aAnimationMode);
   
   *aAnimationMode = mAnimationMode;
@@ -1026,9 +313,6 @@ NS_IMETHODIMP imgContainer::GetAnimationMode(PRUint16 *aAnimationMode)
 /* attribute unsigned short animationMode; */
 NS_IMETHODIMP imgContainer::SetAnimationMode(PRUint16 aAnimationMode)
 {
-  if (mError)
-    return NS_ERROR_FAILURE;
-
   NS_ASSERTION(aAnimationMode == imgIContainer::kNormalAnimMode ||
                aAnimationMode == imgIContainer::kDontAnimMode ||
                aAnimationMode == imgIContainer::kLoopOnceAnimMode,
@@ -1040,11 +324,11 @@ NS_IMETHODIMP imgContainer::SetAnimationMode(PRUint16 aAnimationMode)
       break;
     case kNormalAnimMode:
       if (mLoopCount != 0 || 
-          (mAnim && (mAnim->currentAnimationFrameIndex + 1 < mFrames.Length())))
+          (mAnim && (mAnim->currentAnimationFrameIndex + 1 < mNumFrames)))
         StartAnimation();
       break;
     case kLoopOnceAnimMode:
-      if (mAnim && (mAnim->currentAnimationFrameIndex + 1 < mFrames.Length()))
+      if (mAnim && (mAnim->currentAnimationFrameIndex + 1 < mNumFrames))
         StartAnimation();
       break;
   }
@@ -1056,23 +340,20 @@ NS_IMETHODIMP imgContainer::SetAnimationMode(PRUint16 aAnimationMode)
 /* void startAnimation () */
 NS_IMETHODIMP imgContainer::StartAnimation()
 {
-  if (mError)
-    return NS_ERROR_FAILURE;
-
   if (mAnimationMode == kDontAnimMode || 
       (mAnim && (mAnim->timer || mAnim->animating)))
     return NS_OK;
   
-  if (mFrames.Length() > 1) {
+  if (mNumFrames > 1) {
     if (!ensureAnimExists())
       return NS_ERROR_OUT_OF_MEMORY;
     
     // Default timeout to 100: the timer notify code will do the right
     // thing, so just get that started.
     PRInt32 timeout = 100;
-    imgFrame *currentFrame = GetCurrentImgFrame();
+    gfxIImageFrame *currentFrame = GetCurrentFrameNoRef();
     if (currentFrame) {
-      timeout = currentFrame->GetTimeout();
+      currentFrame->GetTimeout(&timeout);
       if (timeout <= 0) // -1 means display this frame forever
         return NS_OK;
     }
@@ -1093,9 +374,6 @@ NS_IMETHODIMP imgContainer::StartAnimation()
 /* void stopAnimation (); */
 NS_IMETHODIMP imgContainer::StopAnimation()
 {
-  if (mError)
-    return NS_ERROR_FAILURE;
-
   if (mAnim) {
     mAnim->animating = PR_FALSE;
 
@@ -1113,9 +391,6 @@ NS_IMETHODIMP imgContainer::StopAnimation()
 /* void resetAnimation (); */
 NS_IMETHODIMP imgContainer::ResetAnimation()
 {
-  if (mError)
-    return NS_ERROR_FAILURE;
-
   if (mAnimationMode == kDontAnimMode || 
       !mAnim || mAnim->currentAnimationFrameIndex == 0)
     return NS_OK;
@@ -1129,14 +404,13 @@ NS_IMETHODIMP imgContainer::ResetAnimation()
 
   mAnim->lastCompositedFrameIndex = -1;
   mAnim->currentAnimationFrameIndex = 0;
-
-  // Note - We probably want to kick off a redecode somewhere around here when
-  // we fix bug 500402.
-
-  // Update display if we were animating before
+  // Update display
   nsCOMPtr<imgIContainerObserver> observer(do_QueryReferent(mObserver));
-  if (oldAnimating && observer)
-    observer->FrameChanged(this, &(mAnim->firstFrameRefreshArea));
+  if (observer) {
+    nsresult rv = RestoreDiscardedData();
+    NS_ENSURE_SUCCESS(rv, rv);
+    observer->FrameChanged(this, mFrames[0], &(mAnim->firstFrameRefreshArea));
+  }
 
   if (oldAnimating)
     return StartAnimation();
@@ -1147,9 +421,6 @@ NS_IMETHODIMP imgContainer::ResetAnimation()
 /* attribute long loopCount; */
 NS_IMETHODIMP imgContainer::GetLoopCount(PRInt32 *aLoopCount)
 {
-  if (mError)
-    return NS_ERROR_FAILURE;
-
   NS_ENSURE_ARG_POINTER(aLoopCount);
   
   *aLoopCount = mLoopCount;
@@ -1161,9 +432,6 @@ NS_IMETHODIMP imgContainer::GetLoopCount(PRInt32 *aLoopCount)
 /* attribute long loopCount; */
 NS_IMETHODIMP imgContainer::SetLoopCount(PRInt32 aLoopCount)
 {
-  if (mError)
-    return NS_ERROR_FAILURE;
-
   // -1  infinite
   //  0  no looping, one iteration
   //  1  one loop, two iterations
@@ -1173,64 +441,80 @@ NS_IMETHODIMP imgContainer::SetLoopCount(PRInt32 aLoopCount)
   return NS_OK;
 }
 
-//******************************************************************************
-/* void addSourceData(in nsIInputStream aInputStream, in unsigned long aCount); */
-NS_IMETHODIMP imgContainer::AddSourceData(const char *aBuffer, PRUint32 aCount)
+static PRBool
+DiscardingEnabled(void)
 {
-  if (mError)
+  static PRBool inited;
+  static PRBool enabled;
+
+  if (!inited) {
+    inited = PR_TRUE;
+
+    enabled = (PR_GetEnv("MOZ_DISABLE_IMAGE_DISCARD") == nsnull);
+  }
+
+  return enabled;
+}
+
+//******************************************************************************
+/* void setDiscardable(in string mime_type); */
+NS_IMETHODIMP imgContainer::SetDiscardable(const char* aMimeType)
+{
+  NS_ENSURE_ARG_POINTER(aMimeType);
+
+  if (!DiscardingEnabled())
+    return NS_OK;
+
+  if (mDiscardable) {
+    NS_WARNING ("imgContainer::SetDiscardable(): cannot change an imgContainer which is already discardable");
     return NS_ERROR_FAILURE;
-
-  NS_ENSURE_ARG_POINTER(aBuffer);
-  nsresult rv = NS_OK;
-
-  // We should not call this if we're not initialized
-  NS_ABORT_IF_FALSE(mInitialized, "Calling AddSourceData() on uninitialized "
-                                  "imgContainer!");
-
-  // We should not call this if we're already finished adding source data
-  NS_ABORT_IF_FALSE(!mHasSourceData, "Calling AddSourceData() after calling "
-                                     "sourceDataComplete()!");
-
-  // This call should come straight from necko - no reentrancy allowed
-  NS_ABORT_IF_FALSE(!mInDecoder, "Re-entrant call to AddSourceData!");
-
-  // If we're not storing source data, write it directly to the decoder
-  if (!StoringSourceData()) {
-    rv = WriteToDecoder(aBuffer, aCount);
-    CONTAINER_ENSURE_SUCCESS(rv);
   }
 
-  // Otherwise, we're storing data in the source buffer
-  else {
+  mDiscardableMimeType.Assign(aMimeType);
+  mDiscardable = PR_TRUE;
 
-    // Store the data
-    char *newElem = mSourceData.AppendElements(aBuffer, aCount);
-    if (!newElem)
-      return NS_ERROR_OUT_OF_MEMORY;
-
-    // If there's a decoder open, that means we want to do more decoding.
-    // Wake up the worker if it's not up already
-    if (mDecoder && !mWorkerPending) {
-      NS_ABORT_IF_FALSE(mWorker, "We should have a worker here!");
-      rv = mWorker->Run();
-      CONTAINER_ENSURE_SUCCESS(rv);
-    }
-  }
-
-  // Statistics
-  total_source_bytes += aCount;
-  if (mDiscardable)
-    discardable_source_bytes += aCount;
+  num_containers_with_discardable_data++;
   PR_LOG (gCompressedImageAccountingLog, PR_LOG_DEBUG,
-          ("CompressedImageAccounting: Added compressed data to imgContainer %p (%s). "
-           "Total Containers: %d, Discardable containers: %d, "
-           "Total source bytes: %lld, Source bytes for discardable containers %lld",
+          ("CompressedImageAccounting: Making imgContainer %p (%s) discardable.  "
+           "Compressed containers: %d, Compressed data bytes: %lld",
            this,
-           mSourceDataMimeType.get(),
-           num_containers,
-           num_discardable_containers,
-           total_source_bytes,
-           discardable_source_bytes));
+           aMimeType,
+           num_containers_with_discardable_data,
+           num_compressed_image_bytes));
+
+  return NS_OK;
+}
+
+//******************************************************************************
+/* void addRestoreData(in nsIInputStream aInputStream, in unsigned long aCount); */
+NS_IMETHODIMP imgContainer::AddRestoreData(const char *aBuffer, PRUint32 aCount)
+{
+  NS_ENSURE_ARG_POINTER(aBuffer);
+
+  if (!mDiscardable)
+    return NS_OK;
+
+  if (mRestoreDataDone) {
+    /* We are being called from the decoder while the data is being restored
+     * (i.e. we were fully loaded once, then we discarded the image data, then
+     * we are being restored).  We don't want to save the compressed data again,
+     * since we already have it.
+     */
+    return NS_OK;
+  }
+
+  if (!mRestoreData.AppendElements(aBuffer, aCount))
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  num_compressed_image_bytes += aCount;
+
+  PR_LOG (gCompressedImageAccountingLog, PR_LOG_DEBUG,
+          ("CompressedImageAccounting: Added compressed data to imgContainer %p (%s).  "
+           "Compressed containers: %d, Compressed data bytes: %lld",
+           this,
+           mDiscardableMimeType.get(),
+           num_containers_with_discardable_data,
+           num_compressed_image_bytes));
 
   return NS_OK;
 }
@@ -1255,115 +539,46 @@ get_header_str (char *buf, char *data, PRSize data_len)
 }
 
 //******************************************************************************
-/* void sourceDataComplete(); */
-NS_IMETHODIMP imgContainer::SourceDataComplete()
+/* void restoreDataDone(); */
+NS_IMETHODIMP imgContainer::RestoreDataDone (void)
 {
-  if (mError)
-    return NS_ERROR_FAILURE;
-
-  // If we've been called before, ignore. Otherwise, flag that we have everything
-  if (mHasSourceData)
+  // If image is not discardable, don't start discard timer
+  if (!mDiscardable)
     return NS_OK;
-  mHasSourceData = PR_TRUE;
 
-  // This call should come straight from necko - no reentrancy allowed
-  NS_ABORT_IF_FALSE(!mInDecoder, "Re-entrant call to AddSourceData!");
+  if (mRestoreDataDone)
+    return NS_OK;
 
-  // If we're not storing any source data, then all the data was written
-  // directly to the decoder in the AddSourceData() calls. This means we're
-  // done, so we can shut down the decoder.
-  if (!StoringSourceData()) {
-    nsresult rv = ShutdownDecoder(eShutdownIntent_Done);
-    CONTAINER_ENSURE_SUCCESS(rv);
-  }
+  mRestoreData.Compact();
 
-  // If there's a decoder open, we need to wake up the worker if it's not
-  // already. This is so the worker can account for the fact that the source
-  // data is complete. For some decoders, DecodingComplete() is only called
-  // when the decoder is Close()-ed, and thus the SourceDataComplete() call
-  // is the only way we can transition to a 'decoded' state. Furthermore,
-  // it's always possible for any image type to have the data stream stop
-  // abruptly at any point, in which case we need to trigger an error.
-  if (mDecoder && !mWorkerPending) {
-    NS_ABORT_IF_FALSE(mWorker, "We should have a worker here!");
-    nsresult rv = mWorker->Run();
-    CONTAINER_ENSURE_SUCCESS(rv);
-  }
+  mRestoreDataDone = PR_TRUE;
 
-  // Free up any extra space in the backing buffer
-  mSourceData.Compact();
-
-  // Log header information
   if (PR_LOG_TEST(gCompressedImageAccountingLog, PR_LOG_DEBUG)) {
     char buf[9];
-    get_header_str(buf, mSourceData.Elements(), mSourceData.Length());
+    get_header_str(buf, mRestoreData.Elements(), mRestoreData.Length());
     PR_LOG (gCompressedImageAccountingLog, PR_LOG_DEBUG,
-            ("CompressedImageAccounting: imgContainer::SourceDataComplete() - data "
-             "is done for container %p (%s) - header %p is 0x%s (length %d)",
+            ("CompressedImageAccounting: imgContainer::RestoreDataDone() - data is done for container %p (%s), %d real frames (cached as %d frames) - header %p is 0x%s (length %d)",
              this,
-             mSourceDataMimeType.get(),
-             mSourceData.Elements(),
+             mDiscardableMimeType.get(),
+             mFrames.Count (),
+             mNumFrames,
+             mRestoreData.Elements(),
              buf,
-             mSourceData.Length()));
+             mRestoreData.Length()));
   }
 
-  // We now have one of the qualifications for discarding. Re-evaluate.
-  if (CanDiscard()) {
-    nsresult rv = ResetDiscardTimer();
-    CONTAINER_ENSURE_SUCCESS(rv);
-  }
-  return NS_OK;
-}
-
-//******************************************************************************
-/* void newSourceData(); */
-NS_IMETHODIMP imgContainer::NewSourceData()
-{
-  nsresult rv;
-
-  if (mError)
-    return NS_ERROR_FAILURE;
-
-  // The source data should be complete before calling this
-  NS_ABORT_IF_FALSE(mHasSourceData,
-                    "Calling NewSourceData before SourceDataComplete!");
-  if (!mHasSourceData)
-    return NS_ERROR_ILLEGAL_VALUE;
-
-  // Only supported for multipart channels. It wouldn't be too hard to change this,
-  // but it would involve making sure that things worked for decode-on-draw and
-  // discarding. Presently there's no need for this, so we don't.
-  NS_ABORT_IF_FALSE(mMultipart, "NewSourceData not supported for multipart");
-  if (!mMultipart)
-    return NS_ERROR_ILLEGAL_VALUE;
-
-  // We're multipart, so we shouldn't be storing source data
-  NS_ABORT_IF_FALSE(!StoringSourceData(),
-                    "Shouldn't be storing source data for multipart");
-
-  // We're not storing the source data and we got SourceDataComplete. We should
-  // have shut down the previous decoder
-  NS_ABORT_IF_FALSE(!mDecoder, "Shouldn't have a decoder in NewSourceData");
-
-  // The decoder was shut down and we didn't flag an error, so we should be decoded
-  NS_ABORT_IF_FALSE(mDecoded, "Should be decoded in NewSourceData");
-
-  // Reset some flags
-  mDecoded = PR_FALSE;
-  mHasSourceData = PR_FALSE;
-
-  // We're decode-on-load here. Open up a new decoder just like what happens when
-  // we call Init() for decode-on-load images.
-  rv = InitDecoder(imgIDecoder::DECODER_FLAG_NONE);
-  CONTAINER_ENSURE_SUCCESS(rv);
-
-  return NS_OK;
+  return ResetDiscardTimer();
 }
 
 //******************************************************************************
 /* void notify(in nsITimer timer); */
 NS_IMETHODIMP imgContainer::Notify(nsITimer *timer)
 {
+  // Note that as long as the image is animated, it will not be discarded, 
+  // so this should never happen...
+  nsresult rv = RestoreDiscardedData();
+  NS_ENSURE_SUCCESS(rv, rv);
+
   // This should never happen since the timer is only set up in StartAnimation()
   // after mAnim is checked to exist.
   NS_ENSURE_TRUE(mAnim, NS_ERROR_UNEXPECTED);
@@ -1380,12 +595,12 @@ NS_IMETHODIMP imgContainer::Notify(nsITimer *timer)
     return NS_OK;
   }
 
-  if (mFrames.Length() == 0)
+  if (mNumFrames == 0)
     return NS_OK;
   
-  imgFrame *nextFrame = nsnull;
+  gfxIImageFrame *nextFrame = nsnull;
   PRInt32 previousFrameIndex = mAnim->currentAnimationFrameIndex;
-  PRUint32 nextFrameIndex = mAnim->currentAnimationFrameIndex + 1;
+  PRInt32 nextFrameIndex = mAnim->currentAnimationFrameIndex + 1;
   PRInt32 timeout = 0;
 
   // If we're done decoding the next frame, go ahead and display it now and
@@ -1394,7 +609,7 @@ NS_IMETHODIMP imgContainer::Notify(nsITimer *timer)
   // finished decoding (see EndFrameDecode)
   if (mAnim->doneDecoding || 
       (nextFrameIndex < mAnim->currentDecodingFrameIndex)) {
-    if (mFrames.Length() == nextFrameIndex) {
+    if (mNumFrames == nextFrameIndex) {
       // End of Animation
 
       // If animation mode is "loop once", it's time to stop animating
@@ -1419,7 +634,7 @@ NS_IMETHODIMP imgContainer::Notify(nsITimer *timer)
       mAnim->timer->SetDelay(100);
       return NS_OK;
     }
-    timeout = nextFrame->GetTimeout();
+    nextFrame->GetTimeout(&timeout);
 
   } else if (nextFrameIndex == mAnim->currentDecodingFrameIndex) {
     // Uh oh, the frame we want to show is currently being decoded (partial)
@@ -1437,7 +652,7 @@ NS_IMETHODIMP imgContainer::Notify(nsITimer *timer)
       mAnim->timer->SetDelay(100);
       return NS_OK;
     }
-    timeout = nextFrame->GetTimeout();
+    nextFrame->GetTimeout(&timeout);
   }
 
   if (timeout > 0)
@@ -1446,13 +661,13 @@ NS_IMETHODIMP imgContainer::Notify(nsITimer *timer)
     StopAnimation();
 
   nsIntRect dirtyRect;
-  imgFrame *frameToUse = nsnull;
+  gfxIImageFrame *frameToUse = nsnull;
 
   if (nextFrameIndex == 0) {
     frameToUse = nextFrame;
     dirtyRect = mAnim->firstFrameRefreshArea;
   } else {
-    imgFrame *prevFrame = mFrames[previousFrameIndex];
+    gfxIImageFrame *prevFrame = mFrames[previousFrameIndex];
     if (!prevFrame)
       return NS_OK;
 
@@ -1461,17 +676,14 @@ NS_IMETHODIMP imgContainer::Notify(nsITimer *timer)
                               nextFrame, nextFrameIndex))) {
       // something went wrong, move on to next
       NS_WARNING("imgContainer::Notify(): Composing Frame Failed\n");
-      nextFrame->SetCompositingFailed(PR_TRUE);
       mAnim->currentAnimationFrameIndex = nextFrameIndex;
       return NS_OK;
-    } else {
-      nextFrame->SetCompositingFailed(PR_FALSE);
     }
   }
   // Set currentAnimationFrameIndex at the last possible moment
   mAnim->currentAnimationFrameIndex = nextFrameIndex;
   // Refreshes the screen
-  observer->FrameChanged(this, &dirtyRect);
+  observer->FrameChanged(this, frameToUse, &dirtyRect);
   
   return NS_OK;
 }
@@ -1479,10 +691,10 @@ NS_IMETHODIMP imgContainer::Notify(nsITimer *timer)
 //******************************************************************************
 // DoComposite gets called when the timer for animation get fired and we have to
 // update the composited frame of the animation.
-nsresult imgContainer::DoComposite(imgFrame** aFrameToUse,
+nsresult imgContainer::DoComposite(gfxIImageFrame** aFrameToUse,
                                    nsIntRect* aDirtyRect,
-                                   imgFrame* aPrevFrame,
-                                   imgFrame* aNextFrame,
+                                   gfxIImageFrame* aPrevFrame,
+                                   gfxIImageFrame* aNextFrame,
                                    PRInt32 aNextFrameIndex)
 {
   NS_ENSURE_ARG_POINTER(aDirtyRect);
@@ -1490,12 +702,14 @@ nsresult imgContainer::DoComposite(imgFrame** aFrameToUse,
   NS_ENSURE_ARG_POINTER(aNextFrame);
   NS_ENSURE_ARG_POINTER(aFrameToUse);
 
-  PRInt32 prevFrameDisposalMethod = aPrevFrame->GetFrameDisposalMethod();
+  PRInt32 prevFrameDisposalMethod;
+  aPrevFrame->GetFrameDisposalMethod(&prevFrameDisposalMethod);
+
   if (prevFrameDisposalMethod == imgIContainer::kDisposeRestorePrevious &&
       !mAnim->compositingPrevFrame)
     prevFrameDisposalMethod = imgIContainer::kDisposeClear;
-
-  nsIntRect prevFrameRect = aPrevFrame->GetRect();
+  nsIntRect prevFrameRect;
+  aPrevFrame->GetRect(prevFrameRect);
   PRBool isFullPrevFrame = (prevFrameRect.x == 0 && prevFrameRect.y == 0 &&
                             prevFrameRect.width == mSize.width &&
                             prevFrameRect.height == mSize.height);
@@ -1506,13 +720,17 @@ nsresult imgContainer::DoComposite(imgFrame** aFrameToUse,
       (prevFrameDisposalMethod == imgIContainer::kDisposeClear))
     prevFrameDisposalMethod = imgIContainer::kDisposeClearAll;
 
-  PRInt32 nextFrameDisposalMethod = aNextFrame->GetFrameDisposalMethod();
-  nsIntRect nextFrameRect = aNextFrame->GetRect();
+  PRInt32 nextFrameDisposalMethod;
+  nsIntRect nextFrameRect;
+  aNextFrame->GetFrameDisposalMethod(&nextFrameDisposalMethod);
+  aNextFrame->GetRect(nextFrameRect);
   PRBool isFullNextFrame = (nextFrameRect.x == 0 && nextFrameRect.y == 0 &&
                             nextFrameRect.width == mSize.width &&
                             nextFrameRect.height == mSize.height);
 
-  if (!aNextFrame->GetIsPaletted()) {
+  gfx_format nextFormat;
+  aNextFrame->GetFormat(&nextFormat);
+  if (nextFormat != gfxIFormats::PAL && nextFormat != gfxIFormats::PAL_A1) {
     // Optimization: Skip compositing if the previous frame wants to clear the
     //               whole image
     if (prevFrameDisposalMethod == imgIContainer::kDisposeClearAll) {
@@ -1525,7 +743,7 @@ nsresult imgContainer::DoComposite(imgFrame** aFrameToUse,
     //               container and it's fully drawing over prev frame (no alpha)
     if (isFullNextFrame &&
         (nextFrameDisposalMethod != imgIContainer::kDisposeRestorePrevious) &&
-        !aNextFrame->GetHasAlpha()) {
+        (nextFormat == gfxIFormats::RGB)) {
       aDirtyRect->SetRect(0, 0, mSize.width, mSize.height);
       *aFrameToUse = aNextFrame;
       return NS_OK;
@@ -1576,14 +794,14 @@ nsresult imgContainer::DoComposite(imgFrame** aFrameToUse,
 
   // Create the Compositing Frame
   if (!mAnim->compositingFrame) {
-    mAnim->compositingFrame = new imgFrame();
-    if (!mAnim->compositingFrame) {
-      NS_WARNING("Failed to init compositingFrame!\n");
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
-    nsresult rv = mAnim->compositingFrame->Init(0, 0, mSize.width, mSize.height,
-                                                gfxASurface::ImageFormatARGB32);
+    nsresult rv;
+    mAnim->compositingFrame = do_CreateInstance("@mozilla.org/gfx/image/frame;2", &rv);
+    if (NS_FAILED(rv))
+      return rv;
+    rv = mAnim->compositingFrame->Init(0, 0, mSize.width, mSize.height,
+                                       gfxIFormats::RGB_A1, 24);
     if (NS_FAILED(rv)) {
+      NS_WARNING("Failed to init compositingFrame!\n");
       mAnim->compositingFrame = nsnull;
       return rv;
     }
@@ -1595,7 +813,7 @@ nsresult imgContainer::DoComposite(imgFrame** aFrameToUse,
 
   // More optimizations possible when next frame is not transparent
   PRBool doDisposal = PR_TRUE;
-  if (!aNextFrame->GetHasAlpha()) {
+  if ((nextFormat == gfxIFormats::RGB)||(nextFormat == gfxIFormats::PAL)) {
     if (isFullNextFrame) {
       // Optimization: No need to dispose prev.frame when 
       // next frame is full frame and not transparent.
@@ -1654,13 +872,17 @@ nsresult imgContainer::DoComposite(imgFrame** aFrameToUse,
         // Note: Frame 1 never gets into DoComposite(), so (aNextFrameIndex - 1) will
         // always be a valid frame number.
         if (mAnim->lastCompositedFrameIndex != aNextFrameIndex - 1) {
-          if (isFullPrevFrame && !aPrevFrame->GetIsPaletted()) {
+          gfx_format prevFormat;
+          aPrevFrame->GetFormat(&prevFormat);
+          if (isFullPrevFrame && 
+              prevFormat != gfxIFormats::PAL && prevFormat != gfxIFormats::PAL_A1) {
             // Just copy the bits
             CopyFrameImage(aPrevFrame, mAnim->compositingFrame);
           } else {
             if (needToBlankComposite) {
               // Only blank composite when prev is transparent or not full.
-              if (aPrevFrame->GetHasAlpha() || !isFullPrevFrame) {
+              if (!isFullPrevFrame ||
+                  (prevFormat != gfxIFormats::RGB && prevFormat != gfxIFormats::PAL)) {
                 ClearFrame(mAnim->compositingFrame);
               }
             }
@@ -1683,39 +905,39 @@ nsresult imgContainer::DoComposite(imgFrame** aFrameToUse,
     // It would be better if we just stored the area that nextFrame is going to
     // overwrite.
     if (!mAnim->compositingPrevFrame) {
-      mAnim->compositingPrevFrame = new imgFrame();
-      if (!mAnim->compositingPrevFrame) {
-        NS_WARNING("Failed to init compositingFrame!\n");
-        return NS_ERROR_OUT_OF_MEMORY;
-      }
-      nsresult rv = mAnim->compositingPrevFrame->Init(0, 0, mSize.width, mSize.height,
-                                                      gfxASurface::ImageFormatARGB32);
-      if (NS_FAILED(rv)) {
-        mAnim->compositingPrevFrame = nsnull;
+      nsresult rv;
+      mAnim->compositingPrevFrame = do_CreateInstance("@mozilla.org/gfx/image/frame;2",
+                                                       &rv);
+      if (NS_FAILED(rv))
         return rv;
-      }
+      rv = mAnim->compositingPrevFrame->Init(0, 0, mSize.width, mSize.height,
+                                              gfxIFormats::RGB_A1, 24);
+      if (NS_FAILED(rv))
+        return rv;
     }
-
     CopyFrameImage(mAnim->compositingFrame, mAnim->compositingPrevFrame);
   }
 
   // blit next frame into it's correct spot
   DrawFrameTo(aNextFrame, mAnim->compositingFrame, nextFrameRect);
-
   // Set timeout of CompositeFrame to timeout of frame we just composed
   // Bug 177948
-  PRInt32 timeout = aNextFrame->GetTimeout();
+  PRInt32 timeout;
+  aNextFrame->GetTimeout(&timeout);
   mAnim->compositingFrame->SetTimeout(timeout);
 
   // Tell the image that it is fully 'downloaded'.
-  nsresult rv = mAnim->compositingFrame->ImageUpdated(mAnim->compositingFrame->GetRect());
+  nsIntRect r;
+  mAnim->compositingFrame->GetRect(r);
+  nsCOMPtr<nsIImage> img = do_GetInterface(mAnim->compositingFrame);
+  nsresult rv = img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r);
   if (NS_FAILED(rv)) {
     return rv;
   }
 
   // We don't want to keep composite images for 8bit frames...
   if (isFullNextFrame && mAnimationMode == kNormalAnimMode && mLoopCount != 0 &&
-      !aNextFrame->GetIsPaletted()) {
+      nextFormat != gfxIFormats::PAL && nextFormat != gfxIFormats::PAL_A1) {
     // We have a composited full frame
     // Store the composited frame into the mFrames[..] so we don't have to
     // continuously re-build it
@@ -1737,54 +959,51 @@ nsresult imgContainer::DoComposite(imgFrame** aFrameToUse,
 
 //******************************************************************************
 // Fill aFrame with black. Does also clears the mask.
-void imgContainer::ClearFrame(imgFrame *aFrame)
+void imgContainer::ClearFrame(gfxIImageFrame *aFrame)
 {
   if (!aFrame)
     return;
 
-  nsresult rv = aFrame->LockImageData();
-  if (NS_FAILED(rv))
-    return;
-
+  nsCOMPtr<nsIImage> img(do_GetInterface(aFrame));
   nsRefPtr<gfxASurface> surf;
-  aFrame->GetSurface(getter_AddRefs(surf));
+
+  img->LockImagePixels(0);
+  img->GetSurface(getter_AddRefs(surf));
 
   // Erase the surface to transparent
   gfxContext ctx(surf);
   ctx.SetOperator(gfxContext::OPERATOR_CLEAR);
   ctx.Paint();
-
-  aFrame->UnlockImageData();
+  img->UnlockImagePixels(0);
 }
 
 //******************************************************************************
-void imgContainer::ClearFrame(imgFrame *aFrame, nsIntRect &aRect)
+void imgContainer::ClearFrame(gfxIImageFrame *aFrame, nsIntRect &aRect)
 {
-  if (!aFrame || aRect.width <= 0 || aRect.height <= 0)
+  if (!aFrame || aRect.width <= 0 || aRect.height <= 0) {
     return;
+  }
 
-  nsresult rv = aFrame->LockImageData();
-  if (NS_FAILED(rv))
-    return;
-
+  nsCOMPtr<nsIImage> img(do_GetInterface(aFrame));
   nsRefPtr<gfxASurface> surf;
-  aFrame->GetSurface(getter_AddRefs(surf));
+
+  img->LockImagePixels(0);
+  img->GetSurface(getter_AddRefs(surf));
 
   // Erase the destination rectangle to transparent
   gfxContext ctx(surf);
   ctx.SetOperator(gfxContext::OPERATOR_CLEAR);
   ctx.Rectangle(gfxRect(aRect.x, aRect.y, aRect.width, aRect.height));
   ctx.Fill();
-
-  aFrame->UnlockImageData();
+  img->UnlockImagePixels(0);
 }
 
 
 //******************************************************************************
 // Whether we succeed or fail will not cause a crash, and there's not much
 // we can do about a failure, so there we don't return a nsresult
-PRBool imgContainer::CopyFrameImage(imgFrame *aSrcFrame,
-                                    imgFrame *aDstFrame)
+PRBool imgContainer::CopyFrameImage(gfxIImageFrame *aSrcFrame,
+                                    gfxIImageFrame *aDstFrame)
 {
   PRUint8* aDataSrc;
   PRUint8* aDataDest;
@@ -1817,14 +1036,15 @@ PRBool imgContainer::CopyFrameImage(imgFrame *aSrcFrame,
  * aSrcRect is the size of the current frame, and the position of that frame
  *          in the composition frame.
  */
-nsresult imgContainer::DrawFrameTo(imgFrame *aSrc,
-                                   imgFrame *aDst, 
+nsresult imgContainer::DrawFrameTo(gfxIImageFrame *aSrc,
+                                   gfxIImageFrame *aDst, 
                                    nsIntRect& aSrcRect)
 {
   NS_ENSURE_ARG_POINTER(aSrc);
   NS_ENSURE_ARG_POINTER(aDst);
 
-  nsIntRect dstRect = aDst->GetRect();
+  nsIntRect dstRect;
+  aDst->GetRect(dstRect);
 
   // According to both AGIF and APNG specs, offsets are unsigned
   if (aSrcRect.x < 0 || aSrcRect.y < 0) {
@@ -1835,8 +1055,9 @@ nsresult imgContainer::DrawFrameTo(imgFrame *aSrc,
   if ((aSrcRect.x > dstRect.width) || (aSrcRect.y > dstRect.height)) {
     return NS_OK;
   }
-
-  if (aSrc->GetIsPaletted()) {
+  gfx_format format;
+  aSrc->GetFormat(&format);
+  if (format == gfxIFormats::PAL || format == gfxIFormats::PAL_A1) {
     // Larger than the destination frame, clip it
     PRInt32 width = PR_MIN(aSrcRect.width, dstRect.width - aSrcRect.x);
     PRInt32 height = PR_MIN(aSrcRect.height, dstRect.height - aSrcRect.y);
@@ -1853,16 +1074,15 @@ nsresult imgContainer::DrawFrameTo(imgFrame *aSrc,
 
     if (NS_FAILED(aDst->LockImageData()))
       return NS_ERROR_FAILURE;
-
     // Get pointers to image data
     PRUint32 size;
     PRUint8 *srcPixels;
-    PRUint32 *colormap;
-    PRUint32 *dstPixels;
+    gfx_color *colormap;
+    gfx_color *dstPixels;
 
     aSrc->GetImageData(&srcPixels, &size);
+    aDst->GetImageData((PRUint8**)&dstPixels, &size);
     aSrc->GetPaletteData(&colormap, &size);
-    aDst->GetImageData((PRUint8 **)&dstPixels, &size);
     if (!srcPixels || !dstPixels || !colormap) {
       aDst->UnlockImageData();
       return NS_ERROR_FAILURE;
@@ -1870,7 +1090,7 @@ nsresult imgContainer::DrawFrameTo(imgFrame *aSrc,
 
     // Skip to the right offset
     dstPixels += aSrcRect.x + (aSrcRect.y * dstRect.width);
-    if (!aSrc->GetHasAlpha()) {
+    if (format == gfxIFormats::PAL) {
       for (PRInt32 r = height; r > 0; --r) {
         for (PRInt32 c = 0; c < width; c++) {
           dstPixels[c] = colormap[srcPixels[c]];
@@ -1880,6 +1100,7 @@ nsresult imgContainer::DrawFrameTo(imgFrame *aSrc,
         dstPixels += dstRect.width;
       }
     } else {
+      // With transparent source, skip transparent pixels
       for (PRInt32 r = height; r > 0; --r) {
         for (PRInt32 c = 0; c < width; c++) {
           const PRUint32 color = colormap[srcPixels[c]];
@@ -1891,24 +1112,27 @@ nsresult imgContainer::DrawFrameTo(imgFrame *aSrc,
         dstPixels += dstRect.width;
       }
     }
-
     aDst->UnlockImageData();
     return NS_OK;
   }
 
+  nsCOMPtr<nsIImage> srcImg(do_GetInterface(aSrc));
   nsRefPtr<gfxPattern> srcPatt;
-  aSrc->GetPattern(getter_AddRefs(srcPatt));
+  srcImg->GetPattern(getter_AddRefs(srcPatt));
 
-  aDst->LockImageData();
+  nsCOMPtr<nsIImage> dstImg(do_GetInterface(aDst));
   nsRefPtr<gfxASurface> dstSurf;
-  aDst->GetSurface(getter_AddRefs(dstSurf));
+  // Note: dstImage has LockImageData() called on it above, so it's safe to get
+  // the surface.
+  dstImg->GetSurface(getter_AddRefs(dstSurf));
 
   gfxContext dst(dstSurf);
   dst.Translate(gfxPoint(aSrcRect.x, aSrcRect.y));
   dst.Rectangle(gfxRect(0, 0, aSrcRect.width, aSrcRect.height), PR_TRUE);
   
   // first clear the surface if the blend flag says so
-  PRInt32 blendMethod = aSrc->GetBlendMethod();
+  PRInt32 blendMethod;
+  aSrc->GetBlendMethod(&blendMethod);
   if (blendMethod == imgIContainer::kBlendSource) {
     gfxContext::GraphicsOperator defaultOperator = dst.CurrentOperator();
     dst.SetOperator(gfxContext::OPERATOR_CLEAR);
@@ -1917,8 +1141,6 @@ nsresult imgContainer::DrawFrameTo(imgFrame *aSrc,
   }
   dst.SetPattern(srcPatt);
   dst.Paint();
-
-  aDst->UnlockImageData();
 
   return NS_OK;
 }
@@ -1978,657 +1200,295 @@ get_discard_timer_ms (void)
 void
 imgContainer::sDiscardTimerCallback(nsITimer *aTimer, void *aClosure)
 {
-  // Retrieve self pointer and null out the expired timer
   imgContainer *self = (imgContainer *) aClosure;
-  NS_ABORT_IF_FALSE(aTimer == self->mDiscardTimer, 
-                    "imgContainer::DiscardTimerCallback() got a callback "
-                    "for an unknown timer");
+
+  NS_ASSERTION(aTimer == self->mDiscardTimer,
+               "imgContainer::DiscardTimerCallback() got a callback for an unknown timer");
+
   self->mDiscardTimer = nsnull;
 
-  // We should be ok for discard
-  NS_ABORT_IF_FALSE(self->CanDiscard(), "Hit discard callback but can't discard!");
+  int old_frame_count = self->mFrames.Count();
 
-  // We should never discard when we have an active decoder
-  NS_ABORT_IF_FALSE(!self->mDecoder, "Discard callback fired with open decoder!");
+  // Don't discard animated images, because we don't handle that very well. (See bug 414259.)
+  if (self->mAnim) {
+    return;
+  }
 
-  // As soon as an image becomes animated, it becomes non-discardable and any
-  // timers are cancelled.
-  NS_ABORT_IF_FALSE(!self->mAnim, "Discard callback fired for animated image!");
-
-  // For post-operation logging
-  int old_frame_count = self->mFrames.Length();
-
-  // Delete all the decoded frames, then clear the array.
-  for (int i = 0; i < old_frame_count; ++i)
-    delete self->mFrames[i];
   self->mFrames.Clear();
 
-  // Flag that we no longer have decoded frames for this image
-  self->mDecoded = PR_FALSE;
+  self->mDiscarded = PR_TRUE;
 
-  // Notify that we discarded
-  nsCOMPtr<imgIDecoderObserver> observer(do_QueryReferent(self->mObserver));
-  if (observer)
-    observer->OnDiscard(nsnull);
-
-  // Log
   PR_LOG(gCompressedImageAccountingLog, PR_LOG_DEBUG,
-         ("CompressedImageAccounting: discarded uncompressed image "
-          "data from imgContainer %p (%s) - %d frames (cached count: %d); "
-          "Total Containers: %d, Discardable containers: %d, "
-          "Total source bytes: %lld, Source bytes for discardable containers %lld",
+         ("CompressedImageAccounting: discarded uncompressed image data from imgContainer %p (%s) - %d frames (cached count: %d); "
+          "Compressed containers: %d, Compressed data bytes: %lld",
           self,
-          self->mSourceDataMimeType.get(),
+          self->mDiscardableMimeType.get(),
           old_frame_count,
-          self->mFrames.Length(),
-          num_containers,
-          num_discardable_containers,
-          total_source_bytes,
-          discardable_source_bytes));
+          self->mNumFrames,
+          num_containers_with_discardable_data,
+          num_compressed_image_bytes));
 }
 
 nsresult
-imgContainer::ResetDiscardTimer()
+imgContainer::ResetDiscardTimer (void)
 {
-  // We should not call this function if we can't discard
-  NS_ABORT_IF_FALSE(CanDiscard(), "Calling ResetDiscardTimer but can't discard!");
+  if (!mRestoreDataDone)
+    return NS_OK;
 
-  // As soon as an image becomes animated it is set non-discardable
-  NS_ABORT_IF_FALSE(!mAnim, "Trying to reset discard timer on animated image!");
-
-  // If we have a timer already ticking, cancel it
   if (mDiscardTimer) {
+    /* Cancel current timer */
     nsresult rv = mDiscardTimer->Cancel();
-    CONTAINER_ENSURE_SUCCESS(rv);
+    NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
     mDiscardTimer = nsnull;
   }
 
-  // Create a new timer
-  mDiscardTimer = do_CreateInstance("@mozilla.org/timer;1");
-  CONTAINER_ENSURE_TRUE(mDiscardTimer, NS_ERROR_OUT_OF_MEMORY);
+  /* Don't activate timer when we are animating... */
+  if (mAnim && mAnim->animating)
+    return NS_OK;
 
-  // Activate the timer
+  if (!mDiscardTimer) {
+    mDiscardTimer = do_CreateInstance("@mozilla.org/timer;1");
+    NS_ENSURE_TRUE(mDiscardTimer, NS_ERROR_OUT_OF_MEMORY);
+  }
+
   return mDiscardTimer->InitWithFuncCallback(sDiscardTimerCallback,
                                              (void *) this,
                                              get_discard_timer_ms (),
                                              nsITimer::TYPE_ONE_SHOT);
 }
 
-// Helper method to determine if we can discard an image
-PRBool
-imgContainer::CanDiscard() {
-  return (DiscardingEnabled() && // Globally enabled...
-          mDiscardable &&        // ...Enabled at creation time...
-          (mLockCount == 0) &&   // ...not temporarily disabled...
-          mHasSourceData &&      // ...have the source data...
-          mDecoded);             // ...and have something to discard.
-}
-
-// Helper method to determine if we're storing the source data in a buffer
-// or just writing it directly to the decoder
-PRBool
-imgContainer::StoringSourceData() {
-  return (mDecodeOnDraw || mDiscardable);
-}
-
-
-// Sets up a decoder for this image. It is an error to call this function
-// when decoding is already in process (ie - when mDecoder is non-null).
 nsresult
-imgContainer::InitDecoder (PRUint32 dFlags)
+imgContainer::RestoreDiscardedData(void)
 {
-  // Ensure that the decoder is not already initialized
-  NS_ABORT_IF_FALSE(!mDecoder, "Calling InitDecoder() while already decoding!");
+  // mRestoreDataDone = PR_TRUE means that we want to timeout and then discard the image frames
+  // So, we only need to restore, if mRestoreDataDone is true, and then only when the frames are discarded...
+  if (!mRestoreDataDone) 
+    return NS_OK;
+
+  // Reset timer, as the frames are accessed
+  nsresult rv = ResetDiscardTimer();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!mDiscarded)
+    return NS_OK;
+
+  int num_expected_frames = mNumFrames;
+
+  // To prevent that ReloadImages is called multiple times, reset the flag before reloading
+  mDiscarded = PR_FALSE;
+
+  rv = ReloadImages();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  NS_ASSERTION (mNumFrames == mFrames.Count(),
+                "number of restored image frames doesn't match");
+  NS_ASSERTION (num_expected_frames == mNumFrames,
+                "number of restored image frames doesn't match the original number of frames!");
   
-  // We shouldn't be firing up a decoder if we already have the frames decoded
-  NS_ABORT_IF_FALSE(!mDecoded, "Calling InitDecoder() but already decoded!");
-
-  // Since we're not decoded, we should not have a discard timer active
-  NS_ABORT_IF_FALSE(!mDiscardTimer, "Discard Timer active in InitDecoder()!");
-
-  // Find and instantiate the decoder
-  nsCAutoString decoderCID(NS_LITERAL_CSTRING("@mozilla.org/image/decoder;3?type=") +
-                                              mSourceDataMimeType);
-  mDecoder = do_CreateInstance(decoderCID.get());
-  CONTAINER_ENSURE_TRUE(mDecoder, NS_IMAGELIB_ERROR_NO_DECODER);
-
-  // Store the flags for this decoder
-  mDecoderFlags = dFlags;
-
-  // Initialize the decoder
-  nsCOMPtr<imgIDecoderObserver> observer(do_QueryReferent(mObserver));
-  nsresult result = mDecoder->Init(this, observer, dFlags);
-  CONTAINER_ENSURE_SUCCESS(result);
-
-  // Create a decode worker
-  mWorker = new imgDecodeWorker(this);
-  CONTAINER_ENSURE_TRUE(mWorker, NS_ERROR_OUT_OF_MEMORY);
+  PR_LOG (gCompressedImageAccountingLog, PR_LOG_DEBUG,
+          ("CompressedImageAccounting: imgContainer::RestoreDiscardedData() restored discarded data "
+           "for imgContainer %p (%s) - %d image frames.  "
+           "Compressed containers: %d, Compressed data bytes: %lld",
+           this,
+           mDiscardableMimeType.get(),
+           mNumFrames,
+           num_containers_with_discardable_data,
+           num_compressed_image_bytes));
 
   return NS_OK;
 }
 
-// Flushes, closes, and nulls-out a decoder. Cleans up any related decoding
-// state. It is an error to call this function when there is no initialized
-// decoder.
-// 
-// aIntent specifies the intent of the shutdown. If aIntent is
-// eShutdownIntent_Done, an error is flagged if we didn't get what we should
-// have out of the decode. If aIntent is eShutdownIntent_Interrupted, we don't
-// check this. If aIntent is eShutdownIntent_Error, we shut down in error mode.
-nsresult
-imgContainer::ShutdownDecoder(eShutdownIntent aIntent)
+class ContainerLoader : public imgILoad,
+                        public imgIDecoderObserver,
+                        public nsSupportsWeakReference
 {
-  // Ensure that our intent is valid
-  NS_ABORT_IF_FALSE((aIntent >= 0) || (aIntent < eShutdownIntent_AllCount),
-                    "Invalid shutdown intent");
+public:
 
-  // Ensure that the decoder is initialized
-  NS_ABORT_IF_FALSE(mDecoder, "Calling ShutdownDecoder() with no active decoder!");
+  NS_DECL_ISUPPORTS
+  NS_DECL_IMGILOAD
+  NS_DECL_IMGIDECODEROBSERVER
+  NS_DECL_IMGICONTAINEROBSERVER
 
-  nsresult rv;
+  ContainerLoader(void);
 
-  // If we're "done" _and_ it's a full decode, flush
-  if ((aIntent == eShutdownIntent_Done) &&
-      !(mDecoderFlags && imgIDecoder::DECODER_FLAG_HEADERONLY)) {
-    mInDecoder = PR_TRUE;
-    rv = mDecoder->Flush();
-    mInDecoder = PR_FALSE;
+private:
 
-    // The error case here is a bit tricky. We flag an error, which takes us
-    // back into this function, and then we return.
-    if (NS_FAILED(rv)) {
-      DoError();
-      return rv;
-    }
-  }
+  nsCOMPtr<imgIContainer> mContainer;
+};
 
-  // Close the decoder with the appropriate flags
-  mInDecoder = PR_TRUE;
-  PRUint32 closeFlags = (aIntent == eShutdownIntent_Error)
-                          ? (PRUint32) imgIDecoder::CLOSE_FLAG_DONTNOTIFY
-                          : 0;
-  rv = mDecoder->Close(closeFlags);
-  mInDecoder = PR_FALSE;
+NS_IMPL_ISUPPORTS4 (ContainerLoader, imgILoad, imgIDecoderObserver, imgIContainerObserver, nsISupportsWeakReference)
 
-  // null out the decoder, _then_ check for errors on the close (otherwise the
-  // error routine might re-invoke ShutdownDecoder)
-  mDecoder = nsnull;
-  if (NS_FAILED(rv)) {
-    DoError();
-    return rv;
-  }
-
-  // Kill off the worker
-  mWorker = nsnull;
-
-  // We just shut down the decoder. If we didn't get what we want, but expected
-  // to, flag an error
-  PRBool failed = PR_FALSE;
-  if ((mDecoderFlags & imgIDecoder::DECODER_FLAG_HEADERONLY) && !mHasSize)
-    failed = PR_TRUE;
-  if (!(mDecoderFlags & imgIDecoder::DECODER_FLAG_HEADERONLY) && !mDecoded)
-    failed = PR_TRUE;
-  if ((aIntent == eShutdownIntent_Done) && failed) {
-    DoError();
-    return NS_ERROR_FAILURE;
-  }
-
-  // Clear the flags
-  mDecoderFlags = imgIDecoder::DECODER_FLAG_NONE;
-
-  // Reset number of decoded bytes
-  mBytesDecoded = 0;
-
-  return NS_OK;
+ContainerLoader::ContainerLoader (void)
+{
 }
 
-// Writes the data to the decoder, updating the total number of bytes written.
-nsresult
-imgContainer::WriteToDecoder(const char *aBuffer, PRUint32 aCount)
-{
-  // We should have a decoder
-  NS_ABORT_IF_FALSE(mDecoder, "Trying to write to null decoder!");
-
-  // Write
-  mInDecoder = PR_TRUE;
-  nsresult rv = mDecoder->Write(aBuffer, aCount);
-  mInDecoder = PR_FALSE;
-  CONTAINER_ENSURE_SUCCESS(rv);
-
-  // Keep track of the total number of bytes written over the lifetime of the
-  // decoder
-  mBytesDecoded += aCount;
-
-  return NS_OK;
-}
-
-// This function is called in situations where it's clear that we want the
-// frames in decoded form (Draw, GetFrame, CopyFrame, ExtractFrame, etc).
-// If we're completely decoded, this method resets the discard timer (if
-// we're discardable), since wanting the frames now is a good indicator of
-// wanting them again soon. If we're not decoded, this method kicks off
-// asynchronous decoding to generate the frames.
-nsresult
-imgContainer::WantDecodedFrames()
-{
-  nsresult rv;
-
-  // If we can discard, we should have a timer already. reset it.
-  if (CanDiscard()) {
-    NS_ABORT_IF_FALSE(mDiscardTimer, "Decoded and discardable but timer not set!");
-    rv = ResetDiscardTimer();
-    CONTAINER_ENSURE_SUCCESS(rv);
-  }
-
-  // Request a decode (no-op if we're decoded)
-  return RequestDecode();
-}
-
-//******************************************************************************
-/* void requestDecode() */
+/* Implement imgILoad::image getter */
 NS_IMETHODIMP
-imgContainer::RequestDecode()
+ContainerLoader::GetImage(imgIContainer **aImage)
 {
-  nsresult rv;
-
-  if (mError)
-    return NS_ERROR_FAILURE;
-
-  // If we're not storing source data, we have nothing to do
-  if (!StoringSourceData())
-    return NS_OK;
-
-  // If we're fully decoded, we have nothing to do
-  if (mDecoded)
-    return NS_OK;
-
-  // If we've already got a full decoder running, we have nothing to do
-  if (mDecoder && !(mDecoderFlags & imgIDecoder::DECODER_FLAG_HEADERONLY))
-    return NS_OK;
-
-  // If our callstack goes through a header-only decoder, we have a problem.
-  // We need to shutdown the header-only decoder and replace it with  a full
-  // decoder, but can't do that from within the decoder itself. Thus, we post
-  // an asynchronous event to the event loop to do it later. Since
-  // RequestDecode() is an asynchronous function this works fine (though it's
-  // a little slower).
-  if (mInDecoder) {
-    nsRefPtr<imgDecodeRequestor> requestor = new imgDecodeRequestor(this);
-    if (!requestor)
-      return NS_ERROR_OUT_OF_MEMORY;
-    return NS_DispatchToCurrentThread(requestor);
-  }
-
-
-  // If we have a header-only decoder open, interrupt it and shut it down
-  if (mDecoder && (mDecoderFlags & imgIDecoder::DECODER_FLAG_HEADERONLY)) {
-    rv = ShutdownDecoder(eShutdownIntent_Interrupted);
-    CONTAINER_ENSURE_SUCCESS(rv);
-  }
-
-  // If we don't have a decoder, create one 
-  if (!mDecoder) {
-    NS_ABORT_IF_FALSE(mFrames.IsEmpty(), "Trying to decode to non-empty frame-array");
-    rv = InitDecoder(imgIDecoder::DECODER_FLAG_NONE);
-    CONTAINER_ENSURE_SUCCESS(rv);
-  }
-
-  // If we already have a pending worker, we're done
-  if (mWorkerPending)
-    return NS_OK;
-
-  // If we've read all the data we have, we're done
-  if (mBytesDecoded == mSourceData.Length())
-    return NS_OK;
-
-  // If we get this far, dispatch the worker. We do this instead of starting
-  // any immediate decoding so that actions like tabbing-over to a tab with
-  // large undecoded images don't incur an annoying lag.
-  return mWorker->Dispatch();
-}
-
-// Synchronously decodes as much data as possible
-nsresult
-imgContainer::SyncDecode()
-{
-  nsresult rv;
-
-  // If we're decoded already, no worries
-  if (mDecoded)
-    return NS_OK;
-
-  // If we're not storing source data, there isn't much to do here
-  if (!StoringSourceData())
-    return NS_OK;
-
-  // We really have no good way of forcing a synchronous decode if we're being
-  // called in a re-entrant manner (ie, from an event listener fired by a
-  // decoder), because the decoding machinery is already tied up. The best we
-  // can do is assert that it doesn't happen for debug builds (if it does, we
-  // need to rethink the layout code that does it), and fail for release builds.
-  NS_ABORT_IF_FALSE(!mInDecoder, "Yikes, forcing sync in reentrant call!");
-  if (mInDecoder)
-    return NS_ERROR_FAILURE;
-
-  // If we have a header-only decoder open, shut it down
-  if (mDecoder && (mDecoderFlags & imgIDecoder::DECODER_FLAG_HEADERONLY)) {
-    rv = ShutdownDecoder(eShutdownIntent_Interrupted);
-    CONTAINER_ENSURE_SUCCESS(rv);
-  }
-
-  // If we don't have a decoder, create one 
-  if (!mDecoder) {
-    NS_ABORT_IF_FALSE(mFrames.IsEmpty(), "Trying to decode to non-empty frame-array");
-    rv = InitDecoder(imgIDecoder::DECODER_FLAG_NONE);
-    CONTAINER_ENSURE_SUCCESS(rv);
-  }
-
-  // Write everything we have
-  rv = WriteToDecoder(mSourceData.Elements() + mBytesDecoded,
-                      mSourceData.Length() - mBytesDecoded);
-  CONTAINER_ENSURE_SUCCESS(rv);
-
-  // If we finished the decode, shutdown the decoder
-  if (IsDecodeFinished()) {
-    rv = ShutdownDecoder(eShutdownIntent_Done);
-    CONTAINER_ENSURE_SUCCESS(rv);
-  }
-
-  // All good!
+  *aImage = mContainer;
+  NS_IF_ADDREF (*aImage);
   return NS_OK;
 }
 
-//******************************************************************************
-/* [noscript] void draw(in gfxContext aContext, in gfxGraphicsFilter aFilter,
- * in gfxMatrix aUserSpaceToImageSpace, in gfxRect aFill, in nsIntRect aSubimage,
- * in PRUint32 aFlags); */ 
-NS_IMETHODIMP imgContainer::Draw(gfxContext *aContext, gfxPattern::GraphicsFilter aFilter, 
-                                 gfxMatrix &aUserSpaceToImageSpace, gfxRect &aFill,
-                                 nsIntRect &aSubimage, PRUint32 aFlags)
-{
-  if (mError)
-    return NS_ERROR_FAILURE;
-
-  NS_ENSURE_ARG_POINTER(aContext);
-
-  // If a synchronous draw is requested, flush anything that might be sitting around
-  if (aFlags & FLAG_SYNC_DECODE) {
-    nsresult rv = SyncDecode();
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  imgFrame *frame = GetCurrentDrawableImgFrame();
-  if (!frame) {
-    return NS_OK; // Getting the frame (above) touches the image and kicks off decoding
-  }
-
-  nsIntRect framerect = frame->GetRect();
-  nsIntMargin padding(framerect.x, framerect.y, 
-                      mSize.width - framerect.XMost(),
-                      mSize.height - framerect.YMost());
-
-  frame->Draw(aContext, aFilter, aUserSpaceToImageSpace, aFill, padding, aSubimage);
-
-  return NS_OK;
-}
-
-//******************************************************************************
-/* void lockImage() */
+/* Implement imgILoad::image setter */
 NS_IMETHODIMP
-imgContainer::LockImage()
+ContainerLoader::SetImage(imgIContainer *aImage)
 {
-  if (mError)
-    return NS_ERROR_FAILURE;
-
-  // Cancel the discard timer if it's there
-  if (mDiscardTimer) {
-    mDiscardTimer->Cancel();
-    mDiscardTimer = nsnull; // It's wasteful to null out the discard timers each
-                            // time, but we'll wait to fix that until bug 502694.
-  }
-
-  // Increment the lock count
-  mLockCount++;
-
+  mContainer = aImage;
   return NS_OK;
 }
 
-//******************************************************************************
-/* void unlockImage() */
+/* Implement imgILoad::isMultiPartChannel getter */
 NS_IMETHODIMP
-imgContainer::UnlockImage()
+ContainerLoader::GetIsMultiPartChannel(PRBool *aIsMultiPartChannel)
 {
-  if (mError)
-    return NS_ERROR_FAILURE;
-
-  // It's an error to call this function if the lock count is 0
-  NS_ABORT_IF_FALSE(mLockCount > 0,
-                    "Calling UnlockImage with mLockCount == 0!");
-  if (mLockCount == 0)
-    return NS_ERROR_ABORT;
-
-  // We're locked, so we shouldn't have a discard timer set
-  NS_ABORT_IF_FALSE(!mDiscardTimer, "Locked, but discard timer set!");
-
-  // Decrement our lock count
-  mLockCount--;
-
-  // We now _might_ have one of the qualifications for discarding. Re-evaluate.
-  if (CanDiscard()) {
-    nsresult rv = ResetDiscardTimer();
-    CONTAINER_ENSURE_SUCCESS(rv);
-  }
-
+  *aIsMultiPartChannel = PR_FALSE; /* FIXME: is this always right? */
   return NS_OK;
 }
 
-// Flushes up to aMaxBytes to the decoder.
+/* Implement imgIDecoderObserver::onStartRequest() */
+NS_IMETHODIMP
+ContainerLoader::OnStartRequest(imgIRequest *aRequest)
+{
+  return NS_OK;
+}
+
+/* Implement imgIDecoderObserver::onStartDecode() */
+NS_IMETHODIMP
+ContainerLoader::OnStartDecode(imgIRequest *aRequest)
+{
+  return NS_OK;
+}
+
+/* Implement imgIDecoderObserver::onStartContainer() */
+NS_IMETHODIMP
+ContainerLoader::OnStartContainer(imgIRequest *aRequest, imgIContainer *aContainer)
+{
+  return NS_OK;
+}
+
+/* Implement imgIDecoderObserver::onStartFrame() */
+NS_IMETHODIMP
+ContainerLoader::OnStartFrame(imgIRequest *aRequest, gfxIImageFrame *aFrame)
+{
+  return NS_OK;
+}
+
+/* Implement imgIDecoderObserver::onDataAvailable() */
+NS_IMETHODIMP
+ContainerLoader::OnDataAvailable(imgIRequest *aRequest, gfxIImageFrame *aFrame, const nsIntRect * aRect)
+{
+  return NS_OK;
+}
+
+/* Implement imgIDecoderObserver::onStopFrame() */
+NS_IMETHODIMP
+ContainerLoader::OnStopFrame(imgIRequest *aRequest, gfxIImageFrame *aFrame)
+{
+  return NS_OK;
+}
+
+/* Implement imgIDecoderObserver::onStopContainer() */
+NS_IMETHODIMP
+ContainerLoader::OnStopContainer(imgIRequest *aRequest, imgIContainer *aContainer)
+{
+  return NS_OK;
+}
+
+/* Implement imgIDecoderObserver::onStopDecode() */
+NS_IMETHODIMP
+ContainerLoader::OnStopDecode(imgIRequest *aRequest, nsresult status, const PRUnichar *statusArg)
+{
+  return NS_OK;
+}
+
+/* Implement imgIDecoderObserver::onStopRequest() */
+NS_IMETHODIMP
+ContainerLoader::OnStopRequest(imgIRequest *aRequest, PRBool aIsLastPart)
+{
+  return NS_OK;
+}
+
+/* implement imgIContainerObserver::frameChanged() */
+NS_IMETHODIMP
+ContainerLoader::FrameChanged(imgIContainer *aContainer, gfxIImageFrame *aFrame, nsIntRect * aDirtyRect)
+{
+  return NS_OK;
+}
+
 nsresult
-imgContainer::DecodeSomeData (PRUint32 aMaxBytes)
+imgContainer::ReloadImages(void)
 {
-  // We should have a decoder if we get here
-  NS_ABORT_IF_FALSE(mDecoder, "trying to decode without decoder!");
+  NS_ASSERTION(!mRestoreData.IsEmpty(),
+               "imgContainer::ReloadImages(): mRestoreData should not be empty");
+  NS_ASSERTION(mRestoreDataDone,
+               "imgContainer::ReloadImages(): mRestoreDataDone shoudl be true!");
 
-  // If we have nothing to decode, return
-  if (mBytesDecoded == mSourceData.Length())
-    return NS_OK;
+  mNumFrames = 0;
+  NS_ASSERTION(mFrames.Count() == 0,
+               "imgContainer::ReloadImages(): mFrames should be empty");
 
+  nsCAutoString decoderCID(NS_LITERAL_CSTRING("@mozilla.org/image/decoder;2?type=") + mDiscardableMimeType);
 
-  // write the proper amount of data
-  PRUint32 bytesToDecode = PR_MIN(aMaxBytes,
-                                  mSourceData.Length() - mBytesDecoded);
-  nsresult rv = WriteToDecoder(mSourceData.Elements() + mBytesDecoded,
-                               bytesToDecode);
-
-  return rv;
-}
-
-// There are various indicators that tell us we're finished with the decode
-// task at hand and can shut down the decoder.
-PRBool imgContainer::IsDecodeFinished()
-{
-  // Assume it's not finished
-  PRBool decodeFinished = PR_FALSE;
-
-  // There shouldn't be any reason to call this if we're not storing
-  // source data
-  NS_ABORT_IF_FALSE(StoringSourceData(),
-                    "just shut down on SourceDataComplete!");
-
-  // The decode is complete if we got what we wanted...
-  if (mDecoderFlags & imgIDecoder::DECODER_FLAG_HEADERONLY) {
-    if (mHasSize)
-      decodeFinished = PR_TRUE;
-  }
-  else {
-    if (mDecoded)
-      decodeFinished = PR_TRUE;
+  nsCOMPtr<imgIDecoder> decoder = do_CreateInstance(decoderCID.get());
+  if (!decoder) {
+    PR_LOG(gCompressedImageAccountingLog, PR_LOG_WARNING,
+           ("CompressedImageAccounting: imgContainer::ReloadImages() could not create decoder for %s",
+            mDiscardableMimeType.get()));
+    return NS_IMAGELIB_ERROR_NO_DECODER;
   }
 
-  // ...or if we have all the source data and wrote all the source data.
-  //
-  // (NB - This can be distinct from the above case even for non-erroneous
-  // images because the decoder might not call DecodingComplete() until we
-  // call Close() in ShutdownDecoder())
-  if (mHasSourceData && (mBytesDecoded == mSourceData.Length()))
-    decodeFinished = PR_TRUE;
-
-  return decodeFinished;
-}
-
-// Indempotent error flagging routine. If a decoder is open,
-// sends OnStopContainer and OnStopDecode and shuts down the decoder
-void imgContainer::DoError()
-{
-  // If we've flagged an error before, we have nothing to do
-  if (mError)
-    return;
-
-  // If we're mid-decode
-  if (mDecoder) {
-
-    // grab the observer and give an OnStopContainer and an OnStopDecode
-    nsCOMPtr<imgIDecoderObserver> observer = do_QueryReferent(mObserver);
-    if (observer) {
-      observer->OnStopContainer(nsnull, this);
-      observer->OnStopDecode(nsnull, NS_ERROR_FAILURE, nsnull);
-    }
-
-    // Shutdown the decoder in error mode. We don't care if this flags other
-    // errors.
-    (void) ShutdownDecoder(eShutdownIntent_Error);
+  nsCOMPtr<imgILoad> loader = new ContainerLoader();
+  if (!loader) {
+    PR_LOG(gCompressedImageAccountingLog, PR_LOG_WARNING,
+           ("CompressedImageAccounting: imgContainer::ReloadImages() could not allocate ContainerLoader "
+            "when reloading the images for container %p",
+            this));
+    return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  // Put the container in an error state
-  mError = PR_TRUE;
+  loader->SetImage(this);
 
-  // Log our error
-  LOG_CONTAINER_ERROR;
-}
-
-// Tweakable progressive decoding parameters
-#define DECODE_BYTES_AT_A_TIME 4096
-#define MAX_USEC_BEFORE_YIELD (1000 * 5)
-
-// Decodes some data, then re-posts itself to the end of the event queue if
-// there's more processing to be done
-NS_IMETHODIMP imgDecodeWorker::Run()
-{
-  nsresult rv;
-
-  // If we shutdown the decoder in this function, we could lose ourselves
-  nsCOMPtr<nsIRunnable> kungFuDeathGrip(this);
-
-  // The container holds a strong reference to us. Cycles are bad.
-  nsCOMPtr<imgIContainer> iContainer(do_QueryReferent(mContainer));
-  if (!iContainer)
-    return NS_OK;
-  imgContainer* container = static_cast<imgContainer*>(iContainer.get());
-
-  NS_ABORT_IF_FALSE(container->mInitialized,
-                    "Worker active for uninitialized container!");
-
-  // If we were pending, we're not anymore
-  container->mWorkerPending = PR_FALSE;
-
-  // If an error is flagged, it probably happened while we were waiting
-  // in the event queue. Bail early, but no need to bother the run queue
-  // by returning an error.
-  if (container->mError)
-    return NS_OK;
-
-  // If we don't have a decoder, we must have finished already (for example,
-  // a synchronous decode request came while the worker was pending).
-  if (!container->mDecoder)
-    return NS_OK;
-
-  // Header-only decodes are cheap and we more or less want them to be
-  // synchronous. Write all the data in that case, otherwise write a
-  // chunk
-  PRUint32 maxBytes =
-    (container->mDecoderFlags & imgIDecoder::DECODER_FLAG_HEADERONLY)
-    ? container->mSourceData.Length() : DECODE_BYTES_AT_A_TIME;
-
-  // Loop control
-  PRBool haveMoreData = PR_TRUE;
-  nsTime deadline(PR_Now() + MAX_USEC_BEFORE_YIELD);
-
-  // We keep decoding chunks until one of three possible events occur:
-  // 1) We don't have any data left to decode
-  // 2) The decode completes
-  // 3) We hit the deadline and need to yield to keep the UI snappy
-  while (haveMoreData && !container->IsDecodeFinished() &&
-         (nsTime(PR_Now()) < deadline)) {
-
-    // Decode a chunk of data
-    rv = container->DecodeSomeData(maxBytes);
-    if (NS_FAILED(rv)) {
-      container->DoError();
-      return rv;
-    }
-
-    // Figure out if we still have more data
-    haveMoreData =
-      container->mSourceData.Length() > container->mBytesDecoded;
+  nsresult result = decoder->Init(loader);
+  if (NS_FAILED(result)) {
+    PR_LOG(gCompressedImageAccountingLog, PR_LOG_WARNING,
+           ("CompressedImageAccounting: imgContainer::ReloadImages() image container %p "
+            "failed to initialize the decoder (%s)",
+            this,
+            mDiscardableMimeType.get()));
+    return result;
   }
 
-  // If the decode finished, shutdown the decoder
-  if (container->IsDecodeFinished()) {
-    rv = container->ShutdownDecoder(imgContainer::eShutdownIntent_Done);
-    if (NS_FAILED(rv)) {
-      container->DoError();
-      return rv;
-    }
+  nsCOMPtr<nsIInputStream> stream;
+  result = NS_NewByteInputStream(getter_AddRefs(stream), mRestoreData.Elements(), mRestoreData.Length(), NS_ASSIGNMENT_DEPEND);
+  NS_ENSURE_SUCCESS(result, result);
+
+  if (PR_LOG_TEST(gCompressedImageAccountingLog, PR_LOG_DEBUG)) {
+    char buf[9];
+    get_header_str(buf, mRestoreData.Elements(), mRestoreData.Length());
+    PR_LOG(gCompressedImageAccountingLog, PR_LOG_WARNING,
+           ("CompressedImageAccounting: imgContainer::ReloadImages() starting to restore images for container %p (%s) - "
+            "header %p is 0x%s (length %d)",
+            this,
+            mDiscardableMimeType.get(),
+            mRestoreData.Elements(),
+            buf,
+            mRestoreData.Length()));
   }
 
-  // If Conditions 1 & 2 are still true, then the only reason we bailed was
-  // because we hit the deadline. Repost ourselves to the end of the event
-  // queue.
-  if (!container->IsDecodeFinished() && haveMoreData)
-    return this->Dispatch();
+  // |WriteFrom()| may fail if the original data is broken.
+  PRUint32 written;
+  (void)decoder->WriteFrom(stream, mRestoreData.Length(), &written);
 
-  // Otherwise, return success
-  return NS_OK;
-}
+  result = decoder->Flush();
+  NS_ENSURE_SUCCESS(result, result);
 
-// Queues the worker up at the end of the event queue
-NS_METHOD imgDecodeWorker::Dispatch()
-{
-  // The container holds a strong reference to us. Cycles are bad.
-  nsCOMPtr<imgIContainer> iContainer(do_QueryReferent(mContainer));
-  if (!iContainer)
-    return NS_OK;
-  imgContainer* container = static_cast<imgContainer*>(iContainer.get());
+  result = decoder->Close();
+  NS_ENSURE_SUCCESS(result, result);
 
-  // We should not be called if there's already a pending worker
-  NS_ABORT_IF_FALSE(!container->mWorkerPending,
-                    "Trying to queue up worker with one already pending!");
+  NS_ASSERTION(mFrames.Count() == mNumFrames,
+               "imgContainer::ReloadImages(): the restored mFrames.Count() doesn't match mNumFrames!");
 
-  // Flag that we're pending
-  container->mWorkerPending = PR_TRUE;
-
-  // Dispatch
-  return NS_DispatchToCurrentThread(this);
-}
-
-// nsIInputStream callback to copy the incoming image data directly to the 
-// container without processing. The imgContainer is passed as the closure.
-// Always reads everything it gets, even if the data is erroneous.
-NS_METHOD
-imgContainer::WriteToContainer(nsIInputStream* in, void* closure,
-                               const char* fromRawSegment, PRUint32 toOffset,
-                               PRUint32 count, PRUint32 *writeCount)
-{
-  // Retrieve the imgContainer
-  imgIContainer *container = static_cast<imgIContainer*>(closure);
-
-  // Copy the source data. We squelch the return value here, because returning
-  // an error means that ReadSegments stops reading data, violating our
-  // invariant that we read everything we get.
-  (void) container->AddSourceData(fromRawSegment, count);
-
-  // We wrote everything we got
-  *writeCount = count;
-
-  return NS_OK;
+  return result;
 }

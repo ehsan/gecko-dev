@@ -5,6 +5,8 @@
   XUL Widget Test for search textbox
   -->
 <window title="Search textbox test" width="500" height="600"
+        onload="window.focus();"
+        onfocus="if (!gDone) { gDone = true; doTests(); }"
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
   <script type="application/javascript" src="/MochiKit/packed.js"/>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"/>
@@ -26,6 +28,7 @@
 
 SimpleTest.waitForExplicitFinish();
 
+var gDone = false;
 var gExpectedValue;
 var gLastTest;
 
@@ -163,8 +166,6 @@ function doSearch(aValue) {
   if (gLastTest)
     SimpleTest.finish();
 }
-
-SimpleTest.waitForFocus(doTests);
 
   ]]></script>
 

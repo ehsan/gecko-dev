@@ -64,6 +64,7 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
+PRInt32 gfxQtPlatform::sDPI = -1;
 gfxFontconfigUtils *gfxQtPlatform::sFontconfigUtils = nsnull;
 static cairo_user_data_key_t cairo_qt_pixmap_key;
 static void do_qt_pixmap_unref (void *data)
@@ -73,11 +74,8 @@ static void do_qt_pixmap_unref (void *data)
 }
 
 typedef nsDataHashtable<nsStringHashKey, nsRefPtr<FontFamily> > FontTable;
-typedef nsDataHashtable<nsCStringHashKey, nsTArray<nsRefPtr<FontEntry> > > PrefFontTable;
 static FontTable *gPlatformFonts = NULL;
 static FontTable *gPlatformFontAliases = NULL;
-static PrefFontTable *gPrefFonts = NULL;
-static gfxSparseBitSet *gCodepointsWithNoFonts = NULL;
 static FT_Library gPlatformFTLibrary = NULL;
 
 
@@ -93,10 +91,9 @@ gfxQtPlatform::gfxQtPlatform()
     gPlatformFonts->Init(100);
     gPlatformFontAliases = new FontTable();
     gPlatformFontAliases->Init(100);
-    gPrefFonts = new PrefFontTable();
-    gPrefFonts->Init(100);
-    gCodepointsWithNoFonts = new gfxSparseBitSet();
     UpdateFontList();
+
+    InitDPI();
 }
 
 gfxQtPlatform::~gfxQtPlatform()
@@ -108,10 +105,6 @@ gfxQtPlatform::~gfxQtPlatform()
     gPlatformFonts = NULL;
     delete gPlatformFontAliases;
     gPlatformFontAliases = NULL;
-    delete gPrefFonts;
-    gPrefFonts = NULL;
-    delete gCodepointsWithNoFonts;
-    gCodepointsWithNoFonts = NULL;
 
     cairo_debug_reset_static_data();
 
@@ -178,8 +171,8 @@ gfxQtPlatform::UpdateFontList()
             gPlatformFonts->Put(key, ff);
         }
 
-        FontEntry *fe = new FontEntry(ff->Name());
-        ff->AddFontEntry(fe);
+        nsRefPtr<FontEntry> fe = new FontEntry(ff->Name());
+        ff->mFaces.AppendElement(fe);
 
         if (FcPatternGetString(fs->fonts[i], FC_FILE, 0, (FcChar8 **) &str) == FcResultMatch) {
             fe->mFilename = nsDependentCString(str);
@@ -351,11 +344,22 @@ gfxQtPlatform::CreateFontGroup(const nsAString &aFamilies,
     return new gfxFT2FontGroup(aFamilies, aStyle);
 }
 
+/* static */
+void
+gfxQtPlatform::InitDPI()
+{
+    if (sDPI <= 0) {
+        // Fall back to something sane
+        sDPI = 96;
+    }
+}
+
 qcms_profile*
 gfxQtPlatform::GetPlatformCMSOutputProfile()
 {
     return nsnull;
 }
+
 
 FT_Library
 gfxQtPlatform::GetFTLibrary()
@@ -384,56 +388,4 @@ gfxQtPlatform::FindFontEntry(const nsAString& aName, const gfxFontStyle& aFontSt
         return nsnull;
 
     return ff->FindFontEntry(aFontStyle);
-}
-
-static PLDHashOperator
-FindFontForCharProc(nsStringHashKey::KeyType aKey,
-                    nsRefPtr<FontFamily>& aFontFamily,
-                    void* aUserArg)
-{
-    FontSearch *data = (FontSearch*)aUserArg;
-    aFontFamily->FindFontForChar(data);
-    return PL_DHASH_NEXT;
-}
-
-already_AddRefed<gfxFont>
-gfxQtPlatform::FindFontForChar(PRUint32 aCh, gfxFont *aFont)
-{
-    if (!gPlatformFonts || !gCodepointsWithNoFonts)
-        return nsnull;
-
-    // is codepoint with no matching font? return null immediately
-    if (gCodepointsWithNoFonts->test(aCh)) {
-        return nsnull;
-    }
-
-    FontSearch data(aCh, aFont);
-
-    // find fonts that support the character
-    gPlatformFonts->Enumerate(FindFontForCharProc, &data);
-
-    if (data.mBestMatch) {
-        nsRefPtr<gfxFT2Font> font =
-            gfxFT2Font::GetOrMakeFont(static_cast<FontEntry*>(data.mBestMatch.get()),
-                                      aFont->GetStyle()); 
-        gfxFont* ret = font.forget().get();
-        return already_AddRefed<gfxFont>(ret);
-    }
-
-    // no match? add to set of non-matching codepoints
-    gCodepointsWithNoFonts->set(aCh);
-
-    return nsnull;
-}
-
-PRBool
-gfxQtPlatform::GetPrefFontEntries(const nsCString& aKey, nsTArray<nsRefPtr<FontEntry> > *aFontEntryList)
-{
-    return gPrefFonts->Get(aKey, aFontEntryList);
-}
-
-void
-gfxQtPlatform::SetPrefFontEntries(const nsCString& aKey, nsTArray<nsRefPtr<FontEntry> >& aFontEntryList)
-{
-    gPrefFonts->Put(aKey, aFontEntryList);
 }

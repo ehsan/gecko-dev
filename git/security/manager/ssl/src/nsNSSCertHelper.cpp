@@ -109,7 +109,7 @@ GetIntValue(SECItem *versionItem,
 
   srv = SEC_ASN1DecodeInteger(versionItem,version);
   if (srv != SECSuccess) {
-    NS_ERROR("Could not decode version of cert");
+    NS_ASSERTION(0,"Could not decode version of cert");
     return NS_ERROR_FAILURE;
   }
   return NS_OK;
@@ -155,7 +155,7 @@ ProcessVersion(SECItem         *versionItem,
     rv = nssComponent->GetPIPNSSBundleString("CertDumpVersion3", text);
     break;
   default:
-    NS_ERROR("Bad value for cert version");
+    NS_ASSERTION(0,"Bad value for cert version");
     rv = NS_ERROR_FAILURE;
   }
     
@@ -204,21 +204,23 @@ ProcessSerialNumberDER(SECItem         *serialItem,
 
 static nsresult
 GetDefaultOIDFormat(SECItem *oid,
-                    nsINSSComponent *nssComponent,
                     nsAString &outString,
-                    char separator)
+		    char separator)
 {
   char buf[300];
-  unsigned int len = 0;
-  int written, invalidCount = 0;
+  unsigned int len;
+  int written;
     
-  unsigned int i;
-  unsigned long val  = 0;
-  PRBool invalid = PR_FALSE;
-  PRBool first = PR_TRUE;
+  unsigned long val  = oid->data[0];
+  unsigned int  i    = val % 40;
+  val /= 40;
+  written = PR_snprintf(buf, 300, "%lu%c%u", val, separator, i);
+  if (written < 0)
+    return NS_ERROR_FAILURE;	
+  len = written;
 
   val = 0;
-  for (i = 0; i < oid->len; ++i) {
+  for (i = 1; i < oid->len; ++i) {
     // In this loop, we have to parse a DER formatted 
     // If the first bit is a 1, then the integer is 
     // represented by more than one byte.  If the 
@@ -229,64 +231,16 @@ GetDefaultOIDFormat(SECItem *oid,
 
     j = oid->data[i];
     val = (val << 7) | (j & 0x7f);
-    if (j & 0x80) {
-      // - If val is 0 in this block, the OID number particle starts with 0x80
-      // what is specified as an invalid formating.
-      // - If val is larger then 2^32-7, on next left shift by 7 we will loose
-      // the most significant bits, this OID number particle cannot be read
-      // by our implementation.
-      // - If the first bit is set while this is the last component of the OID
-      // we are also in an invalid state.
-      if (val == 0 || (val >= (1 << (32-7))) || (i == oid->len-1)) {
-        invalid = PR_TRUE;
-      }
-
-      if (i < oid->len-1)
-        continue;
-    }
-
-    if (!invalid) {
-      if (first) {
-        unsigned long one = PR_MIN(val/40, 2); // never > 2
-        unsigned long two = val - (one * 40);
-
-        written = PR_snprintf(&buf[len], sizeof(buf)-len, "%lu%c%lu", 
-			      one, separator, two);
-      }
-      else {
-        written = PR_snprintf(&buf[len], sizeof(buf)-len, "%c%lu", 
-			      separator, val);
-      }
-    }
-    else {
-      nsAutoString unknownText;
-      nssComponent->GetPIPNSSBundleString("CertUnknown", 
-                                          unknownText);
-      if (first) {
-        written = PR_snprintf(&buf[len], sizeof(buf)-len, "%s",
-                              NS_ConvertUTF16toUTF8(unknownText).get());
-      }
-      else {
-        written = PR_snprintf(&buf[len], sizeof(buf)-len, "%c%s",
-                              separator, 
-                              NS_ConvertUTF16toUTF8(unknownText).get());
-      }
-
-      if (++invalidCount > 3) {
-        // Allow only 3 occurences of Unknown in OID display string to
-        // prevent bloat.
-        break;
-      }
-    }
-
+    if (j & 0x80)
+      continue;
+    written = PR_snprintf(&buf[len], sizeof(buf)-len, "%c%lu", 
+			  separator, val);
     if (written < 0)
       return NS_ERROR_FAILURE;
 
     len += written;
     NS_ASSERTION(len < sizeof(buf), "OID data to big to display in 300 chars.");
     val = 0;      
-    invalid = PR_FALSE;
-    first = PR_FALSE;
   }
 
   CopyASCIItoUTF16(buf, outString);
@@ -646,7 +600,7 @@ GetOIDText(SECItem *oid, nsINSSComponent *nssComponent, nsAString &text)
     rv = nssComponent->GetPIPNSSBundleString(bundlekey, text);
   } else {
     nsAutoString text2;
-    rv = GetDefaultOIDFormat(oid, nssComponent, text2, ' ');
+    rv = GetDefaultOIDFormat(oid, text2, ' ');
     if (NS_FAILED(rv))
       return rv;
 
@@ -880,14 +834,14 @@ ProcessExtKeyUsage(SECItem  *extData,
     // of the form CertDumpEKU_<underlined-OID>
     nsAutoString oidname;
     oid = *oids;
-    rv = GetDefaultOIDFormat(oid, nssComponent, oidname, '_');
+    rv = GetDefaultOIDFormat(oid, oidname, '_');
     if (NS_FAILED(rv))
       return rv;
     nsAutoString bundlekey = NS_LITERAL_STRING("CertDumpEKU_")+ oidname;
     NS_ConvertUTF16toUTF8 bk_ascii(bundlekey);
     
     rv = nssComponent->GetPIPNSSBundleString(bk_ascii.get(), local);
-    nsresult rv2 = GetDefaultOIDFormat(oid, nssComponent, oidname, '.');
+    nsresult rv2 = GetDefaultOIDFormat(oid, oidname, '.');
     if (NS_FAILED(rv2))
       return rv2;
     if (NS_SUCCEEDED(rv)) {
@@ -931,24 +885,7 @@ ProcessRDN(CERTRDN* rdn, nsAString &finalString, nsINSSComponent *nssComponent)
     if(!decodeItem) {
       return NS_ERROR_FAILURE;
     }
-
-    // We know we can fit buffer of this length. CERT_RFC1485_EscapeAndQuote
-    // will fail if we provide smaller buffer then the result can fit to.
-    PRIntn escapedValueCapacity = decodeItem->len * 3 + 3;
-    nsAutoArrayPtr<char> escapedValue;
-    escapedValue = new char[escapedValueCapacity];
-    if (!escapedValue)
-      return NS_ERROR_OUT_OF_MEMORY;
-
-    SECStatus status = CERT_RFC1485_EscapeAndQuote(
-          escapedValue.get(),
-          escapedValueCapacity, 
-          (char*)decodeItem->data, 
-          decodeItem->len);
-    if (SECSuccess != status)
-      return NS_ERROR_FAILURE;
-
-    avavalue = NS_ConvertUTF8toUTF16(escapedValue);
+    avavalue = NS_ConvertUTF8toUTF16((char*)decodeItem->data, decodeItem->len);
     
     SECITEM_FreeItem(decodeItem, PR_TRUE);
     params[0] = type.get();
@@ -1112,7 +1049,7 @@ ProcessGeneralName(PRArenaPool *arena,
 	  ProcessRawBytes(nssComponent, &current->name.OthName.name, value);
 	}
     } else {
-      rv = GetDefaultOIDFormat(&current->name.OthName.oid, nssComponent, key, ' ');
+      rv = GetDefaultOIDFormat(&current->name.OthName.oid, key, ' ');
       if (NS_FAILED(rv))
 	goto finish;
       ProcessRawBytes(nssComponent, &current->name.OthName.name, value);
@@ -1172,7 +1109,7 @@ ProcessGeneralName(PRArenaPool *arena,
     }
   case certRegisterID:
     nssComponent->GetPIPNSSBundleString("CertDumpRegisterID", key);
-    rv = GetDefaultOIDFormat(&current->name.other, nssComponent, value, '.');
+    rv = GetDefaultOIDFormat(&current->name.other, value, '.');
     if (NS_FAILED(rv))
       goto finish;
     break;
@@ -1402,7 +1339,7 @@ ProcessCertificatePolicies(SECItem  *extData,
       text.Append(local);
       break;
     default:
-      GetDefaultOIDFormat(&policyInfo->policyID, nssComponent, local, '.');
+      GetDefaultOIDFormat(&policyInfo->policyID, local, '.');
       text.Append(local);
     }
 
@@ -1412,7 +1349,8 @@ ProcessCertificatePolicies(SECItem  *extData,
       // because we want to display the EV information string
       // next to the correct OID.
 
-      if (policyInfo->oid == ev_oid_tag) {
+      SECOidTag oid_tag = SECOID_FindOIDTag(&policyInfo->policyID);
+      if (oid_tag == ev_oid_tag) {
         text.Append(NS_LITERAL_STRING(":"));
         text.Append(NS_LITERAL_STRING(SEPARATOR));
         needColon = PR_FALSE;
@@ -1452,7 +1390,7 @@ ProcessCertificatePolicies(SECItem  *extData,
 				 text, nssComponent);
 	  break;
 	default:
-	  GetDefaultOIDFormat(&policyQualifier->qualifierID, nssComponent, local, '.');
+	  GetDefaultOIDFormat(&policyQualifier->qualifierID, local, '.');
 	  text.Append(local);
 	  text.Append(NS_LITERAL_STRING(": "));
 	  ProcessRawBytes(nssComponent, &policyQualifier->qualifierValue, text);
@@ -1590,7 +1528,7 @@ ProcessAuthInfoAccess(SECItem  *extData,
       nssComponent->GetPIPNSSBundleString("CertDumpCAIssuers", local);
       break;
     default:
-      rv = GetDefaultOIDFormat(&desc->method, nssComponent, local, '.');
+      rv = GetDefaultOIDFormat(&desc->method, local, '.');
       if (NS_FAILED(rv))
 	goto finish;
     }

@@ -43,7 +43,11 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 MODULE		= xpcom
+ifeq ($(OS_ARCH),WINNT)
 XPIDL_MODULE	= proxyObject
+else
+XPIDL_MODULE	= proxyObjInst
+endif
 
 EXPORTS		= \
 		nsProxiedService.h \

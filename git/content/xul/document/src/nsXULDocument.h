@@ -145,7 +145,10 @@ public:
     NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
     NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
     NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
-    NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTEWILLCHANGE
+
+    virtual void AttributeWillChange(nsIContent* aChild,
+                                     PRInt32 aNameSpaceID,
+                                     nsIAtom* aAttribute);
 
     // nsIXULDocument interface
     NS_IMETHOD AddElementForID(nsIContent* aElement);
@@ -181,14 +184,6 @@ public:
                                 nsresult aStatus);
 
     virtual void EndUpdate(nsUpdateType aUpdateType);
-
-    virtual PRBool IsDocumentRightToLeft();
-
-    virtual void ResetDocumentDirection() { mDocDirection = Direction_Uninitialized; }
-
-    virtual int GetDocumentLWTheme();
-
-    virtual void ResetDocumentLWTheme() { mDocLWTheme = Doc_Theme_Uninitialized; }
 
     static PRBool
     MatchAttribute(nsIContent* aContent,
@@ -252,8 +247,7 @@ protected:
         return kNameSpaceID_XUL;
     }
 
-    static NS_HIDDEN_(int) DirectionChanged(const char* aPrefName, void* aData);
-
+protected:
     // pseudo constants
     static PRInt32 gRefCnt;
 
@@ -334,23 +328,6 @@ protected:
      */
 
     nsCOMPtr<nsIDOMNode>    mTooltipNode;          // [OWNER] element triggering the tooltip
-
-    /**
-     * document direction for use with the -moz-locale-dir property
-     */
-    enum DocumentDirection {
-      Direction_Uninitialized, // not determined yet
-      Direction_LeftToRight,
-      Direction_RightToLeft
-    };
-
-    DocumentDirection               mDocDirection;
-
-    /**
-     * document lightweight theme for use with :-moz-lwtheme, :-moz-lwtheme-brighttext
-     * and :-moz-lwtheme-darktext
-     */
-    DocumentTheme                         mDocLWTheme;
 
     /**
      * Context stack, which maintains the state of the Builder and allows
@@ -753,19 +730,11 @@ protected:
       nsCOMPtr<nsIAtom>       mAttrName;
       PRPackedBool            mSetAttr;
       PRPackedBool            mNeedsAttrChange;
-
-      class Comparator {
-        public:
-          static PRBool Equals(const nsDelayedBroadcastUpdate& a, const nsDelayedBroadcastUpdate& b) {
-            return a.mBroadcaster == b.mBroadcaster && a.mListener == b.mListener && a.mAttrName == b.mAttrName;
-          }
-      };
     };
 
     nsTArray<nsDelayedBroadcastUpdate> mDelayedBroadcasters;
     nsTArray<nsDelayedBroadcastUpdate> mDelayedAttrChangeBroadcasts;
-    PRPackedBool                       mHandlingDelayedAttrChange;
-    PRPackedBool                       mHandlingDelayedBroadcasters;
+    PRBool                             mHandlingDelayedAttrChange;
 
     void MaybeBroadcast();
 private:

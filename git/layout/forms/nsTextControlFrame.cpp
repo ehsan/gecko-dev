@@ -165,7 +165,7 @@ GetWrapPropertyEnum(nsIContent* aContent, nsHTMLTextWrap& aWrapProp)
   aWrapProp = eHTMLTextWrap_Soft; // the default
   
   nsAutoString wrap;
-  if (aContent->IsHTML()) {
+  if (aContent->IsNodeOfType(nsINode::eHTML)) {
     static nsIContent::AttrValuesArray strings[] =
       {&nsGkAtoms::HARD, &nsGkAtoms::OFF, nsnull};
 
@@ -655,7 +655,7 @@ nsTextInputSelectionImpl::ScrollSelectionIntoView(PRInt16 aType, PRInt16 aRegion
     const nsRect portRect = scrollableView->View()->GetBounds();
     const nsRect viewRect = view->GetBounds();
     if (viewRect.XMost() < portRect.width) {
-      return scrollableView->ScrollTo(NS_MAX(viewRect.width - portRect.width, 0), -viewRect.y, 0);
+      return scrollableView->ScrollTo(PR_MAX(viewRect.width - portRect.width, 0), -viewRect.y, 0);
     }
 
     return rv;
@@ -951,13 +951,12 @@ NS_NewTextControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsTextControlFrame(aPresShell, aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsTextControlFrame)
-
 NS_QUERYFRAME_HEAD(nsTextControlFrame)
   NS_QUERYFRAME_ENTRY(nsIFormControlFrame)
   NS_QUERYFRAME_ENTRY(nsIAnonymousContentCreator)
   NS_QUERYFRAME_ENTRY(nsITextControlFrame)
-  NS_QUERYFRAME_ENTRY_CONDITIONAL(nsIScrollableViewProvider, IsScrollable())
+  if (nsIScrollableViewProvider::kFrameIID == id && IsScrollable())
+    return static_cast<nsIScrollableViewProvider*>(this);
 NS_QUERYFRAME_TAIL_INHERITING(nsBoxFrame)
 
 #ifdef ACCESSIBILITY
@@ -1265,7 +1264,7 @@ nsTextControlFrame::CalcIntrinsicSize(nsIRenderingContext* aRenderingContext,
   // this if charMaxAdvance != charWidth; if they are equal, this is almost
   // certainly a fixed-width font.
   if (charWidth != charMaxAdvance) {
-    nscoord internalPadding = NS_MAX(0, charMaxAdvance -
+    nscoord internalPadding = PR_MAX(0, charMaxAdvance -
                                         nsPresContext::CSSPixelsToAppUnits(4));
     nscoord t = nsPresContext::CSSPixelsToAppUnits(1); 
    // Round to a multiple of t
@@ -1583,9 +1582,6 @@ nsTextControlFrame::InitEditor()
 
   mEditor->PostCreate();
 
-  if (mTextListener)
-    mEditor->AddEditorObserver(mTextListener);
-
   return NS_OK;
 }
 
@@ -1611,14 +1607,22 @@ nsTextControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
   nsresult rv = NS_NewHTMLElement(getter_AddRefs(mAnonymousDiv), nodeInfo, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Set the necessary classes on the text control. We use class values
-  // instead of a 'style' attribute so that the style comes from a user-agent
-  // style sheet and is still applied even if author styles are disabled.
-  nsAutoString classValue;
-  classValue.AppendLiteral("anonymous-div");
+  // Set the div native anonymous, so CSS will be its style language
+  // no matter what. We need to do this before we set the 'style' attribute.
+  mAnonymousDiv->SetNativeAnonymous();
+
+  // Set the necessary style attributes on the text control.
+
+  rv = mAnonymousDiv->SetAttr(kNameSpaceID_None, nsGkAtoms::_class,
+                              NS_LITERAL_STRING("anonymous-div"), PR_FALSE);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsAutoString styleValue;
   PRInt32 wrapCols = GetWrapCols();
   if (wrapCols >= 0) {
-    classValue.AppendLiteral(" wrap");
+    styleValue.AppendLiteral("white-space:pre-wrap");
+  } else {
+    styleValue.AppendLiteral("white-space:pre");
   }
   if (!IsSingleLineTextControl()) {
     // We can't just inherit the overflow because setting visible overflow will
@@ -1628,11 +1632,11 @@ nsTextControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
     const nsStyleDisplay* disp = GetStyleDisplay();
     if (disp->mOverflowX != NS_STYLE_OVERFLOW_VISIBLE &&
         disp->mOverflowX != NS_STYLE_OVERFLOW_CLIP) {
-      classValue.AppendLiteral(" inherit-overflow");
+      styleValue.AppendLiteral(";overflow:inherit");
     }
   }
-  rv = mAnonymousDiv->SetAttr(kNameSpaceID_None, nsGkAtoms::_class,
-                              classValue, PR_FALSE);
+  rv = mAnonymousDiv->SetAttr(kNameSpaceID_None, nsGkAtoms::style,
+                              styleValue, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (!aElements.AppendElement(mAnonymousDiv))
@@ -1840,13 +1844,22 @@ nsTextControlFrame::IsLeaf() const
 //IMPLEMENTING NS_IFORMCONTROLFRAME
 void nsTextControlFrame::SetFocus(PRBool aOn, PRBool aRepaint)
 {
+  nsCOMPtr<nsIEditor> editor;
+  GetEditor(getter_AddRefs(editor));
+
   if (!aOn) {
+    if (editor)
+      editor->RemoveEditorObserver(mTextListener);
+
     MaybeEndSecureKeyboardInput();
     return;
   }
 
   if (!mSelCon)
     return;
+
+  if (editor)
+    editor->AddEditorObserver(mTextListener);
 
   if (NS_SUCCEEDED(InitFocusedValue()))
     MaybeBeginSecureKeyboardInput();
@@ -2273,7 +2286,7 @@ nsTextControlFrame::OffsetToDOMPoint(PRInt32 aOffset,
     }
   }
 
-  NS_ERROR("We should never get here!");
+  NS_ASSERTION(0, "We should never get here!");
 
   return NS_ERROR_FAILURE;
 }
@@ -2674,8 +2687,6 @@ nsTextControlFrame::SetValue(const nsAString& aValue)
         flags = savedFlags;
         flags &= ~(nsIPlaintextEditor::eEditorDisabledMask);
         flags &= ~(nsIPlaintextEditor::eEditorReadonlyMask);
-        flags |= nsIPlaintextEditor::eEditorUseAsyncUpdatesMask;
-        flags |= nsIPlaintextEditor::eEditorDontEchoPassword;
         editor->SetFlags(flags);
 
         // Also don't enforce max-length here
@@ -2731,7 +2742,7 @@ nsTextControlFrame::SetValue(const nsAString& aValue)
 
 NS_IMETHODIMP
 nsTextControlFrame::SetInitialChildList(nsIAtom*        aListName,
-                                        nsFrameList&    aChildList)
+                                        nsIFrame*       aChildList)
 {
   nsresult rv = nsBoxFrame::SetInitialChildList(aListName, aChildList);
 

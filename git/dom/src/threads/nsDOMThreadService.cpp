@@ -331,7 +331,7 @@ public:
                    PRBool aClearQueue) {
     NS_ASSERTION(aRunnable, "Null pointer!");
 
-    PR_ASSERT_CURRENT_THREAD_IN_MONITOR(gDOMThreadService->mMonitor);
+    // No need to enter the monitor because we should already be in it.
 
     if (NS_LIKELY(!aTimeoutInterval)) {
       NS_ADDREF(aRunnable);
@@ -372,19 +372,11 @@ public:
 
     // Make sure we have a JSContext to run everything on.
     JSContext* cx = (JSContext*)PR_GetThreadPrivate(gJSContextIndex);
-    if (!cx) {
-        NS_ERROR("nsDOMThreadService didn't give us a context! Are we out of memory?");
-        return NS_ERROR_FAILURE;
-    }
+    NS_ASSERTION(cx, "nsDOMThreadService didn't give us a context!");
 
     NS_ASSERTION(!JS_GetGlobalObject(cx), "Shouldn't have a global!");
 
     JS_SetContextPrivate(cx, mWorker);
-
-    // Go ahead and trigger the operation callback for this context before we
-    // try to run any JS. That way we'll be sure to cancel or suspend as soon as
-    // possible if the compilation takes too long.
-    JS_TriggerOperationCallback(cx);
 
     PRBool killWorkerWhenDone;
 
@@ -438,6 +430,8 @@ protected:
   }
 
   void RunQueue(JSContext* aCx, PRBool* aCloseRunnableSet) {
+    PRBool operationCallbackTriggered = PR_FALSE;
+
     while (1) {
       nsCOMPtr<nsIRunnable> runnable;
       {
@@ -472,6 +466,15 @@ protected:
         }
       }
 
+      if (!operationCallbackTriggered) {
+        // Make sure that our operation callback is set to run before starting.
+        // That way we are sure to suspend this worker if needed.
+        JS_TriggerOperationCallback(aCx);
+
+        // Only need to do this the first time.
+        operationCallbackTriggered = PR_TRUE;
+      }
+
       // Clear out any old cruft hanging around in the regexp statics.
       JS_ClearRegExpStatics(aCx);
 
@@ -500,7 +503,6 @@ JSBool
 DOMWorkerOperationCallback(JSContext* aCx)
 {
   nsDOMWorker* worker = (nsDOMWorker*)JS_GetContextPrivate(aCx);
-  NS_ASSERTION(worker, "This must never be null!");
 
   PRBool wasSuspended = PR_FALSE;
   PRBool extraThreadAllowed = PR_FALSE;
@@ -536,6 +538,13 @@ DOMWorkerOperationCallback(JSContext* aCx)
     }
 
     if (!wasSuspended) {
+      // It's possible that the worker was canceled since we checked above.
+      if (worker->IsCanceled()) {
+        NS_WARNING("Tried to suspend on a pool that has gone away");
+        JS_ClearPendingException(aCx);
+        return JS_FALSE;
+      }
+
       // Make sure to suspend our request while we block like this, otherwise we
       // prevent GC for everyone.
       suspendDepth = JS_SuspendRequest(aCx);
@@ -551,18 +560,8 @@ DOMWorkerOperationCallback(JSContext* aCx)
     }
 
     nsAutoMonitor mon(worker->Pool()->Monitor());
-
-    // There's a small chance that the worker was canceled after our check
-    // above in which case we shouldn't wait here. We're guaranteed not to race
-    // here because the pool reenters its monitor after canceling each worker
-    // in order to notify its condition variable.
-    if (worker->IsSuspended() && !worker->IsCanceled()) {
-      mon.Wait();
-    }
+    mon.Wait();
   }
-
-  NS_NOTREACHED("Should never get here!");
-  return JS_FALSE;
 }
 
 void
@@ -822,16 +821,6 @@ nsDOMThreadService::Cleanup()
   // Init fails somehow. We can therefore assume that all services will still
   // be available here.
 
-  {
-    nsAutoMonitor mon(mMonitor);
-
-    NS_ASSERTION(!mPools.Count(), "Live workers left!");
-    mPools.Clear();
-
-    NS_ASSERTION(!mSuspendedWorkers.Length(), "Suspended workers left!");
-    mSuspendedWorkers.Clear();
-  }
-
   if (gObserverService) {
     gObserverService->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID);
     NS_RELEASE(gObserverService);
@@ -858,6 +847,11 @@ nsDOMThreadService::Cleanup()
   // These must be released after the thread pool is shut down.
   NS_IF_RELEASE(gJSRuntimeService);
   NS_IF_RELEASE(gWorkerSecurityManager);
+
+  nsAutoMonitor mon(mMonitor);
+  NS_ASSERTION(!mPools.Count(), "Live workers left!");
+
+  mPools.Clear();
 }
 
 nsresult
@@ -944,7 +938,8 @@ nsDOMThreadService::SetWorkerTimeout(nsDOMWorker* aWorker,
 void
 nsDOMThreadService::WorkerComplete(nsDOMWorkerRunnable* aRunnable)
 {
-  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mMonitor);
+
+  // No need to be in the monitor here because we should already be in it.
 
 #ifdef DEBUG
   nsRefPtr<nsDOMWorker>& debugWorker = aRunnable->mWorker;
@@ -956,23 +951,6 @@ nsDOMThreadService::WorkerComplete(nsDOMWorkerRunnable* aRunnable)
 #endif
 
   mWorkersInProgress.Remove(aRunnable->mWorker);
-}
-
-PRBool
-nsDOMThreadService::QueueSuspendedWorker(nsDOMWorkerRunnable* aRunnable)
-{
-  nsAutoMonitor mon(mMonitor);
-
-#ifdef DEBUG
-    {
-      // Make sure that the runnable is in mWorkersInProgress.
-      nsRefPtr<nsDOMWorkerRunnable> current;
-      mWorkersInProgress.Get(aRunnable->mWorker, getter_AddRefs(current));
-      NS_ASSERTION(current == aRunnable, "Something crazy wrong here!");
-    }
-#endif
-
-  return mSuspendedWorkers.AppendElement(aRunnable) ? PR_TRUE : PR_FALSE;
 }
 
 /* static */
@@ -995,10 +973,8 @@ nsDOMThreadService::CreateJSContext()
     nsDOMWorkerSecurityManager::JSTranscodePrincipals,
     nsDOMWorkerSecurityManager::JSFindPrincipal
   };
-  JS_SetContextSecurityCallbacks(cx, &securityCallbacks);
 
-  static JSDebugHooks debugHooks;
-  JS_SetContextDebugHooks(cx, &debugHooks);
+  JS_SetContextSecurityCallbacks(cx, &securityCallbacks);
 
   nsresult rv = nsContentUtils::XPConnect()->
     SetSecurityManagerForJSContext(cx, gWorkerSecurityManager, 0);
@@ -1050,7 +1026,7 @@ nsDOMThreadService::GetPoolForGlobal(nsIScriptGlobalObject* aGlobalObject,
 void
 nsDOMThreadService::TriggerOperationCallbackForPool(nsDOMWorkerPool* aPool)
 {
-  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mMonitor);
+  nsAutoMonitor mon(mMonitor);
 
   // See if we need to trigger the operation callback on any currently running
   // contexts.
@@ -1065,46 +1041,6 @@ nsDOMThreadService::TriggerOperationCallbackForPool(nsDOMWorkerPool* aPool)
 }
 
 void
-nsDOMThreadService::RescheduleSuspendedWorkerForPool(nsDOMWorkerPool* aPool)
-{
-  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mMonitor);
-
-  PRUint32 count = mSuspendedWorkers.Length();
-  if (!count) {
-    // Nothing to do here.
-    return;
-  }
-
-  nsTArray<nsDOMWorkerRunnable*> others(count);
-
-  for (PRUint32 index = 0; index < count; index++) {
-    nsDOMWorkerRunnable* runnable = mSuspendedWorkers[index];
-
-#ifdef DEBUG
-    {
-      // Make sure that the runnable never left mWorkersInProgress.
-      nsRefPtr<nsDOMWorkerRunnable> current;
-      mWorkersInProgress.Get(runnable->mWorker, getter_AddRefs(current));
-      NS_ASSERTION(current == runnable, "Something crazy wrong here!");
-    }
-#endif
-
-    if (runnable->mWorker->Pool() == aPool) {
-#ifdef DEBUG
-      nsresult rv =
-#endif
-      mThreadPool->Dispatch(runnable, NS_DISPATCH_NORMAL);
-      NS_ASSERTION(NS_SUCCEEDED(rv), "This shouldn't ever fail!");
-    }
-    else {
-      others.AppendElement(runnable);
-    }
-  }
-
-  mSuspendedWorkers.SwapElements(others);
-}
-
-void
 nsDOMThreadService::CancelWorkersForGlobal(nsIScriptGlobalObject* aGlobalObject)
 {
   NS_ASSERTION(aGlobalObject, "Null pointer!");
@@ -1112,11 +1048,7 @@ nsDOMThreadService::CancelWorkersForGlobal(nsIScriptGlobalObject* aGlobalObject)
   nsRefPtr<nsDOMWorkerPool> pool = GetPoolForGlobal(aGlobalObject, PR_TRUE);
   if (pool) {
     pool->Cancel();
-
-    nsAutoMonitor mon(mMonitor);
-
     TriggerOperationCallbackForPool(pool);
-    RescheduleSuspendedWorkerForPool(pool);
   }
 }
 
@@ -1128,8 +1060,6 @@ nsDOMThreadService::SuspendWorkersForGlobal(nsIScriptGlobalObject* aGlobalObject
   nsRefPtr<nsDOMWorkerPool> pool = GetPoolForGlobal(aGlobalObject, PR_FALSE);
   if (pool) {
     pool->Suspend();
-
-    nsAutoMonitor mon(mMonitor);
     TriggerOperationCallbackForPool(pool);
   }
 }
@@ -1142,11 +1072,7 @@ nsDOMThreadService::ResumeWorkersForGlobal(nsIScriptGlobalObject* aGlobalObject)
   nsRefPtr<nsDOMWorkerPool> pool = GetPoolForGlobal(aGlobalObject, PR_FALSE);
   if (pool) {
     pool->Resume();
-
-    nsAutoMonitor mon(mMonitor);
-
     TriggerOperationCallbackForPool(pool);
-    RescheduleSuspendedWorkerForPool(pool);
   }
 }
 

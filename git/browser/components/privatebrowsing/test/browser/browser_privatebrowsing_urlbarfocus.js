@@ -42,14 +42,15 @@ function test() {
   let pb = Cc["@mozilla.org/privatebrowsing;1"].
            getService(Ci.nsIPrivateBrowsingService);
 
-  const TEST_URL = "data:text/plain,test";
-  gBrowser.selectedTab = gBrowser.addTab();
-  let browser = gBrowser.selectedBrowser;
+  const kTestURL = "data:text/plain,test";
+  let tab = gBrowser.addTab();
+  gBrowser.selectedTab = tab;
+  let browser = gBrowser.getBrowserForTab(tab);
   browser.addEventListener("load", function() {
     browser.removeEventListener("load", arguments.callee, true);
 
     // ensure that the URL bar is not focused initially
-    browser.focus();
+    focusElement(content);
     isnot(document.commandDispatcher.focusedElement, gURLBar.inputField,
       "URL Bar should not be focused before entering the private browsing mode");
     // ensure that the URL bar is not empty initially
@@ -57,7 +58,8 @@ function test() {
 
     // enter private browsing mode
     pb.privateBrowsingEnabled = true;
-    browser = gBrowser.selectedBrowser;
+    tab = gBrowser.selectedTab;
+    browser = gBrowser.getBrowserForTab(tab);
     browser.addEventListener("load", function() {
       // setTimeout is needed here because the onload handler of about:privatebrowsing sets the focus
       setTimeout(function() {
@@ -69,7 +71,8 @@ function test() {
 
         // leave private browsing mode
         pb.privateBrowsingEnabled = false;
-        browser = gBrowser.selectedBrowser;
+        tab = gBrowser.selectedTab;
+        browser = gBrowser.getBrowserForTab(tab);
         browser.addEventListener("load", function() {
           // ensure that the URL bar is no longer focused after leaving the private browsing mode
           isnot(document.commandDispatcher.focusedElement, gURLBar.inputField,
@@ -77,13 +80,13 @@ function test() {
           // ensure that the URL bar is no longer empty after leaving the private browsing mode
           isnot(gURLBar.value, "", "URL Bar should no longer be empty after leaving the private browsing mode");
 
-          gBrowser.removeCurrentTab();
+          gBrowser.removeTab(tab);
           finish();
         }, true);
       }, 0);
     }, true);
   }, true);
-  content.location = TEST_URL;
+  browser.contentWindow.location = kTestURL;
 
   waitForExplicitFinish();
 }

@@ -48,7 +48,7 @@
          xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
          xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
-<script type="application/javascript" src="chrome://browser/content/utilityOverlay.js"/>
+<script type="application/x-javascript" src="chrome://browser/content/utilityOverlay.js"/>
 
 #ifdef XP_MACOSX
 <!-- nsMenuBarX hides these and uses them to build the Application menu.
@@ -78,12 +78,13 @@
       <menupopup id="menu_HelpPopup" onpopupshowing="buildHelpMenu();">
         <menuitem id="menu_openHelp"
                   oncommand="openHelpLink('firefox-help')"
-                  label="&productHelp.label;"
-                  accesskey="&productHelp.accesskey;"
 #ifdef XP_MACOSX
+                  label="&helpContentsMac.label;"
                   key="key_openHelpMac"/>
 #else
-                  />
+                  label="&helpContents.label;"
+                  accesskey="&helpContents.accesskey;"
+                  key="key_openHelp"/>
 #endif
 # Show IE Users menu item on Windows only
 #ifdef XP_WIN
@@ -91,11 +92,6 @@
                   accesskey="&helpForIEUsers.accesskey;"
                   oncommand="openHelpLink('ieusers');"/>
 #endif
-        <menuitem id="troubleShooting"
-                  accesskey="&helpTroubleshootingInfo.accesskey;"
-                  label="&helpTroubleshootingInfo.label;"
-                  oncommand="openTroubleshootingPage()"
-                  onclick="checkForMiddleClick(this, event);"/>
         <menuitem id="releaseNotes"
                   accesskey="&helpReleaseNotes.accesskey;"
                   label="&helpReleaseNotes.label;"
@@ -110,8 +106,8 @@
 #endif
         <menuseparator id="aboutSeparator"/>
         <menuitem id="aboutName"
-                  accesskey="&aboutProduct.accesskey;"
-                  label="&aboutProduct.label;"
+                  accesskey="&aboutCmd.accesskey;"
+                  label="&aboutCmd.label;"
                   oncommand="openAboutDialog();"/>
       </menupopup>
     </menu>
@@ -132,6 +128,10 @@
         <key id="key_hideOtherAppsCmdMac"
              key="&hideOtherAppsCmdMac.commandkey;"
              modifiers="accel,alt"/>
+#else
+        <key id="key_openHelp"
+            oncommand="openHelpLink('firefox-f1');"
+            keycode="&openHelp.commandkey;"/>
 #endif
     </keyset>
 

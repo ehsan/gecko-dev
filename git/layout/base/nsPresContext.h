@@ -70,9 +70,6 @@
 #include "nsAutoPtr.h"
 #include "nsThreadUtils.h"
 #include "nsContentUtils.h"
-#include "nsIWidget.h"
-#include "mozilla/TimeStamp.h"
-#include "nsRefreshDriver.h"
 
 class nsImageLoader;
 #ifdef IBMBIDI
@@ -87,6 +84,7 @@ class nsIContent;
 class nsIFontMetrics;
 class nsIFrame;
 class nsFrameManager;
+class nsIImage;
 class nsILinkHandler;
 class nsStyleContext;
 class nsIAtom;
@@ -101,9 +99,6 @@ class nsIRunnable;
 class gfxUserFontSet;
 class nsUserFontSet;
 struct nsFontFaceRuleContainer;
-class nsObjectFrame;
-class nsTransitionManager;
-class imgIContainer;
 
 #ifdef MOZ_REFLOW_PERF
 class nsIRenderingContext;
@@ -152,22 +147,10 @@ enum nsLayoutPhase {
 };
 #endif
 
-class nsInvalidateRequestList {
-public:
-  struct Request {
-    nsRect   mRect;
-    PRUint32 mFlags;
-  };
-
-  nsTArray<Request> mRequests;
-};
-
 /* Used by nsPresContext::HasAuthorSpecifiedRules */
 #define NS_AUTHOR_SPECIFIED_BACKGROUND      (1 << 0)
 #define NS_AUTHOR_SPECIFIED_BORDER          (1 << 1)
 #define NS_AUTHOR_SPECIFIED_PADDING         (1 << 2)
-
-class nsRootPresContext;
 
 // An interface for presentation contexts. Presentation contexts are
 // objects that provide an outer context for a presentation shell.
@@ -215,7 +198,7 @@ public:
 
   // Find the prescontext for the root of the view manager hierarchy that contains
   // this prescontext.
-  nsRootPresContext* RootPresContext();
+  nsPresContext* RootPresContext();
 
   nsIDocument* Document() const
   {
@@ -230,16 +213,6 @@ public:
 
   nsFrameManager* FrameManager()
     { return GetPresShell()->FrameManager(); } 
-
-  nsTransitionManager* TransitionManager() { return mTransitionManager; }
-
-  nsRefreshDriver* RefreshDriver() { return &mRefreshDriver; }
-
-  static nsPresContext* FromRefreshDriver(nsRefreshDriver* aRefreshDriver) {
-    return reinterpret_cast<nsPresContext*>(
-             reinterpret_cast<char*>(aRefreshDriver) -
-             offsetof(nsPresContext, mRefreshDriver));
-  }
 #endif
 
   /**
@@ -279,6 +252,7 @@ public:
    * Access the image animation mode for this context
    */
   PRUint16     ImageAnimationMode() const { return mImageAnimationMode; }
+  void RestoreImageAnimationMode() { SetImageAnimationMode(mImageAnimationModePref); }
   virtual NS_HIDDEN_(void) SetImageAnimationModeExternal(PRUint16 aMode);
   NS_HIDDEN_(void) SetImageAnimationModeInternal(PRUint16 aMode);
 #ifdef _IMPL_NS_LAYOUT
@@ -303,7 +277,7 @@ public:
   void* AllocateFromShell(size_t aSize)
   {
     if (mShell)
-      return mShell->AllocateMisc(aSize);
+      return mShell->AllocateFrame(aSize);
     return nsnull;
   }
 
@@ -311,7 +285,7 @@ public:
   {
     NS_ASSERTION(mShell, "freeing after shutdown");
     if (mShell)
-      mShell->FreeMisc(aSize, aFreeChunk);
+      mShell->FreeFrame(aSize, aFreeChunk);
   }
 
   /**
@@ -491,6 +465,9 @@ public:
    */
   PRBool IsPaginated() const { return mPaginated; }
   
+  PRBool GetRenderedPositionVaryingContent() const { return mRenderedPositionVaryingContent; }
+  void SetRenderedPositionVaryingContent() { mRenderedPositionVaryingContent = PR_TRUE; }
+
   /**
    * Sets whether the presentation context can scroll for a paginated
    * context.
@@ -620,8 +597,8 @@ public:
                    AppUnitsToGfxUnits(aAppRect.height)); }
 
   nscoord TwipsToAppUnits(PRInt32 aTwips) const
-  { return NSCoordSaturatingMultiply(mDeviceContext->AppUnitsPerInch(),
-                                     NS_TWIPS_TO_INCHES(aTwips)); }
+  { return NSToCoordRound(NS_TWIPS_TO_INCHES(aTwips) *
+                          mDeviceContext->AppUnitsPerInch()); }
 
   // Margin-specific version, since they often need TwipsToAppUnits
   nsMargin TwipsToAppUnits(const nsIntMargin &marginInTwips) const
@@ -830,25 +807,15 @@ public:
   // user font set is changed and fonts become unavailable).
   void UserFontSetUpdated();
 
-  PRBool MayHavePaintEventListener();
-  void NotifyInvalidation(const nsRect& aRect, PRUint32 aFlags);
+  void NotifyInvalidation(const nsRect& aRect, PRBool aIsCrossDoc);
   void FireDOMPaintEvent();
   PRBool IsDOMPaintEventPending() {
-    return !mInvalidateRequests.mRequests.IsEmpty();
+    return !mSameDocDirtyRegion.IsEmpty() || !mCrossDocDirtyRegion.IsEmpty();
   }
 
   void ClearMozAfterPaintEvents() {
-    mInvalidateRequests.mRequests.Clear();
-  }
-
-  PRBool IsProcessingAnimationStyleChange() const {
-    return mProcessingAnimationStyleChange;
-  }
-
-  void SetProcessingAnimationStyleChange(PRBool aProcessing) {
-    NS_ASSERTION(aProcessing != PRBool(mProcessingAnimationStyleChange),
-                 "should never nest");
-    mProcessingAnimationStyleChange = aProcessing;
+    mSameDocDirtyRegion.SetEmpty();
+    mCrossDocDirtyRegion.SetEmpty();
   }
 
   /**
@@ -903,13 +870,6 @@ public:
    */
   PRBool HasPendingInterrupt() { return mHasPendingInterrupt; }
 
-#ifdef MOZ_SMIL
-  /**
-   * Indicates that the given element's SMIL Override Style has changed,
-   * and as a result, we need to update our display.
-   */
-  void SMILOverrideStyleChanged(nsIContent* aContent);
-#endif // MOZ_SMIL
 protected:
   friend class nsRunnableMethod<nsPresContext>;
   NS_HIDDEN_(void) ThemeChangedInternal();
@@ -957,8 +917,6 @@ protected:
                                         // from gfx back to layout.
   nsIEventStateManager* mEventManager;  // [STRONG]
   nsILookAndFeel*       mLookAndFeel;   // [STRONG]
-  nsRefreshDriver       mRefreshDriver;
-  nsTransitionManager*  mTransitionManager; // owns; it aggregates our refcount
   nsIAtom*              mMedium;        // initialized by subclass ctors;
                                         // weak pointer to static atom
 
@@ -987,7 +945,8 @@ protected:
 
   nsPropertyTable       mPropertyTable;
 
-  nsInvalidateRequestList mInvalidateRequests;
+  nsRegion              mSameDocDirtyRegion;
+  nsRegion              mCrossDocDirtyRegion;
 
   // container for per-context fonts (downloadable, SVG, etc.)
   nsUserFontSet*        mUserFontSet;
@@ -1030,8 +989,6 @@ protected:
 
   PRUint32              mInterruptChecksToSkip;
 
-  mozilla::TimeStamp    mReflowStartTime;
-
   unsigned              mHasPendingInterrupt : 1;
   unsigned              mInterruptsEnabled : 1;
   unsigned              mUseDocumentFonts : 1;
@@ -1055,6 +1012,7 @@ protected:
   unsigned              mPendingThemeChanged : 1;
   unsigned              mPendingMediaFeatureValuesChanged : 1;
   unsigned              mPrefChangePendingNeedsReflow : 1;
+  unsigned              mRenderedPositionVaryingContent : 1;
 
   // Is the current mUserFontSet valid?
   unsigned              mUserFontSetDirty : 1;
@@ -1067,10 +1025,10 @@ protected:
   // the document rather than to change the document's dimensions
   unsigned              mSupressResizeReflow : 1;
 
+#ifdef IBMBIDI
   unsigned              mIsVisual : 1;
 
-  unsigned              mProcessingAnimationStyleChange : 1;
-
+#endif
 #ifdef DEBUG
   PRBool                mInitialized;
 #endif
@@ -1078,7 +1036,7 @@ protected:
 
 protected:
 
-  virtual ~nsPresContext() NS_HIDDEN;
+  ~nsPresContext() NS_HIDDEN;
 
   // these are private, use the list in nsFont.h if you want a public list
   enum {
@@ -1102,54 +1060,6 @@ public:
   }
 #endif
 
-};
-
-class nsRootPresContext : public nsPresContext {
-public:
-  nsRootPresContext(nsIDocument* aDocument, nsPresContextType aType) NS_HIDDEN;
-  virtual ~nsRootPresContext();
-
-  /**
-   * Registers a plugin to receive geometry updates (position and clip
-   * region) so it can update its widget.
-   * Callers must call UnregisterPluginForGeometryUpdates before
-   * the aPlugin frame is destroyed.
-   */
-  void RegisterPluginForGeometryUpdates(nsObjectFrame* aPlugin);
-  /**
-   * Stops a plugin receiving geometry updates (position and clip
-   * region). If the plugin was not already registered, this does
-   * nothing.
-   */
-  void UnregisterPluginForGeometryUpdates(nsObjectFrame* aPlugin);
-
-  /**
-   * Iterate through all plugins that are registered for geometry updates
-   * and update their position and clip region to match the current frame
-   * tree. Only frames at or under aChangedRoot can have changed their
-   * geometry.
-   */
-  void UpdatePluginGeometry(nsIFrame* aChangedRoot);
-
-  /**
-   * Iterate through all plugins that are registered for geometry updates
-   * and compute their position and clip region according to the
-   * current frame tree. Only frames at or under aChangedRoot can have
-   * changed their geometry. The computed positions and clip regions are
-   * appended to aConfigurations.
-   */
-  void GetPluginGeometryUpdates(nsIFrame* aChangedRoot,
-                                nsTArray<nsIWidget::Configuration>* aConfigurations);
-
-  /**
-   * When all geometry updates have been applied, call this function
-   * in case the nsObjectFrames have work to do after the widgets
-   * have been updated.
-   */
-  void DidApplyPluginGeometryUpdates();
-
-private:
-  nsTHashtable<nsPtrHashKey<nsObjectFrame> > mRegisteredPlugins;
 };
 
 #ifdef DEBUG
@@ -1191,8 +1101,9 @@ struct nsAutoLayoutPhase {
                      "constructing frames in the middle of a paint");
         NS_ASSERTION(mPresContext->mLayoutPhaseCount[eLayoutPhase_Reflow] == 0,
                      "constructing frames in the middle of reflow");
-        NS_ASSERTION(mPresContext->mLayoutPhaseCount[eLayoutPhase_FrameC] == 0,
-                     "recurring into frame construction");
+        // Once bug 337957 is fixed this should become an NS_ASSERTION
+        NS_WARN_IF_FALSE(mPresContext->mLayoutPhaseCount[eLayoutPhase_FrameC] == 0,
+                         "recurring into frame construction");
         NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
                      "constructing frames and scripts are not blocked");
         break;

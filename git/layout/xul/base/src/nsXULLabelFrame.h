@@ -49,8 +49,6 @@
 class nsXULLabelFrame : public nsBlockFrame
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   friend nsIFrame* NS_NewXULLabelFrame(nsIPresShell* aPresShell,
                                        nsStyleContext *aContext);
   

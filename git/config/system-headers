@@ -62,7 +62,6 @@ be/kernel/image.h
 be/kernel/OS.h
 bfd.h
 Bitmap.h
-blapi.h
 bsd/libc.h
 bsd/syscall.h
 bstring.h
@@ -76,7 +75,6 @@ byteswap.h
 #define WRAP_CAIRO_HEADERS
 #endif
 #ifdef WRAP_CAIRO_HEADERS
-pixman.h
 cairo.h
 cairo-atsui.h
 cairo-beos.h
@@ -93,7 +91,6 @@ cairo-directfb.h
 cairo-qpainter.h
 #endif
 dfiff.h
-ffi.h
 fusion/reactor.h
 fusion/property.h
 fusion/conf.h
@@ -254,7 +251,6 @@ Finder.h
 FinderRegistry.h
 FixMath.h
 float.h
-fnmatch.h
 Folders.h
 fontconfig/fontconfig.h
 fontconfig/fcfreetype.h
@@ -276,7 +272,6 @@ fribidi/fribidi.h
 FSp_fopen.h
 fstream.h
 ft2build.h
-fts.h
 gconf/gconf-client.h
 Gdiplus.h
 gdk/gdk.h
@@ -395,11 +390,13 @@ libgnome/libgnome.h
 libgnomeui/gnome-icon-lookup.h
 libgnomeui/gnome-icon-theme.h
 libgnomeui/gnome-ui-init.h
+libgnomevfs/gnome-vfs-application-registry.h
 libgnomevfs/gnome-vfs-file-info.h
 libgnomevfs/gnome-vfs.h
 libgnomevfs/gnome-vfs-init.h
 libgnomevfs/gnome-vfs-mime.h
 libgnomevfs/gnome-vfs-mime-handlers.h
+libgnomevfs/gnome-vfs-mime-info.h
 libgnomevfs/gnome-vfs-mime-utils.h
 libgnomevfs/gnome-vfs-ops.h
 libgnomevfs/gnome-vfs-standard-callbacks.h
@@ -416,6 +413,7 @@ linux/version.h
 list
 List.h
 Lists.h
+LiveConnectManagerTests.h
 LListBox.h
 LListener.h
 LMenuBar.h
@@ -556,6 +554,7 @@ pango/pango-break.h
 pango/pango-fontmap.h
 pango/pango.h
 pango/pangoxft.h
+pango/pangox.h
 pango/pango-utils.h
 pango-types.h
 pascal.h
@@ -734,7 +733,6 @@ sys/procfs.h
 sys/pstat.h
 sys/ptrace.h
 sys/queue.h
-sys/quota.h
 sys/reg.h
 sys/regset.h
 sys/resource.h
@@ -791,7 +789,6 @@ time.h
 Timer.h
 tlhelp32.h
 ToolUtils.h
-tr1/functional
 trace.h
 Traps.h
 typeinfo
@@ -1011,11 +1008,7 @@ bzlib.h
 #endif
 #ifdef MOZ_PLATFORM_HILDON
 hildon-uri.h
-hildon-mime.h
 #endif
 #ifdef NS_OSSO
 libosso.h
-#endif
-#ifdef MOZ_ENABLE_GIO
-gio/gio.h
 #endif

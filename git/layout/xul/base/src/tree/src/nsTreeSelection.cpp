@@ -272,21 +272,20 @@ nsTreeSelection::~nsTreeSelection()
     mSelectTimer->Cancel();
 }
 
-NS_IMPL_CYCLE_COLLECTION_2(nsTreeSelection, mTree, mCurrentColumn)
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsTreeSelection)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsTreeSelection)
-
 // QueryInterface implementation for nsBoxObject
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsTreeSelection)
+NS_INTERFACE_MAP_BEGIN(nsTreeSelection)
   NS_INTERFACE_MAP_ENTRY(nsITreeSelection)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(TreeSelection)
 NS_INTERFACE_MAP_END
 
+NS_IMPL_ADDREF(nsTreeSelection)
+NS_IMPL_RELEASE(nsTreeSelection)
+
 NS_IMETHODIMP nsTreeSelection::GetTree(nsITreeBoxObject * *aTree)
 {
-  NS_IF_ADDREF(*aTree = mTree);
+  NS_IF_ADDREF(mTree);
+  *aTree = mTree;
   return NS_OK;
 }
 
@@ -296,11 +295,7 @@ NS_IMETHODIMP nsTreeSelection::SetTree(nsITreeBoxObject * aTree)
     mSelectTimer->Cancel();
     mSelectTimer = nsnull;
   }
-
-  // Make sure aTree really implements nsITreeBoxObject and nsIBoxObject!
-  nsCOMPtr<nsIBoxObject> bo = do_QueryInterface(aTree);
-  mTree = do_QueryInterface(bo);
-  NS_ENSURE_STATE(mTree == aTree);
+  mTree = aTree; // WEAK
   return NS_OK;
 }
 
@@ -853,7 +848,7 @@ nsTreeSelection::FireOnSelectHandler()
 void
 nsTreeSelection::SelectCallback(nsITimer *aTimer, void *aClosure)
 {
-  nsRefPtr<nsTreeSelection> self = static_cast<nsTreeSelection*>(aClosure);
+  nsTreeSelection* self = static_cast<nsTreeSelection*>(aClosure);
   if (self) {
     self->FireOnSelectHandler();
     aTimer->Cancel();

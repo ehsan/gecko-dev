@@ -132,7 +132,7 @@ var observer = {
       do_check_false(stmt.executeStep());
       stmt.finalize();
 
-      do_test_finished();
+      finish_test();
     }
   }
 }

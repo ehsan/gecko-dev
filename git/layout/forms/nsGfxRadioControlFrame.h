@@ -56,8 +56,7 @@ public:
   ~nsGfxRadioControlFrame();
 
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
-
+  
 #ifdef ACCESSIBILITY
   NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif

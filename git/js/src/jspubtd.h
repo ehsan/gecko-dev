@@ -72,10 +72,9 @@ typedef enum JSVersion {
     JSVERSION_1_6     = 160,
     JSVERSION_1_7     = 170,
     JSVERSION_1_8     = 180,
-    JSVERSION_ECMA_5  = 185,
     JSVERSION_DEFAULT = 0,
     JSVERSION_UNKNOWN = -1,
-    JSVERSION_LATEST  = JSVERSION_ECMA_5
+    JSVERSION_LATEST  = JSVERSION_1_8
 } JSVersion;
 
 #define JSVERSION_IS_ECMA(version) \
@@ -107,9 +106,9 @@ typedef enum JSAccessMode {
     JSACC_PROTO  = 0,           /* XXXbe redundant w.r.t. id */
     JSACC_PARENT = 1,           /* XXXbe redundant w.r.t. id */
 
-                                /*
-                                 * enum value #2 formerly called JSACC_IMPORT,
-                                 * gap preserved for ABI compatibility.
+                                /* 
+                                 * enum value #2 formerly called JSACC_IMPORT, 
+                                 * gap preserved for liveconnect ABI compatibility.
                                  */
 
     JSACC_WATCH  = 3,           /* a watchpoint on object foo for id 'bar' */
@@ -146,6 +145,7 @@ typedef struct JSObject          JSObject;
 typedef struct JSObjectMap       JSObjectMap;
 typedef struct JSObjectOps       JSObjectOps;
 typedef struct JSRuntime         JSRuntime;
+typedef struct JSRuntime         JSTaskState;   /* XXX deprecated name */
 typedef struct JSScript          JSScript;
 typedef struct JSStackFrame      JSStackFrame;
 typedef struct JSString          JSString;
@@ -393,8 +393,10 @@ typedef void
  * DEBUG only callback that JSTraceOp implementation can provide to return
  * a string describing the reference traced with JS_CallTracer.
  */
+#ifdef DEBUG
 typedef void
 (* JSTraceNamePrinter)(JSTracer *trc, char *buf, size_t bufsize);
+#endif
 
 /*
  * The optional JSClass.reserveSlots hook allows a class to make computed

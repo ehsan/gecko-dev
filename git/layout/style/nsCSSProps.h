@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   Mats Palmgren <mats.palmgren@bredband.net>
- *   Jonathon Jongsma <jonathon.jongsma@collabora.co.uk>, Collabora Ltd.
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -56,78 +55,11 @@
 // A property that is a *-ltr-source or *-rtl-source property for one of
 // the directional pseudo-shorthand properties.
 #define CSS_PROPERTY_DIRECTIONAL_SOURCE           (1<<0)
-
 #define CSS_PROPERTY_VALUE_LIST_USES_COMMAS       (1<<1) /* otherwise spaces */
-
 #define CSS_PROPERTY_APPLIES_TO_FIRST_LETTER      (1<<2)
 #define CSS_PROPERTY_APPLIES_TO_FIRST_LINE        (1<<3)
 #define CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE \
   (CSS_PROPERTY_APPLIES_TO_FIRST_LETTER | CSS_PROPERTY_APPLIES_TO_FIRST_LINE)
-
-// Note that 'background-color' is ignored differently from the other
-// properties that have this set, but that's just special-cased.
-#define CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED (1<<4)
-
-// A property that needs to have image loads started when a URL value
-// for the property is used for an element.  Supported only for
-// eCSSType_Value and eCSSType_ValueList.
-#define CSS_PROPERTY_START_IMAGE_LOADS            (1<<5)
-
-// Should be set only for properties with START_IMAGE_LOADS.  Indicates
-// that the property has an array value with a URL/image value at index
-// 0 in the array, rather than the URL/image being in the value or value
-// list.
-#define CSS_PROPERTY_IMAGE_IS_IN_ARRAY_0          (1<<6)
-
-/**
- * Types of animatable values.
- */
-enum nsStyleAnimType {
-  // requires a custom implementation in
-  // nsStyleAnimation::ExtractComputedValue
-  eStyleAnimType_Custom,
-
-  // nsStyleCoord with animatable values
-  eStyleAnimType_Coord,
-
-  // same as Coord, except for one side of an nsStyleSides
-  // listed in the same order as the NS_STYLE_* constants
-  eStyleAnimType_Sides_Top,
-  eStyleAnimType_Sides_Right,
-  eStyleAnimType_Sides_Bottom,
-  eStyleAnimType_Sides_Left,
-
-  // similar, but for the *pair* of coord members of an nsStyleCorners
-  // for the relevant corner
-  eStyleAnimType_Corner_TopLeft,
-  eStyleAnimType_Corner_TopRight,
-  eStyleAnimType_Corner_BottomRight,
-  eStyleAnimType_Corner_BottomLeft,
-
-  // nscoord values
-  eStyleAnimType_nscoord,
-
-  // enumerated values (stored in a PRUint8)
-  // In order for a property to use this unit, _all_ of its enumerated values
-  // must be listed in its keyword table, so that any enumerated value can be
-  // converted into a string via a nsCSSValue of type eCSSUnit_Enumerated.
-  eStyleAnimType_EnumU8,
-
-  // float values
-  eStyleAnimType_float,
-
-  // nscolor values
-  eStyleAnimType_Color,
-
-  // nsStyleSVGPaint values
-  eStyleAnimType_PaintServer,
-
-  // nsRefPtr<nsCSSShadowArray> values
-  eStyleAnimType_Shadow,
-
-  // property not animatable
-  eStyleAnimType_None
-};
 
 class nsCSSProps {
 public:
@@ -173,9 +105,6 @@ public:
   static const nsCSSType       kTypeTable[eCSSProperty_COUNT_no_shorthands];
   static const nsStyleStructID kSIDTable[eCSSProperty_COUNT_no_shorthands];
   static const PRInt32* const  kKeywordTableTable[eCSSProperty_COUNT_no_shorthands];
-  static const nsStyleAnimType kAnimTypeTable[eCSSProperty_COUNT_no_shorthands];
-  static const ptrdiff_t
-    kStyleStructOffsetTable[eCSSProperty_COUNT_no_shorthands];
 
 private:
   static const PRUint32        kFlagsTable[eCSSProperty_COUNT];
@@ -238,7 +167,6 @@ public:
   static const PRInt32 kBackgroundOriginKTable[];
   static const PRInt32 kBackgroundPositionKTable[];
   static const PRInt32 kBackgroundRepeatKTable[];
-  static const PRInt32 kBackgroundSizeKTable[];
   static const PRInt32 kBorderCollapseKTable[];
   static const PRInt32 kBorderColorKTable[];
   static const PRInt32 kBorderImageKTable[];
@@ -248,15 +176,18 @@ public:
   static const PRInt32 kBoxDirectionKTable[];
   static const PRInt32 kBoxOrientKTable[];
   static const PRInt32 kBoxPackKTable[];
+#ifdef MOZ_SVG
   static const PRInt32 kDominantBaselineKTable[];
   static const PRInt32 kFillRuleKTable[];
   static const PRInt32 kImageRenderingKTable[];
+  static const PRInt32 kPointerEventsKTable[];
   static const PRInt32 kShapeRenderingKTable[];
   static const PRInt32 kStrokeLinecapKTable[];
   static const PRInt32 kStrokeLinejoinKTable[];
   static const PRInt32 kTextAnchorKTable[];
   static const PRInt32 kTextRenderingKTable[];
   static const PRInt32 kColorInterpolationKTable[];
+#endif
   static const PRInt32 kBoxPropSourceKTable[];
   static const PRInt32 kBoxShadowTypeKTable[];
   static const PRInt32 kBoxSizingKTable[];
@@ -290,10 +221,7 @@ public:
   static const PRInt32 kPageMarksKTable[];
   static const PRInt32 kPageSizeKTable[];
   static const PRInt32 kPitchKTable[];
-  static const PRInt32 kPointerEventsKTable[];
   static const PRInt32 kPositionKTable[];
-  static const PRInt32 kRadialGradientShapeKTable[];
-  static const PRInt32 kRadialGradientSizeKTable[];
   static const PRInt32 kSpeakKTable[];
   static const PRInt32 kSpeakHeaderKTable[];
   static const PRInt32 kSpeakNumeralKTable[];
@@ -304,7 +232,6 @@ public:
   static const PRInt32 kTextAlignKTable[];
   static const PRInt32 kTextDecorationKTable[];
   static const PRInt32 kTextTransformKTable[];
-  static const PRInt32 kTransitionTimingFunctionKTable[];
   static const PRInt32 kUnicodeBidiKTable[];
   static const PRInt32 kUserFocusKTable[];
   static const PRInt32 kUserInputKTable[];

@@ -69,7 +69,6 @@
 #include "nsIHTMLCSSStyleSheet.h"
 
 #include "nsIStyleRuleProcessor.h"
-#include "nsRuleProcessorData.h"
 #include "nsIWeakReference.h"
 
 #include "jsapi.h"
@@ -402,7 +401,6 @@ DocumentInfoHashtableTraverser(nsIURI* key,
 {
   nsCycleCollectionTraversalCallback *cb = 
     static_cast<nsCycleCollectionTraversalCallback*>(userArg);
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "mDocumentTable value");
   cb->NoteXPCOMChild(di);
   return PL_DHASH_NEXT;
 }
@@ -414,7 +412,6 @@ LoadingDocHashtableTraverser(nsIURI* key,
 {
   nsCycleCollectionTraversalCallback *cb = 
     static_cast<nsCycleCollectionTraversalCallback*>(userArg);
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "mLoadingDocTable value");
   cb->NoteXPCOMChild(sl);
   return PL_DHASH_NEXT;
 }
@@ -883,7 +880,12 @@ nsBindingManager::RemoveLayeredBinding(nsIContent* aContent, nsIURI* aURL)
   NS_ENSURE_FALSE(binding->GetBaseBinding(), NS_ERROR_FAILURE);
 
   // Make sure that the binding has the URI that is requested to be removed
-  if (!binding->PrototypeBinding()->CompareBindingURI(aURL)) {
+  nsIURI* bindingUri = binding->PrototypeBinding()->BindingURI();
+  
+  PRBool equalUri;
+  nsresult rv = aURL->Equals(bindingUri, &equalUri);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!equalUri) {
     return NS_OK;
   }
 
@@ -1272,7 +1274,8 @@ nsBindingManager::WalkRules(nsIStyleRuleProcessor::EnumFunc aFunc,
 {
   *aCutOffInheritance = PR_FALSE;
   
-  NS_ASSERTION(aData->mContent, "How did that happen?");
+  if (!aData->mContent)
+    return NS_OK;
 
   // Walk the binding scope chain, starting with the binding attached to our
   // content, up till we run out of scopes or we get cut off.
@@ -1365,6 +1368,14 @@ nsBindingManager::MediumFeaturesChanged(nsPresContext* aPresContext,
   MediumFeaturesChangedData data = { aPresContext, aRulesChanged };
   set.EnumerateEntries(EnumMediumFeaturesChanged, &data);
   return NS_OK;
+}
+
+PRBool
+nsBindingManager::ShouldBuildChildFrames(nsIContent* aContent)
+{
+  nsXBLBinding *binding = GetBinding(aContent);
+
+  return !binding || binding->ShouldBuildChildFrames();
 }
 
 nsIContent*
@@ -1599,19 +1610,6 @@ nsBindingManager::DropDocumentReference()
   if (mProcessAttachedQueueEvent) {
     mProcessAttachedQueueEvent->Revoke();
   }
-
-  if (mContentListTable.ops)
-    PL_DHashTableFinish(&(mContentListTable));
-  mContentListTable.ops = nsnull;
-
-  if (mAnonymousNodesTable.ops)
-    PL_DHashTableFinish(&(mAnonymousNodesTable));
-  mAnonymousNodesTable.ops = nsnull;
-
-  if (mInsertionParentTable.ops)
-    PL_DHashTableFinish(&(mInsertionParentTable));
-  mInsertionParentTable.ops = nsnull;
-
   mDocument = nsnull;
 }
 

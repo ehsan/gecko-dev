@@ -129,6 +129,7 @@ public:
                                mExpandQueries(PR_TRUE),
                                mIncludeHidden(PR_FALSE),
                                mRedirectsMode(nsINavHistoryQueryOptions::REDIRECTS_MODE_ALL),
+                               mShowSessions(PR_FALSE),
                                mMaxResults(0),
                                mQueryType(nsINavHistoryQueryOptions::QUERY_TYPE_HISTORY)
   { }
@@ -146,6 +147,7 @@ public:
   PRBool ExpandQueries() const { return mExpandQueries; }
   PRBool IncludeHidden() const { return mIncludeHidden; }
   PRUint16 RedirectsMode() const { return mRedirectsMode; }
+  PRBool ShowSessions() const { return mShowSessions; }
   PRUint32 MaxResults() const { return mMaxResults; }
   PRUint16 QueryType() const { return mQueryType; }
 
@@ -170,6 +172,7 @@ private:
   PRPackedBool mExpandQueries;
   PRPackedBool mIncludeHidden;
   PRUint16 mRedirectsMode;
+  PRPackedBool mShowSessions;
   PRUint32 mMaxResults;
   PRUint16 mQueryType;
 };

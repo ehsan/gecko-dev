@@ -257,8 +257,6 @@ when destroying the nsOggDecoder object.
 #if !defined(nsOggDecoder_h_)
 #define nsOggDecoder_h_
 
-#include "nsMediaDecoder.h"
-
 #include "nsISupports.h"
 #include "nsCOMPtr.h"
 #include "nsIThread.h"
@@ -273,6 +271,7 @@ when destroying the nsOggDecoder object.
 #include "gfxContext.h"
 #include "gfxRect.h"
 #include "oggplay/oggplay.h"
+#include "nsMediaDecoder.h"
 
 class nsAudioStream;
 class nsOggDecodeStateMachine;
@@ -303,9 +302,6 @@ class nsOggDecoder : public nsMediaDecoder
 
   nsOggDecoder();
   ~nsOggDecoder();
-  
-  virtual nsMediaDecoder* Clone() { return new nsOggDecoder(); }
-
   virtual PRBool Init(nsHTMLMediaElement* aElement);
 
   // This method must be called by the owning object before that
@@ -314,8 +310,9 @@ class nsOggDecoder : public nsMediaDecoder
   
   virtual float GetCurrentTime();
 
-  virtual nsresult Load(nsMediaStream* aStream,
-                        nsIStreamListener** aListener);
+  virtual nsresult Load(nsIURI* aURI,
+                        nsIChannel* aChannel,
+                        nsIStreamListener **aListener);
 
   // Start playback of a video. 'Load' must have previously been
   // called.
@@ -330,7 +327,7 @@ class nsOggDecoder : public nsMediaDecoder
   virtual void SetVolume(float volume);
   virtual float GetDuration();
 
-  virtual nsMediaStream* GetCurrentStream();
+  virtual void GetCurrentURI(nsIURI** aURI);
   virtual already_AddRefed<nsIPrincipal> GetCurrentPrincipal();
 
   virtual void NotifySuspendedStatusChanged();
@@ -473,9 +470,6 @@ private:
   void RegisterShutdownObserver();
   void UnregisterShutdownObserver();
 
-  // Notifies the element that decoding has failed.
-  void DecodeError();
-
   /******
    * The following members should be accessed with the decoder lock held.
    ******/
@@ -494,6 +488,9 @@ private:
   // this estimate is "decode time" (where the "current time" is the
   // time of the last decoded video frame).
   nsChannelStatistics mPlaybackStatistics;
+
+  // The URI of the current resource
+  nsCOMPtr<nsIURI> mURI;
 
   // Thread to handle decoding of Ogg data.
   nsCOMPtr<nsIThread> mDecodeThread;
@@ -521,6 +518,9 @@ private:
   // Set when the Ogg metadata is loaded. Accessed on the main thread
   // only.
   PRInt64 mDuration;
+
+  // True if we are registered with the observer service for shutdown.
+  PRPackedBool mNotifyOnShutdown;
 
   // True if the media resource is seekable (server supports byte range
   // requests).

@@ -56,8 +56,6 @@ NS_NewSelectsAreaFrame(nsIPresShell* aShell, nsStyleContext* aContext, PRUint32 
   return it;
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsSelectsAreaFrame)
-
 //---------------------------------------------------------
 PRBool 
 nsSelectsAreaFrame::IsOptionElement(nsIContent* aContent)
@@ -173,8 +171,8 @@ public:
     nsListControlFrame* listFrame = GetEnclosingListFrame(GetUnderlyingFrame());
     return listFrame->GetOverflowRect() + aBuilder->ToReferenceFrame(listFrame);
   }
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx) {
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
+     const nsRect& aDirtyRect) {
     nsListControlFrame* listFrame = GetEnclosingListFrame(GetUnderlyingFrame());
     // listFrame must be non-null or we wouldn't get called.
     listFrame->PaintFocus(*aCtx, aBuilder->ToReferenceFrame(listFrame));

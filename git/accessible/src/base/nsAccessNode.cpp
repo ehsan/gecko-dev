@@ -40,8 +40,7 @@
 #include "nsIAccessible.h"
 #include "nsAccessibilityAtoms.h"
 #include "nsHashtable.h"
-#include "nsAccessibilityService.h"
-#include "nsApplicationAccessibleWrap.h"
+#include "nsIAccessibilityService.h"
 #include "nsIAccessibleDocument.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
@@ -69,6 +68,12 @@
 #include "nsFocusManager.h"
 #include "nsIObserverService.h"
 
+#ifdef MOZ_ACCESSIBILITY_ATK
+#include "nsAppRootAccessible.h"
+#else
+#include "nsApplicationAccessibleWrap.h"
+#endif
+
 /* For documentation of the accessibility architecture, 
  * see http://lxr.mozilla.org/seamonkey/source/accessible/accessible-docs.html
  */
@@ -77,19 +82,27 @@ nsIStringBundle *nsAccessNode::gStringBundle = 0;
 nsIStringBundle *nsAccessNode::gKeyStringBundle = 0;
 nsITimer *nsAccessNode::gDoCommandTimer = 0;
 nsIDOMNode *nsAccessNode::gLastFocusedNode = 0;
-#ifdef DEBUG
 PRBool nsAccessNode::gIsAccessibilityActive = PR_FALSE;
-#endif
+PRBool nsAccessNode::gIsShuttingDownApp = PR_FALSE;
 PRBool nsAccessNode::gIsCacheDisabled = PR_FALSE;
 PRBool nsAccessNode::gIsFormFillEnabled = PR_FALSE;
 nsAccessNodeHashtable nsAccessNode::gGlobalDocAccessibleCache;
 
 nsApplicationAccessibleWrap *nsAccessNode::gApplicationAccessible = nsnull;
 
-nsIAccessibilityService*
-nsAccessNode::GetAccService()
+nsIAccessibilityService *nsAccessNode::sAccService = nsnull;
+nsIAccessibilityService *nsAccessNode::GetAccService()
 {
-  return nsAccessibilityService::GetAccessibilityService();
+  if (!gIsAccessibilityActive)
+    return nsnull;
+
+  if (!sAccService) {
+    nsresult rv = CallGetService("@mozilla.org/accessibilityService;1",
+                                 &sAccService);
+    NS_ASSERTION(NS_SUCCEEDED(rv), "No accessibility service");
+  }
+
+  return sAccService;
 }
 
 /*
@@ -232,7 +245,9 @@ NS_IMETHODIMP nsAccessNode::GetOwnerWindow(void **aWindow)
 already_AddRefed<nsApplicationAccessibleWrap>
 nsAccessNode::GetApplicationAccessible()
 {
-  NS_ASSERTION(gIsAccessibilityActive, "Accessibility wasn't initialized!");
+  if (!gIsAccessibilityActive) {
+    return nsnull;
+  }
 
   if (!gApplicationAccessible) {
     nsApplicationAccessibleWrap::PreCreate();
@@ -258,8 +273,9 @@ nsAccessNode::GetApplicationAccessible()
 
 void nsAccessNode::InitXPAccessibility()
 {
-  NS_ASSERTION(!gIsAccessibilityActive,
-               "Accessibility was initialized already!");
+  if (gIsAccessibilityActive) {
+    return;
+  }
 
   nsCOMPtr<nsIStringBundleService> stringBundleService =
     do_GetService(NS_STRINGBUNDLE_CONTRACTID);
@@ -281,13 +297,11 @@ void nsAccessNode::InitXPAccessibility()
     prefBranch->GetBoolPref("browser.formfill.enable", &gIsFormFillEnabled);
   }
 
-#ifdef DEBUG
   gIsAccessibilityActive = PR_TRUE;
-#endif
-  NotifyA11yInitOrShutdown(PR_TRUE);
+  NotifyA11yInitOrShutdown();
 }
 
-void nsAccessNode::NotifyA11yInitOrShutdown(PRBool aIsInit)
+void nsAccessNode::NotifyA11yInitOrShutdown()
 {
   nsCOMPtr<nsIObserverService> obsService =
     do_GetService("@mozilla.org/observer-service;1");
@@ -296,7 +310,7 @@ void nsAccessNode::NotifyA11yInitOrShutdown(PRBool aIsInit)
     static const PRUnichar kInitIndicator[] = { '1', 0 };
     static const PRUnichar kShutdownIndicator[] = { '0', 0 }; 
     obsService->NotifyObservers(nsnull, "a11y-init-or-shutdown",
-                                aIsInit ? kInitIndicator  : kShutdownIndicator);
+                                gIsAccessibilityActive ? kInitIndicator  : kShutdownIndicator);
   }
 }
 
@@ -306,12 +320,16 @@ void nsAccessNode::ShutdownXPAccessibility()
   // which happens when xpcom is shutting down
   // at exit of program
 
-  NS_ASSERTION(gIsAccessibilityActive, "Accessibility was shutdown already!");
+  if (!gIsAccessibilityActive) {
+    return;
+  }
+  gIsShuttingDownApp = PR_TRUE;
 
   NS_IF_RELEASE(gStringBundle);
   NS_IF_RELEASE(gKeyStringBundle);
   NS_IF_RELEASE(gDoCommandTimer);
   NS_IF_RELEASE(gLastFocusedNode);
+  NS_IF_RELEASE(sAccService);
 
   nsApplicationAccessibleWrap::Unload();
   ClearCache(gGlobalDocAccessibleCache);
@@ -321,10 +339,8 @@ void nsAccessNode::ShutdownXPAccessibility()
   NS_IF_RELEASE(gApplicationAccessible);
   gApplicationAccessible = nsnull;  
 
-#ifdef DEBUG
   gIsAccessibilityActive = PR_FALSE;
-#endif
-  NotifyA11yInitOrShutdown(PR_FALSE);
+  NotifyA11yInitOrShutdown();
 }
 
 PRBool

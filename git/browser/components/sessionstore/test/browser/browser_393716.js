@@ -7,7 +7,7 @@ function test() {
   }
   catch (ex) { }
   ok(ss, "SessionStore service is available");
-  let tabbrowser = gBrowser;
+  let tabbrowser = getBrowser();
   waitForExplicitFinish();
   
   /////////////////
@@ -21,7 +21,6 @@ function test() {
   let tab = tabbrowser.addTab(testURL);
   ss.setTabValue(tab, key, value);
   tab.linkedBrowser.addEventListener("load", function(aEvent) {
-    this.removeEventListener("load", arguments.callee, true);
     // get the tab's state
     let state = ss.getTabState(tab);
     ok(state, "get the tab's state");
@@ -52,7 +51,6 @@ function test() {
   // set the tab's state
   ss.setTabState(tab2, state.toSource());
   tab2.linkedBrowser.addEventListener("load", function(aEvent) {
-    this.removeEventListener("load", arguments.callee, true);
     // verify the correctness of the restored tab
     ok(ss.getTabValue(tab2, key2) == value2 && this.currentURI.spec == testURL,
        "the tab's state was correctly restored");
@@ -66,7 +64,6 @@ function test() {
     tabbrowser.removeTab(tab2);
     
     duplicateTab.linkedBrowser.addEventListener("load", function(aEvent) {
-      this.removeEventListener("load", arguments.callee, true);
       // verify the correctness of the duplicated tab
       ok(ss.getTabValue(duplicateTab, key2) == value2 && this.currentURI.spec == testURL,
          "correctly duplicated the tab's state");

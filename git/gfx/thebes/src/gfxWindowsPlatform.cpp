@@ -59,20 +59,12 @@
 #include FT_FREETYPE_H
 #include "gfxFT2Fonts.h"
 #include "cairo-ft.h"
-#include "nsAppDirectoryServiceDefs.h"
 #else
 #include "gfxWindowsFonts.h"
 #endif
 
-/*XXX to get CAIRO_HAS_DDRAW_SURFACE */
-#include "cairo.h"
-
 #ifdef WINCE
 #include <shlwapi.h>
-
-#ifdef CAIRO_HAS_DDRAW_SURFACE
-#include "gfxDDrawSurface.h"
-#endif
 #endif
 
 #include "gfxUserFontSet.h"
@@ -132,37 +124,16 @@ gfxWindowsPlatform::gfxWindowsPlatform()
 
     UpdateFontList();
 
-    nsCOMPtr<nsIPrefBranch2> pref = do_GetService(NS_PREFSERVICE_CONTRACTID);
-
-    if (pref) {
-        gfxWindowsPlatformPrefObserver *observer = new gfxWindowsPlatformPrefObserver();
-        if (observer) {
+    gfxWindowsPlatformPrefObserver *observer = new gfxWindowsPlatformPrefObserver();
+    if (observer) {
+        nsCOMPtr<nsIPrefBranch2> pref = do_GetService(NS_PREFSERVICE_CONTRACTID);
+        if (pref) {
             pref->AddObserver("font.", observer, PR_FALSE);
             pref->AddObserver("font.name-list.", observer, PR_FALSE);
             pref->AddObserver("intl.accept_languages", observer, PR_FALSE);
             // don't bother unregistering.  We'll get shutdown after the pref service
-        }
-    }
-
-/* Pick the default render mode differently between
- * desktop, Windows Mobile, and Windows CE.
- */
-#if defined(WINCE_WINDOWS_MOBILE)
-    mRenderMode = RENDER_IMAGE_DDRAW16;
-#elif defined(WINCE)
-    mRenderMode = RENDER_DDRAW_GL;
-#else
-    mRenderMode = RENDER_GDI;
-#endif
-
-    PRInt32 rmode;
-    if (NS_SUCCEEDED(pref->GetIntPref("mozilla.widget.render-mode", &rmode))) {
-        if (rmode >= 0 || rmode < RENDER_MODE_MAX) {
-#ifndef CAIRO_HAS_DDRAW_SURFACE
-            if (rmode == RENDER_DDRAW || rmode == RENDER_DDRAW_GL)
-                rmode = RENDER_IMAGE_STRETCH24;
-#endif
-            mRenderMode = (RenderMode) rmode;
+        } else {
+            delete observer;
         }
     }
 }
@@ -177,23 +148,12 @@ already_AddRefed<gfxASurface>
 gfxWindowsPlatform::CreateOffscreenSurface(const gfxIntSize& size,
                                            gfxASurface::gfxImageFormat imageFormat)
 {
-    gfxASurface *surf = nsnull;
-
-#ifdef CAIRO_HAS_DDRAW_SURFACE
-    if (mRenderMode == RENDER_DDRAW || mRenderMode == RENDER_DDRAW_GL)
-        surf = new gfxDDrawSurface(NULL, size, imageFormat);
+#ifndef WINCE
+    gfxASurface *surf = new gfxWindowsSurface(size, imageFormat);
+#else
+    gfxASurface *surf = new gfxImageSurface(size, imageFormat);
 #endif
-
-#ifdef CAIRO_HAS_WIN32_SURFACE
-    if (mRenderMode == RENDER_GDI)
-        surf = new gfxWindowsSurface(size, imageFormat);
-#endif
-
-    if (surf == nsnull)
-        surf = new gfxImageSurface(size, imageFormat);
-
     NS_IF_ADDREF(surf);
-
     return surf;
 }
 
@@ -309,8 +269,7 @@ void gfxWindowsPlatform::AppendFacesFromFontFile(const PRUnichar *aFileName) {
                     ff = new FontFamily(name);
                     mFonts.Put(name, ff);
                 }
-                ff->AddFontEntry(fe);
-                ff->SetHasStyles(PR_TRUE);
+                ff->mFaces.AppendElement(fe);
             }
         }
         FT_Done_Face(dummy);
@@ -320,7 +279,7 @@ void gfxWindowsPlatform::AppendFacesFromFontFile(const PRUnichar *aFileName) {
 void
 gfxWindowsPlatform::FindFonts()
 {
-    nsTArray<nsString> searchPaths(3);
+    nsTArray<nsString> searchPaths(2);
     nsTArray<nsString> fontPatterns(3);
     fontPatterns.AppendElement(NS_LITERAL_STRING("\\*.ttf"));
     fontPatterns.AppendElement(NS_LITERAL_STRING("\\*.ttc"));
@@ -330,14 +289,6 @@ gfxWindowsPlatform::FindFonts()
     searchPaths.AppendElement(pathBuf);
     SHGetSpecialFolderPathW(0, pathBuf, CSIDL_FONTS, 0);
     searchPaths.AppendElement(pathBuf);
-    nsCOMPtr<nsIFile> resDir;
-    NS_GetSpecialDirectory(NS_APP_RES_DIR, getter_AddRefs(resDir));
-    if (resDir) {
-        resDir->Append(NS_LITERAL_STRING("fonts"));
-        nsAutoString resPath;
-        resDir->GetPath(resPath);
-        searchPaths.AppendElement(resPath);
-    }
     WIN32_FIND_DATAW results;
     for (PRUint32 i = 0;  i < searchPaths.Length(); i++) {
         const nsString& path(searchPaths[i]);
@@ -603,6 +554,16 @@ gfxWindowsPlatform::FontResolveProc(const ENUMLOGFONTEXW *lpelfe,
     // XXX If the font has font link, we should add the linked font.
 }
 
+struct FontSearch {
+    FontSearch(PRUint32 aCh, gfxFont *aFont) :
+        ch(aCh), fontToMatch(aFont), matchRank(-1) {
+    }
+    PRUint32 ch;
+    nsRefPtr<gfxFont> fontToMatch;
+    PRInt32 matchRank;
+    nsRefPtr<FontEntry> bestMatch;
+};
+
 PLDHashOperator
 gfxWindowsPlatform::FindFontForCharProc(nsStringHashKey::KeyType aKey,
                                         nsRefPtr<FontFamily>& aFontFamily,
@@ -610,22 +571,16 @@ gfxWindowsPlatform::FindFontForCharProc(nsStringHashKey::KeyType aKey,
 {
     FontSearch *data = (FontSearch*)userArg;
 
-#ifdef MOZ_FT2_FONTS
-    aFontFamily->FindFontForChar(data);
-#else
-    const PRUint32 ch = data->mCh;
+    const PRUint32 ch = data->ch;
 
-    nsRefPtr<FontEntry> fe = aFontFamily->FindFontEntry(*data->mFontToMatch->GetStyle());
+    nsRefPtr<FontEntry> fe = aFontFamily->FindFontEntry(*data->fontToMatch->GetStyle());
     NS_ASSERTION(fe, "couldn't find any font entry in family");
     if (!fe)
         return PL_DHASH_NEXT;
 
-    // initialize rank to 1 so that any match is better than the initial
-    // value of data->mMatchRank (zero); therefore the first font that
-    // passes the mCharacterMap.test() will become the mBestMatch until
-    // a better entry is found
-    PRInt32 rank = 1;
+    PRInt32 rank = 0;
 
+#ifndef MOZ_FT2_FONTS
     // skip over non-unicode and bitmap fonts and fonts that don't have
     // the code point we're looking for
     if (fe->IsCrappyFont() || !fe->mCharacterMap.test(ch))
@@ -636,35 +591,34 @@ gfxWindowsPlatform::FindFontForCharProc(nsStringHashKey::KeyType aKey,
     if (fe->SupportsRange(gfxFontUtils::CharRangeBit(ch)))
         rank += 1;
 
-    if (fe->SupportsLangGroup(data->mFontToMatch->GetStyle()->langGroup))
+    if (fe->SupportsLangGroup(data->fontToMatch->GetStyle()->langGroup))
         rank += 2;
 
-    FontEntry* mfe = static_cast<FontEntry*>(data->mFontToMatch->GetFontEntry());
+    FontEntry* mfe = static_cast<FontEntry*>(data->fontToMatch->GetFontEntry());
 
     if (fe->mWindowsFamily == mfe->mWindowsFamily)
         rank += 3;
     if (fe->mWindowsPitch == mfe->mWindowsPitch)
         rank += 3;
-
+#endif
     /* italic */
-    const PRBool italic = (data->mFontToMatch->GetStyle()->style != FONT_STYLE_NORMAL);
+    const PRBool italic = (data->fontToMatch->GetStyle()->style != FONT_STYLE_NORMAL);
     if (fe->mItalic != italic)
         rank += 3;
 
     /* weight */
     PRInt8 baseWeight, weightDistance;
-    data->mFontToMatch->GetStyle()->ComputeWeightAndOffset(&baseWeight, &weightDistance);
+    data->fontToMatch->GetStyle()->ComputeWeightAndOffset(&baseWeight, &weightDistance);
     if (fe->mWeight == (baseWeight * 100) + (weightDistance * 100))
         rank += 2;
-    else if (fe->mWeight == data->mFontToMatch->GetFontEntry()->mWeight)
+    else if (fe->mWeight == data->fontToMatch->GetFontEntry()->mWeight)
         rank += 1;
 
-    if (rank > data->mMatchRank ||
-        (rank == data->mMatchRank && Compare(fe->Name(), data->mBestMatch->Name()) > 0)) {
-        data->mBestMatch = fe;
-        data->mMatchRank = rank;
+    if (rank > data->matchRank ||
+        (rank == data->matchRank && Compare(fe->Name(), data->bestMatch->Name()) > 0)) {
+        data->bestMatch = fe;
+        data->matchRank = rank;
     }
-#endif
 
     return PL_DHASH_NEXT;
 }
@@ -682,17 +636,16 @@ gfxWindowsPlatform::FindFontForChar(PRUint32 aCh, gfxFont *aFont)
     // find fonts that support the character
     mFonts.Enumerate(gfxWindowsPlatform::FindFontForCharProc, &data);
 
-    if (data.mBestMatch) {
+    if (data.bestMatch) {
 #ifdef MOZ_FT2_FONTS
         nsRefPtr<gfxFT2Font> font =
-            gfxFT2Font::GetOrMakeFont(static_cast<FontEntry*>(data.mBestMatch.get()), 
+            gfxFT2Font::GetOrMakeFont(data.bestMatch->mName, 
                                       aFont->GetStyle()); 
-        gfxFont* ret = font.forget().get();
-        return already_AddRefed<gfxFont>(ret);
+            gfxFont* ret = font.forget().get();
+            return already_AddRefed<gfxFont>(ret);
 #else
         nsRefPtr<gfxWindowsFont> font =
-            gfxWindowsFont::GetOrMakeFont(static_cast<FontEntry*>(data.mBestMatch.get()),
-                                          aFont->GetStyle());
+            gfxWindowsFont::GetOrMakeFont(data.bestMatch, aFont->GetStyle());
         if (font->IsValid()) {
             gfxFont* ret = font.forget().get();
             return already_AddRefed<gfxFont>(ret);
@@ -781,13 +734,13 @@ FindFullName(nsStringHashKey::KeyType aKey,
     // if so, iterate over faces in this family to see if there is a match
     if (family.Equals(fullNameFamily)) {
 #ifdef MOZ_FT2_FONTS
-        int len = aFontFamily->GetFontList().Length();
+        int len = aFontFamily->mFaces.Length();
         int index = 0;
         for (; index < len && 
-                 !aFontFamily->GetFontList()[index]->Name().Equals(data->mFullName); index++);
+                 !aFontFamily->mFaces[index]->Name().Equals(data->mFullName); index++);
         if (index < len) {
             data->mFound = PR_TRUE;
-            data->mFontEntry = aFontFamily->GetFontList()[index];
+            data->mFontEntry = aFontFamily->mFaces[index];
         }
 #else
         HDC hdc;
@@ -841,18 +794,13 @@ gfxWindowsPlatform::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
 
 gfxFontEntry* 
 gfxWindowsPlatform::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
+                                     nsISupports *aLoader,
                                      const PRUint8 *aFontData, PRUint32 aLength)
 {
 #ifdef MOZ_FT2_FONTS
-    // The FT2 font needs the font data to persist, so we do NOT free it here
-    // but instead pass ownership to the font entry.
-    // Deallocation will happen later, when the font face is destroyed.
-    return FontEntry::CreateFontEntry(*aProxyEntry, aFontData, aLength);
+    return FontEntry::CreateFontEntry(*aProxyEntry, aLoader, aFontData, aLength);
 #else
-    // With GDI, we can free the downloaded data after activating the font
-    gfxFontEntry *fe = FontEntry::LoadFont(*aProxyEntry, aFontData, aLength);
-    NS_Free((void*)aFontData);
-    return fe;
+    return FontEntry::LoadFont(*aProxyEntry, aLoader, aFontData, aLength);
 #endif    
 }
 
@@ -864,8 +812,7 @@ gfxWindowsPlatform::IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlag
                  "strange font format hint set");
 
     // accept supported formats
-    if (aFormatFlags & (gfxUserFontSet::FLAG_FORMAT_WOFF     |
-                        gfxUserFontSet::FLAG_FORMAT_OPENTYPE | 
+    if (aFormatFlags & (gfxUserFontSet::FLAG_FORMAT_OPENTYPE | 
                         gfxUserFontSet::FLAG_FORMAT_TRUETYPE)) {
         return PR_TRUE;
     }
@@ -981,14 +928,3 @@ gfxWindowsPlatform::GetFTLibrary()
     return gPlatformFTLibrary;
 }
 #endif
-
-void
-gfxWindowsPlatform::InitDisplayCaps()
-{
-    HDC dc = GetDC((HWND)nsnull);
-
-    gfxPlatform::sDPI = GetDeviceCaps(dc, LOGPIXELSY);
-
-    ReleaseDC((HWND)nsnull, dc);
-}
-

@@ -160,8 +160,8 @@ function run_test() {
   gEM.disableItem(ADDONS[0].id);
   restartEM();
 
-  var items = gEM.getIncompatibleItemList("3", "3", Ci.nsIUpdateItem.TYPE_ANY,
-                                          false);
+  var items = gEM.getIncompatibleItemList("", "3", "3", Ci.nsIUpdateItem.TYPE_ANY,
+                                          false, { });
 
   // Verify only items incompatible with the next app version are returned
   for (var k in ADDONS) {
@@ -177,8 +177,7 @@ function run_test() {
   }
 
   gEM.update(items, items.length, Ci.nsIExtensionManager.UPDATE_NOTIFY_NEWVERSION,
-             updateListener, Ci.nsIExtensionManager.UPDATE_WHEN_USER_REQUESTED,
-             "3", "3");
+             updateListener, "3", "3");
 
   do_test_pending();
 }

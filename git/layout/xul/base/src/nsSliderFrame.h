@@ -115,8 +115,6 @@ public:
 class nsSliderFrame : public nsBoxFrame
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   friend class nsSliderMediator;
 
   nsSliderFrame(nsIPresShell* aShell, nsStyleContext* aContext);
@@ -136,11 +134,11 @@ public:
 
   // nsIFrame overrides
   NS_IMETHOD  AppendFrames(nsIAtom*        aListName,
-                           nsFrameList&    aFrameList);
+                           nsIFrame*       aFrameList);
 
   NS_IMETHOD  InsertFrames(nsIAtom*        aListName,
                            nsIFrame*       aPrevFrame,
-                           nsFrameList&    aFrameList);
+                           nsIFrame*       aFrameList);
 
   NS_IMETHOD  RemoveFrame(nsIAtom*        aListName,
                           nsIFrame*       aOldFrame);
@@ -169,7 +167,7 @@ public:
                          nsEventStatus* aEventStatus);
 
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
-                                 nsFrameList&    aChildList);
+                                 nsIFrame*       aChildList);
 
   virtual nsIAtom* GetType() const;
 
@@ -186,14 +184,15 @@ public:
   static PRInt32 GetIntegerAttribute(nsIContent* content, nsIAtom* atom, PRInt32 defaultValue);
   void EnsureOrient();
 
+  virtual nsIView* GetMouseCapturer() const { return GetView(); }
+
   NS_IMETHOD HandlePress(nsPresContext* aPresContext,
                          nsGUIEvent *    aEvent,
                          nsEventStatus*  aEventStatus);
 
   NS_IMETHOD HandleMultiplePress(nsPresContext* aPresContext,
-                                 nsGUIEvent *    aEvent,
-                                 nsEventStatus*  aEventStatus,
-                                 PRBool aControlHeld)  { return NS_OK; }
+                         nsGUIEvent *    aEvent,
+                         nsEventStatus*  aEventStatus)  { return NS_OK; }
 
   NS_IMETHOD HandleDrag(nsPresContext* aPresContext,
                         nsGUIEvent *    aEvent,

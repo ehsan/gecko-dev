@@ -59,13 +59,14 @@
     <command id="cmd_newNavigatorTab" oncommand="BrowserOpenTab();"/>
     <command id="Browser:OpenFile"  oncommand="BrowserOpenFileWindow();"/>
     <command id="Browser:SavePage" oncommand="saveDocument(window.content.document);"/>
+    <command id="Browser:SaveFrame" oncommand="saveFrameDocument();"/>
 
     <command id="Browser:SendLink"
              oncommand="MailIntegration.sendLinkForWindow(window.content);"/>
 
     <command id="cmd_pageSetup" oncommand="PrintUtils.showPageSetup();"/>
     <command id="cmd_print" oncommand="PrintUtils.print();"/>
-    <command id="cmd_printPreview" oncommand="PrintUtils.printPreview(PrintPreviewListener);"/>
+    <command id="cmd_printPreview" oncommand="PrintUtils.printPreview(onEnterPrintPreview, onExitPrintPreview);"/>
     <command id="cmd_close" oncommand="BrowserCloseTabOrWindow()"/>
     <command id="cmd_closeWindow" oncommand="BrowserTryToCloseWindow()"/>
     <command id="cmd_toggleTaskbar" oncommand="goToggleToolbar('status-bar','toggle_taskbar');"/>
@@ -91,7 +92,7 @@
     <command id="Browser:AddBookmarkAs" 
              oncommand="PlacesCommandHook.bookmarkCurrentPage(true, PlacesUtils.bookmarksMenuFolderId);"/>
     <!-- The command is disabled for the hidden window. Otherwise its enabled
-         state is handled by gBookmarkAllTabsHandler. -->
+         state is handled by the BookmarkAllTabsHandler object. -->
     <command id="Browser:BookmarkAllTabs"
              oncommand="gBookmarkAllTabsHandler.doCommand();"
              disabled="true"/>
@@ -114,7 +115,6 @@
     </command>
     <command id="Browser:NextTab" oncommand="gBrowser.mTabContainer.advanceSelectedTab(1, true);"/>
     <command id="Browser:PrevTab" oncommand="gBrowser.mTabContainer.advanceSelectedTab(-1, true);"/>
-    <command id="Browser:ShowAllTabs" oncommand="allTabs.open();"/>
     <command id="cmd_fullZoomReduce"  oncommand="FullZoom.reduce()"/>
     <command id="cmd_fullZoomEnlarge" oncommand="FullZoom.enlarge()"/>
     <command id="cmd_fullZoomReset"   oncommand="FullZoom.reset()"/>
@@ -125,7 +125,7 @@
     <command id="Tools:Downloads" oncommand="BrowserDownloadsUI();"/>
     <command id="Tools:Addons" oncommand="BrowserOpenAddonsMgr();"/>
     <command id="Tools:Sanitize"
-     oncommand="Cc['@mozilla.org/browser/browserglue;1'].getService(Ci.nsIBrowserGlue).sanitize(window);"/>
+     oncommand="Cc[GLUE_CID].getService(Ci.nsIBrowserGlue).sanitize(window || null);"/>
     <command id="Tools:PrivateBrowsing" oncommand="gPrivateBrowsingUI.toggleMode();"/>
     <command id="History:UndoCloseTab" oncommand="undoCloseTab();"/>
     <command id="History:UndoCloseWindow" oncommand="undoCloseWindow();"/>
@@ -265,9 +265,6 @@
     <key id="showAllHistoryKb" key="&showAllHistoryCmd.commandkey;" command="Browser:ShowAllHistory" modifiers="accel,shift"/>
     <key keycode="VK_F5" command="Browser:ReloadSkipCache" modifiers="accel"/>
     <key id="key_fullScreen" keycode="VK_F11" command="View:FullScreen"/>
-#else
-    <key id="key_fullScreen" key="&fullScreenCmd.macCommandKey;" command="View:FullScreen" modifiers="accel,shift"/>
-    <key keycode="VK_F11" command="View:FullScreen"/>
 #endif
     <key key="&reloadCmd.commandkey;" command="Browser:Reload" modifiers="accel" id="key_reload"/>
     <key key="&reloadCmd.commandkey;" command="Browser:ReloadSkipCache" modifiers="accel,shift"/>
@@ -320,9 +317,7 @@
     <key                          key="&fullZoomEnlargeCmd.commandkey3;" command="cmd_fullZoomEnlarge" modifiers="accel"/>
     <key id="key_fullZoomReset"   key="&fullZoomResetCmd.commandkey;"    command="cmd_fullZoomReset"   modifiers="accel"/>
     <key                          key="&fullZoomResetCmd.commandkey2;"   command="cmd_fullZoomReset"   modifiers="accel"/>
-
-    <key id="key_showAllTabs" command="Browser:ShowAllTabs" keycode="VK_TAB" modifiers="control,shift"/>
-
+    
     <key id="key_switchTextDirection" key="&bidiSwitchTextDirectionItem.commandkey;" command="cmd_switchTextDirection" modifiers="accel,shift" />
 
     <key id="key_privatebrowsing" command="Tools:PrivateBrowsing" key="&privateBrowsingCmd.commandkey;" modifiers="accel,shift"/>

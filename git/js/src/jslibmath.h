@@ -55,7 +55,7 @@
 #define js_copysign _copysign
 #elif defined _WIN32
 #if _MSC_VER < 1400
-/* Try to work around apparent _copysign bustage in VC7.x. */
+/* Try to work around apparent _copysign bustage in VC6 and VC7. */
 #define js_copysign js_copysign
 extern double js_copysign(double, double);
 #else
@@ -64,23 +64,6 @@ extern double js_copysign(double, double);
 #else
 #define js_copysign copysign
 #endif
-
-/* Consistency wrapper for platform deviations in fmod() */
-static inline double
-js_fmod(double d, double d2)
-{
-#ifdef XP_WIN
-    /*
-     * Workaround MS fmod bug where 42 % (1/0) => NaN, not 42.
-     * Workaround MS fmod bug where -0 % -N => 0, not -0.
-     */
-    if ((JSDOUBLE_IS_FINITE(d) && JSDOUBLE_IS_INFINITE(d2)) ||
-        (d == 0 && JSDOUBLE_IS_FINITE(d2))) {
-        return d;
-    }
-#endif
-    return fmod(d, d2);
-}
 
 #endif /* _LIBMATH_H */
 

@@ -357,12 +357,10 @@ function run_test() {
     gEM.installItemFromFile(do_get_addon(ADDONS[i].addon),
                             NS_INSTALL_LOCATION_APPPROFILE);
   }
-  dump("\n\n*** DONE INSTALLING NEW ITEMS\n\n");
-
   do_test_pending();
 
   // Give time for phone home to complete.
-  do_timeout(DELAY, run_test_pt2);
+  do_timeout(DELAY, "run_test_pt2()");
 }
 
 /**

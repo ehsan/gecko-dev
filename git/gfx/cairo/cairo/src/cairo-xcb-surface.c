@@ -101,8 +101,6 @@ typedef struct cairo_xcb_surface {
 
 #define CAIRO_SURFACE_RENDER_HAS_PICTURE_TRANSFORM(surface)	CAIRO_SURFACE_RENDER_AT_LEAST((surface), 0, 6)
 #define CAIRO_SURFACE_RENDER_HAS_FILTERS(surface)	CAIRO_SURFACE_RENDER_AT_LEAST((surface), 0, 6)
-#define CAIRO_SURFACE_RENDER_HAS_REPEAT_PAD(surface)	CAIRO_SURFACE_RENDER_AT_LEAST((surface), 0, 10)
-#define CAIRO_SURFACE_RENDER_HAS_REPEAT_REFLECT(surface)	CAIRO_SURFACE_RENDER_AT_LEAST((surface), 0, 10)
 
 static void
 _cairo_xcb_surface_ensure_gc (cairo_xcb_surface_t *surface);
@@ -613,20 +611,6 @@ _cairo_xcb_surface_acquire_source_image (void                    *abstract_surfa
     return CAIRO_STATUS_SUCCESS;
 }
 
-static cairo_surface_t *
-_cairo_xcb_surface_snapshot (void *abstract_surface)
-{
-    cairo_xcb_surface_t *surface = abstract_surface;
-    cairo_image_surface_t *image;
-    cairo_status_t status;
-
-    status = _get_image_surface (surface, NULL, &image, NULL);
-    if (unlikely (status))
-	return _cairo_surface_create_in_error (status);
-
-    return &image->base;
-}
-
 static void
 _cairo_xcb_surface_release_source_image (void                   *abstract_surface,
 					 cairo_image_surface_t  *image,
@@ -687,7 +671,6 @@ _cairo_xcb_surface_same_screen (cairo_xcb_surface_t *dst,
 static cairo_status_t
 _cairo_xcb_surface_clone_similar (void			*abstract_surface,
 				  cairo_surface_t	*src,
-				  cairo_content_t	 content,
 				  int                    src_x,
 				  int                    src_y,
 				  int                    width,
@@ -856,22 +839,13 @@ _cairo_xcb_surface_set_attributes (cairo_xcb_surface_t	      *surface,
 
     switch (attributes->extend) {
     case CAIRO_EXTEND_NONE:
-	_cairo_xcb_surface_set_repeat (surface, XCB_RENDER_REPEAT_NONE);
+	_cairo_xcb_surface_set_repeat (surface, 0);
 	break;
     case CAIRO_EXTEND_REPEAT:
-	_cairo_xcb_surface_set_repeat (surface, XCB_RENDER_REPEAT_NORMAL);
+	_cairo_xcb_surface_set_repeat (surface, 1);
 	break;
     case CAIRO_EXTEND_REFLECT:
-	if (!CAIRO_SURFACE_RENDER_HAS_REPEAT_REFLECT(surface))
-	    return CAIRO_INT_STATUS_UNSUPPORTED;
-	_cairo_xcb_surface_set_repeat (surface, XCB_RENDER_REPEAT_REFLECT);
-	break;
     case CAIRO_EXTEND_PAD:
-	if (!CAIRO_SURFACE_RENDER_HAS_REPEAT_PAD(surface))
-	    return CAIRO_INT_STATUS_UNSUPPORTED;
-	_cairo_xcb_surface_set_repeat (surface, XCB_RENDER_REPEAT_PAD);
-	break;
-    default:
 	return CAIRO_INT_STATUS_UNSUPPORTED;
     }
 
@@ -1145,11 +1119,9 @@ _cairo_xcb_surface_composite (cairo_operator_t		op,
 
     status = _cairo_pattern_acquire_surfaces (src_pattern, mask_pattern,
 					      &dst->base,
-					      CAIRO_CONTENT_COLOR_ALPHA,
 					      src_x, src_y,
 					      mask_x, mask_y,
 					      width, height,
-					      CAIRO_PATTERN_ACQUIRE_NO_REFLECT,
 					      (cairo_surface_t **) &src,
 					      (cairo_surface_t **) &mask,
 					      &src_attr, &mask_attr);
@@ -1435,9 +1407,7 @@ _cairo_xcb_surface_composite_trapezoids (cairo_operator_t	op,
 	return CAIRO_INT_STATUS_UNSUPPORTED;
 
     status = _cairo_pattern_acquire_surface (pattern, &dst->base,
-					     CAIRO_CONTENT_COLOR_ALPHA,
 					     src_x, src_y, width, height,
-					     CAIRO_PATTERN_ACQUIRE_NO_REFLECT,
 					     (cairo_surface_t **) &src,
 					     &attributes);
     if (status)
@@ -1585,6 +1555,7 @@ _cairo_xcb_surface_set_clip_region (void           *abstract_surface,
 	    xcb_render_change_picture (surface->dpy, surface->dst_picture,
 		XCB_RENDER_CP_CLIP_MASK, none);
     } else {
+	cairo_status_t status;
 	xcb_rectangle_t *rects = NULL;
 	int n_rects, i;
 
@@ -1602,13 +1573,13 @@ _cairo_xcb_surface_set_clip_region (void           *abstract_surface,
 	    cairo_rectangle_int_t rect;
 
 	    cairo_region_get_rectangle (region, i, &rect);
-
+	    
 	    rects[i].x = rect.x;
 	    rects[i].y = rect.y;
 	    rects[i].width = rect.width;
 	    rects[i].height = rect.height;
 	}
-
+ 
 	surface->have_clip_rects = TRUE;
 	surface->clip_rects = rects;
 	surface->num_clip_rects = n_rects;
@@ -1654,8 +1625,7 @@ _cairo_xcb_surface_show_glyphs (void			*abstract_dst,
 				cairo_glyph_t		*glyphs,
 				int			 num_glyphs,
 				cairo_scaled_font_t	*scaled_font,
-				int			*remaining_glyphs,
-				cairo_rectangle_int_t   *extents);
+				int			*remaining_glyphs);
 
 static cairo_bool_t
 _cairo_xcb_surface_is_similar (void *surface_a,
@@ -1729,8 +1699,7 @@ static const cairo_surface_backend_t cairo_xcb_surface_backend = {
     NULL, /* stroke */
     NULL, /* fill */
     _cairo_xcb_surface_show_glyphs,
-
-    _cairo_xcb_surface_snapshot,
+    NULL,  /* snapshot */
 
     _cairo_xcb_surface_is_similar,
 
@@ -2463,8 +2432,7 @@ _cairo_xcb_surface_show_glyphs (void			*abstract_dst,
 				cairo_glyph_t		*glyphs,
 				int			 num_glyphs,
 				cairo_scaled_font_t	*scaled_font,
-				int			*remaining_glyphs,
-				cairo_rectangle_int_t   *extents)
+				int			*remaining_glyphs)
 {
     cairo_int_status_t status = CAIRO_STATUS_SUCCESS;
     cairo_xcb_surface_t *dst = abstract_dst;
@@ -2531,9 +2499,7 @@ _cairo_xcb_surface_show_glyphs (void			*abstract_dst,
 
     if (src_pattern->type == CAIRO_PATTERN_TYPE_SOLID) {
         status = _cairo_pattern_acquire_surface (src_pattern, &dst->base,
-						 CAIRO_CONTENT_COLOR_ALPHA,
                                                  0, 0, 1, 1,
-						 CAIRO_PATTERN_ACQUIRE_NONE,
                                                  (cairo_surface_t **) &src,
                                                  &attributes);
     } else {
@@ -2547,10 +2513,8 @@ _cairo_xcb_surface_show_glyphs (void			*abstract_dst,
 	    goto BAIL;
 
         status = _cairo_pattern_acquire_surface (src_pattern, &dst->base,
-						 CAIRO_CONTENT_COLOR_ALPHA,
                                                  glyph_extents.x, glyph_extents.y,
                                                  glyph_extents.width, glyph_extents.height,
-						 CAIRO_PATTERN_ACQUIRE_NO_REFLECT,
                                                  (cairo_surface_t **) &src,
                                                  &attributes);
     }

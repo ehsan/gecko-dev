@@ -42,7 +42,7 @@
 #include "gfxQuartzSurface.h"
 #include "gfxQuartzImageSurface.h"
 
-#include "gfxMacPlatformFontList.h"
+#include "gfxQuartzFontCache.h"
 #include "gfxAtsuiFonts.h"
 #include "gfxUserFontSet.h"
 
@@ -100,12 +100,6 @@ gfxPlatformMac::~gfxPlatformMac()
 #endif
 }
 
-gfxPlatformFontList*
-gfxPlatformMac::CreatePlatformFontList()
-{
-    return new gfxMacPlatformFontList();
-}
-
 already_AddRefed<gfxASurface>
 gfxPlatformMac::CreateOffscreenSurface(const gfxIntSize& size,
                                        gfxASurface::gfxImageFormat imageFormat)
@@ -144,7 +138,7 @@ gfxPlatformMac::ResolveFontName(const nsAString& aFontName,
                                 void *aClosure, PRBool& aAborted)
 {
     nsAutoString resolvedName;
-    if (!gfxPlatformFontList::PlatformFontList()->
+    if (!gfxQuartzFontCache::SharedFontCache()->
              ResolveFontName(aFontName, resolvedName)) {
         aAborted = PR_FALSE;
         return NS_OK;
@@ -156,7 +150,7 @@ gfxPlatformMac::ResolveFontName(const nsAString& aFontName,
 nsresult
 gfxPlatformMac::GetStandardFamilyName(const nsAString& aFontName, nsAString& aFamilyName)
 {
-    gfxPlatformFontList::PlatformFontList()->GetStandardFamilyName(aFontName, aFamilyName);
+    gfxQuartzFontCache::SharedFontCache()->GetStandardFamilyName(aFontName, aFamilyName);
     return NS_OK;
 }
 
@@ -176,27 +170,20 @@ gfxPlatformMac::CreateFontGroup(const nsAString &aFamilies,
 #endif
 }
 
-// these will move to gfxPlatform once all platforms support the fontlist
 gfxFontEntry* 
 gfxPlatformMac::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
                                 const nsAString& aFontName)
 {
-    return gfxPlatformFontList::PlatformFontList()->LookupLocalFont(aProxyEntry, 
-                                                                    aFontName);
+    return gfxQuartzFontCache::SharedFontCache()->LookupLocalFont(aProxyEntry, 
+                                                                  aFontName);
 }
 
 gfxFontEntry* 
 gfxPlatformMac::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
+                                 nsISupports *aLoader,
                                  const PRUint8 *aFontData, PRUint32 aLength)
 {
-    // Ownership of aFontData is passed in here.
-    // After activating the font via ATS, we can discard the data.
-    gfxFontEntry *fe =
-        gfxPlatformFontList::PlatformFontList()->MakePlatformFont(aProxyEntry,
-                                                                  aFontData,
-                                                                  aLength);
-    NS_Free((void*)aFontData);
-    return fe;
+    return gfxQuartzFontCache::SharedFontCache()->MakePlatformFont(aProxyEntry, aFontData, aLength);
 }
 
 PRBool
@@ -207,8 +194,7 @@ gfxPlatformMac::IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags)
                  "strange font format hint set");
 
     // accept supported formats
-    if (aFormatFlags & (gfxUserFontSet::FLAG_FORMAT_WOFF     |
-                        gfxUserFontSet::FLAG_FORMAT_OPENTYPE | 
+    if (aFormatFlags & (gfxUserFontSet::FLAG_FORMAT_OPENTYPE | 
                         gfxUserFontSet::FLAG_FORMAT_TRUETYPE | 
                         gfxUserFontSet::FLAG_FORMAT_TRUETYPE_AAT)) {
         return PR_TRUE;
@@ -223,20 +209,20 @@ gfxPlatformMac::IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags)
     return PR_TRUE;
 }
 
-// these will also move to gfxPlatform once all platforms support the fontlist
 nsresult
 gfxPlatformMac::GetFontList(const nsACString& aLangGroup,
                             const nsACString& aGenericFamily,
                             nsTArray<nsString>& aListOfFonts)
 {
-    gfxPlatformFontList::PlatformFontList()->GetFontList(aLangGroup, aGenericFamily, aListOfFonts);
+    gfxQuartzFontCache::SharedFontCache()->GetFontList(aLangGroup, aGenericFamily, aListOfFonts);
+
     return NS_OK;
 }
 
 nsresult
 gfxPlatformMac::UpdateFontList()
 {
-    gfxPlatformFontList::PlatformFontList()->UpdateFontList();
+    gfxQuartzFontCache::SharedFontCache()->UpdateFontList();
     return NS_OK;
 }
 
@@ -245,7 +231,7 @@ gfxPlatformMac::OSXVersion()
 {
     if (!mOSXVersion) {
         // minor version is not accurate, use gestaltSystemVersionMajor, gestaltSystemVersionMinor, gestaltSystemVersionBugFix for these
-        OSErr err = ::Gestalt(gestaltSystemVersion, reinterpret_cast<SInt32*>(&mOSXVersion));
+        OSErr err = ::Gestalt(gestaltSystemVersion, (SInt32*) &mOSXVersion);
         if (err != noErr) {
             //This should probably be changed when our minimum version changes
             NS_ERROR("Couldn't determine OS X version, assuming 10.4");
@@ -401,51 +387,22 @@ gfxPlatformMac::ReadAntiAliasingThreshold()
 qcms_profile *
 gfxPlatformMac::GetPlatformCMSOutputProfile()
 {
+    CMProfileLocation device;
+    CMError err = CMGetDeviceProfile(cmDisplayDeviceClass,
+                                     cmDefaultDeviceID,
+                                     cmDefaultProfileID,
+                                     &device);
+    if (err != noErr)
+        return nsnull;
+
     qcms_profile *profile = nsnull;
-    CMProfileRef cmProfile;
-    CMProfileLocation *location;
-    UInt32 locationSize;
-
-    /* There a number of different ways that we could try to get a color
-       profile to use.  On 10.5 all of these methods seem to give the same
-       results. On 10.6, the results are different and the following method,
-       using CGMainDisplayID() seems to best match what we are looking for.
-       Currently, both Google Chrome and Qt4 use a similar method.
-
-       CMTypes.h describes CMDisplayIDType:
-       "Data type for ColorSync DisplayID reference
-        On 8 & 9 this is a AVIDType
-	On X this is a CGSDisplayID"
-
-       CGMainDisplayID gives us a CGDirectDisplayID which presumeably
-       corresponds directly to a CGSDisplayID */
-    CGDirectDisplayID displayID = CGMainDisplayID();
-
-    CMError err = CMGetProfileByAVID(static_cast<CMDisplayIDType>(displayID), &cmProfile);
-    if (err != noErr)
-        return nsnull;
-
-    // get the size of location
-    err = NCMGetProfileLocation(cmProfile, NULL, &locationSize);
-    if (err != noErr)
-        return nsnull;
-
-    // allocate enough room for location
-    location = static_cast<CMProfileLocation*>(malloc(locationSize));
-    if (!location)
-        goto fail_close;
-
-    err = NCMGetProfileLocation(cmProfile, location, &locationSize);
-    if (err != noErr)
-        goto fail_location;
-
-    switch (location->locType) {
+    switch (device.locType) {
 #ifndef __LP64__
     case cmFileBasedProfile: {
         FSRef fsRef;
-        if (!FSpMakeFSRef(&location->u.fileLoc.spec, &fsRef)) {
+        if (!FSpMakeFSRef(&device.u.fileLoc.spec, &fsRef)) {
             char path[512];
-            if (!FSRefMakePath(&fsRef, reinterpret_cast<UInt8*>(path), sizeof(path))) {
+            if (!FSRefMakePath(&fsRef, (UInt8*)(path), sizeof(path))) {
                 profile = qcms_profile_from_path(path);
 #ifdef DEBUG_tor
                 if (profile)
@@ -458,7 +415,7 @@ gfxPlatformMac::GetPlatformCMSOutputProfile()
     }
 #endif
     case cmPathBasedProfile:
-        profile = qcms_profile_from_path(location->u.pathLoc.path);
+        profile = qcms_profile_from_path(device.u.pathLoc.path);
 #ifdef DEBUG_tor
         if (profile)
             fprintf(stderr,
@@ -473,10 +430,6 @@ gfxPlatformMac::GetPlatformCMSOutputProfile()
         break;
     }
 
-fail_location:
-    free(location);
-fail_close:
-    CMCloseProfile(cmProfile);
     return profile;
 }
 

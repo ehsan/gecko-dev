@@ -50,10 +50,7 @@ class nsHTMLTextAccessible : public nsTextAccessibleWrap
 {
 public:
   nsHTMLTextAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell);
-
-  // nsISupports
-  NS_DECL_ISUPPORTS_INHERITED
-
+  
   // nsIAccessible
   NS_IMETHOD GetName(nsAString& aName);
 
@@ -83,16 +80,22 @@ public:
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
-class nsHTMLLabelAccessible : public nsHyperTextAccessibleWrap
+class nsHTMLLabelAccessible : public nsTextAccessible 
 {
 public:
   nsHTMLLabelAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell);
 
   NS_DECL_ISUPPORTS_INHERITED
 
+  // nsIAccessible
+  NS_IMETHOD GetFirstChild(nsIAccessible **aFirstChild);
+  NS_IMETHOD GetLastChild(nsIAccessible **aLastChild);
+  NS_IMETHOD GetChildCount(PRInt32 *aAccChildCount);
+
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
 class nsHTMLListBulletAccessible : public nsLeafAccessible
@@ -107,16 +110,20 @@ public:
   // nsIAccessible
   NS_IMETHOD GetName(nsAString& aName);
 
+  // Don't cache via unique ID -- bullet accessible shares the same dom node as
+  // this LI accessible. Also, don't cache via mParent/SetParent(), prevent
+  // circular reference since li holds onto us.
+  NS_IMETHOD GetParent(nsIAccessible **aParentAccessible);
+
   // nsAccessNode
   virtual nsresult Shutdown();
 
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
+  virtual void SetParent(nsIAccessible *aParent);
   virtual nsresult AppendTextTo(nsAString& aText, PRUint32 aStartOffset,
                                 PRUint32 aLength);
-
-  virtual nsIAccessible* GetParent();
 
 protected:
   // XXX: Ideally we'd get the bullet text directly from the bullet frame via
@@ -125,6 +132,7 @@ protected:
   // nsIAnonymousFrame::GetText() ? However, in practice storing the bullet text
   // here should not be a problem if we invalidate the right parts of
   // the accessibility cache when mutation events occur.
+  nsIAccessible *mWeakParent;
   nsString mBulletText;
 };
 
@@ -134,22 +142,16 @@ public:
   nsHTMLListAccessible(nsIDOMNode *aDOMNode, nsIWeakReference* aShell):
     nsHyperTextAccessibleWrap(aDOMNode, aShell) { }
 
-  // nsISupports
-  NS_DECL_ISUPPORTS_INHERITED
-
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
-class nsHTMLLIAccessible : public nsHyperTextAccessibleWrap
+class nsHTMLLIAccessible : public nsLinkableAccessible
 {
 public:
   nsHTMLLIAccessible(nsIDOMNode *aDOMNode, nsIWeakReference* aShell, 
                      const nsAString& aBulletText);
-
-  // nsISupports
-  NS_DECL_ISUPPORTS_INHERITED
 
   // nsIAccessible
   NS_IMETHOD GetBounds(PRInt32 *x, PRInt32 *y, PRInt32 *width, PRInt32 *height);
@@ -162,10 +164,8 @@ public:
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
 protected:
-  // nsAccessible
-  virtual void CacheChildren();
+  void CacheChildren();  // Include bullet accessible
 
-private:
   nsRefPtr<nsHTMLListBulletAccessible> mBulletAccessible;
 };
 

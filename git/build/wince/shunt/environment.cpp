@@ -36,14 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/* environment.h and environment.cpp are also included by app update */
-
-// WINCE_SKIP_SHUNT_INCLUDE is used by app update to prevent including of
-// mozce_shunt.h when it includes environment.cpp
-#ifndef WINCE_SKIP_SHUNT_INCLUDE
 #include "include/mozce_shunt.h"
-#endif
-#include "include/environment.h"
 #include "time_conversions.h"
 #include <stdlib.h>
 #include "Windows.h"
@@ -205,53 +198,43 @@ SetEnvironmentVariableW(const unsigned short* name,
 
 
 unsigned int ExpandEnvironmentStringsW(const unsigned short* lpSrc,
-                                       unsigned short* lpDst,
-                                       unsigned int nSize)
+				       unsigned short* lpDst,
+				       unsigned int nSize)
 {
   if ( NULL == lpDst )
     return 0;
-
+  
   unsigned int size = 0;
   unsigned int index = 0;
   unsigned int origLen = wcslen(lpSrc);
 
   const unsigned short *pIn = lpSrc;
   unsigned short *pOut = lpDst;
-
+  
   while ( index < origLen ) {
-
+    
     if (*pIn != L'%') {  // Regular char, copy over
-      if ( size++ < nSize ) *pOut = *pIn, pOut++;
-      index++, pIn++;
+      if ( size < nSize ) *pOut = *pIn, pOut++;
+      index++, size++, pIn++;
       continue;
     }
-
+    
     // Have a starting '%' - look for matching '%'
     int envlen = 0;
-    const unsigned short *pTmp = pIn + 1;
-    while ( *pTmp != L'%' && *pTmp != L' ' ) {
+    const unsigned short *pTmp = ++pIn;                    // Move past original '%'
+    while ( L'%' != *pTmp ) {
       envlen++, pTmp++;
       if ( origLen < index + envlen ) {    // Ran past end of original
-        while ( envlen-- ) {
-          if ( size++ < nSize ) *pOut = *pIn, pOut++;
-          index++, pIn++;
-        }
-        break;
+        SetLastError(ERROR_INVALID_PARAMETER); // buffer without matching '%'
+        return -1;
       }
     }
-
-    if ( *pTmp == L' ' ) { // Need to append through space
-      while ( envlen-- ) {
-        if ( size++ < nSize ) *pOut = *pIn, pOut++;
-        index++, pIn++;
-      }
-      continue;
-    }
-
-    pIn++; // Move past original %
+    
     if ( 0 == envlen ) {  // Encountered a "%%" - mapping to "%"
-      if ( size++ < nSize ) *pOut = *pIn, pOut++;
-      index += 2, pIn++;
+      size++;
+      if ( size < nSize ) *pOut = *pIn, pOut++;
+      pIn++;
+      index += 2;
     } else {
       // Encountered a "%something%" - mapping "something"
       char key[256];
@@ -269,7 +252,7 @@ unsigned int ExpandEnvironmentStringsW(const unsigned short* lpSrc,
       pIn = ++pTmp;
     }
   }
-
+  
   if ( size < nSize ) lpDst[size] = 0;
   return size;
 }

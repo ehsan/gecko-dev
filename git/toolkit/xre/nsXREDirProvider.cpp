@@ -119,7 +119,6 @@ nsXREDirProvider::Initialize(nsIFile *aXULAppDir,
                              nsILocalFile *aGREDir,
                              nsIDirectoryServiceProvider* aAppProvider)
 {
-  NS_ENSURE_ARG(aXULAppDir);
   NS_ENSURE_ARG(aGREDir);
 
   mAppProvider = aAppProvider;
@@ -253,10 +252,10 @@ nsXREDirProvider::GetFile(const char* aProperty, PRBool* aPersistent,
     rv = GetUserAppDataDirectory((nsILocalFile**)(nsIFile**) getter_AddRefs(file));
   }
   else if (!strcmp(aProperty, XRE_UPDATE_ROOT_DIR)) {
-#if defined(XP_WIN) && !defined(WINCE)
+#ifdef XP_WIN
     rv = GetUpdateRootDir(getter_AddRefs(file));
 #else
-    // Only supported on Windows other than WINCE, so just immediately fail.
+    // Only supported on Windows, so just immediately fail.
     return NS_ERROR_FAILURE;
 #endif
   }
@@ -562,9 +561,11 @@ nsXREDirProvider::LoadBundleDirectories()
   mExtensionsLoaded = PR_TRUE;
 
   // first load distribution/bundles
-  LoadPlatformDirectory(mXULAppDir, mAppBundleDirectories);
+  if (mXULAppDir) {
+    LoadPlatformDirectory(mXULAppDir, mAppBundleDirectories);
 
-  LoadAppBundleDirs();
+    LoadAppBundleDirs();
+  }
 
   if (mProfileDir && !gSafeMode) {
     nsCOMPtr<nsIFile> extensionsINI;
@@ -592,6 +593,9 @@ nsXREDirProvider::LoadBundleDirectories()
 void
 nsXREDirProvider::LoadAppBundleDirs()
 {
+  if (!mXULAppDir)
+    return;
+
   nsCOMPtr<nsIFile> dir;
   nsresult rv = mXULAppDir->Clone(getter_AddRefs(dir));
   if (NS_FAILED(rv))
@@ -707,8 +711,7 @@ nsXREDirProvider::GetFilesInternal(const char* aProperty,
     manifest->AppendNative(NS_LITERAL_CSTRING("chrome"));
     manifests.AppendObject(manifest);
 
-    PRBool eq;
-    if (NS_SUCCEEDED(mXULAppDir->Equals(mGREDir, &eq)) && !eq) {
+    if (mXULAppDir) {
       nsCOMPtr<nsIFile> file;
       mXULAppDir->Clone(getter_AddRefs(file));
       file->AppendNative(NS_LITERAL_CSTRING("chrome"));
@@ -814,8 +817,6 @@ nsXREDirProvider::DoStartup()
     // should also be created at this time.
     (void)NS_CreateServicesFromCategory("profile-after-change", nsnull,
                                         "profile-after-change");
-
-    obsSvc->NotifyObservers(nsnull, "profile-initial-state", nsnull);
   }
   return NS_OK;
 }
@@ -883,102 +884,29 @@ nsXREDirProvider::DoShutdown()
 static nsresult
 GetShellFolderPath(int folder, nsAString& _retval)
 {
-  PRUnichar* buf;
-  PRUint32 bufLength = _retval.GetMutableData(&buf, MAXPATHLEN + 3);
-  NS_ENSURE_TRUE(bufLength >= (MAXPATHLEN + 3), NS_ERROR_OUT_OF_MEMORY);
-
-  nsresult rv = NS_OK;
-
-#if defined(WINCE) && !defined(WINCE_WINDOWS_MOBILE)
-  if (folder == CSIDL_APPDATA || folder == CSIDL_LOCAL_APPDATA)
-    folder = CSIDL_PROFILE;
-
-  BOOL ok = SHGetSpecialFolderPath(NULL, buf, folder, true);
-  if (!ok) {
-    _retval.SetLength(0);
-    return NS_ERROR_FAILURE;
-  }
-
-  buf[bufLength - 1] = L'\0';
-  _retval.SetLength(wcslen(buf));
-
-  // sometimes CSIDL_PROFILE shows up without a root slash
-  if (folder == CSIDL_PROFILE && buf[0] != '\\') {
-    _retval.Insert('\\', 0);
-  }
-#else
   LPITEMIDLIST pItemIDList = NULL;
 
+  PRUnichar* buf;
+  PRUint32 bufLength = _retval.GetMutableData(&buf, MAXPATHLEN);
+  NS_ENSURE_TRUE(bufLength >= MAXPATHLEN, NS_ERROR_OUT_OF_MEMORY);
+
+  nsresult rv;
   if (SUCCEEDED(SHGetSpecialFolderLocation(NULL, folder, &pItemIDList)) &&
       SHGetPathFromIDListW(pItemIDList, buf)) {
     // We're going to use wcslen (wcsnlen not available in msvc7.1) so make
     // sure to null terminate.
     buf[bufLength - 1] = L'\0';
     _retval.SetLength(wcslen(buf));
+    rv = NS_OK;
   } else {
     _retval.SetLength(0);
     rv = NS_ERROR_NOT_AVAILABLE;
   }
 
   CoTaskMemFree(pItemIDList);
-#endif
 
   return rv;
 }
-
-#ifndef WINCE
-/**
- * Provides a fallback for getting the path to APPDATA or LOCALAPPDATA by
- * querying the registry when the call to SHGetSpecialFolderLocation or
- * SHGetPathFromIDListW is unable to provide these paths (Bug 513958).
- */
-static nsresult
-GetRegWindowsAppDataFolder(PRBool aLocal, nsAString& _retval)
-{
-  HKEY key;
-  NS_NAMED_LITERAL_STRING(keyName,
-  "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders");
-  DWORD res = ::RegOpenKeyExW(HKEY_CURRENT_USER, keyName.get(), 0, KEY_READ,
-                              &key);
-  if (res != ERROR_SUCCESS) {
-    _retval.SetLength(0);
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
-  DWORD type, size;
-  res = RegQueryValueExW(key, (aLocal ? L"Local AppData" : L"AppData"), NULL,
-                         &type, NULL, &size);
-  // The call to RegQueryValueExW must succeed, the type must be REG_SZ, the
-  // buffer size must not equal 0, and the buffer size be a multiple of 2.
-  if (res != ERROR_SUCCESS || type != REG_SZ || size == 0 || size % 2 != 0) {
-    ::RegCloseKey(key);
-    _retval.SetLength(0);
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
-  // |size| includes room for the terminating null character
-  DWORD resultLen = size / 2 - 1;
-
-  _retval.SetLength(resultLen);
-  nsAString::iterator begin;
-  _retval.BeginWriting(begin);
-  if (begin.size_forward() != resultLen) {
-    ::RegCloseKey(key);
-    _retval.SetLength(0);
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
-  res = RegQueryValueExW(key, (aLocal ? L"Local AppData" : L"AppData"), NULL,
-                         NULL, (LPBYTE) begin.get(), &size);
-  ::RegCloseKey(key);
-  if (res != ERROR_SUCCESS) {
-    _retval.SetLength(0);
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
-  return NS_OK;
-}
-#endif
 
 nsresult
 nsXREDirProvider::GetUpdateRootDir(nsIFile* *aResult)
@@ -1112,23 +1040,10 @@ nsXREDirProvider::GetUserDataDirectoryHome(nsILocalFile** aFile, PRBool aLocal)
   localDir = do_QueryInterface(dirFileMac, &rv);
 #elif defined(XP_WIN)
   nsString path;
-  if (aLocal) {
+  if (aLocal)
     rv = GetShellFolderPath(CSIDL_LOCAL_APPDATA, path);
-#ifndef WINCE
-    if (NS_FAILED(rv))
-      rv = GetRegWindowsAppDataFolder(aLocal, path);
-#endif
-  }
-  if (!aLocal || NS_FAILED(rv)) {
+  if (!aLocal || NS_FAILED(rv))
     rv = GetShellFolderPath(CSIDL_APPDATA, path);
-#ifndef WINCE
-    if (NS_FAILED(rv)) {
-      if (!aLocal)
-        rv = GetRegWindowsAppDataFolder(aLocal, path);
-    }
-#endif
-
-  }
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = NS_NewLocalFile(path, PR_TRUE, getter_AddRefs(localDir));

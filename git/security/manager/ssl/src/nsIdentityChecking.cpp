@@ -406,22 +406,11 @@ static struct nsMyTrustedEVInfo myTrustedEVInfos[] = {
     nsnull
   },
   {
-    // CN=Buypass Class 3 CA 1,O=Buypass AS-983163327,C=NO
-    "2.16.578.1.26.1.3.3",
-    "Buypass Class 3 CA 1", // for real entries use a string like "Sample INVALID EV OID"
-    SEC_OID_UNKNOWN,
-    "61:57:3A:11:DF:0E:D8:7E:D5:92:65:22:EA:D0:56:D7:44:B3:23:71",
-    "MEsxCzAJBgNVBAYTAk5PMR0wGwYDVQQKDBRCdXlwYXNzIEFTLTk4MzE2MzMyNzEd"
-    "MBsGA1UEAwwUQnV5cGFzcyBDbGFzcyAzIENBIDE=",
-    "Ag==",
-    nsnull
-  },
-  {
     // OU=Sample Certification Authority,O=\"Sample, Inc.\",C=US
     "0.0.0.0",
     0, // for real entries use a string like "Sample INVALID EV OID"
     SEC_OID_UNKNOWN,
-    "00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33", //UPPERCASE!
+    "00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF:00:11:22:33",
     "Cg==",
     "Cg==",
     nsnull
@@ -901,21 +890,19 @@ static SECStatus getFirstEVPolicy(CERTCertificate *cert, SECOidTag &outOidTag)
     
       policyInfos = policies->policyInfos;
 
-      PRBool found = PR_FALSE;
       while (*policyInfos != NULL) {
         policyInfo = *policyInfos++;
 
-        SECOidTag oid_tag = policyInfo->oid;
-        if (oid_tag != SEC_OID_UNKNOWN && isEVPolicy(oid_tag)) {
-          // in our list of OIDs accepted for EV
-          outOidTag = oid_tag;
-          found = PR_TRUE;
-          break;
-        }
-      }
-      CERT_DestroyCertificatePoliciesExtension(policies);
-      if (found)
+        SECOidTag oid_tag = SECOID_FindOIDTag(&policyInfo->policyID);
+        if (oid_tag == SEC_OID_UNKNOWN) // not in our list of OIDs accepted for EV
+          continue;
+
+        if (!isEVPolicy(oid_tag))
+          continue;
+
+        outOidTag = oid_tag;
         return SECSuccess;
+      }
     }
   }
 
@@ -1017,7 +1004,6 @@ nsNSSCertificate::hasValidEVOidTag(SECOidTag &resultOidTag, PRBool &validEV)
     | CERT_REV_M_ALLOW_NETWORK_FETCHING
     | CERT_REV_M_ALLOW_IMPLICIT_DEFAULT_SOURCE
     | CERT_REV_M_REQUIRE_INFO_ON_MISSING_SOURCE
-    | CERT_REV_M_IGNORE_MISSING_FRESH_INFO
     | CERT_REV_M_STOP_TESTING_ON_FRESH_INFO;
 
   PRUint64 revMethodIndependentFlags = 

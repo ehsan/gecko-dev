@@ -100,7 +100,7 @@ JSExtendedClass sXPC_XOW_JSClass = {
   // JSClass (JSExtendedClass.base) initialization
   { "XPCCrossOriginWrapper",
     JSCLASS_NEW_RESOLVE | JSCLASS_IS_EXTENDED |
-    JSCLASS_HAS_RESERVED_SLOTS(XPCWrapper::sNumSlots + 2),
+    JSCLASS_HAS_RESERVED_SLOTS(XPCWrapper::sNumSlots + 1),
     XPC_XOW_AddProperty, XPC_XOW_DelProperty,
     XPC_XOW_GetProperty, XPC_XOW_SetProperty,
     XPC_XOW_Enumerate,   (JSResolveOp)XPC_XOW_NewResolve,
@@ -130,7 +130,6 @@ JSExtendedClass sXPC_XOW_JSClass = {
 // then the map is about to be destroyed anyway, so we don't need to
 // do anything.
 static const int XPC_XOW_ScopeSlot = XPCWrapper::sNumSlots;
-static const int sUXPCObjectSlot = XPCWrapper::sNumSlots + 1;
 
 static JSBool
 XPC_XOW_toString(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
@@ -243,9 +242,8 @@ IsValFrame(JSObject *obj, jsval v, XPCWrappedNative *wn)
 // returns NS_ERROR_DOM_PROP_ACCESS_DENIED, returns another error code on
 // failure.
 nsresult
-CanAccessWrapper(JSContext *cx, JSObject *wrappedObj, JSBool *privilegeEnabled)
+CanAccessWrapper(JSContext *cx, JSObject *wrappedObj)
 {
-  // TODO bug 508928: Refactor this with the XOW security checking code.
   // Get the subject principal from the execution stack.
   nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
   if (!ssm) {
@@ -265,16 +263,24 @@ CanAccessWrapper(JSContext *cx, JSObject *wrappedObj, JSBool *privilegeEnabled)
   nsresult rv = ssm->IsSystemPrincipal(subjectPrin, &isSystem);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (privilegeEnabled) {
-    *privilegeEnabled = JS_FALSE;
-  }
-
   // If we somehow end up being called from chrome, just allow full access.
   // This can happen from components with xpcnativewrappers=no.
   // Note that this is just an optimization to avoid getting the
   // object principal in this case, since Subsumes() would return true.
   if (isSystem) {
     return NS_OK;
+  }
+
+  // There might be no code running, but if there is, we need to see if it is
+  // UniversalXPConnect enabled code.
+  if (fp) {
+    void *annotation = JS_GetFrameAnnotation(cx, fp);
+    rv = subjectPrin->IsCapabilityEnabled("UniversalXPConnect", annotation,
+                                          &isSystem);
+    NS_ENSURE_SUCCESS(rv, rv);
+    if (isSystem) {
+      return NS_OK;
+    }
   }
 
   nsCOMPtr<nsIPrincipal> objectPrin;
@@ -293,17 +299,7 @@ CanAccessWrapper(JSContext *cx, JSObject *wrappedObj, JSBool *privilegeEnabled)
   PRBool subsumes;
   rv = subjectPrin->Subsumes(objectPrin, &subsumes);
   if (NS_SUCCEEDED(rv) && !subsumes) {
-    // We're about to fail, but make a last effort to see if
-    // UniversalXPConnect was enabled anywhere else on the stack.
-    rv = ssm->IsCapabilityEnabled("UniversalXPConnect", &isSystem);
-    if (NS_SUCCEEDED(rv) && isSystem) {
-      rv = NS_OK;
-      if (privilegeEnabled) {
-        *privilegeEnabled = JS_TRUE;
-      }
-    } else {
-      rv = NS_ERROR_DOM_PROP_ACCESS_DENIED;
-    }
+    rv = NS_ERROR_DOM_PROP_ACCESS_DENIED;
   }
   return rv;
 }
@@ -348,17 +344,21 @@ XPC_XOW_FunctionWrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     return ThrowException(NS_ERROR_FAILURE, cx);
   }
 
-  nsresult rv = CanAccessWrapper(cx, JSVAL_TO_OBJECT(funToCall), nsnull);
+  nsresult rv = CanAccessWrapper(cx, JSVAL_TO_OBJECT(funToCall));
   if (NS_FAILED(rv) && rv != NS_ERROR_DOM_PROP_ACCESS_DENIED) {
     return ThrowException(rv, cx);
   }
 
-#ifdef DEBUG
   JSNative native = JS_GetFunctionNative(cx, fun);
   NS_ASSERTION(native, "How'd we get here with a scripted function?");
-#endif
 
-  if (!JS_CallFunctionValue(cx, wrappedObj, funToCall, argc, argv, rval)) {
+  // A trick! Calling the native directly doesn't push the native onto the
+  // JS stack, so interested onlookers will only see us, meaning that they
+  // will compute *our* subject principal.
+
+  argv[-2] = funToCall;
+  argv[-1] = OBJECT_TO_JSVAL(wrappedObj);
+  if (!native(cx, wrappedObj, argc, argv, rval)) {
     return JS_FALSE;
   }
 
@@ -444,15 +444,14 @@ XPC_XOW_RewrapIfNeeded(JSContext *cx, JSObject *outerObj, jsval *vp)
     return XPC_XOW_WrapFunction(cx, outerObj, obj, vp);
   }
 
-  XPCWrappedNative *wn = nsnull;
   if (STOBJ_GET_CLASS(obj) == &sXPC_XOW_JSClass.base &&
       STOBJ_GET_PARENT(outerObj) != STOBJ_GET_PARENT(obj)) {
     *vp = OBJECT_TO_JSVAL(GetWrappedObject(cx, obj));
-  } else if (!(wn = XPCWrappedNative::GetAndMorphWrappedNativeOfJSObject(cx, obj))) {
+  } else if (!XPCWrappedNative::GetWrappedNativeOfJSObject(cx, obj)) {
     return JS_TRUE;
   }
 
-  return XPC_XOW_WrapObject(cx, JS_GetGlobalForObject(cx, outerObj), vp, wn);
+  return XPC_XOW_WrapObject(cx, JS_GetGlobalForObject(cx, outerObj), vp);
 }
 
 JSBool
@@ -472,7 +471,7 @@ XPC_XOW_WrapObject(JSContext *cx, JSObject *parent, jsval *vp,
   }
 
   if (!wn &&
-      !(wn = XPCWrappedNative::GetAndMorphWrappedNativeOfJSObject(cx, wrappedObj))) {
+      !(wn = XPCWrappedNative::GetWrappedNativeOfJSObject(cx, wrappedObj))) {
     return JS_TRUE;
   }
 
@@ -515,6 +514,9 @@ XPC_XOW_WrapObject(JSContext *cx, JSObject *parent, jsval *vp,
     return JS_TRUE;
   }
 
+  // FIXME: bug 408871, Note that we create outerObj with a null parent
+  // here. We set it later so that we find our nominal prototype in the
+  // same scope as the one that is calling us.
   outerObj = JS_NewObjectWithGivenProto(cx, &sXPC_XOW_JSClass.base, nsnull,
                                         parent);
   if (!outerObj) {
@@ -563,8 +565,7 @@ XPC_XOW_AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
     return ThrowException(NS_ERROR_FAILURE, cx);
   }
 
-  JSBool privilegeEnabled = JS_FALSE;
-  nsresult rv = CanAccessWrapper(cx, wrappedObj, &privilegeEnabled);
+  nsresult rv = CanAccessWrapper(cx, wrappedObj);
   if (NS_FAILED(rv)) {
     if (rv == NS_ERROR_DOM_PROP_ACCESS_DENIED) {
       // Can't override properties on foreign objects.
@@ -590,7 +591,7 @@ XPC_XOW_DelProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
     return ThrowException(NS_ERROR_FAILURE, cx);
   }
 
-  nsresult rv = CanAccessWrapper(cx, wrappedObj, nsnull);
+  nsresult rv = CanAccessWrapper(cx, wrappedObj);
   if (NS_FAILED(rv)) {
     if (rv == NS_ERROR_DOM_PROP_ACCESS_DENIED) {
       // Can't delete properties on foreign objects.
@@ -639,9 +640,7 @@ XPC_XOW_GetOrSetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp,
   if (!wrappedObj) {
     return ThrowException(NS_ERROR_ILLEGAL_VALUE, cx);
   }
-
-  JSBool privilegeEnabled;
-  nsresult rv = CanAccessWrapper(cx, wrappedObj, &privilegeEnabled);
+  nsresult rv = CanAccessWrapper(cx, wrappedObj);
   if (NS_FAILED(rv)) {
     if (rv != NS_ERROR_DOM_PROP_ACCESS_DENIED) {
       return JS_FALSE;
@@ -670,8 +669,12 @@ XPC_XOW_GetOrSetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp,
       }
     }
 
-    return XPCWrapper::GetOrSetNativeProperty(cx, obj, wn, id, vp, isSet,
-                                              JS_FALSE);
+    if (!XPCWrapper::GetOrSetNativeProperty(cx, obj, wn, id, vp, isSet,
+                                            JS_FALSE)) {
+      return JS_FALSE;
+    }
+
+    return XPC_XOW_RewrapIfNeeded(cx, obj, vp);
   }
 
   JSObject *proto = nsnull; // Initialize this to quiet GCC.
@@ -754,7 +757,7 @@ XPC_XOW_Enumerate(JSContext *cx, JSObject *obj)
     return ThrowException(NS_ERROR_FAILURE, cx);
   }
 
-  nsresult rv = CanAccessWrapper(cx, wrappedObj, nsnull);
+  nsresult rv = CanAccessWrapper(cx, wrappedObj);
   if (NS_FAILED(rv)) {
     if (rv == NS_ERROR_DOM_PROP_ACCESS_DENIED) {
       // Can't enumerate on foreign objects.
@@ -765,72 +768,6 @@ XPC_XOW_Enumerate(JSContext *cx, JSObject *obj)
   }
 
   return XPCWrapper::Enumerate(cx, obj, wrappedObj);
-}
-
-// Because of the drastically different ways that same- and cross-origin XOWs
-// work, we have to call JS_ClearScope when a XOW changes from being same-
-// origin to cross-origin. Normally, there are defined places in Gecko where
-// this happens and they notify us. However, UniversalXPConnect causes the
-// same transition without any notifications. We could try to detect when this
-// happens, but doing so would require calling JS_ClearScope from random
-// hooks, which is bad.
-//
-// The compromise is the UXPCObject. When resolving a property on a XOW as
-// same-origin because of UniversalXPConnect, we actually resolve it on the
-// UXPCObject (which is just a XOW for the same object). This causes the JS
-// engine to do all of its work on another object, not polluting the main
-// object. However, if the get results in calling a setter, the engine still
-// uses the regular object as 'this', ensuring that the UXPCObject doesn't
-// leak to script.
-static JSObject *
-GetUXPCObject(JSContext *cx, JSObject *obj)
-{
-  NS_ASSERTION(STOBJ_GET_CLASS(obj) == &sXPC_XOW_JSClass.base, "wrong object");
-
-  jsval v;
-  if (!JS_GetReservedSlot(cx, obj, XPCWrapper::sFlagsSlot, &v)) {
-    return nsnull;
-  }
-
-  if (HAS_FLAGS(v, FLAG_IS_UXPC_OBJECT)) {
-    return obj;
-  }
-
-  if (!JS_GetReservedSlot(cx, obj, sUXPCObjectSlot, &v)) {
-    return nsnull;
-  }
-
-  if (JSVAL_IS_OBJECT(v)) {
-    return JSVAL_TO_OBJECT(v);
-  }
-
-  JSObject *uxpco =
-    JS_NewObjectWithGivenProto(cx, &sXPC_XOW_JSClass.base, nsnull,
-                               STOBJ_GET_PARENT(obj));
-  if (!uxpco) {
-    return nsnull;
-  }
-
-  JSAutoTempValueRooter tvr(cx, uxpco);
-
-  jsval wrappedObj, parentScope;
-  if (!JS_GetReservedSlot(cx, obj, XPCWrapper::sWrappedObjSlot, &wrappedObj) ||
-      !JS_GetReservedSlot(cx, obj, XPC_XOW_ScopeSlot, &parentScope)) {
-    return nsnull;
-  }
-
-  if (!JS_SetReservedSlot(cx, uxpco, XPCWrapper::sWrappedObjSlot, wrappedObj) ||
-      !JS_SetReservedSlot(cx, uxpco, XPCWrapper::sFlagsSlot,
-                          INT_TO_JSVAL(FLAG_IS_UXPC_OBJECT)) ||
-      !JS_SetReservedSlot(cx, uxpco, XPC_XOW_ScopeSlot, parentScope)) {
-    return nsnull;
-  }
-
-  if (!JS_SetReservedSlot(cx, obj, sUXPCObjectSlot, OBJECT_TO_JSVAL(uxpco))) {
-    return nsnull;
-  }
-
-  return uxpco;
 }
 
 static JSBool
@@ -851,8 +788,7 @@ XPC_XOW_NewResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
     return ThrowException(NS_ERROR_FAILURE, cx);
   }
 
-  JSBool privilegeEnabled;
-  nsresult rv = CanAccessWrapper(cx, wrappedObj, &privilegeEnabled);
+  nsresult rv = CanAccessWrapper(cx, wrappedObj);
   if (NS_FAILED(rv)) {
     if (rv != NS_ERROR_DOM_PROP_ACCESS_DENIED) {
       return JS_FALSE;
@@ -871,10 +807,9 @@ XPC_XOW_NewResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
       if (!ssm) {
         return ThrowException(NS_ERROR_NOT_INITIALIZED, cx);
       }
-
       PRUint32 action = (flags & JSRESOLVE_ASSIGNING)
-                        ? XPCWrapper::sSecMgrSetProp
-                        : XPCWrapper::sSecMgrGetProp;
+                        ? (PRUint32)nsIXPCSecurityManager::ACCESS_SET_PROPERTY
+                        : (PRUint32)nsIXPCSecurityManager::ACCESS_GET_PROPERTY;
       rv = ssm->CheckPropertyAccess(cx, wrappedObj,
                                     STOBJ_GET_CLASS(wrappedObj)->name,
                                     id, action);
@@ -888,10 +823,6 @@ XPC_XOW_NewResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
     return XPCWrapper::ResolveNativeProperty(cx, obj, wrappedObj, wn, id,
                                              flags, objp, JS_FALSE);
 
-  }
-
-  if (privilegeEnabled && !(obj = GetUXPCObject(cx, obj))) {
-    return JS_FALSE;
   }
 
   if (id == GetRTStringByIndex(cx, XPCJSRuntime::IDX_TO_STRING)) {
@@ -945,7 +876,7 @@ XPC_XOW_Convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp)
   }
 
   // Note: JSTYPE_VOID and JSTYPE_STRING are equivalent.
-  nsresult rv = CanAccessWrapper(cx, wrappedObj, nsnull);
+  nsresult rv = CanAccessWrapper(cx, wrappedObj);
   if (NS_FAILED(rv) &&
       (rv != NS_ERROR_DOM_PROP_ACCESS_DENIED ||
        (type != JSTYPE_STRING && type != JSTYPE_VOID))) {
@@ -1019,7 +950,7 @@ XPC_XOW_Call(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     return ThrowException(NS_ERROR_FAILURE, cx);
   }
 
-  nsresult rv = CanAccessWrapper(cx, wrappedObj, nsnull);
+  nsresult rv = CanAccessWrapper(cx, wrappedObj);
   if (NS_FAILED(rv)) {
     if (rv == NS_ERROR_DOM_PROP_ACCESS_DENIED) {
       // Can't call.
@@ -1056,7 +987,7 @@ XPC_XOW_Construct(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     return ThrowException(NS_ERROR_FAILURE, cx);
   }
 
-  nsresult rv = CanAccessWrapper(cx, wrappedObj, nsnull);
+  nsresult rv = CanAccessWrapper(cx, wrappedObj);
   if (NS_FAILED(rv)) {
     if (rv == NS_ERROR_DOM_PROP_ACCESS_DENIED) {
       // Can't construct.
@@ -1083,7 +1014,7 @@ XPC_XOW_HasInstance(JSContext *cx, JSObject *obj, jsval v, JSBool *bp)
     return ThrowException(NS_ERROR_FAILURE, cx);
   }
 
-  nsresult rv = CanAccessWrapper(cx, iface, nsnull);
+  nsresult rv = CanAccessWrapper(cx, iface);
   if (NS_FAILED(rv)) {
     if (rv == NS_ERROR_DOM_PROP_ACCESS_DENIED) {
       // Don't do this test across origins.
@@ -1169,7 +1100,7 @@ XPC_XOW_Iterator(JSContext *cx, JSObject *obj, JSBool keysonly)
     return nsnull;
   }
 
-  nsresult rv = CanAccessWrapper(cx, wrappedObj, nsnull);
+  nsresult rv = CanAccessWrapper(cx, wrappedObj);
   if (NS_FAILED(rv)) {
     if (rv == NS_ERROR_DOM_PROP_ACCESS_DENIED) {
       // Can't create iterators for foreign objects.
@@ -1236,7 +1167,7 @@ XPC_XOW_toString(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     return ThrowException(NS_ERROR_FAILURE, cx);
   }
 
-  nsresult rv = CanAccessWrapper(cx, wrappedObj, nsnull);
+  nsresult rv = CanAccessWrapper(cx, wrappedObj);
   if (rv == NS_ERROR_DOM_PROP_ACCESS_DENIED) {
     nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
     if (!ssm) {

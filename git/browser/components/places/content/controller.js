@@ -151,9 +151,12 @@ PlacesController.prototype = {
       return this._canInsert(true) && this._isClipboardDataPasteable();
     case "cmd_selectAll":
       if (this._view.selType != "single") {
-        var rootNode = this._view.getResultNode();
-        if (rootNode.containerOpen && rootNode.childCount > 0)
+        var result = this._view.getResult();
+        if (result) {
+          var container = asContainer(result.root);
+          if (container.containerOpen && container.childCount > 0);
             return true;
+        }
       }
       return false;
     case "placesCmd_open":
@@ -168,7 +171,7 @@ PlacesController.prototype = {
       return this._canInsert();
     case "placesCmd_new:separator":
       return this._canInsert() &&
-             !asQuery(this._view.getResultNode()).queryOptions.excludeItems &&
+             !asQuery(this._view.getResult().root).queryOptions.excludeItems &&
              this._view.getResult().sortingMode ==
                  Ci.nsINavHistoryQueryOptions.SORT_BY_NONE;
     case "placesCmd_show:info":
@@ -248,7 +251,7 @@ PlacesController.prototype = {
     case "placesCmd_deleteDataHost":
       var host;
       if (PlacesUtils.nodeIsHost(this._view.selectedNode)) {
-        var queries = this._view.selectedNode.getQueries();
+        var queries = this._view.selectedNode.getQueries({});
         host = queries[0].domain;
       }
       else
@@ -446,7 +449,7 @@ PlacesController.prototype = {
    */
   _buildSelectionMetadata: function PC__buildSelectionMetadata() {
     var metadata = [];
-    var root = this._view.getResultNode();
+    var root = this._view.getResult().root;
     var nodes = this._view.getSelectionNodes();
     if (nodes.length == 0)
       nodes.push(root); // See the second note above
@@ -509,7 +512,7 @@ PlacesController.prototype = {
 
       // annotations
       if (uri) {
-        var names = PlacesUtils.annotations.getPageAnnotationNames(uri);
+        var names = PlacesUtils.annotations.getPageAnnotationNames(uri, {});
         for (var j = 0; j < names.length; ++j)
           nodeData[names[j]] = true;
       }
@@ -517,7 +520,7 @@ PlacesController.prototype = {
       // For items also include the item-specific annotations
       if (node.itemId != -1) {
         names = PlacesUtils.annotations
-                           .getItemAnnotationNames(node.itemId);
+                           .getItemAnnotationNames(node.itemId, {});
         for (j = 0; j < names.length; ++j)
           nodeData[names[j]] = true;
       }
@@ -543,14 +546,11 @@ PlacesController.prototype = {
     if (selectiontype == "single" && aMetaData.length != 1)
       return false;
 
-    var forceHideAttr = aMenuItem.getAttribute("forcehideselection");
-    if (forceHideAttr) {
-      var forceHideRules = forceHideAttr.split("|");
-      for (var i = 0; i < aMetaData.length; ++i) {
-        for (var j=0; j < forceHideRules.length; ++j) {
-          if (forceHideRules[j] in aMetaData[i])
-            return false;
-        }
+    var forceHideRules = aMenuItem.getAttribute("forcehideselection").split("|");
+    for (var i = 0; i < aMetaData.length; ++i) {
+      for (var j=0; j < forceHideRules.length; ++j) {
+        if (forceHideRules[j] in aMetaData[i])
+          return false;
       }
     }
 
@@ -1008,6 +1008,7 @@ PlacesController.prototype = {
     var nodes = this._view.getSelectionNodes();
     var URIs = [];
     var bhist = PlacesUtils.history.QueryInterface(Ci.nsIBrowserHistory);
+    var resultView = this._view.getResultView();
     var root = this._view.getResultNode();
 
     for (var i = 0; i < nodes.length; ++i) {
@@ -1058,7 +1059,7 @@ PlacesController.prototype = {
     }
     else if (PlacesUtils.nodeIsDay(aContainerNode)) {
       // Day container.
-      var query = aContainerNode.getQueries()[0];
+      var query = aContainerNode.getQueries({})[0];
       var beginTime = query.beginTime;
       var endTime = query.endTime;
       NS_ASSERT(query && beginTime && endTime,
@@ -1083,7 +1084,7 @@ PlacesController.prototype = {
 
     NS_ASSERT(aTxnName !== undefined, "Must supply Transaction Name");
 
-    var root = this._view.getResultNode();
+    var root = this._view.getResult().root;
 
     if (PlacesUtils.nodeIsFolder(root)) 
       this._removeRowsFromBookmarks(aTxnName);
@@ -1108,7 +1109,7 @@ PlacesController.prototype = {
    */
   setDataTransfer: function PC_setDataTransfer(aEvent) {
     var dt = aEvent.dataTransfer;
-    var doCopy = ["copyLink", "copy", "link"].indexOf(dt.effectAllowed) != -1;
+    var doCopy = dt.effectAllowed == "copyLink" || dt.effectAllowed == "copy";
 
     var result = this._view.getResult();
     var oldViewer = result.viewer;
@@ -1515,7 +1516,7 @@ var PlacesControllerDragHelper = {
    */
   onDrop: function PCDH_onDrop(insertionPoint) {
     var dt = this.currentDataTransfer;
-    var doCopy = ["copy", "link"].indexOf(dt.dropEffect) != -1;
+    var doCopy = dt.dropEffect == "copy";
 
     var transactions = [];
     var dropCount = dt.mozItemCount;

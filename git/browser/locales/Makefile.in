@@ -64,10 +64,14 @@ vpath book%.inc @srcdir@/en-US/profile
 endif
 
 
+run_for_effects_too := if ! test -d $(DIST)/branding; then $(NSINSTALL) -D $(DIST)/branding; fi)
+
+ifdef MOZ_BRANDING_DIRECTORY
 SUBMAKEFILES += \
 	$(DEPTH)/$(MOZ_BRANDING_DIRECTORY)/Makefile \
 	$(DEPTH)/$(MOZ_BRANDING_DIRECTORY)/locales/Makefile \
 	$(NULL)
+endif
 
 # This makefile uses variable overrides from the libs-% target to
 # build non-default locales to non-default dist/ locations. Be aware!
@@ -82,9 +86,12 @@ PWD := $(CURDIR)
 # work in that case.
 ZIP_IN ?= $(_ABS_DIST)/$(PACKAGE)
 WIN32_INSTALLER_IN ?= $(_ABS_DIST)/$(PKG_INST_PATH)$(PKG_INST_BASENAME).exe
-RETRIEVE_WINDOWS_INSTALLER = 1
 
 MOZ_LANGPACK_EID=langpack-$(AB_CD)@firefox.mozilla.org
+
+ifndef MOZ_BRANDING_DIRECTORY
+DEFINES += -DMOZ_USE_GENERIC_BRANDING
+endif
 
 ifeq (,$(filter-out pref,$(MOZ_EXTENSIONS)))
 DEFINES += -DEXTENSION_PREF
@@ -93,28 +100,9 @@ endif
 PREF_JS_EXPORTS = $(firstword $(wildcard $(LOCALE_SRCDIR)/firefox-l10n.js) \
                        $(srcdir)/en-US/firefox-l10n.js )
 
-ifneq (,$(filter cocoa,$(MOZ_WIDGET_TOOLKIT)))
-MOZ_PKG_MAC_DSSTORE=$(_ABS_DIST)/branding/dsstore
-MOZ_PKG_MAC_BACKGROUND=$(_ABS_DIST)/branding/background.png
-MOZ_PKG_MAC_ICON=$(_ABS_DIST)/branding/disk.icns
-MOZ_PKG_MAC_EXTRA=--symlink "/Applications:/ "
-endif
-
-ifeq (WINNT,$(OS_ARCH))
-UNINSTALLER_PACKAGE_HOOK = $(RM) -r $(STAGEDIST)/uninstall; \
-    $(NSINSTALL) -D $(STAGEDIST)/uninstall; \
-    cp ../installer/windows/l10ngen/helper.exe $(STAGEDIST)/uninstall; \
-    $(NULL)
-endif
-
 include $(topsrcdir)/config/rules.mk
 
 include $(topsrcdir)/toolkit/locales/l10n.mk
-
-$(STAGEDIST): $(DIST)/branding
-
-$(DIST)/branding:
-	$(NSINSTALL) -D $@
 
 libs::
 	@if test -f "$(LOCALE_SRCDIR)/existing-profile-defaults.js"; then \
@@ -197,14 +185,27 @@ libs-%:
 	@$(MAKE) -C ../../extensions/reporter/locales libs AB_CD=$* XPI_NAME=locale-$* BOTH_MANIFESTS=1
 	@$(MAKE) -C ../../extensions/spellcheck/locales AB_CD=$* XPI_NAME=locale-$* BOTH_MANIFESTS=1
 	@$(MAKE) libs AB_CD=$* XPI_NAME=locale-$* PREF_DIR=defaults/pref BOTH_MANIFESTS=1
+ifdef MOZ_BRANDING_DIRECTORY
 	@$(MAKE) -C $(DEPTH)/$(MOZ_BRANDING_DIRECTORY)/locales AB_CD=$* XPI_NAME=locale-$* BOTH_MANIFESTS=1
+endif
 	@$(MAKE) tests AB_CD=$*
+
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
+MOZ_PKG_MAC_DSSTORE=$(_ABS_DIST)/branding/dsstore
+MOZ_PKG_MAC_BACKGROUND=$(_ABS_DIST)/branding/background.png
+MOZ_PKG_MAC_ICON=$(_ABS_DIST)/branding/disk.icns
+MOZ_PKG_MAC_EXTRA=--symlink "/Applications:/ "
+endif
 
 
 repackage-win32-installer: WIN32_INSTALLER_OUT="$(_ABS_DIST)/$(PKG_INST_PATH)$(PKG_INST_BASENAME).exe"
 repackage-win32-installer: $(WIN32_INSTALLER_IN) $(SUBMAKEFILES)
 	@echo "Repackaging $(WIN32_INSTALLER_IN) into $(WIN32_INSTALLER_OUT)."
+ifdef MOZ_BRANDING_DIRECTORY
 	$(MAKE) -C $(DEPTH)/$(MOZ_BRANDING_DIRECTORY) export
+else
+	$(MAKE) -C ../installer/windows export
+endif
 	if test ! -d $(_ABS_DIST)/$(PKG_INST_PATH); then \
 	  $(NSINSTALL) -D $(_ABS_DIST)/$(PKG_INST_PATH); \
 	fi
@@ -236,7 +237,7 @@ else
 repackage-win32-installer-%: ;
 endif
 
-ifneq (,$(filter cocoa,$(MOZ_WIDGET_TOOLKIT)))
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 STAGEDIST = $(_ABS_DIST)/l10n-stage/$(MOZ_PKG_APPNAME)/$(_APPNAME)/Contents/MacOS
 else
 STAGEDIST = $(_ABS_DIST)/l10n-stage/$(MOZ_PKG_DIR)

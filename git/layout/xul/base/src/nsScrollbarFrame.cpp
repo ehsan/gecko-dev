@@ -57,9 +57,7 @@ nsIFrame*
 NS_NewScrollbarFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsScrollbarFrame (aPresShell, aContext);
-}
-
-NS_IMPL_FRAMEARENA_HELPERS(nsScrollbarFrame)
+} // NS_NewScrollbarFrame
 
 NS_QUERYFRAME_HEAD(nsScrollbarFrame)
   NS_QUERYFRAME_ENTRY(nsIScrollbarFrame)
@@ -151,9 +149,8 @@ nsScrollbarFrame::HandlePress(nsPresContext* aPresContext,
 
 NS_IMETHODIMP
 nsScrollbarFrame::HandleMultiplePress(nsPresContext* aPresContext, 
-                                      nsGUIEvent*     aEvent,
-                                      nsEventStatus*  aEventStatus,
-                                      PRBool aControlHeld)
+                     nsGUIEvent*     aEvent,
+                     nsEventStatus*  aEventStatus)
 {
   return NS_OK;
 }

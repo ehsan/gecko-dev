@@ -39,9 +39,13 @@
 #define _CANVASUTILS_H_
 
 #include "prtypes.h"
+#include "nsContentUtils.h"
+#include "nsICanvasElement.h"
+#include "nsIPrincipal.h"
+#include "nsIDOMElement.h"
+#include "nsRect.h"
 
-class nsICanvasElement;
-class nsIPrincipal;
+#include "gfxASurface.h"
 
 namespace mozilla {
 
@@ -68,9 +72,6 @@ public:
     static void DoDrawImageSecurityCheck(nsICanvasElement *aCanvasElement,
                                          nsIPrincipal *aPrincipal,
                                          PRBool forceWriteOnly);
-
-    static void LogMessage (const nsCString& errorString);
-    static void LogMessagef (const char *fmt, ...);
 
 private:
     // this can't be instantiated

@@ -707,6 +707,13 @@ nsSVGSVGElement::CreateSVGTransformFromMatrix(nsIDOMSVGMatrix *matrix,
   return NS_OK;
 }
 
+/* DOMString createSVGString (); */
+NS_IMETHODIMP
+nsSVGSVGElement::CreateSVGString(nsAString & _retval)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
 /* nsIDOMElement getElementById (in DOMString elementId); */
 NS_IMETHODIMP
 nsSVGSVGElement::GetElementById(const nsAString & elementId, nsIDOMElement **_retval)
@@ -739,16 +746,14 @@ nsSVGSVGElement::GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio
 NS_IMETHODIMP
 nsSVGSVGElement::GetNearestViewportElement(nsIDOMSVGElement * *aNearestViewportElement)
 {
-  *aNearestViewportElement = nsSVGUtils::GetNearestViewportElement(this).get();
-  return NS_OK;
+  return nsSVGUtils::GetNearestViewportElement(this, aNearestViewportElement);
 }
 
 /* readonly attribute nsIDOMSVGElement farthestViewportElement; */
 NS_IMETHODIMP
 nsSVGSVGElement::GetFarthestViewportElement(nsIDOMSVGElement * *aFarthestViewportElement)
 {
-  *aFarthestViewportElement = nsSVGUtils::GetFarthestViewportElement(this).get();
-  return NS_OK;
+  return nsSVGUtils::GetFarthestViewportElement(this, aFarthestViewportElement);
 }
 
 /* nsIDOMSVGRect getBBox (); */
@@ -771,20 +776,203 @@ nsSVGSVGElement::GetBBox(nsIDOMSVGRect **_retval)
 
 /* nsIDOMSVGMatrix getCTM (); */
 NS_IMETHODIMP
-nsSVGSVGElement::GetCTM(nsIDOMSVGMatrix * *aCTM)
+nsSVGSVGElement::GetCTM(nsIDOMSVGMatrix **_retval)
 {
-  gfxMatrix m = nsSVGUtils::GetCTM(this, PR_FALSE);
-  *aCTM = m.IsSingular() ? nsnull : NS_NewSVGMatrix(m).get();
-  return NS_OK;
+  nsresult rv;
+  *_retval = nsnull;
+
+  nsIDocument* currentDoc = GetCurrentDoc();
+  if (currentDoc) {
+    // Flush all pending notifications so that our frames are uptodate
+    currentDoc->FlushPendingNotifications(Flush_Layout);
+  }
+
+  // first try to get the "screen" CTM of our nearest SVG ancestor
+
+  nsCOMPtr<nsIContent> element = this;
+  nsCOMPtr<nsIContent> ancestor;
+  unsigned short ancestorCount = 0;
+  nsCOMPtr<nsIDOMSVGMatrix> ancestorCTM;
+
+  while (1) {
+    ancestor = nsSVGUtils::GetParentElement(element);
+    if (!ancestor) {
+      // reached the top of our parent chain without finding an SVG ancestor
+      break;
+    }
+
+    nsSVGSVGElement *viewportElement = QI_AND_CAST_TO_NSSVGSVGELEMENT(ancestor);
+    if (viewportElement) {
+      rv = viewportElement->GetViewboxToViewportTransform(getter_AddRefs(ancestorCTM));
+      if (NS_FAILED(rv)) return rv;
+      break;
+    }
+
+    nsCOMPtr<nsIDOMSVGLocatable> locatableElement = do_QueryInterface(ancestor);
+    if (locatableElement) {
+      rv = locatableElement->GetCTM(getter_AddRefs(ancestorCTM));
+      if (NS_FAILED(rv)) return rv;
+      break;
+    }
+
+    // ancestor was not SVG content. loop until we find an SVG ancestor
+    element = ancestor;
+    ancestorCount++;
+  }
+
+  // now account for our offset
+
+  if (!ancestorCTM) {
+    // we didn't find an SVG ancestor
+    float s=1, x=0, y=0;
+    if (IsRoot()) {
+      // we're the root element. get our currentScale and currentTranslate vals
+      s = mCurrentScale;
+      x = mCurrentTranslate.GetX();
+      y = mCurrentTranslate.GetY();
+    }
+    else {
+      // we're inline in some non-SVG content. get our offset from the root
+      GetOffsetToAncestor(nsnull, x, y);
+    }
+    rv = NS_NewSVGMatrix(getter_AddRefs(ancestorCTM), s, 0, 0, s, x, y);
+    if (NS_FAILED(rv)) return rv;
+  }
+  else {
+    // we found an SVG ancestor
+    float x=0, y=0;
+    nsCOMPtr<nsIDOMSVGMatrix> tmp;
+    if (ancestorCount == 0) {
+      // our immediate parent is an SVG element. get our 'x' and 'y' attribs.
+      // cast to nsSVGElement so we get our ancestor coord context.
+      x = mLengthAttributes[X].GetAnimValue(static_cast<nsSVGElement*>
+                                                       (this));
+      y = mLengthAttributes[Y].GetAnimValue(static_cast<nsSVGElement*>
+                                                       (this));
+    }
+    else {
+      // We have an SVG ancestor, but with non-SVG content between us
+#if 0
+      nsCOMPtr<nsIDOMSVGForeignObjectElement> foreignObject
+                                              = do_QueryInterface(ancestor);
+      if (!foreignObject) {
+        NS_ERROR("the none-SVG content in the parent chain between us and our "
+                 "SVG ancestor isn't rooted in a foreignObject element");
+        return NS_ERROR_FAILURE;
+      }
+#endif
+      // XXXjwatt: this isn't quite right since foreignObject can transform its
+      // content, but it's close enough until we turn foreignObject back on
+      GetOffsetToAncestor(ancestor, x, y);
+    }
+    rv = ancestorCTM->Translate(x, y, getter_AddRefs(tmp));
+    if (NS_FAILED(rv)) return rv;
+    ancestorCTM.swap(tmp);
+  }
+
+  // finally append our viewbox transform
+
+  nsCOMPtr<nsIDOMSVGMatrix> tmp;
+  rv = GetViewboxToViewportTransform(getter_AddRefs(tmp));
+  if (NS_FAILED(rv)) return rv;
+  return ancestorCTM->Multiply(tmp, _retval);  // addrefs, so we don't
 }
 
 /* nsIDOMSVGMatrix getScreenCTM (); */
 NS_IMETHODIMP
-nsSVGSVGElement::GetScreenCTM(nsIDOMSVGMatrix **aCTM)
+nsSVGSVGElement::GetScreenCTM(nsIDOMSVGMatrix **_retval)
 {
-  gfxMatrix m = nsSVGUtils::GetCTM(this, PR_TRUE);
-  *aCTM = m.IsSingular() ? nsnull : NS_NewSVGMatrix(m).get();
-  return NS_OK;
+  nsresult rv;
+  *_retval = nsnull;
+
+  nsIDocument* currentDoc = GetCurrentDoc();
+  if (currentDoc) {
+    // Flush all pending notifications so that our frames are uptodate
+    currentDoc->FlushPendingNotifications(Flush_Layout);
+  }
+
+  // first try to get the "screen" CTM of our nearest SVG ancestor
+
+  nsCOMPtr<nsIContent> element = this;
+  nsCOMPtr<nsIContent> ancestor;
+  unsigned short ancestorCount = 0;
+  nsCOMPtr<nsIDOMSVGMatrix> ancestorScreenCTM;
+
+  while (1) {
+    ancestor = nsSVGUtils::GetParentElement(element);
+    if (!ancestor) {
+      // reached the top of our parent chain without finding an SVG ancestor
+      break;
+    }
+
+    nsCOMPtr<nsIDOMSVGLocatable> locatableElement = do_QueryInterface(ancestor);
+    if (locatableElement) {
+      rv = locatableElement->GetScreenCTM(getter_AddRefs(ancestorScreenCTM));
+      if (NS_FAILED(rv)) return rv;
+      break;
+    }
+
+    // ancestor was not SVG content. loop until we find an SVG ancestor
+    element = ancestor;
+    ancestorCount++;
+  }
+
+  // now account for our offset
+
+  if (!ancestorScreenCTM) {
+    // we didn't find an SVG ancestor
+    float s=1, x=0, y=0;
+    if (IsRoot()) {
+      // we're the root element. get our currentScale and currentTranslate vals
+      s = mCurrentScale;
+      x = mCurrentTranslate.GetX();
+      y = mCurrentTranslate.GetY();
+    }
+    else {
+      // we're inline in some non-SVG content. get our offset from the root
+      GetOffsetToAncestor(nsnull, x, y);
+    }
+    rv = NS_NewSVGMatrix(getter_AddRefs(ancestorScreenCTM), s, 0, 0, s, x, y);
+    if (NS_FAILED(rv)) return rv;
+  }
+  else {
+    // we found an SVG ancestor
+    float x=0, y=0;
+    nsCOMPtr<nsIDOMSVGMatrix> tmp;
+    if (ancestorCount == 0) {
+      // our immediate parent is an SVG element. get our 'x' and 'y' attribs
+      // cast to nsSVGElement so we get our ancestor coord context.
+      x = mLengthAttributes[X].GetAnimValue(static_cast<nsSVGElement*>
+                                                       (this));
+      y = mLengthAttributes[Y].GetAnimValue(static_cast<nsSVGElement*>
+                                                       (this));
+    }
+    else {
+      // We have an SVG ancestor, but with non-SVG content between us
+#if 0
+      nsCOMPtr<nsIDOMSVGForeignObjectElement> foreignObject
+                                              = do_QueryInterface(ancestor);
+      if (!foreignObject) {
+        NS_ERROR("the none-SVG content in the parent chain between us and our "
+                 "SVG ancestor isn't rooted in a foreignObject element");
+        return NS_ERROR_FAILURE;
+      }
+#endif
+      // XXXjwatt: this isn't quite right since foreignObject can transform its
+      // content, but it's close enough until we turn foreignObject back on
+      GetOffsetToAncestor(ancestor, x, y);
+    }
+    rv = ancestorScreenCTM->Translate(x, y, getter_AddRefs(tmp));
+    if (NS_FAILED(rv)) return rv;
+    ancestorScreenCTM.swap(tmp);
+  }
+
+  // finally append our viewbox transform
+
+  nsCOMPtr<nsIDOMSVGMatrix> tmp;
+  rv = GetViewboxToViewportTransform(getter_AddRefs(tmp));
+  if (NS_FAILED(rv)) return rv;
+  return ancestorScreenCTM->Multiply(tmp, _retval);  // addrefs, so we don't
 }
 
 /* nsIDOMSVGMatrix getTransformToElement (in nsIDOMSVGElement element); */
@@ -804,10 +992,10 @@ nsSVGSVGElement::GetTransformToElement(nsIDOMSVGElement *element,
   if (NS_FAILED(rv)) return rv;
 
   // the easiest way to do this (if likely to increase rounding error):
-  GetScreenCTM(getter_AddRefs(ourScreenCTM));
-  if (!ourScreenCTM) return NS_ERROR_DOM_SVG_MATRIX_NOT_INVERTABLE;
-  target->GetScreenCTM(getter_AddRefs(targetScreenCTM));
-  if (!targetScreenCTM) return NS_ERROR_DOM_SVG_MATRIX_NOT_INVERTABLE;
+  rv = GetScreenCTM(getter_AddRefs(ourScreenCTM));
+  if (NS_FAILED(rv)) return rv;
+  rv = target->GetScreenCTM(getter_AddRefs(targetScreenCTM));
+  if (NS_FAILED(rv)) return rv;
   rv = targetScreenCTM->Inverse(getter_AddRefs(tmp));
   if (NS_FAILED(rv)) return rv;
   return tmp->Multiply(ourScreenCTM, _retval);  // addrefs, so we don't
@@ -975,36 +1163,43 @@ nsSVGSVGElement::IsEventName(nsIAtom* aName)
 //----------------------------------------------------------------------
 // public helpers:
 
-gfxMatrix
-nsSVGSVGElement::GetViewBoxTransform()
+nsresult
+nsSVGSVGElement::GetViewboxToViewportTransform(nsIDOMSVGMatrix **_retval)
 {
+  *_retval = nsnull;
+
   float viewportWidth, viewportHeight;
-  if (nsSVGUtils::IsInnerSVG(this)) {
-    nsSVGSVGElement *ctx = GetCtx();
-    viewportWidth = mLengthAttributes[WIDTH].GetAnimValue(ctx);
-    viewportHeight = mLengthAttributes[HEIGHT].GetAnimValue(ctx);
-  } else {
+  nsSVGSVGElement *ctx = GetCtx();
+  if (!ctx) {
+    // outer svg
     viewportWidth = mViewportWidth;
     viewportHeight = mViewportHeight;
-  }
-
-  nsSVGViewBoxRect viewBox;
-  if (mViewBox.IsValid()) {
-    viewBox = mViewBox.GetAnimValue();
   } else {
-    viewBox.x = viewBox.y = 0.0f;
-    viewBox.width  = viewportWidth;
-    viewBox.height = viewportHeight;
+    viewportWidth = mLengthAttributes[WIDTH].GetAnimValue(ctx);
+    viewportHeight = mLengthAttributes[HEIGHT].GetAnimValue(ctx);
   }
 
-  if (viewBox.width <= 0.0f || viewBox.height <= 0.0f) {
-    return gfxMatrix(0.0, 0.0, 0.0, 0.0, 0.0, 0.0); // singular
+  nsSVGViewBoxRect viewbox;
+  if (mViewBox.IsValid()) {
+    viewbox = mViewBox.GetAnimValue();
+  } else {
+    viewbox.x = viewbox.y = 0.0f;
+    viewbox.width  = viewportWidth;
+    viewbox.height = viewportHeight;
   }
 
-  return nsSVGUtils::GetViewBoxTransform(viewportWidth, viewportHeight,
-                                         viewBox.x, viewBox.y,
-                                         viewBox.width, viewBox.height,
-                                         mPreserveAspectRatio);
+  if (viewbox.width <= 0.0f || viewbox.height <= 0.0f) {
+    return NS_ERROR_FAILURE; // invalid - don't paint element
+  }
+
+  nsCOMPtr<nsIDOMSVGMatrix> xform =
+    nsSVGUtils::GetViewBoxTransform(viewportWidth, viewportHeight,
+                                    viewbox.x, viewbox.y,
+                                    viewbox.width, viewbox.height,
+                                    mPreserveAspectRatio);
+  xform.swap(*_retval);
+
+  return NS_OK;
 }
 
 #ifdef MOZ_SMIL
@@ -1064,6 +1259,43 @@ nsSVGSVGElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 
 //----------------------------------------------------------------------
 // implementation helpers
+
+// if an ancestor isn't specified, obtains offset from root frame
+void nsSVGSVGElement::GetOffsetToAncestor(nsIContent* ancestor,
+                                          float &x, float &y)
+{
+  x = 0.0f;
+  y = 0.0f;
+
+  nsIDocument *document = GetCurrentDoc();
+  if (!document) return;
+
+  // Flush all pending notifications so that our frames are uptodate
+  // Make sure to do this before we start grabbing layout objects like
+  // presshells.
+  document->FlushPendingNotifications(Flush_Layout);
+  
+  nsIPresShell *presShell = document->GetPrimaryShell();
+  if (!presShell) {
+    return;
+  }
+
+  nsPresContext *context = presShell->GetPresContext();
+  if (!context) {
+    return;
+  }
+
+  nsIFrame* frame = presShell->GetPrimaryFrameFor(this);
+  nsIFrame* ancestorFrame = ancestor ?
+                            presShell->GetPrimaryFrameFor(ancestor) :
+                            presShell->GetRootFrame();
+
+  if (frame && ancestorFrame) {
+    nsPoint point = frame->GetOffsetTo(ancestorFrame);
+    x = nsPresContext::AppUnitsToFloatCSSPixels(point.x);
+    y = nsPresContext::AppUnitsToFloatCSSPixels(point.y);
+  }
+}
 
 #ifdef MOZ_SMIL
 PRBool
@@ -1126,8 +1358,8 @@ nsSVGSVGElement::GetLength(PRUint8 aCtxType)
     w = viewbox.width;
     h = viewbox.height;
   } else {
-    if (nsSVGUtils::IsInnerSVG(this)) {
-      nsSVGSVGElement *ctx = GetCtx();
+    nsSVGSVGElement *ctx = GetCtx();
+    if (ctx) {
       w = mLengthAttributes[WIDTH].GetAnimValue(ctx);
       h = mLengthAttributes[HEIGHT].GetAnimValue(ctx);
     } else {
@@ -1165,21 +1397,19 @@ nsSVGSVGElement::GetMMPerPx(PRUint8 aCtxType)
 /* virtual */ gfxMatrix
 nsSVGSVGElement::PrependLocalTransformTo(const gfxMatrix &aMatrix)
 {
-  if (nsSVGUtils::IsInnerSVG(this)) {
-    float x, y;
-    GetAnimatedLengthValues(&x, &y, nsnull);
-    return GetViewBoxTransform() * gfxMatrix().Translate(gfxPoint(x, y)) * aMatrix;
-  }
+  NS_ASSERTION(GetCtx(), "Should not be called on outer-<svg>");
 
-  if (IsRoot()) {
-    gfxMatrix zoomPanTM;
-    zoomPanTM.Translate(gfxPoint(mCurrentTranslate.GetX(), mCurrentTranslate.GetY()));
-    zoomPanTM.Scale(mCurrentScale, mCurrentScale);
-    return GetViewBoxTransform() * zoomPanTM * aMatrix;
-  }
+  float x, y;
+  GetAnimatedLengthValues(&x, &y, nsnull);
+  gfxMatrix matrix = aMatrix;
+  matrix.PreMultiply(gfxMatrix().Translate(gfxPoint(x, y)));
 
-  // outer-<svg>, but inline in some other content:
-  return GetViewBoxTransform() * aMatrix;
+  nsCOMPtr<nsIDOMSVGMatrix> viewBoxTM;
+  nsresult res = GetViewboxToViewportTransform(getter_AddRefs(viewBoxTM));
+  if (NS_FAILED(res)) {
+    return gfxMatrix(0.0, 0.0, 0.0, 0.0, 0.0, 0.0); // singular
+  }
+  return matrix.PreMultiply(nsSVGUtils::ConvertSVGMatrixToThebes(viewBoxTM));
 }
 
 void

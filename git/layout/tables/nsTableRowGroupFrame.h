@@ -97,9 +97,8 @@ class nsTableRowGroupFrame
   , public nsILineIterator
 {
 public:
-  NS_DECL_QUERYFRAME_TARGET(nsTableRowGroupFrame)
+  NS_DECLARE_FRAME_ACCESSOR(nsTableRowGroupFrame)
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
   /** instantiate a new instance of nsTableRowFrame.
     * @param aPresShell the pres shell for this frame
@@ -112,11 +111,11 @@ public:
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
   
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
 
   NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
@@ -363,7 +362,7 @@ public:
   PRBool IsScrolled() {
     // Note that if mOverflowY is CLIP, so is mOverflowX, and we need to clip the background
     // as if the rowgroup is scrollable.
-    return GetStyleContext()->GetPseudo() == nsCSSAnonBoxes::scrolledContent ||
+    return GetStyleContext()->GetPseudoType() == nsCSSAnonBoxes::scrolledContent ||
            GetStyleDisplay()->mOverflowY == NS_STYLE_OVERFLOW_CLIP;
   }
 
@@ -445,6 +444,10 @@ private:
   BCPixelSize mLeftContBorderWidth;
 
 public:
+  virtual nsIFrame* GetFirstFrame() { return mFrames.FirstChild(); }
+  virtual nsIFrame* GetLastFrame() { return mFrames.LastChild(); }
+  virtual void GetNextFrame(nsIFrame*  aFrame, 
+                            nsIFrame** aResult) { *aResult = aFrame->GetNextSibling(); }
   PRBool IsRepeatable() const;
   void   SetRepeatable(PRBool aRepeatable);
   PRBool HasStyleHeight() const;

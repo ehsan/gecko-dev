@@ -47,11 +47,6 @@
 #include "nsIDOMElement.h"
 #include "nsCycleCollectionParticipant.h"
 
-#include "nsAutoPtr.h"
-#include "nsIFile.h"
-#include "nsILocalFile.h"
-#include "nsDOMFile.h"
-
 class nsITransferable;
 
 /**
@@ -189,9 +184,6 @@ protected:
 
   // array of items, each containing an array of format->data pairs
   nsTArray<nsTArray<TransferItem> > mItems;
-
-  // array of files, containing only the files present in the dataTransfer
-  nsRefPtr<nsDOMFileList> mFiles;
 
   // the target of the drag. The drag and dragend events will fire at this.
   nsCOMPtr<nsIDOMElement> mDragTarget;

@@ -3,16 +3,20 @@ menu items.
 
 Mac makes this astonishingly painful to test since their help menu is special magic,
 but we can at least test it on the other platforms.*/
+var newBrowser;
 var menu;
 
 function test() {
+
   waitForExplicitFinish();
   
-  gBrowser.selectedTab = gBrowser.addTab();
+  var newTab = gBrowser.addTab();
+  gBrowser.selectedTab = newTab;
+  newBrowser = gBrowser.getBrowserForTab(newTab);
 
   // Navigate to a normal site
   gBrowser.addEventListener("load", testNormal, false);
-  content.location = "http://example.com/";
+  newBrowser.contentWindow.location = 'http://example.com/';
 }
 
 function testNormal() {
@@ -37,7 +41,7 @@ function testNormal_PopupListener() {
   
   // Now launch the phishing test.  Can't use onload here because error pages don't
   // fire normal load events.
-  content.location = "http://www.mozilla.com/firefox/its-a-trap.html";
+  newBrowser.contentWindow.location = 'http://www.mozilla.com/firefox/its-a-trap.html';
   window.setTimeout(testPhishing, 2000);
 }
 

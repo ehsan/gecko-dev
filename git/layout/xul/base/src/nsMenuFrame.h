@@ -111,7 +111,6 @@ public:
   nsMenuFrame(nsIPresShell* aShell, nsStyleContext* aContext);
 
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
   // nsIBox
   NS_IMETHOD DoLayout(nsBoxLayoutState& aBoxLayoutState);
@@ -131,9 +130,9 @@ public:
   // The following methods are all overridden so that the menupopup
   // can be stored in a separate list, so that it doesn't impact reflow of the
   // actual menu item at all.
-  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
+  virtual nsIFrame* GetFirstChild(nsIAtom* aListName) const;
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
-                                 nsFrameList&    aChildList);
+                                 nsIFrame*       aChildList);
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
   virtual void Destroy();
 
@@ -148,11 +147,11 @@ public:
                          nsEventStatus*  aEventStatus);
 
   NS_IMETHOD  AppendFrames(nsIAtom*        aListName,
-                           nsFrameList&    aFrameList);
+                           nsIFrame*       aFrameList);
 
   NS_IMETHOD  InsertFrames(nsIAtom*        aListName,
                            nsIFrame*       aPrevFrame,
-                           nsFrameList&    aFrameList);
+                           nsIFrame*       aFrameList);
 
   NS_IMETHOD  RemoveFrame(nsIAtom*        aListName,
                           nsIFrame*       aOldFrame);
@@ -230,9 +229,9 @@ protected:
   friend class nsMenuTimerMediator;
   friend class nsASyncMenuInitialization;
 
-  // initialize mPopupFrame to the first popup frame within
-  // aChildList. Removes the popup, if any, from aChildList.
-  void SetPopupFrame(nsFrameList& aChildList);
+  // initialize mPopupFrame to the first popup frame within aChildList. Returns
+  // aChildList with the popup frame removed.
+  nsIFrame* SetPopupFrame(nsIFrame* aChildList);
 
   // set mMenuParent to the nearest enclosing menu bar or menupopup frame of
   // aParent (or aParent itself). This is called when initializing the frame,

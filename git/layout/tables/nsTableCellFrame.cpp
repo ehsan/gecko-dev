@@ -82,9 +82,7 @@ nsTableCellFrame::~nsTableCellFrame()
 {
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsTableCellFrame)
-
-nsTableCellFrame*
+nsTableCellFrame*  
 nsTableCellFrame::GetNextCell() const
 {
   nsIFrame* childFrame = GetNextSibling();
@@ -261,7 +259,7 @@ nsTableCellFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
      
 NS_IMETHODIMP
 nsTableCellFrame::AppendFrames(nsIAtom*        aListName,
-                               nsFrameList&    aFrameList)
+                               nsIFrame*       aFrameList)
 {
   NS_PRECONDITION(PR_FALSE, "unsupported operation");
   return NS_ERROR_NOT_IMPLEMENTED;
@@ -270,7 +268,7 @@ nsTableCellFrame::AppendFrames(nsIAtom*        aListName,
 NS_IMETHODIMP
 nsTableCellFrame::InsertFrames(nsIAtom*        aListName,
                                nsIFrame*       aPrevFrame,
-                               nsFrameList&    aFrameList)
+                               nsIFrame*       aFrameList)
 {
   NS_PRECONDITION(PR_FALSE, "unsupported operation");
   return NS_ERROR_NOT_IMPLEMENTED;
@@ -363,24 +361,22 @@ nsTableCellFrame::DecorateForSelection(nsIRenderingContext& aRenderingContext,
 void
 nsTableCellFrame::PaintBackground(nsIRenderingContext& aRenderingContext,
                                   const nsRect&        aDirtyRect,
-                                  nsPoint              aPt,
-                                  PRUint32             aFlags)
+                                  nsPoint              aPt)
 {
   nsRect rect(aPt, GetSize());
   nsCSSRendering::PaintBackground(PresContext(), aRenderingContext, this,
-                                  aDirtyRect, rect, aFlags);
+                                  aDirtyRect, rect, 0);
 }
 
 // Called by nsTablePainter
 void
 nsTableCellFrame::PaintCellBackground(nsIRenderingContext& aRenderingContext,
-                                      const nsRect& aDirtyRect, nsPoint aPt,
-                                      PRUint32 aFlags)
+                                      const nsRect& aDirtyRect, nsPoint aPt)
 {
   if (!GetStyleVisibility()->IsVisible())
     return;
 
-  PaintBackground(aRenderingContext, aDirtyRect, aPt, aFlags);
+  PaintBackground(aRenderingContext, aDirtyRect, aPt);
 }
 
 class nsDisplayTableCellBackground : public nsDisplayTableItem {
@@ -396,19 +392,18 @@ public:
 
   virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
                             HitTestState* aState) { return mFrame; }
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
+     const nsRect& aDirtyRect);
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
 
   NS_DISPLAY_DECL_NAME("TableCellBackground")
 };
 
 void nsDisplayTableCellBackground::Paint(nsDisplayListBuilder* aBuilder,
-                                         nsIRenderingContext* aCtx)
+     nsIRenderingContext* aCtx, const nsRect& aDirtyRect)
 {
   static_cast<nsTableCellFrame*>(mFrame)->
-    PaintBackground(*aCtx, mVisibleRect, aBuilder->ToReferenceFrame(mFrame),
-                    aBuilder->GetBackgroundPaintFlags());
+    PaintBackground(*aCtx, aDirtyRect, aBuilder->ToReferenceFrame(mFrame));
 }
 
 nsRect
@@ -448,9 +443,8 @@ nsTableCellFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     PRBool isRoot = aBuilder->IsAtRootOfPseudoStackingContext();
     if (!isRoot) {
       nsDisplayTableItem* currentItem = aBuilder->GetCurrentTableItem();
-      if (currentItem) {
-        currentItem->UpdateForFrameBackground(this);
-      }
+      NS_ASSERTION(currentItem, "No current table item???");
+      currentItem->UpdateForFrameBackground(this);
     }
 
     // display outset box-shadows if we need to.
@@ -503,11 +497,6 @@ nsTableCellFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   nsresult rv = DisplayOutline(aBuilder, aLists);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Push a null 'current table item' so that descendant tables can't
-  // accidentally mess with our table
-  nsAutoPushCurrentTableItem pushTableItem;
-  pushTableItem.Push(aBuilder, nsnull);
-
   nsIFrame* kid = mFrames.FirstChild();
   NS_ASSERTION(kid && !kid->GetNextSibling(), "Table cells should have just one child");
   // The child's background will go in our BorderBackground() list.
@@ -517,6 +506,39 @@ nsTableCellFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // which isn't right (e.g., would end up on top of our child floats for
   // event handling).
   return BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
+}
+
+//null range means the whole thing
+NS_IMETHODIMP
+nsTableCellFrame::SetSelected(nsPresContext*  aPresContext,
+                              nsIDOMRange*    aRange,
+                              PRBool          aSelected,
+                              nsSpread        aSpread,
+                              SelectionType   aType)
+{
+  //traverse through children unselect tables
+#if 0
+  if ((aSpread == eSpreadDown)){
+    nsIFrame* kid = GetFirstChild(nsnull);
+    while (nsnull != kid) {
+      kid->SetSelected(nsnull, aSelected, eSpreadDown);
+      kid = kid->GetNextSibling();
+    }
+  }
+  //return nsFrame::SetSelected(aRange,aSelected,eSpreadNone);
+#endif
+  // Must call base class to set mSelected state and trigger repaint of frame
+  // Note that in current version, aRange and aSpread are ignored,
+  //   only this frame is considered
+  nsFrame::SetSelected(aPresContext, aRange, aSelected, aSpread, aType);
+
+  nsCOMPtr<nsFrameSelection> frameSelection =
+    aPresContext->PresShell()->FrameSelection();
+  if (frameSelection->GetTableCellSelection()) {
+    // Selection can affect content, border and outline
+    InvalidateOverflowRect();
+  }
+  return NS_OK;
 }
 
 PRIntn
@@ -530,6 +552,16 @@ nsTableCellFrame::GetSkipSides() const
     skip |= 1 << NS_SIDE_BOTTOM;
   }
   return skip;
+}
+
+PRBool nsTableCellFrame::ParentDisablesSelection() const //override default behavior
+{
+  PRBool returnval;
+  if (NS_FAILED(GetSelected(&returnval)))
+    return PR_FALSE;
+  if (returnval)
+    return PR_TRUE;
+  return nsFrame::ParentDisablesSelection();
 }
 
 /* virtual */ void
@@ -597,7 +629,7 @@ void nsTableCellFrame::VerticallyAlignChild(nscoord aMaxAscent)
       kidYTop = (height - childHeight - bottomInset + topInset) / 2;
   }
   // if the content is larger than the cell height align from top
-  kidYTop = NS_MAX(0, kidYTop);
+  kidYTop = PR_MAX(0, kidYTop);
 
   if (kidYTop != kidRect.y) {
     // Invalidate at the old position first
@@ -698,7 +730,7 @@ PRInt32 nsTableCellFrame::GetRowSpan()
   nsGenericHTMLElement *hc = nsGenericHTMLElement::FromContent(mContent);
 
   // Don't look at the content's rowspan if we're a pseudo cell
-  if (hc && !GetStyleContext()->GetPseudo()) {
+  if (hc && !GetStyleContext()->GetPseudoType()) {
     const nsAttrValue* attr = hc->GetParsedAttr(nsGkAtoms::rowspan);
     // Note that we don't need to check the tag name, because only table cells
     // and table headers parse the "rowspan" attribute into an integer.
@@ -715,7 +747,7 @@ PRInt32 nsTableCellFrame::GetColSpan()
   nsGenericHTMLElement *hc = nsGenericHTMLElement::FromContent(mContent);
 
   // Don't look at the content's colspan if we're a pseudo cell
-  if (hc && !GetStyleContext()->GetPseudo()) {
+  if (hc && !GetStyleContext()->GetPseudoType()) {
     const nsAttrValue* attr = hc->GetParsedAttr(nsGkAtoms::colspan); 
     // Note that we don't need to check the tag name, because only table cells
     // and table headers parse the "colspan" attribute into an integer.
@@ -774,8 +806,7 @@ void DebugCheckChildSize(nsIFrame*            aChild,
                          nsSize&              aAvailSize)
 {
   if ((aMet.width < 0) || (aMet.width > PROBABLY_TOO_LARGE)) {
-    printf("WARNING: cell content %p has large width %d \n",
-           static_cast<void*>(aChild), aMet.width);
+    printf("WARNING: cell content %p has large width %d \n", aChild, aMet.width);
   }
 }
 #endif
@@ -863,16 +894,16 @@ NS_METHOD nsTableCellFrame::Reflow(nsPresContext*           aPresContext,
   nsIFrame* firstKid = mFrames.FirstChild();
   NS_ASSERTION(firstKid, "Frame construction error, a table cell always has an inner cell frame");
 
+  nscoord computedPaginatedHeight = 0;
+
   if (aReflowState.mFlags.mSpecialHeightReflow) {
     const_cast<nsHTMLReflowState&>(aReflowState).SetComputedHeight(mRect.height - topInset - bottomInset);
     DISPLAY_REFLOW_CHANGE();
   }
   else if (aPresContext->IsPaginated()) {
-    nscoord computedUnpaginatedHeight =
-      CalcUnpaginagedHeight(aPresContext, (nsTableCellFrame&)*this,
-                            *tableFrame, topInset + bottomInset);
-    if (computedUnpaginatedHeight > 0) {
-      const_cast<nsHTMLReflowState&>(aReflowState).SetComputedHeight(computedUnpaginatedHeight);
+    computedPaginatedHeight = CalcUnpaginagedHeight(aPresContext, (nsTableCellFrame&)*this, *tableFrame, topInset + bottomInset);
+    if (computedPaginatedHeight > 0) {
+      const_cast<nsHTMLReflowState&>(aReflowState).SetComputedHeight(computedPaginatedHeight);
       DISPLAY_REFLOW_CHANGE();
     }
   }      
@@ -914,7 +945,7 @@ NS_METHOD nsTableCellFrame::Reflow(nsPresContext*           aPresContext,
     // Don't pass OVERFLOW_INCOMPLETE through tables until they can actually handle it
     //XXX should paginate overflow as overflow, but not in this patch (bug 379349)
     NS_FRAME_SET_INCOMPLETE(aStatus);
-    printf("Set table cell incomplete %p\n", static_cast<void*>(this));
+    printf("Set table cell incomplete %p\n", this);
   }
 
   // XXXbz is this invalidate actually needed, really?
@@ -1034,8 +1065,6 @@ NS_NewTableCellFrame(nsIPresShell*   aPresShell,
   else
     return new (aPresShell) nsTableCellFrame(aContext);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsBCTableCellFrame)
 
 nsMargin* 
 nsTableCellFrame::GetBorderWidth(nsMargin&  aBorder) const
@@ -1162,8 +1191,7 @@ nsBCTableCellFrame::GetSelfOverflow(nsRect& aOverflowArea)
 void
 nsBCTableCellFrame::PaintBackground(nsIRenderingContext& aRenderingContext,
                                     const nsRect&        aDirtyRect,
-                                    nsPoint              aPt,
-                                    PRUint32             aFlags)
+                                    nsPoint              aPt)
 {
   // make border-width reflect the half of the border-collapse
   // assigned border that's inside the cell
@@ -1182,5 +1210,5 @@ nsBCTableCellFrame::PaintBackground(nsIRenderingContext& aRenderingContext,
   nsCSSRendering::PaintBackgroundWithSC(PresContext(), aRenderingContext, this,
                                         aDirtyRect, rect,
                                         *GetStyleBackground(), myBorder,
-                                        aFlags, nsnull);
+                                        0, nsnull);
 }

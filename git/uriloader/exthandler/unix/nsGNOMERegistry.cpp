@@ -46,15 +46,14 @@
 #include "nsAutoPtr.h"
 #include "nsIGConfService.h"
 #include "nsIGnomeVFSService.h"
-#include "nsIGIOService.h"
 
 #ifdef MOZ_WIDGET_GTK2
 #include <glib.h>
 #include <glib-object.h>
-#endif
 
 #ifdef MOZ_PLATFORM_HILDON
 #include <libintl.h>
+#endif
 #endif
 
 /* static */ PRBool
@@ -83,15 +82,11 @@ nsGNOMERegistry::HandlerExists(const char *aProtocolScheme)
 /* static */ nsresult
 nsGNOMERegistry::LoadURL(nsIURI *aURL)
 {
-  nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
-  nsCOMPtr<nsIGnomeVFSService> gnomevfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
-  if (giovfs) {
-    return giovfs->ShowURI(aURL);
-  } else if (gnomevfs) {
-    /* Fallback to GnomeVFS */
-    return gnomevfs->ShowURI(aURL);
-  }
-  return NS_ERROR_FAILURE;
+  nsCOMPtr<nsIGnomeVFSService> vfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
+  if (!vfs)
+    return NS_ERROR_FAILURE;
+
+  return vfs->ShowURI(aURL);
 }
 
 /* static */ void
@@ -127,27 +122,16 @@ nsGNOMERegistry::GetAppDescForScheme(const nsACString& aScheme,
 nsGNOMERegistry::GetFromExtension(const nsACString& aFileExt)
 {
   NS_ASSERTION(aFileExt[0] != '.', "aFileExt shouldn't start with a dot");
-  nsCAutoString mimeType;
-  nsCOMPtr<nsIGnomeVFSService> gnomevfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
-  nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
-
-  if (!gnomevfs && !giovfs)
+  nsCOMPtr<nsIGnomeVFSService> vfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
+  if (!vfs)
     return nsnull;
 
-  if (giovfs) {
-    // Get the MIME type from the extension, then call GetFromType to
-    // fill in the MIMEInfo.
-    if (NS_FAILED(giovfs->GetMimeTypeFromExtension(aFileExt, mimeType)) ||
-        mimeType.EqualsLiteral("application/octet-stream"))
-      return nsnull;
-  } else if (gnomevfs) {
-    /* Fallback to GnomeVFS */
-    if (NS_FAILED(gnomevfs->GetMimeTypeFromExtension(aFileExt, mimeType)) ||
-        mimeType.EqualsLiteral("application/octet-stream"))
-      return nsnull;
-    
-  }
-
+  // Get the MIME type from the extension, then call GetFromType to
+  // fill in the MIMEInfo.
+  nsCAutoString mimeType;
+  if (NS_FAILED(vfs->GetMimeTypeFromExtension(aFileExt, mimeType)) ||
+      mimeType.EqualsLiteral("application/octet-stream"))
+    return nsnull;
 
   return GetFromType(mimeType);
 }
@@ -155,43 +139,24 @@ nsGNOMERegistry::GetFromExtension(const nsACString& aFileExt)
 /* static */ already_AddRefed<nsMIMEInfoBase>
 nsGNOMERegistry::GetFromType(const nsACString& aMIMEType)
 {
-  nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
-  nsCOMPtr<nsIGnomeVFSService> gnomevfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
-  nsCOMPtr<nsIGIOMimeApp> gioHandlerApp;
-  nsCOMPtr<nsIGnomeVFSMimeApp> gnomeHandlerApp;
-  
-  if (!giovfs && !gnomevfs)
+  nsCOMPtr<nsIGnomeVFSService> vfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
+  if (!vfs)
     return nsnull;
 
-  if (giovfs) {
-    if (NS_FAILED(giovfs->GetAppForMimeType(aMIMEType, getter_AddRefs(gioHandlerApp))) ||
-        !gioHandlerApp)
-      return nsnull;
+  nsCOMPtr<nsIGnomeVFSMimeApp> handlerApp;
+  if (NS_FAILED(vfs->GetAppForMimeType(aMIMEType, getter_AddRefs(handlerApp))) ||
+      !handlerApp)
+    return nsnull;
 
-  } else {
-    /* Fallback to GnomeVFS*/
-    if (NS_FAILED(gnomevfs->GetAppForMimeType(aMIMEType, getter_AddRefs(gnomeHandlerApp))) ||
-        !gnomeHandlerApp)
-      return nsnull;
-    
-  }
   nsRefPtr<nsMIMEInfoUnix> mimeInfo = new nsMIMEInfoUnix(aMIMEType);
   NS_ENSURE_TRUE(mimeInfo, nsnull);
 
   nsCAutoString description;
-  if (giovfs)
-    giovfs->GetDescriptionForMimeType(aMIMEType, description);
-  else
-    gnomevfs->GetDescriptionForMimeType(aMIMEType, description);
-
+  vfs->GetDescriptionForMimeType(aMIMEType, description);
   mimeInfo->SetDescription(NS_ConvertUTF8toUTF16(description));
 
   nsCAutoString name;
-  if (giovfs)
-    gioHandlerApp->GetName(name);
-  else 
-    gnomeHandlerApp->GetName(name);
-
+  handlerApp->GetName(name);
 #ifdef MOZ_PLATFORM_HILDON
   // On Maemo/Hildon, GetName ends up calling gnome_vfs_mime_application_get_name,
   // which happens to return a non-localized message-id for the application. To

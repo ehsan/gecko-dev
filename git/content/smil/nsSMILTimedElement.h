@@ -60,7 +60,7 @@ class nsSMILTimedElement
 public:
   nsSMILTimedElement();
 
-  /**
+  /** 
    * Methods for supporting the nsIDOMElementTimeControl interface.
    */
 
@@ -92,18 +92,31 @@ public:
   nsresult EndElementAt(double aOffsetSeconds,
                         const nsSMILTimeContainer* aContainer);
 
-  /**
+  /** 
    * Methods for supporting the nsSVGAnimationElement interface.
    */
 
   /**
-   * According to SVG 1.1 SE this returns
+   * According to SVG 1.1 this is supposed to return the start time for the
+   * animation but at this stage no one seems to know what that means.
    *
-   *   the begin time, in seconds, for this animation element's current
-   *   interval, if it exists, regardless of whether the interval has begun yet.
+   * For now we have adopted Opera's behaviour which seems to be:
    *
-   * @return the start time as defined above in milliseconds or an unresolved
-   * time if there is no current interval.
+   *   (i) If the animation is in the active state, return the start of the
+   *       current interval
+   *  (ii) Otherwise, if there is a previous interval, return the start of the
+   *       previous interval
+   * (iii) Otherwise, if there is a future resolved interval, the the start of
+   *       the next interval
+   *  (iv) Otherwise, return 0.
+   *
+   * As this method represents a SMIL interface which is called by the SVG
+   * interface, instead of returning 0 in case (iv) we return 'indefinite' and
+   * then allow the SVG interface to decide what to do with it. That is, we
+   * don't throw away information until the last moment.
+   *
+   * @return the start time as defined above in milliseconds or 'indefinite' if
+   * there is no resolved start time for this element (case iv).
    */
   nsSMILTimeValue GetStartTime() const;
 
@@ -117,7 +130,7 @@ public:
     return mSimpleDur;
   }
 
-  /**
+  /** 
    * Internal SMIL methods
    */
 
@@ -238,12 +251,9 @@ protected:
    *
    * @see SMILANIM 3.6.8
    */
-  nsresult          GetNextInterval(const nsSMILInterval* aPrevInterval,
+  nsresult          GetNextInterval(const nsSMILTimeValue& aBeginAfter,
+                                    PRBool aFirstInstance,
                                     nsSMILInterval& aResult);
-  PRBool            GetNextGreater(const nsTArray<nsSMILInstanceTime>& aList,
-                                   const nsSMILTimeValue& aBase,
-                                   PRInt32& aPosition,
-                                   nsSMILTimeValue& aResult);
   PRBool            GetNextGreaterOrEqual(
                                    const nsTArray<nsSMILInstanceTime>& aList,
                                    const nsSMILTimeValue& aBase,

@@ -181,14 +181,16 @@ var StarUI = {
     rows.insertBefore(header, rows.firstChild);
     header.hidden = false;
 
+    var bundle = this._element("bundle_browser");
+
     // Set panel title:
     // if we are batching, i.e. the bookmark has been added now,
     // then show Page Bookmarked, else if the bookmark did already exist,
     // we are about editing it, then use Edit This Bookmark.
     this._element("editBookmarkPanelTitle").value =
       this._batching ?
-        gNavigatorBundle.getString("editBookmarkPanel.pageBookmarkedTitle") :
-        gNavigatorBundle.getString("editBookmarkPanel.editBookmarkTitle");
+        bundle.getString("editBookmarkPanel.pageBookmarkedTitle") :
+        bundle.getString("editBookmarkPanel.editBookmarkTitle");
 
     // No description; show the Done, Cancel;
     // hide the Edit, Undo buttons
@@ -205,7 +207,7 @@ var StarUI = {
     // The label of the remove button differs if the URI is bookmarked
     // multiple times.
     var bookmarks = PlacesUtils.getBookmarksForURI(gBrowser.currentURI);
-    var forms = gNavigatorBundle.getString("editBookmark.removeBookmarks.label");
+    var forms = bundle.getString("editBookmark.removeBookmarks.label");
     var label = PluralForm.get(bookmarks.length, forms).replace("#1", bookmarks.length);
     this._element("editBookmarkPanelRemoveButton").label = label;
 
@@ -247,17 +249,18 @@ var StarUI = {
   function PCH_showPageBookmarkedNotification(aItemId, aAnchorElement, aPosition) {
     this._blockCommands(); // un-done in the popuphiding handler
 
+    var bundle = this._element("bundle_browser");
     var brandBundle = this._element("bundle_brand");
     var brandShortName = brandBundle.getString("brandShortName");
 
     // "Page Bookmarked" title
     this._element("editBookmarkPanelTitle").value =
-      gNavigatorBundle.getString("editBookmarkPanel.pageBookmarkedTitle");
+      bundle.getString("editBookmarkPanel.pageBookmarkedTitle");
 
     // description
     this._element("editBookmarkPanelDescription").textContent =
-      gNavigatorBundle.getFormattedString("editBookmarkPanel.pageBookmarkedDescription",
-                                          [brandShortName]);
+      bundle.getFormattedString("editBookmarkPanel.pageBookmarkedDescription",
+                                [brandShortName]);
 
     // show the "Edit.." button and the Remove Bookmark button, hide the
     // undo-remove-bookmark button.
@@ -307,11 +310,12 @@ var StarUI = {
     if (this._batching) {
       PlacesUIUtils.ptm.endBatch();
       PlacesUIUtils.ptm.beginBatch(); // allow undo from within the notification
+      var bundle = this._element("bundle_browser");
 
       // "Bookmark Removed" title (the description field is already empty in
       // this mode)
       this._element("editBookmarkPanelTitle").value =
-        gNavigatorBundle.getString("editBookmarkPanel.bookmarkedRemovedTitle");
+        bundle.getString("editBookmarkPanel.bookmarkedRemovedTitle");
 
       // hide the edit panel
       this.quitEditMode();
@@ -432,7 +436,9 @@ var PlacesCommandHook = {
       if (starIcon && isElementVisible(starIcon)) {
         // Make sure the bookmark properties dialog hangs toward the middle of
         // the location bar in RTL builds
-        var position = (getComputedStyle(gNavToolbox, "").direction == "rtl") ? 'after_start' : 'after_end';
+        var position = "after_end";
+        if (gURLBar.getAttribute("chromedir") == "rtl")
+          position = "after_start";
         if (aShowEditUI)
           StarUI.showEditBookmarkPopup(itemId, starIcon, position);
 #ifdef ADVANCED_STARRING_UI
@@ -450,7 +456,7 @@ var PlacesCommandHook = {
    * Adds a bookmark to the page loaded in the current tab. 
    */
   bookmarkCurrentPage: function PCH_bookmarkCurrentPage(aShowEditUI, aParent) {
-    this.bookmarkPage(gBrowser.selectedBrowser, aParent, aShowEditUI);
+    this.bookmarkPage(getBrowser().selectedBrowser, aParent, aShowEditUI);
   },
 
   /**
@@ -484,18 +490,19 @@ var PlacesCommandHook = {
    */
   _getUniqueTabInfo: function BATC__getUniqueTabInfo() {
     var tabList = [];
-    var seenURIs = {};
+    var seenURIs = [];
 
-    var browsers = gBrowser.browsers;
+    var browsers = getBrowser().browsers;
     for (var i = 0; i < browsers.length; ++i) {
-      let uri = browsers[i].currentURI;
+      var webNav = browsers[i].webNavigation;
+      var uri = webNav.currentURI;
 
       // skip redundant entries
       if (uri.spec in seenURIs)
         continue;
 
       // add to the set of seen URIs
-      seenURIs[uri.spec] = null;
+      seenURIs[uri.spec] = true;
       tabList.push(uri);
     }
     return tabList;
@@ -521,7 +528,10 @@ var PlacesCommandHook = {
    *            A short description of the feed. Optional.
    */
   addLiveBookmark: function PCH_addLiveBookmark(url, feedTitle, feedSubtitle) {
-    var feedURI = makeURI(url);
+    var ios = 
+        Cc["@mozilla.org/network/io-service;1"].
+        getService(Ci.nsIIOService);
+    var feedURI = ios.newURI(url, null, null);
     
     var doc = gBrowser.contentDocument;
     var title = (arguments.length > 1) ? feedTitle : doc.title;
@@ -637,27 +647,18 @@ var HistoryMenu = {
       m.setAttribute("class", "menuitem-iconic bookmark-item");
       m.setAttribute("value", i);
       m.setAttribute("oncommand", "undoCloseTab(" + i + ");");
-
-      // Set the targetURI attribute so it will be shown in tooltip and statusbar.
-      // SessionStore uses one-based indexes, so we need to normalize them.
-      let tabData = undoItems[i].state;
-      let activeIndex = (tabData.index || tabData.entries.length) - 1;
-      if (activeIndex >= 0 && tabData.entries[activeIndex])
-        m.setAttribute("targetURI", tabData.entries[activeIndex].url);
-
       m.addEventListener("click", this._undoCloseMiddleClick, false);
       if (i == 0)
         m.setAttribute("key", "key_undoCloseTab");
       undoPopup.appendChild(m);
     }
 
-    // "Restore All Tabs"
+    // "Open All in Tabs"
     var strings = gNavigatorBundle;
     undoPopup.appendChild(document.createElement("menuseparator"));
     m = undoPopup.appendChild(document.createElement("menuitem"));
-    m.id = "menu_restoreAllTabs";
-    m.setAttribute("label", strings.getString("menuRestoreAllTabs.label"));
-    m.setAttribute("accesskey", strings.getString("menuRestoreAllTabs.accesskey"));
+    m.setAttribute("label", strings.getString("menuOpenAllInTabs.label"));
+    m.setAttribute("accesskey", strings.getString("menuOpenAllInTabs.accesskey"));
     m.addEventListener("command", function() {
       for (var i = 0; i < undoItems.length; i++)
         undoCloseTab();
@@ -718,13 +719,6 @@ var HistoryMenu = {
       }
       m.setAttribute("class", "menuitem-iconic bookmark-item");
       m.setAttribute("oncommand", "undoCloseWindow(" + i + ");");
-
-      // Set the targetURI attribute so it will be shown in tooltip and statusbar.
-      // SessionStore uses one-based indexes, so we need to normalize them.
-      let activeIndex = (selectedTab.index || selectedTab.entries.length) - 1;
-      if (activeIndex >= 0 && selectedTab.entries[activeIndex])
-        m.setAttribute("targetURI", selectedTab.entries[activeIndex].url);
-
       if (i == 0)
         m.setAttribute("key", "key_undoCloseWindow");
       undoPopup.appendChild(m);
@@ -733,7 +727,6 @@ var HistoryMenu = {
     // "Open All in Windows"
     undoPopup.appendChild(document.createElement("menuseparator"));
     let m = undoPopup.appendChild(document.createElement("menuitem"));
-    m.id = "menu_restoreAllWindows";
     m.setAttribute("label", gNavigatorBundle.getString("menuRestoreAllWindows.label"));
     m.setAttribute("accesskey", gNavigatorBundle.getString("menuRestoreAllWindows.accesskey"));
     m.setAttribute("oncommand",
@@ -895,7 +888,6 @@ var BookmarksEventHandler = {
     if (!target._endOptSeparator) {
       // create a separator before options
       target._endOptSeparator = document.createElement("menuseparator");
-      target._endOptSeparator.className = "bookmarks-actions-menuseparator";
       target._endMarker = target.childNodes.length;
       target.appendChild(target._endOptSeparator);
     }
@@ -903,13 +895,12 @@ var BookmarksEventHandler = {
     if (siteURIString && !target._endOptOpenSiteURI) {
       // Add "Open (Feed Name)" menuitem if it's a livemark with a siteURI
       target._endOptOpenSiteURI = document.createElement("menuitem");
-      target._endOptOpenSiteURI.className = "openlivemarksite-menuitem";
-      target._endOptOpenSiteURI.setAttribute("targetURI", siteURIString);
+      target._endOptOpenSiteURI.setAttribute("siteURI", siteURIString);
       target._endOptOpenSiteURI.setAttribute("oncommand",
-          "openUILink(this.getAttribute('targetURI'), event);");
+          "openUILink(this.getAttribute('siteURI'), event);");
       // If a user middle-clicks this item we serve the oncommand event
       // We are using checkForMiddleClick because of Bug 246720
-      // Note: stopPropagation is needed to avoid serving middle-click
+      // Note: stopPropagation is needed to avoid serving middle-click 
       // with BT_onClick that would open all items in tabs
       target._endOptOpenSiteURI.setAttribute("onclick",
           "checkForMiddleClick(this, event); event.stopPropagation();");
@@ -923,7 +914,6 @@ var BookmarksEventHandler = {
         // Add the "Open All in Tabs" menuitem if there are
         // at least two menuitems with places result nodes.
         target._endOptOpenAllInTabs = document.createElement("menuitem");
-        target._endOptOpenAllInTabs.className = "openintabs-menuitem";
         target._endOptOpenAllInTabs.setAttribute("oncommand",
             "PlacesUIUtils.openContainerNodeInTabs(this.parentNode._resultNode, event);");
         target._endOptOpenAllInTabs.setAttribute("onclick",
@@ -934,59 +924,26 @@ var BookmarksEventHandler = {
     }
   },
 
-  fillInBHTooltip: function(aDocument, aEvent) {
-    var node;
-    var cropped = false;
-    var targetURI;
-
-    if (aDocument.tooltipNode.localName == "treechildren") {
-      var tree = aDocument.tooltipNode.parentNode;
-      var row = {}, column = {};
-      var tbo = tree.treeBoxObject;
-      tbo.getCellAt(aEvent.clientX, aEvent.clientY, row, column, {});
-      if (row.value == -1)
-        return false;
-      node = tree.view.nodeForTreeIndex(row.value);
-      cropped = tbo.isCellCropped(row.value, column.value);
-    }
-    else {
-      // Check whether the tooltipNode is a Places node.
-      // In such a case use it, otherwise check for targetURI attribute.
-      var tooltipNode = aDocument.tooltipNode;
-      if (tooltipNode.node)
-        node = tooltipNode.node;
-      else {
-        // This is a static non-Places node.
-        targetURI = tooltipNode.getAttribute("targetURI");
-      }
-    }
-
-    if (!node && !targetURI)
+  fillInBTTooltip: function(aTipElement) {
+    if (!aTipElement.node)
       return false;
 
-    // Show node.label as tooltip's title for non-Places nodes.
-    var title = node ? node.title : tooltipNode.label;
-
-    // Show URL only for Places URI-nodes or nodes with a targetURI attribute.
-    var url;
-    if (targetURI || PlacesUtils.nodeIsURI(node))
-      url = targetURI || node.uri;
-
-    // Show tooltip for containers only if their title is cropped.
-    if (!cropped && !url)
+    //Show tooltips only for URL items
+    if (!PlacesUtils.nodeIsURI(aTipElement.node))
       return false;
 
-    var tooltipTitle = aDocument.getElementById("bhtTitleText");
-    tooltipTitle.hidden = (!title || (title == url));
+    var title = aTipElement.node.title;
+    var url = aTipElement.node.uri;
+
+    var tooltipTitle = document.getElementById("btTitleText");
+    tooltipTitle.hidden = !title || (title == url);
     if (!tooltipTitle.hidden)
       tooltipTitle.textContent = title;
 
-    var tooltipUrl = aDocument.getElementById("bhtUrlText");
-    tooltipUrl.hidden = !url;
-    if (!tooltipUrl.hidden)
-      tooltipUrl.value = url;
+    var tooltipUrl = document.getElementById("btUrlText");
+    tooltipUrl.value = url;
 
-    // Show tooltip.
+    //Show tooltip
     return true;
   }
 };
@@ -1191,16 +1148,17 @@ var PlacesStarButton = {
     if (!starIcon)
       return;
 
-    var uri = gBrowser.currentURI;
+    var browserBundle = document.getElementById("bundle_browser");
+    var uri = getBrowser().currentURI;
     this._starred = uri && (PlacesUtils.getMostRecentBookmarkForURI(uri) != -1 ||
                             PlacesUtils.getMostRecentFolderForFeedURI(uri) != -1);
     if (this._starred) {
       starIcon.setAttribute("starred", "true");
-      starIcon.setAttribute("tooltiptext", gNavigatorBundle.getString("starButtonOn.tooltip"));
+      starIcon.setAttribute("tooltiptext", browserBundle.getString("starButtonOn.tooltip"));
     }
     else {
       starIcon.removeAttribute("starred");
-      starIcon.setAttribute("tooltiptext", gNavigatorBundle.getString("starButtonOff.tooltip"));
+      starIcon.setAttribute("tooltiptext", browserBundle.getString("starButtonOff.tooltip"));
     }
   },
 
@@ -1222,22 +1180,21 @@ var PlacesStarButton = {
     this._batching = false;
   },
   
-  onItemAdded: function PSB_onItemAdded(aItemId, aFolder, aIndex, aItemType) {
+  onItemAdded: function PSB_onItemAdded(aItemId, aFolder, aIndex) {
     if (!this._batching && !this._starred)
       this.updateState();
   },
 
-  onBeforeItemRemoved: function() {},
+  onBeforeItemRemoved: function PSB_onBeforeItemRemoved(aItemId) {
+  },
 
-  onItemRemoved: function PSB_onItemRemoved(aItemId, aFolder, aIndex,
-                                            aItemType) {
+  onItemRemoved: function PSB_onItemRemoved(aItemId, aFolder, aIndex) {
     if (!this._batching)
       this.updateState();
   },
 
   onItemChanged: function PSB_onItemChanged(aItemId, aProperty,
-                                            aIsAnnotationProperty, aNewValue,
-                                            aLastModified, aItemType) {
+                                            aIsAnnotationProperty, aValue) {
     if (!this._batching && aProperty == "uri")
       this.updateState();
   },

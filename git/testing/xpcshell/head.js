@@ -1,3 +1,4 @@
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -48,8 +49,6 @@ var _quit = false;
 var _passed = true;
 var _tests_pending = 0;
 var _passedChecks = 0, _falsePassedChecks = 0;
-var _cleanupFunctions = [];
-var _pendingCallbacks = [];
 
 // Disable automatic network detection, so tests work correctly when
 // not connected to a network.
@@ -74,14 +73,12 @@ if ("@mozilla.org/toolkit/crash-reporter;1" in Components.classes) {
 }
 
 
-function _TimerCallback(expr, timer) {
-  this._func = typeof expr === "function"
-             ? expr
-             : function() { eval(expr); };
-  // Keep timer alive until it fires
-  _pendingCallbacks.push(timer);
+function _TimerCallback(expr) {
+  this._expr = expr;
 }
 _TimerCallback.prototype = {
+  _expr: "",
+
   QueryInterface: function(iid) {
     if (iid.Equals(Components.interfaces.nsITimerCallback) ||
         iid.Equals(Components.interfaces.nsISupports))
@@ -91,8 +88,7 @@ _TimerCallback.prototype = {
   },
 
   notify: function(timer) {
-    _pendingCallbacks.splice(_pendingCallbacks.indexOf(timer), 1);
-    this._func.call(null);
+    eval(this._expr);
   }
 };
 
@@ -140,11 +136,6 @@ function _execute_test() {
   // _TAIL_FILES is dynamically defined by <runxpcshelltests.py>.
   _load_files(_TAIL_FILES);
 
-  // Execute all of our cleanup functions.
-  var func;
-  while ((func = _cleanupFunctions.pop()))
-    func();
-
   if (!_passed)
     return;
 
@@ -177,18 +168,7 @@ function _load_files(aFiles) {
 function do_timeout(delay, expr) {
   var timer = Components.classes["@mozilla.org/timer;1"]
                         .createInstance(Components.interfaces.nsITimer);
-  timer.initWithCallback(new _TimerCallback(expr, timer), delay, timer.TYPE_ONE_SHOT);
-}
-
-function do_execute_soon(callback) {
-  var tm = Components.classes["@mozilla.org/thread-manager;1"]
-                     .getService(Components.interfaces.nsIThreadManager);
-
-  tm.mainThread.dispatch({
-    run: function() {
-      callback();
-    }
-  }, Components.interfaces.nsIThread.DISPATCH_NORMAL);
+  timer.initWithCallback(new _TimerCallback(expr), delay, timer.TYPE_ONE_SHOT);
 }
 
 function do_throw(text, stack) {
@@ -356,54 +336,4 @@ function do_parse_document(aPath, aType) {
   stream = null;
   lf = null;
   return doc;
-}
-
-/**
- * Registers a function that will run when the test harness is done running all
- * tests.
- *
- * @param aFunction
- *        The function to be called when the test harness has finished running.
- */
-function do_register_cleanup(aFunction)
-{
-  _cleanupFunctions.push(aFunction);
-}
-
-/**
- * Registers a directory with the profile service,
- * and return the directory as an nsILocalFile.
- *
- * @return nsILocalFile of the profile directory.
- */
-function do_get_profile() {
-  let env = Components.classes["@mozilla.org/process/environment;1"]
-                      .getService(Components.interfaces.nsIEnvironment);
-  // the python harness sets this in the environment for us
-  let profd = env.get("XPCSHELL_TEST_PROFILE_DIR");
-  let file = Components.classes["@mozilla.org/file/local;1"]
-                       .createInstance(Components.interfaces.nsILocalFile);
-  file.initWithPath(profd);
-
-  let dirSvc = Components.classes["@mozilla.org/file/directory_service;1"]
-                         .getService(Components.interfaces.nsIProperties);
-  let provider = {
-    getFile: function(prop, persistent) {
-      persistent.value = true;
-      if (prop == "ProfD" || prop == "ProfLD" || prop == "ProfDS") {
-        return file.clone();
-      }
-      throw Components.results.NS_ERROR_FAILURE;
-    },
-    QueryInterface: function(iid) {
-      if (iid.equals(Components.interfaces.nsIDirectoryProvider) ||
-          iid.equals(Components.interfaces.nsISupports)) {
-        return this;
-      }
-      throw Components.results.NS_ERROR_NO_INTERFACE;
-    }
-  };
-  dirSvc.QueryInterface(Components.interfaces.nsIDirectoryService)
-        .registerProvider(provider);
-  return file.clone();
 }

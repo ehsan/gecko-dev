@@ -45,8 +45,9 @@
 #include "prenv.h"
 #include "nsStringAPI.h"
 #include "nsIGConfService.h"
-#include "nsIGIOService.h"
+#include "nsIGnomeVFSService.h"
 #include "nsIStringBundle.h"
+#include "gfxIImageFrame.h"
 #include "nsIOutputStream.h"
 #include "nsIProcess.h"
 #include "nsNetUtil.h"
@@ -54,6 +55,7 @@
 #include "nsIImageLoadingContent.h"
 #include "imgIRequest.h"
 #include "imgIContainer.h"
+#include "nsIImage.h"
 #include "prprf.h"
 #ifdef MOZ_WIDGET_GTK2
 #include "nsIImageToPixbuf.h"
@@ -106,14 +108,14 @@ nsGNOMEShellService::Init()
 {
   nsresult rv;
 
-  // GConf _must_ be available, or we do not allow
+  // GConf and GnomeVFS _must_ be available, or we do not allow
   // CreateInstance to succeed.
 
   nsCOMPtr<nsIGConfService> gconf = do_GetService(NS_GCONFSERVICE_CONTRACTID);
-  nsCOMPtr<nsIGIOService> giovfs =
-    do_GetService(NS_GIOSERVICE_CONTRACTID);
+  nsCOMPtr<nsIGnomeVFSService> vfs =
+    do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
 
-  if (!gconf)
+  if (!gconf || !vfs)
     return NS_ERROR_NOT_AVAILABLE;
 
   // Check G_BROKEN_FILENAMES.  If it's set, then filenames in glib use
@@ -215,21 +217,24 @@ nsGNOMEShellService::SetDefaultBrowser(PRBool aClaimAllTypes,
 
   nsCOMPtr<nsIGConfService> gconf = do_GetService(NS_GCONFSERVICE_CONTRACTID);
 
+  nsCAutoString schemeList;
   nsCAutoString appKeyValue(mAppPath);
   appKeyValue.Append(" \"%s\"");
   unsigned int i;
 
   for (i = 0; i < NS_ARRAY_LENGTH(appProtocols); ++i) {
+    schemeList.Append(nsDependentCString(appProtocols[i].name));
+    schemeList.Append(',');
+
     if (appProtocols[i].essential || aClaimAllTypes) {
       gconf->SetAppForProtocol(nsDependentCString(appProtocols[i].name),
                                appKeyValue);
     }
   }
 
-  // set handler for .html and xhtml files and MIME types:
   if (aClaimAllTypes) {
-    nsCOMPtr<nsIGIOService> giovfs =
-      do_GetService(NS_GIOSERVICE_CONTRACTID);
+    nsCOMPtr<nsIGnomeVFSService> vfs =
+      do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
 
     nsCOMPtr<nsIStringBundleService> bundleService =
       do_GetService(NS_STRINGBUNDLE_CONTRACTID);
@@ -247,18 +252,62 @@ nsGNOMEShellService::SetDefaultBrowser(PRBool aClaimAllTypes,
 
     // use brandShortName as the application id.
     NS_ConvertUTF16toUTF8 id(brandShortName);
-    if (giovfs) {
-      nsCOMPtr<nsIGIOMimeApp> appInfo;
-      giovfs->CreateAppFromCommand(mAppPath,
-                                id,
-                                getter_AddRefs(appInfo));
 
-      // Add mime types for html, xhtml extension and set app to just created appinfo.
-      for (i = 0; i < NS_ARRAY_LENGTH(appTypes); ++i) {
-        appInfo->SetAsDefaultForMimeType(nsDependentCString(appTypes[i].mimeType));
-        appInfo->SetAsDefaultForFileExtensions(nsDependentCString(appTypes[i].extensions));
+    vfs->SetAppStringKey(id, nsIGnomeVFSService::APP_KEY_COMMAND, mAppPath);
+    vfs->SetAppStringKey(id, nsIGnomeVFSService::APP_KEY_NAME,
+                         NS_ConvertUTF16toUTF8(brandFullName));
+
+    // We don't want to be the default handler for "file:", but we do
+    // want Nautilus to know that we support file: if the MIME type is
+    // one that we can handle.
+
+    schemeList.Append("file");
+
+    vfs->SetAppStringKey(id, nsIGnomeVFSService::APP_KEY_SUPPORTED_URI_SCHEMES,
+                         schemeList);
+
+    vfs->SetAppStringKey(id, nsIGnomeVFSService::APP_KEY_EXPECTS_URIS,
+                         NS_LITERAL_CSTRING("true"));
+
+    vfs->SetAppBoolKey(id, nsIGnomeVFSService::APP_KEY_CAN_OPEN_MULTIPLE,
+                       PR_FALSE);
+
+    vfs->SetAppBoolKey(id, nsIGnomeVFSService::APP_KEY_REQUIRES_TERMINAL,
+                       PR_FALSE);
+
+    // Copy icons/document.png to ~/.icons/firefox-document.png
+    nsCAutoString iconFilePath(mAppPath);
+    PRInt32 lastSlash = iconFilePath.RFindChar(PRUnichar('/'));
+    if (lastSlash == -1) {
+      NS_ERROR("no slash in executable path?");
+    } else {
+      iconFilePath.SetLength(lastSlash);
+      nsCOMPtr<nsILocalFile> iconFile;
+      NS_NewNativeLocalFile(iconFilePath, PR_FALSE, getter_AddRefs(iconFile));
+      if (iconFile) {
+        iconFile->AppendRelativeNativePath(NS_LITERAL_CSTRING("icons/document.png"));
+
+        nsCOMPtr<nsILocalFile> userIconPath;
+        NS_NewNativeLocalFile(nsDependentCString(PR_GetEnv("HOME")), PR_FALSE,
+                              getter_AddRefs(userIconPath));
+        if (userIconPath) {
+          userIconPath->AppendNative(NS_LITERAL_CSTRING(".icons"));
+          iconFile->CopyToNative(userIconPath,
+                                 nsDependentCString(kDocumentIconPath));
+        }
       }
     }
+
+    for (i = 0; i < NS_ARRAY_LENGTH(appTypes); ++i) {
+      vfs->AddMimeType(id, nsDependentCString(appTypes[i].mimeType));
+      vfs->SetMimeExtensions(nsDependentCString(appTypes[i].mimeType),
+                             nsDependentCString(appTypes[i].extensions));
+      vfs->SetAppForMimeType(nsDependentCString(appTypes[i].mimeType), id);
+      vfs->SetIconForMimeType(nsDependentCString(appTypes[i].mimeType),
+                              NS_LITERAL_CSTRING(kDocumentIconPath));
+    }
+
+    vfs->SyncAppRegistry();
   }
 
   return NS_OK;
@@ -300,8 +349,12 @@ nsGNOMEShellService::SetShouldCheckDefaultBrowser(PRBool aShouldCheck)
 }
 
 static nsresult
-WriteImage(const nsCString& aPath, imgIContainer* aImage)
+WriteImage(const nsCString& aPath, gfxIImageFrame* aImage)
 {
+  nsCOMPtr<nsIImage> img(do_GetInterface(aImage));
+  if (!img)
+      return NS_ERROR_NOT_AVAILABLE;
+
 #ifndef MOZ_WIDGET_GTK2
   return NS_ERROR_NOT_AVAILABLE;
 #else
@@ -310,7 +363,7 @@ WriteImage(const nsCString& aPath, imgIContainer* aImage)
   if (!imgToPixbuf)
       return NS_ERROR_NOT_AVAILABLE;
 
-  GdkPixbuf* pixbuf = imgToPixbuf->ConvertImageToPixbuf(aImage);
+  GdkPixbuf* pixbuf = imgToPixbuf->ConvertImageToPixbuf(img);
   if (!pixbuf)
       return NS_ERROR_NOT_AVAILABLE;
 
@@ -326,6 +379,8 @@ nsGNOMEShellService::SetDesktopBackground(nsIDOMElement* aElement,
                                           PRInt32 aPosition)
 {
   nsresult rv;
+  nsCOMPtr<gfxIImageFrame> gfxFrame;
+
   nsCOMPtr<nsIImageLoadingContent> imageContent = do_QueryInterface(aElement, &rv);
   if (!imageContent) return rv;
 
@@ -337,6 +392,12 @@ nsGNOMEShellService::SetDesktopBackground(nsIDOMElement* aElement,
   nsCOMPtr<imgIContainer> container;
   rv = request->GetImage(getter_AddRefs(container));
   if (!container) return rv;
+
+  // get the current frame, which holds the image data
+  container->GetCurrentFrame(getter_AddRefs(gfxFrame));
+
+  if (!gfxFrame)
+    return NS_ERROR_FAILURE;
 
   // Write the background file to the home directory.
   nsCAutoString filePath(PR_GetEnv("HOME"));
@@ -362,7 +423,7 @@ nsGNOMEShellService::SetDesktopBackground(nsIDOMElement* aElement,
   filePath.Append("_wallpaper.png");
 
   // write the image to a file in the home dir
-  rv = WriteImage(filePath, container);
+  rv = WriteImage(filePath, gfxFrame);
 
   // if the file was written successfully, set it as the system wallpaper
   nsCOMPtr<nsIGConfService> gconf = do_GetService(NS_GCONFSERVICE_CONTRACTID);

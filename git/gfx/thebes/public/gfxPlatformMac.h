@@ -44,9 +44,6 @@
 
 #define MAC_OS_X_VERSION_10_4_HEX 0x00001040
 #define MAC_OS_X_VERSION_10_5_HEX 0x00001050
-#define MAC_OS_X_VERSION_10_6_HEX 0x00001060
-
-#define MAC_OS_X_MAJOR_VERSION_MASK 0xFFFFFFF0U
 
 class gfxTextRun;
 
@@ -78,9 +75,8 @@ public:
     virtual gfxFontEntry* LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
                                           const nsAString& aFontName);
 
-    virtual gfxPlatformFontList* CreatePlatformFontList();
-
     virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
+                                           nsISupports *aLoader,
                                            const PRUint8 *aFontData,
                                            PRUint32 aLength);
 
@@ -100,14 +96,6 @@ public:
 
     // lower threshold on font anti-aliasing
     PRUint32 GetAntiAliasingThreshold() { return mFontAntiAliasingThreshold; }
-
-    // whether we are using CoreText rather than ATSUI for shaping
-    PRBool UsingCoreText()
-#ifdef __LP64__
-        { return PR_TRUE; }
-#else
-        { return mUseCoreText; }
-#endif
 
     // record Unicode cluster boundaries in the text run
     static void SetupClusterBoundaries(gfxTextRun *aTextRun, const PRUnichar *aString);

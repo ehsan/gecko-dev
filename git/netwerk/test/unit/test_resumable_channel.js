@@ -38,7 +38,7 @@ AuthPrompt2.prototype = {
   },
 
   asyncPromptAuth: function ap2_async(chan, cb, ctx, lvl, info) {
-    throw 0x80004001;
+    do_throw("not implemented yet")
   }
 };
 
@@ -320,7 +320,7 @@ function handleAuth(metadata, response) {
 // /auth
 function authHandler(metadata, response) {
   response.setHeader("Content-Type", "text/html", false);
-  var body = handleAuth(metadata, response) ? "success" : "failure";
+  body = handleAuth(metadata, response) ? "success" : "failure";
   response.bodyOutputStream.write(body, body.length);
 }
 

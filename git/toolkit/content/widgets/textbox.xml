@@ -1,6 +1,8 @@
 <?xml version="1.0"?>
 
 <!DOCTYPE bindings [
+  <!ENTITY % globalDTD SYSTEM "chrome://global/locale/global.dtd">
+  %globalDTD;
   <!ENTITY % textcontextDTD SYSTEM "chrome://global/locale/textcontext.dtd" >
   %textcontextDTD;
 ]>
@@ -21,7 +23,7 @@
       <children/>
       <xul:hbox class="textbox-input-box" flex="1" xbl:inherits="context,spellcheck">
         <html:input class="textbox-input" flex="1" anonid="input"
-                    xbl:inherits="onfocus,onblur,value,type,maxlength,disabled,size,readonly,tabindex,accesskey,noinitialfocus"/>
+                    xbl:inherits="onfocus,onblur,value,type,maxlength,disabled,size,readonly,tabindex,accesskey"/>
       </xul:hbox>
     </content>
 
@@ -171,9 +173,9 @@
 
               // Hide the emptytext for a bit, in case the textbox will be focused subsequently
               this.inputField.setAttribute("emptytextdelay", "true");
-              setTimeout(function (input) {
-                input.removeAttribute("emptytextdelay");
-              }, 100, this.inputField);
+              setTimeout(function (textbox) {
+                textbox.inputField.removeAttribute("emptytextdelay");
+              }, 100, this);
 
               try {
                 this.editor.transactionManager.beginBatch();
@@ -209,6 +211,10 @@
           this.inputField.value = str;
           this.boxObject.removeProperty("value");
         }
+
+        // Bindings that extend this one wouldn't inherit the
+        // chromedir attribute if it would only be set in <content>.
+        this.setAttribute("chromedir", "]]>&locale.dir;<![CDATA[");
 
         this._updateVisibleText();
         this._setNewlineHandling();
@@ -377,10 +383,12 @@
         <xul:deck class="textbox-search-icons" anonid="search-icons">
           <xul:image class="textbox-search-icon"
                      onclick="document.getBindingParent(this)._iconClick();"
-                     xbl:inherits="src=image,searchbutton,disabled"/>
+                     xbl:inherits="src=image,searchbutton,disabled"
+                     chromedir="&locale.dir;"/>
           <xul:image class="textbox-search-clear"
                      onclick="document.getBindingParent(this)._clearSearch();"
-                     xbl:inherits="disabled"/>
+                     xbl:inherits="disabled"
+                     chromedir="&locale.dir;"/>
         </xul:deck>
       </xul:hbox>
     </content>
@@ -513,6 +521,7 @@
       <children/>
       <xul:menupopup anonid="input-box-contextmenu"
                      class="textbox-contextmenu"
+                     chromedir="&locale.dir;"
                      onpopupshowing="if (document.commandDispatcher.focusedElement != this.parentNode.firstChild)
                                        this.parentNode.firstChild.focus();
                                      this.parentNode._doPopupItemEnabling(this);"
@@ -575,6 +584,7 @@
       <children/>
       <xul:menupopup anonid="input-box-contextmenu"
                      class="textbox-contextmenu"
+                     chromedir="&locale.dir;"
                      onpopupshowing="if (document.commandDispatcher.focusedElement != this.parentNode.firstChild)
                                        this.parentNode.firstChild.focus();
                                      this.parentNode._doPopupItemEnablingSpell(this);"
@@ -629,8 +639,11 @@
               return null;
 
             try {
-              Components.utils.import("resource://gre/modules/InlineSpellChecker.jsm", this);
-              this.InlineSpellCheckerUI = new this.InlineSpellChecker(textbox.editor);
+              var loader = Components.classes["@mozilla.org/moz/jssubscript-loader;1"].
+                             getService(CI.mozIJSSubScriptLoader);
+              loader.loadSubScript("chrome://global/content/inlineSpellCheckUI.js", this);
+              if ("InlineSpellCheckerUI" in this)
+                this.InlineSpellCheckerUI.init(textbox.editor);
             } catch(ex) { }
           }
 

@@ -52,6 +52,7 @@ EXPORTS		= \
 		nsEvent.h \
 		nsNativeWidget.h \
 		nsWidgetInitData.h \
+		nsIEventListener.h \
 		nsWidgetsCID.h \
 		nsILookAndFeel.h \
 		nsIPluginWidget.h \
@@ -61,10 +62,7 @@ EXPORTS		= \
 		$(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
-EXPORTS		+= \
-		nsINativeMenuService.h \
-		nsIPrintDialogService.h \
-		$(NULL)
+EXPORTS		+= nsINativeMenuService.h
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
@@ -83,7 +81,6 @@ EXPORTS		+= \
 endif
 
 XPIDLSRCS	= \
-		nsIAccelerometer.idl \
 		nsIAppShell.idl \
 		nsIFilePicker.idl \
 		nsIToolkit.idl \
@@ -100,6 +97,7 @@ XPIDLSRCS	= \
 		nsIRollupListener.idl \
 		nsIBaseWindow.idl \
 		nsIBidiKeyboard.idl \
+		nsIFullScreen.idl \
 		nsIScreen.idl \
 		nsIScreenManager.idl \
 		nsIPrintSession.idl \
@@ -110,18 +108,12 @@ XPIDLSRCS	= \
 		$(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
-XPIDLSRCS	+= nsIPrintSettingsWin.idl \
-		nsIWinTaskbar.idl	\
-		nsITaskbarPreview.idl	\
-		nsITaskbarTabPreview.idl \
-		nsITaskbarWindowPreview.idl \
-		nsITaskbarPreviewController.idl \
-		nsITaskbarPreviewButton.idl \
-		nsITaskbarProgress.idl \
-		nsITaskbarPreviewButton.idl \
-		nsIJumpListBuilder.idl \
-		nsIJumpListItem.idl \
-		$(NULL)
+XPIDLSRCS	+= nsIPrintSettingsWin.idl
+endif
+
+ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
+XPIDLSRCS	+= nsIPrintSettingsX.idl \
+		nsIPrintSessionX.idl
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),os2)

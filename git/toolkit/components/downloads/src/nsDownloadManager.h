@@ -91,9 +91,6 @@ public:
   nsDownloadManager() :
       mDBType(DATABASE_DISK)
     , mInPrivateBrowsing(PR_FALSE)
-#ifdef DOWNLOAD_SCANNER
-    , mScanner(nsnull)
-#endif
   {
   }
 
@@ -255,7 +252,7 @@ protected:
   // Virus scanner for windows
 #ifdef DOWNLOAD_SCANNER
 private:
-  nsDownloadScanner* mScanner;
+  nsRefPtr<nsDownloadScanner> mScanner;
 #endif
 
 private:

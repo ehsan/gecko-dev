@@ -46,7 +46,6 @@
 #include "convert.h"
 
 /*#define DEBUG*/
-#include "debug.h"
 
 #if HAVE_SPEEX
 
@@ -208,10 +207,10 @@ process_header(unsigned char * buf, long bytes, int enh_enabled,
   if (*channels == -1)
     *channels = header->nb_channels;
 
-  debug_printf (1, "Decoding %d Hz audio using %s mode",
-                *rate, mode->modeName);
-
 #ifdef DEBUG
+  fprintf (stderr, "Decoding %d Hz audio using %s mode",
+	   *rate, mode->modeName);
+
   if (*channels==1)
       fprintf (stderr, " (mono");
    else
@@ -288,7 +287,9 @@ fs_speex_decode (FishSound * fsound, unsigned char * buf, long bytes)
       return FISH_SOUND_ERR_GENERIC;
     }
 
-    debug_printf (1, "speex: got %d channels, %d Hz", channels, rate);
+#ifdef DEBUG
+    printf ("speex: got %d channels, %d Hz\n", channels, rate);
+#endif
 
     fsound->info.samplerate = rate;
     fsound->info.channels = channels;
@@ -435,7 +436,9 @@ fs_speex_enc_headers (FishSound * fsound)
 
   speex_encoder_ctl (fss->st, SPEEX_GET_FRAME_SIZE, &fss->frame_size);
 
-  debug_printf (1, "got frame size %d", fss->frame_size);
+#ifdef DEBUG
+  printf ("got frame size %d\n", fss->frame_size);
+#endif
 
   /* XXX: set VBR etc. */
 

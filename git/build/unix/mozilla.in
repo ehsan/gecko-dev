@@ -67,8 +67,6 @@ else
   while [ -h "$progname" ]; do
     bn=`basename "$progname"`
     cd `dirname "$progname"`
-    # Resolve symlink of dirname
-    cd `/bin/pwd`
     progname=`/bin/ls -l "$bn" | sed -e 's/^.* -> //' `
     progbase=`basename "$progname"`
     if [ ! -x "$progname" ]; then
@@ -78,7 +76,7 @@ else
     run_moz="$curdir/run-mozilla.sh"
     if [ -x "$run_moz" ]; then
       cd "$curdir"
-      dist_bin=`/bin/pwd`
+      dist_bin=`pwd`
       run_moz="$dist_bin/run-mozilla.sh"
       found=1
       break
@@ -136,5 +134,8 @@ if [ $debugging = 1 ]
 then
   echo $dist_bin/run-mozilla.sh $script_args $dist_bin/$MOZILLA_BIN "$@"
 fi
-exec "$dist_bin/run-mozilla.sh" $script_args "$dist_bin/$MOZILLA_BIN" "$@"
+"$dist_bin/run-mozilla.sh" $script_args "$dist_bin/$MOZILLA_BIN" "$@"
+exitcode=$?
+
+exit $exitcode
 # EOF.

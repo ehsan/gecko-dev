@@ -389,37 +389,6 @@ class nsTSubstring_CharT
 
       void AppendASCII( const char* data, size_type length = size_type(-1) )                     { ReplaceASCII(mLength, 0, data, length); }
 
-    // AppendPrintf truncates output to 31 ASCII characters
-      NS_COM void AppendPrintf( const char* format, ... );
-      void AppendInt( PRInt32 aInteger )
-                 { AppendPrintf( "%d", aInteger ); }
-      void AppendInt( PRInt32 aInteger, int aRadix )
-        {
-          const char *fmt = aRadix == 10 ? "%d" : aRadix == 8 ? "%o" : "%x";
-          AppendPrintf( fmt, aInteger );
-        }
-      void AppendInt( PRUint32 aInteger )
-                 { AppendPrintf( "%u", aInteger ); }
-      void AppendInt( PRUint32 aInteger, int aRadix )
-        {
-          const char *fmt = aRadix == 10 ? "%u" : aRadix == 8 ? "%o" : "%x";
-          AppendPrintf( fmt, aInteger );
-        }
-      void AppendInt( PRInt64 aInteger )
-                 { AppendPrintf( "%lld", aInteger ); }
-      void AppendInt( PRInt64 aInteger, int aRadix )
-        {
-          const char *fmt = aRadix == 10 ? "%lld" : aRadix == 8 ? "%llo" : "%llx";
-          AppendPrintf( fmt, aInteger );
-        }
-      void AppendInt( PRUint64 aInteger )
-                 { AppendPrintf( "%llu", aInteger ); }
-      void AppendInt( PRUint64 aInteger, int aRadix )
-        {
-          const char *fmt = aRadix == 10 ? "%llu" : aRadix == 8 ? "%llo" : "%llx";
-          AppendPrintf( fmt, aInteger );
-        }
-
     // AppendLiteral must ONLY be applied to an actual literal string.
     // Do not attempt to use it with a regular char* pointer, or with a char
     // array variable. Use AppendASCII for those.
@@ -452,15 +421,7 @@ class nsTSubstring_CharT
          * buffer sizing
          */
 
-        /**
-         * Attempts to set the capacity to the given size, without affecting
-         * the length of the string. Also ensures that the buffer is mutable.
-         *
-         * @returns PR_TRUE on success
-         *          PR_FALSE on out-of-memory, or if requesting a size bigger
-         *                   than a string can hold (2^31 chars).
-         */
-      NS_COM PRBool NS_FASTCALL SetCapacity( size_type newCapacity );
+      NS_COM void NS_FASTCALL SetCapacity( size_type newCapacity );
 
       NS_COM void NS_FASTCALL SetLength( size_type newLength );
 
@@ -624,8 +585,7 @@ class nsTSubstring_CharT
          * returns the number of writable storage units starting at mData.
          * the value does not include space for the null-terminator character.
          *
-         * NOTE: this function returns 0 if mData is immutable (or the buffer
-         *       is 0-sized).
+         * NOTE: this function returns size_type(-1) if mData is immutable.
          */
       size_type NS_FASTCALL Capacity() const;
 

@@ -245,10 +245,10 @@ jsds_RemoveEphemeral (LiveEphemeral **listHead, LiveEphemeral *item)
  * utility functions for filters
  *******************************************************************************/
 void
-jsds_FreeFilter (FilterRecord *rec)
+jsds_FreeFilter (FilterRecord *filter)
 {
-    NS_IF_RELEASE (rec->filterObject);
-    PR_Free (rec);
+    NS_IF_RELEASE (filter->filterObject);
+    delete filter;
 }
 
 /* copies appropriate |filter| attributes into |rec|.
@@ -376,7 +376,7 @@ jsds_FilterHook (JSDContext *jsdc, JSDThreadState *state)
     if (!script)
         return PR_TRUE;
 
-    jsuword pc = JSD_GetPCForStackFrame (jsdc, state, frame);
+    jsuint pc = JSD_GetPCForStackFrame (jsdc, state, frame);
 
     nsDependentCString url(JSD_GetScriptFilename (jsdc, script));
     if (url.IsEmpty()) {
@@ -437,7 +437,7 @@ jsds_FilterHook (JSDContext *jsdc, JSDThreadState *state)
                             }
                             break;
                         default:
-                            NS_ERROR("Invalid pattern type");
+                            NS_ASSERTION(0, "Invalid pattern type");
                     }
                 }                
             }
@@ -1216,67 +1216,6 @@ NS_IMETHODIMP
 jsdScript::GetFunctionName(nsACString &_rval)
 {
     _rval.Assign(*mFunctionName);
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-jsdScript::GetParameterNames(PRUint32* count, PRUnichar*** paramNames)
-{
-    ASSERT_VALID_EPHEMERAL;
-    JSContext *cx = JSD_GetDefaultJSContext (mCx);
-    if (!cx) {
-        NS_WARNING("No default context !?");
-        return NS_ERROR_FAILURE;
-    }
-    JSFunction *fun = JSD_GetJSFunction (mCx, mScript);
-
-    JSAutoRequest ar(cx);
-
-    if (!fun || !fun->hasLocalNames() || fun->nargs == 0) {
-        *count = 0;
-        *paramNames = nsnull;
-        return NS_OK;
-    }
-
-    PRUnichar **ret =
-        static_cast<PRUnichar**>(NS_Alloc(fun->nargs * sizeof(PRUnichar*)));
-    if (!ret)
-        return NS_ERROR_OUT_OF_MEMORY;
-
-    void *mark = JS_ARENA_MARK(&cx->tempPool);
-    jsuword *names = js_GetLocalNameArray(cx, fun, &cx->tempPool);
-    if (!names) {
-        NS_Free(ret);
-        return NS_ERROR_OUT_OF_MEMORY;
-    }
-
-    nsresult rv = NS_OK;
-    for (uintN i = 0; i < fun->nargs; ++i) {
-        JSAtom *atom = JS_LOCAL_NAME_TO_ATOM(names[i]);
-        if (!atom) {
-            ret[i] = 0;
-        } else {
-            jsval atomVal = ATOM_KEY(atom);
-            if (!JSVAL_IS_STRING(atomVal)) {
-                NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(i, ret);
-                rv = NS_ERROR_UNEXPECTED;
-                break;
-            }
-            JSString *str = JSVAL_TO_STRING(atomVal);
-            ret[i] = NS_strndup(reinterpret_cast<PRUnichar*>(JS_GetStringChars(str)),
-                                JS_GetStringLength(str));
-            if (!ret[i]) {
-                NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(i, ret);
-                rv = NS_ERROR_OUT_OF_MEMORY;
-                break;
-            }
-        }
-    }
-    JS_ARENA_RELEASE(&cx->tempPool, mark);
-    if (NS_FAILED(rv))
-        return rv;
-    *count = fun->nargs;
-    *paramNames = ret;
     return NS_OK;
 }
 
@@ -2324,15 +2263,6 @@ jsdValue::GetWrappedValue()
     return NS_OK;
 }
 
-NS_IMETHODIMP
-jsdValue::GetScript(jsdIScript **_rval)
-{
-    ASSERT_VALID_EPHEMERAL;
-    JSDScript *script = JSD_GetScriptForValue(mCx, mValue);
-    *_rval = jsdScript::FromPtr(mCx, script);
-    return NS_OK;
-}
-
 /******************************************************************************
  * debugger service implementation
  ******************************************************************************/
@@ -2656,7 +2586,6 @@ jsdService::Pause(PRUint32 *_rval)
         JSD_ClearDebugBreakHook (mCx);
         JSD_ClearTopLevelHook (mCx);
         JSD_ClearFunctionHook (mCx);
-        JSD_DebuggerPause (mCx);
     }
 
     if (_rval)
@@ -2678,7 +2607,6 @@ jsdService::UnPause(PRUint32 *_rval)
      * was turned off while we were paused.
      */
     if (--mPauseLevel == 0 && mOn) {
-        JSD_DebuggerUnpause (mCx);
         if (mErrorHook)
             JSD_SetErrorReporter (mCx, jsds_ErrorHookProc, NULL);
         if (mThrowHook)
@@ -3001,13 +2929,7 @@ jsdService::WrapValue(jsdIValue **_rval)
     if (NS_FAILED(rv))
         return rv;
 
-    return WrapJSValue(argv[0], _rval);
-}
-
-NS_IMETHODIMP
-jsdService::WrapJSValue(jsval value, jsdIValue** _rval)
-{
-    JSDValue *jsdv = JSD_NewValue(mCx, value);
+    JSDValue *jsdv = JSD_NewValue (mCx, argv[0]);
     if (!jsdv)
         return NS_ERROR_FAILURE;
     

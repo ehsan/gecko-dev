@@ -24,7 +24,6 @@
  *   Paul Sandoz (paul.sandoz@sun.com)
  *   Bill Haneman (bill.haneman@sun.com)
  *   John Gaunt (jgaunt@netscape.com)
- *   Alexander Surkov <surkov.alexander@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -43,201 +42,216 @@
 #include "nsISupports.idl"
 
 interface nsIAccessible;
-interface nsIArray;
 
-[scriptable, uuid(035c0c0e-41e3-4985-8ad9-d9f14cdc667a)]
+[scriptable, uuid(dcc1e5c3-966e-45b2-b30a-839d35432b24)]
 interface nsIAccessibleTable : nsISupports
 {
   /**
-   * Return the caption accessible for the table. For example, html:caption
+   * Returns the caption accessible for the table. For example, html:caption
    * element of html:table element.
    */
-  readonly attribute nsIAccessible caption;
+  readonly attribute nsIAccessible       caption;
 
   /**
-   * Return summary description for the table. For example, @summary attribute
-   * on html:table element.
+   * Returns summary description for the table. For example, @summary attribute
+   * on html:element.
    */
-  readonly attribute AString summary;
+  readonly attribute AString             summary;
 
   /**
-   * Return columns count in the table.
+   * Returns columns count in the table.
+   * XXX: not very well named property.
    */
-  readonly attribute long columnCount;
+  readonly attribute long                columns;
 
   /**
-   * Return rows count in the table.
+   * Returns table accessible containing column headers.
    */
-  readonly attribute long rowCount;
+  readonly attribute nsIAccessibleTable  columnHeader;
 
   /**
-   * Return the accessible object at the specified row and column in the table.
+   * Returns rows count in the table.
+   * XXX: not very well named property.
+   */
+  readonly attribute long                rows;
+
+  /**
+   * Returns table accessible containing row headers.
+   */
+  readonly attribute nsIAccessibleTable  rowHeader;
+
+  /**
+   * Returns the accessible object at the specified row and column in the table.
    * If both row and column index are valid then the corresponding accessible
    * object is returned that represents the requested cell regardless of whether
    * the cell is currently visible (on the screen).
    *
-   * @param  rowIndex     [in] the row index to retrieve the cell at
-   * @param  columnIndex  [in] the column index to retrieve the cell at
+   * @param row - The row index for which to retrieve the cell.
+   * @param column - The column index for which to retrieve the cell.
    */
-  nsIAccessible getCellAt(in long rowIndex, in long columnIndex);
+  nsIAccessible cellRefAt(in long row, in long column);
 
   /**
-   * Translate the given row and column indices into the corresponding cell
+   * Translates the given row and column indices into the corresponding cell
    * index.
    *
-   * @param  rowIndex    [in] the row index to return cell index at
-   * @param  columnIndex [in] the column index to return cell index at
+   * @param row - index of the row of the table for which to return the cell
+   *              index.
+   * @param column - index of the column of the table for which to return
+   *                 the cell index.
    */
-  long getCellIndexAt(in long rowIndex, in long columnIndex);
+  long getIndexAt(in long row, in long column);
 
   /**
-   * Translate the given cell index into the corresponding column index.
+   * Translates the given child index into the corresponding column index.
    *
-   * @param  cellIndex  [in] index of the table cell to return column index for
+   * @param index - index of the child of the table for which to return
+   *                the column index.
    */
-  long getColumnIndexAt(in long cellIndex);
+  long getColumnAtIndex(in long index);
 
   /**
-   * Translate the given cell index into the corresponding row index.
+   * Translates the given child index into the corresponding row index.
    *
-   * @param cellIndex  [in] index of the table cell to return row index for
+   * @param index - index of the child of the table for which to return
+   *                the row index.
    */
-  long getRowIndexAt(in long cellIndex);
+  long getRowAtIndex(in long index);
 
   /**
-   * Return the number of columns occupied by the accessible cell at
-   * the specified row and column in the table. The result differs from 1 if
-   * the specified cell spans multiple columns.
+   * Returns the number of columns occupied by the accessible object
+   * at the specified row and column in the table. The result differs from 1
+   * if the specified cell spans multiple columns.
    *
-   * @param  row     [in] row index of the cell to return the column extent for
-   * @param  column  [in] column index of the cell to return the column extent
-   *                  for
+   * @param row - Row index of the accessible for which to return
+   *              the column extent.
+   * @param column - Column index of the accessible for which to return
+   *                 the column extent.
    */
   long getColumnExtentAt(in long row, in long column);
 
   /**
-   * Return the number of rows occupied by the accessible cell at the specified
-   * row and column in the table. The result differs from 1 if the specified
-   * cell spans multiple rows.
+   * Returns the number of rows occupied by the accessible oject
+   * at the specified row and column in the table. The result differs from 1
+   * if the specified cell spans multiple rows.
    *
-   * @param  row     [in] row index of the cell to return the column extent for
-   * @param  column  [in] column index of the cell to return the column extent
-   *                  for
+   * @param row  - Row index of the accessible for which to return
+   *               the column extent.
+   * @param column - Column index of the accessible for which to return
+   *                 the column extent.
    */
   long getRowExtentAt(in long row, in long column);
 
   /**
-   * Return the description text of the specified column in the table.
+   * Returns the description text of the specified column in the table.
+   * @param column - The index of the column for which to retrieve
+   *                 the description.
+   */
+  AString getColumnDescription(in long column);
+
+  /**
+   * Returns the description text of the specified row in the table.
+   * @param row - The index of the row for which to retrieve the description.
+   */
+  AString getRowDescription(in long row);
+
+  /**
+   * Returns a boolean value indicating whether the specified column is
+   * completely selected.
    *
-   * @param  columnIndex  [in] the column index to retrieve description for
+   * @param column  - Index of the column for which to determine whether it is
+   *                   selected.
    */
-  AString getColumnDescription(in long columnIndex);
+  boolean isColumnSelected(in long column);
 
   /**
-   * Return the description text of the specified row in the table.
+   * Returns a boolean value indicating whether the specified row is completely
+   * selected.
    *
-   * @param  rowIndex  [in] the row index to retrieve description for
+   * @param row - Index of the row for which to determine whether it is
+   *              selected.
    */
-  AString getRowDescription(in long rowIndex);
+  boolean isRowSelected(in  long row);
 
   /**
-   * Return a boolean value indicating whether the specified column is
-   * selected, i.e. all cells within the column are selected.
+   * Returns a boolean value indicating whether the specified cell is selected.
    *
-   * @param  columnIndex  [in] the column index to determine if it's selected
+   * @param row - Index of the row for the cell to determine whether it is
+   *              selected.
+   * @param column - Index of the column for the cell to determine whether it
+   *                 is selected.
    */
-  boolean isColumnSelected(in long columnIndex);
+  boolean isCellSelected(in long row, in long column);
 
   /**
-   * Return a boolean value indicating whether the specified row is selected,
-   * i.e. all cells within the row are selected.
+   * Returns the total number of selected cells.
+   */
+  readonly attribute unsigned long selectedCellsCount;
+
+  /**
+   * Returns the total number of selected columns.
+   */
+  readonly attribute unsigned long selectedColumnsCount;
+
+  /**
+   * Returns the total number of selected rows.
+   */
+  readonly attribute unsigned long selectedRowsCount;
+
+  /**
+   * Returns a list of cells indexes currently selected.
    *
-   * @param  rowIndex  [in] the row index to determine whether it's selected
+   * @param cellsSize - length of array
+   * @param cells - array of indexes of selected cells
    */
-  boolean isRowSelected(in long rowIndex);
+  void getSelectedCells(out unsigned long cellsSize,
+                        [retval, array, size_is(cellsSize)] out long cells);
 
   /**
-   * Return a boolean value indicating whether the specified cell is selected.
+   * Returns a list of column indexes currently selected.
    *
-   * @param  rowIndex     [in] the row index of the cell
-   * @param  columnIndex  [in] the column index of the cell
+   * @param columnsSize - Length of array
+   * @param columns - Array of indexes of selected columns
    */
-  boolean isCellSelected(in long rowIndex, in long columnIndex);
+  void getSelectedColumns(out unsigned long columnsSize,
+                          [retval, array, size_is(columnsSize)] out long columns);
 
   /**
-   * Return the total number of selected cells.
-   */
-  readonly attribute unsigned long selectedCellCount;
-
-  /**
-   * Return the total number of selected columns.
-   */
-  readonly attribute unsigned long selectedColumnCount;
-
-  /**
-   * Return the total number of selected rows.
-   */
-  readonly attribute unsigned long selectedRowCount;
-
-  /**
-   * Return an array of selected cells.
-   */
-  readonly attribute nsIArray selectedCells;
-
-  /**
-   * Return an array of cell indices currently selected.
+   * Returns a list of row indexes currently selected.
    *
-   * @param  cellsArraySize  [in] length of array
-   * @param  cellsArray      [in] array of indexes of selected cells
+   * @param rowsSize - Length of array
+   * @param rows - Array of indexes of selected rows
    */
-  void getSelectedCellIndices(out unsigned long cellsArraySize,
-                              [retval, array, size_is(cellsArraySize)] out long cellsArray);
+  void getSelectedRows(out unsigned long rowsSize,
+                       [retval, array, size_is(rowsSize)] out long rows);
 
   /**
-   * Return an array of column indices currently selected.
+   * Selects a row and unselects all previously selected rows.
    *
-   * @param  columnsArraySize  [in] length of array
-   * @param  columnsArray      [in] array of indices of selected columns
+   * @param row - Index of the row to be selected.
    */
-  void getSelectedColumnIndices(out unsigned long columnsArraySize,
-                                [retval, array, size_is(columnsArraySize)] out long columnsArray);
+  void selectRow(in long row);
 
   /**
-   * Return an array of row indices currently selected.
+   * Selects a column and unselects all previously selected columns.
    *
-   * @param  rowsArraySize  [in] Length of array
-   * @param  rowsArray      [in] array of indices of selected rows
+   * @param column - Index of the column to be selected.
    */
-  void getSelectedRowIndices(out unsigned long rowsArraySize,
-                             [retval, array, size_is(rowsArraySize)] out long rowsArray);
+  void selectColumn(in long column);
 
   /**
-   * Select a row and unselects all previously selected rows.
+   * Unselects one row, leaving other selected rows selected (if any).
    *
-   * @param  rowIndex  [in] the row index to select
-   */
-  void selectRow(in long rowIndex);
-
-  /**
-   * Select a column and unselects all previously selected columns.
-   *
-   * @param  columnIndex  [in] the column index to select
-   */
-  void selectColumn(in long columnIndex);
-
-  /**
-   * Unselect the given row, leaving other selected rows selected (if any).
-   *
-   * @param  rowIndex  [in] the row index to select
+   * @param row  - Index of the row to be selected.
   */
-  void unselectRow(in long rowIndex);
+  void unselectRow(in long row);
 
   /**
-   * Unselect the given column, leaving other selected columns selected (if any).
+   * Unselects one column, leaving other selected columns selected (if any).
    *
-   * @param  columnIndex  [in] the column index to select
+   * @param column - Index of the column to be selected.
    */
-  void unselectColumn(in long columnIndex);
+  void unselectColumn(in long column);
 
   /**
    * Use heuristics to determine if table is most likely used for layout.
@@ -245,49 +259,3 @@ interface nsIAccessibleTable : nsISupports
   boolean isProbablyForLayout();
 };
 
-
-[scriptable, uuid(654e296d-fae6-452b-987d-746b20b9514b)]
-interface nsIAccessibleTableCell : nsISupports
-{
-  /**
-   * Return host table accessible.
-   */
-  readonly attribute nsIAccessibleTable table;
-
-  /**
-   * Return column index of this cell.
-   */
-  readonly attribute long columnIndex;
-
-  /**
-   * Return row index of this cell.
-   */
-  readonly attribute long rowIndex;
-
-  /**
-   * Return the number of columns occupied by this cell. The result differs
-   * from 1 if the specified cell spans multiple columns.
-   */
-  readonly attribute long columnExtent;
-
-  /**
-   * Return the number of rows occupied by this accessible cell. The result
-   * differs from 1 if the specified cell spans multiple rows.
-   */
-  readonly attribute long rowExtent;
-
-  /**
-   * Return an array of column header cells for this cell.
-   */
-  readonly attribute nsIArray columnHeaderCells;
-
-  /**
-   * Return an array of row header cells for this cell.
-   */
-  readonly attribute nsIArray rowHeaderCells;
-
-  /**
-   * Return a boolean value indicating whether this cell is selected.
-   */
-  boolean isSelected();
-};

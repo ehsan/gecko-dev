@@ -49,6 +49,7 @@
 #include "nsGkAtoms.h"
 #include "nsIDeviceContext.h"
 #include "nsIFontMetrics.h"
+#include "nsIImage.h"
 #include "nsStyleConsts.h"
 #include "nsFormControlFrame.h"
 #include "nsGUIEvent.h"
@@ -82,7 +83,6 @@ public:
                   nsIFrame*        aPrevInFlow);
 
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -137,8 +137,6 @@ NS_NewImageControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsImageControlFrame(aContext);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsImageControlFrame)
 
 NS_IMETHODIMP
 nsImageControlFrame::Init(nsIContent*      aContent,

@@ -257,41 +257,17 @@ protected:
 class xpc_qsDOMString : public xpc_qsBasicString<nsAString, nsDependentString>
 {
 public:
-    /* Enum that defines how JS |null| and |undefined| should be treated.  See
-     * the WebIDL specification.  eStringify means convert to the string "null"
-     * or "undefined" respectively, via the standard JS ToString() operation;
-     * eEmpty means convert to the string ""; eNull means convert to an empty
-     * string with the void bit set.
-     *
-     * Per webidl the default behavior of an unannotated interface is
-     * eStringify, but our de-facto behavior has been eNull for |null| and
-     * eStringify for |undefined|, so leaving it that way for now.  If we ever
-     * get to a point where we go through and annotate our interfaces as
-     * needed, we can change that.
-     */
-    enum StringificationBehavior {
-        eStringify,
-        eEmpty,
-        eNull,
-        eDefaultNullBehavior = eNull,
-        eDefaultUndefinedBehavior = eStringify
-    };
-
-    xpc_qsDOMString(JSContext *cx, jsval v, jsval *pval,
-                    StringificationBehavior nullBehavior,
-                    StringificationBehavior undefinedBehavior);
+    xpc_qsDOMString(JSContext *cx, jsval *pval);
 };
 
 /**
  * The same as xpc_qsDOMString, but with slightly different conversion behavior,
  * corresponding to the [astring] magic XPIDL annotation rather than [domstring].
  */
-class xpc_qsAString : public xpc_qsDOMString
+class xpc_qsAString : public xpc_qsBasicString<nsAString, nsDependentString>
 {
 public:
-    xpc_qsAString(JSContext *cx, jsval v, jsval *pval)
-        : xpc_qsDOMString(cx, v, pval, eNull, eNull)
-    {}
+    xpc_qsAString(JSContext *cx, jsval *pval);
 };
 
 /**
@@ -301,7 +277,7 @@ public:
 class xpc_qsACString : public xpc_qsBasicString<nsACString, nsCString>
 {
 public:
-    xpc_qsACString(JSContext *cx, jsval v, jsval *pval);
+    xpc_qsACString(JSContext *cx, jsval *pval);
 };
 
 struct xpc_qsSelfRef
@@ -313,16 +289,25 @@ struct xpc_qsSelfRef
     nsISupports* ptr;
 };
 
-template<size_t N>
-struct xpc_qsArgValArray
+struct xpc_qsTempRoot
 {
-    xpc_qsArgValArray(JSContext *cx) : tvr(cx, N, array)
-    {
-        memset(array, 0, N * sizeof(jsval));
+  public:
+    explicit xpc_qsTempRoot(JSContext *cx)
+        : mContext(cx) {
+        JS_PUSH_SINGLE_TEMP_ROOT(cx, JSVAL_NULL, &mTvr);
     }
 
-    JSAutoTempValueRooter tvr;
-    jsval array[N];
+    ~xpc_qsTempRoot() {
+        JS_POP_TEMP_ROOT(mContext, &mTvr);
+    }
+
+    jsval * addr() {
+        return &mTvr.u.value;
+    }
+
+  private:
+    JSContext *mContext;
+    JSTempValueRooter mTvr;
 };
 
 /**
@@ -338,10 +323,10 @@ struct xpc_qsArgValArray
  *     null or undefined. Unicode data is garbled as with JS_GetStringBytes.
  */
 JSBool
-xpc_qsJsvalToCharStr(JSContext *cx, jsval v, jsval *pval, char **pstr);
+xpc_qsJsvalToCharStr(JSContext *cx, jsval *pval, char **pstr);
 
 JSBool
-xpc_qsJsvalToWcharStr(JSContext *cx, jsval v, jsval *pval, PRUnichar **pstr);
+xpc_qsJsvalToWcharStr(JSContext *cx, jsval *pval, PRUnichar **pstr);
 
 
 /** Convert an nsAString to jsval, returning JS_TRUE on success. */
@@ -351,12 +336,10 @@ xpc_qsStringToJsval(JSContext *cx, const nsAString &str, jsval *rval);
 JSBool
 xpc_qsUnwrapThisImpl(JSContext *cx,
                      JSObject *obj,
-                     JSObject *callee,
                      const nsIID &iid,
                      void **ppThis,
                      nsISupports **ppThisRef,
-                     jsval *vp,
-                     XPCLazyCallContext *lccx);
+                     jsval *vp);
 
 /**
  * Search @a obj and its prototype chain for an XPCOM object that implements
@@ -378,20 +361,16 @@ template <class T>
 inline JSBool
 xpc_qsUnwrapThis(JSContext *cx,
                  JSObject *obj,
-                 JSObject *callee,
                  T **ppThis,
                  nsISupports **pThisRef,
-                 jsval *pThisVal,
-                 XPCLazyCallContext *lccx)
+                 jsval *pThisVal)
 {
     return xpc_qsUnwrapThisImpl(cx,
                                 obj,
-                                callee,
                                 NS_GET_TEMPLATE_IID(T),
                                 reinterpret_cast<void **>(ppThis),
                                 pThisRef,
-                                pThisVal,
-                                lccx);
+                                pThisVal);
 }
 
 JSBool
@@ -420,17 +399,15 @@ xpc_qsUnwrapThisFromCcx(XPCCallContext &ccx,
 }
 
 nsresult
-xpc_qsUnwrapArgImpl(JSContext *cx, jsval v, const nsIID &iid, void **ppArg,
-                    nsISupports **ppArgRef, jsval *vp);
+xpc_qsUnwrapArgImpl(JSContext *cx, jsval v, const nsIID &iid, void **ppArg);
 
 /** Convert a jsval to an XPCOM pointer. */
 template <class T>
 inline nsresult
-xpc_qsUnwrapArg(JSContext *cx, jsval v, T **ppArg, nsISupports **ppArgRef,
-                jsval *vp)
+xpc_qsUnwrapArg(JSContext *cx, jsval v, T **ppArg)
 {
     return xpc_qsUnwrapArgImpl(cx, v, NS_GET_TEMPLATE_IID(T),
-                               reinterpret_cast<void **>(ppArg), ppArgRef, vp);
+                               reinterpret_cast<void **>(ppArg));
 }
 
 inline nsWrapperCache*
@@ -447,20 +424,33 @@ xpc_qsGetWrapperCache(void *p)
 
 /** Convert an XPCOM pointer to jsval. Return JS_TRUE on success. */
 JSBool
-xpc_qsXPCOMObjectToJsval(XPCLazyCallContext &lccx,
+xpc_qsXPCOMObjectToJsval(XPCCallContext &ccx,
                          nsISupports *p,
                          nsWrapperCache *cache,
-                         const nsIID *iid,
-                         XPCNativeInterface **iface,
+                         XPCNativeInterface *iface,
                          jsval *rval);
 
 /**
  * Convert a variant to jsval. Return JS_TRUE on success.
+ *
+ * @a paramNum is used in error messages. XPConnect treats the return
+ * value as a parameter in this regard.
  */
 JSBool
-xpc_qsVariantToJsval(XPCLazyCallContext &ccx,
+xpc_qsVariantToJsval(XPCCallContext &ccx,
                      nsIVariant *p,
+                     uintN paramNum,
                      jsval *rval);
+
+/**
+ * Use this as the setter for readonly attributes. (The IDL readonly
+ * keyword does not map to JSPROP_READONLY. Semantic mismatch.)
+ *
+ * Always fails, with the same error as setting a property that has
+ * JSPROP_GETTER but not JSPROP_SETTER.
+ */
+JSBool
+xpc_qsReadOnlySetter(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
 
 #ifdef DEBUG
 void
@@ -476,5 +466,15 @@ xpc_qsSameResult(nsISupports *result1, nsISupports *result2)
 #else
 #define XPC_QS_ASSERT_CONTEXT_OK(cx) ((void) 0)
 #endif
+
+#define XPC_QS_DEFINE_XPCNATIVEINTERFACE_GETTER(_iface, _iface_cache)         \
+inline XPCNativeInterface*                                                    \
+_iface##_Interface(XPCCallContext& ccx)                                       \
+{                                                                             \
+    if(!(_iface_cache))                                                       \
+        (_iface_cache) =                                                      \
+            XPCNativeInterface::GetNewOrUsed(ccx, &NS_GET_IID(_iface));       \
+    return (_iface_cache);                                                    \
+}
 
 #endif /* xpcquickstubs_h___ */

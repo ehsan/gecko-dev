@@ -44,7 +44,6 @@
 #include "nsHTMLReflowState.h"
 #include "nsHashSets.h"
 #include "nsBlockDebugFlags.h"
-#include "nsContentErrors.h"
 
 PRInt32 nsFloatManager::sCachedFloatManagerCount = 0;
 void* nsFloatManager::sCachedFloatManagers[NS_FLOAT_MANAGER_CACHE_SIZE];
@@ -55,14 +54,14 @@ void* nsFloatManager::sCachedFloatManagers[NS_FLOAT_MANAGER_CACHE_SIZE];
 static void*
 PSArenaAllocCB(size_t aSize, void* aClosure)
 {
-  return static_cast<nsIPresShell*>(aClosure)->AllocateMisc(aSize);
+  return static_cast<nsIPresShell*>(aClosure)->AllocateFrame(aSize);
 }
 
 // PresShell Arena free callback (for nsIntervalSet use below)
 static void
 PSArenaFreeCB(size_t aSize, void* aPtr, void* aClosure)
 {
-  static_cast<nsIPresShell*>(aClosure)->FreeMisc(aSize, aPtr);
+  static_cast<nsIPresShell*>(aClosure)->FreeFrame(aSize, aPtr);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -171,10 +170,7 @@ nsFloatManager::GetFlowArea(nscoord aYOffset, BandInfoType aInfoType,
 
   nscoord bottom;
   if (aHeight == nscoord_MAX) {
-    // This warning (and the two below) are possible to hit on pages
-    // with really large objects.
-    NS_WARN_IF_FALSE(aInfoType == BAND_FROM_POINT,
-                     "bad height");
+    NS_ASSERTION(aInfoType == BAND_FROM_POINT, "bad height");
     bottom = nscoord_MAX;
   } else {
     bottom = top + aHeight;
@@ -284,85 +280,6 @@ nsFloatManager::AddFloat(nsIFrame* aFloatFrame, const nsRect& aMarginRect)
     return NS_ERROR_OUT_OF_MEMORY;
 
   return NS_OK;
-}
-
-nsRect
-nsFloatManager::CalculateRegionFor(nsIFrame*       aFloat,
-                                   const nsMargin& aMargin)
-{
-  nsRect region = aFloat->GetRect();
-
-  // Float region includes its margin
-  region.Inflate(aMargin);
-
-  // If the element is relatively positioned, then adjust x and y
-  // accordingly so that we consider relatively positioned frames
-  // at their original position.
-  const nsStyleDisplay* display = aFloat->GetStyleDisplay();
-  region -= aFloat->GetRelativeOffset(display);
-
-  // Don't store rectangles with negative margin-box width or height in
-  // the float manager; it can't deal with them.
-  if (region.width < 0) {
-    // Preserve the right margin-edge for left floats and the left
-    // margin-edge for right floats
-    if (NS_STYLE_FLOAT_LEFT == display->mFloats) {
-      region.x = region.XMost();
-    }
-    region.width = 0;
-  }
-  if (region.height < 0) {
-    region.height = 0;
-  }
-  return region;
-}
-
-nsRect
-nsFloatManager::GetRegionFor(nsIFrame* aFloat)
-{
-  nsRect region = aFloat->GetRect();
-  void* storedRegion = aFloat->GetProperty(nsGkAtoms::floatRegionProperty);
-  if (storedRegion) {
-    nsMargin margin = *static_cast<nsMargin*>(storedRegion);
-    region.Inflate(margin);
-  }
-  return region;
-}
-
-static void
-DestroyMarginFunc(void*    aFrame,
-                  nsIAtom* aPropertyName,
-                  void*    aPropertyValue,
-                  void*    aDtorData)
-{
-  delete static_cast<nsMargin*>(aPropertyValue);
-}
-
-nsresult
-nsFloatManager::StoreRegionFor(nsIFrame* aFloat,
-                               nsRect&   aRegion)
-{
-  nsresult rv = NS_OK;
-  nsRect rect = aFloat->GetRect();
-  if (aRegion == rect) {
-    rv = aFloat->DeleteProperty(nsGkAtoms::floatRegionProperty);
-    if (rv == NS_PROPTABLE_PROP_NOT_THERE) rv = NS_OK;
-  }
-  else {
-    nsMargin* storedMargin = static_cast<nsMargin*>(aFloat
-                               ->GetProperty(nsGkAtoms::floatRegionProperty));
-    if (!storedMargin) {
-      storedMargin = new nsMargin();
-      rv = aFloat->SetProperty(nsGkAtoms::floatRegionProperty, storedMargin,
-                               DestroyMarginFunc);
-      if (NS_FAILED(rv)) {
-        delete storedMargin;
-        return rv;
-      }
-    }
-    *storedMargin = aRegion - rect;
-  }
-  return rv;
 }
 
 nsresult
@@ -486,14 +403,14 @@ nsFloatManager::ClearFloats(nscoord aY, PRUint8 aBreakType) const
   const FloatInfo &tail = mFloats[mFloats.Length() - 1];
   switch (aBreakType) {
     case NS_STYLE_CLEAR_LEFT_AND_RIGHT:
-      bottom = NS_MAX(bottom, tail.mLeftYMost);
-      bottom = NS_MAX(bottom, tail.mRightYMost);
+      bottom = PR_MAX(bottom, tail.mLeftYMost);
+      bottom = PR_MAX(bottom, tail.mRightYMost);
       break;
     case NS_STYLE_CLEAR_LEFT:
-      bottom = NS_MAX(bottom, tail.mLeftYMost);
+      bottom = PR_MAX(bottom, tail.mLeftYMost);
       break;
     case NS_STYLE_CLEAR_RIGHT:
-      bottom = NS_MAX(bottom, tail.mRightYMost);
+      bottom = PR_MAX(bottom, tail.mRightYMost);
       break;
     default:
       // Do nothing
@@ -503,27 +420,6 @@ nsFloatManager::ClearFloats(nscoord aY, PRUint8 aBreakType) const
   bottom -= mY;
 
   return bottom;
-}
-
-PRBool
-nsFloatManager::ClearContinues(PRUint8 aBreakType) const
-{
-  if (!HasAnyFloats() || aBreakType == NS_STYLE_CLEAR_NONE)
-    return PR_FALSE;
-  for (PRUint32 i = mFloats.Length(); i > 0; i--) {
-    nsIFrame* f = mFloats[i-1].mFrame;
-    if (f->GetNextInFlow()) {
-      if (aBreakType == NS_STYLE_CLEAR_LEFT_AND_RIGHT)
-        return PR_TRUE;
-      PRUint8 floatSide = f->GetStyleDisplay()->mFloats;
-      if ((aBreakType == NS_STYLE_CLEAR_LEFT &&
-           floatSide == NS_STYLE_FLOAT_LEFT) ||
-          (aBreakType == NS_STYLE_CLEAR_RIGHT &&
-           floatSide == NS_STYLE_FLOAT_RIGHT))
-        return PR_TRUE;
-    }
-  }
-  return PR_FALSE;
 }
 
 /////////////////////////////////////////////////////////////////////////////

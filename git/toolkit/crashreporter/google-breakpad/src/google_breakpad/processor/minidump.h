@@ -336,9 +336,7 @@ class MinidumpThreadList : public MinidumpStream {
   }
   static u_int32_t max_threads() { return max_threads_; }
 
-  unsigned int thread_count() const {
-    return valid_ ? thread_count_ : 0;
-  }
+  unsigned int thread_count() const { return valid_ ? thread_count_ : 0; }
 
   // Sequential access to threads.
   MinidumpThread* GetThreadAtIndex(unsigned int index) const;
@@ -639,46 +637,6 @@ class MinidumpException : public MinidumpStream {
   MinidumpContext*     context_;
 };
 
-// MinidumpAssertion wraps MDRawAssertionInfo, which contains information
-// about an assertion that caused the minidump to be generated.
-class MinidumpAssertion : public MinidumpStream {
- public:
-  virtual ~MinidumpAssertion();
-
-  const MDRawAssertionInfo* assertion() const {
-    return valid_ ? &assertion_ : NULL;
-  }
-
-  string expression() const {
-    return valid_ ? expression_ : "";
-  }
-
-  string function() const {
-    return valid_ ? function_ : "";
-  }
-
-  string file() const {
-    return valid_ ? file_ : "";
-  }
-
-  // Print a human-readable representation of the object to stdout.
-  void Print();
-
- private:
-  friend class Minidump;
-
-  static const u_int32_t kStreamType = MD_ASSERTION_INFO_STREAM;
-
-  explicit MinidumpAssertion(Minidump* minidump);
-
-  bool Read(u_int32_t expected_size);
-
-  MDRawAssertionInfo assertion_;
-  string expression_;
-  string function_;
-  string file_;
-};
-
 
 // MinidumpSystemInfo wraps MDRawSystemInfo and provides information about
 // the system on which the minidump was generated.  See also MinidumpMiscInfo.
@@ -797,11 +755,8 @@ class Minidump {
   // path is the pathname of a file containing the minidump.
   explicit Minidump(const string& path);
 
-  virtual ~Minidump();
+  ~Minidump();
 
-  virtual string path() const {
-    return path_;
-  }
   static void set_max_streams(u_int32_t max_streams) {
     max_streams_ = max_streams;
   }
@@ -812,23 +767,22 @@ class Minidump {
   }
   static u_int32_t max_string_length() { return max_string_length_; }
 
-  virtual const MDRawHeader* header() const { return valid_ ? &header_ : NULL; }
+  const MDRawHeader* header() const { return valid_ ? &header_ : NULL; }
 
   // Reads the minidump file's header and top-level stream directory.
   // The minidump is expected to be positioned at the beginning of the
   // header.  Read() sets up the stream list and map, and validates the
   // Minidump object.
-  virtual bool Read();
+  bool Read();
 
   // The next set of methods are stubs that call GetStream.  They exist to
   // force code generation of the templatized API within the module, and
   // to avoid exposing an ugly API (GetStream needs to accept a garbage
   // parameter).
-  virtual MinidumpThreadList* GetThreadList();
+  MinidumpThreadList* GetThreadList();
   MinidumpModuleList* GetModuleList();
   MinidumpMemoryList* GetMemoryList();
   MinidumpException* GetException();
-  MinidumpAssertion* GetAssertion();
   MinidumpSystemInfo* GetSystemInfo();
   MinidumpMiscInfo* GetMiscInfo();
   MinidumpBreakpadInfo* GetBreakpadInfo();

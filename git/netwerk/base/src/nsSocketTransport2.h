@@ -90,7 +90,7 @@ private:
     nsresult                         mCondition;
     nsCOMPtr<nsIInputStreamCallback> mCallback;
     PRUint32                         mCallbackFlags;
-    PRUint64                         mByteCount;
+    nsUint64                         mByteCount;
 };
 
 //-----------------------------------------------------------------------------
@@ -124,7 +124,7 @@ private:
     nsresult                          mCondition;
     nsCOMPtr<nsIOutputStreamCallback> mCallback;
     PRUint32                          mCallbackFlags;
-    PRUint64                          mByteCount;
+    nsUint64                          mByteCount;
 };
 
 //-----------------------------------------------------------------------------

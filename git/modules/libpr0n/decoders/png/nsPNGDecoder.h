@@ -22,7 +22,6 @@
  *
  * Contributor(s):
  *   Stuart Parmenter <pavlov@netscape.com>
- *   Bobby Holley <bobbyholley@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -45,7 +44,9 @@
 
 #include "imgIContainer.h"
 #include "imgIDecoderObserver.h"
-#include "gfxASurface.h"
+#include "gfxIImageFrame.h"
+#include "imgILoad.h"
+
 
 #include "nsCOMPtr.h"
 
@@ -70,39 +71,30 @@ public:
   nsPNGDecoder();
   virtual ~nsPNGDecoder();
 
-  void CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset,
-                   PRInt32 width, PRInt32 height,
-                   gfxASurface::gfxImageFormat format);
+  void CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset, 
+                   PRInt32 width, PRInt32 height, gfx_format format);
   void SetAnimFrameInfo();
-
+  
   void EndImageFrame();
-  void NotifyDone(PRBool aSuccess);
 
 public:
   nsCOMPtr<imgIContainer> mImage;
-  nsCOMPtr<imgIDecoderObserver> mObserver;
-  PRUint32 mFlags;
+  nsCOMPtr<gfxIImageFrame> mFrame;
+  nsCOMPtr<imgILoad> mImageLoad;
+  nsCOMPtr<imgIDecoderObserver> mObserver; // this is just qi'd from mRequest for speed
 
   png_structp mPNG;
   png_infop mInfo;
-  nsIntRect mFrameRect;
   PRUint8 *mCMSLine;
   PRUint8 *interlacebuf;
-  PRUint8 *mImageData;
   qcms_profile *mInProfile;
   qcms_transform *mTransform;
 
-  gfxASurface::gfxImageFormat format;
-
-  // For header-only decodes
-  PRUint8 *mHeaderBuf;
-  PRUint32 mHeaderBytesRead;
-
+  gfx_format format;
   PRUint8 mChannels;
   PRPackedBool mError;
   PRPackedBool mFrameHasNoAlpha;
   PRPackedBool mFrameIsHidden;
-  PRPackedBool mNotifiedDone;
 };
 
 #endif // nsPNGDecoder_h__

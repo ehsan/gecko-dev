@@ -67,8 +67,7 @@ class WinMobileLocationProvider : public nsIGeolocationProvider,
   ~WinMobileLocationProvider();
   
   nsCOMPtr<nsIGeolocationUpdate> mCallback;
-  PRPackedBool mHasSeenLocation;
-  PRPackedBool mHasGPS;
+  PRBool mHasSeenLocation;
   
   nsCOMPtr<nsITimer> mUpdateTimer;
   

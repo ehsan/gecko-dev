@@ -62,10 +62,10 @@ public:
   nsHTMLButtonControlFrame(nsStyleContext* aContext);
   ~nsHTMLButtonControlFrame();
 
+
   virtual void Destroy();
 
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
@@ -95,11 +95,11 @@ public:
                                          nsStyleContext* aStyleContext);
  
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
 
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
 
   NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
@@ -135,7 +135,8 @@ public:
   }
 
 protected:
-  virtual PRBool IsInput() { return PR_FALSE; }
+  virtual PRBool IsReset(PRInt32 type);
+  virtual PRBool IsSubmit(PRInt32 type);
   void ReflowButtonContents(nsPresContext* aPresContext,
                             nsHTMLReflowMetrics& aDesiredSize,
                             const nsHTMLReflowState& aReflowState,

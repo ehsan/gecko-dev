@@ -61,8 +61,6 @@
 
 class BRFrame : public nsFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   friend nsIFrame* NS_NewBRFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   virtual ContentOffsets CalcContentOffsetsFromFramePoint(nsPoint aPoint);
@@ -104,8 +102,6 @@ NS_NewBRFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) BRFrame(aContext);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(BRFrame)
 
 BRFrame::~BRFrame()
 {

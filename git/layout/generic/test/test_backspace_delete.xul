@@ -46,9 +46,7 @@ function execTests() {
   }
 
   function restoreEatSpace() {
-    try {
-      getPrefs().clearUserPref("eat_space_to_next_word");
-    } catch(ex) {}
+    getPrefs().clearUserPref("eat_space_to_next_word");
   }
 
   function doCommand(cmd) {
@@ -78,15 +76,12 @@ function execTests() {
     is(selRange.endOffset, endOffset, selErrString("Word right"));
   }
 
-  function testDelete(node, offset, text, richtext) {
+  function testDelete(node, offset, text) {
     doCommand("cmd_deleteCharForward");
     var msg = "Delete broken in \"" + editor.innerHTML + "\", offset " + offset;
-    if(typeof node == 'function'){
-      node = node();
-    }
     is(sel.anchorNode, node, msg);
     is(sel.anchorOffset, offset, msg);
-    is(richtext?editor.innerHTML:editor.textContent, text, msg);
+    is(editor.textContent, text, msg);
   }
 
   function testBackspace(node, offset, text) {
@@ -182,7 +177,7 @@ function execTests() {
   // Tests for Bug 419217
 
   setupTest("foo<div>bar</div>", 3);
-  testDelete(function(){return editor.firstChild;}, 3, "foobar", true);
+  testDelete(editor.firstChild, 3, "foobar");
 
   // Tests for Bug 419406
   var s = "helloשלום";
@@ -206,10 +201,6 @@ function execTests() {
   testDeleteNextWord(editor.firstChild, 0, "\u00A0this text.");
   testDeleteNextWord(editor.firstChild, 0, "\u00A0text.");
   // testDeleteNextWord(editor, 0, "");
-
-  // Tests for Bug 502259
-  setupTest("<p>Bug</p>\n<p>502259</p>", 1);
-  testDelete(function(){return editor.firstChild.firstChild;}, 3, "<p>Bug502259</p>", true);
 
   SimpleTest.finish();
 }

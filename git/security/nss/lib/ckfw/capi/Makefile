@@ -34,7 +34,7 @@
 # the terms of any one of the MPL, the GPL or the LGPL.
 #
 # ***** END LICENSE BLOCK *****
-MAKEFILE_CVS_ID = "@(#) $RCSfile: Makefile,v $ $Revision: 1.6 $ $Date: 2009/07/29 20:15:19 $"
+MAKEFILE_CVS_ID = "@(#) $RCSfile: Makefile,v $ $Revision: 1.5 $ $Date: 2007/05/09 00:09:37 $"
 
 include manifest.mn
 include $(CORE_DEPTH)/coreconf/config.mk
@@ -54,9 +54,6 @@ EXTRA_LIBS += \
 	-lplc4 \
 	-lplds4 \
 	-lnspr4 \
-	-lcrypt32 \
-	-ladvapi32 \
-	-lrpcrt4 \
 	$(NULL)
 else 
 EXTRA_SHARED_LIBS += \

@@ -203,7 +203,7 @@ nsJSID::NewID(const char* str)
 {
     if(!str)
     {
-        NS_ERROR("no string");
+        NS_ASSERTION(0,"no string");
         return nsnull;
     }
 
@@ -558,32 +558,14 @@ nsJSIID::HasInstance(nsIXPConnectWrappedNative *wrapper,
         NS_ASSERTION(obj, "when is an object not an object?");
 
         // is this really a native xpcom object with a wrapper?
-        const nsIID* iid;
-        mInfo->GetIIDShared(&iid);
-
-        if(IS_SLIM_WRAPPER(obj))
-        {
-            XPCWrappedNativeProto* proto = GetSlimWrapperProto(obj);
-            if(proto->GetSet()->HasInterfaceWithAncestor(iid))
-            {
-                *bp = JS_TRUE;
-                return NS_OK;
-            }
-
-#ifdef DEBUG_slimwrappers
-            char foo[NSID_LENGTH];
-            iid->ToProvidedString(foo);
-            SLIM_LOG_WILL_MORPH_FOR_PROP(cx, obj, foo);
-#endif
-            if(!MorphSlimWrapper(cx, obj))
-                return NS_ERROR_FAILURE;
-        }
-
         XPCWrappedNative* other_wrapper =
            XPCWrappedNative::GetWrappedNativeOfJSObject(cx, obj);
 
         if(!other_wrapper)
             return NS_OK;
+
+        const nsIID* iid;
+        mInfo->GetIIDShared(&iid);
 
         // We'll trust the interface set of the wrapper if this is known
         // to be an interface that the objects *expects* to be able to
@@ -704,7 +686,7 @@ nsJSCID::NewID(const char* str)
 {
     if(!str)
     {
-        NS_ERROR("no string");
+        NS_ASSERTION(0,"no string");
         return nsnull;
     }
 
@@ -944,19 +926,15 @@ nsJSCID::HasInstance(nsIXPConnectWrappedNative *wrapper,
         NS_ASSERTION(obj, "when is an object not an object?");
 
         // is this really a native xpcom object with a wrapper?
-        JSObject* obj2;
         XPCWrappedNative* other_wrapper =
-           XPCWrappedNative::GetWrappedNativeOfJSObject(cx, obj, nsnull, &obj2);
+           XPCWrappedNative::GetWrappedNativeOfJSObject(cx, obj);
 
-        if(!other_wrapper || !obj2)
+        if(!other_wrapper)
             return NS_OK;
-
-        nsIClassInfo* ci = other_wrapper ?
-                           other_wrapper->GetClassInfo() :
-                           GetSlimWrapperProto(obj2)->GetClassInfo();
 
         // We consider CID equality to be the thing that matters here.
         // This is perhaps debatable.
+        nsIClassInfo* ci = other_wrapper->GetClassInfo();
         if(ci)
         {
             nsID cid;

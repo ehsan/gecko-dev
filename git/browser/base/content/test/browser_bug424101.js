@@ -3,12 +3,14 @@
 function test() {
   waitForExplicitFinish();
 
-  gBrowser.selectedTab = gBrowser.addTab();
+  let newTab = gBrowser.addTab();
+  gBrowser.selectedTab = newTab;
+  let newBrowser = gBrowser.getBrowserForTab(newTab);
   
-  gBrowser.selectedBrowser.addEventListener("load", function() {
-    gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
+  newBrowser.addEventListener("load", function() {
+    newBrowser.removeEventListener("load", arguments.callee, true);
 
-    let doc = gBrowser.contentDocument;
+    let doc = newBrowser.contentWindow.document;
     let testInput = function(type, expected) {
       let element = doc.createElement("input");
       element.setAttribute("type", type);
@@ -49,5 +51,5 @@ function test() {
     gBrowser.removeCurrentTab();
     finish();
   }, true);
-  content.location = "data:text/html,test";
+  newBrowser.loadURI("data:text/html,test");
 }

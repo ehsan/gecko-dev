@@ -95,7 +95,6 @@
 #include "nsIDOMProcessingInstruction.h"
 #include "nsNodeUtils.h"
 #include "nsIScriptGlobalObject.h"
-#include "nsIHTMLDocument.h"
 #include "nsEventDispatcher.h"
 #include "mozAutoDocUpdate.h"
 
@@ -140,7 +139,8 @@ NS_NewXMLContentSink(nsIXMLContentSink** aResult,
 
 nsXMLContentSink::nsXMLContentSink()
   : mConstrainSize(PR_TRUE),
-    mPrettyPrintXML(PR_TRUE)
+    mPrettyPrintXML(PR_TRUE),
+    mAllowAutoXLinks(PR_TRUE)
 {
 }
 
@@ -158,6 +158,11 @@ nsXMLContentSink::Init(nsIDocument* aDoc,
                        nsISupports* aContainer,
                        nsIChannel* aChannel)
 {
+  MOZ_TIMER_DEBUGLOG(("Reset and start: nsXMLContentSink::Init(), this=%p\n",
+                      this));
+  MOZ_TIMER_RESET(mWatch);
+  MOZ_TIMER_START(mWatch);
+	
   nsresult rv = nsContentSink::Init(aDoc, aURI, aContainer, aChannel);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -171,6 +176,8 @@ nsXMLContentSink::Init(nsIDocument* aDoc,
   mState = eXMLContentSinkState_InProlog;
   mDocElement = nsnull;
 
+  MOZ_TIMER_DEBUGLOG(("Stop: nsXMLContentSink::Init()\n"));
+  MOZ_TIMER_STOP(mWatch);
   return NS_OK;
 }
 
@@ -303,9 +310,9 @@ CheckXSLTParamPI(nsIDOMProcessingInstruction* aPi,
 }
 
 NS_IMETHODIMP
-nsXMLContentSink::DidBuildModel(PRBool aTerminated)
+nsXMLContentSink::DidBuildModel()
 {
-  DidBuildModelImpl(aTerminated);
+  DidBuildModelImpl();
 
   if (mXSLTProcessor) {
     // stop observing in order to avoid crashing when replacing content
@@ -379,15 +386,16 @@ nsXMLContentSink::DidBuildModel(PRBool aTerminated)
   return NS_OK;
 }
 
+PRBool
+nsXMLContentSink::ReadyToCallDidBuildModel(PRBool aTerminated)
+{
+  return ReadyToCallDidBuildModelImpl(aTerminated);
+}
+
 NS_IMETHODIMP
 nsXMLContentSink::OnDocumentCreated(nsIDocument* aResultDocument)
 {
   NS_ENSURE_ARG(aResultDocument);
-
-  nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(aResultDocument);
-  if (htmlDoc) {
-    htmlDoc->SetDocWriteDisabled(PR_TRUE);
-  }
 
   nsCOMPtr<nsIContentViewer> contentViewer;
   mDocShell->GetContentViewer(getter_AddRefs(contentViewer));
@@ -430,10 +438,6 @@ nsXMLContentSink::OnTransformDone(nsresult aResult,
     // Transform succeeded or it failed and we have an error
     // document to display.
     mDocument = aResultDocument;
-    nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(mDocument);
-    if (htmlDoc) {
-      htmlDoc->SetDocWriteDisabled(PR_FALSE);
-    }
   }
 
   originalDocument->ScriptLoader()->RemoveObserver(this);
@@ -989,6 +993,7 @@ nsXMLContentSink::SetDocElement(PRInt32 aNameSpaceID,
     if (mPrettyPrintXML) {
       // In this case, disable script execution, stylesheet
       // loading, and auto XLinks since we plan to prettyprint.
+      mAllowAutoXLinks = PR_FALSE;
       mDocument->ScriptLoader()->SetEnabled(PR_FALSE);
       if (mCSSLoader) {
         mCSSLoader->SetEnabled(PR_FALSE);
@@ -1427,6 +1432,33 @@ nsXMLContentSink::ParsePIData(const nsString &aData, nsString &aHref,
   return PR_TRUE;
 }
 
+/*
+ * Extends nsContentSink::ProcessMETATag to grab the 'viewport' meta tag. This
+ * information is ignored by the generic content sink because it only stores
+ * http-equiv meta tags. We need it in the XMLContentSink for XHTML documents.
+ *
+ * Initially implemented for bug #436083
+ */
+nsresult
+nsXMLContentSink::ProcessMETATag(nsIContent *aContent) {
+
+  /* Call the superclass method. */
+  nsContentSink::ProcessMETATag(aContent);
+
+  nsresult rv = NS_OK;
+
+  /* Look for the viewport meta tag. If we find it, process it and put the
+   * data into the document header. */
+  if (aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name,
+                            nsGkAtoms::viewport, eIgnoreCase)) {
+    nsAutoString value;
+    aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::content, value);
+    rv = nsContentUtils::ProcessViewportInfo(mDocument, value);
+  }
+
+  return rv;
+}
+
 NS_IMETHODIMP
 nsXMLContentSink::HandleXMLDeclaration(const PRUnichar *aVersion,
                                        const PRUnichar *aEncoding,
@@ -1545,6 +1577,17 @@ nsXMLContentSink::AddAttributes(const PRUnichar** aAtts,
     aContent->SetAttr(nameSpaceID, localName, prefix,
                       nsDependentString(aAtts[1]), PR_FALSE);
     aAtts += 2;
+  }
+
+  // Give autoloading links a chance to fire
+  if (mDocShell && mAllowAutoXLinks) {
+    nsresult rv = aContent->MaybeTriggerAutoLink(mDocShell);
+    if (rv == NS_XML_AUTOLINK_REPLACE ||
+        rv == NS_XML_AUTOLINK_UNDEFINED) {
+      // If we do not terminate the parse, we just keep generating link trigger
+      // events. We want to parse only up to the first replace link, and stop.
+      mParser->Terminate();
+    }
   }
 
   return NS_OK;

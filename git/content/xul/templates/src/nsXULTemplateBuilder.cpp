@@ -1101,7 +1101,8 @@ nsXULTemplateBuilder::AttributeChanged(nsIDocument* aDocument,
                                        nsIContent*  aContent,
                                        PRInt32      aNameSpaceID,
                                        nsIAtom*     aAttribute,
-                                       PRInt32      aModType)
+                                       PRInt32      aModType,
+                                       PRUint32     aStateMask)
 {
     if (aContent == mRoot && aNameSpaceID == kNameSpaceID_None) {
         // Check for a change to the 'ref' attribute on an atom, in which
@@ -1248,7 +1249,7 @@ nsXULTemplateBuilder::LoadDataSources(nsIDocument* aDocument,
     if (xuldoc)
         xuldoc->SetTemplateBuilderFor(mRoot, this);
 
-    if (!mRoot->IsXUL()) {
+    if (!mRoot->IsNodeOfType(nsINode::eXUL)) {
         // Hmm. This must be an HTML element. Try to set it as a
         // JS property "by hand".
         InitHTMLTemplateRoot();
@@ -1396,22 +1397,30 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
 
     JSAutoRequest ar(jscontext);
 
-    jsval v;
+    nsIXPConnect *xpc = nsContentUtils::XPConnect();
+
+    JSObject* jselement = nsnull;
+
     nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
-    rv = nsContentUtils::WrapNative(jscontext, scope, mRoot,
-                                    &NS_GET_IID(nsIDOMElement), &v,
-                                    getter_AddRefs(wrapper));
+    rv = xpc->WrapNative(jscontext, scope, mRoot, NS_GET_IID(nsIDOMElement),
+                         getter_AddRefs(wrapper));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    JSObject* jselement = JSVAL_TO_OBJECT(v);
+    rv = wrapper->GetJSObject(&jselement);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     if (mDB) {
         // database
-        jsval jsdatabase;
-        rv = nsContentUtils::WrapNative(jscontext, scope, mDB,
-                                        &NS_GET_IID(nsIRDFCompositeDataSource),
-                                        &jsdatabase, getter_AddRefs(wrapper));
+        rv = xpc->WrapNative(jscontext, scope, mDB,
+                             NS_GET_IID(nsIRDFCompositeDataSource),
+                             getter_AddRefs(wrapper));
         NS_ENSURE_SUCCESS(rv, rv);
+
+        JSObject* jsobj;
+        rv = wrapper->GetJSObject(&jsobj);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        jsval jsdatabase = OBJECT_TO_JSVAL(jsobj);
 
         PRBool ok;
         ok = JS_SetProperty(jscontext, jselement, "database", &jsdatabase);
@@ -1422,13 +1431,18 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
 
     {
         // builder
-        jsval jsbuilder;
         nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
-        rv = nsContentUtils::WrapNative(jscontext, jselement,
-                                        static_cast<nsIXULTemplateBuilder*>(this),
-                                        &NS_GET_IID(nsIXULTemplateBuilder),
-                                        &jsbuilder, getter_AddRefs(wrapper));
+        rv = xpc->WrapNative(jscontext, jselement,
+                             static_cast<nsIXULTemplateBuilder*>(this),
+                             NS_GET_IID(nsIXULTemplateBuilder),
+                             getter_AddRefs(wrapper));
         NS_ENSURE_SUCCESS(rv, rv);
+
+        JSObject* jsobj;
+        rv = wrapper->GetJSObject(&jsobj);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        jsval jsbuilder = OBJECT_TO_JSVAL(jsobj);
 
         PRBool ok;
         ok = JS_SetProperty(jscontext, jselement, "builder", &jsbuilder);
@@ -1655,14 +1669,8 @@ nsXULTemplateBuilder::GetTemplateRoot(nsIContent** aResult)
         nsCOMPtr<nsIDOMElement> domElement;
         domDoc->GetElementById(templateID, getter_AddRefs(domElement));
 
-        if (domElement) {
-            nsCOMPtr<nsIContent> content = do_QueryInterface(domElement);
-            NS_ENSURE_STATE(content &&
-                            !nsContentUtils::ContentIsDescendantOf(mRoot,
-                                                                   content));
-            content.forget(aResult);
-            return NS_OK;
-        }
+        if (domElement)
+            return CallQueryInterface(domElement, aResult);
     }
 
 #if 1 // XXX hack to workaround bug with XBL insertion/removal?

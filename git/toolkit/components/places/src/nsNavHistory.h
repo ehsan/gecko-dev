@@ -23,7 +23,6 @@
  *   Brett Wilson <brettw@gmail.com> (original author)
  *   Edward Lee <edward.lee@engineering.uiuc.edu>
  *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
- *   Marco Bonardo <mak77@bonardo.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -42,33 +41,56 @@
 #ifndef nsNavHistory_h_
 #define nsNavHistory_h_
 
+#include "mozIStorageService.h"
+#include "mozIStorageConnection.h"
+#include "mozIStorageValueArray.h"
+#include "mozIStorageStatement.h"
+#include "nsAutoPtr.h"
+#include "nsCOMArray.h"
+#include "nsCOMPtr.h"
+#include "nsDataHashtable.h"
 #include "nsINavHistoryService.h"
 #include "nsPIPlacesDatabase.h"
 #include "nsPIPlacesHistoryListenersNotifier.h"
+#ifdef MOZ_XUL
+#include "nsIAutoCompleteController.h"
+#include "nsIAutoCompleteInput.h"
+#include "nsIAutoCompletePopup.h"
+#include "nsIAutoCompleteSearch.h"
+#include "nsIAutoCompleteResult.h"
+#include "nsIAutoCompleteSimpleResult.h"
+#endif
 #include "nsIBrowserHistory.h"
+#include "nsICollation.h"
 #include "nsIGlobalHistory.h"
 #include "nsIGlobalHistory3.h"
 #include "nsIDownloadHistory.h"
-
 #include "nsIPrefService.h"
+#include "nsIPrefBranch.h"
+#include "nsIObserver.h"
 #include "nsIObserverService.h"
-#include "nsICollation.h"
+#include "nsServiceManagerUtils.h"
 #include "nsIStringBundle.h"
+#include "nsITextToSubURI.h"
 #include "nsITimer.h"
-#include "nsMaybeWeakPtr.h"
-#include "nsCategoryCache.h"
-#include "nsICharsetResolver.h"
-#include "nsNetCID.h"
-#include "nsToolkitCompsCID.h"
-
+#ifdef MOZ_XUL
+#include "nsITreeSelection.h"
+#include "nsITreeView.h"
+#endif
+#include "nsString.h"
+#include "nsWeakReference.h"
+#include "nsTArray.h"
 #include "nsINavBookmarksService.h"
-#include "nsIPrivateBrowsingService.h"
+#include "nsMaybeWeakPtr.h"
 
 #include "nsNavHistoryExpire.h"
 #include "nsNavHistoryResult.h"
 #include "nsNavHistoryQuery.h"
 
-#include "mozilla/storage.h"
+#include "nsICharsetResolver.h"
+
+#include "nsIPrivateBrowsingService.h"
+#include "nsNetCID.h"
 
 // define to enable lazy link adding
 #define LAZY_ADD
@@ -83,11 +105,11 @@
 // mInPrivateBrowsing member
 #define PRIVATEBROWSING_NOTINITED (PRBool(0xffffffff))
 
-#define PLACES_INIT_COMPLETE_TOPIC "places-init-complete"
-#define PLACES_DB_LOCKED_TOPIC "places-database-locked"
-#define PLACES_AUTOCOMPLETE_FEEDBACK_UPDATED_TOPIC "places-autocomplete-feedback-updated"
-#define PLACES_VACUUM_STARTING_TOPIC "places-vacuum-starting"
+#define PLACES_INIT_COMPLETE_EVENT_TOPIC "places-init-complete"
+#define PLACES_DB_LOCKED_EVENT_TOPIC "places-database-locked"
 
+struct AutoCompleteIntermediateResult;
+class AutoCompleteResultComparator;
 class mozIAnnotationService;
 class nsNavHistory;
 class nsNavBookmarks;
@@ -95,7 +117,6 @@ class QueryKeyValuePair;
 class nsIEffectiveTLDService;
 class nsIIDNService;
 class PlacesSQLQueryBuilder;
-class nsIAutoCompleteController;
 
 // nsNavHistory
 
@@ -108,7 +129,13 @@ class nsNavHistory : public nsSupportsWeakReference
                    , public nsICharsetResolver
                    , public nsPIPlacesDatabase
                    , public nsPIPlacesHistoryListenersNotifier
+#ifdef MOZ_XUL
+                   , public nsIAutoCompleteSearch
+                   , public nsIAutoCompleteSimpleResultListener
+#endif
 {
+  friend class AutoCompleteIntermediateResultSet;
+  friend class AutoCompleteResultComparator;
   friend class PlacesSQLQueryBuilder;
 
 public:
@@ -124,6 +151,10 @@ public:
   NS_DECL_NSIOBSERVER
   NS_DECL_NSPIPLACESDATABASE
   NS_DECL_NSPIPLACESHISTORYLISTENERSNOTIFIER
+#ifdef MOZ_XUL
+  NS_DECL_NSIAUTOCOMPLETESEARCH
+  NS_DECL_NSIAUTOCOMPLETESIMPLERESULTLISTENER
+#endif
 
 
   /**
@@ -141,14 +172,15 @@ public:
    * service to get a reference to this history object. Returns a pointer to
    * the service if it exists. Otherwise creates one. Returns NULL on error.
    */
-  static nsNavHistory *GetHistoryService()
+  static nsNavHistory* GetHistoryService()
   {
-    if (!gHistoryService) {
-      nsCOMPtr<nsINavHistoryService> serv =
-        do_GetService(NS_NAVHISTORYSERVICE_CONTRACTID);
-      NS_ENSURE_TRUE(serv, nsnull);
-      NS_ASSERTION(gHistoryService, "Should have static instance pointer now");
-    }
+    if (gHistoryService)
+      return gHistoryService;
+
+    nsCOMPtr<nsINavHistoryService> serv =
+      do_GetService("@mozilla.org/browser/nav-history-service;1");
+    NS_ENSURE_TRUE(serv, nsnull);
+
     return gHistoryService;
   }
 
@@ -215,6 +247,9 @@ public:
   // returns true if history has been disabled
   PRBool IsHistoryDisabled() { return mExpireDaysMax == 0 || InPrivateBrowsingMode(); }
 
+  // get the statement for selecting a history row by URL
+  mozIStorageStatement* DBGetURLPageInfo() { return mDBGetURLPageInfo; }
+
   // Constants for the columns returned by the above statement.
   static const PRInt32 kGetInfoIndex_PageID;
   static const PRInt32 kGetInfoIndex_URL;
@@ -224,13 +259,11 @@ public:
   static const PRInt32 kGetInfoIndex_ItemId;
   static const PRInt32 kGetInfoIndex_ItemDateAdded;
   static const PRInt32 kGetInfoIndex_ItemLastModified;
-  static const PRInt32 kGetInfoIndex_ItemTags;
-  static const PRInt32 kGetInfoIndex_ItemParentId;
 
   // select a history row by id
-  mozIStorageStatement *DBGetIdPageInfo() { return mDBGetIdPageInfo; }
+  mozIStorageStatement* DBGetIdPageInfo() { return mDBGetIdPageInfo; }
 
-  mozIStorageStatement *DBGetTags() { return mDBGetTags; }
+  mozIStorageStatement* DBGetTags() { return mDBGetTags; }
   PRInt64 GetTagsFolder();
 
   // Constants for the columns returned by the above statement
@@ -270,7 +303,11 @@ public:
   // used by other places components to send history notifications (for example,
   // when the favicon has changed)
   void SendPageChangedNotification(nsIURI* aURI, PRUint32 aWhat,
-                                   const nsAString& aValue);
+                                   const nsAString& aValue)
+  {
+    ENUMERATE_WEAKARRAY(mObservers, nsINavHistoryObserver,
+                        OnPageChanged(aURI, aWhat, aValue));
+  }
 
   // current time optimization
   PRTime GetNow();
@@ -360,17 +397,11 @@ public:
     return NS_OK;
   }
 
-  /**
-   * Indicates if it is OK to notify history observers or not.
-   *
-   * @returns true if it is OK to notify, false otherwise.
-   */
-  bool canNotify() { return mCanNotify; }
  private:
   ~nsNavHistory();
 
   // used by GetHistoryService
-  static nsNavHistory *gHistoryService;
+  static nsNavHistory* gHistoryService;
 
 protected:
 
@@ -397,8 +428,8 @@ protected:
   nsCOMPtr<mozIStorageStatement> mDBIsPageVisited; // used by IsURIStringVisited
   nsCOMPtr<mozIStorageStatement> mDBUpdatePageVisitStats; // used by AddVisit
   nsCOMPtr<mozIStorageStatement> mDBAddNewPage; // used by InternalAddNewPage
-  nsCOMPtr<mozIStorageStatement> mDBGetTags; // used by GetTags
-  nsCOMPtr<mozIStorageStatement> mDBGetItemsWithAnno; // used by AutoComplete::StartSearch and FilterResultSet
+  nsCOMPtr<mozIStorageStatement> mDBGetTags; // used by FilterResultSet
+  nsCOMPtr<mozIStorageStatement> mFoldersWithAnnotationQuery;  // used by StartSearch and FilterResultSet
   nsCOMPtr<mozIStorageStatement> mDBSetPlaceTitle; // used by SetPageTitleInternal
 
   // these are used by VisitIdToResultNode for making new result nodes from IDs
@@ -413,22 +444,7 @@ protected:
   /**
    * Finalize all internal statements.
    */
-  NS_HIDDEN_(nsresult) FinalizeStatements();
-
-  /**
-   * Analyzes the database and VACUUM it, if needed.
-   */
-  NS_HIDDEN_(nsresult) DecayFrecency();
-  /**
-   * Decays frecency and inputhistory values.
-   */
-  NS_HIDDEN_(nsresult) VacuumDatabase();
-
-  /**
-   * Finalizes all Places internal statements, allowing to safely close the
-   * database connection.
-   */
-  NS_HIDDEN_(nsresult) FinalizeInternalStatements();
+  nsresult FinalizeStatements();
 
   // nsICharsetResolver
   NS_DECL_NSICHARSETRESOLVER
@@ -515,7 +531,7 @@ protected:
 
   // expiration
   friend class nsNavHistoryExpire;
-  nsNavHistoryExpire *mExpire;
+  nsNavHistoryExpire mExpire;
 
 #ifdef LAZY_ADD
   // lazy add committing
@@ -566,7 +582,7 @@ protected:
   nsresult StartLazyTimer();
   nsresult AddLazyMessage(const LazyMessage& aMessage);
   static void LazyTimerCallback(nsITimer* aTimer, void* aClosure);
-  NS_HIDDEN_(void) CommitLazyMessages(PRBool aIsShutdown = PR_FALSE);
+  void CommitLazyMessages();
 #endif
 
   nsresult ConstructQueryString(const nsCOMArray<nsNavHistoryQuery>& aQueries, 
@@ -639,14 +655,123 @@ protected:
   PRInt64 mLastSessionID;
   PRInt64 GetNewSessionID() { mLastSessionID ++; return mLastSessionID; }
 
-#ifdef MOZ_XUL
+  //
   // AutoComplete stuff
-  mozIStorageStatement *GetDBFeedbackIncrease();
+  //
+  static const PRInt32 kAutoCompleteIndex_URL;
+  static const PRInt32 kAutoCompleteIndex_Title;
+  static const PRInt32 kAutoCompleteIndex_FaviconURL;
+  static const PRInt32 kAutoCompleteIndex_ParentId;
+  static const PRInt32 kAutoCompleteIndex_BookmarkTitle;
+  static const PRInt32 kAutoCompleteIndex_Tags;
+  static const PRInt32 kAutoCompleteIndex_VisitCount;
+  static const PRInt32 kAutoCompleteIndex_Typed;
+  nsCOMPtr<mozIStorageStatement> mDBCurrentQuery; //  kAutoCompleteIndex_* results
+  nsCOMPtr<mozIStorageStatement> mDBAutoCompleteQuery; //  kAutoCompleteIndex_* results
+  nsCOMPtr<mozIStorageStatement> mDBAutoCompleteTypedQuery; //  kAutoCompleteIndex_* results
+  mozIStorageStatement* GetDBAutoCompleteHistoryQuery();
+  nsCOMPtr<mozIStorageStatement> mDBAutoCompleteHistoryQuery; //  kAutoCompleteIndex_* results
+  mozIStorageStatement* GetDBAutoCompleteStarQuery();
+  nsCOMPtr<mozIStorageStatement> mDBAutoCompleteStarQuery; //  kAutoCompleteIndex_* results
+  mozIStorageStatement* GetDBAutoCompleteTagsQuery();
+  nsCOMPtr<mozIStorageStatement> mDBAutoCompleteTagsQuery; //  kAutoCompleteIndex_* results
+  nsCOMPtr<mozIStorageStatement> mDBPreviousQuery; //  kAutoCompleteIndex_* results
+  nsCOMPtr<mozIStorageStatement> mDBAdaptiveQuery; //  kAutoCompleteIndex_* results
+  nsCOMPtr<mozIStorageStatement> mDBKeywordQuery; //  kAutoCompleteIndex_* results
+  mozIStorageStatement* GetDBFeedbackIncrease();
   nsCOMPtr<mozIStorageStatement> mDBFeedbackIncrease;
 
+  /**
+   * AutoComplete word matching behavior to determine if words should match on
+   * word boundaries or not or both.
+   */
+  enum MatchType {
+    MATCH_ANYWHERE,
+    MATCH_BOUNDARY_ANYWHERE,
+    MATCH_BOUNDARY,
+    MATCH_BEGINNING
+  };
+
+  nsresult InitAutoComplete();
+  nsresult CreateAutoCompleteQueries();
+  PRBool mAutoCompleteEnabled;
+  MatchType mAutoCompleteMatchBehavior;
+  PRBool mAutoCompleteFilterJavascript;
+  PRInt32 mAutoCompleteMaxResults;
+  nsString mAutoCompleteRestrictHistory;
+  nsString mAutoCompleteRestrictBookmark;
+  nsString mAutoCompleteRestrictTag;
+  nsString mAutoCompleteMatchTitle;
+  nsString mAutoCompleteMatchUrl;
+  nsString mAutoCompleteRestrictTyped;
+  PRInt32 mAutoCompleteSearchChunkSize;
+  PRInt32 mAutoCompleteSearchTimeout;
+  nsCOMPtr<nsITimer> mAutoCompleteTimer;
+
+  static const PRInt32 kAutoCompleteBehaviorHistory;
+  static const PRInt32 kAutoCompleteBehaviorBookmark;
+  static const PRInt32 kAutoCompleteBehaviorTag;
+  static const PRInt32 kAutoCompleteBehaviorTitle;
+  static const PRInt32 kAutoCompleteBehaviorUrl;
+  static const PRInt32 kAutoCompleteBehaviorTyped;
+
+  PRInt32 mAutoCompleteDefaultBehavior; // kAutoCompleteBehavior* bitmap
+  PRInt32 mAutoCompleteCurrentBehavior; // kAutoCompleteBehavior* bitmap
+
+  // Original search string for case-sensitive usage
+  nsString mOrigSearchString;
+  // Search string and tokens for case-insensitive matching
+  nsString mCurrentSearchString;
+  nsTArray<nsString> mCurrentSearchTokens;
+  void GenerateSearchTokens();
+  void AddSearchToken(nsAutoString &aToken);
+  void ProcessTokensForSpecialSearch();
+
+#ifdef MOZ_XUL
   nsresult AutoCompleteFeedback(PRInt32 aIndex,
                                 nsIAutoCompleteController *aController);
+
+  nsCOMPtr<nsIAutoCompleteObserver> mCurrentListener;
+  nsCOMPtr<nsIAutoCompleteSimpleResult> mCurrentResult;
 #endif
+
+  MatchType mCurrentMatchType;
+  MatchType mPreviousMatchType;
+  nsDataHashtable<nsStringHashKey, PRBool> mCurrentResultURLs;
+  PRInt32 mCurrentChunkOffset;
+  PRInt32 mPreviousChunkOffset;
+
+  nsDataHashtable<nsTrimInt64HashKey, PRBool> mLivemarkFeedItemIds;
+  nsDataHashtable<nsStringHashKey, PRBool> mLivemarkFeedURIs;
+
+  nsresult AutoCompleteFullHistorySearch(PRBool* aHasMoreResults);
+  nsresult AutoCompletePreviousSearch();
+  nsresult AutoCompleteAdaptiveSearch();
+  nsresult AutoCompleteKeywordSearch();
+
+  /**
+   * Query type passed to AutoCompleteProcessSearch to determine what style to
+   * use and if results should be filtered
+   */
+  enum QueryType {
+    QUERY_KEYWORD,
+    QUERY_FILTERED
+  };
+  nsresult AutoCompleteProcessSearch(mozIStorageStatement* aQuery,
+                                     const QueryType aType,
+                                     PRBool *aHasMoreResults = nsnull);
+  PRBool AutoCompleteHasEnoughResults();
+
+  nsresult PerformAutoComplete();
+  nsresult StartAutoCompleteTimer(PRUint32 aMilliseconds);
+  static void AutoCompleteTimerCallback(nsITimer* aTimer, void* aClosure);
+
+  PRBool mAutoCompleteFinishedSearch;
+  void DoneSearching(PRBool aFinished);
+
+  // Used to unescape encoded URI strings for searching
+  nsCOMPtr<nsITextToSubURI> mTextURIService;
+  nsString FixupURIText(const nsAString &aURIText);
 
   PRInt32 mExpireDaysMin;
   PRInt32 mExpireDaysMax;
@@ -679,15 +804,20 @@ protected:
                            nsCOMArray<nsNavHistoryQuery>* aQueries,
                            nsNavHistoryQueryOptions* aOptions);
 
+  /**
+   * Used to setup the idle timer used to perform various tasks when the user is
+   * idle..
+   */
+  nsCOMPtr<nsITimer> mIdleTimer;
+  nsresult InitializeIdleTimer();
+  static void IdleTimerCallback(nsITimer* aTimer, void* aClosure);
+  nsresult OnIdle();
+
   PRInt64 mTagsFolder;
 
   PRBool mInPrivateBrowsing;
 
   PRUint16 mDatabaseStatus;
-
-  // Used to enable and disable the observer notifications
-  bool mCanNotify;
-  nsCategoryCache<nsINavHistoryObserver> mCacheObservers;
 };
 
 /**

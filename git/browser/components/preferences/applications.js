@@ -661,7 +661,7 @@ FeedHandlerInfo.prototype = {
     }
 
     // Add the registered web handlers.  There can be any number of these.
-    var webHandlers = this._converterSvc.getContentHandlers(this.type);
+    var webHandlers = this._converterSvc.getContentHandlers(this.type, {});
     for each (let webHandler in webHandlers)
       this._possibleApplicationHandlers.appendElement(webHandler, false);
 
@@ -1734,7 +1734,9 @@ var gApplicationsPane = {
                       "chrome,modal,centerscreen,titlebar,dialog=yes",
                       params);
 
-    if (this.isValidHandlerApp(params.handlerApp)) {
+    if (params.handlerApp && 
+        params.handlerApp.executable && 
+        params.handlerApp.executable.isFile()) {
       handlerApp = params.handlerApp;
 
       // Add the app to the type's list of possible handlers.
@@ -1873,7 +1875,7 @@ var gApplicationsPane = {
     // they'll only visit URLs derived from that template (i.e. with %s
     // in the template replaced by the URL of the content being handled).
 
-    if (/^https?/.test(uri.scheme) && this._prefSvc.getBoolPref("browser.chrome.favicons"))
+    if (/^https?/.test(uri.scheme))
       return uri.prePath + "/favicon.ico";
 
     return "";

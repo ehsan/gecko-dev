@@ -22,7 +22,6 @@
  * Contributor(s):
  *   David Hyatt <hyatt@netscape.com> (Original Author)
  *   Christian Biesinger <cbiesinger@web.de>
- *   Bobby Holley <bobbyholley@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -49,8 +48,10 @@
 #include "nsIComponentManager.h"
 #include "imgIContainerObserver.h"
 
+#include "imgILoad.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsIImage.h"
 
 #include "nsIProperties.h"
 #include "nsISupportsPrimitives.h"
@@ -82,55 +83,54 @@ nsICODecoder::nsICODecoder()
   mColors = nsnull;
   mRow = nsnull;
   mHaveAlphaData = mDecodingAndMask = PR_FALSE;
-  mError = PR_FALSE;
 }
 
 nsICODecoder::~nsICODecoder()
 {
 }
 
-NS_IMETHODIMP nsICODecoder::Init(imgIContainer *aImage,
-                                 imgIDecoderObserver *aObserver,
-                                 PRUint32 aFlags)
-{
-  // Grab parameters
-  mImage = aImage;
-  mObserver = aObserver;
-  mFlags = aFlags;
+NS_IMETHODIMP nsICODecoder::Init(imgILoad *aLoad)
+{ 
+  mObserver = do_QueryInterface(aLoad);
+    
+  mImage = do_CreateInstance("@mozilla.org/image/container;1");
+  if (!mImage)
+    return NS_ERROR_OUT_OF_MEMORY;
 
-  // Fire OnStartDecode at init time to support bug 512435
-  if (!(mFlags & imgIDecoder::DECODER_FLAG_HEADERONLY) && mObserver)
-    mObserver->OnStartDecode(nsnull);
+  mFrame = do_CreateInstance("@mozilla.org/gfx/image/frame;2");
+  if (!mFrame)
+    return NS_ERROR_OUT_OF_MEMORY;
 
-  return NS_OK;
+  return aLoad->SetImage(mImage);
 }
 
-NS_IMETHODIMP nsICODecoder::Close(PRUint32 aFlags)
+NS_IMETHODIMP nsICODecoder::Close()
 {
+  // Tell the image that it's data has been updated 
+  // This should be a mFrame function, so that we don't have to query for interface...
+  nsIntRect r(0, 0, mDirEntry.mWidth, mDirEntry.mHeight);
+  nsCOMPtr<nsIImage> img(do_GetInterface(mFrame));
   nsresult rv = NS_OK;
+  if (img) 
+    rv = img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r);
+    
+  mImage->DecodingComplete();
 
-  // Send notifications if appropriate
-  if (!(mFlags & imgIDecoder::DECODER_FLAG_HEADERONLY) &&
-      !mError && !(aFlags & CLOSE_FLAG_DONTNOTIFY)) {
-    // Tell the image that it's data has been updated 
-    nsIntRect r(0, 0, mDirEntry.mWidth, mDirEntry.mHeight);
-    rv = mImage->FrameUpdated(0, r);
-
-
-    if (mObserver) {
-      mObserver->OnDataAvailable(nsnull, PR_TRUE, &r);
-      mObserver->OnStopFrame(nsnull, 0);
-    }
-    mImage->DecodingComplete();
-    if (mObserver) {
-      mObserver->OnStopContainer(nsnull, 0);
-      mObserver->OnStopDecode(nsnull, NS_OK, nsnull);
-    }
+  if (mObserver) {
+    mObserver->OnDataAvailable(nsnull, mFrame, &r);
+    mObserver->OnStopFrame(nsnull, mFrame);
+    mObserver->OnStopContainer(nsnull, mImage);
+    mObserver->OnStopDecode(nsnull, NS_OK, nsnull);
+    mObserver = nsnull;
   }
 
+  mImage = nsnull;
+  mFrame = nsnull;
+ 
   mPos = 0;
 
   delete[] mColors;
+  mColors = nsnull;
 
   mCurLine = 0;
   mRowBytes = 0;
@@ -152,20 +152,27 @@ NS_IMETHODIMP nsICODecoder::Flush()
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsICODecoder::Write(const char* aBuffer, PRUint32 aCount)
-{
-  // No forgiveness
-  if (mError)
-    return NS_ERROR_FAILURE;
 
+NS_METHOD nsICODecoder::ReadSegCb(nsIInputStream* aIn, void* aClosure,
+                             const char* aFromRawSegment, PRUint32 aToOffset,
+                             PRUint32 aCount, PRUint32 *aWriteCount) {
+  nsICODecoder *decoder = reinterpret_cast<nsICODecoder*>(aClosure);
+  *aWriteCount = aCount;
+  return decoder->ProcessData(aFromRawSegment, aCount);
+}
+
+NS_IMETHODIMP nsICODecoder::WriteFrom(nsIInputStream *aInStr, PRUint32 aCount, PRUint32 *aRetval)
+{
+  return aInStr->ReadSegments(ReadSegCb, this, aCount, aRetval);
+}
+
+nsresult nsICODecoder::ProcessData(const char* aBuffer, PRUint32 aCount) {
   if (!aCount) // aCount=0 means EOF
     return NS_OK;
 
   while (aCount && (mPos < ICONCOUNTOFFSET)) { // Skip to the # of icons.
     if (mPos == 2) { // if the third byte is 1: This is an icon, 2: a cursor
       if ((*aBuffer != 1) && (*aBuffer != 2)) {
-        mError = PR_TRUE;
         return NS_ERROR_FAILURE;
       }
       mIsCursor = (*aBuffer == 2);
@@ -208,10 +215,8 @@ nsICODecoder::Write(const char* aBuffer, PRUint32 aCount)
 
         // ensure mImageOffset is >= the size of the direntry headers (bug #245631)
         PRUint32 minImageOffset = DIRENTRYOFFSET + mNumIcons*sizeof(mDirEntryArray);
-        if (mImageOffset < minImageOffset) {
-          mError = PR_TRUE;
+        if (mImageOffset < minImageOffset)
           return NS_ERROR_FAILURE;
-        }
 
         colorDepth = e.mBitCount;
         memcpy(&mDirEntry, &e, sizeof(IconDirEntry));
@@ -245,17 +250,10 @@ nsICODecoder::Write(const char* aBuffer, PRUint32 aCount)
   nsresult rv;
 
   if (mPos == mImageOffset + BITMAPINFOSIZE) {
+    rv = mObserver->OnStartDecode(nsnull);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     ProcessInfoHeader();
-    rv = mImage->SetSize(mDirEntry.mWidth, mDirEntry.mHeight);
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (mObserver) {
-      rv = mObserver->OnStartContainer(nsnull, mImage);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-    if (mFlags & imgIDecoder::DECODER_FLAG_HEADERONLY)
-      return NS_OK;
-
     if (mBIH.bpp <= 8) {
       switch (mBIH.bpp) {
         case 1:
@@ -268,16 +266,16 @@ nsICODecoder::Write(const char* aBuffer, PRUint32 aCount)
           mNumColors = 256;
           break;
         default:
-          mError = PR_TRUE;
           return NS_ERROR_FAILURE;
       }
 
       mColors = new colorTable[mNumColors];
-      if (!mColors) {
-        mError = PR_TRUE;
+      if (!mColors)
         return NS_ERROR_OUT_OF_MEMORY;
-      }
     }
+
+    rv = mImage->Init(mDirEntry.mWidth, mDirEntry.mHeight, mObserver);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     if (mIsCursor) {
       nsCOMPtr<nsIProperties> props(do_QueryInterface(mImage));
@@ -295,25 +293,26 @@ nsICODecoder::Write(const char* aBuffer, PRUint32 aCount)
       }
     }
 
+    rv = mObserver->OnStartContainer(nsnull, mImage);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     mCurLine = mDirEntry.mHeight;
     mRow = (PRUint8*)malloc((mDirEntry.mWidth * mBIH.bpp)/8 + 4);
     // +4 because the line is padded to a 4 bit boundary, but I don't want
     // to make exact calculations here, that's unnecessary.
     // Also, it compensates rounding error.
-    if (!mRow) {
-      mError = PR_TRUE;
+    if (!mRow)
       return NS_ERROR_OUT_OF_MEMORY;
-    }
-
-    PRUint32 imageLength;
-    rv = mImage->AppendFrame(0, 0, mDirEntry.mWidth, mDirEntry.mHeight,
-                             gfxASurface::ImageFormatARGB32, (PRUint8**)&mImageData, &imageLength);
+    
+    rv = mFrame->Init(0, 0, mDirEntry.mWidth, mDirEntry.mHeight, GFXFORMATALPHA8, 24);
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = mImage->AppendFrame(mFrame);
+    NS_ENSURE_SUCCESS(rv, rv);
+    mObserver->OnStartFrame(nsnull, mFrame);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    if (mObserver) {
-      mObserver->OnStartFrame(nsnull, 0);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
+    PRUint32 imageLength;
+    mFrame->GetImageData((PRUint8**)&mImageData, &imageLength);
   }
 
   if (mColors && (mPos >= mImageOffset + BITMAPINFOSIZE) && 
@@ -352,10 +351,8 @@ nsICODecoder::Write(const char* aBuffer, PRUint32 aCount)
     // without allocated memory, the file is most likely invalid.
     NS_ASSERTION(mRow, "mRow is null");
     NS_ASSERTION(mImageData, "mImageData is null");
-    if (!mRow || !mImageData) {
-      mError = PR_TRUE;
+    if (!mRow || !mImageData)
       return NS_ERROR_FAILURE;
-    }
 
     PRUint32 rowSize = (mBIH.bpp * mDirEntry.mWidth + 7) / 8; // +7 to round up
     if (rowSize % 4)
@@ -439,7 +436,6 @@ nsICODecoder::Write(const char* aBuffer, PRUint32 aCount)
                 break;
               default:
                 // This is probably the wrong place to check this...
-                mError = PR_TRUE;
                 return NS_ERROR_FAILURE;
             }
 
@@ -460,19 +456,15 @@ nsICODecoder::Write(const char* aBuffer, PRUint32 aCount)
       mRowBytes = 0;
       mCurLine = mDirEntry.mHeight;
       mRow = (PRUint8*)realloc(mRow, rowSize);
-      if (!mRow) {
-        mError = PR_TRUE;
+      if (!mRow)
         return NS_ERROR_OUT_OF_MEMORY;
-      }
     }
 
     // Ensure memory has been allocated before decoding.
     NS_ASSERTION(mRow, "mRow is null");
     NS_ASSERTION(mImageData, "mImageData is null");
-    if (!mRow || !mImageData) {
-      mError = PR_TRUE;
+    if (!mRow || !mImageData)
       return NS_ERROR_FAILURE;
-    }
 
     while (mCurLine > 0 && aCount > 0) {
       PRUint32 toCopy = PR_MIN(rowSize - mRowBytes, aCount);

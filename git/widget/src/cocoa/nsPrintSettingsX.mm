@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   Conrad Carlen <ccarlen@netscape.com>
- *   Markus Stange <mstange@themasta.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -39,43 +38,137 @@
 
 #include "nsPrintSettingsX.h"
 #include "nsObjCExceptions.h"
+#include "nsIPrintSessionX.h"
 
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsServiceManagerUtils.h"
 
 #include "plbase64.h"
-#include "plstr.h"
+#include "prmem.h"
+#include "prnetdb.h"
 
-#include "nsCocoaUtils.h"
+#include "nsCocoaWindow.h"
+#include "nsMenuBarX.h"
+#include "nsMenuUtilsX.h"
+
+// This struct should be represented identically on all architectures, and
+// there shouldn't be any padding before the data field.
+struct FrozenHandle {
+  PRUint32 size;
+  char data[0];
+};
+
 
 #define PRINTING_PREF_BRANCH            "print."
 #define MAC_OS_X_PAGE_SETUP_PREFNAME    "macosx.pagesetup-2"
 
-NS_IMPL_ISUPPORTS_INHERITED1(nsPrintSettingsX, nsPrintSettings, nsPrintSettingsX)
 
-nsPrintSettingsX::nsPrintSettingsX()
+// Utility class stack-based handle ownership
+class StHandleOwner
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+public:
+  StHandleOwner(Handle inHandle)
+    : mHandle(inHandle)
+  {
+  }
 
-  mPrintInfo = [[NSPrintInfo sharedPrintInfo] copy];
+  ~StHandleOwner()
+  {
+    NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  NS_OBJC_END_TRY_ABORT_BLOCK;
+    if (mHandle)
+      ::DisposeHandle(mHandle);
+
+    NS_OBJC_END_TRY_ABORT_BLOCK;
+  }
+
+  Handle GetHandle() { return mHandle; }
+
+  void   ClearHandle(Boolean disposeIt = false)
+  {
+    NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+    if (disposeIt)
+      ::DisposeHandle(mHandle);
+
+    mHandle = nsnull;
+
+    NS_OBJC_END_TRY_ABORT_BLOCK;
+  }
+
+protected:
+  Handle mHandle;
+};
+
+
+//	Utility class for saving, locking, and restoring handle state.
+//  Ok with null handle.
+class StHandleLocker
+{
+public:
+  StHandleLocker(Handle theHandle)
+    :	mHandle(theHandle)
+  {
+    NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+    if (mHandle) {
+      mOldHandleState = ::HGetState(mHandle);
+      ::HLock(mHandle);
+    }
+
+    NS_OBJC_END_TRY_ABORT_BLOCK;
+  }
+
+  ~StHandleLocker()
+  {
+    NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+    if (mHandle)
+      ::HSetState(mHandle, mOldHandleState);
+
+    NS_OBJC_END_TRY_ABORT_BLOCK;
+  }
+
+protected:
+  Handle mHandle;
+  SInt8 mOldHandleState;
+};
+
+
+NS_IMPL_ISUPPORTS_INHERITED1(nsPrintSettingsX, nsPrintSettings, nsIPrintSettingsX)
+
+nsPrintSettingsX::nsPrintSettingsX() :
+  mPageFormat(kPMNoPageFormat),
+  mPrintSettings(kPMNoPrintSettings)
+{
 }
 
-nsPrintSettingsX::nsPrintSettingsX(const nsPrintSettingsX& src)
+
+nsPrintSettingsX::nsPrintSettingsX(const nsPrintSettingsX& src) :
+  mPageFormat(kPMNoPageFormat),
+  mPrintSettings(kPMNoPrintSettings)
 {
   *this = src;
 }
+
 
 nsPrintSettingsX::~nsPrintSettingsX()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  [mPrintInfo release];
+  if (mPageFormat != kPMNoPageFormat) {
+    ::PMRelease(mPageFormat);
+    mPageFormat = kPMNoPageFormat;
+  }
+  if (mPrintSettings != kPMNoPrintSettings) {
+    ::PMRelease(mPrintSettings);
+    mPrintSettings = kPMNoPrintSettings;
+  }
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
+
 
 nsPrintSettingsX& nsPrintSettingsX::operator=(const nsPrintSettingsX& rhs)
 {
@@ -87,34 +180,89 @@ nsPrintSettingsX& nsPrintSettingsX::operator=(const nsPrintSettingsX& rhs)
   
   nsPrintSettings::operator=(rhs);
 
-  [mPrintInfo release];
-  mPrintInfo = [rhs.mPrintInfo copy];
+  OSStatus status;
+   
+  if (mPageFormat != kPMNoPageFormat) {
+    ::PMRelease(mPageFormat);
+    mPageFormat = kPMNoPageFormat;
+  }
+  if (rhs.mPageFormat != kPMNoPageFormat) {
+    PMPageFormat pageFormat;
+    status = ::PMCreatePageFormat(&pageFormat);
+    if (status == noErr) {
+      status = ::PMCopyPageFormat(rhs.mPageFormat, pageFormat);
+      if (status == noErr) {
+        mPageFormat = pageFormat;
+        // NOTE: No need to re-initialize mUnwriteableMargin here (even
+        // though mPageFormat is changing). It'll be copied correctly by
+        // nsPrintSettings::operator=.
+      } else {
+        ::PMRelease(pageFormat);
+      }
+    }
+  }
+  
+  if (mPrintSettings != kPMNoPrintSettings) {
+    ::PMRelease(mPrintSettings);
+    mPrintSettings = kPMNoPrintSettings;
+  }
+  if (rhs.mPrintSettings != kPMNoPrintSettings) {
+    PMPrintSettings    printSettings;
+    status = ::PMCreatePrintSettings(&printSettings);
+    if (status == noErr) {
+      status = ::PMCopyPrintSettings(rhs.mPrintSettings, printSettings);
+      if (status == noErr)
+        mPrintSettings = printSettings;
+      else
+        ::PMRelease(printSettings);
+    }
+  }
 
   return *this;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(*this);
 }
 
+
 nsresult nsPrintSettingsX::Init()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  InitUnwriteableMargin();
+  OSStatus status;
 
-  return NS_OK;
+  PMPrintSession printSession = NULL;
+  status = ::PMCreateSession(&printSession);
+  
+  if (status == noErr) {
+    // First, create a default page format
+    status = CreateDefaultPageFormat(printSession, mPageFormat);
+    InitUnwriteableMargin();
+
+    // Then, if no error, create the default print settings
+    if (status == noErr) {
+      status = CreateDefaultPrintSettings(printSession, mPrintSettings);
+    }
+    OSStatus tempStatus = ::PMRelease(printSession);
+    if (status == noErr)
+      status = tempStatus;
+  }
+  return (status == noErr) ? NS_OK : NS_ERROR_FAILURE;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-// Should be called whenever the page format changes.
+
+// Should be called whenever mPageFormat changes.
 NS_IMETHODIMP nsPrintSettingsX::InitUnwriteableMargin()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
+  if (mPageFormat == kPMNoPageFormat)
+    return NS_OK;
+
   PMPaper paper;
   PMPaperMargins paperMargin;
-  PMPageFormat pageFormat = GetPMPageFormat();
-  ::PMGetPageFormatPaper(pageFormat, &paper);
+  ::PMGetPageFormatPaper(mPageFormat, &paper);
   ::PMPaperGetMargins(paper, &paperMargin);
   mUnwriteableMargin.top    = NS_POINTS_TO_TWIPS(paperMargin.top);
   mUnwriteableMargin.left   = NS_POINTS_TO_TWIPS(paperMargin.left);
@@ -126,11 +274,85 @@ NS_IMETHODIMP nsPrintSettingsX::InitUnwriteableMargin()
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;  
 }
 
-void
-nsPrintSettingsX::SetCocoaPrintInfo(NSPrintInfo* aPrintInfo)
+
+NS_IMETHODIMP nsPrintSettingsX::GetNativePrintSession(PMPrintSession *aNativePrintSession)
 {
-  mPrintInfo = aPrintInfo;
+   NS_ENSURE_ARG_POINTER(aNativePrintSession);
+   *aNativePrintSession = nsnull;
+   
+   nsCOMPtr<nsIPrintSession> printSession;
+   GetPrintSession(getter_AddRefs(printSession));
+   if (!printSession)
+    return NS_ERROR_FAILURE;
+   nsCOMPtr<nsIPrintSessionX> printSessionX(do_QueryInterface(printSession));
+   if (!printSession)
+    return NS_ERROR_FAILURE;
+
+   return printSessionX->GetNativeSession(aNativePrintSession);
 }
+
+
+NS_IMETHODIMP nsPrintSettingsX::GetPMPageFormat(PMPageFormat *aPMPageFormat)
+{
+  NS_ENSURE_ARG_POINTER(aPMPageFormat);
+  *aPMPageFormat = kPMNoPageFormat;
+  NS_ENSURE_STATE(mPageFormat != kPMNoPageFormat);
+  
+  *aPMPageFormat = mPageFormat;
+  OSStatus status = noErr;
+  
+  return (status == noErr) ? NS_OK : NS_ERROR_FAILURE;
+}
+
+
+NS_IMETHODIMP nsPrintSettingsX::SetPMPageFormat(PMPageFormat aPMPageFormat)
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
+  NS_ENSURE_ARG(aPMPageFormat);
+  
+  OSStatus status = ::PMRetain(aPMPageFormat);
+  if (status == noErr) {
+    if (mPageFormat)
+      status = ::PMRelease(mPageFormat);
+    mPageFormat = aPMPageFormat;
+    InitUnwriteableMargin();
+  }        
+  return (status == noErr) ? NS_OK : NS_ERROR_FAILURE;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
+}
+
+
+NS_IMETHODIMP nsPrintSettingsX::GetPMPrintSettings(PMPrintSettings *aPMPrintSettings)
+{
+  NS_ENSURE_ARG_POINTER(aPMPrintSettings);
+  *aPMPrintSettings = kPMNoPrintSettings;
+  NS_ENSURE_STATE(mPrintSettings != kPMNoPrintSettings);
+  
+  *aPMPrintSettings = mPrintSettings;
+
+  return NS_OK;
+}
+
+
+NS_IMETHODIMP nsPrintSettingsX::SetPMPrintSettings(PMPrintSettings aPMPrintSettings)
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
+  NS_ENSURE_ARG(aPMPrintSettings);
+  
+  OSStatus status = ::PMRetain(aPMPrintSettings);
+  if (status == noErr) {
+    if (mPrintSettings)
+      status = ::PMRelease(mPrintSettings);
+    mPrintSettings = aPMPrintSettings;
+  }        
+  return (status == noErr) ? NS_OK : NS_ERROR_FAILURE;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
+}
+
 
 NS_IMETHODIMP nsPrintSettingsX::ReadPageFormatFromPrefs()
 {
@@ -145,41 +367,64 @@ NS_IMETHODIMP nsPrintSettingsX::ReadPageFormatFromPrefs()
   if (NS_FAILED(rv))
     return rv;
       
-  nsXPIDLCString encodedData;
+  nsXPIDLCString  encodedData;
   rv = prefBranch->GetCharPref(MAC_OS_X_PAGE_SETUP_PREFNAME, getter_Copies(encodedData));
   if (NS_FAILED(rv))
     return rv;
 
   // decode the base64
-  char* decodedData = PL_Base64Decode(encodedData.get(), encodedData.Length(), nsnull);
-  NSData* data = [NSData dataWithBytes:decodedData length:PL_strlen(decodedData)];
-  if (!data)
+  PRInt32 encodedDataLen = encodedData.Length();
+  FrozenHandle* frozenHandle =
+   (FrozenHandle*)::PL_Base64Decode(encodedData.get(), encodedDataLen, nsnull);
+  if (!frozenHandle)
     return NS_ERROR_FAILURE;
 
-  PMPageFormat newPageFormat;
-#ifdef NS_LEOPARD_AND_LATER
-  OSStatus status = ::PMPageFormatCreateWithDataRepresentation((CFDataRef)data, &newPageFormat);
-#else
-  OSStatus status = ::PMUnflattenPageFormatWithCFData((CFDataRef)data, &newPageFormat);
-#endif
-  if (status == noErr) {
-    SetPMPageFormat(newPageFormat);
-  }
-  InitUnwriteableMargin();
+  PRUint32 handleSize = PR_ntohl(frozenHandle->size);
 
-  return NS_OK;
+  // Ensure that the length reported in the frozen handle agrees with the
+  // amount of decoded data.  At most 3 bytes of data map to 4 bytes when
+  // base64-encoded.
+  PRUint32 maximumDataSize = (encodedDataLen * 3) / 4 - sizeof(FrozenHandle);
+  PRUint32 minimumDataSize = maximumDataSize - 2;
+  if (handleSize > maximumDataSize || handleSize < minimumDataSize) {
+    free(frozenHandle);
+    return NS_ERROR_FAILURE;
+  }
+
+  Handle    decodedDataHandle = nsnull;
+  OSErr err = ::PtrToHand(frozenHandle->data, &decodedDataHandle, handleSize);
+  free(frozenHandle);
+  if (err != noErr)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  StHandleOwner   handleOwner(decodedDataHandle);  
+
+  OSStatus      status;
+  PMPageFormat  newPageFormat = kPMNoPageFormat;
+  
+  status = ::PMCreatePageFormat(&newPageFormat);
+  if (status == noErr) { 
+    status = ::PMUnflattenPageFormat(decodedDataHandle, &newPageFormat);
+    if (status == noErr) {
+      if (mPageFormat)
+        status = ::PMRelease(mPageFormat);
+      mPageFormat = newPageFormat; // PMCreatePageFormat returned it with a refcnt of 1
+      InitUnwriteableMargin();
+    }
+  }
+  return (status == noErr) ? NS_OK : NS_ERROR_FAILURE;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
+
 
 NS_IMETHODIMP nsPrintSettingsX::WritePageFormatToPrefs()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  PMPageFormat pageFormat = GetPMPageFormat();
-  if (pageFormat == kPMNoPageFormat)
+  if (mPageFormat == kPMNoPageFormat)
     return NS_ERROR_NOT_INITIALIZED;
-
+    
   nsresult rv;
   nsCOMPtr<nsIPrefService> prefService(do_GetService(NS_PREFSERVICE_CONTRACTID, &rv));
   if (NS_FAILED(rv))
@@ -189,17 +434,32 @@ NS_IMETHODIMP nsPrintSettingsX::WritePageFormatToPrefs()
   if (NS_FAILED(rv))
     return rv;
 
-  NSData* data = nil;
-#ifdef NS_LEOPARD_AND_LATER
-  OSStatus err = ::PMPageFormatCreateDataRepresentation(pageFormat, (CFDataRef*)&data, kPMDataFormatXMLDefault);
-#else
-  OSStatus err = ::PMFlattenPageFormatToCFData(pageFormat, (CFDataRef*)&data);
-#endif
+  Handle    pageFormatHandle = nsnull;
+  OSStatus  err = ::PMFlattenPageFormat(mPageFormat, &pageFormatHandle);
   if (err != noErr)
     return NS_ERROR_FAILURE;
+    
+  StHandleOwner   handleOwner(pageFormatHandle);
+  StHandleLocker  handleLocker(pageFormatHandle);
 
-  nsXPIDLCString encodedData;
-  encodedData.Adopt(PL_Base64Encode((char*)[data bytes], [data length], nsnull));
+  // Save the handle in a struct that identifies the data length and
+  // the data itself, and wrap it all up in base64.  The length must be
+  // included because PL_DecodeBase64 doesn't return the size of the
+  // decoded data, and the handle will need to be reconstructed later with
+  // the correct size.
+  PRUint32 dataSize = ::GetHandleSize(pageFormatHandle);
+  PRUint32 frozenDataSize = sizeof(FrozenHandle) + dataSize;
+  FrozenHandle* frozenHandle = (FrozenHandle*)malloc(frozenDataSize);
+  if (!frozenHandle)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  frozenHandle->size = PR_htonl(dataSize);
+  memcpy(&frozenHandle->data, *pageFormatHandle, dataSize);
+
+  nsXPIDLCString  encodedData;
+  encodedData.Adopt(::PL_Base64Encode((char*)frozenHandle, frozenDataSize,
+                    nsnull));
+  free(frozenHandle);
   if (!encodedData.get())
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -207,6 +467,7 @@ NS_IMETHODIMP nsPrintSettingsX::WritePageFormatToPrefs()
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
+
 
 nsresult nsPrintSettingsX::_Clone(nsIPrintSettings **_retval)
 {
@@ -221,6 +482,7 @@ nsresult nsPrintSettingsX::_Clone(nsIPrintSettings **_retval)
   return NS_OK;
 }
 
+
 NS_IMETHODIMP nsPrintSettingsX::_Assign(nsIPrintSettings *aPS)
 {
   nsPrintSettingsX *printSettingsX = static_cast<nsPrintSettingsX*>(aPS);
@@ -230,85 +492,63 @@ NS_IMETHODIMP nsPrintSettingsX::_Assign(nsIPrintSettings *aPS)
   return NS_OK;
 }
 
-// The methods below provide wrappers for the different ways of accessing the
-// Core Printing PM* objects from the NSPrintInfo object. On 10.4 we need to
-// use secret methods which have been made public in 10.5 with slightly
-// different names.
 
-// Secret 10.4 methods (from Appkit class dump):
-@interface NSPrintInfo (NSTemporaryCompatibility)
-- (struct OpaquePMPrintSession *)_pmPrintSession;
-- (void)setPMPageFormat:(struct OpaquePMPageFormat *)arg1;
-- (struct OpaquePMPageFormat *)pmPageFormat;
-- (void)setPMPrintSettings:(struct OpaquePMPrintSettings *)arg1;
-- (struct OpaquePMPrintSettings *)pmPrintSettings;
-@end
-
-#if MAC_OS_X_VERSION_MIN_REQUIRED <= MAC_OS_X_VERSION_10_4
-// Official 10.5+ methods:
-@interface NSPrintInfo (OfficialPMAccessors)
-- (void*)PMPageFormat;
-- (void*)PMPrintSession; 
-- (void*)PMPrintSettings; 
-- (void)updateFromPMPageFormat; 
-- (void)updateFromPMPrintSettings; 
-@end
-#endif
-
-PMPrintSettings
-nsPrintSettingsX::GetPMPrintSettings()
+OSStatus nsPrintSettingsX::CreateDefaultPageFormat(PMPrintSession aSession, PMPageFormat& outFormat)
 {
-  if ([mPrintInfo respondsToSelector:@selector(PMPrintSettings)])
-    return static_cast<PMPrintSettings>([mPrintInfo PMPrintSettings]); // 10.5+
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
-  if ([mPrintInfo respondsToSelector:@selector(pmPrintSettings)])
-    return static_cast<PMPrintSettings>([mPrintInfo pmPrintSettings]); // 10.4
-
-  NS_ASSERTION(PR_FALSE, "no way of getting PMPrintSettings from NSPrintInfo");
-  PMPrintSettings printSettings;
-  PMCreatePrintSettings(&printSettings);
-  return printSettings;
-}
-
-PMPrintSession
-nsPrintSettingsX::GetPMPrintSession()
-{
-  if ([mPrintInfo respondsToSelector:@selector(PMPrintSession)])
-    return static_cast<PMPrintSession>([mPrintInfo PMPrintSession]); // 10.5+
-
-  if ([mPrintInfo respondsToSelector:@selector(_pmPrintSession)])
-    return static_cast<PMPrintSession>([mPrintInfo _pmPrintSession]); // 10.4
-
-  NS_ASSERTION(PR_FALSE, "no way of getting PMPrintSession from NSPrintInfo");
-  PMPrintSession printSession;
-  PMCreateSession(&printSession);
-  return printSession;
-}
-
-PMPageFormat
-nsPrintSettingsX::GetPMPageFormat()
-{
-  if ([mPrintInfo respondsToSelector:@selector(PMPageFormat)])
-    return static_cast<PMPageFormat>([mPrintInfo PMPageFormat]); // 10.5+
-
-  if ([mPrintInfo respondsToSelector:@selector(pmPageFormat)])
-    return static_cast<PMPageFormat>([mPrintInfo pmPageFormat]); // 10.4
-
-  NS_ASSERTION(PR_FALSE, "no way of getting PMPageFormat from NSPrintInfo");
+  OSStatus status;
   PMPageFormat pageFormat;
-  PMCreatePageFormat(&pageFormat);
-  return pageFormat;
+  
+  outFormat = kPMNoPageFormat;
+  status = ::PMCreatePageFormat(&pageFormat);
+  if (status == noErr && pageFormat != kPMNoPageFormat) {
+    status = ::PMSessionDefaultPageFormat(aSession, pageFormat);
+    if (status == noErr) {
+      outFormat = pageFormat;
+      return NS_OK;
+    }
+  }
+  return status;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(noErr);
 }
 
-void
-nsPrintSettingsX::SetPMPageFormat(PMPageFormat aPageFormat)
+
+OSStatus nsPrintSettingsX::CreateDefaultPrintSettings(PMPrintSession aSession, PMPrintSettings& outSettings)
 {
-  PMPageFormat oldPageFormat = GetPMPageFormat();
-  ::PMCopyPageFormat(aPageFormat, oldPageFormat);
-  if ([mPrintInfo respondsToSelector:@selector(updateFromPMPageFormat)]) {
-    [mPrintInfo updateFromPMPageFormat]; // 10.5+
-  } else if ([mPrintInfo respondsToSelector:@selector(setPMPageFormat:)]) {
-    [mPrintInfo setPMPageFormat:oldPageFormat]; // 10.4
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
+
+  OSStatus status;
+  PMPrintSettings printSettings;
+  
+  outSettings = kPMNoPrintSettings;
+  status = ::PMCreatePrintSettings(&printSettings);
+  if (status == noErr && printSettings != kPMNoPrintSettings) {
+    status = ::PMSessionDefaultPrintSettings(aSession, printSettings);
+    if (status == noErr) {
+      outSettings = printSettings;
+      return noErr;
+    }
   }
+  return status;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(noErr);
+}
+
+NS_IMETHODIMP nsPrintSettingsX::CleanUpAfterCarbonDialog()
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
+  NSWindow* mainWindow = [NSApp mainWindow];
+  if (mainWindow) {
+    [WindowDelegate paintMenubarForWindow:mainWindow];
+  } else {
+    nsMenuBarX* hiddenWindowMenuBar = nsMenuUtilsX::GetHiddenWindowMenuBar();
+    if (hiddenWindowMenuBar)
+      hiddenWindowMenuBar->Paint();
+  }
+  
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 

@@ -137,7 +137,7 @@ GetWidthInfo(nsIRenderingContext *aRenderingContext,
                                           nsGkAtoms::nowrap)) {
             minCoord = w;
         }
-        prefCoord = NS_MAX(w, minCoord);
+        prefCoord = PR_MAX(w, minCoord);
     } else if (unit == eStyleUnit_Percent) {
         prefPercent = stylePos->mWidth.GetPercentValue();
     } else if (unit == eStyleUnit_Enumerated && aIsCell) {
@@ -273,18 +273,14 @@ BasicTableLayoutStrategy::ComputeColumnIntrinsicWidths(nsIRenderingContext* aRen
         // Consider the widths on the column-group.  Note that we follow
         // what the HTML spec says here, and make the width apply to
         // each column in the group, not the group as a whole.
-
-        // If column has width, column-group doesn't override width.
-        if (colInfo.minCoord == 0 && colInfo.prefCoord == 0 &&
-            colInfo.prefPercent == 0.0f) {
-            NS_ASSERTION(colFrame->GetParent()->GetType() ==
-                             nsGkAtoms::tableColGroupFrame,
-                         "expected a column-group");
-            colInfo = GetColWidthInfo(aRenderingContext, colFrame->GetParent());
-            colFrame->AddCoords(colInfo.minCoord, colInfo.prefCoord,
-                                colInfo.hasSpecifiedWidth);
-            colFrame->AddPrefPercent(colInfo.prefPercent);
-        }
+        // XXX Should we be doing this when we have widths on the column?
+        NS_ASSERTION(colFrame->GetParent()->GetType() ==
+                         nsGkAtoms::tableColGroupFrame,
+                     "expected a column-group");
+        colInfo = GetColWidthInfo(aRenderingContext, colFrame->GetParent());
+        colFrame->AddCoords(colInfo.minCoord, colInfo.prefCoord,
+                            colInfo.hasSpecifiedWidth);
+        colFrame->AddPrefPercent(colInfo.prefPercent);
 
         // Consider the contents of and the widths on the cells without
         // colspans.

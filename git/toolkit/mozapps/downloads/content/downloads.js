@@ -48,7 +48,6 @@
 
 const PREF_BDM_CLOSEWHENDONE = "browser.download.manager.closeWhenDone";
 const PREF_BDM_ALERTONEXEOPEN = "browser.download.manager.alertOnEXEOpen";
-const PREF_BDM_SCANWHENDONE = "browser.download.manager.scanWhenDone";
 
 const nsLocalFile = Components.Constructor("@mozilla.org/file/local;1",
                                            "nsILocalFile", "initWithPath");
@@ -290,18 +289,14 @@ function openDownload(aDownload)
     } catch (e) { }
 
 #ifdef XP_WIN
-#ifndef WINCE
     // On Vista and above, we rely on native security prompting for
-    // downloaded content unless it's disabled.
+    // downloaded content.
     try {
-      var sysInfo = Cc["@mozilla.org/system-info;1"].
-                    getService(Ci.nsIPropertyBag2);
-      if (parseFloat(sysInfo.getProperty("version")) >= 6 &&
-          pref.getBoolPref(PREF_BDM_SCANWHENDONE)) {
-        dontAsk = true;
-      }
+        var sysInfo = Cc["@mozilla.org/system-info;1"].
+                      getService(Ci.nsIPropertyBag2);
+        if (parseFloat(sysInfo.getProperty("version")) >= 6)
+          dontAsk = true;
     } catch (ex) { }
-#endif
 #endif
 
     if (!dontAsk) {
@@ -323,15 +318,6 @@ function openDownload(aDownload)
     }
   }
   try {
-    try {
-      let download = gDownloadManager.getDownload(aDownload.getAttribute("dlid"));
-      let mimeInfo = download.MIMEInfo;
-      if (mimeInfo.preferredAction == mimeInfo.useHelperApp) {
-        mimeInfo.launchWithFile(f);
-        return;
-      }
-    } catch (ex) {
-    }
     f.launch();
   } catch (ex) {
     // if launch fails, try sending it through the system's external
@@ -1309,7 +1295,7 @@ function downloadMatchesSearch(aItem)
 
   // Make sure each of the terms are found
   for each (let term in gSearchTerms)
-    if (combinedSearch.indexOf(term) == -1)
+    if (combinedSearch.search(term) == -1)
       return false;
 
   return true;

@@ -66,6 +66,10 @@ MODULE_OPTIMIZE_FLAGS = -O2
 endif
 endif
 
+REQUIRES        = $(PNG_REQUIRES) \
+                  $(ZLIB_REQUIRES) \
+                  libpixman \
+                  $(NULL)
 
 CSRCS   = \
         cairo.c \
@@ -182,7 +186,7 @@ CSRCS   += $(PSPDF_BASE_CSRCS) $(PDF_CSRCS)
 EXPORTS_cairo += $(PDF_EXPORTS)
 endif
 
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 CSRCS   += cairo-quartz-surface.c cairo-quartz-image-surface.c cairo-quartz-font.c
 EXPORTS_cairo += cairo-quartz.h cairo-quartz-image.h
 endif

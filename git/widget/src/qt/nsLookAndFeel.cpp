@@ -328,6 +328,7 @@ static const char *metricToString[] = {
     "eMetric_SubmenuDelay",
     "eMetric_MenusCanOverlapOSBar",
     "eMetric_SkipNavigatingDisabledMenuItem",
+    "eMetric_DragFullWindow",
     "eMetric_DragThresholdX",
     "eMetric_DragThresholdY",
     "eMetric_UseAccessibilityTheme",
@@ -468,6 +469,10 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID,PRInt32 &aMetric)
       aMetric = 1;
       break;
 
+    case eMetric_DragFullWindow:
+      aMetric = 1;
+      break;
+
     case eMetric_ScrollArrowStyle:
       aMetric = eMetric_ScrollArrowStyleSingle;
       break;
@@ -477,8 +482,6 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID,PRInt32 &aMetric)
       break;
 
     case eMetric_WindowsDefaultTheme:
-    case eMetric_TouchEnabled:
-    case eMetric_MaemoClassic:
       aMetric = 0;
       res = NS_ERROR_NOT_IMPLEMENTED;
       break;

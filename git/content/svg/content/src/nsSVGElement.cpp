@@ -233,9 +233,9 @@ nsSVGElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 }
 
 nsresult
-nsSVGElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                           const nsAString* aValue, PRBool aNotify)
-{  
+nsSVGElement::BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
+                            const nsAString* aValue, PRBool aNotify)
+{
   // If this is an svg presentation attribute we need to map it into
   // the content stylerule.
   // XXX For some reason incremental mapping doesn't work, so for now
@@ -245,6 +245,13 @@ nsSVGElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
     mContentStyleRule = nsnull;
   }
 
+  return nsSVGElementBase::BeforeSetAttr(aNamespaceID, aName, aValue, aNotify);
+}
+
+nsresult
+nsSVGElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
+                           const nsAString* aValue, PRBool aNotify)
+{  
   if (IsEventName(aName) && aValue) {
     nsresult rv = AddScriptEventListener(GetEventNameForAttr(aName), *aValue);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -726,10 +733,8 @@ nsSVGElement::WalkContentStyleRules(nsRuleWalker* aRuleWalker)
   if (!mContentStyleRule)
     UpdateContentStyleRule();
 
-  if (mContentStyleRule) {
-    mContentStyleRule->RuleMatched();
+  if (mContentStyleRule)  
     aRuleWalker->Forward(mContentStyleRule);
-  }
 
   return NS_OK;
 }
@@ -862,7 +867,8 @@ nsSVGElement::sLightingEffectsMap[] = {
 NS_IMETHODIMP
 nsSVGElement::IsSupported(const nsAString& aFeature, const nsAString& aVersion, PRBool* aReturn)
 {
-  return nsGenericElement::IsSupported(aFeature, aVersion, aReturn); 
+  NS_NOTYETIMPLEMENTED("nsSVGElement::IsSupported");
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 //----------------------------------------------------------------------
@@ -926,8 +932,7 @@ nsSVGElement::GetOwnerSVGElement(nsIDOMSVGSVGElement * *aOwnerSVGElement)
 NS_IMETHODIMP
 nsSVGElement::GetViewportElement(nsIDOMSVGElement * *aViewportElement)
 {
-  *aViewportElement = nsSVGUtils::GetNearestViewportElement(this).get();
-  return NS_OK;
+  return nsSVGUtils::GetNearestViewportElement(this, aViewportElement);
 }
 
 //----------------------------------------------------------------------

@@ -58,6 +58,7 @@
 #include "nsPresContext.h"
 #include "nsIRenderingContext.h"
 #include "nsIPresShell.h"
+#include "nsIImage.h"
 #include "nsIDocument.h"
 #include "nsIHTMLDocument.h"
 #include "nsStyleConsts.h"
@@ -158,9 +159,7 @@ nsIFrame*
 NS_NewImageBoxFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsImageBoxFrame (aPresShell, aContext);
-}
-
-NS_IMPL_FRAMEARENA_HELPERS(nsImageBoxFrame)
+} // NS_NewTitledButtonFrame
 
 NS_IMETHODIMP
 nsImageBoxFrame::AttributeChanged(PRInt32 aNameSpaceID,
@@ -245,7 +244,7 @@ void
 nsImageBoxFrame::UpdateImage()
 {
   if (mImageRequest) {
-    mImageRequest->CancelAndForgetObserver(NS_ERROR_FAILURE);
+    mImageRequest->Cancel(NS_ERROR_FAILURE);
     mImageRequest = nsnull;
   }
 
@@ -279,7 +278,7 @@ nsImageBoxFrame::UpdateImage()
     if (!(appearance && nsBox::gTheme && 
           nsBox::gTheme->ThemeSupportsWidget(nsnull, this, appearance))) {
       // get the list-style-image
-      imgIRequest *styleRequest = GetStyleList()->GetListStyleImage();
+      imgIRequest *styleRequest = GetStyleList()->mListStyleImage;
       if (styleRequest) {
         styleRequest->Clone(mListener, getter_AddRefs(mImageRequest));
       }
@@ -324,19 +323,16 @@ public:
 
   // Doesn't handle HitTest because nsLeafBoxFrame already creates an
   // event receiver for us
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
+     const nsRect& aDirtyRect);
   NS_DISPLAY_DECL_NAME("XULImage")
 };
 
 void nsDisplayXULImage::Paint(nsDisplayListBuilder* aBuilder,
-                              nsIRenderingContext* aCtx)
+     nsIRenderingContext* aCtx, const nsRect& aDirtyRect)
 {
   static_cast<nsImageBoxFrame*>(mFrame)->
-    PaintImage(*aCtx, mVisibleRect, aBuilder->ToReferenceFrame(mFrame),
-               aBuilder->ShouldSyncDecodeImages()
-                 ? (PRUint32) imgIContainer::FLAG_SYNC_DECODE
-                 : (PRUint32) imgIContainer::FLAG_NONE);
+    PaintImage(*aCtx, aDirtyRect, aBuilder->ToReferenceFrame(mFrame));
 }
 
 NS_IMETHODIMP
@@ -362,8 +358,7 @@ nsImageBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
 void
 nsImageBoxFrame::PaintImage(nsIRenderingContext& aRenderingContext,
-                            const nsRect& aDirtyRect, nsPoint aPt,
-                            PRUint32 aFlags)
+                            const nsRect& aDirtyRect, nsPoint aPt)
 {
   nsRect rect;
   GetClientRect(rect);
@@ -385,7 +380,7 @@ nsImageBoxFrame::PaintImage(nsIRenderingContext& aRenderingContext,
     PRBool hasSubRect = !mUseSrcAttr && (mSubRect.width > 0 || mSubRect.height > 0);
     nsLayoutUtils::DrawSingleImage(&aRenderingContext, imgCon,
         nsLayoutUtils::GetGraphicsFilterForFrame(this),
-        rect, dirty, aFlags, hasSubRect ? &mSubRect : nsnull);
+        rect, dirty, hasSubRect ? &mSubRect : nsnull);
   }
 }
 
@@ -417,8 +412,8 @@ nsImageBoxFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   nsCOMPtr<nsIURI> oldURI, newURI;
   if (mImageRequest)
     mImageRequest->GetURI(getter_AddRefs(oldURI));
-  if (myList->GetListStyleImage())
-    myList->GetListStyleImage()->GetURI(getter_AddRefs(newURI));
+  if (myList->mListStyleImage)
+    myList->mListStyleImage->GetURI(getter_AddRefs(newURI));
   PRBool equal;
   if (newURI == oldURI ||   // handles null==null
       (newURI && oldURI &&
@@ -548,6 +543,7 @@ NS_IMETHODIMP nsImageBoxFrame::OnStopDecode(imgIRequest *request,
 }
 
 NS_IMETHODIMP nsImageBoxFrame::FrameChanged(imgIContainer *container,
+                                            gfxIImageFrame *newframe,
                                             nsIntRect *dirtyRect)
 {
   nsBoxLayoutState state(PresContext());
@@ -595,11 +591,12 @@ NS_IMETHODIMP nsImageBoxListener::OnStopDecode(imgIRequest *request,
 }
 
 NS_IMETHODIMP nsImageBoxListener::FrameChanged(imgIContainer *container,
+                                               gfxIImageFrame *newframe,
                                                nsIntRect *dirtyRect)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;
 
-  return mFrame->FrameChanged(container, dirtyRect);
+  return mFrame->FrameChanged(container, newframe, dirtyRect);
 }
 

@@ -349,9 +349,6 @@ LoginManager.prototype = {
 
 
         handleEvent : function (event) {
-            if (!event.isTrusted)
-                return;
-
             this._pwmgr.log("domEventListener: got event " + event.type);
 
             switch (event.type) {
@@ -598,11 +595,9 @@ LoginManager.prototype = {
 
         var result = null;
 
-        if (aPreviousResult &&
-                aSearchString.substr(0, aPreviousResult.searchString.length) == aPreviousResult.searchString) {
+        if (aPreviousResult) {
             this.log("Using previous autocomplete result");
             result = aPreviousResult;
-            result.wrappedJSObject.searchString = aSearchString;
 
             // We have a list of results for a shorter search string, so just
             // filter them further based on the new search string.
@@ -1247,17 +1242,13 @@ LoginManager.prototype = {
      */
     _notifyFoundLogins : function (didntFillReason, usernameField,
                                    passwordField, foundLogins, selectedLogin) {
-        // We need .setProperty(), which is a method on the original
-        // nsIWritablePropertyBag. Strangley enough, nsIWritablePropertyBag2
-        // doesn't inherit from that, so the additional QI is needed.
         let formInfo = Cc["@mozilla.org/hash-property-bag;1"].
-                       createInstance(Ci.nsIWritablePropertyBag2).
-                       QueryInterface(Ci.nsIWritablePropertyBag);
+                       createInstance(Ci.nsIWritablePropertyBag2);
 
         formInfo.setPropertyAsACString("didntFillReason", didntFillReason);
         formInfo.setPropertyAsInterface("usernameField", usernameField);
         formInfo.setPropertyAsInterface("passwordField", passwordField);
-        formInfo.setProperty("foundLogins", foundLogins.concat());
+        formInfo.setPropertyAsInterface("foundLogins", foundLogins.concat());
         formInfo.setPropertyAsInterface("selectedLogin", selectedLogin);
 
         this._observerService.notifyObservers(formInfo,
@@ -1327,12 +1318,6 @@ UserAutoCompleteResult.prototype = {
 
     // private
     logins : null,
-
-    // Allow autoCompleteSearch to get at the JS object so it can
-    // modify some readonly properties for internal use.
-    get wrappedJSObject() {
-        return this;
-    },
 
     // Interfaces from idl...
     searchString : null,

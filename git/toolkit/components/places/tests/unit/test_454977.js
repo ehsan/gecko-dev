@@ -65,7 +65,6 @@ function add_visit(aURI, aVisitDate, aVisitType) {
   stmt.bindInt64Parameter(0, visitId);
   do_check_true(stmt.executeStep());
   var placeId = stmt.getInt64(0);
-  stmt.finalize();
   do_check_true(placeId > 0);
   return placeId;
 }
@@ -84,7 +83,7 @@ function check_results(aExpectedCount, aExpectedCountWithHidden) {
   query.maxVisits = visit_count;
   var options = hs.getNewQueryOptions();
   options.queryType = Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY;
-  var result = hs.executeQuery(query, options);
+  result = hs.executeQuery(query, options);
   var root = result.root;
   root.containerOpen = true;
   // Children without hidden ones

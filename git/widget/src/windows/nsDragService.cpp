@@ -356,13 +356,9 @@ nsDragService::StartInvokingDragSession(IDataObject * aDataObj,
   mUserCancelled = nativeDragSource->UserCancelled();
 
   // We're done dragging, get the cursor position and end the drag
-  // Use GetMessagePos to get the position of the mouse at the last message
-  // seen by the event loop. (Bug 489729)
-  DWORD pos = ::GetMessagePos();
-  POINT cpos;
-  cpos.x = GET_X_LPARAM(pos);
-  cpos.y = GET_Y_LPARAM(pos);
-  SetDragEndPoint(nsIntPoint(cpos.x, cpos.y));
+  POINT pos;
+  GetCursorPos(&pos);
+  SetDragEndPoint(nsIntPoint(pos.x, pos.y));
   EndDragSession(PR_TRUE);
 
   // For some drag/drop interactions, IDataObject::SetData doesn't get
@@ -440,8 +436,6 @@ nsDragService::GetNumDropItems(PRUint32 * aNumItems)
         ::GlobalUnlock(stm.hGlobal);
         ::ReleaseStgMedium(&stm);
       }
-      else
-        *aNumItems = 1;
     }
     else
       *aNumItems = 1;

@@ -83,14 +83,6 @@ public:
   virtual nsSMILValue GetBaseValue() const = 0;
 
   /**
-   * Clears the animated value of this attribute.
-   *
-   * NOTE: The animation target is not guaranteed to be in a document when this
-   * method is called. (See bug 523188)
-   */
-  virtual void ClearAnimValue() = 0;
-
-  /**
    * Sets the presentation value of this attribute.
    *
    * @param aValue  The value to set.

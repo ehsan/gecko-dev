@@ -1507,7 +1507,7 @@ nsFtpState::R_pasv() {
         mDataStream = do_QueryInterface(input);
     }
 
-    if (mRETRFailed || (!mPath.IsEmpty() && mPath.Last() == '/'))
+    if (mRETRFailed)
         return FTP_S_CWD;
     return FTP_S_SIZE;
 }
@@ -1596,7 +1596,7 @@ nsFtpState::InstallCacheListener()
             do_CreateInstance(NS_STREAMLISTENERTEE_CONTRACTID);
     NS_ENSURE_STATE(tee);
 
-    nsresult rv = tee->Init(mChannel->StreamListener(), out, nsnull);
+    nsresult rv = tee->Init(mChannel->StreamListener(), out);
     NS_ENSURE_SUCCESS(rv, rv);
 
     mChannel->SetStreamListener(tee);
@@ -2010,16 +2010,13 @@ nsFtpState::OnCacheEntryAvailable(nsICacheEntryDescriptor *entry,
     if (IsClosed())
         return NS_OK;
 
-    if (NS_SUCCEEDED(status) && entry) {
-        mDoomCache = PR_TRUE;
-        mCacheEntry = entry;
-        if (CanReadCacheEntry() && ReadCacheEntry()) {
-            mState = FTP_READ_CACHE;
-            return NS_OK;
-        }
+    mDoomCache = PR_TRUE;
+    mCacheEntry = entry;
+    if (CanReadCacheEntry() && ReadCacheEntry()) {
+        mState = FTP_READ_CACHE;
+    } else {
+        Connect();
     }
-
-    Connect();
     return NS_OK;
 }
 
@@ -2210,19 +2207,15 @@ nsFtpState::CheckCache()
     // Try to open a cache entry immediately, but if the cache entry is busy,
     // then wait for it to be available.
 
-    nsresult rv = session->OpenCacheEntry(key, accessReq, PR_FALSE,
-                                          getter_AddRefs(mCacheEntry));
-    if (NS_SUCCEEDED(rv) && mCacheEntry) {
+    session->OpenCacheEntry(key, accessReq, PR_FALSE,
+                            getter_AddRefs(mCacheEntry));
+    if (mCacheEntry) {
         mDoomCache = PR_TRUE;
         return PR_FALSE;  // great, we're ready to proceed!
     }
 
-    if (rv == NS_ERROR_CACHE_WAIT_FOR_VALIDATION) {
-        rv = session->AsyncOpenCacheEntry(key, accessReq, this);
-        return NS_SUCCEEDED(rv);
-    }
-
-    return PR_FALSE;
+    nsresult rv = session->AsyncOpenCacheEntry(key, accessReq, this);
+    return NS_SUCCEEDED(rv);
 }
 
 nsresult

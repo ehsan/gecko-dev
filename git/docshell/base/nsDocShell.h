@@ -360,15 +360,8 @@ protected:
     // complete.
     nsresult CheckClassifier(nsIChannel *aChannel);
 
-    nsresult ScrollIfAnchor(nsIURI * aURI, PRBool * aWasAnchor,
-                            PRUint32 aLoadType, nscoord *cx, nscoord *cy,
-                            PRBool * aDoHashchange);
-
-    // Dispatches the hashchange event to the current thread, if the document's
-    // readystate is "complete".
-    nsresult DispatchAsyncHashchange();
-
-    nsresult FireHashchange();
+    NS_IMETHOD ScrollIfAnchor(nsIURI * aURI, PRBool * aWasAnchor,
+                              PRUint32 aLoadType, nscoord *cx, nscoord *cy);
 
     // Returns PR_TRUE if would have called FireOnLocationChange,
     // but did not because aFireOnLocationChange was false on entry.
@@ -696,13 +689,6 @@ protected:
     // pagehide/unload is happening for some reason other than just loading a
     // new URI.
     nsCOMPtr<nsIURI>           mLoadingURI;
-
-    // Set in LoadErrorPage from the method argument and used later
-    // in CreateContentViewer. We have to delay an shistory entry creation
-    // for which these objects are needed.
-    nsCOMPtr<nsIURI>           mFailedURI;
-    nsCOMPtr<nsIChannel>       mFailedChannel;
-    PRUint32                   mFailedLoadType;
 
     // WEAK REFERENCES BELOW HERE.
     // Note these are intentionally not addrefd.  Doing so will create a cycle.

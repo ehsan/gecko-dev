@@ -57,8 +57,6 @@ function Observer(aExpectedId)
 Observer.prototype =
 {
   checked: false,
-  onItemMovedCalled: false,
-  onItemRemovedCalled: false,
   onBeginUpdateBatch: function() {
   },
   onEndUpdateBatch: function() {
@@ -71,14 +69,13 @@ Observer.prototype =
   onItemRemoved: function(id, folder, index) {
     do_check_false(this.checked);
     do_check_eq(this.removedId, id);
-    this.onItemRemovedCalled = true;
+    this.checked = true;
   },
   onItemChanged: function(id, property, isAnnotationProperty, value) {
   },
   onItemVisited: function(id, visitID, time) {
   },
   onItemMoved: function(id, oldParent, oldIndex, newParent, newIndex) {
-    this.onItemMovedCalled = true;
   },
   QueryInterface: function(iid) {
     if (iid.equals(Ci.nsINavBookmarkObserver) ||
@@ -104,14 +101,14 @@ function test_removeItem()
   bs.removeItem(id);
 
   // Make sure we were notified!
-  do_check_true(observer.onItemRemovedCalled);
+  do_check_true(observer.checked);
   bs.removeObserver(observer);
 }
 
 function test_removeFolder()
 {
   // First we add the item we are going to remove.
-  let id = bs.createFolder(bs.unfiledBookmarksFolder, "t", bs.DEFAULT_INDEX);
+  let id = bs.createFolder(bs.unfiledBookmarsFolder, "t", bs.DEFAULT_INDEX);
 
   // Add our observer, and remove it.
   let observer = new Observer(id);
@@ -119,14 +116,14 @@ function test_removeFolder()
   bs.removeItem(id);
 
   // Make sure we were notified!
-  do_check_true(observer.onItemRemovedCalled);
+  do_check_true(observer.checked);
   bs.removeObserver(observer);
 }
 
 function test_removeFolderChildren()
 {
   // First we add the item we are going to remove.
-  let fid = bs.createFolder(bs.unfiledBookmarksFolder, "tf", bs.DEFAULT_INDEX);
+  let fid = bs.createFolder(bs.unfiledBookmarsFolder, "tf", bs.DEFAULT_INDEX);
   let id = bs.insertBookmark(fid, uri("http://mozilla.org"), bs.DEFAULT_INDEX,
                              "t");
 
@@ -136,7 +133,7 @@ function test_removeFolderChildren()
   bs.removeFolderChildren(fid);
 
   // Make sure we were notified!
-  do_check_true(observer.onItemRemovedCalled);
+  do_check_true(observer.checked);
   bs.removeObserver(observer);
 }
 
@@ -154,7 +151,7 @@ function test_setItemIndex()
   bs.setItemIndex(id, 2);
 
   // Make sure we were notified!
-  do_check_true(observer.onItemMovedCalled);
+  do_check_true(observer.checked);
   bs.removeObserver(observer);
 }
 

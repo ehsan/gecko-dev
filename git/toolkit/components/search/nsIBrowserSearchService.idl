@@ -262,7 +262,7 @@ interface nsIBrowserSearchService : nsISupports
    * @returns an array of nsISearchEngine objects.
    */
   void getEngines(
-            [optional] out unsigned long engineCount,
+            out unsigned long engineCount,
             [retval, array, size_is(engineCount)] out nsISearchEngine engines);
 
   /**
@@ -272,7 +272,7 @@ interface nsIBrowserSearchService : nsISupports
    * @returns an array of nsISearchEngine objects.
    */
   void getVisibleEngines(
-            [optional] out unsigned long engineCount,
+            out unsigned long engineCount,
             [retval, array, size_is(engineCount)] out nsISearchEngine engines);
 
   /**
@@ -283,7 +283,7 @@ interface nsIBrowserSearchService : nsISupports
    * @returns an array of nsISearchEngine objects.
    */
   void getDefaultEngines(
-            [optional] out unsigned long engineCount,
+            out unsigned long engineCount,
             [retval, array, size_is(engineCount)] out nsISearchEngine engines);
 
   /**

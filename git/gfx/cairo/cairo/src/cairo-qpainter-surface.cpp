@@ -704,17 +704,8 @@ _cairo_qpainter_surface_intersect_clip_path (void *abstract_surface,
         return CAIRO_INT_STATUS_SUCCESS;
     }
 
-    // Enable clipping here and use ReplaceClip
+    // Qt will implicity enable clipping, and will use ReplaceClip
     // instead of IntersectClip if clipping was disabled before
-    // (this is done implicitly for the X11 paint engine, but not
-    // necessarily for others, so we make it explicit)
-
-    Qt::ClipOperation clipMode = Qt::IntersectClip;
-    
-    if (!qs->p->hasClipping()) {
-      qs->p->setClipping(true);
-      clipMode = Qt::ReplaceClip;
-    }
 
     // Note: Qt is really bad at dealing with clip paths.  It doesn't
     // seem to usefully recognize rectangular paths, instead going down
@@ -745,7 +736,7 @@ _cairo_qpainter_surface_intersect_clip_path (void *abstract_surface,
 
         clip_bounds = r;
 
-	qs->p->setClipRect (r, clipMode);
+        qs->p->setClipRect (r, Qt::IntersectClip);
     } else {
         // Then if it's not an integer-aligned rectangle, check
         // if we can extract a region (a set of rectangles) out.
@@ -787,7 +778,7 @@ _cairo_qpainter_surface_intersect_clip_path (void *abstract_surface,
             }
             _cairo_region_fini (region);
 
-            qs->p->setClipRegion (qr, clipMode);
+            qs->p->setClipRegion (qr, Qt::IntersectClip);
         } else {
             // We weren't able to extract a region from the traps.
             // Just hand the path down to QPainter.
@@ -799,7 +790,7 @@ _cairo_qpainter_surface_intersect_clip_path (void *abstract_surface,
             clip_bounds = qpath.boundingRect().toAlignedRect();
 
             // XXX Antialiasing is ignored
-            qs->p->setClipPath (qpath, clipMode);
+            qs->p->setClipPath (qpath, Qt::IntersectClip);
         }
     }
 
@@ -824,10 +815,9 @@ _cairo_qpainter_surface_intersect_clip_path (void *abstract_surface,
  **/
 
 struct PatternToBrushConverter {
-    PatternToBrushConverter (const cairo_pattern_t *pattern) :
-        mAcquiredImageParent(0),
-        mAcquiredImage(0),
-        mAcquiredImageExtra(0)
+    PatternToBrushConverter (const cairo_pattern_t *pattern)
+      : mBrush(0),
+        mAcquiredImageParent(0)
     {
         if (pattern->type == CAIRO_PATTERN_TYPE_SOLID) {
             cairo_solid_pattern_t *solid = (cairo_solid_pattern_t*) pattern;
@@ -837,21 +827,21 @@ struct PatternToBrushConverter {
                 solid->color.blue,
                 solid->color.alpha);
 
-            mBrush = QBrush(color);
+            mBrush = new QBrush(color);
         } else if (pattern->type == CAIRO_PATTERN_TYPE_SURFACE) {
             cairo_surface_pattern_t *spattern = (cairo_surface_pattern_t*) pattern;
             cairo_surface_t *surface = spattern->surface;
 
-            if (surface->type == CAIRO_SURFACE_TYPE_QT) {
+            if (surface->type == CAIRO_SURFACE_TYPE_QPAINTER) {
                 cairo_qpainter_surface_t *qs = (cairo_qpainter_surface_t*) surface;
 
                 if (qs->image) {
-                    mBrush = QBrush(*qs->image);
+                    mBrush = new QBrush(*qs->image);
                 } else if (qs->pixmap) {
-                    mBrush = QBrush(*qs->pixmap);
+                    mBrush = new QBrush(*qs->pixmap);
                 } else {
                     // do something smart
-                    mBrush = QBrush(0xff0000ff);
+                    mBrush = new QBrush(0xff0000ff);
                 }
             } else {
                 cairo_image_surface_t *isurf = NULL;
@@ -871,13 +861,13 @@ struct PatternToBrushConverter {
                 }
 
                 if (isurf) {
-                    mBrush = QBrush(QImage ((const uchar *) isurf->data,
-                                    isurf->width,
-                                    isurf->height,
-                                    isurf->stride,
-                                    _qimage_format_from_cairo_format (isurf->format)));
+                    mBrush = new QBrush (QImage ((const uchar *) isurf->data,
+                                isurf->width,
+                                isurf->height,
+                                isurf->stride,
+                                _qimage_format_from_cairo_format (isurf->format)));
                 } else {
-                    mBrush = QBrush(0x0000ffff);
+                    mBrush = new QBrush(0x0000ffff);
                 }
             }
         } else if (pattern->type == CAIRO_PATTERN_TYPE_LINEAR ||
@@ -1013,31 +1003,33 @@ struct PatternToBrushConverter {
                 grad->setColorAt (offset, color);
             }
 
-            mBrush = QBrush(*grad);
+            mBrush = new QBrush(*grad);
 
             delete grad;
         }
 
-        if (Qt::NoBrush != mBrush.style() &&
+        if (mBrush &&
                 pattern->type != CAIRO_PATTERN_TYPE_SOLID &&
                 !_cairo_matrix_is_identity(&pattern->matrix))
         {
             cairo_matrix_t pm = pattern->matrix;
             if (cairo_matrix_invert (&pm) == CAIRO_STATUS_SUCCESS)
-            mBrush.setMatrix(_qmatrix_from_cairo_matrix (pm));
+            mBrush->setMatrix(_qmatrix_from_cairo_matrix (pm));
         }
     }
 
     ~PatternToBrushConverter () {
+        delete mBrush;
+
         if (mAcquiredImageParent)
             _cairo_surface_release_source_image (mAcquiredImageParent, mAcquiredImage, mAcquiredImageExtra);
     }
 
     operator QBrush& () {
-        return mBrush;
+        return *mBrush;
     }
 
-    QBrush mBrush;
+    QBrush *mBrush;
 
     cairo_surface_t *mAcquiredImageParent;
     cairo_image_surface_t *mAcquiredImage;
@@ -1046,8 +1038,8 @@ struct PatternToBrushConverter {
 
 struct PatternToPenConverter {
     PatternToPenConverter (const cairo_pattern_t *source,
-                           cairo_stroke_style_t *style) :
-        mBrushConverter(source)
+                           cairo_stroke_style_t *style)
+      : mBrushConverter(source)
     {
         Qt::PenJoinStyle join = Qt::MiterJoin;
         Qt::PenCapStyle cap = Qt::SquareCap;
@@ -1076,8 +1068,8 @@ struct PatternToPenConverter {
             break;
         }
 
-        mPen = QPen(mBrushConverter, style->line_width, Qt::SolidLine, cap, join);
-        mPen.setMiterLimit (style->miter_limit);
+        mPen = new QPen (mBrushConverter, style->line_width, Qt::SolidLine, cap, join);
+        mPen->setMiterLimit (style->miter_limit);
 
         if (style->dash && style->num_dashes) {
             Qt::PenStyle pstyle = Qt::NoPen;
@@ -1098,7 +1090,7 @@ struct PatternToPenConverter {
             }
 
             if (pstyle != Qt::NoPen) {
-                mPen.setStyle(pstyle);
+                mPen->setStyle(pstyle);
                 return;
             }
 
@@ -1115,18 +1107,20 @@ struct PatternToPenConverter {
                 }
             }
 
-            mPen.setDashPattern(dashes);
-            mPen.setDashOffset(style->dash_offset / style->line_width);
+            mPen->setDashPattern (dashes);
+            mPen->setDashOffset (style->dash_offset / style->line_width);
         }
     }
 
-    ~PatternToPenConverter() { }
-
-    operator QPen& () {
-        return mPen;
+    ~PatternToPenConverter() {
+        delete mPen;
     }
 
-    QPen mPen;
+    operator QPen& () {
+        return *mPen;
+    }
+
+    QPen *mPen;
     PatternToBrushConverter mBrushConverter;
 };
 
@@ -1148,7 +1142,7 @@ _cairo_qpainter_fast_fill (cairo_qpainter_surface_t *qs,
 
     if (source->type == CAIRO_PATTERN_TYPE_SURFACE) {
         cairo_surface_pattern_t *spattern = (cairo_surface_pattern_t*) source;
-        if (spattern->surface->type == CAIRO_SURFACE_TYPE_QT) {
+        if (spattern->surface->type == CAIRO_SURFACE_TYPE_QPAINTER) {
             cairo_qpainter_surface_t *p = (cairo_qpainter_surface_t*) spattern->surface;
 
             qsSrc_image = p->image;
@@ -1504,7 +1498,7 @@ _cairo_qpainter_surface_composite (cairo_operator_t op,
             qimg_d.reset(qimg);
         }
 
-        if (surface->type == CAIRO_SURFACE_TYPE_QT) {
+        if (surface->type == CAIRO_SURFACE_TYPE_QPAINTER) {
             cairo_qpainter_surface_t *qsrc = (cairo_qpainter_surface_t*) surface;
 
             if (qsrc->image)
@@ -1557,7 +1551,7 @@ _cairo_qpainter_surface_flush (void *abstract_surface)
  **/
 
 static const cairo_surface_backend_t cairo_qpainter_surface_backend = {
-    CAIRO_SURFACE_TYPE_QT,
+    CAIRO_SURFACE_TYPE_QPAINTER,
     _cairo_qpainter_surface_create_similar,
     _cairo_qpainter_surface_finish,
     _cairo_qpainter_surface_acquire_source_image,
@@ -1776,7 +1770,7 @@ cairo_qpainter_surface_get_qpainter (cairo_surface_t *surface)
 {
     cairo_qpainter_surface_t *qs = (cairo_qpainter_surface_t*) surface;
 
-    if (surface->type != CAIRO_SURFACE_TYPE_QT)
+    if (surface->type != CAIRO_SURFACE_TYPE_QPAINTER)
         return NULL;
 
     return qs->p;
@@ -1787,7 +1781,7 @@ cairo_qpainter_surface_get_qimage (cairo_surface_t *surface)
 {
     cairo_qpainter_surface_t *qs = (cairo_qpainter_surface_t*) surface;
 
-    if (surface->type != CAIRO_SURFACE_TYPE_QT)
+    if (surface->type != CAIRO_SURFACE_TYPE_QPAINTER)
         return NULL;
 
     return qs->image;
@@ -1798,7 +1792,7 @@ cairo_qpainter_surface_get_image (cairo_surface_t *surface)
 {
     cairo_qpainter_surface_t *qs = (cairo_qpainter_surface_t*) surface;
 
-    if (surface->type != CAIRO_SURFACE_TYPE_QT)
+    if (surface->type != CAIRO_SURFACE_TYPE_QPAINTER)
         return NULL;
 
     return (cairo_surface_t*) qs->image_equiv;

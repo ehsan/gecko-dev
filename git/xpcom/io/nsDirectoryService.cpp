@@ -790,7 +790,7 @@ nsDirectoryService::GetFile(const char *prop, PRBool *persistent, nsIFile **_ret
     *_retval = nsnull;
     *persistent = PR_TRUE;
 
-    nsCOMPtr<nsIAtom> inAtom = do_GetAtom(prop);
+    nsIAtom* inAtom = NS_NewAtom(prop);
 
     // check to see if it is one of our defaults
         
@@ -830,22 +830,14 @@ nsDirectoryService::GetFile(const char *prop, PRBool *persistent, nsIFile **_ret
     else if (inAtom == nsDirectoryService::sGRE_ComponentDirectory)
     {
         rv = Get(NS_GRE_DIR, NS_GET_IID(nsILocalFile), getter_AddRefs(localFile));
-        if (localFile) {
-            nsCOMPtr<nsIFile> cdir;
-            localFile->Clone(getter_AddRefs(cdir));
-            cdir->AppendNative(COMPONENT_DIRECTORY);
-            localFile = do_QueryInterface(cdir);
-        }
+        if (localFile)
+             localFile->AppendNative(COMPONENT_DIRECTORY);
     }
     else if (inAtom == nsDirectoryService::sComponentDirectory)
     {
         rv = GetCurrentProcessDirectory(getter_AddRefs(localFile));
-        if (localFile) {
-            nsCOMPtr<nsIFile> cdir;
-            localFile->Clone(getter_AddRefs(cdir));
-            cdir->AppendNative(COMPONENT_DIRECTORY);
-            localFile = do_QueryInterface(cdir);
-        }
+        if (localFile)
+            localFile->AppendNative(COMPONENT_DIRECTORY);           
     }
     else if (inAtom == nsDirectoryService::sOS_DriveDirectory)
     {
@@ -1213,13 +1205,15 @@ nsDirectoryService::GetFile(const char *prop, PRBool *persistent, nsIFile **_ret
     }
 #endif
 
-    if (NS_FAILED(rv))
-        return rv;
 
-    if (!localFile)
-        return NS_ERROR_FAILURE;
+    NS_RELEASE(inAtom);
 
-    return CallQueryInterface(localFile, _retval);
+    if (localFile && NS_SUCCEEDED(rv))
+        return localFile->QueryInterface(NS_GET_IID(nsIFile), (void**)_retval);
+#ifdef DEBUG_dougt
+    printf("Failed to find directory for key: %s\n", prop);
+#endif
+    return rv;
 }
 
 NS_IMETHODIMP

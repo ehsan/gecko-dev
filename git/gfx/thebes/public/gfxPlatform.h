@@ -60,7 +60,6 @@ struct gfxFontStyle;
 class gfxUserFontSet;
 class gfxFontEntry;
 class gfxProxyFontEntry;
-class gfxPlatformFontList;
 class nsIURI;
 
 // pref lang id's for font prefs
@@ -165,14 +164,6 @@ public:
     virtual nsresult UpdateFontList();
 
     /**
-     * Create the platform font-list object (gfxPlatformFontList concrete subclass)
-     */
-    virtual gfxPlatformFontList *CreatePlatformFontList() {
-        NS_NOTREACHED("oops, this platform doesn't have a gfxPlatformFontList implementation");
-        return nsnull;
-    }
-
-    /**
      * Font name resolver, this returns actual font name(s) by the callback
      * function. If the font doesn't exist, the callback function is not called.
      * If the callback function returns PR_FALSE, the aAborted value is set to
@@ -211,15 +202,15 @@ public:
 
     /**
      * Activate a platform font.  (Needed to support @font-face src url().)
-     * aFontData is a NS_Malloc'ed block that must be freed by this function
-     * (or responsibility passed on) when it is no longer needed; the caller
-     * will NOT free it.
+     * aFontData must persist as long as a reference is held to aLoader.
      * Ownership of the returned gfxFontEntry is passed to the caller,
      * who must either AddRef() or delete.
      */
     virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
+                                           nsISupports *aLoader,
                                            const PRUint8 *aFontData,
-                                           PRUint32 aLength);
+                                           PRUint32 aLength)
+    { return nsnull; }
 
     /**
      * Whether to allow downloadable fonts via @font-face rules
@@ -263,7 +254,7 @@ public:
      * Determines the rendering intent for color management.
      *
      * If the value in the pref gfx.color_management.rendering_intent is a
-     * valid rendering intent as defined in gfx/qcms/qcms.h, that
+     * valid rendering intent as defined in modules/lcms/include/lcms.h, that
      * value is returned. Otherwise, -1 is returned and the embedded intent
      * should be used.
      *
@@ -303,26 +294,9 @@ public:
      */
     static qcms_transform* GetCMSRGBATransform();
 
-    /**
-     * Return display DPI
-     */
-    static PRInt32 GetDPI() {
-        if (sDPI < 0) {
-            gfxPlatform::GetPlatform()->InitDisplayCaps();
-        }
-        NS_ASSERTION(sDPI > 0, "Something is wrong");
-        return sDPI;
-    }
-
 protected:
     gfxPlatform() { }
     virtual ~gfxPlatform();
-
-    /**
-     * Initialize any needed display metrics (such as DPI)
-     */
-    virtual void InitDisplayCaps();
-    static PRInt32 sDPI;
 
 private:
     virtual qcms_profile* GetPlatformCMSOutputProfile();

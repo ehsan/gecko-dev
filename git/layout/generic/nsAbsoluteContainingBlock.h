@@ -84,21 +84,21 @@ public:
   nsIAtom* GetChildListName() const { return mChildListName; }
 #endif
 
-  const nsFrameList& GetChildList() const { return mAbsoluteFrames; }
+  nsIFrame* GetFirstChild() const { return mAbsoluteFrames.FirstChild(); }
 
   nsresult SetInitialChildList(nsIFrame*       aDelegatingFrame,
                                nsIAtom*        aListName,
-                               nsFrameList&    aChildList);
+                               nsIFrame*       aChildList);
   nsresult AppendFrames(nsIFrame*      aDelegatingFrame,
                         nsIAtom*       aListName,
-                        nsFrameList&   aFrameList);
+                        nsIFrame*      aFrameList);
   nsresult InsertFrames(nsIFrame*      aDelegatingFrame,
                         nsIAtom*       aListName,
                         nsIFrame*      aPrevFrame,
-                        nsFrameList&   aFrameList);
-  void RemoveFrame(nsIFrame*      aDelegatingFrame,
-                   nsIAtom*       aListName,
-                   nsIFrame*      aOldFrame);
+                        nsIFrame*      aFrameList);
+  nsresult RemoveFrame(nsIFrame*      aDelegatingFrame,
+                       nsIAtom*       aListName,
+                       nsIFrame*      aOldFrame);
 
   // Called by the delegating frame after it has done its reflow first. This
   // function will reflow any absolutely positioned child frames that need to

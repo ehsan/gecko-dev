@@ -300,8 +300,7 @@ static void updatePermissions( const char* aPref,
             rv = NS_NewURI(getter_AddRefs(uri), host);
             if (NS_SUCCEEDED(rv))
             {
-                aPermissionManager->Add( uri, XPI_PERMISSION, aPermission, 
-                                         nsIPermissionManager::EXPIRE_NEVER, 0 );
+                aPermissionManager->Add( uri, XPI_PERMISSION, aPermission );
             }
             start = match+1;
         } while ( match > 0 );
@@ -351,7 +350,7 @@ nsInstallTrigger::AllowInstall(nsIURI* aLaunchURI)
             updatePermissions( XPINSTALL_WHITELIST_ADD,
                                nsIPermissionManager::ALLOW_ACTION,
                                permissionMgr, prefBranch );
-            updatePermissions( XPINSTALL_WHITELIST_ADD_36,
+            updatePermissions( XPINSTALL_WHITELIST_ADD_103,
                                nsIPermissionManager::ALLOW_ACTION,
                                permissionMgr, prefBranch );
             updatePermissions( XPINSTALL_BLACKLIST_ADD,

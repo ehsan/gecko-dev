@@ -36,9 +36,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/*
- * nsWinGesture - Touch input handling for tablet displays.
- */
+#ifndef WinGesture_cpp__
+#define WinGesture_cpp__
 
 #include "nscore.h"
 #include "nsWinGesture.h"
@@ -74,6 +73,11 @@ nsWinGesture::nsWinGesture() :
 {
   (void)InitLibrary();
   mPixelScrollOverflow = 0;
+}
+
+nsWinGesture::~nsWinGesture()
+{
+  ShutdownLibrary();
 }
 
 /* Load and shutdown */
@@ -142,9 +146,15 @@ PRBool nsWinGesture::InitLibrary()
 #endif
 }
 
+void nsWinGesture::ShutdownLibrary()
+{
+  getGestureInfo         = nsnull;
+  beginPanningFeedback   = nsnull;
+}
+
 #define GCOUNT 5
 
-PRBool nsWinGesture::SetWinGestureSupport(HWND hWnd, nsGestureNotifyEvent::ePanDirection aDirection)
+PRBool nsWinGesture::InitWinGestureSupport(HWND hWnd)
 {
   if (!getGestureInfo)
     return PR_FALSE;
@@ -162,27 +172,18 @@ PRBool nsWinGesture::SetWinGestureSupport(HWND hWnd, nsGestureNotifyEvent::ePanD
   config[1].dwBlock = 0;
 
   config[2].dwID = GID_PAN;
-  config[2].dwWant  = GC_PAN|GC_PAN_WITH_INERTIA|
-                      GC_PAN_WITH_GUTTER;
-  config[2].dwBlock = GC_PAN_WITH_SINGLE_FINGER_VERTICALLY|
-                      GC_PAN_WITH_SINGLE_FINGER_HORIZONTALLY;
-
   if (gEnableSingleFingerPanEvents) {
-
-    if (aDirection == nsGestureNotifyEvent::ePanVertical ||
-        aDirection == nsGestureNotifyEvent::ePanBoth)
-    {
-      config[2].dwWant  |= GC_PAN_WITH_SINGLE_FINGER_VERTICALLY;
-      config[2].dwBlock -= GC_PAN_WITH_SINGLE_FINGER_VERTICALLY;
-    }
-
-    if (aDirection == nsGestureNotifyEvent::ePanHorizontal ||
-        aDirection == nsGestureNotifyEvent::ePanBoth)
-    {
-      config[2].dwWant  |= GC_PAN_WITH_SINGLE_FINGER_HORIZONTALLY;
-      config[2].dwBlock -= GC_PAN_WITH_SINGLE_FINGER_HORIZONTALLY;
-    }
-
+    config[2].dwWant = GC_PAN|GC_PAN_WITH_INERTIA|
+                       GC_PAN_WITH_GUTTER|
+                       GC_PAN_WITH_SINGLE_FINGER_VERTICALLY|
+                       GC_PAN_WITH_SINGLE_FINGER_HORIZONTALLY;
+    config[2].dwBlock = 0;
+  }
+  else {
+    config[2].dwWant = GC_PAN|GC_PAN_WITH_INERTIA|
+                       GC_PAN_WITH_GUTTER;
+    config[2].dwBlock = GC_PAN_WITH_SINGLE_FINGER_VERTICALLY|
+                        GC_PAN_WITH_SINGLE_FINGER_HORIZONTALLY;
   }
 
   config[3].dwWant = GC_TWOFINGERTAP;
@@ -471,11 +472,11 @@ inline PRBool TestTransition(PRInt32 a, PRInt32 b)
 }
 
 void
-nsWinGesture::UpdatePanFeedbackX(HWND hWnd, PRInt32 scrollOverflow, PRBool& endFeedback)
+nsWinGesture::UpdatePanFeedbackX(HWND hWnd, nsMouseScrollEvent& evt, PRBool& endFeedback)
 {
   // If scroll overflow was returned indicating we panned past the bounds of
   // the scrollable view port, start feeback.
-  if (scrollOverflow != 0) {
+  if (evt.scrollOverflow != 0) {
     if (!mFeedbackActive) {
       BeginPanningFeedback(hWnd);
       mFeedbackActive = PR_TRUE;
@@ -500,11 +501,11 @@ nsWinGesture::UpdatePanFeedbackX(HWND hWnd, PRInt32 scrollOverflow, PRBool& endF
 }
 
 void
-nsWinGesture::UpdatePanFeedbackY(HWND hWnd, PRInt32 scrollOverflow, PRBool& endFeedback)
+nsWinGesture::UpdatePanFeedbackY(HWND hWnd, nsMouseScrollEvent& evt, PRBool& endFeedback)
 {
   // If scroll overflow was returned indicating we panned past the bounds of
   // the scrollable view port, start feeback.
-  if (scrollOverflow != 0) {
+  if (evt.scrollOverflow != 0) {
     if (!mFeedbackActive) {
       BeginPanningFeedback(hWnd);
       mFeedbackActive = PR_TRUE;
@@ -597,3 +598,7 @@ nsWinGesture::PanDeltaToPixelScrollY(nsMouseScrollEvent& evt)
   }
   return PR_FALSE;
 }
+
+#endif /* WinGesture_cpp__ */
+
+

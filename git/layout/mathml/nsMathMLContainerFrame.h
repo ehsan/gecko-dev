@@ -72,7 +72,6 @@ public:
   nsMathMLContainerFrame(nsStyleContext* aContext) : nsHTMLContainerFrame(aContext) {}
 
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
   // --------------------------------------------------------------------------
   // Overloaded nsMathMLFrame methods -- see documentation in nsIMathMLFrame.h
@@ -120,12 +119,12 @@ public:
 
   NS_IMETHOD
   AppendFrames(nsIAtom*        aListName,
-               nsFrameList&    aFrameList);
+               nsIFrame*       aFrameList);
 
   NS_IMETHOD
   InsertFrames(nsIAtom*        aListName,
                nsIFrame*       aPrevFrame,
-               nsFrameList&    aFrameList);
+               nsIFrame*       aFrameList);
 
   NS_IMETHOD
   RemoveFrame(nsIAtom*        aListName,
@@ -230,17 +229,17 @@ protected:
         PRBool               aPlaceOrigin,
         nsHTMLReflowMetrics& aDesiredSize);
 
-  // MeasureForWidth:
+  // MeasureChildFrames:
   //
   // A method used by nsMathMLContainerFrame::GetIntrinsicWidth to get the
   // width that a particular Place method desires.  For most frames, this will
-  // just call the object's Place method.  However <msqrt> and <menclose> use
+  // just call the object's Place method.  However <msqrt> uses
   // nsMathMLContainerFrame::GetIntrinsicWidth to measure the child frames as
-  // if in an <mrow>, and so their frames implement MeasureForWidth to use
-  // nsMathMLContainerFrame::Place.
+  // if in an <mrow>, and so <msqrt> frames implement MeasureChildFrames to
+  // use nsMathMLContainerFrame::Place.
   virtual nsresult
-  MeasureForWidth(nsIRenderingContext& aRenderingContext,
-                  nsHTMLReflowMetrics& aDesiredSize);
+  MeasureChildFrames(nsIRenderingContext& aRenderingContext,
+                     nsHTMLReflowMetrics& aDesiredSize);
 
 
   // helper to re-sync the automatic data in our children and notify our parent to
@@ -392,8 +391,6 @@ private:
 // Issues: If/when mathml becomes a pluggable component, the separation will be needed.
 class nsMathMLmathBlockFrame : public nsBlockFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   friend nsIFrame* NS_NewMathMLmathBlockFrame(nsIPresShell* aPresShell,
           nsStyleContext* aContext, PRUint32 aFlags);
 
@@ -401,7 +398,7 @@ public:
   // cannot use mFrames{.FirstChild()|.etc} since the block code doesn't set mFrames
   NS_IMETHOD
   SetInitialChildList(nsIAtom*        aListName,
-                      nsFrameList&    aChildList)
+                      nsIFrame*       aChildList)
   {
     NS_ASSERTION(!aListName, "unexpected frame list");
     nsresult rv = nsBlockFrame::SetInitialChildList(aListName, aChildList);
@@ -412,7 +409,7 @@ public:
 
   NS_IMETHOD
   AppendFrames(nsIAtom*        aListName,
-               nsFrameList&    aFrameList)
+               nsIFrame*       aFrameList)
   {
     NS_ASSERTION(!aListName || nsGkAtoms::nextBidi == aListName,
                  "unexpected frame list");
@@ -425,7 +422,7 @@ public:
   NS_IMETHOD
   InsertFrames(nsIAtom*        aListName,
                nsIFrame*       aPrevFrame,
-               nsFrameList&    aFrameList)
+               nsIFrame*       aFrameList)
   {
     NS_ASSERTION(!aListName || nsGkAtoms::nextBidi == aListName,
                  "unexpected frame list");
@@ -465,13 +462,11 @@ protected:
 
 class nsMathMLmathInlineFrame : public nsInlineFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   friend nsIFrame* NS_NewMathMLmathInlineFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   NS_IMETHOD
   SetInitialChildList(nsIAtom*        aListName,
-                      nsFrameList&    aChildList)
+                      nsIFrame*       aChildList)
   {
     NS_ASSERTION(!aListName, "unexpected frame list");
     nsresult rv = nsInlineFrame::SetInitialChildList(aListName, aChildList);
@@ -482,7 +477,7 @@ public:
 
   NS_IMETHOD
   AppendFrames(nsIAtom*        aListName,
-               nsFrameList&    aFrameList)
+               nsIFrame*       aFrameList)
   {
     NS_ASSERTION(!aListName || nsGkAtoms::nextBidi == aListName,
                  "unexpected frame list");
@@ -495,7 +490,7 @@ public:
   NS_IMETHOD
   InsertFrames(nsIAtom*        aListName,
                nsIFrame*       aPrevFrame,
-               nsFrameList&    aFrameList)
+               nsIFrame*       aFrameList)
   {
     NS_ASSERTION(!aListName || nsGkAtoms::nextBidi == aListName,
                  "unexpected frame list");

@@ -45,7 +45,6 @@
 #include "nsIContent.h"
 #include "nsIBoxObject.h"
 #include "nsITreeBoxObject.h"
-#include "nsITreeColumns.h"
 
 #include "nsIFrame.h"
 #include "nsIDocShellTreeItem.h"
@@ -63,44 +62,15 @@ public:
   static PRBool HasListener(nsIContent *aContent, const nsAString& aEventType);
 
   /**
-   * Dispatch click event to XUL tree cell.
+   * Send mouse events to the given element.
    *
-   * @param  aTreeBoxObj  [in] tree box object
-   * @param  aRowIndex    [in] row index
-   * @param  aColumn      [in] column object
-   * @param  aPseudoElm   [in] pseudo elemenet inside the cell, see
-   *                       nsITreeBoxObject for available values
-   */
-  static void DispatchClickEvent(nsITreeBoxObject *aTreeBoxObj,
-                                 PRInt32 aRowIndex, nsITreeColumn *aColumn,
-                                 const nsCString& aPseudoElt = EmptyCString());
-
-  /**
-   * Send mouse event to the given element.
-   *
-   * @param  aEventType  [in] an event type (see nsGUIEvent.h for constants)
-   * @param  aPresShell  [in] the presshell for the given element
-   * @param  aContent    [in] the element
+   * @param aEventType  an event type (see nsGUIEvent.h for constants)
+   * @param aPresShell  the presshell for the given element
+   * @param aContent    the element element
    */
   static PRBool DispatchMouseEvent(PRUint32 aEventType,
                                    nsIPresShell *aPresShell,
                                    nsIContent *aContent);
-
-  /**
-   * Send mouse event to the given element.
-   *
-   * @param aEventType   [in] an event type (see nsGUIEvent.h for constants)
-   * @param aX           [in] x coordinate in dev pixels
-   * @param aY           [in] y coordinate in dev pixels
-   * @param aContent     [in] the element
-   * @param aFrame       [in] frame of the element
-   * @param aPresShell   [in] the presshell for the element
-   * @param aRootWidget  [in] the root widget of the element
-   */
-  static void DispatchMouseEvent(PRUint32 aEventType, PRInt32 aX, PRInt32 aY,
-                                 nsIContent *aContent, nsIFrame *aFrame,
-                                 nsIPresShell *aPresShell,
-                                 nsIWidget *aRootWidget);
 
   /**
    * Return an accesskey registered on the given element by
@@ -393,52 +363,6 @@ public:
     GetTreeBodyBoxObject(nsITreeBoxObject *aTreeBoxObj);
 
   /**
-   * Return tree box object from any levels DOMNode under the XUL tree.
-   */
-  static void
-    GetTreeBoxObject(nsIDOMNode* aDOMNode, nsITreeBoxObject** aBoxObject);
-
-  /**
-   * Return first sensible column for the given tree box object.
-   */
-  static already_AddRefed<nsITreeColumn>
-    GetFirstSensibleColumn(nsITreeBoxObject *aTree);
-
-  /**
-   * Return last sensible column for the given tree box object.
-   */
-  static already_AddRefed<nsITreeColumn>
-    GetLastSensibleColumn(nsITreeBoxObject *aTree);
-
-  /**
-   * Return sensible columns count for the given tree box object.
-   */
-  static PRUint32 GetSensibleColumnCount(nsITreeBoxObject *aTree);
-
-  /**
-   * Return sensible column at the given index for the given tree box object.
-   */
-  static already_AddRefed<nsITreeColumn>
-    GetSensibleColumnAt(nsITreeBoxObject *aTree, PRUint32 aIndex);
-
-  /**
-   * Return next sensible column for the given column.
-   */
-  static already_AddRefed<nsITreeColumn>
-    GetNextSensibleColumn(nsITreeColumn *aColumn);
-
-  /**
-   * Return previous sensible column for the given column.
-   */
-  static already_AddRefed<nsITreeColumn>
-    GetPreviousSensibleColumn(nsITreeColumn *aColumn);
-
-  /**
-   * Return true if the given column is hidden (i.e. not sensible).
-   */
-  static PRBool IsColumnHidden(nsITreeColumn *aColumn);
-
-  /**
    * Return true if the given node is table header element.
    */
   static PRBool IsHTMLTableHeader(nsIContent *aContent)
@@ -446,15 +370,6 @@ public:
     return aContent->NodeInfo()->Equals(nsAccessibilityAtoms::th) ||
       aContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::scope);
   }
-
-  /**
-   * Generates frames for popup subtree.
-   *
-   * @param aNode    [in] DOM node containing the menupopup element as a child
-   * @param aIsAnon  [in] specifies whether popup should be searched inside of
-   *                  anonymous or explicit content
-   */
-  static void GeneratePopupTree(nsIDOMNode *aNode, PRBool aIsAnon = PR_FALSE);
 };
 
 #endif

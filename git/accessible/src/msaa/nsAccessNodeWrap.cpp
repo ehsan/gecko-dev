@@ -593,8 +593,9 @@ __try {
  
 void nsAccessNodeWrap::InitAccessibility()
 {
-  NS_ASSERTION(!gIsAccessibilityActive,
-               "Accessibility was initialized already!");
+  if (gIsAccessibilityActive) {
+    return;
+  }
 
   nsCOMPtr<nsIPrefBranch> prefBranch(do_GetService(NS_PREFSERVICE_CONTRACTID));
   if (prefBranch) {
@@ -622,7 +623,9 @@ void nsAccessNodeWrap::ShutdownAccessibility()
   NS_IF_RELEASE(gTextEvent);
   ::DestroyCaret();
 
-  NS_ASSERTION(gIsAccessibilityActive, "Accessibility was shutdown already!");
+  if (!gIsAccessibilityActive) {
+    return;
+  }
 
   nsAccessNode::ShutdownXPAccessibility();
 }

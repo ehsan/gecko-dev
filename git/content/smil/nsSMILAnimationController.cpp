@@ -38,8 +38,6 @@
 
 #include "nsSMILAnimationController.h"
 #include "nsSMILCompositor.h"
-#include "nsSMILCSSProperty.h"
-#include "nsCSSProps.h"
 #include "nsComponentManagerUtils.h"
 #include "nsITimer.h"
 #include "nsIContent.h"
@@ -87,7 +85,7 @@ nsSMILAnimationController::~nsSMILAnimationController()
 
 nsSMILAnimationController* NS_NewSMILAnimationController(nsIDocument* aDoc)
 {
-  nsSMILAnimationController* animationController =
+  nsSMILAnimationController* animationController = 
     new nsSMILAnimationController();
   NS_ENSURE_TRUE(animationController, nsnull);
 
@@ -243,7 +241,7 @@ nsSMILAnimationController::StartTimer()
   // Run the first sample manually
   Sample();
 
-  //
+  // 
   // XXX Make this self-tuning. Sounds like control theory to me and not
   // something I'm familiar with.
   //
@@ -264,38 +262,11 @@ nsSMILAnimationController::StopTimer()
 //----------------------------------------------------------------------
 // Sample-related methods and callbacks
 
-PR_CALLBACK PLDHashOperator
-RemoveCompositorFromTable(nsSMILCompositor* aCompositor,
-                          void* aData)
-{
-  nsSMILCompositorTable* lastCompositorTable =
-    static_cast<nsSMILCompositorTable*>(aData);
-  lastCompositorTable->RemoveEntry(aCompositor->GetKey());
-  return PL_DHASH_NEXT;
-}
-
-PR_CALLBACK PLDHashOperator
-DoClearAnimationEffects(nsSMILCompositor* aCompositor,
-                        void* /*aData*/)
-{
-  aCompositor->ClearAnimationEffects();
-  return PL_DHASH_NEXT;
-}
-
-PR_CALLBACK PLDHashOperator
-DoComposeAttribute(nsSMILCompositor* aCompositor,
-                   void* /*aData*/)
-{
-  aCompositor->ComposeAttribute();
-  return PL_DHASH_NEXT;
-}
-
 void
 nsSMILAnimationController::DoSample()
 {
   DoSample(PR_TRUE); // Skip unchanged time containers
 }
-
 
 void
 nsSMILAnimationController::DoSample(PRBool aSkipUnchangedContainers)
@@ -315,7 +286,7 @@ nsSMILAnimationController::DoSample(PRBool aSkipUnchangedContainers)
 
   // STEP 2: (i)  Sample the timed elements AND
   //         (ii) Create a table of compositors
-  //
+  // 
   // (i) Here we sample the timed elements (fetched from the
   // nsISMILAnimationElements) which determine from the active time if the
   // element is active and what its simple time etc. is. This information is
@@ -334,7 +305,7 @@ nsSMILAnimationController::DoSample(PRBool aSkipUnchangedContainers)
   // save iterating over the animation elements twice.
 
   // Create the compositor table
-  nsAutoPtr<nsSMILCompositorTable>
+  nsAutoPtr<nsSMILCompositorTable> 
     currentCompositorTable(new nsSMILCompositorTable());
   if (!currentCompositorTable)
     return;
@@ -351,23 +322,17 @@ nsSMILAnimationController::DoSample(PRBool aSkipUnchangedContainers)
 
   // STEP 3: Remove animation effects from any no-longer-animated elems/attrs
   if (mLastCompositorTable) {
-    // * For each compositor in current sample's hash table, remove entry from
-    // prev sample's hash table -- we don't need to clear animation
-    // effects of those compositors, since they're still being animated.
-    currentCompositorTable->EnumerateEntries(RemoveCompositorFromTable,
-                                             mLastCompositorTable);
-
-    // * For each entry that remains in prev sample's hash table (i.e. for
-    // every target that's no longer animated), clear animation effects.
-    mLastCompositorTable->EnumerateEntries(DoClearAnimationEffects, nsnull);
+    // XXX Remove animation effects from no-longer-animated elements
+    //  * For each compositor in current sample's hash table:
+    //    - Remove entry from *prev sample's* hash table
+    //  * For any entries still remaining in prev sample's hash table:
+    //    - Remove animation from that entry's attribute.
+    //      (For nsSVGLength2, set anim val = base val.  For CSS attribs,
+    //      just clear the relevant chunk of OverrideStyle)
   }
 
   // STEP 4: Compose currently-animated attributes.
-  // XXXdholbert: This step traverses our animation targets in an effectively
-  // random order. For animation from/to 'inherit' values to work correctly
-  // when the inherited value is *also* being animated, we really should be
-  // traversing our animated nodes in an ancestors-first order (bug 501183)
-  currentCompositorTable->EnumerateEntries(DoComposeAttribute, nsnull);
+  nsSMILCompositor::ComposeAttributes(*currentCompositorTable);
 
   // Update last compositor table
   mLastCompositorTable = currentCompositorTable.forget();
@@ -378,12 +343,12 @@ nsSMILAnimationController::DoSample(PRBool aSkipUnchangedContainers)
 /*static*/ PR_CALLBACK PLDHashOperator
 nsSMILAnimationController::SampleTimeContainer(TimeContainerPtrKey* aKey,
                                                void* aData)
-{
+{ 
   NS_ENSURE_TRUE(aKey, PL_DHASH_NEXT);
   NS_ENSURE_TRUE(aKey->GetKey(), PL_DHASH_NEXT);
   NS_ENSURE_TRUE(aData, PL_DHASH_NEXT);
 
-  SampleTimeContainerParams* params =
+  SampleTimeContainerParams* params = 
     static_cast<SampleTimeContainerParams*>(aData);
 
   nsSMILTimeContainer* container = aKey->GetKey();
@@ -447,18 +412,11 @@ nsSMILAnimationController::AddAnimationToCompositorTable(
     // Something's wrong/missing about animation's target; skip this animation
     return;
 
-  nsSMILAnimationFunction& func = aElement->AnimationFunction();
-
-  // Only add active animation functions. If there are no active animations
-  // targetting an attribute, no compositor will be created and any previously
-  // applied animations will be cleared.
-  if (func.IsActiveOrFrozen()) {
-    nsSMILCompositor* result = aCompositorTable->PutEntry(key);
-
-    // Add this animationElement's animation function to the compositor's list
-    // of animation functions.
-    result->AddAnimationFunction(&func);
-  }
+  nsSMILCompositor* result = aCompositorTable->PutEntry(key);
+  
+  // Add this animationElement's animation function to the compositor's list of
+  // animation functions.
+  result->AddAnimationFunction(&aElement->AnimationFunction());
 }
 
 // Helper function that, given a nsISMILAnimationElement, looks up its target
@@ -490,15 +448,15 @@ nsSMILAnimationController::GetCompositorKeyForAnimation(
   // Check if an 'auto' attributeType refers to a CSS property or XML attribute.
   // Note that SMIL requires we search for CSS properties first. So if they
   // overlap, 'auto' = 'CSS'. (SMILANIM 3.1)
-  PRBool isCSS;
+  //
+  // XXX This doesn't really work for CSS properties that aren't mapped
+  // attributes
   if (attributeType == eSMILTargetAttrType_auto) {
-    nsAutoString attributeNameStr;
-    attributeName->ToString(attributeNameStr);
-    nsCSSProperty prop = nsCSSProps::LookupProperty(attributeNameStr);
-    isCSS = nsSMILCSSProperty::IsPropertyAnimatable(prop);
-  } else {
-    isCSS = (attributeType == eSMILTargetAttrType_CSS);
+    attributeType = (targetElem->IsAttributeMapped(attributeName))
+                  ? eSMILTargetAttrType_CSS
+                  : eSMILTargetAttrType_XML;
   }
+  PRBool isCSS = (attributeType == eSMILTargetAttrType_CSS);
 
   // Construct the key
   aResult.mElement = targetElem;
@@ -520,7 +478,7 @@ nsSMILAnimationController::AddChild(nsSMILTimeContainer& aChild)
   if (!mPauseState && mChildContainerTable.Count() == 1) {
     StartTimer();
   }
-
+    
   return NS_OK;
 }
 

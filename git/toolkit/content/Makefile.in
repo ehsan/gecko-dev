@@ -58,7 +58,7 @@ DEFINES += \
   -DCPPFLAGS="$(CPPFLAGS)" \
   $(NULL)
 
-CHANGESET := $(shell cd $(topsrcdir) && hg identify . 2>/dev/null | cut -f1 -d' ')
+CHANGESET := $(shell cd $(topsrcdir) && hg identify 2>/dev/null | cut -f1 -d' ')
 ifdef CHANGESET
 DEFINES += -DSOURCE_CHANGESET="$(CHANGESET)"
 endif
@@ -79,13 +79,10 @@ DIRS += tests
 endif
 
 EXTRA_JS_MODULES = \
-  InlineSpellChecker.jsm \
+  debug.js \
   WindowDraggingUtils.jsm \
   $(NULL)
 
-EXTRA_PP_JS_MODULES = \
-  debug.js \
-  LightweightThemeConsumer.jsm \
-  $(NULL)
+EXTRA_PP_JS_MODULES = debug.js
 
 include $(topsrcdir)/config/rules.mk

@@ -56,8 +56,6 @@ class nsPresContext;
 class nsProgressMeterFrame : public nsBoxFrame
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   friend nsIFrame* NS_NewProgressMeterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   NS_IMETHOD DoLayout(nsBoxLayoutState& aBoxLayoutState);

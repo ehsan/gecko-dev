@@ -75,8 +75,7 @@ public:
   void PaintBorderAndBackground(nsPresContext* aPresContext,
                                 nsIRenderingContext& aRenderingContext,
                                 const nsRect& aDirtyRect,
-                                const nsRect& aRect,
-                                PRUint32 aBGFlags);
+                                const nsRect& aRect);
 
   void SetFrame(nsFrame* aFrame, nsPresContext* aPresContext);
  

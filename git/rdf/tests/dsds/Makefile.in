@@ -45,6 +45,10 @@ include $(DEPTH)/config/autoconf.mk
 MODULE		= rdf
 MOZILLA_INTERNAL_API = 1
 
+REQUIRES	= xpcom \
+		  string \
+		  necko \
+		  $(NULL)
 
 
 LIBRARY_NAME	= rdfdsds

@@ -111,7 +111,6 @@ GK_ATOM(area, "area")
 GK_ATOM(ascending, "ascending")
 GK_ATOM(aspectRatio, "aspect-ratio")
 GK_ATOM(assign, "assign")
-GK_ATOM(async, "async")
 GK_ATOM(attribute, "attribute")
 GK_ATOM(attributeSet, "attribute-set")
 GK_ATOM(aural, "aural")
@@ -201,6 +200,7 @@ GK_ATOM(click, "click")
 GK_ATOM(clickcount, "clickcount")
 GK_ATOM(movetoclick, "movetoclick")
 GK_ATOM(clip, "clip")
+GK_ATOM(clonedTextForPrint, "clonedTextForPrint")
 GK_ATOM(close, "close")
 GK_ATOM(closed, "closed")
 GK_ATOM(closemenu, "closemenu")
@@ -326,7 +326,6 @@ GK_ATOM(dragleave, "dragleave")
 GK_ATOM(dragover, "dragover")
 GK_ATOM(dragSession, "dragSession")
 GK_ATOM(dragstart, "dragstart")
-GK_ATOM(drawintitlebar, "drawintitlebar")
 GK_ATOM(drop, "drop")
 GK_ATOM(dropAfter, "dropAfter")
 GK_ATOM(dropBefore, "dropBefore")
@@ -406,7 +405,6 @@ GK_ATOM(h4, "h4")
 GK_ATOM(h5, "h5")
 GK_ATOM(h6, "h6")
 GK_ATOM(handheld, "handheld")
-GK_ATOM(handheldFriendly, "HandheldFriendly")
 GK_ATOM(handler, "handler")
 GK_ATOM(handlers, "handlers")
 GK_ATOM(HARD, "HARD")
@@ -505,7 +503,6 @@ GK_ATOM(listing, "listing")
 GK_ATOM(listitem, "listitem")
 GK_ATOM(listrows, "listrows")
 GK_ATOM(load, "load")
-GK_ATOM(localedir, "localedir")
 GK_ATOM(localName, "local-name")
 GK_ATOM(longdesc, "longdesc")
 #ifdef MOZ_MEDIA
@@ -516,8 +513,6 @@ GK_ATOM(lowerFirst, "lower-first")
 GK_ATOM(lowest, "lowest")
 GK_ATOM(lowsrc, "lowsrc")
 GK_ATOM(ltr, "ltr")
-GK_ATOM(lwtheme, "lwtheme")
-GK_ATOM(lwthemetextcolor, "lwthemetextcolor")
 GK_ATOM(map, "map")
 GK_ATOM(manifest, "manifest")
 GK_ATOM(marginheight, "marginheight")
@@ -642,7 +637,6 @@ GK_ATOM(ondrop, "ondrop")
 GK_ATOM(onerror, "onerror")
 GK_ATOM(onfocus, "onfocus")
 GK_ATOM(onget, "onget")
-GK_ATOM(onhashchange, "onhashchange")
 GK_ATOM(oninput, "oninput")
 GK_ATOM(onkeydown, "onkeydown")
 GK_ATOM(onkeypress, "onkeypress")
@@ -657,7 +651,6 @@ GK_ATOM(onmouseover, "onmouseover")
 GK_ATOM(onmouseup, "onmouseup")
 GK_ATOM(onMozAfterPaint, "onMozAfterPaint")
 GK_ATOM(onMozMousePixelScroll, "onMozMousePixelScroll")
-GK_ATOM(onMozScrolledAreaChanged, "onMozScrolledAreaChanged")
 GK_ATOM(ononline, "ononline")
 GK_ATOM(onoffline, "onoffline")
 GK_ATOM(onoverflow, "onoverflow")
@@ -737,7 +730,6 @@ GK_ATOM(popuplistener, "popuplistener")
 GK_ATOM(popupset, "popupset")
 GK_ATOM(popupshowing, "popupshowing")
 GK_ATOM(popupshown, "popupshown")
-GK_ATOM(popupsinherittooltip, "popupsinherittooltip")
 GK_ATOM(position, "position")
 #ifdef MOZ_MEDIA
 GK_ATOM(poster, "poster")
@@ -803,7 +795,6 @@ GK_ATOM(rule, "rule")
 GK_ATOM(rules, "rules")
 GK_ATOM(s, "s")
 GK_ATOM(samp, "samp")
-GK_ATOM(scale, "scale")
 GK_ATOM(scan, "scan")
 GK_ATOM(scheme, "scheme")
 GK_ATOM(scope, "scope")
@@ -1214,6 +1205,7 @@ GK_ATOM(rotate, "rotate")
 GK_ATOM(rx, "rx")
 GK_ATOM(ry, "ry")
 GK_ATOM(saturate, "saturate")
+GK_ATOM(scale, "scale")
 GK_ATOM(set, "set")
 GK_ATOM(seed, "seed")
 GK_ATOM(shape_rendering, "shape-rendering")
@@ -1504,8 +1496,6 @@ GK_ATOM(onMozRotateGesture, "onMozRotateGesture")
 GK_ATOM(onMozTapGesture, "onMozTapGesture")
 GK_ATOM(onMozPressTapGesture, "onMozPressTapGesture")
 
-// orientation support
-GK_ATOM(onMozOrientation, "onMozOrientation")
 
 //---------------------------------------------------------------------------
 // Special atoms
@@ -1651,8 +1641,6 @@ GK_ATOM(boxMetricsProperty, "BoxMetricsProperty") // nsBoxLayoutMetrics*
 GK_ATOM(changeListProperty, "ChangeListProperty") // void*
 GK_ATOM(collapseOffsetProperty, "CollapseOffsetProperty")  // nsPoint*
 GK_ATOM(computedOffsetProperty, "ComputedOffsetProperty")  // nsPoint*
-GK_ATOM(floatContinuationProperty, "FloatContinuationProperty") // nsFrameList*
-GK_ATOM(floatRegionProperty, "FloatRegionProperty") // nsRect*
 GK_ATOM(generatedContent, "GeneratedContentProperty")  // nsCOMArray<nsIContent>*
 #ifdef MOZ_MATHML
 GK_ATOM(HTMLReflowMetricsProperty, "HTMLReflowMetricsProperty") // nsHTMLReflowMetrics*
@@ -1665,19 +1653,17 @@ GK_ATOM(maxElementWidthProperty, "MaxElementWidthProperty")  // nscoord*
 GK_ATOM(outlineInnerRectProperty, "OutlineInnerRectProperty") // nsRect*
 GK_ATOM(outOfFlowDirtyRectProperty, "OutOfFlowDirtyRectProperty") // nsRect*
 GK_ATOM(overflowAreaProperty, "OverflowArea")              // nsRect*
-GK_ATOM(overflowProperty, "OverflowProperty")              // nsFrameList*
+GK_ATOM(overflowProperty, "OverflowProperty")              // list of nsIFrame*
 GK_ATOM(overflowContainersProperty, "OverflowContainersProperty")             // nsFrameList*
 GK_ATOM(excessOverflowContainersProperty, "ExcessOverflowContainersProperty") // nsFrameList*
 GK_ATOM(overflowLinesProperty, "OverflowLinesProperty")    // list of nsLineBox*
 GK_ATOM(overflowOutOfFlowsProperty, "OverflowOutOfFlowsProperty")      // nsFrameList*
+GK_ATOM(overflowPlaceholdersProperty, "OverflowPlaceholdersProperty")  // nsFrameList*
 GK_ATOM(preEffectsBBoxProperty, "PreEffectsBBoxProperty") // nsRect*
 GK_ATOM(preTransformBBoxProperty, "PreTransformBBoxProperty") // nsRect*
 GK_ATOM(rowUnpaginatedHeightProperty, "RowUnpaginatedHeightProperty")  // nscoord*
 GK_ATOM(tabWidthProperty, "TabWidthProperty")              // nsTArray<TabSetting>* array of tab widths
 GK_ATOM(tableBCProperty, "TableBCProperty")                // table border collapsing info (e.g. damage area, table border widths)
-GK_ATOM(transitionsProperty, "TransitionsProperty")        // FrameTransitions*
-GK_ATOM(transitionsOfBeforeProperty, "TransitionsOfBeforeProperty") // FrameTransitions*
-GK_ATOM(transitionsOfAfterProperty, "TransitionsOfAfterProperty") // FrameTransitions*
 GK_ATOM(usedMarginProperty, "UsedMarginProperty") // nsMargin*
 GK_ATOM(usedPaddingProperty, "UsedPaddingProperty") // nsMargin*
 GK_ATOM(viewProperty, "ViewProperty")                      
@@ -1697,33 +1683,3 @@ GK_ATOM(Unicode, "x-unicode")
 GK_ATOM(TypingTxnName, "Typing")
 GK_ATOM(IMETxnName, "IME")
 GK_ATOM(DeleteTxnName, "Deleting")
-
-// Names for system metrics
-GK_ATOM(scrollbar_start_backward, "scrollbar-start-backward")
-GK_ATOM(scrollbar_start_forward, "scrollbar-start-forward")
-GK_ATOM(scrollbar_end_backward, "scrollbar-end-backward")
-GK_ATOM(scrollbar_end_forward, "scrollbar-end-forward")
-GK_ATOM(scrollbar_thumb_proportional, "scrollbar-thumb-proportional")
-GK_ATOM(images_in_menus, "images-in-menus")
-GK_ATOM(images_in_buttons, "images-in-buttons")
-GK_ATOM(windows_default_theme, "windows-default-theme")
-GK_ATOM(mac_graphite_theme, "mac-graphite-theme")
-GK_ATOM(windows_compositor, "windows-compositor")
-GK_ATOM(windows_classic, "windows-classic")
-GK_ATOM(touch_enabled, "touch-enabled")
-GK_ATOM(maemo_classic, "maemo-classic")
-
-// And the same again, as media query keywords.
-GK_ATOM(_moz_scrollbar_start_backward, "-moz-scrollbar-start-backward")
-GK_ATOM(_moz_scrollbar_start_forward, "-moz-scrollbar-start-forward")
-GK_ATOM(_moz_scrollbar_end_backward, "-moz-scrollbar-end-backward")
-GK_ATOM(_moz_scrollbar_end_forward, "-moz-scrollbar-end-forward")
-GK_ATOM(_moz_scrollbar_thumb_proportional, "-moz-scrollbar-thumb-proportional")
-GK_ATOM(_moz_images_in_menus, "-moz-images-in-menus")
-GK_ATOM(_moz_images_in_buttons, "-moz-images-in-buttons")
-GK_ATOM(_moz_windows_default_theme, "-moz-windows-default-theme")
-GK_ATOM(_moz_mac_graphite_theme, "-moz-mac-graphite-theme")
-GK_ATOM(_moz_windows_compositor, "-moz-windows-compositor")
-GK_ATOM(_moz_windows_classic, "-moz-windows-classic")
-GK_ATOM(_moz_touch_enabled, "-moz-touch-enabled")
-GK_ATOM(_moz_maemo_classic, "-moz-maemo-classic")

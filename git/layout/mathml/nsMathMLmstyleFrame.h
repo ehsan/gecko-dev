@@ -49,8 +49,6 @@
 
 class nsMathMLmstyleFrame : public nsMathMLContainerFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   friend nsIFrame* NS_NewMathMLmstyleFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   NS_IMETHOD

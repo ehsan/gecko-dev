@@ -73,7 +73,7 @@ NS_DEFINE_CID(kExtServiceB_CID, EXT_SERVICE_B_CID);
 
 
 #ifdef DEBUG_brade
-inline void
+static void
 debugPrintPath(const char *aPrefix, nsIFile *aFile)
 {
   if (!aPrefix || !aFile)
@@ -187,7 +187,7 @@ nsresult execRegOrderTest(const char *aTestName, const char *aContractID,
 #endif
   if (NS_FAILED(rv))
   {
-    fail("%s FAILED - cannot create core service\n", aTestName);
+    fprintf(stderr, "%s FAILED - cannot create core service\n", aTestName);
     return rv;
   }
 
@@ -199,7 +199,7 @@ nsresult execRegOrderTest(const char *aTestName, const char *aContractID,
 #endif
   if (NS_FAILED(rv))
   {
-    fail("%s FAILED - cannot create extension service\n", aTestName);
+    fprintf(stderr, "%s FAILED - cannot create extension service\n", aTestName);
     return rv;
   }
 
@@ -211,21 +211,21 @@ nsresult execRegOrderTest(const char *aTestName, const char *aContractID,
   nsCOMPtr<nsISupports> service = do_CreateInstance(aContractID, &rv);
 #ifdef DEBUG_brade
   if (rv) fprintf(stderr, "rv: %d (%x)\n", rv, rv);
-  fprintf(stderr, "service: %p\n", service.get());
+  fprintf(stderr, "service: %p\n", service);
 #endif
   if (NS_FAILED(rv))
   {
-    fail("%s FAILED - cannot create service\n", aTestName);
+    fprintf(stderr, "%s FAILED - cannot create service\n", aTestName);
     return rv;
   }
 
   if (service != extService)
   {
-    fail("%s FAILED - wrong service registered\n", aTestName);
+    fprintf(stderr, "%s FAILED - wrong service registered\n", aTestName);
     return NS_ERROR_FAILURE;
   }
 
-  passed(aTestName);
+  fprintf(stderr, "%s PASSED!\n", aTestName);
   return NS_OK;
 }
 

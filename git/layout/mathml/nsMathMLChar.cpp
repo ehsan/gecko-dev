@@ -1006,7 +1006,7 @@ IsSizeOK(nsPresContext* aPresContext, nscoord a, nscoord b, PRUint32 aHint)
   // i.e. within 10% and within 5pt
   PRBool isNearer = PR_FALSE;
   if (aHint & (NS_STRETCH_NEARER | NS_STRETCH_LARGEOP)) {
-    float c = NS_MAX(float(b) * NS_MATHML_DELIMITER_FACTOR,
+    float c = PR_MAX(float(b) * NS_MATHML_DELIMITER_FACTOR,
                      float(b) - aPresContext->PointsToAppUnits(NS_MATHML_DELIMITER_SHORTFALL_POINTS));
     isNearer = PRBool(float(PR_ABS(b - a)) <= (float(b) - c));
   }
@@ -1527,7 +1527,7 @@ nsMathMLChar::StretchEnumContext::EnumCallback(const nsString& aFamily,
   nsGlyphTable* glyphTable = aGeneric ?
     &gGlyphTableList->mUnicodeTable : gGlyphTableList->GetGlyphTableFor(aFamily);
 
-  if (context->mTablesTried.Contains(glyphTable))
+  if (context->mTablesTried.IndexOf(glyphTable) != context->mTablesTried.NoIndex)
     return PR_TRUE; // already tried this one
 
   context->mGlyphTable = glyphTable;
@@ -1789,7 +1789,7 @@ nsMathMLChar::GetMaxWidth(nsPresContext* aPresContext,
   StretchInternal(aPresContext, aRenderingContext, direction, container,
                   bm, aStretchHint | NS_STRETCH_MAXWIDTH);
 
-  return NS_MAX(bm.width, bm.rightBearing) - NS_MIN(0, bm.leftBearing);
+  return PR_MAX(bm.width, bm.rightBearing) - PR_MIN(0, bm.leftBearing);
 }
 
 nsresult
@@ -1887,15 +1887,15 @@ public:
   }
 #endif
 
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
+     const nsRect& aDirtyRect);
   NS_DISPLAY_DECL_NAME("MathMLSelectionRect")
 private:
   nsRect    mRect;
 };
 
 void nsDisplayMathMLSelectionRect::Paint(nsDisplayListBuilder* aBuilder,
-                                         nsIRenderingContext* aCtx)
+     nsIRenderingContext* aCtx, const nsRect& aDirtyRect)
 {
   // get color to use for selection from the look&feel object
   nscolor bgColor = NS_RGB(0, 0, 0);
@@ -1918,8 +1918,8 @@ public:
   }
 #endif
 
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
+     const nsRect& aDirtyRect);
   NS_DISPLAY_DECL_NAME("MathMLCharBackground")
 private:
   nsStyleContext* mStyleContext;
@@ -1927,14 +1927,14 @@ private:
 };
 
 void nsDisplayMathMLCharBackground::Paint(nsDisplayListBuilder* aBuilder,
-                                          nsIRenderingContext* aCtx)
+     nsIRenderingContext* aCtx, const nsRect& aDirtyRect)
 {
   const nsStyleBorder* border = mStyleContext->GetStyleBorder();
   const nsStyleBackground* backg = mStyleContext->GetStyleBackground();
   nsRect rect(mRect + aBuilder->ToReferenceFrame(mFrame));
   nsCSSRendering::PaintBackgroundWithSC(mFrame->PresContext(), *aCtx, mFrame,
-                                        mVisibleRect, rect, *backg, *border,
-                                        aBuilder->GetBackgroundPaintFlags());
+                                        aDirtyRect, rect, *backg, *border,
+                                        0);
 }
 
 class nsDisplayMathMLCharForeground : public nsDisplayItem {
@@ -1961,11 +1961,11 @@ public:
                   bm.rightBearing - bm.leftBearing, bm.ascent + bm.descent);
   }
 
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx)
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
+     const nsRect& aDirtyRect)
   {
     mChar->PaintForeground(mFrame->PresContext(), *aCtx,
-                           aBuilder->ToReferenceFrame(mFrame), mIsSelected);
+                         aBuilder->ToReferenceFrame(mFrame), mIsSelected);
   }
 
   NS_DISPLAY_DECL_NAME("MathMLCharForeground")
@@ -1988,15 +1988,15 @@ public:
   }
 #endif
 
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
+     const nsRect& aDirtyRect);
   NS_DISPLAY_DECL_NAME("MathMLCharDebug")
 private:
   nsRect    mRect;
 };
 
 void nsDisplayMathMLCharDebug::Paint(nsDisplayListBuilder* aBuilder,
-                                     nsIRenderingContext* aCtx)
+     nsIRenderingContext* aCtx, const nsRect& aDirtyRect)
 {
   // for visual debug
   PRIntn skipSides = 0;
@@ -2005,10 +2005,10 @@ void nsDisplayMathMLCharDebug::Paint(nsDisplayListBuilder* aBuilder,
   nsStyleContext* styleContext = mFrame->GetStyleContext();
   nsRect rect = mRect + aBuilder->ToReferenceFrame(mFrame);
   nsCSSRendering::PaintBorder(presContext, *aCtx, mFrame,
-                              mVisibleRect, rect, *border, styleContext,
+                              aDirtyRect, rect, *border, styleContext,
                               skipSides);
   nsCSSRendering::PaintOutline(presContext, *aCtx, mFrame,
-                               mVisibleRect, rect, *border,
+                               aDirtyRect, rect, *border,
                                *mFrame->GetStyleOutline(), styleContext);
 }
 #endif
@@ -2361,8 +2361,8 @@ nsMathMLChar::PaintVertically(nsPresContext*      aPresContext,
 
     for (i = 0; i < bottom; ++i) {
       // Make sure not to draw outside the character
-      nscoord dy = NS_MAX(end[i], aRect.y);
-      nscoord fillEnd = NS_MIN(start[i+1], aRect.YMost());
+      nscoord dy = PR_MAX(end[i], aRect.y);
+      nscoord fillEnd = PR_MIN(start[i+1], aRect.YMost());
 #ifdef SHOW_BORDERS
       // exact area to fill
       aRenderingContext.SetColor(NS_RGB(255,0,0));
@@ -2373,7 +2373,7 @@ nsMathMLChar::PaintVertically(nsPresContext*      aPresContext,
 #endif
       while (dy < fillEnd) {
         clipRect.y = dy;
-        clipRect.height = NS_MIN(bm.ascent + bm.descent, fillEnd - dy);
+        clipRect.height = PR_MIN(bm.ascent + bm.descent, fillEnd - dy);
         AutoPushClipRect clip(aRenderingContext, clipRect);
         dy += bm.ascent;
         aRenderingContext.DrawString(&chGlue.code, 1, dx, dy);
@@ -2588,8 +2588,8 @@ nsMathMLChar::PaintHorizontally(nsPresContext*      aPresContext,
 
     for (i = 0; i < right; ++i) {
       // Make sure not to draw outside the character
-      nscoord dx = NS_MAX(end[i], aRect.x);
-      nscoord fillEnd = NS_MIN(start[i+1], aRect.XMost());
+      nscoord dx = PR_MAX(end[i], aRect.x);
+      nscoord fillEnd = PR_MIN(start[i+1], aRect.XMost());
 #ifdef SHOW_BORDERS
       // rectangles in-between that are to be filled
       aRenderingContext.SetColor(NS_RGB(255,0,0));
@@ -2600,7 +2600,7 @@ nsMathMLChar::PaintHorizontally(nsPresContext*      aPresContext,
 #endif
       while (dx < fillEnd) {
         clipRect.x = dx;
-        clipRect.width = NS_MIN(bm.rightBearing - bm.leftBearing, fillEnd - dx);
+        clipRect.width = PR_MIN(bm.rightBearing - bm.leftBearing, fillEnd - dx);
         AutoPushClipRect clip(aRenderingContext, clipRect);
         dx -= bm.leftBearing;
         aRenderingContext.DrawString(&chGlue.code, 1, dx, dy);

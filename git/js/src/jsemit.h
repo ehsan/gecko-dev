@@ -162,7 +162,7 @@ struct JSStmtInfo {
 #endif
 
 struct JSTreeContext {              /* tree context for semantic checks */
-    uint32          flags;          /* statement state flags, see below */
+    uint16          flags;          /* statement state flags, see below */
     uint16          ngvars;         /* max. no. of global variables/regexps */
     uint32          bodyid;         /* block number of program/function body */
     uint32          blockidGen;     /* preincremented block number generator */
@@ -200,7 +200,7 @@ struct JSTreeContext {              /* tree context for semantic checks */
       : flags(0), ngvars(0), bodyid(0), blockidGen(0),
         topStmt(NULL), topScopeStmt(NULL), blockChain(NULL), blockNode(NULL),
         compiler(jsc), scopeChain(NULL), parent(NULL), staticLevel(0),
-        funbox(NULL), functionList(NULL), sharpSlotBase(-1)
+        funbox(NULL), functionList(NULL)
     {
         JS_SCOPE_DEPTH_METERING(scopeDepth = maxScopeDepth = 0);
     }
@@ -225,17 +225,18 @@ struct JSTreeContext {              /* tree context for semantic checks */
 
     /* Test whether we're in a statement of given type. */
     bool inStatement(JSStmtType type);
-
-    inline bool needStrictChecks();
-
-    /* 
-     * sharpSlotBase is -1 or first slot of pair for [sharpArray, sharpDepth].
-     * The parser calls ensureSharpSlots to allocate these two stack locals.
-     */
-    int sharpSlotBase;
-    bool ensureSharpSlots();
 };
 
+/*
+ * Flags to propagate out of the blocks.
+ */
+#define TCF_RETURN_FLAGS        (TCF_RETURN_EXPR | TCF_RETURN_VOID)
+
+/*
+ * TreeContext flags must fit in 16 bits, and all bits are in use now. Widening
+ * requires changing JSFunctionBox.tcflags too and repacking. Alternative fix
+ * gets rid of flags, probably starting with TCF_HAS_FUNCTION_STMT.
+ */
 #define TCF_COMPILING           0x01 /* JSTreeContext is JSCodeGenerator */
 #define TCF_IN_FUNCTION         0x02 /* parsing inside function body */
 #define TCF_RETURN_EXPR         0x04 /* function has 'return expr;' */
@@ -247,8 +248,8 @@ struct JSTreeContext {              /* tree context for semantic checks */
                                         parameter name */
 #define TCF_FUN_HEAVYWEIGHT    0x100 /* function needs Call object per call */
 #define TCF_FUN_IS_GENERATOR   0x200 /* parsed yield statement in function */
-#define TCF_FUN_USES_OWN_NAME  0x400 /* named function expression that uses its
-                                        own name */
+#define TCF_FUN_IS_FUNARG      0x400 /* function escapes as an argument, return
+                                        value, or via the heap */
 #define TCF_HAS_FUNCTION_STMT  0x800 /* block contains a function statement */
 #define TCF_GENEXP_LAMBDA     0x1000 /* flag lambda from generator expression */
 #define TCF_COMPILE_N_GO      0x2000 /* compiler-and-go mode of script, can
@@ -259,43 +260,6 @@ struct JSTreeContext {              /* tree context for semantic checks */
 #define TCF_HAS_SHARPS        0x8000 /* source contains sharp defs or uses */
 
 /*
- * Set when parsing a declaration-like destructuring pattern.  This
- * flag causes PrimaryExpr to create PN_NAME parse nodes for variable
- * references which are not hooked into any definition's use chain,
- * added to any tree context's AtomList, etc. etc.  CheckDestructuring
- * will do that work later.
- *
- * The comments atop CheckDestructuring explain the distinction
- * between assignment-like and declaration-like destructuring
- * patterns, and why they need to be treated differently.
- */
-#define TCF_DECL_DESTRUCTURING  0x10000
-
-/*
- * A request flag passed to JSCompiler::compileScript and then down via
- * JSCodeGenerator to js_NewScriptFromCG, from script_compile_sub and any
- * kindred functions that need to make mutable scripts (even empty ones;
- * i.e., they can't share the const JSScript::emptyScript() singleton).
- */
-#define TCF_NEED_MUTABLE_SCRIPT 0x20000
-
-/*
- * This function/global/eval code body contained a Use Strict
- * Directive.  Treat certain strict warnings as errors, and forbid
- * the use of 'with'.  See also TSF_STRICT_MODE_CODE,
- * JSScript::strictModeCode, and JSREPORT_STRICT_ERROR.
- */
-#define TCF_STRICT_MODE_CODE 0x40000
-
-/* Function has parameter named 'eval'. */
-#define TCF_FUN_PARAM_EVAL 0x80000
-
-/*
- * Flags to propagate out of the blocks.
- */
-#define TCF_RETURN_FLAGS        (TCF_RETURN_EXPR | TCF_RETURN_VOID)
-
-/*
  * Sticky deoptimization flags to propagate from FunctionBody.
  */
 #define TCF_FUN_FLAGS           (TCF_FUN_SETS_OUTER_NAME |                    \
@@ -303,18 +267,16 @@ struct JSTreeContext {              /* tree context for semantic checks */
                                  TCF_FUN_PARAM_ARGUMENTS |                    \
                                  TCF_FUN_HEAVYWEIGHT     |                    \
                                  TCF_FUN_IS_GENERATOR    |                    \
-                                 TCF_FUN_USES_OWN_NAME   |                    \
-                                 TCF_HAS_SHARPS          |                    \
-                                 TCF_STRICT_MODE_CODE)
+                                 TCF_FUN_IS_FUNARG       |                    \
+                                 TCF_HAS_SHARPS)
 
 /*
- * Return true if we need to check for conditions that elicit
- * JSOPTION_STRICT warnings or strict mode errors.
+ * Flags field, not stored in JSTreeContext.flags, for passing a static level
+ * into js_CompileScript.
  */
-inline bool JSTreeContext::needStrictChecks() {
-    return JS_HAS_STRICT_OPTION(compiler->context) ||
-           (flags & TCF_STRICT_MODE_CODE);
-}
+#define TCF_STATIC_LEVEL_MASK   0xffff0000
+#define TCF_GET_STATIC_LEVEL(f) ((uint32)(f) >> 16)
+#define TCF_PUT_STATIC_LEVEL(d) ((uint16)(d) << 16)
 
 /*
  * Span-dependent instructions are jumps whose span (from the jump bytecode to
@@ -458,16 +420,6 @@ struct JSCodeGenerator : public JSTreeContext
      * pointer beyond the next JSCodeGenerator destructor call.
      */
     ~JSCodeGenerator();
-
-    bool hasSharps() {
-        bool rv = !!(flags & TCF_HAS_SHARPS);
-        JS_ASSERT((sharpSlotBase >= 0) == rv);
-        return rv;
-    }
-
-    uintN sharpSlots() {
-        return hasSharps() ? SHARP_NSLOTS : 0;
-    }
 };
 
 #define CG_TS(cg)               TS((cg)->compiler)

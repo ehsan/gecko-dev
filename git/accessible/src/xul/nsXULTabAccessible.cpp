@@ -149,8 +149,7 @@ nsXULTabAccessible::GetRelationByType(PRUint32 aRelationType,
   // Check whether tab and tabpanel are related by 'linkedPanel' attribute on
   // xul:tab element.
   rv = nsRelUtils::AddTargetFromIDRefAttr(aRelationType, aRelation, content,
-                                          nsAccessibilityAtoms::linkedPanel,
-                                          PR_TRUE);
+                                          nsAccessibilityAtoms::linkedPanel);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (rv != NS_OK_NO_RELATION_TARGET)
@@ -235,6 +234,15 @@ nsXULTabBoxAccessible::GetRoleInternal(PRUint32 *aRole)
   *aRole = nsIAccessibleRole::ROLE_PANE;
   return NS_OK;
 }
+
+#ifdef NEVER
+/** 2 children, tabs, tabpanels */
+NS_IMETHODIMP nsXULTabBoxAccessible::GetChildCount(PRInt32 *_retval)
+{
+  *_retval = 2;
+  return NS_OK;
+}
+#endif
 
 /**
   * XUL Tabs - the s really stands for strip. this is a collection of tab objects

@@ -107,6 +107,7 @@ NS_INTERFACE_MAP_BEGIN(nsXULTooltipListener)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMouseListener)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMouseMotionListener)
   NS_INTERFACE_MAP_ENTRY(nsIDOMKeyListener)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMXULListener)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIDOMEventListener, nsIDOMMouseListener)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMMouseMotionListener)
 NS_INTERFACE_MAP_END
@@ -224,10 +225,10 @@ nsXULTooltipListener::MouseMove(nsIDOMEvent* aMouseEvent)
   mMouseScreenY = newMouseY;
   mCachedMouseEvent = aMouseEvent;
 
-  nsCOMPtr<nsIDOMEventTarget> currentTarget;
-  aMouseEvent->GetCurrentTarget(getter_AddRefs(currentTarget));
+  nsCOMPtr<nsIDOMEventTarget> eventTarget;
+  aMouseEvent->GetCurrentTarget(getter_AddRefs(eventTarget));
 
-  nsCOMPtr<nsIContent> sourceContent = do_QueryInterface(currentTarget);
+  nsCOMPtr<nsIContent> sourceContent = do_QueryInterface(eventTarget);
   mSourceNode = do_GetWeakReference(sourceContent);
 #ifdef MOZ_XUL
   mIsSourceTree = sourceContent->Tag() == nsGkAtoms::treechildren;
@@ -244,28 +245,22 @@ nsXULTooltipListener::MouseMove(nsIDOMEvent* aMouseEvent)
   // showing and the tooltip hasn't been displayed since the mouse entered
   // the node, then start the timer to show the tooltip.
   if (!currentTooltip && !mTooltipShownOnce) {
+    // don't show tooltips attached to elements outside of a menu popup
+    // when hovering over an element inside it.
     nsCOMPtr<nsIDOMEventTarget> eventTarget;
     aMouseEvent->GetTarget(getter_AddRefs(eventTarget));
-
-    // don't show tooltips attached to elements outside of a menu popup
-    // when hovering over an element inside it. The popupsinherittooltip
-    // attribute may be used to disable this behaviour, which is useful for
-    // large menu hierarchies such as bookmarks.
-    if (!sourceContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::popupsinherittooltip,
-                                    nsGkAtoms::_true, eCaseMatters)) {
-      nsCOMPtr<nsIContent> targetContent = do_QueryInterface(eventTarget);
-      while (targetContent && targetContent != sourceContent) {
-        nsIAtom* tag = targetContent->Tag();
-        if (targetContent->GetNameSpaceID() == kNameSpaceID_XUL &&
-            (tag == nsGkAtoms::menupopup ||
-             tag == nsGkAtoms::panel ||
-             tag == nsGkAtoms::tooltip)) {
-          mSourceNode = nsnull;
-          return NS_OK;
-        }
-
-        targetContent = targetContent->GetParent();
+    nsCOMPtr<nsIContent> targetContent = do_QueryInterface(eventTarget);
+    while (targetContent && targetContent != sourceContent) {
+      nsIAtom* tag = targetContent->Tag();
+      if (targetContent->GetNameSpaceID() == kNameSpaceID_XUL &&
+          (tag == nsGkAtoms::menupopup ||
+           tag == nsGkAtoms::panel ||
+           tag == nsGkAtoms::tooltip)) {
+        mSourceNode = nsnull;
+        return NS_OK;
       }
+
+      targetContent = targetContent->GetParent();
     }
 
     mTooltipTimer = do_CreateInstance("@mozilla.org/timer;1");
@@ -317,9 +312,6 @@ nsXULTooltipListener::HandleEvent(nsIDOMEvent* aEvent)
   aEvent->GetType(type);
   if (type.EqualsLiteral("DOMMouseScroll") || type.EqualsLiteral("dragstart"))
     HideTooltip();
-  else if (type.EqualsLiteral("popuphiding"))
-    DestroyTooltip();
-
   return NS_OK;
 }
 
@@ -335,6 +327,13 @@ nsXULTooltipListener::ToolbarTipsPrefChanged(const char *aPref,
                                               sShowTooltips);
 
   return 0;
+}
+
+NS_IMETHODIMP
+nsXULTooltipListener::PopupHiding(nsIDOMEvent* aEvent)
+{
+  DestroyTooltip();
+  return NS_OK;
 }
 
 //////////////////////////////////////////////////////////////////////////

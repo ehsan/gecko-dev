@@ -67,15 +67,13 @@
 #include "nsIRecyclingAllocator.h"
 #include "nsISocketTransport.h"
 #include "nsCRT.h"
-#include "nsSimpleNestedURI.h"
+#include "nsINestedURI.h"
 #include "nsNetUtil.h"
 #include "nsThreadUtils.h"
 #include "nsIPermissionManager.h"
 #include "nsTArray.h"
-#include "nsIConsoleService.h"
-#include "nsIUploadChannel2.h"
 
-#if defined(XP_WIN) || defined(MOZ_ENABLE_LIBCONIC)
+#if defined(XP_WIN)
 #include "nsNativeConnectionHelper.h"
 #endif
 
@@ -87,7 +85,6 @@
 #define MAX_RECURSION_COUNT 50
 
 nsIOService* gIOService = nsnull;
-static PRBool gHasWarnedUploadChannel2;
 
 // A general port blacklist.  Connections to these ports will not be allowed unless 
 // the protocol overrides.
@@ -579,31 +576,7 @@ nsIOService::NewChannelFromURI(nsIURI *aURI, nsIChannel **result)
         }
     }
 
-    rv = handler->NewChannel(aURI, result);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    // Some extensions override the http protocol handler and provide their own
-    // implementation. The channels returned from that implementation doesn't
-    // seem to always implement the nsIUploadChannel2 interface, presumably
-    // because it's a new interface.
-    // Eventually we should remove this and simply require that http channels
-    // implement the new interface.
-    // See bug 529041
-    if (!gHasWarnedUploadChannel2 && scheme.EqualsLiteral("http")) {
-        nsCOMPtr<nsIUploadChannel2> uploadChannel2 = do_QueryInterface(*result);
-        if (!uploadChannel2) {
-            nsCOMPtr<nsIConsoleService> consoleService =
-                do_GetService(NS_CONSOLESERVICE_CONTRACTID);
-            if (consoleService) {
-                consoleService->LogStringMessage(NS_LITERAL_STRING(
-                    "Http channel implementation doesn't support nsIUploadChannel2. An extension has supplied a non-functional http protocol handler. This will break behavior and in future releases not work at all."
-                                                                   ).get());
-            }
-            gHasWarnedUploadChannel2 = PR_TRUE;
-        }
-    }
-
-    return NS_OK;
+    return handler->NewChannel(aURI, result);
 }
 
 NS_IMETHODIMP
@@ -967,19 +940,6 @@ nsIOService::ToImmutableURI(nsIURI* uri, nsIURI** result)
 }
 
 NS_IMETHODIMP
-nsIOService::NewSimpleNestedURI(nsIURI* aURI, nsIURI** aResult)
-{
-    NS_ENSURE_ARG(aURI);
-
-    nsCOMPtr<nsIURI> safeURI;
-    nsresult rv = NS_EnsureSafeToReturn(aURI, getter_AddRefs(safeURI));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    NS_IF_ADDREF(*aResult = new nsSimpleNestedURI(safeURI));
-    return *aResult ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
-}
-
-NS_IMETHODIMP
 nsIOService::SetManageOfflineStatus(PRBool aManage) {
     PRBool wasManaged = mManageOfflineStatus;
     mManageOfflineStatus = aManage;
@@ -1013,10 +973,11 @@ nsIOService::TrackNetworkLinkStatusForOffline()
         // option is set to always autodial. If so, then we are 
         // always up for the purposes of offline management.
         if (autodialEnabled) {
-#if defined(XP_WIN) || defined(MOZ_ENABLE_LIBCONIC)
-            // On Windows and Maemo (libconic) we should first check with the OS
-            // to see if autodial is enabled.  If it is enabled then we are
-            // allowed to manage the offline state.
+#if defined(XP_WIN)
+            // On Windows, need to do some registry checking to see if
+            // autodial is enabled at the OS level. Only if that is
+            // enabled are we always up for the purposes of offline
+            // management.
             if(nsNativeConnectionHelper::IsAutodialEnabled()) 
                 return SetOffline(PR_FALSE);
 #else
@@ -1024,7 +985,7 @@ nsIOService::TrackNetworkLinkStatusForOffline()
 #endif
         }
     }
-
+  
     PRBool isUp;
     nsresult rv = mNetworkLinkService->GetIsLinkUp(&isUp);
     NS_ENSURE_SUCCESS(rv, rv);

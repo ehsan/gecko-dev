@@ -51,7 +51,6 @@ class nsIDOMEvent;
 class nsRegion;
 class nsDisplayListBuilder;
 class nsIFontMetrics;
-class nsClientRectList;
 
 #include "prtypes.h"
 #include "nsStyleContext.h"
@@ -61,12 +60,10 @@ class nsClientRectList;
 #include "nsIFrame.h"
 #include "nsThreadUtils.h"
 #include "nsIPresShell.h"
-#include "nsIPrincipal.h"
 #include "gfxPattern.h"
-#include "imgIContainer.h"
-#include "nsCSSPseudoElements.h"
 
 class nsBlockFrame;
+class nsTextFragment;
 
 /**
  * nsLayoutUtils is a namespace class used for various helper
@@ -122,14 +119,6 @@ public:
   }
 
   /**
-   * Given a frame which is the primary frame for an element,
-   * return the frame that has the non-psuedoelement style context for
-   * the content.
-   * This is aPrimaryFrame itself except for tableOuter frames.
-   */
-  static nsIFrame* GetStyleFrame(nsIFrame* aPrimaryFrame);
-
-  /**
    * IsGeneratedContentFor returns PR_TRUE if aFrame is the outermost
    * frame for generated content of type aPseudoElement for aContent.
    * aFrame *might not* have the aPseudoElement pseudo-style! For example
@@ -163,7 +152,7 @@ public:
    */
   static PRInt32 CompareTreePosition(nsIContent* aContent1,
                                      nsIContent* aContent2,
-                                     const nsIContent* aCommonAncestor = nsnull)
+                                     nsIContent* aCommonAncestor = nsnull)
   {
     return DoCompareTreePosition(aContent1, aContent2, -1, 1, aCommonAncestor);
   }
@@ -178,7 +167,7 @@ public:
                                        nsIContent* aContent2,
                                        PRInt32 aIf1Ancestor,
                                        PRInt32 aIf2Ancestor,
-                                       const nsIContent* aCommonAncestor = nsnull);
+                                       nsIContent* aCommonAncestor = nsnull);
 
   /**
    * CompareTreePosition determines whether aFrame1 comes before or
@@ -261,25 +250,9 @@ public:
 
   /**
    * Like IsProperAncestorFrame, but looks across document boundaries.
-   *
-   * Just like IsAncestorFrameCrossDoc, except that it returns false when
-   * aFrame == aAncestorFrame.
    */
   static PRBool IsProperAncestorFrameCrossDoc(nsIFrame* aAncestorFrame, nsIFrame* aFrame,
                                               nsIFrame* aCommonAncestor = nsnull);
-
-  /**
-   * IsAncestorFrameCrossDoc checks whether aAncestorFrame is an ancestor
-   * of aFrame or equal to aFrame, looking across document boundaries.
-   * @param aCommonAncestor nsnull, or a common ancestor of aFrame and
-   * aAncestorFrame. If non-null, this can bound the search and speed up
-   * the function.
-   *
-   * Just like IsProperAncestorFrameCrossDoc, except that it returns true when
-   * aFrame == aAncestorFrame.
-   */
-  static PRBool IsAncestorFrameCrossDoc(nsIFrame* aAncestorFrame, nsIFrame* aFrame,
-                                        nsIFrame* aCommonAncestor = nsnull);
 
   /**
     * GetFrameFor returns the root frame for a view
@@ -327,34 +300,41 @@ public:
    *
    * @param aContent the content node we're looking at
    * @param aStyleContext aContent's style context
-   * @param aPseudoElement the id of the pseudo style we care about
+   * @param aPseudoElement the name of the pseudo style we care about
    * @param aPresContext the presentation context
    * @return whether aContent has aPseudoElement style attached to it
    */
   static PRBool HasPseudoStyle(nsIContent* aContent,
                                nsStyleContext* aStyleContext,
-                               nsCSSPseudoElements::Type aPseudoElement,
+                               nsIAtom* aPseudoElement,
                                nsPresContext* aPresContext)
   {
     NS_PRECONDITION(aPresContext, "Must have a prescontext");
+    NS_PRECONDITION(aPseudoElement, "Must have a pseudo name");
 
     nsRefPtr<nsStyleContext> pseudoContext;
     if (aContent) {
       pseudoContext = aPresContext->StyleSet()->
-        ProbePseudoElementStyle(aContent, aPseudoElement, aStyleContext);
+        ProbePseudoStyleFor(aContent, aPseudoElement, aStyleContext);
     }
     return pseudoContext != nsnull;
   }
 
   /**
    * If this frame is a placeholder for a float, then return the float,
-   * otherwise return nsnull.  aPlaceholder must be a placeholder frame.
+   * otherwise return nsnull.
    */
-  static nsIFrame* GetFloatFromPlaceholder(nsIFrame* aPlaceholder);
+  static nsIFrame* GetFloatFromPlaceholder(nsIFrame* aPossiblePlaceholder);
 
   // Combine aNewBreakType with aOrigBreakType, but limit the break types
   // to NS_STYLE_CLEAR_LEFT, RIGHT, LEFT_AND_RIGHT.
   static PRUint8 CombineBreakType(PRUint8 aOrigBreakType, PRUint8 aNewBreakType);
+
+  /**
+   * @return PR_TRUE if aFrame is the root element frame for
+   * its pres-shell
+   */
+  static PRBool IsRootElementFrame(nsIFrame* aFrame);
 
   /**
    * Get the coordinates of a given DOM mouse event, relative to a given
@@ -485,11 +465,6 @@ public:
   static nsRect RoundGfxRectToAppRect(const gfxRect &aRect, float aFactor);
 
 
-  enum {
-    PAINT_IN_TRANSFORM = 0x01,
-    PAINT_SYNC_DECODE_IMAGES = 0x02
-  };
-
   /**
    * Given aFrame, the root frame of a stacking context, paint it and its
    * descendants to aRenderingContext. 
@@ -498,34 +473,29 @@ public:
    * to pixel-aligned coordinates
    * @param aDirtyRegion the region that must be painted, in the coordinates
    * of aFrame
-   * @param aBackstop paint the dirty area with this color before drawing
+   * @param aBackground paint the dirty area with this color before drawing
    * the actual content; pass NS_RGBA(0,0,0,0) to draw no background
-   * @param aFlags if PAINT_IN_TRANSFORM is set, then we assume
-   * this is inside a transform or SVG foreignObject. If
-   * PAINT_SYNC_DECODE_IMAGES is set, we force synchronous decode on all images.
    */
   static nsresult PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFrame,
-                             const nsRegion& aDirtyRegion, nscolor aBackstop,
-                             PRUint32 aFlags = 0);
+                             const nsRegion& aDirtyRegion, nscolor aBackground);
 
   /**
    * @param aRootFrame the root frame of the tree to be displayed
    * @param aMovingFrame a frame that has moved
-   * @param aPt the amount by which aMovingFrame has moved
-   * @param aUpdateRect a rectangle that bounds the area to be updated,
-   * relative to aRootFrame
-   * @param aRepaintRegion output: a subregion of aUpdateRect that must be
-   * repainted after doing the blit
-   * @param aBlitRegion output: a subregion of aUpdateRect that should
-   * be repainted by blitting
+   * @param aPt the amount by which aMovingFrame has moved and the rect will
+   * be copied
+   * @param aCopyRect a rectangle that will be copied, relative to aRootFrame
+   * @param aRepaintRegion a subregion of aCopyRect+aDelta that must be repainted
+   * after doing the bitblt
    * 
-   * If the caller does a bitblt copy of aBlitRegion-aPt to aBlitRegion,
-   * and then repaints aRepaintRegion, then the area aUpdateRect will be
-   * correctly up to date. aBlitRegion and aRepaintRegion do not intersect
-   * and are both contained within aUpdateRect.
+   * Ideally this function would actually have the rect-to-copy as an output
+   * rather than an input, but for now, scroll bitblitting is limited to
+   * the whole of a single widget, so we cannot choose the rect.
    * 
-   * Frame geometry must have already been adjusted for the scroll/copy
-   * operation before this function is called.
+   * This function assumes that the caller will do a bitblt copy of aCopyRect
+   * to aCopyRect+aPt. It computes a region that must be repainted in order
+   * for the resulting rendering to be correct. Frame geometry must have
+   * already been adjusted for the scroll/copy operation.
    * 
    * Conceptually it works by computing a display list in the before-state
    * and a display list in the after-state and analyzing them to find the
@@ -534,31 +504,25 @@ public:
    * efficient), so we use some unfortunately tricky techniques to get by
    * with just the after-list.
    * 
-   * We compute the "visible moving area", a region that contains all
-   * moving content that is visible, either before or after scrolling,
-   * intersected with aUpdateRect.
-   *
-   * The aRepaintRegion region consists of the visible moving area
-   * intersected with the union of the following areas:
+   * The output region consists of:
    * a) any visible background-attachment:fixed areas in the after-move display
    * list
    * b) any visible areas of the before-move display list corresponding to
    * frames that will not move (translated by aDelta)
    * c) any visible areas of the after-move display list corresponding to
    * frames that did not move
+   * d) except that if the same display list element is visible in b) and c)
+   * for a frame that did not move and paints a uniform color within its
+   * bounds, then the intersection of its old and new bounds can be excluded
+   * when it is processed by b) and c).
    * 
-   * aBlitRegion is the visible moving area minus aRepaintRegion.
-   * 
-   * We may return a larger region for aRepaintRegion and/or aBlitRegion
-   * if computing the above regions precisely is too expensive.  (However,
-   * they will never intersect, since the regions that may be computed
-   * imprecisely are really the "visible moving area" and aRepaintRegion.)
+   * We may return a larger region if computing the above region precisely is
+   * too expensive.
    */
   static nsresult ComputeRepaintRegionForCopy(nsIFrame* aRootFrame,
                                               nsIFrame* aMovingFrame,
                                               nsPoint aDelta,
-                                              const nsRect& aUpdateRect,
-                                              nsRegion* aBlitRegion,
+                                              const nsRect& aCopyRect,
                                               nsRegion* aRepaintRegion);
 
   /**
@@ -607,27 +571,6 @@ public:
   public:
     virtual void AddRect(const nsRect& aRect) = 0;
   };
-
-  struct RectAccumulator : public RectCallback {
-    nsRect       mResultRect;
-    nsRect       mFirstRect;
-    PRPackedBool mSeenFirstRect;
-
-    RectAccumulator();
-
-    virtual void AddRect(const nsRect& aRect);
-  };
-
-  struct RectListBuilder : public RectCallback {
-    nsClientRectList* mRectList;
-    nsresult          mRV;
-
-    RectListBuilder(nsClientRectList* aList);
-     virtual void AddRect(const nsRect& aRect);
-  };
-
-  static nsIFrame* GetContainingBlockForClientRect(nsIFrame* aFrame);
-
   /**
    * Collect all CSS border-boxes associated with aFrame and its
    * continuations, "drilling down" through outer table frames and
@@ -915,7 +858,6 @@ public:
    *   @param aAnchor           A point in aFill which we will ensure is
    *                            pixel-aligned in the output.
    *   @param aDirty            Pixels outside this area may be skipped.
-   *   @param aImageFlags       Image flags of the imgIContainer::FLAG_* variety
    */
   static nsresult DrawImage(nsIRenderingContext* aRenderingContext,
                             imgIContainer*       aImage,
@@ -923,8 +865,15 @@ public:
                             const nsRect&        aDest,
                             const nsRect&        aFill,
                             const nsPoint&       aAnchor,
-                            const nsRect&        aDirty,
-                            PRUint32             aImageFlags);
+                            const nsRect&        aDirty);
+
+  static nsresult DrawImage(nsIRenderingContext* aRenderingContext,
+                            nsIImage*            aImage,
+                            gfxPattern::GraphicsFilter aGraphicsFilter,
+                            const nsRect&        aDest,
+                            const nsRect&        aFill,
+                            const nsPoint&       aAnchor,
+                            const nsRect&        aDirty);
 
   /**
    * Draw a whole image without scaling or tiling.
@@ -935,7 +884,6 @@ public:
    *   @param aImage            The image.
    *   @param aDest             The top-left where the image should be drawn
    *   @param aDirty            Pixels outside this area may be skipped.
-   *   @param aImageFlags       Image flags of the imgIContainer::FLAG_* variety
    *   @param aSourceArea       If non-null, this area is extracted from
    *                            the image and drawn at aDest. It's
    *                            in appunits. For best results it should
@@ -945,7 +893,6 @@ public:
                                           imgIContainer*       aImage,
                                           const nsPoint&       aDest,
                                           const nsRect&        aDirty,
-                                          PRUint32             aImageFlags,
                                           const nsRect*        aSourceArea = nsnull);
 
   /**
@@ -961,14 +908,19 @@ public:
    *                            the image and drawn in aDest. It's
    *                            in appunits. For best results it should
    *                            be aligned with image pixels.
-   *   @param aImageFlags       Image flags of the imgIContainer::FLAG_* variety
    */
   static nsresult DrawSingleImage(nsIRenderingContext* aRenderingContext,
                                   imgIContainer*       aImage,
                                   gfxPattern::GraphicsFilter aGraphicsFilter,
                                   const nsRect&        aDest,
                                   const nsRect&        aDirty,
-                                  PRUint32             aImageFlags,
+                                  const nsRect*        aSourceArea = nsnull);
+
+  static nsresult DrawSingleImage(nsIRenderingContext* aRenderingContext,
+                                  nsIImage*            aImage,
+                                  gfxPattern::GraphicsFilter aGraphicsFilter,
+                                  const nsRect&        aDest,
+                                  const nsRect&        aDirty,
                                   const nsRect*        aSourceArea = nsnull);
 
   /**
@@ -1009,16 +961,10 @@ public:
 
   /**
    * Determine if a widget is likely to require transparency or translucency.
-   *   @param aBackgroundFrame The frame that the background is set on. For
-   *                           <window>s, this will be the canvas frame.
-   *   @param aCSSRootFrame    The frame that holds CSS properties affecting
-   *                           the widget's transparency. For menupopups,
-   *                           aBackgroundFrame and aCSSRootFrame will be the
-   *                           same.
+   *   @param aFrame the frame of a <window>, <popup> or <menupopup> element.
    *   @return a value suitable for passing to SetWindowTranslucency
    */
-  static nsTransparencyMode GetFrameTransparency(nsIFrame* aBackgroundFrame,
-                                                 nsIFrame* aCSSRootFrame);
+  static nsTransparencyMode GetFrameTransparency(nsIFrame* aFrame);
 
   /**
    * Get textrun construction flags determined by a given style; in particular
@@ -1063,22 +1009,28 @@ public:
   static PRBool sDisableGetUsedXAssertions;
 
   /**
-   * Return true if aFrame is in an {ib} split and is NOT one of the
-   * continuations of the first inline in it.
+   * Returns the text fragment, which aFrame should use for printing.
+   * @param aFrame The nsIFrame object, which uses text fragment data.
    */
-  static PRBool FrameIsNonFirstInIBSplit(const nsIFrame* aFrame) {
+  static nsTextFragment* GetTextFragmentForPrinting(const nsIFrame* aFrame);
+
+  /**
+   * Return whether aFrame is an inline frame in the first part of an {ib}
+   * split.
+   */
+  static PRBool FrameIsInFirstPartOfIBSplit(const nsIFrame* aFrame) {
     return (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
-      aFrame->GetFirstContinuation()->
+      !aFrame->GetFirstContinuation()->
         GetProperty(nsGkAtoms::IBSplitSpecialPrevSibling);
   }
 
   /**
-   * Return true if aFrame is in an {ib} split and is NOT one of the
-   * continuations of the last inline in it.
+   * Return whether aFrame is an inline frame in the last part of an {ib}
+   * split.
    */
-  static PRBool FrameIsNonLastInIBSplit(const nsIFrame* aFrame) {
+  static PRBool FrameIsInLastPartOfIBSplit(const nsIFrame* aFrame) {
     return (aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
-      aFrame->GetFirstContinuation()->
+      !aFrame->GetFirstContinuation()->
         GetProperty(nsGkAtoms::IBSplitSpecialSibling);
   }
 
@@ -1104,10 +1056,7 @@ public:
     /* Always create a new surface for the result */
     SFE_WANT_NEW_SURFACE   = 1 << 0,
     /* When creating a new surface, create an image surface */
-    SFE_WANT_IMAGE_SURFACE = 1 << 1,
-    /* Whether to extract the first frame (as opposed to the
-       current frame) in the case that the element is an image. */
-    SFE_WANT_FIRST_FRAME = 1 << 2
+    SFE_WANT_IMAGE_SURFACE = 1 << 1
   };
 
   struct SurfaceFromElementResult {

@@ -41,6 +41,9 @@
 """A parser for cross-platform IDL (XPIDL) files."""
 
 import sys, os.path, re
+
+sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir, os.pardir,
+                             'other-licenses', 'ply'))
 from ply import lex, yacc
 
 """A type conforms to the following pattern:
@@ -98,22 +101,6 @@ def paramAttlistToIDL(attlist):
 
     return '[%s] ' % ', '.join(["%s%s" % (name, value is not None and ' (%s)' % value or '')
                                 for name, value, aloc in sorted])
-
-def unaliasType(t):
-    while t.kind == 'typedef':
-        t = t.realtype
-    assert t is not None
-    return t
-
-def getBuiltinOrNativeTypeName(t):
-    t = unaliasType(t)
-    if t.kind == 'builtin':
-        return t.name
-    elif t.kind == 'native':
-        assert t.specialtype is not None
-        return '[%s]' % t.specialtype
-    else:
-        return None
 
 class BuiltinLocation(object):
     def get(self):
@@ -640,8 +627,6 @@ class Attribute(object):
     notxpcom = False
     readonly = False
     binaryname = None
-    null = None
-    undefined = None
 
     def __init__(self, type, name, attlist, readonly, location, doccomments):
         self.type = type
@@ -660,48 +645,19 @@ class Attribute(object):
                 self.binaryname = value
                 continue
 
-            if name == 'Null':
-                if value is None:
-                    raise IDLError("'Null' attribute requires a value", aloc)
-                if readonly:
-                    raise IDLError("'Null' attribute only makes sense for setters",
-                                   aloc);
-                if value not in ('Empty', 'Null', 'Stringify'):
-                    raise IDLError("'Null' attribute value must be 'Empty', 'Null' or 'Stringify'",
-                                   aloc);
-                self.null = value
-            elif name == 'Undefined':
-                if value is None:
-                    raise IDLError("'Undefined' attribute requires a value", aloc)
-                if readonly:
-                    raise IDLError("'Undefined' attribute only makes sense for setters",
-                                   aloc);
-                if value not in ('Empty', 'Null'):
-                    raise IDLError("'Undefined' attribute value must be 'Empty' or 'Null'",
-                                   aloc);
-                self.undefined = value
-            else:
-                if value is not None:
-                    raise IDLError("Unexpected attribute value", aloc)
+            if value is not None:
+                raise IDLError("Unexpected attribute value", aloc)
 
-                if name == 'noscript':
-                    self.noscript = True
-                elif name == 'notxpcom':
-                    self.notxpcom = True
-                else:
-                    raise IDLError("Unexpected attribute '%s'", aloc)
+            if name == 'noscript':
+                self.noscript = True
+            elif name == 'notxpcom':
+                self.notxpcom = True
+            else:
+                raise IDLError("Unexpected attribute '%s'", aloc)
 
     def resolve(self, iface):
         self.iface = iface
         self.realtype = iface.idl.getName(self.type, self.location)
-        if (self.null is not None and
-            getBuiltinOrNativeTypeName(self.realtype) != '[domstring]'):
-            raise IDLError("'Null' attribute can only be used on DOMString",
-                           self.location)
-        if (self.undefined is not None and
-            getBuiltinOrNativeTypeName(self.realtype) != '[domstring]'):
-            raise IDLError("'Undefined' attribute can only be used on DOMString",
-                           self.location)
 
     def toIDL(self):
         attribs = attlistToIDL(self.attlist)
@@ -721,7 +677,6 @@ class Method(object):
     noscript = False
     notxpcom = False
     binaryname = None
-    optional_argc = False
 
     def __init__(self, type, name, attlist, paramlist, location, doccomments, raises):
         self.type = type
@@ -748,8 +703,6 @@ class Method(object):
                 self.noscript = True
             elif name == 'notxpcom':
                 self.notxpcom = True
-            elif name == 'optional_argc':
-                self.optional_argc = True
             else:
                 raise IDLError("Unexpected attribute '%s'", aloc)
 
@@ -791,8 +744,6 @@ class Param(object):
     retval = False
     shared = False
     optional = False
-    null = None
-    undefined = None
 
     def __init__(self, paramtype, type, name, attlist, location, realtype=None):
         self.paramtype = paramtype
@@ -812,20 +763,6 @@ class Param(object):
                 if value is None:
                     raise IDLError("'iid_is' must specify a parameter", aloc)
                 self.iid_is = value
-            elif name == 'Null':
-                if value is None:
-                    raise IDLError("'Null' must specify a parameter", aloc)
-                if value not in ('Empty', 'Null', 'Stringify'):
-                    raise IDLError("'Null' parameter value must be 'Empty', 'Null', or 'Stringify'",
-                                   aloc);
-                self.null = value
-            elif name == 'Undefined':
-                if value is None:
-                    raise IDLError("'Undefined' must specify a parameter", aloc)
-                if value not in ('Empty', 'Null'):
-                    raise IDLError("'Undefined' parameter value must be 'Empty' or 'Null'",
-                                   aloc);
-                self.undefined = value
             else:
                 if value is not None:
                     raise IDLError("Unexpected value for attribute '%s'" % name,
@@ -848,14 +785,6 @@ class Param(object):
         self.realtype = method.iface.idl.getName(self.type, self.location)
         if self.array:
             self.realtype = Array(self.realtype)
-        if (self.null is not None and
-            getBuiltinOrNativeTypeName(self.realtype) != '[domstring]'):
-            raise IDLError("'Null' attribute can only be used on DOMString",
-                           self.location)
-        if (self.undefined is not None and
-            getBuiltinOrNativeTypeName(self.realtype) != '[domstring]'):
-            raise IDLError("'Undefined' attribute can only be used on DOMString",
-                           self.location)
 
     def nativeType(self):
         kwargs = {}

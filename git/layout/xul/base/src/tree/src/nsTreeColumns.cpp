@@ -74,13 +74,8 @@ nsTreeColumn::~nsTreeColumn()
   }
 }
 
-NS_IMPL_CYCLE_COLLECTION_1(nsTreeColumn, mContent)
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsTreeColumn)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsTreeColumn)
-
 // QueryInterface implementation for nsTreeColumn
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsTreeColumn)
+NS_INTERFACE_MAP_BEGIN(nsTreeColumn)
   NS_INTERFACE_MAP_ENTRY(nsITreeColumn)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(TreeColumn)
@@ -91,6 +86,9 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsTreeColumn)
   }
   else
 NS_INTERFACE_MAP_END
+                                                                                
+NS_IMPL_ADDREF(nsTreeColumn)
+NS_IMPL_RELEASE(nsTreeColumn)
 
 nsIFrame*
 nsTreeColumn::GetFrame(nsTreeBodyFrame* aBodyFrame)
@@ -107,8 +105,6 @@ nsTreeColumn::GetFrame(nsTreeBodyFrame* aBodyFrame)
 nsIFrame*
 nsTreeColumn::GetFrame()
 {
-  NS_ENSURE_TRUE(mContent, nsnull);
-
   nsCOMPtr<nsIDocument> document = mContent->GetDocument();
   if (!document)
     return nsnull;
@@ -192,11 +188,7 @@ nsTreeColumn::GetWidthInTwips(nsTreeBodyFrame* aBodyFrame, nscoord* aResult)
 NS_IMETHODIMP
 nsTreeColumn::GetElement(nsIDOMElement** aElement)
 {
-  if (mContent) {
-    return CallQueryInterface(mContent, aElement);
-  }
-  *aElement = nsnull;
-  return NS_ERROR_FAILURE;
+  return CallQueryInterface(mContent, aElement);
 }
 
 NS_IMETHODIMP
@@ -393,7 +385,10 @@ nsTreeColumns::nsTreeColumns(nsITreeBoxObject* aTree)
 
 nsTreeColumns::~nsTreeColumns()
 {
-  nsTreeColumns::InvalidateColumns();
+  for (nsTreeColumn* currCol = mFirstColumn; currCol; currCol = currCol->GetNext()) {
+    currCol->SetColumns(nsnull);
+  }
+  NS_IF_RELEASE(mFirstColumn);
 }
 
 // QueryInterface implementation for nsTreeColumns
@@ -467,8 +462,7 @@ nsTreeColumns::GetSortedColumn(nsITreeColumn** _retval)
   EnsureColumns();
   *_retval = nsnull;
   for (nsTreeColumn* currCol = mFirstColumn; currCol; currCol = currCol->GetNext()) {
-    if (currCol->mContent &&
-        nsContentUtils::HasNonEmptyAttr(currCol->mContent, kNameSpaceID_None,
+    if (nsContentUtils::HasNonEmptyAttr(currCol->mContent, kNameSpaceID_None,
                                         nsGkAtoms::sortDirection)) {
       NS_ADDREF(*_retval = currCol);
       return NS_OK;
@@ -490,8 +484,7 @@ nsTreeColumns::GetKeyColumn(nsITreeColumn** _retval)
 
   for (nsTreeColumn* currCol = mFirstColumn; currCol; currCol = currCol->GetNext()) {
     // Skip hidden columns.
-    if (!currCol->mContent ||
-        currCol->mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::hidden,
+    if (currCol->mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::hidden,
                                        nsGkAtoms::_true, eCaseMatters))
       continue;
 
@@ -582,10 +575,6 @@ nsTreeColumns::GetColumnAt(PRInt32 aIndex, nsITreeColumn** _retval)
 NS_IMETHODIMP
 nsTreeColumns::InvalidateColumns()
 {
-  for (nsTreeColumn* currCol = mFirstColumn; currCol;
-       currCol = currCol->GetNext()) {
-    currCol->SetColumns(nsnull);
-  }
   NS_IF_RELEASE(mFirstColumn);
   return NS_OK;
 }
@@ -615,7 +604,7 @@ nsTreeColumns::RestoreNaturalOrder()
     child->SetAttr(kNameSpaceID_None, nsGkAtoms::ordinal, ordinal, PR_TRUE);
   }
 
-  nsTreeColumns::InvalidateColumns();
+  NS_IF_RELEASE(mFirstColumn);
 
   mTree->Invalidate();
 

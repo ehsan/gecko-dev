@@ -55,26 +55,10 @@ NS_IMPL_CI_INTERFACE_GETTER2(XPCVariant, XPCVariant, nsIVariant)
 NS_IMPL_CYCLE_COLLECTING_ADDREF(XPCVariant)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(XPCVariant)
 
-XPCVariant::XPCVariant(XPCCallContext& ccx, jsval aJSVal)
+XPCVariant::XPCVariant(jsval aJSVal)
     : mJSVal(aJSVal)
 {
     nsVariant::Initialize(&mData);
-    if(!JSVAL_IS_PRIMITIVE(mJSVal))
-    {
-        // If the incoming object is an XPCWrappedNative, then it could be a
-        // double-wrapped object, and we should return the double-wrapped
-        // object back out to script.
-
-        JSObject* proto;
-        XPCWrappedNative* wn =
-            XPCWrappedNative::GetWrappedNativeOfJSObject(ccx,
-                                                         JSVAL_TO_OBJECT(mJSVal),
-                                                         nsnull,
-                                                         &proto);
-        mReturnRawObject = !wn && !proto;
-    }
-    else
-        mReturnRawObject = JS_FALSE;
 }
 
 XPCTraceableVariant::~XPCTraceableVariant()
@@ -135,9 +119,9 @@ XPCVariant* XPCVariant::newVariant(XPCCallContext& ccx, jsval aJSVal)
     XPCVariant* variant;
 
     if(!JSVAL_IS_TRACEABLE(aJSVal))
-        variant = new XPCVariant(ccx, aJSVal);
+        variant = new XPCVariant(aJSVal);
     else
-        variant = new XPCTraceableVariant(ccx, aJSVal);
+        variant = new XPCTraceableVariant(ccx.GetRuntime(), aJSVal);
 
     if(!variant)
         return nsnull;
@@ -298,7 +282,7 @@ JSBool XPCVariant::InitializeData(XPCCallContext& ccx)
 {
     if(JSVAL_IS_INT(mJSVal))
         return NS_SUCCEEDED(nsVariant::SetFromInt32(&mData, 
-                                                    JSVAL_TO_INT(mJSVal)));
+                                                   JSVAL_TO_INT(mJSVal)));
     if(JSVAL_IS_DOUBLE(mJSVal))
         return NS_SUCCEEDED(nsVariant::SetFromDouble(&mData, 
                                                      *JSVAL_TO_DOUBLE(mJSVal)));
@@ -392,7 +376,7 @@ JSBool XPCVariant::InitializeData(XPCCallContext& ccx)
 
 // static 
 JSBool 
-XPCVariant::VariantDataToJS(XPCLazyCallContext& lccx, 
+XPCVariant::VariantDataToJS(XPCCallContext& ccx, 
                             nsIVariant* variant,
                             JSObject* scope, nsresult* pErr,
                             jsval* pJSVal)
@@ -408,21 +392,11 @@ XPCVariant::VariantDataToJS(XPCLazyCallContext& lccx,
         jsval realVal = xpcvariant->GetJSVal();
         if(JSVAL_IS_PRIMITIVE(realVal) || 
            type == nsIDataType::VTYPE_ARRAY ||
-           type == nsIDataType::VTYPE_EMPTY_ARRAY ||
            type == nsIDataType::VTYPE_ID)
         {
             // Not a JSObject (or is a JSArray or is a JSObject representing 
             // an nsID),.
             // So, just pass through the underlying data.
-            *pJSVal = realVal;
-            return JS_TRUE;
-        }
-
-        if(xpcvariant->mReturnRawObject)
-        {
-            NS_ASSERTION(type == nsIDataType::VTYPE_INTERFACE ||
-                         type == nsIDataType::VTYPE_INTERFACE_IS,
-                         "Weird variant");
             *pJSVal = realVal;
             return JS_TRUE;
         }
@@ -447,7 +421,6 @@ XPCVariant::VariantDataToJS(XPCLazyCallContext& lccx,
     xpctvar.flags = 0;
     JSBool success;
 
-    JSContext* cx = lccx.GetJSContext();
     switch(type)
     {
         case nsIDataType::VTYPE_INT8:        
@@ -464,7 +437,7 @@ XPCVariant::VariantDataToJS(XPCLazyCallContext& lccx,
             // Easy. Handle inline.
             if(NS_FAILED(variant->GetAsDouble(&xpctvar.val.d)))
                 return JS_FALSE;
-            return JS_NewNumberValue(cx, xpctvar.val.d, pJSVal);
+            return JS_NewNumberValue(ccx, xpctvar.val.d, pJSVal);
         }
         case nsIDataType::VTYPE_BOOL:        
         {
@@ -627,7 +600,7 @@ XPCVariant::VariantDataToJS(XPCLazyCallContext& lccx,
             }
 
             success = 
-                XPCConvert::NativeArray2JS(lccx, pJSVal, 
+                XPCConvert::NativeArray2JS(ccx, pJSVal, 
                                            (const void**)&du.u.array.mArrayValue,
                                            conversionType, pid,
                                            du.u.array.mArrayCount, 
@@ -639,7 +612,7 @@ VARIANT_DONE:
         }        
         case nsIDataType::VTYPE_EMPTY_ARRAY: 
         {
-            JSObject* array = JS_NewArrayObject(cx, 0, nsnull);
+            JSObject* array = JS_NewArrayObject(ccx, 0, nsnull);
             if(!array) 
                 return JS_FALSE;
             *pJSVal = OBJECT_TO_JSVAL(array);
@@ -661,17 +634,47 @@ VARIANT_DONE:
     if(xpctvar.type.TagPart() == TD_PSTRING_SIZE_IS ||
        xpctvar.type.TagPart() == TD_PWSTRING_SIZE_IS)
     {
-        success = XPCConvert::NativeStringWithSize2JS(cx, pJSVal,
+        success = XPCConvert::NativeStringWithSize2JS(ccx, pJSVal,
                                                       (const void*)&xpctvar.val,
                                                       xpctvar.type,
                                                       size, pErr);
     }
     else
     {
-        success = XPCConvert::NativeData2JS(lccx, pJSVal,
-                                            (const void*)&xpctvar.val,
-                                            xpctvar.type,
-                                            &iid, scope, pErr);
+        // Last ditch check to prevent us from double-wrapping a regular JS
+        // object. This allows us to unwrap regular JS objects (since we
+        // normally can't double wrap them). See bug 384632.
+        *pJSVal = JSVAL_VOID;
+        if(type == nsIDataType::VTYPE_INTERFACE ||
+           type == nsIDataType::VTYPE_INTERFACE_IS)
+        {
+            nsISupports *src = reinterpret_cast<nsISupports *>(xpctvar.val.p);
+            if(nsXPCWrappedJSClass::IsWrappedJS(src))
+            {
+                // First QI the wrapper to the right interface.
+                nsCOMPtr<nsISupports> wrapper;
+                nsresult rv = src->QueryInterface(iid, getter_AddRefs(wrapper));
+                NS_ENSURE_SUCCESS(rv, JS_FALSE);
+
+                // Now, get the actual JS object out of the wrapper.
+                nsCOMPtr<nsIXPConnectJSObjectHolder> holder =
+                    do_QueryInterface(wrapper);
+                NS_ENSURE_TRUE(holder, JS_FALSE);
+
+                JSObject *obj;
+                holder->GetJSObject(&obj);
+                NS_ASSERTION(obj, "No JS object but the QIs above succeeded?");
+                *pJSVal = OBJECT_TO_JSVAL(obj);
+                success = JS_TRUE;
+            }
+        }
+        if(!JSVAL_IS_OBJECT(*pJSVal))
+        {
+            success = XPCConvert::NativeData2JS(ccx, pJSVal,
+                                                (const void*)&xpctvar.val,
+                                                xpctvar.type,
+                                                &iid, scope, pErr);
+        }
     }
 
     if(xpctvar.IsValAllocated())

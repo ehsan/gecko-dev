@@ -74,15 +74,19 @@ protected:
 
 public:
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
   // nsIFrame interface:
-  NS_IMETHOD  CharacterDataChanged(CharacterDataChangeInfo* aInfo);
+  NS_IMETHOD  CharacterDataChanged(nsPresContext*  aPresContext,
+                                   nsIContent*     aChild,
+                                   PRBool          aAppend);
 
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 
-  virtual void SetSelected(PRBool        aSelected,
-                           SelectionType aType);
+  NS_IMETHOD  SetSelected(nsPresContext* aPresContext,
+                          nsIDOMRange*    aRange,
+                          PRBool          aSelected,
+                          nsSpread        aSpread,
+                          SelectionType   aType);
   NS_IMETHOD  GetSelected(PRBool *aSelected) const;
   NS_IMETHOD  IsSelectable(PRBool* aIsSelectable, PRUint8* aSelectStyle) const;
 
@@ -208,6 +212,11 @@ protected:
                         nscolor *foreground, nscolor *background);
   float GetSubStringAdvance(PRUint32 charnum, PRUint32 fragmentChars);
   gfxFloat GetBaselineOffset(PRBool aForceGlobalTransform);
+  const nsTextFragment* GetFragment() const
+  {
+    return !(GetStateBits() & NS_STATE_SVG_PRINTING) ?
+      mContent->GetText() : nsLayoutUtils::GetTextFragmentForPrinting(this);
+  }
 
   // Used to support GetBBoxContribution by making GetConvasTM use this as the
   // parent transform instead of the real CanvasTM.

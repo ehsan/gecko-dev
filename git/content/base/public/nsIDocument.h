@@ -105,8 +105,8 @@ class nsIBoxObject;
 
 // IID for the nsIDocument interface
 #define NS_IDOCUMENT_IID      \
-{ 0xd16d73c1, 0xe0f7, 0x415c, \
- { 0xbd, 0x68, 0x9c, 0x1f, 0x93, 0xb8, 0x73, 0x7a } }
+  { 0x9abf0b96, 0xc9e2, 0x4d49, \
+    { 0x9c, 0x0a, 0x37, 0xc1, 0x22, 0x39, 0x83, 0x50 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -129,8 +129,6 @@ public:
       mCompatMode(eCompatibility_FullStandards),
       mIsInitialDocumentInWindow(PR_FALSE),
       mMayStartLayout(PR_TRUE),
-      mVisible(PR_TRUE),
-      mRemovedFromDocShell(PR_FALSE),
       // mAllowDNSPrefetch starts true, so that we can always reliably && it
       // with various values that might disable it.  Since we never prefetch
       // unless we get a window, and in that case the docshell value will get
@@ -637,7 +635,6 @@ public:
 
   enum ReadyState { READYSTATE_UNINITIALIZED = 0, READYSTATE_LOADING = 1, READYSTATE_INTERACTIVE = 3, READYSTATE_COMPLETE = 4};
   virtual void SetReadyStateInternal(ReadyState rs) = 0;
-  virtual ReadyState GetReadyStateEnum() = 0;
 
   // notify that one or two content nodes changed state
   // either may be nsnull, but not both
@@ -654,6 +651,13 @@ public:
                               nsIStyleRule* aStyleRule) = 0;
   virtual void StyleRuleRemoved(nsIStyleSheet* aStyleSheet,
                                 nsIStyleRule* aStyleRule) = 0;
+
+  /**
+   * Notify document of pending attribute change
+   */
+  virtual void AttributeWillChange(nsIContent* aChild,
+                                   PRInt32 aNameSpaceID,
+                                   nsIAtom* aAttribute) = 0;
 
   /**
    * Flush notifications for this document and its parent documents
@@ -691,10 +695,12 @@ public:
                           nsIPrincipal* aPrincipal) = 0;
 
   /**
-   * Set the container (docshell) for this document. Virtual so that
-   * docshell can call it.
+   * Set the container (docshell) for this document.
    */
-  virtual void SetContainer(nsISupports *aContainer);
+  void SetContainer(nsISupports *aContainer)
+  {
+    mDocumentContainer = do_GetWeakReference(aContainer);
+  }
 
   /**
    * Get the container (docshell) for this document.
@@ -723,9 +729,9 @@ public:
                                  nsAString& aEncoding,
                                  nsAString& Standalone) = 0;
 
-  PRBool IsHTML() const
+  virtual PRBool IsCaseSensitive()
   {
-    return mIsRegularHTML;
+    return PR_TRUE;
   }
 
   virtual PRBool IsScriptEnabled() = 0;
@@ -1120,16 +1126,6 @@ public:
    * called yet.
    */
   PRBool IsShowing() { return mIsShowing; }
-  /**
-   * Return whether the document is currently visible (in the sense of
-   * OnPageHide having been called and OnPageShow not yet having been called)
-   */
-  PRBool IsVisible() { return mVisible; }
-  /**
-   * Return true when this document is active, i.e., the active document
-   * in a content viewer.
-   */
-  PRBool IsActive() { return mDocumentContainer && !mRemovedFromDocShell; }
 
   void RegisterFreezableElement(nsIContent* aContent);
   PRBool UnregisterFreezableElement(nsIContent* aContent);
@@ -1158,78 +1154,6 @@ public:
   PRUint32 EventHandlingSuppressed() const { return mEventsSuppressed; }
 
   PRBool IsDNSPrefetchAllowed() const { return mAllowDNSPrefetch; }
-
-  /**
-   * PR_TRUE when this document is a static clone of a normal document.
-   * For example print preview and printing use static documents.
-   */
-  PRBool IsStaticDocument() { return mIsStaticDocument; }
-
-  /**
-   * Clones the document and subdocuments and stylesheet etc.
-   * @param aCloneContainer The container for the clone document.
-   */
-  virtual already_AddRefed<nsIDocument>
-  CreateStaticClone(nsISupports* aCloneContainer);
-
-  /**
-   * If this document is a static clone, this returns the original
-   * document.
-   */
-  nsIDocument* GetOriginalDocument() { return mOriginalDocument; }
-
-  /**
-   * Called by nsParser to preload images. Can be removed and code moved
-   * to nsPreloadURIs::PreloadURIs() in file nsParser.cpp whenever the
-   * parser-module is linked with gklayout-module.
-   */
-  virtual void MaybePreLoadImage(nsIURI* uri) = 0;
-
-  /**
-   * Returns true if the locale used for the document specifies a direction of
-   * right to left. For chrome documents, this comes from the chrome registry.
-   * This is used to determine the current state for the :-moz-locale-dir pseudoclass
-   * so once can know whether a document is expected to be rendered left-to-right
-   * or right-to-left.
-   */
-  virtual PRBool IsDocumentRightToLeft() { return PR_FALSE; }
-
-  enum DocumentTheme {
-    Doc_Theme_Uninitialized, // not determined yet
-    Doc_Theme_None,
-    Doc_Theme_Neutral,
-    Doc_Theme_Dark,
-    Doc_Theme_Bright
-  };
-
-  /**
-   * Returns Doc_Theme_None if there is no lightweight theme specified,
-   * Doc_Theme_Dark for a dark theme, Doc_Theme_Bright for a light theme, and
-   * Doc_Theme_Neutral for any other theme. This is used to determine the state
-   * of the pseudoclasses :-moz-lwtheme and :-moz-lwtheme-text.
-   */
-  virtual int GetDocumentLWTheme() { return Doc_Theme_None; }
-
-  /**
-   * Gets the document's cached pointer to the first <base> element in this
-   * document which has an href attribute.  If the document doesn't contain any
-   * <base> elements with an href, returns null.
-   */
-  virtual nsIContent* GetFirstBaseNodeWithHref() = 0;
-
-  /**
-   * Sets the document's cached pointer to the first <base> element with an
-   * href attribute in this document and updates the document's base URI
-   * according to the element's href.
-   *
-   * If the given node is the same as the current first base node, this
-   * function still updates the document's base URI according to the node's
-   * href, if it changed.
-   */
-  virtual nsresult SetFirstBaseNodeWithHref(nsIContent *node) = 0;
-
-  virtual nsISupports* GetCurrentContentSink() = 0;
-
 protected:
   ~nsIDocument()
   {
@@ -1298,8 +1222,6 @@ protected:
 
   PRPackedBool mShellsAreHidden;
 
-  PRPackedBool mIsRegularHTML;
-
   // True if we're loaded as data and therefor has any dangerous stuff, such
   // as scripts and plugins, disabled.
   PRPackedBool mLoadedAsData;
@@ -1314,29 +1236,10 @@ protected:
   // True iff IsShowing() should be returning true
   PRPackedBool mIsShowing;
 
-  // True iff the document "page" is not hidden (i.e. currently in the
-  // bfcache)
-  PRPackedBool mVisible;
-
-  // True if our content viewer has been removed from the docshell
-  // (it may still be displayed, but in zombie state). Form control data
-  // has been saved.
-  PRPackedBool mRemovedFromDocShell;
-
   // True iff DNS prefetch is allowed for this document.  Note that if the
   // document has no window, DNS prefetch won't be performed no matter what.
   PRPackedBool mAllowDNSPrefetch;
   
-  // True when this document is a static clone of a normal document
-  PRPackedBool mIsStaticDocument;
-
-  // True while this document is being cloned to a static document.
-  PRPackedBool mCreatingStaticClone;
-
-  // If mIsStaticDocument is true, mOriginalDocument points to the original
-  // document.
-  nsCOMPtr<nsIDocument> mOriginalDocument;
-
   // The bidi options for this document.  What this bitfield means is
   // defined in nsBidiUtils.h
   PRUint32 mBidiOptions;

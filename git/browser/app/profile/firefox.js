@@ -70,11 +70,11 @@ pref("extensions.hideInstallButton", true);
 
 // Preferences for the Get Add-ons pane
 pref("extensions.getAddons.showPane", true);
-pref("extensions.getAddons.browseAddons", "https://addons.mozilla.org/%LOCALE%/%APP%");
+pref("extensions.getAddons.browseAddons", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/%APP%");
 pref("extensions.getAddons.maxResults", 5);
-pref("extensions.getAddons.recommended.browseURL", "https://addons.mozilla.org/%LOCALE%/%APP%/recommended");
+pref("extensions.getAddons.recommended.browseURL", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/%APP%/recommended");
 pref("extensions.getAddons.recommended.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/%API_VERSION%/list/featured/all/10/%OS%/%VERSION%");
-pref("extensions.getAddons.search.browseURL", "https://addons.mozilla.org/%LOCALE%/%APP%/search?q=%TERMS%");
+pref("extensions.getAddons.search.browseURL", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/%APP%/search?q=%TERMS%");
 pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LOCALE%/%APP%/api/%API_VERSION%/search/%TERMS%/all/10/%OS%/%VERSION%");
 
 // Blocklist preferences
@@ -87,17 +87,9 @@ pref("extensions.blocklist.url", "https://addons.mozilla.org/blocklist/3/%APP_ID
 pref("extensions.blocklist.detailsURL", "https://www.mozilla.com/%LOCALE%/blocklist/");
 
 // Dictionary download preference
-pref("browser.dictionaries.download.url", "https://addons.mozilla.org/%LOCALE%/%APP%/dictionaries/");
-
-// Update Timer Manager preferences
-// Interval: When all registered timers should be checked (in milliseconds)
-//           default=10 minutes
-pref("app.update.timer", 600000);
+pref("browser.dictionaries.download.url", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/firefox/%VERSION%/dictionaries/");
 
 // App-specific update preferences
-
-// The interval to check for updates (app.update.interval) is defined in
-// firefox-branding.js
 
 // Whether or not app updates are enabled
 pref("app.update.enabled", true);
@@ -135,6 +127,9 @@ pref("app.update.url", "https://aus2.mozilla.org/update/3/%PRODUCT%/%VERSION%/%B
 //           latest download (in seconds) default=1 day
 pref("app.update.nagTimer.restart", 86400);
 
+// Interval: When all registered timers should be checked (in milliseconds)
+//           default=10 minutes
+pref("app.update.timer", 600000);
 // Give the user x seconds to react before showing the big UI. default=12 hours
 pref("app.update.promptWaitTime", 43200);
 // Show the Update Checking/Ready UI when the user was idle for x seconds
@@ -158,25 +153,23 @@ pref("app.update.incompatible.mode", 0);
 // e.g.
 //  extensions.{GUID}.update.enabled
 //  extensions.{GUID}.update.url
+//  extensions.{GUID}.update.interval
 //  .. etc ..
 //
 pref("extensions.update.enabled", true);
-pref("extensions.update.url", "https://versioncheck.addons.mozilla.org/update/VersionCheck.php?reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=%APP_VERSION%&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%&currentAppVersion=%CURRENT_APP_VERSION%&updateType=%UPDATE_TYPE%");
+pref("extensions.update.url", "https://versioncheck.addons.mozilla.org/update/VersionCheck.php?reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=%APP_VERSION%&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%&currentAppVersion=%CURRENT_APP_VERSION%");
 pref("extensions.update.interval", 86400);  // Check for updates to Extensions and 
                                             // Themes every day
 // Non-symmetric (not shared by extensions) extension-specific [update] preferences
-pref("extensions.getMoreThemesURL", "https://addons.mozilla.org/%LOCALE%/%APP%/getpersonas");
+pref("extensions.getMoreExtensionsURL", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/%APP%/%VERSION%/extensions/");
+pref("extensions.getMoreThemesURL", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/%APP%/%VERSION%/themes/");
+pref("extensions.getMorePluginsURL", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/%APP%/%VERSION%/plugins/");
 pref("extensions.dss.enabled", false);          // Dynamic Skin Switching                                               
 pref("extensions.dss.switchPending", false);    // Non-dynamic switch pending after next
                                                 // restart.
 
-pref("extensions.{972ce4c6-7e08-4474-a285-3208198ce6fd}.name", "chrome://browser/locale/browser.properties");
-pref("extensions.{972ce4c6-7e08-4474-a285-3208198ce6fd}.description", "chrome://browser/locale/browser.properties");
-
-pref("xpinstall.whitelist.add", "addons.mozilla.org");
-pref("xpinstall.whitelist.add.36", "getpersonas.com");
-
-pref("lightweightThemes.update.enabled", true);
+pref("xpinstall.whitelist.add", "update.mozilla.org");
+pref("xpinstall.whitelist.add.103", "addons.mozilla.org");
 
 pref("keyword.enabled", true);
 pref("keyword.URL", "chrome://browser-region/locale/region.properties");
@@ -229,6 +222,11 @@ pref("browser.urlbar.filter.javascript", true);
 
 // the maximum number of results to show in autocomplete when doing richResults
 pref("browser.urlbar.maxRichResults", 12);
+// Size of "chunks" affects the number of places to process between each search
+// timeout (ms). Too big and the UI will be unresponsive; too small and we'll
+// be waiting on the timeout too often without many results.
+pref("browser.urlbar.search.chunkSize", 1000);
+pref("browser.urlbar.search.timeout", 100);
 // The amount of time (ms) to wait after the user has stopped typing
 // before starting to perform autocomplete.  50 is the default set in
 // autocomplete.xml.
@@ -259,13 +257,7 @@ pref("browser.urlbar.default.behavior", 0);
 pref("browser.download.saveLinkAsFilenameTimeout", 1000);
 
 pref("browser.download.useDownloadDir", true);
-
-#ifdef WINCE
-pref("browser.download.folderList", 2);
-pref("browser.download.dir", "\\Storage Card");
-#else
 pref("browser.download.folderList", 1);
-#endif
 pref("browser.download.manager.showAlertOnComplete", true);
 pref("browser.download.manager.showAlertInterval", 2000);
 pref("browser.download.manager.retention", 2);
@@ -279,7 +271,7 @@ pref("browser.download.manager.scanWhenDone", true);
 pref("browser.download.manager.resumeOnWakeDelay", 10000);
 
 // search engines URL
-pref("browser.search.searchEnginesURL",      "https://addons.mozilla.org/%LOCALE%/%APP%/search-engines/");
+pref("browser.search.searchEnginesURL",      "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/firefox/%VERSION%/search-engines/");
 
 // pointer to the default engine name
 pref("browser.search.defaultenginename",      "chrome://browser-region/locale/region.properties");
@@ -310,6 +302,8 @@ pref("browser.microsummary.updateGenerators", true);
 // enable search suggestions by default
 pref("browser.search.suggest.enabled", true);
 
+pref("browser.history.grouping", "day");
+pref("browser.history.showSessions", false);
 pref("browser.sessionhistory.max_entries", 50);
 pref("browser.history_expire_days", 180);
 pref("browser.history_expire_days_min", 90);
@@ -325,17 +319,13 @@ pref("browser.link.open_newwindow", 3);
 pref("browser.link.open_newwindow.restriction", 2);
 
 // Tabbed browser
-#ifndef WINCE
 pref("browser.tabs.autoHide", false);
-#else
-pref("browser.tabs.autoHide", true);
-#endif
 pref("browser.tabs.closeWindowWithLastTab", true);
-pref("browser.tabs.insertRelatedAfterCurrent", true);
 pref("browser.tabs.warnOnClose", true);
 pref("browser.tabs.warnOnOpen", true);
 pref("browser.tabs.maxOpenBeforeWarn", 15);
 pref("browser.tabs.loadInBackground", true);
+pref("browser.tabs.loadFolderAndReplace", true);
 pref("browser.tabs.opentabfor.middleclick", true);
 pref("browser.tabs.loadDivertedInBackground", false);
 pref("browser.tabs.loadBookmarksInBackground", false);
@@ -357,9 +347,12 @@ pref("browser.tabs.closeButtons", 1);
 // false  return to the adjacent tab (old default)
 pref("browser.tabs.selectOwnerOnClose", true);
 
-pref("browser.allTabs.previews", false);
-pref("browser.ctrlTab.previews", false);
+pref("browser.ctrlTab.previews", true);
 pref("browser.ctrlTab.recentlyUsedLimit", 7);
+
+// Default bookmark sorting
+pref("browser.bookmarks.sort.direction", "descending");
+pref("browser.bookmarks.sort.resource", "rdf:http://home.netscape.com/NC-rdf#Name");
 
 // By default, do not export HTML at shutdown.
 // If true, at shutdown the bookmarks in your menu and toolbar will
@@ -370,7 +363,7 @@ pref("browser.bookmarks.autoExportHTML",          false);
 // keep in {PROFILEDIR}/bookmarkbackups. Special values:
 // -1: unlimited
 //  0: no backups created (and deletes all existing backups)
-pref("browser.bookmarks.max_backups",             10);
+pref("browser.bookmarks.max_backups",             5);
 
 // Scripts & Windows prefs
 pref("dom.disable_open_during_load",              true);
@@ -379,11 +372,6 @@ pref("javascript.options.showInConsole",          true);
 pref("general.warnOnAboutConfig",                 false);
 #else
 pref("javascript.options.showInConsole",          false);
-#endif
-
-#ifdef WINCE
-// Set the threshold higher to avoid some slow script warnings
-pref("dom.max_script_run_time",                   20);
 #endif
 
 // Make the status bar reliably present and unaffected by pages
@@ -561,12 +549,8 @@ pref("plugin.default_plugin_disabled", true);
 // plugin finder service url
 pref("pfs.datasource.url", "https://pfs.mozilla.org/plugins/PluginFinderService.php?mimetype=%PLUGIN_MIMETYPE%&appID=%APP_ID%&appVersion=%APP_VERSION%&clientOS=%CLIENT_OS%&chromeLocale=%CHROME_LOCALE%&appRelease=%APP_RELEASE%");
 
-// by default we show an infobar message when pages require plugins the user has not installed, or are outdated
+// by default we show an infobar message when pages require plugins the user has not installed
 pref("plugins.hide_infobar_for_missing_plugin", false);
-pref("plugins.hide_infobar_for_outdated_plugin", false);
-
-pref("plugins.update.url", "https://www.mozilla.com/%LOCALE%/plugincheck/");
-pref("plugins.update.notifyUser", false);
 
 #ifdef XP_WIN
 pref("browser.preferences.instantApply", false);
@@ -706,8 +690,8 @@ pref("browser.safebrowsing.provider.0.reportMalwareURL", "http://{moz:locale}.ma
 pref("browser.safebrowsing.provider.0.reportMalwareErrorURL", "http://{moz:locale}.malware-error.mozilla.com/?hl={moz:locale}");
 
 // FAQ URLs
-pref("browser.safebrowsing.warning.infoURL", "http://www.mozilla.com/%LOCALE%/%APP%/phishing-protection/");
-pref("browser.geolocation.warning.infoURL", "http://www.mozilla.com/%LOCALE%/%APP%/geolocation/");
+pref("browser.safebrowsing.warning.infoURL", "http://%LOCALE%.www.mozilla.com/%LOCALE%/firefox/phishing-protection/");
+pref("browser.geolocation.warning.infoURL", "http://%LOCALE%.www.mozilla.com/%LOCALE%/firefox/geolocation/");
 
 // Name of the about: page contributed by safebrowsing to handle display of error
 // pages on phishing/malware hits.  (bug 399233)
@@ -752,11 +736,7 @@ pref("browser.rights.3.shown", false);
 pref("browser.rights.override", true);
 #endif
 
-#ifdef WINCE
-pref("browser.sessionstore.resume_from_crash", false);
-#else
 pref("browser.sessionstore.resume_from_crash", true);
-#endif
 pref("browser.sessionstore.resume_session_once", false);
 
 // minimal interval between two save operations in milliseconds
@@ -860,53 +840,9 @@ pref("browser.bookmarks.editDialog.firstEditField", "namePicker");
 // base url for the wifi geolocation network provider
 pref("geo.wifi.uri", "https://www.google.com/loc/json");
 
-#ifdef WINCE
-
-// tweak awesomebar -- increase the delay until a search happens.
-pref("browser.urlbar.delay", 250);
-
-// disable safe browsing, due to perf hit
-pref("browser.safebrowsing.enabled", false);
-pref("browser.safebrowsing.malware.enabled", false);
-
-// don't check for default browser
-pref("browser.shell.checkDefaultBrowser", false);
-
-// disable bfcache for memory
-pref("browser.sessionhistory.max_total_viewers", 0);
-
-// tweak default content sink prefs
-pref("content.sink.interactive_deflect_count", 10); /* default 0 */
-pref("content.sink.perf_deflect_count", 50); /* default 200 */
-pref("content.sink.interactive_parse_time", 5000); /* default 3000 */
-pref("content.sink.perf_parse_time", 150000); /* default 360000 */
-pref("content.sink.pending_event_mode", 0); /* default 1 */
-pref("content.sink.event_probe_rate", 1); /* default 1 */
-pref("content.sink.interactive_time", 750000); /* default 750000 */
-pref("content.sink.initial_perf_time", 500000); /* default 2000000 */
-pref("content.sink.enable_perf_mode", 0); /* default 0; 0 == switch, 1 == stay interactive, 2 == stay perf */
-
-// Write sessionstore.js less often
-pref("browser.sessionstore.interval", 60000);
-
-#endif /* WINCE */
-
 // Whether to use a panel that looks like an OS X sheet for customization
 #ifdef XP_MACOSX
 pref("toolbar.customization.usesheet", true);
 #else
 pref("toolbar.customization.usesheet", false);
-#endif
-
-#ifdef XP_WIN
-#ifndef WINCE
-pref("browser.taskbar.previews.enable", true);
-pref("browser.taskbar.previews.max", 20);
-pref("browser.taskbar.previews.cachetime", 20);
-pref("browser.taskbar.lists.enabled", true);
-pref("browser.taskbar.lists.frequent.enabled", true);
-pref("browser.taskbar.lists.recent.enabled", false);
-pref("browser.taskbar.lists.maxListItemCount", 7);
-pref("browser.taskbar.lists.tasks.enabled", true);
-#endif
 #endif

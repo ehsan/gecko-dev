@@ -51,39 +51,31 @@
 
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
+#ifdef XP_MACOSX
+    <title></title>
+#else
+    <title>&privatebrowsingpage.title;</title>
+#endif
     <link rel="stylesheet" href="chrome://global/skin/netError.css" type="text/css" media="all"/>
     <link rel="stylesheet" href="chrome://browser/skin/aboutPrivateBrowsing.css" type="text/css" media="all"/>
-    <script type="application/javascript;version=1.7"><![CDATA[
+    <script type="application/x-javascript;version=1.7"><![CDATA[
       const Cc = Components.classes;
       const Ci = Components.interfaces;
 
-      var pb = Cc["@mozilla.org/privatebrowsing;1"].
-               getService(Ci.nsIPrivateBrowsingService);
-
-      if (!pb.privateBrowsingEnabled) {
-        document.title = "]]>&privatebrowsingpage.title.normal;<![CDATA[";
-        setFavIcon("chrome://global/skin/icons/question-16.png");
-      } else {
-#ifndef XP_MACOSX
-        document.title = "]]>&privatebrowsingpage.title;<![CDATA[";
-#endif
-        setFavIcon("chrome://browser/skin/Privacy-16.png");
-      }
-
-      var mainWindow = window.QueryInterface(Ci.nsIInterfaceRequestor)
-                             .getInterface(Ci.nsIWebNavigation)
-                             .QueryInterface(Ci.nsIDocShellTreeItem)
-                             .rootTreeItem
-                             .QueryInterface(Ci.nsIInterfaceRequestor)
-                             .getInterface(Ci.nsIDOMWindow);
-
-      // Focus the location bar
-      mainWindow.focusAndSelectUrlBar();
+      window.__defineGetter__("mainWindow", function() {
+        delete window.mainWindow;
+        return window.mainWindow = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                                         .getInterface(Ci.nsIWebNavigation)
+                                         .QueryInterface(Ci.nsIDocShellTreeItem)
+                                         .rootTreeItem
+                                         .QueryInterface(Ci.nsIInterfaceRequestor)
+                                         .getInterface(Ci.nsIDOMWindow);
+      });
 
       function openSanitizeDialog() {
         let browserGlue = Cc["@mozilla.org/browser/browserglue;1"].
                           getService(Ci.nsIBrowserGlue);
-        browserGlue.sanitize(mainWindow);
+        browserGlue.sanitize(mainWindow || null);
       }
 
       function setFavIcon(url) {
@@ -91,17 +83,21 @@
         icon.setAttribute("rel", "icon");
         icon.setAttribute("type", "image/png");
         icon.setAttribute("href", url);
-        var head = document.getElementsByTagName("head")[0];
-        head.insertBefore(icon, head.firstChild);
+        document.getElementsByTagName("head")[0].appendChild(icon);
       }
 
-      document.addEventListener("DOMContentLoaded", function () {
+      function onLoad() {
         let selector;
+        let pb = Cc["@mozilla.org/privatebrowsing;1"].
+                 getService(Ci.nsIPrivateBrowsingService);
         if (!pb.privateBrowsingEnabled) {
           document.body.setAttribute("class", "normal");
+          document.title = document.body.getAttribute("normaltitle");
+          setFavIcon("chrome://global/skin/icons/question-16.png");
           selector = ".showPrivate";
         }
         else {
+          setFavIcon("chrome://browser/skin/Privacy-16.png");
           selector = ".showNormal";
         }
 
@@ -117,12 +113,18 @@
         let moreInfoLink = document.getElementById("moreInfoLink");
         if (moreInfoLink)
           moreInfoLink.setAttribute("href", moreInfoURL + "private-browsing");
-      }, false);
+
+        // Focus the location bar
+        if (mainWindow.gURLBar)
+          mainWindow.focusElement(mainWindow.gURLBar);
+      }
     ]]></script>
   </head>
 
   <body dir="&locale.dir;"
-        class="private">
+        class="private"
+        onload="onLoad();"
+        normaltitle="&privatebrowsingpage.title.normal;">
 
     <!-- PAGE CONTAINER (for styling purposes only) -->
     <div id="errorPageContainer">

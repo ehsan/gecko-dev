@@ -215,6 +215,16 @@ NS_IMETHODIMP nsWindow::CaptureRollupEvents( nsIRollupListener * aListener, PRBo
   return NS_OK;
 }
 
+NS_METHOD nsWindow::PreCreateWidget( nsWidgetInitData *aInitData ) {
+  if (nsnull != aInitData) {
+    SetWindowType( aInitData->mWindowType );
+    SetBorderStyle( aInitData->mBorderStyle );
+    return NS_OK;
+  	}
+  return NS_ERROR_FAILURE;
+	}
+
+
 //-------------------------------------------------------------------------
 //
 // Create the native widget
@@ -245,14 +255,12 @@ NS_METHOD nsWindow::CreateNative( PtWidget_t *parentWidget ) {
   case eWindowType_dialog :
     mIsToplevel = PR_TRUE;
     break;
-  case eWindowType_plugin :
   case eWindowType_child :
     mIsToplevel = PR_FALSE;
     break;
   }
 	
-  if ( mWindowType == eWindowType_child ||
-       mWindowType == eWindowType_plugin )
+  if ( mWindowType == eWindowType_child )
   {
 	arg_count = 0;
     PtSetArg( &arg[arg_count++], Pt_ARG_POS, &pos, 0 );
@@ -382,8 +390,7 @@ NS_METHOD nsWindow::CreateNative( PtWidget_t *parentWidget ) {
   if( mWidget ) {
 	  SetInstance( mWidget, this );
 	  if( mClientWidget ) SetInstance( mClientWidget, this );
-	  if( mWindowType == eWindowType_child ||
-	      mWindowType == eWindowType_plugin ) {
+	  if( mWindowType == eWindowType_child ) {
       	PtAddCallback(mWidget, Pt_CB_RESIZE, ResizeHandler, nsnull ); 
       	PtAddEventHandler( mWidget,
       	  Ph_EV_PTR_MOTION_BUTTON | Ph_EV_PTR_MOTION_NOBUTTON |
@@ -833,10 +840,6 @@ int nsWindow::EvInfo( PtWidget_t *widget, void *data, PtCallbackInfo_t *cbinfo )
 //
 //-------------------------------------------------------------------------
 NS_METHOD nsWindow::Move( PRInt32 aX, PRInt32 aY ) {
-
-	if( mWindowType == eWindowType_toplevel || mWindowType == eWindowType_dialog ) {
-		SetSizeMode(nsSizeMode_Normal);
-		}
 
 	if( mWindowType != eWindowType_popup && (mBounds.x == aX) && (mBounds.y == aY) )
 		return NS_OK;

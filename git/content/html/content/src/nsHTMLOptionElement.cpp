@@ -120,8 +120,6 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  nsresult CopyInnerTo(nsGenericElement* aDest) const;
-
 protected:
   /**
    * Get the select content element that contains this option, this
@@ -444,7 +442,7 @@ nsHTMLOptionElement::GetSelect()
 {
   nsIContent* parent = this;
   while ((parent = parent->GetParent()) &&
-         parent->IsHTML()) {
+         parent->IsNodeOfType(eHTML)) {
     if (parent->Tag() == nsGkAtoms::select) {
       return parent;
     }
@@ -510,7 +508,9 @@ nsHTMLOptionElement::Initialize(nsISupports* aOwner,
       if (argc > 2) {
         // The third (optional) parameter is the defaultSelected value
         JSBool defaultSelected;
-        JS_ValueToBoolean(aContext, argv[2], &defaultSelected);
+        if (!JS_ValueToBoolean(aContext, argv[2], &defaultSelected)) {
+            return NS_ERROR_FAILURE;
+        }
         if (defaultSelected) {
           result = SetAttr(kNameSpaceID_None, nsGkAtoms::selected,
                            EmptyString(), PR_FALSE);
@@ -520,7 +520,9 @@ nsHTMLOptionElement::Initialize(nsISupports* aOwner,
         // XXX This is *untested* behavior.  Should work though.
         if (argc > 3) {
           JSBool selected;
-          JS_ValueToBoolean(aContext, argv[3], &selected);
+          if (!JS_ValueToBoolean(aContext, argv[3], &selected)) {
+            return NS_ERROR_FAILURE;
+          }
 
           return SetSelected(selected);
         }
@@ -530,18 +532,3 @@ nsHTMLOptionElement::Initialize(nsISupports* aOwner,
 
   return result;
 }
-
-nsresult
-nsHTMLOptionElement::CopyInnerTo(nsGenericElement* aDest) const
-{
-  nsresult rv = nsGenericHTMLElement::CopyInnerTo(aDest);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (aDest->GetOwnerDoc()->IsStaticDocument()) {
-    PRBool selected = PR_FALSE;
-    const_cast<nsHTMLOptionElement*>(this)->GetSelected(&selected);
-    static_cast<nsHTMLOptionElement*>(aDest)->SetSelected(selected);
-  }
-  return NS_OK;
-}
-

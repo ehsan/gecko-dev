@@ -73,7 +73,7 @@ function run_test() {
 
   // A migrator would run before nsBrowserGlue, so we mimic that behavior
   // adding a bookmark.
-  let bs = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
+  bs = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
            getService(Ci.nsINavBookmarksService);
   bs.insertBookmark(bs.bookmarksMenuFolder, uri("http://mozilla.org/"),
                     bs.DEFAULT_INDEX, "migrated");
@@ -90,7 +90,7 @@ function run_test() {
   // Import could take some time, usually less than 1s, but to be sure we will
   // check after 3s.
   do_test_pending();
-  do_timeout(3000, continue_test);
+  do_timeout(3000, "continue_test();");
 }
 
 function continue_test() {

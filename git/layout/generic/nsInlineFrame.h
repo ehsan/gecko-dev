@@ -76,9 +76,8 @@ class nsAnonymousBlockFrame;
 class nsInlineFrame : public nsInlineFrameSuper
 {
 public:
-  NS_DECL_QUERYFRAME_TARGET(nsInlineFrame)
+  NS_DECLARE_FRAME_ACCESSOR(nsInlineFrame)
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
   friend nsIFrame* NS_NewInlineFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
@@ -124,7 +123,11 @@ public:
 
   virtual PRBool CanContinueTextRun() const;
 
-  virtual void PullOverflowsFromPrevInFlow();
+  // Take all of the frames away from this frame. The caller is
+  // presumed to keep them alive.
+  void StealAllFrames() {
+    mFrames.SetFrames(nsnull);
+  }
 
   /**
    * Return true if the frame is leftmost frame or continuation.
@@ -154,7 +157,6 @@ protected:
     nsIFrame* mPrevFrame;
     nsInlineFrame* mNextInFlow;
     nsIFrame*      mLineContainer;
-    nsLineLayout*  mLineLayout;
     PRPackedBool mSetParentPointer;  // when reflowing child frame first set its
                                      // parent frame pointer
 
@@ -162,7 +164,6 @@ protected:
       mPrevFrame = nsnull;
       mNextInFlow = nsnull;
       mLineContainer = nsnull;
-      mLineLayout = nsnull;
       mSetParentPointer = PR_FALSE;
     }
   };
@@ -198,8 +199,7 @@ protected:
 
   virtual void PushFrames(nsPresContext* aPresContext,
                           nsIFrame* aFromChild,
-                          nsIFrame* aPrevSibling,
-                          InlineReflowState& aState);
+                          nsIFrame* aPrevSibling);
 
 };
 
@@ -211,8 +211,6 @@ protected:
  */
 class nsFirstLineFrame : public nsInlineFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   friend nsIFrame* NS_NewFirstLineFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
 #ifdef DEBUG
@@ -224,7 +222,9 @@ public:
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus& aStatus);
 
-  virtual void PullOverflowsFromPrevInFlow();
+  // Take frames starting at aFrame until the end of the frame-list
+  // away from this frame. The caller is presumed to keep them alive.
+  void StealFramesFrom(nsIFrame* aFrame);
 
 protected:
   nsFirstLineFrame(nsStyleContext* aContext) : nsInlineFrame(aContext) {}
@@ -243,8 +243,6 @@ protected:
 class nsPositionedInlineFrame : public nsInlineFrame
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   nsPositionedInlineFrame(nsStyleContext* aContext)
     : nsInlineFrame(aContext)
     , mAbsoluteContainer(nsGkAtoms::absoluteList)
@@ -255,12 +253,12 @@ public:
   virtual void Destroy();
 
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
-                                 nsFrameList&    aChildList);
+                                 nsIFrame*       aChildList);
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
 
@@ -270,7 +268,7 @@ public:
 
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
 
-  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
+  virtual nsIFrame* GetFirstChild(nsIAtom* aListName) const;
 
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,

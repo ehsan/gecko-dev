@@ -59,8 +59,6 @@ NS_NewMathMLmsubFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsMathMLmsubFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsMathMLmsubFrame)
-
 nsMathMLmsubFrame::~nsMathMLmsubFrame()
 {
 }
@@ -124,7 +122,7 @@ nsMathMLmsubFrame::PlaceSubScript (nsPresContext*      aPresContext,
                                    nscoord              aScriptSpace)
 {
   // force the scriptSpace to be atleast 1 pixel 
-  aScriptSpace = NS_MAX(nsPresContext::CSSPixelsToAppUnits(1), aScriptSpace);
+  aScriptSpace = PR_MAX(nsPresContext::CSSPixelsToAppUnits(1), aScriptSpace);
 
   ////////////////////////////////////
   // Get the children's desired sizes
@@ -171,31 +169,31 @@ nsMathMLmsubFrame::PlaceSubScript (nsPresContext*      aPresContext,
   GetSubScriptShifts (fm, subScriptShift, dummy);
 
   subScriptShift = 
-    NS_MAX(subScriptShift, aUserSubScriptShift);
+    PR_MAX(subScriptShift, aUserSubScriptShift);
 
   // get actual subscriptshift to be used
   // Rule 18b, App. G, TeXbook
   nscoord actualSubScriptShift = 
-    NS_MAX(minSubScriptShift,NS_MAX(subScriptShift,minShiftFromXHeight));
+    PR_MAX(minSubScriptShift,PR_MAX(subScriptShift,minShiftFromXHeight));
   // get bounding box for base + subscript
   nsBoundingMetrics boundingMetrics;
   boundingMetrics.ascent = 
-    NS_MAX(bmBase.ascent, bmSubScript.ascent - actualSubScriptShift);
+    PR_MAX(bmBase.ascent, bmSubScript.ascent - actualSubScriptShift);
   boundingMetrics.descent = 
-    NS_MAX(bmBase.descent, bmSubScript.descent + actualSubScriptShift);
+    PR_MAX(bmBase.descent, bmSubScript.descent + actualSubScriptShift);
 
   // add aScriptSpace to the subscript's width
   boundingMetrics.width = bmBase.width + bmSubScript.width + aScriptSpace;
   boundingMetrics.leftBearing = bmBase.leftBearing;
-  boundingMetrics.rightBearing = NS_MAX(bmBase.rightBearing, bmBase.width +
-    NS_MAX(bmSubScript.width + aScriptSpace, bmSubScript.rightBearing));
+  boundingMetrics.rightBearing = PR_MAX(bmBase.rightBearing, bmBase.width +
+    PR_MAX(bmSubScript.width + aScriptSpace, bmSubScript.rightBearing));
   aFrame->SetBoundingMetrics (boundingMetrics);
 
   // reflow metrics
   aDesiredSize.ascent = 
-    NS_MAX(baseSize.ascent, subScriptSize.ascent - actualSubScriptShift);
+    PR_MAX(baseSize.ascent, subScriptSize.ascent - actualSubScriptShift);
   aDesiredSize.height = aDesiredSize.ascent +
-    NS_MAX(baseSize.height - baseSize.ascent,
+    PR_MAX(baseSize.height - baseSize.ascent,
            subScriptSize.height - subScriptSize.ascent + actualSubScriptShift);
   aDesiredSize.width = boundingMetrics.width;
   aDesiredSize.mBoundingMetrics = boundingMetrics;

@@ -63,8 +63,7 @@ enum nsEventStatus {
 enum nsSizeMode {
   nsSizeMode_Normal = 0,
   nsSizeMode_Minimized,
-  nsSizeMode_Maximized,
-  nsSizeMode_Fullscreen
+  nsSizeMode_Maximized
 };
 
 class nsEvent;
@@ -88,7 +87,6 @@ class nsReconversionEvent;
 class nsTooltipEvent;
 class nsMenuEvent;
 class nsSimpleGestureEvent;
-class nsContentCommandEvent;
 
 struct nsTextEventReply;
 

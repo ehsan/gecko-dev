@@ -42,6 +42,7 @@
 #include "nsRegion.h"
 #include "nsLayoutUtils.h"
 #include "nsDisplayList.h"
+#include "nsSVGMatrix.h"
 #include "nsSVGFilterPaintCallback.h"
 #include "nsSVGFilterFrame.h"
 #include "nsSVGClipPathFrame.h"
@@ -209,7 +210,14 @@ public:
   {
     nsIRenderingContext* ctx = aContext->GetRenderingContext(aTarget);
     nsIRenderingContext::AutoPushTranslation push(ctx, -mOffset.x, -mOffset.y);
-    mInnerList->Paint(mBuilder, ctx);
+    nsRect dirty;
+    if (aDirtyRect) {
+      dirty = aDirtyRect->ToAppUnits(nsIDeviceContext::AppUnitsPerCSSPixel());
+      dirty += mOffset;
+    } else {
+      dirty = mInnerList->GetBounds(mBuilder);
+    }
+    mInnerList->Paint(mBuilder, ctx, dirty);
   }
 
 private:
@@ -276,7 +284,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsIRenderingContext* aCtx,
   userSpaceRect = userSpaceRect.ToNearestPixels(appUnitsPerDevPixel).ToAppUnits(appUnitsPerDevPixel);
   aCtx->Translate(userSpaceRect.x, userSpaceRect.y);
 
-  gfxMatrix matrix = GetInitialMatrix(aEffectsFrame);
+  nsCOMPtr<nsIDOMSVGMatrix> matrix = GetInitialMatrix(aEffectsFrame);
 
   PRBool complexEffects = PR_FALSE;
   /* Check if we need to do additional operations on this child's
@@ -302,7 +310,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsIRenderingContext* aCtx,
     filterFrame->FilterPaint(&svgContext, aEffectsFrame, &paint, &r);
   } else {
     gfx->SetMatrix(savedCTM);
-    aInnerList->Paint(aBuilder, aCtx);
+    aInnerList->Paint(aBuilder, aCtx, aDirtyRect);
     aCtx->Translate(userSpaceRect.x, userSpaceRect.y);
   }
 
@@ -351,18 +359,19 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsIRenderingContext* aCtx,
   gfx->SetMatrix(savedCTM);
 }
 
-gfxMatrix
+already_AddRefed<nsIDOMSVGMatrix>
 nsSVGIntegrationUtils::GetInitialMatrix(nsIFrame* aNonSVGFrame)
 {
   NS_ASSERTION(!aNonSVGFrame->IsFrameOfType(nsIFrame::eSVG),
                "SVG frames should not get here");
   PRInt32 appUnitsPerDevPixel = aNonSVGFrame->PresContext()->AppUnitsPerDevPixel();
+  nsCOMPtr<nsIDOMSVGMatrix> matrix;
   float devPxPerCSSPx =
     1 / nsPresContext::AppUnitsToFloatCSSPixels(appUnitsPerDevPixel);
-
-  return gfxMatrix(devPxPerCSSPx, 0.0,
-                   0.0, devPxPerCSSPx,
-                   0.0, 0.0);
+  NS_NewSVGMatrix(getter_AddRefs(matrix),
+                  devPxPerCSSPx, 0.0f,
+                  0.0f, devPxPerCSSPx);
+  return matrix.forget();
 }
 
 gfxRect

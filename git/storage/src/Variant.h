@@ -22,7 +22,6 @@
  *
  * Contributor(s):
  *   Shawn Wilsher <me@shawnwilsher.com> (Original Author)
- *   Drew Willcoxon <adw@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -149,7 +148,7 @@ struct variant_integer_traits<PRInt64>
     if (aValue > PR_INT32_MAX || aValue < PR_INT32_MIN)
       return NS_ERROR_CANNOT_CONVERT_DATA;
 
-    *_result = static_cast<PRInt32>(aValue);
+    *_result = aValue;
     return NS_OK;
   }
   static inline nsresult asInt64(PRInt64 aValue,
@@ -289,52 +288,13 @@ struct variant_blob_traits<PRUint8[]>
                                  PRUint32 *_size,
                                  void **_result)
   {
-    // For empty blobs, we return nsnull.
-    if (aData.Length() == 0) {
-      *_result = nsnull;
-      *_type = nsIDataType::VTYPE_UINT8;
-      *_size = 0;
-      return NS_OK;
-    }
-
-    // Otherwise, we copy the array.
+    // Copy the array
     *_result = nsMemory::Clone(aData.Elements(), aData.Length() * sizeof(PRUint8));
     NS_ENSURE_TRUE(*_result, NS_ERROR_OUT_OF_MEMORY);
 
     // Set type and size
     *_type = nsIDataType::VTYPE_UINT8;
     *_size = aData.Length();
-    return NS_OK;
-  }
-};
-
-/**
- * NULL type
- */
-
-class NullVariant : public Variant_base
-{
-public:
-  NS_IMETHOD GetDataType(PRUint16 *_type)
-  {
-    NS_ENSURE_ARG_POINTER(_type);
-    *_type = nsIDataType::VTYPE_EMPTY;
-    return NS_OK;
-  }
-
-  NS_IMETHOD GetAsAUTF8String(nsACString &_str)
-  {
-    // Return a void string.
-    _str.Truncate(0);
-    _str.SetIsVoid(PR_TRUE);
-    return NS_OK;
-  }
-
-  NS_IMETHOD GetAsAString(nsAString &_str)
-  {
-    // Return a void string.
-    _str.Truncate(0);
-    _str.SetIsVoid(PR_TRUE);
     return NS_OK;
   }
 };
@@ -401,6 +361,7 @@ typedef Variant<double> FloatVariant;
 typedef Variant<nsString> TextVariant;
 typedef Variant<nsCString> UTF8TextVariant;
 typedef Variant<PRUint8[]> BlobVariant;
+typedef Variant_base NullVariant;
 
 } // namespace storage
 } // namespace mozilla

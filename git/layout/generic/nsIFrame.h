@@ -54,8 +54,6 @@
 #include "nsIContent.h"
 #include "nsHTMLReflowMetrics.h"
 #include "gfxMatrix.h"
-#include "nsFrameList.h"
-#include "nsAlgorithm.h"
 
 /**
  * New rules of reflow:
@@ -104,13 +102,14 @@ struct nsPoint;
 struct nsRect;
 struct nsSize;
 struct nsMargin;
-struct CharacterDataChangeInfo;
 
 typedef class nsIFrame nsIBox;
 
+// IID for the nsIFrame interface
+// 7b437d20-a34e-11dd-ad8b-0800200c9a66
 #define NS_IFRAME_IID \
-  { 0x8bee3c3f, 0x0b4a, 0x4453, \
-    { 0xa6, 0x77, 0xf3, 0xd2, 0x56, 0xd1, 0x0e, 0xdc } }
+  { 0x7b437d20, 0xa34e, 0x11dd, \
+    { 0xad, 0x8b, 0x08, 0x00, 0x20, 0x0c, 0x9a, 0x66 } }
 
 /**
  * Indication of how the frame can be split. This is used when doing runaround
@@ -237,8 +236,6 @@ enum {
   // If this bit is set, the frame is "special" (lame term, I know),
   // which means that it is part of the mangled frame hierarchy that
   // results when an inline has been split because of a nested block.
-  // See the comments in nsCSSFrameConstructor::ConstructInline for
-  // more details.
   NS_FRAME_IS_SPECIAL =                         0x00008000,
 
   // If this bit is set, the frame may have a transform that it applies
@@ -493,7 +490,7 @@ typedef PRBool nsDidReflowStatus;
 class nsIFrame : public nsQueryFrame
 {
 public:
-  NS_DECL_QUERYFRAME_TARGET(nsIFrame)
+  NS_DECLARE_FRAME_ACCESSOR(nsIFrame)
 
   nsPresContext* PresContext() const {
     return GetStyleContext()->GetRuleNode()->GetPresContext();
@@ -540,18 +537,16 @@ public:
    * @param   aListName the name of the child list. A NULL pointer for the atom
    *            name means the unnamed principal child list
    * @param   aChildList list of child frames. Each of the frames has its
-   *            NS_FRAME_IS_DIRTY bit set.  Must not be empty.
+   *            NS_FRAME_IS_DIRTY bit set
    * @return  NS_ERROR_INVALID_ARG if there is no child list with the specified
    *            name,
    *          NS_ERROR_UNEXPECTED if the frame is an atomic frame or if the
    *            initial list of frames has already been set for that child list,
-   *          NS_OK otherwise.  In this case, SetInitialChildList empties out
-   *            aChildList in the process of moving the frames over to its own
-   *            child list.
+   *          NS_OK otherwise
    * @see     #Init()
    */
   NS_IMETHOD  SetInitialChildList(nsIAtom*        aListName,
-                                  nsFrameList&    aChildList) = 0;
+                                  nsIFrame*       aChildList) = 0;
 
   /**
    * This method is responsible for appending frames to the frame
@@ -561,16 +556,14 @@ public:
    * @param   aListName the name of the child list. A NULL pointer for the atom
    *            name means the unnamed principal child list
    * @param   aFrameList list of child frames to append. Each of the frames has
-   *            its NS_FRAME_IS_DIRTY bit set.  Must not be empty.
+   *            its NS_FRAME_IS_DIRTY bit set
    * @return  NS_ERROR_INVALID_ARG if there is no child list with the specified
    *            name,
    *          NS_ERROR_UNEXPECTED if the frame is an atomic frame,
-   *          NS_OK otherwise.  In this case, AppendFrames empties out
-   *            aChildList in the process of moving the frames over to its own
-   *            child list.
+   *          NS_OK otherwise
    */
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList) = 0;
+                          nsIFrame*       aFrameList) = 0;
 
   /**
    * This method is responsible for inserting frames into the frame
@@ -585,13 +578,11 @@ public:
    * @return  NS_ERROR_INVALID_ARG if there is no child list with the specified
    *            name,
    *          NS_ERROR_UNEXPECTED if the frame is an atomic frame,
-   *          NS_OK otherwise.  In this case, InsertFrames empties out
-   *            aChildList in the process of moving the frames over to its own
-   *            child list.
+   *          NS_OK otherwise
    */
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList) = 0;
+                          nsIFrame*       aFrameList) = 0;
 
   /**
    * This method is responsible for removing a frame in the frame
@@ -726,11 +717,6 @@ public:
   nsCSSShadowArray* GetEffectiveBoxShadows();
 
   /**
-   * @return PR_FALSE if this frame definitely has no borders at all
-   */                 
-  PRBool HasBorder() const;
-
-  /**
    * Accessor functions for geometric parent
    */
   nsIFrame* GetParent() const { return mParent; }
@@ -846,7 +832,7 @@ public:
    * Get the position of the frame's baseline, relative to the top of
    * the frame (its top border edge).  Only valid when Reflow is not
    * needed and when the frame returned nsHTMLReflowMetrics::
-   * ASK_FOR_BASELINE as ascent in its reflow metrics.
+   * ASK_FOR_ASCENT as ascent in its reflow metrics.
    */
   virtual nscoord GetBaseline() const = 0;
 
@@ -861,44 +847,23 @@ public:
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const = 0;
 
   /**
-   * Get the specified child list.
+   * Get the first child frame from the specified child list.
    *
    * @param   aListName the name of the child list. A NULL pointer for the atom
    *            name means the unnamed principal child list
-   * @return  the child list.  If this is an unknown list name, an empty list
-   *            will be returned.
+   * @return  the child frame, or NULL if there is no such child
    * @see     #GetAdditionalListName()
    */
-  // XXXbz if all our frame storage were actually backed by nsFrameList, we
-  // could make this return a const reference...  nsBlockFrame is the only real
-  // culprit here.  Make sure to assign the return value of this function into
-  // a |const nsFrameList&|, not an nsFrameList.
-  virtual nsFrameList GetChildList(nsIAtom* aListName) const = 0;
-  // XXXbz this method should go away
-  nsIFrame* GetFirstChild(nsIAtom* aListName) const {
-    return GetChildList(aListName).FirstChild();
-  }
-  // XXXmats this method should also go away then
-  nsIFrame* GetLastChild(nsIAtom* aListName) const {
-    return GetChildList(aListName).LastChild();
-  }
+  virtual nsIFrame* GetFirstChild(nsIAtom* aListName) const = 0;
 
   /**
-   * Child frames are linked together in a doubly-linked list
+   * Child frames are linked together in a singly-linked list
    */
   nsIFrame* GetNextSibling() const { return mNextSibling; }
   void SetNextSibling(nsIFrame* aNextSibling) {
-    NS_ASSERTION(this != aNextSibling, "Creating a circular frame list, this is very bad.");
-    if (mNextSibling && mNextSibling->GetPrevSibling() == this) {
-      mNextSibling->mPrevSibling = nsnull;
-    }
+    NS_ASSERTION(this != aNextSibling, "Creating a circular frame list, this is very bad."); 
     mNextSibling = aNextSibling;
-    if (mNextSibling) {
-      mNextSibling->mPrevSibling = this;
-    }
   }
-
-  nsIFrame* GetPrevSibling() const { return mPrevSibling; }
 
   /**
    * Builds the display lists for the content represented by this frame
@@ -1011,6 +976,14 @@ public:
   virtual PRBool IsTransformed() const;
 
   /**
+   * This frame needs a view with a widget (e.g. because it's fixed
+   * positioned), so we call this to create the widget. If widgets for
+   * this frame type need to be of a certain type or require special
+   * initialization, that can be done here.
+   */
+  virtual nsresult CreateWidgetForView(nsIView* aView);
+
+  /**
    * Event handling of GUI events.
    *
    * @param   aEvent event structure describing the type of event and rge widget
@@ -1051,8 +1024,8 @@ public:
     PRInt32 secondaryOffset;
     // Helpers for places that need the ends of the offsets and expect them in
     // numerical order, as opposed to wanting the primary and secondary offsets
-    PRInt32 StartOffset() { return NS_MIN(offset, secondaryOffset); }
-    PRInt32 EndOffset() { return NS_MAX(offset, secondaryOffset); }
+    PRInt32 StartOffset() { return PR_MIN(offset, secondaryOffset); }
+    PRInt32 EndOffset() { return PR_MAX(offset, secondaryOffset); }
     // This boolean indicates whether the associated content is before or after
     // the offset; the most visible use is to allow the caret to know which line
     // to display on.
@@ -1123,10 +1096,17 @@ public:
   void RemoveStateBits(nsFrameState aBits) { mState &= ~aBits; }
 
   /**
-   * This call is invoked on the primary frame for a character data content
-   * node, when it is changed in the content tree.
+   * This call is invoked when content is changed in the content tree.
+   * The first frame that maps that content is asked to deal with the
+   * change by generating an incremental reflow command.
+   *
+   * @param aPresContext the presentation context
+   * @param aContent     the content node that was changed
+   * @param aAppend      a hint to the frame about the change
    */
-  NS_IMETHOD  CharacterDataChanged(CharacterDataChangeInfo* aInfo) = 0;
+  NS_IMETHOD  CharacterDataChanged(nsPresContext* aPresContext,
+                                   nsIContent*     aChild,
+                                   PRBool          aAppend) = 0;
 
   /**
    * This call is invoked when the value of a content objects's attribute
@@ -1599,8 +1579,6 @@ public:
    * 
    * This function is fastest when aOther is an ancestor of |this|.
    *
-   * This function works across document boundaries.
-   *
    * NOTE: this actually returns the offset from aOther to |this|, but
    * that offset is added to transform _coordinates_ from |this| to
    * aOther.
@@ -1735,6 +1713,14 @@ public:
   virtual PRBool IsLeaf() const;
 
   /**
+   * Does this frame want to capture the mouse when the user clicks in
+   * it or its children? If so, return the view which should be
+   * targeted for mouse capture. The view need not be this frame's view,
+   * it could be the view on a child.
+   */
+  virtual nsIView* GetMouseCapturer() const { return nsnull; }
+
+  /**
    * @param aFlags see InvalidateInternal below
    */
   void InvalidateWithFlags(const nsRect& aDamageRect, PRUint32 aFlags);
@@ -1771,19 +1757,11 @@ public:
    *   could cause frames to be deleted (including |this|).
    * @param aFlags INVALIDATE_CROSS_DOC: true if the invalidation
    *   originated in a subdocument
-   * @param aFlags INVALIDATE_REASON_SCROLL_BLIT: set if the invalidation
-   * was really just the scroll machinery copying pixels from one
-   * part of the window to another
-   * @param aFlags INVALIDATE_REASON_SCROLL_REPAINT: set if the invalidation
-   * was triggered by scrolling
    */
   enum {
-  	INVALIDATE_IMMEDIATE = 0x01,
-  	INVALIDATE_CROSS_DOC = 0x02,
-  	INVALIDATE_REASON_SCROLL_BLIT = 0x04,
-  	INVALIDATE_REASON_SCROLL_REPAINT = 0x08,
-    INVALIDATE_REASON_MASK = INVALIDATE_REASON_SCROLL_BLIT |
-                             INVALIDATE_REASON_SCROLL_REPAINT
+  	INVALIDATE_IMMEDIATE = 0x1,
+  	INVALIDATE_CROSS_DOC = 0x2,
+  	INVALIDATE_NOTIFY_ONLY = 0x4
   };
   virtual void InvalidateInternal(const nsRect& aDamageRect,
                                   nscoord aOffsetX, nscoord aOffsetY,
@@ -1903,20 +1881,19 @@ public:
   /** Selection related calls
    */
   /** 
-   *  Called to set the selection status of the frame.
-   *  
-   *  This must be called on the primary frame, but all continuations
-   *  will be affected the same way.
-   *
-   *  This sets or clears NS_FRAME_SELECTED_CONTENT for each frame in the
-   *  continuation chain, if the frames are currently selectable.
-   *  The frames are unconditionally invalidated, if this selection type
-   *  is supported at all.
+   *  Called to set the selection of the frame based on frame offsets.  you can FORCE the frame
+   *  to redraw event if aSelected == the frame selection with the last parameter.
+   *  data in struct may be changed when passed in.
+   *  @param aRange is the range that will dictate if the frames need to be redrawn null means the whole content needs to be redrawn
    *  @param aSelected is it selected?
+   *  @param aSpread should it spread the selection to flow elements around it? or go down to its children?
    *  @param aType the selection type of the selection that you are setting on the frame
    */
-  virtual void SetSelected(PRBool        aSelected,
-                           SelectionType aType);
+  NS_IMETHOD  SetSelected(nsPresContext* aPresContext,
+                          nsIDOMRange*    aRange,
+                          PRBool          aSelected,
+                          nsSpread        aSpread,
+                          SelectionType   aType) = 0;
 
   NS_IMETHOD  GetSelected(PRBool *aSelected) const = 0;
 
@@ -1951,6 +1928,14 @@ public:
 
   /** EndSelection related calls
    */
+
+  /**
+   *  Call to turn on/off mouseCapture at the view level. Needed by the ESM so
+   *  it must be in the public interface.
+   *  @param aPresContext presContext associated with the frame
+   *  @param aGrabMouseEvents PR_TRUE to enable capture, PR_FALSE to disable
+   */
+  NS_IMETHOD CaptureMouse(nsPresContext* aPresContext, PRBool aGrabMouseEvents) = 0;
 
   /**
    *  called to find the previous/next character, word, or line  returns the actual 
@@ -2063,7 +2048,7 @@ public:
    */
   PRBool IsPseudoStackingContextFromStyle() {
     const nsStyleDisplay* disp = GetStyleDisplay();
-    return disp->mOpacity != 1.0f || disp->IsPositioned() || disp->IsFloating();
+    return disp->mOpacity != 1.0f || disp->IsPositioned();
   }
   
   virtual PRBool HonorPrintBackgroundSettings() { return PR_TRUE; }
@@ -2272,6 +2257,9 @@ NS_PTR_TO_INT32(frame->GetProperty(nsGkAtoms::embeddingLevel))
   NS_IMETHOD DumpBox(FILE* out)=0;
 #endif
 
+  // Only nsDeckFrame requires that all its children have widgets
+  virtual PRBool ChildrenMustHaveWidgets() const { return PR_FALSE; }
+
   /**
    * @return PR_TRUE if this text frame ends with a newline character.  It
    * should return PR_FALSE if this is not a text frame.
@@ -2321,22 +2309,13 @@ NS_PTR_TO_INT32(frame->GetProperty(nsGkAtoms::embeddingLevel))
    */
   virtual nsILineIterator* GetLineIterator() = 0;
 
-  /**
-   * If this frame is a next-in-flow, and its prev-in-flow has something on its
-   * overflow list, pull those frames into the child list of this one.
-   */
-  virtual void PullOverflowsFromPrevInFlow() {}
-
 protected:
   // Members
   nsRect           mRect;
   nsIContent*      mContent;
   nsStyleContext*  mStyleContext;
   nsIFrame*        mParent;
-private:
-  nsIFrame*        mNextSibling;  // doubly-linked list of frames
-  nsIFrame*        mPrevSibling;  // Do not touch outside SetNextSibling!
-protected:
+  nsIFrame*        mNextSibling;  // singly-linked list of frames
   nsFrameState     mState;
 
   // When there is an overflow area only slightly larger than mRect,
@@ -2460,16 +2439,6 @@ protected:
 private:
   nsRect* GetOverflowAreaProperty(PRBool aCreateIfNecessary = PR_FALSE);
   void SetOverflowRect(const nsRect& aRect);
-
-#ifdef NS_DEBUG
-public:
-  // Formerly nsIFrameDebug
-  NS_IMETHOD  List(FILE* out, PRInt32 aIndent) const = 0;
-  NS_IMETHOD  GetFrameName(nsAString& aResult) const = 0;
-  NS_IMETHOD_(nsFrameState)  GetDebugStateBits() const = 0;
-  NS_IMETHOD  DumpRegressionData(nsPresContext* aPresContext,
-                                 FILE* out, PRInt32 aIndent) = 0;
-#endif
 };
 
 //----------------------------------------------------------------------
@@ -2537,47 +2506,10 @@ public:
     Clear(mFrame ? mFrame->PresContext()->GetPresShell() : nsnull);
   }
 private:
-  void InitInternal(nsIFrame* aFrame);
-
-  void InitExternal(nsIFrame* aFrame) {
-    Clear(mFrame ? mFrame->PresContext()->GetPresShell() : nsnull);
-    mFrame = aFrame;
-    if (mFrame) {
-      nsIPresShell* shell = mFrame->PresContext()->GetPresShell();
-      NS_WARN_IF_FALSE(shell, "Null PresShell in nsWeakFrame!");
-      if (shell) {
-        shell->AddWeakFrame(this);
-      } else {
-        mFrame = nsnull;
-      }
-    }
-  }
-
-  void Init(nsIFrame* aFrame) {
-#ifdef _IMPL_NS_LAYOUT
-    InitInternal(aFrame);
-#else
-    InitExternal(aFrame);
-#endif
-  }
+  void Init(nsIFrame* aFrame);
 
   nsWeakFrame*  mPrev;
   nsIFrame*     mFrame;
 };
 
-inline void
-nsFrameList::Enumerator::Next()
-{
-  NS_ASSERTION(!AtEnd(), "Should have checked AtEnd()!");
-  mFrame = mFrame->GetNextSibling();
-}
-
-inline
-nsFrameList::FrameLinkEnumerator::
-FrameLinkEnumerator(const nsFrameList& aList, nsIFrame* aPrevFrame)
-  : Enumerator(aList)
-{
-  mPrev = aPrevFrame;
-  mFrame = aPrevFrame ? aPrevFrame->GetNextSibling() : aList.FirstChild();
-}
 #endif /* nsIFrame_h___ */

@@ -126,15 +126,13 @@ nsIFrame*
 NS_NewBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool aIsRoot, nsIBoxLayout* aLayoutManager)
 {
   return new (aPresShell) nsBoxFrame(aPresShell, aContext, aIsRoot, aLayoutManager);
-}
+} // NS_NewBoxFrame
 
 nsIFrame*
 NS_NewBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsBoxFrame(aPresShell, aContext);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsBoxFrame)
 
 nsBoxFrame::nsBoxFrame(nsIPresShell* aPresShell,
                        nsStyleContext* aContext,
@@ -168,7 +166,7 @@ nsBoxFrame::~nsBoxFrame()
 
 NS_IMETHODIMP
 nsBoxFrame::SetInitialChildList(nsIAtom*        aListName,
-                                nsFrameList&    aChildList)
+                                nsIFrame*       aChildList)
 {
   nsresult r = nsContainerFrame::SetInitialChildList(aListName, aChildList);
   if (r == NS_OK) {
@@ -206,6 +204,18 @@ nsBoxFrame::Init(nsIContent*      aContent,
   NS_ENSURE_SUCCESS(rv, rv);
 
   MarkIntrinsicWidthsDirty();
+
+  // see if we need a widget
+  if (aParent && aParent->IsBoxFrame()) {
+    if (aParent->ChildrenMustHaveWidgets()) {
+        rv = nsHTMLContainerFrame::CreateViewForFrame(this, PR_TRUE);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        nsIView* view = GetView();
+        if (!view->HasWidget())
+           view->CreateWidget(kWidgetCID);   
+    }
+  }
 
   CacheAttributes();
 
@@ -636,7 +646,7 @@ nsBoxFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
   GetBorderAndPadding(bp);
 
   result = minSize.width - bp.LeftRight();
-  result = NS_MAX(result, 0);
+  result = PR_MAX(result, 0);
 
   return result;
 }
@@ -658,7 +668,7 @@ nsBoxFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
   GetBorderAndPadding(bp);
 
   result = prefSize.width - bp.LeftRight();
-  result = NS_MAX(result, 0);
+  result = PR_MAX(result, 0);
 
   return result;
 }
@@ -934,10 +944,8 @@ nsBoxFrame::DoLayout(nsBoxLayoutState& aState)
   aState.SetLayoutFlags(0);
 
   nsresult rv = NS_OK;
-  if (mLayoutManager) {
-    CoordNeedsRecalc(mAscent);
+  if (mLayoutManager)
     rv = mLayoutManager->Layout(this, aState);
-  }
 
   aState.SetLayoutFlags(oldFlags);
 
@@ -1028,7 +1036,7 @@ nsBoxFrame::RemoveFrame(nsIAtom*        aListName,
 NS_IMETHODIMP
 nsBoxFrame::InsertFrames(nsIAtom*        aListName,
                          nsIFrame*       aPrevFrame,
-                         nsFrameList&    aFrameList)
+                         nsIFrame*       aFrameList)
 {
    NS_ASSERTION(!aPrevFrame || aPrevFrame->GetParent() == this,
                 "inserting after sibling frame with different parent");
@@ -1038,12 +1046,11 @@ nsBoxFrame::InsertFrames(nsIAtom*        aListName,
    nsBoxLayoutState state(PresContext());
 
    // insert the child frames
-   const nsFrameList::Slice& newFrames =
-     mFrames.InsertFrames(this, aPrevFrame, aFrameList);
+   mFrames.InsertFrames(this, aPrevFrame, aFrameList);
 
    // notify the layout manager
    if (mLayoutManager)
-     mLayoutManager->ChildrenInserted(this, state, aPrevFrame, newFrames);
+     mLayoutManager->ChildrenInserted(this, state, aPrevFrame, aFrameList);
 
 #ifdef DEBUG_LAYOUT
    // if we are in debug make sure our children are in debug as well.
@@ -1060,17 +1067,17 @@ nsBoxFrame::InsertFrames(nsIAtom*        aListName,
 
 NS_IMETHODIMP
 nsBoxFrame::AppendFrames(nsIAtom*        aListName,
-                         nsFrameList&    aFrameList)
+                         nsIFrame*       aFrameList)
 {
    NS_PRECONDITION(!aListName, "We don't support out-of-flow kids");
    nsBoxLayoutState state(PresContext());
 
    // append the new frames
-   const nsFrameList::Slice& newFrames = mFrames.AppendFrames(this, aFrameList);
+   mFrames.AppendFrames(this, aFrameList);
 
    // notify the layout manager
    if (mLayoutManager)
-     mLayoutManager->ChildrenAppended(this, state, newFrames);
+     mLayoutManager->ChildrenAppended(this, state, aFrameList);
 
 #ifdef DEBUG_LAYOUT
    // if we are in debug make sure our children are in debug as well.
@@ -1124,8 +1131,6 @@ nsBoxFrame::AttributeChanged(PRInt32 aNameSpaceID,
       aAttribute == nsGkAtoms::valign      ||
       aAttribute == nsGkAtoms::left        ||
       aAttribute == nsGkAtoms::top         ||
-      aAttribute == nsGkAtoms::right        ||
-      aAttribute == nsGkAtoms::bottom       ||
       aAttribute == nsGkAtoms::minwidth     ||
       aAttribute == nsGkAtoms::maxwidth     ||
       aAttribute == nsGkAtoms::minheight    ||
@@ -1196,9 +1201,7 @@ nsBoxFrame::AttributeChanged(PRInt32 aNameSpaceID,
         mState &= ~NS_STATE_AUTO_STRETCH;
     }
     else if (aAttribute == nsGkAtoms::left ||
-             aAttribute == nsGkAtoms::top ||
-             aAttribute == nsGkAtoms::right ||
-             aAttribute == nsGkAtoms::bottom) {
+             aAttribute == nsGkAtoms::top) {
       mState &= ~NS_STATE_STACK_NOT_POSITIONED;
     }
     else if (aAttribute == nsGkAtoms::mousethrough) {
@@ -1258,14 +1261,14 @@ public:
       DisplayDebugInfoFor(this, aPt - aBuilder->ToReferenceFrame(mFrame));
     return PR_TRUE;
   }
-  virtual void Paint(nsDisplayListBuilder* aBuilder
-                     nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("XULDebug")
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
+     const nsRect& aDirtyRect);
+  NS_DISPLAY_DECL_NAME("ComboboxFocus")
 };
 
 void
 nsDisplayXULDebug::Paint(nsDisplayListBuilder* aBuilder,
-                         nsIRenderingContext* aCtx)
+     nsIRenderingContext* aCtx, const nsRect& aDirtyRect)
 {
   static_cast<nsBoxFrame*>(mFrame)->
     PaintXULDebugOverlay(*aCtx, aBuilder->ToReferenceFrame(mFrame));
@@ -2052,8 +2055,7 @@ nsBoxFrame::CheckBoxOrder(nsBoxLayoutState& aState)
   if (!child)
     return;
 
-  nsIFrame* head = MergeSort(aState, mFrames.FirstChild());
-  mFrames = nsFrameList(head, nsLayoutUtils::GetLastSibling(head));
+  mFrames.SetFrames(MergeSort(aState, mFrames.FirstChild()));
 }
 
 NS_IMETHODIMP
@@ -2095,31 +2097,50 @@ nsBoxFrame::RelayoutChildAtOrdinal(nsBoxLayoutState& aState, nsIBox* aChild)
 
   PRUint32 ord = aChild->GetOrdinal(aState);
   
-  nsIFrame* child = mFrames.FirstChild();
-  nsIFrame* newPrevSib = nsnull;
+  nsIFrame *child = mFrames.FirstChild();
+  nsIFrame *curPrevSib = nsnull, *newPrevSib = nsnull;
+  PRBool foundPrevSib = PR_FALSE, foundNewPrevSib = PR_FALSE;
 
   while (child) {
-    if (ord < child->GetOrdinal(aState)) {
-      break;
-    }
+    if (child == aChild)
+      foundPrevSib = PR_TRUE;
+    else if (!foundPrevSib)
+      curPrevSib = child;
 
-    if (child != aChild) {
+    PRUint32 ordCmp = child->GetOrdinal(aState);
+    if (ord < ordCmp)
+      foundNewPrevSib = PR_TRUE;
+    else if (!foundNewPrevSib && child != aChild)
       newPrevSib = child;
-    }
 
     child = child->GetNextBox();
   }
 
-  if (aChild->GetPrevSibling() == newPrevSib) {
+  NS_ASSERTION(foundPrevSib, "aChild not in frame list?");
+
+  if (curPrevSib == newPrevSib) {
     // This box is not moving.
     return NS_OK;
   }
 
-  // Take |aChild| out of its old position in the child list.
-  mFrames.RemoveFrame(aChild);
+  // Take aChild out of its old position in the child list.
+  if (curPrevSib)
+    curPrevSib->SetNextSibling(aChild->GetNextSibling());
+  else
+    mFrames.SetFrames(aChild->GetNextSibling());
 
-  // Insert it after |newPrevSib| or at the start if it's null.
-  mFrames.InsertFrame(nsnull, newPrevSib, aChild);
+  nsIBox* newNextSib;
+  if (newPrevSib) {
+    // insert |aChild| between |newPrevSib| and its next sibling
+    newNextSib = newPrevSib->GetNextSibling();
+    newPrevSib->SetNextSibling(aChild);
+  } else {
+    // no |newPrevSib| found, so this box will become |mFirstChild|
+    newNextSib = mFrames.FirstChild();
+    mFrames.SetFrames(aChild);
+  }
+
+  aChild->SetNextSibling(newNextSib);
 
   return NS_OK;
 }

@@ -1,4 +1,5 @@
-ifneq (,$(filter OS2 WINCE WINNT,$(OS_ARCH)))
+
+ifeq ($(USE_SHORT_LIBNAME), 1)
 PROGRAM = $(MOZ_APP_NAME)$(BIN_SUFFIX)
 else
 PROGRAM = $(MOZ_APP_NAME)-bin$(BIN_SUFFIX)
@@ -21,8 +22,9 @@ endif
 endif
 
 _PROFILE_DIR = $(TARGET_DEPTH)/_profile/pgo
+_SYMBOLS_PATH = $(TARGET_DIST)/crashreporter-symbols
 
-ABSOLUTE_TOPSRCDIR = $(call core_abspath,$(MOZILLA_DIR))
+ABSOLUTE_TOPSRCDIR = $(call core_abspath,$(topsrcdir))
 _CERTS_SRC_DIR = $(ABSOLUTE_TOPSRCDIR)/build/pgo/certs
 
 AUTOMATION_PPARGS = 	\
@@ -31,19 +33,13 @@ AUTOMATION_PPARGS = 	\
 			-DBIN_SUFFIX=\"$(BIN_SUFFIX)\" \
 			-DPROFILE_DIR=\"$(_PROFILE_DIR)\" \
 			-DCERTS_SRC_DIR=\"$(_CERTS_SRC_DIR)\" \
-			-DPERL="\"$(PERL)\"" \
+			-DSYMBOLS_PATH=\"$(_SYMBOLS_PATH)\" \
 			$(NULL)
 
 ifeq ($(OS_ARCH),Darwin)
 AUTOMATION_PPARGS += -DIS_MAC=1
 else
 AUTOMATION_PPARGS += -DIS_MAC=0
-endif
-
-ifeq ($(OS_ARCH),Linux)
-AUTOMATION_PPARGS += -DIS_LINUX=1
-else
-AUTOMATION_PPARGS += -DIS_LINUX=0
 endif
 
 ifeq ($(MOZ_BUILD_APP),camino)
@@ -68,17 +64,11 @@ else
 AUTOMATION_PPARGS += -DIS_DEBUG_BUILD=0
 endif
 
-ifdef MOZ_CRASHREPORTER
-AUTOMATION_PPARGS += -DCRASHREPORTER=1
-else
-AUTOMATION_PPARGS += -DCRASHREPORTER=0
-endif
+$(CURDIR)/automationutils.py:
+	$(INSTALL) $(topsrcdir)/build/automationutils.py .
 
-$(CURDIR)/automationutils.py: $(MOZILLA_DIR)/build/automationutils.py
-	$(INSTALL) $< .
-
-automation.py: $(MOZILLA_DIR)/build/automation.py.in $(MOZILLA_DIR)/build/automation-build.mk $(CURDIR)/automationutils.py
-	$(PYTHON) $(MOZILLA_DIR)/config/Preprocessor.py \
+automation.py: $(topsrcdir)/build/automation.py.in $(topsrcdir)/build/automation-build.mk $(CURDIR)/automationutils.py
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py \
 	$(AUTOMATION_PPARGS) $(DEFINES) $(ACDEFINES) $< > $@
 
 GARBAGE += automation.py $(CURDIR)/automationutils.py

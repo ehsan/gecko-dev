@@ -51,14 +51,13 @@
 #include "nsDependentString.h"
 #include "nsMemory.h"
 #include "pratom.h"
-#include "prprf.h"
 
 // ---------------------------------------------------------------------------
 
-static PRUnichar gNullChar = 0;
+static const PRUnichar gNullChar = 0;
 
-char*      nsCharTraits<char>     ::sEmptyBuffer = (char*) &gNullChar;
-PRUnichar* nsCharTraits<PRUnichar>::sEmptyBuffer =         &gNullChar;
+const char*      nsCharTraits<char>     ::sEmptyBuffer = (const char*) &gNullChar;
+const PRUnichar* nsCharTraits<PRUnichar>::sEmptyBuffer =               &gNullChar;
 
 // ---------------------------------------------------------------------------
 

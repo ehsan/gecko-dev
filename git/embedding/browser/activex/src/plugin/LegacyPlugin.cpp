@@ -443,8 +443,6 @@ WillHandleCLSID(const CLSID &clsid, PluginInstanceData *pData)
     PRBool classExists = PR_FALSE;
     nsCOMPtr<nsIURI> uri;
     MozAxPlugin::GetCurrentLocation(pData->pPluginInstance, getter_AddRefs(uri));
-
-    JSAutoRequest req(cx);
     MozAxAutoPushJSContext autoContext(cx, uri);
     dispSupport->IsClassSafeToHost(cx, cid, PR_TRUE, &classExists, &isSafe);
     if (classExists && !isSafe)
@@ -559,26 +557,7 @@ CreateControl(const CLSID &clsid, PluginInstanceData *pData, PropertyList &pl, L
     PRBool hostSafeControlsOnly;
     PRBool downloadControlsIfMissing;
 #if defined(MOZ_ACTIVEX_PLUGIN_XPCONNECT) && defined(XPC_IDISPATCH_SUPPORT)
-#ifdef MOZ_FLASH_ACTIVEX_PATCH
-    GUID flashGUID;
-    ::CLSIDFromString(_T("{D27CDB6E-AE6D-11CF-96B8-444553540000}"), &flashGUID);
-
-    // HACK: Allow anything but downloading for the wrapped Flash control.
-    PRUint32 hostingFlags;
-    if (clsid == flashGUID)
-    {
-      hostingFlags = (nsIActiveXSecurityPolicy::HOSTING_FLAGS_HOST_SAFE_OBJECTS |
-                      nsIActiveXSecurityPolicy::HOSTING_FLAGS_SCRIPT_SAFE_OBJECTS |
-                      nsIActiveXSecurityPolicy::HOSTING_FLAGS_SCRIPT_ALL_OBJECTS |
-                      nsIActiveXSecurityPolicy::HOSTING_FLAGS_HOST_ALL_OBJECTS);
-    }
-    else
-    {
-      hostingFlags = MozAxPlugin::PrefGetHostingFlags();
-    }
-#else
     PRUint32 hostingFlags = MozAxPlugin::PrefGetHostingFlags();
-#endif
     if (hostingFlags & nsIActiveXSecurityPolicy::HOSTING_FLAGS_HOST_SAFE_OBJECTS &&
         !(hostingFlags & nsIActiveXSecurityPolicy::HOSTING_FLAGS_HOST_ALL_OBJECTS))
     {
@@ -807,7 +786,7 @@ NewControl(const char *pluginType,
             char szCLSID[kCLSIDLen];
             if (strlen(argv[i]) < sizeof(szCLSID))
             {
-                if (_strnicmp(argv[i], "CLSID:", 6) == 0)
+                if (strnicmp(argv[i], "CLSID:", 6) == 0)
                 {
                     _snprintf(szCLSID, kCLSIDLen - 1, "{%s}", argv[i]+6);
                 }
@@ -865,7 +844,7 @@ NewControl(const char *pluginType,
         else 
         {
             CComBSTR paramName;
-            if (_strnicmp(argn[i], "PARAM_", 6) == 0)
+            if (strnicmp(argn[i], "PARAM_", 6) == 0)
             {
                 paramName = argn[i] + 6;
             }
@@ -954,8 +933,6 @@ NPError NPP_New(NPMIMEType pluginType,
     MozAxPlugin::AddRef();
 #endif
 
-    CoInitializeEx(NULL, COINIT_MULTITHREADED);
-
     NPError rv = NPERR_GENERIC_ERROR;
     /* if (strcmp(pluginType, MIME_OLEOBJECT1) == 0 ||
            strcmp(pluginType, MIME_OLEOBJECT2) == 0) */
@@ -974,7 +951,6 @@ NPError NPP_New(NPMIMEType pluginType,
 #ifdef MOZ_ACTIVEX_PLUGIN_XPCONNECT
         MozAxPlugin::Release();
 #endif
-        CoUninitialize();
         return rv;
     }
 
@@ -1037,8 +1013,6 @@ NPP_Destroy(NPP instance, NPSavedData** save)
 #endif
 
     instance->pdata = 0;
-
-    CoUninitialize();
 
     return NPERR_NO_ERROR;
 

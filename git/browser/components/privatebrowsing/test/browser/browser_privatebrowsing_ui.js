@@ -40,7 +40,9 @@
 
 function test() {
   // initialization
-  gPrefService.setBoolPref("browser.privatebrowsing.keep_current_session", true);
+  let prefBranch = Cc["@mozilla.org/preferences-service;1"].
+                   getService(Ci.nsIPrefBranch);
+  prefBranch.setBoolPref("browser.privatebrowsing.keep_current_session", true);
   let pb = Cc["@mozilla.org/privatebrowsing;1"].
            getService(Ci.nsIPrivateBrowsingService);
   let observer = {
@@ -55,7 +57,8 @@ function test() {
   os.addObserver(observer, "private-browsing", false);
   let pbMenuItem = document.getElementById("privateBrowsingItem");
   // add a new blank tab to ensure the title can be meaningfully compared later
-  gBrowser.selectedTab = gBrowser.addTab();
+  let blankTab = gBrowser.addTab();
+  gBrowser.selectedTab = blankTab;
   let originalTitle = document.title;
 
   // test the gPrivateBrowsingUI object
@@ -87,7 +90,7 @@ function test() {
   is(document.title, originalTitle, "Private browsing mode has correctly restored the title");
 
   // cleanup
-  gBrowser.removeCurrentTab();
+  gBrowser.removeTab(blankTab);
   os.removeObserver(observer, "private-browsing");
-  gPrefService.clearUserPref("browser.privatebrowsing.keep_current_session");
+  prefBranch.clearUserPref("browser.privatebrowsing.keep_current_session");
 }

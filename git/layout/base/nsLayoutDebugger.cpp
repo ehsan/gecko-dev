@@ -41,7 +41,8 @@
  */
 
 #include "nsILayoutDebugger.h"
-#include "nsFrame.h"
+#include "nsIFrame.h"
+#include "nsIFrameDebug.h"
 #include "nsDisplayList.h"
 
 #include <stdio.h>
@@ -100,28 +101,28 @@ NS_IMPL_ISUPPORTS1(nsLayoutDebugger, nsILayoutDebugger)
 NS_IMETHODIMP
 nsLayoutDebugger::SetShowFrameBorders(PRBool aEnable)
 {
-  nsFrame::ShowFrameBorders(aEnable);
+  nsIFrameDebug::ShowFrameBorders(aEnable);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsLayoutDebugger::GetShowFrameBorders(PRBool* aResult)
 {
-  *aResult = nsFrame::GetShowFrameBorders();
+  *aResult = nsIFrameDebug::GetShowFrameBorders();
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsLayoutDebugger::SetShowEventTargetFrameBorder(PRBool aEnable)
 {
-  nsFrame::ShowEventTargetFrameBorder(aEnable);
+  nsIFrameDebug::ShowEventTargetFrameBorder(aEnable);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsLayoutDebugger::GetShowEventTargetFrameBorder(PRBool* aResult)
 {
-  *aResult = nsFrame::GetShowEventTargetFrameBorder();
+  *aResult = nsIFrameDebug::GetShowEventTargetFrameBorder();
   return NS_OK;
 }
 
@@ -158,9 +159,10 @@ PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
       fputc(' ', aOutput);
     }
     nsIFrame* f = i->GetUnderlyingFrame();
+    nsIFrameDebug* fDebug = do_QueryFrame(f);
     nsAutoString fName;
-    if (f) {
-      f->GetFrameName(fName);
+    if (fDebug) {
+      fDebug->GetFrameName(fName);
     }
     nsRect rect = i->GetBounds(aBuilder);
     switch (i->GetType()) {
@@ -192,8 +194,7 @@ PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
 }
 
 void
-nsFrame::PrintDisplayList(nsDisplayListBuilder* aBuilder,
-                          const nsDisplayList& aList)
+nsIFrameDebug::PrintDisplayList(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList)
 {
   PrintDisplayListTo(aBuilder, aList, 0, stderr);
 }

@@ -70,8 +70,6 @@ NS_NewGfxButtonControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsGfxButtonControlFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsGfxButtonControlFrame)
-
 void nsGfxButtonControlFrame::Destroy()
 {
   nsContentUtils::DestroyAnonymousContent(&mTextContent);
@@ -151,6 +149,7 @@ nsGfxButtonControlFrame::CreateFrameFor(nsIContent*      aContent)
       if (newFrame) {
         // initialize the text frame
         newFrame->Init(mTextContent, parentFrame, nsnull);
+        newFrame->SetInitialChildList(nsnull, nsnull);
       }
     }
   }

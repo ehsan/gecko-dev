@@ -43,8 +43,6 @@
 class nsButtonBoxFrame : public nsBoxFrame
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   friend nsIFrame* NS_NewButtonBoxFrame(nsIPresShell* aPresShell);
 
   nsButtonBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)

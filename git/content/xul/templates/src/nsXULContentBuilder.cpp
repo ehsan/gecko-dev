@@ -1302,7 +1302,7 @@ PRBool
 nsXULContentBuilder::IsOpen(nsIContent* aElement)
 {
     // Determine if this is a <treeitem> or <menu> element
-    if (!aElement->IsXUL())
+    if (!aElement->IsNodeOfType(nsINode::eXUL))
         return PR_TRUE;
 
     // XXXhyatt Use the XBL service to obtain a base tag.
@@ -1566,7 +1566,8 @@ nsXULContentBuilder::AttributeChanged(nsIDocument* aDocument,
                                       nsIContent*  aContent,
                                       PRInt32      aNameSpaceID,
                                       nsIAtom*     aAttribute,
-                                      PRInt32      aModType)
+                                      PRInt32      aModType,
+                                      PRUint32     aStateMask)
 {
     // Handle "open" and "close" cases. We do this handling before
     // we've notified the observer, so that content is already created
@@ -1590,7 +1591,7 @@ nsXULContentBuilder::AttributeChanged(nsIDocument* aDocument,
 
     // Pass along to the generic template builder.
     nsXULTemplateBuilder::AttributeChanged(aDocument, aContent, aNameSpaceID,
-                                           aAttribute, aModType);
+                                           aAttribute, aModType, aStateMask);
 }
 
 void

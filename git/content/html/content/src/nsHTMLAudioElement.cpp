@@ -84,7 +84,7 @@ NS_NewHTMLAudioElement(nsINodeInfo *aNodeInfo, PRBool aFromParser)
     NS_ENSURE_TRUE(doc, nsnull);
 
     nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::audio, nsnull,
-                                                   kNameSpaceID_XHTML);
+                                                   kNameSpaceID_None);
     NS_ENSURE_TRUE(nodeInfo, nsnull);
   }
 
@@ -117,15 +117,8 @@ NS_IMETHODIMP
 nsHTMLAudioElement::Initialize(nsISupports* aOwner, JSContext* aContext,
                                JSObject *aObj, PRUint32 argc, jsval *argv)
 {
-  // Audio elements created using "new Audio(...)" should have
-  // 'autobuffer' set (since the script must intend to play the audio)
-  nsresult rv = SetAttr(kNameSpaceID_None, nsGkAtoms::autobuffer,
-                        NS_LITERAL_STRING("autobuffer"), PR_TRUE);
-  if (NS_FAILED(rv))
-    return rv;
-
   if (argc <= 0) {
-    // Nothing more to do here if we don't get any arguments.
+    // Nothing to do here if we don't get any arguments.
     return NS_OK;
   }
 

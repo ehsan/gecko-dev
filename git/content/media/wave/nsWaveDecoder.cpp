@@ -54,13 +54,6 @@
 using mozilla::TimeDuration;
 using mozilla::TimeStamp;
 
-#ifdef PR_LOGGING
-static PRLogModuleInfo* gWaveDecoderLog;
-#define LOG(type, msg) PR_LOG(gWaveDecoderLog, type, msg)
-#else
-#define LOG(type, msg)
-#endif
-
 // Maximum number of seconds to wait when buffering.
 #define BUFFERING_TIMEOUT 3
 
@@ -468,12 +461,7 @@ nsWaveStateMachine::GetNextFrameStatus()
   nsAutoMonitor monitor(mMonitor);
   if (mState == STATE_BUFFERING)
     return nsHTMLMediaElement::NEXT_FRAME_UNAVAILABLE_BUFFERING;
-  // If mMetadataValid is false then we can't call GetDataLength because
-  // we haven't got the length from the Wave header yet. But we know that
-  // if we haven't read the metadata then we don't have playable data.
-  if (mMetadataValid &&
-      mPlaybackPosition < mStream->GetCachedDataEnd(mPlaybackPosition) &&
-      mPlaybackPosition < mWavePCMOffset + GetDataLength())
+  if (mPlaybackPosition < mStream->GetCachedDataEnd(mPlaybackPosition))
     return nsHTMLMediaElement::NEXT_FRAME_AVAILABLE;
   return nsHTMLMediaElement::NEXT_FRAME_UNAVAILABLE;
 }
@@ -502,17 +490,25 @@ nsWaveStateMachine::Run()
         PRBool loaded = LoadRIFFChunk() && LoadFormatChunk() && FindDataOffset();
         monitor.Enter();
 
-        if (!loaded) {
-          ChangeState(STATE_ERROR);
-        }
-
         if (mState == STATE_LOADING_METADATA) {
-          mMetadataValid = PR_TRUE;
-          if (mNextState != STATE_SEEKING) {
-            nsCOMPtr<nsIRunnable> event = NS_NEW_RUNNABLE_METHOD(nsWaveDecoder, mDecoder, MetadataLoaded);
+          nsCOMPtr<nsIRunnable> event;
+          State newState;
+
+          if (loaded) {
+            mMetadataValid = PR_TRUE;
+            if (mNextState != STATE_SEEKING) {
+              event = NS_NEW_RUNNABLE_METHOD(nsWaveDecoder, mDecoder, MetadataLoaded);
+            }
+            newState = mNextState;
+          } else {
+            event = NS_NEW_RUNNABLE_METHOD(nsWaveDecoder, mDecoder, MediaErrorDecode);
+            newState = STATE_ERROR;
+          }
+
+          if (event) {
             NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
           }
-          ChangeState(mNextState);
+          ChangeState(newState);
         }
       }
       break;
@@ -549,7 +545,7 @@ nsWaveStateMachine::Run()
 
       TimeStamp now = TimeStamp::Now();
       TimeStamp lastWakeup = now -
-        TimeDuration::FromMilliseconds(AUDIO_BUFFER_LENGTH);
+          TimeDuration::FromMilliseconds(AUDIO_BUFFER_LENGTH);
 
       do {
         TimeDuration sleepTime = now - lastWakeup;
@@ -584,17 +580,17 @@ nsWaveStateMachine::Run()
         if (mState != STATE_ENDED &&
             availableOffset < mPlaybackPosition + len &&
             !mStream->IsSuspendedByCache()) {
-          mBufferingStart = now;
-          mBufferingEndOffset = mPlaybackPosition +
-            TimeToBytes(mBufferingWait.ToSeconds());
-          mBufferingEndOffset = PR_MAX(mPlaybackPosition + len, mBufferingEndOffset);
-          mNextState = mState;
-          ChangeState(STATE_BUFFERING);
+            mBufferingStart = now;
+            mBufferingEndOffset = mPlaybackPosition +
+              TimeToBytes(mBufferingWait.ToSeconds());
+            mBufferingEndOffset = PR_MAX(mPlaybackPosition + len, mBufferingEndOffset);
+            mNextState = mState;
+            ChangeState(STATE_BUFFERING);
 
-          nsCOMPtr<nsIRunnable> event =
-            NS_NEW_RUNNABLE_METHOD(nsWaveDecoder, mDecoder, UpdateReadyStateForData);
-          NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
-          break;
+            nsCOMPtr<nsIRunnable> event =
+              NS_NEW_RUNNABLE_METHOD(nsWaveDecoder, mDecoder, UpdateReadyStateForData);
+            NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
+            break;
         }
 
         if (len > 0) {
@@ -695,15 +691,11 @@ nsWaveStateMachine::Run()
           // event, playback has not ended as far as the user's
           // concerned--the state machine needs to return to the last
           // playback state.
-          // Special case #3: if seeking to the end of the media, transition
-          // directly into STATE_ENDED.
           State nextState = mNextState;
           if (nextState == STATE_SEEKING) {
             nextState = STATE_PAUSED;
           } else if (nextState == STATE_ENDED) {
             nextState = mPaused ? STATE_PAUSED : STATE_PLAYING;
-          } else if (GetDuration() == seekTime) {
-            nextState = STATE_ENDED;
           }
           ChangeState(nextState);
         }
@@ -747,16 +739,10 @@ nsWaveStateMachine::Run()
       break;
 
     case STATE_ERROR:
-      {
-        nsCOMPtr<nsIRunnable> event = NS_NEW_RUNNABLE_METHOD(nsWaveDecoder, mDecoder, DecodeError);
-        NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
-
-        monitor.Wait();
-
-        if (mState != STATE_SHUTDOWN) {
-          NS_WARNING("Invalid state transition");
-          ChangeState(STATE_ERROR);
-        }
+      monitor.Wait();
+      if (mState != STATE_SHUTDOWN) {
+        NS_WARNING("Invalid state transition");
+        ChangeState(STATE_ERROR);
       }
       break;
 
@@ -799,8 +785,7 @@ IsValidStateTransition(State aStartState, State aEndState)
       return PR_TRUE;
     break;
   case STATE_SEEKING:
-    if (aEndState == STATE_PLAYING || aEndState == STATE_PAUSED ||
-        aEndState == STATE_ENDED)
+    if (aEndState == STATE_PLAYING || aEndState == STATE_PAUSED)
       return PR_TRUE;
     break;
   case STATE_PAUSED:
@@ -991,23 +976,19 @@ nsWaveStateMachine::ScanForwardUntil(PRUint32 aWantedChunk, PRUint32* aChunkSize
     }
 
     PRUint32 magic = ReadUint32BE(&p);
-    PRUint32 chunkSize = ReadUint32LE(&p);
+    PRUint32 size = ReadUint32LE(&p);
 
     if (magic == aWantedChunk) {
-      *aChunkSize = chunkSize;
+      *aChunkSize = size;
       return PR_TRUE;
     }
 
     // RIFF chunks are two-byte aligned, so round up if necessary.
-    chunkSize += chunkSize % 2;
+    size += size % 2;
 
-    while (chunkSize > 0) {
-      PRUint32 size = PR_MIN(chunkSize, 1 << 16);
-      nsAutoArrayPtr<char> chunk(new char[size]);
-      if (!ReadAll(chunk.get(), size)) {
-        return PR_FALSE;
-      }
-      chunkSize -= size;
+    nsAutoArrayPtr<char> chunk(new char[size]);
+    if (!ReadAll(chunk.get(), size)) {
+      return PR_FALSE;
     }
   }
 }
@@ -1166,18 +1147,13 @@ nsWaveDecoder::nsWaveDecoder()
     mCurrentTime(0.0),
     mEndedDuration(std::numeric_limits<float>::quiet_NaN()),
     mEnded(PR_FALSE),
+    mNotifyOnShutdown(PR_FALSE),
     mSeekable(PR_TRUE),
     mResourceLoaded(PR_FALSE),
     mMetadataLoadedReported(PR_FALSE),
     mResourceLoadedReported(PR_FALSE)
 {
   MOZ_COUNT_CTOR(nsWaveDecoder);
-
-#ifdef PR_LOGGING
-  if (!gWaveDecoderLog) {
-    gWaveDecoderLog = PR_NewLogModule("nsWaveDecoder");
-  }
-#endif
 }
 
 nsWaveDecoder::~nsWaveDecoder()
@@ -1185,25 +1161,10 @@ nsWaveDecoder::~nsWaveDecoder()
   MOZ_COUNT_DTOR(nsWaveDecoder);
 }
 
-PRBool
-nsWaveDecoder::Init(nsHTMLMediaElement* aElement)
+void
+nsWaveDecoder::GetCurrentURI(nsIURI** aURI)
 {
-  nsMediaDecoder::Init(aElement);
-
-  RegisterShutdownObserver();
-
-  mPlaybackStateMachine = new nsWaveStateMachine(this,
-    TimeDuration::FromMilliseconds(BUFFERING_TIMEOUT),
-    mInitialVolume);
-  NS_ENSURE_TRUE(mPlaybackStateMachine, PR_FALSE);
-
-  return PR_TRUE;
-}
-
-nsMediaStream*
-nsWaveDecoder::GetCurrentStream()
-{
-  return mStream;
+  NS_IF_ADDREF(*aURI = mURI);
 }
 
 already_AddRefed<nsIPrincipal>
@@ -1303,19 +1264,40 @@ nsWaveDecoder::Stop()
 }
 
 nsresult
-nsWaveDecoder::Load(nsMediaStream* aStream, nsIStreamListener** aStreamListener)
+nsWaveDecoder::Load(nsIURI* aURI, nsIChannel* aChannel, nsIStreamListener** aStreamListener)
 {
-  NS_ASSERTION(aStream, "A stream should be provided");
+  // Reset progress member variables
+  mResourceLoaded = PR_FALSE;
+  mResourceLoadedReported = PR_FALSE;
+  mMetadataLoadedReported = PR_FALSE;
 
   if (aStreamListener) {
     *aStreamListener = nsnull;
   }
 
-  mStream = aStream;
+  if (aURI) {
+    NS_ASSERTION(!aStreamListener, "No listener should be requested here");
+    mURI = aURI;
+  } else {
+    NS_ASSERTION(aChannel, "Either a URI or a channel is required");
+    NS_ASSERTION(aStreamListener, "A listener should be requested here");
 
-  nsresult rv = mStream->Open(aStreamListener);
+    nsresult rv = NS_GetFinalChannelURI(aChannel, getter_AddRefs(mURI));
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  RegisterShutdownObserver();
+
+  mPlaybackStateMachine = new nsWaveStateMachine(this,
+    TimeDuration::FromMilliseconds(BUFFERING_TIMEOUT),
+    mInitialVolume);
+  NS_ENSURE_TRUE(mPlaybackStateMachine, NS_ERROR_OUT_OF_MEMORY);
+
+  // Open the stream *after* setting mPlaybackStateMachine, to ensure
+  // that callbacks (e.g. setting stream size) will actually work
+  nsresult rv = nsMediaStream::Open(this, mURI, aChannel, getter_Transfers(mStream),
+                                    aStreamListener);
   NS_ENSURE_SUCCESS(rv, rv);
-
   mPlaybackStateMachine->SetStream(mStream);
 
   rv = NS_NewThread(getter_AddRefs(mPlaybackThread));
@@ -1359,9 +1341,6 @@ nsWaveDecoder::PlaybackEnded()
     return;
   }
 
-  // Update ready state; now that we've finished playback, we should
-  // switch to HAVE_CURRENT_DATA.
-  UpdateReadyStateForData();
   if (mElement) {
     mElement->PlaybackEnded();
   }
@@ -1442,7 +1421,6 @@ void
 nsWaveDecoder::NotifyBytesDownloaded()
 {
   UpdateReadyStateForData();
-  Progress(PR_FALSE);
 }
 
 void
@@ -1530,37 +1508,46 @@ nsWaveDecoder::SeekingStopped()
 void
 nsWaveDecoder::RegisterShutdownObserver()
 {
-  nsCOMPtr<nsIObserverService> observerService =
-    do_GetService("@mozilla.org/observer-service;1");
-  if (observerService) {
-    observerService->AddObserver(this,
-                                 NS_XPCOM_SHUTDOWN_OBSERVER_ID,
-                                 PR_FALSE);
-  } else {
-    NS_WARNING("Could not get an observer service. Audio playback may not shutdown cleanly.");
+  if (!mNotifyOnShutdown) {
+    nsCOMPtr<nsIObserverService> observerService =
+      do_GetService("@mozilla.org/observer-service;1");
+    if (observerService) {
+      mNotifyOnShutdown =
+        NS_SUCCEEDED(observerService->AddObserver(this,
+                                                  NS_XPCOM_SHUTDOWN_OBSERVER_ID,
+                                                  PR_FALSE));
+    } else {
+      NS_WARNING("Could not get an observer service. Audio playback may not shutdown cleanly.");
+    }
   }
 }
 
 void
 nsWaveDecoder::UnregisterShutdownObserver()
 {
-  nsCOMPtr<nsIObserverService> observerService =
-    do_GetService("@mozilla.org/observer-service;1");
-  if (observerService) {
-    observerService->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID);
+  if (mNotifyOnShutdown) {
+    nsCOMPtr<nsIObserverService> observerService =
+      do_GetService("@mozilla.org/observer-service;1");
+    if (observerService) {
+      mNotifyOnShutdown = PR_FALSE;
+      observerService->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID);
+    }
   }
 }
 
 void
-nsWaveDecoder::DecodeError()
+nsWaveDecoder::MediaErrorDecode()
 {
   if (mShuttingDown) {
     return;
   }
+#if 0
   if (mElement) {
-    mElement->DecodeError();
+    mElement->MediaErrorDecode();
   }
-  Shutdown();
+#else
+  NS_WARNING("MediaErrorDecode fired, but not implemented.");
+#endif
 }
 
 void

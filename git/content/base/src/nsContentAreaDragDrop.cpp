@@ -80,6 +80,7 @@
 #include "nsINameSpaceManager.h"
 #include "nsUnicharUtils.h"
 #include "nsIURL.h"
+#include "nsIImage.h"
 #include "nsIDocument.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIPrincipal.h"
@@ -92,7 +93,6 @@
 #include "nsEscape.h"
 #include "nsContentUtils.h"
 #include "nsIMIMEService.h"
-#include "imgIContainer.h"
 #include "imgIRequest.h"
 #include "nsContentCID.h"
 #include "nsDOMDataTransfer.h"
@@ -171,7 +171,7 @@ private:
   nsString mInfoString;
 
   PRBool mIsAnchor;
-  nsCOMPtr<imgIContainer> mImage;
+  nsCOMPtr<nsIImage> mImage;
 };
 
 
@@ -329,7 +329,6 @@ nsContentAreaDragDrop::DragOver(nsIDOMDragEvent* inEvent)
   }
 
   session->SetCanDrop(dropAllowed);
-
   return NS_OK;
 }
 
@@ -973,7 +972,7 @@ nsTransferableFactory::Produce(nsDOMDataTransfer* aDataTransfer,
         nsCOMPtr<imgIRequest> imgRequest;
 
         // grab the image data, and its request.
-        nsCOMPtr<imgIContainer> img =
+        nsCOMPtr<nsIImage> img =
           nsContentUtils::GetImageFromContent(image,
                                               getter_AddRefs(imgRequest));
 

@@ -49,6 +49,26 @@ ifndef MOZ_MEMORY
 USE_STATIC_LIBS = 1
 endif
 
+REQUIRES	= \
+		  xpcom \
+		  string \
+		  necko \
+		  libreg \
+		  browsercomps \
+		  toolkitcomps \
+		  loginmgr \
+		  pref \
+		  rdf \
+		  satchel \
+		  intl \
+		  unicharutil \
+		  windowwatcher \
+		  dom \
+		  docshell \
+		  xulapp \
+      places \
+      browserplaces \
+		  $(NULL)
 
 CPPSRCS  = nsProfileMigrator.cpp \
            nsBrowserProfileMigratorUtils.cpp \
@@ -72,7 +92,7 @@ CPPSRCS += nsIEProfileMigrator.cpp \
            $(NULL)
 endif
 
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 CPPSRCS += nsSafariProfileMigrator.cpp \
            nsMacIEProfileMigrator.cpp \
            nsOmniWebProfileMigrator.cpp \

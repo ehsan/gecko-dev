@@ -75,15 +75,13 @@ nsSVGGraphicElement::nsSVGGraphicElement(nsINodeInfo *aNodeInfo)
 /* readonly attribute nsIDOMSVGElement nearestViewportElement; */
 NS_IMETHODIMP nsSVGGraphicElement::GetNearestViewportElement(nsIDOMSVGElement * *aNearestViewportElement)
 {
-  *aNearestViewportElement = nsSVGUtils::GetNearestViewportElement(this).get();
-  return NS_OK;
+  return nsSVGUtils::GetNearestViewportElement(this, aNearestViewportElement);
 }
 
 /* readonly attribute nsIDOMSVGElement farthestViewportElement; */
 NS_IMETHODIMP nsSVGGraphicElement::GetFarthestViewportElement(nsIDOMSVGElement * *aFarthestViewportElement)
 {
-  *aFarthestViewportElement = nsSVGUtils::GetFarthestViewportElement(this).get();
-  return NS_OK;
+  return nsSVGUtils::GetFarthestViewportElement(this, aFarthestViewportElement);
 }
 
 /* nsIDOMSVGRect getBBox (); */
@@ -103,20 +101,87 @@ NS_IMETHODIMP nsSVGGraphicElement::GetBBox(nsIDOMSVGRect **_retval)
   return NS_ERROR_FAILURE;
 }
 
-/* nsIDOMSVGMatrix getCTM (); */
-NS_IMETHODIMP nsSVGGraphicElement::GetCTM(nsIDOMSVGMatrix * *aCTM)
+/* Helper for GetCTM and GetScreenCTM */
+nsresult
+nsSVGGraphicElement::AppendLocalTransform(nsIDOMSVGMatrix *aCTM,
+                                          nsIDOMSVGMatrix **_retval)
 {
-  gfxMatrix m = nsSVGUtils::GetCTM(this, PR_FALSE);
-  *aCTM = m.IsSingular() ? nsnull : NS_NewSVGMatrix(m).get();
-  return NS_OK;
+  if (!mTransforms) {
+    *_retval = aCTM;
+    NS_ADDREF(*_retval);
+    return NS_OK;
+  }
+
+  // append our local transformations
+  nsCOMPtr<nsIDOMSVGTransformList> transforms;
+  mTransforms->GetAnimVal(getter_AddRefs(transforms));
+  NS_ENSURE_TRUE(transforms, NS_ERROR_FAILURE);
+  nsCOMPtr<nsIDOMSVGMatrix> matrix =
+    nsSVGTransformList::GetConsolidationMatrix(transforms);
+  if (!matrix) {
+    *_retval = aCTM;
+    NS_ADDREF(*_retval);
+    return NS_OK;
+  }
+  return aCTM->Multiply(matrix, _retval);  // addrefs, so we don't
+}
+
+/* nsIDOMSVGMatrix getCTM (); */
+NS_IMETHODIMP nsSVGGraphicElement::GetCTM(nsIDOMSVGMatrix **_retval)
+{
+  nsresult rv;
+  *_retval = nsnull;
+
+  nsIDocument* currentDoc = GetCurrentDoc();
+  if (currentDoc) {
+    // Flush all pending notifications so that our frames are uptodate
+    currentDoc->FlushPendingNotifications(Flush_Layout);
+  }
+
+  nsIContent* parent = nsSVGUtils::GetParentElement(this);
+
+  nsCOMPtr<nsIDOMSVGLocatable> locatableElement = do_QueryInterface(parent);
+  if (!locatableElement) {
+    // we don't have an SVGLocatable parent so we aren't even rendered
+    NS_WARNING("SVGGraphicElement without an SVGLocatable parent");
+    return NS_ERROR_FAILURE;
+  }
+
+  // get our parent's CTM
+  nsCOMPtr<nsIDOMSVGMatrix> parentCTM;
+  rv = locatableElement->GetCTM(getter_AddRefs(parentCTM));
+  if (NS_FAILED(rv)) return rv;
+
+  return AppendLocalTransform(parentCTM, _retval);
 }
 
 /* nsIDOMSVGMatrix getScreenCTM (); */
-NS_IMETHODIMP nsSVGGraphicElement::GetScreenCTM(nsIDOMSVGMatrix * *aCTM)
+NS_IMETHODIMP nsSVGGraphicElement::GetScreenCTM(nsIDOMSVGMatrix **_retval)
 {
-  gfxMatrix m = nsSVGUtils::GetCTM(this, PR_TRUE);
-  *aCTM = m.IsSingular() ? nsnull : NS_NewSVGMatrix(m).get();
-  return NS_OK;
+  nsresult rv;
+  *_retval = nsnull;
+
+  nsIDocument* currentDoc = GetCurrentDoc();
+  if (currentDoc) {
+    // Flush all pending notifications so that our frames are uptodate
+    currentDoc->FlushPendingNotifications(Flush_Layout);
+  }
+
+  nsIContent* parent = nsSVGUtils::GetParentElement(this);
+
+  nsCOMPtr<nsIDOMSVGLocatable> locatableElement = do_QueryInterface(parent);
+  if (!locatableElement) {
+    // we don't have an SVGLocatable parent so we aren't even rendered
+    NS_WARNING("SVGGraphicElement without an SVGLocatable parent");
+    return NS_ERROR_FAILURE;
+  }
+
+  // get our parent's "screen" CTM
+  nsCOMPtr<nsIDOMSVGMatrix> parentScreenCTM;
+  rv = locatableElement->GetScreenCTM(getter_AddRefs(parentScreenCTM));
+  if (NS_FAILED(rv)) return rv;
+
+  return AppendLocalTransform(parentScreenCTM, _retval);
 }
 
 /* nsIDOMSVGMatrix getTransformToElement (in nsIDOMSVGElement element); */
@@ -134,10 +199,10 @@ NS_IMETHODIMP nsSVGGraphicElement::GetTransformToElement(nsIDOMSVGElement *eleme
   if (NS_FAILED(rv)) return rv;
 
   // the easiest way to do this (if likely to increase rounding error):
-  GetScreenCTM(getter_AddRefs(ourScreenCTM));
-  if (!ourScreenCTM) return NS_ERROR_DOM_SVG_MATRIX_NOT_INVERTABLE;
-  target->GetScreenCTM(getter_AddRefs(targetScreenCTM));
-  if (!targetScreenCTM) return NS_ERROR_DOM_SVG_MATRIX_NOT_INVERTABLE;
+  rv = GetScreenCTM(getter_AddRefs(ourScreenCTM));
+  if (NS_FAILED(rv)) return rv;
+  rv = target->GetScreenCTM(getter_AddRefs(targetScreenCTM));
+  if (NS_FAILED(rv)) return rv;
   rv = targetScreenCTM->Inverse(getter_AddRefs(tmp));
   if (NS_FAILED(rv)) return rv;
   return tmp->Multiply(ourScreenCTM, _retval);  // addrefs, so we don't

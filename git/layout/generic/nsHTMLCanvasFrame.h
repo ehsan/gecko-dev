@@ -51,8 +51,6 @@ nsIFrame* NS_NewHTMLCanvasFrame (nsIPresShell* aPresShell, nsStyleContext* aCont
 class nsHTMLCanvasFrame : public nsSplittableFrame
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   nsHTMLCanvasFrame(nsStyleContext* aContext) : nsSplittableFrame(aContext) {}
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
@@ -79,6 +77,10 @@ public:
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
   
+  NS_IMETHOD GetContentForEvent(nsPresContext* aPresContext,
+                                nsEvent* aEvent,
+                                nsIContent** aContent);
+
   nsRect GetInnerArea() const;
 
 #ifdef ACCESSIBILITY
@@ -94,6 +96,7 @@ public:
 
 #ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
+  NS_IMETHOD List(FILE* out, PRInt32 aIndent) const;
 #endif
 
 protected:

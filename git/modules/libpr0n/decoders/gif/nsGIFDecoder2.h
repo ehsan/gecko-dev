@@ -22,7 +22,6 @@
  *
  * Contributor(s):
  *   Chris Saari <saari@netscape.com>
- *   Bobby Holley <bobbyholley@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -45,6 +44,7 @@
 #include "imgIDecoder.h"
 #include "imgIContainer.h"
 #include "imgIDecoderObserver.h"
+#include "gfxIImageFrame.h"
 
 #include "GIF2.h"
 
@@ -59,7 +59,7 @@
 //////////////////////////////////////////////////////////////////////
 // nsGIFDecoder2 Definition
 
-class nsGIFDecoder2 : public imgIDecoder
+class nsGIFDecoder2 : public imgIDecoder   
 {
 public:
   NS_DECL_ISUPPORTS
@@ -67,14 +67,16 @@ public:
 
   nsGIFDecoder2();
   ~nsGIFDecoder2();
+  
+  nsresult ProcessData(unsigned char *data, PRUint32 count, PRUint32 *_retval);
 
 private:
   /* These functions will be called when the decoder has a decoded row,
    * frame size information, etc. */
 
   void      BeginGIF();
-  void      EndGIF(PRBool aSuccess);
-  nsresult  BeginImageFrame(gfx_depth aDepth);
+  void      EndGIF();
+  void      BeginImageFrame(gfx_depth aDepth);
   void      EndImageFrame();
   nsresult  FlushImageData();
   nsresult  FlushImageData(PRUint32 fromRow, PRUint32 rows);
@@ -86,27 +88,18 @@ private:
   inline int ClearCode() const { return 1 << mGIFStruct.datasize; }
 
   nsCOMPtr<imgIContainer> mImageContainer;
-  nsCOMPtr<imgIDecoderObserver> mObserver;
-  PRUint32 mFlags;
+  nsCOMPtr<gfxIImageFrame> mImageFrame;
+  nsCOMPtr<imgIDecoderObserver> mObserver; // this is just qi'd from mRequest for speed
   PRInt32 mCurrentRow;
   PRInt32 mLastFlushedRow;
 
   PRUint8 *mImageData;       // Pointer to image data in either Cairo or 8bit format
   PRUint32 *mColormap;       // Current colormap to be used in Cairo format
-  PRUint32 mColormapSize;
   PRUint32 mOldColor;        // The old value of the transparent pixel
-
-  // The frame number of the currently-decoding frame when we're in the middle
-  // of decoding it, and -1 otherwise.
-  PRInt32 mCurrentFrame;
-
   PRUint8 mCurrentPass;
   PRUint8 mLastFlushedPass;
-  PRUint8 mColorMask;        // Apply this to the pixel to keep within colormap
   PRPackedBool mGIFOpen;
   PRPackedBool mSawTransparency;
-  PRPackedBool mError;
-  PRPackedBool mEnded;
 
   gif_struct mGIFStruct;
 };

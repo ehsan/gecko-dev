@@ -64,8 +64,6 @@ NS_NewSVGForeignObjectFrame(nsIPresShell   *aPresShell,
   return new (aPresShell) nsSVGForeignObjectFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsSVGForeignObjectFrame)
-
 nsSVGForeignObjectFrame::nsSVGForeignObjectFrame(nsStyleContext* aContext)
   : nsSVGForeignObjectFrameBase(aContext),
     mInReflow(PR_FALSE)
@@ -148,7 +146,7 @@ nsSVGForeignObjectFrame::Reflow(nsPresContext*           aPresContext,
                "should only get reflow from being reflow root");
   NS_ASSERTION(aReflowState.ComputedWidth() == GetSize().width &&
                aReflowState.ComputedHeight() == GetSize().height,
-               "reflow roots should be reflowed at existing size and "
+               "reflow roots should be reflown at existing size and "
                "svg.css should ensure we have no padding/border/margin");
 
   DoReflow();
@@ -239,8 +237,7 @@ nsSVGForeignObjectFrame::PaintSVG(nsSVGRenderState *aContext,
   gfx->Multiply(matrix);
 
   nsresult rv = nsLayoutUtils::PaintFrame(ctx, kid, nsRegion(kid->GetRect()),
-                                          NS_RGBA(0,0,0,0),
-                                          nsLayoutUtils::PAINT_IN_TRANSFORM);
+                                          NS_RGBA(0,0,0,0));
 
   gfx->Restore();
 

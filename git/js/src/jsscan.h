@@ -48,7 +48,6 @@
 #include "jsopcode.h"
 #include "jsprvtd.h"
 #include "jspubtd.h"
-#include "jsvector.h"
 
 JS_BEGIN_EXTERN_C
 
@@ -162,17 +161,76 @@ typedef enum JSTokenType {
 # define TOKEN_TYPE_IS_DECL(tt) ((tt) == TOK_VAR)
 #endif
 
+struct JSStringBuffer {
+    jschar      *base;
+    jschar      *limit;         /* length limit for quick bounds check */
+    jschar      *ptr;           /* slot for next non-NUL char to store */
+    void        *data;
+    JSBool      (*grow)(JSStringBuffer *sb, size_t newlength);
+    void        (*free)(JSStringBuffer *sb);
+};
+
+#define STRING_BUFFER_ERROR_BASE        ((jschar *) 1)
+#define STRING_BUFFER_OK(sb)            ((sb)->base != STRING_BUFFER_ERROR_BASE)
+#define STRING_BUFFER_OFFSET(sb)        ((sb)->ptr -(sb)->base)
+
+extern void
+js_InitStringBuffer(JSStringBuffer *sb);
+
+extern void
+js_FinishStringBuffer(JSStringBuffer *sb);
+
+static inline void
+js_RewindStringBuffer(JSStringBuffer *sb)
+{
+    JS_ASSERT(STRING_BUFFER_OK(sb));
+    sb->ptr = sb->base;
+}
+
+#define ENSURE_STRING_BUFFER(sb,n) \
+    ((sb)->ptr + (n) <= (sb)->limit || sb->grow(sb, n))
+
+/*
+ * NB: callers are obligated to test STRING_BUFFER_OK(sb) after this returns,
+ * before calling it again -- but not necessarily before calling other sb ops
+ * declared in this header file.
+ *
+ * Thus multiple calls, to ops other than this one that check STRING_BUFFER_OK
+ * and suppress updating sb if true, can consolidate the final STRING_BUFFER_OK
+ * test that conditions a JS_ReportOutOfMemory (if necessary -- the grow hook
+ * can report OOM early, obviating the need for the callers to report).
+ *
+ * This style of error checking is not obviously better, and it could be worse
+ * in efficiency, than the propagated failure return code style used elsewhere
+ * in the engine. I view it as a failed experiment. /be
+ */
+static inline void
+js_FastAppendChar(JSStringBuffer *sb, jschar c)
+{
+    JS_ASSERT(STRING_BUFFER_OK(sb));
+    if (!ENSURE_STRING_BUFFER(sb, 1))
+        return;
+    *sb->ptr++ = c;
+}
+
+extern void
+js_AppendChar(JSStringBuffer *sb, jschar c);
+
+extern void
+js_RepeatChar(JSStringBuffer *sb, jschar c, uintN count);
+
+extern void
+js_AppendCString(JSStringBuffer *sb, const char *asciiz);
+
+extern void
+js_AppendUCString(JSStringBuffer *sb, const jschar *buf, uintN len);
+
+extern void
+js_AppendJSString(JSStringBuffer *sb, JSString *str);
+
 struct JSTokenPtr {
     uint32              index;          /* index of char in physical line */
     uint32              lineno;         /* physical line number */
-
-    bool operator==(const JSTokenPtr& bptr) {
-        return index == bptr.index && lineno == bptr.lineno;
-    }
-
-    bool operator!=(const JSTokenPtr& bptr) {
-        return index != bptr.index || lineno != bptr.lineno;
-    }
 
     bool operator <(const JSTokenPtr& bptr) {
         return lineno < bptr.lineno ||
@@ -196,14 +254,6 @@ struct JSTokenPtr {
 struct JSTokenPos {
     JSTokenPtr          begin;          /* first character and line of token */
     JSTokenPtr          end;            /* index 1 past last char, last line */
-
-    bool operator==(const JSTokenPos& bpos) {
-        return begin == bpos.begin && end == bpos.end;
-    }
-
-    bool operator!=(const JSTokenPos& bpos) {
-        return begin != bpos.begin || end != bpos.end;
-    }
 
     bool operator <(const JSTokenPos& bpos) {
         return begin < bpos.begin;
@@ -270,6 +320,7 @@ struct JSTokenStream {
     uint32              linepos;        /* linebuf offset in physical line */
     JSTokenBuf          linebuf;        /* line buffer for diagnostics */
     JSTokenBuf          userbuf;        /* user input buffer if !file */
+    JSStringBuffer      tokenbuf;       /* current token string buffer */
     const char          *filename;      /* input filename or null */
     FILE                *file;          /* stdio stream if reading from file */
     JSSourceHandler     listener;       /* callback for source; eg debugger */
@@ -277,33 +328,10 @@ struct JSTokenStream {
     void                *listenerTSData;/* listener data for this TokenStream */
     jschar              *saveEOL;       /* save next end of line in userbuf, to
                                            optimize for very long lines */
-    JSCharBuffer        tokenbuf;       /* current token string buffer */
-
-    /*
-     * To construct a JSTokenStream, first call the constructor, which is
-     * infallible, then call |init|, which can fail. To destroy a JSTokenStream,
-     * first call |close| then call the destructor. If |init| fails, do not call
-     * |close|.
-     *
-     * This class uses JSContext.tempPool to allocate internal buffers. The
-     * caller should JS_ARENA_MARK before calling |init| and JS_ARENA_RELEASE
-     * after calling |close|.
-     */
-    JSTokenStream(JSContext *);
-
-    /*
-     * Create a new token stream, either from an input buffer or from a file.
-     * Return false on file-open or memory-allocation failure.
-     */
-    bool init(JSContext *, const jschar *base, size_t length,
-              FILE *fp, const char *filename, uintN lineno);
-
-    void close(JSContext *);
-    ~JSTokenStream() {}
 };
 
 #define CURRENT_TOKEN(ts)       ((ts)->tokens[(ts)->cursor])
-#define ON_CURRENT_LINE(ts,pos) ((ts)->lineno == (pos).end.lineno)
+#define ON_CURRENT_LINE(ts,pos) ((uint16)(ts)->lineno == (pos).end.lineno)
 
 /* JSTokenStream flags */
 #define TSF_ERROR       0x01            /* fatal error while compiling */
@@ -345,12 +373,25 @@ struct JSTokenStream {
 /* Ignore keywords and return TOK_NAME instead to the parser. */
 #define TSF_KEYWORD_IS_NAME 0x4000
 
-/* Tokenize as appropriate for strict mode code.  */
-#define TSF_STRICT_MODE_CODE 0x8000
+/* Parsing a destructuring object or array initialiser pattern. */
+#define TSF_DESTRUCTURING   0x8000
 
 /* Unicode separators that are treated as line terminators, in addition to \n, \r */
 #define LINE_SEPARATOR  0x2028
 #define PARA_SEPARATOR  0x2029
+
+/*
+ * Create a new token stream, either from an input buffer or from a file.
+ * Return null on file-open or memory-allocation failure.
+ *
+ * The function uses JSContext.tempPool to allocate internal buffers. The
+ * caller should release them using JS_ARENA_RELEASE after it has finished
+ * with the token stream and has called js_CloseTokenStream.
+ */
+extern JSBool
+js_InitTokenStream(JSContext *cx, JSTokenStream *ts,
+                   const jschar *base, size_t length,
+                   FILE *fp, const char *filename, uintN lineno);
 
 extern void
 js_CloseTokenStream(JSContext *cx, JSTokenStream *ts);
@@ -384,30 +425,9 @@ js_IsIdentifier(JSString *str);
  * for an error. When pn is not null, use it to report error's location.
  * Otherwise use ts, which must not be null.
  */
-bool
+JSBool
 js_ReportCompileErrorNumber(JSContext *cx, JSTokenStream *ts, JSParseNode *pn,
                             uintN flags, uintN errorNumber, ...);
-
-/*
- * Report a condition that should elicit a warning with JSOPTION_STRICT,
- * or an error if ts or tc is handling strict mode code.  This function
- * defers to js_ReportCompileErrorNumber to do the real work.  Either tc
- * or ts may be NULL, if there is no tree context or token stream state
- * whose strictness should affect the report.
- *
- * One could have js_ReportCompileErrorNumber recognize the
- * JSREPORT_STRICT_MODE_ERROR flag instead of having a separate function
- * like this one.  However, the strict mode code flag we need to test is
- * in the JSTreeContext structure for that code; we would have to change
- * the ~120 js_ReportCompileErrorNumber calls to pass the additional
- * argument, even though many of those sites would never use it.  Using
- * ts's TSF_STRICT_MODE_CODE flag instead of tc's would be brittle: at some
- * points ts's flags don't correspond to those of the tc relevant to the
- * error.
- */
-bool
-js_ReportStrictModeError(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
-                         JSParseNode *pn, uintN errorNumber, ...);
 
 /*
  * Steal one JSREPORT_* bit (see jsapi.h) to tell that arguments to the error

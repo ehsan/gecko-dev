@@ -55,6 +55,11 @@ if [ ! -f configure.in ]; then
   exit 1
 fi
 
+if [ -f mailnews/makefiles ]; then
+  MOZ_MAIL_NEWS=1
+  export MOZ_MAIL_NEWS
+fi
+
 . allmakefiles.sh
 
 rm -fr $MAKEFILES \

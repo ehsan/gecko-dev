@@ -93,6 +93,7 @@
 #include "nsIDOMDocumentFragment.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
+#include "nsIImage.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "SetDocTitleTxn.h"
@@ -3371,7 +3372,7 @@ nsHTMLEditor::ReplaceStyleSheet(const nsAString& aURL)
   if (EnableExistingStyleSheet(aURL))
   {
     // Disable last sheet if not the same as new one
-    if (!mLastStyleSheetURL.IsEmpty() && !mLastStyleSheetURL.Equals(aURL))
+    if (!mLastStyleSheetURL.IsEmpty() && mLastStyleSheetURL.Equals(aURL))
         return EnableStyleSheet(mLastStyleSheetURL, PR_FALSE);
 
     return NS_OK;
@@ -3523,7 +3524,7 @@ nsHTMLEditor::EnableStyleSheet(const nsAString &aURL, PRBool aEnable)
   NS_ASSERTION(domSheet, "Sheet not implementing nsIDOMStyleSheet!");
 
   // Ensure the style sheet is owned by our document.
-  nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
+  nsCOMPtr<nsIDocument> doc = do_QueryInterface(mDocWeak);
   rv = sheet->SetOwningDocument(doc);
   NS_ENSURE_SUCCESS(rv, rv);
   
@@ -3542,7 +3543,7 @@ nsHTMLEditor::EnableExistingStyleSheet(const nsAString &aURL)
   if (sheet)
   {
     // Ensure the style sheet is owned by our document.
-    nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
+    nsCOMPtr<nsIDocument> doc = do_QueryInterface(mDocWeak);
     rv = sheet->SetOwningDocument(doc);
     if (NS_FAILED(rv))
       return PR_FALSE;

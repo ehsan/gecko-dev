@@ -41,6 +41,7 @@
 #include "gfxWindowsPlatform.h"
 #elif defined(XP_MACOSX)
 #include "gfxPlatformMac.h"
+#include "gfxQuartzFontCache.h"
 #elif defined(MOZ_WIDGET_GTK2)
 #include "gfxPlatformGtk.h"
 #elif defined(MOZ_WIDGET_QT)
@@ -51,7 +52,6 @@
 #include "gfxOS2Platform.h"
 #endif
 
-#include "gfxPlatformFontList.h"
 #include "gfxContext.h"
 #include "gfxImageSurface.h"
 #include "gfxTextRunCache.h"
@@ -72,8 +72,6 @@
 #include "nsIPrefBranch2.h"
 
 gfxPlatform *gPlatform = nsnull;
-
-PRInt32 gfxPlatform::sDPI = -1;
 
 // These two may point to the same profile
 static qcms_profile *gCMSOutputProfile = nsnull;
@@ -186,10 +184,10 @@ gfxPlatform::Init()
 
     nsresult rv;
 
-#if defined(XP_MACOSX) // temporary, until this is implemented on others
-    rv = gfxPlatformFontList::Init();
+#if defined(XP_MACOSX)
+    rv = gfxQuartzFontCache::Init();
     if (NS_FAILED(rv)) {
-        NS_ERROR("Could not initialize gfxPlatformFontList");
+        NS_ERROR("Could not initialize gfxQuartzFontCache");
         Shutdown();
         return rv;
     }
@@ -236,8 +234,8 @@ gfxPlatform::Shutdown()
     gfxTextRunCache::Shutdown();
     gfxTextRunWordCache::Shutdown();
     gfxFontCache::Shutdown();
-#if defined(XP_MACOSX) // temporary, until this is implemented on others
-    gfxPlatformFontList::Shutdown();
+#if defined(XP_MACOSX)
+    gfxQuartzFontCache::Shutdown();
 #endif
 
     // Free the various non-null transforms and loaded profiles
@@ -247,7 +245,7 @@ gfxPlatform::Shutdown()
     nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (prefs)
         prefs->RemoveObserver(CMForceSRGBPrefName, gPlatform->overrideObserver);
-
+    
     delete gPlatform;
     gPlatform = nsnull;
 }
@@ -329,21 +327,6 @@ gfxPlatform::DownloadableFontsEnabled()
     return allowDownloadableFonts;
 }
 
-gfxFontEntry*
-gfxPlatform::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
-                              const PRUint8 *aFontData,
-                              PRUint32 aLength)
-{
-    // Default implementation does not handle activating downloaded fonts;
-    // just free the data and return.
-    // Platforms that support @font-face must override this,
-    // using the data to instantiate the font, and taking responsibility
-    // for freeing it when no longer required.
-    if (aFontData) {
-        NS_Free((void*)aFontData);
-    }
-    return nsnull;
-}
 
 static void
 AppendGenericFontFromPref(nsString& aFonts, const char *aLangGroup, const char *aGenericName)
@@ -645,7 +628,7 @@ gfxPlatform::GetCMSsRGBProfile()
 {
     if (!gCMSsRGBProfile) {
 
-        /* Create the profile using qcms. */
+        /* Create the profile using lcms. */
         gCMSsRGBProfile = qcms_profile_sRGB();
     }
     return gCMSsRGBProfile;
@@ -765,11 +748,4 @@ static void MigratePrefs()
         prefs->ClearUserPref(CMPrefNameOld);
     }
 
-}
-
-void
-gfxPlatform::InitDisplayCaps()
-{
-    // Fall back to something sane
-    gfxPlatform::sDPI = 96;
 }

@@ -5,13 +5,16 @@
     locale/browser/aboutCertError.dtd              (%chrome/browser/aboutCertError.dtd)
     locale/browser/aboutDialog.dtd                 (%chrome/browser/aboutDialog.dtd)
     locale/browser/aboutPrivateBrowsing.dtd        (%chrome/browser/aboutPrivateBrowsing.dtd)
+    locale/browser/aboutRights.dtd                 (%chrome/browser/aboutRights.dtd)
+    locale/browser/aboutRights.properties          (%chrome/browser/aboutRights.properties)
     locale/browser/aboutRobots.dtd                 (%chrome/browser/aboutRobots.dtd)
     locale/browser/aboutSessionRestore.dtd         (%chrome/browser/aboutSessionRestore.dtd)
-    locale/browser/aboutSupport.dtd                (%chrome/browser/aboutSupport.dtd)
     locale/browser/credits.dtd                     (%chrome/browser/credits.dtd)
 *   locale/browser/browser.dtd                     (%chrome/browser/browser.dtd)
     locale/browser/baseMenuOverlay.dtd             (%chrome/browser/baseMenuOverlay.dtd)
     locale/browser/browser.properties              (%chrome/browser/browser.properties)
+    locale/browser/metaData.dtd                    (%chrome/browser/metaData.dtd)
+    locale/browser/metaData.properties             (%chrome/browser/metaData.properties)
     locale/browser/openLocation.dtd                (%chrome/browser/openLocation.dtd)
     locale/browser/openLocation.properties         (%chrome/browser/openLocation.properties)
 *   locale/browser/pageInfo.dtd                    (%chrome/browser/pageInfo.dtd)
@@ -28,7 +31,6 @@
     locale/browser/shellservice.properties         (%chrome/browser/shellservice.properties)
     locale/browser/tabbrowser.dtd                  (%chrome/browser/tabbrowser.dtd)
     locale/browser/tabbrowser.properties           (%chrome/browser/tabbrowser.properties)
-    locale/browser/taskbar.properties              (%chrome/browser/taskbar.properties)
     locale/browser/places/places.dtd               (%chrome/browser/places/places.dtd)
     locale/browser/places/places.properties        (%chrome/browser/places/places.properties)
     locale/browser/places/editBookmarkOverlay.dtd  (%chrome/browser/places/editBookmarkOverlay.dtd)
@@ -61,6 +63,7 @@
     locale/browser/preferences/preferences.properties (%chrome/browser/preferences/preferences.properties)
     locale/browser/preferences/privacy.dtd            (%chrome/browser/preferences/privacy.dtd)
     locale/browser/preferences/security.dtd           (%chrome/browser/preferences/security.dtd)
+    locale/browser/preferences/securityWarnings.dtd   (%chrome/browser/preferences/securityWarnings.dtd)
     locale/browser/preferences/tabs.dtd               (%chrome/browser/preferences/tabs.dtd)
     locale/browser/sidebar/sidebar.properties      (%chrome/browser/sidebar/sidebar.properties)
 % locale browser-region @AB_CD@ %locale/browser-region/
@@ -72,3 +75,8 @@
 % override chrome://global/locale/netError.dtd chrome://browser/locale/netError.dtd
 % override chrome://global/locale/appstrings.properties chrome://browser/locale/appstrings.properties
 % override chrome://mozapps/locale/downloads/settingsChange.dtd chrome://browser/locale/downloads/settingsChange.dtd
+#ifdef MOZ_USE_GENERIC_BRANDING
+% locale branding @AB_CD@ %locale/branding/
+    locale/branding/brand.dtd         (%chrome/branding/brand.dtd)
+    locale/branding/brand.properties  (%chrome/branding/brand.properties)
+#endif

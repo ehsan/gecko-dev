@@ -51,7 +51,6 @@
 #include "nsIView.h"
 #include "nsIReflowCallback.h"
 #include "nsBoxLayoutState.h"
-#include "nsQueryFrame.h"
 
 class nsPresContext;
 class nsIPresShell;
@@ -80,6 +79,7 @@ public:
   // reload our child frame list.
   // We need this if a scrollbar frame is recreated.
   void ReloadChildFrames();
+  PRBool NeedsClipWidget() const;
   void CreateScrollableView();
 
   nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
@@ -98,17 +98,13 @@ public:
   // nsIScrollPositionListener
 
   NS_IMETHOD ScrollPositionWillChange(nsIScrollableView* aScrollable, nscoord aX, nscoord aY);
-  virtual void ViewPositionDidChange(nsIScrollableView* aScrollable,
-                                     nsTArray<nsIWidget::Configuration>* aConfigurations);
+  virtual void ViewPositionDidChange(nsIScrollableView* aScrollable);
   NS_IMETHOD ScrollPositionDidChange(nsIScrollableView* aScrollable, nscoord aX, nscoord aY);
 
   // This gets called when the 'curpos' attribute on one of the scrollbars changes
   void CurPosAttributeChanged(nsIContent* aChild);
   void PostScrollEvent();
   void FireScrollEvent();
-  void PostScrolledAreaEvent(nsRect &aScrolledArea);
-  void FireScrolledAreaEvent(nsRect &aScrolledArea);
-
 
   class ScrollEvent : public nsRunnable {
   public:
@@ -236,25 +232,6 @@ public:
   // If true, need to actually update our scrollbar attributes in the
   // reflow callback.
   PRPackedBool mUpdateScrollbarAttributes:1;
-private:
-  class ScrolledAreaEventDispatcher : public nsRunnable {
-  public:
-    NS_DECL_NSIRUNNABLE
-
-    ScrolledAreaEventDispatcher(nsGfxScrollFrameInner *aScrollFrameInner)
-      : mScrollFrameInner(aScrollFrameInner),
-        mScrolledArea(0, 0, 0, 0)
-    {
-    }
-
-    void Revoke() { mScrollFrameInner = nsnull; }
-
-    nsGfxScrollFrameInner *mScrollFrameInner;
-    nsRect mScrolledArea;
-  };
-
-  nsRevocableEventPtr<ScrolledAreaEventDispatcher> mScrolledAreaEventDispatcher;
-
 };
 
 /**
@@ -274,12 +251,11 @@ public:
   friend nsIFrame* NS_NewHTMLScrollFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool aIsRoot);
 
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
   // Called to set the child frames. We typically have three: the scroll area,
   // the vertical scrollbar, and the horizontal scrollbar.
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
-                                 nsFrameList&    aChildList);
+                                 nsIFrame*       aChildList);
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
@@ -315,10 +291,10 @@ public:
   // Because there can be only one child frame, these two function return
   // NS_ERROR_FAILURE
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
 
   virtual void Destroy();
 
@@ -331,6 +307,10 @@ public:
 
   virtual nsIFrame* GetContentInsertionFrame() {
     return mInner.GetScrolledFrame()->GetContentInsertionFrame();
+  }
+
+  virtual nsIView* GetMouseCapturer() const {
+    return mInner.GetScrolledFrame()->GetView();
   }
 
   virtual void InvalidateInternal(const nsRect& aDamageRect,
@@ -407,13 +387,6 @@ public:
   NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
-  /**
-   * Helper functions and class to dispatch events related to changes in the
-   * scroll frame's scrolled content area.
-   */
-
-  NS_IMETHOD PostScrolledAreaEventForCurrentArea();
-
 protected:
   nsHTMLScrollFrame(nsIPresShell* aShell, nsStyleContext* aContext, PRBool aIsRoot);
   virtual PRIntn GetSkipSides() const;
@@ -463,14 +436,13 @@ class nsXULScrollFrame : public nsBoxFrame,
                          public nsIStatefulFrame {
 public:
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
   friend nsIFrame* NS_NewXULScrollFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool aIsRoot);
 
   // Called to set the child frames. We typically have three: the scroll area,
   // the vertical scrollbar, and the horizontal scrollbar.
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
-                                 nsFrameList&    aChildList);
+                                 nsIFrame*       aChildList);
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
@@ -486,10 +458,10 @@ public:
   // Because there can be only one child frame, these two function return
   // NS_ERROR_FAILURE
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
 
   virtual void Destroy();
 
@@ -502,6 +474,10 @@ public:
 
   virtual nsIFrame* GetContentInsertionFrame() {
     return mInner.GetScrolledFrame()->GetContentInsertionFrame();
+  }
+
+  virtual nsIView* GetMouseCapturer() const {
+    return mInner.GetScrolledFrame()->GetView();
   }
 
   virtual void InvalidateInternal(const nsRect& aDamageRect,
@@ -607,10 +583,6 @@ public:
       return PR_FALSE;
     return nsBoxFrame::IsFrameOfType(aFlags);
   }
-
-  void PostScrolledAreaEvent(nsRect &aScrolledArea);
-
-  NS_IMETHOD PostScrolledAreaEventForCurrentArea();
 
 #ifdef NS_DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;

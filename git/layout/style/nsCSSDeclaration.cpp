@@ -22,8 +22,6 @@
  * Contributor(s):
  *   Daniel Glazman <glazman@netscape.com>
  *   Mats Palmgren <mats.palmgren@bredband.net>
- *   Jonathon Jongsma <jonathon.jongsma@collabora.co.uk>, Collabora Ltd.
- *   L. David Baron <dbaron@dbaron.org>, Mozilla Corporation
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -62,6 +60,8 @@
 #include "nsCOMPtr.h"
 
 nsCSSDeclaration::nsCSSDeclaration() 
+  : mData(nsnull),
+    mImportantData(nsnull)
 {
   // check that we can fit all the CSS properties into a PRUint8
   // for the mOrder array - if not, might need to use PRUint16!
@@ -72,17 +72,22 @@ nsCSSDeclaration::nsCSSDeclaration()
 
 nsCSSDeclaration::nsCSSDeclaration(const nsCSSDeclaration& aCopy)
   : mOrder(aCopy.mOrder),
-    mData(aCopy.mData ? aCopy.mData->Clone()
-                      : already_AddRefed<nsCSSCompressedDataBlock>(nsnull)),
-    mImportantData(aCopy.mImportantData
-                      ? aCopy.mImportantData->Clone()
-                      : already_AddRefed<nsCSSCompressedDataBlock>(nsnull))
+    mData(aCopy.mData ? aCopy.mData->Clone() : nsnull),
+    mImportantData(aCopy.mImportantData ? aCopy.mImportantData->Clone()
+                                         : nsnull)
 {
   MOZ_COUNT_CTOR(nsCSSDeclaration);
 }
 
 nsCSSDeclaration::~nsCSSDeclaration(void)
 {
+  if (mData) {
+    mData->Destroy();
+  }
+  if (mImportantData) {
+    mImportantData->Destroy();
+  }
+
   MOZ_COUNT_DTOR(nsCSSDeclaration);
 }
 
@@ -101,7 +106,7 @@ nsresult
 nsCSSDeclaration::RemoveProperty(nsCSSProperty aProperty)
 {
   nsCSSExpandedDataBlock data;
-  ExpandTo(&data);
+  data.Expand(&mData, &mImportantData);
   NS_ASSERTION(!mData && !mImportantData, "Expand didn't null things out");
 
   if (nsCSSProps::IsShorthand(aProperty)) {
@@ -114,7 +119,7 @@ nsCSSDeclaration::RemoveProperty(nsCSSProperty aProperty)
     mOrder.RemoveElement(aProperty);
   }
 
-  CompressFrom(&data);
+  data.Compress(&mData, &mImportantData);
   return NS_OK;
 }
 
@@ -129,22 +134,14 @@ PRBool nsCSSDeclaration::AppendValueToString(nsCSSProperty aProperty, nsAString&
   nsCSSCompressedDataBlock *data = GetValueIsImportant(aProperty)
                                       ? mImportantData : mData;
   const void *storage = data->StorageFor(aProperty);
-  return nsCSSDeclaration::AppendStorageToString(aProperty, storage, aResult);
-}
-
-/* static */ PRBool
-nsCSSDeclaration::AppendStorageToString(nsCSSProperty aProperty,
-                                        const void* aStorage,
-                                        nsAString& aResult)
-{
-  if (aStorage) {
+  if (storage) {
     switch (nsCSSProps::kTypeTable[aProperty]) {
       case eCSSType_Value: {
-        const nsCSSValue *val = static_cast<const nsCSSValue*>(aStorage);
+        const nsCSSValue *val = static_cast<const nsCSSValue*>(storage);
         AppendCSSValueToString(aProperty, *val, aResult);
       } break;
       case eCSSType_Rect: {
-        const nsCSSRect *rect = static_cast<const nsCSSRect*>(aStorage);
+        const nsCSSRect *rect = static_cast<const nsCSSRect*>(storage);
         const nsCSSUnit topUnit = rect->mTop.GetUnit();
         if (topUnit == eCSSUnit_Inherit ||
             topUnit == eCSSUnit_Initial ||
@@ -171,29 +168,24 @@ nsCSSDeclaration::AppendStorageToString(nsCSSProperty aProperty,
         }
       } break;
       case eCSSType_ValuePair: {
-        const nsCSSValuePair *pair = static_cast<const nsCSSValuePair*>(aStorage);
+        const nsCSSValuePair *pair = static_cast<const nsCSSValuePair*>(storage);
         AppendCSSValueToString(aProperty, pair->mXValue, aResult);
         if (pair->mYValue != pair->mXValue ||
             ((aProperty == eCSSProperty_background_position ||
               aProperty == eCSSProperty__moz_transform_origin) &&
              pair->mXValue.GetUnit() != eCSSUnit_Inherit &&
-             pair->mXValue.GetUnit() != eCSSUnit_Initial) ||
-            (aProperty == eCSSProperty__moz_background_size &&
-             pair->mXValue.GetUnit() != eCSSUnit_Inherit &&
-             pair->mXValue.GetUnit() != eCSSUnit_Initial &&
-             pair->mXValue.GetUnit() != eCSSUnit_Enumerated)) {
-          // Only output a Y value if it's different from the X value,
+             pair->mXValue.GetUnit() != eCSSUnit_Initial)) {
+          // Only output a Y value if it's different from the X value
           // or if it's a background-position value other than 'initial'
-          // or 'inherit', or if it's a -moz-transform-origin value other
-          // than 'initial' or 'inherit', or if it's a -moz-background-size
-          // value other than 'initial' or 'inherit' or 'contain' or 'cover'.
+          // or 'inherit' or if it's a -moz-transform-origin value other
+          // than 'initial' or 'inherit'.
           aResult.Append(PRUnichar(' '));
           AppendCSSValueToString(aProperty, pair->mYValue, aResult);
         }
       } break;
       case eCSSType_ValueList: {
         const nsCSSValueList* val =
-            *static_cast<nsCSSValueList*const*>(aStorage);
+            *static_cast<nsCSSValueList*const*>(storage);
         do {
           AppendCSSValueToString(aProperty, val->mValue, aResult);
           val = val->mNext;
@@ -207,7 +199,7 @@ nsCSSDeclaration::AppendStorageToString(nsCSSProperty aProperty,
       } break;
       case eCSSType_ValuePairList: {
         const nsCSSValuePairList* item =
-            *static_cast<nsCSSValuePairList*const*>(aStorage);
+            *static_cast<nsCSSValuePairList*const*>(storage);
         do {
           NS_ASSERTION(item->mXValue.GetUnit() != eCSSUnit_Null,
                        "unexpected null unit");
@@ -229,7 +221,7 @@ nsCSSDeclaration::AppendStorageToString(nsCSSProperty aProperty,
       } break;
     }
   }
-  return aStorage != nsnull;
+  return storage != nsnull;
 }
 
 /* static */ PRBool
@@ -255,11 +247,10 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
       aResult.Append(buffer);
     }
   }
-  else if (eCSSUnit_Array <= unit && unit <= eCSSUnit_Cubic_Bezier) {
+  else if (eCSSUnit_Array <= unit && unit <= eCSSUnit_Counters) {
     switch (unit) {
       case eCSSUnit_Counter:  aResult.AppendLiteral("counter(");  break;
       case eCSSUnit_Counters: aResult.AppendLiteral("counters("); break;
-      case eCSSUnit_Cubic_Bezier: aResult.AppendLiteral("cubic-bezier("); break;
       default: break;
     }
 
@@ -275,8 +266,7 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
         }
       }
       if (mark && array->Item(i).GetUnit() != eCSSUnit_Null) {
-        if (unit == eCSSUnit_Array &&
-            eCSSProperty_transition_timing_function != aProperty)
+        if (unit == eCSSUnit_Array)
           aResult.AppendLiteral(" ");
         else
           aResult.AppendLiteral(", ");
@@ -289,9 +279,6 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
         mark = PR_TRUE;
       }
     }
-    if (eCSSUnit_Array == unit && aProperty == eCSSProperty_transition_timing_function) {
-      aResult.AppendLiteral(")");
-    }
   }
   /* Although Function is backed by an Array, we'll handle it separately
    * because it's a bit quirky.
@@ -301,15 +288,7 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
     NS_ASSERTION(array->Count() >= 1, "Functions must have at least one element for the name.");
 
     /* Append the function name. */
-    const nsCSSValue& functionName = array->Item(0);
-    if (functionName.GetUnit() == eCSSUnit_Enumerated) {
-      // We assume that the first argument is always of nsCSSKeyword type.
-      const nsCSSKeyword functionId =
-        static_cast<nsCSSKeyword>(functionName.GetIntValue());
-      AppendASCIItoUTF16(nsCSSKeywords::GetStringValue(functionId), aResult);
-    } else {
-      AppendCSSValueToString(aProperty, functionName, aResult);
-    }
+    AppendCSSValueToString(aProperty, array->Item(0), aResult);
     aResult.AppendLiteral("(");
 
     /* Now, step through the function contents, writing each of them as we go. */
@@ -332,18 +311,19 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
   else if (eCSSUnit_Enumerated == unit) {
     if (eCSSProperty_text_decoration == aProperty) {
       PRInt32 intValue = aValue.GetIntValue();
-      if (NS_STYLE_TEXT_DECORATION_NONE == intValue) {
-        AppendASCIItoUTF16(nsCSSProps::LookupPropertyValue(aProperty, intValue),
-                           aResult);
-      } else {
-        // Ignore the "override all" internal value.
-        // (It doesn't have a string representation.)
-        intValue &= ~NS_STYLE_TEXT_DECORATION_OVERRIDE_ALL;
-        nsStyleUtil::AppendBitmaskCSSValue(
-          aProperty, intValue,
-          NS_STYLE_TEXT_DECORATION_UNDERLINE,
-          NS_STYLE_TEXT_DECORATION_PREF_ANCHORS,
-          aResult);
+      NS_ABORT_IF_FALSE(NS_STYLE_TEXT_DECORATION_NONE != intValue,
+                        "none should be parsed as eCSSUnit_None");
+      PRInt32 mask;
+      for (mask = NS_STYLE_TEXT_DECORATION_UNDERLINE;
+           mask <= NS_STYLE_TEXT_DECORATION_PREF_ANCHORS; 
+           mask <<= 1) {
+        if ((mask & intValue) == mask) {
+          AppendASCIItoUTF16(nsCSSProps::LookupPropertyValue(aProperty, mask), aResult);
+          intValue &= ~mask;
+          if (0 != intValue) { // more left
+            aResult.Append(PRUnichar(' '));
+          }
+        }
       }
     }
     else if (eCSSProperty_azimuth == aProperty) {
@@ -356,18 +336,15 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
     }
     else if (eCSSProperty_marks == aProperty) {
       PRInt32 intValue = aValue.GetIntValue();
-      if (intValue == NS_STYLE_PAGE_MARKS_NONE) {
-        AppendASCIItoUTF16(nsCSSProps::LookupPropertyValue(aProperty, intValue),
-                           aResult);
-      } else {
-        nsStyleUtil::AppendBitmaskCSSValue(aProperty, intValue,
-                                           NS_STYLE_PAGE_MARKS_CROP,
-                                           NS_STYLE_PAGE_MARKS_REGISTER,
-                                           aResult);
+      if ((NS_STYLE_PAGE_MARKS_CROP & intValue) != 0) {
+        AppendASCIItoUTF16(nsCSSProps::LookupPropertyValue(aProperty, NS_STYLE_PAGE_MARKS_CROP), aResult);
       }
-    }
-    else if (eCSSProperty_transition_property == aProperty) {
-      AppendASCIItoUTF16(nsCSSProps::GetStringValue((nsCSSProperty) aValue.GetIntValue()), aResult);
+      if ((NS_STYLE_PAGE_MARKS_REGISTER & intValue) != 0) {
+        if ((NS_STYLE_PAGE_MARKS_CROP & intValue) != 0) {
+          aResult.Append(PRUnichar(' '));
+        }
+        AppendASCIItoUTF16(nsCSSProps::LookupPropertyValue(aProperty, NS_STYLE_PAGE_MARKS_REGISTER), aResult);
+      }
     }
     else {
       const nsAFlatCString& name = nsCSSProps::LookupPropertyValue(aProperty, aValue.GetIntValue());
@@ -431,81 +408,6 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
     tmpStr.AppendFloat(aValue.GetFloatValue());
     aResult.Append(tmpStr);
   }
-  else if (eCSSUnit_Gradient == unit) {
-    nsCSSValueGradient* gradient = aValue.GetGradientValue();
-
-    if (gradient->mIsRepeating) {
-      if (gradient->mIsRadial)
-        aResult.AppendLiteral("-moz-repeating-radial-gradient(");
-      else
-        aResult.AppendLiteral("-moz-repeating-linear-gradient(");
-    } else {
-      if (gradient->mIsRadial)
-        aResult.AppendLiteral("-moz-radial-gradient(");
-      else
-        aResult.AppendLiteral("-moz-linear-gradient(");
-    }
-
-    if (gradient->mBgPosX.GetUnit() != eCSSUnit_None ||
-        gradient->mBgPosY.GetUnit() != eCSSUnit_None ||
-        gradient->mAngle.GetUnit() != eCSSUnit_None) {
-      if (gradient->mBgPosX.GetUnit() != eCSSUnit_None) {
-        AppendCSSValueToString(eCSSProperty_background_position,
-                               gradient->mBgPosX, aResult);
-        aResult.AppendLiteral(" ");
-      }
-      if (gradient->mBgPosY.GetUnit() != eCSSUnit_None) {
-        AppendCSSValueToString(eCSSProperty_background_position,
-                               gradient->mBgPosY, aResult);
-        aResult.AppendLiteral(" ");
-      }
-      if (gradient->mAngle.GetUnit() != eCSSUnit_None) {
-        AppendCSSValueToString(aProperty, gradient->mAngle, aResult);
-      }
-      aResult.AppendLiteral(", ");
-    }
-
-    if (gradient->mIsRadial &&
-        (gradient->mRadialShape.GetUnit() != eCSSUnit_None ||
-         gradient->mRadialSize.GetUnit() != eCSSUnit_None)) {
-      if (gradient->mRadialShape.GetUnit() != eCSSUnit_None) {
-        NS_ASSERTION(gradient->mRadialShape.GetUnit() == eCSSUnit_Enumerated,
-                     "bad unit for radial gradient shape");
-        PRInt32 intValue = gradient->mRadialShape.GetIntValue();
-        NS_ASSERTION(intValue != NS_STYLE_GRADIENT_SHAPE_LINEAR,
-                     "radial gradient with linear shape?!");
-        AppendASCIItoUTF16(nsCSSProps::ValueToKeyword(intValue,
-                               nsCSSProps::kRadialGradientShapeKTable),
-                           aResult);
-        aResult.AppendLiteral(" ");
-      }
-
-      if (gradient->mRadialSize.GetUnit() != eCSSUnit_None) {
-        NS_ASSERTION(gradient->mRadialSize.GetUnit() == eCSSUnit_Enumerated,
-                     "bad unit for radial gradient size");
-        PRInt32 intValue = gradient->mRadialSize.GetIntValue();
-        AppendASCIItoUTF16(nsCSSProps::ValueToKeyword(intValue,
-                               nsCSSProps::kRadialGradientSizeKTable),
-                           aResult);
-      }
-      aResult.AppendLiteral(", ");
-    }
-
-    for (PRUint32 i = 0 ;;) {
-      AppendCSSValueToString(aProperty, gradient->mStops[i].mColor, aResult);
-      if (gradient->mStops[i].mLocation.GetUnit() != eCSSUnit_None) {
-        aResult.AppendLiteral(" ");
-        AppendCSSValueToString(aProperty, gradient->mStops[i].mLocation,
-                               aResult);
-      }
-      if (++i == gradient->mStops.Length()) {
-        break;
-      }
-      aResult.AppendLiteral(", ");
-    }
-
-    aResult.AppendLiteral(")");
-  }
 
   switch (unit) {
     case eCSSUnit_Null:         break;
@@ -515,7 +417,6 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
     case eCSSUnit_None:         aResult.AppendLiteral("none");     break;
     case eCSSUnit_Normal:       aResult.AppendLiteral("normal");   break;
     case eCSSUnit_System_Font:  aResult.AppendLiteral("-moz-use-system-font"); break;
-    case eCSSUnit_All:          aResult.AppendLiteral("all"); break;
     case eCSSUnit_Dummy:
     case eCSSUnit_DummyInherit:
     case eCSSUnit_RectIsAuto:
@@ -529,7 +430,6 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
     case eCSSUnit_Image:        break;
     case eCSSUnit_Array:        break;
     case eCSSUnit_Attr:
-    case eCSSUnit_Cubic_Bezier:
     case eCSSUnit_Counter:
     case eCSSUnit_Counters:     aResult.Append(PRUnichar(')'));    break;
     case eCSSUnit_Local_Font:   break;
@@ -541,7 +441,6 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
     case eCSSUnit_Color:        break;
     case eCSSUnit_Percent:      aResult.Append(PRUnichar('%'));    break;
     case eCSSUnit_Number:       break;
-    case eCSSUnit_Gradient:     break;
 
     case eCSSUnit_Inch:         aResult.AppendLiteral("in");   break;
     case eCSSUnit_Millimeter:   aResult.AppendLiteral("mm");   break;
@@ -873,8 +772,6 @@ nsCSSDeclaration::GetValue(nsCSSProperty aProperty,
         * data->ValueListStorageFor(eCSSProperty__moz_background_clip);
       const nsCSSValueList *origin =
         * data->ValueListStorageFor(eCSSProperty__moz_background_origin);
-      const nsCSSValuePairList *size =
-        * data->ValuePairListStorageFor(eCSSProperty__moz_background_size);
       for (;;) {
         AppendCSSValueToString(eCSSProperty_background_image,
                                image->mValue, aValue);
@@ -903,7 +800,7 @@ nsCSSDeclaration::GetValue(nsCSSProperty aProperty,
     // support for content-box on background-clip.
           PR_STATIC_ASSERT(NS_STYLE_BG_CLIP_BORDER ==
                            NS_STYLE_BG_ORIGIN_BORDER);
-          PR_STATIC_ASSERT(NS_STYLE_BG_CLIP_PADDING ==
+          PR_STATIC_ASSERT(NS_STYLE_BG_CLIP_PADDING == 
                            NS_STYLE_BG_ORIGIN_PADDING);
           // PR_STATIC_ASSERT(NS_STYLE_BG_CLIP_CONTENT == /* does not exist */
           //                  NS_STYLE_BG_ORIGIN_CONTENT);
@@ -927,17 +824,16 @@ nsCSSDeclaration::GetValue(nsCSSProperty aProperty,
         position = position->mNext;
         clip = clip->mNext;
         origin = origin->mNext;
-        size = size->mNext;
 
         if (!image) {
-          if (repeat || attachment || position || clip || origin || size) {
+          if (repeat || attachment || position || clip || origin) {
             // Uneven length lists, so can't be serialized as shorthand.
             aValue.Truncate();
             return NS_OK;
           }
           break;
         }
-        if (!repeat || !attachment || !position || !clip || !origin || !size) {
+        if (!repeat || !attachment || !position || !clip || !origin) {
           // Uneven length lists, so can't be serialized as shorthand.
           aValue.Truncate();
           return NS_OK;
@@ -1000,24 +896,20 @@ nsCSSDeclaration::GetValue(nsCSSProperty aProperty,
         // The font-stretch and font-size-adjust
         // properties are reset by this shorthand property to their
         // initial values, but can't be represented in its syntax.
-        if (stretch.GetUnit() != eCSSUnit_Enumerated ||
-            stretch.GetIntValue() != NS_STYLE_FONT_STRETCH_NORMAL ||
-            sizeAdjust.GetUnit() != eCSSUnit_None) {
+        if (stretch != nsCSSValue(eCSSUnit_Normal) ||
+            sizeAdjust != nsCSSValue(eCSSUnit_None)) {
           return NS_OK;
         }
 
-        if (style.GetUnit() != eCSSUnit_Enumerated ||
-            style.GetIntValue() != NS_FONT_STYLE_NORMAL) {
+        if (style.GetUnit() != eCSSUnit_Normal) {
           AppendCSSValueToString(eCSSProperty_font_style, style, aValue);
           aValue.Append(PRUnichar(' '));
         }
-        if (variant.GetUnit() != eCSSUnit_Enumerated ||
-            variant.GetIntValue() != NS_FONT_VARIANT_NORMAL) {
+        if (variant.GetUnit() != eCSSUnit_Normal) {
           AppendCSSValueToString(eCSSProperty_font_variant, variant, aValue);
           aValue.Append(PRUnichar(' '));
         }
-        if (weight.GetUnit() != eCSSUnit_Enumerated ||
-            weight.GetIntValue() != NS_FONT_WEIGHT_NORMAL) {
+        if (weight.GetUnit() != eCSSUnit_Normal) {
           AppendCSSValueToString(eCSSProperty_font_weight, weight, aValue);
           aValue.Append(PRUnichar(' '));
         }
@@ -1055,49 +947,7 @@ nsCSSDeclaration::GetValue(nsCSSProperty aProperty,
       }
       break;
     }
-    case eCSSProperty_transition: {
-#define NUM_TRANSITION_SUBPROPS 4
-      const nsCSSProperty* subprops =
-        nsCSSProps::SubpropertyEntryFor(aProperty);
-#ifdef DEBUG
-      for (int i = 0; i < NUM_TRANSITION_SUBPROPS; ++i) {
-        NS_ASSERTION(nsCSSProps::kTypeTable[subprops[i]] == eCSSType_ValueList,
-                     "type mismatch");
-      }
-      NS_ASSERTION(subprops[NUM_TRANSITION_SUBPROPS] == eCSSProperty_UNKNOWN,
-                   "length mismatch");
-#endif
-      const nsCSSValueList* val[NUM_TRANSITION_SUBPROPS];
-      for (int i = 0; i < NUM_TRANSITION_SUBPROPS; ++i) {
-        val[i] = *data->ValueListStorageFor(subprops[i]);
-      }
-      // Merge the lists of the subproperties into a single list.
-      for (;;) {
-        for (int i = 0; i < NUM_TRANSITION_SUBPROPS; ++i) {
-          AppendCSSValueToString(subprops[i], val[i]->mValue, aValue);
-          aValue.Append(PRUnichar(' '));
-          val[i] = val[i]->mNext;
-        }
-        // Remove the last space.
-        aValue.Truncate(aValue.Length() - 1);
-
-        PR_STATIC_ASSERT(NUM_TRANSITION_SUBPROPS == 4);
-        if (!val[0] || !val[1] || !val[2] || !val[3]) {
-          break;
-        }
-        aValue.AppendLiteral(", ");
-      }
-
-      PR_STATIC_ASSERT(NUM_TRANSITION_SUBPROPS == 4);
-      if (val[0] || val[1] || val[2] || val[3]) {
-        // The sublists are different lengths, so this can't be
-        // represented as the shorthand.
-        aValue.Truncate();
-      }
-#undef NUM_TRANSITION_SUBPROPS
-      break;
-    }
-
+#ifdef MOZ_SVG
     case eCSSProperty_marker: {
       const nsCSSValue &endValue =
         *data->ValueStorageFor(eCSSProperty_marker_end);
@@ -1109,6 +959,7 @@ nsCSSDeclaration::GetValue(nsCSSProperty aProperty,
         AppendValueToString(eCSSProperty_marker_end, aValue);
       break;
     }
+#endif
     default:
       NS_NOTREACHED("no other shorthands");
       break;
@@ -1314,24 +1165,4 @@ nsCSSDeclaration::InitializeEmpty()
   NS_ASSERTION(!mData && !mImportantData, "already initialized");
   mData = nsCSSCompressedDataBlock::CreateEmptyBlock();
   return mData != nsnull;
-}
-
-PRBool
-nsCSSDeclaration::EnsureMutable()
-{
-  if (!mData->IsMutable()) {
-    nsRefPtr<nsCSSCompressedDataBlock> newBlock = mData->Clone();
-    if (!newBlock) {
-      return PR_FALSE;
-    }
-    newBlock.swap(mData);
-  }
-  if (mImportantData && !mImportantData->IsMutable()) {
-    nsRefPtr<nsCSSCompressedDataBlock> newBlock = mImportantData->Clone();
-    if (!newBlock) {
-      return PR_FALSE;
-    }
-    newBlock.swap(mImportantData);
-  }
-  return PR_TRUE;
 }

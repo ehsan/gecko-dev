@@ -46,10 +46,16 @@ include $(DEPTH)/config/autoconf.mk
 MODULE		= xpcshell
 PROGRAM		= xpcshell$(BIN_SUFFIX)
 
+REQUIRES	= xpconnect \
+		  xpcom \
+		  js \
+		  caps \
+		  xulapp \
+		  $(NULL)
 
 CPPSRCS		= xpcshell.cpp
 
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 CMMSRCS += xpcshellMacUtils.mm
 endif
 
@@ -64,8 +70,7 @@ NSDISTMODE = copy
 
 ifdef _MSC_VER
 ifdef WINCE
-WIN32_EXE_LDFLAGS += -ENTRY:mainWCRTStartup
-LOCAL_INCLUDES += -I$(topsrcdir)/toolkit/xre/
+WIN32_EXE_LDFLAGS += -ENTRY:mainACRTStartup
 endif
 endif
 

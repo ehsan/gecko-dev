@@ -41,6 +41,7 @@
 #include "nsSVGUtils.h"
 #include "nsSVGTextFrame.h"
 #include "nsSVGOuterSVGFrame.h"
+#include "nsSVGMatrix.h"
 
 //----------------------------------------------------------------------
 // Implementation
@@ -50,8 +51,6 @@ NS_NewSVGTSpanFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsSVGTSpanFrame(aContext);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsSVGTSpanFrame)
 
 nsIAtom *
 nsSVGTSpanFrame::GetType() const
@@ -171,7 +170,7 @@ nsSVGTSpanFrame::GetFirstGlyphFragment()
 NS_IMETHODIMP_(nsISVGGlyphFragmentLeaf *)
 nsSVGTSpanFrame::GetNextGlyphFragment()
 {
-  nsIFrame* sibling = GetNextSibling();
+  nsIFrame* sibling = mNextSibling;
   while (sibling) {
     nsISVGGlyphFragmentNode *node = do_QueryFrame(sibling);
     if (node)
@@ -181,8 +180,8 @@ nsSVGTSpanFrame::GetNextGlyphFragment()
 
   // no more siblings. go back up the tree.
   
-  NS_ASSERTION(GetParent(), "null parent");
-  nsISVGGlyphFragmentNode *node = do_QueryFrame(GetParent());
+  NS_ASSERTION(mParent, "null parent");
+  nsISVGGlyphFragmentNode *node = do_QueryFrame(mParent);
   return node ? node->GetNextGlyphFragment() : nsnull;
 }
 

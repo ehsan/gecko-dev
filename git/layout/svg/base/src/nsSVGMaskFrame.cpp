@@ -41,7 +41,6 @@
 #include "nsIDOMSVGMatrix.h"
 #include "gfxContext.h"
 #include "gfxImageSurface.h"
-#include "nsSVGMatrix.h"
 
 //----------------------------------------------------------------------
 // Implementation
@@ -52,12 +51,10 @@ NS_NewSVGMaskFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsSVGMaskFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsSVGMaskFrame)
-
 already_AddRefed<gfxPattern>
 nsSVGMaskFrame::ComputeMaskAlpha(nsSVGRenderState *aContext,
                                  nsIFrame* aParent,
-                                 const gfxMatrix &aMatrix,
+                                 nsIDOMSVGMatrix* aMatrix,
                                  float aOpacity)
 {
   // If the flag is set when we get here, it means this mask frame
@@ -87,11 +84,11 @@ nsSVGMaskFrame::ComputeMaskAlpha(nsSVGRenderState *aContext,
       &mask->mLengthAttributes[nsSVGMaskElement::X], bbox, aParent);
 
     gfx->Save();
-    nsSVGUtils::SetClipRect(gfx, aMatrix, maskArea);
+    nsSVGUtils::SetClipRect(gfx, nsSVGUtils::ConvertSVGMatrixToThebes(aMatrix), maskArea);
   }
 
   mMaskParent = aParent;
-  mMaskParentMatrix = NS_NewSVGMatrix(aMatrix);
+  mMaskParentMatrix = aMatrix;
 
   for (nsIFrame* kid = mFrames.FirstChild(); kid;
        kid = kid->GetNextSibling()) {
@@ -188,8 +185,11 @@ nsSVGMaskFrame::GetCanvasTM()
 
   nsSVGMaskElement *mask = static_cast<nsSVGMaskElement*>(mContent);
 
-  return nsSVGUtils::AdjustMatrixForUnits(nsSVGUtils::ConvertSVGMatrixToThebes(mMaskParentMatrix),
+  nsCOMPtr<nsIDOMSVGMatrix> matrix =
+         nsSVGUtils::AdjustMatrixForUnits(mMaskParentMatrix,
                                           &mask->mEnumAttributes[nsSVGMaskElement::MASKCONTENTUNITS],
                                           mMaskParent);
+  
+  return nsSVGUtils::ConvertSVGMatrixToThebes(matrix);
 }
 

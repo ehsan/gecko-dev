@@ -48,6 +48,16 @@ MOZILLA_INTERNAL_API = 1
 FORCE_STATIC_LIB = 1
 LIBXUL_LIBRARY = 1
 
+REQUIRES	= \
+		xpcom \
+		necko \
+		string \
+		widget \
+		dom \
+		htmlparser \
+		content \
+		layout \
+		$(NULL)
 
 CPPSRCS		= nsScriptableUnescapeHTML.cpp \
 		$(NULL)

@@ -45,8 +45,8 @@ class nsIDocument;
 class nsINode;
 
 #define NS_IMUTATION_OBSERVER_IID \
-{0x365d600b, 0x868a, 0x452a, \
-  {0x8d, 0xe8, 0xf4, 0x6f, 0xad, 0x8f, 0xee, 0x53 } }
+{ 0x32e68316, 0x67d4, 0x44a5, \
+ { 0x8d, 0x35, 0xd, 0x39, 0xf, 0xa9, 0xdf, 0x11 } }
 
 /**
  * Information details about a characterdata change.  Basically, we
@@ -139,23 +139,6 @@ public:
                                     CharacterDataChangeInfo* aInfo) = 0;
 
   /**
-   * Notification that an attribute of an element will change.
-   *
-   * @param aDocument    The owner-document of aContent. Can be null.
-   * @param aContent     The element whose attribute will change
-   * @param aNameSpaceID The namespace id of the changing attribute
-   * @param aAttribute   The name of the changing attribute
-   * @param aModType     Whether or not the attribute will be added, changed, or
-   *                     removed. The constants are defined in
-   *                     nsIDOMMutationEvent.h.
-   */
-  virtual void AttributeWillChange(nsIDocument* aDocument,
-                                   nsIContent*  aContent,
-                                   PRInt32      aNameSpaceID,
-                                   nsIAtom*     aAttribute,
-                                   PRInt32      aModType) = 0;
-
-  /**
    * Notification that an attribute of an element has changed.
    *
    * @param aDocument    The owner-document of aContent. Can be null.
@@ -165,12 +148,15 @@ public:
    * @param aModType     Whether or not the attribute was added, changed, or
    *                     removed. The constants are defined in
    *                     nsIDOMMutationEvent.h.
+   * @param aStateMask If this attribute change caused content state changes,
+   *                   the bits that changed.  Might be 0 if no bits changed.
    */
   virtual void AttributeChanged(nsIDocument* aDocument,
                                 nsIContent*  aContent,
                                 PRInt32      aNameSpaceID,
                                 nsIAtom*     aAttribute,
-                                PRInt32      aModType) = 0;
+                                PRInt32      aModType,
+                                PRUint32     aStateMask) = 0;
 
   /**
    * Notification that one or more content nodes have been appended to the
@@ -265,19 +251,13 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIMutationObserver, NS_IMUTATION_OBSERVER_IID)
                                       nsIContent* aContent,                  \
                                       CharacterDataChangeInfo* aInfo);
 
-#define NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTEWILLCHANGE                      \
-    virtual void AttributeWillChange(nsIDocument* aDocument,                 \
-                                     nsIContent* aContent,                   \
-                                     PRInt32 aNameSpaceID,                   \
-                                     nsIAtom* aAttribute,                    \
-                                     PRInt32 aModType);
-
 #define NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED                         \
     virtual void AttributeChanged(nsIDocument* aDocument,                    \
                                   nsIContent* aContent,                      \
                                   PRInt32 aNameSpaceID,                      \
                                   nsIAtom* aAttribute,                       \
-                                  PRInt32 aModType);
+                                  PRInt32 aModType,                          \
+                                  PRUint32 aStateMask);
 
 #define NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED                          \
     virtual void ContentAppended(nsIDocument* aDocument,                     \
@@ -305,7 +285,6 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIMutationObserver, NS_IMUTATION_OBSERVER_IID)
 #define NS_DECL_NSIMUTATIONOBSERVER                                          \
     NS_DECL_NSIMUTATIONOBSERVER_CHARACTERDATAWILLCHANGE                      \
     NS_DECL_NSIMUTATIONOBSERVER_CHARACTERDATACHANGED                         \
-    NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTEWILLCHANGE                          \
     NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED                             \
     NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED                              \
     NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED                              \
@@ -333,19 +312,12 @@ _class::CharacterDataChanged(nsIDocument* aDocument,                      \
 {                                                                         \
 }                                                                         \
 void                                                                      \
-_class::AttributeWillChange(nsIDocument* aDocument,                       \
-                            nsIContent* aContent,                         \
-                            PRInt32 aNameSpaceID,                         \
-                            nsIAtom* aAttribute,                          \
-                            PRInt32 aModType)                             \
-{                                                                         \
-}                                                                         \
-void                                                                      \
 _class::AttributeChanged(nsIDocument* aDocument,                          \
                          nsIContent* aContent,                            \
                          PRInt32 aNameSpaceID,                            \
                          nsIAtom* aAttribute,                             \
-                         PRInt32 aModType)                                \
+                         PRInt32 aModType,                                \
+                         PRUint32 aStateMask)                             \
 {                                                                         \
 }                                                                         \
 void                                                                      \

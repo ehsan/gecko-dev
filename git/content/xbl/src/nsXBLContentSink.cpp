@@ -566,7 +566,7 @@ nsXBLContentSink::ConstructBinding()
     if (!mBinding)
       return NS_ERROR_OUT_OF_MEMORY;
       
-    rv = mBinding->Init(cid, mDocInfo, binding, !mFoundFirstBinding);
+    rv = mBinding->Init(cid, mDocInfo, binding);
     if (NS_SUCCEEDED(rv) &&
         NS_SUCCEEDED(mDocInfo->SetPrototypeBinding(cid, mBinding))) {
       if (!mFoundFirstBinding) {
@@ -899,7 +899,7 @@ nsresult
 nsXBLContentSink::AddAttributes(const PRUnichar** aAtts,
                                 nsIContent* aContent)
 {
-  if (aContent->IsXUL())
+  if (aContent->IsNodeOfType(nsINode::eXUL))
     return NS_OK; // Nothing to do, since the proto already has the attrs.
 
   return nsXMLContentSink::AddAttributes(aAtts, aContent);

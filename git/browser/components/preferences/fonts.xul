@@ -77,8 +77,8 @@
     </preferences>
     
     <stringbundle id="bundlePreferences" src="chrome://browser/locale/preferences/preferences.properties"/>
-    <script type="application/javascript" src="chrome://mozapps/content/preferences/fontbuilder.js"/>
-    <script type="application/javascript" src="chrome://browser/content/preferences/fonts.js"/>
+    <script type="application/x-javascript" src="chrome://mozapps/content/preferences/fontbuilder.js"/>
+    <script type="application/x-javascript" src="chrome://browser/content/preferences/fonts.js"/>
 
     <!-- Fonts for: [ Language ] -->
     <groupbox>
@@ -152,7 +152,7 @@
                      accesskey="&sizeProportional.accesskey;"
                      control="sizeVar"/>
             </hbox>  
-            <menulist id="sizeVar">
+            <menulist id="sizeVar" class="small-margin">
               <menupopup>
                 <menuitem value="9" label="9"/>
                 <menuitem value="10" label="10"/>

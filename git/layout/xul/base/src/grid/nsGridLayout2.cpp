@@ -63,16 +63,6 @@ nsGridLayout2::nsGridLayout2(nsIPresShell* aPresShell):nsStackLayout()
 {
 }
 
-// static
-void
-nsGridLayout2::AddOffset(nsBoxLayoutState& aState, nsIBox* aChild, nsSize& aSize)
-{
-  nsMargin offset;
-  GetOffset(aState, aChild, offset);
-  aSize.width += offset.left;
-  aSize.height += offset.top;
-}
-
 NS_IMETHODIMP
 nsGridLayout2::Layout(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState)
 {
@@ -270,15 +260,14 @@ nsGridLayout2::GetTotalMargin(nsIBox* aBox, PRBool aIsHorizontal)
 
 void
 nsGridLayout2::ChildrenInserted(nsIBox* aBox, nsBoxLayoutState& aState,
-                                nsIBox* aPrevBox,
-                                const nsFrameList::Slice& aNewChildren)
+                                nsIBox* aPrevBox, nsIBox* aChildList)
 {
   mGrid.NeedsRebuild(aState);
 }
 
 void
 nsGridLayout2::ChildrenAppended(nsIBox* aBox, nsBoxLayoutState& aState,
-                                const nsFrameList::Slice& aNewChildren)
+                                nsIBox* aChildList)
 {
   mGrid.NeedsRebuild(aState);
 }

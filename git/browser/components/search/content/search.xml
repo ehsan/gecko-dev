@@ -45,6 +45,8 @@
 <!DOCTYPE bindings [
 <!ENTITY % searchBarDTD SYSTEM "chrome://browser/locale/searchbar.dtd" >
 %searchBarDTD;
+<!ENTITY % globalDTD SYSTEM "chrome://global/locale/global.dtd">
+%globalDTD;
 <!ENTITY % browserDTD SYSTEM "chrome://browser/locale/browser.dtd">
 %browserDTD;
 ]>
@@ -78,7 +80,8 @@
                    xbl:inherits="disabled,disableautocomplete,searchengine,src,newlines">
         <xul:button class="searchbar-engine-button"
                     type="menu"
-                    anonid="searchbar-engine-button">
+                    anonid="searchbar-engine-button"
+                    chromedir="&locale.dir;">
           <xul:image class="searchbar-engine-image" xbl:inherits="src"/>
           <xul:image class="searchbar-dropmarker-image"/>
           <xul:menupopup class="searchbar-popup"
@@ -90,9 +93,10 @@
                           oncommand="openManager(event);"/>
           </xul:menupopup>
         </xul:button>
-        <xul:hbox class="search-go-container">
+        <xul:hbox class="search-go-container" chromedir="&locale.dir;">
           <xul:image class="search-go-button"
                      anonid="search-go-button"
+                     chromedir="&locale.dir;"
                      onclick="handleSearchCommand(event);"
                      tooltiptext="&searchEndCap.label;" />
         </xul:hbox>
@@ -149,7 +153,7 @@
       <property name="engines" readonly="true">
         <getter><![CDATA[
           if (!this._engines)
-            this._engines = this.searchService.getVisibleEngines();
+            this._engines = this.searchService.getVisibleEngines({ });
           return this._engines;
         ]]></getter>
       </property>

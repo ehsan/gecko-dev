@@ -88,6 +88,7 @@
 #include "nsIJSContextStack.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsDocumentCharsetInfoCID.h"
+#include "nsICanvasFrame.h"
 #include "nsIScrollableFrame.h"
 #include "nsContentPolicyUtils.h" // NS_CheckContentLoadPolicy(...)
 #include "nsICategoryManager.h"
@@ -201,11 +202,6 @@
 
 // for embedding
 #include "nsIWebBrowserChromeFocus.h"
-
-#if NS_PRINT_PREVIEW
-#include "nsIDocumentViewerPrint.h"
-#include "nsIWebBrowserPrint.h"
-#endif
 
 #include "nsPluginError.h"
 
@@ -360,7 +356,7 @@ ForEachPing(nsIContent *content, ForEachPingCallback callback, void *closure)
 
   // Make sure we are dealing with either an <A> or <AREA> element in the HTML
   // or XHTML namespace.
-  if (!content->IsHTML())
+  if (!content->IsNodeOfType(nsINode::eHTML))
     return;
   nsIAtom *nameAtom = content->Tag();
   if (!nameAtom->EqualsUTF8(NS_LITERAL_CSTRING("a")) &&
@@ -3799,14 +3795,35 @@ nsDocShell::LoadErrorPage(nsIURI *aURI, const PRUnichar *aURL,
                 spec.get(), NS_ConvertUTF16toUTF8(aURL).get(), chanName.get()));
     }
 #endif
-    mFailedChannel = aFailedChannel;
-    mFailedURI = aURI;
-    mFailedLoadType = mLoadType;
+    // Create an shistory entry for the old load, if we have a channel
+    if (aFailedChannel) {
+        mURIResultedInDocument = PR_TRUE;
+        OnLoadingSite(aFailedChannel, PR_TRUE, PR_FALSE);
+    } else if (aURI) {
+        mURIResultedInDocument = PR_TRUE;
+        OnNewURI(aURI, nsnull, nsnull, mLoadType, PR_TRUE, PR_FALSE);
+    }
+    // Be sure to have a correct mLSHE, it may have been cleared by
+    // EndPageLoad. See bug 302115.
+    if (mSessionHistory && !mLSHE) {
+        PRInt32 idx;
+        mSessionHistory->GetRequestedIndex(&idx);
+        if (idx == -1)
+            mSessionHistory->GetIndex(&idx);
+
+        nsCOMPtr<nsIHistoryEntry> entry;
+        mSessionHistory->GetEntryAtIndex(idx, PR_FALSE,
+                                         getter_AddRefs(entry));
+        mLSHE = do_QueryInterface(entry);
+    }
 
     nsCAutoString url;
     nsCAutoString charset;
     if (aURI)
     {
+        // Set our current URI
+        SetCurrentURI(aURI);
+
         nsresult rv = aURI->GetSpec(url);
         rv |= aURI->GetOriginCharset(charset);
         NS_ENSURE_SUCCESS(rv, rv);
@@ -3934,17 +3951,6 @@ nsDocShell::Stop(PRUint32 aStopFlags)
 {
     // Revoke any pending event related to content viewer restoration
     mRestorePresentationEvent.Revoke();
-
-    if (mLoadType == LOAD_ERROR_PAGE) {
-        if (mLSHE) {
-            // Since error page loads never unset mLSHE, do so now
-            SetHistoryEntry(&mOSHE, mLSHE);
-            SetHistoryEntry(&mLSHE, nsnull);
-        }
-
-        mFailedChannel = nsnull;
-        mFailedURI = nsnull;
-    }
 
     if (nsIWebNavigation::STOP_CONTENT & aStopFlags) {
         // Stop the document loading
@@ -4135,6 +4141,8 @@ nsDocShell::InitWindow(nativeWindow parentNativeWindow,
                        nsIWidget * parentWidget, PRInt32 x, PRInt32 y,
                        PRInt32 cx, PRInt32 cy)
 {
+    NS_ENSURE_ARG(parentWidget);        // DocShells must get a widget for a parent
+
     SetParentWidget(parentWidget);
     SetPositionAndSize(x, y, cx, cy, PR_FALSE);
 
@@ -4363,14 +4371,10 @@ nsDocShell::GetPositionAndSize(PRInt32 * x, PRInt32 * y, PRInt32 * cx,
 {
     // We should really consider just getting this information from
     // our window instead of duplicating the storage and code...
-    if (cx || cy) {
-        // Caller wants to know our size; make sure to give them up to
-        // date information.
-        nsCOMPtr<nsIDOMDocument> document(do_GetInterface(GetAsSupports(mParent)));
-        nsCOMPtr<nsIDocument> doc(do_QueryInterface(document));
-        if (doc) {
-            doc->FlushPendingNotifications(Flush_Layout);
-        }
+    nsCOMPtr<nsIDOMDocument> document(do_GetInterface(GetAsSupports(mParent)));
+    nsCOMPtr<nsIDocument> doc(do_QueryInterface(document));
+    if (doc) {
+        doc->FlushPendingNotifications(Flush_Layout);
     }
     
     DoGetPositionAndSize(x, y, cx, cy);
@@ -4620,12 +4624,16 @@ nsDocShell::SetTitle(const PRUnichar * aTitle)
     }
 
 
-    // Update SessionHistory with the document's title.
-    if (mOSHE && mLoadType != LOAD_BYPASS_HISTORY &&
-        mLoadType != LOAD_ERROR_PAGE) {
-
+    // Update SessionHistory with the document's title. If the
+    // page was loaded from history or the page bypassed history,
+    // there is no need to update the title. There is no need to
+    // go to mSessionHistory to update the title. Setting it in mOSHE 
+    // would suffice. 
+    if (mOSHE && (mLoadType != LOAD_BYPASS_HISTORY) &&
+        (mLoadType != LOAD_HISTORY) && (mLoadType != LOAD_ERROR_PAGE)) {
         mOSHE->SetTitle(mTitle);    
     }
+
 
     return NS_OK;
 }
@@ -5539,6 +5547,7 @@ nsDocShell::OnStateChange(nsIWebProgress * aProgress, nsIRequest * aRequest,
 {
     nsresult rv;
 
+    // Update the busy cursor
     if ((~aStateFlags & (STATE_START | STATE_IS_NETWORK)) == 0) {
         nsCOMPtr<nsIWyciwygChannel>  wcwgChannel(do_QueryInterface(aRequest));
         nsCOMPtr<nsIWebProgress> webProgress =
@@ -5571,19 +5580,6 @@ nsDocShell::OnStateChange(nsIWebProgress * aProgress, nsIRequest * aRequest,
         }
         // Page has begun to load
         mBusyFlags = BUSY_FLAGS_BUSY | BUSY_FLAGS_BEFORE_PAGE_LOAD;
-
-        if ((aStateFlags & STATE_RESTORING) == 0) {
-            // Show the progress cursor if the pref is set
-            PRBool tmpBool = PR_FALSE;
-            if (NS_SUCCEEDED(mPrefs->GetBoolPref("ui.use_activity_cursor", &tmpBool))
-                && tmpBool) {
-                nsCOMPtr<nsIWidget> mainWidget;
-                GetMainWidget(getter_AddRefs(mainWidget));
-                if (mainWidget) {
-                    mainWidget->SetCursor(eCursor_spinning);
-                }
-            }
-        }
     }
     else if ((~aStateFlags & (STATE_TRANSFERRING | STATE_IS_DOCUMENT)) == 0) {
         // Page is loading
@@ -5592,17 +5588,6 @@ nsDocShell::OnStateChange(nsIWebProgress * aProgress, nsIRequest * aRequest,
     else if ((aStateFlags & STATE_STOP) && (aStateFlags & STATE_IS_NETWORK)) {
         // Page has finished loading
         mBusyFlags = BUSY_FLAGS_NONE;
-
-        // Hide the progress cursor if the pref is set
-        PRBool tmpBool = PR_FALSE;
-        if (NS_SUCCEEDED(mPrefs->GetBoolPref("ui.use_activity_cursor", &tmpBool))
-            && tmpBool) {
-            nsCOMPtr<nsIWidget> mainWidget;
-            GetMainWidget(getter_AddRefs(mainWidget));
-            if (mainWidget) {
-                mainWidget->SetCursor(eCursor_standard);
-            }
-        }
     }
     if ((~aStateFlags & (STATE_IS_DOCUMENT | STATE_STOP)) == 0) {
         nsCOMPtr<nsIWebProgress> webProgress =
@@ -6137,7 +6122,7 @@ nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal* aPrincipal,
     // in the current document.
 
     PRBool okToUnload;
-    rv = mContentViewer->PermitUnload(PR_FALSE, &okToUnload);
+    rv = mContentViewer->PermitUnload(&okToUnload);
 
     if (NS_SUCCEEDED(rv) && !okToUnload) {
       // The user chose not to unload the page, interrupt the load.
@@ -6356,11 +6341,22 @@ nsDocShell::CaptureState()
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Capture the current content viewer bounds.
-    if (mContentViewer) {
-        nsIntRect bounds;
-        mContentViewer->GetBounds(bounds);
-        rv = mOSHE->SetViewerBounds(bounds);
-        NS_ENSURE_SUCCESS(rv, rv);
+    nsCOMPtr<nsIPresShell> shell;
+    nsDocShell::GetPresShell(getter_AddRefs(shell));
+    if (shell) {
+        nsIViewManager *vm = shell->GetViewManager();
+        if (vm) {
+            nsIView *rootView = nsnull;
+            vm->GetRootView(rootView);
+            if (rootView) {
+                nsIWidget *widget = rootView->GetWidget();
+                if (widget) {
+                    nsIntRect bounds(0, 0, 0, 0);
+                    widget->GetBounds(bounds);
+                    rv = mOSHE->SetViewerBounds(bounds);
+                }
+            }
+        }
     }
 
     // Capture the docshell hierarchy.
@@ -6694,7 +6690,10 @@ nsDocShell::RestoreFromHistory()
                 rootViewSibling = oldRootView->GetNextSibling();
                 rootViewParent = oldRootView->GetParent();
 
-                mContentViewer->GetBounds(newBounds);
+                nsIWidget *widget = oldRootView->GetWidget();
+                if (widget) {
+                    widget->GetBounds(newBounds);
+                }
             }
         }
     }
@@ -6939,18 +6938,15 @@ nsDocShell::RestoreFromHistory()
     // cached viewer size (skipping the resize if they are equal).
 
     if (newRootView) {
-        if (!newBounds.IsEmpty() && newBounds != oldBounds) {
+        nsIWidget *widget = newRootView->GetWidget();
+        if (widget && !newBounds.IsEmpty() && newBounds != oldBounds) {
 #ifdef DEBUG_PAGE_CACHE
             printf("resize widget(%d, %d, %d, %d)\n", newBounds.x,
                    newBounds.y, newBounds.width, newBounds.height);
 #endif
-            mContentViewer->SetBounds(newBounds);
-        } else {
-            nsIScrollableFrame *rootScrollFrame =
-              shell->GetRootScrollFrameAsScrollableExternal();
-            if (rootScrollFrame) {
-                rootScrollFrame->PostScrolledAreaEventForCurrentArea();
-            }
+
+            widget->Resize(newBounds.x, newBounds.y, newBounds.width,
+                           newBounds.height, PR_FALSE);
         }
     }
 
@@ -7019,49 +7015,6 @@ nsDocShell::CreateContentViewer(const char *aContentType,
     // OnLoadingSite(), but don't fire OnLocationChange()
     // notifications before we've called Embed(). See bug 284993.
     mURIResultedInDocument = PR_TRUE;
-
-    if (mLoadType == LOAD_ERROR_PAGE) {
-        // We need to set the SH entry and our current URI here and not
-        // at the moment we load the page. We want the same behavior 
-        // of Stop() as for a normal page load. See bug 514232 for details.
-
-        // Revert mLoadType to load type to state the page load failed,
-        // following function calls need it.
-        mLoadType = mFailedLoadType;
-
-        nsCOMPtr<nsIChannel> failedChannel = mFailedChannel;
-        nsCOMPtr<nsIURI> failedURI = mFailedURI;
-        mFailedChannel = nsnull;
-        mFailedURI = nsnull;
-
-        // Create an shistory entry for the old load, if we have a channel
-        if (failedChannel) {
-            mURIResultedInDocument = PR_TRUE;
-            OnLoadingSite(failedChannel, PR_TRUE, PR_FALSE);
-        } else if (failedURI) {
-            mURIResultedInDocument = PR_TRUE;
-            OnNewURI(failedURI, nsnull, nsnull, mLoadType, PR_TRUE, PR_FALSE);
-        }
-
-        // Be sure to have a correct mLSHE, it may have been cleared by
-        // EndPageLoad. See bug 302115.
-        if (mSessionHistory && !mLSHE) {
-            PRInt32 idx;
-            mSessionHistory->GetRequestedIndex(&idx);
-            if (idx == -1)
-                mSessionHistory->GetIndex(&idx);
-
-            nsCOMPtr<nsIHistoryEntry> entry;
-            mSessionHistory->GetEntryAtIndex(idx, PR_FALSE,
-                                             getter_AddRefs(entry));
-            mLSHE = do_QueryInterface(entry);
-        }
-
-        // Set our current URI
-        SetCurrentURI(failedURI);
-
-        mLoadType = LOAD_ERROR_PAGE;
-    }
 
     PRBool onLocationChangeNeeded = OnLoadingSite(aOpenedChannel, PR_FALSE);
 
@@ -7856,12 +7809,8 @@ nsDocShell::InternalLoad(nsIURI * aURI,
          aLoadType == LOAD_HISTORY ||
          aLoadType == LOAD_LINK) && allowScroll) {
         PRBool wasAnchor = PR_FALSE;
-        PRBool doHashchange = PR_FALSE;
         nscoord cx, cy;
-        NS_ENSURE_SUCCESS(ScrollIfAnchor(aURI, &wasAnchor, aLoadType, &cx, &cy,
-                                         &doHashchange),
-                          NS_ERROR_FAILURE);
-
+        NS_ENSURE_SUCCESS(ScrollIfAnchor(aURI, &wasAnchor, aLoadType, &cx, &cy), NS_ERROR_FAILURE);
         if (wasAnchor) {
             mLoadType = aLoadType;
             mURIResultedInDocument = PR_TRUE;
@@ -7954,14 +7903,6 @@ nsDocShell::InternalLoad(nsIURI * aURI,
                     shEntry->SetTitle(mTitle);
             }
 
-            if (doHashchange) {
-                nsCOMPtr<nsPIDOMWindow> window =
-                    do_QueryInterface(mScriptGlobal);
-
-                if (window)
-                    window->DispatchAsyncHashchange();
-            }
-
             return NS_OK;
         }
     }
@@ -7976,7 +7917,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
     // protocol handler deals with this for javascript: URLs.
     if (!bIsJavascript && mContentViewer) {
         PRBool okToUnload;
-        rv = mContentViewer->PermitUnload(PR_FALSE, &okToUnload);
+        rv = mContentViewer->PermitUnload(&okToUnload);
 
         if (NS_SUCCEEDED(rv) && !okToUnload) {
             // The user chose not to unload the page, interrupt the
@@ -8579,21 +8520,18 @@ nsDocShell::CheckClassifier(nsIChannel *aChannel)
     return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsDocShell::ScrollIfAnchor(nsIURI * aURI, PRBool * aWasAnchor,
-                           PRUint32 aLoadType, nscoord *cx, nscoord *cy,
-                           PRBool * aDoHashchange)
+                           PRUint32 aLoadType, nscoord *cx, nscoord *cy)
 {
     NS_ASSERTION(aURI, "null uri arg");
     NS_ASSERTION(aWasAnchor, "null anchor arg");
-    NS_PRECONDITION(aDoHashchange, "null hashchange arg");
 
-    if (!aURI || !aWasAnchor) {
+    if (aURI == nsnull || aWasAnchor == nsnull) {
         return NS_ERROR_FAILURE;
     }
 
     *aWasAnchor = PR_FALSE;
-    *aDoHashchange = PR_FALSE;
 
     if (!mCurrentURI) {
         return NS_OK;
@@ -8624,7 +8562,7 @@ nsDocShell::ScrollIfAnchor(nsIURI * aURI, PRBool * aWasAnchor,
     const char kHash = '#';
 
     // Split the new URI into a left and right part
-    // (assume we're parsing it out right)
+    // (assume we're parsing it out right
     nsACString::const_iterator urlStart, urlEnd, refStart, refEnd;
     newSpec.BeginReading(urlStart);
     newSpec.EndReading(refEnd);
@@ -8651,10 +8589,8 @@ nsDocShell::ScrollIfAnchor(nsIURI * aURI, PRBool * aWasAnchor,
     const nsACString& sNewRef =  Substring(refStart, refEnd);
                                           
     // Split the current URI in a left and right part
-    nsACString::const_iterator currentLeftStart, currentLeftEnd,
-                               currentRefStart, currentRefEnd;
+    nsACString::const_iterator currentLeftStart, currentLeftEnd;
     currentSpec.BeginReading(currentLeftStart);
-    currentSpec.EndReading(currentRefEnd);
 
     PRInt32 hashCurrent = currentSpec.FindChar(kHash);
     if (hashCurrent == 0) {
@@ -8664,13 +8600,9 @@ nsDocShell::ScrollIfAnchor(nsIURI * aURI, PRBool * aWasAnchor,
     if (hashCurrent > 0) {
         currentLeftEnd = currentLeftStart;
         currentLeftEnd.advance(hashCurrent);
-
-        currentRefStart = currentLeftEnd;
-        ++currentRefStart; // advance past '#'
     }
     else {
-        // no hash at all in currentSpec
-        currentLeftEnd = currentRefStart = currentRefEnd;
+        currentSpec.EndReading(currentLeftEnd);
     }
 
     // If we have no new anchor, we do not want to scroll, unless there is a
@@ -8699,10 +8631,6 @@ nsDocShell::ScrollIfAnchor(nsIURI * aURI, PRBool * aWasAnchor,
 
     // Now we know we are dealing with an anchor
     *aWasAnchor = PR_TRUE;
-
-    // We should fire a hashchange event once we're done here if the two hashes
-    // are different.
-    *aDoHashchange = !Substring(currentRefStart, currentRefEnd).Equals(sNewRef);
 
     // Both the new and current URIs refer to the same page. We can now
     // browse to the hash stored in the new URI.
@@ -10620,7 +10548,7 @@ nsDocShell::GetControllerForCommand(const char * inCommand,
   if (window) {
     nsIFocusController *focusController = window->GetRootFocusController();
     if (focusController)
-      rv = focusController->GetControllerForCommand (window, inCommand, outController);
+      rv = focusController->GetControllerForCommand (inCommand, outController);
   } // if window
 
   return rv;
@@ -11076,32 +11004,6 @@ nsDocShell::SetRendering(PRBool aRender)
   //return failer if this request is not accepted due to mCharsetReloadState
   return NS_ERROR_DOCSHELL_REQUEST_REJECTED;
 }
-
-NS_IMETHODIMP
-nsDocShell::GetPrintPreview(nsIWebBrowserPrint** aPrintPreview)
-{
-  *aPrintPreview = nsnull;
-#if NS_PRINT_PREVIEW
-  nsCOMPtr<nsIDocumentViewerPrint> print = do_QueryInterface(mContentViewer);
-  if (!print || !print->IsInitializedForPrintPreview()) {
-    Stop(nsIWebNavigation::STOP_ALL);
-    nsCOMPtr<nsIPrincipal> principal =
-      do_CreateInstance("@mozilla.org/nullprincipal;1");
-    NS_ENSURE_STATE(principal);
-    nsresult rv = CreateAboutBlankContentViewer(principal, nsnull);
-    NS_ENSURE_SUCCESS(rv, rv);
-    print = do_QueryInterface(mContentViewer);
-    NS_ENSURE_STATE(print);
-    print->InitializeForPrintPreview();
-  }
-  nsCOMPtr<nsIWebBrowserPrint> result = do_QueryInterface(print);
-  result.forget(aPrintPreview);
-  return NS_OK;
-#else
-  return NS_ERROR_NOT_IMPLEMENTED;
-#endif
-}
-
 
 #ifdef DEBUG
 unsigned long nsDocShell::gNumberOfDocShells = 0;

@@ -35,17 +35,16 @@
 #include "nptest_platform.h"
 
 #include <windows.h>
-#include <windowsx.h>
+#include <unknwn.h>
+#include <gdiplus.h>
+using namespace Gdiplus;
 
- using namespace std;
+#pragma comment(lib, "gdiplus.lib")
 
 void SetSubclass(HWND hWnd, InstanceData* instanceData);
 void ClearSubclass(HWND hWnd);
+Color GetColorsFromRGBA(PRUint32 rgba);
 LRESULT CALLBACK PluginWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-
-struct _PlatformData {
-  HWND childWindow;
-};
 
 bool
 pluginSupportsWindowMode()
@@ -62,20 +61,12 @@ pluginSupportsWindowlessMode()
 NPError
 pluginInstanceInit(InstanceData* instanceData)
 {
-  instanceData->platformData = static_cast<PlatformData*>
-    (NPN_MemAlloc(sizeof(PlatformData)));
-  if (!instanceData->platformData)
-    return NPERR_OUT_OF_MEMORY_ERROR;
-
-  instanceData->platformData->childWindow = NULL;
   return NPERR_NO_ERROR;
 }
 
 void
 pluginInstanceShutdown(InstanceData* instanceData)
 {
-  NPN_MemFree(instanceData->platformData);
-  instanceData->platformData = 0;
 }
 
 void
@@ -84,8 +75,6 @@ pluginDoSetWindow(InstanceData* instanceData, NPWindow* newWindow)
   instanceData->window = *newWindow;
 }
 
-#define CHILD_WIDGET_SIZE 10
-
 void
 pluginWidgetInit(InstanceData* instanceData, void* oldWindow)
 {
@@ -93,101 +82,8 @@ pluginWidgetInit(InstanceData* instanceData, void* oldWindow)
   if (oldWindow) {
     HWND hWndOld = (HWND)oldWindow;
     ClearSubclass(hWndOld);
-    if (instanceData->platformData->childWindow) {
-      ::DestroyWindow(instanceData->platformData->childWindow);
-    }
   }
-
   SetSubclass(hWnd, instanceData);
-
-  instanceData->platformData->childWindow =
-    ::CreateWindowW(L"SCROLLBAR", L"Dummy child window", 
-                    WS_CHILD, 0, 0, CHILD_WIDGET_SIZE, CHILD_WIDGET_SIZE, hWnd, NULL,
-                    NULL, NULL);
-}
-
-static void
-drawToDC(InstanceData* instanceData, HDC dc,
-         int x, int y, int width, int height)
-{
-  HBITMAP offscreenBitmap = ::CreateCompatibleBitmap(dc, width, height);
-  if (!offscreenBitmap)
-    return;
-  HDC offscreenDC = ::CreateCompatibleDC(dc);
-  if (!offscreenDC) {
-    ::DeleteObject(offscreenBitmap);
-    return;
-  }
-
-  HBITMAP oldOffscreenBitmap =
-    (HBITMAP)::SelectObject(offscreenDC, offscreenBitmap);
-  ::SetBkMode(offscreenDC, TRANSPARENT);
-  BYTE alpha = 255;
-  RECT fill = { 0, 0, width, height };
-
-  switch (instanceData->scriptableObject->drawMode) {
-    case DM_DEFAULT:
-    {
-      HBRUSH brush = ::CreateSolidBrush(RGB(0, 0, 0));
-      if (brush) {
-        ::FillRect(offscreenDC, &fill, brush);
-        ::DeleteObject(brush);
-      }
-      if (width > 6 && height > 6) {
-        brush = ::CreateSolidBrush(RGB(192, 192, 192));
-        if (brush) {
-          RECT inset = { 3, 3, width - 3, height - 3 };
-          ::FillRect(offscreenDC, &inset, brush);
-          ::DeleteObject(brush);
-        }
-      }
-
-      const char* uaString = NPN_UserAgent(instanceData->npp);
-      if (uaString && width > 10 && height > 10) {
-        HFONT font =
-          ::CreateFontA(20, 0, 0, 0, 400, FALSE, FALSE, FALSE,
-                        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-                        CLIP_DEFAULT_PRECIS, 5, // CLEARTYPE_QUALITY
-                        DEFAULT_PITCH, "Arial");
-        if (font) {
-          HFONT oldFont = (HFONT)::SelectObject(offscreenDC, font);
-          RECT inset = { 5, 5, width - 5, height - 5 };
-          ::DrawTextA(offscreenDC, uaString, -1, &inset,
-                      DT_LEFT | DT_TOP | DT_NOPREFIX | DT_WORDBREAK);
-          ::SelectObject(offscreenDC, oldFont);
-          ::DeleteObject(font);
-        }
-      }
-    }
-    break;
-
-    case DM_SOLID_COLOR:
-    {
-      PRUint32 rgba = instanceData->scriptableObject->drawColor;
-      BYTE r = ((rgba & 0xFF0000) >> 16);
-      BYTE g = ((rgba & 0xFF00) >> 8);
-      BYTE b = (rgba & 0xFF);
-      alpha = ((rgba & 0xFF000000) >> 24);
-
-      HBRUSH brush = ::CreateSolidBrush(RGB(r, g, b));
-      if (brush) {
-        ::FillRect(offscreenDC, &fill, brush);
-        ::DeleteObject(brush);
-      }
-    }
-    break;
-  }
-
-  BLENDFUNCTION blendFunc;
-  blendFunc.BlendOp = AC_SRC_OVER;
-  blendFunc.BlendFlags = 0;
-  blendFunc.SourceConstantAlpha = alpha;
-  blendFunc.AlphaFormat = 0;
-  ::AlphaBlend(dc, x, y, width, height, offscreenDC, 0, 0, width, height,
-               blendFunc);
-  ::SelectObject(offscreenDC, oldOffscreenBitmap);
-  ::DeleteObject(offscreenDC);
-  ::DeleteObject(offscreenBitmap);
 }
 
 void
@@ -195,6 +91,10 @@ pluginDraw(InstanceData* instanceData)
 {
   NPP npp = instanceData->npp;
   if (!npp)
+    return;
+
+  const char* uaString = NPN_UserAgent(npp);
+  if (!uaString)
     return;
 
   HDC hdc = NULL;
@@ -212,21 +112,80 @@ pluginDraw(InstanceData* instanceData)
   // we share the drawing surface with the rest of the browser.
   int savedDCID = SaveDC(hdc);
 
+  // Reset the clipping region
+  SelectClipRgn(hdc, NULL);
+
+  // Initialize GDI+.
+  GdiplusStartupInput gdiplusStartupInput;
+  ULONG_PTR gdiplusToken;
+  GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
+
   // When we have a widget, window.x/y are meaningless since our widget
   // is always positioned correctly and we just draw into it at 0,0.
   int x = instanceData->hasWidget ? 0 : instanceData->window.x;
   int y = instanceData->hasWidget ? 0 : instanceData->window.y;
   int width = instanceData->window.width;
   int height = instanceData->window.height;
-  drawToDC(instanceData, hdc, x, y, width, height);
+
+  // Calculate the rectangle coordinates from the instanceData information
+  Rect rect(x, y, width, height);
+
+  // Create a layout rect for the text
+  RectF boundRect((float)x, (float)y, (float)width, (float)height);
+  boundRect.Inflate(-10.0, -10.0);
+
+  switch(instanceData->scriptableObject->drawMode) {
+    case DM_DEFAULT:
+    {
+      Graphics graphics(hdc);
+
+      // Fill in the background and border
+      Pen blackPen(Color(255, 0, 0, 0), 1);
+      SolidBrush grayBrush(Color(255, 192, 192, 192));
+
+      graphics.FillRectangle(&grayBrush, rect);
+      graphics.DrawRectangle(&blackPen, rect);
+
+      // Load a nice font
+      FontFamily fontFamily(L"Helvetica");
+      Font font(&fontFamily, 20, FontStyleBold, UnitPoint);
+      StringFormat stringFormat;
+      SolidBrush solidBrush(Color(255, 0, 0, 0));
+
+      // Center the text string
+      stringFormat.SetAlignment(StringAlignmentCenter);
+      stringFormat.SetLineAlignment(StringAlignmentCenter);
+
+      // Request anti-aliased text
+      graphics.SetTextRenderingHint(TextRenderingHintAntiAlias);
+
+      WCHAR wBuf[1024];
+      memset(&wBuf, 0, sizeof(wBuf));
+      MultiByteToWideChar(CP_ACP, 0, uaString, -1, wBuf, 1024);
+
+      // Draw the string
+      graphics.DrawString(wBuf, -1, &font, boundRect, &stringFormat, &solidBrush);
+    }
+    break;
+
+    case DM_SOLID_COLOR:
+    {
+      // Fill the plugin window with a solid color specified by the params
+      Graphics graphics(hdc);
+      SolidBrush brush(GetColorsFromRGBA(instanceData->scriptableObject->drawColor));
+      graphics.FillRectangle(&brush, rect.X, rect.Y, rect.Width, rect.Height);
+    }
+    break;
+  }
+
+  // Shutdown GDI+
+  GdiplusShutdown(gdiplusToken);
 
   // Pop our hdc changes off the resource stack
   RestoreDC(hdc, savedDCID);
 
   if (instanceData->hasWidget)
     ::EndPaint((HWND)instanceData->window.window, &ps);
-
-  ++instanceData->paintCount;
 }
 
 /* script interface */
@@ -237,211 +196,60 @@ pluginGetEdge(InstanceData* instanceData, RectEdge edge)
   if (!instanceData || !instanceData->hasWidget)
     return NPTEST_INT32_ERROR;
 
-  // Get the plugin client rect in screen coordinates
-  RECT rect = {0};
-  if (!::GetClientRect((HWND)instanceData->window.window, &rect))
-    return NPTEST_INT32_ERROR;
-  ::MapWindowPoints((HWND)instanceData->window.window, NULL, (LPPOINT)&rect, 2);
+  HWND hWnd = GetAncestor((HWND)instanceData->window.window, GA_ROOT);
 
-  // Get the toplevel window frame rect in screen coordinates
-  HWND rootWnd = ::GetAncestor((HWND)instanceData->window.window, GA_ROOT);
-  if (!rootWnd)
+  if (!hWnd)
     return NPTEST_INT32_ERROR;
-  RECT rootRect;
-  if (!::GetWindowRect(rootWnd, &rootRect))
-    return NPTEST_INT32_ERROR;
+
+  RECT rect = {0};
+  GetClientRect((HWND)instanceData->window.window, &rect);
+  MapWindowPoints((HWND)instanceData->window.window, hWnd, (LPPOINT)&rect, 2);
 
   switch (edge) {
   case EDGE_LEFT:
-    return rect.left - rootRect.left;
+    return rect.left;
   case EDGE_TOP:
-    return rect.top - rootRect.top;
+    return rect.top;
   case EDGE_RIGHT:
-    return rect.right - rootRect.left;
+    return rect.right;
   case EDGE_BOTTOM:
-    return rect.bottom - rootRect.top;
+    return rect.bottom;
   }
 
   return NPTEST_INT32_ERROR;
 }
 
-static BOOL
-getWindowRegion(HWND wnd, HRGN rgn)
-{
-  if (::GetWindowRgn(wnd, rgn) != ERROR)
-    return TRUE;
-
-  RECT clientRect;
-  if (!::GetClientRect(wnd, &clientRect))
-    return FALSE;
-  return ::SetRectRgn(rgn, 0, 0, clientRect.right, clientRect.bottom);
-}
-
-static RGNDATA*
-computeClipRegion(InstanceData* instanceData)
-{
-  HWND wnd = (HWND)instanceData->window.window;
-  HRGN rgn = ::CreateRectRgn(0, 0, 0, 0);
-  if (!rgn)
-    return NULL;
-  HRGN ancestorRgn = ::CreateRectRgn(0, 0, 0, 0);
-  if (!ancestorRgn) {
-    ::DeleteObject(rgn);
-    return NULL;
-  }
-  if (!getWindowRegion(wnd, rgn)) {
-    ::DeleteObject(ancestorRgn);
-    ::DeleteObject(rgn);
-    return NULL;
-  }
-
-  HWND ancestor = wnd;
-  for (;;) {
-    ancestor = ::GetAncestor(ancestor, GA_PARENT);
-    if (!ancestor || ancestor == ::GetDesktopWindow()) {
-      ::DeleteObject(ancestorRgn);
-
-      DWORD size = ::GetRegionData(rgn, 0, NULL);
-      if (!size) {
-        ::DeleteObject(rgn);
-        return NULL;
-      }
-
-      HANDLE heap = ::GetProcessHeap();
-      RGNDATA* data = static_cast<RGNDATA*>(::HeapAlloc(heap, 0, size));
-      if (!data) {
-        ::DeleteObject(rgn);
-        return NULL;
-      }
-      DWORD result = ::GetRegionData(rgn, size, data);
-      ::DeleteObject(rgn);
-      if (!result) {
-        ::HeapFree(heap, 0, data);
-        return NULL;
-      }
-
-      return data;
-    }
-
-    if (!getWindowRegion(ancestor, ancestorRgn)) {
-      ::DeleteObject(ancestorRgn);
-      ::DeleteObject(rgn);
-      return 0;
-    }
-
-    POINT pt = { 0, 0 };
-    ::MapWindowPoints(ancestor, wnd, &pt, 1);
-    if (::OffsetRgn(ancestorRgn, pt.x, pt.y) == ERROR ||
-        ::CombineRgn(rgn, rgn, ancestorRgn, RGN_AND) == ERROR) {
-      ::DeleteObject(ancestorRgn);
-      ::DeleteObject(rgn);
-      return 0;
-    }
-  }
-}
-
 int32_t
 pluginGetClipRegionRectCount(InstanceData* instanceData)
 {
-  RGNDATA* data = computeClipRegion(instanceData);
-  if (!data)
-    return NPTEST_INT32_ERROR;
-
-  int32_t result = data->rdh.nCount;
-  ::HeapFree(::GetProcessHeap(), 0, data);
-  return result;
-}
-
-static int32_t
-addOffset(LONG coord, int32_t offset)
-{
-  if (offset == NPTEST_INT32_ERROR)
-    return NPTEST_INT32_ERROR;
-  return coord + offset;
+  return 1;
 }
 
 int32_t
 pluginGetClipRegionRectEdge(InstanceData* instanceData, 
     int32_t rectIndex, RectEdge edge)
 {
-  RGNDATA* data = computeClipRegion(instanceData);
-  if (!data)
-    return NPTEST_INT32_ERROR;
-
-  HANDLE heap = ::GetProcessHeap();
-  if (rectIndex >= int32_t(data->rdh.nCount)) {
-    ::HeapFree(heap, 0, data);
-    return NPTEST_INT32_ERROR;
-  }
-
-  RECT rect = reinterpret_cast<RECT*>(data->Buffer)[rectIndex];
-  ::HeapFree(heap, 0, data);
-
-  switch (edge) {
-  case EDGE_LEFT:
-    return addOffset(rect.left, pluginGetEdge(instanceData, EDGE_LEFT));
-  case EDGE_TOP:
-    return addOffset(rect.top, pluginGetEdge(instanceData, EDGE_TOP));
-  case EDGE_RIGHT:
-    return addOffset(rect.right, pluginGetEdge(instanceData, EDGE_LEFT));
-  case EDGE_BOTTOM:
-    return addOffset(rect.bottom, pluginGetEdge(instanceData, EDGE_TOP));
-  }
-
-  return NPTEST_INT32_ERROR;
+  return pluginGetEdge(instanceData, edge);
 }
 
 /* windowless plugin events */
 
-static bool
-handleEventInternal(InstanceData* instanceData, NPEvent* pe, LRESULT* result)
-{
-  switch ((UINT)pe->event) {
-    case WM_PAINT:
-      pluginDraw(instanceData);
-      return true;
-
-    case WM_MOUSEACTIVATE:
-      if (instanceData->hasWidget) {
-        ::SetFocus((HWND)instanceData->window.window);
-        *result = MA_ACTIVATEANDEAT;
-        return true;
-      }
-      return false;
-
-    case WM_MOUSEWHEEL:
-      return true;
-
-    case WM_MOUSEMOVE:
-    case WM_LBUTTONDOWN:
-    case WM_LBUTTONUP:
-    case WM_MBUTTONDOWN:
-    case WM_MBUTTONUP:
-    case WM_RBUTTONDOWN:
-    case WM_RBUTTONUP: {
-      int x = instanceData->hasWidget ? 0 : instanceData->window.x;
-      int y = instanceData->hasWidget ? 0 : instanceData->window.y;
-      instanceData->lastMouseX = GET_X_LPARAM(pe->lParam) - x;
-      instanceData->lastMouseY = GET_Y_LPARAM(pe->lParam) - y;
-      return true;
-    }
-
-    default:
-      return false;
-  }
-}
-
 int16_t
 pluginHandleEvent(InstanceData* instanceData, void* event)
 {
-  NPEvent* pe = (NPEvent*)event;
+  NPEvent * pe = (NPEvent*) event;
 
   if (pe == NULL || instanceData == NULL ||
       instanceData->window.type != NPWindowTypeDrawable)
     return 0;   
 
-  LRESULT result = 0;
-  return handleEventInternal(instanceData, pe, &result);
+  switch((UINT)pe->event) {
+    case WM_PAINT:
+      pluginDraw(instanceData);   
+      return 1;
+  }
+  
+  return 0;
 }
 
 /* windowed plugin events */
@@ -455,11 +263,10 @@ LRESULT CALLBACK PluginWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPara
   if (!pInstance)
     return 0;
 
-  NPEvent event = { uMsg, wParam, lParam };
-
-  LRESULT result = 0;
-  if (handleEventInternal(pInstance, &event, &result))
-    return result;
+  if (uMsg == WM_PAINT) {
+    pluginDraw(pInstance);
+    return 0;
+  }
 
   if (uMsg == WM_CLOSE) {
     ClearSubclass((HWND)pInstance->window.window);
@@ -487,29 +294,15 @@ SetSubclass(HWND hWnd, InstanceData* instanceData)
   SetProp(hWnd, "MozillaWndProc", (HANDLE)origProc);
 }
 
-static void checkEquals(int a, int b, const char* msg, string& error)
-{
-  if (a == b) {
-    return;
-  }
+/* utils */
 
-  error.append(msg);
-  char buf[100];
-  sprintf(buf, " (got %d, expected %d)\n", a, b);
-  error.append(buf);
-}
-
-void pluginDoInternalConsistencyCheck(InstanceData* instanceData, string& error)
+Color
+GetColorsFromRGBA(PRUint32 rgba)
 {
-  if (instanceData->platformData->childWindow) {
-    RECT childRect;
-    ::GetWindowRect(instanceData->platformData->childWindow, &childRect);
-    RECT ourRect;
-    HWND hWnd = (HWND)instanceData->window.window;
-    ::GetWindowRect(hWnd, &ourRect);
-    checkEquals(childRect.left, ourRect.left, "Child widget left", error);
-    checkEquals(childRect.top, ourRect.top, "Child widget top", error);
-    checkEquals(childRect.right, childRect.left + CHILD_WIDGET_SIZE, "Child widget width", error);
-    checkEquals(childRect.bottom, childRect.top + CHILD_WIDGET_SIZE, "Child widget height", error);
-  }
+  BYTE r, g, b, a;
+  b = (rgba & 0xFF);
+  g = ((rgba & 0xFF00) >> 8);
+  r = ((rgba & 0xFF0000) >> 16);
+  a = ((rgba & 0xFF000000) >> 24);
+  return Color(a, r, g, b);
 }

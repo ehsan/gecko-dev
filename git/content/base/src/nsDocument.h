@@ -116,8 +116,6 @@
 #include "nsIProgressEventSink.h"
 #include "nsISecurityEventSink.h"
 #include "nsIChannelEventSink.h"
-#include "imgIRequest.h"
-#include "nsIDOMDOMImplementation.h"
 
 #define XML_DECLARATION_BITS_DECLARATION_EXISTS   (1 << 0)
 #define XML_DECLARATION_BITS_ENCODING_EXISTS      (1 << 1)
@@ -321,8 +319,7 @@ public:
 private:
   void FireChangeCallbacks(nsIContent* aOldContent, nsIContent* aNewContent);
 
-  // empty if there are no nodes with this ID.
-  // The content nodes are stored addrefed.
+  // empty if there are no nodes with this ID
   nsSmallVoidArray mIdContentList;
   // NAME_NOT_VALID if this id cannot be used as a 'name'
   nsBaseContentList *mNameContentList;
@@ -771,11 +768,14 @@ public:
   virtual void EndLoad();
 
   virtual void SetReadyStateInternal(ReadyState rs);
-  virtual ReadyState GetReadyStateEnum();
 
   virtual void ContentStatesChanged(nsIContent* aContent1,
                                     nsIContent* aContent2,
                                     PRInt32 aStateMask);
+
+  virtual void AttributeWillChange(nsIContent* aChild,
+                                   PRInt32 aNameSpaceID,
+                                   nsIAtom* aAttribute);
 
   virtual void StyleRuleChanged(nsIStyleSheet* aStyleSheet,
                                 nsIStyleRule* aOldStyleRule,
@@ -810,7 +810,7 @@ public:
   virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                                  PRBool aNotify);
   virtual nsresult AppendChildTo(nsIContent* aKid, PRBool aNotify);
-  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent = PR_TRUE);
+  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify);
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
   virtual nsresult DispatchDOMEvent(nsEvent* aEvent, nsIDOMEvent* aDOMEvent,
@@ -914,7 +914,6 @@ public:
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
   NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
-  NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTEWILLCHANGE
 
   // nsIScriptObjectPrincipal
   virtual nsIPrincipal* GetPrincipal();
@@ -984,8 +983,7 @@ public:
   
   void DecreaseEventSuppression() { --mEventsSuppressed; }
 
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsDocument,
-                                                         nsIDocument)
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsDocument, nsIDocument)
 
   /**
    * Utility method for getElementsByClassName.  aRootNode is the node (either
@@ -1009,13 +1007,8 @@ public:
   void MaybeInitializeFinalizeFrameLoaders();
 
   void MaybeEndOutermostXBLUpdate();
-
-  virtual void MaybePreLoadImage(nsIURI* uri);
-
-  virtual nsISupports* GetCurrentContentSink();
-
 protected:
-  friend class nsNodeUtils;
+
   void RegisterNamedItems(nsIContent *aContent);
   void UnregisterNamedItems(nsIContent *aContent);
   void UpdateNameTableEntry(nsIContent *aContent);
@@ -1038,17 +1031,11 @@ protected:
   static PRBool TryChannelCharset(nsIChannel *aChannel,
                                   PRInt32& aCharsetSource,
                                   nsACString& aCharset);
-
+  
   void UpdateLinkMap();
   // Call this before the document does something that will unbind all content.
   // That will stop us from resolving URIs for all links as they are removed.
   void DestroyLinkMap();
-
-  // Refreshes the hrefs of all the links in the document.
-  void RefreshLinkHrefs();
-
-  nsIContent* GetFirstBaseNodeWithHref();
-  nsresult SetFirstBaseNodeWithHref(nsIContent *node);
 
   // Get the root <html> element, or return null if there isn't one (e.g.
   // if the root isn't <html>)
@@ -1066,7 +1053,6 @@ protected:
   nsIContent* GetHeadContent() {
     return GetHtmlChildContent(nsGkAtoms::head);
   }
-
   // Get the first <title> element with the given IsNodeOfType type, or
   // return null if there isn't one
   nsIContent* GetTitleContent(PRUint32 aNodeType);
@@ -1174,11 +1160,20 @@ protected:
 
   // True if the document has been detached from its content viewer.
   PRPackedBool mIsGoingAway:1;
+  // True if our content viewer has been removed from the docshell
+  // (it may still be displayed, but in zombie state). Form control data
+  // has been saved.
+  PRPackedBool mRemovedFromDocShell:1;
   // True if the document is being destroyed.
   PRPackedBool mInDestructor:1;
+  // True if the document "page" is not hidden
+  PRPackedBool mVisible:1;
   // True if document has ever had script handling object.
   PRPackedBool mHasHadScriptHandlingObject:1;
-
+  // True if this is a regular (non-XHTML) HTML document
+  // XXXbz should this be reset if someone manually calls
+  // SetContentType() on this document?
+  PRPackedBool mIsRegularHTML:1;
   // True if this document has ever had an HTML or SVG <title> element
   // bound to it
   PRPackedBool mMayHaveTitleElement:1;
@@ -1217,8 +1212,6 @@ protected:
   // The application cache that this document is associated with, if
   // any.  This can change during the lifetime of the document.
   nsCOMPtr<nsIApplicationCache> mApplicationCache;
-
-  nsCOMPtr<nsIContent> mFirstBaseNodeWithHref;
 
 private:
   friend class nsUnblockOnloadEvent;
@@ -1272,19 +1265,9 @@ private:
 
   nsExternalResourceMap mExternalResourceMap;
 
-  // All images in process of being preloaded
-  nsCOMArray<imgIRequest> mPreloadingImages;
-
-  nsCOMPtr<nsIDOMDOMImplementation> mDOMImplementation;
-
 #ifdef MOZ_SMIL
   nsAutoPtr<nsSMILAnimationController> mAnimationController;
 #endif // MOZ_SMIL
-
-#ifdef DEBUG
-protected:
-  PRBool mWillReparent;
-#endif
 };
 
 #define NS_DOCUMENT_INTERFACE_TABLE_BEGIN(_class)                             \

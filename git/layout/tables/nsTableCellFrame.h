@@ -72,9 +72,9 @@ class nsTableCellFrame : public nsHTMLContainerFrame,
                          public nsIPercentHeightObserver
 {
 public:
-  NS_DECL_QUERYFRAME_TARGET(nsTableCellFrame)
+
+  NS_DECLARE_FRAME_ACCESSOR(nsTableCellFrame)
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
   // default constructor supplied by the compiler
 
@@ -100,10 +100,10 @@ public:
   // so these functions should never be called. They assert and return
   // NS_ERROR_NOT_IMPLEMENTED
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
 
@@ -129,8 +129,13 @@ public:
                               const nsDisplayListSet& aLists);
                               
   void PaintCellBackground(nsIRenderingContext& aRenderingContext,
-                           const nsRect& aDirtyRect, nsPoint aPt,
-                           PRUint32 aFlags);
+                           const nsRect& aDirtyRect, nsPoint aPt);
+
+  NS_IMETHOD SetSelected(nsPresContext* aPresContext,
+                         nsIDOMRange *aRange,
+                         PRBool aSelected,
+                         nsSpread aSpread,
+                         SelectionType aType);
 
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
@@ -227,8 +232,7 @@ public:
 
   virtual void PaintBackground(nsIRenderingContext& aRenderingContext,
                                const nsRect&        aDirtyRect,
-                               nsPoint              aPt,
-                               PRUint32             aFlags);
+                               nsPoint              aPt);
 
   void DecorateForSelection(nsIRenderingContext& aRenderingContext,
                             nsPoint              aPt);
@@ -236,6 +240,8 @@ public:
 protected:
   /** implement abstract method on nsHTMLContainerFrame */
   virtual PRIntn GetSkipSides() const;
+
+  virtual PRBool ParentDisablesSelection() const; //override default behavior
 
   /**
    * GetSelfOverflow says what effect the cell should have on its own
@@ -304,7 +310,6 @@ inline void nsTableCellFrame::SetHasPctOverHeight(PRBool aValue)
 class nsBCTableCellFrame : public nsTableCellFrame
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
 
   nsBCTableCellFrame(nsStyleContext* aContext);
 
@@ -331,8 +336,7 @@ public:
 
   virtual void PaintBackground(nsIRenderingContext& aRenderingContext,
                                const nsRect&        aDirtyRect,
-                               nsPoint              aPt,
-                               PRUint32             aFlags);
+                               nsPoint              aPt);
 
 private:
   

@@ -54,6 +54,7 @@
 #include "gfxMatrix.h"
 #include "gfxPlatform.h"
 #include "gfxTextRunWordCache.h"
+#include "nsTextFrame.h"
 
 struct CharacterPosition {
   gfxPoint pos;
@@ -189,8 +190,6 @@ NS_NewSVGGlyphFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsSVGGlyphFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsSVGGlyphFrame)
-
 //----------------------------------------------------------------------
 // nsQueryFrame methods
 
@@ -204,7 +203,9 @@ NS_QUERYFRAME_TAIL_INHERITING(nsSVGGlyphFrameBase)
 // nsIFrame methods
 
 NS_IMETHODIMP
-nsSVGGlyphFrame::CharacterDataChanged(CharacterDataChangeInfo* aInfo)
+nsSVGGlyphFrame::CharacterDataChanged(nsPresContext*  aPresContext,
+                                      nsIContent*     aChild,
+                                      PRBool          aAppend)
 {
   ClearTextRun();
   NotifyGlyphMetricsChange();
@@ -228,30 +229,35 @@ nsSVGGlyphFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   }
 }
 
-void
-nsSVGGlyphFrame::SetSelected(PRBool        aSelected,
-                             SelectionType aType)
+NS_IMETHODIMP
+nsSVGGlyphFrame::SetSelected(nsPresContext* aPresContext,
+                             nsIDOMRange*    aRange,
+                             PRBool          aSelected,
+                             nsSpread        aSpread,
+                             SelectionType   aType)
 {
 #if defined(DEBUG) && defined(SVG_DEBUG_SELECTION)
   printf("nsSVGGlyphFrame(%p)::SetSelected()\n", this);
 #endif
+//  return nsSVGGlyphFrameBase::SetSelected(aPresContext, aRange, aSelected, aSpread, aType);
 
-  if (aType != nsISelectionController::SELECTION_NORMAL)
-    return;
-
-  // check whether style allows selection
-  PRBool selectable;
-  IsSelectable(&selectable, nsnull);
-  if (!selectable)
-    return;
-
-  if (aSelected) {
-    AddStateBits(NS_FRAME_SELECTED_CONTENT);
-  } else {
-    RemoveStateBits(NS_FRAME_SELECTED_CONTENT);
+  if (aType == nsISelectionController::SELECTION_NORMAL) {
+    // check whether style allows selection
+    PRBool  selectable;
+    IsSelectable(&selectable, nsnull);
+    if (!selectable)
+      return NS_OK;
   }
 
+  if ( aSelected ){
+    mState |=  NS_FRAME_SELECTED_CONTENT;
+  }
+  else
+    mState &= ~NS_FRAME_SELECTED_CONTENT;
+
   nsSVGUtils::UpdateGraphic(this);
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -293,6 +299,10 @@ nsSVGGlyphFrame::Init(nsIContent* aContent,
   NS_ASSERTION(aContent->IsNodeOfType(nsINode::eTEXT),
                "trying to construct an SVGGlyphFrame for wrong content element");
 #endif /* DEBUG */
+
+  if (!PresContext()->IsDynamic()) {
+    AddStateBits(NS_STATE_SVG_PRINTING);
+  }
 
   return nsSVGGlyphFrameBase::Init(aContent, aParent, aPrevInFlow);
 }
@@ -392,11 +402,10 @@ nsSVGGlyphFrame::GetFrameForPoint(const nsPoint &aPoint)
     return nsnull;
 
   PRBool events = PR_FALSE;
-  switch (GetStyleVisibility()->mPointerEvents) {
+  switch (GetStyleSVG()->mPointerEvents) {
     case NS_STYLE_POINTER_EVENTS_NONE:
       break;
     case NS_STYLE_POINTER_EVENTS_VISIBLEPAINTED:
-    case NS_STYLE_POINTER_EVENTS_AUTO:
       if (GetStyleVisibility()->IsVisible() &&
           (GetStyleSVG()->mFill.mType != eStyleSVGPaintType_None ||
            GetStyleSVG()->mStroke.mType != eStyleSVGPaintType_None))
@@ -453,10 +462,9 @@ nsSVGGlyphFrame::UpdateCoveredRegion()
   nsRefPtr<gfxContext> tmpCtx = MakeTmpCtx();
   tmpCtx->Multiply(matrix);
 
-  PRBool hasStroke = HasStroke();
-  if (hasStroke) {
-    SetupCairoStrokeGeometry(tmpCtx);
-  } else if (GetStyleSVG()->mFill.mType == eStyleSVGPaintType_None) {
+  PRBool hasStroke = SetupCairoStrokeGeometry(tmpCtx);
+
+  if (!hasStroke && GetStyleSVG()->mFill.mType == eStyleSVGPaintType_None) {
     return NS_OK;
   }
 
@@ -604,7 +612,7 @@ nsSVGGlyphFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace)
   SetupGlobalTransform(tmpCtx);
   CharacterIterator iter(this, PR_TRUE);
   iter.SetInitialMatrix(tmpCtx);
-  AddBoundingBoxesToPath(&iter, tmpCtx);
+  AddCharactersToPath(&iter, tmpCtx);
   tmpCtx->IdentityMatrix();
 
   mOverrideCanvasTM = nsnull;
@@ -632,7 +640,7 @@ PRBool
 nsSVGGlyphFrame::GetCharacterData(nsAString & aCharacterData)
 {
   nsAutoString characterData;
-  mContent->AppendTextTo(characterData);
+  GetFragment()->AppendTo(characterData);
 
   if (mWhitespaceHandling & COMPRESS_WHITESPACE) {
     PRBool trimLeadingWhitespace, trimTrailingWhitespace;
@@ -836,7 +844,7 @@ nsSVGGlyphFrame::GetHighlight(PRUint32 *charnum, PRUint32 *nchars,
 
   // The selection ranges are relative to the uncompressed text in
   // the content element. We'll need the text fragment:
-  const nsTextFragment *fragment = mContent->GetText();
+  const nsTextFragment* fragment = GetFragment();
   NS_ASSERTION(fragment, "no text");
   
   // get the selection details 
@@ -1117,7 +1125,7 @@ PRUint32
 nsSVGGlyphFrame::GetNumberOfChars()
 {
   if (mWhitespaceHandling == PRESERVE_WHITESPACE)
-    return mContent->TextLength();
+    return GetFragment()->GetLength();
 
   nsAutoString text;
   GetCharacterData(text);
@@ -1214,7 +1222,7 @@ nsSVGGlyphFrame::GetFirstGlyphFragment()
 NS_IMETHODIMP_(nsISVGGlyphFragmentLeaf *)
 nsSVGGlyphFrame::GetNextGlyphFragment()
 {
-  nsIFrame* sibling = GetNextSibling();
+  nsIFrame* sibling = mNextSibling;
   while (sibling) {
     nsISVGGlyphFragmentNode *node = do_QueryFrame(sibling);
     if (node)
@@ -1224,8 +1232,8 @@ nsSVGGlyphFrame::GetNextGlyphFragment()
 
   // no more siblings. go back up the tree.
   
-  NS_ASSERTION(GetParent(), "null parent");
-  nsISVGGlyphFragmentNode *node = do_QueryFrame(GetParent());
+  NS_ASSERTION(mParent, "null parent");
+  nsISVGGlyphFragmentNode *node = do_QueryFrame(mParent);
   return node ? node->GetNextGlyphFragment() : nsnull;
 }
 
@@ -1348,8 +1356,8 @@ nsSVGGlyphFrame::EnsureTextRun(float *aDrawScale, float *aMetricsScale,
       textRunSize = PRECISE_SIZE;
     } else {
       textRunSize = size*contextScale;
-      textRunSize = NS_MAX(textRunSize, double(CLAMP_MIN_SIZE));
-      textRunSize = NS_MIN(textRunSize, double(CLAMP_MAX_SIZE));
+      textRunSize = PR_MAX(textRunSize, CLAMP_MIN_SIZE);
+      textRunSize = PR_MIN(textRunSize, CLAMP_MAX_SIZE);
     }
 
     const nsFont& font = fontData->mFont;

@@ -79,6 +79,7 @@
 #include "nsIDOMFocusListener.h"
 #include "nsIDOMKeyListener.h"
 #include "nsIDOMFormListener.h"
+#include "nsIDOMXULListener.h"
 #include "nsIDOMContextMenuListener.h"
 #include "nsIDOMEventGroup.h"
 #include "nsAttrName.h"
@@ -608,9 +609,6 @@ ChangeDocumentForDefaultContent(nsISupports* aKey,
 void
 nsXBLBinding::GenerateAnonymousContent()
 {
-  NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
-               "Someone forgot a script blocker");
-
   // Fetch the content element for this binding.
   nsIContent* content =
     mPrototypeBinding->GetImmediateChild(nsGkAtoms::content);
@@ -681,9 +679,14 @@ nsXBLBinding::GenerateAnonymousContent()
     }
 
     if (hasContent || hasInsertionPoints) {
+      nsIDocument *document = mBoundElement->GetOwnerDoc();
+      if (!document) {
+        return;
+      }
+
       nsCOMPtr<nsIDOMNode> clonedNode;
       nsCOMArray<nsINode> nodesWithProperties;
-      nsNodeUtils::Clone(content, PR_TRUE, doc->NodeInfoManager(),
+      nsNodeUtils::Clone(content, PR_TRUE, document->NodeInfoManager(),
                          nodesWithProperties, getter_AddRefs(clonedNode));
 
       mContent = do_QueryInterface(clonedNode);
@@ -1087,15 +1090,17 @@ nsXBLBinding::ChangeDocument(nsIDocument* aOldDocument, nsIDocument* aNewDocumen
             pusher.Push(cx);
 
             nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
-            jsval v;
-            nsresult rv =
-              nsContentUtils::WrapNative(cx, global->GetGlobalJSObject(),
-                                         mBoundElement, &v,
-                                         getter_AddRefs(wrapper));
+            nsresult rv = nsContentUtils::XPConnect()->
+              WrapNative(cx, global->GetGlobalJSObject(),
+                         mBoundElement, NS_GET_IID(nsISupports),
+                         getter_AddRefs(wrapper));
             if (NS_FAILED(rv))
               return;
 
-            JSObject* scriptObject = JSVAL_TO_OBJECT(v);
+            JSObject* scriptObject = nsnull;
+            rv = wrapper->GetJSObject(&scriptObject);
+            if (NS_FAILED(rv))
+              return;
 
             // XXX Stay in sync! What if a layered binding has an
             // <interface>?!
@@ -1161,36 +1166,32 @@ nsXBLBinding::ChangeDocument(nsIDocument* aOldDocument, nsIDocument* aNewDocumen
       UnhookEventHandlers();
     }
 
-    {
-      nsAutoScriptBlocker scriptBlocker;
+    // Then do our ancestors.  This reverses the construction order, so that at
+    // all times things are consistent as far as everyone is concerned.
+    if (mNextBinding) {
+      mNextBinding->ChangeDocument(aOldDocument, aNewDocument);
+    }
 
-      // Then do our ancestors.  This reverses the construction order, so that at
-      // all times things are consistent as far as everyone is concerned.
-      if (mNextBinding) {
-        mNextBinding->ChangeDocument(aOldDocument, aNewDocument);
-      }
+    // Update the anonymous content.
+    // XXXbz why not only for style bindings?
+    nsIContent *anonymous = mContent;
+    if (anonymous) {
+      // Also kill the default content within all our insertion points.
+      if (mInsertionPointTable)
+        mInsertionPointTable->Enumerate(ChangeDocumentForDefaultContent,
+                                        nsnull);
 
-      // Update the anonymous content.
-      // XXXbz why not only for style bindings?
-      nsIContent *anonymous = mContent;
-      if (anonymous) {
-        // Also kill the default content within all our insertion points.
-        if (mInsertionPointTable)
-          mInsertionPointTable->Enumerate(ChangeDocumentForDefaultContent,
-                                          nsnull);
+      nsXBLBinding::UninstallAnonymousContent(aOldDocument, anonymous);
+    }
 
-        nsXBLBinding::UninstallAnonymousContent(aOldDocument, anonymous);
-      }
-
-      // Make sure that henceforth we don't claim that mBoundElement's children
-      // have insertion parents in the old document.
-      nsBindingManager* bindingManager = aOldDocument->BindingManager();
-      for (PRUint32 i = mBoundElement->GetChildCount(); i > 0; --i) {
-        NS_ASSERTION(mBoundElement->GetChildAt(i-1),
-                     "Must have child at i for 0 <= i < GetChildCount()!");
-        bindingManager->SetInsertionParent(mBoundElement->GetChildAt(i-1),
-                                           nsnull);
-      }
+    // Make sure that henceforth we don't claim that mBoundElement's children
+    // have insertion parents in the old document.
+    nsBindingManager* bindingManager = aOldDocument->BindingManager();
+    for (PRUint32 i = mBoundElement->GetChildCount(); i > 0; --i) {
+      NS_ASSERTION(mBoundElement->GetChildAt(i-1),
+                   "Must have child at i for 0 <= i < GetChildCount()!");
+      bindingManager->SetInsertionParent(mBoundElement->GetChildAt(i-1),
+                                         nsnull);
     }
   }
 }
@@ -1590,4 +1591,16 @@ nsXBLBinding::GetAnonymousNodes()
     return mNextBinding->GetAnonymousNodes();
 
   return nsnull;
+}
+
+PRBool
+nsXBLBinding::ShouldBuildChildFrames() const
+{
+  if (mContent)
+    return mPrototypeBinding->ShouldBuildChildFrames();
+
+  if (mNextBinding) 
+    return mNextBinding->ShouldBuildChildFrames();
+
+  return PR_TRUE;
 }

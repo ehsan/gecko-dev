@@ -49,10 +49,10 @@
 #include "nsCSSStyleSheet.h"
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
-#include "nsCSSRules.h"
 
 struct RuleCascadeData;
 struct nsCSSSelectorList;
+class nsCSSFontFaceRule;
 
 /**
  * The CSS style rule processor provides a mechanism for sibling style
@@ -78,14 +78,11 @@ public:
 
   static void Startup();
   static void FreeSystemMetrics();
-  static PRBool HasSystemMetric(nsIAtom* aMetric);
 
   /*
    * Returns true if the given RuleProcessorData matches one of the
    * selectors in aSelectorList.  Note that this method will assume
-   * the matching is not for styling purposes.  aSelectorList must not
-   * include any pseudo-element selectors.  aSelectorList is allowed
-   * to be null; in this case PR_FALSE will be returned.
+   * the matching is not for styling purposes.
    */
   static PRBool SelectorListMatches(RuleProcessorData& aData,
                                     nsCSSSelectorList* aSelectorList);
@@ -93,18 +90,13 @@ public:
   // nsIStyleRuleProcessor
   NS_IMETHOD RulesMatching(ElementRuleProcessorData* aData);
 
-  NS_IMETHOD RulesMatching(PseudoElementRuleProcessorData* aData);
+  NS_IMETHOD RulesMatching(PseudoRuleProcessorData* aData);
 
-  NS_IMETHOD RulesMatching(AnonBoxRuleProcessorData* aData);
+  NS_IMETHOD HasStateDependentStyle(StateRuleProcessorData* aData,
+                                    nsReStyleHint* aResult);
 
-#ifdef MOZ_XUL
-  NS_IMETHOD RulesMatching(XULTreeRuleProcessorData* aData);
-#endif
-
-  virtual nsReStyleHint HasStateDependentStyle(StateRuleProcessorData* aData);
-
-  virtual nsReStyleHint
-    HasAttributeDependentStyle(AttributeRuleProcessorData* aData);
+  NS_IMETHOD HasAttributeDependentStyle(AttributeRuleProcessorData* aData,
+                                        nsReStyleHint* aResult);
 
   NS_IMETHOD MediumFeaturesChanged(nsPresContext* aPresContext,
                                    PRBool* aRulesChanged);

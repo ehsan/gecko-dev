@@ -25,7 +25,6 @@
  *   Brodie Thiesfield <brofield@jellycan.com>
  *   Masayuki Nakano <masayuki@d-toybox.com>
  *   David Gardiner <david.gardiner@unisa.edu.au>
- *   Kyle Huey <me@kylehuey.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -52,6 +51,7 @@
 #include "IEnumFE.h"
 #include "nsPrimitiveHelpers.h"
 #include "nsXPIDLString.h"
+#include "nsIImage.h"
 #include "nsImageClipboard.h"
 #include "nsCRT.h"
 #include "nsPrintfCString.h"
@@ -859,7 +859,7 @@ nsDataObj::GetBitmap ( const nsACString& , FORMATETC&, STGMEDIUM& )
 // GetDIB
 //
 // Someone is asking for a bitmap. The data in the transferable will be a straight
-// imgIContainer, so just QI it.
+// nsIImage, so just QI it.
 //
 HRESULT 
 nsDataObj :: GetDib ( const nsACString& inFlavor, FORMATETC &, STGMEDIUM & aSTG )
@@ -869,11 +869,12 @@ nsDataObj :: GetDib ( const nsACString& inFlavor, FORMATETC &, STGMEDIUM & aSTG 
   PRUint32 len = 0;
   nsCOMPtr<nsISupports> genericDataWrapper;
   mTransferable->GetTransferData(PromiseFlatCString(inFlavor).get(), getter_AddRefs(genericDataWrapper), &len);
-  nsCOMPtr<imgIContainer> image ( do_QueryInterface(genericDataWrapper) );
+  nsCOMPtr<nsIImage> image ( do_QueryInterface(genericDataWrapper) );
   if ( !image ) {
-    // Check if the image was put in an nsISupportsInterfacePointer wrapper.
-    // This might not be necessary any more, but could be useful for backwards
-    // compatibility.
+    // In the 0.9.4 timeframe, I had some embedding clients put the nsIImage directly into the
+    // transferable. Newer code, however, wraps the nsIImage in a nsISupportsInterfacePointer.
+    // We should be backwards compatibile with code already out in the field. If we can't find
+    // the image directly out of the transferable,  unwrap the image from its wrapper.
     nsCOMPtr<nsISupportsInterfacePointer> ptr(do_QueryInterface(genericDataWrapper));
     if ( ptr )
       ptr->GetData(getter_AddRefs(image));
@@ -1368,97 +1369,28 @@ HRESULT nsDataObj::GetFile(FORMATETC& aFE, STGMEDIUM& aSTG)
   PRBool found = PR_FALSE;
   while (NOERROR == m_enumFE->Next(1, &fe, &count)
          && dfInx < mDataFlavors.Length()) {
-    if (mDataFlavors[dfInx].EqualsLiteral(kNativeImageMime) ||
-        mDataFlavors[dfInx].EqualsLiteral(kFileMime)) {
+    dfInx++;
+    if (mDataFlavors[dfInx].EqualsLiteral(kNativeImageMime)) {
       found = PR_TRUE;
       break;
     }
-    dfInx++;
   }
 
   if (!found)
     return E_FAIL;
 
-  if (mDataFlavors[dfInx].EqualsLiteral(kNativeImageMime))
-    return DropImage(aFE, aSTG);
-  return DropFile(aFE, aSTG);
-}
-
-HRESULT nsDataObj::DropFile(FORMATETC& aFE, STGMEDIUM& aSTG)
-{
-  nsresult rv;
-  PRUint32 len = 0;
-  nsCOMPtr<nsISupports> genericDataWrapper;
-
-  mTransferable->GetTransferData(kFileMime, getter_AddRefs(genericDataWrapper),
-                                 &len);
-  nsCOMPtr<nsIFile> file ( do_QueryInterface(genericDataWrapper) );
-
-  if (!file)
-  {
-    nsCOMPtr<nsISupportsInterfacePointer> ptr(do_QueryInterface(genericDataWrapper));
-    if (ptr)
-      ptr->GetData(getter_AddRefs(file));
-  }
-
-  if (!file)
-    return E_FAIL;
-
-  aSTG.tymed = TYMED_HGLOBAL;
-  aSTG.pUnkForRelease = NULL;
-
-  nsAutoString path;
-  rv = file->GetPath(path);
-  if (NS_FAILED(rv))
-    return E_FAIL;
-
-  PRUint32 allocLen = path.Length() + 2;
-  HGLOBAL hGlobalMemory = NULL;
-  PRUnichar *dest, *dest2;
-
-  hGlobalMemory = GlobalAlloc(GMEM_MOVEABLE, sizeof(DROPFILES) +
-                                             allocLen * sizeof(PRUnichar));
-  if (!hGlobalMemory)
-    return E_FAIL;
-
-  DROPFILES* pDropFile = (DROPFILES*)GlobalLock(hGlobalMemory);
-
-  // First, populate the drop file structure
-  pDropFile->pFiles = sizeof(DROPFILES); //Offset to start of file name string
-  pDropFile->fNC    = 0;
-  pDropFile->pt.x   = 0;
-  pDropFile->pt.y   = 0;
-  pDropFile->fWide  = TRUE;
-
-  // Copy the filename right after the DROPFILES structure
-  dest = (PRUnichar*)(((char*)pDropFile) + pDropFile->pFiles);
-  memcpy(dest, path.get(), (allocLen - 1) * sizeof(PRUnichar));
-
-  // Two null characters are needed at the end of the file name.
-  // Lookup the CF_HDROP shell clipboard format for more info.
-  // Add the second null character right after the first one.
-  dest[allocLen - 1] = L'\0';
-
-  GlobalUnlock(hGlobalMemory);
-
-  aSTG.hGlobal = hGlobalMemory;
-
-  return S_OK;
-}
-
-HRESULT nsDataObj::DropImage(FORMATETC& aFE, STGMEDIUM& aSTG)
-{
   nsresult rv;
   PRUint32 len = 0;
   nsCOMPtr<nsISupports> genericDataWrapper;
 
   mTransferable->GetTransferData(kNativeImageMime, getter_AddRefs(genericDataWrapper), &len);
-  nsCOMPtr<imgIContainer> image ( do_QueryInterface(genericDataWrapper) );
+  nsCOMPtr<nsIImage> image ( do_QueryInterface(genericDataWrapper) );
   
   if (!image) {
-    // Check if the image was put in an nsISupportsInterfacePointer wrapper.
-    // This might not be necessary any more, but could be useful for backwards
-    // compatibility.
+    // In the 0.9.4 timeframe, I had some embedding clients put the nsIImage directly into the
+    // transferable. Newer code, however, wraps the nsIImage in a nsISupportsInterfacePointer.
+    // We should be backwards compatibile with code already out in the field. If we can't find
+    // the image directly out of the transferable,  unwrap the image from its wrapper.
     nsCOMPtr<nsISupportsInterfacePointer> ptr(do_QueryInterface(genericDataWrapper));
     if (ptr)
       ptr->GetData(getter_AddRefs(image));

@@ -155,9 +155,22 @@ function dump_table(aName)
 }
 
 /**
+ * This dispatches the observer topic "quit-application" to clean up the sync
+ * component.
+ */
+function finish_test()
+{
+  // xpcshell doesn't dispatch shutdown-application
+  let os = Cc["@mozilla.org/observer-service;1"].
+           getService(Ci.nsIObserverService);
+  os.notifyObservers(null, "quit-application", null);
+  do_test_finished();
+}
+
+/**
  * Function tests to see if the place associated with the bookmark with id
- * aBookmarkId has the uri aExpectedURI.  The event will call do_test_finished()
- *  if aFinish is true.
+ * aBookmarkId has the uri aExpectedURI.  The event will call finish_test() if
+ * aFinish is true.
  *
  * @param aBookmarkId
  *        The bookmark to check against.
@@ -191,12 +204,12 @@ function new_test_bookmark_uri_event(aBookmarkId, aExpectedURI, aExpected, aFini
   stmt = null;
 
   if (aFinish)
-    do_test_finished();
+    finish_test();
 }
 
 /**
  * Function tests to see if the place associated with the visit with id aVisitId
- * has the uri aExpectedURI.  The event will call do_test_finished() if aFinish is
+ * has the uri aExpectedURI.  The event will call finish_test() if aFinish is
  * true.
  *
  * @param aVisitId
@@ -231,7 +244,7 @@ function new_test_visit_uri_event(aVisitId, aExpectedURI, aExpected, aFinish)
   stmt = null;
 
   if (aFinish)
-    do_test_finished();
+    finish_test();
 }
 
 /**
@@ -259,23 +272,6 @@ function DBConn()
   return dbConn;
 }
 
-/**
- * Flushes any events in the event loop of the main thread.
- */
-function flush_main_thread_events()
-{
-  let tm = Cc["@mozilla.org/thread-manager;1"].getService(Ci.nsIThreadManager);
-  while (tm.mainThread.hasPendingEvents())
-    tm.mainThread.processNextEvent(false);
-}
-
-// Simulates a Places shutdown.
-function shutdownPlaces()
-{
-  const TOPIC_XPCOM_SHUTDOWN = "xpcom-shutdown";
-  let hs = Cc["@mozilla.org/browser/nav-history-service;1"].
-           getService(Ci.nsIObserver);
-  hs.observe(null, TOPIC_XPCOM_SHUTDOWN, null);
-  let sync = Cc["@mozilla.org/places/sync;1"].getService(Ci.nsIObserver);
-  sync.observe(null, TOPIC_XPCOM_SHUTDOWN, null);
-}
+// profile-after-change doesn't create components in xpcshell, so we have to do
+// it ourselves
+Cc["@mozilla.org/places/sync;1"].getService(Ci.nsISupports);

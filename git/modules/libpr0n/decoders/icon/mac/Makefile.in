@@ -46,6 +46,12 @@ MODULE		= imgicon
 LIBRARY_NAME	= imgiconmac_s
 LIBXUL_LIBRARY = 1
 
+REQUIRES	= xpcom \
+		  string \
+		  necko \
+		  mimetype \
+		  exthandler \
+		  $(NULL)
 
 CMMSRCS		= nsIconChannelCocoa.mm
 

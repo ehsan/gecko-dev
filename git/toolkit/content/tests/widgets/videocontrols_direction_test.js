@@ -19,16 +19,7 @@ RemoteCanvas.prototype.load = function(callback) {
   iframe.src = this.url;
   var me = this;
   iframe.addEventListener("load", function() {
-    var m = iframe.contentDocument.getElementById("av");
-    m.addEventListener("progress", function(aEvent) {
-      if (aEvent.loaded == aEvent.total) {
-        m.removeEventListener("progress", arguments.callee, false);
-        setTimeout(function() {
-          me.remotePageLoaded(callback);
-        }, 0);
-      }
-    }, false);
-    m.src = m.getAttribute("source");
+    me.remotePageLoaded(callback);
   }, false);
   window.document.body.appendChild(iframe);
 };
@@ -62,10 +53,6 @@ function runTest(index) {
       if (result) {
         canvases[0].cleanup();
         canvases[1].cleanup();
-      }
-      else {
-        ok(true, "Snapshot of canvas 1: " + canvases[0].snapshot.toDataURL());
-        ok(true, "Snapshot of canvas 2: " + canvases[1].snapshot.toDataURL());
       }
 
       if (index < tests.length - 1)

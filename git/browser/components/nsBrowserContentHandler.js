@@ -505,7 +505,7 @@ var nsBrowserContentHandler = {
 #endif
   },
 
-  helpInfo : "  -browser           Open a browser window.\n",
+  helpInfo : "  -browser            Open a browser window.\n",
 
   /* nsIBrowserHandler */
 
@@ -909,6 +909,7 @@ var Module = {
     registerType("image/bmp");
     registerType("image/x-icon");
     registerType("image/vnd.microsoft.icon");
+    registerType("image/x-xbitmap");
     registerType("application/http-index-format");
 
     var catMan = Components.classes["@mozilla.org/categorymanager;1"]

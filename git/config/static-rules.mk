@@ -20,6 +20,6 @@ ifeq ($(OS_ARCH),IRIX)
 LDFLAGS	+= -Wl,-LD_LAYOUT:lgot_buffer=80
 endif
 
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 LIBS	+= -framework QuickTime -framework IOKit -lcrypto
 endif

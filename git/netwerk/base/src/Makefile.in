@@ -47,6 +47,13 @@ MODULE		= necko
 LIBRARY_NAME	= neckobase_s
 LIBXUL_LIBRARY  = 1
 
+REQUIRES	= xpcom \
+		  string \
+		  mimetype \
+		  uconv \
+		  locale \
+		  pref \
+		  $(NULL)
 
 CPPSRCS		= \
 		nsTransportUtils.cpp \
@@ -92,11 +99,6 @@ CPPSRCS		= \
 ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
 	CPPSRCS += nsURLHelperOS2.cpp
 else
-ifdef MOZ_ENABLE_LIBCONIC
-	CPPSRCS += nsAutodialMaemo.cpp
-	CPPSRCS += nsNativeConnectionHelper.cpp
-	LOCAL_INCLUDES += -I$(srcdir)/../../system/maemo
-endif
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 	CPPSRCS += nsURLHelperWin.cpp
 	CPPSRCS += nsNativeConnectionHelper.cpp
@@ -106,7 +108,7 @@ else
 	CPPSRCS += nsAutodialWinCE.cpp
 endif
 else
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 	CPPSRCS += nsURLHelperOSX.cpp
 else
 	CPPSRCS += nsURLHelperUnix.cpp
@@ -129,7 +131,3 @@ FORCE_STATIC_LIB = 1
 include $(topsrcdir)/config/rules.mk
 
 DEFINES += -DIMPL_NS_NET
-
-ifdef MOZ_ENABLE_LIBCONIC
-	OS_INCLUDES += $(GLIB_CFLAGS) $(LIBCONIC_CFLAGS)
-endif

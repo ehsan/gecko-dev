@@ -58,12 +58,10 @@ STACK_FAILURE_TESTCASES = \
   StackVector.cpp \
   StackConditional.cpp \
   StackAggrInit.cpp \
-  StackCondBad.cpp \
   $(NULL)
 
 STACK_PASS_TESTCASES = \
   StackPlacementNewOK.cpp \
-  StackCond.cpp \
   $(NULL)
 
 OUTPARAMS_WARNING_TESTCASES = \
@@ -112,34 +110,9 @@ FLOW_PASS_TESTCASES = \
 FLOW_FAILURE_TESTCASES = \
  flow_through_fail.cpp
 
-MUST_OVERRIDE_PASS_TESTCASES = \
-  OverrideOK1.cpp \
-  OverrideOK2.cpp \
-  $(NULL)
-
-MUST_OVERRIDE_FAILURE_TESTCASES = \
-  OverrideFail1.cpp \
-  OverrideFail2.cpp \
-  OverrideFail3.cpp \
-  OverrideFail4.cpp \
-  $(NULL)
-
-OVERRIDE_PASS_TESTCASES = \
-  override-pass.cpp \
-  $(NULL)
-
-OVERRIDE_FAILURE_TESTCASES = \
-  override-global.cpp \
-  override-signature.cpp \
-  override-static.cpp \
-  override-virtual.cpp \
-  $(NULL)
-
 STATIC_FAILURE_TESTCASES = \
   $(FINAL_FAILURE_TESTCASES) \
-  $(FLOW_FAILURE_TESTCASES) \
-  $(MUST_OVERRIDE_FAILURE_TESTCASES) \
-  $(OVERRIDE_FAILURE_TESTCASES) \
+  $(FLOW_FAILURE_TESTCASES)
   $(NULL)
 
 STATIC_WARNING_TESTCASES = \
@@ -152,10 +125,9 @@ STATIC_PASS_TESTCASES = \
   $(OUTPARAMS_PASS_TESTCASES) \
   $(STACK_PASS_TESTCASES) \
   $(FLOW_PASS_TESTCASES) \
-  $(MUST_OVERRIDE_PASS_TESTCASES) \
-  $(OVERRIDE_PASS_TESTCASES) \
   $(NULL)
 
+REQUIRES = xpcom
 
 include $(topsrcdir)/config/rules.mk
 

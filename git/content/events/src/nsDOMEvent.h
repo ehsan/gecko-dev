@@ -77,7 +77,6 @@ public:
     eDOMEvents_load,
     eDOMEvents_beforeunload,
     eDOMEvents_unload,
-    eDOMEvents_hashchange,
     eDOMEvents_abort,
     eDOMEvents_error,
     eDOMEvents_submit,
@@ -85,6 +84,7 @@ public:
     eDOMEvents_change,
     eDOMEvents_select,
     eDOMEvents_input,
+    eDOMEvents_paint,
     eDOMEvents_text,
     eDOMEvents_compositionstart,
     eDOMEvents_compositionend,
@@ -170,8 +170,7 @@ public:
     eDOMEvents_MozRotateGestureUpdate,
     eDOMEvents_MozRotateGesture,
     eDOMEvents_MozTapGesture,
-    eDOMEvents_MozPressTapGesture,
-    eDOMEvents_MozScrolledAreaChanged
+    eDOMEvents_MozPressTapGesture
   };
 
   nsDOMEvent(nsPresContext* aPresContext, nsEvent* aEvent);
@@ -199,11 +198,11 @@ public:
 
   static void Shutdown();
 
-  static const char* GetEventName(PRUint32 aEventType);
 protected:
 
   // Internal helper functions
   nsresult SetEventType(const nsAString& aEventTypeArg);
+  static const char* GetEventName(PRUint32 aEventType);
   already_AddRefed<nsIDOMEventTarget> GetTargetFromFrame();
   nsresult ReportWrongPropertyAccessWarning(const char* aPropertyName);
 
@@ -211,7 +210,6 @@ protected:
   nsCOMPtr<nsPresContext>     mPresContext;
   nsCOMPtr<nsIDOMEventTarget> mTmpRealOriginalTarget;
   nsCOMPtr<nsIDOMEventTarget> mExplicitOriginalTarget;
-  nsString                    mCachedType;
   PRPackedBool                mEventIsInternal;
   PRPackedBool                mPrivateDataDuplicated;
 };

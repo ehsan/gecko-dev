@@ -121,16 +121,12 @@ function run_test() {
     var sql = "UPDATE moz_bookmarks SET fk = 1337 WHERE id = ?1";
     var stmt = mDBConn.createStatement(sql);
     stmt.bindUTF8StringParameter(0, aTest._itemId);
-    try {
-      stmt.execute();
-    } finally {
-      stmt.finalize();
-    }
+    stmt.execute();
   });
 
   // export json to file
   try {
-    PlacesUtils.backups.saveBookmarksToJSONFile(jsonFile);
+    PlacesUtils.backupBookmarksToFile(jsonFile);
   } catch(ex) { do_throw("couldn't export to file: " + ex); }
 
   // clean

@@ -1,5 +1,5 @@
 /* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=78:
+ * vim: set ts=8 sw=4 et tw=78:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -71,12 +71,12 @@ struct JSStackFrame {
     jsbytecode      *imacpc;        /* null or interpreter macro call pc */
     jsval           *slots;         /* variables, locals and operand stack */
     JSObject        *callobj;       /* lazily created Call object */
-    jsval           argsobj;        /* lazily created arguments object, must be
-                                       JSVAL_OBJECT */
+    JSObject        *argsobj;       /* lazily created arguments object */
     JSObject        *varobj;        /* variables object, where vars go */
+    JSObject        *callee;        /* function or script object */
     JSScript        *script;        /* script being interpreted */
     JSFunction      *fun;           /* function being called or null */
-    jsval           thisv;          /* "this" pointer if in method */
+    JSObject        *thisp;         /* "this" pointer if in method */
     uintN           argc;           /* actual argument count */
     jsval           *argv;          /* base of argument stack slots */
     jsval           rval;           /* function return value */
@@ -90,7 +90,7 @@ struct JSStackFrame {
      * variables on the stack initially, note when they are closed
      * over, and copy those that are out to the heap when we leave
      * their dynamic scope.
-     *
+     * 
      * The bytecode compiler produces a tree of block objects
      * accompanying each JSScript representing those lexical blocks in
      * the script that have let-bound variables associated with them.
@@ -102,7 +102,7 @@ struct JSStackFrame {
      * When we are in the static scope of such a block, blockChain
      * points to its compiler-allocated block object; otherwise, it is
      * NULL.
-     *
+     * 
      * scopeChain is the current scope chain, including 'call' and
      * 'block' objects for those function calls and lexical blocks
      * whose static scope we are currently executing in, and 'with'
@@ -122,39 +122,17 @@ struct JSStackFrame {
     JSObject        *scopeChain;
     JSObject        *blockChain;
 
+    uintN           sharpDepth;     /* array/object initializer depth */
+    JSObject        *sharpArray;    /* scope for #n= initializer vars */
     uint32          flags;          /* frame flags -- see below */
     JSStackFrame    *dormantNext;   /* next dormant frame chain */
+    JSObject        *xmlNamespace;  /* null or default xml namespace in E4X */
     JSStackFrame    *displaySave;   /* previous value of display entry for
                                        script->staticLevel */
 
+#ifdef __cplusplus /* Aargh, LiveConnect, bug 442399. */
     inline void assertValidStackDepth(uintN depth);
-
-    void putActivationObjects(JSContext *cx) {
-        /*
-         * The order of calls here is important as js_PutCallObject needs to
-         * access argsobj.
-         */
-        if (callobj) {
-            js_PutCallObject(cx, this);
-            JS_ASSERT(!argsobj);
-        } else if (argsobj) {
-            js_PutArgsObject(cx, this);
-        }
-    }
-
-    jsval calleeValue() {
-        JS_ASSERT(argv);
-        return argv[-2];
-    }
-
-    JSObject *calleeObject() {
-        JS_ASSERT(argv);
-        return JSVAL_TO_OBJECT(argv[-2]);
-    }
-
-    JSObject *callee() {
-        return argv ? JSVAL_TO_OBJECT(argv[-2]) : NULL;
-    }
+#endif
 };
 
 #ifdef __cplusplus
@@ -171,22 +149,24 @@ StackBase(JSStackFrame *fp)
     return fp->slots + fp->script->nfixed;
 }
 
+#ifdef __cplusplus /* Aargh, LiveConnect, bug 442399. */
 void
 JSStackFrame::assertValidStackDepth(uintN depth)
 {
     JS_ASSERT(0 <= regs->sp - StackBase(this));
     JS_ASSERT(depth <= uintptr_t(regs->sp - StackBase(this)));
 }
+#endif
 
 static JS_INLINE uintN
 GlobalVarCount(JSStackFrame *fp)
 {
     uintN n;
-
+    
     JS_ASSERT(!fp->fun);
     n = fp->script->nfixed;
     if (fp->script->regexpsOffset != 0)
-        n -= fp->script->regexps()->length;
+        n -= JS_SCRIPT_REGEXPS(fp->script)->length;
     return n;
 }
 
@@ -200,8 +180,7 @@ typedef struct JSInlineFrame {
 
 /* JS stack frame flags. */
 #define JSFRAME_CONSTRUCTING   0x01 /* frame is for a constructor invocation */
-#define JSFRAME_COMPUTED_THIS  0x02 /* frame.thisv was computed already and
-                                       JSVAL_IS_OBJECT(thisv) */
+#define JSFRAME_COMPUTED_THIS  0x02 /* frame.thisp was computed already */
 #define JSFRAME_ASSIGNING      0x04 /* a complex (not simplex JOF_ASSIGNING) op
                                        is currently assigning to a property */
 #define JSFRAME_DEBUGGER       0x08 /* frame for JS_EvaluateInStackFrame */
@@ -210,14 +189,17 @@ typedef struct JSInlineFrame {
 #define JSFRAME_YIELDING       0x40 /* js_Interpret dispatched JSOP_YIELD */
 #define JSFRAME_ITERATOR       0x80 /* trying to get an iterator for for-in */
 #define JSFRAME_GENERATOR     0x200 /* frame belongs to generator-iterator */
-#define JSFRAME_OVERRIDE_ARGS 0x400 /* overridden arguments local variable */
+
+#define JSFRAME_OVERRIDE_SHIFT 24   /* override bit-set params; see jsfun.c */
+#define JSFRAME_OVERRIDE_BITS  8
 
 #define JSFRAME_SPECIAL       (JSFRAME_DEBUGGER | JSFRAME_EVAL)
 
 /*
  * Property cache with structurally typed capabilities for invalidation, for
- * polymorphic callsite method/get/set speedups.  For details, see
- * <https://developer.mozilla.org/en/SpiderMonkey/Internals/Property_cache>.
+ * polymorphic callsite method/get/set speedups.
+ *
+ * See bug https://bugzilla.mozilla.org/show_bug.cgi?id=365851.
  */
 #define PROPERTY_CACHE_LOG2     12
 #define PROPERTY_CACHE_SIZE     JS_BIT(PROPERTY_CACHE_LOG2)
@@ -235,7 +217,7 @@ typedef struct JSInlineFrame {
 #define PROPERTY_CACHE_HASH_PC(pc,kshape)                                     \
     PROPERTY_CACHE_HASH(pc, kshape)
 
-#define PROPERTY_CACHE_HASH_ATOM(atom,obj)                                    \
+#define PROPERTY_CACHE_HASH_ATOM(atom,obj,pobj)                               \
     PROPERTY_CACHE_HASH((jsuword)(atom) >> 2, OBJ_SHAPE(obj))
 
 /*
@@ -260,19 +242,18 @@ typedef struct JSInlineFrame {
 
 #define SHAPE_OVERFLOW_BIT      JS_BIT(32 - PCVCAP_TAGBITS)
 
+#ifndef JS_THREADSAFE
+# define js_GenerateShape(cx, gcLocked)    js_GenerateShape (cx)
+#endif
+
+extern uint32
+js_GenerateShape(JSContext *cx, JSBool gcLocked);
+
 struct JSPropCacheEntry {
     jsbytecode          *kpc;           /* pc if vcap tag is <= 1, else atom */
     jsuword             kshape;         /* key shape if pc, else obj for atom */
     jsuword             vcap;           /* value capability, see above */
     jsuword             vword;          /* value word, see PCVAL_* below */
-
-    bool adding() const {
-        return PCVCAP_TAG(vcap) == 0 && kshape != PCVCAP_SHAPE(vcap);
-    }
-
-    bool directHit() const {
-        return PCVCAP_TAG(vcap) == 0 && kshape == PCVCAP_SHAPE(vcap);
-    }
 };
 
 /*
@@ -401,13 +382,15 @@ js_FillPropertyCache(JSContext *cx, JSObject *obj,
             pobj = obj;                                                       \
             JS_ASSERT(PCVCAP_TAG(entry->vcap) <= 1);                          \
             if (PCVCAP_TAG(entry->vcap) == 1 &&                               \
-                (tmp_ = OBJ_GET_PROTO(cx, pobj)) != NULL) {                   \
+                (tmp_ = OBJ_GET_PROTO(cx, pobj)) != NULL &&                   \
+                OBJ_IS_NATIVE(tmp_)) {                                        \
                 pobj = tmp_;                                                  \
             }                                                                 \
                                                                               \
             if (JS_LOCK_OBJ_IF_SHAPE(cx, pobj, PCVCAP_SHAPE(entry->vcap))) {  \
                 PCMETER(cache_->pchits++);                                    \
                 PCMETER(!PCVCAP_TAG(entry->vcap) || cache_->protopchits++);   \
+                pobj = OBJ_SCOPE(pobj)->object;                               \
                 atom = NULL;                                                  \
                 break;                                                        \
             }                                                                 \
@@ -479,20 +462,18 @@ extern const uint16 js_PrimitiveTestFlags[];
      JSFUN_THISP_TEST(JSFUN_THISP_FLAGS((fun)->flags),                        \
                       js_PrimitiveTestFlags[JSVAL_TAG(thisv) - 1]))
 
-#ifdef __cplusplus /* Aargh, libgjs, bug 492720. */
-static JS_INLINE JSObject *
+static inline JSObject *
 js_ComputeThisForFrame(JSContext *cx, JSStackFrame *fp)
 {
     if (fp->flags & JSFRAME_COMPUTED_THIS)
-        return JSVAL_TO_OBJECT(fp->thisv);  /* JSVAL_COMPUTED_THIS invariant */
+        return fp->thisp;
     JSObject* obj = js_ComputeThis(cx, JS_TRUE, fp->argv);
     if (!obj)
         return NULL;
-    fp->thisv = OBJECT_TO_JSVAL(obj);
+    fp->thisp = obj;
     fp->flags |= JSFRAME_COMPUTED_THIS;
     return obj;
 }
-#endif
 
 /*
  * NB: js_Invoke requires that cx is currently running JS (i.e., that cx->fp
@@ -564,10 +545,6 @@ js_CheckRedeclaration(JSContext *cx, JSObject *obj, jsid id, uintN attrs,
 extern JSBool
 js_StrictlyEqual(JSContext *cx, jsval lval, jsval rval);
 
-/* === except that NaN is the same as NaN and -0 is not the same as +0. */
-extern JSBool
-js_SameValue(jsval v1, jsval v2, JSContext *cx);
-
 extern JSBool
 js_InternNonIntElementId(JSContext *cx, JSObject *obj, jsval idval, jsid *idp);
 
@@ -596,8 +573,6 @@ js_GetUpvar(JSContext *cx, uintN level, uintN cookie);
 #  define JS_LONE_INTERPRET 1
 # endif
 #endif
-
-#define JS_MAX_INLINE_CALL_COUNT 3000
 
 #if !JS_LONE_INTERPRET
 # define JS_STATIC_INTERPRET    static

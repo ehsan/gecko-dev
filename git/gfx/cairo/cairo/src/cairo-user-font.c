@@ -85,14 +85,13 @@ _cairo_user_scaled_font_create_meta_context (cairo_user_scaled_font_t *scaled_fo
 						     CAIRO_CONTENT_COLOR_ALPHA :
 						     CAIRO_CONTENT_ALPHA;
 
-    meta_surface = cairo_meta_surface_create (content, -1, -1);
+    meta_surface = _cairo_meta_surface_create (content, -1, -1);
     cr = cairo_create (meta_surface);
     cairo_surface_destroy (meta_surface);
 
     cairo_set_matrix (cr, &scaled_font->base.scale);
     cairo_set_font_size (cr, 1.0);
     cairo_set_font_options (cr, &scaled_font->base.options);
-    cairo_set_source_rgb (cr, 1., 1., 1.);
 
     return cr;
 }
@@ -119,7 +118,7 @@ _cairo_user_scaled_glyph_init (void			 *abstract_font,
 							     _cairo_scaled_glyph_index(scaled_glyph),
 							     cr, &extents);
 	else
-	    status = CAIRO_STATUS_USER_FONT_NOT_IMPLEMENTED;
+	    status = CAIRO_STATUS_USER_FONT_ERROR;
 
 	if (status == CAIRO_STATUS_SUCCESS)
 	    status = cairo_status (cr);
@@ -158,7 +157,8 @@ _cairo_user_scaled_glyph_init (void			 *abstract_font,
 
 	    _cairo_analysis_surface_set_ctm (analysis_surface,
 					     &scaled_font->extent_scale);
-	    status = cairo_meta_surface_replay (meta_surface, analysis_surface);
+	    status = _cairo_meta_surface_replay (meta_surface,
+						 analysis_surface);
 	    _cairo_analysis_surface_get_bounding_box (analysis_surface, &bbox);
 	    cairo_surface_destroy (analysis_surface);
 
@@ -213,7 +213,7 @@ _cairo_user_scaled_glyph_init (void			 *abstract_font,
 	cairo_surface_set_device_offset (surface,
 	                                 - _cairo_fixed_integer_floor (scaled_glyph->bbox.p1.x),
 	                                 - _cairo_fixed_integer_floor (scaled_glyph->bbox.p1.y));
-	status = cairo_meta_surface_replay (meta_surface, surface);
+	status = _cairo_meta_surface_replay (meta_surface, surface);
 
 	if (unlikely (status)) {
 	    cairo_surface_destroy(surface);
@@ -260,16 +260,12 @@ _cairo_user_ucs4_to_index (void	    *abstract_font,
 	status = face->scaled_font_methods.unicode_to_glyph (&scaled_font->base,
 							     ucs4, &glyph);
 
-	if (status == CAIRO_STATUS_USER_FONT_NOT_IMPLEMENTED)
-	    goto not_implemented;
-
 	if (status != CAIRO_STATUS_SUCCESS) {
 	    status = _cairo_scaled_font_set_error (&scaled_font->base, status);
 	    glyph = 0;
 	}
 
     } else {
-not_implemented:
 	glyph = ucs4;
     }
 
@@ -304,11 +300,10 @@ _cairo_user_text_to_glyphs (void		      *abstract_font,
 							   glyphs, num_glyphs,
 							   clusters, num_clusters, cluster_flags);
 
-	if (status != CAIRO_STATUS_SUCCESS &&
-	    status != CAIRO_STATUS_USER_FONT_NOT_IMPLEMENTED)
+	if (status != CAIRO_STATUS_SUCCESS)
 	    return status;
 
-	if (status == CAIRO_STATUS_USER_FONT_NOT_IMPLEMENTED || *num_glyphs < 0) {
+	if (*num_glyphs < 0) {
 	    if (orig_glyphs != *glyphs) {
 		cairo_glyph_free (*glyphs);
 		*glyphs = orig_glyphs;
@@ -438,9 +433,6 @@ _cairo_user_font_face_scaled_font_create (void                        *abstract_
 	    status = font_face->scaled_font_methods.init (&user_scaled_font->base,
 							  cr,
 							  &font_extents);
-
-	    if (status == CAIRO_STATUS_USER_FONT_NOT_IMPLEMENTED)
-		status = CAIRO_STATUS_SUCCESS;
 
 	    if (status == CAIRO_STATUS_SUCCESS)
 		status = cairo_status (cr);

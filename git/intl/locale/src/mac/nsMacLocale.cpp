@@ -41,6 +41,7 @@
 #include "nscore.h"
 #include "nsString.h"
 #include "nsReadableUtils.h"
+#include "nsILocale.h"
 #include "nsMacLocale.h"
 #include "nsLocaleCID.h"
 #include "prprf.h"
@@ -49,9 +50,9 @@
 
 struct iso_lang_map
 {
-  const char*  iso_code;
-  short        mac_lang_code;
-  short        mac_script_code;
+  char*  iso_code;
+  short  mac_lang_code;
+  short  mac_script_code;
 
 };
 typedef struct iso_lang_map iso_lang_map;
@@ -162,8 +163,8 @@ const iso_lang_map lang_list[] = {
 
 struct iso_country_map
 {
-  const char*  iso_code;
-  short        mac_region_code;
+  char*  iso_code;
+  short  mac_region_code;
 };
 
 typedef struct iso_country_map iso_country_map;

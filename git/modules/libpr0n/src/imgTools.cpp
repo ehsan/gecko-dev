@@ -41,18 +41,146 @@
 #include "nsString.h"
 #include "ImageErrors.h"
 #include "imgIContainer.h"
+#include "imgILoad.h"
 #include "imgIDecoder.h"
 #include "imgIEncoder.h"
 #include "imgIDecoderObserver.h"
 #include "imgIContainerObserver.h"
+#include "nsIImage.h"
+#include "gfxIImageFrame.h"
+#include "gfxImageSurface.h"
 #include "gfxContext.h"
 #include "nsStringStream.h"
 #include "nsComponentManagerUtils.h"
 #include "nsWeakReference.h"
 #include "nsIInterfaceRequestorUtils.h"
-#include "nsStreamUtils.h"
-#include "nsNetUtil.h"
-#include "imgContainer.h"
+
+
+/* ========== Utility classes ========== */
+
+
+class HelperLoader : public imgILoad,
+                     public imgIDecoderObserver,
+                     public nsSupportsWeakReference
+{
+  public:
+    NS_DECL_ISUPPORTS
+    NS_DECL_IMGILOAD
+    NS_DECL_IMGIDECODEROBSERVER
+    NS_DECL_IMGICONTAINEROBSERVER
+    HelperLoader(void);
+
+  private:
+    nsCOMPtr<imgIContainer> mContainer;
+};
+
+NS_IMPL_ISUPPORTS4 (HelperLoader, imgILoad, imgIDecoderObserver, imgIContainerObserver, nsISupportsWeakReference)
+
+HelperLoader::HelperLoader (void)
+{
+}
+
+/* Implement imgILoad::image getter */
+NS_IMETHODIMP
+HelperLoader::GetImage(imgIContainer **aImage)
+{
+  *aImage = mContainer;
+  NS_IF_ADDREF (*aImage);
+  return NS_OK;
+}
+
+/* Implement imgILoad::image setter */
+NS_IMETHODIMP
+HelperLoader::SetImage(imgIContainer *aImage)
+{
+  mContainer = aImage;
+  return NS_OK;
+}
+
+/* Implement imgILoad::isMultiPartChannel getter */
+NS_IMETHODIMP
+HelperLoader::GetIsMultiPartChannel(PRBool *aIsMultiPartChannel)
+{
+  *aIsMultiPartChannel = PR_FALSE;
+  return NS_OK;
+}
+
+/* Implement imgIDecoderObserver::onStartRequest() */
+NS_IMETHODIMP
+HelperLoader::OnStartRequest(imgIRequest *aRequest)
+{
+  return NS_OK;
+}
+
+/* Implement imgIDecoderObserver::onStartDecode() */
+NS_IMETHODIMP
+HelperLoader::OnStartDecode(imgIRequest *aRequest)
+{
+  return NS_OK;
+}
+
+/* Implement imgIDecoderObserver::onStartContainer() */
+NS_IMETHODIMP
+HelperLoader::OnStartContainer(imgIRequest *aRequest, imgIContainer
+*aContainer)
+{
+  return NS_OK;
+}
+
+/* Implement imgIDecoderObserver::onStartFrame() */
+NS_IMETHODIMP
+HelperLoader::OnStartFrame(imgIRequest *aRequest, gfxIImageFrame *aFrame)
+{
+  return NS_OK;
+}
+
+/* Implement imgIDecoderObserver::onDataAvailable() */
+NS_IMETHODIMP
+HelperLoader::OnDataAvailable(imgIRequest *aRequest, gfxIImageFrame
+*aFrame, const nsIntRect * aRect)
+{
+  return NS_OK;
+}
+
+/* Implement imgIDecoderObserver::onStopFrame() */
+NS_IMETHODIMP
+HelperLoader::OnStopFrame(imgIRequest *aRequest, gfxIImageFrame *aFrame)
+{
+  return NS_OK;
+}
+
+/* Implement imgIDecoderObserver::onStopContainer() */
+NS_IMETHODIMP
+HelperLoader::OnStopContainer(imgIRequest *aRequest, imgIContainer
+*aContainer)
+{
+  return NS_OK;
+}
+
+/* Implement imgIDecoderObserver::onStopDecode() */
+NS_IMETHODIMP
+HelperLoader::OnStopDecode(imgIRequest *aRequest, nsresult status, const
+PRUnichar *statusArg)
+{
+  return NS_OK;
+}
+
+/* Implement imgIDecoderObserver::onStopRequest() */
+NS_IMETHODIMP
+HelperLoader::OnStopRequest(imgIRequest *aRequest, PRBool aIsLastPart)
+{
+  return NS_OK;
+}
+  
+/* implement imgIContainerObserver::frameChanged() */
+NS_IMETHODIMP
+HelperLoader::FrameChanged(imgIContainer *aContainer,
+                           gfxIImageFrame *aFrame, nsIntRect * aDirtyRect)
+{
+  return NS_OK;
+}
+
+
 
 /* ========== imgITools implementation ========== */
 
@@ -77,48 +205,45 @@ NS_IMETHODIMP imgTools::DecodeImageData(nsIInputStream* aInStr,
 {
   nsresult rv;
 
-  NS_ENSURE_ARG_POINTER(aInStr);
-  // If the caller didn't provide a container, create one
-  if (!*aContainer) {
-    NS_NEWXPCOM(*aContainer, imgContainer);
-    if (!*aContainer)
-      return NS_ERROR_OUT_OF_MEMORY;
-    NS_ADDREF(*aContainer);
-  }
+  // Get an image decoder for our media type
+  nsCAutoString decoderCID(
+    NS_LITERAL_CSTRING("@mozilla.org/image/decoder;2?type=") + aMimeType);
 
-  // Initialize the container. If we're using the one from the caller, we
-  // require that it not be initialized
-  nsCString mimeType(aMimeType);
-  rv = (*aContainer)->Init(nsnull, mimeType.get(), imgIContainer::INIT_FLAG_NONE);
+  nsCOMPtr<imgIDecoder> decoder = do_CreateInstance(decoderCID.get());
+  if (!decoder)
+    return NS_IMAGELIB_ERROR_NO_DECODER;
+
+  // Init the decoder, we use a small utility class here.
+  nsCOMPtr<imgILoad> loader = new HelperLoader();
+  if (!loader)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  // If caller provided an existing container, use it.
+  if (*aContainer)
+    loader->SetImage(*aContainer);
+
+  rv = decoder->Init(loader);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIInputStream> inStream = aInStr;
-  if (!NS_InputStreamIsBuffered(aInStr)) {
-    nsCOMPtr<nsIInputStream> bufStream;
-    rv = NS_NewBufferedInputStream(getter_AddRefs(bufStream), aInStr, 1024);
-    if (NS_SUCCEEDED(rv))
-      inStream = bufStream;
-  }
-
-  // Figure out how much data we've been passed
   PRUint32 length;
-  rv = inStream->Available(&length);
+  rv = aInStr->Available(&length);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Send the source data to the container. WriteToContainer always
-  // consumes everything it gets.
-  PRUint32 bytesRead;
-  rv = inStream->ReadSegments(imgContainer::WriteToContainer,
-                              static_cast<void*>(*aContainer),
-                              length, &bytesRead);
+  PRUint32 written;
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = decoder->WriteFrom(aInStr, length, &written);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (written != length)
+    NS_WARNING("decoder didn't eat all of its vegetables");
+  rv = decoder->Flush();
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = decoder->Close();
   NS_ENSURE_SUCCESS(rv, rv);
 
+  // If caller didn't provide an existing container, return the new one.
+  if (!*aContainer)
+    loader->GetImage(aContainer);
 
-  // Let the container know we've sent all the data
-  rv = (*aContainer)->SourceDataComplete();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // All done
   return NS_OK;
 }
 
@@ -160,17 +285,19 @@ NS_IMETHODIMP imgTools::EncodeScaledImage(imgIContainer *aContainer,
     return NS_IMAGELIB_ERROR_NO_ENCODER;
 
   // Use frame 0 from the image container.
-  nsRefPtr<gfxImageSurface> frame;
-  rv = aContainer->CopyFrame(imgIContainer::FRAME_CURRENT, PR_TRUE,
-                             getter_AddRefs(frame));
+  nsCOMPtr<gfxIImageFrame> frame;
+  rv = aContainer->GetFrameAt(0, getter_AddRefs(frame));
   NS_ENSURE_SUCCESS(rv, rv);
   if (!frame)
     return NS_ERROR_NOT_AVAILABLE;
 
-  PRInt32 w = frame->Width(), h = frame->Height();
+  PRInt32 w,h;
+  frame->GetWidth(&w);
+  frame->GetHeight(&h);
   if (!w || !h)
     return NS_ERROR_FAILURE;
 
+  nsCOMPtr<nsIImage> img(do_GetInterface(frame));
   nsRefPtr<gfxImageSurface> dest;
 
   if (!doScaling) {
@@ -178,15 +305,22 @@ NS_IMETHODIMP imgTools::EncodeScaledImage(imgIContainer *aContainer,
     aScaledWidth  = w;
     aScaledHeight = h;
 
-    bitmapData = frame->Data();
-    if (!bitmapData)
+    img->LockImagePixels(PR_FALSE);
+    bitmapData = img->GetBits();
+    if (!bitmapData) {
+      img->UnlockImagePixels(PR_FALSE);
       return NS_ERROR_FAILURE;
+    }
 
-    strideSize = frame->Stride();
+    frame->GetImageBytesPerRow(&strideSize);
     bitmapDataLength = aScaledHeight * strideSize;
 
   } else {
     // Prepare to draw a scaled version of the image to a temporary surface...
+
+    // Get the source image surface
+    nsRefPtr<gfxPattern> gfxpat;
+    img->GetPattern(getter_AddRefs(gfxpat));
 
     // Create a temporary image surface
     dest = new gfxImageSurface(gfxIntSize(aScaledWidth, aScaledHeight),
@@ -203,7 +337,7 @@ NS_IMETHODIMP imgTools::EncodeScaledImage(imgIContainer *aContainer,
 
     // Paint a scaled image
     ctx.SetOperator(gfxContext::OPERATOR_SOURCE);
-    ctx.SetSource(frame);
+    ctx.SetPattern(gfxpat);
     ctx.Paint();
 
     bitmapData = dest->Data();
@@ -215,6 +349,8 @@ NS_IMETHODIMP imgTools::EncodeScaledImage(imgIContainer *aContainer,
   rv = encoder->InitFromData(bitmapData, bitmapDataLength,
                              aScaledWidth, aScaledHeight, strideSize,
                              imgIEncoder::INPUT_FORMAT_HOSTARGB, EmptyString());
+  if (!doScaling)
+    img->UnlockImagePixels(PR_FALSE);
 
   NS_ENSURE_SUCCESS(rv, rv);
 

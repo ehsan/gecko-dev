@@ -45,6 +45,7 @@
 
 #include "imgIRequest.h"
 #include "imgIDecoderObserver.h"
+class gfxIImageFrame;
 
 /**
  * A simple class that manages the layout and rendering of html bullets.
@@ -52,8 +53,6 @@
  */
 class nsBulletFrame : public nsFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   nsBulletFrame(nsStyleContext* aContext) : nsFrame(aContext) {}
   virtual ~nsBulletFrame();
 
@@ -82,12 +81,13 @@ public:
 
   NS_IMETHOD OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
   NS_IMETHOD OnDataAvailable(imgIRequest *aRequest,
-                             PRBool aCurrentFrame,
+                             gfxIImageFrame *aFrame,
                              const nsIntRect *aRect);
   NS_IMETHOD OnStopDecode(imgIRequest *aRequest,
                           nsresult aStatus,
                           const PRUnichar *aStatusArg);
   NS_IMETHOD FrameChanged(imgIContainer *aContainer,
+                          gfxIImageFrame *aNewframe,
                           nsIntRect *aDirtyRect);
 
   /* get list item text, without '.' */

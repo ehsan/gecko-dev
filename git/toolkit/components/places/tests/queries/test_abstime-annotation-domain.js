@@ -150,7 +150,7 @@ var testData = [
  * testing for items that should be ignored while querying over history.
  * The Query:WHERE absoluteTime(matches) AND searchTerms AND URI
  *                 AND annotationIsNot(match) GROUP BY Domain, Day SORT BY uri,ascending
- *                 excludeITems(should be ignored)
+ *                 excludeITems(should be ignored) ShowSessions(should be ignored)
  */
 function run_test() {
 
@@ -176,6 +176,7 @@ function run_test() {
   // The next two options should be ignored
   // can't use this one, breaks test - bug 419779
   // options.excludeItems = true;
+  options.showSessions = true;
 
   // Results
   var result = histsvc.executeQuery(query, options);

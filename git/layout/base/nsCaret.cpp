@@ -91,7 +91,6 @@ nsCaret::nsCaret()
 , mBlinkRate(500)
 , mVisible(PR_FALSE)
 , mDrawn(PR_FALSE)
-, mPendingDraw(PR_FALSE)
 , mReadOnly(PR_FALSE)
 , mShowDuringSelection(PR_FALSE)
 , mIgnoreUserModify(PR_TRUE)
@@ -194,7 +193,7 @@ nsCaret::Metrics nsCaret::ComputeMetrics(nsIFrame* aFrame, PRInt32 aOffset, nsco
     caretWidth += nsPresContext::CSSPixelsToAppUnits(1);
   }
   nscoord bidiIndicatorSize = nsPresContext::CSSPixelsToAppUnits(kMinBidiIndicatorPixels);
-  bidiIndicatorSize = NS_MAX(caretWidth, bidiIndicatorSize);
+  bidiIndicatorSize = PR_MAX(caretWidth, bidiIndicatorSize);
 
   // Round them to device pixels. Always round down, except that anything
   // between 0 and 1 goes up to 1 so we don't let the caret disappear.
@@ -790,8 +789,8 @@ nsCaret::GetCaretFrameForNodeOffset(nsIContent*             aContentNode,
 
         if ((levelBefore != levelAfter) || (aBidiLevel != levelBefore))
         {
-          aBidiLevel = NS_MAX(aBidiLevel, NS_MIN(levelBefore, levelAfter));                                  // rule c3
-          aBidiLevel = NS_MIN(aBidiLevel, NS_MAX(levelBefore, levelAfter));                                  // rule c4
+          aBidiLevel = PR_MAX(aBidiLevel, PR_MIN(levelBefore, levelAfter));                                  // rule c3
+          aBidiLevel = PR_MIN(aBidiLevel, PR_MAX(levelBefore, levelAfter));                                  // rule c4
           if (aBidiLevel == levelBefore                                                                      // rule c1
               || (aBidiLevel > levelBefore && aBidiLevel < levelAfter && !((aBidiLevel ^ levelBefore) & 1))    // rule c5
               || (aBidiLevel < levelBefore && aBidiLevel > levelAfter && !((aBidiLevel ^ levelBefore) & 1)))  // rule c9
@@ -950,8 +949,7 @@ void nsCaret::GetViewForRendering(nsIFrame *caretFrame,
     if (outRelativeView && coordType == eTopLevelWindowCoordinates) {
       nsCOMPtr<nsIPresShell> presShell = do_QueryReferent(mPresShell);
       if (presShell) {
-        nsIViewManager* vm =
-          presShell->GetPresContext()->RootPresContext()->PresShell()->GetViewManager();
+        nsIViewManager* vm = presShell->GetViewManager();
         if (vm) {
           vm->GetRootView(*outRelativeView);
         }
@@ -962,19 +960,11 @@ void nsCaret::GetViewForRendering(nsIFrame *caretFrame,
   *outRenderingView = returnView;
 }
 
-nsresult nsCaret::CheckCaretDrawingState()
+nsresult nsCaret::CheckCaretDrawingState() 
 {
-  if (mDrawn) {
-    // The caret is drawn; if it shouldn't be, erase it.
-    if (!mVisible || !MustDrawCaret(PR_TRUE))
-      EraseCaret();
-  }
-  else
-  {
-    // The caret is not drawn; if it should be, draw it.
-    if (mPendingDraw && (mVisible && MustDrawCaret(PR_TRUE)))
-      DrawCaret(PR_TRUE);
-  }
+  // If the caret's drawn when it shouldn't be, erase it.
+  if (mDrawn && (!mVisible || !MustDrawCaret(PR_TRUE)))
+    EraseCaret();
   return NS_OK;
 }
 
@@ -992,14 +982,22 @@ nsresult nsCaret::CheckCaretDrawingState()
 ----------------------------------------------------------------------------- */
 PRBool nsCaret::MustDrawCaret(PRBool aIgnoreDrawnState)
 {
+  nsCOMPtr<nsIPresShell> presShell = do_QueryReferent(mPresShell);
+  if (presShell) {
+    PRBool isPaintingSuppressed;
+    presShell->IsPaintingSuppressed(&isPaintingSuppressed);
+    if (isPaintingSuppressed)
+      return PR_FALSE;
+  }
+
   if (!aIgnoreDrawnState && mDrawn)
     return PR_TRUE;
 
   nsCOMPtr<nsISelection> domSelection = do_QueryReferent(mDomSelectionWeak);
   if (!domSelection)
     return PR_FALSE;
-
   PRBool isCollapsed;
+
   if (NS_FAILED(domSelection->GetIsCollapsed(&isCollapsed)))
     return PR_FALSE;
 
@@ -1060,29 +1058,18 @@ PRBool nsCaret::IsMenuPopupHidingCaret()
   return PR_FALSE;
 }
 
+/*-----------------------------------------------------------------------------
+
+  DrawCaret
+    
+----------------------------------------------------------------------------- */
+
 void nsCaret::DrawCaret(PRBool aInvalidate)
 {
-  // Do we need to draw the caret at all?
+  // do we need to draw the caret at all?
   if (!MustDrawCaret(PR_FALSE))
     return;
   
-  // Can we draw the caret now?
-  nsCOMPtr<nsIPresShell> presShell = do_QueryReferent(mPresShell);
-  NS_ENSURE_TRUE(presShell, /**/);
-  {
-    PRBool isPaintingSuppressed;
-    presShell->IsPaintingSuppressed(&isPaintingSuppressed);
-    if (isPaintingSuppressed)
-    {
-      if (!mDrawn)
-        mPendingDraw = PR_TRUE;
-
-      // PresShell::UnsuppressAndInvalidate() will call CheckCaretDrawingState()
-      // to get us drawn.
-      return;
-    }
-  }
-
   nsCOMPtr<nsIDOMNode> node;
   PRInt32 offset;
   nsFrameSelection::HINT hint;
@@ -1114,9 +1101,7 @@ void nsCaret::DrawCaret(PRBool aInvalidate)
     nsCOMPtr<nsFrameSelection> frameSelection = GetFrameSelection();
     if (!frameSelection)
       return;
-
     bidiLevel = frameSelection->GetCaretBidiLevel();
-    mPendingDraw = PR_FALSE;
   }
   else
   {
@@ -1141,21 +1126,6 @@ void nsCaret::DrawCaret(PRBool aInvalidate)
   ToggleDrawnStatus();
 }
 
-static PRBool
-FramesOnSameLineHaveZeroHeight(nsIFrame* aFrame)
-{
-  nsLineBox* line = FindContainingLine(aFrame);
-  if (!line)
-    return aFrame->GetRect().height == 0;
-  PRInt32 count = line->GetChildCount();
-  for (nsIFrame* f = line->mFirstChild; count > 0; --count, f = f->GetNextSibling())
-  {
-   if (f->GetRect().height != 0)
-     return PR_FALSE;
-  }
-  return PR_TRUE;
-}
-
 nsresult nsCaret::UpdateCaretRects(nsIFrame* aFrame, PRInt32 aFrameOffset)
 {
   NS_ASSERTION(aFrame, "Should have a frame here");
@@ -1166,6 +1136,8 @@ nsresult nsCaret::UpdateCaretRects(nsIFrame* aFrame, PRInt32 aFrameOffset)
 
   nsCOMPtr<nsIPresShell> presShell = do_QueryReferent(mPresShell);
   if (!presShell) return NS_ERROR_FAILURE;
+
+  nsPresContext *presContext = presShell->GetPresContext();
 
   // If we got a zero-height frame we should figure out a height. We have to do
   // this after we've got an RC.
@@ -1181,12 +1153,11 @@ nsresult nsCaret::UpdateCaretRects(nsIFrame* aFrame, PRInt32 aFrameOffset)
       fm->GetMaxDescent(descent);
       frameRect.height = ascent + descent;
 
-      // Place the caret on the baseline for inline frames, except when there is
-      // a frame on the line with non-zero height.  XXXmats why the exception? --
-      // I don't know but it seems to be necessary, see bug 503531.
-      if (aFrame->GetStyleDisplay()->IsInlineOutside() &&
-          !FramesOnSameLineHaveZeroHeight(aFrame))
-        frameRect.y -= ascent;
+      // If it's a BR frame then it's probably at the end of a non-empty line
+      // (see BRFrame::Reflow). BR frames sit on the baseline of the text, so we
+      // need to subtract the ascent to account for the frame height.
+      if (aFrame->GetType() == nsGkAtoms::brFrame)
+          frameRect.y -= ascent;
     }
   }
 
@@ -1241,7 +1212,7 @@ nsresult nsCaret::UpdateCaretRects(nsIFrame* aFrame, PRInt32 aFrameOffset)
   if (NS_STYLE_DIRECTION_RTL == vis->mDirection)
     mCaretRect.x -= mCaretRect.width;
 
-  return UpdateHookRect(presShell->GetPresContext(), metrics);
+  return UpdateHookRect(presContext, metrics);
 }
 
 nsresult nsCaret::UpdateHookRect(nsPresContext* aPresContext,

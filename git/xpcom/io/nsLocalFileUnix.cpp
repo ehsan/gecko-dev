@@ -67,11 +67,6 @@
     #include <fabdef.h>
 #endif
 
-#if defined(HAVE_SYS_QUOTA_H)
-#include <sys/sysmacros.h>
-#include <sys/quota.h>
-#endif
-
 #include "nsDirectoryServiceDefs.h"
 #include "nsCRT.h"
 #include "nsCOMPtr.h"
@@ -88,19 +83,21 @@
 #include "nsITimelineService.h"
 
 #ifdef MOZ_WIDGET_GTK2
-#include "nsIGIOService.h"
 #include "nsIGnomeVFSService.h"
-#endif
-
-#ifdef MOZ_PLATFORM_HILDON
-#include <glib.h>
-#include <hildon-uri.h>
-#include <hildon-mime.h>
-#include <libosso.h>
 #endif
 
 #include "nsNativeCharsetUtils.h"
 #include "nsTraceRefcntImpl.h"
+
+// On some platforms file/directory name comparisons need to
+// be case-blind.
+#if defined(VMS)
+    #define FILE_STRCMP strcasecmp
+    #define FILE_STRNCMP strncasecmp
+#else
+    #define FILE_STRCMP strcmp
+    #define FILE_STRNCMP strncmp
+#endif
 
 #define ENSURE_STAT_CACHE()                     \
     PR_BEGIN_MACRO                              \
@@ -1130,56 +1127,6 @@ nsLocalFile::GetFileSizeOfLink(PRInt64 *aFileSize)
     return NS_OK;
 }
 
-/*
- * Searches /proc/self/mountinfo for given device (Major:Minor), 
- * returns exported name from /dev
- *
- * Fails when /proc/self/mountinfo or diven device don't exist.
- */
-static PRBool
-GetDeviceName(int deviceMajor, int deviceMinor, nsACString &deviceName)
-{
-    PRBool ret = false;
-    
-    const int kMountInfoLineLength = 200;
-    const int kMountInfoDevPosition = 6;
-
-    char mountinfo_line[kMountInfoLineLength];
-    char device_num[kMountInfoLineLength];
-    
-    snprintf(device_num,kMountInfoLineLength,"%d:%d", deviceMajor, deviceMinor);
-    
-    FILE *f = fopen("/proc/self/mountinfo","rt");
-    if(!f)
-        return ret;
-
-    // Expects /proc/self/mountinfo in format:
-    // 'ID ID major:minor root mountpoint flags - type devicename flags'
-    while(fgets(mountinfo_line,kMountInfoLineLength,f)) {
-        char *p_dev = strstr(mountinfo_line,device_num);
-    
-        int i;
-        for(i = 0; i < kMountInfoDevPosition && p_dev != NULL; i++) {
-            p_dev = strchr(p_dev,' ');
-            if(p_dev)
-              p_dev++;
-        }
-    
-        if(p_dev) {
-            char *p_dev_end = strchr(p_dev,' ');
-            if(p_dev_end) {
-                *p_dev_end = '\0';
-                deviceName.Assign(p_dev);
-                ret = true;
-                break;
-            }
-        }
-    }
-    
-    fclose(f);
-    return ret; 
-}
-
 NS_IMETHODIMP
 nsLocalFile::GetDiskSpaceAvailable(PRInt64 *aDiskSpaceAvailable)
 {
@@ -1219,27 +1166,6 @@ nsLocalFile::GetDiskSpaceAvailable(PRInt64 *aDiskSpaceAvailable)
      * of the aforementioned blocks.
      */
     *aDiskSpaceAvailable = (PRInt64)fs_buf.f_bsize * (fs_buf.f_bavail - 1);
-
-#if defined(HAVE_SYS_STAT_H) || defined(HAVE_SYS_QUOTA_H)
-
-    if(!FillStatCache()) {
-        // Return available size from statfs
-        return NS_OK;
-    }
-
-    nsCString deviceName;
-    if(!GetDeviceName(major(mCachedStat.st_dev), minor(mCachedStat.st_dev), deviceName)) {
-        return NS_OK;
-    }
-
-    struct dqblk dq;
-    if(!quotactl(QCMD(Q_GETQUOTA, USRQUOTA), deviceName.get(), getuid(), (caddr_t)&dq)) {
-        PRInt64 QuotaSpaceAvailable = PRInt64(fs_buf.f_bsize * dq.dqb_bhardlimit);
-        if(QuotaSpaceAvailable < *aDiskSpaceAvailable) {
-            *aDiskSpaceAvailable = QuotaSpaceAvailable;
-        }
-    }
-#endif
 
     return NS_OK;
 
@@ -1481,14 +1407,13 @@ nsLocalFile::Equals(nsIFile *inFile, PRBool *_retval)
     NS_ENSURE_ARG_POINTER(_retval);
     *_retval = PR_FALSE;
 
+    nsresult rv;
     nsCAutoString inPath;
-    nsresult rv = inFile->GetNativePath(inPath);
-    if (NS_FAILED(rv))
+
+    if (NS_FAILED(rv = inFile->GetNativePath(inPath)))
         return rv;
 
-    // We don't need to worry about "/foo/" vs. "/foo" here
-    // because trailing slashes are stripped on init.
-    *_retval = !strcmp(inPath.get(), mPath.get());
+    *_retval = !FILE_STRCMP(inPath.get(), mPath.get());
     return NS_OK;
 }
 
@@ -1508,7 +1433,7 @@ nsLocalFile::Contains(nsIFile *inFile, PRBool recur, PRBool *_retval)
     *_retval = PR_FALSE;
 
     ssize_t len = mPath.Length();
-    if (strncmp(mPath.get(), inPath.get(), len) == 0) {
+    if (FILE_STRNCMP(mPath.get(), inPath.get(), len) == 0) {
         // Now make sure that the |inFile|'s path has a separator at len,
         // which implies that it has more components after len.
         if (inPath[len] == '/')
@@ -1709,9 +1634,8 @@ NS_IMETHODIMP
 nsLocalFile::Reveal()
 {
 #ifdef MOZ_WIDGET_GTK2
-    nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
-    nsCOMPtr<nsIGnomeVFSService> gnomevfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
-    if (!giovfs && !gnomevfs)
+    nsCOMPtr<nsIGnomeVFSService> vfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
+    if (!vfs)
         return NS_ERROR_FAILURE;
 
     PRBool isDirectory;
@@ -1719,11 +1643,7 @@ nsLocalFile::Reveal()
         return NS_ERROR_FAILURE;
 
     if (isDirectory) {
-        if (giovfs)
-            return giovfs->ShowURIForInput(mPath);
-        else 
-            /* Fallback to GnomeVFS */
-            return gnomevfs->ShowURIForInput(mPath);
+        return vfs->ShowURIForInput(mPath);
     } else {
         nsCOMPtr<nsIFile> parentDir;
         nsCAutoString dirPath;
@@ -1732,10 +1652,7 @@ nsLocalFile::Reveal()
         if (NS_FAILED(parentDir->GetNativePath(dirPath)))
             return NS_ERROR_FAILURE;
 
-        if (giovfs)
-            return giovfs->ShowURIForInput(dirPath);
-        else 
-            return gnomevfs->ShowURIForInput(dirPath);        
+        return vfs->ShowURIForInput(dirPath);
     }
 #else
     return NS_ERROR_FAILURE;
@@ -1746,35 +1663,11 @@ NS_IMETHODIMP
 nsLocalFile::Launch()
 {
 #ifdef MOZ_WIDGET_GTK2
-#ifdef MOZ_PLATFORM_HILDON
-    const PRInt32 kHILDON_SUCCESS = 1;
-    DBusError err;
-    dbus_error_init(&err);
+    nsCOMPtr<nsIGnomeVFSService> vfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
+    if (!vfs)
+        return NS_ERROR_FAILURE;
 
-    DBusConnection *connection = dbus_bus_get(DBUS_BUS_SESSION, &err);
-    if (dbus_error_is_set(&err)) {
-      dbus_error_free(&err);
-      return NS_ERROR_FAILURE;
-    }
-
-    if (nsnull == connection)
-      return NS_ERROR_FAILURE;
-
-    if (hildon_mime_open_file(connection, mPath.get()) != kHILDON_SUCCESS)
-      return NS_ERROR_FAILURE;
-    return NS_OK;
-#else
-    nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
-    nsCOMPtr<nsIGnomeVFSService> gnomevfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
-    if (giovfs) {
-      return giovfs->ShowURIForInput(mPath);
-    } else if (gnomevfs) {
-      /* GnomeVFS fallback */
-      return gnomevfs->ShowURIForInput(mPath);
-    }
-    
-    return NS_ERROR_FAILURE;
-#endif
+    return vfs->ShowURIForInput(mPath);
 #else
     return NS_ERROR_FAILURE;
 #endif

@@ -71,10 +71,6 @@ _TEST_FILES = 	test_bug589.html \
 		bug277890_load.html \
 		test_bug277890.html \
 		test_bug287465.html \
-		test_bug209275.xhtml \
-		file_bug209275_1.html \
-		file_bug209275_2.html \
-		file_bug209275_3.html \
 		test_bug295561.html \
 		test_bug300691-1.html \
 		test_bug300691-2.html \
@@ -87,7 +83,6 @@ _TEST_FILES = 	test_bug589.html \
 		test_bug332893-4.html \
 		test_bug332893-5.html \
 		test_bug332893-6.html \
-		test_bug332893-7.html \
 		bug340800_iframe.txt \
 		test_bug340800.html \
 		test_bug353415-1.html \
@@ -136,14 +131,6 @@ _TEST_FILES = 	test_bug589.html \
 		347174transformable.xml \
 		347174transform.xsl \
 		test_bug481335.xhtml \
-		test_bug500885.html \
-		test_bug514856.html \
-		bug514856_iframe.html \
-		test_bug519987.html \
-		test_bug523771.html \
-		form_submit_server.sjs \
-		test_bug529819.html \
-		test_bug529859.html \
 		$(NULL)
 
 libs:: $(_TEST_FILES)

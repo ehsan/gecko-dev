@@ -50,8 +50,6 @@
 
 class nsMathMLmunderFrame : public nsMathMLContainerFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   friend nsIFrame* NS_NewMathMLmunderFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   virtual nsresult

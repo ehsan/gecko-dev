@@ -59,9 +59,10 @@ enum nsRectVisibility {
   nsRectVisibility_kZeroAreaRect
 }; 
 
+// fa490965-ebd0-4203-836c-51c42d01fedb
 #define NS_IVIEWMANAGER_IID   \
-  { 0xe1f3095c, 0x65cd, 0x46e1, \
-    { 0x9d, 0x70, 0x88, 0xcf, 0x54, 0x19, 0x9d, 0x05 } }
+{ 0xfa490965, 0xebd0, 0x4203, \
+  { 0x83, 0x6c, 0x51, 0xc4, 0x2d, 0x01, 0xfe, 0xdb } }
 
 class nsIViewManager : public nsISupports
 {
@@ -180,12 +181,25 @@ public:
    * Called to dispatch an event to the appropriate view. Often called
    * as a result of receiving a mouse or keyboard event from the widget
    * event system.
-   * @param aEvent event to dispatch
-   * @param aViewTarget dispatch the event to this view
-   * @param aStatus event handling status
+   * @param event event to dispatch
+   * @result event handling status
    */
-  NS_IMETHOD  DispatchEvent(nsGUIEvent *aEvent,
-      nsIView* aViewTarget, nsEventStatus* aStatus) = 0;
+  NS_IMETHOD  DispatchEvent(nsGUIEvent *aEvent, nsEventStatus* aStatus) = 0;
+
+  /**
+   * Used to grab/capture all mouse events for a specific view,
+   * irrespective of the cursor position at which the
+   * event occurred.
+   * @param aView view to capture mouse events
+   * @result event handling status
+   */
+  NS_IMETHOD  GrabMouseEvents(nsIView *aView, PRBool& aResult) = 0;
+
+  /**
+   * Get the current view, if any, that's capturing mouse events.
+   * @result view that is capturing mouse events or nsnull
+   */
+  NS_IMETHOD  GetMouseEventGrabber(nsIView *&aView) = 0;
 
   /**
    * Given a parent view, insert another view as its child.
@@ -241,12 +255,7 @@ public:
                          PRBool aRepaintExposedAreaOnly = PR_FALSE) = 0;
 
   /**
-   * Set the visibility of a view. Hidden views have the effect of hiding
-   * their descendants as well. This does not affect painting, so layout
-   * is responsible for ensuring that content in hidden views is not
-   * painted nor handling events. It does affect the visibility of widgets;
-   * if a view is hidden, descendant views with widgets have their widgets
-   * hidden.
+   * Set the visibility of a view.
    * The view manager generates the appropriate dirty regions.
    * @param aView view to change visibility state of
    * @param visible new visibility state
@@ -407,10 +416,11 @@ public:
   NS_IMETHOD GetRootScrollableView(nsIScrollableView **aScrollable) = 0;
 
   /**
-   * Retrieve the widget at the root of the nearest enclosing
-   * view manager whose root view has a widget.
+   * Retrieve the widget at the root of the view manager. This is the
+   * widget associated with the root view, if the root view exists and has
+   * a widget.
    */
-  NS_IMETHOD GetRootWidget(nsIWidget **aWidget) = 0;
+  NS_IMETHOD GetWidget(nsIWidget **aWidget) = 0;
 
   /**
    * Force update of view manager widget

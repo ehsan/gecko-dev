@@ -43,7 +43,7 @@
 
 #include "nsIAccessibleDocument.h"
 #ifdef MOZ_XUL
-#include "nsXULTreeAccessible.h"
+#include "nsIAccessibleTreeCache.h"
 #endif
 
 #include "nsHashtable.h"
@@ -51,6 +51,7 @@
 #include "nsIDocument.h"
 #include "nsIDOMFocusListener.h"
 #include "nsIDOMFormListener.h"
+#include "nsIDOMXULListener.h"
 #include "nsITimer.h"
 
 #define NS_ROOTACCESSIBLE_IMPL_CID                      \
@@ -74,6 +75,7 @@ public:
 
   // nsIAccessible
   NS_IMETHOD GetName(nsAString& aName);
+  NS_IMETHOD GetParent(nsIAccessible * *aParent);
   NS_IMETHOD GetRelationByType(PRUint32 aRelationType,
                                nsIAccessibleRelation **aRelation);
 
@@ -87,7 +89,6 @@ public:
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
-  virtual nsIAccessible* GetParent();
 
   // nsDocAccessible
   virtual void FireDocLoadEvents(PRUint32 aEventType);
@@ -139,9 +140,9 @@ public:
 
 #ifdef MOZ_XUL
     nsresult HandleTreeRowCountChangedEvent(nsIDOMEvent *aEvent,
-                                            nsXULTreeAccessible *aAccessible);
+                                            nsIAccessibleTreeCache *aAccessible);
     nsresult HandleTreeInvalidatedEvent(nsIDOMEvent *aEvent,
-                                        nsXULTreeAccessible *aAccessible);
+                                        nsIAccessibleTreeCache *aAccessible);
 
     PRUint32 GetChromeFlags();
 #endif

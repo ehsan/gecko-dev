@@ -46,13 +46,13 @@ function test() {
   gBrowser.selectedTab = tab;
   let browser = tab.linkedBrowser;
   browser.addEventListener("load", function(aEvent) {
-    browser.removeEventListener("load", arguments.callee, true);
+    this.removeEventListener("load", arguments.callee, true);
     let doc = browser.contentDocument;
 
     // click on the "Start New Session" button after about:sessionrestore is loaded
     doc.getElementById("errorCancel").click();
     browser.addEventListener("load", function(aEvent) {
-      browser.removeEventListener("load", arguments.callee, true);
+      this.removeEventListener("load", arguments.callee, true);
       let doc = browser.contentDocument;
 
       is(doc.URL, "about:blank", "loaded page is about:blank");
@@ -64,23 +64,20 @@ function test() {
       gPrefService.setIntPref("browser.startup.page", 1);
       gBrowser.loadURI("about:sessionrestore");
       browser.addEventListener("load", function(aEvent) {
-        browser.removeEventListener("load", arguments.callee, true);
+        this.removeEventListener("load", arguments.callee, true);
         let doc = browser.contentDocument;
 
         // click on the "Start New Session" button after about:sessionrestore is loaded
         doc.getElementById("errorCancel").click();
         browser.addEventListener("load", function(aEvent) {
-          browser.removeEventListener("load", arguments.callee, true);
+          this.removeEventListener("load", arguments.callee, true);
           let doc = browser.contentDocument;
 
           is(doc.URL, homepage, "loaded page is the homepage");
 
           // close tab, restore default values and finish the test
           gBrowser.removeTab(tab);
-          // we need this if-statement because if there is no user set value, 
-          // clearUserPref throws a uncatched exception and finish is not called
-          if (gPrefService.prefHasUserValue("browser.startup.page"))
-            gPrefService.clearUserPref("browser.startup.page");
+          gPrefService.clearUserPref("browser.startup.page");
           gPrefService.clearUserPref("browser.startup.homepage");
           finish();
         }, true);

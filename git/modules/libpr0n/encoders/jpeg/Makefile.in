@@ -48,6 +48,11 @@ LIBXUL_LIBRARY = 1
 
 EXTRA_DSO_LIBS	= gkgfx
 
+REQUIRES	= xpcom \
+		  string \
+		  imglib2 \
+		  $(JPEG_REQUIRES) \
+		  $(NULL)
 
 CPPSRCS		= nsJPEGEncoder.cpp
 

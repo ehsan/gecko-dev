@@ -47,7 +47,6 @@
 #include "nsBox.h"
 #include "nsIScrollableFrame.h"
 #include "nsSprocketLayout.h"
-#include "nsGridLayout2.h"
 #include "nsGridRow.h"
 #include "nsGridCell.h"
 
@@ -918,7 +917,7 @@ nsGrid::GetPrefRowHeight(nsBoxLayoutState& aState, PRInt32 aIndex, PRBool aIsHor
      {
        size = box->GetPrefSize(aState);
        nsBox::AddMargin(box, size);
-       nsGridLayout2::AddOffset(aState, box, size);
+       nsStackLayout::AddOffset(aState, box, size);
      }
 
      row->mPref = GET_HEIGHT(size, aIsHorizontal);
@@ -992,7 +991,7 @@ nsGrid::GetMinRowHeight(nsBoxLayoutState& aState, PRInt32 aIndex, PRBool aIsHori
      if (box) {
        size = box->GetPrefSize(aState);
        nsBox::AddMargin(box, size);
-       nsGridLayout2::AddOffset(aState, box, size);
+       nsStackLayout::AddOffset(aState, box, size);
      }
 
      row->mMin = GET_HEIGHT(size, aIsHorizontal) + top + bottom;
@@ -1068,7 +1067,7 @@ nsGrid::GetMaxRowHeight(nsBoxLayoutState& aState, PRInt32 aIndex, PRBool aIsHori
      if (box) {
        size = box->GetPrefSize(aState);
        nsBox::AddMargin(box, size);
-       nsGridLayout2::AddOffset(aState, box, size);
+       nsStackLayout::AddOffset(aState, box, size);
      }
 
      row->mMax = GET_HEIGHT(size, aIsHorizontal);

@@ -46,7 +46,7 @@ var gTargetNode = null;
 
 var gEntityConverter = null;
 var gWrapLongLines = false;
-const gViewSourceCSS = 'resource://gre-resources/viewsource.css';
+const gViewSourceCSS = 'resource://gre/res/viewsource.css';
 const NS_XHTML = 'http://www.w3.org/1999/xhtml';
 
 // These are markers used to delimit the selection during processing. They
@@ -201,9 +201,9 @@ function viewPartialSourceForSelection(selection)
 
   // all our content is held by the data:URI and URIs are internally stored as utf-8 (see nsIURI.idl)
   var loadFlags = Components.interfaces.nsIWebNavigation.LOAD_FLAGS_NONE;
-  getWebNavigation().loadURI("view-source:data:text/html;charset=utf-8,"
-                             + encodeURIComponent(tmpNode.innerHTML),
-                             loadFlags, null, null, null);
+  getBrowser().webNavigation
+              .loadURI("view-source:data:text/html;charset=utf-8," + encodeURIComponent(tmpNode.innerHTML),
+                       loadFlags, null, null, null);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -237,8 +237,8 @@ function getPath(ancestor, node)
 // on the inflated view-source DOM
 function drawSelection()
 {
-  gBrowser.contentDocument.title =
-    gViewSourceBundle.getString("viewSelectionSourceTitle");
+  getBrowser().contentDocument.title =
+    getViewSourceBundle().getString("viewSelectionSourceTitle");
 
   // find the special selection markers that we added earlier, and
   // draw the selection between the two...
@@ -260,7 +260,7 @@ function drawSelection()
   var replaceString = findService.replaceString;
 
   // setup our find instance
-  var findInst = gBrowser.webBrowserFind;
+  var findInst = getBrowser().webBrowserFind;
   findInst.matchCase = true;
   findInst.entireWord = false;
   findInst.wrapFind = true;
@@ -271,7 +271,8 @@ function drawSelection()
   var startLength = MARK_SELECTION_START.length;
   findInst.findNext();
 
-  var selection = content.getSelection();
+  var contentWindow = getBrowser().contentDocument.defaultView;
+  var selection = contentWindow.getSelection();
   var range = selection.getRangeAt(0);
 
   var startContainer = range.startContainer;
@@ -301,10 +302,13 @@ function drawSelection()
   // the selection, whereas in this situation, it is more user-friendly
   // to scroll at the beginning. So we override the default behavior here
   try {
-    getSelectionController().scrollSelectionIntoView(
-                               Ci.nsISelectionController.SELECTION_NORMAL,
-                               Ci.nsISelectionController.SELECTION_ANCHOR_REGION,
-                               true);
+    getBrowser().docShell
+                .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                .getInterface(Components.interfaces.nsISelectionDisplay)
+                .QueryInterface(Components.interfaces.nsISelectionController)
+                .scrollSelectionIntoView(Components.interfaces.nsISelectionController.SELECTION_NORMAL,
+                                         Components.interfaces.nsISelectionController.SELECTION_ANCHOR_REGION,
+                                         true);
   }
   catch(e) { }
 
@@ -345,7 +349,7 @@ function viewPartialSourceForFragment(node, context)
     return;
 
   // serialize
-  var title = gViewSourceBundle.getString("viewMathMLSourceTitle");
+  var title = getViewSourceBundle().getString("viewMathMLSourceTitle");
   var wrapClass = gWrapLongLines ? ' class="wrap"' : '';
   var source =
     '<!DOCTYPE html>'
@@ -364,7 +368,7 @@ function viewPartialSourceForFragment(node, context)
   ; // end
 
   // display
-  gBrowser.loadURI("data:text/html;charset=utf-8," + encodeURIComponent(source));
+  getBrowser().loadURI("data:text/html;charset=utf-8," + encodeURIComponent(source));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

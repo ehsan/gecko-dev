@@ -46,6 +46,8 @@
 <!DOCTYPE bindings [
 <!ENTITY % findBarDTD SYSTEM "chrome://global/locale/findbar.dtd" >
 %findBarDTD;
+<!ENTITY % globalDTD SYSTEM "chrome://global/locale/global.dtd">
+%globalDTD;
 ]>
 
 <bindings id="findbarBindings"
@@ -217,6 +219,7 @@
                          tooltiptext="&previous.tooltip;"
                          oncommand="onFindAgainCommand(true);"
                          disabled="true"
+                         chromedir="&locale.dir;"
                          xbl:inherits="accesskey=findpreviousaccesskey"/>
 #endif
       <xul:toolbarbutton anonid="find-next"
@@ -226,6 +229,7 @@
                          tooltiptext="&next.tooltip;"
                          oncommand="onFindAgainCommand(false);"
                          disabled="true"
+                         chromedir="&locale.dir;"
                          xbl:inherits="accesskey=findnextaccesskey"/>
 #ifndef MOZ_WIDGET_GTK2
       <xul:toolbarbutton anonid="find-previous"
@@ -235,6 +239,7 @@
                          tooltiptext="&previous.tooltip;"
                          oncommand="onFindAgainCommand(true);"
                          disabled="true"
+                         chromedir="&locale.dir;"
                          xbl:inherits="accesskey=findpreviousaccesskey"/>
 #endif
       <xul:toolbarbutton anonid="highlight"
@@ -358,8 +363,6 @@
         }
       })]]></field>
 
-      <field name="_destroyed">false</field>
-
       <constructor><![CDATA[
         // These elements are accessed frequently and are therefore cached
         this._findField = this.getElement("findbar-textbox");
@@ -394,48 +397,33 @@
         this.nsISelectionController = Components.interfaces.nsISelectionController;
         this._findSelection = this.nsISelectionController.SELECTION_FIND;
 
-        this._findResetTimeout = -1;
-
         // Make sure the FAYT keypress listener is attached by initializing the
         // browser property
         setTimeout(function(aSelf) { aSelf.browser = aSelf.browser; }, 0, this);
       ]]></constructor>
 
       <destructor><![CDATA[
-        this.destroy();
+        // It is possible that the findbar may be destroyed before any
+        // documents it is listening to (see nsIEditActionListener code below).
+        // Thus, to avoid leaking, if we are listening to any editors, unhook
+        // ourselves now, and remove our cached copies
+        if (this._editors) {
+          for (var x = this._editors.length - 1; x >= 0; --x)
+            this._unhookListenersAtIndex(x);
+        }
+
+        this.browser = null;
+
+        var prefsvc =
+          Components.classes["@mozilla.org/preferences-service;1"]
+                    .getService(Components.interfaces.nsIPrefBranch2);
+        prefsvc.removeObserver("accessibility.typeaheadfind",
+                               this._observer);
+        prefsvc.removeObserver("accessibility.typeaheadfind.linksonly",
+                               this._observer);
+        prefsvc.removeObserver("accessibility.typeaheadfind.casesensitive",
+                               this._observer);
       ]]></destructor>
-
-      <!-- This is necessary because the destructor isn't called when
-           we are removed from a document that is not destroyed. This
-           needs to be explicitly called in this case -->
-      <method name="destroy">
-        <body><![CDATA[
-          if (this._destroyed)
-            return;
-          this._destroyed = true;
-
-          // It is possible that the findbar may be destroyed before any
-          // documents it is listening to (see nsIEditActionListener code below).
-          // Thus, to avoid leaking, if we are listening to any editors, unhook
-          // ourselves now, and remove our cached copies
-          if (this._editors) {
-            for (var x = this._editors.length - 1; x >= 0; --x)
-              this._unhookListenersAtIndex(x);
-          }
-
-          this.browser = null;
-
-          var prefsvc =
-            Components.classes["@mozilla.org/preferences-service;1"]
-                      .getService(Components.interfaces.nsIPrefBranch2);
-          prefsvc.removeObserver("accessibility.typeaheadfind",
-                                 this._observer);
-          prefsvc.removeObserver("accessibility.typeaheadfind.linksonly",
-                                 this._observer);
-          prefsvc.removeObserver("accessibility.typeaheadfind.casesensitive",
-                                 this._observer);
-        ]]></body>
-      </method>
 
       <method name="_setFindCloseTimeout">
         <body><![CDATA[
@@ -457,7 +445,7 @@
       </method>
 
       <!--
-        - Gets the selection controller for the current browser
+        - Gets the selection controller for the current browser 
         -->
       <method name="_getSelectionController">
         <parameter name="aWindow"/>
@@ -496,7 +484,7 @@
             }
             aNode = aNode.parentNode;
           }
-          return null;
+          return null;           
         ]]></body>
       </method>
 
@@ -525,7 +513,7 @@
       <!--
         - Remove ourselves as an nsIEditActionListener and
         - nsIDocumentStateListener from a given cached editor
-        -
+        - 
         - @param aEditor the editor we no longer wish to listen to
         -->
       <method name="_removeEditorListeners">
@@ -544,7 +532,7 @@
 
       <!--
         - nsIEditActionListener logic follows
-        -
+        - 
         - We implement this interface to allow us to catch the case where
         - the findbar found a match in a HTML <input> or <textarea>. If the
         - user adjusts the text in some way, it will no longer match, so we
@@ -617,7 +605,7 @@
 
           if (foundContainingRange)
             return range;
-
+          
           return null;
         ]]></body>
       </method>
@@ -944,7 +932,7 @@
           if (!controller) {
             // Without the selection controller,
             // we are unable to (un)highlight any matches
-            return textFound;
+            return false;
           }
 
           var doc = win.document;
@@ -952,14 +940,20 @@
             return textFound;
 
           if (aHighlight) {
+            var body = doc.body;
+
+            var count = body.childNodes.length;
             this._searchRange = doc.createRange();
-            this._searchRange.selectNodeContents(doc.body);
+            this._startPt = doc.createRange();
+            this._endPt = doc.createRange();
 
-            this._startPt = this._searchRange.cloneRange();
-            this._startPt.collapse(true);
+            this._searchRange.setStart(body, 0);
+            this._searchRange.setEnd(body, count);
 
-            this._endPt = this._searchRange.cloneRange();
-            this._endPt.collapse(false);
+            this._startPt.setStart(body, 0);
+            this._startPt.setEnd(body, 0);
+            this._endPt.setStart(body, count);
+            this._endPt.setEnd(body, count);
 
             var retRange = null;
             var finder = Components.classes["@mozilla.org/embedcomp/rangefind;1"]
@@ -971,8 +965,9 @@
             while ((retRange = finder.Find(aWord, this._searchRange,
                                           this._startPt, this._endPt))) {
               this._highlight(retRange, controller);
-              this._startPt = retRange.cloneRange();
-              this._startPt.collapse(false);
+              this._startPt = retRange.endContainer.ownerDocument.createRange();
+              this._startPt.setStart(retRange.endContainer, retRange.endOffset);
+              this._startPt.setEnd(retRange.endContainer, retRange.endOffset);
 
               textFound = true;
             }
@@ -996,7 +991,7 @@
             }
             return true;
           }
-
+  
           return textFound;
         ]]></body>
       </method>
@@ -1030,14 +1025,11 @@
               this._stateListeners = [];
             }
 
-            var existingIndex = this._editors.indexOf(editableNode.editor);
-            if (existingIndex == -1) {
-              var x = this._editors.length;
-              this._editors[x] = editableNode.editor;
-              this._stateListeners[x] = this._createStateListener();
-              this._editors[x].addEditActionListener(this);
-              this._editors[x].addDocumentStateListener(this._stateListeners[x]);
-            }
+            var x = this._editors.length;
+            this._editors[x] = editableNode.editor;
+            this._stateListeners[x] = this._createStateListener();
+            this._editors[x].addEditActionListener(this);
+            this._editors[x].addDocumentStateListener(this._stateListeners[x]);
           }
         ]]></body>
       </method>
@@ -1128,8 +1120,6 @@
               stringsBundle.GetStringFromName("CaseSensitive");
           }
 
-          this._findFailedString = null;
-
           this._updateFindUI();
           if (this.hidden) {
             this.hidden = false;
@@ -1178,8 +1168,6 @@
             clearTimeout(this._quickFindTimeout);
             this._quickFindTimeout = null;
           }
-
-          this._findFailedString = null;
         ]]></body>
       </method>
 
@@ -1380,7 +1368,7 @@
             catch (e) {
               // If someone built with composer disabled, we can't get an editing session.
             }
-         }
+          }  
 
           return true;
         ]]></body>
@@ -1518,45 +1506,21 @@
       <method name="_find">
         <parameter name="aValue"/>
         <body><![CDATA[
-          var val = aValue || this._findField.value;
-          var res = this.nsITypeAheadFind.FIND_NOTFOUND;
+          var val = aValue || this._findField.value
 
-          // Only search on input if we don't have a last-failed string,
-          // or if the current search string doesn't start with it.
-          if (this._findFailedString == null ||
-              val.indexOf(this._findFailedString) != 0)
-          {
-            this._enableFindButtons(val);
-            if (this.getElement("highlight").checked)
-              this._setHighlightTimeout();
+          this._enableFindButtons(val);
+          if (this.getElement("highlight").checked)
+            this._setHighlightTimeout();
 
-            this._updateCaseSensitivity(val);
+          this._updateCaseSensitivity(val);
 
-            var fastFind = this.browser.fastFind;
-            res = fastFind.find(val, this._findMode == this.FIND_LINKS);
-
-            this._updateFoundLink(res);
-            this._updateStatusUI(res, false);
-
-            if (res == this.nsITypeAheadFind.FIND_NOTFOUND)
-              this._findFailedString = val;
-            else
-              this._findFailedString = null;
-          }
+          var fastFind = this.browser.fastFind;
+          var res = fastFind.find(val, this._findMode == this.FIND_LINKS);
+          this._updateFoundLink(res);
+          this._updateStatusUI(res, false);
 
           if (this._findMode != this.FIND_NORMAL)
             this._setFindCloseTimeout();
-
-          if (this._findResetTimeout != -1)
-            clearTimeout(this._findResetTimeout);
-
-          // allow a search to happen on input again after a second has
-          // expired since the previous input, to allow for dynamic
-          // content and/or page loading
-          this._findResetTimeout = setTimeout(function(self) {
-						  self._findFailedString = null;
-						  self._findResetTimeout = -1; },
-					      1000, this);
 
           return res;
         ]]></body>
@@ -1696,7 +1660,7 @@
           }
 
           if (this.prefillWithSelection)
-            userWantsPrefill =
+            userWantsPrefill = 
               prefsvc.getBoolPref("accessibility.typeaheadfind.prefillwithselection");
 
           var initialString = (this.prefillWithSelection && userWantsPrefill) ?
@@ -1739,12 +1703,10 @@
             return;
           }
 
-          // user explicitly requested another search, so do it even if we think it'll fail
-          this._findFailedString = null;
-
           var res;
           // Ensure the stored SearchString is in sync with what we want to find
-          if (this._findField.value != this._browser.fastFind.searchString)
+          if (this._findField.value != this._browser.fastFind.searchString &&
+              !this.hidden)
             res = this._find(this._findField.value);
           else
             res = this._findAgain(aFindPrevious);

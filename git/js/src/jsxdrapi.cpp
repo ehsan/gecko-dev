@@ -90,7 +90,7 @@ typedef struct JSXDRMemState {
             if (MEM_LIMIT(xdr) &&                                             \
                 MEM_COUNT(xdr) + bytes > MEM_LIMIT(xdr)) {                    \
                 uint32 limit_ = JS_ROUNDUP(MEM_COUNT(xdr) + bytes, MEM_BLOCK);\
-                void *data_ = (xdr)->cx->realloc(MEM_BASE(xdr), limit_);      \
+                void *data_ = JS_realloc((xdr)->cx, MEM_BASE(xdr), limit_);   \
                 if (!data_)                                                   \
                     return 0;                                                 \
                 MEM_BASE(xdr) = (char *) data_;                               \
@@ -216,7 +216,7 @@ mem_tell(JSXDRState *xdr)
 static void
 mem_finalize(JSXDRState *xdr)
 {
-    xdr->cx->free(MEM_BASE(xdr));
+    JS_free(xdr->cx, MEM_BASE(xdr));
 }
 
 static JSXDROps xdrmem_ops = {
@@ -239,13 +239,13 @@ JS_XDRInitBase(JSXDRState *xdr, JSXDRMode mode, JSContext *cx)
 JS_PUBLIC_API(JSXDRState *)
 JS_XDRNewMem(JSContext *cx, JSXDRMode mode)
 {
-    JSXDRState *xdr = (JSXDRState *) cx->malloc(sizeof(JSXDRMemState));
+    JSXDRState *xdr = (JSXDRState *) JS_malloc(cx, sizeof(JSXDRMemState));
     if (!xdr)
         return NULL;
     JS_XDRInitBase(xdr, mode, cx);
     if (mode == JSXDR_ENCODE) {
-        if (!(MEM_BASE(xdr) = (char *) cx->malloc(MEM_BLOCK))) {
-            cx->free(xdr);
+        if (!(MEM_BASE(xdr) = (char *) JS_malloc(cx, MEM_BLOCK))) {
+            JS_free(cx, xdr);
             return NULL;
         }
     } else {
@@ -299,11 +299,11 @@ JS_XDRDestroy(JSXDRState *xdr)
     JSContext *cx = xdr->cx;
     xdr->ops->finalize(xdr);
     if (xdr->registry) {
-        cx->free(xdr->registry);
+        JS_free(cx, xdr->registry);
         if (xdr->reghash)
             JS_DHashTableDestroy((JSDHashTable *) xdr->reghash);
     }
-    cx->free(xdr);
+    JS_free(cx, xdr);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -381,18 +381,18 @@ JS_XDRCString(JSXDRState *xdr, char **sp)
         len = strlen(*sp);
     JS_XDRUint32(xdr, &len);
     if (xdr->mode == JSXDR_DECODE) {
-        if (!(*sp = (char *) xdr->cx->malloc(len + 1)))
+        if (!(*sp = (char *) JS_malloc(xdr->cx, len + 1)))
             return JS_FALSE;
     }
     if (!JS_XDRBytes(xdr, *sp, len)) {
         if (xdr->mode == JSXDR_DECODE)
-            xdr->cx->free(*sp);
+            JS_free(xdr->cx, *sp);
         return JS_FALSE;
     }
     if (xdr->mode == JSXDR_DECODE) {
         (*sp)[len] = '\0';
     } else if (xdr->mode == JSXDR_FREE) {
-        xdr->cx->free(*sp);
+        JS_free(xdr->cx, *sp);
         *sp = NULL;
     }
     return JS_TRUE;
@@ -452,7 +452,7 @@ JS_XDRString(JSXDRState *xdr, JSString **strp)
         return JS_FALSE;
 
     if (xdr->mode == JSXDR_DECODE) {
-        chars = (jschar *) xdr->cx->malloc((nchars + 1) * sizeof(jschar));
+        chars = (jschar *) JS_malloc(xdr->cx, (nchars + 1) * sizeof(jschar));
         if (!chars)
             return JS_FALSE;
     } else {
@@ -471,7 +471,7 @@ JS_XDRString(JSXDRState *xdr, JSString **strp)
 
 bad:
     if (xdr->mode == JSXDR_DECODE)
-        xdr->cx->free(chars);
+        JS_free(xdr->cx, chars);
     return JS_FALSE;
 }
 
@@ -493,7 +493,8 @@ XDRDoubleValue(JSXDRState *xdr, jsdouble *dp)
 {
     jsdpun u;
 
-    u.d = (xdr->mode == JSXDR_ENCODE) ? *dp : 0.0;
+    if (xdr->mode == JSXDR_ENCODE)
+        u.d = *dp;
     if (!JS_XDRUint32(xdr, &u.s.lo) || !JS_XDRUint32(xdr, &u.s.hi))
         return JS_FALSE;
     if (xdr->mode == JSXDR_DECODE)
@@ -504,7 +505,10 @@ XDRDoubleValue(JSXDRState *xdr, jsdouble *dp)
 JS_PUBLIC_API(JSBool)
 JS_XDRDouble(JSXDRState *xdr, jsdouble **dpp)
 {
-    jsdouble d = (xdr->mode == JSXDR_ENCODE) ? **dpp : 0.0;
+    jsdouble d;
+
+    if (xdr->mode == JSXDR_ENCODE)
+        d = **dpp;
     if (!XDRDoubleValue(xdr, &d))
         return JS_FALSE;
     if (xdr->mode == JSXDR_DECODE) {
@@ -540,7 +544,9 @@ XDRValueBody(JSXDRState *xdr, uint32 type, jsval *vp)
         break;
       }
       case JSVAL_DOUBLE: {
-        jsdouble *dp = (xdr->mode == JSXDR_ENCODE) ? JSVAL_TO_DOUBLE(*vp) : NULL;
+        jsdouble *dp;
+        if (xdr->mode == JSXDR_ENCODE)
+            dp = JSVAL_TO_DOUBLE(*vp);
         if (!JS_XDRDouble(xdr, &dp))
             return JS_FALSE;
         if (xdr->mode == JSXDR_DECODE)
@@ -557,7 +563,7 @@ XDRValueBody(JSXDRState *xdr, uint32 type, jsval *vp)
             *vp = OBJECT_TO_JSVAL(obj);
         break;
       }
-      case JSVAL_SPECIAL: {
+      case JSVAL_BOOLEAN: {
         uint32 b;
         if (xdr->mode == JSXDR_ENCODE)
             b = (uint32) JSVAL_TO_BOOLEAN(*vp);
@@ -604,6 +610,7 @@ js_XDRAtom(JSXDRState *xdr, JSAtom **atomp)
 {
     jsval v;
     uint32 type;
+    jsdouble d;
 
     if (xdr->mode == JSXDR_ENCODE) {
         v = ATOM_KEY(*atomp);
@@ -620,7 +627,6 @@ js_XDRAtom(JSXDRState *xdr, JSAtom **atomp)
         return js_XDRStringAtom(xdr, atomp);
 
     if (type == JSVAL_DOUBLE) {
-        jsdouble d = 0;
         if (!XDRDoubleValue(xdr, &d))
             return JS_FALSE;
         *atomp = js_AtomizeDouble(xdr->cx, d);
@@ -662,7 +668,7 @@ js_XDRStringAtom(JSXDRState *xdr, JSAtom **atomp)
          * This is very uncommon. Don't use the tempPool arena for this as
          * most allocations here will be bigger than tempPool's arenasize.
          */
-        chars = (jschar *) cx->malloc(nchars * sizeof(jschar));
+        chars = (jschar *) JS_malloc(cx, nchars * sizeof(jschar));
         if (!chars)
             return JS_FALSE;
     }
@@ -670,7 +676,7 @@ js_XDRStringAtom(JSXDRState *xdr, JSAtom **atomp)
     if (XDRChars(xdr, chars, nchars))
         atom = js_AtomizeChars(cx, chars, nchars, 0);
     if (chars != stackChars)
-        cx->free(chars);
+        JS_free(cx, chars);
 
     if (!atom)
         return JS_FALSE;
@@ -681,7 +687,7 @@ js_XDRStringAtom(JSXDRState *xdr, JSAtom **atomp)
 JS_PUBLIC_API(JSBool)
 JS_XDRScript(JSXDRState *xdr, JSScript **scriptp)
 {
-    if (!js_XDRScript(xdr, scriptp, true, NULL))
+    if (!js_XDRScript(xdr, scriptp, NULL))
         return JS_FALSE;
     if (xdr->mode == JSXDR_DECODE)
         js_CallNewScriptHook(xdr->cx, *scriptp, NULL);
@@ -709,7 +715,7 @@ JS_XDRRegisterClass(JSXDRState *xdr, JSClass *clasp, uint32 *idp)
     if (numclasses == maxclasses) {
         maxclasses = (maxclasses == 0) ? CLASS_REGISTRY_MIN : maxclasses << 1;
         registry = (JSClass **)
-            xdr->cx->realloc(xdr->registry, maxclasses * sizeof(JSClass *));
+            JS_realloc(xdr->cx, xdr->registry, maxclasses * sizeof(JSClass *));
         if (!registry)
             return JS_FALSE;
         xdr->registry = registry;

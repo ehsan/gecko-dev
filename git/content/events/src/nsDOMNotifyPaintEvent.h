@@ -41,18 +41,16 @@
 
 #include "nsIDOMNotifyPaintEvent.h"
 #include "nsDOMEvent.h"
-#include "nsPresContext.h"
 
-class nsPaintRequestList;
-
-class nsDOMNotifyPaintEvent : public nsDOMEvent,
-                              public nsIDOMNotifyPaintEvent
+class nsDOMNotifyPaintEvent : public nsIDOMNotifyPaintEvent,
+                              public nsDOMEvent
 {
 public:
-  nsDOMNotifyPaintEvent(nsPresContext*           aPresContext,
-                        nsEvent*                 aEvent,
-                        PRUint32                 aEventType,
-                        nsInvalidateRequestList* aInvalidateRequests);
+  nsDOMNotifyPaintEvent(nsPresContext*  aPresContext,
+                        nsEvent*        aEvent,
+                        PRUint32        aEventType,
+                        const nsRegion* aSameOriginRegion,
+                        const nsRegion* aCrossDocRegion);
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -64,7 +62,8 @@ public:
 private:
   nsRegion GetRegion();
 
-  nsTArray<nsInvalidateRequestList::Request> mInvalidateRequests;
+  nsRegion mSameDocRegion;
+  nsRegion mCrossDocRegion;
 };
 
 #endif // nsDOMNotifyPaintEvent_h_

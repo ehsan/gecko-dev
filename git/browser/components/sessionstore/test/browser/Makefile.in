@@ -45,7 +45,8 @@ relativesrcdir  = browser/components/sessionstore/test/browser
 include $(DEPTH)/config/autoconf.mk
 include $(topsrcdir)/config/rules.mk
 
-# browser_526613.js is disabled because of frequent failures (bug 534489)
+# browser_477657.js is disabled, because it's unreliable (bug 482975).
+# browser_480148.js is disabled, because it breaks browser_420786.js (see bug 483382).
 
 _BROWSER_TEST_FILES = \
 	browser_248970_a.js \
@@ -57,15 +58,12 @@ _BROWSER_TEST_FILES = \
 	browser_346337.js \
 	browser_346337_sample.html \
 	browser_350525.js \
-	browser_354894.js \
 	browser_367052.js \
 	browser_393716.js \
 	browser_394759.js \
 	browser_394759_privatebrowsing.js \
 	browser_408470.js \
 	browser_408470_sample.html \
-	browser_423132.js \
-	browser_423132_sample.html \
 	browser_447951.js \
 	browser_447951_sample.html \
 	browser_448741.js \
@@ -73,31 +71,16 @@ _BROWSER_TEST_FILES = \
 	browser_454908_sample.html \
 	browser_456342.js \
 	browser_456342_sample.xhtml \
-	browser_459906.js \
-	browser_459906_empty.html \
-	browser_459906_sample.html \
 	browser_461634.js \
-	browser_461743.js \
-	browser_461743_sample.html \
-	browser_463205.js \
-	browser_463205_helper.html \
-	browser_463205_sample.html \
 	browser_463206.js \
 	browser_463206_sample.html \
 	browser_464199.js \
-	browser_464620_a.js \
-	browser_464620_a.html \
-	browser_464620_b.js \
-	browser_464620_b.html \
-	browser_464620_xd.html \
 	browser_465215.js \
 	browser_465223.js \
 	browser_466937.js \
 	browser_466937_sample.html \
 	browser_476161.js \
 	browser_476161_sample.html \
-	browser_477657.js \
-	browser_480148.js \
 	browser_480893.js \
 	browser_483330.js \
 	browser_485482.js \
@@ -105,12 +88,7 @@ _BROWSER_TEST_FILES = \
 	browser_485563.js \
 	browser_490040.js \
 	browser_491168.js \
-	browser_491577.js \
 	browser_493467.js \
-	browser_495495.js \
-	browser_514751.js \
-	browser_522545.js \
-	browser_528776.js \
 	$(NULL)
 
 libs:: $(_BROWSER_TEST_FILES)

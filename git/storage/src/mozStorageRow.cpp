@@ -235,11 +235,10 @@ Row::GetIsNull(PRUint32 aIndex,
                PRBool *_isNull)
 {
   ENSURE_INDEX_VALUE(aIndex, mNumCols);
-  NS_ENSURE_ARG_POINTER(_isNull);
 
   PRUint16 type;
   (void)mData.ObjectAt(aIndex)->GetDataType(&type);
-  *_isNull = type == nsIDataType::VTYPE_EMPTY;
+  *_isNull = type == nsIDataType::VTYPE_VOID;
   return NS_OK;
 }
 

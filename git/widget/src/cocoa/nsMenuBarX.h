@@ -48,12 +48,14 @@
 #include "nsAutoPtr.h"
 #include "nsString.h"
 
+
 class nsMenuX;
 class nsMenuItemX;
 class nsChangeObserver;
 class nsIWidget;
 class nsIContent;
 class nsIDocument;
+
 
 // The native menu service for creating native menu bars.
 class nsNativeMenuServiceX : public nsINativeMenuService
@@ -62,6 +64,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_IMETHOD CreateNativeMenuBar(nsIWidget* aParent, nsIContent* aMenuBarNode);
 };
+
 
 // Objective-C class used to allow us to have keyboard commands
 // look like they are doing something but actually do nothing.
@@ -74,12 +77,14 @@ public:
 - (void)performMenuUserInterfaceEffectsForEvent:(NSEvent*)theEvent;
 @end
 
+
 // Objective-C class used as action target for menu items
 @interface NativeMenuItemTarget : NSObject
 {
 }
 -(IBAction)menuItemHit:(id)sender;
 @end
+
 
 // Once instantiated, this object lives until its DOM node or its parent window is destroyed.
 // Do not hold references to this, they can become invalid any time the DOM node can be destroyed.
@@ -120,7 +125,6 @@ public:
   nsresult          Paint();
   void              ForceUpdateNativeMenuAt(const nsAString& indexString);
   void              ForceNativeMenuReload(); // used for testing
-  static char       GetLocalizedAccelKey(const char *shortcutID);
 
 protected:
   void              ConstructNativeMenus();

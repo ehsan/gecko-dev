@@ -58,14 +58,13 @@ public:
   NS_IMETHOD_(already_AddRefed<nsIDOMSVGLengthList>) GetDy();
   
 public:
-  NS_DECL_QUERYFRAME_TARGET(nsSVGTextContainerFrame)
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
+  NS_DECLARE_FRAME_ACCESSOR(nsSVGTextContainerFrame)
 
   // nsIFrame
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD RemoveFrame(nsIAtom *aListName, nsIFrame *aOldFrame);
 
   NS_IMETHOD GetStartPositionOfChar(PRUint32 charnum, nsIDOMSVGPoint **_retval);

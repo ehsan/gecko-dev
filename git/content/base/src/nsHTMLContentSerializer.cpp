@@ -68,8 +68,6 @@
 #include "nsLWBrkCIID.h"
 #include "nsIScriptElement.h"
 #include "nsAttrName.h"
-#include "nsHtml5Module.h"
-#include "nsIHTMLDocument.h"
 
 static const char kMozStr[] = "moz";
 
@@ -103,46 +101,26 @@ nsHTMLContentSerializer::AppendDocumentStart(nsIDOMDocument *aDocument,
 }
 
 void 
-nsHTMLContentSerializer::SerializeHTMLAttributes(nsIContent* aContent,
-                                                 nsIDOMElement *aOriginalElement,
-                                                 nsAString& aTagPrefix,
-                                                 const nsAString& aTagNamespaceURI,
-                                                 nsIAtom* aTagName,
-                                                 nsAString& aStr)
+nsHTMLContentSerializer::SerializeAttributes(nsIContent* aContent,
+                                             nsIDOMElement *aOriginalElement,
+                                             nsAString& aTagPrefix,
+                                             const nsAString& aTagNamespaceURI,
+                                             nsIAtom* aTagName,
+                                             nsAString& aStr)
 {
-  PRInt32 count = aContent->GetAttrCount();
-  if (!count)
-    return;
-
   nsresult rv;
+  PRUint32 index, count;
   nsAutoString nameStr, valueStr;
+
+  count = aContent->GetAttrCount();
+
   NS_NAMED_LITERAL_STRING(_mozStr, "_moz");
 
-  // HTML5 parser stored them in the order they were parsed so we want to
-  // loop forward in that case.
-  nsIDocument* doc = aContent->GetOwnerDocument();
-  PRBool loopForward = PR_FALSE;
-  if (!doc || doc->IsHTML()) {
-    nsCOMPtr<nsIHTMLDocument> htmlDoc(do_QueryInterface(doc));
-    if (htmlDoc) {
-      loopForward = nsHtml5Module::sEnabled;
-    }
-  }
-  PRInt32 index, limit, step;
-  if (loopForward) {
-    index = 0;
-    limit = count;
-    step = 1;
-  }
-  else {
-    // Loop backward over the attributes, since the order they are stored in is
-    // the opposite of the order they were parsed in (see bug 213347 for reason).
-    index = count - 1;
-    limit = -1;
-    step = -1;
-  }
-  
-  for (; index != limit; index += step) {
+  // Loop backward over the attributes, since the order they are stored in is
+  // the opposite of the order they were parsed in (see bug 213347 for reason).
+  // index is unsigned, hence index >= 0 is always true.
+  for (index = count; index > 0; ) {
+    --index;
     const nsAttrName* name = aContent->GetAttrNameAt(index);
     PRInt32 namespaceID = name->NamespaceID();
     nsIAtom* attrName = name->LocalName();
@@ -195,7 +173,7 @@ nsHTMLContentSerializer::SerializeHTMLAttributes(nsIContent* aContent,
         valueStr = tempURI;
     }
 
-    if (mRewriteEncodingDeclaration && aTagName == nsGkAtoms::meta &&
+    if (mIsWholeDocument && aTagName == nsGkAtoms::meta &&
         attrName == nsGkAtoms::content) {
       // If we're serializing a <meta http-equiv="content-type">,
       // use the proper value, rather than what's in the document.
@@ -306,7 +284,7 @@ nsHTMLContentSerializer::AppendElementStart(nsIDOMElement *aElement,
   // Even LI passed above have to go through this 
   // for serializing attributes other than "value".
   nsAutoString dummyPrefix;
-  SerializeHTMLAttributes(content, aOriginalElement, dummyPrefix, EmptyString(), name, aStr);
+  SerializeAttributes(content, aOriginalElement, dummyPrefix, EmptyString(), name, aStr);
 
   AppendToString(kGreaterThan, aStr);
 

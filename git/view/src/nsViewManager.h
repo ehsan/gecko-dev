@@ -51,8 +51,13 @@
 #include "nsIViewObserver.h"
 
 //Uncomment the following line to enable generation of viewmanager performance data.
-//#define NS_VM_PERF_METRICS 1
+#ifdef MOZ_PERF_METRICS
+//#define NS_VM_PERF_METRICS 1 
+#endif
 
+#ifdef NS_VM_PERF_METRICS
+#include "nsTimer.h"
+#endif
 
 /**
    Invalidation model:
@@ -125,8 +130,11 @@ public:
   NS_IMETHOD  UpdateView(nsIView *aView, const nsRect &aRect, PRUint32 aUpdateFlags);
   NS_IMETHOD  UpdateAllViews(PRUint32 aUpdateFlags);
 
-  NS_IMETHOD  DispatchEvent(nsGUIEvent *aEvent,
-      nsIView* aTargetView, nsEventStatus* aStatus);
+  NS_IMETHOD  DispatchEvent(nsGUIEvent *aEvent, nsEventStatus* aStatus);
+
+  NS_IMETHOD  GrabMouseEvents(nsIView *aView, PRBool &aResult);
+
+  NS_IMETHOD  GetMouseEventGrabber(nsIView *&aView);
 
   NS_IMETHOD  InsertChild(nsIView *parent, nsIView *child, nsIView *sibling,
                           PRBool above);
@@ -162,7 +170,8 @@ public:
   NS_IMETHOD  SetRootScrollableView(nsIScrollableView *aScrollable);
   NS_IMETHOD  GetRootScrollableView(nsIScrollableView **aScrollable);
 
-  NS_IMETHOD GetRootWidget(nsIWidget **aWidget);
+  NS_IMETHOD GetWidget(nsIWidget **aWidget);
+  nsIWidget* GetWidget() { return mRootView ? mRootView->GetWidget() : nsnull; }
   NS_IMETHOD ForceUpdate();
  
   NS_IMETHOD IsPainting(PRBool& aIsPainting);
@@ -197,15 +206,10 @@ private:
 
   void FlushPendingInvalidates();
   void ProcessPendingUpdates(nsView *aView, PRBool aDoInvalidate);
-  /**
-   * Call WillPaint() on all view observers under this vm root.
-   */
-  void CallWillPaintOnObservers();
   void ReparentChildWidgets(nsIView* aView, nsIWidget *aNewWidget);
   void ReparentWidgets(nsIView* aView, nsIView *aParent);
   already_AddRefed<nsIRenderingContext> CreateRenderingContext(nsView &aView);
-  void UpdateWidgetArea(nsView *aWidgetView, nsIWidget* aWidget,
-                        const nsRegion &aDamagedRegion,
+  void UpdateWidgetArea(nsView *aWidgetView, const nsRegion &aDamagedRegion,
                         nsView* aIgnoreWidgetView);
 
   void UpdateViews(nsView *aView, PRUint32 aUpdateFlags);
@@ -218,6 +222,9 @@ private:
   void InvalidateRectDifference(nsView *aView, const nsRect& aRect, const nsRect& aCutOut, PRUint32 aUpdateFlags);
   void InvalidateHorizontalBandDifference(nsView *aView, const nsRect& aRect, const nsRect& aCutOut,
                                           PRUint32 aUpdateFlags, nscoord aY1, nscoord aY2, PRBool aInCutOut);
+
+  void AddCoveringWidgetsToOpaqueRegion(nsRegion &aRgn, nsIDeviceContext* aContext,
+                                        nsView* aRootView);
 
   // Utilities
 
@@ -305,10 +312,14 @@ private:
 
 public: // NOT in nsIViewManager, so private to the view module
   nsView* GetRootView() const { return mRootView; }
+  nsView* GetMouseEventGrabber() const {
+    return RootViewManager()->mMouseGrabber;
+  }
   nsViewManager* RootViewManager() const { return mRootViewManager; }
   PRBool IsRootVM() const { return this == RootViewManager(); }
 
-  nsEventStatus HandleEvent(nsView* aView, nsPoint aPoint, nsGUIEvent* aEvent);
+  nsEventStatus HandleEvent(nsView* aView, nsPoint aPoint, nsGUIEvent* aEvent,
+                            PRBool aCaptured);
 
   /**
    * Called to inform the view manager that a view is about to bit-blit.
@@ -342,20 +353,16 @@ public: // NOT in nsIViewManager, so private to the view module
    * to be rerendered.
    * @param aView view to paint. should be the nsScrollPortView that
    * got scrolled.
-   * @param aBlitRegion the region that was blitted; this is just so
-   * we can notify our view observer
    * @param aUpdateRegion ensure that this part of the view is repainted
    */
-  void UpdateViewAfterScroll(nsView *aView, const nsRegion& aBlitRegion,
-                             const nsRegion& aUpdateRegion);
+  void UpdateViewAfterScroll(nsView *aView, const nsRegion& aUpdateRegion);
 
   /**
-   * Given that the view aView has being moved by scrolling by aDelta
-   * (so we want to blit pixels by -aDelta), compute the regions that
-   * must be blitted and repainted to correctly update the screen.
+   * Asks whether we can scroll a view using bitblt. If we say 'yes', we
+   * return in aUpdateRegion an area that must be updated (relative to aView
+   * after it has been scrolled).
    */
-  void GetRegionsForBlit(nsView* aView, nsPoint aDelta,
-                         nsRegion* aBlitRegion, nsRegion* aRepaintRegion);
+  PRBool CanScrollWithBitBlt(nsView* aView, nsPoint aDelta, nsRegion* aUpdateRegion);
 
   nsresult CreateRegion(nsIRegion* *result);
 
@@ -367,7 +374,7 @@ public: // NOT in nsIViewManager, so private to the view module
   // pending updates.
   void PostPendingUpdate() { RootViewManager()->mHasPendingUpdates = PR_TRUE; }
 private:
-  nsCOMPtr<nsIDeviceContext> mContext;
+  nsIDeviceContext  *mContext;
   nsIViewObserver   *mObserver;
   nsIScrollableView *mRootScrollable;
   nsIntPoint        mMouseLocation; // device units, relative to mRootView
@@ -389,6 +396,8 @@ private:
   // the root view manager.  Some have accessor functions to enforce
   // this, as noted.
   
+  // Use GrabMouseEvents() and GetMouseEventGrabber() to access mMouseGrabber.
+  nsView            *mMouseGrabber;
   // Use IncrementUpdateCount(), DecrementUpdateCount(), UpdateCount(),
   // ClearUpdateCount() on the root viewmanager to access mUpdateCnt.
   PRInt32           mUpdateCnt;
@@ -413,6 +422,10 @@ private:
   static nsVoidArray       *gViewManagers;
 
   void PostInvalidateEvent();
+
+#ifdef NS_VM_PERF_METRICS
+  MOZ_TIMER_DECLARE(mWatch) //  Measures compositing+paint time for current document
+#endif
 };
 
 //when the refresh happens, should it be double buffered?

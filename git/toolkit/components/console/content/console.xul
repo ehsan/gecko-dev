@@ -45,6 +45,7 @@
 
 <!DOCTYPE window [
   <!ENTITY % console SYSTEM "chrome://global/locale/console.dtd"> %console;
+  <!ENTITY % global SYSTEM "chrome://global/locale/global.dtd"> %global;
 ]>
 
 <window id="JSConsoleWindow"
@@ -92,9 +93,9 @@
     </popup>
   </popupset>
   
-  <toolbox id="console-toolbox">
+  <toolbox id="console-toolbox" chromedir="&locale.dir;">
     <toolbar class="chromeclass-toolbar" id="ToolbarMode">
-      <hbox id="viewGroup">
+      <hbox id="viewGroup" chromedir="&locale.dir;">
         <toolbarbutton type="radio" group="mode" id="Console:modeAll" 
                        label="&all.label;" accesskey="&all.accesskey;"
                        oncommand="changeMode('All');"/>

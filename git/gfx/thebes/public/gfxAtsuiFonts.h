@@ -15,14 +15,13 @@
  * The Original Code is thebes gfx code.
  *
  * The Initial Developer of the Original Code is Mozilla Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2006-2009
+ * Portions created by the Initial Developer are Copyright (C) 2006
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
  *   Vladimir Vukicevic <vladimir@pobox.com>
  *   Masayuki Nakano <masayuki@d-toybox.com>
  *   John Daggett <jdaggett@mozilla.com>
- *   Jonathan Kew <jfkthame@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -54,9 +53,7 @@
 class gfxAtsuiFontGroup;
 
 class MacOSFontEntry;
-
-#define kLiGothicBadCharUnicode  0x775B // ATSUI failure on 10.6 (bug 532346)
-#define kLiGothicBadCharGlyph    3774   // the expected glyph for this char
+class MacOSFamilyEntry;
 
 class gfxAtsuiFont : public gfxFont {
 public:
@@ -171,9 +168,9 @@ public:
     void UpdateFontList();
 
 protected:
-    static PRBool FindATSFont(const nsAString& aName,
-                              const nsACString& aGenericName,
-                              void *closure);
+    static PRBool FindATSUFont(const nsAString& aName,
+                               const nsACString& aGenericName,
+                               void *closure);
 
     PRUint32 GuessMaximumStringLength();
 
@@ -206,7 +203,7 @@ protected:
     void InitFontList();
     
     // cache the most recent pref font to avoid general pref font lookup
-    nsRefPtr<gfxFontFamily>       mLastPrefFamily;
+    nsRefPtr<MacOSFamilyEntry>    mLastPrefFamily;
     nsRefPtr<gfxAtsuiFont>        mLastPrefFont;
     eFontPrefLang                 mLastPrefLang;       // lang group for last pref font
     PRBool                        mLastPrefFirstFont;  // is this the first font in the list of pref fonts for this lang group?

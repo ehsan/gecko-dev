@@ -34,8 +34,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-%include shared.inc
-
 #topBar {
   -moz-appearance: -moz-mac-unified-toolbar;
 }
@@ -48,30 +46,28 @@
 #viewGroup {
   background-color: rgba(0, 0, 0, 0.55);
   padding: 1px;
-  -moz-border-radius: @toolbarbuttonCornerRadius@;
-  -moz-box-shadow: @loweredShadow@;
+  -moz-border-radius: 3px;
+  -moz-box-shadow: rgba(255, 255, 255, 0.4) 0 1px;
   margin: 4px 0 9px;
 }
 
-#viewGroup > radio,
-#viewGroup > toolbarbutton {
+#viewGroup > * {
   -moz-box-orient: vertical;
   -moz-box-align: center;
   -moz-appearance: none;
   font: menu;
-  text-shadow: @loweredShadow@;
+  text-shadow: rgba(255, 255, 255, 0.4) 0 1px;
   margin: 0;
-  padding: 0 4px;
+  padding: 1px 4px 0;
   border: none;
   border-left: 1px solid rgba(0, 0, 0, 0.8);
-  background: @toolbarbuttonBackground@;
+  background: url("chrome://global/skin/toolbar/white-transparent-gradient.png") repeat-x #ADADAD;
 }
 
-#viewGroup > radio:active:hover,
-#viewGroup > toolbarbutton:active:hover {
-  background: @toolbarbuttonPressedBackgroundColor@;
-  text-shadow: @loweredShadow@;
-  -moz-box-shadow: @toolbarbuttonPressedInnerShadow@;
+#viewGroup > :not([checked=true]):not([selected=true]):active:hover {
+  background: #B5B5B5;
+  text-shadow: rgba(255, 255, 255, 0.4) 0 1px;
+  -moz-box-shadow: inset rgba(0, 0, 0, 0.3) 0 -6px 14px, inset #000 0 1px 4px, inset rgba(0, 0, 0, 0.2) 0 1px 4px;
 }
 
 #viewGroup > radio[selected=true],
@@ -92,11 +88,10 @@
   background-color: rgba(0, 0, 0, 0.25);
 }
 
-:root:not([active]) #viewGroup > radio,
-:root:not([active]) #viewGroup > toolbarbutton {
-  color: @toolbarbuttonInactiveFontColor@ !important; /* remove this when we support click-through */
+:root:not([active]) #viewGroup > * {
+  color: #7C7C7C !important; /* remove this when we support click-through */
   border-color: rgba(0, 0, 0, 0.4);
-  background-image: @toolbarbuttonInactiveBackgroundImage@;
+  background-color: #CCC;
 }
 
 :root:not([active]) #viewGroup > radio[selected=true],
@@ -106,27 +101,19 @@
   -moz-box-shadow: inset rgba(0, 0, 0, 0.5) 0 3px 5px;
 }
 
-#viewGroup > radio:-moz-locale-dir(ltr):first-child,
-#viewGroup > radio:-moz-locale-dir(ltr)[first-visible],
-#viewGroup > radio:-moz-locale-dir(rtl):last-child,
-#viewGroup > radio:-moz-locale-dir(rtl)[last-visible],
-#viewGroup > toolbarbutton:-moz-locale-dir(ltr):first-child,
-#viewGroup > toolbarbutton:-moz-locale-dir(ltr)[first-visible],
-#viewGroup > toolbarbutton:-moz-locale-dir(rtl):last-child,
-#viewGroup > toolbarbutton:-moz-locale-dir(rtl)[last-visible] {
+#viewGroup:not([chromedir=rtl]) > :first-child,
+#viewGroup:not([chromedir=rtl]) > [first-visible],
+#viewGroup[chromedir=rtl] > :last-child,
+#viewGroup[chromedir=rtl] > [last-visible] {
   -moz-border-radius-topleft: 2px;
   -moz-border-radius-bottomleft: 2px;
   border-left: none !important;
 }
 
-#viewGroup > radio:-moz-locale-dir(ltr):last-child,
-#viewGroup > radio:-moz-locale-dir(ltr)[last-visible],
-#viewGroup > radio:-moz-locale-dir(rtl):first-child,
-#viewGroup > radio:-moz-locale-dir(rtl)[first-visible],
-#viewGroup > toolbarbutton:-moz-locale-dir(ltr):last-child,
-#viewGroup > toolbarbutton:-moz-locale-dir(ltr)[last-visible],
-#viewGroup > toolbarbutton:-moz-locale-dir(rtl):first-child,
-#viewGroup > toolbarbutton:-moz-locale-dir(rtl)[first-visible] {
+#viewGroup:not([chromedir=rtl]) > :last-child,
+#viewGroup:not([chromedir=rtl]) > [last-visible],
+#viewGroup[chromedir=rtl] > :first-child,
+#viewGroup[chromedir=rtl] > [first-visible] {
   -moz-border-radius-topright: 2px;
   -moz-border-radius-bottomright: 2px;
 }

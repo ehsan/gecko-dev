@@ -62,6 +62,7 @@ NS_IMETHODIMP
 nsLayoutDebugCLH::Handle(nsICommandLine* aCmdLine)
 {
     nsresult rv;
+    PRBool found;
 
     PRInt32 idx;
     rv = aCmdLine->FindFlag(NS_LITERAL_STRING("layoutdebug"), PR_FALSE, &idx);

@@ -60,9 +60,7 @@ NS_NewGridRowGroupFrame(nsIPresShell* aPresShell,
   }
 
   return new (aPresShell) nsGridRowGroupFrame(aPresShell, aContext, layout);
-}
-
-NS_IMPL_FRAMEARENA_HELPERS(nsGridRowGroupFrame)
+} 
 
 
 /**

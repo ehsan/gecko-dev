@@ -72,6 +72,7 @@ public:
   NS_IMETHOD Init(nsIDocument* aDocument) = 0;
   NS_IMETHOD DropDocumentReference(void) = 0; // notification that doc is going away
 
+  NS_IMETHOD SetCaseSensitive(PRBool aCaseSensitive) = 0;
   NS_IMETHOD SetCompatibilityMode(nsCompatibility aCompatMode) = 0;
   NS_IMETHOD SetPreferredSheet(const nsAString& aTitle) = 0;
   NS_IMETHOD GetPreferredSheet(nsAString& aTitle) = 0;

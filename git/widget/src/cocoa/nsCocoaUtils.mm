@@ -63,10 +63,12 @@ float nsCocoaUtils::MenuBarScreenHeight()
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(0.0);
 }
 
+
 float nsCocoaUtils::FlippedScreenY(float y)
 {
   return MenuBarScreenHeight() - y;
 }
+
 
 NSRect nsCocoaUtils::GeckoRectToCocoaRect(const nsIntRect &geckoRect)
 {
@@ -82,6 +84,7 @@ NSRect nsCocoaUtils::GeckoRectToCocoaRect(const nsIntRect &geckoRect)
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NSMakeRect(0.0, 0.0, 0.0, 0.0));
 }
 
+
 nsIntRect nsCocoaUtils::CocoaRectToGeckoRect(const NSRect &cocoaRect)
 {
   // We only need to change the Y coordinate by starting with the primary screen
@@ -95,18 +98,16 @@ nsIntRect nsCocoaUtils::CocoaRectToGeckoRect(const NSRect &cocoaRect)
   return rect;
 }
 
+
 NSPoint nsCocoaUtils::ScreenLocationForEvent(NSEvent* anEvent)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
-
-  // Don't trust mouse locations of mouse move events, see bug 443178.
-  if (!anEvent || [anEvent type] == NSMouseMoved)
-    return [NSEvent mouseLocation];
 
   return [[anEvent window] convertBaseToScreen:[anEvent locationInWindow]];
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NSMakePoint(0.0, 0.0));
 }
+
 
 BOOL nsCocoaUtils::IsEventOverWindow(NSEvent* anEvent, NSWindow* aWindow)
 {
@@ -117,6 +118,7 @@ BOOL nsCocoaUtils::IsEventOverWindow(NSEvent* anEvent, NSWindow* aWindow)
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
 }
 
+
 NSPoint nsCocoaUtils::EventLocationForWindow(NSEvent* anEvent, NSWindow* aWindow)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
@@ -126,34 +128,31 @@ NSPoint nsCocoaUtils::EventLocationForWindow(NSEvent* anEvent, NSWindow* aWindow
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NSMakePoint(0.0, 0.0));
 }
 
-void nsCocoaUtils::HideOSChromeOnScreen(PRBool aShouldHide, NSScreen* aScreen)
+
+NSWindow* nsCocoaUtils::FindWindowUnderPoint(NSPoint aPoint)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
-  // Keep track of how many hiding requests have been made, so that they can
-  // be nested.
-  static int sMenuBarHiddenCount = 0, sDockHiddenCount = 0;
+  int windowCount;
+  NSCountWindows(&windowCount);
+  int* windowList = (int*)malloc(sizeof(int) * windowCount);
+  if (!windowList)
+    return nil;
+  // The list we get back here is in order from front to back.
+  NSWindowList(windowCount, windowList);
 
-  // Always hide the Dock, since it's not necessarily on the primary screen.
-  sDockHiddenCount += aShouldHide ? 1 : -1;
-  NS_ASSERTION(sMenuBarHiddenCount >= 0, "Unbalanced HideMenuAndDockForWindow calls");
-
-  // Only hide the menu bar if the window is on the same screen.
-  // The menu bar is always on the first screen in the screen list.
-  if (aScreen == [[NSScreen screens] objectAtIndex:0]) {
-    sMenuBarHiddenCount += aShouldHide ? 1 : -1;
-    NS_ASSERTION(sDockHiddenCount >= 0, "Unbalanced HideMenuAndDockForWindow calls");
+  for (int i = 0; i < windowCount; i++) {
+    NSWindow* currentWindow = [NSApp windowWithWindowNumber:windowList[i]];
+    if (currentWindow && NSPointInRect(aPoint, [currentWindow frame])) {
+      free(windowList);
+      return currentWindow;
+    }
   }
 
-  if (sMenuBarHiddenCount > 0) {
-    ::SetSystemUIMode(kUIModeAllHidden, 0);
-  } else if (sDockHiddenCount > 0) {
-    ::SetSystemUIMode(kUIModeContentHidden, 0);
-  } else {
-    ::SetSystemUIMode(kUIModeNormal, 0);
-  }
+  free(windowList);
+  return nil;
 
-  NS_OBJC_END_TRY_ABORT_BLOCK;
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
 
@@ -188,6 +187,7 @@ nsIWidget* nsCocoaUtils::GetHiddenWindowWidget()
   
   return hiddenWindowWidget;
 }
+
 
 void nsCocoaUtils::PrepareForNativeAppModalDialog()
 {
@@ -224,6 +224,7 @@ void nsCocoaUtils::PrepareForNativeAppModalDialog()
   
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
+
 
 void nsCocoaUtils::CleanUpAfterNativeAppModalDialog()
 {
@@ -295,3 +296,4 @@ NSUInteger nsCocoaUtils::GetCocoaEventModifierFlags(NSEvent *theEvent)
   }
   return modifierFlags;
 }
+

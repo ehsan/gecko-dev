@@ -54,10 +54,14 @@ public:
   ~nsChannelReader();
 
   /**
-   * Initialize the reader with the edia stream.
-   * This takes ownership of aStream.
+   * Initialize the reader with the given decoder, URI, and
+   * optional channel.
+   * @param aChannel may be null
+   * @param aStreamListener if aChannel is non-null, this will return
+   * a stream listener which should be attached to the channel.
    */
-  void Init(nsMediaStream* aStream);
+  nsresult Init(nsMediaDecoder* aDecoder, nsIURI* aURI, nsIChannel* aChannel,
+                nsIStreamListener** aStreamListener);
 
   nsMediaStream* Stream() { return mStream; }
 

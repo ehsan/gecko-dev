@@ -40,7 +40,6 @@
 #include "nsCoord.h"
 #include "nsPresContext.h"
 #include "nsILinkHandler.h" // for nsLinkState
-#include "nsCSSProperty.h"
 
 struct nsStyleBackground;
 
@@ -70,7 +69,8 @@ public:
 
   static PRInt32 ConstrainFontWeight(PRInt32 aWeight);
 
-  static PRBool IsHTMLLink(nsIContent *aContent, nsILinkHandler *aLinkHandler,
+  static PRBool IsHTMLLink(nsIContent *aContent, nsIAtom *aTag,
+                           nsILinkHandler *aLinkHandler,
                            nsLinkState *aState);
   static PRBool IsLink(nsIContent *aContent, nsILinkHandler *aLinkHandler,
                        nsLinkState *aState);
@@ -82,13 +82,6 @@ public:
   // Append a quoted (with "") and escaped version of aString to aResult.
   static void AppendEscapedCSSString(const nsString& aString,
                                      nsAString& aResult);
-
-  // Append a bitmask-valued property's value(s) (space-separated) to aResult.
-  static void AppendBitmaskCSSValue(nsCSSProperty aProperty,
-                                    PRInt32 aMaskedValue,
-                                    PRInt32 aFirstMask,
-                                    PRInt32 aLastMask,
-                                    nsAString& aResult);
 
   /*
    * Convert an author-provided floating point number to an integer (0

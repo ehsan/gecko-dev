@@ -332,8 +332,8 @@ moz_gtk_widget_get_focus(GtkWidget* widget, gboolean* interior_focus,
  * returns:   MOZ_GTK_SUCCESS if there was no error, an error code otherwise
  */
 gint
-moz_gtk_button_get_default_overflow(gint* border_top, gint* border_left,
-                                    gint* border_bottom, gint* border_right);
+moz_gtk_button_get_default_border(gint* border_top, gint* border_left,
+                                  gint* border_bottom, gint* border_right);
 
 /**
  * Get the desired size of a GtkScale thumb
@@ -439,12 +439,6 @@ gint moz_gtk_get_tab_thickness(void);
  * If TRUE, use images in menus.
  */
 gboolean moz_gtk_images_in_menus(void);
-
-/**
- * Get a boolean which indicates whether or not to use images in buttons.
- * If TRUE, use images in buttons.
- */
-gboolean moz_gtk_images_in_buttons(void);
 
 #ifdef __cplusplus
 }

@@ -22,7 +22,6 @@
  *
  * Contributor(s):
  *   Stuart Parmenter <pavlov@netscape.com>
- *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -47,7 +46,6 @@
 #include "nsAutoPtr.h"
 #include "prtypes.h"
 #include "imgRequest.h"
-#include "nsIObserverService.h"
 
 #ifdef LOADER_THREADSAFE
 #include "prlock.h"
@@ -58,7 +56,6 @@ class imgRequestProxy;
 class imgIRequest;
 class imgIDecoderObserver;
 class nsILoadGroup;
-class nsIPrefBranch;
 
 class imgCacheEntry
 {
@@ -97,7 +94,7 @@ public:
   {
     PRInt32 oldsize = mDataSize;
     mDataSize = aDataSize;
-    UpdateCache(mDataSize - oldsize);
+    TouchWithSize(mDataSize - oldsize);
   }
 
   PRInt32 GetTouchedTime() const
@@ -156,7 +153,7 @@ private: // methods
   friend class imgLoader;
   friend class imgCacheQueue;
   void Touch(PRBool updateTime = PR_TRUE);
-  void UpdateCache(PRInt32 diff = 0);
+  void TouchWithSize(PRInt32 diff);
   void SetEvicted(PRBool evict)
   {
     mEvicted = evict;
@@ -221,20 +218,16 @@ private:
 class imgLoader : public imgILoader,
                   public nsIContentSniffer,
                   public imgICache,
-                  public nsSupportsWeakReference,
-                  public nsIObserver
+                  public nsSupportsWeakReference
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_IMGILOADER
   NS_DECL_NSICONTENTSNIFFER
   NS_DECL_IMGICACHE
-  NS_DECL_NSIOBSERVER
 
   imgLoader();
   virtual ~imgLoader();
-
-  nsresult Init();
 
   static nsresult GetMimeTypeFromContent(const char* aContents, PRUint32 aLength, nsACString& aContentType);
 
@@ -315,8 +308,6 @@ private: // methods
                                     nsLoadFlags aLoadFlags, imgIRequest *aRequestProxy,
                                     imgIRequest **_retval);
 
-  void ReadAcceptHeaderPref(nsIPrefBranch *aBranch);
-
 
   typedef nsRefPtrHashtable<nsCStringHashKey, imgCacheEntry> imgCacheTable;
 
@@ -338,8 +329,6 @@ private: // data
   static imgCacheQueue sChromeCacheQueue;
   static PRFloat64 sCacheTimeWeight;
   static PRUint32 sCacheMaxSize;
-
-  nsCString mAcceptHeader;
 };
 
 

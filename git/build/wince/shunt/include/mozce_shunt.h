@@ -38,8 +38,6 @@
 #ifndef MOZCE_SHUNT_H
 #define MOZCE_SHUNT_H
 
-#include "environment.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -56,53 +54,11 @@ typedef unsigned short wchar_t;
 #ifdef MOZ_MEMORY
 
 #ifdef __cplusplus
-
-// define these so we don't include <new> from either VC or
-// the CE5 SDK
 #define _NEW_
-#define _INC_NEW
-
-#ifndef __NOTHROW_T_DEFINED
-#define __NOTHROW_T_DEFINED
-namespace std {
-  struct nothrow_t {};
-  extern const nothrow_t nothrow;
-};
-#endif
-
-// grab malloc and free prototypes
-#include "jemalloc.h"
-
-// Normal and nothrow versions of operator new, none of which
-// actually throw for us.  These are both inline and exported
-// from the shunt.
-inline void *operator new(size_t size) throw() {
-  return (void*) malloc(size);
-}
-inline void *operator new(size_t size, const std::nothrow_t&) throw() {
-  return (void*) malloc(size);
-}
-inline void operator delete(void *ptr) throw() {
-  free(ptr);
-}
-inline void *operator new[](size_t size) throw() {
-  return (void*) malloc(size);
-}
-inline void *operator new[](size_t size, const std::nothrow_t&) throw() {
-  return (void*) malloc(size);
-}
-inline void operator delete[](void *ptr) throw() {
-  return free(ptr);
-}
-
-// Placement new.  Just inline, not exported (which doesn't work for
-// some reason, but it's a noop in any case)
-inline void *operator new(size_t, void *p) {
-  return p;
-}
-inline void *operator new[](size_t, void *p) {
-  return p;
-}
+void * operator new(size_t _Size);
+void operator delete(void * ptr);
+void *operator new[](size_t size);
+void operator delete[](void *ptr);
 
 extern "C" {
 #endif
@@ -174,7 +130,6 @@ unsigned int ExpandEnvironmentStringsW(const unsigned short* lpSrc,
 unsigned short * _wgetcwd(unsigned short* dir, unsigned long size);
 unsigned short *_wfullpath( unsigned short *absPath, const unsigned short *relPath, unsigned long maxLength );
 int _unlink(const char *filename );
-int _wchdir(const unsigned short* path);
   
 /* The time stuff should be defined here, but it can't be because it
    is already defined in time.h.

@@ -165,18 +165,6 @@ struct JSAtomList : public JSAtomSet
 };
 
 /*
- * A subclass of JSAtomList with a destructor.  This atom list owns its
- * hash table and its entries, but no keys or values.
- */
-struct JSAutoAtomList: public JSAtomList
-{
-    JSAutoAtomList(JSCompiler *c): compiler(c) {}
-    ~JSAutoAtomList();
-  private:
-    JSCompiler *compiler;       /* For freeing list entries. */
-};
-
-/*
  * Iterate over an atom list. We define a call operator to minimize the syntax
  * tax for users. We do not use a more standard pattern using ++ and * because
  * (a) it's the wrong pattern for a non-scalar; (b) it's overkill -- one method
@@ -272,11 +260,6 @@ struct JSAtomState {
     JSAtom              *valueOfAtom;
     JSAtom              *toJSONAtom;
     JSAtom              *void0Atom;
-    JSAtom              *enumerableAtom;
-    JSAtom              *configurableAtom;
-    JSAtom              *writableAtom;
-    JSAtom              *valueAtom;
-    JSAtom              *useStrictAtom;
 
 #if JS_HAS_XML_SUPPORT
     JSAtom              *etagoAtom;
@@ -411,10 +394,6 @@ extern const char   js_undefined_str[];
 extern const char   js_valueOf_str[];
 extern const char   js_toJSON_str[];
 extern const char   js_xml_str[];
-extern const char   js_enumerable_str[];
-extern const char   js_configurable_str[];
-extern const char   js_writable_str[];
-extern const char   js_value_str[];
 
 #ifdef NARCISSUS
 extern const char   js___call___str[];
@@ -487,6 +466,12 @@ js_GetExistingStringAtom(JSContext *cx, const jschar *chars, size_t length);
  */
 JSBool
 js_AtomizePrimitiveValue(JSContext *cx, jsval v, JSAtom **atomp);
+
+/*
+ * Convert v to an atomized string and wrap it as an id.
+ */
+extern JSBool
+js_ValueToStringId(JSContext *cx, jsval v, jsid *idp);
 
 #ifdef DEBUG
 

@@ -115,35 +115,10 @@ int errno = 0;
 
 unsigned short * _wgetcwd(unsigned short * dir, unsigned long size)
 {
-  unsigned short tmp[MAX_PATH] = {0};
-  GetEnvironmentVariableW(L"CWD", tmp, size);
-  if (tmp && tmp[0]) {
-    if (wcslen(tmp) > size)
-      return 0;
-    if (!dir) {
-      dir = (unsigned short*)malloc(sizeof(unsigned short) * (wcslen(tmp) + 2));
-      if (!dir)
-        return 0;
-    }
-    wcscpy(dir, tmp);
-  } else {
-    unsigned long i;
-    if (!dir) {
-      dir = (unsigned short*)malloc(sizeof(unsigned short) * (MAX_PATH + 1));
-      if (!dir)
-        return 0;
-    }
-    if (!GetModuleFileNameW(GetModuleHandle (NULL), dir, MAX_PATH))
-      return 0;
-    for (i = wcslen(dir); i && dir[i] != '\\'; i--) {}
-    dir[i + 1] = '\0';
-    SetEnvironmentVariableW(L"CWD", dir);
-  }
-  size_t len = wcslen(dir);
-  if (dir[len - 1] != '\\' && (len + 2) < size) {
-    dir[len] = '\\';
-    dir[len + 1] = '\0';
-  }
+  unsigned long i;
+  GetModuleFileName(GetModuleHandle (NULL), dir, MAX_PATH);
+  for (i = _tcslen(dir); i && dir[i] != TEXT('\\'); i--) {}
+  dir[i + 1] = TCHAR('\0');
   return dir;
 }
 
@@ -173,10 +148,6 @@ unsigned short *_wfullpath( unsigned short *absPath, const unsigned short *relPa
 #endif
   }
   return NULL;
-}
-
-int _wchdir(const WCHAR* path) {
-  return SetEnvironmentVariableW(L"CWD", path);
 }
 
 int _unlink(const char *filename)

@@ -139,22 +139,19 @@
 
       // textarea's name should have the value, which initially is specified by
       // a text child.
-      testName("textareawithchild", "Story Foo is ended.");
+      testName("textareawithchild", "Story: Foo");
 
       // new textarea name should reflect the value change. 
       var elem = document.getElementById("textareawithchild");
       elem.value = "Bar";
 
-      testName("textareawithchild", "Story Bar is ended.");
+      testName("textareawithchild", "Story: Bar");
 
       /////////////////////////////////////////////////////////////////////////
       // label with nested combobox (test for 'f' item of name computation guide)
 
       testName("comboinstart", "One day(s).");
       testName("combo3", "day(s).");
-
-      testName("textboxinstart", "Two days.");
-      testName("textbox1", "days.");
 
       testName("comboinmiddle", "Subscribe to ATOM feed.");
       testName("combo4", "Subscribe to ATOM feed.");
@@ -166,14 +163,11 @@
       testName("comboinend", "This day was sunny");
       testName("combo6", "This day was");
 
-      testName("textboxinend", "This day was sunny");
-      testName("textbox2", "This day was");
-
       SimpleTest.finish();
     }
 
     SimpleTest.waitForExplicitFinish();
-    addA11yLoadEvent(doTest);
+    addLoadEvent(doTest);
   </script>
 
 </head>
@@ -351,15 +345,13 @@
 
   <!-- A textarea nested in a label with a text child (bug #453371). -->
   <form>
-    <label>Story
+    <label>Story: 
       <textarea id="textareawithchild" name="name">Foo</textarea>
-      is ended.
     </label>
   </form>
 
   <!-- a label with a nested control in the start, middle and end -->
   <form>
-    <!-- at the start (without and with whitespaces) -->
     <label id="comboinstart"><select id="combo3">
         <option>One</option>
         <option>Two</option>
@@ -367,12 +359,6 @@
       day(s).
     </label>
 
-    <label id="textboxinstart">
-      <input id="textbox1" value="Two">
-      days.
-    </label>
-
-    <!-- in the middle -->
     <label id="comboinmiddle">
       Subscribe to
       <select id="combo4" name="occupation">
@@ -391,18 +377,12 @@
     </label>
     <input id="checkbox" type="checkbox" />
 
-    <!-- at the end (without and with whitespaces) -->
     <label id="comboinend">
       This day was
       <select id="combo6" name="occupation">
         <option>sunny</option>
         <option>rainy</option>
       </select></label>
-
-    <label id="textboxinend">
-      This day was
-      <input id="textbox2" value="sunny">
-    </label>
   </form>
 
 </body>

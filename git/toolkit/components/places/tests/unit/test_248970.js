@@ -102,13 +102,13 @@ function get_PBSvc() {
  * @returns the place id for aURI.
  */
 function add_visit(aURI, aType) {
-  var visitId = histsvc.addVisit(uri(aURI),
+  var placeID = histsvc.addVisit(uri(aURI),
                                  Date.now() * 1000,
                                  null, // no referrer
                                  aType,
                                  false, // not redirect
                                  0);
-  return visitId;
+  return placeID;
 }
 
 /**
@@ -266,10 +266,13 @@ function is_bookmark_A_altered(){
 }
 
 function run_test() {
+
   // Fetch the private browsing service
   var pb = get_PBSvc();
 
-  if (pb) { // Private Browsing might not be available
+  if(pb) { // Private Browsing might not be available
+    start_sync(); // enable syncing
+
     // need to catch places sync notifications
     var os = Cc["@mozilla.org/observer-service;1"].
              getService(Ci.nsIObserverService);
@@ -290,7 +293,7 @@ function run_test() {
 
         // Bookmark-A should be bookmarked, data should be retrievable
         do_check_true(bmsvc.isBookmarked(bookmark_A_URI));
-        do_check_eq("google", bmsvc.getKeywordForURI(bookmark_A_URI));
+        do_check_eq("google",bmsvc.getKeywordForURI(bookmark_A_URI));
 
         // Enter Private Browsing Mode
         pb.privateBrowsingEnabled = true;
@@ -352,7 +355,7 @@ function run_test() {
         }
 
         prefBranch.clearUserPref("browser.privatebrowsing.keep_current_session");
-        do_test_finished();
+        finish_test();
       }
     };
 

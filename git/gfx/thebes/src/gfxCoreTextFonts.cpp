@@ -58,7 +58,7 @@
 #include "cairo-quartz.h"
 
 #include "gfxQuartzSurface.h"
-#include "gfxMacPlatformFontList.h"
+#include "gfxQuartzFontCache.h"
 #include "gfxUserFontSet.h"
 
 #include "nsUnicodeRange.h"
@@ -77,40 +77,17 @@ static PRLogModuleInfo *gCoreTextTextRunLog = PR_NewLogModule("coreTextTextRun")
 CTFontDescriptorRef gfxCoreTextFont::sDefaultFeaturesDescriptor = NULL;
 CTFontDescriptorRef gfxCoreTextFont::sDisableLigaturesDescriptor = NULL;
 
-#ifdef DEBUG_jonathan
-static void dumpFontDescCallback(const void *key, const void *value, void *context)
-{
-    CFStringRef attribute = (CFStringRef)key;
-    CFTypeRef setting = (CFTypeRef)value;
-    fprintf(stderr, "attr: "); CFShow(attribute);
-    fprintf(stderr, "    = "); CFShow(setting);
-    fprintf(stderr, "\n");
-}
-
-static void
-dumpFontDescriptor(CTFontRef font)
-{
-    CTFontDescriptorRef desc = CTFontCopyFontDescriptor(font);
-    CFDictionaryRef dict = CTFontDescriptorCopyAttributes(desc);
-    CFRelease(desc);
-    CFDictionaryApplyFunction(dict, &dumpFontDescCallback, 0);
-    CFRelease(dict);
-}
-#endif
 
 gfxCoreTextFont::gfxCoreTextFont(MacOSFontEntry *aFontEntry,
                                  const gfxFontStyle *aFontStyle,
                                  PRBool aNeedsBold)
     : gfxFont(aFontEntry, aFontStyle),
       mFontStyle(aFontStyle),
-      mCTFont(nsnull),
-      mAttributesDict(nsnull),
       mHasMetrics(PR_FALSE),
-      mFontFace(nsnull),
-      mScaledFont(nsnull),
       mAdjustedSize(0.0f)
 {
     mATSFont = aFontEntry->GetFontRef();
+    mCTFont = NULL;
 
     // determine whether synthetic bolding is needed
     PRInt8 baseWeight, weightDistance;
@@ -147,18 +124,6 @@ gfxCoreTextFont::gfxCoreTextFont(MacOSFontEntry *aFontEntry,
     mFontFace = cairo_quartz_font_face_create_for_cgfont(cgFont);
     ::CGFontRelease(cgFont);
 
-    cairo_status_t cairoerr = cairo_font_face_status(mFontFace);
-    if (cairoerr != CAIRO_STATUS_SUCCESS) {
-        mIsValid = PR_FALSE;
-#ifdef DEBUG
-        char warnBuf[1024];
-        sprintf(warnBuf, "Failed to create Cairo font face: %s status: %d",
-                NS_ConvertUTF16toUTF8(GetName()).get(), cairoerr);
-        NS_WARNING(warnBuf);
-#endif
-        return;
-    }
-
     cairo_matrix_t sizeMatrix, ctm;
     cairo_matrix_init_identity(&ctm);
     cairo_matrix_init_scale(&sizeMatrix, mAdjustedSize, mAdjustedSize);
@@ -183,8 +148,6 @@ gfxCoreTextFont::gfxCoreTextFont(MacOSFontEntry *aFontEntry,
     }
 
     cairo_font_options_t *fontOptions = cairo_font_options_create();
-    // if this fails (out of memory), the pointer is still safe to use
-    // although we're almost certainly going to fail below anyway
 
     // turn off font anti-aliasing based on user pref setting
     if (mAdjustedSize <= (float) gfxPlatformMac::GetPlatform()->GetAntiAliasingThreshold()) {
@@ -195,13 +158,13 @@ gfxCoreTextFont::gfxCoreTextFont(MacOSFontEntry *aFontEntry,
     mScaledFont = cairo_scaled_font_create(mFontFace, &sizeMatrix, &ctm, fontOptions);
     cairo_font_options_destroy(fontOptions);
 
-    cairoerr = cairo_scaled_font_status(mScaledFont);
+    cairo_status_t cairoerr = cairo_scaled_font_status(mScaledFont);
     if (cairoerr != CAIRO_STATUS_SUCCESS) {
         mIsValid = PR_FALSE;
+
 #ifdef DEBUG
         char warnBuf[1024];
-        sprintf(warnBuf, "Failed to create scaled font: %s status: %d",
-                NS_ConvertUTF16toUTF8(GetName()).get(), cairoerr);
+        sprintf(warnBuf, "Failed to create scaled font: %s status: %d", NS_ConvertUTF16toUTF8(GetName()).get(), cairoerr);
         NS_WARNING(warnBuf);
 #endif
     }
@@ -270,15 +233,11 @@ gfxCoreTextFont::GetCharHeight(PRUnichar aUniChar)
 
 gfxCoreTextFont::~gfxCoreTextFont()
 {
-    if (mScaledFont)
-        cairo_scaled_font_destroy(mScaledFont);
-    if (mFontFace)
-        cairo_font_face_destroy(mFontFace);
+    cairo_scaled_font_destroy(mScaledFont);
+    cairo_font_face_destroy(mFontFace);
 
-    if (mAttributesDict)
-        CFRelease(mAttributesDict);
-    if (mCTFont)
-        CFRelease(mCTFont);
+    CFRelease(mAttributesDict);
+    CFRelease(mCTFont);
 }
 
 MacOSFontEntry*
@@ -492,9 +451,9 @@ gfxCoreTextFont::CreateDefaultFeaturesDescriptor()
     CFRelease(attributesDict);
 }
 
-// Create a CTFontRef for an ATS font ref, with the Common Ligatures feature disabled [static]
+// Create a copy of a CTFontRef, with the Common Ligatures feature disabled [static]
 CTFontRef
-gfxCoreTextFont::CreateCTFontWithDisabledLigatures(ATSFontRef aFontRef, CGFloat aSize)
+gfxCoreTextFont::CreateCopyWithDisabledLigatures(CTFontRef aFontRef)
 {
     if (sDisableLigaturesDescriptor == NULL) {
         // initialize cached descriptor to turn off the Common Ligatures feature
@@ -540,11 +499,16 @@ gfxCoreTextFont::CreateCTFontWithDisabledLigatures(ATSFontRef aFontRef, CGFloat 
         CFRelease(featuresArray);
 
         sDisableLigaturesDescriptor =
-            CTFontDescriptorCreateCopyWithAttributes(GetDefaultFeaturesDescriptor(), attributesDict);
+            CTFontDescriptorCreateWithAttributes(attributesDict);
         CFRelease(attributesDict);
     }
-
-    return CTFontCreateWithPlatformFont(aFontRef, aSize, NULL, sDisableLigaturesDescriptor);
+    
+    aFontRef =
+        CTFontCreateCopyWithAttributes(aFontRef,
+                                       0.0,
+                                       NULL,
+                                       sDisableLigaturesDescriptor);
+    return aFontRef;
 }
 
 void
@@ -610,11 +574,12 @@ gfxCoreTextFontGroup::gfxCoreTextFontGroup(const nsAString& families,
         // user font.
 
         PRBool needsBold;
-        MacOSFontEntry *defaultFont = static_cast<MacOSFontEntry*>
-            (gfxMacPlatformFontList::PlatformFontList()->GetDefaultFont(aStyle, needsBold));
+        MacOSFontEntry *defaultFont =
+            gfxQuartzFontCache::SharedFontCache()->GetDefaultFont(aStyle, needsBold);
         NS_ASSERTION(defaultFont, "invalid default font returned by GetDefaultFont");
 
         nsRefPtr<gfxCoreTextFont> font = GetOrMakeCTFont(defaultFont, aStyle, needsBold);
+
         if (font) {
             mFonts.AppendElement(font);
         }
@@ -638,9 +603,9 @@ gfxCoreTextFontGroup::gfxCoreTextFontGroup(const nsAString& families,
 PRBool
 gfxCoreTextFontGroup::FindCTFont(const nsAString& aName,
                                  const nsACString& aGenericName,
-                                 void *aClosure)
+                                 void *closure)
 {
-    gfxCoreTextFontGroup *fontGroup = static_cast<gfxCoreTextFontGroup*>(aClosure);
+    gfxCoreTextFontGroup *fontGroup = (gfxCoreTextFontGroup*) closure;
     const gfxFontStyle *fontStyle = fontGroup->GetStyle();
 
 
@@ -657,8 +622,8 @@ gfxCoreTextFontGroup::FindCTFont(const nsAString& aName,
 
     // nothing in the user font set ==> check system fonts
     if (!fe) {
-        fe = static_cast<MacOSFontEntry*>
-            (gfxMacPlatformFontList::PlatformFontList()->FindFontForFamily(aName, fontStyle, needsBold));
+        gfxQuartzFontCache *fc = gfxQuartzFontCache::SharedFontCache();
+        fe = fc->FindFontForFamily(aName, fontStyle, needsBold);
     }
 
     if (fe && !fontGroup->HasFont(fe->GetFontRef())) {
@@ -741,6 +706,7 @@ gfxCoreTextFontGroup::MakeTextRun(const PRUnichar *aString, PRUint32 aLength,
     if (!textRun)
         return nsnull;
 
+    textRun->RecordSurrogates(aString);
     gfxPlatformMac::SetupClusterBoundaries(textRun, aString);
 
     nsAutoString utf16;
@@ -793,20 +759,19 @@ gfxCoreTextFontGroup::InitTextRun(gfxTextRun *aTextRun,
     if (disableLigatures) {
         // For letterspacing (or maybe other situations) we need to make a copy of the CTFont
         // with the ligature feature disabled
-        CTFontRef ctFont =
-            gfxCoreTextFont::CreateCTFontWithDisabledLigatures(mainFont->GetATSFont(),
-                                                               CTFontGetSize(mainFont->GetCTFont()));
+        CTFontRef mainCTFont = mainFont->GetCTFont();
+        mainCTFont = gfxCoreTextFont::CreateCopyWithDisabledLigatures(mainCTFont);
 
         // Set up the initial font, for the (common) case of a monostyled textRun
         attrObj =
             CFDictionaryCreate(kCFAllocatorDefault,
                                (const void**) &kCTFontAttributeName,
-                               (const void**) &ctFont,
+                               (const void**) &mainCTFont,
                                1, // count of attributes
                                &kCFTypeDictionaryKeyCallBacks,
                                &kCFTypeDictionaryValueCallBacks);
-        // Having created the dict, we're finished with our ligature-disabled CTFontRef
-        CFRelease(ctFont);
+        // Having created the dict, we're finished with our modified copy of the CTFont
+        CFRelease(mainCTFont);
     } else {
         attrObj = mainFont->GetAttributesDictionary();
         CFRetain(attrObj);
@@ -848,8 +813,7 @@ gfxCoreTextFontGroup::InitTextRun(gfxTextRun *aTextRun,
             if (matchedFont != mainFont) {
                 CTFontRef matchedCTFont = matchedFont->GetCTFont();
                 if (disableLigatures)
-                    matchedCTFont = gfxCoreTextFont::CreateCTFontWithDisabledLigatures(matchedFont->GetATSFont(),
-                                                                                       CTFontGetSize(matchedCTFont));
+                    matchedCTFont = gfxCoreTextFont::CreateCopyWithDisabledLigatures(matchedCTFont);
                 // if necessary, make a mutable copy of the string
                 if (!mutableStringObj) {
                     mutableStringObj =
@@ -1154,13 +1118,12 @@ gfxCoreTextFontGroup::SetGlyphsFromRun(gfxTextRun *aTextRun,
         }
 
         // Then we check if the clump falls outside our actual string range; if so, just go to the next.
-        if (endCharIndex <= aLayoutStart || baseCharIndex >= aLayoutStart + aLayoutLength) {
+        if (baseCharIndex < aLayoutStart || baseCharIndex >= aLayoutStart + aLayoutLength) {
             glyphStart = glyphEnd;
             charStart = charEnd;
             continue;
         }
         // Ensure we won't try to go beyond the valid length of the textRun's text
-        baseCharIndex = PR_MAX(baseCharIndex, aLayoutStart);
         endCharIndex = PR_MIN(endCharIndex, aLayoutStart + aLayoutLength);
 
         // for missing glyphs, we already recorded the info in the textRun
@@ -1242,17 +1205,17 @@ gfxCoreTextFontGroup::HasFont(ATSFontRef aFontRef)
 }
 
 struct PrefFontCallbackData {
-    PrefFontCallbackData(nsTArray<nsRefPtr<gfxFontFamily> >& aFamiliesArray)
+    PrefFontCallbackData(nsTArray<nsRefPtr<MacOSFamilyEntry> >& aFamiliesArray)
         : mPrefFamilies(aFamiliesArray)
     {}
 
-    nsTArray<nsRefPtr<gfxFontFamily> >& mPrefFamilies;
+    nsTArray<nsRefPtr<MacOSFamilyEntry> >& mPrefFamilies;
 
     static PRBool AddFontFamilyEntry(eFontPrefLang aLang, const nsAString& aName, void *aClosure)
     {
-        PrefFontCallbackData *prefFontData = static_cast<PrefFontCallbackData*>(aClosure);
+        PrefFontCallbackData *prefFontData = (PrefFontCallbackData*) aClosure;
 
-        gfxFontFamily *family = gfxMacPlatformFontList::PlatformFontList()->FindFamily(aName);
+        MacOSFamilyEntry *family = gfxQuartzFontCache::SharedFontCache()->FindFamily(aName);
         if (family) {
             prefFontData->mPrefFamilies.AppendElement(family);
         }
@@ -1290,10 +1253,10 @@ gfxCoreTextFontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
     macPlatform->GetLangPrefs(prefLangs, numLangs, charLang, mPageLang);
 
     for (i = 0; i < numLangs; i++) {
-        nsAutoTArray<nsRefPtr<gfxFontFamily>, 5> families;
+        nsAutoTArray<nsRefPtr<MacOSFamilyEntry>, 5> families;
         eFontPrefLang currentLang = prefLangs[i];
 
-        gfxMacPlatformFontList *fc = gfxMacPlatformFontList::PlatformFontList();
+        gfxQuartzFontCache *fc = gfxQuartzFontCache::SharedFontCache();
 
         // get the pref families for a single pref lang
         if (!fc->GetPrefFontFamilyEntries(currentLang, &families)) {
@@ -1309,7 +1272,7 @@ gfxCoreTextFontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
         numPrefs = families.Length();
         for (i = 0; i < numPrefs; i++) {
             // look up the appropriate face
-            gfxFontFamily *family = families[i];
+            MacOSFamilyEntry *family = families[i];
             if (!family) continue;
 
             // if a pref font is used, it's likely to be used again in the same text run.
@@ -1323,8 +1286,7 @@ gfxCoreTextFontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
             }
 
             PRBool needsBold;
-            MacOSFontEntry *fe =
-                static_cast<MacOSFontEntry*>(family->FindFontForStyle(mStyle, needsBold));
+            MacOSFontEntry *fe = family->FindFont(&mStyle, needsBold);
             // if ch in cmap, create and return a gfxFont
             if (fe && fe->TestCharacterMap(aCh)) {
                 nsRefPtr<gfxCoreTextFont> prefFont = GetOrMakeCTFont(fe, &mStyle, needsBold);
@@ -1333,7 +1295,7 @@ gfxCoreTextFontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
                 mLastPrefFont = prefFont;
                 mLastPrefLang = charLang;
                 mLastPrefFirstFont = (i == 0);
-                nsRefPtr<gfxFont> font2 = prefFont.get();
+                nsRefPtr<gfxFont> font2 = (gfxFont*) prefFont;
                 return font2.forget();
             }
 
@@ -1346,11 +1308,12 @@ gfxCoreTextFontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
 already_AddRefed<gfxFont>
 gfxCoreTextFontGroup::WhichSystemFontSupportsChar(PRUint32 aCh)
 {
-    MacOSFontEntry *fe = static_cast<MacOSFontEntry*>
-        (gfxMacPlatformFontList::PlatformFontList()->FindFontForChar(aCh, GetFontAt(0)));
+    MacOSFontEntry *fe;
+
+    fe = gfxQuartzFontCache::SharedFontCache()->FindFontForChar(aCh, GetFontAt(0));
     if (fe) {
         nsRefPtr<gfxCoreTextFont> ctFont = GetOrMakeCTFont(fe, &mStyle, PR_FALSE); // ignore bolder considerations in system fallback case...
-        nsRefPtr<gfxFont> font = ctFont.get();
+        nsRefPtr<gfxFont> font = (gfxFont*) ctFont;
         return font.forget();
     }
 
@@ -1364,7 +1327,6 @@ gfxCoreTextFontGroup::UpdateFontList()
     if (mUserFontSet && mCurrGeneration != GetGeneration()) {
         // xxx - can probably improve this to detect when all fonts were found, so no need to update list
         mFonts.Clear();
-        mUnderlineOffset = UNDERLINE_OFFSET_NOT_SET;
         ForEachFont(FindCTFont, this);
         mCurrGeneration = GetGeneration();
     }

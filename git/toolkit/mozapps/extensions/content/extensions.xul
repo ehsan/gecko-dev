@@ -48,6 +48,8 @@
 %brandDTD;
 <!ENTITY % extensionsDTD SYSTEM "chrome://mozapps/locale/extensions/extensions.dtd">
 %extensionsDTD;
+<!ENTITY % global SYSTEM "chrome://global/locale/global.dtd">
+%global;
 ]>
 
 <window xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
@@ -162,7 +164,7 @@
     <deck flex="1">
       <hbox class="viewGroupWrapper">
         <radiogroup id="viewGroup" xhtml:role="listbox" persist="last-selected"
-                    orient="horizontal">
+                    orient="horizontal" chromedir="&locale.dir;">
           <radio id="search-view" label="&search.label;" oncommand="showView('search');" persist="last-selected"/>
           <radio id="extensions-view" label="&extensions.label;" oncommand="showView('extensions');" persist="last-selected"/>
           <radio id="themes-view" label="&themes.label;" oncommand="showView('themes');" persist="last-selected"/>
@@ -195,7 +197,7 @@
       </hbox>
       
       <hbox flex="1">
-        <richlistbox id="extensionsView" flex="1" sort="?name"
+        <richlistbox id="extensionsView" flex="1" 
                      datasources="rdf:null" context="addonContextMenu"
                      ondragenter="gExtensionsDNDObserver.onDragOver(event)"
                      ondragover="gExtensionsDNDObserver.onDragOver(event)"
@@ -213,9 +215,9 @@
               <label class="previewText">&previewNoPreviewImage.label;</label>
             </vbox>
             <vbox id="previewImageContainer" align="center" pack="center">
-              <hbox>
-                <image id="previewImage" onerror="onPreviewImageError(event)"/>
-              </hbox>
+              <description>
+                <image id="previewImage"/>
+              </description>
             </vbox>
             <vbox id="infoNoAddonSelected" align="center" pack="center">
               <label class="previewText">&infoNoAddonSelected.label;</label>
@@ -247,6 +249,11 @@
               accesskey="&cmd.hideUpdateInfo.accesskey;"
               tooltiptext="&cmd.hideUpdateInfo.tooltip;"
               command="cmd_hideUpdateInfo"/>
+      <label id="getMore" class="text-link"
+             onclick="if (event.button == 0) { openURL(this.getAttribute('getMoreURL')); }"
+             valuethemes="&getThemes.label;"
+             valueplugins="&getPlugins.label;"
+             valueextensions="&getExtensions.label;"/>
       <button id="installFileButton" label="&cmd.installLocalFile.label;"
               accesskey="&cmd.installLocalFile.accesskey;"
               tooltiptextaddons="&cmd.installFileAddon.tooltip;"
@@ -256,13 +263,7 @@
               accesskey="&cmd.checkUpdatesAll.accesskey;"
               tooltiptextaddons="&cmd.checkUpdatesAllAddon.tooltip;"
               tooltiptextthemes="&cmd.checkUpdatesAllTheme.tooltip;"
-              tooltiptextplugins="&cmd.checkUpdatesAllPlugin.tooltip;"
               command="cmd_checkUpdatesAll"/>
-      <label id="getMore" class="text-link"
-             onclick="if (event.button == 0) { openURL(this.getAttribute('getMoreURL')); }"
-             valuethemes="&getThemes.label;"
-             valueplugins="&getPlugins.label;"
-             valueextensions="&getExtensions.label;"/>
       <spacer flex="1"/>
       <button id="skipDialogButton" label="&cmd.skip.label;"
               accesskey="&cmd.skip.accesskey;"
@@ -284,11 +285,6 @@
               tooltiptextthemes="&cmd.installFileTheme.tooltip;"
               command="cmd_installFile"/>
       <spacer flex="1"/>
-      <label id="getMore" class="text-link"
-             onclick="if (event.button == 0) { openURL(this.getAttribute('getMoreURL')); }"
-             valuethemes="&getThemes.label;"
-             valueplugins="&getPlugins.label;"
-             valueextensions="&getExtensions.label;"/>
       <button id="continueDialogButton" label="&cmd.continue.label;"
               accesskey="&cmd.continue.accesskey;"
               tooltiptext="&cmd.continue.tooltip;"
@@ -315,6 +311,11 @@
               accesskey="&cmd.hideUpdateInfo.accesskey;"
               tooltiptext="&cmd.hideUpdateInfo.tooltip;"
               command="cmd_hideUpdateInfo"/>
+      <label id="getMore" class="text-link"
+             onclick="if (event.button == 0) { openURL(this.getAttribute('getMoreURL')); }"
+             valuethemes="&getThemes.label;"
+             valueplugins="&getPlugins.label;"
+             valueextensions="&getExtensions.label;"/>
 #endif
     </hbox>
     <hbox id="resizerBox" style="min-width:1px;">

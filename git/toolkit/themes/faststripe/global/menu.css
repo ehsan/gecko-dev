@@ -122,24 +122,20 @@ menuitem.menuitem-iconic > .menu-iconic-left {
 /* ..... menu arrow box ..... */
 
 .menu-right {
+  -moz-appearance: menuarrow;
   -moz-margin-end: -2px;
-  list-style-image: url("chrome://global/skin/arrow/arrow-rit-sharp.gif");
-  -moz-box-pack: center;
+  list-style-image: none;
   min-width: 1.28em;
   padding-top: 1px;
-}
-
-.menu-right[_moz-menuactive="true"],
-.menu-right[disabled="true"] {
-  /* XXXzpao We need a new image, essentially arrow-rit-sharp but white
-   * disabled=true should probably have a different image. */
-  list-style-image: url("chrome://global/skin/arrow/arrow-rit-dis.gif");
 }
 
 /* ::::: menu/menuitems in menubar ::::: */
 
 menubar > menu {
-  padding: 1px 2px 2px 2px;
+  border: 2px solid transparent;
+}
+menubar > menu[_moz-menuactive="true"][open="true"] {
+  border-width: 3px 1px 1px 3px;
 }
 menubar > menu[_moz-menuactive="true"],
 menubar > menu[_moz-menuactive="true"][open="true"] {
@@ -164,7 +160,6 @@ menupopup > menu,
 popup > menu,
 menupopup > menuitem,
 popup > menuitem {
-  padding-bottom: 1px;
   max-width: 42em;
 }
 
@@ -230,38 +225,39 @@ menulist > menupopup > menuitem > .menu-iconic-text {
 
 /* ::::: checkbox and radio menuitems ::::: */
 
-menuitem[checked="true"] > .menu-iconic-left {
-  list-style-image: url("chrome://global/skin/checkbox/cbox-check.gif");
+menuitem[type="checkbox"],
+menuitem[checked="true"] {
+  -moz-appearance: checkmenuitem;
 }
-menuitem[checked="true"] > .menu-iconic-left[_moz-menuactive="true"],
-menuitem[checked="true"][disabled="true"] > .menu-iconic-left {
-  /* XXXzpao We need another image for here too.
-   * disabled=true should probably have a different image. */
-  list-style-image: url("chrome://global/skin/checkbox/cbox-check-dis.gif");
+menuitem[type="checkbox"] > .menu-iconic-left,
+menuitem[checked="true"] > .menu-iconic-left {
+  -moz-appearance: menucheckbox;
+  padding-top: 0px;
 }
 
-menuitem[type="radio"][checked="true"] > .menu-iconic-left {
-  list-style-image: url("chrome://global/skin/radio/radio-check.gif");
+menuitem[type="radio"] {
+  -moz-appearance: radiomenuitem;
 }
-menuitem[type="radio"][checked="true"] > .menu-iconic-left[_moz-menuactive="true"],
-menuitem[type="radio"][checked="true"][disabled="true"] > .menu-iconic-left {
-  /* XXXzpao We need another image for here too
-   * disabled=true might need another image. Not sure if that can ever happen though. */
-  list-style-image: url("chrome://global/skin/radio/radio-check-dis.gif");
+menuitem[type="radio"] > .menu-iconic-left {
+  -moz-appearance: menuradio;
+  padding-top: 0px;
 }
 
 menuitem[type="checkbox"] > .menu-iconic-left > .menu-iconic-icon,
 menuitem[checked="true"] > .menu-iconic-left > .menu-iconic-icon,
 menuitem[type="radio"] > .menu-iconic-left > .menu-iconic-icon {
-  padding-top: 0px;
-  height: auto;
-  width: auto;
+  /* prevent .menu-iconic-icon from enforcing a minimal height of 16px (see bug 411064)
+     XXXzeniko apply that .menu-iconic-icon rule only for children of .menu-iconic */
+  display: none;
 }
 
 /* ::::: menuseparator ::::: */
 
 menuseparator {
-  margin: 3px 1px 5px 1px;
+  padding-left: 4px;
+  padding-right: 4px;
+  padding-top: 2px;
+  padding-bottom: 0px;
   border-bottom: 1px solid gray;
 }
 

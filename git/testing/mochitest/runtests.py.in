@@ -22,7 +22,6 @@
 # Contributor(s):
 #   Robert Sayre <sayrer@gmail.com>
 #   Jeff Walden <jwalden+bmo@mit.edu>
-#   Serge Gautherie <sgautherie.bz@free.fr>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -53,7 +52,7 @@ from urllib import quote_plus as encodeURIComponent
 import urllib2
 import commands
 import automation
-from automationutils import *
+from automationutils import addCommonOptions
 
 # Path to the test script on the server
 TEST_SERVER_HOST = "localhost:8888"
@@ -74,10 +73,7 @@ BROWSER_CHROME_URL = "chrome://browser/content/browser.xul"
 # Max time in seconds to wait for server startup before tests will fail -- if
 # this seems big, it's mostly for debug machines where cold startup
 # (particularly after a build) takes forever.
-if automation.IS_DEBUG_BUILD:
-    SERVER_STARTUP_TIMEOUT = 180
-else:
-    SERVER_STARTUP_TIMEOUT = 90
+SERVER_STARTUP_TIMEOUT = 45
 
 oldcwd = os.getcwd()
 SCRIPT_DIRECTORY = os.path.abspath(os.path.realpath(os.path.dirname(sys.argv[0])))
@@ -85,7 +81,25 @@ os.chdir(SCRIPT_DIRECTORY)
 
 PROFILE_DIRECTORY = os.path.abspath("./mochitesttestingprofile")
 
-LEAK_REPORT_FILE = os.path.join(PROFILE_DIRECTORY, "runtests_leaks.log")
+LEAK_REPORT_FILE = PROFILE_DIRECTORY + "/" + "leaks-report.log"
+
+# Map of debugging programs to information about them, like default arguments
+# and whether or not they are interactive.
+DEBUGGER_INFO = {
+  # gdb requires that you supply the '--args' flag in order to pass arguments
+  # after the executable name to the executable.
+  "gdb": {
+    "interactive": True,
+    "args": "-q --args"
+  },
+
+  # valgrind doesn't explain much about leaks unless you set the
+  # '--leak-check=full' flag.
+  "valgrind": {
+    "interactive": False,
+    "args": "--leak-check=full"
+  }
+}
 
 #######################
 # COMMANDLINE OPTIONS #
@@ -99,7 +113,6 @@ class MochitestOptions(optparse.OptionParser):
 
     # we want to pass down everything from automation.__all__
     addCommonOptions(self, defaults=dict(zip(automation.__all__, [getattr(automation, x) for x in automation.__all__])))
-    automation.addExtraCommonOptions(self)
 
     self.add_option("--close-when-done",
                     action = "store_true", dest = "closeWhenDone",
@@ -131,32 +144,6 @@ class MochitestOptions(optparse.OptionParser):
                     action = "store_true", dest = "autorun",
                     help = "start running tests when the application starts")
     defaults["autorun"] = False
-    
-    self.add_option("--timeout",
-                    type = "int", dest = "timeout",
-                    help = "per-test timeout in seconds")
-    defaults["timeout"] = None
-
-    self.add_option("--total-chunks",
-                    type = "int", dest = "totalChunks",
-                    help = "how many chunks to split the tests up into")
-    defaults["totalChunks"] = None
-
-    self.add_option("--this-chunk",
-                    type = "int", dest = "thisChunk",
-                    help = "which chunk to run")
-    defaults["thisChunk"] = None
-
-    self.add_option("--chunk-by-dir",
-                    type = "int", dest = "chunkByDir",
-                    help = "group tests together in the same chunk that are in the same top chunkByDir directories")
-    defaults["chunkByDir"] = 0
-
-    self.add_option("--shuffle",
-                    dest = "shuffle",
-                    action = "store_true",
-                    help = "randomize test order")
-    defaults["shuffle"] = False
 
     LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "FATAL")
     LEVEL_STRING = ", ".join(LOG_LEVELS)
@@ -228,6 +215,20 @@ class MochitestOptions(optparse.OptionParser):
                     help = "copy specified files/dirs to testing profile")
     defaults["extraProfileFiles"] = []
 
+    self.add_option("--debugger",
+                    action = "store", dest = "debugger",
+                    help = "use the given debugger to launch the application")
+
+    self.add_option("--debugger-args",
+                    action = "store", dest = "debuggerArgs",
+                    help = "pass the given args to the debugger _before_ "
+                           "the application on the command line")
+
+    self.add_option("--debugger-interactive",
+                    action = "store_true", dest = "debuggerInteractive",
+                    help = "prevents the test harness from redirecting stdout "
+                           "and stderr for interactive debuggers")
+
     # -h, --help are automatically handled by OptionParser
 
     self.set_defaults(**defaults)
@@ -257,9 +258,14 @@ class MochitestServer:
   def start(self):
     "Run the Mochitest server, returning the process ID of the server."
     
-    env = automation.environment(xrePath = self._xrePath)
-    env["XPCOM_DEBUG_BREAK"] = "warn"
-    if automation.IS_WIN32:
+    env = dict(os.environ)
+    if automation.UNIXISH:
+      env["LD_LIBRARY_PATH"] = self._xrePath
+      env["MOZILLA_FIVE_HOME"] = self._xrePath
+      env["XPCOM_DEBUG_BREAK"] = "warn"
+    elif automation.IS_MAC:
+      env["DYLD_LIBRARY_PATH"] = self._xrePath
+    elif automation.IS_WIN32:
       env["PATH"] = env["PATH"] + ";" + self._xrePath
 
     args = ["-g", self._xrePath,
@@ -305,6 +311,22 @@ def getFullPath(path):
   "Get an absolute path relative to oldcwd."
   return os.path.normpath(os.path.join(oldcwd, os.path.expanduser(path)))
 
+def searchPath(path):
+  "Go one step beyond getFullPath and try the various folders in PATH"
+  # Try looking in the current working directory first.
+  newpath = getFullPath(path)
+  if os.path.exists(newpath):
+    return newpath
+
+  # At this point we have to fail if a directory was given (to prevent cases
+  # like './gdb' from matching '/usr/bin/./gdb').
+  if not os.path.dirname(path):
+    for dir in os.environ['PATH'].split(os.pathsep):
+      newpath = os.path.join(dir, path)
+      if os.path.exists(newpath):
+        return newpath
+  return None
+
 #################
 # MAIN FUNCTION #
 #################
@@ -312,13 +334,6 @@ def getFullPath(path):
 def main():
   parser = MochitestOptions()
   options, args = parser.parse_args()
-
-  if options.totalChunks is not None and options.thisChunk is None:
-    parser.error("thisChunk must be specified when totalChunks is specified")
-
-  if options.totalChunks:
-    if not 1 <= options.thisChunk <= options.totalChunks:
-       parser.error("thisChunk must be between 1 and totalChunks")
 
   if options.xrePath is None:
     # default xrePath to the app path if not provided
@@ -342,18 +357,45 @@ Are you executing $objdir/_tests/testing/mochitest/runtests.py?"""
 
   options.utilityPath = getFullPath(options.utilityPath)
   options.certPath = getFullPath(options.certPath)
-  if options.symbolsPath:
-    options.symbolsPath = getFullPath(options.symbolsPath)
 
-  debuggerInfo = getDebuggerInfo(oldcwd, options.debugger, options.debuggerArgs,
-    options.debuggerInteractive);
+  debuggerInfo = None
+
+  if options.debugger:
+    debuggerPath = searchPath(options.debugger)
+    if not debuggerPath:
+      print "Error: Path %s doesn't exist." % options.debugger
+      sys.exit(1)
+
+    debuggerName = os.path.basename(debuggerPath).lower()
+
+    def getDebuggerInfo(type, default):
+      if debuggerName in DEBUGGER_INFO and type in DEBUGGER_INFO[debuggerName]:
+        return DEBUGGER_INFO[debuggerName][type]
+      return default
+
+    debuggerInfo = {
+      "path": debuggerPath,
+      "interactive" : getDebuggerInfo("interactive", False),
+      "args": getDebuggerInfo("args", "").split()
+    }
+
+    if options.debuggerArgs:
+      debuggerInfo["args"] = options.debuggerArgs.split()
+    if options.debuggerInteractive:
+      debuggerInfo["interactive"] = options.debuggerInteractive
 
   # browser environment
-  browserEnv = automation.environment(xrePath = options.xrePath)
+  browserEnv = dict(os.environ)
 
   # These variables are necessary for correct application startup; change
   # via the commandline at your own risk.
-  browserEnv["XPCOM_DEBUG_BREAK"] = "stack"
+  browserEnv["NO_EM_RESTART"] = "1"
+  browserEnv["XPCOM_DEBUG_BREAK"] = "warn"
+  appDir = os.path.dirname(options.app)
+  if automation.UNIXISH:
+    browserEnv["LD_LIBRARY_PATH"] = appDir
+    browserEnv["MOZILLA_FIVE_HOME"] = appDir
+    browserEnv["GNOME_DISABLE_CRASH_DIALOG"] = "1"
 
   for v in options.environment:
     ix = v.find("=")
@@ -362,7 +404,7 @@ Are you executing $objdir/_tests/testing/mochitest/runtests.py?"""
       sys.exit(1)
     browserEnv[v[:ix]] = v[ix + 1:]
 
-  automation.initializeProfile(PROFILE_DIRECTORY, options.extraPrefs)
+  automation.initializeProfile(PROFILE_DIRECTORY)
   manifest = addChromeToProfile(options)
   copyExtraFilesToProfile(options)
   server = MochitestServer(options)
@@ -374,14 +416,12 @@ Are you executing $objdir/_tests/testing/mochitest/runtests.py?"""
   # we'll try to kill the server and exit with an error.
   server.ensureReady(SERVER_STARTUP_TIMEOUT)
 
+
   # URL parameters to test URL:
   #
   # autorun -- kick off tests automatically
   # closeWhenDone -- runs quit.js after tests
   # logFile -- logs test run to an absolute path
-  # totalChunks -- how many chunks to split tests into
-  # thisChunk -- which chunk to run
-  # timeout -- per-test timeout in seconds
   #
   
   # consoleLevel, fileLevel: set the logging level of the console and
@@ -409,8 +449,6 @@ Are you executing $objdir/_tests/testing/mochitest/runtests.py?"""
   else:
     if options.autorun:
       urlOpts.append("autorun=1")
-    if options.timeout:
-      urlOpts.append("timeout=%d" % options.timeout)
     if options.closeWhenDone:
       urlOpts.append("closeWhenDone=1")
     if options.logFile:
@@ -418,13 +456,6 @@ Are you executing $objdir/_tests/testing/mochitest/runtests.py?"""
       urlOpts.append("fileLevel=" + encodeURIComponent(options.fileLevel))
     if options.consoleLevel:
       urlOpts.append("consoleLevel=" + encodeURIComponent(options.consoleLevel))
-    if options.totalChunks:
-        urlOpts.append("totalChunks=%d" % options.totalChunks)
-        urlOpts.append("thisChunk=%d" % options.thisChunk)
-        if options.chunkByDir:
-            urlOpts.append("chunkByDir=%d" % options.chunkByDir)
-    if options.shuffle:
-        urlOpts.append("shuffle=1")
     if len(urlOpts) > 0:
       testURL += "?" + "&".join(urlOpts)
 
@@ -433,31 +464,6 @@ Are you executing $objdir/_tests/testing/mochitest/runtests.py?"""
   if options.fatalAssertions:
     browserEnv["XPCOM_DEBUG_BREAK"] = "stack-and-abort"
 
-  # run once with -silent to let the extension manager do its thing
-  # and then exit the app
-  automation.log.info("INFO | runtests.py | Performing extension manager registration: start.\n")
-  # Don't care about this |status|: |runApp()| reporting it should be enough.
-  status = automation.runApp(None, browserEnv, options.app,
-                             PROFILE_DIRECTORY, ["-silent"],
-                             utilityPath = options.utilityPath,
-                             xrePath = options.xrePath,
-                             symbolsPath=options.symbolsPath)
-  # We don't care to call |processLeakLog()| for this step.
-  automation.log.info("\nINFO | runtests.py | Performing extension manager registration: end.")
-
-  # Remove the leak detection file so it can't "leak" to the tests run.
-  # The file is not there if leak logging was not enabled in the application build.
-  if os.path.exists(LEAK_REPORT_FILE):
-    os.remove(LEAK_REPORT_FILE)
-
-  # then again to actually run mochitest
-  if options.timeout:
-      timeout = options.timeout + 30
-  elif options.autorun:
-      timeout = None
-  else:
-      timeout = 330.0 # default JS harness timeout is 300 seconds
-  automation.log.info("INFO | runtests.py | Running tests: start.\n")
   status = automation.runApp(testURL, browserEnv, options.app,
                              PROFILE_DIRECTORY, options.browserArgs,
                              runSSLTunnel = True,
@@ -465,15 +471,13 @@ Are you executing $objdir/_tests/testing/mochitest/runtests.py?"""
                              xrePath = options.xrePath,
                              certPath=options.certPath,
                              debuggerInfo=debuggerInfo,
-                             symbolsPath=options.symbolsPath,
-                             timeout = timeout)
+                             symbolsPath=options.symbolsPath)
 
   # Server's no longer needed, and perhaps more importantly, anything it might
   # spew to console shouldn't disrupt the leak information table we print next.
   server.stop()
 
-  processLeakLog(LEAK_REPORT_FILE, options.leakThreshold)
-  automation.log.info("\nINFO | runtests.py | Running tests: end.")
+  automation.processLeakLog(LEAK_REPORT_FILE, options.leakThreshold)
 
   # delete the profile and manifest
   os.remove(manifest)

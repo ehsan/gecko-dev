@@ -58,8 +58,6 @@ protected:
   nsSVGGradientFrame(nsStyleContext* aContext);
 
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   // nsSVGPaintServerFrame methods:
   virtual PRBool SetupPaintServer(gfxContext *aContext,
                                   nsSVGGeometryFrame *aSource,
@@ -73,6 +71,7 @@ public:
                               PRInt32         aModType);
 
 #ifdef DEBUG
+  // nsIFrameDebug interface:
   NS_IMETHOD GetFrameName(nsAString& aResult) const
   {
     return MakeFrameName(NS_LITERAL_STRING("SVGGradient"), aResult);
@@ -155,8 +154,6 @@ protected:
     nsSVGLinearGradientFrameBase(aContext) {}
 
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   // nsIFrame interface:
 #ifdef DEBUG
   NS_IMETHOD Init(nsIContent*      aContent,
@@ -171,6 +168,7 @@ public:
                               PRInt32         aModType);
 
 #ifdef DEBUG
+  // nsIFrameDebug interface:
   NS_IMETHOD GetFrameName(nsAString& aResult) const
   {
     return MakeFrameName(NS_LITERAL_STRING("SVGLinearGradient"), aResult);
@@ -197,8 +195,6 @@ protected:
     nsSVGRadialGradientFrameBase(aContext) {}
 
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   // nsIFrame interface:
 #ifdef DEBUG
   NS_IMETHOD Init(nsIContent*      aContent,
@@ -213,6 +209,7 @@ public:
                               PRInt32         aModType);
 
 #ifdef DEBUG
+  // nsIFrameDebug interface:
   NS_IMETHOD GetFrameName(nsAString& aResult) const
   {
     return MakeFrameName(NS_LITERAL_STRING("SVGRadialGradient"), aResult);

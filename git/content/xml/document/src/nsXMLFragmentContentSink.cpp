@@ -95,7 +95,7 @@ public:
 
   // nsIContentSink
   NS_IMETHOD WillBuildModel(nsDTDMode aDTDMode);
-  NS_IMETHOD DidBuildModel(PRBool aTerminated);
+  NS_IMETHOD DidBuildModel();
   NS_IMETHOD SetDocumentCharset(nsACString& aCharset);
   virtual nsISupports *GetTarget();
   NS_IMETHOD DidProcessATokenImpl();
@@ -216,7 +216,7 @@ nsXMLFragmentContentSink::WillBuildModel(nsDTDMode aDTDMode)
 }
 
 NS_IMETHODIMP 
-nsXMLFragmentContentSink::DidBuildModel(PRBool aTerminated)
+nsXMLFragmentContentSink::DidBuildModel()
 {
   if (mAllContent) {
     PopContent();  // remove mRoot pushed above
@@ -609,7 +609,7 @@ nsresult
 nsXHTMLParanoidFragmentSink::AddAttributes(const PRUnichar** aAtts,
                                            nsIContent* aContent)
 {
-  nsresult rv = NS_OK;
+  nsresult rv;
 
   // use this to check for safe URIs in the few attributes that allow them
   nsIScriptSecurityManager* secMan = nsContentUtils::GetSecurityManager();

@@ -115,9 +115,9 @@ nsHTMLImageAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
     imageRequest->GetImage(getter_AddRefs(imgContainer));
 
   if (imgContainer) {
-    PRBool animated;
-    imgContainer->GetAnimated(&animated);
-    if (animated)
+    PRUint32 numFrames;
+    imgContainer->GetNumFrames(&numFrames);
+    if (numFrames > 1)
       *aState |= nsIAccessibleStates::STATE_ANIMATED;
   }
 
@@ -155,28 +155,42 @@ nsHTMLImageAccessible::GetRoleInternal(PRUint32 *aRole)
   return NS_OK;
 }
 
-void 
-nsHTMLImageAccessible::CacheChildren()
+void nsHTMLImageAccessible::CacheChildren()
 {
+  if (!mWeakShell) {
+    // This node has been shut down
+    mAccChildCount = eChildCountUninitialized;
+    return;
+  }
+
+  if (mAccChildCount != eChildCountUninitialized) {
+    return;
+  }
+
+  mAccChildCount = 0;
   nsCOMPtr<nsIDOMHTMLCollection> mapAreas = GetAreaCollection();
   if (!mapAreas)
     return;
 
-  PRUint32 areaCount = 0;
-  mapAreas->GetLength(&areaCount);
-
+  PRUint32 numMapAreas;
+  mapAreas->GetLength(&numMapAreas);
+  PRInt32 childCount = 0;
+  
   nsCOMPtr<nsIAccessible> areaAccessible;
-  nsRefPtr<nsAccessible> areaAcc;
+  nsRefPtr<nsAccessible> prevAcc;
+  while (childCount < (PRInt32)numMapAreas && 
+         (areaAccessible = GetAreaAccessible(mapAreas, childCount)) != nsnull) {
+    if (prevAcc)
+      prevAcc->SetNextSibling(areaAccessible);
+    else
+      SetFirstChild(areaAccessible);
 
-  for (PRUint32 areaIdx = 0; areaIdx < areaCount; areaIdx++) {
-    areaAccessible = GetAreaAccessible(mapAreas, areaIdx);
-    if (!areaAccessible)
-      return;
+    ++ childCount;
 
-    mChildren.AppendObject(areaAccessible);
-    areaAcc = nsAccUtils::QueryObject<nsAccessible>(areaAccessible);
-    areaAcc->SetParent(this);
+    prevAcc = nsAccUtils::QueryAccessible(areaAccessible);
+    prevAcc->SetParent(this);
   }
+  mAccChildCount = childCount;
 }
 
 NS_IMETHODIMP
@@ -270,9 +284,9 @@ nsHTMLImageAccessible::GetURI(PRInt32 aIndex, nsIURI **aURI)
   if (!domNode)
     return NS_ERROR_INVALID_ARG;
 
-  nsCOMPtr<nsIContent> link(do_QueryInterface(domNode));
+  nsCOMPtr<nsILink> link(do_QueryInterface(domNode));
   if (link)
-    *aURI = link->GetHrefURI().get();
+    link->GetHrefURI(aURI);
 
   return NS_OK;
 }

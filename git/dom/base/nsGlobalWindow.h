@@ -90,7 +90,6 @@
 #include "nsIXPCScriptable.h"
 #include "nsPoint.h"
 #include "nsSize.h"
-#include "nsRect.h"
 #include "mozFlushType.h"
 #include "prclist.h"
 #include "nsIDOMStorageObsolete.h"
@@ -122,10 +121,16 @@ class nsGlobalWindowObserver;
 class nsGlobalWindow;
 class nsDummyJavaPluginOwner;
 class PostMessageEvent;
-class nsRunnable;
 
 class nsDOMOfflineResourceList;
 class nsGeolocation;
+
+// permissible values for CheckOpenAllow
+enum OpenAllowValue {
+  allowNot = 0,     // the window opening is denied
+  allowNoAbuse,     // allowed: not a popup
+  allowWhitelisted  // allowed: it's whitelisted or popup blocking is disabled
+};
 
 extern nsresult
 NS_CreateJSTimeoutHandler(nsGlobalWindow *aWindow,
@@ -186,9 +191,6 @@ struct nsTimeout : PRCList
   // stack depth at which timeout is firing
   PRUint32 mFiringDepth;
 
-  // 
-  PRUint32 mNestingLevel;
-
   // The popup state at timeout creation time if not created from
   // another timeout
   PopupControlState mPopupState;
@@ -239,7 +241,6 @@ public:
   nsPIDOMWindow* GetPrivateParent();
   // callback for close event
   void ReallyCloseWindow();
-  void ReallyClearScope(nsRunnable *aRunnable);
 
   // nsISupports
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -259,6 +260,7 @@ public:
   
   virtual void OnFinalize(PRUint32 aLangID, void *aScriptGlobal);
   virtual void SetScriptsEnabled(PRBool aEnabled, PRBool aFireTimeouts);
+  virtual nsresult SetNewArguments(nsIArray *aArguments);
 
   // nsIScriptObjectPrincipal
   virtual nsIPrincipal* GetPrincipal();
@@ -289,9 +291,6 @@ public:
   virtual NS_HIDDEN_(void) ActivateOrDeactivate(PRBool aActivate);
   virtual NS_HIDDEN_(void) SetChromeEventHandler(nsPIDOMEventTarget* aChromeEventHandler);
   virtual NS_HIDDEN_(nsIFocusController*) GetRootFocusController();
-
-  virtual NS_HIDDEN_(already_AddRefed<nsComputedDOMStyle>)
-    LookupComputedStyleFor(nsIContent* aElem);
 
   virtual NS_HIDDEN_(void) SetOpenerScriptPrincipal(nsIPrincipal* aPrincipal);
   virtual NS_HIDDEN_(nsIPrincipal*) GetOpenerScriptPrincipal();
@@ -338,16 +337,14 @@ public:
 
   virtual NS_HIDDEN_(void) SetDocShell(nsIDocShell* aDocShell);
   virtual NS_HIDDEN_(nsresult) SetNewDocument(nsIDocument *aDocument,
-                                              nsISupports *aState,
-                                              PRBool aClearScopeHint);
+                                  nsISupports *aState,
+                                  PRBool aClearScopeHint);
   virtual NS_HIDDEN_(void) SetOpenerWindow(nsIDOMWindowInternal *aOpener,
                                            PRBool aOriginalOpener);
   virtual NS_HIDDEN_(void) EnsureSizeUpToDate();
 
   virtual NS_HIDDEN_(void) EnterModalState();
   virtual NS_HIDDEN_(void) LeaveModalState();
-
-  virtual NS_HIDDEN_(void) SetHasOrientationEventListener();
 
   // nsIDOMViewCSS
   NS_DECL_NSIDOMVIEWCSS
@@ -364,14 +361,10 @@ public:
   // Object Management
   nsGlobalWindow(nsGlobalWindow *aOuterWindow);
 
-  static nsGlobalWindow *FromSupports(nsISupports *supports)
-  {
-    // Make sure this matches the casts we do in QueryInterface().
-    return (nsGlobalWindow *)(nsIScriptGlobalObject *)supports;
-  }
   static nsGlobalWindow *FromWrapper(nsIXPConnectWrappedNative *wrapper)
   {
-    return FromSupports(wrapper->Native());
+    // Make sure this matches the casts we do in QueryInterface().
+    return (nsGlobalWindow *)(nsIScriptGlobalObject *)wrapper->Native();
   }
 
   nsIScriptContext *GetContextInternal()
@@ -446,8 +439,6 @@ public:
   virtual PRBool TakeFocus(PRBool aFocus, PRUint32 aFocusMethod);
   virtual void SetReadyForFocus();
   virtual void PageHidden();
-  virtual nsresult DispatchAsyncHashchange();
-  virtual nsresult SetArguments(nsIArray *aArguments, nsIPrincipal *aOrigin);
 
   static PRBool DOMWindowDumpEnabled();
 
@@ -464,7 +455,6 @@ protected:
                           nsISupports *aState,
                           PRBool aClearScopeHint,
                           PRBool aIsInternalCall);
-  nsresult DefineArgumentsProperty(nsIArray *aArguments);
 
   // Get the parent, returns null if this is a toplevel window
   nsIDOMWindowInternal *GetParentInternal();
@@ -570,14 +560,13 @@ protected:
   nsresult BuildURIfromBase(const char *aURL,
                             nsIURI **aBuiltURI,
                             PRBool *aFreeSecurityPass, JSContext **aCXused);
-  PRBool PopupWhitelisted();
-  PopupControlState RevisePopupAbuseLevel(PopupControlState);
+  PopupControlState CheckForAbusePoint();
+  OpenAllowValue CheckOpenAllow(PopupControlState aAbuseLevel);
   void     FireAbuseEvents(PRBool aBlocked, PRBool aWindow,
                            const nsAString &aPopupURL,
                            const nsAString &aPopupWindowName,
                            const nsAString &aPopupWindowFeatures);
   void FireOfflineStatusEvent();
-  nsresult FireHashchange();
   
   void FlushPendingNotifications(mozFlushType aType);
   void EnsureReflowFlushAndPaint();
@@ -599,7 +588,6 @@ protected:
   
   nsresult GetOuterSize(nsIntSize* aSizeCSSPixels);
   nsresult SetOuterSize(PRInt32 aLengthCSSPixels, PRBool aIsWidth);
-  nsRect GetInnerScreenRect();
 
   PRBool IsFrame()
   {
@@ -614,7 +602,6 @@ protected:
   PRBool WindowExists(const nsAString& aName, PRBool aLookForCallerOnJSStack);
 
   already_AddRefed<nsIWidget> GetMainWidget();
-  nsIWidget* GetNearestWidget();
 
   void Freeze()
   {
@@ -642,11 +629,6 @@ protected:
   PRBool IsTimeout(PRCList* aList) {
     return aList != &mTimeouts;
   }
-
-  // Helper method for looking up computed style
-  nsresult GetComputedStyle(nsIDOMElement* aElt,
-                            const nsAString& aPseudoElt,
-                            nsComputedDOMStyle** aReturn);
 
   // Convenience functions for the many methods that need to scale
   // from device to CSS pixels or vice versa.  Note: if a presentation
@@ -716,15 +698,11 @@ protected:
   PRPackedBool           mNeedsFocus : 1;
   PRPackedBool           mHasFocus : 1;
 
-  // Indicates whether this window is getting acceleration change events
-  PRPackedBool           mHasAcceleration  : 1;
-
   nsCOMPtr<nsIScriptContext>    mContext;
   nsWeakPtr                     mOpener;
   nsCOMPtr<nsIControllers>      mControllers;
   nsCOMPtr<nsIArray>            mArguments;
   nsCOMPtr<nsIArray>            mArgumentsLast;
-  nsCOMPtr<nsIPrincipal>        mArgumentsOrigin;
   nsRefPtr<nsNavigator>         mNavigator;
   nsRefPtr<nsScreen>            mScreen;
   nsRefPtr<nsHistory>           mHistory;
@@ -796,6 +774,7 @@ protected:
   friend class nsDOMScriptableHelper;
   friend class nsDOMWindowUtils;
   friend class PostMessageEvent;
+  static nsIFactory *sComputedDOMStyleFactory;
   static nsIDOMStorageList* sGlobalStorageList;
 };
 
@@ -845,10 +824,6 @@ public:
   NS_DECL_NSIDOMMODALCONTENTWINDOW
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsGlobalModalWindow, nsGlobalWindow)
-
-  virtual NS_HIDDEN_(nsresult) SetNewDocument(nsIDocument *aDocument,
-                                              nsISupports *aState,
-                                              PRBool aClearScopeHint);
 
 protected:
   nsCOMPtr<nsIVariant> mReturnValue;

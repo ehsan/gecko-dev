@@ -46,8 +46,11 @@
 /* ::::: listbox ::::: */
 
 listbox {
-  -moz-appearance: listbox;
   margin: 2px 4px;
+  border-top: 1px solid #A1A1A1;
+  border-right: 1px solid #C3C3C3;
+  border-bottom: 1px solid #DDDDDD;
+  border-left: 1px solid #C3C3C3;
   background-color: #FFFFFF;
   color: -moz-FieldText;
 }
@@ -156,7 +159,7 @@ listheader[sortable="true"]:hover:active {
   border: 1px solid -moz-DialogText;
   min-width: 13px;
   min-height: 13px;
-  background: -moz-Field no-repeat 50% 50%;
+  background: -moz-Field url("chrome://global/skin/checkbox/cbox.gif") no-repeat 50% 50%;
 }
 
 .listcell-check[checked="true"] {

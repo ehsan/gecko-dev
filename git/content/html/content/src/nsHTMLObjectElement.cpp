@@ -50,6 +50,7 @@
 #include "nsIFormSubmission.h"
 #include "nsIObjectFrame.h"
 #include "nsIPluginInstance.h"
+#include "nsIPluginInstanceInternal.h"
 
 class nsHTMLObjectElement : public nsGenericHTMLFormElement,
                             public nsObjectLoadingContent,
@@ -122,8 +123,6 @@ public:
   virtual PRUint32 GetCapabilities() const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-
-  nsresult CopyInnerTo(nsGenericElement* aDest) const;
 
   void StartObjectLoad() { StartObjectLoad(PR_TRUE); }
 
@@ -337,11 +336,17 @@ nsHTMLObjectElement::SubmitNamesValues(nsIFormSubmission *aFormSubmission,
 
   nsCOMPtr<nsIPluginInstance> pi;
   objFrame->GetPluginInstance(*getter_AddRefs(pi));
-  if (!pi)
+
+  nsCOMPtr<nsIPluginInstanceInternal> pi_internal(do_QueryInterface(pi));
+
+  if (!pi_internal) {
+    // No plugin, nothing to submit.
+
     return NS_OK;
+  }
 
   nsAutoString value;
-  nsresult rv = pi->GetFormValue(value);
+  nsresult rv = pi_internal->GetFormValue(value);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return aFormSubmission->AddNameValuePair(this, name, value);
@@ -479,17 +484,4 @@ nsHTMLObjectElement::DestroyContent()
 {
   RemovedFromDocument();
   nsGenericHTMLFormElement::DestroyContent();
-}
-
-nsresult
-nsHTMLObjectElement::CopyInnerTo(nsGenericElement* aDest) const
-{
-  nsresult rv = nsGenericHTMLFormElement::CopyInnerTo(aDest);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (aDest->GetOwnerDoc()->IsStaticDocument()) {
-    CreateStaticClone(static_cast<nsHTMLObjectElement*>(aDest));
-  }
-
-  return rv;
 }

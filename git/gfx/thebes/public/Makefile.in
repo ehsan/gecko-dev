@@ -8,6 +8,9 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE		= thebes
 
+REQUIRES	= cairo \
+			unicharutil \
+			$(NULL)
 
 EXPORTS		= 	gfxASurface.h \
 			gfxAlphaRecovery.h \
@@ -43,7 +46,6 @@ EXPORTS +=	gfxPDFSurface.h
 
 ifdef WINCE
 EXPORTS +=	gfxFT2Fonts.h \
-		gfxFT2FontBase.h \
 		gfxDDrawSurface.h \
 		$(NULL)
 else
@@ -68,9 +70,8 @@ ifdef MOZ_DFB
 EXPORTS += gfxDirectFBSurface.h
 endif
 
-EXPORTS += gfxPlatformGtk.h gfxGdkNativeRenderer.h
-EXPORTS += gfxPDFSurface.h gfxPSSurface.h
-EXPORTS += gfxFT2FontBase.h
+EXPORTS +=  gfxPlatformGtk.h gfxGdkNativeRenderer.h
+EXPORTS +=	gfxPDFSurface.h gfxPSSurface.h
 
 endif
 
@@ -78,7 +79,6 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
 EXPORTS += gfxQtPlatform.h gfxQPainterSurface.h
 EXPORTS += gfxXlibSurface.h gfxQtNativeRenderer.h
 EXPORTS += gfxFT2Fonts.h
-EXPORTS += gfxFT2FontBase.h
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
@@ -92,11 +92,10 @@ endif
 ifeq ($(MOZ_WIDGET_TOOLKIT),beos)
 EXPORTS	+=	gfxBeOSSurface.h gfxBeOSPlatform.h
 EXPORTS +=	gfxPangoFonts.h
-EXPORTS +=	gfxFT2FontBase.h
 EXPORTS +=	gfxPDFSurface.h
 endif
 
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+ifneq (,$(filter $(MOZ_WIDGET_TOOLKIT),mac cocoa))
 EXPORTS +=	gfxPlatformMac.h \
 		gfxQuartzSurface.h \
 		gfxQuartzImageSurface.h \

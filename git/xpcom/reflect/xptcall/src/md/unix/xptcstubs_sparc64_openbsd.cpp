@@ -104,7 +104,7 @@ PrepareAndDispatch(nsXPTCStubBase* self, PRUint64 methodIndex, PRUint64* args)
         case nsXPTType::T_FLOAT  : dp->val.f   = ((float*)   ap)[1];     break;
         case nsXPTType::T_DOUBLE : dp->val.d   = *((double*) ap);        break;
         default:
-            NS_ERROR("bad type");
+            NS_ASSERTION(0, "bad type");
             break;
         }
     }
@@ -129,7 +129,7 @@ nsresult nsXPTCStubBase::Stub##n() \
 #define SENTINEL_ENTRY(n) \
 nsresult nsXPTCStubBase::Sentinel##n() \
 { \
-    NS_ERROR("nsXPTCStubBase::Sentinel called"); \
+    NS_ASSERTION(0,"nsXPTCStubBase::Sentinel called"); \
     return NS_ERROR_NOT_IMPLEMENTED; \
 }
 

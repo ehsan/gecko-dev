@@ -49,7 +49,6 @@ popup,
 panel {
   -moz-appearance: menupopup;
   min-width: 1px;
-  color: MenuText;
 }
 
 /* ::::: tooltip ::::: */

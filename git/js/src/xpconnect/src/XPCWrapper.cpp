@@ -82,7 +82,7 @@ XPCWrapper::Unwrap(JSContext *cx, JSObject *wrapper)
   if (clasp == &sXPC_SJOW_JSClass.base) {
     JSObject *wrappedObj = STOBJ_GET_PARENT(wrapper);
 
-    if (NS_FAILED(CanAccessWrapper(cx, wrappedObj, nsnull))) {
+    if (NS_FAILED(CanAccessWrapper(cx, wrappedObj))) {
       JS_ClearPendingException(cx);
 
       return nsnull;
@@ -93,9 +93,6 @@ XPCWrapper::Unwrap(JSContext *cx, JSObject *wrapper)
 
   if (clasp == &sXPC_SOW_JSClass.base) {
     return UnwrapSOW(cx, wrapper);
-  }
-  if (clasp == &sXPC_COW_JSClass.base) {
-    return UnwrapCOW(cx, wrapper);
   }
 
   return nsnull;
@@ -209,21 +206,6 @@ XPCWrapper::CreateIteratorObj(JSContext *cx, JSObject *tempWrapper,
   if (!JS_DefineFunction(cx, iterObj, "next", (JSNative)IteratorNext, 0,
                          JSFUN_FAST_NATIVE)) {
     return nsnull;
-  }
-
-  if (XPCNativeWrapper::IsNativeWrapper(wrapperObj)) {
-    // For native wrappers, expandos on the wrapper itself aren't propagated
-    // to the wrapped object, so we have to actually iterate the wrapper here.
-    // In order to do so, we set the prototype of the iter to the wrapper,
-    // call enumerate, and then re-set the prototype. As we do this, we have
-    // to protec the temporary wrapper from garbage collection.
-
-    JSAutoTempValueRooter tvr(cx, tempWrapper);
-    if (!JS_SetPrototype(cx, iterObj, wrapperObj) ||
-        !XPCWrapper::Enumerate(cx, iterObj, wrapperObj) ||
-        !JS_SetPrototype(cx, iterObj, tempWrapper)) {
-      return nsnull;
-    }
   }
 
   // Start enumerating over all of our properties.

@@ -48,7 +48,7 @@ function test() {
     // wait for all frames to load completely
     if (frameCount++ < 5)
       return;
-    tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
+    this.removeEventListener("load", arguments.callee, true);
     
     function typeText(aTextField, aValue) {
       aTextField.value = aValue;
@@ -69,8 +69,7 @@ function test() {
       // wait for all frames to load completely
       if (frameCount++ < 5)
         return;
-      tab2.linkedBrowser.removeEventListener("load", arguments.callee, true);
-
+      
       let doc = tab2.linkedBrowser.contentDocument;
       let win = tab2.linkedBrowser.contentWindow;
       isnot(doc.getElementById("out1").value,

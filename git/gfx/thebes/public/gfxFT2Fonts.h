@@ -36,13 +36,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef GFX_FT2FONTS_H
-#define GFX_FT2FONTS_H
+#ifndef GFX_GTKDFBFONTS_H
+#define GFX_GTKDFBFONTS_H
 
 #include "cairo.h"
 #include "gfxTypes.h"
 #include "gfxFont.h"
-#include "gfxFT2FontBase.h"
 #include "gfxContext.h"
 #include "gfxFontUtils.h"
 #include "gfxUserFontSet.h"
@@ -64,8 +63,11 @@ public:
     FontEntry *FindFontEntry(const gfxFontStyle& aFontStyle);
 
 protected:
-    virtual PRBool FindWeightsForStyle(gfxFontEntry* aFontsForWeights[],
-                                       PRBool anItalic, PRInt16 aStretch);
+    virtual PRBool FindWeightsForStyle(gfxFontEntry* aFontsForWeights[], const gfxFontStyle& aFontStyle);
+
+public:
+    nsTArray<nsRefPtr<FontEntry> > mFaces;
+    nsString mName;
 };
 
 class FontEntry : public gfxFontEntry
@@ -74,7 +76,6 @@ public:
     FontEntry(const nsAString& aFaceName) :
         gfxFontEntry(aFaceName)
     {
-        mFTFace = nsnull;
         mFontFace = nsnull;
         mFTFontIndex = 0;
     }
@@ -87,18 +88,14 @@ public:
     }
 
     static FontEntry* 
-    CreateFontEntry(const gfxProxyFontEntry &aProxyEntry,
+    CreateFontEntry(const gfxProxyFontEntry &aProxyEntry, nsISupports *aLoader,
                     const PRUint8 *aFontData, PRUint32 aLength);
-
+    
     static FontEntry* 
-    CreateFontEntryFromFace(FT_Face aFace, const PRUint8 *aFontData = nsnull);
-        // aFontData is NS_Malloc'ed data that aFace depends on, to be freed
-        // after the face is destroyed; null if there is no such buffer
-
+    CreateFontEntryFromFace(FT_Face aFace);
+    
     cairo_font_face_t *CairoFontFace();
-    nsresult ReadCMAP();
 
-    FT_Face mFTFace;
     cairo_font_face_t *mFontFace;
 
     nsString mFaceName;
@@ -107,55 +104,35 @@ public:
 };
 
 
-class gfxFT2Font : public gfxFT2FontBase {
+
+class gfxFT2Font : public gfxFont {
 public: // new functions
-    gfxFT2Font(cairo_scaled_font_t *aCairoFont,
-               FontEntry *aFontEntry,
+    gfxFT2Font(FontEntry *aFontEntry,
                const gfxFontStyle *aFontStyle);
     virtual ~gfxFT2Font ();
 
+    virtual const gfxFont::Metrics& GetMetrics();
+
     cairo_font_face_t *CairoFontFace();
+    cairo_scaled_font_t *CairoScaledFont();
+
+    virtual PRBool SetupCairoFont(gfxContext *aContext);
+    virtual nsString GetUniqueName();
+    virtual PRUint32 GetSpaceGlyph();
 
     FontEntry *GetFontEntry();
 
     static already_AddRefed<gfxFT2Font>
     GetOrMakeFont(const nsAString& aName, const gfxFontStyle *aStyle);
-    static already_AddRefed<gfxFT2Font>
-    GetOrMakeFont(FontEntry *aFontEntry, const gfxFontStyle *aStyle);
 
-    struct CachedGlyphData {
-        CachedGlyphData()
-            : glyphIndex(0xffffffffU) { }
+private:
+    cairo_scaled_font_t *mScaledFont;
 
-        CachedGlyphData(PRUint32 gid)
-            : glyphIndex(gid) { }
-
-        PRUint32 glyphIndex;
-        PRInt32 lsbDelta;
-        PRInt32 rsbDelta;
-        PRInt32 xAdvance;
-    };
-
-    const CachedGlyphData* GetGlyphDataForChar(PRUint32 ch) {
-        CharGlyphMapEntryType *entry = mCharGlyphCache.PutEntry(ch);
-
-        if (!entry)
-            return nsnull;
-
-        if (entry->mData.glyphIndex == 0xffffffffU) {
-            // this is a new entry, fill it
-            FillGlyphDataForChar(ch, &entry->mData);
-        }
-
-        return &entry->mData;
-    }
-
-protected:
-    void FillGlyphDataForChar(PRUint32 ch, CachedGlyphData *gd);
-
-    typedef nsBaseHashtableET<nsUint32HashKey, CachedGlyphData> CharGlyphMapEntryType;
-    typedef nsTHashtable<CharGlyphMapEntryType> CharGlyphMap;
-    CharGlyphMap mCharGlyphCache;
+    PRBool mHasSpaceGlyph;
+    PRUint32 mSpaceGlyph;
+    PRBool mHasMetrics;
+    Metrics mMetrics;
+    gfxFloat mAdjustedSize;
 };
 
 class THEBES_API gfxFT2FontGroup : public gfxFontGroup {
@@ -203,20 +180,19 @@ protected: // new functions
                                 void *closure);
     PRBool mEnableKerning;
 
-    void GetPrefFonts(const char *aLangGroup,
-                      nsTArray<nsRefPtr<FontEntry> >& aFontEntryList);
-    void GetCJKPrefFonts(nsTArray<nsRefPtr<FontEntry> >& aFontEntryList);
-    void FamilyListToArrayList(const nsString& aFamilies,
-                               const nsCString& aLangGroup,
-                               nsTArray<nsRefPtr<FontEntry> > *aFontEntryList);
-    already_AddRefed<gfxFT2Font> WhichFontSupportsChar(const nsTArray<nsRefPtr<FontEntry> >& aFontEntryList,
-                                                       PRUint32 aCh);
-    already_AddRefed<gfxFont> WhichPrefFontSupportsChar(PRUint32 aCh);
-    already_AddRefed<gfxFont> WhichSystemFontSupportsChar(PRUint32 aCh);
+    gfxFT2Font *FindFontForChar(PRUint32 ch, PRUint32 prevCh, PRUint32 nextCh, gfxFT2Font *aFont);
+    PRUint32 ComputeRanges();
 
-    nsTArray<gfxTextRange> mRanges;
+    struct TextRange {
+        TextRange(PRUint32 aStart,  PRUint32 aEnd) : start(aStart), end(aEnd) { }
+        PRUint32 Length() const { return end - start; }
+        nsRefPtr<gfxFT2Font> font;
+        PRUint32 start, end;
+    };
+
+    nsTArray<TextRange> mRanges;
     nsString mString;
 };
 
-#endif /* GFX_FT2FONTS_H */
+#endif /* GFX_GTKDFBFONTS_H */
 

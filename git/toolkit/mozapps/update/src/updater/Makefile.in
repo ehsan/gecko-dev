@@ -53,6 +53,10 @@ CPPSRCS = \
 
 PROGRAM = updater$(BIN_SUFFIX)
 
+REQUIRES	= \
+		libmar \
+		$(BZ2_REQUIRES) \
+		$(NULL)
 
 LIBS += \
 	$(DEPTH)/modules/libmar/src/$(LIB_PREFIX)mar.$(LIB_SUFFIX) \
@@ -74,27 +78,7 @@ else
 RCFLAGS += --include-dir $(srcdir)
 endif
 
-endif
-
-ifeq ($(OS_ARCH),WINCE)
-export NO_SHUNT = 1
-USE_STATIC_LIBS = 1
-HAVE_PROGRESSUI = 1
-CPPSRCS += \
-	updater_wince.cpp \
-	progressui_win.cpp \
-	$(NULL)
-OS_LIBS += $(call EXPAND_LIBNAME,commctrl ws2)
-ifdef WINCE_WINDOWS_MOBILE
-OS_LIBS += $(call EXPAND_LIBNAME,aygshell)
-RCINCLUDE = updater_winmo.rc
-else
-RCINCLUDE = updater_wince.rc
-endif
-DEFINES += -DUNICODE -D_UNICODE -DWINCE_SKIP_SHUNT_INCLUDE
-RCFLAGS += -I$(srcdir)
-LOCAL_INCLUDES += -I$(topsrcdir)/build/wince/shunt/include \
-                  -I$(topsrcdir)/build/wince/shunt
+REQUIRES += string
 endif
 
 ifneq ($(MOZ_ENABLE_GTK2),)
@@ -106,7 +90,7 @@ OS_CXXFLAGS += $(TK_CFLAGS)
 OS_LIBS += $(TK_LIBS)
 endif
 
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 HAVE_PROGRESSUI = 1
 CMMSRCS += progressui_osx.mm launchchild_osx.mm
 OS_LIBS += -framework Cocoa
@@ -142,7 +126,7 @@ libs:: updater.png
 	$(INSTALL) $(IFLAGS1) $^ $(DIST)/bin/icons
 endif
 
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 libs::
 	$(NSINSTALL) -D $(DIST)/bin/updater.app
 	rsync -a -C --exclude "*.in" $(srcdir)/macbuild/Contents $(DIST)/bin/updater.app 
@@ -153,7 +137,7 @@ libs::
 	rm -f $(DIST)/bin/updater
 endif
 
-ifeq (,$(filter-out WINCE WINNT,$(OS_ARCH)))
+ifeq ($(OS_ARCH),WINNT)
 # Pick up nsWindowsRestart.cpp
 LOCAL_INCLUDES += -I$(topsrcdir)/toolkit/xre
 endif

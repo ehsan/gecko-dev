@@ -51,20 +51,15 @@
 #include "nsIContent.h"
 #include "nsIPrincipal.h"
 
-nsDOMCSSAttributeDeclaration::nsDOMCSSAttributeDeclaration(nsIContent *aContent
-#ifdef MOZ_SMIL
-                                                           , PRBool aIsSMILOverride
-#endif // MOZ_SMIL
-                                                           )
-  : mContent(aContent)
-#ifdef MOZ_SMIL
-  , mIsSMILOverride(aIsSMILOverride)
-#endif // MOZ_SMIL
+nsDOMCSSAttributeDeclaration::nsDOMCSSAttributeDeclaration(nsIContent *aContent)
 {
   MOZ_COUNT_CTOR(nsDOMCSSAttributeDeclaration);
 
+  // This reference is not reference-counted. The content
+  // object tells us when its about to go away.
   NS_ASSERTION(aContent && aContent->IsNodeOfType(nsINode::eELEMENT),
                "Inline style for non-element content?");
+  mContent = aContent;
 }
 
 nsDOMCSSAttributeDeclaration::~nsDOMCSSAttributeDeclaration()
@@ -72,25 +67,20 @@ nsDOMCSSAttributeDeclaration::~nsDOMCSSAttributeDeclaration()
   MOZ_COUNT_DTOR(nsDOMCSSAttributeDeclaration);
 }
 
-NS_IMPL_CYCLE_COLLECTION_1(nsDOMCSSAttributeDeclaration, mContent)
+NS_IMPL_ADDREF(nsDOMCSSAttributeDeclaration)
+NS_IMPL_RELEASE(nsDOMCSSAttributeDeclaration)
 
-NS_INTERFACE_MAP_BEGIN(nsDOMCSSAttributeDeclaration)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
-  NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsDOMCSSAttributeDeclaration)
-NS_IMPL_QUERY_TAIL_INHERITING(nsDOMCSSDeclaration)
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMCSSAttributeDeclaration)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMCSSAttributeDeclaration)
+void
+nsDOMCSSAttributeDeclaration::DropReference()
+{
+  mContent = nsnull;
+}
 
 nsresult
 nsDOMCSSAttributeDeclaration::DeclarationChanged()
 {
   NS_ASSERTION(mContent, "Must have content node to set the decl!");
-  nsICSSStyleRule* oldRule =
-#ifdef MOZ_SMIL
-    mIsSMILOverride ? mContent->GetSMILOverrideStyleRule() :
-#endif // MOZ_SMIL
-    mContent->GetInlineStyleRule();
+  nsICSSStyleRule* oldRule = mContent->GetInlineStyleRule();
   NS_ASSERTION(oldRule, "content must have rule");
 
   nsCOMPtr<nsICSSStyleRule> newRule = oldRule->DeclarationChanged(PR_FALSE);
@@ -98,19 +88,7 @@ nsDOMCSSAttributeDeclaration::DeclarationChanged()
     return NS_ERROR_OUT_OF_MEMORY;
   }
     
-  return
-#ifdef MOZ_SMIL
-    mIsSMILOverride ? mContent->SetSMILOverrideStyleRule(newRule, PR_TRUE) :
-#endif // MOZ_SMIL
-    mContent->SetInlineStyleRule(newRule, PR_TRUE);
-}
-
-nsIDocument*
-nsDOMCSSAttributeDeclaration::DocToUpdate()
-{
-  // We need GetOwnerDoc() rather than GetCurrentDoc() because it might
-  // be the BeginUpdate call that inserts mContent into the document.
-  return mContent->GetOwnerDoc();
+  return mContent->SetInlineStyleRule(newRule, PR_TRUE);
 }
 
 nsresult
@@ -121,11 +99,7 @@ nsDOMCSSAttributeDeclaration::GetCSSDeclaration(nsCSSDeclaration **aDecl,
 
   *aDecl = nsnull;
   if (mContent) {
-    nsICSSStyleRule* cssRule =
-#ifdef MOZ_SMIL
-      mIsSMILOverride ? mContent->GetSMILOverrideStyleRule() :
-#endif // MOZ_SMIL
-      mContent->GetInlineStyleRule();
+    nsICSSStyleRule* cssRule = mContent->GetInlineStyleRule();
     if (cssRule) {
       *aDecl = cssRule->GetDeclaration();
     }
@@ -145,12 +119,7 @@ nsDOMCSSAttributeDeclaration::GetCSSDeclaration(nsCSSDeclaration **aDecl,
         return result;
       }
         
-      result =
-#ifdef MOZ_SMIL
-        mIsSMILOverride ?
-          mContent->SetSMILOverrideStyleRule(newRule, PR_FALSE) :
-#endif // MOZ_SMIL
-          mContent->SetInlineStyleRule(newRule, PR_FALSE);
+      result = mContent->SetInlineStyleRule(newRule, PR_FALSE);
       if (NS_SUCCEEDED(result)) {
         *aDecl = decl;
       }

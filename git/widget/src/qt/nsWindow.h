@@ -49,7 +49,14 @@
 
 #include "nsWeakReference.h"
 
+#include "nsIDragService.h"
+#include "nsITimer.h"
 #include "nsWidgetAtoms.h"
+
+
+#ifdef Q_WS_X11
+#include <QX11Info>
+#endif
 
 #ifdef MOZ_LOGGING
 
@@ -113,11 +120,15 @@ public:
     // nsIWidget
     //
 
-    NS_IMETHOD         ConfigureChildren(const nsTArray<nsIWidget::Configuration>&);
-
     NS_IMETHOD         Create(nsIWidget        *aParent,
-                              nsNativeWidget   aNativeParent,
-                              const nsIntRect  &aRect,
+                              const nsIntRect     &aRect,
+                              EVENT_CALLBACK   aHandleEventFunction,
+                              nsIDeviceContext *aContext,
+                              nsIAppShell      *aAppShell,
+                              nsIToolkit       *aToolkit,
+                              nsWidgetInitData *aInitData);
+    NS_IMETHOD         Create(nsNativeWidget aParent,
+                              const nsIntRect     &aRect,
                               EVENT_CALLBACK   aHandleEventFunction,
                               nsIDeviceContext *aContext,
                               nsIAppShell      *aAppShell,
@@ -159,17 +170,24 @@ public:
     NS_IMETHOD         GetHasTransparentBackground(PRBool& aTransparent);
     NS_IMETHOD         HideWindowChrome(PRBool aShouldHide);
     NS_IMETHOD         MakeFullScreen(PRBool aFullScreen);
+    NS_IMETHOD         Validate();
+    NS_IMETHOD         Invalidate(PRBool aIsSynchronous);
     NS_IMETHOD         Invalidate(const nsIntRect &aRect,
                                   PRBool        aIsSynchronous);
     NS_IMETHOD         Update();
-    void               Scroll(const nsIntPoint&,
-                              const nsTArray<nsIntRect>&,
-                              const nsTArray<nsIWidget::Configuration>&);
+    NS_IMETHOD         Scroll(PRInt32  aDx,
+                              PRInt32  aDy,
+                              nsIntRect  *aClipRect);
+
+    NS_IMETHOD         PreCreateWidget(nsWidgetInitData *aWidgetInitData);
 
     virtual void*      GetNativeData(PRUint32 aDataType);
+    NS_IMETHOD         SetBorderStyle(nsBorderStyle aBorderStyle);
     NS_IMETHOD         SetTitle(const nsAString& aTitle);
     NS_IMETHOD         SetIcon(const nsAString& aIconSpec);
     virtual nsIntPoint WidgetToScreenOffset();
+    NS_IMETHOD         BeginResizingChildren(void);
+    NS_IMETHOD         EndResizingChildren(void);
     NS_IMETHOD         DispatchEvent(nsGUIEvent *aEvent, nsEventStatus &aStatus);
 
     NS_IMETHOD         EnableDragDrop(PRBool aEnable);
@@ -190,6 +208,7 @@ public:
     qint32             ConvertBorderStyles(nsBorderStyle aStyle);
 
     void               QWidgetDestroyed();
+
 
     /***** from CommonWidget *****/
 
@@ -229,11 +248,15 @@ protected:
     // shouldn't be automatically set to 0,0 for first show.
     PRBool              mPlaced;
 
+    // Preferred sizes
+    PRUint32            mPreferredWidth;
+    PRUint32            mPreferredHeight;
+
     /**
      * Event handlers (proxied from the actual qwidget).
      * They follow normal Qt widget semantics.
      */
-    void Initialize(MozQWidget *widget);
+    void Initialize(QWidget *widget);
     friend class nsQtEventDispatcher;
     friend class InterceptContainer;
     friend class MozQWidget;
@@ -266,6 +289,15 @@ protected:
     virtual nsEventStatus hideEvent(QHideEvent *);
 
     nsEventStatus         OnWindowStateEvent(QEvent *aEvent);
+
+    nsresult           NativeCreate(nsIWidget        *aParent,
+                                    nsNativeWidget    aNativeParent,
+                                    const nsIntRect     &aRect,
+                                    EVENT_CALLBACK    aHandleEventFunction,
+                                    nsIDeviceContext *aContext,
+                                    nsIAppShell      *aAppShell,
+                                    nsIToolkit       *aToolkit,
+                                    nsWidgetInitData *aInitData);
 
     void               NativeResize(PRInt32 aWidth,
                                     PRInt32 aHeight,
@@ -301,9 +333,10 @@ private:
     void               SetDefaultIcon(void);
     void               InitButtonEvent(nsMouseEvent &event, QMouseEvent *aEvent, int aClickCount = 1);
     PRBool             DispatchCommandEvent(nsIAtom* aCommand);
-    MozQWidget        *createQWidget(QWidget *parent, nsWidgetInitData *aInitData);
+    QWidget           *createQWidget(QWidget *parent, nsWidgetInitData *aInitData);
 
-    MozQWidget * mWidget;
+    QWidget            *mDrawingArea;
+    MozQWidget *mMozQWidget;
 
     PRUint32            mIsVisible : 1,
                         mActivatePending : 1;

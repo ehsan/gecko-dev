@@ -2,8 +2,6 @@ var gTestPage = "http://example.org/browser/browser/base/content/test/dummy_page
 var gTestImage = "http://example.org/browser/browser/base/content/test/moz.png";
 var gTab1, gTab2, gTab3;
 var gLevel;
-const BACK = 0;
-const FORWARD = 1;
 
 function test() {
   waitForExplicitFinish();
@@ -55,75 +53,10 @@ function imageLoaded() {
   gBrowser.selectedTab = gTab1;
   zoomTest(gTab1, 1, "Zoom should still be 1 when tab with image is selected");
 
-  executeSoon(imageZoomSwitch);
-}
-
-function imageZoomSwitch() {
-  navigate(BACK, function () {
-    navigate(FORWARD, function () {
-      zoomTest(gTab1, 1, "Tab 1 should not be zoomed when an image loads");
-      gBrowser.selectedTab = gTab2;
-      zoomTest(gTab1, 1, "Tab 1 should still not be zoomed when deselected");
-
-      // Mac OS X does not support print preview, so skip those tests
-      let isOSX = ("nsILocalFileMac" in Components.interfaces);
-      if (isOSX)
-        finishTest();
-      else
-        runPrintPreviewTests();
-    });
-  });
-}
-
-function runPrintPreviewTests() {
-  // test print preview on image document
-  testPrintPreview(gTab1, function() {
-    // test print preview on HTML document
-    testPrintPreview(gTab2, function() {
-      // test print preview on image document with siteSpecific set to false
-      gPrefService.setBoolPref("browser.zoom.siteSpecific", false);
-      testPrintPreview(gTab1, function() {
-        // test print preview of HTML document with siteSpecific set to false
-        testPrintPreview(gTab2, function() {
-          if (gPrefService.prefHasUserValue("browser.zoom.siteSpecific"))
-            gPrefService.clearUserPref("browser.zoom.siteSpecific");
-          finishTest();
-        });
-      });
-    });
-  });
-}
-
-function testPrintPreview(aTab, aCallback) {
-  gBrowser.selectedTab = aTab;
-  FullZoom.enlarge();
-  let level = ZoomManager.zoom;
-
-  let onEnterOrig = PrintPreviewListener.onEnter;
-  PrintPreviewListener.onEnter = function () {
-    PrintPreviewListener.onEnter = onEnterOrig;
-    PrintPreviewListener.onEnter.apply(PrintPreviewListener, arguments);
-    PrintUtils.exitPrintPreview();
-  };
-
-  let onExitOrig = PrintPreviewListener.onExit;
-  PrintPreviewListener.onExit = function () {
-    PrintPreviewListener.onExit = onExitOrig;
-    PrintPreviewListener.onExit.apply(PrintPreviewListener, arguments);
-
-    zoomTest(aTab, level, "Toggling print preview mode should not affect zoom level");
-
-    FullZoom.reset();
-    aCallback();
-  };
-
-  executeSoon(function () {
-    document.getElementById("cmd_printPreview").doCommand();
-  });
+  finishTest();
 }
 
 function finishTest() {
-  gBrowser.selectedTab = gTab1;
   FullZoom.reset();
   gBrowser.removeTab(gTab1);
   FullZoom.reset();
@@ -143,15 +76,4 @@ function load(tab, url, cb) {
     cb();
   }, true);
   tab.linkedBrowser.loadURI(url);
-}
-
-function navigate(direction, cb) {
-  gBrowser.addEventListener("pageshow", function (event) {
-    gBrowser.removeEventListener("pageshow", arguments.callee, true);
-    executeSoon(cb);
-  }, true);
-  if (direction == BACK)
-    gBrowser.goBack();
-  else if (direction == FORWARD)
-    gBrowser.goForward();
 }

@@ -104,6 +104,12 @@ protected:
                                                    nsIAccessible *aCell = nsnull);
 
   /**
+   * Return true if the DOM node of given accessible has aria-selected="true"
+   * attribute.
+   */
+  PRBool IsARIASelected(nsIAccessible *aAccessible);
+
+  /**
    * Set aria-selected attribute value on DOM node of the given accessible.
    *
    * @param  aAccessible  [in] accessible
@@ -115,9 +121,9 @@ protected:
                            PRBool aNotify = PR_TRUE);
 
   /**
-   * Helper method for GetSelectedColumnCount and GetSelectedColumns.
+   * Helper method for GetSelectedColumnsCount and GetSelectedColumns.
    */
-  nsresult GetSelectedColumnsArray(PRUint32 *acolumnCount,
+  nsresult GetSelectedColumnsArray(PRUint32 *aColumnsCount,
                                    PRInt32 **aColumns = nsnull);
 };
 
@@ -125,8 +131,7 @@ protected:
 /**
  * Accessible for ARIA gridcell and rowheader/columnheader.
  */
-class nsARIAGridCellAccessible : public nsHyperTextAccessibleWrap,
-                                 public nsIAccessibleTableCell
+class nsARIAGridCellAccessible : public nsHyperTextAccessibleWrap
 {
 public:
   nsARIAGridCellAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
@@ -134,11 +139,7 @@ public:
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
-  // nsIAccessibleTableCell
-  NS_DECL_NSIACCESSIBLETABLECELL
-
   // nsAccessible
-  virtual nsresult GetARIAState(PRUint32 *aState, PRUint32 *aExtraState);
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
 };
 

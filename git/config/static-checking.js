@@ -56,53 +56,37 @@ function hasAttribute(c, attrname)
 
   return false;
 }
-
-// This is useful for detecting method overrides
-function signaturesMatch(m1, m2)
+function process_function(f, stmts)
 {
-  if (m1.shortName != m2.shortName)
-    return false;
-
-  if ((!!m1.isVirtual) != (!!m2.isVirtual))
-    return false;
-  
-  if (m1.isStatic != m2.isStatic)
-    return false;
-  
-  let p1 = m1.type.parameters;
-  let p2 = m2.type.parameters;
-  
-  if (p1.length != p2.length)
-    return false;
-  
-  for (let i = 0; i < p1.length; ++i)
-    if (p1[i] !== p2[i])
-      return false;
-  
-  return true;
+  for each (let module in modules)
+    if (module.hasOwnProperty('process_function'))
+      module.process_function(f, stmts);
 }
 
-const forward_functions = [
-  'process_type',
-  'process_tree_type',
-  'process_decl',
-  'process_tree_decl',
-  'process_function',
-  'process_tree',
-  'process_cp_pre_genericize',
-  'input_end'
-];
-
-function setup_forwarding(n)
+function process_tree(fndecl)
 {
-  this[n] = function() {
-    for each (let module in modules) {
-      if (module.hasOwnProperty(n)) {
-        module[n].apply(this, arguments);
-      }
-    }
-  }
+  for each (let module in modules)
+    if (module.hasOwnProperty('process_tree'))
+      module.process_tree(fndecl);
 }
 
-for each (let n in forward_functions)
-  setup_forwarding(n);
+function process_decl(decl)
+{
+  for each (let module in modules)
+    if (module.hasOwnProperty('process_decl'))
+      module.process_decl(decl);
+}
+
+function process_cp_pre_genericize(fndecl)
+{
+  for each (let module in modules)
+    if (module.hasOwnProperty('process_cp_pre_genericize'))
+      module.process_cp_pre_genericize(fndecl);
+}
+
+function input_end()
+{
+  for each (let module in modules)
+    if (module.hasOwnProperty('input_end'))
+      module.input_end();
+}

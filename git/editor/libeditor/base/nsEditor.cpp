@@ -1982,7 +1982,7 @@ nsEditor::StopPreservingSelection()
 //
 // The BeingComposition method is called from the Editor Composition event listeners.
 //
-nsresult
+NS_IMETHODIMP
 nsEditor::QueryComposition(nsTextEventReply* aReply)
 {
   nsresult result;
@@ -2770,16 +2770,14 @@ nsEditor::NotifyDocumentListeners(TDocumentListenerNotification aNotificationTyp
   if (!numListeners)
     return NS_OK;    // maybe there just aren't any.
  
-  nsCOMArray<nsIDocumentStateListener> listeners(mDocStateListeners);
   nsresult rv = NS_OK;
   PRInt32 i;
-
   switch (aNotificationType)
   {
     case eDocumentCreated:
       for (i = 0; i < numListeners;i++)
       {
-        rv = listeners[i]->NotifyDocumentCreated();
+        rv = mDocStateListeners[i]->NotifyDocumentCreated();
         if (NS_FAILED(rv))
           break;
       }
@@ -2788,7 +2786,7 @@ nsEditor::NotifyDocumentListeners(TDocumentListenerNotification aNotificationTyp
     case eDocumentToBeDestroyed:
       for (i = 0; i < numListeners;i++)
       {
-        rv = listeners[i]->NotifyDocumentWillBeDestroyed();
+        rv = mDocStateListeners[i]->NotifyDocumentWillBeDestroyed();
         if (NS_FAILED(rv))
           break;
       }
@@ -2807,7 +2805,7 @@ nsEditor::NotifyDocumentListeners(TDocumentListenerNotification aNotificationTyp
         
         for (i = 0; i < numListeners;i++)
         {
-          rv = listeners[i]->NotifyDocumentStateChanged(mDocDirtyState);
+          rv = mDocStateListeners[i]->NotifyDocumentStateChanged(mDocDirtyState);
           if (NS_FAILED(rv))
             break;
         }
@@ -3815,22 +3813,17 @@ nsEditor::IsEditable(nsIDOMNode *aNode)
                  "frame for non element-or-text?");
     if (!content->IsNodeOfType(nsINode::eTEXT))
       return PR_TRUE;  // not a text node; has a frame
-
-    // test the textframe and all its non-fluid continuations
-    while (resultFrame) {
-      if (resultFrame->GetStateBits() & NS_FRAME_IS_DIRTY) // we can only trust width data for undirty frames
-      {
-        // In the past a comment said:
-        //   "assume all text nodes with dirty frames are editable"
-        // Nowadays we use a virtual function, that assumes TRUE
-        // in the simple editor world,
-        // and uses enhanced logic to find out in the HTML world.
-        return IsTextInDirtyFrameVisible(aNode);
-      }
-      if (resultFrame->GetSize().width > 0) 
-        return PR_TRUE;  // text node has width
-      resultFrame = resultFrame->GetNextContinuation();
+    if (resultFrame->GetStateBits() & NS_FRAME_IS_DIRTY) // we can only trust width data for undirty frames
+    {
+      // In the past a comment said:
+      //   "assume all text nodes with dirty frames are editable"
+      // Nowadays we use a virtual function, that assumes TRUE
+      // in the simple editor world,
+      // and uses enhanced logic to find out in the HTML world.
+      return IsTextInDirtyFrameVisible(aNode);
     }
+    if (resultFrame->GetSize().width > 0) 
+      return PR_TRUE;  // text node has width
   }
   return PR_FALSE;  // didn't pass any editability test
 }

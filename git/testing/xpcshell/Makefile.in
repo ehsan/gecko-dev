@@ -57,6 +57,7 @@ include $(topsrcdir)/config/rules.mk
 TEST_HARNESS_FILES := \
   runxpcshelltests.py \
   head.js \
+  tail.js \
   $(NULL)
 
 # Extra files needed from $(topsrcdir)/build
@@ -69,11 +70,6 @@ EXTRA_BUILD_FILES := \
 TEST_HARNESS_COMPONENTS := \
   httpd.js \
   $(NULL)
-
-ifdef MOZ_CRASHREPORTER
-#XXX: should find a better way to do this
-TEST_HARNESS_COMPONENTS +=  crashreporter_test.xpt
-endif
 
 # Rules for staging the necessary harness bits for a test package
 PKG_STAGE = $(DIST)/test-package-stage

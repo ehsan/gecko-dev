@@ -46,62 +46,33 @@ MODULE		= content
 LIBRARY_NAME	= gkconcvs_s
 LIBXUL_LIBRARY  = 1
 
+REQUIRES	= \
+		xpcom \
+		string \
+		gfx \
+		layout \
+		widget \
+		dom \
+		js \
+		locale \
+		unicharutil \
+		webshell \
+		necko \
+		pref \
+		docshell \
+		xpconnect \
+		caps \
+		imglib2 \
+		thebes \
+		view \
+		qcms \
+		$(NULL)
 
 
 CPPSRCS	= \
 	CanvasUtils.cpp \
 	nsCanvasRenderingContext2D.cpp \
 	$(NULL)
-
-# Canvas 3D Pieces
-
-ifdef MOZ_WEBGL
-
-ifeq (1_1,$(MOZ_X11)_$(NS_OSSO))
-WEBGL_PLATFORM = EGL
-DEFINES += -DUSE_GLES2
-endif
-
-ifeq (1_,$(MOZ_X11)_$(NS_OSSO))
-WEBGL_PLATFORM = GLX
-EXTRA_DSO_LIBS += X11
-endif
-
-
-ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
-ifdef WINCE
-WEBGL_PLATFORM = EGL
-DEFINES += -DUSE_GLES2
-else
-WEBGL_PLATFORM = WGL
-endif
-endif
-
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
-WEBGL_PLATFORM = CGL
-endif
-
-CPPSRCS += \
-	WebGLArrays.cpp \
-	WebGLContext.cpp \
-	WebGLContextGL.cpp \
-	WebGLContextUtils.cpp \
-	WebGLContextValidate.cpp \
-	NativeJSContext.cpp \
-	glwrap.cpp \
-	nsGLPbuffer.cpp \
-	nsGLPbufferOSMesa.cpp \
-	SimpleBuffer.cpp \
-	$(NULL)
-
-CPPSRCS += nsGLPbuffer$(WEBGL_PLATFORM).cpp
-DEFINES += -DUSE_$(WEBGL_PLATFORM)
-
-else
-
-CPPSRCS += WebGLContextNotSupported.cpp
-
-endif
 
 # we don't want the shared lib, but we want to force the creation of a static lib.
 FORCE_STATIC_LIB = 1

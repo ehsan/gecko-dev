@@ -55,7 +55,7 @@ class nsBoxLayoutState;
 class nsIScrollableFrame : public nsIScrollableViewProvider {
 public:
 
-  NS_DECL_QUERYFRAME_TARGET(nsIScrollableFrame)
+  NS_DECLARE_FRAME_ACCESSOR(nsIScrollableFrame)
 
   /**
    * Get the frame that we are scrolling within the scrollable frame.
@@ -119,13 +119,6 @@ public:
    * restored after reflows are done...
    */
   virtual void ScrollToRestoredPosition() = 0;
-
-  /**
-   * Allows the docshell to request that the scroll frame post an event
-   * after being restored from history.
-   */
-  NS_IMETHOD PostScrolledAreaEventForCurrentArea() = 0;
-
 };
 
 #endif

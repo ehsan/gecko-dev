@@ -53,7 +53,6 @@
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsIDocShell.h"
-#include "nsIDocShellTreeItem.h"
 #include "nsISelectionController.h"
 #include "nsIWebNavigation.h"
 #include "nsIContentViewerEdit.h"
@@ -239,30 +238,16 @@ nsSelectMoveScrollCommand::DoSelectCommand(const char *aCommandName, nsIDOMWindo
   GetSelectionControllerFromWindow(aWindow, getter_AddRefs(selCont));
   NS_ENSURE_TRUE(selCont, NS_ERROR_NOT_INITIALIZED);       
 
-  // We allow the caret to be moved with arrow keys on any window for which
-  // the caret is enabled. In particular, this includes caret-browsing mode
-  // in non-chrome documents.
   PRBool caretOn = PR_FALSE;
   selCont->GetCaretEnabled(&caretOn);
-  if (!caretOn) {
-    caretOn = nsContentUtils::GetBoolPref("accessibility.browsewithcaret");
-    if (caretOn) {
-      nsCOMPtr<nsPIDOMWindow> piWindow = do_QueryInterface(aWindow);
-      if (piWindow) {
-        nsCOMPtr<nsIDocShellTreeItem> dsti = do_QueryInterface(piWindow->GetDocShell());
-        if (dsti) {
-          PRInt32 itemType;
-          dsti->GetItemType(&itemType);
-          if (itemType == nsIDocShellTreeItem::typeChrome) {
-            caretOn = PR_FALSE;
-          }
-        }
-      }
-    }
-  }
 
+  // We allow the caret to be moved with arrow keys on any window for which
+  // the caret is enabled. In particular, this includes caret-browsing mode,
+  // but we refer to this mode again in the test condition for readability.
   if (caretOn) {
-    return DoCommandBrowseWithCaretOn(aCommandName, aWindow, selCont);
+    // XXXndeakin P3 perhaps this should be cached
+    if (nsContentUtils::GetBoolPref("accessibility.browsewithcaret"))
+      return DoCommandBrowseWithCaretOn(aCommandName, aWindow, selCont);
   }
 
   return DoCommandBrowseWithCaretOff(aCommandName, selCont);

@@ -61,9 +61,7 @@ NS_NewGridRowLeafFrame(nsIPresShell* aPresShell,
   
   return new (aPresShell) nsGridRowLeafFrame(aPresShell, aContext, PR_FALSE,
                                              layout);
-}
-
-NS_IMPL_FRAMEARENA_HELPERS(nsGridRowLeafFrame)
+} 
 
 /*
  * Our border and padding could be affected by our columns or rows.

@@ -185,12 +185,7 @@ void _PR_CleanupDtoa(void)
  * #define MALLOC your_malloc, where your_malloc(n) acts like malloc(n)
  *	if memory is available and otherwise does something you deem
  *	appropriate.  If MALLOC is undefined, malloc will be invoked
- *	directly -- and assumed always to succeed.  Similarly, if you
- *	want something other than the system's free() to be called to
- *	recycle memory acquired from MALLOC, #define FREE to be the
- *	name of the alternate routine.  (FREE or free is only called in
- *	pathological cases, e.g., in a dtoa call after a dtoa return in
- *	mode 3 with thousands of digits requested.)
+ *	directly -- and assumed always to succeed.
  * #define Omit_Private_Memory to omit logic (added Jan. 1998) for making
  *	memory allocations from a private pool of memory when possible.
  *	When used, the private pool is PRIVATE_MEM bytes long:  2304 bytes,
@@ -558,7 +553,7 @@ extern double rnd_prod(double, double), rnd_quot(double, double);
 #define FREE_DTOA_LOCK(n)	/*nothing*/
 #endif
 
-#define Kmax 7
+#define Kmax 15
 
  struct
 Bigint {
@@ -586,10 +581,9 @@ Balloc
 #endif
 
 	ACQUIRE_DTOA_LOCK(0);
-	/* The k > Kmax case does not need ACQUIRE_DTOA_LOCK(0), */
-	/* but this case seems very unlikely. */
-	if (k <= Kmax && (rv = freelist[k]))
+	if (rv = freelist[k]) {
 		freelist[k] = rv->next;
+		}
 	else {
 		x = 1 << k;
 #ifdef Omit_Private_Memory
@@ -597,7 +591,7 @@ Balloc
 #else
 		len = (sizeof(Bigint) + (x-1)*sizeof(ULong) + sizeof(double) - 1)
 			/sizeof(double);
-		if (k <= Kmax && pmem_next - private_mem + len <= PRIVATE_mem) {
+		if (pmem_next - private_mem + len <= PRIVATE_mem) {
 			rv = (Bigint*)pmem_next;
 			pmem_next += len;
 			}
@@ -621,18 +615,10 @@ Bfree
 #endif
 {
 	if (v) {
-		if (v->k > Kmax)
-#ifdef FREE
-			FREE((void*)v);
-#else
-			free((void*)v);
-#endif
-		else {
-			ACQUIRE_DTOA_LOCK(0);
-			v->next = freelist[v->k];
-			freelist[v->k] = v;
-			FREE_DTOA_LOCK(0);
-			}
+		ACQUIRE_DTOA_LOCK(0);
+		v->next = freelist[v->k];
+		freelist[v->k] = v;
+		FREE_DTOA_LOCK(0);
 		}
 	}
 
@@ -1362,6 +1348,10 @@ d2b
 		    b->wds = (x[1] = z) ? 2 : 1;
 		}
 	else {
+#ifdef DEBUG
+		if (!z)
+			Bug("Zero passed to d2b");
+#endif
 		k = lo0bits(&z);
 		x[0] = z;
 #ifndef Sudden_Underflow
@@ -1728,8 +1718,6 @@ PR_strtod
 			}
 		}
  dig_done:
-	if (nd > 64 * 1024)
-		goto ret0;
 	e = 0;
 	if (c == 'e' || c == 'E') {
 		if (!nd && !nz && !nz0) {

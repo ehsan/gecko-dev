@@ -59,8 +59,6 @@ NS_NewMathMLmfencedFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsMathMLmfencedFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsMathMLmfencedFrame)
-
 nsMathMLmfencedFrame::~nsMathMLmfencedFrame()
 {
   RemoveFencesAndSeparators();
@@ -79,13 +77,13 @@ nsMathMLmfencedFrame::InheritAutomaticData(nsIFrame* aParent)
 
 NS_IMETHODIMP
 nsMathMLmfencedFrame::SetInitialChildList(nsIAtom*        aListName,
-                                          nsFrameList&    aChildList)
+                                          nsIFrame*       aChildList)
 {
   // First, let the base class do its work
   nsresult rv = nsMathMLContainerFrame::SetInitialChildList(aListName, aChildList);
   if (NS_FAILED(rv)) return rv;
 
-  // No need to track the style contexts given to our MathML chars. 
+  // No need to tract the style contexts given to our MathML chars. 
   // The Style System will use Get/SetAdditionalStyleContext() to keep them
   // up-to-date if dynamic changes arise.
   return CreateFencesAndSeparators(PresContext());
@@ -386,7 +384,7 @@ nsMathMLmfencedFrame::doReflow(nsPresContext*          aPresContext,
 
   // we need to center around the axis
   if (firstChild) { // do nothing for an empty <mfenced></mfenced>
-    nscoord delta = NS_MAX(containerSize.ascent - axisHeight, 
+    nscoord delta = PR_MAX(containerSize.ascent - axisHeight, 
                            containerSize.descent + axisHeight);
     containerSize.ascent = delta + axisHeight;
     containerSize.descent = delta - axisHeight;

@@ -57,14 +57,16 @@
 #include "nsIDocument.h"
 #include "nsIFrame.h"
 #include "gfxContext.h"
-#include "gfxMatrix.h"
 #include "nsSVGLengthList.h"
 #include "nsIDOMSVGURIReference.h"
 #include "nsImageLoadingContent.h"
 #include "imgIContainer.h"
+#include "gfxIImageFrame.h"
+#include "nsIImage.h"
 #include "nsNetUtil.h"
 #include "nsSVGPreserveAspectRatio.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsSVGMatrix.h"
 #include "nsSVGFilterElement.h"
 #include "nsSVGString.h"
 
@@ -549,19 +551,6 @@ BoxBlur(const PRUint8 *aInput, PRUint8 *aOutput,
   }
 }
 
-static PRUint32
-GetBlurBoxSize(double aStdDev)
-{
-  NS_ASSERTION(aStdDev >= 0, "Negative standard deviations not allowed");
-
-  double size = aStdDev*3*sqrt(2*M_PI)/4;
-  // Doing super-large blurs accurately isn't very important.
-  PRUint32 max = 1024;
-  if (size > max)
-    return max;
-  return PRUint32(floor(size + 0.5));
-}
-
 nsresult
 nsSVGFEGaussianBlurElement::GetDXY(PRUint32 *aDX, PRUint32 *aDY,
                                    const nsSVGFilterInstance& aInstance)
@@ -582,11 +571,8 @@ nsSVGFEGaussianBlurElement::GetDXY(PRUint32 *aDX, PRUint32 *aDY,
   if (stdX == 0 || stdY == 0)
     return NS_ERROR_UNEXPECTED;
 
-  // If the box size is greater than twice the temporary surface size
-  // in an axis, then each pixel will be set to the average of all the
-  // other pixel values.
-  *aDX = GetBlurBoxSize(stdX);
-  *aDY = GetBlurBoxSize(stdY);
+  *aDX = PRUint32(floor(stdX * 3*sqrt(2*M_PI)/4 + 0.5));
+  *aDY = PRUint32(floor(stdY * 3*sqrt(2*M_PI)/4 + 0.5));
   return NS_OK;
 }
 
@@ -1499,8 +1485,8 @@ nsSVGFECompositeElement::Filter(nsSVGFilterInstance *instance,
       for (PRInt32 y = rect.y; y < rect.YMost(); y++) {
         PRUint32 targIndex = y * stride + 4 * x;
         for (PRInt32 i = 0; i < 4; i++) {
-          PRUint8 i1 = targetData[targIndex + i];
-          PRUint8 i2 = sourceData[targIndex + i];
+          PRUint8 i2 = targetData[targIndex + i];
+          PRUint8 i1 = sourceData[targIndex + i];
           float result = k1Scaled*i1*i2 + k2*i1 + k3*i2 + k4Scaled;
           targetData[targIndex + i] =
                        static_cast<PRUint8>(PR_MIN(PR_MAX(0, result), 255));
@@ -2867,15 +2853,10 @@ nsSVGFETileElement::Filter(nsSVGFilterInstance *instance,
   NS_ENSURE_SUCCESS(res, res); // asserts on failure (not 
   if (tile.IsEmpty())
     return NS_OK;
-
-  const nsIntRect &surfaceRect = instance->GetSurfaceRect();
-  if (!tile.Intersects(surfaceRect)) {
-    // nothing to draw
-    return NS_OK;
-  }
+  NS_ENSURE_TRUE(instance->GetSurfaceRect().Contains(tile), NS_ERROR_UNEXPECTED);
 
   // Get it into surface space
-  tile -= surfaceRect.TopLeft();
+  tile -= instance->GetSurfaceRect().TopLeft();
 
   PRUint8* sourceData = aSources[0]->mImage->Data();
   PRUint8* targetData = aTarget->mImage->Data();
@@ -2887,14 +2868,10 @@ nsSVGFETileElement::Filter(nsSVGFilterInstance *instance,
   nsIntPoint offset(-tile.x + tile.width, -tile.y + tile.height);
   for (PRInt32 y = rect.y; y < rect.YMost(); y++) {
     PRUint32 tileY = tile.y + WrapInterval(y + offset.y, tile.height);
-    if (tileY < surfaceRect.height) {
-      for (PRInt32 x = rect.x; x < rect.XMost(); x++) {
-        PRUint32 tileX = tile.x + WrapInterval(x + offset.x, tile.width);
-        if (tileX < surfaceRect.width) {
-          *(PRUint32*)(targetData + y * stride + 4 * x) =
-            *(PRUint32*)(sourceData + tileY * stride + 4 * tileX);
-        }
-      }
+    for (PRInt32 x = rect.x; x < rect.XMost(); x++) {
+      PRUint32 tileX = tile.x + WrapInterval(x + offset.x, tile.width);
+      *(PRUint32*)(targetData + y * stride + 4 * x) =
+        *(PRUint32*)(sourceData + tileY * stride + 4 * tileX);
     }
   }
 
@@ -4084,7 +4061,7 @@ ConvolvePixel(const PRUint8 *aSourceData,
   }
   for (PRInt32 i = 0; i < channels; i++) {
     aTargetData[aY * aStride + 4 * aX + offsets[i]] =
-      BoundInterval(static_cast<PRInt32>(sum[i] / aDivisor + aBias), 256);
+      BoundInterval(static_cast<PRInt32>(sum[i] / aDivisor + aBias * 255), 256);
   }
   if (aPreserveAlpha) {
     aTargetData[aY * aStride + 4 * aX + GFX_ARGB32_OFFSET_A] =
@@ -5214,7 +5191,8 @@ public:
   NS_IMETHOD OnStopDecode(imgIRequest *aRequest, nsresult status,
                           const PRUnichar *statusArg);
   // imgIContainerObserver
-  NS_IMETHOD FrameChanged(imgIContainer *aContainer, nsIntRect *dirtyRect);
+  NS_IMETHOD FrameChanged(imgIContainer *aContainer, gfxIImageFrame *newframe,
+                          nsIntRect *dirtyRect);
   // imgIContainerObserver
   NS_IMETHOD OnStartContainer(imgIRequest *aRequest,
                               imgIContainer *aContainer);
@@ -5400,38 +5378,38 @@ nsSVGFEImageElement::Filter(nsSVGFilterInstance *instance,
   if (currentRequest)
     currentRequest->GetImage(getter_AddRefs(imageContainer));
 
-  nsRefPtr<gfxASurface> currentFrame;
+  nsCOMPtr<gfxIImageFrame> currentFrame;
   if (imageContainer)
-    imageContainer->GetFrame(imgIContainer::FRAME_CURRENT,
-                             imgIContainer::FLAG_SYNC_DECODE,
-                             getter_AddRefs(currentFrame));
+    imageContainer->GetCurrentFrame(getter_AddRefs(currentFrame));
 
-  // We need to wrap the surface in a pattern to have somewhere to set the
-  // graphics filter.
-  nsRefPtr<gfxPattern> thebesPattern;
-  if (currentFrame)
-    thebesPattern = new gfxPattern(currentFrame);
+  nsRefPtr<gfxPattern> thebesPattern = nsnull;
+  if (currentFrame) {
+    nsCOMPtr<nsIImage> img(do_GetInterface(currentFrame));
+
+    img->GetPattern(getter_AddRefs(thebesPattern));
+  }
 
   if (thebesPattern) {
     thebesPattern->SetFilter(nsLayoutUtils::GetGraphicsFilterForFrame(frame));
 
-    PRInt32 nativeWidth, nativeHeight;
-    imageContainer->GetWidth(&nativeWidth);
-    imageContainer->GetHeight(&nativeHeight);
+    PRInt32 x, y, nativeWidth, nativeHeight;
+    currentFrame->GetX(&x);
+    currentFrame->GetY(&y);
+    currentFrame->GetWidth(&nativeWidth);
+    currentFrame->GetHeight(&nativeHeight);
 
+    nsCOMPtr<nsIDOMSVGMatrix> trans;
     const gfxRect& filterSubregion = aTarget->mFilterPrimitiveSubregion;
+    trans = nsSVGUtils::GetViewBoxTransform(filterSubregion.Width(), filterSubregion.Height(),
+                                            x, y,
+                                            nativeWidth, nativeHeight,
+                                            mPreserveAspectRatio);
+    nsCOMPtr<nsIDOMSVGMatrix> xy, fini;
+    NS_NewSVGMatrix(getter_AddRefs(xy), 1, 0, 0, 1, filterSubregion.X(), filterSubregion.Y());
+    xy->Multiply(trans, getter_AddRefs(fini));
 
-    gfxMatrix viewBoxTM =
-      nsSVGUtils::GetViewBoxTransform(filterSubregion.Width(), filterSubregion.Height(),
-                                      0,0, nativeWidth, nativeHeight,
-                                      mPreserveAspectRatio);
-
-    gfxMatrix xyTM = gfxMatrix().Translate(gfxPoint(filterSubregion.X(), filterSubregion.Y()));
-
-    gfxMatrix TM = viewBoxTM * xyTM;
-    
     gfxContext ctx(aTarget->mImage);
-    nsSVGUtils::CompositePatternMatrix(&ctx, thebesPattern, TM, nativeWidth, nativeHeight, 1.0);
+    nsSVGUtils::CompositePatternMatrix(&ctx, thebesPattern, fini, nativeWidth, nativeHeight, 1.0);
   }
 
   return NS_OK;
@@ -5479,10 +5457,11 @@ nsSVGFEImageElement::OnStopDecode(imgIRequest *aRequest,
 
 NS_IMETHODIMP
 nsSVGFEImageElement::FrameChanged(imgIContainer *aContainer,
+                                  gfxIImageFrame *newframe,
                                   nsIntRect *dirtyRect)
 {
   nsresult rv =
-    nsImageLoadingContent::FrameChanged(aContainer, dirtyRect);
+    nsImageLoadingContent::FrameChanged(aContainer, newframe, dirtyRect);
   Invalidate();
   return rv;
 }
@@ -5493,12 +5472,6 @@ nsSVGFEImageElement::OnStartContainer(imgIRequest *aRequest,
 {
   nsresult rv =
     nsImageLoadingContent::OnStartContainer(aRequest, aContainer);
-
-  // Request a decode
-  NS_ABORT_IF_FALSE(aContainer, "who sent the notification then?");
-  aContainer->RequestDecode();
-
-  // We have a size - invalidate
   Invalidate();
   return rv;
 }

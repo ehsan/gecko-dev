@@ -43,6 +43,9 @@ VPATH = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+# FIXME: bug 419893
+NO_PROFILE_GUIDED_OPTIMIZE = 1
+
 MODULE = places
 LIBRARY_NAME  = places
 LIBXUL_LIBRARY = 1
@@ -50,6 +53,27 @@ EXPORT_LIBRARY = 1
 MODULE_NAME = nsPlacesModule
 IS_COMPONENT = 1
 
+REQUIRES = xpcom \
+           string \
+           docshell \
+           dom \
+           morkreader \
+           pref \
+           necko \
+           imglib2 \
+           gfx \
+           intl \
+           layout \
+           locale \
+           uconv \
+           unicharutil \
+           autocomplete \
+           storage \
+           txmgr \
+           nkcache \
+           widget \
+           chardet \
+           $(NULL)
 
 CPPSRCS = \
           nsAnnoProtocolHandler.cpp \
@@ -63,9 +87,13 @@ CPPSRCS = \
           nsMaybeWeakPtr.cpp \
           nsMorkHistoryImporter.cpp \
           nsPlacesModule.cpp \
-          SQLFunctions.cpp \
-          Helpers.cpp \
           $(NULL)
+
+ifdef MOZ_XUL
+CPPSRCS += \
+          nsNavHistoryAutoComplete.cpp \
+          $(NULL)
+endif
 
 EXTRA_DSO_LDOPTS += \
 	$(DEPTH)/db/morkreader/$(LIB_PREFIX)morkreader_s.$(LIB_SUFFIX) \
@@ -75,15 +103,10 @@ EXTRA_DSO_LDOPTS += \
 
 LOCAL_INCLUDES += -I$(srcdir)/../../build
 
-EXTRA_COMPONENTS = \
-  nsLivemarkService.js \
-  nsTaggingService.js \
-  nsPlacesDBFlush.js \
-  $(NULL)
-
-ifdef MOZ_XUL
-EXTRA_COMPONENTS += nsPlacesAutoComplete.js
-endif
+EXTRA_PP_COMPONENTS = nsLivemarkService.js \
+                      nsTaggingService.js \
+                      nsPlacesDBFlush.js \
+                      $(NULL)
 
 EXTRA_JS_MODULES = \
   utils.js \

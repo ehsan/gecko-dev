@@ -120,12 +120,12 @@ nsNativeThemeGTK::RefreshWidgetWindow(nsIFrame* aFrame)
   vm->UpdateAllViews(NS_VMREFRESH_NO_SYNC);
 }
 
-static PRBool IsFrameContentNodeInNamespace(nsIFrame *aFrame, PRUint32 aNamespace)
+static PRBool IsFrameContentNodeOfType(nsIFrame *aFrame, PRUint32 aFlags)
 {
   nsIContent *content = aFrame ? aFrame->GetContent() : nsnull;
   if (!content)
     return false;
-  return content->IsInNamespace(aNamespace);
+  return content->IsNodeOfType(aFlags);
 }
 
 static PRBool IsWidgetTypeDisabled(PRUint8* aDisabledVector, PRUint8 aWidgetType) {
@@ -199,7 +199,7 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
                      aWidgetType == NS_THEME_RADIO_LABEL)) {
 
         nsIAtom* atom = nsnull;
-        if (IsFrameContentNodeInNamespace(aFrame, kNameSpaceID_XUL)) {
+        if (IsFrameContentNodeOfType(aFrame, nsINode::eXUL)) {
           if (aWidgetType == NS_THEME_CHECKBOX_LABEL ||
               aWidgetType == NS_THEME_RADIO_LABEL) {
             // Adjust stateFrame so GetContentState finds the correct state.
@@ -247,7 +247,7 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
       aState->canDefault = FALSE; // XXX fix me
       aState->depressed = FALSE;
 
-      if (IsFrameContentNodeInNamespace(aFrame, kNameSpaceID_XUL)) {
+      if (IsFrameContentNodeOfType(aFrame, nsINode::eXUL)) {
         // For these widget types, some element (either a child or parent)
         // actually has element focus, so we check the focused attribute
         // to see whether to draw in the focused state.
@@ -496,7 +496,7 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
   case NS_THEME_DROPDOWN:
     aGtkWidgetType = MOZ_GTK_DROPDOWN;
     if (aWidgetFlags)
-        *aWidgetFlags = IsFrameContentNodeInNamespace(aFrame, kNameSpaceID_XHTML);
+        *aWidgetFlags = IsFrameContentNodeOfType(aFrame, nsINode::eHTML);
     break;
   case NS_THEME_DROPDOWN_TEXT:
     return PR_FALSE; // nothing to do, but prevents the bg from being drawn
@@ -655,8 +655,7 @@ ThemeRenderer::NativeDraw(GdkDrawable * drawable, short offsetX,
 }
 
 static PRBool
-GetExtraSizeForWidget(PRUint8 aWidgetType, PRBool aWidgetIsDefault,
-                      nsIntMargin* aExtra)
+GetExtraSizeForWidget(PRUint8 aWidgetType, nsIntMargin* aExtra)
 {
   *aExtra = nsIntMargin(0,0,0,0);
   // Allow an extra one pixel above and below the thumb for certain
@@ -690,17 +689,13 @@ GetExtraSizeForWidget(PRUint8 aWidgetType, PRBool aWidgetIsDefault,
     }
   case NS_THEME_BUTTON :
     {
-      if (aWidgetIsDefault) {
-        // Some themes draw a default indicator outside the widget,
-        // include that in overflow
-        gint top, left, bottom, right;
-        moz_gtk_button_get_default_overflow(&top, &left, &bottom, &right);
-        aExtra->top = top;
-        aExtra->right = right;
-        aExtra->bottom = bottom;
-        aExtra->left = left;
-        return PR_TRUE;
-      }
+      gint top, left, bottom, right;
+      moz_gtk_button_get_default_border(&top, &left, &bottom, &right);
+      aExtra->top = top;
+      aExtra->right = right;
+      aExtra->bottom = bottom;
+      aExtra->left = left;
+      return PR_TRUE;
     }
   default:
     return PR_FALSE;
@@ -760,13 +755,13 @@ nsNativeThemeGTK::DrawWidgetBackground(nsIRenderingContext* aContext,
   // The margin should be applied to the widget rect rather than the dirty
   // rect but nsCSSRendering::PaintBackgroundWithSC has already intersected
   // the dirty rect with the uninflated widget rect.
-  if (GetExtraSizeForWidget(aWidgetType, state.isDefault, &extraSize)) {
+  if (GetExtraSizeForWidget(aWidgetType, &extraSize)) {
     drawingRect.Inflate(extraSize);
   }
 
   // gdk rectangles are wrt the drawing rect.
 
-  // The gdk_clip is just advisory here, meaning "you don't
+  // The gdk_clip is just advisory here, meanining "you don't
   // need to draw outside this rect if you don't feel like it!"
   GdkRectangle gdk_clip = {0, 0, drawingRect.width, drawingRect.height};
 
@@ -871,7 +866,7 @@ nsNativeThemeGTK::GetWidgetBorder(nsIDeviceContext* aContext, nsIFrame* aFrame,
                                nsnull))
         moz_gtk_get_widget_border(gtkWidgetType, &aResult->left, &aResult->top,
                                   &aResult->right, &aResult->bottom, direction,
-                                  IsFrameContentNodeInNamespace(aFrame, kNameSpaceID_XHTML));
+                                  IsFrameContentNodeOfType(aFrame, nsINode::eHTML));
     }
   }
   return NS_OK;
@@ -925,7 +920,7 @@ nsNativeThemeGTK::GetWidgetOverflow(nsIDeviceContext* aContext,
     }
   } else {
     nsIntMargin extraSize;
-    if (!GetExtraSizeForWidget(aWidgetType, IsDefaultButton(aFrame), &extraSize))
+    if (!GetExtraSizeForWidget(aWidgetType, &extraSize))
       return PR_FALSE;
 
     p2a = aContext->AppUnitsPerDevPixel();
@@ -1304,7 +1299,7 @@ nsNativeThemeGTK::ThemeSupportsWidget(nsPresContext* aPresContext,
   case NS_THEME_DROPDOWN_BUTTON:
     // "Native" dropdown buttons cause padding and margin problems, but only
     // in HTML so allow them in XUL.
-    return (!aFrame || IsFrameContentNodeInNamespace(aFrame, kNameSpaceID_XUL)) &&
+    return (!aFrame || IsFrameContentNodeOfType(aFrame, nsINode::eXUL)) &&
            !IsWidgetStyled(aPresContext, aFrame, aWidgetType);
 
   }

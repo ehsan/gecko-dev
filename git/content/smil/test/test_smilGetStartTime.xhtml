@@ -27,19 +27,8 @@ var anim = document.getElementById("anim");
 SimpleTest.waitForExplicitFinish();
 
 function main() {
-  svg.pauseAnimations();
-  svg.setCurrentTime(0);
-
   // indefinite 
-  var exceptionCaught = false;
-  try {
-    anim.getStartTime();
-  } catch(e) {
-    exceptionCaught = true;
-    is(e.code, DOMException.INVALID_STATE_ERR,
-       "Unexpected exception code from getStartTime.");
-  }
-  ok(exceptionCaught, "No exception thrown for indefinite start time.");
+  is(anim.getStartTime(), 0, "Unexpected start time with indefinite begin");
 
   // 1s
   anim.setAttribute("begin", "1s");
@@ -64,21 +53,13 @@ function main() {
   is(anim.getStartTime(), 1, "Unexpected start time during first interval");
 
   svg.setCurrentTime(2);
-  is(anim.getStartTime(), 3, "Unexpected start time after first interval");
+  is(anim.getStartTime(), 1, "Unexpected start time after first interval");
 
   svg.setCurrentTime(3);
   is(anim.getStartTime(), 3, "Unexpected start time during second interval");
 
   svg.setCurrentTime(4);
-  exceptionCaught = false;
-  try {
-    anim.getStartTime();
-  } catch(e) {
-    exceptionCaught = true;
-    is(e.code, DOMException.INVALID_STATE_ERR,
-       "Unexpected exception code from getStartTime.");
-  }
-  ok(exceptionCaught, "No exception thrown for in postactive state.");
+  is(anim.getStartTime(), 3, "Unexpected start time after second interval");
 
   SimpleTest.finish();
 }

@@ -47,6 +47,10 @@
  */
 #define NS_VIEWSOURCE_TOKENS_PER_BLOCK 16
 
+// TODO get rid of these unused macros
+#define STOP_TIMER()
+#define START_TIMER()
+
 #include "nsIAtom.h"
 #include "nsViewSourceHTML.h"
 #include "nsCRT.h"
@@ -257,6 +261,7 @@ CViewSourceHTML::WillBuildModel(const CParserContext& aParserContext,
   NS_START_STOPWATCH(vsTimer);
 #endif
 
+  STOP_TIMER();
   mSink=(nsIHTMLContentSink*)aSink;
 
   if((!aParserContext.mPrevContext) && (mSink)) {
@@ -281,7 +286,7 @@ CViewSourceHTML::WillBuildModel(const CParserContext& aParserContext,
       fprintf(gDumpFile, "Source of: ");
       fputs(NS_ConvertUTF16toUTF8(mFilename).get(), gDumpFile);
       fprintf(gDumpFile, "</title>\n");
-      fprintf(gDumpFile, "<link rel=\"stylesheet\" type=\"text/css\" href=\"resource://gre-resources/viewsource.css\">\n");
+      fprintf(gDumpFile, "<link rel=\"stylesheet\" type=\"text/css\" href=\"resource://gre/res/viewsource.css\">\n");
       fprintf(gDumpFile, "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n");
       fprintf(gDumpFile, "</head>\n");
       fprintf(gDumpFile, "<body id=\"viewsource\">\n");
@@ -296,6 +301,8 @@ CViewSourceHTML::WillBuildModel(const CParserContext& aParserContext,
   else mDocType=aParserContext.mDocType;
 
   mLineNumber = 1;
+
+  START_TIMER();
 
   return result;
 }
@@ -371,7 +378,7 @@ NS_IMETHODIMP CViewSourceHTML::BuildModel(nsITokenizer* aTokenizer,
 
           AddAttrToNode(theNode, theAllocator,
                         NS_LITERAL_STRING("href"),
-                        NS_LITERAL_STRING("resource://gre-resources/viewsource.css"));
+                        NS_LITERAL_STRING("resource://gre/res/viewsource.css"));
 
           mSink->AddLeaf(theNode);
         }
@@ -533,6 +540,8 @@ NS_IMETHODIMP CViewSourceHTML::DidBuildModel(nsresult anErrorCode)
 
   //ADD CODE HERE TO CLOSE OPEN CONTAINERS...
 
+  STOP_TIMER();
+
   if (mSink) {
       //now let's close automatically auto-opened containers...
 
@@ -551,6 +560,8 @@ NS_IMETHODIMP CViewSourceHTML::DidBuildModel(nsresult anErrorCode)
       mSink->CloseContainer(eHTMLTag_html);
     }
   }
+
+  START_TIMER();
 
 #ifdef RAPTOR_PERF_METRICS
   NS_STOP_STOPWATCH(vsTimer);
@@ -758,6 +769,8 @@ nsresult CViewSourceHTML::WriteTag(PRInt32 aTagType,const nsSubstring & aText,PR
 #endif // DUMP_TO_FILE
   }
 
+  STOP_TIMER();
+
   mITextToken.SetIndirectString(aText);  //now emit the tag name...
 
   nsCParserNode theNode(&mITextToken, 0/*stack token*/);
@@ -802,6 +815,8 @@ nsresult CViewSourceHTML::WriteTag(PRInt32 aTagType,const nsSubstring & aText,PR
       fprintf(gDumpFile, "</span>");
 #endif //DUMP_TO_FILE
   }
+
+  START_TIMER();
 
   return result;
 }
@@ -948,8 +963,6 @@ PRBool CViewSourceHTML::IsUrlAttribute(const nsAString& tagName,
 
   PRBool isHref = trimmedAttrName.LowerCaseEqualsLiteral("href");
   PRBool isSrc = !isHref && trimmedAttrName.LowerCaseEqualsLiteral("src");
-  PRBool isXLink = !isHref && !isSrc &&
-    mDocType == eXML && trimmedAttrName.EqualsLiteral("xlink:href");
 
   // If this is the HREF attribute of a BASE element, then update the base URI.
   // This doesn't feel like the ideal place for this, but the alternatives don't
@@ -961,7 +974,7 @@ PRBool CViewSourceHTML::IsUrlAttribute(const nsAString& tagName,
     SetBaseURI(expandedBaseSpec);
   }
 
-  return isHref || isSrc || isXLink;
+  return isHref || isSrc;
 }
 
 void CViewSourceHTML::WriteHrefAttribute(nsTokenAllocator* allocator,

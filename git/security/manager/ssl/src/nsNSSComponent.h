@@ -67,7 +67,6 @@
 #include "nsICryptoHMAC.h"
 #include "hasht.h"
 #include "nsNSSCallbacks.h"
-#include "nsNSSShutDown.h"
 
 #include "nsNSSHelper.h"
 #include "nsClientAuthRemember.h"
@@ -193,7 +192,7 @@ class NS_NO_VTABLE nsINSSComponent : public nsISupports {
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsINSSComponent, NS_INSSCOMPONENT_IID)
 
-class nsCryptoHash : public nsICryptoHash, public nsNSSShutDownObject
+class nsCryptoHash : public nsICryptoHash
 {
 public:
   NS_DECL_ISUPPORTS
@@ -203,15 +202,10 @@ public:
 
 private:
   ~nsCryptoHash();
-
   HASHContext* mHashContext;
-  PRBool mInitialized;
-
-  virtual void virtualDestroyNSSReference();
-  void destructorSafeDestroyNSSReference();
 };
 
-class nsCryptoHMAC : public nsICryptoHMAC, public nsNSSShutDownObject
+class nsCryptoHMAC : public nsICryptoHMAC
 {
 public:
   NS_DECL_ISUPPORTS
@@ -221,10 +215,8 @@ public:
 
 private:
   ~nsCryptoHMAC();
-  PK11Context* mHMACContext;
 
-  virtual void virtualDestroyNSSReference();
-  void destructorSafeDestroyNSSReference();
+  PK11Context* mHMACContext;
 };
 
 struct PRLock;

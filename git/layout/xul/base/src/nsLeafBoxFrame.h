@@ -45,7 +45,6 @@ class nsAccessKeyInfo;
 class nsLeafBoxFrame : public nsLeafFrame
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
 
   friend nsIFrame* NS_NewLeafBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
@@ -85,7 +84,9 @@ public:
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
 
-  NS_IMETHOD CharacterDataChanged(CharacterDataChangeInfo* aInfo);
+  NS_IMETHOD CharacterDataChanged(nsPresContext* aPresContext,
+                                  nsIContent*     aChild,
+                                  PRBool          aAppend);
 
   NS_IMETHOD  Init(
                nsIContent*      aContent,

@@ -44,10 +44,49 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 MODULE		= docshell
+ifeq ($(OS_ARCH),WINNT)
+XPIDL_MODULE	= docshell_base
+endif
 LIBRARY_NAME	= basedocshell_s
 GRE_MODULE	= 1
 LIBXUL_LIBRARY	= 1
 
+REQUIRES	= xpcom \
+		  string \
+		  caps \
+		  necko \
+		  gfx \
+		  thebes \
+		  layout \
+		  content \
+		  dom \
+		  js \
+		  uriloader \
+		  exthandler \
+		  htmlparser \
+		  view \
+		  pref \
+		  locale \
+		  webbrwsr \
+		  xpconnect \
+		  widget \
+		  shistory \
+		  intl \
+		  plugin \
+		  webshell \
+		  chardet \
+		  uconv \
+		  xuldoc \
+		  find \
+		  nkcache \
+		  composer \
+		  commandhandler \
+		  editor \
+		  windowwatcher \
+		  imglib2 \
+		  jar \
+		  prefetch \
+		  $(NULL)
 
 SDK_XPIDLSRCS = \
 		nsIGlobalHistory.idl \
@@ -103,6 +142,4 @@ FORCE_STATIC_LIB = 1
 
 include $(topsrcdir)/config/rules.mk
 
-LOCAL_INCLUDES += -I$(srcdir)/../shistory/src \
-		-I$(srcdir)/../../layout/base \
-		$(NULL)
+LOCAL_INCLUDES += -I$(srcdir)/../shistory/src

@@ -41,7 +41,7 @@
 #include "gfxImageSurface.h"
 #include "gfxContext.h"
 
-#include "imgIContainer.h"
+#include "nsIImage.h"
 
 #include "nsAutoPtr.h"
 
@@ -60,20 +60,21 @@ unpremultiply (unsigned char color,
 }
 
 NS_IMETHODIMP_(GdkPixbuf*)
-nsImageToPixbuf::ConvertImageToPixbuf(imgIContainer* aImage)
+nsImageToPixbuf::ConvertImageToPixbuf(nsIImage* aImage)
 {
     return ImageToPixbuf(aImage);
 }
 
 GdkPixbuf*
-nsImageToPixbuf::ImageToPixbuf(imgIContainer* aImage)
+nsImageToPixbuf::ImageToPixbuf(nsIImage* aImage)
 {
-    nsRefPtr<gfxImageSurface> frame;
-    aImage->CopyFrame(imgIContainer::FRAME_CURRENT,
-                      imgIContainer::FLAG_SYNC_DECODE,
-                      getter_AddRefs(frame));
+    PRInt32 width = aImage->GetWidth(),
+            height = aImage->GetHeight();
 
-    return ImgSurfaceToPixbuf(frame, frame->Width(), frame->Height());
+    nsRefPtr<gfxPattern> pattern;
+    aImage->GetPattern(getter_AddRefs(pattern));
+
+    return PatternToPixbuf(pattern, width, height);
 }
 
 GdkPixbuf*
@@ -152,6 +153,42 @@ nsImageToPixbuf::SurfaceToPixbuf(gfxASurface* aSurface, PRInt32 aWidth, PRInt32 
 
         context->SetOperator(gfxContext::OPERATOR_SOURCE);
         context->SetSource(aSurface);
+        context->Paint();
+    }
+
+    return ImgSurfaceToPixbuf(imgSurface, aWidth, aHeight);
+}
+  
+GdkPixbuf*
+nsImageToPixbuf::PatternToPixbuf(gfxPattern* aPattern, PRInt32 aWidth, PRInt32 aHeight)
+{
+    if (aPattern->CairoStatus()) {
+        NS_ERROR("invalid pattern");
+        return nsnull;
+    }
+
+    nsRefPtr<gfxImageSurface> imgSurface;
+    if (aPattern->GetType() == gfxPattern::PATTERN_SURFACE) {
+        nsRefPtr<gfxASurface> surface = aPattern->GetSurface();
+        if (surface->GetType() == gfxASurface::SurfaceTypeImage) {
+            imgSurface = static_cast<gfxImageSurface*>
+                                    (static_cast<gfxASurface*>(surface.get()));
+        }
+    } 
+    
+    if (!imgSurface) {
+        imgSurface = new gfxImageSurface(gfxIntSize(aWidth, aHeight),
+					 gfxImageSurface::ImageFormatARGB32);
+                                       
+        if (!imgSurface)
+            return nsnull;
+
+        nsRefPtr<gfxContext> context = new gfxContext(imgSurface);
+        if (!context)
+            return nsnull;
+
+        context->SetOperator(gfxContext::OPERATOR_SOURCE);
+        context->SetPattern(aPattern);
         context->Paint();
     }
 

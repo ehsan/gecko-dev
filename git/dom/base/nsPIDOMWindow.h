@@ -53,8 +53,6 @@
 #define DOM_WINDOW_DESTROYED_TOPIC "dom-window-destroyed"
 
 class nsIPrincipal;
-class nsICSSDeclaration;
-class nsComputedDOMStyle;
 
 // Popup control state enum. The values in this enum must go from most
 // permissive to least permissive so that it's safe to push state in
@@ -77,11 +75,10 @@ class nsPresContext;
 struct nsTimeout;
 class nsScriptObjectHolder;
 class nsXBLPrototypeHandler;
-class nsIArray;
 
 #define NS_PIDOMWINDOW_IID \
-{ 0x70c9f57f, 0xf7b3, 0x4a37, \
-  { 0xbe, 0x36, 0xbb, 0xb2, 0xd7, 0xe9, 0x40, 0x13 } }
+{ 0x601e5415, 0x613e, 0x4ce2, \
+  { 0xb4, 0xe1, 0x85, 0xac, 0x2a, 0x4a, 0xf2, 0x3d } }
 
 class nsPIDOMWindow : public nsIDOMWindowInternal
 {
@@ -251,10 +248,6 @@ public:
     return win->mIsHandlingResizeEvent;
   }
 
-  // Convenience method for getting an element's computed style
-  virtual already_AddRefed<nsComputedDOMStyle>
-    LookupComputedStyleFor(nsIContent* aElem) = 0;
-
   // Tell this window who opened it.  This only has an effect if there is
   // either no document currently in the window or if the document is the
   // original document this window came with (an about:blank document either
@@ -409,7 +402,8 @@ public:
   }
   
   /**
-   * Initialize window.java and window.Packages.
+   * Initialize window.java and window.Packages, and start LiveConnect
+   * if we're running with a non-NPRuntime enabled Java plugin.
    */
   virtual void InitJavaProperties() = 0;
 
@@ -458,27 +452,6 @@ public:
    * reset the focus state.
    */
   virtual void PageHidden() = 0;
-
-  /**
-   * Instructs this window to asynchronously dispatch a hashchange event.  This
-   * method must be called on an inner window.
-   */
-  virtual nsresult DispatchAsyncHashchange() = 0;
-
-
-  /**
-   * Tell this window that there is an observer for orientation changes
-   */
-  virtual void SetHasOrientationEventListener() = 0;
-
-  /**
-   * Set a arguments for this window. This will be set on the window
-   * right away (if there's an existing document) and it will also be
-   * installed on the window when the next document is loaded. Each
-   * language impl is responsible for converting to an array of args
-   * as appropriate for that language.
-   */
-  virtual nsresult SetArguments(nsIArray *aArguments, nsIPrincipal *aOrigin) = 0;
 
 protected:
   // The nsPIDOMWindow constructor. The aOuterWindow argument should

@@ -45,7 +45,7 @@
 #include "nsIDOMXULSelectCntrlEl.h"
 
 /*
- * The basic implementation of nsIAccessibleSelectable.
+ * The basic implemetation of nsIAccessibleSelectable.
  */
 class nsXULSelectableAccessible : public nsAccessibleWrap
 {
@@ -113,10 +113,6 @@ public:
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
-
-/**
- * Used for XUL menupopup and panel.
- */
 class nsXULMenupopupAccessible : public nsXULSelectableAccessible
 {
 public:
@@ -126,6 +122,11 @@ public:
   virtual nsresult GetNameInternal(nsAString& aName);
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
+
+  // nsXULMenupopupAccessible
+  static already_AddRefed<nsIDOMNode> FindInNodeList(nsIDOMNodeList *aNodeList,
+                                                     nsIAtom *aAtom, PRUint32 aNameSpaceID);
+  static void GenerateMenu(nsIDOMNode *aNode);
 };
 
 class nsXULMenubarAccessible : public nsAccessibleWrap

@@ -81,7 +81,6 @@
 #include "nsCRT.h"
 #include "nsXBLEventHandler.h"
 #include "nsEventDispatcher.h"
-#include "nsPresContext.h"
 
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
                      NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
@@ -334,9 +333,11 @@ nsXBLPrototypeHandler::ExecuteHandler(nsPIDOMEventTarget* aTarget,
   // Execute it.
   nsCOMPtr<nsIDOMEventListener> eventListener;
   NS_NewJSEventListener(boundContext, scope,
-                        scriptTarget, onEventAtom,
-                        getter_AddRefs(eventListener));
+                        scriptTarget, getter_AddRefs(eventListener));
 
+  nsCOMPtr<nsIJSEventListener> jsListener(do_QueryInterface(eventListener));
+  jsListener->SetEventName(onEventAtom);
+  
   // Handle the event.
   eventListener->HandleEvent(aEvent);
   return NS_OK;
@@ -415,8 +416,6 @@ nsXBLPrototypeHandler::DispatchXBLCommand(nsPIDOMEventTarget* aTarget, nsIDOMEve
   nsCOMPtr<nsPIWindowRoot> windowRoot(do_QueryInterface(aTarget));
   if (windowRoot) {
     windowRoot->GetFocusController(getter_AddRefs(focusController));
-    if (windowRoot)
-      privateWindow = do_QueryInterface(windowRoot->GetWindow());
   }
   else {
     privateWindow = do_QueryInterface(aTarget);
@@ -446,7 +445,7 @@ nsXBLPrototypeHandler::DispatchXBLCommand(nsPIDOMEventTarget* aTarget, nsIDOMEve
 
   NS_LossyConvertUTF16toASCII command(mHandlerText);
   if (focusController)
-    focusController->GetControllerForCommand(privateWindow, command.get(), getter_AddRefs(controller));
+    focusController->GetControllerForCommand(command.get(), getter_AddRefs(controller));
   else
     controller = GetController(aTarget); // We're attached to the receiver possibly.
 
@@ -481,7 +480,8 @@ nsXBLPrototypeHandler::DispatchXBLCommand(nsPIDOMEventTarget* aTarget, nsIDOMEve
     // element is focused and has a parent.
     if (focusedContent && focusedContent->GetParent()) {
       while (content) {
-        if (content->Tag() == nsGkAtoms::a && content->IsHTML()) {
+        if (content->Tag() == nsGkAtoms::a &&
+            content->IsNodeOfType(nsINode::eHTML)) {
           isLink = PR_TRUE;
           break;
         }
@@ -528,6 +528,9 @@ nsXBLPrototypeHandler::DispatchXULKeyCommand(nsIDOMEvent* aEvent)
 
   aEvent->PreventDefault();
 
+  nsEventStatus status = nsEventStatus_eIgnore;
+  nsXULCommandEvent event(PR_TRUE, NS_XUL_COMMAND, nsnull);
+
   // Copy the modifiers from the key event.
   nsCOMPtr<nsIDOMKeyEvent> keyEvent = do_QueryInterface(aEvent);
   if (!keyEvent) {
@@ -535,18 +538,21 @@ nsXBLPrototypeHandler::DispatchXULKeyCommand(nsIDOMEvent* aEvent)
     return NS_ERROR_FAILURE;
   }
 
-  PRBool isAlt = PR_FALSE;
-  PRBool isControl = PR_FALSE;
-  PRBool isShift = PR_FALSE;
-  PRBool isMeta = PR_FALSE;
-  keyEvent->GetAltKey(&isAlt);
-  keyEvent->GetCtrlKey(&isControl);
-  keyEvent->GetShiftKey(&isShift);
-  keyEvent->GetMetaKey(&isMeta);
+  keyEvent->GetAltKey(&event.isAlt);
+  keyEvent->GetCtrlKey(&event.isControl);
+  keyEvent->GetShiftKey(&event.isShift);
+  keyEvent->GetMetaKey(&event.isMeta);
 
-  nsContentUtils::DispatchXULCommand(handlerElement, PR_TRUE,
-                                     nsnull, nsnull,
-                                     isControl, isAlt, isShift, isMeta);
+  nsPresContext *pc = nsnull;
+  nsIDocument *doc = handlerElement->GetCurrentDoc();
+  if (doc) {
+    nsIPresShell *shell = doc->GetPrimaryShell();
+    if (shell) {
+      pc = shell->GetPresContext();
+    }
+  }
+
+  nsEventDispatcher::Dispatch(handlerElement, pc, &event, nsnull, &status);
   return NS_OK;
 }
 

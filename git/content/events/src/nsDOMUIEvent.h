@@ -45,10 +45,10 @@
 #include "nsIPrivateCompositionEvent.h"
 #include "nsDOMEvent.h"
 
-class nsDOMUIEvent : public nsDOMEvent,
-                     public nsIDOMUIEvent,
+class nsDOMUIEvent : public nsIDOMUIEvent,
                      public nsIDOMNSUIEvent,
-                     public nsIPrivateCompositionEvent
+                     public nsIPrivateCompositionEvent,
+                     public nsDOMEvent
 {
 public:
   nsDOMUIEvent(nsPresContext* aPresContext, nsGUIEvent* aEvent);

@@ -69,8 +69,6 @@ SOFTWARE.
 #ifndef PIXMAN_H__
 #define PIXMAN_H__
 
-#include "cairo-platform.h"
-
 #include <pixman-version.h>
 
 /*

@@ -25,7 +25,6 @@
 #   Marco Bonardo <mak77@bonardo.net>
 #   Dietrich Ayala <dietrich@mozilla.com>
 #   Ehsan Akhgari <ehsan.akhgari@gmail.com>
-#   Nils Maier <maierman@web.de>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -52,16 +51,13 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource:///modules/distribution.js");
 
 const PREF_EM_NEW_ADDONS_LIST = "extensions.newAddons";
-const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
-const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
 
-// We try to backup bookmarks at idle times, to avoid doing that at shutdown.
-// Number of idle seconds before trying to backup bookmarks.  15 minutes.
-const BOOKMARKS_BACKUP_IDLE_TIME = 15 * 60;
-// Minimum interval in milliseconds between backups.
-const BOOKMARKS_BACKUP_INTERVAL = 86400 * 1000;
-// Maximum number of backups to create.  Old ones will be purged.
-const BOOKMARKS_BACKUP_MAX_BACKUPS = 10;
+// Check to see if bookmarks need backing up once per
+// day on 1 hour idle.
+const BOOKMARKS_ARCHIVE_IDLE_TIME = 60 * 60;
+
+// Backup bookmarks once every 24 hours.
+const BOOKMARKS_ARCHIVE_INTERVAL = 86400 * 1000;
 
 // Factory object
 const BrowserGlueServiceFactory = {
@@ -78,57 +74,40 @@ const BrowserGlueServiceFactory = {
 // Constructor
 
 function BrowserGlue() {
-  XPCOMUtils.defineLazyServiceGetter(this, "_prefs",
-                                     "@mozilla.org/preferences-service;1",
-                                     "nsIPrefBranch");
 
-  XPCOMUtils.defineLazyServiceGetter(this, "_bundleService",
-                                     "@mozilla.org/intl/stringbundle;1",
-                                     "nsIStringBundleService");
+  this.__defineGetter__("_prefs", function() {
+    delete this._prefs;
+    return this._prefs = Cc["@mozilla.org/preferences-service;1"].
+                         getService(Ci.nsIPrefBranch);
+  });
 
-  XPCOMUtils.defineLazyServiceGetter(this, "_idleService",
-                                     "@mozilla.org/widget/idleservice;1",
-                                     "nsIIdleService");
+  this.__defineGetter__("_bundleService", function() {
+    delete this._bundleService;
+    return this._bundleService = Cc["@mozilla.org/intl/stringbundle;1"].
+                                 getService(Ci.nsIStringBundleService);
+  });
 
-  XPCOMUtils.defineLazyGetter(this, "_distributionCustomizer", function() {
-                                return new DistributionCustomizer();
-                              });
+  this.__defineGetter__("_idleService", function() {
+    delete this._idleService;
+    return this._idleService = Cc["@mozilla.org/widget/idleservice;1"].
+                           getService(Ci.nsIIdleService);
+  });
 
-  XPCOMUtils.defineLazyGetter(this, "_sanitizer",
-    function() {
-      let sanitizerScope = {};
-      Cc["@mozilla.org/moz/jssubscript-loader;1"].
-      getService(Ci.mozIJSSubScriptLoader).
-      loadSubScript("chrome://browser/content/sanitize.js", sanitizerScope);
-      return sanitizerScope.Sanitizer;
-    });
-
-  // The observer service is immediately used in _init(), so there's no reason
-  // to have a getter.
-  this._observerService = Cc["@mozilla.org/observer-service;1"].
-                          getService(Ci.nsIObserverService);
+  this.__defineGetter__("_observerService", function() {
+    delete this._observerService;
+    return this._observerService = Cc['@mozilla.org/observer-service;1'].
+                                   getService(Ci.nsIObserverService);
+  });
 
   this._init();
 }
 
-#ifndef XP_MACOSX
-# OS X has the concept of zero-window sessions and therefore ignores the
-# browser-lastwindow-close-* topics.
-#define OBSERVE_LASTWINDOW_CLOSE_TOPICS 1
-#endif
-
 BrowserGlue.prototype = {
+  
   _saveSession: false,
-  _isIdleObserver: false,
-  _isPlacesInitObserver: false,
-  _isPlacesLockedObserver: false,
-  _isPlacesDatabaseLocked: false,
 
-  _setPrefToSaveSession: function(aForce)
+  _setPrefToSaveSession: function()
   {
-    if (!this._saveSession && !aForce)
-      return;
-
     this._prefs.setBoolPref("browser.sessionstore.resume_session_once", true);
 
     // This method can be called via [NSApplication terminate:] on Mac, which
@@ -164,54 +143,36 @@ BrowserGlue.prototype = {
         this._onQuitRequest(subject, data);
         break;
       case "quit-application-granted":
-        // This pref must be set here because SessionStore will use its value
-        // on quit-application.
-        this._setPrefToSaveSession();
+        if (this._saveSession) {
+          this._setPrefToSaveSession();
+        }
+        // Everything that uses Places during shutdown should be here, since
+        // on quit-application Places database connection will be closed
+        // and history synchronization could fail.
         this._onProfileShutdown();
         break;
-#ifdef OBSERVE_LASTWINDOW_CLOSE_TOPICS
-      case "browser-lastwindow-close-requested":
-        // The application is not actually quitting, but the last full browser
-        // window is about to be closed.
-        this._onQuitRequest(subject, "lastwindow");
-        break;
-      case "browser-lastwindow-close-granted":
-        this._setPrefToSaveSession();
-        break;
-#endif
       case "session-save":
-        this._setPrefToSaveSession(true);
+        this._setPrefToSaveSession();
         subject.QueryInterface(Ci.nsISupportsPRBool);
         subject.data = true;
         break;
       case "places-init-complete":
         this._initPlaces();
         this._observerService.removeObserver(this, "places-init-complete");
-        this._isPlacesInitObserver = false;
         // no longer needed, since history was initialized completely.
         this._observerService.removeObserver(this, "places-database-locked");
-        this._isPlacesLockedObserver = false;
-
-        // Now apply distribution customized bookmarks.
-        // This should always run after Places initialization.
-        this._distributionCustomizer.applyBookmarks();
         break;
       case "places-database-locked":
         this._isPlacesDatabaseLocked = true;
-        // Stop observing, so further attempts to load history service
-        // will not show the prompt.
+        // stop observing, so further attempts to load history service
+        // do not show the prompt.
         this._observerService.removeObserver(this, "places-database-locked");
-        this._isPlacesLockedObserver = false;
         break;
       case "idle":
-        if (this._idleService.idleTime > BOOKMARKS_BACKUP_IDLE_TIME * 1000)
-          this._backupBookmarks();
-        break;
-      case "distribution-customization-complete":
-        this._observerService
-            .removeObserver(this, "distribution-customization-complete");
-        // Customization has finished, we don't need the customizer anymore.
-        delete this._distributionCustomizer;
+        if (this._idleService.idleTime > BOOKMARKS_ARCHIVE_IDLE_TIME * 1000) {
+          // Back up bookmarks.
+          this._archiveBookmarks();
+        }
         break;
     }
   }, 
@@ -228,16 +189,9 @@ BrowserGlue.prototype = {
     osvr.addObserver(this, "browser:purge-session-history", false);
     osvr.addObserver(this, "quit-application-requested", false);
     osvr.addObserver(this, "quit-application-granted", false);
-#ifdef OBSERVE_LASTWINDOW_CLOSE_TOPICS
-    osvr.addObserver(this, "browser-lastwindow-close-requested", false);
-    osvr.addObserver(this, "browser-lastwindow-close-granted", false);
-#endif
     osvr.addObserver(this, "session-save", false);
     osvr.addObserver(this, "places-init-complete", false);
-    this._isPlacesInitObserver = true;
     osvr.addObserver(this, "places-database-locked", false);
-    this._isPlacesLockedObserver = true;
-    osvr.addObserver(this, "distribution-customization-complete", false);
   },
 
   // cleanup (called on application shutdown)
@@ -252,30 +206,21 @@ BrowserGlue.prototype = {
     osvr.removeObserver(this, "browser:purge-session-history");
     osvr.removeObserver(this, "quit-application-requested");
     osvr.removeObserver(this, "quit-application-granted");
-#ifdef OBSERVE_LASTWINDOW_CLOSE_TOPICS
-    osvr.removeObserver(this, "browser-lastwindow-close-requested");
-    osvr.removeObserver(this, "browser-lastwindow-close-granted");
-#endif
     osvr.removeObserver(this, "session-save");
-    if (this._isIdleObserver)
-      this._idleService.removeIdleObserver(this, BOOKMARKS_BACKUP_IDLE_TIME);
-    if (this._isPlacesInitObserver)
-      osvr.removeObserver(this, "places-init-complete");
-    if (this._isPlacesLockedObserver)
-      osvr.removeObserver(this, "places-database-locked");
   },
 
   _onAppDefaults: function()
   {
     // apply distribution customizations (prefs)
     // other customizations are applied in _onProfileStartup()
-    this._distributionCustomizer.applyPrefDefaults();
+    var distro = new DistributionCustomizer();
+    distro.applyPrefDefaults();
   },
 
   // profile startup handler (contains profile initialization routines)
   _onProfileStartup: function() 
   {
-    this._sanitizer.onStartup();
+    this.Sanitizer.onStartup();
     // check if we're in safe mode
     var app = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULAppInfo).
               QueryInterface(Ci.nsIXULRuntime);
@@ -288,38 +233,21 @@ BrowserGlue.prototype = {
 
     // apply distribution customizations
     // prefs are applied in _onAppDefaults()
-    this._distributionCustomizer.applyCustomizations();
+    var distro = new DistributionCustomizer();
+    distro.applyCustomizations();
 
     // handle any UI migration
     this._migrateUI();
 
-    var ioService = Cc["@mozilla.org/network/io-service;1"].
-                    getService(Ci.nsIIOService2);
-
-    // if ioService is managing the offline status, then ioservice.offline
-    // is already set correctly. We will continue to allow the ioService
-    // to manage its offline state until the user uses the "Work Offline" UI.
-    if (!ioService.manageOfflineStatus) {
-      // set the initial state
-      try {
-        ioService.offline = this._prefs.getBoolPref("browser.offline");
-      }
-      catch (e) {
-        ioService.offline = false;
-      }
-    }
-
-    this._observerService
-        .notifyObservers(null, "browser-ui-startup-complete", "");
+    this._observerService.notifyObservers(null, "browser-ui-startup-complete", "");
   },
 
   // profile shutdown handler (contains profile cleanup routines)
   _onProfileShutdown: function() 
   {
     this._shutdownPlaces();
-    this._idleService.removeIdleObserver(this, BOOKMARKS_BACKUP_IDLE_TIME);
-    this._isIdleObserver = false;
-    this._sanitizer.onShutdown();
+    this._idleService.removeIdleObserver(this, BOOKMARKS_ARCHIVE_IDLE_TIME);
+    this.Sanitizer.onShutdown();
   },
 
   // Browser startup complete. All initial windows have opened.
@@ -357,24 +285,6 @@ BrowserGlue.prototype = {
     if (this._isPlacesDatabaseLocked) {
       this._showPlacesLockedNotificationBox();
     }
-
-    // If there are plugins installed that are outdated, and the user hasn't
-    // been warned about them yet, open the plugins update page.
-    if (this._prefs.getBoolPref(PREF_PLUGINS_NOTIFYUSER))
-      this._showPluginUpdatePage();
-
-#ifdef XP_WIN
-#ifndef WINCE
-    // For windows seven, initialize the jump list module.
-    const WINTASKBAR_CONTRACTID = "@mozilla.org/windows-taskbar;1";
-    if (WINTASKBAR_CONTRACTID in Cc &&
-        Cc[WINTASKBAR_CONTRACTID].getService(Ci.nsIWinTaskbar).available) {
-      let temp = {};
-      Cu.import("resource://gre/modules/WindowsJumpLists.jsm", temp);
-      temp.WinTaskbarJumpList.startup();
-    }
-#endif
-#endif
   },
 
   _onQuitRequest: function(aCancelQuit, aQuitType)
@@ -428,6 +338,7 @@ BrowserGlue.prototype = {
     if (!showPrompt || inPrivateBrowsing)
       return false;
 
+    var buttonChoice = 0;
     var quitBundle = this._bundleService.createBundle("chrome://browser/locale/quitDialog.properties");
     var brandBundle = this._bundleService.createBundle("chrome://branding/locale/brand.properties");
 
@@ -466,11 +377,9 @@ BrowserGlue.prototype = {
       button2Title = quitBundle.GetStringFromName("quitTitle");
     }
 
-    var mostRecentBrowserWindow = wm.getMostRecentWindow("navigator:browser");
-    var buttonChoice =
-      promptService.confirmEx(mostRecentBrowserWindow, quitDialogTitle, message,
-                              flags, button0Title, button1Title, button2Title,
-                              neverAskText, neverAsk);
+    buttonChoice = promptService.confirmEx(null, quitDialogTitle, message,
+                                 flags, button0Title, button1Title, button2Title,
+                                 neverAskText, neverAsk);
 
     switch (buttonChoice) {
     case 2: // Quit
@@ -542,7 +451,7 @@ BrowserGlue.prototype = {
     var notifyBox = browser.getNotificationBox();
 
     var brandBundle  = this._bundleService.createBundle("chrome://branding/locale/brand.properties");
-    var rightsBundle = this._bundleService.createBundle("chrome://global/locale/aboutRights.properties");
+    var rightsBundle = this._bundleService.createBundle("chrome://browser/locale/aboutRights.properties");
 
     var buttonLabel      = rightsBundle.GetStringFromName("buttonLabel");
     var buttonAccessKey  = rightsBundle.GetStringFromName("buttonAccessKey");
@@ -567,17 +476,16 @@ BrowserGlue.prototype = {
     var box = notifyBox.appendNotification(notifyRightsText, "about-rights", null, notifyBox.PRIORITY_INFO_LOW, buttons);
     box.persistence = 3; // arbitrary number, just so bar sticks around for a bit
   },
-  
-  _showPluginUpdatePage : function () {
-    this._prefs.setBoolPref(PREF_PLUGINS_NOTIFYUSER, false);
 
-    var formatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"].
-                    getService(Ci.nsIURLFormatter);
-    var updateUrl = formatter.formatURLPref(PREF_PLUGINS_UPDATEURL);
-
-    var win = this.getMostRecentBrowserWindow();
-    var browser = win.gBrowser;
-    browser.selectedTab = browser.addTab(updateUrl);
+  // returns the (cached) Sanitizer constructor
+  get Sanitizer() 
+  {
+    if(typeof(Sanitizer) != "function") { // we should dynamically load the script
+      Cc["@mozilla.org/moz/jssubscript-loader;1"].
+      getService(Ci.mozIJSSubScriptLoader).
+      loadSubScript("chrome://browser/content/sanitize.js", null);
+    }
+    return Sanitizer;
   },
 
   /**
@@ -641,8 +549,8 @@ BrowserGlue.prototype = {
       restoreDefaultBookmarks =
         this._prefs.getBoolPref("browser.bookmarks.restore_default_bookmarks");
       if (restoreDefaultBookmarks) {
-        // Ensure that we already have a bookmarks backup for today.
-        this._backupBookmarks();
+        // Ensure that we already have a bookmarks backup for today
+        this._archiveBookmarks();
         importBookmarks = true;
       }
     } catch(ex) {}
@@ -652,8 +560,8 @@ BrowserGlue.prototype = {
     if (importBookmarks && !restoreDefaultBookmarks && !importBookmarksHTML) {
       // get latest JSON backup
       Cu.import("resource://gre/modules/utils.js");
-      var bookmarksBackupFile = PlacesUtils.backups.getMostRecent("json");
-      if (bookmarksBackupFile) {
+      var bookmarksBackupFile = PlacesUtils.getMostRecentBackup();
+      if (bookmarksBackupFile && bookmarksBackupFile.leafName.match("\.json$")) {
         // restore from JSON backup
         PlacesUtils.restoreBookmarksFromJSONFile(bookmarksBackupFile);
         importBookmarks = false;
@@ -732,29 +640,29 @@ BrowserGlue.prototype = {
 
     // Initialize bookmark archiving on idle.
     // Once a day, either on idle or shutdown, bookmarks are backed up.
-    if (!this._isIdleObserver) {
-      this._idleService.addIdleObserver(this, BOOKMARKS_BACKUP_IDLE_TIME);
-      this._isIdleObserver = true;
-    }
+    this._idleService.addIdleObserver(this, BOOKMARKS_ARCHIVE_IDLE_TIME);
   },
 
   /**
    * Places shut-down tasks
-   * - back up bookmarks if needed.
-   * - export bookmarks as HTML, if so configured.
+   * - back up and archive bookmarks
+   * - export bookmarks as HTML, if so configured
    *
    * Note: quit-application-granted notification is received twice
    *       so replace this method with a no-op when first called.
    */
   _shutdownPlaces: function bg__shutdownPlaces() {
-    this._backupBookmarks();
+    // Backup and archive Places bookmarks.
+    this._archiveBookmarks();
 
     // Backup bookmarks to bookmarks.html to support apps that depend
     // on the legacy format.
     var autoExportHTML = false;
     try {
       autoExportHTML = this._prefs.getBoolPref("browser.bookmarks.autoExportHTML");
-    } catch(ex) { /* Don't export */ }
+    } catch(ex) {
+      Components.utils.reportError(ex);
+    }
 
     if (autoExportHTML) {
       Cc["@mozilla.org/browser/places/import-export-service;1"].
@@ -764,24 +672,23 @@ BrowserGlue.prototype = {
   },
 
   /**
-   * Backup bookmarks if needed.
+   * Back up and archive bookmarks
    */
-  _backupBookmarks: function nsBrowserGlue__backupBookmarks() {
+  _archiveBookmarks: function nsBrowserGlue__archiveBookmarks() {
     Cu.import("resource://gre/modules/utils.js");
 
-    let lastBackupFile = PlacesUtils.backups.getMostRecent();
+    var lastBackup = PlacesUtils.getMostRecentBackup();
 
-    // Backup bookmarks if there are no backups or the maximum interval between
-    // backups elapsed.
-    if (!lastBackupFile ||
-        new Date() - PlacesUtils.backups.getDateForFile(lastBackupFile) > BOOKMARKS_BACKUP_INTERVAL) {
-      let maxBackups = BOOKMARKS_BACKUP_MAX_BACKUPS;
+    // Backup bookmarks if there aren't any backups or 
+    // they haven't been backed up in the last 24 hrs.
+    if (!lastBackup ||
+        Date.now() - lastBackup.lastModifiedTime > BOOKMARKS_ARCHIVE_INTERVAL) {
+      var maxBackups = 5;
       try {
         maxBackups = this._prefs.getIntPref("browser.bookmarks.max_backups");
-      }
-      catch(ex) { /* Use default. */ }
+      } catch(ex) {}
 
-      PlacesUtils.backups.create(maxBackups); // Don't force creation.
+      PlacesUtils.archiveBookmarksFile(maxBackups, false /* don't force */);
     }
   },
 
@@ -904,7 +811,7 @@ BrowserGlue.prototype = {
   
   sanitize: function(aParentWindow) 
   {
-    this._sanitizer.sanitize(aParentWindow);
+    this.Sanitizer.sanitize(aParentWindow);
   },
 
   ensurePlacesDefaultQueriesInitialized: function() {
@@ -918,7 +825,7 @@ BrowserGlue.prototype = {
     const SMART_BOOKMARKS_ANNO = "Places/SmartBookmark";
     const SMART_BOOKMARKS_PREF = "browser.places.smartBookmarksVersion";
 
-    // TODO bug 399268: should this be a pref?
+    // XXX should this be a pref?  see bug #399268
     const MAX_RESULTS = 10;
 
     // get current smart bookmarks version
@@ -1002,7 +909,7 @@ BrowserGlue.prototype = {
                  newInVersion: 1 };
         smartBookmarks.push(smart);
 
-        var smartBookmarkItemIds = annosvc.getItemsWithAnnotation(SMART_BOOKMARKS_ANNO);
+        var smartBookmarkItemIds = annosvc.getItemsWithAnnotation(SMART_BOOKMARKS_ANNO, {});
         // Set current itemId, parent and position if Smart Bookmark exists,
         // we will use these informations to create the new version at the same
         // position.
@@ -1183,9 +1090,8 @@ GeolocationPrompt.prototype = {
       var buttons = [{
               label: browserBundle.GetStringFromName("geolocation.shareLocation"),
               accessKey: browserBundle.GetStringFromName("geolocation.shareLocation.accesskey"),
-              callback: function(notification) {
-                  var elements = notification.getElementsByClassName("rememberChoice");
-                  if (elements.length && elements[0].checked)
+              callback: function(notification) {                  
+                  if (notification.getElementsByClassName("rememberChoice")[0].checked)
                       setPagePermission(request.requestingURI, true);
                   request.allow(); 
               },
@@ -1194,23 +1100,14 @@ GeolocationPrompt.prototype = {
               label: browserBundle.GetStringFromName("geolocation.dontShareLocation"),
               accessKey: browserBundle.GetStringFromName("geolocation.dontShareLocation.accesskey"),
               callback: function(notification) {
-                  var elements = notification.getElementsByClassName("rememberChoice");
-                  if (elements.length && elements[0].checked)
+                  if (notification.getElementsByClassName("rememberChoice")[0].checked)
                       setPagePermission(request.requestingURI, false);
                   request.cancel();
               },
           }];
       
-      var message;
-
-      // Different message/info if it is a local file
-      if (request.requestingURI.schemeIs("file")) {
-        message = browserBundle.formatStringFromName("geolocation.fileWantsToKnow",
-                                                     [request.requestingURI.path], 1);
-      } else {
-        message = browserBundle.formatStringFromName("geolocation.siteWantsToKnow",
-                                                     [request.requestingURI.host], 1);
-      }
+      var message = browserBundle.formatStringFromName("geolocation.siteWantsToKnow",
+                                                       [request.requestingURI.host], 1);      
 
       var newBar = notificationBox.appendNotification(message,
                                                       "geolocation",
@@ -1224,24 +1121,11 @@ GeolocationPrompt.prototype = {
       // bar.
       function geolocation_hacks_to_notification () {
 
-        // Never show a remember checkbox inside the private browsing mode
-        var inPrivateBrowsing = Cc["@mozilla.org/privatebrowsing;1"].
-                                getService(Ci.nsIPrivateBrowsingService).
-                                privateBrowsingEnabled;
-
-        // don't show "Remember for this site" checkbox for file:
-        var host;
-        try {
-            host = request.requestingURI.host;
-        } catch (ex) {}
-
-        if (!inPrivateBrowsing && host) {
-          var checkbox = newBar.ownerDocument.createElementNS(XULNS, "checkbox");
-          checkbox.className = "rememberChoice";
-          checkbox.setAttribute("label", browserBundle.GetStringFromName("geolocation.remember"));
-          checkbox.setAttribute("accesskey", browserBundle.GetStringFromName("geolocation.remember.accesskey"));
-          newBar.appendChild(checkbox);
-        }
+        var checkbox = newBar.ownerDocument.createElementNS(XULNS, "checkbox");
+        checkbox.className = "rememberChoice";
+        checkbox.setAttribute("label", browserBundle.GetStringFromName("geolocation.remember"));
+        checkbox.setAttribute("accesskey", browserBundle.GetStringFromName("geolocation.remember.accesskey"));
+        newBar.appendChild(checkbox);
 
         var link = newBar.ownerDocument.createElementNS(XULNS, "label");
         link.className = "text-link";

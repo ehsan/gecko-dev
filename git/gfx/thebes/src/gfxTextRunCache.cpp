@@ -40,17 +40,13 @@
 
 #include "nsExpirationTracker.h"
 
-enum {
-    TEXTRUN_TIMEOUT_MS = 10 * 1000 // textruns expire after 3 * this period
-};
-
 /*
- * Cache textruns and expire them after a period of no use
+ * Cache textruns and expire them after 3*10 seconds of no use
  */
 class TextRunExpiringCache : public nsExpirationTracker<gfxTextRun,3> {
 public:
     TextRunExpiringCache()
-        : nsExpirationTracker<gfxTextRun,3>(TEXTRUN_TIMEOUT_MS) {}
+        : nsExpirationTracker<gfxTextRun,3>(10*1000) {}
     ~TextRunExpiringCache() {
         AgeAllGenerations();
     }

@@ -74,8 +74,6 @@ static PRLogModuleInfo *gResLog;
 #endif
 #define LOG(args) PR_LOG(gResLog, PR_LOG_DEBUG, args)
 
-#define kGRE_RESOURCES NS_LITERAL_CSTRING("gre-resources")
-
 //----------------------------------------------------------------------------
 // nsResURL : overrides nsStandardURL::GetFile to provide nsIFile resolution
 //----------------------------------------------------------------------------
@@ -90,16 +88,6 @@ nsResURL::EnsureFile()
     nsCAutoString spec;
     rv = gResHandler->ResolveURI(this, spec);
     if (NS_FAILED(rv)) return rv;
-
-#ifdef MOZ_CHROME_FILE_FORMAT_JAR
-    nsCAutoString host;
-    rv = GetHost(host);
-    if (NS_FAILED(rv))
-        return rv;
-    // Deal with the fact resource://gre-resouces/ urls do not resolve to files
-    if (host.Equals(kGRE_RESOURCES))
-        return NS_ERROR_NO_INTERFACE;
-#endif
 
     rv = net_GetFileFromURLSpec(spec, getter_AddRefs(mFile));
 #ifdef DEBUG_bsmedberg
@@ -183,22 +171,9 @@ nsResProtocolHandler::Init()
     //
     // make resource://gre/ point to the GRE directory
     //
-    NS_NAMED_LITERAL_CSTRING(strGRE_DIR, "gre");
-    rv = AddSpecialDir(NS_GRE_DIR, strGRE_DIR);
+    rv = AddSpecialDir(NS_GRE_DIR, NS_LITERAL_CSTRING("gre"));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    // make resource://gre-resources/ point to gre toolkit[.jar]/res
-    nsCOMPtr<nsIURI> greURI;
-    nsCOMPtr<nsIURI> greResURI;
-    GetSubstitution(strGRE_DIR, getter_AddRefs(greURI));
-#ifdef MOZ_CHROME_FILE_FORMAT_JAR
-    NS_NAMED_LITERAL_CSTRING(strGRE_RES_URL, "jar:chrome/toolkit.jar!/res/");
-#else
-    NS_NAMED_LITERAL_CSTRING(strGRE_RES_URL, "chrome/toolkit/res/");
-#endif
-    rv = mIOService->NewURI(strGRE_RES_URL, nsnull, greURI,
-                            getter_AddRefs(greResURI));
-    SetSubstitution(kGRE_RESOURCES, greResURI);
     //XXXbsmedberg Neil wants a resource://pchrome/ for the profile chrome dir...
     // but once I finish multiple chrome registration I'm not sure that it is needed
 

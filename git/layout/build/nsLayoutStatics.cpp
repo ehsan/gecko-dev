@@ -65,7 +65,6 @@
 #include "nsLayoutStylesheetCache.h"
 #include "nsNodeInfo.h"
 #include "nsRange.h"
-#include "nsRegion.h"
 #include "nsRepeatService.h"
 #include "nsFloatManager.h"
 #include "nsSprocketLayout.h"
@@ -83,11 +82,8 @@
 #include "nsXMLHttpRequest.h"
 #include "nsDOMThreadService.h"
 #include "nsHTMLDNSPrefetch.h"
-#include "nsHtml5Module.h"
 #include "nsCrossSiteListenerProxy.h"
 #include "nsFocusManager.h"
-#include "nsFrameList.h"
-#include "nsListControlFrame.h"
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -156,12 +152,6 @@ nsLayoutStatics::Initialize()
   nsGkAtoms::AddRefAtoms();
 
   nsJSRuntime::Startup();
-  rv = nsRegion::InitStatic();
-  if (NS_FAILED(rv)) {
-    NS_ERROR("Could not initialize nsRegion");
-    return rv;
-  }
-
   rv = nsContentUtils::Init();
   if (NS_FAILED(rv)) {
     NS_ERROR("Could not initialize nsContentUtils");
@@ -248,11 +238,13 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
+#ifndef DEBUG_CC
   rv = nsCCUncollectableMarker::Init();
   if (NS_FAILED(rv)) {
     NS_ERROR("Could not initialize nsCCUncollectableMarker");
     return rv;
   }
+#endif
 
   nsCSSRuleProcessor::Startup();
 
@@ -271,6 +263,12 @@ nsLayoutStatics::Initialize()
   }
 
 #ifdef MOZ_MEDIA
+  rv = nsMediaDecoder::InitLogger();
+  if (NS_FAILED(rv)) {
+    NS_ERROR("Could not initialize nsMediaDecoder");
+    return rv;
+  }
+  
   nsHTMLMediaElement::InitMediaTypes();
 #endif
 
@@ -278,17 +276,7 @@ nsLayoutStatics::Initialize()
   nsAudioStream::InitLibrary();
 #endif
 
-  nsHtml5Module::InitializeStatics();
-  
   nsCrossSiteListenerProxy::Startup();
-
-  rv = nsFrameList::Init();
-  if (NS_FAILED(rv)) {
-    NS_ERROR("Could not initialize nsFrameList");
-    return rv;
-  }
-
-  NS_SealStaticAtomTable();
 
   return NS_OK;
 }
@@ -357,7 +345,6 @@ nsLayoutStatics::Shutdown()
   nsGlobalWindow::ShutDown();
   nsDOMClassInfo::ShutDown();
   nsTextControlFrame::ShutDown();
-  nsListControlFrame::Shutdown();
   nsXBLWindowKeyHandler::ShutDown();
   nsAutoCopyListener::Shutdown();
 
@@ -376,14 +363,8 @@ nsLayoutStatics::Shutdown()
 #endif
 
   nsXMLHttpRequest::ShutdownACCache();
-  
-  nsHtml5Module::ReleaseStatics();
-
-  nsRegion::ShutdownStatic();
 
   NS_ShutdownChainItemPool();
-
-  nsFrameList::Shutdown();
 }
 
 void

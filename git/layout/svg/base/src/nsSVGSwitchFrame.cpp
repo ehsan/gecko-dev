@@ -52,8 +52,6 @@ protected:
     nsSVGSwitchFrameBase(aContext) {}
 
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
 #ifdef DEBUG
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
@@ -95,8 +93,6 @@ NS_NewSVGSwitchFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {  
   return new (aPresShell) nsSVGSwitchFrame(aContext);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsSVGSwitchFrame)
 
 #ifdef DEBUG
 NS_IMETHODIMP
@@ -195,7 +191,7 @@ nsSVGSwitchFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace)
   if (svgKid) {
     nsIContent *content = kid->GetContent();
     gfxMatrix transform = aToBBoxUserspace;
-    if (content->IsSVG()) {
+    if (content->IsNodeOfType(nsINode::eSVG)) {
       transform = static_cast<nsSVGElement*>(content)->
                     PrependLocalTransformTo(aToBBoxUserspace);
     }

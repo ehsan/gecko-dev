@@ -3,9 +3,14 @@ html, body {
   padding: 0;
 }
 
-audio, video {
+video {
   width: 140px;
   height: 100px;
+}
+
+audio {
+  width: 140px;
+  height: 28px;
   background-color: black;
 }
 
@@ -15,9 +20,9 @@ audio, video {
 #mask {
   position: absolute;
   z-index: 3;
-  width: 140px;
-  height: 72px;
+  width: 50px;
+  height: 50px;
   background-color: green;
-  top: 0;
-  right: 0;
+  top: 11px;
+  right: 45px;
 }

@@ -49,17 +49,17 @@ function usage()
 {
     cat <<EOF
 usage:
-$SCRIPT -p product -b branch -x executablepath -N profilename -E extensiondir
+$SCRIPT -p product -b branch -x executablepath -N profilename -E extensions
        [-d datafiles]
 
 variable            description
 ===============     ============================================================
--p product          required. firefox.
--b branch           required. supported branch. see library.sh
+-p product          required. firefox, thunderbird or fennec
+-b branch           required. one of 1.8.0 1.8.1 1.9.0 1.9.1 1.9.2
 -x executablepath   required. directory-tree containing executable named
                     'product'
 -N profilename      required. profile name
--E extensiondir       required. path to directory containing xpis to be installed
+-E extensions       required. path to directory containing xpis to be installed
 -d datafiles        optional. one or more filenames of files containing
             environment variable definitions to be included.
 
@@ -70,7 +70,7 @@ EOF
     exit 1
 }
 
-unset product branch executablepath profilename extensiondir datafiles
+unset product branch executablepath profilename extensions datafiles
 
 while getopts $options optname ;
 do
@@ -79,7 +79,7 @@ do
         b) branch=$OPTARG;;
         x) executablepath=$OPTARG;;
         N) profilename=$OPTARG;;
-        E) extensiondir=$OPTARG;;
+        E) extensions=$OPTARG;;
         d) datafiles=$OPTARG;;
     esac
 done
@@ -88,7 +88,7 @@ done
 loaddata $datafiles
 
 if [[ -z "$product" || -z "$branch" || \
-    -z "$executablepath" || -z "$profilename" || -z "$extensiondir" ]]; then
+    -z "$executablepath" || -z "$profilename" || -z "$extensions" ]]; then
     usage
 fi
 
@@ -99,18 +99,18 @@ if echo $profilename | egrep -qiv '[a-z0-9_]'; then
 fi
 
 executable=`get_executable $product $branch $executablepath`
-executableextensiondir=`dirname $executable`/extensions
+extensiondir=`dirname $executable`/extensions
 
 # create directory to contain installed extensions
 if [[ ! -d /tmp/sisyphus/extensions ]]; then
     create-directory.sh -n -d /tmp/sisyphus/extensions
 fi
 
-for extensionloc in $extensiondir/all/*.xpi $extensiondir/$OSID/*.xpi; do
-    if [[ $extensionloc == "$extensiondir/all/*.xpi" ]]; then
+for extensionloc in $extensions/all/*.xpi $extensions/$OSID/*.xpi; do
+    if [[ $extensionloc == "$extensions/all/*.xpi" ]]; then
         continue
     fi
-    if [[ $extensionloc == "$extensiondir/$OSID/*.xpi" ]]; then
+    if [[ $extensionloc == "$extensions/$OSID/*.xpi" ]]; then
         continue
     fi
 
@@ -131,8 +131,8 @@ for extensionloc in $extensiondir/all/*.xpi $extensiondir/$OSID/*.xpi; do
     fi
 
     extensionuuid=`perl $TEST_DIR/bin/get-extension-uuid.pl $extensioninstalldir/install.rdf`
-    if [[ ! -e $executableextensiondir/$extensionuuid ]]; then
-        echo $extensionosinstalldir > $executableextensiondir/$extensionuuid
+    if [[ ! -e $extensiondir/$extensionuuid ]]; then
+        echo $extensionosinstalldir > $extensiondir/$extensionuuid
     fi
 
 done

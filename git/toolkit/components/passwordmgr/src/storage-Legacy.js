@@ -341,8 +341,7 @@ LoginManagerStorage_legacy.prototype = {
         if (userCanceled)
             throw "User canceled Master Password entry";
 
-        if (count)
-            count.value = result.length; // needed for XPCOM
+        count.value = result.length; // needed for XPCOM
         return result;
     },
 
@@ -369,8 +368,7 @@ LoginManagerStorage_legacy.prototype = {
             }
         }
 
-        if (count)
-            count.value = result.length; // needed for XPCOM
+        count.value = result.length; // needed for XPCOM
         return result;
     },
 
@@ -413,8 +411,7 @@ LoginManagerStorage_legacy.prototype = {
             result.push(hostname);
         }
 
-        if (count)
-            count.value = result.length; // needed for XPCOM
+        count.value = result.length; // needed for XPCOM
         return result;
     },
 

@@ -45,12 +45,10 @@
  * getInterface on a DOMWindow.
  */
 
-interface nsIDOMNode;
 interface nsIDOMElement;
 interface nsIDOMHTMLCanvasElement;
-interface nsIDOMEvent;
 
-[scriptable, uuid(4775e623-d596-4364-8637-0968a5ce5e3d)]
+[scriptable, uuid(a5e155c8-ef18-4e70-881b-d2fe8aa13fec)]
 interface nsIDOMWindowUtils : nsISupports {
 
   /**
@@ -201,20 +199,6 @@ interface nsIDOMWindowUtils : nsISupports {
                           in AString aUnmodifiedCharacters);
 
   /**
-   * See nsIWidget::SynthesizeNativeMouseEvent
-   *
-   * Will be called on the widget that contains aElement.
-   * Cannot be accessed from unprivileged context (not content-accessible)
-   * Will throw a DOM security error if called without UniversalXPConnect
-   * privileges.
-   */
-  void sendNativeMouseEvent(in long aScreenX,
-                            in long aScreenY,
-                            in long aNativeMessage,
-                            in long aModifierFlags,
-                            in nsIDOMElement aElement);
-
-  /**
    * See nsIWidget::ActivateNativeMenuItemAt
    *
    * Cannot be accessed from unprivileged context (not content-accessible)
@@ -350,17 +334,6 @@ interface nsIDOMWindowUtils : nsISupports {
   void getScrollXY(in boolean aFlushLayout, out long aScrollX, out long aScrollY);
 
   /**
-   * Creates a ChromeObjectWrapper for the object and returns it.
-   *
-   * @param scope The JavaScript object whose scope we'll use as the
-   *        parent of the wrapper.
-   * @param objToWrap The JavaScript object to wrap.
-   * @return the wrapped object.
-   */
-
-  void getCOWForObject(/* scope, objToWrap */);
-
-  /**
    * Get IME open state. TRUE means 'Open', otherwise, 'Close'.
    * This property works only when IMEEnabled is IME_STATUS_ENABLED.
    */
@@ -400,25 +373,4 @@ interface nsIDOMWindowUtils : nsISupports {
    * Get IME status, see above IME_STATUS_* definitions.
    */
   readonly attribute unsigned long IMEStatus;
-
-  /**
-   * Get the number of screen pixels per CSS pixel.
-   */
-  readonly attribute float screenPixelsPerCSSPixel;
-
-  /**
-   * Dispatches aEvent via the nsIPresShell object of the window's document.
-   * The event is dispatched to aTarget, which should be an object
-   * which implements nsIContent interface (#element, #text, etc).
-   *
-   * Cannot be accessed from unprivileged context (not
-   * content-accessible) Will throw a DOM security error if called
-   * without UniversalXPConnect privileges.
-   *
-   * @note Event handlers won't get aEvent as parameter, but a similar event.
-   *       Also, aEvent should not be reused.
-   */
-  boolean dispatchDOMEventViaPresShell(in nsIDOMNode aTarget,
-                                       in nsIDOMEvent aEvent,
-                                       in boolean aTrusted);
 };

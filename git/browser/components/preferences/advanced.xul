@@ -127,7 +127,7 @@
     <stringbundle id="bundleBrand" src="chrome://branding/locale/brand.properties"/>
 #endif
 
-    <script type="application/javascript" src="chrome://browser/content/preferences/advanced.js"/>
+    <script type="application/x-javascript" src="chrome://browser/content/preferences/advanced.js"/>
 
     <tabbox id="advancedPrefs" flex="1"
             onselect="gAdvancedPane.tabSelectionChanged();">
@@ -275,8 +275,8 @@
                       preference="app.update.enabled"/>
 #endif
             <checkbox id="enableAddonUpdate"
-                      label="&enableAddonsUpdate2.label;"
-                      accesskey="&enableAddonsUpdate2.accesskey;"
+                      label="&enableAddonsUpdate.label;"
+                      accesskey="&enableAddonsUpdate.accesskey;"
                       preference="extensions.update.enabled"/>
             <checkbox id="enableSearchUpdate"
                       label="&enableSearchUpdate.label;"

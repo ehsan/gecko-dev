@@ -120,8 +120,6 @@ static NS_DEFINE_CID(kSocketProviderServiceCID, NS_SOCKETPROVIDERSERVICE_CID);
 #define HTTP_PREF(_pref) HTTP_PREF_PREFIX _pref
 #define BROWSER_PREF(_pref) BROWSER_PREF_PREFIX _pref
 
-#define NS_HTTP_PROTOCOL_FLAGS (URI_STD | ALLOWS_PROXY | ALLOWS_PROXY_HTTP | URI_LOADABLE_BY_ANYONE)
-
 //-----------------------------------------------------------------------------
 
 static nsresult
@@ -219,7 +217,7 @@ nsHttpHandler::Init()
     if (NS_FAILED(rv))
         return rv;
 
-    mIOService = do_GetService(NS_IOSERVICE_CONTRACTID, &rv);
+    mIOService = do_GetService(kIOServiceCID, &rv);
     if (NS_FAILED(rv)) {
         NS_WARNING("unable to continue without io service");
         return rv;
@@ -248,7 +246,6 @@ nsHttpHandler::Init()
     LOG(("> app-version = %s\n", mAppVersion.get()));
     LOG(("> platform = %s\n", mPlatform.get()));
     LOG(("> oscpu = %s\n", mOscpu.get()));
-    LOG(("> device = %s\n", mDeviceType.get()));
     LOG(("> security = %s\n", mSecurity.get()));
     LOG(("> language = %s\n", mLanguage.get()));
     LOG(("> misc = %s\n", mMisc.get()));
@@ -466,7 +463,7 @@ nsHttpHandler::GetStreamConverterService(nsIStreamConverterService **result)
 {
     if (!mStreamConvSvc) {
         nsresult rv;
-        mStreamConvSvc = do_GetService(NS_STREAMCONVERTERSERVICE_CONTRACTID, &rv);
+        mStreamConvSvc = do_GetService(kStreamConverterServiceCID, &rv);
         if (NS_FAILED(rv)) return rv;
     }
     *result = mStreamConvSvc;
@@ -478,7 +475,7 @@ nsICookieService *
 nsHttpHandler::GetCookieService()
 {
     if (!mCookieService)
-        mCookieService = do_GetService(NS_COOKIESERVICE_CONTRACTID);
+        mCookieService = do_GetService(kCookieServiceCID);
     return mCookieService;
 }
 
@@ -556,7 +553,6 @@ nsHttpHandler::BuildUserAgent()
                            mPlatform.Length() + 
                            mSecurity.Length() +
                            mOscpu.Length() +
-                           mDeviceType.Length() +
                            mLanguage.Length() +
                            mMisc.Length() +
                            mProduct.Length() +
@@ -641,10 +637,10 @@ nsHttpHandler::InitUserAgentComponents()
     "Macintosh"
 #elif defined(XP_BEOS)
     "BeOS"
-#elif defined(MOZ_X11)
-    "X11"
-#else
+#elif !defined(MOZ_X11)
     "?"
+#else
+    "X11"
 #endif
     );
 
@@ -662,20 +658,42 @@ nsHttpHandler::InitUserAgentComponents()
     else if (os2ver == 45)
         mOscpu.AssignLiteral("Warp 4.5");
 
-#elif defined(WINCE) || defined(XP_WIN)
+#elif defined(WINCE)
     OSVERSIONINFO info = { sizeof(OSVERSIONINFO) };
     if (GetVersionEx(&info)) {
-        char *buf = PR_smprintf(
-#if defined(WINCE)
-                                "WindowsCE %ld.%ld",
-#else
-                                "Windows NT %ld.%ld",
-#endif
+        char *buf = PR_smprintf("Windows CE %ld.%ld",
                                 info.dwMajorVersion,
                                 info.dwMinorVersion);
         if (buf) {
             mOscpu = buf;
             PR_smprintf_free(buf);
+        }
+    }
+#elif defined(XP_WIN)
+    OSVERSIONINFO info = { sizeof(OSVERSIONINFO) };
+    if (GetVersionEx(&info)) {
+        if (info.dwPlatformId == VER_PLATFORM_WIN32_NT) {
+            if (info.dwMajorVersion      == 3)
+                mOscpu.AssignLiteral("WinNT3.51");
+            else if (info.dwMajorVersion == 4)
+                mOscpu.AssignLiteral("WinNT4.0");
+            else {
+                char *buf = PR_smprintf("Windows NT %ld.%ld",
+                                        info.dwMajorVersion,
+                                        info.dwMinorVersion);
+                if (buf) {
+                    mOscpu = buf;
+                    PR_smprintf_free(buf);
+                }
+            }
+        } else {
+            char *buf = PR_smprintf("Windows %ld.%ld",
+                                    info.dwMajorVersion,
+                                    info.dwMinorVersion);
+            if (buf) {
+                mOscpu = buf;
+                PR_smprintf_free(buf);
+            }
         }
     }
 #elif defined (XP_MACOSX)
@@ -724,14 +742,6 @@ nsHttpHandler::InitUserAgentComponents()
         mOscpu.Assign(buf);
     }
 #endif
-
-    nsCOMPtr<nsIPropertyBag2> infoService = do_GetService("@mozilla.org/system-info;1");
-    NS_ASSERTION(infoService, "Could not find a system info service");
-
-    nsCString deviceType;
-    nsresult rv = infoService->GetPropertyAsACString(NS_LITERAL_STRING("device"), deviceType);
-    if (NS_SUCCEEDED(rv))
-        mDeviceType = deviceType;
 
     mUserAgentIsDirty = PR_TRUE;
 }
@@ -1068,7 +1078,7 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
             else {
                 // verify that this socket type is actually valid
                 nsCOMPtr<nsISocketProviderService> sps(
-                        do_GetService(NS_SOCKETPROVIDERSERVICE_CONTRACTID));
+                        do_GetService(kSocketProviderServiceCID));
                 if (sps) {
                     nsCOMPtr<nsISocketProvider> sp;
                     rv = sps->GetSocketProvider(sval, getter_AddRefs(sp));
@@ -1283,7 +1293,7 @@ PrepareAcceptCharsets(const char *i_AcceptCharset, nsACString &o_AcceptCharset)
         n++;
         add_utf = PR_TRUE;
     }
-    if (PL_strchr(acceptable, '*') == NULL) {
+    if (PL_strstr(acceptable, "*") == NULL) {
         n++;
         add_asterisk = PR_TRUE;
     }
@@ -1415,7 +1425,8 @@ nsHttpHandler::GetDefaultPort(PRInt32 *result)
 NS_IMETHODIMP
 nsHttpHandler::GetProtocolFlags(PRUint32 *result)
 {
-    *result = NS_HTTP_PROTOCOL_FLAGS;
+    *result = URI_STD | ALLOWS_PROXY | ALLOWS_PROXY_HTTP |
+        URI_LOADABLE_BY_ANYONE;
     return NS_OK;
 }
 
@@ -1507,7 +1518,7 @@ nsHttpHandler::NewProxiedChannel(nsIURI *uri,
 
         // HACK: make sure PSM gets initialized on the main thread.
         nsCOMPtr<nsISocketProviderService> spserv =
-                do_GetService(NS_SOCKETPROVIDERSERVICE_CONTRACTID);
+                do_GetService(kSocketProviderServiceCID);
         if (spserv) {
             nsCOMPtr<nsISocketProvider> provider;
             spserv->GetSocketProvider("ssl", getter_AddRefs(provider));
@@ -1649,13 +1660,6 @@ nsHttpHandler::GetOscpu(nsACString &value)
 }
 
 NS_IMETHODIMP
-nsHttpHandler::GetDeviceType(nsACString &value)
-{
-    value = mDeviceType;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
 nsHttpHandler::GetLanguage(nsACString &value)
 {
     value = mLanguage;
@@ -1775,8 +1779,7 @@ nsHttpsHandler::GetDefaultPort(PRInt32 *aPort)
 NS_IMETHODIMP
 nsHttpsHandler::GetProtocolFlags(PRUint32 *aProtocolFlags)
 {
-    *aProtocolFlags = NS_HTTP_PROTOCOL_FLAGS;
-    return NS_OK;
+    return gHttpHandler->GetProtocolFlags(aProtocolFlags);
 }
 
 NS_IMETHODIMP
@@ -1791,9 +1794,6 @@ nsHttpsHandler::NewURI(const nsACString &aSpec,
 NS_IMETHODIMP
 nsHttpsHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
 {
-    NS_ABORT_IF_FALSE(gHttpHandler, "Should have a HTTP handler by now.");
-    if (!gHttpHandler)
-      return NS_ERROR_UNEXPECTED;
     return gHttpHandler->NewChannel(aURI, _retval);
 }
 

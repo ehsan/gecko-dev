@@ -287,7 +287,7 @@ function Annotations(aId) {
 
 Annotations.prototype = {
   get names() {
-    return Utilities.annotations.getItemAnnotationNames(this._id);
+    return Utilities.annotations.getItemAnnotationNames(this._id, {});
   },
 
   has : function ann_has(aName) {
@@ -547,7 +547,7 @@ BookmarkFolder.prototype = {
   },
 
   remove : function bmf_remove() {
-    Utilities.bookmarks.removeItem(this._id);
+    Utilities.bookmarks.removeFolder(this._id);
   },
 
   // observer

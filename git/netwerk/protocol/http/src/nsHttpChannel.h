@@ -74,7 +74,6 @@
 #include "nsIEncodedChannel.h"
 #include "nsITransport.h"
 #include "nsIUploadChannel.h"
-#include "nsIUploadChannel2.h"
 #include "nsIStringEnumerator.h"
 #include "nsIOutputStream.h"
 #include "nsIAsyncInputStream.h"
@@ -85,7 +84,6 @@
 #include "nsICancelable.h"
 #include "nsIProxiedChannel.h"
 #include "nsITraceableChannel.h"
-#include "nsIAuthPromptCallback.h"
 
 class nsHttpResponseHead;
 class nsAHttpConnection;
@@ -102,7 +100,6 @@ class nsHttpChannel : public nsHashPropertyBag
                     , public nsIStreamListener
                     , public nsICachingChannel
                     , public nsIUploadChannel
-                    , public nsIUploadChannel2
                     , public nsICacheListener
                     , public nsIEncodedChannel
                     , public nsITransportEventSink
@@ -112,7 +109,6 @@ class nsHttpChannel : public nsHashPropertyBag
                     , public nsIProxiedChannel
                     , public nsITraceableChannel
                     , public nsIApplicationCacheChannel
-                    , public nsIAuthPromptCallback
 {
 public:
     NS_DECL_ISUPPORTS_INHERITED
@@ -123,7 +119,6 @@ public:
     NS_DECL_NSISTREAMLISTENER
     NS_DECL_NSICACHINGCHANNEL
     NS_DECL_NSIUPLOADCHANNEL
-    NS_DECL_NSIUPLOADCHANNEL2
     NS_DECL_NSICACHELISTENER
     NS_DECL_NSIENCODEDCHANNEL
     NS_DECL_NSIHTTPCHANNELINTERNAL
@@ -135,7 +130,6 @@ public:
     NS_DECL_NSITRACEABLECHANNEL
     NS_DECL_NSIAPPLICATIONCACHECONTAINER
     NS_DECL_NSIAPPLICATIONCACHECHANNEL
-    NS_DECL_NSIAUTHPROMPTCALLBACK
 
     nsHttpChannel();
     virtual ~nsHttpChannel();
@@ -229,38 +223,19 @@ private:
     // auth specific methods
     nsresult PrepareForAuthentication(PRBool proxyAuth);
     nsresult GenCredsAndSetEntry(nsIHttpAuthenticator *, PRBool proxyAuth, const char *scheme, const char *host, PRInt32 port, const char *dir, const char *realm, const char *challenge, const nsHttpAuthIdentity &ident, nsCOMPtr<nsISupports> &session, char **result);
+    nsresult GetCredentials(const char *challenges, PRBool proxyAuth, nsAFlatCString &creds);
+    nsresult GetCredentialsForChallenge(const char *challenge, const char *scheme,  PRBool proxyAuth, nsIHttpAuthenticator *auth, nsAFlatCString &creds);
     nsresult GetAuthenticator(const char *challenge, nsCString &scheme, nsIHttpAuthenticator **auth); 
     void     ParseRealm(const char *challenge, nsACString &realm);
     void     GetIdentityFromURI(PRUint32 authFlags, nsHttpAuthIdentity&);
-    /**
-     * Following three methods return NS_ERROR_IN_PROGRESS when
-     * nsIAuthPrompt2.asyncPromptAuth method is called. This result indicates
-     * the user's decision will be gathered in a callback and is not an actual
-     * error.
-     */
-    nsresult GetCredentials(const char *challenges, PRBool proxyAuth, nsAFlatCString &creds);
-    nsresult GetCredentialsForChallenge(const char *challenge, const char *scheme,  PRBool proxyAuth, nsIHttpAuthenticator *auth, nsAFlatCString &creds);
     nsresult PromptForIdentity(PRUint32 level, PRBool proxyAuth, const char *realm, const char *authType, PRUint32 authFlags, nsHttpAuthIdentity &);
-
     PRBool   ConfirmAuth(const nsString &bundleKey, PRBool doYesNoPrompt);
     void     CheckForSuperfluousAuth();
     void     SetAuthorizationHeader(nsHttpAuthCache *, nsHttpAtom header, const char *scheme, const char *host, PRInt32 port, const char *path, nsHttpAuthIdentity &ident);
     void     AddAuthorizationHeaders();
     nsresult GetCurrentPath(nsACString &);
-    /**
-     * Return all information needed to build authorization information,
-     * all paramters except proxyAuth are out parameters. proxyAuth specifies
-     * with what authorization we work (WWW or proxy).
-     */
-    nsresult GetAuthorizationMembers(PRBool proxyAuth, nsCSubstring& scheme, const char*& host, PRInt32& port, nsCSubstring& path, nsHttpAuthIdentity*& ident, nsISupports**& continuationState);
     nsresult DoAuthRetry(nsAHttpConnection *);
     PRBool   MustValidateBasedOnQueryUrl();
-    /**
-     * Method called to resume suspended transaction after we got credentials
-     * from the user. Called from OnAuthAvailable callback or OnAuthCancelled
-     * when credentials for next challenge were obtained synchronously.
-     */
-    nsresult ContinueOnAuthAvailable(const nsCSubstring& creds);
 
 private:
     nsCOMPtr<nsIURI>                  mOriginalURI;
@@ -288,7 +263,7 @@ private:
 
     PRUint32                          mLoadFlags;
     PRUint32                          mStatus;
-    PRUint64                          mLogicalOffset;
+    nsUint64                          mLogicalOffset;
     PRUint8                           mCaps;
     PRInt16                           mPriority;
 
@@ -317,19 +292,6 @@ private:
     nsCString                         mAuthType;
     nsHttpAuthIdentity                mIdent;
     nsHttpAuthIdentity                mProxyIdent;
-
-    // Reference to the prompt wating in prompt queue. The channel is
-    // responsible to call its cancel method when user in any way cancels
-    // this request.
-    nsCOMPtr<nsICancelable>           mAsyncPromptAuthCancelable;
-    // Saved in GetCredentials when prompt is asynchronous, the first challenge
-    // we obtained from the server with 401/407 response, will be processed in
-    // OnAuthAvailable callback.
-    nsCString                         mCurrentChallenge;
-    // Saved in GetCredentials when prompt is asynchronous, remaning challenges
-    // we have to process when user cancels the auth dialog for the current
-    // challenge.
-    nsCString                         mRemainingChallenges;
 
     // Resumable channel specific data
     nsCString                         mEntityID;
@@ -367,9 +329,6 @@ private:
     PRUint32                          mTransactionReplaced      : 1;
     PRUint32                          mUploadStreamHasHeaders   : 1;
     PRUint32                          mAuthRetryPending         : 1;
-    // True when we need to authenticate to proxy, i.e. when we get 407
-    // response. Used in OnAuthAvailable and OnAuthCancelled callbacks.
-    PRUint32                          mProxyAuth                : 1;
     PRUint32                          mSuppressDefensiveAuth    : 1;
     PRUint32                          mResuming                 : 1;
     PRUint32                          mInitedCacheEntry         : 1;
@@ -385,10 +344,6 @@ private:
     PRUint32                          mLoadedFromApplicationCache : 1;
     PRUint32                          mTracingEnabled           : 1;
     PRUint32                          mForceAllowThirdPartyCookie : 1;
-    // True if consumer added its own If-None-Match or If-Modified-Since
-    // headers. In such a case we must not override them in the cache code
-    // and also we want to pass possible 304 code response through.
-    PRUint32                          mCustomConditionalRequest : 1;
 
     class nsContentEncodings : public nsIUTF8StringEnumerator
     {

@@ -48,6 +48,7 @@
 #include "nsEscape.h"
 #include "nsNetUtil.h"
 #include "nsStringStream.h"
+#include "nsILocaleService.h"
 #include "nsIComponentManager.h"
 #include "nsDateTimeFormatCID.h"
 #include "nsIStreamListener.h"
@@ -283,9 +284,6 @@ nsFTPDirListingConv::DigestBufferLines(char *aBuffer, nsCString &aString) {
     char *eol;
     PRBool cr = PR_FALSE;
 
-    list_state state;
-    state.magic = 0;
-
     // while we have new lines, parse 'em into application/http-index-format.
     while ( line && (eol = PL_strchr(line, nsCRT::LF)) ) {
         // yank any carriage returns too.
@@ -298,6 +296,7 @@ nsFTPDirListingConv::DigestBufferLines(char *aBuffer, nsCString &aString) {
             cr = PR_FALSE;
         }
 
+        list_state state;
         list_result result;
 
         int type = ParseFTPList(line, &state, &result );

@@ -39,6 +39,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+// execute this test while syncing, this will potentially show possible problems
+start_sync();
+
 // Get services
 var histsvc = Cc["@mozilla.org/browser/nav-history-service;1"].
               getService(Ci.nsINavHistoryService);
@@ -116,7 +119,7 @@ function run_test() {
   // EXPIRE_NEVER anno should be retained since the uri is bookmarked
   do_check_eq(annosvc.getPageAnnotation(testURI, testAnnoName + "Never"), testAnnoVal);
   // check that moz_places record was not removed for this URI (is bookmarked)
-  do_check_eq(histsvc.getPageTitle(testURI), null);
+  do_check_eq(histsvc.getPageTitle(testURI), "mozilla.com");
 
   //cleanup
   annosvc.removePageAnnotation(testURI, testAnnoName + "Never");
@@ -149,12 +152,7 @@ function run_test() {
   // test that the moz_places record was not removed for place URI
   do_check_neq(histsvc.getPageTitle(placeURI), null);
   // test that the moz_places record was not removed for bookmarked URI
-  try {
-    histsvc.getPageTitle(bmURI);
-  }
-  catch(ex) {
-    do_throw("Place record for bookmarked uri was wrongly removed");
-  }
+  do_check_neq(histsvc.getPageTitle(bmURI), null);
 
   // cleanup
   bmsvc.removeItem(bookmark2);
@@ -524,18 +522,19 @@ function startExpireNeither() {
   // set date maximum to 3
   prefs.setIntPref("browser.history_expire_days", 3);
 
-  // Changing expiration preferences triggers partial expiration.
+  // Changing expiration preferences has already triggered expiration, it will
+  // run after the partial expiration timer (3,5s).
 
   // Check results.
-  do_timeout(600, checkExpireNeither);
+  do_timeout(3600, "checkExpireNeither();");
 }
 
 function checkExpireNeither() {
   dump("checkExpireNeither()\n");
   try {
     do_check_eq(observer.expiredURI, null);
-    do_check_eq(annosvc.getPageAnnotationNames(testURI).length, 1);
-    do_check_eq(annosvc.getPageAnnotationNames(triggerURI).length, 1);
+    do_check_eq(annosvc.getPageAnnotationNames(testURI, {}).length, 1);
+    do_check_eq(annosvc.getPageAnnotationNames(triggerURI, {}).length, 1);
   } catch(ex) {
     do_throw(ex);
   }
@@ -585,21 +584,22 @@ function startExpireDaysOnly() {
   // set date maximum to 3
   prefs.setIntPref("browser.history_expire_days", 3);
 
-  // Changing expiration preferences triggers partial expiration.
+  // Changing expiration preferences has already triggered expiration, it will
+  // run after the partial expiration timer (3,5s).
 
   // Check results.
-  do_timeout(600, checkExpireDaysOnly);
+  do_timeout(3600, "checkExpireDaysOnly();");
 }
 
 function checkExpireDaysOnly() {
   try {
     // test expired record
     do_check_eq(observer.expiredURI, testURI.spec);
-    do_check_eq(annosvc.getPageAnnotationNames(testURI).length, 0);
+    do_check_eq(annosvc.getPageAnnotationNames(testURI, {}).length, 0);
 
     // test unexpired record
     do_check_neq(histsvc.getPageTitle(unexpirableURI), null);
-    do_check_eq(annosvc.getPageAnnotationNames(unexpirableURI).length, 1);
+    do_check_eq(annosvc.getPageAnnotationNames(unexpirableURI, {}).length, 1);
   } catch(ex) {}
   dump("done expiration test 2\n");
   startExpireBoth();
@@ -655,17 +655,18 @@ function startExpireBoth() {
   // set date minimum to 1
   prefs.setIntPref("browser.history_expire_days_min", 1);
 
-  // Changing expiration preferences triggers partial expiration.
+  // Changing expiration preferences has already triggered expiration, it will
+  // run after the partial expiration timer (3,5s).
 
   // Check results.
-  do_timeout(600, checkExpireBoth); // incremental expiration timer is 3500
+  do_timeout(3600, "checkExpireBoth();"); // incremental expiration timer is 3500
 }
 
 function checkExpireBoth() {
   try {
     do_check_eq(observer.expiredURI, testURI.spec);
-    do_check_eq(annosvc.getPageAnnotationNames(testURI).length, 0);
-    do_check_eq(annosvc.getPageAnnotationNames(triggerURI).length, 1);
+    do_check_eq(annosvc.getPageAnnotationNames(testURI, {}).length, 0);
+    do_check_eq(annosvc.getPageAnnotationNames(triggerURI, {}).length, 1);
   } catch(ex) {}
   dump("done expiration test 3\n");
   startExpireNeitherOver()
@@ -713,18 +714,19 @@ function startExpireNeitherOver() {
   // set date maximum to 3
   prefs.setIntPref("browser.history_expire_days", 3);
 
-  // Changing expiration preferences triggers partial expiration.
+  // Changing expiration preferences has already triggered expiration, it will
+  // run after the partial expiration timer (3,5s).
 
   // Check results.
-  do_timeout(600, checkExpireNeitherOver);
+  do_timeout(3600, "checkExpireNeitherOver();");
 }
 
 function checkExpireNeitherOver() {
   dump("checkExpireNeitherOver()\n");
   try {
     do_check_eq(observer.expiredURI, null);
-    do_check_eq(annosvc.getPageAnnotationNames(testURI).length, 1);
-    do_check_eq(annosvc.getPageAnnotationNames(triggerURI).length, 1);
+    do_check_eq(annosvc.getPageAnnotationNames(testURI, {}).length, 1);
+    do_check_eq(annosvc.getPageAnnotationNames(triggerURI, {}).length, 1);
   } catch(ex) {
     do_throw(ex);
   }
@@ -762,17 +764,18 @@ function startExpireHistoryDisabled() {
   // set date maximum to 0
   prefs.setIntPref("browser.history_expire_days", 0);
 
-  // Changing expiration preferences triggers partial expiration.
+  // Changing expiration preferences has already triggered expiration, it will
+  // run after the partial expiration timer (3,5s).
 
   // Check results.
-  do_timeout(600, checkExpireHistoryDisabled);
+  do_timeout(3600, "checkExpireHistoryDisabled();");
 }
 
 function checkExpireHistoryDisabled() {
   dump("checkExpireHistoryDisabled()\n");
   try {
     do_check_eq(observer.expiredURI, testURI.spec);
-    do_check_eq(annosvc.getPageAnnotationNames(testURI).length, 0);
+    do_check_eq(annosvc.getPageAnnotationNames(testURI, {}).length, 0);
   } catch(ex) {
     do_throw(ex);
   }
@@ -814,20 +817,21 @@ function startExpireBadPrefs() {
   // set date maximum to 1
   prefs.setIntPref("browser.history_expire_days", 1);
 
-  // Changing expiration preferences triggers partial expiration.
+  // Changing expiration preferences has already triggered expiration, it will
+  // run after the partial expiration timer (3,5s).
 
   // Check results.
-  do_timeout(600, checkExpireBadPrefs);
+  do_timeout(3600, "checkExpireBadPrefs();");
 }
 
 function checkExpireBadPrefs() {
   dump("checkExpireBadPrefs()\n");
   try {
     do_check_eq(observer.expiredURI, null);
-    do_check_eq(annosvc.getPageAnnotationNames(testURI).length, 1);
+    do_check_eq(annosvc.getPageAnnotationNames(testURI, {}).length, 1);
   } catch(ex) {
     do_throw(ex);
   }
   dump("done incremental expiration test 6\n");
-  do_test_finished();
+  finish_test();
 }

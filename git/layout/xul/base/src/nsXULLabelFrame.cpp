@@ -53,8 +53,6 @@ NS_NewXULLabelFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return it;
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsXULLabelFrame)
-
 // If you make changes to this function, check its counterparts 
 // in nsBoxFrame and nsTextBoxFrame
 nsresult

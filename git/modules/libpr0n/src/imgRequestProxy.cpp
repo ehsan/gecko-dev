@@ -53,7 +53,7 @@
 #include "ImageLogging.h"
 
 #include "nspr.h"
-#include "imgContainerRequest.h"
+
 
 NS_IMPL_ISUPPORTS4(imgRequestProxy, imgIRequest, nsIRequest,
                    nsISupportsPriority, nsISecurityInfoProvider)
@@ -62,11 +62,9 @@ imgRequestProxy::imgRequestProxy() :
   mOwner(nsnull),
   mListener(nsnull),
   mLoadFlags(nsIRequest::LOAD_NORMAL),
-  mLocksHeld(0),
   mCanceled(PR_FALSE),
   mIsInLoadGroup(PR_FALSE),
-  mListenerIsStrongRef(PR_FALSE),
-  mDecodeRequested(PR_FALSE)
+  mListenerIsStrongRef(PR_FALSE)
 {
   /* member initializers and constructor code */
 
@@ -76,13 +74,6 @@ imgRequestProxy::~imgRequestProxy()
 {
   /* destructor code */
   NS_PRECONDITION(!mListener, "Someone forgot to properly cancel this request!");
-
-  // Unlock the image the proper number of times if we're holding locks on it.
-  // Note that UnlockImage() decrements mLocksHeld each time it's called.
-  if (mOwner) {
-    while (mLocksHeld)
-      UnlockImage();
-  }
 
   // Explicitly set mListener to null to ensure that the RemoveProxy
   // call below can't send |this| to an arbitrary listener while |this|
@@ -138,17 +129,6 @@ nsresult imgRequestProxy::ChangeOwner(imgRequest *aNewOwner)
   if (mCanceled)
     return NS_OK;
 
-  // Were we decoded before?
-  PRBool wasDecoded = PR_FALSE;
-  if (mOwner->GetImageStatus() & imgIRequest::STATUS_FRAME_COMPLETE)
-    wasDecoded = PR_TRUE;
-
-  // If we're holding locks, unlock the old image.
-  // Note that UnlockImage decrements mLocksHeld each time it's called.
-  PRUint32 oldLockCount = mLocksHeld;
-  while (mLocksHeld)
-    UnlockImage();
-
   // Passing false to aNotify means that mListener will still get
   // OnStopRequest, if needed.
   mOwner->RemoveProxy(this, NS_IMAGELIB_CHANGING_OWNER, PR_FALSE);
@@ -156,15 +136,6 @@ nsresult imgRequestProxy::ChangeOwner(imgRequest *aNewOwner)
   mOwner = aNewOwner;
 
   mOwner->AddProxy(this);
-
-  // If we were decoded, or if we'd previously requested a decode, request a
-  // decode on the new image
-  if (wasDecoded || mDecodeRequested)
-    mOwner->RequestDecode();
-
-  // If we were locked, apply the locks here
-  for (PRUint32 i = 0; i < oldLockCount; i++)
-    LockImage();
 
   return NS_OK;
 }
@@ -269,49 +240,6 @@ NS_IMETHODIMP imgRequestProxy::CancelAndForgetObserver(nsresult aStatus)
   NullOutListener();
 
   return NS_OK;
-}
-
-/* void requestDecode (); */
-NS_IMETHODIMP
-imgRequestProxy::RequestDecode()
-{
-  if (!mOwner)
-    return NS_ERROR_FAILURE;
-
-  // Flag this, so we know to transfer the request if our owner changes
-  mDecodeRequested = PR_TRUE;
-
-  // Forward the request
-  return mOwner->RequestDecode();
-}
-
-/* void lockImage (); */
-NS_IMETHODIMP
-imgRequestProxy::LockImage()
-{
-  if (!mOwner)
-    return NS_ERROR_FAILURE;
-
-  // Increment our lock count
-  mLocksHeld++;
-
-  // Forward the request
-  return mOwner->LockImage();
-}
-
-/* void unlockImage (); */
-NS_IMETHODIMP
-imgRequestProxy::UnlockImage()
-{
-  if (!mOwner)
-    return NS_ERROR_FAILURE;
-
-  // Decrement our lock count
-  NS_ABORT_IF_FALSE(mLocksHeld > 0, "calling unlock but no locks!");
-  mLocksHeld--;
-
-  // Forward the request
-  return mOwner->UnlockImage();
 }
 
 /* void suspend (); */
@@ -497,14 +425,14 @@ NS_IMETHODIMP imgRequestProxy::GetHasTransferredData(PRBool* hasData)
 
 /** imgIContainerObserver methods **/
 
-void imgRequestProxy::FrameChanged(imgIContainer *container, nsIntRect * dirtyRect)
+void imgRequestProxy::FrameChanged(imgIContainer *container, gfxIImageFrame *newframe, nsIntRect * dirtyRect)
 {
   LOG_FUNC(gImgLog, "imgRequestProxy::FrameChanged");
 
   if (mListener && !mCanceled) {
     // Hold a ref to the listener while we call it, just in case.
     nsCOMPtr<imgIDecoderObserver> kungFuDeathGrip(mListener);
-    mListener->FrameChanged(container, dirtyRect);
+    mListener->FrameChanged(container, newframe, dirtyRect);
   }
 }
 
@@ -532,7 +460,7 @@ void imgRequestProxy::OnStartContainer(imgIContainer *image)
   }
 }
 
-void imgRequestProxy::OnStartFrame(PRUint32 frame)
+void imgRequestProxy::OnStartFrame(gfxIImageFrame *frame)
 {
   LOG_FUNC(gImgLog, "imgRequestProxy::OnStartFrame");
 
@@ -543,18 +471,18 @@ void imgRequestProxy::OnStartFrame(PRUint32 frame)
   }
 }
 
-void imgRequestProxy::OnDataAvailable(PRBool aCurrentFrame, const nsIntRect * rect)
+void imgRequestProxy::OnDataAvailable(gfxIImageFrame *frame, const nsIntRect * rect)
 {
   LOG_FUNC(gImgLog, "imgRequestProxy::OnDataAvailable");
 
   if (mListener && !mCanceled) {
     // Hold a ref to the listener while we call it, just in case.
     nsCOMPtr<imgIDecoderObserver> kungFuDeathGrip(mListener);
-    mListener->OnDataAvailable(this, aCurrentFrame, rect);
+    mListener->OnDataAvailable(this, frame, rect);
   }
 }
 
-void imgRequestProxy::OnStopFrame(PRUint32 frame)
+void imgRequestProxy::OnStopFrame(gfxIImageFrame *frame)
 {
   LOG_FUNC(gImgLog, "imgRequestProxy::OnStopFrame");
 
@@ -586,18 +514,6 @@ void imgRequestProxy::OnStopDecode(nsresult status, const PRUnichar *statusArg)
     mListener->OnStopDecode(this, status, statusArg);
   }
 }
-
-void imgRequestProxy::OnDiscard()
-{
-  LOG_FUNC(gImgLog, "imgRequestProxy::OnDiscard");
-
-  if (mListener && !mCanceled) {
-    // Hold a ref to the listener while we call it, just in case.
-    nsCOMPtr<imgIDecoderObserver> kungFuDeathGrip(mListener);
-    mListener->OnDiscard(this);
-  }
-}
-
 
 
 
@@ -673,47 +589,3 @@ void imgRequestProxy::NullOutListener()
     mListener = nsnull;
   }
 }
-
-NS_IMETHODIMP
-imgRequestProxy::GetStaticRequest(imgIRequest** aReturn)
-{
-  *aReturn = nsnull;
-  nsCOMPtr<imgIContainer> img, currentFrame;
-  GetImage(getter_AddRefs(img));
-  if (img) {
-    PRBool animated = PR_FALSE;
-    nsresult rv = img->GetAnimated(&animated);
-    if (NS_SUCCEEDED(rv) && !animated) {
-      NS_ADDREF(*aReturn = this);
-      return NS_OK;
-    }
-
-    PRInt32 w = 0;
-    PRInt32 h = 0;
-    img->GetWidth(&w);
-    img->GetHeight(&h);
-    nsIntRect rect(0, 0, w, h);
-    img->ExtractFrame(imgIContainer::FRAME_CURRENT, rect,
-                      imgIContainer::FLAG_SYNC_DECODE,
-                      getter_AddRefs(currentFrame));
-  }
-
-  nsCOMPtr<nsIURI> uri;
-  GetURI(getter_AddRefs(uri));
-  PRUint32 imageStatus = 0;
-  GetImageStatus(&imageStatus);
-  nsCOMPtr<nsIPrincipal> principal;
-  GetImagePrincipal(getter_AddRefs(principal));
-
-  imgContainerRequest* req =
-    new imgContainerRequest(currentFrame, uri, imageStatus,
-                            mOwner ? mOwner->GetState() : 0,
-                            principal);
-  if (!req) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-
-  NS_ADDREF(*aReturn = req);
-  return NS_OK;
-}
-

@@ -139,8 +139,8 @@ private:
 class nsTableFrame : public nsHTMLContainerFrame, public nsITableLayout
 {
 public:
+
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
   /** nsTableOuterFrame has intimate knowledge of the inner table frame */
   friend class nsTableOuterFrame;
@@ -200,10 +200,10 @@ public:
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
 
@@ -258,9 +258,12 @@ public:
     * @see nsIFrame::SetInitialChildList 
     */
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
-                                 nsFrameList&    aChildList);
+                                 nsIFrame*       aChildList);
 
-  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
+  /** return the first child belonging to the list aListName. 
+    * @see nsIFrame::GetFirstChild
+    */
+  virtual nsIFrame* GetFirstChild(nsIAtom* aListName) const;
 
   /** @see nsIFrame::GetAdditionalChildListName */
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
@@ -276,7 +279,7 @@ public:
    */
   void PaintTableBorderBackground(nsIRenderingContext& aRenderingContext,
                                   const nsRect& aDirtyRect,
-                                  nsPoint aPt, PRUint32 aBGPaintFlags);
+                                  nsPoint aPt);
 
   /** Get the outer half (i.e., the part outside the height and width of
    *  the table) of the largest segment (?) of border-collapsed border on
@@ -295,12 +298,6 @@ public:
    */
   nsMargin GetExcludedOuterBCBorder() const;
 
-  /**
-   * In quirks mode, the size of the table background is reduced
-   * by the outer BC border. Compute the reduction needed.
-   */
-  nsMargin GetDeflationForBackground(nsPresContext* aPresContext) const;
-
   /** Get width of table + colgroup + col collapse: elements that
    *  continue along the length of the whole left side.
    *  see nsTablePainter about continuous borders
@@ -315,6 +312,14 @@ public:
                         nsStyleContext* aNewStyleContext);
   void PaintBCBorders(nsIRenderingContext& aRenderingContext,
                       const nsRect&        aDirtyRect);
+
+  /** nsIFrame method overridden to handle table specifics
+  */
+  NS_IMETHOD SetSelected(nsPresContext* aPresContext,
+                         nsIDOMRange *aRange,
+                         PRBool aSelected,
+                         nsSpread aSpread,
+                         SelectionType aType);
 
   virtual void MarkIntrinsicWidthsDirty();
   // For border-collapse tables, the caller must not add padding and
@@ -451,18 +456,17 @@ public:
 
   PRInt32 DestroyAnonymousColFrames(PRInt32 aNumFrames);
 
-  // Append aNumColsToAdd anonymous col frames of type eColAnonymousCell to our
-  // last eColGroupAnonymousCell colgroup.  If we have no such colgroup, then
-  // create one.
-  void AppendAnonymousColFrames(PRInt32 aNumColsToAdd);
+  void CreateAnonymousColFrames(PRInt32         aNumColsToAdd,
+                                nsTableColType  aColType,
+                                PRBool          aDoAppend,
+                                nsIFrame*       aPrevCol = nsnull);
 
-  // Append aNumColsToAdd anonymous col frames of type aColType to
-  // aColGroupFrame.  If aAddToTable is true, also call AddColsToTable on the
-  // new cols.
-  void AppendAnonymousColFrames(nsTableColGroupFrame* aColGroupFrame,
+  void CreateAnonymousColFrames(nsTableColGroupFrame* aColGroupFrame,
                                 PRInt32               aNumColsToAdd,
                                 nsTableColType        aColType,
-                                PRBool                aAddToTable);
+                                PRBool                aAddToColGroupAndTable,
+                                nsIFrame*             aPrevCol,
+                                nsIFrame**            aFirstNewFrame);
 
   void MatchCellMapToColCache(nsTableCellMap* aCellMap);
   /** empty the column frame cache */
@@ -499,12 +503,22 @@ public:
                           PRBool           aConsiderSpans);
 
   /** Insert multiple rowgroups into the table cellmap handling
-    * @param aRowGroups - iterator that iterates over the rowgroups to insert
+    * @param aFirstRowGroupFrame - first row group to be inserted all siblings
+    *                              will be appended too.
     */
-  void InsertRowGroups(const nsFrameList::Slice& aRowGroups);
+  void AppendRowGroups(nsIFrame* aFirstRowGroupFrame);
 
-  void InsertColGroups(PRInt32                   aStartColIndex,
-                       const nsFrameList::Slice& aColgroups);
+  /** Insert multiple rowgroups into the table cellmap handling
+    * @param aFirstRowGroupFrame - first row group to be inserted
+    * @param aLastRowGroupFrame  - when inserting the siblings of 
+    *                              aFirstRowGroupFrame stop at this row group
+    */
+  void InsertRowGroups(nsIFrame*       aFirstRowGroupFrame,
+                       nsIFrame*       aLastRowGroupFrame);
+
+  void InsertColGroups(PRInt32         aColIndex,
+                       nsIFrame*       aFirstFrame,
+                       nsIFrame*       aLastFrame = nsnull);
 
   virtual void RemoveCol(nsTableColGroupFrame* aColGroupFrame,
                          PRInt32               aColIndex,
@@ -525,7 +539,7 @@ public:
   /**
    * To be called on a frame by its parent after setting its size/position and
    * calling DidReflow (possibly via FinishReflowChild()).  This can also be
-   * used for child frames which are not being reflowed but did have their size
+   * used for child frames which are not being reflown but did have their size
    * or position changed.
    *
    * @param aFrame The frame to invalidate
@@ -553,6 +567,8 @@ protected:
 
   /** implement abstract method on nsHTMLContainerFrame */
   virtual PRIntn GetSkipSides() const;
+
+  virtual PRBool ParentDisablesSelection() const; //override default behavior
 
 public:
   PRBool IsRowInserted() const;
@@ -629,6 +645,7 @@ protected:
                   const nsRect&        aOriginalKidOverflowRect);
 
   nsIFrame* GetFirstBodyRowGroupFrame();
+  PRBool MoveOverflowToChildList(nsPresContext* aPresContext);
   /**
    * Push all our child frames from the aFrames array, in order, starting from the
    * frame at aPushFrom to the end of the array. The frames are put on our overflow
@@ -735,10 +752,13 @@ public:
   /** Reset the rowindices of all rows as they might have changed due to 
     * rowgroup reordering, exclude new row group frames that show in the
     * reordering but are not yet inserted into the cellmap
-    * @param aRowGroupsToExclude - an iterator that will produce the row groups
-    *                              to exclude.
+    * @param aFirstRowGroupFrame - first row group to be excluded
+    * @param aLastRowGroupFrame  - last sibling of aFirstRowGroupFrame that
+    *                              should be excluded when reseting the row
+    *                              indices.
     */
-  void ResetRowIndices(const nsFrameList::Slice& aRowGroupsToExclude);
+  void ResetRowIndices(nsIFrame* aFirstRowGroupFrame = nsnull,
+                       nsIFrame* aLastRowGroupFrame = nsnull);
 
   nsTArray<nsTableColFrame*>& GetColCache();
 

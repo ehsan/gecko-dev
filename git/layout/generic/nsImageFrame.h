@@ -52,7 +52,6 @@
 #include "nsTransform2D.h"
 #include "imgIRequest.h"
 #include "nsStubImageDecoderObserver.h"
-#include "imgIDecoderObserver.h"
 
 class nsIFrame;
 class nsImageMap;
@@ -74,12 +73,13 @@ public:
   NS_DECL_ISUPPORTS
   // imgIDecoderObserver (override nsStubImageDecoderObserver)
   NS_IMETHOD OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
-  NS_IMETHOD OnDataAvailable(imgIRequest *aRequest, PRBool aCurrentFrame,
+  NS_IMETHOD OnDataAvailable(imgIRequest *aRequest, gfxIImageFrame *aFrame,
                              const nsIntRect *aRect);
   NS_IMETHOD OnStopDecode(imgIRequest *aRequest, nsresult status,
                           const PRUnichar *statusArg);
   // imgIContainerObserver (override nsStubImageDecoderObserver)
-  NS_IMETHOD FrameChanged(imgIContainer *aContainer, nsIntRect * dirtyRect);
+  NS_IMETHOD FrameChanged(imgIContainer *aContainer, gfxIImageFrame *newframe,
+                          nsIntRect * dirtyRect);
 
   void SetFrame(nsImageFrame *frame) { mFrame = frame; }
 
@@ -94,8 +94,6 @@ private:
 
 class nsImageFrame : public ImageFrameSuper, public nsIImageFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   nsImageFrame(nsStyleContext* aContext);
 
   NS_DECL_QUERYFRAME
@@ -215,18 +213,20 @@ protected:
                       const nsRect&        aRect);
 
   void PaintImage(nsIRenderingContext& aRenderingContext, nsPoint aPt,
-                  const nsRect& aDirtyRect, imgIContainer* aImage,
-                  PRUint32 aFlags);
+                  const nsRect& aDirtyRect, imgIContainer* aImage);
                   
 protected:
   friend class nsImageListener;
   nsresult OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
-  nsresult OnDataAvailable(imgIRequest *aRequest, PRBool aCurrentFrame,
+  nsresult OnDataAvailable(imgIRequest *aRequest,
+                           gfxIImageFrame *aFrame,
                            const nsIntRect *rect);
   nsresult OnStopDecode(imgIRequest *aRequest,
                         nsresult aStatus,
                         const PRUnichar *aStatusArg);
-  nsresult FrameChanged(imgIContainer *aContainer, nsIntRect *aDirtyRect);
+  nsresult FrameChanged(imgIContainer *aContainer,
+                        gfxIImageFrame *aNewframe,
+                        nsIntRect *aDirtyRect);
 
 private:
   // random helpers
@@ -272,8 +272,7 @@ private:
   nsSize mComputedSize;
   nsSize mIntrinsicSize;
   nsTransform2D mTransform;
-  PRBool mDisplayingIcon;
-
+  
   static nsIIOService* sIOService;
 
   /* loading / broken image icon support */
@@ -287,13 +286,17 @@ private:
   nsresult LoadIcons(nsPresContext *aPresContext);
   nsresult LoadIcon(const nsAString& aSpec, nsPresContext *aPresContext,
                     imgIRequest **aRequest);
+  
+  // HandleIconLoads: See if the request is for an Icon load. If it
+  // is, handle it and return TRUE otherwise, return FALSE (aCompleted
+  // is an input arg telling the routine if the request has completed)
+  PRBool HandleIconLoads(imgIRequest* aRequest, PRBool aCompleted);
 
-  class IconLoad : public nsIObserver,
-                   public imgIDecoderObserver {
-    // private class that wraps the data and logic needed for
+  class IconLoad : public nsIObserver {
+    // private class that wraps the data and logic needed for 
     // broken image and loading image icons
   public:
-    IconLoad();
+    IconLoad(imgIDecoderObserver* aObserver);
 
     void Shutdown()
     {
@@ -310,28 +313,15 @@ private:
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER
-    NS_DECL_IMGICONTAINEROBSERVER
-    NS_DECL_IMGIDECODEROBSERVER
-
-    void AddIconObserver(nsImageFrame *frame) {
-        NS_ABORT_IF_FALSE(!mIconObservers.Contains(frame),
-                          "Observer shouldn't aleady be in array");
-        mIconObservers.AppendElement(frame);
-    }
-
-    void RemoveIconObserver(nsImageFrame *frame) {
-        PRBool rv = mIconObservers.RemoveElement(frame);
-        NS_ABORT_IF_FALSE(rv, "Observer not in array");
-    }
 
   private:
     void GetPrefs();
-    nsTObserverArray<nsImageFrame*> mIconObservers;
-
 
   public:
     nsCOMPtr<imgIRequest> mLoadingImage;
     nsCOMPtr<imgIRequest> mBrokenImage;
+    nsCOMPtr<imgIDecoderObserver> mLoadObserver; // keeps the observer alive
+    PRUint8          mIconsLoaded;
     PRPackedBool     mPrefForceInlineAltText;
     PRPackedBool     mPrefShowPlaceholders;
   };

@@ -40,9 +40,7 @@
 #define nsMenuX_h_
 
 #import <Cocoa/Cocoa.h>
-#if (MAC_OS_X_VERSION_MIN_REQUIRED <= MAC_OS_X_VERSION_10_4)
 #import <Carbon/Carbon.h>
-#endif
 
 #include "nsMenuBaseX.h"
 #include "nsMenuBarX.h"
@@ -55,17 +53,18 @@ class nsMenuItemIconX;
 class nsMenuItemX;
 class nsIWidget;
 
+
 // MenuDelegate is used to receive Cocoa notifications for
 // setting up carbon events
 @interface MenuDelegate : NSObject
 {
   nsMenuX* mGeckoMenu; // weak ref
-#if (MAC_OS_X_VERSION_MIN_REQUIRED <= MAC_OS_X_VERSION_10_4)
   EventHandlerRef mEventHandler;
-#endif
+  BOOL mHaveInstalledCarbonEvents;
 }
 - (id)initWithGeckoMenu:(nsMenuX*)geckoMenu;
 @end
+
 
 // Once instantiated, this object lives until its DOM node or its parent window is destroyed.
 // Do not hold references to this, they can become invalid any time the DOM node can be destroyed.
@@ -93,8 +92,8 @@ public:
   nsMenuObjectX* GetItemAt(PRUint32 aPos);
   nsresult       GetVisibleItemCount(PRUint32 &aCount);
   nsMenuObjectX* GetVisibleItemAt(PRUint32 aPos);
-  nsEventStatus  MenuOpened();
-  void           MenuClosed();
+  nsEventStatus  MenuOpened(const nsMenuEvent& aMenuEvent);
+  void           MenuClosed(const nsMenuEvent& aMenuEvent);
   void           SetRebuild(PRBool aMenuEvent);
   NSMenuItem*    NativeMenuItem();
 
@@ -106,7 +105,9 @@ protected:
   nsresult       SetupIcon();
   void           GetMenuPopupContent(nsIContent** aResult);
   PRBool         OnOpen();
+  PRBool         OnOpened();
   PRBool         OnClose();
+  PRBool         OnClosed();
   nsresult       AddMenuItem(nsMenuItemX* aMenuItem);
   nsresult       AddMenu(nsMenuX* aMenu);
   void           LoadMenuItem(nsIContent* inMenuItemContent);  

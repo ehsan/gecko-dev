@@ -62,8 +62,6 @@ NS_NewMathMLmunderoverFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsMathMLmunderoverFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsMathMLmunderoverFrame)
-
 nsMathMLmunderoverFrame::~nsMathMLmunderoverFrame()
 {
 }
@@ -347,7 +345,7 @@ nsMathMLmunderoverFrame::Place(nsIRenderingContext& aRenderingContext,
                       dummy, bigOpSpacing2, 
                       dummy, bigOpSpacing4, 
                       bigOpSpacing5);
-    underDelta1 = NS_MAX(bigOpSpacing2, (bigOpSpacing4 - bmUnder.ascent));
+    underDelta1 = PR_MAX(bigOpSpacing2, (bigOpSpacing4 - bmUnder.ascent));
     underDelta2 = bigOpSpacing5;
   }
   else {
@@ -371,14 +369,14 @@ nsMathMLmunderoverFrame::Place(nsIRenderingContext& aRenderingContext,
                       bigOpSpacing1, dummy, 
                       bigOpSpacing3, dummy, 
                       bigOpSpacing5);
-    overDelta1 = NS_MAX(bigOpSpacing1, (bigOpSpacing3 - bmOver.descent));
+    overDelta1 = PR_MAX(bigOpSpacing1, (bigOpSpacing3 - bmOver.descent));
     overDelta2 = bigOpSpacing5;
 
     // XXX This is not a TeX rule... 
     // delta1 (as computed abvove) can become really big when bmOver.descent is
     // negative,  e.g., if the content is &OverBar. In such case, we use the height
     if (bmOver.descent < 0)    
-      overDelta1 = NS_MAX(bigOpSpacing1, (bigOpSpacing3 - (bmOver.ascent + bmOver.descent)));
+      overDelta1 = PR_MAX(bigOpSpacing1, (bigOpSpacing3 - (bmOver.ascent + bmOver.descent)));
   }
   else {
     // Rule 12, App. G, TeXbook
@@ -410,7 +408,7 @@ nsMathMLmunderoverFrame::Place(nsIRenderingContext& aRenderingContext,
     dxOver += correction + (mBoundingMetrics.width - overWidth)/2;
   }
   else {
-    mBoundingMetrics.width = NS_MAX(bmBase.width, overWidth);
+    mBoundingMetrics.width = PR_MAX(bmBase.width, overWidth);
     dxOver += correction/2 + (mBoundingMetrics.width - overWidth)/2;
   }
   dxBase = (mBoundingMetrics.width - bmBase.width)/2;
@@ -420,9 +418,9 @@ nsMathMLmunderoverFrame::Place(nsIRenderingContext& aRenderingContext,
   mBoundingMetrics.descent = 
     bmBase.descent + underDelta1 + bmUnder.ascent + bmUnder.descent;
   mBoundingMetrics.leftBearing = 
-    NS_MIN(dxBase + bmBase.leftBearing, dxOver + bmOver.leftBearing);
+    PR_MIN(dxBase + bmBase.leftBearing, dxOver + bmOver.leftBearing);
   mBoundingMetrics.rightBearing = 
-    NS_MAX(dxBase + bmBase.rightBearing, dxOver + bmOver.rightBearing);
+    PR_MAX(dxBase + bmBase.rightBearing, dxOver + bmOver.rightBearing);
 
   //////////
   // pass 2, do what <munder> does: attach the underscript on the previous
@@ -433,7 +431,7 @@ nsMathMLmunderoverFrame::Place(nsIRenderingContext& aRenderingContext,
 
   nsBoundingMetrics bmAnonymousBase = mBoundingMetrics;
   nscoord ascentAnonymousBase =
-    NS_MAX(mBoundingMetrics.ascent + overDelta2,
+    PR_MAX(mBoundingMetrics.ascent + overDelta2,
            overSize.ascent + bmOver.descent + overDelta1 + bmBase.ascent);
 
   GetItalicCorrection(bmAnonymousBase, correction);
@@ -445,7 +443,7 @@ nsMathMLmunderoverFrame::Place(nsIRenderingContext& aRenderingContext,
     dxUnder = -bmUnder.leftBearing;
   }
 
-  nscoord maxWidth = NS_MAX(bmAnonymousBase.width, underWidth);
+  nscoord maxWidth = PR_MAX(bmAnonymousBase.width, underWidth);
   if (NS_MATHML_EMBELLISH_IS_ACCENTUNDER(mEmbellishData.flags)) {
     dxUnder += (maxWidth - underWidth)/2;;
   }
@@ -460,15 +458,15 @@ nsMathMLmunderoverFrame::Place(nsIRenderingContext& aRenderingContext,
   dxBase += dxAnonymousBase;
 
   mBoundingMetrics.width =
-    NS_MAX(dxAnonymousBase + bmAnonymousBase.width, dxUnder + bmUnder.width);
+    PR_MAX(dxAnonymousBase + bmAnonymousBase.width, dxUnder + bmUnder.width);
   mBoundingMetrics.leftBearing =
-    NS_MIN(dxAnonymousBase + bmAnonymousBase.leftBearing, dxUnder + bmUnder.leftBearing);
+    PR_MIN(dxAnonymousBase + bmAnonymousBase.leftBearing, dxUnder + bmUnder.leftBearing);
   mBoundingMetrics.rightBearing = 
-    NS_MAX(dxAnonymousBase + bmAnonymousBase.rightBearing, dxUnder + bmUnder.rightBearing);
+    PR_MAX(dxAnonymousBase + bmAnonymousBase.rightBearing, dxUnder + bmUnder.rightBearing);
 
   aDesiredSize.ascent = ascentAnonymousBase;
   aDesiredSize.height = aDesiredSize.ascent +
-    NS_MAX(mBoundingMetrics.descent + underDelta2,
+    PR_MAX(mBoundingMetrics.descent + underDelta2,
            bmAnonymousBase.descent + underDelta1 + bmUnder.ascent +
              underSize.height - underSize.ascent);
   aDesiredSize.width = mBoundingMetrics.width;

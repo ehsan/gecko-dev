@@ -43,7 +43,6 @@
 #include "nsTPtrArray.h"
 #include "nsRect.h"
 #include "nsCOMPtr.h"
-#include "nsAlgorithm.h"
 
 #undef DEBUG_TABLE_CELLMAP
 
@@ -268,7 +267,7 @@ protected:
 
   friend class nsCellMap;
   friend class BCMapCellIterator;
-  friend class BCPaintBorderIterator;
+  friend class BCMapBorderIterator;
   friend class nsCellMapColumnIterator;
   
 /** Insert a row group cellmap after aPrevMap, if aPrefMap is null insert it
@@ -327,20 +326,13 @@ public:
                                  PRBool    aUseRowSpanIfOverlap) const;
 
   /**
-   * Returns highest cell index within the cell map.
-   *
-   * @param  aColCount  [in] the number of columns in the table
-   */
-  PRInt32 GetHighestIndex(PRInt32 aColCount);
-
-  /**
    * Returns the index of the given row and column coordinates.
    *
    * @see  nsITableLayout::GetIndexByRowAndColumn()
    *
-   * @param aColCount    [in] the number of columns in the table
-   * @param aRow         [in] the row coordinate
-   * @param aColumn      [in] the column coordinate
+   * @param aColCount  [in] the number of columns in a row
+   * @param aRow       [in] the row coordinate
+   * @param aColumn    [in] the column coordinate
    */
   PRInt32 GetIndexByRowAndColumn(PRInt32 aColCount,
                                  PRInt32 aRow, PRInt32 aColumn) const;
@@ -350,7 +342,7 @@ public:
    *
    * @see  nsITableLayout::GetRowAndColumnByIndex()
    *
-   * @param aColCount  [in] the number of columns in the table
+   * @param aColCount  [in] the number of columns in a row
    * @param aIndex     [in] the index for which coordinates are to be retrieved
    * @param aRow       [out] the row coordinate to be returned
    * @param aColumn    [out] the column coordinate to be returned
@@ -474,7 +466,7 @@ public:
 protected:
   friend class nsTableCellMap;
   friend class BCMapCellIterator;
-  friend class BCPaintBorderIterator;
+  friend class BCMapBorderIterator;
   friend class nsTableFrame;
   friend class nsCellMapColumnIterator;
 
@@ -630,7 +622,7 @@ public:
     if (mCurMap) {
       mCurMapContentRowCount = mCurMap->GetRowCount();
       PRUint32 rowArrayLength = mCurMap->mRows.Length();
-      mCurMapRelevantRowCount = NS_MIN(mCurMapContentRowCount, rowArrayLength);
+      mCurMapRelevantRowCount = PR_MIN(mCurMapContentRowCount, rowArrayLength);
       if (mCurMapRelevantRowCount == 0 && mOrigCells > 0) {
         // This row group is useless; advance!
         AdvanceRowGroup();

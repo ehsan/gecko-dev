@@ -50,8 +50,7 @@ function run_test() {
 
   do_test_pending();
   dump("Testing: Bug 497578 - begin download of a complete update after a " +
-       "failure to apply a partial update with " +
-       "browser.privatebrowsing.autostart set to true\n");
+       "failure to apply a partial update\n");
 
   removeUpdateDirsAndFiles();
 
@@ -72,7 +71,7 @@ function run_test() {
 
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1.0", "2.0");
   setDefaultPrefs();
-  do_timeout(0, run_test_pt1);
+  do_timeout(0, "run_test_pt1()");
 }
 
 function end_test() {
@@ -93,16 +92,19 @@ function run_test_pt1() {
   writeUpdatesToXMLFile(getLocalUpdatesXMLString(updates), true);
   writeStatusFile(STATE_FAILED);
 
-  startAUS();
+  // This test needs to call the observe method for private browsing
+  // and app update instead of using notifyObserver to control when their code
+  // executes. To accomplish this startAUS can't be used so gAUS is set here.
+  gAUS = AUS_Cc["@mozilla.org/updates/update-service;1"].
+         getService(AUS_Ci.nsIApplicationUpdateService).
+         QueryInterface(AUS_Ci.nsIObserver);
   startUpdateManager();
-  dump("Testing: activeUpdate.state should equal STATE_DOWNLOADING prior to " +
-       "entering private browsing\n");
-  do_check_eq(gUpdateManager.activeUpdate.state, STATE_DOWNLOADING);
 
   var privBrowsing = AUS_Cc[PRIVATEBROWSING_CONTRACT_ID].
                      getService(AUS_Ci.nsIPrivateBrowsingService).
                      QueryInterface(AUS_Ci.nsIObserver);
 
+  gAUS.observe(null, "profile-after-change", "");
   privBrowsing.observe(null, "profile-after-change", "");
   dump("Testing: private mode should be entered automatically\n");
   do_check_true(privBrowsing.privateBrowsingEnabled);
@@ -111,9 +113,11 @@ function run_test_pt1() {
   do_check_true(privBrowsing.autoStarted);
 
   // Use a timeout to give private browsing time to reset necko.
-  do_timeout(0, run_test_pt2);
+  do_timeout(0, "run_test_pt2()");
 }
 function run_test_pt2() {
+  gAUS.observe(null, "final-ui-startup", "");
+
   dump("Testing: update count should equal 1\n");
   do_check_eq(gUpdateManager.updateCount, 1);
   dump("Testing: activeUpdate should not equal null\n");

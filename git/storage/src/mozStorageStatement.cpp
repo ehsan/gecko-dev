@@ -43,14 +43,9 @@
 
 #include "nsError.h"
 #include "nsMemory.h"
-#include "nsProxyRelease.h"
-#include "nsThreadUtils.h"
 #include "nsIClassInfoImpl.h"
 #include "nsIProgrammingLanguage.h"
 
-#include "mozIStorageError.h"
-
-#include "mozStorageBindingParams.h"
 #include "mozStorageConnection.h"
 #include "mozStorageStatementJSHelper.h"
 #include "mozStoragePrivateHelpers.h"
@@ -66,48 +61,6 @@ extern PRLogModuleInfo* gStorageLog;
 
 namespace mozilla {
 namespace storage {
-
-////////////////////////////////////////////////////////////////////////////////
-//// Local Classes
-
-namespace {
-
-/**
- * Used to finalize an asynchronous statement on the background thread.
- */
-class AsyncStatementFinalizer : public nsRunnable
-{
-public:
-  /**
-   * Constructor for the event.
-   *
-   * @param aStatement
-   *        The sqlite3_stmt to finalize on the background thread.
-   * @param aConnection
-   *        The Connection that aStatement was created on.  We hold a reference
-   *        to this to ensure that if we are the last reference to the
-   *        Connection, that we release it on the proper thread.  The release
-   *        call is proxied to the appropriate thread.
-   */
-  AsyncStatementFinalizer(sqlite3_stmt *aStatement,
-                          Connection *aConnection)
-  : mStatement(aStatement)
-  , mConnection(aConnection)
-  {
-  }
-
-  NS_IMETHOD Run()
-  {
-    (void)::sqlite3_finalize(mStatement);
-    (void)::NS_ProxyRelease(mConnection->threadOpenedOn, mConnection);
-    return NS_OK;
-  }
-private:
-  sqlite3_stmt *mStatement;
-  nsCOMPtr<Connection> mConnection;
-};
-
-} // anonymous namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 //// nsIClassInfo
@@ -198,7 +151,6 @@ Statement::Statement()
 , mDBStatement(NULL)
 , mColumnNames()
 , mExecuting(false)
-, mCachedAsyncStatement(NULL)
 {
 }
 
@@ -265,7 +217,7 @@ Statement::initialize(Connection *aDBConnection,
       // or @, all of which are valid characters for binding a parameter.
       // We will warn the consumer that they may not be safely using LIKE.
       NS_WARNING("Unsafe use of LIKE detected!  Please ensure that you "
-                 "are using mozIStorageStatement::escapeStringForLIKE "
+                 "are using mozIStorageConnection::escapeStringForLIKE "
                  "and that you are binding that result to the statement "
                  "to prevent SQL injection attacks.");
     }
@@ -277,82 +229,6 @@ Statement::initialize(Connection *aDBConnection,
 #endif
 
   return NS_OK;
-}
-
-nsresult
-Statement::getAsynchronousStatementData(StatementData &_data)
-{
-  if (!mDBStatement)
-    return NS_ERROR_UNEXPECTED;
-
-  sqlite3_stmt *stmt;
-  int rc = getAsyncStatement(&stmt);
-  if (rc != SQLITE_OK)
-    return convertResultCode(rc);
-
-  _data = StatementData(stmt, bindingParamsArray(), this);
-
-  return NS_OK;
-}
-
-int
-Statement::getAsyncStatement(sqlite3_stmt **_stmt)
-{
-  // If we have no statement, we shouldn't be calling this method!
-  NS_ASSERTION(mDBStatement != NULL, "We have no statement to clone!");
-
-  // If we do not yet have a cached async statement, clone our statement now.
-  if (!mCachedAsyncStatement) {
-    int rc = ::sqlite3_prepare_v2(mDBConnection->GetNativeConnection(),
-                                  ::sqlite3_sql(mDBStatement), -1,
-                                  &mCachedAsyncStatement, NULL);
-    if (rc != SQLITE_OK)
-      return rc;
-
-#ifdef PR_LOGGING
-    PR_LOG(gStorageLog, PR_LOG_NOTICE,
-           ("Cloned statement 0x%p to 0x%p", mDBStatement,
-            mCachedAsyncStatement));
-#endif
-  }
-
-  *_stmt = mCachedAsyncStatement;
-  return SQLITE_OK;
-}
-
-BindingParams *
-Statement::getParams()
-{
-  nsresult rv;
-
-  // If we do not have an array object yet, make it.
-  if (!mParamsArray) {
-    nsCOMPtr<mozIStorageBindingParamsArray> array;
-    rv = NewBindingParamsArray(getter_AddRefs(array));
-    NS_ENSURE_SUCCESS(rv, nsnull);
-
-    mParamsArray = static_cast<BindingParamsArray *>(array.get());
-  }
-
-  // If there isn't already any rows added, we'll have to add one to use.
-  if (mParamsArray->length() == 0) {
-    nsRefPtr<BindingParams> params(new BindingParams(mParamsArray, this));
-    NS_ENSURE_TRUE(params, nsnull);
-
-    rv = mParamsArray->AddParams(params);
-    NS_ENSURE_SUCCESS(rv, nsnull);
-
-    // We have to unlock our params because AddParams locks them.  This is safe
-    // because no reference to the params object was, or ever will be given out.
-    params->unlock();
-
-    // We also want to lock our array at this point - we don't want anything to
-    // be added to it.  Nothing has, or will ever get a reference to it, but we
-    // will get additional safety checks via assertions by doing this.
-    mParamsArray->lock();
-  }
-
-  return *mParamsArray->begin();
 }
 
 Statement::~Statement()
@@ -403,28 +279,6 @@ Statement::Finalize()
 
   int srv = ::sqlite3_finalize(mDBStatement);
   mDBStatement = NULL;
-
-  // We need to finalize our async statement too, but want to make sure that any
-  // queued up statements run first.  Dispatch an event to the background thread
-  // that will do this for us.
-  if (mCachedAsyncStatement) {
-    nsCOMPtr<nsIEventTarget> target = mDBConnection->getAsyncExecutionTarget();
-    if (!target) {
-      // However, if we cannot get the background thread, we have to assume it
-      // has been shutdown (or is in the process of doing so).  As a result, we
-      // should just finalize it here and now.
-      (void)::sqlite3_finalize(mCachedAsyncStatement);
-    }
-    else {
-      nsCOMPtr<nsIRunnable> event =
-        new AsyncStatementFinalizer(mCachedAsyncStatement, mDBConnection);
-      NS_ENSURE_TRUE(event, NS_ERROR_OUT_OF_MEMORY);
-
-      nsresult rv = target->Dispatch(event, NS_DISPATCH_NORMAL);
-      NS_ENSURE_SUCCESS(rv, rv);
-      mCachedAsyncStatement = NULL;
-    }
-  }
 
   // We are considered dead at this point, so any wrappers for row or params
   // need to lose their reference to us.
@@ -561,7 +415,6 @@ Statement::Reset()
   checkAndLogStatementPerformance(mDBStatement);
 #endif
 
-  mParamsArray = nsnull;
   (void)sqlite3_reset(mDBStatement);
   (void)sqlite3_clear_bindings(mDBStatement);
 
@@ -577,10 +430,10 @@ Statement::BindUTF8StringParameter(PRUint32 aParamIndex,
   if (!mDBStatement)
     return NS_ERROR_NOT_INITIALIZED;
 
-  BindingParams *params = getParams();
-  NS_ENSURE_TRUE(params, NS_ERROR_OUT_OF_MEMORY);
-
-  return params->BindUTF8StringByIndex(aParamIndex, aValue);
+  int srv = ::sqlite3_bind_text(mDBStatement, aParamIndex + 1,
+                                PromiseFlatCString(aValue).get(),
+                                aValue.Length(), SQLITE_TRANSIENT);
+  return convertResultCode(srv);
 }
 
 NS_IMETHODIMP
@@ -590,10 +443,10 @@ Statement::BindStringParameter(PRUint32 aParamIndex,
   if (!mDBStatement)
     return NS_ERROR_NOT_INITIALIZED;
 
-  BindingParams *params = getParams();
-  NS_ENSURE_TRUE(params, NS_ERROR_OUT_OF_MEMORY);
-
-  return params->BindStringByIndex(aParamIndex, aValue);
+  int srv = ::sqlite3_bind_text16(mDBStatement, aParamIndex + 1,
+                                  PromiseFlatString(aValue).get(),
+                                  aValue.Length() * 2, SQLITE_TRANSIENT);
+  return convertResultCode(srv);
 }
 
 NS_IMETHODIMP
@@ -603,10 +456,8 @@ Statement::BindDoubleParameter(PRUint32 aParamIndex,
   if (!mDBStatement)
     return NS_ERROR_NOT_INITIALIZED;
 
-  BindingParams *params = getParams();
-  NS_ENSURE_TRUE(params, NS_ERROR_OUT_OF_MEMORY);
-
-  return params->BindDoubleByIndex(aParamIndex, aValue);
+  int srv = ::sqlite3_bind_double(mDBStatement, aParamIndex + 1, aValue);
+  return convertResultCode(srv);
 }
 
 NS_IMETHODIMP
@@ -616,10 +467,8 @@ Statement::BindInt32Parameter(PRUint32 aParamIndex,
   if (!mDBStatement)
     return NS_ERROR_NOT_INITIALIZED;
 
-  BindingParams *params = getParams();
-  NS_ENSURE_TRUE(params, NS_ERROR_OUT_OF_MEMORY);
-
-  return params->BindInt32ByIndex(aParamIndex, aValue);
+  int srv = ::sqlite3_bind_int(mDBStatement, aParamIndex + 1, aValue);
+  return convertResultCode(srv);
 }
 
 NS_IMETHODIMP
@@ -629,10 +478,8 @@ Statement::BindInt64Parameter(PRUint32 aParamIndex,
   if (!mDBStatement)
     return NS_ERROR_NOT_INITIALIZED;
 
-  BindingParams *params = getParams();
-  NS_ENSURE_TRUE(params, NS_ERROR_OUT_OF_MEMORY);
-
-  return params->BindInt64ByIndex(aParamIndex, aValue);
+  int srv = ::sqlite3_bind_int64(mDBStatement, aParamIndex + 1, aValue);
+  return convertResultCode(srv);
 }
 
 NS_IMETHODIMP
@@ -641,10 +488,8 @@ Statement::BindNullParameter(PRUint32 aParamIndex)
   if (!mDBStatement)
     return NS_ERROR_NOT_INITIALIZED;
 
-  BindingParams *params = getParams();
-  NS_ENSURE_TRUE(params, NS_ERROR_OUT_OF_MEMORY);
-
-  return params->BindNullByIndex(aParamIndex);
+  int srv = ::sqlite3_bind_null(mDBStatement, aParamIndex + 1);
+  return convertResultCode(srv);
 }
 
 NS_IMETHODIMP
@@ -655,10 +500,9 @@ Statement::BindBlobParameter(PRUint32 aParamIndex,
   if (!mDBStatement)
     return NS_ERROR_NOT_INITIALIZED;
 
-  BindingParams *params = getParams();
-  NS_ENSURE_TRUE(params, NS_ERROR_OUT_OF_MEMORY);
-
-  return params->BindBlobByIndex(aParamIndex, aValue, aValueSize);
+  int srv = ::sqlite3_bind_blob(mDBStatement, aParamIndex + 1, aValue,
+                                aValueSize, SQLITE_TRANSIENT);
+  return convertResultCode(srv);
 }
 
 NS_IMETHODIMP
@@ -707,25 +551,6 @@ Statement::ExecuteStep(PRBool *_moreResults)
   if (!mDBStatement)
     return NS_ERROR_NOT_INITIALIZED;
 
-  // Bind any parameters first before executing.
-  if (mParamsArray) {
-    // If we have more than one row of parameters to bind, they shouldn't be
-    // calling this method (and instead use executeAsync).
-    if (mParamsArray->length() != 1)
-      return NS_ERROR_UNEXPECTED;
-
-    BindingParamsArray::iterator row = mParamsArray->begin();
-    nsCOMPtr<mozIStorageError> error;
-    error = (*row)->bind(mDBStatement);
-    if (error) {
-      PRInt32 srv;
-      (void)error->GetResult(&srv);
-      return convertResultCode(srv);
-    }
-
-    // We have bound, so now we can clear our array.
-    mParamsArray = nsnull;
-  }
   int srv = ::sqlite3_step(mDBStatement);
 
 #ifdef PR_LOGGING
@@ -795,7 +620,7 @@ Statement::EscapeStringForLIKE(const nsAString &aValue,
 
   _escapedString.Truncate(0);
 
-  for (PRUint32 i = 0; i < aValue.Length(); i++) {
+  for (PRInt32 i = 0; i < aValue.Length(); i++) {
     if (aValue[i] == aEscapeChar || aValue[i] == MATCH_ALL ||
         aValue[i] == MATCH_ONE)
       _escapedString += aEscapeChar;

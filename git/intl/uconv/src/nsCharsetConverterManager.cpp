@@ -46,12 +46,14 @@
 #include "nsICharsetConverterManager.h"
 #include "nsEncoderDecoderUtils.h"
 #include "nsIStringBundle.h"
+#include "nsILocaleService.h"
 #include "nsUConvDll.h"
 #include "prmem.h"
 #include "nsCRT.h"
 #include "nsTArray.h"
 #include "nsStringEnumerator.h"
 #include "nsThreadUtils.h"
+#include "nsIProxyObjectManager.h"
 
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
@@ -63,14 +65,17 @@
 #include "nsNativeUConvService.h"
 #endif
 
+// Pattern of cached, commonly used, single byte decoder
+#define NS_1BYTE_CODER_PATTERN "ISO-8859"
+#define NS_1BYTE_CODER_PATTERN_LEN 8
+
 // Class nsCharsetConverterManager [implementation]
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsCharsetConverterManager,
                               nsICharsetConverterManager)
 
 nsCharsetConverterManager::nsCharsetConverterManager() 
-  : mDataBundle(NULL)
-  , mTitleBundle(NULL)
+  :mDataBundle(NULL), mTitleBundle(NULL)
 {
 #ifdef MOZ_USE_NATIVE_UCONV
   mNativeUC = do_GetService(NS_NATIVE_UCONV_SERVICE_CONTRACT_ID);
@@ -83,6 +88,13 @@ nsCharsetConverterManager::~nsCharsetConverterManager()
   NS_IF_RELEASE(mTitleBundle);
 }
 
+nsresult nsCharsetConverterManager::Init()
+{
+  if (!mDecoderHash.Init())
+    return NS_ERROR_OUT_OF_MEMORY;
+  return NS_OK;
+}
+
 nsresult nsCharsetConverterManager::RegisterConverterManagerData()
 {
   nsresult rv;
@@ -93,7 +105,7 @@ nsresult nsCharsetConverterManager::RegisterConverterManagerData()
   RegisterConverterCategory(catman, NS_TITLE_BUNDLE_CATEGORY,
                             "chrome://global/locale/charsetTitles.properties");
   RegisterConverterCategory(catman, NS_DATA_BUNDLE_CATEGORY,
-                            "resource://gre-resources/charsetData.properties");
+                            "resource://gre/res/charsetData.properties");
 
   return NS_OK;
 }
@@ -253,8 +265,22 @@ nsCharsetConverterManager::GetUnicodeDecoderRaw(const char * aSrc,
   NS_NAMED_LITERAL_CSTRING(contractbase, NS_UNICODEDECODER_CONTRACTID_BASE);
   nsDependentCString src(aSrc);
   
-  decoder = do_CreateInstance(PromiseFlatCString(contractbase + src).get(),
+  if (!strncmp(aSrc, NS_1BYTE_CODER_PATTERN, NS_1BYTE_CODER_PATTERN_LEN))
+  {
+    // Single byte decoders don't hold state. Optimize by using a service, and
+    // cache it in our hash to avoid repeated trips through the service manager.
+    if (!mDecoderHash.Get(aSrc, getter_AddRefs(decoder))) {
+      decoder = do_GetService(PromiseFlatCString(contractbase + src).get(),
                               &rv);
+      if (NS_SUCCEEDED(rv))
+        mDecoderHash.Put(aSrc, decoder);
+    }
+  }
+  else
+  {
+    decoder = do_CreateInstance(PromiseFlatCString(contractbase + src).get(),
+                                &rv);
+  }
   NS_ENSURE_SUCCESS(rv, NS_ERROR_UCONV_NOCONV);
 
   decoder.forget(aResult);
@@ -345,6 +371,18 @@ nsCharsetConverterManager::GetCharsetAlias(const char * aCharset,
   NS_PRECONDITION(aCharset, "null param");
   if (!aCharset)
     return NS_ERROR_NULL_POINTER;
+
+  // We must not use the charset alias from a background thread
+  if (!NS_IsMainThread()) {
+    nsCOMPtr<nsICharsetConverterManager> self;
+    nsresult rv =
+    NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
+                         NS_GET_IID(nsICharsetConverterManager),
+                         this, NS_PROXY_SYNC | NS_PROXY_ALWAYS,
+                         getter_AddRefs(self));
+    NS_ENSURE_SUCCESS(rv, rv);
+    return self->GetCharsetAlias(aCharset, aResult);
+  }
 
   // We try to obtain the preferred name for this charset from the charset 
   // aliases. If we don't get it from there, we just use the original string

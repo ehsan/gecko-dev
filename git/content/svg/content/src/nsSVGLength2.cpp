@@ -43,7 +43,6 @@
 #include "nsSVGSVGElement.h"
 #include "nsIFrame.h"
 #include "nsSVGIntegrationUtils.h"
-#include "nsSVGAttrTearoffTable.h"
 #ifdef MOZ_SMIL
 #include "nsSMILValue.h"
 #include "nsSMILFloatType.h"
@@ -96,13 +95,6 @@ static nsIAtom** const unitMap[] =
   &nsGkAtoms::pt,
   &nsGkAtoms::pc
 };
-
-static nsSVGAttrTearoffTable<nsSVGLength2, nsIDOMSVGAnimatedLength>
-  sSVGAnimatedLengthTearoffTable;
-static nsSVGAttrTearoffTable<nsSVGLength2, nsIDOMSVGLength>
-  sBaseSVGLengthTearoffTable;
-static nsSVGAttrTearoffTable<nsSVGLength2, nsIDOMSVGLength>
-  sAnimSVGLengthTearoffTable;
 
 /* Helper functions */
 
@@ -297,7 +289,7 @@ float
 nsSVGLength2::GetUnitScaleFactor(nsIFrame *aFrame, PRUint8 aUnitType) const
 {
   nsIContent* content = aFrame->GetContent();
-  if (content->IsSVG())
+  if (content->IsNodeOfType(nsINode::eSVG))
     return GetUnitScaleFactor(static_cast<nsSVGElement*>(content), aUnitType);
 
   switch (aUnitType) {
@@ -330,7 +322,7 @@ void
 nsSVGLength2::SetBaseValueInSpecifiedUnits(float aValue,
                                            nsSVGElement *aSVGElement)
 {
-  mBaseVal = mAnimVal = aValue;
+  mBaseVal = aValue;
   aSVGElement->DidChangeLength(mAttrEnum, PR_TRUE);
 
 #ifdef MOZ_SMIL
@@ -375,41 +367,23 @@ nsSVGLength2::NewValueSpecifiedUnits(PRUint16 unitType,
 nsresult
 nsSVGLength2::ToDOMBaseVal(nsIDOMSVGLength **aResult, nsSVGElement *aSVGElement)
 {
-  *aResult = sBaseSVGLengthTearoffTable.GetTearoff(this);
-  if (!*aResult) {
-    *aResult = new DOMBaseVal(this, aSVGElement);
-    if (!*aResult)
-      return NS_ERROR_OUT_OF_MEMORY;
-    sBaseSVGLengthTearoffTable.AddTearoff(this, *aResult);
-  }
+  *aResult = new DOMBaseVal(this, aSVGElement);
+  if (!*aResult)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   NS_ADDREF(*aResult);
   return NS_OK;
-}
-
-nsSVGLength2::DOMBaseVal::~DOMBaseVal()
-{
-  sBaseSVGLengthTearoffTable.RemoveTearoff(mVal);
 }
 
 nsresult
 nsSVGLength2::ToDOMAnimVal(nsIDOMSVGLength **aResult, nsSVGElement *aSVGElement)
 {
-  *aResult = sAnimSVGLengthTearoffTable.GetTearoff(this);
-  if (!*aResult) {
-    *aResult = new DOMAnimVal(this, aSVGElement);
-    if (!*aResult)
-      return NS_ERROR_OUT_OF_MEMORY;
-    sAnimSVGLengthTearoffTable.AddTearoff(this, *aResult);
-  }
+  *aResult = new DOMAnimVal(this, aSVGElement);
+  if (!*aResult)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   NS_ADDREF(*aResult);
   return NS_OK;
-}
-
-nsSVGLength2::DOMAnimVal::~DOMAnimVal()
-{
-  sAnimSVGLengthTearoffTable.RemoveTearoff(mVal);
 }
 
 /* Implementation */
@@ -477,21 +451,12 @@ nsresult
 nsSVGLength2::ToDOMAnimatedLength(nsIDOMSVGAnimatedLength **aResult,
                                   nsSVGElement *aSVGElement)
 {
-  *aResult = sSVGAnimatedLengthTearoffTable.GetTearoff(this);
-  if (!*aResult) {
-    *aResult = new DOMAnimatedLength(this, aSVGElement);
-    if (!*aResult)
-      return NS_ERROR_OUT_OF_MEMORY;
-    sSVGAnimatedLengthTearoffTable.AddTearoff(this, *aResult);
-  }
+  *aResult = new DOMAnimatedLength(this, aSVGElement);
+  if (!*aResult)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   NS_ADDREF(*aResult);
   return NS_OK;
-}
-
-nsSVGLength2::DOMAnimatedLength::~DOMAnimatedLength()
-{
-  sSVGAnimatedLengthTearoffTable.RemoveTearoff(mVal);
 }
 
 #ifdef MOZ_SMIL
@@ -527,15 +492,6 @@ nsSVGLength2::SMILLength::GetBaseValue() const
   nsSMILValue val(&nsSMILFloatType::sSingleton);
   val.mU.mDouble = mVal->GetBaseValue(mSVGElement);
   return val;
-}
-
-void
-nsSVGLength2::SMILLength::ClearAnimValue()
-{
-  if (mVal->mIsAnimated) {
-    mVal->SetAnimValue(mVal->mBaseVal, mSVGElement);
-    mVal->mIsAnimated = PR_FALSE;
-  }  
 }
 
 nsresult

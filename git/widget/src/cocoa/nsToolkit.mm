@@ -74,6 +74,7 @@ static io_connect_t gRootPort = MACH_PORT_NULL;
 // object associated with a given thread...
 static PRUintn gToolkitTLSIndex = 0;
 
+
 nsToolkit::nsToolkit()
 : mInited(false)
 , mSleepWakeNotificationRLS(nsnull)
@@ -83,6 +84,7 @@ nsToolkit::nsToolkit()
 {
 }
 
+
 nsToolkit::~nsToolkit()
 {
   RemoveSleepWakeNotifcations();
@@ -91,7 +93,9 @@ nsToolkit::~nsToolkit()
   PR_SetThreadPrivate(gToolkitTLSIndex, nsnull);
 }
 
+
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsToolkit, nsIToolkit);
+
 
 NS_IMETHODIMP
 nsToolkit::Init(PRThread * aThread)
@@ -106,10 +110,12 @@ nsToolkit::Init(PRThread * aThread)
   return NS_OK;
 }
 
+
 nsToolkit* NS_CreateToolkitInstance()
 {
   return new nsToolkit();
 }
+
 
 void
 nsToolkit::PostSleepWakeNotification(const char* aNotification)
@@ -118,6 +124,7 @@ nsToolkit::PostSleepWakeNotification(const char* aNotification)
   if (observerService)
     observerService->NotifyObservers(nsnull, aNotification, nsnull);
 }
+
 
 // http://developer.apple.com/documentation/DeviceDrivers/Conceptual/IOKitFundamentals/PowerMgmt/chapter_10_section_3.html
 static void ToolkitSleepWakeCallback(void *refCon, io_service_t service, natural_t messageType, void * messageArgument)
@@ -150,6 +157,7 @@ static void ToolkitSleepWakeCallback(void *refCon, io_service_t service, natural
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+
 nsresult
 nsToolkit::RegisterForSleepWakeNotifcations()
 {
@@ -161,7 +169,7 @@ nsToolkit::RegisterForSleepWakeNotifcations()
 
   gRootPort = ::IORegisterForSystemPower(0, &notifyPortRef, ToolkitSleepWakeCallback, &mPowerNotifier);
   if (gRootPort == MACH_PORT_NULL) {
-    NS_ERROR("IORegisterForSystemPower failed");
+    NS_ASSERTION(0, "IORegisterForSystemPower failed");
     return NS_ERROR_FAILURE;
   }
 
@@ -174,6 +182,7 @@ nsToolkit::RegisterForSleepWakeNotifcations()
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
+
 
 void
 nsToolkit::RemoveSleepWakeNotifcations()
@@ -192,17 +201,11 @@ nsToolkit::RemoveSleepWakeNotifcations()
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-// This is the callback used in RegisterForAllProcessMouseEvents.
+
+// We shouldn't do anything here.  See RegisterForAllProcessMouseEvents() for
+// the reason why.
 static OSStatus EventMonitorHandler(EventHandlerCallRef aCaller, EventRef aEvent, void* aRefcon)
 {
-  // Up to Mac OS 10.4 (or when building with the 10.4 SDK), installing a Carbon
-  // event handler like this one caused the OS to post the equivalent Cocoa
-  // events to [NSApp sendEvent:]. When using the 10.5 SDK, this doesn't happen
-  // any more, so we need to do it manually.
-#ifdef NS_LEOPARD_AND_LATER
-  [NSApp sendEvent:[NSEvent eventWithEventRef:aEvent]];
-#endif // NS_LEOPARD_AND_LATER
-
   return eventNotHandledErr;
 }
 
@@ -217,6 +220,7 @@ static NSPoint ConvertCGGlobalToCocoaScreen(CGPoint aPoint)
   cocoaPoint.y = nsCocoaUtils::FlippedScreenY(aPoint.y);
   return cocoaPoint;
 }
+
 
 // Since our event tap is "listen only", events arrive here a little after
 // they've already been processed.
@@ -250,6 +254,7 @@ static CGEventRef EventTapCallback(CGEventTapProxy proxy, CGEventType type, CGEv
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NULL);
 }
 
+
 // Cocoa Firefox's use of custom context menus requires that we explicitly
 // handle mouse events from other processes that the OS handles
 // "automatically" for native context menus -- mouseMoved events so that
@@ -272,6 +277,16 @@ nsToolkit::RegisterForAllProcessMouseEvents()
       return;
   }
   if (!mEventMonitorHandler) {
+    // Installing a handler for particular Carbon events causes the OS to post
+    // equivalent Cocoa events to the browser's event stream (the one that
+    // passes through [NSApp sendEvent:]).  For this reason installing a
+    // handler for kEventMouseMoved fixes bmo bug 368077, even though our
+    // handler does nothing on mouse-moved events.  (Actually it's more
+    // accurate to say that the OS (working in a different process) sends
+    // events to the window server, from which the OS (acting in the browser's
+    // process on its behalf) grabs them and turns them into both Carbon
+    // events (which get fed to our handler) and Cocoa events (which get fed
+    // to [NSApp sendEvent:]).)
     EventTypeSpec kEvents[] = {{kEventClassMouse, kEventMouseMoved}};
     InstallEventHandler(GetEventMonitorTarget(), EventMonitorHandler,
                         GetEventTypeCount(kEvents), kEvents, 0,
@@ -311,6 +326,7 @@ nsToolkit::RegisterForAllProcessMouseEvents()
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+
 void
 nsToolkit::UnregisterAllProcessMouseEventHandlers()
 {
@@ -337,6 +353,7 @@ nsToolkit::UnregisterAllProcessMouseEventHandlers()
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
+
 
 // Return the nsIToolkit for the current thread.  If a toolkit does not
 // yet exist, then one will be created...
@@ -378,15 +395,16 @@ NS_IMETHODIMP NS_GetCurrentToolkit(nsIToolkit* *aResult)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-PRInt32 nsToolkit::OSXVersion()
+
+long nsToolkit::OSXVersion()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
-  static PRInt32 gOSXVersion = 0x0;
+  static long gOSXVersion = 0x0;
   if (gOSXVersion == 0x0) {
-    OSErr err = ::Gestalt(gestaltSystemVersion, (SInt32*)&gOSXVersion);
+    OSErr err = ::Gestalt(gestaltSystemVersion, &gOSXVersion);
     if (err != noErr) {
-      // This should probably be changed when our minimum version changes
+      //This should probably be changed when our minimum version changes
       NS_ERROR("Couldn't determine OS X version, assuming 10.4");
       gOSXVersion = MAC_OS_X_VERSION_10_4_HEX;
     }
@@ -396,15 +414,12 @@ PRInt32 nsToolkit::OSXVersion()
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(0);
 }
 
+
 PRBool nsToolkit::OnLeopardOrLater()
 {
-  return (OSXVersion() >= MAC_OS_X_VERSION_10_5_HEX);
+    return (OSXVersion() >= MAC_OS_X_VERSION_10_5_HEX) ? PR_TRUE : PR_FALSE;
 }
 
-PRBool nsToolkit::OnSnowLeopardOrLater()
-{
-  return (OSXVersion() >= MAC_OS_X_VERSION_10_6_HEX);
-}
 
 // An alternative to [NSObject poseAsClass:] that isn't deprecated on OS X
 // Leopard and is available to 64-bit binaries on Leopard and above.  Based on
@@ -443,13 +458,9 @@ nsresult nsToolkit::SwizzleMethods(Class aClass, SEL orgMethod, SEL posedMethod,
   if (!original || !posed)
     return NS_ERROR_FAILURE;
 
-#ifdef __LP64__
-  method_exchangeImplementations(original, posed);
-#else
   IMP aMethodImp = original->method_imp;
   original->method_imp = posed->method_imp;
   posed->method_imp = aMethodImp;
-#endif
 
   return NS_OK;
 

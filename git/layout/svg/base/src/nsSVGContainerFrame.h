@@ -39,6 +39,7 @@
 
 #include "nsContainerFrame.h"
 #include "nsISVGChildFrame.h"
+#include "nsIDOMSVGMatrix.h"
 #include "nsSVGSVGElement.h"
 #include "gfxRect.h"
 #include "gfxMatrix.h"
@@ -54,19 +55,19 @@ protected:
     nsSVGContainerFrameBase(aContext) {}
 
 public:
-  NS_DECL_QUERYFRAME_TARGET(nsSVGContainerFrame)
+  NS_DECLARE_FRAME_ACCESSOR(nsSVGContainerFrame)
+  
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
   // Returns the transform to our gfxContext (to device pixels, not CSS px)
   virtual gfxMatrix GetCanvasTM() { return gfxMatrix(); }
 
   // nsIFrame:
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
   NS_IMETHOD Init(nsIContent*      aContent,
@@ -88,14 +89,14 @@ protected:
     nsSVGContainerFrame(aContext) {}
 
 public:
-  NS_DECL_QUERYFRAME_TARGET(nsSVGDisplayContainerFrame)
+  NS_DECLARE_FRAME_ACCESSOR(nsSVGDisplayContainerFrame)
+
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
   // nsIFrame:
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
   NS_IMETHOD Init(nsIContent*      aContent,

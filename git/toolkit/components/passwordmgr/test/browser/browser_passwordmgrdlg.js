@@ -77,11 +77,23 @@ function test() {
     // Detect when the password manager window is opened
     let ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
              getService(Ci.nsIWindowWatcher);
+    let obs = {
+        observe: function(aSubject, aTopic, aData) {
+            // unregister ourself
+            ww.unregisterNotification(this);
+
+            let win = aSubject.QueryInterface(Ci.nsIDOMEventTarget);
+            win.addEventListener("focus", function() {
+                win.removeEventListener("focus", arguments.callee, true);
+                setTimeout(doTest, 0);
+            }, true);
+        }
+    };
+    ww.registerNotification(obs);
 
     // Open the password manager dialog
     const PWMGR_DLG = "chrome://passwordmgr/content/passwordManager.xul";
     let pwmgrdlg = window.openDialog(PWMGR_DLG, "Toolkit:PasswordManager", "");
-    SimpleTest.waitForFocus(doTest, pwmgrdlg);
 
     // the meat of the test
     function doTest() {
@@ -131,9 +143,12 @@ function test() {
                             ww.unregisterNotification(this);
                         else if (aTopic == "domwindowopened") {
                             let win = aSubject.QueryInterface(Ci.nsIDOMEventTarget);
-                            SimpleTest.waitForFocus(function() {
-                                EventUtils.synthesizeKey("VK_RETURN", {}, win)
-                            }, win);
+                            win.addEventListener("focus", function() {
+                                win.removeEventListener("focus", arguments.callee, true);
+                                setTimeout(function() {
+                                    EventUtils.synthesizeKey("VK_RETURN", {}, win)
+                                }, 0);
+                            }, true);
                         }
                     }
                 };
@@ -158,8 +173,11 @@ function test() {
             let testCounter = 0;
 
             function setFilter(string) {
+                // make sure that the the window is focused first
+                filter.ownerDocument.defaultView.focus();
+                filter.focus();
                 filter.value = string;
-                filter.doCommand();
+                EventUtils.synthesizeKey("VK_RETURN", {}, win);
             }
 
             function runOneTest(test) {
@@ -224,16 +242,9 @@ function test() {
 
         function lastStep() {
             // cleanup
-            ww.registerNotification({
-                observe: function(aSubject, aTopic, aData) {
-                    // unregister ourself
-                    ww.unregisterNotification(this);
-
-                    pwmgr.removeAllLogins();
-                    finish();
-                }
-            });
             pwmgrdlg.close();
+            pwmgr.removeAllLogins();
+            finish();
         }
 
         step1();

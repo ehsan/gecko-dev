@@ -50,6 +50,7 @@
 #include "nsIDOMNode.h"
 #include "nsRect.h"
 #include "nsPoint.h"
+#include "nsIImage.h"
 #include "nsICharsetConverterManager.h"
 #include "nsIIOService.h"
 #include "nsNetUtil.h"
@@ -75,7 +76,7 @@ extern PRLogModuleInfo* sCocoaLog;
 
 extern NSPasteboard* globalDragPboard;
 extern NSView* gLastDragView;
-extern NSEvent* gLastDragMouseDownEvent;
+extern NSEvent* gLastDragEvent;
 extern PRBool gUserCancelledDrag;
 
 // This global makes the transferable array available to Cocoa's promised
@@ -92,6 +93,7 @@ nsDragService::nsDragService()
   mNativeDragView = nil;
   mNativeDragEvent = nil;
 }
+
 
 nsDragService::~nsDragService()
 {
@@ -159,6 +161,7 @@ static nsresult SetUpDragClipboard(nsISupportsArray* aTransferableArray)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+
 NSImage*
 nsDragService::ConstructDragImage(nsIDOMNode* aDOMNode,
                                   nsIntRect* aDragRect,
@@ -166,7 +169,7 @@ nsDragService::ConstructDragImage(nsIDOMNode* aDOMNode,
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
-  NSPoint screenPoint = [[gLastDragView window] convertBaseToScreen:[gLastDragMouseDownEvent locationInWindow]];
+  NSPoint screenPoint = [[gLastDragView window] convertBaseToScreen:[gLastDragEvent locationInWindow]];
   // Y coordinates are bottom to top, so reverse this
   if ([[NSScreen screens] count] > 0)
     screenPoint.y = NSMaxY([[[NSScreen screens] objectAtIndex:0] frame]) - screenPoint.y;
@@ -303,12 +306,12 @@ nsDragService::InvokeDragSession(nsIDOMNode* aDOMNode, nsISupportsArray* aTransf
 
   // We need to retain the view and the event during the drag in case either gets destroyed.
   mNativeDragView = [gLastDragView retain];
-  mNativeDragEvent = [gLastDragMouseDownEvent retain];
+  mNativeDragEvent = [gLastDragEvent retain];
 
   gUserCancelledDrag = PR_FALSE;
   [mNativeDragView dragImage:image
                           at:localPoint
-                      offset:NSZeroSize
+                      offset:NSMakeSize(0,0)
                        event:mNativeDragEvent
                   pasteboard:[NSPasteboard pasteboardWithName:NSDragPboard]
                       source:mNativeDragView
@@ -322,6 +325,7 @@ nsDragService::InvokeDragSession(nsIDOMNode* aDOMNode, nsISupportsArray* aTransf
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
+
 
 NS_IMETHODIMP
 nsDragService::GetData(nsITransferable* aTransferable, PRUint32 aItemIndex)
@@ -466,6 +470,7 @@ nsDragService::GetData(nsITransferable* aTransferable, PRUint32 aItemIndex)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+
 NS_IMETHODIMP
 nsDragService::IsDataFlavorSupported(const char *aDataFlavor, PRBool *_retval)
 {
@@ -538,6 +543,7 @@ nsDragService::IsDataFlavorSupported(const char *aDataFlavor, PRBool *_retval)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
+
 NS_IMETHODIMP
 nsDragService::GetNumDropItems(PRUint32* aNumItems)
 {
@@ -567,6 +573,7 @@ nsDragService::GetNumDropItems(PRUint32* aNumItems)
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
+
 
 NS_IMETHODIMP
 nsDragService::EndDragSession(PRBool aDoneDrag)

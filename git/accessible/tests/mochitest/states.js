@@ -87,19 +87,11 @@ function testStates(aAccOrElmOrID, aState, aExtraState, aAbsentState,
     isState(state & STATE_CHECKED, 0, false,
             "Mixed element cannot be state checked!");
 
-  // selected/selectable
-  if (state & STATE_SELECTED) {
-    isState(state & STATE_SELECTABLE, STATE_SELECTABLE, false,
-            "Selected element should be selectable!");
-  }
-
   // unavailable
-  if (state & STATE_UNAVAILABLE) {
-    var role = getRole(aAccOrElmOrID);
-    if (role != ROLE_GROUPING && role != ROLE_EMBEDDED_OBJECT)
-      isState(state & STATE_FOCUSABLE, STATE_FOCUSABLE, false,
-              "Disabled " + id + " must be focusable!");
-  }
+  if ((state & STATE_UNAVAILABLE)
+      && (getRole(aAccOrElmOrID) != ROLE_GROUPING))
+    isState(state & STATE_FOCUSABLE, STATE_FOCUSABLE, false,
+            "Disabled " + id + " must be focusable!");
 }
 
 /**

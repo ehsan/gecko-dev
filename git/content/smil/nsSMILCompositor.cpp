@@ -36,8 +36,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsSMILCompositor.h"
-#include "nsSMILCSSProperty.h"
-#include "nsCSSProps.h"
 #include "nsHashKeys.h"
 
 // nsSMILCompositorKey methods
@@ -87,22 +85,6 @@ nsSMILCompositor::AddAnimationFunction(nsSMILAnimationFunction* aFunc)
   }
 }
 
-nsISMILAttr*
-nsSMILCompositor::CreateSMILAttr()
-{
-  if (mKey.mIsCSS) {
-    nsAutoString name;
-    mKey.mAttributeName->ToString(name);
-    nsCSSProperty propId = nsCSSProps::LookupProperty(name);
-    if (nsSMILCSSProperty::IsPropertyAnimatable(propId)) {
-      return new nsSMILCSSProperty(propId, mKey.mElement.get());
-    }
-  } else {
-    return mKey.mElement->GetAnimatedAttr(mKey.mAttributeName);
-  }
-  return nsnull;
-}
-
 void
 nsSMILCompositor::ComposeAttribute()
 {
@@ -111,9 +93,17 @@ nsSMILCompositor::ComposeAttribute()
 
   // FIRST: Get the nsISMILAttr (to grab base value from, and to eventually
   // give animated value to)
-  nsAutoPtr<nsISMILAttr> smilAttr(CreateSMILAttr());
+  nsAutoPtr<nsISMILAttr> smilAttr;
+  if (mKey.mIsCSS) {
+    // XXX Look up style system for the CSS property. The set of CSS properties
+    // should be the same for all elements so we don't need to query the element
+    // itself.
+  } else {
+    smilAttr = mKey.mElement->GetAnimatedAttr(mKey.mAttributeName);
+  }
+
   if (!smilAttr) {
-    // Target attribute not found (or, out of memory)
+    // Target attribute not found
     return;
   }
 
@@ -141,7 +131,7 @@ nsSMILCompositor::ComposeAttribute()
       changed = PR_TRUE;
     }
     */
-
+    
     if (curAnimFunc->WillReplace()) {
       --i;
       break;
@@ -170,20 +160,19 @@ nsSMILCompositor::ComposeAttribute()
   nsresult rv = smilAttr->SetAnimValue(resultValue);
   if (NS_FAILED(rv)) {
     NS_WARNING("nsISMILAttr::SetAnimValue failed");
-  }
+  } 
 }
 
-void
-nsSMILCompositor::ClearAnimationEffects()
+/*static*/ void
+nsSMILCompositor::ComposeAttributes(nsSMILCompositorTable& aCompositorTable)
 {
-  if (!mKey.mElement || !mKey.mAttributeName)
-    return;
-
-  nsAutoPtr<nsISMILAttr> smilAttr(CreateSMILAttr());
-  if (!smilAttr) {
-    // Target attribute not found (or, out of memory)
-    return;
-  }
-  smilAttr->ClearAnimValue();
+  aCompositorTable.EnumerateEntries(DoComposeAttribute, nsnull);
 }
 
+/*static*/ PR_CALLBACK PLDHashOperator
+nsSMILCompositor::DoComposeAttribute(nsSMILCompositor* aCompositor,
+                                     void* /*aData*/)
+{ 
+  aCompositor->ComposeAttribute();
+  return PL_DHASH_NEXT;
+}

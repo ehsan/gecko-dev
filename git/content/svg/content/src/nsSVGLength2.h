@@ -145,7 +145,6 @@ private:
 
     DOMBaseVal(nsSVGLength2* aVal, nsSVGElement *aSVGElement)
       : mVal(aVal), mSVGElement(aSVGElement) {}
-    virtual ~DOMBaseVal();
     
     nsSVGLength2* mVal; // kept alive because it belongs to mSVGElement
     nsRefPtr<nsSVGElement> mSVGElement;
@@ -195,7 +194,6 @@ private:
 
     DOMAnimVal(nsSVGLength2* aVal, nsSVGElement *aSVGElement)
       : mVal(aVal), mSVGElement(aSVGElement) {}
-    virtual ~DOMAnimVal();
     
     nsSVGLength2* mVal; // kept alive because it belongs to mSVGElement
     nsRefPtr<nsSVGElement> mSVGElement;
@@ -257,7 +255,6 @@ private:
 
     DOMAnimatedLength(nsSVGLength2* aVal, nsSVGElement *aSVGElement)
       : mVal(aVal), mSVGElement(aSVGElement) {}
-    virtual ~DOMAnimatedLength();
     
     nsSVGLength2* mVal; // kept alive because it belongs to content
     nsRefPtr<nsSVGElement> mSVGElement;
@@ -287,7 +284,6 @@ private:
                                      const nsISMILAnimationElement* aSrcElement,
                                      nsSMILValue &aValue) const;
     virtual nsSMILValue GetBaseValue() const;
-    virtual void ClearAnimValue();
     virtual nsresult SetAnimValue(const nsSMILValue& aValue);
   };
 #endif // MOZ_SMIL

@@ -106,7 +106,7 @@ nsHttpConnectionMgr::Init(PRUint16 maxConns,
     LOG(("nsHttpConnectionMgr::Init\n"));
 
     nsresult rv;
-    nsCOMPtr<nsIEventTarget> sts = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
+    nsCOMPtr<nsIEventTarget> sts = do_GetService(kSocketTransportServiceCID, &rv);
     if (NS_FAILED(rv)) return rv;
 
     nsAutoMonitor mon(mMonitor);
@@ -148,7 +148,7 @@ nsHttpConnectionMgr::Shutdown()
     mSocketThreadTarget = 0;
 
     if (NS_FAILED(rv)) {
-        NS_WARNING("unable to post SHUTDOWN message");
+        NS_WARNING("unable to post SHUTDOWN message\n");
         return rv;
     }
 

@@ -73,6 +73,7 @@
 #include "nsIDOMFocusListener.h"
 #include "nsIDOMKeyListener.h"
 #include "nsIDOMFormListener.h"
+#include "nsIDOMXULListener.h"
 #include "nsIDOMContextMenuListener.h"
 #include "nsIDOMEventListener.h"
 #include "nsIDOMEventTarget.h"
@@ -580,10 +581,8 @@ nsXULElement::IsFocusable(PRInt32 *aTabIndex)
       }
       else {
         // otherwise, if there is no tabindex attribute, just use the value of
-        // *aTabIndex to indicate focusability. Reset any supplied tabindex to 0.
+        // *aTabIndex to indicate focusability
         shouldFocus = *aTabIndex >= 0;
-        if (shouldFocus)
-          *aTabIndex = 0;
       }
 
       if (shouldFocus && sTabFocusModelAppliesToXUL &&
@@ -914,9 +913,8 @@ nsXULElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 }
 
 nsresult
-nsXULElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent)
+nsXULElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
 {
-    NS_ASSERTION(aMutationEvent, "Someone tried to inhibit mutations on XUL child removal.");
     nsresult rv;
     nsCOMPtr<nsIContent> oldKid = mAttrsAndChildren.GetSafeChildAt(aIndex);
     if (!oldKid) {
@@ -983,7 +981,7 @@ nsXULElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEve
       }
     }
 
-    rv = nsGenericElement::RemoveChildAt(aIndex, aNotify, aMutationEvent);
+    rv = nsGenericElement::RemoveChildAt(aIndex, aNotify);
     
     if (newCurrentIndex == -2)
         controlElement->SetCurrentItem(nsnull);
@@ -1079,7 +1077,7 @@ nsXULElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
                            const nsAString* aValue, PRBool aNotify)
 {
     if (aNamespaceID == kNameSpaceID_None) {
-        // XXX UnsetAttr handles more attributes than we do. See bug 233642.
+        // XXX UnsetAttr handles more attributes then we do. See bug 233642.
 
         // Add popup and event listeners. We can't call AddListenerFor since
         // the attribute isn't set yet.
@@ -1099,42 +1097,26 @@ nsXULElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
         if (aName == nsGkAtoms::hidechrome &&
             mNodeInfo->Equals(nsGkAtoms::window) &&
             aValue) {
-            HideWindowChrome(aValue->EqualsLiteral("true"));
+            HideWindowChrome(aValue && NS_LITERAL_STRING("true").Equals(*aValue));
+        }
+        
+        nsIDocument *document = GetCurrentDoc();
+        if (aName == nsGkAtoms::title &&
+            document && document->GetRootContent() == this) {
+            document->NotifyPossibleTitleChange(PR_FALSE);
         }
 
-        // title, (in)activetitlebarcolor and drawintitlebar are settable on
-        // any root node (windows, dialogs, etc)
-        nsIDocument *document = GetCurrentDoc();
-        if (document && document->GetRootContent() == this) {
-            if (aName == nsGkAtoms::title) {
-                document->NotifyPossibleTitleChange(PR_FALSE);
-            }
-            else if ((aName == nsGkAtoms::activetitlebarcolor ||
-                      aName == nsGkAtoms::inactivetitlebarcolor)) {
-                nscolor color = NS_RGBA(0, 0, 0, 0);
-                nsAttrValue attrValue;
-                attrValue.ParseColor(*aValue, document);
-                attrValue.GetColorValue(color);
-                SetTitlebarColor(color, aName == nsGkAtoms::activetitlebarcolor);
-            }
-            else if (aName == nsGkAtoms::drawintitlebar) {
-                SetDrawsInTitlebar(aValue && aValue->EqualsLiteral("true"));
-            }
-            else if (aName == nsGkAtoms::localedir) {
-                // if the localedir changed on the root element, reset the document direction
-                nsCOMPtr<nsIXULDocument> xuldoc = do_QueryInterface(document);
-                if (xuldoc) {
-                    xuldoc->ResetDocumentDirection();
-                }
-            }
-            else if (aName == nsGkAtoms::lwtheme ||
-                     aName == nsGkAtoms::lwthemetextcolor) {
-                // if the lwtheme changed, make sure to reset the document lwtheme cache
-                nsCOMPtr<nsIXULDocument> xuldoc = do_QueryInterface(document);
-                if (xuldoc) {
-                    xuldoc->ResetDocumentLWTheme();
-                }
-            }
+        // (in)activetitlebarcolor is settable on any root node (windows, dialogs, etc)
+        if ((aName == nsGkAtoms::activetitlebarcolor ||
+             aName == nsGkAtoms::inactivetitlebarcolor) &&
+            document && document->GetRootContent() == this) {
+
+            nscolor color = NS_RGBA(0, 0, 0, 0);
+            nsAttrValue attrValue;
+            attrValue.ParseColor(*aValue, document);
+            attrValue.GetColorValue(color);
+
+            SetTitlebarColor(color, aName == nsGkAtoms::activetitlebarcolor);
         }
 
         if (aName == nsGkAtoms::src && document) {
@@ -1334,9 +1316,10 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
     PRUint32 stateMask;
     if (aNotify) {
         stateMask = PRUint32(IntrinsicState());
- 
-        nsNodeUtils::AttributeWillChange(this, aNameSpaceID, aName,
-                                         nsIDOMMutationEvent::REMOVAL);
+
+        if (doc) {
+            doc->AttributeWillChange(this, aNameSpaceID, aName);
+        }
     }
 
     PRBool hasMutationListeners = aNotify &&
@@ -1376,30 +1359,11 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
             HideWindowChrome(PR_FALSE);
         }
 
-        if (doc && doc->GetRootContent() == this) {
-            if ((aName == nsGkAtoms::activetitlebarcolor ||
-                 aName == nsGkAtoms::inactivetitlebarcolor)) {
-                // Use 0, 0, 0, 0 as the "none" color.
-                SetTitlebarColor(NS_RGBA(0, 0, 0, 0), aName == nsGkAtoms::activetitlebarcolor);
-            }
-            else if (aName == nsGkAtoms::localedir) {
-                // if the localedir changed on the root element, reset the document direction
-                nsCOMPtr<nsIXULDocument> xuldoc = do_QueryInterface(doc);
-                if (xuldoc) {
-                    xuldoc->ResetDocumentDirection();
-                }
-            }
-            else if ((aName == nsGkAtoms::lwtheme ||
-                      aName == nsGkAtoms::lwthemetextcolor)) {
-                // if the lwtheme changed, make sure to restyle appropriately
-                nsCOMPtr<nsIXULDocument> xuldoc = do_QueryInterface(doc);
-                if (xuldoc) {
-                    xuldoc->ResetDocumentLWTheme();
-                }
-            }
-            else if (aName == nsGkAtoms::drawintitlebar) {
-                SetDrawsInTitlebar(PR_FALSE);
-            }
+        if ((aName == nsGkAtoms::activetitlebarcolor ||
+             aName == nsGkAtoms::inactivetitlebarcolor) &&
+            doc && doc->GetRootContent() == this) {
+            // Use 0, 0, 0, 0 as the "none" color.
+            SetTitlebarColor(NS_RGBA(0, 0, 0, 0), aName == nsGkAtoms::activetitlebarcolor);
         }
 
         // If the accesskey attribute is removed, unregister it here
@@ -1431,11 +1395,12 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
             doc->ContentStatesChanged(this, nsnull, stateMask);
         }
         nsNodeUtils::AttributeChanged(this, aNameSpaceID, aName,
-                                      nsIDOMMutationEvent::REMOVAL);
+                                      nsIDOMMutationEvent::REMOVAL,
+                                      stateMask);
     }
 
     if (hasMutationListeners) {
-        mozAutoRemovableBlockerRemover blockerRemover(GetOwnerDoc());
+        mozAutoRemovableBlockerRemover blockerRemover;
 
         nsMutationEvent mutation(PR_TRUE, NS_MUTATION_ATTRMODIFIED);
 
@@ -1584,7 +1549,7 @@ nsXULElement::DestroyContent()
 void
 nsXULElement::List(FILE* out, PRInt32 aIndent) const
 {
-    nsCString prefix("XUL");
+    nsCString prefix("<XUL");
     if (HasSlots()) {
       prefix.Append('*');
     }
@@ -1604,27 +1569,20 @@ nsXULElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
         (aVisitor.mEvent->message == NS_MOUSE_CLICK ||
          aVisitor.mEvent->message == NS_MOUSE_DOUBLECLICK ||
          aVisitor.mEvent->message == NS_XUL_COMMAND ||
-         aVisitor.mEvent->message == NS_CONTEXTMENU ||
-         aVisitor.mEvent->message == NS_DRAGDROP_START ||
-         aVisitor.mEvent->message == NS_DRAGDROP_GESTURE)) {
+         aVisitor.mEvent->message == NS_CONTEXTMENU)) {
         // Don't propagate these events from native anonymous scrollbar.
         aVisitor.mCanHandle = PR_TRUE;
         aVisitor.mParentTarget = nsnull;
         return NS_OK;
     }
     if (aVisitor.mEvent->message == NS_XUL_COMMAND &&
-        aVisitor.mEvent->eventStructType == NS_INPUT_EVENT &&
         aVisitor.mEvent->originalTarget == static_cast<nsIContent*>(this) &&
         tag != nsGkAtoms::command) {
-        // Check that we really have an xul command event. That will be handled
-        // in a special way.
-        nsCOMPtr<nsIDOMXULCommandEvent> xulEvent =
-            do_QueryInterface(aVisitor.mDOMEvent);
         // See if we have a command elt.  If so, we execute on the command
         // instead of on our content element.
         nsAutoString command;
-        if (xulEvent && GetAttr(kNameSpaceID_None, nsGkAtoms::command, command) &&
-            !command.IsEmpty()) {
+        GetAttr(kNameSpaceID_None, nsGkAtoms::command, command);
+        if (!command.IsEmpty()) {
             // Stop building the event target chain for the original event.
             // We don't want it to propagate to any DOM nodes.
             aVisitor.mCanHandle = PR_FALSE;
@@ -1640,6 +1598,29 @@ nsXULElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
                 // pointed to by the command attribute.  The new event's
                 // sourceEvent will be the original command event that we're
                 // handling.
+
+                nsXULCommandEvent event(NS_IS_TRUSTED_EVENT(aVisitor.mEvent),
+                                        NS_XUL_COMMAND, nsnull);
+                if (aVisitor.mEvent->eventStructType == NS_XUL_COMMAND_EVENT) {
+                    nsXULCommandEvent *orig =
+                        static_cast<nsXULCommandEvent*>(aVisitor.mEvent);
+
+                    event.isShift = orig->isShift;
+                    event.isControl = orig->isControl;
+                    event.isAlt = orig->isAlt;
+                    event.isMeta = orig->isMeta;
+                } else {
+                    NS_WARNING("Incorrect eventStructType for command event");
+                }
+
+                if (!aVisitor.mDOMEvent) {
+                    // We need to create a new DOMEvent for the original event
+                    nsEventDispatcher::CreateEvent(aVisitor.mPresContext,
+                                                   aVisitor.mEvent,
+                                                   EmptyString(),
+                                                   &aVisitor.mDOMEvent);
+                }
+
                 nsCOMPtr<nsIDOMNSEvent> nsevent =
                     do_QueryInterface(aVisitor.mDOMEvent);
                 while (nsevent) {
@@ -1655,17 +1636,12 @@ nsXULElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
                     nsevent = do_QueryInterface(tmp);
                 }
 
-                nsInputEvent* orig =
-                    static_cast<nsInputEvent*>(aVisitor.mEvent);
-                nsContentUtils::DispatchXULCommand(
-                  commandContent,
-                  NS_IS_TRUSTED_EVENT(aVisitor.mEvent),
-                  aVisitor.mDOMEvent,
-                  nsnull,
-                  orig->isControl,
-                  orig->isAlt,
-                  orig->isShift,
-                  orig->isMeta);
+                event.sourceEvent = aVisitor.mDOMEvent;
+
+                nsEventStatus status = nsEventStatus_eIgnore;
+                nsEventDispatcher::Dispatch(commandContent,
+                                            aVisitor.mPresContext,
+                                            &event, nsnull, &status);
             } else {
                 NS_WARNING("A XUL element is attached to a command that doesn't exist!\n");
             }
@@ -1831,9 +1807,9 @@ nsXULElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
         retval = NS_STYLE_HINT_FRAMECHANGE;
     } else {
         // if left or top changes we reflow. This will happen in xul
-        // containers that manage positioned children such as a stack.
-        if (nsGkAtoms::left == aAttribute || nsGkAtoms::top == aAttribute ||
-            nsGkAtoms::right == aAttribute || nsGkAtoms::bottom == aAttribute)
+        // containers that manage positioned children such as a
+        // bulletinboard.
+        if (nsGkAtoms::left == aAttribute || nsGkAtoms::top == aAttribute)
             retval = NS_STYLE_HINT_REFLOW;
     }
 
@@ -1986,11 +1962,7 @@ nsXULElement::GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
     NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
 
     if (!slots->mStyle) {
-        slots->mStyle = new nsDOMCSSAttributeDeclaration(this
-#ifdef MOZ_SMIL
-                                                         , PR_FALSE
-#endif // MOZ_SMIL
-                                                         );
+        slots->mStyle = new nsDOMCSSAttributeDeclaration(this);
         NS_ENSURE_TRUE(slots->mStyle, NS_ERROR_OUT_OF_MEMORY);
         SetFlags(NODE_MAY_HAVE_STYLE);
     }
@@ -2020,8 +1992,8 @@ nsXULElement::LoadSrc()
     nsXULSlots* slots = static_cast<nsXULSlots*>(GetSlots());
     NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
     if (!slots->mFrameLoader) {
-        slots->mFrameLoader = nsFrameLoader::Create(this);
-        NS_ENSURE_TRUE(slots->mFrameLoader, NS_OK);
+        slots->mFrameLoader = new nsFrameLoader(this);
+        NS_ENSURE_TRUE(slots->mFrameLoader, NS_ERROR_OUT_OF_MEMORY);
     }
 
     return slots->mFrameLoader->LoadFrame();
@@ -2030,20 +2002,12 @@ nsXULElement::LoadSrc()
 nsresult
 nsXULElement::GetFrameLoader(nsIFrameLoader **aFrameLoader)
 {
-    *aFrameLoader = GetFrameLoader().get();
-    return NS_OK;
-}
-
-already_AddRefed<nsFrameLoader>
-nsXULElement::GetFrameLoader()
-{
+    *aFrameLoader = nsnull;
     nsXULSlots* slots = static_cast<nsXULSlots*>(GetExistingSlots());
-    if (!slots)
-        return nsnull;
-
-    nsFrameLoader* loader = slots->mFrameLoader;
-    NS_IF_ADDREF(loader);
-    return loader;
+    if (slots) {
+        NS_IF_ADDREF(*aFrameLoader = slots->mFrameLoader);
+    }
+    return NS_OK;
 }
 
 nsresult
@@ -2168,7 +2132,15 @@ nsXULElement::DoCommand()
 {
     nsCOMPtr<nsIDocument> doc = GetCurrentDoc(); // strong just in case
     if (doc) {
-        nsContentUtils::DispatchXULCommand(this, PR_TRUE);
+        nsPresShellIterator iter(doc);
+        nsCOMPtr<nsIPresShell> shell;
+        while ((shell = iter.GetNextShell())) {
+            nsCOMPtr<nsPresContext> context = shell->GetPresContext();
+            nsEventStatus status = nsEventStatus_eIgnore;
+            nsXULCommandEvent event(PR_TRUE, NS_XUL_COMMAND, nsnull);
+            nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this),
+                                        context, &event, nsnull, &status);
+        }
     }
 
     return NS_OK;
@@ -2183,7 +2155,7 @@ nsXULElement::GetBindingParent() const
 PRBool
 nsXULElement::IsNodeOfType(PRUint32 aFlags) const
 {
-    return !(aFlags & ~(eCONTENT | eELEMENT));
+    return !(aFlags & ~(eCONTENT | eELEMENT | eXUL));
 }
 
 static void
@@ -2404,10 +2376,13 @@ nsXULElement::HideWindowChrome(PRBool aShouldHide)
     return NS_OK;
 }
 
-nsIWidget*
-nsXULElement::GetWindowWidget()
+void
+nsXULElement::SetTitlebarColor(nscolor aColor, PRBool aActive)
 {
     nsIDocument* doc = GetCurrentDoc();
+    if (!doc || doc->GetRootContent() != this) {
+        return;
+    }
 
     // only top level chrome documents can set the titlebar color
     if (doc->IsRootDisplayDocument()) {
@@ -2416,27 +2391,10 @@ nsXULElement::GetWindowWidget()
         if (baseWindow) {
             nsCOMPtr<nsIWidget> mainWidget;
             baseWindow->GetMainWidget(getter_AddRefs(mainWidget));
-            return mainWidget;
+            if (mainWidget) {
+                mainWidget->SetWindowTitlebarColor(aColor, aActive);
+            }
         }
-    }
-    return nsnull;
-}
-
-void
-nsXULElement::SetTitlebarColor(nscolor aColor, PRBool aActive)
-{
-    nsIWidget* mainWidget = GetWindowWidget();
-    if (mainWidget) {
-        mainWidget->SetWindowTitlebarColor(aColor, aActive);
-    }
-}
-
-void
-nsXULElement::SetDrawsInTitlebar(PRBool aState)
-{
-    nsIWidget* mainWidget = GetWindowWidget();
-    if (mainWidget) {
-        mainWidget->SetDrawsInTitlebar(aState);
     }
 }
 

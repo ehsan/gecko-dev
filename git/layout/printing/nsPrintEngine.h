@@ -104,7 +104,7 @@ public:
   nsresult Initialize(nsIDocumentViewerPrint* aDocViewerPrint, 
                       nsISupports*            aContainer,
                       nsIDocument*            aDocument,
-                      float                   aScreenDPI,
+                      nsIDeviceContext*       aDevContext,
                       nsIWidget*              aParentWidget,
                       FILE*                   aDebugFile);
 
@@ -227,12 +227,10 @@ public:
 protected:
 
   nsresult CommonPrint(PRBool aIsPrintPreview, nsIPrintSettings* aPrintSettings,
-                       nsIWebProgressListener* aWebProgressListener,
-                       nsIDOMDocument* aDoc);
+              nsIWebProgressListener* aWebProgressListener);
 
   nsresult DoCommonPrint(PRBool aIsPrintPreview, nsIPrintSettings* aPrintSettings,
-                         nsIWebProgressListener* aWebProgressListener,
-                         nsIDOMDocument* aDoc);
+                         nsIWebProgressListener* aWebProgressListener);
 
   void FirePrintCompletionEvent();
   static nsresult GetSeqFrameAndCountPagesInternal(nsPrintObject*  aPO,
@@ -284,7 +282,7 @@ protected:
 
   nsCOMPtr<nsIDocumentViewerPrint> mDocViewerPrint;
   nsISupports*            mContainer;      // [WEAK] it owns me!
-  float                   mScreenDPI;
+  nsIDeviceContext*       mDeviceContext;  // not ref counted
   
   nsPrintData*            mPrt;
   nsPagePrintTimer*       mPagePrintTimer;

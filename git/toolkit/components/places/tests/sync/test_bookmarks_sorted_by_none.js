@@ -87,7 +87,7 @@ var observer = {
 
       // Cleanup.
       bs.removeFolderChildren(bs.toolbarFolder);
-      do_test_finished();
+      finish_test();
     }
   }
 }

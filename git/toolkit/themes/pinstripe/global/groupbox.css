@@ -45,26 +45,25 @@
 /* ::::: groupbox ::::: */
 
 groupbox {
-  padding: 5px 1px 1px;
-  -moz-padding-start: 0;
+  padding: 5px 1px 1px 0px;
   margin: 6px;
 }
 
 .groupbox-body {
   -moz-appearance: groupbox;
-  padding: 8px 8px 3px;
-  margin: 0;
+  padding: 8px 8px 3px 8px;
+  margin: 0px;
+
 }
 
 caption {
-  -moz-padding-start: 4px;
-  padding-bottom: 1px;
+  padding: 0px 2px 1px 4px !important;
   font: caption;
 }
 
-/* !important is needed to override label in global.css */
 .caption-text {
-  margin-top: 0 !important;
-  margin-bottom: 0 !important;
-  -moz-margin-start: 1px !important;
+  margin-top: 0;
+  margin-bottom: 0;
+  -moz-margin-start: 1px;
+  -moz-margin-end: 2px;
 }

@@ -40,10 +40,10 @@
 #define NSCATEGORYMANAGER_H
 
 #include "prio.h"
+#include "prlock.h"
 #include "plarena.h"
 #include "nsClassHashtable.h"
 #include "nsICategoryManager.h"
-#include "mozilla/Mutex.h"
 
 #define NS_CATEGORYMANAGER_CLASSNAME     "Category Manager"
 
@@ -94,13 +94,15 @@ public:
                        PRBool aDontPersist);
 
   void Clear() {
-    mozilla::MutexAutoLock lock(mLock);
+    PR_Lock(mLock);
     mTable.Clear();
+    PR_Unlock(mLock);
   }
 
   PRUint32 Count() {
-    mozilla::MutexAutoLock lock(mLock);
+    PR_Lock(mLock);
     PRUint32 tCount = mTable.Count();
+    PR_Unlock(mLock);
     return tCount;
   }
 
@@ -114,14 +116,11 @@ public:
   void operator delete(void*) { }
 
 private:
-  CategoryNode()
-    : mLock("CategoryLeaf")
-  { }
-
+  CategoryNode() { }
   void* operator new(size_t aSize, PLArenaPool* aArena);
 
   nsTHashtable<CategoryLeaf> mTable;
-  mozilla::Mutex mLock;
+  PRLock* mLock;
 };
 
 
@@ -151,10 +150,7 @@ public:
   NS_METHOD SuppressNotifications(PRBool aSuppress);
 
   nsCategoryManager()
-    : mLock("nsCategoryManager")
-    , mSuppressNotifications(PR_FALSE)
-  { }
-
+    : mSuppressNotifications(PR_FALSE) { }
 private:
   friend class nsCategoryManagerFactory;
   static nsCategoryManager* Create();
@@ -168,7 +164,7 @@ private:
 
   PLArenaPool mArena;
   nsClassHashtable<nsDepCharHashKey, CategoryNode> mTable;
-  mozilla::Mutex mLock;
+  PRLock* mLock;
   PRBool mSuppressNotifications;
 };
 

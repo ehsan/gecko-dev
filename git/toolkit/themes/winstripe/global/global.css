@@ -95,7 +95,7 @@ window.dialog {
 }
 
 .message-icon {
-  list-style-image: url("chrome://global/skin/icons/information-32.png");
+  list-style-image: url("chrome://global/skin/icons/Message.png");
 }
 
 .alert-icon {
@@ -188,26 +188,6 @@ toolbar[mode="text"] .toolbarbutton-text {
 
 /* ::::: miscellaneous formatting ::::: */
 
-:root:-moz-lwtheme,
-[lwthemefooter="true"] {
-  -moz-appearance: none;
-}
-
-:root:-moz-lwtheme-darktext {
-  text-shadow: 1px 1px 2px white;
-}
-
-:root:-moz-lwtheme-brighttext {
-  text-shadow: 1px 1px 2px black;
-}
-
-statusbar:-moz-lwtheme,
-sidebarheader:-moz-lwtheme {
-  -moz-appearance: none;
-  background: none;
-  border-style: none;
-}
-
 .inset {
   border: 1px solid ThreeDShadow;
   border-right-color: ThreeDHighlight;
@@ -256,7 +236,6 @@ separator.groove[orient="vertical"] {
 }
     
 .plain {
-  -moz-appearance: none;
   margin: 0 !important;
   border: none;
   padding: 0;

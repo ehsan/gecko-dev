@@ -86,7 +86,8 @@ nsSVGMutationObserver::AttributeChanged(nsIDocument *aDocument,
                                         nsIContent *aContent,
                                         PRInt32 aNameSpaceID,
                                         nsIAtom *aAttribute,
-                                        PRInt32 aModType)
+                                        PRInt32 aModType,
+                                        PRUint32 aStateMask)
 {
   if (aNameSpaceID != kNameSpaceID_XML || aAttribute != nsGkAtoms::space) {
     return;
@@ -137,8 +138,6 @@ NS_NewSVGOuterSVGFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {  
   return new (aPresShell) nsSVGOuterSVGFrame(aContext);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsSVGOuterSVGFrame)
 
 nsSVGOuterSVGFrame::nsSVGOuterSVGFrame(nsStyleContext* aContext)
     : nsSVGOuterSVGFrameBase(aContext)
@@ -439,8 +438,8 @@ public:
 
   virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
                             HitTestState* aState);
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
+                     const nsRect& aDirtyRect);
   NS_DISPLAY_DECL_NAME("SVGEventReceiver")
 };
 
@@ -453,11 +452,11 @@ nsDisplaySVG::HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
 }
 
 void
-nsDisplaySVG::Paint(nsDisplayListBuilder* aBuilder,
-                    nsIRenderingContext* aCtx)
+nsDisplaySVG::Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
+                    const nsRect& aDirtyRect)
 {
   static_cast<nsSVGOuterSVGFrame*>(mFrame)->
-    Paint(*aCtx, mVisibleRect, aBuilder->ToReferenceFrame(mFrame));
+    Paint(*aCtx, aDirtyRect, aBuilder->ToReferenceFrame(mFrame));
 }
 
 // helper
@@ -742,23 +741,41 @@ gfxMatrix
 nsSVGOuterSVGFrame::GetCanvasTM()
 {
   if (!mCanvasTM) {
-    nsSVGSVGElement *content = static_cast<nsSVGSVGElement*>(mContent);
+    nsSVGSVGElement *svgElement = static_cast<nsSVGSVGElement*>(mContent);
 
     float devPxPerCSSPx =
-      1.0f / PresContext()->AppUnitsToFloatCSSPixels(
+      1 / PresContext()->AppUnitsToFloatCSSPixels(
                                 PresContext()->AppUnitsPerDevPixel());
+    nsCOMPtr<nsIDOMSVGMatrix> devPxToCSSPxMatrix;
+    NS_NewSVGMatrix(getter_AddRefs(devPxToCSSPxMatrix),
+                    devPxPerCSSPx, 0.0f,
+                    0.0f, devPxPerCSSPx);
 
-    gfxMatrix viewBoxTM = content->GetViewBoxTransform();
-
-    gfxMatrix zoomPanTM;
-    if (mIsRootContent) {
-      const nsSVGTranslatePoint& translate = content->GetCurrentTranslate();
-      zoomPanTM.Translate(gfxPoint(translate.GetX(), translate.GetY()));
-      zoomPanTM.Scale(content->GetCurrentScale(), content->GetCurrentScale());
+    nsCOMPtr<nsIDOMSVGMatrix> viewBoxTM;
+    nsresult res =
+      svgElement->GetViewboxToViewportTransform(getter_AddRefs(viewBoxTM));
+    if (NS_SUCCEEDED(res) && viewBoxTM) {
+      // PRE-multiply px conversion!
+      devPxToCSSPxMatrix->Multiply(viewBoxTM, getter_AddRefs(mCanvasTM));
+    } else {
+      NS_WARNING("We should propagate the fact that the viewBox is invalid.");
+      mCanvasTM = devPxToCSSPxMatrix;
     }
 
-    gfxMatrix TM = viewBoxTM * zoomPanTM * gfxMatrix().Scale(devPxPerCSSPx, devPxPerCSSPx);
-    mCanvasTM = NS_NewSVGMatrix(TM);
+    // our content is the document element so we must premultiply the values
+    // of its currentScale and currentTranslate properties
+    if (mIsRootContent) {
+      nsCOMPtr<nsIDOMSVGMatrix> zoomPanMatrix;
+      nsCOMPtr<nsIDOMSVGMatrix> temp;
+      float scale = svgElement->GetCurrentScale();
+      const nsSVGTranslatePoint& translate = svgElement->GetCurrentTranslate();
+
+      svgElement->CreateSVGMatrix(getter_AddRefs(zoomPanMatrix));
+      zoomPanMatrix->Translate(translate.GetX(), translate.GetY(), getter_AddRefs(temp));
+      temp->Scale(scale, getter_AddRefs(zoomPanMatrix));
+      zoomPanMatrix->Multiply(mCanvasTM, getter_AddRefs(temp));
+      temp.swap(mCanvasTM);
+    }
   }
   return nsSVGUtils::ConvertSVGMatrixToThebes(mCanvasTM);
 }

@@ -146,11 +146,8 @@ enum {
   NODE_MAY_HAVE_CONTENT_EDITABLE_ATTR
                                = 0x00040000U,
 
-  NODE_ATTACH_BINDING_ON_POSTCREATE
-                               = 0x00080000U,
-
   // Four bits for the script-type ID
-  NODE_SCRIPT_TYPE_OFFSET =               20,
+  NODE_SCRIPT_TYPE_OFFSET =               19,
 
   NODE_SCRIPT_TYPE_SIZE =                  4,
 
@@ -246,8 +243,8 @@ private:
 
 // IID for the nsINode interface
 #define NS_INODE_IID \
-{ 0xc6485d02, 0x7c8a, 0x42fd, \
- { 0x97, 0x15, 0x0f, 0x67, 0xfd, 0x69, 0xd5, 0x3e } }
+{ 0xfc22c6df, 0x3e8e, 0x47c3, \
+  { 0x96, 0xa6, 0xaf, 0x14, 0x3c, 0x05, 0x88, 0x68 } }
  
 /**
  * An internal interface that abstracts some DOMNode-related parts that both
@@ -293,22 +290,28 @@ public:
     ePROCESSING_INSTRUCTION = 1 << 5,
     /** comment nodes */
     eCOMMENT             = 1 << 6,
+    /** html elements */
+    eHTML                = 1 << 7,
     /** form control elements */
-    eHTML_FORM_CONTROL   = 1 << 7,
+    eHTML_FORM_CONTROL   = 1 << 8,
+    /** XUL elements */
+    eXUL                 = 1 << 9,
     /** svg elements */
-    eSVG                 = 1 << 8,
+    eSVG                 = 1 << 10,
     /** document fragments */
-    eDOCUMENT_FRAGMENT   = 1 << 9,
+    eDOCUMENT_FRAGMENT   = 1 << 11,
     /** data nodes (comments, PIs, text). Nodes of this type always
      returns a non-null value for nsIContent::GetText() */
-    eDATA_NODE           = 1 << 10,
+    eDATA_NODE           = 1 << 12,
+    /** nsMathMLElement */
+    eMATHML              = 1 << 13,
     /** nsHTMLMediaElement */
-    eMEDIA               = 1 << 11
+    eMEDIA               = 1 << 14
   };
 
   /**
    * API for doing a quick check if a content is of a given
-   * type, such as Text, Document, Comment ...  Use this when you can instead of
+   * type, such as HTML, XUL, Text, ...  Use this when you can instead of
    * checking the tag.
    *
    * @param aFlags what types you want to test for (see above)
@@ -436,13 +439,10 @@ public:
    * @param aNotify whether to notify the document (current document for
    *        nsIContent, and |this| for nsIDocument) that the remove has
    *        occurred
-   * @param aMutationEvent whether to fire a mutation event
    *
    * Note: If there is no child at aIndex, this method will simply do nothing.
    */
-  virtual nsresult RemoveChildAt(PRUint32 aIndex, 
-                                 PRBool aNotify, 
-                                 PRBool aMutationEvent = PR_TRUE) = 0;
+  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify) = 0;
 
   /**
    * Get a property associated with this node.
@@ -735,8 +735,7 @@ public:
     NS_ASSERTION(!(aFlagsToSet & (NODE_IS_ANONYMOUS |
                                   NODE_MAY_HAVE_FRAME |
                                   NODE_IS_NATIVE_ANONYMOUS_ROOT |
-                                  NODE_IS_IN_ANONYMOUS_SUBTREE |
-                                  NODE_ATTACH_BINDING_ON_POSTCREATE)) ||
+                                  NODE_IS_IN_ANONYMOUS_SUBTREE)) ||
                  IsNodeOfType(eCONTENT),
                  "Flag only permitted on nsIContent nodes");
     PtrBits* flags = HasSlots() ? &FlagsAsSlots()->mFlags :
@@ -803,8 +802,7 @@ public:
    * user does "Select All" while the focus is in this node. Note that if this
    * node is not in an editor, the result comes from the nsFrameSelection that
    * is related to aPresShell, so the result might not be the ancestor of this
-   * node. Be aware that if this node and the computed selection limiter are
-   * not in same subtree, this returns the root content of the closeset subtree.
+   * node.
    */
   nsIContent* GetSelectionRootContent(nsIPresShell* aPresShell);
 
@@ -848,7 +846,7 @@ public:
     }
 
     PRBool IsDone() const { return mCur == mEnd; }
-    operator nsIContent*() const { return *mCur; }
+    operator nsIContent* const () { return *mCur; }
     void Next() { NS_PRECONDITION(mCur != mEnd, "Check IsDone"); ++mCur; }
     void Advance(PRUint32 aOffset) {
       NS_ASSERTION(mCur + aOffset <= mEnd, "Unexpected offset");
@@ -1064,11 +1062,11 @@ extern const nsIID kThisPtrOffsetsSID;
 NS_DEFINE_STATIC_IID_ACCESSOR(nsINode, NS_INODE_IID)
 
 
-#define NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER \
-  nsContentUtils::TraceWrapper(tmp, aCallback, aClosure);
+#define NS_IMPL_CYCLE_COLLECTION_TRAVERSE_PRESERVED_WRAPPER \
+   tmp->TraverseWrapper(cb);
 
 #define NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER \
-  nsContentUtils::ReleaseWrapper(s, tmp);
+  tmp->ReleaseWrapper();
 
 
 #endif /* nsINode_h___ */

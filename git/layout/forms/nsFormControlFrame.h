@@ -49,6 +49,7 @@
 class nsFormControlFrame : public nsLeafFrame,
                            public nsIFormControlFrame
 {
+
 public:
   /**
     * Main constructor
@@ -64,7 +65,6 @@ public:
   }
 
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
   /** 
     * Respond to a gui event
@@ -100,10 +100,10 @@ public:
   static nsresult RegUnRegAccessKey(nsIFrame * aFrame, PRBool aDoReg);
 
   /**
-   * Returns the usable screen rect in app units, eg the rect where we can
-   * draw dropdowns.
+   * Helper routine to that returns the height of the screen
+   *
    */
-  static nsRect GetUsableScreenRect(nsPresContext* aPresContext);
+  static nsresult GetScreenHeight(nsPresContext* aPresContext, nscoord& aHeight);
 
 protected:
 

@@ -313,6 +313,7 @@ protected:
         if (!sCSSParser) {
             CallCreateInstance(kCSSParserCID, &sCSSParser);
             if (sCSSParser) {
+                sCSSParser->SetCaseSensitive(PR_TRUE);
                 sCSSParser->SetQuirkMode(PR_FALSE);
             }
         }
@@ -475,7 +476,7 @@ public:
     /** Typesafe, non-refcounting cast from nsIContent.  Cheaper than QI. **/
     static nsXULElement* FromContent(nsIContent *aContent)
     {
-        if (aContent->IsXUL())
+        if (aContent->IsNodeOfType(eXUL))
             return static_cast<nsXULElement*>(aContent);
         return nsnull;
     }
@@ -512,7 +513,7 @@ public:
                                 nsIContent* aBindingParent,
                                 PRBool aCompileEventHandlers);
     virtual void UnbindFromTree(PRBool aDeep, PRBool aNullParent);
-    virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent = PR_TRUE);
+    virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify);
     virtual nsIAtom *GetIDAttributeName() const;
     virtual nsIAtom *GetClassAttributeName() const;
     virtual PRBool GetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
@@ -581,7 +582,6 @@ public:
     nsresult GetStyle(nsIDOMCSSStyleDeclaration** aStyle);
 
     nsresult GetFrameLoader(nsIFrameLoader** aFrameLoader);
-    already_AddRefed<nsFrameLoader> GetFrameLoader();
     nsresult SwapFrameLoaders(nsIFrameLoaderOwner* aOtherOwner);
 
     virtual void RecompileScriptEventListeners();
@@ -683,13 +683,10 @@ protected:
                         PRBool aCompileEventHandlers);
     void MaybeAddPopupListener(nsIAtom* aLocalName);
 
-    nsIWidget* GetWindowWidget();
 
     nsresult HideWindowChrome(PRBool aShouldHide);
 
     void SetTitlebarColor(nscolor aColor, PRBool aActive);
-
-    void SetDrawsInTitlebar(PRBool aState);
 
     const nsAttrName* InternalGetExistingAttrNameFromQName(const nsAString& aStr) const;
 

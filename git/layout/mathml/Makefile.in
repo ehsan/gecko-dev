@@ -48,6 +48,24 @@ MODULE = layout
 LIBRARY_NAME = gkmathml_s
 LIBXUL_LIBRARY	= 1
 
+REQUIRES	= xpcom \
+		  string \
+		  dom \
+		  content \
+		  gfx \
+		  thebes \
+		  widget \
+		  view \
+		  webshell \
+		  locale \
+		  unicharutil \
+		  necko \
+		  docshell \
+		  webbrwsr \
+		  pref \
+		  js \
+		  qcms \
+		  $(NULL)
 
 LOCAL_INCLUDES = \
 	-I$(srcdir)/../style \
@@ -85,7 +103,6 @@ CPPSRCS =         nsMathMLChar.cpp		        \
                   nsMathMLmsqrtFrame.cpp		\
                   nsMathMLmrootFrame.cpp		\
                   nsMathMLmactionFrame.cpp		\
-                  nsMathMLmencloseFrame.cpp		\
                   $(NULL)
 
 include $(topsrcdir)/config/config.mk
@@ -95,6 +112,9 @@ include $(topsrcdir)/config/config.mk
 FORCE_STATIC_LIB = 1
 
 include $(topsrcdir)/config/rules.mk
+
+libs::
+	$(INSTALL) $(srcdir)/mathml.css $(DIST)/bin/res
 
 font_properties = \
 	mathfontUnicode.properties \

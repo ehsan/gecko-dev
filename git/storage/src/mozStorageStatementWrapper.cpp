@@ -40,7 +40,6 @@
 
 #include "nsString.h"
 
-#include "mozStoragePrivateHelpers.h"
 #include "mozStorageStatementWrapper.h"
 #include "mozStorageStatementParams.h"
 #include "mozStorageStatementRow.h"
@@ -203,7 +202,7 @@ StatementWrapper::Call(nsIXPConnectWrappedNative *aWrapper,
 
   // bind parameters
   for (int i = 0; i < (int)aArgc; i++) {
-    if (!bindJSValue(aCtx, mStatement, i, aArgv[i])) {
+    if (!JSValStorageStatementBinder(aCtx, mStatement, i, aArgv[i])) {
       *_retval = PR_FALSE;
       return NS_ERROR_INVALID_ARG;
     }

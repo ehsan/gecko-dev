@@ -57,15 +57,13 @@
 
 #include "nsLookAndFeel.h"
 
-#include "nsAccelerometerX.h"
 #include "nsSound.h"
 #include "nsIdleServiceX.h"
 
 #include "nsScreenManagerCocoa.h"
 #include "nsDeviceContextSpecX.h"
 #include "nsPrintOptionsX.h"
-#include "nsPrintDialogX.h"
-#include "nsPrintSession.h"
+#include "nsPrintSessionX.h"
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsCocoaWindow)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsChildView)
@@ -73,7 +71,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsFilePicker)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsToolkit)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsLookAndFeel)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsSound)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsAccelerometerX)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsTransferable)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsHTMLFormatConverter)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsClipboard)
@@ -82,8 +79,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsDragService)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsScreenManagerCocoa)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDeviceContextSpecX)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsPrintOptionsX, Init)
-NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsPrintDialogServiceX, Init)
-NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsPrintSession, Init)
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsPrintSessionX, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsIdleServiceX)
 
 #include "nsMenuBarX.h"
@@ -129,10 +125,6 @@ static const nsModuleComponentInfo gComponents[] =
     NS_SOUND_CID,
     "@mozilla.org/sound;1",
     nsSoundConstructor },
-  { "Accelerometer",
-    NS_ACCELEROMETER_CID,
-    NS_ACCELEROMETER_CONTRACTID,
-    nsAccelerometerXConstructor },
   { "Transferable",
     NS_TRANSFERABLE_CID,
     "@mozilla.org/widget/transferable;1",
@@ -169,18 +161,14 @@ static const nsModuleComponentInfo gComponents[] =
      NS_DEVICE_CONTEXT_SPEC_CID,
      "@mozilla.org/gfx/devicecontextspec;1",
      nsDeviceContextSpecXConstructor },
-  { "Print Session",
-    NS_PRINTSESSION_CID,
-    "@mozilla.org/gfx/printsession;1",
-    nsPrintSessionConstructor },
   { "PrintSettings Service",
      NS_PRINTSETTINGSSERVICE_CID,
      "@mozilla.org/gfx/printsettings-service;1",
      nsPrintOptionsXConstructor },
-  { "Native Print Dialog",
-    NS_PRINTDIALOGSERVICE_CID,
-    NS_PRINTDIALOGSERVICE_CONTRACTID,
-    nsPrintDialogServiceXConstructor },
+  { "Print Session",
+    NS_PRINTSESSION_CID,
+    "@mozilla.org/gfx/printsession;1",
+    nsPrintSessionXConstructor },
   { "User Idle Service",
     NS_IDLE_SERVICE_CID,
     "@mozilla.org/widget/idleservice;1",

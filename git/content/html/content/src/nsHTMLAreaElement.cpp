@@ -50,14 +50,10 @@
 #include "nsReadableUtils.h"
 #include "nsIDocument.h"
 
-#include "Link.h"
-using namespace mozilla::dom;
-
 class nsHTMLAreaElement : public nsGenericHTMLElement,
                           public nsIDOMHTMLAreaElement,
                           public nsIDOMNSHTMLAreaElement2,
-                          public nsILink,
-                          public Link
+                          public nsILink
 {
 public:
   nsHTMLAreaElement(nsINodeInfo *aNodeInfo);
@@ -85,6 +81,9 @@ public:
   NS_DECL_NSIDOMNSHTMLAREAELEMENT2
 
   // nsILink
+  NS_IMETHOD GetLinkState(nsLinkState &aState);
+  NS_IMETHOD SetLinkState(nsLinkState aState);
+  NS_IMETHOD GetHrefURI(nsIURI** aURI);
   NS_IMETHOD LinkAdded() { return NS_OK; }
   NS_IMETHOD LinkRemoved() { return NS_OK; }
 
@@ -92,9 +91,6 @@ public:
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
   virtual PRBool IsLink(nsIURI** aURI) const;
   virtual void GetLinkTarget(nsAString& aTarget);
-  virtual nsLinkState GetLinkState() const;
-  virtual void SetLinkState(nsLinkState aState);
-  virtual already_AddRefed<nsIURI> GetHrefURI() const;
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
@@ -115,6 +111,8 @@ public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
 protected:
+  // The cached visited state
+  nsLinkState mLinkState;
 };
 
 
@@ -122,7 +120,8 @@ NS_IMPL_NS_NEW_HTML_ELEMENT(Area)
 
 
 nsHTMLAreaElement::nsHTMLAreaElement(nsINodeInfo *aNodeInfo)
-  : nsGenericHTMLElement(aNodeInfo)
+  : nsGenericHTMLElement(aNodeInfo),
+    mLinkState(eLinkState_Unknown)
 {
 }
 
@@ -221,9 +220,10 @@ nsHTMLAreaElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
   if (IsInDoc()) {
     RegUnRegAccessKey(PR_FALSE);
+    GetCurrentDoc()->ForgetLink(this);
     // If this link is ever reinserted into a document, it might
     // be under a different xml:base, so forget the cached state now
-    Link::ResetLinkState();
+    mLinkState = eLinkState_Unknown;
   }
 
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
@@ -239,7 +239,14 @@ nsHTMLAreaElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   }
 
   if (aName == nsGkAtoms::href && aNameSpaceID == kNameSpaceID_None) {
-    Link::ResetLinkState();
+    nsIDocument* doc = GetCurrentDoc();
+    if (doc) {
+      doc->ForgetLink(this);
+      // The change to 'href' will cause style reresolution which will
+      // eventually recompute the link state and re-add this element
+      // to the link map if necessary.
+    }
+    SetLinkState(eLinkState_Unknown);
   }
 
   nsresult rv =
@@ -258,7 +265,11 @@ nsHTMLAreaElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              PRBool aNotify)
 {
   if (aAttribute == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
-    Link::ResetLinkState();
+    nsIDocument* doc = GetCurrentDoc();
+    if (doc) {
+      doc->ForgetLink(this);
+    }
+    SetLinkState(eLinkState_Unknown);
   }
 
   if (aAttribute == nsGkAtoms::accesskey &&
@@ -309,20 +320,22 @@ nsHTMLAreaElement::SetPing(const nsAString& aValue)
   return SetAttr(kNameSpaceID_None, nsGkAtoms::ping, aValue, PR_TRUE);
 }
 
-nsLinkState
-nsHTMLAreaElement::GetLinkState() const
+NS_IMETHODIMP
+nsHTMLAreaElement::GetLinkState(nsLinkState &aState)
 {
-  return Link::GetLinkState();
+  aState = mLinkState;
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 nsHTMLAreaElement::SetLinkState(nsLinkState aState)
 {
-  Link::SetLinkState(aState);
+  mLinkState = aState;
+  return NS_OK;
 }
 
-already_AddRefed<nsIURI>
-nsHTMLAreaElement::GetHrefURI() const
+NS_IMETHODIMP
+nsHTMLAreaElement::GetHrefURI(nsIURI** aURI)
 {
-  return GetHrefURIForAnchors();
+  return GetHrefURIForAnchors(aURI);
 }

@@ -48,8 +48,6 @@
 
 class nsMathMLTokenFrame : public nsMathMLContainerFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   friend nsIFrame* NS_NewMathMLTokenFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   virtual eMathMLFrameType GetMathMLFrameType();
@@ -61,7 +59,7 @@ public:
 
   NS_IMETHOD
   SetInitialChildList(nsIAtom*        aListName,
-                      nsFrameList&    aChildList);
+                      nsIFrame*       aChildList);
 
   NS_IMETHOD
   Reflow(nsPresContext*          aPresContext,
@@ -102,7 +100,7 @@ protected:
   PRBool SetTextStyle();
 
   // helper to set the quotes of <ms>
-  void SetQuotes(PRBool aNotify);
+  void SetQuotes();
 };
 
 #endif /* nsMathMLTokentFrame_h___ */

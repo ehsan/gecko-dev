@@ -79,13 +79,21 @@ public:
 
     FontFamily *FindFontFamily(const nsAString& aName);
     FontEntry *FindFontEntry(const nsAString& aFamilyName, const gfxFontStyle& aFontStyle);
-    already_AddRefed<gfxFont> FindFontForChar(PRUint32 aCh, gfxFont *aFont);
-    PRBool GetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<FontEntry> > *aFontEntryList);
-    void SetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<FontEntry> >& aFontEntryList);
+
+    static PRInt32 DPI() {
+        if (sDPI == -1) {
+            InitDPI();
+        }
+        NS_ASSERTION(sDPI > 0, "Something is wrong");
+        return sDPI;
+    }
 
     FT_Library GetFTLibrary();
 
 protected:
+    static void InitDPI();
+
+    static PRInt32 sDPI;
     static gfxFontconfigUtils *sFontconfigUtils;
 
 private:

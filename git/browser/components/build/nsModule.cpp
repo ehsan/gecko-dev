@@ -39,7 +39,6 @@
 #include "nsIGenericFactory.h"
 
 #include "nsBrowserCompsCID.h"
-#include "DirectoryProvider.h"
 #include "nsPlacesImportExportService.h"
 
 #if defined(XP_WIN)
@@ -75,17 +74,14 @@
 
 #include "rdf.h"
 #include "nsFeedSniffer.h"
-#include "AboutRedirector.h"
+#include "nsAboutFeeds.h"
 #include "nsIAboutModule.h"
 
 #include "nsPrivateBrowsingServiceWrapper.h"
 #include "nsNetCID.h"
 
-using namespace mozilla::browser;
-
 /////////////////////////////////////////////////////////////////////////////
 
-NS_GENERIC_FACTORY_CONSTRUCTOR(DirectoryProvider)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsPlacesImportExportService)
 #if defined(XP_WIN)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsWindowsShellService)
@@ -126,14 +122,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsPrivateBrowsingServiceWrapper, Init)
 
 static const nsModuleComponentInfo components[] =
 {
-  { "Browser Directory Provider",
-    NS_BROWSERDIRECTORYPROVIDER_CID,
-    NS_BROWSERDIRECTORYPROVIDER_CONTRACTID,
-    DirectoryProviderConstructor,
-    DirectoryProvider::Register,
-    DirectoryProvider::Unregister
-  },
-
 #if defined(XP_WIN)
   { "Browser Shell Service",
     NS_SHELLSERVICE_CID,
@@ -160,47 +148,11 @@ static const nsModuleComponentInfo components[] =
     nsFeedSnifferConstructor,
     nsFeedSniffer::Register },
 
-#ifdef MOZ_SAFE_BROWSING
-  { "about:blocked",
-    NS_BROWSER_ABOUT_REDIRECTOR_CID,
-    NS_ABOUT_MODULE_CONTRACTID_PREFIX "blocked",
-    AboutRedirector::Create },
-#endif
-
-  { "about:certerror",
-    NS_BROWSER_ABOUT_REDIRECTOR_CID,
-    NS_ABOUT_MODULE_CONTRACTID_PREFIX "certerror",
-    AboutRedirector::Create },
-
-  { "about:feeds",
-    NS_BROWSER_ABOUT_REDIRECTOR_CID,
+  { "about:feeds Page",
+    NS_ABOUTFEEDS_CID,
     NS_ABOUT_MODULE_CONTRACTID_PREFIX "feeds",
-    AboutRedirector::Create },
-
-  { "about:privatebrowsing",
-    NS_BROWSER_ABOUT_REDIRECTOR_CID,
-    NS_ABOUT_MODULE_CONTRACTID_PREFIX "privatebrowsing",
-    AboutRedirector::Create },
-
-  { "about:rights",
-    NS_BROWSER_ABOUT_REDIRECTOR_CID,
-    NS_ABOUT_MODULE_CONTRACTID_PREFIX "rights",
-    AboutRedirector::Create },
-
-  { "about:robots",
-    NS_BROWSER_ABOUT_REDIRECTOR_CID,
-    NS_ABOUT_MODULE_CONTRACTID_PREFIX "robots",
-    AboutRedirector::Create },
-
-  { "about:sessionrestore",
-    NS_BROWSER_ABOUT_REDIRECTOR_CID,
-    NS_ABOUT_MODULE_CONTRACTID_PREFIX "sessionrestore",
-    AboutRedirector::Create },
-
-  { "about:support",
-    NS_BROWSER_ABOUT_REDIRECTOR_CID,
-    NS_ABOUT_MODULE_CONTRACTID_PREFIX "support",
-    AboutRedirector::Create },
+    nsAboutFeeds::Create
+  },
 
 #ifndef WINCE
 

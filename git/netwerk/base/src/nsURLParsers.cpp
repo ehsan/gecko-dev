@@ -614,15 +614,10 @@ nsAuthURLParser::ParseServerInfo(const char *serverinfo, PRInt32 serverinfoLen,
         if (port) {
             // XXX unfortunately ToInteger is not defined for substrings
             nsCAutoString buf(colon+1, serverinfoLen - (colon + 1 - serverinfo));
-            if (buf.Length() == 0) {
-                *port = -1;
-            }
-            else {
-                PRInt32 err;
-                *port = buf.ToInteger(&err);
-                if (NS_FAILED(err))
-                    return NS_ERROR_MALFORMED_URI;
-            }
+            PRInt32 err;
+           *port = buf.ToInteger(&err);
+            if (NS_FAILED(err))
+               *port = -1;
         }
     }
     else {

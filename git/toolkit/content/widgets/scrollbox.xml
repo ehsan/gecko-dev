@@ -1,5 +1,10 @@
 <?xml version="1.0"?>
 
+<!DOCTYPE bindings [
+  <!ENTITY % globalDTD SYSTEM "chrome://global/locale/global.dtd">
+  %globalDTD;
+]>
+
 <bindings id="arrowscrollboxBindings"
    xmlns="http://www.mozilla.org/xbl"
    xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
@@ -414,8 +419,15 @@
               disableDownButton = true;
           }
 
-          this._scrollButtonUp.disabled = disableUpButton;
-          this._scrollButtonDown.disabled = disableDownButton;
+          if (this._scrollButtonUp.disabled != disableUpButton ||
+              this._scrollButtonDown.disabled != disableDownButton) {
+            this._scrollButtonUp.disabled = disableUpButton;
+            this._scrollButtonDown.disabled = disableDownButton;
+
+            var event = document.createEvent("Events");
+            event.initEvent("UpdatedScrollButtonsDisabledState", true, false);
+            this.dispatchEvent(event);
+          }
         ]]></body>
       </method>
     </implementation>
@@ -509,7 +521,7 @@
   </binding>
 
   <binding id="autorepeatbutton" extends="chrome://global/content/bindings/scrollbox.xml#scrollbox-base">
-    <content repeat="hover">
+    <content repeat="hover" chromedir="&locale.dir;">
       <xul:image class="autorepeatbutton-icon"/>
     </content>
   </binding>
@@ -523,7 +535,8 @@
                          onmousedown="_startScroll(-1);"
                          onmouseover="_continueScroll(-1);"
                          onmouseup="_stopScroll();"
-                         onmouseout="_pauseScroll();"/>
+                         onmouseout="_pauseScroll();"
+                         chromedir="&locale.dir;"/>
       <xul:scrollbox xbl:inherits="orient,align,pack,dir" flex="1" anonid="scrollbox">
         <children/>
       </xul:scrollbox>
@@ -534,7 +547,8 @@
                          onmousedown="_startScroll(1);"
                          onmouseover="_continueScroll(1);"
                          onmouseup="_stopScroll();"
-                         onmouseout="_pauseScroll();"/>
+                         onmouseout="_pauseScroll();"
+                         chromedir="&locale.dir;"/>
     </content>
     <implementation implements="nsITimerCallback, nsIDOMEventListener">
       <constructor><![CDATA[

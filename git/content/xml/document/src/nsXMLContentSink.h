@@ -93,7 +93,8 @@ public:
   // nsIContentSink
   NS_IMETHOD WillParse(void);
   NS_IMETHOD WillBuildModel(nsDTDMode aDTDMode);
-  NS_IMETHOD DidBuildModel(PRBool aTerminated);
+  NS_IMETHOD DidBuildModel(void);
+  virtual PRBool ReadyToCallDidBuildModel(PRBool aTerminated);
   NS_IMETHOD WillInterrupt(void);
   NS_IMETHOD WillResume(void);
   NS_IMETHOD SetParser(nsIParser* aParser);  
@@ -112,6 +113,8 @@ public:
   static PRBool ParsePIData(const nsString &aData, nsString &aHref,
                           nsString &aTitle, nsString &aMedia,
                           PRBool &aIsAlternate);
+
+  virtual nsresult ProcessMETATag(nsIContent* aContent);
 
 protected:
   // Start layout.  If aIgnorePendingSheets is true, this will happen even if
@@ -207,8 +210,10 @@ protected:
   PRUint8 mPrettyPrintHasSpecialRoot : 1;
   PRUint8 mPrettyPrintHasFactoredElements : 1;
   PRUint8 mHasProcessedBase : 1;
+  PRUint8 mAllowAutoXLinks : 1;
   PRUint8 mPrettyPrinting : 1;  // True if we called PrettyPrint() and it
                                 // decided we should in fact prettyprint.
+  PRUint8 unused : 1;  // bits available if someone needs one
   
   nsTArray<StackNode>              mContentStack;
 

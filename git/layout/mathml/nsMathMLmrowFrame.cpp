@@ -58,8 +58,6 @@ NS_NewMathMLmrowFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsMathMLmrowFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsMathMLmrowFrame)
-
 nsMathMLmrowFrame::~nsMathMLmrowFrame()
 {
 }

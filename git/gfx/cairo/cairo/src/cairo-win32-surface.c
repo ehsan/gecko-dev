@@ -431,7 +431,6 @@ _cairo_win32_surface_create_similar (void	    *abstract_src,
 cairo_status_t
 _cairo_win32_surface_clone_similar (void *abstract_surface,
 				    cairo_surface_t *src,
-				    cairo_content_t content,
 				    int src_x,
 				    int src_y,
 				    int width,
@@ -445,7 +444,7 @@ _cairo_win32_surface_clone_similar (void *abstract_surface,
     cairo_status_t status;
     cairo_surface_pattern_t pattern;
 
-    src_content = src->content & content;
+    src_content = cairo_surface_get_content(src);
     new_surface =
 	_cairo_win32_surface_create_similar_internal (abstract_surface,
 						      src_content,
@@ -2102,7 +2101,7 @@ _cairo_win32_surface_span_renderer_finish (void *abstract_renderer)
 	cairo_pattern_t *mask_pattern = cairo_pattern_create_for_surface (&renderer->mask->base);
 	/* composite onto the image surface directly if we can */
 	if (dst->image) {
-	    GdiFlush(); /* XXX: I'm not sure if this needed or not */
+	    GdiFlush();
 
 	    status = dst->image->backend->composite (renderer->op,
 		    renderer->pattern, mask_pattern, dst->image,

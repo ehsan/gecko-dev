@@ -39,7 +39,6 @@
 
 #include "jsapi.h"
 #include "jsdtoa.h"
-#include "jsprvtd.h"
 #include "jsnum.h"
 #include "jsbool.h"
 #include "jsarena.h"

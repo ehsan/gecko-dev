@@ -53,7 +53,6 @@ public:
   friend nsIFrame* NS_NewMathMLForeignFrameWrapper(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
 
   // Overloaded nsIMathMLFrame methods
 
@@ -73,11 +72,14 @@ public:
 #ifdef NS_DEBUG
   NS_IMETHOD
   SetInitialChildList(nsIAtom*        aListName,
-                      nsFrameList&    aChildList)
+                      nsIFrame*       aChildList)
   {
-    NS_ASSERTION(aChildList.NotEmpty() && aChildList.GetLength() == 1,
+    nsresult rv = nsBlockFrame::SetInitialChildList(aListName, aChildList);
+    // cannot use mFrames{.FirstChild()|.etc} since the block code doesn't set mFrames
+    nsFrameList frameList(aChildList);
+    NS_ASSERTION(frameList.FirstChild() && frameList.GetLength() == 1,
                  "there must be one and only one child frame");
-    return nsBlockFrame::SetInitialChildList(aListName, aChildList);
+    return rv;
   }
 #endif
 
@@ -90,7 +92,7 @@ public:
   // we are just a wrapper and these methods shouldn't be called
   NS_IMETHOD
   AppendFrames(nsIAtom*        aListName,
-               nsFrameList&    aFrameList)
+               nsIFrame*       aFrameList)
   {
     NS_NOTREACHED("unsupported operation");
     return NS_ERROR_NOT_IMPLEMENTED;
@@ -99,7 +101,7 @@ public:
   NS_IMETHOD
   InsertFrames(nsIAtom*        aListName,
                nsIFrame*       aPrevFrame,
-               nsFrameList&    aFrameList)
+               nsIFrame*       aFrameList)
   {
     NS_NOTREACHED("unsupported operation");
     return NS_ERROR_NOT_IMPLEMENTED;

@@ -59,8 +59,8 @@
 static const char* const sEventNames[] = {
   "mousedown", "mouseup", "click", "dblclick", "mouseover",
   "mouseout", "mousemove", "contextmenu", "keydown", "keyup", "keypress",
-  "focus", "blur", "load", "beforeunload", "unload", "hashchange", "abort", "error",
-  "submit", "reset", "change", "select", "input" ,"text",
+  "focus", "blur", "load", "beforeunload", "unload", "abort", "error",
+  "submit", "reset", "change", "select", "input", "paint" ,"text",
   "compositionstart", "compositionend", "popupshowing", "popupshown",
   "popuphiding", "popuphidden", "close", "command", "broadcast", "commandupdate",
   "dragenter", "dragover", "dragexit", "dragdrop", "draggesture",
@@ -91,8 +91,7 @@ static const char* const sEventNames[] = {
   "MozRotateGestureUpdate",
   "MozRotateGesture",
   "MozTapGesture",
-  "MozPressTapGesture",
-  "MozScrolledAreaChanged"
+  "MozPressTapGesture"
 };
 
 static char *sPopupAllowedEvents;
@@ -146,8 +145,6 @@ nsDOMEvent::nsDOMEvent(nsPresContext* aPresContext, nsEvent* aEvent)
       mExplicitOriginalTarget = nsnull;
     }
   }
-
-  NS_ASSERTION(mEvent->message != NS_PAINT, "Trying to create a DOM paint event!");
 }
 
 nsDOMEvent::~nsDOMEvent() 
@@ -187,6 +184,9 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMEvent)
         static_cast<nsDragEvent*>(tmp->mEvent)->dataTransfer = nsnull;
         static_cast<nsMouseEvent_base*>(tmp->mEvent)->relatedTarget = nsnull;
         break;
+      case NS_XUL_COMMAND_EVENT:
+        static_cast<nsXULCommandEvent*>(tmp->mEvent)->sourceEvent = nsnull;
+        break;
       case NS_MUTATION_EVENT:
         static_cast<nsMutationEvent*>(tmp->mEvent)->mRelatedNode = nsnull;
         break;
@@ -220,6 +220,11 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMEvent)
         cb.NoteXPCOMChild(
           static_cast<nsMouseEvent_base*>(tmp->mEvent)->relatedTarget);
         break;
+      case NS_XUL_COMMAND_EVENT:
+        NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mEvent->sourceEvent");
+        cb.NoteXPCOMChild(
+          static_cast<nsXULCommandEvent*>(tmp->mEvent)->sourceEvent);
+        break;
       case NS_MUTATION_EVENT:
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mEvent->mRelatedNode");
         cb.NoteXPCOMChild(
@@ -237,21 +242,15 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 // nsIDOMEventInterface
 NS_METHOD nsDOMEvent::GetType(nsAString& aType)
 {
-  if (!mCachedType.IsEmpty()) {
-    aType = mCachedType;
-    return NS_OK;
-  }
   const char* name = GetEventName(mEvent->message);
 
   if (name) {
     CopyASCIItoUTF16(name, aType);
-    mCachedType = aType;
     return NS_OK;
   } else if (mEvent->message == NS_USER_DEFINED_EVENT && mEvent->userType) {
     nsAutoString name;
     mEvent->userType->ToString(name);
     aType = Substring(name, 2, name.Length() - 2); // Remove "on"
-    mCachedType = aType;
     return NS_OK;
   }
   
@@ -461,23 +460,7 @@ nsDOMEvent::PreventDefault()
 {
   if (!(mEvent->flags & NS_EVENT_FLAG_CANT_CANCEL)) {
     mEvent->flags |= NS_EVENT_FLAG_NO_DEFAULT;
-
-    // Need to set an extra flag for drag events.
-    if (mEvent->eventStructType == NS_DRAG_EVENT &&
-        NS_IS_TRUSTED_EVENT(mEvent)) {
-      nsCOMPtr<nsINode> node = do_QueryInterface(mEvent->currentTarget);
-      if (!node) {
-        nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(mEvent->currentTarget);
-        if (win) {
-          node = do_QueryInterface(win->GetExtantDocument());
-        }
-      }
-      if (node && !nsContentUtils::IsChromeDoc(node->GetOwnerDoc())) {
-        mEvent->flags |= NS_EVENT_FLAG_NO_DEFAULT_CALLED_IN_CONTENT;
-      }
-    }
   }
-
   return NS_OK;
 }
 
@@ -545,6 +528,10 @@ nsDOMEvent::SetEventType(const nsAString& aEventTypeArg)
   } else if (mEvent->eventStructType == NS_EVENT) {
     if (atom == nsGkAtoms::onMozAfterPaint)
       mEvent->message = NS_AFTERPAINT;
+    if (atom == nsGkAtoms::onfocus)
+      mEvent->message = NS_FOCUS_CONTENT;
+    else if (atom == nsGkAtoms::onblur)
+      mEvent->message = NS_BLUR_CONTENT;
     else if (atom == nsGkAtoms::onsubmit)
       mEvent->message = NS_FORM_SUBMIT;
     else if (atom == nsGkAtoms::onreset)
@@ -577,13 +564,6 @@ nsDOMEvent::SetEventType(const nsAString& aEventTypeArg)
       mEvent->message = NS_PAGE_SHOW;
     else if (atom == nsGkAtoms::onpagehide)
       mEvent->message = NS_PAGE_HIDE;
-    else if (atom == nsGkAtoms::onhashchange)
-      mEvent->message = NS_HASHCHANGE;
-  } else if (mEvent->eventStructType == NS_FOCUS_EVENT) {
-    if (atom == nsGkAtoms::onfocus)
-      mEvent->message = NS_FOCUS_CONTENT;
-    else if (atom == nsGkAtoms::onblur)
-      mEvent->message = NS_BLUR_CONTENT;
   } else if (mEvent->eventStructType == NS_MUTATION_EVENT) {
     if (atom == nsGkAtoms::onDOMAttrModified)
       mEvent->message = NS_MUTATION_ATTRMODIFIED;
@@ -608,10 +588,7 @@ nsDOMEvent::SetEventType(const nsAString& aEventTypeArg)
       mEvent->message = NS_UI_FOCUSOUT;
     else if (atom == nsGkAtoms::oninput)
       mEvent->message = NS_FORM_INPUT;
-  } else if (mEvent->eventStructType == NS_SCROLLAREA_EVENT) {
-    if (atom == nsGkAtoms::onMozScrolledAreaChanged)
-      mEvent->message = NS_SCROLLEDAREACHANGED;
-  } else if (mEvent->eventStructType == NS_INPUT_EVENT) {
+  } else if (mEvent->eventStructType == NS_XUL_COMMAND_EVENT) {
     if (atom == nsGkAtoms::oncommand)
       mEvent->message = NS_XUL_COMMAND;
   }
@@ -748,7 +725,7 @@ nsDOMEvent::InitEvent(const nsAString& aEventTypeArg, PRBool aCanBubbleArg, PRBo
   // re-dispatching it.
   mEvent->target = nsnull;
   mEvent->originalTarget = nsnull;
-  mCachedType = aEventTypeArg;
+
   return NS_OK;
 }
 
@@ -804,6 +781,11 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
       zLevelEvent->mImmediate = oldZLevelEvent->mImmediate;
       zLevelEvent->mAdjusted = oldZLevelEvent->mAdjusted;
       newEvent = zLevelEvent;
+      break;
+    }
+    case NS_PAINT_EVENT:
+    {
+      newEvent = new nsPaintEvent(PR_FALSE, msg, nsnull);
       break;
     }
     case NS_SCROLLBAR_EVENT:
@@ -914,16 +896,6 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
         static_cast<nsScrollPortEvent*>(mEvent)->orient;
       break;
     }
-    case NS_SCROLLAREA_EVENT:
-    {
-      nsScrollAreaEvent *newScrollAreaEvent = 
-        new nsScrollAreaEvent(PR_FALSE, msg, nsnull);
-      NS_ENSURE_TRUE(newScrollAreaEvent, NS_ERROR_OUT_OF_MEMORY);
-      newScrollAreaEvent->mArea =
-        static_cast<nsScrollAreaEvent *>(mEvent)->mArea;
-      newEvent = newScrollAreaEvent;
-      break;
-    }
     case NS_MUTATION_EVENT:
     {
       nsMutationEvent* mutationEvent = new nsMutationEvent(PR_FALSE, msg);
@@ -949,15 +921,6 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
       newEvent = new nsFormEvent(PR_FALSE, msg);
       break;
     }
-    case NS_FOCUS_EVENT:
-    {
-      newEvent = new nsFocusEvent(PR_FALSE, msg);
-      NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
-      static_cast<nsFocusEvent*>(newEvent)->fromRaise =
-        static_cast<nsFocusEvent*>(mEvent)->fromRaise;
-      break;
-    }
-
     case NS_POPUP_EVENT:
     {
       newEvent = new nsInputEvent(PR_FALSE, msg, nsnull);
@@ -995,6 +958,16 @@ NS_METHOD nsDOMEvent::DuplicatePrivateData()
       break;
     }
 #endif // MOZ_SVG
+    case NS_XUL_COMMAND_EVENT:
+    {
+      newEvent = new nsXULCommandEvent(PR_FALSE, msg, nsnull);
+      NS_ENSURE_TRUE(newEvent, NS_ERROR_OUT_OF_MEMORY);
+      isInputEvent = PR_TRUE;
+      newEvent->eventStructType = NS_XUL_COMMAND_EVENT;
+       static_cast<nsXULCommandEvent*>(newEvent)->sourceEvent =
+         static_cast<nsXULCommandEvent*>(mEvent)->sourceEvent;
+      break;
+    }
     case NS_SIMPLE_GESTURE_EVENT:
     {
       nsSimpleGestureEvent* oldSimpleGestureEvent = static_cast<nsSimpleGestureEvent*>(mEvent);
@@ -1157,9 +1130,6 @@ nsDOMEvent::GetEventPopupControlState(nsEvent *aEvent)
         if (::PopupAllowedForEvent("change"))
           abuse = openControlled;
         break;
-      case NS_XUL_COMMAND:
-        abuse = openControlled;
-        break;
       }
     }
     break;
@@ -1241,6 +1211,10 @@ nsDOMEvent::GetEventPopupControlState(nsEvent *aEvent)
       }
     }
     break;
+  case NS_XUL_COMMAND_EVENT :
+    if (nsEventStateManager::IsHandlingUserInput()) {
+      abuse = openControlled;
+    }
   }
 
   return abuse;
@@ -1313,8 +1287,6 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_beforeunload];
   case NS_PAGE_UNLOAD:
     return sEventNames[eDOMEvents_unload];
-  case NS_HASHCHANGE:
-    return sEventNames[eDOMEvents_hashchange];
   case NS_IMAGE_ABORT:
     return sEventNames[eDOMEvents_abort];
   case NS_LOAD_ERROR:
@@ -1329,6 +1301,8 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_select];
   case NS_FORM_INPUT:
     return sEventNames[eDOMEvents_input];
+  case NS_PAINT:
+    return sEventNames[eDOMEvents_paint];
   case NS_RESIZE_EVENT:
     return sEventNames[eDOMEvents_resize];
   case NS_SCROLL_EVENT:
@@ -1493,8 +1467,6 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_MozTapGesture];
   case NS_SIMPLE_GESTURE_PRESSTAP:
     return sEventNames[eDOMEvents_MozPressTapGesture];
-  case NS_SCROLLEDAREACHANGED:
-    return sEventNames[eDOMEvents_MozScrolledAreaChanged];
   default:
     break;
   }

@@ -78,6 +78,13 @@ ifeq ($(OS_ARCH),BeOS)
 PLATFORM = beos
 endif
 
+REQUIRES	= xpcom \
+		  string \
+		  gfx \
+		  thebes \
+		  imglib2 \
+		  necko \
+		  $(NULL)
 
 CPPSRCS		= \
 		nsIconURI.cpp \

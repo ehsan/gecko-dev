@@ -52,8 +52,6 @@ protected:
   nsSVGFilterFrame(nsStyleContext* aContext) : nsSVGFilterFrameBase(aContext) {}
 
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   nsresult FilterPaint(nsSVGRenderState *aContext,
                        nsIFrame *aTarget, nsSVGFilterPaintCallback *aPaintCallback,
                        const nsIntRect* aDirtyRect);

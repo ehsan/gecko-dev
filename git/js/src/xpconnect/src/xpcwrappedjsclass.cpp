@@ -248,29 +248,6 @@ nsXPCWrappedJSClass::CallQueryInterfaceOnJSObject(XPCCallContext& ccx,
     jsid funid;
     jsval fun;
 
-    // Don't call the actual function on a content object. We'll determine
-    // whether or not a content object is capable of implementing the
-    // interface (i.e. whether the interface is scriptable) and most content
-    // objects don't have QI implementations anyway. Also see bug 503926.
-    if(XPCPerThreadData::IsMainThread(ccx) &&
-       !JS_GetGlobalForObject(ccx, jsobj)->isSystem())
-    {
-        nsCOMPtr<nsIPrincipal> objprin;
-        nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
-        if(ssm)
-        {
-            nsresult rv = ssm->GetObjectPrincipal(ccx, jsobj, getter_AddRefs(objprin));
-            NS_ENSURE_SUCCESS(rv, nsnull);
-
-            PRBool isSystem;
-            rv = ssm->IsSystemPrincipal(objprin, &isSystem);
-            NS_ENSURE_SUCCESS(rv, nsnull);
-
-            if(!isSystem)
-                return nsnull;
-        }
-    }
-
     // check upfront for the existence of the function property
     funid = mRuntime->GetStringID(XPCJSRuntime::IDX_QUERY_INTERFACE);
     if(!JS_GetPropertyById(cx, jsobj, funid, &fun) || JSVAL_IS_PRIMITIVE(fun))
@@ -1267,6 +1244,7 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
     JSBool success;
     JSBool readyToDoTheCall = JS_FALSE;
     nsID  param_iid;
+    uint8 outConversionFailedIndex;
     JSObject* obj;
     const char* name = info->name;
     jsval fval;
@@ -1275,8 +1253,6 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
     XPCContext* xpcc;
     JSContext* cx;
     JSObject* thisObj;
-    JSBool popPrincipal = JS_FALSE;
-    nsIScriptSecurityManager* ssm = nsnull;
 
     // Make sure not to set the callee on ccx until after we've gone through
     // the whole nsIXPCFunctionThisTranslator bit.  That code uses ccx to
@@ -1459,39 +1435,10 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
         *sp++ = OBJECT_TO_JSVAL(thisObj);
     }
 
-    // Figure out what our callee is
-    if(XPT_MD_IS_GETTER(info->flags) || XPT_MD_IS_SETTER(info->flags))
+    // make certain we leave no garbage in the stack
+    for(i = 0; i < argc; i++)
     {
-        // Pull the getter or setter off of |obj|
-        uintN attrs;
-        JSBool found;
-        JSPropertyOp getter;
-        JSPropertyOp setter;
-        if(!JS_GetPropertyAttrsGetterAndSetter(cx, obj, name,
-                                               &attrs, &found,
-                                               &getter, &setter))
-        {
-            // XXX Do we want to report this exception?
-            JS_ClearPendingException(cx);
-            goto pre_call_clean_up;
-        }
-
-        if(XPT_MD_IS_GETTER(info->flags) && (attrs & JSPROP_GETTER))
-        {
-            // JSPROP_GETTER means the getter is actually a
-            // function object.
-            ccx.SetCallee(JS_FUNC_TO_DATA_PTR(JSObject*, getter));
-        }
-        else if(XPT_MD_IS_SETTER(info->flags) && (attrs & JSPROP_SETTER))
-        {
-            // JSPROP_SETTER means the setter is actually a
-            // function object.
-            ccx.SetCallee(JS_FUNC_TO_DATA_PTR(JSObject*, setter));
-        }
-    }
-    else if(JSVAL_IS_OBJECT(fval))
-    {
-        ccx.SetCallee(JSVAL_TO_OBJECT(fval));
+        sp[i] = JSVAL_VOID;
     }
 
     // build the args
@@ -1549,11 +1496,43 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
                     goto pre_call_clean_up;
             }
 
+            // Figure out what our callee is
+            if(XPT_MD_IS_GETTER(info->flags) || XPT_MD_IS_SETTER(info->flags))
+            {
+                // Pull the getter or setter off of |obj|
+                uintN attrs;
+                JSBool found;
+                JSPropertyOp getter;
+                JSPropertyOp setter;
+                JSBool ok =
+                    JS_GetPropertyAttrsGetterAndSetter(cx, obj, name,
+                                                       &attrs, &found,
+                                                       &getter, &setter);
+                if(ok)
+                {
+                    if(XPT_MD_IS_GETTER(info->flags) && (attrs & JSPROP_GETTER))
+                    {
+                        // JSPROP_GETTER means the getter is actually a
+                        // function object.
+                        ccx.SetCallee(JS_FUNC_TO_DATA_PTR(JSObject*, getter));
+                    }
+                    else if(XPT_MD_IS_SETTER(info->flags) && (attrs & JSPROP_SETTER))
+                    {
+                        // JSPROP_SETTER means the setter is actually a
+                        // function object.
+                        ccx.SetCallee(JS_FUNC_TO_DATA_PTR(JSObject*, setter));
+                    }
+                }
+            }
+            else if(JSVAL_IS_OBJECT(fval))
+            {
+                ccx.SetCallee(JSVAL_TO_OBJECT(fval));
+            }
+
             if(isArray)
             {
-                XPCLazyCallContext lccx(ccx);
-                if(!XPCConvert::NativeArray2JS(lccx, &val,
-                                               (const void**)&pv->val,
+
+                if(!XPCConvert::NativeArray2JS(ccx, &val, (const void**)&pv->val,
                                                datum_type, &param_iid,
                                                array_count, obj, nsnull))
                     goto pre_call_clean_up;
@@ -1598,6 +1577,8 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16 methodIndex,
         else
             *sp++ = val;
     }
+
+
 
     readyToDoTheCall = JS_TRUE;
 
@@ -1660,31 +1641,6 @@ pre_call_clean_up:
 
     JS_ClearPendingException(cx);
 
-    if(XPCPerThreadData::IsMainThread(ccx))
-    {
-        ssm = XPCWrapper::GetSecurityManager();
-        if(ssm)
-        {
-            nsCOMPtr<nsIPrincipal> objPrincipal;
-            ssm->GetObjectPrincipal(ccx, obj, getter_AddRefs(objPrincipal));
-            if(objPrincipal)
-            {
-                JSStackFrame* fp = nsnull;
-                nsresult rv =
-                    ssm->PushContextPrincipal(ccx, JS_FrameIterator(ccx, &fp),
-                                              objPrincipal);
-                if(NS_FAILED(rv))
-                {
-                    JS_ReportOutOfMemory(ccx);
-                    retval = NS_ERROR_OUT_OF_MEMORY;
-                    goto done;
-                }
-
-                popPrincipal = JS_TRUE;
-            }
-        }
-    }
-
     if(XPT_MD_IS_GETTER(info->flags))
         success = JS_GetProperty(cx, obj, name, &result);
     else if(XPT_MD_IS_SETTER(info->flags))
@@ -1721,10 +1677,7 @@ pre_call_clean_up:
         }
     }
 
-    if(popPrincipal)
-        ssm->PopContextPrincipal(ccx);
-
-    if(!success)
+    if (!success)
     {
         PRBool forceReport;
         if(NS_FAILED(mInfo->IsFunction(&forceReport)))
@@ -1739,6 +1692,9 @@ pre_call_clean_up:
 
     ccx.GetThreadData()->SetException(nsnull); // XXX necessary?
 
+#define HANDLE_OUT_CONVERSION_FAILURE       \
+        {outConversionFailedIndex = i; break;}
+
     // convert out args and result
     // NOTE: this is the total number of native params, not just the args
     // Convert independent params only.
@@ -1746,6 +1702,7 @@ pre_call_clean_up:
     // the params upon which they depend will have already been converted -
     // regardless of ordering.
 
+    outConversionFailedIndex = paramCount;
     foundDependentParam = JS_FALSE;
     for(i = 0; i < paramCount; i++)
     {
@@ -1776,7 +1733,7 @@ pre_call_clean_up:
                 !JS_GetPropertyById(cx, JSVAL_TO_OBJECT(stackbase[i+2]),
                     mRuntime->GetStringID(XPCJSRuntime::IDX_VALUE),
                     &val))
-            break;
+            HANDLE_OUT_CONVERSION_FAILURE
 
         // setup allocator and/or iid
 
@@ -1785,18 +1742,18 @@ pre_call_clean_up:
             if(NS_FAILED(GetInterfaceInfo()->
                             GetIIDForParamNoAlloc(methodIndex, &param,
                                                   &param_iid)))
-                break;
+                HANDLE_OUT_CONVERSION_FAILURE
         }
         else if(type.IsPointer() && !param.IsShared() && !param.IsDipper())
             useAllocator = JS_TRUE;
 
         if(!XPCConvert::JSData2Native(ccx, &pv->val, val, type,
                                       useAllocator, &param_iid, nsnull))
-            break;
+            HANDLE_OUT_CONVERSION_FAILURE
     }
 
     // if any params were dependent, then we must iterate again to convert them.
-    if(foundDependentParam && i == paramCount)
+    if(foundDependentParam && outConversionFailedIndex == paramCount)
     {
         for(i = 0; i < paramCount; i++)
         {
@@ -1826,7 +1783,7 @@ pre_call_clean_up:
             else if(!JS_GetPropertyById(cx, JSVAL_TO_OBJECT(stackbase[i+2]),
                         mRuntime->GetStringID(XPCJSRuntime::IDX_VALUE),
                         &val))
-                break;
+                HANDLE_OUT_CONVERSION_FAILURE
 
             // setup allocator and/or iid
 
@@ -1834,7 +1791,7 @@ pre_call_clean_up:
             {
                 if(NS_FAILED(mInfo->GetTypeForParam(methodIndex, &param, 1,
                                                     &datum_type)))
-                    break;
+                    HANDLE_OUT_CONVERSION_FAILURE
             }
             else
                 datum_type = type;
@@ -1844,7 +1801,7 @@ pre_call_clean_up:
                if(!GetInterfaceTypeFromParam(cx, info, param, methodIndex,
                                              datum_type, nativeParams,
                                              &param_iid))
-                   break;
+                    HANDLE_OUT_CONVERSION_FAILURE
             }
             else if(type.IsPointer() && !param.IsShared())
                 useAllocator = JS_TRUE;
@@ -1854,7 +1811,7 @@ pre_call_clean_up:
                 if(!GetArraySizeFromParam(cx, info, param, methodIndex,
                                           i, GET_LENGTH, nativeParams,
                                           &array_count))
-                    break;
+                    HANDLE_OUT_CONVERSION_FAILURE
             }
 
             if(isArray)
@@ -1865,7 +1822,7 @@ pre_call_clean_up:
                                                datum_type,
                                                useAllocator, &param_iid,
                                                nsnull))
-                    break;
+                    HANDLE_OUT_CONVERSION_FAILURE
             }
             else if(isSizedString)
             {
@@ -1874,19 +1831,19 @@ pre_call_clean_up:
                                                    array_count, array_count,
                                                    datum_type, useAllocator,
                                                    nsnull))
-                    break;
+                    HANDLE_OUT_CONVERSION_FAILURE
             }
             else
             {
                 if(!XPCConvert::JSData2Native(ccx, &pv->val, val, type,
                                               useAllocator, &param_iid,
                                               nsnull))
-                    break;
+                    HANDLE_OUT_CONVERSION_FAILURE
             }
         }
     }
 
-    if(i != paramCount)
+    if(outConversionFailedIndex != paramCount)
     {
         // We didn't manage all the result conversions!
         // We have to cleanup any junk that *did* get converted.
@@ -1977,7 +1934,7 @@ nsXPCWrappedJSClass::DebugDump(PRInt16 depth)
         char * iid = mIID.ToString();
         XPC_LOG_ALWAYS(("IID number is %s", iid ? iid : "invalid"));
         if(iid)
-            NS_Free(iid);
+            PR_Free(iid);
         XPC_LOG_ALWAYS(("InterfaceInfo @ %x", mInfo));
         uint16 methodCount = 0;
         if(depth)

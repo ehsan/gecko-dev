@@ -42,10 +42,11 @@
 #ifndef nsMathMLmsqrtFrame_h___
 #define nsMathMLmsqrtFrame_h___
 
-#include "nsMathMLmencloseFrame.h"
+#include "nsCOMPtr.h"
+#include "nsMathMLContainerFrame.h"
 
 //
-// <msqrt> -- form a radical
+// <msqrt> -- form a fraction from two subexpressions 
 //
 
 /*
@@ -67,26 +68,62 @@ These attributes are inherited by every element from its rendering environment,
 but can be set explicitly only on <mstyle>. (See Section 3.3.4.) 
 */
 
-class nsMathMLmsqrtFrame : public nsMathMLmencloseFrame {
-public:
-  NS_DECL_FRAMEARENA_HELPERS
+/*
+TODO:
+*/
 
-  friend nsIFrame* NS_NewMathMLmsqrtFrame(nsIPresShell*   aPresShell,
-                                          nsStyleContext* aContext);
+class nsMathMLmsqrtFrame : public nsMathMLContainerFrame {
+public:
+  friend nsIFrame* NS_NewMathMLmsqrtFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+
+  virtual void
+  SetAdditionalStyleContext(PRInt32          aIndex, 
+                            nsStyleContext*  aStyleContext);
+  virtual nsStyleContext*
+  GetAdditionalStyleContext(PRInt32 aIndex) const;
 
   NS_IMETHOD
   Init(nsIContent* aContent,
        nsIFrame*   aParent,
        nsIFrame*   aPrevInFlow);
 
+  virtual nsresult
+  Place(nsIRenderingContext& aRenderingContext,
+        PRBool               aPlaceOrigin,
+        nsHTMLReflowMetrics& aDesiredSize);
+
+  virtual nscoord
+  GetIntrinsicWidth(nsIRenderingContext* aRenderingContext);
+
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists);
+
   NS_IMETHOD
-  AttributeChanged(PRInt32         aNameSpaceID,
-                   nsIAtom*        aAttribute,
-                   PRInt32         aModType);
+  InheritAutomaticData(nsIFrame* aParent);
+
+  NS_IMETHOD
+  TransmitAutomaticData();
+
+  // the base method doesn't deal fully with <msqrt> because it only
+  // slides child frames and has no idea that we have a sqrt glyph that
+  // is part of the flow without being a frame. We need to shift our
+  // sqrt glyph too. 
+  virtual nscoord
+  FixInterFrameSpacing(nsHTMLReflowMetrics& aDesiredSize);
 
 protected:
   nsMathMLmsqrtFrame(nsStyleContext* aContext);
   virtual ~nsMathMLmsqrtFrame();
+  
+  virtual PRIntn GetSkipSides() const { return 0; }
+
+  virtual nsresult
+  MeasureChildFrames(nsIRenderingContext& aRenderingContext,
+                     nsHTMLReflowMetrics& aDesiredSize);
+
+  nsMathMLChar mSqrChar;
+  nsRect       mBarRect;
 };
 
 #endif /* nsMathMLmsqrtFrame_h___ */

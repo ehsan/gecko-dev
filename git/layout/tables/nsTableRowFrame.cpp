@@ -70,21 +70,19 @@ struct nsTableCellReflowState : public nsHTMLReflowState
 void nsTableCellReflowState::FixUp(const nsSize& aAvailSpace)
 {
   // fix the mComputed values during a pass 2 reflow since the cell can be a percentage base
-  NS_WARN_IF_FALSE(NS_UNCONSTRAINEDSIZE != aAvailSpace.width,
-                   "have unconstrained width; this should only result from "
-                   "very large sizes, not attempts at intrinsic width "
-                   "calculation");
+  NS_ASSERTION(NS_UNCONSTRAINEDSIZE != aAvailSpace.width,
+               "unconstrained available width in reflow");
   if (NS_UNCONSTRAINEDSIZE != ComputedWidth()) {
     nscoord computedWidth =
       aAvailSpace.width - mComputedBorderPadding.LeftRight();
-    computedWidth = NS_MAX(0, computedWidth);
+    computedWidth = PR_MAX(0, computedWidth);
     SetComputedWidth(computedWidth);
   }
   if (NS_UNCONSTRAINEDSIZE != ComputedHeight() &&
       NS_UNCONSTRAINEDSIZE != aAvailSpace.height) {
     nscoord computedHeight =
       aAvailSpace.height - mComputedBorderPadding.TopBottom();
-    computedHeight = NS_MAX(0, computedHeight);
+    computedHeight = PR_MAX(0, computedHeight);
     SetComputedHeight(computedHeight);
   }
 }
@@ -111,7 +109,7 @@ nsTableRowFrame::InitChildReflowState(nsPresContext&         aPresContext,
 void 
 nsTableRowFrame::SetFixedHeight(nscoord aValue)
 {
-  nscoord height = NS_MAX(0, aValue);
+  nscoord height = PR_MAX(0, aValue);
   if (HasFixedHeight()) {
     if (height > mStyleFixedHeight) {
       mStyleFixedHeight = height;
@@ -129,7 +127,7 @@ void
 nsTableRowFrame::SetPctHeight(float  aPctValue,
                               PRBool aForce)
 {
-  nscoord height = NS_MAX(0, NSToCoordRound(aPctValue * 100.0f));
+  nscoord height = PR_MAX(0, NSToCoordRound(aPctValue * 100.0f));
   if (HasPctHeight()) {
     if ((height > mStylePctHeight) || aForce) {
       mStylePctHeight = height;
@@ -201,19 +199,18 @@ nsTableRowFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 
 NS_IMETHODIMP
 nsTableRowFrame::AppendFrames(nsIAtom*        aListName,
-                              nsFrameList&    aFrameList)
+                              nsIFrame*       aFrameList)
 {
   NS_ASSERTION(!aListName, "unexpected child list");
 
   // Append the frames
-  // XXXbz why do we append here first, then append to table, while
-  // for InsertFrames we do it in the other order?  Bug 507419 covers this.
-  const nsFrameList::Slice& newCells = mFrames.AppendFrames(nsnull, aFrameList);
+  mFrames.AppendFrames(nsnull, aFrameList);
 
   // Add the new cell frames to the table
   nsTableFrame *tableFrame =  nsTableFrame::GetTableFrame(this);
-  for (nsFrameList::Enumerator e(newCells) ; !e.AtEnd(); e.Next()) {
-    nsTableCellFrame *cellFrame = do_QueryFrame(e.get());
+  for (nsIFrame* childFrame = aFrameList; childFrame;
+       childFrame = childFrame->GetNextSibling()) {
+    nsTableCellFrame *cellFrame = do_QueryFrame(childFrame);
     NS_ASSERTION(cellFrame, "Unexpected frame");
     if (cellFrame) {
       // Add the cell to the cell map
@@ -232,7 +229,7 @@ nsTableRowFrame::AppendFrames(nsIAtom*        aListName,
 NS_IMETHODIMP
 nsTableRowFrame::InsertFrames(nsIAtom*        aListName,
                               nsIFrame*       aPrevFrame,
-                              nsFrameList&    aFrameList)
+                              nsIFrame*       aFrameList)
 {
   NS_ASSERTION(!aListName, "unexpected child list");
   NS_ASSERTION(!aPrevFrame || aPrevFrame->GetParent() == this,
@@ -242,13 +239,12 @@ nsTableRowFrame::InsertFrames(nsIAtom*        aListName,
   nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
   
   // gather the new frames (only those which are cells) into an array
-  // XXXbz there shouldn't be any other ones here... can we just put
-  // them all in the array and not do all this QI nonsense?
   nsIAtom* cellFrameType = (tableFrame->IsBorderCollapse()) ? nsGkAtoms::bcTableCellFrame : nsGkAtoms::tableCellFrame;
   nsTableCellFrame* prevCellFrame = (nsTableCellFrame *)nsTableFrame::GetFrameAtOrBefore(this, aPrevFrame, cellFrameType);
   nsTArray<nsTableCellFrame*> cellChildren;
-  for (nsFrameList::Enumerator e(aFrameList); !e.AtEnd(); e.Next()) {
-    nsTableCellFrame *cellFrame = do_QueryFrame(e.get());
+  for (nsIFrame* childFrame = aFrameList; childFrame;
+       childFrame = childFrame->GetNextSibling()) {
+    nsTableCellFrame *cellFrame = do_QueryFrame(childFrame);
     NS_ASSERTION(cellFrame, "Unexpected frame");
     if (cellFrame) {
       cellChildren.AppendElement(cellFrame);
@@ -448,7 +444,7 @@ nscoord nsTableRowFrame::GetRowBaseline()
    while (childFrame) {
     if (IS_TABLE_CELL(childFrame->GetType())) {
       nsIFrame* firstKid = childFrame->GetFirstChild(nsnull);
-      ascent = NS_MAX(ascent, firstKid->GetRect().YMost());
+      ascent = PR_MAX(ascent, firstKid->GetRect().YMost());
     }
     // Get the next child
     childFrame = iter.Next();
@@ -463,9 +459,9 @@ nsTableRowFrame::GetHeight(nscoord aPctBasis) const
     height = NSToCoordRound(GetPctHeight() * (float)aPctBasis);
   }
   if (HasFixedHeight()) {
-    height = NS_MAX(height, GetFixedHeight());
+    height = PR_MAX(height, GetFixedHeight());
   }
-  return NS_MAX(height, GetContentHeight());
+  return PR_MAX(height, GetContentHeight());
 }
 
 void 
@@ -585,22 +581,21 @@ public:
   }
 #endif
 
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
+     const nsRect& aDirtyRect);
   NS_DISPLAY_DECL_NAME("TableRowBackground")
 };
 
 void
 nsDisplayTableRowBackground::Paint(nsDisplayListBuilder* aBuilder,
-                                   nsIRenderingContext* aCtx) {
+    nsIRenderingContext* aCtx, const nsRect& aDirtyRect) {
   nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(mFrame);
 
   nsPoint pt = aBuilder->ToReferenceFrame(mFrame);
   TableBackgroundPainter painter(tableFrame,
                                  TableBackgroundPainter::eOrigin_TableRow,
                                  mFrame->PresContext(), *aCtx,
-                                 mVisibleRect, pt,
-                                 aBuilder->GetBackgroundPaintFlags());
+                                 aDirtyRect, pt);
   painter.PaintRow(static_cast<nsTableRowFrame*>(mFrame));
 }
 
@@ -790,7 +785,7 @@ nscoord CalcHeightFromUnpaginatedHeight(nsPresContext*   aPresContext,
       height -= prevInFlow->GetSize().height;
     }
   }
-  return NS_MAX(height, 0);
+  return PR_MAX(height, 0);
 }
 
 NS_METHOD 
@@ -964,7 +959,7 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
         UpdateHeight(desiredSize.height, ascent, descent, &aTableFrame, cellFrame);
       }
       else {
-        cellMaxHeight = NS_MAX(cellMaxHeight, desiredSize.height);
+        cellMaxHeight = PR_MAX(cellMaxHeight, desiredSize.height);
         PRInt32 rowSpan = aTableFrame.GetEffectiveRowSpan((nsTableCellFrame&)*kidFrame);
         if (1 == rowSpan) {
           SetContentHeight(cellMaxHeight);
@@ -1012,7 +1007,7 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
     aDesiredSize.height = CalcHeight(aReflowState);
     if (GetPrevInFlow()) {
       nscoord height = CalcHeightFromUnpaginatedHeight(aPresContext, *this);
-      aDesiredSize.height = NS_MAX(aDesiredSize.height, height);
+      aDesiredSize.height = PR_MAX(aDesiredSize.height, height);
     }
     else {
       if (isPaginated && HasStyleHeight()) {
@@ -1021,7 +1016,7 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
         SetUnpaginatedHeight(aPresContext, aDesiredSize.height);
       }
       if (isPaginated && HasUnpaginatedHeight()) {
-        aDesiredSize.height = NS_MAX(aDesiredSize.height, GetUnpaginatedHeight(aPresContext));
+        aDesiredSize.height = PR_MAX(aDesiredSize.height, GetUnpaginatedHeight(aPresContext));
       }
     }
   }
@@ -1033,7 +1028,7 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
       styleHeight = aReflowState.availableHeight;
       NS_FRAME_SET_INCOMPLETE(aStatus);
     }
-    aDesiredSize.height = NS_MAX(cellMaxHeight, styleHeight);
+    aDesiredSize.height = PR_MAX(cellMaxHeight, styleHeight);
   }
   nsRect rowRect(0, 0, aDesiredSize.width, aDesiredSize.height);
   aDesiredSize.mOverflowArea.UnionRect(aDesiredSize.mOverflowArea, rowRect);
@@ -1312,11 +1307,19 @@ nsTableRowFrame::CollapseRowIfNecessary(nscoord aRowOffset,
   return shift;
 }
 
-/*
- * The following method is called by the row group frame's SplitRowGroup()
- * when it creates a continuing cell frame and wants to insert it into the
- * row's child list.
+
+/**
+ * These 3 functions are called by the row group frame's SplitRowGroup() code when
+ * it creates a continuing cell frame and wants to insert it into the row's child list
  */
+void 
+nsTableRowFrame::InsertCellFrame(nsTableCellFrame* aFrame,
+                                 nsTableCellFrame* aPrevSibling)
+{
+  mFrames.InsertFrame(nsnull, aPrevSibling, aFrame);
+  aFrame->SetParent(this);
+}
+
 void 
 nsTableRowFrame::InsertCellFrame(nsTableCellFrame* aFrame,
                                  PRInt32           aColIndex)
@@ -1335,7 +1338,14 @@ nsTableRowFrame::InsertCellFrame(nsTableCellFrame* aFrame,
       else break;
     }
   }
-  mFrames.InsertFrame(this, priorCell, aFrame);
+  InsertCellFrame(aFrame, priorCell);
+}
+
+void 
+nsTableRowFrame::RemoveCellFrame(nsTableCellFrame* aFrame)
+{
+  if (!mFrames.RemoveFrame(aFrame))
+    NS_ASSERTION(PR_FALSE, "frame not in list");
 }
 
 nsIAtom*
@@ -1432,8 +1442,6 @@ NS_NewTableRowFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsTableRowFrame(aContext);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsTableRowFrame)
 
 #ifdef DEBUG
 NS_IMETHODIMP

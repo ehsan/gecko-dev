@@ -90,9 +90,9 @@ interface nsIGeolocationUpdate : nsISupports {
  * Interface provides location information to the nsGeolocator
  * via the nsIDOMGeolocationCallback interface.  After
  * startup is called, any geo location change should call
- * callback.update().
+ * callback.onRequest().
  */
-[scriptable, uuid(701413ED-0F51-64F7-71C7-4369D8E07D6E)]
+[scriptable, uuid(5C819505-8804-496E-9CB2-53089B3DD4EF)]
 interface nsIGeolocationProvider : nsISupports {
 
   /**
@@ -100,6 +100,12 @@ interface nsIGeolocationProvider : nsISupports {
    * method.  may be called multiple times.
    */
   void startup();
+
+  /**
+   * Returns true when the devices is ready and has a
+   * postion, otherwise false.
+   */
+   boolean isReady();
 
   /**
    * watch

@@ -117,8 +117,6 @@ class nsMenuPopupFrame;
 class nsMenuPopupFrame : public nsBoxFrame, public nsMenuParent
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   nsMenuPopupFrame(nsIPresShell* aShell, nsStyleContext* aContext);
 
   // nsMenuParent interface
@@ -188,10 +186,10 @@ public:
 
   void EnsureWidget();
 
-  nsresult CreateWidgetForView(nsIView* aView);
+  virtual nsresult CreateWidgetForView(nsIView* aView);
 
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
-                                 nsFrameList&    aChildList);
+                                 nsIFrame*       aChildList);
 
   virtual PRBool IsLeaf() const;
 

@@ -45,6 +45,7 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE    = xulrunner
 
+REQUIRES  = xpcom string xulapp
 
 CPPSRCS   = nsXULStub.cpp
 
@@ -66,7 +67,7 @@ LIBS = \
   $(NULL)
 
 # Need to link with CoreFoundation on Mac
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 LIBS            += \
 		$(TK_LIBS) \
 		$(NULL)

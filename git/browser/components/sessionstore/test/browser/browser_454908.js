@@ -51,7 +51,6 @@ function test() {
     "browser/components/sessionstore/test/browser/browser_454908_sample.html";
   let tab = gBrowser.addTab(testURL);
   tab.linkedBrowser.addEventListener("load", function(aEvent) {
-    tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
     let doc = tab.linkedBrowser.contentDocument;
     for (let id in fieldValues)
       doc.getElementById(id).value = fieldValues[id];
@@ -60,7 +59,6 @@ function test() {
     
     tab = undoCloseTab();
     tab.linkedBrowser.addEventListener("load", function(aEvent) {
-      tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
       let doc = tab.linkedBrowser.contentDocument;
       for (let id in fieldValues) {
         let node = doc.getElementById(id);
@@ -71,8 +69,7 @@ function test() {
       }
       
       // clean up
-      if (gPrefService.prefHasUserValue("browser.sessionstore.privacy_level"))
-        gPrefService.clearUserPref("browser.sessionstore.privacy_level");
+      gPrefService.clearUserPref("browser.sessionstore.privacy_level");
       // undoCloseTab can reuse a single blank tab, so we have to
       // make sure not to close the window when closing our last tab
       if (gBrowser.tabContainer.childNodes.length == 1)

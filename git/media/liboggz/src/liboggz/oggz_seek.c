@@ -36,7 +36,11 @@
  * Conrad Parker <conrad@annodex.net>
  */
 
+#ifdef WIN32
+#include "config_win32.h"
+#else
 #include "config.h"
+#endif
 
 #if OGGZ_CONFIG_READ
 
@@ -159,7 +163,7 @@ oggz_reset_seek (OGGZ * oggz, oggz_off_t offset, ogg_int64_t unit, int whence)
   printf ("reset to %" PRI_OGGZ_OFF_T "d\n", offset_at);
 #endif
 
-  reader->current_unit = unit;
+  if (unit != -1) reader->current_unit = unit;
 
   return offset_at;
 }
@@ -496,13 +500,15 @@ oggz_scan_for_page (OGGZ * oggz, ogg_page * og, ogg_int64_t unit_target,
 
 #define GUESS_MULTIPLIER (1<<16)
 
-static ogg_int64_t
+static oggz_off_t
 guess (ogg_int64_t unit_at, ogg_int64_t unit_target,
        ogg_int64_t unit_begin, ogg_int64_t unit_end,
-       ogg_int64_t offset_begin, ogg_int64_t offset_end)
+       oggz_off_t offset_begin, oggz_off_t offset_end)
 {
   ogg_int64_t guess_ratio;
-  ogg_int64_t offset_guess;
+  oggz_off_t offset_guess;
+
+  if (unit_at == unit_begin) return offset_begin;
 
   if (unit_end != -1) {
     guess_ratio =
@@ -514,33 +520,35 @@ guess (ogg_int64_t unit_at, ogg_int64_t unit_target,
       (unit_at - unit_begin);
   }
 
-  offset_guess = offset_begin +
-    (((offset_end - offset_begin) * guess_ratio) /
-		 GUESS_MULTIPLIER);
-
 #ifdef DEBUG
-  printf("guess: [o=%lld t=%lld]-[o=%lld t=%lld] guess_ratio=%lf offset_guess=%lu\n",
-	       offset_begin, unit_begin, offset_end, unit_end,
-	       ((double)guess_ratio / (double)GUESS_MULTIPLIER), offset_guess);
+  printf ("oggz_seek::guess: guess_ratio %lld = (%lld - %lld) / (%lld - %lld)\n",
+	  guess_ratio, unit_target, unit_begin, unit_at, unit_begin);
 #endif
-
+  
+  offset_guess = offset_begin +
+    (oggz_off_t)(((offset_end - offset_begin) * guess_ratio) /
+		 GUESS_MULTIPLIER);
+  
   return offset_guess;
 }
 
-static ogg_int64_t
-oggz_seek_guess (ogg_int64_t unit_at,
-                 ogg_int64_t unit_target,
-                 ogg_int64_t unit_begin,
-                 ogg_int64_t unit_end,
-                 oggz_off_t offset_at,
-                 oggz_off_t offset_begin,
-                 oggz_off_t offset_end)
+static oggz_off_t
+oggz_seek_guess (ogg_int64_t unit_at, ogg_int64_t unit_target,
+		 ogg_int64_t unit_begin, ogg_int64_t unit_end,
+		 oggz_off_t offset_at,
+		 oggz_off_t offset_begin, oggz_off_t offset_end)
 {
   oggz_off_t offset_guess;
-  if (unit_end == -1) {
+
+  if (unit_at == unit_begin) {
+    offset_guess = offset_begin + (offset_end - offset_begin)/2;
+  } else if (unit_end == -1) {
     offset_guess = guess (unit_at, unit_target, unit_begin, unit_end,
 			  offset_begin, offset_at);
   } else if (unit_end <= unit_begin) {
+#ifdef DEBUG
+    printf ("oggz_seek_guess: unit_end <= unit_begin (ERROR)\n");
+#endif
     offset_guess = -1;
   } else {
     offset_guess = guess (unit_at, unit_target, unit_begin, unit_end,
@@ -614,22 +622,15 @@ oggz_offset_end (OGGZ * oggz)
   return offset_end;
 }
 
-static int
-is_header_page(ogg_page* page)
-{
-  return page && page->header[5] & 0x2;
-}
-
 ogg_int64_t
 oggz_bounded_seek_set (OGGZ * oggz,
                        ogg_int64_t unit_target,
                        ogg_int64_t offset_begin,
-                       ogg_int64_t offset_end,
-                       int fuzz_margin)
+                       ogg_int64_t offset_end)
 {
   OggzReader * reader;
-  ogg_int64_t offset_orig, offset_at, offset_guess;
-  ogg_int64_t offset_next;
+  oggz_off_t offset_orig, offset_at, offset_guess;
+  oggz_off_t offset_next;
   ogg_int64_t granule_at;
   ogg_int64_t unit_at, unit_begin = -1, unit_end = -1, unit_last_iter = -1;
   long serialno;
@@ -687,20 +688,8 @@ oggz_bounded_seek_set (OGGZ * oggz,
   }
 
   if (unit_begin == -1 && oggz_seek_raw (oggz, offset_begin, SEEK_SET) >= 0) {
-    ogg_int64_t granulepos = 0;
-    unit_begin = 0;
-    
-    // Take the start time of the range as the end time of the next page. Note
-    // that if unit_target lies inside that page, its timestamp will be less
-    // than the page's end time, and it will be considered outside of the range.
-    // If the next page is a header page, we're at the start of the media,
-    // and in such a case we can't take the next content-page's granulepos's
-    // timestamp as unit_begin, as if the target lies inside this page, we'll
-    // miss it. Assume unit_begin is 0 in that case. See Mozilla bug 518169.
-    while (oggz_get_next_start_page (oggz, og) >= 0 &&
-           !is_header_page(og) &&
-           unit_begin <= 0)
-    {
+    ogg_int64_t granulepos;
+    if (oggz_get_next_start_page (oggz, og) >= 0) {
       serialno = ogg_page_serialno (og);
       granulepos = ogg_page_granulepos (og);
       unit_begin = oggz_get_unit (oggz, serialno, granulepos);
@@ -708,10 +697,8 @@ oggz_bounded_seek_set (OGGZ * oggz,
   }
 
   /* Fail if target isn't in specified range. */
-  if (unit_target < unit_begin || unit_target > unit_end) {
-    oggz_reset (oggz, offset_orig, unit_at, SEEK_SET);
+  if (unit_target < unit_begin || unit_target > unit_end)
     return -1;
-  }
 
   /* Reduce the search range if possible using read cursor position. */
   if (unit_at > unit_begin && unit_at < unit_end) {
@@ -750,11 +737,9 @@ oggz_bounded_seek_set (OGGZ * oggz,
     if (offset_guess > offset_end) {
       offset_guess = offset_end;
       offset_at = oggz_seek_raw (oggz, offset_guess, SEEK_SET);
-      if (offset_at == -1) return -1;
       offset_next = oggz_get_prev_start_page (oggz, og, &granule_at, &serialno);
     } else {
       offset_at = oggz_seek_raw (oggz, offset_guess, SEEK_SET);
-      if (offset_at == -1) return -1;
       offset_next = oggz_get_next_start_page (oggz, og);
       serialno = ogg_page_serialno (og);
       granule_at = ogg_page_granulepos (og);
@@ -762,19 +747,18 @@ oggz_bounded_seek_set (OGGZ * oggz,
 
     unit_at = oggz_get_unit (oggz, serialno, granule_at);
 
-    if (abs(unit_at - unit_target) < fuzz_margin) {
-      // Within fuzz_margin of target, stop.
-      break;
-    }
-
 #ifdef DEBUG
     printf ("oggz_bounded_seek_set: offset_next %" PRI_OGGZ_OFF_T "d\n", offset_next);
+#endif
+    if (unit_at == unit_last_iter) break;
+
+#ifdef DEBUG
     printf ("oggz_bounded_seek_set: [D] want u%lld, got page u%lld @%" PRI_OGGZ_OFF_T "d g%lld\n",
 	    unit_target, unit_at, offset_at, granule_at);
 #endif
 
     if (unit_at < unit_target) {
-      offset_begin = offset_next;
+      offset_begin = offset_at;
       unit_begin = unit_at;
       if (unit_end == unit_begin) break;
     } else if (unit_at > unit_target) {
@@ -786,11 +770,24 @@ oggz_bounded_seek_set (OGGZ * oggz,
     }
   }
 
-   /* Reader is now approximately at the seek target. */
+  do {
+    offset_at = oggz_get_prev_start_page (oggz, og, &granule_at, &serialno);
+    if (offset_at < 0)
+      break;
+    unit_at = oggz_get_unit (oggz, serialno, granule_at);
+  } while (unit_at > unit_target);
 
-  offset_at = oggz_reset (oggz, offset_next, unit_at, SEEK_SET);
-  if (offset_at == -1)
+  if (offset_at < 0) {
+    oggz_reset (oggz, offset_orig, -1, SEEK_SET);
     return -1;
+  }
+
+  offset_at = oggz_reset (oggz, offset_at, unit_at, SEEK_SET);
+  if (offset_at == -1) return -1;
+
+#ifdef DEBUG
+  printf ("oggz_bounded_seek_set: FOUND (%lld)\n", unit_at);
+#endif
 
   return (long)reader->current_unit;
 }
@@ -803,7 +800,6 @@ oggz_seek_end (OGGZ * oggz, ogg_int64_t unit_offset)
   ogg_int64_t unit_end;
   long serialno;
   ogg_page * og;
-  OggzReader * reader = &oggz->x.reader;
 
   og = &oggz->current_page;
 
@@ -814,29 +810,19 @@ oggz_seek_end (OGGZ * oggz, ogg_int64_t unit_offset)
 
   offset_end = oggz_get_prev_start_page (oggz, og, &granulepos, &serialno);
 
+  unit_end = oggz_get_unit (oggz, serialno, granulepos);
+
   if (offset_end < 0) {
     oggz_reset (oggz, offset_orig, -1, SEEK_SET);
     return -1;
   }
 
-  unit_end = oggz_get_unit (oggz, serialno, granulepos);
-  
 #ifdef DEBUG
   printf ("*** oggz_seek_end: found packet (%lld) at @%" PRI_OGGZ_OFF_T "d [%lld]\n",
 	  unit_end, offset_end, granulepos);
 #endif
 
-  if (unit_end == -1) {
-    /* Failed to get time at the end, reset and fail. */
-    oggz_reset (oggz, offset_orig, -1, SEEK_SET);
-    return -1;
-  }
-
-  reader->current_unit = unit_end;
-  if (unit_offset == 0) {
-    return unit_end;
-  }
-  return oggz_bounded_seek_set (oggz, unit_end + unit_offset, 0, -1, 0);
+  return oggz_bounded_seek_set (oggz, unit_end + unit_offset, 0, -1);
 }
 
 off_t
@@ -895,11 +881,11 @@ oggz_seek_units (OGGZ * oggz, ogg_int64_t units, int whence)
 
   switch (whence) {
   case SEEK_SET:
-    r = oggz_bounded_seek_set (oggz, units, 0, -1, 0);
+    r = oggz_bounded_seek_set (oggz, units, 0, -1);
     break;
   case SEEK_CUR:
     units += reader->current_unit;
-    r = oggz_bounded_seek_set (oggz, units, 0, -1, 0);
+    r = oggz_bounded_seek_set (oggz, units, 0, -1);
     break;
   case SEEK_END:
     r = oggz_seek_end (oggz, units);
@@ -957,65 +943,125 @@ oggz_seek_packets (OGGZ * oggz, long serialno, long packets, int whence)
 
 #endif
 
-// Returns the maximum time in milliseconds by which a key frame could be
-// offset for a given stream. Ogg granulepos encode time as:
-// ((key_frame_number << granule_shift) + frame_offset).
-// Therefore the maximum possible time by which any frame could be offset
-// from a keyframe is the duration of (1 << granule_shift) - 1) frames.
-static ogg_int64_t
-get_keyframe_offset(oggz_stream_t* stream) {
-  ogg_int64_t frame_duration;
-  ogg_int64_t keyframe_diff;
-
-  if (stream->granuleshift == 0)
-    return 0;
-
-  // Max number of frames keyframe could possibly be offset.
-  keyframe_diff = (1 << stream->granuleshift) - 1;
-
-  // Length of frame in ms.
-  frame_duration = stream->granulerate_d / stream->granulerate_n;
-
-  return frame_duration * keyframe_diff;
+// Returns 1 if any of the elements of array |a|, which is of length |n|,
+// contain the value |val|. Otherwise returns 0.
+static int
+is_any(ogg_int64_t* a, int n, ogg_int64_t val)
+{
+  int i;
+  for (i=0; i<n; i++) {
+    if (a[i] == val) {
+      return 1;
+    }
+  }
+  return 0;    
 }
 
-// Returns the maximum possible time by which a keyframe could be offset in
-// milliseconds, for all streams in the media.
-static ogg_int64_t
-get_max_keyframe_offset(OGGZ* oggz) {
-  int i=0, size = 0, max_gshift = 0;
-  ogg_int64_t max = 0, x;
-  oggz_stream_t* stream = 0;
-  size = oggz_vector_size (oggz->streams);
-  for (i = 0; i < size; i++) {
-    stream = (oggz_stream_t *)oggz_vector_nth_p (oggz->streams, i);
-    if (!stream) continue;
-    x = get_keyframe_offset(stream);
-    if (x > max)
-      max = x;
+// Returns the index of the element in array |a|, which is of length |n|,
+// which contains the value |val|, or -1 of it's not present.
+static int
+find(long* a, int n, ogg_int64_t val)
+{
+  int i;
+  for (i=0; i<n; i++) {
+    if (a[i] == val) {
+      return i;
+    }
   }
-  return max;
+  return -1;    
+}
+
+// Returns the element with the smallest value in array |a|, which is
+// of length |n|.
+static ogg_int64_t
+minimum(ogg_int64_t* a, int n) {
+  ogg_int64_t m = 0x7FFFFFFFFFFFFFFF;
+  int i;
+  for (i=0; i<n; i++) {
+    if (a[i] < m) {
+      m = a[i];
+    }
+  }
+  return m;
 }
 
 ogg_int64_t
 oggz_keyframe_seek_set(OGGZ * oggz,
+                       long* serial_nos,
+                       int num_serialno,
                        ogg_int64_t unit_target,
                        ogg_int64_t offset_begin,
                        ogg_int64_t offset_end)
 {
+  oggz_off_t offset_at;
+  oggz_off_t offset_next;
+  ogg_int64_t granule_at;
   ogg_int64_t unit_at;
-  ogg_int64_t max_keyframe_offset;
-  const ogg_int64_t fuzz = 500;
-  ogg_int64_t keyframe_unit_target;
-
-  max_keyframe_offset = get_max_keyframe_offset(oggz);
-
-  keyframe_unit_target = MAX(0, unit_target - max_keyframe_offset - fuzz);
-
+  ogg_int64_t key_granule_at, key_unit_at;
+  long serialno;
+  ogg_page * og;
+  int granule_shift = 0, idx;
+  ogg_int64_t* key_frames = 0;
+  
   unit_at = oggz_bounded_seek_set(oggz,
-                                  keyframe_unit_target,
+                                  unit_target,
                                   offset_begin,
-                                  offset_end,
-                                  fuzz);
+                                  offset_end);
+  // Time isn't in the specified offset range, fail.
+  if (unit_at == -1)
+    return -1;
+
+  // We've seeked to beginning, we're at a key frame.
+  if (unit_at == 0)
+    return 0; 
+
+  // Backup this, in case we need to fail.
+  offset_at = oggz->offset;
+
+  key_frames = oggz_malloc(sizeof(ogg_int64_t) * num_serialno);
+  if (!key_frames) {
+    // Malloc failure. We can still exit with the seek finishing at a non
+    // key frame.
+    return unit_at;
+  }
+  memset(key_frames, -1, sizeof(ogg_int64_t) * num_serialno);
+
+  // Find the key frame offset for every stream.
+  og = &oggz->current_page;
+  while (is_any(key_frames, num_serialno, -1)) {
+    do {
+      offset_next = oggz_get_prev_start_page (oggz, og, &granule_at, &serialno);
+      if (offset_next <= 0 || granule_at == 0) {
+        // At beginning of file, or some other failure. Return with
+        // non-key frame seek if possible.
+        oggz_free(key_frames);
+        offset_at = oggz_reset (oggz, offset_at, unit_at, SEEK_SET);
+        return (offset_at == -1) ? -1 : unit_at;
+      }
+    } while (granule_at < 0);
+
+    idx = find(serial_nos, num_serialno, serialno);
+    if (idx == -1 || key_frames[idx] != -1)
+      continue;
+
+    granule_shift = oggz_get_granuleshift(oggz, serialno);
+    key_granule_at = (granule_at >> granule_shift) << granule_shift;
+    key_unit_at = oggz_get_unit(oggz, serialno, key_granule_at);
+
+    if (key_unit_at < unit_target)
+      key_frames[idx] = key_unit_at;
+  }
+
+  // Seek to 100ms before the earliest of all the streams' key frames.
+  // This is so that after the seek, the decoder will defintately return frames
+  // at or before get the key frame. Without this, some decoders will return
+  // frames which start after the specified time - after the key frame.
+  key_unit_at = minimum(key_frames, num_serialno);
+  unit_at = oggz_bounded_seek_set(oggz,
+                                  MAX((key_unit_at - 100), 0),
+                                  offset_begin,
+                                  offset_end);
+  oggz_free(key_frames);
+
   return unit_at;
 }

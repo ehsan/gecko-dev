@@ -48,7 +48,6 @@
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIDOMWindow.h"
 #include "xpcJSWeakReference.h"
-#include "XPCNativeWrapper.h"
 #include "XPCWrapper.h"
 
 #ifdef MOZ_JSLOADER
@@ -1533,10 +1532,10 @@ public:
     virtual ~nsXPCComponents_ID();
 
 private:
-    static nsresult CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
-                                    JSContext * cx, JSObject * obj,
-                                    PRUint32 argc, jsval * argv,
-                                    jsval * vp, PRBool *_retval);
+    NS_METHOD CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
+                              JSContext * cx, JSObject * obj,
+                              PRUint32 argc, jsval * argv,
+                              jsval * vp, PRBool *_retval);
 };
 
 /***************************************************************************/
@@ -1676,8 +1675,7 @@ nsXPCComponents_ID::Construct(nsIXPConnectWrappedNative *wrapper, JSContext * cx
     return CallOrConstruct(wrapper, cx, obj, argc, argv, vp, _retval);
 }
 
-// static
-nsresult
+NS_METHOD
 nsXPCComponents_ID::CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
                                     JSContext * cx, JSObject * obj,
                                     PRUint32 argc, jsval * argv,
@@ -1761,10 +1759,10 @@ public:
     virtual ~nsXPCComponents_Exception();
 
 private:
-    static nsresult CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
-                                    JSContext * cx, JSObject * obj,
-                                    PRUint32 argc, jsval * argv,
-                                    jsval * vp, PRBool *_retval);
+    NS_METHOD CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
+                              JSContext * cx, JSObject * obj,
+                              PRUint32 argc, jsval * argv,
+                              jsval * vp, PRBool *_retval);
 };
 
 /***************************************************************************/
@@ -1904,8 +1902,7 @@ nsXPCComponents_Exception::Construct(nsIXPConnectWrappedNative *wrapper, JSConte
     return CallOrConstruct(wrapper, cx, obj, argc, argv, vp, _retval);
 }
 
-// static
-nsresult
+NS_METHOD
 nsXPCComponents_Exception::CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
                                            JSContext * cx, JSObject * obj,
                                            PRUint32 argc, jsval * argv,
@@ -2051,10 +2048,10 @@ public:
     virtual ~nsXPCConstructor();
 
 private:
-    nsresult CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
-                             JSContext * cx, JSObject * obj,
-                             PRUint32 argc, jsval * argv,
-                             jsval * vp, PRBool *_retval);
+    NS_METHOD CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
+                              JSContext * cx, JSObject * obj,
+                              PRUint32 argc, jsval * argv,
+                              jsval * vp, PRBool *_retval);
 private:
     nsIJSCID* mClassID;
     nsIJSIID* mInterfaceID;
@@ -2230,8 +2227,7 @@ nsXPCConstructor::Construct(nsIXPConnectWrappedNative *wrapper, JSContext * cx, 
     return CallOrConstruct(wrapper, cx, obj, argc, argv, vp, _retval);
 }
 
-// static
-nsresult
+NS_METHOD
 nsXPCConstructor::CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
                                   JSContext * cx, JSObject * obj,
                                   PRUint32 argc, jsval * argv,
@@ -2321,10 +2317,10 @@ public:
     virtual ~nsXPCComponents_Constructor();
 
 private:
-    static nsresult CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
-                                    JSContext * cx, JSObject * obj,
-                                    PRUint32 argc, jsval * argv,
-                                    jsval * vp, PRBool *_retval);
+    NS_METHOD CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
+                              JSContext * cx, JSObject * obj,
+                              PRUint32 argc, jsval * argv,
+                              jsval * vp, PRBool *_retval);
 };
 
 /***************************************************************************/
@@ -2463,8 +2459,7 @@ nsXPCComponents_Constructor::Construct(nsIXPConnectWrappedNative *wrapper, JSCon
     return CallOrConstruct(wrapper, cx, obj, argc, argv, vp, _retval);
 }
 
-// static
-nsresult
+NS_METHOD
 nsXPCComponents_Constructor::CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
                                              JSContext * cx, JSObject * obj,
                                              PRUint32 argc, jsval * argv,
@@ -2663,10 +2658,13 @@ public:
     virtual ~nsXPCComponents_utils_Sandbox();
 
 private:
-    static nsresult CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
-                                    JSContext * cx, JSObject * obj,
-                                    PRUint32 argc, jsval * argv,
-                                    jsval * vp, PRBool *_retval);
+    // XXXjst: This method (and other CallOrConstruct()'s in this
+    // file) doesn't need to be virtual, could even be a static
+    // method!
+    NS_METHOD CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
+                              JSContext * cx, JSObject * obj,
+                              PRUint32 argc, jsval * argv,
+                              jsval * vp, PRBool *_retval);
 };
 
 class nsXPCComponents_Utils :
@@ -2735,15 +2733,7 @@ MethodWrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
 
     if (JSVAL_IS_PRIMITIVE(*rval))
        return JS_TRUE;
-
-    XPCWrappedNative *wn =
-        XPCWrappedNative::GetAndMorphWrappedNativeOfJSObject(cx, JSVAL_TO_OBJECT(*rval));
-    if (!wn) {
-        XPCThrower::Throw(NS_ERROR_UNEXPECTED, cx);
-        return JS_FALSE;
-    }
-
-    return XPCNativeWrapper::CreateExplicitWrapper(cx, wn, JS_TRUE, rval);
+    return XPCNativeWrapperCtor(cx, nsnull, 1, rval, rval);
 }
 
 /* void lookupMethod (); */
@@ -3311,8 +3301,7 @@ nsXPCComponents_utils_Sandbox::Construct(nsIXPConnectWrappedNative *wrapper,
     return CallOrConstruct(wrapper, cx, obj, argc, argv, vp, _retval);
 }
 
-// static
-nsresult
+NS_IMETHODIMP
 nsXPCComponents_utils_Sandbox::CallOrConstruct(nsIXPConnectWrappedNative *wrapper,
                                                JSContext * cx, JSObject * obj,
                                                PRUint32 argc, jsval * argv,
@@ -3416,7 +3405,6 @@ ContextHolder::ContextHolder(JSContext *aOuterCx, JSObject *aSandbox)
 {
     if(mJSContext)
     {
-        JSAutoRequest ar(mJSContext);
         JS_SetOptions(mJSContext,
                       JSOPTION_DONT_REPORT_UNCAUGHT |
                       JSOPTION_PRIVATE_IS_NSISUPPORTS);

@@ -54,9 +54,8 @@ sub daysFromBuildID
     $d || die("Unrecognized buildid string.");
 
     my $secondstodays = 60 * 60 * 24;
-    return sprintf("%d",
-		   (POSIX::mktime(00, 00, 00, $d, $m - 1, $y - 1900) -
-		    POSIX::mktime(00, 00, 00, 01, 00, 100)) / $secondstodays);
+    return (POSIX::mktime(00, 00, 00, $d, $m - 1, $y - 1900) -
+            POSIX::mktime(00, 00, 00, 01, 00, 100)) / $secondstodays;
 }
 
 #Creates version resource file
@@ -76,6 +75,7 @@ sub daysFromBuildID
 # BINARY - Holds the name of the binary file
 # DISPNAME - Holds the display name of the built application
 # APPVERSION - Holds the version string of the built application
+# BITS - 16 or 32 bit
 # RCINCLUDE - Holds the name of the RC File to include or ""
 # QUIET - Turns off output
 
@@ -104,7 +104,7 @@ sub getNextEntry
 	return undef;
 }
 
-my ($quiet,$objdir,$debug,$official,$milestone,$buildid,$module,$binary,$depth,$rcinclude,$srcdir,$fileversion,$productversion);
+my ($quiet,$objdir,$debug,$official,$milestone,$buildid,$module,$binary,$depth,$rcinclude,$bits,$srcdir,$fileversion,$productversion);
 
 GetOptions( "QUIET" => \$quiet,
 		"DEBUG=s" => \$debug,
@@ -118,7 +118,8 @@ GetOptions( "QUIET" => \$quiet,
 		"TOPSRCDIR=s" => \$topsrcdir,
 		"DEPTH=s" => \$depth,
 		"RCINCLUDE=s" => \$rcinclude,
-		"OBJDIR=s" => \$objdir);
+		"OBJDIR=s" => \$objdir,
+		"BITS=s" => \$bits);
 if (!defined($debug)) {$debug="";}
 if (!defined($official)) {$official="";}
 if (!defined($milestone)) {$milestone="";}
@@ -131,6 +132,7 @@ if (!defined($rcinclude)) {$rcinclude="";}
 if (!defined($objdir)) {$objdir=".";}
 if (!defined($srcdir)) {$srcdir=".";}
 if (!defined($topsrcdir)) {$topsrcdir=".";}
+if (!defined($bits)) {$bits="";}
 my $mfversion = "Personal";
 my $mpversion = "Personal";
 my @fileflags = ("0");
@@ -141,6 +143,9 @@ if (!defined($module))
 	$module = $binary;
 	($module) = split(/\./,$module);
 }
+
+my $fileos = "VOS__WINDOWS32";
+if ($bits eq "16") { $fileos="VOS__WINDOWS16"; }
 
 my $bufferstr="    ";
 
@@ -405,7 +410,7 @@ print RCFILE qq{
  PRODUCTVERSION $productversion
  FILEFLAGSMASK 0x3fL
  FILEFLAGS $fileflags
- FILEOS VOS__WINDOWS32
+ FILEOS $fileos
  FILETYPE VFT_DLL
  FILESUBTYPE 0x0L
 BEGIN

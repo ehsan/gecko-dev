@@ -48,8 +48,7 @@
 #include "nsIServiceManager.h"
 #include "nsIAtom.h"
 #include "nsQuickSort.h"
-#include "nsIPrefBranch.h"
-#include "nsIPrefService.h"
+#include "nsIPref.h"
 
 #include "nsIContent.h"
 #include "nsIDocument.h"
@@ -58,6 +57,7 @@
 #include "nsIPresShell.h"
 #include "nsIViewManager.h"
 #include "nsIFrame.h"
+#include "nsIFrameDebug.h"
 
 #include "nsILayoutDebugger.h"
 #include "nsLayoutCID.h"
@@ -148,9 +148,7 @@ NS_IMPL_ISUPPORTS1(nsLayoutDebuggingTools, nsILayoutDebuggingTools)
 NS_IMETHODIMP
 nsLayoutDebuggingTools::Init(nsIDOMWindow *aWin)
 {
-    mPrefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-    if (!mPrefs)
-        return NS_ERROR_UNEXPECTED;
+    mPrefs = do_GetService(NS_PREF_CONTRACTID);
 
     {
         nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aWin);
@@ -428,13 +426,15 @@ nsLayoutDebuggingTools::DumpContent()
 static void
 DumpFramesRecur(nsIDocShell* aDocShell, FILE* out)
 {
-#ifdef DEBUG
     fprintf(out, "webshell=%p \n", static_cast<void*>(aDocShell));
     nsCOMPtr<nsIPresShell> shell(pres_shell(aDocShell));
     if (shell) {
         nsIFrame* root = shell->GetRootFrame();
         if (root) {
-            root->List(out, 0);
+            nsIFrameDebug* fdbg = do_QueryFrame(root);
+            if (fdbg) {
+                fdbg->List(out, 0);
+            }
         }
     }
     else {
@@ -453,7 +453,6 @@ DumpFramesRecur(nsIDocShell* aDocShell, FILE* out)
             DumpFramesRecur(childAsShell, out);
         }
     }
-#endif
 }
 
 NS_IMETHODIMP
@@ -580,9 +579,7 @@ nsLayoutDebuggingTools::SetBoolPrefAndRefresh(const char * aPrefName,
     NS_ENSURE_TRUE(mPrefs && aPrefName, NS_OK);
 
     mPrefs->SetBoolPref(aPrefName, aNewVal);
-    nsCOMPtr<nsIPrefService> prefService = do_QueryInterface(mPrefs);
-    NS_ENSURE_STATE(prefService);
-    prefService->SavePrefFile(nsnull);
+    mPrefs->SavePrefFile(nsnull);
 
     ForceRefresh();
 

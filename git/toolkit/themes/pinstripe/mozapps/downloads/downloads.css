@@ -1,5 +1,3 @@
-%include ../../global/shared.inc
-
 #downloadView {
   -moz-appearance: none;
   margin: 0;
@@ -120,22 +118,21 @@ richlistitem[type="download"] button {
   min-width: 0;
   margin: 0 6px;
   padding: 0 2px;
-  text-shadow: @loweredShadow@;
-  border: 1px solid @toolbarbuttonBorderColor@;
-  -moz-border-radius: @toolbarbuttonCornerRadius@;
-  -moz-box-shadow: @loweredShadow@;
-  background: @toolbarbuttonBackground@;
-  -moz-background-origin: border;
+  text-shadow: rgba(255, 255, 255, 0.4) 0 1px;
+  border: 1px solid rgba(0, 0, 0, 0.6);
+  -moz-border-radius: 3px;
+  -moz-box-shadow: rgba(255, 255, 255, 0.4) 0 1px;
+  background: url("chrome://global/skin/toolbar/white-transparent-gradient.png") repeat-x #B4B4B4;
 }
 
 #clearListButton:hover:active:not([disabled="true"]) {
-  background: @toolbarbuttonPressedBackgroundColor@;
-  text-shadow: @loweredShadow@;
-  -moz-box-shadow: @toolbarbuttonPressedInnerShadow@, @loweredShadow@;
+  background: #B5B5B5;
+  text-shadow: rgba(255, 255, 255, 0.4) 0 1px;
+  -moz-box-shadow: inset rgba(0, 0, 0, 0.4) 0 -5px 12px, inset rgba(0, 0, 0, 1) 0 1px 3px, rgba(255, 255, 255, 0.4) 0 1px;
 }
 
 :root:not([active]) #clearListButton {
-  color: @toolbarbuttonInactiveFontColor@ !important; /* remove this when we support click-through, bug 392188 */
-  border-color: @toolbarbuttonInactiveBorderColor@;
-  background-image: @toolbarbuttonInactiveBackgroundImage@;
+  color: #7C7C7C !important; /* remove this when we support click-through, bug 392188 */
+  border-color: rgba(0, 0, 0, 0.25);
+  background-color: #CCC;
 }

@@ -83,7 +83,7 @@ function run_test() {
     do_check_false(db.exists());
   }
   // Create a corrupt database.
-  var corruptDB = gTestDir.clone();
+  corruptDB = gTestDir.clone();
   corruptDB.append("corruptDB.sqlite");
   corruptDB.copyTo(gProfD, "places.sqlite");
   do_check_true(db.exists());

@@ -55,7 +55,6 @@
 #define nsIPresShell_h___
 
 #include "nsISupports.h"
-#include "nsQueryFrame.h"
 #include "nsCoord.h"
 #include "nsRect.h"
 #include "nsColor.h"
@@ -98,34 +97,14 @@ class nsIScrollableFrame;
 class gfxASurface;
 class gfxContext;
 class nsPIDOMEventTarget;
-class nsIDOMEvent;
-class nsDisplayList;
-class nsDisplayListBuilder;
 
 typedef short SelectionType;
 typedef PRUint32 nsFrameState;
 
-// Flags to pass to SetCapturingContent
-//
-// when assigning capture, ignore whether capture is allowed or not
-#define CAPTURE_IGNOREALLOWED 1
-// true if events should be targeted at the capturing content or its children
-#define CAPTURE_RETARGETTOELEMENT 2
-
-typedef struct CapturingContentInfo {
-  // capture should only be allowed during a mousedown event
-  PRPackedBool mAllowed;
-  PRPackedBool mRetargetToElement;
-  nsIContent* mContent;
-
-  CapturingContentInfo() :
-    mAllowed(PR_FALSE), mRetargetToElement(PR_FALSE), mContent(nsnull) { }
-} CapturingContentInfo;
-
-// 4e8724b5-14f9-4bb0-b5a0-24041d653c9f
- #define NS_IPRESSHELL_IID     \
-{ 0x4e8724b5, 0x14f9, 0x4bb0, \
-  { 0xb5, 0xa0, 0x24, 0x04, 0x1d, 0x65, 0x3c, 0x9f } }
+// 41FE90F8-88DF-476E-A3B0-60916234F791
+#define NS_IPRESSHELL_IID \
+{ 0x41fe90f8, 0x88df, 0x476e, \
+  { 0xa3, 0xb0, 0x60, 0x91, 0x62, 0x34, 0xf7, 0x91 } }
 
 // Constants for ScrollContentIntoView() function
 #define NS_PRESSHELL_SCROLL_TOP      0
@@ -188,20 +167,11 @@ public:
   
   PRBool IsDestroying() { return mIsDestroying; }
 
-  // All frames owned by the shell are allocated from an arena.  They
-  // are also recycled using free lists.  Separate free lists are
-  // maintained for each frame type (aCode), which must always
-  // correspond to the same aSize value. AllocateFrame clears the
-  // memory that it returns.
-  virtual void* AllocateFrame(nsQueryFrame::FrameIID aCode, size_t aSize) = 0;
-  virtual void  FreeFrame(nsQueryFrame::FrameIID aCode, void* aChunk) = 0;
-
-  // Objects closely related to the frame tree, but that are not
-  // actual frames (subclasses of nsFrame) are also allocated from the
-  // arena, and recycled via a separate set of per-size free lists.
-  // AllocateMisc does *not* clear the memory that it returns.
-  virtual void* AllocateMisc(size_t aSize) = 0;
-  virtual void  FreeMisc(size_t aSize, void* aChunk) = 0;
+  // All frames owned by the shell are allocated from an arena.  They are also recycled
+  // using free lists (separate free lists being maintained for each size_t).
+  // Methods for recycling frames.
+  virtual void* AllocateFrame(size_t aSize) = 0;
+  virtual void  FreeFrame(size_t aSize, void* aFreeChunk) = 0;
 
   /**
    * Stack memory allocation:
@@ -345,12 +315,6 @@ public:
    */
   nsIScrollableFrame* GetRootScrollFrameAsScrollable() const;
 
-  /*
-   * The same as GetRootScrollFrame, but returns an nsIScrollableFrame.
-   * Can be called by code not linked into gklayout.
-   */
-  virtual nsIScrollableFrame* GetRootScrollFrameAsScrollableExternal() const;
-
   /**
    * Returns the page sequence frame associated with the frame hierarchy.
    * Returns NULL if not a paginated view.
@@ -426,7 +390,6 @@ public:
   NS_IMETHOD RecreateFramesFor(nsIContent* aContent) = 0;
 
   void PostRecreateFramesFor(nsIContent* aContent);
-  void RestyleForAnimation(nsIContent* aContent);
   
   /**
    * Determine if it is safe to flush all pending notifications
@@ -612,14 +575,6 @@ public:
                                       nsEventStatus* aStatus) = 0;
 
   /**
-   * Dispatch event to content only (NOT full processing)
-   * @note The caller must have a strong reference to the PresShell.
-   */
-  NS_IMETHOD HandleDOMEventWithTarget(nsIContent* aTargetContent,
-                                      nsIDOMEvent* aEvent,
-                                      nsEventStatus* aStatus) = 0;
-
-  /**
     * Gets the current target event frame from the PresShell
     */
   NS_IMETHOD GetEventTargetFrame(nsIFrame** aFrame) = 0;
@@ -725,7 +680,6 @@ public:
                         nsIFrame * aFrame,
                         PRUint32 aColor) = 0;
   NS_IMETHOD SetPaintFrameCount(PRBool aOn) = 0;
-  virtual PRBool IsPaintingFrameCounts() = 0;
 #endif
 
 #ifdef DEBUG
@@ -809,7 +763,7 @@ public:
                                                    nsIntPoint& aPoint,
                                                    nsIntRect* aScreenRect) = 0;
 
-  /**
+  /*
    * Renders a selection to a surface and returns it. This method is primarily
    * intended to create the drag feedback when dragging a selection.
    *
@@ -828,29 +782,8 @@ public:
                                                         nsIntPoint& aPoint,
                                                         nsIntRect* aScreenRect) = 0;
 
-  void AddWeakFrameInternal(nsWeakFrame* aWeakFrame);
-  virtual void AddWeakFrameExternal(nsWeakFrame* aWeakFrame);
-
-  void AddWeakFrame(nsWeakFrame* aWeakFrame)
-  {
-#ifdef _IMPL_NS_LAYOUT
-    AddWeakFrameInternal(aWeakFrame);
-#else
-    AddWeakFrameExternal(aWeakFrame);
-#endif
-  }
-
-  void RemoveWeakFrameInternal(nsWeakFrame* aWeakFrame);
-  virtual void RemoveWeakFrameExternal(nsWeakFrame* aWeakFrame);
-
-  void RemoveWeakFrame(nsWeakFrame* aWeakFrame)
-  {
-#ifdef _IMPL_NS_LAYOUT
-    RemoveWeakFrameInternal(aWeakFrame);
-#else
-    RemoveWeakFrameExternal(aWeakFrame);
-#endif
-  }
+  void AddWeakFrame(nsWeakFrame* aWeakFrame);
+  void RemoveWeakFrame(nsWeakFrame* aWeakFrame);
 
 #ifdef NS_DEBUG
   nsIFrame* GetDrawEventTargetFrame() { return mDrawEventTargetFrame; }
@@ -865,36 +798,19 @@ public:
    */
   NS_IMETHOD DisableNonTestMouseEvents(PRBool aDisable) = 0;
 
-  /**
-   * Record the background color of the most recently drawn canvas. This color
-   * is composited on top of the user's default background color and then used
-   * to draw the background color of the canvas. See PresShell::Paint,
-   * PresShell::PaintDefaultBackground, and nsDocShell::SetupNewViewer;
-   * bug 488242, bug 476557 and other bugs mentioned there.
+  /* Record the background color of the most recently loaded canvas.
+   * This color is composited on top of the user's default background
+   * color whenever we need to provide an "ultimate" background color.
+   * See PresShell::Paint, PresShell::PaintDefaultBackground, and
+   * nsDocShell::SetupNewViewer; bug 476557 and other bugs mentioned there.
    */
   void SetCanvasBackground(nscolor aColor) { mCanvasBackgroundColor = aColor; }
   nscolor GetCanvasBackground() { return mCanvasBackgroundColor; }
 
-  /**
-   * Use the current frame tree (if it exists) to update the background
-   * color of the most recently drawn canvas.
+  /* Use the current frame tree (if it exists) to update the background
+   * color of the most recent canvas.
    */
   virtual void UpdateCanvasBackground() = 0;
-
-  /**
-   * Add a solid color item to the bottom of aList with frame aFrame and
-   * bounds aBounds. Checks first if this needs to be done by checking if
-   * aFrame is a canvas frame (if aForceDraw is true then this check is
-   * skipped). If aBounds is null (the default) then the bounds will be derived
-   * from the frame. aBackstopColor is composed behind the background color of
-   * the canvas, it is transparent by default.
-   */
-  virtual nsresult AddCanvasBackgroundColorItem(nsDisplayListBuilder& aBuilder,
-                                                nsDisplayList& aList,
-                                                nsIFrame* aFrame,
-                                                nsRect* aBounds = nsnull,
-                                                nscolor aBackstopColor = NS_RGBA(0,0,0,0),
-                                                PRBool aForceDraw = PR_FALSE) = 0;
 
   void ObserveNativeAnonMutationsForPrint(PRBool aObserve)
   {
@@ -903,42 +819,6 @@ public:
   PRBool ObservesNativeAnonMutationsForPrint()
   {
     return mObservesMutationsForPrint;
-  }
-
-  // mouse capturing
-
-  static CapturingContentInfo gCaptureInfo;
-
-  /**
-   * When capturing content is set, it traps all mouse events and retargets
-   * them at this content node. If capturing is not allowed
-   * (gCaptureInfo.mAllowed is false), then capturing is not set. However, if
-   * the CAPTURE_IGNOREALLOWED flag is set, the allowed state is ignored and
-   * capturing is set regardless. To disable capture, pass null for the value
-   * of aContent.
-   *
-   * If CAPTURE_RETARGETTOELEMENT is set, all mouse events are targeted at
-   * aContent only. Otherwise, mouse events are targeted at aContent or its
-   * descendants. That is, descendants of aContent receive mouse events as
-   * they normally would, but mouse events outside of aContent are retargeted
-   * to aContent.
-   */
-  static void SetCapturingContent(nsIContent* aContent, PRUint8 aFlags);
-
-  /**
-   * Return the active content currently capturing the mouse if any.
-   */
-  static nsIContent* GetCapturingContent()
-  {
-    return gCaptureInfo.mContent;
-  }
-
-  /**
-   * Allow or disallow mouse capturing.
-   */
-  static void AllowMouseCapture(PRBool aAllowed)
-  {
-    gCaptureInfo.mAllowed = aAllowed;
   }
 
 protected:

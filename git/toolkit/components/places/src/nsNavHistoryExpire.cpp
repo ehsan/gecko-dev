@@ -21,8 +21,6 @@
  *
  * Contributor(s):
  *   Brett Wilson <brettw@gmail.com> (original author)
- *   Dietrich Ayala <dietrich@mozilla.com>
- *   Marco Bonardo <mak77@bonardo.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -49,8 +47,6 @@
 #include "nsNetUtil.h"
 #include "nsIAnnotationService.h"
 #include "nsPrintfCString.h"
-#include "nsPlacesMacros.h"
-#include "nsIIdleService.h"
 
 struct nsNavHistoryExpireRecord {
   nsNavHistoryExpireRecord(mozIStorageStatement* statement);
@@ -65,169 +61,176 @@ struct nsNavHistoryExpireRecord {
   PRBool erased; // set to true if/when the history entry is erased
 };
 
-// The time in ms to wait before kick-off partial expiration after preferences
-// are changed.
-#define EXPIRATION_PARTIAL_TIMEOUT 500
+// Number of things we'll expire at once. Runtime of expiration is approximately
+// linear with the number of things we expire at once. This number was picked so
+// we expire "several" things at once, but still run quickly. Just doing 3
+// expirations at once isn't much faster than 6 due to constant overhead of
+// running the query.
+#define EXPIRATION_COUNT_PER_RUN 6
 
-// The time in ms to wait between each partial expiration step.
-#define EXPIRATION_PARTIAL_SUBSEQUENT_TIMEOUT ((PRUint32)10 * PR_MSEC_PER_SEC)
+// Larger expiration chunk for idle time and shutdown.
+#define EXPIRATION_COUNT_PER_RUN_LARGE 50
 
-// Number of pages we'll expire at each partial expiration run.  Partial
-// expiration runs when expiration preferences run.
-#define EXPIRATION_PAGES_PER_RUN 6
+// The time in ms to wait after AddURI to try expiration of pages. Short is
+// actually better. If expiration takes an unusually long period of time, it
+// will interfere with video playback in the browser, for example. Such a blip
+// is not likely to be noticable when the page has just appeared.
+#define PARTIAL_EXPIRATION_TIMEOUT (3.5 * PR_MSEC_PER_SEC)
 
-// The time in ms the user should be idle before we run expiration.
-// This will be repeated till we find enough entries to expire, otherwise
-// we will wait for a longer timeout before checking again.
-#define EXPIRATION_IDLE_TIMEOUT ((PRUint32)5 * 60 * PR_MSEC_PER_SEC)
-// The time in ms the user should be idle before we run expiration when the
-// previous call ran out of expirable pages.
-#define EXPIRATION_IDLE_LONG_TIMEOUT EXPIRATION_IDLE_TIMEOUT * 10
+// The time in ms to wait after the initial expiration run for additional ones
+#define SUBSEQUENT_EXPIRATION_TIMEOUT (20 * PR_MSEC_PER_SEC)
 
-// During idle we can expire a larger chunk of pages.
-#define EXPIRATION_MAX_PAGES_AT_IDLE 100
-
-// During shutdown we should cleanup any dangling moz_places record, but we
-// cannot expire a too large number of entries since that would slowdown
-// shutdown.
-#define EXPIRATION_MAX_PAGES_AT_SHUTDOWN 100
-
-// Expiration policy amounts in microseconds.
-const PRTime EXPIRATION_POLICY_DAYS = ((PRTime)7 * 86400 * PR_USEC_PER_SEC);
-const PRTime EXPIRATION_POLICY_WEEKS = ((PRTime)30 * 86400 * PR_USEC_PER_SEC);
-const PRTime EXPIRATION_POLICY_MONTHS = ((PRTime)180 * 86400 * PR_USEC_PER_SEC);
-
-// History preferences.
-#define PREF_BRANCH_BASE                        "browser."
-#define PREF_BROWSER_HISTORY_EXPIRE_DAYS        "history_expire_days"
+// Number of expirations we'll do after the most recent page is loaded before
+// stopping. We don't want to keep the computer chugging forever expiring
+// annotations if the user stopped using the browser.
+//
+// This current value of one prevents history expiration while the page is
+// being shown, because expiration may interfere with media playback.
+#define MAX_SEQUENTIAL_RUNS 1
 
 // Sanitization preferences
 #define PREF_SANITIZE_ON_SHUTDOWN   "privacy.sanitize.sanitizeOnShutdown"
 #define PREF_SANITIZE_ITEM_HISTORY  "privacy.item.history"
 
-nsNavHistoryExpire::nsNavHistoryExpire() :
-    mNextExpirationTime(0)
-{
-  mHistory = nsNavHistory::GetHistoryService();
-  NS_ASSERTION(mHistory, "History service should exist at this point.");
-  mDBConn = mHistory->GetStorageConnection();
-  NS_ASSERTION(mDBConn, "History service should have a valid database connection");
+// Expiration policy amounts (in microseconds)
+const PRTime EXPIRATION_POLICY_DAYS = ((PRTime)7 * 86400 * PR_USEC_PER_SEC);
+const PRTime EXPIRATION_POLICY_WEEKS = ((PRTime)30 * 86400 * PR_USEC_PER_SEC);
+const PRTime EXPIRATION_POLICY_MONTHS = ((PRTime)180 * 86400 * PR_USEC_PER_SEC);
 
-  // Initialize idle timer.
-  InitializeIdleTimer(EXPIRATION_IDLE_TIMEOUT);
+// Expiration cap for dangling moz_places records
+#define EXPIRATION_CAP_PLACES 500
+
+// History preferences
+#define PREF_BRANCH_BASE                        "browser."
+#define PREF_BROWSER_HISTORY_EXPIRE_DAYS        "history_expire_days"
+
+// nsNavHistoryExpire::nsNavHistoryExpire
+//
+//    Warning: don't do anything with aHistory in the constructor, since
+//    this is a member of the nsNavHistory, it is still being constructed
+//    when this is called.
+
+nsNavHistoryExpire::nsNavHistoryExpire(nsNavHistory* aHistory) :
+    mHistory(aHistory),
+    mTimerSet(PR_FALSE),
+    mAnyEmptyRuns(PR_FALSE),
+    mNextExpirationTime(0),
+    mAddCount(0),
+    mExpiredItems(0)
+{
+
 }
+
+
+// nsNavHistoryExpire::~nsNavHistoryExpire
 
 nsNavHistoryExpire::~nsNavHistoryExpire()
 {
-  // Cancel any pending timers.
-  if (mPartialExpirationTimer) {
-    mPartialExpirationTimer->Cancel();
-    mPartialExpirationTimer = 0;
-  }
-  if (mIdleTimer) {
-    mIdleTimer->Cancel();
-    mIdleTimer = 0;
-  }
+
 }
+
+
+// nsNavHistoryExpire::OnAddURI
+//
+//    Called by history when a URI is added to history. This starts the timer
+//    for when we are going to expire.
+//
+//    The current time is passed in by the history service as an optimization.
+//    The AddURI function has already computed the proper time, and getting the
+//    time again from the OS is nontrivial.
 
 void
-nsNavHistoryExpire::InitializeIdleTimer(PRUint32 aTimeInMs)
+nsNavHistoryExpire::OnAddURI(PRTime aNow)
 {
-  if (mIdleTimer) {
-    mIdleTimer->Cancel();
-    mIdleTimer = 0;
+  mAddCount ++;
+
+  if (mTimer && mTimerSet) {
+    mTimer->Cancel();
+    mTimerSet = PR_FALSE;
   }
 
-  mIdleTimer = do_CreateInstance("@mozilla.org/timer;1");
-  if (mIdleTimer) {
-    (void)mIdleTimer->InitWithFuncCallback(IdleTimerCallback, this, aTimeInMs,
-                                           nsITimer::TYPE_ONE_SHOT);
-  }
+  if (mNextExpirationTime != 0 && aNow < mNextExpirationTime)
+    return; // we know there's nothing to expire yet
+
+  StartTimer(PARTIAL_EXPIRATION_TIMEOUT);
 }
 
-void // static
-nsNavHistoryExpire::IdleTimerCallback(nsITimer* aTimer, void* aClosure)
-{
-  nsNavHistoryExpire* expire = static_cast<nsNavHistoryExpire*>(aClosure);
-  expire->mIdleTimer = 0;
-  expire->OnIdle();
-}
-
+// nsNavHistoryExpire::OnDeleteURI
+//
+//    Called by history when a URI is deleted from history.
+//    This kicks off an expiration of annotations.
+//
 void
-nsNavHistoryExpire::OnIdle()
+nsNavHistoryExpire::OnDeleteURI()
 {
-  PRUint32 idleTime = 0;
-  nsCOMPtr<nsIIdleService> idleService =
-    do_GetService("@mozilla.org/widget/idleservice;1");
-  if (idleService)
-    (void)idleService->GetIdleTime(&idleTime);
-
-  // If we've been idle for more than EXPIRATION_IDLE_TIMEOUT
-  // we can expire a chunk of elements.
-  if (idleTime < EXPIRATION_IDLE_TIMEOUT)
+  mozIStorageConnection* connection = mHistory->GetStorageConnection();
+  if (!connection) {
+    NS_NOTREACHED("No connection");
     return;
-
-  mozStorageTransaction transaction(mDBConn, PR_TRUE);
-
-  bool keepGoing = ExpireItems(EXPIRATION_MAX_PAGES_AT_IDLE);
-  ExpireOrphans(EXPIRATION_MAX_PAGES_AT_IDLE);
-
-  if (!keepGoing) {
-    // We have expired enough entries, so there is no more need to be agressive
-    // on idle for some time.
-    InitializeIdleTimer(EXPIRATION_IDLE_LONG_TIMEOUT);
   }
-  else
-    InitializeIdleTimer(EXPIRATION_IDLE_TIMEOUT);
+  nsresult rv = ExpireAnnotations(connection);
+  if (NS_FAILED(rv))
+    NS_WARNING("ExpireAnnotations failed.");
 }
 
-void
-nsNavHistoryExpire::OnDeleteVisits()
-{
-  (void)ExpireAnnotations();
-}
+// nsNavHistoryExpire::OnQuit
+//
+//    Here we check for some edge cases and fix them
 
 void
 nsNavHistoryExpire::OnQuit()
 {
-  // Cancel any pending timers so we won't try to expire during shutdown.
-  if (mPartialExpirationTimer) {
-    mPartialExpirationTimer->Cancel();
-    mPartialExpirationTimer = 0;
-  }
-  if (mIdleTimer) {
-    mIdleTimer->Cancel();
-    mIdleTimer = 0;
+  mozIStorageConnection* connection = mHistory->GetStorageConnection();
+  if (!connection) {
+    NS_NOTREACHED("No connection");
+    return;
   }
 
-  nsCOMPtr<nsIPrefBranch> prefs =
-    do_GetService("@mozilla.org/preferences-service;1");
-  if (prefs) {
-    // Determine whether we can skip partially expiration of dangling entries
-    // because we be doing a full expiration on shutdown in ClearHistory().
-    PRBool sanitizeOnShutdown = PR_FALSE;
-    (void)prefs->GetBoolPref(PREF_SANITIZE_ON_SHUTDOWN, &sanitizeOnShutdown);
-    PRBool sanitizeHistory = PR_FALSE;
-    (void)prefs->GetBoolPref(PREF_SANITIZE_ITEM_HISTORY, &sanitizeHistory);
+  // Need to cancel any pending timers so we don't try to expire during shutdown
+  if (mTimer)
+    mTimer->Cancel();
 
-    if (sanitizeHistory && sanitizeOnShutdown)
-      return;
-  }
+  // Handle degenerate runs:
+  nsresult rv = ExpireForDegenerateRuns();
+  if (NS_FAILED(rv))
+    NS_WARNING("ExpireForDegenerateRuns failed.");
+
+  // Determine whether we can skip partially expiration of dangling entries
+  // because we be doing a full expiration on shutdown in ClearHistory()
+  nsCOMPtr<nsIPrefBranch> prefs(do_GetService("@mozilla.org/preferences-service;1"));
+  PRBool sanitizeOnShutdown = PR_FALSE;
+  PRBool sanitizeHistory = PR_FALSE;
+  (void)prefs->GetBoolPref(PREF_SANITIZE_ON_SHUTDOWN, &sanitizeOnShutdown);
+  (void)prefs->GetBoolPref(PREF_SANITIZE_ITEM_HISTORY, &sanitizeHistory);
+  if (sanitizeHistory && sanitizeOnShutdown)
+    return;
 
   // Get rid of all records orphaned due to expiration.
-  ExpireOrphans(EXPIRATION_MAX_PAGES_AT_SHUTDOWN);
+  rv = ExpireOrphans(EXPIRATION_CAP_PLACES);
+  if (NS_FAILED(rv))
+    NS_WARNING("ExpireOrphans failed.");
 }
+
+
+// nsNavHistoryExpire::ClearHistory
+//
+//    Performance: ExpireItems sends notifications. We may want to disable this
+//    for clear history cases. However, my initial tests show that the
+//    notifications are not a significant part of clear history time.
 
 nsresult
 nsNavHistoryExpire::ClearHistory()
 {
-  mozStorageTransaction transaction(mDBConn, PR_FALSE);
+  mozIStorageConnection* connection = mHistory->GetStorageConnection();
+  NS_ENSURE_TRUE(connection, NS_ERROR_OUT_OF_MEMORY);
+
+  mozStorageTransaction transaction(connection, PR_FALSE);
 
   // reset frecency for all items that will _not_ be deleted
   // Note, we set frecency to -visit_count since we use that value in our
   // idle query to figure out which places to recalcuate frecency first.
-  // We must do this before deleting visits.
-  nsresult rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
+  // We must do this before deleting visits
+  nsresult rv = connection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
     "UPDATE moz_places_view SET frecency = -MAX(visit_count, 1) "
     "WHERE id IN("
       "SELECT h.id FROM moz_places_temp h "
@@ -240,18 +243,31 @@ nsNavHistoryExpire::ClearHistory()
     ")"));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Expire visits, then let the paranoid functions do the cleanup for us.
-  rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
+  // expire visits, then let the paranoid functions do the cleanup for us
+  rv = connection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
       "DELETE FROM moz_historyvisits_view"));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Expire all orphans.
-  ExpireOrphans(-1);
+  rv = ExpireHistoryParanoid(connection, -1);
+  if (NS_FAILED(rv))
+    NS_WARNING("ExpireHistoryParanoid failed.");
 
-  // Some of the remaining places could be place: urls or
+  rv = ExpireFaviconsParanoid(connection);
+  if (NS_FAILED(rv))
+    NS_WARNING("ExpireFaviconsParanoid failed.");
+
+  rv = ExpireAnnotationsParanoid(connection);
+  if (NS_FAILED(rv))
+    NS_WARNING("ExpireAnnotationsParanoid failed.");
+
+  rv = ExpireInputHistoryParanoid(connection);
+  if (NS_FAILED(rv))
+    NS_WARNING("ExpireInputHistoryParanoid failed.");
+
+  // some of the remaining places could be place: urls or
   // unvisited livemark items, so setting the frecency to -1
   // will cause them to show up in the url bar autocomplete
-  // call FixInvalidFrecenciesForExcludedPlaces to handle that scenario.
+  // call FixInvalidFrecenciesForExcludedPlaces() to handle that scenario
   rv = mHistory->FixInvalidFrecenciesForExcludedPlaces();
   if (NS_FAILED(rv))
     NS_WARNING("failed to fix invalid frecencies");
@@ -259,130 +275,179 @@ nsNavHistoryExpire::ClearHistory()
   rv = transaction.Commit();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  ENUMERATE_OBSERVERS(mHistory->canNotify(), mHistory->mCacheObservers,
-                      mHistory->mObservers, nsINavHistoryObserver,
-                      OnClearHistory());
+  // XXX todo
+  // forcibly call the "on idle" timer here to do a little work
+  // but the rest will happen on idle.
+
+  ENUMERATE_WEAKARRAY(mHistory->mObservers, nsINavHistoryObserver,
+                      OnClearHistory())
 
   return NS_OK;
 }
+
+
+// nsNavHistoryExpire::OnExpirationChanged
+//
+//    Called when the expiration length in days has changed. We clear any
+//    next expiration time, meaning that we'll try to expire stuff next time,
+//    and recompute the value if there's still nothing to expire.
 
 void
 nsNavHistoryExpire::OnExpirationChanged()
 {
-  // Kick off partial expiration.
-  // Subsequent steps will be on timer.
-  StartPartialExpirationTimer(EXPIRATION_PARTIAL_TIMEOUT);
+  mNextExpirationTime = 0;
+  // kick off expiration
+  (void)OnAddURI(PR_Now());
 }
+
+
+// nsNavHistoryExpire::DoPartialExpiration
 
 nsresult
 nsNavHistoryExpire::DoPartialExpiration()
 {
-  bool keepGoing = ExpireItems(EXPIRATION_PAGES_PER_RUN);
-  if (keepGoing)
-    StartPartialExpirationTimer(EXPIRATION_PARTIAL_SUBSEQUENT_TIMEOUT);
-
+  // expire history items
+  PRBool keepGoing;
+  nsresult rv = ExpireItems(EXPIRATION_COUNT_PER_RUN, &keepGoing);
+  if (NS_FAILED(rv))
+    NS_WARNING("ExpireItems failed.");
+  else if (keepGoing)
+    StartTimer(SUBSEQUENT_EXPIRATION_TIMEOUT);
   return NS_OK;
 }
 
-bool
-nsNavHistoryExpire::ExpireItems(PRUint32 aNumToExpire)
+
+// nsNavHistoryExpire::ExpireItems
+//
+//    Here, we try to expire aNumToExpire items and their associated data,
+//    If we expired things and then stopped because we hit this limit,
+//    aKeepGoing will be set indicating we should keep expiring. If we ran
+//    out of things to expire, it will be unset indicating we should wait.
+//
+//    As a special case, aNumToExpire can be 0 and we'll expire everything
+//    in history.
+
+nsresult
+nsNavHistoryExpire::ExpireItems(PRUint32 aNumToExpire, PRBool* aKeepGoing)
 {
-  // Whether to keep going after this expiration step.
-  bool keepGoing = true;
+  mozIStorageConnection* connection = mHistory->GetStorageConnection();
+  NS_ENSURE_TRUE(connection, NS_ERROR_OUT_OF_MEMORY);
 
   // This transaction is important for performance. It makes the DB flush
   // everything to disk in one larger operation rather than many small ones.
   // Note that this transaction always commits.
-  mozStorageTransaction transaction(mDBConn, PR_FALSE);
+  mozStorageTransaction transaction(connection, PR_FALSE);
+
+  *aKeepGoing = PR_TRUE;
 
   PRInt64 expireTime;
-  if (!aNumToExpire) {
-    // Special case: erase all pages from history.
+  if (aNumToExpire == 0) {
+    // special case: erase all history
     expireTime = 0;
-  }
-  else {
+  } else {
     expireTime = PR_Now() - GetExpirationTimeAgo(mHistory->mExpireDaysMax);
   }
 
-  // Find some visits to expire.
+  // find some visits to expire
   nsTArray<nsNavHistoryExpireRecord> expiredVisits;
-  nsresult rv = FindVisits(expireTime, aNumToExpire, expiredVisits);
-  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "FindVisits Failed");
+  nsresult rv = FindVisits(expireTime, aNumToExpire, connection,
+                           expiredVisits);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // if we didn't find as many things to expire as we could have, then
   // we should note the next time we need to expire.
   if (expiredVisits.Length() < aNumToExpire) {
-    keepGoing = false;
-    ComputeNextExpirationTime();
+    *aKeepGoing = PR_FALSE;
+    ComputeNextExpirationTime(connection);
+
+    if (expiredVisits.Length() == 0) {
+      // Nothing to expire. Set the flag so we know we don't have to do any
+      // work on shutdown.
+      mAnyEmptyRuns = PR_TRUE;
+      return NS_OK;
+    }
   }
+  mExpiredItems += expiredVisits.Length();
 
-  rv = EraseVisits(expiredVisits);
-  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "EraseVisits Failed");
+  rv = EraseVisits(connection, expiredVisits);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = EraseHistory(expiredVisits);
-  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "EraseHistory Failed");
+  rv = EraseHistory(connection, expiredVisits);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  // Send observer messages.
+  // send observer messages
   nsCOMPtr<nsIURI> uri;
   for (PRUint32 i = 0; i < expiredVisits.Length(); i ++) {
     rv = NS_NewURI(getter_AddRefs(uri), expiredVisits[i].uri);
-    if (NS_FAILED(rv)) {
-      NS_WARNING("Trying to expire a corrupt uri?!");
-      continue;
-    }
+    if (NS_FAILED(rv)) continue;
 
     // FIXME bug 325241 provide a way to observe hidden elements
     if (expiredVisits[i].hidden) continue;
 
-    ENUMERATE_OBSERVERS(mHistory->canNotify(), mHistory->mCacheObservers,
-                        mHistory->mObservers, nsINavHistoryObserver,
+    ENUMERATE_WEAKARRAY(mHistory->mObservers, nsINavHistoryObserver,
                         OnPageExpired(uri, expiredVisits[i].visitDate,
                                       expiredVisits[i].erased));
   }
 
-  // Don't worry about errors here, it doesn't affect our ability to continue.
-  rv = EraseFavicons(expiredVisits);
-  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "EraseFavicons Failed");
-  rv = EraseAnnotations(expiredVisits);
-  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "EraseAnnotations Failed");
-  rv = ExpireAnnotations();
-  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "ExpireAnnotarions Failed");
+  // don't worry about errors here, it doesn't affect our ability to continue
+  rv = EraseFavicons(connection, expiredVisits);
+  if (NS_FAILED(rv))
+    NS_WARNING("EraseFavicons failed.");
+
+  rv = EraseAnnotations(connection, expiredVisits);
+  if (NS_FAILED(rv))
+    NS_WARNING("EraseAnnotations failed.");
+
+  // expire annotations by policy
+  rv = ExpireAnnotations(connection);
+  if (NS_FAILED(rv))
+    NS_WARNING("ExpireAnnotations failed.");
 
   rv = transaction.Commit();
-  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Committing transaction Failed");
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  return keepGoing;
+  return NS_OK;
 }
 
-void
+// nsNavHistoryExpire::ExpireOrphans
+//
+//    Try to expire aNumToExpire items that are orphans.  aNumToExpire only
+//    limits how many moz_places we worry about.  Everything else (favicons,
+//    annotations, and input history) is completely expired.
+
+nsresult
 nsNavHistoryExpire::ExpireOrphans(PRUint32 aNumToExpire)
 {
-  mozStorageTransaction transaction(mDBConn, PR_FALSE);
+  mozIStorageConnection* connection = mHistory->GetStorageConnection();
+  NS_ENSURE_TRUE(connection, NS_ERROR_OUT_OF_MEMORY);
 
-  nsresult rv = ExpireHistoryParanoid(aNumToExpire);
-  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "ExpireHistoryParanoid Failed");
+  mozStorageTransaction transaction(connection, PR_FALSE);
 
-  rv = ExpireFaviconsParanoid();
-  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "ExpireFaviconsParanoid Failed");
+  nsresult rv = ExpireHistoryParanoid(connection, aNumToExpire);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = ExpireAnnotationsParanoid();
-  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "ExpireAnnotationsParanoid Failed");
+  rv = ExpireFaviconsParanoid(connection);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = ExpireInputHistoryParanoid();
-  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "ExpireInputHistoryParanoid Failed");
+  rv = ExpireAnnotationsParanoid(connection);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = ExpireInputHistoryParanoid(connection);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   rv = transaction.Commit();
-  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Commit Transaction Failed");
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return NS_OK;
 }
 
-/**
- * nsNavHistoryExpireRecord::nsNavHistoryExpireRecord
- *
- * Statement should be the one created in FindVisits. The parameters must
- * agree.
- */
+// nsNavHistoryExpireRecord::nsNavHistoryExpireRecord
+//
+//    Statement should be the one created in FindVisits. The parameters must
+//    agree.
+
 nsNavHistoryExpireRecord::nsNavHistoryExpireRecord(
-  mozIStorageStatement* statement)
+                                              mozIStorageStatement* statement)
 {
   visitID = statement->AsInt64(0);
   placeID = statement->AsInt64(1);
@@ -394,13 +459,29 @@ nsNavHistoryExpireRecord::nsNavHistoryExpireRecord(
   erased = PR_FALSE;
 }
 
+
+// nsNavHistoryExpire::FindVisits
+//
+//    Find visits to expire, meeting the following criteria:
+//
+//    * With a visit date older than browser.history_expire_days ago.
+//    * With a visit date older than browser.history_expire_days_min ago
+//      if we have more than browser.history_expire_sites unique urls.
+//
+//    aExpireThreshold is the time at which we will delete visits before.
+//    If it is zero, we will match everything.
+//
+//    aNumToExpire is the maximum number of visits to find. If it is 0, then
+//    we will get all matching visits.
+
 nsresult
 nsNavHistoryExpire::FindVisits(PRTime aExpireThreshold, PRUint32 aNumToExpire,
+                               mozIStorageConnection* aConnection,
                                nsTArray<nsNavHistoryExpireRecord>& aRecords)
 {
-  // Select a limited number of visits older than a time.
+  // Select a limited number of visits older than a time
   nsCOMPtr<mozIStorageStatement> selectStatement;
-  nsresult rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
+  nsresult rv = aConnection->CreateStatement(NS_LITERAL_CSTRING(
       "SELECT v.id, v.place_id, v.visit_date, IFNULL(h_t.url, h.url), "
              "IFNULL(h_t.favicon_id, h.favicon_id), "
              "IFNULL(h_t.hidden, h.hidden), b.fk "
@@ -423,12 +504,12 @@ nsNavHistoryExpire::FindVisits(PRTime aExpireThreshold, PRUint32 aNumToExpire,
     getter_AddRefs(selectStatement));
     NS_ENSURE_SUCCESS(rv, rv);
 
-  // Use browser.history_expire_days or match all visits.
+  // browser.history_expire_days || match all visits
   PRTime expireMaxTime = aExpireThreshold ? aExpireThreshold : LL_MAXINT;
   rv = selectStatement->BindInt64Parameter(0, expireMaxTime);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Use LIMIT -1 to not limit.
+  // use LIMIT -1 to not limit
   PRInt32 numToExpire = aNumToExpire ? aNumToExpire : -1;
   rv = selectStatement->BindInt64Parameter(1, numToExpire);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -444,7 +525,7 @@ nsNavHistoryExpire::FindVisits(PRTime aExpireThreshold, PRUint32 aNumToExpire,
   if (aRecords.Length() < aNumToExpire) {
     // check the number of visited unique urls in the db.
     nsCOMPtr<mozIStorageStatement> countStatement;
-    rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
+    rv = aConnection->CreateStatement(NS_LITERAL_CSTRING(
         "SELECT "
           "(SELECT count(*) FROM moz_places_temp WHERE visit_count > 0) + "
           "(SELECT count(*) FROM moz_places WHERE visit_count > 0 AND "
@@ -453,14 +534,14 @@ nsNavHistoryExpire::FindVisits(PRTime aExpireThreshold, PRUint32 aNumToExpire,
     NS_ENSURE_SUCCESS(rv, rv);
 
     hasMore = PR_FALSE;
-    // initialize to mExpiresites to avoid expiring if something goes wrong.
+    // initialize to mExpiresites to avoid expiring if something goes wrong
     PRInt32 pageCount = mHistory->mExpireSites;
     if (NS_SUCCEEDED(countStatement->ExecuteStep(&hasMore)) && hasMore) {
       rv = countStatement->GetInt32(0, &pageCount);
       NS_ENSURE_SUCCESS(rv, rv);
     }
 
-    // Don't find any more pages to expire if we have not reached the urls cap.
+    // Don't find any more pages to expire if we have not reached the urls cap
     if (pageCount <= mHistory->mExpireSites)
         return NS_OK;
 
@@ -487,8 +568,11 @@ nsNavHistoryExpire::FindVisits(PRTime aExpireThreshold, PRUint32 aNumToExpire,
   return NS_OK;
 }
 
+
+// nsNavHistoryExpire::EraseVisits
+
 nsresult
-nsNavHistoryExpire::EraseVisits(
+nsNavHistoryExpire::EraseVisits(mozIStorageConnection* aConnection,
     const nsTArray<nsNavHistoryExpireRecord>& aRecords)
 {
   // build a comma separated string of visit ids to delete
@@ -520,7 +604,7 @@ nsNavHistoryExpire::EraseVisits(
   // keep the old frecencies when possible as an estimate for the new frecency
   // unless we know it has to be invalidated.
   // We must do this before deleting visits
-  nsresult rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
+  nsresult rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
     "UPDATE moz_places_view "
     "SET frecency = -MAX(visit_count, 1) "
     "WHERE id IN ( "
@@ -556,7 +640,7 @@ nsNavHistoryExpire::EraseVisits(
     ")"));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = mDBConn->ExecuteSimpleSQL(
+  rv = aConnection->ExecuteSimpleSQL(
     NS_LITERAL_CSTRING("DELETE FROM moz_historyvisits_view WHERE id IN (") +
     deletedVisitIds +
     NS_LITERAL_CSTRING(")"));
@@ -565,8 +649,18 @@ nsNavHistoryExpire::EraseVisits(
   return NS_OK;
 }
 
+
+// nsNavHistoryExpire::EraseHistory
+//
+//    This erases records in moz_places when there are no more visits.
+//    We need to be careful not to delete: bookmarks, items that still have
+//    visits and place: URIs.
+//
+//    This will modify the input by setting the erased flag on each of the
+//    array elements according to whether the history item was erased or not.
+
 nsresult
-nsNavHistoryExpire::EraseHistory(
+nsNavHistoryExpire::EraseHistory(mozIStorageConnection* aConnection,
     nsTArray<nsNavHistoryExpireRecord>& aRecords)
 {
   // build a comma separated string of place ids to delete
@@ -591,7 +685,7 @@ nsNavHistoryExpire::EraseHistory(
   if (deletedPlaceIds.IsEmpty())
     return NS_OK;
 
-  nsresult rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
+  nsresult rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
       "DELETE FROM moz_places_view WHERE id IN( "
         "SELECT h.id "
         "FROM moz_places h "
@@ -620,8 +714,11 @@ nsNavHistoryExpire::EraseHistory(
   return NS_OK;
 }
 
+
+// nsNavHistoryExpire::EraseFavicons
+
 nsresult
-nsNavHistoryExpire::EraseFavicons(
+nsNavHistoryExpire::EraseFavicons(mozIStorageConnection* aConnection,
     const nsTArray<nsNavHistoryExpireRecord>& aRecords)
 {
   // build a comma separated string of favicon ids to delete
@@ -645,7 +742,7 @@ nsNavHistoryExpire::EraseFavicons(
     return NS_OK;
 
   // delete only if favicon id is not referenced
-  nsresult rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
+  nsresult rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
       "DELETE FROM moz_favicons WHERE id IN ( "
         "SELECT f.id FROM moz_favicons f "
         "LEFT JOIN moz_places h ON f.id = h.favicon_id "
@@ -659,8 +756,11 @@ nsNavHistoryExpire::EraseFavicons(
   return NS_OK;
 }
 
+
+// nsNavHistoryExpire::EraseAnnotations
+
 nsresult
-nsNavHistoryExpire::EraseAnnotations(
+nsNavHistoryExpire::EraseAnnotations(mozIStorageConnection* aConnection,
     const nsTArray<nsNavHistoryExpireRecord>& aRecords)
 {
   // remove annotations for the set of records passed in
@@ -680,7 +780,7 @@ nsNavHistoryExpire::EraseAnnotations(
   if (placeIds.IsEmpty())
     return NS_OK;
     
-  nsresult rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
+  nsresult rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
     "DELETE FROM moz_annos WHERE place_id in (") +
       placeIds + NS_LITERAL_CSTRING(") AND expiration != ") +
       nsPrintfCString("%d", nsIAnnotationService::EXPIRE_NEVER));
@@ -688,23 +788,31 @@ nsNavHistoryExpire::EraseAnnotations(
   return NS_OK;
 }
 
+// nsAnnotationService::ExpireAnnotations
+//
+//    Periodic expiration of annotations that have time-sensitive
+//    expiration policies.
+//
+//    NOTE: Always specify the exact policy constant, as they're
+//    not guaranteed to be in numerical order.
+//
 nsresult
-nsNavHistoryExpire::ExpireAnnotations()
+nsNavHistoryExpire::ExpireAnnotations(mozIStorageConnection* aConnection)
 {
-  mozStorageTransaction transaction(mDBConn, PR_FALSE);
+  mozStorageTransaction transaction(aConnection, PR_FALSE);
 
   // Note: The COALESCE is used to cover a short period where NULLs were inserted
   // into the lastModified column.
   PRTime now = PR_Now();
   nsCOMPtr<mozIStorageStatement> expirePagesStatement;
-  nsresult rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
+  nsresult rv = aConnection->CreateStatement(NS_LITERAL_CSTRING(
       "DELETE FROM moz_annos "
       "WHERE expiration = ?1 AND "
         "(?2 > MAX(COALESCE(lastModified, 0), dateAdded))"),
     getter_AddRefs(expirePagesStatement));
   NS_ENSURE_SUCCESS(rv, rv);
   nsCOMPtr<mozIStorageStatement> expireItemsStatement;
-  rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
+  rv = aConnection->CreateStatement(NS_LITERAL_CSTRING(
       "DELETE FROM moz_items_annos "
       "WHERE expiration = ?1 AND "
         "(?2 > MAX(COALESCE(lastModified, 0), dateAdded))"),
@@ -768,7 +876,7 @@ nsNavHistoryExpire::ExpireAnnotations()
   NS_ENSURE_SUCCESS(rv, rv);
 
   // remove EXPIRE_WITH_HISTORY annos for pages without visits
-  rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
+  rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
       "DELETE FROM moz_annos WHERE expiration = ") +
         nsPrintfCString("%d", nsIAnnotationService::EXPIRE_WITH_HISTORY) +
         NS_LITERAL_CSTRING(" AND NOT EXISTS "
@@ -785,8 +893,17 @@ nsNavHistoryExpire::ExpireAnnotations()
   return NS_OK;
 }
 
+// nsNavHistoryExpire::ExpireHistoryParanoid
+//
+//    Deletes any dangling history entries that aren't associated with any
+//    visits, bookmarks or "place:" URIs.
+//
+//    The aMaxRecords parameter is an optional cap on the number of 
+//    records to delete. If its value is -1, all records will be deleted.
+
 nsresult
-nsNavHistoryExpire::ExpireHistoryParanoid(PRInt32 aMaxRecords)
+nsNavHistoryExpire::ExpireHistoryParanoid(mozIStorageConnection* aConnection,
+                                          PRInt32 aMaxRecords)
 {
   nsCAutoString query(
     "DELETE FROM moz_places_view WHERE id IN ("
@@ -812,16 +929,20 @@ nsNavHistoryExpire::ExpireHistoryParanoid(PRInt32 aMaxRecords)
     query.AppendInt(aMaxRecords);
   }
   query.AppendLiteral(")");
-  nsresult rv = mDBConn->ExecuteSimpleSQL(query);
+  nsresult rv = aConnection->ExecuteSimpleSQL(query);
   NS_ENSURE_SUCCESS(rv, rv);
-
   return NS_OK;
 }
 
+
+// nsNavHistoryExpire::ExpireFaviconsParanoid
+//
+//    Deletes any dangling favicons that aren't associated with any pages.
+
 nsresult
-nsNavHistoryExpire::ExpireFaviconsParanoid()
+nsNavHistoryExpire::ExpireFaviconsParanoid(mozIStorageConnection* aConnection)
 {
-  nsresult rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
+  nsresult rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
       "DELETE FROM moz_favicons WHERE id IN ("
         "SELECT f.id FROM moz_favicons f "
         "LEFT JOIN moz_places h ON f.id = h.favicon_id "
@@ -833,19 +954,25 @@ nsNavHistoryExpire::ExpireFaviconsParanoid()
   return rv;
 }
 
+
+// nsNavHistoryExpire::ExpireAnnotationsParanoid
+//
+//    Deletes session annotations, dangling annotations
+//    and annotation names that are unused.
+
 nsresult
-nsNavHistoryExpire::ExpireAnnotationsParanoid()
+nsNavHistoryExpire::ExpireAnnotationsParanoid(mozIStorageConnection* aConnection)
 {
   // delete session annos
   nsCAutoString session_query = NS_LITERAL_CSTRING(
     "DELETE FROM moz_annos WHERE expiration = ") +
     nsPrintfCString("%d", nsIAnnotationService::EXPIRE_SESSION);
-  nsresult rv = mDBConn->ExecuteSimpleSQL(session_query);
+  nsresult rv = aConnection->ExecuteSimpleSQL(session_query);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // delete all uri annos w/o a corresponding place id
   // or without any visits *and* not EXPIRE_NEVER.
-  rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
+  rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
       "DELETE FROM moz_annos WHERE id IN ("
         "SELECT a.id FROM moz_annos a "
         "LEFT JOIN moz_places h ON a.place_id = h.id "
@@ -860,7 +987,7 @@ nsNavHistoryExpire::ExpireAnnotationsParanoid()
   NS_ENSURE_SUCCESS(rv, rv);
 
   // delete item annos w/o a corresponding item id
-  rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
+  rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
     "DELETE FROM moz_items_annos WHERE id IN "
       "(SELECT a.id FROM moz_items_annos a "
       "LEFT OUTER JOIN moz_bookmarks b ON a.item_id = b.id "
@@ -868,7 +995,7 @@ nsNavHistoryExpire::ExpireAnnotationsParanoid()
   NS_ENSURE_SUCCESS(rv, rv);
 
   // delete all anno names w/o a corresponding anno
-  rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
+  rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
       "DELETE FROM moz_anno_attributes WHERE id IN (" 
         "SELECT n.id FROM moz_anno_attributes n "
         "LEFT JOIN moz_annos a ON n.id = a.anno_attribute_id "
@@ -880,11 +1007,16 @@ nsNavHistoryExpire::ExpireAnnotationsParanoid()
   return NS_OK;
 }
 
+
+// nsNavHistoryExpire::ExpireInputHistoryParanoid
+//
+//    Deletes dangling input history
+
 nsresult
-nsNavHistoryExpire::ExpireInputHistoryParanoid()
+nsNavHistoryExpire::ExpireInputHistoryParanoid(mozIStorageConnection* aConnection)
 {
   // Delete dangling input history that have no associated pages
-  nsresult rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
+  nsresult rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
       "DELETE FROM moz_inputhistory WHERE place_id IN ( "
         "SELECT place_id FROM moz_inputhistory "
         "LEFT JOIN moz_places h ON h.id = place_id "
@@ -897,13 +1029,46 @@ nsNavHistoryExpire::ExpireInputHistoryParanoid()
   return NS_OK;
 }
 
+
+// nsNavHistoryExpire::ExpireForDegenerateRuns
+//
+//    This checks for potential degenerate runs. For example, a tinderbox
+//    loads many web pages quickly and we'll never have a chance to expire.
+//    Particularly crazy users might also do this. If we detect this, then we
+//    want to force some expiration so history doesn't keep increasing.
+//
+//    Returns true if we did anything.
+
+PRBool
+nsNavHistoryExpire::ExpireForDegenerateRuns()
+{
+  // If there were any times that we didn't have anything to expire, this is
+  // not a degenerate run.
+  if (mAnyEmptyRuns)
+    return PR_FALSE;
+
+  // Expire a larger chunk of runs to catch up.
+  PRBool keepGoing;
+  nsresult rv = ExpireItems(EXPIRATION_COUNT_PER_RUN_LARGE, &keepGoing);
+  if (NS_FAILED(rv))
+    NS_WARNING("ExpireItems failed.");
+  return PR_TRUE;
+}
+
+
+// nsNavHistoryExpire::ComputeNextExpirationTime
+//
+//    This computes mNextExpirationTime. See that var in the header file.
+//    It is passed the number of microseconds that things expire in.
+
 void
-nsNavHistoryExpire::ComputeNextExpirationTime()
+nsNavHistoryExpire::ComputeNextExpirationTime(
+    mozIStorageConnection* aConnection)
 {
   mNextExpirationTime = 0;
 
   nsCOMPtr<mozIStorageStatement> statement;
-  nsresult rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
+  nsresult rv = aConnection->CreateStatement(NS_LITERAL_CSTRING(
       "SELECT MIN(visit_date) FROM moz_historyvisits"),
     getter_AddRefs(statement));
   NS_ASSERTION(NS_SUCCEEDED(rv), "Could not create statement");
@@ -919,29 +1084,35 @@ nsNavHistoryExpire::ComputeNextExpirationTime()
   mNextExpirationTime = minTime + GetExpirationTimeAgo(mHistory->mExpireDaysMax);
 }
 
-void
-nsNavHistoryExpire::StartPartialExpirationTimer(PRUint32 aMilleseconds)
-{
-  if (mPartialExpirationTimer) {
-    mPartialExpirationTimer->Cancel();
-    mPartialExpirationTimer = 0;
-  }
 
-  mPartialExpirationTimer = do_CreateInstance("@mozilla.org/timer;1");
-  if(mPartialExpirationTimer) {
-    (void)mPartialExpirationTimer->InitWithFuncCallback(
-      PartialExpirationTimerCallback, this, aMilleseconds,
-      nsITimer::TYPE_ONE_SHOT);
-  }
+// nsNavHistoryExpire::StartTimer
+
+nsresult
+nsNavHistoryExpire::StartTimer(PRUint32 aMilleseconds)
+{
+  if (!mTimer)
+    mTimer = do_CreateInstance("@mozilla.org/timer;1");
+  NS_ENSURE_STATE(mTimer); // returns on error
+  nsresult rv = mTimer->InitWithFuncCallback(TimerCallback, this,
+                                             aMilleseconds,
+                                             nsITimer::TYPE_ONE_SHOT);
+  NS_ENSURE_SUCCESS(rv, rv);
+  return NS_OK;
 }
+
+
+// nsNavHistoryExpire::TimerCallback
 
 void // static
-nsNavHistoryExpire::PartialExpirationTimerCallback(nsITimer* aTimer, void* aClosure)
+nsNavHistoryExpire::TimerCallback(nsITimer* aTimer, void* aClosure)
 {
-  nsNavHistoryExpire* expire = static_cast<nsNavHistoryExpire*>(aClosure);
-  expire->mPartialExpirationTimer = 0;
-  expire->DoPartialExpiration();
+  nsNavHistoryExpire* that = static_cast<nsNavHistoryExpire*>(aClosure);
+  that->mTimerSet = PR_FALSE;
+  that->DoPartialExpiration();
 }
+
+
+// nsNavHistoryExpire::GetExpirationTimeAgo
 
 PRTime
 nsNavHistoryExpire::GetExpirationTimeAgo(PRInt32 aExpireDays)

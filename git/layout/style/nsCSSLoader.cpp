@@ -274,6 +274,7 @@ nsCOMArray<nsICSSParser>* CSSLoaderImpl::gParsers = nsnull;
 
 CSSLoaderImpl::CSSLoaderImpl(void)
   : mDocument(nsnull), 
+    mCaseSensitive(PR_FALSE),
     mEnabled(PR_TRUE), 
     mCompatMode(eCompatibility_FullStandards),
     mDatasToNotifyOn(0)
@@ -327,6 +328,13 @@ CSSLoaderImpl::DropDocumentReference(void)
   if (mPendingDatas.IsInitialized()) {
     StartAlternateLoads();
   }
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+CSSLoaderImpl::SetCaseSensitive(PRBool aCaseSensitive)
+{
+  mCaseSensitive = aCaseSensitive;
   return NS_OK;
 }
 
@@ -423,6 +431,7 @@ CSSLoaderImpl::GetParserFor(nsICSSStyleSheet* aSheet,
   }
   
   if (*aParser) {
+    (*aParser)->SetCaseSensitive(mCaseSensitive);
     (*aParser)->SetQuirkMode(mCompatMode == eCompatibility_NavQuirks);
     if (aSheet) {
       (*aParser)->SetStyleSheet(aSheet);

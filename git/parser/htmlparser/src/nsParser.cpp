@@ -382,9 +382,6 @@ nsPreloadURIs::PreloadURIs(const nsAutoTArray<nsSpeculativeScriptThread::Prefetc
       case nsSpeculativeScriptThread::SCRIPT:
         doc->ScriptLoader()->PreloadURI(uri, pe.charset, pe.elementType);
         break;
-      case nsSpeculativeScriptThread::IMAGE:
-        doc->MaybePreLoadImage(uri);
-        break;
       case nsSpeculativeScriptThread::STYLESHEET: {
         nsCOMPtr<nsICSSLoaderObserver> obs = new nsDummyCSSLoaderObserver();
         doc->CSSLoader()->LoadSheet(uri, doc->NodePrincipal(),
@@ -392,6 +389,9 @@ nsPreloadURIs::PreloadURIs(const nsAutoTArray<nsSpeculativeScriptThread::Prefetc
                                     obs);
         break;
       }
+      case nsSpeculativeScriptThread::IMAGE:
+        NS_NOTREACHED("We don't scan these yet");
+        break;
       case nsSpeculativeScriptThread::NONE:
         NS_NOTREACHED("Uninitialized preload entry?");
         break;
@@ -503,7 +503,7 @@ nsSpeculativeScriptThread::StartParsing(nsParser *aParser)
       // We consumed more the last time we tried speculatively parsing than we
       // did the last time we actually parsed.
       PRUint32 distance = Distance(start, end);
-      start.advance(NS_MIN(mNumConsumed - context->mNumConsumed, distance));
+      start.advance(PR_MIN(mNumConsumed - context->mNumConsumed, distance));
     }
 
     if (start == end) {
@@ -599,10 +599,6 @@ nsSpeculativeScriptThread::ProcessToken(CToken *aToken)
         switch (tag) {
           case eHTMLTag_link:
               ptype = STYLESHEET;
-              break;
-
-          case eHTMLTag_img:
-              ptype = IMAGE;
               break;
 
           case eHTMLTag_script:
@@ -844,7 +840,10 @@ nsParser::Initialize(PRBool aConstructor)
            NS_PARSER_FLAG_PARSER_ENABLED |
            NS_PARSER_FLAG_CAN_TOKENIZE;
 
-  mProcessingNetworkData = PR_FALSE;
+  MOZ_TIMER_DEBUGLOG(("Reset: Parse Time: nsParser::nsParser(), this=%p\n", this));
+  MOZ_TIMER_RESET(mParseTime);
+  MOZ_TIMER_RESET(mDTDTime);
+  MOZ_TIMER_RESET(mTokenizeTime);
 }
 
 void
@@ -1604,9 +1603,10 @@ nsParser::DidBuildModel(nsresult anErrorCode)
       // Let sink know if we're about to end load because we've been terminated.
       // In that case we don't want it to run deferred scripts.
       PRBool terminated = mInternalState == NS_ERROR_HTMLPARSER_STOPPARSING;
-      if (mDTD && mSink) {
+      if (mDTD && mSink &&
+          mSink->ReadyToCallDidBuildModel(terminated)) {
         nsresult dtdResult =  mDTD->DidBuildModel(anErrorCode),
-                sinkResult = mSink->DidBuildModel(terminated);
+                sinkResult = mSink->DidBuildModel();
         // nsIDTD::DidBuildModel used to be responsible for calling
         // nsIContentSink::DidBuildModel, but that obligation isn't expressible
         // in the nsIDTD interface itself, so it's sounder and simpler to give
@@ -1619,11 +1619,6 @@ nsParser::DidBuildModel(nsresult anErrorCode)
 
       //Ref. to bug 61462.
       mParserContext->mRequest = 0;
-
-      if (mSpeculativeScriptThread) {
-        mSpeculativeScriptThread->Terminate();
-        mSpeculativeScriptThread = nsnull;
-      }
     }
   }
 
@@ -1774,11 +1769,24 @@ nsParser::Terminate(void)
   } else if (mSink) {
     // We have no parser context or no DTD yet (so we got terminated before we
     // got any data).  Manually break the reference cycle with the sink.
-    result = mSink->DidBuildModel(PR_TRUE);
+    result = mSink->DidBuildModel();
     NS_ENSURE_SUCCESS(result, result);
   }
 
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsParser::ContinueParsing()
+{
+  if (mFlags & NS_PARSER_FLAG_PARSER_ENABLED) {
+    NS_WARNING("Trying to continue parsing on a unblocked parser.");
+    return NS_OK;
+  }
+
+  mFlags |= NS_PARSER_FLAG_PARSER_ENABLED;
+
+  return ContinueInterruptedParsing();
 }
 
 NS_IMETHODIMP
@@ -1787,7 +1795,7 @@ nsParser::ContinueInterruptedParsing()
   // If there are scripts executing, then the content sink is jumping the gun
   // (probably due to a synchronous XMLHttpRequest) and will re-enable us
   // later, see bug 460706.
-  if (!IsOkToProcessNetworkData()) {
+  if (IsScriptExecuting()) {
     return NS_OK;
   }
 
@@ -1811,12 +1819,10 @@ nsParser::ContinueInterruptedParsing()
   PRBool isFinalChunk = mParserContext &&
                         mParserContext->mStreamListenerState == eOnStop;
 
-  mProcessingNetworkData = PR_TRUE;
   if (mSink) {
     mSink->WillParse();
   }
   result = ResumeParse(PR_TRUE, isFinalChunk); // Ref. bug 57999
-  mProcessingNetworkData = PR_FALSE;
 
   if (result != NS_OK) {
     result=mInternalState;
@@ -1833,6 +1839,8 @@ NS_IMETHODIMP_(void)
 nsParser::BlockParser()
 {
   mFlags &= ~NS_PARSER_FLAG_PARSER_ENABLED;
+  MOZ_TIMER_DEBUGLOG(("Stop: Parse Time: nsParser::BlockParser(), this=%p\n", this));
+  MOZ_TIMER_STOP(mParseTime);
 }
 
 /**
@@ -1846,6 +1854,8 @@ nsParser::UnblockParser()
 {
   if (!(mFlags & NS_PARSER_FLAG_PARSER_ENABLED)) {
     mFlags |= NS_PARSER_FLAG_PARSER_ENABLED;
+    MOZ_TIMER_DEBUGLOG(("Start: Parse Time: nsParser::UnblockParser(), this=%p\n", this));
+    MOZ_TIMER_START(mParseTime);
   } else {
     NS_WARNING("Trying to unblock an unblocked parser.");
   }
@@ -1879,8 +1889,7 @@ void nsParser::HandleParserContinueEvent(nsParserContinueEvent *ev)
   mFlags &= ~NS_PARSER_FLAG_PENDING_CONTINUE_EVENT;
   mContinueEvent = nsnull;
 
-  NS_ASSERTION(IsOkToProcessNetworkData(),
-               "Interrupted in the middle of a script?");
+  NS_ASSERTION(!IsScriptExecuting(), "Interrupted in the middle of a script?");
   ContinueInterruptedParsing();
 }
 
@@ -1917,33 +1926,6 @@ PRBool
 nsParser::CanInterrupt()
 {
   return (mFlags & NS_PARSER_FLAG_CAN_INTERRUPT) != 0;
-}
-
-PRBool
-nsParser::IsInsertionPointDefined()
-{
-  return PR_TRUE;
-}
-
-void
-nsParser::BeginEvaluatingParserInsertedScript()
-{
-}
-
-void
-nsParser::EndEvaluatingParserInsertedScript()
-{
-}
-
-void
-nsParser::MarkAsNotScriptCreated()
-{
-}
-
-PRBool
-nsParser::IsScriptCreated()
-{
-  return PR_FALSE;
 }
 
 void
@@ -2144,16 +2126,6 @@ nsParser::Parse(const nsAString& aSourceBuffer,
 
 NS_IMETHODIMP
 nsParser::ParseFragment(const nsAString& aSourceBuffer,
-                        nsISupports* aTargetNode,
-                        nsIAtom* aContextLocalName,
-                        PRInt32 aContextNamespace,
-                        PRBool aQuirks)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsParser::ParseFragment(const nsAString& aSourceBuffer,
                         void* aKey,
                         nsTArray<nsString>& aTagStack,
                         PRBool aXMLMode,
@@ -2312,6 +2284,9 @@ nsParser::ResumeParse(PRBool allowIteration, PRBool aIsFinalChunk,
 
   if ((mFlags & NS_PARSER_FLAG_PARSER_ENABLED) &&
       mInternalState != NS_ERROR_HTMLPARSER_STOPPARSING) {
+    MOZ_TIMER_DEBUGLOG(("Start: Parse Time: nsParser::ResumeParse(), this=%p\n", this));
+    MOZ_TIMER_START(mParseTime);
+
     NS_ASSERTION(!mSpeculativeScriptThread || !mSpeculativeScriptThread->Parsing(),
                  "Bad races happening, expect to crash!");
 
@@ -2386,6 +2361,19 @@ nsParser::ResumeParse(PRBool allowIteration, PRBool aIsFinalChunk,
             if (!mParserContext->mPrevContext) {
               if (mParserContext->mStreamListenerState == eOnStop) {
                 DidBuildModel(mStreamStatus);
+
+                MOZ_TIMER_DEBUGLOG(("Stop: Parse Time: nsParser::ResumeParse(), this=%p\n", this));
+                MOZ_TIMER_STOP(mParseTime);
+
+                MOZ_TIMER_LOG(("Parse Time (this=%p): ", this));
+                MOZ_TIMER_PRINT(mParseTime);
+
+                MOZ_TIMER_LOG(("DTD Time: "));
+                MOZ_TIMER_PRINT(mDTDTime);
+
+                MOZ_TIMER_LOG(("Tokenize Time: "));
+                MOZ_TIMER_PRINT(mTokenizeTime);
+
                 return NS_OK;
               }
             } else {
@@ -2418,6 +2406,9 @@ nsParser::ResumeParse(PRBool allowIteration, PRBool aIsFinalChunk,
     }
   }
 
+  MOZ_TIMER_DEBUGLOG(("Stop: Parse Time: nsParser::ResumeParse(), this=%p\n", this));
+  MOZ_TIMER_STOP(mParseTime);
+
   return (result == NS_ERROR_HTMLPARSER_INTERRUPTED) ? NS_OK : result;
 }
 
@@ -2437,6 +2428,7 @@ nsParser::BuildModel()
 
   if (NS_SUCCEEDED(result)) {
     if (mDTD) {
+      MOZ_TIMER_START(mDTDTime);
       // XXXbenjamn CanInterrupt() and !inDocWrite appear to be covariant.
       PRBool inDocWrite = !!mParserContext->mPrevContext;
       result = mDTD->BuildModel(theTokenizer,
@@ -2444,6 +2436,7 @@ nsParser::BuildModel()
                                 CanInterrupt() && !inDocWrite,
                                 !inDocWrite, // don't count lines in document.write
                                 &mCharset);
+      MOZ_TIMER_STOP(mDTDTime);
     }
   } else {
     mInternalState = result = NS_ERROR_HTMLPARSER_BADTOKENIZER;
@@ -2721,7 +2714,7 @@ nsParser::DetectMetaTag(const char* aBytes,
   // Fast and loose parsing to determine if we have a complete
   // META tag in this block, looking upto 2k into it.
   const nsASingleFragmentCString& str =
-      Substring(aBytes, aBytes + NS_MIN(aLen, 2048));
+      Substring(aBytes, aBytes + PR_MIN(aLen, 2048));
   // XXXldb Should be const_char_iterator when FindInReadable supports it.
   nsACString::const_iterator begin, end;
 
@@ -2966,14 +2959,12 @@ nsParser::OnDataAvailable(nsIRequest *request, nsISupports* aContext,
 
     // Don't bother to start parsing until we've seen some
     // non-whitespace data
-    if (IsOkToProcessNetworkData() &&
+    if (!IsScriptExecuting() &&
         theContext->mScanner->FirstNonWhitespacePosition() >= 0) {
-      mProcessingNetworkData = PR_TRUE;
       if (mSink) {
         mSink->WillParse();
       }
       rv = ResumeParse();
-      mProcessingNetworkData = PR_FALSE;
     }
   } else {
     rv = NS_ERROR_UNEXPECTED;
@@ -3013,13 +3004,11 @@ nsParser::OnStopRequest(nsIRequest *request, nsISupports* aContext,
   if (mParserFilter)
     mParserFilter->Finish();
 
-  if (IsOkToProcessNetworkData() && NS_SUCCEEDED(rv)) {
-    mProcessingNetworkData = PR_TRUE;
+  if (!IsScriptExecuting() && NS_SUCCEEDED(rv)) {
     if (mSink) {
       mSink->WillParse();
     }
     rv = ResumeParse(PR_TRUE, PR_TRUE);
-    mProcessingNetworkData = PR_FALSE;
   }
 
   // If the parser isn't enabled, we don't finish parsing till
@@ -3100,6 +3089,8 @@ nsresult nsParser::Tokenize(PRBool aIsFinalChunk)
 
     PRBool flushTokens = PR_FALSE;
 
+    MOZ_TIMER_START(mTokenizeTime);
+
     mParserContext->mNumConsumed = 0;
 
     PRBool killSink = PR_FALSE;
@@ -3129,6 +3120,8 @@ nsresult nsParser::Tokenize(PRBool aIsFinalChunk)
       }
     }
     DidTokenize(aIsFinalChunk);
+
+    MOZ_TIMER_STOP(mTokenizeTime);
 
     if (killSink) {
       mSink = nsnull;
@@ -3189,12 +3182,3 @@ nsParser::GetDTD(nsIDTD** aDTD)
   return NS_OK;
 }
 
-/**
- * Get this as nsIStreamListener
- */
-NS_IMETHODIMP
-nsParser::GetStreamListener(nsIStreamListener** aListener)
-{
-  NS_ADDREF(*aListener = this);
-  return NS_OK;
-}

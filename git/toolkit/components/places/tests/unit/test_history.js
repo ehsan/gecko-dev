@@ -54,15 +54,16 @@ var bh = histsvc.QueryInterface(Ci.nsIBrowserHistory);
  * @returns the place id for aURI.
  */
 function add_visit(aURI, aReferrer) {
-  var visitId = histsvc.addVisit(aURI,
+  var placeID = histsvc.addVisit(aURI,
                                  Date.now() * 1000,
                                  aReferrer,
                                  histsvc.TRANSITION_TYPED, // user typed in URL bar
                                  false, // not redirect
                                  0);
-  dump("### Added visit with id of " + visitId + "\n");
+  dump("### Added visit with id of " + placeID + "\n");
+  do_check_true(placeID > 0);
   do_check_true(gh.isVisited(aURI));
-  return visitId;
+  return placeID;
 }
 
 /**
@@ -188,7 +189,7 @@ function run_test() {
 
   // test getPageTitle
   var title = histsvc.getPageTitle(uri("http://mozilla.com"));
-  do_check_eq(title, null);
+  do_check_eq(title, "mozilla.com");
 
   // query for the visit
   do_check_true(uri_in_db(testURI));
@@ -197,14 +198,10 @@ function run_test() {
   // get direct db connection
   var db = histsvc.QueryInterface(Ci.nsPIPlacesDatabase).DBConnection;
   var q = "SELECT id FROM moz_bookmarks";
-  var statement;
   try {
-     statement = db.createStatement(q);
+    var statement = db.createStatement(q);
   } catch(ex) {
     do_throw("bookmarks table does not have id field, schema is too old!");
-  }
-  finally {
-    statement.finalize();
   }
 
   // bug 394741 - regressed history text searches
