@@ -104,14 +104,6 @@ window.Item = function() {
   // Variable: dropOptions
   // Used to pass into iQ.fn.droppable
   this.dropOptions = null;
-  
-  // Variable: resizeOptions
-  // Used to pass into iQ.fn.resizable
-  this.resizeOptions = null;
-  
-  // Variable: isDragging
-  // Boolean for whether the item is currently being dragged or not.
-  this.isDragging = false;
 };
 
 window.Item.prototype = { 
@@ -193,30 +185,6 @@ window.Item.prototype = {
   			return false;
   		}
   	};
-  	
-  	// ___ resize
-  	var self = this;
-  	var resizeInfo = null;
-    this.resizeOptions = {
-      aspectRatio: self.keepProportional,
-      minWidth: 90,
-      minHeight: 90,
-      start: function(e,ui){
-      	resizeInfo = new Drag(this, e);
-      },
-      resize: function(e,ui){
-        self.reloadBounds();
-        resizeInfo.snap(e,ui, false, self.keepProportional);
-      },
-      stop: function(){
-        self.reloadBounds();
-        self.setUserSize();
-        self.pushAway();
-        resizeInfo.stop();
-        resizeInfo = null;
-      } 
-    };
-  	
   },
   
   // ----------
@@ -542,11 +510,6 @@ window.Items = {
   squishMode: 'squish', 
   
   // ----------
-  // Variable: defaultGutter
-  // How far apart Items should be from each other and from bounds
-  defaultGutter: 15,
-  
-  // ----------
   // Function: init
   // Initialize the object
   init: function() {
@@ -584,21 +547,6 @@ window.Items = {
     var width = Math.max(100, window.innerWidth);
     var height = Math.max(100, window.innerHeight - (top + bottom));
     return new Rect(0, top, width, height);
-  },
-  
-  // ----------
-  // Function: getSafeWindowBounds
-  // Returns the bounds within which it is safe to place all non-stationary <Item>s.
-  getSafeWindowBounds: function() {
-    // the safe bounds that would keep it "in the window"
-    var gutter = Items.defaultGutter;
-    var pageBounds = Items.getPageBounds();
-    var newTabGroupBounds = Groups.getBoundsForNewTabGroup();
-    // Here, I've set the top gutter separately, as the top of the window has its own
-    // extra chrome which makes a large top gutter unnecessary.
-    // TODO: set top gutter separately, elsewhere.
-    var topGutter = 5;
-    return new Rect( gutter, topGutter, pageBounds.width - 2 * gutter, newTabGroupBounds.top -  gutter - topGutter );
   },
   
   // ----------  
