@@ -113,7 +113,7 @@ public final class testInputUrlBar extends BaseTest {
     private void startEditingMode() {
         focusUrlBar();
 
-        mUrlBarEditElement = mDriver.findElement(getActivity(), R.id.url_edit_text);
+        mUrlBarEditElement = mDriver.findElement(getActivity(), URL_EDIT_TEXT_ID);
         final int id = mUrlBarEditElement.getId();
         mUrlBarEditView = (EditText) getActivity().findViewById(id);
     }

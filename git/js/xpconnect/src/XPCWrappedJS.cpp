@@ -334,7 +334,8 @@ nsXPCWrappedJS::GetNewOrUsed(JS::HandleObject jsObj,
         return NS_ERROR_FAILURE;
     }
 
-    nsRefPtr<nsXPCWrappedJSClass> clasp = nsXPCWrappedJSClass::GetNewOrUsed(cx, aIID);
+    nsRefPtr<nsXPCWrappedJSClass> clasp;
+    nsXPCWrappedJSClass::GetNewOrUsed(cx, aIID, getter_AddRefs(clasp));
     if (!clasp)
         return NS_ERROR_FAILURE;
 
@@ -354,7 +355,9 @@ nsXPCWrappedJS::GetNewOrUsed(JS::HandleObject jsObj,
         // Make a new root wrapper, because there is no existing
         // root wrapper, and the wrapper we are trying to make isn't
         // a root.
-        nsRefPtr<nsXPCWrappedJSClass> rootClasp = nsXPCWrappedJSClass::GetNewOrUsed(cx, NS_GET_IID(nsISupports));
+        nsRefPtr<nsXPCWrappedJSClass> rootClasp;
+        nsXPCWrappedJSClass::GetNewOrUsed(cx, NS_GET_IID(nsISupports),
+                                          getter_AddRefs(rootClasp));
         if (!rootClasp)
             return NS_ERROR_FAILURE;
 

@@ -160,7 +160,7 @@ SVGFilterElement::Invalidate()
     nsTObserverArray<nsIMutationObserver*>::ForwardIterator iter(*observers);
     while (iter.HasMore()) {
       nsCOMPtr<nsIMutationObserver> obs(iter.GetNext());
-      nsCOMPtr<nsISVGFilterReference> filter = do_QueryInterface(obs);
+      nsCOMPtr<nsISVGFilterProperty> filter = do_QueryInterface(obs);
       if (filter)
         filter->Invalidate();
     }

@@ -35,7 +35,7 @@ addMessageListener("Browser:HideSessionRestoreButton", function (message) {
   }
 });
 
-if (Services.appinfo.processType == Services.appinfo.PROCESS_TYPE_CONTENT) {
+if (Services.prefs.getBoolPref("browser.tabs.remote")) {
   addEventListener("contextmenu", function (event) {
     sendAsyncMessage("contextmenu", {}, { event: event });
   }, false);

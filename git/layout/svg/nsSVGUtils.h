@@ -161,18 +161,18 @@ private:
 };
 
 
-#define NS_ISVGFILTERREFERENCE_IID \
+#define NS_ISVGFILTERPROPERTY_IID \
 { 0x9744ee20, 0x1bcf, 0x4c62, \
  { 0x86, 0x7d, 0xd3, 0x7a, 0x91, 0x60, 0x3e, 0xef } }
 
-class nsISVGFilterReference : public nsISupports
+class nsISVGFilterProperty : public nsISupports
 {
 public:
-  NS_DECLARE_STATIC_IID_ACCESSOR(NS_ISVGFILTERREFERENCE_IID)
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_ISVGFILTERPROPERTY_IID)
   virtual void Invalidate() = 0;
 };
 
-NS_DEFINE_STATIC_IID_ACCESSOR(nsISVGFilterReference, NS_ISVGFILTERREFERENCE_IID)
+NS_DEFINE_STATIC_IID_ACCESSOR(nsISVGFilterProperty, NS_ISVGFILTERPROPERTY_IID)
 
 /**
  * General functions used by all of SVG layout and possibly content code.

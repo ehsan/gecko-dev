@@ -511,13 +511,8 @@ JSObject::create(js::ExclusiveContext *cx, js::gc::AllocKind kind, js::gc::Initi
 
     obj->shape_.init(shape);
     obj->type_.init(type);
-    if (extantSlots) {
-#ifdef JSGC_GENERATIONAL
-        if (cx->isJSContext())
-            cx->asJSContext()->runtime()->gcNursery.notifyInitialSlots(obj, extantSlots);
-#endif
+    if (extantSlots)
         obj->slots = extantSlots;
-    }
     obj->elements = js::emptyObjectElements;
 
     if (clasp->hasPrivate())

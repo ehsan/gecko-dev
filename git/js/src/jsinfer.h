@@ -25,12 +25,12 @@
 
 namespace js {
 
-class TypeDescr;
-
 #ifdef DEBUG
 bool CurrentThreadCanWriteCompilationData();
 bool CurrentThreadCanReadCompilationData();
 #endif
+
+class TypeRepresentation;
 
 class TaggedProto
 {
@@ -847,17 +847,23 @@ struct TypeNewScript : public TypeObjectAddendum
 
 struct TypeTypedObject : public TypeObjectAddendum
 {
-  private:
-    HeapPtrObject descr_;
+    enum Kind {
+        TypeDescriptor,
+        Datum,
+    };
 
-  public:
-    TypeTypedObject(Handle<TypeDescr*> descr);
+    TypeTypedObject(Kind kind, TypeRepresentation *repr);
 
-    HeapPtrObject &descrHeapPtr() {
-        return descr_;
+    const Kind kind;
+    TypeRepresentation *const typeRepr;
+
+    bool isTypeDescriptor() const {
+        return kind == TypeDescriptor;
     }
 
-    TypeDescr &descr();
+    bool isDatum() const {
+        return kind == Datum;
+    }
 };
 
 /*
@@ -1013,7 +1019,9 @@ struct TypeObject : gc::BarrieredCell<TypeObject>
      * this addendum must already be associated with the same TypeRepresentation,
      * and the method has no effect.
      */
-    bool addTypedObjectAddendum(JSContext *cx, Handle<TypeDescr*> descr);
+    bool addTypedObjectAddendum(JSContext *cx,
+                                TypeTypedObject::Kind kind ,
+                                TypeRepresentation *repr);
 
   private:
     /*

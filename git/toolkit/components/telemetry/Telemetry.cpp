@@ -288,20 +288,6 @@ class TelemetryIOInterposeObserver : public IOInterposeObserver
     double    totalTime;    /** Accumulated duration of all operations */
   };
   typedef nsBaseHashtableET<nsStringHashKey, FileStats> FileIOEntryType;
-
-  struct SafeDir {
-    SafeDir(const nsAString& aPath, const nsAString& aSubstName)
-      : mPath(aPath)
-      , mSubstName(aSubstName)
-    {}
-    size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const {
-      return mPath.SizeOfExcludingThisIfUnshared(aMallocSizeOf) +
-             mSubstName.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
-    }
-    nsString  mPath;        /** Path to the directory */
-    nsString  mSubstName;   /** Name to substitute with */
-  };
-
 public:
   TelemetryIOInterposeObserver(nsIFile* aXreDir);
 
@@ -316,12 +302,7 @@ public:
    */
   bool ReflectIntoJS(JSContext *cx, JS::Handle<JSObject*> rootObj);
 
-  /**
-   * Adds a path for inclusion in main thread I/O report.
-   * @param aPath Directory path
-   * @param aSubstName Name to substitute for aPath for privacy reasons
-   */
-  void AddPath(const nsAString& aPath, const nsAString& aSubstName);
+  void AddPath(const nsAString& aPath);
 
   /**
    * Get size of hash table with file stats
@@ -337,7 +318,7 @@ public:
            mSafeDirs.SizeOfExcludingThis(aMallocSizeOf);
     uint32_t safeDirsLen = mSafeDirs.Length();
     for (uint32_t i = 0; i < safeDirsLen; ++i) {
-      size += mSafeDirs[i].SizeOfExcludingThis(aMallocSizeOf);
+      size += mSafeDirs[i].SizeOfExcludingThisIfUnshared(aMallocSizeOf);
     }
     return size;
   }
@@ -346,7 +327,7 @@ private:
   // Statistics for each filename
   AutoHashtable<FileIOEntryType> mFileStats;
   // Container for whitelisted directories
-  nsTArray<SafeDir> mSafeDirs;
+  nsTArray<nsString> mSafeDirs;
 
   /**
    * Reflect a FileIOEntryType object to a Javascript property on obj with
@@ -369,14 +350,13 @@ TelemetryIOInterposeObserver::TelemetryIOInterposeObserver(nsIFile* aXreDir)
   nsAutoString xreDirPath;
   nsresult rv = aXreDir->GetPath(xreDirPath);
   if (NS_SUCCEEDED(rv)) {
-    AddPath(xreDirPath, NS_LITERAL_STRING("{xre}"));
+    AddPath(xreDirPath);
   }
 }
 
-void TelemetryIOInterposeObserver::AddPath(const nsAString& aPath,
-                                           const nsAString& aSubstName)
+void TelemetryIOInterposeObserver::AddPath(const nsAString& aPath)
 {
-  mSafeDirs.AppendElement(SafeDir(aPath, aSubstName));
+  mSafeDirs.AppendElement(aPath);
 }
  
 void TelemetryIOInterposeObserver::Observe(Observation& aOb)
@@ -394,33 +374,40 @@ void TelemetryIOInterposeObserver::Observe(Observation& aOb)
     return;
   }
 
-  nsAutoString      processedName;
+  bool report = false;
   nsDependentString filenameStr(filename);
   uint32_t filenameStrLen = filenameStr.Length();
   uint32_t safeDirsLen = mSafeDirs.Length();
   for (uint32_t i = 0; i < safeDirsLen; ++i) {
-    uint32_t curSafeDirLen = mSafeDirs[i].mPath.Length();
+    uint32_t curSafeDirLen = mSafeDirs[i].Length();
     if (curSafeDirLen <= filenameStrLen) {
 #if defined(_MSC_VER)
-      if (!_wcsnicmp(filename, mSafeDirs[i].mPath.get(), curSafeDirLen)) {
+      if (!_wcsnicmp(filename, mSafeDirs[i].get(), curSafeDirLen)) {
 #else
-      if (!std::char_traits<char16_t>::compare(filename,
-                                               mSafeDirs[i].mPath.get(),
+      if (!std::char_traits<char16_t>::compare(filename, mSafeDirs[i].get(),
                                                curSafeDirLen)) {
 #endif
-        processedName = mSafeDirs[i].mSubstName;
-        processedName += Substring(filenameStr, curSafeDirLen);
+        report = true;
         break;
       }
     }
   }
 
-  if (processedName.IsEmpty()) {
+  if (!report) {
     return;
   }
 
+  const char16_t* leaf = filename + filenameStrLen;
+  while (filename < leaf) {
+    char16_t c = *(leaf - 1);
+    if (c == MOZ_UTF16('\\') || c == MOZ_UTF16('/')) {
+      break;
+    }
+    --leaf;
+  }
+
   // Create a new entry or retrieve the existing one
-  FileIOEntryType* entry = mFileStats.PutEntry(processedName);
+  FileIOEntryType* entry = mFileStats.PutEntry(nsDependentString(leaf));
   if (entry) {
     // Update the statistics
     entry->mData.totalTime += (double) aOb.Duration().ToMilliseconds();
@@ -2975,7 +2962,7 @@ SetProfileDir(nsIFile* aProfD)
   if (NS_FAILED(rv)) {
     return;
   }
-  sTelemetryIOObserver->AddPath(profDirPath, NS_LITERAL_STRING("{profile}"));
+  sTelemetryIOObserver->AddPath(profDirPath);
 }
 
 void

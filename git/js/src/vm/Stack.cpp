@@ -1222,17 +1222,10 @@ ScriptFrameIter::frameSlotValue(size_t index) const
 #endif
 
 #ifdef DEBUG
-bool
-js::SelfHostedFramesVisible()
-{
-    static bool checked = false;
-    static bool visible = false;
-    if (!checked) {
-        checked = true;
-        char *env = getenv("MOZ_SHOW_ALL_JS_FRAMES");
-        visible = !!env;
-    }
-    return visible;
+/* static */
+bool NonBuiltinScriptFrameIter::includeSelfhostedFrames() {
+    static char* env = getenv("MOZ_SHOW_ALL_JS_FRAMES");
+    return (bool)env;
 }
 #endif
 

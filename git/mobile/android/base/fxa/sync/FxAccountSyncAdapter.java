@@ -265,10 +265,6 @@ public class FxAccountSyncAdapter extends AbstractThreadedSyncAdapter {
         Logger.error(LOG_TAG, "Failed to get token.", e);
         callback.handleError(null, e);
       }
-
-      @Override
-      public void handleBackoff(int backoffSeconds) {
-      }
     });
   }
 

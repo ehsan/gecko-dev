@@ -4,13 +4,9 @@
 
 package org.mozilla.gecko.tokenserver;
 
+
 public interface TokenServerClientDelegate {
   void handleSuccess(TokenServerToken token);
   void handleFailure(TokenServerException e);
   void handleError(Exception e);
-
-  /**
-   * Might be called multiple times, in addition to the other terminating handler methods.
-   */
-  void handleBackoff(int backoffSeconds);
 }

@@ -2626,8 +2626,13 @@ struct nsStyleSVGReset {
                           nsChangeHint_ClearAncestorIntrinsics);
   }
 
-  bool HasFilters() const {
-    return mFilters.Length() > 0;
+  // The backend only supports one SVG reference right now.
+  // Eventually, it will support multiple chained SVG reference filters and CSS
+  // filter functions.
+  nsIURI* SingleFilter() const {
+    return (mFilters.Length() == 1 &&
+            mFilters[0].GetType() == NS_STYLE_FILTER_URL) ?
+            mFilters[0].GetURL() : nullptr;
   }
 
   nsCOMPtr<nsIURI> mClipPath;         // [reset]
