@@ -785,10 +785,14 @@ LayerManagerOGL::Render()
   mGLContext->fClearColor(1.0, 1.0, 1.0, 0.0);
   mGLContext->fClear(LOCAL_GL_COLOR_BUFFER_BIT | LOCAL_GL_DEPTH_BUFFER_BIT);
 
+  // Allow widget to render a custom background.
+  mWidget->DrawWindowUnderlay(this, rect);
+
   // Render our layers.
   RootLayer()->RenderLayer(mGLContext->IsDoubleBuffered() ? 0 : mBackBufferFBO,
                            nsIntPoint(0, 0));
 
+  // Allow widget to render a custom foreground too.
   mWidget->DrawWindowOverlay(this, rect);
 
   if (mTarget) {
@@ -800,8 +804,6 @@ LayerManagerOGL::Render()
   if (sDrawFPS) {
     mFPS.DrawFPS(mGLContext, GetCopy2DProgram());
   }
-
-  PerformPostRenderHook();
 
   if (mGLContext->IsDoubleBuffered()) {
     mGLContext->SwapBuffers();
@@ -895,22 +897,6 @@ LayerManagerOGL::Render()
 }
 
 void
-LayerManagerOGL::PerformPreRenderHook()
-{
-#ifdef MOZ_WIDGET_ANDROID
-  // TODO: AndroidBridge::PerformPreRenderHook();
-#endif
-}
-
-void
-LayerManagerOGL::PerformPostRenderHook()
-{
-#ifdef MOZ_WIDGET_ANDROID
-  // TODO: AndroidBridge::PerformPostRenderHook();
-#endif
-}
-
-void
 LayerManagerOGL::SetWorldTransform(const gfxMatrix& aMatrix)
 {
   NS_ASSERTION(aMatrix.PreservesAxisAlignedRectangles(),
@@ -933,17 +919,6 @@ LayerManagerOGL::WorldTransformRect(nsIntRect& aRect)
   gfxRect grect(aRect.x, aRect.y, aRect.width, aRect.height);
   grect = mWorldMatrix.TransformBounds(grect);
   aRect.SetRect(grect.X(), grect.Y(), grect.Width(), grect.Height());
-}
-
-LayerForwarderQuirks
-LayerManagerOGL::GetForwarderQuirks()
-{
-  uint16_t quirks = 0;
-  if (mGLContext->PreferPowerOfTwoTextures()) {
-    quirks |= 1 << 0;
-  }
-
-  return LayerForwarderQuirks(quirks);
 }
 
 void

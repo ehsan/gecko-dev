@@ -387,9 +387,6 @@ public:
    * to a window of the given dimensions.
    */
   void SetupPipeline(int aWidth, int aHeight, WorldTransforPolicy aTransformPolicy);
- 
-  void PerformPreRenderHook();
-  void PerformPostRenderHook();
 
   /**
    * Setup World transform matrix.
@@ -399,8 +396,6 @@ public:
   void SetWorldTransform(const gfxMatrix& aMatrix);
   gfxMatrix& GetWorldTransform(void);
   void WorldTransformRect(nsIntRect& aRect);
-
-  LayerForwarderQuirks GetForwarderQuirks();
 
 private:
   /** Widget associated with this layer manager */

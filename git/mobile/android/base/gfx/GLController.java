@@ -180,7 +180,7 @@ public class GLController {
         mHeight = newHeight;
     }
 
-    private void initEGL() {
+    private void initEGLContext() {
         mEGL = (EGL10)EGLContext.getEGL();
 
         mEGLDisplay = mEGL.eglGetDisplay(EGL10.EGL_DEFAULT_DISPLAY);
@@ -194,10 +194,6 @@ public class GLController {
         }
 
         mEGLConfig = chooseConfig();
-    }
-
-    private void initEGLContext() {
-        initEGL();
 
         int[] attribList = { EGL_CONTEXT_CLIENT_VERSION, mGLVersion, EGL10.EGL_NONE };
         mEGLContext = mEGL.eglCreateContext(mEGLDisplay, mEGLConfig, EGL10.EGL_NO_CONTEXT,
@@ -252,11 +248,22 @@ public class GLController {
             mView.getRenderer().onSurfaceChanged((GL10)mGL, mView.getWidth(), mView.getHeight());
         }
     }
-
-    // Provides an EGLSurface without assuming ownership of this surface.
+        
     private EGLSurface provideEGLSurface() {
         if (mEGL == null) {
-            initEGL();
+            mEGL = (EGL10)EGLContext.getEGL();
+
+            mEGLDisplay = mEGL.eglGetDisplay(EGL10.EGL_DEFAULT_DISPLAY);
+            if (mEGLDisplay == EGL10.EGL_NO_DISPLAY) {
+                throw new GLControllerException("eglGetDisplay() failed");
+            }
+
+            int[] version = new int[2];
+            if (!mEGL.eglInitialize(mEGLDisplay, version)) {
+                throw new GLControllerException("eglInitialize() failed");
+            }
+
+            mEGLConfig = chooseConfig();
         }
 
         SurfaceHolder surfaceHolder = mView.getHolder();
