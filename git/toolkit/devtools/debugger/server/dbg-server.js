@@ -25,7 +25,11 @@ Cu.import("resource://gre/modules/jsdebugger.jsm");
 addDebuggerToGlobal(this);
 
 Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
-const { defer, resolve, reject, all } = Promise;
+const { defer, resolve, reject } = Promise;
+let promisedArray = Promise.promised(Array);
+function resolveAll(aPromises) {
+  return promisedArray.apply(null, aPromises);
+};
 
 Cu.import("resource://gre/modules/devtools/SourceMap.jsm");
 
