@@ -1084,7 +1084,6 @@ nsGlobalWindow::CleanUp(PRBool aIgnoreModalDialog)
 
   mNavigator = nsnull;
   mScreen = nsnull;
-  mHistory = nsnull;
   mMenubar = nsnull;
   mToolbar = nsnull;
   mLocationbar = nsnull;
@@ -1092,6 +1091,7 @@ nsGlobalWindow::CleanUp(PRBool aIgnoreModalDialog)
   mStatusbar = nsnull;
   mScrollbars = nsnull;
   mLocation = nsnull;
+  mHistory = nsnull;
   mFrames = nsnull;
   mApplicationCache = nsnull;
   mIndexedDB = nsnull;
@@ -1236,6 +1236,7 @@ nsGlobalWindow::FreeInnerObjects(PRBool aClearScope)
   }
 
   mLocation = nsnull;
+  mHistory = nsnull;
 
   if (mDocument) {
     NS_ASSERTION(mDoc, "Why is mDoc null?");
@@ -2388,8 +2389,6 @@ nsGlobalWindow::SetDocShell(nsIDocShell* aDocShell)
 
   if (mNavigator)
     mNavigator->SetDocShell(aDocShell);
-  if (mHistory)
-    mHistory->SetDocShell(aDocShell);
   if (mFrames)
     mFrames->SetDocShell(aDocShell);
   if (mScreen)
@@ -2910,12 +2909,12 @@ nsGlobalWindow::GetScreen(nsIDOMScreen** aScreen)
 NS_IMETHODIMP
 nsGlobalWindow::GetHistory(nsIDOMHistory** aHistory)
 {
-  FORWARD_TO_OUTER(GetHistory, (aHistory), NS_ERROR_NOT_INITIALIZED);
+  FORWARD_TO_INNER(GetHistory, (aHistory), NS_ERROR_NOT_INITIALIZED);
 
   *aHistory = nsnull;
 
-  if (!mHistory && mDocShell) {
-    mHistory = new nsHistory(mDocShell);
+  if (!mHistory) {
+    mHistory = new nsHistory(this);
     if (!mHistory) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -5064,7 +5063,7 @@ nsGlobalWindow::Print()
 
       EnterModalState();
       webBrowserPrint->Print(printSettings, nsnull);
-      LeaveModalState();
+      LeaveModalState(nsnull);
 
       PRBool savePrintSettings =
         nsContentUtils::GetBoolPref("print.save_print_settings", PR_FALSE);
@@ -6269,7 +6268,7 @@ nsGlobalWindow::ReallyCloseWindow()
   }
 }
 
-void
+nsIDOMWindow *
 nsGlobalWindow::EnterModalState()
 {
   nsGlobalWindow* topWin = GetTop();
@@ -6277,7 +6276,7 @@ nsGlobalWindow::EnterModalState()
   if (!topWin) {
     NS_ERROR("Uh, EnterModalState() called w/o a reachable top window?");
 
-    return;
+    return nsnull;
   }
 
   // If there is an active ESM in this window, clear it. Otherwise, this can
@@ -6312,9 +6311,20 @@ nsGlobalWindow::EnterModalState()
   }
   topWin->mModalStateDepth++;
 
+  JSContext *cx = nsContentUtils::GetCurrentJSContext();
+
+  nsCOMPtr<nsIDOMWindow> callerWin;
+  nsIScriptContext *scx;
+  if (cx && (scx = GetScriptContextFromJSContext(cx))) {
+    scx->EnterModalState();
+    callerWin = do_QueryInterface(nsJSUtils::GetDynamicScriptGlobal(cx));
+  }
+
   if (mContext) {
     mContext->EnterModalState();
   }
+
+  return callerWin;
 }
 
 // static
@@ -6388,7 +6398,7 @@ private:
 };
 
 void
-nsGlobalWindow::LeaveModalState()
+nsGlobalWindow::LeaveModalState(nsIDOMWindow *aCallerWin)
 {
   nsGlobalWindow *topWin = GetTop();
 
@@ -6410,6 +6420,14 @@ nsGlobalWindow::LeaveModalState()
       mSuspendedDoc->UnsuppressEventHandlingAndFireEvents(currentDoc == mSuspendedDoc);
       mSuspendedDoc = nsnull;
     }
+  }
+
+  JSContext *cx = nsContentUtils::GetCurrentJSContext();
+
+  if (aCallerWin) {
+    nsCOMPtr<nsIScriptGlobalObject> sgo(do_QueryInterface(aCallerWin));
+    nsIScriptContext *scx = sgo->GetContext();
+    scx->LeaveModalState();
   }
 
   if (mContext) {
@@ -6763,7 +6781,7 @@ nsGlobalWindow::ShowModalDialog(const nsAString& aURI, nsIVariant *aArgs,
                              GetPrincipal(),    // aCalleePrincipal
                              nsnull,            // aJSCallerContext
                              getter_AddRefs(dlgWin));
-  LeaveModalState();
+  LeaveModalState(nsnull);
 
   NS_ENSURE_SUCCESS(rv, rv);
   

@@ -655,7 +655,7 @@ nsDOMWindowUtils::GarbageCollect(nsICycleCollectorListener *aListener)
   }
 #endif
 
-  nsJSContext::CC(aListener);
+  nsJSContext::CC(aListener, PR_TRUE);
 
   return NS_OK;
 }
@@ -1413,7 +1413,23 @@ nsDOMWindowUtils::EnterModalState()
 NS_IMETHODIMP
 nsDOMWindowUtils::LeaveModalState()
 {
-  mWindow->LeaveModalState();
+  mWindow->LeaveModalState(nsnull);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMWindowUtils::EnterModalStateWithWindow(nsIDOMWindow **aWindow)
+{
+  *aWindow = mWindow->EnterModalState();
+  NS_IF_ADDREF(*aWindow);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMWindowUtils::LeaveModalStateWithWindow(nsIDOMWindow *aWindow)
+{
+  NS_ENSURE_ARG_POINTER(aWindow);
+  mWindow->LeaveModalState(aWindow);
   return NS_OK;
 }
 

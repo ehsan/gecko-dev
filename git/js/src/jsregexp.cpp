@@ -619,8 +619,10 @@ js_regexp_toString(JSContext *cx, JSObject *obj, Value *vp)
 static JSBool
 regexp_toString(JSContext *cx, uintN argc, Value *vp)
 {
-    JSObject *obj = JS_THIS_OBJECT(cx, Jsvalify(vp));
-    return obj && js_regexp_toString(cx, obj, vp);
+    JSObject *obj = ToObject(cx, &vp[1]);
+    if (!obj)
+        return false;
+    return js_regexp_toString(cx, obj, vp);
 }
 
 /*
@@ -758,60 +760,39 @@ regexp_exec_sub(JSContext *cx, JSObject *obj, uintN argc, Value *argv, JSBool te
 JSBool
 js_regexp_exec(JSContext *cx, uintN argc, Value *vp)
 {
-    return regexp_exec_sub(cx, JS_THIS_OBJECT(cx, Jsvalify(vp)), argc, vp + 2, JS_FALSE, vp);
+    JSObject *obj = ToObject(cx, &vp[1]);
+    if (!obj)
+        return false;
+    return regexp_exec_sub(cx, obj, argc, vp + 2, JS_FALSE, vp);
 }
 
 JSBool
 js_regexp_test(JSContext *cx, uintN argc, Value *vp)
 {
-    if (!regexp_exec_sub(cx, JS_THIS_OBJECT(cx, Jsvalify(vp)), argc, vp + 2, JS_TRUE, vp))
+    JSObject *obj = ToObject(cx, &vp[1]);
+    if (!obj)
+        return false;
+    if (!regexp_exec_sub(cx, obj, argc, vp + 2, JS_TRUE, vp))
         return false;
     if (!vp->isTrue())
         vp->setBoolean(false);
     return true;
 }
 
-static JSFunctionSpec regexp_methods[] = {
-#if JS_HAS_TOSOURCE
-    JS_FN(js_toSource_str,  regexp_toString,    0,0),
-#endif
-    JS_FN(js_toString_str,  regexp_toString,    0,0),
-    JS_FN("exec",           js_regexp_exec,     1,0),
-    JS_FN("test",           js_regexp_test,     1,0),
-    JS_FS_END
-};
-
-static JSBool
-regexp_construct(JSContext *cx, uintN argc, Value *vp)
+/*
+ * Compile new js::RegExp guts for obj.
+ *
+ * Per ECMAv5 15.10.4.1, we act on combinations of (pattern, flags) as
+ * arguments:
+ *
+ *  RegExp, undefined => flags := pattern.flags
+ *  RegExp, _ => throw TypeError
+ *  _ => pattern := ToString(pattern) if defined(pattern) else ''
+ *       flags := ToString(flags) if defined(flags) else ''
+ */
+static bool
+CompileRegExpAndSwap(JSContext *cx, JSObject *obj, uintN argc, Value *argv, Value *rval)
 {
-    Value *argv = JS_ARGV(cx, vp);
-    Value *rval = &JS_RVAL(cx, vp);
-
-    if (!IsConstructing(vp)) {
-        /*
-         * If first arg is regexp and no flags are given, just return the arg.
-         * Otherwise, delegate to the standard constructor.
-         * See ECMAv5 15.10.3.1.
-         */
-        if (argc >= 1 && argv[0].isObject() && argv[0].toObject().isRegExp() &&
-            (argc == 1 || argv[1].isUndefined())) {
-            *vp = argv[0];
-            return true;
-        }
-    }
-
-    /*
-     * Per ECMAv5 15.10.4.1, we act on combinations of (pattern, flags):
-     *  RegExp, undefined => flags := pattern.flags
-     *  RegExp, _ => throw TypeError
-     *  _ => pattern := ToString(pattern) if defined(pattern) else ''
-     *       flags := ToString(flags) if defined(flags) else ''
-     */
-
-    JSObject *obj = NewBuiltinClassInstance(cx, &js_RegExpClass);
-    if (!obj)
-        return false;
-
     if (argc == 0)
         return SwapRegExpInternals(cx, obj, rval, cx->runtime->emptyString);
 
@@ -859,6 +840,52 @@ regexp_construct(JSContext *cx, uintN argc, Value *vp)
 
     return SwapRegExpInternals(cx, obj, rval, escapedSourceStr, flags);
 }
+
+static JSBool
+regexp_compile(JSContext *cx, uintN argc, Value *vp)
+{
+    JSObject *obj = ToObject(cx, &vp[1]);
+    if (!obj || !InstanceOf(cx, obj, &js_RegExpClass, JS_ARGV(cx, vp)))
+        return false;
+
+    return CompileRegExpAndSwap(cx, obj, argc, JS_ARGV(cx, vp), &JS_RVAL(cx, vp));
+}
+
+static JSBool
+regexp_construct(JSContext *cx, uintN argc, Value *vp)
+{
+    Value *argv = JS_ARGV(cx, vp);
+
+    if (!IsConstructing(vp)) {
+        /*
+         * If first arg is regexp and no flags are given, just return the arg.
+         * Otherwise, delegate to the standard constructor.
+         * See ECMAv5 15.10.3.1.
+         */
+        if (argc >= 1 && argv[0].isObject() && argv[0].toObject().isRegExp() &&
+            (argc == 1 || argv[1].isUndefined())) {
+            *vp = argv[0];
+            return true;
+        }
+    }
+
+    JSObject *obj = NewBuiltinClassInstance(cx, &js_RegExpClass);
+    if (!obj)
+        return false;
+
+    return CompileRegExpAndSwap(cx, obj, argc, argv, &JS_RVAL(cx, vp));
+}
+
+static JSFunctionSpec regexp_methods[] = {
+#if JS_HAS_TOSOURCE
+    JS_FN(js_toSource_str,  regexp_toString,    0,0),
+#endif
+    JS_FN(js_toString_str,  regexp_toString,    0,0),
+    JS_FN("compile",        regexp_compile,     2,0),
+    JS_FN("exec",           js_regexp_exec,     1,0),
+    JS_FN("test",           js_regexp_test,     1,0),
+    JS_FS_END
+};
 
 /* Similar to SwapRegExpInternals. */
 static bool
