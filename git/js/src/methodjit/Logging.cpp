@@ -86,11 +86,8 @@ js::JMCheckLogging()
             "  vmframe       VMFrame contents\n"
             "  pics          PIC patching activity\n"
             "  slowcalls     Calls to slow path functions\n"
-            "  analysis      LICM and other analysis behavior\n"
-            "  regalloc      Register allocation behavior\n"
-            "  inlin         Call inlining behavior\n"
-            "  recompile     Dynamic recompilations\n"
-            "  full          everything not affecting codegen\n"
+            "  full          everything\n"
+            "  notrace       disable trace hints\n"
             "\n"
         );
         exit(0);
@@ -103,6 +100,8 @@ js::JMCheckLogging()
     if (strstr(env, "profile"))
         LoggingBits |= (1 << uint32(JSpew_Prof));
 #ifdef DEBUG
+    if (strstr(env, "pcprofile"))
+        LoggingBits |= (1 << uint32(JSpew_PCProf));
     if (strstr(env, "jsops"))
         LoggingBits |= (1 << uint32(JSpew_JSOps));
 #endif
@@ -114,28 +113,8 @@ js::JMCheckLogging()
         LoggingBits |= (1 << uint32(JSpew_PICs));
     if (strstr(env, "slowcalls"))
         LoggingBits |= (1 << uint32(JSpew_SlowCalls));
-    if (strstr(env, "analysis"))
-        LoggingBits |= (1 << uint32(JSpew_Analysis));
-    if (strstr(env, "regalloc"))
-        LoggingBits |= (1 << uint32(JSpew_Regalloc));
-    if (strstr(env, "recompile"))
-        LoggingBits |= (1 << uint32(JSpew_Recompile));
-    if (strstr(env, "inlin"))
-        LoggingBits |= (1 << uint32(JSpew_Inlining));
     if (strstr(env, "full"))
         LoggingBits |= 0xFFFFFFFF;
-}
-
-js::ConditionalLog::ConditionalLog(bool logging)
-    : oldBits(LoggingBits), logging(logging)
-{
-    if (logging)
-        LoggingBits = 0xFFFFFFFF;
-}
-
-js::ConditionalLog::~ConditionalLog() {
-    if (logging)
-        LoggingBits = oldBits;
 }
 
 bool

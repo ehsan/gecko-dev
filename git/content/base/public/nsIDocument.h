@@ -721,15 +721,6 @@ public:
   }
 
   /**
-   * Return the inner window ID.
-   */
-  PRUint64 InnerWindowID()
-  {
-    nsPIDOMWindow *window = GetInnerWindow();
-    return window ? window->WindowID() : 0;
-  }
-
-  /**
    * Get the script loader for this document
    */ 
   virtual nsScriptLoader* ScriptLoader() = 0;

@@ -285,7 +285,7 @@ nsCSSScanner::nsCSSScanner()
   , mSVGMode(PR_FALSE)
 #ifdef CSS_REPORT_PARSE_ERRORS
   , mError(mErrorBuf, NS_ARRAY_LENGTH(mErrorBuf), 0)
-  , mInnerWindowID(0)
+  , mWindowID(0)
   , mWindowIDCached(PR_FALSE)
   , mSheet(nsnull)
   , mLoader(nsnull)
@@ -449,12 +449,12 @@ nsCSSScanner::OutputError()
   if (InitGlobals() && gReportErrors) {
     if (!mWindowIDCached) {
       if (mSheet) {
-        mInnerWindowID = mSheet->FindOwningWindowInnerID();
+        mWindowID = mSheet->FindOwningWindowID();
       }
-      if (mInnerWindowID == 0 && mLoader) {
+      if (mWindowID == 0 && mLoader) {
         nsIDocument* doc = mLoader->GetDocument();
         if (doc) {
-          mInnerWindowID = doc->InnerWindowID();
+          mWindowID = doc->OuterWindowID();
         }
       }
       mWindowIDCached = PR_TRUE;
@@ -471,8 +471,7 @@ nsCSSScanner::OutputError()
                                          mErrorLineNumber,
                                          mErrorColNumber,
                                          nsIScriptError::warningFlag,
-                                         "CSS Parser",
-                                         mInnerWindowID);
+                                         "CSS Parser", mWindowID);
       if (NS_SUCCEEDED(rv)) {
         nsCOMPtr<nsIScriptError> logError = do_QueryInterface(errorObject);
         gConsoleService->LogMessage(logError);
@@ -623,7 +622,7 @@ nsCSSScanner::Close()
   mFileName.Truncate();
   mURI = nsnull;
   mError.Truncate();
-  mInnerWindowID = 0;
+  mWindowID = 0;
   mWindowIDCached = PR_FALSE;
   mSheet = nsnull;
   mLoader = nsnull;

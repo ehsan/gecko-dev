@@ -43,7 +43,6 @@ let Cc = Components.classes;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/ConsoleAPIStorage.jsm");
 
 function ConsoleAPI() {}
 ConsoleAPI.prototype = {
@@ -54,16 +53,12 @@ ConsoleAPI.prototype = {
 
   // nsIDOMGlobalPropertyInitializer
   init: function CA_init(aWindow) {
-    let outerID;
-    let innerID;
+    let id;
     try {
-      let windowUtils = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                          .getInterface(Ci.nsIDOMWindowUtils);
-
-      outerID = windowUtils.outerWindowID;
-      innerID = windowUtils.currentInnerWindowID;
-    }
-    catch (ex) {
+      id = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                  .getInterface(Ci.nsIDOMWindowUtils)
+                  .outerWindowID;
+    } catch (ex) {
       Cu.reportError(ex);
     }
 
@@ -71,26 +66,26 @@ ConsoleAPI.prototype = {
     let chromeObject = {
       // window.console API
       log: function CA_log() {
-        self.notifyObservers(outerID, innerID, "log", arguments);
+        self.notifyObservers(id, "log", arguments);
       },
       info: function CA_info() {
-        self.notifyObservers(outerID, innerID, "info", arguments);
+        self.notifyObservers(id, "info", arguments);
       },
       warn: function CA_warn() {
-        self.notifyObservers(outerID, innerID, "warn", arguments);
+        self.notifyObservers(id, "warn", arguments);
       },
       error: function CA_error() {
-        self.notifyObservers(outerID, innerID, "error", arguments);
+        self.notifyObservers(id, "error", arguments);
       },
       debug: function CA_debug() {
-        self.notifyObservers(outerID, innerID, "log", arguments);
+        self.notifyObservers(id, "log", arguments);
       },
       trace: function CA_trace() {
-        self.notifyObservers(outerID, innerID, "trace", self.getStackTrace());
+        self.notifyObservers(id, "trace", self.getStackTrace());
       },
       // Displays an interactive listing of all the properties of an object.
       dir: function CA_dir() {
-        self.notifyObservers(outerID, innerID, "dir", arguments);
+        self.notifyObservers(id, "dir", arguments);
       },
       __exposedProps__: {
         log: "r",
@@ -130,29 +125,17 @@ ConsoleAPI.prototype = {
   },
 
   /**
-   * Notify all observers of any console API call.
-   *
-   * @param number aOuterWindowID
-   *        The outer window ID from where the message came from.
-   * @param number aInnerWindowID
-   *        The inner window ID from where the message came from.
-   * @param string aLevel
-   *        The message level.
-   * @param mixed aArguments
-   *        The arguments given to the console API call.
+   * Notify all observers of any console API call
    **/
-  notifyObservers:
-  function CA_notifyObservers(aOuterWindowID, aInnerWindowID, aLevel, aArguments) {
-    if (!aOuterWindowID) {
+  notifyObservers: function CA_notifyObservers(aID, aLevel, aArguments) {
+    if (!aID)
       return;
-    }
 
     let stack = this.getStackTrace();
     // Skip the first frame since it contains an internal call.
     let frame = stack[1];
     let consoleEvent = {
-      ID: aOuterWindowID,
-      innerID: aInnerWindowID,
+      ID: aID,
       level: aLevel,
       filename: frame.filename,
       lineNumber: frame.lineNumber,
@@ -162,10 +145,8 @@ ConsoleAPI.prototype = {
 
     consoleEvent.wrappedJSObject = consoleEvent;
 
-    ConsoleAPIStorage.recordEvent(aInnerWindowID, consoleEvent);
-
     Services.obs.notifyObservers(consoleEvent,
-                                 "console-api-log-event", aOuterWindowID);
+                                 "console-api-log-event", aID);
   },
 
   /**
