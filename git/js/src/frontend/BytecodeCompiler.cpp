@@ -340,21 +340,20 @@ frontend::CompileLazyFunction(JSContext *cx, HandleFunction fun, LazyScript *laz
     Parser<FullParseHandler> parser(cx, options, chars, length,
                                     /* foldConstants = */ true, NULL, lazy);
 
-    uint32_t staticLevel = lazy->staticLevel(cx);
+    RootedObject enclosingScope(cx, lazy->parentFunction());
 
-    ParseNode *pn = parser.standaloneLazyFunction(fun, staticLevel, lazy->strict());
+    ParseNode *pn = parser.standaloneLazyFunction(fun, lazy->staticLevel(), lazy->strict());
     if (!pn)
         return false;
 
     if (!NameFunctions(cx, pn))
         return false;
 
-    RootedObject enclosingScope(cx, lazy->enclosingScope());
     JS::RootedScriptSource sourceObject(cx, lazy->sourceObject());
     JS_ASSERT(sourceObject);
 
     Rooted<JSScript*> script(cx, JSScript::Create(cx, enclosingScope, false,
-                                                  options, staticLevel,
+                                                  options, lazy->staticLevel(),
                                                   sourceObject, lazy->begin(), lazy->end()));
     if (!script)
         return false;

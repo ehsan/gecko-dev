@@ -22,7 +22,6 @@
             this.popup._input = this;
           ]]>
       </constructor>
-
       <method name="openPopup">
         <body>
           <![CDATA[
@@ -37,21 +36,6 @@
             this.popup.closePopup(this, null);
           ]]>
         </body>
-      </method>
-
-      <method name="formatValue">
-        <body>
-          <![CDATA[
-            BrowserUI.formatURI();
-          ]]>
-        </body>
-      </method>
-
-      <method name="trimValue">
-        <parameter name="aURL"/>
-        <body><![CDATA[
-          return BrowserUI.trimURL(aURL);
-        ]]></body>
       </method>
     </implementation>
 

@@ -58,7 +58,7 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEMorphologyElement)
 //----------------------------------------------------------------------
 // SVGFEMorphologyElement methods
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGFEMorphologyElement::In1()
 {
   return mStringAttributes[IN1].ToDOMAnimatedString(this);

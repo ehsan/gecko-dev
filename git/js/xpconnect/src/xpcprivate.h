@@ -3786,7 +3786,6 @@ public:
         : wantXrays(false)
         , universalXPConnectEnabled(false)
         , scope(nullptr)
-        , locationWasParsed(false)
     {
         MOZ_COUNT_CTOR(xpc::CompartmentPrivate);
     }
@@ -3806,17 +3805,12 @@ public:
     XPCWrappedNativeScope *scope;
 
     const nsACString& GetLocation() {
-        if (location.IsEmpty() && locationURI) {
+        if (locationURI) {
             if (NS_FAILED(locationURI->GetSpec(location)))
                 location = NS_LITERAL_CSTRING("<unknown location>");
+            locationURI = nullptr;
         }
         return location;
-    }
-    bool GetLocationURI(nsIURI **aURI) {
-        if (!locationURI && !TryParseLocationURI())
-            return false;
-        NS_IF_ADDREF(*aURI = locationURI);
-        return true;
     }
     void SetLocation(const nsACString& aLocation) {
         if (aLocation.IsEmpty())
@@ -3825,10 +3819,10 @@ public:
             return;
         location = aLocation;
     }
-    void SetLocationURI(nsIURI *aLocationURI) {
+    void SetLocation(nsIURI *aLocationURI) {
         if (!aLocationURI)
             return;
-        if (locationURI)
+        if (!location.IsEmpty() || locationURI)
             return;
         locationURI = aLocationURI;
     }
@@ -3836,10 +3830,6 @@ public:
 private:
     nsCString location;
     nsCOMPtr<nsIURI> locationURI;
-    bool locationWasParsed;
-
-    bool TryParseLocationURI();
-    bool TryParseLocationURICandidate(const nsACString& uristr);
 };
 
 CompartmentPrivate*

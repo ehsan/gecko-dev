@@ -157,12 +157,10 @@ UnreachableCodeElimination::checkDependencyAndRemoveUsesFromUnmarkedBlocks(MDefi
         rerunAliasAnalysis_ = true;
 
     for (MUseIterator iter(instr->usesBegin()); iter != instr->usesEnd(); ) {
-        if (!iter->consumer()->block()->isMarked()) {
-            instr->setUseRemovedUnchecked();
+        if (!iter->consumer()->block()->isMarked())
             iter = instr->removeUse(iter);
-        } else {
+        else
             iter++;
-        }
     }
 }
 
@@ -237,10 +235,10 @@ UnreachableCodeElimination::removeUnmarkedBlocksAndClearDominators()
                 }
             }
 
-            // When we remove a call, we can't leave the corresponding MPassArg
-            // in the graph. Since lowering will fail. Replace it with the
-            // argument for the exceptional case when it is kept alive in a
-            // ResumePoint. DCE will remove the unused MPassArg instruction.
+            // When we remove a call, we can't leave the corresponding MPassArg in the graph.
+            // Since lowering will fail. Replace it with the argument for the exceptional
+            // case when it is kept alive in a ResumePoint.
+            // DCE will remove the unused MPassArg instruction.
             for (MInstructionIterator iter(block->begin()); iter != block->end(); iter++) {
                 if (iter->isCall()) {
                     MCall *call = iter->toCall();

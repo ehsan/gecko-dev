@@ -1110,8 +1110,8 @@ class LazyScript : public js::gc::Cell
     // pointer to the result.
     HeapPtrScript script_;
 
-    // Function or block chain in which the script is nested, or NULL.
-    HeapPtrObject enclosingScope_;
+    // Immediate parent in which the script is nested, or NULL.
+    HeapPtrFunction parentFunction_;
 
     // Source code object, or NULL if the script in which this is nested has
     // not been compiled yet.
@@ -1157,8 +1157,8 @@ class LazyScript : public js::gc::Cell
         return script_;
     }
 
-    JSObject *enclosingScope() const {
-        return enclosingScope_;
+    JSFunction *parentFunction() const {
+        return parentFunction_;
     }
     ScriptSourceObject *sourceObject() const;
     JSPrincipals *originPrincipals() const {
@@ -1169,7 +1169,7 @@ class LazyScript : public js::gc::Cell
         return (version_ == JS_BIT(8) - 1) ? JSVERSION_UNKNOWN : JSVersion(version_);
     }
 
-    void setParent(JSObject *enclosingScope, ScriptSourceObject *sourceObject,
+    void setParent(JSFunction *parentFunction, ScriptSourceObject *sourceObject,
                    JSPrincipals *originPrincipals);
 
     uint32_t numFreeVariables() const {
@@ -1244,7 +1244,7 @@ class LazyScript : public js::gc::Cell
         return column_;
     }
 
-    uint32_t staticLevel(JSContext *cx) const;
+    uint32_t staticLevel() const;
 
     Zone *zone() const {
         return Cell::tenuredZone();

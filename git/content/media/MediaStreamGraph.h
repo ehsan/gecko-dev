@@ -277,11 +277,9 @@ public:
     , mMainThreadDestroyed(false)
     , mGraph(nullptr)
   {
-    MOZ_COUNT_CTOR(MediaStream);
   }
   virtual ~MediaStream()
   {
-    MOZ_COUNT_DTOR(MediaStream);
     NS_ASSERTION(mMainThreadDestroyed, "Should have been destroyed already");
     NS_ASSERTION(mMainThreadListeners.IsEmpty(),
                  "All main thread listeners should have been removed");
@@ -432,8 +430,6 @@ public:
   void FinishOnGraphThread();
 
   bool HasCurrentData() { return mHasCurrentData; }
-
-  StreamBuffer::Track* EnsureTrack(TrackID aTrack, TrackRate aSampleRate);
 
   void ApplyTrackDisabling(TrackID aTrackID, MediaSegment* aSegment);
 

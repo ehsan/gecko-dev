@@ -94,8 +94,7 @@ namespace types {
 inline
 CompilerOutput::CompilerOutput()
   : script(NULL),
-    kindInt(Ion),
-    pendingRecompilation(false)
+    kindInt(Ion)
 {
 }
 
@@ -400,6 +399,13 @@ struct AutoEnterCompilation
         co.script = script;
         co.setKind(kind);
 
+        // This flag is used to prevent adding the current compiled script in
+        // the list of compiler output which should be invalided.  This is
+        // necessary because we can run some analysis might discard the script
+        // it-self, which can happen when the monitored value does not reflect
+        // the types propagated by the type inference.
+        co.pendingRecompilation = true;
+
         JS_ASSERT(!co.isValid());
         TypeCompartment &types = cx->compartment()->types;
         if (!types.constrainedOutputs) {
@@ -437,6 +443,7 @@ struct AutoEnterCompilation
 
         JS_ASSERT(info.outputIndex < cx->compartment()->types.constrainedOutputs->length());
         CompilerOutput *co = info.compilerOutput(cx);
+        co->pendingRecompilation = false;
         if (!co->isValid())
             co->invalidate();
 

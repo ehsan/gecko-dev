@@ -19,7 +19,6 @@ namespace mozilla {
  * for regular audio contexts, and the rate requested by the web content
  * for offline audio contexts.
  * Each chunk in the track is a single block of WEBAUDIO_BLOCK_SIZE samples.
- * Note: This must be a different value than MEDIA_STREAM_DEST_TRACK_ID
  */
 static const int AUDIO_NODE_STREAM_TRACK_ID = 1;
 
@@ -236,6 +235,23 @@ AudioNodeStream::SetChannelMixingParametersImpl(uint32_t aNumberOfChannels,
   mChannelInterpretation = aChannelInterpretation;
 }
 
+StreamBuffer::Track*
+AudioNodeStream::EnsureTrack()
+{
+  StreamBuffer::Track* track = mBuffer.FindTrack(AUDIO_NODE_STREAM_TRACK_ID);
+  if (!track) {
+    nsAutoPtr<MediaSegment> segment(new AudioSegment());
+    for (uint32_t j = 0; j < mListeners.Length(); ++j) {
+      MediaStreamListener* l = mListeners[j];
+      l->NotifyQueuedTrackChanges(Graph(), AUDIO_NODE_STREAM_TRACK_ID, mSampleRate, 0,
+                                  MediaStreamListener::TRACK_EVENT_CREATED,
+                                  *segment);
+    }
+    track = &mBuffer.AddTrack(AUDIO_NODE_STREAM_TRACK_ID, mSampleRate, 0, segment.forget());
+  }
+  return track;
+}
+
 bool
 AudioNodeStream::AllInputsFinished() const
 {
@@ -383,7 +399,7 @@ AudioNodeStream::ProduceOutput(GraphTime aFrom, GraphTime aTo)
     FinishOutput();
   }
 
-  StreamBuffer::Track* track = EnsureTrack(AUDIO_NODE_STREAM_TRACK_ID, mSampleRate);
+  StreamBuffer::Track* track = EnsureTrack();
 
   AudioSegment* segment = track->Get<AudioSegment>();
 
@@ -444,7 +460,7 @@ AudioNodeStream::ProduceOutput(GraphTime aFrom, GraphTime aTo)
 TrackTicks
 AudioNodeStream::GetCurrentPosition()
 {
-  return EnsureTrack(AUDIO_NODE_STREAM_TRACK_ID, mSampleRate)->Get<AudioSegment>()->GetDuration();
+  return EnsureTrack()->Get<AudioSegment>()->GetDuration();
 }
 
 void
@@ -454,7 +470,7 @@ AudioNodeStream::FinishOutput()
     return;
   }
 
-  StreamBuffer::Track* track = EnsureTrack(AUDIO_NODE_STREAM_TRACK_ID, mSampleRate);
+  StreamBuffer::Track* track = EnsureTrack();
   track->SetEnded();
   FinishOnGraphThread();
 

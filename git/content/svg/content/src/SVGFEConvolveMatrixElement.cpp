@@ -85,7 +85,7 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEConvolveMatrixElement)
 
 //----------------------------------------------------------------------
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 SVGFEConvolveMatrixElement::In1()
 {
   return mStringAttributes[IN1].ToDOMAnimatedString(this);

@@ -93,9 +93,9 @@ nsSVGElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 
 //----------------------------------------------------------------------
 
-/* readonly attribute SVGAnimatedString className; */
+/* readonly attribute nsIDOMSVGAnimatedString className; */
 NS_IMETHODIMP
-nsSVGElement::GetClassName(nsISupports** aClassName)
+nsSVGElement::GetClassName(nsIDOMSVGAnimatedString** aClassName)
 {
   *aClassName = ClassName().get();
   return NS_OK;
@@ -1142,7 +1142,7 @@ nsSVGElement::GetViewportElement()
   return SVGContentUtils::GetNearestViewportElement(this);
 }
 
-already_AddRefed<SVGAnimatedString>
+already_AddRefed<nsIDOMSVGAnimatedString>
 nsSVGElement::ClassName()
 {
   return mClassAttribute.ToDOMAnimatedString(this);

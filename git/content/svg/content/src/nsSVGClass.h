@@ -9,17 +9,12 @@
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsError.h"
+#include "nsIDOMSVGAnimatedString.h"
 #include "nsISMILAttr.h"
 #include "nsString.h"
 #include "mozilla/Attributes.h"
 
 class nsSVGElement;
-
-namespace mozilla {
-namespace dom {
-class SVGAnimatedString;
-}
-}
 
 class nsSVGClass
 {
@@ -39,8 +34,18 @@ public:
   bool IsAnimated() const
     { return !!mAnimVal; }
 
-  already_AddRefed<mozilla::dom::SVGAnimatedString>
-  ToDOMAnimatedString(nsSVGElement* aSVGElement);
+  already_AddRefed<nsIDOMSVGAnimatedString>
+  ToDOMAnimatedString(nsSVGElement* aSVGElement)
+  {
+    nsRefPtr<DOMAnimatedString> result = new DOMAnimatedString(this, aSVGElement);
+    return result.forget();
+  }
+  nsresult ToDOMAnimatedString(nsIDOMSVGAnimatedString **aResult,
+                               nsSVGElement *aSVGElement)
+  {
+    *aResult = ToDOMAnimatedString(aSVGElement).get();
+    return NS_OK;
+  }
 
   // Returns a new nsISMILAttr object that the caller must delete
   nsISMILAttr* ToSMILAttr(nsSVGElement *aSVGElement);
@@ -50,6 +55,24 @@ private:
   nsAutoPtr<nsString> mAnimVal;
 
 public:
+  struct DOMAnimatedString MOZ_FINAL : public nsIDOMSVGAnimatedString
+  {
+    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+    NS_DECL_CYCLE_COLLECTION_CLASS(DOMAnimatedString)
+
+    DOMAnimatedString(nsSVGClass *aVal, nsSVGElement *aSVGElement)
+      : mVal(aVal), mSVGElement(aSVGElement) {}
+
+    nsSVGClass* mVal; // kept alive because it belongs to content
+    nsRefPtr<nsSVGElement> mSVGElement;
+
+    NS_IMETHOD GetBaseVal(nsAString& aResult) MOZ_OVERRIDE
+      { mVal->GetBaseValue(aResult, mSVGElement); return NS_OK; }
+    NS_IMETHOD SetBaseVal(const nsAString& aValue) MOZ_OVERRIDE
+      { mVal->SetBaseValue(aValue, mSVGElement, true); return NS_OK; }
+
+    NS_IMETHOD GetAnimVal(nsAString& aResult) MOZ_OVERRIDE;
+  };
   struct SMILString : public nsISMILAttr
   {
   public:

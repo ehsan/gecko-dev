@@ -51,7 +51,6 @@ class DelayNode;
 class DynamicsCompressorNode;
 class GainNode;
 class GlobalObject;
-class MediaStreamAudioDestinationNode;
 class OfflineRenderSuccessCallback;
 class PannerNode;
 class ScriptProcessorNode;
@@ -125,9 +124,6 @@ public:
   already_AddRefed<AudioBuffer>
   CreateBuffer(JSContext* aJSContext, ArrayBuffer& aBuffer,
                bool aMixToMono, ErrorResult& aRv);
-
-  already_AddRefed<MediaStreamAudioDestinationNode>
-  CreateMediaStreamDestination();
 
   already_AddRefed<ScriptProcessorNode>
   CreateScriptProcessor(uint32_t aBufferSize,

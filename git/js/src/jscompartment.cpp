@@ -666,8 +666,10 @@ CreateLazyScriptsForCompartment(JSContext *cx)
         JSObject *obj = i.get<JSObject>();
         if (obj->compartment() == cx->compartment() && obj->isFunction()) {
             JSFunction *fun = obj->toFunction();
-            if (fun->isInterpretedLazy() && fun->lazyScript()->maybeScript())
+            if (fun->isInterpretedLazy()) {
+                JS_ASSERT(fun->lazyScript()->maybeScript());
                 JS_ALWAYS_TRUE(fun->getOrCreateScript(cx));
+            }
         }
     }
 

@@ -13,6 +13,7 @@
 #include "nsIPluginDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsThreadUtils.h"
+#include "nsIDOMSVGDocument.h"
 #include "nsIScriptError.h"
 #include "nsIWidget.h"
 #include "nsContentUtils.h"
