@@ -78,8 +78,7 @@ function startDebuggingTab(aClient, aTabGrip)
       gTabClient = aTabClient;
       gClient.attachThread(aResponse.threadActor, function(aResponse, aThreadClient) {
         if (!aThreadClient) {
-          Components.utils.reportError("Couldn't attach to thread: " +
-                                       aResponse.error);
+          dump("Couldn't attach to thread: "+aResponse.error+"\n");
           return;
         }
         ThreadState.connect(aThreadClient, function() {
@@ -613,7 +612,6 @@ var SourceScripts = {
       window.editor.setText(DebuggerView.getStr("loadingText"));
     } else {
       window.editor.setText(aScript.text);
-      window.updateEditorBreakpoints();
     }
   }
 };

@@ -20,7 +20,6 @@
  *
  * Contributor(s):
  *   Joe Walker <jwalker@mozilla.com> (original author)
- *   Mihai Sucan <mihai.sucan@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -161,6 +160,8 @@ gcli.addCommand({
    }
 });
 
+let breakpoints = [];
+
 /**
  * 'break' command
  */
@@ -179,25 +180,17 @@ gcli.addCommand({
   description: gcli.lookup("breaklistDesc"),
   returnType: "html",
   exec: function(args, context) {
-    let win = HUDService.currentContext();
-    let dbg = win.DebuggerUI.getDebugger(win.gBrowser.selectedTab);
-    if (!dbg) {
-      return gcli.lookup("breakaddDebuggerStopped");
-    }
-    let breakpoints = dbg.breakpoints;
-
-    if (Object.keys(breakpoints).length === 0) {
+    if (breakpoints.length === 0) {
       return gcli.lookup("breaklistNone");
     }
 
     let reply = gcli.lookup("breaklistIntro");
     reply += "<ol>";
-    for each (let breakpoint in breakpoints) {
+    breakpoints.forEach(function(breakpoint) {
       let text = gcli.lookupFormat("breaklistLineEntry",
-                                   [breakpoint.location.url,
-                                    breakpoint.location.line]);
+                                   [breakpoint.file, breakpoint.line]);
       reply += "<li>" + text + "</li>";
-    };
+    });
     reply += "</ol>";
     return reply;
   }
@@ -255,11 +248,14 @@ gcli.addCommand({
     }
     var promise = context.createPromise();
     let position = { url: args.file, line: args.line };
-    dbg.addBreakpoint(position, function(aBreakpoint, aError) {
-      if (aError) {
-        promise.resolve(gcli.lookupFormat("breakaddFailed", [aError]));
+    dbg.activeThread.setBreakpoint(position, function(aResponse, aBpClient) {
+      if (aResponse.error) {
+        promise.resolve(gcli.lookupFormat("breakaddFailed",
+                        [ aResponse.error ]));
         return;
       }
+      args.client = aBpClient;
+      breakpoints.push(args);
       promise.resolve(gcli.lookup("breakaddAdded"));
     });
     return promise;
@@ -279,37 +275,19 @@ gcli.addCommand({
       type: {
         name: "number",
         min: 0,
-        max: function() {
-          let win = HUDService.currentContext();
-          let dbg = win.DebuggerUI.getDebugger(win.gBrowser.selectedTab);
-          if (!dbg) {
-            return gcli.lookup("breakaddDebuggerStopped");
-          }
-          return Object.keys(dbg.breakpoints).length - 1;
-        },
+        max: function() { return breakpoints.length - 1; }
       },
       description: gcli.lookup("breakdelBreakidDesc")
     }
   ],
   returnType: "html",
   exec: function(args, context) {
-    let win = HUDService.currentContext();
-    let dbg = win.DebuggerUI.getDebugger(win.gBrowser.selectedTab);
-    if (!dbg) {
-      return gcli.lookup("breakaddDebuggerStopped");
-    }
-
-    let breakpoints = dbg.breakpoints;
-    let id = Object.keys(dbg.breakpoints)[args.breakid];
-    if (!id || !(id in breakpoints)) {
-      return gcli.lookup("breakNotFound");
-    }
-
-    let promise = context.createPromise();
+    let breakpoint = breakpoints.splice(args.breakid, 1)[0];
+    var promise = context.createPromise();
     try {
-      dbg.removeBreakpoint(breakpoints[id], function() {
-        promise.resolve(gcli.lookup("breakdelRemoved"));
-      });
+      breakpoint.client.remove(function(aResponse) {
+                                 promise.resolve(gcli.lookup("breakdelRemoved"));
+                               });
     } catch (ex) {
       // If the debugger has been closed already, don't scare the user.
       promise.resolve(gcli.lookup("breakdelRemoved"));

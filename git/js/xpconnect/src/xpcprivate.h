@@ -837,14 +837,11 @@ private:
     XPCRootSetElem *mWrappedJSRoots;
     XPCRootSetElem *mObjectHolderRoots;
     JSDHashTable mJSHolders;
-    PRLock *mWatchdogLock;
     PRCondVar *mWatchdogWakeup;
     PRThread *mWatchdogThread;
     nsTArray<JSGCCallback> extraGCCallbacks;
     bool mWatchdogHibernating;
     PRTime mLastActiveTime; // -1 if active NOW
-
-    friend class AutoLockWatchdog;
 };
 
 /***************************************************************************/
@@ -2901,7 +2898,7 @@ public:
 
     static nsresult GetNamedPropertyAsVariant(XPCCallContext& ccx,
                                               JSObject* aJSObj,
-                                              const nsAString& aName,
+                                              jsval aName,
                                               nsIVariant** aResult);
 
     virtual ~nsXPCWrappedJSClass();

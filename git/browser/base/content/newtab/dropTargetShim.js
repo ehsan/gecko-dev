@@ -40,12 +40,10 @@ let gDropTargetShim = {
    * @param aEvent The 'dragstart' event.
    */
   _start: function DropTargetShim_start(aEvent) {
-    if (aEvent.target.classList.contains("site")) {
-      gGrid.lock();
+    gGrid.lock();
 
-      // XXX bug 505521 - Listen for dragover on the document.
-      document.documentElement.addEventListener("dragover", this._dragover, false);
-    }
+    // XXX bug 505521 - Listen for dragover on the document.
+    document.documentElement.addEventListener("dragover", this._dragover, false);
   },
 
   /**

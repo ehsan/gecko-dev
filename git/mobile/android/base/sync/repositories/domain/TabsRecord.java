@@ -12,6 +12,7 @@ import org.mozilla.gecko.sync.ExtendedJSONObject;
 import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.NonArrayJSONException;
 import org.mozilla.gecko.sync.Utils;
+import org.mozilla.gecko.sync.repositories.domain.Record;
 
 /**
  * Represents a client's collection of tabs.

@@ -333,7 +333,8 @@ nsDocAccessible::NativeState()
     state |= states::INVISIBLE | states::OFFSCREEN;
   }
 
-  nsCOMPtr<nsIEditor> editor = GetEditor();
+  nsCOMPtr<nsIEditor> editor;
+  GetAssociatedEditor(getter_AddRefs(editor));
   state |= editor ? states::EDITABLE : states::READONLY;
 
   return state;
@@ -552,32 +553,37 @@ nsDocAccessible::GetVirtualCursor(nsIAccessiblePivot** aVirtualCursor)
   return NS_OK;
 }
 
-// nsHyperTextAccessible method
-already_AddRefed<nsIEditor>
-nsDocAccessible::GetEditor() const
+// nsIAccessibleHyperText method
+NS_IMETHODIMP nsDocAccessible::GetAssociatedEditor(nsIEditor **aEditor)
 {
+  NS_ENSURE_ARG_POINTER(aEditor);
+  *aEditor = nsnull;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   // Check if document is editable (designMode="on" case). Otherwise check if
   // the html:body (for HTML document case) or document element is editable.
   if (!mDocument->HasFlag(NODE_IS_EDITABLE) &&
       !mContent->HasFlag(NODE_IS_EDITABLE))
-    return nsnull;
+    return NS_OK;
 
   nsCOMPtr<nsISupports> container = mDocument->GetContainer();
   nsCOMPtr<nsIEditingSession> editingSession(do_GetInterface(container));
   if (!editingSession)
-    return nsnull; // No editing session interface
+    return NS_OK; // No editing session interface
 
   nsCOMPtr<nsIEditor> editor;
   editingSession->GetEditorForWindow(mDocument->GetWindow(), getter_AddRefs(editor));
-  if (!editor)
-    return nsnull;
-
-  bool isEditable = false;
+  if (!editor) {
+    return NS_OK;
+  }
+  bool isEditable;
   editor->GetIsDocumentEditable(&isEditable);
-  if (isEditable)
-    return editor.forget();
-
-  return nsnull;
+  if (isEditable) {
+    NS_ADDREF(*aEditor = editor);
+  }
+  return NS_OK;
 }
 
 // nsDocAccessible public method

@@ -88,16 +88,10 @@ public class ClientsDatabaseAccessor {
   }
 
   public int clientsCount() {
-    Cursor cur;
     try {
-      cur = db.fetchAll();
+      return db.fetchAll().getCount();
     } catch (NullCursorException e) {
       return 0;
-    }
-    try {
-      return cur.getCount();
-    } finally {
-      cur.close();
     }
   }
 

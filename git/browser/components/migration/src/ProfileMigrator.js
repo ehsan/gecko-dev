@@ -16,25 +16,10 @@ function ProfileMigrator() {
 }
 
 ProfileMigrator.prototype = {
-  migrate: function PM_migrate(aStartup, aKey) {
+  migrate: function PM_migrate(aStartup) {
     // By opening the wizard with a supplied migrator, it will automatically
     // migrate from it.
-    let key = null, migrator = null;
-    let skipImportSourcePage = Cc["@mozilla.org/supports-PRBool;1"]
-                                 .createInstance(Ci.nsISupportsPRBool);
-    if (aKey) {
-      key = aKey;
-      migrator = this._getMigratorIfSourceExists(key);
-      if (!migrator) {
-        Cu.reportError("Invalid migrator key specified or source does not exist.");
-        return;
-      }
-      // If the migrator was passed to us from the caller, use that migrator
-      // and skip the import source page.
-      skipImportSourcePage.data = true;
-    } else {
-      [key, migrator] = this._getDefaultMigrator();
-    }
+    let [key, migrator] = this._getDefaultMigrator();
     if (!key)
         return;
 
@@ -42,7 +27,6 @@ ProfileMigrator.prototype = {
     params.appendElement(this._toCString(key), false);
     params.appendElement(migrator, false);
     params.appendElement(aStartup, false);
-    params.appendElement(skipImportSourcePage, false);
 
     Services.ww.openWindow(null,
                            "chrome://browser/content/migration/migration.xul",
@@ -59,14 +43,10 @@ ProfileMigrator.prototype = {
   },
 
   _getMigratorIfSourceExists: function PM__getMigratorIfSourceExists(aKey) {
-    try {
-      let cid = "@mozilla.org/profile/migrator;1?app=browser&type=" + aKey;
-      let migrator = Cc[cid].createInstance(Ci.nsIBrowserProfileMigrator);
-      if (migrator.sourceExists)
-        return migrator;
-    } catch (ex) {
-      Cu.reportError("Could not get migrator: " + ex);
-    }
+    let cid = "@mozilla.org/profile/migrator;1?app=browser&type=" + aKey;
+    let migrator = Cc[cid].createInstance(Ci.nsIBrowserProfileMigrator);
+    if (migrator.sourceExists)
+      return migrator;
     return null;
   },
 

@@ -356,20 +356,10 @@ function Rule(aElementStyle, aOptions)
   this.style = aOptions.style || this.domRule.style;
   this.selectorText = aOptions.selectorText || this.domRule.selectorText;
   this.inherited = aOptions.inherited || null;
-
-  if (this.domRule) {
-    let parentRule = this.domRule.parentRule;
-    if (parentRule && parentRule.type == Ci.nsIDOMCSSRule.MEDIA_RULE) {
-      this.mediaText = parentRule.media.mediaText;
-    }
-  }
-
   this._getTextProperties();
 }
 
 Rule.prototype = {
-  mediaText: "",
-
   get title()
   {
     if (this._title) {
@@ -390,7 +380,7 @@ Rule.prototype = {
                                                            args, args.length);
     }
 
-    return this._title + (this.mediaText ? " @media " + this.mediaText : "");
+    return this._title;
   },
 
   /**
@@ -732,26 +722,8 @@ CssRuleView.prototype = {
     }.bind(this);
 
     this._createEditors();
-
-    // When creating a new property, we fake the normal property
-    // editor behavior (focusing a property's value after entering its
-    // name) by responding to the name's blur event, creating the
-    // value editor, and grabbing focus to the value editor.  But if
-    // focus has already moved to another document, we won't be able
-    // to move focus to the new editor.
-    // Create a focusable item at the end of the editors to catch these
-    // cases.
-    this._focusBackstop = createChild(this.element, "div", {
-      tabindex: 0,
-    });
-    this._backstopHandler = function() {
-      // If this item is actually focused long enough to get the focus
-      // event, allow focus to move on out of this document.
-      moveFocus(this.doc.defaultView, FOCUS_FORWARD);
-    }.bind(this);
-    this._focusBackstop.addEventListener("focus", this._backstopHandler, false);
   },
-
+  
   /**
    * Update the rules for the currently highlighted element.
    */
@@ -780,12 +752,6 @@ CssRuleView.prototype = {
     this._clearRules();
     this._viewedElement = null;
     this._elementStyle = null;
-
-    if (this._focusBackstop) {
-      this._focusBackstop.removeEventListener("focus", this._backstopHandler, false);
-      this._backstopHandler = null;
-      this._focusBackstop = null;
-    }
   },
 
   /**
@@ -869,6 +835,7 @@ RuleEditor.prototype = {
 
     this.openBrace = createChild(header, "span", {
       class: "ruleview-ruleopen",
+      tabindex: "0",
       textContent: " {"
     });
 

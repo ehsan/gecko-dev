@@ -95,6 +95,10 @@ public abstract class ServerSyncStage implements
   /**
    * Return a Crypto5Middleware-wrapped Server11Repository.
    *
+   * @param clusterURI
+   * @param data.username
+   * @param collection
+   * @return
    * @throws NoCollectionKeysSetException
    * @throws URISyntaxException
    */

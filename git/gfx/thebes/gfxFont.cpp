@@ -690,60 +690,37 @@ void gfxFontFamily::LocalizedName(nsAString& aLocalizedName)
     aLocalizedName = mName;
 }
 
-// metric for how close a given font matches a style
-static PRInt32
-CalcStyleMatch(gfxFontEntry *aFontEntry, const gfxFontStyle *aStyle)
-{
-    PRInt32 rank = 0;
-    if (aStyle) {
-         // italics
-         bool wantItalic =
-             ((aStyle->style & (FONT_STYLE_ITALIC | FONT_STYLE_OBLIQUE)) != 0);
-         if (aFontEntry->IsItalic() == wantItalic) {
-             rank += 10;
-         }
-
-        // measure of closeness of weight to the desired value
-        rank += 9 - abs(aFontEntry->Weight() / 100 - aStyle->ComputeWeight());
-    } else {
-        // if no font to match, prefer non-bold, non-italic fonts
-        if (!aFontEntry->IsItalic()) {
-            rank += 3;
-        }
-        if (!aFontEntry->IsBold()) {
-            rank += 2;
-        }
-    }
-
-    return rank;
-}
-
-#define RANK_MATCHED_CMAP   20
 
 void
-gfxFontFamily::FindFontForChar(GlobalFontMatch *aMatchData)
+gfxFontFamily::FindFontForChar(FontSearch *aMatchData)
 {
-    if (mCharacterMapInitialized && !TestCharacterMap(aMatchData->mCh)) {
+    if (!mHasStyles) {
+        FindStyleVariations();
+    }
+
+    if (!TestCharacterMap(aMatchData->mCh)) {
         // none of the faces in the family support the required char,
         // so bail out immediately
         return;
     }
 
-    bool needsBold;
-    gfxFontStyle normal;
-    gfxFontEntry *fe = FindFontForStyle(
-                  (aMatchData->mStyle == nsnull) ? *aMatchData->mStyle : normal,
-                  needsBold);
+    // iterate over fonts
+    PRUint32 numFonts = mAvailableFonts.Length();
+    for (PRUint32 i = 0; i < numFonts; i++) {
+        gfxFontEntry *fe = mAvailableFonts[i];
 
-    if (fe && !fe->SkipDuringSystemFallback()) {
+        // skip certain fonts during system fallback
+        if (!fe || fe->SkipDuringSystemFallback())
+            continue;
+
         PRInt32 rank = 0;
 
         if (fe->TestCharacterMap(aMatchData->mCh)) {
-            rank += RANK_MATCHED_CMAP;
+            rank += 20;
             aMatchData->mCount++;
 #ifdef PR_LOGGING
             PRLogModuleInfo *log = gfxPlatform::GetLog(eGfxLog_textrun);
-
+        
             if (NS_UNLIKELY(log)) {
                 PRUint32 charRange = gfxFontUtils::CharRangeBit(aMatchData->mCh);
                 PRUint32 unicodeRange = FindCharUnicodeRange(aMatchData->mCh);
@@ -758,43 +735,43 @@ gfxFontFamily::FindFontForChar(GlobalFontMatch *aMatchData)
 #endif
         }
 
-        aMatchData->mCmapsTested++;
-        if (rank == 0) {
-            return;
+        // if we didn't match any characters don't bother wasting more time with this face.
+        if (rank == 0)
+            continue;
+            
+        // omitting from original windows code -- family name, lang group, pitch
+        // not available in current FontEntry implementation
+
+        if (aMatchData->mFontToMatch) { 
+            const gfxFontStyle *style = aMatchData->mFontToMatch->GetStyle();
+
+            // matching italics takes precedence over weight
+            bool wantItalic =
+                ((style->style & (FONT_STYLE_ITALIC | FONT_STYLE_OBLIQUE)) != 0);
+            if (fe->IsItalic() == wantItalic) {
+                rank += 10;
+            }
+
+            // measure of closeness of weight to the desired value
+            rank += 9 - abs(fe->Weight() / 100 - style->ComputeWeight());
+        } else {
+            // if no font to match, prefer non-bold, non-italic fonts
+            if (!fe->IsItalic()) {
+                rank += 3;
+            }
+            if (!fe->IsBold()) {
+                rank += 2;
+            }
         }
-
-         // omitting from original windows code -- family name, lang group, pitch
-         // not available in current FontEntry implementation
-        rank += CalcStyleMatch(fe, aMatchData->mStyle);
-
+        
         // xxx - add whether AAT font with morphing info for specific lang groups
-
+        
         if (rank > aMatchData->mMatchRank
             || (rank == aMatchData->mMatchRank &&
-                Compare(fe->Name(), aMatchData->mBestMatch->Name()) > 0))
+                Compare(fe->Name(), aMatchData->mBestMatch->Name()) > 0)) 
         {
             aMatchData->mBestMatch = fe;
             aMatchData->mMatchRank = rank;
-        }
-    }
-}
-
-void
-gfxFontFamily::SearchAllFontsForChar(GlobalFontMatch *aMatchData)
-{
-    PRUint32 i, numFonts = mAvailableFonts.Length();
-    for (i = 0; i < numFonts; i++) {
-        gfxFontEntry *fe = mAvailableFonts[i];
-        if (fe && fe->TestCharacterMap(aMatchData->mCh)) {
-            PRInt32 rank = RANK_MATCHED_CMAP;
-            rank += CalcStyleMatch(fe, aMatchData->mStyle);
-            if (rank > aMatchData->mMatchRank
-                || (rank == aMatchData->mMatchRank &&
-                    Compare(fe->Name(), aMatchData->mBestMatch->Name()) > 0))
-            {
-                aMatchData->mBestMatch = fe;
-                aMatchData->mMatchRank = rank;
-            }
         }
     }
 }
@@ -3176,7 +3153,7 @@ gfxFontGroup::InitTextRun(gfxContext *aContext,
                 nsCAutoString lang;
                 mStyle.language->ToUTF8String(lang);
                 PRUint32 runLen = runLimit - runStart;
-                PR_LOG(log, PR_LOG_WARNING,\
+                PR_LOG(log, PR_LOG_DEBUG,\
                        ("(%s) fontgroup: [%s] lang: %s script: %d len %d "
                         "weight: %d width: %d style: %s "
                         "TEXTRUN [%s] ENDTEXTRUN\n",
@@ -3382,12 +3359,11 @@ gfxFontGroup::FindFontForChar(PRUint32 aCh, PRUint32 aPrevCh,
             *aMatchType = gfxTextRange::kFontGroup;
             return font.forget();
         }
-
         // check other faces of the family
         gfxFontFamily *family = font->GetFontEntry()->Family();
         if (family && family->TestCharacterMap(aCh)) {
-            GlobalFontMatch matchData(aCh, aRunScript, &mStyle);
-            family->SearchAllFontsForChar(&matchData);
+            FontSearch matchData(aCh, font);
+            family->FindFontForChar(&matchData);
             gfxFontEntry *fe = matchData.mBestMatch;
             if (fe) {
                 bool needsBold =
@@ -3419,11 +3395,6 @@ gfxFontGroup::FindFontForChar(PRUint32 aCh, PRUint32 aPrevCh,
         return selectedFont.forget();
     }
 
-    // never fall back for characters from unknown scripts
-    if (aRunScript == HB_SCRIPT_UNKNOWN) {
-        return nsnull;
-    }
-
     // for known "space" characters, don't do a full system-fallback search;
     // we'll synthesize appropriate-width spaces instead of missing-glyph boxes
     if (GetGeneralCategory(aCh) ==
@@ -3436,7 +3407,7 @@ gfxFontGroup::FindFontForChar(PRUint32 aCh, PRUint32 aPrevCh,
     // -- otherwise look for other stuff
     if (!selectedFont) {
         *aMatchType = gfxTextRange::kSystemFallback;
-        selectedFont = WhichSystemFontSupportsChar(aCh, aRunScript);
+        selectedFont = WhichSystemFontSupportsChar(aCh);
         return selectedFont.forget();
     }
 
@@ -3581,6 +3552,10 @@ gfxFontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
 {
     gfxFont *font;
 
+    // FindCharUnicodeRange only supports BMP character points and there are no non-BMP fonts in prefs
+    if (aCh > 0xFFFF)
+        return nsnull;
+
     // get the pref font list if it hasn't been set up already
     PRUint32 unicodeRange = FindCharUnicodeRange(aCh);
     eFontPrefLang charLang = gfxPlatform::GetPlatform()->GetFontPrefLangFor(unicodeRange);
@@ -3652,14 +3627,12 @@ gfxFontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
 }
 
 already_AddRefed<gfxFont>
-gfxFontGroup::WhichSystemFontSupportsChar(PRUint32 aCh, PRInt32 aRunScript)
+gfxFontGroup::WhichSystemFontSupportsChar(PRUint32 aCh)
 {
     gfxFontEntry *fe = 
-        gfxPlatformFontList::PlatformFontList()->
-            SystemFindFontForChar(aCh, aRunScript, &mStyle);
+        gfxPlatformFontList::PlatformFontList()->FindFontForChar(aCh, GetFontAt(0));
     if (fe) {
-        // ignore bolder considerations in system fallback case...
-        nsRefPtr<gfxFont> font = fe->FindOrMakeFont(&mStyle, false);
+        nsRefPtr<gfxFont> font = fe->FindOrMakeFont(&mStyle, false); // ignore bolder considerations in system fallback case...
         return font.forget();
     }
 

@@ -892,7 +892,7 @@ TiledTextureImage::DirectUpdate(gfxASurface* aSurf, const nsIntRegion& aRegion, 
 {
     nsIntRegion region;
 
-    if (mTextureState != Valid) {
+    if (mTextureState != Valid || !mGL->CanUploadSubTextures()) {
         nsIntRect bounds = nsIntRect(0, 0, mSize.width, mSize.height);
         region = nsIntRegion(bounds);
     } else {
@@ -904,17 +904,10 @@ TiledTextureImage::DirectUpdate(gfxASurface* aSurf, const nsIntRegion& aRegion, 
         int xPos = (i % mColumns) * mTileSize;
         int yPos = (i / mColumns) * mTileSize;
         nsIntRegion tileRegion;
-        nsIntRect tileRect = nsIntRect(nsIntPoint(xPos, yPos), mImages[i]->GetSize());
-        tileRegion.And(region, tileRect); // intersect with tile
+        tileRegion.And(region, nsIntRect(nsIntPoint(xPos,yPos), mImages[i]->GetSize())); // intersect with tile
         if (tileRegion.IsEmpty())
             continue;
-        if (mGL->CanUploadSubTextures()) {
-          tileRegion.MoveBy(-xPos, -yPos); // translate into tile local space
-        } else {
-          // If sub-textures are unsupported, expand to tile boundaries
-          tileRect.x = tileRect.y = 0;
-          tileRegion = nsIntRegion(tileRect);
-        }
+        tileRegion.MoveBy(-xPos, -yPos); // translate into tile local space
         result &= mImages[i]->DirectUpdate(aSurf,
                                            tileRegion,
                                            aFrom + nsIntPoint(xPos, yPos));

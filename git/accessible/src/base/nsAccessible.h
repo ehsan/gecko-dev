@@ -215,11 +215,6 @@ public:
   virtual PRUint64 NativeState();
 
   /**
-   * Return bit set of invisible and offscreen states.
-   */
-  PRUint64 VisibilityState();
-
-  /**
    * Returns attributes for accessible without explicitly setted ARIA
    * attributes.
    */
@@ -706,6 +701,8 @@ protected:
 
   virtual nsIFrame* GetBoundsFrame();
   virtual void GetBoundsRect(nsRect& aRect, nsIFrame** aRelativeFrame);
+
+  PRUint64 VisibilityState(); 
 
   //////////////////////////////////////////////////////////////////////////////
   // Name helpers

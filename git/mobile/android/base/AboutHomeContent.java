@@ -112,7 +112,6 @@ public class AboutHomeContent extends ScrollView {
     private LayoutInflater mInflater;
 
     private AccountManager mAccountManager;
-    private OnAccountsUpdateListener mAccountListener = null;
 
     protected SimpleCursorAdapter mTopSitesAdapter;
     protected GridView mTopSitesGrid;
@@ -140,7 +139,7 @@ public class AboutHomeContent extends ScrollView {
         mAccountManager = AccountManager.get(context);
 
         // The listener will run on the background thread (see 2nd argument)
-        mAccountManager.addOnAccountsUpdatedListener(mAccountListener = new OnAccountsUpdateListener() {
+        mAccountManager.addOnAccountsUpdatedListener(new OnAccountsUpdateListener() {
             public void onAccountsUpdated(Account[] accounts) {
                 final GeckoApp.StartupMode startupMode = GeckoApp.mAppContext.getStartupMode();
                 final boolean syncIsSetup = isSyncSetup();
@@ -209,13 +208,6 @@ public class AboutHomeContent extends ScrollView {
                 context.startActivity(intent);
             }
         });
-    }
-
-    public void onDestroy() {
-        if (mAccountListener != null) {
-            mAccountManager.removeOnAccountsUpdatedListener(mAccountListener);
-            mAccountListener = null;
-        }
     }
 
     void setLastTabsVisibility(boolean visible) {

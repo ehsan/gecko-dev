@@ -429,7 +429,6 @@ DOMCI_CLASS(GeoPositionError)
 DOMCI_CLASS(MozBatteryManager)
 
 DOMCI_CLASS(MozPowerManager)
-DOMCI_CLASS(MozWakeLock)
 
 DOMCI_CLASS(MozSmsManager)
 DOMCI_CLASS(MozSmsMessage)

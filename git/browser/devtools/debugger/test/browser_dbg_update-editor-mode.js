@@ -72,15 +72,7 @@ function testSwitchPaused()
      "Found the expected editor mode.");
 
   gDebugger.StackFrames.activeThread.resume(function() {
-    closeDebuggerAndFinish(gTab);
+    removeTab(gTab);
+    finish();
   });
 }
-
-registerCleanupFunction(function() {
-  removeTab(gTab);
-  gPane = null;
-  gTab = null;
-  gDebuggee = null;
-  gDebugger = null;
-  gScripts = null;
-});

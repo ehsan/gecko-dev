@@ -559,7 +559,7 @@ XDRPrincipals(JSXDRState *xdr)
         return false;
 
     if (flags & (HAS_PRINCIPALS | HAS_ORIGIN)) {
-        const JSSecurityCallbacks *scb = JS_GetSecurityCallbacks(xdr->cx->runtime);
+        JSSecurityCallbacks *scb = JS_GetSecurityCallbacks(xdr->cx);
         if (xdr->mode == JSXDR_DECODE) {
             if (!scb || !scb->principalsTranscoder) {
                 JS_ReportErrorNumber(xdr->cx, js_GetErrorMessage, NULL,
@@ -581,7 +581,7 @@ XDRPrincipals(JSXDRState *xdr)
                 return false;
         } else if (xdr->mode == JSXDR_DECODE && xdr->principals) {
             xdr->originPrincipals = xdr->principals;
-            JS_HoldPrincipals(xdr->principals);
+            JSPRINCIPALS_HOLD(xdr->cx, xdr->principals);
         }
     }
 
@@ -599,9 +599,9 @@ struct AutoDropXDRPrincipals {
     ~AutoDropXDRPrincipals() {
         if (xdr->mode == JSXDR_DECODE) {
             if (xdr->principals)
-                JS_DropPrincipals(xdr->cx->runtime, xdr->principals);
+                JSPRINCIPALS_DROP(xdr->cx, xdr->principals);
             if (xdr->originPrincipals)
-                JS_DropPrincipals(xdr->cx->runtime, xdr->originPrincipals);
+                JSPRINCIPALS_DROP(xdr->cx, xdr->originPrincipals);
         }
         xdr->principals = NULL;
         xdr->originPrincipals = NULL;

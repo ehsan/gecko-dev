@@ -1,8 +1,17 @@
 #include "tests.h"
 
+static void
+Destroy(JSContext *cx, JSPrincipals *prin);
+
 JSPrincipals system_principals = {
-    1
+    (char *)"", 1, Destroy, NULL
 };
+
+static void
+Destroy(JSContext *cx, JSPrincipals *prin)
+{
+    JS_ASSERT(prin == &system_principals);
+}
 
 JSClass global_class = {
     "global",

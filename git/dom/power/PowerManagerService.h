@@ -37,13 +37,8 @@
 #ifndef mozilla_dom_power_PowerManagerService_h
 #define mozilla_dom_power_PowerManagerService_h
 
-#include "nsCOMPtr.h"
-#include "nsDataHashtable.h"
-#include "nsHashKeys.h"
-#include "nsTArray.h"
 #include "nsIPowerManagerService.h"
-#include "mozilla/Observer.h"
-#include "Types.h"
+#include "nsCOMPtr.h" // for already_AddRefed
 
 namespace mozilla {
 namespace dom {
@@ -51,29 +46,12 @@ namespace power {
 
 class PowerManagerService
   : public nsIPowerManagerService
-  , public WakeLockObserver
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPOWERMANAGERSERVICE
 
   static already_AddRefed<nsIPowerManagerService> GetInstance();
-
-  void Init();
-
-  // Implement WakeLockObserver
-  void Notify(const hal::WakeLockInformation& aWakeLockInfo);
-
-private:
-
-  ~PowerManagerService();
-
-  void ComputeWakeLockState(const hal::WakeLockInformation& aWakeLockInfo,
-                            nsAString &aState);
-
-  static nsRefPtr<PowerManagerService> sSingleton;
-
-  nsTArray<nsCOMPtr<nsIDOMMozWakeLockListener> > mWakeLockListeners;
 };
 
 } // namespace power

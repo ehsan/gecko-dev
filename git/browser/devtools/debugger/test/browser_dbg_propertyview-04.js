@@ -73,19 +73,16 @@ function testSimpleCall() {
       is(testScope.querySelector(".details").childNodes.length, 0,
         "The var should have been removed from the parent container tree.");
 
-      gDebugger.StackFrames.activeThread.resume(function() {
-        closeDebuggerAndFinish(gTab);
-      });
+      resumeAndFinish();
     }}, 0);
   });
 
   gDebuggee.simpleCall();
 }
 
-registerCleanupFunction(function() {
-  removeTab(gTab);
-  gPane = null;
-  gTab = null;
-  gDebuggee = null;
-  gDebugger = null;
-});
+function resumeAndFinish() {
+  gDebugger.StackFrames.activeThread.resume(function() {
+    removeTab(gTab);
+    finish();
+  });
+}

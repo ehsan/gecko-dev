@@ -116,19 +116,16 @@ function testSimpleCall() {
       ok(!testScope.expanded,
         "Clicking again the testScope tilte should collapse it.");
 
-      gDebugger.StackFrames.activeThread.resume(function() {
-        closeDebuggerAndFinish(gTab);
-      });
+      resumeAndFinish();
     }}, 0);
   });
 
   gDebuggee.simpleCall();
 }
 
-registerCleanupFunction(function() {
-  removeTab(gTab);
-  gPane = null;
-  gTab = null;
-  gDebuggee = null;
-  gDebugger = null;
-});
+function resumeAndFinish() {
+  gDebugger.StackFrames.activeThread.resume(function() {
+    removeTab(gTab);
+    finish();
+  });
+}

@@ -122,13 +122,6 @@ JSObject::setPrivate(void *data)
 }
 
 inline void
-JSObject::setPrivateUnbarriered(void *data)
-{
-    void **pprivate = &privateRef(numFixedSlots());
-    *pprivate = data;
-}
-
-inline void
 JSObject::initPrivate(void *data)
 {
     privateRef(numFixedSlots()) = data;
@@ -1118,8 +1111,9 @@ JSObject::isCallable()
 inline JSPrincipals *
 JSObject::principals(JSContext *cx)
 {
-    if (JSObjectPrincipalsFinder find = cx->runtime->securityCallbacks->findObjectPrincipals)
-        return find(this);
+    JSSecurityCallbacks *cb = JS_GetSecurityCallbacks(cx);
+    if (JSObjectPrincipalsFinder finder = cb ? cb->findObjectPrincipals : NULL)
+        return finder(cx, this);
     return cx->compartment ? cx->compartment->principals : NULL;
 }
 

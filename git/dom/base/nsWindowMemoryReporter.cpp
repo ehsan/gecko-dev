@@ -90,7 +90,7 @@ AppendWindowURI(nsGlobalWindow *aWindow, nsACString& aStr)
 
 NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(DOMStyleMallocSizeOf, "windows")
 
-static nsresult
+static void
 CollectWindowReports(nsGlobalWindow *aWindow,
                      nsWindowSizes *aWindowTotalSizes,
                      nsIMemoryMultiReporterCallback *aCb,
@@ -197,11 +197,9 @@ CollectWindowReports(nsGlobalWindow *aWindow,
     if (_amount > 0) {                                                        \
         nsCAutoString path(_path1);                                           \
         path += _path2;                                                       \
-        nsresult rv;                                                          \
-        rv = aCb->Callback(EmptyCString(), path, nsIMemoryReporter::KIND_HEAP,\
+        aCb->Callback(EmptyCString(), path, nsIMemoryReporter::KIND_HEAP,     \
                       nsIMemoryReporter::UNITS_BYTES, _amount,                \
                       NS_LITERAL_CSTRING(_desc), aClosure);                   \
-        NS_ENSURE_SUCCESS(rv, rv);                                            \
     }                                                                         \
   } while (0)
 
@@ -228,8 +226,6 @@ CollectWindowReports(nsGlobalWindow *aWindow,
   aWindowTotalSizes->mLayoutTextRuns += windowSizes.mLayoutTextRuns;
 
 #undef REPORT
-
-  return NS_OK;
 }
 
 typedef nsTArray< nsRefPtr<nsGlobalWindow> > WindowArray;
@@ -268,18 +264,15 @@ nsWindowMemoryReporter::CollectReports(nsIMemoryMultiReporterCallback* aCb,
   nsRefPtr<nsGlobalWindow> *end = w + windows.Length();
   nsWindowSizes windowTotalSizes(NULL);
   for (; w != end; ++w) {
-    nsresult rv = CollectWindowReports(*w, &windowTotalSizes, aCb, aClosure);
-    NS_ENSURE_SUCCESS(rv, rv);
+    CollectWindowReports(*w, &windowTotalSizes, aCb, aClosure);
   }
 
 #define REPORT(_path, _amount, _desc)                                         \
   do {                                                                        \
-    nsresult rv;                                                              \
-    rv = aCb->Callback(EmptyCString(), NS_LITERAL_CSTRING(_path),             \
-                       nsIMemoryReporter::KIND_OTHER,                         \
-                       nsIMemoryReporter::UNITS_BYTES, _amount,               \
-                       NS_LITERAL_CSTRING(_desc), aClosure);                  \
-    NS_ENSURE_SUCCESS(rv, rv);                                                \
+    aCb->Callback(EmptyCString(), NS_LITERAL_CSTRING(_path),                  \
+                  nsIMemoryReporter::KIND_OTHER,                              \
+                  nsIMemoryReporter::UNITS_BYTES, _amount,                    \
+                  NS_LITERAL_CSTRING(_desc), aClosure);                       \
   } while (0)
 
   REPORT("window-objects-dom", windowTotalSizes.mDOM, 

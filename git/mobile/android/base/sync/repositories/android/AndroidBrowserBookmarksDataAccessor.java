@@ -100,6 +100,10 @@ public class AndroidBrowserBookmarksDataAccessor extends AndroidBrowserRepositor
 
   /**
    * Bump the modified time of a record by ID.
+   *
+   * @param id
+   * @param modified
+   * @return
    */
   public int bumpModified(long id, long modified) {
     Logger.debug(LOG_TAG, "Bumping modified for " + id + " to " + modified);

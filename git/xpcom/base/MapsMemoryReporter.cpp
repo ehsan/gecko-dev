@@ -157,7 +157,7 @@ public:
   }
 
   NS_IMETHOD
-  CollectReports(nsIMemoryMultiReporterCallback *aCb,
+  CollectReports(nsIMemoryMultiReporterCallback *aCallback,
                  nsISupports *aClosure);
 
   NS_IMETHOD
@@ -174,7 +174,7 @@ private:
 
   nsresult
   ParseMapping(FILE *aFile,
-               nsIMemoryMultiReporterCallback *aCb,
+               nsIMemoryMultiReporterCallback *aCallback,
                nsISupports *aClosure,
                CategoriesSeen *aCategoriesSeen);
 
@@ -188,7 +188,7 @@ private:
   ParseMapBody(FILE *aFile,
                const nsACString &aName,
                const nsACString &aDescription,
-               nsIMemoryMultiReporterCallback *aCb,
+               nsIMemoryMultiReporterCallback *aCallback,
                nsISupports *aClosure,
                CategoriesSeen *aCategoriesSeen);
 
@@ -212,7 +212,7 @@ MapsReporter::MapsReporter()
 }
 
 NS_IMETHODIMP
-MapsReporter::CollectReports(nsIMemoryMultiReporterCallback *aCb,
+MapsReporter::CollectReports(nsIMemoryMultiReporterCallback *aCallback,
                              nsISupports *aClosure)
 {
   CategoriesSeen categoriesSeen;
@@ -222,7 +222,7 @@ MapsReporter::CollectReports(nsIMemoryMultiReporterCallback *aCb,
     return NS_ERROR_FAILURE;
 
   while (true) {
-    nsresult rv = ParseMapping(f, aCb, aClosure, &categoriesSeen);
+    nsresult rv = ParseMapping(f, aCallback, aClosure, &categoriesSeen);
     if (NS_FAILED(rv))
       break;
   }
@@ -237,15 +237,13 @@ MapsReporter::CollectReports(nsIMemoryMultiReporterCallback *aCb,
   NS_ASSERTION(categoriesSeen.mSeenVsize, "Didn't create a vsize node?");
   NS_ASSERTION(categoriesSeen.mSeenVsize, "Didn't create a resident node?");
   if (!categoriesSeen.mSeenSwap) {
-    nsresult rv;
-    rv = aCb->Callback(NS_LITERAL_CSTRING(""),
-                       NS_LITERAL_CSTRING("smaps/swap/total"),
-                       nsIMemoryReporter::KIND_NONHEAP,
-                       nsIMemoryReporter::UNITS_BYTES,
-                       0,
-                       NS_LITERAL_CSTRING("This process uses no swap space."),
-                       aClosure);
-    NS_ENSURE_SUCCESS(rv, rv);
+    aCallback->Callback(NS_LITERAL_CSTRING(""),
+                        NS_LITERAL_CSTRING("smaps/swap/total"),
+                        nsIMemoryReporter::KIND_NONHEAP,
+                        nsIMemoryReporter::UNITS_BYTES,
+                        0,
+                        NS_LITERAL_CSTRING("This process uses no swap space."),
+                        aClosure);
   }
 
   return NS_OK;
@@ -295,7 +293,7 @@ MapsReporter::FindLibxul()
 nsresult
 MapsReporter::ParseMapping(
   FILE *aFile,
-  nsIMemoryMultiReporterCallback *aCb,
+  nsIMemoryMultiReporterCallback *aCallback,
   nsISupports *aClosure,
   CategoriesSeen *aCategoriesSeen)
 {
@@ -349,7 +347,7 @@ MapsReporter::ParseMapping(
   GetReporterNameAndDescription(path, perms, name, description);
 
   while (true) {
-    nsresult rv = ParseMapBody(aFile, name, description, aCb,
+    nsresult rv = ParseMapBody(aFile, name, description, aCallback,
                                aClosure, aCategoriesSeen);
     if (NS_FAILED(rv))
       break;
@@ -478,7 +476,7 @@ MapsReporter::ParseMapBody(
   FILE *aFile,
   const nsACString &aName,
   const nsACString &aDescription,
-  nsIMemoryMultiReporterCallback *aCb,
+  nsIMemoryMultiReporterCallback *aCallback,
   nsISupports *aClosure,
   CategoriesSeen *aCategoriesSeen)
 {
@@ -525,14 +523,12 @@ MapsReporter::ParseMapBody(
   path.Append("/");
   path.Append(aName);
 
-  nsresult rv;
-  rv = aCb->Callback(NS_LITERAL_CSTRING(""),
-                     path,
-                     nsIMemoryReporter::KIND_NONHEAP,
-                     nsIMemoryReporter::UNITS_BYTES,
-                     PRInt64(size) * 1024, // convert from kB to bytes
-                     aDescription, aClosure);
-  NS_ENSURE_SUCCESS(rv, rv);
+  aCallback->Callback(NS_LITERAL_CSTRING(""),
+                      path,
+                      nsIMemoryReporter::KIND_NONHEAP,
+                      nsIMemoryReporter::UNITS_BYTES,
+                      PRInt64(size) * 1024, // convert from kB to bytes
+                      aDescription, aClosure);
 
   return NS_OK;
 }

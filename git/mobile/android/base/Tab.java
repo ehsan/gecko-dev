@@ -78,6 +78,7 @@ public final class Tab {
     private int mHistoryIndex;
     private int mParentId;
     private boolean mExternal;
+    private boolean mLoading;
     private boolean mBookmark;
     private HashMap<String, DoorHanger> mDoorHangers;
     private long mFaviconLoadId;
@@ -87,14 +88,9 @@ public final class Tab {
     private boolean mHasTouchListeners;
     private ArrayList<View> mPluginViews;
     private HashMap<Surface, Layer> mPluginLayers;
+    private boolean mHasLoaded;
     private ContentResolver mContentResolver;
     private ContentObserver mContentObserver;
-    private int mState;
-
-    public static final int STATE_DELAYED = 0;
-    public static final int STATE_LOADING = 1;
-    public static final int STATE_SUCCESS = 2;
-    public static final int STATE_ERROR = 3;
 
     public static final class HistoryEntry {
         public String mUri;         // must never be null
@@ -125,7 +121,7 @@ public final class Tab {
         mContentType = "";
         mPluginViews = new ArrayList<View>();
         mPluginLayers = new HashMap<Surface, Layer>();
-        mState = STATE_LOADING;
+        mHasLoaded = false;
         mContentResolver = Tabs.getInstance().getContentResolver();
         mContentObserver = new ContentObserver(GeckoAppShell.getHandler()) {
             public void onChange(boolean selfChange) {
@@ -236,9 +232,7 @@ public final class Tab {
                                                           b.getHeight());
 
                         Bitmap bitmap = Bitmap.createScaledBitmap(cropped, getThumbnailWidth(), getThumbnailHeight(), false);
-
-                        if (mState == Tab.STATE_SUCCESS)
-                            saveThumbnailToDB(new BitmapDrawable(bitmap));
+                        saveThumbnailToDB(new BitmapDrawable(bitmap));
 
                         if (!cropped.equals(b))
                             b.recycle();
@@ -266,6 +260,10 @@ public final class Tab {
 
     public String getSecurityMode() {
         return mSecurityMode;
+    }
+
+    public boolean isLoading() {
+        return mLoading;
     }
 
     public boolean isBookmark() {
@@ -323,12 +321,8 @@ public final class Tab {
         }
     }
 
-    public void setState(int state) {
-        mState = state;
-    }
-
-    public int getState() {
-        return mState;
+    public void setLoading(boolean loading) {
+        mLoading = loading;
     }
 
     public void setHasTouchListeners(boolean aValue) {
@@ -471,6 +465,14 @@ public final class Tab {
 
     public HashMap<String, DoorHanger> getDoorHangers() {
         return mDoorHangers;
+    }
+
+    public void setHasLoaded(boolean hasLoaded) {
+        mHasLoaded = hasLoaded;
+    }
+
+    public boolean hasLoaded() {
+        return mHasLoaded;
     }
 
     void handleSessionHistoryMessage(String event, JSONObject message) throws JSONException {

@@ -544,12 +544,11 @@ NS_IMETHODIMP nsHTMLTextFieldAccessible::DoAction(PRUint8 index)
   return NS_ERROR_INVALID_ARG;
 }
 
-already_AddRefed<nsIEditor>
-nsHTMLTextFieldAccessible::GetEditor() const
+NS_IMETHODIMP nsHTMLTextFieldAccessible::GetAssociatedEditor(nsIEditor **aEditor)
 {
+  *aEditor = nsnull;
   nsCOMPtr<nsIDOMNSEditableElement> editableElt(do_QueryInterface(mContent));
-  if (!editableElt)
-    return nsnull;
+  NS_ENSURE_TRUE(editableElt, NS_ERROR_FAILURE);
 
   // nsGenericHTMLElement::GetEditor has a security check.
   // Make sure we're not restricted by the permissions of
@@ -559,7 +558,7 @@ nsHTMLTextFieldAccessible::GetEditor() const
   bool pushed = stack && NS_SUCCEEDED(stack->Push(nsnull));
 
   nsCOMPtr<nsIEditor> editor;
-  editableElt->GetEditor(getter_AddRefs(editor));
+  nsresult rv = editableElt->GetEditor(aEditor);
 
   if (pushed) {
     JSContext* cx;
@@ -567,7 +566,7 @@ nsHTMLTextFieldAccessible::GetEditor() const
     NS_ASSERTION(!cx, "context should be null");
   }
 
-  return editor.forget();
+  return rv;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

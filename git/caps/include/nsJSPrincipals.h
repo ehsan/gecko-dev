@@ -43,47 +43,14 @@
 
 class nsCString;
 
-struct nsJSPrincipals : nsIPrincipal, JSPrincipals
+struct nsJSPrincipals : JSPrincipals
 {
-  static JSBool Subsume(JSPrincipals *jsprin, JSPrincipals *other);
-  static void Destroy(JSPrincipals *jsprin);
-  static JSBool Transcode(JSXDRState *xdr, JSPrincipals **jsprinp);
+  static nsresult Startup();
+  nsJSPrincipals();
+  nsresult Init(nsIPrincipal* aPrincipal, const nsCString& aCodebase);
+  ~nsJSPrincipals(void);
 
-  /*
-   * Get a weak reference to nsIPrincipal associated with the given JS
-   * principal.
-   */
-  static nsJSPrincipals* get(JSPrincipals *principals) {
-    nsJSPrincipals *self = static_cast<nsJSPrincipals *>(principals);
-    MOZ_ASSERT_IF(self, self->debugToken == DEBUG_TOKEN);
-    return self;
-  }
-  
-  static nsJSPrincipals* get(nsIPrincipal *principal) {
-    nsJSPrincipals *self = static_cast<nsJSPrincipals *>(principal);
-    MOZ_ASSERT_IF(self, self->debugToken == DEBUG_TOKEN);
-    return self;
-  }
-
-  nsJSPrincipals() {
-    refcount = 0;
-    setDebugToken(DEBUG_TOKEN);
-  }
-
-  virtual ~nsJSPrincipals() {
-    setDebugToken(0);
-  }
-
-  /**
-   * Return a string that can be used as JS script filename in error reports.
-   */
-  virtual void GetScriptLocation(nsACString &aStr) = 0;
-
-#ifdef DEBUG
-  virtual void dumpImpl() = 0;
-#endif
-
-  static const uint32_t DEBUG_TOKEN = 0x0bf41760;
+  nsIPrincipal *nsIPrincipalPtr; // [WEAK] it owns us.
 };
 
 #endif /* nsJSPrincipals_h__ */

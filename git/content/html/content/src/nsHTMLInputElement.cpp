@@ -3830,7 +3830,7 @@ nsHTMLInputElement::GetValidationMessage(nsAString& aValidationMessage,
       const PRUnichar* params[] = { strMaxLength.get(), strTextLength.get() };
       rv = nsContentUtils::FormatLocalizedString(nsContentUtils::eDOM_PROPERTIES,
                                                  "FormValidationTextTooLong",
-                                                 params, message);
+                                                 params, 2, message);
       aValidationMessage = message;
       break;
     }
@@ -3889,7 +3889,7 @@ nsHTMLInputElement::GetValidationMessage(nsAString& aValidationMessage,
         const PRUnichar* params[] = { title.get() };
         rv = nsContentUtils::FormatLocalizedString(nsContentUtils::eDOM_PROPERTIES,
                                                    "FormValidationPatternMismatchWithTitle",
-                                                   params, message);
+                                                   params, 1, message);
       }
       aValidationMessage = message;
       break;

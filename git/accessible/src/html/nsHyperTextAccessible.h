@@ -264,14 +264,6 @@ public:
     return GetChildAt(GetChildIndexAtOffset(aOffset));
   }
 
-  //////////////////////////////////////////////////////////////////////////////
-  // EditableTextAccessible
-
-  /**
-   * Return the editor associated with the accessible.
-   */
-  virtual already_AddRefed<nsIEditor> GetEditor() const;
-
 protected:
   // nsHyperTextAccessible
 

@@ -300,7 +300,7 @@ public class BrowserToolbar extends LinearLayout {
     }
 
     public void setFavicon(Drawable image) {
-        if (Tabs.getInstance().getSelectedTab().getState() == Tab.STATE_LOADING)
+        if (Tabs.getInstance().getSelectedTab().isLoading())
             return;
 
         if (image != null)
@@ -343,7 +343,7 @@ public class BrowserToolbar extends LinearLayout {
             setTitle(tab.getDisplayTitle());
             setFavicon(tab.getFavicon());
             setSecurityMode(tab.getSecurityMode());
-            setProgressVisibility(tab.getState() == Tab.STATE_LOADING);
+            setProgressVisibility(tab.isLoading());
             setShadowVisibility((url == null) || !url.startsWith("about:"));
             updateTabCount(Tabs.getInstance().getCount());
         }

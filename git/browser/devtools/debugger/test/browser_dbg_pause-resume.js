@@ -6,11 +6,13 @@
 
 var gPane = null;
 var gTab = null;
+var gDebuggee = null;
 var gDebugger = null;
 
 function test() {
   debug_tab_pane(STACK_URL, function(aTab, aDebuggee, aPane) {
     gTab = aTab;
+    gDebuggee = aDebuggee;
     gPane = aPane;
     gDebugger = gPane.debuggerWindow;
 
@@ -61,7 +63,8 @@ function testResume() {
       is(button.label, gDebugger.DebuggerView.getStr("pauseLabel"),
         "Button label should be pause when running.");
 
-      closeDebuggerAndFinish(gTab);
+      removeTab(gTab);
+      finish();
     }}, 0);
   });
 
@@ -69,9 +72,3 @@ function testResume() {
     gDebugger.document.getElementById("resume"),
     gDebugger);
 }
-
-registerCleanupFunction(function() {
-  removeTab(gTab);
-  gPane = null;
-  gTab = null;
-});

@@ -47,9 +47,7 @@ function testRecurse() {
           is(frames.querySelectorAll(".dbg-stackframe").length, recurseLimit,
             "Should have reached the recurse limit.");
 
-          gDebugger.StackFrames.activeThread.resume(function() {
-            closeDebuggerAndFinish(gTab);
-          });
+          resumeAndFinish();
         });
 
         frames.scrollTop = frames.scrollHeight;
@@ -62,10 +60,9 @@ function testRecurse() {
   gDebuggee.recurse();
 }
 
-registerCleanupFunction(function() {
-  removeTab(gTab);
-  gPane = null;
-  gTab = null;
-  gDebuggee = null;
-  gDebugger = null;
-});
+function resumeAndFinish() {
+  gDebugger.StackFrames.activeThread.resume(function() {
+    removeTab(gTab);
+    finish();
+  });
+}
