@@ -2515,7 +2515,9 @@ nsXMLHttpRequest::SetRequestHeader(const nsACString& header,
     }
   }
 
-  if (!(mState & XML_HTTP_REQUEST_OPENED))
+  PRUint16 state;
+  rv = GetReadyState(&state);
+  if (NS_FAILED(rv) || state != OPENED)
     return NS_ERROR_IN_PROGRESS;
 
   if (!mChannel)             // open() initializes mChannel, and open()

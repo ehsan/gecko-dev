@@ -113,12 +113,6 @@ var gSyncSetup = {
     addRem(true);
     window.addEventListener("unload", function() addRem(false), false);
 
-    setTimeout(function () {
-      // Force Service to be loaded so that engines are registered.
-      // See Bug 670082.
-      Weave.Service;
-    }, 0);
-
     this.captchaBrowser = document.getElementById("captcha");
     this.wizard = document.getElementById("accountSetup");
 
