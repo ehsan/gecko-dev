@@ -590,8 +590,7 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
       mAncestorHasApzAwareEventHandler(false),
       mHaveScrollableDisplayPort(false),
       mWindowDraggingAllowed(false),
-      mIsBuildingForPopup(nsLayoutUtils::IsPopup(aReferenceFrame)),
-      mForceLayerForScrollParent(false)
+      mIsBuildingForPopup(nsLayoutUtils::IsPopup(aReferenceFrame))
 {
   MOZ_COUNT_CTOR(nsDisplayListBuilder);
   PL_InitArenaPool(&mPool, "displayListArena", 1024,

@@ -152,7 +152,6 @@ private:
     nsCOMPtr<nsICacheEntryOpenCallback> mCallback;
     nsCOMPtr<nsIThread> mTargetThread;
     bool mReadOnly : 1;
-    bool mRevalidating : 1;
     bool mCheckOnAnyThread : 1;
     bool mRecheckAfterWrite : 1;
     bool mNotWanted : 1;

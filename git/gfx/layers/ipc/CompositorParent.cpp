@@ -232,7 +232,7 @@ CompositorVsyncObserver::CompositorVsyncObserver(CompositorParent* aCompositorPa
   MOZ_ASSERT(aWidget != nullptr);
   mCompositorVsyncDispatcher = aWidget->GetCompositorVsyncDispatcher();
 #ifdef MOZ_WIDGET_GONK
-  GeckoTouchDispatcher::GetInstance()->SetCompositorVsyncObserver(this);
+  GeckoTouchDispatcher::SetCompositorVsyncObserver(this);
 #endif
 }
 
@@ -370,7 +370,7 @@ void
 CompositorVsyncObserver::DispatchTouchEvents(TimeStamp aVsyncTimestamp)
 {
 #ifdef MOZ_WIDGET_GONK
-  GeckoTouchDispatcher::GetInstance()->NotifyVsync(aVsyncTimestamp);
+  GeckoTouchDispatcher::NotifyVsync(aVsyncTimestamp);
 #endif
 }
 

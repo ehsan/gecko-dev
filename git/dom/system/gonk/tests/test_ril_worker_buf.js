@@ -50,12 +50,10 @@ function add_test_incoming_parcel(parcel, handler) {
 add_test_incoming_parcel(null,
   function test_normal_parcel_handling() {
     let self = this;
-    try {
+    do_check_throws(function normal_handler() {
       // reads exactly the same size, should not throw anything.
       self.context.Buf.readInt32();
-    } catch (e) {
-      ok(false, "Got exception: " + e);
-    }
+    });
   }
 );
 
@@ -63,12 +61,10 @@ add_test_incoming_parcel(null,
 add_test_incoming_parcel(null,
   function test_parcel_under_read() {
     let self = this;
-    try {
+    do_check_throws(function under_read_handler() {
       // reads less than parcel size, should not throw.
       self.context.Buf.readUint16();
-    } catch (e) {
-      ok(false, "Got exception: " + e);
-    }
+    });
   }
 );
 
@@ -82,7 +78,7 @@ add_test_incoming_parcel(null,
       buf.readUint8();
     }
 
-    throws(function over_read_handler() {
+    do_check_throws(function over_read_handler() {
       // reads more than parcel size, should throw an error.
       buf.readUint8();
     },"Trying to read data beyond the parcel end!");
@@ -137,14 +133,14 @@ add_test(function test_incoming_parcel_buffer_overwritten() {
   let p1 = pA.subarray(0, pA.length - 1);
   worker.onRILMessage(0, p1);
   // The parcel should not have been processed.
-  equal(buf.readAvailable, 0);
+  do_check_eq(buf.readAvailable, 0);
   // buf.currentParcelSize should have been set because incoming data has more
   // than 4 octets.
-  equal(buf.currentParcelSize, pA_parcelSize);
+  do_check_eq(buf.currentParcelSize, pA_parcelSize);
   // buf.readIncoming should contains remaining unconsumed octets count.
-  equal(buf.readIncoming, p1.length - buf.PARCEL_SIZE_SIZE);
+  do_check_eq(buf.readIncoming, p1.length - buf.PARCEL_SIZE_SIZE);
   // buf.incomingWriteIndex should be ready to accept the last octet.
-  equal(buf.incomingWriteIndex, p1.length);
+  do_check_eq(buf.incomingWriteIndex, p1.length);
 
   // Second, send the last octet of pA and whole pB. The Buf should now expand
   // to cover both pA & pB.
@@ -153,13 +149,13 @@ add_test(function test_incoming_parcel_buffer_overwritten() {
   p2.set(pB, 1);
   worker.onRILMessage(0, p2);
   // The parcels should have been both consumed.
-  equal(buf.readAvailable, 0);
+  do_check_eq(buf.readAvailable, 0);
   // No parcel data remains.
-  equal(buf.currentParcelSize, 0);
+  do_check_eq(buf.currentParcelSize, 0);
   // No parcel data remains.
-  equal(buf.readIncoming, 0);
+  do_check_eq(buf.readIncoming, 0);
   // The Buf should now expand to cover both pA & pB.
-  equal(buf.incomingWriteIndex, pA.length + pB.length);
+  do_check_eq(buf.incomingWriteIndex, pA.length + pB.length);
 
   // end of incoming parcel's trip, let's do next test.
   run_next_test();
@@ -171,15 +167,15 @@ add_test_incoming_parcel(null,
     let buf = this.context.Buf;
 
     let u8array = buf.readUint8Array(1);
-    equal(u8array instanceof Uint8Array, true);
-    equal(u8array.length, 1);
-    equal(buf.readAvailable, 3);
+    do_check_eq(u8array instanceof Uint8Array, true);
+    do_check_eq(u8array.length, 1);
+    do_check_eq(buf.readAvailable, 3);
 
     u8array = buf.readUint8Array(2);
-    equal(u8array.length, 2);
-    equal(buf.readAvailable, 1);
+    do_check_eq(u8array.length, 2);
+    do_check_eq(buf.readAvailable, 1);
 
-    throws(function over_read_handler() {
+    do_check_throws(function over_read_handler() {
       // reads more than parcel size, should throw an error.
       u8array = buf.readUint8Array(2);
     }, "Trying to read data beyond the parcel end!");
