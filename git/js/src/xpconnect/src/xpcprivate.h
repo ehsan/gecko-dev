@@ -103,7 +103,6 @@
 
 #include "nsThreadUtils.h"
 #include "nsIJSContextStack.h"
-#include "nsIJSEngineTelemetryStats.h"
 #include "nsDeque.h"
 
 #include "nsIConsoleService.h"
@@ -462,8 +461,7 @@ class nsXPConnect : public nsIXPConnect,
                     public nsCycleCollectionJSRuntime,
                     public nsCycleCollectionParticipant,
                     public nsIJSRuntimeService,
-                    public nsIThreadJSContextStack,
-                    public nsIJSEngineTelemetryStats
+                    public nsIThreadJSContextStack
 {
 public:
     // all the interface method declarations...
@@ -473,7 +471,6 @@ public:
     NS_DECL_NSIJSRUNTIMESERVICE
     NS_DECL_NSIJSCONTEXTSTACK
     NS_DECL_NSITHREADJSCONTEXTSTACK
-    NS_DECL_NSIJSENGINETELEMETRYSTATS
 
     // non-interface implementation
 public:
@@ -657,7 +654,6 @@ public:
 
     JSRuntime*     GetJSRuntime() const {return mJSRuntime;}
     nsXPConnect*   GetXPConnect() const {return mXPConnect;}
-    JSContext*     GetJSCycleCollectionContext();
 
     JSObject2WrappedJSMap*     GetWrappedJSMap()        const
         {return mWrappedJSMap;}
@@ -789,7 +785,7 @@ public:
     void AddGCCallback(JSGCCallback cb);
     void RemoveGCCallback(JSGCCallback cb);
 
-    static void ActivityCallback(void *arg, JSBool active);
+    static void ActivityCallback(void *arg, PRBool active);
 
 private:
     XPCJSRuntime(); // no implementation
@@ -804,9 +800,8 @@ private:
     jsid mStrIDs[IDX_TOTAL_COUNT];
     jsval mStrJSVals[IDX_TOTAL_COUNT];
 
-    nsXPConnect*             mXPConnect;
-    JSRuntime*               mJSRuntime;
-    JSContext*               mJSCycleCollectionContext;
+    nsXPConnect* mXPConnect;
+    JSRuntime*  mJSRuntime;
     JSObject2WrappedJSMap*   mWrappedJSMap;
     IID2WrappedJSClassMap*   mWrappedJSClassMap;
     IID2NativeInterfaceMap*  mIID2NativeInterfaceMap;
@@ -1039,6 +1034,7 @@ public:
     inline XPCPerThreadData*            GetThreadData() const ;
     inline XPCContext*                  GetXPCContext() const ;
     inline JSContext*                   GetJSContext() const ;
+    inline JSContext*                   GetSafeJSContext() const ;
     inline JSBool                       GetContextPopRequired() const ;
     inline XPCContext::LangType         GetCallerLanguage() const ;
     inline XPCContext::LangType         GetPrevCallerLanguage() const ;
@@ -3822,6 +3818,30 @@ private:
     nsXPCComponents_Exception*      mException;
     nsXPCComponents_Constructor*    mConstructor;
     nsXPCComponents_Utils*          mUtils;
+};
+
+/***************************************************************************/
+
+class nsXPCComponents_Interfaces :
+            public nsIScriptableInterfaces,
+            public nsIXPCScriptable,
+            public nsIClassInfo,
+            public nsISecurityCheckedComponent
+{
+public:
+    // all the interface method declarations...
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSISCRIPTABLEINTERFACES
+    NS_DECL_NSIXPCSCRIPTABLE
+    NS_DECL_NSICLASSINFO
+    NS_DECL_NSISECURITYCHECKEDCOMPONENT
+
+public:
+    nsXPCComponents_Interfaces();
+    virtual ~nsXPCComponents_Interfaces();
+
+private:
+    nsCOMPtr<nsIInterfaceInfoManager> mManager;
 };
 
 

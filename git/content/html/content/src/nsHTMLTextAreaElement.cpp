@@ -67,6 +67,7 @@
 #include "nsGUIEvent.h"
 #include "nsLinebreakConverter.h"
 #include "nsPresState.h"
+#include "nsIDOMText.h"
 #include "nsReadableUtils.h"
 #include "nsEventDispatcher.h"
 #include "nsLayoutUtils.h"
@@ -159,7 +160,6 @@ public:
   NS_IMETHOD_(void) SetPlaceholderClass(PRBool aVisible, PRBool aNotify);
   NS_IMETHOD_(void) InitializeKeyboardEventListeners();
   NS_IMETHOD_(void) OnValueChanged(PRBool aNotify);
-  NS_IMETHOD_(PRBool) HasCachedSelection();
 
   // nsIContent
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
@@ -821,12 +821,7 @@ NS_IMETHODIMP
 nsHTMLTextAreaElement::GetSelectionStart(PRInt32 *aSelectionStart)
 {
   NS_ENSURE_ARG_POINTER(aSelectionStart);
-
-  if (mState->IsSelectionCached()) {
-    *aSelectionStart = mState->GetSelectionProperties().mStart;
-    return NS_OK;
-  }
-
+  
   PRInt32 selEnd;
   return GetSelectionRange(aSelectionStart, &selEnd);
 }
@@ -834,11 +829,6 @@ nsHTMLTextAreaElement::GetSelectionStart(PRInt32 *aSelectionStart)
 NS_IMETHODIMP
 nsHTMLTextAreaElement::SetSelectionStart(PRInt32 aSelectionStart)
 {
-  if (mState->IsSelectionCached()) {
-    mState->GetSelectionProperties().mStart = aSelectionStart;
-    return NS_OK;
-  }
-
   nsAutoString direction;
   nsresult rv = GetSelectionDirection(direction);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -856,12 +846,7 @@ NS_IMETHODIMP
 nsHTMLTextAreaElement::GetSelectionEnd(PRInt32 *aSelectionEnd)
 {
   NS_ENSURE_ARG_POINTER(aSelectionEnd);
-
-  if (mState->IsSelectionCached()) {
-    *aSelectionEnd = mState->GetSelectionProperties().mEnd;
-    return NS_OK;
-  }
-
+  
   PRInt32 selStart;
   return GetSelectionRange(&selStart, aSelectionEnd);
 }
@@ -869,11 +854,6 @@ nsHTMLTextAreaElement::GetSelectionEnd(PRInt32 *aSelectionEnd)
 NS_IMETHODIMP
 nsHTMLTextAreaElement::SetSelectionEnd(PRInt32 aSelectionEnd)
 {
-  if (mState->IsSelectionCached()) {
-    mState->GetSelectionProperties().mEnd = aSelectionEnd;
-    return NS_OK;
-  }
-
   nsAutoString direction;
   nsresult rv = GetSelectionDirection(direction);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -903,28 +883,9 @@ nsHTMLTextAreaElement::GetSelectionRange(PRInt32* aSelectionStart,
   return rv;
 }
 
-static void
-DirectionToName(nsITextControlFrame::SelectionDirection dir, nsAString& aDirection)
-{
-  if (dir == nsITextControlFrame::eNone) {
-    aDirection.AssignLiteral("none");
-  } else if (dir == nsITextControlFrame::eForward) {
-    aDirection.AssignLiteral("forward");
-  } else if (dir == nsITextControlFrame::eBackward) {
-    aDirection.AssignLiteral("backward");
-  } else {
-    NS_NOTREACHED("Invalid SelectionDirection value");
-  }
-}
-
 nsresult
 nsHTMLTextAreaElement::GetSelectionDirection(nsAString& aDirection)
 {
-  if (mState->IsSelectionCached()) {
-    DirectionToName(mState->GetSelectionProperties().mDirection, aDirection);
-    return NS_OK;
-  }
-
   nsresult rv = NS_ERROR_FAILURE;
   nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_TRUE);
 
@@ -934,7 +895,15 @@ nsHTMLTextAreaElement::GetSelectionDirection(nsAString& aDirection)
       nsITextControlFrame::SelectionDirection dir;
       rv = textControlFrame->GetSelectionRange(nsnull, nsnull, &dir);
       if (NS_SUCCEEDED(rv)) {
-        DirectionToName(dir, aDirection);
+        if (dir == nsITextControlFrame::eNone) {
+          aDirection.AssignLiteral("none");
+        } else if (dir == nsITextControlFrame::eForward) {
+          aDirection.AssignLiteral("forward");
+        } else if (dir == nsITextControlFrame::eBackward) {
+          aDirection.AssignLiteral("backward");
+        } else {
+          NS_NOTREACHED("Invalid SelectionDirection value");
+        }
       }
     }
   }
@@ -944,17 +913,6 @@ nsHTMLTextAreaElement::GetSelectionDirection(nsAString& aDirection)
 
 NS_IMETHODIMP
 nsHTMLTextAreaElement::SetSelectionDirection(const nsAString& aDirection) {
-  if (mState->IsSelectionCached()) {
-    nsITextControlFrame::SelectionDirection dir = nsITextControlFrame::eNone;
-    if (aDirection.EqualsLiteral("forward")) {
-      dir = nsITextControlFrame::eForward;
-    } else if (aDirection.EqualsLiteral("backward")) {
-      dir = nsITextControlFrame::eBackward;
-    }
-    mState->GetSelectionProperties().mDirection = dir;
-    return NS_OK;
-  }
-
   PRInt32 start, end;
   nsresult rv = GetSelectionRange(&start, &end);
   if (NS_SUCCEEDED(rv)) {
@@ -1529,12 +1487,6 @@ nsHTMLTextAreaElement::OnValueChanged(PRBool aNotify)
        && !nsContentUtils::IsFocusedContent((nsIContent*)(this)))) {
     UpdateState(aNotify);
   }
-}
-
-NS_IMETHODIMP_(PRBool)
-nsHTMLTextAreaElement::HasCachedSelection()
-{
-  return mState->IsSelectionCached();
 }
 
 void

@@ -37,8 +37,6 @@
 # ***** END LICENSE BLOCK *****
 */
 
-"use strict";
-
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
@@ -1512,7 +1510,7 @@ var AddonDatabase = {
           }
 
           let returnedAddons = {};
-          for each (let addon in addons)
+          for each (addon in addons)
             returnedAddons[addon.id] = addon;
           aCallback(returnedAddons);
         }

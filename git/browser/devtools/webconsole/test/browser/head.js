@@ -57,6 +57,8 @@ function pprint(aObj)
 
 let tab, browser, hudId, hud, hudBox, filterBox, outputNode, cs;
 
+let win = gBrowser.selectedBrowser;
+
 function addTab(aURL)
 {
   gBrowser.selectedTab = gBrowser.addTab();
@@ -183,3 +185,6 @@ registerCleanupFunction(tearDown);
 
 waitForExplicitFinish();
 
+// removed tests:
+// browser_webconsole_bug_580030_errors_after_page_reload.js \
+// browser_webconsole_bug_595350_multiple_windows_and_tabs.js \

@@ -83,8 +83,6 @@ class nsStyleSet
  public:
   nsStyleSet();
 
-  size_t SizeOf() const;
-
   // Initialize the object.  You must check the return code and not use
   // the nsStyleSet if Init() fails.
 

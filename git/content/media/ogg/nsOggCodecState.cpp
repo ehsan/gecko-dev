@@ -678,12 +678,6 @@ nsresult nsVorbisState::ReconstructVorbisGranulepos()
     if (packet->granulepos == -1) {
       packet->granulepos = mGranulepos + samples;
     }
-
-    // Account for a partial last frame
-    if (packet->e_o_s && packet->granulepos >= mGranulepos) {
-       samples = packet->granulepos - mGranulepos;
-    }
- 
     mGranulepos = packet->granulepos;
     RecordVorbisPacketSamples(packet, samples);
     return NS_OK;

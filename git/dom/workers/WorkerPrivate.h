@@ -68,16 +68,6 @@ class nsIURI;
 class nsPIDOMWindow;
 class nsITimer;
 
-namespace mozilla {
-namespace xpconnect {
-namespace memory {
-
-struct IterateData;
-
-} // namespace memory
-} // namespace xpconnect
-} // namespace mozilla
-
 BEGIN_WORKERS_NAMESPACE
 
 class WorkerPrivate;
@@ -219,7 +209,6 @@ private:
   bool mJSObjectRooted;
   bool mParentSuspended;
   bool mIsChromeWorker;
-  bool mPrincipalIsSystem;
 
 protected:
   WorkerPrivateParent(JSContext* aCx, JSObject* aObject, WorkerPrivate* aParent,
@@ -399,12 +388,10 @@ public:
   }
 
   void
-  SetPrincipal(nsIPrincipal* aPrincipal);
-
-  bool
-  UsesSystemPrincipal() const
+  SetPrincipal(nsIPrincipal* aPrincipal)
   {
-    return mPrincipalIsSystem;
+    AssertIsOnMainThread();
+    mPrincipal = aPrincipal;
   }
 
   nsIDocument*
@@ -653,9 +640,6 @@ public:
   void
   ScheduleDeletion(bool aWasPending);
 
-  bool
-  BlockAndCollectRuntimeStats(mozilla::xpconnect::memory::IterateData* aData);
-
 #ifdef JS_GC_ZEAL
   void
   UpdateGCZealInternal(JSContext* aCx, PRUint8 aGCZeal);
@@ -748,19 +732,11 @@ private:
 WorkerPrivate*
 GetWorkerPrivateFromContext(JSContext* aCx);
 
-enum WorkerStructuredDataType
-{
-  DOMWORKER_SCTAG_FILE = JS_SCTAG_USER_MIN + 0x1000,
-  DOMWORKER_SCTAG_BLOB,
-
-  DOMWORKER_SCTAG_END
-};
+JSStructuredCloneCallbacks*
+WorkerStructuredCloneCallbacks();
 
 JSStructuredCloneCallbacks*
-WorkerStructuredCloneCallbacks(bool aMainRuntime);
-
-JSStructuredCloneCallbacks*
-ChromeWorkerStructuredCloneCallbacks(bool aMainRuntime);
+ChromeWorkerStructuredCloneCallbacks();
 
 END_WORKERS_NAMESPACE
 

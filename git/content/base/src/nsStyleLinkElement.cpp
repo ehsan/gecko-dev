@@ -52,6 +52,7 @@
 #include "nsIDOMComment.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMStyleSheet.h"
+#include "nsIDOMText.h"
 #include "nsNetUtil.h"
 #include "nsUnicharUtils.h"
 #include "nsCRT.h"

@@ -413,7 +413,7 @@ nsTextStateManager::Init(nsIWidget* aWidget,
                          PRBool aWantUpdates)
 {
   mWidget = aWidget;
-  MOZ_ASSERT(mWidget);
+
   if (!aWantUpdates) {
     mEditableNode = aNode;
     return NS_OK;
@@ -501,13 +501,10 @@ public:
   SelectionChangeEvent(nsIWidget *widget)
     : mWidget(widget)
   {
-    MOZ_ASSERT(mWidget);
   }
 
   NS_IMETHOD Run() {
-    if(mWidget) {
-        mWidget->OnIMESelectionChange();
-    }
+    mWidget->OnIMESelectionChange();
     return NS_OK;
   }
 
@@ -523,7 +520,7 @@ nsTextStateManager::NotifySelectionChanged(nsIDOMDocument* aDoc,
   PRInt32 count = 0;
   nsresult rv = aSel->GetRangeCount(&count);
   NS_ENSURE_SUCCESS(rv, rv);
-  if (count > 0 && mWidget) {
+  if (count > 0) {
     nsContentUtils::AddScriptRunner(new SelectionChangeEvent(mWidget));
   }
   return NS_OK;
@@ -539,13 +536,10 @@ public:
     , mOldEnd(oldEnd)
     , mNewEnd(newEnd)
   {
-    MOZ_ASSERT(mWidget);
   }
 
   NS_IMETHOD Run() {
-    if(mWidget) {
-        mWidget->OnIMETextChange(mStart, mOldEnd, mNewEnd);
-    }
+    mWidget->OnIMETextChange(mStart, mOldEnd, mNewEnd);
     return NS_OK;
   }
 

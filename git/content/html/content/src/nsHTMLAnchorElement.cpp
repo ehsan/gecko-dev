@@ -37,22 +37,20 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsGenericHTMLElement.h"
-#include "nsIDOMHTMLAnchorElement.h"
-#include "nsILink.h"
-#include "Link.h"
-
 #include "nsCOMPtr.h"
-#include "nsContentUtils.h"
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
+#include "nsIDOMHTMLAnchorElement.h"
+#include "nsGenericHTMLElement.h"
+#include "nsILink.h"
 #include "nsGkAtoms.h"
 #include "nsIPresShell.h"
 #include "nsIDocument.h"
 #include "nsPresContext.h"
-#include "nsHTMLDNSPrefetch.h"
-#include "nsDOMMemoryReporter.h"
 
+#include "nsHTMLDNSPrefetch.h"
+
+#include "Link.h"
 using namespace mozilla::dom;
 
 class nsHTMLAnchorElement : public nsGenericHTMLElement,
@@ -81,11 +79,6 @@ public:
 
   // nsIDOMHTMLAnchorElement
   NS_DECL_NSIDOMHTMLANCHORELEMENT  
-
-  // TODO: we do not really count Link::mCachedURI but given that it's a
-  // nsCOMPtr<nsIURI>, that would be required adding SizeOf() to the interface.
-  NS_DECL_AND_IMPL_DOM_MEMORY_REPORTER_SIZEOF(nsHTMLAnchorElement,
-                                              nsGenericHTMLElement)
 
   // nsILink
   NS_IMETHOD LinkAdded() { return NS_OK; }
@@ -460,4 +453,3 @@ nsHTMLAnchorElement::IntrinsicState() const
 {
   return Link::LinkState() | nsGenericHTMLElement::IntrinsicState();
 }
-

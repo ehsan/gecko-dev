@@ -80,10 +80,6 @@
 #include "MaemoLocationProvider.h"
 #endif
 
-#ifdef MOZ_ENABLE_QTMOBILITY
-#include "QTMLocationProvider.h"
-#endif
-
 #ifdef ANDROID
 #include "AndroidLocationProvider.h"
 #endif
@@ -578,12 +574,6 @@ nsresult nsGeolocationService::Init()
 
 #ifdef MOZ_MAEMO_LIBLOCATION
   provider = new MaemoLocationProvider();
-  if (provider)
-    mProviders.AppendObject(provider);
-#endif
-
-#ifdef MOZ_ENABLE_QTMOBILITY
-  provider = new QTMLocationProvider();
   if (provider)
     mProviders.AppendObject(provider);
 #endif

@@ -41,15 +41,12 @@
 #include "nsAccessibilityAtoms.h"
 #include "nsAccUtils.h"
 #include "nsCoreUtils.h"
+#include "nsRelUtils.h"
 #include "nsWinUtils.h"
-#include "Relation.h"
 #include "States.h"
-
-#include "ia2AccessibleRelation.h"
 
 #include "nsIAccessibleDocument.h"
 #include "nsIAccessibleEvent.h"
-#include "nsIAccessibleRelation.h"
 #include "nsIAccessibleWin32Object.h"
 
 #include "Accessible2_i.c"
@@ -237,16 +234,9 @@ __try {
 STDMETHODIMP nsAccessibleWrap::get_accChildCount( long __RPC_FAR *pcountChildren)
 {
 __try {
-  if (!pcountChildren)
-    return E_INVALIDARG;
-
   *pcountChildren = 0;
-
-  if (IsDefunct())
-    return E_FAIL;
-
   if (nsAccUtils::MustPrune(this))
-    return S_OK;
+    return NS_OK;
 
   *pcountChildren = GetChildCount();
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
@@ -807,11 +797,8 @@ STDMETHODIMP nsAccessibleWrap::accNavigate(
       /* [retval][out] */ VARIANT __RPC_FAR *pvarEndUpAt)
 {
 __try {
-  if (!pvarEndUpAt)
-    return E_INVALIDARG;
-
   nsAccessible *xpAccessibleStart = GetXPAccessibleFor(varStart);
-  if (!xpAccessibleStart || IsDefunct())
+  if (!xpAccessibleStart)
     return E_FAIL;
 
   VariantInit(pvarEndUpAt);
@@ -900,15 +887,13 @@ __try {
 
   pvarEndUpAt->vt = VT_EMPTY;
 
-  if (xpRelation) {
-    Relation rel = RelationByType(xpRelation);
-    xpAccessibleResult = rel.Next();
-  }
+  if (xpRelation)
+    xpAccessibleResult = nsRelUtils::GetRelatedAccessible(this, xpRelation);
 
   if (xpAccessibleResult) {
     pvarEndUpAt->pdispVal = NativeAccessible(xpAccessibleResult);
     pvarEndUpAt->vt = VT_DISPATCH;
-    return S_OK;
+    return NS_OK;
   }
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;
@@ -1064,21 +1049,12 @@ STDMETHODIMP
 nsAccessibleWrap::get_nRelations(long *aNRelations)
 {
 __try {
-  if (!aNRelations)
-    return E_INVALIDARG;
+  PRUint32 count = 0;
+  nsresult rv = GetRelationsCount(&count);
+  *aNRelations = count;
 
-  *aNRelations = 0;
+  return GetHRESULT(rv);
 
-  if (IsDefunct())
-    return E_FAIL;
-
-  for (PRUint32 relType = nsIAccessibleRelation::RELATION_FIRST;
-       relType <= nsIAccessibleRelation::RELATION_LAST; relType++) {
-    Relation rel = RelationByType(relType);
-    if (rel.Next())
-      (*aNRelations)++;
-  }
-  return S_OK;
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;
 }
@@ -1088,31 +1064,26 @@ nsAccessibleWrap::get_relation(long aRelationIndex,
                                IAccessibleRelation **aRelation)
 {
 __try {
-  if (!aRelation)
-    return E_INVALIDARG;
-
   *aRelation = NULL;
 
-  if (IsDefunct())
+  nsCOMPtr<nsIAccessibleRelation> relation;
+  nsresult rv = GetRelation(aRelationIndex, getter_AddRefs(relation));
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  nsCOMPtr<nsIWinAccessNode> winAccessNode(do_QueryInterface(relation));
+  if (!winAccessNode)
     return E_FAIL;
 
-  PRUint32 relIdx = 0;
-  for (PRUint32 relType = nsIAccessibleRelation::RELATION_FIRST;
-       relType <= nsIAccessibleRelation::RELATION_LAST; relType++) {
-    Relation rel = RelationByType(relType);
-    nsRefPtr<ia2AccessibleRelation> ia2Relation =
-      new ia2AccessibleRelation(relType, &rel);
-    if (ia2Relation->HasTargets()) {
-      if (relIdx == aRelationIndex) {
-        ia2Relation.forget(aRelation);
-        return S_OK;
-      }
+  void *instancePtr = NULL;
+  rv =  winAccessNode->QueryNativeInterface(IID_IAccessibleRelation,
+                                            &instancePtr);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
 
-      relIdx++;
-    }
-  }
+  *aRelation = static_cast<IAccessibleRelation*>(instancePtr);
+  return S_OK;
 
-  return E_INVALIDARG;
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_FAIL;
 }
@@ -1123,25 +1094,49 @@ nsAccessibleWrap::get_relations(long aMaxRelations,
                                 long *aNRelations)
 {
 __try {
-  if (!aRelation || !aNRelations)
-    return E_INVALIDARG;
-
+  *aRelation = NULL;
   *aNRelations = 0;
 
-  if (IsDefunct())
-    return E_FAIL;
+  nsCOMPtr<nsIArray> relations;
+  nsresult rv = GetRelations(getter_AddRefs(relations));
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
 
-  for (PRUint32 relType = nsIAccessibleRelation::RELATION_FIRST;
-       relType <= nsIAccessibleRelation::RELATION_LAST &&
-       *aNRelations < aMaxRelations; relType++) {
-    Relation rel = RelationByType(relType);
-    nsRefPtr<ia2AccessibleRelation> ia2Rel =
-      new ia2AccessibleRelation(relType, &rel);
-    if (ia2Rel->HasTargets()) {
-      ia2Rel.forget(aRelation + (*aNRelations));
-      (*aNRelations)++;
-    }
+  PRUint32 length = 0;
+  rv = relations->GetLength(&length);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  if (length == 0)
+    return S_FALSE;
+
+  PRUint32 count = length < (PRUint32)aMaxRelations ? length : aMaxRelations;
+
+  PRUint32 index = 0;
+  for (; index < count; index++) {
+    nsCOMPtr<nsIWinAccessNode> winAccessNode =
+      do_QueryElementAt(relations, index, &rv);
+    if (NS_FAILED(rv))
+      break;
+
+    void *instancePtr = NULL;
+    nsresult rv =  winAccessNode->QueryNativeInterface(IID_IAccessibleRelation,
+                                                       &instancePtr);
+    if (NS_FAILED(rv))
+      break;
+
+    aRelation[index] = static_cast<IAccessibleRelation*>(instancePtr);
   }
+
+  if (NS_FAILED(rv)) {
+    for (PRUint32 index2 = 0; index2 < index; index2++) {
+      aRelation[index2]->Release();
+      aRelation[index2] = NULL;
+    }
+    return GetHRESULT(rv);
+  }
+
+  *aNRelations = count;
   return S_OK;
 
 } __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }

@@ -345,7 +345,10 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // Possible options:
   //   force - true to always update the DOM even if the bounds haven't changed; default false
   setBounds: function TabItem_setBounds(inRect, immediately, options) {
-    Utils.assert(Utils.isRect(inRect), 'TabItem.setBounds: rect is not a real rectangle!');
+    if (!Utils.isRect(inRect)) {
+      Utils.trace('TabItem.setBounds: rect is not a real rectangle!', inRect);
+      return;
+    }
 
     if (!options)
       options = {};
@@ -450,7 +453,8 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
     rect = this.getBounds(); // ensure that it's a <Rect>
 
-    Utils.assert(Utils.isRect(this.bounds), 'TabItem.setBounds: this.bounds is not a real rectangle!');
+    if (!Utils.isRect(this.bounds))
+      Utils.trace('TabItem.setBounds: this.bounds is not a real rectangle!', this.bounds);
 
     if (!this.parent && this.tab.parentNode != null)
       this.setTrenches(rect);

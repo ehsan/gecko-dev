@@ -39,15 +39,17 @@
 #ifndef txOwningArray_h__
 #define txOwningArray_h__
 
-// Class acting like a nsTArray except that it deletes its objects
+#include "nsTPtrArray.h"
+
+// Class acting like a nsTPtrArray except that it deletes its objects
 // on destruction. It does not however delete its objects on operations
 // like RemoveElementsAt or on |array[i] = bar|.
 
 template<class E>
-class txOwningArray : public nsTArray<E*>
+class txOwningArray : public nsTPtrArray<E>
 {
 public:
-    typedef nsTArray<E*> base_type;
+    typedef nsTPtrArray<E> base_type;
     typedef typename base_type::elem_type elem_type;
 
     ~txOwningArray()

@@ -67,6 +67,7 @@ typedef struct {
   nsCOMPtr<nsIAtom>             mTypeAtom;
   PRUint16                      mFlags;
   PRBool                        mHandlerIsString;
+  const EventTypeData*          mTypeData;
 } nsListenerStruct;
 
 /*
@@ -84,10 +85,10 @@ public:
 
   NS_DECL_CYCLE_COLLECTION_NATIVE_CLASS(nsEventListenerManager)
 
-  void AddEventListener(const nsAString& aType,
-                        nsIDOMEventListener* aListener,
-                        PRBool aUseCapture,
-                        PRBool aWantsUntrusted);
+  nsresult AddEventListener(const nsAString& aType,
+                            nsIDOMEventListener* aListener,
+                            PRBool aUseCapture,
+                            PRBool aWantsUntrusted);
   void RemoveEventListener(const nsAString& aType,
                            nsIDOMEventListener* aListener,
                            PRBool aUseCapture);
@@ -96,9 +97,13 @@ public:
   * Sets events listeners of all types. 
   * @param an event listener
   */
-  void AddEventListenerByType(nsIDOMEventListener *aListener,
-                              const nsAString& type,
-                              PRInt32 aFlags);
+  nsresult AddEventListenerByIID(nsIDOMEventListener *aListener,
+                                 const nsIID& aIID, PRInt32 aFlags);
+  void RemoveEventListenerByIID(nsIDOMEventListener *aListener,
+                                const nsIID& aIID, PRInt32 aFlags);
+  nsresult AddEventListenerByType(nsIDOMEventListener *aListener,
+                                  const nsAString& type,
+                                  PRInt32 aFlags);
   void RemoveEventListenerByType(nsIDOMEventListener *aListener,
                                  const nsAString& type,
                                  PRInt32 aFlags);
@@ -210,17 +215,20 @@ protected:
                               void *aScopeGlobal,
                               nsIAtom* aName, PRBool aIsString,
                               PRBool aPermitUntrustedEvents);
-  void AddEventListener(nsIDOMEventListener *aListener, 
-                        PRUint32 aType,
-                        nsIAtom* aTypeAtom,
-                        PRInt32 aFlags);
+  nsresult AddEventListener(nsIDOMEventListener *aListener, 
+                            PRUint32 aType,
+                            nsIAtom* aTypeAtom,
+                            const EventTypeData* aTypeData,
+                            PRInt32 aFlags);
   void RemoveEventListener(nsIDOMEventListener *aListener,
                            PRUint32 aType,
                            nsIAtom* aUserType,
+                           const EventTypeData* aTypeData,
                            PRInt32 aFlags);
   void RemoveAllListeners();
   const EventTypeData* GetTypeDataForIID(const nsIID& aIID);
   const EventTypeData* GetTypeDataForEventName(nsIAtom* aName);
+  PRBool ListenerCanHandle(nsListenerStruct* aLs, nsEvent* aEvent);
   nsPIDOMWindow* GetInnerWindowForTarget();
 
   PRUint32 mMayHavePaintEventListener : 1;

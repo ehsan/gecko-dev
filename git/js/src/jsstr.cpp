@@ -1535,8 +1535,11 @@ MatchCallback(JSContext *cx, RegExpStatics *res, size_t count, void *p)
     }
 
     Value v;
-    return res->createLastMatch(cx, &v) &&
-           arrayobj->defineProperty(cx, INT_TO_JSID(count), v);
+    if (!res->createLastMatch(cx, &v))
+        return false;
+
+    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED | JSRESOLVE_ASSIGNING);
+    return !!arrayobj->setProperty(cx, INT_TO_JSID(count), &v, false);
 }
 
 static JSBool
@@ -2130,9 +2133,6 @@ js::str_replace(JSContext *cx, uintN argc, Value *vp)
         return false;
     static const uint32 optarg = 2;
 
-    if (!rdata.g.init(argc, vp))
-        return false;
-
     /* Extract replacement string/function. */
     if (argc >= optarg && js_IsCallable(vp[3])) {
         rdata.lambda = &vp[3].toObject();
@@ -2187,6 +2187,9 @@ js::str_replace(JSContext *cx, uintN argc, Value *vp)
         rdata.dollarEnd = fixed->chars() + fixed->length();
         rdata.dollar = js_strchr_limit(fixed->chars(), '$', rdata.dollarEnd);
     }
+
+    if (!rdata.g.init(argc, vp))
+        return false;
 
     /*
      * Unlike its |String.prototype| brethren, |replace| doesn't convert
@@ -3504,7 +3507,7 @@ js_ValueToSource(JSContext *cx, const Value &v)
     if (!js_GetMethod(cx, &v.toObject(), id, JSGET_NO_METHOD_BARRIER, &fval))
         return false;
     if (js_IsCallable(fval)) {
-        if (!Invoke(cx, v, fval, 0, NULL, &rval))
+        if (!ExternalInvoke(cx, v, fval, 0, NULL, &rval))
             return false;
     }
 

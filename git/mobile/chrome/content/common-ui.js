@@ -437,17 +437,7 @@ var NewTabPopup = {
     setTimeout((function() {
       let boxRect = this.box.getBoundingClientRect();
       this.box.top = tabRect.top + (tabRect.height / 2) - (boxRect.height / 2);
-
-      let tabs = document.getElementById("tabs");
-
-      // We don't use anchorTo() here because the tab
-      // being anchored to might be overflowing the tabs
-      // scrollbox which confuses the dynamic arrow direction
-      // calculation (see bug 662520).
-      if (tabs.getBoundingClientRect().left < 0)
-        this.box.pointLeftAt(aTab);
-      else
-        this.box.pointRightAt(aTab);
+      this.box.anchorTo(aTab);
     }).bind(this), 0);
 
     if (this._timeout)
@@ -1343,20 +1333,6 @@ var SelectionHelper = {
 
   handleEvent: function handleEvent(aEvent) {
     switch (aEvent.type) {
-      case "PanBegin":
-        window.removeEventListener("PanBegin", this, true);
-        window.addEventListener("PanFinished", this, true);
-        this._start.hidden = true;
-        this._end.hidden = true;
-        break;
-      case "PanFinished":
-        window.removeEventListener("PanFinished", this, true);
-        try {
-          this.popupState.target.messageManager.sendAsyncMessage("Browser:SelectionMeasure", {});
-        } catch (e) {
-          Cu.reportError(e);
-        }
-        break
       case "TapDown":
         if (aEvent.target == this._start || aEvent.target == this._end) {
           this.target = aEvent.target;
@@ -1364,20 +1340,14 @@ var SelectionHelper = {
           this.deltaY = (aEvent.clientY - this.target.top);
           window.addEventListener("TapMove", this, true);
         } else {
-          window.addEventListener("PanBegin", this, true);
-          this.target = null;
+          this.hide(aEvent);
         }
         break;
       case "TapUp":
-        if (this.target) {
-          window.removeEventListener("TapMove", this, true);
-          this.target = null;
-          this.deltaX = -1;
-          this.deltaY = -1;
-        } else {
-          window.removeEventListener("PanBegin", self, true);
-          self.hide(aEvent);
-        }
+        window.removeEventListener("TapMove", this, true);
+        this.target = null;
+        this.deltaX = -1;
+        this.deltaY = -1;
         break;
       case "TapMove":
         if (this.target) {
@@ -1395,18 +1365,10 @@ var SelectionHelper = {
         }
         break;
       case "resize":
+      case "keypress":
+      case "URLChanged":
       case "SizeChanged":
       case "ZoomChanged":
-      {
-        try {
-          this.popupState.target.messageManager.sendAsyncMessage("Browser:SelectionMeasure", {});
-        } catch (e) {
-          Cu.reportError(e);
-        }
-        break        
-      }
-      case "URLChanged":
-      case "keypress":
         this.hide(aEvent);
         break;
     }

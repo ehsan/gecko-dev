@@ -52,7 +52,7 @@ JSFunction::inStrictMode() const
 inline void
 JSFunction::setJoinable()
 {
-    JS_ASSERT(isInterpreted());
+    JS_ASSERT(FUN_INTERPRETED(this));
     setSlot(METHOD_ATOM_SLOT, js::NullValue());
     flags |= JSFUN_JOINABLE;
 }

@@ -77,12 +77,8 @@ private:
     typedef mozilla::ipc::TestShellParent TestShellParent;
 
 public:
-    static ContentParent* GetSingleton(PRBool aForceNew = PR_TRUE);
-
-#if 0
-    // TODO: implement this somewhere!
-    static ContentParent* FreeSingleton();
-#endif
+    static ContentParent* GetNewOrUsed();
+    static void GetAll(nsTArray<ContentParent*>& aArray);
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER
@@ -102,12 +98,16 @@ public:
 
     void SetChildMemoryReporters(const InfallibleTArray<MemoryReport>& report);
 
+    bool NeedsPermissionsUpdate() {
+        return mSendPermissionUpdates;
+    }
+
 protected:
     void OnChannelConnected(int32 pid);
     virtual void ActorDestroy(ActorDestroyReason why);
 
 private:
-    static ContentParent* gSingleton;
+    static nsTArray<ContentParent*>* gContentParents;
 
     // Hide the raw constructor methods since we don't want client code
     // using them.
@@ -167,7 +167,6 @@ private:
 
     virtual bool RecvGetSystemColors(const PRUint32& colorsCount, InfallibleTArray<PRUint32>* colors);
     virtual bool RecvGetIconForExtension(const nsCString& aFileExt, const PRUint32& aIconSize, InfallibleTArray<PRUint8>* bits);
-    virtual bool RecvGetShowPasswordSetting(PRBool* showPassword);
 
     virtual bool RecvStartVisitedQuery(const IPC::URI& uri);
 
@@ -230,6 +229,8 @@ private:
     bool mIsAlive;
     nsCOMPtr<nsIPrefServiceInternal> mPrefService;
     time_t mProcessStartTime;
+
+    bool mSendPermissionUpdates;
 };
 
 } // namespace dom

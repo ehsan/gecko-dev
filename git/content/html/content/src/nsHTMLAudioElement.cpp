@@ -65,7 +65,6 @@
 
 #include "nsEventDispatcher.h"
 #include "nsIDOMProgressEvent.h"
-#include "nsContentUtils.h"
 
 using namespace mozilla::dom;
 
@@ -198,24 +197,24 @@ nsHTMLAudioElement::MozWriteAudio(const jsval &aData, JSContext *aCx, PRUint32 *
 
   JSObject *darray = JSVAL_TO_OBJECT(aData);
   js::AutoValueRooter tsrc_tvr(aCx);
-  JSObject *tsrc = NULL;
+  js::TypedArray *tsrc = NULL;
 
   // Allow either Float32Array or plain JS Array
   if (darray->getClass() == &js::TypedArray::fastClasses[js::TypedArray::TYPE_FLOAT32])
   {
-    tsrc = js::TypedArray::getTypedArray(darray);
+    tsrc = js::TypedArray::fromJSObject(darray);
   } else if (JS_IsArrayObject(aCx, darray)) {
     JSObject *nobj = js_CreateTypedArrayWithArray(aCx, js::TypedArray::TYPE_FLOAT32, darray);
     if (!nobj) {
       return NS_ERROR_DOM_TYPE_MISMATCH_ERR;
     }
     *tsrc_tvr.jsval_addr() = OBJECT_TO_JSVAL(nobj);
-    tsrc = js::TypedArray::getTypedArray(nobj);
+    tsrc = js::TypedArray::fromJSObject(nobj);
   } else {
     return NS_ERROR_DOM_TYPE_MISMATCH_ERR;
   }
 
-  PRUint32 dataLength = JS_GetTypedArrayLength(tsrc);
+  PRUint32 dataLength = tsrc->length;
 
   // Make sure that we are going to write the correct amount of data based
   // on number of channels.
@@ -226,7 +225,7 @@ nsHTMLAudioElement::MozWriteAudio(const jsval &aData, JSContext *aCx, PRUint32 *
   // Don't write more than can be written without blocking.
   PRUint32 writeLen = NS_MIN(mAudioStream->Available(), dataLength);
 
-  nsresult rv = mAudioStream->Write(JS_GetTypedArrayData(tsrc), writeLen);
+  nsresult rv = mAudioStream->Write(tsrc->data, writeLen, PR_TRUE);
   if (NS_FAILED(rv)) {
     return rv;
   }

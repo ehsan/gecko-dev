@@ -48,7 +48,6 @@
 #include "nsParserUtils.h"
 #include "nsGkAtoms.h"
 #include "nsThreadUtils.h"
-#include "nsContentUtils.h"
 
 class nsXMLStylesheetPI : public nsXMLProcessingInstruction,
                           public nsStyleLinkElement

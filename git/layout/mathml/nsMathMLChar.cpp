@@ -1042,8 +1042,8 @@ insert:
 
 // Update the font and rendering context if there is a family change
 static void
-SetFontFamily(nsStyleContext*      aStyleContext,
-              nsRenderingContext&  aRenderingContext,
+SetFontFamily(nsPresContext*       aPresContext,
+              nsRenderingContext& aRenderingContext,
               nsFont&              aFont,
               const nsGlyphTable*  aGlyphTable,
               const nsGlyphCode&   aGlyphCode,
@@ -1053,12 +1053,7 @@ SetFontFamily(nsStyleContext*      aStyleContext,
     aGlyphCode.font ? aGlyphTable->FontNameFor(aGlyphCode) : aDefaultFamily;
   if (! family.Equals(aFont.name)) {
     aFont.name = family;
-    nsRefPtr<nsFontMetrics> fm;
-    aRenderingContext.DeviceContext()->GetMetricsFor(aFont,
-      aStyleContext->GetStyleVisibility()->mLanguage,
-      aStyleContext->PresContext()->GetUserFontSet(),
-      *getter_AddRefs(fm));
-    aRenderingContext.SetFont(fm);
+    aRenderingContext.SetFont(aFont, aPresContext->GetUserFontSet());
   }
 }
 
@@ -1124,8 +1119,7 @@ nsMathMLChar::StretchEnumContext::TryVariants(nsGlyphTable*    aGlyphTable,
                                               const nsAString& aFamily)
 {
   // Use our stretchy style context now that stretching is in progress
-  nsStyleContext *sc = mChar->mStyleContext;
-  nsFont font = sc->GetStyleFont()->mFont;
+  nsFont font = mChar->mStyleContext->GetStyleFont()->mFont;
   // Ensure mRenderingContext.SetFont will be called:
   font.name.Truncate();
 
@@ -1150,7 +1144,8 @@ nsMathMLChar::StretchEnumContext::TryVariants(nsGlyphTable*    aGlyphTable,
   nsGlyphCode ch;
   while ((ch = aGlyphTable->BigOf(mPresContext, mChar, size)).Exists()) {
 
-    SetFontFamily(sc, mRenderingContext, font, aGlyphTable, ch, aFamily);
+    SetFontFamily(mChar->mStyleContext->PresContext(), mRenderingContext,
+                  font, aGlyphTable, ch, aFamily);
 
     NS_ASSERTION(maxWidth || ch.code[0] != mChar->mGlyph.code[0] ||
                  ch.code[1] != mChar->mGlyph.code[1] ||
@@ -1274,7 +1269,7 @@ nsMathMLChar::StretchEnumContext::TryParts(nsGlyphTable*    aGlyphTable,
       sizedata[i] = mTargetSize;
     }
     else {
-      SetFontFamily(mChar->mStyleContext, mRenderingContext,
+      SetFontFamily(mChar->mStyleContext->PresContext(), mRenderingContext,
                     font, aGlyphTable, ch, aFamily);
       nsBoundingMetrics bm = mRenderingContext.GetBoundingMetrics(ch.code,
                                                                   ch.Length());
@@ -1465,11 +1460,7 @@ nsMathMLChar::StretchInternal(nsPresContext*           aPresContext,
     mFamily = families;
   }
 
-  nsRefPtr<nsFontMetrics> fm;
-  aRenderingContext.DeviceContext()->GetMetricsFor(font,
-    mStyleContext->GetStyleVisibility()->mLanguage,
-    aPresContext->GetUserFontSet(), *getter_AddRefs(fm));
-  aRenderingContext.SetFont(fm);
+  aRenderingContext.SetFont(font, aPresContext->GetUserFontSet());
   aDesiredStretchSize =
     aRenderingContext.GetBoundingMetrics(mData.get(), PRUint32(mData.Length()));
 
@@ -2065,12 +2056,7 @@ nsMathMLChar::PaintForeground(nsPresContext* aPresContext,
   if (! mFamily.IsEmpty()) {
     theFont.name = mFamily;
   }
-  nsRefPtr<nsFontMetrics> fm;
-  aRenderingContext.DeviceContext()->GetMetricsFor(theFont,
-    styleContext->GetStyleVisibility()->mLanguage,
-    aPresContext->GetUserFontSet(),
-    *getter_AddRefs(fm));
-  aRenderingContext.SetFont(fm);
+  aRenderingContext.SetFont(theFont, aPresContext->GetUserFontSet());
 
   aRenderingContext.PushState();
   nsRect r = mRect + aPt;
@@ -2179,7 +2165,7 @@ nsMathMLChar::PaintVertically(nsPresContext*      aPresContext,
     if (!ch.Exists()) ch = chGlue;
     // if (!ch.Exists()) glue is null, leave bounding metrics at 0
     if (ch.Exists()) {
-      SetFontFamily(aStyleContext, aRenderingContext,
+      SetFontFamily(aPresContext, aRenderingContext,
                     aFont, aGlyphTable, ch, mFamily);
       bmdata[i] = aRenderingContext.GetBoundingMetrics(ch.code, ch.Length());
     }
@@ -2264,7 +2250,7 @@ nsMathMLChar::PaintVertically(nsPresContext*      aPresContext,
       }
       if (!clipRect.IsEmpty()) {
         AutoPushClipRect clip(aRenderingContext, clipRect);
-        SetFontFamily(aStyleContext, aRenderingContext,
+        SetFontFamily(aPresContext, aRenderingContext,
                       aFont, aGlyphTable, ch, mFamily);
         aRenderingContext.DrawString(ch.code, ch.Length(), dx, dy);
       }
@@ -2321,7 +2307,7 @@ nsMathMLChar::PaintVertically(nsPresContext*      aPresContext,
       bm.descent -= oneDevPixel;
     }
 
-    SetFontFamily(aStyleContext, aRenderingContext,
+    SetFontFamily(aPresContext, aRenderingContext,
                   aFont, aGlyphTable, chGlue, mFamily);
     nsRect clipRect = unionRect;
 
@@ -2407,7 +2393,7 @@ nsMathMLChar::PaintHorizontally(nsPresContext*      aPresContext,
     if (!ch.Exists()) ch = chGlue;
     // if (!ch.Exists()) glue is null, leave bounding metrics at 0.
     if (ch.Exists()) {
-      SetFontFamily(aStyleContext, aRenderingContext,
+      SetFontFamily(aPresContext, aRenderingContext,
                     aFont, aGlyphTable, ch, mFamily);
       bmdata[i] = aRenderingContext.GetBoundingMetrics(ch.code, ch.Length());
     }
@@ -2487,7 +2473,7 @@ nsMathMLChar::PaintHorizontally(nsPresContext*      aPresContext,
       }
       if (!clipRect.IsEmpty()) {
         AutoPushClipRect clip(aRenderingContext, clipRect);
-        SetFontFamily(aStyleContext, aRenderingContext,
+        SetFontFamily(aPresContext, aRenderingContext,
                       aFont, aGlyphTable, ch, mFamily);
         aRenderingContext.DrawString(ch.code, ch.Length(), dx, dy);
       }
@@ -2543,7 +2529,7 @@ nsMathMLChar::PaintHorizontally(nsPresContext*      aPresContext,
       bm.rightBearing -= oneDevPixel;
     }
 
-    SetFontFamily(aStyleContext, aRenderingContext,
+    SetFontFamily(aPresContext, aRenderingContext,
                   aFont, aGlyphTable, chGlue, mFamily);
     nsRect clipRect = unionRect;
 

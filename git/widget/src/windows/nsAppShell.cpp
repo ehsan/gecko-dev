@@ -54,9 +54,6 @@
 const PRUnichar* kAppShellEventId = L"nsAppShell:EventID";
 const PRUnichar* kTaskbarButtonEventId = L"TaskbarButtonCreated";
 
-// The maximum time we allow before forcing a native event callback
-#define NATIVE_EVENT_STARVATION_LIMIT mozilla::TimeDuration::FromSeconds(1)
-
 static UINT sMsgId;
 
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
@@ -137,8 +134,6 @@ nsAppShell::Init()
 #ifdef MOZ_CRASHREPORTER
   LSPAnnotate();
 #endif
-
-  mLastNativeEventScheduled = TimeStamp::Now();
 
   if (!sMsgId)
     sMsgId = RegisterWindowMessageW(kAppShellEventId);
@@ -311,9 +306,6 @@ nsAppShell::ScheduleNativeEventCallback()
 {
   // Post a message to the hidden message window
   NS_ADDREF_THIS(); // will be released when the event is processed
-  // Time stamp this event so we can detect cases where the event gets
-  // dropping in sub classes / modal loops we do not control. 
-  mLastNativeEventScheduled = TimeStamp::Now();
   ::PostMessage(mEventWnd, sMsgId, 0, reinterpret_cast<LPARAM>(this));
 }
 
@@ -356,12 +348,5 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
   if (mNativeCallbackPending && mEventloopNestingLevel == 1)
     DoProcessMoreGeckoEvents();
 
-  // Check for starved native callbacks. If we haven't processed one
-  // of these events in NATIVE_EVENT_STARVATION_LIMIT, fire one off.
-  if ((TimeStamp::Now() - mLastNativeEventScheduled) >
-      NATIVE_EVENT_STARVATION_LIMIT) {
-    ScheduleNativeEventCallback();
-  }
-  
   return gotMessage;
 }

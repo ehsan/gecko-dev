@@ -994,8 +994,7 @@ nsDiskCacheDevice::OpenDiskCache()
         rv = mCacheMap.Open(mCacheDirectory);        
         // move "corrupt" caches to trash
         if (rv == NS_ERROR_FILE_CORRUPTED) {
-            // delay delete by 1 minute to avoid IO thrash at startup
-            rv = DeleteDir(mCacheDirectory, PR_TRUE, PR_FALSE, 60000);
+            rv = DeleteDir(mCacheDirectory, PR_TRUE, PR_FALSE);
             if (NS_FAILED(rv))
                 return rv;
             exists = PR_FALSE;
@@ -1025,10 +1024,8 @@ nsDiskCacheDevice::OpenDiskCache()
         GetTrashDir(mCacheDirectory, &trashDir);
         if (trashDir) {
             PRBool exists;
-            if (NS_SUCCEEDED(trashDir->Exists(&exists)) && exists) {
-                // be paranoid and delete immediately if leftover
+            if (NS_SUCCEEDED(trashDir->Exists(&exists)) && exists)
                 DeleteDir(trashDir, PR_FALSE, PR_FALSE);
-            }
         }
     }
 

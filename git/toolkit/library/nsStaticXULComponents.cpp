@@ -150,6 +150,12 @@
 #define FILEVIEW_MODULE
 #endif
 
+#ifdef MOZ_STORAGE
+#define STORAGE_MODULE MODULE(mozStorageModule)
+#else
+#define STORAGE_MODULE
+#endif
+
 #ifdef MOZ_ZIPWRITER
 #define ZIPWRITER_MODULE MODULE(ZipWriterModule)
 #else
@@ -161,6 +167,13 @@
     MODULE(nsPlacesModule)
 #else
 #define PLACES_MODULES
+#endif
+
+#if (defined(MOZ_MORK) && defined(MOZ_XUL))
+#define MORK_MODULES \
+    MODULE(nsMorkModule)
+#else
+#define MORK_MODULES
 #endif
 
 #ifdef MOZ_XUL
@@ -253,8 +266,9 @@
     MODULE(Apprunner)                        \
     MODULE(CommandLineModule)                \
     FILEVIEW_MODULE                          \
-    MODULE(mozStorageModule)                 \
+    STORAGE_MODULE                           \
     PLACES_MODULES                           \
+    MORK_MODULES                             \
     XULENABLED_MODULES                       \
     MODULE(nsToolkitCompsModule)             \
     XREMOTE_MODULES                          \

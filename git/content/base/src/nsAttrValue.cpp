@@ -48,6 +48,7 @@
 #include "mozilla/css/Declaration.h"
 #include "nsIHTMLDocument.h"
 #include "nsIDocument.h"
+#include "nsTPtrArray.h"
 #include "nsContentUtils.h"
 #include "nsReadableUtils.h"
 #include "prprf.h"
@@ -58,7 +59,7 @@ namespace css = mozilla::css;
 #define MISC_STR_PTR(_cont) \
   reinterpret_cast<void*>((_cont)->mStringBits & NS_ATTRVALUE_POINTERVALUE_MASK)
 
-nsTArray<const nsAttrValue::EnumTable*>* nsAttrValue::sEnumTableArray = nsnull;
+nsTPtrArray<const nsAttrValue::EnumTable>* nsAttrValue::sEnumTableArray = nsnull;
 
 nsAttrValue::nsAttrValue()
     : mBits(0)
@@ -106,7 +107,7 @@ nsAttrValue::Init()
 {
   NS_ASSERTION(!sEnumTableArray, "nsAttrValue already initialized");
 
-  sEnumTableArray = new nsTArray<const EnumTable*>;
+  sEnumTableArray = new nsTPtrArray<const EnumTable>;
   NS_ENSURE_TRUE(sEnumTableArray, NS_ERROR_OUT_OF_MEMORY);
   
   return NS_OK;
@@ -980,35 +981,28 @@ nsAttrValue::SetIntValueAndType(PRInt32 aValue, ValueType aType,
   }
 }
 
-PRInt16
-nsAttrValue::GetEnumTableIndex(const EnumTable* aTable)
+PRBool
+nsAttrValue::GetEnumTableIndex(const EnumTable* aTable, PRInt16& aResult)
 {
   PRInt16 index = sEnumTableArray->IndexOf(aTable);
   if (index < 0) {
     index = sEnumTableArray->Length();
     NS_ASSERTION(index <= NS_ATTRVALUE_ENUMTABLEINDEX_MAXVALUE,
         "too many enum tables");
-    sEnumTableArray->AppendElement(aTable);
+    if (!sEnumTableArray->AppendElement(aTable)) {
+      return PR_FALSE;
+    }
   }
 
-  return index;
-}
+  aResult = index;
 
-PRInt32
-nsAttrValue::EnumTableEntryToValue(const EnumTable* aEnumTable,
-                                   const EnumTable* aTableEntry)
-{
-  PRInt16 index = GetEnumTableIndex(aEnumTable);
-  PRInt32 value = (aTableEntry->value << NS_ATTRVALUE_ENUMTABLEINDEX_BITS) +
-                  index;
-  return value;
+  return PR_TRUE;
 }
 
 PRBool
 nsAttrValue::ParseEnumValue(const nsAString& aValue,
                             const EnumTable* aTable,
-                            PRBool aCaseSensitive,
-                            const EnumTable* aDefaultValue)
+                            PRBool aCaseSensitive)
 {
   ResetIfSet();
   const EnumTable* tableEntry = aTable;
@@ -1016,7 +1010,13 @@ nsAttrValue::ParseEnumValue(const nsAString& aValue,
   while (tableEntry->tag) {
     if (aCaseSensitive ? aValue.EqualsASCII(tableEntry->tag) :
                          aValue.LowerCaseEqualsASCII(tableEntry->tag)) {
-      PRInt32 value = EnumTableEntryToValue(aTable, tableEntry);
+      PRInt16 index;
+      if (!GetEnumTableIndex(aTable, index)) {
+        return PR_FALSE;
+      }
+
+      PRInt32 value = (tableEntry->value << NS_ATTRVALUE_ENUMTABLEINDEX_BITS) +
+                      index;
 
       PRBool equals = aCaseSensitive || aValue.EqualsASCII(tableEntry->tag);
       if (!equals) {
@@ -1034,14 +1034,6 @@ nsAttrValue::ParseEnumValue(const nsAString& aValue,
       return PR_TRUE;
     }
     tableEntry++;
-  }
-
-  if (aDefaultValue) {
-    NS_PRECONDITION(aTable <= aDefaultValue && aDefaultValue < tableEntry,
-                    "aDefaultValue not inside aTable?");
-    SetIntValueAndType(EnumTableEntryToValue(aTable, aDefaultValue),
-                       eEnum, &aValue);
-    return PR_TRUE;
   }
 
   return PR_FALSE;
@@ -1457,63 +1449,3 @@ nsAttrValue::StringToInteger(const nsAString& aValue, PRBool* aStrict,
   nsAutoString tmp(aValue);
   return tmp.ToInteger(aErrorCode);
 }
-
-PRInt64
-nsAttrValue::SizeOf() const
-{
-  PRInt64 size = sizeof(*this);
-
-  switch (BaseType()) {
-    case eStringBase:
-    {
-      // TODO: we might be counting the string size more than once.
-      // This should be fixed with bug 677487.
-      nsStringBuffer* str = static_cast<nsStringBuffer*>(GetPtr());
-      size += str ? str->StorageSize() : 0;
-      break;
-    }
-    case eOtherBase:
-    {
-      MiscContainer* container = GetMiscContainer();
-
-      if (!container) {
-        break;
-      }
-
-      size += sizeof(*container);
-
-      void* otherPtr = MISC_STR_PTR(container);
-      // We only count the size of the object pointed by otherPtr if it's a
-      // string. When it's an atom, it's counted separatly.
-      if (otherPtr &&
-          static_cast<ValueBaseType>(container->mStringBits & NS_ATTRVALUE_BASETYPE_MASK) == eStringBase) {
-        // TODO: we might be counting the string size more than once.
-        // This should be fixed with bug 677487.
-        nsStringBuffer* str = static_cast<nsStringBuffer*>(otherPtr);
-        size += str ? str->StorageSize() : 0;
-      }
-
-      // TODO: mCSSStyleRule and mSVGValue might be owned by another object
-      // which would make us count them twice, bug 677493.
-      if (Type() == eCSSStyleRule && container->mCSSStyleRule) {
-        // TODO: Add SizeOf() to StyleRule, bug 677503.
-        size += sizeof(*container->mCSSStyleRule);
-      } else if (Type() == eSVGValue && container->mSVGValue) {
-        // TODO: Add SizeOf() to nsSVGValue, bug 677504.
-        size += sizeof(*container->mSVGValue);
-      } else if (Type() == eAtomArray && container->mAtomArray) {
-        size += sizeof(container->mAtomArray) + sizeof(nsTArrayHeader);
-        size += container->mAtomArray->Capacity() * sizeof(nsCOMPtr<nsIAtom>);
-        // Don't count the size of each nsIAtom, they are counted separatly.
-      }
-
-      break;
-    }
-    case eAtomBase:    // Atoms are counted separatly.
-    case eIntegerBase: // The value is in mBits, nothing to do.
-      break;
-  }
-
-  return size;
-}
-

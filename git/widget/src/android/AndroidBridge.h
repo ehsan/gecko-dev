@@ -212,8 +212,6 @@ public:
 
     void GetIconForExtension(const nsACString& aFileExt, PRUint32 aIconSize, PRUint8 * const aBuf);
 
-    bool GetShowPasswordSetting();
-
     struct AutoLocalJNIFrame {
         AutoLocalJNIFrame(int nEntries = 128) : mEntries(nEntries) {
             // Make sure there is enough space to store a local ref to the
@@ -250,8 +248,6 @@ public:
     void SetKeepScreenOn(bool on);
 
     void ScanMedia(const nsAString& aFile, const nsACString& aMimeType);
-
-    void CreateShortcut(const nsAString& aTitle, const nsAString& aURI, const nsAString& aIconData, const nsAString& aIntent);
 
     // These next four functions are for native Bitmap access in Android 2.2+
     bool HasNativeBitmapAccess();
@@ -323,8 +319,6 @@ protected:
     jmethodID jScanMedia;
     jmethodID jGetSystemColors;
     jmethodID jGetIconForExtension;
-    jmethodID jCreateShortcut;
-    jmethodID jGetShowPasswordSetting;
 
     // stuff we need for CallEglCreateWindowSurface
     jclass jEGLSurfaceImplClass;

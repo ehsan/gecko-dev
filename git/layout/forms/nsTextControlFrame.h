@@ -48,7 +48,6 @@
 #include "nsStubMutationObserver.h"
 #include "nsITextControlElement.h"
 #include "nsIStatefulFrame.h"
-#include "nsContentUtils.h" // nsAutoScriptBlocker
 
 class nsIEditor;
 class nsISelectionController;

@@ -42,9 +42,8 @@
 
 #include <sys/syscall.h>
 
-#ifdef __APPLE__
+#ifdef XP_MACOSX
 #include <AvailabilityMacros.h>
-#include <TargetConditionals.h>
 #endif
 
 #define PR_LINKER_ARCH	"darwin"
@@ -55,8 +54,6 @@
 #define _PR_SI_ARCHITECTURE "x86-64"
 #elif defined(__ppc__)
 #define _PR_SI_ARCHITECTURE "ppc"
-#elif defined(__arm__)
-#define _PR_SI_ARCHITECTURE "arm"
 #endif
 #define PR_DLL_SUFFIX		".dylib"
 
@@ -67,7 +64,7 @@
 
 #undef  HAVE_STACK_GROWING_UP
 #define HAVE_DLL
-#if defined(__x86_64__) || TARGET_OS_IPHONE
+#ifdef __x86_64__
 #define USE_DLFCN
 #else
 #define USE_MACH_DYLD

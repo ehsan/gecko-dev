@@ -84,7 +84,6 @@
 #include "nsIDOMEventListener.h"
 #include "nsLayoutUtils.h"
 #include "nsDisplayList.h"
-#include "nsContentUtils.h"
 
 // Constants
 const nscoord kMaxDropDownRows          = 20; // This matches the setting for 4.x browsers
@@ -404,21 +403,32 @@ GetMaxOptionHeight(nsIFrame* aContainer)
   return result;
 }
 
+static inline PRBool
+IsOptGroup(nsIContent *aContent)
+{
+  return (aContent->NodeInfo()->Equals(nsGkAtoms::optgroup) &&
+          aContent->IsHTML());
+}
+
+static inline PRBool
+IsOption(nsIContent *aContent)
+{
+  return (aContent->NodeInfo()->Equals(nsGkAtoms::option) &&
+          aContent->IsHTML());
+}
+
 static PRUint32
 GetNumberOfOptionsRecursive(nsIContent* aContent)
 {
-  if (!aContent) {
-    return 0;
-  }
-
   PRUint32 optionCount = 0;
-  for (nsIContent* cur = aContent->GetFirstChild();
-       cur;
-       cur = cur->GetNextSibling()) {
-    if (cur->IsHTML(nsGkAtoms::option)) {
+  const PRUint32 childCount = aContent ? aContent->GetChildCount() : 0;
+  for (PRUint32 index = 0; index < childCount; ++index) {
+    nsIContent* child = aContent->GetChildAt(index);
+    if (::IsOption(child)) {
       ++optionCount;
-    } else if (cur->IsHTML(nsGkAtoms::optgroup)) {
-      optionCount += GetNumberOfOptionsRecursive(cur);
+    }
+    else if (::IsOptGroup(child)) {
+      optionCount += ::GetNumberOfOptionsRecursive(child);
     }
   }
   return optionCount;
@@ -752,6 +762,21 @@ nsListControlFrame::ShouldPropagateComputedHeightToScrolledContent() const
 }
 
 //---------------------------------------------------------
+PRBool 
+nsListControlFrame::IsOptionElement(nsIContent* aContent)
+{
+  PRBool result = PR_FALSE;
+ 
+  nsCOMPtr<nsIDOMHTMLOptionElement> optElem;
+  if (NS_SUCCEEDED(aContent->QueryInterface(NS_GET_IID(nsIDOMHTMLOptionElement),(void**) getter_AddRefs(optElem)))) {      
+    if (optElem != nsnull) {
+      result = PR_TRUE;
+    }
+  }
+ 
+  return result;
+}
+
 nsIFrame*
 nsListControlFrame::GetContentInsertionFrame() {
   return GetOptionsContainer()->GetContentInsertionFrame();
@@ -765,7 +790,7 @@ nsIContent *
 nsListControlFrame::GetOptionFromContent(nsIContent *aContent) 
 {
   for (nsIContent* content = aContent; content; content = content->GetParent()) {
-    if (content->IsHTML(nsGkAtoms::option)) {
+    if (IsOptionElement(content)) {
       return content;
     }
   }

@@ -41,7 +41,6 @@
 #include "nsIDOMSVGAnimatedNumber.h"
 #include "nsSVGElement.h"
 #include "nsDOMError.h"
-#include "nsMathUtils.h"
 
 #ifdef MOZ_SMIL
 #include "nsISMILAttr.h"
@@ -111,9 +110,7 @@ public:
       { *aResult = mVal->GetBaseValue(); return NS_OK; }
     NS_IMETHOD SetBaseVal(float aValue)
       {
-        if (!NS_finite(aValue)) {
-          return NS_ERROR_ILLEGAL_VALUE;
-        }
+        NS_ENSURE_FINITE(aValue, NS_ERROR_ILLEGAL_VALUE);
         mVal->SetBaseValue(aValue, mSVGElement, PR_TRUE);
         return NS_OK;
       }

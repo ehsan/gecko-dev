@@ -71,8 +71,6 @@ class GeckoSurfaceView
     extends SurfaceView
     implements SurfaceHolder.Callback, SensorEventListener, LocationListener
 {
-    private static final String LOG_FILE_NAME = "GeckoSurfaceView";
-
     public GeckoSurfaceView(Context context) {
         super(context);
 
@@ -109,7 +107,7 @@ class GeckoSurfaceView
     void drawSplashScreen(SurfaceHolder holder, int width, int height) {
         Canvas c = holder.lockCanvas();
         if (c == null) {
-            Log.i(LOG_FILE_NAME, "canvas is null");
+            Log.i("GeckoSurfaceView", "canvas is null");
             return;
         }
         Resources res = getResources();
@@ -175,7 +173,7 @@ class GeckoSurfaceView
 
         try {
             if (mInDrawing) {
-                Log.w(LOG_FILE_NAME, "surfaceChanged while mInDrawing is true!");
+                Log.w("GeckoAppJava", "surfaceChanged while mInDrawing is true!");
             }
 
             boolean invalidSize;
@@ -200,7 +198,7 @@ class GeckoSurfaceView
             mHeight = height;
             mSurfaceValid = true;
 
-            Log.i(LOG_FILE_NAME, "surfaceChanged: fmt: " + format + " dim: " + width + " " + height);
+            Log.i("GeckoAppJava", "surfaceChanged: fmt: " + format + " dim: " + width + " " + height);
 
             DisplayMetrics metrics = new DisplayMetrics();
             GeckoApp.mAppContext.getWindowManager().getDefaultDisplay().getMetrics(metrics);
@@ -227,7 +225,7 @@ class GeckoSurfaceView
         try {
             syncDrawObject = mSyncDraws.take();
         } catch (InterruptedException ie) {
-            Log.e(LOG_FILE_NAME, "Threw exception while getting sync draw bitmap/buffer: ", ie);
+            Log.e("GeckoAppJava", "Threw exception while getting sync draw bitmap/buffer: ", ie);
         }
         if (syncDrawObject != null) {
             if (syncDrawObject instanceof Bitmap)
@@ -240,7 +238,7 @@ class GeckoSurfaceView
     }
 
     public void surfaceCreated(SurfaceHolder holder) {
-        Log.i(LOG_FILE_NAME, "surface created");
+        Log.i("GeckoAppJava", "surface created");
         GeckoEvent e = new GeckoEvent(GeckoEvent.SURFACE_CREATED);
         GeckoAppShell.sendEventToGecko(e);
         if (mShowingSplashScreen)
@@ -248,7 +246,7 @@ class GeckoSurfaceView
     }
 
     public void surfaceDestroyed(SurfaceHolder holder) {
-        Log.i(LOG_FILE_NAME, "surface destroyed");
+        Log.i("GeckoAppJava", "surface destroyed");
         mSurfaceValid = false;
         mSoftwareBuffer = null;
         mSoftwareBufferCopy = null;
@@ -296,7 +294,7 @@ class GeckoSurfaceView
 
     public int beginDrawing() {
         if (mInDrawing) {
-            Log.e(LOG_FILE_NAME, "Recursive beginDrawing call!");
+            Log.e("GeckoAppJava", "Recursive beginDrawing call!");
             return DRAW_ERROR;
         }
 
@@ -314,7 +312,7 @@ class GeckoSurfaceView
         mSurfaceLock.lock();
 
         if (!mSurfaceValid) {
-            Log.e(LOG_FILE_NAME, "Surface not valid");
+            Log.e("GeckoAppJava", "Surface not valid");
             mSurfaceLock.unlock();
             return DRAW_ERROR;
         }
@@ -326,20 +324,20 @@ class GeckoSurfaceView
 
     public void endDrawing() {
         if (!mInDrawing) {
-            Log.e(LOG_FILE_NAME, "endDrawing without beginDrawing!");
+            Log.e("GeckoAppJava", "endDrawing without beginDrawing!");
             return;
         }
 
         try {
             if (!mSurfaceValid) {
-                Log.e(LOG_FILE_NAME, "endDrawing with false mSurfaceValid");
+                Log.e("GeckoAppJava", "endDrawing with false mSurfaceValid");
                 return;
             }
         } finally {
             mInDrawing = false;
 
             if (!mSurfaceLock.isHeldByCurrentThread())
-                Log.e(LOG_FILE_NAME, "endDrawing while mSurfaceLock not held by current thread!");
+                Log.e("GeckoAppJava", "endDrawing while mSurfaceLock not held by current thread!");
 
             mSurfaceLock.unlock();
         }
@@ -370,7 +368,7 @@ class GeckoSurfaceView
                 try {
                     mSyncDraws.put(bitmap);
                 } catch (InterruptedException ie) {
-                    Log.e(LOG_FILE_NAME, "Threw exception while getting sync draws queue: ", ie);
+                    Log.e("GeckoAppJava", "Threw exception while getting sync draws queue: ", ie);
                 }
                 return;
             }
@@ -391,7 +389,7 @@ class GeckoSurfaceView
                 try {
                     mSyncDraws.put(buffer);
                 } catch (InterruptedException ie) {
-                    Log.e(LOG_FILE_NAME, "Threw exception while getting sync bitmaps queue: ", ie);
+                    Log.e("GeckoAppJava", "Threw exception while getting sync bitmaps queue: ", ie);
                 }
                 return;
             }
@@ -494,7 +492,7 @@ class GeckoSurfaceView
                 mLastGeoAddress = addresses.get(0);
                 GeckoAppShell.sendEventToGecko(new GeckoEvent(location[0], mLastGeoAddress));
             } catch (Exception e) {
-                Log.w(LOG_FILE_NAME, "GeocoderTask "+e);
+                Log.w("GeckoSurfaceView", "GeocoderTask "+e);
             }
             return null;
         }
@@ -601,7 +599,6 @@ class GeckoSurfaceView
         // KeyListener returns true if it handled the event for us.
         if (mIMEState == IME_STATE_DISABLED ||
             keyCode == KeyEvent.KEYCODE_ENTER ||
-            keyCode == KeyEvent.KEYCODE_DEL ||
             (event.getFlags() & KeyEvent.FLAG_SOFT_KEYBOARD) != 0 ||
             !mKeyListener.onKeyDown(this, mEditable, keyCode, event))
             GeckoAppShell.sendEventToGecko(new GeckoEvent(event));
@@ -620,7 +617,6 @@ class GeckoSurfaceView
         }
         if (mIMEState == IME_STATE_DISABLED ||
             keyCode == KeyEvent.KEYCODE_ENTER ||
-            keyCode == KeyEvent.KEYCODE_DEL ||
             (event.getFlags() & KeyEvent.FLAG_SOFT_KEYBOARD) != 0 ||
             !mKeyListener.onKeyUp(this, mEditable, keyCode, event))
             GeckoAppShell.sendEventToGecko(new GeckoEvent(event));

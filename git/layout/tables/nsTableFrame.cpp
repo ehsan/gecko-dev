@@ -2682,12 +2682,8 @@ nsTableFrame::ReflowChildren(nsTableReflowState& aReflowState,
 
   nsPresContext* presContext = PresContext();
   // XXXldb Should we be checking constrained height instead?
-  // tables are not able to pull back children from its next inflow, so even
-  // under paginated contexts tables are should not paginate if they are inside
-  // column set
   PRBool isPaginated = presContext->IsPaginated() &&
-                       NS_UNCONSTRAINEDSIZE != aReflowState.availSize.height &&
-                       aReflowState.reflowState.mFlags.mTableIsSplittable;
+                       NS_UNCONSTRAINEDSIZE != aReflowState.availSize.height;
 
   aOverflowAreas.Clear();
 
@@ -2734,13 +2730,10 @@ nsTableFrame::ReflowChildren(nsTableReflowState& aReflowState,
          (isPaginated || (kidFrame->GetStateBits() &
                           NS_FRAME_CONTAINS_RELATIVE_HEIGHT)))) {
       if (pageBreak) {
+        PushChildren(rowGroups, childX);
         if (allowRepeatedFooter) {
           PlaceRepeatedFooter(aReflowState, tfoot, footerHeight);
         }
-        else if (tfoot && tfoot->IsRepeatable()) {
-          tfoot->SetRepeatable(PR_FALSE);
-        }
-        PushChildren(rowGroups, childX);
         aStatus = NS_FRAME_NOT_COMPLETE;
         break;
       }
@@ -2819,9 +2812,6 @@ nsTableFrame::ReflowChildren(nsTableReflowState& aReflowState,
               if (allowRepeatedFooter) {
                 PlaceRepeatedFooter(aReflowState, tfoot, footerHeight);
               }
-              else if (tfoot && tfoot->IsRepeatable()) {
-                tfoot->SetRepeatable(PR_FALSE);
-              }
               aStatus = NS_FRAME_NOT_COMPLETE;
               PushChildren(rowGroups, childX + 1);
               aLastChildReflowed = kidFrame;
@@ -2833,9 +2823,6 @@ nsTableFrame::ReflowChildren(nsTableReflowState& aReflowState,
           if (prevKidFrame) { // we had a rowgroup before so push this
             if (allowRepeatedFooter) {
               PlaceRepeatedFooter(aReflowState, tfoot, footerHeight);
-            }
-            else if (tfoot && tfoot->IsRepeatable()) {
-              tfoot->SetRepeatable(PR_FALSE);
             }
             aStatus = NS_FRAME_NOT_COMPLETE;
             PushChildren(rowGroups, childX);
@@ -2901,15 +2888,12 @@ nsTableFrame::ReflowChildren(nsTableReflowState& aReflowState,
 
         // We've used up all of our available space so push the remaining
         // children to the next-in-flow
-        if (allowRepeatedFooter) {
-          PlaceRepeatedFooter(aReflowState, tfoot, footerHeight);
-        }
-        else if (tfoot && tfoot->IsRepeatable()) {
-          tfoot->SetRepeatable(PR_FALSE);
-        }
         nsIFrame* nextSibling = kidFrame->GetNextSibling();
         if (nsnull != nextSibling) {
           PushChildren(rowGroups, childX + 1);
+        }
+        if (allowRepeatedFooter) {
+          PlaceRepeatedFooter(aReflowState, tfoot, footerHeight);
         }
         break;
       }

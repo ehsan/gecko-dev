@@ -4548,11 +4548,6 @@ GetABI(JSContext* cx, jsval abiType, ffi_abi* result)
 #if (defined(_WIN32) && !defined(_WIN64)) || defined(_OS2)
     *result = FFI_STDCALL;
     return true;
-#elif (defined(_WIN64))
-    // We'd like the same code to work across Win32 and Win64, so stdcall_api
-    // and winapi_abi become aliases to the lone Win64 ABI.
-    *result = FFI_WIN64;
-    return true;
 #endif
   case INVALID_ABI:
     break;
@@ -4697,7 +4692,6 @@ FunctionType::BuildSymbolName(JSContext* cx,
     break;
 
   case ABI_STDCALL: {
-#if (defined(_WIN32) && !defined(_WIN64)) || defined(_OS2)
     // On WIN32, stdcall functions look like:
     //   _foo@40
     // where 'foo' is the function name, and '40' is the aligned size of the
@@ -4714,11 +4708,6 @@ FunctionType::BuildSymbolName(JSContext* cx,
     }
 
     IntegerToString(size, 10, result);
-#elif defined(_WIN64)
-    // On Win64, stdcall is an alias to the default ABI for compatibility, so no
-    // mangling is done.
-    AppendString(result, name);
-#endif
     break;
   }
 

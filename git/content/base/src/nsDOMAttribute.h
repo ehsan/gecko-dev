@@ -51,6 +51,7 @@
 #include "nsINodeInfo.h"
 #include "nsDOMAttributeMap.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsContentUtils.h"
 #include "nsStubMutationObserver.h"
 
 // Attribute helper class used to wrap up an attribute with a dom

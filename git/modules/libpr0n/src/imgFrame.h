@@ -44,6 +44,7 @@
 #include "nsSize.h"
 #include "gfxTypes.h"
 #include "nsID.h"
+#include "gfxIFormats.h"
 #include "gfxContext.h"
 #include "gfxPattern.h"
 #include "gfxDrawable.h"
@@ -134,7 +135,8 @@ public:
     return mImageSurface;
   }
 
-  PRUint32 EstimateMemoryUsed(gfxASurface::MemoryLocation aLocation) const;
+  // returns an estimate of the memory used by this imgFrame
+  PRUint32 EstimateMemoryUsed() const;
 
   PRUint8 GetPaletteDepth() const { return mPaletteDepth; }
 

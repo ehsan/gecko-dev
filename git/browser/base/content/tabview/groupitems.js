@@ -263,10 +263,11 @@ function GroupItem(listOfEls, options) {
   if (options.dontPush) {
     this.setZ(drag.zIndex);
     drag.zIndex++; 
-  } else {
+  } else
     // Calling snap will also trigger pushAway
     this.snap(immediately);
-  }
+  if ($container)
+    this.setBounds(rectToBe, immediately);
 
   if (!options.immediately && listOfEls.length > 0)
     $container.hide().fadeIn();
@@ -486,13 +487,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
   // Function: getContentBounds
   // Returns a <Rect> for the groupItem's content area (which doesn't include the title, etc).
-  //
-  // Parameters:
-  //   options - an object with additional parameters, see below
-  //
-  // Possible options:
-  //   forceStacked - true to force content bounds for stacked mode
-  getContentBounds: function GroupItem_getContentBounds(options) {
+  getContentBounds: function GroupItem_getContentBounds() {
     var box = this.getBounds();
     var titleHeight = this.$titlebar.height();
     box.top += titleHeight;
@@ -508,14 +503,10 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       box.left += appTabTrayWidth;
     }
 
-    // Make the computed bounds' "padding" and expand button margin actually be
+    // Make the computed bounds' "padding" and new tab button margin actually be
     // themeable --OR-- compute this from actual bounds. Bug 586546
     box.inset(6, 6);
-
-    // make some room for the expand button if we're stacked
-    let isStacked = (options && options.forceStacked) || this.isStacked();
-    if (isStacked)
-      box.height -= this.$expander.height() + 9; // the button height plus padding
+    box.height -= 33; // For new tab button
 
     return box;
   },
@@ -532,7 +523,10 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // Possible options:
   //   force - true to always update the DOM even if the bounds haven't changed; default false
   setBounds: function GroupItem_setBounds(inRect, immediately, options) {
-      Utils.assert(Utils.isRect(inRect), 'GroupItem.setBounds: rect is not a real rectangle!');
+    if (!Utils.isRect(inRect)) {
+      Utils.trace('GroupItem.setBounds: rect is not a real rectangle!', inRect);
+      return;
+    }
 
     // Validate and conform passed in size
     let validSize = GroupItems.calcValidSize(
@@ -1237,6 +1231,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   showExpandControl: function GroupItem_showExpandControl() {
     let parentBB = this.getBounds();
     let childBB = this.getChild(0).getBounds();
+    let padding = 7;
     this.$expander
         .show()
         .css({
@@ -1361,18 +1356,15 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     }
     
     let shouldStack = this.shouldStack(childrenToArrange.length + (options.addTab ? 1 : 0));
-    let shouldStackArrange = (shouldStack && !this.expanded);
-    let box;
-
+    let box = this.getContentBounds();
+    
     // if we should stack and we're not expanded
-    if (shouldStackArrange) {
+    if (shouldStack && !this.expanded) {
       this.showExpandControl();
-      box = this.getContentBounds({forceStacked: true});
       this._stackArrange(childrenToArrange, box, options);
       return false;
     } else {
       this.hideExpandControl();
-      box = this.getContentBounds({forceStacked: false});
       // a dropIndex is returned
       return this._gridArrange(childrenToArrange, box, options);
     }
@@ -1664,12 +1656,11 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
     container.mousedown(function(e) {
       let target = e.target;
       // only set the last mouse down target if it is a left click, not on the
-      // close button, not on the expand button, not on the title bar and its
-      // elements
+      // close button, not on the new tab button, not on the title bar and its
+      // element
       if (Utils.isLeftClick(e) &&
           self.$closeButton[0] != target &&
           self.$titlebar[0] != target &&
-          self.$expander[0] != target &&
           !self.$titlebar.contains(target) &&
           !self.$appTabTray.contains(target)) {
         lastMouseDownTarget = target;
@@ -2242,13 +2233,11 @@ let GroupItems = {
   // Function: groupItemStorageSanity
   // Given persistent storage data for a groupItem, returns true if it appears to not be damaged.
   groupItemStorageSanity: function GroupItems_groupItemStorageSanity(groupItemData) {
-    let sane = true;
-    if (!groupItemData.bounds || !Utils.isRect(groupItemData.bounds)) {
+    // TODO: check everything
+    // Bug 586555
+    var sane = true;
+    if (!Utils.isRect(groupItemData.bounds)) {
       Utils.log('GroupItems.groupItemStorageSanity: bad bounds', groupItemData.bounds);
-      sane = false;
-    } else if ((groupItemData.userSize && 
-               !Utils.isPoint(groupItemData.userSize)) ||
-               !groupItemData.id) {
       sane = false;
     }
 

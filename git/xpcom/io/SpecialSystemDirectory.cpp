@@ -105,7 +105,7 @@ static nsGetKnownFolderPath gGetKnownFolderPath = NULL;
 static HINSTANCE gShell32DLLInst = NULL;
 #endif
 
-void StartupSpecialSystemDirectory()
+NS_COM void StartupSpecialSystemDirectory()
 {
 #if defined (XP_WIN)
     // SHGetKnownFolderPath is only available on Windows Vista
@@ -119,7 +119,7 @@ void StartupSpecialSystemDirectory()
 #endif
 }
 
-void ShutdownSpecialSystemDirectory()
+NS_COM void ShutdownSpecialSystemDirectory()
 {
 #if defined (XP_WIN)
     if (gShell32DLLInst)

@@ -860,7 +860,7 @@ HttpChannelChild::OnRedirectVerifyCallback(nsresult result)
 
   if (newHttpChannel) {
     // Must not be called until after redirect observers called.
-    newHttpChannel->SetOriginalURI(mOriginalURI);
+    newHttpChannel->SetOriginalURI(mRedirectOriginalURI);
   }
 
   RequestHeaderTuples emptyHeaders;

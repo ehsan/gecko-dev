@@ -69,7 +69,6 @@
 #include "nsIAnimationFrameListener.h"
 #include "nsEventStates.h"
 #include "nsIStructuredCloneContainer.h"
-#include "nsIBFCacheEntry.h"
 #include "nsDOMMemoryReporter.h"
 
 class nsIContent;
@@ -126,9 +125,9 @@ class Element;
 } // namespace mozilla
 
 
-#define NS_IDOCUMENT_IID      \
-{ 0x455e4d79, 0x756b, 0x4f73,  \
- { 0x95, 0xea, 0x3f, 0xf6, 0x0c, 0x6a, 0x8c, 0xa6 } }
+#define NS_IDOCUMENT_IID \
+{ 0xfac563fb, 0x2b6a, 0x4ac8, \
+ { 0x85, 0xf7, 0xd5, 0x14, 0x4b, 0x3e, 0xce, 0x78 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -481,15 +480,11 @@ public:
     return GetBFCacheEntry() ? nsnull : mPresShell;
   }
 
-  void SetBFCacheEntry(nsIBFCacheEntry* aEntry)
-  {
-    mBFCacheEntry = aEntry;
+  void SetBFCacheEntry(nsISHEntry* aSHEntry) {
+    mSHEntry = aSHEntry;
   }
 
-  nsIBFCacheEntry* GetBFCacheEntry() const
-  {
-    return mBFCacheEntry;
-  }
+  nsISHEntry* GetBFCacheEntry() const { return mSHEntry; }
 
   /**
    * Return the parent document of this document. Will return null
@@ -1331,10 +1326,6 @@ public:
 
   PRUint32 EventHandlingSuppressed() const { return mEventsSuppressed; }
 
-  bool IsEventHandlingEnabled() {
-    return !EventHandlingSuppressed() && mScriptGlobalObject;
-  }
-
   /**
    * Increment the number of external scripts being evaluated.
    */
@@ -1692,10 +1683,6 @@ protected:
   // True if we're an SVG document being used as an image.
   PRPackedBool mIsBeingUsedAsImage;
 
-  // True is this document is synthetic : stand alone image, video, audio
-  // file, etc.
-  PRPackedBool mIsSyntheticDocument;
-
   // The document's script global object, the object from which the
   // document can get its script context and scope. This is the
   // *inner* window object.
@@ -1751,9 +1738,9 @@ protected:
 
   AnimationListenerList mAnimationFrameListeners;
 
-  // This object allows us to evict ourself from the back/forward cache.  The
-  // pointer is non-null iff we're currently in the bfcache.
-  nsIBFCacheEntry *mBFCacheEntry;
+  // The session history entry in which we're currently bf-cached. Non-null
+  // if and only if we're currently in the bfcache.
+  nsISHEntry* mSHEntry;
 
   // Our base target.
   nsString mBaseTarget;

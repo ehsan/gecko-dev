@@ -58,7 +58,6 @@
 #include "jsanalyze.h"
 #include "methodjit/BaseCompiler.h"
 #include "methodjit/ICRepatcher.h"
-#include "vm/Debugger.h"
 
 #include "jsinterpinlines.h"
 #include "jspropertycacheinlines.h"
@@ -114,7 +113,6 @@ top:
                 continue;
 
             jsbytecode *pc = script->main + tn->start + tn->length;
-            cx->regs().pc = pc;
             JSBool ok = js_UnwindScope(cx, tn->stackDepth, JS_TRUE);
             JS_ASSERT(cx->regs().sp == fp->base() + tn->stackDepth);
 
@@ -180,26 +178,19 @@ InlineReturn(VMFrame &f)
     JS_ASSERT(f.fp() != f.entryfp);
     JS_ASSERT(!js_IsActiveWithOrBlock(f.cx, &f.fp()->scopeChain(), 0));
     f.cx->stack.popInlineFrame(f.regs);
-
-    JS_ASSERT(*f.regs.pc == JSOP_CALL ||
-              *f.regs.pc == JSOP_NEW ||
-              *f.regs.pc == JSOP_EVAL ||
-              *f.regs.pc == JSOP_FUNCALL ||
-              *f.regs.pc == JSOP_FUNAPPLY);
-    f.regs.pc += JSOP_CALL_LENGTH;
 }
 
 void JS_FASTCALL
 stubs::SlowCall(VMFrame &f, uint32 argc)
 {
-    if (!InvokeKernel(f.cx, CallArgsFromSp(argc, f.regs.sp)))
+    if (!Invoke(f.cx, CallArgsFromSp(argc, f.regs.sp)))
         THROW();
 }
 
 void JS_FASTCALL
 stubs::SlowNew(VMFrame &f, uint32 argc)
 {
-    if (!InvokeConstructorKernel(f.cx, CallArgsFromSp(argc, f.regs.sp)))
+    if (!InvokeConstructor(f.cx, CallArgsFromSp(argc, f.regs.sp)))
         THROW();
 }
 
@@ -379,7 +370,7 @@ stubs::UncachedNewHelper(VMFrame &f, uint32 argc, UncachedCallResult *ucr)
         if (!UncachedInlineCall(f, CONSTRUCT, &ucr->codeAddr, &ucr->unjittable, argc))
             THROW();
     } else {
-        if (!InvokeConstructorKernel(cx, args))
+        if (!InvokeConstructor(cx, args))
             THROW();
     }
 }
@@ -398,7 +389,7 @@ stubs::Eval(VMFrame &f, uint32 argc)
     CallArgs args = CallArgsFromSp(argc, f.regs.sp);
 
     if (!IsBuiltinEvalForScope(&f.fp()->scopeChain(), args.calleev())) {
-        if (!InvokeKernel(f.cx, args))
+        if (!Invoke(f.cx, args))
             THROW();
         return;
     }
@@ -420,7 +411,7 @@ stubs::UncachedCallHelper(VMFrame &f, uint32 argc, UncachedCallResult *ucr)
 
     if (IsFunctionObject(args.calleev(), &ucr->callee)) {
         ucr->callee = &args.callee();
-        ucr->fun = ucr->callee->getFunctionPrivate();
+        ucr->fun = GET_FUNCTION_PRIVATE(cx, ucr->callee);
 
         if (ucr->fun->isInterpreted()) {
             if (!UncachedInlineCall(f, NO_CONSTRUCT, &ucr->codeAddr, &ucr->unjittable, argc))
@@ -435,7 +426,7 @@ stubs::UncachedCallHelper(VMFrame &f, uint32 argc, UncachedCallResult *ucr)
         }
     }
 
-    if (!InvokeKernel(f.cx, args))
+    if (!Invoke(f.cx, args))
         THROW();
 
     return;
@@ -472,39 +463,32 @@ js_InternalThrow(VMFrame &f)
     // Make sure sp is up to date.
     JS_ASSERT(&cx->regs() == &f.regs);
 
+    // Call the throw hook if necessary
+    JSThrowHook handler = f.cx->debugHooks->throwHook;
+    if (handler) {
+        Value rval;
+        switch (handler(cx, cx->fp()->script(), cx->regs().pc, Jsvalify(&rval),
+                        cx->debugHooks->throwHookData)) {
+          case JSTRAP_ERROR:
+            cx->clearPendingException();
+            return NULL;
+
+          case JSTRAP_RETURN:
+            cx->clearPendingException();
+            cx->fp()->setReturnValue(rval);
+            return cx->jaegerCompartment()->forceReturnFromExternC();
+
+          case JSTRAP_THROW:
+            cx->setPendingException(rval);
+            break;
+
+          default:
+            break;
+        }
+    }
+
     jsbytecode *pc = NULL;
     for (;;) {
-        if (cx->isExceptionPending()) {
-            // Call the throw hook if necessary
-            JSThrowHook handler = cx->debugHooks->throwHook;
-            if (handler || !cx->compartment->getDebuggees().empty()) {
-                Value rval;
-                JSTrapStatus st = Debugger::onExceptionUnwind(cx, &rval);
-                if (st == JSTRAP_CONTINUE && handler) {
-                    st = handler(cx, cx->fp()->script(), cx->regs().pc, Jsvalify(&rval),
-                                 cx->debugHooks->throwHookData);
-                }
-
-                switch (st) {
-                case JSTRAP_ERROR:
-                    cx->clearPendingException();
-                    return NULL;
-
-                case JSTRAP_RETURN:
-                    cx->clearPendingException();
-                    cx->fp()->setReturnValue(rval);
-                    return cx->jaegerCompartment()->forceReturnFromExternC();
-
-                case JSTRAP_THROW:
-                    cx->setPendingException(rval);
-                    break;
-
-                default:
-                    break;
-                }
-            }
-        }
-
         pc = FindExceptionHandler(cx);
         if (pc)
             break;
@@ -717,6 +701,20 @@ FrameIsFinished(JSContext *cx)
         : cx->fp()->finishedInInterpreter();
 }
 
+
+/* Simulate an inline_return by advancing the pc. */
+static inline void
+AdvanceReturnPC(JSContext *cx)
+{
+    JS_ASSERT(*cx->regs().pc == JSOP_CALL ||
+              *cx->regs().pc == JSOP_NEW ||
+              *cx->regs().pc == JSOP_EVAL ||
+              *cx->regs().pc == JSOP_FUNCALL ||
+              *cx->regs().pc == JSOP_FUNAPPLY);
+    cx->regs().pc += JSOP_CALL_LENGTH;
+}
+
+
 /*
  * Given a frame that is about to return, make sure its return value and
  * activation objects are fixed up. Then, pop the frame and advance the
@@ -768,6 +766,7 @@ HandleFinishedFrame(VMFrame &f, StackFrame *entryFrame)
 
     if (cx->fp() != entryFrame) {
         InlineReturn(f);
+        AdvanceReturnPC(cx);
     }
 
     return returnOK;
@@ -807,6 +806,7 @@ EvaluateExcessFrame(VMFrame &f, StackFrame *entryFrame)
         if (!JaegerShotAtSafePoint(cx, ncode))
             return false;
         InlineReturn(f);
+        AdvanceReturnPC(cx);
         return true;
     }
 
@@ -869,8 +869,7 @@ ResetTraceHintAt(JSScript *script, js::mjit::JITScript *jit,
     
     JS_ASSERT(ic.jumpTargetPC == pc);
 
-    JaegerSpew(JSpew_PICs, "Enabling trace IC %u in script %p\n", index,
-               static_cast<void*>(script));
+    JaegerSpew(JSpew_PICs, "Enabling trace IC %u in script %p\n", index, script);
 
     Repatcher repatcher(jit);
 

@@ -141,14 +141,10 @@ struct RuleValue : RuleSelectorPair {
 
 // Uses any of the sets of ops below.
 struct RuleHashTableEntry : public PLDHashEntryHdr {
-  // If you add members that have heap allocated memory be sure to change the
-  // logic in RuleHashTableSizeOfEnumerator.
   nsTArray<RuleValue> mRules;
 };
 
 struct RuleHashTagTableEntry : public RuleHashTableEntry {
-  // If you add members that have heap allocated memory be sure to change the
-  // logic in RuleHash::SizeOf.
   nsCOMPtr<nsIAtom> mTag;
 };
 
@@ -394,8 +390,6 @@ public:
   void EnumerateAllRules(Element* aElement, RuleProcessorData* aData,
                          NodeMatchContext& aNodeMatchContext);
   PLArenaPool& Arena() { return mArena; }
-
-  PRInt64 SizeOf() const;
 
 protected:
   typedef nsTArray<RuleValue> RuleValueList;
@@ -702,54 +696,37 @@ void RuleHash::EnumerateAllRules(Element* aElement, RuleProcessorData* aData,
   }
 }
 
-static PLDHashOperator
-RuleHashTableSizeOfEnumerator(PLDHashTable* aTable, PLDHashEntryHdr* aHdr,
-                              PRUint32 i, void* aClosure)
+//--------------------------------
+
+// Attribute selectors hash table.
+struct AttributeSelectorEntry : public PLDHashEntryHdr {
+  nsIAtom *mAttribute;
+  nsTArray<nsCSSSelector*> *mSelectors;
+};
+
+static void
+AttributeSelectorClearEntry(PLDHashTable *table, PLDHashEntryHdr *hdr)
 {
-  PRInt64* n = static_cast<PRInt64*>(aClosure);
-  RuleHashTableEntry* entry = static_cast<RuleHashTableEntry*>(aHdr);
-
-  *n += entry->mRules.SizeOf();
-  // The size of the RuleHashTableEntry itself is accounted for already
-
-  return PL_DHASH_NEXT;
+  AttributeSelectorEntry *entry = static_cast<AttributeSelectorEntry*>(hdr);
+  delete entry->mSelectors;
+  memset(entry, 0, table->entrySize);
 }
 
-PRInt64
-RuleHash::SizeOf() const
-{
-  PRInt64 n = sizeof(*this);
+static const PLDHashTableOps AttributeSelectorOps = {
+  PL_DHashAllocTable,
+  PL_DHashFreeTable,
+  PL_DHashVoidPtrKeyStub,
+  PL_DHashMatchEntryStub,
+  PL_DHashMoveEntryStub,
+  AttributeSelectorClearEntry,
+  PL_DHashFinalizeStub,
+  NULL
+};
 
-  n += PL_DHASH_TABLE_SIZE(&mIdTable) * sizeof(RuleHashTableEntry);
-  PL_DHashTableEnumerate(const_cast<PLDHashTable*>(&mIdTable),
-                         RuleHashTableSizeOfEnumerator, &n);
-
-  n += PL_DHASH_TABLE_SIZE(&mClassTable) * sizeof(RuleHashTableEntry);
-  PL_DHashTableEnumerate(const_cast<PLDHashTable*>(&mClassTable),
-                         RuleHashTableSizeOfEnumerator, &n);
-
-  n += PL_DHASH_TABLE_SIZE(&mTagTable) * sizeof(RuleHashTagTableEntry);
-  PL_DHashTableEnumerate(const_cast<PLDHashTable*>(&mTagTable),
-                         RuleHashTableSizeOfEnumerator, &n);
-
-  n += PL_DHASH_TABLE_SIZE(&mNameSpaceTable) * sizeof(RuleHashTableEntry);
-  PL_DHashTableEnumerate(const_cast<PLDHashTable*>(&mNameSpaceTable),
-                         RuleHashTableSizeOfEnumerator, &n);
-
-  n += mUniversalRules.SizeOf();
-
-  const PLArena* current = &mArena.first;
-  while (current) {
-    n += current->limit - current->base;
-    current = current->next;
-  }
-
-  return n;
-}
 
 //--------------------------------
 
-// A hash table mapping atoms to lists of selectors
+// Class selectors hash table.
 struct AtomSelectorEntry : public PLDHashEntryHdr {
   nsIAtom *mAtom;
   nsTArray<nsCSSSelector*> mSelectors;
@@ -779,15 +756,18 @@ AtomSelector_GetKey(PLDHashTable *table, const PLDHashEntryHdr *hdr)
 }
 
 // Case-sensitive ops.
-static const PLDHashTableOps AtomSelector_CSOps = {
+static const RuleHashTableOps AtomSelector_CSOps = {
+  {
   PL_DHashAllocTable,
   PL_DHashFreeTable,
   PL_DHashVoidPtrKeyStub,
-  PL_DHashMatchEntryStub,
+  RuleHash_CSMatchEntry,
   PL_DHashMoveEntryStub,
   AtomSelector_ClearEntry,
   PL_DHashFinalizeStub,
   AtomSelector_InitEntry
+  },
+  AtomSelector_GetKey
 };
 
 // Case-insensitive ops.
@@ -816,19 +796,17 @@ struct RuleCascadeData {
       mNext(nsnull),
       mQuirksMode(aQuirksMode)
   {
-    // mAttributeSelectors is matching on the attribute _name_, not the value,
-    // and we case-fold names at parse-time, so this is a case-sensitive match.
-    PL_DHashTableInit(&mAttributeSelectors, &AtomSelector_CSOps, nsnull,
-                      sizeof(AtomSelectorEntry), 16);
+    PL_DHashTableInit(&mAttributeSelectors, &AttributeSelectorOps, nsnull,
+                      sizeof(AttributeSelectorEntry), 16);
     PL_DHashTableInit(&mAnonBoxRules, &RuleHash_TagTable_Ops, nsnull,
                       sizeof(RuleHashTagTableEntry), 16);
     PL_DHashTableInit(&mIdSelectors,
                       aQuirksMode ? &AtomSelector_CIOps.ops :
-                                    &AtomSelector_CSOps,
+                                    &AtomSelector_CSOps.ops,
                       nsnull, sizeof(AtomSelectorEntry), 16);
     PL_DHashTableInit(&mClassSelectors,
                       aQuirksMode ? &AtomSelector_CIOps.ops :
-                                    &AtomSelector_CSOps,
+                                    &AtomSelector_CSOps.ops,
                       nsnull, sizeof(AtomSelectorEntry), 16);
     memset(mPseudoElementRuleHashes, 0, sizeof(mPseudoElementRuleHashes));
 #ifdef MOZ_XUL
@@ -850,9 +828,6 @@ struct RuleCascadeData {
       delete mPseudoElementRuleHashes[i];
     }
   }
-
-  PRInt64 SizeOf() const;
-
   RuleHash                 mRuleHash;
   RuleHash*
     mPseudoElementRuleHashes[nsCSSPseudoElements::ePseudo_PseudoElementCount];
@@ -881,71 +856,21 @@ struct RuleCascadeData {
   const PRBool mQuirksMode;
 };
 
-static PLDHashOperator
-SelectorsSizeOfEnumerator(PLDHashTable* aTable, PLDHashEntryHdr* aHdr,
-                          PRUint32 i, void* aClosure)
-{
-  PRInt64* n = (PRInt64*) aClosure;
-  AtomSelectorEntry* entry = (AtomSelectorEntry*)aHdr;
-
-  *n += entry->mSelectors.SizeOf();
-
-  return PL_DHASH_NEXT;
-}
-
-PRInt64
-RuleCascadeData::SizeOf() const
-{
-  PRInt64 n = sizeof(*this);
-
-  n += mRuleHash.SizeOf();
-  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(mPseudoElementRuleHashes); ++i) {
-    if (mPseudoElementRuleHashes[i])
-      n += mPseudoElementRuleHashes[i]->SizeOf();
-  }
-
-  n += mStateSelectors.SizeOf();
-
-  n += PL_DHASH_TABLE_SIZE(&mIdSelectors) * sizeof(AtomSelectorEntry);
-  PL_DHashTableEnumerate(const_cast<PLDHashTable*>(&mIdSelectors),
-                         SelectorsSizeOfEnumerator, &n);
-  n += PL_DHASH_TABLE_SIZE(&mClassSelectors) * sizeof(AtomSelectorEntry);
-  PL_DHashTableEnumerate(const_cast<PLDHashTable*>(&mClassSelectors),
-                         SelectorsSizeOfEnumerator, &n);
-
-  n += mPossiblyNegatedClassSelectors.SizeOf();
-  n += mPossiblyNegatedIDSelectors.SizeOf();
-
-  n += PL_DHASH_TABLE_SIZE(&mAttributeSelectors) * sizeof(AtomSelectorEntry);
-  PL_DHashTableEnumerate(const_cast<PLDHashTable*>(&mAttributeSelectors),
-                         SelectorsSizeOfEnumerator, &n);
-
-  n += PL_DHASH_TABLE_SIZE(&mAnonBoxRules) * sizeof(RuleHashTagTableEntry);
-  PL_DHashTableEnumerate(const_cast<PLDHashTable*>(&mAnonBoxRules),
-                         RuleHashTableSizeOfEnumerator, &n);
-
-#ifdef MOZ_XUL
-  n += PL_DHASH_TABLE_SIZE(&mXULTreeRules) * sizeof(RuleHashTagTableEntry);
-  PL_DHashTableEnumerate(const_cast<PLDHashTable*>(&mAnonBoxRules),
-                         RuleHashTableSizeOfEnumerator, &n);
-#endif
-
-  n += mFontFaceRules.SizeOf();
-  n += mKeyframesRules.SizeOf();
-
-  return n;
-}
-
 nsTArray<nsCSSSelector*>*
 RuleCascadeData::AttributeListFor(nsIAtom* aAttribute)
 {
-  AtomSelectorEntry *entry =
-    static_cast<AtomSelectorEntry*>
-               (PL_DHashTableOperate(&mAttributeSelectors, aAttribute,
-                                     PL_DHASH_ADD));
+  AttributeSelectorEntry *entry = static_cast<AttributeSelectorEntry*>
+                                             (PL_DHashTableOperate(&mAttributeSelectors, aAttribute, PL_DHASH_ADD));
   if (!entry)
     return nsnull;
-  return &entry->mSelectors;
+  if (!entry->mSelectors) {
+    if (!(entry->mSelectors = new nsTArray<nsCSSSelector*>)) {
+      PL_DHashTableRawRemove(&mAttributeSelectors, entry);
+      return nsnull;
+    }
+    entry->mAttribute = aAttribute;
+  }
+  return entry->mSelectors;
 }
 
 class nsPrivateBrowsingObserver : nsIObserver,
@@ -1108,11 +1033,6 @@ InitSystemMetrics()
     sSystemMetrics->AppendElement(nsGkAtoms::mac_graphite_theme);
   }
 
-  rv = lookAndFeel->GetMetric(nsILookAndFeel::eMetric_MacLionTheme, metricResult);
-  if (NS_SUCCEEDED(rv) && metricResult) {
-    sSystemMetrics->AppendElement(nsGkAtoms::mac_lion_theme);
-  }
-
   rv = lookAndFeel->GetMetric(nsILookAndFeel::eMetric_DWMCompositor, metricResult);
   if (NS_SUCCEEDED(rv) && metricResult) {
     sSystemMetrics->AppendElement(nsGkAtoms::windows_compositor);
@@ -1199,6 +1119,29 @@ nsCSSRuleProcessor::GetWindowsThemeIdentifier()
   return sWinThemeId;
 }
 #endif
+
+// If we have a useful @lang, then aLang will end up nonempty.
+static void GetLang(nsIContent* aContent, nsString& aLang)
+{
+  for (nsIContent* content = aContent; content;
+       content = content->GetParent()) {
+    if (content->GetAttrCount() > 0) {
+      // xml:lang has precedence over lang on HTML elements (see
+      // XHTML1 section C.7).
+      PRBool hasAttr = content->GetAttr(kNameSpaceID_XML, nsGkAtoms::lang,
+                                        aLang);
+      if (!hasAttr && content->IsHTML()) {
+        hasAttr = content->GetAttr(kNameSpaceID_None, nsGkAtoms::lang,
+                                   aLang);
+      }
+      NS_ASSERTION(hasAttr || aLang.IsEmpty(),
+                   "GetAttr that returns false should not make string non-empty");
+      if (hasAttr) {
+        return;
+      }
+    }
+  }
+}
 
 /* static */
 nsEventStates
@@ -1679,7 +1622,7 @@ static PRBool SelectorMatches(Element* aElement,
           // from the parent we have to be prepared to look at all parent
           // nodes.  The language itself is encoded in the LANG attribute.
           nsAutoString language;
-          aElement->GetLang(language);
+          GetLang(aElement, language);
           if (!language.IsEmpty()) {
             if (!nsStyleUtil::DashMatchCompare(language,
                                                nsDependentString(pseudoClass->u.mString),
@@ -2480,13 +2423,12 @@ nsCSSRuleProcessor::HasAttributeDependentStyle(AttributeRuleProcessorData* aData
       }
     }
 
-    AtomSelectorEntry *entry =
-      static_cast<AtomSelectorEntry*>
-                 (PL_DHashTableOperate(&cascade->mAttributeSelectors,
-                                       aData->mAttribute, PL_DHASH_LOOKUP));
+    AttributeSelectorEntry *entry = static_cast<AttributeSelectorEntry*>
+                                               (PL_DHashTableOperate(&cascade->mAttributeSelectors, aData->mAttribute,
+                             PL_DHASH_LOOKUP));
     if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
-      nsCSSSelector **iter = entry->mSelectors.Elements(),
-                    **end = iter + entry->mSelectors.Length();
+      nsCSSSelector **iter = entry->mSelectors->Elements(),
+                    **end = iter + entry->mSelectors->Length();
       for(; iter != end; ++iter) {
         AttributeEnumFunc(*iter, &data);
       }
@@ -2510,20 +2452,6 @@ nsCSSRuleProcessor::MediumFeaturesChanged(nsPresContext* aPresContext)
     RefreshRuleCascade(aPresContext);
   }
   return (old != mRuleCascades);
-}
-
-/* virtual */ PRInt64
-nsCSSRuleProcessor::SizeOf() const
-{
-  PRInt64 n = sizeof(*this);
-
-  n += mSheets.SizeOf();
-  for (RuleCascadeData* cascade = mRuleCascades; cascade;
-       cascade = cascade->mNext) {
-    n += cascade->SizeOf();
-  }
-
-  return n;
 }
 
 // Append all the currently-active font face rules to aArray.  Return

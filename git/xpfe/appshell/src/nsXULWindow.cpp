@@ -85,10 +85,11 @@
 #include "nsReadableUtils.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
-#include "nsContentUtils.h"
+
 #include "nsWebShellWindow.h" // get rid of this one, too...
 
 #include "prenv.h"
+
 #include "mozilla/Preferences.h"
 
 using namespace mozilla;
@@ -200,15 +201,7 @@ NS_IMETHODIMP nsXULWindow::GetInterface(const nsIID& aIID, void** aSink)
   }
   if (aIID.Equals(NS_GET_IID(nsIDOMWindow))) {
     return GetWindowDOMWindow(reinterpret_cast<nsIDOMWindow**>(aSink));
-  }
-  if (aIID.Equals(NS_GET_IID(nsIDOMWindowInternal))) {
-    nsIDOMWindow* domWindow = nsnull;
-    rv = GetWindowDOMWindow(&domWindow);
-    nsIDOMWindowInternal* domWindowInternal =
-      static_cast<nsIDOMWindowInternal*>(domWindow);
-    *aSink = domWindowInternal;
-    return rv;
-  }
+  }   
   if (aIID.Equals(NS_GET_IID(nsIWebBrowserChrome)) && 
     NS_SUCCEEDED(EnsureContentTreeOwner()) &&
     NS_SUCCEEDED(mContentTreeOwner->QueryInterface(aIID, aSink)))
@@ -2090,7 +2083,7 @@ NS_IMETHODIMP nsXULWindow::SetXULBrowserWindow(nsIXULBrowserWindow * aXULBrowser
 // nsXULWindow: Accessors
 //*****************************************************************************
 
-PRUint32 nsXULWindow::AppUnitsPerDevPixel()
+PRInt32 nsXULWindow::AppUnitsPerDevPixel()
 {
   if (mWindow && mWindow->GetDeviceContext()) {
     mAppPerDev = mWindow->GetDeviceContext()->AppUnitsPerDevPixel();

@@ -233,7 +233,6 @@ Java_org_mozilla_gecko_GeckoAppShell_ ## name(JNIEnv *jenv, jclass jc, type1 one
 SHELL_WRAPPER0(nativeInit)
 SHELL_WRAPPER1(nativeRun, jstring)
 SHELL_WRAPPER1(notifyGeckoOfEvent, jobject)
-SHELL_WRAPPER0(processNextNativeEvent)
 SHELL_WRAPPER1(setSurfaceView, jobject)
 SHELL_WRAPPER0(onResume)
 SHELL_WRAPPER0(onLowMemory)
@@ -677,7 +676,6 @@ loadLibs(const char *apkName)
   GETFUNC(nativeInit);
   GETFUNC(nativeRun);
   GETFUNC(notifyGeckoOfEvent);
-  GETFUNC(processNextNativeEvent);
   GETFUNC(setSurfaceView);
   GETFUNC(onResume);
   GETFUNC(onLowMemory);

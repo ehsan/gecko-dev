@@ -43,6 +43,16 @@
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIDOMChromeWindow.h"
 #include "nsPIDOMWindow.h"
+#include "nsIDOMNode.h"
+#include "nsIDOMElement.h"
+#include "nsIDOMDocument.h"
+#include "nsIDOMText.h"
+#include "nsIDOMAttr.h"
+#include "nsIDOMNamedNodeMap.h"
+#include "nsIDOMNodeList.h"
+#include "nsIDOMKeyEvent.h"
+#include "nsIDOMHTMLImageElement.h"
+#include "nsIDOMHTMLOptionElement.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsDOMCID.h"
 #include "nsIServiceManager.h"
@@ -1005,7 +1015,7 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
 #ifdef JS_GC_ZEAL
   PRInt32 zeal = Preferences::GetInt(js_zeal_option_str, -1);
   PRInt32 frequency = Preferences::GetInt(js_zeal_frequency_str, JS_DEFAULT_ZEAL_FREQ);
-  PRBool compartment = Preferences::GetBool(js_zeal_compartment_str, PR_FALSE);
+  PRBool compartment = Preferences::GetBool(js_zeal_compartment_str, JS_FALSE);
   if (zeal >= 0)
     ::JS_SetGCZeal(context->mContext, (PRUint8)zeal, frequency, compartment);
 #endif
@@ -2963,6 +2973,25 @@ static JSFunctionSpec JProfFunctions[] = {
 
 #endif /* defined(MOZ_JPROF) */
 
+#ifdef MOZ_CALLGRIND
+static JSFunctionSpec CallgrindFunctions[] = {
+    {"startCallgrind",             js_StartCallgrind,          0, 0},
+    {"stopCallgrind",              js_StopCallgrind,           0, 0},
+    {"dumpCallgrind",              js_DumpCallgrind,           1, 0},
+    {nsnull,                       nsnull,                     0, 0}
+};
+#endif
+
+#ifdef MOZ_VTUNE
+static JSFunctionSpec VtuneFunctions[] = {
+    {"startVtune",                 js_StartVtune,              1, 0},
+    {"stopVtune",                  js_StopVtune,               0, 0},
+    {"pauseVtune",                 js_PauseVtune,              0, 0},
+    {"resumeVtune",                js_ResumeVtune,             0, 0},
+    {nsnull,                       nsnull,                     0, 0}
+};
+#endif
+
 #ifdef MOZ_TRACEVIS
 static JSFunctionSpec EthogramFunctions[] = {
     {"initEthogram",               js_InitEthogram,            0, 0},
@@ -2996,6 +3025,16 @@ nsJSContext::InitClasses(void *aGlobalObj)
 #ifdef MOZ_JPROF
   // Attempt to initialize JProf functions
   ::JS_DefineFunctions(mContext, globalObj, JProfFunctions);
+#endif
+
+#ifdef MOZ_CALLGRIND
+  // Attempt to initialize Callgrind functions
+  ::JS_DefineFunctions(mContext, globalObj, CallgrindFunctions);
+#endif
+
+#ifdef MOZ_VTUNE
+  // Attempt to initialize Vtune functions
+  ::JS_DefineFunctions(mContext, globalObj, VtuneFunctions);
 #endif
 
 #ifdef MOZ_TRACEVIS

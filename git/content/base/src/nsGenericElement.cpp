@@ -52,6 +52,7 @@
 #include "nsIDocument.h"
 #include "nsIDOMNodeList.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOMText.h"
 #include "nsIContentIterator.h"
 #include "nsEventListenerManager.h"
 #include "nsFocusManager.h"
@@ -130,7 +131,6 @@
 #include "nsCSSRuleProcessor.h"
 #include "nsRuleProcessorData.h"
 #include "nsPLDOMEvent.h"
-#include "nsTextNode.h"
 
 #ifdef MOZ_XUL
 #include "nsIXULDocument.h"
@@ -142,6 +142,7 @@
 #include "mozAutoDocUpdate.h"
 
 #include "nsCSSParser.h"
+#include "nsTPtrArray.h"
 #include "prprf.h"
 
 #include "nsSVGFeatures.h"
@@ -607,14 +608,13 @@ nsINode::Normalize()
                    "mutation events messed us up");
       if (!hasRemoveListeners ||
           (target && target->NodeType() == nsIDOMNode::TEXT_NODE)) {
-        nsTextNode* t = static_cast<nsTextNode*>(target);
         if (text->Is2b()) {
-          t->AppendTextForNormalize(text->Get2b(), text->GetLength(), PR_TRUE, node);
+          target->AppendText(text->Get2b(), text->GetLength(), PR_TRUE);
         }
         else {
           tmpStr.Truncate();
           text->AppendTo(tmpStr);
-          t->AppendTextForNormalize(tmpStr.get(), tmpStr.Length(), PR_TRUE, node);
+          target->AppendText(tmpStr.get(), tmpStr.Length(), PR_TRUE);
         }
       }
     }
@@ -756,7 +756,7 @@ nsINode::CompareDocPosition(nsINode* aOtherNode)
     return 0;
   }
 
-  nsAutoTArray<nsINode*, 32> parents1, parents2;
+  nsAutoTPtrArray<nsINode, 32> parents1, parents2;
 
   nsINode *node1 = aOtherNode, *node2 = this;
 
@@ -1059,9 +1059,8 @@ nsINode::AddEventListener(const nsAString& aType,
 
   nsEventListenerManager* listener_manager = GetListenerManager(PR_TRUE);
   NS_ENSURE_STATE(listener_manager);
-  listener_manager->AddEventListener(aType, aListener, aUseCapture,
-                                     aWantsUntrusted);
-  return NS_OK;
+  return listener_manager->AddEventListener(aType, aListener, aUseCapture,
+                                            aWantsUntrusted);
 }
 
 NS_IMETHODIMP
@@ -1126,6 +1125,26 @@ nsINode::DispatchDOMEvent(nsEvent* aEvent,
 {
   return nsEventDispatcher::DispatchDOMEvent(this, aEvent, aDOMEvent,
                                              aPresContext, aEventStatus);
+}
+
+nsresult
+nsINode::AddEventListenerByIID(nsIDOMEventListener *aListener,
+                               const nsIID& aIID)
+{
+  nsEventListenerManager* elm = GetListenerManager(PR_TRUE);
+  NS_ENSURE_STATE(elm);
+  return elm->AddEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
+}
+
+nsresult
+nsINode::RemoveEventListenerByIID(nsIDOMEventListener *aListener,
+                                  const nsIID& aIID)
+{
+  nsEventListenerManager* elm = GetListenerManager(PR_FALSE);
+  if (elm) {
+    elm->RemoveEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
+  }
+  return NS_OK;
 }
 
 nsEventListenerManager*
@@ -2033,13 +2052,6 @@ NS_IMETHODIMP
 nsNSElementTearoff::GetBoundingClientRect(nsIDOMClientRect** aResult)
 {
   return mContent->GetBoundingClientRect(aResult);
-}
-
-nsresult
-nsGenericElement::GetElementsByClassName(const nsAString& aClasses,
-                                         nsIDOMNodeList** aReturn)
-{
-  return nsContentUtils::GetElementsByClassName(this, aClasses, aReturn);
 }
 
 nsresult
@@ -3550,19 +3562,6 @@ nsINode::doRemoveChildAt(PRUint32 aIndex, PRBool aNotify,
   aKid->UnbindFromTree();
 
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsGenericElement::GetTextContent(nsAString &aTextContent)
-{
-  nsContentUtils::GetNodeTextContent(this, PR_TRUE, aTextContent);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsGenericElement::SetTextContent(const nsAString& aTextContent)
-{
-  return nsContentUtils::SetNodeTextContent(this, aTextContent, PR_FALSE);
 }
 
 /* static */

@@ -44,22 +44,15 @@
  *
  */
 
-/**
- * a11y telemetry
- */
-HISTOGRAM(A11Y_INSTANTIATED, 0, 1, 2, BOOLEAN, "has accessibility support been instantiated")
-
 HISTOGRAM(CYCLE_COLLECTOR, 1, 10000, 50, EXPONENTIAL, "Time spent on one cycle collection (ms)")
 HISTOGRAM(CYCLE_COLLECTOR_VISITED_REF_COUNTED, 1, 300000, 50, EXPONENTIAL, "Number of ref counted objects visited by the cycle collector")
 HISTOGRAM(CYCLE_COLLECTOR_VISITED_GCED, 1, 300000, 50, EXPONENTIAL, "Number of JS objects visited by the cycle collector")
 HISTOGRAM(CYCLE_COLLECTOR_COLLECTED, 1, 100000, 50, EXPONENTIAL, "Number of objects collected by the cycle collector")
 HISTOGRAM(TELEMETRY_PING, 1, 3000, 10, EXPONENTIAL, "Time taken to submit telemetry info (ms)")
 HISTOGRAM(TELEMETRY_SUCCESS, 0, 1, 2, BOOLEAN,  "Successful telemetry submission")
-HISTOGRAM(MEMORY_JS_COMPARTMENTS_SYSTEM, 1, 1000, 10, EXPONENTIAL, "Total JavaScript compartments used for add-ons and internals.")
-HISTOGRAM(MEMORY_JS_COMPARTMENTS_USER, 1, 1000, 10, EXPONENTIAL, "Total JavaScript compartments used for web pages")
 HISTOGRAM(MEMORY_JS_GC_HEAP, 1024, 512 * 1024, 10, EXPONENTIAL, "Memory used by the garbage-collected JavaScript heap (KB)")
 HISTOGRAM(MEMORY_RESIDENT, 32 * 1024, 1024 * 1024, 10, EXPONENTIAL, "Resident memory size (KB)")
-HISTOGRAM(MEMORY_STORAGE_SQLITE, 1024, 512 * 1024, 10, EXPONENTIAL, "Memory used by SQLite (KB)")
+HISTOGRAM(MEMORY_LAYOUT_ALL, 1024, 64 * 1024, 10, EXPONENTIAL, "Memory used by layout (KB)")
 HISTOGRAM(MEMORY_IMAGES_CONTENT_USED_UNCOMPRESSED, 1024, 1024 * 1024, 10, EXPONENTIAL, "Memory used for uncompressed, in-use content images (KB)")
 HISTOGRAM(MEMORY_HEAP_ALLOCATED, 1024, 1024 * 1024, 10, EXPONENTIAL, "Heap memory allocated (KB)")
 HISTOGRAM(MEMORY_EXPLICIT, 1024, 1024 * 1024, 10, EXPONENTIAL, "Explicit memory allocations (KB)")
@@ -90,10 +83,7 @@ HISTOGRAM(MAC_INITFONTLIST_TOTAL, 1, 30000, 10, EXPONENTIAL, "gfxMacPlatformFont
 #endif
 HISTOGRAM(SHUTDOWN_OK, 0, 1, 2, BOOLEAN, "Did the browser start after a successful shutdown")
 
-HISTOGRAM(IMAGE_DECODE_LATENCY, 50,  5000000, 100, EXPONENTIAL, "Time spent decoding an image chunk (us)")
-HISTOGRAM(IMAGE_DECODE_TIME,    50, 50000000, 100, EXPONENTIAL, "Time spent decoding an image (us)")
-HISTOGRAM(IMAGE_DECODE_ON_DRAW_LATENCY,  50, 50000000, 100, EXPONENTIAL, "Time from starting a decode to it showing up on the screen (us)")
-HISTOGRAM(IMAGE_DECODE_CHUNKS, 1,  500, 50, EXPONENTIAL, "Number of chunks per decode attempt")
+HISTOGRAM(IMAGE_DECODE_LATENCY, 50, 5000000, 100, EXPONENTIAL, "Time spent decoding an image chunk (us)")
 
 /**
  * Networking telemetry
@@ -128,41 +118,28 @@ HTTP_HISTOGRAMS(SUB, "subitem: ")
 #undef HTTP_HISTOGRAMS
 HISTOGRAM(FIND_PLUGINS, 1, 3000, 10, EXPONENTIAL, "Time spent scanning filesystem for plugins (ms)")
 HISTOGRAM(CHECK_JAVA_ENABLED, 1, 3000, 10, EXPONENTIAL, "Time spent checking if Java is enabled (ms)")
-
-/* Define 2 histograms: MOZ_SQLITE_(NAME)_MS and
- * MOZ_SQLITE_(NAME)_MAIN_THREAD_MS. These are meant to be used by
- * IOThreadAutoTimer which relies on _MAIN_THREAD_MS histogram being
- * "+ 1" away from MOZ_SQLITE_(NAME)_MS.
- */
-#define SQLITE_TIME_SPENT(NAME, DESC) \
-  HISTOGRAM(MOZ_SQLITE_ ## NAME ## _MS, 1, 3000, 10, EXPONENTIAL, DESC) \
-  HISTOGRAM(MOZ_SQLITE_ ## NAME ## _MAIN_THREAD_MS, 1, 3000, 10, EXPONENTIAL, DESC)
-
-#define SQLITE_TIME_PER_FILE(NAME, DESC) \
-  SQLITE_TIME_SPENT(OTHER_ ## NAME, DESC) \
-  SQLITE_TIME_SPENT(PLACES_ ## NAME, DESC) \
-  SQLITE_TIME_SPENT(COOKIES_ ## NAME, DESC) \
-  SQLITE_TIME_SPENT(URLCLASSIFIER_ ## NAME, DESC)
-
-SQLITE_TIME_SPENT(OPEN, "Time spent on SQLite open() (ms)")
-SQLITE_TIME_SPENT(TRUNCATE, "Time spent on SQLite truncate() (ms)")
-SQLITE_TIME_PER_FILE(READ, "Time spent on SQLite read() (ms)")
-SQLITE_TIME_PER_FILE(WRITE, "Time spent on SQLite write() (ms)")
-SQLITE_TIME_PER_FILE(SYNC, "Time spent on SQLite fsync() (ms)")
-#undef SQLITE_TIME_PER_FILE
-#undef SQLITE_TIME_SPENT
+HISTOGRAM(MOZ_SQLITE_OPEN, 1, 3000, 10, EXPONENTIAL, "Time spent on SQLite open() (ms)")
+HISTOGRAM(MOZ_SQLITE_READ_MS, 1, 3000, 10, EXPONENTIAL, "Time spent on SQLite read() (ms)")
 HISTOGRAM(MOZ_SQLITE_OTHER_READ_B, 1, 32768, 3, LINEAR, "SQLite read() (bytes)")
 HISTOGRAM(MOZ_SQLITE_PLACES_READ_B, 1, 32768, 3, LINEAR, "SQLite read() (bytes)")
 HISTOGRAM(MOZ_SQLITE_COOKIES_READ_B, 1, 32768, 3, LINEAR, "SQLite read() (bytes)")
 HISTOGRAM(MOZ_SQLITE_URLCLASSIFIER_READ_B, 1, 32768, 3, LINEAR, "SQLite read() (bytes)")
+HISTOGRAM(MOZ_SQLITE_WRITE_MS, 1, 3000, 10, EXPONENTIAL, "Time spent on SQLite write() (ms)")
 HISTOGRAM(MOZ_SQLITE_PLACES_WRITE_B, 1, 32768, 3, LINEAR, "SQLite write (bytes)")
 HISTOGRAM(MOZ_SQLITE_COOKIES_WRITE_B, 1, 32768, 3, LINEAR, "SQLite write (bytes)")
 HISTOGRAM(MOZ_SQLITE_URLCLASSIFIER_WRITE_B, 1, 32768, 3, LINEAR, "SQLite write (bytes)")
 HISTOGRAM(MOZ_SQLITE_OTHER_WRITE_B, 1, 32768, 3, LINEAR, "SQLite write (bytes)")
+HISTOGRAM(MOZ_SQLITE_TRUNCATE, 1, 3000, 10, EXPONENTIAL, "Time spent on SQLite truncate() (ms)")
+HISTOGRAM(MOZ_SQLITE_PLACES_SYNC, 1, 10000, 10, EXPONENTIAL, "Time spent on SQLite fsync() (ms)")
+HISTOGRAM(MOZ_SQLITE_COOKIES_SYNC, 1, 10000, 10, EXPONENTIAL, "Time spent on SQLite fsync() (ms)")
+HISTOGRAM(MOZ_SQLITE_URLCLASSIFIER_SYNC, 1, 10000, 10, EXPONENTIAL, "Time spent on SQLite fsync() (ms)")
+HISTOGRAM(MOZ_SQLITE_OTHER_SYNC, 1, 10000, 10, EXPONENTIAL, "Time spent on SQLite fsync() (ms)")
 HISTOGRAM(STARTUP_MEASUREMENT_ERRORS, 1, 3, 4, LINEAR, "Flags errors in startup calculation()")
 HISTOGRAM(NETWORK_DISK_CACHE_OPEN, 1, 10000, 10, EXPONENTIAL, "Time spent opening disk cache (ms)")
 HISTOGRAM(NETWORK_DISK_CACHE_TRASHRENAME, 1, 10000, 10, EXPONENTIAL, "Time spent renaming bad Cache to Cache.Trash (ms)")
 HISTOGRAM(NETWORK_DISK_CACHE_DELETEDIR, 1, 10000, 10, EXPONENTIAL, "Time spent deleting disk cache (ms)")
+HISTOGRAM(MOZ_SQLITE_MAIN_THREAD_WAIT_MS, 1, 3000, 10, EXPONENTIAL, "Time spent waiting on SQLite IO on main thread (ms)")
+HISTOGRAM(MOZ_SQLITE_OTHER_THREAD_WAIT_MS, 1, 3000, 10, EXPONENTIAL, "Time spent waiting on SQLite IO off main thread (ms)")
 
 /**
  * Places telemetry.

@@ -47,6 +47,7 @@
 #include "nsPIPlacesHistoryListenersNotifier.h"
 #include "nsIBrowserHistory.h"
 #include "nsIGlobalHistory.h"
+#include "nsIGlobalHistory3.h"
 #include "nsIDownloadHistory.h"
 
 #include "nsIPrefService.h"
@@ -96,6 +97,9 @@
 // Fired after autocomplete feedback has been updated.
 #define TOPIC_AUTOCOMPLETE_FEEDBACK_UPDATED "places-autocomplete-feedback-updated"
 #endif
+
+// Fired after frecency has been updated.
+#define TOPIC_FRECENCY_UPDATED "places-frecency-updated"
 
 // Fired after frecency has been updated.
 #define TOPIC_FRECENCY_UPDATED "places-frecency-updated"
@@ -167,6 +171,7 @@ class nsNavHistory : public nsSupportsWeakReference
                    , public nsINavHistoryService
                    , public nsIObserver
                    , public nsIBrowserHistory
+                   , public nsIGlobalHistory3
                    , public nsIDownloadHistory
                    , public nsICharsetResolver
                    , public nsPIPlacesDatabase
@@ -182,6 +187,7 @@ public:
 
   NS_DECL_NSINAVHISTORYSERVICE
   NS_DECL_NSIGLOBALHISTORY2
+  NS_DECL_NSIGLOBALHISTORY3
   NS_DECL_NSIDOWNLOADHISTORY
   NS_DECL_NSIBROWSERHISTORY
   NS_DECL_NSIOBSERVER
@@ -391,6 +397,19 @@ public:
   nsresult QueryStringToQueryArray(const nsACString& aQueryString,
                                    nsCOMArray<nsNavHistoryQuery>* aQueries,
                                    nsNavHistoryQueryOptions** aOptions);
+
+  // Import-friendly version of AddVisit.
+  // This method adds a page to history along with a single last visit.
+  // aLastVisitDate can be -1 if there is no last visit date to record.
+  //
+  // This is only for use by the import of history.dat on first-run of Places,
+  // which currently occurs if no places.sqlite file previously exists.
+  nsresult AddPageWithVisits(nsIURI *aURI,
+                             const nsString &aTitle,
+                             PRInt32 aVisitCount,
+                             PRInt32 aTransitionType,
+                             PRTime aFirstVisitDate,
+                             PRTime aLastVisitDate);
 
   // sets the schema version in the database to match SCHEMA_VERSION
   nsresult UpdateSchemaVersion();
@@ -843,6 +862,19 @@ protected:
   PRBool CheckIsRecentEvent(RecentEventHash* hashTable,
                             const nsACString& url);
   void ExpireNonrecentEvents(RecentEventHash* hashTable);
+
+  // redirect tracking. See GetRedirectFor for a description of how this works.
+  struct RedirectInfo {
+    nsCString mSourceURI;
+    PRTime mTimeCreated;
+    PRUint32 mType; // one of TRANSITION_REDIRECT_[TEMPORARY,PERMANENT]
+  };
+  typedef nsDataHashtable<nsCStringHashKey, RedirectInfo> RedirectHash;
+  RedirectHash mRecentRedirects;
+  static PLDHashOperator ExpireNonrecentRedirects(
+      nsCStringHashKey::KeyType aKey, RedirectInfo& aData, void* aUserArg);
+  PRBool GetRedirectFor(const nsACString& aDestination, nsACString& aSource,
+                        PRTime* aTime, PRUint32* aRedirectType);
 
   // Sessions tracking.
   PRInt64 mLastSessionID;

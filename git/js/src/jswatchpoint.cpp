@@ -192,11 +192,10 @@ WatchpointMap::markAllIteratively(JSTracer *trc)
 bool
 WatchpointMap::markIteratively(JSTracer *trc)
 {
-    JSContext *cx = trc->context;
     bool marked = false;
     for (Map::Range r = map.all(); !r.empty(); r.popFront()) {
         Map::Entry &e = r.front();
-        bool objectIsLive = !IsAboutToBeFinalized(cx, e.key.object);
+        bool objectIsLive = e.key.object->isMarked();
         if (objectIsLive || e.value.held) {
             if (!objectIsLive) {
                 MarkObject(trc, *e.key.object, "held Watchpoint object");
@@ -207,7 +206,7 @@ WatchpointMap::markIteratively(JSTracer *trc)
             JS_ASSERT(JSID_IS_STRING(id) || JSID_IS_INT(id));
             MarkId(trc, id, "WatchKey::id");
 
-            if (e.value.closure && IsAboutToBeFinalized(cx, e.value.closure)) {
+            if (e.value.closure && !e.value.closure->isMarked()) {
                 MarkObject(trc, *e.value.closure, "Watchpoint::closure");
                 marked = true;
             }
@@ -217,26 +216,25 @@ WatchpointMap::markIteratively(JSTracer *trc)
 }
 
 void
-WatchpointMap::sweepAll(JSContext *cx)
+WatchpointMap::sweepAll(JSRuntime *rt)
 {
-    JSRuntime *rt = cx->runtime;
     if (rt->gcCurrentCompartment) {
         if (WatchpointMap *wpmap = rt->gcCurrentCompartment->watchpointMap)
-            wpmap->sweep(cx);
+            wpmap->sweep();
     } else {
         for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c) {
-            if (WatchpointMap *wpmap = (*c)->watchpointMap)
-                wpmap->sweep(cx);
+            if ((*c)->watchpointMap)
+                (*c)->watchpointMap->sweep();
         }
     }
 }
 
 void
-WatchpointMap::sweep(JSContext *cx)
+WatchpointMap::sweep()
 {
     for (Map::Enum r(map); !r.empty(); r.popFront()) {
         Map::Entry &e = r.front();
-        if (IsAboutToBeFinalized(cx, e.key.object)) {
+        if (!e.key.object->isMarked()) {
             JS_ASSERT(!e.value.held);
             r.removeFront();
         }

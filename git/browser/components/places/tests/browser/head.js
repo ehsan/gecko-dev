@@ -1,7 +1,3 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
-
-Components.utils.import("resource://gre/modules/NetUtil.jsm");
 
 // We need to cache this before test runs...
 let cachedLeftPaneFolderIdGetter;
@@ -18,10 +14,10 @@ registerCleanupFunction(function(){
   }
 });
 
-function openLibrary(callback, aLeftPaneRoot) {
+
+function openLibrary(callback) {
   let library = window.openDialog("chrome://browser/content/places/places.xul",
-                                  "", "chrome,toolbar=yes,dialog=no,resizable",
-                                  aLeftPaneRoot);
+                                  "", "chrome,toolbar=yes,dialog=no,resizable");
   waitForFocus(function () {
     callback(library);
   }, library);
@@ -29,10 +25,4 @@ function openLibrary(callback, aLeftPaneRoot) {
   return library;
 }
 
-function waitForClearHistory(aCallback) {
-  Services.obs.addObserver(function observeCH(aSubject, aTopic, aData) {
-    Services.obs.removeObserver(observeCH, PlacesUtils.TOPIC_EXPIRATION_FINISHED);
-    aCallback();
-  }, PlacesUtils.TOPIC_EXPIRATION_FINISHED, false);
-  PlacesUtils.bhistory.removeAllPages();
-}
+Components.utils.import("resource://gre/modules/NetUtil.jsm");

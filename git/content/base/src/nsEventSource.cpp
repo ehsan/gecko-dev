@@ -57,7 +57,6 @@
 #include "nsICharsetConverterManager.h"
 #include "nsIChannelPolicy.h"
 #include "nsIContentSecurityPolicy.h"
-#include "nsContentUtils.h"
 #include "mozilla/Preferences.h"
 
 using namespace mozilla;

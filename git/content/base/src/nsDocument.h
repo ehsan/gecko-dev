@@ -87,6 +87,7 @@
 #include "pldhash.h"
 #include "nsAttrAndChildArray.h"
 #include "nsDOMAttributeMap.h"
+#include "nsContentUtils.h"
 #include "nsThreadUtils.h"
 #include "nsIDocumentViewer.h"
 #include "nsIDOMXPathNSResolver.h"
@@ -98,7 +99,7 @@
 #include "imgIRequest.h"
 #include "nsIDOMDOMImplementation.h"
 #include "nsIDOMTouchEvent.h"
-#include "nsDataHashtable.h"
+
 #include "TimeStamp.h"
 
 #define XML_DECLARATION_BITS_DECLARATION_EXISTS   (1 << 0)
@@ -522,7 +523,7 @@ public:
   virtual void NotifyPossibleTitleChange(PRBool aBoundTitleElement);
 
   virtual void SetDocumentURI(nsIURI* aURI);
-
+  
   /**
    * Set the principal responsible for this document.
    */
@@ -864,10 +865,7 @@ public:
 
   virtual void UnsuppressEventHandlingAndFireEvents(PRBool aFireEvents);
   
-  void DecreaseEventSuppression() {
-    --mEventsSuppressed;
-    MaybeRescheduleAnimationFrameNotifications();
-  }
+  void DecreaseEventSuppression() { --mEventsSuppressed; }
 
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsDocument,
                                                          nsIDocument)
@@ -1151,9 +1149,8 @@ private:
 
   // Revoke any pending notifications due to mozRequestAnimationFrame calls
   void RevokeAnimationFrameNotifications();
-  // Reschedule any notifications we need to handle
-  // mozRequestAnimationFrame, if it's OK to do so.
-  void MaybeRescheduleAnimationFrameNotifications();
+  // Reschedule any notifications we need to handle mozRequestAnimationFrame
+  void RescheduleAnimationFrameNotifications();
 
   // These are not implemented and not supported.
   nsDocument(const nsDocument& aOther);

@@ -102,10 +102,8 @@ public:
   /**
    * The components that make up GetDataSize().
    */      
-  virtual PRUint32 GetDecodedHeapSize() = 0;
-  virtual PRUint32 GetDecodedNonheapSize() = 0;
-  virtual PRUint32 GetDecodedOutOfProcessSize() = 0;
-  virtual PRUint32 GetSourceHeapSize() = 0;
+  virtual PRUint32 GetDecodedDataSize() = 0;
+  virtual PRUint32 GetSourceDataSize() = 0;
 
   // Mimetype translation
   enum eDecoderType {
@@ -158,7 +156,7 @@ protected:
    * Extended by child classes, if they have additional
    * conditions for being able to animate
    */
-  virtual bool ShouldAnimate() {
+  virtual PRBool ShouldAnimate() {
     return mAnimationConsumers > 0 && mAnimationMode != kDontAnimMode;
   }
 };

@@ -135,7 +135,7 @@
 #include "nsDisplayList.h"
 #include "nsRegion.h"
 #include "nsRenderingContext.h"
-#include "nsAutoLayoutPhase.h"
+
 #ifdef MOZ_REFLOW_PERF
 #include "nsFontMetrics.h"
 #endif
@@ -1432,15 +1432,6 @@ public:
     return PL_DHASH_NEXT;
   }
 
-  static PLDHashOperator StyleSizeEnumerator(PresShellPtrKey *aEntry,
-                                             void *userArg)
-  {
-    PresShell *aShell = static_cast<PresShell*>(aEntry->GetKey());
-    PRUint32 *val = (PRUint32*)userArg;
-    *val += aShell->StyleSet()->SizeOf();
-    return PL_DHASH_NEXT;
-  }
-
   static PRUint32
   EstimateShellsMemory(nsTHashtable<PresShellPtrKey>::Enumerator aEnumerator)
   {
@@ -1448,13 +1439,10 @@ public:
     sLiveShells->EnumerateEntries(aEnumerator, &result);
     return result;
   }
-
+                  
+                                  
   static PRInt64 SizeOfLayoutMemoryReporter() {
     return EstimateShellsMemory(LiveShellSizeEnumerator);
-  }
-
-  static PRInt64 SizeOfStyleMemoryReporter() {
-    return EstimateShellsMemory(StyleSizeEnumerator);
   }
 
 protected:
@@ -1666,18 +1654,11 @@ nsTHashtable<PresShell::PresShellPtrKey> *nsIPresShell::sLiveShells = 0;
 static PRBool sSynthMouseMove = PR_TRUE;
 
 NS_MEMORY_REPORTER_IMPLEMENT(LayoutPresShell,
-    "explicit/layout/arenas",
+    "explicit/layout/all",
     KIND_HEAP,
     UNITS_BYTES,
     PresShell::SizeOfLayoutMemoryReporter,
     "Memory used by layout PresShell, PresContext, and other related areas.")
-
-NS_MEMORY_REPORTER_IMPLEMENT(LayoutStyle,
-    "explicit/layout/styledata",
-    KIND_HEAP,
-    UNITS_BYTES,
-    PresShell::SizeOfStyleMemoryReporter,
-    "Memory used by the style system.")
 
 PresShell::PresShell()
   : mMouseLocation(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE)
@@ -1707,7 +1688,6 @@ PresShell::PresShell()
   static bool registeredReporter = false;
   if (!registeredReporter) {
     NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(LayoutPresShell));
-    NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(LayoutStyle));
     Preferences::AddBoolVarCache(&sSynthMouseMove,
                                  "layout.reflow.synthMouseMove", PR_TRUE);
     registeredReporter = true;
@@ -2986,12 +2966,6 @@ PresShell::FireResizeEvent()
 void
 PresShell::SetIgnoreFrameDestruction(PRBool aIgnore)
 {
-  if (mPresContext) {
-    // We need to destroy the image loaders first, as they won't be
-    // notified when frames are destroyed once this setting takes effect.
-    // (See bug 673984)
-    mPresContext->DestroyImageLoaders();
-  }
   mIgnoreFrameDestruction = aIgnore;
 }
 
@@ -6204,6 +6178,14 @@ PresShell::Paint(nsIView*           aViewToPaint,
 void
 nsIPresShell::SetCapturingContent(nsIContent* aContent, PRUint8 aFlags)
 {
+  // If SetCapturingContent() is called during dragging mouse for selection,
+  // we should abort current transaction.
+  nsRefPtr<nsFrameSelection> fs =
+    nsFrameSelection::GetMouseDownFrameSelection();
+  if (fs) {
+    fs->AbortDragForSelection();
+  }
+
   NS_IF_RELEASE(gCaptureInfo.mContent);
 
   // only set capturing content if allowed or the CAPTURE_IGNOREALLOWED flag
@@ -9005,13 +8987,7 @@ void ReflowCountMgr::PaintCount(const char*     aName,
                   NS_FONT_WEIGHT_NORMAL, NS_FONT_STRETCH_NORMAL, 0,
                   nsPresContext::CSSPixelsToAppUnits(11));
 
-      nsRefPtr<nsFontMetrics> fm;
-      aPresContext->DeviceContext()->GetMetricsFor(font,
-        // We have one frame, therefore we must have a root...
-        aPresContext->FrameManager()->GetRootFrame()->
-          GetStyleVisibility()->mLanguage,
-        aPresContext->GetUserFontSet(), *getter_AddRefs(fm));
-
+      nsRefPtr<nsFontMetrics> fm = aPresContext->GetMetricsFor(font);
       aRenderingContext->SetFont(fm);
       char buf[16];
       sprintf(buf, "%d", counter->mCount);
@@ -9411,16 +9387,6 @@ SetExternalResourceIsActive(nsIDocument* aDocument, void* aClosure)
   return PR_TRUE;
 }
 
-static void
-SetPluginIsActive(nsIContent* aContent, void* aClosure)
-{
-  nsIFrame *frame = aContent->GetPrimaryFrame();
-  nsIObjectFrame *objectFrame = do_QueryFrame(frame);
-  if (objectFrame) {
-    objectFrame->SetIsDocumentActive(*static_cast<PRBool*>(aClosure));
-  }
-}
-
 nsresult
 PresShell::SetIsActive(PRBool aIsActive)
 {
@@ -9436,15 +9402,11 @@ PresShell::SetIsActive(PRBool aIsActive)
   // Propagate state-change to my resource documents' PresShells
   mDocument->EnumerateExternalResources(SetExternalResourceIsActive,
                                         &aIsActive);
-  mDocument->EnumerateFreezableElements(SetPluginIsActive,
-                                        &aIsActive);
   nsresult rv = UpdateImageLockingState();
 #ifdef ACCESSIBILITY
-  if (aIsActive) {
-    nsAccessibilityService* accService = AccService();
-    if (accService) {
-      accService->PresShellActivated(this);
-    }
+  nsAccessibilityService* accService = AccService();
+  if (accService) {
+    accService->PresShellActivated(this);
   }
 #endif
   return rv;

@@ -98,20 +98,6 @@ nsStyleSet::nsStyleSet()
 {
 }
 
-size_t
-nsStyleSet::SizeOf() const
-{
-  size_t n = sizeof(*this);
-
-  for (int i = 0; i < eSheetTypeCount; i++) {
-    if (mRuleProcessors[i]) {
-      n += mRuleProcessors[i]->SizeOf();
-    }
-  }
-
-  return n;
-}
-
 nsresult
 nsStyleSet::Init(nsPresContext *aPresContext)
 {

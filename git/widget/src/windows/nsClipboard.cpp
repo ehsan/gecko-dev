@@ -70,9 +70,6 @@
 #include "nsNetUtil.h"
 #include "nsEscape.h"
 
-#ifdef PR_LOGGING
-PRLogModuleInfo* gWin32ClipboardLog = nsnull;
-#endif
 
 // oddly, this isn't in the MSVC headers anywhere.
 UINT nsClipboard::CF_HTML = ::RegisterClipboardFormatW(L"HTML Format");
@@ -85,12 +82,6 @@ UINT nsClipboard::CF_HTML = ::RegisterClipboardFormatW(L"HTML Format");
 //-------------------------------------------------------------------------
 nsClipboard::nsClipboard() : nsBaseClipboard()
 {
-#ifdef PR_LOGGING
-  if (!gWin32ClipboardLog) {
-    gWin32ClipboardLog = PR_NewLogModule("nsClipboard");
-  }
-#endif
-
   mIgnoreEmptyNotification = PR_FALSE;
   mWindow         = nsnull;
 }
@@ -350,40 +341,39 @@ static void DisplayErrCode(HRESULT hres)
 {
 #if defined(DEBUG_rods) || defined(DEBUG_pinkerton)
   if (hres == E_INVALIDARG) {
-    PR_LOG(gWin32ClipboardLog, PR_LOG_ALWAYS, ("E_INVALIDARG\n"));
+    printf("E_INVALIDARG\n");
   } else
   if (hres == E_UNEXPECTED) {
-    PR_LOG(gWin32ClipboardLog, PR_LOG_ALWAYS, ("E_UNEXPECTED\n"));
+    printf("E_UNEXPECTED\n");
   } else
   if (hres == E_OUTOFMEMORY) {
-    PR_LOG(gWin32ClipboardLog, PR_LOG_ALWAYS, ("E_OUTOFMEMORY\n"));
+    printf("E_OUTOFMEMORY\n");
   } else
   if (hres == DV_E_LINDEX ) {
-    PR_LOG(gWin32ClipboardLog, PR_LOG_ALWAYS, ("DV_E_LINDEX\n"));
+    printf("DV_E_LINDEX\n");
   } else
   if (hres == DV_E_FORMATETC) {
-    PR_LOG(gWin32ClipboardLog, PR_LOG_ALWAYS, ("DV_E_FORMATETC\n"));
+    printf("DV_E_FORMATETC\n");
   }  else
   if (hres == DV_E_TYMED) {
-    PR_LOG(gWin32ClipboardLog, PR_LOG_ALWAYS, ("DV_E_TYMED\n"));
+    printf("DV_E_TYMED\n");
   }  else
   if (hres == DV_E_DVASPECT) {
-    PR_LOG(gWin32ClipboardLog, PR_LOG_ALWAYS, ("DV_E_DVASPECT\n"));
+    printf("DV_E_DVASPECT\n");
   }  else
   if (hres == OLE_E_NOTRUNNING) {
-    PR_LOG(gWin32ClipboardLog, PR_LOG_ALWAYS, ("OLE_E_NOTRUNNING\n"));
+    printf("OLE_E_NOTRUNNING\n");
   }  else
   if (hres == STG_E_MEDIUMFULL) {
-    PR_LOG(gWin32ClipboardLog, PR_LOG_ALWAYS, ("STG_E_MEDIUMFULL\n"));
+    printf("STG_E_MEDIUMFULL\n");
   }  else
   if (hres == DV_E_CLIPFORMAT) {
-    PR_LOG(gWin32ClipboardLog, PR_LOG_ALWAYS, ("DV_E_CLIPFORMAT\n"));
+    printf("DV_E_CLIPFORMAT\n");
   }  else
   if (hres == S_OK) {
-    PR_LOG(gWin32ClipboardLog, PR_LOG_ALWAYS, ("S_OK\n"));
+    printf("S_OK\n");
   } else {
-    PR_LOG(gWin32ClipboardLog, PR_LOG_ALWAYS, 
-           ("****** DisplayErrCode 0x%X\n", hres));
+    printf("****** DisplayErrCode 0x%X\n", hres);
   }
 #endif
 }
@@ -550,8 +540,7 @@ nsresult nsClipboard::GetNativeDataOffClipboard(IDataObject * aDataObject, UINT 
       case TYMED_GDI: 
         {
 #ifdef DEBUG
-          PR_LOG(gWin32ClipboardLog, PR_LOG_ALWAYS, 
-                 ("*********************** TYMED_GDI\n"));
+          printf("*********************** TYMED_GDI\n");
 #endif
         } break;
 

@@ -75,10 +75,6 @@ const PRIVACY_FULL = 2;
 const NOTIFY_WINDOWS_RESTORED = "sessionstore-windows-restored";
 const NOTIFY_BROWSER_STATE_RESTORED = "sessionstore-browser-state-restored";
 
-// Maximum number of tabs to restore simultaneously. Previously controlled by
-// the browser.sessionstore.max_concurrent_tabs pref.
-const MAX_CONCURRENT_TAB_RESTORES = 3;
-
 // global notifications observed
 const OBSERVING = [
   "domwindowopened", "domwindowclosed",
@@ -196,7 +192,7 @@ SessionStoreService.prototype = {
 
   // During the initial restore and setBrowserState calls tracks the number of
   // windows yet to be restored
-  _restoreCount: -1,
+  _restoreCount: 0,
 
   // whether a setBrowserState call is in progress
   _browserSetState: false,
@@ -233,16 +229,13 @@ SessionStoreService.prototype = {
   _tabsToRestore: { visible: [], hidden: [] },
   _tabsRestoringCount: 0,
 
-  // overrides MAX_CONCURRENT_TAB_RESTORES and _restoreHiddenTabs when true
-  _restoreOnDemand: false,
-
+  // number of tabs to restore concurrently, pref controlled.
+  _maxConcurrentTabRestores: null,
+  
   // whether to restore hidden tabs or not, pref controlled.
   _restoreHiddenTabs: null,
 
-  // The state from the previous session (after restoring pinned tabs). This
-  // state is persisted and passed through to the next session during an app
-  // restart to make the third party add-on warning not trash the deferred
-  // session
+  // The state from the previous session (after restoring pinned tabs)
   _lastSessionState: null,
 
   // Whether we've been initialized
@@ -285,10 +278,7 @@ SessionStoreService.prototype = {
     var pbs = Cc["@mozilla.org/privatebrowsing;1"].
               getService(Ci.nsIPrivateBrowsingService);
     this._inPrivateBrowsing = pbs.privateBrowsingEnabled;
-
-    // Do pref migration before we store any values and start observing changes
-    this._migratePrefs();
-
+    
     // observe prefs changes so we can modify stored data to match
     this._prefBranch.addObserver("sessionstore.max_tabs_undo", this, true);
     this._prefBranch.addObserver("sessionstore.max_windows_undo", this, true);
@@ -297,9 +287,9 @@ SessionStoreService.prototype = {
     this._sessionhistory_max_entries =
       this._prefBranch.getIntPref("sessionhistory.max_entries");
 
-    this._restoreOnDemand =
-      this._prefBranch.getBoolPref("sessionstore.restore_on_demand");
-    this._prefBranch.addObserver("sessionstore.restore_on_demand", this, true);
+    this._maxConcurrentTabRestores =
+      this._prefBranch.getIntPref("sessionstore.max_concurrent_tabs");
+    this._prefBranch.addObserver("sessionstore.max_concurrent_tabs", this, true);
 
     this._restoreHiddenTabs =
       this._prefBranch.getBoolPref("sessionstore.restore_hidden_tabs");
@@ -341,10 +331,6 @@ SessionStoreService.prototype = {
             this._lastSessionState = remainingState;
         }
         else {
-          // Get the last deferred session in case the user still wants to
-          // restore it
-          this._lastSessionState = this._initialState.lastSessionState;
-
           let lastSessionCrashed =
             this._initialState.session && this._initialState.session.state &&
             this._initialState.session.state == STATE_RUNNING_STR;
@@ -371,9 +357,6 @@ SessionStoreService.prototype = {
           delete this._initialState.windows[0].hidden;
           // Since nothing is hidden in the first window, it cannot be a popup
           delete this._initialState.windows[0].isPopup;
-          // We don't want to minimize and then open a window at startup.
-          if (this._initialState.windows[0].sizemode == "minimized")
-            this._initialState.windows[0].sizemode = "normal";
         }
       }
       catch (ex) { debug("The session file is invalid: " + ex); }
@@ -450,19 +433,6 @@ SessionStoreService.prototype = {
     }
   },
 
-  _migratePrefs: function sss__migratePrefs() {
-    // Added For Firefox 8
-    // max_concurrent_tabs is going away. We're going to hard code a max value
-    // (MAX_CONCURRENT_TAB_RESTORES) and start using a boolean pref restore_on_demand.
-    if (this._prefBranch.prefHasUserValue("sessionstore.max_concurrent_tabs") &&
-        !this._prefBranch.prefHasUserValue("sessionstore.restore_on_demand")) {
-      let maxConcurrentTabs =
-        this._prefBranch.getIntPref("sessionstore.max_concurrent_tabs");
-      this._prefBranch.setBoolPref("sessionstore.restore_on_demand", maxConcurrentTabs == 0);
-      this._prefBranch.clearUserPref("sessionstore.max_concurrent_tabs");
-    }
-  },
-
   /**
    * Handle notifications
    */
@@ -518,12 +488,6 @@ SessionStoreService.prototype = {
         this._prefBranch.setBoolPref("sessionstore.resume_session_once",
                                      this._resume_session_once_on_shutdown);
       }
-
-      if (aData != "restart") {
-        // Throw away the previous session on shutdown
-        this._lastSessionState = null;
-      }
-
       this._loadState = STATE_QUITTING; // just to be sure
       this._uninit();
       break;
@@ -652,9 +616,9 @@ SessionStoreService.prototype = {
           this._clearDisk();
         this.saveState(true);
         break;
-      case "sessionstore.restore_on_demand":
-        this._restoreOnDemand =
-          this._prefBranch.getBoolPref("sessionstore.restore_on_demand");
+      case "sessionstore.max_concurrent_tabs":
+        this._maxConcurrentTabRestores =
+          this._prefBranch.getIntPref("sessionstore.max_concurrent_tabs");
         break;
       case "sessionstore.restore_hidden_tabs":
         this._restoreHiddenTabs =
@@ -676,16 +640,15 @@ SessionStoreService.prototype = {
         let quitting = aSubject.data;
         if (quitting) {
           // save the backed up state with session set to stopped,
-          // otherwise resuming next time would look like a crash.
-          // Whether we restore the session upon resume will be determined by the
-          // usual startup prefs, so we will have the same behavior regardless of
-          // whether the browser was closed while in normal or private browsing mode.
+          // otherwise resuming next time would look like a crash
           if ("_stateBackup" in this) {
             var oState = this._stateBackup;
             oState.session = { state: STATE_STOPPED_STR };
 
             this._saveStateObject(oState);
           }
+          // make sure to restore the non-private session upon resuming
+          this._prefBranch.setBoolPref("sessionstore.resume_session_once", true);
         }
         else
           this._inPrivateBrowsing = false;
@@ -1895,7 +1858,9 @@ SessionStoreService.prototype = {
       catch (ex) { debug(ex); }
     }
 
-    entry.docIdentifier = aEntry.BFCacheEntry.ID;
+    if (aEntry.docIdentifier) {
+      entry.docIdentifier = aEntry.docIdentifier;
+    }
 
     if (aEntry.stateData != null) {
       entry.structuredCloneState = aEntry.stateData.getDataAsBase64();
@@ -1947,15 +1912,7 @@ SessionStoreService.prototype = {
     let hasContent = false;
 
     for (let i = 0; i < aHistory.count; i++) {
-      let uri;
-      try {
-        uri = aHistory.getEntryAtIndex(i, false).URI;
-      }
-      catch (ex) {
-        // Chances are that this is getEntryAtIndex throwing, as seen in bug 669196.
-        // We've already asserted in _collectTabData, so we won't show that again.
-        continue;
-      }
+      let uri = aHistory.getEntryAtIndex(i, false).URI;
       // sessionStorage is saved per origin (cf. nsDocShell::GetSessionStorageForURI)
       let domain = uri.spec;
       try {
@@ -2926,7 +2883,7 @@ SessionStoreService.prototype = {
       _this.restoreHistory(aWindow, aTabs, aTabData, aIdMap, aDocIdentMap);
     }, 0);
 
-    // This could cause us to ignore MAX_CONCURRENT_TAB_RESTORES a bit, but
+    // This could cause us to ignore the max_concurrent_tabs pref a bit, but
     // it ensures each window will have its selected tab loaded.
     if (aWindow.gBrowser.selectedBrowser == browser) {
       this.restoreTab(tab);
@@ -3003,6 +2960,7 @@ SessionStoreService.prototype = {
       browser.__SS_restore_data = tabData.entries[activeIndex] || {};
       browser.__SS_restore_pageStyle = tabData.pageStyle || "";
       browser.__SS_restore_tab = aTab;
+      browser.__SS_restore_docIdentifier = curSHEntry.docIdentifier;
 
       didStartLoad = true;
       try {
@@ -3062,8 +3020,8 @@ SessionStoreService.prototype = {
       return;
 
     // If it's not possible to restore anything, then just bail out.
-    if (this._restoreOnDemand ||
-        this._tabsRestoringCount >= MAX_CONCURRENT_TAB_RESTORES)
+    if (this._maxConcurrentTabRestores >= 0 &&
+        this._tabsRestoringCount >= this._maxConcurrentTabRestores)
       return;
 
     // Look in visible, then hidden
@@ -3155,16 +3113,24 @@ SessionStoreService.prototype = {
     }
 
     if (aEntry.docIdentifier) {
-      // If we have a serialized document identifier, try to find an SHEntry
-      // which matches that doc identifier and adopt that SHEntry's
-      // BFCacheEntry.  If we don't find a match, insert shEntry as the match
-      // for the document identifier.
-      let matchingEntry = aDocIdentMap[aEntry.docIdentifier];
-      if (!matchingEntry) {
-        aDocIdentMap[aEntry.docIdentifier] = shEntry;
+      // Get a new document identifier for this entry to ensure that history
+      // entries after a session restore are considered to have different
+      // documents from the history entries before the session restore.
+      // Document identifiers are 64-bit ints, so JS will loose precision and
+      // start assigning all entries the same doc identifier if these ever get
+      // large enough.
+      //
+      // It's a potential security issue if document identifiers aren't
+      // globally unique, but shEntry.setUniqueDocIdentifier() below guarantees
+      // that we won't re-use a doc identifier within a given instance of the
+      // application.
+      let ident = aDocIdentMap[aEntry.docIdentifier];
+      if (!ident) {
+        shEntry.setUniqueDocIdentifier();
+        aDocIdentMap[aEntry.docIdentifier] = shEntry.docIdentifier;
       }
       else {
-        shEntry.adoptBFCacheEntry(matchingEntry);
+        shEntry.docIdentifier = ident;
       }
     }
 
@@ -3300,12 +3266,19 @@ SessionStoreService.prototype = {
       aBrowser.markupDocumentViewer.authorStyleDisabled = selectedPageStyle == "_nostyle";
     }
 
+    if (aBrowser.__SS_restore_docIdentifier) {
+      let sh = aBrowser.webNavigation.sessionHistory;
+      sh.getEntryAtIndex(sh.index, false).QueryInterface(Ci.nsISHEntry).
+         docIdentifier = aBrowser.__SS_restore_docIdentifier;
+    }
+
     // notify the tabbrowser that this document has been completely restored
     this._sendTabRestoredNotification(aBrowser.__SS_restore_tab);
 
     delete aBrowser.__SS_restore_data;
     delete aBrowser.__SS_restore_pageStyle;
     delete aBrowser.__SS_restore_tab;
+    delete aBrowser.__SS_restore_docIdentifier;
   },
 
   /**
@@ -3502,10 +3475,6 @@ SessionStoreService.prototype = {
     };
     if (this._recentCrashes)
       oState.session.recentCrashes = this._recentCrashes;
-
-    // Persist the last session if we deferred restoring it
-    if (this._lastSessionState)
-      oState.lastSessionState = this._lastSessionState;
 
     this._saveStateObject(oState);
   },
@@ -3992,23 +3961,16 @@ SessionStoreService.prototype = {
   },
 
   _sendRestoreCompletedNotifications: function sss_sendRestoreCompletedNotifications() {
-    // not all windows restored, yet
-    if (this._restoreCount > 1) {
+    if (this._restoreCount) {
       this._restoreCount--;
-      return;
+      if (this._restoreCount == 0) {
+        // This was the last window restored at startup, notify observers.
+        Services.obs.notifyObservers(null,
+          this._browserSetState ? NOTIFY_BROWSER_STATE_RESTORED : NOTIFY_WINDOWS_RESTORED,
+          "");
+        this._browserSetState = false;
+      }
     }
-
-    // observers were already notified
-    if (this._restoreCount == -1)
-      return;
-
-    // This was the last window restored at startup, notify observers.
-    Services.obs.notifyObservers(null,
-      this._browserSetState ? NOTIFY_BROWSER_STATE_RESTORED : NOTIFY_WINDOWS_RESTORED,
-      "");
-
-    this._browserSetState = false;
-    this._restoreCount = -1;
   },
 
   /**

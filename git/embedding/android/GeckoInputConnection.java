@@ -509,14 +509,9 @@ public class GeckoInputConnection
 
     public void notifyTextChange(InputMethodManager imm, String text,
                                  int start, int oldEnd, int newEnd) {
-        // Log.d("GeckoAppShell", String.format("IME: notifyTextChange: text=%s s=%d ne=%d oe=%d",
-        //                                      text, start, newEnd, oldEnd));
+        //Log.d("GeckoAppJava", "IME: notifyTextChange");
 
-        mNumPendingChanges = Math.max(mNumPendingChanges - 1, 0);
-
-        // If there are pending changes, that means this text is not the most up-to-date version
-        // and we'll step on ourselves if we change the editable right now.
-        if (mNumPendingChanges == 0 && !text.contentEquals(GeckoApp.surfaceView.mEditable))
+        if (!text.contentEquals(GeckoApp.surfaceView.mEditable))
             GeckoApp.surfaceView.setEditable(text);
 
         if (mUpdateRequest == null)
@@ -542,7 +537,7 @@ public class GeckoInputConnection
 
     public void notifySelectionChange(InputMethodManager imm,
                                       int start, int end) {
-        // Log.d("GeckoAppJava", String.format("IME: notifySelectionChange: s=%d e=%d", start, end));
+        //Log.d("GeckoAppJava", "IME: notifySelectionChange");
 
         if (mComposing)
             imm.updateSelection(GeckoApp.surfaceView,
@@ -552,11 +547,6 @@ public class GeckoInputConnection
                 mCompositionStart + mComposingText.length());
         else
             imm.updateSelection(GeckoApp.surfaceView, start, end, -1, -1);
-
-        // We only change the selection if we are relatively sure that the text we have is
-        // up-to-date.  Bail out if we are stil expecting changes.
-        if (mNumPendingChanges > 0)
-            return;
 
         int maxLen = GeckoApp.surfaceView.mEditable.length();
         Selection.setSelection(GeckoApp.surfaceView.mEditable, 
@@ -568,16 +558,11 @@ public class GeckoInputConnection
         mComposing = false;
         mComposingText = "";
         mUpdateRequest = null;
-        mNumPendingChanges = 0;
     }
 
     // TextWatcher
     public void onTextChanged(CharSequence s, int start, int before, int count)
     {
-        // Log.d("GeckoAppShell", String.format("IME: onTextChanged: t=%s s=%d b=%d l=%d",
-        //                                      s, start, before, count));
-
-        mNumPendingChanges++;
         GeckoAppShell.sendEventToGecko(
             new GeckoEvent(GeckoEvent.IME_SET_SELECTION, start, before));
 
@@ -626,8 +611,6 @@ public class GeckoInputConnection
     int mCompositionSelStart;
     // Length of fake selection
     int mCompositionSelLen;
-    // Number of in flight changes
-    int mNumPendingChanges;
 
     ExtractedTextRequest mUpdateRequest;
     final ExtractedText mUpdateExtract = new ExtractedText();

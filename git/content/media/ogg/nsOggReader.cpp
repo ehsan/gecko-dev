@@ -194,17 +194,14 @@ nsresult nsOggReader::ReadMetadata(nsVideoInfo* aInfo)
     int serial = ogg_page_serialno(&page);
     nsOggCodecState* codecState = 0;
 
-    if (!ogg_page_bos(&page)) {
-      // We've encountered a non Beginning Of Stream page. No more BOS pages
-      // can follow in this Ogg segment, so there will be no other bitstreams
-      // in the Ogg (unless it's invalid).
-      readAllBOS = PR_TRUE;
-    } else if (!mCodecStates.Get(serial, nsnull)) {
-      // We've not encountered a stream with this serial number before. Create
-      // an nsOggCodecState to demux it, and map that to the nsOggCodecState
-      // in mCodecStates.
+    if (ogg_page_bos(&page)) {
+      NS_ASSERTION(!readAllBOS, "We shouldn't encounter another BOS page");
       codecState = nsOggCodecState::Create(&page);
-      DebugOnly<PRBool> r = mCodecStates.Put(serial, codecState);
+
+#ifdef DEBUG
+      PRBool r =
+#endif
+      mCodecStates.Put(serial, codecState);
       NS_ASSERTION(r, "Failed to insert into mCodecStates");
       bitstreams.AppendElement(codecState);
       mKnownStreams.AppendElement(serial);
@@ -230,6 +227,11 @@ nsresult nsOggReader::ReadMetadata(nsVideoInfo* aInfo)
       {
         mSkeletonState = static_cast<nsSkeletonState*>(codecState);
       }
+    } else {
+      // We've encountered the a non Beginning Of Stream page. No more
+      // BOS pages can follow in this Ogg segment, so there will be no other
+      // bitstreams in the Ogg (unless it's invalid).
+      readAllBOS = PR_TRUE;
     }
 
     mCodecStates.Get(serial, &codecState);
@@ -326,7 +328,7 @@ nsresult nsOggReader::ReadMetadata(nsVideoInfo* aInfo)
     if (mDecoder->GetStateMachine()->GetDuration() == -1 &&
         mDecoder->GetStateMachine()->GetState() != nsDecoderStateMachine::DECODER_STATE_SHUTDOWN &&
         stream->GetLength() >= 0 &&
-        mDecoder->GetStateMachine()->IsSeekable())
+        mDecoder->GetStateMachine()->GetSeekable())
     {
       // We didn't get a duration from the index or a Content-Duration header.
       // Seek to the end of file to find the end time.
@@ -367,7 +369,7 @@ nsresult nsOggReader::DecodeVorbis(ogg_packet* aPacket) {
   ogg_int64_t endSample = aPacket->granulepos;
   while ((samples = vorbis_synthesis_pcmout(&mVorbisState->mDsp, &pcm)) > 0) {
     mVorbisState->ValidateVorbisPacketSamples(aPacket, samples);
-    nsAutoArrayPtr<AudioDataValue> buffer(new AudioDataValue[samples * channels]);
+    nsAutoArrayPtr<SoundDataValue> buffer(new SoundDataValue[samples * channels]);
     for (PRUint32 j = 0; j < channels; ++j) {
       VorbisPCMValue* channel = pcm[j];
       for (PRUint32 i = 0; i < PRUint32(samples); ++i) {
@@ -377,7 +379,7 @@ nsresult nsOggReader::DecodeVorbis(ogg_packet* aPacket) {
 
     PRInt64 duration = mVorbisState->Time((PRInt64)samples);
     PRInt64 startTime = mVorbisState->Time(endSample - samples);
-    mAudioQueue.Push(new AudioData(mPageOffset,
+    mAudioQueue.Push(new SoundData(mPageOffset,
                                    startTime,
                                    duration,
                                    samples,

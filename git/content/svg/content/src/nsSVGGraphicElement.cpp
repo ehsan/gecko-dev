@@ -50,7 +50,6 @@
 #include "nsSVGUtils.h"
 #include "nsDOMError.h"
 #include "nsSVGRect.h"
-#include "nsContentUtils.h"
 
 //----------------------------------------------------------------------
 // nsISupports methods

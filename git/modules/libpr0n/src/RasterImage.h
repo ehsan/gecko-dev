@@ -64,7 +64,6 @@
 #include "imgFrame.h"
 #include "nsThreadUtils.h"
 #include "DiscardTracker.h"
-#include "mozilla/TimeStamp.h"
 #ifdef DEBUG
   #include "imgIContainerDebug.h"
 #endif
@@ -149,7 +148,7 @@ namespace imagelib {
 class imgDecodeWorker;
 class Decoder;
 
-class RasterImage : public Image
+class RasterImage : public mozilla::imagelib::Image
                   , public nsITimerCallback
                   , public nsIProperties
                   , public nsSupportsWeakReference
@@ -210,10 +209,8 @@ public:
   /* The total number of frames in this image. */
   PRUint32 GetNumFrames();
 
-  virtual PRUint32 GetDecodedHeapSize();
-  virtual PRUint32 GetDecodedNonheapSize();
-  virtual PRUint32 GetDecodedOutOfProcessSize();
-  virtual PRUint32 GetSourceHeapSize();
+  PRUint32 GetDecodedDataSize();
+  PRUint32 GetSourceDataSize();
 
   /* Triggers discarding. */
   void Discard(bool force = false);
@@ -385,7 +382,7 @@ private:
   imgFrame* GetCurrentDrawableImgFrame();
   PRUint32 GetCurrentImgFrameIndex() const;
   
-  inline void EnsureAnimExists()
+  inline Anim* ensureAnimExists()
   {
     if (!mAnim) {
 
@@ -403,6 +400,7 @@ private:
       // is acceptable for the moment.
       LockImage();
     }
+    return mAnim;
   }
   
   /** Function for doing the frame compositing of animations
@@ -533,7 +531,6 @@ private: // data
   nsresult WriteToDecoder(const char *aBuffer, PRUint32 aCount);
   nsresult DecodeSomeData(PRUint32 aMaxBytes);
   PRBool   IsDecodeFinished();
-  TimeStamp mDrawStartTime;
 
   // Decoder shutdown
   enum eShutdownIntent {
@@ -546,13 +543,13 @@ private: // data
 
   // Helpers
   void DoError();
-  bool CanDiscard();
-  bool CanForciblyDiscard();
-  bool DiscardingActive();
-  bool StoringSourceData();
+  PRBool CanDiscard();
+  PRBool CanForciblyDiscard();
+  PRBool DiscardingActive();
+  PRBool StoringSourceData();
 
 protected:
-  bool ShouldAnimate();
+  PRBool ShouldAnimate();
 };
 
 // XXXdholbert These helper classes should move to be inside the
@@ -575,7 +572,6 @@ class imgDecodeWorker : public nsRunnable
 
   private:
     nsWeakPtr mContainer;
-    TimeDuration mDecodeTime; // the default constructor initializes to 0
 };
 
 // Asynchronous Decode Requestor

@@ -74,11 +74,6 @@ struct matrix {
 	float m[3][3];
 	bool invalid;
 };
-
-struct qcms_modular_transform;
-
-typedef void (*transform_module_fn_t)(struct qcms_modular_transform *transform, float *src, float *dest, size_t length);
-
 struct qcms_modular_transform {
 	struct matrix matrix;
 	float tx, ty, tz;
@@ -104,7 +99,7 @@ struct qcms_modular_transform {
 	size_t output_gamma_lut_g_length;
 	size_t output_gamma_lut_b_length;
 
-	transform_module_fn_t transform_module_fn;
+	void (*transform_module_fn)(struct qcms_modular_transform *transform, float *src, float *dest, size_t length);	
 	struct qcms_modular_transform *next_transform;
 };
 

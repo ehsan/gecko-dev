@@ -47,8 +47,6 @@
 #include "nsIDOMXULPopupElement.h"
 #include "nsIDOMXULMultSelectCntrlEl.h"
 #include "nsIDOMXULSelectCntrlItemEl.h"
-#include "nsIDOMNodeList.h"
-#include "nsComponentManagerUtils.h"
 
 using namespace mozilla::a11y;
 
@@ -97,10 +95,13 @@ nsXULColumnItemAccessible::NativeState()
   return states::READONLY;
 }
 
-PRUint8
-nsXULColumnItemAccessible::ActionCount()
+NS_IMETHODIMP
+nsXULColumnItemAccessible::GetNumActions(PRUint8 *aNumActions)
 {
-  return 1;
+  NS_ENSURE_ARG_POINTER(aNumActions);
+
+  *aNumActions = 1;
+  return NS_OK;
 }
 
 NS_IMETHODIMP

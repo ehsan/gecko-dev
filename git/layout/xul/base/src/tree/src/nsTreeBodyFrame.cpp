@@ -1609,10 +1609,7 @@ nsTreeBodyFrame::GetItemWithinCellAt(nscoord aX, const nsRect& aCellRect,
 
   AdjustForBorderPadding(textContext, textRect);
 
-  nsRefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForStyleContext(textContext,
-                                               getter_AddRefs(fm));
-  rc->SetFont(fm);
+  nsLayoutUtils::SetFontFromStyle(rc, textContext);
 
   AdjustForCellText(cellText, aRowIndex, aColumn, *rc, textRect);
 
@@ -1739,10 +1736,7 @@ nsTreeBodyFrame::GetCellWidth(PRInt32 aRow, nsTreeColumn* aCol,
   // Get the borders and padding for the text.
   GetBorderPadding(textContext, bp);
 
-  nsRefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForStyleContext(textContext,
-                                               getter_AddRefs(fm));
-  aRenderingContext->SetFont(fm);
+  nsLayoutUtils::SetFontFromStyle(aRenderingContext, textContext);
 
   // Get the width of the text itself
   nscoord width =

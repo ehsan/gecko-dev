@@ -249,7 +249,7 @@ nsFrameMessageManager::SendSyncMessage()
       NS_ENSURE_TRUE(dataArray, NS_ERROR_OUT_OF_MEMORY);
 
       for (PRUint32 i = 0; i < len; ++i) {
-        if (retval[i].IsEmpty())
+        if (!retval[i].Length())
           continue;
 
         jsval ret = JSVAL_VOID;
@@ -822,6 +822,7 @@ bool SendAsyncMessageToChildProcess(void* aCallbackData,
                                     const nsAString& aMessage,
                                     const nsAString& aJSON)
 {
+#if 0 // Need code for multiple content processes
   mozilla::dom::ContentParent* cp =
     mozilla::dom::ContentParent::GetSingleton(PR_FALSE);
   NS_WARN_IF_FALSE(cp, "No child process!");
@@ -829,6 +830,9 @@ bool SendAsyncMessageToChildProcess(void* aCallbackData,
     return cp->SendAsyncMessage(nsString(aMessage), nsString(aJSON));
   }
   return true;
+#else
+  return false;
+#endif
 }
 
 bool SendSyncMessageToParentProcess(void* aCallbackData,

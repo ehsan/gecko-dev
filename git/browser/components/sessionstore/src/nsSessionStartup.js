@@ -112,9 +112,8 @@ SessionStartup.prototype = {
                      getService(Ci.nsIProperties);
     let sessionFile = dirService.get("ProfD", Ci.nsILocalFile);
     sessionFile.append("sessionstore.js");
-
-    let doResumeSessionOnce = prefBranch.getBoolPref("sessionstore.resume_session_once");
-    let doResumeSession = doResumeSessionOnce ||
+    
+    let doResumeSession = prefBranch.getBoolPref("sessionstore.resume_session_once") ||
                           prefBranch.getIntPref("startup.page") == 3;
 
     // only continue if the session file exists
@@ -138,10 +137,6 @@ SessionStartup.prototype = {
         var s = new Cu.Sandbox("about:blank");
         this._initialState = Cu.evalInSandbox("(" + iniString + ")", s);
       }
-
-      // If this is a normal restore then throw away any previous session
-      if (!doResumeSessionOnce)
-        delete this._initialState.lastSessionState;
     }
     catch (ex) { debug("The session file is invalid: " + ex); }
 

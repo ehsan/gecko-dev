@@ -66,13 +66,8 @@ import android.telephony.*;
 abstract public class GeckoApp
     extends Activity
 {
-    private static final String LOG_FILE_NAME     = "GeckoApp";
-
     public static final String ACTION_ALERT_CLICK = "org.mozilla.gecko.ACTION_ALERT_CLICK";
     public static final String ACTION_ALERT_CLEAR = "org.mozilla.gecko.ACTION_ALERT_CLEAR";
-    public static final String ACTION_WEBAPP      = "org.mozilla.gecko.WEBAPP";
-    public static final String ACTION_DEBUG       = "org.mozilla.gecko.DEBUG";
-    public static final String ACTION_BOOKMARK    = "org.mozilla.gecko.BOOKMARK";
 
     public static FrameLayout mainLayout;
     public static GeckoSurfaceView surfaceView;
@@ -153,13 +148,13 @@ abstract public class GeckoApp
                 try {
                     unpackComponents();
                 } catch (FileNotFoundException fnfe) {
-                    Log.e(LOG_FILE_NAME, "error unpacking components", fnfe);
+                    Log.e("GeckoApp", "error unpacking components", fnfe);
                     Looper.prepare();
                     showErrorDialog(getString(R.string.error_loading_file));
                     Looper.loop();
                     return;
                 } catch (IOException ie) {
-                    Log.e(LOG_FILE_NAME, "error unpacking components", ie);
+                    Log.e("GeckoApp", "error unpacking components", ie);
                     String msg = ie.getMessage();
                     Looper.prepare();
                     if (msg != null && msg.equalsIgnoreCase("No space left on device"))
@@ -177,7 +172,7 @@ abstract public class GeckoApp
                                            i.getStringExtra("args"),
                                            i.getDataString());
                 } catch (Exception e) {
-                    Log.e(LOG_FILE_NAME, "top level exception", e);
+                    Log.e("GeckoApp", "top level exception", e);
                     StringWriter sw = new StringWriter();
                     e.printStackTrace(new PrintWriter(sw));
                     GeckoAppShell.reportJavaCrash(sw.toString());
@@ -201,7 +196,7 @@ abstract public class GeckoApp
                     try {
                         Looper.loop();
                     } catch (Exception e) {
-                        Log.e(LOG_FILE_NAME, "top level exception", e);
+                        Log.e("GeckoApp", "top level exception", e);
                         StringWriter sw = new StringWriter();
                         e.printStackTrace(new PrintWriter(sw));
                         GeckoAppShell.reportJavaCrash(sw.toString());
@@ -217,7 +212,7 @@ abstract public class GeckoApp
         if (localeCode != null && localeCode.length() > 0)
             GeckoAppShell.setSelectedLocale(localeCode);
 
-        Log.i(LOG_FILE_NAME, "create");
+        Log.i("GeckoApp", "create");
         super.onCreate(savedInstanceState);
 
         if (sGREDir == null)
@@ -302,7 +297,7 @@ abstract public class GeckoApp
             return;
         }
         final String action = intent.getAction();
-        if (ACTION_DEBUG.equals(action) &&
+        if ("org.mozilla.gecko.DEBUG".equals(action) &&
             checkAndSetLaunchState(LaunchState.Launching, LaunchState.WaitButton)) {
             final Button launchButton = new Button(this);
             launchButton.setText("Launch"); // don't need to localize
@@ -320,31 +315,26 @@ abstract public class GeckoApp
         if (checkLaunchState(LaunchState.WaitButton) || launch(intent))
             return;
 
-        if (Intent.ACTION_MAIN.equals(action)) {
-            Log.i(LOG_FILE_NAME, "Intent : ACTION_MAIN");
-            GeckoAppShell.sendEventToGecko(new GeckoEvent(""));
-        }
-        else if (Intent.ACTION_VIEW.equals(action)) {
+        if (Intent.ACTION_VIEW.equals(action)) {
             String uri = intent.getDataString();
             GeckoAppShell.sendEventToGecko(new GeckoEvent(uri));
-            Log.i(LOG_FILE_NAME,"onNewIntent: "+uri);
+            Log.i("GeckoApp","onNewIntent: "+uri);
         }
-        else if (ACTION_WEBAPP.equals(action)) {
+        else if (Intent.ACTION_MAIN.equals(action)) {
+            Log.i("GeckoApp", "Intent : ACTION_MAIN");
+            GeckoAppShell.sendEventToGecko(new GeckoEvent(""));
+        }
+        else if (action.equals("org.mozilla.gecko.WEBAPP")) {
             String uri = intent.getStringExtra("args");
             GeckoAppShell.sendEventToGecko(new GeckoEvent(uri));
-            Log.i(LOG_FILE_NAME,"Intent : WEBAPP - " + uri);
-        }
-        else if (ACTION_BOOKMARK.equals(action)) {
-            String args = intent.getStringExtra("args");
-            GeckoAppShell.sendEventToGecko(new GeckoEvent(args));
-            Log.i(LOG_FILE_NAME,"Intent : BOOKMARK - " + args);
+            Log.i("GeckoApp","Intent : WEBAPP - " + uri);
         }
     }
 
     @Override
     public void onPause()
     {
-        Log.i(LOG_FILE_NAME, "pause");
+        Log.i("GeckoApp", "pause");
         GeckoAppShell.sendEventToGecko(new GeckoEvent(GeckoEvent.ACTIVITY_PAUSING));
         // The user is navigating away from this activity, but nothing
         // has come to the foreground yet; for Gecko, we may want to
@@ -366,7 +356,7 @@ abstract public class GeckoApp
     @Override
     public void onResume()
     {
-        Log.i(LOG_FILE_NAME, "resume");
+        Log.i("GeckoApp", "resume");
         if (checkLaunchState(LaunchState.GeckoRunning))
             GeckoAppShell.onResume();
         // After an onPause, the activity is back in the foreground.
@@ -391,7 +381,7 @@ abstract public class GeckoApp
     @Override
     public void onStop()
     {
-        Log.i(LOG_FILE_NAME, "stop");
+        Log.i("GeckoApp", "stop");
         // We're about to be stopped, potentially in preparation for
         // being destroyed.  We're killable after this point -- as I
         // understand it, in extreme cases the process can be terminated
@@ -412,7 +402,7 @@ abstract public class GeckoApp
     @Override
     public void onRestart()
     {
-        Log.i(LOG_FILE_NAME, "restart");
+        Log.i("GeckoApp", "restart");
         GeckoAppShell.putChildInForeground();
         super.onRestart();
     }
@@ -420,14 +410,14 @@ abstract public class GeckoApp
     @Override
     public void onStart()
     {
-        Log.i(LOG_FILE_NAME, "start");
+        Log.i("GeckoApp", "start");
         super.onStart();
     }
 
     @Override
     public void onDestroy()
     {
-        Log.i(LOG_FILE_NAME, "destroy");
+        Log.i("GeckoApp", "destroy");
         // Tell Gecko to shutting down; we'll end up calling System.exit()
         // in onXreExit.
         if (isFinishing())
@@ -439,7 +429,7 @@ abstract public class GeckoApp
     @Override
     public void onConfigurationChanged(android.content.res.Configuration newConfig)
     {
-        Log.i(LOG_FILE_NAME, "configuration changed");
+        Log.i("GeckoApp", "configuration changed");
         // nothing, just ignore
         super.onConfigurationChanged(newConfig);
     }
@@ -447,7 +437,7 @@ abstract public class GeckoApp
     @Override
     public void onLowMemory()
     {
-        Log.e(LOG_FILE_NAME, "low memory");
+        Log.e("GeckoApp", "low memory");
         if (checkLaunchState(LaunchState.GeckoRunning))
             GeckoAppShell.onLowMemory();
         super.onLowMemory();
@@ -472,7 +462,7 @@ abstract public class GeckoApp
                 removeFiles();
         } catch (Exception ex) {
             // This file may not be there, so just log any errors and move on
-            Log.w(LOG_FILE_NAME, "error removing files", ex);
+            Log.w("GeckoApp", "error removing files", ex);
         }
         unpackFile(zip, buf, null, "application.ini");
         unpackFile(zip, buf, null, getContentProcessName());
@@ -587,11 +577,11 @@ abstract public class GeckoApp
             addEnvToIntent(intent);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
                             Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
-            Log.i(LOG_FILE_NAME, intent.toString());
+            Log.i("GeckoAppJava", intent.toString());
             GeckoAppShell.killAnyZombies();
             startActivity(intent);
         } catch (Exception e) {
-            Log.i(LOG_FILE_NAME, "error doing restart", e);
+            Log.i("GeckoAppJava", "error doing restart", e);
         }
         finish();
         // Give the restart process time to start before we die
@@ -603,7 +593,7 @@ abstract public class GeckoApp
     }
 
     private void checkAndLaunchUpdate() {
-        Log.i(LOG_FILE_NAME, "Checking for an update");
+        Log.i("GeckoAppJava", "Checking for an update");
 
         int statusCode = 8; // UNEXPECTED_ERROR
         File baseUpdateDir = null;
@@ -623,7 +613,7 @@ abstract public class GeckoApp
         if (!updateFile.exists())
             return;
 
-        Log.i(LOG_FILE_NAME, "Update is available!");
+        Log.i("GeckoAppJava", "Update is available!");
 
         // Launch APK
         File updateFileToRun = new File(updateDir, getPackageName() + "-update.apk");
@@ -632,15 +622,15 @@ abstract public class GeckoApp
                 String amCmd = "/system/bin/am start -a android.intent.action.VIEW " +
                                "-n com.android.packageinstaller/.PackageInstallerActivity -d file://" +
                                updateFileToRun.getPath();
-                Log.i(LOG_FILE_NAME, amCmd);
+                Log.i("GeckoAppJava", amCmd);
                 Runtime.getRuntime().exec(amCmd);
                 statusCode = 0; // OK
             } else {
-                Log.i(LOG_FILE_NAME, "Cannot rename the update file!");
+                Log.i("GeckoAppJava", "Cannot rename the update file!");
                 statusCode = 7; // WRITE_ERROR
             }
         } catch (Exception e) {
-            Log.i(LOG_FILE_NAME, "error launching installer to update", e);
+            Log.i("GeckoAppJava", "error launching installer to update", e);
         }
 
         // Update the status file
@@ -653,7 +643,7 @@ abstract public class GeckoApp
             outStream.write(buf, 0, buf.length);
             outStream.close();
         } catch (Exception e) {
-            Log.i(LOG_FILE_NAME, "error writing status file", e);
+            Log.i("GeckoAppJava", "error writing status file", e);
         }
 
         if (statusCode == 0)
@@ -667,7 +657,7 @@ abstract public class GeckoApp
             status = reader.readLine();
             reader.close();
         } catch (Exception e) {
-            Log.i(LOG_FILE_NAME, "error reading update status", e);
+            Log.i("GeckoAppJava", "error reading update status", e);
         }
         return status;
     }
@@ -684,14 +674,10 @@ abstract public class GeckoApp
                 Intent.createChooser(intent, getString(R.string.choose_file)),
                 FILE_PICKER_REQUEST);
         String filePickerResult = "";
-
         try {
-            while (null == (filePickerResult = mFilePickerResult.poll(1, TimeUnit.MILLISECONDS))) {
-                Log.i("GeckoApp", "processing events from showFilePicker ");
-                GeckoAppShell.processNextNativeEvent();
-            }
+            filePickerResult = mFilePickerResult.take();
         } catch (InterruptedException e) {
-            Log.i(LOG_FILE_NAME, "showing file picker ",  e);
+            Log.i("GeckoApp", "showing file picker ",  e);
         }
 
         return filePickerResult;
@@ -744,13 +730,13 @@ abstract public class GeckoApp
                 fos.close();
                 filePickerResult =  file.getAbsolutePath();
             }catch (Exception e) {
-                Log.e(LOG_FILE_NAME, "showing file picker", e);
+                Log.e("GeckoApp", "showing file picker", e);
             }
         }
         try {
             mFilePickerResult.put(filePickerResult);
         } catch (InterruptedException e) {
-            Log.i(LOG_FILE_NAME, "error returning file picker result", e);
+            Log.i("GeckoApp", "error returning file picker result", e);
         }
     }
 }

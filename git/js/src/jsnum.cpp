@@ -75,7 +75,6 @@
 #include "jsvector.h"
 #include "jslibmath.h"
 
-#include "jsatominlines.h"
 #include "jsinterpinlines.h"
 #include "jsnuminlines.h"
 #include "jsobjinlines.h"
@@ -651,17 +650,23 @@ js_IntToString(JSContext *cx, int32 si)
     if (!str)
         return NULL;
 
-    jschar *storage = str->inlineStorageBeforeInit();
-    RangedPtr<jschar> end(storage + JSShortString::MAX_SHORT_LENGTH,
-                          storage, JSShortString::MAX_SHORT_LENGTH + 1);
-    *end = '\0';
+    /* +1, since MAX_LENGTH does not count the null char. */
+    JS_STATIC_ASSERT(JSShortString::MAX_LENGTH + 1 >= sizeof("-2147483648"));
 
-    RangedPtr<jschar> start = BackfillIndexInCharBuffer(ui, end);
+    jschar *end = str->inlineStorageBeforeInit() + JSShortString::MAX_SHORT_LENGTH;
+    jschar *cp = end;
+    *cp = 0;
+
+    do {
+        jsuint newui = ui / 10, digit = ui % 10;  /* optimizers are our friends */
+        *--cp = '0' + digit;
+        ui = newui;
+    } while (ui != 0);
 
     if (si < 0)
-        *--start = '-';
+        *--cp = '-';
 
-    str->initAtOffsetInBuffer(start.get(), end - start);
+    str->initAtOffsetInBuffer(cp, end - cp);
 
     c->dtoaCache.cache(10, si, str);
     return str;
@@ -671,15 +676,25 @@ js_IntToString(JSContext *cx, int32 si)
 static char *
 IntToCString(ToCStringBuf *cbuf, jsint i, jsint base = 10)
 {
-    jsuint u = (i < 0) ? -i : i;
+    char *cp;
+    jsuint u;
 
-    RangedPtr<char> cp(cbuf->sbuf + cbuf->sbufSize - 1, cbuf->sbuf, cbuf->sbufSize);
-    *cp = '\0';
+    u = (i < 0) ? -i : i;
 
-    /* Build the string from behind. */
+    cp = cbuf->sbuf + cbuf->sbufSize;   /* one past last buffer cell */
+    *--cp = '\0';                       /* null terminate the string to be */
+
+    /*
+     * Build the string from behind. We use multiply and subtraction
+     * instead of modulus because that's much faster.
+     */
     switch (base) {
     case 10:
-      cp = BackfillIndexInCharBuffer(u, cp);
+      do {
+          jsuint newu = u / 10;
+          *--cp = (char)(u - newu * 10) + '0';
+          u = newu;
+      } while (u != 0);
       break;
     case 16:
       do {
@@ -700,7 +715,8 @@ IntToCString(ToCStringBuf *cbuf, jsint i, jsint base = 10)
     if (i < 0)
         *--cp = '-';
 
-    return cp.get();
+    JS_ASSERT(cp >= cbuf->sbuf);
+    return cp;
 }
 
 static JSString * JS_FASTCALL
@@ -1253,29 +1269,37 @@ NumberToString(JSContext *cx, jsdouble d)
 }
 
 JSFixedString *
-IndexToString(JSContext *cx, uint32 index)
+IndexToString(JSContext *cx, uint32 u)
 {
-    if (JSAtom::hasUintStatic(index))
-        return &JSAtom::uintStatic(index);
+    if (JSAtom::hasUintStatic(u))
+        return &JSAtom::uintStatic(u);
 
     JSCompartment *c = cx->compartment;
-    if (JSFixedString *str = c->dtoaCache.lookup(10, index))
+    if (JSFixedString *str = c->dtoaCache.lookup(10, u))
         return str;
 
     JSShortString *str = js_NewGCShortString(cx);
     if (!str)
         return NULL;
 
+    /* +1, since MAX_LENGTH does not count the null char. */
+    JS_STATIC_ASSERT(JSShortString::MAX_LENGTH + 1 >= sizeof("4294967295"));
+
     jschar *storage = str->inlineStorageBeforeInit();
     size_t length = JSShortString::MAX_SHORT_LENGTH;
     const RangedPtr<jschar> end(storage + length, storage, length + 1);
-    *end = '\0';
+    RangedPtr<jschar> cp = end;
+    *cp = '\0';
 
-    RangedPtr<jschar> start = BackfillIndexInCharBuffer(index, end);
+    do {
+        jsuint newu = u / 10, digit = u % 10;
+        *--cp = '0' + digit;
+        u = newu;
+    } while (u > 0);
 
-    str->initAtOffsetInBuffer(start.get(), end - start);
+    str->initAtOffsetInBuffer(cp.get(), end - cp);
 
-    c->dtoaCache.cache(10, index, str);
+    c->dtoaCache.cache(10, u, str);
     return str;
 }
 

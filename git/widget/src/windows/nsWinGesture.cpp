@@ -53,10 +53,6 @@ using namespace mozilla;
 #define M_PI 3.14159265358979323846
 #endif
 
-#ifdef PR_LOGGING
-extern PRLogModuleInfo* gWindowsLog;
-#endif
-
 const PRUnichar nsWinGesture::kGestureLibraryName[] =  L"user32.dll";
 HMODULE nsWinGesture::sLibraryHandle = nsnull;
 nsWinGesture::GetGestureInfoPtr nsWinGesture::getGestureInfo = nsnull;
@@ -478,9 +474,8 @@ nsWinGesture::ProcessPanMessage(HWND hWnd, WPARAM wParam, LPARAM lParam)
 #ifdef DBG_jimm
         PRInt32 deltaX = mPanIntermediate.x - coord.x;
         PRInt32 deltaY = mPanIntermediate.y - coord.y;
-        PR_LOG(gWindowsLog, PR_LOG_ALWAYS, 
-               ("coordX=%d coordY=%d deltaX=%d deltaY=%d x:%d y:%d\n", coord.x,
-                coord.y, deltaX, deltaY, mXAxisFeedback, mYAxisFeedback));
+        printf("coordX=%d coordY=%d deltaX=%d deltaY=%d x:%d y:%d\n", coord.x,
+          coord.y, deltaX, deltaY, mXAxisFeedback, mYAxisFeedback);
 #endif
 
         mPixelScrollDelta.x = mPanIntermediate.x - coord.x;
