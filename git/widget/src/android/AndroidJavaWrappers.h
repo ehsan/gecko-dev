@@ -347,26 +347,6 @@ public:
     static jmethodID jGetTimeMethod;
 };
 
-class AndroidAddress : public WrappedJavaObject
-{
-public:
-    static void InitAddressClass(JNIEnv *jEnv);
-    static nsGeoPositionAddress* CreateGeoPositionAddress(JNIEnv *jenv, jobject jobj);
-    static jclass jAddressClass;
-    static jmethodID jGetAddressLineMethod;
-    static jmethodID jGetAdminAreaMethod;
-    static jmethodID jGetCountryCodeMethod;
-    static jmethodID jGetCountryNameMethod;
-    static jmethodID jGetFeatureNameMethod;
-    static jmethodID jGetLocalityMethod;
-    static jmethodID jGetPostalCodeMethod;
-    static jmethodID jGetPremisesMethod;
-    static jmethodID jGetSubAdminAreaMethod;
-    static jmethodID jGetSubLocalityMethod;
-    static jmethodID jGetSubThoroughfareMethod;
-    static jmethodID jGetThoroughfareMethod;
-};
-
 class AndroidGeckoEvent : public WrappedJavaObject
 {
 public:
@@ -408,7 +388,6 @@ public:
     int RangeForeColor() { return mRangeForeColor; }
     int RangeBackColor() { return mRangeBackColor; }
     nsGeoPosition* GeoPosition() { return mGeoPosition; }
-    nsGeoPositionAddress* GeoAddress() { return mGeoAddress; }
 
 protected:
     int mAction;
@@ -425,7 +404,6 @@ protected:
     float mX, mY, mZ;
     nsString mCharacters;
     nsRefPtr<nsGeoPosition> mGeoPosition;
-    nsRefPtr<nsGeoPositionAddress> mGeoAddress;
 
     void ReadP0Field(JNIEnv *jenv);
     void ReadP1Field(JNIEnv *jenv);
@@ -456,7 +434,6 @@ protected:
     static jfieldID jRangeForeColorField;
     static jfieldID jRangeBackColorField;
     static jfieldID jLocationField;
-    static jfieldID jAddressField;
 
 public:
     enum {

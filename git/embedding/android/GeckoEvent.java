@@ -67,6 +67,7 @@ public class GeckoEvent {
     public static final int ACTIVITY_PAUSING = 9;
     public static final int ACTIVITY_SHUTDOWN = 10;
     public static final int LOAD_URI = 11;
+
     public static final int SURFACE_CREATED = 12;
     public static final int SURFACE_DESTROYED = 13;
     public static final int GECKO_EVENT_SYNC = 14;
@@ -104,7 +105,6 @@ public class GeckoEvent {
     public int mRangeType, mRangeStyles;
     public int mRangeForeColor, mRangeBackColor;
     public Location mLocation;
-    public Address  mAddress;
 
     public int mNativeWindow;
 
@@ -145,10 +145,9 @@ public class GeckoEvent {
         mZ = s.values[2] / SensorManager.GRAVITY_EARTH;
     }
 
-    public GeckoEvent(Location l, Address a) {
+    public GeckoEvent(Location l) {
         mType = LOCATION_EVENT;
         mLocation = l;
-        mAddress  = a;
     }
 
     public GeckoEvent(int imeAction, int offset, int count) {

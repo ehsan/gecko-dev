@@ -84,7 +84,7 @@
 #include "mozilla/net/NeckoChild.h"
 #endif 
 
-#if defined(XP_UNIX)
+#if defined(XP_UNIX) || defined(XP_BEOS)
 #include <sys/utsname.h>
 #endif
 
@@ -685,6 +685,8 @@ nsHttpHandler::InitUserAgentComponents()
     "Windows"
 #elif defined(XP_MACOSX)
     "Macintosh"
+#elif defined(XP_BEOS)
+    "BeOS"
 #elif defined(MOZ_PLATFORM_MAEMO)
     "Maemo"
 #elif defined(MOZ_X11)
@@ -749,7 +751,7 @@ nsHttpHandler::InitUserAgentComponents()
         (::Gestalt(gestaltSystemVersionMinor, &minorVersion) == noErr)) {
         mOscpu += nsPrintfCString(" %d.%d", majorVersion, minorVersion);
     }
-#elif defined (XP_UNIX)
+#elif defined (XP_UNIX) || defined (XP_BEOS)
     struct utsname name;
     
     int ret = uname(&name);
