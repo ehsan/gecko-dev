@@ -59,7 +59,7 @@ namespace nanojit
         Chunk *c = current_chunk;
         while (c) {
             Chunk *prev = c->prev;
-            freeChunk(c);
+            this->freeChunk(c);
             c = prev;
         }
         current_chunk = NULL;

@@ -105,9 +105,6 @@ namespace nanojit
         , _labels(alloc)
         , _epilogue(NULL)
         , _err(None)
-    #if PEDANTIC
-        , pedanticTop(NULL)
-    #endif
         , config(core->config)
     {
         VMPI_memset(&_stats, 0, sizeof(_stats));
@@ -340,14 +337,10 @@ namespace nanojit
 
     Register Assembler::getBaseReg(LIns *i, int &d, RegisterMask allow)
     {
-    #if !PEDANTIC
         if (i->isop(LIR_alloc)) {
             d += findMemFor(i);
             return FP;
         }
-    #else
-        (void) d;
-    #endif
         return findRegFor(i, allow);
     }
 
