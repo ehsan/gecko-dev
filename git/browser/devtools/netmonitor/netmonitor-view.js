@@ -1622,9 +1622,6 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
       !selectedItem.attachment.responseContent ||
       !selectedItem.attachment.responseContent.content.mimeType.contains("image/");
 
-    let separator = $("#request-menu-context-separator");
-    separator.hidden = !selectedItem;
-
     let newTabElement = $("#request-menu-context-newtab");
     newTabElement.hidden = !selectedItem;
   },

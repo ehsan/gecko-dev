@@ -29,7 +29,7 @@
 #include "nsAutoPtr.h"
 #include "nsTArray.h"
 #include "nsIMutableArray.h"
-#include "nsIFormAutofillContentService.h"
+#include "nsIAutofillController.h"
 
 // form submission
 #include "nsIFormSubmitObserver.h"
@@ -306,12 +306,10 @@ void
 HTMLFormElement::RequestAutocomplete()
 {
   bool dummy;
-  nsCOMPtr<nsIDOMWindow> window =
-    do_QueryInterface(OwnerDoc()->GetScriptHandlingObject(dummy));
-  nsCOMPtr<nsIFormAutofillContentService> formAutofillContentService =
-    do_GetService("@mozilla.org/formautofill/content-service;1");
+  nsCOMPtr<nsIDOMWindow> win = do_QueryInterface(OwnerDoc()->GetScriptHandlingObject(dummy));
+  nsCOMPtr<nsIAutofillController> controller(do_GetService("@mozilla.org/autofill-controller;1"));
 
-  if (!formAutofillContentService || !window) {
+  if (!controller || !win) {
     AutocompleteErrorEventInit init;
     init.mBubbles = true;
     init.mCancelable = false;
@@ -319,12 +317,11 @@ HTMLFormElement::RequestAutocomplete()
 
     nsRefPtr<AutocompleteErrorEvent> event =
       AutocompleteErrorEvent::Constructor(this, NS_LITERAL_STRING("autocompleteerror"), init);
-
     (new AsyncEventDispatcher(this, event))->PostDOMEvent();
     return;
   }
 
-  formAutofillContentService->RequestAutocomplete(this, window);
+  controller->RequestAutocomplete(this, win);
 }
 
 bool

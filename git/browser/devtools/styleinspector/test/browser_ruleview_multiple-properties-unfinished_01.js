@@ -17,7 +17,7 @@ let test = asyncTest(function*() {
   newElement.textContent = "Test Element";
   content.document.body.appendChild(newElement);
   yield selectNode(newElement, inspector);
-  let ruleEditor = getRuleViewRuleEditor(view, 0);
+  let ruleEditor = view.element.children[0]._ruleEditor;
 
   yield testCreateNewMultiUnfinished(inspector, ruleEditor, view);
 });

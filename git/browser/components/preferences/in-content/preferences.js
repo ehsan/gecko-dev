@@ -28,10 +28,8 @@ function init_all() {
   gContentPane.init();
   gSyncPane.init();
   gSecurityPane.init();
-  var initFinished = new CustomEvent("Initialized", {
-  'bubbles': true,
-  'cancelable': true
-  });
+  var initFinished = document.createEvent("Event");
+  initFinished.initEvent("Initialized", true, true);
   document.dispatchEvent(initFinished);
 
   let categories = document.getElementById("categories");

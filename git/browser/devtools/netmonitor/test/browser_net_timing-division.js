@@ -52,13 +52,7 @@ function test() {
       teardown(aMonitor).then(finish);
     });
 
-    aDebuggee.get(Math.random(), () => {
-      // Timeout needed for having enough divisions on the time scale.
-      setTimeout(() => {
-        aDebuggee.get(Math.random(), () => {
-          // Done.
-        });
-      }, 3000);
-    });
+    aDebuggee.performRequests(1);
+    window.setTimeout(() => aDebuggee.performRequests(1), 2000);
   });
 }

@@ -33,8 +33,6 @@
 #include "mozilla/StaticPtr.h"
 #include "mozilla/unused.h"
 
-#define ERR_SET_PROPERTY  "SetPropertyError"
-
 #define ENSURE_BLUETOOTH_IS_READY(runnable, result)                    \
   do {                                                                 \
     if (!sBtInterface || !IsEnabled()) {                               \
@@ -1142,11 +1140,7 @@ BluetoothServiceBluedroid::SetProperty(BluetoothObjectType aType,
   } else if (propName.EqualsLiteral("DiscoverableTimeout")) {
     prop.type = BT_PROPERTY_ADAPTER_DISCOVERY_TIMEOUT;
   } else {
-    BT_LOGR("Warning: Property type is not supported yet, type: %s",
-            NS_ConvertUTF16toUTF8(propName).get());
-    DispatchBluetoothReply(aRunnable, BluetoothValue(),
-                           NS_LITERAL_STRING(ERR_SET_PROPERTY));
-    return NS_OK;
+    BT_LOGR("Warning: Property type is not supported yet, type: %d", prop.type);
   }
 
   if (aValue.value().type() == BluetoothValue::Tuint32_t) {
@@ -1167,8 +1161,6 @@ BluetoothServiceBluedroid::SetProperty(BluetoothObjectType aType,
     prop.len = sizeof(scanMode);
   } else {
     BT_LOGR("SetProperty but the property cannot be recognized correctly.");
-    DispatchBluetoothReply(aRunnable, BluetoothValue(),
-                           NS_LITERAL_STRING(ERR_SET_PROPERTY));
     return NS_OK;
   }
 
@@ -1176,8 +1168,7 @@ BluetoothServiceBluedroid::SetProperty(BluetoothObjectType aType,
 
   int ret = sBtInterface->set_adapter_property(&prop);
   if (ret != BT_STATUS_SUCCESS) {
-    ReplyStatusError(aRunnable, ret, NS_LITERAL_STRING(ERR_SET_PROPERTY));
-    sSetPropertyRunnableArray.RemoveElement(aRunnable);
+    ReplyStatusError(aRunnable, ret, NS_LITERAL_STRING("SetProperty"));
   }
 
   return NS_OK;

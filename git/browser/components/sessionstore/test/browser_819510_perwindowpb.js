@@ -164,7 +164,7 @@ function waitForWindowClose(aWin, aCallback) {
 }
 
 function forceWriteState(aCallback) {
-  return promiseRecoveryFileContents().then(function(data) {
+  return promiseSaveFileContents().then(function(data) {
     aCallback(JSON.parse(data));
   });
 }

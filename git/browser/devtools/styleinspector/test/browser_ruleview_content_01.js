@@ -35,7 +35,7 @@ function* testContentAfterNodeSelection(inspector, ruleView) {
     "After highlighting null, has a no-results element again.");
 
   yield selectNode("#testid", inspector);
-  let classEditor = getRuleViewRuleEditor(ruleView, 2);
+  let classEditor = ruleView.element.children[2]._ruleEditor;
   is(classEditor.selectorText.querySelector(".ruleview-selector-matched").textContent,
     ".testclass", ".textclass should be matched.");
   is(classEditor.selectorText.querySelector(".ruleview-selector-unmatched").textContent,
