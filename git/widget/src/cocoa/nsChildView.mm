@@ -215,6 +215,8 @@ PRUint32 nsChildView::sLastInputEventCount = 0;
 
 - (BOOL)isFirstResponder;
 
+- (BOOL)isDragInProgress;
+
 - (void)fireKeyEventForFlagsChanged:(NSEvent*)theEvent keyDown:(BOOL)isKeyDown;
 
 - (BOOL)inactiveWindowAcceptsMouseEvent:(NSEvent*)aEvent;
@@ -1252,7 +1254,7 @@ NS_IMETHODIMP nsChildView::GetPluginClipRect(nsIntRect& outClipRect, nsIntPoint&
 
     if (mClipRects) {
       nsIntRect clipBounds;
-      for (PRUint32 i = 0; i < mClipRectCount; ++i) {
+      for (PRInt32 i = 0; i < mClipRectCount; ++i) {
         clipBounds.UnionRect(clipBounds, mClipRects[i]);
       }
       outClipRect.IntersectRect(outClipRect, clipBounds - outOrigin);

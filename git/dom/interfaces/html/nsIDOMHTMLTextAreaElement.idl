@@ -50,18 +50,18 @@
  * http://www.whatwg.org/specs/web-apps/current-work/
  */
 
-[scriptable, uuid(7a403df9-8911-499b-afbf-98a1bbc20dd1)]
+[scriptable, uuid(a6cf9094-15b3-11d2-932e-00805f8add32)]
 interface nsIDOMHTMLTextAreaElement : nsIDOMHTMLElement
 {
   // Modified in DOM Level 2:
            attribute DOMString             defaultValue;
   readonly attribute nsIDOMHTMLFormElement form;
            attribute DOMString             accessKey;
-           attribute unsigned long         cols;
+           attribute long                  cols;
            attribute boolean               disabled;
            attribute DOMString             name;
            attribute boolean               readOnly;
-           attribute unsigned long         rows;
+           attribute long                  rows;
            attribute long                  tabIndex;
   readonly attribute DOMString             type;
            attribute DOMString             value;

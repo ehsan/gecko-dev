@@ -35,29 +35,17 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH = ../../..
-topsrcdir = @top_srcdir@
-srcdir = @srcdir@
-VPATH = @srcdir@
+DEPTH		= ../../..
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-MODULE = urlformatter
-
-XPIDLSRCS = \
-  nsIURLFormatter.idl \
-  $(NULL)
-
-EXTRA_COMPONENTS = \
-  nsURLFormatter.manifest \
-  $(NULL)
-
-EXTRA_PP_COMPONENTS = \
-  nsURLFormatter.js \
-  $(NULL)
+DIRS = public src
 
 ifdef ENABLE_TESTS
-DIRS += tests
+	DIRS += tests
 endif
 
 include $(topsrcdir)/config/rules.mk

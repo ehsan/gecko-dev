@@ -56,9 +56,6 @@ from datetime import datetime
 from utils import pushback_iter, lockFile
 from Preprocessor import Preprocessor
 from buildlist import addEntriesToListFile
-if sys.platform == "win32":
-  from ctypes import windll, WinError
-  CreateHardLink = windll.kernel32.CreateHardLinkA
 
 __all__ = ['JarMaker']
 
@@ -409,7 +406,7 @@ class JarMaker(object):
       if (m.group('optOverwrite')
           or (getModTime(realsrc) >
               outHelper.getDestModTime(m.group('output')))):
-        if self.outputFormat == 'symlink':
+        if self.outputFormat == 'symlink' and hasattr(os, 'symlink'):
           outHelper.symlink(realsrc, out)
           return
         outf = outHelper.getOutput(out)
@@ -471,13 +468,7 @@ class JarMaker(object):
       except OSError, e:
         if e.errno != errno.ENOENT:
           raise
-      if sys.platform != "win32":
-        os.symlink(src, out)
-      else:
-        # On Win32, use ctypes to create a hardlink
-        rv = CreateHardLink(out, src, None)
-        if rv == 0:
-          raise WinError()
+      os.symlink(src, out)
 
 def main():
   jm = JarMaker()

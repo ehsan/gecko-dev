@@ -69,7 +69,6 @@ config/autoconf.mk
 config/mkdepend/Makefile
 config/nspr/Makefile
 config/doxygen.cfg
-config/expandlibs_config.py
 config/tests/src-simple/Makefile
 probes/Makefile
 extensions/Makefile

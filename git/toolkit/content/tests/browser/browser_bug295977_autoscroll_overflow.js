@@ -29,9 +29,8 @@ function test()
     }
 
     var elem = doc.getElementById(test.elem);
-    // Skip the first BeforePaint event as it's the same event that the browser
-    // uses to kick off the scrolling.
-    var skipFrames = 1;
+    // skip a few frames before checking the tests
+    var skipFrames = 3;
     var checkScroll = function () {
       if (skipFrames--) {
         window.mozRequestAnimationFrame();
@@ -46,7 +45,7 @@ function test()
       ok((scrollHori && elem.scrollLeft > 0) ||
          (!scrollHori && elem.scrollLeft == 0),
          test.elem+' should'+(scrollHori ? '' : ' not')+' have scrolled horizontally');
-      window.removeEventListener("MozBeforePaint", checkScroll, false);
+      window.removeEventListener("MozAfterPaint", checkScroll, false);
       nextTest();
     };
     EventUtils.synthesizeMouse(elem, 50, 50, { button: 1 },
@@ -61,7 +60,7 @@ function test()
     EventUtils.synthesizeMouse(elem, 100, 100,
                                { type: "mousemove", clickCount: "0" },
                                gBrowser.contentWindow);
-    window.addEventListener("MozBeforePaint", checkScroll, false);
+    window.addEventListener("MozAfterPaint", checkScroll, false);
     /*
      * if scrolling didn’t work, we wouldn’t do any redraws and thus time out.
      * so request and force redraws to get the chance to check for scrolling at
@@ -72,6 +71,7 @@ function test()
 
   waitForExplicitFinish();
   var dataUri = 'data:text/html,<body><style type="text/css">div { display: inline-block; }</style>\
+    <div id="forceredraw" style="height: 1px"></div>\
     <div id="a" style="width: 100px; height: 100px; overflow: hidden;"><div style="width: 200px; height: 200px;"></div></div>\
     <div id="b" style="width: 100px; height: 100px; overflow: auto;"><div style="width: 200px; height: 200px;"></div></div>\
     <div id="c" style="width: 100px; height: 100px; overflow-x: auto; overflow-y: hidden;"><div style="width: 200px; height: 200px;"></div></div>\
@@ -96,6 +96,10 @@ function test()
 
   function onFocus() {
     doc = gBrowser.contentDocument;
+    // force redraws, so we actually get AfterPaint events
+    window.addEventListener("MozBeforePaint", function(ev) {
+      doc.getElementById("forceredraw").style.left = ev.timeStamp % 100;
+    }, false);
     nextTest();
   }
 

@@ -401,7 +401,6 @@ function BuildConditionSandbox(aURL) {
       sandbox.layersGPUAccelerated = false;
  
     // Shortcuts for widget toolkits.
-    sandbox.Android = xr.OS == "Android";
     sandbox.cocoaWidget = xr.widgetToolkit == "cocoa";
     sandbox.gtk2Widget = xr.widgetToolkit == "gtk2";
     sandbox.qtWidget = xr.widgetToolkit == "qt";

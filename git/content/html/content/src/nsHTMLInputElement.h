@@ -214,8 +214,9 @@ public:
   NS_IMETHOD_(void) InitializeKeyboardEventListeners();
   NS_IMETHOD_(void) OnValueChanged(PRBool aNotify);
 
+  // nsIFileControlElement
   void GetDisplayFileName(nsAString& aFileName) const;
-  const nsCOMArray<nsIDOMFile>& GetFiles() const;
+  const nsCOMArray<nsIDOMFile>& GetFiles();
   void SetFiles(const nsCOMArray<nsIDOMFile>& aFiles, bool aSetValueChanged);
 
   void SetCheckedChangedInternal(PRBool aCheckedChanged);
@@ -270,9 +271,9 @@ public:
 
   // nsIConstraintValidation
   PRBool   IsTooLong();
-  PRBool   IsValueMissing() const;
-  PRBool   HasTypeMismatch() const;
-  PRBool   HasPatternMismatch() const;
+  PRBool   IsValueMissing();
+  PRBool   HasTypeMismatch();
+  PRBool   HasPatternMismatch();
   void     UpdateTooLongValidityState();
   void     UpdateValueMissingValidityState();
   void     UpdateTypeMismatchValidityState();
@@ -388,15 +389,6 @@ protected:
   nsresult SetValueInternal(const nsAString& aValue,
                             PRBool aUserInput,
                             PRBool aSetValueChanged);
-
-  nsresult GetValueInternal(nsAString& aValue) const;
-
-  /**
-   * Returns whether the current value is the empty string.
-   *
-   * @return whether the current value is the empty string.
-   */
-  bool IsValueEmpty() const;
 
   void ClearFiles(bool aSetValueChanged) {
     nsCOMArray<nsIDOMFile> files;

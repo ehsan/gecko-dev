@@ -163,6 +163,13 @@ using mozilla::dom::ContentParent;
 #include <pwd.h>
 #endif
 
+#ifdef XP_BEOS
+// execv() behaves bit differently in R5 and Zeta, looks unreliable in such situation
+//#include <unistd.h>
+#include <AppKit.h>
+#include <AppFileInfo.h>
+#endif //XP_BEOS
+
 #ifdef XP_WIN
 #ifndef WINCE
 #include <process.h>
@@ -291,14 +298,6 @@ SaveToEnv(const char *putenv)
   // We intentionally leak |expr| here since it is required by PR_SetEnv.
 }
 
-// Tests that an environment variable exists and has a value
-static PRBool
-EnvHasValue(const char *name)
-{
-  const char *val = PR_GetEnv(name);
-  return (val && *val);
-}
-
 // Save the given word to the specified environment variable.
 static void
 SaveWordToEnv(const char *name, const nsACString & word)
@@ -360,7 +359,8 @@ GetFileFromEnv(const char *name)
 static void
 SaveWordToEnvIfUnset(const char *name, const nsACString & word)
 {
-  if (!EnvHasValue(name))
+  const char *val = PR_GetEnv(name);
+  if (!(val && *val))
     SaveWordToEnv(name, word);
 }
 
@@ -369,7 +369,8 @@ SaveWordToEnvIfUnset(const char *name, const nsACString & word)
 static void
 SaveFileToEnvIfUnset(const char *name, nsIFile *file)
 {
-  if (!EnvHasValue(name))
+  const char *val = PR_GetEnv(name);
+  if (!(val && *val))
     SaveFileToEnv(name, file);
 }
 
@@ -1614,6 +1615,18 @@ XRE_GetBinaryPath(const char* argv0, nsILocalFile* *aResult)
   if (NS_FAILED(rv))
     return rv;
 
+#elif defined(XP_BEOS)
+  int32 cookie = 0;
+  image_info info;
+
+  if(get_next_image_info(0, &cookie, &info) != B_OK)
+    return NS_ERROR_FAILURE;
+
+  rv = NS_NewNativeLocalFile(nsDependentCString(info.name), PR_TRUE,
+                             getter_AddRefs(lf));
+  if (NS_FAILED(rv))
+    return rv;
+
 #else
 #error Oops, you need platform-specific code here
 #endif
@@ -1781,6 +1794,12 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
     return NS_ERROR_FAILURE;
 #elif defined(XP_UNIX)
   if (execv(exePath.get(), gRestartArgv) == -1)
+    return NS_ERROR_FAILURE;
+#elif defined(XP_BEOS)
+  extern char **environ;
+  status_t res;
+  res = resume_thread(load_image(gRestartArgc,(const char **)gRestartArgv,(const char **)environ));
+  if (res != B_OK)
     return NS_ERROR_FAILURE;
 #else
   PRProcess* process = PR_CreateProcess(exePath.get(), gRestartArgv,
@@ -2074,7 +2093,8 @@ SelectProfile(nsIProfileLock* *aResult, nsINativeAppSupport* aNative,
     return NS_ERROR_FAILURE;
   }
 
-  if (ar || EnvHasValue("XRE_START_OFFLINE"))
+  arg = PR_GetEnv("XRE_START_OFFLINE");
+  if ((arg && *arg) || ar)
     *aStartOffline = PR_TRUE;
 
 
@@ -2199,7 +2219,8 @@ SelectProfile(nsIProfileLock* *aResult, nsINativeAppSupport* aNative,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (gAppData->flags & NS_XRE_ENABLE_PROFILE_MIGRATOR) {
-    if (!count && !EnvHasValue("XRE_IMPORT_PROFILES")) {
+    arg = PR_GetEnv("XRE_IMPORT_PROFILES");
+    if (!count && (!arg || !*arg)) {
       return ImportProfiles(profileSvc, aNative);
     }
   }
@@ -2835,7 +2856,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
   }
 
   // Suppress atk-bridge init at startup, it works after GNOME 2.24.2
-  SaveToEnv("NO_AT_BRIDGE=1");
+  PR_SetEnv("NO_AT_BRIDGE=1");
 #endif
 
   gArgc = argc;
@@ -2995,7 +3016,8 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     return 1;
 
 #ifdef MOZ_CRASHREPORTER
-  if (EnvHasValue("MOZ_CRASHREPORTER")) {
+  const char* crashreporterEnv = PR_GetEnv("MOZ_CRASHREPORTER");
+  if (crashreporterEnv && *crashreporterEnv) {
     appData.flags |= NS_XRE_ENABLE_CRASH_REPORTER;
   }
 
@@ -3053,7 +3075,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 #endif
 
 #ifdef XP_MACOSX
-  if (EnvHasValue("MOZ_LAUNCHED_CHILD")) {
+  if (PR_GetEnv("MOZ_LAUNCHED_CHILD")) {
     // This is needed, on relaunch, to force the OS to use the "Cocoa Dock
     // API".  Otherwise the call to ReceiveNextEvent() below will make it
     // use the "Carbon Dock API".  For more info see bmo bug 377166.
@@ -3108,10 +3130,10 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
   ScopedFPHandler handler;
 #endif /* XP_OS2 */
 
-  if (EnvHasValue("MOZ_SAFE_MODE_RESTART")) {
+  if (PR_GetEnv("MOZ_SAFE_MODE_RESTART")) {
     gSafeMode = PR_TRUE;
     // unset the env variable
-    SaveToEnv("MOZ_SAFE_MODE_RESTART=");
+    PR_SetEnv("MOZ_SAFE_MODE_RESTART=");
   }
 
   ar = CheckArg("safe-mode", PR_TRUE);
@@ -3380,8 +3402,8 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
                    gRestartArgc,
                    gRestartArgv,
                    appData.version);
-    if (EnvHasValue("MOZ_PROCESS_UPDATES")) {
-      SaveToEnv("MOZ_PROCESS_UPDATES=");
+    if (PR_GetEnv("MOZ_PROCESS_UPDATES")) {
+      PR_SetEnv("MOZ_PROCESS_UPDATES=");
       return 0;
     }
 #endif
@@ -3890,35 +3912,25 @@ XRE_InitCommandLine(int aArgc, char* aArgv[])
 #endif
 #endif
 
-  const char *path = nsnull;
-  ArgResult ar = CheckArg("grebase", PR_FALSE, &path);
+#ifdef MOZ_OMNIJAR
+  const char *omnijarPath = nsnull;
+  ArgResult ar = CheckArg("omnijar", PR_FALSE, &omnijarPath);
   if (ar == ARG_BAD) {
-    PR_fprintf(PR_STDERR, "Error: argument -grebase requires a path argument\n");
+    PR_fprintf(PR_STDERR, "Error: argument -omnijar requires an omnijar path\n");
     return NS_ERROR_FAILURE;
   }
 
-  if (!path)
+  if (!omnijarPath)
     return rv;
 
-  nsCOMPtr<nsILocalFile> greBase;
-  rv = XRE_GetFileFromPath(path, getter_AddRefs(greBase));
-  if (NS_FAILED(rv))
-    return rv;
+  nsCOMPtr<nsILocalFile> omnijar;
+  rv = NS_NewNativeLocalFile(nsDependentCString(omnijarPath), PR_TRUE,
+                             getter_AddRefs(omnijar));
+  if (NS_SUCCEEDED(rv))
+    mozilla::SetOmnijar(omnijar);
+#endif
 
-  ar = CheckArg("appbase", PR_FALSE, &path);
-  if (ar == ARG_BAD) {
-    PR_fprintf(PR_STDERR, "Error: argument -appbase requires a path argument\n");
-    return NS_ERROR_FAILURE;
-  }
-
-  nsCOMPtr<nsILocalFile> appBase;
-  if (path) {
-      rv = XRE_GetFileFromPath(path, getter_AddRefs(appBase));
-      if (NS_FAILED(rv))
-        return rv;
-  }
-
-  return mozilla::Omnijar::SetBase(greBase, appBase);
+  return rv;
 }
 
 nsresult

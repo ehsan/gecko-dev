@@ -285,8 +285,6 @@ CONFIG_STATUS_DEPS := \
 	$(TOPSRCDIR)/.mozconfig.mk \
 	$(wildcard $(TOPSRCDIR)/nsprpub/configure) \
 	$(wildcard $(TOPSRCDIR)/config/milestone.txt) \
-	$(wildcard $(TOPSRCDIR)/js/src/config/milestone.txt) \
-	$(wildcard $(TOPSRCDIR)/browser/config/version.txt) \
 	$(wildcard $(addsuffix confvars.sh,$(wildcard $(TOPSRCDIR)/*/))) \
 	$(NULL)
 
