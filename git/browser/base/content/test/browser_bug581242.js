@@ -1,4 +1,3 @@
-/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -12,20 +11,18 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is mozilla.org code.
+ * The Original Code is bug 581242 test.
  *
  * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2000
+ * Sindre Dammann <sindrebugzilla@gmail.com>
+ * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Vidur Apparao <vidur@netscape.com> (original author)
- *   Johnny Stenback <jst@netscape.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
  * of those above. If you wish to allow use of your version of this file only
  * under the terms of either the GPL or the LGPL, and not to allow others to
@@ -37,24 +34,19 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "domstubs.idl"
+function test() {
+  // Create a new tab and load about:addons
+  let blanktab = gBrowser.addTab();
+  gBrowser.selectedTab = blanktab;
+  BrowserOpenAddonsMgr();
 
-[scriptable, uuid(24c39afa-44f7-4cd4-9e63-0504a581a081)]
-interface nsIDOMNSHTMLAnchorElement : nsISupports
-{
-           attribute DOMString        protocol;
-           attribute DOMString        host;
-           attribute DOMString        hostname;
-           attribute DOMString        pathname;
-           attribute DOMString        search;
-           attribute DOMString        port;
-           attribute DOMString        hash;
-
-  /**
-   * An alias for the textContent attribute.
-   */
-  [Null(Stringify)]
-           attribute DOMString        text;
-
-  DOMString                 toString();
-};
+  is(blanktab, gBrowser.selectedTab, "Current tab should be blank tab");
+  // Verify that about:addons loads
+  waitForExplicitFinish();
+  gBrowser.selectedBrowser.addEventListener("load", function() {
+    let browser = blanktab.linkedBrowser;
+    is(browser.currentURI.spec, "about:addons", "about:addons should load into blank tab.");
+    gBrowser.removeTab(blanktab);
+    finish();
+  }, true);
+}
