@@ -53,7 +53,7 @@
 #include "nsDebugImpl.h"
 #include "nsLayoutStylesheetCache.h"
 
-#include "IHistory.h"
+#include "History.h"
 #include "nsDocShellCID.h"
 #include "nsNetUtil.h"
 
@@ -115,6 +115,7 @@ using namespace mozilla::hal_sandbox;
 using namespace mozilla::ipc;
 using namespace mozilla::layers;
 using namespace mozilla::net;
+using namespace mozilla::places;
 #if defined(MOZ_WIDGET_GONK)
 using namespace mozilla::system;
 #endif
@@ -231,11 +232,13 @@ ConsoleListener::Observe(nsIConsoleMessage* aMessage)
 ContentChild* ContentChild::sSingleton;
 
 ContentChild::ContentChild()
- : TabContext()
- , mID(uint64_t(-1))
+ :
+   mID(uint64_t(-1))
 #ifdef ANDROID
    ,mScreenSize(0, 0)
 #endif
+   , mIsForApp(false)
+   , mIsForBrowser(false)
 {
     // This process is a content process, so it's clearly running in
     // multiprocess mode!
@@ -299,7 +302,7 @@ ContentChild::Init(MessageLoop* aIOLoop,
         startBackground ? hal::PROCESS_PRIORITY_BACKGROUND:
                           hal::PROCESS_PRIORITY_FOREGROUND);
     if (mIsForApp && !mIsForBrowser) {
-        SetProcessName(NS_LITERAL_STRING("(Preallocated app)"));
+        SetProcessName(NS_LITERAL_STRING("(App)"));
     } else {
         SetProcessName(NS_LITERAL_STRING("Browser"));
     }
@@ -332,10 +335,6 @@ ContentChild::InitXPCOM()
     mConsoleListener = new ConsoleListener(this);
     if (NS_FAILED(svc->RegisterListener(mConsoleListener)))
         NS_WARNING("Couldn't register console listener for child process");
-
-    bool isOffline;
-    SendGetXPCOMProcessAttributes(&isOffline);
-    RecvSetOffline(isOffline);
 }
 
 PMemoryReportRequestChild*
@@ -487,8 +486,8 @@ static void FirstIdle(void)
 }
 
 PBrowserChild*
-ContentChild::AllocPBrowser(const IPCTabContext& aContext,
-                            const uint32_t& aChromeFlags)
+ContentChild::AllocPBrowser(const uint32_t& aChromeFlags,
+                            const bool& aIsBrowserElement, const AppId& aApp)
 {
     static bool firstIdleTaskPosted = false;
     if (!firstIdleTaskPosted) {
@@ -496,12 +495,8 @@ ContentChild::AllocPBrowser(const IPCTabContext& aContext,
         firstIdleTaskPosted = true;
     }
 
-    // We'll happily accept any kind of IPCTabContext here; we don't need to
-    // check that it's of a certain type for security purposes, because we
-    // believe whatever the parent process tells us.
-
-    nsRefPtr<TabChild> child = TabChild::Create(TabContext(aContext), aChromeFlags);
-
+    nsRefPtr<TabChild> child =
+        TabChild::Create(aChromeFlags, aIsBrowserElement, aApp.get_uint32_t());
     // The ref here is released below.
     return child.forget().get();
 }
@@ -903,10 +898,7 @@ ContentChild::RecvNotifyVisited(const URIParams& aURI)
     if (!newURI) {
         return false;
     }
-    nsCOMPtr<IHistory> history = services::GetHistoryService();
-    if (history) {
-      history->NotifyVisited(newURI);
-    }
+    History::GetService()->NotifyVisited(newURI);
     return true;
 }
 

@@ -8,7 +8,6 @@
 #include "MediaResource.h"
 #include "nsWaveReader.h"
 #include "nsTimeRanges.h"
-#include "nsBuiltinDecoderStateMachine.h"
 #include "VideoUtils.h"
 
 #include "mozilla/StandardInteger.h"
@@ -121,7 +120,7 @@ nsresult nsWaveReader::Init(nsBuiltinDecoderReader* aCloneDonor)
 }
 
 nsresult nsWaveReader::ReadMetadata(nsVideoInfo* aInfo,
-                                    MetadataTags** aTags)
+                                    nsHTMLMediaElement::MetadataTags** aTags)
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
 

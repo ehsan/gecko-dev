@@ -318,9 +318,6 @@ NewProxyObject(JSContext *cx, BaseProxyHandler *handler, const Value &priv,
                JSObject *proto, JSObject *parent,
                JSObject *call = NULL, JSObject *construct = NULL);
 
-JSObject *
-RenewProxyObject(JSContext *cx, JSObject *obj, BaseProxyHandler *handler, Value priv);
-
 } /* namespace js */
 
 extern JS_FRIEND_API(JSObject *)

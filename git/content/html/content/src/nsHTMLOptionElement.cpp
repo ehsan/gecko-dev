@@ -350,9 +350,8 @@ nsHTMLOptionElement::GetSelect()
   nsIContent* parent = this;
   while ((parent = parent->GetParent()) &&
          parent->IsHTML()) {
-    nsHTMLSelectElement* select = nsHTMLSelectElement::FromContent(parent);
-    if (select) {
-      return select;
+    if (parent->Tag() == nsGkAtoms::select) {
+      return nsHTMLSelectElement::FromContent(parent);
     }
     if (parent->Tag() != nsGkAtoms::optgroup) {
       break;

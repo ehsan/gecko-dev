@@ -5068,12 +5068,10 @@ dnl ========================================================
 dnl = Enable Android History instead of Places
 dnl ========================================================
 if test -n "$MOZ_ANDROID_HISTORY"; then
-    if test -z "$MOZ_PLACES"; then
-        AC_DEFINE(MOZ_ANDROID_HISTORY)
-    else
-        AC_MSG_ERROR([Cannot use MOZ_ANDROID_HISTORY alongside MOZ_PLACES.])
-    fi
+     dnl Do this if defined in confvars.sh
+     AC_DEFINE(MOZ_ANDROID_HISTORY)
 fi
+
 
 dnl ========================================================
 dnl = Build with the Android compositor

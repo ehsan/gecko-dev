@@ -128,10 +128,8 @@ public:
 
   /**
    * Creates a YCbCrImage using shared memory to store its data.
-   * Use a uint32_t for formats list to avoid #include horribleness.
    */
-  already_AddRefed<Image> CreateImage(const uint32_t *aFormats,
-                                      uint32_t aNumFormats);
+  already_AddRefed<Image> CreateImage();
 
   /**
    * Allocates an unsafe shmem.

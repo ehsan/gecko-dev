@@ -15,7 +15,13 @@ public:
   nsHTMLLegendElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsHTMLLegendElement();
 
-  NS_IMPL_FROMCONTENT_HTML_WITH_TAG(nsHTMLLegendElement, legend)
+  static nsHTMLLegendElement* FromContent(nsIContent *aContent)
+  {
+    if (aContent->IsHTML(nsGkAtoms::legend)) {
+      return static_cast<nsHTMLLegendElement*>(aContent);
+    }
+    return nullptr;
+  }
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED

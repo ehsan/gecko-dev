@@ -1964,8 +1964,6 @@ PaintInactiveLayer(nsDisplayListBuilder* aBuilder,
     builder->DidEndTransaction();
   }
 
-  basic->SetTarget(nullptr);
-
 #ifdef MOZ_DUMP_PAINTING
   if (gfxUtils::sDumpPainting) {
     DumpPaintedImage(aItem, surf);

@@ -305,8 +305,10 @@ nsFileControlFrame::CaptureMouseListener::HandleEvent(nsIDOMEvent* aMouseEvent)
 
   // Get parent nsPIDOMWindow object.
   nsIContent* content = mFrame->GetContent();
-  nsHTMLInputElement* inputElement =
-    nsHTMLInputElement::FromContentOrNull(content);
+  if (!content)
+    return NS_ERROR_FAILURE;
+
+  nsHTMLInputElement* inputElement = nsHTMLInputElement::FromContent(content);
   if (!inputElement)
     return NS_ERROR_FAILURE;
 

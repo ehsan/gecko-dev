@@ -1027,7 +1027,7 @@ public:
       nsIScriptGlobalObject* sgo;
 
       if (aWorkerPrivate ||
-          !(sgo = nsJSUtils::GetStaticScriptGlobal(aTarget))) {
+          !(sgo = nsJSUtils::GetStaticScriptGlobal(aCx, aTarget))) {
         // Fire a normal ErrorEvent if we're running on a worker thread.
         JSObject* event =
           CreateErrorEvent(aCx, message, filename, aLineNumber, false);
@@ -2536,7 +2536,7 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
 
     // See if we're being called from a window or from somewhere else.
     nsCOMPtr<nsIScriptGlobalObject> scriptGlobal =
-      nsJSUtils::GetStaticScriptGlobal(JS_GetGlobalForScopeChain(aCx));
+      nsJSUtils::GetStaticScriptGlobal(aCx, JS_GetGlobalForScopeChain(aCx));
     if (scriptGlobal) {
       // Window!
       nsCOMPtr<nsPIDOMWindow> globalWindow = do_QueryInterface(scriptGlobal);

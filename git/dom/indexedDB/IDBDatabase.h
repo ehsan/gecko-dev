@@ -110,7 +110,12 @@ public:
     return mInvalidated;
   }
 
-  void DisconnectFromActorParent();
+  void DisconnectFromActor();
+
+  // Whether or not the database has been disconnected from its actor.  If true
+  // it is not safe to send any IPC messages to the actor representing this db
+  // or any of its subactors.
+  bool IsDisconnectedFromActor() const;
 
   void CloseInternal(bool aIsDead);
 
@@ -148,12 +153,6 @@ public:
   GetActorChild() const
   {
     return mActorChild;
-  }
-
-  IndexedDBDatabaseParent*
-  GetActorParent() const
-  {
-    return mActorParent;
   }
 
   mozilla::dom::ContentParent*
@@ -196,6 +195,7 @@ private:
   mozilla::dom::ContentParent* mContentParent;
 
   bool mInvalidated;
+  bool mDisconnected;
   bool mRegistered;
   bool mClosed;
   bool mRunningVersionChange;

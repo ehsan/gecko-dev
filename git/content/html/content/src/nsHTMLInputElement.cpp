@@ -1474,23 +1474,12 @@ nsHTMLInputElement::GetPlaceholderNode()
 }
 
 NS_IMETHODIMP_(void)
-nsHTMLInputElement::UpdatePlaceholderVisibility(bool aNotify)
+nsHTMLInputElement::SetPlaceholderClass(bool aVisible, bool aNotify)
 {
   nsTextEditorState *state = GetEditorState();
   if (state) {
-    state->UpdatePlaceholderVisibility(aNotify);
+    state->SetPlaceholderClass(aVisible, aNotify);
   }
-}
-
-NS_IMETHODIMP_(bool)
-nsHTMLInputElement::GetPlaceholderVisibility()
-{
-  nsTextEditorState* state = GetEditorState();
-  if (!state) {
-    return false;
-  }
-
-  return state->GetPlaceholderVisibility();
 }
 
 void
@@ -1631,6 +1620,15 @@ nsHTMLInputElement::SetValueInternal(const nsAString& aValue,
       }
 
       mInputData.mState->SetValue(value, aUserInput, aSetValueChanged);
+
+      // This call might be useless in some situations because if the element is
+      // a single line text control, nsTextEditorState::SetValue will call
+      // nsHTMLInputElement::OnValueChanged which is going to call UpdateState()
+      // if the element is focused. This bug 665547.
+      if (PlaceholderApplies() &&
+          HasAttr(kNameSpaceID_None, nsGkAtoms::placeholder)) {
+        UpdateState(true);
+      }
 
       return NS_OK;
     }
@@ -3500,6 +3498,11 @@ nsHTMLInputElement::IntrinsicState() const
     }
   }
 
+  if (PlaceholderApplies() && HasAttr(kNameSpaceID_None, nsGkAtoms::placeholder) &&
+      IsValueEmpty()) {
+    state |= NS_EVENT_STATE_MOZ_PLACEHOLDER;
+  }
+
   if (mForm && !mForm->GetValidity() && IsSubmitControl()) {
     state |= NS_EVENT_STATE_MOZ_SUBMITINVALID;
   }
@@ -4606,6 +4609,13 @@ NS_IMETHODIMP_(void)
 nsHTMLInputElement::OnValueChanged(bool aNotify)
 {
   UpdateAllValidityStates(aNotify);
+
+  // :-moz-placeholder pseudo-class may change when the value changes.
+  // However, we don't want to waste cycles if the state doesn't apply.
+  if (PlaceholderApplies() &&
+      HasAttr(kNameSpaceID_None, nsGkAtoms::placeholder)) {
+    UpdateState(aNotify);
+  }
 }
 
 NS_IMETHODIMP_(bool)

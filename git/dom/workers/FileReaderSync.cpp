@@ -12,6 +12,7 @@
 #include "nsDOMClassInfoID.h"
 #include "nsError.h"
 #include "nsIDOMFile.h"
+#include "nsCharsetAlias.h"
 #include "nsICharsetDetector.h"
 #include "nsIConverterInputStream.h"
 #include "nsIInputStream.h"
@@ -26,7 +27,6 @@
 #include "DOMBindingInlines.h"
 
 #include "mozilla/Base64.h"
-#include "mozilla/dom/EncodingUtils.h"
 
 USING_WORKERS_NAMESPACE
 using mozilla::ErrorResult;
@@ -195,8 +195,9 @@ FileReaderSync::ReadAsText(JSObject* aBlob,
   }
 
   nsCString charset;
-  if (!EncodingUtils::FindEncodingForLabel(charsetGuess, charset)) {
-    aRv.Throw(NS_ERROR_DOM_ENCODING_NOT_SUPPORTED_ERR);
+  rv = nsCharsetAlias::GetPreferred(charsetGuess, charset);
+  if (NS_FAILED(rv)) {
+    aRv.Throw(rv);
     return;
   }
 

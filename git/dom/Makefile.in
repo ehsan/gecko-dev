@@ -50,7 +50,6 @@ PARALLEL_DIRS += \
   bluetooth \
   browser-element \
   contacts \
-  phonenumberutils \
   alarm \
   devicestorage \
   encoding \

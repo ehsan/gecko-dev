@@ -199,7 +199,7 @@ public:
    */
   void SimpleSubtract (const nsRegion& aRegion);
 
-  nsCString ToString() const;
+  nsCString ToString();
 
   /**
    * Initialize any static data associated with nsRegion.
@@ -464,7 +464,7 @@ public:
     mImpl.SimpleSubtract (aRegion.mImpl);
   }
 
-  nsCString ToString() const { return mImpl.ToString(); }
+  nsCString ToString() { return mImpl.ToString(); }
 
 private:
   nsRegion mImpl;

@@ -11,7 +11,6 @@ DOM_SRCDIRS = \
   dom/media \
   dom/network/src \
   dom/settings \
-  dom/phonenumberutils \
   dom/sms/src \
   dom/contacts \
   dom/permission \

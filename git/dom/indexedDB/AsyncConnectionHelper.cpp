@@ -21,7 +21,6 @@
 #include "TransactionThreadPool.h"
 
 #include "ipc/IndexedDBChild.h"
-#include "ipc/IndexedDBParent.h"
 
 USING_INDEXEDDB_NAMESPACE
 
@@ -204,47 +203,36 @@ AsyncConnectionHelper::Run()
       MaybeSendResponseToChildProcess(mResultCode) :
       Success_NotSent;
 
-    switch (sendResult) {
-      case Success_Sent: {
-        if (mRequest) {
-          mRequest->NotifyHelperSentResultsToChildProcess(NS_OK);
+    NS_ASSERTION(sendResult == Success_Sent || sendResult == Success_NotSent ||
+                 sendResult == Error,
+                 "Unknown result from MaybeSendResultsToChildProcess!");
+
+    if (sendResult == Success_Sent) {
+      if (mRequest) {
+        mRequest->NotifyHelperSentResultsToChildProcess(NS_OK);
+      }
+    }
+    else if (sendResult == Error) {
+      NS_WARNING("MaybeSendResultsToChildProcess failed!");
+      mResultCode = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+      if (mRequest) {
+        mRequest->NotifyHelperSentResultsToChildProcess(mResultCode);
+      }
+    }
+    else if (sendResult == Success_NotSent) {
+      if (mRequest) {
+        nsresult rv = mRequest->NotifyHelperCompleted(this);
+        if (NS_SUCCEEDED(mResultCode) && NS_FAILED(rv)) {
+          mResultCode = rv;
         }
-        break;
       }
 
-      case Success_NotSent: {
-        if (mRequest) {
-          nsresult rv = mRequest->NotifyHelperCompleted(this);
-          if (NS_SUCCEEDED(mResultCode) && NS_FAILED(rv)) {
-            mResultCode = rv;
-          }
-        }
-
-        // Call OnError if the database had an error or if the OnSuccess
-        // handler has an error.
-        if (NS_FAILED(mResultCode) ||
-            NS_FAILED((mResultCode = OnSuccess()))) {
-          OnError();
-        }
-        break;
+      // Call OnError if the database had an error or if the OnSuccess handler
+      // has an error.
+      if (NS_FAILED(mResultCode) ||
+          NS_FAILED((mResultCode = OnSuccess()))) {
+        OnError();
       }
-
-      case Success_ActorDisconnected: {
-        // Nothing needs to be done here.
-        break;
-      }
-
-      case Error: {
-        NS_WARNING("MaybeSendResultsToChildProcess failed!");
-        mResultCode = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-        if (mRequest) {
-          mRequest->NotifyHelperSentResultsToChildProcess(mResultCode);
-        }
-        break;
-      }
-
-      default:
-        MOZ_NOT_REACHED("Unknown value for ChildProcessSendResult!");
     }
 
     NS_ASSERTION(gCurrentTransaction == mTransaction, "Should be unchanged!");
@@ -544,8 +532,7 @@ AsyncConnectionHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
   }
 
   // Are we shutting down the child?
-  IndexedDBDatabaseParent* dbActor = trans->Database()->GetActorParent();
-  if (dbActor && dbActor->IsDisconnected()) {
+  if (trans->Database()->IsDisconnectedFromActor()) {
     return Success_ActorDisconnected;
   }
 

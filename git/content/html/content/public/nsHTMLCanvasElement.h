@@ -46,8 +46,13 @@ public:
   nsHTMLCanvasElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsHTMLCanvasElement();
 
-  NS_IMPL_FROMCONTENT_HTML_WITH_TAG(nsHTMLCanvasElement, canvas)
-
+  static nsHTMLCanvasElement* FromContent(nsIContent* aPossibleCanvas)
+  {
+    if (!aPossibleCanvas || !aPossibleCanvas->IsHTML(nsGkAtoms::canvas)) {
+      return nullptr;
+    }
+    return static_cast<nsHTMLCanvasElement*>(aPossibleCanvas);
+  }
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 

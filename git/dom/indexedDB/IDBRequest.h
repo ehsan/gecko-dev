@@ -84,11 +84,6 @@ public:
 
   void FillScriptErrorEvent(nsScriptErrorEvent* aEvent) const;
 
-  bool IsPending() const
-  {
-    return !mHaveResultOrErrorCode;
-  }
-
 protected:
   IDBRequest();
   ~IDBRequest();

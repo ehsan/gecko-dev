@@ -34,7 +34,6 @@ public:
   NS_FORWARD_NSIDOMHTMLELEMENT(nsHTMLMediaElement::)
 
   // nsIDOMHTMLMediaElement
-  using nsHTMLMediaElement::GetPaused;
   NS_FORWARD_NSIDOMHTMLMEDIAELEMENT(nsHTMLMediaElement::)
 
   // nsIDOMHTMLAudioElement

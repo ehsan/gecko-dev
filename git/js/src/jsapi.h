@@ -1042,7 +1042,6 @@ class JS_PUBLIC_API(AutoGCRooter) {
     /* Implemented in jsgc.cpp. */
     inline void trace(JSTracer *trc);
     static void traceAll(JSTracer *trc);
-    static void traceAllWrappers(JSTracer *trc);
 
   protected:
     AutoGCRooter * const down;
@@ -1083,9 +1082,7 @@ class JS_PUBLIC_API(AutoGCRooter) {
         NAMEVECTOR =  -26, /* js::AutoNameVector */
         HASHABLEVALUE=-27,
         IONMASM =     -28, /* js::ion::MacroAssembler */
-        IONALLOC =    -29, /* js::ion::AutoTempAllocatorRooter */
-        WRAPVECTOR =  -30, /* js::AutoWrapperVector */
-        WRAPPER =     -31  /* js::AutoWrapperRooter */
+        IONALLOC =    -29  /* js::ion::AutoTempAllocatorRooter */
     };
 
   private:
@@ -1953,15 +1950,10 @@ typedef JSBool
 /*
  * Callback used to ask the embedding for the cross compartment wrapper handler
  * that implements the desired prolicy for this kind of object in the
- * destination compartment. |obj| is the object to be wrapped. If |existing| is
- * non-NULL, it will point to an existing wrapper object that should be re-used
- * if possible. |existing| is guaranteed to be a cross-compartment wrapper with
- * a lazily-defined prototype and the correct global. It is guaranteed not to
- * wrap a function.
+ * destination compartment.
  */
 typedef JSObject *
-(* JSWrapObjectCallback)(JSContext *cx, JSObject *existing, JSObject *obj,
-                         JSObject *proto, JSObject *parent,
+(* JSWrapObjectCallback)(JSContext *cx, JSObject *obj, JSObject *proto, JSObject *parent,
                          unsigned flags);
 
 /*
@@ -2833,6 +2825,10 @@ JS_IsBuiltinFunctionConstructor(JSFunction *fun);
  * single-threaded fashion, otherwise the behavior of the library is undefined.
  * See: http://developer.mozilla.org/en/docs/Category:JSAPI_Reference
  */
+#define JS_NewRuntime       JS_Init
+#define JS_DestroyRuntime   JS_Finish
+#define JS_LockRuntime      JS_Lock
+#define JS_UnlockRuntime    JS_Unlock
 
 typedef enum JSUseHelperThreads
 {
@@ -2842,6 +2838,9 @@ typedef enum JSUseHelperThreads
 
 extern JS_PUBLIC_API(JSRuntime *)
 JS_NewRuntime(uint32_t maxbytes, JSUseHelperThreads useHelperThreads);
+
+/* Deprecated. */
+#define JS_CommenceRuntimeShutDown(rt) ((void) 0)
 
 extern JS_PUBLIC_API(void)
 JS_DestroyRuntime(JSRuntime *rt);
@@ -4859,6 +4858,18 @@ JS_CompileUCScriptForPrincipals(JSContext *cx, JSObject *obj,
                                 const jschar *chars, size_t length,
                                 const char *filename, unsigned lineno);
 
+extern JS_PUBLIC_API(JSScript *)
+JS_CompileUTF8File(JSContext *cx, JSObject *obj, const char *filename);
+
+extern JS_PUBLIC_API(JSScript *)
+JS_CompileUTF8FileHandle(JSContext *cx, JSObject *obj, const char *filename,
+                         FILE *fh);
+
+extern JS_PUBLIC_API(JSScript *)
+JS_CompileUTF8FileHandleForPrincipals(JSContext *cx, JSObject *obj,
+                                      const char *filename, FILE *fh,
+                                      JSPrincipals *principals);
+
 extern JS_PUBLIC_API(JSObject *)
 JS_GetGlobalFromScript(JSScript *script);
 
@@ -5362,6 +5373,10 @@ JS_UndependString(JSContext *cx, JSString *str);
 JS_PUBLIC_API(JSBool)
 JS_DecodeBytes(JSContext *cx, const char *src, size_t srclen, jschar *dst,
                size_t *dstlenp);
+
+JS_PUBLIC_API(JSBool)
+JS_DecodeUTF8(JSContext *cx, const char *src, size_t srclen, jschar *dst,
+              size_t *dstlenp);
 
 /*
  * A variation on JS_EncodeCharacters where a null terminated string is

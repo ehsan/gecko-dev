@@ -10,6 +10,7 @@
 
 #include "mozilla/Mutex.h"
 #include "mozilla/storage.h"
+#include "mozilla/unused.h"
 #include "mozilla/dom/ContentParent.h"
 #include "nsDOMClassInfo.h"
 #include "nsDOMLists.h"
@@ -218,6 +219,7 @@ IDBDatabase::IDBDatabase()
   mActorParent(nullptr),
   mContentParent(nullptr),
   mInvalidated(false),
+  mDisconnected(false),
   mRegistered(false),
   mClosed(false),
   mRunningVersionChange(false)
@@ -275,15 +277,20 @@ IDBDatabase::Invalidate()
   // And let the child process know as well.
   if (mActorParent) {
     NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-    mActorParent->Invalidate();
+    mozilla::unused << mActorParent->SendInvalidate();
   }
 }
 
 void
-IDBDatabase::DisconnectFromActorParent()
+IDBDatabase::DisconnectFromActor()
 {
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+  if (IsDisconnectedFromActor()) {
+    return;
+  }
+
+  mDisconnected = true;
 
   // Make sure we're closed too.
   Close();
@@ -293,6 +300,13 @@ IDBDatabase::DisconnectFromActorParent()
   if (owner) {
     IndexedDatabaseManager::CancelPromptsForWindow(owner);
   }
+}
+
+bool
+IDBDatabase::IsDisconnectedFromActor() const
+{
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  return mDisconnected;
 }
 
 void
@@ -744,11 +758,6 @@ IDBDatabase::MozCreateFileHandle(const nsAString& aName,
                                  nsIIDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  if (!IndexedDatabaseManager::IsMainProcess()) {
-    NS_WARNING("Not supported yet!");
-    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-  }
 
   if (IndexedDatabaseManager::IsShuttingDown()) {
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;

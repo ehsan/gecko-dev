@@ -21,7 +21,14 @@ public:
   nsHTMLFieldSetElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsHTMLFieldSetElement();
 
-  NS_IMPL_FROMCONTENT_HTML_WITH_TAG(nsHTMLFieldSetElement, fieldset)
+  /** Typesafe, non-refcounting cast from nsIContent.  Cheaper than QI. **/
+  static nsHTMLFieldSetElement* FromContent(nsIContent* aContent)
+  {
+    if (!aContent || !aContent->IsHTML(nsGkAtoms::fieldset)) {
+      return nullptr;
+    }
+    return static_cast<nsHTMLFieldSetElement*>(aContent);
+  }
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED

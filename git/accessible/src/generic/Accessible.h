@@ -859,6 +859,9 @@ protected:
    */
   virtual void DispatchClickEvent(nsIContent *aContent, uint32_t aActionIndex);
 
+  NS_DECL_RUNNABLEMETHOD_ARG2(Accessible, DispatchClickEvent,
+                              nsCOMPtr<nsIContent>, uint32_t)
+
   //////////////////////////////////////////////////////////////////////////////
   // Helpers
 

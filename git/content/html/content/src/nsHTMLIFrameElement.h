@@ -17,8 +17,6 @@ public:
                       mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
   virtual ~nsHTMLIFrameElement();
 
-  NS_IMPL_FROMCONTENT_HTML_WITH_TAG(nsHTMLIFrameElement, iframe)
-
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -63,6 +61,14 @@ public:
 
     // No sandbox attribute, no sandbox flags.
     return 0;
+  }
+
+  static nsHTMLIFrameElement* FromContent(nsIContent *aContent)
+  {
+    if (aContent->IsHTML(nsGkAtoms::iframe)) {
+      return static_cast<nsHTMLIFrameElement*>(aContent);
+    }
+    return nullptr;
   }
 
 protected:

@@ -300,12 +300,8 @@ Load(JSContext *cx,
             JS_ReportError(cx, "cannot open file '%s' for reading", filename.ptr());
             return JS_FALSE;
         }
-        JS::CompileOptions options(cx);
-        options.setUTF8(true)
-               .setFileAndLine(filename.ptr(), 1)
-               .setPrincipals(Environment(cx)->GetPrincipal());
-        js::RootedObject rootedObj(cx, obj);
-        JSScript *script = JS::Compile(cx, rootedObj, options, file);
+        script = JS_CompileUTF8FileHandleForPrincipals(cx, obj, filename.ptr(), file,
+                                                       Environment(cx)->GetPrincipal());
         fclose(file);
         if (!script)
             return JS_FALSE;
@@ -568,12 +564,9 @@ ProcessFile(JSContext *cx,
         JSAutoRequest ar(cx);
         JSAutoCompartment ac(cx, obj);
 
-        JS::CompileOptions options(cx);
-        options.setUTF8(true)
-               .setFileAndLine(filename, 1)
-               .setPrincipals(env->GetPrincipal());
-        js::RootedObject rootedObj(cx, obj);
-        JSScript* script = JS::Compile(cx, rootedObj, options, file);
+        JSScript* script =
+            JS_CompileUTF8FileHandleForPrincipals(cx, obj, filename, file,
+                                                  env->GetPrincipal());
         if (script && !env->ShouldCompileOnly())
             (void)JS_ExecuteScript(cx, obj, script, &result);
 

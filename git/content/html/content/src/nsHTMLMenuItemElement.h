@@ -18,7 +18,14 @@ public:
                         mozilla::dom::FromParser aFromParser);
   virtual ~nsHTMLMenuItemElement();
 
-  NS_IMPL_FROMCONTENT_HTML_WITH_TAG(nsHTMLMenuItemElement, menuitem)
+  /** Typesafe, non-refcounting cast from nsIContent.  Cheaper than QI. **/
+  static nsHTMLMenuItemElement* FromContent(nsIContent* aContent)
+  {
+    if (aContent && aContent->IsHTML(nsGkAtoms::menuitem)) {
+      return static_cast<nsHTMLMenuItemElement*>(aContent);
+    }
+    return nullptr;
+  }
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED

@@ -1859,7 +1859,7 @@ void nsRegion::SimpleSubtract (const nsRegion& aRegion)
 }
 
 nsCString
-nsRegion::ToString() const
+nsRegion::ToString()
 {
   nsCString result;
   result.AppendLiteral("[");

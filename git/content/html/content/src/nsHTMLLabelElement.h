@@ -19,7 +19,14 @@ public:
   nsHTMLLabelElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsHTMLLabelElement();
 
-  NS_IMPL_FROMCONTENT_HTML_WITH_TAG(nsHTMLLabelElement, label)
+  static nsHTMLLabelElement* FromContent(nsIContent* aPossibleLabel)
+  {
+    if (aPossibleLabel->IsHTML(nsGkAtoms::label)) {
+      return static_cast<nsHTMLLabelElement*>(aPossibleLabel);
+    }
+
+    return nullptr;
+  }
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED

@@ -92,20 +92,9 @@ public:
   nsresult SetEventHandler(nsIAtom* aType,
                            JSContext* aCx,
                            const JS::Value& aValue);
-  void SetEventHandler(nsIAtom* aType,
-                       mozilla::dom::EventHandlerNonNull* aHandler,
-                       mozilla::ErrorResult& rv)
-  {
-    rv = GetListenerManager(true)->SetEventHandler(aType, aHandler);
-  }
   void GetEventHandler(nsIAtom* aType,
                        JSContext* aCx,
                        JS::Value* aValue);
-  mozilla::dom::EventHandlerNonNull* GetEventHandler(nsIAtom* aType)
-  {
-    nsEventListenerManager* elm = GetListenerManager(false);
-    return elm ? elm->GetEventHandler(aType) : nullptr;
-  }
 
   nsresult CheckInnerWindowCorrectness()
   {
@@ -137,7 +126,6 @@ private:
   bool                       mHasOrHasHadOwner;
 };
 
-// XPIDL event handlers
 #define NS_IMPL_EVENT_HANDLER(_class, _event)                                 \
     NS_IMETHODIMP _class::GetOn##_event(JSContext* aCx, JS::Value* aValue)    \
     {                                                                         \
@@ -160,18 +148,6 @@ private:
     {                                                                         \
       return _baseclass::SetOn##_event(aCx, aValue);                          \
     }
-
-// WebIDL event handlers
-#define IMPL_EVENT_HANDLER(_event)                                        \
-  inline mozilla::dom::EventHandlerNonNull* GetOn##_event()               \
-  {                                                                       \
-    return GetEventHandler(nsGkAtoms::on##_event);                        \
-  }                                                                       \
-  inline void SetOn##_event(mozilla::dom::EventHandlerNonNull* aCallback, \
-                            ErrorResult& aRv)                             \
-  {                                                                       \
-    SetEventHandler(nsGkAtoms::on##_event, aCallback, aRv);               \
-  }
 
 /* Use this macro to declare functions that forward the behavior of this
  * interface to another object.

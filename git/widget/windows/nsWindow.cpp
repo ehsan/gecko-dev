@@ -5549,8 +5549,7 @@ void nsWindow::PostSleepWakeNotification(const bool aIsSleepMode)
     mozilla::services::GetObserverService();
   if (observerService)
     observerService->NotifyObservers(nullptr,
-      aIsSleepMode ? NS_WIDGET_SLEEP_OBSERVER_TOPIC :
-                     NS_WIDGET_WAKE_OBSERVER_TOPIC, nullptr);
+      aIsSleepMode ? "sleep_notification" : "wake_notification", nullptr);
 }
 
 // RemoveNextCharMessage() should be called by WM_KEYDOWN or WM_SYSKEYDOWM

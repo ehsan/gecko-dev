@@ -537,17 +537,7 @@ nsEventStatus AsyncPanZoomController::OnScaleEnd(const PinchGestureInput& aEvent
 }
 
 nsEventStatus AsyncPanZoomController::OnLongPress(const TapGestureInput& aEvent) {
-  if (mGeckoContentController) {
-    MonitorAutoLock monitor(mMonitor);
-
-    gfxFloat resolution = CalculateResolution(mFrameMetrics).width;
-    gfx::Point point = WidgetSpaceToCompensatedViewportSpace(
-      gfx::Point(aEvent.mPoint.x, aEvent.mPoint.y),
-      resolution);
-    mGeckoContentController->HandleLongTap(nsIntPoint(NS_lround(point.x),
-                                                      NS_lround(point.y)));
-    return nsEventStatus_eConsumeNoDefault;
-  }
+  // XXX: Implement this.
   return nsEventStatus_eIgnore;
 }
 

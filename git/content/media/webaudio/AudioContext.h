@@ -73,7 +73,7 @@ public:
   CreateGain();
 
   already_AddRefed<DelayNode>
-  CreateDelay(float aMaxDelayTime, ErrorResult& aRv);
+  CreateDelay(float aMaxDelayTime);
 
   already_AddRefed<PannerNode>
   CreatePanner();

@@ -22,7 +22,6 @@
 #include "nsITimer.h"
 
 #include "mozilla/dom/file/FileService.h"
-#include "mozilla/dom/TabContext.h"
 #include "mozilla/LazyIdleThread.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
@@ -67,7 +66,6 @@
 
 USING_INDEXEDDB_NAMESPACE
 using namespace mozilla::services;
-using namespace mozilla::dom;
 using mozilla::Preferences;
 using mozilla::dom::file::FileService;
 
@@ -196,6 +194,22 @@ GetOriginPatternString(uint32_t aAppId, MozBrowserPatternFlag aBrowserFlag,
 #endif
 
   _retval = aOrigin;
+}
+
+void
+GetOriginPatternString(uint32_t aAppId, nsAutoCString& _retval)
+{
+  return GetOriginPatternString(aAppId, IgnoreMozBrowser, EmptyCString(),
+                                _retval);
+}
+
+void
+GetOriginPatternString(uint32_t aAppId, bool aBrowserOnly,
+                       nsAutoCString& _retval)
+{
+  return GetOriginPatternString(aAppId,
+                                aBrowserOnly ? MozBrowser : NotMozBrowser,
+                                EmptyCString(), _retval);
 }
 
 void
@@ -610,18 +624,31 @@ IndexedDatabaseManager::FireWindowOnError(nsPIDOMWindow* aOwner,
 
 // static
 bool
-IndexedDatabaseManager::TabContextMayAccessOrigin(const TabContext& aContext,
-                                                  const nsACString& aOrigin)
+IndexedDatabaseManager::OriginMatchesApp(const nsACString& aOrigin,
+                                         uint32_t aAppId)
 {
   NS_ASSERTION(!aOrigin.IsEmpty(), "Empty origin!");
+  NS_ASSERTION(aAppId != nsIScriptSecurityManager::UNKNOWN_APP_ID,
+               "Bad appId!");
 
-  // If aContext is for a browser element, it's allowed only to access other
-  // browser elements.  But if aContext is not for a browser element, it may
-  // access both browser and non-browser elements.
   nsAutoCString pattern;
-  GetOriginPatternStringMaybeIgnoreBrowser(aContext.OwnOrContainingAppId(),
-                                           aContext.IsBrowserElement(),
-                                           pattern);
+  GetOriginPatternString(aAppId, pattern);
+
+  return PatternMatchesOrigin(pattern, aOrigin);
+}
+
+// static
+bool
+IndexedDatabaseManager::OriginMatchesApp(const nsACString& aOrigin,
+                                         uint32_t aAppId,
+                                         bool aInMozBrowser)
+{
+  NS_ASSERTION(!aOrigin.IsEmpty(), "Empty origin!");
+  NS_ASSERTION(aAppId != nsIScriptSecurityManager::UNKNOWN_APP_ID,
+               "Bad appId!");
+
+  nsAutoCString pattern;
+  GetOriginPatternString(aAppId, aInMozBrowser, pattern);
 
   return PatternMatchesOrigin(pattern, aOrigin);
 }
@@ -1742,8 +1769,10 @@ OriginClearRunnable::DeleteFiles(IndexedDatabaseManager* aManager)
   NS_ENSURE_SUCCESS_VOID(rv);
 
   nsCOMPtr<nsISimpleEnumerator> entries;
-  if (NS_FAILED(directory->GetDirectoryEntries(getter_AddRefs(entries))) ||
-      !entries) {
+  rv = directory->GetDirectoryEntries(getter_AddRefs(entries));
+  NS_ENSURE_SUCCESS_VOID(rv);
+
+  if (!entries) {
     return;
   }
 

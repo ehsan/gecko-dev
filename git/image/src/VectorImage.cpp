@@ -171,6 +171,7 @@ NS_IMPL_ISUPPORTS3(VectorImage,
 VectorImage::VectorImage(imgStatusTracker* aStatusTracker) :
   Image(aStatusTracker), // invoke superclass's constructor
   mRestrictedRegion(0, 0, 0, 0),
+  mLastRenderedSize(0, 0),
   mIsInitialized(false),
   mIsFullyLoaded(false),
   mIsDrawing(false),
@@ -525,7 +526,10 @@ VectorImage::Draw(gfxContext* aContext,
   }
   mIsDrawing = true;
 
-  mSVGDocumentWrapper->UpdateViewportBounds(aViewportSize);
+  if (aViewportSize != mLastRenderedSize) {
+    mSVGDocumentWrapper->UpdateViewportBounds(aViewportSize);
+    mLastRenderedSize = aViewportSize;
+  }
   mSVGDocumentWrapper->FlushImageTransformInvalidation();
 
   nsIntSize imageSize = mHaveRestrictedRegion ?

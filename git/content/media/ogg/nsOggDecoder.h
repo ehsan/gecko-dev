@@ -12,12 +12,12 @@ class nsOggDecoder : public nsBuiltinDecoder
 {
 public:
   virtual nsMediaDecoder* Clone() {
-    if (!IsOggEnabled()) {
+    if (!nsHTMLMediaElement::IsOggEnabled()) {
       return nullptr;
     }
     return new nsOggDecoder();
   }
-  virtual nsBuiltinDecoderStateMachine* CreateStateMachine();
+  virtual nsDecoderStateMachine* CreateStateMachine();
 };
 
 #endif

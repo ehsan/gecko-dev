@@ -195,7 +195,7 @@ void nsGStreamerReader::PlayBinSourceSetup(GstAppSrc *aSource)
 }
 
 nsresult nsGStreamerReader::ReadMetadata(nsVideoInfo* aInfo,
-                                         MetadataTags** aTags)
+                                         nsHTMLMediaElement::MetadataTags** aTags)
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
   nsresult ret = NS_OK;

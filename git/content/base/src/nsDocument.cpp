@@ -143,9 +143,6 @@
 #ifdef MOZ_MEDIA
 #include "nsHTMLMediaElement.h"
 #endif // MOZ_MEDIA
-#ifdef MOZ_WEBRTC
-#include "IPeerConnection.h"
-#endif // MOZ_WEBRTC
 
 #include "mozAutoDocUpdate.h"
 #include "nsGlobalWindow.h"
@@ -6745,20 +6742,6 @@ nsDocument::CanSavePresentation(nsIRequest *aNewRequest)
     return false;
   }
 
-#ifdef MOZ_WEBRTC
-  // Check if we have active PeerConnections
-  nsCOMPtr<IPeerConnectionManager> pcManager =
-    do_GetService(IPEERCONNECTION_MANAGER_CONTRACTID);
-
-  if (pcManager && win) {
-    bool active;
-    pcManager->HasActivePeerConnection(win->WindowID(), &active);
-    if (active) {
-      return false;
-    }
-  }
-#endif // MOZ_WEBRTC
-
   bool canCache = true;
   if (mSubDocuments)
     PL_DHashTableEnumerate(mSubDocuments, CanCacheSubDocument, &canCache);
@@ -8376,7 +8359,7 @@ HasCrossProcessParent(nsIDocument* aDocument)
   if (!docShell) {
     return false;
   }
-  return docShell->GetIsBrowserOrApp();
+  return docShell->GetIsContentBoundary();
 }
 
 static bool

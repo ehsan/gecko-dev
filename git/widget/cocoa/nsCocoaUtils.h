@@ -273,6 +273,11 @@ class nsCocoaUtils
                              NSUInteger aModifiers);
 
   /**
+   * GetCurrentModifiers() returns Cocoa modifier flags for current state.
+   */
+  static NSUInteger GetCurrentModifiers();
+
+  /**
    * ConvertToCarbonModifier() returns carbon modifier flags for the cocoa
    * modifier flags.
    * NOTE: The result never includes right*Key.

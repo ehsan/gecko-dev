@@ -806,9 +806,10 @@ nsPresContext::AppUnitsPerDevPixelChanged()
 
   mDeviceContext->FlushFontCache();
 
+  // All cached style data must be recomputed.
   if (HasCachedStyleData()) {
-    // All cached style data must be recomputed.
-    MediaFeatureValuesChanged(eAlwaysRebuildStyle, NS_STYLE_HINT_REFLOW);
+    MediaFeatureValuesChanged(true);
+    RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
   }
 }
 
@@ -1571,11 +1572,13 @@ nsPresContext::ThemeChangedInternal()
   nsCSSRuleProcessor::FreeSystemMetrics();
 
   // Changes to system metrics can change media queries on them.
+  MediaFeatureValuesChanged(true);
+
   // Changes in theme can change system colors (whose changes are
   // properly reflected in computed style data), system fonts (whose
   // changes are not), and -moz-appearance (whose changes likewise are
   // not), so we need to reflow.
-  MediaFeatureValuesChanged(eAlwaysRebuildStyle, NS_STYLE_HINT_REFLOW);
+  RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
 }
 
 void
@@ -1677,22 +1680,17 @@ nsPresContext::PostRebuildAllStyleDataEvent(nsChangeHint aExtraHint)
 }
 
 void
-nsPresContext::MediaFeatureValuesChanged(StyleRebuildType aShouldRebuild,
-                                         nsChangeHint aChangeHint)
+nsPresContext::MediaFeatureValuesChanged(bool aCallerWillRebuildStyleData)
 {
-  NS_ASSERTION(aShouldRebuild == eAlwaysRebuildStyle || aChangeHint == 0,
-               "If you don't know if we need a rebuild, how can you provide a hint?");
-
   mPendingMediaFeatureValuesChanged = false;
 
   // MediumFeaturesChanged updates the applied rules, so it always gets called.
   bool mediaFeaturesDidChange = mShell ? mShell->StyleSet()->MediumFeaturesChanged(this)
                                        : false;
 
-  if (aShouldRebuild == eAlwaysRebuildStyle ||
-      mediaFeaturesDidChange ||
-      (mUsesViewportUnits && mPendingViewportChange)) {
-    RebuildAllStyleData(aChangeHint);
+  if (!aCallerWillRebuildStyleData &&
+      (mediaFeaturesDidChange || (mUsesViewportUnits && mPendingViewportChange))) {
+    RebuildAllStyleData(nsChangeHint(0));
   }
 
   mPendingViewportChange = false;
@@ -1771,7 +1769,7 @@ nsPresContext::HandleMediaFeatureValuesChangedEvent()
   // Null-check mShell in case the shell has been destroyed (and the
   // event is the only thing holding the pres context alive).
   if (mPendingMediaFeatureValuesChanged && mShell) {
-    MediaFeatureValuesChanged(eRebuildStyleIfNeeded);
+    MediaFeatureValuesChanged(false);
   }
 }
 

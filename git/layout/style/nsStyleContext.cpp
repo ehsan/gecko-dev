@@ -258,6 +258,12 @@ nsStyleContext::GetUniqueStyleData(const nsStyleStructID& aSID)
     return nullptr;
   }
 
+  if (!result) {
+    NS_WARNING("Ran out of memory while trying to allocate memory for a unique style struct! "
+               "Returning the non-unique data.");
+    return const_cast<void*>(current);
+  }
+
   SetStyle(aSID, result);
   mBits &= ~nsCachedStyleData::GetBitForSID(aSID);
 
@@ -280,6 +286,7 @@ nsStyleContext::SetStyle(nsStyleStructID aSID, void* aStruct)
   if (nsCachedStyleData::IsReset(aSID)) {
     if (!mCachedResetData) {
       mCachedResetData = new (mRuleNode->GetPresContext()) nsResetStyleData;
+      // XXXbz And if that fails?
     }
     dataSlot = &mCachedResetData->mStyleStructs[aSID];
   } else {
@@ -719,7 +726,8 @@ NS_NewStyleContext(nsStyleContext* aParentContext,
   nsStyleContext* context =
     new (aRuleNode->GetPresContext())
       nsStyleContext(aParentContext, aPseudoTag, aPseudoType, aRuleNode);
-  context->AddRef();
+  if (context)
+    context->AddRef();
   return context;
 }
 

@@ -282,26 +282,21 @@ BaseProxyHandler::construct(JSContext *cx, JSObject *proxy, unsigned argc,
 JSString *
 BaseProxyHandler::obj_toString(JSContext *cx, JSObject *proxy)
 {
-    return JS_NewStringCopyZ(cx, IsFunctionProxy(proxy)
-                                 ? "[object Function]"
-                                 : "[object Object]");
+    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
+                         JSMSG_INCOMPATIBLE_PROTO,
+                         js_Object_str, js_toString_str,
+                         "object");
+    return NULL;
 }
 
 JSString *
 BaseProxyHandler::fun_toString(JSContext *cx, JSObject *proxy, unsigned indent)
 {
-    Value fval = GetCall(proxy);
-    if (IsFunctionProxy(proxy) &&
-        (fval.isPrimitive() || !fval.toObject().isFunction())) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                             JSMSG_INCOMPATIBLE_PROTO,
-                             js_Function_str, js_toString_str,
-                             "object");
-        return NULL;
-    }
-    RootedObject obj(cx, &fval.toObject());
-    return fun_toStringHelper(cx, obj, indent);
-
+    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
+                         JSMSG_INCOMPATIBLE_PROTO,
+                         js_Function_str, js_toString_str,
+                         "object");
+    return NULL;
 }
 
 bool
@@ -3141,23 +3136,6 @@ js::NewProxyObject(JSContext *cx, BaseProxyHandler *handler, const Value &priv_,
                    JSObject *parent_, JSObject *call_, JSObject *construct_)
 {
     return NewProxyObject(cx, handler, priv_, TaggedProto(proto_), parent_, call_, construct_);
-}
-
-JSObject *
-js::RenewProxyObject(JSContext *cx, JSObject *obj,
-                     BaseProxyHandler *handler, Value priv)
-{
-    JS_ASSERT(obj->getParent() == cx->global());
-    JS_ASSERT(obj->getClass() == &ObjectProxyClass);
-    JS_ASSERT(obj->getTaggedProto().isLazy());
-    JS_ASSERT(!handler->isOuterWindow());
-
-    obj->setSlot(JSSLOT_PROXY_HANDLER, PrivateValue(handler));
-    obj->setCrossCompartmentSlot(JSSLOT_PROXY_PRIVATE, priv);
-    obj->setSlot(JSSLOT_PROXY_EXTRA + 0, UndefinedValue());
-    obj->setSlot(JSSLOT_PROXY_EXTRA + 1, UndefinedValue());
-
-    return obj;
 }
 
 static JSBool

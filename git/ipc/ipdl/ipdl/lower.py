@@ -2855,10 +2855,10 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
 
         if not ptype.isToplevel():
             if 1 == len(p.managers):
-                ## manager() const
+                ## manager()
                 managertype = p.managerActorType(self.side, ptr=1)
                 managermeth = MethodDefn(MethodDecl(
-                    p.managerMethod().name, ret=managertype, const=1))
+                    p.managerMethod().name, ret=managertype))
                 managermeth.addstmt(StmtReturn(
                     ExprCast(p.managerVar(), managertype, static=1)))
 

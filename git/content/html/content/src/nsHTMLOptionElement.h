@@ -21,7 +21,13 @@ public:
   nsHTMLOptionElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsHTMLOptionElement();
 
-  NS_IMPL_FROMCONTENT_HTML_WITH_TAG(nsHTMLOptionElement, option)
+  /** Typesafe, non-refcounting cast from nsIContent.  Cheaper than QI. **/
+  static nsHTMLOptionElement* FromContent(nsIContent *aContent)
+  {
+    if (aContent && aContent->IsHTML(nsGkAtoms::option))
+      return static_cast<nsHTMLOptionElement*>(aContent);
+    return nullptr;
+  }
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED

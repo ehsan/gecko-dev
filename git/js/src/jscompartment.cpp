@@ -66,8 +66,6 @@ JSCompartment::JSCompartment(JSRuntime *rt)
     typeLifoAlloc(LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
     data(NULL),
     active(false),
-    scheduledForDestruction(false),
-    maybeAlive(true),
     lastAnimationTime(0),
     regExps(rt),
     propertyTree(thisForCtor()),
@@ -195,16 +193,13 @@ WrapForSameCompartment(JSContext *cx, HandleObject obj, Value *vp)
 }
 
 bool
-JSCompartment::wrap(JSContext *cx, Value *vp, JSObject *existing)
+JSCompartment::wrap(JSContext *cx, Value *vp)
 {
     JS_ASSERT(cx->compartment == this);
-    JS_ASSERT_IF(existing, existing->compartment() == cx->compartment);
-    JS_ASSERT_IF(existing, vp->isObject());
-    JS_ASSERT_IF(existing, IsDeadProxyObject(existing));
 
     unsigned flags = 0;
 
-    JS_CHECK_CHROME_RECURSION(cx, return false);
+    JS_CHECK_RECURSION(cx, return false);
 
 #ifdef DEBUG
     struct AutoDisableProxyCheck {
@@ -310,24 +305,13 @@ JSCompartment::wrap(JSContext *cx, Value *vp, JSObject *existing)
     RootedObject obj(cx, &vp->toObject());
 
     JSObject *proto = Proxy::LazyProto;
-    if (existing) {
-        /* Is it possible to reuse |existing|? */
-        if (!existing->getTaggedProto().isLazy() ||
-            existing->getClass() != &ObjectProxyClass ||
-            existing->getParent() != global ||
-            obj->isCallable())
-        {
-            existing = NULL;
-        }
-    }
 
     /*
      * We hand in the original wrapped object into the wrap hook to allow
      * the wrap hook to reason over what wrappers are currently applied
      * to the object.
      */
-    RootedObject wrapper(cx);
-    wrapper = cx->runtime->wrapObjectCallback(cx, existing, obj, proto, global, flags);
+    RootedObject wrapper(cx, cx->runtime->wrapObjectCallback(cx, obj, proto, global, flags));
     if (!wrapper)
         return false;
 
@@ -364,12 +348,12 @@ JSCompartment::wrap(JSContext *cx, HeapPtrString *strp)
 }
 
 bool
-JSCompartment::wrap(JSContext *cx, JSObject **objp, JSObject *existing)
+JSCompartment::wrap(JSContext *cx, JSObject **objp)
 {
     if (!*objp)
         return true;
     RootedValue value(cx, ObjectValue(**objp));
-    if (!wrap(cx, value.address(), existing))
+    if (!wrap(cx, value.address()))
         return false;
     *objp = &value.get().toObject();
     return true;

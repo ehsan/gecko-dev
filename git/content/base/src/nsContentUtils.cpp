@@ -1734,7 +1734,7 @@ nsContentUtils::GetDocumentFromCaller()
   JSAutoCompartment ac(cx, obj);
 
   nsCOMPtr<nsPIDOMWindow> win =
-    do_QueryInterface(nsJSUtils::GetStaticScriptGlobal(obj));
+    do_QueryInterface(nsJSUtils::GetStaticScriptGlobal(cx, obj));
   if (!win) {
     return nullptr;
   }
@@ -6658,7 +6658,7 @@ nsContentUtils::FindInternalContentViewer(const char* aType,
 #endif
 
 #ifdef MOZ_MEDIA_PLUGINS
-  if (nsMediaDecoder::IsMediaPluginsEnabled() &&
+  if (nsHTMLMediaElement::IsMediaPluginsEnabled() &&
       nsHTMLMediaElement::IsMediaPluginsType(nsDependentCString(aType))) {
     docFactory = do_GetService("@mozilla.org/content/document-loader-factory;1");
     if (docFactory && aLoaderType) {

@@ -24,12 +24,12 @@ class nsWaveDecoder : public nsBuiltinDecoder
 {
 public:
   virtual nsMediaDecoder* Clone() {
-    if (!IsWaveEnabled()) {
+    if (!nsHTMLMediaElement::IsWaveEnabled()) {
       return nullptr;
     }
     return new nsWaveDecoder();
   }
-  virtual nsBuiltinDecoderStateMachine* CreateStateMachine();
+  virtual nsDecoderStateMachine* CreateStateMachine();
 };
 
 #endif

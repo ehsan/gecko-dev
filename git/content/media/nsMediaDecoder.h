@@ -10,7 +10,6 @@
 #include "VideoFrameContainer.h"
 #include "MediaStreamGraph.h"
 #include "nsIObserver.h"
-#include "nsDataHashtable.h"
 
 class nsHTMLMediaElement;
 class nsIStreamListener;
@@ -22,7 +21,6 @@ class nsITimer;
 namespace mozilla {
 class MediaResource;
 class MediaByteRange;
-class MediaDecoderOwner;
 }
 
 // The size to use for audio data frames in MozAudioAvailable events.
@@ -34,8 +32,6 @@ static const uint32_t FRAMEBUFFER_LENGTH_PER_CHANNEL = 1024;
 // has to be within the following range.
 static const uint32_t FRAMEBUFFER_LENGTH_MIN = 512;
 static const uint32_t FRAMEBUFFER_LENGTH_MAX = 16384;
-
-typedef nsDataHashtable<nsCStringHashKey, nsCString> MetadataTags;
 
 // All methods of nsMediaDecoder must be called from the main thread only
 // with the exception of GetVideoFrameContainer and GetStatistics,
@@ -63,7 +59,7 @@ public:
   // Perform any initialization required for the decoder.
   // Return true on successful initialisation, false
   // on failure.
-  virtual bool Init(mozilla::MediaDecoderOwner* aOwner);
+  virtual bool Init(nsHTMLMediaElement* aElement);
 
   // Get the current MediaResource being used. Its URI will be returned
   // by currentSrc. Returns what was passed to Load(), if Load() has been called.
@@ -355,7 +351,7 @@ public:
 
   // Returns a weak reference to the media element we're decoding for,
   // if it's available.
-  mozilla::MediaDecoderOwner* GetMediaOwner() const;
+  nsHTMLMediaElement* GetMediaElement();
 
   // Returns the current size of the framebuffer used in
   // MozAudioAvailable events.
@@ -391,50 +387,6 @@ public:
     return mVideoFrameContainer ? mVideoFrameContainer->GetImageContainer() : nullptr;
   }
 
-  // The status of the next frame which might be available from the decoder
-  enum NextFrameStatus {
-    // The next frame of audio/video is available
-    NEXT_FRAME_AVAILABLE,
-    // The next frame of audio/video is unavailable because the decoder
-    // is paused while it buffers up data
-    NEXT_FRAME_UNAVAILABLE_BUFFERING,
-    // The next frame of audio/video is unavailable for some other reasons
-    NEXT_FRAME_UNAVAILABLE
-  };
-
-#ifdef MOZ_RAW
-  static bool IsRawEnabled();
-#endif
-
-#ifdef MOZ_OGG
-  static bool IsOggEnabled();
-  static bool IsOpusEnabled();
-#endif
-
-#ifdef MOZ_WAVE
-  static bool IsWaveEnabled();
-#endif
-
-#ifdef MOZ_WEBM
-  static bool IsWebMEnabled();
-#endif
-
-#ifdef MOZ_GSTREAMER
-  static bool IsGStreamerEnabled();
-#endif
-
-#ifdef MOZ_WIDGET_GONK
-  static bool IsOmxEnabled();
-#endif
-
-#ifdef MOZ_MEDIA_PLUGINS
-  static bool IsMediaPluginsEnabled();
-#endif
-
-#ifdef MOZ_DASH
-  static bool IsDASHEnabled();
-#endif
-
 protected:
 
   // Start timer to update download progress information.
@@ -455,7 +407,7 @@ protected:
   // This should only ever be accessed from the main thread.
   // It is set in Init and cleared in Shutdown when the element goes away.
   // The decoder does not add a reference the element.
-  mozilla::MediaDecoderOwner* mOwner;
+  nsHTMLMediaElement* mElement;
 
   // Counters related to decode and presentation of frames.
   FrameStatistics mFrameStats;

@@ -157,12 +157,6 @@ public:
     eContext_PageLayout    // paginated & editable.
   };
 
-  // Policies for rebuilding style data.
-  enum StyleRebuildType {
-    eRebuildStyleIfNeeded,
-    eAlwaysRebuildStyle
-  };
-
   nsPresContext(nsIDocument* aDocument, nsPresContextType aType) NS_HIDDEN;
 
   /**
@@ -254,13 +248,12 @@ public:
    */
   void PostRebuildAllStyleDataEvent(nsChangeHint aExtraHint);
 
-  void MediaFeatureValuesChanged(StyleRebuildType aShouldRebuild,
-                                 nsChangeHint aChangeHint = nsChangeHint(0));
+  void MediaFeatureValuesChanged(bool aCallerWillRebuildStyleData);
   void PostMediaFeatureValuesChangedEvent();
   NS_HIDDEN_(void) HandleMediaFeatureValuesChangedEvent();
   void FlushPendingMediaFeatureValuesChanged() {
     if (mPendingMediaFeatureValuesChanged)
-      MediaFeatureValuesChanged(eRebuildStyleIfNeeded);
+      MediaFeatureValuesChanged(false);
   }
 
   /**
@@ -500,7 +493,8 @@ public:
     if (HasCachedStyleData()) {
       // Media queries could have changed, since we changed the meaning
       // of 'em' units in them.
-      MediaFeatureValuesChanged(eAlwaysRebuildStyle, NS_STYLE_HINT_REFLOW);
+      MediaFeatureValuesChanged(true);
+      RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
     }
   }
 
@@ -521,7 +515,8 @@ public:
     if (HasCachedStyleData()) {
       // Media queries could have changed, since we changed the meaning
       // of 'em' units in them.
-      MediaFeatureValuesChanged(eAlwaysRebuildStyle, NS_STYLE_HINT_REFLOW);
+      MediaFeatureValuesChanged(true);
+      RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
     }
   }
 

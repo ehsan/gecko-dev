@@ -52,10 +52,6 @@ DOMRequestIpcHelper.prototype = {
   },
 
   observe: function(aSubject, aTopic, aData) {
-    if (aTopic !== "inner-window-destroyed") {
-      return;
-    }
-
     let wId = aSubject.QueryInterface(Ci.nsISupportsPRUint64).data;
     if (wId == this.innerWindowID) {
       Services.obs.removeObserver(this, "inner-window-destroyed");

@@ -42,7 +42,6 @@
 #include "mozilla/unused.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/ClearOnShutdown.h"
 
 #include <math.h>
 
@@ -114,9 +113,10 @@ public:
 
   void MozSettingValue(const bool aValue)
   {
-    nsRefPtr<nsGeolocationService> gs = nsGeolocationService::GetGeolocationService();
-    if (gs) {
-      gs->HandleMozsettingValue(aValue);
+    // It is theoretically possible to shut down before the first settings check
+    // has completed (though extremely unlikely).
+    if (nsGeolocationService::gService) {
+      nsGeolocationService::gService->HandleMozsettingValue(aValue);
     }
   }
 };
@@ -272,7 +272,6 @@ nsGeolocationRequest::nsGeolocationRequest(nsGeolocation* aLocator,
                                            int32_t aWatchId)
   : mAllowed(false),
     mCleared(false),
-    mIsFirstUpdate(true),
     mIsWatchPositionRequest(aWatchPositionRequest),
     mCallback(aCallback),
     mErrorCallback(aErrorCallback),
@@ -385,10 +384,10 @@ nsGeolocationRequest::Cancel()
 NS_IMETHODIMP
 nsGeolocationRequest::Allow()
 {
-  nsRefPtr<nsGeolocationService> gs = nsGeolocationService::GetGeolocationService();
+  nsRefPtr<nsGeolocationService> geoService = nsGeolocationService::GetInstance();
 
   // Kick off the geo device, if it isn't already running
-  nsresult rv = gs->StartDevice();
+  nsresult rv = geoService->StartDevice();
 
   if (NS_FAILED(rv)) {
     // Location provider error
@@ -396,7 +395,7 @@ nsGeolocationRequest::Allow()
     return NS_OK;
   }
 
-  nsCOMPtr<nsIDOMGeoPosition> lastPosition = gs->GetCachedPosition();
+  nsCOMPtr<nsIDOMGeoPosition> lastPosition = geoService->GetCachedPosition();
   DOMTimeStamp cachedPositionTime;
   if (lastPosition) {
     lastPosition->GetTimestamp(&cachedPositionTime);
@@ -415,7 +414,7 @@ nsGeolocationRequest::Allow()
       maximumAge = mOptions->maximumAge;
     }
     if (mOptions->enableHighAccuracy) {
-      gs->SetHigherAccuracy(true);
+      geoService->SetHigherAccuracy(true);
     }
   }
 
@@ -506,25 +505,16 @@ nsGeolocationRequest::SendLocation(nsIDOMGeoPosition* aPosition)
 }
 
 bool
-nsGeolocationRequest::Update(nsIDOMGeoPosition* aPosition, bool aIsBetter)
+nsGeolocationRequest::Update(nsIDOMGeoPosition* aPosition)
 {
   if (!mAllowed) {
     return false;
   }
-  // Only dispatch callbacks if this is the first position for this request, or
-  // if the accuracy is as good or improving.
-  //
-  // This ensures that all listeners get at least one position callback, particularly
-  // in the case when newly detected positions are all less accurate than the cached one.
-  //
-  // Fixes bug 596481
-  if (mIsFirstUpdate || aIsBetter) {
-    mIsFirstUpdate = false;
-    nsCOMPtr<nsIRunnable> ev  = new RequestSendLocationEvent(aPosition,
-                                                             this,
-                                                             mIsWatchPositionRequest ? nullptr : mLocator);
-    NS_DispatchToMainThread(ev);
-  }
+
+  nsCOMPtr<nsIRunnable> ev  = new RequestSendLocationEvent(aPosition,
+							   this,
+							   mIsWatchPositionRequest ? nullptr : mLocator);
+  NS_DispatchToMainThread(ev);
   return true;
 }
 
@@ -532,9 +522,9 @@ void
 nsGeolocationRequest::Shutdown()
 {
   if (mOptions && mOptions->enableHighAccuracy) {
-    nsRefPtr<nsGeolocationService> gs = nsGeolocationService::GetGeolocationService();
-    if (gs) {
-      gs->SetHigherAccuracy(false);
+    nsRefPtr<nsGeolocationService> geoService = nsGeolocationService::GetInstance();
+    if (geoService) {
+      geoService->SetHigherAccuracy(false);
     }
   }
 
@@ -799,105 +789,12 @@ nsGeolocationService::Observe(nsISupports* aSubject,
 NS_IMETHODIMP
 nsGeolocationService::Update(nsIDOMGeoPosition *aSomewhere)
 {
-  // here we have to determine this aSomewhere is a "better"
-  // position than any previously recv'ed.
-
-  bool isBetter = IsBetterPosition(aSomewhere);
-
-  if (isBetter) {
-    SetCachedPosition(aSomewhere);
-  }
+  SetCachedPosition(aSomewhere);
 
   for (uint32_t i = 0; i< mGeolocators.Length(); i++) {
-    mGeolocators[i]->Update(aSomewhere, isBetter);
+    mGeolocators[i]->Update(aSomewhere);
   }
   return NS_OK;
-}
-
-PRBool
-nsGeolocationService::IsBetterPosition(nsIDOMGeoPosition *aSomewhere)
-{
-  if (!aSomewhere) {
-    return false;
-  }
-  
-  if (mProviders.Count() == 1 || !mLastPosition) {
-    return true;
-  }
-
-  nsCOMPtr<nsIDOMGeoPositionCoords> coords;
-  mLastPosition->GetCoords(getter_AddRefs(coords));
-  if (!coords) {
-    return false;
-  }
-
-  double oldAccuracy;
-  nsresult rv = coords->GetAccuracy(&oldAccuracy);
-  NS_ENSURE_SUCCESS(rv, false);
-
-  double oldLat, oldLon;
-  rv = coords->GetLongitude(&oldLon);
-  NS_ENSURE_SUCCESS(rv, false);
-
-  rv = coords->GetLatitude(&oldLat);
-  NS_ENSURE_SUCCESS(rv, false);
-
-  aSomewhere->GetCoords(getter_AddRefs(coords));
-  if (!coords) {
-    return false;
-  }
-
-  double newAccuracy;
-  rv = coords->GetAccuracy(&newAccuracy);
-  NS_ENSURE_SUCCESS(rv, false);
-
-  double newLat, newLon;
-  rv = coords->GetLongitude(&newLon);
-  NS_ENSURE_SUCCESS(rv, false);
-
-  rv = coords->GetLatitude(&newLat);
-  NS_ENSURE_SUCCESS(rv, false);
-
-  // Latitude and longitude is reported in degrees.
-  // However, it is easier to work in radian:
-  // see: http://en.wikipedia.org/wiki/Radian
-  double radsInDeg = M_PI / 180.0;
-
-  newLat *= radsInDeg;
-  newLon *= radsInDeg;
-  oldLat *= radsInDeg;
-  oldLon *= radsInDeg;
-
-  // WGS84 equatorial radius of earth = 6378137m
-  // http://en.wikipedia.org/wiki/WGS84
-  double radius = 6378137;
-
-  // We want to calculate the "Great Circle distance"
-  // between the point (lat1, lon1) and (lat2, lon2).  We
-  // will use the spherical law of cosines to the triangle
-  // formed by our two points and the north pole.
-  //
-  // a = sin ( lat1 ) * sin ( lat2 )  + cos ( lat1 ) * cos (lat2) * cos (lon1 - lon2)
-  // R = radius of circle
-  // distance = arccos ( a ) * R 
-  //
-  // http://en.wikipedia.org/wiki/Great-circle_distance
-
-  double delta = acos( (sin(newLat) * sin(oldLat)) +
-                       (cos(newLat) * cos(oldLat) * cos(oldLon - newLon)) ) * radius; 
-
-  // The threshold is when the distance between the two
-  // positions exceeds the worse (larger value) of the two
-  // accuracies.
-  double max_accuracy = NS_MAX(oldAccuracy, newAccuracy);
-  if (delta > max_accuracy)
-    return true;
-
-  // check to see if the aSomewhere position is more accurate
-  if (oldAccuracy >= newAccuracy)
-    return true;
-
-  return false;
 }
 
 void
@@ -1006,24 +903,31 @@ nsGeolocationService::StopDevice()
   }
 }
 
-nsRefPtr<nsGeolocationService> nsGeolocationService::sService;
+nsGeolocationService* nsGeolocationService::gService = nullptr;
 
-already_AddRefed<nsGeolocationService>
+nsGeolocationService*
+nsGeolocationService::GetInstance()
+{
+  if (!nsGeolocationService::gService) {
+    nsGeolocationService::gService = new nsGeolocationService();
+    NS_ASSERTION(nsGeolocationService::gService, "null nsGeolocationService.");
+
+    if (nsGeolocationService::gService) {
+      if (NS_FAILED(nsGeolocationService::gService->Init())) {
+        delete nsGeolocationService::gService;
+        nsGeolocationService::gService = nullptr;
+      }
+    }
+  }
+  return nsGeolocationService::gService;
+}
+
+nsGeolocationService*
 nsGeolocationService::GetGeolocationService()
 {
-  nsRefPtr<nsGeolocationService> result;
-  if (nsGeolocationService::sService) {
-    result = nsGeolocationService::sService;
-    return result.forget();
-  }
-
-  result = new nsGeolocationService();
-  if (NS_FAILED(result->Init())) {
-    return nullptr;
-  }
-  ClearOnShutdown(&nsGeolocationService::sService);
-  nsGeolocationService::sService = result;
-  return result.forget();
+  nsGeolocationService* inst = nsGeolocationService::GetInstance();
+  NS_IF_ADDREF(inst);
+  return inst;
 }
 
 void
@@ -1113,7 +1017,7 @@ nsGeolocation::Init(nsIDOMWindow* aContentDom)
   // If no aContentDom was passed into us, we are being used
   // by chrome/c++ and have no mOwner, no mPrincipal, and no need
   // to prompt.
-  mService = nsGeolocationService::GetGeolocationService();
+  mService = nsGeolocationService::GetInstance();
   if (mService) {
     mService->AddLocator(this);
   }
@@ -1167,21 +1071,21 @@ nsGeolocation::RemoveRequest(nsGeolocationRequest* aRequest)
 }
 
 void
-nsGeolocation::Update(nsIDOMGeoPosition *aSomewhere, bool aIsBetter)
+nsGeolocation::Update(nsIDOMGeoPosition *aSomewhere)
 {
   if (!WindowOwnerStillExists()) {
     return Shutdown();
   }
 
   for (uint32_t i = mPendingCallbacks.Length(); i> 0; i--) {
-    if (mPendingCallbacks[i-1]->Update(aSomewhere, aIsBetter)) {
+    if (mPendingCallbacks[i-1]->Update(aSomewhere)) {
       mPendingCallbacks.RemoveElementAt(i-1);
     }
   }
 
   // notify everyone that is watching
   for (uint32_t i = 0; i< mWatchingCallbacks.Length(); i++) {
-    mWatchingCallbacks[i]->Update(aSomewhere, aIsBetter);
+    mWatchingCallbacks[i]->Update(aSomewhere);
   }
 }
 

@@ -1454,10 +1454,10 @@ History::~History()
 #endif
 }
 
-NS_IMETHODIMP
+void
 History::NotifyVisited(nsIURI* aURI)
 {
-  NS_ENSURE_ARG(aURI);
+  NS_ASSERTION(aURI, "Ruh-roh!  A NULL URI was passed to us!");
 
   nsAutoScriptBlocker scriptBlocker;
 
@@ -1477,14 +1477,14 @@ History::NotifyVisited(nsIURI* aURI)
   // If the hash table has not been initialized, then we have nothing to notify
   // about.
   if (!mObservers.IsInitialized()) {
-    return NS_OK;
+    return;
   }
 
   // Additionally, if we have no observers for this URI, we have nothing to
   // notify about.
   KeyClass* key = mObservers.GetEntry(aURI);
   if (!key) {
-    return NS_OK;
+    return;
   }
 
   // Update status of each Link node.
@@ -1503,7 +1503,6 @@ History::NotifyVisited(nsIURI* aURI)
 
   // All the registered nodes can now be removed for this URI.
   mObservers.RemoveEntry(aURI);
-  return NS_OK;
 }
 
 mozIStorageAsyncStatement*

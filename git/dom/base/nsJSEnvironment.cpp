@@ -3615,8 +3615,13 @@ nsJSContext::DropScriptObject(void* aScriptObject)
 void
 nsJSContext::ReportPendingException()
 {
-  if (mIsInitialized) {
-    nsJSUtils::ReportPendingException(mContext);
+  // set aside the frame chain, since it has nothing to do with the
+  // exception we're reporting.
+  if (mIsInitialized && ::JS_IsExceptionPending(mContext)) {
+    bool saved = ::JS_SaveFrameChain(mContext);
+    ::JS_ReportPendingException(mContext);
+    if (saved)
+        ::JS_RestoreFrameChain(mContext);
   }
 }
 

@@ -37,9 +37,9 @@ this.Sandbox = function Sandbox(aURL, aCallback) {
   this._log("Creating sandbox for:", this._url);
   this._createFrame();
   this._createSandbox(aCallback);
-};
+}
 
-this.Sandbox.prototype = {
+Sandbox.prototype = {
 
   /**
    * Use the outer window ID as the identifier of the sandbox.

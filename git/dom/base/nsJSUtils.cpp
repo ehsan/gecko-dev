@@ -45,7 +45,7 @@ nsJSUtils::GetCallingLocation(JSContext* aContext, const char* *aFilename,
 }
 
 nsIScriptGlobalObject *
-nsJSUtils::GetStaticScriptGlobal(JSObject* aObj)
+nsJSUtils::GetStaticScriptGlobal(JSContext* aContext, JSObject* aObj)
 {
   JSClass* clazz;
   JSObject* glob = aObj; // starting point for search
@@ -53,7 +53,7 @@ nsJSUtils::GetStaticScriptGlobal(JSObject* aObj)
   if (!glob)
     return nullptr;
 
-  glob = js::GetGlobalForObjectCrossCompartment(glob);
+  glob = JS_GetGlobalForObject(aContext, glob);
   NS_ABORT_IF_FALSE(glob, "Infallible returns null");
 
   clazz = JS_GetClass(glob);
@@ -88,9 +88,9 @@ nsJSUtils::GetStaticScriptGlobal(JSObject* aObj)
 }
 
 nsIScriptContext *
-nsJSUtils::GetStaticScriptContext(JSObject* aObj)
+nsJSUtils::GetStaticScriptContext(JSContext* aContext, JSObject* aObj)
 {
-  nsIScriptGlobalObject *nativeGlobal = GetStaticScriptGlobal(aObj);
+  nsIScriptGlobalObject *nativeGlobal = GetStaticScriptGlobal(aContext, aObj);
   if (!nativeGlobal)
     return nullptr;
 
@@ -122,7 +122,8 @@ nsJSUtils::GetCurrentlyRunningCodeInnerWindowID(JSContext *aContext)
 
   JSObject *jsGlobal = JS_GetGlobalForScopeChain(aContext);
   if (jsGlobal) {
-    nsIScriptGlobalObject *scriptGlobal = GetStaticScriptGlobal(jsGlobal);
+    nsIScriptGlobalObject *scriptGlobal = GetStaticScriptGlobal(aContext,
+                                                                jsGlobal);
     if (scriptGlobal) {
       nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(scriptGlobal);
       if (win)
@@ -133,14 +134,3 @@ nsJSUtils::GetCurrentlyRunningCodeInnerWindowID(JSContext *aContext)
   return innerWindowID;
 }
 
-void
-nsJSUtils::ReportPendingException(JSContext *aContext)
-{
-  if (JS_IsExceptionPending(aContext)) {
-    bool saved = JS_SaveFrameChain(aContext);
-    JS_ReportPendingException(aContext);
-    if (saved) {
-      JS_RestoreFrameChain(aContext);
-    }
-  }
-}

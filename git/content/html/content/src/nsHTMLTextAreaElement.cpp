@@ -122,8 +122,7 @@ public:
   NS_IMETHOD_(nsIContent*) GetRootEditorNode();
   NS_IMETHOD_(nsIContent*) CreatePlaceholderNode();
   NS_IMETHOD_(nsIContent*) GetPlaceholderNode();
-  NS_IMETHOD_(void) UpdatePlaceholderVisibility(bool aNotify);
-  NS_IMETHOD_(bool) GetPlaceholderVisibility();
+  NS_IMETHOD_(void) SetPlaceholderClass(bool aVisible, bool aNotify);
   NS_IMETHOD_(void) InitializeKeyboardEventListeners();
   NS_IMETHOD_(void) OnValueChanged(bool aNotify);
   NS_IMETHOD_(bool) HasCachedSelection();
@@ -514,15 +513,9 @@ nsHTMLTextAreaElement::GetPlaceholderNode()
 }
 
 NS_IMETHODIMP_(void)
-nsHTMLTextAreaElement::UpdatePlaceholderVisibility(bool aNotify)
+nsHTMLTextAreaElement::SetPlaceholderClass(bool aVisible, bool aNotify)
 {
-  mState.UpdatePlaceholderVisibility(aNotify);
-}
-
-NS_IMETHODIMP_(bool)
-nsHTMLTextAreaElement::GetPlaceholderVisibility()
-{
-  return mState.GetPlaceholderVisibility();
+  mState.SetPlaceholderClass(aVisible, aNotify);
 }
 
 nsresult
@@ -1153,6 +1146,11 @@ nsHTMLTextAreaElement::IntrinsicState() const
     }
   }
 
+  if (HasAttr(kNameSpaceID_None, nsGkAtoms::placeholder) &&
+      IsValueEmpty()) {
+    state |= NS_EVENT_STATE_MOZ_PLACEHOLDER;
+  }
+
   return state;
 }
 
@@ -1516,7 +1514,8 @@ nsHTMLTextAreaElement::OnValueChanged(bool aNotify)
   UpdateTooLongValidityState();
   UpdateValueMissingValidityState();
 
-  if (validBefore != IsValid()) {
+  if (validBefore != IsValid() ||
+      HasAttr(kNameSpaceID_None, nsGkAtoms::placeholder)) {
     UpdateState(aNotify);
   }
 }

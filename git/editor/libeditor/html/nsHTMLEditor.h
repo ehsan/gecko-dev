@@ -105,7 +105,6 @@ public:
   NS_IMETHOD BeginningOfDocument();
   virtual nsresult HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent);
   virtual already_AddRefed<nsIContent> GetFocusedContent();
-  virtual already_AddRefed<nsIContent> GetFocusedContentForIME();
   virtual bool IsActiveInDOMWindow();
   virtual already_AddRefed<nsIDOMEventTarget> GetDOMEventTarget();
   virtual mozilla::dom::Element* GetEditorRoot() MOZ_OVERRIDE;

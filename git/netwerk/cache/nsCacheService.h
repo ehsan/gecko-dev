@@ -202,14 +202,6 @@ public:
     nsresult         Init();
     void             Shutdown();
 
-    static bool      IsInitialized()
-    {
-      if (!gService) {
-          return false;
-      }
-      return gService->mInitialized;
-    }
-
     static void      AssertOwnsLock()
     { gService->mLock.AssertCurrentThreadOwns(); }
 

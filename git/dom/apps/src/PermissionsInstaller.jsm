@@ -358,8 +358,10 @@ Temporarily disabled in order to add access fields to gaia: See Bug 805646
 let AllPossiblePermissions = [];
 for (let permName in PermissionsTable) {
   if (PermissionsTable[permName].access) {
-    AllPossiblePermissions =
-      AllPossiblePermissions.concat(expandPermissions(permName, READWRITE));
+    for each (let access in PermissionsTable[permName].access) {
+      AllPossiblePermissions =
+        AllPossiblePermissions.concat(expandPermissions(permName, access));
+    }
   } else {
     AllPossiblePermissions =
       AllPossiblePermissions.concat(expandPermissions(permName));

@@ -107,17 +107,12 @@ public:
 
   static IDBTransaction* GetCurrentTransaction();
 
-  bool HasTransaction() const
-  {
-    return !!mTransaction;
-  }
-
-  IDBTransaction* GetTransaction() const
+  bool HasTransaction()
   {
     return mTransaction;
   }
 
-  nsISupports* GetSource() const
+  nsISupports* GetSource()
   {
     return mRequest ? mRequest->Source() : nullptr;
   }

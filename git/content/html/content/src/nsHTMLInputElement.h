@@ -65,8 +65,6 @@ public:
                      mozilla::dom::FromParser aFromParser);
   virtual ~nsHTMLInputElement();
 
-  NS_IMPL_FROMCONTENT_HTML_WITH_TAG(nsHTMLInputElement, input)
-
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -152,8 +150,7 @@ public:
   NS_IMETHOD_(nsIContent*) GetRootEditorNode();
   NS_IMETHOD_(nsIContent*) CreatePlaceholderNode();
   NS_IMETHOD_(nsIContent*) GetPlaceholderNode();
-  NS_IMETHOD_(void) UpdatePlaceholderVisibility(bool aNotify);
-  NS_IMETHOD_(bool) GetPlaceholderVisibility();
+  NS_IMETHOD_(void) SetPlaceholderClass(bool aVisible, bool aNotify);
   NS_IMETHOD_(void) InitializeKeyboardEventListeners();
   NS_IMETHOD_(void) OnValueChanged(bool aNotify);
   NS_IMETHOD_(bool) HasCachedSelection();
@@ -197,6 +194,13 @@ public:
   virtual nsXPCClassInfo* GetClassInfo();
 
   virtual nsIDOMNode* AsDOMNode() { return this; }
+
+  static nsHTMLInputElement* FromContent(nsIContent *aContent)
+  {
+    if (aContent->NodeInfo()->Equals(nsGkAtoms::input, kNameSpaceID_XHTML))
+      return static_cast<nsHTMLInputElement*>(aContent);
+    return NULL;
+  }
 
   // nsIConstraintValidation
   bool     IsTooLong();

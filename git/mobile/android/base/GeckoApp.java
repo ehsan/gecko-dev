@@ -1591,7 +1591,7 @@ abstract public class GeckoApp
             passedUri = uri;
         }
 
-        if (mRestoreMode == RESTORE_NONE && shouldRestoreSession()) {
+        if (mRestoreMode == RESTORE_NONE && getProfile().shouldRestoreSession()) {
             mRestoreMode = RESTORE_CRASH;
         }
 
@@ -1832,10 +1832,6 @@ abstract public class GeckoApp
             mProfile = GeckoProfile.get(this);
         }
         return mProfile;
-    }
-
-    protected boolean shouldRestoreSession() {
-        return getProfile().shouldRestoreSession();
     }
 
     /**

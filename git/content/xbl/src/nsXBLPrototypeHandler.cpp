@@ -45,10 +45,8 @@
 #include "nsXBLSerialize.h"
 #include "nsEventDispatcher.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/dom/EventHandlerBinding.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
                      NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
@@ -296,22 +294,11 @@ nsXBLPrototypeHandler::ExecuteHandler(nsIDOMEventTarget* aTarget,
                                               handler.get(), boundHandler);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  bool ok;
-  JSAutoRequest ar(boundContext->GetNativeContext());
-  nsRefPtr<EventHandlerNonNull> handlerCallback =
-    new EventHandlerNonNull(boundContext->GetNativeContext(),
-                            scope, boundHandler.get(), &ok);
-  if (!ok) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-
-  nsEventHandler eventHandler(handlerCallback);
-
   // Execute it.
   nsCOMPtr<nsIJSEventListener> eventListener;
-  rv = NS_NewJSEventListener(nullptr, scope,
+  rv = NS_NewJSEventListener(boundContext, scope,
                              scriptTarget, onEventAtom,
-                             eventHandler,
+                             boundHandler.get(),
                              getter_AddRefs(eventListener));
   NS_ENSURE_SUCCESS(rv, rv);
 

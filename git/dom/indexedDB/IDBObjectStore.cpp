@@ -1507,7 +1507,7 @@ IDBObjectStore::ConvertBlobsToActors(
         return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
       }
 
-      nsCOMPtr<nsIDOMBlob> blob = new nsDOMFileFile(nativeFile, file.mFileInfo);
+      nsCOMPtr<nsIDOMBlob> blob = new nsDOMFileFile(nativeFile);
 
       BlobParent* actor =
         aContentParent->GetOrCreateActorForBlob(blob);
@@ -2560,12 +2560,6 @@ ObjectStoreHelper::Dispatch(nsIEventTarget* aDatabaseThread)
     return AsyncConnectionHelper::Dispatch(aDatabaseThread);
   }
 
-  // If we've been invalidated then there's no point sending anything to the
-  // parent process.
-  if (mObjectStore->Transaction()->Database()->IsInvalidated()) {
-    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-  }
-
   IndexedDBObjectStoreChild* objectStoreActor = mObjectStore->GetActorChild();
   NS_ASSERTION(objectStoreActor, "Must have an actor here!");
 
@@ -2884,7 +2878,7 @@ AddHelper::SendResponseToChildProcess(nsresult aResultCode)
     response = addResponse;
   }
 
-  if (!actor->SendResponse(response)) {
+  if (!actor->Send__delete__(actor, response)) {
     return Error;
   }
 
@@ -3019,7 +3013,7 @@ GetHelper::SendResponseToChildProcess(nsresult aResultCode)
     response = getResponse;
   }
 
-  if (!actor->SendResponse(response)) {
+  if (!actor->Send__delete__(actor, response)) {
     return Error;
   }
 
@@ -3119,7 +3113,7 @@ DeleteHelper::SendResponseToChildProcess(nsresult aResultCode)
     response = DeleteResponse();
   }
 
-  if (!actor->SendResponse(response)) {
+  if (!actor->Send__delete__(actor, response)) {
     return Error;
   }
 
@@ -3183,7 +3177,7 @@ ClearHelper::SendResponseToChildProcess(nsresult aResultCode)
     response = ClearResponse();
   }
 
-  if (!actor->SendResponse(response)) {
+  if (!actor->Send__delete__(actor, response)) {
     return Error;
   }
 
@@ -3468,15 +3462,20 @@ OpenCursorHelper::SendResponseToChildProcess(nsresult aResultCode)
       params.cloneInfo() = mSerializedCloneReadInfo;
       params.blobsParent().SwapElements(blobsParent);
 
-      if (!objectStoreActor->OpenCursor(mCursor, params, openCursorResponse)) {
+      IndexedDBCursorParent* cursorActor = new IndexedDBCursorParent(mCursor);
+
+      if (!objectStoreActor->SendPIndexedDBCursorConstructor(cursorActor,
+                                                             params)) {
         return Error;
       }
+
+      openCursorResponse = cursorActor;
     }
 
     response = openCursorResponse;
   }
 
-  if (!actor->SendResponse(response)) {
+  if (!actor->Send__delete__(actor, response)) {
     return Error;
   }
 
@@ -3894,7 +3893,7 @@ GetAllHelper::SendResponseToChildProcess(nsresult aResultCode)
     response = getAllResponse;
   }
 
-  if (!actor->SendResponse(response)) {
+  if (!actor->Send__delete__(actor, response)) {
     return Error;
   }
 
@@ -4046,7 +4045,7 @@ CountHelper::SendResponseToChildProcess(nsresult aResultCode)
     response = countResponse;
   }
 
-  if (!actor->SendResponse(response)) {
+  if (!actor->Send__delete__(actor, response)) {
     return Error;
   }
 

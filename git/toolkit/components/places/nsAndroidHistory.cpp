@@ -113,16 +113,13 @@ nsAndroidHistory::SetURITitle(nsIURI *aURI, const nsAString& aTitle)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsAndroidHistory::NotifyVisited(nsIURI *aURI)
+void /*static*/
+nsAndroidHistory::NotifyURIVisited(const nsString& aUriString)
 {
-  if (aURI && sHistory) {
-    nsAutoCString spec;
-    (void)aURI->GetSpec(spec);
-    sHistory->mPendingURIs.Push(NS_ConvertUTF8toUTF16(spec));
-    NS_DispatchToMainThread(sHistory);
-  }
-  return NS_OK;
+  if (! sHistory)
+    return;
+  sHistory->mPendingURIs.Push(aUriString);
+  NS_DispatchToMainThread(sHistory);
 }
 
 NS_IMETHODIMP

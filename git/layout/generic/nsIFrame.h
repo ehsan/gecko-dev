@@ -511,10 +511,10 @@ void NS_MergeReflowStatusInto(nsReflowStatus* aPrimary,
 /**
  * DidReflow status values.
  */
-enum nsDidReflowStatus {
-  NS_FRAME_REFLOW_NOT_FINISHED,
-  NS_FRAME_REFLOW_FINISHED
-};
+typedef bool nsDidReflowStatus;
+
+#define NS_FRAME_REFLOW_NOT_FINISHED false
+#define NS_FRAME_REFLOW_FINISHED     true
 
 /**
  * When there is no scrollable overflow rect, the visual overflow rect

@@ -19,11 +19,9 @@ let principal = Services.scriptSecurityManager.getNoAppCodebasePrincipal(uri);
 let sm = Services.domStorageManager;
 let storage = sm.getLocalStorageForPrincipal(principal, "");
 
-let gWindow = window;
-
 registerCleanupFunction(function () {
-  while (gWindow.gBrowser.tabs.length > 1)
-    gWindow.gBrowser.removeTab(gWindow.gBrowser.tabs[1]);
+  while (gBrowser.tabs.length > 1)
+    gBrowser.removeTab(gBrowser.tabs[1]);
 
   Services.prefs.clearUserPref(PREF_NEWTAB_ENABLED);
 });
@@ -85,7 +83,7 @@ let TestRunner = {
  * @return The content window.
  */
 function getContentWindow() {
-  return gWindow.gBrowser.selectedBrowser.contentWindow;
+  return gBrowser.selectedBrowser.contentWindow;
 }
 
 /**
@@ -93,7 +91,7 @@ function getContentWindow() {
  * @return The content document.
  */
 function getContentDocument() {
-  return gWindow.gBrowser.selectedBrowser.contentDocument;
+  return gBrowser.selectedBrowser.contentDocument;
 }
 
 /**
@@ -202,7 +200,7 @@ function restore() {
  * Creates a new tab containing 'about:newtab'.
  */
 function addNewTabPageTab() {
-  let tab = gWindow.gBrowser.selectedTab = gWindow.gBrowser.addTab("about:newtab");
+  let tab = gBrowser.selectedTab = gBrowser.addTab("about:newtab");
   let browser = tab.linkedBrowser;
 
   function whenNewTabLoaded() {
