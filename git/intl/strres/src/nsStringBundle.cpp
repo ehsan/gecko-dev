@@ -81,7 +81,7 @@ static NS_DEFINE_CID(kPersistentPropertiesCID, NS_IPERSISTENTPROPERTIES_CID);
 nsStringBundle::~nsStringBundle()
 {
   if (mMonitor)
-    nsAutoMonitor::DestroyMonitor(mMonitor);
+    PR_DestroyMonitor(mMonitor);
 }
 
 nsStringBundle::nsStringBundle(const char* aURLSpec,

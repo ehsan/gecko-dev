@@ -6635,18 +6635,6 @@ nsBlockFrame::GetBulletText(nsAString& aText) const
   }
 }
 
-bool
-nsBlockFrame::HasBullet() const
-{
-  if (mBullet) {
-    const nsStyleList* styleList = GetStyleList();
-    return styleList->GetListStyleImage() ||
-      styleList->mListStyleType != NS_STYLE_LIST_STYLE_NONE;
-  }
-
-  return false;
-}
-
 // static
 PRBool
 nsBlockFrame::FrameStartsCounterScope(nsIFrame* aFrame)

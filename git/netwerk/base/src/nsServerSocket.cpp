@@ -92,7 +92,7 @@ nsServerSocket::~nsServerSocket()
   Close(); // just in case :)
 
   if (mLock)
-    nsAutoLock::DestroyLock(mLock);
+    PR_DestroyLock(mLock);
 
   // release our reference to the STS
   nsSocketTransportService *serv = gSocketTransportService;
@@ -292,7 +292,7 @@ nsServerSocket::InitWithAddress(const PRNetAddr *aAddr, PRInt32 aBackLog)
 
   if (!mLock)
   {
-    mLock = nsAutoLock::NewLock("nsServerSocket::mLock");
+    mLock = PR_NewLock();
     if (!mLock)
       return NS_ERROR_OUT_OF_MEMORY;
   }

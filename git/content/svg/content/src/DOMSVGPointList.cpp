@@ -132,13 +132,6 @@ DOMSVGPointList::InternalListWillChangeTo(const SVGPointList& aNewValue)
     newLength = DOMSVGPoint::MaxListIndex();
   }
 
-  nsRefPtr<DOMSVGPointList> kungFuDeathGrip;
-  if (oldLength && !newLength) {
-    // RemovingFromList() might clear last reference to |this|.
-    // Retain a temporary reference to keep from dying before returning.
-    kungFuDeathGrip = this;
-  }
-
   // If our length will decrease, notify the items that will be removed:
   for (PRUint32 i = newLength; i < oldLength; ++i) {
     if (mItems[i]) {
@@ -462,9 +455,7 @@ DOMSVGPointList::MaybeRemoveItemFromAnimValListAt(PRUint32 aIndex)
     return;
   }
 
-  // This needs to be a strong reference; otherwise, the RemovingFromList call
-  // below might drop the last reference to animVal before we're done with it.
-  nsRefPtr<DOMSVGPointList> animVal =
+  DOMSVGPointList *animVal =
     GetDOMWrapperIfExists(InternalAList().GetAnimValKey());
   if (!animVal) {
     // No animVal list wrapper

@@ -2,8 +2,6 @@
  * jddctmgr.c
  *
  * Copyright (C) 1994-1996, Thomas G. Lane.
- * Copyright 2009 Pierre Ossman <ossman@cendio.se> for Cendio AB
- * Copyright (C) 2010, D. R. Commander.
  * This file is part of the Independent JPEG Group's software.
  * For conditions of distribution and use, see the accompanying README file.
  *
@@ -21,9 +19,9 @@
 #include "jinclude.h"
 #include "jpeglib.h"
 #include "jdct.h"		/* Private declarations for DCT subsystem */
-#include "jsimddct.h"
-#include "jpegcomp.h"
-
+#ifdef HAVE_SSE2_INTRINSICS
+extern int SSE2Available;
+#endif
 
 /*
  * The decompressor input side (jdinput.c) saves away the appropriate
@@ -82,6 +80,14 @@ typedef union {
 #endif
 #endif
 
+GLOBAL(void)
+jpeg_idct_islow_sse2 (
+	j_decompress_ptr cinfo, 
+	jpeg_component_info * compptr,
+	JCOEFPTR coef_block,
+	JSAMPARRAY output_buf, 
+	JDIMENSION output_col);
+
 
 /*
  * Prepare for an output pass.
@@ -102,24 +108,18 @@ start_pass (j_decompress_ptr cinfo)
   for (ci = 0, compptr = cinfo->comp_info; ci < cinfo->num_components;
        ci++, compptr++) {
     /* Select the proper IDCT routine for this component's scaling */
-    switch (compptr->_DCT_scaled_size) {
+    switch (compptr->DCT_scaled_size) {
 #ifdef IDCT_SCALING_SUPPORTED
     case 1:
       method_ptr = jpeg_idct_1x1;
       method = JDCT_ISLOW;	/* jidctred uses islow-style table */
       break;
     case 2:
-      if (jsimd_can_idct_2x2())
-        method_ptr = jsimd_idct_2x2;
-      else
-        method_ptr = jpeg_idct_2x2;
+      method_ptr = jpeg_idct_2x2;
       method = JDCT_ISLOW;	/* jidctred uses islow-style table */
       break;
     case 4:
-      if (jsimd_can_idct_4x4())
-        method_ptr = jsimd_idct_4x4;
-      else
-        method_ptr = jpeg_idct_4x4;
+      method_ptr = jpeg_idct_4x4;
       method = JDCT_ISLOW;	/* jidctred uses islow-style table */
       break;
 #endif
@@ -127,28 +127,47 @@ start_pass (j_decompress_ptr cinfo)
       switch (cinfo->dct_method) {
 #ifdef DCT_ISLOW_SUPPORTED
       case JDCT_ISLOW:
-	if (jsimd_can_idct_islow())
-	  method_ptr = jsimd_idct_islow;
-	else
-	  method_ptr = jpeg_idct_islow;
-	method = JDCT_ISLOW;
+#ifdef HAVE_SSE2_INTEL_MNEMONICS
+		if(SSE2Available == 1)
+		{
+			method_ptr = jpeg_idct_islow_sse2;
+			method = JDCT_ISLOW;
+		}
+		else
+		{
+			method_ptr = jpeg_idct_islow;
+			method = JDCT_ISLOW;
+		}
+#else
+		method_ptr = jpeg_idct_islow;
+		method = JDCT_ISLOW;
+		  
+#endif /* HAVE_SSE2_INTEL_MNEMONICS */
 	break;
 #endif
 #ifdef DCT_IFAST_SUPPORTED
       case JDCT_IFAST:
-	if (jsimd_can_idct_ifast())
-	  method_ptr = jsimd_idct_ifast;
-	else
-	  method_ptr = jpeg_idct_ifast;
-	method = JDCT_IFAST;
+#ifdef HAVE_SSE2_INTEL_MNEMONICS
+		if (SSE2Available==1) 
+		{
+			method_ptr = jpeg_idct_islow_sse2;
+			method = JDCT_ISLOW;
+		}
+		else
+		{
+			method_ptr = jpeg_idct_ifast;
+			method = JDCT_IFAST;
+		}
+#else
+		method_ptr = jpeg_idct_ifast;
+		method = JDCT_IFAST;
+#endif /* HAVE_SSE2_INTEL_MNEMONICS */
 	break;
+
 #endif
 #ifdef DCT_FLOAT_SUPPORTED
       case JDCT_FLOAT:
-	if (jsimd_can_idct_float())
-	  method_ptr = jsimd_idct_float;
-	else
-	  method_ptr = jpeg_idct_float;
+	method_ptr = jpeg_idct_float;
 	method = JDCT_FLOAT;
 	break;
 #endif
@@ -158,7 +177,7 @@ start_pass (j_decompress_ptr cinfo)
       }
       break;
     default:
-      ERREXIT1(cinfo, JERR_BAD_DCTSIZE, compptr->_DCT_scaled_size);
+      ERREXIT1(cinfo, JERR_BAD_DCTSIZE, compptr->DCT_scaled_size);
       break;
     }
     idct->pub.inverse_DCT[ci] = method_ptr;

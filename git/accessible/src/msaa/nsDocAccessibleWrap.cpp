@@ -255,11 +255,10 @@ STDMETHODIMP nsDocAccessibleWrap::get_accValue(
 void
 nsDocAccessibleWrap::Shutdown()
 {
-  // Do window emulation specific shutdown if emulation was started.
-  if (nsWinUtils::IsWindowEmulationStarted()) {
+  if (nsWinUtils::IsWindowEmulationEnabled()) {
     // Destroy window created for root document.
     if (nsWinUtils::IsTabDocument(mDocument)) {
-      sHWNDCache.Remove(mHWND);
+      nsAccessibleWrap::sHWNDCache.Remove(mHWND);
       ::DestroyWindow(static_cast<HWND>(mHWND));
     }
 
@@ -286,14 +285,14 @@ nsDocAccessibleWrap::NotifyOfInitialUpdate()
 {
   nsDocAccessible::NotifyOfInitialUpdate();
 
-  if (nsWinUtils::IsWindowEmulationStarted()) {
+  if (nsWinUtils::IsWindowEmulationEnabled()) {
     // Create window for tab document.
     if (nsWinUtils::IsTabDocument(mDocument)) {
       nsRootAccessible* rootDocument = RootAccessible();
 
       PRBool isActive = PR_TRUE;
       PRInt32 x = CW_USEDEFAULT, y = CW_USEDEFAULT, width = 0, height = 0;
-      if (nsWinUtils::IsWindowEmulationFor(kDolphinModuleHandle)) {
+      if (nsWinUtils::IsWindowEmulationEnabled(kDolphinModuleHandle)) {
         GetBounds(&x, &y, &width, &height);
         PRInt32 rootX = 0, rootY = 0, rootWidth = 0, rootHeight = 0;
         rootDocument->GetBounds(&rootX, &rootY, &rootWidth, &rootHeight);
@@ -309,7 +308,7 @@ nsDocAccessibleWrap::NotifyOfInitialUpdate()
       mHWND = nsWinUtils::CreateNativeWindow(kClassNameTabContent, parentWnd,
                                              x, y, width, height, isActive);
 
-      sHWNDCache.Put(mHWND, this);
+      nsAccessibleWrap::sHWNDCache.Put(mHWND, this);
 
     } else {
       nsDocAccessible* parentDocument = ParentDocument();

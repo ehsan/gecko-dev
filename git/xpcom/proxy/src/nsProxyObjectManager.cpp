@@ -115,8 +115,7 @@ nsProxyObjectManager::Release()
 nsProxyObjectManager::nsProxyObjectManager()
     : mProxyObjectMap(256, PR_FALSE)
 {
-    mProxyCreationLock =
-        nsAutoLock::NewLock("nsProxyObjectManager::mProxyCreationLock");
+    mProxyCreationLock = PR_NewLock();
     mProxyClassMap.Init(256);
 }
 
@@ -125,7 +124,7 @@ nsProxyObjectManager::~nsProxyObjectManager()
     mProxyClassMap.Clear();
 
     if (mProxyCreationLock)
-        nsAutoLock::DestroyLock(mProxyCreationLock);
+        PR_DestroyLock(mProxyCreationLock);
 
     nsProxyObjectManager::gInstance = nsnull;
 }

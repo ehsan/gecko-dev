@@ -371,7 +371,7 @@ nsNSSComponent::nsNSSComponent()
   :mNSSInitialized(PR_FALSE), mThreadList(nsnull),
    mSSLThread(NULL), mCertVerificationThread(NULL)
 {
-  mutex = nsAutoLock::NewLock("nsNSSComponent::mutex");
+  mutex = PR_NewLock();
   
 #ifdef PR_LOGGING
   if (!gPIPNSSLog)
@@ -438,7 +438,7 @@ nsNSSComponent::~nsNSSComponent()
   delete mShutdownObjectList;
 
   if (mutex) {
-    nsAutoLock::DestroyLock(mutex);
+    PR_DestroyLock(mutex);
     mutex = nsnull;
   }
 
@@ -1640,15 +1640,6 @@ nsNSSComponent::InitializeNSS(PRBool showWarningBox)
       }
     }
 
-    {
-      nsCOMPtr<nsICertOverrideService> icos =
-        do_GetService("@mozilla.org/security/certoverride;1", &rv);
-      if (NS_FAILED(rv)) {
-        nsPSMInitPanic::SetPanic();
-        return rv;
-      }
-    }
-
     hashTableCerts = PL_NewHashTable( 0, certHashtable_keyHash, certHashtable_keyCompare,
       certHashtable_valueCompare, 0, 0 );
 
@@ -2370,7 +2361,7 @@ void nsNSSComponent::ShowAlert(AlertIdentifier ai)
 
 nsresult nsNSSComponent::LogoutAuthenticatedPK11()
 {
-  nsCOMPtr<nsICertOverrideService> icos =
+  nsCOMPtr<nsICertOverrideService> icos = 
     do_GetService("@mozilla.org/security/certoverride;1");
   if (icos) {
     icos->ClearValidityOverride(

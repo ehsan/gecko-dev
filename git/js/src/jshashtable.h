@@ -50,19 +50,11 @@ namespace js {
 /* Integral types for all hash functions. */
 typedef uint32 HashNumber;
 
-/*****************************************************************************/
-
 namespace detail {
-
-/*
- * js::detail::HashTable is an implementation detail of the js::HashMap and
- * js::HashSet templates. For js::Hash{Map,Set} API documentation and examples,
- * skip to the end of the detail namespace.
- */
 
 /* Reusable implementation of HashMap and HashSet. */
 template <class T, class HashPolicy, class AllocPolicy>
-class HashTable : private AllocPolicy
+class HashTable : AllocPolicy
 {
     typedef typename tl::StripConst<T>::result NonConstT;
     typedef typename HashPolicy::KeyType Key;
@@ -692,9 +684,7 @@ class HashTable : private AllocPolicy
 #undef METER
 };
 
-}  /* namespace detail */
-
-/*****************************************************************************/
+}
 
 /*
  * Hash policy
@@ -947,7 +937,6 @@ class HashMap
         return impl.lookup(l) != NULL;
     }
 
-    /* Overwrite existing value with v. Return NULL on oom. */
     Entry *put(const Key &k, const Value &v) {
         AddPtr p = lookupForAdd(k);
         if (p) {
@@ -957,23 +946,6 @@ class HashMap
         return add(p, k, v) ? &*p : NULL;
     }
 
-    /* Like put, but assert that the given key is not already present. */
-    bool putNew(const Key &k, const Value &v) {
-        AddPtr p = lookupForAdd(k);
-        JS_ASSERT(!p);
-        return add(p, k, v);
-    }
-
-    /* Add (k,defaultValue) if k no found. Return false-y Ptr on oom. */
-    Ptr lookupWithDefault(const Key &k, const Value &defaultValue) {
-        AddPtr p = lookupForAdd(k);
-        if (p)
-            return p;
-        (void)add(p, k, defaultValue);  /* p is left false-y on oom. */
-        return p;
-    }
-
-    /* Remove if present. */
     void remove(const Lookup &l) {
         if (Ptr p = lookup(l))
             remove(p);
@@ -1136,17 +1108,9 @@ class HashSet
         return impl.lookup(l) != NULL;
     }
 
-    /* Overwrite existing value with v. Return NULL on oom. */
     const T *put(const T &t) {
         AddPtr p = lookupForAdd(t);
         return p ? &*p : (add(p, t) ? &*p : NULL);
-    }
-
-    /* Like put, but assert that the given key is not already present. */
-    bool putNew(const T &t) {
-        AddPtr p = lookupForAdd(t);
-        JS_ASSERT(!p);
-        return add(p, t);
     }
 
     void remove(const Lookup &l) {

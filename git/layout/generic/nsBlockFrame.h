@@ -250,16 +250,11 @@ public:
   // do we have either a 'list-style-type' or 'list-style-image' that is
   // not 'none'?
   PRBool BulletIsEmpty() const;
-
-  /**
-   * Return the bullet text equivalent.
-   */
+  virtual PRBool BulletIsEmptyExternal() const
+  {
+    return BulletIsEmpty();
+  }
   virtual void GetBulletText(nsAString& aText) const;
-
-  /**
-   * Return true if there's a bullet.
-   */
-  virtual bool HasBullet() const;
 
   virtual void MarkIntrinsicWidthsDirty();
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);

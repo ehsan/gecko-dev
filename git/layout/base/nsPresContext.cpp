@@ -2436,8 +2436,9 @@ nsPresContext::IsRootContentDocument()
     return PR_FALSE;
   }
   // We may not have a root frame, so use views.
-  nsIView* view = PresShell()->GetViewManager()->GetRootView();
-  if (!view) {
+  nsIViewManager* vm = PresShell()->GetViewManager();
+  nsIView* view = nsnull;
+  if (NS_FAILED(vm->GetRootView(view)) || !view) {
     return PR_FALSE;
   }
   view = view->GetParent(); // anonymous inner view

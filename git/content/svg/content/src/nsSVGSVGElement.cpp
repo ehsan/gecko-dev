@@ -639,7 +639,7 @@ nsSVGSVGElement::CreateSVGNumber(nsIDOMSVGNumber **_retval)
 NS_IMETHODIMP
 nsSVGSVGElement::CreateSVGLength(nsIDOMSVGLength **_retval)
 {
-  NS_ADDREF(*_retval = new DOMSVGLength());
+  NS_IF_ADDREF(*_retval = new DOMSVGLength());
   return NS_OK;
 }
 
@@ -734,7 +734,7 @@ nsSVGSVGElement::GetNearestViewportElement(nsIDOMSVGElement * *aNearestViewportE
 NS_IMETHODIMP
 nsSVGSVGElement::GetFarthestViewportElement(nsIDOMSVGElement * *aFarthestViewportElement)
 {
-  NS_IF_ADDREF(*aFarthestViewportElement = nsSVGUtils::GetOuterSVGElement(this));
+  *aFarthestViewportElement = nsSVGUtils::GetFarthestViewportElement(this).get();
   return NS_OK;
 }
 
@@ -882,19 +882,24 @@ nsSVGSVGElement::SetCurrentTranslate(float x, float y)
 nsSMILTimeContainer*
 nsSVGSVGElement::GetTimedDocumentRoot()
 {
+  nsSMILTimeContainer *result = nsnull;
+
   if (mTimedDocumentRoot) {
-    return mTimedDocumentRoot;
+    result = mTimedDocumentRoot;
+  } else {
+    // We must not be the outermost SVG element, try to find it
+    nsCOMPtr<nsIDOMSVGSVGElement> outerSVGDOM;
+
+    nsresult rv = GetOwnerSVGElement(getter_AddRefs(outerSVGDOM));
+
+    if (NS_SUCCEEDED(rv) && outerSVGDOM) {
+      nsSVGSVGElement *outerSVG =
+        static_cast<nsSVGSVGElement*>(outerSVGDOM.get());
+      result = outerSVG->GetTimedDocumentRoot();
+    }
   }
 
-  // We must not be the outermost <svg> element, try to find it
-  nsSVGSVGElement *outerSVGElement =
-    nsSVGUtils::GetOuterSVGElement(this);
-
-  if (outerSVGElement) {
-    return outerSVGElement->GetTimedDocumentRoot();
-  }
-  // invalid structure
-  return nsnull;
+  return result;
 }
 #endif // MOZ_SMIL
 
@@ -991,7 +996,7 @@ nsSVGSVGElement::GetViewBoxTransform()
   SVGPreserveAspectRatio tmpPAR;
 
   float viewportWidth, viewportHeight;
-  if (IsInner()) {
+  if (nsSVGUtils::IsInnerSVG(this)) {
     nsSVGSVGElement *ctx = GetCtx();
     viewportWidth = mLengthAttributes[WIDTH].GetAnimValue(ctx);
     viewportHeight = mLengthAttributes[HEIGHT].GetAnimValue(ctx);
@@ -1164,7 +1169,7 @@ nsSVGSVGElement::GetLength(PRUint8 aCtxType)
     const nsSVGViewBoxRect& viewbox = mViewBox.GetAnimValue();
     w = viewbox.width;
     h = viewbox.height;
-  } else if (IsInner()) {
+  } else if (nsSVGUtils::IsInnerSVG(this)) {
     nsSVGSVGElement *ctx = GetCtx();
     w = mLengthAttributes[WIDTH].GetAnimValue(ctx);
     h = mLengthAttributes[HEIGHT].GetAnimValue(ctx);
@@ -1198,7 +1203,7 @@ nsSVGSVGElement::GetLength(PRUint8 aCtxType)
 /* virtual */ gfxMatrix
 nsSVGSVGElement::PrependLocalTransformTo(const gfxMatrix &aMatrix)
 {
-  if (IsInner()) {
+  if (nsSVGUtils::IsInnerSVG(this)) {
     float x, y;
     GetAnimatedLengthValues(&x, &y, nsnull);
     return GetViewBoxTransform() * gfxMatrix().Translate(gfxPoint(x, y)) * aMatrix;

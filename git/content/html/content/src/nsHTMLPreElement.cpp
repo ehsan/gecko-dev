@@ -41,6 +41,7 @@
 #include "nsStyleConsts.h"
 #include "nsMappedAttributes.h"
 #include "nsRuleData.h"
+#include "nsCSSStruct.h"
 
 class nsHTMLPreElement : public nsGenericHTMLElement,
                          public nsIDOMHTMLPreElement

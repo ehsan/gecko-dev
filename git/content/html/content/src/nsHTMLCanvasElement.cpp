@@ -247,7 +247,8 @@ nsHTMLCanvasElement::ExtractData(const nsAString& aType,
 
   // get image bytes
   nsCOMPtr<nsIInputStream> imgStream;
-  NS_ConvertUTF16toUTF8 encoderType(aType);
+  nsCAutoString encoderType;
+  encoderType.Assign(NS_ConvertUTF16toUTF8(aType));
 
  try_again:
   if (mCurrentContext) {
@@ -333,13 +334,10 @@ nsHTMLCanvasElement::ToDataURLImpl(const nsAString& aMimeType,
 {
   bool fallbackToPNG = false;
 
-  nsAutoString type;
-  nsContentUtils::ASCIIToLower(aMimeType, type);
-
   PRUint32 imgSize = 0;
   char* imgData;
 
-  nsresult rv = ExtractData(type, aEncoderOptions, imgData,
+  nsresult rv = ExtractData(aMimeType, aEncoderOptions, imgData,
                             imgSize, fallbackToPNG);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -354,7 +352,7 @@ nsHTMLCanvasElement::ToDataURLImpl(const nsAString& aMimeType,
     aDataURL = NS_LITERAL_STRING("data:image/png;base64,") +
       NS_ConvertUTF8toUTF16(encodedImg);
   else
-    aDataURL = NS_LITERAL_STRING("data:") + type +
+    aDataURL = NS_LITERAL_STRING("data:") + aMimeType +
       NS_LITERAL_STRING(";base64,") + NS_ConvertUTF8toUTF16(encodedImg);
 
   PR_Free(encodedImg);

@@ -82,9 +82,6 @@
 
 #include "Layers.h"
 
-#include "mozilla/dom/Element.h"
-
-using namespace mozilla::dom;
 using namespace mozilla::layers;
 
 static PRBool IsUniversalXPConnectCapable()
@@ -448,6 +445,7 @@ nsDOMWindowUtils::SendMouseEventCommon(const nsAString& aType,
                           appPerDev);
   event.ignoreRootScrollFrame = aIgnoreRootScrollFrame;
 
+  nsresult rv;
   nsEventStatus status;
   if (aToWindow) {
     nsIPresShell* presShell = presContext->PresShell();
@@ -459,14 +457,17 @@ nsDOMWindowUtils::SendMouseEventCommon(const nsAString& aType,
     nsIViewManager* viewManager = presShell->GetViewManager();
     if (!viewManager)
       return NS_ERROR_FAILURE;
-    nsIView* view = viewManager->GetRootView();
-    if (!view)
+    nsIView* view = nsnull;
+    rv = viewManager->GetRootView(view);
+    if (NS_FAILED(rv) || !view)
       return NS_ERROR_FAILURE;
 
     status = nsEventStatus_eIgnore;
-    return vo->HandleEvent(view, &event, PR_FALSE, &status);
+    rv = vo->HandleEvent(view, &event, PR_FALSE, &status);
+  } else {
+    rv = widget->DispatchEvent(&event, status);
   }
-  return widget->DispatchEvent(&event, status);
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -1622,13 +1623,12 @@ nsDOMWindowUtils::GetLayerManagerType(nsAString& aType)
 }
 
 static PRBool
-ComputeAnimationValue(nsCSSProperty aProperty,
-                      Element* aElement,
+ComputeAnimationValue(nsCSSProperty aProperty, nsIContent* aContent,
                       const nsAString& aInput,
                       nsStyleAnimation::Value& aOutput)
 {
 
-  if (!nsStyleAnimation::ComputeValue(aProperty, aElement, aInput,
+  if (!nsStyleAnimation::ComputeValue(aProperty, aContent, aInput,
                                       PR_FALSE, aOutput)) {
     return PR_FALSE;
   }
@@ -1678,8 +1678,8 @@ nsDOMWindowUtils::ComputeAnimationDistance(nsIDOMElement* aElement,
 
   nsStyleAnimation::Value v1, v2;
   if (property == eCSSProperty_UNKNOWN ||
-      !ComputeAnimationValue(property, content->AsElement(), aValue1, v1) ||
-      !ComputeAnimationValue(property, content->AsElement(), aValue2, v2)) {
+      !ComputeAnimationValue(property, content, aValue1, v1) ||
+      !ComputeAnimationValue(property, content, aValue2, v2)) {
     return NS_ERROR_ILLEGAL_VALUE;
   }
 

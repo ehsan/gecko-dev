@@ -98,7 +98,7 @@ nsHttpActivityDistributor::nsHttpActivityDistributor()
 nsHttpActivityDistributor::~nsHttpActivityDistributor()
 {
     if (mLock)
-        nsAutoLock::DestroyLock(mLock);
+        PR_DestroyLock(mLock);
 }
 
 NS_IMETHODIMP
@@ -161,7 +161,7 @@ nsHttpActivityDistributor::Init()
 {
     NS_ENSURE_TRUE(!mLock, NS_ERROR_ALREADY_INITIALIZED);
 
-    mLock = nsAutoLock::NewLock("nsHttpActivityDistributor::mLock");
+    mLock = PR_NewLock();
     if (!mLock)
         return NS_ERROR_OUT_OF_MEMORY;
 

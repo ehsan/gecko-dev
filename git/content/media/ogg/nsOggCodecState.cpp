@@ -79,10 +79,7 @@ nsOggCodecState::nsOggCodecState(ogg_page* aBosPage) :
 
 nsOggCodecState::~nsOggCodecState() {
   MOZ_COUNT_DTOR(nsOggCodecState);
-#ifdef DEBUG
-  int ret =
-#endif
-    ogg_stream_clear(&mState);
+  int ret = ogg_stream_clear(&mState);
   NS_ASSERTION(ret == 0, "ogg_stream_clear failed");
 }
 

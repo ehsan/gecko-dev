@@ -459,6 +459,11 @@ MAKEFILES_docshell="
   docshell/build/Makefile
 "
 
+MAKEFILES_webshell="
+  webshell/Makefile
+  webshell/public/Makefile
+"
+
 MAKEFILES_widget="
   widget/Makefile
   widget/public/Makefile
@@ -764,6 +769,7 @@ add_makefiles "
   $MAKEFILES_chrome
   $MAKEFILES_view
   $MAKEFILES_docshell
+  $MAKEFILES_webshell
   $MAKEFILES_widget
   $MAKEFILES_xpcom
   $MAKEFILES_xpcom_tests

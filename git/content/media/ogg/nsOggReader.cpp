@@ -204,11 +204,7 @@ nsresult nsOggReader::ReadMetadata(nsVideoInfo* aInfo)
     if (ogg_page_bos(&page)) {
       NS_ASSERTION(!readAllBOS, "We shouldn't encounter another BOS page");
       codecState = nsOggCodecState::Create(&page);
-
-#ifdef DEBUG
-      PRBool r =
-#endif
-        mCodecStates.Put(serial, codecState);
+      PRBool r = mCodecStates.Put(serial, codecState);
       NS_ASSERTION(r, "Failed to insert into mCodecStates");
       bitstreams.AppendElement(codecState);
       mKnownStreams.AppendElement(serial);
