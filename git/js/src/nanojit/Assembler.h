@@ -65,8 +65,6 @@ namespace nanojit
 	 *   
 	 */
 
-	#define STACK_GRANULARITY		sizeof(void *)
-
 	/**
 	 * The Assembler is only concerned with transforming LIR to native instructions
 	 */
@@ -350,7 +348,7 @@ namespace nanojit
 
 	inline int32_t disp(Reservation* r) 
 	{
-		return stack_direction((int32_t)STACK_GRANULARITY) * int32_t(r->arIndex) + NJ_STACK_OFFSET; 
+		return stack_direction(4) * int32_t(r->arIndex) + NJ_STACK_OFFSET; 
 	}
 }
 #endif // __nanojit_Assembler__

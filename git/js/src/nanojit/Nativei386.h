@@ -141,7 +141,7 @@ namespace nanojit
 	// enough room for n bytes
 	#define underrunProtect(n)									\
 		{														\
-			intptr_t u = n + sizeof(PageHeader)/sizeof(NIns) + 5; \
+			intptr_t u = n + sizeof(PageHeader)/sizeof(NIns);	\
 			if ( !samepage(_nIns-u,_nIns-1) )					\
 			{													\
 				NIns *tt = _nIns; \
@@ -507,17 +507,17 @@ namespace nanojit
     asm_output3("movsd %d(%s),%s",(d),gpn(b),gpn(r)); \
     } while(0)
 
-#define SSE_LDQ(r,d,b)do {  \
+#define LDQ(r,d,b)do {  \
     SSEm(0xf30f7e, (r)&7, (d), (b)); \
     asm_output3("movq %s,%d(%s)",gpn(r),d,gpn(b)); \
     } while(0)
 
-#define SSE_STQ(d,b,r)do {  \
+#define STQ(d,b,r)do {  \
     SSEm(0x660fd6, (r)&7, (d), (b)); \
     asm_output3("movq %d(%s),%s",(d),gpn(b),gpn(r)); \
     } while(0)
 
-#define SSE_CVTSI2SD(xr,gr) do{ \
+#define CVTSI2SD(xr,gr) do{ \
     SSE(0xf20f2a, (xr)&7, (gr)&7); \
     asm_output2("cvtsi2sd %s,%s",gpn(xr),gpn(gr)); \
     } while(0)
@@ -528,7 +528,7 @@ namespace nanojit
     } while(0)
 
 // move and zero-extend gpreg to xmm reg
-#define SSE_MOVD(d,s) do{ \
+#define MOVD(d,s) do{ \
 	if (_is_xmm_reg_(s)) { \
 		NanoAssert(_is_gp_reg_(d)); \
 		SSE(0x660f7e, (s)&7, (d)&7); \
@@ -540,22 +540,22 @@ namespace nanojit
     asm_output2("movd %s,%s",gpn(d),gpn(s)); \
     } while(0)
 
-#define SSE_MOVSD(rd,rs) do{ \
+#define MOVSD(rd,rs) do{ \
     SSE(0xf20f10, (rd)&7, (rs)&7); \
     asm_output2("movsd %s,%s",gpn(rd),gpn(rs)); \
     } while(0)
 
-#define SSE_MOVDm(d,b,xrs) do {\
+#define STD(d,b,xrs) do {\
     SSEm(0x660f7e, (xrs)&7, d, b);\
     asm_output3("movd %d(%s),%s", d, gpn(b), gpn(xrs));\
     } while(0)
 
-#define SSE_ADDSD(rd,rs) do{ \
+#define ADDSD(rd,rs) do{ \
     SSE(0xf20f58, (rd)&7, (rs)&7); \
     asm_output2("addsd %s,%s",gpn(rd),gpn(rs)); \
     } while(0)
 
-#define SSE_ADDSDm(r,addr)do {     \
+#define ADDSDm(r,addr)do {     \
     underrunProtect(8); \
 	const double* daddr = addr; \
     IMM32(int32_t(daddr));\
@@ -566,19 +566,19 @@ namespace nanojit
     asm_output3("addsd %s,%p // =%f",gpn(r),daddr,*daddr); \
     } while(0)
 
-#define SSE_SUBSD(rd,rs) do{ \
+#define SUBSD(rd,rs) do{ \
     SSE(0xf20f5c, (rd)&7, (rs)&7); \
     asm_output2("subsd %s,%s",gpn(rd),gpn(rs)); \
     } while(0)
-#define SSE_MULSD(rd,rs) do{ \
+#define MULSD(rd,rs) do{ \
     SSE(0xf20f59, (rd)&7, (rs)&7); \
     asm_output2("mulsd %s,%s",gpn(rd),gpn(rs)); \
     } while(0)
-#define SSE_DIVSD(rd,rs) do{ \
+#define DIVSD(rd,rs) do{ \
     SSE(0xf20f5e, (rd)&7, (rs)&7); \
     asm_output2("divsd %s,%s",gpn(rd),gpn(rs)); \
     } while(0)
-#define SSE_UCOMISD(rl,rr) do{ \
+#define UCOMISD(rl,rr) do{ \
     SSE(0x660f2e, (rl)&7, (rr)&7); \
     asm_output2("ucomisd %s,%s",gpn(rl),gpn(rr)); \
     } while(0)
@@ -588,7 +588,7 @@ namespace nanojit
     asm_output3("cvtsi2sd %s,%d(%s)",gpn(xr),(d),gpn(b)); \
     } while(0)
 
-#define SSE_XORPD(r, maskaddr) do {\
+#define XORPD(r, maskaddr) do {\
     underrunProtect(8); \
     IMM32(maskaddr);\
     *(--_nIns) = uint8_t(((r)&7)<<3|5); \
@@ -598,7 +598,7 @@ namespace nanojit
     asm_output2("xorpd %s,[0x%p]",gpn(r),(maskaddr));\
     } while(0)
 
-#define SSE_XORPDr(rd,rs) do{ \
+#define XORPDr(rd,rs) do{ \
     SSE(0x660f57, (rd)&7, (rs)&7); \
     asm_output2("xorpd %s,%s",gpn(rd),gpn(rs)); \
     } while(0)

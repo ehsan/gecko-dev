@@ -1,15 +1,6 @@
-var testName = null;
-if ("arguments" in this && arguments.length > 0)
-  testName = arguments[0];
 var fails = [], passes=[];
 
-function test(f)
-{
-  if (!testName || testName == f.name)
-    check(f.name, f(), f.expected);
-}
-
-function check(desc, actual, expected)
+function test(desc, actual, expected)
 {
   if (expected == actual) {
     passes.push(desc);
@@ -31,28 +22,19 @@ function ifInsideLoop()
   }
   return count;
 }
-ifInsideLoop.expected = 200;
-test(ifInsideLoop);
+test("tracing if", ifInsideLoop(), 200);
 
-function bitwiseAnd_inner(bitwiseAndValue) {
+function bitwiseAnd(bitwiseAndValue) {
   for (var i = 0; i < 60000; i++)
     bitwiseAndValue = bitwiseAndValue & i;
   return bitwiseAndValue;
 }
-function bitwiseAnd()
-{
-  return bitwiseAnd_inner(12341234);
-}
-bitwiseAnd.expected = 0;
-test(bitwiseAnd);
+test("bitwise and with arg/var", bitwiseAnd(12341234), 0)
 
-if (!testName || testName == "bitwiseGlobal") {
-  bitwiseAndValue = Math.pow(2,32);
-  for (var i = 0; i < 60000; i++)
-    bitwiseAndValue = bitwiseAndValue & i;
-  check("bitwiseGlobal", bitwiseAndValue, 0);
-}
-
+bitwiseAndValue = Math.pow(2,32);
+for (var i = 0; i < 60000; i++)
+  bitwiseAndValue = bitwiseAndValue & i;
+test("bitwise on undeclared globals", bitwiseAndValue, 0);
 
 function equalInt()
 {
@@ -74,24 +56,25 @@ function equalInt()
   }
   return hits.toString();
 }
-equalInt.expected = "5000,5000,5000,5000,5000,5000,0,0,0,0,0,0,0,0,0,0,0,0,0";
-test(equalInt);
+test("int equality", equalInt(),
+     "5000,5000,5000,5000,5000,5000,0,0,0,0,0,0,0,0,0,0,0,0,0");
 
-var a;
-function setelem()
+
+function setelem(a)
 {
-  a = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
-  a = a.concat(a, a, a);
   var l = a.length;
   for (var i = 0; i < l; i++) {
     a[i] = i;
   }
   return a.toString();
 }
-setelem.expected = "0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83";
-test(setelem);
 
-function getelem_inner(a)
+var a = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+a = a.concat(a, a, a);
+setelem(a)
+test("setelem", a, "0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83");
+
+function getelem(a)
 {
   var accum = 0;
   var l = a.length;
@@ -100,12 +83,7 @@ function getelem_inner(a)
   }
   return accum;
 }
-function getelem()
-{
-  return getelem_inner(a);
-}
-getelem.expected = 3486;
-test(getelem);
+test("getelem", getelem(a), 3486);
 
 globalName = 907;
 function name()
@@ -115,21 +93,16 @@ function name()
     a = globalName;
   return a;
 }
-name.expected = 907;
-test(name);
+test("undeclared globals from function", name(), 907);
 
 var globalInt = 0;
-if (!testName || testName == "globalGet") {
-  for (var i = 0; i < 500; i++)
-    globalInt = globalName + i;
-  check("globalGet", globalInt, globalName + 499);
-}
+for (var i = 0; i < 500; i++)
+  globalInt = globalName + i;
+test("get undeclared global at top level", globalInt, globalName + 499);
 
-if (!testName || testName == "globalSet") {
-  for (var i = 0; i < 500; i++)
-    globalInt = i;
-  check("globalSet", globalInt, 499);
-}
+for (var i = 0; i < 500; i++)
+  globalInt = i;
+test("setting global variable", globalInt, 499);
 
 function arith()
 {
@@ -139,51 +112,37 @@ function arith()
   }
   return accum;
 }
-arith.expected = 9800;
-test(arith);
+test("basic arithmetic", arith(), 9800);
 
-function lsh_inner(n)
+function lsh(n)
 {
   var r;
   for (var i = 0; i < 35; i++)
     r = 0x1 << n;
   return r;
 }
-function lsh()
-{
-  return [lsh_inner(15),lsh_inner(55),lsh_inner(1),lsh_inner(0)];
-}
-lsh.expected = "32768,8388608,2,1";
-test(lsh);
+test("lsh", [lsh(15),lsh(55),lsh(1),lsh(0)],"32768,8388608,2,1");
 
-function rsh_inner(n)
+function rsh(n)
 {
   var r;
   for (var i = 0; i < 35; i++)
     r = 0x11010101 >> n;
   return r;
 }
-function rsh()
-{
-  return [rsh_inner(8),rsh_inner(5),rsh_inner(35),rsh_inner(-1)];
-}
-rsh.expected = "1114369,8914952,35659808,0";
-test(rsh);
+test("rsh", [rsh(8),rsh(5),rsh(35),rsh(-1)],"1114369,8914952,35659808,0");
 
-function ursh_inner(n)
+function ursh(n)
 {
   var r;
   for (var i = 0; i < 35; i++)
     r = -55 >>> n;
   return r;
 }
-function ursh() {
-  return [ursh_inner(8),ursh_inner(33),ursh_inner(0),ursh_inner(1)];
-}
-ursh.expected = "16777215,2147483620,4294967241,2147483620";
-test(ursh);
+test("ursh", [ursh(8),ursh(33),ursh(0),ursh(1)],
+     "16777215,2147483620,4294967241,2147483620");
 
-function doMath_inner(cos)
+function doMath(cos)
 {
     var s = 0;
     var sin = Math.sin;
@@ -191,15 +150,12 @@ function doMath_inner(cos)
         s = -Math.pow(sin(i) + cos(i * 0.75), 4);
     return s;
 }
-function doMath() {
-  return doMath_inner(Math.cos);
-}
-doMath.expected = -0.5405549555611059;
-test(doMath);
+test("Math-nativecall", doMath(Math.cos), -0.5405549555611059);
 
-function fannkuch() {
-   var count = Array(8);
-   var r = 8;
+function fannkuch(n) {
+   var count = Array(n);
+
+   var r = n;
    var done = 0;
    while (done < 40) {
       // write-out the first 30 permutations
@@ -213,8 +169,7 @@ function fannkuch() {
    }
    return done;
 }
-fannkuch.expected = 41;
-test(fannkuch);
+test("fannkuch", fannkuch(8), 41);
 
 function xprop()
 {
@@ -223,11 +178,10 @@ function xprop()
     a += 7;
   return a;
 }
-xprop.expected = 140;
-test(xprop);
+test("xprop", xprop(), 140);
 
 var a = 2;
-function getprop_inner(o2)
+function getprop(o2)
 {
   var o = {a:5};
   var t = this;
@@ -238,11 +192,7 @@ function getprop_inner(o2)
   }
   return x;
 }
-function getprop() {
-  return getprop_inner({a:9});
-}
-getprop.expected = 360;
-test(getprop);
+test("getprop", getprop({a:9}), 360);
 
 function mod()
 {
@@ -257,8 +207,7 @@ function mod()
   }
   return mods.toString();
 }
-mod.expected = "4.5,0,42,4,NaN";
-test(mod);
+test("mod", mod(), "4.5,0,42,4,NaN");
 
 function glob_f1() {
   return 1;
@@ -287,8 +236,7 @@ function call()
   var ret = [q1, q2, q3, q4, q5];
   return ret;
 }
-call.expected =  "100,100,100,100,100";
-test(call);
+test("call", call(), "100,100,100,100,100");
 
 function setprop()
 {
@@ -299,8 +247,7 @@ function setprop()
   }
   return [obj.a, obj2.a, obj2.b].toString();
 }
-setprop.expected =  "19,-1,19";
-test(setprop);
+test("setprop", setprop(), "19,-1,19");
 
 function testif() {
 	var q = 0;
@@ -312,12 +259,10 @@ function testif() {
 	}
     return q;
 }
-testif.expected = "0";
-test(testif);
+test("testif", testif(), "0");
 
 function testincops(n) {
   var i = 0, o = {p:0}, a = [0];
-  n = 100;
 
   for (i = 0; i < n; i++);
   while (i-- > 0);
@@ -337,8 +282,7 @@ function testincops(n) {
 
   return [++o.p, ++a[i]].toString();
 }
-testincops.expected = "0,0";
-test(testincops);
+test("testincops", testincops(100), "0,0");
 
 function trees() {
   var i = 0, o = [0,0,0];
@@ -349,8 +293,7 @@ function trees() {
   }
   return o;
 }
-trees.expected = "50,25,25";
-test(trees);
+test("trees", trees(), "50,25,25");
 
 function unboxint() {
     var q = 0;
@@ -359,8 +302,7 @@ function unboxint() {
 	q = o[0] << 1;
     return q;
 }
-unboxint.expected = "8";
-test(unboxint);
+test("unboxint", unboxint(), "8");
 
 function strings()
 {
@@ -378,8 +320,7 @@ function strings()
   }
   return a.toString() + b + c + d;
 }
-strings.expected = "aaa,bbb,ccc,ddd,eee,fff,ggg,hhh,iii,jjj1019";
-test(strings);
+test("strings", strings(), "aaa,bbb,ccc,ddd,eee,fff,ggg,hhh,iii,jjj1019");
 
 function stringConvert()
 {
@@ -398,8 +339,7 @@ function stringConvert()
   }
   return a.toString();
 }
-stringConvert.expected = "1,8.7,75,37,,,,5";
-test(stringConvert);
+test("stringConvert", stringConvert(), "1,8.7,75,37,,,,5");
 
 /* Keep these at the end so that we can see the summary after the trace-debug spew. */
 print("pass:", passes.length ? passes.join(",") : "<none>");

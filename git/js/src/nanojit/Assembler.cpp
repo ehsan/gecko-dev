@@ -532,45 +532,25 @@ namespace nanojit
         
         LInsp lhs = cond->oprnd1();
 		LInsp rhs = cond->oprnd2();
-		Reservation *rA, *rB;
-
-		NanoAssert((!lhs->isQuad() && !rhs->isQuad()) || (lhs->isQuad() && rhs->isQuad()));
-
-		// Not supported yet.
-#if !defined NANOJIT_64BIT
 		NanoAssert(!lhs->isQuad() && !rhs->isQuad());
-#endif
+		Reservation *rA, *rB;
 
 		// ready to issue the compare
 		if (rhs->isconst())
 		{
 			int c = rhs->constval();
 			Register r = findRegFor(lhs, GpRegs);
-			if (c == 0 && cond->isop(LIR_eq)) {
-				if (rhs->isQuad()) {
-#if defined NANOJIT_64BIT
-					TESTQ(r, r);
-#endif
-				} else {
-					TEST(r,r);
-				}
-			// No 64-bit immediates so fall-back to below
-			} else if (!rhs->isQuad()) {
+			if (c == 0 && cond->isop(LIR_eq))
+				TEST(r,r);
+			else
 				CMPi(r, c);
-			}
 		}
 		else
 		{
 			findRegFor2(GpRegs, lhs, rA, rhs, rB);
 			Register ra = rA->reg;
 			Register rb = rB->reg;
-			if (rhs->isQuad()) {
-#if defined NANOJIT_64BIT
-				CMPQ(ra, rb);
-#endif
-			} else {
-				CMP(ra, rb);
-			}
+			CMP(ra, rb);
 		}
 	}
 
@@ -1165,7 +1145,9 @@ namespace nanojit
 					LOpcode condop = cond->opcode();
 					NanoAssert(cond->isCond());
 #ifndef NJ_SOFTFLOAT
-                    if (condop >= LIR_feq && condop <= LIR_fge)
+					bool fp = cond->oprnd1()->isQuad();
+
+                    if (fp)
 					{
 						if (op == LIR_xf)
 							JP(exit);
@@ -1247,11 +1229,7 @@ namespace nanojit
                     #ifdef NJ_VERBOSE
                     // branching from this frag to ourself.
                     if (_frago->core()->config.show_stats)
-					#if defined NANOJIT_AMD64
-                        LDQi(argRegs[1], intptr_t((Fragment*)_thisfrag));
-					#else
                         LDi(argRegs[1], int((Fragment*)_thisfrag));
-                    #endif
                     #endif
 
 					// restore first parameter, the only one we use
@@ -1569,7 +1547,7 @@ namespace nanojit
 		size_t size = GuardRecordSize(guard);
 		SideExit *exit = guard->exit();
 		NIns* ptr = (NIns*)alignTo(_nIns-size, 4);
-		underrunProtect( (intptr_t)_nIns-(intptr_t)ptr );  // either got us a new page or there is enough space for us
+		underrunProtect( (int)_nIns-(int)ptr );  // either got us a new page or there is enough space for us
 		GuardRecord* rec = (GuardRecord*) alignTo(_nIns-size,4);
 		rec->outgoing = _latestGuard;
 		_latestGuard = rec;

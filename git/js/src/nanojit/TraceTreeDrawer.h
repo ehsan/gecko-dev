@@ -45,7 +45,7 @@ namespace nanojit {
     
     class TraceTreeDrawer : public GCFinalizedObject {
     public:
-    	TraceTreeDrawer(Fragmento *frago, AvmCore *core, char *fileName);
+    	TraceTreeDrawer(Fragmento *frago, AvmCore *core, AvmString fileName);
     	~TraceTreeDrawer();
     	
     	void createGraphHeader();
@@ -63,7 +63,7 @@ namespace nanojit {
     	DWB(AvmCore *)		_core;
     	DWB(Fragmento *)	_frago;
     	DWB(LabelMap *)		_labels;
-    	char *				_fileName;
+    	AvmString _fileName;
     	
     	void addBackEdges(Fragment *f);
     	void addMergeNode(Fragment *f);
