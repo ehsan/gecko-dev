@@ -195,13 +195,10 @@ struct nsTimeout : PRCList
   // True if this is one of the timeouts that are currently running
   PRPackedBool mRunning;
 
-  // True if this is a repeating/interval timer
-  PRPackedBool mIsInterval;
-
   // Returned as value of setTimeout()
   PRUint32 mPublicId;
 
-  // Interval in milliseconds
+  // Non-zero interval in milliseconds if repetitive timeout
   PRUint32 mInterval;
 
   // mWhen and mTimeRemaining can't be in a union, sadly, because they
@@ -290,7 +287,6 @@ public:
 
   typedef mozilla::TimeStamp TimeStamp;
   typedef mozilla::TimeDuration TimeDuration;
-  typedef nsDataHashtable<nsUint64HashKey, nsGlobalWindow*> WindowByIdTable;
 
   // public methods
   nsPIDOMWindow* GetPrivateParent();
@@ -345,7 +341,6 @@ public:
   virtual NS_HIDDEN_(nsPIDOMWindow*) GetPrivateRoot();
   virtual NS_HIDDEN_(void) ActivateOrDeactivate(PRBool aActivate);
   virtual NS_HIDDEN_(void) SetActive(PRBool aActive);
-  virtual NS_HIDDEN_(void) SetIsBackground(PRBool aIsBackground);
   virtual NS_HIDDEN_(void) SetChromeEventHandler(nsIDOMEventTarget* aChromeEventHandler);
 
   virtual NS_HIDDEN_(void) SetOpenerScriptPrincipal(nsIPrincipal* aPrincipal);
@@ -536,27 +531,12 @@ public:
   }
 
   static nsGlobalWindow* GetOuterWindowWithId(PRUint64 aWindowID) {
-    nsGlobalWindow* outerWindow = sWindowsById->Get(aWindowID);
-    return outerWindow && !outerWindow->IsInnerWindow() ? outerWindow : nsnull;
+    return sOuterWindowsById ? sOuterWindowsById->Get(aWindowID) : nsnull;
   }
 
   static bool HasIndexedDBSupport();
 
   static bool HasPerformanceSupport();
-
-  static WindowByIdTable* GetWindowsTable() {
-    return sWindowsById;
-  }
-
-  PRInt64 SizeOf() const {
-    PRInt64 size = sizeof(*this);
-
-    if (IsInnerWindow() && mDoc) {
-      size += mDoc->SizeOf();
-    }
-
-    return size;
-  }
 
 private:
   // Enable updates for the accelerometer.
@@ -668,7 +648,6 @@ protected:
   // JS specific timeout functions (JS args grabbed from context).
   nsresult SetTimeoutOrInterval(PRBool aIsInterval, PRInt32* aReturn);
   nsresult ClearTimeoutOrInterval();
-  nsresult ResetTimersForNonBackgroundWindow();
 
   // The timeout implementation functions.
   void RunTimeout(nsTimeout *aTimeout);
@@ -980,7 +959,8 @@ protected:
   friend class PostMessageEvent;
   static nsIDOMStorageList* sGlobalStorageList;
 
-  static WindowByIdTable* sWindowsById;
+  typedef nsDataHashtable<nsUint64HashKey, nsGlobalWindow*> WindowByIdTable;
+  static WindowByIdTable* sOuterWindowsById;
 };
 
 /*

@@ -1754,13 +1754,13 @@ const ContentTouchHandler = {
       case "Browser:ContextMenu":
         // Long tap
         let contextMenu = { name: aMessage.name, json: json, target: aMessage.target };
-        if (ContextHelper.showPopup(contextMenu)) {
-          // Stop all input sequences
-          let event = document.createEvent("Events");
-          event.initEvent("CancelTouchSequence", true, false);
-          document.dispatchEvent(event);
-        } else {
-          SelectionHelper.showPopup(contextMenu);
+        if (!SelectionHelper.showPopup(contextMenu)) {
+          if (ContextHelper.showPopup(contextMenu)) {
+            // Stop all input sequences
+            let event = document.createEvent("Events");
+            event.initEvent("CancelTouchSequence", true, false);
+            document.dispatchEvent(event);
+          }
         }
         break;
       case "Browser:CaptureEvents": {
@@ -2194,10 +2194,6 @@ IdentityHandler.prototype = {
    * Click handler for the identity-box element in primary chrome.
    */
   handleIdentityButtonEvent: function(aEvent) {
-    let broadcaster = document.getElementById("bcast_uidiscovery");
-    if (broadcaster && broadcaster.getAttribute("mode") == "discovery")
-      return;
-
     aEvent.stopPropagation();
 
     if ((aEvent.type == "click" && aEvent.button != 0) ||
