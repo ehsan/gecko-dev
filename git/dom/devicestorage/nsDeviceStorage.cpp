@@ -182,7 +182,6 @@ DeviceStorageUsedSpaceCache::SetUsedSizes(const nsAString& aStorageName,
 class GlobalDirs : public RefCounted<GlobalDirs>
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_TYPENAME(GlobalDirs)
 #if !defined(MOZ_WIDGET_GONK)
   nsCOMPtr<nsIFile> pictures;
   nsCOMPtr<nsIFile> videos;

@@ -111,7 +111,7 @@ protected:
                                               const TextureFlags& aFlags) MOZ_OVERRIDE;
   virtual bool DeallocPTextureParent(PTextureParent* actor) MOZ_OVERRIDE;
 
-  bool Attach(ShadowLayerParent* aLayerParent,
+  void Attach(ShadowLayerParent* aLayerParent,
               CompositableParent* aCompositable,
               bool aIsAsyncVideo);
 

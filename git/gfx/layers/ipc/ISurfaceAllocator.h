@@ -76,7 +76,6 @@ bool ReleaseOwnedSurfaceDescriptor(const SurfaceDescriptor& aDescriptor);
 class ISurfaceAllocator : public AtomicRefCounted<ISurfaceAllocator>
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_TYPENAME(ISurfaceAllocator)
   ISurfaceAllocator() {}
 
   /**

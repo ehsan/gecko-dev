@@ -2928,7 +2928,7 @@ SetterWrapper(JSStrictPropertyOp setter)
 static bool
 DefinePropertyById(JSContext *cx, HandleObject obj, HandleId id, HandleValue value,
                    const JSPropertyOpWrapper &get, const JSStrictPropertyOpWrapper &set,
-                   unsigned attrs, unsigned flags)
+                   unsigned attrs, unsigned flags, int tinyid)
 {
     PropertyOp getter = get.op;
     StrictPropertyOp setter = set.op;
@@ -2996,8 +2996,10 @@ DefinePropertyById(JSContext *cx, HandleObject obj, HandleId id, HandleValue val
                             : nullptr);
 
     JSAutoResolveFlags rf(cx, 0);
-    if (flags != 0 && obj->isNative())
-        return DefineNativeProperty(cx, obj, id, value, getter, setter, attrs, flags);
+    if (flags != 0 && obj->isNative()) {
+        return DefineNativeProperty(cx, obj, id, value, getter, setter,
+                                    attrs, flags, tinyid);
+    }
     return JSObject::defineGeneric(cx, obj, id, value, getter, setter, attrs);
 }
 
@@ -3008,8 +3010,8 @@ JS_DefinePropertyById(JSContext *cx, JSObject *objArg, jsid idArg, jsval valueAr
     RootedObject obj(cx, objArg);
     RootedId id(cx, idArg);
     RootedValue value(cx, valueArg);
-    return DefinePropertyById(cx, obj, id, value, GetterWrapper(getter), SetterWrapper(setter),
-                              attrs, 0);
+    return DefinePropertyById(cx, obj, id, value, GetterWrapper(getter),
+                              SetterWrapper(setter), attrs, 0, 0);
 }
 
 JS_PUBLIC_API(bool)
@@ -3024,14 +3026,14 @@ JS_DefineElement(JSContext *cx, JSObject *objArg, uint32_t index, jsval valueArg
     RootedId id(cx);
     if (!IndexToId(cx, index, &id))
         return false;
-    return DefinePropertyById(cx, obj, id, value, GetterWrapper(getter), SetterWrapper(setter),
-                              attrs, 0);
+    return DefinePropertyById(cx, obj, id, value, GetterWrapper(getter),
+                              SetterWrapper(setter), attrs, 0, 0);
 }
 
 static bool
 DefineProperty(JSContext *cx, HandleObject obj, const char *name, HandleValue value,
                const JSPropertyOpWrapper &getter, const JSStrictPropertyOpWrapper &setter,
-               unsigned attrs, unsigned flags)
+               unsigned attrs, unsigned flags, int tinyid)
 {
     AutoRooterGetterSetter gsRoot(cx, attrs, const_cast<JSPropertyOp *>(&getter.op),
                                   const_cast<JSStrictPropertyOp *>(&setter.op));
@@ -3047,7 +3049,7 @@ DefineProperty(JSContext *cx, HandleObject obj, const char *name, HandleValue va
         id = AtomToId(atom);
     }
 
-    return DefinePropertyById(cx, obj, id, value, getter, setter, attrs, flags);
+    return DefinePropertyById(cx, obj, id, value, getter, setter, attrs, flags, tinyid);
 }
 
 
@@ -3058,7 +3060,8 @@ DefineSelfHostedProperty(JSContext *cx,
                          const char *getterName,
                          const char *setterName,
                          unsigned attrs,
-                         unsigned flags)
+                         unsigned flags,
+                         int tinyid)
 {
     RootedAtom nameAtom(cx, Atomize(cx, name, strlen(name)));
     if (!nameAtom)
@@ -3097,7 +3100,7 @@ DefineSelfHostedProperty(JSContext *cx,
 
     return DefineProperty(cx, obj, name, JS::UndefinedHandleValue,
                           GetterWrapper(getterOp), SetterWrapper(setterOp),
-                          attrs, flags);
+                          attrs, flags, tinyid);
 }
 
 JS_PUBLIC_API(bool)
@@ -3106,14 +3109,24 @@ JS_DefineProperty(JSContext *cx, JSObject *objArg, const char *name, jsval value
 {
     RootedObject obj(cx, objArg);
     RootedValue value(cx, valueArg);
-    return DefineProperty(cx, obj, name, value, GetterWrapper(getter), SetterWrapper(setter),
-                          attrs, 0);
+    return DefineProperty(cx, obj, name, value, GetterWrapper(getter),
+                          SetterWrapper(setter), attrs, 0, 0);
+}
+
+JS_PUBLIC_API(bool)
+JS_DefinePropertyWithTinyId(JSContext *cx, JSObject *objArg, const char *name, int8_t tinyid,
+                            jsval valueArg, PropertyOp getter, JSStrictPropertyOp setter, unsigned attrs)
+{
+    RootedObject obj(cx, objArg);
+    RootedValue value(cx, valueArg);
+    return DefineProperty(cx, obj, name, value, GetterWrapper(getter),
+                          SetterWrapper(setter), attrs, Shape::HAS_SHORTID, tinyid);
 }
 
 static bool
 DefineUCProperty(JSContext *cx, HandleObject obj, const jschar *name, size_t namelen,
                  const Value &value_, PropertyOp getter, StrictPropertyOp setter, unsigned attrs,
-                 unsigned flags)
+                 unsigned flags, int tinyid)
 {
     RootedValue value(cx, value_);
     AutoRooterGetterSetter gsRoot(cx, attrs, &getter, &setter);
@@ -3121,8 +3134,8 @@ DefineUCProperty(JSContext *cx, HandleObject obj, const jschar *name, size_t nam
     if (!atom)
         return false;
     RootedId id(cx, AtomToId(atom));
-    return DefinePropertyById(cx, obj, id, value, GetterWrapper(getter), SetterWrapper(setter),
-                              attrs, flags);
+    return DefinePropertyById(cx, obj, id, value, GetterWrapper(getter),
+                              SetterWrapper(setter), attrs, flags, tinyid);
 }
 
 JS_PUBLIC_API(bool)
@@ -3131,7 +3144,18 @@ JS_DefineUCProperty(JSContext *cx, JSObject *objArg, const jschar *name, size_t 
 {
     RootedObject obj(cx, objArg);
     RootedValue value(cx, valueArg);
-    return DefineUCProperty(cx, obj, name, namelen, value, getter, setter, attrs, 0);
+    return DefineUCProperty(cx, obj, name, namelen, value, getter, setter, attrs, 0, 0);
+}
+
+JS_PUBLIC_API(bool)
+JS_DefineUCPropertyWithTinyId(JSContext *cx, JSObject *objArg, const jschar *name, size_t namelen,
+                              int8_t tinyid, jsval valueArg,
+                              JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs)
+{
+    RootedObject obj(cx, objArg);
+    RootedValue value(cx, valueArg);
+    return DefineUCProperty(cx, obj, name, namelen, value, getter, setter, attrs,
+                            Shape::HAS_SHORTID, tinyid);
 }
 
 JS_PUBLIC_API(bool)
@@ -3166,10 +3190,9 @@ JS_DefineObject(JSContext *cx, JSObject *objArg, const char *name, const JSClass
         return nullptr;
 
     RootedValue nobjValue(cx, ObjectValue(*nobj));
-    if (!DefineProperty(cx, obj, name, nobjValue, GetterWrapper(nullptr), SetterWrapper(nullptr),
-                        attrs, 0)) {
+    if (!DefineProperty(cx, obj, name, nobjValue, GetterWrapper(nullptr),
+                        SetterWrapper(nullptr), attrs, 0, 0))
         return nullptr;
-    }
 
     return nobj;
 }
@@ -3190,7 +3213,7 @@ JS_DefineConstDoubles(JSContext *cx, JSObject *objArg, const JSConstDoubleSpec *
         attrs = cds->flags;
         if (!attrs)
             attrs = JSPROP_READONLY | JSPROP_PERMANENT;
-        ok = DefineProperty(cx, obj, cds->name, value, noget, noset, attrs, 0);
+        ok = DefineProperty(cx, obj, cds->name, value, noget, noset, attrs, 0, 0);
         if (!ok)
             break;
     }
@@ -3213,7 +3236,8 @@ JS_DefineProperties(JSContext *cx, JSObject *objArg, const JSPropertySpec *ps)
             JS_ASSERT_IF(ps->setter.propertyOp.info, ps->setter.propertyOp.op);
 
             ok = DefineProperty(cx, obj, ps->name, JS::UndefinedHandleValue,
-                                ps->getter.propertyOp, ps->setter.propertyOp, ps->flags, 0);
+                                ps->getter.propertyOp, ps->setter.propertyOp,
+                                ps->flags, Shape::HAS_SHORTID, ps->tinyid);
         } else {
             // If you have self-hosted getter/setter, you can't have a
             // native one.
@@ -3232,7 +3256,8 @@ JS_DefineProperties(JSContext *cx, JSObject *objArg, const JSPropertySpec *ps)
             ok = DefineSelfHostedProperty(cx, obj, ps->name,
                                           ps->getter.selfHosted.funname,
                                           ps->setter.selfHosted.funname,
-                                          ps->flags, 0);
+                                          ps->flags, Shape::HAS_SHORTID,
+                                          ps->tinyid);
         }
         if (!ok)
             break;
@@ -6286,10 +6311,3 @@ JS::SetLargeAllocationFailureCallback(JSRuntime *rt, JS::LargeAllocationFailureC
 {
     rt->largeAllocationFailureCallback = lafc;
 }
-
-JS_PUBLIC_API(void)
-JS::SetOutOfMemoryCallback(JSRuntime *rt, OutOfMemoryCallback cb)
-{
-    rt->oomCallback = cb;
-}
-

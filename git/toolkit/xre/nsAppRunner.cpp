@@ -4,9 +4,13 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #if defined(MOZ_WIDGET_QT)
-#include <QGuiApplication>
+#include <QApplication>
 #include <QStringList>
 #include "nsQAppInstance.h"
+#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
+#include <QInputContextFactory>
+#include <QInputContext>
+#endif
 #endif // MOZ_WIDGET_QT
 
 #include "mozilla/dom/ContentParent.h"

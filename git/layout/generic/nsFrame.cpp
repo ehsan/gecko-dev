@@ -4889,11 +4889,8 @@ nsIFrame::SchedulePaint(PaintType aType)
   if (!pres || (pres->Document() && pres->Document()->IsResourceDoc())) {
     return;
   }
-  if (!pres->GetContainerWeak()) {
-    NS_WARNING("Shouldn't call SchedulePaint in a detached pres context");
-    return;
-  }
-
+  
+  MOZ_ASSERT(pres->GetContainerWeak(), "SchedulePaint in a detached pres context");
   pres->PresShell()->ScheduleViewManagerFlush(aType == PAINT_DELAYED_COMPRESS ?
                                               nsIPresShell::PAINT_DELAYED_COMPRESS :
                                               nsIPresShell::PAINT_DEFAULT);

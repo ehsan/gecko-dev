@@ -940,7 +940,10 @@ EmitGetterCall(JSContext *cx, MacroAssembler &masm,
         masm.movePtr(StackPointer, argVpReg);
 
         // push canonical jsid from shape instead of propertyname.
-        masm.Push(shape->propid(), scratchReg);
+        RootedId propId(cx);
+        if (!shape->getUserId(cx, &propId))
+            return false;
+        masm.Push(propId, scratchReg);
         masm.movePtr(StackPointer, argIdReg);
 
         masm.Push(object);
@@ -2344,7 +2347,10 @@ GenerateCallSetter(JSContext *cx, IonScript *ion, MacroAssembler &masm,
         masm.move32(Imm32(strict ? 1 : 0), argStrictReg);
 
         // push canonical jsid from shape instead of propertyname.
-        masm.Push(shape->propid(), argIdReg);
+        RootedId propId(cx);
+        if (!shape->getUserId(cx, &propId))
+            return false;
+        masm.Push(propId, argIdReg);
         masm.movePtr(StackPointer, argIdReg);
 
         masm.Push(object);

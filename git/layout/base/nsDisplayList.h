@@ -990,7 +990,8 @@ public:
   { return false; }
   /**
    * @return true if the contents of this item are rendered fixed relative
-   * to the nearest viewport.
+   * to the nearest viewport *and* they cover the viewport's scrollport.
+   * Only return true if the contents actually vary when scrolling in the viewport.
    */
   virtual bool ShouldFixToViewport(nsDisplayListBuilder* aBuilder)
   { return false; }

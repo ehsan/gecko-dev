@@ -625,15 +625,6 @@ nsIPresShell::InvalidatePresShellIfHidden()
 }
 
 void
-nsIPresShell::CancelInvalidatePresShellIfHidden()
-{
-  if (mHiddenInvalidationObserverRefreshDriver) {
-    mHiddenInvalidationObserverRefreshDriver->RemovePresShellToInvalidateIfHidden(this);
-    mHiddenInvalidationObserverRefreshDriver = nullptr;
-  }
-}
-
-void
 nsIPresShell::SetVerifyReflowEnable(bool aEnabled)
 {
   gVerifyReflowEnabled = aEnabled;
@@ -2861,12 +2852,6 @@ nsIPresShell::RestyleForAnimation(Element* aElement, nsRestyleHint aHint)
 {
   mPresContext->RestyleManager()->PostAnimationRestyleEvent(aElement, aHint,
                                                             NS_STYLE_HINT_NONE);
-}
-
-void
-nsIPresShell::SetForwardingContainer(const WeakPtr<nsDocShell> &aContainer)
-{
-  mForwardingContainer = aContainer;
 }
 
 void

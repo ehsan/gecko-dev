@@ -1112,7 +1112,6 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
       break;
     }
   case NS_MOUSE_MOVE:
-  case NS_POINTER_DOWN:
   case NS_POINTER_MOVE: {
     // on the Mac, GenerateDragGesture() may not return until the drag
     // has completed and so |aTargetFrame| may have been deleted (moving
@@ -4104,7 +4103,6 @@ nsEventStateManager::DispatchMouseOrPointerEvent(WidgetMouseEvent* aMouseEvent,
   }
   event->refPoint = aMouseEvent->refPoint;
   event->modifiers = aMouseEvent->modifiers;
-  event->button = aMouseEvent->button;
   event->buttons = aMouseEvent->buttons;
   event->pluginEvent = aMouseEvent->pluginEvent;
   event->relatedTarget = aRelatedContent;
@@ -4424,7 +4422,6 @@ nsEventStateManager::GenerateMouseEnterExit(WidgetMouseEvent* aMouseEvent)
 
     }
   case NS_POINTER_MOVE:
-  case NS_POINTER_DOWN:
     {
       // Get the target content target (mousemove target == mouseover target)
       nsCOMPtr<nsIContent> targetElement = GetEventTargetContent(aMouseEvent);

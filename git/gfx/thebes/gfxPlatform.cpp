@@ -2081,7 +2081,7 @@ static int  sPrefLayoutFrameRate = -1;
 static int  sPrefLayersCompositionFrameRate = -1;
 static bool sBufferRotationEnabled = false;
 static bool sComponentAlphaEnabled = true;
-static bool sPrefBrowserTabsRemoteAutostart = false;
+static bool sPrefBrowserTabsRemote = false;
 
 static bool sLayersAccelerationPrefsInitialized = false;
 
@@ -2111,7 +2111,7 @@ InitLayersAccelerationPrefs()
     sPrefLayersCompositionFrameRate = Preferences::GetInt("layers.offmainthreadcomposition.frame-rate", -1);
     sBufferRotationEnabled = Preferences::GetBool("layers.bufferrotation.enabled", true);
     sComponentAlphaEnabled = Preferences::GetBool("layers.componentalpha.enabled", true);
-    sPrefBrowserTabsRemoteAutostart = Preferences::GetBool("browser.tabs.remote.autostart", false);
+    sPrefBrowserTabsRemote = BrowserTabsRemote();
 
 #ifdef XP_WIN
     if (sPrefLayersAccelerationForceEnabled) {
@@ -2161,10 +2161,10 @@ bool gfxPlatform::OffMainThreadCompositionRequired()
   InitLayersAccelerationPrefs();
 #if defined(MOZ_WIDGET_GTK) && defined(NIGHTLY_BUILD)
   // Linux users who chose OpenGL are being grandfathered in to OMTC
-  return sPrefBrowserTabsRemoteAutostart ||
+  return sPrefBrowserTabsRemote ||
          sPrefLayersAccelerationForceEnabled;
 #else
-  return sPrefBrowserTabsRemoteAutostart;
+  return sPrefBrowserTabsRemote;
 #endif
 }
 

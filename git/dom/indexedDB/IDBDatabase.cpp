@@ -394,7 +394,7 @@ IDBDatabase::OnUnlink()
 
   // No reason for the QuotaManager to track us any longer.
   QuotaManager* quotaManager = QuotaManager::Get();
-  if (mRegistered && quotaManager) {
+  if (quotaManager) {
     quotaManager->UnregisterStorage(this);
 
     // Don't try to unregister again in the destructor.

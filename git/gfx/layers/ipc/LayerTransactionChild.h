@@ -26,7 +26,6 @@ class LayerTransactionChild : public PLayerTransactionChild
                             , public AtomicRefCounted<LayerTransactionChild>
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_TYPENAME(LayerTransactionChild)
   /**
    * Clean this up, finishing with Send__delete__().
    *

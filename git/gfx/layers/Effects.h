@@ -39,7 +39,6 @@ namespace layers {
 
 struct Effect : public RefCounted<Effect>
 {
-  MOZ_DECLARE_REFCOUNTED_TYPENAME(Effect)
   Effect(EffectTypes aType) : mType(aType) {}
 
   EffectTypes mType;

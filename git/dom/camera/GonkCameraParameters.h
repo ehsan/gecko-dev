@@ -94,7 +94,6 @@ protected:
   // Required internal properties
   double mExposureCompensationMin;
   double mExposureCompensationStep;
-  nsTArray<int> mZoomRatios;
 
   // This subclass of android::CameraParameters just gives
   // all of the AOSP getters and setters the same signature.

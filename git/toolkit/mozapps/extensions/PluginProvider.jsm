@@ -420,8 +420,10 @@ function PluginWrapper(aId, aName, aDescription, aTags) {
 
   this.__defineGetter__("installDate", function() {
     let date = 0;
+    let file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
     for (let tag of aTags) {
-      date = Math.max(date, tag.lastModifiedTime);
+      file.initWithPath(tag.fullpath);
+      date = Math.max(date, file.lastModifiedTime);
     }
     return new Date(date);
   });

@@ -60,7 +60,6 @@ struct EffectChain;
 class CompositableBackendSpecificData : public RefCounted<CompositableBackendSpecificData>
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_TYPENAME(CompositableBackendSpecificData)
   CompositableBackendSpecificData()
   {
     MOZ_COUNT_CTOR(CompositableBackendSpecificData);
@@ -90,7 +89,6 @@ public:
 class CompositableHost : public RefCounted<CompositableHost>
 {
 public:
-  MOZ_DECLARE_REFCOUNTED_TYPENAME(CompositableHost)
   CompositableHost(const TextureInfo& aTextureInfo);
 
   virtual ~CompositableHost();

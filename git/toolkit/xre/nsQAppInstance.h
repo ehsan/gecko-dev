@@ -11,7 +11,8 @@
 extern int    gArgc;
 extern char **gArgv;
 
-class QGuiApplication;
+class QApplication;
+class MComponentData;
 class nsQAppInstance
 {
 public:
@@ -21,7 +22,8 @@ public:
   static void Release(void);
 
 private:
-  static QGuiApplication *sQAppInstance;
+  static QApplication *sQAppInstance;
+  static MComponentData* sMComponentData;
   static int sQAppRefCount;
 };
 
