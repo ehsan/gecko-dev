@@ -652,7 +652,7 @@ function createInstallRDF(aData) {
 /**
  * Writes an install.rdf manifest into a directory using the properties passed
  * in a JS object. The objects should contain a property for each property to
- * appear in the RDF. The object may contain an array of objects with id,
+ * appear in the RDFThe object may contain an array of objects with id,
  * minVersion and maxVersion in the targetApplications property to give target
  * application compatibility.
  *
@@ -660,22 +660,14 @@ function createInstallRDF(aData) {
  *          The object holding data about the add-on
  * @param   aDir
  *          The directory to add the install.rdf to
- * @param   aId
- *          An optional string to override the default installation aId
  * @param   aExtraFile
  *          An optional dummy file to create in the directory
- * @return  An nsIFile for the directory in which the add-on is installed.
  */
-function writeInstallRDFToDir(aData, aDir, aId, aExtraFile) {
-  var id = aId ? aId : aData.id
-
-  var dir = aDir.clone();
-  dir.append(id);
-
+function writeInstallRDFToDir(aData, aDir, aExtraFile) {
   var rdf = createInstallRDF(aData);
-  if (!dir.exists())
-    dir.create(AM_Ci.nsIFile.DIRECTORY_TYPE, FileUtils.PERMS_DIRECTORY);
-  var file = dir.clone();
+  if (!aDir.exists())
+    aDir.create(AM_Ci.nsIFile.DIRECTORY_TYPE, FileUtils.PERMS_DIRECTORY);
+  var file = aDir.clone();
   file.append("install.rdf");
   if (file.exists())
     file.remove(true);
@@ -688,18 +680,17 @@ function writeInstallRDFToDir(aData, aDir, aId, aExtraFile) {
   fos.close();
 
   if (!aExtraFile)
-    return dir;
+    return;
 
-  file = dir.clone();
+  file = aDir.clone();
   file.append(aExtraFile);
   file.create(AM_Ci.nsIFile.NORMAL_FILE_TYPE, FileUtils.PERMS_FILE);
-  return dir;
 }
 
 /**
  * Writes an install.rdf manifest into an extension using the properties passed
  * in a JS object. The objects should contain a property for each property to
- * appear in the RDF. The object may contain an array of objects with id,
+ * appear in the RDFThe object may contain an array of objects with id,
  * minVersion and maxVersion in the targetApplications property to give target
  * application compatibility.
  *
@@ -714,33 +705,15 @@ function writeInstallRDFToDir(aData, aDir, aId, aExtraFile) {
  * @return  A file pointing to where the extension was installed
  */
 function writeInstallRDFForExtension(aData, aDir, aId, aExtraFile) {
-  if (TEST_UNPACKED) {
-    return writeInstallRDFToDir(aData, aDir, aId, aExtraFile);
-  }
-  return writeInstallRDFToXPI(aData, aDir, aId, aExtraFile);
-}
-
-/**
- * Writes an install.rdf manifest into a packed extension using the properties passed
- * in a JS object. The objects should contain a property for each property to
- * appear in the RDF. The object may contain an array of objects with id,
- * minVersion and maxVersion in the targetApplications property to give target
- * application compatibility.
- *
- * @param   aData
- *          The object holding data about the add-on
- * @param   aDir
- *          The install directory to add the extension to
- * @param   aId
- *          An optional string to override the default installation aId
- * @param   aExtraFile
- *          An optional dummy file to create in the extension
- * @return  A file pointing to where the extension was installed
- */
-function writeInstallRDFToXPI(aData, aDir, aId, aExtraFile) {
   var id = aId ? aId : aData.id
 
   var dir = aDir.clone();
+
+  if (TEST_UNPACKED) {
+    dir.append(id);
+    writeInstallRDFToDir(aData, dir, aExtraFile);
+    return dir;
+  }
 
   if (!dir.exists())
     dir.create(AM_Ci.nsIFile.DIRECTORY_TYPE, FileUtils.PERMS_DIRECTORY);

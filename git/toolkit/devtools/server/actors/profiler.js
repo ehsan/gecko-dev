@@ -4,7 +4,6 @@
 "use strict";
 
 const {Cc, Ci, Cu, Cr} = require("chrome");
-const Services = require("Services");
 const DevToolsUtils = require("devtools/toolkit/DevToolsUtils.js");
 
 let DEFAULT_PROFILER_ENTRIES = 1000000;
@@ -240,8 +239,6 @@ ProfilerActor.prototype = {
   }
 };
 
-exports.ProfilerActor = ProfilerActor;
-
 /**
  * JSON.stringify callback used in ProfilerActor.prototype.observe.
  */
@@ -305,4 +302,14 @@ ProfilerActor.prototype.requestTypes = {
   "getProfile": ProfilerActor.prototype.onGetProfile,
   "registerEventNotifications": ProfilerActor.prototype.onRegisterEventNotifications,
   "unregisterEventNotifications": ProfilerActor.prototype.onUnregisterEventNotifications
+};
+
+exports.register = function(handle) {
+  handle.addGlobalActor(ProfilerActor, "profilerActor");
+  handle.addTabActor(ProfilerActor, "profilerActor");
+};
+
+exports.unregister = function(handle) {
+  handle.removeGlobalActor(ProfilerActor, "profilerActor");
+  handle.removeTabActor(ProfilerActor, "profilerActor");
 };

@@ -15,12 +15,12 @@ public class testAddonManager extends PixelTest  {
     public void testAddonManager() {
         Actions.EventExpecter tabEventExpecter;
         Actions.EventExpecter contentEventExpecter;
-        String url = StringHelper.ABOUT_ADDONS_URL;
+        String url = "about:addons";
 
         blockForGeckoReady();
 
         // Use the menu to open the Addon Manger
-        selectMenuItem(StringHelper.ADDONS_LABEL);
+        selectMenuItem("Add-ons");
 
         // Set up listeners to catch the page load we're about to do
         tabEventExpecter = mActions.expectGeckoEvent("Tab:Added");
@@ -34,21 +34,21 @@ public class testAddonManager extends PixelTest  {
         contentEventExpecter.unregisterListener();
 
         // Verify the url
-        verifyPageTitle(StringHelper.ADDONS_LABEL);
+        verifyPageTitle("Add-ons");
 
         // Close the Add-on Manager
         mActions.sendSpecialKey(Actions.SpecialKey.BACK);
 
         // Load the about:addons page and verify it was loaded
         loadAndPaint(url);
-        verifyPageTitle(StringHelper.ADDONS_LABEL);
+        verifyPageTitle("Add-ons");
 
         // Change the AMO URL so we do not try to navigate to a live webpage
         JSONObject jsonPref = new JSONObject();
         try {
             jsonPref.put("name", "extensions.getAddons.browseAddons");
             jsonPref.put("type", "string");
-            jsonPref.put("value", getAbsoluteUrl(StringHelper.ROBOCOP_BLANK_PAGE_01_URL));
+            jsonPref.put("value", getAbsoluteUrl("/robocop/robocop_blank_01.html"));
             setPreferenceAndWaitForChange(jsonPref);
 
         } catch (Exception ex) { 
@@ -83,10 +83,10 @@ public class testAddonManager extends PixelTest  {
         verifyTabCount(2);
 
         // Verify the page was opened
-        verifyPageTitle(StringHelper.ROBOCOP_BLANK_PAGE_01_TITLE);
+        verifyPageTitle("Browser Blank Page 01");
 
         // Addons Manager is not opened 2 separate times when opened from the menu
-        selectMenuItem(StringHelper.ADDONS_LABEL);
+        selectMenuItem("Add-ons");        
 
         // Verify tab count not increased
         verifyTabCount(2);
