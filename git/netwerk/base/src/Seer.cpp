@@ -347,15 +347,12 @@ Seer::Observe(nsISupports *subject, const char *topic,
               const char16_t *data_unicode)
 {
   nsresult rv = NS_OK;
-  MOZ_ASSERT(NS_IsMainThread(), "Seer observing something off main thread!");
 
   if (!strcmp(NS_XPCOM_SHUTDOWN_OBSERVER_ID, topic)) {
-    Shutdown();
+    gSeer->Shutdown();
   } else if (!strcmp(NS_TIMER_CALLBACK_TOPIC, topic)) {
-    if (mInitialized) { // Can't access io thread if we're not initialized!
-      nsRefPtr<SeerNewTransactionEvent> event = new SeerNewTransactionEvent();
-      mIOThread->Dispatch(event, NS_DISPATCH_NORMAL);
-    }
+    nsRefPtr<SeerNewTransactionEvent> event = new SeerNewTransactionEvent();
+    gSeer->mIOThread->Dispatch(event, NS_DISPATCH_NORMAL);
   }
 
   return rv;

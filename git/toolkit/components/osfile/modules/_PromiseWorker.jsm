@@ -72,16 +72,6 @@ function PromiseWorker(url, log) {
    * Used for debugging purposes.
    */
   this._id = 0;
-
-  /**
-   * The instant at which the worker was launched.
-   */
-  this.launchTimeStamp = null;
-
-  /**
-   * Timestamps provided by the worker for statistics purposes.
-   */
-  this.workerTimeStamps = null;
 }
 PromiseWorker.prototype = {
   /**
@@ -94,10 +84,6 @@ PromiseWorker.prototype = {
     Object.defineProperty(this, "_worker", {value:
       worker
     });
-
-    // We assume that we call to _worker for the purpose of calling
-    // postMessage().
-    this.launchTimeStamp = Date.now();
 
     /**
      * Receive errors that are not instances of OS.File.Error, propagate
@@ -142,9 +128,6 @@ PromiseWorker.prototype = {
       if (data.id != handler.id) {
         throw new Error("Internal error: expecting msg " + handler.id + ", " +
                         " got " + data.id + ": " + JSON.stringify(msg.data));
-      }
-      if ("timeStamps" in data) {
-        self.workerTimeStamps = data.timeStamps;
       }
       if ("ok" in data) {
         // Pass the data to the listeners.

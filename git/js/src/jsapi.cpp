@@ -2814,8 +2814,10 @@ JS_LookupPropertyWithFlags(JSContext *cx, HandleObject obj, const char *name, un
 }
 
 JS_PUBLIC_API(bool)
-JS_HasPropertyById(JSContext *cx, HandleObject obj, HandleId id, bool *foundp)
+JS_HasPropertyById(JSContext *cx, JSObject *objArg, jsid idArg, bool *foundp)
 {
+    RootedObject obj(cx, objArg);
+    RootedId id(cx, idArg);
     RootedObject obj2(cx);
     RootedShape prop(cx);
     bool ok = LookupPropertyById(cx, obj, id, 0, &obj2, &prop);
@@ -2824,8 +2826,9 @@ JS_HasPropertyById(JSContext *cx, HandleObject obj, HandleId id, bool *foundp)
 }
 
 JS_PUBLIC_API(bool)
-JS_HasElement(JSContext *cx, HandleObject obj, uint32_t index, bool *foundp)
+JS_HasElement(JSContext *cx, JSObject *objArg, uint32_t index, bool *foundp)
 {
+    RootedObject obj(cx, objArg);
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     RootedId id(cx);
@@ -2835,28 +2838,26 @@ JS_HasElement(JSContext *cx, HandleObject obj, uint32_t index, bool *foundp)
 }
 
 JS_PUBLIC_API(bool)
-JS_HasProperty(JSContext *cx, HandleObject obj, const char *name, bool *foundp)
+JS_HasProperty(JSContext *cx, JSObject *objArg, const char *name, bool *foundp)
 {
+    RootedObject obj(cx, objArg);
     JSAtom *atom = Atomize(cx, name, strlen(name));
-    if (!atom)
-        return false;
-    RootedId id(cx, AtomToId(atom));
-    return JS_HasPropertyById(cx, obj, id, foundp);
+    return atom && JS_HasPropertyById(cx, obj, AtomToId(atom), foundp);
 }
 
 JS_PUBLIC_API(bool)
-JS_HasUCProperty(JSContext *cx, HandleObject obj, const jschar *name, size_t namelen, bool *foundp)
+JS_HasUCProperty(JSContext *cx, JSObject *objArg, const jschar *name, size_t namelen, bool *foundp)
 {
+    RootedObject obj(cx, objArg);
     JSAtom *atom = AtomizeChars(cx, name, AUTO_NAMELEN(name, namelen));
-    if (!atom)
-        return false;
-    RootedId id(cx, AtomToId(atom));
-    return JS_HasPropertyById(cx, obj, id, foundp);
+    return atom && JS_HasPropertyById(cx, obj, AtomToId(atom), foundp);
 }
 
 JS_PUBLIC_API(bool)
-JS_AlreadyHasOwnPropertyById(JSContext *cx, HandleObject obj, HandleId id, bool *foundp)
+JS_AlreadyHasOwnPropertyById(JSContext *cx, JSObject *objArg, jsid id_, bool *foundp)
 {
+    RootedObject obj(cx, objArg);
+    RootedId id(cx, id_);
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj, id);
@@ -2881,8 +2882,9 @@ JS_AlreadyHasOwnPropertyById(JSContext *cx, HandleObject obj, HandleId id, bool 
 }
 
 JS_PUBLIC_API(bool)
-JS_AlreadyHasOwnElement(JSContext *cx, HandleObject obj, uint32_t index, bool *foundp)
+JS_AlreadyHasOwnElement(JSContext *cx, JSObject *objArg, uint32_t index, bool *foundp)
 {
+    RootedObject obj(cx, objArg);
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     RootedId id(cx);
@@ -2892,24 +2894,20 @@ JS_AlreadyHasOwnElement(JSContext *cx, HandleObject obj, uint32_t index, bool *f
 }
 
 JS_PUBLIC_API(bool)
-JS_AlreadyHasOwnProperty(JSContext *cx, HandleObject obj, const char *name, bool *foundp)
+JS_AlreadyHasOwnProperty(JSContext *cx, JSObject *objArg, const char *name, bool *foundp)
 {
+    RootedObject obj(cx, objArg);
     JSAtom *atom = Atomize(cx, name, strlen(name));
-    if (!atom)
-        return false;
-    RootedId id(cx, AtomToId(atom));
-    return JS_AlreadyHasOwnPropertyById(cx, obj, id, foundp);
+    return atom && JS_AlreadyHasOwnPropertyById(cx, obj, AtomToId(atom), foundp);
 }
 
 JS_PUBLIC_API(bool)
-JS_AlreadyHasOwnUCProperty(JSContext *cx, HandleObject obj, const jschar *name, size_t namelen,
+JS_AlreadyHasOwnUCProperty(JSContext *cx, JSObject *objArg, const jschar *name, size_t namelen,
                            bool *foundp)
 {
+    RootedObject obj(cx, objArg);
     JSAtom *atom = AtomizeChars(cx, name, AUTO_NAMELEN(name, namelen));
-    if (!atom)
-        return false;
-    RootedId id(cx, AtomToId(atom));
-    return JS_AlreadyHasOwnPropertyById(cx, obj, id, foundp);
+    return atom && JS_AlreadyHasOwnPropertyById(cx, obj, AtomToId(atom), foundp);
 }
 
 /* Wrapper functions to create wrappers with no corresponding JSJitInfo from API
@@ -3459,8 +3457,9 @@ JS_SetUCProperty(JSContext *cx, JSObject *objArg, const jschar *name, size_t nam
 }
 
 JS_PUBLIC_API(bool)
-JS_DeletePropertyById2(JSContext *cx, HandleObject obj, HandleId id, bool *result)
+JS_DeletePropertyById2(JSContext *cx, JSObject *objArg, jsid id, bool *result)
 {
+    RootedObject obj(cx, objArg);
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj, id);
@@ -3474,8 +3473,9 @@ JS_DeletePropertyById2(JSContext *cx, HandleObject obj, HandleId id, bool *resul
 }
 
 JS_PUBLIC_API(bool)
-JS_DeleteElement2(JSContext *cx, HandleObject obj, uint32_t index, bool *result)
+JS_DeleteElement2(JSContext *cx, JSObject *objArg, uint32_t index, bool *result)
 {
+    RootedObject obj(cx, objArg);
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj);
@@ -3485,8 +3485,9 @@ JS_DeleteElement2(JSContext *cx, HandleObject obj, uint32_t index, bool *result)
 }
 
 JS_PUBLIC_API(bool)
-JS_DeleteProperty2(JSContext *cx, HandleObject obj, const char *name, bool *result)
+JS_DeleteProperty2(JSContext *cx, JSObject *objArg, const char *name, bool *result)
 {
+    RootedObject obj(cx, objArg);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj);
     JSAutoResolveFlags rf(cx, 0);
@@ -3513,24 +3514,24 @@ JS_DeleteUCProperty2(JSContext *cx, JSObject *objArg, const jschar *name, size_t
 }
 
 JS_PUBLIC_API(bool)
-JS_DeletePropertyById(JSContext *cx, HandleObject obj, HandleId id)
+JS_DeletePropertyById(JSContext *cx, JSObject *objArg, jsid idArg)
 {
     bool junk;
-    return JS_DeletePropertyById2(cx, obj, id, &junk);
+    return JS_DeletePropertyById2(cx, objArg, idArg, &junk);
 }
 
 JS_PUBLIC_API(bool)
-JS_DeleteElement(JSContext *cx, HandleObject obj, uint32_t index)
+JS_DeleteElement(JSContext *cx, JSObject *objArg, uint32_t index)
 {
     bool junk;
-    return JS_DeleteElement2(cx, obj, index, &junk);
+    return JS_DeleteElement2(cx, objArg, index, &junk);
 }
 
 JS_PUBLIC_API(bool)
-JS_DeleteProperty(JSContext *cx, HandleObject obj, const char *name)
+JS_DeleteProperty(JSContext *cx, JSObject *objArg, const char *name)
 {
     bool junk;
-    return JS_DeleteProperty2(cx, obj, name, &junk);
+    return JS_DeleteProperty2(cx, objArg, name, &junk);
 }
 
 static Shape *
@@ -4309,7 +4310,7 @@ JS::OwningCompileOptions::OwningCompileOptions(JSContext *cx)
     : ReadOnlyCompileOptions(),
       runtime(GetRuntime(cx)),
       elementRoot(cx),
-      elementAttributeNameRoot(cx)
+      elementPropertyRoot(cx)
 {
 }
 
@@ -4339,7 +4340,7 @@ JS::OwningCompileOptions::copy(JSContext *cx, const ReadOnlyCompileOptions &rhs)
 }
 
 bool
-JS::OwningCompileOptions::setFile(JSContext *cx, const char *f)
+JS::OwningCompileOptions::setFileAndLine(JSContext *cx, const char *f, unsigned l)
 {
     char *copy = nullptr;
     if (f) {
@@ -4352,15 +4353,6 @@ JS::OwningCompileOptions::setFile(JSContext *cx, const char *f)
     js_free(const_cast<char *>(filename_));
 
     filename_ = copy;
-    return true;
-}
-
-bool
-JS::OwningCompileOptions::setFileAndLine(JSContext *cx, const char *f, unsigned l)
-{
-    if (!setFile(cx, f))
-        return false;
-
     lineno = l;
     return true;
 }
@@ -4382,20 +4374,8 @@ JS::OwningCompileOptions::setSourceMapURL(JSContext *cx, const jschar *s)
     return true;
 }
 
-bool
-JS::OwningCompileOptions::wrap(JSContext *cx, JSCompartment *compartment)
-{
-    if (!compartment->wrap(cx, &elementRoot))
-        return false;
-    if (elementAttributeNameRoot) {
-        if (!compartment->wrap(cx, elementAttributeNameRoot.address()))
-            return false;
-    }
-    return true;
-}
-
 JS::CompileOptions::CompileOptions(JSContext *cx, JSVersion version)
-    : ReadOnlyCompileOptions(), elementRoot(cx), elementAttributeNameRoot(cx)
+    : ReadOnlyCompileOptions(), elementRoot(cx), elementPropertyRoot(cx)
 {
     this->version = (version != JSVERSION_UNKNOWN) ? version : cx->findVersion();
 
@@ -4405,18 +4385,6 @@ JS::CompileOptions::CompileOptions(JSContext *cx, JSVersion version)
     extraWarningsOption = cx->options().extraWarnings();
     werrorOption = cx->options().werror();
     asmJSOption = cx->options().asmJS();
-}
-
-bool
-JS::CompileOptions::wrap(JSContext *cx, JSCompartment *compartment)
-{
-    if (!compartment->wrap(cx, &elementRoot))
-        return false;
-    if (elementAttributeNameRoot) {
-        if (!compartment->wrap(cx, elementAttributeNameRoot.address()))
-            return false;
-    }
-    return true;
 }
 
 JSScript *

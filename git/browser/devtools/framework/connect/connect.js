@@ -37,10 +37,6 @@ window.addEventListener("DOMContentLoaded", function onDOMReady() {
     document.getElementById("port").value = port;
   }
 
-  let form = document.querySelector("#connection-form form");
-  form.addEventListener("submit", function() {
-    window.submit();
-  });
 }, true);
 
 /**

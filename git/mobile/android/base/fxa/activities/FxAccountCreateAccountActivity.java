@@ -17,7 +17,6 @@ import org.mozilla.gecko.fxa.activities.FxAccountSetupTask.FxAccountCreateAccoun
 import org.mozilla.gecko.fxa.authenticator.AndroidFxAccount;
 import org.mozilla.gecko.sync.HTTPFailureException;
 import org.mozilla.gecko.sync.net.SyncStorageResponse;
-import org.mozilla.gecko.sync.setup.Constants;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;
@@ -161,13 +160,8 @@ public class FxAccountCreateAccountActivity extends FxAccountAbstractSetupActivi
       // We're on the UI thread, but it's okay to create the account here.
       Account account;
       try {
-        final String profile = Constants.DEFAULT_PROFILE;
-        final String tokenServerURI = FxAccountConstants.DEFAULT_TOKEN_SERVER_URI;
         account = AndroidFxAccount.addAndroidAccount(activity, email, password,
-            profile,
-            serverURI,
-            tokenServerURI,
-            null, null, false);
+            serverURI, null, null, false);
         if (account == null) {
           throw new RuntimeException("XXX what?");
         }

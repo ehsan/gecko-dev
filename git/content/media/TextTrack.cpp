@@ -69,7 +69,7 @@ TextTrack::SetDefaultSettings()
   mRegionList = new TextTrackRegionList(mParent);
   mCuePos = 0;
   mDirty = false;
-  mReadyState = HTMLTrackElement::READY_STATE_NONE;
+  mReadyState = HTMLTrackElement::NONE;
 }
 
 JSObject*
@@ -195,8 +195,8 @@ void
 TextTrack::SetReadyState(uint16_t aState)
 {
   mReadyState = aState;
-  if (mMediaElement && (mReadyState == HTMLTrackElement::READY_STATE_LOADED ||
-      mReadyState == HTMLTrackElement::READY_STATE_ERROR)) {
+  if (mMediaElement && (mReadyState == HTMLTrackElement::LOADED ||
+      mReadyState == HTMLTrackElement::ERROR)) {
     mMediaElement->RemoveTextTrack(this, true);
   }
 }

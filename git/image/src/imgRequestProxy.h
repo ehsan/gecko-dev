@@ -7,7 +7,6 @@
 #ifndef imgRequestProxy_h__
 #define imgRequestProxy_h__
 
-#include "mozilla/WeakPtr.h"
 #include "imgIRequest.h"
 #include "nsISecurityInfoProvider.h"
 
@@ -44,8 +43,7 @@ class ImageURL;
 class imgRequestProxy : public imgIRequest,
                         public nsISupportsPriority,
                         public nsISecurityInfoProvider,
-                        public nsITimedChannel,
-                        public mozilla::SupportsWeakPtr<imgRequestProxy>
+                        public nsITimedChannel
 {
 public:
   typedef mozilla::image::ImageURL ImageURL;
