@@ -707,12 +707,12 @@ public:
     /**
      * Write as a PNG encoded Data URL to stdout.
      */
-    void DumpAsDataURI();
+    void DumpAsDataURL();
 
     /**
      * Copy a PNG encoded Data URL to the clipboard.
      */
-    void CopyAsDataURI();
+    void CopyAsDataURL();
 #endif
 
     static mozilla::gfx::UserDataKey sDontUseAsSourceKey;

@@ -30,6 +30,12 @@ CastAsStrictPropertyOp(JSObject *object)
  */
 struct PropDesc {
   private:
+    /*
+     * Original object from which this descriptor derives, passed through for
+     * the benefit of proxies.
+     */
+    JSObject *descObj_;
+
     Value value_, get_, set_;
 
     /* Property descriptor boolean fields. */
@@ -47,7 +53,8 @@ struct PropDesc {
     bool isUndefined_ : 1;
 
     explicit PropDesc(const Value &v)
-      : value_(v),
+      : descObj_(nullptr),
+        value_(v),
         get_(UndefinedValue()), set_(UndefinedValue()),
         attrs(0),
         hasGet_(false), hasSet_(false),
@@ -73,7 +80,8 @@ struct PropDesc {
 
     PropDesc(const Value &v, Writability writable,
              Enumerability enumerable, Configurability configurable)
-      : value_(v),
+      : descObj_(nullptr),
+        value_(v),
         get_(UndefinedValue()), set_(UndefinedValue()),
         attrs((writable ? 0 : JSPROP_READONLY) |
               (enumerable ? JSPROP_ENUMERATE : 0) |
@@ -118,7 +126,7 @@ struct PropDesc {
      */
     void initFromPropertyDescriptor(Handle<JSPropertyDescriptor> desc);
     void populatePropertyDescriptor(HandleObject obj, MutableHandle<JSPropertyDescriptor> desc) const;
-    bool makeObject(JSContext *cx, MutableHandleObject objp);
+    bool makeObject(JSContext *cx);
 
     /* Reset the descriptor entirely. */
     void setUndefined();
@@ -130,6 +138,13 @@ struct PropDesc {
     bool hasWritable() const { MOZ_ASSERT(!isUndefined()); return hasWritable_; }
     bool hasEnumerable() const { MOZ_ASSERT(!isUndefined()); return hasEnumerable_; }
     bool hasConfigurable() const { MOZ_ASSERT(!isUndefined()); return hasConfigurable_; }
+
+    Value descriptorValue() const {
+        MOZ_ASSERT(!isUndefined());
+        return descObj_ ? ObjectValue(*descObj_) : UndefinedValue();
+    }
+    void setDescriptorObject(JSObject *obj) { descObj_ = obj; }
+    void clearDescriptorObject() { setDescriptorObject(nullptr); }
 
     uint8_t attributes() const { MOZ_ASSERT(!isUndefined()); return attrs; }
 
@@ -248,6 +263,8 @@ class PropDescOperations
     bool hasEnumerable() const { return desc()->hasEnumerable(); }
     bool hasConfigurable() const { return desc()->hasConfigurable(); }
 
+    Value descriptorValue() const { return desc()->descriptorValue(); }
+
     uint8_t attributes() const { return desc()->attributes(); }
 
     bool isAccessorDescriptor() const { return desc()->isAccessorDescriptor(); }
@@ -292,8 +309,8 @@ class MutablePropDescOperations : public PropDescOperations<Outer>
     void initFromPropertyDescriptor(Handle<JSPropertyDescriptor> descriptor) {
         desc()->initFromPropertyDescriptor(descriptor);
     }
-    bool makeObject(JSContext *cx, MutableHandleObject objp) {
-        return desc()->makeObject(cx, objp);
+    bool makeObject(JSContext *cx) {
+        return desc()->makeObject(cx);
     }
 
     void setValue(const Value &value) {
@@ -307,6 +324,9 @@ class MutablePropDescOperations : public PropDescOperations<Outer>
     }
 
     void setUndefined() { desc()->setUndefined(); }
+
+    void setDescriptorObject(JSObject *obj) { desc()->setDescriptorObject(obj); }
+    void clearDescriptorObject() { desc()->clearDescriptorObject(); }
 };
 
 } /* namespace JS */
@@ -317,7 +337,8 @@ template <>
 struct GCMethods<PropDesc> {
     static PropDesc initial() { return PropDesc(); }
     static bool poisoned(const PropDesc &desc) {
-        return (desc.value_.isGCThing() &&
+        return JS::IsPoisonedPtr(desc.descObj_) ||
+               (desc.value_.isGCThing() &&
                 JS::IsPoisonedPtr(desc.value_.toGCThing())) ||
                (desc.get_.isGCThing() &&
                 JS::IsPoisonedPtr(desc.get_.toGCThing())) ||

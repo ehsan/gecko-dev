@@ -42,22 +42,22 @@ public:
   ~RemoveTextureFromCompositableTracker()
   {
     MOZ_COUNT_DTOR(RemoveTextureFromCompositableTracker);
-    ReleaseTextureClient();
   }
 
   virtual void Complete() MOZ_OVERRIDE
   {
-    ReleaseTextureClient();
+    // The TextureClient's recycling is postponed until the transaction
+    // complete.
+    mTextureClient = nullptr;
   }
 
   virtual void Cancel() MOZ_OVERRIDE
   {
-    ReleaseTextureClient();
+    mTextureClient = nullptr;
   }
 
   virtual void SetTextureClient(TextureClient* aTextureClient) MOZ_OVERRIDE
   {
-    ReleaseTextureClient();
     mTextureClient = aTextureClient;
   }
 
@@ -67,9 +67,6 @@ public:
       mTextureClient->SetReleaseFenceHandle(aReleaseFenceHandle);
     }
   }
-
-protected:
-  void ReleaseTextureClient();
 
 private:
   RefPtr<TextureClient> mTextureClient;

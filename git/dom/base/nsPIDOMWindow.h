@@ -487,8 +487,6 @@ public:
    * Moves the top-level window into fullscreen mode if aIsFullScreen is true,
    * otherwise exits fullscreen. If aRequireTrust is true, this method only
    * changes window state in a context trusted for write.
-   *
-   * Outer windows only.
    */
   virtual nsresult SetFullScreenInternal(bool aIsFullScreen, bool aRequireTrust) = 0;
 
@@ -649,8 +647,6 @@ public:
 
   /**
    * Tell this window that there is an observer for gamepad input
-   *
-   * Inner windows only.
    */
   virtual void SetHasGamepadEventListener(bool aHasGamepad = true) = 0;
 
@@ -663,8 +659,6 @@ public:
    * |dialogArguments| back from nsWindowWatcher to nsGlobalWindow. For the
    * latter, the array is an array of length 0 whose only element is a
    * DialogArgumentsHolder representing the JS value passed to showModalDialog.
-   *
-   * Outer windows only.
    */
   virtual nsresult SetArguments(nsIArray *aArguments) = 0;
 
@@ -683,29 +677,22 @@ public:
   /**
    * Dispatch a custom event with name aEventName targeted at this window.
    * Returns whether the default action should be performed.
-   *
-   * Outer windows only.
    */
-  virtual bool DispatchCustomEvent(const nsAString& aEventName) = 0;
+  virtual bool DispatchCustomEvent(const char *aEventName) = 0;
 
   /**
-   * Call when the document principal may have changed and the compartment
-   * principal needs to be updated.
-   *
-   * Inner windows only.
+   * Notify the active inner window that the document principal may have changed
+   * and that the compartment principal needs to be updated.
    */
   virtual void RefreshCompartmentPrincipal() = 0;
 
   /**
    * Like nsIDOMWindow::Open, except that we don't navigate to the given URL.
-   *
-   * Outer windows only.
    */
   virtual nsresult
   OpenNoNavigate(const nsAString& aUrl, const nsAString& aName,
                  const nsAString& aOptions, nsIDOMWindow **_retval) = 0;
 
-  // Inner windows only.
   void AddAudioContext(mozilla::dom::AudioContext* aAudioContext);
   void RemoveAudioContext(mozilla::dom::AudioContext* aAudioContext);
   void MuteAudioContexts();
@@ -757,7 +744,6 @@ protected:
   virtual void UpdateParentTarget() = 0;
 
   // Helper for creating performance objects.
-  // Inner windows only.
   void CreatePerformanceObjectIfNeeded();
 
   // These two variables are special in that they're set to the same

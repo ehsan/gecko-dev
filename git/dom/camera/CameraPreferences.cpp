@@ -129,9 +129,13 @@ CameraPreferences::PreferenceChanged(const char* aPref, void* aClosure)
       return;
   }
 
+#ifdef DEBUG
   if (NS_FAILED(rv)) {
-    DOM_CAMERA_LOGE("Failed to get pref '%s' (0x%x)\n", aPref, rv);
+    nsCString msg;
+    msg.AppendPrintf("Failed to update pref '%s' (0x%x)\n", aPref, rv);
+    NS_WARNING(msg.get());
   }
+#endif
 }
 
 /* static */

@@ -142,8 +142,7 @@ nsHttpHandler::nsHttpHandler()
     , mProxyPipelining(true)
     , mIdleTimeout(PR_SecondsToInterval(10))
     , mSpdyTimeout(PR_SecondsToInterval(180))
-    , mResponseTimeout(PR_SecondsToInterval(300))
-    , mResponseTimeoutEnabled(false)
+    , mResponseTimeout(PR_SecondsToInterval(600))
     , mMaxRequestAttempts(10)
     , mMaxRequestDelay(10)
     , mIdleSynTimeout(250)
@@ -1455,10 +1454,6 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
             mTCPKeepaliveLongLivedIdleTimeS = clamped(val,
                                                       1, kMaxTCPKeepIdle);
     }
-
-    // Enable HTTP response timeout if TCP Keepalives are disabled.
-    mResponseTimeoutEnabled = !mTCPKeepaliveShortLivedEnabled &&
-                              !mTCPKeepaliveLongLivedEnabled;
 
 #undef PREF_CHANGED
 #undef MULTI_PREF_CHANGED

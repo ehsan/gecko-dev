@@ -75,8 +75,6 @@ public:
   }
 
 private:
-  ~nsSAXXMLReader() {}
-
   nsCOMPtr<nsISAXContentHandler> mContentHandler;
   nsCOMPtr<nsISAXDTDHandler> mDTDHandler;
   nsCOMPtr<nsISAXErrorHandler> mErrorHandler;

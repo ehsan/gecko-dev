@@ -974,14 +974,17 @@ ScrollFrameHelper::GetNondisappearingScrollbarWidth(nsBoxLayoutState* aState)
                                    mVScrollbarBox,
                                    NS_THEME_SCROLLBAR_NON_DISAPPEARING)) {
       nsIntSize size;
-      bool canOverride = true;
-      theme->GetMinimumWidgetSize(aState->PresContext(),
-                                  mVScrollbarBox,
-                                  NS_THEME_SCROLLBAR_NON_DISAPPEARING,
-                                  &size,
-                                  &canOverride);
-      if (size.width) {
-        return aState->PresContext()->DevPixelsToAppUnits(size.width);
+      nsRenderingContext* rendContext = aState->GetRenderingContext();
+      if (rendContext) {
+        bool canOverride = true;
+        theme->GetMinimumWidgetSize(rendContext,
+                                    mVScrollbarBox,
+                                    NS_THEME_SCROLLBAR_NON_DISAPPEARING,
+                                    &size,
+                                    &canOverride);
+        if (size.width) {
+          return aState->PresContext()->DevPixelsToAppUnits(size.width);
+        }
       }
     }
   }
@@ -4338,7 +4341,7 @@ ReduceRadii(nscoord aXBorder, nscoord aYBorder,
 bool
 ScrollFrameHelper::GetBorderRadii(const nsSize& aFrameSize,
                                   const nsSize& aBorderArea,
-                                  Sides aSkipSides,
+                                  int aSkipSides,
                                   nscoord aRadii[8]) const
 {
   if (!mOuter->nsContainerFrame::GetBorderRadii(aFrameSize, aBorderArea,

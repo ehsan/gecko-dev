@@ -152,8 +152,7 @@ nsXULAlerts::CloseAlert(const nsAString& aAlertName)
   nsIDOMWindow* alert = mNamedWindows.GetWeak(aAlertName);
   nsCOMPtr<nsPIDOMWindow> domWindow = do_QueryInterface(alert);
   if (domWindow) {
-    MOZ_ASSERT(domWindow->IsOuterWindow());
-    domWindow->DispatchCustomEvent(NS_LITERAL_STRING("XULAlertClose"));
+    domWindow->DispatchCustomEvent("XULAlertClose");
   }
   return NS_OK;
 }

@@ -261,7 +261,7 @@ ImageBridgeParent::RecvChildAsyncMessages(const InfallibleTArray<AsyncChildMessa
   return true;
 }
 
-MessageLoop * ImageBridgeParent::GetMessageLoop() const {
+MessageLoop * ImageBridgeParent::GetMessageLoop() {
   return mMessageLoop;
 }
 

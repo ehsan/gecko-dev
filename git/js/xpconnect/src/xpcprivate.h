@@ -313,6 +313,8 @@ public:
       return gReportAllJSExceptions > 0;
     }
 
+    static void CheckForDebugMode(JSRuntime *rt);
+
 protected:
     virtual ~nsXPConnect();
 
@@ -3647,6 +3649,9 @@ GetObjectScope(JSObject *obj)
 
 // This returns null if a scope doesn't already exist.
 XPCWrappedNativeScope* MaybeGetObjectScope(JSObject *obj);
+
+extern bool gDebugMode;
+extern bool gDesiredDebugMode;
 
 extern const JSClass SafeJSContextGlobalClass;
 

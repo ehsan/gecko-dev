@@ -682,15 +682,18 @@ nsIFrame::AddCSSMinSize(nsBoxLayoutState& aState, nsIFrame* aBox, nsSize& aSize,
       nsITheme *theme = aState.PresContext()->GetTheme();
       if (theme && theme->ThemeSupportsWidget(aState.PresContext(), aBox, display->mAppearance)) {
         nsIntSize size;
-        theme->GetMinimumWidgetSize(aState.PresContext(), aBox,
-                                    display->mAppearance, &size, &canOverride);
-        if (size.width) {
-          aSize.width = aState.PresContext()->DevPixelsToAppUnits(size.width);
-          aWidthSet = true;
-        }
-        if (size.height) {
-          aSize.height = aState.PresContext()->DevPixelsToAppUnits(size.height);
-          aHeightSet = true;
+        nsRenderingContext* rendContext = aState.GetRenderingContext();
+        if (rendContext) {
+          theme->GetMinimumWidgetSize(rendContext, aBox,
+                                      display->mAppearance, &size, &canOverride);
+          if (size.width) {
+            aSize.width = aState.PresContext()->DevPixelsToAppUnits(size.width);
+            aWidthSet = true;
+          }
+          if (size.height) {
+            aSize.height = aState.PresContext()->DevPixelsToAppUnits(size.height);
+            aHeightSet = true;
+          }
         }
       }
     }

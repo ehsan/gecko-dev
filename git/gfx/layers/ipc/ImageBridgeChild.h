@@ -170,7 +170,7 @@ public:
    *
    * Can be called from any thread.
    */
-  virtual MessageLoop * GetMessageLoop() const MOZ_OVERRIDE;
+  MessageLoop * GetMessageLoop() const;
 
   PCompositableChild* AllocPCompositableChild(const TextureInfo& aInfo, uint64_t* aID) MOZ_OVERRIDE;
   bool DeallocPCompositableChild(PCompositableChild* aActor) MOZ_OVERRIDE;

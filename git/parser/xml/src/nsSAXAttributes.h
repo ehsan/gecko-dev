@@ -36,7 +36,6 @@ public:
   NS_DECL_NSISAXMUTABLEATTRIBUTES
 
 private:
-  ~nsSAXAttributes() {}
   nsTArray<SAXAttr> mAttrs;
 };
 

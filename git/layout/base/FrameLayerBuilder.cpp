@@ -7,7 +7,6 @@
 
 #include "FrameLayerBuilder.h"
 
-#include "mozilla/gfx/Matrix.h"
 #include "nsDisplayList.h"
 #include "nsPresContext.h"
 #include "nsLayoutUtils.h"
@@ -2310,13 +2309,13 @@ ContainerState::FindThebesLayerFor(nsDisplayItem* aItem,
 
 #ifdef MOZ_DUMP_PAINTING
 static void
-DumpPaintedImage(nsDisplayItem* aItem, SourceSurface* aSurface)
+DumpPaintedImage(nsDisplayItem* aItem, gfxASurface* aSurf)
 {
   nsCString string(aItem->Name());
   string.Append('-');
   string.AppendInt((uint64_t)aItem);
   fprintf_stderr(gfxUtils::sDumpPaintFile, "array[\"%s\"]=\"", string.BeginReading());
-  gfxUtils::DumpAsDataURI(aSurface, gfxUtils::sDumpPaintFile);
+  aSurf->DumpAsDataURL(gfxUtils::sDumpPaintFile);
   fprintf_stderr(gfxUtils::sDumpPaintFile, "\";");
 }
 #endif
@@ -2337,14 +2336,12 @@ PaintInactiveLayer(nsDisplayListBuilder* aBuilder,
   nsIntRect itemVisibleRect =
     aItem->GetVisibleRect().ToOutsidePixels(appUnitsPerDevPixel);
 
-  RefPtr<DrawTarget> tempDT;
+  nsRefPtr<gfxASurface> surf;
   if (gfxUtils::sDumpPainting) {
-    tempDT = gfxPlatform::GetPlatform()->CreateOffscreenContentDrawTarget(
-                                      itemVisibleRect.Size().ToIntSize(),
-                                      SurfaceFormat::B8G8R8A8);
-    context = new gfxContext(tempDT);
-    context->SetMatrix(gfxMatrix().Translate(-gfxPoint(itemVisibleRect.x,
-                                                       itemVisibleRect.y)));
+    surf = gfxPlatform::GetPlatform()->CreateOffscreenSurface(itemVisibleRect.Size().ToIntSize(),
+                                                              gfxContentType::COLOR_ALPHA);
+    surf->SetDeviceOffset(-itemVisibleRect.TopLeft());
+    context = new gfxContext(surf);
   }
 #endif
   basic->BeginTransaction();
@@ -2367,14 +2364,12 @@ PaintInactiveLayer(nsDisplayListBuilder* aBuilder,
 
 #ifdef MOZ_DUMP_PAINTING
   if (gfxUtils::sDumpPainting) {
-    RefPtr<SourceSurface> surface = tempDT->Snapshot();
-    DumpPaintedImage(aItem, surface);
+    DumpPaintedImage(aItem, surf);
 
-    DrawTarget* drawTarget = aContext->GetDrawTarget();
-    Rect rect(itemVisibleRect.x, itemVisibleRect.y,
-              itemVisibleRect.width, itemVisibleRect.height);
-    drawTarget->DrawSurface(surface, rect, Rect(Point(0,0), rect.Size()));
-
+    surf->SetDeviceOffset(gfxPoint(0, 0));
+    aContext->SetSource(surf, itemVisibleRect.TopLeft());
+    aContext->Rectangle(itemVisibleRect);
+    aContext->Fill();
     aItem->SetPainted();
   }
 #endif
@@ -3575,24 +3570,22 @@ static void DebugPaintItem(nsRenderingContext* aDest,
   gfxRect bounds(appUnitBounds.x, appUnitBounds.y, appUnitBounds.width, appUnitBounds.height);
   bounds.ScaleInverse(aPresContext->AppUnitsPerDevPixel());
 
-  RefPtr<DrawTarget> tempDT =
-    gfxPlatform::GetPlatform()->CreateOffscreenContentDrawTarget(
-                                          IntSize(bounds.width, bounds.height),
-                                          SurfaceFormat::B8G8R8A8);
-  nsRefPtr<gfxContext> context = new gfxContext(tempDT);
-  context->SetMatrix(gfxMatrix().Translate(-gfxPoint(bounds.x, bounds.y)));
+  nsRefPtr<gfxASurface> surf =
+    gfxPlatform::GetPlatform()->CreateOffscreenSurface(IntSize(bounds.width, bounds.height),
+                                                       gfxContentType::COLOR_ALPHA);
+  surf->SetDeviceOffset(-bounds.TopLeft());
+  nsRefPtr<gfxContext> context = new gfxContext(surf);
   nsRefPtr<nsRenderingContext> ctx = new nsRenderingContext();
   ctx->Init(aDest->DeviceContext(), context);
 
   aItem->Paint(aBuilder, ctx);
-  RefPtr<SourceSurface> surface = tempDT->Snapshot();
-  DumpPaintedImage(aItem, surface);
-
-  DrawTarget* drawTarget = aDest->ThebesContext()->GetDrawTarget();
-  Rect rect = ToRect(bounds);
-  drawTarget->DrawSurface(surface, rect, Rect(Point(0,0), rect.Size()));
-
+  DumpPaintedImage(aItem, surf);
   aItem->SetPainted();
+
+  surf->SetDeviceOffset(gfxPoint(0, 0));
+  aDest->ThebesContext()->SetSource(surf, bounds.TopLeft());
+  aDest->ThebesContext()->Rectangle(bounds);
+  aDest->ThebesContext()->Fill();
 }
 #endif
 

@@ -66,7 +66,7 @@ let GetAvailableAddons = exports.GetAvailableAddons = function() {
       simulators: [],
       adb: null
     }
-    GetAddonsJSON(true).then(json => {
+    GetAddonsJSON().then(json => {
       for (let stability in json) {
         for (let version of json[stability]) {
           addons.simulators.push(new SimulatorAddon(stability, version));
@@ -80,10 +80,6 @@ let GetAvailableAddons = exports.GetAvailableAddons = function() {
     });
   }
   return GetAvailableAddons_promise;
-}
-
-exports.ForgetAddonsList = function() {
-  GetAvailableAddons_promise = null;
 }
 
 function Addon() {}

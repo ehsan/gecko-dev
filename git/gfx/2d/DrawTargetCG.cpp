@@ -155,13 +155,6 @@ DrawTargetCG::~DrawTargetCG()
     CGContextRelease(mCg);
 }
 
-DrawTargetType
-DrawTargetCG::GetType() const
-{
-  return GetBackendType() == BackendType::COREGRAPHICS_ACCELERATED ?
-           DrawTargetType::HARDWARE_RASTER : DrawTargetType::SOFTWARE_RASTER;
-}
-
 BackendType
 DrawTargetCG::GetBackendType() const
 {

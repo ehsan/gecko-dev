@@ -66,6 +66,9 @@ class OptimizationInfo
     // Toggles whether global value numbering is used.
     bool gvn_;
 
+    // Toggles whether global value numbering is optimistic or pessimistic.
+    IonGvnKind gvnKind_;
+
     // Toggles whether loop invariant code motion is performed.
     bool licm_;
 
@@ -157,6 +160,12 @@ class OptimizationInfo
 
     bool eliminateRedundantChecksEnabled() const {
         return eliminateRedundantChecks_;
+    }
+
+    IonGvnKind gvnKind() const {
+        if (!js_JitOptions.forceGvnKind)
+            return gvnKind_;
+        return js_JitOptions.forcedGvnKind;
     }
 
     IonRegisterAllocator registerAllocator() const {

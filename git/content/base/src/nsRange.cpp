@@ -2725,23 +2725,17 @@ nsRange::CreateContextualFragment(const nsAString& aFragment, ErrorResult& aRv)
 
 static void ExtractRectFromOffset(nsIFrame* aFrame,
                                   const nsIFrame* aRelativeTo, 
-                                  const int32_t aOffset, nsRect* aR, bool aKeepLeft,
-                                  bool aClampToEdge)
+                                  const int32_t aOffset, nsRect* aR, bool aKeepLeft)
 {
   nsPoint point;
   aFrame->GetPointFromOffset(aOffset, &point);
 
   point += aFrame->GetOffsetTo(aRelativeTo);
 
-  if (!aClampToEdge && !aR->Contains(point)) {
-    aR->width = 0;
-    aR->x = point.x;
-    return;
-  }
-
-  if (aClampToEdge) {
-    point = aR->ClampPoint(point);
-  }
+  //given a point.x, extract left or right portion of rect aR
+  //point.x has to be within this rect
+  NS_ASSERTION(aR->x <= point.x && point.x <= aR->XMost(),
+                   "point.x should not be outside of rect r");
 
   if (aKeepLeft) {
     aR->width = point.x - aR->x;
@@ -2768,8 +2762,7 @@ GetTextFrameForContent(nsIContent* aContent)
 }
 
 static nsresult GetPartialTextRect(nsLayoutUtils::RectCallback* aCallback,
-                                   nsIContent* aContent, int32_t aStartOffset,
-                                   int32_t aEndOffset, bool aClampToEdge)
+                                   nsIContent* aContent, int32_t aStartOffset, int32_t aEndOffset)
 {
   nsTextFrame* textFrame = GetTextFrameForContent(aContent);
   if (textFrame) {
@@ -2786,11 +2779,11 @@ static nsresult GetPartialTextRect(nsLayoutUtils::RectCallback* aCallback,
       nsRect r(f->GetOffsetTo(relativeTo), f->GetSize());
       if (fstart < aStartOffset) {
         // aStartOffset is within this frame
-        ExtractRectFromOffset(f, relativeTo, aStartOffset, &r, rtl, aClampToEdge);
+        ExtractRectFromOffset(f, relativeTo, aStartOffset, &r, rtl);
       }
       if (fend > aEndOffset) {
         // aEndOffset is in the middle of this frame
-        ExtractRectFromOffset(f, relativeTo, aEndOffset, &r, !rtl, aClampToEdge);
+        ExtractRectFromOffset(f, relativeTo, aEndOffset, &r, !rtl);
       }
       aCallback->AddRect(r);
     }
@@ -2802,8 +2795,7 @@ static nsresult GetPartialTextRect(nsLayoutUtils::RectCallback* aCallback,
 nsRange::CollectClientRects(nsLayoutUtils::RectCallback* aCollector,
                             nsRange* aRange,
                             nsINode* aStartParent, int32_t aStartOffset,
-                            nsINode* aEndParent, int32_t aEndOffset,
-                            bool aClampToEdge)
+                            nsINode* aEndParent, int32_t aEndOffset)
 {
   // Hold strong pointers across the flush
   nsCOMPtr<nsINode> startContainer = aStartParent;
@@ -2840,7 +2832,7 @@ nsRange::CollectClientRects(nsLayoutUtils::RectCallback* aCollector,
            nsIFrame* relativeTo =
              nsLayoutUtils::GetContainingBlockForClientRect(outFrame);
            nsRect r(outFrame->GetOffsetTo(relativeTo), outFrame->GetSize());
-           ExtractRectFromOffset(outFrame, relativeTo, aStartOffset, &r, false, aClampToEdge);
+           ExtractRectFromOffset(outFrame, relativeTo, aStartOffset, &r, false);
            r.width = 0;
            aCollector->AddRect(r);
         }
@@ -2859,10 +2851,10 @@ nsRange::CollectClientRects(nsLayoutUtils::RectCallback* aCollector,
        if (node == startContainer) {
          int32_t offset = startContainer == endContainer ?
            aEndOffset : content->GetText()->GetLength();
-         GetPartialTextRect(aCollector, content, aStartOffset, offset, aClampToEdge);
+         GetPartialTextRect(aCollector, content, aStartOffset, offset);
          continue;
        } else if (node == endContainer) {
-         GetPartialTextRect(aCollector, content, 0, aEndOffset, aClampToEdge);
+         GetPartialTextRect(aCollector, content, 0, aEndOffset);
          continue;
        }
     }
@@ -2878,12 +2870,12 @@ nsRange::CollectClientRects(nsLayoutUtils::RectCallback* aCollector,
 NS_IMETHODIMP
 nsRange::GetBoundingClientRect(nsIDOMClientRect** aResult)
 {
-  *aResult = GetBoundingClientRect(true).take();
+  *aResult = GetBoundingClientRect().take();
   return NS_OK;
 }
 
 already_AddRefed<DOMRect>
-nsRange::GetBoundingClientRect(bool aClampToEdge)
+nsRange::GetBoundingClientRect()
 {
   nsRefPtr<DOMRect> rect = new DOMRect(ToSupports(this));
   if (!mStartParent) {
@@ -2892,7 +2884,7 @@ nsRange::GetBoundingClientRect(bool aClampToEdge)
 
   nsLayoutUtils::RectAccumulator accumulator;
   CollectClientRects(&accumulator, this, mStartParent, mStartOffset, 
-    mEndParent, mEndOffset, aClampToEdge);
+    mEndParent, mEndOffset);
 
   nsRect r = accumulator.mResultRect.IsEmpty() ? accumulator.mFirstRect : 
     accumulator.mResultRect;
@@ -2903,12 +2895,12 @@ nsRange::GetBoundingClientRect(bool aClampToEdge)
 NS_IMETHODIMP
 nsRange::GetClientRects(nsIDOMClientRectList** aResult)
 {
-  *aResult = GetClientRects(true).take();
+  *aResult = GetClientRects().take();
   return NS_OK;
 }
 
 already_AddRefed<DOMRectList>
-nsRange::GetClientRects(bool aClampToEdge)
+nsRange::GetClientRects()
 {
   if (!mStartParent) {
     return nullptr;
@@ -2920,7 +2912,7 @@ nsRange::GetClientRects(bool aClampToEdge)
   nsLayoutUtils::RectListBuilder builder(rectList);
 
   CollectClientRects(&builder, this, mStartParent, mStartOffset, 
-    mEndParent, mEndOffset, aClampToEdge);
+    mEndParent, mEndOffset);
   return rectList.forget();
 }
 

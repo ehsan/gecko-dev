@@ -22,9 +22,8 @@
 #endif
 
 class nsHTMLTokenizer MOZ_FINAL : public nsITokenizer {
-  ~nsHTMLTokenizer() {}
-
 public:
+  
   NS_DECL_ISUPPORTS
   NS_DECL_NSITOKENIZER
   nsHTMLTokenizer();

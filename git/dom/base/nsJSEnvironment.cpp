@@ -70,6 +70,9 @@
 #endif
 #include "AccessCheck.h"
 
+#ifdef MOZ_JSDEBUGGER
+#include "jsdIDebuggerService.h"
+#endif
 #ifdef MOZ_LOGGING
 // Force PR_LOGGING so we can get JS strict warnings even in release builds
 #define FORCE_PR_LOG 1
