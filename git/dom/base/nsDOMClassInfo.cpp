@@ -175,10 +175,6 @@
 #include "nsIControllers.h"
 #include "nsISelection.h"
 #include "nsIBoxObject.h"
-#ifdef MOZ_GAMEPAD
-#include "nsINavigatorGamepads.h"
-#include "mozilla/dom/GamepadService.h"
-#endif
 #ifdef MOZ_XUL
 #include "nsITreeSelection.h"
 #include "nsITreeContentView.h"
@@ -1410,10 +1406,6 @@ nsDOMClassInfo::Init()
 #endif
 #ifdef MOZ_B2G_RIL
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNavigatorTelephony)
-#endif
-#ifdef MOZ_GAMEPAD
-    DOM_CLASSINFO_MAP_CONDITIONAL_ENTRY(nsINavigatorGamepads,
-                                        GamepadService::IsAPIEnabled())
 #endif
     DOM_CLASSINFO_MAP_CONDITIONAL_ENTRY(nsIDOMMozNavigatorNetwork,
                                         network::IsAPIEnabled())

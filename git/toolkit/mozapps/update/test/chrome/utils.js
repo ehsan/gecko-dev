@@ -52,13 +52,10 @@
  *
  * extraDelayedFinishFunction (optional)
  *   The function to call at the end of the delayedDefaultCallback function.
- *   If the extraDelayedFinishFunction property is defined then the buttonClick
- *   property can't be specified due to race conditions in some of the tests and
- *   if both of them are specified the test will intentionally throw.
  *
  * ranTest (should not be specified)
  *   When delayedDefaultCallback is called a property named ranTest is added to
- *   the current test so it is possible to verify that each test in the TESTS
+ *   the current test it is possible to verify that each test in the TESTS
  *   array has ran.
  *
  * prefHasUserValue (optional)
@@ -158,7 +155,7 @@ const TEST_ADDONS = [ "appdisabled_1", "appdisabled_2",
                       "userdisabled_1", "userdisabled_2", "hotfix" ];
 
 
-var gTestTimeout = 45000; // 45 seconds
+const TEST_TIMEOUT = 25000; // 25 seconds
 var gTimeoutTimer;
 
 // The number of SimpleTest.executeSoon calls to perform when waiting on an
@@ -170,13 +167,11 @@ var gCloseWindowTimeoutCounter = 0;
 
 // The following vars are for restoring previous preference values (if present)
 // when the test finishes.
-var gAppUpdateEnabled;            // app.update.enabled
-var gAppUpdateMetroEnabled;       // app.update.metro.enabled
-var gAppUpdateServiceEnabled;     // app.update.service.enabled
-var gAppUpdateStagingEnabled;     // app.update.staging.enabled
-var gAppUpdateURLDefault;         // app.update.url (default prefbranch)
-var gAppUpdateURL;                // app.update.url.override
-var gExtUpdateURL;                // extensions.update.url
+var gAppUpdateEnabled;      // app.update.enabled
+var gAppUpdateMetroEnabled; // app.update.metro.enabled
+var gAppUpdateURLDefault;   // app.update.url (default prefbranch)
+var gAppUpdateURL;          // app.update.url.override
+var gExtUpdateURL;          // extensions.update.url
 
 var gTestCounter = -1;
 var gWin;
@@ -295,7 +290,6 @@ function runTestDefaultWaitForWindowClosed() {
 
     gCloseWindowTimeoutCounter = 0;
 
-    setupFiles();
     setupPrefs();
     removeUpdateDirsAndFiles();
     reloadUpdateManagerData();
@@ -325,7 +319,6 @@ function finishTestDefault() {
   verifyTestsRan();
 
   resetPrefs();
-  resetFiles();
   removeUpdateDirsAndFiles();
   reloadUpdateManagerData();
 
@@ -346,7 +339,7 @@ function finishTestDefault() {
  *         The nsITimer that fired.
  */
 function finishTestTimeout(aTimer) {
-  ok(false, "Test timed out. Maximum time allowed is " + (gTestTimeout / 1000) +
+  ok(false, "Test timed out. Maximum time allowed is " + (TEST_TIMEOUT / 1000) +
      " seconds");
 
   try {
@@ -449,11 +442,6 @@ function defaultCallback(aEvent) {
 function delayedDefaultCallback() {
   if (!gTimeoutTimer) {
     debugDump("gTimeoutTimer is null... returning early");
-    return;
-  }
-
-  if (!gTest) {
-    debugDump("gTest is null... returning early");
     return;
   }
 
@@ -804,31 +792,13 @@ function verifyTestsRan() {
 }
 
 /**
- * Creates a backup of files the tests need to modify so they can be restored to
- * the original file when the test has finished and then modifies the files.
- */
-function setupFiles() {
-  // Backup the updater-settings.ini file if it exists by moving it.
-  let baseAppDir = getAppBaseDir();
-  let updateSettingsIni = baseAppDir.clone();
-  updateSettingsIni.append(FILE_UPDATE_SETTINGS_INI);
-  if (updateSettingsIni.exists()) {
-    updateSettingsIni.moveTo(baseAppDir, FILE_UPDATE_SETTINGS_INI_BAK);
-  }
-  updateSettingsIni = baseAppDir.clone();
-  updateSettingsIni.append(FILE_UPDATE_SETTINGS_INI);
-  writeFile(updateSettingsIni, UPDATE_SETTINGS_CONTENTS);
-}
-
-/**
- * Sets the most common preferences used by tests to values used by the majority
- * of the tests and when necessary saves the preference's original values if
- * present so they can be set back to the original values when the test has
- * finished.
+ * Sets the most common preferences used by tests to values used by the tests
+ * and saves some of the preference's original values if present so they can be
+ * set back to the original values when each test has finished.
  */
 function setupPrefs() {
   if (DEBUG_AUS_TEST) {
-    Services.prefs.setBoolPref(PREF_APP_UPDATE_LOG, true);
+    Services.prefs.setBoolPref(PREF_APP_UPDATE_LOG, true)
   }
 
   if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_URL_OVERRIDE)) {
@@ -838,22 +808,12 @@ function setupPrefs() {
   if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_ENABLED)) {
     gAppUpdateEnabled = Services.prefs.getBoolPref(PREF_APP_UPDATE_ENABLED);
   }
-  Services.prefs.setBoolPref(PREF_APP_UPDATE_ENABLED, true);
+  Services.prefs.setBoolPref(PREF_APP_UPDATE_ENABLED, true)
 
   if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_METRO_ENABLED)) {
     gAppUpdateMetroEnabled = Services.prefs.getBoolPref(PREF_APP_UPDATE_METRO_ENABLED);
   }
-  Services.prefs.setBoolPref(PREF_APP_UPDATE_METRO_ENABLED, true);
-
-  if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_SERVICE_ENABLED)) {
-    gAppUpdateServiceEnabled = Services.prefs.getBoolPref(PREF_APP_UPDATE_SERVICE_ENABLED);
-  }
-  Services.prefs.setBoolPref(PREF_APP_UPDATE_SERVICE_ENABLED, false);
-
-  if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_STAGING_ENABLED)) {
-    gAppUpdateStagingEnabled = Services.prefs.getBoolPref(PREF_APP_UPDATE_STAGING_ENABLED);
-  }
-  Services.prefs.setBoolPref(PREF_APP_UPDATE_STAGING_ENABLED, false);
+  Services.prefs.setBoolPref(PREF_APP_UPDATE_METRO_ENABLED, true)
 
   if (Services.prefs.prefHasUserValue(PREF_EXTENSIONS_UPDATE_URL)) {
     gExtUpdateURL = Services.prefs.getCharPref(PREF_EXTENSIONS_UPDATE_URL);
@@ -861,39 +821,12 @@ function setupPrefs() {
   let extUpdateUrl = URL_UPDATE + "?addonID=%ITEM_ID%&platformVersion=" +
                      getNewerPlatformVersion();
   Services.prefs.setCharPref(PREF_EXTENSIONS_UPDATE_URL, extUpdateUrl);
+  debugDump("extensions.update.url: " + extUpdateUrl);
 
   Services.prefs.setIntPref(PREF_APP_UPDATE_IDLETIME, 0);
   Services.prefs.setIntPref(PREF_APP_UPDATE_PROMPTWAITTIME, 0);
   Services.prefs.setBoolPref(PREF_EXTENSIONS_STRICT_COMPAT, true);
   Services.prefs.setCharPref(PREF_EM_HOTFIX_ID, "hotfix" + ADDON_ID_SUFFIX);
-}
-
-/**
- * Restores files that were backed up for the tests and general file cleanup.
- */
-function resetFiles() {
-  // Restore the backed up updater-settings.ini if it exists.
-  let baseAppDir = getAppBaseDir();
-  let updateSettingsIni = baseAppDir.clone();
-  updateSettingsIni.append(FILE_UPDATE_SETTINGS_INI_BAK);
-  if (updateSettingsIni.exists()) {
-    updateSettingsIni.moveTo(baseAppDir, FILE_UPDATE_SETTINGS_INI);
-  }
-
-  // Not being able to remove the "updated" directory will not adversely affect
-  // subsequent tests so wrap it in a try block and don't test whether its
-  // removal was successful.
-  let updatedDir = getUpdatedDir();
-  if (updatedDir.exists()) {
-    try {
-      removeDirRecursive(updatedDir);
-    }
-    catch (e) {
-      dump("Unable to remove directory\n" +
-           "path: " + updatedDir.path + "\n" +
-           "Exception: " + e + "\n");
-    }
-  }
 }
 
 /**
@@ -923,20 +856,6 @@ function resetPrefs() {
   }
   else if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_METRO_ENABLED)) {
     Services.prefs.clearUserPref(PREF_APP_UPDATE_METRO_ENABLED);
-  }
-
-  if (gAppUpdateServiceEnabled !== undefined) {
-    Services.prefs.setBoolPref(PREF_APP_UPDATE_SERVICE_ENABLED, gAppUpdateServiceEnabled);
-  }
-  else if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_SERVICE_ENABLED)) {
-    Services.prefs.clearUserPref(PREF_APP_UPDATE_SERVICE_ENABLED);
-  }
-
-  if (gAppUpdateStagingEnabled !== undefined) {
-    Services.prefs.setBoolPref(PREF_APP_UPDATE_STAGING_ENABLED, gAppUpdateStagingEnabled);
-  }
-  else if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_STAGING_ENABLED)) {
-    Services.prefs.clearUserPref(PREF_APP_UPDATE_STAGING_ENABLED);
   }
 
   if (gExtUpdateURL !== undefined) {
@@ -1018,18 +937,6 @@ function resetPrefs() {
   }
 }
 
-function setupTimer(aTestTimeout) {
-  gTestTimeout = aTestTimeout;
-  if (gTimeoutTimer) {
-    gTimeoutTimer.cancel();
-    gTimeoutTimer = null;
-  }
-  gTimeoutTimer = AUS_Cc["@mozilla.org/timer;1"].
-                  createInstance(AUS_Ci.nsITimer);
-  gTimeoutTimer.initWithCallback(finishTestTimeout, gTestTimeout,
-                                 AUS_Ci.nsITimer.TYPE_ONE_SHOT);
-}
-
 /**
  * Disables pre-existing add-ons so they don't interfere with the tests,
  * installs the test add-ons, sets the noupdate test add-ons' userDisabled value
@@ -1065,7 +972,10 @@ function setupAddons(aCallback) {
       });
       // Start the timout timer before the update window is displayed so it can
       // clean up tests that don't successfully display the update window.
-      setupTimer(gTestTimeout);
+      gTimeoutTimer = AUS_Cc["@mozilla.org/timer;1"].
+                      createInstance(AUS_Ci.nsITimer);
+      gTimeoutTimer.initWithCallback(finishTestTimeout, TEST_TIMEOUT,
+                                     AUS_Ci.nsITimer.TYPE_ONE_SHOT);
       aCallback();
     });
   }

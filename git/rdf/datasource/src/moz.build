@@ -11,5 +11,3 @@ CPP_SOURCES += [
     'nsLocalStore.cpp',
 ]
 
-LIBRARY_NAME = 'rdfdatasource_s'
-

@@ -111,6 +111,3 @@ elif CONFIG['OS_ARCH'] == 'WINNT':
     ]
 else:
     error('No TimeStamp implementation on this platform.  Build will not succeed')
-
-LIBRARY_NAME = 'xpcomds_s'
-

@@ -38,7 +38,6 @@
 
 #include "vm/Interpreter-inl.h"
 #include "vm/RegExpObject-inl.h"
-#include "vm/ScopeObject-inl.h"
 
 using namespace js;
 using namespace js::gc;
@@ -657,7 +656,7 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
         uint32_t isBlock;
         if (mode == XDR_ENCODE) {
             JSObject *obj = *objp;
-            JS_ASSERT(obj->isFunction() || obj->is<StaticBlockObject>());
+            JS_ASSERT(obj->isFunction() || obj->isStaticBlock());
             isBlock = obj->is<BlockObject>() ? 1 : 0;
         }
         if (!xdr->codeUint32(&isBlock))
@@ -700,7 +699,7 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
             JS_ASSERT(isBlock == 1);
             uint32_t blockEnclosingScopeIndex = 0;
             if (mode == XDR_ENCODE) {
-                if (StaticBlockObject *block = (*objp)->as<StaticBlockObject>().enclosingBlock())
+                if (StaticBlockObject *block = (*objp)->asStaticBlock().enclosingBlock())
                     blockEnclosingScopeIndex = FindBlockIndex(script, *block);
                 else
                     blockEnclosingScopeIndex = UINT32_MAX;
@@ -1986,7 +1985,7 @@ JSScript::enclosingScriptsCompiledSuccessfully() const
                 return false;
             enclosing = fun->nonLazyScript()->enclosingStaticScope();
         } else {
-            enclosing = enclosing->as<StaticBlockObject>().enclosingStaticScope();
+            enclosing = enclosing->asStaticBlock().enclosingStaticScope();
         }
     }
     return true;
@@ -2300,8 +2299,8 @@ js::CloneScript(JSContext *cx, HandleObject enclosingScope, HandleFunction fun, 
         for (unsigned i = 0; i < nobjects; i++) {
             RootedObject obj(cx, vector[i]);
             RootedObject clone(cx);
-            if (obj->is<StaticBlockObject>()) {
-                Rooted<StaticBlockObject*> innerBlock(cx, &obj->as<StaticBlockObject>());
+            if (obj->isStaticBlock()) {
+                Rooted<StaticBlockObject*> innerBlock(cx, &obj->asStaticBlock());
 
                 RootedObject enclosingScope(cx);
                 if (StaticBlockObject *enclosingBlock = innerBlock->enclosingBlock())
@@ -2833,8 +2832,8 @@ js::SetFrameArgumentsObject(JSContext *cx, AbstractFramePtr frame,
         pc += JSOP_ARGUMENTS_LENGTH;
         JS_ASSERT(*pc == JSOP_SETALIASEDVAR);
 
-        if (frame.callObj().as<ScopeObject>().aliasedVar(pc).isMagic(JS_OPTIMIZED_ARGUMENTS))
-            frame.callObj().as<ScopeObject>().setAliasedVar(cx, pc, cx->names().arguments, ObjectValue(*argsobj));
+        if (frame.callObj().asScope().aliasedVar(pc).isMagic(JS_OPTIMIZED_ARGUMENTS))
+            frame.callObj().asScope().setAliasedVar(cx, pc, cx->names().arguments, ObjectValue(*argsobj));
     } else {
         if (frame.unaliasedLocal(var).isMagic(JS_OPTIMIZED_ARGUMENTS))
             frame.unaliasedLocal(var) = ObjectValue(*argsobj);

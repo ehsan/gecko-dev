@@ -11,5 +11,3 @@ CPP_SOURCES += [
     'nsStringBundleTextOverride.cpp',
 ]
 
-LIBRARY_NAME = 'strres_s'
-

@@ -15,5 +15,3 @@ CPP_SOURCES += [
     'nsUnicodeToEUCTW.cpp',
 ]
 
-LIBRARY_NAME = 'ucvtw2_s'
-

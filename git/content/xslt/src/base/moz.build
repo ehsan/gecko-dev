@@ -14,5 +14,3 @@ CPP_SOURCES += [
     'txURIUtils.cpp',
 ]
 
-LIBRARY_NAME = 'txbase_s'
-

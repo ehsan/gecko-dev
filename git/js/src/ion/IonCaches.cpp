@@ -2773,7 +2773,7 @@ GenerateScopeChainGuards(MacroAssembler &masm, JSObject *scopeChain, JSObject *h
             break;
 
         // Load the next link.
-        tobj = &tobj->as<ScopeObject>().enclosingScope();
+        tobj = &tobj->asScope().enclosingScope();
         masm.extractObject(Address(outputReg, ScopeObject::offsetOfEnclosingScope()), outputReg);
     }
 }
@@ -2794,7 +2794,7 @@ BindNameIC::attachNonGlobal(JSContext *cx, IonScript *ion, JSObject *scopeChain,
                                    holder != scopeChain ? &failures : NULL);
 
     if (holder != scopeChain) {
-        JSObject *parent = &scopeChain->as<ScopeObject>().enclosingScope();
+        JSObject *parent = &scopeChain->asScope().enclosingScope();
         masm.extractObject(Address(scopeChainReg(), ScopeObject::offsetOfEnclosingScope()), outputReg());
 
         GenerateScopeChainGuards(masm, parent, holder, outputReg(), &failures);
@@ -2827,7 +2827,7 @@ IsCacheableScopeChain(JSObject *scopeChain, JSObject *holder)
         if (scopeChain == holder)
             return true;
 
-        scopeChain = &scopeChain->as<ScopeObject>().enclosingScope();
+        scopeChain = &scopeChain->asScope().enclosingScope();
         if (!scopeChain) {
             IonSpew(IonSpew_InlineCaches, "Scope chain indirect hit");
             return false;

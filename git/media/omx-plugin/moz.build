@@ -20,5 +20,3 @@ CPP_SOURCES += [
     'OmxPlugin.cpp',
 ]
 
-LIBRARY_NAME = 'omxplugin'
-

@@ -6,5 +6,3 @@
 
 MODULE = 'imgicon'
 
-LIBRARY_NAME = 'imgiconmac_s'
-

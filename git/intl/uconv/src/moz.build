@@ -28,6 +28,3 @@ if CONFIG['INTEL_ARCHITECTURE']:
     CPP_SOURCES += [
         'nsUTF8ToUnicodeSSE2.cpp',
     ]
-
-LIBRARY_NAME = 'uconv'
-

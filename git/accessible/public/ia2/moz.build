@@ -48,6 +48,3 @@ interfaces_c.sort()
 EXPORTS += headers
 EXPORTS += interfaces_h
 EXPORTS += interfaces_c
-
-LIBRARY_NAME = 'IA2Marshal'
-

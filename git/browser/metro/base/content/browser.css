@@ -209,7 +209,18 @@ textbox {
   -moz-binding: url("chrome://browser/content/bindings/bindings.xml#textbox");
 }
 
-/* used in about:config */
+textbox[multiline="true"] {
+  -moz-binding: url("chrome://browser/content/bindings/bindings.xml#textarea");
+}
+
+textbox[type="timed"] {
+  -moz-binding: url("chrome://browser/content/bindings/bindings.xml#timed-textbox");
+}
+
 textbox[type="search"] {
   -moz-binding: url("chrome://browser/content/bindings/bindings.xml#search-textbox");
+}
+
+textbox[type="number"] {
+  -moz-binding: url("chrome://browser/content/bindings/bindings.xml#numberbox");
 }

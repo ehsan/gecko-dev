@@ -12,5 +12,3 @@ CPP_SOURCES += [
     'minidump_writer.cc',
 ]
 
-LIBRARY_NAME = 'minidump_writer_s'
-

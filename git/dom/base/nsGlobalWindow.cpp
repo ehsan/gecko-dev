@@ -2395,8 +2395,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     } else {
       JS::Rooted<JSObject*> global(cx,
         xpc_UnmarkGrayObject(newInnerWindow->mJSObject));
-      JS::Rooted<JSObject*> outerObject(cx,
-        NewOuterWindowProxy(cx, global, thisChrome));
+      JSObject* outerObject = NewOuterWindowProxy(cx, global, thisChrome);
       if (!outerObject) {
         NS_ERROR("out of memory");
         return NS_ERROR_FAILURE;
@@ -2404,8 +2403,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 
       js::SetProxyExtra(mJSObject, 0, js::PrivateValue(NULL));
 
-      JS::Rooted<JSObject*> obj(cx, mJSObject);
-      outerObject = xpc::TransplantObject(cx, obj, outerObject);
+      outerObject = xpc::TransplantObject(cx, mJSObject, outerObject);
       if (!outerObject) {
         NS_ERROR("unable to transplant wrappers, probably OOM");
         return NS_ERROR_FAILURE;
@@ -11266,7 +11264,7 @@ nsGlobalWindow::SizeOfIncludingThis(nsWindowSizes* aWindowSizes) const
 
 #ifdef MOZ_GAMEPAD
 void
-nsGlobalWindow::AddGamepad(uint32_t aIndex, Gamepad* aGamepad)
+nsGlobalWindow::AddGamepad(uint32_t aIndex, nsDOMGamepad* aGamepad)
 {
   FORWARD_TO_INNER_VOID(AddGamepad, (aIndex, aGamepad));
   mGamepads.Put(aIndex, aGamepad);
@@ -11279,33 +11277,11 @@ nsGlobalWindow::RemoveGamepad(uint32_t aIndex)
   mGamepads.Remove(aIndex);
 }
 
-// static
-PLDHashOperator
-nsGlobalWindow::EnumGamepadsForGet(const uint32_t& aKey, Gamepad* aData,
-                                   void* aUserArg)
-{
-  nsTArray<nsRefPtr<Gamepad> >* array =
-    static_cast<nsTArray<nsRefPtr<Gamepad> >*>(aUserArg);
-  array->EnsureLengthAtLeast(aKey + 1);
-  (*array)[aKey] = aData;
-  return PL_DHASH_NEXT;
-}
-
-void
-nsGlobalWindow::GetGamepads(nsTArray<nsRefPtr<Gamepad> >& aGamepads)
-{
-  FORWARD_TO_INNER_VOID(GetGamepads, (aGamepads));
-  aGamepads.Clear();
-  // mGamepads.Count() may not be sufficient, but it's not harmful.
-  aGamepads.SetCapacity(mGamepads.Count());
-  mGamepads.EnumerateRead(EnumGamepadsForGet, &aGamepads);
-}
-
-already_AddRefed<Gamepad>
+already_AddRefed<nsDOMGamepad>
 nsGlobalWindow::GetGamepad(uint32_t aIndex)
 {
   FORWARD_TO_INNER(GetGamepad, (aIndex), nullptr);
-  nsRefPtr<Gamepad> gamepad;
+  nsRefPtr<nsDOMGamepad> gamepad;
   if (mGamepads.Get(aIndex, getter_AddRefs(gamepad))) {
     return gamepad.forget();
   }
@@ -11329,8 +11305,7 @@ nsGlobalWindow::HasSeenGamepadInput()
 
 // static
 PLDHashOperator
-nsGlobalWindow::EnumGamepadsForSync(const uint32_t& aKey, Gamepad* aData,
-                                    void* aUserArg)
+nsGlobalWindow::EnumGamepadsForSync(const uint32_t& aKey, nsDOMGamepad* aData, void* userArg)
 {
   nsRefPtr<GamepadService> gamepadsvc(GamepadService::GetService());
   gamepadsvc->SyncGamepadState(aKey, aData);

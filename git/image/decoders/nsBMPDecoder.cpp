@@ -140,9 +140,9 @@ nsBMPDecoder::FinishInternal()
         PostInvalidation(r);
 
         if (mUseAlphaData) {
-          PostFrameStop(FrameBlender::kFrameHasAlpha);
+          PostFrameStop(RasterImage::kFrameHasAlpha);
         } else {
-          PostFrameStop(FrameBlender::kFrameOpaque);
+          PostFrameStop(RasterImage::kFrameOpaque);
         }
         PostDecodeDone();
     }

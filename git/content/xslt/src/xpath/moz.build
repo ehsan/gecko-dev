@@ -47,5 +47,3 @@ CPP_SOURCES += [
     'txXPathOptimizer.cpp',
 ]
 
-LIBRARY_NAME = 'txxpath_s'
-

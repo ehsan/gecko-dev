@@ -20,6 +20,3 @@ else:
     CPP_SOURCES += [
         'nsUNIXCharset.cpp',
     ]
-
-LIBRARY_NAME = 'platlocale_s'
-

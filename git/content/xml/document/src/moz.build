@@ -17,5 +17,3 @@ CPP_SOURCES += [
     'nsXMLPrettyPrinter.cpp',
 ]
 
-LIBRARY_NAME = 'gkconxmldoc_s'
-

@@ -4635,9 +4635,9 @@ js::DefaultValue(JSContext *cx, HandleObject obj, JSType hint, MutableHandleValu
         id = NameToId(cx->names().toString);
 
         /* Optimize (new String(...)).toString(). */
-        if (clasp == &StringObject::class_) {
-            if (ClassMethodIsNative(cx, obj, &StringObject::class_, id, js_str_toString)) {
-                vp.setString(obj->as<StringObject>().unbox());
+        if (clasp == &StringClass) {
+            if (ClassMethodIsNative(cx, obj, &StringClass, id, js_str_toString)) {
+                vp.setString(obj->asString().unbox());
                 return true;
             }
         }
@@ -4655,19 +4655,19 @@ js::DefaultValue(JSContext *cx, HandleObject obj, JSType hint, MutableHandleValu
     } else {
 
         /* Optimize new String(...).valueOf(). */
-        if (clasp == &StringObject::class_) {
+        if (clasp == &StringClass) {
             id = NameToId(cx->names().valueOf);
-            if (ClassMethodIsNative(cx, obj, &StringObject::class_, id, js_str_toString)) {
-                vp.setString(obj->as<StringObject>().unbox());
+            if (ClassMethodIsNative(cx, obj, &StringClass, id, js_str_toString)) {
+                vp.setString(obj->asString().unbox());
                 return true;
             }
         }
 
         /* Optimize new Number(...).valueOf(). */
-        if (clasp == &NumberObject::class_) {
+        if (clasp == &NumberClass) {
             id = NameToId(cx->names().valueOf);
-            if (ClassMethodIsNative(cx, obj, &NumberObject::class_, id, js_num_valueOf)) {
-                vp.setNumber(obj->as<NumberObject>().unbox());
+            if (ClassMethodIsNative(cx, obj, &NumberClass, id, js_num_valueOf)) {
+                vp.setNumber(obj->asNumber().unbox());
                 return true;
             }
         }
@@ -4729,7 +4729,7 @@ js::CheckAccess(JSContext *cx, JSObject *obj_, HandleId id, JSAccessMode mode,
     JSBool writing;
     RootedObject obj(cx, obj_), pobj(cx);
 
-    while (JS_UNLIKELY(obj->is<WithObject>()))
+    while (JS_UNLIKELY(obj->isWith()))
         obj = obj->getProto();
 
     writing = (mode & JSACC_WRITE) != 0;

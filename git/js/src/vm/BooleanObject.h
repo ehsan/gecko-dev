@@ -19,8 +19,6 @@ class BooleanObject : public JSObject
   public:
     static const unsigned RESERVED_SLOTS = 1;
 
-    static Class class_;
-
     /*
      * Creates a new Boolean object boxing the given primitive bool.  The
      * object's [[Prototype]] is determined from context.

@@ -21,5 +21,3 @@ CPP_SOURCES += [
     'WMFUtils.cpp',
 ]
 
-LIBRARY_NAME = 'gkconwmf_s'
-

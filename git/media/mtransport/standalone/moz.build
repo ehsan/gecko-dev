@@ -24,5 +24,3 @@ CPP_SOURCES += [
     '$(MTRANSPORT_LCPPSRCS)',
 ]
 
-LIBRARY_NAME = 'mtransport_s'
-

@@ -5228,8 +5228,7 @@ IonBuilder::jsop_newobject(HandleObject baseObj)
         templateObject->setType(type);
     }
 
-    MNewObject *ins = MNewObject::New(templateObject,
-                                      /* templateObjectIsClassPrototype = */ false);
+    MNewObject *ins = MNewObject::New(templateObject);
 
     current->add(ins);
     current->push(ins);

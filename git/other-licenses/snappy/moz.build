@@ -17,5 +17,3 @@ CPP_SOURCES += [
     'snappy.cc',
 ]
 
-LIBRARY_NAME = 'snappy_s'
-

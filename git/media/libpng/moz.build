@@ -33,6 +33,3 @@ CSRCS += [
     'pngwtran.c',
     'pngwutil.c',
 ]
-
-LIBRARY_NAME = 'mozpng'
-

@@ -23,5 +23,3 @@ CPP_SOURCES += [
     'nsUDPSocketProvider.cpp',
 ]
 
-LIBRARY_NAME = 'neckosocket_s'
-

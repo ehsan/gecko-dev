@@ -34,6 +34,3 @@ CPP_SOURCES += [
     'nsHostResolver.cpp',
     'nsIDNService.cpp',
 ]
-
-LIBRARY_NAME = 'neckodns_s'
-

@@ -16,5 +16,3 @@ CPP_SOURCES += [
     'nsSystemPrincipal.cpp',
 ]
 
-LIBRARY_NAME = 'caps_s'
-

@@ -163,8 +163,8 @@ SkipScopeParent(JSObject *parent)
 {
     if (!parent)
         return NULL;
-    while (parent->is<ScopeObject>())
-        parent = &parent->as<ScopeObject>().enclosingScope();
+    while (parent->isScope())
+        parent = &parent->asScope().enclosingScope();
     return parent;
 }
 

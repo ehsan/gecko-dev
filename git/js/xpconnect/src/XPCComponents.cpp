@@ -2936,13 +2936,13 @@ CreateXMLHttpRequest(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static JSBool
-sandbox_enumerate(JSContext *cx, HandleObject obj)
+sandbox_enumerate(JSContext *cx, JSHandleObject obj)
 {
     return JS_EnumerateStandardClasses(cx, obj);
 }
 
 static JSBool
-sandbox_resolve(JSContext *cx, HandleObject obj, HandleId id)
+sandbox_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id)
 {
     JSBool resolved;
     return JS_ResolveStandardClass(cx, obj, id, &resolved);

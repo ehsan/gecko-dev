@@ -36,5 +36,3 @@ EXPORTS.webvtt += [
     'include/webvtt/util.h',
 ]
 
-LIBRARY_NAME = 'webvtt'
-

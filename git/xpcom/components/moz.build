@@ -35,5 +35,3 @@ CPP_SOURCES += [
     'nsNativeComponentLoader.cpp',
 ]
 
-LIBRARY_NAME = 'xpcomcomponents_s'
-

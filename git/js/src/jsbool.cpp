@@ -27,7 +27,7 @@
 using namespace js;
 using namespace js::types;
 
-Class BooleanObject::class_ = {
+Class js::BooleanClass = {
     "Boolean",
     JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_HAS_CACHED_PROTO(JSProto_Boolean),
     JS_PropertyStub,         /* addProperty */
@@ -42,7 +42,7 @@ Class BooleanObject::class_ = {
 JS_ALWAYS_INLINE bool
 IsBoolean(const Value &v)
 {
-    return v.isBoolean() || (v.isObject() && v.toObject().is<BooleanObject>());
+    return v.isBoolean() || (v.isObject() && v.toObject().hasClass(&BooleanClass));
 }
 
 #if JS_HAS_TOSOURCE
@@ -52,7 +52,7 @@ bool_toSource_impl(JSContext *cx, CallArgs args)
     const Value &thisv = args.thisv();
     JS_ASSERT(IsBoolean(thisv));
 
-    bool b = thisv.isBoolean() ? thisv.toBoolean() : thisv.toObject().as<BooleanObject>().unbox();
+    bool b = thisv.isBoolean() ? thisv.toBoolean() : thisv.toObject().asBoolean().unbox();
 
     StringBuffer sb(cx);
     if (!sb.append("(new Boolean(") || !BooleanToStringBuffer(cx, b, sb) || !sb.append("))"))
@@ -79,7 +79,7 @@ bool_toString_impl(JSContext *cx, CallArgs args)
     const Value &thisv = args.thisv();
     JS_ASSERT(IsBoolean(thisv));
 
-    bool b = thisv.isBoolean() ? thisv.toBoolean() : thisv.toObject().as<BooleanObject>().unbox();
+    bool b = thisv.isBoolean() ? thisv.toBoolean() : thisv.toObject().asBoolean().unbox();
     args.rval().setString(js_BooleanToString(cx, b));
     return true;
 }
@@ -97,7 +97,7 @@ bool_valueOf_impl(JSContext *cx, CallArgs args)
     const Value &thisv = args.thisv();
     JS_ASSERT(IsBoolean(thisv));
 
-    bool b = thisv.isBoolean() ? thisv.toBoolean() : thisv.toObject().as<BooleanObject>().unbox();
+    bool b = thisv.isBoolean() ? thisv.toBoolean() : thisv.toObject().asBoolean().unbox();
     args.rval().setBoolean(b);
     return true;
 }
@@ -142,7 +142,7 @@ js_InitBooleanClass(JSContext *cx, HandleObject obj)
 
     Rooted<GlobalObject*> global(cx, &obj->asGlobal());
 
-    RootedObject booleanProto (cx, global->createBlankPrototype(cx, &BooleanObject::class_));
+    RootedObject booleanProto (cx, global->createBlankPrototype(cx, &BooleanClass));
     if (!booleanProto)
         return NULL;
     booleanProto->setFixedSlot(BooleanObject::PRIMITIVE_VALUE_SLOT, BooleanValue(false));
@@ -204,5 +204,5 @@ js::BooleanGetPrimitiveValueSlow(HandleObject wrappedBool, JSContext *cx)
     JS_ASSERT(wrappedBool->isCrossCompartmentWrapper());
     JSObject *obj = Wrapper::wrappedObject(wrappedBool);
     JS_ASSERT(obj);
-    return obj->as<BooleanObject>().unbox();
+    return obj->asBoolean().unbox();
 }

@@ -443,6 +443,7 @@ pref("browser.ui.show-margins-threshold", 20);
 pref("plugin.disable", false);
 pref("dom.ipc.plugins.enabled", false);
 
+pref("plugins.click_to_play", true);
 // The default value for nsIPluginTag.enabledState (STATE_CLICKTOPLAY = 1)
 pref("plugin.default.state", 1);
 

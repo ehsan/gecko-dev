@@ -92,14 +92,7 @@ DebuggerTransport.prototype = {
 
   onOutputStreamReady:
   makeInfallible(function DT_onOutputStreamReady(aStream) {
-    let written = 0;
-    try {
-      written = aStream.write(this._outgoing, this._outgoing.length);
-    } catch(e if e.result == Components.results.NS_BASE_STREAM_CLOSED) {
-      dumpn("Connection closed.");
-      this.close();
-      return;
-    }
+    let written = aStream.write(this._outgoing, this._outgoing.length);
     this._outgoing = this._outgoing.slice(written);
     this._flushOutgoing();
   }, "DebuggerTransport.prototype.onOutputStreamReady"),

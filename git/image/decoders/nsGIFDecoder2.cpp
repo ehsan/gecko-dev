@@ -199,7 +199,7 @@ void nsGIFDecoder2::BeginImageFrame(uint16_t aDepth)
 //******************************************************************************
 void nsGIFDecoder2::EndImageFrame()
 {
-  FrameBlender::FrameAlpha alpha = FrameBlender::kFrameHasAlpha;
+  RasterImage::FrameAlpha alpha = RasterImage::kFrameHasAlpha;
 
   // First flush all pending image data 
   if (!mGIFStruct.images_decoded) {
@@ -218,7 +218,7 @@ void nsGIFDecoder2::EndImageFrame()
     }
     // This transparency check is only valid for first frame
     if (mGIFStruct.is_transparent && !mSawTransparency) {
-      alpha = FrameBlender::kFrameOpaque;
+      alpha = RasterImage::kFrameOpaque;
     }
   }
   mCurrentRow = mLastFlushedRow = -1;
@@ -241,7 +241,7 @@ void nsGIFDecoder2::EndImageFrame()
 
   // Tell the superclass we finished a frame
   PostFrameStop(alpha,
-                FrameBlender::FrameDisposalMethod(mGIFStruct.disposal_method),
+                RasterImage::FrameDisposalMethod(mGIFStruct.disposal_method),
                 mGIFStruct.delay_time);
 
   // Reset the transparent pixel

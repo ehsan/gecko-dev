@@ -9,6 +9,7 @@ MODULE = 'content'
 EXPORTS += [
     'nsDOMEvent.h',
     'nsDOMEventTargetHelper.h',
+    'nsDOMGamepad.h',
     'nsDOMTouchEvent.h',
     'nsDOMUIEvent.h',
     'nsEventListenerManager.h',
@@ -60,3 +61,8 @@ CPP_SOURCES += [
     'nsPaintRequest.cpp',
     'nsPrivateTextRange.cpp',
 ]
+
+if CONFIG['MOZ_GAMEPAD']:
+    CPP_SOURCES += [
+        'nsDOMGamepad.cpp',
+    ]
