@@ -179,7 +179,6 @@ public:
   PRUint32 GetNumRects () const { return mRectCount; }
   const nsRect& GetBounds () const { return mBoundRect; }
   nsIntRegion ToOutsidePixels (nscoord aAppUnitsPerPixel) const;
-  nsRect GetLargestRectangle () const;
 
   /**
    * Make sure the region has at most aMaxRects by adding area to it
@@ -297,11 +296,6 @@ public:
   nsIntRegion& operator = (const nsIntRect& aRect) { mImpl = ToRect (aRect); return *this; }
   nsIntRegion& operator = (const nsIntRegion& aRegion) { mImpl = aRegion.mImpl; return *this; }
 
-  bool operator==(const nsIntRegion& aRgn) const
-  {
-    return IsEqual(aRgn);
-  }
-
   nsIntRegion& And  (const nsIntRegion& aRgn1,   const nsIntRegion& aRgn2)
   {
     mImpl.And (aRgn1.mImpl, aRgn2.mImpl);
@@ -415,8 +409,6 @@ public:
   }
   PRUint32 GetNumRects () const { return mImpl.GetNumRects (); }
   nsIntRect GetBounds () const { return FromRect (mImpl.GetBounds ()); }
-  nsRegion ToAppUnits (nscoord aAppUnitsPerPixel) const;
-  nsIntRect GetLargestRectangle () const { return FromRect (mImpl.GetLargestRectangle()); }
 
   /**
    * Make sure the region has at most aMaxRects by adding area to it

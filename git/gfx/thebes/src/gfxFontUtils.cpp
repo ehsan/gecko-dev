@@ -60,10 +60,6 @@
 
 #define NO_RANGE_FOUND 126 // bit 126 in the font unicode ranges is required to be 0
 
-#define UNICODE_BMP_LIMIT 0x10000
-
-using namespace mozilla; // for the AutoSwap_* types
-
 /* Unicode subrange table
  *   from: http://msdn.microsoft.com/library/default.asp?url=/library/en-us/intl/unicode_63ub.asp
  *
@@ -234,62 +230,45 @@ static const struct UnicodeRangeTableEntry gUnicodeRanges[] = {
     { 111, 0x1D360, 0x1D37F, "Counting Rod Numerals" }
 };
 
-#pragma pack(1)
-
-typedef struct {
-    AutoSwap_PRUint16 format;
-    AutoSwap_PRUint16 reserved;
-    AutoSwap_PRUint32 length;
-    AutoSwap_PRUint32 language;
-    AutoSwap_PRUint32 numGroups;
-} Format12CmapHeader;
-
-typedef struct {
-    AutoSwap_PRUint32 startCharCode;
-    AutoSwap_PRUint32 endCharCode;
-    AutoSwap_PRUint32 startGlyphId;
-} Format12Group;
-
-#pragma pack()
-
 nsresult
-gfxFontUtils::ReadCMAPTableFormat12(const PRUint8 *aBuf, PRUint32 aLength,
-                                    gfxSparseBitSet& aCharacterMap) 
+gfxFontUtils::ReadCMAPTableFormat12(PRUint8 *aBuf, PRUint32 aLength, gfxSparseBitSet& aCharacterMap) 
 {
-    // Ensure table is large enough that we can safely read the header
-    NS_ENSURE_TRUE(aLength >= sizeof(Format12CmapHeader),
-                    NS_ERROR_GFX_CMAP_MALFORMED);
+    enum {
+        OffsetFormat = 0,
+        OffsetReserved = 2,
+        OffsetTableLength = 4,
+        OffsetLanguage = 8,
+        OffsetNumberGroups = 12,
+        OffsetGroups = 16,
 
-    // Sanity-check header fields
-    const Format12CmapHeader *cmap12 =
-        reinterpret_cast<const Format12CmapHeader*>(aBuf);
-    NS_ENSURE_TRUE(PRUint16(cmap12->format) == 12, 
+        SizeOfGroup = 12,
+
+        GroupOffsetStartCode = 0,
+        GroupOffsetEndCode = 4
+    };
+    NS_ENSURE_TRUE(aLength >= 16, NS_ERROR_GFX_CMAP_MALFORMED);
+
+    NS_ENSURE_TRUE(ReadShortAt(aBuf, OffsetFormat) == 12, 
                    NS_ERROR_GFX_CMAP_MALFORMED);
-    NS_ENSURE_TRUE(PRUint16(cmap12->reserved) == 0, 
-                   NS_ERROR_GFX_CMAP_MALFORMED);
-
-    PRUint32 tablelen = cmap12->length;
-    NS_ENSURE_TRUE(tablelen >= sizeof(Format12CmapHeader) &&
-                   tablelen <= aLength, NS_ERROR_GFX_CMAP_MALFORMED);
-
-    NS_ENSURE_TRUE(cmap12->language == 0, NS_ERROR_GFX_CMAP_MALFORMED);
-
-    // Check that the table is large enough for the group array
-    const PRUint32 numGroups = cmap12->numGroups;
-    NS_ENSURE_TRUE((tablelen - sizeof(Format12CmapHeader)) /
-                       sizeof(Format12Group) >= numGroups,
+    NS_ENSURE_TRUE(ReadShortAt(aBuf, OffsetReserved) == 0, 
                    NS_ERROR_GFX_CMAP_MALFORMED);
 
-    // The array of groups immediately follows the subtable header.
-    const Format12Group *group =
-        reinterpret_cast<const Format12Group*>(aBuf + sizeof(Format12CmapHeader));
+    PRUint32 tablelen = ReadLongAt(aBuf, OffsetTableLength);
+    NS_ENSURE_TRUE(tablelen <= aLength, NS_ERROR_GFX_CMAP_MALFORMED);
+    NS_ENSURE_TRUE(tablelen >= 16, NS_ERROR_GFX_CMAP_MALFORMED);
 
-    // Check that groups are in correct order and do not overlap,
-    // and record character coverage in aCharacterMap.
+    NS_ENSURE_TRUE(ReadLongAt(aBuf, OffsetLanguage) == 0, 
+                   NS_ERROR_GFX_CMAP_MALFORMED);
+
+    const PRUint32 numGroups  = ReadLongAt(aBuf, OffsetNumberGroups);
+    NS_ENSURE_TRUE(tablelen >= 16 + (12 * numGroups), 
+                   NS_ERROR_GFX_CMAP_MALFORMED);
+
+    const PRUint8 *groups = aBuf + OffsetGroups;
     PRUint32 prevEndCharCode = 0;
-    for (PRUint32 i = 0; i < numGroups; i++, group++) {
-        const PRUint32 startCharCode = group->startCharCode;
-        const PRUint32 endCharCode = group->endCharCode;
+    for (PRUint32 i = 0; i < numGroups; i++, groups += SizeOfGroup) {
+        const PRUint32 startCharCode = ReadLongAt(groups, GroupOffsetStartCode);
+        const PRUint32 endCharCode = ReadLongAt(groups, GroupOffsetEndCode);
         NS_ENSURE_TRUE((prevEndCharCode < startCharCode || i == 0) &&
                        startCharCode <= endCharCode &&
                        endCharCode <= CMAP_MAX_CODEPOINT, 
@@ -304,8 +283,7 @@ gfxFontUtils::ReadCMAPTableFormat12(const PRUint8 *aBuf, PRUint32 aLength,
 }
 
 nsresult 
-gfxFontUtils::ReadCMAPTableFormat4(const PRUint8 *aBuf, PRUint32 aLength,
-                                   gfxSparseBitSet& aCharacterMap)
+gfxFontUtils::ReadCMAPTableFormat4(PRUint8 *aBuf, PRUint32 aLength, gfxSparseBitSet& aCharacterMap)
 {
     enum {
         OffsetFormat = 0,
@@ -381,124 +359,29 @@ gfxFontUtils::ReadCMAPTableFormat4(const PRUint8 *aBuf, PRUint32 aLength,
     return NS_OK;
 }
 
-nsresult
-gfxFontUtils::ReadCMAPTableFormat14(const PRUint8 *aBuf, PRUint32 aLength,
-                                    PRUint8*& aTable)
-{
-    enum {
-        OffsetFormat = 0,
-        OffsetTableLength = 2,
-        OffsetNumVarSelectorRecords = 6,
-        OffsetVarSelectorRecords = 10,
-
-        SizeOfVarSelectorRecord = 11,
-        VSRecOffsetVarSelector = 0,
-        VSRecOffsetDefUVSOffset = 3,
-        VSRecOffsetNonDefUVSOffset = 7,
-
-        SizeOfDefUVSTable = 4,
-        DefUVSOffsetStartUnicodeValue = 0,
-        DefUVSOffsetAdditionalCount = 3,
-
-        SizeOfNonDefUVSTable = 5,
-        NonDefUVSOffsetUnicodeValue = 0,
-        NonDefUVSOffsetGlyphID = 3
-    };
-    NS_ENSURE_TRUE(aLength >= OffsetVarSelectorRecords,
-                   NS_ERROR_GFX_CMAP_MALFORMED);
-
-    NS_ENSURE_TRUE(ReadShortAt(aBuf, OffsetFormat) == 14, 
-                   NS_ERROR_GFX_CMAP_MALFORMED);
-
-    PRUint32 tablelen = ReadLongAt(aBuf, OffsetTableLength);
-    NS_ENSURE_TRUE(tablelen <= aLength, NS_ERROR_GFX_CMAP_MALFORMED);
-    NS_ENSURE_TRUE(tablelen >= OffsetVarSelectorRecords,
-                   NS_ERROR_GFX_CMAP_MALFORMED);
-
-    const PRUint32 numVarSelectorRecords = ReadLongAt(aBuf, OffsetNumVarSelectorRecords);
-    NS_ENSURE_TRUE((tablelen - OffsetVarSelectorRecords) /
-                   SizeOfVarSelectorRecord >= numVarSelectorRecords,
-                   NS_ERROR_GFX_CMAP_MALFORMED);
-
-    const PRUint8 *records = aBuf + OffsetVarSelectorRecords;
-    for (PRUint32 i = 0; i < numVarSelectorRecords; 
-         i++, records += SizeOfVarSelectorRecord) {
-        const PRUint32 varSelector = ReadUint24At(records, VSRecOffsetVarSelector);
-        const PRUint32 defUVSOffset = ReadLongAt(records, VSRecOffsetDefUVSOffset);
-        const PRUint32 nonDefUVSOffset = ReadLongAt(records, VSRecOffsetNonDefUVSOffset);
-        NS_ENSURE_TRUE(varSelector <= CMAP_MAX_CODEPOINT &&
-                       defUVSOffset <= tablelen - 4 &&
-                       nonDefUVSOffset <= tablelen - 4, 
-                       NS_ERROR_GFX_CMAP_MALFORMED);
-
-        if (defUVSOffset) {
-            const PRUint32 numUnicodeValueRanges = ReadLongAt(aBuf, defUVSOffset);
-            NS_ENSURE_TRUE((tablelen - defUVSOffset) /
-                           SizeOfDefUVSTable >= numUnicodeValueRanges,
-                           NS_ERROR_GFX_CMAP_MALFORMED);
-            const PRUint8 *tables = aBuf + defUVSOffset + 4;
-            PRUint32 prevEndUnicode = 0;
-            for (PRUint32 j = 0; j < numUnicodeValueRanges; j++, tables += SizeOfDefUVSTable) {
-                const PRUint32 startUnicode = ReadUint24At(tables, DefUVSOffsetStartUnicodeValue);
-                const PRUint32 endUnicode = startUnicode + tables[DefUVSOffsetAdditionalCount];
-                NS_ENSURE_TRUE((prevEndUnicode < startUnicode || j == 0) &&
-                               endUnicode <= CMAP_MAX_CODEPOINT, 
-                               NS_ERROR_GFX_CMAP_MALFORMED);
-                prevEndUnicode = endUnicode;
-            }
-        }
-
-        if (nonDefUVSOffset) {
-            const PRUint32 numUVSMappings = ReadLongAt(aBuf, nonDefUVSOffset);
-            NS_ENSURE_TRUE((tablelen - nonDefUVSOffset) /
-                           SizeOfNonDefUVSTable >= numUVSMappings,
-                           NS_ERROR_GFX_CMAP_MALFORMED);
-            const PRUint8 *tables = aBuf + nonDefUVSOffset + 4;
-            PRUint32 prevUnicode = 0;
-            for (PRUint32 j = 0; j < numUVSMappings; j++, tables += SizeOfNonDefUVSTable) {
-                const PRUint32 unicodeValue = ReadUint24At(tables, NonDefUVSOffsetUnicodeValue);
-                NS_ENSURE_TRUE((prevUnicode < unicodeValue || j == 0) &&
-                               unicodeValue <= CMAP_MAX_CODEPOINT, 
-                               NS_ERROR_GFX_CMAP_MALFORMED);
-                prevUnicode = unicodeValue;
-            }
-        }
-    }
-
-    aTable = new PRUint8[tablelen];
-    memcpy(aTable, aBuf, tablelen);
-
-    return NS_OK;
-}
-
 // Windows requires fonts to have a format-4 cmap with a Microsoft ID (3).  On the Mac, fonts either have
 // a format-4 cmap with Microsoft platform/encoding id or they have one with a platformID == Unicode (0)
 // For fonts with two format-4 tables, the first one (Unicode platform) is preferred on the Mac.
 
 #if defined(XP_MACOSX)
-    #define acceptableFormat4(p,e,k) (((p) == PLATFORM_ID_MICROSOFT && (e) == EncodingIDMicrosoft && !(k)) || \
-                                      ((p) == PLATFORM_ID_UNICODE))
-
-    #define acceptableUCS4Encoding(p, e, k) \
-        (((p) == PLATFORM_ID_MICROSOFT && (e) == EncodingIDUCS4ForMicrosoftPlatform) && (k) != 12 || \
-         ((p) == PLATFORM_ID_UNICODE   && \
-          ((e) == EncodingIDDefaultForUnicodePlatform || (e) >= EncodingIDUCS4ForUnicodePlatform)))
+    #define acceptablePlatform(p)    ((p) == PLATFORM_ID_UNICODE || (p) == PLATFORM_ID_MICROSOFT)
+    #define acceptableFormat4(p,e,k) ( ((p) == PLATFORM_ID_MICROSOFT && (e) == EncodingIDMicrosoft && (k) != 4) || \
+                                       ((p) == PLATFORM_ID_UNICODE) )
+    #define isSymbol(p,e)            ((p) == PLATFORM_ID_MICROSOFT && (e) == EncodingIDSymbol)
 #else
-    #define acceptableFormat4(p,e,k) ((p) == PLATFORM_ID_MICROSOFT && (e) == EncodingIDMicrosoft)
-
-    #define acceptableUCS4Encoding(p, e, k) \
-        ((p) == PLATFORM_ID_MICROSOFT && (e) == EncodingIDUCS4ForMicrosoftPlatform)
+    #define acceptablePlatform(p)    ((p) == PLATFORM_ID_MICROSOFT)
+    #define acceptableFormat4(p,e,k) ((e) == EncodingIDMicrosoft)
+    #define isSymbol(p,e)            ((e) == EncodingIDSymbol)
 #endif
 
-#define acceptablePlatform(p) ((p) == PLATFORM_ID_UNICODE || (p) == PLATFORM_ID_MICROSOFT)
-#define isSymbol(p,e)         ((p) == PLATFORM_ID_MICROSOFT && (e) == EncodingIDSymbol)
-#define isUVSEncoding(p, e)   ((p) == PLATFORM_ID_UNICODE && (e) == EncodingIDUVSForUnicodePlatform)
+#define acceptableUCS4Encoding(p, e) \
+    ((platformID == PLATFORM_ID_MICROSOFT && encodingID == EncodingIDUCS4ForMicrosoftPlatform) || \
+     (platformID == PLATFORM_ID_UNICODE   && \
+      (encodingID == EncodingIDDefaultForUnicodePlatform || encodingID >= EncodingIDUCS4ForUnicodePlatform)))
 
 PRUint32
-gfxFontUtils::FindPreferredSubtable(const PRUint8 *aBuf, PRUint32 aBufLength,
-                                    PRUint32 *aTableOffset,
-                                    PRUint32 *aUVSTableOffset,
-                                    PRBool *aSymbolEncoding)
+gfxFontUtils::FindPreferredSubtable(PRUint8 *aBuf, PRUint32 aBufLength,
+                                    PRUint32 *aTableOffset, PRBool *aSymbolEncoding)
 {
     enum {
         OffsetVersion = 0,
@@ -517,13 +400,8 @@ gfxFontUtils::FindPreferredSubtable(const PRUint8 *aBuf, PRUint32 aBufLength,
         EncodingIDMicrosoft = 1,
         EncodingIDDefaultForUnicodePlatform = 0,
         EncodingIDUCS4ForUnicodePlatform = 3,
-        EncodingIDUVSForUnicodePlatform = 5,
         EncodingIDUCS4ForMicrosoftPlatform = 10
     };
-
-    if (aUVSTableOffset) {
-        *aUVSTableOffset = nsnull;
-    }
 
     // PRUint16 version = ReadShortAt(aBuf, OffsetVersion); // Unused: self-documenting.
     PRUint16 numTables = ReadShortAt(aBuf, OffsetNumTables);
@@ -531,7 +409,7 @@ gfxFontUtils::FindPreferredSubtable(const PRUint8 *aBuf, PRUint32 aBufLength,
     // save the format we want here
     PRUint32 keepFormat = 0;
 
-    const PRUint8 *table = aBuf + SizeOfHeader;
+    PRUint8 *table = aBuf + SizeOfHeader;
     for (PRUint16 i = 0; i < numTables; ++i, table += SizeOfTable) {
         const PRUint16 platformID = ReadShortAt(table, TableOffsetPlatformID);
         if (!acceptablePlatform(platformID))
@@ -555,18 +433,11 @@ gfxFontUtils::FindPreferredSubtable(const PRUint8 *aBuf, PRUint32 aBufLength,
             keepFormat = format;
             *aTableOffset = offset;
             *aSymbolEncoding = PR_FALSE;
-        } else if (format == 12 && acceptableUCS4Encoding(platformID, encodingID, keepFormat)) {
+        } else if (format == 12 && acceptableUCS4Encoding(platformID, encodingID)) {
             keepFormat = format;
             *aTableOffset = offset;
             *aSymbolEncoding = PR_FALSE;
-            if (platformID > PLATFORM_ID_UNICODE || !aUVSTableOffset || *aUVSTableOffset) {
-                break; // we don't want to try anything else when this format is available.
-            }
-        } else if (format == 14 && isUVSEncoding(platformID, encodingID) && aUVSTableOffset) {
-            *aUVSTableOffset = offset;
-            if (keepFormat == 12) {
-                break;
-            }
+            break; // we don't want to try anything else when this format is available.
         }
     }
 
@@ -574,15 +445,12 @@ gfxFontUtils::FindPreferredSubtable(const PRUint8 *aBuf, PRUint32 aBufLength,
 }
 
 nsresult
-gfxFontUtils::ReadCMAP(const PRUint8 *aBuf, PRUint32 aBufLength,
-                       gfxSparseBitSet& aCharacterMap,
-                       PRUint32& aUVSOffset,
+gfxFontUtils::ReadCMAP(PRUint8 *aBuf, PRUint32 aBufLength, gfxSparseBitSet& aCharacterMap, 
                        PRPackedBool& aUnicodeFont, PRPackedBool& aSymbolFont)
 {
     PRUint32 offset;
     PRBool   symbol;
-    PRUint32 format = FindPreferredSubtable(aBuf, aBufLength,
-                                            &offset, &aUVSOffset, &symbol);
+    PRUint32 format = FindPreferredSubtable(aBuf, aBufLength, &offset, &symbol);
 
     if (format == 4) {
         if (symbol) {
@@ -592,19 +460,19 @@ gfxFontUtils::ReadCMAP(const PRUint8 *aBuf, PRUint32 aBufLength,
             aUnicodeFont = PR_TRUE;
             aSymbolFont = PR_FALSE;
         }
-        return ReadCMAPTableFormat4(aBuf + offset, aBufLength - offset,
-                                    aCharacterMap);
+        return ReadCMAPTableFormat4(aBuf + offset, aBufLength - offset, aCharacterMap);
     }
 
     if (format == 12) {
         aUnicodeFont = PR_TRUE;
         aSymbolFont = PR_FALSE;
-        return ReadCMAPTableFormat12(aBuf + offset, aBufLength - offset,
-                                     aCharacterMap);
+        return ReadCMAPTableFormat12(aBuf + offset, aBufLength - offset, aCharacterMap);
     }
 
     return NS_ERROR_FAILURE;
 }
+
+using namespace mozilla; // for the AutoSwap_* types
 
 #pragma pack(1)
 
@@ -619,34 +487,7 @@ typedef struct {
 
     AutoSwap_PRUint16 arrays[1];
 } Format4Cmap;
-
-typedef struct {
-    AutoSwap_PRUint16 format;
-    AutoSwap_PRUint32 length;
-    AutoSwap_PRUint32 numVarSelectorRecords;
-
-    typedef struct {
-        AutoSwap_PRUint24 varSelector;
-        AutoSwap_PRUint32 defaultUVSOffset;
-        AutoSwap_PRUint32 nonDefaultUVSOffset;
-    } VarSelectorRecord;
-
-    VarSelectorRecord varSelectorRecords[1];
-} Format14Cmap;
-
-typedef struct {
-    AutoSwap_PRUint32 numUVSMappings;
-
-    typedef struct {
-        AutoSwap_PRUint24 unicodeValue;
-        AutoSwap_PRUint16 glyphID;
-    } UVSMapping;
-
-    UVSMapping uvsMappings[1];
-} NonDefUVSTable;
-
 #pragma pack()
-
 PRUint32
 gfxFontUtils::MapCharToGlyphFormat4(const PRUint8 *aBuf, PRUnichar aCh)
 {
@@ -659,6 +500,11 @@ gfxFontUtils::MapCharToGlyphFormat4(const PRUint8 *aBuf, PRUnichar aCh)
     PRUint16 probe;
     PRUint16 rangeShiftOver2;
     PRUint16 index;
+
+// not needed because PRUnichar cannot exceed 0xFFFF
+//    if (aCh >= 0x10000) {
+//        return 0;
+//    }
 
     segCount = (PRUint16)(cmap4->segCountX2) / 2;
 
@@ -704,119 +550,19 @@ gfxFontUtils::MapCharToGlyphFormat4(const PRUint8 *aBuf, PRUnichar aCh)
 }
 
 PRUint32
-gfxFontUtils::MapCharToGlyphFormat12(const PRUint8 *aBuf, PRUint32 aCh)
-{
-    const Format12CmapHeader *cmap12 =
-        reinterpret_cast<const Format12CmapHeader*>(aBuf);
-
-    // We know that numGroups is within range for the subtable size
-    // because it was checked by ReadCMAPTableFormat12.
-    PRUint32 numGroups = cmap12->numGroups;
-
-    // The array of groups immediately follows the subtable header.
-    const Format12Group *groups =
-        reinterpret_cast<const Format12Group*>(aBuf + sizeof(Format12CmapHeader));
-
-    // For most efficient binary search, we want to work on a range that
-    // is a power of 2 so that we can always halve it by shifting.
-    // So we find the largest power of 2 that is <= numGroups.
-    // We will offset this range by rangeOffset so as to reach the end
-    // of the table, provided that doesn't put us beyond the target
-    // value from the outset.
-    PRUint32 powerOf2 = mozilla::FindHighestBit(numGroups);
-    PRUint32 rangeOffset = numGroups - powerOf2;
-    PRUint32 range = 0;
-    PRUint32 startCharCode;
-
-    if (groups[rangeOffset].startCharCode <= aCh) {
-        range = rangeOffset;
-    }
-
-    // Repeatedly halve the size of the range until we find the target group
-    while (powerOf2 > 1) {
-        powerOf2 >>= 1;
-        if (groups[range + powerOf2].startCharCode <= aCh) {
-            range += powerOf2;
-        }
-    }
-
-    // Check if the character is actually present in the range and return
-    // the corresponding glyph ID
-    startCharCode = groups[range].startCharCode;
-    if (startCharCode <= aCh && groups[range].endCharCode >= aCh) {
-        return groups[range].startGlyphId + aCh - startCharCode;
-    }
-
-    // Else it's not present, so return the .notdef glyph
-    return 0;
-}
-
-PRUint16
-gfxFontUtils::MapUVSToGlyphFormat14(const PRUint8 *aBuf, PRUint32 aCh, PRUint32 aVS)
-{
-    const Format14Cmap *cmap14 = reinterpret_cast<const Format14Cmap*>(aBuf);
-
-    // binary search in varSelectorRecords
-    PRUint32 min = 0;
-    PRUint32 max = cmap14->numVarSelectorRecords;
-    PRUint32 nonDefUVSOffset = 0;
-    while (min < max) {
-        PRUint32 index = (min + max) >> 1;
-        PRUint32 varSelector = cmap14->varSelectorRecords[index].varSelector;
-        if (aVS == varSelector) {
-            nonDefUVSOffset = cmap14->varSelectorRecords[index].nonDefaultUVSOffset;
-            break;
-        }
-        if (aVS < varSelector) {
-            max = index;
-        } else {
-            min = index + 1;
-        }
-    }
-    if (!nonDefUVSOffset) {
-        return 0;
-    }
-
-    const NonDefUVSTable *table = reinterpret_cast<const NonDefUVSTable*>
-                                      (aBuf + nonDefUVSOffset);
-
-    // binary search in uvsMappings
-    min = 0;
-    max = table->numUVSMappings;
-    while (min < max) {
-        PRUint32 index = (min + max) >> 1;
-        PRUint32 unicodeValue = table->uvsMappings[index].unicodeValue;
-        if (aCh == unicodeValue) {
-            return table->uvsMappings[index].glyphID;
-        }
-        if (aCh < unicodeValue) {
-            max = index;
-        } else {
-            min = index + 1;
-        }
-    }
-
-    return 0;
-}
-
-PRUint32
-gfxFontUtils::MapCharToGlyph(const PRUint8 *aBuf, PRUint32 aBufLength,
-                             PRUnichar aCh)
+gfxFontUtils::MapCharToGlyph(PRUint8 *aBuf, PRUint32 aBufLength, PRUnichar aCh)
 {
     PRUint32 offset;
     PRBool   symbol;
-    PRUint32 format = FindPreferredSubtable(aBuf, aBufLength, &offset,
-                                            nsnull, &symbol);
+    PRUint32 format = FindPreferredSubtable(aBuf, aBufLength, &offset, &symbol);
 
-    switch (format) {
-    case 4:
-        return aCh < UNICODE_BMP_LIMIT ?
-            MapCharToGlyphFormat4(aBuf + offset, aCh) : 0;
-    case 12:
-        return MapCharToGlyphFormat12(aBuf + offset, aCh);
-    default:
-        return 0;
-    }
+    if (format == 4)
+        return MapCharToGlyphFormat4(aBuf + offset, aCh);
+
+    // other formats not currently supported; this is used only for the
+    // Mac OS X 10.6 LiGothic font hack (bug 532346)
+
+    return 0;
 }
 
 PRUint8 gfxFontUtils::CharRangeBit(PRUint32 ch) {
@@ -1028,7 +774,6 @@ struct KernTableSubtableHeaderVersion1 {
 };
 
 #pragma pack()
-
 static PRBool
 IsValidSFNTVersion(PRUint32 version)
 {
@@ -1794,8 +1539,6 @@ gfxFontUtils::ReadNames(nsTArray<PRUint8>& aNameTable, PRUint32 aNameID,
     return NS_OK;
 }
 
-#ifdef XP_WIN
-
 // Embedded OpenType (EOT) handling
 // needed for dealing with downloadable fonts on Windows
 //
@@ -1808,8 +1551,6 @@ gfxFontUtils::ReadNames(nsTArray<PRUint8>& aNameTable, PRUint32 aNameID,
 // stored in big-endian format)
 //
 // EOT header is stored in *little* endian order!!
-
-#pragma pack(1)
 
 struct EOTFixedHeader {
 
@@ -1847,9 +1588,9 @@ struct EOTFixedHeader {
 
 };
 
-#pragma pack()
-
 // EOT headers are only used on Windows
+
+#ifdef XP_WIN
 
 // EOT variable-sized header (version 0x00020001 - contains 4 name
 // fields, each with the structure):

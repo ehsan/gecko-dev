@@ -221,7 +221,7 @@ rdf_BlockingWrite(nsIOutputStream* stream, const nsAString& s)
 already_AddRefed<nsIAtom>
 nsRDFXMLSerializer::EnsureNewPrefix()
 {
-    nsAutoString qname;
+    nsCAutoString qname;
     nsCOMPtr<nsIAtom> prefix;
     PRBool isNewPrefix;
     do {

@@ -133,8 +133,8 @@ class nsSVGSVGElement : public nsSVGSVGElementBase,
 protected:
   friend nsresult NS_NewSVGSVGElement(nsIContent **aResult,
                                       nsINodeInfo *aNodeInfo,
-                                      PRUint32 aFromParser);
-  nsSVGSVGElement(nsINodeInfo* aNodeInfo, PRUint32 aFromParser);
+                                      PRBool aFromParser);
+  nsSVGSVGElement(nsINodeInfo* aNodeInfo, PRBool aFromParser);
   
 public:
 
@@ -233,7 +233,7 @@ protected:
 
   PRBool IsRoot() {
     NS_ASSERTION((IsInDoc() && !GetParent()) ==
-                 (GetOwnerDoc() && (GetOwnerDoc()->GetRootElement() == this)),
+                 (GetOwnerDoc() && (GetOwnerDoc()->GetRootContent() == this)),
                  "Can't determine if we're root");
     return IsInDoc() && !GetParent();
   }

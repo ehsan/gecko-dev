@@ -138,4 +138,3 @@ gfxTextRunCache::Shutdown()
     delete gTextRunCache;
     gTextRunCache = nsnull;
 }
-

@@ -287,7 +287,6 @@ gfxDWriteFontEntry::ReadCMAP()
         rv = gfxFontUtils::ReadCMAP(tableData,
                                     len,
                                     mCharacterMap,
-                                    mUVSOffset,
                                     isUnicode,
                                     isSymbol);
     }
@@ -297,7 +296,6 @@ gfxDWriteFontEntry::ReadCMAP()
     }
 
     mCmapInitialized = PR_TRUE;
-    mHasCmapTable = NS_SUCCEEDED(rv);
     return rv;
 }
 

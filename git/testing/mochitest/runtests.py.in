@@ -225,6 +225,7 @@ If --browser-chrome is specified, browser-chrome tests will be run instead of we
 See <http://mochikit.com/doc/html/MochiKit/Logging.html> for details on the logging levels."""
     self.set_usage(usage)
 
+
   def verifyOptions(self, options, mochitest):
     """ verify correct options and cleanup paths """
 
@@ -259,14 +260,12 @@ See <http://mochikit.com/doc/html/MochiKit/Logging.html> for details on the logg
 
     options.utilityPath = mochitest.getFullPath(options.utilityPath)
     options.certPath = mochitest.getFullPath(options.certPath)
-    if options.symbolsPath and not isURL(options.symbolsPath):
+    if options.symbolsPath:
       options.symbolsPath = mochitest.getFullPath(options.symbolsPath)
 
     options.webServer = self._automation.DEFAULT_WEB_SERVER
     options.httpPort = self._automation.DEFAULT_HTTP_PORT
     options.sslPort = self._automation.DEFAULT_SSL_PORT
-    options.webSocketPort = self._automation.DEFAULT_WEBSOCKET_PORT
-    options.webSocketProxyPort = self._automation.DEFAULT_WEBSOCKET_PROXY_PORT
 
     if options.vmwareRecording:
       if not self._automation.IS_WIN32:
@@ -274,7 +273,7 @@ See <http://mochikit.com/doc/html/MochiKit/Logging.html> for details on the logg
       mochitest.vmwareHelperPath = os.path.join(
         options.utilityPath, VMWARE_RECORDING_HELPER_BASENAME + ".dll")
       if not os.path.exists(mochitest.vmwareHelperPath):
-        self.error("%s not found, cannot automate VMware recording." %
+        self.error("%s not found, cannot automate VMWare recording." %
                    mochitest.vmwareHelperPath)
 
     return options
@@ -345,27 +344,6 @@ class MochitestServer:
     except:
       self._process.kill()
 
-class WebSocketServer(object):
-  "Class which encapsulates the mod_pywebsocket server"
-
-  def __init__(self, automation, options, scriptdir):
-    self.port = options.webSocketPort
-    self._automation = automation
-    self._scriptdir = scriptdir
-
-  def start(self):
-    script = os.path.join(self._scriptdir, 'pywebsocket/standalone.py')
-    cmd = [sys.executable, script, '-p', str(self.port), '-w', self._scriptdir, '-l', os.path.join(self._scriptdir, "websock.log"), '--log-level=debug']
-
-    self._process = self._automation.Process(cmd)
-    pid = self._process.pid
-    if pid < 0:
-      print "Error starting websocket server."
-      sys.exit(2)
-    self._automation.log.info("INFO | runtests.py | Websocket server pid: %d", pid)
-
-  def stop(self):
-    self._process.kill()
 
 class Mochitest(object):
   # Path to the test script on the server
@@ -411,20 +389,6 @@ class Mochitest(object):
     elif options.browserChrome:
       testURL = "about:blank"
     return testURL
-
-  def startWebSocketServer(self, options):
-    """ Launch the websocket server """
-    if options.webServer != '127.0.0.1':
-      return
-
-    self.wsserver = WebSocketServer(self.automation, options, self.SCRIPT_DIRECTORY)
-    self.wsserver.start()
-
-  def stopWebSocketServer(self, options):
-    if options.webServer != '127.0.0.1':
-      return
-
-    self.wsserver.stop()
 
   def startWebServer(self, options):
     if options.webServer != '127.0.0.1':
@@ -541,34 +505,34 @@ class Mochitest(object):
     os.remove(manifest)
     shutil.rmtree(options.profilePath)
 
-  def startVMwareRecording(self, options):
+  def startVMWareRecording(self, options):
     """ starts recording inside VMware VM using the recording helper dll """
     assert(self.automation.IS_WIN32)
     from ctypes import cdll
     self.vmwareHelper = cdll.LoadLibrary(self.vmwareHelperPath)
     if self.vmwareHelper is None:
       self.automation.log.warning("WARNING | runtests.py | Failed to load "
-                                  "VMware recording helper")
+                                  "VMWare recording helper")
       return
-    self.automation.log.info("INFO | runtests.py | Starting VMware recording.")
+    self.automation.log.info("INFO | runtests.py | Starting VMWare recording.")
     try:
       self.vmwareHelper.StartRecording()
     except Exception, e:
       self.automation.log.warning("WARNING | runtests.py | Failed to start "
-                                  "VMware recording: (%s)" % str(e))
+                                  "VMWare recording: (%s)" % str(e))
       self.vmwareHelper = None
 
-  def stopVMwareRecording(self):
+  def stopVMWareRecording(self):
     """ stops recording inside VMware VM using the recording helper dll """
     assert(self.automation.IS_WIN32)
     if self.vmwareHelper is not None:
-      self.automation.log.info("INFO | runtests.py | Stopping VMware "
+      self.automation.log.info("INFO | runtests.py | Stopping VMWare "
                                "recording.")
       try:
         self.vmwareHelper.StopRecording()
       except Exception, e:
         self.automation.log.warning("WARNING | runtests.py | Failed to stop "
-                                    "VMware recording: (%s)" % str(e))
+                                    "VMWare recording: (%s)" % str(e))
       self.vmwareHelper = None
 
   def runTests(self, options):
@@ -584,7 +548,7 @@ class Mochitest(object):
 
     manifest = self.buildProfile(options)
     self.startWebServer(options)
-    self.startWebSocketServer(options)
+
 
     testURL = self.buildTestPath(options)
     self.buildURLOptions(options)
@@ -607,7 +571,7 @@ class Mochitest(object):
       timeout = 330.0 # default JS harness timeout is 300 seconds
 
     if options.vmwareRecording:
-      self.startVMwareRecording(options);
+      self.startVMWareRecording(options);
 
     self.automation.log.info("INFO | runtests.py | Running tests: start.\n")
     status = self.automation.runApp(testURL, browserEnv, options.app,
@@ -621,10 +585,9 @@ class Mochitest(object):
                                 timeout = timeout)
 
     if options.vmwareRecording:
-      self.stopVMwareRecording();
+      self.stopVMWareRecording();
 
     self.stopWebServer(options)
-    self.stopWebSocketServer(options)
     processLeakLog(self.leak_report_file, options.leakThreshold)
     self.automation.log.info("\nINFO | runtests.py | Running tests: end.")
 
@@ -725,14 +688,10 @@ def main():
 
   options.utilityPath = mochitest.getFullPath(options.utilityPath)
   options.certPath = mochitest.getFullPath(options.certPath)
-  if options.symbolsPath and not isURL(options.symbolsPath):
+  if options.symbolsPath:
     options.symbolsPath = mochitest.getFullPath(options.symbolsPath)
 
-  automation.setServerInfo(options.webServer, 
-                           options.httpPort, 
-                           options.sslPort, 
-                           options.webSocketPort, 
-                           options.webSocketProxyPort)
+  automation.setServerInfo(options.webServer, options.httpPort, options.sslPort)
   sys.exit(mochitest.runTests(options))
 
 if __name__ == "__main__":

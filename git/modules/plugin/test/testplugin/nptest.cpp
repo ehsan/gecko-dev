@@ -63,10 +63,6 @@
 #define STATIC_ASSERT(condition)                                \
     extern void np_static_assert(int arg[(condition) ? 1 : -1])
 
-static char sPluginName[] = PLUGIN_NAME; 
-static char sPluginDescription[] = PLUGIN_DESCRIPTION;
-static char sPluginVersion[] = PLUGIN_VERSION;
-
 //
 // Intentional crash
 //
@@ -167,10 +163,7 @@ static bool crashPluginInNestedLoop(NPObject* npobj, const NPVariant* args, uint
 static bool propertyAndMethod(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getTopLevelWindowActivationState(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getTopLevelWindowActivationEventCount(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getFocusState(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getFocusEventCount(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getEventModel(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getReflector(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 
 static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "npnEvaluateTest",
@@ -217,10 +210,7 @@ static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "propertyAndMethod",
   "getTopLevelWindowActivationState",
   "getTopLevelWindowActivationEventCount",
-  "getFocusState",
-  "getFocusEventCount",
-  "getEventModel",
-  "getReflector"
+  "getEventModel"
 };
 static NPIdentifier sPluginMethodIdentifiers[ARRAY_LENGTH(sPluginMethodIdentifierNames)];
 static const ScriptableFunction sPluginMethodFunctions[] = {
@@ -268,10 +258,7 @@ static const ScriptableFunction sPluginMethodFunctions[] = {
   propertyAndMethod,
   getTopLevelWindowActivationState,
   getTopLevelWindowActivationEventCount,
-  getFocusState,
-  getFocusEventCount,
-  getEventModel,
-  getReflector
+  getEventModel
 };
 
 STATIC_ASSERT(ARRAY_LENGTH(sPluginMethodIdentifierNames) ==
@@ -535,11 +522,9 @@ bool scriptableConstruct(NPObject* npobj, const NPVariant* args, uint32_t argCou
 NP_EXPORT(char*)
 NP_GetPluginVersion()
 {
-  return sPluginVersion;
+  return PLUGIN_VERSION;
 }
 #endif
-
-static char sMimeDescription[] = "application/x-test:tst:Test mimetype";
 
 #if defined(XP_UNIX)
 NP_EXPORT(char*) NP_GetMIMEDescription()
@@ -547,7 +532,7 @@ NP_EXPORT(char*) NP_GetMIMEDescription()
 char* NP_GetMIMEDescription()
 #endif
 {
-  return sMimeDescription;
+  return "application/x-test:tst:Test mimetype";
 }
 
 #ifdef XP_UNIX
@@ -555,10 +540,10 @@ NP_EXPORT(NPError)
 NP_GetValue(void* future, NPPVariable aVariable, void* aValue) {
   switch (aVariable) {
     case NPPVpluginNameString:
-      *((char**)aValue) = sPluginName;
+      *((char**)aValue) = PLUGIN_NAME;
       break;
     case NPPVpluginDescriptionString:
-      *((char**)aValue) = sPluginDescription;
+      *((char**)aValue) = PLUGIN_DESCRIPTION;
       break;
     default:
       return NPERR_INVALID_PARAM;
@@ -599,7 +584,7 @@ NP_EXPORT(NPError) NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs)
 
   initializeIdentifiers();
 
-  for (unsigned int i = 0; i < ARRAY_LENGTH(sPluginPropertyValues); i++) {
+  for (int i = 0; i < ARRAY_LENGTH(sPluginPropertyValues); i++) {
     VOID_TO_NPVARIANT(sPluginPropertyValues[i]);
   }
 
@@ -645,7 +630,7 @@ NPError OSCALL NP_Shutdown()
 {
   clearIdentifiers();
 
-  for (unsigned int i = 0; i < ARRAY_LENGTH(sPluginPropertyValues); i++) {
+  for (int i = 0; i < ARRAY_LENGTH(sPluginPropertyValues); i++) {
     NPN_ReleaseVariantValue(&sPluginPropertyValues[i]);
   }
 
@@ -693,11 +678,8 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
   instanceData->writeReadyCount = 0;
   memset(&instanceData->window, 0, sizeof(instanceData->window));
   instanceData->crashOnDestroy = false;
-  instanceData->cleanupWidget = true; // only used by nptest_gtk
   instanceData->topLevelWindowActivationState = ACTIVATION_STATE_UNKNOWN;
   instanceData->topLevelWindowActivationEventCount = 0;
-  instanceData->focusState = ACTIVATION_STATE_UNKNOWN;
-  instanceData->focusEventCount = 0;
   instanceData->eventModel = 0;
   instance->pdata = instanceData;
 
@@ -802,14 +784,6 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
     }
     if (strcmp(argn[i], "newcrash") == 0) {
       IntentionalCrash();
-    }
-    // "cleanupwidget" is only used with nptest_gtk, defaulting to true.  It
-    // indicates whether the plugin should destroy its window in response to
-    // NPP_Destroy (or let the platform destroy the widget when the parent
-    // window gets destroyed).
-    if (strcmp(argn[i], "cleanupwidget") == 0 &&
-        strcmp(argv[i], "false") == 0) {
-      instanceData->cleanupWidget = false;
     }
   }
 
@@ -1300,12 +1274,6 @@ NPN_GetStringIdentifiers(const NPUTF8 **names, int32_t nameCount, NPIdentifier *
   return sBrowserFuncs->getstringidentifiers(names, nameCount, identifiers);
 }
 
-bool
-NPN_IdentifierIsString(NPIdentifier identifier)
-{
-  return sBrowserFuncs->identifierisstring(identifier);
-}
-
 NPUTF8*
 NPN_UTF8FromIdentifier(NPIdentifier identifier)
 {
@@ -1382,12 +1350,6 @@ void*
 NPN_MemAlloc(uint32_t size)
 {
   return sBrowserFuncs->memalloc(size);
-}
-
-char*
-NPN_StrDup(const char* str)
-{
-  return strcpy((char*)sBrowserFuncs->memalloc(strlen(str) + 1), str);
 }
 
 void
@@ -1643,7 +1605,7 @@ scriptableInvokeDefault(NPObject* npobj, const NPVariant* args, uint32_t argCoun
         value << ";other";
     }
   }
-  STRINGZ_TO_NPVARIANT(NPN_StrDup(value.str().c_str()), *result);
+  STRINGZ_TO_NPVARIANT(strdup(value.str().c_str()), *result);
   return true;
 }
 
@@ -1697,15 +1659,7 @@ scriptableRemoveProperty(NPObject* npobj, NPIdentifier name)
 bool
 scriptableEnumerate(NPObject* npobj, NPIdentifier** identifier, uint32_t* count)
 {
-  const int bufsize = sizeof(NPIdentifier) * ARRAY_LENGTH(sPluginMethodIdentifierNames);
-  NPIdentifier* ids = (NPIdentifier*) NPN_MemAlloc(bufsize);
-  if (!ids)
-    return false;
-
-  memcpy(ids, sPluginMethodIdentifiers, bufsize);
-  *identifier = ids;
-  *count = ARRAY_LENGTH(sPluginMethodIdentifierNames);
-  return true;
+  return false;
 }
 
 bool
@@ -2136,9 +2090,9 @@ getError(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* r
   NPP npp = static_cast<TestNPObject*>(npobj)->npp;
   InstanceData* id = static_cast<InstanceData*>(npp->pdata);
   if (id->err.str().length() == 0)
-    STRINGZ_TO_NPVARIANT(NPN_StrDup(SUCCESS_STRING), *result);
+    STRINGZ_TO_NPVARIANT(strdup(SUCCESS_STRING), *result);
   else
-    STRINGZ_TO_NPVARIANT(NPN_StrDup(id->err.str().c_str()), *result);
+    STRINGZ_TO_NPVARIANT(strdup(id->err.str().c_str()), *result);
   return true;
 }
 
@@ -2893,49 +2847,6 @@ getTopLevelWindowActivationEventCount(NPObject* npobj, const NPVariant* args, ui
   return true;
 }
 
-// Returns top-level window activation state as indicated by Cocoa NPAPI's
-// NPCocoaEventWindowFocusChanged events - 'true' if active, 'false' if not.
-// Throws an exception if no events have been received and thus this state
-// is unknown.
-bool
-getFocusState(NPObject* npobj, const NPVariant* args, uint32_t argCount,
-              NPVariant* result)
-{
-  if (argCount != 0)
-    return false;
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-
-  // Throw an exception for unknown state.
-  if (id->focusState == ACTIVATION_STATE_UNKNOWN) {
-    return false;
-  }
-
-  if (id->focusState == ACTIVATION_STATE_ACTIVATED) {
-    BOOLEAN_TO_NPVARIANT(true, *result);
-  } else if (id->focusState == ACTIVATION_STATE_DEACTIVATED) {
-    BOOLEAN_TO_NPVARIANT(false, *result);
-  }
-
-  return true;
-}
-
-bool
-getFocusEventCount(NPObject* npobj, const NPVariant* args, uint32_t argCount,
-                   NPVariant* result)
-{
-  if (argCount != 0)
-    return false;
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-
-  INT32_TO_NPVARIANT(id->focusEventCount, *result);
-
-  return true;
-}
-
 bool
 getEventModel(NPObject* npobj, const NPVariant* args, uint32_t argCount,
               NPVariant* result)
@@ -2948,61 +2859,5 @@ getEventModel(NPObject* npobj, const NPVariant* args, uint32_t argCount,
 
   INT32_TO_NPVARIANT(id->eventModel, *result);
 
-  return true;
-}
-
-static bool
-ReflectorHasMethod(NPObject* npobj, NPIdentifier name)
-{
-  return false;
-}
-
-static bool
-ReflectorHasProperty(NPObject* npobj, NPIdentifier name)
-{
-  return true;
-}
-
-static bool
-ReflectorGetProperty(NPObject* npobj, NPIdentifier name, NPVariant* result)
-{
-  if (NPN_IdentifierIsString(name)) {
-    char* s = NPN_UTF8FromIdentifier(name);
-    STRINGZ_TO_NPVARIANT(s, *result);
-    return true;
-  }
-
-  INT32_TO_NPVARIANT(NPN_IntFromIdentifier(name), *result);
-  return true;
-}
-
-static const NPClass kReflectorNPClass = {
-  NP_CLASS_STRUCT_VERSION,
-  NULL,
-  NULL,
-  NULL,
-  ReflectorHasMethod,
-  NULL,
-  NULL,
-  ReflectorHasProperty,
-  ReflectorGetProperty,
-  NULL,
-  NULL,
-  NULL,
-  NULL
-};
-
-bool
-getReflector(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  if (0 != argCount)
-    return false;
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-
-  NPObject* reflector =
-    NPN_CreateObject(npp,
-		     const_cast<NPClass*>(&kReflectorNPClass)); // retains
-  OBJECT_TO_NPVARIANT(reflector, *result);
   return true;
 }

@@ -101,7 +101,6 @@
 #include "nsPIDOMEventTarget.h"
 #include "nsIArray.h"
 #include "nsIContent.h"
-#include "nsFrameMessageManager.h"
 
 #define DEFAULT_HOME_PAGE "www.mozilla.org"
 #define PREF_BROWSER_STARTUP_HOMEPAGE "browser.startup.homepage"
@@ -338,7 +337,6 @@ public:
   virtual NS_HIDDEN_(void) SetDocShell(nsIDocShell* aDocShell);
   virtual NS_HIDDEN_(nsresult) SetNewDocument(nsIDocument *aDocument,
                                               nsISupports *aState);
-  void DispatchDOMWindowCreated();
   virtual NS_HIDDEN_(void) SetOpenerWindow(nsIDOMWindowInternal *aOpener,
                                            PRBool aOriginalOpener);
   virtual NS_HIDDEN_(void) EnsureSizeUpToDate();
@@ -662,6 +660,7 @@ protected:
   nsIntSize DevToCSSIntPixels(nsIntSize px);
   nsIntSize CSSToDevIntPixels(nsIntSize px);
 
+  virtual nsIContent* GetFocusedNode();
   virtual void SetFocusedNode(nsIContent* aNode,
                               PRUint32 aFocusMethod = 0,
                               PRBool aNeedsFocus = PR_FALSE);
@@ -680,11 +679,6 @@ protected:
   already_AddRefed<nsPIWindowRoot> GetTopWindowRoot();
 
   static void NotifyDOMWindowDestroyed(nsGlobalWindow* aWindow);
-  void NotifyWindowIDDestroyed(const char* aTopic);
-  
-  void ClearStatus();
-
-  virtual void UpdateParentTarget();
 
   // When adding new member variables, be careful not to create cycles
   // through JavaScript.  If there is any chance that a member variable
@@ -745,15 +739,12 @@ protected:
   // This will be reset when another element is focused
   PRPackedBool           mShowFocusRingForContent : 1;
 
-  // true if tab navigation has occurred for this window. Focus rings
+  // true if tab navigation has occured for this window. Focus rings
   // should be displayed.
-  PRPackedBool           mFocusByKeyOccurred : 1;
+  PRPackedBool           mFocusByKeyOccured : 1;
 
   // Indicates whether this window is getting acceleration change events
   PRPackedBool           mHasAcceleration  : 1;
-
-  // whether we've sent the destroy notification for our window id
-  PRPackedBool           mNotifiedIDDestroyed : 1;
 
   nsCOMPtr<nsIScriptContext>    mContext;
   nsWeakPtr                     mOpener;
@@ -812,6 +803,10 @@ protected:
 
   PRUint32 mTimeoutsSuspendDepth;
 
+  // the element within the document that is currently focused when this
+  // window is active
+  nsCOMPtr<nsIContent>   mFocusedNode;
+
   // the method that was used to focus mFocusedNode
   PRUint32 mFocusMethod;
 
@@ -828,10 +823,6 @@ protected:
   nsDataHashtable<nsVoidPtrHashKey, void*> mCachedXBLPrototypeHandlers;
 
   nsCOMPtr<nsIDocument> mSuspendedDoc;
-
-  // A unique (as long as our 64-bit counter doesn't roll over) id for
-  // this window.
-  PRUint64 mWindowID;
 
   friend class nsDOMScriptableHelper;
   friend class nsDOMWindowUtils;
@@ -862,8 +853,8 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsGlobalChromeWindow,
                                                      nsGlobalWindow)
 
+protected:
   nsCOMPtr<nsIBrowserDOMWindow> mBrowserDOMWindow;
-  nsCOMPtr<nsIChromeFrameMessageManager> mMessageManager;
 };
 
 /*
@@ -899,6 +890,7 @@ protected:
 //*****************************************************************************
 
 class nsNavigator : public nsIDOMNavigator,
+                    public nsIDOMJSNavigator,
                     public nsIDOMClientInformation,
                     public nsIDOMNavigatorGeolocation
 {
@@ -908,6 +900,7 @@ public:
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMNAVIGATOR
+  NS_DECL_NSIDOMJSNAVIGATOR
   NS_DECL_NSIDOMCLIENTINFORMATION
   NS_DECL_NSIDOMNAVIGATORGEOLOCATION
   
@@ -925,6 +918,8 @@ protected:
   nsRefPtr<nsPluginArray> mPlugins;
   nsRefPtr<nsGeolocation> mGeolocation;
   nsIDocShell* mDocShell; // weak reference
+
+  static jsval       sPrefInternal_id;
 };
 
 class nsIURI;

@@ -42,29 +42,6 @@
 
 #include "jstypedarray.h"
 
-#define GET_INT32_ARG(var, index) \
-  int32 var; \
-  do { \
-    if (!JS_ValueToECMAInt32(cx, argv[index], &(var))) \
-      return JS_FALSE; \
-  } while (0)
-
-#define GET_UINT32_ARG(var, index) \
-  uint32 var; \
-  do { \
-    if (!JS_ValueToECMAUint32(cx, argv[index], &(var))) \
-      return JS_FALSE; \
-  } while (0)
-
-#define GET_OPTIONAL_UINT32_ARG(var, index) \
-  uint32 var = 0; \
-  do { \
-    if (argc > index) \
-      if (!JS_ValueToECMAUint32(cx, argv[index], &(var))) \
-        return JS_FALSE; \
-  } while (0)
-
-
 static inline bool
 helper_isInt32Array(JSObject *obj) {
     return obj->getClass() == &js::TypedArray::fastClasses[js::TypedArray::TYPE_INT32];
@@ -111,7 +88,7 @@ nsICanvasRenderingContextWebGL_BufferData(JSContext *cx, uintN argc, jsval *vp)
     if (!JS_ValueToECMAInt32(cx, argv[2], &usage))
         return JS_FALSE;
 
-    if (!JSVAL_IS_PRIMITIVE(argv[1])) {
+    if (JSVAL_IS_OBJECT(argv[1])) {
         JSObject *arg2 = JSVAL_TO_OBJECT(argv[1]);
         if (js_IsArrayBuffer(arg2)) {
             wb = js::ArrayBuffer::fromJSObject(arg2);
@@ -125,7 +102,7 @@ nsICanvasRenderingContextWebGL_BufferData(JSContext *cx, uintN argc, jsval *vp)
     {
         return JS_FALSE;
     }
-
+      
     nsresult rv;
 
     if (wa)
@@ -176,7 +153,7 @@ nsICanvasRenderingContextWebGL_BufferSubData(JSContext *cx, uintN argc, jsval *v
     if (!JS_ValueToECMAInt32(cx, argv[1], &offset))
         return JS_FALSE;
 
-    if (JSVAL_IS_PRIMITIVE(argv[2])) {
+    if (!JSVAL_IS_OBJECT(argv[2])) {
         xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 2);
         return JS_FALSE;
     }
@@ -210,104 +187,10 @@ nsICanvasRenderingContextWebGL_BufferSubData(JSContext *cx, uintN argc, jsval *v
 }
 
 /*
- * ReadPixels takes:
- *    TexImage2D(int, int, int, int, uint, uint, ArrayBufferView)
- */
-static JSBool
-nsICanvasRenderingContextWebGL_ReadPixels(JSContext *cx, uintN argc, jsval *vp)
-{
-    XPC_QS_ASSERT_CONTEXT_OK(cx);
-    JSObject *obj = JS_THIS_OBJECT(cx, vp);
-    if (!obj)
-        return JS_FALSE;
-
-    nsresult rv;
-
-    nsICanvasRenderingContextWebGL *self;
-    xpc_qsSelfRef selfref;
-    js::AutoValueRooter tvr(cx);
-    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, tvr.addr(), nsnull))
-        return JS_FALSE;
-
-    // XXX we currently allow passing only 6 args to support the API. Eventually drop that.
-    if (argc < 6)
-        return xpc_qsThrow(cx, NS_ERROR_XPC_NOT_ENOUGH_ARGS);
-
-    jsval *argv = JS_ARGV(cx, vp);
-
-    // arguments common to all cases
-    GET_INT32_ARG(argv0, 0);
-    GET_INT32_ARG(argv1, 1);
-    GET_INT32_ARG(argv2, 2);
-    GET_INT32_ARG(argv3, 3);
-    GET_UINT32_ARG(argv4, 4);
-    GET_UINT32_ARG(argv5, 5);
-
-    if (argc == 6) {
-        /*** BEGIN old API deprecated code. Eventually drop that. ***/
-        // the code here is ugly, but temporary. It comes from the old ReadPixels implementation.
-        // Remove it as soon as it's OK to drop the old API.
-
-        PRInt32 byteLength;
-        rv = self->ReadPixels_byteLength_old_API_deprecated(argv2, argv3, argv4, argv5, &byteLength);
-        if (NS_FAILED(rv)) {
-            xpc_qsThrow(cx, NS_ERROR_FAILURE);
-            return JS_FALSE;
-        }
-        JSObject *abufObject = js_CreateArrayBuffer(cx, byteLength);
-        if (!abufObject) {
-            xpc_qsThrow(cx, NS_ERROR_FAILURE);
-            return JS_FALSE;
-        }
-
-        js::ArrayBuffer *abuf = js::ArrayBuffer::fromJSObject(abufObject);
-
-        rv = self->ReadPixels_buf(
-            argv0, argv1, argv2, argv3, argv4, argv5, abuf);
-        if (NS_FAILED(rv)) {
-            xpc_qsThrow(cx, NS_ERROR_FAILURE);
-            return JS_FALSE;
-        }
-        JSObject *retval = js_CreateTypedArrayWithBuffer(cx, js::TypedArray::TYPE_UINT8,
-                                                         abufObject, 0, byteLength);
-
-        *vp = OBJECT_TO_JSVAL(retval);
-        return JS_TRUE; // return here to be unaffected by the *vp = JSVAL_VOID; below
-
-        /*** END old API deprecated code ***/
-    } else if (   argc == 7
-               && JSVAL_IS_OBJECT(argv[6])
-               && !JSVAL_IS_PRIMITIVE(argv[6]))
-        {
-        JSObject *argv6 = JSVAL_TO_OBJECT(argv[6]);
-        if (js_IsArrayBuffer(argv6)) {
-            rv = self->ReadPixels_buf(argv0, argv1, argv2, argv3,
-                                      argv4, argv5, js::ArrayBuffer::fromJSObject(argv6));
-        } else if (js_IsTypedArray(argv6)) {
-            rv = self->ReadPixels_array(argv0, argv1, argv2, argv3,
-                                        argv4, argv5,
-                                        js::TypedArray::fromJSObject(argv6));
-        } else {
-            xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 6);
-            return JS_FALSE;
-        }
-    } else {
-        xpc_qsThrow(cx, NS_ERROR_FAILURE);
-        return JS_FALSE;
-    }
-
-    if (NS_FAILED(rv))
-        return xpc_qsThrowMethodFailed(cx, rv, vp);
-
-    *vp = JSVAL_VOID;
-    return JS_TRUE;
-}
-
-
-/*
  * TexImage2D takes:
- *    TexImage2D(uint, int, uint, int, int, int, uint, uint, ArrayBufferView)\
- *    TexImage2D(uint, int, uint, uint, uint, nsIDOMElement)
+ *    TexImage2D(int, int, int, int, int, int, int, int, WebGLArray)
+ *    TexImage2D(int, int, int, int, int, int, int, int, WebGLArrayBuffer)
+ *    TexImage2D(int, int, nsIDOMElement, [bool[, bool]])
  */
 static JSBool
 nsICanvasRenderingContextWebGL_TexImage2D(JSContext *cx, uintN argc, jsval *vp)
@@ -325,71 +208,76 @@ nsICanvasRenderingContextWebGL_TexImage2D(JSContext *cx, uintN argc, jsval *vp)
     if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, tvr.addr(), nsnull))
         return JS_FALSE;
 
-    // XXX we currently allow passing only 3 args to support the API. Eventually drop that.
-    // if (argc < 6 || argc == 7 || argc == 8)
     if (argc < 3)
         return xpc_qsThrow(cx, NS_ERROR_XPC_NOT_ENOUGH_ARGS);
 
     jsval *argv = JS_ARGV(cx, vp);
 
-    // arguments common to all cases
-    GET_UINT32_ARG(argv0, 0);
-    GET_INT32_ARG(argv1, 1);
+    int32 intargs[8];
 
-    if (argc > 2 && JSVAL_IS_OBJECT(argv[2])) {
-        // the old API. Eventually drop that.
+    // convert the first two args, they must be ints
+    for (jsuint i = 0; i < 2; ++i) {
+        if (!JS_ValueToECMAInt32(cx, argv[i], &intargs[i]))
+            return JS_FALSE;
+    }
 
+    if (JSVAL_IS_OBJECT(argv[2])) {
+        // try to make this a nsIDOMElement
         nsIDOMElement *elt;
         xpc_qsSelfRef eltRef;
         rv = xpc_qsUnwrapArg<nsIDOMElement>(cx, argv[2], &elt, &eltRef.ptr, &argv[2]);
-        if (NS_FAILED(rv)) return JS_FALSE;
+        if (NS_SUCCEEDED(rv)) {
+            intargs[3] = 0;
+            intargs[4] = 0;
 
-        GET_OPTIONAL_UINT32_ARG(argv3, 3);
-        GET_OPTIONAL_UINT32_ARG(argv4, 4);
+            // convert args 4 and 5 if present, default to 0
+            for (jsuint i = 3; i < 5 && i < argc; ++i) {
+                if (!JS_ValueToECMAInt32(cx, argv[i], &intargs[i]))
+                    return JS_FALSE;
+            }
 
-        rv = self->TexImage2D_dom_old_API_deprecated(argv0, argv1, elt, argv3, argv4);
-    } else if (argc > 5 && JSVAL_IS_OBJECT(argv[5])) {
-        // implement the variants taking a DOMElement as argv[5]
-        GET_UINT32_ARG(argv2, 2);
-        GET_UINT32_ARG(argv3, 3);
-        GET_UINT32_ARG(argv4, 4);
-
-        nsIDOMElement *elt;
-        xpc_qsSelfRef eltRef;
-        rv = xpc_qsUnwrapArg<nsIDOMElement>(cx, argv[5], &elt, &eltRef.ptr, &argv[5]);
-        if (NS_FAILED(rv)) return JS_FALSE;
-
-        rv = self->TexImage2D_dom(argv0, argv1, argv2, argv3, argv4, elt);
-    } else if (argc > 8 && JSVAL_IS_OBJECT(argv[8])) {
-        // implement the variants taking a buffer/array as argv[8]
-        GET_UINT32_ARG(argv2, 2);
-        GET_INT32_ARG(argv3, 3);
-        GET_INT32_ARG(argv4, 4);
-        GET_INT32_ARG(argv5, 5);
-        GET_UINT32_ARG(argv6, 6);
-        GET_UINT32_ARG(argv7, 7);
-
-        JSObject *argv8 = JSVAL_TO_OBJECT(argv[8]);
-
-        // then try to grab either a js::ArrayBuffer, js::TypedArray, or null
-        if (argv8 == nsnull) {
-            rv = self->TexImage2D_buf(argv0, argv1, argv2, argv3,
-                                      argv4, argv5, argv6, argv7,
-                                      nsnull);
-        } else if (js_IsArrayBuffer(argv8)) {
-            rv = self->TexImage2D_buf(argv0, argv1, argv2, argv3,
-                                      argv4, argv5, argv6, argv7,
-                                      js::ArrayBuffer::fromJSObject(argv8));
-        } else if (js_IsTypedArray(argv8)) {
-            rv = self->TexImage2D_array(argv0, argv1, argv2, argv3,
-                                        argv4, argv5, argv6, argv7,
-                                        js::TypedArray::fromJSObject(argv8));
-        } else {
-            xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 8);
-            return JS_FALSE;
+            rv = self->TexImage2D_dom(intargs[0], intargs[1], elt, (GLboolean) intargs[3], (GLboolean) intargs[4]);
+            if (NS_FAILED(rv))
+                return xpc_qsThrowMethodFailed(cx, rv, vp);
+            return JS_TRUE;
         }
+    }
+
+    // didn't succeed? convert the rest of the int args
+    for (jsuint i = 2; i < 8; ++i) {
+        if (!JS_ValueToECMAInt32(cx, argv[i], &intargs[i]))
+            return JS_FALSE;
+    }
+
+    if (!JSVAL_IS_OBJECT(argv[8])) {
+        xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 8);
+        return JS_FALSE;
+    }
+
+    // then try to grab either a js::ArrayBuffer or js::TypedArray
+    js::TypedArray *wa = 0;
+    js::ArrayBuffer *wb = 0;
+
+    JSObject *arg9 = JSVAL_TO_OBJECT(argv[8]);
+    if (js_IsArrayBuffer(arg9)) {
+        wb = js::ArrayBuffer::fromJSObject(arg9);
+    } else if (js_IsTypedArray(arg9)) {
+        wa = js::TypedArray::fromJSObject(arg9);
     } else {
-        xpc_qsThrow(cx, NS_ERROR_XPC_NOT_ENOUGH_ARGS);
+        xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 8);
+        return JS_FALSE;
+    }
+
+    if (wa) {
+        rv = self->TexImage2D_array(intargs[0], intargs[1], intargs[2], intargs[3],
+                                    intargs[4], intargs[5], intargs[6], intargs[7],
+                                    wa);
+    } else if (wb) {
+        rv = self->TexImage2D_buf(intargs[0], intargs[1], intargs[2], intargs[3],
+                                  intargs[4], intargs[5], intargs[6], intargs[7],
+                                  wb);
+    } else {
+        xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 8);
         return JS_FALSE;
     }
 
@@ -400,9 +288,11 @@ nsICanvasRenderingContextWebGL_TexImage2D(JSContext *cx, uintN argc, jsval *vp)
     return JS_TRUE;
 }
 
-/* TexSubImage2D takes:
- *    TexSubImage2D(uint, int, int, int, int, int, uint, uint, ArrayBufferView)
- *    TexSubImage2D(uint, int, int, int, uint, uint, nsIDOMElement)
+/*
+ * TexSubImage2D takes:
+ *    TexSubImage2D(int, int, int, int, int, int, int, int, WebGLArray)
+ *    TexSubImage2D(int, int, int, int, int, int, int, int, WebGLArrayBuffer)
+ *    TexSubImage2D(int, int, int, int, int, int, nsIDOMElement, [bool[, bool]])
  */
 static JSBool
 nsICanvasRenderingContextWebGL_TexSubImage2D(JSContext *cx, uintN argc, jsval *vp)
@@ -420,51 +310,80 @@ nsICanvasRenderingContextWebGL_TexSubImage2D(JSContext *cx, uintN argc, jsval *v
     if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, tvr.addr(), nsnull))
         return JS_FALSE;
 
-    if (argc < 7 || argc == 8)
+    if (argc < 7)
         return xpc_qsThrow(cx, NS_ERROR_XPC_NOT_ENOUGH_ARGS);
 
     jsval *argv = JS_ARGV(cx, vp);
 
-    // arguments common to all cases
-    GET_UINT32_ARG(argv0, 0);
-    GET_INT32_ARG(argv1, 1);
-    GET_INT32_ARG(argv2, 2);
-    GET_INT32_ARG(argv3, 3);
+    int32 intargs[9];
 
-    if (argc > 6 && JSVAL_IS_OBJECT(argv[6])) {
-        // implement the variants taking a DOMElement as argv[6]
-        GET_UINT32_ARG(argv4, 4);
-        GET_UINT32_ARG(argv5, 5);
+    // convert the first six args, they must be ints
+    for (jsuint i = 0; i < 6; ++i) {
+        if (!JS_ValueToECMAInt32(cx, argv[i], &intargs[i]))
+            return JS_FALSE;
+    }
 
+    if (JSVAL_IS_OBJECT(argv[6])) {
+        // try to make this a nsIDOMElement
         nsIDOMElement *elt;
         xpc_qsSelfRef eltRef;
-        rv = xpc_qsUnwrapArg<nsIDOMElement>(cx, argv[6], &elt, &eltRef.ptr, &argv[6]);
-        if (NS_FAILED(rv)) return JS_FALSE;
 
-        rv = self->TexSubImage2D_dom(argv0, argv1, argv2, argv3, argv4, argv5, elt);
-    } else if (argc > 8 && JSVAL_IS_OBJECT(argv[8])) {
-        // implement the variants taking a buffer/array as argv[8]
-        GET_INT32_ARG(argv4, 4);
-        GET_INT32_ARG(argv5, 5);
-        GET_UINT32_ARG(argv6, 6);
-        GET_UINT32_ARG(argv7, 7);
+        // these are two optinal args, default to 0
+        intargs[7] = 0;
+        intargs[8] = 0;
 
-        JSObject *argv8 = JSVAL_TO_OBJECT(argv[8]);
-        // try to grab either a js::ArrayBuffer or js::TypedArray
-        if (js_IsArrayBuffer(argv8)) {
-            rv = self->TexSubImage2D_buf(argv0, argv1, argv2, argv3,
-                                         argv4, argv5, argv6, argv7,
-                                         js::ArrayBuffer::fromJSObject(argv8));
-        } else if (js_IsTypedArray(argv8)) {
-            rv = self->TexSubImage2D_array(argv0, argv1, argv2, argv3,
-                                           argv4, argv5, argv6, argv7,
-                                           js::TypedArray::fromJSObject(argv8));
-        } else {
-            xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 8);
-            return JS_FALSE;
+        // convert args 7 and 8 if present
+        for (jsuint i = 7; i < 9 && i < argc; ++i) {
+            if (!JS_ValueToECMAInt32(cx, argv[i], &intargs[i]))
+                return JS_FALSE;
         }
+
+        rv = xpc_qsUnwrapArg<nsIDOMElement>(cx, argv[2], &elt, &eltRef.ptr, &argv[2]);
+        if (NS_SUCCEEDED(rv)) {
+            rv = self->TexSubImage2D_dom(intargs[0], intargs[1], intargs[2],
+                                         intargs[2], intargs[4], intargs[5],
+                                         elt, (GLboolean) intargs[7], (GLboolean) intargs[8]);
+            if (NS_FAILED(rv))
+                return xpc_qsThrowMethodFailed(cx, rv, vp);
+            return JS_TRUE;
+        }
+    }
+
+    // didn't succeed? convert the rest of the int args
+    for (jsuint i = 6; i < 8; ++i) {
+        if (!JS_ValueToECMAInt32(cx, argv[i], &intargs[i]))
+            return JS_FALSE;
+    }
+
+    if (!JSVAL_IS_OBJECT(argv[8])) {
+        xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 8);
+        return JS_FALSE;
+    }
+
+    // then try to grab either a js::ArrayBuffer or js::TypedArray
+    js::TypedArray *wa = 0;
+    js::ArrayBuffer *wb = 0;
+
+    JSObject *arg9 = JSVAL_TO_OBJECT(argv[8]);
+    if (js_IsArrayBuffer(arg9)) {
+        wb = js::ArrayBuffer::fromJSObject(arg9);
+    } else if (js_IsTypedArray(arg9)) {
+        wa = js::TypedArray::fromJSObject(arg9);
     } else {
-        xpc_qsThrow(cx, NS_ERROR_XPC_NOT_ENOUGH_ARGS);
+        xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 8);
+        return JS_FALSE;
+    }
+
+    if (wa) {
+        rv = self->TexSubImage2D_array(intargs[0], intargs[1], intargs[2], intargs[3],
+                                       intargs[4], intargs[5], intargs[6], intargs[7],
+                                       wa);
+    } else if (wb) {
+        rv = self->TexSubImage2D_buf(intargs[0], intargs[1], intargs[2], intargs[3],
+                                     intargs[4], intargs[5], intargs[6], intargs[7],
+                                     wb);
+    } else {
+        xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 8);
         return JS_FALSE;
     }
 
@@ -497,13 +416,9 @@ helper_nsICanvasRenderingContextWebGL_Uniform_x_iv(JSContext *cx, uintN argc, js
 
     jsval *argv = JS_ARGV(cx, vp);
 
-    nsIWebGLUniformLocation *location;
-    xpc_qsSelfRef location_selfref;
-    rv = xpc_qsUnwrapArg(cx, argv[0], &location, &location_selfref.ptr, &argv[0]);
-    if (NS_FAILED(rv)) {
-        xpc_qsThrowBadArg(cx, rv, vp, 0);
+    uint32 location;
+    if (!JS_ValueToECMAUint32(cx, argv[0], &location))
         return JS_FALSE;
-    }
 
     if (!JSVAL_IS_OBJECT(argv[1])) {
         xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 1);
@@ -571,13 +486,9 @@ helper_nsICanvasRenderingContextWebGL_Uniform_x_fv(JSContext *cx, uintN argc, js
 
     jsval *argv = JS_ARGV(cx, vp);
 
-    nsIWebGLUniformLocation *location;
-    xpc_qsSelfRef location_selfref;
-    rv = xpc_qsUnwrapArg(cx, argv[0], &location, &location_selfref.ptr, &argv[0]);
-    if (NS_FAILED(rv)) {
-        xpc_qsThrowBadArg(cx, rv, vp, 0);
+    uint32 location;
+    if (!JS_ValueToECMAUint32(cx, argv[0], &location))
         return JS_FALSE;
-    }
 
     if (!JSVAL_IS_OBJECT(argv[1])) {
         xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 1);
@@ -645,15 +556,11 @@ helper_nsICanvasRenderingContextWebGL_UniformMatrix_x_fv(JSContext *cx, uintN ar
 
     jsval *argv = JS_ARGV(cx, vp);
 
-    nsIWebGLUniformLocation *location;
-    xpc_qsSelfRef location_selfref;
-    rv = xpc_qsUnwrapArg(cx, argv[0], &location, &location_selfref.ptr, &argv[0]);
-    if (NS_FAILED(rv)) {
-        xpc_qsThrowBadArg(cx, rv, vp, 0);
-        return JS_FALSE;
-    }
-
+    uint32 location;
     int32 transpose;
+    if (!JS_ValueToECMAUint32(cx, argv[0], &location))
+        return JS_FALSE;
+
     if (!JS_ValueToECMAInt32(cx, argv[1], &transpose))
         return JS_FALSE;
 
@@ -861,8 +768,7 @@ nsICanvasRenderingContextWebGL_VertexAttrib4fv(JSContext *cx, uintN argc, jsval 
 #ifdef JS_TRACER
 
 static inline jsval FASTCALL
-helper_nsICanvasRenderingContextWebGL_Uniform_x_iv_tn(JSContext *cx, JSObject *obj, JSObject *locationobj,
-                                                      JSObject *arg, int nElements)
+helper_nsICanvasRenderingContextWebGL_Uniform_x_iv_tn(JSContext *cx, JSObject *obj, uint32 location, JSObject *arg, int nElements)
 {
     XPC_QS_ASSERT_CONTEXT_OK(cx);
 
@@ -875,15 +781,6 @@ helper_nsICanvasRenderingContextWebGL_Uniform_x_iv_tn(JSContext *cx, JSObject *o
     }
 
     js::AutoValueRooter obj_tvr(cx);
-
-    nsIWebGLUniformLocation *location;
-    xpc_qsSelfRef location_selfref;
-    nsresult rv_convert_arg0
-        = xpc_qsUnwrapThis(cx, locationobj, nsnull, &location, &location_selfref.ptr, &vp.array[1], nsnull);
-    if (NS_FAILED(rv_convert_arg0)) {
-        js_SetTraceableNativeFailed(cx);
-        return JSVAL_VOID;
-    }
 
     js::TypedArray *wa = 0;
 
@@ -926,8 +823,7 @@ helper_nsICanvasRenderingContextWebGL_Uniform_x_iv_tn(JSContext *cx, JSObject *o
 }
 
 static inline jsval FASTCALL
-helper_nsICanvasRenderingContextWebGL_Uniform_x_fv_tn(JSContext *cx, JSObject *obj, JSObject *locationobj,
-                                                      JSObject *arg, int nElements)
+helper_nsICanvasRenderingContextWebGL_Uniform_x_fv_tn(JSContext *cx, JSObject *obj, uint32 location, JSObject *arg, int nElements)
 {
     XPC_QS_ASSERT_CONTEXT_OK(cx);
 
@@ -940,15 +836,6 @@ helper_nsICanvasRenderingContextWebGL_Uniform_x_fv_tn(JSContext *cx, JSObject *o
     }
 
     js::AutoValueRooter obj_tvr(cx);
-
-    nsIWebGLUniformLocation *location;
-    xpc_qsSelfRef location_selfref;
-    nsresult rv_convert_arg0
-        = xpc_qsUnwrapThis(cx, locationobj, nsnull, &location, &location_selfref.ptr, &vp.array[1], nsnull);
-    if (NS_FAILED(rv_convert_arg0)) {
-        js_SetTraceableNativeFailed(cx);
-        return JSVAL_VOID;
-    }
 
     js::TypedArray *wa = 0;
 
@@ -991,8 +878,7 @@ helper_nsICanvasRenderingContextWebGL_Uniform_x_fv_tn(JSContext *cx, JSObject *o
 }
 
 static inline jsval FASTCALL
-helper_nsICanvasRenderingContextWebGL_UniformMatrix_x_fv_tn(JSContext *cx, JSObject *obj, JSObject *locationobj,
-                                                            JSBool transpose, JSObject *arg, int nElements)
+helper_nsICanvasRenderingContextWebGL_UniformMatrix_x_fv_tn(JSContext *cx, JSObject *obj, uint32 location, JSBool transpose, JSObject *arg, int nElements)
 {
     XPC_QS_ASSERT_CONTEXT_OK(cx);
 
@@ -1005,15 +891,6 @@ helper_nsICanvasRenderingContextWebGL_UniformMatrix_x_fv_tn(JSContext *cx, JSObj
     }
 
     js::AutoValueRooter obj_tvr(cx);
-
-    nsIWebGLUniformLocation *location;
-    xpc_qsSelfRef location_selfref;
-    nsresult rv_convert_arg0
-        = xpc_qsUnwrapThis(cx, locationobj, nsnull, &location, &location_selfref.ptr, &vp.array[1], nsnull);
-    if (NS_FAILED(rv_convert_arg0)) {
-        js_SetTraceableNativeFailed(cx);
-        return JSVAL_VOID;
-    }
 
     js::TypedArray *wa = 0;
 
@@ -1053,102 +930,102 @@ helper_nsICanvasRenderingContextWebGL_UniformMatrix_x_fv_tn(JSContext *cx, JSObj
 }
 
 static jsval FASTCALL
-nsICanvasRenderingContextWebGL_Uniform1iv_tn(JSContext *cx, JSObject *obj, JSObject *location, JSObject *arg)
+nsICanvasRenderingContextWebGL_Uniform1iv_tn(JSContext *cx, JSObject *obj, uint32 location, JSObject *arg)
 {
     return helper_nsICanvasRenderingContextWebGL_Uniform_x_iv_tn(cx, obj, location, arg, 1);
 }
 
 JS_DEFINE_TRCINFO_1(nsICanvasRenderingContextWebGL_Uniform1iv,
-    (4, (static, JSVAL_FAIL, nsICanvasRenderingContextWebGL_Uniform1iv_tn, CONTEXT, THIS, OBJECT, OBJECT, 0, nanojit::ACC_STORE_ANY)))
+    (4, (static, JSVAL_FAIL, nsICanvasRenderingContextWebGL_Uniform1iv_tn, CONTEXT, THIS, UINT32, OBJECT, 0, nanojit::ACC_STORE_ANY)))
 
 static jsval FASTCALL
-nsICanvasRenderingContextWebGL_Uniform2iv_tn(JSContext *cx, JSObject *obj, JSObject *location, JSObject *arg)
+nsICanvasRenderingContextWebGL_Uniform2iv_tn(JSContext *cx, JSObject *obj, uint32 location, JSObject *arg)
 {
     return helper_nsICanvasRenderingContextWebGL_Uniform_x_iv_tn(cx, obj, location, arg, 2);
 }
 
 JS_DEFINE_TRCINFO_1(nsICanvasRenderingContextWebGL_Uniform2iv,
-    (4, (static, JSVAL_FAIL, nsICanvasRenderingContextWebGL_Uniform2iv_tn, CONTEXT, THIS, OBJECT, OBJECT, 0, nanojit::ACC_STORE_ANY)))
+    (4, (static, JSVAL_FAIL, nsICanvasRenderingContextWebGL_Uniform2iv_tn, CONTEXT, THIS, UINT32, OBJECT, 0, nanojit::ACC_STORE_ANY)))
 
 static jsval FASTCALL
-nsICanvasRenderingContextWebGL_Uniform3iv_tn(JSContext *cx, JSObject *obj, JSObject *location, JSObject *arg)
+nsICanvasRenderingContextWebGL_Uniform3iv_tn(JSContext *cx, JSObject *obj, uint32 location, JSObject *arg)
 {
     return helper_nsICanvasRenderingContextWebGL_Uniform_x_iv_tn(cx, obj, location, arg, 3);
 }
 
 JS_DEFINE_TRCINFO_1(nsICanvasRenderingContextWebGL_Uniform3iv,
-    (4, (static, JSVAL_FAIL, nsICanvasRenderingContextWebGL_Uniform3iv_tn, CONTEXT, THIS, OBJECT, OBJECT, 0, nanojit::ACC_STORE_ANY)))
+    (4, (static, JSVAL_FAIL, nsICanvasRenderingContextWebGL_Uniform3iv_tn, CONTEXT, THIS, UINT32, OBJECT, 0, nanojit::ACC_STORE_ANY)))
 
 static jsval FASTCALL
-nsICanvasRenderingContextWebGL_Uniform4iv_tn(JSContext *cx, JSObject *obj, JSObject *location, JSObject *arg)
+nsICanvasRenderingContextWebGL_Uniform4iv_tn(JSContext *cx, JSObject *obj, uint32 location, JSObject *arg)
 {
     return helper_nsICanvasRenderingContextWebGL_Uniform_x_iv_tn(cx, obj, location, arg, 4);
 }
 
 JS_DEFINE_TRCINFO_1(nsICanvasRenderingContextWebGL_Uniform4iv,
-    (4, (static, JSVAL_FAIL, nsICanvasRenderingContextWebGL_Uniform4iv_tn, CONTEXT, THIS, OBJECT, OBJECT, 0, nanojit::ACC_STORE_ANY)))
+    (4, (static, JSVAL_FAIL, nsICanvasRenderingContextWebGL_Uniform4iv_tn, CONTEXT, THIS, UINT32, OBJECT, 0, nanojit::ACC_STORE_ANY)))
 
 static jsval FASTCALL
-nsICanvasRenderingContextWebGL_Uniform1fv_tn(JSContext *cx, JSObject *obj, JSObject *location, JSObject *arg)
+nsICanvasRenderingContextWebGL_Uniform1fv_tn(JSContext *cx, JSObject *obj, uint32 location, JSObject *arg)
 {
     return helper_nsICanvasRenderingContextWebGL_Uniform_x_fv_tn(cx, obj, location, arg, 1);
 }
 
 JS_DEFINE_TRCINFO_1(nsICanvasRenderingContextWebGL_Uniform1fv,
-    (4, (static, JSVAL_FAIL, nsICanvasRenderingContextWebGL_Uniform1fv_tn, CONTEXT, THIS, OBJECT, OBJECT, 0, nanojit::ACC_STORE_ANY)))
+    (4, (static, JSVAL_FAIL, nsICanvasRenderingContextWebGL_Uniform1fv_tn, CONTEXT, THIS, UINT32, OBJECT, 0, nanojit::ACC_STORE_ANY)))
 
 static jsval FASTCALL
-nsICanvasRenderingContextWebGL_Uniform2fv_tn(JSContext *cx, JSObject *obj, JSObject *location, JSObject *arg)
+nsICanvasRenderingContextWebGL_Uniform2fv_tn(JSContext *cx, JSObject *obj, uint32 location, JSObject *arg)
 {
     return helper_nsICanvasRenderingContextWebGL_Uniform_x_fv_tn(cx, obj, location, arg, 2);
 }
 
 JS_DEFINE_TRCINFO_1(nsICanvasRenderingContextWebGL_Uniform2fv,
-    (4, (static, JSVAL_FAIL, nsICanvasRenderingContextWebGL_Uniform2fv_tn, CONTEXT, THIS, OBJECT, OBJECT, 0, nanojit::ACC_STORE_ANY)))
+    (4, (static, JSVAL_FAIL, nsICanvasRenderingContextWebGL_Uniform2fv_tn, CONTEXT, THIS, UINT32, OBJECT, 0, nanojit::ACC_STORE_ANY)))
 
 static jsval FASTCALL
-nsICanvasRenderingContextWebGL_Uniform3fv_tn(JSContext *cx, JSObject *obj, JSObject *location, JSObject *arg)
+nsICanvasRenderingContextWebGL_Uniform3fv_tn(JSContext *cx, JSObject *obj, uint32 location, JSObject *arg)
 {
     return helper_nsICanvasRenderingContextWebGL_Uniform_x_fv_tn(cx, obj, location, arg, 3);
 }
 
 JS_DEFINE_TRCINFO_1(nsICanvasRenderingContextWebGL_Uniform3fv,
-    (4, (static, JSVAL_FAIL, nsICanvasRenderingContextWebGL_Uniform3fv_tn, CONTEXT, THIS, OBJECT, OBJECT, 0, nanojit::ACC_STORE_ANY)))
+    (4, (static, JSVAL_FAIL, nsICanvasRenderingContextWebGL_Uniform3fv_tn, CONTEXT, THIS, UINT32, OBJECT, 0, nanojit::ACC_STORE_ANY)))
 
 static jsval FASTCALL
-nsICanvasRenderingContextWebGL_Uniform4fv_tn(JSContext *cx, JSObject *obj, JSObject *location, JSObject *arg)
+nsICanvasRenderingContextWebGL_Uniform4fv_tn(JSContext *cx, JSObject *obj, uint32 location, JSObject *arg)
 {
     return helper_nsICanvasRenderingContextWebGL_Uniform_x_fv_tn(cx, obj, location, arg, 4);
 }
 
 JS_DEFINE_TRCINFO_1(nsICanvasRenderingContextWebGL_Uniform4fv,
-    (4, (static, JSVAL_FAIL, nsICanvasRenderingContextWebGL_Uniform4fv_tn, CONTEXT, THIS, OBJECT, OBJECT, 0, nanojit::ACC_STORE_ANY)))
+    (4, (static, JSVAL_FAIL, nsICanvasRenderingContextWebGL_Uniform4fv_tn, CONTEXT, THIS, UINT32, OBJECT, 0, nanojit::ACC_STORE_ANY)))
 
 static jsval FASTCALL
-nsICanvasRenderingContextWebGL_UniformMatrix2fv_tn(JSContext *cx, JSObject *obj, JSObject *loc, JSBool transpose, JSObject *arg)
+nsICanvasRenderingContextWebGL_UniformMatrix2fv_tn(JSContext *cx, JSObject *obj, uint32 loc, JSBool transpose, JSObject *arg)
 {
     return helper_nsICanvasRenderingContextWebGL_UniformMatrix_x_fv_tn(cx, obj, loc, transpose, arg, 2);
 }
 
 JS_DEFINE_TRCINFO_1(nsICanvasRenderingContextWebGL_UniformMatrix2fv,
-    (5, (static, JSVAL_FAIL, nsICanvasRenderingContextWebGL_UniformMatrix2fv_tn, CONTEXT, THIS, OBJECT, BOOL, OBJECT, 0, nanojit::ACC_STORE_ANY)))
+    (5, (static, JSVAL_FAIL, nsICanvasRenderingContextWebGL_UniformMatrix2fv_tn, CONTEXT, THIS, UINT32, BOOL, OBJECT, 0, nanojit::ACC_STORE_ANY)))
 
 static jsval FASTCALL
-nsICanvasRenderingContextWebGL_UniformMatrix3fv_tn(JSContext *cx, JSObject *obj, JSObject *loc, JSBool transpose, JSObject *arg)
+nsICanvasRenderingContextWebGL_UniformMatrix3fv_tn(JSContext *cx, JSObject *obj, uint32 loc, JSBool transpose, JSObject *arg)
 {
     return helper_nsICanvasRenderingContextWebGL_UniformMatrix_x_fv_tn(cx, obj, loc, transpose, arg, 3);
 }
 
 JS_DEFINE_TRCINFO_1(nsICanvasRenderingContextWebGL_UniformMatrix3fv,
-    (5, (static, JSVAL_FAIL, nsICanvasRenderingContextWebGL_UniformMatrix3fv_tn, CONTEXT, THIS, OBJECT, BOOL, OBJECT, 0, nanojit::ACC_STORE_ANY)))
+    (5, (static, JSVAL_FAIL, nsICanvasRenderingContextWebGL_UniformMatrix3fv_tn, CONTEXT, THIS, UINT32, BOOL, OBJECT, 0, nanojit::ACC_STORE_ANY)))
 
 static jsval FASTCALL
-nsICanvasRenderingContextWebGL_UniformMatrix4fv_tn(JSContext *cx, JSObject *obj, JSObject *loc, JSBool transpose, JSObject *arg)
+nsICanvasRenderingContextWebGL_UniformMatrix4fv_tn(JSContext *cx, JSObject *obj, uint32 loc, JSBool transpose, JSObject *arg)
 {
     return helper_nsICanvasRenderingContextWebGL_UniformMatrix_x_fv_tn(cx, obj, loc, transpose, arg, 4);
 }
 
 JS_DEFINE_TRCINFO_1(nsICanvasRenderingContextWebGL_UniformMatrix4fv,
-    (5, (static, JSVAL_FAIL, nsICanvasRenderingContextWebGL_UniformMatrix4fv_tn, CONTEXT, THIS, OBJECT, BOOL, OBJECT, 0, nanojit::ACC_STORE_ANY)))
+    (5, (static, JSVAL_FAIL, nsICanvasRenderingContextWebGL_UniformMatrix4fv_tn, CONTEXT, THIS, UINT32, BOOL, OBJECT, 0, nanojit::ACC_STORE_ANY)))
 
 #endif /* JS_TRACER */

@@ -596,16 +596,6 @@ Connection::internalClose()
   return convertResultCode(srv);
 }
 
-nsCString
-Connection::getFilename()
-{
-  nsCString leafname(":memory:");
-  if (mDatabaseFile) {
-    (void)mDatabaseFile->GetNativeLeafName(leafname);
-  }
-  return leafname;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 //// mozIStorageConnection
 

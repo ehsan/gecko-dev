@@ -61,8 +61,6 @@
 
 #include "prlog.h"
 
-#include "mozilla/FunctionTimer.h"
-
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gStorageLog;
 #endif
@@ -581,9 +579,9 @@ Statement::Execute()
 
   PRBool ret;
   nsresult rv = ExecuteStep(&ret);
-  nsresult rv2 = Reset();
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  return NS_FAILED(rv) ? rv : rv2;
+  return Reset();
 }
 
 NS_IMETHODIMP
@@ -591,9 +589,6 @@ Statement::ExecuteStep(PRBool *_moreResults)
 {
   if (!mDBStatement)
     return NS_ERROR_NOT_INITIALIZED;
-
-  NS_TIME_FUNCTION_MIN_FMT(5, "mozIStorageStatement::ExecuteStep(%s) (0x%p)",
-                           mDBConnection->getFilename().get(), mDBStatement);
 
   // Bind any parameters first before executing.
   if (mParamsArray) {

@@ -353,9 +353,6 @@ public:
     void Set(void *aObject)
     {
         NS_ASSERTION(!mScriptObject.mObject, "Leaking script object.");
-        if (!aObject) {
-          return;
-        }
 
         nsresult rv = nsContentUtils::HoldScriptObject(mScriptObject.mLangID,
                                                        this,
@@ -449,10 +446,7 @@ public:
 
  */
 
-#define XUL_ELEMENT_TEMPLATE_GENERATED (1 << ELEMENT_TYPE_SPECIFIC_BITS_OFFSET)
-
-// Make sure we have space for our bit
-PR_STATIC_ASSERT(ELEMENT_TYPE_SPECIFIC_BITS_OFFSET < 32);
+#define XUL_ELEMENT_TEMPLATE_GENERATED 1 << NODE_TYPE_SPECIFIC_BITS_OFFSET
 
 class nsScriptEventHandlerOwnerTearoff;
 
@@ -485,7 +479,7 @@ protected:
 public:
     static nsresult
     Create(nsXULPrototypeElement* aPrototype, nsIDocument* aDocument,
-           PRBool aIsScriptable, mozilla::dom::Element** aResult);
+           PRBool aIsScriptable, nsIContent** aResult);
 
     // nsISupports
     NS_DECL_ISUPPORTS_INHERITED
@@ -534,7 +528,7 @@ public:
     virtual nsIContent *GetBindingParent() const;
     virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
     virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull, PRBool aWithMouse = PR_FALSE);
-    virtual nsIAtom* DoGetID() const;
+    virtual nsIAtom* GetID() const;
     virtual const nsAttrValue* DoGetClasses() const;
 
     NS_IMETHOD WalkContentStyleRules(nsRuleWalker* aRuleWalker);
@@ -579,13 +573,6 @@ public:
     {
       mBindingParent = aBindingParent;
     }
-
-    /**
-     * Get the attr info for the given namespace ID and attribute name.
-     * The namespace ID must not be kNameSpaceID_Unknown and the name
-     * must not be null.
-     */
-    virtual nsAttrInfo GetAttrInfo(PRInt32 aNamespaceID, nsIAtom* aName) const;
 
 protected:
     // XXX This can be removed when nsNodeUtils::CloneAndAdopt doesn't need
@@ -636,6 +623,13 @@ protected:
      * Abandon our prototype linkage, and copy all attributes locally
      */
     nsresult MakeHeavyweight();
+
+    /**
+     * Get the attr info for the given namespace ID and attribute name.
+     * The namespace ID must not be kNameSpaceID_Unknown and the name
+     * must not be null.
+     */
+    virtual nsAttrInfo GetAttrInfo(PRInt32 aNamespaceID, nsIAtom* aName) const;
 
     const nsAttrValue* FindLocalOrProtoAttr(PRInt32 aNameSpaceID,
                                             nsIAtom *aName) const {

@@ -50,13 +50,12 @@ function onLoad()
 {
   if ("arguments" in window && window.arguments[0]) {
     InitWithToolbox(window.arguments[0]);
-    repositionDialog(window);
+    repositionDialog();
   }
   else if (window.frameElement &&
            "toolbox" in window.frameElement) {
     gToolboxSheet = true;
     InitWithToolbox(window.frameElement.toolbox);
-    repositionDialog(window.frameElement.panel);
   }
 }
 
@@ -67,10 +66,10 @@ function InitWithToolbox(aToolbox)
   gToolboxDocument = gToolbox.ownerDocument;
   gToolbox.customizing = true;
 
-  gToolbox.addEventListener("dragstart", onToolbarDragStart, true);
-  gToolbox.addEventListener("dragover", onToolbarDragOver, true);
-  gToolbox.addEventListener("dragleave", onToolbarDragLeave, true);
-  gToolbox.addEventListener("drop", onToolbarDrop, true);
+  gToolbox.addEventListener("dragstart", onToolbarDragStart, false);
+  gToolbox.addEventListener("dragover", onToolbarDragOver, false);
+  gToolbox.addEventListener("dragleave", onToolbarDragLeave, false);
+  gToolbox.addEventListener("drop", onToolbarDrop, false);
 
   initDialog();
 }
@@ -115,17 +114,12 @@ function initDialog()
   wrapToolbarItems();
 }
 
-function repositionDialog(aWindow)
+function repositionDialog()
 {
   // Position the dialog touching the bottom of the toolbox and centered with
   // it.
-  if (!aWindow)
-    return;
-
   var width;
-  if (aWindow != window)
-    width = aWindow.getBoundingClientRect().width;
-  else if (document.documentElement.hasAttribute("width"))
+  if (document.documentElement.hasAttribute("width"))
     width = document.documentElement.getAttribute("width");
   else
     width = parseInt(document.documentElement.style.width);
@@ -133,15 +127,15 @@ function repositionDialog(aWindow)
                 + ((gToolbox.boxObject.width - width) / 2);
   var screenY = gToolbox.boxObject.screenY + gToolbox.boxObject.height;
 
-  aWindow.moveTo(screenX, screenY);
+  window.moveTo(screenX, screenY);
 }
 
 function removeToolboxListeners()
 {
-  gToolbox.removeEventListener("dragstart", onToolbarDragStart, true);
-  gToolbox.removeEventListener("dragover", onToolbarDragOver, true);
-  gToolbox.removeEventListener("dragleave", onToolbarDragLeave, true);
-  gToolbox.removeEventListener("drop", onToolbarDrop, true);
+  gToolbox.removeEventListener("dragstart", onToolbarDragStart, false);
+  gToolbox.removeEventListener("dragover", onToolbarDragOver, false);
+  gToolbox.removeEventListener("dragleave", onToolbarDragLeave, false);
+  gToolbox.removeEventListener("drop", onToolbarDrop, false);
 }
 
 /**
@@ -761,7 +755,6 @@ function onToolbarDragOver(aEvent)
   setDragActive(gCurrentDragOverItem, true);
 
   aEvent.preventDefault();
-  aEvent.stopPropagation();
 }
 
 function onToolbarDrop(aEvent)

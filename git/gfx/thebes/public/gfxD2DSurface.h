@@ -45,8 +45,7 @@
 class THEBES_API gfxD2DSurface : public gfxASurface {
 public:
 
-    gfxD2DSurface(HWND wnd,
-                  gfxContentType aContent);
+    gfxD2DSurface(HWND wnd);
 
     gfxD2DSurface(const gfxIntSize& size,
                   gfxImageFormat imageFormat = ImageFormatRGB24);
@@ -60,8 +59,6 @@ public:
     void Present();
     void Scroll(const nsIntPoint &aDelta, const nsIntRect &aClip);
 
-    HDC GetDC(PRBool aRetainContents);
-    void ReleaseDC(const nsIntRect *aUpdatedRect);
 };
 
 #endif /* GFX_D2DSURFACE_H */

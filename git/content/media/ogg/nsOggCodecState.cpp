@@ -41,7 +41,7 @@
 #include "nsOggDecoder.h"
 #include <string.h>
 #include "nsTraceRefcnt.h"
-#include "VideoUtils.h"
+#include "nsOggHacks.h"
 
 /*
    The maximum height and width of the video. Used for
@@ -61,19 +61,9 @@ static PRBool AddOverflow(PRInt64 a, PRInt64 b, PRInt64& aResult);
 // in an integer overflow.
 static PRBool MulOverflow(PRInt64 a, PRInt64 b, PRInt64& aResult);
 
-static PRBool MulOverflow32(PRUint32 a, PRUint32 b, PRUint32& aResult)
-{
-  // 32 bit integer multiplication with overflow checking. Returns PR_TRUE
-  // if the multiplication was successful, or PR_FALSE if the operation resulted
-  // in an integer overflow.
-  PRUint64 a64 = a;
-  PRUint64 b64 = b;
-  PRUint64 r64 = a64 * b64;
-  if (r64 > PR_UINT32_MAX)
-     return PR_FALSE;
-  aResult = static_cast<PRUint32>(r64);
-  return PR_TRUE;
-}
+// Defined in nsOggReader.cpp.
+extern PRBool MulOverflow32(PRUint32 a, PRUint32 b, PRUint32& aResult);
+
 
 nsOggCodecState*
 nsOggCodecState::Create(ogg_page* aPage)
@@ -148,7 +138,8 @@ nsTheoraState::nsTheoraState(ogg_page* aBosPage) :
   mSetup(0),
   mCtx(0),
   mFrameDuration(0),
-  mPixelAspectRatio(0)
+  mFrameRate(0),
+  mAspectRatio(0)
 {
   MOZ_COUNT_CTOR(nsTheoraState);
   th_info_init(&mInfo);
@@ -166,9 +157,16 @@ nsTheoraState::~nsTheoraState() {
 PRBool nsTheoraState::Init() {
   if (!mActive)
     return PR_FALSE;
+  mCtx = th_decode_alloc(&mInfo, mSetup);
+  if (mCtx == NULL) {
+    return mActive = PR_FALSE;
+  }
 
   PRInt64 n = mInfo.fps_numerator;
   PRInt64 d = mInfo.fps_denominator;
+
+  mFrameRate = (n == 0 || d == 0) ?
+    0.0f : static_cast<float>(n) / static_cast<float>(d);
 
   PRInt64 f;
   if (!MulOverflow(1000, d, f)) {
@@ -181,30 +179,16 @@ PRBool nsTheoraState::Init() {
   mFrameDuration = static_cast<PRUint32>(f);
 
   n = mInfo.aspect_numerator;
-
   d = mInfo.aspect_denominator;
-  mPixelAspectRatio = (n == 0 || d == 0) ?
+  mAspectRatio = (n == 0 || d == 0) ?
     1.0f : static_cast<float>(n) / static_cast<float>(d);
 
-  // Ensure the frame region isn't larger than our prescribed maximum.
+  // Ensure the frame isn't larger than our prescribed maximum.
   PRUint32 pixels;
-  if (!MulOverflow32(mInfo.frame_width, mInfo.frame_height, pixels) ||
-      pixels > MAX_VIDEO_WIDTH * MAX_VIDEO_HEIGHT ||
-      pixels == 0)
-  {
-    return mActive = PR_FALSE;
-  }
-
-  // Ensure the picture region isn't larger than our prescribed maximum.
   if (!MulOverflow32(mInfo.pic_width, mInfo.pic_height, pixels) ||
       pixels > MAX_VIDEO_WIDTH * MAX_VIDEO_HEIGHT ||
       pixels == 0)
   {
-    return mActive = PR_FALSE;
-  }
-
-  mCtx = th_decode_alloc(&mInfo, mSetup);
-  if (mCtx == NULL) {
     return mActive = PR_FALSE;
   }
 

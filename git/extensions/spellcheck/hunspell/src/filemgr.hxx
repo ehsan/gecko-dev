@@ -16,7 +16,6 @@
  * are Copyright (C) 2002-2005 the Initial Developers. All Rights Reserved.
  * 
  * Contributor(s): László Németh (nemethl@gyorsposta.hu)
- *                 Caolan McNamara (caolanm@redhat.com)
  * 
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,12 +34,9 @@
 #ifndef _FILEMGR_HXX_
 #define _FILEMGR_HXX_
 
-#include "hunvisapi.h"
-
 #include "hunzip.hxx"
-#include <stdio.h>
 
-class LIBHUNSPELL_DLL_EXPORTED FileMgr
+class FileMgr
 {
 protected:
     FILE * fin;

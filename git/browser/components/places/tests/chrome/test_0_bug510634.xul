@@ -125,7 +125,7 @@
        );
 
       // Close the root node
-      tree.result.root.containerOpen = false;
+      tree.getResult().root.containerOpen = false;
 
       // Restore the getter for the next test.
       PlacesUIUtils.__defineGetter__("leftPaneFolderId", cachedLeftPaneFolderIdGetter);

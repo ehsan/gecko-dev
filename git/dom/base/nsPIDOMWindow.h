@@ -78,8 +78,8 @@ class nsIArray;
 class nsPIWindowRoot;
 
 #define NS_PIDOMWINDOW_IID \
-{ 0x4beac1da, 0x513e, 0x4a8b, \
-  { 0x96, 0x94, 0x1c, 0xf6, 0x4f, 0xba, 0xa8, 0x1c } }
+{ 0xC5CB154D, 0x17C0, 0x49E9, \
+  { 0x9C, 0x83, 0xFF, 0xC7, 0x2C, 0x93, 0xAF, 0x24 } }
 
 class nsPIDOMWindow : public nsIDOMWindowInternal
 {
@@ -109,14 +109,6 @@ public:
   }
 
   virtual void SetChromeEventHandler(nsPIDOMEventTarget* aChromeEventHandler) = 0;
-
-  nsPIDOMEventTarget* GetParentTarget()
-  {
-    if (!mParentTarget) {
-      UpdateParentTarget();
-    }
-    return mParentTarget;
-  }
 
   PRBool HasMutationListeners(PRUint32 aMutationEventType) const
   {
@@ -440,13 +432,7 @@ public:
    * DO NOT CALL EITHER OF THESE METHODS DIRECTLY. USE THE FOCUS MANAGER
    * INSTEAD.
    */
-  nsIContent* GetFocusedNode()
-  {
-    if (IsOuterWindow()) {
-      return mInnerWindow ? mInnerWindow->mFocusedNode.get() : nsnull;
-    }
-    return mFocusedNode;
-  }
+  virtual nsIContent* GetFocusedNode() = 0;
   virtual void SetFocusedNode(nsIContent* aNode,
                               PRUint32 aFocusMethod = 0,
                               PRBool aNeedsFocus = PR_FALSE) = 0;
@@ -526,25 +512,25 @@ protected:
   // be null if and only if the created window itself is an outer
   // window. In all other cases aOuterWindow should be the outer
   // window for the inner window that is being created.
-  nsPIDOMWindow(nsPIDOMWindow *aOuterWindow);
-
-  ~nsPIDOMWindow();
+  nsPIDOMWindow(nsPIDOMWindow *aOuterWindow)
+    : mFrameElement(nsnull), mDocShell(nsnull), mModalStateDepth(0),
+      mRunningTimeout(nsnull), mMutationBits(0), mIsDocumentLoaded(PR_FALSE),
+      mIsHandlingResizeEvent(PR_FALSE), mIsInnerWindow(aOuterWindow != nsnull),
+      mMayHavePaintEventListener(PR_FALSE),
+      mIsModalContentWindow(PR_FALSE), mIsActive(PR_FALSE),
+      mInnerWindow(nsnull), mOuterWindow(aOuterWindow)
+  {
+  }
 
   void SetChromeEventHandlerInternal(nsPIDOMEventTarget* aChromeEventHandler) {
     mChromeEventHandler = aChromeEventHandler;
-    // mParentTarget will be set when the next event is dispatched.
-    mParentTarget = nsnull;
   }
-
-  virtual void UpdateParentTarget() = 0;
 
   // These two variables are special in that they're set to the same
   // value on both the outer window and the current inner window. Make
   // sure you keep them in sync!
   nsCOMPtr<nsPIDOMEventTarget> mChromeEventHandler; // strong
   nsCOMPtr<nsIDOMDocument> mDocument; // strong
-
-  nsCOMPtr<nsPIDOMEventTarget> mParentTarget; // strong
 
   // These members are only used on outer windows.
   nsCOMPtr<nsIDOMElement> mFrameElement;
@@ -572,10 +558,6 @@ protected:
   // And these are the references between inner and outer windows.
   nsPIDOMWindow         *mInnerWindow;
   nsPIDOMWindow         *mOuterWindow;
-
-  // the element within the document that is currently focused when this
-  // window is active
-  nsCOMPtr<nsIContent> mFocusedNode;
 };
 
 

@@ -39,8 +39,8 @@
 #include "nsX11ErrorHandler.h"
 
 #ifdef MOZ_IPC
-#include "mozilla/plugins/PluginProcessChild.h"
-using mozilla::plugins::PluginProcessChild;
+#include "mozilla/plugins/PluginThreadChild.h"
+using mozilla::plugins::PluginThreadChild;
 #endif
 
 #include "prenv.h"
@@ -48,7 +48,11 @@ using mozilla::plugins::PluginProcessChild;
 #include "nsExceptionHandler.h"
 #include "nsDebug.h"
 
-#include "mozilla/X11Util.h"
+#ifdef MOZ_WIDGET_GTK2
+#include <gdk/gdkx.h>
+#elif defined(MOZ_WIDGET_QT)
+#include <QX11Info>
+#endif
 #include <X11/Xlib.h>
 
 #define BUFSIZE 2048 // What Xlib uses with XGetErrorDatabaseText
@@ -153,7 +157,7 @@ X11Error(Display *display, XErrorEvent *event) {
       // This is assuming that X operations are performed on the plugin
       // thread.  If plugins are using X on another thread, then we'll need to
       // handle that differently.
-      PluginProcessChild::AppendNotesToCrashReport(notes);
+      PluginThreadChild::AppendNotesToCrashReport(notes);
     }
     break;
 #endif
@@ -197,7 +201,11 @@ InstallX11ErrorHandler()
 {
   XSetErrorHandler(X11Error);
 
-  Display *display = mozilla::DefaultXDisplay();
+#ifdef MOZ_WIDGET_GTK2
+  Display *display = GDK_DISPLAY();
+#elif defined(MOZ_WIDGET_QT)
+  Display *display = QX11Info::display();
+#endif
   NS_ASSERTION(display, "No X display");
   if (PR_GetEnv("MOZ_X_SYNC")) {
     XSynchronize(display, True);

@@ -40,7 +40,6 @@
 #include <QX11Info>
 #include <QApplication>
 #include <QDesktopWidget>
-#include <QPaintEngine>
 
 #include "gfxQtPlatform.h"
 
@@ -79,11 +78,8 @@
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
 
-// Because the QPainter backend has some problems with glyphs rendering
-// it is better to use image or xlib cairo backends by default
-#define DEFAULT_RENDER_MODE RENDER_BUFFERED
+#define DEFAULT_RENDER_MODE RENDER_SHARED_IMAGE
 
-static QPaintEngine::Type sDefaultQtPaintEngineType = QPaintEngine::X11;
 gfxFontconfigUtils *gfxQtPlatform::sFontconfigUtils = nsnull;
 static cairo_user_data_key_t cairo_qt_pixmap_key;
 static void do_qt_pixmap_unref (void *data)
@@ -144,16 +140,11 @@ gfxQtPlatform::gfxQtPlatform()
             mRenderMode = RENDER_QPAINTER;
             break;
         case 1:
-            mRenderMode = RENDER_BUFFERED;
+            mRenderMode = RENDER_SHARED_IMAGE;
             break;
         default:
             mRenderMode = RENDER_QPAINTER;
     }
-
-    // Qt doesn't provide a public API to detect the graphicssystem type. We hack
-    // around this by checking what type of graphicssystem a test QPixmap uses.
-    QPixmap pixmap(1, 1);
-    sDefaultQtPaintEngineType = pixmap.paintEngine()->type();
 }
 
 gfxQtPlatform::~gfxQtPlatform()
@@ -194,25 +185,40 @@ gfxQtPlatform::CreateOffscreenSurface(const gfxIntSize& size,
 {
     nsRefPtr<gfxASurface> newSurface = nsnull;
 
-    // try to optimize it for 16bpp screen
-    if (gfxASurface::ImageFormatRGB24 == imageFormat
-        && 16 == QX11Info().depth())
-        imageFormat = gfxASurface::ImageFormatRGB16_565;
-
     if (mRenderMode == RENDER_QPAINTER) {
       newSurface = new gfxQPainterSurface(size, gfxASurface::ContentFromFormat(imageFormat));
       return newSurface.forget();
     }
 
-    if (mRenderMode == RENDER_BUFFERED &&
-        sDefaultQtPaintEngineType != QPaintEngine::X11) {
+    if (mRenderMode == RENDER_SHARED_IMAGE) {
       newSurface = new gfxImageSurface(size, imageFormat);
       return newSurface.forget();
     }
 
 #ifdef MOZ_X11
+    int xrenderFormatID = -1;
+    switch (imageFormat) {
+        case gfxASurface::ImageFormatARGB32:
+            xrenderFormatID = PictStandardARGB32;
+            break;
+        case gfxASurface::ImageFormatRGB24:
+            xrenderFormatID = PictStandardRGB24;
+            break;
+        case gfxASurface::ImageFormatA8:
+            xrenderFormatID = PictStandardA8;
+            break;
+        case gfxASurface::ImageFormatA1:
+            xrenderFormatID = PictStandardA1;
+            break;
+        default:
+            return nsnull;
+    }
+
+    // XXX we really need a different interface here, something that passes
+    // in more context, including the display and/or target surface type that
+    // we should try to match
     XRenderPictFormat* xrenderFormat =
-        gfxXlibSurface::FindRenderFormat(QX11Info().display(), imageFormat);
+        XRenderFindStandardFormat(QX11Info().display(), xrenderFormatID);
 
     newSurface = new gfxXlibSurface((Display*)QX11Info().display(),
                                     xrenderFormat,

@@ -59,10 +59,10 @@ namespace XPCNativeWrapper {
 JSBool
 WrapFunction(JSContext* cx, JSObject* funobj, jsval *rval);
 
-// If v is an object, set *rval to a new XPCNativeWrapper around it. Otherwise
-// set *rval = v.
+// Given a value, if the original XPCNativeWrapper is a deep wrapper,
+// returns a new XPCNativeWrapper around the value.
 JSBool
-RewrapValue(JSContext *cx, JSObject *obj, jsval v, jsval *rval);
+RewrapIfDeepWrapper(JSContext *cx, JSObject *obj, jsval v, jsval *rval);
 
 } // namespace XPCNativeWrapper
 
@@ -398,7 +398,7 @@ RewrapIfDeepWrapper(JSContext *cx, JSObject *obj, jsval v, jsval *rval,
 {
   *rval = v;
   return isNativeWrapper
-         ? XPCNativeWrapper::RewrapValue(cx, obj, v, rval)
+         ? XPCNativeWrapper::RewrapIfDeepWrapper(cx, obj, v, rval)
          : XPCCrossOriginWrapper::RewrapIfNeeded(cx, obj, rval);
 }
 

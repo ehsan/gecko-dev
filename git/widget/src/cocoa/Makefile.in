@@ -94,10 +94,6 @@ CMMSRCS = \
 		nsStandaloneNativeMenu.mm \
 		$(NULL)
 
-ifeq (x86_64,$(TARGET_CPU))
-CMMSRCS += ComplexTextInputPanel.mm
-endif
-
 XPIDLSRCS	+= \
 		nsPIWidgetCocoa.idl \
 		$(NULL)
@@ -110,6 +106,7 @@ EXTRA_DSO_LDOPTS += \
 		$(call EXPAND_LIBNAME_PATH,gkgfx,$(DEPTH)/gfx/src) \
 		$(MOZ_COMPONENT_LIBS) \
 		-lthebes \
+		-llayers \
 		$(QCMS_LIBS) \
 		$(NULL)
 

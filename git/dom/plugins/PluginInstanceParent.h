@@ -193,13 +193,13 @@ public:
 
     NS_OVERRIDE virtual bool
     AnswerNPN_ConvertPoint(const double& sourceX,
-                           const bool&   ignoreDestX,
                            const double& sourceY,
-                           const bool&   ignoreDestY,
                            const NPCoordinateSpace& sourceSpace,
                            const NPCoordinateSpace& destSpace,
                            double *destX,
+                           bool *ignoreDestX,
                            double *destY,
+                           bool *ignoreDestY,
                            bool *result);
 
     NPError NPP_SetWindow(const NPWindow* aWindow);
@@ -245,6 +245,9 @@ public:
 
     virtual bool
     AnswerPluginGotFocus();
+
+    virtual bool
+    RecvSetNestedEventState(const bool& aState);
 
 #if defined(OS_MACOSX)
     void Invalidate();

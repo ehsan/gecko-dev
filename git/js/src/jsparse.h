@@ -945,7 +945,7 @@ struct Parser : private js::AutoGCRooter
     ~Parser();
 
     friend void js::AutoGCRooter::trace(JSTracer *trc);
-    friend struct ::JSTreeContext;
+    friend struct JSTreeContext;
     friend struct Compiler;
 
     /*
@@ -991,11 +991,6 @@ struct Parser : private js::AutoGCRooter
     void setFunctionKinds(JSFunctionBox *funbox, uint32& tcflags);
 
     void trace(JSTracer *trc);
-
-    /*
-     * Report a parse (compile) error.
-     */
-    inline bool reportErrorNumber(JSParseNode *pn, uintN flags, uintN errorNumber, ...);
 
 private:
     /*
@@ -1061,16 +1056,6 @@ private:
     JSParseNode *xmlElementOrListRoot(JSBool allowList);
 #endif /* JS_HAS_XML_SUPPORT */
 };
-
-inline bool
-Parser::reportErrorNumber(JSParseNode *pn, uintN flags, uintN errorNumber, ...)
-{
-    va_list args;
-    va_start(args, errorNumber);
-    bool result = tokenStream.reportCompileErrorNumberVA(pn, flags, errorNumber, args);
-    va_end(args);
-    return result;
-}
 
 struct Compiler
 {

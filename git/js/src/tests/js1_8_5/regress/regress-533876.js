@@ -5,7 +5,6 @@
  */
 gTestfile = 'regress-533876';
 
-var savedEval = eval;
 var x = [0];
 eval();
 
@@ -17,7 +16,6 @@ try {
 
 delete eval;  // force dictionary scope for global
 gc();
-eval = savedEval;
 var f = eval("(function () { return /x/; })");
 x.watch('x', f);  // clone property from global to x, including SPROP_IN_DICTIONARY flag
 

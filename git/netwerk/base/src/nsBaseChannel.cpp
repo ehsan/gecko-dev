@@ -46,7 +46,6 @@
 #include "nsIChannelEventSink.h"
 #include "nsIStreamConverterService.h"
 #include "nsIContentSniffer.h"
-#include "nsChannelClassifier.h"
 
 static PLDHashOperator
 CopyProperties(const nsAString &key, nsIVariant *data, void *closure)
@@ -285,24 +284,6 @@ nsBaseChannel::HandleAsyncRedirect(nsIChannel* newChannel)
   CallbacksChanged();
 }
 
-void
-nsBaseChannel::ClassifyURI()
-{
-  nsresult rv;
-
-  if (mLoadFlags & LOAD_CLASSIFY_URI) {
-    nsRefPtr<nsChannelClassifier> classifier = new nsChannelClassifier();
-    if (classifier) {
-      rv = classifier->Start(this);
-      if (NS_FAILED(rv)) {
-        Cancel(rv);
-      }
-    } else {
-      Cancel(NS_ERROR_OUT_OF_MEMORY);
-    }
-  }
-}
-
 //-----------------------------------------------------------------------------
 // nsBaseChannel::nsISupports
 
@@ -532,10 +513,7 @@ nsBaseChannel::Open(nsIInputStream **result)
   } else if (rv == NS_ERROR_NOT_IMPLEMENTED)
     return NS_ImplementChannelOpen(this, result);
 
-  if (NS_SUCCEEDED(rv)) {
-    mWasOpened = PR_TRUE;
-    ClassifyURI();
-  }
+  mWasOpened = NS_SUCCEEDED(rv);
 
   return rv;
 }
@@ -582,8 +560,6 @@ nsBaseChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *ctxt)
 
   if (mLoadGroup)
     mLoadGroup->AddRequest(this, nsnull);
-
-  ClassifyURI();
 
   return NS_OK;
 }

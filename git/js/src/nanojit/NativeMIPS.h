@@ -175,14 +175,15 @@ namespace nanojit
     void asm_li_d(Register fr, int32_t msw, int32_t lsw);               \
     void asm_li(Register r, int32_t imm);                               \
     void asm_j(NIns*, bool bdelay);                                     \
+    NIns *asm_branch_far(bool, LIns*, NIns*);                           \
+    NIns *asm_branch_near(bool, LIns*, NIns*);                          \
     void asm_cmp(LOpcode condop, LIns *a, LIns *b, Register cr);        \
     void asm_move(Register d, Register s);                              \
     void asm_regarg(ArgType ty, LInsp p, Register r);                   \
     void asm_stkarg(LInsp arg, int stkd);                               \
     void asm_arg(ArgType ty, LInsp arg, Register& r, Register& fr, int& stkd);     \
-    void asm_arg_64(LInsp arg, Register& r, Register& fr, int& stkd);   \
-    NIns *asm_branchtarget(NIns*);                                      \
-    NIns *asm_bxx(bool, LOpcode, Register, Register, NIns*);
+    void asm_arg_64(LInsp arg, Register& r, Register& fr, int& stkd)    ;
+
 
 // REQ: Platform specific declarations to include in RegAlloc class
 #define DECLARE_PLATFORM_REGALLOC()
@@ -226,7 +227,7 @@ namespace nanojit
 
 #define MR(d, s)        asm_move(d, s)
 
-// underrun guarantees that there is always room to insert a jump and branch delay slot
+// underrun guarantees that there is always room to insert a jump
 #define JMP(t)          asm_j(t, true)
 
 // Opcodes: bits 31..26
@@ -542,10 +543,10 @@ namespace nanojit
 
 
 /* FPU instructions */
-#ifdef NJ_SOFTFLOAT_SUPPORTED
+#ifdef NJ_SOFTFLOAT
 
 #if !defined(__mips_soft_float) || __mips_soft_float != 1
-#error NJ_SOFTFLOAT_SUPPORTED defined but not compiled with -msoft-float
+#error NJ_SOFTFLOAT defined but not compiled with -msoft-float
 #endif
 
 #define LWC1(ft, offset, base)  NanoAssertMsg(0, "softfloat LWC1")
@@ -573,7 +574,7 @@ namespace nanojit
 #else
 
 #if defined(__mips_soft_float) && __mips_soft_float != 0
-#error compiled with -msoft-float but NJ_SOFTFLOAT_SUPPORTED not defined
+#error compiled with -msoft-float but NJ_SOFTFLOAT not defined
 #endif
 
 #define FOP_FMT2(ffmt, fd, fs, func, name)                              \

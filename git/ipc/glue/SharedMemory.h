@@ -41,7 +41,6 @@
 #define mozilla_ipc_SharedMemory_h
 
 #include "nsDebug.h"
-#include "nsISupportsImpl.h"    // NS_INLINE_DECL_REFCOUNTING
 
 //
 // This is a low-level wrapper around platform shared memory.  Don't
@@ -98,8 +97,6 @@ public:
     // checks alignment etc.
     SystemProtect(aAddr, aSize, aRights);
   }
-
-  NS_INLINE_DECL_REFCOUNTING(SharedMemory)
 
   static void SystemProtect(char* aAddr, size_t aSize, int aRights);
   static size_t SystemPageSize();

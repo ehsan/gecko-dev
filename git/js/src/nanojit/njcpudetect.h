@@ -96,11 +96,6 @@
 
     #define NJ_COMPILER_ARM_ARCH _M_ARM
 
-// RVCT
-#elif defined(__TARGET_ARCH_ARM)
-
-    #define NJ_COMPILER_ARM_ARCH __TARGET_ARCH_ARM
-
 #else
 
     // non-numeric value

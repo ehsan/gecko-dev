@@ -39,14 +39,9 @@
 #ifdef MOZ_WIDGET_GTK2
 #include <glib.h>
 #endif
-#ifdef MOZ_WIDGET_QT
-#include <QtCore/QCoreApplication>
-#include <QtCore/QEventLoop>
-#endif
 
 #include "base/process_util.h"
 
-#include "mozilla/unused.h"
 #include "mozilla/ipc/SyncChannel.h"
 #include "mozilla/plugins/PluginModuleParent.h"
 #include "mozilla/plugins/BrowserStreamParent.h"
@@ -395,7 +390,7 @@ PluginModuleParent::NPP_Destroy(NPP instance,
     NPError retval = parentInstance->Destroy();
     instance->pdata = nsnull;
 
-    unused << PluginInstanceParent::Call__delete__(parentInstance);
+    (void) PluginInstanceParent::Call__delete__(parentInstance);
     return retval;
 }
 
@@ -546,6 +541,9 @@ PluginModuleParent::GetIdentifierForNPIdentifier(NPIdentifier aIdentifier)
         }
         else {
             intval = mozilla::plugins::parent::_intfromidentifier(aIdentifier);
+            if (intval == -1) {
+                return nsnull;
+            }
             string.SetIsVoid(PR_TRUE);
         }
         ident = new PluginIdentifierParent(aIdentifier);
@@ -741,7 +739,7 @@ PluginModuleParent::NPP_New(NPMIMEType pluginType, NPP instance,
 
     if (*error != NPERR_NO_ERROR) {
         NPP_Destroy(instance, 0);
-        return NS_ERROR_FAILURE;
+        return *error;
     }
 
     return NS_OK;
@@ -758,20 +756,7 @@ PluginModuleParent::AnswerNPN_GetValue_WithBoolReturn(const NPNVariable& aVariab
     return true;
 }
 
-#if defined(MOZ_WIDGET_QT)
-static const int kMaxtimeToProcessEvents = 30;
-bool
-PluginModuleParent::AnswerProcessSomeEvents()
-{
-    PLUGIN_LOG_DEBUG(("Spinning mini nested loop ..."));
-    QCoreApplication::processEvents(QEventLoop::AllEvents, kMaxtimeToProcessEvents);
-
-    PLUGIN_LOG_DEBUG(("... quitting mini nested loop"));
-
-    return true;
-}
-
-#elif !defined(MOZ_WIDGET_GTK2)
+#if !defined(MOZ_WIDGET_GTK2)
 bool
 PluginModuleParent::AnswerProcessSomeEvents()
 {
@@ -797,20 +782,6 @@ PluginModuleParent::AnswerProcessSomeEvents()
     return true;
 }
 #endif
-
-bool
-PluginModuleParent::RecvProcessNativeEventsInRPCCall()
-{
-    PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
-#if defined(OS_WIN)
-    ProcessNativeEventsInRPCCall();
-    return true;
-#else
-    NS_NOTREACHED(
-        "PluginInstanceParent::AnswerSetNestedEventState not implemented!");
-    return false;
-#endif
-}
 
 #ifdef OS_MACOSX
 #define DEFAULT_REFRESH_MS 20 // CoreAnimation: 50 FPS

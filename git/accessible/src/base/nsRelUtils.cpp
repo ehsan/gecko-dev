@@ -38,9 +38,7 @@
 
 #include "nsRelUtils.h"
 
-#include "nsAccessibilityService.h"
 #include "nsAccessNode.h"
-#include "nsCoreUtils.h"
 
 #include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"

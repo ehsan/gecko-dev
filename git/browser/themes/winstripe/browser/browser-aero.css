@@ -2,40 +2,23 @@
 %include browser.css
 %undef WINSTRIPE_AERO
 
-%define customToolbarColor rgb(227,237,246)
-
-@media all and (-moz-windows-default-theme) {
-  #navigator-toolbox > toolbar:not(:-moz-lwtheme) {
-    background-color: @customToolbarColor@;
-  }
-
-  #navigator-toolbox[tabsontop="true"] > #TabsToolbar > #tabbrowser-tabs > .tabbrowser-tab[selected="true"]:not(:-moz-lwtheme) {
-    background-image: -moz-radial-gradient(center top, white, rgba(255,255,255,0) 60%),
-                      -moz-linear-gradient(left, transparent, transparent 1px,
-                                                 @toolbarHighlight@ 1px, @toolbarHighlight@),
-                      -moz-linear-gradient(left, transparent, transparent 1px,
-                                                 @customToolbarColor@ 1px, @customToolbarColor@);
-  }
-}
-
+%if 0
 @media all and (-moz-windows-compositor) {
   #main-window:not(:-moz-lwtheme) {
     -moz-appearance: -moz-win-glass;
     background: transparent;
   }
 
-  #toolbar-menubar:not(:-moz-lwtheme),
-  #navigator-toolbox[tabsontop="true"] > #TabsToolbar:not(:-moz-lwtheme),
-  #navigator-toolbox:not([tabsontop="true"]) > #nav-bar:not(:-moz-lwtheme),
-  #navigator-toolbox:not([tabsontop="true"]) > #nav-bar + #customToolbars + #PersonalToolbar[collapsed="true"] + #TabsToolbar:last-child:not(:-moz-lwtheme) {
-    background: transparent !important;
-    color: black;
-    text-shadow: 0 0 .7em white, 0 0 .7em white, 0 1px 0 rgba(255,255,255,.4);
+  #navigator-toolbox:not(:-moz-lwtheme),
+  #navigator-toolbox > toolbar {
+    -moz-appearance: none;
+    background: transparent;
+    border-style: none;
   }
 
-  #navigator-toolbox[tabsontop="true"] > toolbar:not(#toolbar-menubar):not(#TabsToolbar) {
-    border-left: 1px solid ThreeDShadow;
-    border-right: 1px solid ThreeDShadow;
+  #navigator-toolbox:not(:-moz-lwtheme) {
+    color: black;
+    text-shadow: 0 0 .7em white, 0 0 .7em white, 0 1px 0 rgba(255,255,255,.4);
   }
 
   #browser:not(:-moz-lwtheme),
@@ -46,7 +29,6 @@
   #urlbar,
   .searchbar-textbox {
     background-color: rgba(255,255,255,.725);
-    @navbarTextboxCustomBorder@
     color: black;
   }
 
@@ -67,17 +49,22 @@
     background-color: white;
   }
 
-  .tabbrowser-tab:not(:-moz-lwtheme):not([selected="true"]),
-  .tabs-newtab-button:not(:-moz-lwtheme) {
+  .tabbrowser-tab:not(:-moz-lwtheme),
+  .tabbrowser-arrowscrollbox > .tabs-newtab-button:not(:-moz-lwtheme) {
     background-image: -moz-linear-gradient(left, transparent, transparent 1px,
                                                  rgba(255,255,255,.4) 1px, rgba(255,255,255,.4));
     text-shadow: 0 1px 0 rgba(255,255,255,.4);
   }
 
   .tabbrowser-tab:not(:-moz-lwtheme):not([selected="true"]):hover,
-  .tabs-newtab-button:not(:-moz-lwtheme):hover {
+  .tabbrowser-arrowscrollbox > .tabs-newtab-button:not(:-moz-lwtheme):hover {
     background-image: -moz-linear-gradient(left, transparent, transparent 1px,
                                                  rgba(255,255,255,.6) 1px, rgba(255,255,255,.6));
+  }
+
+  .tabbrowser-tab[selected="true"]:not(:-moz-lwtheme) {
+    background-image: -moz-linear-gradient(left, transparent, transparent 1px,
+                                                 white 1px, white);
   }
 
   #allTabs-panel,
@@ -91,6 +78,7 @@
     text-shadow: white -1px -1px .5em, white -1px 1px .5em, white 1px 1px .5em, white 1px -1px .5em;
   }
 }
+%endif
 
 @media not all and (-moz-windows-compositor) {
   #print-preview-toolbar:not(:-moz-lwtheme) {
@@ -99,11 +87,15 @@
 }
 
 @media all and (-moz-windows-default-theme) {
+  #navigator-toolbox > toolbar {
+    -moz-appearance: none;
+    border-style: none;
+  }
+
   /* Bug 413060, comment 16: Vista Aero is a special case where we use a
      tooltip appearance for the address bar popup panels */
   #identity-popup,
-  #editBookmarkPanel,
-  #notification-popup {
+  #editBookmarkPanel {
     -moz-appearance: tooltip;
     color: InfoText;
   }

@@ -1360,7 +1360,7 @@ NS_IMETHODIMP nsNPAPIPluginInstance::Print(NPPrint* platformPrint)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsNPAPIPluginInstance::HandleEvent(void* event, PRInt16* result)
+NS_IMETHODIMP nsNPAPIPluginInstance::HandleEvent(void* event, PRBool* handled)
 {
   if (RUNNING != mRunning)
     return NS_OK;
@@ -1370,21 +1370,20 @@ NS_IMETHODIMP nsNPAPIPluginInstance::HandleEvent(void* event, PRInt16* result)
 
   PluginDestructionGuard guard(this);
 
-  PRInt16 tmpResult = kNPEventNotHandled;
-
+  PRInt16 result = 0;
+  
   if (mCallbacks->event) {
     mCurrentPluginEvent = event;
 #if defined(XP_WIN) || defined(XP_OS2)
-    NS_TRY_SAFE_CALL_RETURN(tmpResult, (*mCallbacks->event)(&mNPP, event), mLibrary, this);
+    NS_TRY_SAFE_CALL_RETURN(result, (*mCallbacks->event)(&mNPP, event), mLibrary, this);
 #else
-    tmpResult = (*mCallbacks->event)(&mNPP, event);
+    result = (*mCallbacks->event)(&mNPP, event);
 #endif
     NPP_PLUGIN_LOG(PLUGIN_LOG_NOISY,
       ("NPP HandleEvent called: this=%p, npp=%p, event=%p, return=%d\n", 
-      this, &mNPP, event, tmpResult));
+      this, &mNPP, event, result));
 
-    if (result)
-      *result = tmpResult;
+    *handled = result;
     mCurrentPluginEvent = nsnull;
   }
 
@@ -1750,10 +1749,8 @@ nsNPAPIPluginInstance::ScheduleTimer(uint32_t interval, NPBool repeat, void (*ti
   // create new xpcom timer, scheduled correctly
   nsresult rv;
   nsCOMPtr<nsITimer> xpcomTimer = do_CreateInstance(NS_TIMER_CONTRACTID, &rv);
-  if (NS_FAILED(rv)) {
-    delete newTimer;
+  if (NS_FAILED(rv))
     return 0;
-  }
   const short timerType = (repeat ? (short)nsITimer::TYPE_REPEATING_SLACK : (short)nsITimer::TYPE_ONE_SHOT);
   xpcomTimer->InitWithFuncCallback(PluginTimerCallback, newTimer, interval, timerType);
   newTimer->timer = xpcomTimer;

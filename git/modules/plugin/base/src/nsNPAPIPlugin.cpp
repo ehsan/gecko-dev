@@ -116,10 +116,6 @@ using mozilla::PluginPRLibrary;
 using mozilla::plugins::PluginModuleParent;
 #endif
 
-#ifdef MOZ_X11
-#include "mozilla/X11Util.h"
-#endif
-
 using namespace mozilla::plugins::parent;
 
 // We should make this const...
@@ -199,7 +195,7 @@ void NS_NotifyPluginCall(PRIntervalTime startTime)
 {
   PRIntervalTime endTime = PR_IntervalNow() - startTime;
   nsCOMPtr<nsIObserverService> notifyUIService =
-    mozilla::services::GetObserverService();
+    do_GetService("@mozilla.org/observer-service;1");
   if (!notifyUIService)
     return;
 
@@ -918,7 +914,7 @@ _geturl(NPP npp, const char* relativeURL, const char* target)
     nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *) npp->ndata;
 
     
-    const char *name = nsnull;
+    const char *name;
     nsRefPtr<nsPluginHost> host = dont_AddRef(nsPluginHost::GetInst());
     host->GetPluginName(inst, &name);
 
@@ -1809,7 +1805,7 @@ _releasevariantvalue(NPVariant* variant)
           }
         }
 #else
-        NS_Free((void *)s->UTF8Characters);
+        PR_Free((void *)s->UTF8Characters);
 #endif
       }
       break;
@@ -1889,7 +1885,11 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
         inst->GetValueFromPlugin(NPPVpluginNeedsXEmbed, &needXEmbed);
       }
       if (windowless || needXEmbed) {
-        (*(Display **)result) = mozilla::DefaultXDisplay();
+#ifdef MOZ_WIDGET_GTK2
+        (*(Display **)result) = GDK_DISPLAY();
+#else
+        (*(Display **)result) = QX11Info::display();
+#endif
         return NPERR_NO_ERROR;
       }
     }
@@ -1980,11 +1980,6 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
   case NPNVSupportsXEmbedBool: {
 #ifdef MOZ_WIDGET_GTK2
     *(NPBool*)result = PR_TRUE;
-#elif defined(MOZ_WIDGET_QT)
-    // Desktop Flash fail to initialize if browser does not support NPNVSupportsXEmbedBool
-    // even when wmode!=windowed, lets return fake support
-    fprintf(stderr, "Fake support for XEmbed plugins in Qt port\n");
-    *(NPBool*)result = PR_TRUE;
 #else
     *(NPBool*)result = PR_FALSE;
 #endif
@@ -2062,12 +2057,6 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
   }
 
    case NPNVsupportsCoreAnimationBool: {
-     *(NPBool*)result = PR_TRUE;
-
-     return NPERR_NO_ERROR;
-   }
-
-   case NPNVsupportsInvalidatingCoreAnimationBool: {
      *(NPBool*)result = PR_TRUE;
 
      return NPERR_NO_ERROR;
@@ -2414,13 +2403,20 @@ _getvalueforurl(NPP instance, NPNURLVariable variable, const char *url,
         return NPERR_GENERIC_ERROR;
       }
 
-      if (NS_FAILED(cookieService->GetCookieString(uri, nsnull, value)) ||
-          !*value) {
+      nsXPIDLCString cookieStr;
+      nsresult cookieReturn = cookieService->GetCookieString(uri, nsnull,
+                                                             getter_Copies(cookieStr));
+      if (NS_FAILED(cookieReturn) || !cookieStr) {
         return NPERR_GENERIC_ERROR;
       }
 
-      *len = PL_strlen(*value);
-      return NPERR_NO_ERROR;
+      *value = PL_strndup(cookieStr, cookieStr.Length());
+
+      if (*value) {
+        *len = cookieStr.Length();
+
+        return NPERR_NO_ERROR;
+      }
     }
 
     break;

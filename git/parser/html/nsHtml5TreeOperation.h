@@ -58,8 +58,7 @@ enum eHtml5TreeOperation {
   eTreeOpAppendToDocument,
   eTreeOpAddAttributes,
   eTreeOpDocumentMode,
-  eTreeOpCreateElementNetwork,
-  eTreeOpCreateElementNotNetwork,
+  eTreeOpCreateElement,
   eTreeOpSetFormElement,
   eTreeOpAppendText,
   eTreeOpFosterParentText,
@@ -75,6 +74,7 @@ enum eHtml5TreeOperation {
   eTreeOpSetDocumentCharset,
   eTreeOpNeedsCharsetSwitchTo,
   eTreeOpUpdateStyleSheet,
+  eTreeOpProcessBase,
   eTreeOpProcessMeta,
   eTreeOpProcessOfflineManifest,
   eTreeOpMarkMalformedIfScript,
@@ -180,15 +180,12 @@ class nsHtml5TreeOperation {
     inline void Init(PRInt32 aNamespace, 
                      nsIAtom* aName, 
                      nsHtml5HtmlAttributes* aAttributes,
-                     nsIContent** aTarget,
-                     PRBool aFromNetwork) {
+                     nsIContent** aTarget) {
       NS_PRECONDITION(mOpCode == eTreeOpUninitialized,
         "Op code must be uninitialized when initializing.");
       NS_PRECONDITION(aName, "Initialized tree op with null name.");
       NS_PRECONDITION(aTarget, "Initialized tree op with null target node.");
-      mOpCode = aFromNetwork ?
-                eTreeOpCreateElementNetwork :
-                eTreeOpCreateElementNotNetwork;
+      mOpCode = eTreeOpCreateElement;
       mInt = aNamespace;
       mOne.node = aTarget;
       mTwo.atom = aName;

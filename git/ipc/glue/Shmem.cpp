@@ -129,21 +129,6 @@ public:
   }
 };
 
-class ShmemDestroyed : public IPC::Message
-{
-private:
-  typedef Shmem::id_t id_t;
-
-public:
-  ShmemDestroyed(int32 routingId,
-                 const id_t& aIPDLId) :
-    IPC::Message(routingId, SHMEM_DESTROYED_MESSAGE_TYPE, PRIORITY_NORMAL)
-  {
-    IPC::WriteParam(this, aIPDLId);
-  }
-};
-
-
 #ifdef MOZ_HAVE_SHAREDMEMORYSYSV
 static Shmem::SharedMemory*
 CreateSegment(size_t aNBytes, SharedMemorySysV::Handle aHandle)
@@ -161,8 +146,6 @@ CreateSegment(size_t aNBytes, SharedMemorySysV::Handle aHandle)
   }
   if (!segment->Map(aNBytes))
     return 0;
-
-  segment->AddRef();
   return segment.forget();
 }
 #endif
@@ -183,8 +166,6 @@ CreateSegment(size_t aNBytes, SharedMemoryBasic::Handle aHandle)
   }
   if (!segment->Map(aNBytes))
     return 0;
-
-  segment->AddRef();
   return segment.forget();
 }
 
@@ -192,8 +173,7 @@ static void
 DestroySegment(SharedMemory* aSegment)
 {
   // the SharedMemory dtor closes and unmaps the actual OS shmem segment
-  if (aSegment)
-    aSegment->Release();
+  delete aSegment;
 }
 
 static size_t
@@ -616,15 +596,6 @@ Shmem::ShareTo(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
   }
 
   return 0;
-}
-
-IPC::Message*
-Shmem::UnshareFrom(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
-                   base::ProcessHandle aProcess,
-                   int32 routingId)
-{
-  AssertInvariants();
-  return new ShmemDestroyed(routingId, mId);
 }
 
 } // namespace ipc

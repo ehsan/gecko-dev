@@ -622,6 +622,7 @@ nsJSObjWrapper::NP_HasMethod(NPObject *npobj, NPIdentifier identifier)
   JSContext *cx = GetJSContext(npp);
 
   if (!cx) {
+    NS_ERROR("Null cx in nsJSObjWrapper::NP_HasMethod!");
     return PR_FALSE;
   }
 
@@ -653,6 +654,7 @@ doInvoke(NPObject *npobj, NPIdentifier method, const NPVariant *args,
   JSContext *cx = GetJSContext(npp);
 
   if (!cx) {
+    NS_ERROR("Null cx in doInvoke!");
     return PR_FALSE;
   }
 
@@ -766,6 +768,7 @@ nsJSObjWrapper::NP_HasProperty(NPObject *npobj, NPIdentifier identifier)
   JSContext *cx = GetJSContext(npp);
 
   if (!cx) {
+    NS_ERROR("Null cx in nsJSObjWrapper::NP_HasProperty!");
     return PR_FALSE;
   }
 
@@ -807,6 +810,7 @@ nsJSObjWrapper::NP_GetProperty(NPObject *npobj, NPIdentifier identifier,
   JSContext *cx = GetJSContext(npp);
 
   if (!cx) {
+    NS_ERROR("Null cx in nsJSObjWrapper::NP_GetProperty!");
     return PR_FALSE;
   }
 
@@ -837,6 +841,7 @@ nsJSObjWrapper::NP_SetProperty(NPObject *npobj, NPIdentifier identifier,
   JSContext *cx = GetJSContext(npp);
 
   if (!cx) {
+    NS_ERROR("Null cx in nsJSObjWrapper::NP_SetProperty!");
     return PR_FALSE;
   }
 
@@ -882,6 +887,7 @@ nsJSObjWrapper::NP_RemoveProperty(NPObject *npobj, NPIdentifier identifier)
   JSContext *cx = GetJSContext(npp);
 
   if (!cx) {
+    NS_ERROR("Null cx in nsJSObjWrapper::NP_RemoveProperty!");
     return PR_FALSE;
   }
 
@@ -960,6 +966,7 @@ nsJSObjWrapper::NP_Enumerate(NPObject *npobj, NPIdentifier **identifier,
   *count = 0;
 
   if (!cx) {
+    NS_ERROR("Null cx in nsJSObjWrapper::NP_Enumerate!");
     return PR_FALSE;
   }
 
@@ -1345,11 +1352,6 @@ NPObjWrapper_GetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
   if (NPObjectIsOutOfProcessProxy(npobj)) {
     PluginScriptableObjectParent* actor =
       static_cast<ParentNPObject*>(npobj)->parent;
-
-    // actor may be null if the plugin crashed.
-    if (!actor)
-      return JS_FALSE;
-
     JSBool success = actor->GetPropertyHelper((NPIdentifier)id, &hasProperty,
                                               &hasMethod, &npv);
     if (!ReportExceptionIfPending(cx)) {

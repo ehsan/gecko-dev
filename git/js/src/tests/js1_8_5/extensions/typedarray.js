@@ -219,8 +219,6 @@ function test()
     a = new ArrayBuffer(0x10);
     checkThrows(function() new Uint32Array(buffer, 4, 0x3FFFFFFF));
 
-    checkThrows(function() new Float32Array(null));
-
     print ("done");
 
     reportCompare(0, TestFailCount, "typed array tests");

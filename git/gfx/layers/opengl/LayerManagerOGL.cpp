@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -20,8 +20,6 @@
  *
  * Contributor(s):
  *   Bas Schouten <bschouten@mozilla.org>
- *   Frederic Plourde <frederic.plourde@collabora.co.uk>
- *   Vladimir Vukicevic <vladimir@pobox.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -41,224 +39,140 @@
 #include "ThebesLayerOGL.h"
 #include "ContainerLayerOGL.h"
 #include "ImageLayerOGL.h"
-#include "ColorLayerOGL.h"
-#include "CanvasLayerOGL.h"
-
 #include "LayerManagerOGLShaders.h"
 
 #include "gfxContext.h"
 #include "nsIWidget.h"
 
-#include "GLContext.h"
-#include "GLContextProvider.h"
+#include "glWrapper.h"
 
 #include "nsIServiceManager.h"
 #include "nsIConsoleService.h"
 
+static const GLint VERTEX_ATTRIB_LOCATION = 0;
+
 namespace mozilla {
 namespace layers {
-
-using namespace mozilla::gl;
-
-int LayerManagerOGLProgram::sCurrentProgramKey = 0;
-
-static void
-DumpLayerAndChildren(LayerOGL *l, int advance = 0)
-{
-  for (int i = 0; i < advance; i++)
-    fprintf(stderr, "  ");
-
-  fprintf(stderr, "%p: Layer type %d\n", l, l->GetType());
-
-  l = l->GetFirstChildOGL();
-  while (l) {
-    DumpLayerAndChildren(l, advance+1);
-    Layer *genl =  l->GetLayer()->GetNextSibling();
-    l = genl ? static_cast<LayerOGL*>(genl->ImplData()) : nsnull;
-  }
-}
 
 /**
  * LayerManagerOGL
  */
 LayerManagerOGL::LayerManagerOGL(nsIWidget *aWidget) 
   : mWidget(aWidget)
-  , mBackBufferFBO(0)
-  , mBackBufferTexture(0)
-  , mHasBGRA(0)
+  , mBackBuffer(0)
+  , mFrameBuffer(0)
+  , mRGBLayerProgram(NULL)
+  , mYCbCrLayerProgram(NULL)
+  , mVertexShader(0)
+  , mRGBShader(0)
+  , mYUVShader(0)
 {
 }
 
 LayerManagerOGL::~LayerManagerOGL()
 {
-  if (mGLContext)
-    mGLContext->MakeCurrent();
-
-  for (unsigned int i = 0; i < mPrograms.Length(); ++i)
-    delete mPrograms[i];
-
-  mPrograms.Clear();
+  MakeCurrent();
+  delete mRGBLayerProgram;
+  delete mYCbCrLayerProgram;
+#ifdef XP_WIN
+  BOOL deleted = sglWrapper.wDeleteContext(mContext);
+  NS_ASSERTION(deleted, "Error deleting OpenGL context!");
+  ::ReleaseDC((HWND)mWidget->GetNativeData(NS_NATIVE_WINDOW), mDC);
+#endif
 }
 
 PRBool
 LayerManagerOGL::Initialize()
 {
-  mGLContext = sGLContextProvider.CreateForWindow(mWidget);
+#ifdef XP_WIN
+  mDC = (HDC)mWidget->GetNativeData(NS_NATIVE_GRAPHIC);
 
-  if (!mGLContext) {
-    NS_WARNING("Failed to create LayerManagerOGL context");
+  mContext = sglWrapper.wCreateContext(mDC);
+
+  if (!mContext) {
     return PR_FALSE;
   }
+#else
+  // Don't know how to initialize on this platform!
+  return PR_FALSE;
+#endif
 
   MakeCurrent();
 
-  DEBUG_GL_ERROR_CHECK(mGLContext);
+  sglWrapper.BlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ONE_MINUS_SRC_ALPHA, LOCAL_GL_ONE, LOCAL_GL_ONE);
+  sglWrapper.Enable(LOCAL_GL_BLEND);
+  sglWrapper.Enable(LOCAL_GL_TEXTURE_2D);
+  sglWrapper.Enable(LOCAL_GL_SCISSOR_TEST);
 
-  const char *extensionStr =
-    (const char*) mGLContext->fGetString(LOCAL_GL_EXTENSIONS);
+  mVertexShader = sglWrapper.CreateShader(LOCAL_GL_VERTEX_SHADER);
+  mRGBShader = sglWrapper.CreateShader(LOCAL_GL_FRAGMENT_SHADER);
+  mYUVShader = sglWrapper.CreateShader(LOCAL_GL_FRAGMENT_SHADER);
 
-  mHasBGRA = (strstr(extensionStr, "EXT_bgra") != nsnull);
+  sglWrapper.ShaderSource(mVertexShader, 1, (const GLchar**)&sVertexShader, NULL);
+  sglWrapper.ShaderSource(mRGBShader, 1, (const GLchar**)&sRGBLayerPS, NULL);
+  sglWrapper.ShaderSource(mYUVShader, 1, (const GLchar**)&sYUVLayerPS, NULL);
 
-  mGLContext->fBlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ONE_MINUS_SRC_ALPHA,
-                                 LOCAL_GL_ONE, LOCAL_GL_ONE);
-  mGLContext->fEnable(LOCAL_GL_BLEND);
+  sglWrapper.CompileShader(mVertexShader);
+  sglWrapper.CompileShader(mRGBShader);
+  sglWrapper.CompileShader(mYUVShader);
 
-  // We unfortunately can't do generic initialization here, since the
-  // concrete type actually matters.  This macro generates the
-  // initialization using a concrete type and index.
-#define SHADER_PROGRAM(penum, ptype, vsstr, fsstr) do {                 \
-    NS_ASSERTION(programIndex++ == penum, "out of order shader initialization!"); \
-    ptype *p = new ptype(mGLContext);                                   \
-    if (!p->Initialize(vsstr, fsstr))                                   \
-      return PR_FALSE;                                                  \
-    mPrograms.AppendElement(p);                                         \
-  } while (0)
-
-
-  // NOTE: Order matters here, and should be in the same order as the
-  // ProgramType enum!
-  GLint programIndex = 0;
-
-  /* Layer programs */
-  SHADER_PROGRAM(RGBALayerProgramType, ColorTextureLayerProgram,
-                 sLayerVS, sRGBATextureLayerFS);
-  SHADER_PROGRAM(BGRALayerProgramType, ColorTextureLayerProgram,
-                 sLayerVS, sBGRATextureLayerFS);
-  SHADER_PROGRAM(RGBXLayerProgramType, ColorTextureLayerProgram,
-                 sLayerVS, sRGBXTextureLayerFS);
-  SHADER_PROGRAM(BGRXLayerProgramType, ColorTextureLayerProgram,
-                 sLayerVS, sBGRXTextureLayerFS);
-  SHADER_PROGRAM(RGBARectLayerProgramType, ColorTextureLayerProgram,
-                 sLayerVS, sRGBARectTextureLayerFS);
-  SHADER_PROGRAM(ColorLayerProgramType, SolidColorLayerProgram,
-                 sLayerVS, sSolidColorLayerFS);
-  SHADER_PROGRAM(YCbCrLayerProgramType, YCbCrTextureLayerProgram,
-                 sLayerVS, sYCbCrTextureLayerFS);
-  /* Copy programs (used for final framebuffer blit) */
-  SHADER_PROGRAM(Copy2DProgramType, CopyProgram,
-                 sCopyVS, sCopy2DFS);
-  SHADER_PROGRAM(Copy2DRectProgramType, CopyProgram,
-                 sCopyVS, sCopy2DRectFS);
-
-#undef SHADER_PROGRAM
-
-  NS_ASSERTION(programIndex == NumProgramTypes,
-               "not all programs were initialized!");
-
-  /**
-   * We'll test the ability here to bind NPOT textures to a framebuffer, if
-   * this fails we'll try ARB_texture_rectangle.
-   */
-  mGLContext->fGenFramebuffers(1, &mBackBufferFBO);
-
-  GLenum textureTargets[] = {
-    LOCAL_GL_TEXTURE_2D,
-#ifndef USE_GLES2
-    LOCAL_GL_TEXTURE_RECTANGLE_ARB
-#endif
-  };
-
-  mFBOTextureTarget = LOCAL_GL_NONE;
-
-  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(textureTargets); i++) {
-    GLenum target = textureTargets[i];
-    mGLContext->fGenTextures(1, &mBackBufferTexture);
-    mGLContext->fBindTexture(target, mBackBufferTexture);
-    mGLContext->fTexParameteri(target,
-                               LOCAL_GL_TEXTURE_MIN_FILTER,
-                               LOCAL_GL_NEAREST);
-    mGLContext->fTexParameteri(target,
-                               LOCAL_GL_TEXTURE_MAG_FILTER,
-                               LOCAL_GL_NEAREST);
-    mGLContext->fTexImage2D(target,
-                            0,
-                            LOCAL_GL_RGBA,
-                            5, 3, /* sufficiently NPOT */
-                            0,
-                            LOCAL_GL_RGBA,
-                            LOCAL_GL_UNSIGNED_BYTE,
-                            NULL);
-
-    // unbind this texture, in preparation for binding it to the FBO
-    mGLContext->fBindTexture(target, 0);
-
-    mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, mBackBufferFBO);
-    mGLContext->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER,
-                                      LOCAL_GL_COLOR_ATTACHMENT0,
-                                      target,
-                                      mBackBufferTexture,
-                                      0);
-
-    if (mGLContext->fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER) ==
-        LOCAL_GL_FRAMEBUFFER_COMPLETE)
-    {
-      mFBOTextureTarget = target;
-      break;
-    }
-
-    // We weren't succesful with this texture, so we don't need it
-    // any more.
-    mGLContext->fDeleteTextures(1, &mBackBufferTexture);
-  }
-
-  if (mFBOTextureTarget == LOCAL_GL_NONE) {
-    /* Unable to find a texture target that works with FBOs and NPOT textures */
+  GLint status;
+  sglWrapper.GetShaderiv(mVertexShader, LOCAL_GL_COMPILE_STATUS, &status);
+  if (!status) {
     return false;
   }
 
-  mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
-
-  if (mFBOTextureTarget == LOCAL_GL_TEXTURE_RECTANGLE_ARB) {
-    /* If we're using TEXTURE_RECTANGLE, then we must have the ARB
-     * extension -- the EXT variant does not provide support for
-     * texture rectangle access inside GLSL (sampler2DRect,
-     * texture2DRect).
-     */
-    if (strstr(extensionStr, "ARB_texture_rectangle") == NULL)
-      return false;
+  sglWrapper.GetShaderiv(mRGBShader, LOCAL_GL_COMPILE_STATUS, &status);
+  if (!status) {
+    return false;
   }
 
-  // back to default framebuffer, to avoid confusion
-  mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
+  sglWrapper.GetShaderiv(mYUVShader, LOCAL_GL_COMPILE_STATUS, &status);
 
-  DEBUG_GL_ERROR_CHECK(mGLContext);
+  if (!status) {
+    return false;
+  }
 
-  /* Create a simple quad VBO */
+  mRGBLayerProgram = new RGBLayerProgram();
+  if (!mRGBLayerProgram->Initialize(mVertexShader, mRGBShader)) {
+    return false;
+  }
+  mYCbCrLayerProgram = new YCbCrLayerProgram();
+  if (!mYCbCrLayerProgram->Initialize(mVertexShader, mYUVShader)) {
+    return false;
+  }
 
-  mGLContext->fGenBuffers(1, &mQuadVBO);
-  mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, mQuadVBO);
+  mRGBLayerProgram->UpdateLocations();
+  mYCbCrLayerProgram->UpdateLocations();
 
-  GLfloat vertices[] = {
-    /* First quad vertices */
-    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f,
-    /* Then quad texcoords */
-    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f,
-    /* Then flipped quad texcoords */
-    0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f,
-  };
-  mGLContext->fBufferData(LOCAL_GL_ARRAY_BUFFER, sizeof(vertices), vertices, LOCAL_GL_STATIC_DRAW);
+  sglWrapper.GenBuffers(1, &mVBO);
+  sglWrapper.BindBuffer(LOCAL_GL_ARRAY_BUFFER, mVBO);
+  sglWrapper.EnableClientState(LOCAL_GL_VERTEX_ARRAY);
+  sglWrapper.EnableVertexAttribArray(VERTEX_ATTRIB_LOCATION);
 
-  DEBUG_GL_ERROR_CHECK(mGLContext);
+  GLfloat vertices[] = { 0, 0, 1.0f, 0, 0, 1.0f, 1.0f, 1.0f };
+  sglWrapper.BufferData(LOCAL_GL_ARRAY_BUFFER, sizeof(vertices), vertices, LOCAL_GL_STATIC_DRAW);
+
+  mRGBLayerProgram->Activate();
+  sglWrapper.VertexAttribPointer(VERTEX_ATTRIB_LOCATION,
+                        2,
+                        LOCAL_GL_FLOAT,
+                        LOCAL_GL_FALSE,
+                        0,
+                        0);
+  mYCbCrLayerProgram->Activate();
+  sglWrapper.VertexAttribPointer(VERTEX_ATTRIB_LOCATION,
+                        2,
+                        LOCAL_GL_FLOAT,
+                        LOCAL_GL_FALSE,
+                        0,
+                        0);
+
+  mRGBLayerProgram->SetLayerTexture(0);
+
+  mYCbCrLayerProgram->SetYTexture(0);
+  mYCbCrLayerProgram->SetCbTexture(1);
+  mYCbCrLayerProgram->SetCrTexture(2);
 
   nsCOMPtr<nsIConsoleService> 
     console(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
@@ -268,22 +182,15 @@ LayerManagerOGL::Initialize()
     msg +=
       NS_LITERAL_STRING("OpenGL LayerManager Initialized Succesfully.\nVersion: ");
     msg += NS_ConvertUTF8toUTF16(
-      nsDependentCString((const char*)mGLContext->fGetString(LOCAL_GL_VERSION)));
+      nsDependentCString((const char*)sglWrapper.GetString(LOCAL_GL_VERSION)));
     msg += NS_LITERAL_STRING("\nVendor: ");
     msg += NS_ConvertUTF8toUTF16(
-      nsDependentCString((const char*)mGLContext->fGetString(LOCAL_GL_VENDOR)));
+      nsDependentCString((const char*)sglWrapper.GetString(LOCAL_GL_VENDOR)));
     msg += NS_LITERAL_STRING("\nRenderer: ");
     msg += NS_ConvertUTF8toUTF16(
-      nsDependentCString((const char*)mGLContext->fGetString(LOCAL_GL_RENDERER)));
-    msg += NS_LITERAL_STRING("\nFBO Texture Target: ");
-    if (mFBOTextureTarget == LOCAL_GL_TEXTURE_2D)
-      msg += NS_LITERAL_STRING("TEXTURE_2D");
-    else
-      msg += NS_LITERAL_STRING("TEXTURE_RECTANGLE");
+      nsDependentCString((const char*)sglWrapper.GetString(LOCAL_GL_RENDERER)));
     console->LogStringMessage(msg.get());
   }
-
-  DEBUG_GL_ERROR_CHECK(mGLContext);
 
   return true;
 }
@@ -306,24 +213,21 @@ LayerManagerOGL::BeginTransactionWithTarget(gfxContext *aTarget)
 }
 
 void
-LayerManagerOGL::EndTransaction(DrawThebesLayerCallback aCallback,
-                                void* aCallbackData)
+LayerManagerOGL::EndConstruction()
 {
-  mThebesLayerCallback = aCallback;
-  mThebesLayerCallbackData = aCallbackData;
+}
 
+void
+LayerManagerOGL::EndTransaction()
+{
   Render();
-
-  mThebesLayerCallback = nsnull;
-  mThebesLayerCallbackData = nsnull;
-
   mTarget = NULL;
 }
 
 void
 LayerManagerOGL::SetRoot(Layer *aLayer)
 {
-  mRootLayer = static_cast<LayerOGL*>(aLayer->ImplData());;
+  mRootLayer =  static_cast<LayerOGL*>(aLayer->ImplData());;
 }
 
 already_AddRefed<ThebesLayer>
@@ -354,24 +258,23 @@ LayerManagerOGL::CreateImageLayer()
   return layer.forget();
 }
 
-already_AddRefed<ColorLayer>
-LayerManagerOGL::CreateColorLayer()
+void
+LayerManagerOGL::SetClippingEnabled(PRBool aEnabled)
 {
-  nsRefPtr<ColorLayer> layer = new ColorLayerOGL(this);
-  return layer.forget();
-}
-
-already_AddRefed<CanvasLayer>
-LayerManagerOGL::CreateCanvasLayer()
-{
-  nsRefPtr<CanvasLayer> layer = new CanvasLayerOGL(this);
-  return layer.forget();
+  if (aEnabled) {
+    sglWrapper.Enable(LOCAL_GL_SCISSOR_TEST);
+  } else {
+    sglWrapper.Disable(LOCAL_GL_SCISSOR_TEST);
+  }
 }
 
 void
 LayerManagerOGL::MakeCurrent()
 {
-  mGLContext->MakeCurrent();
+#ifdef XP_WIN
+  BOOL succeeded = sglWrapper.wMakeCurrent(mDC, mContext);
+  NS_ASSERTION(succeeded, "Failed to make GL context current!");
+#endif
 }
 
 void
@@ -383,187 +286,151 @@ LayerManagerOGL::Render()
   GLint height = rect.height;
 
   MakeCurrent();
+  SetupBackBuffer();
 
-  DEBUG_GL_ERROR_CHECK(mGLContext);
+  sglWrapper.BindFramebufferEXT(LOCAL_GL_FRAMEBUFFER_EXT, mFrameBuffer);
+  sglWrapper.BlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ONE_MINUS_SRC_ALPHA, LOCAL_GL_ONE, LOCAL_GL_ONE);
+  sglWrapper.ClearColor(0.0, 0.0, 0.0, 0.0);
+  sglWrapper.Clear(LOCAL_GL_COLOR_BUFFER_BIT | LOCAL_GL_DEPTH_BUFFER_BIT);
 
-  SetupBackBuffer(width, height);
-  SetupPipeline(width, height);
+  SetupPipeline();
+  SetClippingEnabled(PR_FALSE);
 
-  // Default blend function implements "OVER"
-  mGLContext->fBlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ONE_MINUS_SRC_ALPHA,
-                                 LOCAL_GL_ONE, LOCAL_GL_ONE);
+  if (mRootLayer) {
+    const nsIntRect *clipRect = mRootLayer->GetLayer()->GetClipRect();
+    if (clipRect) {
+      sglWrapper.Scissor(clipRect->x, clipRect->y, clipRect->width, clipRect->height);
+    } else {
+      sglWrapper.Scissor(0, 0, width, height);
+    }
 
-  DEBUG_GL_ERROR_CHECK(mGLContext);
-
-#if 0
-  // XXX for whatever reason, scissor is not working -- even with no
-  // cliprect set, so we go through the 0,0,w,h path, any updates
-  // after the initial render end up failing the scissor rectangle.  I
-  // have no idea why.  We disable it for now, because it's not actually
-  // helping us with anything -- we draw to a specific location in the
-  // front buffer as it is.
-
-  const nsIntRect *clipRect = mRootLayer->GetLayer()->GetClipRect();
-
-  if (clipRect) {
-    mGLContext->fScissor(clipRect->x, clipRect->y,
-                         clipRect->width, clipRect->height);
-  } else {
-    mGLContext->fScissor(0, 0, width, height);
+    mRootLayer->RenderLayer(mFrameBuffer);
   }
-
-  mGLContext->fEnable(LOCAL_GL_SCISSOR_TEST);
-#else
-  mGLContext->fDisable(LOCAL_GL_SCISSOR_TEST);
-#endif
-
-  DEBUG_GL_ERROR_CHECK(mGLContext);
-
-  // Render our layers.
-  mRootLayer->RenderLayer(mBackBufferFBO, nsIntPoint(0, 0));
-
-  DEBUG_GL_ERROR_CHECK(mGLContext);
 
   if (mTarget) {
     CopyToTarget();
-    return;
+  } else {
+    /**
+     * Draw our backbuffer to the screen without using vertex or fragment
+     * shaders. We're fine with just calculating the viewport coordinates
+     * in software. And nothing special is required for the texture sampling.
+     */
+    sglWrapper.BindFramebufferEXT(LOCAL_GL_FRAMEBUFFER_EXT, 0);
+    sglWrapper.UseProgram(0);
+    sglWrapper.DisableVertexAttribArray(VERTEX_ATTRIB_LOCATION);
+    sglWrapper.BindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
+    sglWrapper.EnableClientState(LOCAL_GL_VERTEX_ARRAY);
+    sglWrapper.EnableClientState(LOCAL_GL_TEXTURE_COORD_ARRAY);
+    sglWrapper.BindTexture(LOCAL_GL_TEXTURE_2D, mBackBuffer);
+
+    const nsIntRect *r;
+    for (nsIntRegionRectIterator iter(mClippingRegion);
+         (r = iter.Next()) != nsnull;) {
+      sglWrapper.BlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ZERO, LOCAL_GL_ONE, LOCAL_GL_ZERO);
+      float left = (GLfloat)r->x / width;
+      float right = (GLfloat)r->XMost() / width;
+      float top = (GLfloat)r->y / height;
+      float bottom = (GLfloat)r->YMost() / height;
+
+      float vertices[] = { left * 2.0f - 1.0f,
+                           -(top * 2.0f - 1.0f),
+                           right * 2.0f - 1.0f,
+                           -(top * 2.0f - 1.0f),
+                           left * 2.0f - 1.0f,
+                           -(bottom * 2.0f - 1.0f),
+                           right * 2.0f - 1.0f,
+                           -(bottom * 2.0f - 1.0f) };
+      float coords[] = { left, top, right, top, left, bottom, right, bottom };
+
+      sglWrapper.VertexPointer(2, LOCAL_GL_FLOAT, 0, vertices);
+      sglWrapper.TexCoordPointer(2, LOCAL_GL_FLOAT, 0, coords);
+      sglWrapper.DrawArrays(LOCAL_GL_TRIANGLE_STRIP, 0, 4);
+    }
+    sglWrapper.BindBuffer(LOCAL_GL_ARRAY_BUFFER, mVBO);
+    sglWrapper.EnableVertexAttribArray(VERTEX_ATTRIB_LOCATION);
+    sglWrapper.DisableClientState(LOCAL_GL_TEXTURE_COORD_ARRAY);
   }
 
-  mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
-
-  mGLContext->fActiveTexture(LOCAL_GL_TEXTURE0);
-
-  CopyProgram *copyprog = GetCopy2DProgram();
-
-  if (mFBOTextureTarget == LOCAL_GL_TEXTURE_RECTANGLE_ARB) {
-    copyprog = GetCopy2DRectProgram();
-  }
-
-  mGLContext->fBindTexture(mFBOTextureTarget, mBackBufferTexture);
-
-  copyprog->Activate();
-  copyprog->SetTextureUnit(0);
-
-  if (copyprog->GetTexCoordMultiplierUniformLocation() != -1) {
-    float f[] = { float(width), float(height) };
-    copyprog->SetUniform(copyprog->GetTexCoordMultiplierUniformLocation(),
-                         2, f);
-  }
-
-  DEBUG_GL_ERROR_CHECK(mGLContext);
-
-  // we're going to use client-side vertex arrays for this.
-  mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
-
-  // "COPY"
-  mGLContext->fBlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ZERO,
-                                 LOCAL_GL_ONE, LOCAL_GL_ZERO);
-
-  // enable our vertex attribs; we'll call glVertexPointer below
-  // to fill with the correct data.
-  GLint vcattr = copyprog->AttribLocation(CopyProgram::VertexCoordAttrib);
-  GLint tcattr = copyprog->AttribLocation(CopyProgram::TexCoordAttrib);
-
-  mGLContext->fEnableVertexAttribArray(vcattr);
-  mGLContext->fEnableVertexAttribArray(tcattr);
-
-  const nsIntRect *r;
-  nsIntRegionRectIterator iter(mClippingRegion);
-
-  while ((r = iter.Next()) != nsnull) {
-    float left = (GLfloat)r->x / width;
-    float right = (GLfloat)r->XMost() / width;
-    float top = (GLfloat)r->y / height;
-    float bottom = (GLfloat)r->YMost() / height;
-
-    float vertices[] = { left * 2.0f - 1.0f,
-                         -(top * 2.0f - 1.0f),
-                         right * 2.0f - 1.0f,
-                         -(top * 2.0f - 1.0f),
-                         left * 2.0f - 1.0f,
-                         -(bottom * 2.0f - 1.0f),
-                         right * 2.0f - 1.0f,
-                         -(bottom * 2.0f - 1.0f) };
-
-    float coords[] = { left, top,
-                       right, top,
-                       left, bottom,
-                       right, bottom };
-
-    mGLContext->fVertexAttribPointer(vcattr,
-                                     2, LOCAL_GL_FLOAT,
-                                     LOCAL_GL_FALSE,
-                                     0, vertices);
-
-    mGLContext->fVertexAttribPointer(tcattr,
-                                     2, LOCAL_GL_FLOAT,
-                                     LOCAL_GL_FALSE,
-                                     0, coords);
-
-    mGLContext->fDrawArrays(LOCAL_GL_TRIANGLE_STRIP, 0, 4);
-    DEBUG_GL_ERROR_CHECK(mGLContext);
-  }
-
-  mGLContext->fDisableVertexAttribArray(vcattr);
-  mGLContext->fDisableVertexAttribArray(tcattr);
-
-  DEBUG_GL_ERROR_CHECK(mGLContext);
-
-  mGLContext->fFinish();
-
-  DEBUG_GL_ERROR_CHECK(mGLContext);
+  sglWrapper.Finish();
 }
 
 void
-LayerManagerOGL::SetupPipeline(int aWidth, int aHeight)
+LayerManagerOGL::SetupPipeline()
 {
-  // Set the viewport correctly
-  mGLContext->fViewport(0, 0, aWidth, aHeight);
+  nsIntRect rect;
+  mWidget->GetBounds(rect);
 
-  // Matrix to transform to viewport space ( <-1.0, 1.0> topleft, 
-  // <1.0, -1.0> bottomright)
-  gfx3DMatrix viewMatrix;
-  viewMatrix._11 = 2.0f / float(aWidth);
-  viewMatrix._22 = 2.0f / float(aHeight);
-  viewMatrix._41 = -1.0f;
-  viewMatrix._42 = -1.0f;
+  sglWrapper.Viewport(0, 0, rect.width, rect.height);
 
-  SetLayerProgramProjectionMatrix(viewMatrix);
+  float viewMatrix[4][4];
+  /**
+   * Matrix to transform to viewport space ( <-1.0, 1.0> topleft, 
+   * <1.0, -1.0> bottomright)
+   */
+  memset(&viewMatrix, 0, sizeof(viewMatrix));
+  viewMatrix[0][0] = 2.0f / rect.width;
+  viewMatrix[1][1] = 2.0f / rect.height;
+  viewMatrix[2][2] = 1.0f;
+  viewMatrix[3][0] = -1.0f;
+  viewMatrix[3][1] = -1.0f;
+  viewMatrix[3][3] = 1.0f;
+  
+  mRGBLayerProgram->Activate();
+  mRGBLayerProgram->SetMatrixProj(&viewMatrix[0][0]);
+
+  mYCbCrLayerProgram->Activate();
+  mYCbCrLayerProgram->SetMatrixProj(&viewMatrix[0][0]);
 }
 
-void
-LayerManagerOGL::SetupBackBuffer(int aWidth, int aHeight)
+PRBool
+LayerManagerOGL::SetupBackBuffer()
 {
-  // Do we have a FBO of the right size already?
-  if (mBackBufferSize.width == aWidth &&
-      mBackBufferSize.height == aHeight)
-  {
-    mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, mBackBufferFBO);
-    return;
+  nsIntRect rect;
+  mWidget->GetBounds(rect);
+  GLint width = rect.width;
+  GLint height = rect.height;
+
+  if (width == mBackBufferSize.width && height == mBackBufferSize.height) {
+    return PR_TRUE;
   }
 
-  // we already have a FBO, but we need to resize its texture.
-  mGLContext->fActiveTexture(LOCAL_GL_TEXTURE0);
-  mGLContext->fBindTexture(mFBOTextureTarget, mBackBufferTexture);
-  mGLContext->fTexImage2D(mFBOTextureTarget,
-                          0,
-                          LOCAL_GL_RGBA,
-                          aWidth, aHeight,
-                          0,
-                          LOCAL_GL_RGBA,
-                          LOCAL_GL_UNSIGNED_BYTE,
-                          NULL);
-  mGLContext->fBindTexture(mFBOTextureTarget, 0);
+  if (!mBackBuffer) {
+    sglWrapper.GenTextures(1, &mBackBuffer);
+  }
 
-  mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, mBackBufferFBO);
-  mGLContext->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER,
-                                    LOCAL_GL_COLOR_ATTACHMENT0,
-                                    mFBOTextureTarget,
-                                    mBackBufferTexture,
-                                    0);
+  /**
+   * Setup the texture used as the backbuffer.
+   */
+  sglWrapper.BindTexture(LOCAL_GL_TEXTURE_2D, mBackBuffer);
+  sglWrapper.TexEnvf(LOCAL_GL_TEXTURE_ENV, LOCAL_GL_TEXTURE_ENV_MODE, LOCAL_GL_MODULATE);
+  sglWrapper.TexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_NEAREST);
+  sglWrapper.TexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_NEAREST);
+  sglWrapper.TexImage2D(LOCAL_GL_TEXTURE_2D,
+                        0,
+                        LOCAL_GL_RGBA,
+                        width,
+                        height,
+                        0,
+                        LOCAL_GL_RGBA,
+                        LOCAL_GL_UNSIGNED_BYTE,
+                        NULL);
 
-  mBackBufferSize.width = aWidth;
-  mBackBufferSize.height = aHeight;
+  /**
+   * Create the framebuffer and bind it to make our content render into our
+   * framebuffer.
+   */
+  if (!mFrameBuffer) {
+    sglWrapper.GenFramebuffersEXT(1, &mFrameBuffer);
+  }
+
+  sglWrapper.BindFramebufferEXT(LOCAL_GL_FRAMEBUFFER_EXT, mFrameBuffer);
+  sglWrapper.FramebufferTexture2DEXT(LOCAL_GL_FRAMEBUFFER_EXT,
+                                     LOCAL_GL_COLOR_ATTACHMENT0_EXT,
+                                     LOCAL_GL_TEXTURE_2D,
+                                     mBackBuffer,
+                                     0);
+
+  return PR_TRUE;
 }
 
 void
@@ -574,7 +441,7 @@ LayerManagerOGL::CopyToTarget()
   GLint width = rect.width;
   GLint height = rect.height;
 
-  if ((PRInt64(width) * PRInt64(height) * PRInt64(4)) > PR_INT32_MAX) {
+  if ((PRInt64)width * (PRInt64)height > PR_INT32_MAX) {
     NS_ERROR("Widget size too big - integer overflow!");
     return;
   }
@@ -583,115 +450,173 @@ LayerManagerOGL::CopyToTarget()
     new gfxImageSurface(gfxIntSize(width, height),
                         gfxASurface::ImageFormatARGB32);
 
-#ifdef USE_GLES2
-  // GLES2 promises that binding to any custom FBO will attach 
-  // to GL_COLOR_ATTACHMENT0 attachment point.
-  mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, mBackBufferFBO);
-#else
-  mGLContext->fReadBuffer(LOCAL_GL_COLOR_ATTACHMENT0);
-#endif
+  sglWrapper.ReadBuffer(LOCAL_GL_COLOR_ATTACHMENT0_EXT);
 
-  GLenum format = LOCAL_GL_RGBA;
-  if (mHasBGRA)
-    format = LOCAL_GL_BGRA;
+  if (imageSurface->Stride() != width * 4) {
+    char *tmpData = new char[width * height * 4];
 
-  NS_ASSERTION(imageSurface->Stride() == width * 4,
-               "Image Surfaces being created with weird stride!");
+    sglWrapper.ReadPixels(0,
+                          0,
+                          width,
+                          height,
+                          LOCAL_GL_BGRA,
+                          LOCAL_GL_UNSIGNED_BYTE,
+                          tmpData);
+    sglWrapper.Finish();
 
-  mGLContext->fReadPixels(0, 0,
-                          width, height,
-                          format,
+    for (int y = 0; y < height; y++) {
+      memcpy(imageSurface->Data() + imageSurface->Stride() * y,
+             tmpData + width * 4 * y,
+             width * 4);
+    }
+    delete [] tmpData;
+  } else {
+    sglWrapper.ReadPixels(0,
+                          0,
+                          width,
+                          height,
+                          LOCAL_GL_BGRA,
                           LOCAL_GL_UNSIGNED_BYTE,
                           imageSurface->Data());
-
-  if (!mHasBGRA) {
-    // need to swap B and R bytes
-    for (int j = 0; j < height; ++j) {
-      PRUint32 *row = (PRUint32*) (imageSurface->Data() + imageSurface->Stride() * j);
-      for (int i = 0; i < width; ++i) {
-        *row = (*row & 0xff00ff00) | ((*row & 0xff) << 16) | ((*row & 0xff0000) >> 16);
-        row++;
-      }
-    }
-  }
+    sglWrapper.Finish();
+  }                          
 
   mTarget->SetOperator(gfxContext::OPERATOR_OVER);
   mTarget->SetSource(imageSurface);
   mTarget->Paint();
 }
 
-LayerManagerOGL::ProgramType LayerManagerOGL::sLayerProgramTypes[] = {
-  LayerManagerOGL::RGBALayerProgramType,
-  LayerManagerOGL::BGRALayerProgramType,
-  LayerManagerOGL::RGBXLayerProgramType,
-  LayerManagerOGL::BGRXLayerProgramType,
-  LayerManagerOGL::RGBARectLayerProgramType,
-  LayerManagerOGL::ColorLayerProgramType,
-  LayerManagerOGL::YCbCrLayerProgramType
-};
-
-#define FOR_EACH_LAYER_PROGRAM(vname)                       \
-  for (size_t lpindex = 0;                                  \
-       lpindex < NS_ARRAY_LENGTH(sLayerProgramTypes);       \
-       ++lpindex)                                           \
-  {                                                         \
-    LayerProgram *vname = static_cast<LayerProgram*>        \
-      (mPrograms[sLayerProgramTypes[lpindex]]);             \
-    do
-
-#define FOR_EACH_LAYER_PROGRAM_END              \
-    while (0);                                  \
-  }                                             \
-
-void
-LayerManagerOGL::SetLayerProgramProjectionMatrix(const gfx3DMatrix& aMatrix)
+LayerOGL::LayerOGL()
+  : mNextSibling(NULL)
 {
-  FOR_EACH_LAYER_PROGRAM(lp) {
-    lp->Activate();
-    lp->SetProjectionMatrix(aMatrix);
-  } FOR_EACH_LAYER_PROGRAM_END
+}
+
+LayerOGL*
+LayerOGL::GetNextSibling()
+{
+  return mNextSibling;
 }
 
 void
-LayerManagerOGL::CreateFBOWithTexture(int aWidth, int aHeight,
-                                      GLuint *aFBO, GLuint *aTexture)
+LayerOGL::SetNextSibling(LayerOGL *aNextSibling)
 {
-  GLuint tex, fbo;
-
-  mGLContext->fActiveTexture(LOCAL_GL_TEXTURE0);
-  mGLContext->fGenTextures(1, &tex);
-  mGLContext->fBindTexture(mFBOTextureTarget, tex);
-  mGLContext->fTexImage2D(mFBOTextureTarget,
-                          0,
-                          LOCAL_GL_RGBA,
-                          aWidth, aHeight,
-                          0,
-                          LOCAL_GL_RGBA,
-                          LOCAL_GL_UNSIGNED_BYTE,
-                          NULL);
-  mGLContext->fTexParameteri(mFBOTextureTarget, LOCAL_GL_TEXTURE_MIN_FILTER,
-                             LOCAL_GL_LINEAR);
-  mGLContext->fTexParameteri(mFBOTextureTarget, LOCAL_GL_TEXTURE_MAG_FILTER,
-                             LOCAL_GL_LINEAR);
-  mGLContext->fBindTexture(mFBOTextureTarget, 0);
-
-  mGLContext->fGenFramebuffers(1, &fbo);
-  mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, fbo);
-  mGLContext->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER,
-                                    LOCAL_GL_COLOR_ATTACHMENT0,
-                                    mFBOTextureTarget,
-                                    tex,
-                                    0);
-
-  NS_ASSERTION(mGLContext->fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER) ==
-               LOCAL_GL_FRAMEBUFFER_COMPLETE, "Error setting up framebuffer.");
-
-  *aFBO = fbo;
-  *aTexture = tex;
-
-  DEBUG_GL_ERROR_CHECK(gl());
+  mNextSibling = aNextSibling;
 }
 
-                                     
+/**
+ * LayerProgram Helpers
+ */
+LayerProgram::LayerProgram()
+  : mProgram(0)
+{
+}
+
+LayerProgram::~LayerProgram()
+{
+  sglWrapper.DeleteProgram(mProgram);
+}
+
+PRBool
+LayerProgram::Initialize(GLuint aVertexShader, GLuint aFragmentShader)
+{
+  mProgram = sglWrapper.CreateProgram();
+  sglWrapper.AttachShader(mProgram, aVertexShader);
+  sglWrapper.AttachShader(mProgram, aFragmentShader);
+
+  sglWrapper.BindAttribLocation(mProgram, VERTEX_ATTRIB_LOCATION, "aVertex");
+  
+  sglWrapper.LinkProgram(mProgram);
+
+  GLint status;
+  sglWrapper.GetProgramiv(mProgram, LOCAL_GL_LINK_STATUS, &status);
+
+  if (!status) {
+    return false;
+  }
+  return true;
+}
+
+void
+LayerProgram::Activate()
+{
+  sglWrapper.UseProgram(mProgram);
+}
+
+void
+LayerProgram::UpdateLocations()
+{
+  mMatrixProjLocation = sglWrapper.GetUniformLocation(mProgram, "uMatrixProj");
+  mLayerQuadTransformLocation =
+    sglWrapper.GetUniformLocation(mProgram, "uLayerQuadTransform");
+  mLayerTransformLocation = sglWrapper.GetUniformLocation(mProgram, "uLayerTransform");
+  mRenderTargetOffsetLocation =
+    sglWrapper.GetUniformLocation(mProgram, "uRenderTargetOffset");
+  mLayerOpacityLocation = sglWrapper.GetUniformLocation(mProgram, "uLayerOpacity");
+}
+
+void
+LayerProgram::SetMatrixUniform(GLint aLocation, const GLfloat *aValue)
+{
+  sglWrapper.UniformMatrix4fv(aLocation, 1, false, aValue);
+}
+
+void
+LayerProgram::SetInt(GLint aLocation, GLint aValue)
+{
+  sglWrapper.Uniform1i(aLocation, aValue);
+}
+
+void
+LayerProgram::SetLayerOpacity(GLfloat aValue)
+{
+  sglWrapper.Uniform1f(mLayerOpacityLocation, aValue);
+}
+
+void
+LayerProgram::PushRenderTargetOffset(GLfloat aValueX, GLfloat aValueY)
+{
+  GLvec2 vector;
+  vector.mX = aValueX;
+  vector.mY = aValueY;
+  mRenderTargetOffsetStack.AppendElement(vector);
+}
+
+void
+LayerProgram::PopRenderTargetOffset()
+{
+  NS_ASSERTION(mRenderTargetOffsetStack.Length(), "Unbalanced push/pops");
+  mRenderTargetOffsetStack.RemoveElementAt(mRenderTargetOffsetStack.Length() - 1);
+}
+
+void
+LayerProgram::Apply()
+{
+  if (!mRenderTargetOffsetStack.Length()) {
+    sglWrapper.Uniform4f(mRenderTargetOffsetLocation, 0, 0, 0, 0);
+  } else {
+    GLvec2 vector =
+      mRenderTargetOffsetStack[mRenderTargetOffsetStack.Length() - 1];
+    sglWrapper.Uniform4f(mRenderTargetOffsetLocation, vector.mX, vector.mY, 0, 0);
+  }
+}
+
+void
+RGBLayerProgram::UpdateLocations()
+{
+  LayerProgram::UpdateLocations();
+
+  mLayerTextureLocation = sglWrapper.GetUniformLocation(mProgram, "uLayerTexture");
+}
+
+void
+YCbCrLayerProgram::UpdateLocations()
+{
+  LayerProgram::UpdateLocations();
+
+  mYTextureLocation = sglWrapper.GetUniformLocation(mProgram, "uYTexture");
+  mCbTextureLocation = sglWrapper.GetUniformLocation(mProgram, "uCbTexture");
+  mCrTextureLocation = sglWrapper.GetUniformLocation(mProgram, "uCrTexture");
+}
+
 } /* layers */
 } /* mozilla */

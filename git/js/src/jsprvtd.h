@@ -69,7 +69,6 @@
 #define INT_TO_JSID(i)              ((jsid)INT_TO_JSVAL(i))
 #define INT_JSVAL_TO_JSID(v)        ((jsid)(v))
 #define INT_JSID_TO_JSVAL(id)       ((jsval)(id))
-#define INT_FITS_IN_JSID(i)         INT_FITS_IN_JSVAL(i)
 
 #define JSID_IS_OBJECT(id)          JSVAL_IS_OBJECT((jsval)(id))
 #define JSID_TO_OBJECT(id)          JSVAL_TO_OBJECT((jsval)(id))
@@ -92,11 +91,9 @@ typedef uint32 jsatomid;
 #ifdef __cplusplus
 
 /* Class and struct forward declarations in namespace js. */
-extern "C++" {
 namespace js {
 struct Parser;
 struct Compiler;
-}
 }
 
 #endif
@@ -104,7 +101,7 @@ struct Compiler;
 /* Struct typedefs. */
 typedef struct JSArgumentFormatMap  JSArgumentFormatMap;
 typedef struct JSCodeGenerator      JSCodeGenerator;
-typedef union JSGCThing             JSGCThing;
+typedef struct JSGCThing            JSGCThing;
 typedef struct JSGenerator          JSGenerator;
 typedef struct JSNativeEnumerator   JSNativeEnumerator;
 typedef struct JSFunctionBox        JSFunctionBox;
@@ -152,12 +149,8 @@ extern "C++" {
 
 namespace js {
 
-class ExecuteArgsGuard;
-class InvokeFrameGuard;
-class InvokeArgsGuard;
 class TraceRecorder;
 struct TraceMonitor;
-class StackSpace;
 class CallStack;
 
 class TokenStream;
@@ -191,17 +184,16 @@ class DeflatedStringCache;
 
 class PropertyCache;
 struct PropertyCacheEntry;
-
-static inline JSPropertyOp
-CastAsPropertyOp(JSObject *object)
-{
-    return JS_DATA_TO_FUNC_PTR(JSPropertyOp, object);
-}
-
 } /* namespace js */
 
 /* Common instantiations. */
 typedef js::Vector<jschar, 32> JSCharBuffer;
+
+static inline JSPropertyOp
+js_CastAsPropertyOp(JSObject *object)
+{
+    return JS_DATA_TO_FUNC_PTR(JSPropertyOp, object);
+}
 
 } /* export "C++" */
 #endif  /* __cplusplus */
@@ -217,19 +209,7 @@ typedef enum JSTrapStatus {
 
 typedef JSTrapStatus
 (* JSTrapHandler)(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
-                  jsval closure);
-
-typedef JSTrapStatus
-(* JSInterruptHook)(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
-                    void *closure);
-
-typedef JSTrapStatus
-(* JSDebuggerHandler)(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
-                      void *closure);
-
-typedef JSTrapStatus
-(* JSThrowHook)(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
-                void *closure);
+                  void *closure);
 
 typedef JSBool
 (* JSWatchPointHandler)(JSContext *cx, JSObject *obj, jsval id, jsval old,
@@ -291,13 +271,13 @@ typedef JSBool
                      void *closure);
 
 typedef struct JSDebugHooks {
-    JSInterruptHook     interruptHook;
-    void                *interruptHookData;
+    JSTrapHandler       interruptHandler;
+    void                *interruptHandlerData;
     JSNewScriptHook     newScriptHook;
     void                *newScriptHookData;
     JSDestroyScriptHook destroyScriptHook;
     void                *destroyScriptHookData;
-    JSDebuggerHandler   debuggerHandler;
+    JSTrapHandler       debuggerHandler;
     void                *debuggerHandlerData;
     JSSourceHandler     sourceHandler;
     void                *sourceHandlerData;
@@ -307,7 +287,7 @@ typedef struct JSDebugHooks {
     void                *callHookData;
     JSObjectHook        objectHook;
     void                *objectHookData;
-    JSThrowHook         throwHook;
+    JSTrapHandler       throwHook;
     void                *throwHookData;
     JSDebugErrorHook    debugErrorHook;
     void                *debugErrorHookData;
@@ -325,7 +305,7 @@ typedef struct JSDebugHooks {
  * If JSLookupPropOp succeeds and returns with *propp non-null, that pointer
  * may be passed as the prop parameter to a JSAttributesOp, as a short-cut
  * that bypasses id re-lookup.  In any case, a non-null *propp result after a
- * successful lookup must be dropped via JSObject::dropProperty.
+ * successful lookup must be dropped via JSObjectOps.dropProperty.
  *
  * NB: successful return with non-null *propp means the implementation may
  * have locked *objp and added a reference count associated with *propp, so
@@ -356,11 +336,14 @@ typedef JSBool
 (* JSPropertyIdOp)(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
 
 /*
- * Get or set attributes of the property obj[id]. Return false on error or
- * exception, true with current attributes in *attrsp.
+ * Get or set attributes of the property obj[id].  Return false on error or
+ * exception, true with current attributes in *attrsp.  If prop is non-null,
+ * it must come from the *propp out parameter of a prior JSDefinePropOp or
+ * JSLookupPropOp call.
  */
 typedef JSBool
-(* JSAttributesOp)(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp);
+(* JSAttributesOp)(JSContext *cx, JSObject *obj, jsid id, JSProperty *prop,
+                   uintN *attrsp);
 
 /*
  * JSObjectOps.checkAccess type: check whether obj[id] may be accessed per
@@ -370,6 +353,15 @@ typedef JSBool
 typedef JSBool
 (* JSCheckAccessIdOp)(JSContext *cx, JSObject *obj, jsid id, JSAccessMode mode,
                       jsval *vp, uintN *attrsp);
+
+/*
+ * A generic type for functions taking a context, object, and property, with
+ * no return value.  Used by JSObjectOps.dropProperty currently (see above,
+ * JSDefinePropOp and JSLookupPropOp, for the object-locking protocol in which
+ * dropProperty participates).
+ */
+typedef void
+(* JSPropertyRefOp)(JSContext *cx, JSObject *obj, JSProperty *prop);
 
 /*
  * The following determines whether JS_EncodeCharacters and JS_DecodeBytes

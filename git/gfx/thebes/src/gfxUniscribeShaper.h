@@ -52,24 +52,15 @@
 class gfxUniscribeShaper : public gfxFontShaper
 {
 public:
-    gfxUniscribeShaper(gfxGDIFont *aFont)
-        : gfxFontShaper(aFont)
-        , mScriptCache(NULL)
-    {
-        MOZ_COUNT_CTOR(gfxUniscribeShaper);
-    }
+    gfxUniscribeShaper(gfxGDIFont *aFont);
 
-    virtual ~gfxUniscribeShaper()
-    {
-        MOZ_COUNT_DTOR(gfxUniscribeShaper);
-    }
+    virtual ~gfxUniscribeShaper();
 
     virtual PRBool InitTextRun(gfxContext *aContext,
                                gfxTextRun *aTextRun,
                                const PRUnichar *aString,
                                PRUint32 aRunStart,
-                               PRUint32 aRunLength,
-                               PRInt32 aRunScript);
+                               PRUint32 aRunLength);
 
     SCRIPT_CACHE *ScriptCache() { return &mScriptCache; }
 
@@ -77,11 +68,6 @@ public:
 
 private:
     SCRIPT_CACHE mScriptCache;
-
-    enum {
-        kUnicodeVS17 = gfxFontUtils::kUnicodeVS17,
-        kUnicodeVS256 = gfxFontUtils::kUnicodeVS256
-    };
 };
 
 #endif /* GFX_UNISCRIBESHAPER_H */

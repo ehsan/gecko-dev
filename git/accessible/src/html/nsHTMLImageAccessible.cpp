@@ -36,13 +36,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsHTMLImageAccessible.h"
-
-#include "nsAccessibilityAtoms.h"
-#include "nsAccUtils.h"
-
 #include "imgIContainer.h"
 #include "imgIRequest.h"
+
+#include "nsHTMLImageAccessible.h"
+#include "nsAccessibilityAtoms.h"
+
 #include "nsIDocument.h"
 #include "nsIImageLoadingContent.h"
 #include "nsILink.h"
@@ -57,8 +56,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLImageAccessible::
-  nsHTMLImageAccessible(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsLinkableAccessible(aContent, aShell)
+  nsHTMLImageAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell) :
+  nsLinkableAccessible(aDOMNode, aShell)
 {
 }
 
@@ -77,7 +76,7 @@ nsHTMLImageAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
   nsresult rv = nsLinkableAccessible::GetStateInternal(aState, aExtraState);
   NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIImageLoadingContent> content(do_QueryInterface(mContent));
+  nsCOMPtr<nsIImageLoadingContent> content(do_QueryInterface(mDOMNode));
   nsCOMPtr<imgIRequest> imageRequest;
 
   if (content)
@@ -101,8 +100,9 @@ nsHTMLImageAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 nsresult
 nsHTMLImageAccessible::GetNameInternal(nsAString& aName)
 {
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
   PRBool hasAltAttrib =
-    mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::alt, aName);
+    content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::alt, aName);
   if (!aName.IsEmpty())
     return NS_OK;
 
@@ -171,19 +171,20 @@ nsHTMLImageAccessible::DoAction(PRUint8 aIndex)
 
   if (IsValidLongDescIndex(aIndex)) {
     //get the long description uri and open in a new window
-    nsCOMPtr<nsIDOMHTMLImageElement> element(do_QueryInterface(mContent));
+    nsCOMPtr<nsIDOMHTMLImageElement> element(do_QueryInterface(mDOMNode));
     NS_ENSURE_TRUE(element, NS_ERROR_FAILURE);
-
     nsAutoString longDesc;
     nsresult rv = element->GetLongDesc(longDesc);
     NS_ENSURE_SUCCESS(rv, rv);
-
-    nsIDocument* document = mContent->GetOwnerDoc();
+    nsCOMPtr<nsIDOMDocument> domDocument;
+    rv = mDOMNode->GetOwnerDocument(getter_AddRefs(domDocument));
+    NS_ENSURE_SUCCESS(rv, rv);
+    nsCOMPtr<nsIDocument> document(do_QueryInterface(domDocument));
     nsCOMPtr<nsPIDOMWindow> piWindow = document->GetWindow();
     nsCOMPtr<nsIDOMWindowInternal> win(do_QueryInterface(piWindow));
     NS_ENSURE_TRUE(win, NS_ERROR_FAILURE);
     nsCOMPtr<nsIDOMWindow> tmp;
-    return win->Open(longDesc, EmptyString(), EmptyString(),
+    return win->Open(longDesc, NS_LITERAL_STRING(""), NS_LITERAL_STRING(""),
                      getter_AddRefs(tmp));
   }
   return nsLinkableAccessible::DoAction(aIndex);
@@ -221,8 +222,10 @@ nsHTMLImageAccessible::GetAttributesInternal(nsIPersistentProperties *aAttribute
   nsresult rv = nsLinkableAccessible::GetAttributesInternal(aAttributes);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+
   nsAutoString src;
-  mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::src, src);
+  content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::src, src);
   if (!src.IsEmpty())
     nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::src, src);
 
@@ -238,7 +241,8 @@ nsHTMLImageAccessible::HasLongDesc()
   if (IsDefunct())
     return PR_FALSE;
 
-  return mContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::longDesc);
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  return (content->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::longDesc));
 }
 
 PRBool

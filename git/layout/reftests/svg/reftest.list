@@ -65,8 +65,6 @@ include svg-integration/reftest.list
 == dynamic-textPath-01.svg dynamic-textPath-01-ref.svg
 == dynamic-use-01.svg pass.svg
 == dynamic-use-02.svg pass.svg
-== dynamic-use-nested-01.svg dynamic-use-nested-01-ref.svg
-== dynamic-use-remove-width.svg dynamic-use-remove-width-ref.svg
 == linked-pattern-01.svg pass.svg
 == use-01-extref.svg pass.svg
 == use-02-extref.svg use-02-extref-ref.svg
@@ -117,8 +115,6 @@ fails == inline-in-xul-basic-01.xul pass.svg
 == opacity-and-gradient-01.svg pass.svg
 == opacity-and-gradient-02.svg opacity-and-gradient-02-ref.svg
 == opacity-and-pattern-01.svg pass.svg
-== outer-svg-border-and-padding-01.svg outer-svg-border-and-padding-01-ref.svg 
-== polyline-points-invalid-01.svg pass.svg
 == path-01.svg path-01-ref.svg
 == path-02.svg pass.svg
 == pattern-live-01a.svg pattern-live-01-ref.svg
@@ -149,10 +145,9 @@ random-if(MOZ_WIDGET_TOOLKIT=="gtk2") == text-font-weight-01.svg text-font-weigh
 == text-gradient-01.svg text-gradient-01-ref.svg
 == text-in-link-01.svg text-in-link-01-ref.svg
 == text-in-link-02.svg text-in-link-02-ref.svg
-== text-in-link-03.svg text-in-link-03-ref.svg
-# Tests for bug 546813: sanity-check using HTML text, then test SVG behavior.
+# For bug 546813: sanity-check using HTML text, then test SVG behavior. Fails on Linux tryserver due to lack of CJK fonts.
 != text-language-00.xhtml text-language-00-ref.xhtml
-random-if(MOZ_WIDGET_TOOLKIT=="gtk2") != text-language-01.xhtml text-language-01-ref.xhtml # Fails on Linux tryserver due to lack of CJK fonts.
+random-if(MOZ_WIDGET_TOOLKIT=="gtk2") != text-language-01.xhtml text-language-01-ref.xhtml
 == text-layout-01.svg text-layout-01-ref.svg
 == text-layout-02.svg text-layout-02-ref.svg
 == text-scale-01.svg text-scale-01-ref.svg
@@ -164,8 +159,6 @@ random-if(MOZ_WIDGET_TOOLKIT=="gtk2") != text-language-01.xhtml text-language-01
 == thin-stroke-01.svg pass.svg
 == userSpaceOnUse-and-pattern-01.svg userSpaceOnUse-and-pattern-01-ref.svg
 == viewBox-and-pattern-01.svg pass.svg
-== viewBox-invalid-01.svg pass.svg
-== viewBox-valid-01.svg pass.svg
 == viewport-percent-graphic-user-01.svg pass.svg
 
 == svg-effects-area-unzoomed.xhtml svg-effects-area-unzoomed-ref.xhtml

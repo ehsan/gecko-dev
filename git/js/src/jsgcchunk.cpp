@@ -161,23 +161,24 @@ UnmapPages(void *addr, size_t size)
 static void *
 MapPages(void *addr, size_t size)
 {
-    vm_address_t p;
+    void *p;
     int flags;
     if (addr) {
-        p = (vm_address_t) addr;
+        p = addr;
         flags = 0;
     } else {
         flags = VM_FLAGS_ANYWHERE;
     }
 
     kern_return_t err = vm_allocate((vm_map_t) mach_task_self(),
-                                    &p, (vm_size_t) size, flags);
+                                    (vm_address_t *) &p,
+                                    (vm_size_t) size, flags);
     if (err != KERN_SUCCESS)
         return NULL;
 
     JS_ASSERT(p);
-    JS_ASSERT_IF(addr, p == (vm_address_t) addr);
-    return (void *) p;
+    JS_ASSERT_IF(addr, p == addr);
+    return p;
 }
 
 static void
@@ -202,7 +203,7 @@ MapAlignedPages(size_t size, size_t alignment)
      * We don't use MAP_FIXED here, because it can cause the *replacement*
      * of existing mappings, and we only want to create new mappings.
      */
-    void *p = mmap((caddr_t) alignment, size, PROT_READ | PROT_WRITE,
+    void *p = mmap((void *) alignment, size, PROT_READ | PROT_WRITE,
                      MAP_PRIVATE | MAP_NOSYNC | MAP_ALIGN | MAP_ANON, -1, 0);
     if (p == MAP_FAILED)
         return NULL;
@@ -235,7 +236,7 @@ MapPages(void *addr, size_t size)
 static void
 UnmapPages(void *addr, size_t size)
 {
-    JS_ALWAYS_TRUE(munmap((caddr_t) addr, size) == 0);
+    JS_ALWAYS_TRUE(munmap(addr, size) == 0);
 }
 
 #endif
@@ -255,7 +256,7 @@ AllocGCChunk()
 {
     void *p;
 
-#ifdef JS_GC_HAS_MAP_ALIGN
+#if JS_GC_HAS_MAP_ALIGN
     p = MapAlignedPages(GC_CHUNK_SIZE, GC_CHUNK_SIZE);
     if (!p)
         return NULL;

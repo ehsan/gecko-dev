@@ -40,7 +40,7 @@
 
 #include "nsMaiInterfaceHypertext.h"
 #include "nsIAccessibleDocument.h"
-#include "nsHyperTextAccessible.h"
+#include "nsAccessNode.h"
 
 void
 hypertextInterfaceInitCB(AtkHypertextIface *aIface)
@@ -59,14 +59,18 @@ getLinkCB(AtkHypertext *aText, gint aLinkIndex)
     if (!accWrap)
         return nsnull;
 
-    nsRefPtr<nsHyperTextAccessible> hyperText = do_QueryObject(accWrap);
+    nsCOMPtr<nsIAccessibleHyperText> hyperText;
+    accWrap->QueryInterface(NS_GET_IID(nsIAccessibleHyperText),
+                            getter_AddRefs(hyperText));
     NS_ENSURE_TRUE(hyperText, nsnull);
 
-    nsAccessible* hyperLink = hyperText->GetLinkAt(aLinkIndex);
-    if (!hyperLink)
+    nsCOMPtr<nsIAccessibleHyperLink> hyperLink;
+    nsresult rv = hyperText->GetLink(aLinkIndex, getter_AddRefs(hyperLink));
+    if (NS_FAILED(rv) || !hyperLink)
         return nsnull;
 
-    AtkObject* hyperLinkAtkObj = nsAccessibleWrap::GetAtkObject(hyperLink);
+    nsCOMPtr<nsIAccessible> hyperLinkAcc(do_QueryInterface(hyperLink));
+    AtkObject *hyperLinkAtkObj = nsAccessibleWrap::GetAtkObject(hyperLinkAcc);
     nsAccessibleWrap *accChild = GetAccessibleWrap(hyperLinkAtkObj);
     NS_ENSURE_TRUE(accChild, nsnull);
 
@@ -82,10 +86,16 @@ getLinkCountCB(AtkHypertext *aText)
     if (!accWrap)
         return -1;
 
-    nsRefPtr<nsHyperTextAccessible> hyperText = do_QueryObject(accWrap);
+    nsCOMPtr<nsIAccessibleHyperText> hyperText;
+    accWrap->QueryInterface(NS_GET_IID(nsIAccessibleHyperText),
+                            getter_AddRefs(hyperText));
     NS_ENSURE_TRUE(hyperText, -1);
 
-    return hyperText->GetLinkCount();
+    PRInt32 count = -1;
+    nsresult rv = hyperText->GetLinkCount(&count);
+    NS_ENSURE_SUCCESS(rv, -1);
+
+    return count;
 }
 
 gint
@@ -95,11 +105,13 @@ getLinkIndexCB(AtkHypertext *aText, gint aCharIndex)
     if (!accWrap)
         return -1;
 
-    nsRefPtr<nsHyperTextAccessible> hyperText = do_QueryObject(accWrap);
+    nsCOMPtr<nsIAccessibleHyperText> hyperText;
+    accWrap->QueryInterface(NS_GET_IID(nsIAccessibleHyperText),
+                            getter_AddRefs(hyperText));
     NS_ENSURE_TRUE(hyperText, -1);
 
     PRInt32 index = -1;
-    nsresult rv = hyperText->GetLinkIndexAtOffset(aCharIndex, &index);
+    nsresult rv = hyperText->GetLinkIndex(aCharIndex, &index);
     NS_ENSURE_SUCCESS(rv, -1);
 
     return index;

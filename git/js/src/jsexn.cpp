@@ -338,7 +338,7 @@ InitExnPrivate(JSContext *cx, JSObject *exnObject, JSString *message,
         elem->filename = NULL;
         if (fp->script) {
             elem->filename = fp->script->filename;
-            if (fp->pc(cx))
+            if (fp->regs)
                 elem->ulineno = js_FramePCToLineNumber(cx, fp);
         }
         ++elem;
@@ -753,7 +753,7 @@ Exception(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     } else {
         if (!fp)
             fp = js_GetScriptedCaller(cx, NULL);
-        lineno = (fp && fp->pc(cx)) ? js_FramePCToLineNumber(cx, fp) : 0;
+        lineno = (fp && fp->regs) ? js_FramePCToLineNumber(cx, fp) : 0;
     }
 
     return (obj->getClass() != &js_ErrorClass) ||
@@ -1044,7 +1044,7 @@ js_InitExceptionClasses(JSContext *cx, JSObject *obj)
         }
 
         /* Finally, stash the constructor for later uses. */
-        if (!js_SetClassObject(cx, obj, protoKey, FUN_OBJECT(fun), proto))
+        if (!js_SetClassObject(cx, obj, protoKey, FUN_OBJECT(fun)))
             return NULL;
     }
 

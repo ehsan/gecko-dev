@@ -107,7 +107,7 @@ ifeq (Linux,$(OS_ARCH))
 OS_LIBS += -lrt
 endif
 ifeq (WINNT,$(OS_ARCH))
-OS_LIBS += dbghelp.lib
+OS_LIBS += psapi.lib dbghelp.lib
 endif
 endif
 
@@ -123,19 +123,23 @@ STATIC_LIBS += chromium_s
 endif
 
 ifndef WINCE
+ifdef MOZ_XPINSTALL
 STATIC_LIBS += \
 	mozreg_s \
 	$(NULL)
 endif
+endif
 
 # component libraries
 COMPONENT_LIBS += \
+	xpconnect \
 	necko \
 	uconv \
 	i18n \
 	chardet \
 	jar$(VERSION_NUMBER) \
 	pref \
+	caps \
 	htmlpars \
 	imglib2 \
 	gklayout \
@@ -146,10 +150,10 @@ COMPONENT_LIBS += \
 	txmgr \
 	chrome \
 	commandlines \
-	extensions \
 	toolkitcomps \
 	pipboot \
 	pipnss \
+	mozfind \
 	appcomps \
 	$(NULL)
 
@@ -194,6 +198,13 @@ COMPONENT_LIBS += \
 	$(NULL)
 endif
 
+ifdef MOZ_XPINSTALL
+DEFINES += -DMOZ_XPINSTALL
+COMPONENT_LIBS += \
+	xpinstall \
+	$(NULL)
+endif
+
 ifdef MOZ_JSDEBUGGER
 DEFINES += -DMOZ_JSDEBUGGER
 COMPONENT_LIBS += \
@@ -233,10 +244,11 @@ ifdef MOZ_RDF
 COMPONENT_LIBS += \
 	rdf \
 	windowds \
+	intlapp \
 	$(NULL)
 endif
 
-ifeq (,$(filter qt beos os2 cocoa windows,$(MOZ_WIDGET_TOOLKIT)))
+ifeq (,$(filter qt beos os2 photon cocoa windows,$(MOZ_WIDGET_TOOLKIT)))
 ifdef MOZ_XUL
 COMPONENT_LIBS += fileview
 DEFINES += -DMOZ_FILEVIEW
@@ -295,11 +307,7 @@ DEFINES += -DICON_DECODER
 COMPONENT_LIBS += imgicon
 endif
 
-ifeq ($(MOZ_WIDGET_TOOLKIT),android)
-COMPONENT_LIBS += widget_android
-endif
-
-STATIC_LIBS += thebes ycbcr
+STATIC_LIBS += thebes layers
 COMPONENT_LIBS += gkgfxthebes
 
 ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
@@ -316,6 +324,10 @@ COMPONENT_LIBS += widget_mac
 endif
 ifeq (qt,$(MOZ_WIDGET_TOOLKIT))
 COMPONENT_LIBS += widget_qt
+endif
+
+ifdef MOZ_ENABLE_PHOTON
+COMPONENT_LIBS += widget_photon
 endif
 
 ifdef ACCESSIBILITY
@@ -336,10 +348,8 @@ DEFINES += -DMOZ_ZIPWRITER
 COMPONENT_LIBS += zipwriter
 endif
 
-ifdef MOZ_DEBUG
-ifdef ENABLE_TESTS
+ifneq (,$(filter layout-debug,$(MOZ_EXTENSIONS)))
 COMPONENT_LIBS += gkdebug
-endif
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
@@ -354,7 +364,6 @@ EXTRA_DSO_LDOPTS += \
 	$(MOZ_JS_LIBS) \
 	$(NSS_LIBS) \
 	$(MOZ_CAIRO_LIBS) \
-	$(MOZ_HARFBUZZ_LIBS) \
 	$(NULL)
 
 ifdef MOZ_NATIVE_ZLIB
@@ -379,8 +388,4 @@ endif
 
 ifdef HAVE_CLOCK_MONOTONIC
 EXTRA_DSO_LDOPTS += $(REALTIME_LIBS)
-endif
-
-ifeq (android,$(MOZ_WIDGET_TOOLKIT))
-OS_LIBS += -lGLESv2
 endif

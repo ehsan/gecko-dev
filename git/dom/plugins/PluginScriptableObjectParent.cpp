@@ -39,8 +39,6 @@
 #include "PluginScriptableObjectParent.h"
 #include "PluginScriptableObjectUtils.h"
 
-#include "mozilla/unused.h"
-
 using namespace mozilla::plugins;
 
 namespace {
@@ -465,7 +463,7 @@ PluginScriptableObjectParent::ScriptableEnumerate(NPObject* aObject,
   for (PRUint32 index = 0; index < *aCount; index++) {
     PluginIdentifierParent* id =
       static_cast<PluginIdentifierParent*>(identifiers[index]);
-    (*aIdentifiers)[index] = id->ToNPIdentifier();
+    *aIdentifiers[index] = id->ToNPIdentifier();
   }
   return true;
 }
@@ -673,7 +671,7 @@ PluginScriptableObjectParent::Unprotect()
 
   if (mType == LocalObject) {
     if (--mProtectCount == 0) {
-      unused << PluginScriptableObjectParent::Send__delete__(this);
+      PluginScriptableObjectParent::Send__delete__(this);
     }
   }
 }
@@ -693,7 +691,7 @@ PluginScriptableObjectParent::DropNPObject()
   instance->UnregisterNPObject(mObject);
   mObject = nsnull;
 
-  unused << SendUnprotect();
+  (void) SendUnprotect();
 }
 
 bool

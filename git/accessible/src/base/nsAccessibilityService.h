@@ -41,99 +41,52 @@
 
 #include "nsIAccessibilityService.h"
 
-#include "a11yGeneric.h"
-#include "nsAccDocManager.h"
+#include "nsCoreUtils.h"
 
+#include "nsCOMArray.h"
 #include "nsIObserver.h"
+#include "nsIWebProgress.h"
+#include "nsIWebProgressListener.h"
+#include "nsWeakReference.h"
 
-class nsAccessibilityService : public nsAccDocManager,
-                               public nsIAccessibilityService,
-                               public nsIObserver
+class nsAccessNode;
+class nsAccessible;
+class nsIFrame;
+class nsIWeakReference;
+class nsIDOMNode;
+class nsObjectFrame;
+class nsIDocShell;
+class nsIPresShell;
+class nsIContent;
+struct nsRoleMapEntry;
+
+class nsAccessibilityService : public nsIAccessibilityService,
+                               public nsIObserver,
+                               public nsIWebProgressListener,
+                               public nsSupportsWeakReference
 {
 public:
+  nsAccessibilityService();
   virtual ~nsAccessibilityService();
 
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIACCESSIBLERETRIEVAL
+  NS_DECL_NSIACCESSIBILITYSERVICE
   NS_DECL_NSIOBSERVER
-
-  // nsIAccessibilityService
-  virtual nsAccessible* GetAccessibleInShell(nsIDOMNode *aNode,
-                                             nsIPresShell *aPresShell);
-
-  virtual nsresult CreateOuterDocAccessible(nsIDOMNode *aNode,
-                                            nsIAccessible **aAccessible);
-  virtual nsresult CreateHTML4ButtonAccessible(nsIFrame *aFrame,
-                                               nsIAccessible **aAccessible);
-  virtual nsresult CreateHyperTextAccessible(nsIFrame *aFrame,
-                                             nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLBRAccessible(nsIFrame *aFrame,
-                                          nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLButtonAccessible(nsIFrame *aFrame,
-                                              nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLLIAccessible(nsIFrame *aFrame,
-                                          nsIFrame *aBulletFrame,
-                                          const nsAString& aBulletText,
-                                          nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLCheckboxAccessible(nsIFrame *aFrame,
-                                                nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLComboboxAccessible(nsIDOMNode *aNode,
-                                                nsIWeakReference *aPresShell,
-                                                nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLGenericAccessible(nsIFrame *aFrame,
-                                               nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLGroupboxAccessible(nsIFrame *aFrame,
-                                                nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLHRAccessible(nsIFrame *aFrame,
-                                          nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLImageAccessible(nsIFrame *aFrame,
-                                             nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLLabelAccessible(nsIFrame *aFrame,
-                                             nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLListboxAccessible(nsIDOMNode *aNode,
-                                               nsIWeakReference *aPresShell,
-                                               nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLMediaAccessible(nsIFrame *aFrame,
-                                             nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLObjectFrameAccessible(nsObjectFrame *aFrame,
-                                                   nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLRadioButtonAccessible(nsIFrame *aFrame,
-                                                   nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLSelectOptionAccessible(nsIDOMNode *aNode,
-                                                    nsIAccessible *aAccParent,
-                                                    nsIWeakReference *aPresShell,
-                                                    nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLTableAccessible(nsIFrame *aFrame,
-                                             nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLTableCellAccessible(nsIFrame *aFrame,
-                                                 nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLTextAccessible(nsIFrame *aFrame,
-                                            nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLTextFieldAccessible(nsIFrame *aFrame,
-                                                 nsIAccessible **aAccessible);
-  virtual nsresult CreateHTMLCaptionAccessible(nsIFrame *aFrame,
-                                               nsIAccessible **aAccessible);
-
-  virtual nsresult AddNativeRootAccessible(void *aAtkAccessible,
-                                           nsIAccessible **aAccessible);
-  virtual nsresult RemoveNativeRootAccessible(nsIAccessible *aRootAccessible);
-
-  virtual nsresult InvalidateSubtreeFor(nsIPresShell *aPresShell,
-                                        nsIContent *aContent,
-                                        PRUint32 aChangeType);
-
-  virtual void NotifyOfAnchorJumpTo(nsIContent *aTarget);
-
-  virtual void PresShellDestroyed(nsIPresShell* aPresShell);
-
-  virtual nsresult FireAccessibleEvent(PRUint32 aEvent, nsIAccessible *aTarget);
-
-  // nsAccessibiltiyService
+  NS_DECL_NSIWEBPROGRESSLISTENER
 
   /**
-   * Return true if accessibility service has been shutdown.
+   * Return presentation shell for the given node.
+   *
+   * @param aNode - the given DOM node.
    */
-  static PRBool IsShutdown() { return gIsShutdown; }
+  static nsresult GetShellFromNode(nsIDOMNode *aNode,
+                                   nsIWeakReference **weakShell);
+
+  /**
+   * Indicates whether accessibility service was shutdown.
+   */
+  static PRBool gIsShutdown;
 
   /**
    * Return an accessible for the given DOM node.
@@ -145,57 +98,43 @@ public:
    *                       hidden
    */
   already_AddRefed<nsAccessible>
-    GetAccessible(nsINode *aNode, nsIPresShell *aPresShell,
+    GetAccessible(nsIDOMNode *aNode, nsIPresShell *aPresShell,
                   nsIWeakReference *aWeakShell, PRBool *aIsHidden = nsnull);
-
-  /**
-   * Return an accessible for the given DOM node.
-   */
-  nsAccessible *GetAccessible(nsINode *aNode);
 
   /**
    * Return an accessible for a DOM node in the given pres shell.
    * 
    * @param aNode       [in] the given node.
    * @param aPresShell  [in] the presentation shell of the given node.
+   * @param aAccessible [out] the nsIAccessible for the given node.
    */
-  nsAccessible *GetAccessibleInWeakShell(nsINode *aNode,
-                                         nsIWeakReference *aPresShell);
+  nsresult GetAccessibleInWeakShell(nsIDOMNode *aNode,
+                                    nsIWeakReference *aPresShell,
+                                    nsIAccessible **aAccessible);
 
   /**
-   * Return the first accessible parent of a DOM node.
+   * Return an access node for the DOM node in the given presentation shell if
+   * the access node already exists, otherwise null.
    *
-   * @param aDOMNode    [in] the DOM node to get an accessible for
-   * @param aCanCreate  [in] specifies if accessible can be created if it didn't
-   *                     exist
+   * @param  aNode       [in] the DOM node to get an access node for
+   * @param  aPresShell  [in] the presentation shell which contains layout info
+   *                       for the DOM node
    */
-  nsAccessible *GetContainerAccessible(nsINode *aNode, PRBool aCanCreate);
+  nsAccessNode* GetCachedAccessNode(nsIDOMNode *aNode,
+                                    nsIWeakReference *aShell);
 
+private:
   /**
-   * The same as getAccessibleFor method except it returns accessible only if
-   * it is attached, i.e. accessible is certified to be a descendant of the root
-   * accessible.
+   * Return presentation shell, DOM node for the given frame.
    *
-   * XXX: this method must go away once we'll implement correct accessible tree.
-   *
-   * @param  aNode  [in] the DOM node to get an accessible for
-   * @return         the accessible for the given DOM node
+   * @param aFrame - the given frame
+   * @param aShell [out] - presentation shell for DOM node associated with the
+   *                 given frame
+   * @param aContent [out] - DOM node associated with the given frame
    */
-  nsAccessible *GetAttachedAccessibleFor(nsINode *aNode);
-
-  /**
-   * Return an DOM node that is relevant to attached accessible check. This
-   * node is either from bindings chain if given node is anonymous and owner
-   * binding denies accessible in anonymous content or given node (it's not
-   * important whether it is accessible or not). This method doesn't create
-   * accessible object for returned node.
-   *
-   * XXX: this method must go away once we'll implement correct accessible tree.
-   *
-   * @param  aNode  [in] the DOM node to get relevant content node
-   * @return         the DOM node for parent attached accessible
-   */
-  nsINode *GetRelevantContentNodeFor(nsINode *aNode);
+  nsresult GetInfo(nsIFrame *aFrame,
+                   nsIWeakReference **aShell,
+                   nsIDOMNode **aContent);
 
   /**
    * Initialize an accessible and cache it. The method should be called for
@@ -210,52 +149,11 @@ public:
   PRBool InitAccessible(nsAccessible *aAccessible,
                         nsRoleMapEntry *aRoleMapEntry);
 
-protected:
-  /**
-   * Return an accessible for the DOM node in the given presentation shell if
-   * the accessible already exists, otherwise null.
-   *
-   * @param  aNode       [in] the DOM node to get an access node for
-   * @param  aPresShell  [in] the presentation shell which contains layout info
-   *                       for the DOM node
-   */
-  nsAccessible *GetCachedAccessible(nsINode *aNode,
-                                    nsIWeakReference *aShell);
-
-private:
-  // nsAccessibilityService creation is controlled by friend
-  // NS_GetAccessibilityService, keep constructors private.
-  nsAccessibilityService();
-  nsAccessibilityService(const nsAccessibilityService&);
-  nsAccessibilityService& operator =(const nsAccessibilityService&);
-
-private:
-  /**
-   * Initialize accessibility service.
-   */
-  PRBool Init();
-
-  /**
-   * Shutdowns accessibility service.
-   */
-  void Shutdown();
-
-  /**
-   * Return presentation shell, DOM node for the given frame.
-   *
-   * @param aFrame    [in] the given frame
-   * @param aShell    [out] presentation shell for DOM node associated with the
-   *                    given frame
-   * @param aContent  [out] DOM node associated with the given frame
-   */
-  nsresult GetInfo(nsIFrame *aFrame, nsIWeakReference **aShell,
-                   nsIContent **aContent);
-
   /**
    * Return accessible for HTML area element associated with an image map.
    */
   already_AddRefed<nsAccessible>
-    GetAreaAccessible(nsIFrame *aImageFrame, nsINode *aAreaNode,
+    GetAreaAccessible(nsIFrame *aImageFrame, nsIDOMNode *aAreaNode,
                       nsIWeakReference *aWeakShell);
 
   /**
@@ -263,20 +161,26 @@ private:
    * interface.
    */
   already_AddRefed<nsAccessible>
-    CreateAccessibleByType(nsIContent *aContent, nsIWeakReference *aWeakShell);
+    CreateAccessibleByType(nsIDOMNode *aNode, nsIWeakReference *aWeakShell);
+
+  /**
+   * Create document or root accessible.
+   */
+  already_AddRefed<nsAccessible>
+    CreateDocOrRootAccessible(nsIPresShell *aShell, nsIDocument *aDocument);
 
   /**
    * Create accessible for HTML node by tag name.
    */
   already_AddRefed<nsAccessible>
     CreateHTMLAccessibleByMarkup(nsIFrame *aFrame, nsIWeakReference *aWeakShell,
-                                 nsINode *aNode);
+                                 nsIDOMNode *aNode);
 
   /**
    * Create accessible if parent is a deck frame.
    */
   already_AddRefed<nsAccessible>
-    CreateAccessibleForDeckChild(nsIFrame *aFrame, nsIContent *aContent,
+    CreateAccessibleForDeckChild(nsIFrame *aFrame, nsIDOMNode *aNode,
                                  nsIWeakReference *aWeakShell);
 
 #ifdef MOZ_XUL
@@ -284,19 +188,10 @@ private:
    * Create accessible for XUL tree element.
    */
   already_AddRefed<nsAccessible>
-    CreateAccessibleForXULTree(nsIContent *aContent,
-                               nsIWeakReference *aWeakShell);
+    CreateAccessibleForXULTree(nsIDOMNode *aNode, nsIWeakReference *aWeakShell);
 #endif
-
-  /**
-   * Reference for accessibility service.
-   */
+  
   static nsAccessibilityService *gAccessibilityService;
-
-  /**
-   * Indicates whether accessibility service was shutdown.
-   */
-  static PRBool gIsShutdown;
 
   /**
    * Does this content node have a universal ARIA property set on it?
@@ -307,9 +202,24 @@ private:
    */
   PRBool HasUniversalAriaProperty(nsIContent *aContent);
 
+  /**
+   *  Process the internal doc load event.
+   *
+   *  @param  aWebProgress  [in] the nsIWebProgress object for the load event
+   *  @param  aEventType    [in] the type of load event, one of:
+   *                          nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_START,
+   *                          nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_COMPLETE,
+   *                          nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_STOPPED
+   */
+  void ProcessDocLoadEvent(nsIWebProgress *aWebProgress, PRUint32 aEventType);
+
   friend nsAccessibilityService* GetAccService();
 
-  friend nsresult NS_GetAccessibilityService(nsIAccessibilityService** aResult);
+  friend nsresult  NS_GetAccessibilityService(nsIAccessibilityService** aResult);
+
+  
+  NS_DECL_RUNNABLEMETHOD_ARG2(nsAccessibilityService, ProcessDocLoadEvent,
+                              nsCOMPtr<nsIWebProgress>, PRUint32)
 };
 
 /**
@@ -495,6 +405,7 @@ static const char kEventTypeNames[][40] = {
   "scrolling end",                           // EVENT_SCROLLING_END
   "minimize start",                          // EVENT_MINIMIZE_START
   "minimize end",                            // EVENT_MINIMIZE_END
+  "document load start",                     // EVENT_DOCUMENT_LOAD_START
   "document load complete",                  // EVENT_DOCUMENT_LOAD_COMPLETE
   "document reload",                         // EVENT_DOCUMENT_RELOAD
   "document load stopped",                   // EVENT_DOCUMENT_LOAD_STOPPED
@@ -542,7 +453,8 @@ static const char kEventTypeNames[][40] = {
   "hypertext changed",                       // EVENT_HYPERTEXT_CHANGED
   "hypertext links count changed",           // EVENT_HYPERTEXT_NLINKS_CHANGED
   "object attribute changed",                // EVENT_OBJECT_ATTRIBUTE_CHANGED
-  "page changed"                             // EVENT_PAGE_CHANGED
+  "page changed",                            // EVENT_PAGE_CHANGED
+  "internal load"                            // EVENT_INTERNAL_LOAD
 };
 
 /**

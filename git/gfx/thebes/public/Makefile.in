@@ -30,16 +30,11 @@ EXPORTS		= 	gfx3DMatrix.h \
 			gfxTextRunWordCache.h \
 			gfxUtils.h \
 			gfxUserFontSet.h \
-			GLDefs.h \
-			GLContext.h \
-			GLContextProvider.h \
 			$(NULL)
 
-ifdef MOZ_IPC
 EXPORTS		+= \
 			gfxSharedImageSurface.h \
 			$(NULL)
-endif
 
 EXPORTS += gfxFontTest.h
 
@@ -47,7 +42,6 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 EXPORTS	+=	gfxWindowsPlatform.h \
 		gfxWindowsSurface.h \
 		gfxWindowsNativeDrawing.h \
-		WGLLibrary.h \
 		$(NULL)
 EXPORTS +=	gfxPDFSurface.h
 
@@ -63,20 +57,10 @@ endif
 
 endif
 
-ifeq ($(MOZ_WIDGET_TOOLKIT),android)
-EXPORTS += \
-	gfxAndroidPlatform.h \
-	gfxFT2Fonts.h \
-	gfxFT2FontBase.h \
-	$(NULL)
-endif
-
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 
 ifdef MOZ_X11
-EXPORTS += gfxXlibSurface.h \
-           GLXLibrary.h \
-           $(NULL)
+EXPORTS += gfxXlibSurface.h
 endif
 
 ifdef MOZ_PANGO 
@@ -96,13 +80,6 @@ EXPORTS += gfxFT2FontBase.h
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
-
-ifdef MOZ_X11
-EXPORTS += gfxXlibSurface.h \
-           GLXLibrary.h \
-           $(NULL)
-endif
-
 ifdef MOZ_PANGO
 EXPORTS += gfxPangoFonts.h
 else

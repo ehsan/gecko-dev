@@ -48,21 +48,15 @@ class gfxDWriteShaper : public gfxFontShaper
 public:
     gfxDWriteShaper(gfxDWriteFont *aFont)
         : gfxFontShaper(aFont)
-    {
-        MOZ_COUNT_CTOR(gfxDWriteShaper);
-    }
+    { }
 
-    virtual ~gfxDWriteShaper()
-    {
-        MOZ_COUNT_DTOR(gfxDWriteShaper);
-    }
+    virtual ~gfxDWriteShaper() { }
 
     virtual PRBool InitTextRun(gfxContext *aContext,
                                gfxTextRun *aTextRun,
                                const PRUnichar *aString,
                                PRUint32 aRunStart,
-                               PRUint32 aRunLength,
-                               PRInt32 aRunScript);
+                               PRUint32 aRunLength);
 };
 
 #endif /* GFX_DWRITESHAPER_H */

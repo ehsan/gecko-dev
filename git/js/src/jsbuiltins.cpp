@@ -63,7 +63,6 @@
 #include "jsatominlines.h"
 #include "jsobjinlines.h"
 #include "jsscopeinlines.h"
-#include "jscntxtinlines.h"
 
 using namespace avmplus;
 using namespace nanojit;
@@ -103,6 +102,10 @@ js_imod(int32 a, int32 b)
 }
 JS_DEFINE_CALLINFO_2(extern, INT32, js_imod, INT32, INT32, 1, ACC_NONE)
 
+/* The following boxing/unboxing primitives we can't emit inline because
+   they either interact with the GC and depend on Spidermonkey's 32-bit
+   integer representation. */
+
 jsval FASTCALL
 js_BoxDouble(JSContext* cx, jsdouble d)
 {
@@ -112,7 +115,7 @@ js_BoxDouble(JSContext* cx, jsdouble d)
     JS_ASSERT(JS_ON_TRACE(cx));
     jsval v; /* not rooted but ok here because we know GC won't run */
     if (!js_NewDoubleInRootedValue(cx, d, &v))
-        return JSVAL_NULL;
+        return JSVAL_ERROR_COOKIE;
     return v;
 }
 JS_DEFINE_CALLINFO_2(extern, JSVAL, js_BoxDouble, CONTEXT, DOUBLE, 1, ACC_NONE)
@@ -126,7 +129,7 @@ js_BoxInt32(JSContext* cx, int32 i)
     jsval v; /* not rooted but ok here because we know GC won't run */
     jsdouble d = (jsdouble)i;
     if (!js_NewDoubleInRootedValue(cx, d, &v))
-        return JSVAL_NULL;
+        return JSVAL_ERROR_COOKIE;
     return v;
 }
 JS_DEFINE_CALLINFO_2(extern, JSVAL, js_BoxInt32, CONTEXT, INT32, 1, ACC_NONE)
@@ -195,9 +198,8 @@ js_StringToInt32(JSContext* cx, JSString* str)
 }
 JS_DEFINE_CALLINFO_2(extern, INT32, js_StringToInt32, CONTEXT, STRING, 1, ACC_NONE)
 
-/* Nb: it's always safe to set isDefinitelyAtom to false if you're unsure or don't know. */
-static inline JSBool
-AddPropertyHelper(JSContext* cx, JSObject* obj, JSScopeProperty* sprop, bool isDefinitelyAtom)
+JSBool FASTCALL
+js_AddProperty(JSContext* cx, JSObject* obj, JSScopeProperty* sprop)
 {
     JS_LOCK_OBJ(cx, obj);
 
@@ -229,7 +231,7 @@ AddPropertyHelper(JSContext* cx, JSObject* obj, JSScopeProperty* sprop, bool isD
             }
         }
 
-        scope->extend(cx, sprop, isDefinitelyAtom);
+        scope->extend(cx, sprop);
     } else {
         JSScopeProperty *sprop2 =
             scope->addProperty(cx, sprop->id, sprop->getter(), sprop->setter(),
@@ -249,20 +251,7 @@ AddPropertyHelper(JSContext* cx, JSObject* obj, JSScopeProperty* sprop, bool isD
     JS_UNLOCK_SCOPE(cx, scope);
     return JS_FALSE;
 }
-
-JSBool FASTCALL
-js_AddProperty(JSContext* cx, JSObject* obj, JSScopeProperty* sprop)
-{
-    return AddPropertyHelper(cx, obj, sprop, /* isDefinitelyAtom = */false);
-}
 JS_DEFINE_CALLINFO_3(extern, BOOL, js_AddProperty, CONTEXT, OBJECT, SCOPEPROP, 0, ACC_STORE_ANY)
-
-JSBool FASTCALL
-js_AddAtomProperty(JSContext* cx, JSObject* obj, JSScopeProperty* sprop)
-{
-    return AddPropertyHelper(cx, obj, sprop, /* isDefinitelyAtom = */true);
-}
-JS_DEFINE_CALLINFO_3(extern, BOOL, js_AddAtomProperty, CONTEXT, OBJECT, SCOPEPROP, 0, ACC_STORE_ANY)
 
 static JSBool
 HasProperty(JSContext* cx, JSObject* obj, jsid id)
@@ -358,41 +347,45 @@ JS_DEFINE_CALLINFO_4(extern, OBJECT, js_NewNullClosure, CONTEXT, OBJECT, OBJECT,
                      ACC_STORE_ANY)
 
 JS_REQUIRES_STACK JSBool FASTCALL
-js_PopInterpFrame(JSContext* cx, TracerState* state)
+js_PopInterpFrame(JSContext* cx, InterpState* state)
 {
     JS_ASSERT(cx->fp && cx->fp->down);
-    JSStackFrame* const fp = cx->fp;
+    JSInlineFrame* ifp = (JSInlineFrame*)cx->fp;
 
     /*
      * Mirror frame popping code from inline_return in js_Interpret. There are
      * some things we just don't want to handle. In those cases, the trace will
      * MISMATCH_EXIT.
      */
-    if (fp->hookData)
+    if (ifp->hookData)
         return JS_FALSE;
-    if (cx->version != fp->callerVersion)
+    if (cx->version != ifp->callerVersion)
         return JS_FALSE;
-    if (fp->flags & JSFRAME_CONSTRUCTING)
+    if (cx->fp->flags & JSFRAME_CONSTRUCTING)
         return JS_FALSE;
-    if (fp->imacpc)
+    if (cx->fp->imacpc)
         return JS_FALSE;
-    if (fp->blockChain)
+    if (cx->fp->blockChain)
         return JS_FALSE;
 
-    fp->putActivationObjects(cx);
+    cx->fp->putActivationObjects(cx);
     
     /* Update display table. */
-    if (fp->script->staticLevel < JS_DISPLAY_SIZE)
-        cx->display[fp->script->staticLevel] = fp->displaySave;
+    if (cx->fp->script->staticLevel < JS_DISPLAY_SIZE)
+        cx->display[cx->fp->script->staticLevel] = cx->fp->displaySave;
 
     /* Pop the frame and its memory. */
-    cx->stack().popInlineFrame(cx, fp, fp->down);
+    cx->fp = cx->fp->down;
+    JS_ASSERT(cx->fp->regs == &ifp->callerRegs);
+    cx->fp->regs = ifp->frame.regs;
+
+    JS_ARENA_RELEASE(&cx->stackPool, ifp->mark);
 
     /* Update the inline call count. */
     *state->inlineCallCountp = *state->inlineCallCountp - 1;
     return JS_TRUE;
 }
-JS_DEFINE_CALLINFO_2(extern, BOOL, js_PopInterpFrame, CONTEXT, TRACERSTATE, 0, ACC_STORE_ANY)
+JS_DEFINE_CALLINFO_2(extern, BOOL, js_PopInterpFrame, CONTEXT, INTERPSTATE, 0, ACC_STORE_ANY)
 
 JSString* FASTCALL
 js_ConcatN(JSContext *cx, JSString **strArray, uint32 size)

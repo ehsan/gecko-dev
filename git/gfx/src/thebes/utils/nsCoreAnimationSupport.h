@@ -46,7 +46,7 @@
 #include "gfxTypes.h"
 
 // Get the system color space.
-CGColorSpaceRef THEBES_API CreateSystemColorSpace();
+CGColorSpaceRef CreateSystemColorSpace();
 
 // Manages a CARenderer
 struct _CGLPBufferObject;
@@ -88,7 +88,7 @@ private:
 
 typedef uint32_t IOSurfaceID;
 
-class THEBES_API nsIOSurface {
+class nsIOSurface {
 public:
   static nsIOSurface *CreateIOSurface(int aWidth, int aHeight); 
   static void ReleaseIOSurface(nsIOSurface *aIOSurface); 

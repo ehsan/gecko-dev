@@ -44,8 +44,6 @@ relativesrcdir  = content/events/test
 include $(DEPTH)/config/autoconf.mk
 include $(topsrcdir)/config/rules.mk
 
-# Disabled due to timeouts.
-# 		test_bug563329.html
 _TEST_FILES = \
 		test_bug226361.xhtml \
 		     bug226361_iframe.xhtml \
@@ -69,7 +67,6 @@ _TEST_FILES = \
 		test_bug405632.html \
 		test_bug409604.html \
 		test_bug412567.html \
-		test_bug426082.html \
 		test_bug443985.html \
 		test_bug447736.html \
 		test_bug448602.html \
@@ -89,7 +86,6 @@ _TEST_FILES = \
 		test_bug545268.html \
 		test_bug547996-1.html \
 		test_bug547996-2.xhtml \
-		test_bug556493.html \
 		$(NULL)
 
 _CHROME_FILES = \

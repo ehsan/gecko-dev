@@ -353,12 +353,12 @@ nsSVGLength::GetValueAsString(nsAString & aValueAsString)
 NS_IMETHODIMP
 nsSVGLength::SetValueAsString(const nsAString & aValueAsString)
 {
-  nsresult rv = NS_ERROR_DOM_SYNTAX_ERR;
+  nsresult rv = NS_OK;
 
   char *str = ToNewCString(aValueAsString);
 
   char* number = str;
-  while (*number && IsSVGWhitespace(*number))
+  while (*number && isspace(*number))
     ++number;
 
   if (*number) {
@@ -395,8 +395,14 @@ nsSVGLength::SetValueAsString(const nsAString & aValueAsString)
         mValueInSpecifiedUnits = value;
         mSpecifiedUnitType     = unitType;
         DidModify();
-        rv = NS_OK;
+      } else { // parse error
+        // not a valid unit type
+        rv = NS_ERROR_DOM_SYNTAX_ERR;
       }
+    }
+    else { // parse error
+      // no number
+      rv = NS_ERROR_DOM_SYNTAX_ERR;
     }
   }
 
@@ -503,13 +509,13 @@ float nsSVGLength::AxisLength()
 float nsSVGLength::EmLength()
 {
   nsCOMPtr<nsIContent> element = do_QueryReferent(mElement);
-  return nsSVGUtils::GetFontSize(element->AsElement());
+  return nsSVGUtils::GetFontSize(element);
 }
 
 float nsSVGLength::ExLength()
 {
   nsCOMPtr<nsIContent> element = do_QueryReferent(mElement);
-  return nsSVGUtils::GetFontXHeight(element->AsElement());
+  return nsSVGUtils::GetFontXHeight(element);
 }
 
 PRBool nsSVGLength::IsValidUnitType(PRUint16 unit)

@@ -96,7 +96,7 @@ namespace nanojit
     #define NJ_MAX_STACK_ENTRY           4096
     #define NJ_MAX_PARAMETERS               1
 
-    #define NJ_USES_IMMD_POOL          1
+    #define NJ_USES_QUAD_CONSTANTS          1
 
     #define NJ_JTBL_SUPPORTED               1
     #define NJ_EXPANDED_LOADSTORE_SUPPORTED 1
@@ -190,12 +190,12 @@ namespace nanojit
         void asm_farg(LInsp, int32_t& stkd);\
         void asm_arg(ArgType ty, LInsp p, Register r, int32_t& stkd);\
         void asm_pusharg(LInsp);\
-        void asm_cmpd(LIns *cond);\
-        NIns* asm_branchd(bool, LIns*, NIns*);\
+        void asm_fcmp(LIns *cond);\
+        NIns* asm_fbranch(bool, LIns*, NIns*);\
         void asm_cmp(LIns *cond); \
         void asm_div_mod(LIns *cond); \
         void asm_load(int d, Register r); \
-        void asm_immd(Register r, uint64_t q, double d, bool canClobberCCs); \
+        void asm_immf(Register r, uint64_t q, double d, bool canClobberCCs); \
         void IMM8(int32_t i) { \
             _nIns -= 1; \
             *((int8_t*)_nIns) = (int8_t)(i); \

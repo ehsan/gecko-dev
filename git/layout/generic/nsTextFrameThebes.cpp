@@ -118,7 +118,6 @@
 #include "gfxContext.h"
 #include "gfxTextRunWordCache.h"
 #include "gfxImageSurface.h"
-#include "mozilla/dom/Element.h"
 
 #ifdef NS_DEBUG
 #undef NOISY_BLINK
@@ -131,7 +130,6 @@
 #endif
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 static void DestroyTabWidth(void* aPropertyValue)
 {
@@ -144,24 +142,24 @@ NS_DECLARE_FRAME_PROPERTY(TabWidthProperty, DestroyTabWidth)
 
 // This bit is set on the first frame in a continuation indicating
 // that it was chopped short because of :first-letter style.
-#define TEXT_FIRST_LETTER    NS_FRAME_STATE_BIT(20)
+#define TEXT_FIRST_LETTER    0x00100000
 // This bit is set on frames that are logically adjacent to the start of the
 // line (i.e. no prior frame on line with actual displayed in-flow content).
-#define TEXT_START_OF_LINE   NS_FRAME_STATE_BIT(21)
+#define TEXT_START_OF_LINE   0x00200000
 // This bit is set on frames that are logically adjacent to the end of the
 // line (i.e. no following on line with actual displayed in-flow content).
-#define TEXT_END_OF_LINE     NS_FRAME_STATE_BIT(22)
+#define TEXT_END_OF_LINE     0x00400000
 // This bit is set on frames that end with a hyphenated break.
-#define TEXT_HYPHEN_BREAK    NS_FRAME_STATE_BIT(23)
+#define TEXT_HYPHEN_BREAK    0x00800000
 // This bit is set on frames that trimmed trailing whitespace characters when
 // calculating their width during reflow.
-#define TEXT_TRIMMED_TRAILING_WHITESPACE NS_FRAME_STATE_BIT(24)
+#define TEXT_TRIMMED_TRAILING_WHITESPACE 0x01000000
 // This bit is set on frames that have justification enabled. We record
 // this in a state bit because we don't always have the containing block
 // easily available to check text-align on.
-#define TEXT_JUSTIFICATION_ENABLED       NS_FRAME_STATE_BIT(25)
+#define TEXT_JUSTIFICATION_ENABLED       0x02000000
 // Set this bit if the textframe has overflow area for IME/spellcheck underline.
-#define TEXT_SELECTION_UNDERLINE_OVERFLOWED NS_FRAME_STATE_BIT(26)
+#define TEXT_SELECTION_UNDERLINE_OVERFLOWED 0x04000000
 
 #define TEXT_REFLOW_FLAGS    \
   (TEXT_FIRST_LETTER|TEXT_START_OF_LINE|TEXT_END_OF_LINE|TEXT_HYPHEN_BREAK| \
@@ -170,20 +168,19 @@ NS_DECLARE_FRAME_PROPERTY(TabWidthProperty, DestroyTabWidth)
 
 // Cache bits for IsEmpty().
 // Set this bit if the textframe is known to be only collapsible whitespace.
-#define TEXT_IS_ONLY_WHITESPACE    NS_FRAME_STATE_BIT(27)
+#define TEXT_IS_ONLY_WHITESPACE    0x08000000
 // Set this bit if the textframe is known to be not only collapsible whitespace.
-#define TEXT_ISNOT_ONLY_WHITESPACE NS_FRAME_STATE_BIT(28)
+#define TEXT_ISNOT_ONLY_WHITESPACE 0x10000000
 
-#define TEXT_WHITESPACE_FLAGS      (TEXT_IS_ONLY_WHITESPACE | \
-                                    TEXT_ISNOT_ONLY_WHITESPACE)
+#define TEXT_WHITESPACE_FLAGS      0x18000000
 // This bit is set while the frame is registered as a blinking frame.
-#define TEXT_BLINK_ON              NS_FRAME_STATE_BIT(29)
+#define TEXT_BLINK_ON              0x20000000
 
 // Set when this text frame is mentioned in the userdata for a textrun
-#define TEXT_IN_TEXTRUN_USER_DATA  NS_FRAME_STATE_BIT(30)
+#define TEXT_IN_TEXTRUN_USER_DATA  0x40000000
 
 // nsTextFrame.h has
-// #define TEXT_HAS_NONCOLLAPSED_CHARACTERS NS_FRAME_STATE_BIT(31)
+// #define TEXT_HAS_NONCOLLAPSED_CHARACTERS 0x80000000
 
 /*
  * Some general notes
@@ -3128,7 +3125,7 @@ nsTextPaintStyle::InitCommonColors()
   mInitCommonColors = PR_TRUE;
 }
 
-static Element*
+static nsIContent*
 FindElementAncestorForMozSelection(nsIContent* aContent)
 {
   NS_ENSURE_TRUE(aContent, nsnull);
@@ -3136,10 +3133,10 @@ FindElementAncestorForMozSelection(nsIContent* aContent)
     aContent = aContent->GetBindingParent();
   }
   NS_ASSERTION(aContent, "aContent isn't in non-anonymous tree?");
-  while (aContent && !aContent->IsElement()) {
+  while (aContent && !aContent->IsNodeOfType(nsINode::eELEMENT)) {
     aContent = aContent->GetParent();
   }
-  return aContent ? aContent->AsElement() : nsnull;
+  return aContent;
 }
 
 PRBool
@@ -3161,14 +3158,14 @@ nsTextPaintStyle::InitSelectionColors()
   mInitSelectionColors = PR_TRUE;
 
   nsIFrame* nonGeneratedAncestor = nsLayoutUtils::GetNonGeneratedAncestor(mFrame);
-  Element* selectionElement =
+  nsIContent* selectionContent =
     FindElementAncestorForMozSelection(nonGeneratedAncestor->GetContent());
 
-  if (selectionElement &&
+  if (selectionContent &&
       selectionStatus == nsISelectionController::SELECTION_ON) {
     nsRefPtr<nsStyleContext> sc = nsnull;
     sc = mPresContext->StyleSet()->
-      ProbePseudoElementStyle(selectionElement,
+      ProbePseudoElementStyle(selectionContent,
                               nsCSSPseudoElements::ePseudo_mozSelection,
                               mFrame->GetStyleContext());
     // Use -moz-selection pseudo class.
@@ -3532,8 +3529,10 @@ nsContinuingTextFrame::Init(nsIContent* aContent,
     // advantage of the propTable's cache and simplify the assertion below
     void* embeddingLevel = propTable->Get(aPrevInFlow, EmbeddingLevelProperty());
     void* baseLevel = propTable->Get(aPrevInFlow, BaseLevelProperty());
+    void* charType = propTable->Get(aPrevInFlow, CharTypeProperty());
     propTable->Set(this, EmbeddingLevelProperty(), embeddingLevel);
     propTable->Set(this, BaseLevelProperty(), baseLevel);
+    propTable->Set(this, CharTypeProperty(), charType);
 
     if (nextContinuation) {
       SetNextContinuation(nextContinuation);
@@ -3543,7 +3542,8 @@ nsContinuingTextFrame::Init(nsIContent* aContent,
              nextContinuation->GetContentOffset() < mContentOffset) {
         NS_ASSERTION(
           embeddingLevel == propTable->Get(nextContinuation, EmbeddingLevelProperty()) &&
-          baseLevel == propTable->Get(nextContinuation, BaseLevelProperty()),
+          baseLevel == propTable->Get(nextContinuation, BaseLevelProperty()) &&
+          charType == propTable->Get(nextContinuation, CharTypeProperty()),
           "stealing text from different type of BIDI continuation");
         nextContinuation->mContentOffset = mContentOffset;
         nextContinuation = static_cast<nsTextFrame*>(nextContinuation->GetNextContinuation());
@@ -6936,9 +6936,9 @@ nsTextFrame::List(FILE* out, PRInt32 aIndent) const
   fprintf(out, " {%d,%d,%d,%d}", mRect.x, mRect.y, mRect.width, mRect.height);
   if (0 != mState) {
     if (mState & NS_FRAME_SELECTED_CONTENT) {
-      fprintf(out, " [state=%016llx] SELECTED", mState);
+      fprintf(out, " [state=%08x] SELECTED", mState);
     } else {
-      fprintf(out, " [state=%016llx]", mState);
+      fprintf(out, " [state=%08x]", mState);
     }
   }
   fprintf(out, " [content=%p]", static_cast<void*>(mContent));

@@ -86,6 +86,9 @@ struct nsCSSRendering {
    * Render the border for an element using css rendering rules
    * for borders. aSkipSides is a bitmask of the sides to skip
    * when rendering. If 0 then no sides are skipped.
+   *
+   * Both aDirtyRect and aBorderArea are in the local coordinate space
+   * of aForFrame
    */
   static void PaintBorder(nsPresContext* aPresContext,
                           nsIRenderingContext& aRenderingContext,
@@ -113,6 +116,9 @@ struct nsCSSRendering {
    * Render the outline for an element using css rendering rules
    * for borders. aSkipSides is a bitmask of the sides to skip
    * when rendering. If 0 then no sides are skipped.
+   *
+   * Both aDirtyRect and aBorderArea are in the local coordinate space
+   * of aForFrame
    */
   static void PaintOutline(nsPresContext* aPresContext,
                           nsIRenderingContext& aRenderingContext,
@@ -221,6 +227,9 @@ struct nsCSSRendering {
   /**
    * Render the background for an element using css rendering rules
    * for backgrounds.
+   *
+   * Both aDirtyRect and aBorderArea are in the local coordinate space
+   * of aForFrame
    */
   enum {
     /**

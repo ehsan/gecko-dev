@@ -1,4 +1,3 @@
-// vim:set ts=4 sts=4 sw=4 et cin:
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -39,64 +38,116 @@
 #ifndef GFX_SHARED_IMAGESURFACE_H
 #define GFX_SHARED_IMAGESURFACE_H
 
-#include "mozilla/ipc/Shmem.h"
-#include "mozilla/ipc/SharedMemory.h"
+#ifdef MOZ_X11
+#ifdef HAVE_XSHM
 
 #include "gfxASurface.h"
 #include "gfxImageSurface.h"
+#include "gfxPoint.h"
 
-class THEBES_API gfxSharedImageSurface : public gfxImageSurface {
-    typedef mozilla::ipc::SharedMemory SharedMemory;
-    typedef mozilla::ipc::Shmem Shmem;
+#include <stdlib.h>
+#include <string.h>
 
+#ifdef MOZ_WIDGET_QT
+#include <QX11Info>
+#endif
+
+#ifdef MOZ_WIDGET_GTK2
+#include <gtk/gtk.h>
+#include <gdk/gdk.h>
+#include <gdk/gdkx.h>
+#endif
+
+#ifdef MOZ_X11
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+#include <X11/extensions/XShm.h>
+#endif
+
+#include <sys/ipc.h>
+#include <sys/shm.h>
+
+class THEBES_API gfxSharedImageSurface : public gfxASurface {
 public:
-    /**
-     * Init must be called after ctor
-     */
-    gfxSharedImageSurface();
+  gfxSharedImageSurface();
+  ~gfxSharedImageSurface();
 
-    /**
-     * Create shared image from external Shmem
-     * Shmem must be initialized by this class
-     */
-    gfxSharedImageSurface(const Shmem &aShmem);
+  // ImageSurface methods
+  gfxImageFormat Format() const { return mFormat; }
 
-    ~gfxSharedImageSurface();
+  const gfxIntSize& GetSize() const { return mSize; }
+  int Width() const { return mSize.width; }
+  int Height() const { return mSize.height; }
 
-    /**
-     * Initialize shared image surface
-     * @param aAllocator The pointer to protocol class which has AllocShmem method
-     * @param aSize The size of the buffer
-     * @param aFormat Format of the data
-     * @see gfxImageFormat
-     */
-    template<class ShmemAllocator>
-    bool Init(ShmemAllocator *aAllocator,
-              const gfxIntSize& aSize,
-              gfxImageFormat aFormat,
-              SharedMemory::SharedMemoryType aShmType = SharedMemory::TYPE_BASIC)
-    {
-        mSize = aSize;
-        mFormat = aFormat;
-        mStride = ComputeStride();
-        if (!aAllocator->AllocShmem(GetAlignedSize(),
-                                    aShmType, &mShmem))
-            return false;
+  /**
+   * Distance in bytes between the start of a line and the start of the
+   * next line.
+   */
+  int Stride() const { return mStride; }
 
-        return InitSurface(PR_TRUE);
-    }
+  /**
+   * Returns a pointer for the image data. Users of this function can
+   * write to it, but must not attempt to free the buffer.
+   */
+  unsigned char* Data() const { return mData; } // delete this data under us and die.
 
-    /* Gives Shmem data, which can be passed to IPDL interfaces */
-    Shmem& GetShmem() { return mShmem; }
+  /**
+   * Returns the total size of the image data.
+   */
+  int GetDataSize() const { return mStride*mSize.height; }
 
-    // This can be used for recognizing normal gfxImageSurface as SharedImage
-    static cairo_user_data_key_t SHM_KEY;
+  /**
+   * Returns a pointer for the X-image structure.
+   */
+  XImage *image() const { return mXShmImage; }
+
+  /**
+   * Returns a gfxImageSurface as gfxASurface.
+   */
+  already_AddRefed<gfxASurface> getASurface(void);
+
+  /**
+   * Construct an shared image surface and XImage
+   * @param aSize The size of the buffer
+   * @param aFormat Format of the data
+   * @see gfxImageFormat
+   * @param aShmId Shared Memory ID of data created outside,
+   *                if not specified, then class will allocate own shared memory
+   * @display aDisplay display used for X-Image creation
+   *                if not specified, then used system default
+   *
+   */
+  bool Init(const gfxIntSize& aSize,
+            gfxImageFormat aFormat = ImageFormatUnknown,
+            int aDepth = 0,
+            int aShmId = -1);
+
+  /**
+   * Returns the depth of image surface 
+  */
+  int Depth() const { return mDepth; }
 
 private:
-    size_t GetAlignedSize();
-    bool InitSurface(PRBool aUpdateShmemInfo);
+  bool CreateInternal(int aShmid);
+  long ComputeStride() const;
+  inline bool ComputeDepth();
+  inline bool ComputeFormat();
 
-    Shmem mShmem;
+  unsigned int     mDepth;
+  int              mShmId;
+
+  gfxIntSize mSize;
+  bool mOwnsData;
+
+  unsigned char   *mData;
+  gfxImageFormat   mFormat;
+  long mStride;
+
+  Display *mDisp;
+  XShmSegmentInfo  mShmInfo;
+  XImage          *mXShmImage;
 };
 
+#endif /* HAVE_XSHM */
+#endif /* MOZ_X11 */
 #endif /* GFX_SHARED_IMAGESURFACE_H */

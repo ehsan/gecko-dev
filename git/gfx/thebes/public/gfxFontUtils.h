@@ -350,29 +350,7 @@ struct AutoSwap_PRUint64 {
     PRUint64  value;
 };
 
-struct AutoSwap_PRUint24 {
-    operator PRUint32() const { return value[0] << 16 | value[1] << 8 | value[2]; }
-private:
-    AutoSwap_PRUint24() { }
-    PRUint8  value[3];
-};
-
 #pragma pack()
-
-// Return just the highest bit of the given value, i.e., the highest
-// power of 2 that is <= value, or zero if the input value is zero.
-inline PRUint32
-FindHighestBit(PRUint32 value)
-{
-    // propagate highest bit into all lower bits of the value
-    value |= (value >> 1);
-    value |= (value >> 2);
-    value |= (value >> 4);
-    value |= (value >> 8);
-    value |= (value >> 16);
-    // isolate the leftmost bit
-    return (value & ~(value >> 1));
-}
 
 } // namespace mozilla
 
@@ -475,13 +453,13 @@ public:
     };
 
     // for reading big-endian font data on either big or little-endian platforms
-
+    
     static inline PRUint16
     ReadShortAt(const PRUint8 *aBuf, PRUint32 aIndex)
     {
         return (aBuf[aIndex] << 8) | aBuf[aIndex + 1];
     }
-
+    
     static inline PRUint16
     ReadShortAt16(const PRUint16 *aBuf, PRUint32 aIndex)
     {
@@ -489,55 +467,35 @@ public:
         PRUint32 index = aIndex << 1;
         return (buf[index] << 8) | buf[index+1];
     }
-
-    static inline PRUint32
-    ReadUint24At(const PRUint8 *aBuf, PRUint32 aIndex)
-    {
-        return ((aBuf[aIndex] << 16) | (aBuf[aIndex + 1] << 8) |
-                (aBuf[aIndex + 2]));
-    }
-
+    
     static inline PRUint32
     ReadLongAt(const PRUint8 *aBuf, PRUint32 aIndex)
     {
         return ((aBuf[aIndex] << 24) | (aBuf[aIndex + 1] << 16) | 
                 (aBuf[aIndex + 2] << 8) | (aBuf[aIndex + 3]));
     }
-
+    
     static nsresult
-    ReadCMAPTableFormat12(const PRUint8 *aBuf, PRUint32 aLength, 
+    ReadCMAPTableFormat12(PRUint8 *aBuf, PRUint32 aLength, 
                           gfxSparseBitSet& aCharacterMap);
-
+    
     static nsresult 
-    ReadCMAPTableFormat4(const PRUint8 *aBuf, PRUint32 aLength, 
+    ReadCMAPTableFormat4(PRUint8 *aBuf, PRUint32 aLength, 
                          gfxSparseBitSet& aCharacterMap);
 
-    static nsresult
-    ReadCMAPTableFormat14(const PRUint8 *aBuf, PRUint32 aLength, 
-                          PRUint8*& aTable);
-
     static PRUint32
-    FindPreferredSubtable(const PRUint8 *aBuf, PRUint32 aBufLength,
-                          PRUint32 *aTableOffset, PRUint32 *aUVSTableOffset,
-                          PRBool *aSymbolEncoding);
+    FindPreferredSubtable(PRUint8 *aBuf, PRUint32 aBufLength,
+                          PRUint32 *aTableOffset, PRBool *aSymbolEncoding);
 
     static nsresult
-    ReadCMAP(const PRUint8 *aBuf, PRUint32 aBufLength,
-             gfxSparseBitSet& aCharacterMap,
-             PRUint32& aUVSOffset,
+    ReadCMAP(PRUint8 *aBuf, PRUint32 aBufLength, gfxSparseBitSet& aCharacterMap,
              PRPackedBool& aUnicodeFont, PRPackedBool& aSymbolFont);
 
     static PRUint32
     MapCharToGlyphFormat4(const PRUint8 *aBuf, PRUnichar aCh);
 
     static PRUint32
-    MapCharToGlyphFormat12(const PRUint8 *aBuf, PRUint32 aCh);
-
-    static PRUint16
-    MapUVSToGlyphFormat14(const PRUint8 *aBuf, PRUint32 aCh, PRUint32 aVS);
-
-    static PRUint32
-    MapCharToGlyph(const PRUint8 *aBuf, PRUint32 aBufLength, PRUnichar aCh);
+    MapCharToGlyph(PRUint8 *aBuf, PRUint32 aBufLength, PRUnichar aCh);
 
 #ifdef XP_WIN
 
@@ -593,18 +551,6 @@ public:
 
     static inline bool IsJoinCauser(PRUint32 ch) {
         return (ch == 0x200D);
-    }
-
-    enum {
-        kUnicodeVS1 = 0xFE00,
-        kUnicodeVS16 = 0xFE0F,
-        kUnicodeVS17 = 0xE0100,
-        kUnicodeVS256 = 0xE01EF
-    };
-
-    static inline bool IsVarSelector(PRUint32 ch) {
-        return (ch >= kUnicodeVS1 && ch <= kUnicodeVS16) ||
-               (ch >= kUnicodeVS17 && ch <= kUnicodeVS256);
     }
 
     static inline bool IsInvalid(PRUint32 ch) {

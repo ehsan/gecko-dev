@@ -47,7 +47,6 @@
 #include "jspropertytree.h"
 #include "jsscope.h"
 
-#include "jsnum.h"
 #include "jsscopeinlines.h"
 
 using namespace js;

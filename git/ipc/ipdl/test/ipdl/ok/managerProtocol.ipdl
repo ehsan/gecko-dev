@@ -1,4 +1,4 @@
-include protocol managedProtocol;
+include protocol "managedProtocol.ipdl";
 
 // sanity check of managed/manager protocols
 

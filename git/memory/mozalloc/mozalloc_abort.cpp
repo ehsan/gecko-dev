@@ -41,10 +41,8 @@
 #include <stdio.h>
 #include <stdlib.h>             // for abort()
 
-#if defined(_MSC_VER)           // MSVC
-#  include <intrin.h>           // for __debugbreak()
-#elif defined(XP_WIN)           // mingw
-#  include <windows.h>          // for DebugBreak
+#if defined(_WIN32)
+#  include <signal.h>           // for raise
 #elif defined(XP_UNIX)
 #  include <unistd.h>           // for _exit
 #endif
@@ -57,33 +55,37 @@
 
 static int gDummyCounter;
 
-static void
-TouchBadMemory()
-{
-    // XXX this should use the frame poisoning code
-    gDummyCounter += *((int *) 0);   // TODO annotation saying we know 
-                                     // this is crazy
-}
-
 void
 mozalloc_abort(const char* const msg)
 {
     fputs(msg, stderr);
     fputs("\n", stderr);
 
-#if defined(XP_UNIX) && !defined(XP_MACOSX)
+    // XXX/cjones: most of this function was copied from
+    // xpcom/base/nsDebugImpl.cpp:Abort(), except that we assume on
+    // UNIX-like platforms can directly abort() rather than need to go
+    // through PR_Abort(). we don't want this code to rely on NSPR.
+
+    // FIXME/bug 558928: improve implementation for windows/wince
+
+#if defined(_WIN32)
+#  if !defined(WINCE)
+    //This should exit us
+    raise(SIGABRT);
+#  endif
+    //If we are ignored exit this way..
+    _exit(3);
+#elif defined(XP_UNIX) || defined(XP_OS2) || defined(XP_BEOS)
     abort();
-#elif defined(_MSC_VER)
-    __debugbreak();
-#elif defined(XP_WIN)
-    DebugBreak();
+#else
+#  warning not attempting to abort() on this platform
 #endif
-    // abort() doesn't trigger breakpad on Mac, "fall through" to the
-    // fail-safe code
 
     // Still haven't aborted?  Try dereferencing null.
-    TouchBadMemory();
-
+    // (Written this way to lessen the likelihood of it being optimized away.)
+    gDummyCounter += *((int*) 0); // TODO annotation saying we know 
+    // this is crazy
+    
     // Still haven't aborted?  Try _exit().
     _exit(127);
 }

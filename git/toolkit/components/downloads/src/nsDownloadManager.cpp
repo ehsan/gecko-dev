@@ -842,16 +842,15 @@ nsDownloadManager::Init()
     }
   }
 
-  mObserverService = mozilla::services::GetObserverService();
-  if (!mObserverService)
-    return NS_ERROR_FAILURE;
+  nsresult rv;
+  mObserverService = do_GetService("@mozilla.org/observer-service;1", &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIStringBundleService> bundleService =
-    mozilla::services::GetStringBundleService();
-  if (!bundleService)
-    return NS_ERROR_FAILURE;
+    do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  nsresult rv = InitDB();
+  rv = InitDB();
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = bundleService->CreateBundle(DOWNLOAD_MANAGER_BUNDLE,
@@ -897,15 +896,14 @@ nsDownloadManager::Init()
   // These observers will be cleaned up automatically at app shutdown.  We do
   // not bother explicitly breaking the observers because we are a singleton
   // that lives for the duration of the app.
-  (void)mObserverService->AddObserver(this, "quit-application", PR_FALSE);
-  (void)mObserverService->AddObserver(this, "quit-application-requested", PR_FALSE);
-  (void)mObserverService->AddObserver(this, "offline-requested", PR_FALSE);
-  (void)mObserverService->AddObserver(this, "sleep_notification", PR_FALSE);
-  (void)mObserverService->AddObserver(this, "wake_notification", PR_FALSE);
-  (void)mObserverService->AddObserver(this, NS_IOSERVICE_GOING_OFFLINE_TOPIC, PR_FALSE);
-  (void)mObserverService->AddObserver(this, NS_IOSERVICE_OFFLINE_STATUS_TOPIC, PR_FALSE);
-  (void)mObserverService->AddObserver(this, NS_PRIVATE_BROWSING_REQUEST_TOPIC, PR_FALSE);
-  (void)mObserverService->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_FALSE);
+  mObserverService->AddObserver(this, "quit-application", PR_FALSE);
+  mObserverService->AddObserver(this, "quit-application-requested", PR_FALSE);
+  mObserverService->AddObserver(this, "offline-requested", PR_FALSE);
+  mObserverService->AddObserver(this, "sleep_notification", PR_FALSE);
+  mObserverService->AddObserver(this, "wake_notification", PR_FALSE);
+  mObserverService->AddObserver(this, NS_IOSERVICE_GOING_OFFLINE_TOPIC, PR_FALSE);
+  mObserverService->AddObserver(this, NS_IOSERVICE_OFFLINE_STATUS_TOPIC, PR_FALSE);
+  mObserverService->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_FALSE);
 
   if (history)
     (void)history->AddObserver(this, PR_FALSE);
@@ -1181,20 +1179,6 @@ nsDownloadManager::GetDefaultDownloadsDirectory(nsILocalFile **aResult)
     rv = dirService->Get(NS_UNIX_XDG_DOCUMENTS_DIR,
                          NS_GET_IID(nsILocalFile),
                          getter_AddRefs(downloadDir));
-#elif defined(ANDROID)
-    // Android doesn't have a $HOME directory, and by default we only have
-    // write access to /data/data/org.mozilla.{$APP} and /sdcard
-    char* sdcard = getenv("EXTERNAL_STORAGE");
-    if (sdcard) {
-      rv = NS_NewNativeLocalFile(nsDependentCString(sdcard),
-                                 PR_TRUE, getter_AddRefs(downloadDir));
-      NS_ENSURE_SUCCESS(rv, rv);
-      rv = downloadDir->Append(NS_LITERAL_STRING("download"));
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-    else {
-      rv = NS_ERROR_FAILURE;
-    }
 #else
   rv = dirService->Get(NS_UNIX_DEFAULT_DOWNLOAD_DIR,
                        NS_GET_IID(nsILocalFile),
@@ -2001,9 +1985,9 @@ nsDownloadManager::Observe(nsISupports *aSubject,
         this, resumeOnWakeDelay, nsITimer::TYPE_ONE_SHOT);
     }
   }
-  else if (strcmp(aTopic, NS_PRIVATE_BROWSING_REQUEST_TOPIC) == 0) {
-    if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_ENTER).Equals(aData) &&
-        currDownloadCount) {
+  else if (strcmp(aTopic, NS_PRIVATE_BROWSING_REQUEST_TOPIC) == 0 &&
+           currDownloadCount) {
+    if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_ENTER).Equals(aData)) {
       nsCOMPtr<nsISupportsPRBool> cancelDownloads =
         do_QueryInterface(aSubject, &rv);
       NS_ENSURE_SUCCESS(rv, rv);
@@ -2013,12 +1997,11 @@ nsDownloadManager::Observe(nsISupports *aSubject,
                              NS_LITERAL_STRING("enterPrivateBrowsingCancelDownloadsAlertMsg").get(),
                              NS_LITERAL_STRING("dontEnterPrivateBrowsingButton").get());
     }
-    else if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_LEAVE).Equals(aData) &&
-             mCurrentDownloads.Count()) {
+    else if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_LEAVE).Equals(aData)) {
       nsCOMPtr<nsISupportsPRBool> cancelDownloads =
         do_QueryInterface(aSubject, &rv);
       NS_ENSURE_SUCCESS(rv, rv);
-      ConfirmCancelDownloads(mCurrentDownloads.Count(), cancelDownloads,
+      ConfirmCancelDownloads(currDownloadCount, cancelDownloads,
                              NS_LITERAL_STRING("leavePrivateBrowsingCancelDownloadsAlertTitle").get(),
                              NS_LITERAL_STRING("leavePrivateBrowsingCancelDownloadsAlertMsgMultiple").get(),
                              NS_LITERAL_STRING("leavePrivateBrowsingCancelDownloadsAlertMsg").get(),

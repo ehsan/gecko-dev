@@ -67,7 +67,7 @@ class nsHTMLSharedObjectElement : public nsGenericHTMLElement,
 {
 public:
   nsHTMLSharedObjectElement(nsINodeInfo *aNodeInfo,
-                            PRUint32 aFromParser = 0);
+                            PRBool aFromParser = PR_FALSE);
   virtual ~nsHTMLSharedObjectElement();
 
   // nsISupports
@@ -110,7 +110,7 @@ public:
 
   NS_IMETHOD GetTabIndex(PRInt32 *aTabIndex);
   NS_IMETHOD SetTabIndex(PRInt32 aTabIndex);
-  virtual PRBool IsHTMLFocusable(PRBool aWithMouse, PRBool *aIsFocusable, PRInt32 *aTabIndex);
+  virtual PRBool IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex);
   virtual PRUint32 GetDesiredIMEState();
 
   virtual nsresult DoneAddingChildren(PRBool aHaveNotified);
@@ -173,7 +173,7 @@ NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(SharedObject)
 
 
 nsHTMLSharedObjectElement::nsHTMLSharedObjectElement(nsINodeInfo *aNodeInfo,
-                                                     PRUint32 aFromParser)
+                                                     PRBool aFromParser)
   : nsGenericHTMLElement(aNodeInfo),
     mIsDoneAddingChildren(aNodeInfo->Equals(nsGkAtoms::embed) || !aFromParser)
 {
@@ -260,9 +260,9 @@ nsHTMLSharedObjectElement::BindToTree(nsIDocument *aDocument,
 
   // If we already have all the children, start the load.
   if (mIsDoneAddingChildren) {
-    void (nsHTMLSharedObjectElement::*start)() =
-      &nsHTMLSharedObjectElement::StartObjectLoad;
-    nsContentUtils::AddScriptRunner(NS_NewRunnableMethod(this, start));
+    nsContentUtils::AddScriptRunner(
+      new nsRunnableMethod<nsHTMLSharedObjectElement>(this,
+                                                      &nsHTMLSharedObjectElement::StartObjectLoad));
   }
 
   return NS_OK;
@@ -304,8 +304,7 @@ nsHTMLSharedObjectElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom *aName,
 }
 
 PRBool
-nsHTMLSharedObjectElement::IsHTMLFocusable(PRBool aWithMouse,
-                                           PRBool *aIsFocusable,
+nsHTMLSharedObjectElement::IsHTMLFocusable(PRBool *aIsFocusable,
                                            PRInt32 *aTabIndex)
 {
   if (mNodeInfo->Equals(nsGkAtoms::embed) || Type() == eType_Plugin) {
@@ -321,7 +320,7 @@ nsHTMLSharedObjectElement::IsHTMLFocusable(PRBool aWithMouse,
     return PR_TRUE;
   }
 
-  return nsGenericHTMLElement::IsHTMLFocusable(aWithMouse, aIsFocusable, aTabIndex);
+  return nsGenericHTMLElement::IsHTMLFocusable(aIsFocusable, aTabIndex);
 }
 
 PRUint32

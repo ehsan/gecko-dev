@@ -94,10 +94,6 @@
 #endif
 // Fired when Places is shutting down.
 #define TOPIC_PLACES_SHUTDOWN "places-shutdown"
-// Internal notification, called after places-shutdown.
-// If you need to listen for Places shutdown, you should really use
-// places-shutdown, because places-teardown is guaranteed to break your code.
-#define TOPIC_PLACES_TEARDOWN "places-teardown"
 // Fired when Places found a locked database while initing.
 #define TOPIC_DATABASE_LOCKED "places-database-locked"
 // Fired after Places inited.
@@ -109,9 +105,7 @@ namespace mozilla {
 namespace places {
 
   enum HistoryStatementId {
-    DB_GET_PAGE_INFO_BY_URL = 0
-  , DB_GET_TAGS = 1
-  , DB_IS_PAGE_VISITED = 2
+    DB_GET_PAGE_INFO = 0
   };
 
 } // namespace places
@@ -261,7 +255,13 @@ public:
   static const PRInt32 kGetInfoIndex_ItemTags;
   static const PRInt32 kGetInfoIndex_ItemParentId;
 
+  // select a history row by id
+  mozIStorageStatement *DBGetIdPageInfo() { return mDBGetIdPageInfo; }
+
+  mozIStorageStatement *DBGetTags() { return mDBGetTags; }
   PRInt64 GetTagsFolder();
+
+  mozIStorageStatement *DBGetIsVisited() { return mDBIsPageVisited; }
 
   // Constants for the columns returned by the above statement
   // (in addition to the ones above).
@@ -400,12 +400,8 @@ public:
   {
     using namespace mozilla::places;
     switch(aStatementId) {
-      case DB_GET_PAGE_INFO_BY_URL:
+      case DB_GET_PAGE_INFO:
         return mDBGetURLPageInfo;
-      case DB_GET_TAGS:
-        return mDBGetTags;
-      case DB_IS_PAGE_VISITED:
-        return mDBIsPageVisited;
     }
     return nsnull;
   }
@@ -743,7 +739,18 @@ protected:
   nsCategoryCache<nsINavHistoryObserver> mCacheObservers;
 };
 
-
+/**
+ * These utils bind a specified URI (or URL) to a statement, at the specified
+ * index.
+ * @note URIs are always bound as UTF8.
+ */
+nsresult BindStatementURI(mozIStorageStatement* statement,
+                          PRInt32 index,
+                          nsIURI* aURI);
+nsresult BindStatementURLCString(mozIStorageStatement* statement,
+                                 PRInt32 index,
+                                 const nsACString& aURLString);
+                        
 #define PLACES_URI_PREFIX "place:"
 
 /* Returns true if the given URI represents a history query. */

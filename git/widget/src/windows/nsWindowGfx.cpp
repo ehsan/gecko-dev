@@ -71,9 +71,6 @@ using mozilla::plugins::PluginInstanceParent;
 #include "prmem.h"
 
 #include "LayerManagerOGL.h"
-#ifdef MOZ_ENABLE_D3D9_LAYER
-#include "LayerManagerD3D9.h"
-#endif
 
 #ifndef WINCE
 #include "nsUXThemeData.h"
@@ -235,6 +232,13 @@ void nsWindowGfx::OnSettingsChangeGfx(WPARAM wParam)
       glpDD->RestoreAllSurfaces();
   }
 #endif
+}
+
+void nsWindow::SetUpForPaint(HDC aHDC)
+{
+  ::SetBkColor (aHDC, NSRGB_2_COLOREF(mBackground));
+  ::SetTextColor(aHDC, NSRGB_2_COLOREF(mForeground));
+  ::SetBkMode (aHDC, TRANSPARENT);
 }
 
 // GetRegionToPaint returns the invalidated region that needs to be painted
@@ -416,9 +420,7 @@ PRBool nsWindow::OnPaint(HDC aDC)
 
 #if defined(MOZ_XUL)
           // don't support transparency for non-GDI rendering, for now
-          if ((IsRenderMode(gfxWindowsPlatform::RENDER_GDI) ||
-               IsRenderMode(gfxWindowsPlatform::RENDER_DIRECT2D)) &&
-              eTransparencyTransparent == mTransparencyMode) {
+          if (IsRenderMode(gfxWindowsPlatform::RENDER_GDI) && eTransparencyTransparent == mTransparencyMode) {
             if (mTransparentSurface == nsnull)
               SetupTranslucentWindowMemoryBitmap(mTransparencyMode);
             targetSurface = mTransparentSurface;
@@ -437,13 +439,7 @@ PRBool nsWindow::OnPaint(HDC aDC)
               IsRenderMode(gfxWindowsPlatform::RENDER_DIRECT2D))
           {
             if (!mD2DWindowSurface) {
-              gfxASurface::gfxContentType content = gfxASurface::CONTENT_COLOR;
-#if defined(MOZ_XUL)
-              if (mTransparencyMode != eTransparencyOpaque) {
-                content = gfxASurface::CONTENT_COLOR_ALPHA;
-              }
-#endif
-              mD2DWindowSurface = new gfxD2DSurface(mWnd, content);
+              mD2DWindowSurface = new gfxD2DSurface(mWnd);
             }
             targetSurface = mD2DWindowSurface;
           }
@@ -514,9 +510,6 @@ DDRAW_FAILED:
               thebesContext->Rectangle(gfxRect(r->x, r->y, r->width, r->height), PR_TRUE);
             }
             thebesContext->Clip();
-            thebesContext->SetOperator(gfxContext::OPERATOR_CLEAR);
-            thebesContext->Paint();
-            thebesContext->SetOperator(gfxContext::OPERATOR_OVER);
           }
 #ifdef WINCE
           thebesContext->SetFlag(gfxContext::FLAG_SIMPLIFY_OPERATORS);
@@ -547,8 +540,7 @@ DDRAW_FAILED:
           }
 
 #ifdef MOZ_XUL
-          if ((IsRenderMode(gfxWindowsPlatform::RENDER_GDI) ||
-               IsRenderMode(gfxWindowsPlatform::RENDER_DIRECT2D))&&
+          if (IsRenderMode(gfxWindowsPlatform::RENDER_GDI) &&
               eTransparencyTransparent == mTransparencyMode) {
             // Data from offscreen drawing surface was copied to memory bitmap of transparent
             // bitmap. Now it can be read from memory bitmap to apply alpha channel and after
@@ -692,13 +684,6 @@ DDRAW_FAILED:
           SetClippingRegion(event.region);
         result = DispatchWindowEvent(&event, eventStatus);
         break;
-#ifdef MOZ_ENABLE_D3D9_LAYER
-      case LayerManager::LAYERS_D3D9:
-        static_cast<mozilla::layers::LayerManagerD3D9*>(GetLayerManager())->
-          SetClippingRegion(event.region);
-        result = DispatchWindowEvent(&event, eventStatus);
-        break;
-#endif
       default:
         NS_ERROR("Unknown layers backend used!");
         break;

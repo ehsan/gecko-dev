@@ -685,8 +685,8 @@ public:
    *
    *  @lina 07/12/2000
    */
-  virtual PRBool BidiEnabledExternal() const { return BidiEnabledInternal(); }
-  PRBool BidiEnabledInternal() const { return Document()->GetBidiEnabled(); }
+  virtual NS_HIDDEN_(PRBool) BidiEnabledExternal() const;
+  NS_HIDDEN_(PRBool) BidiEnabledInternal() const;
 #ifdef _IMPL_NS_LAYOUT
   PRBool BidiEnabled() const { return BidiEnabledInternal(); }
 #else
@@ -746,10 +746,6 @@ public:
    * include nsIDocument.
    */  
   NS_HIDDEN_(PRUint32) GetBidi() const;
-
-  PRUint32 GetBidiMemoryUsed();
-#else
-  PRUint32 GetBidiMemoryUsed() { return 0; }
 #endif // IBMBIDI
 
   /**
@@ -814,13 +810,13 @@ public:
                               mType == eContext_PrintPreview); }
 
   // Is this presentation in a chrome docshell?
-  PRBool IsChrome() const
+  PRBool IsChrome()
   {
     return mIsChromeIsCached ? mIsChrome : IsChromeSlow();
   }
 
   virtual void InvalidateIsChromeCacheExternal();
-  void InvalidateIsChromeCacheInternal() { mIsChromeIsCached = PR_FALSE; }
+  void InvalidateIsChromeCacheInternal();
 #ifdef _IMPL_NS_LAYOUT
   void InvalidateIsChromeCache()
   { InvalidateIsChromeCacheInternal(); }
@@ -830,10 +826,10 @@ public:
 #endif
 
   // Public API for native theme code to get style internals.
-  virtual PRBool HasAuthorSpecifiedRules(nsIFrame *aFrame, PRUint32 ruleTypeMask) const;
+  virtual PRBool HasAuthorSpecifiedRules(nsIFrame *aFrame, PRUint32 ruleTypeMask);
 
   // Is it OK to let the page specify colors and backgrounds?
-  PRBool UseDocumentColors() const {
+  PRBool UseDocumentColors() {
     return GetCachedBoolPref(kPresContext_UseDocumentColors) || IsChrome();
   }
 
@@ -960,15 +956,6 @@ public:
     return nsnull;
   }
 
-  PRUint32 EstimateMemoryUsed() {
-    PRUint32 result = 0;
-
-    result += sizeof(nsPresContext);
-    result += GetBidiMemoryUsed();
-
-    return result;
-  }
-
 protected:
   friend class nsRunnableMethod<nsPresContext>;
   NS_HIDDEN_(void) ThemeChangedInternal();
@@ -1006,7 +993,7 @@ protected:
   // Can't be inline because we can't include nsStyleSet.h.
   PRBool HasCachedStyleData();
 
-  PRBool IsChromeSlow() const;
+  PRBool IsChromeSlow();
 
   // IMPORTANT: The ownership implicit in the following member variables
   // has been explicitly checked.  If you add any members to this class,
@@ -1134,7 +1121,7 @@ protected:
   // Do we currently have an event posted to call FlushUserFontSet?
   unsigned              mPostedFlushUserFontSet : 1;
 
-  // resize reflow is suppressed when the only change has been to zoom
+  // resize reflow is supressed when the only change has been to zoom
   // the document rather than to change the document's dimensions
   unsigned              mSupressResizeReflow : 1;
 
@@ -1146,8 +1133,8 @@ protected:
   // Cache whether we are chrome or not because it is expensive.  
   // mIsChromeIsCached tells us if mIsChrome is valid or we need to get the
   // value the slow way.
-  mutable unsigned      mIsChromeIsCached : 1;
-  mutable unsigned      mIsChrome : 1;
+  unsigned              mIsChromeIsCached : 1;
+  unsigned              mIsChrome : 1;
 
 #ifdef DEBUG
   PRBool                mInitialized;

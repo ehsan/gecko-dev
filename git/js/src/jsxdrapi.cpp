@@ -54,8 +54,6 @@
 #include "jsstr.h"
 #include "jsxdrapi.h"
 
-#include "jsobjinlines.h"
-
 #ifdef DEBUG
 #define DBG(x) x
 #else

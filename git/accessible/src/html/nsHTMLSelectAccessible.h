@@ -59,6 +59,8 @@ class nsIMutableArray;
   *
   *  Comboboxes:
   *     - nsHTMLComboboxAccessible
+  *        - nsHTMLComboboxTextFieldAccessible
+  *        - nsHTMLComboboxButtonAccessible
   *        - nsHTMLComboboxListAccessible  [ inserted in accessible tree ]
   *           - nsHTMLSelectOptionAccessible(s)
   */
@@ -77,7 +79,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIACCESSIBLESELECTABLE
 
-  nsHTMLSelectableAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsHTMLSelectableAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
   virtual ~nsHTMLSelectableAccessible() {}
 
 protected:
@@ -118,7 +120,7 @@ class nsHTMLSelectListAccessible : public nsHTMLSelectableAccessible
 {
 public:
   
-  nsHTMLSelectListAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsHTMLSelectListAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
   virtual ~nsHTMLSelectListAccessible() {}
 
   // nsAccessible
@@ -146,7 +148,7 @@ class nsHTMLSelectOptionAccessible : public nsHyperTextAccessibleWrap
 public:
   enum { eAction_Select = 0 };  
   
-  nsHTMLSelectOptionAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsHTMLSelectOptionAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
   virtual ~nsHTMLSelectOptionAccessible() {}
 
   // nsIAccessible
@@ -164,12 +166,7 @@ public:
                                           PRInt32 *aSetSize);
 
   nsIFrame*  GetBoundsFrame();
-
-  /**
-   * Return focused option if any.
-   */
-  static already_AddRefed<nsIContent> GetFocusedOption(nsIContent *aListNode);
-
+  static nsresult GetFocusedOptionNode(nsIDOMNode *aListNode, nsIDOMNode **aFocusedOptionNode);
   static void SelectionChangedIfOption(nsIContent *aPossibleOption);
 
 private:
@@ -190,7 +187,7 @@ class nsHTMLSelectOptGroupAccessible : public nsHTMLSelectOptionAccessible
 {
 public:
 
-  nsHTMLSelectOptGroupAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsHTMLSelectOptGroupAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
   virtual ~nsHTMLSelectOptGroupAccessible() {}
 
   // nsIAccessible
@@ -221,7 +218,7 @@ class nsHTMLComboboxAccessible : public nsAccessibleWrap
 public:
   enum { eAction_Click = 0 };
 
-  nsHTMLComboboxAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsHTMLComboboxAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
   virtual ~nsHTMLComboboxAccessible() {}
 
   // nsIAccessible
@@ -232,7 +229,7 @@ public:
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
 
   // nsAccessNode
-  virtual void Shutdown();
+  virtual nsresult Shutdown();
 
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
@@ -243,11 +240,7 @@ protected:
   virtual void CacheChildren();
 
   // nsHTMLComboboxAccessible
-
-  /**
-   * Return focused option accessible.
-   */
-  nsAccessible *GetFocusedOptionAccessible();
+  already_AddRefed<nsIAccessible> GetFocusedOptionAccessible();
 
 private:
   nsRefPtr<nsHTMLComboboxListAccessible> mListAccessible;
@@ -263,7 +256,7 @@ class nsHTMLComboboxListAccessible : public nsHTMLSelectListAccessible
 public:
 
   nsHTMLComboboxListAccessible(nsIAccessible *aParent, 
-                               nsIContent *aContent, 
+                               nsIDOMNode* aDOMNode, 
                                nsIWeakReference* aShell);
   virtual ~nsHTMLComboboxListAccessible() {}
 

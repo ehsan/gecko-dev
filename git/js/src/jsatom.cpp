@@ -147,6 +147,7 @@ const char *const js_common_atom_names[] = {
     js_name_str,                /* nameAtom                     */
     js_next_str,                /* nextAtom                     */
     js_noSuchMethod_str,        /* noSuchMethodAtom             */
+    js_parent_str,              /* parentAtom                   */
     js_proto_str,               /* protoAtom                    */
     js_set_str,                 /* setAtom                      */
     js_stack_str,               /* stackAtom                    */
@@ -182,21 +183,6 @@ const char *const js_common_atom_names[] = {
     js_ExecutionContext_str,    /* ExecutionContextAtom         */
     js_current_str,             /* currentAtom                  */
 #endif
-
-    "Proxy",                    /* ProxyAtom                    */
-
-    "getOwnPropertyDescriptor", /* getOwnPropertyDescriptorAtom */
-    "getPropertyDescriptor",    /* getPropertyDescriptorAtom    */
-    "defineProperty",           /* definePropertyAtom           */
-    "delete",                   /* deleteAtom                   */
-    "getOwnPropertyNames",      /* getOwnPropertyNames          */
-    "enumerate",                /* enumerateAtom                */
-    "fix",                      /* fixAtom                      */
-
-    "has",                      /* hasAtom                      */
-    "hasOwn",                   /* hasOwnAtom                   */
-    "enumerateOwn",             /* enumerateOwnAtom             */
-    "iterate"                   /* iterateAtom                  */
 };
 
 JS_STATIC_ASSERT(JS_ARRAY_LENGTH(js_common_atom_names) * sizeof(JSAtom *) ==
@@ -234,6 +220,7 @@ const char js_name_str[]            = "name";
 const char js_next_str[]            = "next";
 const char js_noSuchMethod_str[]    = "__noSuchMethod__";
 const char js_object_str[]          = "object";
+const char js_parent_str[]          = "__parent__";
 const char js_proto_str[]           = "__proto__";
 const char js_setter_str[]          = "setter";
 const char js_set_str[]             = "set";
@@ -575,12 +562,12 @@ js_pinned_atom_tracer(JSDHashTable *table, JSDHashEntryHdr *hdr,
 }
 
 void
-js_TraceAtomState(JSTracer *trc)
+js_TraceAtomState(JSTracer *trc, JSBool allAtoms)
 {
     JSRuntime *rt = trc->context->runtime;
     JSAtomState *state = &rt->atomState;
 
-    if (rt->gcKeepAtoms) {
+    if (allAtoms) {
         JS_DHashTableEnumerate(&state->doubleAtoms, js_locked_atom_tracer, trc);
         JS_DHashTableEnumerate(&state->stringAtoms, js_locked_atom_tracer, trc);
     } else {
@@ -806,8 +793,6 @@ js_Atomize(JSContext *cx, const char *bytes, size_t length, uintN flags)
     JSString str;
     JSAtom *atom;
 
-    CHECK_REQUEST(cx);
-
     /*
      * Avoiding the malloc in js_InflateString on shorter strings saves us
      * over 20,000 malloc calls on mozilla browser startup. This compares to
@@ -843,7 +828,6 @@ js_AtomizeChars(JSContext *cx, const jschar *chars, size_t length, uintN flags)
 {
     JSString str;
 
-    CHECK_REQUEST(cx);
     str.initFlat((jschar *)chars, length);
     return js_AtomizeString(cx, &str, ATOM_TMPSTR | flags);
 }

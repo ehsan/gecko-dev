@@ -13,51 +13,15 @@ tabbrowser {
   -moz-binding: url("chrome://browser/content/tabbrowser.xml#tabbrowser-tabs");
 }
 
-#tabbrowser-tabs:not([overflow="true"]) + #new-tab-button,
-#tabbrowser-tabs[overflow="true"] > .tabbrowser-arrowscrollbox > .tabs-newtab-button,
-#TabsToolbar[currentset]:not([currentset*="tabbrowser-tabs,new-tab-button"]) > #tabbrowser-tabs > .tabbrowser-arrowscrollbox > .tabs-newtab-button,
-#navigator-toolbox[customizing="true"] > #TabsToolbar > #tabbrowser-tabs > .tabbrowser-arrowscrollbox > .tabs-newtab-button {
-  visibility: collapse;
-}
-
 .tabbrowser-tab {
   -moz-binding: url("chrome://browser/content/tabbrowser.xml#tabbrowser-tab");
-}
-
-.tabbrowser-tab:not([fadein]) {
-  max-width: 1px !important;
-  min-width: 1px !important;
-}
-
-.tabbrowser-tab[fadein] {
-  -moz-transition: min-width .2s ease-out, max-width .25s ease-out;
-}
-
-.tabbrowser-tab:not([fadein]) > .tab-text,
-.tabbrowser-tab:not([fadein]) > .tab-icon-image,
-.tabbrowser-tab:not([fadein]) > .tab-close-button {
-  opacity: 0 !important;
-}
-
-.tabbrowser-tab[fadein] > .tab-text,
-.tabbrowser-tab[fadein] > .tab-icon-image,
-.tabbrowser-tab[fadein] > .tab-close-button {
-  -moz-transition: opacity .25s;
-}
-
-#alltabs-popup {
-  -moz-binding: url("chrome://browser/content/tabbrowser.xml#tabbrowser-alltabs-popup");
 }
 
 toolbar[printpreview="true"] {
   -moz-binding: url("chrome://global/content/printPreviewBindings.xml#printpreviewtoolbar");
 }
 
-#toolbar-menubar {
-  -moz-box-ordinal-group: 5;
-}
-
-#navigator-toolbox > toolbar:not(#toolbar-menubar):not(#TabsToolbar) {
+#navigator-toolbox > toolbar:not(#TabsToolbar) {
   -moz-box-ordinal-group: 50;
 }
 
@@ -92,11 +56,6 @@ toolbar[mode="icons"] > #reload-button[displaystop] {
 #browser-bottombox[lwthemefooter="true"] {
   background-repeat: no-repeat;
   background-position: bottom left;
-}
-
-.split-menuitem-menu > .menu-text,
-.split-menuitem-menu > .menu-accel-container {
-  display: none;
 }
 
 /* ::::: location bar ::::: */
@@ -192,15 +151,11 @@ toolbarbutton.bookmark-item {
   width: auto;
 }
 
-menupopup[emptyplacesresult="true"] > .hide-if-empty-places-result {
-  display: none;
-}
-
 menuitem.spell-suggestion {
   font-weight: bold;
 }
 
-#sidebar-header > .tabs-closebutton {
+#sidebar-box toolbarbutton.tabs-closebutton {
   -moz-user-focus: normal;
 }
 
@@ -289,11 +244,4 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
 #allTabs-tab-close-button {
   -moz-binding: url("chrome://global/content/bindings/toolbarbutton.xml#toolbarbutton-image");
   margin: 0;
-}
-
-/* Inspector / Highlighter */
-
-#highlighter-panel {
-  -moz-appearance: none;
-  -moz-window-shadow: none;
 }

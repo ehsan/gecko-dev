@@ -135,7 +135,6 @@ XPIDLSRCS	= \
 		nsIProxiedChannel.idl \
 		nsIRandomGenerator.idl \
 		nsIURIWithPrincipal.idl \
-		nsIURIClassifier.idl \
 		$(NULL)
 
 EXPORTS		= \

@@ -67,7 +67,7 @@ nsresult
 NS_NewSVGGElement(nsIContent **aResult, nsINodeInfo *aNodeInfo);
 nsresult
 NS_NewSVGSVGElement(nsIContent **aResult, nsINodeInfo *aNodeInfo,
-                    PRUint32 aFromParser);
+                    PRBool aFromParser);
 nsresult
 NS_NewSVGForeignObjectElement(nsIContent **aResult, nsINodeInfo *aNodeInfo);
 nsresult
@@ -94,7 +94,7 @@ nsresult
 NS_NewSVGDescElement(nsIContent **aResult, nsINodeInfo *aNodeInfo);
 nsresult
 NS_NewSVGScriptElement(nsIContent **aResult, nsINodeInfo *aNodeInfo,
-                       PRUint32 aFromParser);
+                       PRBool aFromParser);
 nsresult
 NS_NewSVGUseElement(nsIContent **aResult, nsINodeInfo *aNodeInfo);
 nsresult
@@ -170,16 +170,12 @@ NS_NewSVGAnimateElement(nsIContent **aResult, nsINodeInfo *aNodeInfo);
 nsresult
 NS_NewSVGAnimateTransformElement(nsIContent **aResult, nsINodeInfo *aNodeInfo);
 nsresult
-NS_NewSVGAnimateMotionElement(nsIContent **aResult, nsINodeInfo *aNodeInfo);
-nsresult
-NS_NewSVGMpathElement(nsIContent **aResult, nsINodeInfo *aNodeInfo);
-nsresult
 NS_NewSVGSetElement(nsIContent **aResult, nsINodeInfo *aNodeInfo);
 #endif // MOZ_SMIL
 
 nsresult
 NS_NewSVGElement(nsIContent** aResult, nsINodeInfo *aNodeInfo,
-                 PRUint32 aFromParser)
+                 PRBool aFromParser)
 {
   NS_PRECONDITION(NS_SVGEnabled(),
                   "creating an SVG element while SVG disabled");
@@ -313,10 +309,6 @@ NS_NewSVGElement(nsIContent** aResult, nsINodeInfo *aNodeInfo,
       return NS_NewSVGAnimateElement(aResult, aNodeInfo);
     if (name == nsGkAtoms::animateTransform)
       return NS_NewSVGAnimateTransformElement(aResult, aNodeInfo);
-    if (name == nsGkAtoms::animateMotion)
-      return NS_NewSVGAnimateMotionElement(aResult, aNodeInfo);
-    if (name == nsGkAtoms::mpath)
-      return NS_NewSVGMpathElement(aResult, aNodeInfo);
     if (name == nsGkAtoms::set)
       return NS_NewSVGSetElement(aResult, aNodeInfo);
   }

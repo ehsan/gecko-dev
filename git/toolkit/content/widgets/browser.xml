@@ -182,11 +182,8 @@
               catch (e) {
               }
             }
-
-            if (!(aFlags & this.webNavigation.LOAD_FLAGS_FROM_EXTERNAL))
-              this.userTypedClear++;
-
             try {
+              this.userTypedClear++;
               this.webNavigation.loadURI(aURI, aFlags, aReferrerURI, aPostData, null);
             } finally {
               if (this.userTypedClear)
@@ -798,7 +795,7 @@
             // we need these attributes so themers don't need to create per-platform packages
             if (screen.colorDepth > 8) { // need high color for transparency
               // Exclude second-rate platforms
-              this._autoScrollPopup.setAttribute("transparent", !/BeOS|OS\/2/.test(navigator.appVersion));
+              this._autoScrollPopup.setAttribute("transparent", !/BeOS|OS\/2|Photon/.test(navigator.appVersion));
               // Enable translucency on Windows and Mac
               this._autoScrollPopup.setAttribute("translucent", /Win|Mac/.test(navigator.platform));
             }
@@ -828,15 +825,13 @@
               // we already discarded non-multiline selects so allow vertical
               // scroll for multiline ones directly without checking for a
               // overflow property
-              var scrollVert = this._scrollable.clientHeight > 0 &&
-                               this._scrollable.scrollHeight > this._scrollable.clientHeight &&
+              var scrollVert = this._scrollable.scrollHeight > this._scrollable.clientHeight &&
                                (this._scrollable instanceof HTMLSelectElement ||
                                 scrollingAllowed.indexOf(overflowy) >= 0);
 
               // do not allow horizontal scrolling for select elements, it leads
               // to visual artifacts and is not the expected behavior anyway
               if (!(this._scrollable instanceof HTMLSelectElement) &&
-                  this._scrollable.clientWidth > 0 &&
                   this._scrollable.scrollWidth > this._scrollable.clientWidth &&
                   scrollingAllowed.indexOf(overflowx) >= 0) {
                 this._autoScrollPopup.setAttribute("scrolldir", scrollVert ? "NSEW" : "EW");
@@ -1143,16 +1138,6 @@
       <![CDATA[
         if (event.getPreventDefault())
           return;
-
-        // For drags that appear to be internal text (for example, tab drags),
-        // set the dropEffect to 'none'. This prevents the drop even if some
-        // other listener cancelled the event.
-        var types = event.dataTransfer.types;
-        if (types.contains("text/x-moz-text-internal") && !types.contains("text/plain")) {
-          event.dataTransfer.dropEffect = "none";
-          event.stopPropagation();
-          event.preventDefault();
-        }
 
         let linkHandler = Components.classes["@mozilla.org/content/dropped-link-handler;1"].
                             getService(Components.interfaces.nsIDroppedLinkHandler);

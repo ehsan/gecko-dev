@@ -1155,16 +1155,13 @@ NS_IMETHODIMP nsDocLoader::OnStatus(nsIRequest* aRequest, nsISupports* ctxt,
         info->mMaxProgress = LL_ZERO;
       }
     }
-
-    nsCOMPtr<nsIStringBundleService> sbs =
-      mozilla::services::GetStringBundleService();
-    if (!sbs)
-      return NS_ERROR_FAILURE;
+    
+    nsresult rv;
+    nsCOMPtr<nsIStringBundleService> sbs = do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
+    if (NS_FAILED(rv)) return rv;
     nsXPIDLString msg;
-    nsresult rv = sbs->FormatStatusMessage(aStatus, aStatusArg,
-                                           getter_Copies(msg));
-    if (NS_FAILED(rv))
-      return rv;
+    rv = sbs->FormatStatusMessage(aStatus, aStatusArg, getter_Copies(msg));
+    if (NS_FAILED(rv)) return rv;
 
     // Keep around the message. In case a request finishes, we need to make sure
     // to send the status message of another request to our user to that we
@@ -1300,13 +1297,12 @@ void nsDocLoader::FireOnStateChange(nsIWebProgress *aProgress,
    */
   nsCOMPtr<nsIWebProgressListener> listener;
   PRInt32 count = mListenerInfoList.Count();
-  PRInt32 notifyMask = (aStateFlags >> 16) & nsIWebProgress::NOTIFY_STATE_ALL;
 
   while (--count >= 0) {
     nsListenerInfo *info;
 
     info = static_cast<nsListenerInfo*>(mListenerInfoList.SafeElementAt(count));
-    if (!info || !(info->mNotifyMask & notifyMask)) {
+    if (!info || !(info->mNotifyMask & (aStateFlags >>16))) {
       continue;
     }
 

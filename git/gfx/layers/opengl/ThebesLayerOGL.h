@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -50,7 +50,7 @@ class ThebesLayerOGL : public ThebesLayer,
                          public LayerOGL
 {
 public:
-  ThebesLayerOGL(LayerManagerOGL *aManager);
+  ThebesLayerOGL(LayerManager *aManager);
   virtual ~ThebesLayerOGL();
 
   /** Layer implementation */
@@ -59,27 +59,50 @@ public:
   /** ThebesLayer implementation */
   void InvalidateRegion(const nsIntRegion& aRegion);
 
+  gfxContext *BeginDrawing(nsIntRegion* aRegionToDraw);
+
+  void EndDrawing();
+
+  void CopyFrom(ThebesLayer* aSource,
+                const nsIntRegion& aRegion,
+                const nsIntPoint& aDelta);
+
   /** LayerOGL implementation */
   LayerType GetType();
   Layer* GetLayer();
   virtual PRBool IsEmpty();
-  virtual void RenderLayer(int aPreviousFrameBuffer,
-                           const nsIntPoint& aOffset);
+  virtual void RenderLayer(int aPreviousFrameBuffer);
 
   /** ThebesLayerOGL */
-  nsIntRect GetVisibleRect() { return mVisibleRegion.GetBounds(); }
+  const nsIntRect &GetVisibleRect();
   const nsIntRect &GetInvalidatedRect();
 
 private:
+  /** 
+   * Visible rectangle, this is used to know the size and position of the quad
+   * when doing the rendering of this layer.
+   */
+  nsIntRect mVisibleRect;
   /**
    * Currently invalidated rectangular area.
    */
   nsIntRect mInvalidatedRect;
+  /**
+   * Software surface used for this layer's drawing operation. This is created
+   * on BeginDrawing() and should be removed on EndDrawing().
+   */
+  nsRefPtr<gfxImageSurface> mSoftwareSurface;
+
+  /**
+   * We hold the reference to the context.
+   */
+  nsRefPtr<gfxContext> mContext;
 
   /**
    * OpenGL Texture
    */
   GLuint mTexture;
+
 };
 
 } /* layers */

@@ -55,7 +55,7 @@ function test()
  
   function f() {}
   delete Function;
-  var g = function () {};
+  var g = new Function('');
 
   expect = f.__proto__;
   actual = g.__proto__;

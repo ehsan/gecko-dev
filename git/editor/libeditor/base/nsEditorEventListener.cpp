@@ -39,6 +39,7 @@
  * ***** END LICENSE BLOCK ***** */
 #include "nsEditorEventListener.h"
 #include "nsEditor.h"
+#include "nsIPlaintextEditor.h"
 
 #include "nsIDOMDOMStringList.h"
 #include "nsIDOMEvent.h"
@@ -96,6 +97,7 @@ nsresult
 nsEditorEventListener::Connect(nsEditor* aEditor)
 {
   NS_ENSURE_ARG(aEditor);
+  NS_ENSURE_TRUE(!mEditor, NS_ERROR_NOT_AVAILABLE);
 
   mEditor = aEditor;
 
@@ -322,22 +324,125 @@ nsEditorEventListener::KeyPress(nsIDOMEvent* aKeyEvent)
   // If the client pass cancelled the event, defaultPrevented will be true
   // below.
 
-  nsCOMPtr<nsIDOMNSUIEvent> UIEvent = do_QueryInterface(aKeyEvent);
-  if(UIEvent) {
+  nsCOMPtr<nsIDOMNSUIEvent> nsUIEvent = do_QueryInterface(aKeyEvent);
+  if(nsUIEvent) 
+  {
     PRBool defaultPrevented;
-    UIEvent->GetPreventDefault(&defaultPrevented);
-    if(defaultPrevented) {
+    nsUIEvent->GetPreventDefault(&defaultPrevented);
+    if(defaultPrevented)
       return NS_OK;
-    }
   }
 
   nsCOMPtr<nsIDOMKeyEvent>keyEvent = do_QueryInterface(aKeyEvent);
-  if (!keyEvent) {
+  if (!keyEvent) 
+  {
     //non-key event passed to keypress.  bad things.
     return NS_OK;
   }
 
-  return mEditor->HandleKeyPressEvent(keyEvent);
+  PRUint32 keyCode;
+  keyEvent->GetKeyCode(&keyCode);
+
+  // if we are readonly or disabled, then do nothing.
+  if (mEditor->IsReadonly() || mEditor->IsDisabled())
+  {
+    // consume backspace for disabled and readonly textfields, to prevent
+    // back in history, which could be confusing to users
+    if (keyCode == nsIDOMKeyEvent::DOM_VK_BACK_SPACE)
+      aKeyEvent->PreventDefault();
+
+    return NS_OK;
+  }
+
+  nsCOMPtr<nsIPlaintextEditor> textEditor =
+    do_QueryInterface(static_cast<nsIEditor*>(mEditor));
+  NS_ASSERTION(textEditor, "nsEditor must have nsIPlaintextEditor");
+
+  // if there is no charCode, then it's a key that doesn't map to a character,
+  // so look for special keys using keyCode.
+  if (0 != keyCode)
+  {
+    PRBool isAnyModifierKeyButShift;
+    nsresult rv;
+    rv = keyEvent->GetAltKey(&isAnyModifierKeyButShift);
+    if (NS_FAILED(rv)) return rv;
+    
+    if (!isAnyModifierKeyButShift)
+    {
+      rv = keyEvent->GetMetaKey(&isAnyModifierKeyButShift);
+      if (NS_FAILED(rv)) return rv;
+      
+      if (!isAnyModifierKeyButShift)
+      {
+        rv = keyEvent->GetCtrlKey(&isAnyModifierKeyButShift);
+        if (NS_FAILED(rv)) return rv;
+      }
+    }
+
+    switch (keyCode)
+    {
+      case nsIDOMKeyEvent::DOM_VK_META:
+      case nsIDOMKeyEvent::DOM_VK_SHIFT:
+      case nsIDOMKeyEvent::DOM_VK_CONTROL:
+      case nsIDOMKeyEvent::DOM_VK_ALT:
+        aKeyEvent->PreventDefault(); // consumed
+        return NS_OK;
+        break;
+
+      case nsIDOMKeyEvent::DOM_VK_BACK_SPACE: 
+        if (isAnyModifierKeyButShift)
+          return NS_OK;
+
+        mEditor->DeleteSelection(nsIEditor::ePrevious);
+        aKeyEvent->PreventDefault(); // consumed
+        return NS_OK;
+        break;
+ 
+      case nsIDOMKeyEvent::DOM_VK_DELETE:
+        /* on certain platforms (such as windows) the shift key
+           modifies what delete does (cmd_cut in this case).
+           bailing here to allow the keybindings to do the cut.*/
+        PRBool isShiftModifierKey;
+        rv = keyEvent->GetShiftKey(&isShiftModifierKey);
+        if (NS_FAILED(rv)) return rv;
+
+        if (isAnyModifierKeyButShift || isShiftModifierKey)
+           return NS_OK;
+        mEditor->DeleteSelection(nsIEditor::eNext);
+        aKeyEvent->PreventDefault(); // consumed
+        return NS_OK; 
+        break;
+ 
+      case nsIDOMKeyEvent::DOM_VK_TAB:
+        if (mEditor->IsSingleLineEditor() || mEditor->IsPasswordEditor() ||
+            mEditor->IsFormWidget() || mEditor->IsInteractionAllowed()) {
+          return NS_OK; // let it be used for focus switching
+        }
+
+        if (isAnyModifierKeyButShift)
+          return NS_OK;
+
+        // else we insert the tab straight through
+        textEditor->HandleKeyPress(keyEvent);
+        // let HandleKeyPress consume the event
+        return NS_OK; 
+
+      case nsIDOMKeyEvent::DOM_VK_RETURN:
+      case nsIDOMKeyEvent::DOM_VK_ENTER:
+        if (isAnyModifierKeyButShift)
+          return NS_OK;
+
+        if (!mEditor->IsSingleLineEditor())
+        {
+          textEditor->HandleKeyPress(keyEvent);
+          aKeyEvent->PreventDefault(); // consumed
+        }
+        return NS_OK;
+    }
+  }
+
+  textEditor->HandleKeyPress(keyEvent);
+  return NS_OK; // we don't PreventDefault() here or keybindings like control-x won't work 
 }
 
 /**
@@ -360,7 +465,8 @@ nsEditorEventListener::MouseClick(nsIDOMEvent* aMouseEvent)
 
   nsresult rv;
   nsCOMPtr<nsIDOMNSUIEvent> nsuiEvent = do_QueryInterface(aMouseEvent);
-  NS_ENSURE_TRUE(nsuiEvent, NS_ERROR_NULL_POINTER);
+  if (!nsuiEvent)
+    return NS_ERROR_NULL_POINTER;
 
   PRBool preventDefault;
   rv = nsuiEvent->GetPreventDefault(&preventDefault);
@@ -523,7 +629,8 @@ nsresult
 nsEditorEventListener::DragEnter(nsIDOMDragEvent* aDragEvent)
 {
   nsCOMPtr<nsIPresShell> presShell = GetPresShell();
-  NS_ENSURE_TRUE(presShell, NS_OK);
+  if (!presShell)
+    return NS_OK;
 
   if (!mCaret)
   {
@@ -554,7 +661,8 @@ nsEditorEventListener::DragOver(nsIDOMDragEvent* aDragEvent)
 
     nsuiEvent->GetRangeParent(getter_AddRefs(parent));
     nsCOMPtr<nsIContent> dropParent = do_QueryInterface(parent);
-    NS_ENSURE_TRUE(dropParent, NS_ERROR_FAILURE);
+    if (!dropParent)
+      return NS_ERROR_FAILURE;
 
     if (!dropParent->IsEditable())
       return NS_OK;
@@ -569,7 +677,7 @@ nsEditorEventListener::DragOver(nsIDOMDragEvent* aDragEvent)
     {
       PRInt32 offset = 0;
       nsresult rv = nsuiEvent->GetRangeOffset(&offset);
-      NS_ENSURE_SUCCESS(rv, rv);
+      if (NS_FAILED(rv)) return rv;
 
       // to avoid flicker, we could track the node and offset to see if we moved
       if (mCaretDrawn)
@@ -637,7 +745,8 @@ nsEditorEventListener::Drop(nsIDOMDragEvent* aMouseEvent)
     nsCOMPtr<nsIDOMNode> parent;
     nsuiEvent->GetRangeParent(getter_AddRefs(parent));
     nsCOMPtr<nsIContent> dropParent = do_QueryInterface(parent);
-    NS_ENSURE_TRUE(dropParent, NS_ERROR_FAILURE);
+    if (!dropParent)
+      return NS_ERROR_FAILURE;
 
     if (!dropParent->IsEditable())
       return NS_OK;
@@ -675,11 +784,13 @@ nsEditorEventListener::CanDrop(nsIDOMDragEvent* aEvent)
 
   nsCOMPtr<nsIDOMDataTransfer> dataTransfer;
   aEvent->GetDataTransfer(getter_AddRefs(dataTransfer));
-  NS_ENSURE_TRUE(dataTransfer, PR_FALSE);
+  if (!dataTransfer)
+    return PR_FALSE;
 
   nsCOMPtr<nsIDOMDOMStringList> types;
   dataTransfer->GetTypes(getter_AddRefs(types));
-  NS_ENSURE_TRUE(types, PR_FALSE);
+  if (!types)
+    return PR_FALSE;
 
   // Plaintext editors only support dropping text. Otherwise, HTML and files
   // can be dropped as well.
@@ -695,28 +806,31 @@ nsEditorEventListener::CanDrop(nsIDOMDragEvent* aEvent)
     }
   }
 
-  NS_ENSURE_TRUE(typeSupported, PR_FALSE);
+  if (!typeSupported)
+    return PR_FALSE;
 
   nsCOMPtr<nsIDOMNSDataTransfer> dataTransferNS(do_QueryInterface(dataTransfer));
-  NS_ENSURE_TRUE(dataTransferNS, PR_FALSE);
+  if (!dataTransferNS)
+    return PR_FALSE;
 
   // If there is no source node, this is probably an external drag and the
   // drop is allowed. The later checks rely on checking if the drag target
   // is the same as the drag source.
   nsCOMPtr<nsIDOMNode> sourceNode;
   dataTransferNS->GetMozSourceNode(getter_AddRefs(sourceNode));
-  NS_ENSURE_TRUE(sourceNode, PR_TRUE);
+  if (!sourceNode)
+    return PR_TRUE;
 
   // There is a source node, so compare the source documents and this document.
   // Disallow drops on the same document.
 
   nsCOMPtr<nsIDOMDocument> domdoc;
   nsresult rv = mEditor->GetDocument(getter_AddRefs(domdoc));
-  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+  if (NS_FAILED(rv)) return PR_FALSE;
 
   nsCOMPtr<nsIDOMDocument> sourceDoc;
   rv = sourceNode->GetOwnerDocument(getter_AddRefs(sourceDoc));
-  NS_ENSURE_SUCCESS(rv, PR_FALSE);
+  if (NS_FAILED(rv)) return PR_FALSE;
   if (domdoc == sourceDoc)      // source and dest are the same document; disallow drops within the selection
   {
     nsCOMPtr<nsISelection> selection;
@@ -726,13 +840,13 @@ nsEditorEventListener::CanDrop(nsIDOMDragEvent* aEvent)
     
     PRBool isCollapsed;
     rv = selection->GetIsCollapsed(&isCollapsed);
-    NS_ENSURE_SUCCESS(rv, PR_FALSE);
+    if (NS_FAILED(rv)) return PR_FALSE;
   
     // Don't bother if collapsed - can always drop
     if (!isCollapsed)
     {
       nsCOMPtr<nsIDOMNSUIEvent> nsuiEvent (do_QueryInterface(aEvent));
-      NS_ENSURE_TRUE(nsuiEvent, PR_FALSE);
+      if (!nsuiEvent) return PR_FALSE;
 
       nsCOMPtr<nsIDOMNode> parent;
       rv = nsuiEvent->GetRangeParent(getter_AddRefs(parent));
@@ -740,11 +854,11 @@ nsEditorEventListener::CanDrop(nsIDOMDragEvent* aEvent)
 
       PRInt32 offset = 0;
       rv = nsuiEvent->GetRangeOffset(&offset);
-      NS_ENSURE_SUCCESS(rv, PR_FALSE);
+      if (NS_FAILED(rv)) return PR_FALSE;
 
       PRInt32 rangeCount;
       rv = selection->GetRangeCount(&rangeCount);
-      NS_ENSURE_SUCCESS(rv, PR_FALSE);
+      if (NS_FAILED(rv)) return PR_FALSE;
 
       for (PRInt32 i = 0; i < rangeCount; i++)
       {
@@ -787,37 +901,71 @@ nsEditorEventListener::HandleEndComposition(nsIDOMEvent* aCompositionEvent)
  * nsIDOMFocusListener implementation
  */
 
+static already_AddRefed<nsIContent>
+FindSelectionRoot(nsEditor *aEditor, nsIContent *aContent)
+{
+  NS_PRECONDITION(aEditor, "aEditor must not be null");
+  nsIDocument *document = aContent->GetCurrentDoc();
+  if (!document) {
+    return nsnull;
+  }
+
+  nsIContent *root;
+  if (document->HasFlag(NODE_IS_EDITABLE)) {
+    NS_IF_ADDREF(root = document->GetRootContent());
+
+    return root;
+  }
+
+  if (aEditor->IsReadonly()) {
+    // We still want to allow selection in a readonly editor.
+    nsCOMPtr<nsIDOMElement> rootElement;
+    aEditor->GetRootElement(getter_AddRefs(rootElement));
+    if (!rootElement) {
+      return nsnull;
+    }
+
+    CallQueryInterface(rootElement, &root);
+
+    return root;
+  }
+
+  if (!aContent->HasFlag(NODE_IS_EDITABLE)) {
+    return nsnull;
+  }
+
+  // For non-readonly editors we want to find the root of the editable subtree
+  // containing aContent.
+  nsIContent *parent, *content = aContent;
+  while ((parent = content->GetParent()) && parent->HasFlag(NODE_IS_EDITABLE)) {
+    content = parent;
+  }
+
+  NS_IF_ADDREF(content);
+
+  return content;
+}
+
 NS_IMETHODIMP
 nsEditorEventListener::Focus(nsIDOMEvent* aEvent)
 {
   NS_ENSURE_TRUE(mEditor, NS_ERROR_NOT_AVAILABLE);
   NS_ENSURE_ARG(aEvent);
 
-  // Don't turn on selection and caret when the editor is disabled.
+  nsCOMPtr<nsIDOMEventTarget> target;
+  aEvent->GetTarget(getter_AddRefs(target));
+
+  // turn on selection and caret
   if (mEditor->IsDisabled()) {
     return NS_OK;
   }
 
-  nsCOMPtr<nsIDOMEventTarget> target;
-  aEvent->GetTarget(getter_AddRefs(target));
-  nsCOMPtr<nsINode> node = do_QueryInterface(target);
-  NS_ENSURE_TRUE(node, NS_ERROR_UNEXPECTED);
+  nsCOMPtr<nsIContent> content = do_QueryInterface(target);
 
-  // If the traget is a document node but it's not editable, we should ignore
-  // it because actual focused element's event is going to come.
-  if (node->IsNodeOfType(nsINode::eDOCUMENT) &&
-      !node->HasFlag(NODE_IS_EDITABLE)) {
-    return NS_OK;
-  }
-
-  if (node->IsNodeOfType(nsINode::eCONTENT)) {
-    // XXX If the focus event target is a form control in contenteditable
-    // element, perhaps, the parent HTML editor should do nothing by this
-    // handler.  However, FindSelectionRoot() returns the root element of the
-    // contenteditable editor.  So, the editableRoot value is invalid for
-    // the plain text editor, and it will be set to the wrong limiter of
-    // the selection.  However, fortunately, actual bugs are not found yet.
-    nsCOMPtr<nsIContent> editableRoot = mEditor->FindSelectionRoot(node);
+  PRBool targetIsEditableDoc = PR_FALSE;
+  nsCOMPtr<nsIContent> editableRoot;
+  if (content) {
+    editableRoot = FindSelectionRoot(mEditor, content);
 
     // make sure that the element is really focused in case an earlier
     // listener in the chain changed the focus.
@@ -831,8 +979,50 @@ nsEditorEventListener::Focus(nsIDOMEvent* aEvent)
         return NS_OK;
     }
   }
+  else {
+    nsCOMPtr<nsIDocument> document = do_QueryInterface(target);
+    targetIsEditableDoc = document && document->HasFlag(NODE_IS_EDITABLE);
+  }
 
-  mEditor->InitializeSelection(target);
+  nsCOMPtr<nsISelectionController> selCon;
+  mEditor->GetSelectionController(getter_AddRefs(selCon));
+  if (selCon && (targetIsEditableDoc || editableRoot))
+  {
+    nsCOMPtr<nsISelection> selection;
+    selCon->GetSelection(nsISelectionController::SELECTION_NORMAL,
+                         getter_AddRefs(selection));
+
+    nsCOMPtr<nsIPresShell> presShell = GetPresShell();
+    if (presShell) {
+      nsRefPtr<nsCaret> caret = presShell->GetCaret();
+      if (caret) {
+        caret->SetIgnoreUserModify(PR_FALSE);
+        if (selection) {
+          caret->SetCaretDOMSelection(selection);
+        }
+      }
+    }
+
+    selCon->SetCaretReadOnly(mEditor->IsReadonly());
+    selCon->SetCaretEnabled(PR_TRUE);
+    selCon->SetDisplaySelection(nsISelectionController::SELECTION_ON);
+    selCon->RepaintSelection(nsISelectionController::SELECTION_NORMAL);
+
+    nsCOMPtr<nsISelectionPrivate> selectionPrivate =
+      do_QueryInterface(selection);
+    if (selectionPrivate)
+    {
+      selectionPrivate->SetAncestorLimiter(editableRoot);
+    }
+
+    if (selection && !editableRoot) {
+      PRInt32 rangeCount;
+      selection->GetRangeCount(&rangeCount);
+      if (rangeCount == 0) {
+        mEditor->BeginningOfDocument();
+      }
+    }
+  }
   return NS_OK;
 }
 

@@ -157,10 +157,10 @@ namespace nanojit
             n = ins->size() >> 2;
         } else {
             switch (ins->retType()) {
-            case LTy_I:   n = 1;          break;
-            CASE64(LTy_Q:)
-            case LTy_D:   n = 2;          break;
-            case LTy_V:  NanoAssert(0);  break;
+            case LTy_I32:   n = 1;          break;
+            CASE64(LTy_I64:)
+            case LTy_F64:   n = 2;          break;
+            case LTy_Void:  NanoAssert(0);  break;
             default:        NanoAssert(0);  break;
             }
         }
@@ -192,8 +192,8 @@ namespace nanojit
 
     typedef SeqBuilder<NIns*> NInsList;
     typedef HashMap<NIns*, LIns*> NInsMap;
-#if NJ_USES_IMMD_POOL
-    typedef HashMap<uint64_t, uint64_t*> ImmDPoolMap;
+#if NJ_USES_QUAD_CONSTANTS
+    typedef HashMap<uint64_t, uint64_t*> QuadConstantMap;
 #endif
 
 #ifdef VTUNE
@@ -326,9 +326,9 @@ namespace nanojit
             Register    getBaseReg(LIns *ins, int &d, RegisterMask allow);
             void        getBaseReg2(RegisterMask allowValue, LIns* value, Register& rv,
                                     RegisterMask allowBase, LIns* base, Register& rb, int &d);
-#if NJ_USES_IMMD_POOL
+#if NJ_USES_QUAD_CONSTANTS
             const uint64_t*
-                        findImmDFromPool(uint64_t q);
+                        findQuadConstant(uint64_t q);
 #endif
             int         findMemFor(LIns* ins);
             Register    findRegFor(LIns* ins, RegisterMask allow);
@@ -349,13 +349,6 @@ namespace nanojit
 
             // These instructions don't have to be saved & reloaded to spill,
             // they can just be recalculated cheaply.
-            //
-            // WARNING: this function must match asm_restore() -- it should return
-            // true for the instructions that are handled explicitly without a spill
-            // in asm_restore(), and false otherwise.
-            //
-            // If it doesn't match asm_restore(), the register allocator's decisions
-            // about which values to evict will be suboptimal.
             static bool canRemat(LIns*);
 
             bool deprecated_isKnownReg(Register r) {
@@ -369,8 +362,8 @@ namespace nanojit
             RegAllocMap         _branchStateMap;
             NInsMap             _patches;
             LabelStateMap       _labels;
-        #if NJ_USES_IMMD_POOL
-            ImmDPoolMap     _immDPool;
+        #if NJ_USES_QUAD_CONSTANTS
+            QuadConstantMap     _quadConstants;
         #endif
 
             // We generate code into two places:  normal code chunks, and exit
@@ -402,8 +395,12 @@ namespace nanojit
             NIns*       pedanticTop;
         #endif
 
-            // Holds the current instruction during gen().
-            LInsp       currIns;
+
+            // Instruction lookahead in gen().  lookahead[0] is the current
+            // instruction.  Nb: lookahead[1..N_LOOKAHEAD] may include dead
+            // instructions, but we won't know that they're dead yet.
+            static const int N_LOOKAHEAD = 3;
+            LInsp       lookahead[N_LOOKAHEAD];
 
             AR          _activation;
             RegAlloc    _allocator;
@@ -418,12 +415,7 @@ namespace nanojit
             NIns*       asm_leave_trace(LInsp guard);
             void        asm_store32(LOpcode op, LIns *val, int d, LIns *base);
             void        asm_store64(LOpcode op, LIns *val, int d, LIns *base);
-
-            // WARNING: the implementation of asm_restore() should emit fast code
-            // to rematerialize instructions where canRemat() returns true.
-            // Otherwise, register allocation decisions will be suboptimal.
             void        asm_restore(LInsp, Register);
-
             void        asm_maybe_spill(LInsp ins, bool pop);
             void        asm_spill(Register rr, int d, bool pop, bool quad);
             void        asm_load64(LInsp ins);
@@ -431,8 +423,8 @@ namespace nanojit
 #ifdef NANOJIT_64BIT
             void        asm_immq(LInsp ins);
 #endif
-            void        asm_immd(LInsp ins);
-            void        asm_condd(LInsp ins);
+            void        asm_immf(LInsp ins);
+            void        asm_fcond(LInsp ins);
             void        asm_cond(LInsp ins);
             void        asm_arith(LInsp ins);
             void        asm_neg_not(LInsp ins);
@@ -447,9 +439,9 @@ namespace nanojit
 #endif
             void        asm_fneg(LInsp ins);
             void        asm_fop(LInsp ins);
-            void        asm_i2d(LInsp ins);
-            void        asm_ui2d(LInsp ins);
-            void        asm_d2i(LInsp ins);
+            void        asm_i2f(LInsp ins);
+            void        asm_u2f(LInsp ins);
+            void        asm_f2i(LInsp ins);
 #ifdef NANOJIT_64BIT
             void        asm_q2i(LInsp ins);
             void        asm_promote(LIns *ins);

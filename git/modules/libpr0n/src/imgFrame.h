@@ -134,8 +134,6 @@ public:
     return mImageSurface;
   }
 
-  // returns an estimate of the memory used by this imgFrame
-  PRUint32 EstimateMemoryUsed() const;
 
 private: // methods
   PRUint32 PaletteDataLength() const {

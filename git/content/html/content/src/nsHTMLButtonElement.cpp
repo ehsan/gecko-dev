@@ -45,7 +45,7 @@
 #include "nsPresContext.h"
 #include "nsIFormControl.h"
 #include "nsIForm.h"
-#include "nsFormSubmission.h"
+#include "nsIFormSubmission.h"
 #include "nsIURL.h"
 
 #include "nsIFrame.h"
@@ -65,16 +65,6 @@
 
 #define NS_IN_SUBMIT_CLICK      (1 << 0)
 #define NS_OUTER_ACTIVATE_EVENT (1 << 1)
-
-static const nsAttrValue::EnumTable kButtonTypeTable[] = {
-  { "button", NS_FORM_BUTTON_BUTTON },
-  { "reset", NS_FORM_BUTTON_RESET },
-  { "submit", NS_FORM_BUTTON_SUBMIT },
-  { 0 }
-};
-
-// Default type is 'submit'.
-static const nsAttrValue::EnumTable* kButtonDefaultType = &kButtonTypeTable[2];
 
 class nsHTMLButtonElement : public nsGenericHTMLFormElement,
                             public nsIDOMHTMLButtonElement,
@@ -106,11 +96,9 @@ public:
   NS_IMETHOD Focus();
   NS_IMETHOD Click();
   NS_IMETHOD SetType(const nsAString& aType);
-  NS_IMETHOD GetAutofocus(PRBool* aAutofocus);
-  NS_IMETHOD SetAutofocus(PRBool aAutofocus);
 
   // overriden nsIFormControl methods
-  NS_IMETHOD_(PRUint32) GetType() const { return mType; }
+  NS_IMETHOD_(PRInt32) GetType() const { return mType; }
   NS_IMETHOD Reset();
   NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission,
                                nsIContent* aSubmitElement);
@@ -122,14 +110,9 @@ public:
    */
   virtual nsresult BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                  const nsAString* aValue, PRBool aNotify);
-  /**
-   * Called when an attribute has just been changed
-   */
-  nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                        const nsAString* aValue, PRBool aNotify);
   
   // nsIContent overrides...
-  virtual PRBool IsHTMLFocusable(PRBool aWithMouse, PRBool *aIsFocusable, PRInt32 *aTabIndex);
+  virtual PRBool IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex);
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
@@ -141,12 +124,7 @@ public:
   virtual void DoneCreatingElement();
 
 protected:
-  virtual PRBool AcceptAutofocus() const
-  {
-    return PR_TRUE;
-  }
-
-  PRUint8 mType;
+  PRInt8 mType;
   PRPackedBool mHandlingClick;
   PRPackedBool mDisabledChanged;
   PRPackedBool mInInternalActivate;
@@ -166,7 +144,7 @@ NS_IMPL_NS_NEW_HTML_ELEMENT(Button)
 
 nsHTMLButtonElement::nsHTMLButtonElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLFormElement(aNodeInfo),
-    mType(kButtonDefaultType->value),
+    mType(NS_FORM_BUTTON_SUBMIT),  // default
     mHandlingClick(PR_FALSE),
     mDisabledChanged(PR_FALSE),
     mInInternalActivate(PR_FALSE)
@@ -209,13 +187,11 @@ nsHTMLButtonElement::GetForm(nsIDOMHTMLFormElement** aForm)
 }
 
 NS_IMPL_STRING_ATTR(nsHTMLButtonElement, AccessKey, accesskey)
-NS_IMPL_BOOL_ATTR(nsHTMLButtonElement, Autofocus, autofocus)
 NS_IMPL_BOOL_ATTR(nsHTMLButtonElement, Disabled, disabled)
 NS_IMPL_STRING_ATTR(nsHTMLButtonElement, Name, name)
 NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLButtonElement, TabIndex, tabindex, 0)
 NS_IMPL_STRING_ATTR(nsHTMLButtonElement, Value, value)
-NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLButtonElement, Type, type,
-                                kButtonDefaultType->tag)
+NS_IMPL_STRING_ATTR_DEFAULT_VALUE(nsHTMLButtonElement, Type, type, "submit")
 
 NS_IMETHODIMP
 nsHTMLButtonElement::Blur()
@@ -265,24 +241,26 @@ nsHTMLButtonElement::Click()
 }
 
 PRBool
-nsHTMLButtonElement::IsHTMLFocusable(PRBool aWithMouse, PRBool *aIsFocusable, PRInt32 *aTabIndex)
+nsHTMLButtonElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
 {
-  if (nsGenericHTMLElement::IsHTMLFocusable(aWithMouse, aIsFocusable, aTabIndex)) {
+  if (nsGenericHTMLElement::IsHTMLFocusable(aIsFocusable, aTabIndex)) {
     return PR_TRUE;
   }
-
   if (aTabIndex && (sTabFocusModel & eTabFocus_formElementsMask) == 0) {
     *aTabIndex = -1;
   }
 
-  *aIsFocusable = 
-#ifdef XP_MACOSX
-    !aWithMouse &&
-#endif
-    !HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);
+  *aIsFocusable = !HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);
 
   return PR_FALSE;
 }
+
+static const nsAttrValue::EnumTable kButtonTypeTable[] = {
+  { "button", NS_FORM_BUTTON_BUTTON },
+  { "reset", NS_FORM_BUTTON_RESET },
+  { "submit", NS_FORM_BUTTON_SUBMIT },
+  { 0 }
+};
 
 PRBool
 nsHTMLButtonElement::ParseAttribute(PRInt32 aNamespaceID,
@@ -293,14 +271,11 @@ nsHTMLButtonElement::ParseAttribute(PRInt32 aNamespaceID,
   if (aAttribute == nsGkAtoms::type && kNameSpaceID_None == aNamespaceID) {
     // XXX ARG!! This is major evilness. ParseAttribute
     // shouldn't set members. Override SetAttr instead
-    PRBool success = aResult.ParseEnumValue(aValue, kButtonTypeTable, PR_FALSE);
-    if (success) {
+    PRBool res = aResult.ParseEnumValue(aValue, kButtonTypeTable);
+    if (res) {
       mType = aResult.GetEnumValue();
-    } else {
-      mType = kButtonDefaultType->value;
     }
-
-    return success;
+    return res;
   }
 
   return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
@@ -597,19 +572,6 @@ nsHTMLButtonElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
   return nsGenericHTMLFormElement::BeforeSetAttr(aNameSpaceID, aName,
                                                  aValue, aNotify);
-}
-
-nsresult
-nsHTMLButtonElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                  const nsAString* aValue, PRBool aNotify)
-{
-  if (!aValue && aNameSpaceID == kNameSpaceID_None &&
-    aName == nsGkAtoms::type) {
-    mType = kButtonDefaultType->value;
-  }
-
-  return nsGenericHTMLFormElement::AfterSetAttr(aNameSpaceID, aName,
-                                                aValue, aNotify);
 }
 
 NS_IMETHODIMP

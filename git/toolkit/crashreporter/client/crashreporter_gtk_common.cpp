@@ -77,7 +77,6 @@ string gDumpFile;
 StringTable gQueryParameters;
 string gHttpProxy;
 string gAuth;
-string gCACertificateFile;
 string gSendURL;
 string gURLParameter;
 vector<string> gRestartArgs;
@@ -223,7 +222,6 @@ gpointer SendThread(gpointer args)
      gDumpFile,
      "upload_file_minidump",
      gHttpProxy, gAuth,
-     gCACertificateFile,
      &response,
      &error);
   if (success) {

@@ -96,7 +96,7 @@ class nsIntervalSet;
  * frame property that points to an nsFrameList in its
  * nsBlockReflowState. This list contains continuations for
  * floats whose prev-in-flow is in the block's regular float
- * list. The list is always empty/nonexistent after the
+ * list. The list is always empty/non-existent after the
  * block has been reflowed.
  * -- In all these frame lists, if there are two frames for
  * the same content appearing in the list, then the frames
@@ -115,15 +115,15 @@ class nsIntervalSet;
  * performed on the block. This flag must be either set on all blocks in a 
  * continuation chain or none of them.
  */
-#define NS_BLOCK_NEEDS_BIDI_RESOLUTION      NS_FRAME_STATE_BIT(20)
-#define NS_BLOCK_HAS_LINE_CURSOR            NS_FRAME_STATE_BIT(24)
-#define NS_BLOCK_HAS_OVERFLOW_LINES         NS_FRAME_STATE_BIT(25)
-#define NS_BLOCK_HAS_OVERFLOW_OUT_OF_FLOWS  NS_FRAME_STATE_BIT(26)
+#define NS_BLOCK_NEEDS_BIDI_RESOLUTION      0x00100000 
+#define NS_BLOCK_HAS_LINE_CURSOR            0x01000000
+#define NS_BLOCK_HAS_OVERFLOW_LINES         0x02000000
+#define NS_BLOCK_HAS_OVERFLOW_OUT_OF_FLOWS  0x04000000
 
 // Set on any block that has descendant frames in the normal
 // flow with 'clear' set to something other than 'none'
 // (including <BR CLEAR="..."> frames)
-#define NS_BLOCK_HAS_CLEAR_CHILDREN         NS_FRAME_STATE_BIT(27)
+#define NS_BLOCK_HAS_CLEAR_CHILDREN         0x08000000
 
 #define nsBlockFrameSuper nsHTMLContainerFrame
 
@@ -333,7 +333,7 @@ protected:
   already_AddRefed<nsStyleContext> GetFirstLetterStyle(nsPresContext* aPresContext)
   {
     return aPresContext->StyleSet()->
-      ProbePseudoElementStyle(mContent->AsElement(),
+      ProbePseudoElementStyle(mContent,
                               nsCSSPseudoElements::ePseudo_firstLetter,
                               mStyleContext);
   }

@@ -50,10 +50,10 @@
 #include "prefapi.h"
 #include "prmem.h"
 #include "pldhash.h"
+#include "nsPrefsCID.h"
 
 #include "plstr.h"
 #include "nsCRT.h"
-#include "mozilla/Services.h"
 
 #include "prefapi_private_data.h"
 
@@ -89,8 +89,8 @@ nsPrefBranch::nsPrefBranch(const char *aPrefRoot, PRBool aDefaultBranch)
   mPrefRootLength = mPrefRoot.Length();
   mIsDefault = aDefaultBranch;
 
-  nsCOMPtr<nsIObserverService> observerService =
-    mozilla::services::GetObserverService();
+  nsCOMPtr<nsIObserverService> observerService = 
+           do_GetService("@mozilla.org/observer-service;1");
   if (observerService) {
     ++mRefCnt;    // Our refcnt must be > 0 when we call this, or we'll get deleted!
     // add weak so we don't have to clean up at shutdown
@@ -117,6 +117,7 @@ NS_INTERFACE_MAP_BEGIN(nsPrefBranch)
   NS_INTERFACE_MAP_ENTRY(nsIPrefBranch)
   NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIPrefBranch2, !mIsDefault)
   NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIPrefBranchInternal, !mIsDefault)
+  NS_INTERFACE_MAP_ENTRY(nsISecurityPref)
   NS_INTERFACE_MAP_ENTRY(nsIObserver)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
 NS_INTERFACE_MAP_END
@@ -137,47 +138,88 @@ NS_IMETHODIMP nsPrefBranch::GetRoot(char * *aRoot)
 
 NS_IMETHODIMP nsPrefBranch::GetPrefType(const char *aPrefName, PRInt32 *_retval)
 {
-  const char *pref = getPrefName(aPrefName);
+  const char *pref;
+  nsresult   rv;
+
+  rv = getValidatedPrefName(aPrefName, &pref);
+  if (NS_FAILED(rv))
+    return rv;
+
   *_retval = PREF_GetPrefType(pref);
   return NS_OK;
 }
 
 NS_IMETHODIMP nsPrefBranch::GetBoolPref(const char *aPrefName, PRBool *_retval)
 {
-  const char *pref = getPrefName(aPrefName);
-  return PREF_GetBoolPref(pref, _retval, mIsDefault);
+  const char *pref;
+  nsresult   rv;
+
+  rv = getValidatedPrefName(aPrefName, &pref);
+  if (NS_SUCCEEDED(rv)) {
+    rv = PREF_GetBoolPref(pref, _retval, mIsDefault);
+  }
+  return rv;
 }
 
 NS_IMETHODIMP nsPrefBranch::SetBoolPref(const char *aPrefName, PRInt32 aValue)
 {
-  const char *pref = getPrefName(aPrefName);
-  return PREF_SetBoolPref(pref, aValue, mIsDefault);
+  const char *pref;
+  nsresult   rv;
+
+  rv = getValidatedPrefName(aPrefName, &pref);
+  if (NS_SUCCEEDED(rv)) {
+    rv = PREF_SetBoolPref(pref, aValue, mIsDefault);
+  }
+  return rv;
 }
 
 NS_IMETHODIMP nsPrefBranch::GetCharPref(const char *aPrefName, char **_retval)
 {
-  const char *pref = getPrefName(aPrefName);
-  return PREF_CopyCharPref(pref, _retval, mIsDefault);
+  const char *pref;
+  nsresult   rv;
+
+  rv = getValidatedPrefName(aPrefName, &pref);
+  if (NS_SUCCEEDED(rv)) {
+    rv = PREF_CopyCharPref(pref, _retval, mIsDefault);
+  }
+  return rv;
 }
 
 NS_IMETHODIMP nsPrefBranch::SetCharPref(const char *aPrefName, const char *aValue)
 {
-  NS_ENSURE_ARG_POINTER(aValue);
+  const char *pref;
+  nsresult   rv;
 
-  const char *pref = getPrefName(aPrefName);
-  return PREF_SetCharPref(pref, aValue, mIsDefault);
+  NS_ENSURE_ARG_POINTER(aValue);
+  rv = getValidatedPrefName(aPrefName, &pref);
+  if (NS_SUCCEEDED(rv)) {
+    rv = PREF_SetCharPref(pref, aValue, mIsDefault);
+  }
+  return rv;
 }
 
 NS_IMETHODIMP nsPrefBranch::GetIntPref(const char *aPrefName, PRInt32 *_retval)
 {
-  const char *pref = getPrefName(aPrefName);
-  return PREF_GetIntPref(pref, _retval, mIsDefault);
+  const char *pref;
+  nsresult   rv;
+
+  rv = getValidatedPrefName(aPrefName, &pref);
+  if (NS_SUCCEEDED(rv)) {
+    rv = PREF_GetIntPref(pref, _retval, mIsDefault);
+  }
+  return rv;
 }
 
 NS_IMETHODIMP nsPrefBranch::SetIntPref(const char *aPrefName, PRInt32 aValue)
 {
-  const char *pref = getPrefName(aPrefName);
-  return PREF_SetIntPref(pref, aValue, mIsDefault);
+  const char *pref;
+  nsresult   rv;
+
+  rv = getValidatedPrefName(aPrefName, &pref);
+  if (NS_SUCCEEDED(rv)) {
+    rv = PREF_SetIntPref(pref, aValue, mIsDefault);
+  }
+  return rv;
 }
 
 NS_IMETHODIMP nsPrefBranch::GetComplexValue(const char *aPrefName, const nsIID & aType, void * *_retval)
@@ -190,8 +232,12 @@ NS_IMETHODIMP nsPrefBranch::GetComplexValue(const char *aPrefName, const nsIID &
     nsCOMPtr<nsIPrefLocalizedString> theString(do_CreateInstance(NS_PREFLOCALIZEDSTRING_CONTRACTID, &rv));
 
     if (NS_SUCCEEDED(rv)) {
-      const char *pref = getPrefName(aPrefName);
+      const char *pref;
       PRBool  bNeedDefault = PR_FALSE;
+
+      rv = getValidatedPrefName(aPrefName, &pref);
+      if (NS_FAILED(rv))
+        return rv;
 
       if (mIsDefault) {
         bNeedDefault = PR_TRUE;
@@ -391,38 +437,66 @@ NS_IMETHODIMP nsPrefBranch::SetComplexValue(const char *aPrefName, const nsIID &
 
 NS_IMETHODIMP nsPrefBranch::ClearUserPref(const char *aPrefName)
 {
-  const char *pref = getPrefName(aPrefName);
-  return PREF_ClearUserPref(pref);
+  const char *pref;
+  nsresult   rv;
+
+  rv = getValidatedPrefName(aPrefName, &pref);
+  if (NS_SUCCEEDED(rv)) {
+    rv = PREF_ClearUserPref(pref);
+  }
+  return rv;
 }
 
 NS_IMETHODIMP nsPrefBranch::PrefHasUserValue(const char *aPrefName, PRBool *_retval)
 {
+  const char *pref;
+  nsresult   rv;
+
   NS_ENSURE_ARG_POINTER(_retval);
 
-  const char *pref = getPrefName(aPrefName);
-  *_retval = PREF_HasUserPref(pref);
-  return NS_OK;
+  rv = getValidatedPrefName(aPrefName, &pref);
+  if (NS_SUCCEEDED(rv)) {
+    *_retval = PREF_HasUserPref(pref);
+  }
+  return rv;
 }
 
 NS_IMETHODIMP nsPrefBranch::LockPref(const char *aPrefName)
 {
-  const char *pref = getPrefName(aPrefName);
-  return PREF_LockPref(pref, PR_TRUE);
+  const char *pref;
+  nsresult   rv;
+
+  rv = getValidatedPrefName(aPrefName, &pref);
+  if (NS_SUCCEEDED(rv)) {
+    rv = PREF_LockPref(pref, PR_TRUE);
+  }
+  return rv;
 }
 
 NS_IMETHODIMP nsPrefBranch::PrefIsLocked(const char *aPrefName, PRBool *_retval)
 {
+  const char *pref;
+  nsresult   rv;
+
   NS_ENSURE_ARG_POINTER(_retval);
 
-  const char *pref = getPrefName(aPrefName);
-  *_retval = PREF_PrefIsLocked(pref);
-  return NS_OK;
+  rv = getValidatedPrefName(aPrefName, &pref);
+  if (NS_SUCCEEDED(rv)) {
+    *_retval = PREF_PrefIsLocked(pref);
+  }
+  return rv;
 }
 
 NS_IMETHODIMP nsPrefBranch::UnlockPref(const char *aPrefName)
 {
-  const char *pref = getPrefName(aPrefName);
-  return PREF_LockPref(pref, PR_FALSE);
+  const char *pref;
+  nsresult   rv;
+
+  rv = getValidatedPrefName(aPrefName, &pref);
+  if (NS_SUCCEEDED(rv)) {
+    rv = PREF_LockPref(pref, PR_FALSE);
+  }
+  return rv;
 }
 
 /* void resetBranch (in string startingAt); */
@@ -433,8 +507,14 @@ NS_IMETHODIMP nsPrefBranch::ResetBranch(const char *aStartingAt)
 
 NS_IMETHODIMP nsPrefBranch::DeleteBranch(const char *aStartingAt)
 {
-  const char *pref = getPrefName(aStartingAt);
-  return PREF_DeleteBranch(pref);
+  const char *pref;
+  nsresult   rv;
+
+  rv = getValidatedPrefName(aStartingAt, &pref);
+  if (NS_SUCCEEDED(rv)) {
+    rv = PREF_DeleteBranch(pref);
+  }
+  return rv;
 }
 
 NS_IMETHODIMP nsPrefBranch::GetChildList(const char *aStartingAt, PRUint32 *aCount, char ***aChildArray)
@@ -672,11 +752,11 @@ nsresult nsPrefBranch::GetDefaultFromPropertiesFile(const char *aPrefName, PRUni
   rv = PREF_CopyCharPref(aPrefName, getter_Copies(propertyFileURL), PR_TRUE);
   if (NS_FAILED(rv))
     return rv;
-
+    
   nsCOMPtr<nsIStringBundleService> bundleService =
-    mozilla::services::GetStringBundleService();
-  if (!bundleService)
-    return NS_ERROR_FAILURE;
+      do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
+  if (NS_FAILED(rv))
+    return rv;
 
   nsCOMPtr<nsIStringBundle> bundle;
   rv = bundleService->CreateBundle(propertyFileURL,
@@ -707,6 +787,34 @@ const char *nsPrefBranch::getPrefName(const char *aPrefName)
   return mPrefRoot.get();
 }
 
+nsresult nsPrefBranch::getValidatedPrefName(const char *aPrefName, const char **_retval)
+{
+  static const char capabilityPrefix[] = "capability.";
+
+  NS_ENSURE_ARG_POINTER(aPrefName);
+  const char *fullPref = getPrefName(aPrefName);
+
+  // now that we have the pref, check it against the ScriptSecurityManager
+  if ((fullPref[0] == 'c') &&
+    PL_strncmp(fullPref, capabilityPrefix, sizeof(capabilityPrefix)-1) == 0)
+  {
+    nsresult rv;
+    nsCOMPtr<nsIPrefSecurityCheck> secCheck = 
+             do_GetService(NS_GLOBAL_PREF_SECURITY_CHECK, &rv);
+
+    if (NS_FAILED(rv))
+      return NS_ERROR_FAILURE;
+
+    PRBool enabled;
+    rv = secCheck->CanAccessSecurityPreferences(&enabled);
+    if (NS_FAILED(rv) || !enabled)
+      return NS_ERROR_FAILURE;
+  }
+
+  *_retval = fullPref;
+  return NS_OK;
+}
+
 static PLDHashOperator
 pref_enumChild(PLDHashTable *table, PLDHashEntryHdr *heh,
                PRUint32 i, void *arg)
@@ -717,6 +825,50 @@ pref_enumChild(PLDHashTable *table, PLDHashEntryHdr *heh,
     d->pref_list->AppendElement((void*)he->key);
   }
   return PL_DHASH_NEXT;
+}
+
+
+/*
+ * nsISecurityPref methods
+ *
+ * Pref access without security check - these are here
+ * to support nsScriptSecurityManager.
+ * These functions are part of nsISecurityPref, not nsIPref.
+ * **PLEASE** do not call these functions from elsewhere
+ */
+NS_IMETHODIMP nsPrefBranch::SecurityGetBoolPref(const char *pref, PRBool * return_val)
+{
+  return PREF_GetBoolPref(getPrefName(pref), return_val, PR_FALSE);
+}
+
+NS_IMETHODIMP nsPrefBranch::SecuritySetBoolPref(const char *pref, PRBool value)
+{
+  return PREF_SetBoolPref(getPrefName(pref), value);
+}
+
+NS_IMETHODIMP nsPrefBranch::SecurityGetCharPref(const char *pref, char ** return_buf)
+{
+  return PREF_CopyCharPref(getPrefName(pref), return_buf, PR_FALSE);
+}
+
+NS_IMETHODIMP nsPrefBranch::SecuritySetCharPref(const char *pref, const char* value)
+{
+  return PREF_SetCharPref(getPrefName(pref), value);
+}
+
+NS_IMETHODIMP nsPrefBranch::SecurityGetIntPref(const char *pref, PRInt32 * return_val)
+{
+  return PREF_GetIntPref(getPrefName(pref), return_val, PR_FALSE);
+}
+
+NS_IMETHODIMP nsPrefBranch::SecuritySetIntPref(const char *pref, PRInt32 value)
+{
+  return PREF_SetIntPref(getPrefName(pref), value);
+}
+
+NS_IMETHODIMP nsPrefBranch::SecurityClearUserPref(const char *pref_name)
+{
+  return PREF_ClearUserPref(getPrefName(pref_name));
 }
 
 //----------------------------------------------------------------------------

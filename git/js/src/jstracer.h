@@ -78,7 +78,7 @@ public:
             memcpy(tmp, _data, _len * sizeof(T));
             _data = tmp;
         } else {
-            _data = (T*)js_realloc(_data, _max * sizeof(T));
+            _data = (T*)realloc(_data, _max * sizeof(T));
         }
 #if defined(DEBUG)
         memset(&_data[_len], 0xcd, _max - _len);
@@ -95,7 +95,7 @@ public:
 
     ~Queue() {
         if (!alloc)
-            js_free(_data);
+            free(_data);
     }
 
     bool contains(T a) {
@@ -342,17 +342,16 @@ enum TraceType_
 : int8_t
 #endif
 {
-    TT_OBJECT        =  0, /* pointer to JSObject whose class is not js_FunctionClass */
-    TT_INT32         =  1, /* 32-bit signed integer */
-    TT_DOUBLE        =  2, /* pointer to jsdouble */
-    TT_JSVAL         =  3, /* arbitrary jsval */
-    TT_STRING        =  4, /* pointer to JSString */
-    TT_NULL          =  5, /* null */
-    TT_SPECIAL       =  6, /* true, false, hole, or areturn (0, 1, 6, or 8) */
-    TT_VOID          =  7, /* undefined (2) */
-    TT_FUNCTION      =  8, /* pointer to JSObject whose class is js_FunctionClass */
-    TT_MAGIC         =  9, /* a 'magic' value, aka a hole */
-    TT_IGNORE        = 10
+    TT_OBJECT         = 0, /* pointer to JSObject whose class is not js_FunctionClass */
+    TT_INT32          = 1, /* 32-bit signed integer */
+    TT_DOUBLE         = 2, /* pointer to jsdouble */
+    TT_JSVAL          = 3, /* arbitrary jsval */
+    TT_STRING         = 4, /* pointer to JSString */
+    TT_NULL           = 5, /* null */
+    TT_SPECIAL        = 6, /* true, false, hole, or areturn (0, 1, 6, or 8) */
+    TT_VOID           = 7, /* undefined (2) */
+    TT_FUNCTION       = 8, /* pointer to JSObject whose class is js_FunctionClass */
+    TT_IGNORE         = 9
 }
 #if defined(__GNUC__) && defined(USE_TRACE_TYPE_ENUM)
 __attribute__((packed))
@@ -673,7 +672,6 @@ struct LinkableFragment : public VMFragment
     uint32                  branchCount;
     TypeMap                 typeMap;
     unsigned                nStackTypes;
-    unsigned                spOffsetAtEntry;
     SlotList*               globalSlots;
 };
 
@@ -776,7 +774,7 @@ struct ArgsPrivateNative {
 static JS_INLINE void
 SetBuiltinError(JSContext *cx)
 {
-    cx->tracerState->builtinStatus |= BUILTIN_ERROR;
+    cx->interpState->builtinStatus |= BUILTIN_ERROR;
 }
 
 #ifdef DEBUG_RECORDING_STATUS_NOT_BOOL
@@ -809,14 +807,12 @@ enum AbortableRecordingStatusCodes {
     ARECORD_ABORTED_code   = 2,
     ARECORD_CONTINUE_code  = 3,
     ARECORD_IMACRO_code    = 4,
-    ARECORD_IMACRO_ABORTED_code = 5,
-    ARECORD_COMPLETED_code = 6
+    ARECORD_COMPLETED_code = 5
 };
 AbortableRecordingStatus ARECORD_ERROR    = { ARECORD_ERROR_code };
 AbortableRecordingStatus ARECORD_STOP     = { ARECORD_STOP_code };
 AbortableRecordingStatus ARECORD_CONTINUE = { ARECORD_CONTINUE_code };
 AbortableRecordingStatus ARECORD_IMACRO   = { ARECORD_IMACRO_code };
-AbortableRecordingStatus ARECORD_IMACRO_ABORTED   = { ARECORD_IMACRO_ABORTED_code };
 AbortableRecordingStatus ARECORD_ABORTED =  { ARECORD_ABORTED_code };
 AbortableRecordingStatus ARECORD_COMPLETED =  { ARECORD_COMPLETED_code };
 
@@ -833,7 +829,7 @@ InjectStatus(AbortableRecordingStatus ars)
 }
 
 static inline bool
-StatusAbortsRecorderIfActive(AbortableRecordingStatus ars)
+StatusAbortsRecording(AbortableRecordingStatus ars)
 {
     return ars == ARECORD_ERROR || ars == ARECORD_STOP;
 }
@@ -858,29 +854,23 @@ StatusAbortsRecorderIfActive(AbortableRecordingStatus ars)
  */
 
 enum RecordingStatus {
-    RECORD_STOP       = 0,  // Recording should be aborted at the top-level
+    RECORD_ERROR      = 0,  // Error; propagate to interpreter.
+    RECORD_STOP       = 1,  // Recording should be aborted at the top-level
                             // call to the recorder.
-    RECORD_ERROR      = 1,  // Recording should be aborted at the top-level
-                            // call to the recorder and the interpreter should
-                            // goto error
-    RECORD_CONTINUE   = 2,  // Continue recording.
-    RECORD_IMACRO     = 3   // Entered imacro; continue recording.
+                            // (value reserved for ARECORD_ABORTED)
+    RECORD_CONTINUE   = 3,  // Continue recording.
+    RECORD_IMACRO     = 4   // Entered imacro; continue recording.
                             // Only JSOP_IS_IMACOP opcodes may return this.
 };
 
 enum AbortableRecordingStatus {
-    ARECORD_STOP      = 0,  // see RECORD_STOP
-    ARECORD_ERROR     = 1,  // Recording may or may not have been aborted.
-                            // Recording should be aborted at the top-level
-                            // if it has not already been and the interpreter
-                            // should goto error
-    ARECORD_CONTINUE  = 2,  // see RECORD_CONTINUE
-    ARECORD_IMACRO    = 3,  // see RECORD_IMACRO
-    ARECORD_IMACRO_ABORTED = 4, // see comment in TR::monitorRecording.
-    ARECORD_ABORTED   = 5,  // Recording has already been aborted; the
-                            // interpreter should continue executing
-    ARECORD_COMPLETED = 6   // Recording completed successfully, the
-                            // trace recorder has been deleted
+    ARECORD_ERROR     = 0,
+    ARECORD_STOP      = 1,
+    ARECORD_ABORTED   = 2,  // Recording has already been aborted; the recorder
+                            // has been deleted.
+    ARECORD_CONTINUE  = 3,
+    ARECORD_IMACRO    = 4,
+    ARECORD_COMPLETED = 5   // Recording of the current trace recorder completed
 };
 
 static JS_ALWAYS_INLINE AbortableRecordingStatus
@@ -897,14 +887,13 @@ InjectStatus(AbortableRecordingStatus ars)
 
 /*
  * Return whether the recording status requires the current recording session
- * to be deleted. ERROR means the recording session should be deleted if it
- * hasn't already. ABORTED and COMPLETED indicate the recording session is
+ * to be deleted. ABORTED and COMPLETED indicate the recording session is
  * already deleted, so they return 'false'.
  */
 static JS_ALWAYS_INLINE bool
-StatusAbortsRecorderIfActive(AbortableRecordingStatus ars)
+StatusAbortsRecording(AbortableRecordingStatus ars)
 {
-    return ars <= ARECORD_ERROR;
+    return ars <= ARECORD_STOP;
 }
 #endif
 
@@ -917,12 +906,6 @@ enum TypeConsensus
     TypeConsensus_Okay,         /* Two typemaps are compatible */
     TypeConsensus_Undemotes,    /* Not compatible now, but would be with pending undemotes. */
     TypeConsensus_Bad           /* Typemaps are not compatible */
-};
-
-enum MonitorResult {
-    MONITOR_RECORDING,
-    MONITOR_NOT_RECORDING,
-    MONITOR_ERROR
 };
 
 typedef HashMap<nanojit::LIns*, JSObject*> GuardedShapeTable;
@@ -942,9 +925,6 @@ class TraceRecorder
 
     /* Cached value of JS_TRACE_MONITOR(cx). */
     TraceMonitor* const             traceMonitor;
-
-    /* Cached oracle keeps track of hit counts for program counter locations */
-    Oracle*                         oracle;
 
     /* The Fragment being recorded by this recording session. */
     VMFragment* const               fragment;
@@ -973,7 +953,7 @@ class TraceRecorder
     /* The LIR-generation pipeline used to build |fragment|. */
     nanojit::LirWriter* const       lir;
 
-    /* Instructions yielding the corresponding trace-const members of TracerState. */
+    /* Instructions yielding the corresponding trace-const members of InterpState. */
     nanojit::LIns* const            cx_ins;
     nanojit::LIns* const            eos_ins;
     nanojit::LIns* const            eor_ins;
@@ -1085,17 +1065,6 @@ class TraceRecorder
      */
     JS_REQUIRES_STACK nanojit::GuardRecord* createGuardRecord(VMSideExit* exit);
 
-    JS_REQUIRES_STACK JS_INLINE void markSlotUndemotable(LinkableFragment* f, unsigned slot);
-
-    JS_REQUIRES_STACK JS_INLINE void markSlotUndemotable(LinkableFragment* f, unsigned slot, const void* pc);
-
-    JS_REQUIRES_STACK unsigned findUndemotesInTypemaps(const TypeMap& typeMap, LinkableFragment* f,
-                            Queue<unsigned>& undemotes);
-
-    JS_REQUIRES_STACK void assertDownFrameIsConsistent(VMSideExit* anchor, FrameInfo* fi);
-
-    JS_REQUIRES_STACK void captureStackTypes(unsigned callDepth, TraceType* typeMap);
-
     bool isGlobal(jsval* p) const;
     ptrdiff_t nativeGlobalSlot(jsval *p) const;
     ptrdiff_t nativeGlobalOffset(jsval* p) const;
@@ -1190,17 +1159,15 @@ class TraceRecorder
     JS_REQUIRES_STACK nanojit::LIns* alu(nanojit::LOpcode op, jsdouble v0, jsdouble v1,
                                          nanojit::LIns* s0, nanojit::LIns* s1);
 
-    nanojit::LIns* i2d(nanojit::LIns* i);
-    nanojit::LIns* d2i(nanojit::LIns* f, bool resultCanBeImpreciseIfFractional = false);
+    nanojit::LIns* i2f(nanojit::LIns* i);
+    nanojit::LIns* f2i(nanojit::LIns* f);
     nanojit::LIns* f2u(nanojit::LIns* f);
     JS_REQUIRES_STACK nanojit::LIns* makeNumberInt32(nanojit::LIns* f);
     JS_REQUIRES_STACK nanojit::LIns* stringify(jsval& v);
 
     JS_REQUIRES_STACK nanojit::LIns* newArguments(nanojit::LIns* callee_ins);
 
-    JS_REQUIRES_STACK bool canCallImacro() const;
-    JS_REQUIRES_STACK RecordingStatus callImacro(jsbytecode* imacro);
-    JS_REQUIRES_STACK RecordingStatus callImacroInfallibly(jsbytecode* imacro);
+    JS_REQUIRES_STACK RecordingStatus call_imacro(jsbytecode* imacro);
 
     JS_REQUIRES_STACK AbortableRecordingStatus ifop();
     JS_REQUIRES_STACK RecordingStatus switchop();
@@ -1277,10 +1244,10 @@ class TraceRecorder
     JS_REQUIRES_STACK AbortableRecordingStatus prop(JSObject* obj, nanojit::LIns* obj_ins,
                                                     uint32 *slotp, nanojit::LIns** v_insp,
                                                     jsval* outp);
-    JS_REQUIRES_STACK RecordingStatus propTail(JSObject* obj, nanojit::LIns* obj_ins,
-                                               JSObject* obj2, PCVal pcval,
-                                               uint32 *slotp, nanojit::LIns** v_insp,
-                                               jsval* outp);
+    JS_REQUIRES_STACK AbortableRecordingStatus propTail(JSObject* obj, nanojit::LIns* obj_ins,
+                                                        JSObject* obj2, PCVal pcval,
+                                                        uint32 *slotp, nanojit::LIns** v_insp,
+                                                        jsval* outp);
     JS_REQUIRES_STACK RecordingStatus denseArrayElement(jsval& oval, jsval& idx, jsval*& vp,
                                                         nanojit::LIns*& v_ins,
                                                         nanojit::LIns*& addr_ins);
@@ -1291,8 +1258,6 @@ class TraceRecorder
     JS_REQUIRES_STACK AbortableRecordingStatus getProp(jsval& v);
     JS_REQUIRES_STACK RecordingStatus getThis(nanojit::LIns*& this_ins);
 
-    JS_REQUIRES_STACK AbortableRecordingStatus unboxNextValue(nanojit::LIns* &v_ins);
-
     JS_REQUIRES_STACK VMSideExit* enterDeepBailCall();
     JS_REQUIRES_STACK void leaveDeepBailCall();
 
@@ -1300,24 +1265,20 @@ class TraceRecorder
     JS_REQUIRES_STACK void finishGetProp(nanojit::LIns* obj_ins, nanojit::LIns* vp_ins,
                                          nanojit::LIns* ok_ins, jsval* outp);
     JS_REQUIRES_STACK RecordingStatus getPropertyByName(nanojit::LIns* obj_ins, jsval* idvalp,
-                                                        jsval* outp);
+                                                          jsval* outp);
     JS_REQUIRES_STACK RecordingStatus getPropertyByIndex(nanojit::LIns* obj_ins,
-                                                         nanojit::LIns* index_ins, jsval* outp);
+                                                           nanojit::LIns* index_ins, jsval* outp);
     JS_REQUIRES_STACK RecordingStatus getPropertyById(nanojit::LIns* obj_ins, jsval* outp);
     JS_REQUIRES_STACK RecordingStatus getPropertyWithNativeGetter(nanojit::LIns* obj_ins,
-                                                                  JSScopeProperty* sprop,
-                                                                  jsval* outp);
-    JS_REQUIRES_STACK RecordingStatus getPropertyWithScriptGetter(JSObject *obj,
-                                                                  nanojit::LIns* obj_ins,
-                                                                  JSScopeProperty* sprop);
+                                                                    JSScopeProperty* sprop,
+                                                                    jsval* outp);
 
     JS_REQUIRES_STACK RecordingStatus nativeSet(JSObject* obj, nanojit::LIns* obj_ins,
                                                   JSScopeProperty* sprop,
                                                   jsval v, nanojit::LIns* v_ins);
     JS_REQUIRES_STACK RecordingStatus setProp(jsval &l, PropertyCacheEntry* entry,
                                                 JSScopeProperty* sprop,
-                                                jsval &v, nanojit::LIns*& v_ins,
-                                                bool isDefinitelyAtom);
+                                                jsval &v, nanojit::LIns*& v_ins);
     JS_REQUIRES_STACK RecordingStatus setCallProp(JSObject *callobj, nanojit::LIns *callobj_ins,
                                                     JSScopeProperty *sprop, nanojit::LIns *v_ins,
                                                     jsval v);
@@ -1332,14 +1293,12 @@ class TraceRecorder
 
     JS_REQUIRES_STACK nanojit::LIns* box_jsval(jsval v, nanojit::LIns* v_ins);
     JS_REQUIRES_STACK nanojit::LIns* unbox_jsval(jsval v, nanojit::LIns* v_ins, VMSideExit* exit);
-    JS_REQUIRES_STACK void guardClassHelper(bool cond, nanojit::LIns* obj_ins, JSClass* clasp,
-                                            VMSideExit* exit, nanojit::AccSet accSet);
-    JS_REQUIRES_STACK void guardClass(nanojit::LIns* obj_ins, JSClass* clasp,
+    JS_REQUIRES_STACK bool guardClass(JSObject* obj, nanojit::LIns* obj_ins, JSClass* clasp,
                                       VMSideExit* exit, nanojit::AccSet accSet);
-    JS_REQUIRES_STACK void guardNotClass(nanojit::LIns* obj_ins, JSClass* clasp,
-                                         VMSideExit* exit, nanojit::AccSet accSet);
-    JS_REQUIRES_STACK void guardDenseArray(nanojit::LIns* obj_ins, ExitType exitType);
-    JS_REQUIRES_STACK void guardDenseArray(nanojit::LIns* obj_ins, VMSideExit* exit);
+    JS_REQUIRES_STACK bool guardDenseArray(JSObject* obj, nanojit::LIns* obj_ins,
+                                           ExitType exitType);
+    JS_REQUIRES_STACK bool guardDenseArray(JSObject* obj, nanojit::LIns* obj_ins,
+                                           VMSideExit* exit);
     JS_REQUIRES_STACK bool guardHasPrototype(JSObject* obj, nanojit::LIns* obj_ins,
                                              JSObject** pobj, nanojit::LIns** pobj_ins,
                                              VMSideExit* exit);
@@ -1385,8 +1344,8 @@ class TraceRecorder
     JS_REQUIRES_STACK void fuseIf(jsbytecode* pc, bool cond, nanojit::LIns* x);
     JS_REQUIRES_STACK AbortableRecordingStatus checkTraceEnd(jsbytecode* pc);
 
-    AbortableRecordingStatus hasMethod(JSObject* obj, jsid id, bool& found);
-    JS_REQUIRES_STACK AbortableRecordingStatus hasIteratorMethod(JSObject* obj, bool& found);
+    RecordingStatus hasMethod(JSObject* obj, jsid id, bool& found);
+    JS_REQUIRES_STACK RecordingStatus hasIteratorMethod(JSObject* obj, bool& found);
 
     JS_REQUIRES_STACK jsatomid getFullIndex(ptrdiff_t pcoff = 0);
 
@@ -1411,8 +1370,8 @@ class TraceRecorder
     JS_REQUIRES_STACK AbortableRecordingStatus attemptTreeCall(TreeFragment* inner,
                                                                uintN& inlineCallCount);
 
-    static JS_REQUIRES_STACK MonitorResult recordLoopEdge(JSContext* cx, TraceRecorder* r,
-                                                          uintN& inlineCallCount);
+    static JS_REQUIRES_STACK bool recordLoopEdge(JSContext* cx, TraceRecorder* r,
+                                                 uintN& inlineCallCount);
 
     /* Allocators associated with this recording session. */
     VMAllocator& tempAlloc() const { return *traceMonitor->tempAlloc; }
@@ -1425,8 +1384,8 @@ class TraceRecorder
 # include "jsopcode.tbl"
 #undef OPDEF
 
-    inline void* operator new(size_t size) { return js_calloc(size); }
-    inline void operator delete(void *p) { js_free(p); }
+    inline void* operator new(size_t size) { return calloc(1, size); }
+    inline void operator delete(void *p) { free(p); }
 
     JS_REQUIRES_STACK
     TraceRecorder(JSContext* cx, VMSideExit*, VMFragment*,
@@ -1451,7 +1410,7 @@ class TraceRecorder
     friend class DetermineTypesVisitor;
     friend class RecursiveSlotMap;
     friend class UpRecursiveSlotMap;
-    friend MonitorResult MonitorLoopEdge(JSContext*, uintN&, RecordReason);
+    friend bool MonitorLoopEdge(JSContext*, uintN&, RecordReason);
     friend void AbortRecording(JSContext*, const char*);
 
 public:
@@ -1511,11 +1470,8 @@ public:
     JS_BEGIN_MACRO                                                            \
         if (TraceRecorder* tr_ = TRACE_RECORDER(cx)) {                        \
             AbortableRecordingStatus status = tr_->record_##x args;           \
-            if (StatusAbortsRecorderIfActive(status)) {                       \
-                if (TRACE_RECORDER(cx)) {                                     \
-                    JS_ASSERT(TRACE_RECORDER(cx) == tr_);                     \
-                    AbortRecording(cx, #x);                                   \
-                }                                                             \
+            if (StatusAbortsRecording(status)) {                              \
+                AbortRecording(cx, #x);                                       \
                 if (status == ARECORD_ERROR)                                  \
                     goto error;                                               \
             }                                                                 \
@@ -1528,7 +1484,7 @@ public:
 #define TRACE_1(x,a)            TRACE_ARGS(x, (a))
 #define TRACE_2(x,a,b)          TRACE_ARGS(x, (a, b))
 
-extern JS_REQUIRES_STACK MonitorResult
+extern JS_REQUIRES_STACK bool
 MonitorLoopEdge(JSContext* cx, uintN& inlineCallCount, RecordReason reason);
 
 extern JS_REQUIRES_STACK void
@@ -1549,6 +1505,9 @@ OverfullJITCache(TraceMonitor* tm);
 extern void
 FlushJITCache(JSContext* cx);
 
+extern void
+PurgeJITOracle();
+
 extern JSObject *
 GetBuiltinFunction(JSContext *cx, uintN index);
 
@@ -1557,6 +1516,9 @@ SetMaxCodeCacheBytes(JSContext* cx, uint32 bytes);
 
 extern bool
 NativeToValue(JSContext* cx, jsval& v, TraceType type, double* slot);
+
+extern bool
+InCustomIterNextTryRegion(jsbytecode *pc);
 
 #ifdef MOZ_TRACEVIS
 

@@ -21,7 +21,7 @@
  *
  * Contributor(s):
  *   Pierre Phaneuf <pp@ludusdesign.com>
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -80,9 +80,6 @@
 #include "nsBidiUtils.h"
 #include "nsFrameManager.h"
 #include "nsIPrefService.h"
-#include "mozilla/dom/Element.h"
-
-using namespace mozilla::dom;
 
 //----------------------------------------------------------------------
 
@@ -566,7 +563,13 @@ nsHTMLScrollFrame::GuessVScrollbarNeeded(const ScrollReflowState& aState)
     return PR_FALSE;
 
   if (mInner.mIsRoot) {
-    // Assume that there will be a scrollbar; it seems to me
+    // For viewports, try getting a hint from global history
+    // as to whether we had a vertical scrollbar last time.
+    PRBool hint;
+    nsresult rv = mInner.GetVScrollbarHintFromGlobalHistory(&hint);
+    if (NS_SUCCEEDED(rv))
+      return hint;
+    // No hint. Assume that there will be a scrollbar; it seems to me
     // that 'most pages' do have a scrollbar, and anyway, it's cheaper
     // to do an extra reflow for the pages that *don't* need a
     // scrollbar (because on average they will have less content).
@@ -860,6 +863,11 @@ nsHTMLScrollFrame::Reflow(nsPresContext*           aPresContext,
 
   if (!InInitialReflow() && !mInner.mHadNonInitialReflow) {
     mInner.mHadNonInitialReflow = PR_TRUE;
+    if (mInner.mIsRoot) {
+      // For viewports, record whether we needed a vertical scrollbar
+      // after the first non-initial reflow.
+      mInner.SaveVScrollbarStateToGlobalHistory();
+    }
   }
 
   if (mInner.mIsRoot && oldScrolledAreaBounds != newScrolledAreaBounds) {
@@ -1286,6 +1294,8 @@ nsGfxScrollFrameInner::nsGfxScrollFrameInner(nsContainerFrame* aOuter,
     mIsXUL(aIsXUL),
     mSupppressScrollbarUpdate(PR_FALSE),
     mSkippedScrollbarLayout(PR_FALSE),
+    mDidLoadHistoryVScrollbarHint(PR_FALSE),
+    mHistoryVScrollbarHint(PR_FALSE),
     mHadNonInitialReflow(PR_FALSE),
     mHorizontalOverflow(PR_FALSE),
     mVerticalOverflow(PR_FALSE),
@@ -1610,13 +1620,9 @@ SortBlitRectsForCopy(nsIntPoint aPixDelta, nsTArray<nsIntRect>* aRects)
 }
 
 static PRBool
-CanScrollWithBlitting(nsIFrame* aFrame, nsIFrame* aDisplayRoot, nsRect* aClippedScrollPort)
+CanScrollWithBlitting(nsIFrame* aFrame)
 {
-  nsPoint offset(0, 0);
-  *aClippedScrollPort = nsRect(nsPoint(0, 0), aFrame->GetSize());
-
-  for (nsIFrame* f = aFrame; f;
-       f = nsLayoutUtils::GetCrossDocParentFrame(f, &offset)) {
+  for (nsIFrame* f = aFrame; f; f = nsLayoutUtils::GetCrossDocParentFrame(f)) {
     if (f->GetStyleDisplay()->HasTransform()) {
       return PR_FALSE;
     }
@@ -1626,18 +1632,6 @@ CanScrollWithBlitting(nsIFrame* aFrame, nsIFrame* aDisplayRoot, nsRect* aClipped
       return PR_FALSE;
     }
 #endif
-
-    nsIScrollableFrame* sf = do_QueryFrame(f);
-    if (sf) {
-      // Note that this will always happen on the first iteration of the loop,
-      // ensuring that we clip to our own scrollframe's scrollport
-      aClippedScrollPort->IntersectRect(*aClippedScrollPort,
-                                        sf->GetScrollPortRect() - offset);
-    }
-
-    offset += f->GetPosition();
-    if (f == aDisplayRoot)
-      break;
   }
   return PR_TRUE;
 }
@@ -1664,11 +1658,9 @@ void nsGfxScrollFrameInner::ScrollVisual(nsIntPoint aPixDelta)
     rootPresContext->GetPluginGeometryUpdates(mOuter, &configurations);
   }
 
-  nsIFrame* displayRoot = nsLayoutUtils::GetDisplayRootFrame(mOuter);
-  nsRect clippedScrollPort;
   if (!nearestWidget ||
       nearestWidget->GetTransparencyMode() == eTransparencyTransparent ||
-      !CanScrollWithBlitting(mOuter, displayRoot, &clippedScrollPort)) {
+      !CanScrollWithBlitting(mOuter)) {
     // Just invalidate the frame and adjust child widgets
     // Recall that our widget's origin is at our bounds' top-left
     if (nearestWidget) {
@@ -1680,6 +1672,7 @@ void nsGfxScrollFrameInner::ScrollVisual(nsIntPoint aPixDelta)
     mOuter->InvalidateWithFlags(mScrollPort,
                                 nsIFrame::INVALIDATE_REASON_SCROLL_REPAINT);
   } else {
+    nsIFrame* displayRoot = nsLayoutUtils::GetDisplayRootFrame(mOuter);
     nsRegion blitRegion;
     nsRegion repaintRegion;
     nsPresContext* presContext = mOuter->PresContext();
@@ -1688,7 +1681,7 @@ void nsGfxScrollFrameInner::ScrollVisual(nsIntPoint aPixDelta)
     nsPoint offsetToDisplayRoot = mOuter->GetOffsetTo(displayRoot);
     nscoord appUnitsPerDevPixel = presContext->AppUnitsPerDevPixel();
     nsRect scrollPort =
-      (clippedScrollPort + offsetToDisplayRoot).ToNearestPixels(appUnitsPerDevPixel).
+      (mScrollPort + offsetToDisplayRoot).ToNearestPixels(appUnitsPerDevPixel).
       ToAppUnits(appUnitsPerDevPixel);
     nsresult rv =
       nsLayoutUtils::ComputeRepaintRegionForCopy(displayRoot, mScrolledFrame,
@@ -1803,7 +1796,7 @@ nsGfxScrollFrameInner::ScrollToImpl(nsPoint aPt)
                "curPos.y not a multiple of device pixels");
 
   // notify the listeners.
-  for (PRUint32 i = 0; i < mListeners.Length(); i++) {
+  for (PRInt32 i = 0; i < mListeners.Length(); i++) {
     mListeners[i]->ScrollPositionWillChange(pt.x, pt.y);
   }
   
@@ -1818,7 +1811,7 @@ nsGfxScrollFrameInner::ScrollToImpl(nsPoint aPt)
   PostScrollEvent();
 
   // notify the listeners.
-  for (PRUint32 i = 0; i < mListeners.Length(); i++) {
+  for (PRInt32 i = 0; i < mListeners.Length(); i++) {
     mListeners[i]->ScrollPositionDidChange(pt.x, pt.y);
   }
 }
@@ -2677,14 +2670,14 @@ nsGfxScrollFrameInner::IsLTR() const
     // If we're the root scrollframe, we need the root element's style data.
     nsPresContext *presContext = mOuter->PresContext();
     nsIDocument *document = presContext->Document();
-    Element *root = document->GetRootElement();
+    nsIContent *root = document->GetRootContent();
 
-    // But for HTML and XHTML we want the body element.
+    // But for HTML we want the body element.
     nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(document);
     if (htmlDoc) {
-      Element *bodyElement = document->GetBodyElement();
-      if (bodyElement)
-        root = bodyElement; // we can trust the document to hold on to it
+      nsIContent *bodyContent = htmlDoc->GetBodyContentExternal();
+      if (bodyContent)
+        root = bodyContent; // we can trust the document to hold on to it
     }
 
     if (root) {
@@ -3297,6 +3290,70 @@ nsGfxScrollFrameInner::GetCoordAttribute(nsIBox* aBox, nsIAtom* atom, PRInt32 de
   }
 
   return defaultValue;
+}
+
+static nsIURI* GetDocURI(nsIFrame* aFrame)
+{
+  nsIPresShell* shell = aFrame->PresContext()->GetPresShell();
+  if (!shell)
+    return nsnull;
+  nsIDocument* doc = shell->GetDocument();
+  if (!doc)
+    return nsnull;
+  return doc->GetDocumentURI();
+}
+
+void
+nsGfxScrollFrameInner::SaveVScrollbarStateToGlobalHistory()
+{
+  NS_ASSERTION(mIsRoot, "Only use this on viewports");
+
+  // If the hint is the same as the one we loaded, don't bother
+  // saving it
+  if (mDidLoadHistoryVScrollbarHint &&
+      (mHistoryVScrollbarHint == mHasVerticalScrollbar))
+    return;
+
+  nsIURI* uri = GetDocURI(mOuter);
+  if (!uri)
+    return;
+
+  nsCOMPtr<nsIGlobalHistory3> history(do_GetService(NS_GLOBALHISTORY2_CONTRACTID));
+  if (!history)
+    return;
+  
+  PRUint32 flags = 0;
+  if (mHasVerticalScrollbar) {
+    flags |= NS_GECKO_FLAG_NEEDS_VERTICAL_SCROLLBAR;
+  }
+  history->SetURIGeckoFlags(uri, flags);
+  // if it fails, we don't care
+}
+
+nsresult
+nsGfxScrollFrameInner::GetVScrollbarHintFromGlobalHistory(PRBool* aVScrollbarNeeded)
+{
+  NS_ASSERTION(mIsRoot, "Only use this on viewports");
+  NS_ASSERTION(!mDidLoadHistoryVScrollbarHint,
+               "Should only load a hint once, it can be expensive");
+
+  nsIURI* uri = GetDocURI(mOuter);
+  if (!uri)
+    return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIGlobalHistory3> history(do_GetService(NS_GLOBALHISTORY2_CONTRACTID));
+  if (!history)
+    return NS_ERROR_FAILURE;
+  
+  PRUint32 flags;
+  nsresult rv = history->GetURIGeckoFlags(uri, &flags);
+  if (NS_FAILED(rv))
+    return rv;
+
+  *aVScrollbarNeeded = (flags & NS_GECKO_FLAG_NEEDS_VERTICAL_SCROLLBAR) != 0;
+  mDidLoadHistoryVScrollbarHint = PR_TRUE;
+  mHistoryVScrollbarHint = *aVScrollbarNeeded;
+  return NS_OK;
 }
 
 nsPresState*

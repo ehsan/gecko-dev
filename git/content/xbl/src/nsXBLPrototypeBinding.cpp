@@ -1046,7 +1046,7 @@ nsXBLPrototypeBinding::GetRuleProcessor()
   return nsnull;
 }
 
-nsXBLPrototypeResources::sheet_array_type*
+nsCOMArray<nsICSSStyleSheet>*
 nsXBLPrototypeBinding::GetStyleSheets()
 {
   if (mResources) {

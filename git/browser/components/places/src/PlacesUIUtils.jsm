@@ -48,12 +48,25 @@ var Cr = Components.results;
 var Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
+
+XPCOMUtils.defineLazyGetter(this, "Services", function() {
+  Cu.import("resource://gre/modules/Services.jsm");
+  return Services;
+});
 
 XPCOMUtils.defineLazyGetter(this, "PlacesUtils", function() {
-  Cu.import("resource://gre/modules/PlacesUtils.jsm");
+  Cu.import("resource://gre/modules/utils.js");
   return PlacesUtils;
 });
+
+#ifdef XP_MACOSX
+// On Mac OSX, the transferable system converts "\r\n" to "\n\n", where we
+// really just want "\n".
+const NEWLINE= "\n";
+#else
+// On other platforms, the transferable system converts "\r\n" to "\n".
+const NEWLINE = "\r\n";
+#endif
 
 var PlacesUIUtils = {
   ORGANIZER_LEFTPANE_VERSION: 6,
@@ -648,7 +661,7 @@ var PlacesUIUtils = {
 
     var features;
     if (aMinimalUI)
-      features = "centerscreen,chrome,modal,resizable=yes";
+      features = "centerscreen,chrome,dialog,resizable,modal";
     else
       features = "centerscreen,chrome,modal,resizable=no";
     this._getCurrentActiveWin().openDialog(dialogURL, "",  features, aInfo);
@@ -670,18 +683,17 @@ var PlacesUIUtils = {
    * @return the closet ancestor places view if exists, null otherwsie.
    */
   getViewForNode: function PUIU_getViewForNode(aNode) {
-    let node = aNode;
+    var node = aNode;
 
-    // The view for a <menu> of which its associated menupopup is a places
-    // view, is the menupopup.
-    if (node.localName == "menu" && !node._placesNode &&
-        node.firstChild._placesView)
-      return node.firstChild._placesView;
+    // the view for a <menu> of which its associated menupopup is a places view,
+    // is the menupopup
+    if (node.localName == "menu" && !node.node &&
+        node.firstChild.getAttribute("type") == "places")
+      return node.firstChild;
 
-    while (node instanceof Ci.nsIDOMElement) {
-      if (node._placesView)
-        return node._placesView;
-      if (node.localName == "tree" && node.getAttribute("type") == "places")
+    while (node) {
+      // XXXmano: Use QueryInterface(nsIPlacesView) once we implement it...
+      if (node.getAttribute("type") == "places")
         return node;
 
       node = node.parentNode;
@@ -734,20 +746,19 @@ var PlacesUIUtils = {
    *
    */
   checkURLSecurity: function PUIU_checkURLSecurity(aURINode, aWindow) {
-    if (PlacesUtils.nodeIsBookmark(aURINode))
-      return true;
+    if (!PlacesUtils.nodeIsBookmark(aURINode)) {
+      var uri = PlacesUtils._uri(aURINode.uri);
+      if (uri.schemeIs("javascript") || uri.schemeIs("data")) {
+        const BRANDING_BUNDLE_URI = "chrome://branding/locale/brand.properties";
+        var brandShortName = Cc["@mozilla.org/intl/stringbundle;1"].
+                             getService(Ci.nsIStringBundleService).
+                             createBundle(BRANDING_BUNDLE_URI).
+                             GetStringFromName("brandShortName");
 
-    var uri = PlacesUtils._uri(aURINode.uri);
-    if (uri.schemeIs("javascript") || uri.schemeIs("data")) {
-      const BRANDING_BUNDLE_URI = "chrome://branding/locale/brand.properties";
-      var brandShortName = Cc["@mozilla.org/intl/stringbundle;1"].
-                           getService(Ci.nsIStringBundleService).
-                           createBundle(BRANDING_BUNDLE_URI).
-                           GetStringFromName("brandShortName");
-
-      var errorStr = this.getString("load-js-data-url-error");
-      Services.prompt.alert(aWindow, brandShortName, errorStr);
-      return false;
+        var errorStr = this.getString("load-js-data-url-error");
+        Services.prompt.alert(aWindow, brandShortName, errorStr);
+        return false;
+      }
     }
     return true;
   },
@@ -788,11 +799,13 @@ var PlacesUIUtils = {
    * Gives the user a chance to cancel loading lots of tabs at once
    */
   _confirmOpenInTabs: function PUIU__confirmOpenInTabs(numTabsToOpen) {
+    let pref = Services.prefs;
+    let prompt = Services.prompt;
     const WARN_ON_OPEN_PREF = "browser.tabs.warnOnOpen";
     var reallyOpen = true;
 
-    if (Services.prefs.getBoolPref(WARN_ON_OPEN_PREF)) {
-      if (numTabsToOpen >= Services.prefs.getIntPref("browser.tabs.maxOpenBeforeWarn")) {
+    if (pref.getBoolPref(WARN_ON_OPEN_PREF)) {
+      if (numTabsToOpen >= pref.getIntPref("browser.tabs.maxOpenBeforeWarn")) {
         // default to true: if it were false, we wouldn't get this far
         var warnOnOpen = { value: true };
 
@@ -804,12 +817,12 @@ var PlacesUIUtils = {
                              createBundle(BRANDING_BUNDLE_URI).
                              GetStringFromName("brandShortName");
 
-        var buttonPressed = Services.prompt.confirmEx(
+        var buttonPressed = prompt.confirmEx(
           this._getCurrentActiveWin(),
           this.getString("tabs.openWarningTitle"),
           this.getFormattedString(messageKey, [numTabsToOpen, brandShortName]),
-          (Services.prompt.BUTTON_TITLE_IS_STRING * Services.prompt.BUTTON_POS_0) +
-            (Services.prompt.BUTTON_TITLE_CANCEL * Services.prompt.BUTTON_POS_1),
+          (prompt.BUTTON_TITLE_IS_STRING * prompt.BUTTON_POS_0) +
+            (prompt.BUTTON_TITLE_CANCEL * prompt.BUTTON_POS_1),
           this.getString(openKey), null, null,
           this.getFormattedString("tabs.openWarningPromptMeBranded",
                                   [brandShortName]),
@@ -819,7 +832,7 @@ var PlacesUIUtils = {
         reallyOpen = (buttonPressed == 0);
         // don't set the pref unless they press OK and it's false
         if (reallyOpen && !warnOnOpen.value)
-          Services.prefs.setBoolPref(WARN_ON_OPEN_PREF, false);
+          pref.setBoolPref(WARN_ON_OPEN_PREF, false);
       }
     }
 
@@ -934,6 +947,124 @@ var PlacesUIUtils = {
    */
   guessUrlSchemeForUI: function PUU_guessUrlSchemeForUI(aUrlString) {
     return aUrlString.substr(0, aUrlString.indexOf(":"));
+  },
+
+  /**
+   * Creates a menu item ready to be added to a popup.
+   * Helper for the toolbar and menu views.
+   * @param aNode
+   *        Places node used as source for DOM node.
+   * @param aDocument
+   *        The node will be created in this document.
+   * @return a DOM menuitem node.
+   */
+  createMenuItemForNode:
+  function PUU_createMenuItemForNode(aNode, aDocument) {
+    var element;
+    // For add-ons backwards compatibility, if the caller does not provide
+    // a document, we guess one.
+    var document = aDocument || this._getTopBrowserWin().document;
+    var type = aNode.type;
+    if (type == Ci.nsINavHistoryResultNode.RESULT_TYPE_SEPARATOR) {
+      element = document.createElement("menuseparator");
+    }
+    else {
+      if (PlacesUtils.uriTypes.indexOf(type) != -1) {
+        element = document.createElement("menuitem");
+        element.className = "menuitem-iconic bookmark-item menuitem-with-favicon";
+        element.setAttribute("scheme", this.guessUrlSchemeForUI(aNode.uri));
+      }
+      else if (PlacesUtils.containerTypes.indexOf(type) != -1) {
+        element = document.createElement("menu");
+        element.setAttribute("container", "true");
+
+        if (aNode.type == Ci.nsINavHistoryResultNode.RESULT_TYPE_QUERY) {
+          element.setAttribute("query", "true");
+          if (PlacesUtils.nodeIsTagQuery(aNode))
+            element.setAttribute("tagContainer", "true");
+          else if (PlacesUtils.nodeIsDay(aNode))
+            element.setAttribute("dayContainer", "true");
+          else if (PlacesUtils.nodeIsHost(aNode))
+            element.setAttribute("hostContainer", "true");
+        }
+        else if (aNode.itemId != -1) {
+          if (PlacesUtils.nodeIsLivemarkContainer(aNode))
+            element.setAttribute("livemark", "true");
+        }
+
+        var popup = document.createElement("menupopup");
+        popup.setAttribute("placespopup", "true");
+        popup._resultNode = PlacesUtils.asContainer(aNode);
+#ifdef XP_MACOSX
+        // Binding on Mac native menus is lazy attached, so onPopupShowing,
+        // in the capturing phase, fields are not yet initialized.
+        // In that phase we have to ensure markers are not undefined to build
+        // the popup correctly.
+        popup._startMarker = -1;
+        popup._endMarker = -1;
+#else
+        // no context menu on mac
+        popup.setAttribute("context", "placesContext");
+#endif
+        element.appendChild(popup);
+        element.className = "menu-iconic bookmark-item";
+      }
+      else
+        throw "Unexpected node";
+
+      element.setAttribute("label", this.getBestTitle(aNode));
+
+      var icon = aNode.icon;
+      if (icon)
+        element.setAttribute("image", icon);
+    }
+    element.node = aNode;
+    element.node._DOMElement = element;
+
+    return element;
+  },
+
+  cleanPlacesPopup: function PUIU_cleanPlacesPopup(aPopup) {
+    // Remove places popup children and update markers to keep track of
+    // their indices.
+    var start = aPopup._startMarker != -1 ? aPopup._startMarker + 1 : 0;
+    var end = aPopup._endMarker != -1 ? aPopup._endMarker :
+                                        aPopup.childNodes.length;
+    var items = [];
+    var placesNodeFound = false;
+    for (var i = start; i < end; ++i) {
+      var item = aPopup.childNodes[i];
+      if (item.getAttribute("builder") == "end") {
+        // we need to do this for menus that have static content at the end but
+        // are initially empty, eg. the history menu, we need to know where to
+        // start inserting new items.
+        aPopup._endMarker = i;
+        break;
+      }
+      if (item.node) {
+        items.push(item);
+        placesNodeFound = true;
+      }
+      else {
+        // This is static content...
+        if (!placesNodeFound) {
+          // ...at the start of the popup
+          // Initialized in menu.xml, in the base binding
+          aPopup._startMarker++;
+        }
+        else {
+          // ...after places nodes
+          aPopup._endMarker = i;
+          break;
+        }
+      }
+    }
+
+    for (var i = 0; i < items.length; ++i) {
+      aPopup.removeChild(items[i]);
+      if (aPopup._endMarker != -1)
+        aPopup._endMarker--;
+    }
   },
 
   getBestTitle: function PUIU_getBestTitle(aNode) {
@@ -1242,6 +1373,47 @@ var PlacesUIUtils = {
     return queryName; 
   },
 
+  /**
+  * Add, update or remove the livemark status menuitem.
+  * @param aPopup
+  *        The livemark container popup
+  */
+  ensureLivemarkStatusMenuItem:
+  function PUIU_ensureLivemarkStatusMenuItem(aPopup) {
+    var itemId = aPopup._resultNode.itemId;
+
+    var lmStatus = null;
+    if (PlacesUtils.annotations
+                   .itemHasAnnotation(itemId, "livemark/loadfailed"))
+      lmStatus = "bookmarksLivemarkFailed";
+    else if (PlacesUtils.annotations
+                        .itemHasAnnotation(itemId, "livemark/loading"))
+      lmStatus = "bookmarksLivemarkLoading";
+
+    if (lmStatus && !aPopup._lmStatusMenuItem) {
+      // Create the status menuitem and cache it in the popup object.
+      let document = aPopup.ownerDocument;
+      aPopup._lmStatusMenuItem = document.createElement("menuitem");
+      aPopup._lmStatusMenuItem.setAttribute("lmStatus", lmStatus);
+      aPopup._lmStatusMenuItem.setAttribute("label", this.getString(lmStatus));
+      aPopup._lmStatusMenuItem.setAttribute("disabled", true);
+      aPopup.insertBefore(aPopup._lmStatusMenuItem,
+                          aPopup.childNodes.item(aPopup._startMarker + 1));
+      aPopup._startMarker++;
+    }
+    else if (lmStatus &&
+             aPopup._lmStatusMenuItem.getAttribute("lmStatus") != lmStatus) {
+      // Status has changed, update the cached status menuitem.
+      aPopup._lmStatusMenuItem.setAttribute("label",
+                                            this.getString(lmStatus));
+    }
+    else if (!lmStatus && aPopup._lmStatusMenuItem){
+      // No status, remove the cached menuitem.
+      aPopup.removeChild(aPopup._lmStatusMenuItem);
+      aPopup._lmStatusMenuItem = null;
+      aPopup._startMarker--;
+    }
+  }
 };
 
 XPCOMUtils.defineLazyServiceGetter(PlacesUIUtils, "RDF",

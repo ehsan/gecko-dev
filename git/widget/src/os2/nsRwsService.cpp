@@ -45,7 +45,6 @@
 #include "nsLiteralString.h"
 #include "nsReadableUtils.h"
 #include "nsIStringBundle.h"
-#include "mozilla/Services.h"
 
 #define INCL_WIN
 #define INCL_DOS
@@ -765,8 +764,8 @@ static void AssignNLSString(const PRUnichar *aKey, nsAString& result)
 
   do {
     nsCOMPtr<nsIStringBundleService> bundleSvc =
-      mozilla::services::GetStringBundleService();
-    if (!bundleSvc)
+      do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
+    if (NS_FAILED(rv))
       break;
 
     nsCOMPtr<nsIStringBundle> bundle;
@@ -1225,7 +1224,7 @@ static nsresult nsRwsServiceInit(nsRwsService **aClass)
   NS_ADDREF(*aClass);
 
   // set the class up as a shutdown observer
-  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
+  nsCOMPtr<nsIObserverService> os = do_GetService("@mozilla.org/observer-service;1");
   if (os)
     os->AddObserver(*aClass, "quit-application", PR_FALSE);
 

@@ -42,15 +42,12 @@
 const AUS_Cc = Components.classes;
 const AUS_Ci = Components.interfaces;
 const AUS_Cr = Components.results;
-const AUS_Cu = Components.utils;
 
-const PREF_APP_UPDATE_CERT_ATTR_BRANCH  = "app.update.cert.attributes.";
 const PREF_APP_UPDATE_CHANNEL           = "app.update.channel";
 const PREF_APP_UPDATE_ENABLED           = "app.update.enabled";
 const PREF_APP_UPDATE_IDLETIME          = "app.update.idletime";
 const PREF_APP_UPDATE_LOG               = "app.update.log";
 const PREF_APP_UPDATE_SHOW_INSTALLED_UI = "app.update.showInstalledUI";
-const PREF_APP_UPDATE_URL               = "app.update.url";
 const PREF_APP_UPDATE_URL_DETAILS       = "app.update.url.details";
 const PREF_APP_UPDATE_URL_OVERRIDE      = "app.update.url.override";
 
@@ -59,8 +56,6 @@ const PREF_APP_UPDATE_NEVER_BRANCH      = "app.update.never.";
 const PREF_APP_PARTNER_BRANCH           = "app.partner.";
 const PREF_DISTRIBUTION_ID              = "distribution.id";
 const PREF_DISTRIBUTION_VERSION         = "distribution.version";
-
-const PREF_EXTENSIONS_UPDATE_URL         = "extensions.update.url";
 
 const NS_APP_PROFILE_DIR_STARTUP   = "ProfDS";
 const NS_APP_USER_PROFILE_50_DIR   = "ProfD";
@@ -90,21 +85,16 @@ const MODE_CREATE   = 0x08;
 const MODE_APPEND   = 0x10;
 const MODE_TRUNCATE = 0x20;
 
-const PR_RDWR        = 0x04;
-const PR_CREATE_FILE = 0x08;
-const PR_APPEND      = 0x10;
-const PR_TRUNCATE    = 0x20;
-const PR_SYNC        = 0x40;
-const PR_EXCL        = 0x80;
-
 const PERMS_FILE      = 0644;
 const PERMS_DIRECTORY = 0755;
 
-AUS_Cu.import("resource://gre/modules/Services.jsm");
-
 const URI_UPDATES_PROPERTIES = "chrome://mozapps/locale/update/updates.properties";
-const gUpdateBundle = Services.strings.createBundle(URI_UPDATES_PROPERTIES);
+const gUpdateBundle = AUS_Cc["@mozilla.org/intl/stringbundle;1"].
+                      getService(AUS_Ci.nsIStringBundleService).
+                      createBundle(URI_UPDATES_PROPERTIES);
 
+var gDirSvc = AUS_Cc["@mozilla.org/file/directory_service;1"].
+              getService(AUS_Ci.nsIProperties);
 
 __defineGetter__("gAUS", function() {
   delete this.gAUS;
@@ -132,16 +122,13 @@ __defineGetter__("gUP", function() {
                     createInstance(AUS_Ci.nsIUpdatePrompt);
 });
 
-__defineGetter__("gDefaultPrefBranch", function() {
-  delete this.gDefaultPrefBranch;
-  return this.gDefaultPrefBranch = Services.prefs.getDefaultBranch(null);
+__defineGetter__("gPref", function() {
+  delete this.gPref;
+  return this.gPref = AUS_Cc["@mozilla.org/preferences-service;1"].
+                      getService(AUS_Ci.nsIPrefBranch2).
+                      QueryInterface(AUS_Ci.nsIPrefService);
 });
 
-__defineGetter__("gZipW", function() {
-  delete this.gZipW;
-  return this.gZipW = AUS_Cc["@mozilla.org/zipwriter;1"].
-                      createInstance(AUS_Ci.nsIZipWriter);
-});
 
 /* Initializes the update service stub */
 function initUpdateServiceStub() {
@@ -155,14 +142,18 @@ function reloadUpdateManagerData() {
   observe(null, "um-reload-update-data", "");
 }
 
+function getDefaultPrefBranch() {
+  return gPref.QueryInterface(AUS_Ci.nsIPrefService).getDefaultBranch(null);
+}
+
 /**
  * Sets the app.update.channel preference.
  * @param   aChannel
  *          The update channel. If not specified 'test_channel' will be used.
  */
 function setUpdateChannel(aChannel) {
-  gDefaultPrefBranch.setCharPref(PREF_APP_UPDATE_CHANNEL,
-                                 aChannel ? aChannel : "test_channel");
+  getDefaultPrefBranch().setCharPref(PREF_APP_UPDATE_CHANNEL,
+                                     aChannel ? aChannel : "test_channel");
 }
 
 /**
@@ -172,8 +163,8 @@ function setUpdateChannel(aChannel) {
  *          used.
  */
 function setUpdateURLOverride(aURL) {
-  Services.prefs.setCharPref(PREF_APP_UPDATE_URL_OVERRIDE,
-                             aURL ? aURL : URL_HOST + "update.xml");
+  gPref.setCharPref(PREF_APP_UPDATE_URL_OVERRIDE,
+                    aURL ? aURL : URL_HOST + "update.xml");
 }
 
 /**
@@ -700,7 +691,7 @@ function removeDirRecursive(aDir) {
  * files.
  */
 function getCurrentProcessDir() {
-  return Services.dirsvc.get(NS_XPCOM_CURRENT_PROCESS_DIR, AUS_Ci.nsIFile);
+  return gDirSvc.get(NS_XPCOM_CURRENT_PROCESS_DIR, AUS_Ci.nsIFile);
 }
 
 /**
@@ -710,5 +701,5 @@ function getCurrentProcessDir() {
  * directory.
  */
 function getGREDir() {
-  return Services.dirsvc.get(NS_GRE_DIR, AUS_Ci.nsIFile);
+  return gDirSvc.get(NS_GRE_DIR, AUS_Ci.nsIFile);
 }

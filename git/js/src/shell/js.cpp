@@ -53,7 +53,6 @@
 #include "jsarena.h"
 #include "jsutil.h"
 #include "jsprf.h"
-#include "jswrapper.h"
 #include "jsapi.h"
 #include "jsarray.h"
 #include "jsatom.h"
@@ -72,7 +71,6 @@
 #include "jsscope.h"
 #include "jsscript.h"
 #include "jstracer.h"
-#include "jsxml.h"
 
 #include "prmjtime.h"
 
@@ -87,8 +85,6 @@
 #endif /* JSDEBUGGER */
 
 #include "jsworkers.h"
-
-#include "jsobjinlines.h"
 
 #ifdef XP_UNIX
 #include <unistd.h>
@@ -119,9 +115,9 @@ size_t gStackChunkSize = 8192;
 #if defined(DEBUG) && defined(__SUNPRO_CC)
 /* Sun compiler uses larger stack space for js_Interpret() with debug
    Use a bigger gMaxStackSize to make "make check" happy. */
-size_t gMaxStackSize = 5000000;
+static size_t gMaxStackSize = 5000000;
 #else
-size_t gMaxStackSize = 500000;
+static size_t gMaxStackSize = 500000;
 #endif
 
 
@@ -352,9 +348,40 @@ ShellOperationCallback(JSContext *cx)
 }
 
 static void
+SetThreadStackLimit(JSContext *cx)
+{
+    jsuword stackLimit;
+
+    if (gMaxStackSize == 0) {
+        /*
+         * Disable checking for stack overflow if limit is zero.
+         */
+        stackLimit = 0;
+    } else {
+        jsuword stackBase;
+#ifdef JS_THREADSAFE
+        stackBase = (jsuword) PR_GetThreadPrivate(gStackBaseThreadIndex);
+#else
+        stackBase = gStackBase;
+#endif
+        if (stackBase) {
+#if JS_STACK_GROWTH_DIRECTION > 0
+            stackLimit = stackBase + gMaxStackSize;
+#else
+            stackLimit = stackBase - gMaxStackSize;
+#endif
+        } else {
+            stackLimit = 0;
+        }
+    }
+    JS_SetThreadStackLimit(cx, stackLimit);
+
+}
+
+static void
 SetContextOptions(JSContext *cx)
 {
-    JS_SetNativeStackQuota(cx, gMaxStackSize);
+    SetThreadStackLimit(cx);
     JS_SetScriptStackQuota(cx, gScriptStackQuota);
     JS_SetOperationCallback(cx, ShellOperationCallback);
 }
@@ -685,7 +712,7 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
         case 'Z':
             if (++i == argc)
                 return usage();
-            JS_SetGCZeal(cx, !!(atoi(argv[i])));
+            JS_SetGCZeal(cx, atoi(argv[i]));
             break;
 #endif
 
@@ -736,7 +763,7 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
 
                 if (!JS_SealObject(cx, obj, JS_TRUE))
                     return JS_FALSE;
-                gobj = JS_NewGlobalObject(cx, &global_class);
+                gobj = JS_NewObject(cx, &global_class, NULL, NULL);
                 if (!gobj)
                     return JS_FALSE;
                 if (!JS_SetPrototype(cx, gobj, obj))
@@ -1377,9 +1404,9 @@ ValueToScript(JSContext *cx, jsval v)
 
         if (clasp == &js_ScriptClass) {
             script = (JSScript *) JS_GetPrivate(cx, obj);
-        } else if (clasp == &js_GeneratorClass.base) {
+        } else if (clasp == &js_GeneratorClass) {
             JSGenerator *gen = (JSGenerator *) JS_GetPrivate(cx, obj);
-            fun = gen->getFloatingFrame()->fun;
+            fun = gen->frame.fun;
             script = FUN_SCRIPT(fun);
         }
     }
@@ -1430,12 +1457,12 @@ GetTrapArgs(JSContext *cx, uintN argc, jsval *argv, JSScript **scriptp,
 
 static JSTrapStatus
 TrapHandler(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
-            jsval closure)
+            void *closure)
 {
     JSString *str;
     JSStackFrame *caller;
 
-    str = JSVAL_TO_STRING(closure);
+    str = (JSString *) closure;
     caller = JS_GetScriptedCaller(cx, NULL);
     if (!JS_EvaluateUCInStackFrame(cx, caller,
                                    JS_GetStringChars(str), JS_GetStringLength(str),
@@ -1466,7 +1493,7 @@ Trap(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     argv[argc] = STRING_TO_JSVAL(str);
     if (!GetTrapArgs(cx, argc, argv, &script, &i))
         return JS_FALSE;
-    return JS_SetTrap(cx, script, script->code + i, TrapHandler, STRING_TO_JSVAL(str));
+    return JS_SetTrap(cx, script, script->code + i, TrapHandler, str);
 }
 
 static JSBool
@@ -2825,7 +2852,7 @@ split_create_outer(JSContext *cx)
     cpx->inner = NULL;
     cpx->outer = NULL;
 
-    obj = JS_NewGlobalObject(cx, &split_global_class.base);
+    obj = JS_NewObject(cx, &split_global_class.base, NULL, NULL);
     if (!obj || !JS_SetParent(cx, obj, NULL)) {
         JS_free(cx, cpx);
         return NULL;
@@ -2855,7 +2882,7 @@ split_create_inner(JSContext *cx, JSObject *outer)
     cpx->inner = NULL;
     cpx->outer = outer;
 
-    obj = JS_NewGlobalObject(cx, &split_global_class.base);
+    obj = JS_NewObject(cx, &split_global_class.base, NULL, NULL);
     if (!obj || !JS_SetParent(cx, obj, NULL) || !JS_SetPrivate(cx, obj, cpx)) {
         JS_free(cx, cpx);
         return NULL;
@@ -2968,7 +2995,7 @@ EvalInContext(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     if (!sobj) {
         sobj = split
                ? split_setup(scx, JS_TRUE)
-               : JS_NewGlobalObject(scx, &sandbox_class);
+               : JS_NewObject(scx, &sandbox_class, NULL, NULL);
         if (!sobj || (!lazy && !JS_InitStandardClasses(scx, sobj))) {
             ok = JS_FALSE;
             goto out;
@@ -2993,17 +3020,10 @@ EvalInContext(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
             ok = JS_FALSE;
             goto out;
         }
-        if (!(sobj->getClass()->flags & JSCLASS_IS_GLOBAL)) {
-            JS_TransferRequest(scx, cx);
-            JS_ReportError(cx, "Invalid scope argument to evalcx");
-            DestroyContext(scx, false);
-            return JS_FALSE;
-        }
-
         ok = JS_EvaluateUCScript(scx, sobj, src, srclen,
                                  fp->script->filename,
                                  JS_PCToLineNumber(cx, fp->script,
-                                                   fp->pc(cx)),
+                                                   fp->regs->pc),
                                  rval);
     }
 
@@ -3036,18 +3056,18 @@ EvalInFrame(JSContext *cx, uintN argc, jsval *vp)
     JSString *str = JSVAL_TO_STRING(argv[1]);
 
     bool saveCurrent = (argc >= 3 && JSVAL_IS_BOOLEAN(argv[2]))
-                        ? !!(JSVAL_TO_SPECIAL(argv[2]))
+                        ? (bool)JSVAL_TO_SPECIAL(argv[2])
                         : false;
 
     JS_ASSERT(cx->fp);
 
-    FrameRegsIter fi(cx);
-    for (uint32 i = 0; i < upCount; ++i, ++fi) {
-        if (!fi.fp()->down)
+    JSStackFrame *fp = cx->fp;
+    for (uint32 i = 0; i < upCount; ++i) {
+        if (!fp->down)
             break;
+        fp = fp->down;
     }
 
-    JSStackFrame *const fp = fi.fp();
     if (!fp->script) {
         JS_ReportError(cx, "cannot eval in non-script frame");
         return JS_FALSE;
@@ -3060,7 +3080,7 @@ EvalInFrame(JSContext *cx, uintN argc, jsval *vp)
     JSBool ok = JS_EvaluateUCInStackFrame(cx, fp, str->chars(), str->length(),
                                           fp->script->filename,
                                           JS_PCToLineNumber(cx, fp->script,
-                                                            fi.pc()),
+                                                            fp->regs->pc),
                                           vp);
 
     if (saveCurrent)
@@ -3207,7 +3227,7 @@ RunScatterThread(void *arg)
 
     /* We are good to go. */
     JS_SetContextThread(cx);
-    JS_SetNativeStackQuota(cx, gMaxStackSize);
+    SetThreadStackLimit(cx);
     JS_BeginRequest(cx);
     DoScatteredWork(cx, td);
     JS_EndRequest(cx);
@@ -3571,10 +3591,9 @@ CancelExecution(JSRuntime *rt)
 #ifdef JS_THREADSAFE
     if (gWorkers) {
         JSContext *cx = JS_NewContext(rt, 8192);
-        if (cx) {
+        if (cx)
             js::workers::terminateAll(cx, gWorkers);
-            JS_DestroyContextNoGC(cx);
-        }
+        JS_DestroyContextNoGC(cx);
     }
 #endif
     JS_TriggerAllOperationCallbacks(rt);
@@ -3637,36 +3656,6 @@ Elapsed(JSContext *cx, uintN argc, jsval *vp)
     }
     JS_ReportError(cx, "Wrong number of arguments");
     return JS_FALSE;
-}
-
-static JSBool
-Parent(JSContext *cx, uintN argc, jsval *vp)
-{
-    if (argc != 1) {
-        JS_ReportError(cx, "Wrong number of arguments");
-        return JS_FALSE;
-    }
-
-    jsval v = JS_ARGV(cx, vp)[0];
-    if (JSVAL_IS_PRIMITIVE(v)) {
-        JS_ReportError(cx, "Only objects have parents!");
-        return JS_FALSE;
-    }
-
-    JSObject *parent = JS_GetParent(cx, JSVAL_TO_OBJECT(v));
-    *vp = OBJECT_TO_JSVAL(parent);
-
-    /* Outerize if necessary.  Embrace the ugliness! */
-    if (parent) {
-        JSClass *clasp = JS_GET_CLASS(cx, parent);
-        if (clasp->flags & JSCLASS_IS_EXTENDED) {
-            JSExtendedClass *xclasp = reinterpret_cast<JSExtendedClass *>(clasp);
-            if (JSObjectOp outerize = xclasp->outerObject)
-                *vp = OBJECT_TO_JSVAL(outerize(cx, parent));
-        }
-    }
-
-    return JS_TRUE;
 }
 
 #ifdef XP_UNIX
@@ -3760,8 +3749,7 @@ Parse(JSContext *cx, uintN argc, jsval *vp)
     js::Parser parser(cx);
     parser.init(JS_GetStringCharsZ(cx, scriptContents), JS_GetStringLength(scriptContents),
                 NULL, "<string>", 0);
-    if (!parser.parse(NULL))
-        return JS_FALSE;
+    parser.parse(NULL);
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
@@ -3837,23 +3825,6 @@ Snarf(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     }
     *rval = STRING_TO_JSVAL(str);
     return JS_TRUE;
-}
-
-JSBool
-Wrap(JSContext *cx, uintN argc, jsval *vp)
-{
-    jsval v = argc > 0 ? JS_ARGV(cx, vp)[0] : JSVAL_VOID;
-    if (JSVAL_IS_PRIMITIVE(v)) {
-        JS_SET_RVAL(cx, vp, v);
-        return true;
-    }
-
-    JSObject *wrapped = JSWrapper::wrap(cx, JSVAL_TO_OBJECT(v), NULL, NULL, NULL);
-    if (!wrapped)
-        return false;
-
-    JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(wrapped));
-    return true;
 }
 
 /* We use a mix of JS_FS and JS_FN to test both kinds of natives. */
@@ -3939,8 +3910,6 @@ static JSFunctionSpec shell_functions[] = {
     JS_FN("parse",          Parse,          1,0),
     JS_FN("timeout",        Timeout,        1,0),
     JS_FN("elapsed",        Elapsed,        0,0),
-    JS_FN("parent",         Parent,         1,0),
-    JS_FN("wrap",           Wrap,           1,0),
     JS_FS_END
 };
 
@@ -4048,9 +4017,7 @@ static const char *const shell_help_messages[] = {
 "timeout([seconds])\n"
 "  Get/Set the limit in seconds for the execution time for the current context.\n"
 "  A negative value (default) means that the execution time is unlimited.",
-"elapsed()                Execution time elapsed for the current context.",
-"parent(obj)              Returns the parent of obj.\n",
-"wrap(obj)                Wrap an object into a noop wrapper.\n"
+"elapsed()                Execution time elapsed for the current context.\n",
 };
 
 /* Help messages must match shell functions. */
@@ -4612,18 +4579,20 @@ global_resolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
                JSObject **objp)
 {
 #ifdef LAZY_STANDARD_CLASSES
-    JSBool resolved;
+    if ((flags & JSRESOLVE_ASSIGNING) == 0) {
+        JSBool resolved;
 
-    if (!JS_ResolveStandardClass(cx, obj, id, &resolved))
-        return JS_FALSE;
-    if (resolved) {
-        *objp = obj;
-        return JS_TRUE;
+        if (!JS_ResolveStandardClass(cx, obj, id, &resolved))
+            return JS_FALSE;
+        if (resolved) {
+            *objp = obj;
+            return JS_TRUE;
+        }
     }
 #endif
 
 #if defined(SHELL_HACK) && defined(DEBUG) && defined(XP_UNIX)
-    if (!(flags & JSRESOLVE_QUALIFIED)) {
+    if ((flags & (JSRESOLVE_QUALIFIED | JSRESOLVE_ASSIGNING)) == 0) {
         /*
          * Do this expensive hack only for unoptimized Unix builds, which are
          * not used for benchmarking.
@@ -4913,7 +4882,7 @@ DestroyContext(JSContext *cx, bool withGC)
 static JSObject *
 NewGlobalObject(JSContext *cx)
 {
-    JSObject *glob = JS_NewGlobalObject(cx, &global_class);
+    JSObject *glob = JS_NewObject(cx, &global_class, NULL, NULL);
 #ifdef LAZY_STANDARD_CLASSES
     JS_SetGlobalObject(cx, glob);
 #else
@@ -4966,11 +4935,62 @@ NewGlobalObject(JSContext *cx)
 }
 
 int
-shell(JSContext *cx, int argc, char **argv, char **envp)
+main(int argc, char **argv, char **envp)
 {
-    AutoNewCompartment compartment(cx);
-    if (!compartment.init())
+    int stackDummy;
+    JSRuntime *rt;
+    JSContext *cx;
+    int result;
+#ifdef JSDEBUGGER
+    JSDContext *jsdc;
+#ifdef JSDEBUGGER_JAVA_UI
+    JNIEnv *java_env;
+    JSDJContext *jsdjc;
+#endif
+#ifdef JSDEBUGGER_C_UI
+    JSBool jsdbc;
+#endif /* JSDEBUGGER_C_UI */
+#endif /* JSDEBUGGER */
+
+    CheckHelpMessages();
+#ifdef HAVE_SETLOCALE
+    setlocale(LC_ALL, "");
+#endif
+
+#ifdef JS_THREADSAFE
+    if (PR_FAILURE == PR_NewThreadPrivateIndex(&gStackBaseThreadIndex, NULL) ||
+        PR_FAILURE == PR_SetThreadPrivate(gStackBaseThreadIndex, &stackDummy)) {
         return 1;
+    }
+#else
+    gStackBase = (jsuword) &stackDummy;
+#endif
+
+#ifdef XP_OS2
+   /* these streams are normally line buffered on OS/2 and need a \n, *
+    * so we need to unbuffer then to get a reasonable prompt          */
+    setbuf(stdout,0);
+    setbuf(stderr,0);
+#endif
+
+    gErrFile = stderr;
+    gOutFile = stdout;
+
+    argc--;
+    argv++;
+
+    rt = JS_NewRuntime(64L * 1024L * 1024L);
+    if (!rt)
+        return 1;
+
+    if (!InitWatchdog(rt))
+        return 1;
+
+    cx = NewContext(rt);
+    if (!cx)
+        return 1;
+
+    JS_SetGCParameterForThread(cx, JSGC_MAX_CODE_CACHE_BYTES, 16 * 1024 * 1024);
 
     JS_BeginRequest(cx);
 
@@ -5022,7 +5042,7 @@ shell(JSContext *cx, int argc, char **argv, char **envp)
     }
 #endif
 
-    int result = ProcessArgs(cx, glob, argv, argc);
+    result = ProcessArgs(cx, glob, argv, argc);
 
 #ifdef JS_THREADSAFE
     js::workers::finish(cx, gWorkers);
@@ -5042,76 +5062,6 @@ shell(JSContext *cx, int argc, char **argv, char **envp)
 #endif  /* JSDEBUGGER */
 
     JS_EndRequest(cx);
-
-    return result;
-}
-
-int
-main(int argc, char **argv, char **envp)
-{
-    int stackDummy;
-    JSRuntime *rt;
-    JSContext *cx;
-    int result;
-#ifdef JSDEBUGGER
-    JSDContext *jsdc;
-#ifdef JSDEBUGGER_JAVA_UI
-    JNIEnv *java_env;
-    JSDJContext *jsdjc;
-#endif
-#ifdef JSDEBUGGER_C_UI
-    JSBool jsdbc;
-#endif /* JSDEBUGGER_C_UI */
-#endif /* JSDEBUGGER */
-
-    CheckHelpMessages();
-#ifdef HAVE_SETLOCALE
-    setlocale(LC_ALL, "");
-#endif
-
-#ifdef JS_THREADSAFE
-    if (PR_FAILURE == PR_NewThreadPrivateIndex(&gStackBaseThreadIndex, NULL) ||
-        PR_FAILURE == PR_SetThreadPrivate(gStackBaseThreadIndex, &stackDummy)) {
-        return 1;
-    }
-#else
-    gStackBase = (jsuword) &stackDummy;
-#endif
-
-#ifdef XP_OS2
-   /* these streams are normally line buffered on OS/2 and need a \n, *
-    * so we need to unbuffer then to get a reasonable prompt          */
-    setbuf(stdout,0);
-    setbuf(stderr,0);
-#endif
-
-    gErrFile = stderr;
-    gOutFile = stdout;
-
-    argc--;
-    argv++;
-
-#ifdef XP_WIN
-    // Set the timer calibration delay count to 0 so we get high
-    // resolution right away, which we need for precise benchmarking.
-    extern int CALIBRATION_DELAY_COUNT;
-    CALIBRATION_DELAY_COUNT = 0;
-#endif
-
-    rt = JS_NewRuntime(64L * 1024L * 1024L);
-    if (!rt)
-        return 1;
-
-    if (!InitWatchdog(rt))
-        return 1;
-
-    cx = NewContext(rt);
-    if (!cx)
-        return 1;
-
-    JS_SetGCParameterForThread(cx, JSGC_MAX_CODE_CACHE_BYTES, 16 * 1024 * 1024);
-
-    result = shell(cx, argc, argv, envp);
 
     JS_CommenceRuntimeShutDown(rt);
 

@@ -59,11 +59,6 @@
 
 #define ROUND(x) floor((x) + 0.5)
 
-
-#ifndef CLEARTYPE_QUALITY
-#define CLEARTYPE_QUALITY 5
-#endif
-
 #ifdef PR_LOGGING
 static PRLogModuleInfo *gFontInfoLog = PR_NewLogModule("fontInfoLog");
 #endif /* PR_LOGGING */
@@ -198,7 +193,6 @@ GDIFontEntry::GDIFontEntry(const nsAString& aFaceName, gfxWindowsFontType aFontT
     if (IsType1())
         mForceGDI = PR_TRUE;
     mIsUserFont = aUserFontData != nsnull;
-
     InitLogFont(aFaceName, aFontType);
 }
 
@@ -218,11 +212,9 @@ GDIFontEntry::ReadCMAP()
 
     PRPackedBool  unicodeFont = PR_FALSE, symbolFont = PR_FALSE;
     nsresult rv = gfxFontUtils::ReadCMAP(cmap, buffer.Length(),
-                                         mCharacterMap, mUVSOffset,
-                                         unicodeFont, symbolFont);
+                                         mCharacterMap, unicodeFont, symbolFont);
     mUnicodeFont = unicodeFont;
     mSymbolFont = symbolFont;
-    mHasCmapTable = NS_SUCCEEDED(rv);
 
     PR_LOG(gFontInfoLog, PR_LOG_DEBUG, ("(fontinit-cmap) psname: %s, size: %d\n", 
                                         NS_ConvertUTF16toUTF8(mName).get(), mCharacterMap.GetSize()));
@@ -232,35 +224,19 @@ GDIFontEntry::ReadCMAP()
 gfxFont *
 GDIFontEntry::CreateFontInstance(const gfxFontStyle* aFontStyle, PRBool aNeedsBold)
 {
-    PRBool isXP = (gfxWindowsPlatform::WindowsOSVersion() 
-                       < gfxWindowsPlatform::kWindowsVista);
-
-    PRBool useClearType = isXP && !aFontStyle->systemFont &&
-        (gfxWindowsPlatform::GetPlatform()->UseClearTypeAlways() ||
-         (mIsUserFont && !mIsLocalUserFont &&
-          gfxWindowsPlatform::GetPlatform()->UseClearTypeForDownloadableFonts()));
-
-    return new gfxGDIFont(this, aFontStyle, aNeedsBold, 
-                          (useClearType ? gfxFont::kAntialiasSubpixel
-                                        : gfxFont::kAntialiasDefault));
+    return new gfxGDIFont(this, aFontStyle, aNeedsBold);
 }
 
 nsresult
 GDIFontEntry::GetFontTable(PRUint32 aTableTag, nsTArray<PRUint8>& aBuffer)
 {
-    if (!IsTrueType()) {
-        return NS_ERROR_FAILURE;
-    }
-
     AutoDC dc;
     AutoSelectFont font(dc.GetDC(), &mLogFont);
     if (font.IsValid()) {
-        PRInt32 tableSize =
-            ::GetFontData(dc.GetDC(), NS_SWAP32(aTableTag), 0, NULL, NULL);
+        PRInt32 tableSize = ::GetFontData(dc.GetDC(), NS_SWAP32(aTableTag), 0, NULL, NULL);
         if (tableSize != GDI_ERROR) {
             if (aBuffer.SetLength(tableSize)) {
-                ::GetFontData(dc.GetDC(), NS_SWAP32(aTableTag), 0,
-                              aBuffer.Elements(), tableSize);
+                ::GetFontData(dc.GetDC(), NS_SWAP32(aTableTag), 0, aBuffer.Elements(), tableSize);
                 return NS_OK;
             }
             return NS_ERROR_OUT_OF_MEMORY;
@@ -271,8 +247,7 @@ GDIFontEntry::GetFontTable(PRUint32 aTableTag, nsTArray<PRUint8>& aBuffer)
 
 void
 GDIFontEntry::FillLogFont(LOGFONTW *aLogFont, PRBool aItalic,
-                              PRUint16 aWeight, gfxFloat aSize,
-                              PRBool aUseCleartype)
+                              PRUint16 aWeight, gfxFloat aSize)
 {
     memcpy(aLogFont, &mLogFont, sizeof(LOGFONTW));
 
@@ -287,7 +262,6 @@ GDIFontEntry::FillLogFont(LOGFONTW *aLogFont, PRBool aItalic,
     // do fake italic for us in that case.
     aLogFont->lfItalic         = aItalic;
     aLogFont->lfWeight         = aWeight;
-    aLogFont->lfQuality        = (aUseCleartype ? CLEARTYPE_QUALITY : DEFAULT_QUALITY);
 }
 
 PRBool 
@@ -693,7 +667,6 @@ gfxGDIFontList::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
         return nsnull;
 
     fe->mIsUserFont = PR_TRUE;
-    fe->mIsLocalUserFont = PR_TRUE;
     return fe;
 }
 

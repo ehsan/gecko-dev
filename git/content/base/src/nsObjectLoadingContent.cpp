@@ -92,9 +92,6 @@
 
 #include "nsObjectLoadingContent.h"
 #include "mozAutoDocUpdate.h"
-#include "nsIContentSecurityPolicy.h"
-#include "nsIChannelPolicy.h"
-#include "nsChannelPolicy.h"
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gObjectLog = PR_NewLogModule("objlc");
@@ -499,6 +496,9 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
     // previous one got here
     return NS_BINDING_ABORTED;
   }
+
+  // We're done with the classifier
+  mClassifier = nsnull;
 
   AutoNotifier notifier(this, PR_TRUE);
 
@@ -1030,6 +1030,10 @@ nsObjectLoadingContent::OnChannelRedirect(nsIChannel *aOldChannel,
     return NS_BINDING_ABORTED;
   }
 
+  if (mClassifier) {
+    mClassifier->OnRedirect(aOldChannel, aNewChannel);
+  }
+
   mChannel = aNewChannel;
   return NS_OK;
 }
@@ -1196,6 +1200,11 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
   // possibly-loading channel should be aborted.
   if (mChannel) {
     LOG(("OBJLC [%p]: Cancelling existing load\n", this));
+
+    if (mClassifier) {
+      mClassifier->Cancel();
+      mClassifier = nsnull;
+    }
 
     // These three statements are carefully ordered:
     // - onStopRequest should get a channel whose status is the same as the
@@ -1414,19 +1423,8 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
 
   nsCOMPtr<nsILoadGroup> group = doc->GetDocumentLoadGroup();
   nsCOMPtr<nsIChannel> chan;
-  nsCOMPtr<nsIChannelPolicy> channelPolicy;
-  nsCOMPtr<nsIContentSecurityPolicy> csp;
-  rv = doc->NodePrincipal()->GetCsp(getter_AddRefs(csp));
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (csp) {
-    channelPolicy = do_CreateInstance("@mozilla.org/nschannelpolicy;1");
-    channelPolicy->SetContentSecurityPolicy(csp);
-    channelPolicy->SetLoadType(nsIContentPolicy::TYPE_OBJECT);
-  }
   rv = NS_NewChannel(getter_AddRefs(chan), aURI, nsnull, group, this,
-                     nsIChannel::LOAD_CALL_CONTENT_SNIFFERS |
-                     nsIChannel::LOAD_CLASSIFY_URI,
-                     channelPolicy);
+                     nsIChannel::LOAD_CALL_CONTENT_SNIFFERS);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Referrer
@@ -1465,6 +1463,12 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
   rv = chan->AsyncOpen(this, nsnull);
   if (NS_SUCCEEDED(rv)) {
     LOG(("OBJLC [%p]: Channel opened.\n", this));
+
+    rv = CheckClassifier(chan);
+    if (NS_FAILED(rv)) {
+      chan->Cancel(rv);
+      return rv;
+    }
 
     mChannel = chan;
     mType = eType_Loading;
@@ -1701,6 +1705,14 @@ nsObjectLoadingContent::GetTypeOfContent(const nsCString& aMIMEType)
     return eType_Plugin;
   }
 
+  nsCOMPtr<nsIContent> thisContent = 
+    do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
+  NS_ASSERTION(thisContent, "must be a content");
+
+  if (ShouldShowDefaultPlugin(thisContent, aMIMEType)) {
+    return eType_Plugin;
+  }
+
   return eType_Null;
 }
 
@@ -1905,6 +1917,33 @@ nsObjectLoadingContent::Instantiate(nsIObjectFrame* aFrame,
   }
 
   return rv;
+}
+
+nsresult
+nsObjectLoadingContent::CheckClassifier(nsIChannel *aChannel)
+{
+  nsresult rv;
+  nsCOMPtr<nsIChannelClassifier> classifier =
+    do_CreateInstance(NS_CHANNELCLASSIFIER_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = classifier->Start(aChannel, PR_FALSE);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mClassifier = classifier;
+
+  return NS_OK;
+}
+
+/* static */ PRBool
+nsObjectLoadingContent::ShouldShowDefaultPlugin(nsIContent* aContent,
+                                                const nsCString& aContentType)
+{
+  if (nsContentUtils::GetBoolPref("plugin.default_plugin_disabled", PR_FALSE)) {
+    return PR_FALSE;
+  }
+
+  return GetPluginSupportState(aContent, aContentType) == ePluginUnsupported;
 }
 
 /* static */ PluginSupportState

@@ -433,9 +433,6 @@ void nsCARenderer::Destroy() {
 }
 
 nsresult nsCARenderer::SetupRenderer(void *aCALayer, int aWidth, int aHeight) {
-  if (aWidth == 0 || aHeight == 0)
-    return NS_ERROR_FAILURE;
-
   CALayer* layer = (CALayer*)aCALayer;
   CARenderer* caRenderer = nsnull;
 
@@ -480,6 +477,11 @@ nsresult nsCARenderer::SetupRenderer(void *aCALayer, int aWidth, int aHeight) {
   [layer setPosition:CGPointMake(aWidth/2.0, aHeight/2.0)];
   caRenderer.layer = layer;
   caRenderer.bounds = CGRectMake(0, 0, aWidth, aHeight);
+
+  if (aWidth == 0 || aHeight == 0) {
+    // No need to allocate if size is 0
+    return NS_OK;
+  }
 
   // We either target rendering to a CGImage or IOSurface.
   if (!mIOSurface) {
@@ -538,7 +540,7 @@ nsresult nsCARenderer::SetupRenderer(void *aCALayer, int aWidth, int aHeight) {
     GLenum fboStatus;
     fboStatus = ::glCheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT);
     if (fboStatus != GL_FRAMEBUFFER_COMPLETE_EXT) {
-      NS_ERROR("FBO not supported");
+      NS_ERROR("FBO not supported\n");
       if (oldContext)
         ::CGLSetCurrentContext(oldContext);
       Destroy();
@@ -563,7 +565,7 @@ nsresult nsCARenderer::SetupRenderer(void *aCALayer, int aWidth, int aHeight) {
 
   GLenum result = ::glGetError();
   if (result != GL_NO_ERROR) {
-    NS_ERROR("Unexpected OpenGL Error");
+    NS_ERROR("Unexpected OpenGL Error\n");
     Destroy();
     if (oldContext)
       ::CGLSetCurrentContext(oldContext);
@@ -595,8 +597,9 @@ void nsCARenderer::AttachIOSurface(nsIOSurface *aSurface) {
 
 nsresult nsCARenderer::Render(int aWidth, int aHeight, 
                               CGImageRef *aOutCGImage) {
-  if (!aOutCGImage && !mIOSurface) {
-    NS_ERROR("No target destination for rendering");
+  if (aOutCGImage && mIOSurface) {
+    NS_WARNING("CGImageRef should not be passed if we are "
+               "drawing to an IOSurface");
   } else if (aOutCGImage) {
     // We are expected to return a CGImageRef, we will set
     // it to NULL in case we fail before the image is ready.
@@ -633,7 +636,7 @@ nsresult nsCARenderer::Render(int aWidth, int aHeight,
 
   GLenum result = ::glGetError();
   if (result != GL_NO_ERROR) {
-    NS_ERROR("Unexpected OpenGL Error");
+    NS_ERROR("Unexpected OpenGL Error\n");
     Destroy();
     if (oldContext)
       ::CGLSetCurrentContext(oldContext);
@@ -690,13 +693,6 @@ nsresult nsCARenderer::DrawSurfaceToCGContext(CGContextRef aContext,
     return NS_ERROR_FAILURE;
   }
 
-  // We get rendering glitches if we use a width/height that falls
-  // outside of the IOSurface.
-  if (aWidth > ioWidth - aX) 
-    aWidth = ioWidth - aX;
-  if (aHeight > ioHeight - aY) 
-    aHeight = ioHeight - aY;
-
   CGImageRef cgImage = ::CGImageCreate(ioWidth, ioHeight, 8, 32, bytesPerRow,
               aColorSpace, kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host,
               dataProvider, NULL, true, kCGRenderingIntentDefault);
@@ -713,8 +709,10 @@ nsresult nsCARenderer::DrawSurfaceToCGContext(CGContextRef aContext,
     return NS_ERROR_FAILURE;
   }
 
+  ::CGContextTranslateCTM(aContext, 0.0f, float(aHeight));
   ::CGContextScaleCTM(aContext, 1.0f, -1.0f);
-  ::CGContextDrawImage(aContext, CGRectMake(aX, -aY-aHeight, aWidth, aHeight), subImage);
+  ::CGContextTranslateCTM(aContext, aX, -aY);
+  CGContextDrawImage(aContext, CGRectMake(0, 0, aWidth, aHeight), subImage);
 
   ::CGImageRelease(subImage);
   ::CGImageRelease(cgImage);

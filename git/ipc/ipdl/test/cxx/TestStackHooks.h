@@ -62,18 +62,8 @@ protected:
         mOnStack = false;
     }
 
-    NS_OVERRIDE
-    virtual void EnteredCall() {
-        ++mIncallDepth;
-    }
-    NS_OVERRIDE
-    virtual void ExitedCall() {
-        --mIncallDepth;
-    }
-
 private:
     bool mOnStack;
-    int mIncallDepth;
 };
 
 
@@ -119,20 +109,10 @@ protected:
         mOnStack = false;
     }
 
-    NS_OVERRIDE
-    virtual void EnteredCall() {
-        ++mIncallDepth;
-    }
-    NS_OVERRIDE
-    virtual void ExitedCall() {
-        --mIncallDepth;
-    }
-
 private:
     bool mOnStack;
     int mEntered;
     int mExited;
-    int mIncallDepth;
 };
 
 

@@ -129,7 +129,6 @@ public:
         mStretch = aStretch;
         mItalic = aItalic;
         mIsUserFont = PR_TRUE;
-        mIsLocalUserFont = PR_TRUE;
     }
 
     /**

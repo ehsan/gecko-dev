@@ -218,9 +218,7 @@ gTests.push({
     var options = hs.getNewQueryOptions();
     options.queryType = Ci.nsINavHistoryQueryOptions.QUERY_TYPE_BOOKMARKS;
     var query = hs.getNewQuery();
-    // The colon included in the terms selects only about: URIs. If not included
-    // we also may get pages like about.html included in the query result.
-    query.searchTerms = "about:";
+    query.searchTerms = "about";
     var queryString = hs.queriesToQueryString([query], 1, options);
     this._queryId = bs.insertBookmark(bs.unfiledBookmarksFolder,
                                      PlacesUtils._uri(queryString),

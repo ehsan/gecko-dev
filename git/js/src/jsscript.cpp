@@ -65,7 +65,6 @@
 #include "jsxdrapi.h"
 #endif
 
-#include "jsobjinlines.h"
 #include "jsscriptinlines.h"
 
 using namespace js;
@@ -705,7 +704,7 @@ js_script_filename_marker(JSHashEntry *he, intN i, void *arg)
 }
 
 void
-js_MarkScriptFilenames(JSRuntime *rt)
+js_MarkScriptFilenames(JSRuntime *rt, JSBool keepAtoms)
 {
     JSCList *head, *link;
     ScriptFilenamePrefix *sfp;
@@ -713,7 +712,7 @@ js_MarkScriptFilenames(JSRuntime *rt)
     if (!rt->scriptFilenameTable)
         return;
 
-    if (rt->gcKeepAtoms) {
+    if (keepAtoms) {
         JS_HashTableEnumerateEntries(rt->scriptFilenameTable,
                                      js_script_filename_marker,
                                      rt);
@@ -1313,7 +1312,7 @@ js_GetSrcNoteCached(JSContext *cx, JSScript *script, jsbytecode *pc)
 uintN
 js_FramePCToLineNumber(JSContext *cx, JSStackFrame *fp)
 {
-    return js_PCToLineNumber(cx, fp->script, fp->imacpc ? fp->imacpc : fp->pc(cx));
+    return js_PCToLineNumber(cx, fp->script, fp->imacpc ? fp->imacpc : fp->regs->pc);
 }
 
 uintN

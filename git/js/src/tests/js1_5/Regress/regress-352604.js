@@ -53,8 +53,7 @@ function test()
   printBugNumber(BUGNUMBER);
   printStatus (summary);
  
-  delete Function;
-  var x = function () {};
+  delete Function; new Function("");
 
   reportCompare(expect, actual, summary);
 

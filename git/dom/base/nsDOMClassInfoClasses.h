@@ -55,7 +55,6 @@ DOMCI_CLASS(DocumentType)
 DOMCI_CLASS(DOMImplementation)
 DOMCI_CLASS(DOMException)
 DOMCI_CLASS(DOMTokenList)
-DOMCI_CLASS(DOMSettableTokenList)
 DOMCI_CLASS(DocumentFragment)
 DOMCI_CLASS(Element)
 DOMCI_CLASS(Attr)
@@ -84,7 +83,6 @@ DOMCI_CLASS(HTMLOptionsCollection)
 DOMCI_CLASS(HTMLCollection)
 
 // HTML element classes
-DOMCI_CLASS(HTMLElement)
 DOMCI_CLASS(HTMLAnchorElement)
 DOMCI_CLASS(HTMLAppletElement)
 DOMCI_CLASS(HTMLAreaElement)
@@ -122,7 +120,6 @@ DOMCI_CLASS(HTMLOListElement)
 DOMCI_CLASS(HTMLObjectElement)
 DOMCI_CLASS(HTMLOptGroupElement)
 DOMCI_CLASS(HTMLOptionElement)
-DOMCI_CLASS(HTMLOutputElement)
 DOMCI_CLASS(HTMLParagraphElement)
 DOMCI_CLASS(HTMLParamElement)
 DOMCI_CLASS(HTMLPreElement)
@@ -236,8 +233,6 @@ DOMCI_CLASS(SVGAltGlyphElement)
 #ifdef MOZ_SMIL
 DOMCI_CLASS(SVGAnimateElement)
 DOMCI_CLASS(SVGAnimateTransformElement)
-DOMCI_CLASS(SVGAnimateMotionElement)
-DOMCI_CLASS(SVGMpathElement)
 DOMCI_CLASS(SVGSetElement)
 #endif // MOZ_SMIL
 DOMCI_CLASS(SVGCircleElement)
@@ -424,13 +419,11 @@ DOMCI_CLASS(GeoPositionError)
 DOMCI_CLASS(CSSFontFaceRule)
 DOMCI_CLASS(CSSFontFaceStyleDecl)
 
-#if defined(MOZ_MEDIA)
 // WhatWG Video Element
 DOMCI_CLASS(HTMLVideoElement)
 DOMCI_CLASS(HTMLSourceElement)
 DOMCI_CLASS(HTMLMediaError)
 DOMCI_CLASS(HTMLAudioElement)
-#endif
 
 DOMCI_CLASS(ProgressEvent)
 
@@ -460,7 +453,6 @@ DOMCI_CLASS(WebGLProgram)
 DOMCI_CLASS(WebGLShader)
 DOMCI_CLASS(WebGLFramebuffer)
 DOMCI_CLASS(WebGLRenderbuffer)
-DOMCI_CLASS(WebGLUniformLocation)
 
 // WebGL Buffers
 DOMCI_CLASS(PaintRequest)
@@ -472,10 +464,5 @@ DOMCI_CLASS(PopStateEvent)
 DOMCI_CLASS(EventListenerInfo)
 
 DOMCI_CLASS(TransitionEvent)
-DOMCI_CLASS(ContentFrameMessageManager)
 
 DOMCI_CLASS(FormData)
-
-// WebSocket
-DOMCI_CLASS(WebSocket)
-DOMCI_CLASS(CloseEvent)

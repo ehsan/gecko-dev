@@ -50,7 +50,6 @@
 #include "nsIPrefService.h"
 #include "nsIPrefBranch2.h"
 #include "nsIJSContextStack.h"
-#include "mozilla/Services.h"
 
 #include <math.h>
 
@@ -60,10 +59,6 @@
 
 #ifdef MOZ_MAEMO_LIBLOCATION
 #include "MaemoLocationProvider.h"
-#endif
-
-#ifdef ANDROID
-#include "AndroidLocationProvider.h"
 #endif
 
 #include "nsIDOMDocument.h"
@@ -281,7 +276,7 @@ nsGeolocationRequest::Allow()
   }
 
   if (lastPosition && maximumAge > 0 &&
-      ( PRTime(PR_Now() / PR_USEC_PER_MSEC) - maximumAge <=
+      ( (PR_Now() / PR_USEC_PER_MSEC) - maximumAge <=
         PRTime(cachedPositionTime) )) {
     // okay, we can return a cached position
     mAllowed = PR_TRUE;
@@ -388,7 +383,7 @@ nsresult nsGeolocationService::Init()
     return NS_ERROR_FAILURE;
 
   // geolocation service can be enabled -> now register observer
-  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+  nsCOMPtr<nsIObserverService> obs = do_GetService("@mozilla.org/observer-service;1");
   if (!obs)
     return NS_ERROR_FAILURE;
 
@@ -430,12 +425,6 @@ nsresult nsGeolocationService::Init()
   if (provider)
     mProviders.AppendObject(provider);
 #endif
-
-#ifdef ANDROID
-  provider = new AndroidLocationProvider();
-  if (provider)
-    mProviders.AppendObject(provider);
-#endif
   return NS_OK;
 }
 
@@ -450,7 +439,7 @@ nsGeolocationService::Observe(nsISupports* aSubject,
 {
   if (!strcmp("quit-application", aTopic))
   {
-    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+    nsCOMPtr<nsIObserverService> obs = do_GetService("@mozilla.org/observer-service;1");
     if (obs) {
       obs->RemoveObserver(this, "quit-application");
     }
@@ -972,7 +961,7 @@ nsGeolocation::WindowOwnerStillExists()
   return PR_TRUE;
 }
 
-#if !defined(WINCE_WINDOWS_MOBILE) && !defined(MOZ_MAEMO_LIBLOCATION) && !defined(ANDROID)
+#ifndef WINCE_WINDOWS_MOBILE
 DOMCI_DATA(GeoPositionCoords, void)
 DOMCI_DATA(GeoPosition, void)
 #endif

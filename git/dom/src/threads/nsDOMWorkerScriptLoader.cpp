@@ -46,6 +46,7 @@
 #include "nsIRequest.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIStreamLoader.h"
+#include "nsIChannelClassifier.h"
 
 // Other includes
 #include "nsAutoLock.h"
@@ -59,9 +60,6 @@
 #include "nsThreadUtils.h"
 #include "pratom.h"
 #include "nsDocShellCID.h"
-#include "nsIChannelPolicy.h"
-#include "nsChannelPolicy.h"
-#include "nsIContentSecurityPolicy.h"
 
 // DOMWorker includes
 #include "nsDOMWorkerPool.h"
@@ -433,7 +431,7 @@ nsDOMWorkerScriptLoader::RunInternal()
       principal = parentDoc->NodePrincipal();
       NS_ENSURE_STATE(principal);
 
-      baseURI = parentDoc->GetDocBaseURI();
+      baseURI = parentDoc->GetBaseURI();
     }
   }
   else {
@@ -509,25 +507,7 @@ nsDOMWorkerScriptLoader::RunInternal()
     rv = NS_NewStreamLoader(getter_AddRefs(loader), this);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    // get Content Security Policy from parent document to pass into channel
-    nsCOMPtr<nsIChannelPolicy> channelPolicy;
-    nsCOMPtr<nsIContentSecurityPolicy> csp;
-    rv = parentDoc->NodePrincipal()->GetCsp(getter_AddRefs(csp));
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (csp) {
-        channelPolicy = do_CreateInstance("@mozilla.org/nschannelpolicy;1");
-        channelPolicy->SetContentSecurityPolicy(csp);
-        channelPolicy->SetLoadType(nsIContentPolicy::TYPE_SCRIPT);
-    }
-
-    rv = NS_NewChannel(getter_AddRefs(loadInfo.channel),
-                       uri,
-                       ios,
-                       loadGroup,
-                       nsnull,                            // callbacks
-                       nsIRequest::LOAD_NORMAL |
-                       nsIChannel::LOAD_CLASSIFY_URI,     // loadFlags
-                       channelPolicy);                    // CSP info
+    rv = NS_NewChannel(getter_AddRefs(loadInfo.channel), uri, ios, loadGroup);
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = loadInfo.channel->AsyncOpen(loader, indexSupports);
@@ -535,6 +515,18 @@ nsDOMWorkerScriptLoader::RunInternal()
       // Null this out so we don't try to cancel it later.
       loadInfo.channel = nsnull;
       return rv;
+    }
+
+    // Check the load against the URI classifier
+    nsCOMPtr<nsIChannelClassifier> classifier =
+        do_CreateInstance(NS_CHANNELCLASSIFIER_CONTRACTID);
+    if (classifier) {
+        rv = classifier->Start(loadInfo.channel, PR_TRUE);
+        if (NS_FAILED(rv)) {
+            loadInfo.channel->Cancel(rv);
+            loadInfo.channel = nsnull;
+            return rv;
+        }
     }
   }
 

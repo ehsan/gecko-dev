@@ -79,15 +79,14 @@ class nsScrollPortEvent;
 class nsInputEvent;
 class nsMouseEvent;
 class nsDragEvent;
-#ifdef ACCESSIBILITY
 class nsAccessibleEvent;
-#endif
 class nsKeyEvent;
 class nsTextEvent;
 class nsCompositionEvent;
 class nsMouseScrollEvent;
 class nsReconversionEvent;
 class nsTooltipEvent;
+class nsMenuEvent;
 class nsSimpleGestureEvent;
 class nsContentCommandEvent;
 

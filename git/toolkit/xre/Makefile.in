@@ -47,6 +47,10 @@ MODULE = xulapp
 LIBRARY_NAME = xulapp_s
 LIBXUL_LIBRARY = 1
 
+
+
+
+
 FORCE_STATIC_LIB = 1
 
 XPIDLSRCS = \
@@ -74,7 +78,7 @@ CPPSRCS += nsSplashScreenDummy.cpp
 endif
 endif
 
-DEFINES += -DIMPL_XREAPI -DMOZ_APP_NAME='"$(MOZ_APP_NAME)"'
+DEFINES += -DIMPL_XREAPI
 
 ifndef BUILD_STATIC_LIBS
 CPPSRCS += nsEmbedFunctions.cpp
@@ -117,18 +121,16 @@ endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 CMMSRCS += MacLaunchHelper.mm
-CMMSRCS += MacApplicationDelegate.mm
-CMMSRCS += MacAutoreleasePool.mm
 CPPSRCS += nsCommandLineServiceMac.cpp
 OS_CXXFLAGS += -fexceptions
+endif
+ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
+CMMSRCS += MacApplicationDelegate.mm
+CMMSRCS += MacAutoreleasePool.mm
 endif
 
 ifdef MOZ_X11
 CPPSRCS += nsX11ErrorHandler.cpp
-endif
-
-ifeq ($(OS_TARGET),Android)
-CPPSRCS += nsAndroidStartup.cpp
 endif
 
 SHARED_LIBRARY_LIBS += ../profile/src/$(LIB_PREFIX)profile_s.$(LIB_SUFFIX)
@@ -200,7 +202,7 @@ LOCAL_INCLUDES += \
 	-I$(topsrcdir)/config \
 	$(NULL)
 
-CXXFLAGS += $(TK_CFLAGS) $(MOZ_DBUS_CFLAGS) $(MOZ_DBUS_GLIB_CFLAGS)
+CXXFLAGS += $(TK_CFLAGS) $(MOZ_DBUS_GLIB_CFLAGS)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 CXXFLAGS += $(MOZ_PANGO_CFLAGS)
@@ -249,8 +251,7 @@ INIARGS += --sourcerepo=$(SOURCE_REPO)
 endif
 endif
 
-# Solaris /usr/bin/diff doesn't have -n option
-GRE_MILESTONE := $(shell tail -n 1 $(topsrcdir)/config/milestone.txt 2>/dev/null || tail -1 $(topsrcdir)/config/milestone.txt)
+GRE_MILESTONE := $(shell tail -n 1 $(topsrcdir)/config/milestone.txt)
 GRE_BUILDID := $(shell cat $(DEPTH)/config/buildid)
  
 DEFINES += -DGRE_MILESTONE=$(GRE_MILESTONE) -DGRE_BUILDID=$(GRE_BUILDID)

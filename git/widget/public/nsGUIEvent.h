@@ -60,11 +60,9 @@
 #include "nsITransferable.h"
 #include "nsIVariant.h"
 
-#ifdef ACCESSIBILITY
-class nsAccessible;
-#endif
 class nsIRenderingContext;
 class nsIMenuItem;
+class nsIAccessible;
 class nsIContent;
 class nsIURI;
 class nsHashKey;
@@ -82,6 +80,7 @@ class nsHashKey;
 #define NS_INPUT_EVENT                     8
 #define NS_KEY_EVENT                       9
 #define NS_MOUSE_EVENT                    10
+#define NS_MENU_EVENT                     11
 #define NS_SCRIPT_ERROR_EVENT             12
 #define NS_TEXT_EVENT                     13
 #define NS_COMPOSITION_EVENT              14
@@ -193,6 +192,15 @@ class nsHashKey;
 #define NS_TABCHANGE                    (NS_WINDOW_START + 35)
 
 #define NS_OS_TOOLBAR                   (NS_WINDOW_START + 36)
+
+// Menu item selected
+#define NS_MENU_SELECTED                (NS_WINDOW_START + 38)
+
+// Form control changed: currently == combo box selection changed
+// but could be expanded to mean textbox, checkbox changed, etc.
+// This is a GUI specific event that does not necessarily correspond
+// directly to a mouse click or a key press.
+#define NS_CONTROL_CHANGE                (NS_WINDOW_START + 39)
 
 // Indicates the display has changed depth
 #define NS_DISPLAYCHANGED                (NS_WINDOW_START + 40)
@@ -830,7 +838,6 @@ public:
   PRPackedBool userCancelled;
 };
 
-#ifdef ACCESSIBILITY
 /**
  * Accessible event
  */
@@ -840,13 +847,12 @@ class nsAccessibleEvent : public nsInputEvent
 public:
   nsAccessibleEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
     : nsInputEvent(isTrusted, msg, w, NS_ACCESSIBLE_EVENT),
-      mAccessible(nsnull)
+      accessible(nsnull)
   {
   }
 
-  nsAccessible *mAccessible;
+  nsIAccessible*  accessible;     
 };
-#endif
 
 /**
  * Keyboard event
@@ -1258,6 +1264,26 @@ public:
 };
 
 /**
+ * MenuItem event
+ * 
+ * When this event occurs the widget field in nsGUIEvent holds the "target"
+ * for the event
+ */
+
+class nsMenuEvent : public nsGUIEvent
+{
+public:
+  nsMenuEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
+    : nsGUIEvent(isTrusted, msg, w, NS_MENU_EVENT),
+      mMenuItem(nsnull), mCommand(0)
+  {
+  }
+
+  nsIMenuItem * mMenuItem;
+  PRUint32      mCommand;
+};
+
+/**
  * Form event
  * 
  * We hold the originating form control for form submit and reset events.
@@ -1381,10 +1407,6 @@ enum nsDragDropEventStatus {
         ((evnt)->message == NS_MOUSE_ENTER_SYNTH) || \
         ((evnt)->message == NS_MOUSE_EXIT_SYNTH) || \
         ((evnt)->message == NS_MOUSE_MOVE))
-
-#define NS_IS_MOUSE_EVENT_STRUCT(evnt) \
-       ((evnt)->eventStructType == NS_MOUSE_EVENT || \
-        (evnt)->eventStructType == NS_DRAG_EVENT)
 
 #define NS_IS_MOUSE_LEFT_CLICK(evnt) \
        ((evnt)->eventStructType == NS_MOUSE_EVENT && \
@@ -1615,6 +1637,36 @@ enum nsDragDropEventStatus {
 #define NS_TEXTRANGE_CONVERTEDTEXT         0x04
 #define NS_TEXTRANGE_SELECTEDCONVERTEDTEXT 0x05
 
+inline PRBool NS_TargetUnfocusedEventToLastFocusedContent(nsEvent* aEvent)
+{
+#if defined(MOZ_X11) || defined(XP_MACOSX)
+  // bug 52416 (MOZ_X11)
+  // Lookup region (candidate window) of UNIX IME grabs
+  // input focus from Mozilla but wants to send IME event
+  // to redraw pre-edit (composed) string
+  // If Mozilla does not have input focus and event is IME,
+  // sends IME event to pre-focused element
+
+  // bug 417315 (XP_MACOSX)
+  // The commit event when the window is deactivating is sent after
+  // the next focused widget getting the focus.
+  // We need to send the commit event to last focused content.
+
+  return NS_IS_IME_RELATED_EVENT(aEvent);
+#elif defined(XP_WIN)
+  // bug 292263 (XP_WIN)
+  // If software keyboard has focus, it may send the key messages and
+  // the IME messages to pre-focused window. Therefore, if Mozilla
+  // doesn't have focus and event is key event or IME event, we should
+  // send the events to pre-focused element.
+
+  return NS_IS_KEY_EVENT(aEvent) || NS_IS_IME_RELATED_EVENT(aEvent) ||
+         NS_IS_PLUGIN_EVENT(aEvent) || NS_IS_CONTENT_COMMAND_EVENT(aEvent);
+#else
+  return PR_FALSE;
+#endif
+}
+
 /**
  * Whether the event should be handled by the frame of the mouse cursor
  * position or not.  When it should be handled there (e.g., the mouse events),
@@ -1645,23 +1697,6 @@ inline PRBool NS_IsEventTargetedAtFocusedWindow(nsEvent* aEvent)
 {
   return NS_IS_KEY_EVENT(aEvent) || NS_IS_IME_RELATED_EVENT(aEvent) ||
          NS_IS_CONTEXT_MENU_KEY(aEvent) || NS_IS_CONTENT_COMMAND_EVENT(aEvent);
-}
-
-/**
- * Whether the event should be handled by the focused content or not.  E.g.,
- * key events, IME related events and other input events which are not handled
- * by the frame of the mouse cursor position.
- *
- * NOTE: Even if this returns TRUE, the event isn't going to be handled by the
- * application level active DOM window which is on another top level window.
- * So, when the event is fired on a deactive window, the event is going to be
- * handled by the last focused DOM element of the last focused DOM window in
- * the last focused window.
- */
-inline PRBool NS_IsEventTargetedAtFocusedContent(nsEvent* aEvent)
-{
-  return NS_IS_KEY_EVENT(aEvent) || NS_IS_IME_RELATED_EVENT(aEvent) ||
-         NS_IS_CONTEXT_MENU_KEY(aEvent) || NS_IS_PLUGIN_EVENT(aEvent);
 }
 
 #endif // nsGUIEvent_h__

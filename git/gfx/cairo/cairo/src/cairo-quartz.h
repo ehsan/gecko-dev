@@ -50,23 +50,12 @@ cairo_quartz_surface_create (cairo_format_t format,
                              unsigned int height);
 
 cairo_public cairo_surface_t *
-cairo_quartz_surface_create_cg_layer (cairo_surface_t *surface,
-                                      unsigned int width,
-                                      unsigned int height);
-
-cairo_public cairo_surface_t *
 cairo_quartz_surface_create_for_cg_context (CGContextRef cgContext,
                                             unsigned int width,
                                             unsigned int height);
 
 cairo_public CGContextRef
 cairo_quartz_surface_get_cg_context (cairo_surface_t *surface);
-
-cairo_public CGContextRef
-cairo_quartz_get_cg_context_with_clip (cairo_t *cr);
-
-cairo_public void
-cairo_quartz_finish_cg_context_with_clip (cairo_t *cr);
 
 #if CAIRO_HAS_QUARTZ_FONT
 

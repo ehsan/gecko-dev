@@ -67,7 +67,7 @@ using namespace js;
 
 /* Implement NativeCompareAndSwap. */
 
-#if defined(_MSC_VER) && defined(_M_IX86)
+#if defined(_WIN32) && defined(_M_IX86)
 #pragma warning( disable : 4035 )
 JS_BEGIN_EXTERN_C
 extern long __cdecl
@@ -113,9 +113,7 @@ static JS_ALWAYS_INLINE int
 NativeCompareAndSwap(jsword *w, jsword ov, jsword nv)
 {
     /* Details on these functions available in the manpage for atomic */
-    return OSAtomicCompareAndSwapPtrBarrier(reinterpret_cast<void *>(ov),
-                                            reinterpret_cast<void *>(nv),
-                                            reinterpret_cast<void **>(w));
+    return OSAtomicCompareAndSwapPtrBarrier(ov, nv, w);
 }
 
 #elif defined(__i386) && (defined(__GNUC__) || defined(__SUNPRO_CC))
@@ -168,13 +166,8 @@ NativeCompareAndSwap(jsword *w, jsword ov, jsword nv)
     unsigned int res;
 
     __asm__ __volatile__ (
-                  "membar #StoreLoad | #LoadLoad\n"
-#if JS_BITS_PER_WORD == 32
+                  "stbar\n"
                   "cas [%1],%2,%3\n"
-#else
-                  "casx [%1],%2,%3\n"
-#endif
-                  "membar #StoreLoad | #LoadLoad\n"
                   "cmp %2,%3\n"
                   "be,a 1f\n"
                   "mov 1,%0\n"
@@ -200,13 +193,7 @@ NativeCompareAndSwap(jsword *w, jsword ov, jsword nv);
 static JS_ALWAYS_INLINE int
 NativeCompareAndSwap(jsword *w, jsword ov, jsword nv)
 {
-    int res;
-    JS_STATIC_ASSERT(sizeof(jsword) == sizeof(long));
-
-    res = compare_and_swaplp((atomic_l)w, &ov, nv);
-    if (res)
-        __asm__("isync");
-    return res;
+    return !_check_lock((atomic_p)w, ov, nv);
 }
 
 #elif defined(USE_ARM_KUSER)
@@ -1206,7 +1193,7 @@ void
 js_UnlockRuntime(JSRuntime *rt)
 {
 #ifdef DEBUG
-    rt->rtLockOwner = NULL;
+    rt->rtLockOwner = 0;
 #endif
     PR_Unlock(rt->rtLock);
 }
@@ -1364,7 +1351,7 @@ js_InitTitle(JSContext *cx, JSTitle *title)
 {
 #ifdef JS_THREADSAFE
     title->ownercx = cx;
-    js_InitLock(&title->lock);
+    PodZero(&title->lock);
 
     /*
      * Set u.link = NULL, not u.count = 0, in case the target architecture's
@@ -1420,14 +1407,13 @@ js_IsTitleLocked(JSContext *cx, JSTitle *title)
         return JS_TRUE;
 
     /*
-     * General case: the title is either exclusively owned by some context, or
-     * it has a thin or fat lock to cope with shared (concurrent) ownership.
-     *
-     * js_LockTitle(cx, title) must set ownercx to cx when claiming the title
-     * from another context on the same thread.
+     * General case: the title is either exclusively owned (by cx), or it has
+     * a thin or fat lock to cope with shared (concurrent) ownership.
      */
-    if (title->ownercx)
-        return title->ownercx == cx;
+    if (title->ownercx) {
+        JS_ASSERT(title->ownercx == cx || title->ownercx->thread == cx->thread);
+        return JS_TRUE;
+    }
     return js_CurrentThreadId() ==
            ((JSThread *)Thin_RemoveWait(ReadWord(title->lock.owner)))->id;
 }

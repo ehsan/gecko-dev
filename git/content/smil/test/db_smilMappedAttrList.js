@@ -112,6 +112,7 @@ var gMappedAttrList =
   clip:              new AdditiveAttribute("clip", "XML", "marker"),
 
   // PresentationAttributes-Makers
+  marker:            new NonAdditiveAttribute("marker", "XML", "line"),
   marker_end:        new NonAdditiveAttribute("marker-end", "XML", "line"),
   marker_mid:        new NonAdditiveAttribute("marker-mid", "XML", "line"),
   marker_start:      new NonAdditiveAttribute("marker-start", "XML", "line"),

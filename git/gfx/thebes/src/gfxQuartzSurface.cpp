@@ -87,28 +87,6 @@ gfxQuartzSurface::gfxQuartzSurface(cairo_surface_t *csurf,
     Init(csurf, PR_TRUE);
 }
 
-already_AddRefed<gfxASurface>
-gfxQuartzSurface::CreateSimilarSurface(gfxContentType aType,
-                                       const gfxIntSize& aSize)
-{
-    cairo_surface_t *surface =
-        cairo_quartz_surface_create_cg_layer(mSurface, aSize.width, aSize.height);
-    if (cairo_surface_status(surface)) {
-        cairo_surface_destroy(surface);
-        return nsnull;
-    }
-
-    nsRefPtr<gfxASurface> result = Wrap(surface);
-    cairo_surface_destroy(surface);
-    return result.forget();
-}
-
-CGContextRef
-gfxQuartzSurface::GetCGContextWithClip(gfxContext *ctx)
-{
-	return cairo_quartz_get_cg_context_with_clip(ctx->GetCairo());
-}
-
 PRInt32 gfxQuartzSurface::GetDefaultContextFlags() const
 {
     if (mForPrinting)

@@ -66,7 +66,6 @@
 #include "nsLayoutUtils.h"
 #include "nsINameSpaceManager.h"
 #include "nsIContent.h"
-#include "mozilla/dom/Element.h"
 #include "nsIFrame.h"
 #include "nsIView.h"
 #include "nsIViewManager.h"
@@ -96,8 +95,6 @@
 #include "nsEventListenerService.h"
 #include "nsDOMEvent.h"
 #include "nsIContentSecurityPolicy.h"
-
-using namespace mozilla::dom;
 
 #define EVENT_TYPE_EQUALS( ls, type, userType ) \
   (ls->mEventType && ls->mEventType == type && \
@@ -296,6 +293,7 @@ nsEventListenerManager::~nsEventListenerManager()
 
   --mInstanceCount;
   if(mInstanceCount == 0) {
+    NS_IF_RELEASE(gSystemEventGroup);
     NS_IF_RELEASE(gDOM2EventGroup);
   }
 }
@@ -310,18 +308,8 @@ nsEventListenerManager::RemoveAllListeners()
 void
 nsEventListenerManager::Shutdown()
 {
-  NS_IF_RELEASE(gSystemEventGroup);
   sAddListenerID = JSVAL_VOID;
   nsDOMEvent::Shutdown();
-}
-
-nsIDOMEventGroup*
-nsEventListenerManager::GetSystemEventGroup()
-{
-  if (!gSystemEventGroup) {
-    CallCreateInstance(kDOMEventGroupCID, &gSystemEventGroup);
-  }
-  return gSystemEventGroup;
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsEventListenerManager)
@@ -790,7 +778,7 @@ nsEventListenerManager::AddScriptEventListener(nsISupports *aObject,
           nameSpace = content->GetNameSpaceID();
         }
         else if (doc) {
-          Element* root = doc->GetRootElement();
+          nsCOMPtr<nsIContent> root = doc->GetRootContent();
           if (root)
             nameSpace = root->GetNameSpaceID();
         }
@@ -1229,8 +1217,17 @@ nsEventListenerManager::SetListenerTarget(nsISupports* aTarget)
 NS_IMETHODIMP
 nsEventListenerManager::GetSystemEventGroupLM(nsIDOMEventGroup **aGroup)
 {
-  *aGroup = GetSystemEventGroup();
-  NS_ENSURE_TRUE(*aGroup, NS_ERROR_OUT_OF_MEMORY);
+  if (!gSystemEventGroup) {
+    nsresult result;
+    nsCOMPtr<nsIDOMEventGroup> group(do_CreateInstance(kDOMEventGroupCID,&result));
+    if (NS_FAILED(result))
+      return result;
+
+    gSystemEventGroup = group;
+    NS_ADDREF(gSystemEventGroup);
+  }
+
+  *aGroup = gSystemEventGroup;
   NS_ADDREF(*aGroup);
   return NS_OK;
 }

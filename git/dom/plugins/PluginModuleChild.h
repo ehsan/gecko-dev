@@ -89,11 +89,6 @@ typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGINSHUTDOWN) (void);
 namespace mozilla {
 namespace plugins {
 
-#ifdef MOZ_WIDGET_QT
-class NestedLoopTimer;
-static const int kNestedLoopDetectorIntervalMs = 90;
-#endif
-
 class PluginScriptableObjectChild;
 class PluginInstanceChild;
 
@@ -203,12 +198,6 @@ private:
     virtual void EnteredCxxStack();
     NS_OVERRIDE
     virtual void ExitedCxxStack();
-#elif defined(MOZ_WIDGET_QT)
-
-    NS_OVERRIDE
-    virtual void EnteredCxxStack();
-    NS_OVERRIDE
-    virtual void ExitedCxxStack();
 #endif
 
     std::string mPluginFilename;
@@ -265,8 +254,6 @@ private:
     // MessagePumpForUI.
     int mTopLoopDepth;
 #  endif
-#elif defined (MOZ_WIDGET_QT)
-    NestedLoopTimer *mNestedLoopTimerObject;
 #endif
 
     struct NPObjectData : public nsPtrHashKey<NPObject>
@@ -311,39 +298,6 @@ public: // called by PluginInstanceChild
 
 private:
     static PLDHashOperator CollectForInstance(NPObjectData* d, void* userArg);
-
-#if defined(OS_WIN)
-    NS_OVERRIDE
-    virtual void EnteredCall();
-    NS_OVERRIDE
-    virtual void ExitedCall();
-
-    // Entered/ExitedCall notifications keep track of whether the plugin has
-    // entered a nested event loop within this RPC call.
-    struct IncallFrame
-    {
-        IncallFrame()
-            : _spinning(false)
-            , _savedNestableTasksAllowed(false)
-        { }
-
-        bool _spinning;
-        bool _savedNestableTasksAllowed;
-    };
-
-    nsAutoTArray<IncallFrame, 8> mIncallPumpingStack;
-
-    static LRESULT CALLBACK NestedInputEventHook(int code,
-                                                 WPARAM wParam,
-                                                 LPARAM lParam);
-    static LRESULT CALLBACK CallWindowProcHook(int code,
-                                               WPARAM wParam,
-                                               LPARAM lParam);
-    void SetEventHooks();
-    void ResetEventHooks();
-    HHOOK mNestedEventHook;
-    HHOOK mGlobalCallWndProcHook;
-#endif
 };
 
 } /* namespace plugins */

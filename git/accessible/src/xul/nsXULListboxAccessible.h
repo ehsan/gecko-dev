@@ -55,7 +55,7 @@ class nsIWeakReference;
 class nsXULColumnsAccessible : public nsAccessibleWrap
 {
 public:
-  nsXULColumnsAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULColumnsAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
 
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
@@ -69,7 +69,7 @@ public:
 class nsXULColumnItemAccessible : public nsLeafAccessible
 {
 public:
-  nsXULColumnItemAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULColumnItemAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
 
   // nsIAccessible
   NS_IMETHOD GetNumActions(PRUint8 *aNumActions);
@@ -90,7 +90,7 @@ class nsXULListboxAccessible : public nsXULSelectableAccessible,
                                public nsIAccessibleTable
 {
 public:
-  nsXULListboxAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULListboxAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
   virtual ~nsXULListboxAccessible() {}
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -117,7 +117,7 @@ public:
 
   NS_DECL_ISUPPORTS_INHERITED
   
-  nsXULListitemAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULListitemAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
   virtual ~nsXULListitemAccessible() {}
 
   // nsIAccessible
@@ -134,10 +134,7 @@ public:
   virtual PRBool GetAllowsAnonChildAccessibles();
 
 protected:
-  /**
-   * Return listbox accessible for the listitem.
-   */
-  nsAccessible *GetListAccessible();
+  already_AddRefed<nsIAccessible> GetListAccessible();
 
 private:
   PRBool mIsCheckbox;
@@ -150,7 +147,7 @@ class nsXULListCellAccessible : public nsHyperTextAccessibleWrap,
                                 public nsIAccessibleTableCell
 {
 public:
-  nsXULListCellAccessible(nsIContent *aContent, nsIWeakReference *aShell);
+  nsXULListCellAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED

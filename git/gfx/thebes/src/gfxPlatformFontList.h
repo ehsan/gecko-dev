@@ -46,8 +46,6 @@
 #include "gfxFont.h"
 #include "gfxPlatform.h"
 
-#include "mozilla/FunctionTimer.h"
-
 // gfxPlatformFontList is an abstract class for the global font list on the system;
 // concrete subclasses for each platform implement the actual interface to the system fonts.
 // This class exists because we cannot rely on the platform font-finding APIs to behave
@@ -64,8 +62,6 @@ public:
     }
 
     static nsresult Init() {
-        NS_TIME_FUNCTION;
-
         NS_ASSERTION(!sPlatformFontList, "What's this doing here?");
         sPlatformFontList = gfxPlatform::GetPlatform()->CreatePlatformFontList();
         if (!sPlatformFontList) return NS_ERROR_OUT_OF_MEMORY;
@@ -93,7 +89,6 @@ public:
 
     gfxFontEntry* FindFontForChar(const PRUint32 aCh, gfxFont *aPrevFont);
 
-    // TODO: make this virtual, for lazily adding to the font list
     gfxFontFamily* FindFamily(const nsAString& aFamily);
 
     gfxFontEntry* FindFontForFamily(const nsAString& aFamily, const gfxFontStyle* aStyle, PRBool& aNeedsBold);
@@ -178,15 +173,15 @@ protected:
     virtual PRBool RunLoader();
     virtual void FinishLoader();
 
-    // canonical family name ==> family entry (unique, one name per family entry)
+      // canonical family name ==> family entry (unique, one name per family entry)
     nsRefPtrHashtable<nsStringHashKey, gfxFontFamily> mFontFamilies;
-
-    // other family name ==> family entry (not unique, can have multiple names per
-    // family entry, only names *other* than the canonical names are stored here)
-    nsRefPtrHashtable<nsStringHashKey, gfxFontFamily> mOtherFamilyNames;
-
+  
     // flag set after InitOtherFamilyNames is called upon first name lookup miss
     PRPackedBool mOtherFamilyNamesInitialized;
+
+    // other family name ==> family entry (not unique, can have multiple names per
+      // family entry, only names *other* than the canonical names are stored here)
+    nsRefPtrHashtable<nsStringHashKey, gfxFontFamily> mOtherFamilyNames;
 
     // flag set after fullname and Postcript name lists are populated
     PRPackedBool mFaceNamesInitialized;

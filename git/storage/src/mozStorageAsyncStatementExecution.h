@@ -37,8 +37,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozStorageAsyncStatementExecution_h
-#define mozStorageAsyncStatementExecution_h
+#ifndef _mozStorageAsyncStatementExecution_h_
+#define _mozStorageAsyncStatementExecution_h_
 
 #include "nscore.h"
 #include "nsTArray.h"
@@ -250,4 +250,4 @@ private:
 } // namespace storage
 } // namespace mozilla
 
-#endif // mozStorageAsyncStatementExecution_h
+#endif // _mozStorageAsyncStatementExecution_h_

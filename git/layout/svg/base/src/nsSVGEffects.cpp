@@ -1,3 +1,4 @@
+
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -197,8 +198,7 @@ nsSVGRenderingObserver::AttributeChanged(nsIDocument *aDocument,
 void
 nsSVGRenderingObserver::ContentAppended(nsIDocument *aDocument,
                                         nsIContent *aContainer,
-                                        nsIContent *aFirstNewContent,
-                                        PRInt32 /* unused */)
+                                        PRInt32 aNewIndexInContainer)
 {
   DoUpdate();
 }
@@ -207,7 +207,7 @@ void
 nsSVGRenderingObserver::ContentInserted(nsIDocument *aDocument,
                                         nsIContent *aContainer,
                                         nsIContent *aChild,
-                                        PRInt32 /* unused */)
+                                        PRInt32 aIndexInContainer)
 {
   DoUpdate();
 }
@@ -255,7 +255,7 @@ nsSVGFilterProperty::DoUpdate()
     NS_UpdateHint(changeHint, nsChangeHint_ReflowFrame);
   }
   mFramePresShell->FrameConstructor()->PostRestyleEvent(
-    mFrame->GetContent()->AsElement(), nsRestyleHint(0), changeHint);
+    mFrame->GetContent(), nsRestyleHint(0), changeHint);
 }
 
 void
@@ -272,7 +272,7 @@ nsSVGMarkerProperty::DoUpdate()
     nsChangeHint(nsChangeHint_RepaintFrame | nsChangeHint_UpdateEffects);
 
   mFramePresShell->FrameConstructor()->PostRestyleEvent(
-    mFrame->GetContent()->AsElement(), nsRestyleHint(0), changeHint);
+    mFrame->GetContent(), nsRestyleHint(0), changeHint);
 }
 
 void
@@ -407,7 +407,7 @@ nsSVGEffects::EffectProperties::GetMaskFrame(PRBool *aOK)
 void
 nsSVGEffects::UpdateEffects(nsIFrame *aFrame)
 {
-  NS_ASSERTION(aFrame->GetContent()->IsElement(),
+  NS_ASSERTION(aFrame->GetContent()->IsNodeOfType(nsINode::eELEMENT),
                "aFrame's content should be an element");
 
   FrameProperties props = aFrame->Properties();
@@ -438,7 +438,7 @@ nsSVGEffects::UpdateEffects(nsIFrame *aFrame)
 
   nsIFrame *kid = aFrame->GetFirstChild(nsnull);
   while (kid) {
-    if (kid->GetContent()->IsElement()) {
+    if (kid->GetContent()->IsNodeOfType(nsINode::eELEMENT)) {
       UpdateEffects(kid);
     }
     kid = kid->GetNextSibling();

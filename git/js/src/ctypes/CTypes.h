@@ -41,7 +41,6 @@
 
 #include "jscntxt.h"
 #include "jsapi.h"
-#include "jshashtable.h"
 #include "prlink.h"
 #include "ffi.h"
 
@@ -238,42 +237,29 @@ enum TypeCode {
   TYPE_struct
 };
 
-// Descriptor of one field in a StructType. The name of the field is stored
-// as the key to the hash entry.
 struct FieldInfo
 {
-  JSObject* mType;    // CType of the field
-  size_t    mIndex;   // index of the field in the struct (first is 0)
-  size_t    mOffset;  // offset of the field in the struct, in bytes
+  // We need to provide a copy constructor because of Vector.
+  FieldInfo() {}
+  FieldInfo(const FieldInfo& other)
+  {
+    JS_NOT_REACHED("shouldn't be copy constructing FieldInfo");
+  }
+
+  String    mName;
+  JSObject* mType;
+  size_t    mOffset;
 };
 
-// Hash policy for FieldInfos.
-struct FieldHashPolicy
+// Just like JSPropertySpec, but with a Unicode name.
+struct PropertySpec
 {
-  typedef JSString* Key;
-  typedef Key Lookup;
-
-  static uint32 hash(const Lookup &l) {
-    const jschar* s = l->chars();
-    size_t n = l->length();
-    uint32 hash = 0;
-    for (; n > 0; s++, n--)
-      hash = hash * 33 + *s;
-    return hash;
-  }
-
-  static JSBool match(const Key &k, const Lookup &l) {
-    if (k == l)
-      return true;
-
-    if (k->length() != l->length())
-      return false;
-
-    return memcmp(k->chars(), l->chars(), k->length() * sizeof(jschar)) == 0;
-  }
+  const jschar* name;
+  size_t namelen;
+  uint8 flags;
+  JSPropertyOp getter;
+  JSPropertyOp setter;
 };
-
-typedef HashMap<JSString*, FieldInfo, FieldHashPolicy, SystemAllocPolicy> FieldInfoHash;
 
 // Descriptor of ABI, return type, argument types, and variadicity for a
 // FunctionType.
@@ -409,7 +395,8 @@ enum Int64FunctionSlot {
 
 namespace CType {
   JSObject* Create(JSContext* cx, JSObject* typeProto, JSObject* dataProto,
-    TypeCode type, JSString* name, jsval size, jsval align, ffi_type* ffiType);
+    TypeCode type, JSString* name, jsval size, jsval align, ffi_type* ffiType, 
+    PropertySpec* ps);
 
   JSObject* DefineBuiltin(JSContext* cx, JSObject* parent, const char* propName,
     JSObject* typeProto, JSObject* dataProto, const char* name, TypeCode type,
@@ -429,7 +416,8 @@ namespace CType {
 }
 
 namespace PointerType {
-  JSObject* CreateInternal(JSContext* cx, JSObject* baseType);
+  JSObject* CreateInternal(JSContext* cx, JSObject* ctor, JSObject* baseType,
+    JSString* name);
 
   JSObject* GetBaseType(JSContext* cx, JSObject* obj);
 }
@@ -441,16 +429,11 @@ namespace ArrayType {
   JSObject* GetBaseType(JSContext* cx, JSObject* obj);
   size_t GetLength(JSContext* cx, JSObject* obj);
   bool GetSafeLength(JSContext* cx, JSObject* obj, size_t* result);
-  ffi_type* BuildFFIType(JSContext* cx, JSObject* obj);
 }
 
 namespace StructType {
-  JSBool DefineInternal(JSContext* cx, JSObject* typeObj, JSObject* fieldsObj);
-
-  const FieldInfoHash* GetFieldInfo(JSContext* cx, JSObject* obj);
-  const FieldInfo* LookupField(JSContext* cx, JSObject* obj, jsval idval);
-  JSObject* BuildFieldsArray(JSContext* cx, JSObject* obj);
-  ffi_type* BuildFFIType(JSContext* cx, JSObject* obj);
+  Array<FieldInfo>* GetFieldInfo(JSContext* cx, JSObject* obj);
+  FieldInfo* LookupField(JSContext* cx, JSObject* obj, jsval idval);
 }
 
 namespace FunctionType {

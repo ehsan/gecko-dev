@@ -201,7 +201,6 @@ nsHTMLStyleElement::CharacterDataChanged(nsIDocument* aDocument,
 void
 nsHTMLStyleElement::ContentAppended(nsIDocument* aDocument,
                                     nsIContent* aContainer,
-                                    nsIContent* aFirstNewContent,
                                     PRInt32 aNewIndexInContainer)
 {
   ContentChanged(aContainer);
@@ -243,8 +242,9 @@ nsHTMLStyleElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                                  aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  void (nsHTMLStyleElement::*update)() = &nsHTMLStyleElement::UpdateStyleSheetInternal;
-  nsContentUtils::AddScriptRunner(NS_NewRunnableMethod(this, update));
+  nsContentUtils::AddScriptRunner(
+    new nsRunnableMethod<nsHTMLStyleElement>(this,
+                                             &nsHTMLStyleElement::UpdateStyleSheetInternal));
 
   return rv;  
 }

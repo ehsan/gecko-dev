@@ -804,7 +804,7 @@ nsImageMap::SearchForAreas(nsIContent* aParent, PRBool& aFoundArea,
       }
     }
 
-    if (child->IsElement()) {
+    if (child->IsNodeOfType(nsINode::eELEMENT)) {
       mContainsBlockContents = PR_TRUE;
       rv = SearchForAreas(child, aFoundArea, aFoundAnchor);
       NS_ENSURE_SUCCESS(rv, rv);
@@ -940,8 +940,7 @@ nsImageMap::AttributeChanged(nsIDocument* aDocument,
 void
 nsImageMap::ContentAppended(nsIDocument *aDocument,
                             nsIContent* aContainer,
-                            nsIContent* aFirstNewContent,
-                            PRInt32     /* unused */)
+                            PRInt32     aNewIndexInContainer)
 {
   MaybeUpdateAreas(aContainer);
 }
@@ -950,7 +949,7 @@ void
 nsImageMap::ContentInserted(nsIDocument *aDocument,
                             nsIContent* aContainer,
                             nsIContent* aChild,
-                            PRInt32 /* unused */)
+                            PRInt32 aIndexInContainer)
 {
   MaybeUpdateAreas(aContainer);
 }

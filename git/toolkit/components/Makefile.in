@@ -58,12 +58,10 @@ PARALLEL_DIRS += \
   cookie \
   exthelper \
   filepicker \
-  find \
   microformats \
   parentalcontrols \
   passwordmgr \
   places \
-  prompts \
   startup \
   statusfilter \
   typeaheadfind \
@@ -111,10 +109,7 @@ PARALLEL_DIRS += search
 endif
 
 ifdef MOZ_RDF
-PARALLEL_DIRS += \
-  downloads \
-  intl \
-  $(NULL)
+PARALLEL_DIRS += downloads
 endif
 
 ifdef MOZ_URL_CLASSIFIER

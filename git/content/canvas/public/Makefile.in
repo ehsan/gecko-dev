@@ -47,7 +47,8 @@ XPIDL_MODULE = content_canvas
 
 EXPORTS		= \
 		nsICanvasRenderingContextInternal.h \
-		nsICanvasElementExternal.h \
+		nsICanvasElement.h \
+		WebGLArray.h \
 		$(NULL)
 
 XPIDLSRCS	= \

@@ -45,7 +45,7 @@ class nsHTMLVideoElement : public nsHTMLMediaElement,
                            public nsIDOMHTMLVideoElement
 {
 public:
-  nsHTMLVideoElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser = 0);
+  nsHTMLVideoElement(nsINodeInfo *aNodeInfo, PRBool aFromParser = PR_FALSE);
   virtual ~nsHTMLVideoElement();
 
   // nsISupports

@@ -65,7 +65,6 @@ JS_STATIC_ASSERT(sizeof(void *) == sizeof(void (*)()));
 JS_PUBLIC_API(void) JS_Assert(const char *s, const char *file, JSIntn ln)
 {
     fprintf(stderr, "Assertion failure: %s, at %s:%d\n", s, file, ln);
-    fflush(stderr);
 #if defined(WIN32)
     DebugBreak();
     exit(3);
@@ -75,7 +74,6 @@ JS_PUBLIC_API(void) JS_Assert(const char *s, const char *file, JSIntn ln)
      * trapped.
      */
     *((int *) NULL) = 0;  /* To continue from here in GDB: "return" then "continue". */
-    raise(SIGABRT);  /* In case above statement gets nixed by the optimizer. */
 #else
     raise(SIGABRT);  /* To continue from here in GDB: "signal 0". */
 #endif

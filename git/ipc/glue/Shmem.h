@@ -189,12 +189,8 @@ public:
   int GetSysVID() const;
 
   // These shouldn't be used directly, use the IPDL interface instead.
-  id_t Id(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead) const {
+  id_t Id(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead) {
     return mId;
-  }
-
-  SharedMemory* Segment(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead) const {
-    return mSegment;
   }
 
 #ifndef DEBUG
@@ -227,15 +223,6 @@ public:
   ShareTo(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
           base::ProcessHandle aProcess,
           int32 routingId);
-
-  // Stop sharing this with |aProcess|.  Return an IPC message that
-  // contains enough information for the other process to unmap this
-  // segment.  Return a new message if successful (owned by the
-  // caller), NULL if not.
-  IPC::Message*
-  UnshareFrom(IHadBetterBeIPDLCodeCallingThis_OtherwiseIAmADoodyhead,
-              base::ProcessHandle aProcess,
-              int32 routingId);
 
   // Return a SharedMemory instance in this process using the
   // descriptor shared to us by the process that created the

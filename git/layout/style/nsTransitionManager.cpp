@@ -54,12 +54,9 @@
 #include "nsCSSDataBlock.h"
 #include "nsEventDispatcher.h"
 #include "nsGUIEvent.h"
-#include "mozilla/dom/Element.h"
 
 using mozilla::TimeStamp;
 using mozilla::TimeDuration;
-
-namespace dom = mozilla::dom;
 
 /*****************************************************************************
  * Per-Element data                                                          *
@@ -106,9 +103,9 @@ public:
   NS_DECL_ISUPPORTS
 
   // nsIStyleRule implementation
-  virtual void MapRuleInfoInto(nsRuleData* aRuleData);
+  NS_IMETHOD MapRuleInfoInto(nsRuleData* aRuleData);
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
+  NS_IMETHOD List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
   ElementTransitionsStyleRule(ElementTransitions *aOwner,
@@ -142,9 +139,9 @@ public:
   NS_DECL_ISUPPORTS
 
   // nsIStyleRule implementation
-  virtual void MapRuleInfoInto(nsRuleData* aRuleData);
+  NS_IMETHOD MapRuleInfoInto(nsRuleData* aRuleData);
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
+  NS_IMETHOD List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
   void CoverValue(nsCSSProperty aProperty, nsStyleAnimation::Value &aStartValue)
@@ -164,7 +161,7 @@ private:
 
 struct ElementTransitions : public PRCList
 {
-  ElementTransitions(dom::Element *aElement, nsIAtom *aElementProperty,
+  ElementTransitions(nsIContent *aElement, nsIAtom *aElementProperty,
                      nsTransitionManager *aTransitionManager)
     : mElement(aElement)
     , mElementProperty(aElementProperty)
@@ -196,7 +193,7 @@ struct ElementTransitions : public PRCList
   // for which it is valid).
   nsRefPtr<ElementTransitionsStyleRule> mStyleRule;
 
-  dom::Element *mElement;
+  nsIContent *mElement;
 
   // the atom we use in mElement's prop table (must be a static atom,
   // i.e., in an atom list)
@@ -217,22 +214,18 @@ ElementTransitionsPropertyDtor(void           *aObject,
 
 NS_IMPL_ISUPPORTS1(ElementTransitionsStyleRule, nsIStyleRule)
 
-/* virtual */ void
+NS_IMETHODIMP
 ElementTransitionsStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
 {
   nsStyleContext *contextParent = aRuleData->mStyleContext->GetParent();
   if (contextParent && contextParent->HasPseudoElementData()) {
     // Don't apply transitions to things inside of pseudo-elements.
     // FIXME (Bug 522599): Add tests for this.
-    return;
+    return NS_OK;
   }
 
   ElementTransitions *et = ElementData();
-  if (NS_UNLIKELY(!et)) { // FIXME (Bug 522597): Why can this be null? 
-     NS_WARNING("ElementData returned null");
-     return;
-  }
-
+  NS_ENSURE_TRUE(et, NS_OK); // FIXME (Bug 522597): Why can this be null?
   for (PRUint32 i = 0, i_end = et->mPropertyTransitions.Length();
        i < i_end; ++i)
   {
@@ -271,13 +264,16 @@ ElementTransitionsStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
       NS_ABORT_IF_FALSE(ok, "could not store computed value");
     }
   }
+
+  return NS_OK;
 }
 
 #ifdef DEBUG
-/* virtual */ void
+NS_IMETHODIMP
 ElementTransitionsStyleRule::List(FILE* out, PRInt32 aIndent) const
 {
   // WRITE ME?
+  return NS_OK;
 }
 #endif
 
@@ -311,7 +307,7 @@ ElementTransitions::EnsureStyleRuleFor(TimeStamp aRefreshTime)
 
 NS_IMPL_ISUPPORTS1(CoverTransitionStartStyleRule, nsIStyleRule)
 
-/* virtual */ void
+NS_IMETHODIMP
 CoverTransitionStartStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
 {
   for (PRUint32 i = 0, i_end = mCoveredValues.Length(); i < i_end; ++i) {
@@ -329,13 +325,16 @@ CoverTransitionStartStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
       NS_ABORT_IF_FALSE(ok, "could not store computed value");
     }
   }
+
+  return NS_OK;
 }
 
 #ifdef DEBUG
-/* virtual */ void
+NS_IMETHODIMP
 CoverTransitionStartStyleRule::List(FILE* out, PRInt32 aIndent) const
 {
   // WRITE ME?
+  return NS_OK;
 }
 #endif
 
@@ -386,7 +385,7 @@ TransExtractComputedValue(nsCSSProperty aProperty,
 }
 
 already_AddRefed<nsIStyleRule>
-nsTransitionManager::StyleContextChanged(dom::Element *aElement,
+nsTransitionManager::StyleContextChanged(nsIContent *aElement,
                                          nsStyleContext *aOldStyleContext,
                                          nsStyleContext *aNewStyleContext)
 {
@@ -581,7 +580,7 @@ nsTransitionManager::StyleContextChanged(dom::Element *aElement,
 void
 nsTransitionManager::ConsiderStartingTransition(nsCSSProperty aProperty,
                        const nsTransition& aTransition,
-                       dom::Element *aElement,
+                       nsIContent *aElement,
                        ElementTransitions *&aElementTransitions,
                        nsStyleContext *aOldStyleContext,
                        nsStyleContext *aNewStyleContext,
@@ -746,7 +745,7 @@ nsTransitionManager::ConsiderStartingTransition(nsCSSProperty aProperty,
 }
 
 ElementTransitions*
-nsTransitionManager::GetElementTransitions(dom::Element *aElement,
+nsTransitionManager::GetElementTransitions(nsIContent *aElement,
                                            nsCSSPseudoElements::Type aPseudoType,
                                            PRBool aCreateIfNeeded)
 {
@@ -817,8 +816,12 @@ nsresult
 nsTransitionManager::WalkTransitionRule(RuleProcessorData* aData,
                                         nsCSSPseudoElements::Type aPseudoType)
 {
+  if (!aData->mContent) {
+    return NS_OK;
+  }
+
   ElementTransitions *et =
-    GetElementTransitions(aData->mElement, aPseudoType, PR_FALSE);
+    GetElementTransitions(aData->mContent, aPseudoType, PR_FALSE);
   if (!et) {
     return NS_OK;
   }
@@ -832,7 +835,7 @@ nsTransitionManager::WalkTransitionRule(RuleProcessorData* aData,
     // We need to immediately restyle with animation
     // after doing this.
     if (et) {
-      mPresContext->PresShell()->RestyleForAnimation(aData->mElement);
+      mPresContext->PresShell()->RestyleForAnimation(aData->mContent);
     }
     return NS_OK;
   }
@@ -853,7 +856,7 @@ nsTransitionManager::RulesMatching(ElementRuleProcessorData* aData)
   NS_ABORT_IF_FALSE(aData->mPresContext == mPresContext,
                     "pres context mismatch");
   return WalkTransitionRule(aData,
-                            nsCSSPseudoElements::ePseudo_NotPseudoElement);
+			    nsCSSPseudoElements::ePseudo_NotPseudoElement);
 }
 
 NS_IMETHODIMP

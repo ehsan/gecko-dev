@@ -283,7 +283,7 @@ nsStyleContext::GetUniqueStyleData(const nsStyleStructID& aSID)
 #undef UNIQUE_CASE
 
   default:
-    NS_ERROR("Struct type not supported.  Please find another way to do this if you can!");
+    NS_ERROR("Struct type not supported.  Please find another way to do this if you can!\n");
     return nsnull;
   }
 
@@ -589,6 +589,9 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
 void
 nsStyleContext::Mark()
 {
+  if (mStyleIfVisited)
+    mStyleIfVisited->Mark();
+
   // Mark our rule node.
   mRuleNode->Mark();
 

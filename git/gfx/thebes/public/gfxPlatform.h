@@ -64,7 +64,6 @@ class gfxPlatformFontList;
 class gfxTextRun;
 class nsIURI;
 class nsIAtom;
-class nsIPrefBranch;
 
 // pref lang id's for font prefs
 // !!! needs to match the list of pref font.default.xx entries listed in all.js !!!
@@ -120,8 +119,6 @@ enum eCMSMode {
 
 // when searching through pref langs, max number of pref langs
 const PRUint32 kMaxLenPrefLangList = 32;
-
-#define UNINITIALIZED_VALUE  (-1)
 
 class THEBES_API gfxPlatform {
 public:
@@ -235,22 +232,6 @@ public:
      */
     virtual PRBool DownloadableFontsEnabled();
 
-    /**
-     * Whether to use the harfbuzz shaper (depending on script complexity).
-     *
-     * This allows harfbuzz to be enabled selectively via the preferences.
-     * Current "harfbuzz level" options:
-     * <= 0 will never use the harfbuzz shaper;
-     *  = 1 will use it for "simple" scripts (Latin, Cyrillic, CJK, etc);
-     * >= 2 will use it for all scripts, including those requiring complex
-     *      shaping for correct rendering (Arabic, Indic, etc).
-     *
-     * Depending how harfbuzz complex-script support evolves, we may want to
-     * update this mechanism - e.g., separating complex-bidi from Indic,
-     * or other distinctions.
-     */
-    PRInt8 UseHarfBuzzLevel();
-
     // check whether format is supported on a platform or not (if unclear, returns true)
     virtual PRBool IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags) { return PR_FALSE; }
 
@@ -348,13 +329,9 @@ public:
         return sDPI;
     }
 
-    virtual void FontsPrefsChanged(nsIPrefBranch *aPrefBranch, const char *aPref);
-
 protected:
-    gfxPlatform();
+    gfxPlatform() { }
     virtual ~gfxPlatform();
-
-    static PRBool GetBoolPref(const char *aPref, PRBool aDefault);
 
     void AppendCJKPrefLangs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, 
                             eFontPrefLang aCharLang, eFontPrefLang aPageLang);
@@ -364,11 +341,6 @@ protected:
      */
     virtual void InitDisplayCaps();
     static PRInt32 sDPI;
-
-    PRBool  mAllowDownloadableFonts;
-
-    // whether to use the HarfBuzz layout engine
-    PRInt8  mUseHarfBuzzLevel;
 
 private:
     virtual qcms_profile* GetPlatformCMSOutputProfile();

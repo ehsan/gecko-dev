@@ -603,12 +603,39 @@ nsHtml5TreeOpExecutor::FlushDocumentWrite()
   }
 }
 
+nsresult
+nsHtml5TreeOpExecutor::ProcessBASETag(nsIContent* aContent)
+{
+  NS_ASSERTION(aContent, "missing base-element");
+  if (mHasProcessedBase) {
+    return NS_OK;
+  }
+  mHasProcessedBase = PR_TRUE;
+  nsresult rv = NS_OK;
+  if (mDocument) {
+    nsAutoString value;
+    if (aContent->GetAttr(kNameSpaceID_None, nsHtml5Atoms::target, value)) {
+      mDocument->SetBaseTarget(value);
+    }
+    if (aContent->GetAttr(kNameSpaceID_None, nsHtml5Atoms::href, value)) {
+      nsCOMPtr<nsIURI> baseURI;
+      rv = NS_NewURI(getter_AddRefs(baseURI), value);
+      if (NS_SUCCEEDED(rv)) {
+        rv = mDocument->SetBaseURI(baseURI); // The document checks if it is legal to set this base
+        if (NS_SUCCEEDED(rv)) {
+          mDocumentBaseURI = mDocument->GetBaseURI();
+        }
+      }
+    }
+  }
+  return rv;
+}
+
 // copied from HTML content sink
 PRBool
 nsHtml5TreeOpExecutor::IsScriptEnabled()
 {
-  if (!mDocument || !mDocShell)
-    return PR_TRUE;
+  NS_ENSURE_TRUE(mDocument && mDocShell, PR_TRUE);
   nsCOMPtr<nsIScriptGlobalObject> globalObject = mDocument->GetScriptGlobalObject();
   // Getting context is tricky if the document hasn't had its
   // GlobalObject set yet
@@ -800,6 +827,7 @@ nsHtml5TreeOpExecutor::GetTokenizer()
 void
 nsHtml5TreeOpExecutor::Reset() {
   DropHeldElements();
+  mHasProcessedBase = PR_FALSE;
   mReadingFromStage = PR_FALSE;
   mOpQueue.Clear();
   mStarted = PR_FALSE;
@@ -830,7 +858,7 @@ nsHtml5TreeOpExecutor::InitializeDocWriteParserState(nsAHtml5TreeBuilderState* a
 already_AddRefed<nsIURI>
 nsHtml5TreeOpExecutor::ConvertIfNotPreloadedYet(const nsAString& aURL)
 {
-  nsIURI* base = mDocument->GetDocBaseURI();
+  nsIURI* base = mDocument->GetBaseURI();
   const nsCString& charset = mDocument->GetDocumentCharacterSet();
   nsCOMPtr<nsIURI> uri;
   nsresult rv = NS_NewURI(getter_AddRefs(uri), aURL, charset.get(), base);

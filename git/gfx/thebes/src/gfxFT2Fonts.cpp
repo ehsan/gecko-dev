@@ -48,11 +48,7 @@
 #include "gfxWindowsPlatform.h"
 #define gfxToolkitPlatform gfxWindowsPlatform
 #include "gfxFT2FontList.h"
-#elif defined(ANDROID)
-#include "gfxAndroidPlatform.h"
-#define gfxToolkitPlatform gfxAndroidPlatform
 #endif
-
 #include "gfxTypes.h"
 #include "gfxFT2Fonts.h"
 #include "gfxFT2FontBase.h"
@@ -95,17 +91,25 @@ static const char *sCJKLangGroup[] = {
  * FontEntry
  */
 
+FontEntry::FontEntry(const FontEntry& aFontEntry) :
+    gfxFontEntry(aFontEntry)
+{
+    mFTFace = aFontEntry.mFTFace;
+    if (aFontEntry.mFontFace)
+        mFontFace = cairo_font_face_reference(aFontEntry.mFontFace);
+    else
+        mFontFace = nsnull;
+}
+
 FontEntry::~FontEntry()
 {
     // Do nothing for mFTFace here since FTFontDestroyFunc is called by cairo.
     mFTFace = nsnull;
 
-#ifndef ANDROID
     if (mFontFace) {
         cairo_font_face_destroy(mFontFace);
         mFontFace = nsnull;
     }
-#endif
 }
 
 /* static */
@@ -223,11 +227,7 @@ FontEntry::CairoFontFace()
         FT_Face face;
         FT_New_Face(gfxToolkitPlatform::GetPlatform()->GetFTLibrary(), mFilename.get(), mFTFontIndex, &face);
         mFTFace = face;
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
-        mFontFace = cairo_ft_font_face_create_for_ft_face(face, FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING);
-#else
         mFontFace = cairo_ft_font_face_create_for_ft_face(face, 0);
-#endif
         FTUserFontData *userFontData = new FTUserFontData(face, nsnull);
         cairo_font_face_set_user_data(mFontFace, &key,
                                       userFontData, FTFontDestroyFunc);
@@ -238,9 +238,7 @@ FontEntry::CairoFontFace()
 nsresult
 FontEntry::ReadCMAP()
 {
-    if (mCmapInitialized) {
-        return NS_OK;
-    }
+    if (mCmapInitialized) return NS_OK;
 
     // attempt this once, if errors occur leave a blank cmap
     mCmapInitialized = PR_TRUE;
@@ -256,9 +254,8 @@ FontEntry::ReadCMAP()
     NS_ENSURE_TRUE(len != 0, NS_ERROR_FAILURE);
 
     nsAutoTArray<PRUint8,16384> buffer;
-    if (!buffer.AppendElements(len)) {
+    if (!buffer.AppendElements(len))
         return NS_ERROR_FAILURE;
-    }
     PRUint8 *buf = buffer.Elements();
 
     status = FT_Load_Sfnt_Table(mFTFace, TTAG_cmap, 0, buf, &len);
@@ -266,10 +263,8 @@ FontEntry::ReadCMAP()
 
     PRPackedBool unicodeFont;
     PRPackedBool symbolFont;
-    nsresult rv = gfxFontUtils::ReadCMAP(buf, len, mCharacterMap, mUVSOffset,
-                                         unicodeFont, symbolFont);
-    mHasCmapTable = NS_SUCCEEDED(rv);
-    return rv;
+    return gfxFontUtils::ReadCMAP(buf, len, mCharacterMap,
+                                  unicodeFont, symbolFont);
 }
 
 FontEntry *
@@ -362,8 +357,6 @@ gfxFT2FontGroup::gfxFT2FontGroup(const nsAString& families,
         LOGFONTW logFont;
         if (hGDI && ::GetObjectW(hGDI, sizeof(logFont), &logFont))
             familyArray.AppendElement(nsDependentString(logFont.lfFaceName));
-#elif defined(ANDROID)
-        familyArray.AppendElement(NS_LITERAL_STRING("Droid Sans"));
 #else
 #error "Platform not supported"
 #endif
@@ -877,11 +870,6 @@ CreateScaledFont(FontEntry *aFontEntry, const gfxFontStyle *aStyle)
     }
 
     cairo_font_options_t *fontOptions = cairo_font_options_create();
-
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
-    cairo_font_options_set_hint_metrics(fontOptions, CAIRO_HINT_METRICS_OFF);
-#endif
-
     scaledFont = cairo_scaled_font_create(aFontEntry->CairoFontFace(),
                                           &sizeMatrix,
                                           &identityMatrix, fontOptions);
@@ -944,11 +932,7 @@ gfxFT2Font::FillGlyphDataForChar(PRUint32 ch, CachedGlyphData *gd)
         return;
     }
 
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
-    FT_Error err = FT_Load_Glyph(face, gid, FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_HINTING);
-#else
     FT_Error err = FT_Load_Glyph(face, gid, FT_LOAD_DEFAULT);
-#endif
 
     if (err) {
         // hmm, this is weird, we failed to load a glyph that we had?

@@ -46,14 +46,16 @@
 #define nsIMediaList_h_
 
 #include "nsIDOMMediaList.h"
+#include "nsAString.h"
 #include "nsTArray.h"
+#include "nsTPtrArray.h"
 #include "nsIAtom.h"
+#include "nsMediaFeatures.h"
 #include "nsCSSValue.h"
 
 class nsPresContext;
+class nsICSSStyleSheet;
 class nsCSSStyleSheet;
-class nsAString;
-struct nsMediaFeature;
 
 struct nsMediaExpression {
   enum Range { eMin, eMax, eEqual };
@@ -186,7 +188,7 @@ public:
   nsresult SetText(const nsAString& aMediaText);
   PRBool Matches(nsPresContext* aPresContext,
                  nsMediaQueryResultCacheKey& aKey);
-  nsresult SetStyleSheet(nsCSSStyleSheet* aSheet);
+  nsresult SetStyleSheet(nsICSSStyleSheet* aSheet);
   nsresult AppendQuery(nsAutoPtr<nsMediaQuery>& aQuery) {
     // Takes ownership of aQuery (if it succeeds)
     if (!mArray.AppendElement(aQuery.get())) {

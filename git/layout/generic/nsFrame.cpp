@@ -2460,10 +2460,8 @@ static FrameContentRange GetRangeForFrame(nsIFrame* aFrame) {
 // frame is the result (in which case different handling is needed), and
 // afterFrame says which end is repersented if frameEdge is true
 struct FrameTarget {
-  FrameTarget(nsIFrame* aFrame, PRBool aFrameEdge, PRBool aAfterFrame,
-              PRBool aEmptyBlock = PR_FALSE) :
-    frame(aFrame), frameEdge(aFrameEdge), afterFrame(aAfterFrame),
-    emptyBlock(aEmptyBlock) { }
+  FrameTarget(nsIFrame* aFrame, PRBool aFrameEdge, PRBool aAfterFrame) :
+    frame(aFrame), frameEdge(aFrameEdge), afterFrame(aAfterFrame) { }
   static FrameTarget Null() {
     return FrameTarget(nsnull, PR_FALSE, PR_FALSE);
   }
@@ -2473,7 +2471,6 @@ struct FrameTarget {
   nsIFrame* frame;
   PRPackedBool frameEdge;
   PRPackedBool afterFrame;
-  PRPackedBool emptyBlock;
 };
 
 // See function implementation for information
@@ -2599,7 +2596,7 @@ static FrameTarget GetSelectionClosestFrameForLine(
 // special because they represent paragraphs and because they are organized
 // into lines, which have bounds that are not stored elsewhere in the
 // frame tree.  Returns a null FrameTarget for frames which are not
-// blocks or blocks with no lines except editable one.
+// blocks or blocks with no lines.
 static FrameTarget GetSelectionClosestFrameForBlock(nsIFrame* aFrame,
                                                     nsPoint aPoint)
 {
@@ -2610,15 +2607,8 @@ static FrameTarget GetSelectionClosestFrameForBlock(nsIFrame* aFrame,
   // This code searches for the correct line
   nsBlockFrame::line_iterator firstLine = bf->begin_lines();
   nsBlockFrame::line_iterator end = bf->end_lines();
-  if (firstLine == end) {
-    nsIContent *blockContent = aFrame->GetContent();
-    if (blockContent && blockContent->IsEditable()) {
-      // If the frame is ediable empty block, we should return it with empty
-      // flag.
-      return FrameTarget(aFrame, PR_FALSE, PR_FALSE, PR_TRUE);
-    }
+  if (firstLine == end)
     return FrameTarget::Null();
-  }
   nsBlockFrame::line_iterator curLine = firstLine;
   nsBlockFrame::line_iterator closestLine = end;
   while (curLine != end) {
@@ -2834,17 +2824,6 @@ nsIFrame::ContentOffsets nsIFrame::GetContentOffsetsFromPoint(nsPoint aPoint,
   nsPoint adjustedPoint = aPoint + this->GetOffsetTo(adjustedFrame);
 
   FrameTarget closest = GetSelectionClosestFrame(adjustedFrame, adjustedPoint);
-
-  if (closest.emptyBlock) {
-    ContentOffsets offsets;
-    NS_ASSERTION(closest.frame,
-                 "closest.frame must not be null when it's empty");
-    offsets.content = closest.frame->GetContent();
-    offsets.offset = 0;
-    offsets.secondaryOffset = 0;
-    offsets.associateWithNext = PR_TRUE;
-    return offsets;
-  }
 
   // If the correct offset is at one end of a frame, use offset-based
   // calculation method
@@ -4162,7 +4141,7 @@ nsFrame::List(FILE* out, PRInt32 aIndent) const
   }
   fprintf(out, " {%d,%d,%d,%d}", mRect.x, mRect.y, mRect.width, mRect.height);
   if (0 != mState) {
-    fprintf(out, " [state=%016llx]", mState);
+    fprintf(out, " [state=%08x]", mState);
   }
   nsIFrame* prevInFlow = GetPrevInFlow();
   nsIFrame* nextInFlow = GetNextInFlow();
@@ -4336,7 +4315,8 @@ nsFrame::GetSelectionController(nsPresContext *aPresContext, nsISelectionControl
   while (frame && (frame->GetStateBits() & NS_FRAME_INDEPENDENT_SELECTION)) {
     nsITextControlFrame *tcf = do_QueryFrame(frame);
     if (tcf) {
-      return tcf->GetOwnedSelectionController(aSelCon);
+      NS_IF_ADDREF(*aSelCon = tcf->GetOwnedSelectionController());
+      return NS_OK;
     }
     frame = frame->GetParent();
   }
@@ -4378,7 +4358,7 @@ nsFrame::DumpRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 aInd
   GetFrameName(name);
   XMLQuote(name);
   fputs(NS_LossyConvertUTF16toASCII(name).get(), out);
-  fprintf(out, "\" state=\"%016llx\" parent=\"%ld\">\n",
+  fprintf(out, "\" state=\"%d\" parent=\"%ld\">\n",
           GetDebugStateBits(), PRUptrdiff(mParent));
 
   aIndent++;
@@ -5437,7 +5417,7 @@ nsIFrame::GetFrameFromDirection(nsDirection aDirection, PRBool aVisual,
         for (;lineFrameCount > 1;lineFrameCount --){
           result = it->GetNextSiblingOnLine(lastFrame, thisLine);
           if (NS_FAILED(result) || !lastFrame){
-            NS_ERROR("should not be reached nsFrame");
+            NS_ERROR("should not be reached nsFrame\n");
             return NS_ERROR_FAILURE;
           }
         }
@@ -5978,7 +5958,8 @@ nsIFrame::IsFocusable(PRInt32 *aTabIndex, PRBool aWithMouse)
   }
   PRBool isFocusable = PR_FALSE;
 
-  if (mContent && mContent->IsElement() && AreAncestorViewsVisible()) {
+  if (mContent && mContent->IsNodeOfType(nsINode::eELEMENT) &&
+      AreAncestorViewsVisible()) {
     const nsStyleVisibility* vis = GetStyleVisibility();
     if (vis->mVisible != NS_STYLE_VISIBILITY_COLLAPSE &&
         vis->mVisible != NS_STYLE_VISIBILITY_HIDDEN) {
@@ -6440,14 +6421,14 @@ nsFrame::BoxReflow(nsBoxLayoutState&        aState,
     nsHTMLReflowState parentReflowState(aPresContext, parentFrame,
                                         aRenderingContext,
                                         parentSize);
-    parentFrame->RemoveStateBits(~nsFrameState(0));
+    parentFrame->RemoveStateBits(0xffffffff);
     parentFrame->AddStateBits(savedState);
 
     // This may not do very much useful, but it's probably worth trying.
     if (parentSize.width != NS_INTRINSICSIZE)
-      parentReflowState.SetComputedWidth(NS_MAX(parentSize.width, 0));
+      parentReflowState.SetComputedWidth(parentSize.width);
     if (parentSize.height != NS_INTRINSICSIZE)
-      parentReflowState.SetComputedHeight(NS_MAX(parentSize.height, 0));
+      parentReflowState.SetComputedHeight(parentSize.height);
     parentReflowState.mComputedMargin.SizeTo(0, 0, 0, 0);
     // XXX use box methods
     parentFrame->GetPadding(parentReflowState.mComputedPadding);
@@ -6830,64 +6811,6 @@ DR_intrinsic_size_cookie::~DR_intrinsic_size_cookie()
   nsFrame::DisplayIntrinsicSizeExit(mFrame, mType, mResult, mValue);
 }
 
-DR_init_constraints_cookie::DR_init_constraints_cookie(
-                     nsIFrame*                aFrame,
-                     nsHTMLReflowState*       aState,
-                     nscoord                  aCBWidth,
-                     nscoord                  aCBHeight,
-                     const nsMargin*          aMargin,
-                     const nsMargin*          aPadding)
-  : mFrame(aFrame)
-  , mState(aState)
-{
-  MOZ_COUNT_CTOR(DR_init_constraints_cookie);
-  mValue = nsHTMLReflowState::DisplayInitConstraintsEnter(mFrame, mState,
-                                                          aCBWidth, aCBHeight,
-                                                          aMargin, aPadding);
-}
-
-DR_init_constraints_cookie::~DR_init_constraints_cookie()
-{
-  MOZ_COUNT_DTOR(DR_init_constraints_cookie);
-  nsHTMLReflowState::DisplayInitConstraintsExit(mFrame, mState, mValue);
-}
-
-DR_init_offsets_cookie::DR_init_offsets_cookie(
-                     nsIFrame*                aFrame,
-                     nsCSSOffsetState*        aState,
-                     nscoord                  aCBWidth,
-                     const nsMargin*          aMargin,
-                     const nsMargin*          aPadding)
-  : mFrame(aFrame)
-  , mState(aState)
-{
-  MOZ_COUNT_CTOR(DR_init_offsets_cookie);
-  mValue = nsCSSOffsetState::DisplayInitOffsetsEnter(mFrame, mState, aCBWidth,
-                                                     aMargin, aPadding);
-}
-
-DR_init_offsets_cookie::~DR_init_offsets_cookie()
-{
-  MOZ_COUNT_DTOR(DR_init_offsets_cookie);
-  nsCSSOffsetState::DisplayInitOffsetsExit(mFrame, mState, mValue);
-}
-
-DR_init_type_cookie::DR_init_type_cookie(
-                     nsIFrame*                aFrame,
-                     nsHTMLReflowState*       aState)
-  : mFrame(aFrame)
-  , mState(aState)
-{
-  MOZ_COUNT_CTOR(DR_init_type_cookie);
-  mValue = nsHTMLReflowState::DisplayInitFrameTypeEnter(mFrame, mState);
-}
-
-DR_init_type_cookie::~DR_init_type_cookie()
-{
-  MOZ_COUNT_DTOR(DR_init_type_cookie);
-  nsHTMLReflowState::DisplayInitFrameTypeExit(mFrame, mState, mValue);
-}
-
 struct DR_FrameTypeInfo;
 struct DR_FrameTreeNode;
 struct DR_Rule;
@@ -6920,7 +6843,6 @@ struct DR_State
                  PRInt32&  aNumber);
   void PrettyUC(nscoord aSize,
                 char*   aBuf);
-  void PrintMargin(const char* tag, const nsMargin* aMargin);
   void DisplayFrameTypeInfo(nsIFrame* aFrame,
                             PRInt32   aIndent);
   void DeleteTreeNode(DR_FrameTreeNode& aNode);
@@ -7284,9 +7206,6 @@ void DR_State::InitFrameTypeTable()
   AddFrameTypeInfo(nsGkAtoms::viewportFrame,         "VP",        "viewport");
 #ifdef MOZ_XUL
   AddFrameTypeInfo(nsGkAtoms::XULLabelFrame,         "XULLabel",  "XULLabel");
-  AddFrameTypeInfo(nsGkAtoms::boxFrame,              "Box",       "Box");
-  AddFrameTypeInfo(nsGkAtoms::sliderFrame,           "Slider",    "Slider");
-  AddFrameTypeInfo(nsGkAtoms::popupSetFrame,         "PopupSet",  "PopupSet");
 #endif
   AddFrameTypeInfo(nsnull,                               "unknown",   "unknown");
 }
@@ -7424,21 +7343,6 @@ void DR_State::PrettyUC(nscoord aSize,
     else {
       sprintf(aBuf, "%d", aSize);
     }
-  }
-}
-
-void DR_State::PrintMargin(const char *tag, const nsMargin* aMargin)
-{
-  if (aMargin) {
-    char t[16], r[16], b[16], l[16];
-    PrettyUC(aMargin->top, t);
-    PrettyUC(aMargin->right, r);
-    PrettyUC(aMargin->bottom, b);
-    PrettyUC(aMargin->left, l);
-    printf(" %s=%s,%s,%s,%s", tag, t, r, b, l);
-  } else {
-    // use %p here for consistency with other null-pointer printouts
-    printf(" %s=%p", tag, (void*)aMargin);
   }
 }
 
@@ -7620,13 +7524,14 @@ void nsFrame::DisplayReflowExit(nsPresContext*      aPresContext,
       DR_state->PrettyUC(aMetrics.mOverflowArea.width, width);
       DR_state->PrettyUC(aMetrics.mOverflowArea.height, height);
       printf(" o=(%s,%s) %s x %s", x, y, width, height);
-
-      nsRect storedOverflow = aFrame->GetOverflowRect();
-      DR_state->PrettyUC(storedOverflow.x, x);
-      DR_state->PrettyUC(storedOverflow.y, y);
-      DR_state->PrettyUC(storedOverflow.width, width);
-      DR_state->PrettyUC(storedOverflow.height, height);
-      printf(" sto=(%s,%s) %s x %s", x, y, width, height);
+      if (aFrame->HasOverflowRect()) {
+        nsRect storedOverflow = aFrame->GetOverflowRect();
+        DR_state->PrettyUC(storedOverflow.x, x);
+        DR_state->PrettyUC(storedOverflow.y, y);
+        DR_state->PrettyUC(storedOverflow.width, width);
+        DR_state->PrettyUC(storedOverflow.height, height);
+        printf(" sto=(%s,%s) %s x %s", x, y, width, height);
+      }
     }
     printf("\n");
     if (DR_state->mDisplayPixelErrors) {
@@ -7717,202 +7622,6 @@ void DR_cookie::Change() const
   if (treeNode && treeNode->mDisplay) {
     DisplayReflowEnterPrint(mPresContext, mFrame, mReflowState, *treeNode, PR_TRUE);
   }
-}
-
-/* static */ void*
-nsHTMLReflowState::DisplayInitConstraintsEnter(nsIFrame* aFrame,
-                                               nsHTMLReflowState* aState,
-                                               nscoord aContainingBlockWidth,
-                                               nscoord aContainingBlockHeight,
-                                               const nsMargin* aBorder,
-                                               const nsMargin* aPadding)
-{
-  NS_PRECONDITION(aFrame, "non-null frame required");
-  NS_PRECONDITION(aState, "non-null state required");
-
-  if (!DR_state->mInited) DR_state->Init();
-  if (!DR_state->mActive) return nsnull;
-
-  DR_FrameTreeNode* treeNode = DR_state->CreateTreeNode(aFrame, aState);
-  if (treeNode && treeNode->mDisplay) {
-    DR_state->DisplayFrameTypeInfo(aFrame, treeNode->mIndent);
-
-    printf("InitConstraints parent=%p",
-           (void*)aState->parentReflowState);
-
-    char width[16];
-    char height[16];
-
-    DR_state->PrettyUC(aContainingBlockWidth, width);
-    DR_state->PrettyUC(aContainingBlockHeight, height);
-    printf(" cb=%s,%s", width, height);
-
-    DR_state->PrettyUC(aState->availableWidth, width);
-    DR_state->PrettyUC(aState->availableHeight, height);
-    printf(" as=%s,%s", width, height);
-
-    DR_state->PrintMargin("b", aBorder);
-    DR_state->PrintMargin("p", aPadding);
-    putchar('\n');
-  }
-  return treeNode;
-}
-
-/* static */ void
-nsHTMLReflowState::DisplayInitConstraintsExit(nsIFrame* aFrame,
-                                              nsHTMLReflowState* aState,
-                                              void* aValue)
-{
-  NS_PRECONDITION(aFrame, "non-null frame required");
-  NS_PRECONDITION(aState, "non-null state required");
-
-  if (!DR_state->mActive) return;
-  if (!aValue) return;
-
-  DR_FrameTreeNode* treeNode = (DR_FrameTreeNode*)aValue;
-  if (treeNode->mDisplay) {
-    DR_state->DisplayFrameTypeInfo(aFrame, treeNode->mIndent);
-    char cmiw[16], cw[16], cmxw[16], cmih[16], ch[16], cmxh[16];
-    DR_state->PrettyUC(aState->mComputedMinWidth, cmiw);
-    DR_state->PrettyUC(aState->mComputedWidth, cw);
-    DR_state->PrettyUC(aState->mComputedMaxWidth, cmxw);
-    DR_state->PrettyUC(aState->mComputedMinHeight, cmih);
-    DR_state->PrettyUC(aState->mComputedHeight, ch);
-    DR_state->PrettyUC(aState->mComputedMaxHeight, cmxh);
-    printf("InitConstraints= cw=(%s <= %s <= %s) ch=(%s <= %s <= %s)",
-           cmiw, cw, cmxw, cmih, ch, cmxh);
-    DR_state->PrintMargin("co", &aState->mComputedOffsets);
-    putchar('\n');
-  }
-  DR_state->DeleteTreeNode(*treeNode);
-}
-
-
-/* static */ void*
-nsCSSOffsetState::DisplayInitOffsetsEnter(nsIFrame* aFrame,
-                                          nsCSSOffsetState* aState,
-                                          nscoord aContainingBlockWidth,
-                                          const nsMargin* aBorder,
-                                          const nsMargin* aPadding)
-{
-  NS_PRECONDITION(aFrame, "non-null frame required");
-  NS_PRECONDITION(aState, "non-null state required");
-
-  if (!DR_state->mInited) DR_state->Init();
-  if (!DR_state->mActive) return nsnull;
-
-  // aState is not necessarily a nsHTMLReflowState
-  DR_FrameTreeNode* treeNode = DR_state->CreateTreeNode(aFrame, nsnull);
-  if (treeNode && treeNode->mDisplay) {
-    DR_state->DisplayFrameTypeInfo(aFrame, treeNode->mIndent);
-
-    char width[16];
-    DR_state->PrettyUC(aContainingBlockWidth, width);
-    printf("InitOffsets cbw=%s", width);
-    DR_state->PrintMargin("b", aBorder);
-    DR_state->PrintMargin("p", aPadding);
-    putchar('\n');
-  }
-  return treeNode;
-}
-
-/* static */ void
-nsCSSOffsetState::DisplayInitOffsetsExit(nsIFrame* aFrame,
-                                         nsCSSOffsetState* aState,
-                                         void* aValue)
-{
-  NS_PRECONDITION(aFrame, "non-null frame required");
-  NS_PRECONDITION(aState, "non-null state required");
-
-  if (!DR_state->mActive) return;
-  if (!aValue) return;
-
-  DR_FrameTreeNode* treeNode = (DR_FrameTreeNode*)aValue;
-  if (treeNode->mDisplay) {
-    DR_state->DisplayFrameTypeInfo(aFrame, treeNode->mIndent);
-    printf("InitOffsets=");
-    DR_state->PrintMargin("m", &aState->mComputedMargin);
-    DR_state->PrintMargin("p", &aState->mComputedPadding);
-    DR_state->PrintMargin("p+b", &aState->mComputedBorderPadding);
-    putchar('\n');
-  }
-  DR_state->DeleteTreeNode(*treeNode);
-}
-
-/* static */ void*
-nsHTMLReflowState::DisplayInitFrameTypeEnter(nsIFrame* aFrame,
-                                             nsHTMLReflowState* aState)
-{
-  NS_PRECONDITION(aFrame, "non-null frame required");
-  NS_PRECONDITION(aState, "non-null state required");
-
-  if (!DR_state->mInited) DR_state->Init();
-  if (!DR_state->mActive) return nsnull;
-
-  // we don't print anything here
-  return DR_state->CreateTreeNode(aFrame, aState);
-}
-
-/* static */ void
-nsHTMLReflowState::DisplayInitFrameTypeExit(nsIFrame* aFrame,
-                                            nsHTMLReflowState* aState,
-                                            void* aValue)
-{
-  NS_PRECONDITION(aFrame, "non-null frame required");
-  NS_PRECONDITION(aState, "non-null state required");
-
-  if (!DR_state->mActive) return;
-  if (!aValue) return;
-
-  DR_FrameTreeNode* treeNode = (DR_FrameTreeNode*)aValue;
-  if (treeNode->mDisplay) {
-    DR_state->DisplayFrameTypeInfo(aFrame, treeNode->mIndent);
-    printf("InitFrameType");
-
-    const nsStyleDisplay *disp = aState->mStyleDisplay;
-
-    if (aFrame->GetStateBits() & NS_FRAME_OUT_OF_FLOW)
-      printf(" out-of-flow");
-    if (aFrame->GetPrevInFlow())
-      printf(" prev-in-flow");
-    if (disp->IsAbsolutelyPositioned())
-      printf(" abspos");
-    if (disp->IsFloating())
-      printf(" float");
-
-    // This array must exactly match the NS_STYLE_DISPLAY constants.
-    const char *const displayTypes[] = {
-      "none", "block", "inline", "inline-block", "list-item", "marker",
-      "run-in", "compact", "table", "inline-table", "table-row-group",
-      "table-column", "table-column-group", "table-header-group",
-      "table-footer-group", "table-row", "table-cell", "table-caption",
-      "box", "inline-box",
-#ifdef MOZ_XUL
-      "grid", "inline-grid", "grid-group", "grid-line", "stack",
-      "inline-stack", "deck", "popup", "groupbox",
-#endif
-    };
-    if (disp->mDisplay >= NS_ARRAY_LENGTH(displayTypes))
-      printf(" display=%u", disp->mDisplay);
-    else
-      printf(" display=%s", displayTypes[disp->mDisplay]);
-
-    // This array must exactly match the NS_CSS_FRAME_TYPE constants.
-    const char *const cssFrameTypes[] = {
-      "unknown", "inline", "block", "floating", "absolute", "internal-table"
-    };
-    nsCSSFrameType bareType = NS_FRAME_GET_TYPE(aState->mFrameType);
-    bool repNoBlock = NS_FRAME_IS_REPLACED_NOBLOCK(aState->mFrameType);
-    bool repBlock = NS_FRAME_IS_REPLACED_CONTAINS_BLOCK(aState->mFrameType);
-
-    if (bareType >= NS_ARRAY_LENGTH(cssFrameTypes)) {
-      printf(" result=type %u", bareType);
-    } else {
-      printf(" result=%s", cssFrameTypes[bareType]);
-    }
-    printf("%s%s\n", repNoBlock ? " +rep" : "", repBlock ? " +repBlk" : "");
-  }
-  DR_state->DeleteTreeNode(*treeNode);
 }
 
 #endif

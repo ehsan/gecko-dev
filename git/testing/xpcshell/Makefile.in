@@ -63,7 +63,6 @@ TEST_HARNESS_FILES := \
 # Extra files needed from $(topsrcdir)/build
 EXTRA_BUILD_FILES := \
   automationutils.py \
-  poster.zip \
   $(NULL)
 
 # And files for running xpcshell remotely from $(topsrcdir)/build/mobile
@@ -80,10 +79,6 @@ TEST_HARNESS_COMPONENTS := \
 ifdef MOZ_CRASHREPORTER
 #XXX: should find a better way to do this
 TEST_HARNESS_COMPONENTS +=  crashreporter_test.xpt
-endif
-
-ifdef MOZ_ENABLE_LIBXUL
-TEST_HARNESS_COMPONENTS += xpcom_typelib_test.jar
 endif
 
 # Rules for staging the necessary harness bits for a test package

@@ -71,8 +71,6 @@
 typedef LRESULT (STDAPICALLTYPE *LPFNNOTIFYWINEVENT)(DWORD event,HWND hwnd,LONG idObjectType,LONG idObject);
 typedef LRESULT (STDAPICALLTYPE *LPFNGETGUITHREADINFO)(DWORD idThread, GUITHREADINFO* pgui);
 
-class nsAccTextChangeEvent;
-
 class nsAccessNodeWrap :  public nsAccessNode,
                           public nsIWinAccessNode,
                           public ISimpleDOMNode,
@@ -85,9 +83,9 @@ class nsAccessNodeWrap :  public nsAccessNode,
   public: // IServiceProvider
     STDMETHODIMP QueryService(REFGUID guidService, REFIID riid, void** ppv);
 
-public: // construction, destruction
-  nsAccessNodeWrap(nsIContent *aContent, nsIWeakReference *aShell);
-  virtual ~nsAccessNodeWrap();
+  public: // construction, destruction
+    nsAccessNodeWrap(nsIDOMNode *, nsIWeakReference* aShell);
+    virtual ~nsAccessNodeWrap();
 
     // IUnknown
     STDMETHODIMP QueryInterface(REFIID, void**);
@@ -164,17 +162,9 @@ public: // construction, destruction
     static void TurnOffNewTabSwitchingForJawsAndWE();
 
     static void DoATSpecificProcessing();
-
-protected:
+  protected:
     void GetAccessibleFor(nsIDOMNode *node, nsIAccessible **newAcc);
-
-  /**
-   * Return ISimpleDOMNode instance for existing accessible object or
-   * creates new nsAccessNode instance if the accessible doesn't exist.
-   *
-   * @note ISimpleDOMNode is returned addrefed
-   */
-  ISimpleDOMNode *MakeAccessNode(nsINode *aNode);
+    ISimpleDOMNode* MakeAccessNode(nsIDOMNode *node);
 
     static PRBool gIsEnumVariantSupportDisabled;
 
@@ -188,7 +178,7 @@ protected:
      * It is used in nsHyperTextAccessibleWrap for IA2::newText/oldText
      * implementation.
      */
-    static nsAccTextChangeEvent *gTextEvent;
+    static nsIAccessibleTextChangeEvent *gTextEvent;
 };
 
 /**

@@ -35,10 +35,9 @@
 # ***** END LICENSE BLOCK *****
 
 # Required Plugins:
-# AppAssocReg   http://nsis.sourceforge.net/Application_Association_Registration_plug-in
-# ApplicationID http://nsis.sourceforge.net/ApplicationID_plug-in
-# ShellLink     http://nsis.sourceforge.net/ShellLink_plug-in
-# UAC           http://nsis.sourceforge.net/UAC_plug-in
+# AppAssocReg http://nsis.sourceforge.net/Application_Association_Registration_plug-in
+# ShellLink   http://nsis.sourceforge.net/ShellLink_plug-in
+# UAC         http://nsis.sourceforge.net/UAC_plug-in
 
 ; Set verbosity to 3 (e.g. no script) to lessen the noise in the build logs
 !verbose 3
@@ -64,6 +63,10 @@ Var PageName
 ; On Vista and above attempt to elevate Standard Users in addition to users that
 ; are a member of the Administrators group.
 !define NONADMIN_ELEVATE
+
+; Don't use the PreDirectoryCommon macro's code for finding a pre-existing
+; installation directory.
+!define NO_INSTDIR_PREDIRCOMMON
 
 !define AbortSurveyURL "http://www.kampyle.com/feedback_form/ff-feedback-form.php?site_code=8166124&form_id=12116&url="
 
@@ -100,6 +103,7 @@ VIAddVersionKey "OriginalFilename" "setup.exe"
 !insertmacro _LoggingShortcutsCommon
 
 !insertmacro AddDDEHandlerValues
+!insertmacro CanWriteToInstallDir
 !insertmacro ChangeMUIHeaderImage
 !insertmacro CheckForFilesInUse
 !insertmacro CleanUpdatesDir
@@ -114,7 +118,6 @@ VIAddVersionKey "OriginalFilename" "setup.exe"
 !insertmacro RegCleanMain
 !insertmacro RegCleanUninstall
 !insertmacro SetBrandNameVars
-!insertmacro UpdateShortcutAppModelIDs
 !insertmacro UnloadUAC
 !insertmacro WriteRegStr2
 !insertmacro WriteRegDWORD2
@@ -127,7 +130,6 @@ VIAddVersionKey "OriginalFilename" "setup.exe"
 !insertmacro InstallOnInitCommon
 !insertmacro InstallStartCleanupCommon
 !insertmacro LeaveDirectoryCommon
-!insertmacro LeaveOptionsCommon
 !insertmacro OnEndCommon
 !insertmacro PreDirectoryCommon
 
@@ -276,6 +278,7 @@ Section "-Application" APP_IDX
                       "$(ERROR_CREATE_DIRECTORY_PREFIX)" \
                       "$(ERROR_CREATE_DIRECTORY_SUFFIX)"
 
+  ${LogHeader} "Adding Additional Files"
   ; Check if QuickTime is installed and copy the nsIQTScriptablePlugin.xpt from
   ; its plugins directory into the app's components directory.
   ClearErrors
@@ -423,10 +426,8 @@ Section "-Application" APP_IDX
       ${LogMsg} "Added Start Menu Directory: $SMPROGRAMS\$StartMenuDir"
     ${EndUnless}
     CreateShortCut "$SMPROGRAMS\$StartMenuDir\${BrandFullName}.lnk" "$INSTDIR\${FileMainEXE}" "" "$INSTDIR\${FileMainEXE}" 0
-    ApplicationID::Set "$SMPROGRAMS\$StartMenuDir\${BrandFullName}.lnk" "${AppUserModelID}"
     ${LogMsg} "Added Shortcut: $SMPROGRAMS\$StartMenuDir\${BrandFullName}.lnk"
     CreateShortCut "$SMPROGRAMS\$StartMenuDir\${BrandFullName} ($(SAFE_MODE)).lnk" "$INSTDIR\${FileMainEXE}" "-safe-mode" "$INSTDIR\${FileMainEXE}" 0
-    ApplicationID::Set "$SMPROGRAMS\$StartMenuDir\${BrandFullName} ($(SAFE_MODE)).lnk" "${AppUserModelID}"
     ${LogMsg} "Added Shortcut: $SMPROGRAMS\$StartMenuDir\${BrandFullName} ($(SAFE_MODE)).lnk"
   ${EndIf}
 
@@ -434,7 +435,6 @@ Section "-Application" APP_IDX
 
   ${If} $AddDesktopSC == 1
     CreateShortCut "$DESKTOP\${BrandFullName}.lnk" "$INSTDIR\${FileMainEXE}" "" "$INSTDIR\${FileMainEXE}" 0
-    ApplicationID::Set "$DESKTOP\${BrandFullName}.lnk" "${AppUserModelID}"
     ${LogMsg} "Added Shortcut: $DESKTOP\${BrandFullName}.lnk"
   ${EndIf}
 
@@ -480,8 +480,7 @@ Section "-InstallEndCleanup"
     ${EndIf}
   ${EndUnless}
 
-  ; Win7 taskbar and start menu link maintenance
-  ${UpdateShortcutAppModelIDs} "$INSTDIR\${FileMainEXE}" "${AppUserModelID}"
+  ${LogHeader} "Updating Uninstall Log With Previous Uninstall Log"
 
   ; Refresh desktop icons
   System::Call "shell32::SHChangeNotify(i, i, i, i) v (0x08000000, 0, 0, 0)"
@@ -596,7 +595,6 @@ FunctionEnd
 
 Function AddQuickLaunchShortcut
   CreateShortCut "$QUICKLAUNCH\${BrandFullName}.lnk" "$INSTDIR\${FileMainEXE}" "" "$INSTDIR\${FileMainEXE}" 0
-  ApplicationID::Set "$QUICKLAUNCH\${BrandFullName}.lnk" "${AppUserModelID}"
 FunctionEnd
 
 Function CheckExistingInstall
@@ -714,10 +712,37 @@ Function leaveOptions
   StrCmp $R0 "1" +1 +2
   StrCpy $InstallType ${INSTALLTYPE_CUSTOM}
 
-  ${LeaveOptionsCommon}
+!ifndef NO_INSTDIR_FROM_REG
+  SetShellVarContext all      ; Set SHCTX to HKLM
+  ${GetSingleInstallPath} "Software\Mozilla\${BrandFullNameInternal}" $R9
 
-  ${If} $InstallType == ${INSTALLTYPE_BASIC}
-    Call CheckExistingInstall
+  StrCmp "$R9" "false" +1 fix_install_dir
+
+  SetShellVarContext current  ; Set SHCTX to HKCU
+  ${GetSingleInstallPath} "Software\Mozilla\${BrandFullNameInternal}" $R9
+
+  fix_install_dir:
+  StrCmp "$R9" "false" +2 +1
+  StrCpy $INSTDIR "$R9"
+!endif
+
+  ; If the user doesn't have write access to the installation directory set
+  ; the installation directory to a subdirectory of the All Users application
+  ; directory and if the user can't write to that location set the installation
+  ; directory to a subdirectory of the users local application directory
+  ; (e.g. non-roaming).
+  ${CanWriteToInstallDir} $R8
+  ${If} "$R8" == "false"
+    SetShellVarContext all      ; Set SHCTX to All Users
+    StrCpy $INSTDIR "$APPDATA\${BrandFullName}\"
+    ${If} ${FileExists} "$INSTDIR"
+      ; Always display the long path if the path already exists.
+      ${GetLongPath} "$INSTDIR" $INSTDIR
+    ${EndIf}
+    ${CanWriteToInstallDir} $R8
+    ${If} "$R8" == "false"
+      StrCpy $INSTDIR "$LOCALAPPDATA\${BrandFullName}\"
+    ${EndIf}
   ${EndIf}
 FunctionEnd
 
@@ -727,10 +752,10 @@ Function preDirectory
 FunctionEnd
 
 Function leaveDirectory
-  ${If} $InstallType == ${INSTALLTYPE_BASIC}
+  ${LeaveDirectoryCommon} "$(WARN_DISK_SPACE)" "$(WARN_WRITE_ACCESS)"
+  ${If} $InstallType != ${INSTALLTYPE_CUSTOM}
     Call CheckExistingInstall
   ${EndIf}
-  ${LeaveDirectoryCommon} "$(WARN_DISK_SPACE)" "$(WARN_WRITE_ACCESS)"
 FunctionEnd
 
 Function preShortcuts
@@ -748,13 +773,6 @@ Function leaveShortcuts
   ${MUI_INSTALLOPTIONS_READ} $AddDesktopSC "shortcuts.ini" "Field 2" "State"
   ${MUI_INSTALLOPTIONS_READ} $AddStartMenuSC "shortcuts.ini" "Field 3" "State"
   ${MUI_INSTALLOPTIONS_READ} $AddQuickLaunchSC "shortcuts.ini" "Field 4" "State"
-
-  ; If Start Menu shortcuts won't be created call CheckExistingInstall here
-  ; since leaveStartMenu will not be called.
-  ${If} $AddStartMenuSC != 1
-  ${AndIf} $InstallType == ${INSTALLTYPE_CUSTOM}
-    Call CheckExistingInstall
-  ${EndIf}
 FunctionEnd
 
 Function preStartMenu

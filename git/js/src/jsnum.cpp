@@ -854,16 +854,6 @@ NumberToCString(JSContext *cx, jsdouble d, jsint base, char *buf, size_t bufSize
     return numStr;
 }
 
-JSString * JS_FASTCALL
-js_IntToString(JSContext *cx, jsint i)
-{
-    if (jsuint(i) < INT_STRING_LIMIT)
-        return JSString::intString(i);
-
-    char buf[12];
-    return JS_NewStringCopyZ(cx, IntToCString(i, 10, buf, sizeof buf));
-}
-
 static JSString * JS_FASTCALL
 js_NumberToStringWithBase(JSContext *cx, jsdouble d, jsint base)
 {
@@ -895,18 +885,12 @@ js_NumberToStringWithBase(JSContext *cx, jsdouble d, jsint base)
             return JSString::unitString(jschar('a' + i - 10));
         }
     }
-    JSThreadData *data = JS_THREAD_DATA(cx);
-    if (data->dtoaCache.s && data->dtoaCache.base == base && data->dtoaCache.d == d)
-        return data->dtoaCache.s;
     numStr = NumberToCString(cx, d, base, buf, sizeof buf);
     if (!numStr)
         return NULL;
     s = JS_NewStringCopyZ(cx, numStr);
     if (!(numStr >= buf && numStr < buf + sizeof buf))
         js_free(numStr);
-    data->dtoaCache.base = base;
-    data->dtoaCache.d = d;
-    data->dtoaCache.s = s;
     return s;
 }
 

@@ -68,7 +68,6 @@ public:
         ImageFormatRGB24,  ///< xRGB data in native endianness
         ImageFormatA8,     ///< Only an alpha channel
         ImageFormatA1,     ///< Packed transparency information (one byte refers to 8 pixels)
-        ImageFormatRGB16_565,  ///< RGB_565 data in native endianness
         ImageFormatUnknown
     } gfxImageFormat;
 
@@ -89,8 +88,7 @@ public:
         SurfaceTypeQuartzImage,
         SurfaceTypeScript,
         SurfaceTypeQPainter,
-        SurfaceTypeDDraw,
-        SurfaceTypeMax
+        SurfaceTypeDDraw
     } gfxSurfaceType;
 
     typedef enum {
@@ -99,9 +97,7 @@ public:
         CONTENT_COLOR_ALPHA = 0x3000
     } gfxContentType;
 
-    /** Wrap the given cairo surface and return a gfxASurface for it.
-     * This adds a reference to csurf (owned by the returned gfxASurface).
-     */
+    /* Wrap the given cairo surface and return a gfxASurface for it */
     static already_AddRefed<gfxASurface> Wrap(cairo_surface_t *csurf);
 
     /*** this DOES NOT addref the surface */
@@ -135,27 +131,6 @@ public:
 
     virtual void Finish();
 
-    /**
-     * Create an offscreen surface that can be efficiently copied into
-     * this surface (at least if tiling is not involved).
-     * Returns null on error.
-     */
-    virtual already_AddRefed<gfxASurface> CreateSimilarSurface(gfxContentType aType,
-                                                               const gfxIntSize& aSize);
-    /**
-     * Return trues if offscreen surfaces created from this surface
-     * would behave differently depending on the gfxContentType. Returns
-     * false if they don't (i.e. the surface returned by
-     * CreateOffscreenSurface is always as if you passed
-     * CONTENT_COLOR_ALPHA). Knowing this can be useful to avoid
-     * recreating a surface just because it changed from opaque to
-     * transparent.
-     */
-    virtual PRBool AreSimilarSurfacesSensitiveToContentType()
-    {
-      return PR_TRUE;
-    }
-
     int CairoStatus();
 
     /* Make sure that the given dimensions don't overflow a 32-bit signed int
@@ -172,51 +147,21 @@ public:
 
     static gfxContentType ContentFromFormat(gfxImageFormat format);
 
-    /**
-     * Record number of bytes for given surface type.  Use positive bytes
-     * for allocations and negative bytes for deallocations.
-     */
-    static void RecordMemoryUsedForSurfaceType(gfxASurface::gfxSurfaceType aType,
-                                               PRInt32 aBytes);
-
-    /**
-     * Same as above, but use current surface type as returned by GetType().
-     * The bytes will be accumulated until RecordMemoryFreed is called,
-     * in which case the value that was recorded for this surface will
-     * be freed.
-     */
-    void RecordMemoryUsed(PRInt32 aBytes);
-    void RecordMemoryFreed();
-
-    PRInt32 KnownMemoryUsed() { return mBytesRecorded; }
-
-    static PRInt32 BytePerPixelFromFormat(gfxImageFormat format);
-
 protected:
-    gfxASurface() : mSurface(nsnull), mFloatingRefs(0), mBytesRecorded(0), mSurfaceValid(PR_FALSE)
-    {
-        MOZ_COUNT_CTOR(gfxASurface);
-    }
+    gfxASurface() : mSurface(nsnull), mFloatingRefs(0), mSurfaceValid(PR_FALSE) { }
 
     static gfxASurface* GetSurfaceWrapper(cairo_surface_t *csurf);
     static void SetSurfaceWrapper(cairo_surface_t *csurf, gfxASurface *asurf);
 
     void Init(cairo_surface_t *surface, PRBool existingSurface = PR_FALSE);
 
-    virtual ~gfxASurface()
-    {
-        RecordMemoryFreed();
-
-        MOZ_COUNT_DTOR(gfxASurface);
+    virtual ~gfxASurface() {
     }
-
-    cairo_surface_t *mSurface;
-
 private:
     static void SurfaceDestroyFunc(void *data);
 
+    cairo_surface_t *mSurface;
     PRInt32 mFloatingRefs;
-    PRInt32 mBytesRecorded;
 
 protected:
     PRPackedBool mSurfaceValid;

@@ -310,14 +310,12 @@ var ctrlTab = {
   },
 
   advanceFocus: function ctrlTab_advanceFocus(aForward) {
-    if (this._selectedIndex == -1) {
-      // No virtual selectedIndex, focus must be in the panel already.
+    if (this.panel.state == "open") {
       if (aForward)
         document.commandDispatcher.advanceFocus();
       else
         document.commandDispatcher.rewindFocus();
     } else {
-      // Focus isn't in the panel yet, so we maintain a virtual selectedIndex.
       do {
         this._selectedIndex += aForward ? 1 : -1;
         if (this._selectedIndex < 0)
@@ -623,9 +621,8 @@ var allTabs = {
 
   prefName: "browser.allTabs.previews",
   readPref: function allTabs_readPref() {
-    var allTabsButton = document.getElementById("alltabs-button");
-    if (!allTabsButton)
-      return;
+    var allTabsButton = document.getAnonymousElementByAttribute(
+                          gBrowser.tabContainer, "anonid", "alltabs-button");
     if (gPrefService.getBoolPref(this.prefName)) {
       allTabsButton.removeAttribute("type");
       allTabsButton.setAttribute("command", "Browser:ShowAllTabs");
