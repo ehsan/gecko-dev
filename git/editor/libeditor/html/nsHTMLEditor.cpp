@@ -3402,11 +3402,8 @@ nsHTMLEditor::DeleteSelectionImpl(EDirection aAction,
   // Don't strip wrappers if this is the only wrapper in the block.  Then we'll
   // add a <br> later, so it won't be an empty wrapper in the end.
   nsCOMPtr<nsIContent> blockParent = content;
-  while (blockParent && !IsBlockNode(blockParent)) {
+  while (!IsBlockNode(blockParent)) {
     blockParent = blockParent->GetParent();
-  }
-  if (!blockParent) {
-    return NS_OK;
   }
   bool emptyBlockParent;
   res = IsEmptyNode(blockParent, &emptyBlockParent);
