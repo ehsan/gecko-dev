@@ -42,7 +42,6 @@
 
 #include "base/process_util.h"
 
-#include "mozilla/unused.h"
 #include "mozilla/ipc/SyncChannel.h"
 #include "mozilla/plugins/PluginModuleParent.h"
 #include "mozilla/plugins/BrowserStreamParent.h"
@@ -391,7 +390,7 @@ PluginModuleParent::NPP_Destroy(NPP instance,
     NPError retval = parentInstance->Destroy();
     instance->pdata = nsnull;
 
-    unused << PluginInstanceParent::Call__delete__(parentInstance);
+    (void) PluginInstanceParent::Call__delete__(parentInstance);
     return retval;
 }
 

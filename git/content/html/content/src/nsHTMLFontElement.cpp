@@ -151,7 +151,7 @@ nsHTMLFontElement::ParseAttribute(PRInt32 aNamespaceID,
       tmp.CompressWhitespace(PR_TRUE, PR_TRUE);
       PRUnichar ch = tmp.IsEmpty() ? 0 : tmp.First();
       if ((ch == '+' || ch == '-') &&
-          aResult.ParseEnumValue(aValue, kRelFontSizeTable, PR_FALSE)) {
+          aResult.ParseEnumValue(aValue, kRelFontSizeTable)) {
         return PR_TRUE;
       }
 

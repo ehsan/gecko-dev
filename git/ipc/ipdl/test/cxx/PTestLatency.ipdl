@@ -3,13 +3,12 @@ namespace mozilla {
 namespace _ipdltest {
 
 
-rpc protocol PTestLatency {
+protocol PTestLatency {
 
 child:
     __delete__();
     Ping();
     Ping5();
-    rpc Rpc();
 
 parent:
     Pong();
@@ -32,7 +31,7 @@ state PONG:
     // Trial 2: "overlapped" ping/pong latency
 state PING5:
     send Ping5 goto PING4;
-    call Rpc goto RPC;
+    send __delete__;
 
 state PING4: send Ping5 goto PING3;
 state PING3: send Ping5 goto PING2;
@@ -44,10 +43,6 @@ state PONG2: recv Pong5 goto PONG3;
 state PONG3: recv Pong5 goto PONG4;
 state PONG4: recv Pong5 goto PONG5;
 state PONG5: recv Pong5 goto PING5;
-
-state RPC:
-    call Rpc goto RPC;
-    send __delete__;
 };
 
 

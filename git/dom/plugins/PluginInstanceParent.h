@@ -246,8 +246,8 @@ public:
     virtual bool
     AnswerPluginGotFocus();
 
-    NS_OVERRIDE virtual bool
-    RecvProcessNativeEventsInRPCCall();
+    virtual bool
+    RecvSetNestedEventState(const bool& aState);
 
 #if defined(OS_MACOSX)
     void Invalidate();

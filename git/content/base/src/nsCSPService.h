@@ -55,4 +55,7 @@ public:
   
   CSPService();
   virtual ~CSPService();
+
+private:
+  PRBool mEnabled;
 };

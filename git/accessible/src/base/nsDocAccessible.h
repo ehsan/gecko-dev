@@ -40,9 +40,7 @@
 #define _nsDocAccessible_H_
 
 #include "nsHyperTextAccessibleWrap.h"
-#include "nsEventShell.h"
 #include "nsIAccessibleDocument.h"
-
 #include "nsIDocument.h"
 #include "nsIDocumentObserver.h"
 #include "nsIEditor.h"

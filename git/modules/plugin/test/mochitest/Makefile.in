@@ -89,8 +89,6 @@ _MOCHITEST_FILES = \
   crashing_subpage.html \
   test_GCrace.html \
   test_propertyAndMethod.html \
-  test_bug539565-1.html \
-  test_bug539565-2.html \
   $(NULL)
 
 #  test_npruntime_npnsetexception.html \ Disabled for e10s
@@ -118,8 +116,6 @@ _MOCHICHROME_FILES += \
 _MOCHITEST_FILES += \
   test_cocoa_window_focus.html \
   cocoa_window_focus.html \
-  test_cocoa_focus.html \
-  cocoa_focus.html \
   $(NULL)
 endif
 

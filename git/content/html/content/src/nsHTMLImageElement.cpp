@@ -561,7 +561,8 @@ nsHTMLImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     // loading.
     if (LoadingEnabled()) {
       nsContentUtils::AddScriptRunner(
-        NS_NewRunnableMethod(this, &nsHTMLImageElement::MaybeLoadImage));
+        new nsRunnableMethod<nsHTMLImageElement>(this,
+                                                 &nsHTMLImageElement::MaybeLoadImage));
     }
   }
 

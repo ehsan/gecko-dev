@@ -2674,7 +2674,7 @@ PresShell::ResizeReflow(nscoord aWidth, nscoord aHeight)
       }
     } else {
       nsRefPtr<nsRunnableMethod<PresShell> > resizeEvent =
-        NS_NewRunnableMethod(this, &PresShell::FireResizeEvent);
+        NS_NEW_RUNNABLE_METHOD(PresShell, this, FireResizeEvent);
       if (NS_SUCCEEDED(NS_DispatchToCurrentThread(resizeEvent))) {
         mResizeEvent = resizeEvent;
       }

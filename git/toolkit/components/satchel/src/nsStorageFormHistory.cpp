@@ -1032,13 +1032,15 @@ nsresult
 nsFormHistory::SendNotification(const nsAString &aChangeType,
                                 const nsAString &aName)
 {
+  nsresult rv;
+
   nsCOMPtr<nsISupportsString> fieldName = do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID);
   if (!fieldName)
     return NS_ERROR_OUT_OF_MEMORY;
 
   fieldName->SetData(aName);
 
-  nsresult rv = SendNotification(aChangeType, fieldName);
+  rv = SendNotification(aChangeType, fieldName);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -1053,6 +1055,8 @@ nsFormHistory::SendNotification(const nsAString &aChangeType,
                                 const nsAString &aValue,
                                 const nsAutoString &aGuid)
 {
+  nsresult rv;
+
   nsCOMPtr<nsISupportsString> fieldName = do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID);
   if (!fieldName)
     return NS_ERROR_OUT_OF_MEMORY;
@@ -1070,11 +1074,11 @@ nsFormHistory::SendNotification(const nsAString &aChangeType,
     return NS_ERROR_OUT_OF_MEMORY;
   guid->SetData(aGuid);
 
+
   nsCOMPtr<nsIMutableArray> notifyData = do_CreateInstance(NS_ARRAY_CONTRACTID);
   if (!notifyData)
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  nsresult rv = notifyData->AppendElement(fieldName, PR_FALSE);
+    return rv;
+  rv = notifyData->AppendElement(fieldName, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = notifyData->AppendElement(fieldValue, PR_FALSE);
@@ -1096,13 +1100,15 @@ nsresult
 nsFormHistory::SendNotification(const nsAString &aChangeType,
                                 const PRInt64 &aNumber)
 {
+  nsresult rv;
+
   nsCOMPtr<nsISupportsPRInt64> valOne = do_CreateInstance(NS_SUPPORTS_PRINT64_CONTRACTID);
   if (!valOne)
     return NS_ERROR_OUT_OF_MEMORY;
 
   valOne->SetData(aNumber);
 
-  nsresult rv = SendNotification(aChangeType, valOne);
+  rv = SendNotification(aChangeType, valOne);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -1116,6 +1122,8 @@ nsFormHistory::SendNotification(const nsAString &aChangeType,
                                 const PRInt64 &aOne,
                                 const PRInt64 &aTwo)
 {
+  nsresult rv;
+
   nsCOMPtr<nsISupportsPRInt64> valOne = do_CreateInstance(NS_SUPPORTS_PRINT64_CONTRACTID);
   if (!valOne)
     return NS_ERROR_OUT_OF_MEMORY;
@@ -1130,9 +1138,8 @@ nsFormHistory::SendNotification(const nsAString &aChangeType,
 
   nsCOMPtr<nsIMutableArray> notifyData = do_CreateInstance(NS_ARRAY_CONTRACTID);
   if (!notifyData)
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  nsresult rv = notifyData->AppendElement(valOne, PR_FALSE);
+    return rv;
+  rv = notifyData->AppendElement(valOne, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = notifyData->AppendElement(valTwo, PR_FALSE);

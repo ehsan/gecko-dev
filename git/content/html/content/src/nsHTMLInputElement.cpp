@@ -153,23 +153,6 @@ static const char kWhitespace[] = "\n\r\t\b";
 //  -1: no, 1: yes, 0: uninitialized
 static PRInt32 gSelectTextFieldOnFocus;
 
-static const nsAttrValue::EnumTable kInputTypeTable[] = {
-  { "button", NS_FORM_INPUT_BUTTON },
-  { "checkbox", NS_FORM_INPUT_CHECKBOX },
-  { "file", NS_FORM_INPUT_FILE },
-  { "hidden", NS_FORM_INPUT_HIDDEN },
-  { "reset", NS_FORM_INPUT_RESET },
-  { "image", NS_FORM_INPUT_IMAGE },
-  { "password", NS_FORM_INPUT_PASSWORD },
-  { "radio", NS_FORM_INPUT_RADIO },
-  { "submit", NS_FORM_INPUT_SUBMIT },
-  { "text", NS_FORM_INPUT_TEXT },
-  { 0 }
-};
-
-// Default type is 'text'.
-static const nsAttrValue::EnumTable* kInputDefaultType = &kInputTypeTable[9];
-
 #define NS_INPUT_ELEMENT_STATE_IID                 \
 { /* dc3b3d14-23e2-4479-b513-7b369343e3a0 */       \
   0xdc3b3d14,                                      \
@@ -495,7 +478,7 @@ NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Input)
 nsHTMLInputElement::nsHTMLInputElement(nsINodeInfo *aNodeInfo,
                                        PRBool aFromParser)
   : nsGenericHTMLFormElement(aNodeInfo),
-    mType(kInputDefaultType->value),
+    mType(NS_FORM_INPUT_TEXT), // default value
     mBitField(0),
     mValue(nsnull)
 {
@@ -693,7 +676,7 @@ nsHTMLInputElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
         // We're now a text input.  Note that we have to handle this manually,
         // since removing an attribute (which is what happened, since aValue is
         // null) doesn't call ParseAttribute.
-        mType = kInputDefaultType->value;
+        mType = NS_FORM_INPUT_TEXT;
       }
     
       // If we are changing type from File/Text/Passwd to other input types
@@ -790,9 +773,8 @@ NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLInputElement, TabIndex, tabindex, 0)
 NS_IMPL_STRING_ATTR(nsHTMLInputElement, UseMap, usemap)
 //NS_IMPL_STRING_ATTR(nsHTMLInputElement, Value, value)
 //NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLInputElement, Size, size, 0)
+//NS_IMPL_STRING_ATTR_DEFAULT_VALUE(nsHTMLInputElement, Type, type, "text")
 NS_IMPL_STRING_ATTR(nsHTMLInputElement, Placeholder, placeholder)
-NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLInputElement, Type, type,
-                                kInputDefaultType->tag)
 
 NS_IMETHODIMP
 nsHTMLInputElement::GetDefaultValue(nsAString& aValue)
@@ -2199,7 +2181,8 @@ nsHTMLInputElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     if (HasAttr(kNameSpaceID_None, nsGkAtoms::src)) {
       ClearBrokenState();
       nsContentUtils::AddScriptRunner(
-        NS_NewRunnableMethod(this, &nsHTMLInputElement::MaybeLoadImage));
+        new nsRunnableMethod<nsHTMLInputElement>(this,
+                                                 &nsHTMLInputElement::MaybeLoadImage));
     }
   }
 
@@ -2227,6 +2210,20 @@ nsHTMLInputElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
   nsGenericHTMLFormElement::UnbindFromTree(aDeep, aNullParent);
 }
 
+static const nsAttrValue::EnumTable kInputTypeTable[] = {
+  { "button", NS_FORM_INPUT_BUTTON },
+  { "checkbox", NS_FORM_INPUT_CHECKBOX },
+  { "file", NS_FORM_INPUT_FILE },
+  { "hidden", NS_FORM_INPUT_HIDDEN },
+  { "reset", NS_FORM_INPUT_RESET },
+  { "image", NS_FORM_INPUT_IMAGE },
+  { "password", NS_FORM_INPUT_PASSWORD },
+  { "radio", NS_FORM_INPUT_RADIO },
+  { "submit", NS_FORM_INPUT_SUBMIT },
+  { "text", NS_FORM_INPUT_TEXT },
+  { 0 }
+};
+
 PRBool
 nsHTMLInputElement::ParseAttribute(PRInt32 aNamespaceID,
                                    nsIAtom* aAttribute,
@@ -2238,11 +2235,11 @@ nsHTMLInputElement::ParseAttribute(PRInt32 aNamespaceID,
       // XXX ARG!! This is major evilness. ParseAttribute
       // shouldn't set members. Override SetAttr instead
       PRInt32 newType;
-      PRBool success = aResult.ParseEnumValue(aValue, kInputTypeTable, PR_FALSE);
-      if (success) {
+      PRBool success;
+      if ((success = aResult.ParseEnumValue(aValue, kInputTypeTable))) {
         newType = aResult.GetEnumValue();
       } else {
-        newType = kInputDefaultType->value;
+        newType = NS_FORM_INPUT_TEXT;
       }
 
       if (newType != mType) {
@@ -2293,6 +2290,34 @@ nsHTMLInputElement::ParseAttribute(PRInt32 aNamespaceID,
 
   return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
                                               aResult);
+}
+
+NS_IMETHODIMP
+nsHTMLInputElement::GetType(nsAString& aValue)
+{
+  const nsAttrValue::EnumTable *table = kInputTypeTable;
+
+  while (table->tag) {
+    if (mType == table->value) {
+      CopyUTF8toUTF16(table->tag, aValue);
+
+      return NS_OK;
+    }
+
+    ++table;
+  }
+
+  NS_ERROR("Shouldn't get here!");
+
+  aValue.Truncate();
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHTMLInputElement::SetType(const nsAString& aValue)
+{
+  return SetAttrHelper(nsGkAtoms::type, aValue);
 }
 
 static void

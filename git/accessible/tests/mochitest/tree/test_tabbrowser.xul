@@ -88,6 +88,9 @@
           },
           {
             role: ROLE_PUSHBUTTON
+          },
+          {
+            role: ROLE_PUSHBUTTON
           }
         ]
       };

@@ -60,74 +60,17 @@ bdo[dir] {
  * formatting obtained by explicitly adding a dir attribute (assigned the
  * inherited value) to the transformed element." */
 
-address,
-article,
-aside,
-blockquote,
-body,
-caption,
-center,
-col,
-colgroup,
-dd,
-dir,
-div,
-dl,
-dt,
-fieldset,
-footer,
-form,
-h1,
-h2,
-h3,
-h4,
-h5,
-h6,
-header,
-hgroup,
-hr,
-html,
-isindex,
-li,
-listing,
-map,
-marquee,
-menu,
-nav,
-noframes,
-ol,
-p,
-plaintext,
-pre,
-section,
-table,
-tbody,
-td,
-tfoot,
-th,
-thead,
-tr,
-ul,
-xmp {
+address, blockquote, body, caption, center, col, colgroup, dd, dir, div, dl, dt,
+fieldset, form, h1, h2, h3, h4, h5, h6, hr, html, isindex, li, listing, map, 
+marquee, menu, noframes, ol, p, plaintext, pre, table, tbody, td, tfoot, th, 
+thead, tr, ul, xmp {
   unicode-bidi: embed;
 }
 
 
 /* blocks */
 
-article,
-aside,
-footer,
-header,
-hgroup,
-html,
-div,
-map,
-dt,
-isindex,
-form,
-nav,
-section {
+html, div, map, dt, isindex, form {
   display: block;
 }
 

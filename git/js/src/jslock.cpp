@@ -193,13 +193,7 @@ NativeCompareAndSwap(jsword *w, jsword ov, jsword nv);
 static JS_ALWAYS_INLINE int
 NativeCompareAndSwap(jsword *w, jsword ov, jsword nv)
 {
-    int res;
-    JS_STATIC_ASSERT(sizeof(jsword) == sizeof(long));
-
-    res = compare_and_swaplp((atomic_l)w, &ov, nv);
-    if (res)
-        __asm__("isync");
-    return res;
+    return !_check_lock((atomic_p)w, ov, nv);
 }
 
 #elif defined(USE_ARM_KUSER)

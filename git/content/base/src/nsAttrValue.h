@@ -154,14 +154,6 @@ public:
 #endif
   inline float GetFloatValue() const;
 
-  /**
-   * Returns the string corresponding to the stored enum value.
-   *
-   * @param aResult   the string representing the enum tag
-   * @param aRealTag  wheter we want to have the real tag or the saved one
-   */
-  void GetEnumString(nsAString& aResult, PRBool aRealTag) const;
-
   // Methods to get access to atoms we may have
   // Returns the number of atoms we have; 0 if we have none.  It's OK
   // to call this without checking the type first; it handles that.
@@ -207,12 +199,12 @@ public:
    *
    * @param aValue the string to find the value for
    * @param aTable the enumeration to map with
-   * @param aCaseSensitive specify if the parsing has to be case sensitive
+   * @param aResult the enum mapping [OUT]
    * @return whether the enum value was found or not
    */
   PRBool ParseEnumValue(const nsAString& aValue,
                         const EnumTable* aTable,
-                        PRBool aCaseSensitive);
+                        PRBool aCaseSensitive = PR_FALSE);
 
   /**
    * Parse a string into an integer. Can optionally parse percent (n%).
@@ -313,17 +305,6 @@ private:
   };
 
   inline ValueBaseType BaseType() const;
-
-  /**
-   * Get the index of an EnumTable in the sEnumTableArray.
-   * If the EnumTable is not in the sEnumTableArray, it is added.
-   * If there is no more space in sEnumTableArray, it returns PR_FALSE.
-   *
-   * @param aTable   the EnumTable to get the index of.
-   * @param aResult  the index of the EnumTable.
-   * @return         whether the index has been found or inserted.
-   */
-  PRBool GetEnumTableIndex(const EnumTable* aTable, PRInt16& aResult);
 
   inline void SetPtrValueAndType(void* aValue, ValueBaseType aType);
   void SetIntValueAndType(PRInt32 aValue, ValueType aType,
