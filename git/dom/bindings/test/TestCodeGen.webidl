@@ -686,7 +686,6 @@ interface TestInterface {
   void passDictContainingDict(optional DictContainingDict arg);
   void passDictContainingSequence(optional DictContainingSequence arg);
   DictContainingSequence receiveDictContainingSequence();
-  void passVariadicDictionary(Dict... arg);
 
   // EnforceRange/Clamp tests
   void dontEnforceRangeOrClamp(byte arg);

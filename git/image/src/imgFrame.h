@@ -74,6 +74,8 @@ public:
                             GraphicsFilter aFilter,
                             uint32_t aImageFlags);
 
+  nsresult Optimize();
+
   DrawableFrameRef DrawableRef();
   RawAccessFrameRef RawAccessRef();
 
@@ -116,7 +118,6 @@ public:
   nsresult UnlockImageData();
 
   void SetDiscardable();
-  void SetOptimizable();
 
   TemporaryRef<SourceSurface> GetSurface();
   TemporaryRef<DrawTarget> GetDrawTarget();
@@ -149,8 +150,6 @@ public:
 private: // methods
 
   ~imgFrame();
-
-  nsresult Optimize();
 
   struct SurfaceWithFormat {
     nsRefPtr<gfxDrawable> mDrawable;
@@ -206,7 +205,6 @@ private: // data
   bool mCompositingFailed;
   bool mNonPremult;
   bool mDiscardable;
-  bool mOptimizable;
 
   /** Have we called DiscardTracker::InformAllocation()? */
   bool mInformedDiscardTracker;

@@ -11,7 +11,6 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Geometry.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/Task.jsm");
 
 XPCOMUtils.defineLazyServiceGetter(this, "TextToSubURIService",
                                          "@mozilla.org/intl/texttosuburi;1",
@@ -22,8 +21,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "Clipboard",
 XPCOMUtils.defineLazyServiceGetter(this, "ClipboardHelper",
                                          "@mozilla.org/widget/clipboardhelper;1",
                                          "nsIClipboardHelper");
-
-const kHighlightIterationSizeMax = 100;
 
 function Finder(docShell) {
   this._fastFind = Cc["@mozilla.org/typeaheadfind;1"].createInstance(Ci.nsITypeAheadFind);
@@ -130,8 +127,6 @@ Finder.prototype = {
     this._fastFind.caseSensitive = aSensitive;
   },
 
-  _lastFindResult: null,
-
   /**
    * Used for normal search operations, highlights the first match.
    *
@@ -140,9 +135,9 @@ Finder.prototype = {
    * @param aDrawOutline Puts an outline around matched links.
    */
   fastFind: function (aSearchString, aLinksOnly, aDrawOutline) {
-    this._lastFindResult = this._fastFind.find(aSearchString, aLinksOnly);
+    let result = this._fastFind.find(aSearchString, aLinksOnly);
     let searchString = this._fastFind.searchString;
-    this._notify(searchString, this._lastFindResult, false, aDrawOutline);
+    this._notify(searchString, result, false, aDrawOutline);
   },
 
   /**
@@ -155,9 +150,9 @@ Finder.prototype = {
    * @param aDrawOutline Puts an outline around matched links.
    */
   findAgain: function (aFindBackwards, aLinksOnly, aDrawOutline) {
-    this._lastFindResult = this._fastFind.findAgain(aFindBackwards, aLinksOnly);
+    let result = this._fastFind.findAgain(aFindBackwards, aLinksOnly);
     let searchString = this._fastFind.searchString;
-    this._notify(searchString, this._lastFindResult, aFindBackwards, aDrawOutline);
+    this._notify(searchString, result, aFindBackwards, aDrawOutline);
   },
 
   /**
@@ -179,18 +174,14 @@ Finder.prototype = {
     return searchString;
   },
 
-  highlight: Task.async(function* (aHighlight, aWord) {
-    if (this._abortHighlight) {
-      this._abortHighlight();
-    }
-
-    let found = yield this._highlight(aHighlight, aWord, null);
+  highlight: function (aHighlight, aWord) {
+    let found = this._highlight(aHighlight, aWord, null);
     if (aHighlight) {
       let result = found ? Ci.nsITypeAheadFind.FIND_FOUND
                          : Ci.nsITypeAheadFind.FIND_NOTFOUND;
       this._notify(aWord, result, false, false, false);
     }
-  }),
+  },
 
   enableSelection: function() {
     this._fastFind.setSelectionModeAndRepaint(Ci.nsISelectionController.SELECTION_ON);
@@ -271,22 +262,7 @@ Finder.prototype = {
     }
   },
 
-  _notifyMatchesCount: function(result) {
-    for (let l of this._listeners) {
-      try {
-        l.onMatchesCountResult(result);
-      } catch (ex) {}
-    }
-  },
-
   requestMatchesCount: function(aWord, aMatchLimit, aLinksOnly) {
-    if (this._lastFindResult == Ci.nsITypeAheadFind.FIND_NOTFOUND ||
-        this.searchString == "") {
-      return this._notifyMatchesCount({
-        total: 0,
-        current: 0
-      });
-    }
     let window = this._getWindow();
     let result = this._countMatchesInWindow(aWord, aMatchLimit, aLinksOnly, window);
 
@@ -303,7 +279,11 @@ Finder.prototype = {
     delete result._currentFound;
     delete result._framesToCount;
 
-    this._notifyMatchesCount(result);
+    for (let l of this._listeners) {
+      try {
+        l.onMatchesCountResult(result);
+      } catch (ex) {}
+    }
   },
 
   /**
@@ -342,37 +322,41 @@ Finder.prototype = {
 
     let foundRange = this._fastFind.getFoundRange();
 
-    for(let range of this._findIterator(aWord, aWindow)) {
-      if (!aLinksOnly || this._rangeStartsInLink(range)) {
+    this._findIterator(aWord, aWindow, aRange => {
+      if (!aLinksOnly || this._rangeStartsInLink(aRange)) {
         ++aStats.total;
         if (!aStats._currentFound) {
           ++aStats.current;
           aStats._currentFound = (foundRange &&
-            range.startContainer == foundRange.startContainer &&
-            range.startOffset == foundRange.startOffset &&
-            range.endContainer == foundRange.endContainer &&
-            range.endOffset == foundRange.endOffset);
+            aRange.startContainer == foundRange.startContainer &&
+            aRange.startOffset == foundRange.startOffset &&
+            aRange.endContainer == foundRange.endContainer &&
+            aRange.endOffset == foundRange.endOffset);
         }
       }
       if (aStats.total == aMatchLimit) {
         aStats.total = -1;
-        break;
+        return false;
       }
-    };
+    });
 
     return aStats;
   },
 
   /**
-   * Basic wrapper around nsIFind that provides a generator yielding
-   * a range each time an occurence of `aWord` string is found.
+   * Basic wrapper around nsIFind that provides invoking a callback `aOnFind`
+   * each time an occurence of `aWord` string is found.
    *
    * @param aWord
    *        the word to search for.
    * @param aWindow
    *        the window to search in.
+   * @param aOnFind
+   *        the Function to invoke when a word is found. if Boolean `false` is
+   *        returned, the find operation will be stopped and the Function will
+   *        not be invoked again.
    */
-  _findIterator: function* (aWord, aWindow) {
+  _findIterator: function(aWord, aWindow, aOnFind) {
     let doc = aWindow.document;
     let body = (doc instanceof Ci.nsIDOMHTMLDocument && doc.body) ?
                doc.body : doc.documentElement;
@@ -397,32 +381,11 @@ Finder.prototype = {
     finder.caseSensitive = this._fastFind.caseSensitive;
 
     while ((retRange = finder.Find(aWord, searchRange, startPt, endPt))) {
-      yield retRange;
+      if (aOnFind(retRange) === false)
+        break;
       startPt = retRange.cloneRange();
       startPt.collapse(false);
     }
-  },
-
-  _highlightIterator: Task.async(function* (aWord, aWindow, aOnFind) {
-    let count = 0;
-    for (let range of this._findIterator(aWord, aWindow)) {
-      aOnFind(range);
-      if (++count >= kHighlightIterationSizeMax) {
-          count = 0;
-          yield this._highlightSleep(0);
-      }
-    }
-  }),
-
-  _abortHighlight: null,
-  _highlightSleep: function(delay) {
-    return new Promise((resolve, reject) => {
-      this._abortHighlight = () => {
-        this._abortHighlight = null;
-        reject();
-      };
-      this._getWindow().setTimeout(resolve, delay);
-    });
   },
 
   /**
@@ -558,12 +521,12 @@ Finder.prototype = {
     }
   },
 
-  _highlight: Task.async(function* (aHighlight, aWord, aWindow) {
+  _highlight: function (aHighlight, aWord, aWindow) {
     let win = aWindow || this._getWindow();
 
     let found = false;
     for (let i = 0; win.frames && i < win.frames.length; i++) {
-      if (yield this._highlight(aHighlight, aWord, win.frames[i]))
+      if (this._highlight(aHighlight, aWord, win.frames[i]))
         found = true;
     }
 
@@ -576,7 +539,7 @@ Finder.prototype = {
     }
 
     if (aHighlight) {
-      yield this._highlightIterator(aWord, win, aRange => {
+      this._findIterator(aWord, win, aRange => {
         this._highlightRange(aRange, controller);
         found = true;
       });
@@ -604,7 +567,7 @@ Finder.prototype = {
     }
 
     return found;
-  }),
+  },
 
   _highlightRange: function(aRange, aController) {
     let node = aRange.startContainer;

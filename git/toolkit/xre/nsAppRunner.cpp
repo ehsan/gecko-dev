@@ -14,7 +14,6 @@
 
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/ChaosMode.h"
 #include "mozilla/IOInterposer.h"
 #include "mozilla/Likely.h"
 #include "mozilla/Poison.h"
@@ -2987,10 +2986,6 @@ XREMain::XRE_mainInit(bool* aExitFlag)
   *aExitFlag = false;
 
   StartupTimeline::Record(StartupTimeline::MAIN);
-
-  if (ChaosMode::isActive()) {
-    printf_stderr("*** You are running in chaos test mode. See ChaosMode.h. ***\n");
-  }
 
   nsresult rv;
   ArgResult ar;

@@ -1402,7 +1402,7 @@ nsBidiPresUtils::RepositionFrame(nsIFrame*             aFrame,
   }
 
   nscoord start = aStart;
-  nscoord frameISize = aFrame->ISize(aLineWM);
+  nscoord frameWidth = aFrame->GetSize().width;
 
   if (!IsBidiLeaf(aFrame))
   {
@@ -1436,7 +1436,7 @@ nsBidiPresUtils::RepositionFrame(nsIFrame*             aFrame,
                       iCoord,
                       aContinuationStates,
                       frameWM,
-                      frameISize);
+                      frameWidth);
       index++;
       frame = reverseOrder ?
                 childList[childList.Length() - index - 1] :
@@ -1448,7 +1448,7 @@ nsBidiPresUtils::RepositionFrame(nsIFrame*             aFrame,
     }
     aStart += iCoord;
   } else {
-    aStart += frameISize;
+    aStart += frameWidth;
   }
 
   LogicalRect logicalRect(aLineWM, aFrame->GetRect(), aLineWidth);

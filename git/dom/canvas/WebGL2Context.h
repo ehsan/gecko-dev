@@ -145,11 +145,6 @@ public:
 /*
     void DrawBuffers(const dom::Sequence<GLenum>& buffers);
 */
-
-    void ClearBufferiv_base(GLenum buffer, GLint drawbuffer, const GLint* value);
-    void ClearBufferuiv_base(GLenum buffer, GLint drawbuffer, const GLuint* value);
-    void ClearBufferfv_base(GLenum buffer, GLint drawbuffer, const GLfloat* value);
-
     void ClearBufferiv(GLenum buffer, GLint drawbuffer, const dom::Int32Array& value);
     void ClearBufferiv(GLenum buffer, GLint drawbuffer, const dom::Sequence<GLint>& value);
     void ClearBufferuiv(GLenum buffer, GLint drawbuffer, const dom::Uint32Array& value);
@@ -158,7 +153,6 @@ public:
     void ClearBufferfv(GLenum buffer, GLint drawbuffer, const dom::Sequence<GLfloat>& value);
     void ClearBufferfi(GLenum buffer, GLint drawbuffer, GLfloat depth, GLint stencil);
 
-    bool ValidateClearBuffer(const char* info, GLenum buffer, GLint drawbuffer, size_t elemCount);
 
     // -------------------------------------------------------------------------
     // Query Objects - WebGL2ContextQueries.cpp

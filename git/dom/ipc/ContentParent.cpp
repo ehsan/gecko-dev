@@ -341,7 +341,6 @@ namespace mozilla {
 namespace dom {
 
 #ifdef MOZ_NUWA_PROCESS
-int32_t ContentParent::sNuwaPid = 0;
 bool ContentParent::sNuwaReady = false;
 #endif
 
@@ -587,7 +586,6 @@ ContentParent::RunNuwaProcess()
                           /* aIsNuwaProcess = */ true);
     nuwaProcess->Init();
 #ifdef MOZ_NUWA_PROCESS
-    sNuwaPid = nuwaProcess->Pid();
     sNuwaReady = false;
 #endif
     return nuwaProcess.forget();
@@ -1989,7 +1987,6 @@ ContentParent::~ContentParent()
 #ifdef MOZ_NUWA_PROCESS
     if (IsNuwaProcess()) {
         sNuwaReady = false;
-        sNuwaPid = 0;
     }
 #endif
 }
@@ -3681,12 +3678,6 @@ ContentParent::DoSendAsyncMessage(JSContext* aCx,
     if (aCpows && !GetCPOWManager()->Wrap(aCx, aCpows, &cpows)) {
         return false;
     }
-#ifdef MOZ_NUWA_PROCESS
-    if (IsNuwaProcess() && IsNuwaReady()) {
-        // Nuwa won't receive frame messages after it is frozen.
-        return true;
-    }
-#endif
     return SendAsyncMessage(nsString(aMessage), data, cpows, Principal(aPrincipal));
 }
 

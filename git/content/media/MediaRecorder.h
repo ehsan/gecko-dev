@@ -9,7 +9,6 @@
 
 #include "mozilla/dom/MediaRecorderBinding.h"
 #include "mozilla/DOMEventTargetHelper.h"
-#include "mozilla/MemoryReporting.h"
 #include "nsIDocumentActivity.h"
 
 // Max size for allowing queue encoded data in memory
@@ -91,11 +90,6 @@ public:
               const MediaRecorderOptions& aInitDict,
               ErrorResult& aRv);
 
-  /*
-   * Measure the size of the buffer, and memory occupied by mAudioEncoder
-   * and mVideoEncoder
-   */
-  size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
   // EventHandler
   IMPL_EVENT_HANDLER(dataavailable)
   IMPL_EVENT_HANDLER(error)

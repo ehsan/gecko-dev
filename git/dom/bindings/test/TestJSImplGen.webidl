@@ -136,8 +136,9 @@ interface TestJSImplInterface {
   TestJSImplInterface receiveSelf();
   TestJSImplInterface? receiveNullableSelf();
 
-  TestJSImplInterface receiveWeakSelf();
-  TestJSImplInterface? receiveWeakNullableSelf();
+  // Callback interface ignores 'resultNotAddRefed'. See bug 843272.
+  //TestJSImplInterface receiveWeakSelf();
+  //TestJSImplInterface? receiveWeakNullableSelf();
 
   // A version to test for casting to TestJSImplInterface&
   void passSelf(TestJSImplInterface arg);
@@ -169,8 +170,9 @@ interface TestJSImplInterface {
   // Non-castable interface types
   IndirectlyImplementedInterface receiveOther();
   IndirectlyImplementedInterface? receiveNullableOther();
-  IndirectlyImplementedInterface receiveWeakOther();
-  IndirectlyImplementedInterface? receiveWeakNullableOther();
+  // Callback interface ignores 'resultNotAddRefed'. See bug 843272.
+  //IndirectlyImplementedInterface receiveWeakOther();
+  //IndirectlyImplementedInterface? receiveWeakNullableOther();
 
   void passOther(IndirectlyImplementedInterface arg);
   void passNullableOther(IndirectlyImplementedInterface? arg);
@@ -184,8 +186,9 @@ interface TestJSImplInterface {
   // External interface types
   TestExternalInterface receiveExternal();
   TestExternalInterface? receiveNullableExternal();
-  TestExternalInterface receiveWeakExternal();
-  TestExternalInterface? receiveWeakNullableExternal();
+  // Callback interface ignores 'resultNotAddRefed'. See bug 843272.
+  //TestExternalInterface receiveWeakExternal();
+  //TestExternalInterface? receiveWeakNullableExternal();
   void passExternal(TestExternalInterface arg);
   void passNullableExternal(TestExternalInterface? arg);
   attribute TestExternalInterface nonNullExternal;
@@ -198,8 +201,9 @@ interface TestJSImplInterface {
   // Callback interface types
   TestCallbackInterface receiveCallbackInterface();
   TestCallbackInterface? receiveNullableCallbackInterface();
-  TestCallbackInterface receiveWeakCallbackInterface();
-  TestCallbackInterface? receiveWeakNullableCallbackInterface();
+  // Callback interface ignores 'resultNotAddRefed'. See bug 843272.
+  //TestCallbackInterface receiveWeakCallbackInterface();
+  //TestCallbackInterface? receiveWeakNullableCallbackInterface();
   void passCallbackInterface(TestCallbackInterface arg);
   void passNullableCallbackInterface(TestCallbackInterface? arg);
   attribute TestCallbackInterface nonNullCallbackInterface;
@@ -566,7 +570,6 @@ interface TestJSImplInterface {
   void passDictContainingDict(optional DictContainingDict arg);
   void passDictContainingSequence(optional DictContainingSequence arg);
   DictContainingSequence receiveDictContainingSequence();
-  void passVariadicDictionary(Dict... arg);
 
   // EnforceRange/Clamp tests
   void dontEnforceRangeOrClamp(byte arg);
