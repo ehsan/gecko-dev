@@ -47,9 +47,9 @@ struct AtkStateMap {
   AtkStateType atkState;
   EStateMapEntryType stateMapEntryType;
 
-  static int32_t GetStateIndexFor(uint64_t aState)
+  static PRInt32 GetStateIndexFor(PRUint64 aState)
   {
-    int32_t stateIndex = -1;
+    PRInt32 stateIndex = -1;
     while (aState > 0) {
       ++ stateIndex;
       aState >>= 1;

@@ -154,7 +154,7 @@ private:
       return false;
     }
 
-    uint64_t blobSize;
+    PRUint64 blobSize;
     nsresult rv = blob->GetSize(&blobSize);
     if (!EnsureSucceededOrThrow(aCx, rv)) {
       return false;

@@ -119,7 +119,7 @@ protected:
                              bool aNotify,
                              nsTemplateMatch* aMatch,
                              nsIContent** aContainer,
-                             int32_t* aNewIndexInContainer);
+                             PRInt32* aNewIndexInContainer);
 
     /**
      * Copy the attributes from the template node to the node generated
@@ -215,7 +215,7 @@ protected:
                                        bool aNotify,
                                        nsTemplateQuerySet* aQuerySet,
                                        nsIContent** aContainer,
-                                       int32_t* aNewIndexInContainer);
+                                       PRInt32* aNewIndexInContainer);
 
     /**
      * Check if an element with a particular tag exists with a container.
@@ -230,7 +230,7 @@ protected:
      */
     nsresult
     EnsureElementHasGenericChild(nsIContent* aParent,
-                                 int32_t aNameSpaceID,
+                                 PRInt32 aNameSpaceID,
                                  nsIAtom* aTag,
                                  bool aNotify,
                                  nsIContent** aResult);
@@ -246,7 +246,7 @@ protected:
                          nsCOMArray<nsIContent>& aElements);
 
     nsresult
-    CreateElement(int32_t aNameSpaceID,
+    CreateElement(PRInt32 aNameSpaceID,
                   nsIAtom* aTag,
                   nsIContent** aResult);
 
@@ -307,7 +307,7 @@ protected:
      */
     nsresult
     CompareResultToNode(nsIXULTemplateResult* aResult, nsIContent* aContent,
-                        int32_t* aSortOrder);
+                        PRInt32* aSortOrder);
 
     /**
      * Insert a generated node into the container where it should go according
@@ -394,7 +394,7 @@ nsXULContentBuilder::BuildContentFromTemplate(nsIContent *aTemplateNode,
                                               bool aNotify,
                                               nsTemplateMatch* aMatch,
                                               nsIContent** aContainer,
-                                              int32_t* aNewIndexInContainer)
+                                              PRInt32* aNewIndexInContainer)
 {
     // This is the mother lode. Here is where we grovel through an
     // element in the template, copying children from the template
@@ -468,7 +468,7 @@ nsXULContentBuilder::BuildContentFromTemplate(nsIContent *aTemplateNode,
          tmplKid;
          tmplKid = tmplKid->GetNextSibling()) {
 
-        int32_t nameSpaceID = tmplKid->GetNameSpaceID();
+        PRInt32 nameSpaceID = tmplKid->GetNameSpaceID();
 
         // Check whether this element is the generation element. The generation
         // element is the element that is cookie-cutter copied once for each
@@ -560,7 +560,7 @@ nsXULContentBuilder::BuildContentFromTemplate(nsIContent *aTemplateNode,
                     *aContainer = aRealNode;
                     NS_ADDREF(*aContainer);
 
-                    uint32_t indx = aRealNode->GetChildCount();
+                    PRUint32 indx = aRealNode->GetChildCount();
 
                     // Since EnsureElementHasGenericChild() added us, make
                     // sure to subtract one for our real index.
@@ -662,7 +662,7 @@ nsXULContentBuilder::BuildContentFromTemplate(nsIContent *aTemplateNode,
                 *aContainer = aRealNode;
                 NS_ADDREF(*aContainer);
 
-                uint32_t indx = aRealNode->GetChildCount();
+                PRUint32 indx = aRealNode->GetChildCount();
 
                 // Since we haven't inserted any content yet, our new
                 // index in the container will be the current count of
@@ -736,11 +736,11 @@ nsXULContentBuilder::CopyAttributesToElement(nsIContent* aTemplateNode,
     nsresult rv;
 
     // Copy all attributes from the template to the new element
-    uint32_t numAttribs = aTemplateNode->GetAttrCount();
+    PRUint32 numAttribs = aTemplateNode->GetAttrCount();
 
-    for (uint32_t attr = 0; attr < numAttribs; attr++) {
+    for (PRUint32 attr = 0; attr < numAttribs; attr++) {
         const nsAttrName* name = aTemplateNode->GetAttrNameAt(attr);
-        int32_t attribNameSpaceID = name->NamespaceID();
+        PRInt32 attribNameSpaceID = name->NamespaceID();
         // Hold a strong reference here so that the atom doesn't go away
         // during UnsetAttr.
         nsCOMPtr<nsIAtom> attribName = name->LocalName();
@@ -801,7 +801,7 @@ nsXULContentBuilder::AddPersistentAttributes(nsIContent* aTemplateNode,
     while (!persist.IsEmpty()) {
         attribute.Truncate();
 
-        int32_t offset = persist.FindCharInSet(" ,");
+        PRInt32 offset = persist.FindCharInSet(" ,");
         if (offset > 0) {
             persist.Left(attribute, offset);
             persist.Cut(0, offset + 1);
@@ -817,7 +817,7 @@ nsXULContentBuilder::AddPersistentAttributes(nsIContent* aTemplateNode,
             break;
 
         nsCOMPtr<nsIAtom> tag;
-        int32_t nameSpaceID;
+        PRInt32 nameSpaceID;
 
         nsCOMPtr<nsINodeInfo> ni =
             aTemplateNode->GetExistingAttrNameFromQName(attribute);
@@ -872,9 +872,9 @@ nsXULContentBuilder::SynchronizeUsingTemplate(nsIContent* aTemplateNode,
     if (NS_FAILED(rv))
         return rv;
 
-    uint32_t count = aTemplateNode->GetChildCount();
+    PRUint32 count = aTemplateNode->GetChildCount();
 
-    for (uint32_t loop = 0; loop < count; ++loop) {
+    for (PRUint32 loop = 0; loop < count; ++loop) {
         nsIContent *tmplKid = aTemplateNode->GetChildAt(loop);
 
         if (! tmplKid)
@@ -911,7 +911,7 @@ nsXULContentBuilder::RemoveMember(nsIContent* aContent)
 {
     nsCOMPtr<nsIContent> parent = aContent->GetParent();
     if (parent) {
-        int32_t pos = parent->IndexOf(aContent);
+        PRInt32 pos = parent->IndexOf(aContent);
 
         NS_ASSERTION(pos >= 0, "parent doesn't think this child has an index");
         if (pos < 0) return NS_OK;
@@ -1036,12 +1036,12 @@ nsXULContentBuilder::CreateContainerContents(nsIContent* aElement,
         xulcontent->SetTemplateGenerated();
     }
 
-    int32_t newIndexInContainer = -1;
+    PRInt32 newIndexInContainer = -1;
     nsIContent* container = nullptr;
 
-    int32_t querySetCount = mQuerySets.Length();
+    PRInt32 querySetCount = mQuerySets.Length();
 
-    for (int32_t r = 0; r < querySetCount; r++) {
+    for (PRInt32 r = 0; r < querySetCount; r++) {
         nsTemplateQuerySet* queryset = mQuerySets[r];
 
         nsIAtom* tag = queryset->GetTag();
@@ -1071,7 +1071,7 @@ nsXULContentBuilder::CreateContainerContentsForQuerySet(nsIContent* aElement,
                                                         bool aNotify,
                                                         nsTemplateQuerySet* aQuerySet,
                                                         nsIContent** aContainer,
-                                                        int32_t* aNewIndexInContainer)
+                                                        PRInt32* aNewIndexInContainer)
 {
 #ifdef PR_LOGGING
     if (PR_LOG_TEST(gXULTemplateLog, PR_LOG_DEBUG)) {
@@ -1136,7 +1136,7 @@ nsXULContentBuilder::CreateContainerContentsForQuerySet(nsIContent* aElement,
                 // break out once we've reached a query in the list with a
                 // higher priority, as the new match list is sorted by
                 // priority, and the new match should be inserted here
-                int32_t priority = existingmatch->QuerySetPriority();
+                PRInt32 priority = existingmatch->QuerySetPriority();
                 if (priority > aQuerySet->Priority())
                     break;
 
@@ -1172,7 +1172,7 @@ nsXULContentBuilder::CreateContainerContentsForQuerySet(nsIContent* aElement,
             // find the rule that matches. If none match, the content does not
             // need to be generated
 
-            int16_t ruleindex;
+            PRInt16 ruleindex;
             nsTemplateRule* matchedrule = nullptr;
             rv = DetermineMatchedRule(aElement, nextresult, aQuerySet,
                                       &matchedrule, &ruleindex);
@@ -1222,7 +1222,7 @@ nsXULContentBuilder::CreateContainerContentsForQuerySet(nsIContent* aElement,
 
 nsresult
 nsXULContentBuilder::EnsureElementHasGenericChild(nsIContent* parent,
-                                                  int32_t nameSpaceID,
+                                                  PRInt32 nameSpaceID,
                                                   nsIAtom* tag,
                                                   bool aNotify,
                                                   nsIContent** result)
@@ -1283,14 +1283,14 @@ nsXULContentBuilder::RemoveGeneratedContent(nsIContent* aElement)
     if (ungenerated.AppendElement(aElement) == nullptr)
         return NS_ERROR_OUT_OF_MEMORY;
 
-    uint32_t count;
+    PRUint32 count;
     while (0 != (count = ungenerated.Length())) {
         // Pull the next "ungenerated" element off the queue.
-        uint32_t last = count - 1;
+        PRUint32 last = count - 1;
         nsCOMPtr<nsIContent> element = ungenerated[last];
         ungenerated.RemoveElementAt(last);
 
-        uint32_t i = element->GetChildCount();
+        PRUint32 i = element->GetChildCount();
 
         while (i-- > 0) {
             nsCOMPtr<nsIContent> child = element->GetChildAt(i);
@@ -1351,7 +1351,7 @@ nsXULContentBuilder::GetElementsForResult(nsIXULTemplateResult* aResult,
 }
 
 nsresult
-nsXULContentBuilder::CreateElement(int32_t aNameSpaceID,
+nsXULContentBuilder::CreateElement(PRInt32 aNameSpaceID,
                                    nsIAtom* aTag,
                                    nsIContent** aResult)
 {
@@ -1467,9 +1467,9 @@ nsXULContentBuilder::HasGeneratedContent(nsIRDFResource* aResource,
         nsCOMArray<nsIContent> elements;
         xuldoc->GetElementsForID(refID, elements);
 
-        uint32_t cnt = elements.Count();
+        PRUint32 cnt = elements.Count();
 
-        for (int32_t i = int32_t(cnt) - 1; i >= 0; --i) {
+        for (PRInt32 i = PRInt32(cnt) - 1; i >= 0; --i) {
             nsCOMPtr<nsIContent> content = elements.SafeObjectAt(i);
 
             do {
@@ -1521,9 +1521,9 @@ nsXULContentBuilder::GetResultForContent(nsIDOMElement* aElement,
 void
 nsXULContentBuilder::AttributeChanged(nsIDocument* aDocument,
                                       Element*     aElement,
-                                      int32_t      aNameSpaceID,
+                                      PRInt32      aNameSpaceID,
                                       nsIAtom*     aAttribute,
-                                      int32_t      aModType)
+                                      PRInt32      aModType)
 {
     nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
 
@@ -1587,11 +1587,11 @@ nsXULContentBuilder::GetInsertionLocations(nsIXULTemplateResult* aResult,
     NS_ENSURE_TRUE(*aLocations, false);
 
     xuldoc->GetElementsForID(ref, **aLocations);
-    uint32_t count = (*aLocations)->Count();
+    PRUint32 count = (*aLocations)->Count();
 
     bool found = false;
 
-    for (uint32_t t = 0; t < count; t++) {
+    for (PRUint32 t = 0; t < count; t++) {
         nsCOMPtr<nsIContent> content = (*aLocations)->SafeObjectAt(t);
 
         nsTemplateMatch* refmatch;
@@ -1652,9 +1652,9 @@ nsXULContentBuilder::ReplaceMatch(nsIXULTemplateResult* aOldResult,
         if (NS_FAILED(rv))
             return rv;
 
-        uint32_t count = elements.Count();
+        PRUint32 count = elements.Count();
 
-        for (int32_t e = int32_t(count) - 1; e >= 0; --e) {
+        for (PRInt32 e = PRInt32(count) - 1; e >= 0; --e) {
             nsCOMPtr<nsIContent> child = elements.SafeObjectAt(e);
 
             nsTemplateMatch* match;
@@ -1683,9 +1683,9 @@ nsXULContentBuilder::SynchronizeResult(nsIXULTemplateResult* aResult)
     nsCOMArray<nsIContent> elements;
     GetElementsForResult(aResult, elements);
 
-    uint32_t cnt = elements.Count();
+    PRUint32 cnt = elements.Count();
 
-    for (int32_t i = int32_t(cnt) - 1; i >= 0; --i) {
+    for (PRInt32 i = PRInt32(cnt) - 1; i >= 0; --i) {
         nsCOMPtr<nsIContent> element = elements.SafeObjectAt(i);
 
         nsTemplateMatch* match;
@@ -1789,7 +1789,7 @@ nsXULContentBuilder::RebuildAll()
 nsresult
 nsXULContentBuilder::CompareResultToNode(nsIXULTemplateResult* aResult,
                                          nsIContent* aContent,
-                                         int32_t* aSortOrder)
+                                         PRInt32* aSortOrder)
 {
     NS_ASSERTION(aSortOrder, "CompareResultToNode: null out param aSortOrder");
   
@@ -1814,8 +1814,8 @@ nsXULContentBuilder::CompareResultToNode(nsIXULTemplateResult* aResult,
     else {
         // iterate over each sort key and compare. If the nodes are equal,
         // continue to compare using the next sort key. If not equal, stop.
-        int32_t length = mSortState.sortKeys.Count();
-        for (int32_t t = 0; t < length; t++) {
+        PRInt32 length = mSortState.sortKeys.Count();
+        for (PRInt32 t = 0; t < length; t++) {
             nsresult rv = mQueryProcessor->CompareResults(aResult, match->mResult,
                                                           mSortState.sortKeys[t],
                                                           mSortState.sortHints, aSortOrder);
@@ -1872,17 +1872,17 @@ nsXULContentBuilder::InsertSortedNode(nsIContent* aContainer,
     }
 
     bool childAdded = false;
-    uint32_t numChildren = aContainer->GetChildCount();
+    PRUint32 numChildren = aContainer->GetChildCount();
 
     if (mSortState.direction != nsSortState_natural ||
         (mSortState.direction == nsSortState_natural && mSortState.isContainerRDFSeq))
     {
         // because numChildren gets modified
-        int32_t realNumChildren = numChildren;
+        PRInt32 realNumChildren = numChildren;
         nsIContent *child = nullptr;
 
         // rjc says: determine where static XUL ends and generated XUL/RDF begins
-        int32_t staticCount = 0;
+        PRInt32 staticCount = 0;
 
         nsAutoString staticValue;
         aContainer->GetAttr(kNameSpaceID_None, nsGkAtoms::staticHint, staticValue);
@@ -1921,7 +1921,7 @@ nsXULContentBuilder::InsertSortedNode(nsIContent* aContainer,
         if (staticCount <= 0) {
             numChildren += staticCount;
             staticCount = 0;
-        } else if (staticCount > (int32_t)numChildren) {
+        } else if (staticCount > (PRInt32)numChildren) {
             staticCount = numChildren;
             numChildren -= staticCount;
         }
@@ -1929,7 +1929,7 @@ nsXULContentBuilder::InsertSortedNode(nsIContent* aContainer,
         // figure out where to insert the node when a sort order is being imposed
         if (numChildren > 0) {
             nsIContent *temp;
-            int32_t direction;
+            PRInt32 direction;
 
             // rjc says: The following is an implementation of a fairly optimal
             // binary search insertion sort... with interpolation at either end-point.
@@ -1954,7 +1954,7 @@ nsXULContentBuilder::InsertSortedNode(nsIContent* aContainer,
                     mSortState.lastWasLast = false;
             }
 
-            int32_t left = staticCount + 1, right = realNumChildren, x;
+            PRInt32 left = staticCount + 1, right = realNumChildren, x;
             while (!childAdded && right >= left) {
                 x = (left + right) / 2;
                 child = aContainer->GetChildAt(x - 1);
@@ -1965,7 +1965,7 @@ nsXULContentBuilder::InsertSortedNode(nsIContent* aContainer,
                     (x == right && direction >= 0) ||
                     left == right)
                 {
-                    int32_t thePos = (direction > 0 ? x : x - 1);
+                    PRInt32 thePos = (direction > 0 ? x : x - 1);
                     aContainer->InsertChildAt(aNode, thePos, aNotify);
                     childAdded = true;
 

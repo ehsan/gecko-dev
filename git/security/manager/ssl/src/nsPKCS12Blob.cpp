@@ -550,7 +550,7 @@ nsPKCS12Blob::inputToDecoder(SEC_PKCS12DecoderContext *dcx, nsIFile *file)
   nsNSSShutDownPreventionLock locker;
   nsresult rv;
   SECStatus srv;
-  uint32_t amount;
+  PRUint32 amount;
   char buf[PIP_PKCS12_BUFFER_SIZE];
 
   nsCOMPtr<nsIInputStream> fileStream;
@@ -675,7 +675,7 @@ nsPKCS12Blob::digest_write(void *arg, unsigned char *buf, unsigned long len)
   NS_ENSURE_FALSE(cx->mDigestIterator, SECFailure);
   
   cx->mDigest->Append(reinterpret_cast<char *>(buf),
-                     static_cast<uint32_t>(len));
+                     static_cast<PRUint32>(len));
   
   return len;
 }

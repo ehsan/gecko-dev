@@ -32,7 +32,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // Accessible
-  virtual Accessible* ChildAtPoint(int32_t aX, int32_t aY,
+  virtual Accessible* ChildAtPoint(PRInt32 aX, PRInt32 aY,
                                    EWhichChildAtPoint aWhichChild);
 
 protected:
@@ -57,8 +57,8 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIAccessible
-  NS_IMETHOD GetActionName(uint8_t aIndex, nsAString& aName);
-  NS_IMETHOD DoAction(uint8_t index);
+  NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
+  NS_IMETHOD DoAction(PRUint8 index);
   NS_IMETHOD TakeFocus();
 
   // nsAccessNode
@@ -66,18 +66,18 @@ public:
 
   // Accessible
   virtual void Value(nsString& aValue);
-  virtual uint64_t NativeLinkState() const;
+  virtual PRUint64 NativeLinkState() const;
 
   // ActionAccessible
-  virtual uint8_t ActionCount();
+  virtual PRUint8 ActionCount();
   virtual KeyBinding AccessKey() const;
 
   // HyperLinkAccessible
-  virtual already_AddRefed<nsIURI> AnchorURIAt(uint32_t aAnchorIndex);
+  virtual already_AddRefed<nsIURI> AnchorURIAt(PRUint32 aAnchorIndex);
 
 protected:
   // Accessible
-  virtual void BindToParent(Accessible* aParent, uint32_t aIndexInParent);
+  virtual void BindToParent(Accessible* aParent, PRUint32 aIndexInParent);
   virtual void UnbindFromParent();
 
   /**

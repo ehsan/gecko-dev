@@ -52,7 +52,7 @@ class nsISelection;
 using namespace mozilla;
 
 // retrieve an integer stored into a CSS computed float value
-static int32_t GetCSSFloatValue(nsIDOMCSSStyleDeclaration * aDecl,
+static PRInt32 GetCSSFloatValue(nsIDOMCSSStyleDeclaration * aDecl,
                                 const nsAString & aProperty)
 {
   MOZ_ASSERT(aDecl);
@@ -65,7 +65,7 @@ static int32_t GetCSSFloatValue(nsIDOMCSSStyleDeclaration * aDecl,
   // check the type of the returned CSSValue; we handle here only
   // pixel and enum types
   nsCOMPtr<nsIDOMCSSPrimitiveValue> val = do_QueryInterface(value);
-  uint16_t type;
+  PRUint16 type;
   val->GetPrimitiveType(&type);
 
   float f = 0;
@@ -90,7 +90,7 @@ static int32_t GetCSSFloatValue(nsIDOMCSSStyleDeclaration * aDecl,
     }
   }
 
-  return (int32_t) f;
+  return (PRInt32) f;
 }
 
 class nsElementDeletionObserver MOZ_FINAL : public nsIMutationObserver
@@ -396,12 +396,12 @@ nsHTMLEditor::CheckSelectionStateForAnonymousButtons(nsISelection * aSelection)
 // containing box of the element: position, size, margins, borders
 nsresult
 nsHTMLEditor::GetPositionAndDimensions(nsIDOMElement * aElement,
-                                       int32_t & aX, int32_t & aY,
-                                       int32_t & aW, int32_t & aH,
-                                       int32_t & aBorderLeft,
-                                       int32_t & aBorderTop,
-                                       int32_t & aMarginLeft,
-                                       int32_t & aMarginTop)
+                                       PRInt32 & aX, PRInt32 & aY,
+                                       PRInt32 & aW, PRInt32 & aH,
+                                       PRInt32 & aBorderLeft,
+                                       PRInt32 & aBorderTop,
+                                       PRInt32 & aMarginLeft,
+                                       PRInt32 & aMarginTop)
 {
   NS_ENSURE_ARG_POINTER(aElement);
 
@@ -460,7 +460,7 @@ nsHTMLEditor::GetPositionAndDimensions(nsIDOMElement * aElement,
 
 // self-explanatory
 void
-nsHTMLEditor::SetAnonymousElementPosition(int32_t aX, int32_t aY, nsIDOMElement *aElement)
+nsHTMLEditor::SetAnonymousElementPosition(PRInt32 aX, PRInt32 aY, nsIDOMElement *aElement)
 {
   mHTMLCSSUtils->SetCSSPropertyPixels(aElement, NS_LITERAL_STRING("left"), aX);
   mHTMLCSSUtils->SetCSSPropertyPixels(aElement, NS_LITERAL_STRING("top"), aY);

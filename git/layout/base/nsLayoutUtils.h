@@ -175,7 +175,7 @@ public:
    *         0 otherwise (meaning they're the same, or they're in
    *           different documents)
    */
-  static int32_t CompareTreePosition(nsIContent* aContent1,
+  static PRInt32 CompareTreePosition(nsIContent* aContent1,
                                      nsIContent* aContent2,
                                      const nsIContent* aCommonAncestor = nullptr)
   {
@@ -188,10 +188,10 @@ public:
    * for |aIf2Ancestor|.  Passing (-1, 1) gives preorder traversal
    * order, and (1, -1) gives postorder traversal order.
    */
-  static int32_t DoCompareTreePosition(nsIContent* aContent1,
+  static PRInt32 DoCompareTreePosition(nsIContent* aContent1,
                                        nsIContent* aContent2,
-                                       int32_t aIf1Ancestor,
-                                       int32_t aIf2Ancestor,
+                                       PRInt32 aIf1Ancestor,
+                                       PRInt32 aIf2Ancestor,
                                        const nsIContent* aCommonAncestor = nullptr);
 
   /**
@@ -213,7 +213,7 @@ public:
    *         0 otherwise (meaning they're the same, or they're in
    *           different frame trees)
    */
-  static int32_t CompareTreePosition(nsIFrame* aFrame1,
+  static PRInt32 CompareTreePosition(nsIFrame* aFrame1,
                                      nsIFrame* aFrame2,
                                      nsIFrame* aCommonAncestor = nullptr)
   {
@@ -226,10 +226,10 @@ public:
    * for |aIf2Ancestor|.  Passing (-1, 1) gives preorder traversal
    * order, and (1, -1) gives postorder traversal order.
    */
-  static int32_t DoCompareTreePosition(nsIFrame* aFrame1,
+  static PRInt32 DoCompareTreePosition(nsIFrame* aFrame1,
                                        nsIFrame* aFrame2,
-                                       int32_t aIf1Ancestor,
-                                       int32_t aIf2Ancestor,
+                                       PRInt32 aIf1Ancestor,
+                                       PRInt32 aIf2Ancestor,
                                        nsIFrame* aCommonAncestor = nullptr);
 
   /**
@@ -376,7 +376,7 @@ public:
 
   // Combine aNewBreakType with aOrigBreakType, but limit the break types
   // to NS_STYLE_CLEAR_LEFT, RIGHT, LEFT_AND_RIGHT.
-  static uint8_t CombineBreakType(uint8_t aOrigBreakType, uint8_t aNewBreakType);
+  static PRUint8 CombineBreakType(PRUint8 aOrigBreakType, PRUint8 aNewBreakType);
 
   /**
    * Get the coordinates of a given DOM mouse event, relative to a given
@@ -646,13 +646,13 @@ public:
    */
   static nsresult PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFrame,
                              const nsRegion& aDirtyRegion, nscolor aBackstop,
-                             uint32_t aFlags = 0);
+                             PRUint32 aFlags = 0);
 
   /**
    * Compute the used z-index of aFrame; returns zero for elements to which
    * z-index does not apply, and for z-index:auto
    */
-  static int32_t GetZIndex(nsIFrame* aFrame);
+  static PRInt32 GetZIndex(nsIFrame* aFrame);
 
   /**
    * Uses a binary search for find where the cursor falls in the line of text
@@ -669,13 +669,13 @@ public:
   static bool
   BinarySearchForPosition(nsRenderingContext* acx,
                           const PRUnichar* aText,
-                          int32_t    aBaseWidth,
-                          int32_t    aBaseInx,
-                          int32_t    aStartInx,
-                          int32_t    aEndInx,
-                          int32_t    aCursorPos,
-                          int32_t&   aIndex,
-                          int32_t&   aTextWidth);
+                          PRInt32    aBaseWidth,
+                          PRInt32    aBaseInx,
+                          PRInt32    aStartInx,
+                          PRInt32    aEndInx,
+                          PRInt32    aCursorPos,
+                          PRInt32&   aIndex,
+                          PRInt32&   aTextWidth);
 
   class BoxCallback {
   public:
@@ -731,14 +731,14 @@ public:
    * and SVG transforms) are taken into account.
    */
   static void GetAllInFlowRects(nsIFrame* aFrame, nsIFrame* aRelativeTo,
-                                RectCallback* aCallback, uint32_t aFlags = 0);
+                                RectCallback* aCallback, PRUint32 aFlags = 0);
   /**
    * The same as GetAllInFlowRects, but it collects the CSS padding-boxes
    * rather than the CSS border-boxes. SVG frames are handled the same way
    * as in GetAllInFlowRects.
    */
   static void GetAllInFlowPaddingRects(nsIFrame* aFrame, nsIFrame* aRelativeTo,
-                                RectCallback* aCallback, uint32_t aFlags = 0);
+                                RectCallback* aCallback, PRUint32 aFlags = 0);
 
   /**
    * Computes the union of all rects returned by GetAllInFlowRects. If
@@ -748,7 +748,7 @@ public:
    * and SVG transforms) are taken into account.
    */
   static nsRect GetAllInFlowRectsUnion(nsIFrame* aFrame, nsIFrame* aRelativeTo,
-                                       uint32_t aFlags = 0);
+                                       PRUint32 aFlags = 0);
 
   /**
    * The same as GetAllInFlowRectsUnion, but it computes the union of the
@@ -756,7 +756,7 @@ public:
    */
   static nsRect GetAllInFlowPaddingRectsUnion(nsIFrame* aFrame,
                                               nsIFrame* aRelativeTo,
-                                              uint32_t aFlags = 0);
+                                              PRUint32 aFlags = 0);
 
   enum {
     EXCLUDE_BLUR_SHADOWS = 0x01
@@ -768,7 +768,7 @@ public:
    */
   static nsRect GetTextShadowRectsUnion(const nsRect& aTextAndDecorationsRect,
                                         nsIFrame* aFrame,
-                                        uint32_t aFlags = 0);
+                                        PRUint32 aFlags = 0);
 
   /**
    * Get the font metrics corresponding to the frame's style data.
@@ -996,14 +996,14 @@ public:
   static void DrawString(const nsIFrame*      aFrame,
                          nsRenderingContext* aContext,
                          const PRUnichar*     aString,
-                         int32_t              aLength,
+                         PRInt32              aLength,
                          nsPoint              aPoint,
-                         uint8_t              aDirection = NS_STYLE_DIRECTION_INHERIT);
+                         PRUint8              aDirection = NS_STYLE_DIRECTION_INHERIT);
 
   static nscoord GetStringWidth(const nsIFrame*      aFrame,
                                 nsRenderingContext* aContext,
                                 const PRUnichar*     aString,
-                                int32_t              aLength);
+                                PRInt32              aLength);
 
   /**
    * Helper function for drawing text-shadow. The callback's job
@@ -1130,7 +1130,7 @@ public:
                                       const nsRect&       aFill,
                                       const nsPoint&      aAnchor,
                                       const nsRect&       aDirty,
-                                      uint32_t            aImageFlags);
+                                      PRUint32            aImageFlags);
 
   /**
    * Draw an image.
@@ -1154,13 +1154,13 @@ public:
                             const nsRect&        aFill,
                             const nsPoint&       aAnchor,
                             const nsRect&        aDirty,
-                            uint32_t             aImageFlags);
+                            PRUint32             aImageFlags);
 
   /**
    * Convert an nsRect to a gfxRect.
    */
   static gfxRect RectToGfxRect(const nsRect& aRect,
-                               int32_t aAppUnitsPerDevPixel);
+                               PRInt32 aAppUnitsPerDevPixel);
 
   /**
    * Draw a drawable using the pixel snapping algorithm.
@@ -1206,7 +1206,7 @@ public:
                                           GraphicsFilter       aGraphicsFilter,
                                           const nsPoint&       aDest,
                                           const nsRect*        aDirty,
-                                          uint32_t             aImageFlags,
+                                          PRUint32             aImageFlags,
                                           const nsRect*        aSourceArea = nullptr);
 
   /**
@@ -1229,7 +1229,7 @@ public:
                                   GraphicsFilter       aGraphicsFilter,
                                   const nsRect&        aDest,
                                   const nsRect&        aDirty,
-                                  uint32_t             aImageFlags,
+                                  PRUint32             aImageFlags,
                                   const nsRect*        aSourceArea = nullptr);
 
   /**
@@ -1317,7 +1317,7 @@ public:
    * -- TEXT_OPTIMIZE_SPEED if the text-rendering CSS property and font size
    * and prefs indicate we should be optimizing for speed over quality
    */
-  static uint32_t GetTextRunFlagsForStyle(nsStyleContext* aStyleContext,
+  static PRUint32 GetTextRunFlagsForStyle(nsStyleContext* aStyleContext,
                                           const nsStyleFont* aStyleFont,
                                           nscoord aLetterSpacing);
 
@@ -1424,18 +1424,18 @@ public:
   };
 
   static SurfaceFromElementResult SurfaceFromElement(mozilla::dom::Element *aElement,
-                                                     uint32_t aSurfaceFlags = 0);
+                                                     PRUint32 aSurfaceFlags = 0);
   static SurfaceFromElementResult SurfaceFromElement(nsIImageLoadingContent *aElement,
-                                                     uint32_t aSurfaceFlags = 0);
+                                                     PRUint32 aSurfaceFlags = 0);
   // Need an nsHTMLImageElement overload, because otherwise the
   // nsIImageLoadingContent and mozilla::dom::Element overloads are ambiguous
   // for nsHTMLImageElement.
   static SurfaceFromElementResult SurfaceFromElement(nsHTMLImageElement *aElement,
-                                                     uint32_t aSurfaceFlags = 0);
+                                                     PRUint32 aSurfaceFlags = 0);
   static SurfaceFromElementResult SurfaceFromElement(nsHTMLCanvasElement *aElement,
-                                                     uint32_t aSurfaceFlags = 0);
+                                                     PRUint32 aSurfaceFlags = 0);
   static SurfaceFromElementResult SurfaceFromElement(nsHTMLVideoElement *aElement,
-                                                     uint32_t aSurfaceFlags = 0);
+                                                     PRUint32 aSurfaceFlags = 0);
 
   /**
    * When the document is editable by contenteditable attribute of its root
@@ -1484,8 +1484,8 @@ public:
    * entire text is to be considered.
    */
   static nsresult GetFontFacesForText(nsIFrame* aFrame,
-                                      int32_t aStartOffset,
-                                      int32_t aEndOffset,
+                                      PRInt32 aStartOffset,
+                                      PRInt32 aEndOffset,
                                       bool aFollowContinuations,
                                       nsFontFaceList* aFontFaceList);
 
@@ -1593,7 +1593,7 @@ public:
    * See comment above "font.size.inflation.emPerLine" in
    * modules/libpref/src/init/all.js .
    */
-  static uint32_t FontSizeInflationEmPerLine() {
+  static PRUint32 FontSizeInflationEmPerLine() {
     return sFontSizeInflationEmPerLine;
   }
 
@@ -1601,7 +1601,7 @@ public:
    * See comment above "font.size.inflation.minTwips" in
    * modules/libpref/src/init/all.js .
    */
-  static uint32_t FontSizeInflationMinTwips() {
+  static PRUint32 FontSizeInflationMinTwips() {
     return sFontSizeInflationMinTwips;
   }
 
@@ -1609,7 +1609,7 @@ public:
    * See comment above "font.size.inflation.lineThreshold" in
    * modules/libpref/src/init/all.js .
    */
-  static uint32_t FontSizeInflationLineThreshold() {
+  static PRUint32 FontSizeInflationLineThreshold() {
     return sFontSizeInflationLineThreshold;
   }
 
@@ -1617,7 +1617,7 @@ public:
    * See comment above "font.size.inflation.mappingIntercept" in
    * modules/libpref/src/init/all.js .
    */
-  static int32_t FontSizeInflationMappingIntercept() {
+  static PRInt32 FontSizeInflationMappingIntercept() {
     return sFontSizeInflationMappingIntercept;
   }
 
@@ -1726,10 +1726,10 @@ public:
 #endif
 
 private:
-  static uint32_t sFontSizeInflationEmPerLine;
-  static uint32_t sFontSizeInflationMinTwips;
-  static uint32_t sFontSizeInflationLineThreshold;
-  static int32_t sFontSizeInflationMappingIntercept;
+  static PRUint32 sFontSizeInflationEmPerLine;
+  static PRUint32 sFontSizeInflationMinTwips;
+  static PRUint32 sFontSizeInflationLineThreshold;
+  static PRInt32 sFontSizeInflationMappingIntercept;
 };
 
 template<typename PointType, typename RectType, typename CoordType>
@@ -1820,7 +1820,7 @@ public:
   nsSetAttrRunnable(nsIContent* aContent, nsIAtom* aAttrName,
                     const nsAString& aValue);
   nsSetAttrRunnable(nsIContent* aContent, nsIAtom* aAttrName,
-                    int32_t aValue);
+                    PRInt32 aValue);
 
   NS_DECL_NSIRUNNABLE
 

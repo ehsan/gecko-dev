@@ -83,9 +83,9 @@ nsProgressMeterFrame::DoLayout(nsBoxLayoutState& aState)
 }
 
 NS_IMETHODIMP
-nsProgressMeterFrame::AttributeChanged(int32_t aNameSpaceID,
+nsProgressMeterFrame::AttributeChanged(PRInt32 aNameSpaceID,
                                        nsIAtom* aAttribute,
-                                       int32_t aModType)
+                                       PRInt32 aModType)
 {
   NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
       "Scripts not blocked in nsProgressMeterFrame::AttributeChanged!");
@@ -108,7 +108,7 @@ nsProgressMeterFrame::AttributeChanged(int32_t aNameSpaceID,
     nsCOMPtr<nsIContent> remainderContent = remainderChild->GetContent();
     if (!remainderContent) return NS_OK;
 
-    int32_t flex = 1, maxFlex = 1;
+    PRInt32 flex = 1, maxFlex = 1;
     if (!undetermined) {
       nsAutoString value, maxValue;
       mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::value, value);

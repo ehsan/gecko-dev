@@ -29,7 +29,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   
   nsAttributeTextNode(already_AddRefed<nsINodeInfo> aNodeInfo,
-                      int32_t aNameSpaceID,
+                      PRInt32 aNameSpaceID,
                       nsIAtom* aAttrName) :
     nsTextNode(aNodeInfo),
     mGrandparent(nullptr),
@@ -82,7 +82,7 @@ private:
   // and can't be deleted.
   nsIContent* mGrandparent;
   // What attribute we're showing
-  int32_t mNameSpaceID;
+  PRInt32 mNameSpaceID;
   nsCOMPtr<nsIAtom> mAttrName;
 };
 
@@ -134,7 +134,7 @@ NS_INTERFACE_TABLE_HEAD(nsTextNode)
 NS_INTERFACE_MAP_END_INHERITING(nsGenericDOMDataNode)
 
 bool
-nsTextNode::IsNodeOfType(uint32_t aFlags) const
+nsTextNode::IsNodeOfType(PRUint32 aFlags) const
 {
   return !(aFlags & ~(eCONTENT | eTEXT | eDATA_NODE));
 }
@@ -152,7 +152,7 @@ nsTextNode::CloneDataNode(nsINodeInfo *aNodeInfo, bool aCloneText) const
 }
 
 nsresult
-nsTextNode::AppendTextForNormalize(const PRUnichar* aBuffer, uint32_t aLength,
+nsTextNode::AppendTextForNormalize(const PRUnichar* aBuffer, PRUint32 aLength,
                                    bool aNotify, nsIContent* aNextSibling)
 {
   CharacterDataChangeInfo::Details details = {
@@ -163,9 +163,9 @@ nsTextNode::AppendTextForNormalize(const PRUnichar* aBuffer, uint32_t aLength,
 
 #ifdef DEBUG
 void
-nsTextNode::List(FILE* out, int32_t aIndent) const
+nsTextNode::List(FILE* out, PRInt32 aIndent) const
 {
-  int32_t index;
+  PRInt32 index;
   for (index = aIndent; --index >= 0; ) fputs("  ", out);
 
   fprintf(out, "Text@%p", static_cast<const void*>(this));
@@ -187,10 +187,10 @@ nsTextNode::List(FILE* out, int32_t aIndent) const
 }
 
 void
-nsTextNode::DumpContent(FILE* out, int32_t aIndent, bool aDumpAll) const
+nsTextNode::DumpContent(FILE* out, PRInt32 aIndent, bool aDumpAll) const
 {
   if(aDumpAll) {
-    int32_t index;
+    PRInt32 index;
     for (index = aIndent; --index >= 0; ) fputs("  ", out);
 
     nsAutoString tmp;
@@ -206,7 +206,7 @@ nsTextNode::DumpContent(FILE* out, int32_t aIndent, bool aDumpAll) const
 
 nsresult
 NS_NewAttributeContent(nsNodeInfoManager *aNodeInfoManager,
-                       int32_t aNameSpaceID, nsIAtom* aAttrName,
+                       PRInt32 aNameSpaceID, nsIAtom* aAttrName,
                        nsIContent** aResult)
 {
   NS_PRECONDITION(aNodeInfoManager, "Missing nodeInfoManager");
@@ -275,9 +275,9 @@ nsAttributeTextNode::UnbindFromTree(bool aDeep, bool aNullParent)
 void
 nsAttributeTextNode::AttributeChanged(nsIDocument* aDocument,
                                       Element* aElement,
-                                      int32_t aNameSpaceID,
+                                      PRInt32 aNameSpaceID,
                                       nsIAtom* aAttribute,
-                                      int32_t aModType)
+                                      PRInt32 aModType)
 {
   if (aNameSpaceID == mNameSpaceID && aAttribute == mAttrName &&
       aElement == mGrandparent) {

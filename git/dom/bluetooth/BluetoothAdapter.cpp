@@ -461,7 +461,7 @@ BluetoothAdapter::GetAddress(nsAString& aAddress)
 }
 
 NS_IMETHODIMP
-BluetoothAdapter::GetAdapterClass(uint32_t* aClass)
+BluetoothAdapter::GetAdapterClass(PRUint32* aClass)
 {
   *aClass = mClass;
   return NS_OK;
@@ -489,7 +489,7 @@ BluetoothAdapter::GetDiscoverable(bool* aDiscoverable)
 }
 
 NS_IMETHODIMP
-BluetoothAdapter::GetDiscoverableTimeout(uint32_t* aDiscoverableTimeout)
+BluetoothAdapter::GetDiscoverableTimeout(PRUint32* aDiscoverableTimeout)
 {
   *aDiscoverableTimeout = mDiscoverableTimeout;
   return NS_OK;
@@ -547,7 +547,7 @@ BluetoothAdapter::SetDiscoverable(const bool aDiscoverable,
 }
  
 NS_IMETHODIMP
-BluetoothAdapter::SetDiscoverableTimeout(const uint32_t aDiscoverableTimeout,
+BluetoothAdapter::SetDiscoverableTimeout(const PRUint32 aDiscoverableTimeout,
                                          nsIDOMDOMRequest** aRequest)
 {
   if (aDiscoverableTimeout == mDiscoverableTimeout) {
@@ -663,7 +663,7 @@ BluetoothAdapter::SetPinCode(const nsAString& aDeviceAddress, const nsAString& a
 }
 
 nsresult
-BluetoothAdapter::SetPasskey(const nsAString& aDeviceAddress, uint32_t aPasskey)
+BluetoothAdapter::SetPasskey(const nsAString& aDeviceAddress, PRUint32 aPasskey)
 {
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {

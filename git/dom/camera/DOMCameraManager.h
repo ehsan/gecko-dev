@@ -20,19 +20,19 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMCAMERAMANAGER
 
-  static already_AddRefed<nsDOMCameraManager> Create(uint64_t aWindowId);
+  static already_AddRefed<nsDOMCameraManager> Create(PRUint64 aWindowId);
 
-  void OnNavigation(uint64_t aWindowId);
+  void OnNavigation(PRUint64 aWindowId);
 
 private:
   nsDOMCameraManager();
-  nsDOMCameraManager(uint64_t aWindowId);
+  nsDOMCameraManager(PRUint64 aWindowId);
   nsDOMCameraManager(const nsDOMCameraManager&) MOZ_DELETE;
   nsDOMCameraManager& operator=(const nsDOMCameraManager&) MOZ_DELETE;
   ~nsDOMCameraManager();
 
 protected:
-  uint64_t mWindowId;
+  PRUint64 mWindowId;
   nsCOMPtr<nsIThread> mCameraThread;
 };
 
@@ -40,7 +40,7 @@ protected:
 class GetCameraTask : public nsRunnable
 {
 public:
-  GetCameraTask(uint32_t aCameraId, nsICameraGetCameraCallback* onSuccess, nsICameraErrorCallback* onError, nsIThread* aCameraThread)
+  GetCameraTask(PRUint32 aCameraId, nsICameraGetCameraCallback* onSuccess, nsICameraErrorCallback* onError, nsIThread* aCameraThread)
     : mCameraId(aCameraId)
     , mOnSuccessCb(onSuccess)
     , mOnErrorCb(onError)
@@ -50,7 +50,7 @@ public:
   NS_IMETHOD Run();
 
 protected:
-  uint32_t mCameraId;
+  PRUint32 mCameraId;
   nsCOMPtr<nsICameraGetCameraCallback> mOnSuccessCb;
   nsCOMPtr<nsICameraErrorCallback> mOnErrorCb;
   nsCOMPtr<nsIThread> mCameraThread;

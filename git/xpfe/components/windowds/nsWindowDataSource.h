@@ -43,8 +43,8 @@ class nsWindowDataSource : public nsIRDFDataSource,
     // mapping of window -> RDF resource
     nsSupportsHashtable mWindowResources;
 
-    static uint32_t windowCount;
-    static uint32_t gRefCnt;
+    static PRUint32 windowCount;
+    static PRUint32 gRefCnt;
     
     nsCOMPtr<nsIRDFDataSource> mInner;
     nsCOMPtr<nsIRDFContainer> mContainer;

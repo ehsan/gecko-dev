@@ -188,7 +188,7 @@ DeviceStorageFile::Write(nsIInputStream* aInputStream)
   nsCOMPtr<IOEventComplete> iocomplete = new IOEventComplete(mFile, "created");
   NS_DispatchToMainThread(iocomplete);    
 
-  uint64_t bufSize = 0;
+  PRUint64 bufSize = 0;
   aInputStream->Available(&bufSize);
 
   nsCOMPtr<nsIOutputStream> outputStream;
@@ -209,9 +209,9 @@ DeviceStorageFile::Write(nsIInputStream* aInputStream)
 
   rv = NS_OK;
   while (bufSize) {
-    uint32_t wrote;
+    PRUint32 wrote;
     rv = bufferedOutputStream->WriteFrom(aInputStream,
-					 static_cast<uint32_t>(NS_MIN<uint64_t>(bufSize, PR_UINT32_MAX)),
+					 static_cast<PRUint32>(NS_MIN<PRUint64>(bufSize, PR_UINT32_MAX)),
 					 &wrote);
     if (NS_FAILED(rv)) {
       break;
@@ -231,7 +231,7 @@ DeviceStorageFile::Write(nsIInputStream* aInputStream)
 }
 
 nsresult
-DeviceStorageFile::Write(InfallibleTArray<uint8_t>& aBits) {
+DeviceStorageFile::Write(InfallibleTArray<PRUint8>& aBits) {
 
   nsresult rv = mFile->Create(nsIFile::NORMAL_FILE_TYPE, 00600);
   if (NS_FAILED(rv)) {
@@ -248,7 +248,7 @@ DeviceStorageFile::Write(InfallibleTArray<uint8_t>& aBits) {
     return NS_ERROR_FAILURE;
   }
 
-  uint32_t wrote;
+  PRUint32 wrote;
   outputStream->Write((char*) aBits.Elements(), aBits.Length(), &wrote);
   outputStream->Close();
 
@@ -272,7 +272,7 @@ DeviceStorageFile::Remove()
 
 void
 DeviceStorageFile::CollectFiles(nsTArray<nsRefPtr<DeviceStorageFile> > &aFiles,
-                                uint64_t aSince)
+                                PRUint64 aSince)
 {
   nsString rootPath;
   nsresult rv = mFile->GetPath(rootPath);
@@ -285,7 +285,7 @@ DeviceStorageFile::CollectFiles(nsTArray<nsRefPtr<DeviceStorageFile> > &aFiles,
 
 void
 DeviceStorageFile::collectFilesInternal(nsTArray<nsRefPtr<DeviceStorageFile> > &aFiles,
-                                        uint64_t aSince,
+                                        PRUint64 aSince,
                                         nsAString& aRootPath)
 {
   nsCOMPtr<nsISimpleEnumerator> e;
@@ -300,7 +300,7 @@ DeviceStorageFile::collectFilesInternal(nsTArray<nsRefPtr<DeviceStorageFile> > &
 
   while (NS_SUCCEEDED(files->GetNextFile(getter_AddRefs(f))) && f) {
 
-    int64_t msecs;
+    PRInt64 msecs;
     f->GetLastModifiedTime(&msecs);
 
     if (msecs < aSince) {
@@ -339,8 +339,8 @@ DeviceStorageFile::collectFilesInternal(nsTArray<nsRefPtr<DeviceStorageFile> > &
   }
 }
 
-uint64_t
-DeviceStorageFile::DirectoryDiskUsage(nsIFile* aFile, uint64_t aSoFar)
+PRUint64
+DeviceStorageFile::DirectoryDiskUsage(nsIFile* aFile, PRUint64 aSoFar)
 {
   if (!aFile) {
     return aSoFar;
@@ -383,7 +383,7 @@ DeviceStorageFile::DirectoryDiskUsage(nsIFile* aFile, uint64_t aSoFar)
     } else if (isDir) {
       aSoFar += DirectoryDiskUsage(f, aSoFar);
     } else if (isFile) {
-      int64_t size;
+      PRInt64 size;
       rv = f->GetFileSize(&size);
       if (NS_SUCCEEDED(rv)) {
 	aSoFar += size;
@@ -408,7 +408,7 @@ GetSDCardStatus(nsAString& aState) {
     return NS_ERROR_FAILURE;
   }
 
-  int32_t state;
+  PRInt32 state;
   nsresult rv = vol->GetState(&state);
   if (NS_FAILED(rv)) {
     return NS_ERROR_FAILURE;
@@ -778,7 +778,7 @@ NS_IMPL_RELEASE_INHERITED(nsDOMDeviceStorageCursor, DOMRequest)
 nsDOMDeviceStorageCursor::nsDOMDeviceStorageCursor(nsIDOMWindow* aWindow,
                                                    nsIPrincipal* aPrincipal,
                                                    DeviceStorageFile* aFile,
-                                                   uint64_t aSince)
+                                                   PRUint64 aSince)
   : DOMRequest(aWindow)
   , mOkToCallContinue(false)
   , mSince(aSince)
@@ -908,7 +908,7 @@ nsDOMDeviceStorageCursor::IPDLRelease()
 class PostStatResultEvent : public nsRunnable
 {
 public:
-  PostStatResultEvent(nsRefPtr<DOMRequest>& aRequest, int64_t aFreeBytes, int64_t aTotalBytes)
+  PostStatResultEvent(nsRefPtr<DOMRequest>& aRequest, PRInt64 aFreeBytes, PRInt64 aTotalBytes)
     : mFreeBytes(aFreeBytes)
     , mTotalBytes(aTotalBytes)
     {
@@ -944,7 +944,7 @@ public:
   }
 
 private:
-  int64_t mFreeBytes, mTotalBytes;
+  PRInt64 mFreeBytes, mTotalBytes;
   nsString mState;
   nsRefPtr<DOMRequest> mRequest;
 };
@@ -1120,8 +1120,8 @@ public:
   {
     NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
     nsCOMPtr<nsIRunnable> r;
-    uint64_t diskUsage = DeviceStorageFile::DirectoryDiskUsage(mFile->mFile);
-    int64_t freeSpace;
+    PRUint64 diskUsage = DeviceStorageFile::DirectoryDiskUsage(mFile->mFile);
+    PRInt64 freeSpace;
     nsresult rv = mFile->mFile->GetDiskSpaceAvailable(&freeSpace);
     if (NS_FAILED(rv)) {
       freeSpace = 0;
@@ -1362,7 +1362,7 @@ public:
   }
 
 private:
-  int32_t mRequestType;
+  PRInt32 mRequestType;
   nsCOMPtr<nsPIDOMWindow> mWindow;
   nsCOMPtr<nsIPrincipal> mPrincipal;
   nsRefPtr<DeviceStorageFile> mFile;
@@ -1637,7 +1637,7 @@ NS_IMETHODIMP
 nsDOMDeviceStorage::Enumerate(const JS::Value & aName,
                              const JS::Value & aOptions,
                              JSContext* aCx,
-                             uint8_t aArgc,
+                             PRUint8 aArgc,
                              nsIDOMDeviceStorageCursor** aRetval)
 {
   return EnumerateInternal(aName, aOptions, aCx, aArgc, false, aRetval);
@@ -1647,7 +1647,7 @@ NS_IMETHODIMP
 nsDOMDeviceStorage::EnumerateEditable(const JS::Value & aName,
                                      const JS::Value & aOptions,
                                      JSContext* aCx,
-                                     uint8_t aArgc,
+                                     PRUint8 aArgc,
                                      nsIDOMDeviceStorageCursor** aRetval)
 {
   return EnumerateInternal(aName, aOptions, aCx, aArgc, true, aRetval);
@@ -1675,7 +1675,7 @@ nsresult
 nsDOMDeviceStorage::EnumerateInternal(const JS::Value & aName,
                                      const JS::Value & aOptions,
                                      JSContext* aCx,
-                                     uint8_t aArgc,
+                                     PRUint8 aArgc,
                                      bool aEditable,
                                      nsIDOMDeviceStorageCursor** aRetval)
 {
@@ -1780,7 +1780,7 @@ NS_INTERFACE_MAP_END
 NS_IMPL_ADDREF(nsDOMDeviceStorageStat)
 NS_IMPL_RELEASE(nsDOMDeviceStorageStat)
 
-nsDOMDeviceStorageStat::nsDOMDeviceStorageStat(uint64_t aFreeBytes, uint64_t aTotalBytes, nsAString& aState)
+nsDOMDeviceStorageStat::nsDOMDeviceStorageStat(PRUint64 aFreeBytes, PRUint64 aTotalBytes, nsAString& aState)
   : mFreeBytes(aFreeBytes)
   , mTotalBytes(aTotalBytes)
   , mState(aState)
@@ -1792,14 +1792,14 @@ nsDOMDeviceStorageStat::~nsDOMDeviceStorageStat()
 }
 
 NS_IMETHODIMP
-nsDOMDeviceStorageStat::GetTotalBytes(uint64_t *aTotalBytes)
+nsDOMDeviceStorageStat::GetTotalBytes(PRUint64 *aTotalBytes)
 {
   *aTotalBytes = mTotalBytes;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMDeviceStorageStat::GetFreeBytes(uint64_t *aFreeBytes)
+nsDOMDeviceStorageStat::GetFreeBytes(PRUint64 *aFreeBytes)
 {
   *aFreeBytes = mFreeBytes;
   return NS_OK;
@@ -1837,7 +1837,7 @@ nsDOMDeviceStorage::Observe(nsISupports *aSubject, const char *aTopic, const PRU
       return NS_OK;
     }
 
-    int32_t state;
+    PRInt32 state;
     nsresult rv = vol->GetState(&state);
     if (NS_FAILED(rv)) {
       return NS_OK;
@@ -1914,7 +1914,7 @@ nsDOMDeviceStorage::AddEventListener(const nsAString & aType,
                                      nsIDOMEventListener *aListener,
                                      bool aUseCapture,
                                      bool aWantsUntrusted,
-                                     uint8_t aArgc)
+                                     PRUint8 aArgc)
 {
   nsCOMPtr<nsPIDOMWindow> win = GetOwner();
   if (!win) {
@@ -1934,7 +1934,7 @@ nsDOMDeviceStorage::AddSystemEventListener(const nsAString & aType,
                                            nsIDOMEventListener *aListener,
                                            bool aUseCapture,
                                            bool aWantsUntrusted,
-                                           uint8_t aArgc)
+                                           PRUint8 aArgc)
 {
   if (!mIsWatchingFile) {
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();

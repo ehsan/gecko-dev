@@ -74,7 +74,7 @@ static int gKeepRunning = 0;
 static bool gVerbose = false;
 static bool gAskUserForInput = false;
 static bool gResume = false;
-static uint64_t gStartAt = 0;
+static PRUint64 gStartAt = 0;
 
 static const char* gEntityID;
 
@@ -196,7 +196,7 @@ public:
   NS_DECL_ISUPPORTS
 
   const char* Name() { return mURLString.get(); }
-  int64_t   mBytesRead;
+  PRInt64   mBytesRead;
   PRTime    mTotalTime;
   PRTime    mConnectTime;
   nsCString mURLString;
@@ -243,7 +243,7 @@ NS_IMPL_ISUPPORTS1(TestChannelEventSink, nsIChannelEventSink)
 NS_IMETHODIMP
 TestChannelEventSink::AsyncOnChannelRedirect(nsIChannel *channel,
                                              nsIChannel *newChannel,
-                                             uint32_t flags,
+                                             PRUint32 flags,
                                              nsIAsyncVerifyRedirectCallback *callback)
 {
     LOG(("\n+++ TestChannelEventSink::OnChannelRedirect (with flags %x) +++\n",
@@ -280,7 +280,7 @@ NS_IMETHODIMP
 TestAuthPrompt::Prompt(const PRUnichar *dialogTitle,
                        const PRUnichar *text,
                        const PRUnichar *passwordRealm,
-                       uint32_t savePassword,
+                       PRUint32 savePassword,
                        const PRUnichar *defaultText,
                        PRUnichar **result,
                        bool *_retval)
@@ -293,7 +293,7 @@ NS_IMETHODIMP
 TestAuthPrompt::PromptUsernameAndPassword(const PRUnichar *dialogTitle,
                                           const PRUnichar *dialogText,
                                           const PRUnichar *passwordRealm,
-                                          uint32_t savePassword,
+                                          PRUint32 savePassword,
                                           PRUnichar **user,
                                           PRUnichar **pwd,
                                           bool *_retval)
@@ -335,7 +335,7 @@ NS_IMETHODIMP
 TestAuthPrompt::PromptPassword(const PRUnichar *dialogTitle,
                                const PRUnichar *text,
                                const PRUnichar *passwordRealm,
-                               uint32_t savePassword,
+                               PRUint32 savePassword,
                                PRUnichar **pwd,
                                bool *_retval)
 {
@@ -400,7 +400,7 @@ InputTestConsumer::OnStartRequest(nsIRequest *request, nsISupports* context)
       channel->GetContentCharset(value);
       LOG(("\tContent-Charset: %s\n", value.get()));
 
-      int32_t length = -1;
+      PRInt32 length = -1;
       if (NS_SUCCEEDED(channel->GetContentLength(&length)))
         LOG(("\tContent-Length: %d\n", length));
       else
@@ -427,7 +427,7 @@ InputTestConsumer::OnStartRequest(nsIRequest *request, nsISupports* context)
 
   nsCOMPtr<nsIPropertyBag2> propbag = do_QueryInterface(request);
   if (propbag) {
-      int64_t len;
+      PRInt64 len;
       nsresult rv = propbag->GetPropertyAsInt64(NS_CHANNEL_PROP_CONTENT_LENGTH,
                                                 &len);
       if (NS_SUCCEEDED(rv))
@@ -436,7 +436,7 @@ InputTestConsumer::OnStartRequest(nsIRequest *request, nsISupports* context)
 
   nsCOMPtr<nsIHttpChannelInternal> httpChannelInt(do_QueryInterface(request));
   if (httpChannelInt) {
-      uint32_t majorVer, minorVer;
+      PRUint32 majorVer, minorVer;
       nsresult rv = httpChannelInt->GetResponseVersion(&majorVer, &minorVer);
       if (NS_SUCCEEDED(rv))
           LOG(("HTTP Response version: %u.%u\n", majorVer, minorVer));
@@ -477,16 +477,16 @@ NS_IMETHODIMP
 InputTestConsumer::OnDataAvailable(nsIRequest *request, 
                                    nsISupports* context,
                                    nsIInputStream *aIStream, 
-                                   uint32_t aSourceOffset,
-                                   uint32_t aLength)
+                                   PRUint32 aSourceOffset,
+                                   PRUint32 aLength)
 {
   char buf[1025];
-  uint32_t amt, size;
+  PRUint32 amt, size;
   nsresult rv;
   URLLoadInfo* info = (URLLoadInfo*)context;
 
   while (aLength) {
-    size = NS_MIN<uint32_t>(aLength, sizeof(buf));
+    size = NS_MIN<PRUint32>(aLength, sizeof(buf));
 
     rv = aIStream->Read(buf, size, &amt);
     if (NS_FAILED(rv)) {
@@ -518,7 +518,7 @@ InputTestConsumer::OnStopRequest(nsIRequest *request, nsISupports* context,
   if (info) {
     double connectTime;
     double readTime;
-    uint32_t httpStatus;
+    PRUint32 httpStatus;
     bool bHTTPURL = false;
 
     info->mTotalTime = PR_Now() - info->mTotalTime;
@@ -542,9 +542,9 @@ InputTestConsumer::OnStopRequest(nsIRequest *request, nsISupports* context,
     LOG(("\tTime to connect: %.3f seconds\n", connectTime));
     LOG(("\tTime to read: %.3f seconds.\n", readTime));
     LOG(("\tRead: %lld bytes.\n", info->mBytesRead));
-    if (info->mBytesRead == int64_t(0)) {
+    if (info->mBytesRead == PRInt64(0)) {
     } else if (readTime > 0.0) {
-      LOG(("\tThroughput: %.0f bps.\n", (double)(info->mBytesRead*int64_t(8))/readTime));
+      LOG(("\tThroughput: %.0f bps.\n", (double)(info->mBytesRead*PRInt64(8))/readTime));
     } else {
       LOG(("\tThroughput: REAL FAST!!\n"));
     }
@@ -709,13 +709,13 @@ nsresult StartLoadingURL(const char* aUrlString)
     return rv;
 }
 
-static int32_t
+static PRInt32
 FindChar(nsCString& buffer, char c)
 {
     const char *b;
-    int32_t len = NS_CStringGetData(buffer, &b);
+    PRInt32 len = NS_CStringGetData(buffer, &b);
 
-    for (int32_t offset = 0; offset < len; ++offset) {
+    for (PRInt32 offset = 0; offset < len; ++offset) {
         if (b[offset] == c)
             return offset;
     }
@@ -728,7 +728,7 @@ static void
 StripChar(nsCString& buffer, char c)
 {
     const char *b;
-    uint32_t len = NS_CStringGetData(buffer, &b) - 1;
+    PRUint32 len = NS_CStringGetData(buffer, &b) - 1;
 
     for (; len > 0; --len) {
         if (b[len] == c) {
@@ -741,7 +741,7 @@ StripChar(nsCString& buffer, char c)
 nsresult LoadURLsFromFile(char *aFileName)
 {
     nsresult rv = NS_OK;
-    int32_t len, offset;
+    PRInt32 len, offset;
     PRFileDesc* fd;
     char buffer[1024];
     nsCString fileBuffer;

@@ -123,7 +123,7 @@ struct UniCharsAndModifiers
   // Dead-key + up to 4 characters
   PRUnichar mChars[5];
   Modifiers mModifiers[5];
-  uint32_t  mLength;
+  PRUint32  mLength;
 
   UniCharsAndModifiers() : mLength(0) {}
   UniCharsAndModifiers operator+(const UniCharsAndModifiers& aOther) const;
@@ -175,7 +175,7 @@ public:
     STATE_CAPSLOCK = 0x08
   };
 
-  typedef uint8_t ShiftState;
+  typedef PRUint8 ShiftState;
 
   static ShiftState ModifiersToShiftState(Modifiers aModifiers)
   {
@@ -232,7 +232,7 @@ private:
   };
 
   KeyShiftState mShiftStates[16];
-  uint16_t mIsDeadKey;
+  PRUint16 mIsDeadKey;
 
   void SetDeadKey(ShiftState aShiftState, bool aIsDeadKey)
   {
@@ -258,10 +258,10 @@ public:
   }
 
   void SetNormalChars(ShiftState aShiftState, const PRUnichar* aChars,
-                      uint32_t aNumOfChars);
+                      PRUint32 aNumOfChars);
   void SetDeadChar(ShiftState aShiftState, PRUnichar aDeadChar);
   const DeadKeyTable* MatchingDeadKeyTable(const DeadKeyEntry* aDeadKeyArray,
-                                           uint32_t aEntries) const;
+                                           PRUint32 aEntries) const;
   inline PRUnichar GetCompositeChar(ShiftState aShiftState,
                                     PRUnichar aBaseChar) const;
   UniCharsAndModifiers GetNativeUniChars(ShiftState aShiftState) const;
@@ -280,22 +280,22 @@ public:
             nsWindow* aWindow,
             const MSG& aKeyOrCharMessage);
 
-  uint32_t GetDOMKeyCode() const { return mDOMKeyCode; }
+  PRUint32 GetDOMKeyCode() const { return mDOMKeyCode; }
 
   // The result is one of nsIDOMKeyEvent::DOM_KEY_LOCATION_*.
-  uint32_t GetKeyLocation() const;
+  PRUint32 GetKeyLocation() const;
   WORD GetScanCode() const { return mScanCode; }
-  uint8_t GetVirtualKeyCode() const { return mVirtualKeyCode; }
-  uint8_t GetOriginalVirtualKeyCode() const { return mOriginalVirtualKeyCode; }
+  PRUint8 GetVirtualKeyCode() const { return mVirtualKeyCode; }
+  PRUint8 GetOriginalVirtualKeyCode() const { return mOriginalVirtualKeyCode; }
 
 private:
-  uint32_t mDOMKeyCode;
+  PRUint32 mDOMKeyCode;
   // mVirtualKeyCode distinguishes left key or right key of modifier key.
-  uint8_t mVirtualKeyCode;
+  PRUint8 mVirtualKeyCode;
   // mOriginalVirtualKeyCode doesn't distinguish left key or right key of
   // modifier key.  However, if the given keycode is VK_PROCESS, it's resolved
   // to a keycode before it's handled by IME.
-  uint8_t mOriginalVirtualKeyCode;
+  PRUint8 mOriginalVirtualKeyCode;
   WORD    mScanCode;
   bool    mIsExtended;
 
@@ -307,7 +307,7 @@ class KeyboardLayout
   struct DeadKeyTableListEntry
   {
     DeadKeyTableListEntry* next;
-    uint8_t data[1];
+    PRUint8 data[1];
   };
 
   HKL mKeyboardLayout;
@@ -315,37 +315,37 @@ class KeyboardLayout
 
   VirtualKey mVirtualKeys[NS_NUM_OF_KEYS];
   DeadKeyTableListEntry* mDeadKeyTableListHead;
-  int32_t mActiveDeadKey;                 // -1 = no active dead-key
+  PRInt32 mActiveDeadKey;                 // -1 = no active dead-key
   VirtualKey::ShiftState mDeadKeyShiftState;
 
-  static inline int32_t GetKeyIndex(uint8_t aVirtualKey);
+  static inline PRInt32 GetKeyIndex(PRUint8 aVirtualKey);
   static int CompareDeadKeyEntries(const void* aArg1, const void* aArg2,
                                    void* aData);
   static bool AddDeadKeyEntry(PRUnichar aBaseChar, PRUnichar aCompositeChar,
-                                DeadKeyEntry* aDeadKeyArray, uint32_t aEntries);
-  bool EnsureDeadKeyActive(bool aIsActive, uint8_t aDeadKey,
+                                DeadKeyEntry* aDeadKeyArray, PRUint32 aEntries);
+  bool EnsureDeadKeyActive(bool aIsActive, PRUint8 aDeadKey,
                              const PBYTE aDeadKeyKbdState);
-  uint32_t GetDeadKeyCombinations(uint8_t aDeadKey,
+  PRUint32 GetDeadKeyCombinations(PRUint8 aDeadKey,
                                   const PBYTE aDeadKeyKbdState,
-                                  uint16_t aShiftStatesWithBaseChars,
+                                  PRUint16 aShiftStatesWithBaseChars,
                                   DeadKeyEntry* aDeadKeyArray,
-                                  uint32_t aMaxEntries);
+                                  PRUint32 aMaxEntries);
   void DeactivateDeadKeyState();
   const DeadKeyTable* AddDeadKeyTable(const DeadKeyEntry* aDeadKeyArray,
-                                      uint32_t aEntries);
+                                      PRUint32 aEntries);
   void ReleaseDeadKeyTables();
 
 public:
   KeyboardLayout();
   ~KeyboardLayout();
 
-  static bool IsPrintableCharKey(uint8_t aVirtualKey);
+  static bool IsPrintableCharKey(PRUint8 aVirtualKey);
 
   /**
    * IsDeadKey() returns true if aVirtualKey is a dead key with aModKeyState.
    * This method isn't stateful.
    */
-  bool IsDeadKey(uint8_t aVirtualKey,
+  bool IsDeadKey(PRUint8 aVirtualKey,
                  const ModifierKeyState& aModKeyState) const;
 
   /**
@@ -353,7 +353,7 @@ public:
    * aVirtualKey with aModKeyState.  This method isn't stateful.
    */
   UniCharsAndModifiers GetUniCharsAndModifiers(
-                         uint8_t aVirtualKey,
+                         PRUint8 aVirtualKey,
                          const ModifierKeyState& aModKeyState) const;
 
   /**
@@ -361,7 +361,7 @@ public:
    * message.  This method is stateful.  This saves current dead key state
    * and computes current inputted character(s).
    */
-  UniCharsAndModifiers OnKeyDown(uint8_t aVirtualKey,
+  UniCharsAndModifiers OnKeyDown(PRUint8 aVirtualKey,
                                  const ModifierKeyState& aModKeyState);
 
   /**
@@ -370,7 +370,7 @@ public:
    */
   void LoadLayout(HKL aLayout, bool aLoadLater = false);
 
-  uint32_t ConvertNativeKeyCodeToDOMKeyCode(UINT aNativeKeyCode) const;
+  PRUint32 ConvertNativeKeyCodeToDOMKeyCode(UINT aNativeKeyCode) const;
 
   HKL GetLayout() const
   {

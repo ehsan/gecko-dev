@@ -238,8 +238,8 @@ FetchIconInfo(nsRefPtr<Database>& aDB,
   rv = stmt->GetIsNull(2, &isNull);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!isNull) {
-    uint8_t* data;
-    uint32_t dataLen = 0;
+    PRUint8* data;
+    PRUint32 dataLen = 0;
     rv = stmt->GetBlob(2, &dataLen, &data);
     NS_ENSURE_SUCCESS(rv, rv);
     _icon.data.Adopt(TO_CHARBUFFER(data), dataLen);
@@ -355,7 +355,7 @@ GetExpirationTimeFromChannel(nsIChannel* aChannel)
     nsresult rv = cachingChannel->GetCacheToken(getter_AddRefs(cacheToken));
     if (NS_SUCCEEDED(rv)) {
       nsCOMPtr<nsICacheEntryInfo> cacheEntry = do_QueryInterface(cacheToken);
-      uint32_t seconds;
+      PRUint32 seconds;
       rv = cacheEntry->GetExpirationTime(&seconds);
       if (NS_SUCCEEDED(rv)) {
         // Set the expiration, but make sure we honor our cap.
@@ -613,8 +613,8 @@ NS_IMETHODIMP
 AsyncFetchAndSetIconFromNetwork::OnDataAvailable(nsIRequest* aRequest,
                                                  nsISupports* aContext,
                                                  nsIInputStream* aInputStream,
-                                                 uint32_t aOffset,
-                                                 uint32_t aCount)
+                                                 PRUint32 aOffset,
+                                                 PRUint32 aCount)
 {
   nsCAutoString buffer;
   nsresult rv = NS_ConsumeStream(aInputStream, aCount, buffer);
@@ -639,7 +639,7 @@ NS_IMETHODIMP
 AsyncFetchAndSetIconFromNetwork::AsyncOnChannelRedirect(
   nsIChannel* oldChannel
 , nsIChannel* newChannel
-, uint32_t flags
+, PRUint32 flags
 , nsIAsyncVerifyRedirectCallback *cb
 )
 {

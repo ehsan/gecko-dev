@@ -21,7 +21,7 @@ variantToSQLiteT(T aObj,
   if (!aValue)
     return sqlite3_T_null(aObj);
 
-  uint16_t type;
+  PRUint16 type;
   (void)aValue->GetDataType(&type);
   switch (type) {
     case nsIDataType::VTYPE_INT8:
@@ -30,7 +30,7 @@ variantToSQLiteT(T aObj,
     case nsIDataType::VTYPE_UINT8:
     case nsIDataType::VTYPE_UINT16:
     {
-      int32_t value;
+      PRInt32 value;
       nsresult rv = aValue->GetAsInt32(&value);
       NS_ENSURE_SUCCESS(rv, SQLITE_MISMATCH);
       return sqlite3_T_int(aObj, value);
@@ -40,7 +40,7 @@ variantToSQLiteT(T aObj,
     // Data loss possible, but there is no unsigned types in SQLite
     case nsIDataType::VTYPE_UINT64:
     {
-      int64_t value;
+      PRInt64 value;
       nsresult rv = aValue->GetAsInt64(&value);
       NS_ENSURE_SUCCESS(rv, SQLITE_MISMATCH);
       return sqlite3_T_int64(aObj, value);
@@ -94,9 +94,9 @@ variantToSQLiteT(T aObj,
       return sqlite3_T_null(aObj);
     case nsIDataType::VTYPE_ARRAY:
     {
-      uint16_t type;
+      PRUint16 type;
       nsIID iid;
-      uint32_t count;
+      PRUint32 count;
       void *data;
       nsresult rv = aValue->GetAsArray(&type, &iid, &count, &data);
       NS_ENSURE_SUCCESS(rv, SQLITE_MISMATCH);

@@ -122,7 +122,7 @@ nsThreadManager::Shutdown()
   // world until such time as the threads exit.
 
   // Shutdown all threads that require it (join with threads that we created).
-  for (uint32_t i = 0; i < threads.Length(); ++i) {
+  for (PRUint32 i = 0; i < threads.Length(); ++i) {
     nsThread *thread = threads[i];
     if (thread->ShutdownRequired())
       thread->Shutdown();
@@ -200,8 +200,8 @@ nsThreadManager::GetCurrentThread()
 }
 
 NS_IMETHODIMP
-nsThreadManager::NewThread(uint32_t creationFlags,
-                           uint32_t stackSize,
+nsThreadManager::NewThread(PRUint32 creationFlags,
+                           PRUint32 stackSize,
                            nsIThread **result)
 {
   // No new threads during Shutdown

@@ -73,9 +73,9 @@ nsLeafBoxFrame::Init(
 }
 
 NS_IMETHODIMP
-nsLeafBoxFrame::AttributeChanged(int32_t aNameSpaceID,
+nsLeafBoxFrame::AttributeChanged(PRInt32 aNameSpaceID,
                                  nsIAtom* aAttribute,
-                                 int32_t aModType)
+                                 PRInt32 aModType)
 {
   nsresult rv = nsLeafFrame::AttributeChanged(aNameSpaceID, aAttribute,
                                               aModType);

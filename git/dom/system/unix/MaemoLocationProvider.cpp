@@ -185,7 +185,7 @@ NS_IMETHODIMP MaemoLocationProvider::Startup()
     return NS_OK;
 
   // 0 second no timer created
-  int32_t update = Preferences::GetInt("geo.default.update", 0);
+  PRInt32 update = Preferences::GetInt("geo.default.update", 0);
 
   if (!update)
     return NS_OK;

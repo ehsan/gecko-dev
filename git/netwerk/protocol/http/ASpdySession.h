@@ -26,21 +26,21 @@ namespace mozilla { namespace net {
 class ASpdySession : public nsAHttpTransaction
 {
 public:
-  virtual bool AddStream(nsAHttpTransaction *, int32_t) = 0;
+  virtual bool AddStream(nsAHttpTransaction *, PRInt32) = 0;
   virtual bool CanReuse() = 0;
   virtual bool RoomForMoreStreams() = 0;
   virtual PRIntervalTime IdleTime() = 0;
   virtual void ReadTimeoutTick(PRIntervalTime now) = 0;
   virtual void DontReuse() = 0;
 
-  static ASpdySession *NewSpdySession(uint32_t version,
+  static ASpdySession *NewSpdySession(PRUint32 version,
                                       nsAHttpTransaction *,
                                       nsISocketTransport *,
-                                      int32_t);
+                                      PRInt32);
 
   virtual void PrintDiagnostics (nsCString &log) = 0;
 
-  const static uint32_t kSendingChunkSize = 4096;
+  const static PRUint32 kSendingChunkSize = 4096;
 };
 
 // this is essentially a single instantiation as a member of nsHttpHandler.
@@ -54,23 +54,23 @@ public:
 
   // determine if a version of the protocol is enabled. The primary
   // version is index 0, the secondary version is index 1.
-  bool ProtocolEnabled(uint32_t index);
+  bool ProtocolEnabled(PRUint32 index);
 
   // lookup a version enum based on an npn string. returns NS_OK if
   // string was known.
-  nsresult GetNPNVersionIndex(const nsACString &npnString, uint8_t *result);
+  nsresult GetNPNVersionIndex(const nsACString &npnString, PRUint8 *result);
 
   // lookup a version enum based on an alternate protocol string. returns NS_OK
   // if string was known and corresponding protocol is enabled.
   nsresult GetAlternateProtocolVersionIndex(const char *val,
-                                            uint8_t *result);
+                                            PRUint8 *result);
 
   enum {
     SPDY_VERSION_2 = 2,
     SPDY_VERSION_3 = 3
   };
 
-  uint8_t   Version[2];
+  PRUint8   Version[2];
   nsCString VersionString[2];
   nsCString AlternateProtocolString[2];
 };

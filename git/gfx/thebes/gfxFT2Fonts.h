@@ -40,16 +40,16 @@ public: // new functions
         CachedGlyphData()
             : glyphIndex(0xffffffffU) { }
 
-        CachedGlyphData(uint32_t gid)
+        CachedGlyphData(PRUint32 gid)
             : glyphIndex(gid) { }
 
-        uint32_t glyphIndex;
-        int32_t lsbDelta;
-        int32_t rsbDelta;
-        int32_t xAdvance;
+        PRUint32 glyphIndex;
+        PRInt32 lsbDelta;
+        PRInt32 rsbDelta;
+        PRInt32 xAdvance;
     };
 
-    const CachedGlyphData* GetGlyphDataForChar(uint32_t ch) {
+    const CachedGlyphData* GetGlyphDataForChar(PRUint32 ch) {
         CharGlyphMapEntryType *entry = mCharGlyphCache.PutEntry(ch);
 
         if (!entry)
@@ -74,7 +74,7 @@ protected:
                            const PRUnichar *aString,
                            bool aPreferPlatformShaping = false);
 
-    void FillGlyphDataForChar(uint32_t ch, CachedGlyphData *gd);
+    void FillGlyphDataForChar(PRUint32 ch, CachedGlyphData *gd);
 
     void AddRange(gfxShapedWord *aShapedWord, const PRUnichar *str);
 
@@ -111,10 +111,10 @@ protected: // new functions
                                nsIAtom *aLangGroup,
                                nsTArray<nsRefPtr<gfxFontEntry> > *aFontEntryList);
     already_AddRefed<gfxFT2Font> WhichFontSupportsChar(const nsTArray<nsRefPtr<gfxFontEntry> >& aFontEntryList,
-                                                       uint32_t aCh);
-    already_AddRefed<gfxFont> WhichPrefFontSupportsChar(uint32_t aCh);
+                                                       PRUint32 aCh);
+    already_AddRefed<gfxFont> WhichPrefFontSupportsChar(PRUint32 aCh);
     already_AddRefed<gfxFont>
-        WhichSystemFontSupportsChar(uint32_t aCh, int32_t aRunScript);
+        WhichSystemFontSupportsChar(PRUint32 aCh, PRInt32 aRunScript);
 
     nsTArray<gfxTextRange> mRanges;
     nsString mString;

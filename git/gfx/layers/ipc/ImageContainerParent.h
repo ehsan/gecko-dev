@@ -29,7 +29,7 @@ class ImageContainerParent : public PImageContainerParent
 {
 public:
 
-  ImageContainerParent(uint32_t aContainerID);
+  ImageContainerParent(PRUint32 aContainerID);
   ~ImageContainerParent();
 
   // Overriden from PImageContainerParent (see ImageContainer.ipdl)
@@ -50,7 +50,7 @@ public:
    */
   void DoStop();
 
-  static SharedImage* GetSharedImage(uint64_t aID);
+  static SharedImage* GetSharedImage(PRUint64 aID);
   /**
    * Every time a SharedImage is swaped, a version counter associated with the 
    * iamge's ID is incremented. This allows ImageLayers to compare the current 
@@ -58,14 +58,14 @@ public:
    * backend we can avoid uploading the same texture twice if composition 
    * happens more frequently than ImageBridge transfers);
    */
-  static uint32_t GetSharedImageVersion(uint64_t aID);
+  static PRUint32 GetSharedImageVersion(PRUint64 aID);
 
   /**
    * Returns true if this ID exists in the global SharedImage table.
    *
    * Should be called from the Compositor thread
    */
-  static bool IsExistingID(uint64_t aID);
+  static bool IsExistingID(PRUint64 aID);
 
   /**
    * Associates an image with a compositor ID, so that when the ImageContainerParent 
@@ -77,12 +77,12 @@ public:
    * compositor (for instance when the tab containing the stream is dragged to 
    * another window).
    */
-  static bool SetCompositorIDForImage(uint64_t aImageID, uint64_t aCompositorID);
+  static bool SetCompositorIDForImage(PRUint64 aImageID, PRUint64 aCompositorID);
 
   /**
    * Must be called on the compositor thread.
    */
-  static uint64_t GetCompositorIDForImage(uint64_t aImageID);
+  static PRUint64 GetCompositorIDForImage(PRUint64 aImageID);
 
   /**
    * Must be called before the first use of ImageBridge and Compositor.
@@ -112,7 +112,7 @@ protected:
    * creates one and returns nullptr since there was no previous image for aID.
    * Must be called from the Compositor thread.
    */
-  static SharedImage* SwapSharedImage(uint64_t aID, SharedImage* aImage);
+  static SharedImage* SwapSharedImage(PRUint64 aID, SharedImage* aImage);
 
   /**
    * Removes an entry from the global SharedImage table and returns the 
@@ -122,10 +122,10 @@ protected:
    * It is safe to call this function on an ID that does not exist in the table.
    * Must be called from the Compositor thread. 
    */
-  static SharedImage* RemoveSharedImage(uint64_t aID);
+  static SharedImage* RemoveSharedImage(PRUint64 aID);
 
 private:
-  uint64_t mID;
+  PRUint64 mID;
   bool  mStop;
 };
 

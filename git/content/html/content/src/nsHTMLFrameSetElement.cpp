@@ -42,7 +42,7 @@ NS_IMPL_STRING_ATTR(nsHTMLFrameSetElement, Cols, cols)
 NS_IMPL_STRING_ATTR(nsHTMLFrameSetElement, Rows, rows)
 
 nsresult
-nsHTMLFrameSetElement::SetAttr(int32_t aNameSpaceID,
+nsHTMLFrameSetElement::SetAttr(PRInt32 aNameSpaceID,
                                nsIAtom* aAttribute,
                                nsIAtom* aPrefix,
                                const nsAString& aValue,
@@ -58,7 +58,7 @@ nsHTMLFrameSetElement::SetAttr(int32_t aNameSpaceID,
    *  normal hint, which is NS_STYLE_HINT_REFLOW.
    */
   if (aAttribute == nsGkAtoms::rows && aNameSpaceID == kNameSpaceID_None) {
-    int32_t oldRows = mNumRows;
+    PRInt32 oldRows = mNumRows;
     ParseRowCol(aValue, mNumRows, getter_Transfers(mRowSpecs));
     
     if (mNumRows != oldRows) {
@@ -66,7 +66,7 @@ nsHTMLFrameSetElement::SetAttr(int32_t aNameSpaceID,
     }
   } else if (aAttribute == nsGkAtoms::cols &&
              aNameSpaceID == kNameSpaceID_None) {
-    int32_t oldCols = mNumCols;
+    PRInt32 oldCols = mNumCols;
     ParseRowCol(aValue, mNumCols, getter_Transfers(mColSpecs));
 
     if (mNumCols != oldCols) {
@@ -82,7 +82,7 @@ nsHTMLFrameSetElement::SetAttr(int32_t aNameSpaceID,
 }
 
 nsresult
-nsHTMLFrameSetElement::GetRowSpec(int32_t *aNumValues,
+nsHTMLFrameSetElement::GetRowSpec(PRInt32 *aNumValues,
                                   const nsFramesetSpec** aSpecs)
 {
   NS_PRECONDITION(aNumValues, "Must have a pointer to an integer here!");
@@ -116,7 +116,7 @@ nsHTMLFrameSetElement::GetRowSpec(int32_t *aNumValues,
 }
 
 nsresult
-nsHTMLFrameSetElement::GetColSpec(int32_t *aNumValues,
+nsHTMLFrameSetElement::GetColSpec(PRInt32 *aNumValues,
                                   const nsFramesetSpec** aSpecs)
 {
   NS_PRECONDITION(aNumValues, "Must have a pointer to an integer here!");
@@ -151,7 +151,7 @@ nsHTMLFrameSetElement::GetColSpec(int32_t *aNumValues,
 
 
 bool
-nsHTMLFrameSetElement::ParseAttribute(int32_t aNamespaceID,
+nsHTMLFrameSetElement::ParseAttribute(PRInt32 aNamespaceID,
                                       nsIAtom* aAttribute,
                                       const nsAString& aValue,
                                       nsAttrValue& aResult)
@@ -174,7 +174,7 @@ nsHTMLFrameSetElement::ParseAttribute(int32_t aNamespaceID,
 
 nsChangeHint
 nsHTMLFrameSetElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
-                                              int32_t aModType) const
+                                              PRInt32 aModType) const
 {
   nsChangeHint retval =
     nsGenericHTMLElement::GetAttributeChangeHint(aAttribute, aModType);
@@ -190,7 +190,7 @@ nsHTMLFrameSetElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
  */
 nsresult
 nsHTMLFrameSetElement::ParseRowCol(const nsAString & aValue,
-                                   int32_t& aNumSpecs,
+                                   PRInt32& aNumSpecs,
                                    nsFramesetSpec** aSpecs) 
 {
   if (aValue.IsEmpty()) {
@@ -211,8 +211,8 @@ nsHTMLFrameSetElement::ParseRowCol(const nsAString & aValue,
   
   // Count the commas. Don't count more than X commas (bug 576447).
   PR_STATIC_ASSERT(NS_MAX_FRAMESET_SPEC_COUNT * sizeof(nsFramesetSpec) < (1 << 30));
-  int32_t commaX = spec.FindChar(sComma);
-  int32_t count = 1;
+  PRInt32 commaX = spec.FindChar(sComma);
+  PRInt32 count = 1;
   while (commaX != kNotFound && count < NS_MAX_FRAMESET_SPEC_COUNT) {
     count++;
     commaX = spec.FindChar(sComma, commaX + 1);
@@ -230,15 +230,15 @@ nsHTMLFrameSetElement::ParseRowCol(const nsAString & aValue,
       
   // Parse each comma separated token
 
-  int32_t start = 0;
-  int32_t specLen = spec.Length();
+  PRInt32 start = 0;
+  PRInt32 specLen = spec.Length();
 
-  for (int32_t i = 0; i < count; i++) {
+  for (PRInt32 i = 0; i < count; i++) {
     // Find our comma
     commaX = spec.FindChar(sComma, start);
     NS_ASSERTION(i == count - 1 || commaX != kNotFound,
                  "Failed to find comma, somehow");
-    int32_t end = (commaX == kNotFound) ? specLen : commaX;
+    PRInt32 end = (commaX == kNotFound) ? specLen : commaX;
 
     // Note: If end == start then it means that the token has no
     // data in it other than a terminating comma (or the end of the spec).
@@ -246,7 +246,7 @@ nsHTMLFrameSetElement::ParseRowCol(const nsAString & aValue,
     specs[i].mUnit = eFramesetUnit_Fixed;
     specs[i].mValue = 0;
     if (end > start) {
-      int32_t numberEnd = end;
+      PRInt32 numberEnd = end;
       PRUnichar ch = spec.CharAt(numberEnd - 1);
       if (sAster == ch) {
         specs[i].mUnit = eFramesetUnit_Relative;

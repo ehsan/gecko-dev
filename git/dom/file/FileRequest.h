@@ -36,7 +36,7 @@ public:
   PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
   void
-  OnProgress(uint64_t aProgress, uint64_t aProgressMax)
+  OnProgress(PRUint64 aProgress, PRUint64 aProgressMax)
   {
     FireProgressEvent(aProgress, aProgressMax);
   }
@@ -49,7 +49,7 @@ private:
   ~FileRequest();
 
   void
-  FireProgressEvent(uint64_t aLoaded, uint64_t aTotal);
+  FireProgressEvent(PRUint64 aLoaded, PRUint64 aTotal);
 
   virtual void
   RootResultVal();

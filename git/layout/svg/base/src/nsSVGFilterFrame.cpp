@@ -36,7 +36,7 @@ NS_IMPL_FRAMEARENA_HELPERS(nsSVGFilterFrame)
  */
 static nsIntRect
 MapFrameRectToFilterSpace(const nsRect* aRect,
-                          int32_t aAppUnitsPerCSSPx,
+                          PRInt32 aAppUnitsPerCSSPx,
                           const gfxMatrix& aFrameSpaceInCSSPxToFilterSpace,
                           const gfxIntSize& aFilterRes)
 {
@@ -66,7 +66,7 @@ GetUserToFrameSpaceInCSSPxTransform(nsIFrame *aFrame)
   gfxMatrix userToFrameSpaceInCSSPx;
 
   if ((aFrame->GetStateBits() & NS_FRAME_SVG_LAYOUT)) {
-    int32_t appUnitsPerCSSPx = aFrame->PresContext()->AppUnitsPerCSSPixel();
+    PRInt32 appUnitsPerCSSPx = aFrame->PresContext()->AppUnitsPerCSSPixel();
     // As currently implemented by Mozilla for the purposes of filters, user
     // space is the coordinate system established by GetCanvasTM(), since
     // that's what we use to set filterToDeviceSpace above. In other words,
@@ -139,9 +139,9 @@ nsAutoFilterInstance::nsAutoFilterInstance(nsIFrame *aTarget,
 {
   const nsSVGFilterElement *filter = aFilterFrame->GetFilterContent();
 
-  uint16_t filterUnits =
+  PRUint16 filterUnits =
     aFilterFrame->GetEnumValue(nsSVGFilterElement::FILTERUNITS);
-  uint16_t primitiveUnits =
+  PRUint16 primitiveUnits =
     aFilterFrame->GetEnumValue(nsSVGFilterElement::PRIMITIVEUNITS);
 
   gfxRect bbox = aOverrideBBox ? *aOverrideBBox : nsSVGUtils::GetBBox(aTarget);
@@ -186,8 +186,8 @@ nsAutoFilterInstance::nsAutoFilterInstance(nsIFrame *aTarget,
   const nsSVGIntegerPair* filterResAttrs =
     aFilterFrame->GetIntegerPairValue(nsSVGFilterElement::FILTERRES);
   if (filterResAttrs->IsExplicitlySet()) {
-    int32_t filterResX = filterResAttrs->GetAnimValue(nsSVGIntegerPair::eFirst);
-    int32_t filterResY = filterResAttrs->GetAnimValue(nsSVGIntegerPair::eSecond);
+    PRInt32 filterResX = filterResAttrs->GetAnimValue(nsSVGIntegerPair::eFirst);
+    PRInt32 filterResY = filterResAttrs->GetAnimValue(nsSVGIntegerPair::eSecond);
     if (filterResX <= 0 || filterResY <= 0) {
       // 0 disables rendering, < 0 is error. dispatch error console warning?
       return;
@@ -240,7 +240,7 @@ nsAutoFilterInstance::nsAutoFilterInstance(nsIFrame *aTarget,
 
   // Convert the passed in rects from frame to filter space:
 
-  int32_t appUnitsPerCSSPx = aTarget->PresContext()->AppUnitsPerCSSPixel();
+  PRInt32 appUnitsPerCSSPx = aTarget->PresContext()->AppUnitsPerCSSPixel();
 
   gfxMatrix filterToFrameSpaceInCSSPx =
     filterToUserSpace * GetUserToFrameSpaceInCSSPxTransform(aTarget);
@@ -276,8 +276,8 @@ nsAutoFilterInstance::nsAutoFilterInstance(nsIFrame *aTarget,
                             preFilterDirtyRect, primitiveUnits);
 }
 
-uint16_t
-nsSVGFilterFrame::GetEnumValue(uint32_t aIndex, nsIContent *aDefault)
+PRUint16
+nsSVGFilterFrame::GetEnumValue(PRUint32 aIndex, nsIContent *aDefault)
 {
   nsSVGEnum& thisEnum =
     static_cast<nsSVGFilterElement *>(mContent)->mEnumAttributes[aIndex];
@@ -294,7 +294,7 @@ nsSVGFilterFrame::GetEnumValue(uint32_t aIndex, nsIContent *aDefault)
 }
 
 const nsSVGIntegerPair *
-nsSVGFilterFrame::GetIntegerPairValue(uint32_t aIndex, nsIContent *aDefault)
+nsSVGFilterFrame::GetIntegerPairValue(PRUint32 aIndex, nsIContent *aDefault)
 {
   const nsSVGIntegerPair *thisIntegerPair =
     &static_cast<nsSVGFilterElement *>(mContent)->mIntegerPairAttributes[aIndex];
@@ -310,7 +310,7 @@ nsSVGFilterFrame::GetIntegerPairValue(uint32_t aIndex, nsIContent *aDefault)
 }
 
 const nsSVGLength2 *
-nsSVGFilterFrame::GetLengthValue(uint32_t aIndex, nsIContent *aDefault)
+nsSVGFilterFrame::GetLengthValue(PRUint32 aIndex, nsIContent *aDefault)
 {
   const nsSVGLength2 *thisLength =
     &static_cast<nsSVGFilterElement *>(mContent)->mLengthAttributes[aIndex];
@@ -404,9 +404,9 @@ nsSVGFilterFrame::GetReferencedFilterIfNotInUse()
 }
 
 NS_IMETHODIMP
-nsSVGFilterFrame::AttributeChanged(int32_t  aNameSpaceID,
+nsSVGFilterFrame::AttributeChanged(PRInt32  aNameSpaceID,
                                    nsIAtom* aAttribute,
-                                   int32_t  aModType)
+                                   PRInt32  aModType)
 {
   if (aNameSpaceID == kNameSpaceID_None &&
       (aAttribute == nsGkAtoms::x ||

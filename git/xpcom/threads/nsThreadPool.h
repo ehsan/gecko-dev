@@ -35,10 +35,10 @@ private:
 
   nsCOMArray<nsIThread> mThreads;
   nsEventQueue          mEvents;
-  uint32_t              mThreadLimit;
-  uint32_t              mIdleThreadLimit;
-  uint32_t              mIdleThreadTimeout;
-  uint32_t              mIdleCount;
+  PRUint32              mThreadLimit;
+  PRUint32              mIdleThreadLimit;
+  PRUint32              mIdleThreadTimeout;
+  PRUint32              mIdleCount;
   nsCOMPtr<nsIThreadPoolListener> mListener;
   bool                  mShutdown;
   nsCString             mName;

@@ -100,7 +100,7 @@ class nsContentSink : public nsICSSLoaderObserver,
   NS_HIDDEN_(void) DropParserAndPerfHint(void);
   bool IsScriptExecutingImpl();
 
-  void NotifyAppend(nsIContent* aContent, uint32_t aStartIndex);
+  void NotifyAppend(nsIContent* aContent, PRUint32 aStartIndex);
 
   // nsIDocumentObserver
   NS_DECL_NSIDOCUMENTOBSERVER_BEGINUPDATE
@@ -238,9 +238,9 @@ public:
 
 protected:
   void
-  FavorPerformanceHint(bool perfOverStarvation, uint32_t starvationDelay);
+  FavorPerformanceHint(bool perfOverStarvation, PRUint32 starvationDelay);
 
-  inline int32_t GetNotificationInterval()
+  inline PRInt32 GetNotificationInterval()
   {
     if (mDynamicLowerValue) {
       return 1000;
@@ -277,7 +277,7 @@ protected:
   nsRefPtr<nsScriptLoader>      mScriptLoader;
 
   // back off timer notification after count
-  int32_t mBackoffCount;
+  PRInt32 mBackoffCount;
 
   // Time of last notification
   // Note: mLastNotificationTime is only valid once mLayoutStarted is true.
@@ -287,22 +287,22 @@ protected:
   nsCOMPtr<nsITimer> mNotificationTimer;
 
   // Have we already called BeginUpdate for this set of content changes?
-  uint8_t mBeganUpdate : 1;
-  uint8_t mLayoutStarted : 1;
-  uint8_t mDynamicLowerValue : 1;
-  uint8_t mParsing : 1;
-  uint8_t mDroppedTimer : 1;
+  PRUint8 mBeganUpdate : 1;
+  PRUint8 mLayoutStarted : 1;
+  PRUint8 mDynamicLowerValue : 1;
+  PRUint8 mParsing : 1;
+  PRUint8 mDroppedTimer : 1;
   // If true, we deferred starting layout until sheets load
-  uint8_t mDeferredLayoutStart : 1;
+  PRUint8 mDeferredLayoutStart : 1;
   // If true, we deferred notifications until sheets load
-  uint8_t mDeferredFlushTags : 1;
+  PRUint8 mDeferredFlushTags : 1;
   // If false, we're not ourselves a document observer; that means we
   // shouldn't be performing any more content model notifications,
   // since we're not longer updating our child counts.
-  uint8_t mIsDocumentObserver : 1;
+  PRUint8 mIsDocumentObserver : 1;
   // True if this is parser is a fragment parser or an HTML DOMParser.
   // XML DOMParser leaves this to false for now!
-  uint8_t mRunsToCompletion : 1;
+  PRUint8 mRunsToCompletion : 1;
   
   //
   // -- Can interrupt parsing members --
@@ -310,26 +310,26 @@ protected:
 
   // The number of tokens that have been processed since we measured
   // if it's time to return to the main event loop.
-  uint32_t mDeflectedCount;
+  PRUint32 mDeflectedCount;
 
   // Is there currently a pending event?
   bool mHasPendingEvent;
 
   // When to return to the main event loop
-  uint32_t mCurrentParseEndTime;
+  PRUint32 mCurrentParseEndTime;
 
-  int32_t mBeginLoadTime;
+  PRInt32 mBeginLoadTime;
 
   // Last mouse event or keyboard event time sampled by the content
   // sink
-  uint32_t mLastSampledUserEventTime;
+  PRUint32 mLastSampledUserEventTime;
 
-  int32_t mInMonolithicContainer;
+  PRInt32 mInMonolithicContainer;
 
-  int32_t mInNotification;
-  uint32_t mUpdatesInNotification;
+  PRInt32 mInNotification;
+  PRUint32 mUpdatesInNotification;
 
-  uint32_t mPendingSheetCount;
+  PRUint32 mPendingSheetCount;
 
   nsRevocableEventPtr<nsRunnableMethod<nsContentSink, void, false> >
     mProcessLinkHeaderEvent;
@@ -337,27 +337,27 @@ protected:
   // Do we notify based on time?
   static bool sNotifyOnTimer;
   // Back off timer notification after count.
-  static int32_t sBackoffCount;
+  static PRInt32 sBackoffCount;
   // Notification interval in microseconds
-  static int32_t sNotificationInterval;
+  static PRInt32 sNotificationInterval;
   // How many times to deflect in interactive/perf modes
-  static int32_t sInteractiveDeflectCount;
-  static int32_t sPerfDeflectCount;
+  static PRInt32 sInteractiveDeflectCount;
+  static PRInt32 sPerfDeflectCount;
   // 0 = don't check for pending events
   // 1 = don't deflect if there are pending events
   // 2 = bail if there are pending events
-  static int32_t sPendingEventMode;
+  static PRInt32 sPendingEventMode;
   // How often to probe for pending events. 1=every token
-  static int32_t sEventProbeRate;
+  static PRInt32 sEventProbeRate;
   // How long to stay off the event loop in interactive/perf modes
-  static int32_t sInteractiveParseTime;
-  static int32_t sPerfParseTime;
+  static PRInt32 sInteractiveParseTime;
+  static PRInt32 sPerfParseTime;
   // How long to be in interactive mode after an event
-  static int32_t sInteractiveTime;
+  static PRInt32 sInteractiveTime;
   // How long to stay in perf mode after initial loading
-  static int32_t sInitialPerfTime;
+  static PRInt32 sInitialPerfTime;
   // Should we switch between perf-mode and interactive-mode
-  static int32_t sEnablePerfMode;
+  static PRInt32 sEnablePerfMode;
 };
 
 #endif // _nsContentSink_h_

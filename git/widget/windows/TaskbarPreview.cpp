@@ -42,7 +42,7 @@ namespace {
 nsIDOMCanvasRenderingContext2D* gCtx = NULL;
 // Used in tracking the number of previews. Used in freeing
 // the static 2d rendering context on shutdown.
-uint32_t gInstCount = 0;
+PRUint32 gInstCount = 0;
 
 /* Helper method to lazily create a canvas rendering context and associate a given
  * surface with it.
@@ -55,7 +55,7 @@ uint32_t gInstCount = 0;
  */
 nsresult
 GetRenderingContext(nsIDocShell *shell, gfxASurface *surface,
-                    uint32_t width, uint32_t height) {
+                    PRUint32 width, PRUint32 height) {
   nsresult rv;
   nsCOMPtr<nsIDOMCanvasRenderingContext2D> ctx = gCtx;
 
@@ -270,8 +270,8 @@ TaskbarPreview::WndProc(UINT nMsg, WPARAM wParam, LPARAM lParam) {
   switch (nMsg) {
     case WM_DWMSENDICONICTHUMBNAIL:
       {
-        uint32_t width = HIWORD(lParam);
-        uint32_t height = LOWORD(lParam);
+        PRUint32 width = HIWORD(lParam);
+        PRUint32 height = LOWORD(lParam);
         float aspectRatio = width/float(height);
 
         nsresult rv;
@@ -280,13 +280,13 @@ TaskbarPreview::WndProc(UINT nMsg, WPARAM wParam, LPARAM lParam) {
         if (NS_FAILED(rv))
           break;
 
-        uint32_t thumbnailWidth = width;
-        uint32_t thumbnailHeight = height;
+        PRUint32 thumbnailWidth = width;
+        PRUint32 thumbnailHeight = height;
 
         if (aspectRatio > preferredAspectRatio) {
-          thumbnailWidth = uint32_t(thumbnailHeight * preferredAspectRatio);
+          thumbnailWidth = PRUint32(thumbnailHeight * preferredAspectRatio);
         } else {
-          thumbnailHeight = uint32_t(thumbnailWidth / preferredAspectRatio);
+          thumbnailHeight = PRUint32(thumbnailWidth / preferredAspectRatio);
         }
 
         DrawBitmap(thumbnailWidth, thumbnailHeight, false);
@@ -294,7 +294,7 @@ TaskbarPreview::WndProc(UINT nMsg, WPARAM wParam, LPARAM lParam) {
       break;
     case WM_DWMSENDICONICLIVEPREVIEWBITMAP:
       {
-        uint32_t width, height;
+        PRUint32 width, height;
         nsresult rv;
         rv = mController->GetWidth(&width);
         if (NS_FAILED(rv))
@@ -363,7 +363,7 @@ TaskbarPreview::UpdateTooltip() {
 }
 
 void
-TaskbarPreview::DrawBitmap(uint32_t width, uint32_t height, bool isPreview) {
+TaskbarPreview::DrawBitmap(PRUint32 width, PRUint32 height, bool isPreview) {
   nsresult rv;
   nsRefPtr<gfxWindowsSurface> surface = new gfxWindowsSurface(gfxIntSize(width, height), gfxASurface::ImageFormatARGB32);
 

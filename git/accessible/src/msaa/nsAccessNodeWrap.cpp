@@ -111,7 +111,7 @@ nsAccessNodeWrap::QueryService(REFGUID guidService, REFIID iid, void** ppv)
 
     // If the item type is typeContent, we assume we are in browser tab content.
     // Note this includes content such as about:addons, for consistency.
-    int32_t itemType;
+    PRInt32 itemType;
     root->GetItemType(&itemType);
     if (itemType != nsIDocShellTreeItem::typeContent)
       return E_NOINTERFACE;
@@ -183,7 +183,7 @@ __try{
 
   nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(node));
 
-  uint16_t nodeType = 0;
+  PRUint16 nodeType = 0;
   DOMNode->GetNodeType(&nodeType);
   *aNodeType=static_cast<unsigned short>(nodeType);
 
@@ -228,12 +228,12 @@ __try{
   if (!mContent || IsDocumentNode())
     return E_FAIL;
 
-  uint32_t numAttribs = mContent->GetAttrCount();
+  PRUint32 numAttribs = mContent->GetAttrCount();
   if (numAttribs > aMaxAttribs)
     numAttribs = aMaxAttribs;
   *aNumAttribs = static_cast<unsigned short>(numAttribs);
 
-  for (uint32_t index = 0; index < numAttribs; index++) {
+  for (PRUint32 index = 0; index < numAttribs; index++) {
     aNameSpaceIDs[index] = 0; aAttribValues[index] = aAttribNames[index] = nullptr;
     nsAutoString attributeValue;
 
@@ -263,7 +263,7 @@ __try {
   nsCOMPtr<nsINameSpaceManager> nameSpaceManager =
     do_GetService(NS_NAMESPACEMANAGER_CONTRACTID);
 
-  int32_t index;
+  PRInt32 index;
 
   for (index = 0; index < aNumAttribs; index++) {
     aAttribValues[index] = nullptr;
@@ -305,10 +305,10 @@ __try{
     nsWinUtils::GetComputedStyleDeclaration(mContent);
   NS_ENSURE_TRUE(cssDecl, E_FAIL);
 
-  uint32_t length;
+  PRUint32 length;
   cssDecl->GetLength(&length);
 
-  uint32_t index, realIndex;
+  PRUint32 index, realIndex;
   for (index = realIndex = 0; index < length && realIndex < aMaxStyleProperties; index ++) {
     nsAutoString property, value;
     if (NS_SUCCEEDED(cssDecl->Item(index, property)) && property.CharAt(0) != '-')  // Ignore -moz-* properties
@@ -340,7 +340,7 @@ __try {
     nsWinUtils::GetComputedStyleDeclaration(mContent);
   NS_ENSURE_TRUE(cssDecl, E_FAIL);
 
-  uint32_t index;
+  PRUint32 index;
   for (index = 0; index < aNumStyleProperties; index ++) {
     nsAutoString value;
     if (aStyleProperties[index])
@@ -355,7 +355,7 @@ __try {
 STDMETHODIMP nsAccessNodeWrap::scrollTo(/* [in] */ boolean aScrollTopLeft)
 {
 __try {
-  uint32_t scrollType =
+  PRUint32 scrollType =
     aScrollTopLeft ? nsIAccessibleScrollType::SCROLL_TYPE_TOP_LEFT :
                      nsIAccessibleScrollType::SCROLL_TYPE_BOTTOM_RIGHT;
 

@@ -26,7 +26,7 @@ NS_INTERFACE_MAP_BEGIN(FileStream)
 NS_INTERFACE_MAP_END
 
 NS_IMETHODIMP
-FileStream::Seek(int32_t aWhence, int64_t aOffset)
+FileStream::Seek(PRInt32 aWhence, PRInt64 aOffset)
 {
   // TODO: Add support for 64 bit file sizes, bug 752431
   NS_ENSURE_TRUE(aOffset <= PR_INT32_MAX, NS_ERROR_INVALID_ARG);
@@ -62,7 +62,7 @@ FileStream::Seek(int32_t aWhence, int64_t aOffset)
 }
 
 NS_IMETHODIMP
-FileStream::Tell(int64_t* aResult)
+FileStream::Tell(PRInt64* aResult)
 {
   nsresult rv = DoPendingOpen();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -83,7 +83,7 @@ FileStream::Tell(int64_t* aResult)
 NS_IMETHODIMP
 FileStream::SetEOF()
 {
-  int64_t pos;
+  PRInt64 pos;
   nsresult rv = Tell(&pos);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -114,7 +114,7 @@ FileStream::Close()
 }
 
 NS_IMETHODIMP
-FileStream::Available(uint64_t* aResult)
+FileStream::Available(PRUint64* aResult)
 {
   nsresult rv = DoPendingOpen();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -133,7 +133,7 @@ FileStream::Available(uint64_t* aResult)
 }
 
 NS_IMETHODIMP
-FileStream::Read(char* aBuf, uint32_t aCount, uint32_t* aResult)
+FileStream::Read(char* aBuf, PRUint32 aCount, PRUint32* aResult)
 {
   nsresult rv = DoPendingOpen();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -155,7 +155,7 @@ FileStream::Read(char* aBuf, uint32_t aCount, uint32_t* aResult)
 
 NS_IMETHODIMP
 FileStream::ReadSegments(nsWriteSegmentFun aWriter, void* aClosure,
-                         uint32_t aCount, uint32_t* aResult)
+                         PRUint32 aCount, PRUint32* aResult)
 {
   NS_NOTREACHED("Don't call me!");
   return NS_ERROR_NOT_IMPLEMENTED;
@@ -169,7 +169,7 @@ FileStream::IsNonBlocking(bool *aNonBlocking)
 }
 
 NS_IMETHODIMP
-FileStream::Write(const char* aBuf, uint32_t aCount, uint32_t *aResult)
+FileStream::Write(const char* aBuf, PRUint32 aCount, PRUint32 *aResult)
 {
   nsresult rv = DoPendingOpen();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -208,20 +208,20 @@ FileStream::Flush()
 }
 
 NS_IMETHODIMP
-FileStream::WriteFrom(nsIInputStream *inStr, uint32_t count, uint32_t *_retval)
+FileStream::WriteFrom(nsIInputStream *inStr, PRUint32 count, PRUint32 *_retval)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-FileStream::WriteSegments(nsReadSegmentFun reader, void * closure, uint32_t count, uint32_t *_retval)
+FileStream::WriteSegments(nsReadSegmentFun reader, void * closure, PRUint32 count, PRUint32 *_retval)
 {
   NS_NOTREACHED("Don't call me!");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-FileStream::Init(nsIFile* aFile, const nsAString& aMode, int32_t aFlags)
+FileStream::Init(nsIFile* aFile, const nsAString& aMode, PRInt32 aFlags)
 {
   NS_ASSERTION(!mQuotaFile && !mDeferredOpen, "Already initialized!");
 
@@ -240,7 +240,7 @@ FileStream::Init(nsIFile* aFile, const nsAString& aMode, int32_t aFlags)
 }
 
 NS_IMETHODIMP
-FileStream::GetSize(int64_t* _retval)
+FileStream::GetSize(PRInt64* _retval)
 {
   nsresult rv = DoPendingOpen();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -252,7 +252,7 @@ FileStream::GetSize(int64_t* _retval)
   NS_ASSERTION(!NS_IsMainThread(), "Performing sync IO on the main thread!");
 
   // TODO: Use sqlite3_quota_file_size() here, bug 760783
-  int64_t rc = sqlite3_quota_file_truesize(mQuotaFile);
+  PRInt64 rc = sqlite3_quota_file_truesize(mQuotaFile);
 
   NS_ASSERTION(rc >= 0, "The file is not under quota management!");
 
@@ -261,7 +261,7 @@ FileStream::GetSize(int64_t* _retval)
 }
 
 NS_IMETHODIMP
-FileStream::GetLastModified(int64_t* _retval)
+FileStream::GetLastModified(PRInt64* _retval)
 {
   nsresult rv = DoPendingOpen();
   NS_ENSURE_SUCCESS(rv, rv);

@@ -29,7 +29,7 @@ public:
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
-  int32_t GetAlign();
+  PRInt32 GetAlign();
 };
 
 

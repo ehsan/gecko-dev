@@ -114,12 +114,12 @@ void nsPrintData::OnEndPrinting()
 }
 
 void
-nsPrintData::DoOnProgressChange(int32_t      aProgress,
-                                int32_t      aMaxProgress,
+nsPrintData::DoOnProgressChange(PRInt32      aProgress,
+                                PRInt32      aMaxProgress,
                                 bool         aDoStartStop,
-                                int32_t      aFlag)
+                                PRInt32      aFlag)
 {
-  for (int32_t i=0;i<mPrintProgressListeners.Count();i++) {
+  for (PRInt32 i=0;i<mPrintProgressListeners.Count();i++) {
     nsIWebProgressListener* wpl = mPrintProgressListeners.ObjectAt(i);
     wpl->OnProgressChange(nullptr, nullptr, aProgress, aMaxProgress, aProgress, aMaxProgress);
     if (aDoStartStop) {

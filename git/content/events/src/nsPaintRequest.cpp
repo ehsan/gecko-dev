@@ -64,21 +64,21 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(nsPaintRequestList)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsPaintRequestList)
 
 NS_IMETHODIMP    
-nsPaintRequestList::GetLength(uint32_t* aLength)
+nsPaintRequestList::GetLength(PRUint32* aLength)
 {
   *aLength = mArray.Count();
   return NS_OK;
 }
 
 NS_IMETHODIMP    
-nsPaintRequestList::Item(uint32_t aIndex, nsIDOMPaintRequest** aReturn)
+nsPaintRequestList::Item(PRUint32 aIndex, nsIDOMPaintRequest** aReturn)
 {
   NS_IF_ADDREF(*aReturn = nsPaintRequestList::GetItemAt(aIndex));
   return NS_OK;
 }
 
 nsIDOMPaintRequest*
-nsPaintRequestList::GetItemAt(uint32_t aIndex)
+nsPaintRequestList::GetItemAt(PRUint32 aIndex)
 {
   return mArray.SafeObjectAt(aIndex);
 }

@@ -23,7 +23,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIIDBFILEHANDLE
 
-  NS_IMETHOD_(int64_t)
+  NS_IMETHOD_(PRInt64)
   GetFileId()
   {
     return mFileInfo->Id();
@@ -44,7 +44,7 @@ public:
 
   virtual already_AddRefed<nsIDOMFile>
   CreateFileObject(mozilla::dom::file::LockedFile* aLockedFile,
-                   uint32_t aFileSize);
+                   PRUint32 aFileSize);
 
 private:
   IDBFileHandle()

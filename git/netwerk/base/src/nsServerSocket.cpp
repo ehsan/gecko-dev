@@ -153,7 +153,7 @@ nsServerSocket::TryAttach()
 //-----------------------------------------------------------------------------
 
 void
-nsServerSocket::OnSocketReady(PRFileDesc *fd, int16_t outFlags)
+nsServerSocket::OnSocketReady(PRFileDesc *fd, PRInt16 outFlags)
 {
   NS_ASSERTION(NS_SUCCEEDED(mCondition), "oops");
   NS_ASSERTION(mFD == fd, "wrong file descriptor");
@@ -235,7 +235,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(nsServerSocket, nsIServerSocket)
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-nsServerSocket::Init(int32_t aPort, bool aLoopbackOnly, int32_t aBackLog)
+nsServerSocket::Init(PRInt32 aPort, bool aLoopbackOnly, PRInt32 aBackLog)
 {
   PRNetAddrValue val;
   PRNetAddr addr;
@@ -252,7 +252,7 @@ nsServerSocket::Init(int32_t aPort, bool aLoopbackOnly, int32_t aBackLog)
 }
 
 NS_IMETHODIMP
-nsServerSocket::InitWithAddress(const PRNetAddr *aAddr, int32_t aBackLog)
+nsServerSocket::InitWithAddress(const PRNetAddr *aAddr, PRInt32 aBackLog)
 {
   NS_ENSURE_TRUE(mFD == nullptr, NS_ERROR_ALREADY_INITIALIZED);
 
@@ -437,15 +437,15 @@ nsServerSocket::AsyncListen(nsIServerSocketListener *aListener)
 }
 
 NS_IMETHODIMP
-nsServerSocket::GetPort(int32_t *aResult)
+nsServerSocket::GetPort(PRInt32 *aResult)
 {
   // no need to enter the lock here
-  uint16_t port;
+  PRUint16 port;
   if (mAddr.raw.family == PR_AF_INET)
     port = mAddr.inet.port;
   else
     port = mAddr.ipv6.port;
-  *aResult = (int32_t) PR_ntohs(port);
+  *aResult = (PRInt32) PR_ntohs(port);
   return NS_OK;
 }
 

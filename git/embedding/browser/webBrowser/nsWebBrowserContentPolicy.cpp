@@ -24,14 +24,14 @@ nsWebBrowserContentPolicy::~nsWebBrowserContentPolicy()
 NS_IMPL_ISUPPORTS1(nsWebBrowserContentPolicy, nsIContentPolicy)
 
 NS_IMETHODIMP
-nsWebBrowserContentPolicy::ShouldLoad(uint32_t          contentType,
+nsWebBrowserContentPolicy::ShouldLoad(PRUint32          contentType,
                                       nsIURI           *contentLocation,
                                       nsIURI           *requestingLocation,
                                       nsISupports      *requestingContext,
                                       const nsACString &mimeGuess,
                                       nsISupports      *extra,
                                       nsIPrincipal     *requestPrincipal,
-                                      int16_t          *shouldLoad)
+                                      PRInt16          *shouldLoad)
 {
     NS_PRECONDITION(shouldLoad, "Null out param");
 
@@ -73,14 +73,14 @@ nsWebBrowserContentPolicy::ShouldLoad(uint32_t          contentType,
 }
 
 NS_IMETHODIMP
-nsWebBrowserContentPolicy::ShouldProcess(uint32_t          contentType,
+nsWebBrowserContentPolicy::ShouldProcess(PRUint32          contentType,
                                          nsIURI           *contentLocation,
                                          nsIURI           *requestingLocation,
                                          nsISupports      *requestingContext,
                                          const nsACString &mimeGuess,
                                          nsISupports      *extra,
                                          nsIPrincipal     *requestPrincipal,
-                                         int16_t          *shouldProcess)
+                                         PRInt16          *shouldProcess)
 {
     NS_PRECONDITION(shouldProcess, "Null out param");
 

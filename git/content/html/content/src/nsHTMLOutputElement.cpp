@@ -41,7 +41,7 @@ public:
   NS_DECL_NSIDOMHTMLOUTPUTELEMENT
 
   // nsIFormControl
-  NS_IMETHOD_(uint32_t) GetType() const { return NS_FORM_OUTPUT; }
+  NS_IMETHOD_(PRUint32) GetType() const { return NS_FORM_OUTPUT; }
   NS_IMETHOD Reset();
   NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission);
 
@@ -49,7 +49,7 @@ public:
 
   nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const;
 
-  bool ParseAttribute(int32_t aNamespaceID, nsIAtom* aAttribute,
+  bool ParseAttribute(PRInt32 aNamespaceID, nsIAtom* aAttribute,
                         const nsAString& aValue, nsAttrValue& aResult);
 
   nsEventStates IntrinsicState() const;
@@ -167,7 +167,7 @@ nsHTMLOutputElement::SubmitNamesValues(nsFormSubmission* aFormSubmission)
 }
 
 bool
-nsHTMLOutputElement::ParseAttribute(int32_t aNamespaceID, nsIAtom* aAttribute,
+nsHTMLOutputElement::ParseAttribute(PRInt32 aNamespaceID, nsIAtom* aAttribute,
                                     const nsAString& aValue, nsAttrValue& aResult)
 {
   if (aNamespaceID == kNameSpaceID_None) {
@@ -299,7 +299,7 @@ void nsHTMLOutputElement::CharacterDataChanged(nsIDocument* aDocument,
 void nsHTMLOutputElement::ContentAppended(nsIDocument* aDocument,
                                           nsIContent* aContainer,
                                           nsIContent* aFirstNewContent,
-                                          int32_t aNewIndexInContainer)
+                                          PRInt32 aNewIndexInContainer)
 {
   DescendantsChanged();
 }
@@ -307,7 +307,7 @@ void nsHTMLOutputElement::ContentAppended(nsIDocument* aDocument,
 void nsHTMLOutputElement::ContentInserted(nsIDocument* aDocument,
                                           nsIContent* aContainer,
                                           nsIContent* aChild,
-                                          int32_t aIndexInContainer)
+                                          PRInt32 aIndexInContainer)
 {
   DescendantsChanged();
 }
@@ -315,7 +315,7 @@ void nsHTMLOutputElement::ContentInserted(nsIDocument* aDocument,
 void nsHTMLOutputElement::ContentRemoved(nsIDocument* aDocument,
                                          nsIContent* aContainer,
                                          nsIContent* aChild,
-                                         int32_t aIndexInContainer,
+                                         PRInt32 aIndexInContainer,
                                          nsIContent* aPreviousSibling)
 {
   DescendantsChanged();

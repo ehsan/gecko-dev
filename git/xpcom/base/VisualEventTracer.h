@@ -154,7 +154,7 @@ enum MarkType {
 // @param aText2
 //    Optional second part of the instnace name, or event name.
 //    Event filtering does apply only to the first part (aText).
-void Mark(uint32_t aType, void * aItem, 
+void Mark(PRUint32 aType, void * aItem, 
           const char * aText, const char * aText2 = 0);
 
 
@@ -172,8 +172,8 @@ class NS_STACK_CLASS AutoEventTracer
 {
 public:
   AutoEventTracer(void * aInstance, 
-               uint32_t aTypeOn, // MarkType marked in constructor
-               uint32_t aTypeOff, // MarkType marked in destructor
+               PRUint32 aTypeOn, // MarkType marked in constructor
+               PRUint32 aTypeOff, // MarkType marked in destructor
                const char * aName, 
                const char * aName2 = 0 
                MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
@@ -197,8 +197,8 @@ private:
   void * mInstance;
   const char * mName;
   const char * mName2;
-  uint32_t mTypeOn;
-  uint32_t mTypeOff;
+  PRUint32 mTypeOn;
+  PRUint32 mTypeOff;
 
   MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };

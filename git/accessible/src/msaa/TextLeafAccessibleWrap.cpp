@@ -173,12 +173,12 @@ __try {
 
 nsIFrame*
 TextLeafAccessibleWrap::GetPointFromOffset(nsIFrame* aContainingFrame, 
-                                           int32_t aOffset, 
+                                           PRInt32 aOffset, 
                                            bool aPreferNext, 
                                            nsPoint& aOutPoint)
 {
   nsIFrame *textFrame = nullptr;
-  int32_t outOffset;
+  PRInt32 outOffset;
   aContainingFrame->GetChildFrameContainingOffset(aOffset, aPreferNext, &outOffset, &textFrame);
   if (!textFrame) {
     return nullptr;
@@ -192,12 +192,12 @@ TextLeafAccessibleWrap::GetPointFromOffset(nsIFrame* aContainingFrame,
  * Given an offset, the x, y, width, and height values are filled appropriately.
  */
 nsresult
-TextLeafAccessibleWrap::GetCharacterExtents(int32_t aStartOffset,
-                                            int32_t aEndOffset,
-                                            int32_t* aX,
-                                            int32_t* aY,
-                                            int32_t* aWidth,
-                                            int32_t* aHeight)
+TextLeafAccessibleWrap::GetCharacterExtents(PRInt32 aStartOffset,
+                                            PRInt32 aEndOffset,
+                                            PRInt32* aX,
+                                            PRInt32* aY,
+                                            PRInt32* aWidth,
+                                            PRInt32* aHeight)
 {
   *aX = *aY = *aWidth = *aHeight = 0;
 

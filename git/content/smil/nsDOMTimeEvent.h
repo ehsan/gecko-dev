@@ -27,7 +27,7 @@ public:
 
 private:
   nsCOMPtr<nsIDOMWindow> mView;
-  int32_t mDetail;
+  PRInt32 mDetail;
 };
 
 #endif // NS_DOMTIMEEVENT_H_

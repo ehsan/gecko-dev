@@ -36,7 +36,7 @@ public:
   /**
    * The namespace of the attribute
    */
-  int32_t  mNamespaceID;
+  PRInt32  mNamespaceID;
 
   /**
    * The atom for attribute, weak ref. is fine as we only use it for the
@@ -44,7 +44,7 @@ public:
    */
   nsIAtom* mLocalName;
 
-  nsAttrKey(int32_t aNs, nsIAtom* aName)
+  nsAttrKey(PRInt32 aNs, nsIAtom* aName)
     : mNamespaceID(aNs), mLocalName(aName) {}
 
   nsAttrKey(const nsAttrKey& aAttr)
@@ -116,7 +116,7 @@ public:
    * Drop an attribute from the map's cache (does not remove the attribute
    * from the node!)
    */
-  void DropAttribute(int32_t aNamespaceID, nsIAtom* aLocalName);
+  void DropAttribute(PRInt32 aNamespaceID, nsIAtom* aLocalName);
 
   /**
    * Returns the number of attribute nodes currently in the map.
@@ -125,7 +125,7 @@ public:
    *
    * @return The number of attribute nodes in the map.
    */
-  uint32_t Count() const;
+  PRUint32 Count() const;
 
   typedef nsRefPtrHashtable<nsAttrHashKey, nsDOMAttribute> AttrCache;
 
@@ -135,9 +135,9 @@ public:
    *
    * @return The number of attribute nodes that aFunc was called for.
    */
-  uint32_t Enumerate(AttrCache::EnumReadFunction aFunc, void *aUserArg) const;
+  PRUint32 Enumerate(AttrCache::EnumReadFunction aFunc, void *aUserArg) const;
 
-  nsDOMAttribute* GetItemAt(uint32_t aIndex, nsresult *rv);
+  nsDOMAttribute* GetItemAt(PRUint32 aIndex, nsresult *rv);
   nsDOMAttribute* GetNamedItem(const nsAString& aAttrName, nsresult *rv);
 
   static nsDOMAttributeMap* FromSupports(nsISupports* aSupports)

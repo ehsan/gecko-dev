@@ -100,13 +100,13 @@ public:
         // uncollectable.
         WANT_ALL_TRACES = (1<<1)
     };
-    uint32_t Flags() const { return mFlags; }
+    PRUint32 Flags() const { return mFlags; }
     bool WantDebugInfo() const { return (mFlags & WANT_DEBUG_INFO) != 0; }
     bool WantAllTraces() const { return (mFlags & WANT_ALL_TRACES) != 0; }
 protected:
     nsCycleCollectionTraversalCallback() : mFlags(0) {}
 
-    uint32_t mFlags;
+    PRUint32 mFlags;
 };
 
 /**
@@ -557,7 +557,7 @@ public:
 
 #define NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(_field)                   \
     {                                                                          \
-      int32_t i;                                                               \
+      PRInt32 i;                                                               \
       for (i = 0; i < tmp->_field.Count(); ++i) {                              \
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, #_field "[i]");                 \
         cb.NoteXPCOMChild(tmp->_field[i]);                                     \
@@ -577,7 +577,7 @@ public:
 #define NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSTARRAY(_array, _element_class,     \
                                                    _name)                      \
     {                                                                          \
-      uint32_t i, length = (_array).Length();                                  \
+      PRUint32 i, length = (_array).Length();                                  \
       for (i = 0; i < length; ++i)                                             \
         NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_PTR((_array)[i],              \
                                                      _element_class,           \
@@ -586,7 +586,7 @@ public:
 
 #define NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSTARRAY_OF_NSCOMPTR(_field)         \
     {                                                                          \
-      uint32_t i, length = tmp->_field.Length();                               \
+      PRUint32 i, length = tmp->_field.Length();                               \
       for (i = 0; i < length; ++i) {                                           \
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, #_field "[i]");                 \
         cb.NoteXPCOMChild(tmp->_field[i].get());                               \

@@ -34,7 +34,7 @@ public:
   nsresult GetAutoconfigURL(nsCAutoString& aResult) const;
 
   // Find the SystemConfiguration proxy & port for a given URI
-  nsresult FindSCProxyPort(nsIURI* aURI, nsACString& aResultHost, int32_t& aResultPort, bool& aResultSocksProxy);
+  nsresult FindSCProxyPort(nsIURI* aURI, nsACString& aResultHost, PRInt32& aResultPort, bool& aResultSocksProxy);
 
   // is host:port on the proxy exception list?
   bool IsInExceptionList(const nsACString& aHost) const;
@@ -156,7 +156,7 @@ nsOSXSystemProxySettings::ProxyHasChanged()
 }
 
 nsresult
-nsOSXSystemProxySettings::FindSCProxyPort(nsIURI* aURI, nsACString& aResultHost, int32_t& aResultPort, bool& aResultSocksProxy)
+nsOSXSystemProxySettings::FindSCProxyPort(nsIURI* aURI, nsACString& aResultHost, PRInt32& aResultPort, bool& aResultSocksProxy)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
@@ -231,13 +231,13 @@ IsHostProxyEntry(const nsACString& aHost, const nsACString& aOverride)
   nsCAutoString host(aHost);
   nsCAutoString override(aOverride);
 
-  int32_t overrideLength = override.Length();
-  int32_t tokenStart = 0;
-  int32_t offset = 0;
+  PRInt32 overrideLength = override.Length();
+  PRInt32 tokenStart = 0;
+  PRInt32 offset = 0;
   bool star = false;
 
   while (tokenStart < overrideLength) {
-    int32_t tokenEnd = override.FindChar('*', tokenStart);
+    PRInt32 tokenEnd = override.FindChar('*', tokenStart);
     if (tokenEnd == tokenStart) {
       // Star is the first character in the token.
       star = true;
@@ -259,7 +259,7 @@ IsHostProxyEntry(const nsACString& aHost, const nsACString& aOverride)
     }
   }
 
-  return (star || (offset == static_cast<int32_t>(host.Length())));
+  return (star || (offset == static_cast<PRInt32>(host.Length())));
 }
 
 bool
@@ -311,7 +311,7 @@ nsOSXSystemProxySettings::GetProxyForURI(nsIURI* aURI, nsACString& aResult)
   nsresult rv = aURI->GetHost(host);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  int32_t proxyPort;
+  PRInt32 proxyPort;
   nsCAutoString proxyHost;
   bool proxySocks;
   rv = FindSCProxyPort(aURI, proxyHost, proxyPort, proxySocks);

@@ -67,19 +67,19 @@ nsScriptError::GetSourceLine(nsAString& aResult) {
 }
 
 NS_IMETHODIMP
-nsScriptError::GetLineNumber(uint32_t *result) {
+nsScriptError::GetLineNumber(PRUint32 *result) {
     *result = mLineNumber;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsScriptError::GetColumnNumber(uint32_t *result) {
+nsScriptError::GetColumnNumber(PRUint32 *result) {
     *result = mColumnNumber;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsScriptError::GetFlags(uint32_t *result) {
+nsScriptError::GetFlags(PRUint32 *result) {
     *result = mFlags;
     return NS_OK;
 }
@@ -94,9 +94,9 @@ NS_IMETHODIMP
 nsScriptError::Init(const PRUnichar *message,
                     const PRUnichar *sourceName,
                     const PRUnichar *sourceLine,
-                    uint32_t lineNumber,
-                    uint32_t columnNumber,
-                    uint32_t flags,
+                    PRUint32 lineNumber,
+                    PRUint32 columnNumber,
+                    PRUint32 flags,
                     const char *category)
 {
     return InitWithWindowID(message, sourceName, sourceLine, lineNumber,
@@ -107,11 +107,11 @@ NS_IMETHODIMP
 nsScriptError::InitWithWindowID(const PRUnichar *message,
                                 const PRUnichar *sourceName,
                                 const PRUnichar *sourceLine,
-                                uint32_t lineNumber,
-                                uint32_t columnNumber,
-                                uint32_t flags,
+                                PRUint32 lineNumber,
+                                PRUint32 columnNumber,
+                                PRUint32 flags,
                                 const char *category,
-                                uint64_t aInnerWindowID)
+                                PRUint64 aInnerWindowID)
 {
     mMessage.Assign(message);
     mSourceName.Assign(sourceName);
@@ -198,21 +198,21 @@ nsScriptError::ToString(nsACString& /*UTF8*/ aResult)
 }
 
 NS_IMETHODIMP
-nsScriptError::GetOuterWindowID(uint64_t *aOuterWindowID)
+nsScriptError::GetOuterWindowID(PRUint64 *aOuterWindowID)
 {
     *aOuterWindowID = mOuterWindowID;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsScriptError::GetInnerWindowID(uint64_t *aInnerWindowID)
+nsScriptError::GetInnerWindowID(PRUint64 *aInnerWindowID)
 {
     *aInnerWindowID = mInnerWindowID;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsScriptError::GetTimeStamp(int64_t *aTimeStamp)
+nsScriptError::GetTimeStamp(PRInt64 *aTimeStamp)
 {
     *aTimeStamp = mTimeStamp;
     return NS_OK;

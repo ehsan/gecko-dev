@@ -532,7 +532,7 @@ DeviceManagerD3D9::CreateSwapChain(HWND hWnd)
   */
 bool
 LoadMaskTexture(Layer* aMask, IDirect3DDevice9* aDevice,
-                uint32_t aMaskQuadTexture, uint32_t aMaskTexRegister)
+                PRUint32 aMaskQuadTexture, PRUint32 aMaskTexRegister)
 {
   gfxIntSize size;
   nsRefPtr<IDirect3DTexture9> texture =
@@ -565,8 +565,8 @@ DeviceManagerD3D9::SetShaderMode(ShaderMode aMode, Layer* aMask, bool aIs2D)
   if (aMask) {
     // register allocations are taken from LayerManagerD3D9Shaders.h after
     // the shaders are compiled (genshaders.sh)
-    const uint32_t maskQuadRegister = 11;
-    uint32_t maskTexRegister;
+    const PRUint32 maskQuadRegister = 11;
+    PRUint32 maskTexRegister;
     switch (aMode) {
       case RGBLAYER:
         mDevice->SetVertexShader(mLayerVSMask);

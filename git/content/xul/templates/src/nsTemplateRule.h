@@ -254,7 +254,7 @@ protected:
     // a number which increments for each successive queryset. It is stored so
     // it can be used as an optimization when updating results so that it is
     // known where to insert them into a match.
-    int32_t mPriority;
+    PRInt32 mPriority;
 
 public:
 
@@ -269,7 +269,7 @@ public:
     // a container with this tag
     nsCOMPtr<nsIAtom> mTag;
 
-    nsTemplateQuerySet(int32_t aPriority)
+    nsTemplateQuerySet(PRInt32 aPriority)
         : mPriority(aPriority)
     {
         MOZ_COUNT_CTOR(nsTemplateQuerySet);
@@ -280,7 +280,7 @@ public:
         MOZ_COUNT_DTOR(nsTemplateQuerySet);
     }
 
-    int32_t Priority() const
+    PRInt32 Priority() const
     {
         return mPriority;
     }
@@ -306,14 +306,14 @@ public:
         mRules.RemoveElementAt(aRule - mRules.Elements());
     }
 
-    int16_t RuleCount() const
+    PRInt16 RuleCount() const
     {
         return mRules.Length();
     }
 
-    nsTemplateRule* GetRuleAt(int16_t aIndex)
+    nsTemplateRule* GetRuleAt(PRInt16 aIndex)
     {
-        if (uint32_t(aIndex) < mRules.Length()) {
+        if (PRUint32(aIndex) < mRules.Length()) {
             return &mRules[aIndex];
         }
         return nullptr;

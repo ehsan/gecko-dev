@@ -12,7 +12,6 @@
  */
 
 #include "prtypes.h"
-#include "mozilla/StandardInteger.h"
 
 /*
  * Define BITS_IN_JSAMPLE as either
@@ -134,19 +133,19 @@ typedef char JOCTET;
 
 /* UINT8 must hold at least the values 0..255. */
 
-typedef uint8_t UINT8;
+typedef PRUint8 UINT8;
 
 /* UINT16 must hold at least the values 0..65535. */
 
-typedef uint16_t UINT16;
+typedef PRUint16 UINT16;
 
 /* INT16 must hold at least the values -32768..32767. */
 
-typedef int16_t INT16;
+typedef PRInt16 INT16;
 
 /* INT32 must hold at least signed 32-bit values. */
 
-typedef int32_t INT32;
+typedef PRInt32 INT32;
 
 /* Datatype used for image dimensions.  The JPEG standard only supports
  * images up to 64K*64K due to 16-bit fields in SOF markers.  Therefore

@@ -36,7 +36,7 @@ static const char kForceGeneric[] = "network.auth.force-generic-ntlm";
 static bool
 MatchesBaseURI(const nsCSubstring &matchScheme,
                const nsCSubstring &matchHost,
-               int32_t             matchPort,
+               PRInt32             matchPort,
                const char         *baseStart,
                const char         *baseEnd)
 {
@@ -58,7 +58,7 @@ MatchesBaseURI(const nsCSubstring &matchScheme,
     if (hostEnd && hostEnd < baseEnd) {
         // the given port must match the parsed port exactly
         int port = atoi(hostEnd + 1);
-        if (matchPort != (int32_t) port)
+        if (matchPort != (PRInt32) port)
             return false;
     }
     else
@@ -69,7 +69,7 @@ MatchesBaseURI(const nsCSubstring &matchScheme,
     if (hostStart == hostEnd)
         return true;
 
-    uint32_t hostLen = hostEnd - hostStart;
+    PRUint32 hostLen = hostEnd - hostStart;
 
     // matchHost must either equal host or be a subdomain of host
     if (matchHost.Length() < hostLen)
@@ -111,7 +111,7 @@ TestPref(nsIURI *uri, const char *pref)
         return false;
 
     nsCAutoString scheme, host;
-    int32_t port;
+    PRInt32 port;
 
     if (NS_FAILED(uri->GetScheme(scheme)))
         return false;
@@ -325,7 +325,7 @@ nsHttpNTLMAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
                                     const PRUnichar *pass,
                                     nsISupports    **sessionState,
                                     nsISupports    **continuationState,
-                                    uint32_t       *aFlags,
+                                    PRUint32       *aFlags,
                                     char           **creds)
 
 {
@@ -346,7 +346,7 @@ nsHttpNTLMAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
     NS_ENSURE_SUCCESS(rv, rv);
 
     void *inBuf, *outBuf;
-    uint32_t inBufLen, outBufLen;
+    PRUint32 inBufLen, outBufLen;
 
     // initial challenge
     if (PL_strcasecmp(challenge, "NTLM") == 0) {
@@ -400,8 +400,8 @@ nsHttpNTLMAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
             if (NS_FAILED(rv))
                 return rv;
 
-            uint32_t length;
-            uint8_t* certArray;
+            PRUint32 length;
+            PRUint8* certArray;
             cert->GetRawDER(&length, &certArray);						  
 			
             // If there is a server certificate, we pass it along the
@@ -466,7 +466,7 @@ nsHttpNTLMAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
 }
 
 NS_IMETHODIMP
-nsHttpNTLMAuth::GetAuthFlags(uint32_t *flags)
+nsHttpNTLMAuth::GetAuthFlags(PRUint32 *flags)
 {
     *flags = CONNECTION_BASED | IDENTITY_INCLUDES_DOMAIN | IDENTITY_ENCRYPTED;
     return NS_OK;

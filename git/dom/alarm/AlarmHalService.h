@@ -47,7 +47,7 @@ private:
   // the correct timezone where user is located.
   nsCOMPtr<nsITimezoneChangedCb> mTimezoneChangedCb;
 
-  int32_t GetTimezoneOffset(bool aIgnoreDST);
+  PRInt32 GetTimezoneOffset(bool aIgnoreDST);
 };
 
 } // namespace alarm

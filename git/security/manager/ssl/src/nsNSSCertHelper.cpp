@@ -664,7 +664,7 @@ ProcessRawBytes(nsINSSComponent *nssComponent, SECItem *data,
   // string.  We place a new line after 24 bytes
   // to break up extermaly long sequence of bytes.
 
-  uint32_t i;
+  PRUint32 i;
   char buffer[5];
   for (i=0; i<data->len; i++) {
     PR_snprintf(buffer, 5, "%02x ", data->data[i]);
@@ -1924,7 +1924,7 @@ ProcessExtensions(CERTCertExtension **extensions,
   nsString text;
   nssComponent->GetPIPNSSBundleString("CertDumpExtensions", text);
   extensionSequence->SetDisplayName(text);
-  int32_t i;
+  PRInt32 i;
   nsresult rv;
   nsCOMPtr<nsIASN1PrintableItem> newExtension;
   nsCOMPtr<nsIMutableArray> asn1Objects;
@@ -2200,7 +2200,7 @@ nsNSSCertificate::CreateASN1Struct()
   return NS_OK;
 }
 
-uint32_t 
+PRUint32 
 getCertType(CERTCertificate *cert)
 {
   nsNSSCertTrust trust(cert->trust);

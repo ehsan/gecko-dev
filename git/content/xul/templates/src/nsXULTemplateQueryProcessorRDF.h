@@ -242,7 +242,7 @@ public:
     /**
      * Return the index of a result's resource in its RDF container
      */
-    int32_t
+    PRInt32
     GetContainerIndexOf(nsIXULTemplateResult* aResult);
 
     /**
@@ -293,7 +293,7 @@ protected:
     bool mGenerationStarted;
 
     // nesting level for RDF batch notifications
-    int32_t mUpdateBatchNest;
+    PRInt32 mUpdateBatchNest;
 
     // containment properties that are checked to determine if a resource is
     // a container

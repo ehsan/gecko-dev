@@ -32,8 +32,8 @@ public:
     */
   NS_IMETHOD Init(nsEditor* aEditor,
                   nsIDOMCharacterData* aCharData,
-                  uint32_t aOffset,
-                  uint32_t aNumCharsToDelete,
+                  PRUint32 aOffset,
+                  PRUint32 aNumCharsToDelete,
                   nsRangeUpdater* aRangeUpdater);
 
   DeleteTextTxn();
@@ -43,9 +43,9 @@ public:
 
   NS_DECL_EDITTXN
 
-  uint32_t GetOffset() { return mOffset; }
+  PRUint32 GetOffset() { return mOffset; }
 
-  uint32_t GetNumCharsToDelete() { return mNumCharsToDelete; }
+  PRUint32 GetNumCharsToDelete() { return mNumCharsToDelete; }
 
 protected:
 
@@ -56,10 +56,10 @@ protected:
   nsCOMPtr<nsIDOMCharacterData> mCharData;
 
   /** the offset into mCharData where the deletion is to take place */
-  uint32_t mOffset;
+  PRUint32 mOffset;
 
   /** the number of characters to delete */
-  uint32_t mNumCharsToDelete;
+  PRUint32 mNumCharsToDelete;
 
   /** the text that was deleted */
   nsString mDeletedText;

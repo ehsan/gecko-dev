@@ -399,122 +399,122 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsISO2022CNToUnicode)
 // Global functions and data [declaration]
 
 // ucvja
-const uint16_t g_uf0201Mapping[] = {
+const PRUint16 g_uf0201Mapping[] = {
 #include "jis0201.uf"
 };
 
-const uint16_t g_uf0201GLMapping[] = {
+const PRUint16 g_uf0201GLMapping[] = {
 #include "jis0201gl.uf"
 };
 
-const uint16_t g_uf0208Mapping[] = {
+const PRUint16 g_uf0208Mapping[] = {
 #include "jis0208.uf"
 };
 
-const uint16_t g_uf0208extMapping[] = {
+const PRUint16 g_uf0208extMapping[] = {
 #include "jis0208ext.uf"
 };
 
 // ucvtw2
-const uint16_t g_ufCNS1MappingTable[] = {
+const PRUint16 g_ufCNS1MappingTable[] = {
 #include "cns_1.uf"
 };
 
-const uint16_t g_ufCNS2MappingTable[] = {
+const PRUint16 g_ufCNS2MappingTable[] = {
 #include "cns_2.uf"
 };
 
-const uint16_t g_ufCNS3MappingTable[] = {
+const PRUint16 g_ufCNS3MappingTable[] = {
 #include "cns3.uf"
 };
 
-const uint16_t g_ufCNS4MappingTable[] = {
+const PRUint16 g_ufCNS4MappingTable[] = {
 #include "cns4.uf"
 };
 
-const uint16_t g_ufCNS5MappingTable[] = {
+const PRUint16 g_ufCNS5MappingTable[] = {
 #include "cns5.uf"
 };
 
-const uint16_t g_ufCNS6MappingTable[] = {
+const PRUint16 g_ufCNS6MappingTable[] = {
 #include "cns6.uf"
 };
 
-const uint16_t g_ufCNS7MappingTable[] = {
+const PRUint16 g_ufCNS7MappingTable[] = {
 #include "cns7.uf"
 };
 
-const uint16_t g_utCNS1MappingTable[] = {
+const PRUint16 g_utCNS1MappingTable[] = {
 #include "cns_1.ut"
 };
 
-const uint16_t g_utCNS2MappingTable[] = {
+const PRUint16 g_utCNS2MappingTable[] = {
 #include "cns_2.ut"
 };
 
-const uint16_t g_utCNS3MappingTable[] = {
+const PRUint16 g_utCNS3MappingTable[] = {
 #include "cns3.ut"
 };
 
-const uint16_t g_utCNS4MappingTable[] = {
+const PRUint16 g_utCNS4MappingTable[] = {
 #include "cns4.ut"
 };
 
-const uint16_t g_utCNS5MappingTable[] = {
+const PRUint16 g_utCNS5MappingTable[] = {
 #include "cns5.ut"
 };
 
-const uint16_t g_utCNS6MappingTable[] = {
+const PRUint16 g_utCNS6MappingTable[] = {
 #include "cns6.ut"
 };
 
-const uint16_t g_utCNS7MappingTable[] = {
+const PRUint16 g_utCNS7MappingTable[] = {
 #include "cns7.ut"
 };
 
-const uint16_t g_ASCIIMappingTable[] = {
+const PRUint16 g_ASCIIMappingTable[] = {
   0x0001, 0x0004, 0x0005, 0x0008, 0x0000, 0x0000, 0x007F, 0x0000
 };
 
 // ucvtw
-const uint16_t g_ufBig5Mapping[] = {
+const PRUint16 g_ufBig5Mapping[] = {
 #include "big5.uf"
 };
 
-const uint16_t g_utBIG5Mapping[] = {
+const PRUint16 g_utBIG5Mapping[] = {
 #include "big5.ut"
 };
 
-const uint16_t g_ufBig5HKSCSMapping[] = {
+const PRUint16 g_ufBig5HKSCSMapping[] = {
 #include "hkscs.uf"
 };
 
-const uint16_t g_ASCIIMapping[] = {
+const PRUint16 g_ASCIIMapping[] = {
   0x0001, 0x0004, 0x0005, 0x0008, 0x0000, 0x0000, 0x007F, 0x0000
 };
 
-const uint16_t g_utBig5HKSCSMapping[] = {
+const PRUint16 g_utBig5HKSCSMapping[] = {
 #include "hkscs.ut"
 };
 
 // ucvko
-const uint16_t g_utKSC5601Mapping[] = {
+const PRUint16 g_utKSC5601Mapping[] = {
 #include "u20kscgl.ut"
 };
 
-const uint16_t g_ufKSC5601Mapping[] = {
+const PRUint16 g_ufKSC5601Mapping[] = {
 #include "u20kscgl.uf"
 };
 
-const uint16_t g_ucvko_AsciiMapping[] = {
+const PRUint16 g_ucvko_AsciiMapping[] = {
   0x0001, 0x0004, 0x0005, 0x0008, 0x0000, 0x0000, 0x007F, 0x0000
 };
 
-const uint16_t g_HangulNullMapping[] ={
+const PRUint16 g_HangulNullMapping[] ={
   0x0001, 0x0004, 0x0005, 0x0008, 0x0000, 0xAC00, 0xD7A3, 0xAC00
 };
 
-const uint16_t g_ufJohabJamoMapping[] ={   
+const PRUint16 g_ufJohabJamoMapping[] ={   
 #include "johabjamo.uf"
 };
 

@@ -51,9 +51,9 @@ public:
   NS_IMETHOD GetCharset(nsAString& aCharset);
 
   virtual void OverrideBaseURI(nsIURI* aNewBaseURI);
-  virtual void SetLineNumber(uint32_t aLineNumber);
+  virtual void SetLineNumber(PRUint32 aLineNumber);
 
-  static uint32_t ParseLinkTypes(const nsAString& aTypes);
+  static PRUint32 ParseLinkTypes(const nsAString& aTypes);
   
   void UpdateStyleSheetInternal() { UpdateStyleSheetInternal(nullptr); }
 protected:
@@ -95,7 +95,7 @@ private:
 protected:
   bool mDontLoadStyle;
   bool mUpdatesEnabled;
-  uint32_t mLineNumber;
+  PRUint32 mLineNumber;
 };
 
 #endif /* nsStyleLinkElement_h___ */

@@ -36,8 +36,8 @@ bool ImageBridgeParent::RecvStop()
   return true;
 }
 
-static  uint64_t GenImageContainerID() {
-  static uint64_t sNextImageID = 1;
+static  PRUint64 GenImageContainerID() {
+  static PRUint64 sNextImageID = 1;
   
   ++sNextImageID;
   return sNextImageID;
@@ -69,9 +69,9 @@ ImageBridgeParent::DeallocPGrallocBuffer(PGrallocBufferParent* actor)
 #endif
 }
 
-PImageContainerParent* ImageBridgeParent::AllocPImageContainer(uint64_t* aID)
+PImageContainerParent* ImageBridgeParent::AllocPImageContainer(PRUint64* aID)
 {
-  uint64_t id = GenImageContainerID();
+  PRUint64 id = GenImageContainerID();
   *aID = id;
   return new ImageContainerParent(id);
 }

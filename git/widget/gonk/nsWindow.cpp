@@ -94,7 +94,7 @@ NativeWindow()
     return gNativeWindow;
 }
 
-static uint32_t
+static PRUint32
 EffectiveScreenRotation()
 {
     return (sScreenRotation + sPhysicalScreenRotation) % (360 / 90);
@@ -107,7 +107,7 @@ public:
     {}
 
     NS_IMETHOD Run() {
-        for (uint32_t i = 0; i < sTopWindows.Length(); i++) {
+        for (PRUint32 i = 0; i < sTopWindows.Length(); i++) {
             nsWindow *win = sTopWindows[i];
 
             if (nsIWidgetListener* listener = win->GetWidgetListener()) {
@@ -368,32 +368,32 @@ nsWindow::IsVisible() const
 
 NS_IMETHODIMP
 nsWindow::ConstrainPosition(bool aAllowSlop,
-                            int32_t *aX,
-                            int32_t *aY)
+                            PRInt32 *aX,
+                            PRInt32 *aY)
 {
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsWindow::Move(int32_t aX,
-               int32_t aY)
+nsWindow::Move(PRInt32 aX,
+               PRInt32 aY)
 {
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsWindow::Resize(int32_t aWidth,
-                 int32_t aHeight,
+nsWindow::Resize(PRInt32 aWidth,
+                 PRInt32 aHeight,
                  bool    aRepaint)
 {
     return Resize(0, 0, aWidth, aHeight, aRepaint);
 }
 
 NS_IMETHODIMP
-nsWindow::Resize(int32_t aX,
-                 int32_t aY,
-                 int32_t aWidth,
-                 int32_t aHeight,
+nsWindow::Resize(PRInt32 aX,
+                 PRInt32 aY,
+                 PRInt32 aWidth,
+                 PRInt32 aHeight,
                  bool    aRepaint)
 {
     mBounds = nsIntRect(aX, aY, aWidth, aHeight);
@@ -467,7 +467,7 @@ nsWindow::WidgetToScreenOffset()
 }
 
 void*
-nsWindow::GetNativeData(uint32_t aDataType)
+nsWindow::GetNativeData(PRUint32 aDataType)
 {
     switch (aDataType) {
     case NS_NATIVE_WINDOW:
@@ -645,7 +645,7 @@ nsWindow::UserActivity()
     }
 }
 
-uint32_t
+PRUint32
 nsWindow::GetGLFrameBufferFormat()
 {
     if (mLayerManager &&
@@ -683,8 +683,8 @@ nsScreenGonk::~nsScreenGonk()
 }
 
 NS_IMETHODIMP
-nsScreenGonk::GetRect(int32_t *outLeft,  int32_t *outTop,
-                      int32_t *outWidth, int32_t *outHeight)
+nsScreenGonk::GetRect(PRInt32 *outLeft,  PRInt32 *outTop,
+                      PRInt32 *outWidth, PRInt32 *outHeight)
 {
     *outLeft = sVirtualBounds.x;
     *outTop = sVirtualBounds.y;
@@ -696,8 +696,8 @@ nsScreenGonk::GetRect(int32_t *outLeft,  int32_t *outTop,
 }
 
 NS_IMETHODIMP
-nsScreenGonk::GetAvailRect(int32_t *outLeft,  int32_t *outTop,
-                           int32_t *outWidth, int32_t *outHeight)
+nsScreenGonk::GetAvailRect(PRInt32 *outLeft,  PRInt32 *outTop,
+                           PRInt32 *outWidth, PRInt32 *outHeight)
 {
     return GetRect(outLeft, outTop, outWidth, outHeight);
 }
@@ -715,7 +715,7 @@ ColorDepth()
 }
 
 NS_IMETHODIMP
-nsScreenGonk::GetPixelDepth(int32_t *aPixelDepth)
+nsScreenGonk::GetPixelDepth(PRInt32 *aPixelDepth)
 {
     // XXX: this should actually return 32 when we're using 24-bit
     // color, because we use RGBX.
@@ -724,20 +724,20 @@ nsScreenGonk::GetPixelDepth(int32_t *aPixelDepth)
 }
 
 NS_IMETHODIMP
-nsScreenGonk::GetColorDepth(int32_t *aColorDepth)
+nsScreenGonk::GetColorDepth(PRInt32 *aColorDepth)
 {
     return GetPixelDepth(aColorDepth);
 }
 
 NS_IMETHODIMP
-nsScreenGonk::GetRotation(uint32_t* aRotation)
+nsScreenGonk::GetRotation(PRUint32* aRotation)
 {
     *aRotation = sScreenRotation;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsScreenGonk::SetRotation(uint32_t aRotation)
+nsScreenGonk::SetRotation(PRUint32 aRotation)
 {
     if (!(aRotation <= ROTATION_270_DEG))
         return NS_ERROR_ILLEGAL_VALUE;
@@ -749,7 +749,7 @@ nsScreenGonk::SetRotation(uint32_t aRotation)
     sRotationMatrix =
         ComputeGLTransformForRotation(gScreenBounds,
                                       ScreenRotation(EffectiveScreenRotation()));
-    uint32_t rotation = EffectiveScreenRotation();
+    PRUint32 rotation = EffectiveScreenRotation();
     if (rotation == nsIScreen::ROTATION_90_DEG ||
         rotation == nsIScreen::ROTATION_270_DEG) {
         sVirtualBounds = nsIntRect(0, 0, gScreenBounds.height,
@@ -832,10 +832,10 @@ nsScreenManagerGonk::GetPrimaryScreen(nsIScreen **outScreen)
 }
 
 NS_IMETHODIMP
-nsScreenManagerGonk::ScreenForRect(int32_t inLeft,
-                                   int32_t inTop,
-                                   int32_t inWidth,
-                                   int32_t inHeight,
+nsScreenManagerGonk::ScreenForRect(PRInt32 inLeft,
+                                   PRInt32 inTop,
+                                   PRInt32 inWidth,
+                                   PRInt32 inHeight,
                                    nsIScreen **outScreen)
 {
     return GetPrimaryScreen(outScreen);
@@ -848,7 +848,7 @@ nsScreenManagerGonk::ScreenForNativeWidget(void *aWidget, nsIScreen **outScreen)
 }
 
 NS_IMETHODIMP
-nsScreenManagerGonk::GetNumberOfScreens(uint32_t *aNumberOfScreens)
+nsScreenManagerGonk::GetNumberOfScreens(PRUint32 *aNumberOfScreens)
 {
     *aNumberOfScreens = 1;
     return NS_OK;

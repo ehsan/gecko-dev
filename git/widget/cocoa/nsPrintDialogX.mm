@@ -50,7 +50,7 @@ nsPrintDialogServiceX::Show(nsIDOMWindow *aParent, nsIPrintSettings *aSettings,
 
   // Set the print job title
   PRUnichar** docTitles;
-  uint32_t titleCount;
+  PRUint32 titleCount;
   nsresult rv = aWebBrowserPrint->EnumerateDocumentNames(&titleCount, &docTitles);
   if (NS_SUCCEEDED(rv) && titleCount > 0) {
     CFStringRef cfTitleString = CFStringCreateWithCharacters(NULL, docTitles[0], NS_strlen(docTitles[0]));
@@ -58,7 +58,7 @@ nsPrintDialogServiceX::Show(nsIDOMWindow *aParent, nsIPrintSettings *aSettings,
       ::PMPrintSettingsSetJobName(settingsX->GetPMPrintSettings(), cfTitleString);
       CFRelease(cfTitleString);
     }
-    for (int32_t i = titleCount - 1; i >= 0; i--) {
+    for (PRInt32 i = titleCount - 1; i >= 0; i--) {
       NS_Free(docTitles[i]);
     }
     NS_Free(docTitles);
@@ -97,7 +97,7 @@ nsPrintDialogServiceX::Show(nsIDOMWindow *aParent, nsIPrintSettings *aSettings,
   // Export settings.
   [viewController exportSettings];
 
-  int16_t pageRange;
+  PRInt16 pageRange;
   aSettings->GetPrintRange(&pageRange);
   if (pageRange != nsIPrintSettings::kRangeSelection) {
     PMPrintSettings nativePrintSettings = settingsX->GetPMPrintSettings();
@@ -145,7 +145,7 @@ nsPrintDialogServiceX::ShowPageSetup(nsIDOMWindow *aParent,
 
 - (NSString*)localizedString:(const char*)aKey;
 
-- (int16_t)chosenFrameSetting;
+- (PRInt16)chosenFrameSetting;
 
 - (const char*)headerFooterStringForList:(NSPopUpButton*)aList;
 
@@ -211,8 +211,8 @@ static const char sHeaderFooterTags[][4] =  {"", "&T", "&U", "&D", "&P", "&PT"};
 - (void)exportSettings
 {
   mSettings->SetPrintRange([mPrintSelectionOnlyCheckbox state] == NSOnState ?
-                             (int16_t)nsIPrintSettings::kRangeSelection :
-                             (int16_t)nsIPrintSettings::kRangeAllPages);
+                             (PRInt16)nsIPrintSettings::kRangeSelection :
+                             (PRInt16)nsIPrintSettings::kRangeAllPages);
   mSettings->SetShrinkToFit([mShrinkToFitCheckbox state] == NSOnState);
   mSettings->SetPrintBGColors([mPrintBGColorsCheckbox state] == NSOnState);
   mSettings->SetPrintBGImages([mPrintBGImagesCheckbox state] == NSOnState);
@@ -339,7 +339,7 @@ static const char sHeaderFooterTags[][4] =  {"", "&T", "&U", "&D", "&P", "&PT"};
                              &canPrintSelection);
   [mPrintSelectionOnlyCheckbox setEnabled:canPrintSelection];
 
-  int16_t printRange;
+  PRInt16 printRange;
   mSettings->GetPrintRange(&printRange);
   if (printRange == nsIPrintSettings::kRangeSelection) {
     [mPrintSelectionOnlyCheckbox setState:NSOnState];
@@ -410,7 +410,7 @@ static const char sHeaderFooterTags[][4] =  {"", "&T", "&U", "&D", "&P", "&PT"};
   [mSeparateFramesRadio setTitle:[self localizedString:"separateFrames"]];
 
   // Radio enabled state
-  int16_t frameUIFlag;
+  PRInt16 frameUIFlag;
   mSettings->GetHowToEnableFrameUI(&frameUIFlag);
   if (frameUIFlag == nsIPrintSettings::kFrameEnableNone) {
     [mAsLaidOutRadio setEnabled:NO];
@@ -421,7 +421,7 @@ static const char sHeaderFooterTags[][4] =  {"", "&T", "&U", "&D", "&P", "&PT"};
   }
 
   // Radio values
-  int16_t printFrameType;
+  PRInt16 printFrameType;
   mSettings->GetPrintFrameType(&printFrameType);
   switch (printFrameType) {
     case nsIPrintSettings::kFramesAsIs:
@@ -481,7 +481,7 @@ static const char sHeaderFooterTags[][4] =  {"", "&T", "&U", "&D", "&P", "&PT"};
 
 // Export settings
 
-- (int16_t)chosenFrameSetting
+- (PRInt16)chosenFrameSetting
 {
   if ([mAsLaidOutRadio state] == NSOnState)
     return nsIPrintSettings::kFramesAsIs;

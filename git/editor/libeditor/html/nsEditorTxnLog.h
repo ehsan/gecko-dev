@@ -20,8 +20,8 @@ class nsEditorTxnLog : public nsITransactionListener
 private:
 
   nsHTMLEditorLog *mEditorLog;
-  int32_t mIndentLevel;
-  int32_t mBatchCount;
+  PRInt32 mIndentLevel;
+  PRInt32 mBatchCount;
 
 public:
 
@@ -42,9 +42,9 @@ public:
 private:
 
   /* nsEditorTxnLog private methods. */
-  nsresult PrintIndent(int32_t aIndentLevel);
+  nsresult PrintIndent(PRInt32 aIndentLevel);
   nsresult Write(const char *aBuffer);
-  nsresult WriteInt(int32_t aInt);
+  nsresult WriteInt(PRInt32 aInt);
   nsresult WriteTransaction(nsITransaction *aTransaction);
   nsresult Flush();
 };

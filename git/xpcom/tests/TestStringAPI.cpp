@@ -48,7 +48,7 @@ int testWrite() {
   nsString s(NS_LITERAL_STRING("xyzz"));
   PRUnichar *begin, *end;
   int res = CHECK(4 == s.Length());
-  uint32_t len = s.BeginWriting(&begin, &end, 5);
+  PRUint32 len = s.BeginWriting(&begin, &end, 5);
   res += CHECK(5 == s.Length()) +
          CHECK(5 == len) +
          CHECK(end == begin + 5) +
@@ -79,7 +79,7 @@ int testFind() {
   nsString str_needle;
   str_needle.AssignLiteral("world");
 
-  int32_t ret = 0;
+  PRInt32 ret = 0;
   ret += CHECK(-1 == str_haystack.Find("world"));
   ret += CHECK(-1 == str_haystack.Find(str_needle));
 
@@ -124,7 +124,7 @@ int testVoid() {
 }
 
 int testRFind() {
-  int32_t ret = 0;
+  PRInt32 ret = 0;
 
   // nsString.RFind
   nsString str_haystack;
@@ -169,7 +169,7 @@ int testRFind() {
 }
 
 int testCompressWhitespace() {
-  int32_t ret = 0;
+  PRInt32 ret = 0;
 
   // CompressWhitespace utility function
   nsString s;

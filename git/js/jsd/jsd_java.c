@@ -189,10 +189,10 @@ _scriptHook( JSDContext* jsdc,
 }
 
 /***************************************************************************/
-unsigned
+PRUintn
 _executionHook( JSDContext*     jsdc, 
                 JSDThreadState* jsdstate,
-                unsigned         type,
+                PRUintn         type,
                 void*           callerdata )
 {
     Hnetscape_jsdebug_JSThreadState* threadState;
@@ -308,7 +308,7 @@ _executionHook( JSDContext*     jsdc,
     return JSD_HOOK_RETURN_CONTINUE;
 }
 
-unsigned
+PRUintn
 _errorReporter( JSDContext*     jsdc, 
                 JSContext*      cx,
                 const char*     message, 
@@ -391,7 +391,7 @@ void netscape_jsdebug_DebugController_setInstructionHook0(struct Hnetscape_jsdeb
 {
     Hnetscape_jsdebug_Script* script;
     JSDScript* jsdscript;
-    unsigned pc;
+    PRUintn pc;
     ExecEnv* ee = EE();
 
     if( ! context || ! controller || ! ee )
@@ -407,7 +407,7 @@ void netscape_jsdebug_DebugController_setInstructionHook0(struct Hnetscape_jsdeb
     if( ! jsdscript )
         return;
 
-    pc = (unsigned)
+    pc = (PRUintn)
         execute_java_dynamic_method(ee, (JHandle*)pcOb, "getPC","()I");
 
     JSD_SetExecutionHook(context, jsdscript, pc, _executionHook, 0);
@@ -491,7 +491,7 @@ long netscape_jsdebug_DebugController_getNativeMinorVersion(struct Hnetscape_jsd
 
 struct Hnetscape_jsdebug_JSPC *netscape_jsdebug_Script_getClosestPC(struct Hnetscape_jsdebug_Script * self,long line)
 {
-    unsigned pc;
+    PRUintn pc;
     JSDScript* jsdscript;
 
     if( ! context || ! controller )

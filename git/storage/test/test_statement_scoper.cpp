@@ -28,7 +28,7 @@ test_automatic_reset()
   ), getter_AddRefs(stmt));
 
   // Reality check - make sure we start off in the right state.
-  int32_t state = -1;
+  PRInt32 state = -1;
   (void)stmt->GetState(&state);
   do_check_true(state == mozIStorageStatement::MOZ_STORAGE_STATEMENT_READY);
 
@@ -67,7 +67,7 @@ test_Abandon()
   ), getter_AddRefs(stmt));
 
   // Reality check - make sure we start off in the right state.
-  int32_t state = -1;
+  PRInt32 state = -1;
   (void)stmt->GetState(&state);
   do_check_true(state == mozIStorageStatement::MOZ_STORAGE_STATEMENT_READY);
 

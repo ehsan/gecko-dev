@@ -17,8 +17,8 @@ class nsDOMNotifyAudioAvailableEvent : public nsDOMEvent,
 {
 public:
   nsDOMNotifyAudioAvailableEvent(nsPresContext* aPresContext, nsEvent* aEvent,
-                                 uint32_t aEventType, float * aFrameBuffer,
-                                 uint32_t aFrameBufferLength, float aTime);
+                                 PRUint32 aEventType, float * aFrameBuffer,
+                                 PRUint32 aFrameBufferLength, float aTime);
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(nsDOMNotifyAudioAvailableEvent,
@@ -30,16 +30,16 @@ public:
   nsresult NS_NewDOMAudioAvailableEvent(nsIDOMEvent** aInstancePtrResult,
                                         nsPresContext* aPresContext,
                                         nsEvent *aEvent,
-                                        uint32_t aEventType,
+                                        PRUint32 aEventType,
                                         float * aFrameBuffer,
-                                        uint32_t aFrameBufferLength,
+                                        PRUint32 aFrameBufferLength,
                                         float aTime);
 
   ~nsDOMNotifyAudioAvailableEvent();
 
 private:
   nsAutoArrayPtr<float> mFrameBuffer;
-  uint32_t mFrameBufferLength;
+  PRUint32 mFrameBufferLength;
   float mTime;
   JSObject* mCachedArray;
   bool mAllowAudioData;

@@ -144,15 +144,15 @@
 */
 #define ST_TIMEVAL_RESOLUTION 1000
 #define ST_TIMEVAL_FORMAT "%.3f"
-#define ST_TIMEVAL_PRINTABLE(timeval) ((double)(timeval) / (double)ST_TIMEVAL_RESOLUTION)
-#define ST_TIMEVAL_PRINTABLE64(timeval) ((double)((int64_t)(timeval)) / (double)ST_TIMEVAL_RESOLUTION)
-#define ST_TIMEVAL_MAX ((uint32_t)-1 - ((uint32_t)-1 % ST_TIMEVAL_RESOLUTION))
+#define ST_TIMEVAL_PRINTABLE(timeval) ((PRFloat64)(timeval) / (PRFloat64)ST_TIMEVAL_RESOLUTION)
+#define ST_TIMEVAL_PRINTABLE64(timeval) ((PRFloat64)((PRInt64)(timeval)) / (PRFloat64)ST_TIMEVAL_RESOLUTION)
+#define ST_TIMEVAL_MAX ((PRUint32)-1 - ((PRUint32)-1 % ST_TIMEVAL_RESOLUTION))
 
 #define ST_MICROVAL_RESOLUTION 1000000
 #define ST_MICROVAL_FORMAT "%.6f"
-#define ST_MICROVAL_PRINTABLE(timeval) ((double)(timeval) / (double)ST_MICROVAL_RESOLUTION)
-#define ST_MICROVAL_PRINTABLE64(timeval) ((double)((int64_t)(timeval)) / (double)ST_MICROVAL_RESOLUTION)
-#define ST_MICROVAL_MAX ((uint32_t)-1 - ((uint32_t)-1 % ST_MICROVAL_RESOLUTION))
+#define ST_MICROVAL_PRINTABLE(timeval) ((PRFloat64)(timeval) / (PRFloat64)ST_MICROVAL_RESOLUTION)
+#define ST_MICROVAL_PRINTABLE64(timeval) ((PRFloat64)((PRInt64)(timeval)) / (PRFloat64)ST_MICROVAL_RESOLUTION)
+#define ST_MICROVAL_MAX ((PRUint32)-1 - ((PRUint32)-1 % ST_MICROVAL_RESOLUTION))
 
 /*
 ** Forward Declaration
@@ -179,21 +179,21 @@ typedef struct __struct_STAllocEvent
         **  relation to other allocation events.  This is a time stamp
         **  of sorts.
         */
-        uint32_t mTimeval;
+        PRUint32 mTimeval;
         
         /*
         ** Every event has a heap ID (pointer).
         ** In the event of a realloc, this is the new heap ID.
         ** In the event of a free, this is the previous heap ID value.
         */
-        uint32_t mHeapID;
+        PRUint32 mHeapID;
         
         /*
         ** Every event, along with the heap ID, tells of the size.
         ** In the event of a realloc, this is the new size.
         ** In th event of a free, this is the previous size.
         */
-        uint32_t mHeapSize;
+        PRUint32 mHeapSize;
 
         /*
         ** Every event has a callsite/stack backtrace.
@@ -217,19 +217,19 @@ typedef struct __struct_STAllocation
         /*
         ** The array of events.
         */
-        uint32_t mEventCount;
+        PRUint32 mEventCount;
         STAllocEvent* mEvents;
         
         /*
         ** The lifetime/lifespan of the allocation.
         */
-        uint32_t mMinTimeval;
-        uint32_t mMaxTimeval;
+        PRUint32 mMinTimeval;
+        PRUint32 mMaxTimeval;
 
         /*
         ** Index of this allocation in the global run.
         */
-        uint32_t mRunIndex;
+        PRUint32 mRunIndex;
 
         /*
         ** The runtime cost of heap events in this allocation.
@@ -237,7 +237,7 @@ typedef struct __struct_STAllocation
         **  spent in heap code (time of malloc, free, et al.).
         ** We do not track individual event cost in order to save space.
         */
-        uint32_t mHeapRuntimeCost;
+        PRUint32 mHeapRuntimeCost;
 } STAllocation;
 
 /*
@@ -251,40 +251,40 @@ typedef struct __struct_STCallsiteStats
         ** Sum timeval of the allocations.
         ** Callsite runs total all allocations below the callsite.
         */
-        uint64_t mTimeval64;
+        PRUint64 mTimeval64;
 
         /*
         ** Sum weight of the allocations.
         ** Callsite runs total all allocations below the callsite.
         */
-        uint64_t mWeight64;
+        PRUint64 mWeight64;
 
         /*
         ** Sum size of the allocations.
         ** Callsite runs total all allocations below the callsite.
         */
-        uint32_t mSize;
+        PRUint32 mSize;
 
         /*
         ** A stamp, indicated the relevance of the run.
         ** If the stamp does not match the origin value, the
         **  data contained here-in is considered invalid.
         */
-        uint32_t mStamp;
+        PRUint32 mStamp;
 
         /*
         ** A sum total of allocations (note, not sizes)  below the callsite.
         ** This is NOT the same as STRun::mAllocationCount which
         **  tracks the STRun::mAllocations array size.
         */
-        uint32_t mCompositeCount;
+        PRUint32 mCompositeCount;
 
         /*
         ** A sum total runtime cost of heap operations below the calliste.
         ** The cost is defined as the number of time units recorded as being
         **  spent in heap code (time of malloc, free, et al.).
         */
-        uint32_t mHeapRuntimeCost;
+        PRUint32 mHeapRuntimeCost;
 } STCallsiteStats;
 
 /*
@@ -302,7 +302,7 @@ typedef struct __struct_STRun
         /*
         ** The array of allocations.
         */
-        uint32_t mAllocationCount;
+        PRUint32 mAllocationCount;
         STAllocation** mAllocations;
 
         /*
@@ -344,7 +344,7 @@ struct __struct_STCategoryNode
         ** NULL if leaf node.
         */
         STCategoryNode** children;
-        uint32_t nchildren;
+        PRUint32 nchildren;
 
         /*
         ** The Run(s). Valid for both leaf and parent nodes.
@@ -363,8 +363,8 @@ struct __struct_STCategoryRule
         ** A callsite needs to pass substring match for all the strings.
         */
         char* pats[ST_MAX_PATTERNS_PER_RULE];
-        uint32_t patlen[ST_MAX_PATTERNS_PER_RULE];
-        uint32_t npats;
+        PRUint32 patlen[ST_MAX_PATTERNS_PER_RULE];
+        PRUint32 npats;
 
         /*
         ** Category name that this rule belongs to
@@ -423,9 +423,9 @@ STOptionGenre;
 #define ST_CMD_OPTION_BOOL(option_name, option_genre, option_help) PRBool m##option_name;
 #define ST_CMD_OPTION_STRING(option_name, option_genre, default_value, option_help) char m##option_name[ST_OPTION_STRING_MAX];
 #define ST_CMD_OPTION_STRING_ARRAY(option_name, option_genre, array_size, option_help) char m##option_name[array_size][ST_OPTION_STRING_MAX];
-#define ST_CMD_OPTION_STRING_PTR_ARRAY(option_name, option_genre, option_help) const char** m##option_name; uint32_t m##option_name##Count;
-#define ST_CMD_OPTION_UINT32(option_name, option_genre, default_value, multiplier, option_help) uint32_t m##option_name;
-#define ST_CMD_OPTION_UINT64(option_name, option_genre, default_value, multiplier, option_help) uint64_t m##option_name##64;
+#define ST_CMD_OPTION_STRING_PTR_ARRAY(option_name, option_genre, option_help) const char** m##option_name; PRUint32 m##option_name##Count;
+#define ST_CMD_OPTION_UINT32(option_name, option_genre, default_value, multiplier, option_help) PRUint32 m##option_name;
+#define ST_CMD_OPTION_UINT64(option_name, option_genre, default_value, multiplier, option_help) PRUint64 m##option_name##64;
 
 typedef struct __struct_STOptions
 {
@@ -473,7 +473,7 @@ typedef struct __struct_STContext
 */
 {
     PRRWLock* mRWLock;
-    uint32_t mIndex;
+    PRUint32 mIndex;
     STRun* mSortedRun;
 #if ST_WANT_GRAPHS
     PRLock* mImageLock;
@@ -481,10 +481,10 @@ typedef struct __struct_STContext
     PRBool mTimevalCached;
     PRBool mLifespanCached;
     PRBool mWeightCached;
-    uint32_t mFootprintYData[STGD_SPACE_X];
-    uint32_t mTimevalYData[STGD_SPACE_X];
-    uint32_t mLifespanYData[STGD_SPACE_X];
-    uint64_t mWeightYData64[STGD_SPACE_X];
+    PRUint32 mFootprintYData[STGD_SPACE_X];
+    PRUint32 mTimevalYData[STGD_SPACE_X];
+    PRUint32 mLifespanYData[STGD_SPACE_X];
+    PRUint64 mWeightYData64[STGD_SPACE_X];
 #endif
 }
 STContext;
@@ -515,7 +515,7 @@ typedef struct __struct_STContextCacheItem
 {
     STOptions mOptions;
     STContext mContext;
-    int32_t mReferenceCount;
+    PRInt32 mReferenceCount;
     PRIntervalTime mLastAccessed;
     PRBool mInUse;
 }
@@ -540,7 +540,7 @@ typedef struct __struct_STContextCache
     PRLock* mLock;
     PRCondVar* mCacheMiss;
     STContextCacheItem* mItems;
-    uint32_t mItemCount;
+    PRUint32 mItemCount;
 }
 STContextCache;
 
@@ -608,15 +608,15 @@ typedef struct __struct_STGlobals
         /*
         ** Various counters for different types of events.
         */
-        uint32_t mMallocCount;
-        uint32_t mCallocCount;
-        uint32_t mReallocCount;
-        uint32_t mFreeCount;
+        PRUint32 mMallocCount;
+        PRUint32 mCallocCount;
+        PRUint32 mReallocCount;
+        PRUint32 mFreeCount;
 
         /*
         ** Total events, operation counter.
         */
-        uint32_t mOperationCount;
+        PRUint32 mOperationCount;
 
         /*
         ** The "run" of the input.
@@ -628,26 +628,26 @@ typedef struct __struct_STGlobals
         ** So that we can determine the overall timeval of the run.
         ** NOTE:  These are NOT the options to control the data set.
         */
-        uint32_t mMinTimeval;
-        uint32_t mMaxTimeval;
+        PRUint32 mMinTimeval;
+        PRUint32 mMaxTimeval;
 
         /*
         ** Calculates peak allocation overall for all allocations.
         */
-        uint32_t mPeakMemoryUsed;
-        uint32_t mMemoryUsed;
+        PRUint32 mPeakMemoryUsed;
+        PRUint32 mMemoryUsed;
 
         /*
         ** A list of rules for categorization read in from the mCategoryFile
         */
        STCategoryRule** mCategoryRules;
-       uint32_t mNRules;
+       PRUint32 mNRules;
 
        /*
        ** CategoryName to Node mapping table
        */
        STCategoryMapEntry** mCategoryMap;
-       uint32_t mNCategoryMap;
+       PRUint32 mNCategoryMap;
 
        /*
        ** Categorized allocations. For now we support only one tree.
@@ -666,7 +666,7 @@ typedef struct __struct_STGlobals
 /*
 ** Function prototypes
 */
-extern STRun* createRun(STContext* inContext, uint32_t aStamp);
+extern STRun* createRun(STContext* inContext, PRUint32 aStamp);
 extern void freeRun(STRun* aRun);
 extern int initCategories(STGlobals* g);
 extern int categorizeRun(STOptions* inOptions, STContext* inContext, const STRun* aRun, STGlobals* g);
@@ -683,7 +683,7 @@ extern void htmlAnchor(STRequest* inRequest,
                        const char* aTarget,
                        const char* aClass,
                        STOptions* inOptions);
-extern char *FormatNumber(int32_t num);
+extern char *FormatNumber(PRInt32 num);
 
 /*
 ** shared globals

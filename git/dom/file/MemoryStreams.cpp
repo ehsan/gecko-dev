@@ -12,7 +12,7 @@ USING_FILE_NAMESPACE
 
 // static
 already_AddRefed<MemoryOutputStream>
-MemoryOutputStream::Create(uint64_t aSize)
+MemoryOutputStream::Create(PRUint64 aSize)
 {
   NS_ASSERTION(aSize, "Passed zero size!");
 
@@ -21,7 +21,7 @@ MemoryOutputStream::Create(uint64_t aSize)
   nsRefPtr<MemoryOutputStream> stream = new MemoryOutputStream();
 
   char* dummy;
-  uint32_t length = stream->mData.GetMutableData(&dummy, aSize, fallible_t());
+  PRUint32 length = stream->mData.GetMutableData(&dummy, aSize, fallible_t());
   NS_ENSURE_TRUE(length == aSize, nullptr);
 
   return stream.forget();
@@ -37,7 +37,7 @@ MemoryOutputStream::Close()
 }
 
 NS_IMETHODIMP
-MemoryOutputStream::Write(const char* aBuf, uint32_t aCount, uint32_t* _retval)
+MemoryOutputStream::Write(const char* aBuf, PRUint32 aCount, PRUint32* _retval)
 {
   return WriteSegments(NS_CopySegmentToBuffer, (char*)aBuf, aCount, _retval);
 }
@@ -49,19 +49,19 @@ MemoryOutputStream::Flush()
 }
 
 NS_IMETHODIMP
-MemoryOutputStream::WriteFrom(nsIInputStream* aFromStream, uint32_t aCount,
-                              uint32_t* _retval)
+MemoryOutputStream::WriteFrom(nsIInputStream* aFromStream, PRUint32 aCount,
+                              PRUint32* _retval)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
 MemoryOutputStream::WriteSegments(nsReadSegmentFun aReader, void* aClosure,
-                                  uint32_t aCount, uint32_t* _retval)
+                                  PRUint32 aCount, PRUint32* _retval)
 {
   NS_ASSERTION(mData.Length() >= mOffset, "Bad stream state!");
 
-  uint32_t maxCount = mData.Length() - mOffset;
+  PRUint32 maxCount = mData.Length() - mOffset;
   if (maxCount == 0) {
     *_retval = 0;
     return NS_OK;

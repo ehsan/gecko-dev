@@ -66,10 +66,10 @@ static const char *sAlignStrings[] =
 
 static const char *sMeetOrSliceStrings[] = { "meet", "slice" };
 
-static uint16_t
+static PRUint16
 GetAlignForString(const nsAString &aAlignString)
 {
-  for (uint32_t i = 0 ; i < ArrayLength(sAlignStrings) ; i++) {
+  for (PRUint32 i = 0 ; i < ArrayLength(sAlignStrings) ; i++) {
     if (aAlignString.EqualsASCII(sAlignStrings[i])) {
       return (i + nsIDOMSVGPreserveAspectRatio::SVG_PRESERVEASPECTRATIO_NONE);
     }
@@ -79,7 +79,7 @@ GetAlignForString(const nsAString &aAlignString)
 }
 
 static void
-GetAlignString(nsAString& aAlignString, uint16_t aAlign)
+GetAlignString(nsAString& aAlignString, PRUint16 aAlign)
 {
   NS_ASSERTION(
     aAlign >= nsIDOMSVGPreserveAspectRatio::SVG_PRESERVEASPECTRATIO_NONE &&
@@ -91,10 +91,10 @@ GetAlignString(nsAString& aAlignString, uint16_t aAlign)
                   nsIDOMSVGPreserveAspectRatio::SVG_PRESERVEASPECTRATIO_NONE]);
 }
 
-static uint16_t
+static PRUint16
 GetMeetOrSliceForString(const nsAString &aMeetOrSlice)
 {
-  for (uint32_t i = 0 ; i < ArrayLength(sMeetOrSliceStrings) ; i++) {
+  for (PRUint32 i = 0 ; i < ArrayLength(sMeetOrSliceStrings) ; i++) {
     if (aMeetOrSlice.EqualsASCII(sMeetOrSliceStrings[i])) {
       return (i + nsIDOMSVGPreserveAspectRatio::SVG_MEETORSLICE_MEET);
     }
@@ -104,7 +104,7 @@ GetMeetOrSliceForString(const nsAString &aMeetOrSlice)
 }
 
 static void
-GetMeetOrSliceString(nsAString& aMeetOrSliceString, uint16_t aMeetOrSlice)
+GetMeetOrSliceString(nsAString& aMeetOrSliceString, PRUint16 aMeetOrSlice)
 {
   NS_ASSERTION(
     aMeetOrSlice >= nsIDOMSVGPreserveAspectRatio::SVG_MEETORSLICE_MEET &&
@@ -269,28 +269,28 @@ SVGAnimatedPreserveAspectRatio::SetBaseValue(const SVGPreserveAspectRatio &aValu
   }
 }
 
-static uint64_t
+static PRUint64
 PackPreserveAspectRatio(const SVGPreserveAspectRatio& par)
 {
   // All preserveAspectRatio values are enum values (do not interpolate), so we
   // can safely collate them and treat them as a single enum as for SMIL.
-  uint64_t packed = 0;
-  packed |= uint64_t(par.GetDefer() ? 1 : 0) << 16;
-  packed |= uint64_t(par.GetAlign()) << 8;
-  packed |= uint64_t(par.GetMeetOrSlice());
+  PRUint64 packed = 0;
+  packed |= PRUint64(par.GetDefer() ? 1 : 0) << 16;
+  packed |= PRUint64(par.GetAlign()) << 8;
+  packed |= PRUint64(par.GetMeetOrSlice());
   return packed;
 }
 
 void
-SVGAnimatedPreserveAspectRatio::SetAnimValue(uint64_t aPackedValue,
+SVGAnimatedPreserveAspectRatio::SetAnimValue(PRUint64 aPackedValue,
                                              nsSVGElement *aSVGElement)
 {
   if (mIsAnimated && PackPreserveAspectRatio(mAnimVal) == aPackedValue) {
     return;
   }
   mAnimVal.SetDefer(((aPackedValue & 0xff0000) >> 16) ? true : false);
-  mAnimVal.SetAlign(uint16_t((aPackedValue & 0xff00) >> 8));
-  mAnimVal.SetMeetOrSlice(uint16_t(aPackedValue & 0xff));
+  mAnimVal.SetAlign(PRUint16((aPackedValue & 0xff00) >> 8));
+  mAnimVal.SetMeetOrSlice(PRUint16(aPackedValue & 0xff));
   mIsAnimated = true;
   aSVGElement->DidAnimatePreserveAspectRatio();
 }

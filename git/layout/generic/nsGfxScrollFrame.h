@@ -59,7 +59,7 @@ public:
 
   nsresult CreateAnonymousContent(
     nsTArray<nsIAnonymousContentCreator::ContentInfo>& aElements);
-  void AppendAnonymousContentTo(nsBaseContentList& aElements, uint32_t aFilter);
+  void AppendAnonymousContentTo(nsBaseContentList& aElements, PRUint32 aFilter);
   nsresult FireScrollPortEvent();
   void PostOverflowEvent();
   void Destroy();
@@ -222,7 +222,7 @@ public:
   nsRect GetScrolledRectInternal(const nsRect& aScrolledOverflowArea,
                                  const nsSize& aScrollPortSize) const;
 
-  uint32_t GetScrollbarVisibility() const {
+  PRUint32 GetScrollbarVisibility() const {
     return (mHasVerticalScrollbar ? nsIScrollableFrame::VERTICAL : 0) |
            (mHasHorizontalScrollbar ? nsIScrollableFrame::HORIZONTAL : 0);
   }
@@ -419,7 +419,7 @@ public:
 
   virtual void InvalidateInternal(const nsRect& aDamageRect,
                                   nscoord aX, nscoord aY, nsIFrame* aForChild,
-                                  uint32_t aFlags);
+                                  PRUint32 aFlags);
 
   virtual bool DoesClipChildren() { return true; }
   virtual nsSplittableType GetSplittableType() const;
@@ -433,7 +433,7 @@ public:
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements);
   virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                        uint32_t aFilter);
+                                        PRUint32 aFilter);
 
   // nsIScrollableFrame
   virtual nsIFrame* GetScrolledFrame() const {
@@ -442,7 +442,7 @@ public:
   virtual nsGfxScrollFrameInner::ScrollbarStyles GetScrollbarStyles() const {
     return mInner.GetScrollbarStylesFromFrame();
   }
-  virtual uint32_t GetScrollbarVisibility() const {
+  virtual PRUint32 GetScrollbarVisibility() const {
     return mInner.GetScrollbarVisibility();
   }
   virtual nsMargin GetActualScrollbarSizes() const {
@@ -631,7 +631,7 @@ public:
 
   virtual void InvalidateInternal(const nsRect& aDamageRect,
                                   nscoord aX, nscoord aY, nsIFrame* aForChild,
-                                  uint32_t aFlags);
+                                  PRUint32 aFlags);
 
   virtual bool DoesClipChildren() { return true; }
   virtual nsSplittableType GetSplittableType() const;
@@ -646,7 +646,7 @@ public:
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements);
   virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                        uint32_t aFilter);
+                                        PRUint32 aFilter);
 
   virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState);
   virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState);
@@ -690,7 +690,7 @@ public:
   virtual nsGfxScrollFrameInner::ScrollbarStyles GetScrollbarStyles() const {
     return mInner.GetScrollbarStylesFromFrame();
   }
-  virtual uint32_t GetScrollbarVisibility() const {
+  virtual PRUint32 GetScrollbarVisibility() const {
     return mInner.GetScrollbarVisibility();
   }
   virtual nsMargin GetActualScrollbarSizes() const {
@@ -781,7 +781,7 @@ public:
    */
   virtual nsIAtom* GetType() const;
   
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual bool IsFrameOfType(PRUint32 aFlags) const
   {
     // Override bogus IsFrameOfType in nsBoxFrame.
     if (aFlags & (nsIFrame::eReplacedContainsBlock | nsIFrame::eReplaced))

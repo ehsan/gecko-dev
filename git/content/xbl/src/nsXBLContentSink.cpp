@@ -202,7 +202,7 @@ nsXBLContentSink::ReportError(const PRUnichar* aErrorText,
 
 nsresult
 nsXBLContentSink::ReportUnexpectedElement(nsIAtom* aElementName,
-                                          uint32_t aLineNumber)
+                                          PRUint32 aLineNumber)
 {
   // XXX we should really somehow stop the parse and drop the binding
   // instead of just letting the XML sink build the content model like
@@ -251,9 +251,9 @@ nsXBLContentSink::AddField(nsXBLProtoImplField* aField)
 NS_IMETHODIMP 
 nsXBLContentSink::HandleStartElement(const PRUnichar *aName, 
                                      const PRUnichar **aAtts, 
-                                     uint32_t aAttsCount, 
-                                     int32_t aIndex, 
-                                     uint32_t aLineNumber)
+                                     PRUint32 aAttsCount, 
+                                     PRInt32 aIndex, 
+                                     PRUint32 aLineNumber)
 {
   nsresult rv = nsXMLContentSink::HandleStartElement(aName,aAtts,aAttsCount,aIndex,aLineNumber);
   if (NS_FAILED(rv))
@@ -277,7 +277,7 @@ nsXBLContentSink::HandleEndElement(const PRUnichar *aName)
   FlushText();
 
   if (mState != eXBL_InDocument) {
-    int32_t nameSpaceID;
+    PRInt32 nameSpaceID;
     nsCOMPtr<nsIAtom> prefix, localName;
     nsContentUtils::SplitExpatName(aName, getter_AddRefs(prefix),
                                    getter_AddRefs(localName), &nameSpaceID);
@@ -359,7 +359,7 @@ nsXBLContentSink::HandleEndElement(const PRUnichar *aName)
 
 NS_IMETHODIMP 
 nsXBLContentSink::HandleCDataSection(const PRUnichar *aData, 
-                                     uint32_t aLength)
+                                     PRUint32 aLength)
 {
   if (mState == eXBL_InHandlers || mState == eXBL_InImplementation)
     return AddText(aData, aLength);
@@ -373,10 +373,10 @@ nsXBLContentSink::HandleCDataSection(const PRUnichar *aData,
 
 bool 
 nsXBLContentSink::OnOpenContainer(const PRUnichar **aAtts, 
-                                  uint32_t aAttsCount, 
-                                  int32_t aNameSpaceID, 
+                                  PRUint32 aAttsCount, 
+                                  PRInt32 aNameSpaceID, 
                                   nsIAtom* aTagName,
-                                  uint32_t aLineNumber)
+                                  PRUint32 aLineNumber)
 {
   if (mState == eXBL_Error) {
     return true;
@@ -527,7 +527,7 @@ nsXBLContentSink::OnOpenContainer(const PRUnichar **aAtts,
 #undef ENSURE_XBL_STATE
 
 nsresult
-nsXBLContentSink::ConstructBinding(uint32_t aLineNumber)
+nsXBLContentSink::ConstructBinding(PRUint32 aLineNumber)
 {
   nsCOMPtr<nsIContent> binding = GetCurrentContent();
   nsAutoString id;
@@ -573,7 +573,7 @@ FindValue(const PRUnichar **aAtts, nsIAtom *aAtom, const PRUnichar **aResult)
 {
   nsCOMPtr<nsIAtom> prefix, localName;
   for (; *aAtts; aAtts += 2) {
-    int32_t nameSpaceID;
+    PRInt32 nameSpaceID;
     nsContentUtils::SplitExpatName(aAtts[0], getter_AddRefs(prefix),
                                    getter_AddRefs(localName), &nameSpaceID);
 
@@ -589,7 +589,7 @@ FindValue(const PRUnichar **aAtts, nsIAtom *aAtom, const PRUnichar **aResult)
 }
 
 void
-nsXBLContentSink::ConstructHandler(const PRUnichar **aAtts, uint32_t aLineNumber)
+nsXBLContentSink::ConstructHandler(const PRUnichar **aAtts, PRUint32 aLineNumber)
 {
   const PRUnichar* event          = nullptr;
   const PRUnichar* modifiers      = nullptr;
@@ -606,7 +606,7 @@ nsXBLContentSink::ConstructHandler(const PRUnichar **aAtts, uint32_t aLineNumber
 
   nsCOMPtr<nsIAtom> prefix, localName;
   for (; *aAtts; aAtts += 2) {
-    int32_t nameSpaceID;
+    PRInt32 nameSpaceID;
     nsContentUtils::SplitExpatName(aAtts[0], getter_AddRefs(prefix),
                                    getter_AddRefs(localName), &nameSpaceID);
 
@@ -709,7 +709,7 @@ nsXBLContentSink::ConstructImplementation(const PRUnichar **aAtts)
 
   nsCOMPtr<nsIAtom> prefix, localName;
   for (; *aAtts; aAtts += 2) {
-    int32_t nameSpaceID;
+    PRInt32 nameSpaceID;
     nsContentUtils::SplitExpatName(aAtts[0], getter_AddRefs(prefix),
                                    getter_AddRefs(localName), &nameSpaceID);
 
@@ -745,14 +745,14 @@ nsXBLContentSink::ConstructImplementation(const PRUnichar **aAtts)
 }
 
 void
-nsXBLContentSink::ConstructField(const PRUnichar **aAtts, uint32_t aLineNumber)
+nsXBLContentSink::ConstructField(const PRUnichar **aAtts, PRUint32 aLineNumber)
 {
   const PRUnichar* name     = nullptr;
   const PRUnichar* readonly = nullptr;
 
   nsCOMPtr<nsIAtom> prefix, localName;
   for (; *aAtts; aAtts += 2) {
-    int32_t nameSpaceID;
+    PRInt32 nameSpaceID;
     nsContentUtils::SplitExpatName(aAtts[0], getter_AddRefs(prefix),
                                    getter_AddRefs(localName), &nameSpaceID);
 
@@ -790,7 +790,7 @@ nsXBLContentSink::ConstructProperty(const PRUnichar **aAtts)
 
   nsCOMPtr<nsIAtom> prefix, localName;
   for (; *aAtts; aAtts += 2) {
-    int32_t nameSpaceID;
+    PRInt32 nameSpaceID;
     nsContentUtils::SplitExpatName(aAtts[0], getter_AddRefs(prefix),
                                    getter_AddRefs(localName), &nameSpaceID);
 
@@ -851,8 +851,8 @@ nsXBLContentSink::ConstructParameter(const PRUnichar **aAtts)
 }
 
 nsresult
-nsXBLContentSink::CreateElement(const PRUnichar** aAtts, uint32_t aAttsCount,
-                                nsINodeInfo* aNodeInfo, uint32_t aLineNumber,
+nsXBLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
+                                nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
                                 nsIContent** aResult, bool* aAppendContent,
                                 FromParser aFromParser)
 {
@@ -896,7 +896,7 @@ nsXBLContentSink::AddAttributes(const PRUnichar** aAtts,
 #ifdef MOZ_XUL
 nsresult
 nsXBLContentSink::AddAttributesToXULPrototype(const PRUnichar **aAtts, 
-                                              uint32_t aAttsCount, 
+                                              PRUint32 aAttsCount, 
                                               nsXULPrototypeElement* aElement)
 {
   // Add tag attributes to the element
@@ -916,9 +916,9 @@ nsXBLContentSink::AddAttributesToXULPrototype(const PRUnichar **aAtts,
   // Copy the attributes into the prototype
   nsCOMPtr<nsIAtom> prefix, localName;
 
-  uint32_t i;  
+  PRUint32 i;  
   for (i = 0; i < aAttsCount; ++i) {
-    int32_t nameSpaceID;
+    PRInt32 nameSpaceID;
     nsContentUtils::SplitExpatName(aAtts[i * 2], getter_AddRefs(prefix),
                                    getter_AddRefs(localName), &nameSpaceID);
 

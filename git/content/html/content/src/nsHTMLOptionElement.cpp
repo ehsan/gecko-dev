@@ -136,7 +136,7 @@ nsHTMLOptionElement::SetSelected(bool aValue)
   // so defer to it to get the answer
   nsHTMLSelectElement* selectInt = GetSelect();
   if (selectInt) {
-    int32_t index;
+    PRInt32 index;
     GetIndex(&index);
     // This should end up calling SetSelectedInternal
     return selectInt->SetOptionsSelectedByIndex(index, index, aValue,
@@ -157,7 +157,7 @@ NS_IMPL_STRING_ATTR_WITH_FALLBACK(nsHTMLOptionElement, Value, value, GetText)
 NS_IMPL_BOOL_ATTR(nsHTMLOptionElement, Disabled, disabled)
 
 NS_IMETHODIMP
-nsHTMLOptionElement::GetIndex(int32_t* aIndex)
+nsHTMLOptionElement::GetIndex(PRInt32* aIndex)
 {
   // When the element is not in a list of options, the index is 0.
   *aIndex = 0;
@@ -196,7 +196,7 @@ nsHTMLOptionElement::DefaultSelected() const
 
 nsChangeHint
 nsHTMLOptionElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
-                                            int32_t aModType) const
+                                            PRInt32 aModType) const
 {
   nsChangeHint retval =
       nsGenericHTMLElement::GetAttributeChangeHint(aAttribute, aModType);
@@ -209,7 +209,7 @@ nsHTMLOptionElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
 }
 
 nsresult
-nsHTMLOptionElement::BeforeSetAttr(int32_t aNamespaceID, nsIAtom* aName,
+nsHTMLOptionElement::BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
                                    const nsAttrValueOrString* aValue,
                                    bool aNotify)
 {
@@ -238,7 +238,7 @@ nsHTMLOptionElement::BeforeSetAttr(int32_t aNamespaceID, nsIAtom* aName,
   bool inSetDefaultSelected = mIsInSetDefaultSelected;
   mIsInSetDefaultSelected = true;
   
-  int32_t index;
+  PRInt32 index;
   GetIndex(&index);
   // This should end up calling SetSelectedInternal, which we will allow to
   // take effect so that parts of SetOptionsSelectedByIndex that might depend
@@ -353,7 +353,7 @@ NS_IMETHODIMP
 nsHTMLOptionElement::Initialize(nsISupports* aOwner,
                                 JSContext* aContext,
                                 JSObject *aObj,
-                                uint32_t argc, 
+                                PRUint32 argc, 
                                 jsval *argv)
 {
   nsresult result = NS_OK;

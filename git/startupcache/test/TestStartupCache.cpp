@@ -27,7 +27,7 @@ namespace mozilla {
 namespace scache {
 
 NS_IMPORT nsresult
-NewObjectInputStreamFromBuffer(char* buffer, uint32_t len, 
+NewObjectInputStreamFromBuffer(char* buffer, PRUint32 len, 
                                nsIObjectInputStream** stream);
 
 // We can't retrieve the wrapped stream from the objectOutputStream later,
@@ -38,7 +38,7 @@ NewObjectOutputWrappedStorageStream(nsIObjectOutputStream **wrapperStream,
 
 NS_IMPORT nsresult
 NewBufferFromStorageStream(nsIStorageStream *storageStream, 
-                           char** buffer, uint32_t* len);
+                           char** buffer, PRUint32* len);
 }
 }
 
@@ -89,7 +89,7 @@ TestStartupWriteRead() {
   const char* id = "id";
   char* outbufPtr = NULL;
   nsAutoArrayPtr<char> outbuf;  
-  uint32_t len;
+  PRUint32 len;
   
   rv = sc->PutBuffer(id, buf, strlen(buf) + 1);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -117,7 +117,7 @@ TestWriteInvalidateRead() {
   const char* buf = "BeardBook competitive analysis";
   const char* id = "id";
   char* outbuf = NULL;
-  uint32_t len;
+  PRUint32 len;
   nsCOMPtr<nsIStartupCache> sc 
     = do_GetService("@mozilla.org/startupcache/cache;1", &rv);
   sc->InvalidateCache();
@@ -168,7 +168,7 @@ TestWriteObject() {
     = do_CreateInstance("@mozilla.org/storagestream;1");
   NS_ENSURE_ARG_POINTER(storageStream);
   
-  rv = storageStream->Init(256, (uint32_t) -1, nullptr);
+  rv = storageStream->Init(256, (PRUint32) -1, nullptr);
   NS_ENSURE_SUCCESS(rv, rv);
   
   nsCOMPtr<nsIObjectOutputStream> objectOutput
@@ -194,7 +194,7 @@ TestWriteObject() {
 
   char* bufPtr = NULL;
   nsAutoArrayPtr<char> buf;
-  uint32_t len;
+  PRUint32 len;
   NewBufferFromStorageStream(storageStream, &bufPtr, &len);
   buf = bufPtr;
 
@@ -208,7 +208,7 @@ TestWriteObject() {
     
   char* buf2Ptr = NULL;
   nsAutoArrayPtr<char> buf2;
-  uint32_t len2;
+  PRUint32 len2;
   nsCOMPtr<nsIObjectInputStream> objectInput;
   rv = sc->GetBuffer(id, &buf2Ptr, &len2);
   if (NS_FAILED(rv)) {
@@ -256,7 +256,7 @@ TestEarlyShutdown() {
 
   const char* buf = "Find your soul beardmate on BeardBook";
   const char* id = "id";
-  uint32_t len;
+  PRUint32 len;
   char* outbuf = NULL;
   
   sc->ResetStartupWriteTimer();

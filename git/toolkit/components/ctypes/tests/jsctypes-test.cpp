@@ -132,20 +132,20 @@ get_##name##_stats(size_t* align, size_t* size, size_t* nalign, size_t* nsize, \
 #include "typedefs.h"
 
 template <typename T>
-int32_t StrLen(const T* string)
+PRInt32 StrLen(const T* string)
 {
   const T *end;
   for (end = string; *end; ++end);
   return end - string;
 }
 
-int32_t
+PRInt32
 test_ansi_len(const char* string)
 {
   return StrLen(string);
 }
 
-int32_t
+PRInt32
 test_wide_len(const PRUnichar* string)
 {
   return StrLen(string);
@@ -170,7 +170,7 @@ test_ansi_echo(const char* string)
   return (char*)string;
 }
 
-int32_t
+PRInt32
 test_pt_in_rect(RECT rc, POINT pt)
 {
   if (pt.x < rc.left || pt.x > rc.right)
@@ -181,16 +181,16 @@ test_pt_in_rect(RECT rc, POINT pt)
 }
 
 void
-test_init_pt(POINT* pt, int32_t x, int32_t y)
+test_init_pt(POINT* pt, PRInt32 x, PRInt32 y)
 {
   pt->x = x;
   pt->y = y;
 }
 
-int32_t
+PRInt32
 test_nested_struct(NESTED n)
 {
-  return int32_t(n.n1 + n.n2 + n.inner.i1 + n.inner.i2 + n.inner.i3 + n.n3 + n.n4);
+  return PRInt32(n.n1 + n.n2 + n.inner.i1 + n.inner.i2 + n.inner.i3 + n.n3 + n.n4);
 }
 
 POINT
@@ -293,15 +293,15 @@ test_fnptr()
   return (void*)(uintptr_t)test_ansi_len;
 }
 
-int32_t
-test_closure_cdecl(int8_t i, test_func_ptr f)
+PRInt32
+test_closure_cdecl(PRInt8 i, test_func_ptr f)
 {
   return f(i);
 }
 
 #if defined(_WIN32)
-int32_t
-test_closure_stdcall(int8_t i, test_func_ptr_stdcall f)
+PRInt32
+test_closure_stdcall(PRInt8 i, test_func_ptr_stdcall f)
 {
   return f(i);
 }
@@ -318,25 +318,25 @@ DECL_PROMOTED(bool, int);
 DECL_PROMOTED(char, int);
 DECL_PROMOTED(short, int);
 
-int32_t
-test_sum_va_cdecl(uint8_t n, ...)
+PRInt32
+test_sum_va_cdecl(PRUint8 n, ...)
 {
   va_list list;
-  int32_t sum = 0;
+  PRInt32 sum = 0;
   va_start(list, n);
-  for (uint8_t i = 0; i < n; ++i)
-    sum += va_arg(list, PromotedTraits<int32_t>::type);
+  for (PRUint8 i = 0; i < n; ++i)
+    sum += va_arg(list, PromotedTraits<PRInt32>::type);
   va_end(list);
   return sum;
 }
 
-uint8_t
-test_count_true_va_cdecl(uint8_t n, ...)
+PRUint8
+test_count_true_va_cdecl(PRUint8 n, ...)
 {
   va_list list;
-  uint8_t count = 0;
+  PRUint8 count = 0;
   va_start(list, n);
-  for (uint8_t i = 0; i < n; ++i)
+  for (PRUint8 i = 0; i < n; ++i)
     if (va_arg(list, PromotedTraits<bool>::type))
       count += 1;
   va_end(list);
@@ -344,7 +344,7 @@ test_count_true_va_cdecl(uint8_t n, ...)
 }
 
 void
-test_add_char_short_int_va_cdecl(uint32_t* result, ...)
+test_add_char_short_int_va_cdecl(PRUint32* result, ...)
 {
   va_list list;
   va_start(list, result);
@@ -354,19 +354,19 @@ test_add_char_short_int_va_cdecl(uint32_t* result, ...)
   va_end(list);
 }
 
-int32_t*
-test_vector_add_va_cdecl(uint8_t num_vecs,
-                         uint8_t vec_len,
-                         int32_t* result, ...)
+PRInt32*
+test_vector_add_va_cdecl(PRUint8 num_vecs,
+                         PRUint8 vec_len,
+                         PRInt32* result, ...)
 {
   va_list list;
   va_start(list, result);
-  uint8_t i;
+  PRUint8 i;
   for (i = 0; i < vec_len; ++i)
     result[i] = 0;
   for (i = 0; i < num_vecs; ++i) {
-    int32_t* vec = va_arg(list, int32_t*);
-    for (uint8_t j = 0; j < vec_len; ++j)
+    PRInt32* vec = va_arg(list, PRInt32*);
+    for (PRUint8 j = 0; j < vec_len; ++j)
       result[j] += vec[j];
   }
   va_end(list);

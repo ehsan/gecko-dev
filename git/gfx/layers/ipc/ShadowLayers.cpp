@@ -278,7 +278,7 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies)
 
   MOZ_LAYERS_LOG(("[LayersForwarder] destroying buffers..."));
 
-  for (uint32_t i = 0; i < mTxn->mDyingBuffers.Length(); ++i) {
+  for (PRUint32 i = 0; i < mTxn->mDyingBuffers.Length(); ++i) {
     DestroySharedSurface(&mTxn->mDyingBuffers[i]);
   }
 

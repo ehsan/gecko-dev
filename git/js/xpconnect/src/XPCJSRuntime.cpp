@@ -132,8 +132,8 @@ NativeSetSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
 
 #ifdef XPC_REPORT_NATIVE_INTERFACE_AND_SET_FLUSHING
     printf("- Destroying XPCNativeSet for:\n");
-    uint16_t count = set->GetInterfaceCount();
-    for (uint16_t k = 0; k < count; k++) {
+    PRUint16 count = set->GetInterfaceCount();
+    for (PRUint16 k = 0; k < count; k++) {
         XPCNativeInterface* iface = set->GetInterfaceAt(k);
         fputs("    ", stdout);
         JS_PutString(JSVAL_TO_STRING(iface->GetName()), stdout);
@@ -554,7 +554,7 @@ template<class T> static void
 DoDeferredRelease(nsTArray<T> &array)
 {
     while (1) {
-        uint32_t count = array.Length();
+        PRUint32 count = array.Length();
         if (!count) {
             array.Compact();
             break;
@@ -602,9 +602,9 @@ XPCIncrementalReleaseRunnable::ReleaseNow(bool limited)
 
     TimeDuration sliceTime = TimeDuration::FromMilliseconds(SliceMillis);
     TimeStamp started = TimeStamp::Now();
-    uint32_t counter = 0;
+    PRUint32 counter = 0;
     while (1) {
-        uint32_t count = items.Length();
+        PRUint32 count = items.Length();
         if (!count)
             break;
 
@@ -723,7 +723,7 @@ XPCJSRuntime::GCCallback(JSRuntime *rt, JSGCStatus status)
     }
 
     nsTArray<JSGCCallback> callbacks(self->extraGCCallbacks);
-    for (uint32_t i = 0; i < callbacks.Length(); ++i)
+    for (PRUint32 i = 0; i < callbacks.Length(); ++i)
         callbacks[i](rt, status);
 }
 
@@ -1268,11 +1268,11 @@ GetCompartmentName(JSCompartment *c, nsCString &name, bool replaceSlashes)
     }
 }
 
-static int64_t
+static PRInt64
 GetGCChunkTotalBytes()
 {
     JSRuntime *rt = nsXPConnect::GetRuntimeInstance()->GetJSRuntime();
-    return int64_t(JS_GetGCParameter(rt, JSGC_TOTAL_CHUNKS)) * js::gc::ChunkSize;
+    return PRInt64(JS_GetGCParameter(rt, JSGC_TOTAL_CHUNKS)) * js::gc::ChunkSize;
 }
 
 // Telemetry relies on this memory reporter being a single-reporter (rather
@@ -1284,13 +1284,13 @@ NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSGCHeap,
                              nsIMemoryReporter::UNITS_BYTES,
                              GetGCChunkTotalBytes,
                              "Memory used by the garbage-collected JavaScript heap.")
-static int64_t
+static PRInt64
 GetJSSystemCompartmentCount()
 {
     return JS::SystemCompartmentCount(nsXPConnect::GetRuntimeInstance()->GetJSRuntime());
 }
 
-static int64_t
+static PRInt64
 GetJSUserCompartmentCount()
 {
     return JS::UserCompartmentCount(nsXPConnect::GetRuntimeInstance()->GetJSRuntime());
@@ -1771,7 +1771,7 @@ class JSCompartmentsMultiReporter MOZ_FINAL : public nsIMemoryMultiReporter
     }
 
     NS_IMETHOD
-    GetExplicitNonHeap(int64_t *n)
+    GetExplicitNonHeap(PRInt64 *n)
     {
         // This reporter does neither "explicit" nor NONHEAP measurements.
         *n = 0;
@@ -2013,7 +2013,7 @@ JSMemoryMultiReporter::CollectReports(WindowPaths *windowPaths,
 }
 
 nsresult
-JSMemoryMultiReporter::GetExplicitNonHeap(int64_t *n)
+JSMemoryMultiReporter::GetExplicitNonHeap(PRInt64 *n)
 {
     JSRuntime *rt = nsXPConnect::GetRuntimeInstance()->GetJSRuntime();
     *reinterpret_cast<int64_t*>(n) = JS::GetExplicitNonHeapForRuntime(rt, JsMallocSizeOf);
@@ -2334,20 +2334,20 @@ static JSDHashOperator
 WrappedJSClassMapDumpEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
                                 uint32_t number, void *arg)
 {
-    ((IID2WrappedJSClassMap::Entry*)hdr)->value->DebugDump(*(int16_t*)arg);
+    ((IID2WrappedJSClassMap::Entry*)hdr)->value->DebugDump(*(PRInt16*)arg);
     return JS_DHASH_NEXT;
 }
 static JSDHashOperator
 NativeSetDumpEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
                         uint32_t number, void *arg)
 {
-    ((NativeSetMap::Entry*)hdr)->key_value->DebugDump(*(int16_t*)arg);
+    ((NativeSetMap::Entry*)hdr)->key_value->DebugDump(*(PRInt16*)arg);
     return JS_DHASH_NEXT;
 }
 #endif
 
 void
-XPCJSRuntime::DebugDump(int16_t depth)
+XPCJSRuntime::DebugDump(PRInt16 depth)
 {
 #ifdef DEBUG
     depth--;

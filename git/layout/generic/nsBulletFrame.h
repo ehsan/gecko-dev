@@ -80,7 +80,7 @@ public:
   virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
 
   // nsBulletFrame
-  int32_t SetListItemOrdinal(int32_t aNextOrdinal, bool* aChanged);
+  PRInt32 SetListItemOrdinal(PRInt32 aNextOrdinal, bool* aChanged);
 
 
   NS_IMETHOD OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
@@ -96,8 +96,8 @@ public:
                           const nsIntRect *aDirtyRect);
 
   /* get list item text, without '.' */
-  static bool AppendCounterText(int32_t aListStyleType,
-                                  int32_t aOrdinal,
+  static bool AppendCounterText(PRInt32 aListStyleType,
+                                  PRInt32 aOrdinal,
                                   nsString& aResult);
 
   /* get list item text, with '.' */
@@ -130,7 +130,7 @@ protected:
   nsRefPtr<nsBulletListener> mListener;
 
   nsSize mIntrinsicSize;
-  int32_t mOrdinal;
+  PRInt32 mOrdinal;
   bool mTextIsRTL;
 
 private:

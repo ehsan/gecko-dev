@@ -64,10 +64,10 @@ NS_IMETHODIMP
 nsSyncStreamListener::OnDataAvailable(nsIRequest     *request,
                                       nsISupports    *context,
                                       nsIInputStream *stream,
-                                      uint32_t        offset,
-                                      uint32_t        count)
+                                      PRUint32        offset,
+                                      PRUint32        count)
 {
-    uint32_t bytesWritten;
+    PRUint32 bytesWritten;
 
     nsresult rv = mPipeOut->WriteFrom(stream, count, &bytesWritten);
 
@@ -118,7 +118,7 @@ nsSyncStreamListener::Close()
 }
 
 NS_IMETHODIMP
-nsSyncStreamListener::Available(uint64_t *result)
+nsSyncStreamListener::Available(PRUint64 *result)
 {
     if (NS_FAILED(mStatus))
         return mStatus;
@@ -134,19 +134,19 @@ nsSyncStreamListener::Available(uint64_t *result)
 
 NS_IMETHODIMP
 nsSyncStreamListener::Read(char     *buf,
-                           uint32_t  bufLen,
-                           uint32_t *result)
+                           PRUint32  bufLen,
+                           PRUint32 *result)
 {
     if (mStatus == NS_BASE_STREAM_CLOSED) {
         *result = 0;
         return NS_OK;
     }
 
-    uint64_t avail64;
+    PRUint64 avail64;
     if (NS_FAILED(Available(&avail64)))
         return mStatus;
 
-    uint32_t avail = (uint32_t)NS_MIN(avail64, (uint64_t)bufLen);
+    PRUint32 avail = (PRUint32)NS_MIN(avail64, (PRUint64)bufLen);
     mStatus = mPipeIn->Read(buf, avail, result);
     return mStatus;
 }
@@ -154,19 +154,19 @@ nsSyncStreamListener::Read(char     *buf,
 NS_IMETHODIMP
 nsSyncStreamListener::ReadSegments(nsWriteSegmentFun  writer,
                                    void              *closure,
-                                   uint32_t           count,
-                                   uint32_t          *result)
+                                   PRUint32           count,
+                                   PRUint32          *result)
 {
     if (mStatus == NS_BASE_STREAM_CLOSED) {
         *result = 0;
         return NS_OK;
     }
 
-    uint64_t avail64;
+    PRUint64 avail64;
     if (NS_FAILED(Available(&avail64)))
         return mStatus;
 
-    uint32_t avail = (uint32_t)NS_MIN(avail64, (uint64_t)count);
+    PRUint32 avail = (PRUint32)NS_MIN(avail64, (PRUint64)count);
     mStatus = mPipeIn->ReadSegments(writer, closure, avail, result);
     return mStatus;
 }

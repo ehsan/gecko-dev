@@ -50,7 +50,7 @@ public:
       branch->GetBoolPref(PREF_BDM_SHOWWHENSTARTING, &showDM);
 
     if (showDM) {
-      uint32_t id;
+      PRUint32 id;
       mInner->GetId(&id);
 
       nsCOMPtr<nsIDownloadManagerUI> dmui =
@@ -74,7 +74,7 @@ public:
   }
 
   NS_IMETHODIMP OnStateChange(nsIWebProgress* aWebProgress,
-                              nsIRequest* aRequest, uint32_t aStateFlags,
+                              nsIRequest* aRequest, PRUint32 aStateFlags,
                               nsresult aStatus)
   {
     NS_ENSURE_TRUE(mInner, NS_ERROR_NOT_INITIALIZED);
@@ -91,7 +91,7 @@ public:
 
   NS_IMETHODIMP OnLocationChange(nsIWebProgress *aWebProgress,
                                  nsIRequest *aRequest, nsIURI *aLocation,
-                                 uint32_t aFlags)
+                                 PRUint32 aFlags)
   {
     NS_ENSURE_TRUE(mInner, NS_ERROR_NOT_INITIALIZED);
     return mInner->OnLocationChange(aWebProgress, aRequest, aLocation, aFlags);
@@ -99,10 +99,10 @@ public:
   
   NS_IMETHODIMP OnProgressChange(nsIWebProgress *aWebProgress,
                                  nsIRequest *aRequest,
-                                 int32_t aCurSelfProgress,
-                                 int32_t aMaxSelfProgress,
-                                 int32_t aCurTotalProgress,
-                                 int32_t aMaxTotalProgress)
+                                 PRInt32 aCurSelfProgress,
+                                 PRInt32 aMaxSelfProgress,
+                                 PRInt32 aCurTotalProgress,
+                                 PRInt32 aMaxTotalProgress)
   {
     NS_ENSURE_TRUE(mInner, NS_ERROR_NOT_INITIALIZED);
     return mInner->OnProgressChange(aWebProgress, aRequest,
@@ -114,10 +114,10 @@ public:
 
   NS_IMETHODIMP OnProgressChange64(nsIWebProgress *aWebProgress,
                                    nsIRequest *aRequest,
-                                   int64_t aCurSelfProgress,
-                                   int64_t aMaxSelfProgress,
-                                   int64_t aCurTotalProgress,
-                                   int64_t aMaxTotalProgress)
+                                   PRInt64 aCurSelfProgress,
+                                   PRInt64 aMaxSelfProgress,
+                                   PRInt64 aCurTotalProgress,
+                                   PRInt64 aMaxTotalProgress)
   {
     NS_ENSURE_TRUE(mInner, NS_ERROR_NOT_INITIALIZED);
     return mInner->OnProgressChange64(aWebProgress, aRequest,
@@ -129,7 +129,7 @@ public:
 
   NS_IMETHODIMP OnRefreshAttempted(nsIWebProgress *aWebProgress,
                                    nsIURI *aUri,
-                                   int32_t aDelay,
+                                   PRInt32 aDelay,
                                    bool aSameUri,
                                    bool *allowRefresh)
   {
@@ -138,7 +138,7 @@ public:
   }
 
   NS_IMETHODIMP OnSecurityChange(nsIWebProgress *aWebProgress,
-                                 nsIRequest *aRequest, uint32_t aState)
+                                 nsIRequest *aRequest, PRUint32 aState)
   {
     NS_ENSURE_TRUE(mInner, NS_ERROR_NOT_INITIALIZED);
     return mInner->OnSecurityChange(aWebProgress, aRequest, aState);

@@ -34,7 +34,7 @@ public:
      oCharset- the charset answer
      oConfident - the confidence of the answer
    */
-  NS_IMETHOD DoIt(const char* aBytesArray, uint32_t aLen, 
+  NS_IMETHOD DoIt(const char* aBytesArray, PRUint32 aLen, 
                     const char** oCharset, nsDetectionConfident &oConfident) = 0;
 };
 

@@ -33,10 +33,10 @@ public:
     NS_DECL_NSIRESUMABLECHANNEL
 
     bool RecvOnStartRequest(const nsCString& entityID);
-    bool RecvOnDataAvailable(const nsCString& data, const uint32_t& offset, const uint32_t& count);
+    bool RecvOnDataAvailable(const nsCString& data, const PRUint32& offset, const PRUint32& count);
     bool RecvOnStopRequest(const nsresult& code);
     
-    ExternalHelperAppParent(const IPC::URI& uri, const int64_t& contentLength);
+    ExternalHelperAppParent(const IPC::URI& uri, const PRInt64& contentLength);
     void Init(ContentParent *parent,
               const nsCString& aMimeContentType,
               const nsCString& aContentDisposition,
@@ -50,8 +50,8 @@ private:
   bool mPending;
   nsLoadFlags mLoadFlags;
   nsresult mStatus;
-  int64_t mContentLength;
-  uint32_t mContentDisposition;
+  PRInt64 mContentLength;
+  PRUint32 mContentDisposition;
   nsString mContentDispositionFilename;
   nsCString mContentDispositionHeader;
   nsCString mEntityID;

@@ -166,7 +166,7 @@ nsHTMLEditorLog::InsertLineBreak()
 }
 
 NS_IMETHODIMP
-nsHTMLEditorLog::Undo(uint32_t aCount)
+nsHTMLEditorLog::Undo(PRUint32 aCount)
 {
   nsAutoHTMLEditorLogLock logLock(this);
 
@@ -182,7 +182,7 @@ nsHTMLEditorLog::Undo(uint32_t aCount)
 }
 
 NS_IMETHODIMP
-nsHTMLEditorLog::Redo(uint32_t aCount)
+nsHTMLEditorLog::Redo(PRUint32 aCount)
 {
   nsAutoHTMLEditorLogLock logLock(this);
 
@@ -298,7 +298,7 @@ nsHTMLEditorLog::Copy()
 }
 
 NS_IMETHODIMP
-nsHTMLEditorLog::Paste(int32_t aClipboardType)
+nsHTMLEditorLog::Paste(PRInt32 aClipboardType)
 {
   nsAutoHTMLEditorLogLock logLock(this);
 
@@ -315,7 +315,7 @@ nsHTMLEditorLog::Paste(int32_t aClipboardType)
 }
 
 NS_IMETHODIMP
-nsHTMLEditorLog::PasteAsQuotation(int32_t aClipboardType)
+nsHTMLEditorLog::PasteAsQuotation(PRInt32 aClipboardType)
 {
   nsAutoHTMLEditorLogLock logLock(this);
 
@@ -332,7 +332,7 @@ nsHTMLEditorLog::PasteAsQuotation(int32_t aClipboardType)
 }
 
 NS_IMETHODIMP
-nsHTMLEditorLog::PasteAsPlaintextQuotation(int32_t aClipboardType)
+nsHTMLEditorLog::PasteAsPlaintextQuotation(PRInt32 aClipboardType)
 {
   nsAutoHTMLEditorLogLock logLock(this);
 
@@ -350,7 +350,7 @@ nsHTMLEditorLog::PasteAsPlaintextQuotation(int32_t aClipboardType)
 
 NS_IMETHODIMP
 nsHTMLEditorLog::PasteAsCitedQuotation(const nsAString& aCitation,
-                                       int32_t aClipboardType)
+                                       PRInt32 aClipboardType)
 {
   nsAutoHTMLEditorLogLock logLock(this);
 
@@ -467,7 +467,7 @@ nsHTMLEditorLog::SetBodyAttribute(const nsAString& aAttr, const nsAString& aValu
 }
 
 NS_IMETHODIMP
-nsHTMLEditorLog:: InsertTableCell(int32_t aNumber, bool aAfter)
+nsHTMLEditorLog:: InsertTableCell(PRInt32 aNumber, bool aAfter)
 {
   nsAutoHTMLEditorLogLock logLock(this);
 
@@ -486,7 +486,7 @@ nsHTMLEditorLog:: InsertTableCell(int32_t aNumber, bool aAfter)
 
 
 NS_IMETHODIMP
-nsHTMLEditorLog:: InsertTableColumn(int32_t aNumber, bool aAfter)
+nsHTMLEditorLog:: InsertTableColumn(PRInt32 aNumber, bool aAfter)
 {
   nsAutoHTMLEditorLogLock logLock(this);
 
@@ -505,7 +505,7 @@ nsHTMLEditorLog:: InsertTableColumn(int32_t aNumber, bool aAfter)
 
 
 NS_IMETHODIMP
-nsHTMLEditorLog:: InsertTableRow(int32_t aNumber, bool aAfter)
+nsHTMLEditorLog:: InsertTableRow(PRInt32 aNumber, bool aAfter)
 {
   nsAutoHTMLEditorLogLock logLock(this);
 
@@ -537,7 +537,7 @@ nsHTMLEditorLog:: DeleteTable()
 }
 
 NS_IMETHODIMP
-nsHTMLEditorLog:: DeleteTableCell(int32_t aNumber)
+nsHTMLEditorLog:: DeleteTableCell(PRInt32 aNumber)
 {
   nsAutoHTMLEditorLogLock logLock(this);
 
@@ -568,7 +568,7 @@ nsHTMLEditorLog:: DeleteTableCellContents()
 
 
 NS_IMETHODIMP
-nsHTMLEditorLog:: DeleteTableColumn(int32_t aNumber)
+nsHTMLEditorLog:: DeleteTableColumn(PRInt32 aNumber)
 {
   nsAutoHTMLEditorLogLock logLock(this);
 
@@ -585,7 +585,7 @@ nsHTMLEditorLog:: DeleteTableColumn(int32_t aNumber)
 
 
 NS_IMETHODIMP
-nsHTMLEditorLog:: DeleteTableRow(int32_t aNumber)
+nsHTMLEditorLog:: DeleteTableRow(PRInt32 aNumber)
 {
   nsAutoHTMLEditorLogLock logLock(this);
 
@@ -852,11 +852,11 @@ nsHTMLEditorLog::Write(const char *aBuffer)
 
   NS_ENSURE_TRUE(aBuffer, NS_ERROR_NULL_POINTER);
 
-  int32_t len = strlen(aBuffer);
+  PRInt32 len = strlen(aBuffer);
 
   if (mFileStream)
   {
-    uint32_t retval;
+    PRUint32 retval;
 
     result = mFileStream->Write(aBuffer, len, &retval);
 
@@ -877,7 +877,7 @@ nsHTMLEditorLog::Write(const char *aBuffer)
 }
 
 nsresult
-nsHTMLEditorLog::WriteInt(int32_t aInt)
+nsHTMLEditorLog::WriteInt(PRInt32 aInt)
 {
   char buf[256];
 
@@ -928,7 +928,7 @@ nsHTMLEditorLog::PrintSelection()
 {
   nsCOMPtr<nsISelection> selection;
   nsresult result;
-  int32_t rangeCount;
+  PRInt32 rangeCount;
 
   result = GetSelection(getter_AddRefs(selection));
 
@@ -940,11 +940,11 @@ nsHTMLEditorLog::PrintSelection()
 
   Write("selRanges = [ ");
 
-  int32_t i, j;
+  PRInt32 i, j;
   nsCOMPtr<nsIDOMRange> range;
   nsCOMPtr<nsIDOMNode> startNode;
   nsCOMPtr<nsIDOMNode> endNode;
-  int32_t startOffset, endOffset;
+  PRInt32 startOffset, endOffset;
 
   for (i = 0; i < rangeCount; i++)
   {
@@ -972,8 +972,8 @@ nsHTMLEditorLog::PrintSelection()
 
     NS_ENSURE_SUCCESS(result, result);
 
-    int32_t *offsetArray = 0;
-    int32_t arrayLength = 0;
+    PRInt32 *offsetArray = 0;
+    PRInt32 arrayLength = 0;
 
     result = GetNodeTreeOffsets(startNode, &offsetArray, &arrayLength);
 
@@ -1030,7 +1030,7 @@ nsHTMLEditorLog::PrintSelection()
 }
 
 nsresult
-nsHTMLEditorLog::PrintElementNode(nsIDOMNode *aNode, int32_t aDepth)
+nsHTMLEditorLog::PrintElementNode(nsIDOMNode *aNode, PRInt32 aDepth)
 {
   nsresult result;
   nsAutoString tag, name, value;
@@ -1055,7 +1055,7 @@ nsHTMLEditorLog::PrintElementNode(nsIDOMNode *aNode, int32_t aDepth)
 
   NS_ENSURE_TRUE(map, NS_ERROR_NULL_POINTER);
 
-  uint32_t i, len;
+  PRUint32 i, len;
   nsCOMPtr<nsIDOMNode> attr;
 
   result = map->GetLength(&len);
@@ -1081,7 +1081,7 @@ nsHTMLEditorLog::PrintElementNode(nsIDOMNode *aNode, int32_t aDepth)
 }
 
 nsresult
-nsHTMLEditorLog::PrintAttributeNode(nsIDOMNode *aNode, int32_t aDepth)
+nsHTMLEditorLog::PrintAttributeNode(nsIDOMNode *aNode, PRInt32 aDepth)
 {
   nsresult result;
   nsCOMPtr<nsIDOMAttr> attr = do_QueryInterface(aNode);
@@ -1120,7 +1120,7 @@ nsHTMLEditorLog::PrintAttributeNode(nsIDOMNode *aNode, int32_t aDepth)
 }
 
 nsresult
-nsHTMLEditorLog::PrintNodeChildren(nsIDOMNode *aNode, int32_t aDepth)
+nsHTMLEditorLog::PrintNodeChildren(nsIDOMNode *aNode, PRInt32 aDepth)
 {
   nsresult result;
 
@@ -1138,7 +1138,7 @@ nsHTMLEditorLog::PrintNodeChildren(nsIDOMNode *aNode, int32_t aDepth)
     return NS_OK;
   }
 
-  uint32_t i, len;
+  PRUint32 i, len;
   nsCOMPtr<nsIDOMNode> node;
 
   result = list->GetLength(&len);
@@ -1166,7 +1166,7 @@ nsHTMLEditorLog::PrintNodeChildren(nsIDOMNode *aNode, int32_t aDepth)
 }
 
 nsresult
-nsHTMLEditorLog::PrintTextNode(nsIDOMNode *aNode, int32_t aDepth)
+nsHTMLEditorLog::PrintTextNode(nsIDOMNode *aNode, PRInt32 aDepth)
 {
   nsresult result;
 
@@ -1190,13 +1190,13 @@ nsHTMLEditorLog::PrintTextNode(nsIDOMNode *aNode, int32_t aDepth)
 }
 
 nsresult
-nsHTMLEditorLog::PrintNode(nsIDOMNode *aNode, int32_t aDepth)
+nsHTMLEditorLog::PrintNode(nsIDOMNode *aNode, PRInt32 aDepth)
 {
   nsresult result = NS_OK;
 
   NS_ENSURE_TRUE(aNode, NS_ERROR_NULL_POINTER);
 
-  uint16_t nodeType;
+  PRUint16 nodeType;
   
   result = aNode->GetNodeType(&nodeType);
 
@@ -1230,7 +1230,7 @@ nsHTMLEditorLog::PrintNode(nsIDOMNode *aNode, int32_t aDepth)
 }
 
 nsresult
-nsHTMLEditorLog::GetNodeTreeOffsets(nsIDOMNode *aNode, int32_t **aResult, int32_t *aLength)
+nsHTMLEditorLog::GetNodeTreeOffsets(nsIDOMNode *aNode, PRInt32 **aResult, PRInt32 *aLength)
 {
   nsresult result;
 
@@ -1240,7 +1240,7 @@ nsHTMLEditorLog::GetNodeTreeOffsets(nsIDOMNode *aNode, int32_t **aResult, int32_
   *aLength = 0;
 
   nsIDOMNode *parent = aNode;
-  int32_t i = 0;
+  PRInt32 i = 0;
 
   // Count the number of parent nodes above aNode.
 
@@ -1256,7 +1256,7 @@ nsHTMLEditorLog::GetNodeTreeOffsets(nsIDOMNode *aNode, int32_t **aResult, int32_
 
   // Allocate an array big enough to hold all the offsets.
 
-  *aResult = new int32_t[i];
+  *aResult = new PRInt32[i];
 
   NS_ENSURE_TRUE(aResult, NS_ERROR_OUT_OF_MEMORY);
 
@@ -1264,7 +1264,7 @@ nsHTMLEditorLog::GetNodeTreeOffsets(nsIDOMNode *aNode, int32_t **aResult, int32_
 
   while (aNode && i > 0)
   {
-    int32_t offset = 0;
+    PRInt32 offset = 0;
 
     result = aNode->GetParentNode(&parent);
 

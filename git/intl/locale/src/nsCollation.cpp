@@ -50,7 +50,7 @@ nsCollation::~nsCollation()
 
 nsresult nsCollation::NormalizeString(const nsAString& stringIn, nsAString& stringOut)
 {
-  int32_t aLength = stringIn.Length();
+  PRInt32 aLength = stringIn.Length();
 
   if (aLength <= 64) {
     PRUnichar conversionBuffer[64];
@@ -94,11 +94,11 @@ nsresult nsCollation::UnicodeToChar(const nsAString& aSrc, char** dst)
   if (NS_SUCCEEDED(res)) {
     const nsPromiseFlatString& src = PromiseFlatString(aSrc);
     const PRUnichar *unichars = src.get();
-    int32_t unicharLength = src.Length();
-    int32_t dstLength;
+    PRInt32 unicharLength = src.Length();
+    PRInt32 dstLength;
     res = mEncoder->GetMaxLength(unichars, unicharLength, &dstLength);
     if (NS_SUCCEEDED(res)) {
-      int32_t bufLength = dstLength + 1 + 32; // extra 32 bytes for Finish() call
+      PRInt32 bufLength = dstLength + 1 + 32; // extra 32 bytes for Finish() call
       *dst = (char *) PR_Malloc(bufLength);
       if (*dst) {
         **dst = '\0';
@@ -107,7 +107,7 @@ nsresult nsCollation::UnicodeToChar(const nsAString& aSrc, char** dst)
         if (NS_SUCCEEDED(res) || (NS_ERROR_UENC_NOMAPPING == res)) {
           // Finishes the conversion. The converter has the possibility to write some 
           // extra data and flush its final state.
-          int32_t finishLength = bufLength - dstLength; // remaining unused buffer length
+          PRInt32 finishLength = bufLength - dstLength; // remaining unused buffer length
           if (finishLength > 0) {
             res = mEncoder->Finish((*dst + dstLength), &finishLength);
             if (NS_SUCCEEDED(res)) {

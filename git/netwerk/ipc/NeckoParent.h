@@ -34,9 +34,9 @@ protected:
   virtual PWebSocketParent* AllocPWebSocket(PBrowserParent* browser);
   virtual bool DeallocPWebSocket(PWebSocketParent*);
   virtual bool RecvHTMLDNSPrefetch(const nsString& hostname,
-                                   const uint16_t& flags);
+                                   const PRUint16& flags);
   virtual bool RecvCancelHTMLDNSPrefetch(const nsString& hostname,
-                                         const uint16_t& flags,
+                                         const PRUint16& flags,
                                          const nsresult& reason);
 
 };

@@ -36,8 +36,8 @@ public:
 protected:
   nsCOMPtr<nsIDOMNode> mNode;
   nsCOMPtr<nsIDOMNamedNodeMap> mAttributes;
-  uint32_t mCurAttrIndex;
-  uint32_t mAttributeCnt;
+  PRUint32 mCurAttrIndex;
+  PRUint32 mAttributeCnt;
 };
 
 nsresult NS_NewHTMLURIRefObject(nsIURIRefObject** aResult, nsIDOMNode* aNode);

@@ -166,7 +166,7 @@ struct TestEntry {
             return false;
         }
 
-        for (uint32_t i = 0; i < expectItems.Length(); i++) {
+        for (PRUint32 i = 0; i < expectItems.Length(); i++) {
             if (!expectItems[i].Compare(store->items[i].platformFont,
                                         store->items[i].glyphs,
                                         store->items[i].num_glyphs))
@@ -227,7 +227,7 @@ DumpStore (gfxFontTestStore *store) {
         printf ("(empty)\n");
     }
 
-    for (uint32_t i = 0;
+    for (PRUint32 i = 0;
          i < store->items.Length();
          i++)
     {
@@ -242,9 +242,9 @@ DumpStore (gfxFontTestStore *store) {
 
 void
 DumpTestExpect (TestEntry *test) {
-    for (uint32_t i = 0; i < test->expectItems.Length(); i++) {
+    for (PRUint32 i = 0; i < test->expectItems.Length(); i++) {
         printf ("Run[% 2d]: '%s' ", i, nsPromiseFlatCString(test->expectItems[i].fontName).get());
-        for (uint32_t j = 0; j < test->expectItems[i].glyphs.data.Length(); j++)
+        for (PRUint32 j = 0; j < test->expectItems[i].glyphs.data.Length(); j++)
             printf ("%d ", int(test->expectItems[i].glyphs.data[j]));
 
         printf ("\n");
@@ -261,15 +261,15 @@ RunTest (TestEntry *test, gfxContext *ctx) {
     gfxTextRunFactory::Parameters params = {
       ctx, nullptr, nullptr, nullptr, 0, 60
     };
-    uint32_t flags = gfxTextRunFactory::TEXT_IS_PERSISTENT;
+    PRUint32 flags = gfxTextRunFactory::TEXT_IS_PERSISTENT;
     if (test->isRTL) {
         flags |= gfxTextRunFactory::TEXT_IS_RTL;
     }
-    uint32_t length;
+    PRUint32 length;
     if (test->stringType == S_ASCII) {
         flags |= gfxTextRunFactory::TEXT_IS_ASCII | gfxTextRunFactory::TEXT_IS_8BIT;
         length = strlen(test->string);
-        textRun = fontGroup->MakeTextRun(reinterpret_cast<const uint8_t*>(test->string), length, &params, flags);
+        textRun = fontGroup->MakeTextRun(reinterpret_cast<const PRUint8*>(test->string), length, &params, flags);
     } else {
         NS_ConvertUTF8toUTF16 str(nsDependentCString(test->string));
         length = str.Length();

@@ -44,9 +44,9 @@ nsMathMLmrowFrame::InheritAutomaticData(nsIFrame* aParent)
 }
 
 NS_IMETHODIMP
-nsMathMLmrowFrame::AttributeChanged(int32_t  aNameSpaceID,
+nsMathMLmrowFrame::AttributeChanged(PRInt32  aNameSpaceID,
                                     nsIAtom* aAttribute,
-                                    int32_t  aModType)
+                                    PRInt32  aModType)
 {
   // Special for <mtable>: In the frame construction code, we also use
   // this frame class as a wrapper for mtable. Hence, we should pass the

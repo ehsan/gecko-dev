@@ -336,7 +336,7 @@ nsXMLDocument::Load(const nsAString& aUrl, bool *aReturn)
     rv = principal->CheckMayLoad(uri, false, false);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    int16_t shouldLoad = nsIContentPolicy::ACCEPT;
+    PRInt16 shouldLoad = nsIContentPolicy::ACCEPT;
     rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_XMLHTTPREQUEST,
                                    uri,
                                    principal,
@@ -502,7 +502,7 @@ nsXMLDocument::StartDocumentLoad(const char* aCommand,
   }
 
 
-  int32_t charsetSource = kCharsetFromDocTypeDefault;
+  PRInt32 charsetSource = kCharsetFromDocTypeDefault;
   nsCAutoString charset(NS_LITERAL_CSTRING("UTF-8"));
   TryChannelCharset(aChannel, charsetSource, charset, nullptr);
 

@@ -59,8 +59,8 @@ class nsDataObjCollection MOZ_FINAL : public nsIDataObjCollection, public nsData
 
     // from nsPIDataObjCollection
     void AddDataObject(IDataObject * aDataObj);
-    int32_t GetNumDataObjects() { return mDataObjects.Length(); }
-    nsDataObj* GetDataObjectAt(uint32_t aItem)
+    PRInt32 GetNumDataObjects() { return mDataObjects.Length(); }
+    nsDataObj* GetDataObjectAt(PRUint32 aItem)
             { return mDataObjects.SafeElementAt(aItem, nsRefPtr<nsDataObj>()); }
 
     // Return the registered OLE class ID of this object's CfDataObj.

@@ -18,7 +18,7 @@ nsProxyInfo::GetHost(nsACString &result)
 }
 
 NS_IMETHODIMP
-nsProxyInfo::GetPort(int32_t *result)
+nsProxyInfo::GetPort(PRInt32 *result)
 {
   *result = mPort;
   return NS_OK;
@@ -32,21 +32,21 @@ nsProxyInfo::GetType(nsACString &result)
 }
 
 NS_IMETHODIMP
-nsProxyInfo::GetFlags(uint32_t *result)
+nsProxyInfo::GetFlags(PRUint32 *result)
 {
   *result = mFlags;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsProxyInfo::GetResolveFlags(uint32_t *result)
+nsProxyInfo::GetResolveFlags(PRUint32 *result)
 {
   *result = mResolveFlags;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsProxyInfo::GetFailoverTimeout(uint32_t *result)
+nsProxyInfo::GetFailoverTimeout(PRUint32 *result)
 {
   *result = mTimeout;
   return NS_OK;

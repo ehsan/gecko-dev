@@ -32,8 +32,8 @@ public:
   /* public for initilization in this file */
   nsCOMPtr<nsIX509Cert> mServerCert;
 
-  uint32_t mKeyLength;
-  uint32_t mSecretKeyLength;
+  PRUint32 mKeyLength;
+  PRUint32 mSecretKeyLength;
   nsXPIDLCString mCipherName;
 
   bool mIsDomainMismatch;

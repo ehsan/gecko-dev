@@ -11,8 +11,8 @@
 #include "nsIUGenCategory.h"
 #include "nsUnicodeScriptCodes.h"
 
-const nsCharProps1& GetCharProps1(uint32_t aCh);
-const nsCharProps2& GetCharProps2(uint32_t aCh);
+const nsCharProps1& GetCharProps1(PRUint32 aCh);
+const nsCharProps2& GetCharProps2(PRUint32 aCh);
 
 namespace mozilla {
 
@@ -20,33 +20,33 @@ namespace unicode {
 
 extern nsIUGenCategory::nsUGenCategory sDetailedToGeneralCategory[];
 
-uint32_t GetMirroredChar(uint32_t aCh);
+PRUint32 GetMirroredChar(PRUint32 aCh);
 
-inline uint8_t GetCombiningClass(uint32_t aCh) {
+inline PRUint8 GetCombiningClass(PRUint32 aCh) {
   return GetCharProps1(aCh).mCombiningClass;
 }
 
 // returns the detailed General Category in terms of HB_UNICODE_* values
-inline uint8_t GetGeneralCategory(uint32_t aCh) {
+inline PRUint8 GetGeneralCategory(PRUint32 aCh) {
   return GetCharProps2(aCh).mCategory;
 }
 
 // returns the simplified Gen Category as defined in nsIUGenCategory
-inline nsIUGenCategory::nsUGenCategory GetGenCategory(uint32_t aCh) {
+inline nsIUGenCategory::nsUGenCategory GetGenCategory(PRUint32 aCh) {
   return sDetailedToGeneralCategory[GetGeneralCategory(aCh)];
 }
 
-inline uint8_t GetEastAsianWidth(uint32_t aCh) {
+inline PRUint8 GetEastAsianWidth(PRUint32 aCh) {
   return GetCharProps2(aCh).mEAW;
 }
 
-inline uint8_t GetScriptCode(uint32_t aCh) {
+inline PRUint8 GetScriptCode(PRUint32 aCh) {
   return GetCharProps2(aCh).mScriptCode;
 }
 
-uint32_t GetScriptTagForCode(int32_t aScriptCode);
+PRUint32 GetScriptTagForCode(PRInt32 aScriptCode);
 
-inline nsCharType GetBidiCat(uint32_t aCh) {
+inline nsCharType GetBidiCat(PRUint32 aCh) {
   return nsCharType(GetCharProps2(aCh).mBidiCategory);
 }
 
@@ -63,11 +63,11 @@ enum XidmodType {
   XIDMOD_NOT_CHARS
 };
 
-inline XidmodType GetIdentifierModification(uint32_t aCh) {
+inline XidmodType GetIdentifierModification(PRUint32 aCh) {
   return XidmodType(GetCharProps2(aCh).mXidmod);
 }
 
-inline bool IsRestrictedForIdentifiers(uint32_t aCh) {
+inline bool IsRestrictedForIdentifiers(PRUint32 aCh) {
   XidmodType xm = GetIdentifierModification(aCh);
   return (xm > XIDMOD_RECOMMENDED);
 }
@@ -78,7 +78,7 @@ inline bool IsRestrictedForIdentifiers(uint32_t aCh) {
  * To restrict to decimal digits, the caller should also check whether
  * GetGeneralCategory returns HB_UNICODE_GENERAL_CATEGORY_DECIMAL_NUMBER
  */
-inline int8_t GetNumericValue(uint32_t aCh) {
+inline PRInt8 GetNumericValue(PRUint32 aCh) {
   return GetCharProps2(aCh).mNumericValue;
 }
 
@@ -89,11 +89,11 @@ enum HanVariantType {
   HVT_AnyHan = 0x3
 };
 
-HanVariantType GetHanVariant(uint32_t aCh);
+HanVariantType GetHanVariant(PRUint32 aCh);
 
-bool IsClusterExtender(uint32_t aCh, uint8_t aCategory);
+bool IsClusterExtender(PRUint32 aCh, PRUint8 aCategory);
 
-inline bool IsClusterExtender(uint32_t aCh) {
+inline bool IsClusterExtender(PRUint32 aCh) {
   return IsClusterExtender(aCh, GetGeneralCategory(aCh));
 }
 
@@ -106,17 +106,17 @@ enum HSType {
   HST_LVT  = 0x07
 };
 
-inline HSType GetHangulSyllableType(uint32_t aCh) {
+inline HSType GetHangulSyllableType(PRUint32 aCh) {
   return HSType(GetCharProps1(aCh).mHangulType);
 }
 
 // Case mappings for the full Unicode range;
 // note that it may be worth testing for ASCII chars and taking
 // a separate fast-path before calling these, in perf-critical places
-uint32_t GetUppercase(uint32_t aCh);
-uint32_t GetLowercase(uint32_t aCh);
-uint32_t GetTitlecaseForLower(uint32_t aCh); // maps LC to titlecase, UC unchanged
-uint32_t GetTitlecaseForAll(uint32_t aCh); // maps both UC and LC to titlecase
+PRUint32 GetUppercase(PRUint32 aCh);
+PRUint32 GetLowercase(PRUint32 aCh);
+PRUint32 GetTitlecaseForLower(PRUint32 aCh); // maps LC to titlecase, UC unchanged
+PRUint32 GetTitlecaseForAll(PRUint32 aCh); // maps both UC and LC to titlecase
 
 enum ShapingType {
   SHAPING_DEFAULT   = 0x0001,
@@ -128,14 +128,14 @@ enum ShapingType {
   SHAPING_THAI      = 0x0040
 };
 
-int32_t ScriptShapingType(int32_t aScriptCode);
+PRInt32 ScriptShapingType(PRInt32 aScriptCode);
 
 // A simple iterator for a string of PRUnichar codepoints that advances
 // by Unicode grapheme clusters
 class ClusterIterator
 {
 public:
-    ClusterIterator(const PRUnichar* aText, uint32_t aLength)
+    ClusterIterator(const PRUnichar* aText, PRUint32 aLength)
         : mPos(aText), mLimit(aText + aLength)
 #ifdef DEBUG
         , mText(aText)

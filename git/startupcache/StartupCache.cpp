@@ -52,7 +52,7 @@
 namespace mozilla {
 namespace scache {
 
-static int64_t
+static PRInt64
 GetStartupCacheMappingSize()
 {
     mozilla::scache::StartupCache* sc = mozilla::scache::StartupCache::GetSingleton();
@@ -69,7 +69,7 @@ NS_MEMORY_REPORTER_IMPLEMENT(StartupCacheMapping,
 
 NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(StartupCacheDataMallocSizeOf, "startup-cache/data")
 
-static int64_t
+static PRInt64
 GetStartupCacheDataSize()
 {
     mozilla::scache::StartupCache* sc = mozilla::scache::StartupCache::GetSingleton();
@@ -250,12 +250,12 @@ StartupCache::LoadArchive(enum TelemetrifyAge flag)
   if (len == sizeof(creationStamp)) {
     memcpy(&creationStamp, data, len);
     PRTime current = PR_Now();
-    int64_t diff = current - creationStamp;
+    PRInt64 diff = current - creationStamp;
 
     // We can't use AccumulateTimeDelta here because we have no way of
     // reifying a TimeStamp from creationStamp.
-    int64_t usec_per_hour = PR_USEC_PER_SEC * int64_t(3600);
-    int64_t hour_diff = (diff + usec_per_hour - 1) / usec_per_hour;
+    PRInt64 usec_per_hour = PR_USEC_PER_SEC * PRInt64(3600);
+    PRInt64 hour_diff = (diff + usec_per_hour - 1) / usec_per_hour;
     mozilla::Telemetry::Accumulate(Telemetry::STARTUP_CACHE_AGE_HOURS,
                                    hour_diff);
   }
@@ -267,7 +267,7 @@ namespace {
 
 nsresult
 GetBufferFromZipArchive(nsZipArchive *zip, bool doCRC, const char* id,
-                        char** outbuf, uint32_t* length)
+                        char** outbuf, PRUint32* length)
 {
   if (!zip)
     return NS_ERROR_NOT_AVAILABLE;
@@ -286,7 +286,7 @@ GetBufferFromZipArchive(nsZipArchive *zip, bool doCRC, const char* id,
 // NOTE: this will not find a new entry until it has been written to disk!
 // Consumer should take ownership of the resulting buffer.
 nsresult
-StartupCache::GetBuffer(const char* id, char** outbuf, uint32_t* length) 
+StartupCache::GetBuffer(const char* id, char** outbuf, PRUint32* length) 
 {
   NS_ASSERTION(NS_IsMainThread(), "Startup cache only available on main thread");
   WaitOnWriteThread();
@@ -319,7 +319,7 @@ StartupCache::GetBuffer(const char* id, char** outbuf, uint32_t* length)
 
 // Makes a copy of the buffer, client retains ownership of inbuf.
 nsresult
-StartupCache::PutBuffer(const char* id, const char* inbuf, uint32_t len) 
+StartupCache::PutBuffer(const char* id, const char* inbuf, PRUint32 len) 
 {
   NS_ASSERTION(NS_IsMainThread(), "Startup cache only available on main thread");
   WaitOnWriteThread();
@@ -590,7 +590,7 @@ StartupCacheDebugOutputStream::CheckReferences(nsISupports* aObject)
     return false;
   }
   
-  uint32_t flags;
+  PRUint32 flags;
   rv = classInfo->GetFlags(&flags);
   NS_ENSURE_SUCCESS(rv, false);
   if (flags & nsIClassInfo::SINGLETON)
@@ -657,13 +657,13 @@ StartupCacheDebugOutputStream::WriteID(nsID const& aID)
 }
 
 char*
-StartupCacheDebugOutputStream::GetBuffer(uint32_t aLength, uint32_t aAlignMask)
+StartupCacheDebugOutputStream::GetBuffer(PRUint32 aLength, PRUint32 aAlignMask)
 {
   return mBinaryStream->GetBuffer(aLength, aAlignMask);
 }
 
 void
-StartupCacheDebugOutputStream::PutBuffer(char* aBuffer, uint32_t aLength)
+StartupCacheDebugOutputStream::PutBuffer(char* aBuffer, PRUint32 aLength)
 {
   mBinaryStream->PutBuffer(aBuffer, aLength);
 }
@@ -683,7 +683,7 @@ StartupCacheWrapper* StartupCacheWrapper::GetSingleton()
 }
 
 nsresult 
-StartupCacheWrapper::GetBuffer(const char* id, char** outbuf, uint32_t* length) 
+StartupCacheWrapper::GetBuffer(const char* id, char** outbuf, PRUint32* length) 
 {
   StartupCache* sc = StartupCache::GetSingleton();
   if (!sc) {
@@ -693,7 +693,7 @@ StartupCacheWrapper::GetBuffer(const char* id, char** outbuf, uint32_t* length)
 }
 
 nsresult
-StartupCacheWrapper::PutBuffer(const char* id, const char* inbuf, uint32_t length) 
+StartupCacheWrapper::PutBuffer(const char* id, const char* inbuf, PRUint32 length) 
 {
   StartupCache* sc = StartupCache::GetSingleton();
   if (!sc) {

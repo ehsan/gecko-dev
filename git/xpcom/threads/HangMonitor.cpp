@@ -42,7 +42,7 @@ const char kTelemetryPrefName[] = "toolkit.telemetry.enabled";
 Monitor* gMonitor;
 
 // The timeout preference, in seconds.
-int32_t gTimeout;
+PRInt32 gTimeout;
 
 PRThread* gThread;
 
@@ -58,17 +58,17 @@ volatile PRIntervalTime gTimestamp = PR_INTERVAL_NO_WAIT;
 static HANDLE winMainThreadHandle = NULL;
 
 // Default timeout for reporting chrome hangs to Telemetry (5 seconds)
-static const int32_t DEFAULT_CHROME_HANG_INTERVAL = 5;
+static const PRInt32 DEFAULT_CHROME_HANG_INTERVAL = 5;
 
 // Maximum number of PCs to gather from the stack
-static const int32_t MAX_CALL_STACK_PCS = 400;
+static const PRInt32 MAX_CALL_STACK_PCS = 400;
 #endif
 
 // PrefChangedFunc
 int
 PrefChanged(const char*, void*)
 {
-  int32_t newval = Preferences::GetInt(kHangMonitorPrefName);
+  PRInt32 newval = Preferences::GetInt(kHangMonitorPrefName);
 #ifdef REPORT_CHROME_HANGS
   // Monitor chrome hangs on the profiling branch if Telemetry enabled
   if (newval == 0) {
@@ -183,8 +183,8 @@ ThreadMain(void*)
 #ifdef REPORT_CHROME_HANGS
         GetChromeHangReport(stack);
 #else
-        int32_t delay =
-          int32_t(PR_IntervalToSeconds(now - timestamp));
+        PRInt32 delay =
+          PRInt32(PR_IntervalToSeconds(now - timestamp));
         if (delay > gTimeout) {
           MonitorAutoUnlock unlock(*gMonitor);
           Crash();
@@ -195,7 +195,7 @@ ThreadMain(void*)
     else {
 #ifdef REPORT_CHROME_HANGS
       if (waitCount >= 2) {
-        uint32_t hangDuration = PR_IntervalToSeconds(now - lastTimestamp);
+        PRUint32 hangDuration = PR_IntervalToSeconds(now - lastTimestamp);
         Telemetry::RecordChromeHang(hangDuration, stack);
         stack.Clear();
       }
@@ -307,7 +307,7 @@ NotifyActivity(ActivityType activityType)
   }
 
   // Calculate the cumulative amount of lag time since the last UI message
-  static uint32_t cumulativeUILagMS = 0;
+  static PRUint32 cumulativeUILagMS = 0;
   switch(activityType) {
   case kActivityNoUIAVail:
     cumulativeUILagMS = 0;
@@ -331,7 +331,7 @@ NotifyActivity(ActivityType activityType)
   if (activityType == kUIActivity) {
     // The minimum amount of lag time that we should report for telemetry data.
     // Mozilla's UI responsiveness goal is 50ms
-    static const uint32_t kUIResponsivenessThresholdMS = 50;
+    static const PRUint32 kUIResponsivenessThresholdMS = 50;
     if (cumulativeUILagMS > kUIResponsivenessThresholdMS) {
       mozilla::Telemetry::Accumulate(mozilla::Telemetry::EVENTLOOP_UI_LAG_EXP_MS,
                                      cumulativeUILagMS);

@@ -143,7 +143,7 @@ public:
    * item in the chain.
    */
   nsresult HandleEventTargetChain(nsEventChainPostVisitor& aVisitor,
-                                  uint32_t aFlags,
+                                  PRUint32 aFlags,
                                   nsDispatchingCallback* aCallback,
                                   bool aMayHaveNewListenerManagers,
                                   nsCxPusher* aPusher);
@@ -158,7 +158,7 @@ public:
    * If the current item in the event target chain has an event listener
    * manager, this method calls nsEventListenerManager::HandleEvent().
    */
-  nsresult HandleEvent(nsEventChainPostVisitor& aVisitor, uint32_t aFlags,
+  nsresult HandleEvent(nsEventChainPostVisitor& aVisitor, PRUint32 aFlags,
                        bool aMayHaveNewListenerManagers,
                        nsCxPusher* aPusher)
   {
@@ -195,7 +195,7 @@ public:
   nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor,
                            nsCxPusher* aPusher);
 
-  static uint32_t MaxEtciCount() { return sMaxEtciCount; }
+  static PRUint32 MaxEtciCount() { return sMaxEtciCount; }
 
   static void ResetMaxEtciCount()
   {
@@ -210,20 +210,20 @@ public:
      // This is used only when caching ETCI objects.
     nsEventTargetChainItem*         mNext;
   };
-  uint16_t                          mFlags;
-  uint16_t                          mItemFlags;
+  PRUint16                          mFlags;
+  PRUint16                          mItemFlags;
   nsCOMPtr<nsISupports>             mItemData;
   // Event retargeting must happen whenever mNewTarget is non-null.
   nsCOMPtr<nsIDOMEventTarget>       mNewTarget;
   // Cache mTarget's event listener manager.
   nsRefPtr<nsEventListenerManager>  mManager;
 
-  static uint32_t                   sMaxEtciCount;
-  static uint32_t                   sCurrentEtciCount;
+  static PRUint32                   sMaxEtciCount;
+  static PRUint32                   sCurrentEtciCount;
 };
 
-uint32_t nsEventTargetChainItem::sMaxEtciCount = 0;
-uint32_t nsEventTargetChainItem::sCurrentEtciCount = 0;
+PRUint32 nsEventTargetChainItem::sMaxEtciCount = 0;
+PRUint32 nsEventTargetChainItem::sCurrentEtciCount = 0;
 
 nsEventTargetChainItem::nsEventTargetChainItem(nsIDOMEventTarget* aTarget,
                                                nsEventTargetChainItem* aChild)
@@ -264,12 +264,12 @@ nsEventTargetChainItem::PostHandleEvent(nsEventChainPostVisitor& aVisitor,
 }
 
 nsresult
-nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor, uint32_t aFlags,
+nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor, PRUint32 aFlags,
                                                nsDispatchingCallback* aCallback,
                                                bool aMayHaveNewListenerManagers,
                                                nsCxPusher* aPusher)
 {
-  uint32_t createdELMs = nsEventListenerManager::sCreatedCount;
+  PRUint32 createdELMs = nsEventListenerManager::sCreatedCount;
   // Save the target so that it can be restored later.
   nsCOMPtr<nsIDOMEventTarget> firstTarget = aVisitor.mEvent->target;
 
@@ -389,8 +389,8 @@ public:
       sEtciPool = new nsFixedSizeAllocator();
       if (sEtciPool) {
         static const size_t kBucketSizes[] = { sizeof(nsEventTargetChainItem) };
-        static const int32_t kNumBuckets = sizeof(kBucketSizes) / sizeof(size_t);
-        static const int32_t kInitialPoolSize =
+        static const PRInt32 kNumBuckets = sizeof(kBucketSizes) / sizeof(size_t);
+        static const PRInt32 kInitialPoolSize =
           sizeof(nsEventTargetChainItem) * NS_CHAIN_POOL_SIZE;
         nsresult rv = sEtciPool->Init("EventTargetChainItem Pool", kBucketSizes,
                                       kNumBuckets, kInitialPoolSize);
@@ -432,11 +432,11 @@ public:
   nsFixedSizeAllocator* GetPool() { return sEtciPool; }
 
   static nsFixedSizeAllocator* sEtciPool;
-  static int32_t               sEtciPoolUsers;
+  static PRInt32               sEtciPoolUsers;
 };
 
 nsFixedSizeAllocator* ChainItemPool::sEtciPool = nullptr;
-int32_t ChainItemPool::sEtciPoolUsers = 0;
+PRInt32 ChainItemPool::sEtciPoolUsers = 0;
 
 void NS_ShutdownChainItemPool() { ChainItemPool::Shutdown(); }
 

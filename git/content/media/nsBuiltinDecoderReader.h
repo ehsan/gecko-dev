@@ -34,10 +34,10 @@ public:
                                     const nsIntSize& aDisplay);
 
   // Sample rate.
-  uint32_t mAudioRate;
+  PRUint32 mAudioRate;
 
   // Number of audio channels.
-  uint32_t mAudioChannels;
+  PRUint32 mAudioChannels;
 
   // Size in pixels at which the video is rendered. This is after it has
   // been scaled by its aspect ratio.
@@ -80,12 +80,12 @@ class AudioData {
 public:
   typedef mozilla::SharedBuffer SharedBuffer;
 
-  AudioData(int64_t aOffset,
-            int64_t aTime,
-            int64_t aDuration,
-            uint32_t aFrames,
+  AudioData(PRInt64 aOffset,
+            PRInt64 aTime,
+            PRInt64 aDuration,
+            PRUint32 aFrames,
             AudioDataValue* aData,
-            uint32_t aChannels)
+            PRUint32 aChannels)
   : mOffset(aOffset),
     mTime(aTime),
     mDuration(aDuration),
@@ -104,16 +104,16 @@ public:
   // If mAudioBuffer is null, creates it from mAudioData.
   void EnsureAudioBuffer();
 
-  int64_t GetEnd() { return mTime + mDuration; }
+  PRInt64 GetEnd() { return mTime + mDuration; }
 
   // Approximate byte offset of the end of the page on which this chunk
   // ends.
-  const int64_t mOffset;
+  const PRInt64 mOffset;
 
-  int64_t mTime; // Start time of data in usecs.
-  const int64_t mDuration; // In usecs.
-  const uint32_t mFrames;
-  const uint32_t mChannels;
+  PRInt64 mTime; // Start time of data in usecs.
+  const PRInt64 mDuration; // In usecs.
+  const PRUint32 mFrames;
+  const PRUint32 mChannels;
   // At least one of mAudioBuffer/mAudioData must be non-null.
   // mChannels channels, each with mFrames frames
   nsRefPtr<SharedBuffer> mAudioBuffer;
@@ -133,12 +133,12 @@ public:
   //   2 = Cr
   struct YCbCrBuffer {
     struct Plane {
-      uint8_t* mData;
-      uint32_t mWidth;
-      uint32_t mHeight;
-      uint32_t mStride;
-      uint32_t mOffset;
-      uint32_t mSkip;
+      PRUint8* mData;
+      PRUint32 mWidth;
+      PRUint32 mHeight;
+      PRUint32 mStride;
+      PRUint32 mOffset;
+      PRUint32 mSkip;
     };
 
     Plane mPlanes[3];
@@ -152,28 +152,28 @@ public:
   // negative stride).
   static VideoData* Create(nsVideoInfo& aInfo,
                            ImageContainer* aContainer,
-                           int64_t aOffset,
-                           int64_t aTime,
-                           int64_t aEndTime,
+                           PRInt64 aOffset,
+                           PRInt64 aTime,
+                           PRInt64 aEndTime,
                            const YCbCrBuffer &aBuffer,
                            bool aKeyframe,
-                           int64_t aTimecode,
+                           PRInt64 aTimecode,
                            nsIntRect aPicture);
 
   // Constructs a duplicate VideoData object. This intrinsically tells the
   // player that it does not need to update the displayed frame when this
   // frame is played; this frame is identical to the previous.
-  static VideoData* CreateDuplicate(int64_t aOffset,
-                                    int64_t aTime,
-                                    int64_t aEndTime,
-                                    int64_t aTimecode)
+  static VideoData* CreateDuplicate(PRInt64 aOffset,
+                                    PRInt64 aTime,
+                                    PRInt64 aEndTime,
+                                    PRInt64 aTimecode)
   {
     return new VideoData(aOffset, aTime, aEndTime, aTimecode);
   }
 
   ~VideoData();
 
-  int64_t GetEnd() { return mEndTime; }
+  PRInt64 GetEnd() { return mEndTime; }
 
   // Dimensions at which to display the video frame. The picture region
   // will be scaled to this size. This is should be the picture region's
@@ -181,17 +181,17 @@ public:
   nsIntSize mDisplay;
 
   // Approximate byte offset of the end of the frame in the media.
-  int64_t mOffset;
+  PRInt64 mOffset;
 
   // Start time of frame in microseconds.
-  int64_t mTime;
+  PRInt64 mTime;
 
   // End time of frame in microseconds.
-  int64_t mEndTime;
+  PRInt64 mEndTime;
 
   // Codec specific internal time code. For Ogg based codecs this is the
   // granulepos.
-  int64_t mTimecode;
+  PRInt64 mTimecode;
 
   // This frame's image.
   nsRefPtr<Image> mImage;
@@ -202,13 +202,13 @@ public:
   bool mKeyframe;
 
 public:
-  VideoData(int64_t aOffset, int64_t aTime, int64_t aEndTime, int64_t aTimecode);
+  VideoData(PRInt64 aOffset, PRInt64 aTime, PRInt64 aEndTime, PRInt64 aTimecode);
 
-  VideoData(int64_t aOffset,
-            int64_t aTime,
-            int64_t aEndTime,
+  VideoData(PRInt64 aOffset,
+            PRInt64 aTime,
+            PRInt64 aEndTime,
             bool aKeyframe,
-            int64_t aTimecode,
+            PRInt64 aTimecode,
             nsIntSize aDisplay);
 
 };
@@ -237,7 +237,7 @@ template <class T> class MediaQueue : private nsDeque {
     Reset();
   }
 
-  inline int32_t GetSize() { 
+  inline PRInt32 GetSize() { 
     ReentrantMonitorAutoEnter mon(mReentrantMonitor);
     return nsDeque::GetSize();
   }
@@ -311,7 +311,7 @@ template <class T> class MediaQueue : private nsDeque {
   }
 
   // Returns the approximate number of microseconds of items in the queue.
-  int64_t Duration() {
+  PRInt64 Duration() {
     ReentrantMonitorAutoEnter mon(mReentrantMonitor);
     if (GetSize() < 2) {
       return 0;
@@ -328,11 +328,11 @@ template <class T> class MediaQueue : private nsDeque {
 
   // Extracts elements from the queue into aResult, in order.
   // Elements whose start time is before aTime are ignored.
-  void GetElementsAfter(int64_t aTime, nsTArray<T*>* aResult) {
+  void GetElementsAfter(PRInt64 aTime, nsTArray<T*>* aResult) {
     ReentrantMonitorAutoEnter mon(mReentrantMonitor);
     if (!GetSize())
       return;
-    int32_t i;
+    PRInt32 i;
     for (i = GetSize() - 1; i > 0; --i) {
       T* v = static_cast<T*>(ObjectAt(i));
       if (v->GetEnd() < aTime)
@@ -383,7 +383,7 @@ public:
   // than aTimeThreshold will be decoded (unless they're not keyframes
   // and aKeyframeSkip is true), but will not be added to the queue.
   virtual bool DecodeVideoFrame(bool &aKeyframeSkip,
-                                int64_t aTimeThreshold) = 0;
+                                PRInt64 aTimeThreshold) = 0;
 
   virtual bool HasAudio() = 0;
   virtual bool HasVideo() = 0;
@@ -398,15 +398,15 @@ public:
   // Stores the presentation time of the first frame we'd be able to play if
   // we started playback at the current position. Returns the first video
   // frame, if we have video.
-  VideoData* FindStartTime(int64_t& aOutStartTime);
+  VideoData* FindStartTime(PRInt64& aOutStartTime);
 
   // Moves the decode head to aTime microseconds. aStartTime and aEndTime
   // denote the start and end times of the media in usecs, and aCurrentTime
   // is the current playback position in microseconds.
-  virtual nsresult Seek(int64_t aTime,
-                        int64_t aStartTime,
-                        int64_t aEndTime,
-                        int64_t aCurrentTime) = 0;
+  virtual nsresult Seek(PRInt64 aTime,
+                        PRInt64 aStartTime,
+                        PRInt64 aEndTime,
+                        PRInt64 aCurrentTime) = 0;
 
   // Queue of audio frames. This queue is threadsafe, and is accessed from
   // the audio, decoder, state machine, and main threads.
@@ -421,7 +421,7 @@ public:
   // the media time corresponding to playback time/position 0. This function
   // should only be called on the main thread.
   virtual nsresult GetBuffered(nsTimeRanges* aBuffered,
-                               int64_t aStartTime) = 0;
+                               PRInt64 aStartTime) = 0;
 
   // True if we can seek using only buffered ranges. This is backend dependant.
   virtual bool IsSeekableInBufferedRanges() = 0;
@@ -432,10 +432,10 @@ public:
 
     virtual void* operator()(void* anObject);
 
-    int64_t mResult;
+    PRInt64 mResult;
   };
 
-  int64_t VideoQueueMemoryInUse() {
+  PRInt64 VideoQueueMemoryInUse() {
     VideoQueueMemoryFunctor functor;
     mVideoQueue.LockedForEach(functor);
     return functor.mResult;
@@ -451,10 +451,10 @@ public:
       return nullptr;
     }
 
-    int64_t mResult;
+    PRInt64 mResult;
   };
 
-  int64_t AudioQueueMemoryInUse() {
+  PRInt64 AudioQueueMemoryInUse() {
     AudioQueueMemoryFunctor functor;
     mAudioQueue.LockedForEach(functor);
     return functor.mResult;
@@ -462,13 +462,13 @@ public:
 
   // Only used by nsWebMReader for now, so stub here rather than in every
   // reader than inherits from nsBuiltinDecoderReader.
-  virtual void NotifyDataArrived(const char* aBuffer, uint32_t aLength, int64_t aOffset) {}
+  virtual void NotifyDataArrived(const char* aBuffer, PRUint32 aLength, PRInt64 aOffset) {}
 
 protected:
 
   // Pumps the decode until we reach frames required to play at time aTarget
   // (usecs).
-  nsresult DecodeToTarget(int64_t aTarget);
+  nsresult DecodeToTarget(PRInt64 aTarget);
 
   // Reader decode function. Matches DecodeVideoFrame() and
   // DecodeAudioData().
@@ -480,7 +480,7 @@ protected:
   Data* DecodeToFirstData(DecodeFn aDecodeFn,
                           MediaQueue<Data>& aQueue);
 
-  // Wrapper so that DecodeVideoFrame(bool&,int64_t) can be called from
+  // Wrapper so that DecodeVideoFrame(bool&,PRInt64) can be called from
   // DecodeToFirstData().
   bool DecodeVideoFrame() {
     bool f = false;

@@ -28,7 +28,7 @@ struct AnimationEventInfo {
 
   AnimationEventInfo(mozilla::dom::Element *aElement,
                      const nsString& aAnimationName,
-                     uint32_t aMessage, mozilla::TimeDuration aElapsedTime)
+                     PRUint32 aMessage, mozilla::TimeDuration aElapsedTime)
     : mElement(aElement),
       mEvent(true, aMessage, aAnimationName, aElapsedTime.ToSeconds())
   {
@@ -72,9 +72,9 @@ struct ElementAnimation
 
   nsString mName; // empty string for 'none'
   float mIterationCount; // NS_IEEEPositiveInfinity() means infinite
-  uint8_t mDirection;
-  uint8_t mFillMode;
-  uint8_t mPlayState;
+  PRUint8 mDirection;
+  PRUint8 mFillMode;
+  PRUint8 mPlayState;
 
   bool FillsForwards() const {
     return mFillMode == NS_STYLE_ANIMATION_FILL_MODE_BOTH ||
@@ -97,12 +97,12 @@ struct ElementAnimation
   mozilla::TimeDuration mIterationDuration;
 
   enum {
-    LAST_NOTIFICATION_NONE = uint32_t(-1),
-    LAST_NOTIFICATION_END = uint32_t(-2)
+    LAST_NOTIFICATION_NONE = PRUint32(-1),
+    LAST_NOTIFICATION_END = PRUint32(-2)
   };
   // One of the above constants, or an integer for the iteration
   // whose start we last notified on.
-  uint32_t mLastNotification;
+  PRUint32 mLastNotification;
 
   InfallibleTArray<AnimationProperty> mProperties;
 };
@@ -132,7 +132,7 @@ struct ElementAnimations : public mozilla::css::CommonElementAnimationData
                                        TimeStamp aCurrentTime,
                                        TimeDuration aDuration,
                                        double aIterationCount,
-                                       uint32_t aDirection,
+                                       PRUint32 aDirection,
                                        bool IsForElement = true,
                                        ElementAnimation* aAnimation = nullptr,
                                        ElementAnimations* aEa = nullptr,

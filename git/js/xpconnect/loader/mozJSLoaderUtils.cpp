@@ -23,7 +23,7 @@ ReadCachedScript(StartupCache* cache, nsACString &uri, JSContext *cx,
                  nsIPrincipal *systemPrincipal, JSScript **scriptp)
 {
     nsAutoArrayPtr<char> buf;
-    uint32_t len;
+    PRUint32 len;
     nsresult rv = cache->GetBuffer(PromiseFlatCString(uri).get(),
                                    getter_Transfers(buf), &len);
     if (NS_FAILED(rv))

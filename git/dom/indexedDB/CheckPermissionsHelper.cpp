@@ -44,7 +44,7 @@ using namespace mozilla::services;
 namespace {
 
 inline
-uint32_t
+PRUint32
 GetIndexedDBPermissions(nsIDOMWindow* aWindow)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -77,7 +77,7 @@ GetIndexedDBPermissions(nsIDOMWindow* aWindow)
     do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
   NS_ENSURE_TRUE(permissionManager, PERMISSION_DENIED);
 
-  uint32_t permission;
+  PRUint32 permission;
   nsresult rv =
     permissionManager->TestPermissionFromPrincipal(sop->GetPrincipal(),
                                                    PERMISSION_INDEXEDDB,
@@ -98,7 +98,7 @@ CheckPermissionsHelper::Run()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  uint32_t permission = mHasPrompted ?
+  PRUint32 permission = mHasPrompted ?
                         mPromptResult :
                         GetIndexedDBPermissions(mWindow);
 
@@ -184,7 +184,7 @@ CheckPermissionsHelper::Observe(nsISupports* aSubject,
   mHasPrompted = true;
 
   nsresult rv;
-  uint32_t promptResult = nsDependentString(aData).ToInteger(&rv);
+  PRUint32 promptResult = nsDependentString(aData).ToInteger(&rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Have to convert the permission we got from the user to our weird reversed

@@ -113,7 +113,7 @@ protected:
 
   void UpdateTitleAndCharset();
 
-  nsresult ScrollImageTo(int32_t aX, int32_t aY, bool restoreImage);
+  nsresult ScrollImageTo(PRInt32 aX, PRInt32 aY, bool restoreImage);
 
   float GetRatio() {
     return NS_MIN((float)mVisibleWidth / mImageWidth,
@@ -125,10 +125,10 @@ protected:
 
   nsCOMPtr<nsIContent>          mImageContent;
 
-  int32_t                       mVisibleWidth;
-  int32_t                       mVisibleHeight;
-  int32_t                       mImageWidth;
-  int32_t                       mImageHeight;
+  PRInt32                       mVisibleWidth;
+  PRInt32                       mVisibleHeight;
+  PRInt32                       mImageWidth;
+  PRInt32                       mImageHeight;
 
   bool                          mResizeImageByDefault;
   bool                          mClickResizingEnabled;
@@ -183,7 +183,7 @@ ImageListener::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
     secMan->GetChannelPrincipal(channel, getter_AddRefs(channelPrincipal));
   }
   
-  int16_t decision = nsIContentPolicy::ACCEPT;
+  PRInt16 decision = nsIContentPolicy::ACCEPT;
   nsresult rv = NS_CheckContentProcessPolicy(nsIContentPolicy::TYPE_IMAGE,
                                              channelURI,
                                              channelPrincipal,
@@ -435,13 +435,13 @@ ImageDocument::ShrinkToFit()
 }
 
 NS_IMETHODIMP
-ImageDocument::RestoreImageTo(int32_t aX, int32_t aY)
+ImageDocument::RestoreImageTo(PRInt32 aX, PRInt32 aY)
 {
   return ScrollImageTo(aX, aY, true);
 }
 
 nsresult
-ImageDocument::ScrollImageTo(int32_t aX, int32_t aY, bool restoreImage)
+ImageDocument::ScrollImageTo(PRInt32 aX, PRInt32 aY, bool restoreImage)
 {
   float ratio = GetRatio();
 
@@ -583,12 +583,12 @@ ImageDocument::HandleEvent(nsIDOMEvent* aEvent)
     ResetZoomLevel();
     mShouldResize = true;
     if (mImageIsResized) {
-      int32_t x = 0, y = 0;
+      PRInt32 x = 0, y = 0;
       nsCOMPtr<nsIDOMMouseEvent> event(do_QueryInterface(aEvent));
       if (event) {
         event->GetClientX(&x);
         event->GetClientY(&y);
-        int32_t left = 0, top = 0;
+        PRInt32 left = 0, top = 0;
         nsCOMPtr<nsIDOMHTMLElement> htmlElement =
           do_QueryInterface(mImageContent);
         htmlElement->GetOffsetLeft(&left);

@@ -44,10 +44,10 @@ XULMenuitemAccessible::
 {
 }
 
-uint64_t
+PRUint64
 XULMenuitemAccessible::NativeState()
 {
-  uint64_t state = Accessible::NativeState();
+  PRUint64 state = Accessible::NativeState();
 
   // Has Popup?
   if (mContent->NodeInfo()->Equals(nsGkAtoms::menu, kNameSpaceID_XUL)) {
@@ -101,7 +101,7 @@ XULMenuitemAccessible::NativeState()
           return state;
         NS_ASSERTION(grandParent->Role() == roles::COMBOBOX,
                      "grandparent of combobox listitem is not combobox");
-        uint64_t grandParentState = grandParent->State();
+        PRUint64 grandParentState = grandParent->State();
         state &= ~(states::OFFSCREEN | states::INVISIBLE);
         state |= (grandParentState & states::OFFSCREEN) |
                  (grandParentState & states::INVISIBLE) |
@@ -113,7 +113,7 @@ XULMenuitemAccessible::NativeState()
   return state;
 }
 
-uint64_t
+PRUint64
 XULMenuitemAccessible::NativeInteractiveState() const
 {
   if (NativelyUnavailable()) {
@@ -152,7 +152,7 @@ KeyBinding
 XULMenuitemAccessible::AccessKey() const
 {
   // Return menu accesskey: N or Alt+F.
-  static int32_t gMenuAccesskeyModifier = -1;  // magic value of -1 indicates unitialized state
+  static PRInt32 gMenuAccesskeyModifier = -1;  // magic value of -1 indicates unitialized state
 
   // We do not use nsCoreUtils::GetAccesskeyFor() because accesskeys for
   // menu are't registered by nsEventStateManager.
@@ -162,7 +162,7 @@ XULMenuitemAccessible::AccessKey() const
   if (accesskey.IsEmpty())
     return KeyBinding();
 
-  uint32_t modifierKey = 0;
+  PRUint32 modifierKey = 0;
 
   Accessible* parentAcc = Parent();
   if (parentAcc) {
@@ -206,7 +206,7 @@ XULMenuitemAccessible::KeyboardShortcut() const
   if (!keyElm)
     return KeyBinding();
 
-  uint32_t key = 0;
+  PRUint32 key = 0;
 
   nsAutoString keyStr;
   keyElm->GetAttr(kNameSpaceID_None, nsGkAtoms::key, keyStr);
@@ -222,7 +222,7 @@ XULMenuitemAccessible::KeyboardShortcut() const
   nsAutoString modifiersStr;
   keyElm->GetAttr(kNameSpaceID_None, nsGkAtoms::modifiers, modifiersStr);
 
-  uint32_t modifierMask = 0;
+  PRUint32 modifierMask = 0;
   if (modifiersStr.Find("shift") != -1)
     modifierMask |= KeyBinding::kShift;
   if (modifiersStr.Find("alt") != -1)
@@ -286,7 +286,7 @@ XULMenuitemAccessible::NativeRole()
   return roles::MENUITEM;
 }
 
-int32_t
+PRInt32
 XULMenuitemAccessible::GetLevelInternal()
 {
   return nsAccUtils::GetLevelForXULContainerItem(mContent);
@@ -300,7 +300,7 @@ XULMenuitemAccessible::CanHaveAnonChildren()
 }
 
 NS_IMETHODIMP
-XULMenuitemAccessible::DoAction(uint8_t index)
+XULMenuitemAccessible::DoAction(PRUint8 index)
 {
   if (index == eAction_Click) {   // default action
     DoCommand();
@@ -312,7 +312,7 @@ XULMenuitemAccessible::DoAction(uint8_t index)
 
 /** select us! close combo box if necessary*/
 NS_IMETHODIMP
-XULMenuitemAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
+XULMenuitemAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
 {
   if (aIndex == eAction_Click) {
     aName.AssignLiteral("click"); 
@@ -321,7 +321,7 @@ XULMenuitemAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
   return NS_ERROR_INVALID_ARG;
 }
 
-uint8_t
+PRUint8
 XULMenuitemAccessible::ActionCount()
 {
   return 1;
@@ -388,7 +388,7 @@ XULMenuSeparatorAccessible::
 {
 }
 
-uint64_t
+PRUint64
 XULMenuSeparatorAccessible::NativeState()
 {
   // Isn't focusable, but can be offscreen/invisible -- only copy those states
@@ -409,18 +409,18 @@ XULMenuSeparatorAccessible::NativeRole()
 }
 
 NS_IMETHODIMP
-XULMenuSeparatorAccessible::DoAction(uint8_t index)
+XULMenuSeparatorAccessible::DoAction(PRUint8 index)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-XULMenuSeparatorAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
+XULMenuSeparatorAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-uint8_t
+PRUint8
 XULMenuSeparatorAccessible::ActionCount()
 {
   return 0;
@@ -442,10 +442,10 @@ XULMenupopupAccessible::
   mSelectControl = do_QueryInterface(mContent->GetParent());
 }
 
-uint64_t
+PRUint64
 XULMenupopupAccessible::NativeState()
 {
-  uint64_t state = Accessible::NativeState();
+  PRUint64 state = Accessible::NativeState();
 
 #ifdef DEBUG
   // We are onscreen if our parent is active

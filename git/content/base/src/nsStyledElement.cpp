@@ -60,7 +60,7 @@ nsStyledElementNotElementCSSInlineStyle::DoGetClasses() const
 }
 
 bool
-nsStyledElementNotElementCSSInlineStyle::ParseAttribute(int32_t aNamespaceID,
+nsStyledElementNotElementCSSInlineStyle::ParseAttribute(PRInt32 aNamespaceID,
                                                         nsIAtom* aAttribute,
                                                         const nsAString& aValue,
                                                         nsAttrValue& aResult)
@@ -96,7 +96,7 @@ nsStyledElementNotElementCSSInlineStyle::ParseAttribute(int32_t aNamespaceID,
 }
 
 nsresult
-nsStyledElementNotElementCSSInlineStyle::UnsetAttr(int32_t aNameSpaceID,
+nsStyledElementNotElementCSSInlineStyle::UnsetAttr(PRInt32 aNameSpaceID,
                                                    nsIAtom* aAttribute,
                                                    bool aNotify)
 {
@@ -110,7 +110,7 @@ nsStyledElementNotElementCSSInlineStyle::UnsetAttr(int32_t aNameSpaceID,
 }
 
 nsresult
-nsStyledElementNotElementCSSInlineStyle::AfterSetAttr(int32_t aNamespaceID,
+nsStyledElementNotElementCSSInlineStyle::AfterSetAttr(PRInt32 aNamespaceID,
                                                       nsIAtom* aAttribute,
                                                       const nsAttrValue* aValue,
                                                       bool aNotify)
@@ -163,9 +163,9 @@ nsStyledElementNotElementCSSInlineStyle::SetInlineStyleRule(css::StyleRule* aSty
   nsAttrValue attrValue(aStyleRule, aSerialized);
 
   // XXXbz do we ever end up with ADDITION here?  I doubt it.
-  uint8_t modType = modification ?
-    static_cast<uint8_t>(nsIDOMMutationEvent::MODIFICATION) :
-    static_cast<uint8_t>(nsIDOMMutationEvent::ADDITION);
+  PRUint8 modType = modification ?
+    static_cast<PRUint8>(nsIDOMMutationEvent::MODIFICATION) :
+    static_cast<PRUint8>(nsIDOMMutationEvent::ADDITION);
 
   return SetAttrAndNotify(kNameSpaceID_None, nsGkAtoms::style, nullptr,
                           oldValue, attrValue, modType, hasListeners,

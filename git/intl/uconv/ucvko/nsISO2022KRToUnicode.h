@@ -26,11 +26,11 @@ public:
     NS_IF_RELEASE(mEUCKRDecoder);
   }
 
-  NS_IMETHOD Convert(const char * aSrc, int32_t * aSrcLength,
-     PRUnichar * aDest, int32_t * aDestLength) ;
+  NS_IMETHOD Convert(const char * aSrc, PRInt32 * aSrcLength,
+     PRUnichar * aDest, PRInt32 * aDestLength) ;
   
-  NS_IMETHOD GetMaxLength(const char * aSrc, int32_t aSrcLength,
-     int32_t * aDestLength) 
+  NS_IMETHOD GetMaxLength(const char * aSrc, PRInt32 aSrcLength,
+     PRInt32 * aDestLength) 
   {
     *aDestLength = aSrcLength;
     return NS_OK;
@@ -56,10 +56,10 @@ private:
     mState_ERROR
   } mState, mLastLegalState;
 
-  uint8_t mData;
+  PRUint8 mData;
 
   // Length of non-ASCII run
-  uint32_t mRunLength;
+  PRUint32 mRunLength;
 
   nsIUnicodeDecoder *mEUCKRDecoder;
 };

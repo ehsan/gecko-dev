@@ -32,7 +32,7 @@ namespace mozilla {
 namespace widget {
 
 struct KeyPair {
-    uint32_t DOMKeyCode;
+    PRUint32 DOMKeyCode;
     guint GDKKeyval;
 };
 
@@ -255,7 +255,7 @@ KeymapWrapper::GetModifierMask(Modifier aModifier) const
 KeymapWrapper::ModifierKey*
 KeymapWrapper::GetModifierKey(guint aHardwareKeycode)
 {
-    for (uint32_t i = 0; i < mModifierKeys.Length(); i++) {
+    for (PRUint32 i = 0; i < mModifierKeys.Length(); i++) {
         ModifierKey& key = mModifierKeys[i];
         if (key.mHardwareKeycode == aHardwareKeycode) {
             return &key;
@@ -379,13 +379,13 @@ KeymapWrapper::InitBySystemSettings()
 
     // mod[0] is Modifier introduced by Mod1.
     Modifier mod[5];
-    int32_t foundLevel[5];
-    for (uint32_t i = 0; i < ArrayLength(mod); i++) {
+    PRInt32 foundLevel[5];
+    for (PRUint32 i = 0; i < ArrayLength(mod); i++) {
         mod[i] = NOT_MODIFIER;
         foundLevel[i] = PR_INT32_MAX;
     }
-    const uint32_t map_size = 8 * xmodmap->max_keypermod;
-    for (uint32_t i = 0; i < map_size; i++) {
+    const PRUint32 map_size = 8 * xmodmap->max_keypermod;
+    for (PRUint32 i = 0; i < map_size; i++) {
         KeyCode keycode = xmodmap->modifiermap[i];
         PR_LOG(gKeymapWrapperLog, PR_LOG_ALWAYS,
             ("KeymapWrapper(%p): InitBySystemSettings, "
@@ -402,7 +402,7 @@ KeymapWrapper::InitBySystemSettings()
 
         const KeySym* syms =
             xkeymap + (keycode - min_keycode) * keysyms_per_keycode;
-        const uint32_t bit = i / xmodmap->max_keypermod;
+        const PRUint32 bit = i / xmodmap->max_keypermod;
         modifierKey->mMask |= 1 << bit;
 
         // We need to know the meaning of Mod1, Mod2, Mod3, Mod4 and Mod5.
@@ -411,8 +411,8 @@ KeymapWrapper::InitBySystemSettings()
             continue;
         }
 
-        const int32_t modIndex = bit - 3;
-        for (int32_t j = 0; j < keysyms_per_keycode; j++) {
+        const PRInt32 modIndex = bit - 3;
+        for (PRInt32 j = 0; j < keysyms_per_keycode; j++) {
             Modifier modifier = GetModifierForGDKKeyval(syms[j]);
             PR_LOG(gKeymapWrapperLog, PR_LOG_ALWAYS,
                 ("KeymapWrapper(%p): InitBySystemSettings, "
@@ -451,7 +451,7 @@ KeymapWrapper::InitBySystemSettings()
         }
     }
 
-    for (uint32_t i = 0; i < COUNT_OF_MODIFIER_INDEX; i++) {
+    for (PRUint32 i = 0; i < COUNT_OF_MODIFIER_INDEX; i++) {
         Modifier modifier;
         switch (i) {
             case INDEX_NUM_LOCK:
@@ -479,7 +479,7 @@ KeymapWrapper::InitBySystemSettings()
                 MOZ_NOT_REACHED("All indexes must be handled here");
                 break;
         }
-        for (uint32_t j = 0; j < ArrayLength(mod); j++) {
+        for (PRUint32 j = 0; j < ArrayLength(mod); j++) {
             if (modifier == mod[j]) {
                 mModifierMasks[i] |= 1 << (j + 3);
             }
@@ -548,7 +548,7 @@ KeymapWrapper::AreModifiersActive(Modifiers aModifiers,
     NS_ENSURE_TRUE(aModifiers, false);
 
     KeymapWrapper* keymapWrapper = GetInstance();
-    for (uint32_t i = 0; i < sizeof(Modifier) * 8 && aModifiers; i++) {
+    for (PRUint32 i = 0; i < sizeof(Modifier) * 8 && aModifiers; i++) {
         Modifier modifier = static_cast<Modifier>(1 << i);
         if (!(aModifiers & modifier)) {
             continue;
@@ -651,7 +651,7 @@ KeymapWrapper::InitInputEvent(nsInputEvent& aInputEvent,
          GetBoolName(mouseEvent.buttons & nsMouseEvent::e5thButtonFlag)));
 }
 
-/* static */ uint32_t
+/* static */ PRUint32
 KeymapWrapper::ComputeDOMKeyCode(const GdkEventKey* aGdkKeyEvent)
 {
     // If the keyval indicates it's a modifier key, we should use unshifted
@@ -675,19 +675,19 @@ KeymapWrapper::ComputeDOMKeyCode(const GdkEventKey* aGdkKeyEvent)
         // from modifier flag which were changing by the physical key, then
         // there would be no other way for the user to generate the original
         // keycode.
-        uint32_t DOMKeyCode = GetDOMKeyCodeFromKeyPairs(keyval);
+        PRUint32 DOMKeyCode = GetDOMKeyCodeFromKeyPairs(keyval);
         NS_ASSERTION(DOMKeyCode, "All modifier keys must have a DOM keycode");
         return DOMKeyCode;
     }
 
     // If the key isn't printable, let's look at the key pairs.
-    uint32_t charCode = GetCharCodeFor(aGdkKeyEvent);
+    PRUint32 charCode = GetCharCodeFor(aGdkKeyEvent);
     if (!charCode) {
         // Always use unshifted keycode for the non-printable key.
         // XXX It might be better to decide DOM keycode from all keyvals of
         //     the hardware keycode.  However, I think that it's too excessive.
         guint keyvalWithoutModifier = GetGDKKeyvalWithoutModifier(aGdkKeyEvent);
-        uint32_t DOMKeyCode = GetDOMKeyCodeFromKeyPairs(keyvalWithoutModifier);
+        PRUint32 DOMKeyCode = GetDOMKeyCodeFromKeyPairs(keyvalWithoutModifier);
         if (!DOMKeyCode) {
             // If the unshifted keyval couldn't be mapped to a DOM keycode,
             // we should fallback to legacy logic, so, we should recompute with
@@ -724,7 +724,7 @@ KeymapWrapper::ComputeDOMKeyCode(const GdkEventKey* aGdkKeyEvent)
         (aGdkKeyEvent->state & keymapWrapper->GetModifierMask(NUM_LOCK));
 
     // Basically, we should use unmodified character for deciding our keyCode.
-    uint32_t unmodifiedChar =
+    PRUint32 unmodifiedChar =
         keymapWrapper->GetCharCodeFor(aGdkKeyEvent, baseState,
                                       aGdkKeyEvent->group);
     if (IsBasicLatinLetterOrNumeral(unmodifiedChar)) {
@@ -741,7 +741,7 @@ KeymapWrapper::ComputeDOMKeyCode(const GdkEventKey* aGdkKeyEvent)
 
     // Retry with shifted keycode.
     guint shiftState = (baseState | keymapWrapper->GetModifierMask(SHIFT));
-    uint32_t shiftedChar =
+    PRUint32 shiftedChar =
         keymapWrapper->GetCharCodeFor(aGdkKeyEvent, shiftState,
                                       aGdkKeyEvent->group);
     if (IsBasicLatinLetterOrNumeral(shiftedChar)) {
@@ -769,7 +769,7 @@ KeymapWrapper::ComputeDOMKeyCode(const GdkEventKey* aGdkKeyEvent)
     if (!keymapWrapper->IsLatinGroup(aGdkKeyEvent->group)) {
         gint minGroup = keymapWrapper->GetFirstLatinGroup();
         if (minGroup >= 0) {
-            uint32_t unmodCharLatin =
+            PRUint32 unmodCharLatin =
                 keymapWrapper->GetCharCodeFor(aGdkKeyEvent, baseState,
                                               minGroup);
             if (IsBasicLatinLetterOrNumeral(unmodCharLatin)) {
@@ -777,7 +777,7 @@ KeymapWrapper::ComputeDOMKeyCode(const GdkEventKey* aGdkKeyEvent)
                 // an ASCII numeric, we should use it for the keyCode.
                 return WidgetUtils::ComputeKeyCodeFromChar(unmodCharLatin);
             }
-            uint32_t shiftedCharLatin =
+            PRUint32 shiftedCharLatin =
                 keymapWrapper->GetCharCodeFor(aGdkKeyEvent, shiftState,
                                               minGroup);
             if (IsBasicLatinLetterOrNumeral(shiftedCharLatin)) {
@@ -798,7 +798,7 @@ KeymapWrapper::ComputeDOMKeyCode(const GdkEventKey* aGdkKeyEvent)
 }
 
 /* static */ guint
-KeymapWrapper::GuessGDKKeyval(uint32_t aDOMKeyCode)
+KeymapWrapper::GuessGDKKeyval(PRUint32 aDOMKeyCode)
 {
     // First, try to handle alphanumeric input, not listed in nsKeycodes:
     // most likely, more letters will be getting typed in than things in
@@ -870,7 +870,7 @@ KeymapWrapper::GuessGDKKeyval(uint32_t aDOMKeyCode)
     }
 
     // misc other things
-    for (uint32_t i = 0; i < ArrayLength(kKeyPairs); ++i) {
+    for (PRUint32 i = 0; i < ArrayLength(kKeyPairs); ++i) {
         if (kKeyPairs[i].DOMKeyCode == aDOMKeyCode) {
             return kKeyPairs[i].GDKKeyval;
         }
@@ -1006,7 +1006,7 @@ KeymapWrapper::InitKeyEvent(nsKeyEvent& aKeyEvent,
     aKeyEvent.time = aGdkKeyEvent->time;
 }
 
-/* static */ uint32_t
+/* static */ PRUint32
 KeymapWrapper::GetCharCodeFor(const GdkEventKey *aGdkKeyEvent)
 {
     // Anything above 0xf000 is considered a non-printable
@@ -1050,7 +1050,7 @@ KeymapWrapper::GetCharCodeFor(const GdkEventKey *aGdkKeyEvent)
     return 0;
 }
 
-uint32_t
+PRUint32
 KeymapWrapper::GetCharCodeFor(const GdkEventKey *aGdkKeyEvent,
                               guint aModifierState,
                               gint aGroup)
@@ -1127,7 +1127,7 @@ KeymapWrapper::IsLatinGroup(guint8 aGroup)
 }
 
 /* static */ bool
-KeymapWrapper::IsBasicLatinLetterOrNumeral(uint32_t aCharCode)
+KeymapWrapper::IsBasicLatinLetterOrNumeral(PRUint32 aCharCode)
 {
     return (aCharCode >= 'a' && aCharCode <= 'z') ||
            (aCharCode >= 'A' && aCharCode <= 'Z') ||
@@ -1149,18 +1149,18 @@ KeymapWrapper::GetGDKKeyvalWithoutModifier(const GdkEventKey *aGdkKeyEvent)
     return keyval;
 }
 
-/* static */ uint32_t
+/* static */ PRUint32
 KeymapWrapper::GetDOMKeyCodeFromKeyPairs(guint aGdkKeyval)
 {
     // map Sun Keyboard special keysyms first.
-    for (uint32_t i = 0; i < ArrayLength(kSunKeyPairs); i++) {
+    for (PRUint32 i = 0; i < ArrayLength(kSunKeyPairs); i++) {
         if (kSunKeyPairs[i].GDKKeyval == aGdkKeyval) {
             return kSunKeyPairs[i].DOMKeyCode;
         }
     }
 
     // misc other things
-    for (uint32_t i = 0; i < ArrayLength(kKeyPairs); i++) {
+    for (PRUint32 i = 0; i < ArrayLength(kKeyPairs); i++) {
         if (kKeyPairs[i].GDKKeyval == aGdkKeyval) {
             return kKeyPairs[i].DOMKeyCode;
         }
@@ -1265,12 +1265,12 @@ KeymapWrapper::InitKeypressEvent(nsKeyEvent& aKeyEvent,
     }
 
     nsAlternativeCharCode altLatinCharCodes(0, 0);
-    uint32_t unmodifiedCh =
+    PRUint32 unmodifiedCh =
         aKeyEvent.IsShift() ? altCharCodes.mShiftedCharCode :
                               altCharCodes.mUnshiftedCharCode;
 
     // unshifted charcode of found keyboard layout.
-    uint32_t ch = GetCharCodeFor(aGdkKeyEvent, baseState, minGroup);
+    PRUint32 ch = GetCharCodeFor(aGdkKeyEvent, baseState, minGroup);
     altLatinCharCodes.mUnshiftedCharCode =
         IsBasicLatinLetterOrNumeral(ch) ? ch : 0;
     // shifted charcode of found keyboard layout.

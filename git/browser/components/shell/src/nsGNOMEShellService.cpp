@@ -390,7 +390,7 @@ WriteImage(const nsCString& aPath, imgIContainer* aImage)
                  
 NS_IMETHODIMP
 nsGNOMEShellService::SetDesktopBackground(nsIDOMElement* aElement, 
-                                          int32_t aPosition)
+                                          PRInt32 aPosition)
 {
   nsresult rv;
   nsCOMPtr<nsIImageLoadingContent> imageContent = do_QueryInterface(aElement, &rv);
@@ -494,7 +494,7 @@ nsGNOMEShellService::SetDesktopBackground(nsIDOMElement* aElement,
 #define COLOR_8_TO_16_BIT(_c) ((_c) << 8 | (_c))
 
 NS_IMETHODIMP
-nsGNOMEShellService::GetDesktopBackgroundColor(uint32_t *aColor)
+nsGNOMEShellService::GetDesktopBackgroundColor(PRUint32 *aColor)
 {
   nsCOMPtr<nsIGSettingsService> gsettings = 
     do_GetService(NS_GSETTINGSSERVICE_CONTRACTID);
@@ -533,22 +533,22 @@ nsGNOMEShellService::GetDesktopBackgroundColor(uint32_t *aColor)
 }
 
 static void
-ColorToCString(uint32_t aColor, nsCString& aResult)
+ColorToCString(PRUint32 aColor, nsCString& aResult)
 {
   // The #rrrrggggbbbb format is used to match gdk_color_to_string()
   char *buf = aResult.BeginWriting(13);
   if (!buf)
     return;
 
-  uint16_t red = COLOR_8_TO_16_BIT((aColor >> 16) & 0xff);
-  uint16_t green = COLOR_8_TO_16_BIT((aColor >> 8) & 0xff);
-  uint16_t blue = COLOR_8_TO_16_BIT(aColor & 0xff);
+  PRUint16 red = COLOR_8_TO_16_BIT((aColor >> 16) & 0xff);
+  PRUint16 green = COLOR_8_TO_16_BIT((aColor >> 8) & 0xff);
+  PRUint16 blue = COLOR_8_TO_16_BIT(aColor & 0xff);
 
   PR_snprintf(buf, 14, "#%04x%04x%04x", red, green, blue);
 }
 
 NS_IMETHODIMP
-nsGNOMEShellService::SetDesktopBackgroundColor(uint32_t aColor)
+nsGNOMEShellService::SetDesktopBackgroundColor(PRUint32 aColor)
 {
   NS_ASSERTION(aColor <= 0xffffff, "aColor has extra bits");
   nsCAutoString colorString;
@@ -577,7 +577,7 @@ nsGNOMEShellService::SetDesktopBackgroundColor(uint32_t aColor)
 }
 
 NS_IMETHODIMP
-nsGNOMEShellService::OpenApplication(int32_t aApplication)
+nsGNOMEShellService::OpenApplication(PRInt32 aApplication)
 {
   nsCAutoString scheme;
   if (aApplication == APPLICATION_MAIL)

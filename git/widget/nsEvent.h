@@ -6,8 +6,6 @@
 #ifndef nsEvent_h__
 #define nsEvent_h__
 
-#include "mozilla/StandardInteger.h"
-
 /*
  * This is in a separate header file because it needs to be included
  * in many places where including nsGUIEvent.h would bring in many
@@ -97,7 +95,7 @@ enum Modifier {
   MODIFIER_OS         = 0x0400
 };
 
-typedef uint16_t Modifiers;
+typedef PRUint16 Modifiers;
 
 } // namespace widget
 } // namespace mozilla

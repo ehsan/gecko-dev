@@ -17,9 +17,9 @@ using namespace mozilla::widget;
 using mozilla::LookAndFeel;
 
 static nsresult GetColorFromTheme(nsUXThemeClass cls,
-                           int32_t aPart,
-                           int32_t aState,
-                           int32_t aPropId,
+                           PRInt32 aPart,
+                           PRInt32 aState,
+                           PRInt32 aPropId,
                            nscolor &aColor)
 {
   COLORREF color;
@@ -32,7 +32,7 @@ static nsresult GetColorFromTheme(nsUXThemeClass cls,
   return NS_ERROR_FAILURE;
 }
 
-static int32_t GetSystemParam(long flag, int32_t def)
+static PRInt32 GetSystemParam(long flag, PRInt32 def)
 {
     DWORD value; 
     return ::SystemParametersInfo(flag, 0, &value, 0) ? value : def;
@@ -286,7 +286,7 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
 }
 
 nsresult
-nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
+nsLookAndFeel::GetIntImpl(IntID aID, PRInt32 &aResult)
 {
   nsresult res = nsXPLookAndFeel::GetIntImpl(aID, aResult);
   if (NS_SUCCEEDED(res))
@@ -295,7 +295,7 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
 
   switch (aID) {
     case eIntID_CaretBlinkTime:
-        aResult = (int32_t)::GetCaretBlinkTime();
+        aResult = (PRInt32)::GetCaretBlinkTime();
         break;
     case eIntID_CaretWidth:
         aResult = 1;
@@ -366,7 +366,7 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
         break;
     case eIntID_TouchEnabled:
         aResult = 0;
-        int32_t touchCapabilities;
+        PRInt32 touchCapabilities;
         touchCapabilities = ::GetSystemMetrics(SM_DIGITIZER);
         if ((touchCapabilities & NID_READY) && 
            (touchCapabilities & (NID_EXTERNAL_TOUCH | NID_INTEGRATED_TOUCH))) {

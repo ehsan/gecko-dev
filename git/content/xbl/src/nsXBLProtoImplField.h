@@ -22,7 +22,7 @@ public:
   ~nsXBLProtoImplField();
 
   void AppendFieldText(const nsAString& aText);
-  void SetLineNumber(uint32_t aLineNumber) {
+  void SetLineNumber(PRUint32 aLineNumber) {
     mLineNumber = aLineNumber;
   }
   
@@ -51,8 +51,8 @@ protected:
   nsXBLProtoImplField* mNext;
   PRUnichar* mName;
   PRUnichar* mFieldText;
-  uint32_t mFieldTextLength;
-  uint32_t mLineNumber;
+  PRUint32 mFieldTextLength;
+  PRUint32 mLineNumber;
   unsigned mJSAttributes;
 };
 

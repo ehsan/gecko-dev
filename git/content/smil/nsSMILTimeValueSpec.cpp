@@ -441,9 +441,9 @@ nsSMILTimeValueSpec::CheckRepeatEventDetail(nsIDOMEvent *aEvent)
     return false;
   }
 
-  int32_t detail;
+  PRInt32 detail;
   timeEvent->GetDetail(&detail);
-  return detail > 0 && (uint32_t)detail == mParams.mRepeatIterationOrAccessKey;
+  return detail > 0 && (PRUint32)detail == mParams.mRepeatIterationOrAccessKey;
 }
 
 bool
@@ -465,7 +465,7 @@ nsSMILTimeValueSpec::CheckAccessKeyEventDetail(nsIDOMEvent *aEvent)
   if (isCtrl || isMeta)
     return false;
 
-  uint32_t code;
+  PRUint32 code;
   keyEvent->GetCharCode(&code);
   if (code)
     return code == mParams.mRepeatIterationOrAccessKey;

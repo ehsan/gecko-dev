@@ -58,9 +58,9 @@ nsMathMLmsqrtFrame::InheritAutomaticData(nsIFrame* aParent)
 }
 
 NS_IMETHODIMP
-nsMathMLmsqrtFrame::AttributeChanged(int32_t         aNameSpaceID,
+nsMathMLmsqrtFrame::AttributeChanged(PRInt32         aNameSpaceID,
                                      nsIAtom*        aAttribute,
-                                     int32_t         aModType)
+                                     PRInt32         aModType)
 {
   return nsMathMLContainerFrame::
     AttributeChanged(aNameSpaceID, aAttribute, aModType);

@@ -244,8 +244,8 @@ GetClosestInterestingAccessible(id anObject)
   ConvertCocoaToGeckoPoint (point, geckoPoint);
 
   nsCOMPtr<nsIAccessible> deepestFoundChild;
-  mGeckoAccessible->GetDeepestChildAtPoint((int32_t)geckoPoint.x,
-                                           (int32_t)geckoPoint.y,
+  mGeckoAccessible->GetDeepestChildAtPoint((PRInt32)geckoPoint.x,
+                                           (PRInt32)geckoPoint.y,
                                            getter_AddRefs(deepestFoundChild));
   
   // if we found something, return its native accessible.
@@ -349,8 +349,8 @@ GetClosestInterestingAccessible(id anObject)
   mGeckoAccessible->GetUnignoredChildren(&childrenArray);
 
   // now iterate through the children array, and get each native accessible.
-  uint32_t totalCount = childrenArray.Length();
-  for (uint32_t idx = 0; idx < totalCount; idx++) {
+  PRUint32 totalCount = childrenArray.Length();
+  for (PRUint32 idx = 0; idx < totalCount; idx++) {
     Accessible* curAccessible = childrenArray.ElementAt(idx);
     if (curAccessible) {
       mozAccessible *curNative = GetNativeFromGeckoAccessible(curAccessible);
@@ -377,7 +377,7 @@ GetClosestInterestingAccessible(id anObject)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
-  int32_t x, y, width, height;
+  PRInt32 x, y, width, height;
   mGeckoAccessible->GetBounds (&x, &y, &width, &height);
   NSPoint p = NSMakePoint (x, y);
   
@@ -400,7 +400,7 @@ GetClosestInterestingAccessible(id anObject)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
-  int32_t x, y, width, height;
+  PRInt32 x, y, width, height;
   mGeckoAccessible->GetBounds (&x, &y, &width, &height);  
   return [NSValue valueWithSize:NSMakeSize (width, height)];
 

@@ -38,7 +38,7 @@ nsSVGStylableElement::DoGetClasses() const
 }
 
 bool
-nsSVGStylableElement::ParseAttribute(int32_t aNamespaceID,
+nsSVGStylableElement::ParseAttribute(PRInt32 aNamespaceID,
                                      nsIAtom* aAttribute,
                                      const nsAString& aValue,
                                      nsAttrValue& aResult)
@@ -53,7 +53,7 @@ nsSVGStylableElement::ParseAttribute(int32_t aNamespaceID,
 }
 
 nsresult
-nsSVGStylableElement::UnsetAttr(int32_t aNamespaceID, nsIAtom* aName,
+nsSVGStylableElement::UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
                                 bool aNotify)
 {
   if (aNamespaceID == kNameSpaceID_None && aName == nsGkAtoms::_class) {
@@ -117,7 +117,7 @@ nsSVGStylableElement::DidAnimateClass()
 }
 
 nsISMILAttr*
-nsSVGStylableElement::GetAnimatedAttr(int32_t aNamespaceID, nsIAtom* aName)
+nsSVGStylableElement::GetAnimatedAttr(PRInt32 aNamespaceID, nsIAtom* aName)
 {
   if (aNamespaceID == kNameSpaceID_None && 
       aName == nsGkAtoms::_class) {

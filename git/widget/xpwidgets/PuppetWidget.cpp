@@ -100,7 +100,7 @@ PuppetWidget::Create(nsIWidget        *aParent,
 
   mIMEComposing = false;
   if (MightNeedIMEFocus(aInitData)) {
-    uint32_t chromeSeqno;
+    PRUint32 chromeSeqno;
     mTabChild->SendNotifyIMEFocus(false, &mIMEPreference, &chromeSeqno);
     mIMELastBlurSeqno = mIMELastReceivedSeqno = chromeSeqno;
   }
@@ -163,8 +163,8 @@ PuppetWidget::Show(bool aState)
 }
 
 NS_IMETHODIMP
-PuppetWidget::Resize(int32_t aWidth,
-                     int32_t aHeight,
+PuppetWidget::Resize(PRInt32 aWidth,
+                     PRInt32 aHeight,
                      bool    aRepaint)
 {
   nsIntRect oldBounds = mBounds;
@@ -360,12 +360,12 @@ PuppetWidget::SetInputContext(const InputContext& aContext,
     return;
   }
   mTabChild->SendSetInputContext(
-    static_cast<int32_t>(aContext.mIMEState.mEnabled),
-    static_cast<int32_t>(aContext.mIMEState.mOpen),
+    static_cast<PRInt32>(aContext.mIMEState.mEnabled),
+    static_cast<PRInt32>(aContext.mIMEState.mOpen),
     aContext.mHTMLInputType,
     aContext.mActionHint,
-    static_cast<int32_t>(aAction.mCause),
-    static_cast<int32_t>(aAction.mFocusChange));
+    static_cast<PRInt32>(aAction.mCause),
+    static_cast<PRInt32>(aAction.mFocusChange));
 }
 
 NS_IMETHODIMP_(InputContext)
@@ -373,7 +373,7 @@ PuppetWidget::GetInputContext()
 {
   InputContext context;
   if (mTabChild) {
-    int32_t enabled, open;
+    PRInt32 enabled, open;
     mTabChild->SendGetInputContext(&enabled, &open);
     context.mIMEState.mEnabled = static_cast<IMEState::Enabled>(enabled);
     context.mIMEState.mOpen = static_cast<IMEState::Open>(open);
@@ -403,7 +403,7 @@ PuppetWidget::OnIMEFocusChange(bool aFocus)
     ResetInputState();
   }
 
-  uint32_t chromeSeqno;
+  PRUint32 chromeSeqno;
   mIMEPreference.mWantUpdates = false;
   mIMEPreference.mWantHints = false;
   if (!mTabChild->SendNotifyIMEFocus(aFocus, &mIMEPreference, &chromeSeqno))
@@ -421,7 +421,7 @@ PuppetWidget::OnIMEFocusChange(bool aFocus)
 }
 
 NS_IMETHODIMP
-PuppetWidget::OnIMETextChange(uint32_t aStart, uint32_t aEnd, uint32_t aNewEnd)
+PuppetWidget::OnIMETextChange(PRUint32 aStart, PRUint32 aEnd, PRUint32 aNewEnd)
 {
   if (!mTabChild)
     return NS_ERROR_FAILURE;
@@ -543,7 +543,7 @@ PuppetWidget::GetDPI()
 }
 
 void*
-PuppetWidget::GetNativeData(uint32_t aDataType)
+PuppetWidget::GetNativeData(PRUint32 aDataType)
 {
   switch (aDataType) {
   case NS_NATIVE_SHAREABLE_WINDOW: {
@@ -584,8 +584,8 @@ ScreenConfig()
 }
 
 NS_IMETHODIMP
-PuppetScreen::GetRect(int32_t *outLeft,  int32_t *outTop,
-                      int32_t *outWidth, int32_t *outHeight)
+PuppetScreen::GetRect(PRInt32 *outLeft,  PRInt32 *outTop,
+                      PRInt32 *outWidth, PRInt32 *outHeight)
 {
   nsIntRect r = ScreenConfig().rect();
   *outLeft = r.x;
@@ -596,36 +596,36 @@ PuppetScreen::GetRect(int32_t *outLeft,  int32_t *outTop,
 }
 
 NS_IMETHODIMP
-PuppetScreen::GetAvailRect(int32_t *outLeft,  int32_t *outTop,
-                           int32_t *outWidth, int32_t *outHeight)
+PuppetScreen::GetAvailRect(PRInt32 *outLeft,  PRInt32 *outTop,
+                           PRInt32 *outWidth, PRInt32 *outHeight)
 {
   return GetRect(outLeft, outTop, outWidth, outHeight);
 }
 
 
 NS_IMETHODIMP
-PuppetScreen::GetPixelDepth(int32_t *aPixelDepth)
+PuppetScreen::GetPixelDepth(PRInt32 *aPixelDepth)
 {
   *aPixelDepth = ScreenConfig().pixelDepth();
   return NS_OK;
 }
 
 NS_IMETHODIMP
-PuppetScreen::GetColorDepth(int32_t *aColorDepth)
+PuppetScreen::GetColorDepth(PRInt32 *aColorDepth)
 {
   *aColorDepth = ScreenConfig().colorDepth();
   return NS_OK;
 }
 
 NS_IMETHODIMP
-PuppetScreen::GetRotation(uint32_t* aRotation)
+PuppetScreen::GetRotation(PRUint32* aRotation)
 {
   NS_WARNING("Attempt to get screen rotation through nsIScreen::GetRotation().  Nothing should know or care this in sandboxed contexts.  If you want *orientation*, use hal.");
   return NS_ERROR_NOT_AVAILABLE;
 }
 
 NS_IMETHODIMP
-PuppetScreen::SetRotation(uint32_t aRotation)
+PuppetScreen::SetRotation(PRUint32 aRotation)
 {
   NS_WARNING("Attempt to set screen rotation through nsIScreen::GetRotation().  Nothing should know or care this in sandboxed contexts.  If you want *orientation*, use hal.");
   return NS_ERROR_NOT_AVAILABLE;
@@ -650,10 +650,10 @@ PuppetScreenManager::GetPrimaryScreen(nsIScreen** outScreen)
 }
 
 NS_IMETHODIMP
-PuppetScreenManager::ScreenForRect(int32_t inLeft,
-                                   int32_t inTop,
-                                   int32_t inWidth,
-                                   int32_t inHeight,
+PuppetScreenManager::ScreenForRect(PRInt32 inLeft,
+                                   PRInt32 inTop,
+                                   PRInt32 inWidth,
+                                   PRInt32 inHeight,
                                    nsIScreen** outScreen)
 {
   return GetPrimaryScreen(outScreen);
@@ -667,7 +667,7 @@ PuppetScreenManager::ScreenForNativeWidget(void* aWidget,
 }
 
 NS_IMETHODIMP
-PuppetScreenManager::GetNumberOfScreens(uint32_t* aNumberOfScreens)
+PuppetScreenManager::GetNumberOfScreens(PRUint32* aNumberOfScreens)
 {
   *aNumberOfScreens = 1;
   return NS_OK;

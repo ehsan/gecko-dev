@@ -55,7 +55,7 @@ DOMSVGAnimatedNumberList::GetAnimVal(nsIDOMSVGNumberList **_retval)
 /* static */ already_AddRefed<DOMSVGAnimatedNumberList>
 DOMSVGAnimatedNumberList::GetDOMWrapper(SVGAnimatedNumberList *aList,
                                         nsSVGElement *aElement,
-                                        uint8_t aAttrEnum)
+                                        PRUint8 aAttrEnum)
 {
   DOMSVGAnimatedNumberList *wrapper =
     sSVGAnimatedNumberListTearoffTable.GetTearoff(aList);

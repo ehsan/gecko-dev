@@ -171,7 +171,7 @@ ArchiveRequest::GetFilenamesResult(JSContext* aCx,
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  for (uint32_t i = 0; i < aFileList.Length(); ++i) {
+  for (PRUint32 i = 0; i < aFileList.Length(); ++i) {
     nsCOMPtr<nsIDOMFile> file = aFileList[i];
 
     nsString filename;
@@ -201,7 +201,7 @@ ArchiveRequest::GetFileResult(JSContext* aCx,
                               jsval* aValue,
                               nsTArray<nsCOMPtr<nsIDOMFile> >& aFileList)
 {
-  for (uint32_t i = 0; i < aFileList.Length(); ++i) {
+  for (PRUint32 i = 0; i < aFileList.Length(); ++i) {
     nsCOMPtr<nsIDOMFile> file = aFileList[i];
 
     nsString filename;

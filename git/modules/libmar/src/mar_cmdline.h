@@ -5,7 +5,7 @@
 #ifndef MAR_CMDLINE_H__
 #define MAR_CMDLINE_H__
 
-/* We use NSPR here just to import the definition of uint32_t */
+/* We use NSPR here just to import the definition of PRUint32 */
 #include "prtypes.h"
 
 #ifdef __cplusplus
@@ -34,10 +34,10 @@ struct ProductInformationBlock;
  */
 int get_mar_file_info(const char *path, 
                       int *hasSignatureBlock,
-                      uint32_t *numSignatures,
+                      PRUint32 *numSignatures,
                       int *hasAdditionalBlocks,
-                      uint32_t *offsetAdditionalBlocks,
-                      uint32_t *numAdditionalBlocks);
+                      PRUint32 *offsetAdditionalBlocks,
+                      PRUint32 *numAdditionalBlocks);
 
 /**
  * Verifies the embedded signature of the specified file path.
@@ -56,7 +56,7 @@ int get_mar_file_info(const char *path,
  */
 int mar_verify_signature(const char *pathToMAR, 
                          const char *certData,
-                         uint32_t sizeOfCertData,
+                         PRUint32 sizeOfCertData,
                          const char *certName);
 
 /** 

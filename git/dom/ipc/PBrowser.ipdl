@@ -111,7 +111,7 @@ parent:
      *  seqno        Current seqno value on the chrome side
      */
     sync NotifyIMEFocus(bool focus)
-      returns (nsIMEUpdatePreference preference, uint32_t seqno);
+      returns (nsIMEUpdatePreference preference, PRUint32 seqno);
 
     /**
      * Notifies chrome that there has been a change in text content
@@ -125,7 +125,7 @@ parent:
      *  for insertion, offset == end
      *  for deletion, offset == newEnd
      */
-    NotifyIMETextChange(uint32_t offset, uint32_t end, uint32_t newEnd);
+    NotifyIMETextChange(PRUint32 offset, PRUint32 end, PRUint32 newEnd);
 
     /**
      * Notifies chrome that there has been a change in selection
@@ -135,7 +135,7 @@ parent:
      *  anchor       Offset where the selection started
      *  focus        Offset where the caret is
      */
-    NotifyIMESelection(uint32_t seqno, uint32_t anchor, uint32_t focus);
+    NotifyIMESelection(PRUint32 seqno, PRUint32 anchor, PRUint32 focus);
 
     /**
      * Notifies chrome to refresh its text cache 
@@ -158,14 +158,14 @@ parent:
      */
     sync EndIMEComposition(bool cancel) returns (nsString composition);
 
-    sync GetInputContext() returns (int32_t IMEEnabled, int32_t IMEOpen);
+    sync GetInputContext() returns (PRInt32 IMEEnabled, PRInt32 IMEOpen);
 
-    SetInputContext(int32_t IMEEnabled,
-                    int32_t IMEOpen,
+    SetInputContext(PRInt32 IMEEnabled,
+                    PRInt32 IMEOpen,
                     nsString type,
                     nsString actionHint,
-                    int32_t cause,
-                    int32_t focusChange);
+                    PRInt32 cause,
+                    PRInt32 focusChange);
 
     /**
      * Gets the DPI of the screen corresponding to this browser.
@@ -177,7 +177,7 @@ parent:
      */
     sync GetWidgetNativeData() returns (WindowsHandle value);
 
-    SetCursor(uint32_t value);
+    SetCursor(PRUint32 value);
     SetBackgroundColor(nscolor color);
 
     /**
@@ -195,8 +195,8 @@ parent:
      */
     PContentPermissionRequest(nsCString aType, Principal principal);
 
-    PContentDialog(uint32_t aType, nsCString aName, nsCString aFeatures,
-                   int32_t[] aIntParams, nsString[] aStringParams);
+    PContentDialog(PRUint32 aType, nsCString aName, nsCString aFeatures,
+                   PRInt32[] aIntParams, nsString[] aStringParams);
 
     /**
      * Create a layout frame (encapsulating a remote layer tree) for
@@ -259,6 +259,15 @@ parent:
      */
     ZoomToRect(gfxRect aRect);
 
+    /**
+     * We know for sure that content has either preventDefaulted or not
+     * preventDefaulted. This applies to an entire batch of touch events. It is
+     * expected that, if there are any DOM touch listeners, touch events will be
+     * batched and only processed for panning and zooming if content does not
+     * preventDefault.
+     */
+    ContentReceivedTouch(bool aPreventDefault);
+
     __delete__();
 
 child:
@@ -299,9 +308,9 @@ child:
     MouseEvent(nsString aType,
                float aX,
                float aY,
-               int32_t aButton,
-               int32_t aClickCount,
-               int32_t aModifiers,
+               PRInt32 aButton,
+               PRInt32 aClickCount,
+               PRInt32 aModifiers,
                bool aIgnoreRootScrollFrame);
 
     RealMouseEvent(nsMouseEvent event);
@@ -313,9 +322,9 @@ child:
      * @see nsIDOMWindowUtils sendKeyEvent.
      */
     KeyEvent(nsString aType,
-             int32_t aKeyCode,
-             int32_t aCharCode,
-             int32_t aModifiers,
+             PRInt32 aKeyCode,
+             PRInt32 aCharCode,
+             PRInt32 aModifiers,
              bool aPreventDefault);
 
     CompositionEvent(nsCompositionEvent event);
@@ -346,7 +355,7 @@ child:
      */
     PDocumentRenderer(nsRect documentRect, gfxMatrix transform,
                       nsString bgcolor,
-                      uint32_t renderFlags, bool flushLayout,
+                      PRUint32 renderFlags, bool flushLayout,
                       nsIntSize renderSize);
 
     /**

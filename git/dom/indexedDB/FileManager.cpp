@@ -22,7 +22,7 @@ USING_INDEXEDDB_NAMESPACE
 namespace {
 
 PLDHashOperator
-EnumerateToTArray(const uint64_t& aKey,
+EnumerateToTArray(const PRUint64& aKey,
                   FileInfo* aValue,
                   void* aUserArg)
 {
@@ -94,7 +94,7 @@ FileManager::Init(nsIFile* aDirectory,
     rv = stmt->GetString(0, name);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    int32_t flag = stmt->AsInt32(1);
+    PRInt32 flag = stmt->AsInt32(1);
 
     nsCOMPtr<nsIFile> file;
     rv = aDirectory->Clone(getter_AddRefs(file));
@@ -143,11 +143,11 @@ FileManager::Load(mozIStorageConnection* aConnection)
 
   bool hasResult;
   while (NS_SUCCEEDED(stmt->ExecuteStep(&hasResult)) && hasResult) {
-    int64_t id;
+    PRInt64 id;
     rv = stmt->GetInt64(0, &id);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    int32_t refcount;
+    PRInt32 refcount;
     rv = stmt->GetInt32(1, &refcount);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -185,7 +185,7 @@ FileManager::Invalidate()
     mFileInfos.EnumerateRead(EnumerateToTArray, &fileInfos);
   }
 
-  for (uint32_t i = 0; i < fileInfos.Length(); i++) {
+  for (PRUint32 i = 0; i < fileInfos.Length(); i++) {
     FileInfo* fileInfo = fileInfos.ElementAt(i);
     fileInfo->ClearDBRefs();
   }
@@ -207,7 +207,7 @@ FileManager::GetDirectory()
 }
 
 already_AddRefed<FileInfo>
-FileManager::GetFileInfo(int64_t aId)
+FileManager::GetFileInfo(PRInt64 aId)
 {
   if (IndexedDatabaseManager::IsClosed()) {
     NS_ERROR("Shouldn't be called after shutdown!");
@@ -236,7 +236,7 @@ FileManager::GetNewFileInfo()
   {
     MutexAutoLock lock(IndexedDatabaseManager::FileMutex());
 
-    int64_t id = mLastFileId + 1;
+    PRInt64 id = mLastFileId + 1;
 
     fileInfo = FileInfo::Create(this, id);
 
@@ -250,7 +250,7 @@ FileManager::GetNewFileInfo()
 }
 
 already_AddRefed<nsIFile>
-FileManager::GetFileForId(nsIFile* aDirectory, int64_t aId)
+FileManager::GetFileForId(nsIFile* aDirectory, PRInt64 aId)
 {
   NS_ASSERTION(aDirectory, "Null pointer!");
 

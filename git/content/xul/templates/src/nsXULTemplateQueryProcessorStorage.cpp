@@ -37,13 +37,13 @@ NS_IMPL_ISUPPORTS1(nsXULTemplateResultSetStorage, nsISimpleEnumerator)
 nsXULTemplateResultSetStorage::nsXULTemplateResultSetStorage(mozIStorageStatement* aStatement)
         : mStatement(aStatement)
 {
-    uint32_t count;
+    PRUint32 count;
     nsresult rv = aStatement->GetColumnCount(&count);
     if (NS_FAILED(rv)) {
         mStatement = nullptr;
         return;
     }
-    for (uint32_t c = 0; c < count; c++) {
+    for (PRUint32 c = 0; c < count; c++) {
         nsCAutoString name;
         rv = aStatement->GetColumnName(c, name);
         if (NS_SUCCEEDED(rv)) {
@@ -87,11 +87,11 @@ nsXULTemplateResultSetStorage::GetNext(nsISupports **aResult)
 }
 
 
-int32_t
+PRInt32
 nsXULTemplateResultSetStorage::GetColumnIndex(nsIAtom* aColumnName)
 {
-    int32_t count = mColumnNames.Count();
-    for (int32_t c = 0; c < count; c++) {
+    PRInt32 count = mColumnNames.Count();
+    for (PRInt32 c = 0; c < count; c++) {
         if (mColumnNames[c] == aColumnName)
             return c;
     }
@@ -105,16 +105,16 @@ nsXULTemplateResultSetStorage::FillColumnValues(nsCOMArray<nsIVariant>& aArray)
     if (!mStatement)
         return;
 
-    int32_t count = mColumnNames.Count();
+    PRInt32 count = mColumnNames.Count();
 
-    for (int32_t c = 0; c < count; c++) {
+    for (PRInt32 c = 0; c < count; c++) {
         nsCOMPtr<nsIWritableVariant> value = do_CreateInstance("@mozilla.org/variant;1");
 
-        int32_t type;
+        PRInt32 type;
         mStatement->GetTypeOfIndex(c, &type);
 
         if (type == mStatement->VALUE_TYPE_INTEGER) {
-            int64_t val = mStatement->AsInt64(c);
+            PRInt64 val = mStatement->AsInt64(c);
             value->SetAsInt64(val);
         }
         else if (type == mStatement->VALUE_TYPE_FLOAT) {
@@ -164,7 +164,7 @@ nsXULTemplateQueryProcessorStorage::GetDatasource(nsIArray* aDataSources,
         return NS_OK;
     }
 
-    uint32_t length;
+    PRUint32 length;
     nsresult rv = aDataSources->GetLength(&length);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -278,7 +278,7 @@ nsXULTemplateQueryProcessorStorage::CompileQuery(nsIXULTemplateBuilder* aBuilder
     nsCOMPtr<nsIDOMNodeList> childNodes;
     aQueryNode->GetChildNodes(getter_AddRefs(childNodes));
 
-    uint32_t length;
+    PRUint32 length;
     childNodes->GetLength(&length);
 
     nsCOMPtr<mozIStorageStatement> statement;
@@ -295,7 +295,7 @@ nsXULTemplateQueryProcessorStorage::CompileQuery(nsIXULTemplateBuilder* aBuilder
         return rv;
     }
 
-    uint32_t parameterCount = 0;
+    PRUint32 parameterCount = 0;
     for (nsIContent* child = queryContent->GetFirstChild();
          child;
          child = child->GetNextSibling()) {
@@ -304,7 +304,7 @@ nsXULTemplateQueryProcessorStorage::CompileQuery(nsIXULTemplateBuilder* aBuilder
             nsAutoString value;
             nsContentUtils::GetNodeTextContent(child, false, value);
 
-            uint32_t index = parameterCount;
+            PRUint32 index = parameterCount;
             nsAutoString name, indexValue;
 
             if (child->GetAttr(kNameSpaceID_None, nsGkAtoms::name, name)) {
@@ -329,12 +329,12 @@ nsXULTemplateQueryProcessorStorage::CompileQuery(nsIXULTemplateBuilder* aBuilder
                 { &nsGkAtoms::int32, &nsGkAtoms::integer, &nsGkAtoms::int64,
                   &nsGkAtoms::null, &nsGkAtoms::double_, &nsGkAtoms::string, nullptr };
 
-            int32_t typeError = 1;
-            int32_t typeValue = child->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::type,
+            PRInt32 typeError = 1;
+            PRInt32 typeValue = child->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::type,
                                                        sTypeValues, eCaseMatters);
             rv = NS_ERROR_ILLEGAL_VALUE;
-            int32_t valInt32 = 0;
-            int64_t valInt64 = 0;
+            PRInt32 valInt32 = 0;
+            PRInt64 valInt64 = 0;
             double valFloat = 0;
 
             switch (typeValue) {
@@ -436,8 +436,8 @@ NS_IMETHODIMP
 nsXULTemplateQueryProcessorStorage::CompareResults(nsIXULTemplateResult* aLeft,
                                                    nsIXULTemplateResult* aRight,
                                                    nsIAtom* aVar,
-                                                   uint32_t aSortHints,
-                                                   int32_t* aResult)
+                                                   PRUint32 aSortHints,
+                                                   PRInt32* aResult)
 {
     *aResult = 0;
     if (!aVar)
@@ -457,13 +457,13 @@ nsXULTemplateQueryProcessorStorage::CompareResults(nsIXULTemplateResult* aLeft,
 
         if (vLeftValue && vRightValue) {
             nsresult rv1, rv2;
-            uint16_t vtypeL, vtypeR;
+            PRUint16 vtypeL, vtypeR;
             vLeftValue->GetDataType(&vtypeL);
             vRightValue->GetDataType(&vtypeR);
 
             if (vtypeL == vtypeR) {
                 if (vtypeL == nsIDataType::VTYPE_INT64) {
-                    int64_t leftValue, rightValue;
+                    PRInt64 leftValue, rightValue;
                     rv1 = vLeftValue->GetAsInt64(&leftValue);
                     rv2 = vRightValue->GetAsInt64(&rightValue);
                     if (NS_SUCCEEDED(rv1) && NS_SUCCEEDED(rv2)) {

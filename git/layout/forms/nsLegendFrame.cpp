@@ -63,9 +63,9 @@ nsLegendFrame::Reflow(nsPresContext*          aPresContext,
 
 // REVIEW: We don't need to override BuildDisplayList, nsBlockFrame will honour
 // our visibility setting
-int32_t nsLegendFrame::GetAlign()
+PRInt32 nsLegendFrame::GetAlign()
 {
-  int32_t intValue = NS_STYLE_TEXT_ALIGN_LEFT;
+  PRInt32 intValue = NS_STYLE_TEXT_ALIGN_LEFT;
 #ifdef IBMBIDI
   if (mParent && NS_STYLE_DIRECTION_RTL == mParent->GetStyleVisibility()->mDirection) {
     intValue = NS_STYLE_TEXT_ALIGN_RIGHT;

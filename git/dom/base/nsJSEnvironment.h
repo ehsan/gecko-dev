@@ -53,7 +53,7 @@ public:
                                   nsIPrincipal *principal,
                                   nsIPrincipal *originPrincipal,
                                   const char *aURL,
-                                  uint32_t aLineNo,
+                                  PRUint32 aLineNo,
                                   JSVersion aVersion,
                                   nsAString *aRetValue,
                                   bool* aIsUndefined);
@@ -61,17 +61,17 @@ public:
                                            JSObject* aScopeObject,
                                            nsIPrincipal* aPrincipal,
                                            const char* aURL,
-                                           uint32_t aLineNo,
-                                           uint32_t aVersion,
+                                           PRUint32 aLineNo,
+                                           PRUint32 aVersion,
                                            JS::Value* aRetValue,
                                            bool* aIsUndefined);
 
   virtual nsresult CompileScript(const PRUnichar* aText,
-                                 int32_t aTextLength,
+                                 PRInt32 aTextLength,
                                  nsIPrincipal *principal,
                                  const char *aURL,
-                                 uint32_t aLineNo,
-                                 uint32_t aVersion,
+                                 PRUint32 aLineNo,
+                                 PRUint32 aVersion,
                                  nsScriptObjectHolder<JSScript>& aScriptObject,
                                  bool aSaveSource = false);
   virtual nsresult ExecuteScript(JSScript* aScriptObject,
@@ -80,11 +80,11 @@ public:
                                  bool* aIsUndefined);
 
   virtual nsresult CompileEventHandler(nsIAtom *aName,
-                                       uint32_t aArgCount,
+                                       PRUint32 aArgCount,
                                        const char** aArgNames,
                                        const nsAString& aBody,
-                                       const char *aURL, uint32_t aLineNo,
-                                       uint32_t aVersion,
+                                       const char *aURL, PRUint32 aLineNo,
+                                       PRUint32 aVersion,
                                        nsScriptObjectHolder<JSObject>& aHandler);
   virtual nsresult CallEventHandler(nsISupports* aTarget, JSObject* aScope,
                                     JSObject* aHandler,
@@ -95,12 +95,12 @@ public:
                                             nsScriptObjectHolder<JSObject>& aBoundHandler);
   virtual nsresult CompileFunction(JSObject* aTarget,
                                    const nsACString& aName,
-                                   uint32_t aArgCount,
+                                   PRUint32 aArgCount,
                                    const char** aArgArray,
                                    const nsAString& aBody,
                                    const char* aURL,
-                                   uint32_t aLineNo,
-                                   uint32_t aVersion,
+                                   PRUint32 aLineNo,
+                                   PRUint32 aVersion,
                                    bool aShared,
                                    JSObject** aFunctionObject);
 
@@ -171,7 +171,7 @@ public:
   // If aExtraForgetSkippableCalls is -1, forgetSkippable won't be
   // called even if the previous collection was GC.
   static void CycleCollectNow(nsICycleCollectorListener *aListener = nullptr,
-                              int32_t aExtraForgetSkippableCalls = 0,
+                              PRInt32 aExtraForgetSkippableCalls = 0,
                               bool aForced = true);
 
   static void PokeGC(js::gcreason::Reason aReason, int aDelay = 0);
@@ -187,7 +187,7 @@ public:
 
   virtual void GC(js::gcreason::Reason aReason);
 
-  static uint32_t CleanupsSinceLastGC();
+  static PRUint32 CleanupsSinceLastGC();
 
   nsIScriptGlobalObject* GetCachedGlobalObject()
   {
@@ -202,7 +202,7 @@ protected:
   // Helper to convert xpcom datatypes to jsvals.
   nsresult ConvertSupportsTojsvals(nsISupports *aArgs,
                                    JSObject *aScope,
-                                   uint32_t *aArgc,
+                                   PRUint32 *aArgc,
                                    jsval **aArgv,
                                    mozilla::Maybe<nsRootedJSValueArray> &aPoolRelease);
 
@@ -285,12 +285,12 @@ private:
   bool mGCOnDestruction;
   bool mProcessingScriptTag;
 
-  uint32_t mExecuteDepth;
-  uint32_t mDefaultJSOptions;
+  PRUint32 mExecuteDepth;
+  PRUint32 mDefaultJSOptions;
   PRTime mOperationCallbackTime;
 
   PRTime mModalStateTime;
-  uint32_t mModalStateDepth;
+  PRUint32 mModalStateDepth;
 
   nsJSContext *mNext;
   nsJSContext **mPrev;
@@ -344,7 +344,7 @@ public:
   // Bug 312003 describes why this must be "void **", but after calling argv
   // may be cast to jsval* and the args found at:
   //    ((jsval*)argv)[0], ..., ((jsval*)argv)[argc - 1]
-  virtual nsresult GetArgs(uint32_t *argc, void **argv) = 0;
+  virtual nsresult GetArgs(PRUint32 *argc, void **argv) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIJSArgArray, NS_IJSARGARRAY_IID)

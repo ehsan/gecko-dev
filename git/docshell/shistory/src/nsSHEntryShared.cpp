@@ -20,7 +20,7 @@ namespace dom = mozilla::dom;
 
 namespace {
 
-uint64_t gSHEntrySharedID = 0;
+PRUint64 gSHEntrySharedID = 0;
 
 } // anonymous namespace
 
@@ -282,7 +282,7 @@ nsSHEntryShared::RemoveFromBFCacheAsync()
 }
 
 nsresult
-nsSHEntryShared::GetID(uint64_t *aID)
+nsSHEntryShared::GetID(PRUint64 *aID)
 {
   *aID = mID;
   return NS_OK;
@@ -316,18 +316,18 @@ nsSHEntryShared::CharacterDataChanged(nsIDocument* aDocument,
 void
 nsSHEntryShared::AttributeWillChange(nsIDocument* aDocument,
                                      dom::Element* aContent,
-                                     int32_t aNameSpaceID,
+                                     PRInt32 aNameSpaceID,
                                      nsIAtom* aAttribute,
-                                     int32_t aModType)
+                                     PRInt32 aModType)
 {
 }
 
 void
 nsSHEntryShared::AttributeChanged(nsIDocument* aDocument,
                                   dom::Element* aElement,
-                                  int32_t aNameSpaceID,
+                                  PRInt32 aNameSpaceID,
                                   nsIAtom* aAttribute,
-                                  int32_t aModType)
+                                  PRInt32 aModType)
 {
   RemoveFromBFCacheAsync();
 }
@@ -336,7 +336,7 @@ void
 nsSHEntryShared::ContentAppended(nsIDocument* aDocument,
                                  nsIContent* aContainer,
                                  nsIContent* aFirstNewContent,
-                                 int32_t /* unused */)
+                                 PRInt32 /* unused */)
 {
   RemoveFromBFCacheAsync();
 }
@@ -345,7 +345,7 @@ void
 nsSHEntryShared::ContentInserted(nsIDocument* aDocument,
                                  nsIContent* aContainer,
                                  nsIContent* aChild,
-                                 int32_t /* unused */)
+                                 PRInt32 /* unused */)
 {
   RemoveFromBFCacheAsync();
 }
@@ -354,7 +354,7 @@ void
 nsSHEntryShared::ContentRemoved(nsIDocument* aDocument,
                                 nsIContent* aContainer,
                                 nsIContent* aChild,
-                                int32_t aIndexInContainer,
+                                PRInt32 aIndexInContainer,
                                 nsIContent* aPreviousSibling)
 {
   RemoveFromBFCacheAsync();

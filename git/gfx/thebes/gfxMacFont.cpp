@@ -155,7 +155,7 @@ gfxMacFont::SetupCairoFont(gfxContext *aContext)
 
 gfxFont::RunMetrics
 gfxMacFont::Measure(gfxTextRun *aTextRun,
-                    uint32_t aStart, uint32_t aEnd,
+                    PRUint32 aStart, PRUint32 aEnd,
                     BoundingBoxType aBoundingBoxType,
                     gfxContext *aRefContext,
                     Spacing *aSpacing)
@@ -181,15 +181,15 @@ gfxMacFont::InitMetrics()
     mIsValid = false;
     ::memset(&mMetrics, 0, sizeof(mMetrics));
 
-    uint32_t upem = 0;
+    PRUint32 upem = 0;
 
     // try to get unitsPerEm from sfnt head table, to avoid calling CGFont
     // if possible (bug 574368) and because CGFontGetUnitsPerEm does not
     // return the true value for OpenType/CFF fonts (it normalizes to 1000,
     // which then leads to metrics errors when we read the 'hmtx' table to
     // get glyph advances for HarfBuzz, see bug 580863)
-    const uint32_t kHeadTableTag = TRUETYPE_TAG('h','e','a','d');
-    AutoFallibleTArray<uint8_t,sizeof(HeadTable)> headData;
+    const PRUint32 kHeadTableTag = TRUETYPE_TAG('h','e','a','d');
+    AutoFallibleTArray<PRUint8,sizeof(HeadTable)> headData;
     if (NS_SUCCEEDED(mFontEntry->GetFontTable(kHeadTableTag, headData)) &&
         headData.Length() >= sizeof(HeadTable)) {
         HeadTable *head = reinterpret_cast<HeadTable*>(headData.Elements());
@@ -274,7 +274,7 @@ gfxMacFont::InitMetrics()
     CFDataRef cmap =
         ::CGFontCopyTableForTag(mCGFont, TRUETYPE_TAG('c','m','a','p'));
 
-    uint32_t glyphID;
+    PRUint32 glyphID;
     if (mMetrics.aveCharWidth <= 0) {
         mMetrics.aveCharWidth = GetCharWidth(cmap, 'x', &glyphID,
                                              cgConvFactor);
@@ -323,7 +323,7 @@ gfxMacFont::InitMetrics()
 
 gfxFloat
 gfxMacFont::GetCharWidth(CFDataRef aCmap, PRUnichar aUniChar,
-                         uint32_t *aGlyphID, gfxFloat aConvFactor)
+                         PRUint32 *aGlyphID, gfxFloat aConvFactor)
 {
     CGGlyph glyph = 0;
     
@@ -354,7 +354,7 @@ gfxMacFont::DestroyBlobFunc(void* aUserData)
 }
 
 hb_blob_t *
-gfxMacFont::GetFontTable(uint32_t aTag)
+gfxMacFont::GetFontTable(PRUint32 aTag)
 {
     CFDataRef dataRef = ::CGFontCopyTableForTag(mCGFont, aTag);
     if (dataRef) {
@@ -440,7 +440,7 @@ gfxMacFont::InitMetricsFromATSMetrics(ATSFontRef aFontRef)
 #ifdef DEBUG
         char warnBuf[1024];
         sprintf(warnBuf, "Bad font metrics for: %s err: %8.8x",
-                NS_ConvertUTF16toUTF8(mFontEntry->Name()).get(), uint32_t(err));
+                NS_ConvertUTF16toUTF8(mFontEntry->Name()).get(), PRUint32(err));
         NS_WARNING(warnBuf);
 #endif
         return;

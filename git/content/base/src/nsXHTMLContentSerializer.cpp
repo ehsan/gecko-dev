@@ -36,7 +36,7 @@
 
 static const char kMozStr[] = "moz";
 
-static const int32_t kLongLineLen = 128;
+static const PRInt32 kLongLineLen = 128;
 
 #define kXMLNS "xmlns"
 
@@ -61,7 +61,7 @@ nsXHTMLContentSerializer::~nsXHTMLContentSerializer()
 }
 
 NS_IMETHODIMP
-nsXHTMLContentSerializer::Init(uint32_t aFlags, uint32_t aWrapColumn,
+nsXHTMLContentSerializer::Init(PRUint32 aFlags, PRUint32 aWrapColumn,
                               const char* aCharSet, bool aIsCopying,
                               bool aRewriteEncodingDeclaration)
 {
@@ -97,21 +97,21 @@ nsXHTMLContentSerializer::Init(uint32_t aFlags, uint32_t aWrapColumn,
 // if so, we presume formatting is wonky (e.g. the node has been edited)
 // and we'd better rewrap the whole text node.
 bool
-nsXHTMLContentSerializer::HasLongLines(const nsString& text, int32_t& aLastNewlineOffset)
+nsXHTMLContentSerializer::HasLongLines(const nsString& text, PRInt32& aLastNewlineOffset)
 {
-  uint32_t start=0;
-  uint32_t theLen = text.Length();
+  PRUint32 start=0;
+  PRUint32 theLen = text.Length();
   bool rv = false;
   aLastNewlineOffset = kNotFound;
   for (start = 0; start < theLen; ) {
-    int32_t eol = text.FindChar('\n', start);
+    PRInt32 eol = text.FindChar('\n', start);
     if (eol < 0) {
       eol = text.Length();
     }
     else {
       aLastNewlineOffset = eol;
     }
-    if (int32_t(eol - start) > kLongLineLen)
+    if (PRInt32(eol - start) > kLongLineLen)
       rv = true;
     start = eol + 1;
   }
@@ -120,8 +120,8 @@ nsXHTMLContentSerializer::HasLongLines(const nsString& text, int32_t& aLastNewli
 
 NS_IMETHODIMP
 nsXHTMLContentSerializer::AppendText(nsIContent* aText,
-                                     int32_t aStartOffset,
-                                     int32_t aEndOffset,
+                                     PRInt32 aStartOffset,
+                                     PRInt32 aEndOffset,
                                      nsAString& aStr)
 {
   NS_ENSURE_ARG(aText);
@@ -143,7 +143,7 @@ nsXHTMLContentSerializer::AppendText(nsIContent* aText,
     AppendToStringWrapped(data, aStr);
   }
   else {
-    int32_t lastNewlineOffset = kNotFound;
+    PRInt32 lastNewlineOffset = kNotFound;
     if (HasLongLines(data, lastNewlineOffset)) {
       // We have long lines, rewrap
       mDoWrap = true;
@@ -181,8 +181,8 @@ nsXHTMLContentSerializer::EscapeURI(nsIContent* aContent, const nsAString& aURI,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  int32_t start = 0;
-  int32_t end;
+  PRInt32 start = 0;
+  PRInt32 end;
   nsAutoString part;
   nsXPIDLCString escapedURI;
   aEscapedURI.Truncate(0);
@@ -206,7 +206,7 @@ nsXHTMLContentSerializer::EscapeURI(nsIContent* aContent, const nsAString& aURI,
     start = end + 1;
   }
 
-  if (start < (int32_t) aURI.Length()) {
+  if (start < (PRInt32) aURI.Length()) {
     // Escape the remaining part.
     part = Substring(aURI, start, aURI.Length()-start);
     if (textToSubURI) {
@@ -229,16 +229,16 @@ nsXHTMLContentSerializer::SerializeAttributes(nsIContent* aContent,
                                               const nsAString& aTagNamespaceURI,
                                               nsIAtom* aTagName,
                                               nsAString& aStr,
-                                              uint32_t aSkipAttr,
+                                              PRUint32 aSkipAttr,
                                               bool aAddNSAttr)
 {
   nsresult rv;
-  uint32_t index, count;
+  PRUint32 index, count;
   nsAutoString prefixStr, uriStr, valueStr;
   nsAutoString xmlnsStr;
   xmlnsStr.AssignLiteral(kXMLNS);
 
-  int32_t contentNamespaceID = aContent->GetNameSpaceID();
+  PRInt32 contentNamespaceID = aContent->GetNameSpaceID();
 
   // this method is not called by nsHTMLContentSerializer
   // so we don't have to check HTML element, just XHTML
@@ -251,7 +251,7 @@ nsXHTMLContentSerializer::SerializeAttributes(nsIContent* aContent,
       // We are copying and current node is an OL;
       // Store its start attribute value in olState->startVal.
       nsAutoString start;
-      int32_t startAttrVal = 0;
+      PRInt32 startAttrVal = 0;
       aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::start, start);
       if (!start.IsEmpty()) {
         nsresult rv = NS_OK;
@@ -303,7 +303,7 @@ nsXHTMLContentSerializer::SerializeAttributes(nsIContent* aContent,
     }
 
     const nsAttrName* name = aContent->GetAttrNameAt(index);
-    int32_t namespaceID = name->NamespaceID();
+    PRInt32 namespaceID = name->NamespaceID();
     nsIAtom* attrName = name->LocalName();
     nsIAtom* attrPrefix = name->GetPrefix();
 
@@ -410,7 +410,7 @@ nsXHTMLContentSerializer::SerializeAttributes(nsIContent* aContent,
 void 
 nsXHTMLContentSerializer::AppendEndOfElementStart(nsIContent *aOriginalElement,
                                                   nsIAtom * aName,
-                                                  int32_t aNamespaceID,
+                                                  PRInt32 aNamespaceID,
                                                   nsAString& aStr)
 {
   // this method is not called by nsHTMLContentSerializer
@@ -501,7 +501,7 @@ nsXHTMLContentSerializer::AfterElementEnd(nsIContent * aContent,
 {
   NS_ASSERTION(!mIsHTMLSerializer, "nsHTMLContentSerializer shouldn't call this method !");
 
-  int32_t namespaceID = aContent->GetNameSpaceID();
+  PRInt32 namespaceID = aContent->GetNameSpaceID();
   nsIAtom *name = aContent->Tag();
 
   // this method is not called by nsHTMLContentSerializer
@@ -534,7 +534,7 @@ nsXHTMLContentSerializer::CheckElementStart(nsIContent * aContent,
                  aContent->HasAttr(kNameSpaceID_None, nsGkAtoms::mozdirty);
 
   nsIAtom *name = aContent->Tag();
-  int32_t namespaceID = aContent->GetNameSpaceID();
+  PRInt32 namespaceID = aContent->GetNameSpaceID();
 
   if (namespaceID == kNameSpaceID_XHTML) {
     if (name == nsGkAtoms::br && mPreLevel > 0 && 
@@ -561,7 +561,7 @@ nsXHTMLContentSerializer::CheckElementEnd(nsIContent * aContent,
                  aContent->HasAttr(kNameSpaceID_None, nsGkAtoms::mozdirty);
 
   nsIAtom *name = aContent->Tag();
-  int32_t namespaceID = aContent->GetNameSpaceID();
+  PRInt32 namespaceID = aContent->GetNameSpaceID();
 
   // this method is not called by nsHTMLContentSerializer
   // so we don't have to check HTML element, just XHTML
@@ -718,7 +718,7 @@ nsXHTMLContentSerializer::IsShorthandAttr(const nsIAtom* aAttrName,
 }
 
 bool
-nsXHTMLContentSerializer::LineBreakBeforeOpen(int32_t aNamespaceID, nsIAtom* aName)
+nsXHTMLContentSerializer::LineBreakBeforeOpen(PRInt32 aNamespaceID, nsIAtom* aName)
 {
 
   if (aNamespaceID != kNameSpaceID_XHTML) {
@@ -750,7 +750,7 @@ nsXHTMLContentSerializer::LineBreakBeforeOpen(int32_t aNamespaceID, nsIAtom* aNa
 }
 
 bool 
-nsXHTMLContentSerializer::LineBreakAfterOpen(int32_t aNamespaceID, nsIAtom* aName)
+nsXHTMLContentSerializer::LineBreakAfterOpen(PRInt32 aNamespaceID, nsIAtom* aName)
 {
 
   if (aNamespaceID != kNameSpaceID_XHTML) {
@@ -781,7 +781,7 @@ nsXHTMLContentSerializer::LineBreakAfterOpen(int32_t aNamespaceID, nsIAtom* aNam
 }
 
 bool 
-nsXHTMLContentSerializer::LineBreakBeforeClose(int32_t aNamespaceID, nsIAtom* aName)
+nsXHTMLContentSerializer::LineBreakBeforeClose(PRInt32 aNamespaceID, nsIAtom* aName)
 {
 
   if (aNamespaceID != kNameSpaceID_XHTML) {
@@ -803,7 +803,7 @@ nsXHTMLContentSerializer::LineBreakBeforeClose(int32_t aNamespaceID, nsIAtom* aN
 }
 
 bool 
-nsXHTMLContentSerializer::LineBreakAfterClose(int32_t aNamespaceID, nsIAtom* aName)
+nsXHTMLContentSerializer::LineBreakAfterClose(PRInt32 aNamespaceID, nsIAtom* aName)
 {
 
   if (aNamespaceID != kNameSpaceID_XHTML) {
@@ -903,8 +903,8 @@ nsXHTMLContentSerializer::SerializeLIValueAttribute(nsIContent* aElement,
     mOLStateStack[mOLStateStack.Length()-1] = state;
   }
 
-  int32_t startVal = state.startVal;
-  int32_t offset = 0;
+  PRInt32 startVal = state.startVal;
+  PRInt32 offset = 0;
 
   // Traverse previous siblings until we find one with "value" attribute.
   // offset keeps track of how many previous siblings we had tocurrNode traverse.

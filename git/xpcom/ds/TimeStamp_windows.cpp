@@ -301,11 +301,11 @@ InitThresholds()
 
   // How many milli-ticks has the interval
   LONGLONG ticksPerGetTickCountResolution =
-    (int64_t(timeIncrement) * sFrequencyPerSec) / 10000LL;
+    (PRInt64(timeIncrement) * sFrequencyPerSec) / 10000LL;
 
   // How many milli-ticks has the interval rounded up
   LONGLONG ticksPerGetTickCountResolutionCeiling =
-    (int64_t(timeIncrementCeil) * sFrequencyPerSec) / 10000LL;
+    (PRInt64(timeIncrementCeil) * sFrequencyPerSec) / 10000LL;
 
 
   // I observed differences about 2 times of the GTC resolution.  GTC may
@@ -548,7 +548,7 @@ TimeDuration::ToSecondsSigDigits() const
 TimeDuration
 TimeDuration::FromMilliseconds(double aMilliseconds)
 {
-  return TimeDuration::FromTicks(int64_t(ms2mt(aMilliseconds)));
+  return TimeDuration::FromTicks(PRInt64(ms2mt(aMilliseconds)));
 }
 
 TimeDuration
@@ -556,7 +556,7 @@ TimeDuration::Resolution()
 {
   AutoCriticalSection lock(&sTimeStampLock);
 
-  return TimeDuration::FromTicks(int64_t(sResolution));
+  return TimeDuration::FromTicks(PRInt64(sResolution));
 }
 
 struct TimeStampInitialization
@@ -613,7 +613,7 @@ TimeStamp::Shutdown()
 TimeStamp
 TimeStamp::Now()
 {
-  return TimeStamp(uint64_t(CalibratedPerformanceCounter()));
+  return TimeStamp(PRUint64(CalibratedPerformanceCounter()));
 }
 
 } // namespace mozilla

@@ -794,7 +794,7 @@ XPCWrappedNativeScope::TraceDOMPrototypes(JSTracer *trc)
 
 // static
 void
-XPCWrappedNativeScope::DebugDumpAllScopes(int16_t depth)
+XPCWrappedNativeScope::DebugDumpAllScopes(PRInt16 depth)
 {
 #ifdef DEBUG
     depth-- ;
@@ -820,20 +820,20 @@ static JSDHashOperator
 WrappedNativeMapDumpEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
                                uint32_t number, void *arg)
 {
-    ((Native2WrappedNativeMap::Entry*)hdr)->value->DebugDump(*(int16_t*)arg);
+    ((Native2WrappedNativeMap::Entry*)hdr)->value->DebugDump(*(PRInt16*)arg);
     return JS_DHASH_NEXT;
 }
 static JSDHashOperator
 WrappedNativeProtoMapDumpEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
                                     uint32_t number, void *arg)
 {
-    ((ClassInfo2WrappedNativeProtoMap::Entry*)hdr)->value->DebugDump(*(int16_t*)arg);
+    ((ClassInfo2WrappedNativeProtoMap::Entry*)hdr)->value->DebugDump(*(PRInt16*)arg);
     return JS_DHASH_NEXT;
 }
 #endif
 
 void
-XPCWrappedNativeScope::DebugDump(int16_t depth)
+XPCWrappedNativeScope::DebugDump(PRInt16 depth)
 {
 #ifdef DEBUG
     depth-- ;

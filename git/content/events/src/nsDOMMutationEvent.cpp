@@ -76,7 +76,7 @@ nsDOMMutationEvent::GetAttrName(nsAString& aAttrName)
 }
 
 NS_IMETHODIMP
-nsDOMMutationEvent::GetAttrChange(uint16_t* aAttrChange)
+nsDOMMutationEvent::GetAttrChange(PRUint16* aAttrChange)
 {
   *aAttrChange = 0;
   nsMutationEvent* mutation = static_cast<nsMutationEvent*>(mEvent);
@@ -86,7 +86,7 @@ nsDOMMutationEvent::GetAttrChange(uint16_t* aAttrChange)
 }
 
 NS_IMETHODIMP
-nsDOMMutationEvent::InitMutationEvent(const nsAString& aTypeArg, bool aCanBubbleArg, bool aCancelableArg, nsIDOMNode* aRelatedNodeArg, const nsAString& aPrevValueArg, const nsAString& aNewValueArg, const nsAString& aAttrNameArg, uint16_t aAttrChangeArg)
+nsDOMMutationEvent::InitMutationEvent(const nsAString& aTypeArg, bool aCanBubbleArg, bool aCancelableArg, nsIDOMNode* aRelatedNodeArg, const nsAString& aPrevValueArg, const nsAString& aNewValueArg, const nsAString& aAttrNameArg, PRUint16 aAttrChangeArg)
 {
   nsresult rv = nsDOMEvent::InitEvent(aTypeArg, aCanBubbleArg, aCancelableArg);
   NS_ENSURE_SUCCESS(rv, rv);

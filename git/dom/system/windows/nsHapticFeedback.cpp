@@ -8,7 +8,7 @@
 NS_IMPL_ISUPPORTS1(nsHapticFeedback, nsIHapticFeedback)
 
 NS_IMETHODIMP
-nsHapticFeedback::PerformSimpleAction(int32_t aType)
+nsHapticFeedback::PerformSimpleAction(PRInt32 aType)
 {
     // Todo
     return NS_OK;

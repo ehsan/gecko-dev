@@ -9,12 +9,12 @@
 #include "xpcprivate.h"
 
 #if defined(DEBUG_xpc_hacker) || defined(DEBUG)
-int32_t XPCWrappedNativeProto::gDEBUG_LiveProtoCount = 0;
+PRInt32 XPCWrappedNativeProto::gDEBUG_LiveProtoCount = 0;
 #endif
 
 XPCWrappedNativeProto::XPCWrappedNativeProto(XPCWrappedNativeScope* Scope,
                                              nsIClassInfo* ClassInfo,
-                                             uint32_t ClassInfoFlags,
+                                             PRUint32 ClassInfoFlags,
                                              XPCNativeSet* Set,
                                              QITableEntry* offsets)
     : mScope(Scope),
@@ -221,7 +221,7 @@ XPCWrappedNativeProto::GetNewOrUsed(XPCCallContext& ccx,
 }
 
 void
-XPCWrappedNativeProto::DebugDump(int16_t depth)
+XPCWrappedNativeProto::DebugDump(PRInt16 depth)
 {
 #ifdef DEBUG
     depth-- ;
@@ -236,7 +236,7 @@ XPCWrappedNativeProto::DebugDump(int16_t depth)
         if (depth && mScriptableInfo) {
             XPC_LOG_INDENT();
             XPC_LOG_ALWAYS(("mScriptable @ %x", mScriptableInfo->GetCallback()));
-            XPC_LOG_ALWAYS(("mFlags of %x", (uint32_t)mScriptableInfo->GetFlags()));
+            XPC_LOG_ALWAYS(("mFlags of %x", (PRUint32)mScriptableInfo->GetFlags()));
             XPC_LOG_ALWAYS(("mJSClass @ %x", mScriptableInfo->GetJSClass()));
             XPC_LOG_OUTDENT();
         }

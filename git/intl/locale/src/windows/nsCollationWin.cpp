@@ -87,10 +87,10 @@ nsresult nsCollationWin::Initialize(nsILocale* locale)
 }
 
 
-NS_IMETHODIMP nsCollationWin::CompareString(int32_t strength, 
+NS_IMETHODIMP nsCollationWin::CompareString(PRInt32 strength, 
                                             const nsAString & string1, 
                                             const nsAString & string2, 
-                                            int32_t *result)
+                                            PRInt32 *result)
 {
   int retval;
   nsresult res;
@@ -116,8 +116,8 @@ NS_IMETHODIMP nsCollationWin::CompareString(int32_t strength,
 }
  
 
-nsresult nsCollationWin::AllocateRawSortKey(int32_t strength, 
-                                            const nsAString& stringIn, uint8_t** key, uint32_t* outLen)
+nsresult nsCollationWin::AllocateRawSortKey(PRInt32 strength, 
+                                            const nsAString& stringIn, PRUint8** key, PRUint32* outLen)
 {
   int byteLen;
   void *buffer;
@@ -134,7 +134,7 @@ nsresult nsCollationWin::AllocateRawSortKey(int32_t strength,
   if (!buffer) {
     res = NS_ERROR_OUT_OF_MEMORY;
   } else {
-    *key = (uint8_t *)buffer;
+    *key = (PRUint8 *)buffer;
     *outLen = LCMapStringW(mLCID, dwMapFlags, 
                            (LPCWSTR) PromiseFlatString(stringIn).get(),
                            -1, (LPWSTR) buffer, byteLen);
@@ -142,9 +142,9 @@ nsresult nsCollationWin::AllocateRawSortKey(int32_t strength,
   return res;
 }
 
-nsresult nsCollationWin::CompareRawSortKey(const uint8_t* key1, uint32_t len1, 
-                                           const uint8_t* key2, uint32_t len2, 
-                                           int32_t* result)
+nsresult nsCollationWin::CompareRawSortKey(const PRUint8* key1, PRUint32 len1, 
+                                           const PRUint8* key2, PRUint32 len2, 
+                                           PRInt32* result)
 {
   *result = PL_strcmp((const char *)key1, (const char *)key2);
   return NS_OK;

@@ -31,7 +31,7 @@ using namespace mozilla::widget;
 NS_IMPL_ISUPPORTS_INHERITED1(GfxInfo, GfxInfoBase, nsIGfxInfoDebug)
 #endif
 
-static const uint32_t allWindowsVersions = 0xffffffff;
+static const PRUint32 allWindowsVersions = 0xffffffff;
 
 #define V(a,b,c,d) GFX_DRIVER_VERSION(a,b,c,d)
 
@@ -77,7 +77,7 @@ GfxInfo::GetCleartypeParameters(nsAString & aCleartypeParams)
   nsTArray<ClearTypeParameterInfo> clearTypeParams;
 
   gfxWindowsPlatform::GetPlatform()->GetCleartypeParams(clearTypeParams);
-  uint32_t d, numDisplays = clearTypeParams.Length();
+  PRUint32 d, numDisplays = clearTypeParams.Length();
   bool displayNames = (numDisplays > 1);
   bool foundData = false;
   nsString outStr;
@@ -162,7 +162,7 @@ static nsresult GetKeyValue(const WCHAR* keyLocation, const WCHAR* keyName, nsAS
       result = RegQueryValueExW(key, keyName, NULL, &resultType, (LPBYTE)&dValue, &dwcbData);
       if (result == ERROR_SUCCESS && resultType == REG_DWORD) {
         dValue = dValue / 1024 / 1024;
-        destString.AppendInt(int32_t(dValue));
+        destString.AppendInt(PRInt32(dValue));
       } else {
         retval = NS_ERROR_FAILURE;
       }
@@ -213,7 +213,7 @@ static nsresult GetKeyValue(const WCHAR* keyLocation, const WCHAR* keyName, nsAS
 // from it, if found.
 static void normalizeDriverId(nsString& driverid) {
   ToUpperCase(driverid);
-  int32_t rev = driverid.Find(NS_LITERAL_CSTRING("&REV_"));
+  PRInt32 rev = driverid.Find(NS_LITERAL_CSTRING("&REV_"));
   if (rev != -1) {
     driverid.Cut(rev, driverid.Length());
   }
@@ -221,12 +221,12 @@ static void normalizeDriverId(nsString& driverid) {
 
 // The device ID is a string like PCI\VEN_15AD&DEV_0405&SUBSYS_040515AD
 // this function is used to extract the id's out of it
-uint32_t
+PRUint32
 ParseIDFromDeviceID(const nsAString &key, const char *prefix, int length)
 {
   nsAutoString id(key);
   ToUpperCase(id);
-  int32_t start = id.Find(prefix);
+  PRInt32 start = id.Find(prefix);
   if (start != -1) {
     id.Cut(0, start + strlen(prefix));
     id.Truncate(length);
@@ -357,8 +357,8 @@ GfxInfo::Init()
       nsAutoString deviceID2;
       nsAutoString driverVersion2;
       nsAutoString driverDate2;
-      uint32_t adapterVendorID2;
-      uint32_t adapterDeviceID2;
+      PRUint32 adapterVendorID2;
+      PRUint32 adapterDeviceID2;
 
       NS_NAMED_LITERAL_STRING(driverKeyPre, "System\\CurrentControlSet\\Control\\Class\\");
       /* enumerate device information elements in the device information set */
@@ -463,7 +463,7 @@ GfxInfo::Init()
     nsString dllVersion;
     gfxWindowsPlatform::GetDLLVersion((PRUnichar*)dllFileName, dllVersion);
 
-    uint64_t dllNumericVersion = 0, driverNumericVersion = 0;
+    PRUint64 dllNumericVersion = 0, driverNumericVersion = 0;
     ParseDriverVersion(dllVersion, &dllNumericVersion);
     ParseDriverVersion(mDriverVersion, &driverNumericVersion);
 
@@ -706,7 +706,7 @@ GfxInfo::AddCrashReportAnnotations()
 }
 
 static OperatingSystem
-WindowsVersionToOperatingSystem(int32_t aWindowsVersion)
+WindowsVersionToOperatingSystem(PRInt32 aWindowsVersion)
 {
   switch(aWindowsVersion) {
     case gfxWindowsPlatform::kWindowsXP:
@@ -835,8 +835,8 @@ GfxInfo::GetGfxDriverInfo()
 }
 
 nsresult
-GfxInfo::GetFeatureStatusImpl(int32_t aFeature,
-                              int32_t *aStatus, 
+GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature,
+                              PRInt32 *aStatus, 
                               nsAString & aSuggestedDriverVersion, 
                               const nsTArray<GfxDriverInfo>& aDriverInfo,
                               OperatingSystem* aOS /* = nullptr */)
@@ -876,7 +876,7 @@ GfxInfo::GetFeatureStatusImpl(int32_t aFeature,
       return NS_OK;
     }
 
-    uint64_t driverVersion;
+    PRUint64 driverVersion;
     if (!ParseDriverVersion(adapterDriverVersionString, &driverVersion)) {
       return NS_ERROR_FAILURE;
     }
@@ -947,7 +947,7 @@ NS_IMETHODIMP GfxInfo::SpoofDriverVersion(const nsAString & aDriverVersion)
 }
 
 /* void spoofOSVersion (in unsigned long aVersion); */
-NS_IMETHODIMP GfxInfo::SpoofOSVersion(uint32_t aVersion)
+NS_IMETHODIMP GfxInfo::SpoofOSVersion(PRUint32 aVersion)
 {
   mWindowsVersion = aVersion;
   return NS_OK;

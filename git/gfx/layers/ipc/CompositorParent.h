@@ -90,7 +90,7 @@ public:
   /**
    * Returns a pointer to the compositor corresponding to the given ID. 
    */
-  static CompositorParent* GetCompositor(uint64_t id);
+  static CompositorParent* GetCompositor(PRUint64 id);
 
   /**
    * Returns the compositor thread's message loop.
@@ -211,11 +211,11 @@ private:
   /**
    * Add a compositor to the global compositor map.
    */
-  static void AddCompositor(CompositorParent* compositor, uint64_t* id);
+  static void AddCompositor(CompositorParent* compositor, PRUint64* id);
   /**
    * Remove a compositor from the global compositor map.
    */
-  static CompositorParent* RemoveCompositor(uint64_t id);
+  static CompositorParent* RemoveCompositor(PRUint64 id);
 
 
   // Platform specific functions
@@ -269,7 +269,7 @@ private:
   mozilla::Monitor mPauseCompositionMonitor;
   mozilla::Monitor mResumeCompositionMonitor;
 
-  uint64_t mCompositorID;
+  PRUint64 mCompositorID;
 
   DISALLOW_EVIL_CONSTRUCTORS(CompositorParent);
 };

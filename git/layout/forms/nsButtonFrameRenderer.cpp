@@ -226,7 +226,7 @@ nsButtonFrameRenderer::PaintBorderAndBackground(nsPresContext* aPresContext,
           nsRenderingContext& aRenderingContext,
           const nsRect& aDirtyRect,
           const nsRect& aRect,
-          uint32_t aBGFlags)
+          PRUint32 aBGFlags)
 
 {
   // get the button rect this is inside the focus and outline rects
@@ -352,7 +352,7 @@ nsButtonFrameRenderer::ReResolveStyles(nsPresContext* aPresContext)
 }
 
 nsStyleContext*
-nsButtonFrameRenderer::GetStyleContext(int32_t aIndex) const
+nsButtonFrameRenderer::GetStyleContext(PRInt32 aIndex) const
 {
   switch (aIndex) {
   case NS_BUTTON_RENDERER_FOCUS_INNER_CONTEXT_INDEX:
@@ -365,7 +365,7 @@ nsButtonFrameRenderer::GetStyleContext(int32_t aIndex) const
 }
 
 void 
-nsButtonFrameRenderer::SetStyleContext(int32_t aIndex, nsStyleContext* aStyleContext)
+nsButtonFrameRenderer::SetStyleContext(PRInt32 aIndex, nsStyleContext* aStyleContext)
 {
   switch (aIndex) {
   case NS_BUTTON_RENDERER_FOCUS_INNER_CONTEXT_INDEX:

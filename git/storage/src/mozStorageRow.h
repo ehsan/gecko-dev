@@ -37,7 +37,7 @@ private:
   /**
    * The number of columns in this tuple.
    */
-  uint32_t mNumCols;
+  PRUint32 mNumCols;
 
   /**
    * Stores the data in the tuple.
@@ -47,7 +47,7 @@ private:
   /**
    * Maps a given name to a column index.
    */
-  nsDataHashtable<nsCStringHashKey, uint32_t> mNameHashtable;
+  nsDataHashtable<nsCStringHashKey, PRUint32> mNameHashtable;
 };
 
 } // namespace storage

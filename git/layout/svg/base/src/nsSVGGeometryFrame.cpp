@@ -32,13 +32,13 @@ nsSVGGeometryFrame::Init(nsIContent* aContent,
 
 //----------------------------------------------------------------------
 
-uint16_t
+PRUint16
 nsSVGGeometryFrame::GetClipRule()
 {
   return GetStyleSVG()->mClipRule;
 }
 
-uint16_t
+PRUint16
 nsSVGGeometryFrame::GetHitTestFlags()
 {
   return nsSVGUtils::GetGeometryHitTestFlags(this);

@@ -43,7 +43,7 @@ public:
   // nsIDOMHTMLTableCellElement
   NS_DECL_NSIDOMHTMLTABLECELLELEMENT
 
-  virtual bool ParseAttribute(int32_t aNamespaceID,
+  virtual bool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
@@ -132,7 +132,7 @@ nsHTMLTableCellElement::GetTable() const
 }
 
 NS_IMETHODIMP
-nsHTMLTableCellElement::GetCellIndex(int32_t* aCellIndex)
+nsHTMLTableCellElement::GetCellIndex(PRInt32* aCellIndex)
 {
   *aCellIndex = -1;
 
@@ -149,10 +149,10 @@ nsHTMLTableCellElement::GetCellIndex(int32_t* aCellIndex)
     return NS_OK;
   }
 
-  uint32_t numCells;
+  PRUint32 numCells;
   cells->GetLength(&numCells);
 
-  for (uint32_t i = 0; i < numCells; i++) {
+  for (PRUint32 i = 0; i < numCells; i++) {
     nsCOMPtr<nsIDOMNode> node;
     cells->Item(i, getter_AddRefs(node));
 
@@ -228,7 +228,7 @@ static const nsAttrValue::EnumTable kCellScopeTable[] = {
 };
 
 bool
-nsHTMLTableCellElement::ParseAttribute(int32_t aNamespaceID,
+nsHTMLTableCellElement::ParseAttribute(PRInt32 aNamespaceID,
                                        nsIAtom* aAttribute,
                                        const nsAString& aValue,
                                        nsAttrValue& aResult)
@@ -244,7 +244,7 @@ nsHTMLTableCellElement::ParseAttribute(int32_t aNamespaceID,
     if (aAttribute == nsGkAtoms::colspan) {
       bool res = aResult.ParseIntWithBounds(aValue, -1);
       if (res) {
-        int32_t val = aResult.GetIntegerValue();
+        PRInt32 val = aResult.GetIntegerValue();
         // reset large colspan values as IE and opera do
         // quirks mode does not honor the special html 4 value of 0
         if (val > MAX_COLSPAN || val < 0 ||
@@ -257,7 +257,7 @@ nsHTMLTableCellElement::ParseAttribute(int32_t aNamespaceID,
     if (aAttribute == nsGkAtoms::rowspan) {
       bool res = aResult.ParseIntWithBounds(aValue, -1, MAX_ROWSPAN);
       if (res) {
-        int32_t val = aResult.GetIntegerValue();
+        PRInt32 val = aResult.GetIntegerValue();
         // quirks mode does not honor the special html 4 value of 0
         if (val < 0 || (0 == val && InNavQuirksMode(OwnerDoc()))) {
           aResult.SetTo(1);

@@ -23,7 +23,7 @@ struct ParamTraits<PrefTuple>
   static void Write(Message *aMsg, const paramType& aParam)
   {
     WriteParam(aMsg, aParam.key);
-    WriteParam(aMsg, (uint32_t)aParam.type);
+    WriteParam(aMsg, (PRUint32)aParam.type);
     switch (aParam.type) {
       case PrefTuple::PREF_STRING:
         WriteParam(aMsg, aParam.stringVal);
@@ -40,7 +40,7 @@ struct ParamTraits<PrefTuple>
   // Function to de-serialize a PrefTuple
   static bool Read(const Message* aMsg, void **aIter, paramType* aResult)
   {
-    uint32_t type;
+    PRUint32 type;
 
     if (!ReadParam(aMsg, aIter, &(aResult->key)))
       return false;

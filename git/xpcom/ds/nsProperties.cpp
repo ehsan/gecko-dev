@@ -61,7 +61,7 @@ nsProperties::Has(const char* prop, bool *result)
 struct GetKeysEnumData
 {
     char **keys;
-    uint32_t next;
+    PRUint32 next;
     nsresult res;
 };
 
@@ -82,12 +82,12 @@ GetKeysEnumerate(const char *key, nsISupports* data,
 }
 
 NS_IMETHODIMP 
-nsProperties::GetKeys(uint32_t *count, char ***keys)
+nsProperties::GetKeys(PRUint32 *count, char ***keys)
 {
     NS_ENSURE_ARG(count);
     NS_ENSURE_ARG(keys);
 
-    uint32_t n = Count();
+    PRUint32 n = Count();
     char ** k = (char **) nsMemory::Alloc(n * sizeof(char *));
     NS_ENSURE_TRUE(k, NS_ERROR_OUT_OF_MEMORY);
 
@@ -101,7 +101,7 @@ nsProperties::GetKeys(uint32_t *count, char ***keys)
     nsresult rv = gked.res;
     if (NS_FAILED(rv)) {
         // Free 'em all
-        for (uint32_t i = 0; i < gked.next; i++)
+        for (PRUint32 i = 0; i < gked.next; i++)
             nsMemory::Free(k[i]);
         nsMemory::Free(k);
         return rv;

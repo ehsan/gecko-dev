@@ -59,7 +59,7 @@ public:
     bool ResumeRequested() { return mResumeRequested; }
 
     // Download from this byte offset
-    uint64_t StartPos() { return mStartPos; }
+    PRUint64 StartPos() { return mStartPos; }
 
     // ID of the entity to resume downloading
     const nsCString &EntityID() {
@@ -98,7 +98,7 @@ private:
     nsCOMPtr<nsIProxyInfo>    mProxyInfo; 
     nsCOMPtr<nsIFTPEventSink> mFTPEventSink;
     nsCOMPtr<nsIInputStream>  mUploadStream;
-    uint64_t                  mStartPos;
+    PRUint64                  mStartPos;
     nsCString                 mEntityID;
     bool                      mResumeRequested;
     PRTime                    mLastModifiedTime;

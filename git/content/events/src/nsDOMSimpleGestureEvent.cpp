@@ -41,7 +41,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsDOMMouseEvent)
 
 /* readonly attribute unsigned long direction; */
 NS_IMETHODIMP
-nsDOMSimpleGestureEvent::GetDirection(uint32_t *aDirection)
+nsDOMSimpleGestureEvent::GetDirection(PRUint32 *aDirection)
 {
   NS_ENSURE_ARG_POINTER(aDirection);
   *aDirection = static_cast<nsSimpleGestureEvent*>(mEvent)->direction;
@@ -59,7 +59,7 @@ nsDOMSimpleGestureEvent::GetDelta(double *aDelta)
 
 /* readonly attribute unsigned long clickCount; */
 NS_IMETHODIMP
-nsDOMSimpleGestureEvent::GetClickCount(uint32_t *aClickCount)
+nsDOMSimpleGestureEvent::GetClickCount(PRUint32 *aClickCount)
 {
   NS_ENSURE_ARG_POINTER(aClickCount);
   *aClickCount = static_cast<nsSimpleGestureEvent*>(mEvent)->clickCount;
@@ -71,20 +71,20 @@ nsDOMSimpleGestureEvent::InitSimpleGestureEvent(const nsAString& aTypeArg,
                                                 bool aCanBubbleArg,
                                                 bool aCancelableArg,
                                                 nsIDOMWindow* aViewArg,
-                                                int32_t aDetailArg,
-                                                int32_t aScreenX, 
-                                                int32_t aScreenY,
-                                                int32_t aClientX,
-                                                int32_t aClientY,
+                                                PRInt32 aDetailArg,
+                                                PRInt32 aScreenX, 
+                                                PRInt32 aScreenY,
+                                                PRInt32 aClientX,
+                                                PRInt32 aClientY,
                                                 bool aCtrlKeyArg,
                                                 bool aAltKeyArg,
                                                 bool aShiftKeyArg,
                                                 bool aMetaKeyArg,
-                                                uint16_t aButton,
+                                                PRUint16 aButton,
                                                 nsIDOMEventTarget* aRelatedTarget,
-                                                uint32_t aDirectionArg,
+                                                PRUint32 aDirectionArg,
                                                 double aDeltaArg,
-                                                uint32_t aClickCountArg)
+                                                PRUint32 aClickCountArg)
 {
   nsresult rv = nsDOMMouseEvent::InitMouseEvent(aTypeArg,
                                                 aCanBubbleArg,

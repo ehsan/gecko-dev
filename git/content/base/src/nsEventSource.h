@@ -58,7 +58,7 @@ public:
 
   // nsIJSNativeInitializer
   NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* cx, JSObject* obj,
-                        uint32_t argc, jsval* argv);
+                        PRUint32 argc, jsval* argv);
 
   NS_DECL_NSIOBSERVER
   NS_DECL_NSISTREAMLISTENER
@@ -92,15 +92,15 @@ protected:
   nsresult PrintErrorOnConsole(const char       *aBundleURI,
                                const PRUnichar  *aError,
                                const PRUnichar **aFormatStrings,
-                               uint32_t          aFormatStringsLen);
+                               PRUint32          aFormatStringsLen);
   nsresult ConsoleError();
 
   static NS_METHOD StreamReaderFunc(nsIInputStream *aInputStream,
                                     void           *aClosure,
                                     const char     *aFromRawSegment,
-                                    uint32_t        aToOffset,
-                                    uint32_t        aCount,
-                                    uint32_t       *aWriteCount);
+                                    PRUint32        aToOffset,
+                                    PRUint32        aCount,
+                                    PRUint32       *aWriteCount);
   nsresult SetFieldAndClear();
   nsresult ClearFields();
   nsresult ResetEvent();
@@ -113,7 +113,7 @@ protected:
   nsCOMPtr<nsIURI> mSrc;
 
   nsString mLastEventID;
-  uint32_t mReconnectionTime;  // in ms
+  PRUint32 mReconnectionTime;  // in ms
 
   struct Message {
     nsString mEventName;
@@ -209,13 +209,13 @@ protected:
 
   nsCOMPtr<nsITimer> mTimer;
 
-  int32_t mReadyState;
+  PRInt32 mReadyState;
   nsString mOriginalURL;
 
   nsCOMPtr<nsIPrincipal> mPrincipal;
   nsString mOrigin;
 
-  uint32_t mRedirectFlags;
+  PRUint32 mRedirectFlags;
   nsCOMPtr<nsIAsyncVerifyRedirectCallback> mRedirectCallback;
   nsCOMPtr<nsIChannel> mNewRedirectChannel;
 
@@ -226,8 +226,8 @@ protected:
   //   be the same as the Event Source owner window.
   // These attributes are used for error reporting.
   nsString mScriptFile;
-  uint32_t mScriptLine;
-  uint64_t mInnerWindowID;
+  PRUint32 mScriptLine;
+  PRUint64 mInnerWindowID;
 
 private:
   nsEventSource(const nsEventSource& x);   // prevent bad usage

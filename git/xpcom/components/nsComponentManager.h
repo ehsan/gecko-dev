@@ -106,12 +106,12 @@ public:
 
     already_AddRefed<nsIFactory> FindFactory(const nsCID& aClass);
     already_AddRefed<nsIFactory> FindFactory(const char *contractID,
-                                             uint32_t aContractIDLen);
+                                             PRUint32 aContractIDLen);
 
     already_AddRefed<nsIFactory> LoadFactory(nsFactoryEntry *aEntry);
 
     nsFactoryEntry *GetFactoryEntry(const char *aContractID,
-                                    uint32_t aContractIDLen);
+                                    PRUint32 aContractIDLen);
     nsFactoryEntry *GetFactoryEntry(const nsCID &aClass);
 
     nsDataHashtable<nsIDHashKey, nsFactoryEntry*> mFactories;

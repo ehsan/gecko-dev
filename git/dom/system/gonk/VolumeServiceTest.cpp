@@ -59,7 +59,7 @@ public:
   {
     nsString volName;
     nsString mountPoint;
-    int32_t volState;
+    PRInt32 volState;
 
     vol->GetName(volName);
     vol->GetMountPoint(mountPoint);
@@ -73,8 +73,8 @@ public:
     nsCOMPtr<nsIVolumeStat> stat;
     nsresult rv = vol->GetStats(getter_AddRefs(stat));
     if (NS_SUCCEEDED(rv)) {
-      int64_t totalBytes;
-      int64_t freeBytes;
+      PRInt64 totalBytes;
+      PRInt64 freeBytes;
 
       stat->GetTotalBytes(&totalBytes);
       stat->GetFreeBytes(&freeBytes);

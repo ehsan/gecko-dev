@@ -48,8 +48,8 @@
 struct hnjFile_ {
     nsCOMPtr<nsIInputStream> mStream;
     char                     mBuffer[BUFSIZE];
-    uint32_t                 mCurPos;
-    uint32_t                 mLimit;
+    PRUint32                 mCurPos;
+    PRUint32                 mLimit;
 };
 
 // replacement for fopen()

@@ -20,9 +20,9 @@ public:
   friend nsIFrame* NS_NewMathMLmrowFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   NS_IMETHOD
-  AttributeChanged(int32_t  aNameSpaceID,
+  AttributeChanged(PRInt32  aNameSpaceID,
                    nsIAtom* aAttribute,
-                   int32_t  aModType);
+                   PRInt32  aModType);
 
   NS_IMETHOD
   InheritAutomaticData(nsIFrame* aParent);

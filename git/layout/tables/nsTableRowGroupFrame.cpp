@@ -36,7 +36,7 @@ NS_QUERYFRAME_HEAD(nsTableRowGroupFrame)
   NS_QUERYFRAME_ENTRY(nsTableRowGroupFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
 
-int32_t
+PRInt32
 nsTableRowGroupFrame::GetRowCount()
 {
 #ifdef DEBUG
@@ -52,9 +52,9 @@ nsTableRowGroupFrame::GetRowCount()
   return mFrames.GetLength();
 }
 
-int32_t nsTableRowGroupFrame::GetStartRowIndex()
+PRInt32 nsTableRowGroupFrame::GetStartRowIndex()
 {
-  int32_t result = -1;
+  PRInt32 result = -1;
   if (mFrames.NotEmpty()) {
     NS_ASSERTION(mFrames.FirstChild()->GetType() == nsGkAtoms::tableRowFrame,
                  "Unexpected frame type");
@@ -69,13 +69,13 @@ int32_t nsTableRowGroupFrame::GetStartRowIndex()
   return result;
 }
 
-void  nsTableRowGroupFrame::AdjustRowIndices(int32_t aRowIndex,
-                                             int32_t anAdjustment)
+void  nsTableRowGroupFrame::AdjustRowIndices(PRInt32 aRowIndex,
+                                             PRInt32 anAdjustment)
 {
   nsIFrame* rowFrame = GetFirstPrincipalChild();
   for ( ; rowFrame; rowFrame = rowFrame->GetNextSibling()) {
     if (NS_STYLE_DISPLAY_TABLE_ROW==rowFrame->GetStyleDisplay()->mDisplay) {
-      int32_t index = ((nsTableRowFrame*)rowFrame)->GetRowIndex();
+      PRInt32 index = ((nsTableRowFrame*)rowFrame)->GetRowIndex();
       if (index >= aRowIndex)
         ((nsTableRowFrame *)rowFrame)->SetRowIndex(index+anAdjustment);
     }
@@ -99,7 +99,7 @@ nsTableRowGroupFrame::InitRepeatedFrame(nsPresContext*        aPresContext,
     while (copyCellFrame && originalCellFrame) {
       NS_ASSERTION(originalCellFrame->GetContent() == copyCellFrame->GetContent(),
                    "cell frames have different content");
-      int32_t colIndex;
+      PRInt32 colIndex;
       originalCellFrame->GetColIndex(colIndex);
       copyCellFrame->SetColIndex(colIndex);
         
@@ -527,9 +527,9 @@ nsTableRowGroupFrame::CalculateRowHeights(nsPresContext*           aPresContext,
   // all table cells have the same top and bottom margins, namely cellSpacingY
   nscoord cellSpacingY = tableFrame->GetCellSpacingY();
 
-  int32_t numEffCols = tableFrame->GetEffectiveColCount();
+  PRInt32 numEffCols = tableFrame->GetEffectiveColCount();
 
-  int32_t startRowIndex = GetStartRowIndex();
+  PRInt32 startRowIndex = GetStartRowIndex();
   // find the row corresponding to the row index we just found
   nsTableRowFrame* startRowFrame = GetFirstRow();
 
@@ -538,7 +538,7 @@ nsTableRowGroupFrame::CalculateRowHeights(nsPresContext*           aPresContext,
   // the current row group height is the y origin of the 1st row we are about to calculated a height for
   nscoord startRowGroupHeight = startRowFrame->GetPosition().y;
 
-  int32_t numRows = GetRowCount() - (startRowFrame->GetRowIndex() - GetStartRowIndex());
+  PRInt32 numRows = GetRowCount() - (startRowFrame->GetRowIndex() - GetStartRowIndex());
   // collect the current height of each row.  nscoord* rowHeights = nullptr;
   if (numRows <= 0)
     return;
@@ -555,7 +555,7 @@ nsTableRowGroupFrame::CalculateRowHeights(nsPresContext*           aPresContext,
   // the largest desired height of each cell, the largest style height of each cell, 
   // the style height of the row.
   nscoord pctHeightBasis = GetHeightBasis(aReflowState);
-  int32_t rowIndex; // the index in rowInfo, not among the rows in the row group
+  PRInt32 rowIndex; // the index in rowInfo, not among the rows in the row group
   nsTableRowFrame* rowFrame;
   for (rowFrame = startRowFrame, rowIndex = 0; rowFrame; rowFrame = rowFrame->GetNextRow(), rowIndex++) {
     nscoord nonPctHeight = rowFrame->GetContentHeight();
@@ -578,7 +578,7 @@ nsTableRowGroupFrame::CalculateRowHeights(nsPresContext*           aPresContext,
         // iteratate the row's cell frames to see if any do not have rowspan > 1
         nsTableCellFrame* cellFrame = rowFrame->GetFirstCell();
         while (cellFrame) {
-          int32_t rowSpan = tableFrame->GetEffectiveRowSpan(rowIndex + startRowIndex, *cellFrame);
+          PRInt32 rowSpan = tableFrame->GetEffectiveRowSpan(rowIndex + startRowIndex, *cellFrame);
           if (1 == rowSpan) { 
             rowInfo[rowIndex].isSpecial = false;
             break;
@@ -606,7 +606,7 @@ nsTableRowGroupFrame::CalculateRowHeights(nsPresContext*           aPresContext,
         nsTableCellFrame* cellFrame = rowFrame->GetFirstCell();
         // iteratate the row's cell frames 
         while (cellFrame) {
-          int32_t rowSpan = tableFrame->GetEffectiveRowSpan(rowIndex + startRowIndex, *cellFrame);
+          PRInt32 rowSpan = tableFrame->GetEffectiveRowSpan(rowIndex + startRowIndex, *cellFrame);
           if ((rowIndex + rowSpan) > numRows) {
             // there might be rows pushed already to the nextInFlow
             rowSpan = numRows - rowIndex;
@@ -616,7 +616,7 @@ nsTableRowGroupFrame::CalculateRowHeights(nsPresContext*           aPresContext,
             nscoord heightOfUnStyledRowsSpanned = 0;
             nscoord numSpecialRowsSpanned = 0; 
             nscoord cellSpacingTotal = 0;
-            int32_t spanX;
+            PRInt32 spanX;
             for (spanX = 0; spanX < rowSpan; spanX++) {
               heightOfRowsSpanned += rowInfo[rowIndex + spanX].height;
               if (!rowInfo[rowIndex + spanX].hasStyleHeight) {
@@ -907,17 +907,17 @@ nsTableRowGroupFrame::SplitSpanningCells(nsPresContext&           aPresContext,
   aDesiredHeight     = 0;
 
   const bool borderCollapse = aTable.IsBorderCollapse();
-  int32_t lastRowIndex = aLastRow.GetRowIndex();
+  PRInt32 lastRowIndex = aLastRow.GetRowIndex();
   bool wasLast = false;
   bool haveRowSpan = false;
   // Iterate the rows between aFirstRow and aLastRow
   for (nsTableRowFrame* row = &aFirstRow; !wasLast; row = row->GetNextRow()) {
     wasLast = (row == &aLastRow);
-    int32_t rowIndex = row->GetRowIndex();
+    PRInt32 rowIndex = row->GetRowIndex();
     nsPoint rowPos = row->GetPosition();
     // Iterate the cells looking for those that have rowspan > 1
     for (nsTableCellFrame* cell = row->GetFirstCell(); cell; cell = cell->GetNextCell()) {
-      int32_t rowSpan = aTable.GetEffectiveRowSpan(rowIndex, *cell);
+      PRInt32 rowSpan = aTable.GetEffectiveRowSpan(rowIndex, *cell);
       // Only reflow rowspan > 1 cells which span aLastRow. Those which don't span aLastRow
       // were reflowed correctly during the unconstrained height reflow. 
       if ((rowSpan > 1) && (rowIndex + rowSpan > lastRowIndex)) {
@@ -968,7 +968,7 @@ nsTableRowGroupFrame::SplitSpanningCells(nsPresContext&           aPresContext,
               aPresContext.PresShell()->FrameConstructor()->
                 CreateContinuingFrame(&aPresContext, cell, &aLastRow,
                                       (nsIFrame**)&contCell);
-              int32_t colIndex;
+              PRInt32 colIndex;
               cell->GetColIndex(colIndex);
               aContRow->InsertCellFrame(contCell, colIndex);
             }
@@ -1373,7 +1373,7 @@ nsTableRowGroupFrame::AppendFrames(ChildListID     aListID,
     }
   }
 
-  int32_t rowIndex = GetRowCount();
+  PRInt32 rowIndex = GetRowCount();
   // Append the frames to the sibling chain
   mFrames.AppendFrames(nullptr, aFrameList);
 
@@ -1421,14 +1421,14 @@ nsTableRowGroupFrame::InsertFrames(ChildListID     aListID,
     }
   }
 
-  int32_t startRowIndex = GetStartRowIndex();
+  PRInt32 startRowIndex = GetStartRowIndex();
   // Insert the frames in the sibling chain
   mFrames.InsertFrames(nullptr, aPrevFrame, aFrameList);
 
-  int32_t numRows = rows.Length();
+  PRInt32 numRows = rows.Length();
   if (numRows > 0) {
     nsTableRowFrame* prevRow = (nsTableRowFrame *)nsTableFrame::GetFrameAtOrBefore(this, aPrevFrame, nsGkAtoms::tableRowFrame);
-    int32_t rowIndex = (prevRow) ? prevRow->GetRowIndex() + 1 : startRowIndex;
+    PRInt32 rowIndex = (prevRow) ? prevRow->GetRowIndex() + 1 : startRowIndex;
     tableFrame->InsertRows(this, rows, rowIndex, true);
 
     PresContext()->PresShell()->
@@ -1513,11 +1513,11 @@ nsTableRowGroupFrame::IsSimpleRowFrame(nsTableFrame* aTableFrame,
   // Make sure it's a row frame and not a row group frame
   nsTableRowFrame *rowFrame = do_QueryFrame(aFrame);
   if (rowFrame) {
-    int32_t rowIndex = rowFrame->GetRowIndex();
+    PRInt32 rowIndex = rowFrame->GetRowIndex();
     
     // It's a simple row frame if there are no cells that span into or
     // across the row
-    int32_t numEffCols = aTableFrame->GetEffectiveColCount();
+    PRInt32 numEffCols = aTableFrame->GetEffectiveColCount();
     if (!aTableFrame->RowIsSpannedInto(rowIndex, numEffCols) &&
         !aTableFrame->RowHasSpanningCells(rowIndex, numEffCols)) {
       return true;
@@ -1591,7 +1591,7 @@ nsTableRowGroupFrame::GetBCBorderWidth(nsMargin& aBorder)
   return &aBorder;
 }
 
-void nsTableRowGroupFrame::SetContinuousBCBorderWidth(uint8_t     aForSide,
+void nsTableRowGroupFrame::SetContinuousBCBorderWidth(PRUint8     aForSide,
                                                       BCPixelSize aPixelValue)
 {
   switch (aForSide) {
@@ -1610,7 +1610,7 @@ void nsTableRowGroupFrame::SetContinuousBCBorderWidth(uint8_t     aForSide,
 }
 
 //nsILineIterator methods
-int32_t
+PRInt32
 nsTableRowGroupFrame::GetNumLines()
 {
   return GetRowCount();
@@ -1625,11 +1625,11 @@ nsTableRowGroupFrame::GetDirection()
 }
   
 NS_IMETHODIMP
-nsTableRowGroupFrame::GetLine(int32_t    aLineNumber, 
+nsTableRowGroupFrame::GetLine(PRInt32    aLineNumber, 
                               nsIFrame** aFirstFrameOnLine, 
-                              int32_t*   aNumFramesOnLine,
+                              PRInt32*   aNumFramesOnLine,
                               nsRect&    aLineBounds, 
-                              uint32_t*  aLineFlags)
+                              PRUint32*  aLineFlags)
 {
   NS_ENSURE_ARG_POINTER(aFirstFrameOnLine);
   NS_ENSURE_ARG_POINTER(aNumFramesOnLine);
@@ -1652,8 +1652,8 @@ nsTableRowGroupFrame::GetLine(int32_t    aLineNumber,
   if (*aNumFramesOnLine == 0) {
     return NS_OK;
   }
-  int32_t colCount = table->GetColCount();
-  for (int32_t i = 0; i < colCount; i++) {
+  PRInt32 colCount = table->GetColCount();
+  for (PRInt32 i = 0; i < colCount; i++) {
     CellData* data = cellMap->GetDataAt(aLineNumber, i);
     if (data && data->IsOrig()) {
       *aFirstFrameOnLine = (nsIFrame*)data->GetCellFrame();
@@ -1666,22 +1666,22 @@ nsTableRowGroupFrame::GetLine(int32_t    aLineNumber,
   return NS_ERROR_FAILURE;
 }
   
-int32_t
-nsTableRowGroupFrame::FindLineContaining(nsIFrame* aFrame, int32_t aStartLine)
+PRInt32
+nsTableRowGroupFrame::FindLineContaining(nsIFrame* aFrame, PRInt32 aStartLine)
 {
   NS_ENSURE_TRUE(aFrame, -1);
   
   nsTableRowFrame *rowFrame = do_QueryFrame(aFrame);
   NS_ASSERTION(rowFrame, "RowGroup contains a frame that is not a row");
 
-  int32_t rowIndexInGroup = rowFrame->GetRowIndex() - GetStartRowIndex();
+  PRInt32 rowIndexInGroup = rowFrame->GetRowIndex() - GetStartRowIndex();
 
   return rowIndexInGroup >= aStartLine ? rowIndexInGroup : -1;
 }
 
 #ifdef IBMBIDI
 NS_IMETHODIMP
-nsTableRowGroupFrame::CheckLineOrder(int32_t                  aLine,
+nsTableRowGroupFrame::CheckLineOrder(PRInt32                  aLine,
                                      bool                     *aIsReordered,
                                      nsIFrame                 **aFirstVisual,
                                      nsIFrame                 **aLastVisual)
@@ -1694,7 +1694,7 @@ nsTableRowGroupFrame::CheckLineOrder(int32_t                  aLine,
 #endif // IBMBIDI
   
 NS_IMETHODIMP
-nsTableRowGroupFrame::FindFrameAt(int32_t    aLineNumber, 
+nsTableRowGroupFrame::FindFrameAt(PRInt32    aLineNumber, 
                                   nscoord    aX, 
                                   nsIFrame** aFrameFound,
                                   bool*    aXIsBeforeFirstFrame, 
@@ -1708,14 +1708,14 @@ nsTableRowGroupFrame::FindFrameAt(int32_t    aLineNumber,
    *aXIsAfterLastFrame = false;
 
    aLineNumber += GetStartRowIndex();
-   int32_t numCells = cellMap->GetNumCellsOriginatingInRow(aLineNumber);
+   PRInt32 numCells = cellMap->GetNumCellsOriginatingInRow(aLineNumber);
    if (numCells == 0) {
      return NS_OK;
    }
   
    nsIFrame* frame = nullptr;
-   int32_t colCount = table->GetColCount();
-   for (int32_t i = 0; i < colCount; i++) {
+   PRInt32 colCount = table->GetColCount();
+   for (PRInt32 i = 0; i < colCount; i++) {
      CellData* data = cellMap->GetDataAt(aLineNumber, i);
      if (data && data->IsOrig()) {
        frame = (nsIFrame*)data->GetCellFrame();
@@ -1728,7 +1728,7 @@ nsTableRowGroupFrame::FindFrameAt(int32_t    aLineNumber,
    
    nsIFrame* closestFromLeft = nullptr;
    nsIFrame* closestFromRight = nullptr;
-   int32_t n = numCells;
+   PRInt32 n = numCells;
    nsIFrame* firstFrame = frame;
    while (n--) {
      nsRect rect = frame->GetRect();
@@ -1779,7 +1779,7 @@ nsTableRowGroupFrame::FindFrameAt(int32_t    aLineNumber,
 
 NS_IMETHODIMP
 nsTableRowGroupFrame::GetNextSiblingOnLine(nsIFrame*& aFrame, 
-                                           int32_t    aLineNumber)
+                                           PRInt32    aLineNumber)
 {
   NS_ENSURE_ARG_POINTER(aFrame);
   aFrame = aFrame->GetNextSibling();
@@ -1815,7 +1815,7 @@ nsTableRowGroupFrame::SetupRowCursor()
   }
 
   nsIFrame* f = mFrames.FirstChild();
-  int32_t count;
+  PRInt32 count;
   for (count = 0; f && count < MIN_ROWS_NEEDING_CURSOR; ++count) {
     f = f->GetNextSibling();
   }
@@ -1840,8 +1840,8 @@ nsTableRowGroupFrame::GetFirstRowContaining(nscoord aY, nscoord* aOverflowAbove)
 
   FrameCursorData* property = static_cast<FrameCursorData*>
     (Properties().Get(RowCursorProperty()));
-  uint32_t cursorIndex = property->mCursorIndex;
-  uint32_t frameCount = property->mFrames.Length();
+  PRUint32 cursorIndex = property->mCursorIndex;
+  PRUint32 frameCount = property->mFrames.Length();
   if (cursorIndex >= frameCount)
     return nullptr;
   nsIFrame* cursorFrame = property->mFrames[cursorIndex];

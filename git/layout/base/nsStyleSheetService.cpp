@@ -42,7 +42,7 @@ void
 nsStyleSheetService::RegisterFromEnumerator(nsICategoryManager  *aManager,
                                             const char          *aCategory,
                                             nsISimpleEnumerator *aEnumerator,
-                                            uint32_t             aSheetType)
+                                            PRUint32             aSheetType)
 {
   if (!aEnumerator)
     return;
@@ -70,11 +70,11 @@ nsStyleSheetService::RegisterFromEnumerator(nsICategoryManager  *aManager,
   }
 }
 
-int32_t
+PRInt32
 nsStyleSheetService::FindSheetByURI(const nsCOMArray<nsIStyleSheet> &sheets,
                                     nsIURI *sheetURI)
 {
-  for (int32_t i = sheets.Count() - 1; i >= 0; i-- ) {
+  for (PRInt32 i = sheets.Count() - 1; i >= 0; i-- ) {
     bool bEqual;
     nsIURI* uri = sheets[i]->GetSheetURI();
     if (uri
@@ -110,7 +110,7 @@ nsStyleSheetService::Init()
 
 NS_IMETHODIMP
 nsStyleSheetService::LoadAndRegisterSheet(nsIURI *aSheetURI,
-                                          uint32_t aSheetType)
+                                          PRUint32 aSheetType)
 {
   nsresult rv = LoadAndRegisterSheetInternal(aSheetURI, aSheetType);
   if (NS_SUCCEEDED(rv)) {
@@ -130,7 +130,7 @@ nsStyleSheetService::LoadAndRegisterSheet(nsIURI *aSheetURI,
 
 nsresult
 nsStyleSheetService::LoadAndRegisterSheetInternal(nsIURI *aSheetURI,
-                                                  uint32_t aSheetType)
+                                                  PRUint32 aSheetType)
 {
   NS_ENSURE_ARG(aSheetType == AGENT_SHEET || aSheetType == USER_SHEET);
   NS_ENSURE_ARG_POINTER(aSheetURI);
@@ -152,7 +152,7 @@ nsStyleSheetService::LoadAndRegisterSheetInternal(nsIURI *aSheetURI,
 
 NS_IMETHODIMP
 nsStyleSheetService::SheetRegistered(nsIURI *sheetURI,
-                                     uint32_t aSheetType, bool *_retval)
+                                     PRUint32 aSheetType, bool *_retval)
 {
   NS_ENSURE_ARG(aSheetType == AGENT_SHEET || aSheetType == USER_SHEET);
   NS_ENSURE_ARG_POINTER(sheetURI);
@@ -164,12 +164,12 @@ nsStyleSheetService::SheetRegistered(nsIURI *sheetURI,
 }
 
 NS_IMETHODIMP
-nsStyleSheetService::UnregisterSheet(nsIURI *sheetURI, uint32_t aSheetType)
+nsStyleSheetService::UnregisterSheet(nsIURI *sheetURI, PRUint32 aSheetType)
 {
   NS_ENSURE_ARG(aSheetType == AGENT_SHEET || aSheetType == USER_SHEET);
   NS_ENSURE_ARG_POINTER(sheetURI);
 
-  int32_t foundIndex = FindSheetByURI(mSheets[aSheetType], sheetURI);
+  PRInt32 foundIndex = FindSheetByURI(mSheets[aSheetType], sheetURI);
   NS_ENSURE_TRUE(foundIndex >= 0, NS_ERROR_INVALID_ARG);
   nsCOMPtr<nsIStyleSheet> sheet = mSheets[aSheetType][foundIndex];
   mSheets[aSheetType].RemoveObjectAt(foundIndex);

@@ -39,7 +39,7 @@ public:
   NS_DECL_NSIDOMHTMLFRAMEELEMENT
 
   // nsIContent
-  virtual bool ParseAttribute(int32_t aNamespaceID,
+  virtual bool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
@@ -105,7 +105,7 @@ nsHTMLFrameElement::GetContentWindow(nsIDOMWindow** aContentWindow)
 }
 
 bool
-nsHTMLFrameElement::ParseAttribute(int32_t aNamespaceID,
+nsHTMLFrameElement::ParseAttribute(PRInt32 aNamespaceID,
                                    nsIAtom* aAttribute,
                                    const nsAString& aValue,
                                    nsAttrValue& aResult)

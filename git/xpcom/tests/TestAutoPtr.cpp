@@ -90,7 +90,7 @@ class TestRefObject MOZ_FINAL : public TestRefObjectBaseA, public TestRefObjectB
         }
 
     protected:
-        uint32_t mRefCount;
+        PRUint32 mRefCount;
 
 };
 

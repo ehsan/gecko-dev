@@ -87,9 +87,9 @@ protected:
   void Sort();
 
   const char** mArray;
-  uint32_t mCount;
-  uint32_t mSimpleCurItem;
-  uint32_t mStringCurItem;
+  PRUint32 mCount;
+  PRUint32 mSimpleCurItem;
+  PRUint32 mStringCurItem;
 };
 
 NS_IMPL_ISUPPORTS2(BaseStringEnumerator, nsISimpleEnumerator, nsIUTF8StringEnumerator)
@@ -330,7 +330,7 @@ enumfunc_pentries(CategoryLeaf* aLeaf, void* userArg)
                    "%s,%s,%s\n",
                    args->categoryName,
                    aLeaf->GetKey(),
-                   aLeaf->value) == (uint32_t) -1) {
+                   aLeaf->value) == (PRUint32) -1) {
       args->success = false;
       status = PL_DHASH_STOP;
     }

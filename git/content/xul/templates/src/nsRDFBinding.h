@@ -66,7 +66,7 @@ class RDFBindingSet
 protected:
 
     // the number of bindings
-    int32_t mCount;
+    PRInt32 mCount;
 
     // pointer to the first binding in a linked list
     RDFBinding* mFirst;
@@ -84,7 +84,7 @@ public:
 
     NS_INLINE_DECL_REFCOUNTING(RDFBindingSet)
 
-    int32_t Count() const { return mCount; }
+    PRInt32 Count() const { return mCount; }
 
     /*
      * Add a binding (aRef -> aPredicate -> aVar) to the set
@@ -140,7 +140,7 @@ public:
      * LookupTargetIndex determines the index into the array for a given
      * target symbol.
      */
-    int32_t
+    PRInt32
     LookupTargetIndex(nsIAtom* aTargetVariable, RDFBinding** aBinding);
 };
 

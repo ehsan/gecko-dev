@@ -46,7 +46,7 @@ private:
      * position.
      *
      */
-    static int32_t getSiblingCount(txXPathTreeWalker& aWalker,
+    static PRInt32 getSiblingCount(txXPathTreeWalker& aWalker,
                                    txPattern* aCountPattern,
                                    txIMatchContext* aContext);
     
@@ -61,7 +61,7 @@ public:
     {
     }
     
-    virtual void appendNumber(int32_t aNumber, nsAString& aDest) = 0;
+    virtual void appendNumber(PRInt32 aNumber, nsAString& aDest) = 0;
 
     static nsresult getCounterFor(const nsAFlatString& aToken, int aGroupSize,
                                   const nsAString& aGroupSeparator,

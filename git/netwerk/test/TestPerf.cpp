@@ -28,7 +28,7 @@ load_sync_1(nsISupports *element, void *data)
     }
 
     char buf[4096];
-    uint32_t bytesRead;
+    PRUint32 bytesRead;
 
     while (1) {
         rv = stream->Read(buf, sizeof(buf), &bytesRead);
@@ -77,13 +77,13 @@ MyListener::OnStartRequest(nsIRequest *req, nsISupports *ctx)
 NS_IMETHODIMP
 MyListener::OnDataAvailable(nsIRequest *req, nsISupports *ctx,
                             nsIInputStream *stream,
-                            uint32_t offset, uint32_t count)
+                            PRUint32 offset, PRUint32 count)
 {
     nsresult rv;
     char buf[4096];
-    uint32_t n, bytesRead;
+    PRUint32 n, bytesRead;
     while (count) {
-        n = NS_MIN<uint32_t>(count, sizeof(buf));
+        n = NS_MIN<PRUint32>(count, sizeof(buf));
         rv = stream->Read(buf, n, &bytesRead);
         if (NS_FAILED(rv))
             break;
@@ -227,7 +227,7 @@ main(int argc, char **argv)
         return -1;
     }
 
-    uint32_t urlCount;
+    PRUint32 urlCount;
     urls->Count(&urlCount);
 
     PRIntervalTime start = PR_IntervalNow();

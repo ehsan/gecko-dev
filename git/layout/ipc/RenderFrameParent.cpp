@@ -699,7 +699,7 @@ RenderFrameParent::NotifyInputEvent(const nsInputEvent& aEvent,
                                     nsInputEvent* aOutEvent)
 {
   if (mPanZoomController) {
-    mPanZoomController->HandleInputEvent(aEvent, aOutEvent);
+    mPanZoomController->ReceiveInputEvent(aEvent, aOutEvent);
   }
 }
 
@@ -898,6 +898,14 @@ RenderFrameParent::ZoomToRect(const gfxRect& aRect)
   }
 }
 
+void
+RenderFrameParent::ContentReceivedTouch(bool aPreventDefault)
+{
+  if (mPanZoomController) {
+    mPanZoomController->ContentReceivedTouch(aPreventDefault);
+  }
+}
+
 }  // namespace layout
 }  // namespace mozilla
 
@@ -906,7 +914,7 @@ nsDisplayRemote::BuildLayer(nsDisplayListBuilder* aBuilder,
                             LayerManager* aManager,
                             const ContainerParameters& aContainerParameters)
 {
-  int32_t appUnitsPerDevPixel = mFrame->PresContext()->AppUnitsPerDevPixel();
+  PRInt32 appUnitsPerDevPixel = mFrame->PresContext()->AppUnitsPerDevPixel();
   nsIntRect visibleRect = GetVisibleRect().ToNearestPixels(appUnitsPerDevPixel);
   nsRefPtr<Layer> layer = mRemoteFrame->BuildLayer(aBuilder, mFrame, aManager, visibleRect, this);
   return layer.forget();

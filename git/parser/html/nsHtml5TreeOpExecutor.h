@@ -56,11 +56,11 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
   private:
     static bool        sExternalViewSource;
 #ifdef DEBUG_NS_HTML5_TREE_OP_EXECUTOR_FLUSH
-    static uint32_t    sAppendBatchMaxSize;
-    static uint32_t    sAppendBatchSlotsExamined;
-    static uint32_t    sAppendBatchExaminations;
-    static uint32_t    sLongestTimeOffTheEventLoop;
-    static uint32_t    sTimesFlushLoopInterrupted;
+    static PRUint32    sAppendBatchMaxSize;
+    static PRUint32    sAppendBatchSlotsExamined;
+    static PRUint32    sAppendBatchExaminations;
+    static PRUint32    sLongestTimeOffTheEventLoop;
+    static PRUint32    sTimesFlushLoopInterrupted;
 #endif
 
     /**
@@ -202,13 +202,13 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     
     // Not from interface
 
-    void SetDocumentCharsetAndSource(nsACString& aCharset, int32_t aCharsetSource);
+    void SetDocumentCharsetAndSource(nsACString& aCharset, PRInt32 aCharsetSource);
 
     void SetStreamParser(nsHtml5StreamParser* aStreamParser) {
       mStreamParser = aStreamParser;
     }
     
-    void InitializeDocWriteParserState(nsAHtml5TreeBuilderState* aState, int32_t aLine);
+    void InitializeDocWriteParserState(nsAHtml5TreeBuilderState* aState, PRInt32 aLine);
 
     bool IsScriptEnabled();
 
@@ -329,12 +329,12 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     void Start();
 
     void NeedsCharsetSwitchTo(const char* aEncoding,
-                              int32_t aSource,
-                              uint32_t aLineNumber);
+                              PRInt32 aSource,
+                              PRUint32 aLineNumber);
 
     void MaybeComplainAboutCharset(const char* aMsgId,
                                    bool aError,
-                                   uint32_t aLineNumber);
+                                   PRUint32 aLineNumber);
 
     void ComplainAboutBogusProtocolCharset(nsIDocument* aDoc);
 

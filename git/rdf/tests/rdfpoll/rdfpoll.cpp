@@ -126,7 +126,7 @@ rdf_WriteOp(const char* aOp,
                t.tm_usec);
     }
     else if ((number = do_QueryInterface(aTarget)) != nullptr) {
-        int32_t value;
+        PRInt32 value;
         number->GetValue(&value);
 
         printf("       -> %d\n", value);
@@ -258,7 +258,7 @@ main(int argc, char** argv)
         if (argc <= 2)
             break;
 
-        int32_t pollinterval = atol(argv[2]);
+        PRInt32 pollinterval = atol(argv[2]);
         if (! pollinterval)
             break;
 

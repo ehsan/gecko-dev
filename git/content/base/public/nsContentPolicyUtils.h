@@ -65,7 +65,7 @@ class nsACString;
  * @return the name of the given response code
  */
 inline const char *
-NS_CP_ResponseName(int16_t response)
+NS_CP_ResponseName(PRInt16 response)
 {
   switch (response) {
     CASE_RETURN( REJECT_REQUEST );
@@ -88,7 +88,7 @@ NS_CP_ResponseName(int16_t response)
  * @return the name of the given content type code
  */
 inline const char *
-NS_CP_ContentTypeName(uint32_t contentType)
+NS_CP_ContentTypeName(PRUint32 contentType)
 {
   switch (contentType) {
     CASE_RETURN( TYPE_OTHER             );
@@ -176,13 +176,13 @@ NS_CP_ContentTypeName(uint32_t contentType)
  * null origin URI will be passed).
  */
 inline nsresult
-NS_CheckContentLoadPolicy(uint32_t          contentType,
+NS_CheckContentLoadPolicy(PRUint32          contentType,
                           nsIURI           *contentLocation,
                           nsIPrincipal     *originPrincipal,
                           nsISupports      *context,
                           const nsACString &mimeType,
                           nsISupports      *extra,
-                          int16_t          *decision,
+                          PRInt16          *decision,
                           nsIContentPolicy *policyService = nullptr,
                           nsIScriptSecurityManager* aSecMan = nullptr)
 {
@@ -203,13 +203,13 @@ NS_CheckContentLoadPolicy(uint32_t          contentType,
  * null origin URI will be passed).
  */
 inline nsresult
-NS_CheckContentProcessPolicy(uint32_t          contentType,
+NS_CheckContentProcessPolicy(PRUint32          contentType,
                              nsIURI           *contentLocation,
                              nsIPrincipal     *originPrincipal,
                              nsISupports      *context,
                              const nsACString &mimeType,
                              nsISupports      *extra,
-                             int16_t          *decision,
+                             PRInt16          *decision,
                              nsIContentPolicy *policyService = nullptr,
                              nsIScriptSecurityManager* aSecMan = nullptr)
 {

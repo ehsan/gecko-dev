@@ -7,9 +7,9 @@
 
 
 nsPrivateTextRange::nsPrivateTextRange(const nsTextRange &aTextRange)
-  : mRangeStart(uint16_t(aTextRange.mStartOffset)),
-    mRangeEnd(uint16_t(aTextRange.mEndOffset)),
-    mRangeType(uint16_t(aTextRange.mRangeType)),
+  : mRangeStart(PRUint16(aTextRange.mStartOffset)),
+    mRangeEnd(PRUint16(aTextRange.mEndOffset)),
+    mRangeType(PRUint16(aTextRange.mRangeType)),
     mRangeStyle(aTextRange.mRangeStyle)
 {
 }
@@ -20,19 +20,19 @@ nsPrivateTextRange::~nsPrivateTextRange(void)
 
 NS_IMPL_ISUPPORTS1(nsPrivateTextRange, nsIPrivateTextRange)
 
-NS_METHOD nsPrivateTextRange::GetRangeStart(uint16_t* aRangeStart)
+NS_METHOD nsPrivateTextRange::GetRangeStart(PRUint16* aRangeStart)
 {
 	*aRangeStart = mRangeStart;
 	return NS_OK;
 }
 
-NS_METHOD nsPrivateTextRange::GetRangeEnd(uint16_t* aRangeEnd)
+NS_METHOD nsPrivateTextRange::GetRangeEnd(PRUint16* aRangeEnd)
 {
 	*aRangeEnd = mRangeEnd;
 	return NS_OK;
 }
 
-NS_METHOD nsPrivateTextRange::GetRangeType(uint16_t* aRangeType)
+NS_METHOD nsPrivateTextRange::GetRangeType(PRUint16* aRangeType)
 {
 	*aRangeType = mRangeType;
 	return NS_OK;
@@ -52,12 +52,12 @@ void nsPrivateTextRangeList::AppendTextRange(nsRefPtr<nsPrivateTextRange>& aRang
 	mList.AppendElement(aRange);
 }
 
-NS_METHOD_(uint16_t) nsPrivateTextRangeList::GetLength()
+NS_METHOD_(PRUint16) nsPrivateTextRangeList::GetLength()
 {
-  return static_cast<uint16_t>(mList.Length());
+  return static_cast<PRUint16>(mList.Length());
 }
 
-NS_METHOD_(already_AddRefed<nsIPrivateTextRange>) nsPrivateTextRangeList::Item(uint16_t aIndex)
+NS_METHOD_(already_AddRefed<nsIPrivateTextRange>) nsPrivateTextRangeList::Item(PRUint16 aIndex)
 {
   nsRefPtr<nsPrivateTextRange> ret = mList.ElementAt(aIndex);
   if (ret) {

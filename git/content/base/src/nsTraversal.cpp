@@ -14,7 +14,7 @@
 #include "nsGkAtoms.h"
 
 nsTraversal::nsTraversal(nsINode *aRoot,
-                         uint32_t aWhatToShow,
+                         PRUint32 aWhatToShow,
                          nsIDOMNodeFilter *aFilter) :
     mRoot(aRoot),
     mWhatToShow(aWhatToShow),
@@ -36,7 +36,7 @@ nsTraversal::~nsTraversal()
  * @param _filtered Returned filtervalue. See nsIDOMNodeFilter.idl
  * @returns         Errorcode
  */
-nsresult nsTraversal::TestNode(nsINode* aNode, int16_t* _filtered)
+nsresult nsTraversal::TestNode(nsINode* aNode, PRInt16* _filtered)
 {
     NS_ENSURE_TRUE(!mInAcceptNode, NS_ERROR_DOM_INVALID_STATE_ERR);
 
@@ -44,7 +44,7 @@ nsresult nsTraversal::TestNode(nsINode* aNode, int16_t* _filtered)
 
     *_filtered = nsIDOMNodeFilter::FILTER_SKIP;
 
-    uint16_t nodeType = aNode->NodeType();
+    PRUint16 nodeType = aNode->NodeType();
 
     if (nodeType <= 12 && !((1 << (nodeType-1)) & mWhatToShow)) {
         return NS_OK;

@@ -137,7 +137,7 @@ nsRDFConMemberTestNode::FilterInstantiations(InstantiationSet& aInstantiations,
 
             if (rdfcontainer) {
                 // RDF containers are easy. Just use the container API.
-                int32_t index;
+                PRInt32 index;
                 rv = rdfcontainer->IndexOf(memberValue, &index);
                 if (NS_FAILED(rv)) return rv;
 

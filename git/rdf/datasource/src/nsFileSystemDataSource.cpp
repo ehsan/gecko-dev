@@ -868,9 +868,9 @@ FileSystemDataSource::GetVolumeList(nsISimpleEnumerator** aResult)
 
 #ifdef XP_WIN
 
-    int32_t         driveType;
+    PRInt32         driveType;
     PRUnichar       drive[32];
-    int32_t         volNum;
+    PRInt32         volNum;
     char            *url;
 
     for (volNum = 0; volNum < 26; volNum++)
@@ -1074,11 +1074,11 @@ FileSystemDataSource::GetFolderList(nsIRDFResource *source, bool allowHidden,
         escLeafStr = nullptr;
 
         // using nsEscape() [above] doesn't escape slashes, so do that by hand
-        int32_t         aOffset;
+        PRInt32         aOffset;
         while ((aOffset = leaf.FindChar('/')) >= 0)
         {
-            leaf.Cut((uint32_t)aOffset, 1);
-            leaf.Insert("%2F", (uint32_t)aOffset);
+            leaf.Cut((PRUint32)aOffset, 1);
+            leaf.Insert("%2F", (PRUint32)aOffset);
         }
 
         // append the encoded name
@@ -1133,7 +1133,7 @@ FileSystemDataSource::GetLastMod(nsIRDFResource *source, nsIRDFDate **aResult)
     // ensure that we DO NOT resolve aliases
     aFile->SetFollowLinks(false);
 
-    int64_t lastModDate;
+    PRInt64 lastModDate;
     if (NS_FAILED(rv = aFile->GetLastModifiedTime(&lastModDate)))
         return(rv);
 
@@ -1187,12 +1187,12 @@ FileSystemDataSource::GetFileSize(nsIRDFResource *source, nsIRDFInt **aResult)
     if (isDir)
         return(NS_RDF_NO_VALUE);
 
-    int64_t     aFileSize64;
+    PRInt64     aFileSize64;
     if (NS_FAILED(rv = aFile->GetFileSize(&aFileSize64)))
         return(rv);
 
     // convert 64bits to 32bits
-    int32_t     aFileSize32 = 0;
+    PRInt32     aFileSize32 = 0;
     LL_L2I(aFileSize32, aFileSize64);
 
     mRDFService->GetIntLiteral(aFileSize32, aResult);
@@ -1240,7 +1240,7 @@ FileSystemDataSource::GetName(nsIRDFResource *source, nsIRDFLiteral **aResult)
 #ifdef  XP_WIN
     // special hack for IE favorites under Windows; strip off the
     // trailing ".url" or ".lnk" at the end of IE favorites names
-    int32_t nameLen = name.Length();
+    PRInt32 nameLen = name.Length();
     if ((strncmp(uri, ieFavoritesDir.get(), ieFavoritesDir.Length()) == 0) && (nameLen > 4))
     {
         nsAutoString extension;
@@ -1275,7 +1275,7 @@ FileSystemDataSource::GetExtension(nsIRDFResource *source, nsIRDFLiteral **aResu
         return rv;
 
     nsAutoString filename(unicodeLeafName);
-    int32_t lastDot = filename.RFindChar('.');
+    PRInt32 lastDot = filename.RFindChar('.');
     if (lastDot == -1)
     {
         mRDFService->GetLiteral(EmptyString().get(), aResult);

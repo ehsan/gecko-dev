@@ -207,7 +207,7 @@ nsNodeInfoManager::DropDocumentReference()
 
 already_AddRefed<nsINodeInfo>
 nsNodeInfoManager::GetNodeInfo(nsIAtom *aName, nsIAtom *aPrefix,
-                               int32_t aNamespaceID, uint16_t aNodeType,
+                               PRInt32 aNamespaceID, PRUint16 aNodeType,
                                nsIAtom* aExtraName /* = nullptr */)
 {
   CheckValidNodeInfo(aNodeType, aName, aNamespaceID, aExtraName);
@@ -250,7 +250,7 @@ nsNodeInfoManager::GetNodeInfo(nsIAtom *aName, nsIAtom *aPrefix,
 
 nsresult
 nsNodeInfoManager::GetNodeInfo(const nsAString& aName, nsIAtom *aPrefix,
-                               int32_t aNamespaceID, uint16_t aNodeType,
+                               PRInt32 aNamespaceID, PRUint16 aNodeType,
                                nsINodeInfo** aNodeInfo)
 {
 #ifdef DEBUG
@@ -299,10 +299,10 @@ nsNodeInfoManager::GetNodeInfo(const nsAString& aName, nsIAtom *aPrefix,
 nsresult
 nsNodeInfoManager::GetNodeInfo(const nsAString& aName, nsIAtom *aPrefix,
                                const nsAString& aNamespaceURI,
-                               uint16_t aNodeType,
+                               PRUint16 aNodeType,
                                nsINodeInfo** aNodeInfo)
 {
-  int32_t nsid = kNameSpaceID_None;
+  PRInt32 nsid = kNameSpaceID_None;
 
   if (!aNamespaceURI.IsEmpty()) {
     nsresult rv = nsContentUtils::NameSpaceManager()->

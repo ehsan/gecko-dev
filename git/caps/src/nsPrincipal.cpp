@@ -46,13 +46,13 @@ static bool URIIsImmutable(nsIURI* aURI)
 }
 
 // Static member variables
-int32_t nsBasePrincipal::sCapabilitiesOrdinal = 0;
+PRInt32 nsBasePrincipal::sCapabilitiesOrdinal = 0;
 const char nsBasePrincipal::sInvalid[] = "Invalid";
 
 NS_IMETHODIMP_(nsrefcnt)
 nsBasePrincipal::AddRef()
 {
-  NS_PRECONDITION(int32_t(refcount) >= 0, "illegal refcnt");
+  NS_PRECONDITION(PRInt32(refcount) >= 0, "illegal refcnt");
   // XXXcaa does this need to be threadsafe?  See bug 143559.
   nsrefcnt count = PR_ATOMIC_INCREMENT(&refcount);
   NS_LOG_ADDREF(this, count, "nsBasePrincipal", sizeof(*this));
@@ -149,7 +149,7 @@ nsBasePrincipal::CertificateEquals(nsIPrincipal *aOther)
 }
 
 NS_IMETHODIMP
-nsBasePrincipal::CanEnableCapability(const char *capability, int16_t *result)
+nsBasePrincipal::CanEnableCapability(const char *capability, PRInt16 *result)
 {
   // If this principal is marked invalid, can't enable any capabilities
   if (mCapabilities) {
@@ -186,11 +186,11 @@ nsBasePrincipal::CanEnableCapability(const char *capability, int16_t *result)
   *result = nsIPrincipal::ENABLE_GRANTED;
   for(;;) {
     const char *space = PL_strchr(start, ' ');
-    int32_t len = space ? space - start : strlen(start);
+    PRInt32 len = space ? space - start : strlen(start);
     nsCAutoString capString(start, len);
     nsCStringKey key(capString);
-    int16_t value =
-      mCapabilities ? (int16_t)NS_PTR_TO_INT32(mCapabilities->Get(&key)) : 0;
+    PRInt16 value =
+      mCapabilities ? (PRInt16)NS_PTR_TO_INT32(mCapabilities->Get(&key)) : 0;
     if (value == 0 || value == nsIPrincipal::ENABLE_UNKNOWN) {
       // We don't know whether we can enable this capability,
       // so we should ask the user.
@@ -213,7 +213,7 @@ nsBasePrincipal::CanEnableCapability(const char *capability, int16_t *result)
 
 nsresult
 nsBasePrincipal::SetCanEnableCapability(const char *capability,
-                                        int16_t canEnable)
+                                        PRInt16 canEnable)
 {
   // If this principal is marked invalid, can't enable any capabilities
   if (!mCapabilities) {
@@ -440,7 +440,7 @@ static bool
 AppendCapability(nsHashKey *aKey, void *aData, void *capListPtr)
 {
   CapabilityList* capList = (CapabilityList*)capListPtr;
-  int16_t value = (int16_t)NS_PTR_TO_INT32(aData);
+  PRInt16 value = (PRInt16)NS_PTR_TO_INT32(aData);
   nsCStringKey* key = (nsCStringKey *)aKey;
   if (value == nsIPrincipal::ENABLE_GRANTED) {
     capList->granted->Append(key->GetString(), key->GetStringLength());
@@ -577,7 +577,7 @@ ReadAnnotationEntry(nsIObjectInputStream* aStream, nsHashKey** aKey,
     return rv;
   }
 
-  uint32_t value;
+  PRUint32 value;
   rv = aStream->Read32(&value);
   if (NS_FAILED(rv)) {
     delete key;
@@ -633,7 +633,7 @@ nsPrincipal::Init(const nsACString& aCertFingerprint,
                   const nsACString& aPrettyName,
                   nsISupports* aCert,
                   nsIURI *aCodebase,
-                  uint32_t aAppId,
+                  PRUint32 aAppId,
                   bool aInMozBrowser)
 {
   NS_ENSURE_STATE(!mInitialized);
@@ -694,7 +694,7 @@ nsPrincipal::GetOriginForURI(nsIURI* aURI, char **aOrigin)
     }
   }
 
-  int32_t port;
+  PRInt32 port;
   if (NS_SUCCEEDED(rv) && !isChrome) {
     rv = origin->GetPort(&port);
   }
@@ -946,7 +946,7 @@ nsPrincipal::SetURI(nsIURI* aURI)
 }
 
 NS_IMETHODIMP
-nsPrincipal::GetHashValue(uint32_t* aValue)
+nsPrincipal::GetHashValue(PRUint32* aValue)
 {
   NS_PRECONDITION(mCert || mCodebase, "Need a cert or codebase");
 
@@ -1011,7 +1011,7 @@ nsPrincipal::InitFromPersistent(const char* aPrefName,
                                 nsISupports* aCert,
                                 bool aIsCert,
                                 bool aTrusted,
-                                uint32_t aAppId,
+                                PRUint32 aAppId,
                                 bool aInMozBrowser)
 {
   NS_PRECONDITION(!mCapabilities || mCapabilities->Count() == 0,
@@ -1080,7 +1080,7 @@ nsPrincipal::GetExtendedOrigin(nsACString& aExtendedOrigin)
 }
 
 NS_IMETHODIMP
-nsPrincipal::GetAppStatus(uint16_t* aAppStatus)
+nsPrincipal::GetAppStatus(PRUint16* aAppStatus)
 {
   MOZ_ASSERT(mAppId != nsIScriptSecurityManager::UNKNOWN_APP_ID);
 
@@ -1089,7 +1089,7 @@ nsPrincipal::GetAppStatus(uint16_t* aAppStatus)
 }
 
 NS_IMETHODIMP
-nsPrincipal::GetAppId(uint32_t* aAppId)
+nsPrincipal::GetAppId(PRUint32* aAppId)
 {
   if (mAppId == nsIScriptSecurityManager::UNKNOWN_APP_ID) {
     MOZ_ASSERT(false);
@@ -1180,7 +1180,7 @@ nsPrincipal::Read(nsIObjectInputStream* aStream)
     return rv;
   }
 
-  uint32_t appId;
+  PRUint32 appId;
   rv = aStream->Read32(&appId);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1204,7 +1204,7 @@ nsPrincipal::Read(nsIObjectInputStream* aStream)
 static nsresult
 WriteScalarValue(nsIObjectOutputStream* aStream, void* aData)
 {
-  uint32_t value = NS_PTR_TO_INT32(aData);
+  PRUint32 value = NS_PTR_TO_INT32(aData);
 
   return aStream->Write32(value);
 }
@@ -1292,7 +1292,7 @@ nsPrincipal::Write(nsIObjectOutputStream* aStream)
   return NS_OK;
 }
 
-uint16_t
+PRUint16
 nsPrincipal::GetAppStatus()
 {
   MOZ_ASSERT(mAppId != nsIScriptSecurityManager::UNKNOWN_APP_ID);
@@ -1453,7 +1453,7 @@ nsExpandedPrincipal::CheckMayLoad(nsIURI* uri, bool aReport, bool aAllowIfInheri
 }
 
 NS_IMETHODIMP
-nsExpandedPrincipal::GetHashValue(uint32_t* result)
+nsExpandedPrincipal::GetHashValue(PRUint32* result)
 {
   MOZ_NOT_REACHED("extended principal should never be used as key in a hash map");
   return NS_ERROR_FAILURE;
@@ -1480,13 +1480,13 @@ nsExpandedPrincipal::GetExtendedOrigin(nsACString& aExtendedOrigin)
 }
 
 NS_IMETHODIMP
-nsExpandedPrincipal::GetAppStatus(uint16_t* aAppStatus)
+nsExpandedPrincipal::GetAppStatus(PRUint16* aAppStatus)
 {
   return NS_ERROR_NOT_AVAILABLE;
 }
 
 NS_IMETHODIMP
-nsExpandedPrincipal::GetAppId(uint32_t* aAppId)
+nsExpandedPrincipal::GetAppId(PRUint32* aAppId)
 {
   return NS_ERROR_NOT_AVAILABLE;
 }

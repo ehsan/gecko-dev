@@ -20,7 +20,7 @@ nsFilePickerProxy::~nsFilePickerProxy()
 
 NS_IMETHODIMP
 nsFilePickerProxy::Init(nsIDOMWindow* /*aParent*/, const nsAString& aTitle,
-                        int16_t aMode)
+                        PRInt16 aMode)
 {
     mTitle = aTitle;
     mMode = aMode;
@@ -29,7 +29,7 @@ nsFilePickerProxy::Init(nsIDOMWindow* /*aParent*/, const nsAString& aTitle,
 }
 
 void nsFilePickerProxy::InitNative(nsIWidget* aParent, const nsAString& aTitle,
-                              int16_t aMode)
+                              PRInt16 aMode)
 {
 }
 
@@ -71,14 +71,14 @@ nsFilePickerProxy::SetDefaultExtension(const nsAString& aDefaultExtension)
 }
 
 NS_IMETHODIMP
-nsFilePickerProxy::GetFilterIndex(int32_t* aFilterIndex)
+nsFilePickerProxy::GetFilterIndex(PRInt32* aFilterIndex)
 {
     *aFilterIndex = mSelectedType;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsFilePickerProxy::SetFilterIndex(int32_t aFilterIndex)
+nsFilePickerProxy::SetFilterIndex(PRInt32 aFilterIndex)
 {
     mSelectedType = aFilterIndex;
     return NS_OK;
@@ -132,7 +132,7 @@ nsFilePickerProxy::GetFiles(nsISimpleEnumerator** aFiles)
     return NS_ERROR_FAILURE;
 }
 
-NS_IMETHODIMP nsFilePickerProxy::Show(int16_t* aReturn)
+NS_IMETHODIMP nsFilePickerProxy::Show(PRInt16* aReturn)
 {
     mozilla::dom::ContentChild *cc = mozilla::dom::ContentChild::GetSingleton();
     NS_ASSERTION(cc, "Content Protocol is NULL!");
@@ -148,10 +148,10 @@ NS_IMETHODIMP nsFilePickerProxy::Show(int16_t* aReturn)
 
     NS_ENSURE_SUCCESS(rv, rv);
 
-    uint32_t count = filePaths.Length();
+    PRUint32 count = filePaths.Length();
     
     if (mMode == nsIFilePicker::modeOpenMultiple) {
-        for (uint32_t i = 0; i < count; ++i) {
+        for (PRUint32 i = 0; i < count; ++i) {
             nsCOMPtr<nsIFile> file(do_CreateInstance("@mozilla.org/file/local;1"));
             NS_ENSURE_TRUE(file, NS_ERROR_FAILURE);
 

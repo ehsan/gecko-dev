@@ -35,7 +35,7 @@ protected:
 
 private:
   nsCOMPtr<nsIInputStream> mUploadStream;
-  int64_t mUploadLength;
+  PRInt64 mUploadLength;
 };
 
 #endif // !nsFileChannel_h__

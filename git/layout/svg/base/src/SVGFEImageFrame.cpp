@@ -34,7 +34,7 @@ public:
                   nsIFrame*   aPrevInFlow);
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual bool IsFrameOfType(PRUint32 aFlags) const
   {
     return SVGFEImageFrameBase::IsFrameOfType(aFlags & ~(nsIFrame::eSVG));
   }
@@ -55,9 +55,9 @@ public:
    */
   virtual nsIAtom* GetType() const;
 
-  NS_IMETHOD AttributeChanged(int32_t  aNameSpaceID,
+  NS_IMETHOD AttributeChanged(PRInt32  aNameSpaceID,
                               nsIAtom* aAttribute,
-                              int32_t  aModType);
+                              PRInt32  aModType);
 
   virtual bool UpdateOverflow() {
     // We don't maintain a visual overflow rect
@@ -123,9 +123,9 @@ SVGFEImageFrame::GetType() const
 }
 
 NS_IMETHODIMP
-SVGFEImageFrame::AttributeChanged(int32_t  aNameSpaceID,
+SVGFEImageFrame::AttributeChanged(PRInt32  aNameSpaceID,
                                   nsIAtom* aAttribute,
-                                  int32_t  aModType)
+                                  PRInt32  aModType)
 {
   nsSVGFEImageElement *element = static_cast<nsSVGFEImageElement*>(mContent);
   if (element->AttributeAffectsRendering(aNameSpaceID, aAttribute)) {

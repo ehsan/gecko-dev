@@ -47,8 +47,8 @@ AudioData::EnsureAudioBuffer()
   mAudioBuffer = SharedBuffer::Create(mFrames*mChannels*sizeof(AudioDataValue));
 
   AudioDataValue* data = static_cast<AudioDataValue*>(mAudioBuffer->Data());
-  for (uint32_t i = 0; i < mFrames; ++i) {
-    for (uint32_t j = 0; j < mChannels; ++j) {
+  for (PRUint32 i = 0; i < mFrames; ++i) {
+    for (PRUint32 j = 0; j < mChannels; ++j) {
       data[j*mFrames + i] = mAudioData[i*mChannels + j];
     }
   }
@@ -101,7 +101,7 @@ nsVideoInfo::ValidateVideoRegion(const nsIntSize& aFrame,
     aDisplay.width * aDisplay.height != 0;
 }
 
-VideoData::  VideoData(int64_t aOffset, int64_t aTime, int64_t aEndTime, int64_t aTimecode)
+VideoData::  VideoData(PRInt64 aOffset, PRInt64 aTime, PRInt64 aEndTime, PRInt64 aTimecode)
   : mOffset(aOffset),
     mTime(aTime),
     mEndTime(aEndTime),
@@ -113,11 +113,11 @@ VideoData::  VideoData(int64_t aOffset, int64_t aTime, int64_t aEndTime, int64_t
   NS_ASSERTION(aEndTime >= aTime, "Frame must start before it ends.");
 }
 
-VideoData::VideoData(int64_t aOffset,
-          int64_t aTime,
-          int64_t aEndTime,
+VideoData::VideoData(PRInt64 aOffset,
+          PRInt64 aTime,
+          PRInt64 aEndTime,
           bool aKeyframe,
-          int64_t aTimecode,
+          PRInt64 aTimecode,
           nsIntSize aDisplay)
   : mDisplay(aDisplay),
     mOffset(aOffset),
@@ -139,12 +139,12 @@ VideoData::~VideoData()
 
 VideoData* VideoData::Create(nsVideoInfo& aInfo,
                              ImageContainer* aContainer,
-                             int64_t aOffset,
-                             int64_t aTime,
-                             int64_t aEndTime,
+                             PRInt64 aOffset,
+                             PRInt64 aTime,
+                             PRInt64 aEndTime,
                              const YCbCrBuffer& aBuffer,
                              bool aKeyframe,
-                             int64_t aTimecode,
+                             PRInt64 aTimecode,
                              nsIntRect aPicture)
 {
   if (!aContainer) {
@@ -275,15 +275,15 @@ nsresult nsBuiltinDecoderReader::ResetDecode()
   return res;
 }
 
-VideoData* nsBuiltinDecoderReader::FindStartTime(int64_t& aOutStartTime)
+VideoData* nsBuiltinDecoderReader::FindStartTime(PRInt64& aOutStartTime)
 {
   NS_ASSERTION(mDecoder->OnStateMachineThread() || mDecoder->OnDecodeThread(),
                "Should be on state machine or decode thread.");
 
   // Extract the start times of the bitstreams in order to calculate
   // the duration.
-  int64_t videoStartTime = INT64_MAX;
-  int64_t audioStartTime = INT64_MAX;
+  PRInt64 videoStartTime = INT64_MAX;
+  PRInt64 audioStartTime = INT64_MAX;
   VideoData* videoData = nullptr;
 
   if (HasVideo()) {
@@ -301,7 +301,7 @@ VideoData* nsBuiltinDecoderReader::FindStartTime(int64_t& aOutStartTime)
     }
   }
 
-  int64_t startTime = NS_MIN(videoStartTime, audioStartTime);
+  PRInt64 startTime = NS_MIN(videoStartTime, audioStartTime);
   if (startTime != INT64_MAX) {
     aOutStartTime = startTime;
   }
@@ -327,12 +327,12 @@ Data* nsBuiltinDecoderReader::DecodeToFirstData(DecodeFn aDecodeFn,
   return (d = aQueue.PeekFront()) ? d : nullptr;
 }
 
-nsresult nsBuiltinDecoderReader::DecodeToTarget(int64_t aTarget)
+nsresult nsBuiltinDecoderReader::DecodeToTarget(PRInt64 aTarget)
 {
   // Decode forward to the target frame. Start with video, if we have it.
   if (HasVideo()) {
     bool eof = false;
-    int64_t startTime = -1;
+    PRInt64 startTime = -1;
     nsAutoPtr<VideoData> video;
     while (HasVideo() && !eof) {
       while (mVideoQueue.GetSize() == 0 && !eof) {
@@ -422,15 +422,15 @@ nsresult nsBuiltinDecoderReader::DecodeToTarget(int64_t aTarget)
       NS_ASSERTION(targetFrame.value() < startFrame.value() + audio->mFrames,
                    "Data must end after target.");
 
-      int64_t framesToPrune = targetFrame.value() - startFrame.value();
+      PRInt64 framesToPrune = targetFrame.value() - startFrame.value();
       if (framesToPrune > audio->mFrames) {
         // We've messed up somehow. Don't try to trim frames, the |frames|
         // variable below will overflow.
         NS_WARNING("Can't prune more frames that we have!");
         break;
       }
-      uint32_t frames = audio->mFrames - static_cast<uint32_t>(framesToPrune);
-      uint32_t channels = audio->mChannels;
+      PRUint32 frames = audio->mFrames - static_cast<PRUint32>(framesToPrune);
+      PRUint32 channels = audio->mChannels;
       nsAutoArrayPtr<AudioDataValue> audioData(new AudioDataValue[frames * channels]);
       memcpy(audioData.get(),
              audio->mAudioData.get() + (framesToPrune * channels),

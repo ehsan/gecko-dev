@@ -10,7 +10,7 @@
     nsTArray<nsHtml5SpeculativeLoad>       mSpeculativeLoadQueue;
     nsAHtml5TreeOpSink*                    mOpSink;
     nsAutoArrayPtr<nsIContent*>            mHandles;
-    int32_t                                mHandlesUsed;
+    PRInt32                                mHandlesUsed;
     nsTArray<nsAutoArrayPtr<nsIContent*> > mOldHandles;
     nsHtml5TreeOpStage*                    mSpeculativeLoadStage;
     nsIContent**                           mDeepTreeSurrogateParent;
@@ -51,7 +51,7 @@
      */
     nsIContent** AllocateContentHandle();
     
-    void accumulateCharactersForced(const PRUnichar* aBuf, int32_t aStart, int32_t aLength)
+    void accumulateCharactersForced(const PRUnichar* aBuf, PRInt32 aStart, PRInt32 aLength)
     {
       accumulateCharacters(aBuf, aStart, aLength);
     }
@@ -81,19 +81,19 @@
     
     void FlushLoads();
 
-    void SetDocumentCharset(nsACString& aCharset, int32_t aCharsetSource);
+    void SetDocumentCharset(nsACString& aCharset, PRInt32 aCharsetSource);
 
     void StreamEnded();
 
     void NeedsCharsetSwitchTo(const nsACString& aEncoding,
-                              int32_t aSource,
-                              int32_t aLineNumber);
+                              PRInt32 aSource,
+                              PRInt32 aLineNumber);
 
     void MaybeComplainAboutCharset(const char* aMsgId,
                                    bool aError,
-                                   int32_t aLineNumber);
+                                   PRInt32 aLineNumber);
 
-    void AddSnapshotToScript(nsAHtml5TreeBuilderState* aSnapshot, int32_t aLine);
+    void AddSnapshotToScript(nsAHtml5TreeBuilderState* aSnapshot, PRInt32 aLine);
 
     void DropHandles();
 
@@ -107,11 +107,11 @@
 
     void errStrayEndTag(nsIAtom* aName);
 
-    void errUnclosedElements(int32_t aIndex, nsIAtom* aName);
+    void errUnclosedElements(PRInt32 aIndex, nsIAtom* aName);
 
-    void errUnclosedElementsImplied(int32_t aIndex, nsIAtom* aName);
+    void errUnclosedElementsImplied(PRInt32 aIndex, nsIAtom* aName);
 
-    void errUnclosedElementsCell(int32_t aIndex);
+    void errUnclosedElementsCell(PRInt32 aIndex);
 
     void errStrayDoctype();
 

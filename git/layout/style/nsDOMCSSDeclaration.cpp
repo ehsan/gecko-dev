@@ -119,7 +119,7 @@ nsDOMCSSDeclaration::SetCssText(const nsAString& aCssText)
 }
 
 NS_IMETHODIMP
-nsDOMCSSDeclaration::GetLength(uint32_t* aLength)
+nsDOMCSSDeclaration::GetLength(PRUint32* aLength)
 {
   css::Declaration* decl = GetCSSDeclaration(false);
 
@@ -145,7 +145,7 @@ nsDOMCSSDeclaration::GetPropertyCSSValue(const nsAString& aPropertyName,
 }
 
 NS_IMETHODIMP
-nsDOMCSSDeclaration::Item(uint32_t aIndex, nsAString& aReturn)
+nsDOMCSSDeclaration::Item(PRUint32 aIndex, nsAString& aReturn)
 {
   css::Declaration* decl = GetCSSDeclaration(false);
 

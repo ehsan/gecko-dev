@@ -56,10 +56,10 @@ public:
   // Listener Helper Methods
   void OnEndPrinting();
   void OnStartPrinting();
-  void DoOnProgressChange(int32_t      aProgress,
-                          int32_t      aMaxProgress,
+  void DoOnProgressChange(PRInt32      aProgress,
+                          PRInt32      aMaxProgress,
                           bool         aDoStartStop,
-                          int32_t      aFlag);
+                          PRInt32      aFlag);
 
 
   ePrintDataType               mType;            // the type of data this is (Printing or Print Preview)
@@ -82,9 +82,9 @@ public:
   bool                        mPreparingForPrint;   // see comments above
   bool                        mDocWasToBeDestroyed; // see comments above
   bool                        mShrinkToFit;
-  int16_t                     mPrintFrameType;
-  int32_t                     mNumPrintablePages;
-  int32_t                     mNumPagesPrinted;
+  PRInt16                     mPrintFrameType;
+  PRInt32                     mNumPrintablePages;
+  PRInt32                     mNumPagesPrinted;
   float                       mShrinkRatio;
   float                       mOrigDCScale;
 

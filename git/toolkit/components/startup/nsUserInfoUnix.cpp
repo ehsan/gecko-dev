@@ -54,7 +54,7 @@ nsUserInfo::GetFullname(PRUnichar **aFullname)
     // the appropriate substitution
     
     // truncate at first comma (field delimiter)
-    int32_t index;
+    PRInt32 index;
     if ((index = fullname.Find(",")) != kNotFound)
         fullname.Truncate(index);
 

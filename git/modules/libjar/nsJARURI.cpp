@@ -145,7 +145,7 @@ nsJARURI::Write(nsIObjectOutputStream* aOutputStream)
 // nsIClassInfo methods:
 
 NS_IMETHODIMP 
-nsJARURI::GetInterfaces(uint32_t *count, nsIID * **array)
+nsJARURI::GetInterfaces(PRUint32 *count, nsIID * **array)
 {
     *count = 0;
     *array = nullptr;
@@ -153,7 +153,7 @@ nsJARURI::GetInterfaces(uint32_t *count, nsIID * **array)
 }
 
 NS_IMETHODIMP 
-nsJARURI::GetHelperForLanguage(uint32_t language, nsISupports **_retval)
+nsJARURI::GetHelperForLanguage(PRUint32 language, nsISupports **_retval)
 {
     *_retval = nullptr;
     return NS_OK;
@@ -183,14 +183,14 @@ nsJARURI::GetClassID(nsCID * *aClassID)
 }
 
 NS_IMETHODIMP 
-nsJARURI::GetImplementationLanguage(uint32_t *aImplementationLanguage)
+nsJARURI::GetImplementationLanguage(PRUint32 *aImplementationLanguage)
 {
     *aImplementationLanguage = nsIProgrammingLanguage::CPLUSPLUS;
     return NS_OK;
 }
 
 NS_IMETHODIMP 
-nsJARURI::GetFlags(uint32_t *aFlags)
+nsJARURI::GetFlags(PRUint32 *aFlags)
 {
     // XXX We implement THREADSAFE addref/release, but probably shouldn't.
     *aFlags = nsIClassInfo::MAIN_THREAD_ONLY;
@@ -392,13 +392,13 @@ nsJARURI::SetHost(const nsACString &aHost)
 }
 
 NS_IMETHODIMP
-nsJARURI::GetPort(int32_t *aPort)
+nsJARURI::GetPort(PRInt32 *aPort)
 {
     return NS_ERROR_FAILURE;
 }
  
 NS_IMETHODIMP
-nsJARURI::SetPort(int32_t aPort)
+nsJARURI::SetPort(PRInt32 aPort)
 {
     return NS_ERROR_FAILURE;
 }

@@ -41,7 +41,7 @@ public:
   // nsIHTMLMenu
   NS_DECL_NSIHTMLMENU
 
-  virtual bool ParseAttribute(int32_t aNamespaceID,
+  virtual bool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
@@ -52,7 +52,7 @@ public:
 
   virtual nsIDOMNode* AsDOMNode() { return this; }
 
-  uint8_t GetType() const { return mType; }
+  PRUint8 GetType() const { return mType; }
 
 protected:
   static bool CanLoadIcon(nsIContent* aContent, const nsAString& aIcon);
@@ -63,9 +63,9 @@ protected:
 
   void TraverseContent(nsIContent* aContent,
                        nsIMenuBuilder* aBuilder,
-                       int8_t& aSeparator);
+                       PRInt8& aSeparator);
 
-  void AddSeparator(nsIMenuBuilder* aBuilder, int8_t& aSeparator);
+  void AddSeparator(nsIMenuBuilder* aBuilder, PRInt8& aSeparator);
 
-  uint8_t mType;
+  PRUint8 mType;
 };

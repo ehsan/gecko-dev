@@ -89,7 +89,7 @@ nsIdleServiceGTK::~nsIdleServiceGTK()
 }
 
 bool
-nsIdleServiceGTK::PollIdleTime(uint32_t *aIdleTime)
+nsIdleServiceGTK::PollIdleTime(PRUint32 *aIdleTime)
 {
     if (!sInitialized) {
         // For some reason, we could not find xscreensaver.  This this might be

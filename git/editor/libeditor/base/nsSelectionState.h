@@ -39,10 +39,10 @@ struct nsRangeStore
   NS_INLINE_DECL_REFCOUNTING(nsRangeStore)
         
   nsCOMPtr<nsIDOMNode> startNode;
-  int32_t              startOffset;
+  PRInt32              startOffset;
   nsCOMPtr<nsIDOMNode> endNode;
-  int32_t              endOffset;
-  // DEBUG:   static int32_t n;
+  PRInt32              endOffset;
+  // DEBUG:   static PRInt32 n;
 };
 
 class nsSelectionState
@@ -84,27 +84,27 @@ class nsRangeUpdater
     // if you move a node, that corresponds to deleting it and reinserting it.
     // DOM Range gravity will promote the selection out of the node on deletion,
     // which is not what you want if you know you are reinserting it.
-    nsresult SelAdjCreateNode(nsIDOMNode *aParent, int32_t aPosition);
-    nsresult SelAdjInsertNode(nsIDOMNode *aParent, int32_t aPosition);
+    nsresult SelAdjCreateNode(nsIDOMNode *aParent, PRInt32 aPosition);
+    nsresult SelAdjInsertNode(nsIDOMNode *aParent, PRInt32 aPosition);
     void     SelAdjDeleteNode(nsIDOMNode *aNode);
-    nsresult SelAdjSplitNode(nsIDOMNode *aOldRightNode, int32_t aOffset, nsIDOMNode *aNewLeftNode);
+    nsresult SelAdjSplitNode(nsIDOMNode *aOldRightNode, PRInt32 aOffset, nsIDOMNode *aNewLeftNode);
     nsresult SelAdjJoinNodes(nsIDOMNode *aLeftNode, 
                              nsIDOMNode *aRightNode, 
                              nsIDOMNode *aParent, 
-                             int32_t aOffset,
-                             int32_t aOldLeftNodeLength);
-    nsresult SelAdjInsertText(nsIDOMCharacterData *aTextNode, int32_t aOffset, const nsAString &aString);
-    nsresult SelAdjDeleteText(nsIDOMCharacterData *aTextNode, int32_t aOffset, int32_t aLength);
+                             PRInt32 aOffset,
+                             PRInt32 aOldLeftNodeLength);
+    nsresult SelAdjInsertText(nsIDOMCharacterData *aTextNode, PRInt32 aOffset, const nsAString &aString);
+    nsresult SelAdjDeleteText(nsIDOMCharacterData *aTextNode, PRInt32 aOffset, PRInt32 aLength);
     // the following gravity routines need will/did sandwiches, because the other gravity
     // routines will be called inside of these sandwiches, but should be ignored.
     nsresult WillReplaceContainer();
     nsresult DidReplaceContainer(nsIDOMNode *aOriginalNode, nsIDOMNode *aNewNode);
     nsresult WillRemoveContainer();
-    nsresult DidRemoveContainer(nsIDOMNode *aNode, nsIDOMNode *aParent, int32_t aOffset, uint32_t aNodeOrigLen);
+    nsresult DidRemoveContainer(nsIDOMNode *aNode, nsIDOMNode *aParent, PRInt32 aOffset, PRUint32 aNodeOrigLen);
     nsresult WillInsertContainer();
     nsresult DidInsertContainer();
     nsresult WillMoveNode();
-    nsresult DidMoveNode(nsIDOMNode *aOldParent, int32_t aOldOffset, nsIDOMNode *aNewParent, int32_t aNewOffset);
+    nsresult DidMoveNode(nsIDOMNode *aOldParent, PRInt32 aOldOffset, nsIDOMNode *aNewParent, PRInt32 aNewOffset);
   protected:    
     nsTArray<nsRefPtr<nsRangeStore> > mArray;
     bool mLock;
@@ -121,10 +121,10 @@ class NS_STACK_CLASS nsAutoTrackDOMPoint
   private:
     nsRangeUpdater &mRU;
     nsCOMPtr<nsIDOMNode> *mNode;
-    int32_t *mOffset;
+    PRInt32 *mOffset;
     nsRefPtr<nsRangeStore> mRangeItem;
   public:
-    nsAutoTrackDOMPoint(nsRangeUpdater &aRangeUpdater, nsCOMPtr<nsIDOMNode> *aNode, int32_t *aOffset) :
+    nsAutoTrackDOMPoint(nsRangeUpdater &aRangeUpdater, nsCOMPtr<nsIDOMNode> *aNode, PRInt32 *aOffset) :
     mRU(aRangeUpdater)
     ,mNode(aNode)
     ,mOffset(aOffset)
@@ -186,15 +186,15 @@ class NS_STACK_CLASS nsAutoRemoveContainerSelNotify
     nsRangeUpdater &mRU;
     nsIDOMNode *mNode;
     nsIDOMNode *mParent;
-    int32_t    mOffset;
-    uint32_t   mNodeOrigLen;
+    PRInt32    mOffset;
+    PRUint32   mNodeOrigLen;
 
   public:
     nsAutoRemoveContainerSelNotify(nsRangeUpdater& aRangeUpdater,
                                    nsINode* aNode,
                                    nsINode* aParent,
-                                   int32_t aOffset,
-                                   uint32_t aNodeOrigLen)
+                                   PRInt32 aOffset,
+                                   PRUint32 aNodeOrigLen)
       : mRU(aRangeUpdater)
       , mNode(aNode->AsDOMNode())
       , mParent(aParent->AsDOMNode())
@@ -245,15 +245,15 @@ class NS_STACK_CLASS nsAutoMoveNodeSelNotify
     nsRangeUpdater &mRU;
     nsIDOMNode *mOldParent;
     nsIDOMNode *mNewParent;
-    int32_t    mOldOffset;
-    int32_t    mNewOffset;
+    PRInt32    mOldOffset;
+    PRInt32    mNewOffset;
 
   public:
     nsAutoMoveNodeSelNotify(nsRangeUpdater &aRangeUpdater, 
                             nsIDOMNode *aOldParent, 
-                            int32_t aOldOffset, 
+                            PRInt32 aOldOffset, 
                             nsIDOMNode *aNewParent, 
-                            int32_t aNewOffset) :
+                            PRInt32 aNewOffset) :
     mRU(aRangeUpdater)
     ,mOldParent(aOldParent)
     ,mNewParent(aNewParent)

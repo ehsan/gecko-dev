@@ -28,7 +28,7 @@ public:
   /**
    * Compute our keyCode value (NS_VK_*) from an ASCII character.
    */
-  static uint32_t ComputeKeyCodeFromChar(uint32_t aCharCode);
+  static PRUint32 ComputeKeyCodeFromChar(PRUint32 aCharCode);
 
   /**
    * Get unshifted charCode and shifted charCode for aKeyCode if the keyboad
@@ -46,10 +46,10 @@ public:
    *                            NS_VK_[A-Z].
    *                            Note that must not be NULL.
    */
-  static void GetLatinCharCodeForKeyCode(uint32_t aKeyCode,
+  static void GetLatinCharCodeForKeyCode(PRUint32 aKeyCode,
                                          bool aIsCapsLock,
-                                         uint32_t* aUnshiftedCharCode,
-                                         uint32_t* aShiftedCharCode);
+                                         PRUint32* aUnshiftedCharCode,
+                                         PRUint32* aShiftedCharCode);
 };
 
 } // namespace widget

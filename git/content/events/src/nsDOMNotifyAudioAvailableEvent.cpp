@@ -12,9 +12,9 @@
 
 nsDOMNotifyAudioAvailableEvent::nsDOMNotifyAudioAvailableEvent(nsPresContext* aPresContext,
                                                                nsEvent* aEvent,
-                                                               uint32_t aEventType,
+                                                               PRUint32 aEventType,
                                                                float* aFrameBuffer,
-                                                               uint32_t aFrameBufferLength,
+                                                               PRUint32 aFrameBufferLength,
                                                                float aTime)
   : nsDOMEvent(aPresContext, aEvent),
     mFrameBuffer(aFrameBuffer),
@@ -104,7 +104,7 @@ nsDOMNotifyAudioAvailableEvent::InitAudioAvailableEvent(const nsAString& aType,
                                                         bool aCanBubble,
                                                         bool aCancelable,
                                                         float* aFrameBuffer,
-                                                        uint32_t aFrameBufferLength,
+                                                        PRUint32 aFrameBufferLength,
                                                         float aTime,
                                                         bool aAllowAudioData)
 {
@@ -125,9 +125,9 @@ nsDOMNotifyAudioAvailableEvent::InitAudioAvailableEvent(const nsAString& aType,
 nsresult NS_NewDOMAudioAvailableEvent(nsIDOMEvent** aInstancePtrResult,
                                       nsPresContext* aPresContext,
                                       nsEvent *aEvent,
-                                      uint32_t aEventType,
+                                      PRUint32 aEventType,
                                       float* aFrameBuffer,
-                                      uint32_t aFrameBufferLength,
+                                      PRUint32 aFrameBufferLength,
                                       float aTime)
 {
   nsDOMNotifyAudioAvailableEvent* it =

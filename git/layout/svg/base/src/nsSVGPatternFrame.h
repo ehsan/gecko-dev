@@ -49,14 +49,14 @@ public:
   typedef mozilla::SVGAnimatedPreserveAspectRatio SVGAnimatedPreserveAspectRatio;
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM(uint32_t aFor);
+  virtual gfxMatrix GetCanvasTM(PRUint32 aFor);
 
   // nsIFrame interface:
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 
-  NS_IMETHOD AttributeChanged(int32_t         aNameSpaceID,
+  NS_IMETHOD AttributeChanged(PRInt32         aNameSpaceID,
                               nsIAtom*        aAttribute,
-                              int32_t         aModType);
+                              PRInt32         aModType);
 
 #ifdef DEBUG
   NS_IMETHOD Init(nsIContent*      aContent,
@@ -85,8 +85,8 @@ protected:
   nsSVGPatternFrame* GetReferencedPatternIfNotInUse();
 
   // Accessors to lookup pattern attributes
-  uint16_t GetEnumValue(uint32_t aIndex, nsIContent *aDefault);
-  uint16_t GetEnumValue(uint32_t aIndex)
+  PRUint16 GetEnumValue(PRUint32 aIndex, nsIContent *aDefault);
+  PRUint16 GetEnumValue(PRUint32 aIndex)
   {
     return GetEnumValue(aIndex, mContent);
   }
@@ -101,8 +101,8 @@ protected:
   {
     return GetPreserveAspectRatio(mContent);
   }
-  const nsSVGLength2 *GetLengthValue(uint32_t aIndex, nsIContent *aDefault);
-  const nsSVGLength2 *GetLengthValue(uint32_t aIndex)
+  const nsSVGLength2 *GetLengthValue(PRUint32 aIndex, nsIContent *aDefault);
+  const nsSVGLength2 *GetLengthValue(PRUint32 aIndex)
   {
     return GetLengthValue(aIndex, mContent);
   }
@@ -115,13 +115,13 @@ protected:
                         float aGraphicOpacity,
                         const gfxRect *aOverrideBounds);
   nsIFrame*  GetPatternFirstChild();
-  gfxRect    GetPatternRect(uint16_t aPatternUnits,
+  gfxRect    GetPatternRect(PRUint16 aPatternUnits,
                             const gfxRect &bbox,
                             const gfxMatrix &callerCTM,
                             nsIFrame *aTarget);
   gfxMatrix  ConstructCTM(const nsSVGViewBox& aViewBox,
-                          uint16_t aPatternContentUnits,
-                          uint16_t aPatternUnits,
+                          PRUint16 aPatternContentUnits,
+                          PRUint16 aPatternUnits,
                           const gfxRect &callerBBox,
                           const gfxMatrix &callerCTM,
                           nsIFrame *aTarget);

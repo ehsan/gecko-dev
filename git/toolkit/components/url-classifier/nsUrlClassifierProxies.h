@@ -253,7 +253,7 @@ public:
   {
   public:
     StreamFinishedRunnable(nsIUrlClassifierUpdateObserver* aTarget,
-                           nsresult aStatus, uint32_t aDelay)
+                           nsresult aStatus, PRUint32 aDelay)
       : mTarget(aTarget)
       , mStatus(aStatus)
       , mDelay(aDelay)
@@ -264,7 +264,7 @@ public:
   private:
     nsCOMPtr<nsIUrlClassifierUpdateObserver> mTarget;
     nsresult mStatus;
-    uint32_t mDelay;
+    PRUint32 mDelay;
   };
 
   class UpdateErrorRunnable : public nsRunnable
@@ -287,7 +287,7 @@ public:
   {
   public:
     UpdateSuccessRunnable(nsIUrlClassifierUpdateObserver* aTarget,
-                          uint32_t aRequestedTimeout)
+                          PRUint32 aRequestedTimeout)
       : mTarget(aTarget)
       , mRequestedTimeout(aRequestedTimeout)
     { }
@@ -296,7 +296,7 @@ public:
 
   private:
     nsCOMPtr<nsIUrlClassifierUpdateObserver> mTarget;
-    uint32_t mRequestedTimeout;
+    PRUint32 mRequestedTimeout;
   };
 
 private:

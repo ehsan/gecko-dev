@@ -6,7 +6,7 @@
 #include "nsHttpConnectionInfo.h"
 
 void
-nsHttpConnectionInfo::SetOriginServer(const nsACString &host, int32_t port)
+nsHttpConnectionInfo::SetOriginServer(const nsACString &host, PRInt32 port)
 {
     mHost = host;
     mPort = port == -1 ? DefaultPort() : port;
@@ -22,7 +22,7 @@ nsHttpConnectionInfo::SetOriginServer(const nsACString &host, int32_t port)
     //
 
     const char *keyHost;
-    int32_t keyPort;
+    PRInt32 keyPort;
 
     if (mUsingHttpProxy && !mUsingConnect) {
         keyHost = ProxyHost();

@@ -34,7 +34,7 @@ SmsCursor::SmsCursor()
 {
 }
 
-SmsCursor::SmsCursor(int32_t aListId, nsIDOMMozSmsRequest* aRequest)
+SmsCursor::SmsCursor(PRInt32 aListId, nsIDOMMozSmsRequest* aRequest)
   : mListId(aListId)
   , mRequest(aRequest)
 {
@@ -85,7 +85,7 @@ SmsCursor::Continue()
 
   nsCOMPtr<nsISmsRequestManager> requestManager = do_GetService(SMS_REQUEST_MANAGER_CONTRACTID);
 
-  int32_t requestId;
+  PRInt32 requestId;
   nsresult rv = requestManager->AddRequest(mRequest, &requestId);
   NS_ENSURE_SUCCESS(rv, rv);
 

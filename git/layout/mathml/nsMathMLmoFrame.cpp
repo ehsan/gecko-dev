@@ -122,7 +122,7 @@ nsMathMLmoFrame::ProcessTextData()
 
   nsAutoString data;
   nsContentUtils::GetNodeTextContent(mContent, false, data);
-  int32_t length = data.Length();
+  PRInt32 length = data.Length();
   PRUnichar ch = (length == 0) ? kNullCh : data[0];
 
   if ((length == 1) && 
@@ -560,11 +560,11 @@ nsMathMLmoFrame::ProcessOperatorData()
   }
 }
 
-static uint32_t
+static PRUint32
 GetStretchHint(nsOperatorFlags aFlags, nsPresentationData aPresentationData,
                bool aIsVertical)
 {
-  uint32_t stretchHint = NS_STRETCH_NONE;
+  PRUint32 stretchHint = NS_STRETCH_NONE;
   // See if it is okay to stretch,
   // starting from what the Operator Dictionary said
   if (NS_MATHML_OPERATOR_IS_MUTABLE(aFlags)) {
@@ -643,7 +643,7 @@ nsMathMLmoFrame::Stretch(nsRenderingContext& aRenderingContext,
     isVertical = true;
   }
 
-  uint32_t stretchHint =
+  PRUint32 stretchHint =
     GetStretchHint(mFlags, mPresentationData, isVertical);
 
   if (useMathMLChar) {
@@ -993,7 +993,7 @@ nsMathMLmoFrame::GetIntrinsicWidth(nsRenderingContext *aRenderingContext)
   ProcessOperatorData();
   nscoord width;
   if (UseMathMLChar()) {
-    uint32_t stretchHint = GetStretchHint(mFlags, mPresentationData, true);
+    PRUint32 stretchHint = GetStretchHint(mFlags, mPresentationData, true);
     width = mMathMLChar.
       GetMaxWidth(PresContext(), *aRenderingContext,
                   stretchHint, mMaxSize,
@@ -1012,9 +1012,9 @@ nsMathMLmoFrame::GetIntrinsicWidth(nsRenderingContext *aRenderingContext)
 }
 
 NS_IMETHODIMP
-nsMathMLmoFrame::AttributeChanged(int32_t         aNameSpaceID,
+nsMathMLmoFrame::AttributeChanged(PRInt32         aNameSpaceID,
                                   nsIAtom*        aAttribute,
-                                  int32_t         aModType)
+                                  PRInt32         aModType)
 {
   // check if this is an attribute that can affect the embellished hierarchy
   // in a significant way and re-layout the entire hierarchy.
@@ -1042,7 +1042,7 @@ nsMathMLmoFrame::AttributeChanged(int32_t         aNameSpaceID,
 // No need to track the style context given to our MathML char. 
 // the Style System will use these to pass the proper style context to our MathMLChar
 nsStyleContext*
-nsMathMLmoFrame::GetAdditionalStyleContext(int32_t aIndex) const
+nsMathMLmoFrame::GetAdditionalStyleContext(PRInt32 aIndex) const
 {
   switch (aIndex) {
   case NS_MATHML_CHAR_STYLE_CONTEXT_INDEX:
@@ -1053,7 +1053,7 @@ nsMathMLmoFrame::GetAdditionalStyleContext(int32_t aIndex) const
 }
 
 void
-nsMathMLmoFrame::SetAdditionalStyleContext(int32_t          aIndex,
+nsMathMLmoFrame::SetAdditionalStyleContext(PRInt32          aIndex,
                                            nsStyleContext*  aStyleContext)
 {
   switch (aIndex) {

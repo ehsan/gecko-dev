@@ -48,15 +48,15 @@ using mozilla::dom::ContentChild;
 
 using namespace mozilla;
 
-static const uint32_t ASK_BEFORE_ACCEPT = 1;
-static const uint32_t ACCEPT_SESSION = 2;
-static const uint32_t BEHAVIOR_REJECT = 2;
+static const PRUint32 ASK_BEFORE_ACCEPT = 1;
+static const PRUint32 ACCEPT_SESSION = 2;
+static const PRUint32 BEHAVIOR_REJECT = 2;
 
-static const uint32_t DEFAULT_QUOTA = 5 * 1024;
+static const PRUint32 DEFAULT_QUOTA = 5 * 1024;
 // Be generous with offline apps by default...
-static const uint32_t DEFAULT_OFFLINE_APP_QUOTA = 200 * 1024;
+static const PRUint32 DEFAULT_OFFLINE_APP_QUOTA = 200 * 1024;
 // ... but warn if it goes over this amount
-static const uint32_t DEFAULT_OFFLINE_WARN_QUOTA = 50 * 1024;
+static const PRUint32 DEFAULT_OFFLINE_WARN_QUOTA = 50 * 1024;
 
 // Intervals to flush the temporary table after in seconds
 #define NS_DOMSTORAGE_MAXIMUM_TEMPTABLE_INACTIVITY_TIME (5)
@@ -140,14 +140,14 @@ IsCallerSecure()
   return NS_SUCCEEDED(rv) && isHttps;
 }
 
-uint32_t
+PRUint32
 GetOfflinePermission(const nsACString &aDomain)
 {
   // Fake a URI for the permission manager
   nsCOMPtr<nsIURI> uri;
   NS_NewURI(getter_AddRefs(uri), NS_LITERAL_CSTRING("http://") + aDomain);
 
-  uint32_t perm;
+  PRUint32 perm;
   if (uri) {
     nsCOMPtr<nsIPermissionManager> permissionManager =
       do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
@@ -163,7 +163,7 @@ GetOfflinePermission(const nsACString &aDomain)
 bool
 IsOfflineAllowed(const nsACString &aDomain)
 {
-  int32_t perm = GetOfflinePermission(aDomain);
+  PRInt32 perm = GetOfflinePermission(aDomain);
   return IS_PERMISSION_ALLOWED(perm);
 }
 
@@ -172,11 +172,11 @@ IsOfflineAllowed(const nsACString &aDomain)
 // service.  The warn limit may be -1, in which case there will be no warning.
 // If aOverrideQuota is set, the larger offline apps quota is used and no
 // warning is sent.
-static uint32_t
-GetQuota(const nsACString &aDomain, int32_t *aQuota, int32_t *aWarnQuota,
+static PRUint32
+GetQuota(const nsACString &aDomain, PRInt32 *aQuota, PRInt32 *aWarnQuota,
          bool aOverrideQuota)
 {
-  uint32_t perm = GetOfflinePermission(aDomain);
+  PRUint32 perm = GetOfflinePermission(aDomain);
   if (IS_PERMISSION_ALLOWED(perm) || aOverrideQuota) {
     // This is an offline app, give more space by default.
     *aQuota = Preferences::GetInt(kOfflineAppQuota,
@@ -334,7 +334,7 @@ GetOfflineDomains(nsTArray<nsString>& aDomains)
       nsCOMPtr<nsIPermission> perm(do_QueryInterface(supp, &rv));
       NS_ENSURE_SUCCESS(rv, rv);
 
-      uint32_t capability;
+      PRUint32 capability;
       rv = perm->GetCapability(&capability);
       NS_ENSURE_SUCCESS(rv, rv);
       if (capability != nsIPermissionManager::DENY_ACTION) {
@@ -389,7 +389,7 @@ nsDOMStorageManager::Observe(nsISupports *aSubject,
       if (type != NS_LITERAL_CSTRING("cookie"))
         return NS_OK;
 
-      uint32_t cap = 0;
+      PRUint32 cap = 0;
       perm->GetCapability(&cap);
       if (!(cap & nsICookiePermission::ACCESS_SESSION) ||
           nsDependentString(aData) != NS_LITERAL_STRING("deleted"))
@@ -469,7 +469,7 @@ nsDOMStorageManager::Observe(nsISupports *aSubject,
 
 NS_IMETHODIMP
 nsDOMStorageManager::GetUsage(const nsAString& aDomain,
-                              int32_t *aUsage)
+                              PRInt32 *aUsage)
 {
   nsresult rv = DOMStorageImpl::InitDB();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -737,7 +737,7 @@ DOMStorageImpl::InitFromChild(bool aUseDB, bool aCanUseChromePersist,
                               const nsACString& aScopeDBKey,
                               const nsACString& aQuotaDomainDBKey,
                               const nsACString& aQuotaETLDplus1DomainDBKey,
-                              uint32_t aStorageType)
+                              PRUint32 aStorageType)
 {
   mUseDB = aUseDB;
   mCanUseChromePersist = aCanUseChromePersist;
@@ -843,15 +843,15 @@ DOMStorageImpl::SetDBValue(const nsAString& aKey,
   nsresult rv = InitDB();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  int32_t offlineAppPermission;
-  int32_t quota;
-  int32_t warnQuota;
+  PRInt32 offlineAppPermission;
+  PRInt32 quota;
+  PRInt32 warnQuota;
   offlineAppPermission = GetQuota(mDomain, &quota, &warnQuota,
                                   CanUseChromePersist());
 
   CacheKeysFromDB();
 
-  int32_t usage;
+  PRInt32 usage;
   rv = gStorageDB->SetKey(this, aKey, aValue, aSecure, quota,
                          !IS_PERMISSION_ALLOWED(offlineAppPermission),
                          &usage);
@@ -1016,7 +1016,7 @@ class ItemCounterState
   }
 
   bool mIsCallerSecure;
-  uint32_t mCount;
+  PRUint32 mCount;
  private:
   ItemCounterState(); // Not to be implemented
 };
@@ -1034,7 +1034,7 @@ ItemCounter(nsSessionStorageEntry* aEntry, void* userArg)
 }
 
 nsresult
-DOMStorageImpl::GetLength(bool aCallerSecure, uint32_t* aLength)
+DOMStorageImpl::GetLength(bool aCallerSecure, PRUint32* aLength)
 {
   // Force reload of items from database.  This ensures sync localStorages for
   // same origins among different windows.
@@ -1052,15 +1052,15 @@ DOMStorageImpl::GetLength(bool aCallerSecure, uint32_t* aLength)
 class IndexFinderData
 {
  public:
-  IndexFinderData(bool aIsCallerSecure, uint32_t aWantedIndex)
+  IndexFinderData(bool aIsCallerSecure, PRUint32 aWantedIndex)
   : mIsCallerSecure(aIsCallerSecure), mIndex(0), mWantedIndex(aWantedIndex),
     mItem(nullptr)
   {
   }
 
   bool mIsCallerSecure;
-  uint32_t mIndex;
-  uint32_t mWantedIndex;
+  PRUint32 mIndex;
+  PRUint32 mWantedIndex;
   nsSessionStorageEntry *mItem;
 
  private:
@@ -1085,7 +1085,7 @@ IndexFinder(nsSessionStorageEntry* aEntry, void* userArg)
 }
 
 nsresult
-DOMStorageImpl::GetKey(bool aCallerSecure, uint32_t aIndex, nsAString& aKey)
+DOMStorageImpl::GetKey(bool aCallerSecure, PRUint32 aIndex, nsAString& aKey)
 {
   // XXX: This does a linear search for the key at index, which would
   // suck if there's a large numer of indexes. Do we care? If so,
@@ -1240,12 +1240,12 @@ CheckSecure(nsSessionStorageEntry* aEntry, void* userArg)
 }
 
 nsresult
-DOMStorageImpl::Clear(bool aCallerSecure, int32_t* aOldCount)
+DOMStorageImpl::Clear(bool aCallerSecure, PRInt32* aOldCount)
 {
   if (UseDB())
     CacheKeysFromDB();
 
-  int32_t oldCount = mItems.Count();
+  PRInt32 oldCount = mItems.Count();
 
   bool foundSecureItem = false;
   mItems.EnumerateEntries(CheckSecure, &foundSecureItem);
@@ -1419,7 +1419,7 @@ nsDOMStorage::CanUseStorage(DOMStorageBase* aStorage /* = NULL */)
   if (!permissionManager)
     return false;
 
-  uint32_t perm;
+  PRUint32 perm;
   permissionManager->TestPermission(subjectURI, kPermissionType, &perm);
 
   if (perm == nsIPermissionManager::DENY_ACTION)
@@ -1434,8 +1434,8 @@ nsDOMStorage::CanUseStorage(DOMStorageBase* aStorage /* = NULL */)
       aStorage->mSessionOnly = true;
   }
   else if (perm != nsIPermissionManager::ALLOW_ACTION) {
-    uint32_t cookieBehavior = Preferences::GetUint(kCookiesBehavior);
-    uint32_t lifetimePolicy = Preferences::GetUint(kCookiesLifetimePolicy);
+    PRUint32 cookieBehavior = Preferences::GetUint(kCookiesBehavior);
+    PRUint32 lifetimePolicy = Preferences::GetUint(kCookiesLifetimePolicy);
 
     // Treat "ask every time" as "reject always".
     // Chrome persistent pages can bypass this check.
@@ -1480,7 +1480,7 @@ nsDOMStorage::URICanUseChromePersist(nsIURI* aURI) {
 }
 
 NS_IMETHODIMP
-nsDOMStorage::GetLength(uint32_t *aLength)
+nsDOMStorage::GetLength(PRUint32 *aLength)
 {
   if (!CacheStoragePermissions())
     return NS_ERROR_DOM_SECURITY_ERR;
@@ -1489,7 +1489,7 @@ nsDOMStorage::GetLength(uint32_t *aLength)
 }
 
 NS_IMETHODIMP
-nsDOMStorage::Key(uint32_t aIndex, nsAString& aKey)
+nsDOMStorage::Key(PRUint32 aIndex, nsAString& aKey)
 {
   if (!CacheStoragePermissions())
     return NS_ERROR_DOM_SECURITY_ERR;
@@ -1623,7 +1623,7 @@ nsDOMStorage::Clear()
   if (!CacheStoragePermissions())
     return NS_ERROR_DOM_SECURITY_ERR;
 
-  int32_t oldCount;
+  PRInt32 oldCount;
   nsresult rv = mStorageImpl->Clear(IsCallerSecure(), &oldCount);
   if (NS_FAILED(rv))
     return rv;
@@ -1914,13 +1914,13 @@ nsDOMStorage2::BroadcastChangeNotification(const nsSubstring &aKey,
 }
 
 NS_IMETHODIMP
-nsDOMStorage2::GetLength(uint32_t *aLength)
+nsDOMStorage2::GetLength(PRUint32 *aLength)
 {
   return mStorage->GetLength(aLength);
 }
 
 NS_IMETHODIMP
-nsDOMStorage2::Key(uint32_t aIndex, nsAString& aKey)
+nsDOMStorage2::Key(PRUint32 aIndex, nsAString& aKey)
 {
   return mStorage->Key(aIndex, aKey);
 }

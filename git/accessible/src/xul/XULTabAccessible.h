@@ -24,17 +24,17 @@ public:
   XULTabAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   // nsIAccessible
-  NS_IMETHOD GetActionName(uint8_t aIndex, nsAString& aName);
-  NS_IMETHOD DoAction(uint8_t index);
+  NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
+  NS_IMETHOD DoAction(PRUint8 index);
 
   // Accessible
   virtual a11y::role NativeRole();
-  virtual uint64_t NativeState();
-  virtual uint64_t NativeInteractiveState() const;
-  virtual Relation RelationByType(uint32_t aType);
+  virtual PRUint64 NativeState();
+  virtual PRUint64 NativeInteractiveState() const;
+  virtual Relation RelationByType(PRUint32 aType);
 
   // ActionAccessible
-  virtual uint8_t ActionCount();
+  virtual PRUint8 ActionCount();
 };
 
 
@@ -52,7 +52,7 @@ public:
   virtual a11y::role NativeRole();
 
   // ActionAccessible
-  virtual uint8_t ActionCount();
+  virtual PRUint8 ActionCount();
 };
 
 
@@ -88,7 +88,7 @@ public:
 
   // Accessible
   virtual a11y::role NativeRole();
-  virtual Relation RelationByType(uint32_t aType);
+  virtual Relation RelationByType(PRUint32 aType);
 };
 
 } // namespace a11y

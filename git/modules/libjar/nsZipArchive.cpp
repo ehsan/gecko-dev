@@ -10,7 +10,7 @@
  * or pointers to it across thread boundaries.
  */
 
-#define READTYPE  int32_t
+#define READTYPE  PRInt32
 #include "zlib.h"
 #include "nsISupportsUtils.h"
 #include "prio.h"
@@ -59,14 +59,14 @@
 
 using namespace mozilla;
 
-static const uint32_t kMaxNameLength = PATH_MAX; /* Maximum name length */
+static const PRUint32 kMaxNameLength = PATH_MAX; /* Maximum name length */
 // For synthetic zip entries. Date/time corresponds to 1980-01-01 00:00.
-static const uint16_t kSyntheticTime = 0;
-static const uint16_t kSyntheticDate = (1 + (1 << 5) + (0 << 9));
+static const PRUint16 kSyntheticTime = 0;
+static const PRUint16 kSyntheticDate = (1 + (1 << 5) + (0 << 9));
 
-static uint16_t xtoint(const uint8_t *ii);
-static uint32_t xtolong(const uint8_t *ll);
-static uint32_t HashName(const char* aName, uint16_t nameLen);
+static PRUint16 xtoint(const PRUint8 *ii);
+static PRUint32 xtolong(const PRUint8 *ll);
+static PRUint32 HashName(const char* aName, PRUint16 nameLen);
 #ifdef XP_UNIX
 static nsresult ResolveSymlink(const char *path);
 #endif
@@ -105,7 +105,7 @@ nsresult nsZipHandle::Init(nsIFile *file, nsZipHandle **ret)
   if (NS_FAILED(rv))
     return rv;
 
-  int64_t size = PR_Available64(fd);
+  PRInt64 size = PR_Available64(fd);
   if (size >= PR_INT32_MAX)
     return NS_ERROR_FILE_TOO_BIG;
 
@@ -113,7 +113,7 @@ nsresult nsZipHandle::Init(nsIFile *file, nsZipHandle **ret)
   if (!map)
     return NS_ERROR_FAILURE;
   
-  uint8_t *buf = (uint8_t*) PR_MemMap(map, 0, (uint32_t) size);
+  PRUint8 *buf = (PRUint8*) PR_MemMap(map, 0, (PRUint32) size);
   // Bug 525755: PR_MemMap fails when fd points at something other than a normal file.
   if (!buf) {
     PR_CloseFileMap(map);
@@ -122,14 +122,14 @@ nsresult nsZipHandle::Init(nsIFile *file, nsZipHandle **ret)
 
   nsRefPtr<nsZipHandle> handle = new nsZipHandle();
   if (!handle) {
-    PR_MemUnmap(buf, (uint32_t) size);
+    PR_MemUnmap(buf, (PRUint32) size);
     PR_CloseFileMap(map);
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
   handle->mMap = map;
   handle->mFile.Init(file);
-  handle->mLen = (uint32_t) size;
+  handle->mLen = (PRUint32) size;
   handle->mFileData = buf;
   *ret = handle.forget().get();
   return NS_OK;
@@ -142,7 +142,7 @@ nsresult nsZipHandle::Init(nsZipArchive *zip, const char *entry,
   if (!handle)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  handle->mBuf = new nsZipItemPtr<uint8_t>(zip, entry);
+  handle->mBuf = new nsZipItemPtr<PRUint8>(zip, entry);
   if (!handle->mBuf)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -157,7 +157,7 @@ nsresult nsZipHandle::Init(nsZipArchive *zip, const char *entry,
   return NS_OK;
 }
 
-int64_t nsZipHandle::SizeOfMapping()
+PRInt64 nsZipHandle::SizeOfMapping()
 {
     return mLen;
 }
@@ -286,7 +286,7 @@ nsresult nsZipArchive::CloseArchive()
 nsZipItem*  nsZipArchive::GetItem(const char * aEntryName)
 {
   if (aEntryName) {
-    uint32_t len = strlen(aEntryName);
+    PRUint32 len = strlen(aEntryName);
     //-- If the request is for a directory, make sure that synthetic entries 
     //-- are created for the directories without their own entry.
     if (!mBuiltSynthetics) {
@@ -343,8 +343,8 @@ nsresult nsZipArchive::ExtractFile(nsZipItem *item, const char *outname,
   nsresult rv = NS_OK;
 
   while (true) {
-    uint32_t count = 0;
-    uint8_t* buf = cursor.Read(&count);
+    PRUint32 count = 0;
+    PRUint8* buf = cursor.Read(&count);
     if (!buf) {
       rv = NS_ERROR_FILE_CORRUPTED;
       break;
@@ -433,7 +433,7 @@ nsZipArchive::FindInit(const char * aPattern, nsZipFind **aFind)
 //---------------------------------------------
 // nsZipFind::FindNext
 //---------------------------------------------
-nsresult nsZipFind::FindNext(const char ** aResult, uint16_t *aNameLen)
+nsresult nsZipFind::FindNext(const char ** aResult, PRUint16 *aNameLen)
 {
   if (!mArchive || !aResult || !aNameLen)
     return NS_ERROR_ILLEGAL_VALUE;
@@ -484,7 +484,7 @@ static nsresult ResolveSymlink(const char *path)
     return NS_ERROR_FILE_DISK_FULL;
 
   char buf[PATH_MAX+1];
-  int32_t length = PR_Read(fIn, (void*)buf, PATH_MAX);
+  PRInt32 length = PR_Read(fIn, (void*)buf, PATH_MAX);
   PR_Close(fIn);
 
   if ( (length <= 0)
@@ -521,11 +521,11 @@ nsresult nsZipArchive::BuildFileList()
   NS_TIME_FUNCTION;
 #endif
   // Get archive size using end pos
-  const uint8_t* buf;
-  const uint8_t* startp = mFd->mFileData;
-  const uint8_t* endp = startp + mFd->mLen;
+  const PRUint8* buf;
+  const PRUint8* startp = mFd->mFileData;
+  const PRUint8* endp = startp + mFd->mLen;
 MOZ_WIN_MEM_TRY_BEGIN
-  uint32_t centralOffset = 4;
+  PRUint32 centralOffset = 4;
   if (mFd->mLen > ZIPCENTRAL_SIZE && xtolong(startp + centralOffset) == CENTRALSIG) {
     // Success means optimized jar layout from bug 559961 is in effect
   } else {
@@ -543,8 +543,8 @@ MOZ_WIN_MEM_TRY_BEGIN
 
   //-- Read the central directory headers
   buf = startp + centralOffset;
-  uint32_t sig = 0;
-  while (buf + int32_t(sizeof(uint32_t)) <= endp &&
+  PRUint32 sig = 0;
+  while (buf + PRInt32(sizeof(PRUint32)) <= endp &&
          (sig = xtolong(buf)) == CENTRALSIG) {
     // Make sure there is enough data available.
     if (endp - buf < ZIPCENTRAL_SIZE)
@@ -553,9 +553,9 @@ MOZ_WIN_MEM_TRY_BEGIN
     // Read the fixed-size data.
     ZipCentral* central = (ZipCentral*)buf;
 
-    uint16_t namelen = xtoint(central->filename_len);
-    uint16_t extralen = xtoint(central->extrafield_len);
-    uint16_t commentlen = xtoint(central->commentfield_len);
+    PRUint16 namelen = xtoint(central->filename_len);
+    PRUint16 extralen = xtoint(central->extrafield_len);
+    PRUint16 commentlen = xtoint(central->commentfield_len);
 
     // Point to the next item at the top of loop
     buf += ZIPCENTRAL_SIZE + namelen + extralen + commentlen;
@@ -574,7 +574,7 @@ MOZ_WIN_MEM_TRY_BEGIN
     item->isSynthetic = false;
 
     // Add item to file table
-    uint32_t hash = HashName(item->Name(), namelen);
+    PRUint32 hash = HashName(item->Name(), namelen);
     item->next = mFiles[hash];
     mFiles[hash] = item;
 
@@ -589,7 +589,7 @@ MOZ_WIN_MEM_TRY_BEGIN
     ZipEnd *zipend = (ZipEnd *)buf;
 
     buf += ZIPEND_SIZE;
-    uint16_t commentlen = xtoint(zipend->commentfield_len);
+    PRUint16 commentlen = xtoint(zipend->commentfield_len);
     if (endp - buf >= commentlen) {
       mCommentPtr = (const char *)buf;
       mCommentLen = commentlen;
@@ -625,15 +625,15 @@ MOZ_WIN_MEM_TRY_BEGIN
       //-- create already exists
       //-- start just before the last char so as to not add the item
       //-- twice if it's a directory
-      uint16_t namelen = item->nameLength;
+      PRUint16 namelen = item->nameLength;
       const char *name = item->Name();
-      for (uint16_t dirlen = namelen - 1; dirlen > 0; dirlen--)
+      for (PRUint16 dirlen = namelen - 1; dirlen > 0; dirlen--)
       {
         if (name[dirlen-1] != '/')
           continue;
 
         // Is the directory already in the file table?
-        uint32_t hash = HashName(item->Name(), dirlen);
+        PRUint32 hash = HashName(item->Name(), dirlen);
         bool found = false;
         for (nsZipItem* zi = mFiles[hash]; zi != NULL; zi = zi->next)
         {
@@ -680,15 +680,15 @@ nsZipHandle* nsZipArchive::GetFD()
 //---------------------------------------------
 // nsZipArchive::GetData
 //---------------------------------------------
-const uint8_t* nsZipArchive::GetData(nsZipItem* aItem)
+const PRUint8* nsZipArchive::GetData(nsZipItem* aItem)
 {
   PR_ASSERT (aItem);
 MOZ_WIN_MEM_TRY_BEGIN
   //-- read local header to get variable length values and calculate
   //-- the real data offset
-  uint32_t len = mFd->mLen;
-  const uint8_t* data = mFd->mFileData;
-  uint32_t offset = aItem->LocalOffset();
+  PRUint32 len = mFd->mLen;
+  const PRUint8* data = mFd->mFileData;
+  PRUint32 offset = aItem->LocalOffset();
   if (offset + ZIPLOCAL_SIZE > len)
     return nullptr;
 
@@ -724,7 +724,7 @@ MOZ_WIN_MEM_TRY_CATCH(return false)
 //---------------------------------------------
 // nsZipArchive::SizeOfMapping
 //---------------------------------------------
-int64_t nsZipArchive::SizeOfMapping()
+PRInt64 nsZipArchive::SizeOfMapping()
 {
     return mFd ? mFd->SizeOfMapping() : 0;
 }
@@ -784,13 +784,13 @@ nsZipFind::~nsZipFind()
  *
  * returns a hash key for the entry name 
  */
-static uint32_t HashName(const char* aName, uint16_t len)
+static PRUint32 HashName(const char* aName, PRUint16 len)
 {
   PR_ASSERT(aName != 0);
 
-  const uint8_t* p = (const uint8_t*)aName;
-  const uint8_t* endp = p + len;
-  uint32_t val = 0;
+  const PRUint8* p = (const PRUint8*)aName;
+  const PRUint8* endp = p + len;
+  PRUint32 val = 0;
   while (p != endp) {
     val = val*37 + *p++;
   }
@@ -804,9 +804,9 @@ static uint32_t HashName(const char* aName, uint16_t len)
  *  Converts a two byte ugly endianed integer
  *  to our platform's integer.
  */
-static uint16_t xtoint (const uint8_t *ii)
+static PRUint16 xtoint (const PRUint8 *ii)
 {
-  return (uint16_t) ((ii [0]) | (ii [1] << 8));
+  return (PRUint16) ((ii [0]) | (ii [1] << 8));
 }
 
 /*
@@ -815,9 +815,9 @@ static uint16_t xtoint (const uint8_t *ii)
  *  Converts a four byte ugly endianed integer
  *  to our platform's integer.
  */
-static uint32_t xtolong (const uint8_t *ll)
+static PRUint32 xtolong (const PRUint8 *ll)
 {
-  return (uint32_t)( (ll [0] <<  0) |
+  return (PRUint32)( (ll [0] <<  0) |
                      (ll [1] <<  8) |
                      (ll [2] << 16) |
                      (ll [3] << 24) );
@@ -828,7 +828,7 @@ static uint32_t xtolong (const uint8_t *ll)
  *
  * returns last modification time in microseconds
  */
-static PRTime GetModTime(uint16_t aDate, uint16_t aTime)
+static PRTime GetModTime(PRUint16 aDate, PRUint16 aTime)
 {
   // Note that on DST shift we can't handle correctly the hour that is valid
   // in both DST zones
@@ -855,37 +855,37 @@ static PRTime GetModTime(uint16_t aDate, uint16_t aTime)
   return PR_ImplodeTime(&time);
 }
 
-uint32_t nsZipItem::LocalOffset()
+PRUint32 nsZipItem::LocalOffset()
 {
   return xtolong(central->localhdr_offset);
 }
 
-uint32_t nsZipItem::Size()
+PRUint32 nsZipItem::Size()
 {
   return isSynthetic ? 0 : xtolong(central->size);
 }
 
-uint32_t nsZipItem::RealSize()
+PRUint32 nsZipItem::RealSize()
 {
   return isSynthetic ? 0 : xtolong(central->orglen);
 }
 
-uint32_t nsZipItem::CRC32()
+PRUint32 nsZipItem::CRC32()
 {
   return isSynthetic ? 0 : xtolong(central->crc32);
 }
 
-uint16_t nsZipItem::Date()
+PRUint16 nsZipItem::Date()
 {
   return isSynthetic ? kSyntheticDate : xtoint(central->date);
 }
 
-uint16_t nsZipItem::Time()
+PRUint16 nsZipItem::Time()
 {
   return isSynthetic ? kSyntheticTime : xtoint(central->time);
 }
 
-uint16_t nsZipItem::Compression()
+PRUint16 nsZipItem::Compression()
 {
   return isSynthetic ? STORED : xtoint(central->method);
 }
@@ -895,21 +895,21 @@ bool nsZipItem::IsDirectory()
   return isSynthetic || ((nameLength > 0) && ('/' == Name()[nameLength - 1]));
 }
 
-uint16_t nsZipItem::Mode()
+PRUint16 nsZipItem::Mode()
 {
   if (isSynthetic) return 0755;
-  return ((uint16_t)(central->external_attributes[2]) | 0x100);
+  return ((PRUint16)(central->external_attributes[2]) | 0x100);
 }
 
-const uint8_t * nsZipItem::GetExtraField(uint16_t aTag, uint16_t *aBlockSize)
+const PRUint8 * nsZipItem::GetExtraField(PRUint16 aTag, PRUint16 *aBlockSize)
 {
   if (isSynthetic) return nullptr;
 MOZ_WIN_MEM_TRY_BEGIN
   const unsigned char *buf = ((const unsigned char*)central) + ZIPCENTRAL_SIZE +
                              nameLength;
-  uint32_t buflen = (uint32_t)xtoint(central->extrafield_len);
-  uint32_t pos = 0;
-  uint16_t tag, blocksize;
+  PRUint32 buflen = (PRUint32)xtoint(central->extrafield_len);
+  PRUint32 pos = 0;
+  PRUint16 tag, blocksize;
 
   while (buf && (pos + 4) <= buflen) {
     tag = xtoint(buf + pos);
@@ -933,8 +933,8 @@ PRTime nsZipItem::LastModTime()
   if (isSynthetic) return GetModTime(kSyntheticDate, kSyntheticTime);
 
   // Try to read timestamp from extra field
-  uint16_t blocksize;
-  const uint8_t *tsField = GetExtraField(EXTENDED_TIMESTAMP_FIELD, &blocksize);
+  PRUint16 blocksize;
+  const PRUint8 *tsField = GetExtraField(EXTENDED_TIMESTAMP_FIELD, &blocksize);
   if (tsField && blocksize >= 5 && tsField[4] & EXTENDED_TIMESTAMP_MODTIME) {
     return (PRTime)(xtolong(tsField + 5)) * PR_USEC_PER_SEC;
   }
@@ -950,7 +950,7 @@ bool nsZipItem::IsSymlink()
 }
 #endif
 
-nsZipCursor::nsZipCursor(nsZipItem *item, nsZipArchive *aZip, uint8_t* aBuf, uint32_t aBufSize, bool doCRC) :
+nsZipCursor::nsZipCursor(nsZipItem *item, nsZipArchive *aZip, PRUint8* aBuf, PRUint32 aBufSize, bool doCRC) :
   mItem(item),
   mBuf(aBuf),
   mBufSize(aBufSize),
@@ -979,9 +979,9 @@ nsZipCursor::~nsZipCursor()
   }
 }
 
-uint8_t* nsZipCursor::ReadOrCopy(uint32_t *aBytesRead, bool aCopy) {
+PRUint8* nsZipCursor::ReadOrCopy(PRUint32 *aBytesRead, bool aCopy) {
   int zerr;
-  uint8_t *buf = nullptr;
+  PRUint8 *buf = nullptr;
   bool verifyCRC = true;
 
   if (!mZs.next_in)
@@ -1036,10 +1036,10 @@ nsZipItemPtr_base::nsZipItemPtr_base(nsZipArchive *aZip, const char * aEntryName
   if (!item)
     return;
 
-  uint32_t size = 0;
+  PRUint32 size = 0;
   if (item->Compression() == DEFLATED) {
     size = item->RealSize();
-    mAutoBuf = new uint8_t[size];
+    mAutoBuf = new PRUint8[size];
   }
 
   nsZipCursor cursor(item, aZip, mAutoBuf, size, doCRC);

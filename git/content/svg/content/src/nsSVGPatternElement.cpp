@@ -173,7 +173,7 @@ nsSVGPatternElement::IsAttributeMapped(const nsIAtom* name) const
 // nsSVGElement methods
 
 SVGAnimatedTransformList*
-nsSVGPatternElement::GetAnimatedTransformList(uint32_t aFlags)
+nsSVGPatternElement::GetAnimatedTransformList(PRUint32 aFlags)
 {
   if (!mPatternTransform && (aFlags & DO_ALLOCATE)) {
     mPatternTransform = new SVGAnimatedTransformList();

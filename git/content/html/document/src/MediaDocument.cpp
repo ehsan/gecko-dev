@@ -77,8 +77,8 @@ NS_IMETHODIMP
 MediaDocumentStreamListener::OnDataAvailable(nsIRequest* request,
                                              nsISupports *ctxt,
                                              nsIInputStream *inStr,
-                                             uint32_t sourceOffset,
-                                             uint32_t count)
+                                             PRUint32 sourceOffset,
+                                             PRUint32 count)
 {
   if (mNextStream) {
     return mNextStream->OnDataAvailable(request, ctxt, inStr, sourceOffset, count);
@@ -353,7 +353,7 @@ MediaDocument::LinkStylesheet(const nsAString& aStylesheet)
 void 
 MediaDocument::UpdateTitleAndCharset(const nsACString& aTypeStr,
                                      const char* const* aFormatNames,
-                                     int32_t aWidth, int32_t aHeight,
+                                     PRInt32 aWidth, PRInt32 aHeight,
                                      const nsAString& aStatus)
 {
   nsXPIDLString fileStr;

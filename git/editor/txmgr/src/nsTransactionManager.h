@@ -28,7 +28,7 @@ class nsTransactionManager : public nsITransactionManager
 {
 private:
 
-  int32_t                mMaxTransactionCount;
+  PRInt32                mMaxTransactionCount;
   nsTransactionStack     mDoStack;
   nsTransactionStack     mUndoStack;
   nsTransactionStack     mRedoStack;
@@ -38,7 +38,7 @@ public:
 
   /** The default constructor.
    */
-  nsTransactionManager(int32_t aMaxTransactionCount=-1);
+  nsTransactionManager(PRInt32 aMaxTransactionCount=-1);
 
   /** The default destructor.
    */

@@ -49,7 +49,7 @@ nsConsoleService::nsConsoleService()
 
 nsConsoleService::~nsConsoleService()
 {
-    uint32_t i = 0;
+    PRUint32 i = 0;
     while (i < mBufferSize && mMessages[i] != nullptr) {
         NS_RELEASE(mMessages[i]);
         i++;
@@ -104,7 +104,7 @@ LogMessageRunnable::Run()
 
     mService->SetIsDelivering();
 
-    for (int32_t i = 0; i < mListeners.Count(); ++i)
+    for (PRInt32 i = 0; i < mListeners.Count(); ++i)
         mListeners[i]->Observe(mMessage);
 
     mService->SetDoneDelivering();
@@ -200,7 +200,7 @@ nsConsoleService::LogStringMessage(const PRUnichar *message)
 }
 
 NS_IMETHODIMP
-nsConsoleService::GetMessageArray(nsIConsoleMessage ***messages, uint32_t *count)
+nsConsoleService::GetMessageArray(nsIConsoleMessage ***messages, PRUint32 *count)
 {
     nsIConsoleMessage **messageArray;
 
@@ -225,7 +225,7 @@ nsConsoleService::GetMessageArray(nsIConsoleMessage ***messages, uint32_t *count
         return NS_OK;
     }
 
-    uint32_t resultSize = mFull ? mBufferSize : mCurrent;
+    PRUint32 resultSize = mFull ? mBufferSize : mCurrent;
     messageArray =
         (nsIConsoleMessage **)nsMemory::Alloc((sizeof (nsIConsoleMessage *))
                                               * resultSize);
@@ -236,7 +236,7 @@ nsConsoleService::GetMessageArray(nsIConsoleMessage ***messages, uint32_t *count
         return NS_ERROR_FAILURE;
     }
 
-    uint32_t i;
+    PRUint32 i;
     if (mFull) {
         for (i = 0; i < mBufferSize; i++) {
             // if full, fill the buffer starting from mCurrent (which'll be
@@ -309,7 +309,7 @@ nsConsoleService::Reset()
     /*
      * Free all messages stored so far (cf. destructor)
      */
-    for (uint32_t i = 0; i < mBufferSize && mMessages[i] != nullptr; i++)
+    for (PRUint32 i = 0; i < mBufferSize && mMessages[i] != nullptr; i++)
         NS_RELEASE(mMessages[i]);
 
     return NS_OK;

@@ -11,7 +11,7 @@
 namespace mozilla {
 namespace layers {
 
-ImageContainerParent::ImageContainerParent(uint32_t aHandle)
+ImageContainerParent::ImageContainerParent(PRUint32 aHandle)
 : mID(aHandle), mStop(false) {
   MOZ_COUNT_CTOR(ImageContainerParent);
 }
@@ -21,7 +21,7 @@ bool ImageContainerParent::RecvPublishImage(const SharedImage& aImage)
   SharedImage *copy = new SharedImage(aImage);
   SharedImage *prevImage = SwapSharedImage(mID, copy);
 
-  uint32_t compositorID = GetCompositorIDForImage(mID);
+  PRUint32 compositorID = GetCompositorIDForImage(mID);
   CompositorParent* compositor = CompositorParent::GetCompositor(compositorID);
 
   if (compositor) {
@@ -84,12 +84,12 @@ ImageContainerParent::~ImageContainerParent()
 }
 
 struct ImageIDPair {
-  ImageIDPair(SharedImage* aImage, uint32_t aID)
+  ImageIDPair(SharedImage* aImage, PRUint32 aID)
   : image(aImage), id(aID), compositorID(0), version(1) {}
   SharedImage*  image;
-  uint64_t      id;
-  uint64_t      compositorID;
-  uint32_t      version;
+  PRUint64      id;
+  PRUint64      compositorID;
+  PRUint32      version;
 };
 
 typedef nsTArray<ImageIDPair> SharedImageMap;
@@ -97,7 +97,7 @@ SharedImageMap *sSharedImageMap = nullptr;
 
 static const int SHAREDIMAGEMAP_INVALID_INDEX = -1;
 
-static int IndexOf(uint64_t aID)
+static int IndexOf(PRUint64 aID)
 {
   for (unsigned int i = 0; i < sSharedImageMap->Length(); ++i) {
     if ((*sSharedImageMap)[i].id == aID) {
@@ -107,12 +107,12 @@ static int IndexOf(uint64_t aID)
   return SHAREDIMAGEMAP_INVALID_INDEX;
 }
 
-bool ImageContainerParent::IsExistingID(uint64_t aID)
+bool ImageContainerParent::IsExistingID(PRUint64 aID)
 {
   return IndexOf(aID) != SHAREDIMAGEMAP_INVALID_INDEX;
 }
 
-SharedImage* ImageContainerParent::SwapSharedImage(uint64_t aID, 
+SharedImage* ImageContainerParent::SwapSharedImage(PRUint64 aID, 
                                                    SharedImage* aImage)
 {
   int idx = IndexOf(aID);
@@ -126,14 +126,14 @@ SharedImage* ImageContainerParent::SwapSharedImage(uint64_t aID,
   return prev;
 }
 
-uint32_t ImageContainerParent::GetSharedImageVersion(uint64_t aID)
+PRUint32 ImageContainerParent::GetSharedImageVersion(PRUint64 aID)
 {
   int idx = IndexOf(aID);
   if (idx == SHAREDIMAGEMAP_INVALID_INDEX) return 0;
   return (*sSharedImageMap)[idx].version;
 }
 
-SharedImage* ImageContainerParent::RemoveSharedImage(uint64_t aID) 
+SharedImage* ImageContainerParent::RemoveSharedImage(PRUint64 aID) 
 {
   int idx = IndexOf(aID);
   if (idx != SHAREDIMAGEMAP_INVALID_INDEX) {
@@ -144,7 +144,7 @@ SharedImage* ImageContainerParent::RemoveSharedImage(uint64_t aID)
   return nullptr;
 }
 
-SharedImage* ImageContainerParent::GetSharedImage(uint64_t aID)
+SharedImage* ImageContainerParent::GetSharedImage(PRUint64 aID)
 {
   int idx = IndexOf(aID);
   if (idx != SHAREDIMAGEMAP_INVALID_INDEX) {
@@ -153,7 +153,7 @@ SharedImage* ImageContainerParent::GetSharedImage(uint64_t aID)
   return nullptr;
 }
 
-bool ImageContainerParent::SetCompositorIDForImage(uint64_t aImageID, uint64_t aCompositorID)
+bool ImageContainerParent::SetCompositorIDForImage(PRUint64 aImageID, PRUint64 aCompositorID)
 {
   int idx = IndexOf(aImageID);
   if (idx == SHAREDIMAGEMAP_INVALID_INDEX) {
@@ -163,7 +163,7 @@ bool ImageContainerParent::SetCompositorIDForImage(uint64_t aImageID, uint64_t a
   return true;
 }
 
-uint64_t ImageContainerParent::GetCompositorIDForImage(uint64_t aImageID)
+PRUint64 ImageContainerParent::GetCompositorIDForImage(PRUint64 aImageID)
 {
   int idx = IndexOf(aImageID);
   if (idx != SHAREDIMAGEMAP_INVALID_INDEX) {

@@ -179,10 +179,10 @@ struct XPCLocaleCallbacks : public JSLocaleCallbacks
     }
 
     JSString *str = nullptr;
-    int32_t srcLength = PL_strlen(src);
+    PRInt32 srcLength = PL_strlen(src);
 
     if (mDecoder) {
-      int32_t unicharLength = srcLength;
+      PRInt32 unicharLength = srcLength;
       PRUnichar *unichars =
         (PRUnichar *)JS_malloc(cx, (srcLength + 1) * sizeof(PRUnichar));
       if (unichars) {
@@ -252,7 +252,7 @@ struct XPCLocaleCallbacks : public JSLocaleCallbacks
       return false;
     }
 
-    int32_t result;
+    PRInt32 result;
     rv = mCollation->CompareString(nsICollation::kCollationStrengthDefault,
                                    depStr1, depStr2, &result);
 

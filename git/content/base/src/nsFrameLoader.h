@@ -177,14 +177,14 @@ public:
    * Called from the layout frame associated with this frame loader;
    * this notifies us to hook up with the widget and view.
    */
-  bool Show(int32_t marginWidth, int32_t marginHeight,
-              int32_t scrollbarPrefX, int32_t scrollbarPrefY,
+  bool Show(PRInt32 marginWidth, PRInt32 marginHeight,
+              PRInt32 scrollbarPrefX, PRInt32 scrollbarPrefY,
               nsSubDocumentFrame* frame);
 
   /**
    * Called when the margin properties of the containing frame are changed.
    */
-  void MarginsChanged(uint32_t aMarginWidth, uint32_t aMarginHeight);
+  void MarginsChanged(PRUint32 aMarginWidth, PRUint32 aMarginHeight);
 
   /**
    * Called from the layout frame associated with this frame loader, when
@@ -382,11 +382,11 @@ private:
   // See nsIFrameLoader.idl.  Short story, if !(mRenderMode &
   // RENDER_MODE_ASYNC_SCROLL), all the fields below are ignored in
   // favor of what content tells.
-  uint32_t mRenderMode;
+  PRUint32 mRenderMode;
 
   // See nsIFrameLoader.idl. EVENT_MODE_NORMAL_DISPATCH automatically
   // forwards some input events to out-of-process content.
-  uint32_t mEventMode;
+  PRUint32 mEventMode;
 };
 
 #endif

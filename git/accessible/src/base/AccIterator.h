@@ -69,7 +69,7 @@ private:
     IteratorState(Accessible* aParent, IteratorState* mParentState = nullptr);
 
     Accessible* mParent;
-    int32_t mIndex;
+    PRInt32 mIndex;
     IteratorState *mParentState;
   };
 
@@ -115,7 +115,7 @@ private:
   nsIAtom* mRelAttr;
   DocAccessible::AttrRelProviderArray* mProviders;
   nsIContent* mBindingParent;
-  uint32_t mIndex;
+  PRUint32 mIndex;
 };
 
 

@@ -20,15 +20,15 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_MOZIVISITINFO
 
-  VisitInfo(int64_t aVisitId, PRTime aVisitDate, uint32_t aTransitionType,
-            already_AddRefed<nsIURI> aReferrer, int64_t aSessionId);
+  VisitInfo(PRInt64 aVisitId, PRTime aVisitDate, PRUint32 aTransitionType,
+            already_AddRefed<nsIURI> aReferrer, PRInt64 aSessionId);
 
 private:
-  const int64_t mVisitId;
+  const PRInt64 mVisitId;
   const PRTime mVisitDate;
-  const uint32_t mTransitionType;
+  const PRUint32 mTransitionType;
   nsCOMPtr<nsIURI> mReferrer;
-  const int64_t mSessionId;
+  const PRInt64 mSessionId;
 };
 
 } // namespace places

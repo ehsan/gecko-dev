@@ -45,7 +45,7 @@ public:
 private:
     nsresult CreateExpression(const nsAString & aExpression,
                               nsIDOMXPathNSResolver *aResolver,
-                              nsTArray<int32_t> *aNamespaceIDs,
+                              nsTArray<PRInt32> *aNamespaceIDs,
                               nsTArray<nsCString> *aContractIDs,
                               nsCOMArray<nsISupports> *aState,
                               nsIDOMXPathExpression **aResult);

@@ -11,9 +11,9 @@
 namespace mozilla {
 namespace gfx {
 
-static const uint32_t kBytesPerPixel = 4;
-static const uint32_t kByteAlign = 1 << gfxAlphaRecovery::GoodAlignmentLog2();
-static const uint32_t kHeaderBytes =
+static const PRUint32 kBytesPerPixel = 4;
+static const PRUint32 kByteAlign = 1 << gfxAlphaRecovery::GoodAlignmentLog2();
+static const PRUint32 kHeaderBytes =
   (sizeof(BITMAPV4HEADER) + kByteAlign - 1) & ~(kByteAlign - 1);
 
 SharedDIBWin::SharedDIBWin() :
@@ -49,14 +49,14 @@ SharedDIBWin::Close()
 }
 
 nsresult
-SharedDIBWin::Create(HDC aHdc, uint32_t aWidth, uint32_t aHeight,
+SharedDIBWin::Create(HDC aHdc, PRUint32 aWidth, PRUint32 aHeight,
                      bool aTransparent)
 {
   Close();
 
   // create the offscreen shared dib
   BITMAPV4HEADER bmih;
-  uint32_t size = SetupBitmapHeader(aWidth, aHeight, aTransparent, &bmih);
+  PRUint32 size = SetupBitmapHeader(aWidth, aHeight, aTransparent, &bmih);
 
   nsresult rv = SharedDIB::Create(size);
   if (NS_FAILED(rv))
@@ -71,7 +71,7 @@ SharedDIBWin::Create(HDC aHdc, uint32_t aWidth, uint32_t aHeight,
 }
 
 nsresult
-SharedDIBWin::Attach(Handle aHandle, uint32_t aWidth, uint32_t aHeight,
+SharedDIBWin::Attach(Handle aHandle, PRUint32 aWidth, PRUint32 aHeight,
                      bool aTransparent)
 {
   Close();
@@ -91,8 +91,8 @@ SharedDIBWin::Attach(Handle aHandle, uint32_t aWidth, uint32_t aHeight,
   return NS_OK;
 }
 
-uint32_t
-SharedDIBWin::SetupBitmapHeader(uint32_t aWidth, uint32_t aHeight,
+PRUint32
+SharedDIBWin::SetupBitmapHeader(PRUint32 aWidth, PRUint32 aHeight,
                                 bool aTransparent, BITMAPV4HEADER *aHeader)
 {
   // D3D cannot handle an offscreen memory that pitch (SysMemPitch) is negative.

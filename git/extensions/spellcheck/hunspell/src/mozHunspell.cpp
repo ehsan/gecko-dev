@@ -96,7 +96,7 @@ NS_IMPL_CYCLE_COLLECTION_3(mozHunspell,
                            mDecoder)
 
 // Memory reporting stuff.
-static int64_t gHunspellAllocatedSize = 0;
+static PRInt64 gHunspellAllocatedSize = 0;
 
 NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(HunspellMallocSizeOfForCounterInc, "hunspell")
 NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN_UN(HunspellMallocSizeOfForCounterDec)
@@ -107,7 +107,7 @@ void HunspellReportMemoryAllocation(void* ptr) {
 void HunspellReportMemoryDeallocation(void* ptr) {
   gHunspellAllocatedSize -= HunspellMallocSizeOfForCounterDec(ptr);
 }
-static int64_t HunspellGetCurrentAllocatedSize() {
+static PRInt64 HunspellGetCurrentAllocatedSize() {
   return gHunspellAllocatedSize;
 }
 
@@ -198,7 +198,7 @@ NS_IMETHODIMP mozHunspell::SetDictionary(const PRUnichar *aDictionary)
     return NS_OK;
 
   dictFileName = affFileName;
-  int32_t dotPos = dictFileName.RFindChar('.');
+  PRInt32 dotPos = dictFileName.RFindChar('.');
   if (dotPos == -1)
     return NS_ERROR_FAILURE;
 
@@ -233,7 +233,7 @@ NS_IMETHODIMP mozHunspell::SetDictionary(const PRUnichar *aDictionary)
   if (mEncoder)
     mEncoder->SetOutputErrorBehavior(mEncoder->kOnError_Signal, nullptr, '?');
 
-  int32_t pos = mDictionary.FindChar('-');
+  PRInt32 pos = mDictionary.FindChar('-');
   if (pos == -1)
     pos = mDictionary.FindChar('_');
 
@@ -311,7 +311,7 @@ NS_IMETHODIMP mozHunspell::SetPersonalDictionary(mozIPersonalDictionary * aPerso
 struct AppendNewStruct
 {
   PRUnichar **dics;
-  uint32_t count;
+  PRUint32 count;
   bool failed;
 };
 
@@ -329,9 +329,9 @@ AppendNewString(const nsAString& aString, nsIFile* aFile, void* aClosure)
   return PL_DHASH_NEXT;
 }
 
-/* void GetDictionaryList ([array, size_is (count)] out wstring dictionaries, out uint32_t count); */
+/* void GetDictionaryList ([array, size_is (count)] out wstring dictionaries, out PRUint32 count); */
 NS_IMETHODIMP mozHunspell::GetDictionaryList(PRUnichar ***aDictionaries,
-                                            uint32_t *aCount)
+                                            PRUint32 *aCount)
 {
   if (!aDictionaries || !aCount)
     return NS_ERROR_NULL_POINTER;
@@ -418,7 +418,7 @@ mozHunspell::LoadDictionaryList()
   }
 
   // find dictionaries from restartless extensions
-  for (int32_t i = 0; i < mDynamicDirectories.Count(); i++) {
+  for (PRInt32 i = 0; i < mDynamicDirectories.Count(); i++) {
     LoadDictionariesFromDir(mDynamicDirectories[i]);
   }
 
@@ -497,8 +497,8 @@ nsresult mozHunspell::ConvertCharset(const PRUnichar* aStr, char ** aDst)
   NS_ENSURE_ARG_POINTER(aDst);
   NS_ENSURE_TRUE(mEncoder, NS_ERROR_NULL_POINTER);
 
-  int32_t outLength;
-  int32_t inLength = NS_strlen(aStr);
+  PRInt32 outLength;
+  PRInt32 inLength = NS_strlen(aStr);
   nsresult rv = mEncoder->GetMaxLength(aStr, inLength, &outLength);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -532,8 +532,8 @@ NS_IMETHODIMP mozHunspell::Check(const PRUnichar *aWord, bool *aResult)
   return rv;
 }
 
-/* void Suggest (in wstring word, [array, size_is (count)] out wstring suggestions, out uint32_t count); */
-NS_IMETHODIMP mozHunspell::Suggest(const PRUnichar *aWord, PRUnichar ***aSuggestions, uint32_t *aSuggestionCount)
+/* void Suggest (in wstring word, [array, size_is (count)] out wstring suggestions, out PRUint32 count); */
+NS_IMETHODIMP mozHunspell::Suggest(const PRUnichar *aWord, PRUnichar ***aSuggestions, PRUint32 *aSuggestionCount)
 {
   NS_ENSURE_ARG_POINTER(aSuggestions);
   NS_ENSURE_ARG_POINTER(aSuggestionCount);
@@ -552,11 +552,11 @@ NS_IMETHODIMP mozHunspell::Suggest(const PRUnichar *aWord, PRUnichar ***aSuggest
   if (*aSuggestionCount) {
     *aSuggestions  = (PRUnichar **)nsMemory::Alloc(*aSuggestionCount * sizeof(PRUnichar *));
     if (*aSuggestions) {
-      uint32_t index = 0;
+      PRUint32 index = 0;
       for (index = 0; index < *aSuggestionCount && NS_SUCCEEDED(rv); ++index) {
         // Convert the suggestion to utf16
-        int32_t inLength = strlen(wlst[index]);
-        int32_t outLength;
+        PRInt32 inLength = strlen(wlst[index]);
+        PRInt32 outLength;
         rv = mDecoder->GetMaxLength(wlst[index], inLength, &outLength);
         if (NS_SUCCEEDED(rv))
         {

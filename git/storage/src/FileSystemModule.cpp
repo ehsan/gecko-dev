@@ -42,7 +42,7 @@ public:
     return mCurrentFileName;
   }
 
-  int64_t RowId() const
+  PRInt64 RowId() const
   {
     return mRowId;
   }
@@ -56,7 +56,7 @@ private:
   nsString mDirectoryPath;
   nsString mCurrentFileName;
 
-  int64_t mRowId;
+  PRInt64 mRowId;
 };
 
 nsresult

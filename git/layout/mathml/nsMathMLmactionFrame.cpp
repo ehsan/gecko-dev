@@ -49,7 +49,7 @@ enum nsMactionActionTypes {
 
 
 // helper function to parse actiontype attribute
-static int32_t
+static PRInt32
 GetActionType(nsIContent* aContent)
 {
   nsAutoString value;
@@ -129,7 +129,7 @@ nsMathMLmactionFrame::TransmitAutomaticData() {
 }
 
 nsresult
-nsMathMLmactionFrame::ChildListChanged(int32_t aModType)
+nsMathMLmactionFrame::ChildListChanged(PRInt32 aModType)
 {
   // update cached values
   mChildCount = -1;
@@ -145,7 +145,7 @@ nsIFrame*
 nsMathMLmactionFrame::GetSelectedFrame()
 {
   nsAutoString value;
-  int32_t selection; 
+  PRInt32 selection; 
 
   if ((mActionType & NS_MATHML_ACTION_TYPE_CLASS_BITMASK) == 
        NS_MATHML_ACTION_TYPE_CLASS_ERROR) {
@@ -187,7 +187,7 @@ nsMathMLmactionFrame::GetSelectedFrame()
   }
 
   // get the selected child and cache new values...
-  int32_t count = 0;
+  PRInt32 count = 0;
   nsIFrame* childFrame = mFrames.FirstChild();
   while (childFrame) {
     if (!mSelectedFrame) 
@@ -234,15 +234,15 @@ nsMathMLmactionFrame::SetInitialChildList(ChildListID     aListID,
 }
 
 NS_IMETHODIMP
-nsMathMLmactionFrame::AttributeChanged(int32_t  aNameSpaceID,
+nsMathMLmactionFrame::AttributeChanged(PRInt32  aNameSpaceID,
                                        nsIAtom* aAttribute,
-                                       int32_t  aModType)
+                                       PRInt32  aModType)
 {
   bool needsReflow = false;
 
   if (aAttribute == nsGkAtoms::actiontype_) {
     // updating mActionType ...
-    int32_t oldActionType = mActionType;
+    PRInt32 oldActionType = mActionType;
     mActionType = GetActionType(mContent);
 
     // Initiate a reflow when actiontype classes are different.
@@ -454,7 +454,7 @@ nsMathMLmactionFrame::MouseClick()
 {
   if (NS_MATHML_ACTION_TYPE_TOGGLE == mActionType) {
     if (mChildCount > 1) {
-      int32_t selection = (mSelection == mChildCount)? 1 : mSelection + 1;
+      PRInt32 selection = (mSelection == mChildCount)? 1 : mSelection + 1;
       nsAutoString value;
       char cbuf[10];
       PR_snprintf(cbuf, sizeof(cbuf), "%d", selection);

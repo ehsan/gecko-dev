@@ -26,7 +26,7 @@ nsStubImageDecoderObserver::OnStartContainer(imgIRequest *aRequest,
 
 NS_IMETHODIMP
 nsStubImageDecoderObserver::OnStartFrame(imgIRequest *aRequest,
-                                         uint32_t aFrame)
+                                         PRUint32 aFrame)
 {
     return NS_OK;
 }
@@ -41,7 +41,7 @@ nsStubImageDecoderObserver::OnDataAvailable(imgIRequest *aRequest,
 
 NS_IMETHODIMP
 nsStubImageDecoderObserver::OnStopFrame(imgIRequest *aRequest,
-                                        uint32_t aFrame)
+                                        PRUint32 aFrame)
 {
     return NS_OK;
 }

@@ -42,14 +42,14 @@ txMozillaTextOutput::~txMozillaTextOutput()
 nsresult
 txMozillaTextOutput::attribute(nsIAtom* aPrefix, nsIAtom* aLocalName,
                                nsIAtom* aLowercaseLocalName,
-                               int32_t aNsID, const nsString& aValue)
+                               PRInt32 aNsID, const nsString& aValue)
 {
     return NS_OK;
 }
 
 nsresult
 txMozillaTextOutput::attribute(nsIAtom* aPrefix, const nsSubstring& aName,
-                               const int32_t aNsID,
+                               const PRInt32 aNsID,
                                const nsString& aValue)
 {
     return NS_OK;
@@ -171,7 +171,7 @@ txMozillaTextOutput::createResultDocument(nsIDOMDocument* aSourceDocument)
     // When transforming into a non-displayed document (i.e. when there is no
     // observer) we only create a transformiix:result root element.
     if (!observer) {
-        int32_t namespaceID;
+        PRInt32 namespaceID;
         rv = nsContentUtils::NameSpaceManager()->
             RegisterNameSpace(NS_LITERAL_STRING(kTXNameSpaceURI), namespaceID);
         NS_ENSURE_SUCCESS(rv, rv);
@@ -222,14 +222,14 @@ txMozillaTextOutput::createResultDocument(nsIDOMDocument* aSourceDocument)
 
 nsresult
 txMozillaTextOutput::startElement(nsIAtom* aPrefix, nsIAtom* aLocalName,
-                                  nsIAtom* aLowercaseLocalName, int32_t aNsID)
+                                  nsIAtom* aLowercaseLocalName, PRInt32 aNsID)
 {
     return NS_OK;
 }
 
 nsresult
 txMozillaTextOutput::startElement(nsIAtom* aPrefix, const nsSubstring& aName,
-                                  const int32_t aNsID)
+                                  const PRInt32 aNsID)
 {
     return NS_OK;
 }

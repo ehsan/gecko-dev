@@ -14,13 +14,13 @@ namespace SSE2 {
 void
 Convert_ascii_run(const char *&src,
                   PRUnichar  *&dst,
-                  int32_t      len)
+                  PRInt32      len)
 {
   if (len > 15) {
     __m128i in, out1, out2;
     __m128d *outp1, *outp2;
     __m128i zeroes;
-    uint32_t offset;
+    PRUint32 offset;
 
     // align input to 16 bytes
     while ((NS_PTR_TO_UINT32(src) & 15) && len > 0) {

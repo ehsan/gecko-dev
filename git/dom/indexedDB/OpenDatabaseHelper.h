@@ -28,7 +28,7 @@ public:
   OpenDatabaseHelper(IDBOpenDBRequest* aRequest,
                      const nsAString& aName,
                      const nsACString& aASCIIOrigin,
-                     uint64_t aRequestedVersion,
+                     PRUint64 aRequestedVersion,
                      bool aForDeletion,
                      mozilla::dom::ContentParent* aContentParent,
                      FactoryPrivilege aPrivilege)
@@ -107,7 +107,7 @@ protected:
   nsRefPtr<IDBOpenDBRequest> mOpenDBRequest;
   nsString mName;
   nsCString mASCIIOrigin;
-  uint64_t mRequestedVersion;
+  PRUint64 mRequestedVersion;
   bool mForDeletion;
   FactoryPrivilege mPrivilege;
   nsCOMPtr<nsIAtom> mDatabaseId;
@@ -115,10 +115,10 @@ protected:
 
   // Out-params.
   nsTArray<nsRefPtr<ObjectStoreInfo> > mObjectStores;
-  uint64_t mCurrentVersion;
+  PRUint64 mCurrentVersion;
   nsString mDatabaseFilePath;
-  int64_t mLastObjectStoreId;
-  int64_t mLastIndexId;
+  PRInt64 mLastObjectStoreId;
+  PRInt64 mLastIndexId;
   nsRefPtr<IDBDatabase> mDatabase;
 
   // State variables

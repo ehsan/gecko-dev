@@ -35,7 +35,7 @@
 
 using namespace mozilla;
 
-static const char* getKeyText(uint32_t aKey)
+static const char* getKeyText(PRUint32 aKey)
 {
   switch (aKey) {
     case nsCameraControl::CAMERA_PARAM_EFFECT:
@@ -103,7 +103,7 @@ static const char* getKeyText(uint32_t aKey)
 
 // Gonk-specific CameraControl implementation.
 
-nsGonkCameraControl::nsGonkCameraControl(uint32_t aCameraId, nsIThread* aCameraThread)
+nsGonkCameraControl::nsGonkCameraControl(PRUint32 aCameraId, nsIThread* aCameraThread)
   : nsCameraControl(aCameraId, aCameraThread)
   , mHwHandle(0)
   , mExposureCompensationMin(0.0)
@@ -188,7 +188,7 @@ nsGonkCameraControl::GetParameter(const char* aKey)
 }
 
 const char*
-nsGonkCameraControl::GetParameterConstChar(uint32_t aKey)
+nsGonkCameraControl::GetParameterConstChar(PRUint32 aKey)
 {
   const char* key = getKeyText(aKey);
   if (!key) {
@@ -200,7 +200,7 @@ nsGonkCameraControl::GetParameterConstChar(uint32_t aKey)
 }
 
 double
-nsGonkCameraControl::GetParameterDouble(uint32_t aKey)
+nsGonkCameraControl::GetParameterDouble(PRUint32 aKey)
 {
   double val;
   int index = 0;
@@ -255,7 +255,7 @@ nsGonkCameraControl::GetParameterDouble(uint32_t aKey)
 }
 
 void
-nsGonkCameraControl::GetParameter(uint32_t aKey, nsTArray<CameraRegion>& aRegions)
+nsGonkCameraControl::GetParameter(PRUint32 aKey, nsTArray<CameraRegion>& aRegions)
 {
   aRegions.Clear();
 
@@ -273,7 +273,7 @@ nsGonkCameraControl::GetParameter(uint32_t aKey, nsTArray<CameraRegion>& aRegion
   }
 
   const char* p = value;
-  uint32_t count = 1;
+  PRUint32 count = 1;
 
   // count the number of regions in the string
   while ((p = strstr(p, "),("))) {
@@ -285,7 +285,7 @@ nsGonkCameraControl::GetParameter(uint32_t aKey, nsTArray<CameraRegion>& aRegion
   CameraRegion* r;
 
   // parse all of the region sets
-  uint32_t i;
+  PRUint32 i;
   for (i = 0, p = value; p && i < count; ++i, p = strchr(p + 1, '(')) {
     r = aRegions.AppendElement();
     if (sscanf(p, "(%d,%d,%d,%d,%u)", &r->top, &r->left, &r->bottom, &r->right, &r->weight) != 5) {
@@ -331,7 +331,7 @@ nsGonkCameraControl::SetParameter(const char* aKey, const char* aValue)
 }
 
 void
-nsGonkCameraControl::SetParameter(uint32_t aKey, const char* aValue)
+nsGonkCameraControl::SetParameter(PRUint32 aKey, const char* aValue)
 {
   const char* key = getKeyText(aKey);
   if (!key) {
@@ -346,9 +346,9 @@ nsGonkCameraControl::SetParameter(uint32_t aKey, const char* aValue)
 }
 
 void
-nsGonkCameraControl::SetParameter(uint32_t aKey, double aValue)
+nsGonkCameraControl::SetParameter(PRUint32 aKey, double aValue)
 {
-  uint32_t index;
+  PRUint32 index;
 
   const char* key = getKeyText(aKey);
   if (!key) {
@@ -373,14 +373,14 @@ nsGonkCameraControl::SetParameter(uint32_t aKey, double aValue)
 }
 
 void
-nsGonkCameraControl::SetParameter(uint32_t aKey, const nsTArray<CameraRegion>& aRegions)
+nsGonkCameraControl::SetParameter(PRUint32 aKey, const nsTArray<CameraRegion>& aRegions)
 {
   const char* key = getKeyText(aKey);
   if (!key) {
     return;
   }
 
-  uint32_t length = aRegions.Length();
+  PRUint32 length = aRegions.Length();
 
   if (!length) {
     // This tells the camera driver to revert to automatic regioning.
@@ -391,7 +391,7 @@ nsGonkCameraControl::SetParameter(uint32_t aKey, const nsTArray<CameraRegion>& a
 
   nsCString s;
 
-  for (uint32_t i = 0; i < length; ++i) {
+  for (PRUint32 i = 0; i < length; ++i) {
     const CameraRegion* r = &aRegions[i];
     s.AppendPrintf("(%d,%d,%d,%d,%d),", r->top, r->left, r->bottom, r->right, r->weight);
   }
@@ -501,7 +501,7 @@ nsGonkCameraControl::TakePictureImpl(TakePictureTask* aTakePicture)
   SetParameter(CameraParameters::KEY_PICTURE_FORMAT, NS_ConvertUTF16toUTF8(mFileFormat).get());
 
   // Convert 'rotation' to a positive value from 0..270 degrees, in steps of 90.
-  uint32_t r = static_cast<uint32_t>(aTakePicture->mRotation);
+  PRUint32 r = static_cast<PRUint32>(aTakePicture->mRotation);
   r %= 360;
   r += 45;
   r /= 90;
@@ -583,7 +583,7 @@ nsGonkCameraControl::ReceiveFrame(layers::GraphicBufferLocked *aBuffer)
 namespace mozilla {
 
 void
-ReceiveImage(nsGonkCameraControl* gc, uint8_t* aData, uint32_t aLength)
+ReceiveImage(nsGonkCameraControl* gc, PRUint8* aData, PRUint32 aLength)
 {
   gc->TakePictureComplete(aData, aLength);
 }

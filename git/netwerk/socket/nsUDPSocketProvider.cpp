@@ -13,12 +13,12 @@ nsUDPSocketProvider::~nsUDPSocketProvider()
 }
 
 NS_IMETHODIMP 
-nsUDPSocketProvider::NewSocket(int32_t aFamily,
+nsUDPSocketProvider::NewSocket(PRInt32 aFamily,
                                const char *aHost, 
-                               int32_t aPort, 
+                               PRInt32 aPort, 
                                const char *aProxyHost, 
-                               int32_t aProxyPort,
-                               uint32_t aFlags,
+                               PRInt32 aProxyPort,
+                               PRUint32 aFlags,
                                PRFileDesc * *aFileDesc, 
                                nsISupports **aSecurityInfo)
 {
@@ -33,12 +33,12 @@ nsUDPSocketProvider::NewSocket(int32_t aFamily,
 }
 
 NS_IMETHODIMP 
-nsUDPSocketProvider::AddToSocket(int32_t aFamily,
+nsUDPSocketProvider::AddToSocket(PRInt32 aFamily,
                                  const char *aHost,
-                                 int32_t aPort,
+                                 PRInt32 aPort,
                                  const char *aProxyHost,
-                                 int32_t aProxyPort,
-                                 uint32_t aFlags,
+                                 PRInt32 aProxyPort,
+                                 PRUint32 aFlags,
                                  struct PRFileDesc * aFileDesc,
                                  nsISupports **aSecurityInfo)
 {
