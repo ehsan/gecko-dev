@@ -2449,12 +2449,7 @@ nsScriptSecurityManager::IsCapabilityEnabled(const char *capability,
     nsIPrincipal* previousPrincipal = nsnull;
     do
     {
-        rv = NS_OK;
-        nsIPrincipal* principal;
-        if (JSPrincipals *jsp = JS_GetPrincipalIfDummyFrame(cx, fp))
-          principal = nsJSPrincipals::get(jsp);
-        else
-          principal = GetFramePrincipal(cx, fp, &rv);
+        nsIPrincipal* principal = GetFramePrincipal(cx, fp, &rv);
         if (NS_FAILED(rv))
             return rv;
         if (!principal)

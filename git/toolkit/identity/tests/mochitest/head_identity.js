@@ -136,7 +136,8 @@ function call_sequentially() {
 function setup_provisioning(identity, afterSetupCallback, doneProvisioningCallback, callerCallbacks) {
   IDService.reset();
 
-  let util = SpecialPowers.getDOMWindowUtils(window);
+  let util = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                    .getInterface(Ci.nsIDOMWindowUtils);
 
   let provId = util.outerWindowID;
   IDService.IDP._provisionFlows[provId] = {

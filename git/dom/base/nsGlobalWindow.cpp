@@ -8350,12 +8350,6 @@ nsGlobalWindow::GetIndexedDB(nsIIDBFactory** _retval)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsGlobalWindow::GetMozIndexedDB(nsIIDBFactory** _retval)
-{
-  return GetIndexedDB(_retval);
-}
-
 //*****************************************************************************
 // nsGlobalWindow::nsIInterfaceRequestor
 //*****************************************************************************

@@ -1880,10 +1880,8 @@ DocumentViewerImpl::SetBounds(const nsIntRect& aBounds)
   // relating to things being hidden while something is loaded.  It so
   // happens that Firefox does this a good bit with its infobar, and it
   // looks ugly if we don't do this.
-  if (mPreviousViewer) {
-    nsCOMPtr<nsIContentViewer> previousViewer = mPreviousViewer;
-    previousViewer->SetBounds(aBounds);
-  }
+  if (mPreviousViewer)
+    mPreviousViewer->SetBounds(aBounds);
 
   return NS_OK;
 }

@@ -13,7 +13,8 @@ const Services = Cu.import("resource://gre/modules/Services.jsm").Services;
 const DOMIdentity = Cu.import("resource://gre/modules/DOMIdentity.jsm")
                       .DOMIdentity;
 
-let util = SpecialPowers.getDOMWindowUtils(window);
+let util = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                 .getInterface(Ci.nsIDOMWindowUtils);
 let outerWinId = util.outerWindowID;
 
 const identity = navigator.id || navigator.mozId;
