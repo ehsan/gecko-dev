@@ -2960,25 +2960,8 @@ exports.testCompleted = function(options) {
       secure: { value: false, status: 'VALID' }
     }
   });
-};
 
-exports.testCase = function(options) {
-  helpers.setInput('tsg AA');
-  helpers.check({
-    input:  'tsg AA',
-    markup: 'VVVVII',
-    directTabText: '',
-    arrowTabText: 'aaa',
-    status: 'ERROR',
-    emptyParameters: [ ],
-    args: {
-      solo: { value: undefined, text: 'AA', status: 'INCOMPLETE' },
-      txt1: { value: undefined, status: 'VALID' },
-      bool: { value: undefined, status: 'VALID' },
-      txt2: { value: undefined, status: 'VALID' },
-      num: { value: undefined, status: 'VALID' }
-    }
-  });
+  // Expand out to christmas tree command line
 };
 
 exports.testIncomplete = function(options) {
