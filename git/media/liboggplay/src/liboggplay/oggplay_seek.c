@@ -41,7 +41,11 @@
 OggPlayErrorCode
 oggplay_seek(OggPlay *me, ogg_int64_t milliseconds) {
 
-  ogg_int64_t           eof;
+  OggPlaySeekTrash    * trash;
+  OggPlaySeekTrash   ** p;
+  OggPlayDataHeader  ** end_of_list_p;
+  int                   i;
+  int                   eof;
 
   if (me == NULL) {
     return E_OGGPLAY_BAD_OGGPLAY;
@@ -71,21 +75,6 @@ oggplay_seek(OggPlay *me, ogg_int64_t milliseconds) {
       return E_OGGPLAY_CANT_SEEK;
     }
   }
-
-  oggplay_seek_cleanup(me, milliseconds);
-
-  return E_OGGPLAY_OK;
-
-}
-
-void
-oggplay_seek_cleanup(OggPlay* me, ogg_int64_t milliseconds)
-{
-
-  OggPlaySeekTrash    * trash;
-  OggPlaySeekTrash   ** p;
-  OggPlayDataHeader  ** end_of_list_p;
-  int                   i;
 
   /*
    * first, create a trash object to store the context that we want to
@@ -140,6 +129,9 @@ oggplay_seek_cleanup(OggPlay* me, ogg_int64_t milliseconds)
   }
 
   *p = trash;
+
+  return E_OGGPLAY_OK;
+
 }
 
 void

@@ -4852,6 +4852,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT 
         newHeight = PRInt32(r.bottom - r.top);
         nsRect rect(wp->x, wp->y, newWidth, newHeight);
 
+
 #ifdef MOZ_XUL
         if (eTransparencyTransparent == mTransparencyMode)
           ResizeTranslucentWindow(newWidth, newHeight);
@@ -4892,10 +4893,8 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT 
 
         // If we're being minimized, don't send the resize event to Gecko because
         // it will cause the scrollbar in the content area to go away and we'll
-        // forget the scroll position of the page.  Note that we need to check the
-        // toplevel window, because child windows seem to go to 0x0 on minimize.
-        HWND toplevelWnd = GetTopLevelHWND(mWnd);
-        if ( !newWidth && !newHeight && IsIconic(toplevelWnd)) {
+        // forget the scroll position of the page.
+        if ( !newWidth && !newHeight && IsIconic(mWnd)) {
           result = PR_FALSE;
           break;
         }
