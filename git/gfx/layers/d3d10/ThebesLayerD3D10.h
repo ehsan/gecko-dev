@@ -58,7 +58,7 @@ public:
   void InvalidateRegion(const nsIntRegion& aRegion);
 
   /* LayerD3D10 implementation */
-  virtual Layer* GetLayer();
+  Layer* GetLayer();
   virtual void RenderLayer(float aOpacity, const gfx3DMatrix &aTransform);
   virtual void Validate();
   virtual void LayerManagerDestroyed();

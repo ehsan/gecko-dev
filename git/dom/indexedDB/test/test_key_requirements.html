@@ -23,12 +23,12 @@
 
       let db = event.result;
 
-      request = db.setVersion("1");
+      request = db.createObjectStore("foo", "", true);
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield;
 
-      let objectStore = db.createObjectStore("foo", "", true);
+      let objectStore = event.result;
 
       request = objectStore.add({});
       request.onerror = errorHandler;
@@ -86,7 +86,12 @@
         ok(true, "remove with no key threw");
       }
 
-      objectStore = db.createObjectStore("bar", "", false);
+      request = db.createObjectStore("bar", "", false);
+      request.onerror = errorHandler;
+      request.onsuccess = grabEventAndContinueHandler;
+      event = yield;
+
+      objectStore = event.result;
 
       try {
         objectStore.add({});
@@ -120,7 +125,12 @@
         ok(true, "remove with no key threw");
       }
 
-      objectStore = db.createObjectStore("baz", "id", false);
+      request = db.createObjectStore("baz", "id", false);
+      request.onerror = errorHandler;
+      request.onsuccess = grabEventAndContinueHandler;
+      event = yield;
+
+      objectStore = event.result;
 
       try {
         objectStore.add({});
@@ -213,7 +223,12 @@
         ok(true, "remove with null key threw");
       }
 
-      objectStore = db.createObjectStore("bazing", "id", true);
+      request = db.createObjectStore("bazing", "id", true);
+      request.onerror = errorHandler;
+      request.onsuccess = grabEventAndContinueHandler;
+      event = yield;
+
+      objectStore = event.result;
 
       request = objectStore.add({});
       request.onerror = errorHandler;

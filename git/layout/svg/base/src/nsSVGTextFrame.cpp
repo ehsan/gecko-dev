@@ -101,8 +101,7 @@ nsSVGTextFrame::AttributeChanged(PRInt32         aNameSpaceID,
   } else if (aAttribute == nsGkAtoms::x ||
              aAttribute == nsGkAtoms::y ||
              aAttribute == nsGkAtoms::dx ||
-             aAttribute == nsGkAtoms::dy ||
-             aAttribute == nsGkAtoms::rotate) {
+             aAttribute == nsGkAtoms::dy) {
     NotifyGlyphMetricsChange();
   }
 
@@ -323,8 +322,7 @@ nsSVGTextFrame::UpdateGlyphPositioning(PRBool aForceGlobalTransform)
     nsSVGTextPathFrame *textPath = firstFragment->FindTextPathParent();
 
     nsTArray<float> effectiveXList, effectiveYList;
-    firstFragment->GetEffectiveXY(firstFragment->GetNumberOfChars(),
-                                  effectiveXList, effectiveYList);
+    firstFragment->GetEffectiveXY(effectiveXList, effectiveYList);
     if (!effectiveXList.IsEmpty()) ctp.x = effectiveXList[0];
     if (!textPath && !effectiveYList.IsEmpty()) ctp.y = effectiveYList[0];
 

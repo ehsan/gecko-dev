@@ -125,11 +125,15 @@ private:
             const PRInt64& aContentLength);
     virtual bool DeallocPExternalHelperApp(PExternalHelperAppParent* aService);
 
-    virtual bool RecvReadPrefsArray(nsTArray<PrefTuple> *retValue);
+    virtual bool RecvReadPrefs(nsCString* prefs);
+
+    virtual bool RecvTestPermission(const IPC::URI&  aUri,
+                                    const nsCString& aType,
+                                    const PRBool&    aExact,
+                                    PRUint32*        retValue);
 
     void EnsurePrefService();
-
-    virtual bool RecvReadPermissions(nsTArray<IPC::Permission>* aPermissions);
+    void EnsurePermissionService();
 
     virtual bool RecvStartVisitedQuery(const IPC::URI& uri);
 
@@ -139,18 +143,7 @@ private:
 
     virtual bool RecvSetURITitle(const IPC::URI& uri,
                                  const nsString& title);
-    
-    virtual bool RecvShowFilePicker(const PRInt16& mode,
-                                    const PRInt16& selectedType,
-                                    const nsString& title,
-                                    const nsString& defaultFile,
-                                    const nsString& defaultExtension,
-                                    const nsTArray<nsString>& filters,
-                                    const nsTArray<nsString>& filterNames,
-                                    nsTArray<nsString>* files,
-                                    PRInt16* retValue,
-                                    nsresult* result);
- 
+
     virtual bool RecvShowAlertNotification(const nsString& aImageUrl, const nsString& aTitle,
                                            const nsString& aText, const PRBool& aTextClickable,
                                            const nsString& aCookie, const nsString& aName);
@@ -184,6 +177,7 @@ private:
 
     bool mIsAlive;
     nsCOMPtr<nsIPrefServiceInternal> mPrefService; 
+    nsCOMPtr<nsIPermissionManager> mPermissionService; 
 };
 
 } // namespace dom

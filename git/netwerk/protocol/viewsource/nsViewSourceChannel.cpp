@@ -60,7 +60,6 @@ NS_INTERFACE_MAP_BEGIN(nsViewSourceChannel)
     NS_INTERFACE_MAP_ENTRY(nsIStreamListener)
     NS_INTERFACE_MAP_ENTRY(nsIRequestObserver)
     NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIHttpChannel, mHttpChannel)
-    NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIHttpChannelInternal, mHttpChannelInternal)
     NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsICachingChannel, mCachingChannel)
     NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIUploadChannel, mUploadChannel)
     NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIRequest, nsIViewSourceChannel)
@@ -98,7 +97,6 @@ nsViewSourceChannel::Init(nsIURI* uri)
  
     mChannel->SetOriginalURI(mOriginalURI);
     mHttpChannel = do_QueryInterface(mChannel);
-    mHttpChannelInternal = do_QueryInterface(mChannel);
     mCachingChannel = do_QueryInterface(mChannel);
     mUploadChannel = do_QueryInterface(mChannel);
     
@@ -630,12 +628,6 @@ nsViewSourceChannel::GetResponseHeader(const nsACString & aHeader,
         return NS_ERROR_NULL_POINTER;
 
     if (!aHeader.Equals(NS_LITERAL_CSTRING("Content-Type"),
-                        nsCaseInsensitiveCStringComparator()) &&
-        !aHeader.Equals(NS_LITERAL_CSTRING("X-Content-Security-Policy"),
-                        nsCaseInsensitiveCStringComparator()) &&
-        !aHeader.Equals(NS_LITERAL_CSTRING("X-Content-Security-Policy-Report-Only"),
-                        nsCaseInsensitiveCStringComparator()) &&
-        !aHeader.Equals(NS_LITERAL_CSTRING("X-Frame-Options"),
                         nsCaseInsensitiveCStringComparator())) {
         aValue.Truncate();
         return NS_OK;

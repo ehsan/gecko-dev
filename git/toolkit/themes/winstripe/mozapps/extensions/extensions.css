@@ -41,9 +41,7 @@
   margin: 20px;
 }
 
-#view-port-container {
-  /* Needed to allow the radius to clip the inner content, see bug 595656 */
-  overflow: hidden;
+#view-port {
   background-color: #d2d7df;
   border: 1px solid black;
   border-radius: 5px;
@@ -560,6 +558,7 @@
 }
 
 .detail-view-container {
+  overflow: auto;
   padding: 2em;
   font-size: 110%;
 }
@@ -593,13 +592,13 @@
 
 #detail-desc-container {
   margin-bottom: 2em;
+  /* This is necessary to fix layout issues with multi-line descriptions, see
+     bug 592712*/
+  outline: solid transparent;
 }
 
 #detail-desc {
   -moz-margin-start: 6px;
-  /* This is necessary to fix layout issues with multi-line descriptions, see
-     bug 592712*/
-  outline: solid transparent;
   white-space: pre-wrap;
 }
 
@@ -643,14 +642,9 @@
   margin-bottom: 2em;
 }
 
-.detail-row[first-row="true"],
-.detail-row-complex[first-row="true"] {
-  border-top: none;
-}
-
 .detail-row,
 .detail-row-complex {
-  border-top: 1px solid grey;
+  border-bottom: 1px solid grey;
   -moz-box-align: center;
 }
 

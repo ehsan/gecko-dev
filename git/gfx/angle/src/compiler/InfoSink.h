@@ -91,7 +91,6 @@ public:
     }
 
     void erase() { sink.clear(); }
-    int size() { return static_cast<int>(sink.size()); }
 
     const TPersistString& str() const { return sink; }
     const char* c_str() const { return sink.c_str(); }

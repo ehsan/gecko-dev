@@ -45,7 +45,7 @@ var expect = 'No Error';
 printBugNumber(BUGNUMBER);
 printStatus (summary);
 
-if (typeof focus != 'undefined' && focus.prototype)
+if (typeof focus != 'undefined')
 {
   try
   {

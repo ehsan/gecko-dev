@@ -41,10 +41,6 @@
 #include <gtk/gtk.h>
 #endif
 
-#ifdef MOZ_WIDGET_QT
-#include "nsQAppInstance.h"
-#endif
-
 #include "ContentChild.h"
 #include "TabChild.h"
 
@@ -76,11 +72,6 @@
 #include "nsFrameMessageManager.h"
 
 #include "nsIGeolocationProvider.h"
-
-#ifdef MOZ_PERMISSIONS
-#include "nsPermission.h"
-#include "nsPermissionManager.h"
-#endif
 
 using namespace mozilla::ipc;
 using namespace mozilla::net;
@@ -195,11 +186,6 @@ ContentChild::Init(MessageLoop* aIOLoop,
 #ifdef MOZ_WIDGET_GTK2
     // sigh
     gtk_init(NULL, NULL);
-#endif
-
-#ifdef MOZ_WIDGET_QT
-    // sigh, seriously
-    nsQAppInstance::AddRef();
 #endif
 
 #ifdef MOZ_X11
@@ -383,14 +369,10 @@ ContentChild::AddRemoteAlertObserver(const nsString& aData,
 }
 
 bool
-ContentChild::RecvPreferenceUpdate(const PrefTuple& aPref)
+ContentChild::RecvPreferenceUpdate(const nsCString& aPref)
 {
     nsCOMPtr<nsIPrefServiceInternal> prefs = do_GetService("@mozilla.org/preferences-service;1");
-    if (!prefs)
-        return false;
-
-    prefs->SetPreference(&aPref);
-
+    prefs->ReadPrefBuffer(aPref);
     return true;
 }
 
@@ -442,28 +424,6 @@ ContentChild::RecvGeolocationUpdate(const GeoPosition& somewhere)
   }
   nsCOMPtr<nsIDOMGeoPosition> position = somewhere;
   gs->Update(position);
-  return true;
-}
-
-bool
-ContentChild::RecvAddPermission(const IPC::Permission& permission)
-{
-#if MOZ_PERMISSIONS
-  nsPermissionManager *permissionManager =
-    (nsPermissionManager*)nsPermissionManager::GetSingleton();
-  NS_ABORT_IF_FALSE(permissionManager, 
-                   "We have no permissionManager in the Content process !");
-
-  permissionManager->AddInternal(nsCString(permission.host),
-                                 nsCString(permission.type),
-                                 permission.capability,
-                                 0,
-                                 permission.expireType,
-                                 permission.expireTime,
-                                 nsPermissionManager::eNotify,
-                                 nsPermissionManager::eNoDBOperation);
-#endif
-
   return true;
 }
 
