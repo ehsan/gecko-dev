@@ -555,33 +555,6 @@ appbar toolbarbutton[disabled="true"] {
   -moz-image-region: rect(80px, 200px, 120px, 160px);
 }
 
-/* About flyout pane */
-
-#about-flyoutpanel {
-  width: 350px;
-  background-image:url('chrome://browser/skin/images/about-footer.png');
-  background-repeat: no-repeat;
-  background-attachment: fixed;
-  background-position: right bottom;
-}
-
-#about-flyoutpanel label.text-link {
-  text-decoration: none;
-  color: #1167bd;
-}
-
-#about-product-label {
- font-weight: bold;
-}
-
-#about-version-label {
- margin-top: 11pt;
-}
-
-#about-policy-label {
- margin-top: 24pt;
-}
-
 /* Application-Specific */
 #download-button {
   -moz-image-region: rect(0px, 40px, 40px, 0px) !important;
@@ -648,6 +621,118 @@ appbar toolbarbutton[disabled="true"] {
   -moz-image-region: rect(80px, 360px, 120px, 320px) !important;
 }
 
+/* Flyouts ---------------------------------------------------------------- */
+
+/* don't add a margin to the very top settings entry in flyouts */
+flyoutpanel > settings:first-child {
+  margin-top: 0px;
+}
+
+/* Sync flyout pane */
+
+#sync-flyoutpanel {
+  width: 400px;
+}
+
+/* About flyout pane */
+
+#about-flyoutpanel {
+  width: 350px;
+  background-image:url('chrome://browser/skin/images/about-footer.png');
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  background-position: right bottom;
+}
+
+#about-flyoutpanel label.text-link {
+  text-decoration: none;
+  color: #1167bd;
+}
+
+#about-product-label {
+ font-weight: bold;
+}
+
+#about-version-label {
+ margin-top: 11pt;
+}
+
+#about-policy-label {
+ margin-top: 24pt;
+}
+
+/* Preferences flyout */
+
+#prefs-flyoutpanel {
+  width: 400px;
+}
+
+/* Lay out each <setting> in a single row */
+setting {
+  min-height: @touch_row@; /* row size */
+  -moz-box-align: center;
+  -moz-box-orient: horizontal;
+}
+
+/* ...except for some exceptions */
+.setting-expanded {
+  -moz-box-align: start;
+  -moz-box-orient: vertical;
+}
+
+setting > vbox {
+  -moz-box-flex: 1;
+}
+
+settings {
+  margin-top: 32px;
+}
+
+.settings-title {
+  font-weight: bold;
+}
+
+/* <setting> elements that are not in a <settings> group get special treatment */
+#prefs-flyoutpanel > setting,
+#sync-flyoutpanel > setting {
+  margin-top: 16px;
+}
+
+#prefs-flyoutpanel > setting .preferences-title,
+  font-weight: bold
+}
+
+setting[type="integer"] > .preferences-alignment,
+setting[type="string"] > .preferences-alignment {
+  -moz-box-flex: 3;
+}
+
+setting[type="file"] > .preferences-alignment,
+setting[type="directory"] > .preferences-alignment {
+  -moz-box-align: center;
+}
+
+#prefs-homepage-options, #prefs-homepage-popup {
+  min-width: 200px;
+}
+
+.options-box {
+  -moz-margin-start: 28px;  /* sized based on the 32px addon image */
+}
+
+.options-box > setting:last-child {
+  border-bottom: 0;
+}
+
+.preferences-description {
+  font-size: @font_small@ !important;
+  color: grey;
+}
+
+.preferences-description:empty {
+  display: none;
+}
+
 /* Start UI (Autocomplete + New Tab Page) ----------------------------------- */
 
 #start-container {
@@ -677,7 +762,7 @@ appbar toolbarbutton[disabled="true"] {
   visibility: collapse;
 }
 
-/* Browser Content Ares ----------------------------------------------------- */
+/* Browser Content Areas ----------------------------------------------------- */
 
 /* Hide the browser while the start UI is visible */
 #content-viewport[startpage],
@@ -726,72 +811,6 @@ appbar toolbarbutton[disabled="true"] {
 #panel-items {
   padding-top: 20px;
   -moz-padding-start: 88px;
-}
-
-/* Preferences Section - Panel UI ------------------------------------------ */
-
-#prefs-flyoutpanel {
-  width: 400px;
-}
-
-/* Lay out each <setting> in a single row */
-setting {
-  min-height: @touch_row@; /* row size */
-  -moz-box-align: center;
-  -moz-box-orient: horizontal;
-}
-
-/* ...except for some exceptions */
-.setting-expanded {
-  -moz-box-align: start;
-  -moz-box-orient: vertical;
-}
-
-setting > vbox {
-  -moz-box-flex: 1;
-}
-
-settings {
-  margin-top: 32px;
-}
-
-.settings-title {
-  font-weight: bold;
-}
-
-/* <setting> elements that are not in a <settings> group get special treatment */
-#prefs-flyoutpanel > setting {
-  margin-top: 16px;
-}
-#prefs-flyoutpanel > setting .preferences-title {
-  font-weight: bold
-}
-
-setting[type="integer"] > .preferences-alignment,
-setting[type="string"] > .preferences-alignment {
-  -moz-box-flex: 3;
-}
-
-setting[type="file"] > .preferences-alignment,
-setting[type="directory"] > .preferences-alignment {
-  -moz-box-align: center;
-}
-
-.options-box {
-  -moz-margin-start: 28px;  /* sized based on the 32px addon image */
-}
-
-.options-box > setting:last-child {
-  border-bottom: 0;
-}
-
-.preferences-description {
-  font-size: @font_small@ !important;
-  color: grey;
-}
-
-.preferences-description:empty {
-  display: none;
 }
 
 /* Console Section - Panel UI ---------------------------------------------- */

@@ -28,6 +28,8 @@
 <script class="testbody" type="application/javascript">
 <![CDATA[
 
+SimpleTest.expectAssertions(0, 7);
+
 SimpleTest.waitForExplicitFinish();
 
 var gExpectedId = "p3";

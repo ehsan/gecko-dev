@@ -86,7 +86,7 @@
 #include "sampler.h"
 
 #include "jsapi.h"
-#include "nsHTMLIFrameElement.h"
+#include "mozilla/dom/HTMLIFrameElement.h"
 #include "nsSandboxFlags.h"
 
 #include "mozilla/dom/StructuredCloneUtils.h"
@@ -450,8 +450,8 @@ nsFrameLoader::ReallyStartLoadingInternal()
 
   // Is this an <iframe> with a sandbox attribute or a parent which is
   // sandboxed ?
-  nsHTMLIFrameElement* iframe =
-    nsHTMLIFrameElement::FromContent(mOwnerContent);
+  HTMLIFrameElement* iframe =
+    HTMLIFrameElement::FromContent(mOwnerContent);
 
   uint32_t sandboxFlags = 0;
 
@@ -2363,7 +2363,7 @@ nsFrameLoader::EnsureMessageManager()
   nsIScriptContext* sctx = mOwnerContent->GetContextForEventHandlers(&rv);
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_STATE(sctx);
-  JSContext* cx = sctx->GetNativeContext();
+  AutoPushJSContext cx(sctx->GetNativeContext());
   NS_ENSURE_STATE(cx);
 
   nsCOMPtr<nsIDOMChromeWindow> chromeWindow =

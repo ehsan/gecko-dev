@@ -82,7 +82,25 @@ IonBuilder::inlineNativeCall(CallInfo &callInfo, JSNative native)
     if (native == intrinsic_UnsafeSetElement)
         return inlineUnsafeSetElement(callInfo);
     if (native == testingFunc_inParallelSection)
-        return inlineForceSequentialOrInParallelSection(callInfo);
+        return inlineShouldForceSequentialOrInParallelSection(callInfo);
+    if (native == intrinsic_NewDenseArray)
+        return inlineNewDenseArray(callInfo);
+
+    // Self-hosting
+    if (native == intrinsic_ThrowError)
+        return inlineThrowError(callInfo);
+#ifdef DEBUG
+    if (native == intrinsic_Dump)
+        return inlineDump(callInfo);
+#endif
+
+    // Parallel Array
+    if (native == intrinsic_UnsafeSetElement)
+        return inlineUnsafeSetElement(callInfo);
+    if (native == intrinsic_ShouldForceSequential)
+        return inlineShouldForceSequentialOrInParallelSection(callInfo);
+    if (native == testingFunc_inParallelSection)
+        return inlineShouldForceSequentialOrInParallelSection(callInfo);
     if (native == intrinsic_NewDenseArray)
         return inlineNewDenseArray(callInfo);
 
@@ -448,15 +466,23 @@ IonBuilder::inlineMathAbs(CallInfo &callInfo)
     MIRType argType = getInlineArgType(callInfo, 0);
     if (argType != MIRType_Int32 && argType != MIRType_Double)
         return InliningStatus_NotInlined;
-    if (argType != returnType)
+
+    if (argType != returnType && returnType != MIRType_Int32)
         return InliningStatus_NotInlined;
 
     callInfo.unwrapArgs();
 
-    MAbs *ins = MAbs::New(callInfo.getArg(0), returnType);
+    MInstruction *ins = MAbs::New(callInfo.getArg(0), argType);
     current->add(ins);
-    current->push(ins);
 
+    if (argType != returnType) {
+        MToInt32 *toInt = MToInt32::New(ins);
+        toInt->setCanBeNegativeZero(false);
+        current->add(toInt);
+        ins = toInt;
+    }
+
+    current->push(ins);
     return InliningStatus_Inlined;
 }
 
@@ -1003,7 +1029,7 @@ IonBuilder::inlineUnsafeSetTypedArrayElement(CallInfo &callInfo,
 }
 
 IonBuilder::InliningStatus
-IonBuilder::inlineForceSequentialOrInParallelSection(CallInfo &callInfo)
+IonBuilder::inlineShouldForceSequentialOrInParallelSection(CallInfo &callInfo)
 {
     if (callInfo.constructing())
         return InliningStatus_NotInlined;

@@ -385,6 +385,9 @@ parent:
 
     sync PCrashReporter(NativeThreadId tid, uint32_t processType);
 
+    sync GetRandomValues(uint32_t length)
+        returns (uint8_t[] randomValues);
+
     PHal();
 
     PIndexedDB();
@@ -430,7 +433,7 @@ parent:
                        nsCString aContentDisposition, bool aForceSave,
                        int64_t aContentLength, OptionalURIParams aReferrer);
 
-    AddGeolocationListener(Principal principal);
+    AddGeolocationListener(Principal principal, bool highAccuracy);
     RemoveGeolocationListener();
     SetGeolocationHigherAccuracy(bool enable);
 

@@ -19,6 +19,8 @@ class HTMLFrameElement : public nsGenericHTMLFrameElement,
                          public nsIDOMHTMLFrameElement
 {
 public:
+  using nsGenericHTMLFrameElement::SwapFrameLoaders;
+
   HTMLFrameElement(already_AddRefed<nsINodeInfo> aNodeInfo,
                    FromParser aFromParser = NOT_FROM_PARSER);
   virtual ~HTMLFrameElement();
@@ -46,7 +48,6 @@ public:
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
   nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-  virtual nsXPCClassInfo* GetClassInfo();
   virtual nsIDOMNode* AsDOMNode() { return this; }
 
   // WebIDL API

@@ -61,7 +61,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
     private int mTitlePadding;
     private boolean mSiteSecurityVisible;
     private boolean mAnimateSiteSecurity;
-    private GeckoImageButton mTabs;
+    private TabsButton mTabs;
     private int mTabsPaneWidth;
     private ImageButton mBack;
     private ImageButton mForward;
@@ -127,6 +127,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         }
         mLayout = layout;
         mLayout.setOnClickListener(new View.OnClickListener() {
+            @Override
             public void onClick(View v) {
             }
         });
@@ -153,12 +154,14 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
 
         mAwesomeBar = mLayout.findViewById(R.id.awesome_bar);
         mAwesomeBar.setOnClickListener(new Button.OnClickListener() {
+            @Override
             public void onClick(View v) {
                 mActivity.autoHideTabs();
                 onAwesomeBarSearch();
             }
         });
         mAwesomeBar.setOnCreateContextMenuListener(new View.OnCreateContextMenuListener() {
+            @Override
             public void onCreateContextMenu(ContextMenu menu, View v, ContextMenu.ContextMenuInfo menuInfo) {
                 MenuInflater inflater = mActivity.getMenuInflater();
                 inflater.inflate(R.menu.titlebar_contextmenu, menu);
@@ -186,8 +189,9 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
             }
         });
 
-        mTabs = (GeckoImageButton) mLayout.findViewById(R.id.tabs);
+        mTabs = (TabsButton) mLayout.findViewById(R.id.tabs);
         mTabs.setOnClickListener(new Button.OnClickListener() {
+            @Override
             public void onClick(View v) {
                 toggleTabs();
             }
@@ -213,11 +217,13 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
 
         mBack = (ImageButton) mLayout.findViewById(R.id.back);
         mBack.setOnClickListener(new Button.OnClickListener() {
+            @Override
             public void onClick(View view) {
                 Tabs.getInstance().getSelectedTab().doBack();
             }
         });
         mBack.setOnLongClickListener(new Button.OnLongClickListener() {
+            @Override
             public boolean onLongClick(View view) {
                 return Tabs.getInstance().getSelectedTab().showBackHistory();
             }
@@ -226,17 +232,20 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         mForward = (ImageButton) mLayout.findViewById(R.id.forward);
         mForward.setEnabled(false); // initialize the forward button to not be enabled
         mForward.setOnClickListener(new Button.OnClickListener() {
+            @Override
             public void onClick(View view) {
                 Tabs.getInstance().getSelectedTab().doForward();
             }
         });
         mForward.setOnLongClickListener(new Button.OnLongClickListener() {
+            @Override
             public boolean onLongClick(View view) {
                 return Tabs.getInstance().getSelectedTab().showForwardHistory();
             }
         });
 
         Button.OnClickListener faviconListener = new Button.OnClickListener() {
+            @Override
             public void onClick(View view) {
                 if (mSiteSecurity.getVisibility() != View.VISIBLE)
                     return;
@@ -259,6 +268,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         
         mStop = (ImageButton) mLayout.findViewById(R.id.stop);
         mStop.setOnClickListener(new Button.OnClickListener() {
+            @Override
             public void onClick(View v) {
                 Tab tab = Tabs.getInstance().getSelectedTab();
                 if (tab != null)
@@ -269,6 +279,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
 
         mReader = (ImageButton) mLayout.findViewById(R.id.reader);
         mReader.setOnClickListener(new Button.OnClickListener() {
+            @Override
             public void onClick(View view) {
                 Tab tab = Tabs.getInstance().getSelectedTab();
                 if (tab != null)
@@ -317,6 +328,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         if (mHasSoftMenuButton) {
             mMenu.setVisibility(View.VISIBLE);
             mMenu.setOnClickListener(new Button.OnClickListener() {
+                @Override
                 public void onClick(View view) {
                     mActivity.openOptionsMenu();
                 }
@@ -353,6 +365,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
                     mMenuPopup.setPanelView(panel);
 
                     mMenuPopup.setOnDismissListener(new PopupWindow.OnDismissListener() {
+                        @Override
                         public void onDismiss() {
                             mActivity.onOptionsMenuClosed(null);
                         }
@@ -375,6 +388,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
             mAwesomeBarRightEdge.requestLayout();
     }
 
+    @Override
     public void onTabChanged(Tab tab, Tabs.TabEvents msg, Object data) {
         switch(msg) {
             case TITLE:
@@ -419,6 +433,21 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
                 if (Tabs.getInstance().isSelectedTab(tab)) {
                     updateBackButton(tab.canDoBack());
                     updateForwardButton(tab.canDoForward());
+                }
+                break;
+            case FAVICON:
+                if (Tabs.getInstance().isSelectedTab(tab)) {
+                    setFavicon(tab.getFavicon());
+                }
+                break;
+            case SECURITY_CHANGE:
+                if (Tabs.getInstance().isSelectedTab(tab)) {
+                    setSecurityMode(tab.getSecurityMode());
+                }
+                break;
+            case READER_ENABLED:
+                if (Tabs.getInstance().isSelectedTab(tab)) {
+                    setReaderMode(tab.getReaderEnabled());
                 }
                 break;
         }
@@ -508,7 +537,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
     }
 
     public void fromAwesomeBarSearch() {
-        if (mActivity.hasTabsSideBar() || Build.VERSION.SDK_INT < 11) {
+        if (mActivity.isTablet() || Build.VERSION.SDK_INT < 11) {
             return;
         }
 
@@ -615,6 +644,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         });
 
         mHandler.postDelayed(new Runnable() {
+            @Override
             public void run() {
                 contentAnimator.start();
             }
@@ -623,7 +653,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
 
     private void onAwesomeBarSearch() {
         // This animation doesn't make much sense in a sidebar UI
-        if (mActivity.hasTabsSideBar() || Build.VERSION.SDK_INT < 11) {
+        if (mActivity.isTablet() || Build.VERSION.SDK_INT < 11) {
             mActivity.onSearchRequested();
             return;
         }
@@ -733,6 +763,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
                                     mActivity.getString(R.string.one_tab));
         mCount = count;
         mHandler.postDelayed(new Runnable() {
+            @Override
             public void run() {
                 GeckoTextView view = (GeckoTextView) mTabsCount.getCurrentView();
                 view.setSelected(true);
@@ -740,6 +771,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         }, mDuration);
 
         mHandler.postDelayed(new Runnable() {
+            @Override
             public void run() {
                 GeckoTextView view = (GeckoTextView) mTabsCount.getCurrentView();
                 view.setSelected(false);
@@ -823,6 +855,11 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         setPageActionVisibility(mStop.getVisibility() == View.VISIBLE);
     }
 
+    public void adjustForTabsLayout(int width) {
+        mTabsPaneWidth = width;
+        adjustTabsAnimation(false);
+    }
+
     public void updateTabs(boolean areTabsShown) {
         if (areTabsShown) {
             mTabs.getBackground().setLevel(TABS_EXPANDED);
@@ -849,6 +886,13 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         // A level change will not trigger onMeasure() for the tabs, where the path is created.
         // Manually requesting a layout to re-calculate the path.
         mTabs.requestLayout();
+    }
+
+    public void setIsSideBar(boolean isSideBar) {
+        mTabs.setIsSideBar(isSideBar);
+
+        mTabs.setImageResource(R.drawable.tabs_level);
+        mTabs.setBackgroundResource(R.drawable.tabs_button);
     }
 
     public void setProgressVisibility(boolean visible) {
@@ -968,7 +1012,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         mAwesomeBar.setContentDescription(title != null ? title : mTitle.getHint());
     }
 
-    public void setFavicon(Bitmap image) {
+    private void setFavicon(Bitmap image) {
         if (Tabs.getInstance().getSelectedTab().getState() == Tab.STATE_LOADING)
             return;
 
@@ -980,7 +1024,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         }
     }
     
-    public void setSecurityMode(String mode) {
+    private void setSecurityMode(String mode) {
         mShowSiteSecurity = true;
 
         if (mode.equals(SiteIdentityPopup.IDENTIFIED)) {
@@ -995,7 +1039,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         setPageActionVisibility(mStop.getVisibility() == View.VISIBLE);
     }
 
-    public void setReaderMode(boolean showReader) {
+    private void setReaderMode(boolean showReader) {
         mShowReader = showReader;
         setPageActionVisibility(mStop.getVisibility() == View.VISIBLE);
     }

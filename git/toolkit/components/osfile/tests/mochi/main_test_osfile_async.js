@@ -124,6 +124,16 @@ let reference_compare_files = function reference_compare_files(a, b, test) {
   is(a_contents, b_contents, "Contents of files " + a + " and " + b + " match");
 };
 
+let reference_dir_contents = function reference_dir_contents(path) {
+  let result = [];
+  let entries = new FileUtils.File(path).directoryEntries;
+  while (entries.hasMoreElements()) {
+    let entry = entries.getNext().QueryInterface(Components.interfaces.nsILocalFile);
+    result.push(entry.path);
+  }
+  return result;
+};
+
 let test = maketest("Main", function main(test) {
   return Task.spawn(function() {
     SimpleTest.waitForExplicitFinish();
@@ -402,6 +412,60 @@ let test_read_write_all = maketest("read_write_all", function read_write_all(tes
 
     // Cleanup.
     OS.File.remove(pathDest);
+
+    // Same tests with |flush: false|
+    // Check that read + writeAtomic performs a correct copy
+    options = {tmpPath: tmpPath, flush: false};
+    optionsBackup = {tmpPath: tmpPath, flush: false};
+    bytesWritten = yield OS.File.writeAtomic(pathDest, contents, options);
+    test.is(contents.byteLength, bytesWritten, "Wrote the correct number of bytes (without flush)");
+
+    // Check that options are not altered
+    test.is(Object.keys(options).length, Object.keys(optionsBackup).length,
+            "The number of options was not changed (without flush)");
+    for (let k in options) {
+      test.is(options[k], optionsBackup[k], "Option was not changed (without flush)");
+    }
+    yield reference_compare_files(pathSource, pathDest, test);
+
+    // Check that temporary file was removed
+    test.info("Compare complete (without flush)");
+    test.ok(!(new FileUtils.File(tmpPath).exists()), "Temporary file was removed (without flush)");
+
+    // Check that writeAtomic fails if noOverwrite is true and the destination
+    // file already exists!
+    view = new Uint8Array(contents.buffer, 10, 200);
+    try {
+      options = {tmpPath: tmpPath, noOverwrite: true, flush: false};
+      yield OS.File.writeAtomic(pathDest, view, options);
+      test.fail("With noOverwrite, writeAtomic should have refused to overwrite file (without flush)");
+    } catch (err) {
+      test.info("With noOverwrite, writeAtomic correctly failed (without flush)");
+      test.ok(err instanceof OS.File.Error, "writeAtomic correctly failed with a file error (without flush)");
+      test.ok(err.becauseExists, "writeAtomic file error confirmed that the file already exists (without flush)");
+    }
+    yield reference_compare_files(pathSource, pathDest, test);
+    test.ok(!(new FileUtils.File(tmpPath).exists()), "Temporary file was removed (without flush)");
+
+    // Now write a subset
+    START = 10;
+    LENGTH = 100;
+    view = new Uint8Array(contents.buffer, START, LENGTH);
+    bytesWritten = yield OS.File.writeAtomic(pathDest, view, {tmpPath: tmpPath, flush: false});
+    test.is(bytesWritten, LENGTH, "Partial write wrote the correct number of bytes (without flush)");
+    array2 = yield OS.File.read(pathDest);
+    view1 = new Uint8Array(contents.buffer, START, LENGTH);
+    test.is(view1.length, array2.length, "Re-read partial write with the correct number of bytes (without flush)");
+    for (let i = 0; i < LENGTH; ++i) {
+      if (view1[i] != array2[i]) {
+        test.is(view1[i], array2[i], "Offset " + i + " is correct (without flush)");
+      }
+      test.ok(true, "Compared re-read of partial write (without flush)");
+    }
+
+    // Cleanup.
+    OS.File.remove(pathDest);
+
   });
 });
 
@@ -477,7 +541,7 @@ let test_copy = maketest("copy", function copy(test) {
 });
 
 /**
- * Test OS.File.prototype.{removeEmptyDir, makeDir}
+ * Test OS.File.{removeEmptyDir, makeDir}
  */
 let test_mkdir = maketest("mkdir", function mkdir(test) {
   return Task.spawn(function() {
@@ -558,6 +622,17 @@ let test_iter = maketest("iter", function iter(test) {
     test.info("Obtained all files through nextBatch");
     test.isnot(allFiles1.length, 0, "There is at least one file");
     test.isnot(allFiles1[0].path, null, "Files have a path");
+
+    // Ensure that we have the same entries with |reference_dir_contents|
+    let referenceEntries = new Set();
+    for (let entry of reference_dir_contents(currentDir)) {
+      referenceEntries.add(entry);
+    }
+    test.is(referenceEntries.size, allFiles1.length, "All the entries in the directory have been listed");
+    for (let entry of allFiles1) {
+      test.ok(referenceEntries.has(entry.path), "File " + entry.path + " effectively exists");
+    }
+
     yield iterator.close();
     test.info("Closed iterator");
 
@@ -615,9 +690,34 @@ let test_iter = maketest("iter", function iter(test) {
     try {
       let files = yield iterator.nextBatch();
       is(files.length, allFiles1.length + 1, "The directory iterator has noticed the new file");
+      let exists = yield iterator.exists();
+      test.ok(exists, "After nextBatch, iterator detects that the directory exists");
     } finally {
       yield iterator.close();
     }
+
+    // Ensuring that opening a non-existing directory fails consistently
+    // once iteration starts.
+    try {
+      iterator = null;
+      iterator = new OS.File.DirectoryIterator("/I do not exist");
+      let exists = yield iterator.exists();
+      test.ok(!exists, "Before any iteration, iterator detects that the directory doesn't exist");
+      let exn = null;
+      try {
+        yield iterator.next();
+      } catch (ex if ex instanceof OS.File.Error && ex.becauseNoSuchFile) {
+        exn = ex;
+        let exists = yield iterator.exists();
+        test.ok(!exists, "After one iteration, iterator detects that the directory doesn't exist");
+      }
+      test.ok(exn, "Iterating through a directory that does not exist has failed with becauseNoSuchFile");
+    } finally {
+      if (iterator) {
+        iterator.close();
+      }
+    }
+    test.ok(!!iterator, "The directory iterator for a non-existing directory was correctly created");
   });
 });
 

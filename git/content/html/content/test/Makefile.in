@@ -255,6 +255,8 @@ MOCHITEST_FILES = \
 		file_fullscreen-esc-exit-inner.html \
 		file_fullscreen-rollback.html \
 		file_fullscreen-svg-element.html \
+		file_fullscreen-multiple.html \
+		file_fullscreen-multiple-inner.html \
 		test_li_attributes_reflection.html \
 		test_link_attributes_reflection.html \
 		test_ol_attributes_reflection.html \
@@ -279,6 +281,7 @@ MOCHITEST_FILES = \
 		test_bug803677.html \
 		test_bug827126.html \
 		test_bug827426.html \
+		test_bug838582.html \
 		test_bug841466.html \
 		test_iframe_sandbox_inheritance.html \
 		file_iframe_sandbox_a_if1.html \
@@ -349,6 +352,8 @@ MOCHITEST_FILES = \
 		test_mod_attributes_reflection.html \
 		test_mozaudiochannel.html \
 		test_style_attributes_reflection.html \
+		test_bug629801.html \
+		test_bug839371.html \
 		$(NULL)
 
 

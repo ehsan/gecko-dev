@@ -21,6 +21,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id={770731}
 
 "use strict";
 
+if (!navigator.platform.startsWith("Win")) {
+  SimpleTest.expectAssertions(0, 1);
+}
+
 var testPrivApp = {
   'manifestURL' : 'https://aprivileged.com/manifest.webapp'
 };
@@ -30,13 +34,12 @@ var testCertApp = {
 };
 
 SpecialPowers.addPermission("permissions", true, document);
-var comp = SpecialPowers.wrap(Components);
 SpecialPowers.pushPrefEnv({ "set": [["dom.mozPermissionSettings.enabled", true]] },
                           function() {
                             SpecialPowers.removePermission("permissions", document);
                           });
 
-comp.utils.import("resource://gre/modules/PermissionSettings.jsm");
+SpecialPowers.Cu.import("resource://gre/modules/PermissionSettings.jsm");
 var mozPermissions = window.navigator.mozPermissionSettings;
 
 function permissionTest() {

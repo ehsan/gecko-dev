@@ -410,6 +410,44 @@ LIRGenerator::visitApplyArgs(MApplyArgs *apply)
     return true;
 }
 
+bool
+LIRGenerator::visitGetDynamicName(MGetDynamicName *ins)
+{
+    MDefinition *scopeChain = ins->getScopeChain();
+    JS_ASSERT(scopeChain->type() == MIRType_Object);
+
+    MDefinition *name = ins->getName();
+    JS_ASSERT(name->type() == MIRType_String);
+
+    LGetDynamicName *lir = new LGetDynamicName(useFixed(scopeChain, CallTempReg0),
+                                               useFixed(name, CallTempReg1),
+                                               tempFixed(CallTempReg2),
+                                               tempFixed(CallTempReg3),
+                                               tempFixed(CallTempReg4));
+
+    return assignSnapshot(lir) && defineReturn(lir, ins);
+}
+
+bool
+LIRGenerator::visitCallDirectEval(MCallDirectEval *ins)
+{
+    MDefinition *scopeChain = ins->getScopeChain();
+    JS_ASSERT(scopeChain->type() == MIRType_Object);
+
+    MDefinition *string = ins->getString();
+    JS_ASSERT(string->type() == MIRType_String);
+
+    MDefinition *thisValue = ins->getThisValue();
+
+    LCallDirectEval *lir = new LCallDirectEval(useRegisterAtStart(scopeChain),
+                                               useRegisterAtStart(string));
+
+    if (!useBoxAtStart(lir, LCallDirectEval::ThisValueInput, thisValue))
+        return false;
+
+    return defineReturn(lir, ins) && assignSafepoint(lir, ins);
+}
+
 static JSOp
 ReorderComparison(JSOp op, MDefinition **lhsp, MDefinition **rhsp)
 {
@@ -1611,6 +1649,18 @@ LIRGenerator::visitMonitorTypes(MMonitorTypes *ins)
     if (!useBox(lir, LMonitorTypes::Input, ins->input()))
         return false;
     return assignSnapshot(lir, Bailout_Monitor) && add(lir, ins);
+}
+
+bool
+LIRGenerator::visitExcludeType(MExcludeType *ins)
+{
+    LExcludeType *filter = new LExcludeType(temp());
+    if (!useBox(filter, LExcludeType::Input, ins->input()))
+        return false;
+    if (!assignSnapshot(filter, ins->bailoutKind()))
+        return false;
+    filter->setMir(ins);
+    return add(filter);
 }
 
 bool

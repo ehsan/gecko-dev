@@ -881,6 +881,9 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     ionReturnOverride_(MagicValue(JS_ARG_POISON)),
     useHelperThreads_(useHelperThreads),
     requestedHelperThreadCount(-1),
+#ifdef DEBUG
+    enteredPolicy(NULL),
+#endif
     rngNonce(0)
 {
     /* Initialize infallibly first, so we can goto bad and JS_DestroyRuntime. */
@@ -5189,7 +5192,7 @@ JS::Compile(JSContext *cx, HandleObject obj, CompileOptions options,
     JS_ASSERT_IF(options.principals, cx->compartment->principals == options.principals);
     AutoLastFrameCheck lfc(cx);
 
-    return frontend::CompileScript(cx, obj, NullFramePtr(), options, chars, length);
+    return frontend::CompileScript(cx, obj, NullPtr(), options, chars, length);
 }
 
 JSScript *
@@ -5304,7 +5307,8 @@ JS_BufferIsCompilableUnit(JSContext *cx, JSObject *objArg, const char *utf8, siz
     {
         CompileOptions options(cx);
         options.setCompileAndGo(false);
-        Parser parser(cx, options, chars, length, /* foldConstants = */ true);
+        Parser<frontend::FullParseHandler> parser(cx, options, chars, length,
+                                                  /* foldConstants = */ true);
         if (parser.init()) {
             older = JS_SetErrorReporter(cx, NULL);
             if (!parser.parse(obj) &&
@@ -5543,7 +5547,7 @@ JS::Evaluate(JSContext *cx, HandleObject obj, CompileOptions options,
     options.setCompileAndGo(true);
     options.setNoScriptRval(!rval);
     SourceCompressionToken sct(cx);
-    RootedScript script(cx, frontend::CompileScript(cx, obj, NullFramePtr(), options,
+    RootedScript script(cx, frontend::CompileScript(cx, obj, NullPtr(), options,
                                                     chars, length, NULL, 0, &sct));
     if (!script)
         return false;
@@ -5972,13 +5976,8 @@ JS_GetStringLength(JSString *str)
 JS_PUBLIC_API(const jschar *)
 JS_GetStringCharsZ(JSContext *cx, JSString *str)
 {
-    AssertHeapIsIdleOrStringIsFlat(cx, str);
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, str);
-    JSFlatString *flat = str->ensureFlat(cx);
-    if (!flat)
-        return NULL;
-    return flat->chars();
+    size_t dummy;
+    return JS_GetStringCharsZAndLength(cx, str, &dummy);
 }
 
 JS_PUBLIC_API(const jschar *)
@@ -6146,6 +6145,20 @@ JS_EncodeString(JSContext *cx, JSRawString str)
         return NULL;
 
     return LossyTwoByteCharsToNewLatin1CharsZ(cx, linear->range()).c_str();
+}
+
+JS_PUBLIC_API(char *)
+JS_EncodeStringToUTF8(JSContext *cx, JSRawString str)
+{
+    AutoAssertNoGC nogc;
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+
+    JSLinearString *linear = str->ensureLinear(cx);
+    if (!linear)
+        return NULL;
+
+    return TwoByteCharsToNewUTF8CharsZ(cx, linear->range()).c_str();
 }
 
 JS_PUBLIC_API(size_t)

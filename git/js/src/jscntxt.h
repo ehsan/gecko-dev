@@ -569,7 +569,7 @@ struct MallocProvider
 namespace gc {
 class MarkingValidator;
 } // namespace gc
-
+class JS_FRIEND_API(AutoEnterPolicy);
 } // namespace js
 
 struct JSRuntime : js::RuntimeFriendFields,
@@ -1301,7 +1301,11 @@ struct JSRuntime : js::RuntimeFriendFields,
         return 0;
 #endif
     }
+#ifdef DEBUG
+  public:
+    js::AutoEnterPolicy *enteredPolicy;
 
+#endif
   private:
     /*
      * Used to ensure that compartments created at the same time get different
@@ -2257,8 +2261,7 @@ class ContextAllocPolicy
 JSBool intrinsic_ThrowError(JSContext *cx, unsigned argc, Value *vp);
 JSBool intrinsic_NewDenseArray(JSContext *cx, unsigned argc, Value *vp);
 JSBool intrinsic_UnsafeSetElement(JSContext *cx, unsigned argc, Value *vp);
-JSBool intrinsic_ForceSequential(JSContext *cx, unsigned argc, Value *vp);
-JSBool intrinsic_NewParallelArray(JSContext *cx, unsigned argc, Value *vp);
+JSBool intrinsic_ShouldForceSequential(JSContext *cx, unsigned argc, Value *vp);
 
 #ifdef DEBUG
 JSBool intrinsic_Dump(JSContext *cx, unsigned argc, Value *vp);
