@@ -66,7 +66,7 @@ public:
   // Final notification that Static UI show and painted
   void painted();
 
-protected Q_SLOTS:
+protected slots:
     void symbolsLoadingFinished(bool);
 
 private:

@@ -40,7 +40,7 @@ public:
     virtual void SwitchToForeground();
     virtual void SwitchToBackground();
 
-public Q_SLOTS:
+public slots:
     static void showVKB();
 
 #ifdef MOZ_ENABLE_QTMOBILITY
