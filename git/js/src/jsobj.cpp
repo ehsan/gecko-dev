@@ -3811,8 +3811,6 @@ JSObject::shrinkSlots(JSContext *cx, size_t newcap)
     uint32 fill = newcap;
     if (newcap < SLOT_CAPACITY_MIN)
         newcap = SLOT_CAPACITY_MIN;
-    if (newcap < numFixedSlots())
-        newcap = numFixedSlots();
 
     Value *tmpslots = (Value*) cx->realloc(slots, newcap * sizeof(Value));
     if (!tmpslots)
