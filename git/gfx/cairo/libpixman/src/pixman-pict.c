@@ -2038,9 +2038,10 @@ pixman_have_arm_simd (void)
         } __except(GetExceptionCode() == EXCEPTION_ILLEGAL_INSTRUCTION) {
             have_arm_simd = FALSE;
         }
-    } else {
-        return have_arm_simd;
+	initialized = TRUE;
     }
+
+    return have_arm_simd;
 #else
     return TRUE;
 #endif
