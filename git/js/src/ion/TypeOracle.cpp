@@ -150,12 +150,7 @@ TypeSet *
 TypeInferenceOracle::thisTypeSet(JSScript *script)
 {
     JS_ASSERT(script == this->script);
-    TypeSet *thisTypes = TypeScript::ThisTypes(script);
-
-    if (thisTypes)
-        thisTypes->addFreeze(cx);
-
-    return thisTypes;
+    return TypeScript::ThisTypes(script);
 }
 
 void
