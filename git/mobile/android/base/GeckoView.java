@@ -12,9 +12,6 @@ import org.mozilla.gecko.util.Clipboard;
 import org.mozilla.gecko.util.HardwareUtils;
 import org.mozilla.gecko.util.GeckoEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.EventCallback;
-import org.mozilla.gecko.util.NativeEventListener;
-import org.mozilla.gecko.util.NativeJSObject;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -41,7 +38,7 @@ public class GeckoView extends LayerView
     private ChromeDelegate mChromeDelegate;
     private ContentDelegate mContentDelegate;
 
-    private final GeckoEventListener mGeckoEventListener = new GeckoEventListener() {
+    private final GeckoEventListener mEventListener = new GeckoEventListener() {
         @Override
         public void handleMessage(final String event, final JSONObject message) {
             ThreadUtils.postToUiThread(new Runnable() {
@@ -62,29 +59,9 @@ public class GeckoView extends LayerView
                             handleLinkFavicon(message);
                         } else if (event.equals("Prompt:Show") || event.equals("Prompt:ShowTop")) {
                             handlePrompt(message);
-                        } else if (event.equals("Accessibility:Event")) {
-                            GeckoAccessibility.sendAccessibilityEvent(message);
                         }
                     } catch (Exception e) {
                         Log.e(LOGTAG, "handleMessage threw for " + event, e);
-                    }
-                }
-            });
-        }
-    };
-
-    private final NativeEventListener mNativeEventListener = new NativeEventListener() {
-        @Override
-        public void handleMessage(final String event, final NativeJSObject message, final EventCallback callback) {
-            ThreadUtils.postToUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        if ("Accessibility:Ready".equals(event)) {
-                            GeckoAccessibility.updateAccessibilitySettings(getContext());
-                        }
-                    } catch (Exception e) {
-                        Log.w(LOGTAG, "handleMessage threw for " + event, e);
                     }
                 }
             });
@@ -147,9 +124,8 @@ public class GeckoView extends LayerView
             tabs.attachToContext(context);
         }
 
-        EventDispatcher.getInstance().registerGeckoThreadListener(mGeckoEventListener,
+        EventDispatcher.getInstance().registerGeckoThreadListener(mEventListener,
             "Gecko:Ready",
-            "Accessibility:Event",
             "Content:StateChange",
             "Content:LoadError",
             "Content:PageShow",
@@ -157,9 +133,6 @@ public class GeckoView extends LayerView
             "Link:Favicon",
             "Prompt:Show",
             "Prompt:ShowTop");
-
-        EventDispatcher.getInstance().registerGeckoThreadListener(mNativeEventListener,
-            "Accessibility:Ready");
 
         ThreadUtils.setUiThread(Thread.currentThread(), new Handler());
         initializeView(EventDispatcher.getInstance());

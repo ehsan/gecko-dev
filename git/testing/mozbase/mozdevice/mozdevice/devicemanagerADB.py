@@ -7,7 +7,6 @@ import os
 import shutil
 import tempfile
 import time
-import traceback
 
 from devicemanager import DeviceManager, DMError
 from mozprocess import ProcessHandler
@@ -222,10 +221,8 @@ class DeviceManagerADB(DeviceManager):
             try:
                 localZip = tempfile.mktemp() + ".zip"
                 remoteZip = remoteDir + "/adbdmtmp.zip"
-                proc = ProcessHandler(["zip", "-r", localZip, '.'], cwd=localDir,
-                              processOutputLine=self._log)
-                proc.run()
-                proc.wait()
+                ProcessHandler(["zip", "-r", localZip, '.'], cwd=localDir,
+                        processOutputLine=self._log).run().wait()
                 self.pushFile(localZip, remoteZip, retryLimit=retryLimit, createDir=False)
                 mozfile.remove(localZip)
                 data = self._runCmd(["shell", "unzip", "-o", remoteZip,
@@ -235,8 +232,7 @@ class DeviceManagerADB(DeviceManager):
                 if re.search("unzip: exiting", data) or re.search("Operation not permitted", data):
                     raise Exception("unzip failed, or permissions error")
             except:
-                self._logger.warning(traceback.format_exc())
-                self._logger.warning("zip/unzip failure: falling back to normal push")
+                self._logger.info("zip/unzip failure: falling back to normal push")
                 self._useZip = False
                 self.pushDir(localDir, remoteDir, retryLimit=retryLimit)
         else:

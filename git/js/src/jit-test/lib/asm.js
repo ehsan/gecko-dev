@@ -11,8 +11,7 @@ const HEAP_IMPORTS = "const i8=new glob.Int8Array(b);var u8=new glob.Uint8Array(
                      "const i16=new glob.Int16Array(b);var u16=new glob.Uint16Array(b);"+
                      "const i32=new glob.Int32Array(b);var u32=new glob.Uint32Array(b);"+
                      "const f32=new glob.Float32Array(b);var f64=new glob.Float64Array(b);";
-const BUF_MIN = 64 * 1024;
-const BUF_64KB = new ArrayBuffer(BUF_MIN);
+const BUF_64KB = new ArrayBuffer(64 * 1024);
 
 function asmCompile()
 {
@@ -152,34 +151,6 @@ function assertAsmLinkAlwaysFail(f)
     try {
         f.apply(null, Array.slice(arguments, 1));
     } catch (e) {
-        caught = true;
-    }
-    if (!caught)
-        throw new Error("Didn't catch the link failure error");
-
-    // Turn warnings-as-errors back off
-    options("werror");
-}
-
-function assertAsmLinkDeprecated(f)
-{
-    if (!isAsmJSCompilationAvailable())
-        return;
-
-    // Verify no error is thrown with warnings off
-    f.apply(null, Array.slice(arguments, 1));
-
-    // Turn on warnings-as-errors
-    var oldOpts = options("werror");
-    assertEq(oldOpts.indexOf("werror"), -1);
-
-    // Verify an error is thrown
-    var caught = false;
-    try {
-        f.apply(null, Array.slice(arguments, 1));
-    } catch (e) {
-        // Arbitrary code an run in the GetProperty, so don't assert any
-        // particular string
         caught = true;
     }
     if (!caught)

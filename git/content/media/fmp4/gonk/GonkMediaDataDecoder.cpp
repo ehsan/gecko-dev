@@ -31,7 +31,6 @@ GonkMediaDataDecoder::GonkMediaDataDecoder(GonkDecoderManager* aManager,
   : mTaskQueue(aTaskQueue)
   , mCallback(aCallback)
   , mManager(aManager)
-  , mSignaledEOS(false)
 {
   MOZ_COUNT_CTOR(GonkMediaDataDecoder);
 }
@@ -78,9 +77,8 @@ GonkMediaDataDecoder::ProcessDecode(mp4_demuxer::MP4Sample* aSample)
     mCallback->Error();
     return;
   }
-  if (aSample) {
-    mLastStreamOffset = aSample->byte_offset;
-  }
+
+  mLastStreamOffset = aSample->byte_offset;
   ProcessOutput();
 }
 
@@ -93,9 +91,6 @@ GonkMediaDataDecoder::ProcessOutput()
     rv = mManager->Output(mLastStreamOffset, output);
     if (rv == NS_OK) {
       mCallback->Output(output.forget());
-      continue;
-    } else if (rv == NS_ERROR_NOT_AVAILABLE && mSignaledEOS) {
-      // Try to get more frames before getting EOS frame
       continue;
     }
     else {
@@ -110,15 +105,6 @@ GonkMediaDataDecoder::ProcessOutput()
   if (rv != NS_OK) {
     NS_WARNING("GonkMediaDataDecoder failed to output data");
     ALOG("Failed to output data");
-    // GonkDecoderManangers report NS_ERROR_ABORT when EOS is reached.
-    if (rv == NS_ERROR_ABORT) {
-      if (output.get() != nullptr) {
-        mCallback->Output(output.forget());
-      }
-      mCallback->DrainComplete();
-      mSignaledEOS = false;
-      return;
-    }
     mCallback->Error();
   }
 }
@@ -139,10 +125,9 @@ GonkMediaDataDecoder::Flush()
 void
 GonkMediaDataDecoder::ProcessDrain()
 {
-  // Notify decoder input EOS by sending a null data.
-  ProcessDecode(nullptr);
-  mSignaledEOS = true;
+  // Then extract all available output.
   ProcessOutput();
+  mCallback->DrainComplete();
 }
 
 nsresult

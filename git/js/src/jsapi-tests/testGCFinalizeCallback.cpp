@@ -12,6 +12,7 @@ static bool IsCompartmentGCBuffer[BufferSize];
 BEGIN_TEST(testGCFinalizeCallback)
 {
     JS_SetGCParameter(rt, JSGC_MODE, JSGC_MODE_INCREMENTAL);
+    JS_AddFinalizeCallback(rt, FinalizeCallback, nullptr);
 
     /* Full GC, non-incremental. */
     FinalizeCalls = 0;
@@ -31,9 +32,9 @@ BEGIN_TEST(testGCFinalizeCallback)
     CHECK(checkFinalizeStatus());
     CHECK(checkFinalizeIsCompartmentGC(false));
 
-    JS::RootedObject global1(cx, createTestGlobal());
-    JS::RootedObject global2(cx, createTestGlobal());
-    JS::RootedObject global3(cx, createTestGlobal());
+    JS::RootedObject global1(cx, createGlobal());
+    JS::RootedObject global2(cx, createGlobal());
+    JS::RootedObject global3(cx, createGlobal());
     CHECK(global1);
     CHECK(global2);
     CHECK(global3);
@@ -91,7 +92,7 @@ BEGIN_TEST(testGCFinalizeCallback)
     CHECK(rt->gc.state() == js::gc::MARK);
     CHECK(rt->gc.isFullGc());
 
-    JS::RootedObject global4(cx, createTestGlobal());
+    JS::RootedObject global4(cx, createGlobal());
     rt->gc.gcDebugSlice(true, 1);
     CHECK(rt->gc.state() == js::gc::NO_INCREMENTAL);
     CHECK(!rt->gc.isFullGc());
@@ -115,29 +116,8 @@ BEGIN_TEST(testGCFinalizeCallback)
     CHECK(JS_IsGlobalObject(global2));
     CHECK(JS_IsGlobalObject(global3));
 
-    return true;
-}
-
-JSObject *createTestGlobal()
-{
-    JS::CompartmentOptions options;
-    options.setVersion(JSVERSION_LATEST);
-    return JS_NewGlobalObject(cx, getGlobalClass(), nullptr, JS::FireOnNewGlobalHook, options);
-}
-
-virtual bool init() MOZ_OVERRIDE
-{
-    if (!JSAPITest::init())
-        return false;
-
-    JS_AddFinalizeCallback(rt, FinalizeCallback, nullptr);
-    return true;
-}
-
-virtual void uninit() MOZ_OVERRIDE
-{
     JS_RemoveFinalizeCallback(rt, FinalizeCallback);
-    JSAPITest::uninit();
+    return true;
 }
 
 bool checkSingleGroup()

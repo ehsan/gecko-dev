@@ -17,7 +17,6 @@
 #include "nsPIDOMWindow.h"
 #include "mozilla/LoadInfo.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/ScriptSettings.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -316,7 +315,7 @@ DOMParser::ParseFromStream(nsIInputStream *stream,
 
 NS_IMETHODIMP
 DOMParser::Init(nsIPrincipal* principal, nsIURI* documentURI,
-                nsIURI* baseURI, nsIGlobalObject* aScriptObject)
+                nsIURI* baseURI, nsIScriptGlobalObject* aScriptObject)
 {
   NS_ENSURE_STATE(!mAttemptedInit);
   mAttemptedInit = true;
@@ -433,7 +432,7 @@ DOMParser::InitInternal(nsISupports* aOwner, nsIPrincipal* prin,
     }
   }
 
-  nsCOMPtr<nsIGlobalObject> scriptglobal = do_QueryInterface(aOwner);
+  nsCOMPtr<nsIScriptGlobalObject> scriptglobal = do_QueryInterface(aOwner);
   return Init(prin, documentURI, baseURI, scriptglobal);
 }
 
@@ -443,22 +442,26 @@ DOMParser::Init(nsIPrincipal* aPrincipal, nsIURI* aDocumentURI,
 {
   AttemptedInitMarker marker(&mAttemptedInit);
 
+  JSContext *cx = nsContentUtils::GetCurrentJSContext();
+  if (!cx) {
+    rv.Throw(NS_ERROR_UNEXPECTED);
+    return;
+  }
+
+  nsIScriptContext* scriptContext = GetScriptContextFromJSContext(cx);
+
   nsCOMPtr<nsIPrincipal> principal = aPrincipal;
   if (!principal && !aDocumentURI) {
     principal = nsContentUtils::SubjectPrincipal();
   }
 
-  rv = Init(principal, aDocumentURI, aBaseURI, GetEntryGlobal());
+  rv = Init(principal, aDocumentURI, aBaseURI,
+            scriptContext ? scriptContext->GetGlobalObject() : nullptr);
 }
 
 nsresult
 DOMParser::SetUpDocument(DocumentFlavor aFlavor, nsIDOMDocument** aResult)
 {
-  // We should really QI to nsIGlobalObject here, but nsDocument gets confused
-  // if we pass it a scriptHandlingObject that doesn't QI to
-  // nsIScriptGlobalObject, and test_isequalnode.js (an xpcshell test without
-  // a window global) breaks. The correct solution is just to wean nsDocument
-  // off of nsIScriptGlobalObject, but that's a yak to shave another day.
   nsCOMPtr<nsIScriptGlobalObject> scriptHandlingObject =
     do_QueryReferent(mScriptHandlingObject);
   nsresult rv;

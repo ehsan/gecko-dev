@@ -144,8 +144,7 @@ class MIRGenerator
     // Traverses the graph to find if there's any SIMD instruction. Costful but
     // the value is cached, so don't worry about calling it several times.
     bool usesSimd();
-    void initMinAsmJSHeapLength(uint32_t len) {
-        JS_ASSERT(minAsmJSHeapLength_ == 0);
+    void noteMinAsmJSHeapLength(uint32_t len) {
         minAsmJSHeapLength_ = len;
     }
     uint32_t minAsmJSHeapLength() const {

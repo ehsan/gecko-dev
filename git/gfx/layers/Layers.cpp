@@ -62,20 +62,21 @@ LayerManager::GetPrimaryScrollableLayer()
   nsTArray<Layer*> queue;
   queue.AppendElement(mRoot);
   while (queue.Length()) {
-    Layer* layer = queue[0];
+    ContainerLayer* containerLayer = queue[0]->AsContainerLayer();
     queue.RemoveElementAt(0);
-
-    const FrameMetrics& frameMetrics = layer->GetFrameMetrics();
-    if (frameMetrics.IsScrollable()) {
-      return layer;
+    if (!containerLayer) {
+      continue;
     }
 
-    if (ContainerLayer* containerLayer = layer->AsContainerLayer()) {
-      Layer* child = containerLayer->GetFirstChild();
-      while (child) {
-        queue.AppendElement(child);
-        child = child->GetNextSibling();
-      }
+    const FrameMetrics& frameMetrics = containerLayer->GetFrameMetrics();
+    if (frameMetrics.IsScrollable()) {
+      return containerLayer;
+    }
+
+    Layer* child = containerLayer->GetFirstChild();
+    while (child) {
+      queue.AppendElement(child);
+      child = child->GetNextSibling();
     }
   }
 
@@ -92,21 +93,22 @@ LayerManager::GetScrollableLayers(nsTArray<Layer*>& aArray)
   nsTArray<Layer*> queue;
   queue.AppendElement(mRoot);
   while (!queue.IsEmpty()) {
-    Layer* layer = queue.LastElement();
+    ContainerLayer* containerLayer = queue.LastElement()->AsContainerLayer();
     queue.RemoveElementAt(queue.Length() - 1);
-
-    const FrameMetrics& frameMetrics = layer->GetFrameMetrics();
-    if (frameMetrics.IsScrollable()) {
-      aArray.AppendElement(layer);
+    if (!containerLayer) {
       continue;
     }
 
-    if (ContainerLayer* containerLayer = layer->AsContainerLayer()) {
-      Layer* child = containerLayer->GetFirstChild();
-      while (child) {
-        queue.AppendElement(child);
-        child = child->GetNextSibling();
-      }
+    const FrameMetrics& frameMetrics = containerLayer->GetFrameMetrics();
+    if (frameMetrics.IsScrollable()) {
+      aArray.AppendElement(containerLayer);
+      continue;
+    }
+
+    Layer* child = containerLayer->GetFirstChild();
+    while (child) {
+      queue.AppendElement(child);
+      child = child->GetNextSibling();
     }
   }
 }
@@ -599,8 +601,8 @@ Layer::MayResample()
          AncestorLayerMayChangeTransform(this);
 }
 
-RenderTargetIntRect
-Layer::CalculateScissorRect(const RenderTargetIntRect& aCurrentScissorRect,
+nsIntRect
+Layer::CalculateScissorRect(const nsIntRect& aCurrentScissorRect,
                             const gfx::Matrix* aWorldTransform)
 {
   ContainerLayer* container = GetParent();
@@ -608,25 +610,24 @@ Layer::CalculateScissorRect(const RenderTargetIntRect& aCurrentScissorRect,
 
   // Establish initial clip rect: it's either the one passed in, or
   // if the parent has an intermediate surface, it's the extents of that surface.
-  RenderTargetIntRect currentClip;
+  nsIntRect currentClip;
   if (container->UseIntermediateSurface()) {
     currentClip.SizeTo(container->GetIntermediateSurfaceRect().Size());
   } else {
     currentClip = aCurrentScissorRect;
   }
 
-  if (!GetEffectiveClipRect()) {
+  const nsIntRect *clipRect = GetEffectiveClipRect();
+  if (!clipRect)
     return currentClip;
-  }
 
-  const RenderTargetIntRect clipRect = RenderTargetPixel::FromUntyped(*GetEffectiveClipRect());
-  if (clipRect.IsEmpty()) {
+  if (clipRect->IsEmpty()) {
     // We might have a non-translation transform in the container so we can't
     // use the code path below.
-    return RenderTargetIntRect(currentClip.TopLeft(), RenderTargetIntSize(0, 0));
+    return nsIntRect(currentClip.TopLeft(), nsIntSize(0, 0));
   }
 
-  RenderTargetIntRect scissor = clipRect;
+  nsIntRect scissor = *clipRect;
   if (!container->UseIntermediateSurface()) {
     gfx::Matrix matrix;
     DebugOnly<bool> is2D = container->GetEffectiveTransform().Is2D(&matrix);
@@ -636,29 +637,23 @@ Layer::CalculateScissorRect(const RenderTargetIntRect& aCurrentScissorRect,
     gfx::Rect r(scissor.x, scissor.y, scissor.width, scissor.height);
     gfxRect trScissor = gfx::ThebesRect(matrix.TransformBounds(r));
     trScissor.Round();
-    nsIntRect tmp;
-    if (!gfxUtils::GfxRectToIntRect(trScissor, &tmp)) {
-      return RenderTargetIntRect(currentClip.TopLeft(), RenderTargetIntSize(0, 0));
+    if (!gfxUtils::GfxRectToIntRect(trScissor, &scissor)) {
+      return nsIntRect(currentClip.TopLeft(), nsIntSize(0, 0));
     }
-    scissor = RenderTargetPixel::FromUntyped(tmp);
 
     // Find the nearest ancestor with an intermediate surface
     do {
       container = container->GetParent();
     } while (container && !container->UseIntermediateSurface());
   }
-
   if (container) {
     scissor.MoveBy(-container->GetIntermediateSurfaceRect().TopLeft());
   } else if (aWorldTransform) {
     gfx::Rect r(scissor.x, scissor.y, scissor.width, scissor.height);
     gfx::Rect trScissor = aWorldTransform->TransformBounds(r);
     trScissor.Round();
-    nsIntRect tmp;
-    if (!gfxUtils::GfxRectToIntRect(ThebesRect(trScissor), &tmp)) {
-      return RenderTargetIntRect(currentClip.TopLeft(), RenderTargetIntSize(0, 0));
-    }
-    scissor = RenderTargetPixel::FromUntyped(tmp);
+    if (!gfxUtils::GfxRectToIntRect(ThebesRect(trScissor), &scissor))
+      return nsIntRect(currentClip.TopLeft(), nsIntSize(0, 0));
   }
   return currentClip.Intersect(scissor);
 }
@@ -759,16 +754,6 @@ Layer::ComputeEffectiveTransformForMaskLayer(const Matrix4x4& aTransformToSurfac
 #endif
     mMaskLayer->mEffectiveTransform = mMaskLayer->GetTransform() * mMaskLayer->mEffectiveTransform;
   }
-}
-
-RenderTargetRect
-Layer::TransformRectToRenderTarget(const LayerIntRect& aRect)
-{
-  LayerRect rect(aRect);
-  RenderTargetRect quad = RenderTargetRect::FromUnknown(
-    GetEffectiveTransform().TransformBounds(
-      LayerPixel::ToUnknown(rect)));
-  return quad;
 }
 
 ContainerLayer::ContainerLayer(LayerManager* aManager, void* aImplData)

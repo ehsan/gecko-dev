@@ -29,10 +29,9 @@ function test()
 
   tab.linkedBrowser.addEventListener("load", function(aEvent) {
     tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
-    executeSoon(function() {
-      gBrowser.contentDocument.getElementsByTagName('iframe')[0].contentDocument
-        .getElementById('s').click();
-    });
+
+    gBrowser.contentDocument.getElementsByTagName('iframe')[0].contentDocument
+      .getElementById('s').click();
   }, true);
 
   gBrowser.selectedTab = tab;

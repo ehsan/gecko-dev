@@ -165,7 +165,7 @@ public:
   void Run() MOZ_OVERRIDE
   {
     MOZ_ASSERT(NS_IsMainThread());
-    mSocket->CloseSocket();
+    mSocket->CloseDroidSocket();
   }
 
 private:
@@ -255,7 +255,7 @@ BluetoothOppManager::ConnectInternal(const nsAString& aDeviceAddress)
 
   // Stop listening because currently we only support one connection at a time.
   if (mServerSocket) {
-    mServerSocket->CloseSocket();
+    mServerSocket->Disconnect();
     mServerSocket = nullptr;
   }
 
@@ -269,7 +269,7 @@ BluetoothOppManager::ConnectInternal(const nsAString& aDeviceAddress)
 
   mSocket =
     new BluetoothSocket(this, BluetoothSocketType::RFCOMM, false, true);
-  mSocket->ConnectSocket(aDeviceAddress, -1);
+  mSocket->Connect(aDeviceAddress, -1);
 }
 
 void
@@ -297,14 +297,14 @@ BluetoothOppManager::Listen()
    * BT restarts.
    */
   if (mServerSocket) {
-    mServerSocket->CloseSocket();
+    mServerSocket->Disconnect();
     mServerSocket = nullptr;
   }
 
   mServerSocket =
     new BluetoothSocket(this, BluetoothSocketType::RFCOMM, false, true);
 
-  if (!mServerSocket->ListenSocket(BluetoothReservedChannels::CHANNEL_OPUSH)) {
+  if (!mServerSocket->Listen(BluetoothReservedChannels::CHANNEL_OPUSH)) {
     BT_WARNING("[OPP] Can't listen on RFCOMM socket!");
     mServerSocket = nullptr;
     return false;
@@ -1255,7 +1255,7 @@ BluetoothOppManager::SendObexData(uint8_t* aData, uint8_t aOpcode, int aSize)
 
   UnixSocketRawData* s = new UnixSocketRawData(aSize);
   memcpy(s->mData, aData, s->mSize);
-  mSocket->SendSocketData(s);
+  mSocket->SendDroidSocketData(s);
 }
 
 void
@@ -1427,7 +1427,7 @@ void
 BluetoothOppManager::Disconnect(BluetoothProfileController* aController)
 {
   if (mSocket) {
-    mSocket->CloseSocket();
+    mSocket->Disconnect();
   } else {
     BT_WARNING("%s: No ongoing file transfer to stop", __FUNCTION__);
   }

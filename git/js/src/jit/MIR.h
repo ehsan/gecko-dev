@@ -413,8 +413,6 @@ class MDefinition : public MNode
     virtual void printOpcode(FILE *fp) const;
     void dump(FILE *fp) const;
     void dump() const;
-    void dumpLocation(FILE *fp) const;
-    void dumpLocation() const;
 
     // For LICM.
     virtual bool neverHoist() const { return false; }
@@ -822,10 +820,15 @@ class MInstruction
         resumePoint_(nullptr)
     { }
 
-    void setResumePoint(MResumePoint *resumePoint);
-
+    void setResumePoint(MResumePoint *resumePoint) {
+        JS_ASSERT(!resumePoint_);
+        resumePoint_ = resumePoint;
+    }
     // Used to transfer the resume point to the rewritten instruction.
-    void stealResumePoint(MInstruction *ins);
+    void stealResumePoint(MInstruction *ins) {
+        resumePoint_ = ins->resumePoint_;
+        ins->resumePoint_ = nullptr;
+    }
     MResumePoint *resumePoint() const {
         return resumePoint_;
     }
@@ -8052,10 +8055,9 @@ class InlinePropertyTable : public TempObject
         JS_ASSERT(priorResumePoint_ == nullptr);
         priorResumePoint_ = resumePoint;
     }
-    MResumePoint *takePriorResumePoint() {
-        MResumePoint *rp = priorResumePoint_;
-        priorResumePoint_ = nullptr;
-        return rp;
+
+    MResumePoint *priorResumePoint() const {
+        return priorResumePoint_;
     }
 
     jsbytecode *pc() const {
@@ -10776,11 +10778,7 @@ class MNewDenseArrayPar : public MBinaryInstruction
 // A resume point contains the information needed to reconstruct the Baseline
 // state from a position in the JIT. See the big comment near resumeAfter() in
 // IonBuilder.cpp.
-class MResumePoint MOZ_FINAL :
-  public MNode
-#ifdef DEBUG
-  , public InlineForwardListNode<MResumePoint>
-#endif
+class MResumePoint MOZ_FINAL : public MNode, public InlineForwardListNode<MResumePoint>
 {
   public:
     enum Mode {
@@ -10825,7 +10823,6 @@ class MResumePoint MOZ_FINAL :
     static MResumePoint *New(TempAllocator &alloc, MBasicBlock *block, jsbytecode *pc,
                              MResumePoint *parent, Mode mode,
                              const MDefinitionVector &operands);
-    static MResumePoint *Copy(TempAllocator &alloc, MResumePoint *src);
 
     MNode::Kind kind() const {
         return MNode::ResumePoint;
@@ -10874,12 +10871,6 @@ class MResumePoint MOZ_FINAL :
         return instruction_;
     }
     void setInstruction(MInstruction *ins) {
-        MOZ_ASSERT(!instruction_);
-        instruction_ = ins;
-    }
-    // Only to be used by stealResumePoint.
-    void replaceInstruction(MInstruction *ins) {
-        MOZ_ASSERT(instruction_);
         instruction_ = ins;
     }
     Mode mode() const {

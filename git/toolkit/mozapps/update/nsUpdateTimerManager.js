@@ -140,7 +140,6 @@ TimerManager.prototype = {
     var callbackToFire = null;
     var earliestIntendedTime = null;
     var skippedFirings = false;
-    var lastUpdateTime = null;
     function tryFire(callback, intendedTime) {
       var selected = false;
       if (intendedTime <= now) {
@@ -185,7 +184,7 @@ TimerManager.prototype = {
                                                                       timerID);
       // Initialize the last update time to 0 when the preference isn't set so
       // the timer will be notified soon after a new profile's first use.
-      lastUpdateTime = getPref("getIntPref", prefLastUpdate, 0);
+      let lastUpdateTime = getPref("getIntPref", prefLastUpdate, 0);
 
       // If the last update time is greater than the current time then reset
       // it to 0 and the timer manager will correct the value when it fires

@@ -170,19 +170,11 @@ class MachFormatter(base.BaseFormatter):
     def test_end(self, data):
         subtests = self._get_subtest_data(data)
         unexpected = subtests["unexpected"]
-
-        message = data.get("message", "")
-        if "stack" in data:
-            stack = data["stack"]
-            if stack and stack[-1] != "\n":
-                stack += "\n"
-            message = stack + message
-
         if "expected" in data:
             parent_unexpected = True
             expected_str = ", expected %s" % data["expected"]
             unexpected.append((None, data["status"], data["expected"],
-                               message))
+                               data.get("message", "")))
         else:
             parent_unexpected = False
             expected_str = ""

@@ -7,11 +7,6 @@
 #include "nsProfileLock.h"
 #include "nsCOMPtr.h"
 
-#if defined(XP_WIN)
-#include "mozilla/ProfileUnlockerWin.h"
-#include "nsAutoPtr.h"
-#endif
-
 #if defined(XP_MACOSX)
 #include <Carbon/Carbon.h>
 #include <CoreFoundation/CoreFoundation.h>
@@ -580,15 +575,7 @@ nsresult nsProfileLock::Lock(nsIFile* aProfileDir,
                                   0,
                                   nullptr);
     if (mLockFileHandle == INVALID_HANDLE_VALUE) {
-        if (aUnlocker) {
-          nsRefPtr<mozilla::ProfileUnlockerWin> unlocker(
-                                     new mozilla::ProfileUnlockerWin(filePath));
-          if (NS_SUCCEEDED(unlocker->Init())) {
-            nsCOMPtr<nsIProfileUnlocker> unlockerInterface(
-                                                      do_QueryObject(unlocker));
-            unlockerInterface.forget(aUnlocker);
-          }
-        }
+        // XXXbsmedberg: provide a profile-unlocker here!
         return NS_ERROR_FILE_ACCESS_DENIED;
     }
 #elif defined(VMS)

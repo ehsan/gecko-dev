@@ -80,7 +80,16 @@ TestUrgencyParent::RecvTest3(uint32_t *value)
 bool
 TestUrgencyParent::RecvFinalTest_Begin()
 {
-  return true;
+  SetReplyTimeoutMs(2000);
+  if (CallFinalTest_Hang())
+    fail("should have failed due to timeout");
+  if (!GetIPCChannel()->Unsound_IsClosed())
+    fail("channel should have closed");
+
+  MessageLoop::current()->PostTask(
+      FROM_HERE,
+      NewRunnableMethod(this, &TestUrgencyParent::Close));
+  return false;
 }
 
 //-----------------------------------------------------------------------------
@@ -121,8 +130,9 @@ TestUrgencyChild::RecvStart()
   if (result != 1000)
     fail("wrong value from test3");
 
-  if (!SendFinalTest_Begin())
-    fail("Final test should have succeeded");
+  // This must be the last test, since the child process may die.
+  if (SendFinalTest_Begin())
+    fail("Final test should not have succeeded");
 
   Close();
 
@@ -151,6 +161,13 @@ TestUrgencyChild::AnswerReply2(uint32_t *reply)
 
   *reply = 500;
   test_ = kSecondTestGotReply;
+  return true;
+}
+
+bool
+TestUrgencyChild::AnswerFinalTest_Hang()
+{
+  Sleep(10);
   return true;
 }
 

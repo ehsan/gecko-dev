@@ -343,8 +343,7 @@ public:
 
   /**
    * Returns a list of all descendant layers for which
-   * GetFrameMetrics().IsScrollable() is true and that
-   * do not already have an ancestor in the return list.
+   * GetFrameMetrics().IsScrollable() is true.
    */
   void GetScrollableLayers(nsTArray<Layer*>& aArray);
 
@@ -1389,8 +1388,8 @@ public:
    * by aWorldTransform before being combined with aCurrentScissorRect, if
    * aWorldTransform is non-null.
    */
-  RenderTargetIntRect CalculateScissorRect(const RenderTargetIntRect& aCurrentScissorRect,
-                                           const gfx::Matrix* aWorldTransform);
+  nsIntRect CalculateScissorRect(const nsIntRect& aCurrentScissorRect,
+                                 const gfx::Matrix* aWorldTransform);
 
   virtual const char* Name() const =0;
   virtual LayerType GetType() const =0;
@@ -1487,6 +1486,7 @@ public:
 
   virtual LayerRenderState GetRenderState() { return LayerRenderState(); }
 
+
   void Mutated()
   {
     mManager->Mutated(this);
@@ -1501,8 +1501,6 @@ public:
    * transaction.
    */
   bool MayResample();
-
-  RenderTargetRect TransformRectToRenderTarget(const LayerIntRect& aRect);
 
 protected:
   Layer(LayerManager* aManager, void* aImplData);
@@ -1815,15 +1813,12 @@ public:
 
   /**
    * Returns the rectangle covered by the intermediate surface,
-   * in this layer's coordinate system.
-   *
-   * NOTE: Since this layer has an intermediate surface it follows
-   *       that LayerPixel == RenderTargetPixel
+   * in this layer's coordinate system
    */
-  RenderTargetIntRect GetIntermediateSurfaceRect()
+  nsIntRect GetIntermediateSurfaceRect()
   {
     NS_ASSERTION(mUseIntermediateSurface, "Must have intermediate surface");
-    return RenderTargetPixel::FromUntyped(mVisibleRegion.GetBounds());
+    return mVisibleRegion.GetBounds();
   }
 
   /**
