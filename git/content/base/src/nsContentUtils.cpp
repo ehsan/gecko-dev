@@ -1890,7 +1890,7 @@ nsContentUtils::GenerateStateKey(nsIContent* aContent,
   NS_ENSURE_TRUE(aContent, NS_ERROR_FAILURE);
 
   // Don't capture state for anonymous content
-  if (aContent->IsInAnonymousSubtree()) {
+  if (aContent->IsNativeAnonymous() || aContent->GetBindingParent()) {
     return NS_OK;
   }
 

@@ -134,8 +134,10 @@ nsDOMEvent::nsDOMEvent(nsPresContext* aPresContext, nsEvent* aEvent)
     mExplicitOriginalTarget = GetTargetFromFrame();
     mTmpRealOriginalTarget = mExplicitOriginalTarget;
     nsCOMPtr<nsIContent> content = do_QueryInterface(mExplicitOriginalTarget);
-    if (content && content->IsInAnonymousSubtree()) {
-      mExplicitOriginalTarget = nsnull;
+    if (content) {
+      if (content->IsNativeAnonymous() || content->GetBindingParent()) {
+        mExplicitOriginalTarget = nsnull;
+      }
     }
   }
 }
