@@ -12,6 +12,7 @@ import org.mozilla.gecko.gfx.LayerController;
 import org.mozilla.gecko.gfx.LayerView;
 import org.mozilla.gecko.gfx.PluginLayer;
 import org.mozilla.gecko.gfx.PointUtils;
+import org.mozilla.gecko.gfx.SurfaceTextureLayer;
 import org.mozilla.gecko.ui.PanZoomController;
 
 import java.io.*;
@@ -122,6 +123,8 @@ abstract public class GeckoApp
     private static LaunchState sLaunchState = LaunchState.Launching;
 
     abstract public int getLayout();
+    abstract public boolean isBrowserToolbarSupported();
+    abstract public View getBrowserToolbar();
     abstract protected String getDefaultProfileName();
 
     public static boolean checkLaunchState(LaunchState checkState) {
@@ -232,6 +235,14 @@ abstract public class GeckoApp
                     // nothing
                 }
             }
+        }
+
+        // we don't support Honeycomb
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB &&
+            Build.VERSION.SDK_INT < 14 /*Build.VERSION_CODES.ICE_CREAM_SANDWICH*/ )
+        {
+            Log.w(LOGTAG, "Blocking plugins because of Honeycomb");
+            return new String[0];
         }
 
         Log.w(LOGTAG, "zerdatime " + SystemClock.uptimeMillis() + " - start of getPluginDirectories");
@@ -1603,6 +1614,51 @@ abstract public class GeckoApp
                 }
             });
     }
+
+    public Surface createSurface() {
+        Tabs tabs = Tabs.getInstance();
+        Tab tab = tabs.getSelectedTab();
+        if (tab == null)
+            return null;
+
+        SurfaceTextureLayer layer = SurfaceTextureLayer.create();
+        if (layer == null)
+            return null;
+
+        Surface surface = layer.getSurface();
+        tab.addPluginLayer(surface, layer);
+        return surface;
+    }
+
+    public void destroySurface(Surface surface) {
+        Tabs tabs = Tabs.getInstance();
+        Tab tab = tabs.getSelectedTab();
+        if (tab == null)
+            return;
+
+        Layer layer = tab.removePluginLayer(surface);
+        hidePluginLayer(layer);
+    }
+
+    public void showSurface(Surface surface, int x, int y,
+                            int w, int h, boolean inverted, boolean blend) {
+        Tabs tabs = Tabs.getInstance();
+        Tab tab = tabs.getSelectedTab();
+        if (tab == null)
+            return;
+
+        LayerView layerView = mLayerController.getView();
+        SurfaceTextureLayer layer = (SurfaceTextureLayer)tab.getPluginLayer(surface);
+        if (layer == null)
+            return;
+
+        layer.update(new Rect(x, y, x + w, y + h), inverted, blend);
+        layerView.addLayer(layer);
+
+        // FIXME: shouldn't be necessary, layer will request
+        // one when it gets first frame
+        layerView.requestRender();
+    }
     
     private void hidePluginLayer(Layer layer) {
         LayerView layerView = mLayerController.getView();
@@ -1614,6 +1670,19 @@ abstract public class GeckoApp
         LayerView layerView = mLayerController.getView();
         layerView.addLayer(layer);
         layerView.requestRender();
+    }
+
+    public void hideSurface(Surface surface) {
+        Tabs tabs = Tabs.getInstance();
+        Tab tab = tabs.getSelectedTab();
+        if (tab == null)
+            return;
+
+        Layer layer = tab.getPluginLayer(surface);
+        if (layer == null)
+            return;
+
+        hidePluginLayer(layer);
     }
 
     public void requestRender() {
@@ -1718,6 +1787,10 @@ abstract public class GeckoApp
         // setup gecko layout
         mGeckoLayout = (RelativeLayout) findViewById(R.id.gecko_layout);
         mMainLayout = (LinearLayout) findViewById(R.id.main_layout);
+
+        // add a browser-toolbar
+        if (isBrowserToolbarSupported())
+            mMainLayout.addView(getBrowserToolbar(), 0);
 
         // setup tabs panel
         mTabsPanel = (TabsPanel) findViewById(R.id.tabs_panel);
@@ -2301,20 +2374,19 @@ abstract public class GeckoApp
         ((GeckoApplication) getApplication()).removeApplicationLifecycleCallbacks(this);
     }
 
-    // Get a temporary directory, may return null
+    // Get/Create a temporary direcory
     public static File getTempDirectory() {
         File dir = mAppContext.getExternalFilesDir("temp");
+        dir.mkdirs();
         return dir;
     }
 
     // Delete any files in our temporary directory
     public static void deleteTempFiles() {
-        File dir = getTempDirectory();
-        if (dir == null)
-            return;
-        File[] files = dir.listFiles();
+        File[] files  = getTempDirectory().listFiles();
         if (files == null)
             return;
+
         for (File file : files) {
             file.delete();
         }
@@ -2775,15 +2847,13 @@ abstract public class GeckoApp
         LayerController layerController = getLayerController();
         layerController.setLayerClient(mLayerClient);
 
-        layerController.getView().getTouchEventHandler().setOnTouchListener(new ContentTouchListener() {
+        layerController.getView().getTouchEventHandler().setOnTouchListener(new View.OnTouchListener() {
             private PointF initialPoint = null;
-
-            @Override
             public boolean onTouch(View view, MotionEvent event) {
                 if (event == null)
                     return true;
 
-                if (super.onTouch(view, event))
+                if (autoHideTabs())
                     return true;
 
                 int action = event.getAction();
@@ -2806,33 +2876,6 @@ abstract public class GeckoApp
                 return true;
             }
         });
-    }
-
-    protected class ContentTouchListener implements OnInterceptTouchListener {
-        private boolean mIsHidingTabs = false;
-
-        @Override
-        public boolean onInterceptTouchEvent(View view, MotionEvent event) {
-            // If the tab tray is showing, hide the tab tray and don't send the event to content.
-            if (event.getActionMasked() == MotionEvent.ACTION_DOWN && autoHideTabs()) {
-                mIsHidingTabs = true;
-                return true;
-            }
-            return false;
-        }
-
-        @Override
-        public boolean onTouch(View view, MotionEvent event) {
-            if (mIsHidingTabs) {
-                // Keep consuming events until the gesture finishes.
-                int action = event.getActionMasked();
-                if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
-                    mIsHidingTabs = false;
-                }
-                return true;
-            }
-            return false;
-        }
     }
 
     public boolean linkerExtract() {

@@ -63,10 +63,8 @@ var AccessFu = {
     this.addPresenter(new VisualPresenter());
 
     // Implicitly add the Android presenter on Android.
-    if (Utils.MozBuildApp == 'mobile/android')
+    if (Utils.OS == 'Android')
       this.addPresenter(new AndroidPresenter());
-    else if (Utils.MozBuildApp == 'b2g')
-      this.addPresenter(new SpeechPresenter());
 
     VirtualCursorController.attach(this.chromeWin);
 
@@ -357,8 +355,7 @@ var AccessFu = {
       }
       case Ci.nsIAccessibleEvent.EVENT_SCROLLING_START:
       {
-        VirtualCursorController.moveCursorToObject(
-          Utils.getVirtualCursor(aEvent.accessibleDocument), aEvent.accessible);
+        VirtualCursorController.moveCursorToObject(aEvent.accessible);
         break;
       }
       case Ci.nsIAccessibleEvent.EVENT_FOCUS:
@@ -367,8 +364,7 @@ var AccessFu = {
         let doc = aEvent.accessibleDocument;
         if (acc.role != Ci.nsIAccessibleRole.ROLE_DOCUMENT &&
             doc.role != Ci.nsIAccessibleRole.ROLE_CHROME_WINDOW)
-          VirtualCursorController.moveCursorToObject(
-            Utils.getVirtualCursor(doc), acc);
+          VirtualCursorController.moveCursorToObject(acc);
 
         let [,extState] = Utils.getStates(acc);
         let editableState = extState &

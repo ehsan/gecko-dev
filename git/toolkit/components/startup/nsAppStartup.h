@@ -69,7 +69,6 @@ private:
   nsRefPtr<ProbeManager> mProbesManager;
   nsRefPtr<Probe> mPlacesInitCompleteProbe;
   nsRefPtr<Probe> mSessionWindowRestoredProbe;
-  nsRefPtr<Probe> mXPCOMShutdownProbe;
 #endif
 };
 

@@ -495,9 +495,6 @@ class TokenStream
         TokenKind type = currentToken().type;
         return type == type1 || type == type2;
     }
-    size_t offsetOfToken(const Token &tok) const {
-        return tok.ptr - userbuf.base();
-    }
     const CharBuffer &getTokenbuf() const { return tokenbuf; }
     const char *getFilename() const { return filename; }
     unsigned getLineno() const { return lineno; }
@@ -671,12 +668,6 @@ class TokenStream
         JS_ALWAYS_TRUE(matchToken(tt));
     }
 
-
-    /*
-     * Return the offset into the source buffer of the end of the token.
-     */
-    size_t endOffset(const Token &tok);
-
     /*
      * Give up responsibility for managing the sourceMap filename's memory.
      */
@@ -713,22 +704,14 @@ class TokenStream
     class TokenBuf {
       public:
         TokenBuf(const jschar *buf, size_t length)
-          : base_(buf), limit_(buf + length), ptr(buf) { }
+          : base(buf), limit(buf + length), ptr(buf) { }
 
         bool hasRawChars() const {
-            return ptr < limit_;
+            return ptr < limit;
         }
 
         bool atStart() const {
-            return ptr == base_;
-        }
-
-        const jschar *base() const {
-            return base_;
-        }
-
-        const jschar *limit() const {
-            return limit_;
+            return ptr == base;
         }
 
         jschar getRawChar() {
@@ -788,8 +771,8 @@ class TokenStream
         const jschar *findEOLMax(const jschar *p, size_t max);
 
       private:
-        const jschar *base_;            /* base of buffer */
-        const jschar *limit_;           /* limit for quick bounds check */
+        const jschar *base;             /* base of buffer */
+        const jschar *limit;            /* limit for quick bounds check */
         const jschar *ptr;              /* next char to get */
     };
 

@@ -16,19 +16,18 @@ if (typeof uneval != 'undefined')
 {
   function a()
   {
-    b = function() {};
+    b=function() {};
   }
 
-  var r = "function a() { b = function() {}; }";
+  var r = /function a\(\) \{ b = \(?function \(\) \{\s*\}\)?; \}/;
   eval(uneval(a));
 
   var v = a.toString().replace(/[ \n]+/g, ' ');
-  print(v)
  
   printStatus("[" + v + "]");
 
-  expect = r;
-  actual = v;
+  expect = true;
+  actual = r.test(v);
 
   reportCompare(expect, actual, summary);
 }

@@ -290,8 +290,8 @@ public class BookmarksInsertionManager {
      * <p>
      * All exceptions should be caught and all delegate callbacks invoked here.
      *
-     * @param records
-     *          the records to insert.
+     * @param record
+     *          the record to insert.
      */
     public void bulkInsertNonFolders(Collection<BookmarkRecord> records);
   }

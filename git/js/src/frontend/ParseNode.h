@@ -1475,8 +1475,6 @@ struct FunctionBox : public ObjectBox
     FunctionBox     *kids;
     FunctionBox     *parent;
     Bindings        bindings;               /* bindings for this function */
-    size_t          bufStart;
-    size_t          bufEnd;
     uint16_t        level;
     uint16_t        ndefaults;
     StrictMode::StrictModeState strictModeState;

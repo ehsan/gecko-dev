@@ -4872,10 +4872,7 @@ EmitFunc(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
                                                       parent->compileAndGo,
                                                       /* noScriptRval = */ false,
                                                       parent->getVersion(),
-                                                      parent->staticLevel + 1,
-                                                      bce->script->source,
-                                                      funbox->bufStart,
-                                                      funbox->bufEnd));
+                                                      parent->staticLevel + 1));
         if (!script)
             return false;
 

@@ -136,7 +136,7 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
                     // since they can be different.
                     TextView textView = (TextView) view;
                     String value = (String) textView.getTag();
-                    broadcastGeckoEvent("FormAssist:AutoComplete", value);
+                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("FormAssist:AutoComplete", value));
                     hide();
                 }
             });
@@ -293,16 +293,8 @@ public class FormAssistPopup extends RelativeLayout implements GeckoEventListene
     public void hide() {
         if (isShown()) {
             setVisibility(GONE);
-            broadcastGeckoEvent("FormAssist:Hidden", null);
+            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("FormAssist:Hidden", null));
         }
-    }
-
-    void block(boolean blocking) {
-        broadcastGeckoEvent("FormAssist:Blocklisted", String.valueOf(blocking));
-    }
-
-    private static void broadcastGeckoEvent(String eventName, String eventData) {
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent(eventName, eventData));
     }
 
     private class AutoCompleteListAdapter extends ArrayAdapter<Pair<String, String>> {

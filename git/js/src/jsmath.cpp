@@ -475,13 +475,8 @@ js_math_pow(JSContext *cx, unsigned argc, Value *vp)
         return JS_TRUE;
     }
 
-    /*
-     * Use powi if the exponent is an integer or an integer-valued double.
-     * We don't have to check for NaN since a comparison with NaN is always
-     * false.
-     */
-    if (int32_t(y) == y)
-        z = powi(x, int32_t(y));
+    if (vp[3].isInt32())
+        z = powi(x, vp[3].toInt32());
     else
         z = pow(x, y);
 

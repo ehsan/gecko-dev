@@ -11,9 +11,10 @@ public class ActivityUtils {
    * Sync key should be a 26-character string, and can include arbitrary
    * capitalization and hyphenation.
    *
-   * @param key
-   *          Sync key entered by user in account setup.
-   * @return Sync key in correct format (lower-case, no hyphens).
+   * @param String
+   *          sync key Sync key entered by user in account setup.
+   * @return String formatted key Sync key in correct format (lower-cased and
+   *         de-hyphenated)
    * @throws InvalidSyncKeyException
    */
   public static String validateSyncKey(String key) throws InvalidSyncKeyException {

@@ -56,6 +56,8 @@ nsHttpConnectionMgr::nsHttpConnectionMgr()
     : mRef(0)
     , mReentrantMonitor("nsHttpConnectionMgr.mReentrantMonitor")
     , mMaxConns(0)
+    , mMaxConnsPerHost(0)
+    , mMaxConnsPerProxy(0)
     , mMaxPersistConnsPerHost(0)
     , mMaxPersistConnsPerProxy(0)
     , mIsShuttingDown(false)
@@ -105,6 +107,8 @@ nsHttpConnectionMgr::EnsureSocketThreadTargetIfOnline()
 
 nsresult
 nsHttpConnectionMgr::Init(PRUint16 maxConns,
+                          PRUint16 maxConnsPerHost,
+                          PRUint16 maxConnsPerProxy,
                           PRUint16 maxPersistConnsPerHost,
                           PRUint16 maxPersistConnsPerProxy,
                           PRUint16 maxRequestDelay,
@@ -117,6 +121,8 @@ nsHttpConnectionMgr::Init(PRUint16 maxConns,
         ReentrantMonitorAutoEnter mon(mReentrantMonitor);
 
         mMaxConns = maxConns;
+        mMaxConnsPerHost = maxConnsPerHost;
+        mMaxConnsPerProxy = maxConnsPerProxy;
         mMaxPersistConnsPerHost = maxPersistConnsPerHost;
         mMaxPersistConnsPerProxy = maxPersistConnsPerProxy;
         mMaxRequestDelay = maxRequestDelay;
@@ -1103,25 +1109,53 @@ nsHttpConnectionMgr::AtActiveConnectionLimit(nsConnectionEntry *ent, PRUint8 cap
         return true;
     }
 
+    nsHttpConnection *conn;
+    PRInt32 i, totalCount, persistCount = 0;
+    
+    totalCount = ent->mActiveConns.Length();
+
+    // count the number of persistent connections
+    for (i=0; i<totalCount; ++i) {
+        conn = ent->mActiveConns[i];
+        if (conn->IsKeepAlive()) // XXX make sure this is thread-safe
+            persistCount++;
+    }
+
     // Add in the in-progress tcp connections, we will assume they are
     // keepalive enabled.
-    // Exclude half-open's that has already created a usable connection.
-    // This prevents the limit being stuck on ipv6 connections that 
-    // eventually time out after typical 21 seconds of no ACK+SYN reply.
-    PRUint32 totalCount =
-        ent->mActiveConns.Length() + ent->UnconnectedHalfOpens();
+    PRUint32 pendingHalfOpens = 0;
+    for (i = 0; i < ent->mHalfOpens.Length(); ++i) {
+        nsHalfOpenSocket *halfOpen = ent->mHalfOpens[i];
 
+        // Exclude half-open's that has already created a usable connection.
+        // This prevents the limit being stuck on ipv6 connections that 
+        // eventually time out after typical 21 seconds of no ACK+SYN reply.
+        if (halfOpen->HasConnected())
+            continue;
+
+        ++pendingHalfOpens;
+    }
+    
+    totalCount += pendingHalfOpens;
+    persistCount += pendingHalfOpens;
+
+    LOG(("   total=%d, persist=%d\n", totalCount, persistCount));
+
+    PRUint16 maxConns;
     PRUint16 maxPersistConns;
 
-    if (ci->UsingHttpProxy() && !ci->UsingConnect())
+    if (ci->UsingHttpProxy() && !ci->UsingConnect()) {
+        maxConns = mMaxConnsPerProxy;
         maxPersistConns = mMaxPersistConnsPerProxy;
-    else
+    }
+    else {
+        maxConns = mMaxConnsPerHost;
         maxPersistConns = mMaxPersistConnsPerHost;
-
-    LOG(("   connection count = %d, limit %d\n", totalCount, maxPersistConns));
+    }
 
     // use >= just to be safe
-    bool result = (totalCount >= maxPersistConns);
+    bool result = (totalCount >= maxConns) || ( (caps & NS_HTTP_ALLOW_KEEPALIVE) &&
+                                              (persistCount >= maxPersistConns) );
     LOG(("  result: %s", result ? "true" : "false"));
     return result;
 }
@@ -1174,7 +1208,7 @@ nsHttpConnectionMgr::RestrictConnections(nsConnectionEntry *ent)
     
     // If the restriction is based on a tcp handshake in progress
     // let that connect and then see if it was SPDY or not
-    if (ent->UnconnectedHalfOpens())
+    if (ent->mHalfOpens.Length())
         return true;
 
     // There is a concern that a host is using a mix of HTTP/1 and SPDY.
@@ -2070,6 +2104,12 @@ nsHttpConnectionMgr::OnMsgUpdateParam(PRInt32, void *param)
     case MAX_CONNECTIONS:
         mMaxConns = value;
         break;
+    case MAX_CONNECTIONS_PER_HOST:
+        mMaxConnsPerHost = value;
+        break;
+    case MAX_CONNECTIONS_PER_PROXY:
+        mMaxConnsPerProxy = value;
+        break;
     case MAX_PERSISTENT_CONNECTIONS_PER_HOST:
         mMaxPersistConnsPerHost = value;
         break;
@@ -2302,15 +2342,22 @@ nsHttpConnectionMgr::nsHalfOpenSocket::~nsHalfOpenSocket()
     LOG(("Destroying nsHalfOpenSocket [this=%p]\n", this));
     
     if (mEnt) {
+        // If the removal of the HalfOpenSocket from the mHalfOpens list
+        // removes the RestrictConnections() throttle then we need to
+        // process the pending queue.
+        bool restrictedBeforeRelease =
+            gHttpHandler->ConnMgr()->RestrictConnections(mEnt);
+
         // A failure to create the transport object at all
         // will result in this not being present in the halfopen table
         // so ignore failures of RemoveElement()
         mEnt->mHalfOpens.RemoveElement(this);
-        
-        // If there are no unconnected half opens left in the array, then
-        // it is liekly that this dtor transitioned
-        if (!mEnt->UnconnectedHalfOpens())
+
+        if (restrictedBeforeRelease &&
+            !gHttpHandler->ConnMgr()->RestrictConnections(mEnt)) {
+            LOG(("nsHalfOpenSocket %p lifted RestrictConnections() limit.\n"));
             gHttpHandler->ConnMgr()->ProcessPendingQForEntry(mEnt);
+        }
     }
 }
 
@@ -3011,15 +3058,4 @@ nsConnectionEntry::MaxPipelineDepth(nsAHttpTransaction::Classifier aClass)
         return kPipelineRestricted;
 
     return mGreenDepth;
-}
-
-PRUint32
-nsHttpConnectionMgr::nsConnectionEntry::UnconnectedHalfOpens()
-{
-    PRUint32 unconnectedHalfOpens = 0;
-    for (PRUint32 i = 0; i < mHalfOpens.Length(); ++i) {
-        if (!mHalfOpens[i]->HasConnected())
-            ++unconnectedHalfOpens;
-    }
-    return unconnectedHalfOpens;
 }

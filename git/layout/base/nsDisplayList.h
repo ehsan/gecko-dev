@@ -256,9 +256,10 @@ public:
 
   /**
    * Returns true if we're currently building a display list that's
-   * directly or indirectly under an nsDisplayTransform.
+   * directly or indirectly under an nsDisplayTransform or SVG
+   * foreignObject.
    */
-  bool IsInTransform() const { return mInTransform; }
+  bool IsInTransform() { return mInTransform; }
   /**
    * Indicate whether or not we're directly or indirectly under and
    * nsDisplayTransform or SVG foreignObject.

@@ -377,8 +377,7 @@ nsXULElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
         }
         NS_ENSURE_SUCCESS(rv, rv);
         element->AddListenerFor(*originalName, true);
-        if (originalName->Equals(nsGkAtoms::id) &&
-            !originalValue->IsEmptyString()) {
+        if (originalName->Equals(nsGkAtoms::id)) {
             element->SetHasID();
         }
         if (originalName->Equals(nsGkAtoms::_class)) {
@@ -2421,14 +2420,6 @@ nsXULPrototypeScript::Compile(const PRUnichar* aText,
     // Ok, compile it to create a prototype script object!
 
     nsScriptObjectHolder<JSScript> newScriptObject(context);
-    uint32_t opts = JS_GetOptions(context->GetNativeContext());
-    if (!mOutOfLine) {
-        // If the script was inline, tell the JS parser to save source for
-        // Function.prototype.toSource(). If it's outline, we retrieve the
-        // source from the files on demand.
-        opts &= ~JSOPTION_ONLY_CNG_SOURCE;
-        JS_SetOptions(context->GetNativeContext(), opts);
-    }
     rv = context->CompileScript(aText,
                                 aTextLength,
                                 // Use the enclosing document's principal
@@ -2442,7 +2433,6 @@ nsXULPrototypeScript::Compile(const PRUnichar* aText,
                                 aLineNo,
                                 mLangVersion,
                                 newScriptObject);
-    JS_SetOptions(context->GetNativeContext(), opts);
     if (NS_FAILED(rv))
         return rv;
 

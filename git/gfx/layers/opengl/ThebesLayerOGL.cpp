@@ -953,6 +953,7 @@ ShadowBufferOGL::Upload(gfxASurface* aUpdate, const nsIntRegion& aUpdated,
 ShadowThebesLayerOGL::ShadowThebesLayerOGL(LayerManagerOGL *aManager)
   : ShadowThebesLayer(aManager, nsnull)
   , LayerOGL(aManager)
+  , mUploadTask(nsnull)
 {
 #ifdef FORCE_BASICTILEDTHEBESLAYER
   NS_ABORT();

@@ -7,6 +7,8 @@
 #define nsGeoPosition_h
 
 #include "nsAutoPtr.h"
+#include "nsIClassInfo.h"
+#include "nsDOMClassInfoID.h"
 #include "nsIDOMGeoPositionCoords.h"
 #include "nsIDOMGeoPosition.h"
 #include "nsString.h"

@@ -6,7 +6,7 @@ import os
 import sys
 from setuptools import setup, find_packages
 
-PACKAGE_VERSION = '0.4'
+version = '0.4'
 
 # we only support python 2 right now
 assert sys.version_info[0] == 2
@@ -31,7 +31,7 @@ except (OSError, IOError):
     description = ''
 
 setup(name='mozprofile',
-      version=PACKAGE_VERSION,
+      version=version,
       description="Handling of Mozilla Gecko based application profiles",
       long_description=description,
       classifiers=['Environment :: Console',

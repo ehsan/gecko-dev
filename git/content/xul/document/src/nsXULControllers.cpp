@@ -16,7 +16,6 @@
 #include "nsIDOMElement.h"
 #include "nsXULControllers.h"
 #include "nsContentUtils.h"
-#include "nsDOMClassInfoID.h"
 
 //----------------------------------------------------------------------
 

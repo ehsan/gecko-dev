@@ -157,7 +157,8 @@ NS_NewColumnSetFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint3
 {
   nsColumnSetFrame* it = new (aPresShell) nsColumnSetFrame(aContext);
   if (it) {
-    it->AddStateBits(aStateFlags | NS_BLOCK_MARGIN_ROOT);
+    // set the state flags (if any are provided)
+    it->AddStateBits(aStateFlags);
   }
 
   return it;
@@ -664,9 +665,8 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
       reflowNext = (aStatus & NS_FRAME_REFLOW_NEXTINFLOW) != 0;
     
 #ifdef DEBUG_roc
-      printf("*** Reflowed child #%d %p: status = %d, desiredSize=%d,%d CarriedOutBottomMargin=%d\n",
-             columnCount, (void*)child, aStatus, kidDesiredSize.width, kidDesiredSize.height,
-             kidDesiredSize.mCarriedOutBottomMargin.get());
+      printf("*** Reflowed child #%d %p: status = %d, desiredSize=%d,%d\n",
+             columnCount, (void*)child, aStatus, kidDesiredSize.width, kidDesiredSize.height);
 #endif
 
       NS_FRAME_TRACE_REFLOW_OUT("Column::Reflow", aStatus);

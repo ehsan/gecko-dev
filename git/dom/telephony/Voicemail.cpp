@@ -72,24 +72,6 @@ Voicemail::GetStatus(nsIDOMMozVoicemailStatus** aStatus)
   return mRIL->GetVoicemailStatus(aStatus);
 }
 
-NS_IMETHODIMP
-Voicemail::GetNumber(nsAString& aNumber)
-{
-  NS_ENSURE_STATE(mRIL);
-  aNumber.SetIsVoid(true);
-
-  return mRIL->GetVoicemailNumber(aNumber);
-}
-
-NS_IMETHODIMP
-Voicemail::GetDisplayName(nsAString& aDisplayName)
-{
-  NS_ENSURE_STATE(mRIL);
-  aDisplayName.SetIsVoid(true);
-
-  return mRIL->GetVoicemailDisplayName(aDisplayName);
-}
-
 NS_IMPL_EVENT_HANDLER(Voicemail, statuschanged)
 
 // nsIRILVoicemailCallback
