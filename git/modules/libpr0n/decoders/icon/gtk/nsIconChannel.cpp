@@ -50,7 +50,12 @@ extern "C" {
 }
 #endif
 
-#include <gtk/gtk.h>
+#include <gtk/gtkwidget.h>
+#include <gtk/gtkiconfactory.h>
+#include <gtk/gtkimage.h>
+#include <gtk/gtkwindow.h>
+#include <gtk/gtkfixed.h>
+#include <gtk/gtkversion.h>
 
 #include "nsIMIMEService.h"
 

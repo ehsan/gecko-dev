@@ -1721,16 +1721,23 @@ function loadOneOrMoreURIs(aURIString)
   }
 }
 
-function openLocation() {
-  if (window.fullScreen)
-    FullScreen.mouseoverToggle(true);
-
+function focusAndSelectUrlBar()
+{
   if (gURLBar && isElementVisible(gURLBar) && !gURLBar.readOnly) {
     gURLBar.focus();
     gURLBar.select();
-    return;
+    return true;
   }
+  return false;
+}
 
+function openLocation()
+{
+  if (window.fullScreen)
+    FullScreen.mouseoverToggle(true);
+
+  if (focusAndSelectUrlBar())
+    return;
 #ifdef XP_MACOSX
   if (window.location.href != getBrowserURL()) {
     var win = getTopWin();
@@ -4314,17 +4321,7 @@ nsBrowserAccess.prototype =
         newWindow = openDialog(getBrowserURL(), "_blank", "all,dialog=no", url, null, null, null);
         break;
       case Ci.nsIBrowserDOMWindow.OPEN_NEWTAB :
-        var win = needToFocusWin = null;
-
-        // try the current window.  if we're in a popup, fall back on the most recent browser window
-        if (!window.document.documentElement.getAttribute("chromehidden"))
-          win = window;
-        else {
-          var browserGlue = Cc[GLUE_CID].getService(Ci.nsIBrowserGlue);
-          win = browserGlue.getMostRecentBrowserWindow();
-          needToFocusWin = true;
-        }
-
+        var win = this._getMostRecentBrowserWindow();
         if (!win) {
           // we couldn't find a suitable window, a new one needs to be opened.
           return null;
@@ -4347,7 +4344,7 @@ nsBrowserAccess.prototype =
                      .getInterface(Ci.nsIWebNavigation)
                      .loadURI(aURI.spec, loadflags, referrer, null, null);
           }
-          if (needToFocusWin || (!loadInBackground && isExternal))
+          if (!loadInBackground && isExternal)
             newWindow.focus();
         } catch(e) {
         }
@@ -4382,6 +4379,16 @@ nsBrowserAccess.prototype =
         }
     }
     return newWindow;
+  },
+
+  // this returns the most recent non-popup browser window
+  _getMostRecentBrowserWindow : function ()
+  {
+    if (!window.document.documentElement.getAttribute("chromehidden"))
+      return window;
+ 
+    var browserGlue = Cc[GLUE_CID].getService(Ci.nsIBrowserGlue);
+    return browserGlue.getMostRecentBrowserWindow();
   },
 
   isTabContentWindow : function(aWindow)

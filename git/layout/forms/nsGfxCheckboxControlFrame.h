@@ -91,8 +91,7 @@ public:
 
 protected:
 
-  PRBool IsChecked();
-  PRBool IsIndeterminate();
+  PRBool GetCheckboxState();
 
   nsRefPtr<nsStyleContext> mCheckButtonFaceStyle;
 };
