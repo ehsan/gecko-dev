@@ -1081,10 +1081,10 @@ WebSocket::UpdateMustKeepAlive()
     {
       case WebSocket::CONNECTING:
       {
-        if (mListenerManager->HasListenersFor(nsGkAtoms::onopen) ||
-            mListenerManager->HasListenersFor(nsGkAtoms::onmessage) ||
-            mListenerManager->HasListenersFor(nsGkAtoms::onerror) ||
-            mListenerManager->HasListenersFor(nsGkAtoms::onclose)) {
+        if (mListenerManager->HasListenersFor(NS_LITERAL_STRING("open")) ||
+            mListenerManager->HasListenersFor(NS_LITERAL_STRING("message")) ||
+            mListenerManager->HasListenersFor(NS_LITERAL_STRING("error")) ||
+            mListenerManager->HasListenersFor(NS_LITERAL_STRING("close"))) {
           shouldKeepAlive = true;
         }
       }
@@ -1093,9 +1093,9 @@ WebSocket::UpdateMustKeepAlive()
       case WebSocket::OPEN:
       case WebSocket::CLOSING:
       {
-        if (mListenerManager->HasListenersFor(nsGkAtoms::onmessage) ||
-            mListenerManager->HasListenersFor(nsGkAtoms::onerror) ||
-            mListenerManager->HasListenersFor(nsGkAtoms::onclose) ||
+        if (mListenerManager->HasListenersFor(NS_LITERAL_STRING("message")) ||
+            mListenerManager->HasListenersFor(NS_LITERAL_STRING("error")) ||
+            mListenerManager->HasListenersFor(NS_LITERAL_STRING("close")) ||
             mOutgoingBufferedAmount != 0) {
           shouldKeepAlive = true;
         }

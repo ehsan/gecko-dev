@@ -18,7 +18,6 @@ static bool gDisableOptimize = false;
 
 #include "cairo.h"
 #include "sampler.h"
-#include "mozilla/Likely.h"
 
 #if defined(XP_WIN)
 
@@ -43,30 +42,30 @@ static bool AllowedImageSize(int32_t aWidth, int32_t aHeight)
 {
   // reject over-wide or over-tall images
   const int32_t k64KLimit = 0x0000FFFF;
-  if (MOZ_UNLIKELY(aWidth > k64KLimit || aHeight > k64KLimit )) {
+  if (NS_UNLIKELY(aWidth > k64KLimit || aHeight > k64KLimit )) {
     NS_WARNING("image too big");
     return false;
   }
 
   // protect against invalid sizes
-  if (MOZ_UNLIKELY(aHeight <= 0 || aWidth <= 0)) {
+  if (NS_UNLIKELY(aHeight <= 0 || aWidth <= 0)) {
     return false;
   }
 
   // check to make sure we don't overflow a 32-bit
   int32_t tmp = aWidth * aHeight;
-  if (MOZ_UNLIKELY(tmp / aHeight != aWidth)) {
+  if (NS_UNLIKELY(tmp / aHeight != aWidth)) {
     NS_WARNING("width or height too large");
     return false;
   }
   tmp = tmp * 4;
-  if (MOZ_UNLIKELY(tmp / 4 != aWidth * aHeight)) {
+  if (NS_UNLIKELY(tmp / 4 != aWidth * aHeight)) {
     NS_WARNING("width or height too large");
     return false;
   }
 #if defined(XP_MACOSX)
   // CoreGraphics is limited to images < 32K in *height*, so clamp all surfaces on the Mac to that height
-  if (MOZ_UNLIKELY(aHeight > SHRT_MAX)) {
+  if (NS_UNLIKELY(aHeight > SHRT_MAX)) {
     NS_WARNING("image too big");
     return false;
   }

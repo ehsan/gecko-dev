@@ -101,7 +101,7 @@ Sanitizer.prototype = {
         Services.perms.removeAll();
 
         // Clear site-specific settings like page-zoom level
-        Services.contentPrefs.removeGroupedPrefs(null);
+        Services.contentPrefs.removeGroupedPrefs();
 
         // Clear "Never remember passwords for this site", which is not handled by
         // the permission manager
@@ -215,10 +215,9 @@ Sanitizer.prototype = {
         var sdr = Cc["@mozilla.org/security/sdr;1"].getService(Ci.nsISecretDecoderRing);
         sdr.logoutAndTeardown();
 
-        // clear FTP and plain HTTP auth sessions
-        var os = Components.classes["@mozilla.org/observer-service;1"]
-                           .getService(Components.interfaces.nsIObserverService);
-        os.notifyObservers(null, "net:clear-active-logins", null);
+        // clear plain HTTP auth sessions
+        var authMgr = Cc['@mozilla.org/network/http-auth-manager;1'].getService(Ci.nsIHttpAuthManager);
+        authMgr.clearAll();
       },
 
       get canClear()

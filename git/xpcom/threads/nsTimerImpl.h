@@ -19,7 +19,7 @@
 #include "mozilla/Attributes.h"
 
 #if defined(PR_LOGGING)
-extern PRLogModuleInfo *GetTimerLog();
+static PRLogModuleInfo *gTimerLog = PR_NewLogModule("nsTimerImpl");
 #define DEBUG_TIMERS 1
 #else
 #undef DEBUG_TIMERS

@@ -130,8 +130,6 @@ public:
   void PaintedTiledLayerBuffer(const BasicTiledLayerBuffer* mTiledBuffer);
   void ProcessUploadQueue();
 
-  void MemoryPressure();
-
   // Renders a single given tile.
   void RenderTile(const TiledTexture& aTile,
                   const gfx3DMatrix& aTransform,

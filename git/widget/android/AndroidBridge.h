@@ -27,8 +27,6 @@
 
 #include "nsIAndroidBridge.h"
 
-#include "mozilla/Likely.h"
-
 // Some debug #defines
 // #define DEBUG_ANDROID_EVENTS
 // #define DEBUG_ANDROID_WIDGET
@@ -117,13 +115,13 @@ public:
     }
 
     static JavaVM *GetVM() {
-        if (MOZ_LIKELY(sBridge))
+        if (NS_LIKELY(sBridge))
             return sBridge->mJavaVM;
         return nullptr;
     }
 
     static JNIEnv *GetJNIEnv() {
-        if (MOZ_LIKELY(sBridge)) {
+        if (NS_LIKELY(sBridge)) {
             if ((void*)pthread_self() != sBridge->mThread) {
                 __android_log_print(ANDROID_LOG_INFO, "AndroidBridge",
                                     "###!!!!!!! Something's grabbing the JNIEnv from the wrong thread! (thr %p should be %p)",

@@ -72,8 +72,6 @@ nsresult MediaPipeline::Init() {
 // the pipeline on the main thread.
 void MediaPipeline::DetachTransportInt() {
   transport_->Detach();
-  rtp_transport_ = NULL;
-  rtcp_transport_ = NULL;
 }
 
 void MediaPipeline::DetachTransport() {
@@ -93,21 +91,6 @@ void MediaPipeline::StateChange(TransportFlow *flow, TransportLayer::State state
 }
 
 nsresult MediaPipeline::TransportReady(TransportFlow *flow) {
-  nsresult rv;
-  nsresult res;
-
-  rv = RUN_ON_THREAD(sts_thread_,
-    WrapRunnableRet(this, &MediaPipeline::TransportReadyInt, flow, &res),
-    NS_DISPATCH_SYNC);
-
-  // res is invalid unless the dispatch succeeded
-  if (NS_FAILED(rv))
-    return rv;
-
-  return res;
-}
-
-nsresult MediaPipeline::TransportReadyInt(TransportFlow *flow) {
   bool rtcp = !(flow == rtp_transport_);
   State *state = rtcp ? &rtcp_state_ : &rtp_state_;
 
@@ -253,25 +236,7 @@ nsresult MediaPipeline::TransportFailed(TransportFlow *flow) {
   return NS_OK;
 }
 
-
-// Wrapper to send a packet on the STS thread.
 nsresult MediaPipeline::SendPacket(TransportFlow *flow, const void *data,
-                                   int len) {
-  nsresult rv;
-  nsresult res;
-
-  rv = RUN_ON_THREAD(sts_thread_,
-    WrapRunnableRet(this, &MediaPipeline::SendPacketInt, flow, data, len, &res),
-    NS_DISPATCH_SYNC);
-
-  // res is invalid unless the dispatch succeeded
-  if (NS_FAILED(rv))
-    return rv;
-
-  return res;
-}
-
-nsresult MediaPipeline::SendPacketInt(TransportFlow *flow, const void *data,
                                    int len) {
   // Note that we bypass the DTLS layer here
   TransportLayerDtls *dtls = static_cast<TransportLayerDtls *>(
@@ -442,10 +407,16 @@ nsresult MediaPipelineTransmit::Init() {
              "audio" : "video") <<
             " hints=" << stream_->GetHintContents());
 
-  return RUN_ON_THREAD(main_thread_, WrapRunnable(stream_->GetStream(),
-                                                  &MediaStream::AddListener,
-                                                  listener_),
-                       NS_DISPATCH_SYNC);
+  if (main_thread_) {
+    main_thread_->Dispatch(WrapRunnable(
+        stream_->GetStream(), &MediaStream::AddListener, listener_),
+                           NS_DISPATCH_SYNC);
+  }
+  else {
+    stream_->GetStream()->AddListener(listener_);
+  }
+
+  return NS_OK;
 }
 
 nsresult MediaPipeline::PipelineTransport::SendRtpPacket(
@@ -665,10 +636,16 @@ void MediaPipelineTransmit::ProcessVideoChunk(VideoSessionConduit *conduit,
 
 nsresult MediaPipelineReceiveAudio::Init() {
   MOZ_MTLOG(PR_LOG_DEBUG, __FUNCTION__);
-  return RUN_ON_THREAD(main_thread_, WrapRunnable(stream_->GetStream(),
-                                           &MediaStream::AddListener,
-                                           listener_),
-                       NS_DISPATCH_SYNC);
+  if (main_thread_) {
+    main_thread_->Dispatch(WrapRunnable(
+        stream_->GetStream(), &MediaStream::AddListener, listener_),
+                           NS_DISPATCH_SYNC);
+  }
+  else {
+    stream_->GetStream()->AddListener(listener_);
+  }
+
+  return NS_OK;
 }
 
 void MediaPipelineReceiveAudio::PipelineListener::

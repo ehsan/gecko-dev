@@ -75,18 +75,11 @@
 static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
 #ifdef PR_LOGGING
-static PRLogModuleInfo*
-GetObjectLog()
-{
-  static PRLogModuleInfo *sLog;
-  if (!sLog)
-    sLog = PR_NewLogModule("objlc");
-  return sLog;
-}
+static PRLogModuleInfo* gObjectLog = PR_NewLogModule("objlc");
 #endif
 
-#define LOG(args) PR_LOG(GetObjectLog(), PR_LOG_DEBUG, args)
-#define LOG_ENABLED() PR_LOG_TEST(GetObjectLog(), PR_LOG_DEBUG)
+#define LOG(args) PR_LOG(gObjectLog, PR_LOG_DEBUG, args)
+#define LOG_ENABLED() PR_LOG_TEST(gObjectLog, PR_LOG_DEBUG)
 
 static bool
 InActiveDocument(nsIContent *aContent)

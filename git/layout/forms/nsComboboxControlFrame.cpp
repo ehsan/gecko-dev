@@ -53,7 +53,6 @@
 #include "nsRenderingContext.h"
 #include "mozilla/Preferences.h"
 #include "nsContentList.h"
-#include "mozilla/Likely.h"
 
 using namespace mozilla;
 
@@ -644,12 +643,11 @@ nsComboboxControlFrame::GetAvailableDropdownSpace(nscoord* aAbove,
   }
 
   nscoord minY;
-  nsPresContext* pc = PresContext()->GetToplevelContentDocumentPresContext();
-  nsIFrame* root = pc ? pc->PresShell()->GetRootFrame() : nullptr;
-  if (root) {
+  if (!PresContext()->IsChrome()) {
+    nsIFrame* root = PresContext()->PresShell()->GetRootFrame();
     minY = root->GetScreenRectInAppUnits().y;
-    if (mLastDropDownBelowScreenY < minY) {
-      // Don't allow the drop-down to be placed above the content area.
+    if (mLastDropDownBelowScreenY < root->GetScreenRectInAppUnits().y) {
+      // Don't allow the drop-down to be placed above the top of the root frame.
       return;
     }
   } else {
@@ -681,12 +679,10 @@ nsComboboxControlFrame::AbsolutelyPositionDropDown()
   mLastDropDownBelowScreenY = nscoord_MIN;
   GetAvailableDropdownSpace(&above, &below, &translation);
   if (above <= 0 && below <= 0) {
-    if (IsDroppedDown()) {
-      // Hide the view immediately to minimize flicker.
-      nsIView* view = mDropdownFrame->GetView();
-      view->GetViewManager()->SetViewVisibility(view, nsViewVisibility_kHide);
-      NS_DispatchToCurrentThread(new nsAsyncRollup(this));
-    }
+    // Hide the view immediately to minimize flicker.
+    nsIView* view = mDropdownFrame->GetView();
+    view->GetViewManager()->SetViewVisibility(view, nsViewVisibility_kHide);
+    NS_DispatchToCurrentThread(new nsAsyncRollup(this));
     return eDropDownPositionSuppressed;
   }
 
@@ -783,7 +779,7 @@ nsComboboxControlFrame::GetIntrinsicWidth(nsRenderingContext* aRenderingContext,
   }
 
   nscoord displayWidth = 0;
-  if (MOZ_LIKELY(mDisplayFrame)) {
+  if (NS_LIKELY(mDisplayFrame)) {
     displayWidth = nsLayoutUtils::IntrinsicForContainer(aRenderingContext,
                                                         mDisplayFrame,
                                                         aType);
@@ -1398,19 +1394,19 @@ nsComboboxControlFrame::CreateFrameFor(nsIContent*      aContent)
   styleContext = styleSet->
     ResolveAnonymousBoxStyle(nsCSSAnonBoxes::mozDisplayComboboxControlFrame,
                              mStyleContext);
-  if (MOZ_UNLIKELY(!styleContext)) {
+  if (NS_UNLIKELY(!styleContext)) {
     return nullptr;
   }
 
   nsRefPtr<nsStyleContext> textStyleContext;
   textStyleContext = styleSet->ResolveStyleForNonElement(mStyleContext);
-  if (MOZ_UNLIKELY(!textStyleContext)) {
+  if (NS_UNLIKELY(!textStyleContext)) {
     return nullptr;
   }
 
   // Start by by creating our anonymous block frame
   mDisplayFrame = new (shell) nsComboboxDisplayFrame(styleContext, this);
-  if (MOZ_UNLIKELY(!mDisplayFrame)) {
+  if (NS_UNLIKELY(!mDisplayFrame)) {
     return nullptr;
   }
 
@@ -1423,7 +1419,7 @@ nsComboboxControlFrame::CreateFrameFor(nsIContent*      aContent)
 
   // Create a text frame and put it inside the block frame
   nsIFrame* textFrame = NS_NewTextFrame(shell, textStyleContext);
-  if (MOZ_UNLIKELY(!textFrame)) {
+  if (NS_UNLIKELY(!textFrame)) {
     return nullptr;
   }
 

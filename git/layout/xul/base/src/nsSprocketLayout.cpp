@@ -19,7 +19,6 @@
 #include "nsContainerFrame.h"
 #include "nsBoxFrame.h"
 #include "StackArena.h"
-#include "mozilla/Likely.h"
 
 nsBoxLayout* nsSprocketLayout::gInstance = nullptr;
 
@@ -838,7 +837,7 @@ nsSprocketLayout::PopulateBoxSizes(nsIFrame* aBox, nsBoxLayoutState& aState, nsB
   if (childCount > 0) {
     nscoord maxAllowedFlex = nscoord_MAX / childCount;
   
-    if (MOZ_UNLIKELY(maxFlex > maxAllowedFlex)) {
+    if (NS_UNLIKELY(maxFlex > maxAllowedFlex)) {
       // clamp all the flexes
       currentBox = aBoxSizes;
       while (currentBox) {

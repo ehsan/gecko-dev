@@ -132,7 +132,6 @@ private:
   nsresult ApplyForAdmission();
   nsresult StartWebsocketData();
   uint16_t ResultToCloseCode(nsresult resultCode);
-  void     ReportConnectionTelemetry();
 
   void StopSession(nsresult reason);
   void AbortSession(nsresult reason);
@@ -187,7 +186,7 @@ private:
 
   int32_t                         mMaxConcurrentConnections;
 
-  uint32_t                        mGotUpgradeOK              : 1;
+  uint32_t                        mRecvdHttpOnStartRequest   : 1;
   uint32_t                        mRecvdHttpUpgradeTransport : 1;
   uint32_t                        mRequestedClose            : 1;
   uint32_t                        mClientClosed              : 1;

@@ -1378,8 +1378,6 @@ GroupPos
 Accessible::GroupPosition()
 {
   GroupPos groupPos;
-  if (!HasOwnContent())
-    return groupPos;
 
   // Get group position from ARIA attributes.
   nsCoreUtils::GetUIntAttr(mContent, nsGkAtoms::aria_level, &groupPos.level);
@@ -1903,9 +1901,6 @@ Accessible::GetRelationByType(uint32_t aType,
 Relation
 Accessible::RelationByType(uint32_t aType)
 {
-  if (!HasOwnContent())
-    return Relation();
-
   // Relationships are defined on the same content node that the role would be
   // defined on.
   switch (aType) {
@@ -2883,8 +2878,7 @@ Accessible::IsActiveWidget() const
 bool
 Accessible::AreItemsOperable() const
 {
-  return HasOwnContent() &&
-    mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::aria_activedescendant);
+  return mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::aria_activedescendant);
 }
 
 Accessible*
@@ -2895,8 +2889,7 @@ Accessible::CurrentItem()
   // checks whether pointed node is actually a DOM descendant of the element
   // with the aria-activedescendant attribute.
   nsAutoString id;
-  if (HasOwnContent() &&
-      mContent->GetAttr(kNameSpaceID_None,
+  if (mContent->GetAttr(kNameSpaceID_None,
                         nsGkAtoms::aria_activedescendant, id)) {
     nsIDocument* DOMDoc = mContent->OwnerDoc();
     dom::Element* activeDescendantElm = DOMDoc->GetElementById(id);

@@ -184,7 +184,7 @@ public class Tab {
                         if (mState == Tab.STATE_SUCCESS)
                             saveThumbnailToDB();
                     } catch (OutOfMemoryError oom) {
-                        Log.w(LOGTAG, "Unable to create/scale bitmap.", oom);
+                        Log.e(LOGTAG, "Unable to create/scale bitmap", oom);
                         mThumbnail = null;
                     }
                 } else {
@@ -232,6 +232,7 @@ public class Tab {
     public synchronized void updateURL(String url) {
         if (url != null && url.length() > 0) {
             mUrl = url;
+            Log.d(LOGTAG, "Updated URL for tab with id: " + mId);
             updateBookmark();
         }
     }
@@ -259,9 +260,8 @@ public class Tab {
 
         mTitle = (title == null ? "" : title);
 
-        if (mUrl != null)
-            updateHistory(mUrl, mTitle);
-
+        Log.d(LOGTAG, "Updated title for tab with id: " + mId);
+        updateHistory(mUrl, mTitle);
         Tabs.getInstance().notifyListeners(this, Tabs.TabEvents.TITLE);
     }
 
@@ -318,6 +318,7 @@ public class Tab {
 
     public void updateFavicon(Drawable favicon) {
         mFavicon = favicon;
+        Log.d(LOGTAG, "Updated favicon for tab with id: " + mId);
     }
 
     public synchronized void updateFaviconURL(String faviconUrl, int size) {
@@ -330,6 +331,7 @@ public class Tab {
         if (size == -1 || size >= mFaviconSize) {
             mFaviconUrl = faviconUrl;
             mFaviconSize = size;
+            Log.d(LOGTAG, "Updated favicon URL for tab with id: " + mId);
         }
     }
 
@@ -458,27 +460,27 @@ public class Tab {
             mHistorySize = mHistoryIndex + 1;
         } else if (event.equals("Back")) {
             if (!canDoBack()) {
-                Log.w(LOGTAG, "Received unexpected back notification");
+                Log.e(LOGTAG, "Received unexpected back notification");
                 return;
             }
             mHistoryIndex--;
         } else if (event.equals("Forward")) {
             if (!canDoForward()) {
-                Log.w(LOGTAG, "Received unexpected forward notification");
+                Log.e(LOGTAG, "Received unexpected forward notification");
                 return;
             }
             mHistoryIndex++;
         } else if (event.equals("Goto")) {
             int index = message.getInt("index");
             if (index < 0 || index >= mHistorySize) {
-                Log.w(LOGTAG, "Received unexpected history-goto notification");
+                Log.e(LOGTAG, "Received unexpected history-goto notification");
                 return;
             }
             mHistoryIndex = index;
         } else if (event.equals("Purge")) {
             int numEntries = message.getInt("numEntries");
             if (numEntries > mHistorySize) {
-                Log.w(LOGTAG, "Received unexpectedly large number of history entries to purge");
+                Log.e(LOGTAG, "Received unexpectedly large number of history entries to purge");
                 mHistoryIndex = -1;
                 mHistorySize = 0;
                 return;

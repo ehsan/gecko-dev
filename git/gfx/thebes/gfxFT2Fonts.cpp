@@ -39,14 +39,7 @@
 
 #include "mozilla/Preferences.h"
 
-static PRLogModuleInfo *
-GetFontLog()
-{
-    static PRLogModuleInfo *sLog;
-    if (!sLog)
-        sLog = PR_NewLogModule("ft2fonts");
-    return sLog;
-}
+static PRLogModuleInfo *gFontLog = PR_NewLogModule("ft2fonts");
 
 // rounding and truncation functions for a Freetype floating point number
 // (FT26Dot6) stored in a 32bit integer with high 26 bits for the integer
@@ -346,8 +339,8 @@ gfxFT2FontGroup::WhichPrefFontSupportsChar(uint32_t aCh)
 
         /* special case CJK */
         if (unicodeRange == kRangeSetCJK) {
-            if (PR_LOG_TEST(GetFontLog(), PR_LOG_DEBUG)) {
-                PR_LOG(GetFontLog(), PR_LOG_DEBUG, (" - Trying to find fonts for: CJK"));
+            if (PR_LOG_TEST(gFontLog, PR_LOG_DEBUG)) {
+                PR_LOG(gFontLog, PR_LOG_DEBUG, (" - Trying to find fonts for: CJK"));
             }
 
             nsAutoTArray<nsRefPtr<gfxFontEntry>, 15> fonts;
@@ -356,7 +349,7 @@ gfxFT2FontGroup::WhichPrefFontSupportsChar(uint32_t aCh)
         } else {
             nsIAtom *langGroup = LangGroupFromUnicodeRange(unicodeRange);
             if (langGroup) {
-                PR_LOG(GetFontLog(), PR_LOG_DEBUG, (" - Trying to find fonts for: %s", nsAtomCString(langGroup).get()));
+                PR_LOG(gFontLog, PR_LOG_DEBUG, (" - Trying to find fonts for: %s", nsAtomCString(langGroup).get()));
 
                 nsAutoTArray<nsRefPtr<gfxFontEntry>, 5> fonts;
                 GetPrefFonts(langGroup, fonts);

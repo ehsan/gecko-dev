@@ -13,7 +13,6 @@
 #include "jsapi.h"
 #include "mozAutoDocUpdate.h"
 #include "mozilla/CORSMode.h"
-#include "mozilla/Likely.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/Util.h"
 #include "nsAsyncDOMEvent.h"
@@ -1143,7 +1142,7 @@ nsINode::UnoptimizableCCNode() const
 bool
 nsINode::Traverse(nsINode *tmp, nsCycleCollectionTraversalCallback &cb)
 {
-  if (MOZ_LIKELY(!cb.WantAllTraces())) {
+  if (NS_LIKELY(!cb.WantAllTraces())) {
     nsIDocument *currentDoc = tmp->GetCurrentDoc();
     if (currentDoc &&
         nsCCUncollectableMarker::InGeneration(currentDoc->GetMarkedCCGeneration())) {

@@ -93,7 +93,7 @@ class WrapperFactory {
     static bool XrayWrapperNotShadowing(JSObject *wrapper, jsid id);
 };
 
-extern js::Wrapper XrayWaiver;
+extern js::DirectWrapper XrayWaiver;
 
 }
 

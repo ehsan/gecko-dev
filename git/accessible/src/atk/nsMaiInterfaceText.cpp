@@ -11,8 +11,6 @@
 
 #include "nsIPersistentProperties2.h"
 
-#include "mozilla/Likely.h"
-
 using namespace mozilla::a11y;
 
 AtkAttributeSet* ConvertToAtkAttributeSet(nsIPersistentProperties* aAttributes);
@@ -448,7 +446,7 @@ void
 textInterfaceInitCB(AtkTextIface* aIface)
 {
   NS_ASSERTION(aIface, "Invalid aIface");
-  if (MOZ_UNLIKELY(!aIface))
+  if (NS_UNLIKELY(!aIface))
     return;
 
   aIface->get_text = getTextCB;

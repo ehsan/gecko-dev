@@ -27,7 +27,6 @@
 #include "mozilla/css/Loader.h"
 #include "nsCSSStyleSheet.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Likely.h"
 
 using namespace mozilla;
 
@@ -914,7 +913,7 @@ nsCSSScanner::NextURL(nsCSSToken& aToken)
     NS_ABORT_IF_FALSE(aToken.mType == eCSSToken_String ||
                       aToken.mType == eCSSToken_Bad_String,
                       "unexpected token type");
-    if (MOZ_LIKELY(aToken.mType == eCSSToken_String)) {
+    if (NS_LIKELY(aToken.mType == eCSSToken_String)) {
       EatWhiteSpace();
       if (LookAheadOrEOF(')')) {
         aToken.mType = eCSSToken_URL;

@@ -4,7 +4,6 @@
 
 import datetime
 from errors import *
-from mozdevice import devicemanagerADB
 from mozprocess import ProcessHandlerMixin
 import multiprocessing
 import os
@@ -19,7 +18,6 @@ import time
 
 from emulator_battery import EmulatorBattery
 from emulator_geo import EmulatorGeo
-
 
 class LogcatProc(ProcessHandlerMixin):
     """Process handler for logcat which saves all output to a logfile.
@@ -44,7 +42,6 @@ class Emulator(object):
                  arch="x86", emulatorBinary=None, res='480x800', sdcard=None,
                  userdata=None):
         self.port = None
-        self.dm = None
         self._emulator_launched = False
         self.proc = None
         self.marionette_port = None
@@ -322,9 +319,6 @@ waitFor(
             online, offline = self._get_adb_devices()
         self.port = int(list(online)[0])
 
-        self.dm = devicemanagerADB.DeviceManagerADB(adbPath=self.adb,
-                                                    deviceSerial='emulator-%d' % self.port)
-
     def start(self):
         self._check_for_b2g()
         self.start_adb()
@@ -353,9 +347,6 @@ waitFor(
         self.port = int(list(online - original_online)[0])
         self._emulator_launched = True
 
-        self.dm = devicemanagerADB.DeviceManagerADB(adbPath=self.adb,
-                                                    deviceSerial='emulator-%d' % self.port)
-
         # bug 802877
         time.sleep(10)
         self.geo.set_default_location()
@@ -378,29 +369,14 @@ waitFor(
         Install gecko into the emulator using adb push.  Restart b2g after the
         installation.
         """
-        print 'installing gecko binaries...'
         # need to remount so we can write to /system/b2g
         self._run_adb(['remount'])
-        # See bug 800102.  We use this particular method of installing
-        # gecko in order to avoid an adb bug in which adb will sometimes
-        # hang indefinitely while copying large files to the system
-        # partition.
-        for root, dirs, files in os.walk(gecko_path):
-            for filename in files:
-                data_local_file = os.path.join('/data/local', filename)
-                print 'pushing', data_local_file
-                self.dm.pushFile(os.path.join(root, filename), data_local_file)
-        self.dm.shellCheckOutput(['stop', 'b2g'])
-        for root, dirs, files in os.walk(gecko_path):
-            for filename in files:
-                data_local_file = os.path.join('/data/local', filename)
-                rel_file = os.path.relpath(os.path.join(root, filename), gecko_path)
-                system_file = os.path.join('/system/b2g', rel_file)
-                print 'copying', data_local_file, 'to', system_file
-                self.dm.shellCheckOutput(['dd', 'if=%s' % data_local_file,
-                                          'of=%s' % system_file])
+        self._run_adb(['shell', 'stop', 'b2g'])
+        self._run_adb(['shell', 'rm', '-rf', '/system/b2g/*.so'])
+        print 'installing gecko binaries'
+        self._run_adb(['push', gecko_path, '/system/b2g'])
         print 'restarting B2G'
-        self.dm.shellCheckOutput(['start', 'b2g'])
+        self._run_adb(['shell', 'start', 'b2g'])
         self.wait_for_port()
         self.wait_for_system_message(marionette)
 

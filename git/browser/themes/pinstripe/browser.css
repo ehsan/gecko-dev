@@ -4043,17 +4043,8 @@ html|*#gcli-output-frame {
   -moz-box-orient: horizontal;
 }
 
-#social-toolbar-item > .toolbarbutton-1:not(:first-child):not(:last-child) {
-  margin-left: 0;
-  margin-right: 0;
-}
-
-#social-toolbar-item > .toolbarbutton-1:first-child {
-  -moz-margin-end: 0;
-}
-
-#social-toolbar-item > .toolbarbutton-1:last-child {
-  -moz-margin-start: 0;
+#social-toolbar-item > .toolbarbutton-1 {
+  margin: 0px;
 }
 
 .social-notification-icon-hbox {
@@ -4100,7 +4091,8 @@ html|*#gcli-output-frame {
 }
 
 .social-notification-icon-image {
-  -moz-image-region: rect(0, 16px, 16px, 0);
+  width: 16px;
+  height: 16px;
 }
 
 /* === end of social toolbar button === */
@@ -4157,7 +4149,7 @@ html|*#gcli-output-frame {
 
 .chat-title {
   font-weight: bold;
-  color: black;
+  color: -moz-dialogtext;
   text-shadow: none;
   cursor: inherit;
 }
@@ -4233,13 +4225,6 @@ html|*#gcli-output-frame {
 
 .chatbar-button > menupopup > menuitem[activity] {
   font-weight: bold;
-}
-
-.chatbar-button > menupopup > .menuitem-iconic > .menu-iconic-left > .menu-iconic-icon {
-  width: auto;
-  height: auto;
-  max-height: 16px;
-  max-width: 16px;
 }
 
 .chatbar-innerbox {

@@ -286,6 +286,7 @@ public class LayerView extends FrameLayout {
 
     /* paintState must be a PAINT_xxx constant. */
     public void setPaintState(int paintState) {
+        Log.d(LOGTAG, "LayerView paint state set to " + paintState);
         mPaintState = paintState;
     }
 

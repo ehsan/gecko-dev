@@ -9,7 +9,6 @@
  */
 
 #include "mozilla/Util.h"
-#include "mozilla/Likely.h"
 
 #ifdef MOZ_LOGGING
 // so we can get logging even in release builds
@@ -1312,6 +1311,9 @@ nsDocument::nsDocument(const char* aContentType)
   , mAnimatingImages(true)
   , mVisibilityState(eHidden)
 {
+  MOZ_STATIC_ASSERT(NS_ARRAY_LENGTH(mAdditionalSheets) == SheetTypeCount,
+    "mAdditionalSheets array count is not correct");
+
   SetContentTypeInternal(nsDependentCString(aContentType));
 
 #ifdef PR_LOGGING
@@ -1590,7 +1592,7 @@ static const char* kNSURIs[] = {
 };
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDocument)
-  if (MOZ_UNLIKELY(cb.WantDebugInfo())) {
+  if (NS_UNLIKELY(cb.WantDebugInfo())) {
     char name[512];
     nsAutoCString loadedAsData;
     if (tmp->IsLoadedAsData()) {
@@ -2052,13 +2054,11 @@ nsDocument::ResetStylesheetsToURI(nsIURI* aURI)
   RemoveStyleSheetsFromStyleSets(mCatalogSheets, nsStyleSet::eAgentSheet);
   RemoveStyleSheetsFromStyleSets(mAdditionalSheets[eAgentSheet], nsStyleSet::eAgentSheet);
   RemoveStyleSheetsFromStyleSets(mAdditionalSheets[eUserSheet], nsStyleSet::eUserSheet);
-  RemoveStyleSheetsFromStyleSets(mAdditionalSheets[eAuthorSheet], nsStyleSet::eDocSheet);
 
   // Release all the sheets
   mStyleSheets.Clear();
-  for (uint32_t i = 0; i < SheetTypeCount; ++i)
-    mAdditionalSheets[i].Clear();
-
+  mAdditionalSheets[eAgentSheet].Clear();
+  mAdditionalSheets[eUserSheet].Clear();
   // NOTE:  We don't release the catalog sheets.  It doesn't really matter
   // now, but it could in the future -- in which case not releasing them
   // is probably the right thing to do.
@@ -2115,17 +2115,6 @@ AppendAuthorSheet(nsIStyleSheet *aSheet, void *aData)
   return true;
 }
 
-static void
-AppendSheetsToStyleSet(nsStyleSet* aStyleSet,
-                       const nsCOMArray<nsIStyleSheet>& aSheets,
-                       nsStyleSet::sheetType aType) 
-{
-  for (int32_t i = aSheets.Count() - 1; i >= 0; --i) {
-    aStyleSet->AppendStyleSheet(aType, aSheets[i]);
-  }
-}
-
-
 void
 nsDocument::FillStyleSet(nsStyleSet* aStyleSet)
 {
@@ -2165,12 +2154,15 @@ nsDocument::FillStyleSet(nsStyleSet* aStyleSet)
     }
   }
 
-  AppendSheetsToStyleSet(aStyleSet, mAdditionalSheets[eAgentSheet],
-                         nsStyleSet::eAgentSheet);
-  AppendSheetsToStyleSet(aStyleSet, mAdditionalSheets[eUserSheet],
-                         nsStyleSet::eUserSheet);
-  AppendSheetsToStyleSet(aStyleSet, mAdditionalSheets[eAuthorSheet],
-                         nsStyleSet::eDocSheet);
+  for (int32_t i = mAdditionalSheets[eAgentSheet].Count() - 1; i >= 0; --i) {
+    nsIStyleSheet* sheet = mAdditionalSheets[eAgentSheet][i];
+    aStyleSet->AppendStyleSheet(nsStyleSet::eAgentSheet, sheet);
+  }
+
+  for (int32_t i = mAdditionalSheets[eUserSheet].Count() - 1; i >= 0; --i) {
+    nsIStyleSheet* sheet = mAdditionalSheets[eUserSheet][i];
+    aStyleSet->AppendStyleSheet(nsStyleSet::eUserSheet, sheet);
+  }
 }
 
 nsresult
@@ -3608,23 +3600,6 @@ nsDocument::EnsureCatalogStyleSheet(const char *aStyleSheetURI)
   }
 }
 
-static nsStyleSet::sheetType
-ConvertAdditionalSheetType(nsIDocument::additionalSheetType aType)
-{
-  switch(aType) {
-    case nsIDocument::eAgentSheet:
-      return nsStyleSet::eAgentSheet;
-    case nsIDocument::eUserSheet:
-      return nsStyleSet::eUserSheet;
-    case nsIDocument::eAuthorSheet:
-      return nsStyleSet::eDocSheet;
-    default:
-      NS_ASSERTION(false, "wrong type");
-      // we must return something although this should never happen
-      return nsStyleSet::eSheetTypeCount;
-  }
-}
-
 static int32_t
 FindSheet(const nsCOMArray<nsIStyleSheet>& aSheets, nsIURI* aSheetURI)
 {
@@ -3663,7 +3638,8 @@ nsDocument::LoadAdditionalStyleSheet(additionalSheetType aType, nsIURI* aSheetUR
   BeginUpdate(UPDATE_STYLE);
   nsCOMPtr<nsIPresShell> shell = GetShell();
   if (shell) {
-    nsStyleSet::sheetType type = ConvertAdditionalSheetType(aType);
+    nsStyleSet::sheetType type = aType == eAgentSheet ? nsStyleSet::eAgentSheet :
+                                                        nsStyleSet::eUserSheet;
     shell->StyleSet()->AppendStyleSheet(type, sheet);
   }
 
@@ -3692,7 +3668,8 @@ nsDocument::RemoveAdditionalStyleSheet(additionalSheetType aType, nsIURI* aSheet
       MOZ_ASSERT(sheetRef->IsApplicable());
       nsCOMPtr<nsIPresShell> shell = GetShell();
       if (shell) {
-        nsStyleSet::sheetType type = ConvertAdditionalSheetType(aType);
+        nsStyleSet::sheetType type = aType == eAgentSheet ? nsStyleSet::eAgentSheet :
+                                                            nsStyleSet::eUserSheet;
         shell->StyleSet()->RemoveStyleSheet(type, sheetRef);
       }
     }
@@ -3704,12 +3681,6 @@ nsDocument::RemoveAdditionalStyleSheet(additionalSheetType aType, nsIURI* aSheet
 
     sheetRef->SetOwningDocument(nullptr);
   }
-}
-
-nsIStyleSheet*
-nsDocument::FirstAdditionalAuthorSheet()
-{
-  return mAdditionalSheets[eAuthorSheet].SafeObjectAt(0);
 }
 
 nsIScriptGlobalObject*
@@ -4779,6 +4750,7 @@ NS_IMETHODIMP
 nsDocument::GetCharacterSet(nsAString& aCharacterSet)
 {
   CopyASCIItoUTF16(GetDocumentCharacterSet(), aCharacterSet);
+  ToLowerCase(aCharacterSet);
   return NS_OK;
 }
 
@@ -9059,7 +9031,7 @@ nsDocument::IsFullScreenEnabled(bool aCallerIsChrome, bool aLogFailure)
     return false;
   }
 
-  // Ensure that all ancestor <iframe> elements have the allowfullscreen
+  // Ensure that all ancestor <iframe> elements have the mozallowfullscreen
   // boolean attribute set.
   nsCOMPtr<nsIDocShell> docShell = do_QueryReferent(mDocumentContainer);
   bool allowed = false;
@@ -9636,10 +9608,6 @@ nsDocument::DocSizeOfExcludingThis(nsWindowSizes* aWindowSizes) const
                           aWindowSizes->mMallocSizeOf);
   aWindowSizes->mStyleSheets +=
     mAdditionalSheets[eUserSheet].
-      SizeOfExcludingThis(SizeOfStyleSheetsElementIncludingThis,
-                          aWindowSizes->mMallocSizeOf);
-  aWindowSizes->mStyleSheets +=
-    mAdditionalSheets[eAuthorSheet].
       SizeOfExcludingThis(SizeOfStyleSheetsElementIncludingThis,
                           aWindowSizes->mMallocSizeOf);
   // Lumping in the loader with the style-sheets size is not ideal,

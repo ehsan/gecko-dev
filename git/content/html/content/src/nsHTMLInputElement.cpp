@@ -275,7 +275,7 @@ nsHTMLInputElement::nsFilePickerShownCallback::Done(int16_t aResult)
       if (!prefSaved) {
         // Store the last used directory using the content pref service
         nsHTMLInputElement::gUploadLastDir->StoreLastUsedDirectory(
-          mInput->OwnerDoc(), localFile);
+          mInput->OwnerDoc()->GetDocumentURI(), localFile);
         prefSaved = true;
       }
     }
@@ -293,7 +293,7 @@ nsHTMLInputElement::nsFilePickerShownCallback::Done(int16_t aResult)
         newFiles.AppendObject(domFile);
         // Store the last used directory using the content pref service
         nsHTMLInputElement::gUploadLastDir->StoreLastUsedDirectory(
-          mInput->OwnerDoc(), localFile);
+          mInput->OwnerDoc()->GetDocumentURI(), localFile);
       }
     }
   }
@@ -410,7 +410,7 @@ nsHTMLInputElement::AsyncClickHandler::Run()
   } else {
     // Attempt to retrieve the last used directory from the content pref service
     nsCOMPtr<nsIFile> localFile;
-    nsHTMLInputElement::gUploadLastDir->FetchLastUsedDirectory(doc,
+    nsHTMLInputElement::gUploadLastDir->FetchLastUsedDirectory(doc->GetDocumentURI(),
                                                                getter_AddRefs(localFile));
     if (!localFile) {
       // Default to "desktop" directory for each platform
@@ -448,17 +448,10 @@ nsHTMLInputElement::DestroyUploadLastDir() {
 }
 
 nsresult
-UploadLastDir::FetchLastUsedDirectory(nsIDocument* aDoc, nsIFile** aFile)
+UploadLastDir::FetchLastUsedDirectory(nsIURI* aURI, nsIFile** aFile)
 {
-  NS_PRECONDITION(aDoc, "aDoc is null");
+  NS_PRECONDITION(aURI, "aURI is null");
   NS_PRECONDITION(aFile, "aFile is null");
-
-  nsIURI* docURI = aDoc->GetDocumentURI();
-  NS_PRECONDITION(docURI, "docURI is null");
-
-  nsCOMPtr<nsISupports> container = aDoc->GetContainer();
-  nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(container);
-
   // Attempt to get the CPS, if it's not present we'll just return
   nsCOMPtr<nsIContentPrefService> contentPrefService =
     do_GetService(NS_CONTENT_PREF_SERVICE_CONTRACTID);
@@ -467,13 +460,13 @@ UploadLastDir::FetchLastUsedDirectory(nsIDocument* aDoc, nsIFile** aFile)
   nsCOMPtr<nsIWritableVariant> uri = do_CreateInstance(NS_VARIANT_CONTRACTID);
   if (!uri)
     return NS_ERROR_OUT_OF_MEMORY;
-  uri->SetAsISupports(docURI);
+  uri->SetAsISupports(aURI);
 
   // Get the last used directory, if it is stored
   bool hasPref;
-  if (NS_SUCCEEDED(contentPrefService->HasPref(uri, CPS_PREF_NAME, loadContext, &hasPref)) && hasPref) {
+  if (NS_SUCCEEDED(contentPrefService->HasPref(uri, CPS_PREF_NAME, &hasPref)) && hasPref) {
     nsCOMPtr<nsIVariant> pref;
-    contentPrefService->GetPref(uri, CPS_PREF_NAME, loadContext, nullptr, getter_AddRefs(pref));
+    contentPrefService->GetPref(uri, CPS_PREF_NAME, nullptr, getter_AddRefs(pref));
     nsString prefStr;
     pref->GetAsAString(prefStr);
 
@@ -487,14 +480,10 @@ UploadLastDir::FetchLastUsedDirectory(nsIDocument* aDoc, nsIFile** aFile)
 }
 
 nsresult
-UploadLastDir::StoreLastUsedDirectory(nsIDocument* aDoc, nsIFile* aFile)
+UploadLastDir::StoreLastUsedDirectory(nsIURI* aURI, nsIFile* aFile)
 {
-  NS_PRECONDITION(aDoc, "aDoc is null");
+  NS_PRECONDITION(aURI, "aURI is null");
   NS_PRECONDITION(aFile, "aFile is null");
-
-  nsCOMPtr<nsIURI> docURI = aDoc->GetDocumentURI();
-  NS_PRECONDITION(docURI, "docURI is null");
-
   nsCOMPtr<nsIFile> parentFile;
   aFile->GetParent(getter_AddRefs(parentFile));
   if (!parentFile) {
@@ -509,7 +498,7 @@ UploadLastDir::StoreLastUsedDirectory(nsIDocument* aDoc, nsIFile* aFile)
   nsCOMPtr<nsIWritableVariant> uri = do_CreateInstance(NS_VARIANT_CONTRACTID);
   if (!uri)
     return NS_ERROR_OUT_OF_MEMORY;
-  uri->SetAsISupports(docURI);
+  uri->SetAsISupports(aURI);
  
   // Find the parent of aFile, and store it
   nsString unicodePath;
@@ -520,10 +509,7 @@ UploadLastDir::StoreLastUsedDirectory(nsIDocument* aDoc, nsIFile* aFile)
   if (!prefValue)
     return NS_ERROR_OUT_OF_MEMORY;
   prefValue->SetAsAString(unicodePath);
-
-  nsCOMPtr<nsISupports> container = aDoc->GetContainer();
-  nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(container);
-  return contentPrefService->SetPref(uri, CPS_PREF_NAME, prefValue, loadContext);
+  return contentPrefService->SetPref(uri, CPS_PREF_NAME, prefValue);
 }
 
 NS_IMETHODIMP
@@ -533,7 +519,7 @@ UploadLastDir::Observe(nsISupports *aSubject, char const *aTopic, PRUnichar cons
     nsCOMPtr<nsIContentPrefService> contentPrefService =
       do_GetService(NS_CONTENT_PREF_SERVICE_CONTRACTID);
     if (contentPrefService)
-      contentPrefService->RemovePrefsByName(CPS_PREF_NAME, nullptr);
+      contentPrefService->RemovePrefsByName(CPS_PREF_NAME);
   }
   return NS_OK;
 }

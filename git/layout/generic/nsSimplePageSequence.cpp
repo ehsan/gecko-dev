@@ -41,15 +41,8 @@ static const char sPrintOptionsContractID[] = "@mozilla.org/gfx/printsettings-se
 
 #include "prlog.h"
 #ifdef PR_LOGGING 
-PRLogModuleInfo *
-GetLayoutPrintingLog()
-{
-  static PRLogModuleInfo *sLog;
-  if (!sLog)
-    sLog = PR_NewLogModule("printing-layout");
-  return sLog;
-}
-#define PR_PL(_p1)  PR_LOG(GetLayoutPrintingLog(), PR_LOG_DEBUG, _p1)
+PRLogModuleInfo * kLayoutPrintingLogMod = PR_NewLogModule("printing-layout");
+#define PR_PL(_p1)  PR_LOG(kLayoutPrintingLogMod, PR_LOG_DEBUG, _p1)
 #else
 #define PR_PL(_p1)
 #endif

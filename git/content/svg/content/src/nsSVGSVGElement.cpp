@@ -5,7 +5,6 @@
 
 #include "mozilla/StandardInteger.h"
 #include "mozilla/Util.h"
-#include "mozilla/Likely.h"
 
 #include "nsGkAtoms.h"
 #include "nsLayoutUtils.h"
@@ -1330,7 +1329,7 @@ nsSVGSVGElement::
   NS_ABORT_IF_FALSE(rv != NS_PROPTABLE_PROP_OVERWRITTEN,
                     "Setting override value when it's already set...?"); 
 
-  if (MOZ_UNLIKELY(NS_FAILED(rv))) {
+  if (NS_UNLIKELY(NS_FAILED(rv))) {
     // property-insertion failed (e.g. OOM in property-table code)
     delete pAROverridePtr;
     return false;
@@ -1444,7 +1443,7 @@ nsSVGSVGElement::SetViewBoxProperty(const nsSVGViewBoxRect& aViewBox)
   NS_ABORT_IF_FALSE(rv != NS_PROPTABLE_PROP_OVERWRITTEN,
                     "Setting override value when it's already set...?"); 
 
-  if (MOZ_UNLIKELY(NS_FAILED(rv))) {
+  if (NS_UNLIKELY(NS_FAILED(rv))) {
     // property-insertion failed (e.g. OOM in property-table code)
     delete pViewBoxOverridePtr;
     return false;

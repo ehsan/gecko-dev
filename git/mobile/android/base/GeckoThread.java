@@ -20,10 +20,12 @@ public class GeckoThread extends Thread {
 
     Intent mIntent;
     String mUri;
+    int mRestoreMode;
 
-    GeckoThread(Intent intent, String uri) {
+    GeckoThread(Intent intent, String uri, int restoreMode) {
         mIntent = intent;
         mUri = uri;
+        mRestoreMode = restoreMode;
         setName("Gecko");
     }
 
@@ -77,6 +79,7 @@ public class GeckoThread extends Thread {
         GeckoAppShell.runGecko(app.getApplication().getPackageResourcePath(),
                                args,
                                mUri,
-                               type);
+                               type,
+                               mRestoreMode);
     }
 }

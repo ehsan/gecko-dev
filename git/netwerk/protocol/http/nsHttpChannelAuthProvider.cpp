@@ -23,7 +23,6 @@
 
 nsHttpChannelAuthProvider::nsHttpChannelAuthProvider()
     : mAuthChannel(nullptr)
-    , mIsPrivate(false)
     , mProxyAuthContinuationState(nullptr)
     , mAuthContinuationState(nullptr)
     , mProxyAuth(false)
@@ -68,9 +67,6 @@ nsHttpChannelAuthProvider::Init(nsIHttpAuthenticableChannel *channel)
 
     rv = mURI->GetPort(&mPort);
     if (NS_FAILED(rv)) return rv;
-
-    nsCOMPtr<nsIChannel> bareChannel = do_QueryInterface(channel);
-    mIsPrivate = NS_UsePrivateBrowsing(bareChannel);
 
     return NS_OK;
 }
@@ -164,7 +160,7 @@ nsHttpChannelAuthProvider::AddAuthorizationHeaders()
     if (NS_FAILED(rv)) return rv;
 
     // this getter never fails
-    nsHttpAuthCache *authCache = gHttpHandler->AuthCache(mIsPrivate);
+    nsHttpAuthCache *authCache = gHttpHandler->AuthCache();
 
     // check if proxy credentials should be sent
     const char *proxyHost = ProxyHost();
@@ -370,7 +366,7 @@ nsHttpChannelAuthProvider::GenCredsAndSetEntry(nsIHttpAuthenticator *auth,
         0 == (generateFlags & nsIHttpAuthenticator::USING_INTERNAL_IDENTITY);
 
     // this getter never fails
-    nsHttpAuthCache *authCache = gHttpHandler->AuthCache(mIsPrivate);
+    nsHttpAuthCache *authCache = gHttpHandler->AuthCache();
 
     // create a cache entry.  we do this even though we don't yet know that
     // these credentials are valid b/c we need to avoid prompting the user
@@ -635,7 +631,7 @@ nsHttpChannelAuthProvider::GetCredentialsForChallenge(const char *challenge,
         this, mAuthChannel, proxyAuth, challenge));
 
     // this getter never fails
-    nsHttpAuthCache *authCache = gHttpHandler->AuthCache(mIsPrivate);
+    nsHttpAuthCache *authCache = gHttpHandler->AuthCache();
 
     uint32_t authFlags;
     nsresult rv = auth->GetAuthFlags(&authFlags);
@@ -1057,7 +1053,7 @@ NS_IMETHODIMP nsHttpChannelAuthProvider::OnAuthAvailable(nsISupports *aContext,
     nsAutoCString realm;
     ParseRealm(mCurrentChallenge.get(), realm);
 
-    nsHttpAuthCache *authCache = gHttpHandler->AuthCache(mIsPrivate);
+    nsHttpAuthCache *authCache = gHttpHandler->AuthCache();
     nsHttpAuthEntry *entry = nullptr;
     authCache->GetAuthEntryForDomain(scheme.get(), host, port,
                                      realm.get(), &entry);

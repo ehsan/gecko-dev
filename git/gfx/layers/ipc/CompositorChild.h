@@ -54,7 +54,6 @@ protected:
 
 private:
   nsRefPtr<LayerManager> mLayerManager;
-  nsCOMPtr<nsIObserver> mMemoryPressureObserver;
 
   // When we're in a child process, this is the process-global
   // compositor that we use to forward transactions directly to the

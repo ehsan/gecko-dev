@@ -24,18 +24,11 @@
 using namespace mozilla;
 
 #ifdef PR_LOGGING
-PRLogModuleInfo *
-gfxUserFontSet::GetUserFontsLog()
-{
-    static PRLogModuleInfo *sLog;
-    if (!sLog)
-        sLog = PR_NewLogModule("userfonts");
-    return sLog;
-}
+PRLogModuleInfo *gfxUserFontSet::sUserFontsLog = PR_NewLogModule("userfonts");
 #endif /* PR_LOGGING */
 
-#define LOG(args) PR_LOG(GetUserFontsLog(), PR_LOG_DEBUG, args)
-#define LOG_ENABLED() PR_LOG_TEST(GetUserFontsLog(), PR_LOG_DEBUG)
+#define LOG(args) PR_LOG(sUserFontsLog, PR_LOG_DEBUG, args)
+#define LOG_ENABLED() PR_LOG_TEST(sUserFontsLog, PR_LOG_DEBUG)
 
 static uint64_t sFontSetGeneration = LL_INIT(0, 0);
 

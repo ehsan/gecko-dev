@@ -65,14 +65,7 @@ function __initWorkerMessageHandler() {
         port = new WorkerPort(portid);
         ports[portid] = port;
         // and call the "onconnect" handler.
-        try {
-          onconnect({ports: [port]});
-        } catch(e) {
-          // we have a bad worker and cannot continue, we need to signal
-          // an error
-          port._postControlMessage("port-connection-error", JSON.stringify(e.toString()));
-          throw e;
-        }
+        onconnect({ports: [port]});
         break;
 
       case "port-close":

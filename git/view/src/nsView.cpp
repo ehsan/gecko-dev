@@ -13,7 +13,6 @@
 #include "nsGfxCIID.h"
 #include "nsIInterfaceRequestor.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/Likely.h"
 #include "nsXULPopupManager.h"
 #include "nsIWidgetListener.h"
 
@@ -714,7 +713,7 @@ void nsView::SetZIndex(bool aAuto, int32_t aZIndex, bool aTopMost)
 void nsView::AssertNoWindow()
 {
   // XXX: it would be nice to make this a strong assert
-  if (MOZ_UNLIKELY(mWindow)) {
+  if (NS_UNLIKELY(mWindow)) {
     NS_ERROR("We already have a window for this view? BAD");
     mWindow->SetWidgetListener(nullptr);
     mWindow->Destroy();

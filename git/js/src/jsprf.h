@@ -16,9 +16,10 @@
 **      %hd, %hu, %hx, %hX, %ho - 16-bit versions of above
 **      %ld, %lu, %lx, %lX, %lo - 32-bit versions of above
 **      %lld, %llu, %llx, %llX, %llo - 64 bit versions of above
-**      %s - ascii string
-**      %hs - ucs2 string
+**      %s - string
+**      %hs - 16-bit version of above (only available if js_CStringsAreUTF8)
 **      %c - character
+**      %hc - 16-bit version of above (only available if js_CStringsAreUTF8)
 **      %p - pointer (deals with machine dependent pointer size)
 **      %f - float
 **      %g - float

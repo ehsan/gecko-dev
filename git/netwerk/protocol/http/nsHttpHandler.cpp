@@ -273,9 +273,6 @@ nsHttpHandler::Init()
     rv = mAuthCache.Init();
     if (NS_FAILED(rv)) return rv;
 
-    rv = mPrivateAuthCache.Init();
-    if (NS_FAILED(rv)) return rv;
-
     rv = InitConnectionMgr();
     if (NS_FAILED(rv)) return rv;
 
@@ -310,7 +307,6 @@ nsHttpHandler::Init()
         mObserverService->AddObserver(this, "net:clear-active-logins", true);
         mObserverService->AddObserver(this, "net:prune-dead-connections", true);
         mObserverService->AddObserver(this, "net:failed-to-process-uri-content", true);
-        mObserverService->AddObserver(this, "last-pb-context-exited", true);
     }
 
     return NS_OK;
@@ -1570,7 +1566,6 @@ nsHttpHandler::Observe(nsISupports *subject,
 
         // clear cache of all authentication credentials.
         mAuthCache.ClearAll();
-        mPrivateAuthCache.ClearAll();
 
         // ensure connection manager is shutdown
         if (mConnMgr)
@@ -1586,7 +1581,6 @@ nsHttpHandler::Observe(nsISupports *subject,
     }
     else if (strcmp(topic, "net:clear-active-logins") == 0) {
         mAuthCache.ClearAll();
-        mPrivateAuthCache.ClearAll();
     }
     else if (strcmp(topic, "net:prune-dead-connections") == 0) {
         if (mConnMgr) {
@@ -1597,9 +1591,6 @@ nsHttpHandler::Observe(nsISupports *subject,
         nsCOMPtr<nsIURI> uri = do_QueryInterface(subject);
         if (uri && mConnMgr)
             mConnMgr->ReportFailedToProcess(uri);
-    }
-    else if (strcmp(topic, "last-pb-context-exited") == 0) {
-        mPrivateAuthCache.ClearAll();
     }
 
     return NS_OK;

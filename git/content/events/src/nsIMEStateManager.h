@@ -123,8 +123,6 @@ protected:
   static nsINode* GetRootEditableNode(nsPresContext* aPresContext,
                                       nsIContent* aContent);
 
-  static bool IsEditableIMEState(nsIWidget* aWidget);
-
   static nsIContent*    sContent;
   static nsPresContext* sPresContext;
   static bool           sInstalledMenuKeyboardListener;

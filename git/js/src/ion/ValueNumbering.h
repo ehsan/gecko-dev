@@ -57,7 +57,6 @@ class ValueNumberer
     MDefinition *findDominatingDef(InstructionMap &defs, MDefinition *ins, size_t index);
 
     MDefinition *simplify(MDefinition *def, bool useValueNumbers);
-    MControlInstruction *simplifyControlInstruction(MControlInstruction *def);
     bool eliminateRedundancies();
 
     bool computeValueNumbers();

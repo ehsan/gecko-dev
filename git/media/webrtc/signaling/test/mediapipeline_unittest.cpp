@@ -191,12 +191,8 @@ class MediaPipelineTest : public ::testing::Test {
     PRStatus status = PR_NewTCPSocketPair(fds_);
     ASSERT_EQ(status, PR_SUCCESS);
 
-    test_utils.sts_target()->Dispatch(
-      WrapRunnable(&p1_, &TestAgent::ConnectSocket, fds_[0], false),
-      NS_DISPATCH_SYNC);
-    test_utils.sts_target()->Dispatch(
-      WrapRunnable(&p2_, &TestAgent::ConnectSocket, fds_[1], false),
-      NS_DISPATCH_SYNC);
+    p1_.ConnectSocket(fds_[0], false);
+    p2_.ConnectSocket(fds_[1], true);
   }
 
  protected:

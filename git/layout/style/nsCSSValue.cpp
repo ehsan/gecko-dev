@@ -16,7 +16,6 @@
 #include "CSSCalc.h"
 #include "nsNetUtil.h"
 #include "mozilla/css/ImageLoader.h"
-#include "mozilla/Likely.h"
 
 namespace css = mozilla::css;
 
@@ -55,7 +54,7 @@ nsCSSValue::nsCSSValue(const nsString& aValue, nsCSSUnit aUnit)
   NS_ABORT_IF_FALSE(UnitHasStringValue(), "not a string value");
   if (UnitHasStringValue()) {
     mValue.mString = BufferFromString(aValue).get();
-    if (MOZ_UNLIKELY(!mValue.mString)) {
+    if (NS_UNLIKELY(!mValue.mString)) {
       // XXXbz not much we can do here; just make sure that our promise of a
       // non-null mValue.mString holds for string units.
       mUnit = eCSSUnit_Null;
@@ -344,7 +343,7 @@ void nsCSSValue::SetStringValue(const nsString& aValue,
   NS_ABORT_IF_FALSE(UnitHasStringValue(), "not a string unit");
   if (UnitHasStringValue()) {
     mValue.mString = BufferFromString(aValue).get();
-    if (MOZ_UNLIKELY(!mValue.mString)) {
+    if (NS_UNLIKELY(!mValue.mString)) {
       // XXXbz not much we can do here; just make sure that our promise of a
       // non-null mValue.mString holds for string units.
       mUnit = eCSSUnit_Null;
@@ -634,7 +633,7 @@ nsCSSValue::BufferFromString(const nsString& aValue)
   // NOTE: Alloc prouduces a new, already-addref'd (refcnt = 1) buffer.
   // NOTE: String buffer allocation is currently fallible.
   buffer = nsStringBuffer::Alloc((length + 1) * sizeof(PRUnichar));
-  if (MOZ_UNLIKELY(!buffer)) {
+  if (NS_UNLIKELY(!buffer)) {
     NS_RUNTIMEABORT("out of memory");
   }
 
@@ -1072,7 +1071,7 @@ nsCSSValue::AppendToString(nsCSSProperty aProperty, nsAString& aResult) const
     case eCSSUnit_Null:         break;
     case eCSSUnit_Auto:         aResult.AppendLiteral("auto");     break;
     case eCSSUnit_Inherit:      aResult.AppendLiteral("inherit");  break;
-    case eCSSUnit_Initial:      aResult.AppendLiteral("initial");  break;
+    case eCSSUnit_Initial:      aResult.AppendLiteral("-moz-initial"); break;
     case eCSSUnit_None:         aResult.AppendLiteral("none");     break;
     case eCSSUnit_Normal:       aResult.AppendLiteral("normal");   break;
     case eCSSUnit_System_Font:  aResult.AppendLiteral("-moz-use-system-font"); break;

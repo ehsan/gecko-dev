@@ -14,7 +14,6 @@ webidl_files = \
   AudioContext.webidl \
   AudioDestinationNode.webidl \
   AudioNode.webidl \
-  AudioParam.webidl \
   AudioSourceNode.webidl \
   Blob.webidl \
   CanvasRenderingContext2D.webidl \

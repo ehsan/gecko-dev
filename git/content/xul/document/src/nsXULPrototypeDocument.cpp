@@ -32,7 +32,7 @@
 #include "xpcpublic.h"
 #include "mozilla/dom/BindingUtils.h"
 
-using mozilla::dom::DestroyProtoAndIfaceCache;
+using mozilla::dom::DestroyProtoOrIfaceCache;
 
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
                      NS_DOM_SCRIPT_OBJECT_FACTORY_CID);

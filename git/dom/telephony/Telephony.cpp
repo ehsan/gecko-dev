@@ -402,10 +402,8 @@ Telephony::CallStateChanged(uint32_t aCallIndex, uint16_t aCallState,
     return NS_OK;
   }
 
-  // Didn't know anything about this call before now, could be 'incoming' or
-  // 'dialing' that was placed by others.
-  NS_ASSERTION(aCallState == nsIRadioInterfaceLayer::CALL_STATE_INCOMING ||
-               aCallState == nsIRadioInterfaceLayer::CALL_STATE_DIALING,
+  // Didn't know anything about this call before now, must be incoming.
+  NS_ASSERTION(aCallState == nsIRadioInterfaceLayer::CALL_STATE_INCOMING,
                "Serious logic problem here!");
 
   nsRefPtr<TelephonyCall> call =
@@ -414,15 +412,13 @@ Telephony::CallStateChanged(uint32_t aCallIndex, uint16_t aCallState,
 
   NS_ASSERTION(mCalls.Contains(call), "Should have auto-added new call!");
 
-  if (aCallState == nsIRadioInterfaceLayer::CALL_STATE_INCOMING) {
-    // Dispatch incoming event.
-    nsRefPtr<CallEvent> event = CallEvent::Create(call);
-    NS_ASSERTION(event, "This should never fail!");
+  // Dispatch incoming event.
+  nsRefPtr<CallEvent> event = CallEvent::Create(call);
+  NS_ASSERTION(event, "This should never fail!");
 
-    nsresult rv =
-      event->Dispatch(ToIDOMEventTarget(), NS_LITERAL_STRING("incoming"));
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
+  nsresult rv =
+    event->Dispatch(ToIDOMEventTarget(), NS_LITERAL_STRING("incoming"));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
 }

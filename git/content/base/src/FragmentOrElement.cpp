@@ -11,7 +11,6 @@
  */
 
 #include "mozilla/Util.h"
-#include "mozilla/Likely.h"
 
 #include "mozilla/dom/FragmentOrElement.h"
 
@@ -1558,7 +1557,7 @@ static const char* kNSURIs[] = {
 };
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(FragmentOrElement)
-  if (MOZ_UNLIKELY(cb.WantDebugInfo())) {
+  if (NS_UNLIKELY(cb.WantDebugInfo())) {
     char name[512];
     uint32_t nsid = tmp->GetNameSpaceID();
     nsAtomCString localName(tmp->NodeInfo()->NameAtom());

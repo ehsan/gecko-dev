@@ -61,20 +61,16 @@ SmsIPCService::Send(const nsAString& aNumber, const nsAString& aMessage,
 NS_IMETHODIMP
 SmsIPCService::CreateSmsMessage(int32_t aId,
                                 const nsAString& aDelivery,
-                                const nsAString& aDeliveryStatus,
                                 const nsAString& aSender,
                                 const nsAString& aReceiver,
                                 const nsAString& aBody,
-                                const nsAString& aMessageClass,
                                 const jsval& aTimestamp,
                                 const bool aRead,
                                 JSContext* aCx,
                                 nsIDOMMozSmsMessage** aMessage)
 {
-  return SmsMessage::Create(aId, aDelivery, aDeliveryStatus,
-                            aSender, aReceiver,
-                            aBody, aMessageClass, aTimestamp, aRead,
-                            aCx, aMessage);
+  return SmsMessage::Create(aId, aDelivery, aSender, aReceiver, aBody,
+                            aTimestamp, aRead, aCx, aMessage);
 }
 
 /*
@@ -83,12 +79,10 @@ SmsIPCService::CreateSmsMessage(int32_t aId,
 NS_IMETHODIMP
 SmsIPCService::SaveReceivedMessage(const nsAString& aSender,
                                    const nsAString& aBody,
-                                   const nsAString& aMessageClass,
-                                   uint64_t aDate,
-                                   int32_t* aId)
+                                   uint64_t aDate, int32_t* aId)
 {
   GetSmsChild()->SendSaveReceivedMessage(nsString(aSender), nsString(aBody),
-                                         nsString(aMessageClass), aDate, aId);
+                                         aDate, aId);
 
   return NS_OK;
 }
@@ -100,16 +94,6 @@ SmsIPCService::SaveSentMessage(const nsAString& aReceiver,
 {
   GetSmsChild()->SendSaveSentMessage(nsString(aReceiver), nsString(aBody),
                                      aDate, aId);
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-SmsIPCService::SetMessageDeliveryStatus(int32_t aMessageId,
-                                        const nsAString& aDeliveryStatus)
-{
-  GetSmsChild()->SendSetMessageDeliveryStatus(aMessageId,
-                                              nsString(aDeliveryStatus));
 
   return NS_OK;
 }

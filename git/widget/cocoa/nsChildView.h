@@ -408,7 +408,7 @@ public:
   // between HiDPI and non-HiDPI screens
   void                    BackingScaleFactorChanged();
 
-  virtual double          GetDefaultScaleInternal();
+  virtual double          GetDefaultScale();
 
   NS_IMETHOD              Invalidate(const nsIntRect &aRect);
 

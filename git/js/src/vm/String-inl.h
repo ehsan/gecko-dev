@@ -409,7 +409,7 @@ JS_ALWAYS_INLINE void
 JSString::finalize(js::FreeOp *fop)
 {
     /* Shorts are in a different arena. */
-    JS_ASSERT(getAllocKind() != js::gc::FINALIZE_SHORT_STRING);
+    JS_ASSERT(!isShort());
 
     if (isFlat())
         asFlat().finalize(fop);
@@ -420,7 +420,7 @@ JSString::finalize(js::FreeOp *fop)
 inline void
 JSFlatString::finalize(js::FreeOp *fop)
 {
-    JS_ASSERT(getAllocKind() != js::gc::FINALIZE_SHORT_STRING);
+    JS_ASSERT(!isShort());
 
     if (chars() != d.inlineStorage)
         fop->free_(const_cast<jschar *>(chars()));
@@ -429,7 +429,7 @@ JSFlatString::finalize(js::FreeOp *fop)
 inline void
 JSShortString::finalize(js::FreeOp *fop)
 {
-    JS_ASSERT(getAllocKind() == js::gc::FINALIZE_SHORT_STRING);
+    JS_ASSERT(isShort());
 
     if (chars() != d.inlineStorage)
         fop->free_(const_cast<jschar *>(chars()));

@@ -299,19 +299,13 @@ namespace dom {
 extern int HandlerFamily;
 inline void* ProxyFamily() { return &HandlerFamily; }
 
-inline bool IsDOMProxy(JSObject *obj, const js::Class* clasp)
+inline bool IsDOMProxy(JSObject *obj)
 {
-    MOZ_ASSERT(js::GetObjectClass(obj) == clasp);
-    return (js::IsObjectProxyClass(clasp) || js::IsFunctionProxyClass(clasp)) &&
+    return js::IsProxy(obj) &&
            js::GetProxyHandler(obj)->family() == ProxyFamily();
 }
 
-inline bool IsDOMProxy(JSObject *obj)
-{
-    return IsDOMProxy(obj, js::GetObjectClass(obj));
-}
-
-typedef JSObject*
+typedef bool
 (*DefineInterface)(JSContext *cx, JSObject *global, bool *enabled);
 
 typedef bool

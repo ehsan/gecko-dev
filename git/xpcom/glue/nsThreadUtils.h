@@ -16,7 +16,6 @@
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
 #include "mozilla/threads/nsThreadIDs.h"
-#include "mozilla/Likely.h"
 
 // This is needed on some systems to prevent collisions between the symbols
 // appearing in xpcom_core and xpcomglue.  It may be unnecessary in the future
@@ -346,7 +345,7 @@ public:
   {}
 
   NS_IMETHOD Run() {
-    if (MOZ_LIKELY(mReceiver.mObj))
+    if (NS_LIKELY(mReceiver.mObj))
       ((*mReceiver.mObj).*mMethod)();
     return NS_OK;
   }

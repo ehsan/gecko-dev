@@ -655,20 +655,6 @@ GetJSContextFromNPP(NPP npp)
   return GetJSContextFromDoc(doc);
 }
 
-static nsresult
-GetPrivacyFromNPP(NPP npp, bool* aPrivate)
-{
-  nsCOMPtr<nsIDocument> doc = GetDocumentFromNPP(npp);
-  NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
-  nsCOMPtr<nsPIDOMWindow> domwindow = doc->GetWindow();
-  NS_ENSURE_TRUE(domwindow, NS_ERROR_FAILURE);
-
-  nsCOMPtr<nsIDocShell> docShell = domwindow->GetDocShell();
-  nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(docShell);
-  *aPrivate = loadContext && loadContext->UsePrivateBrowsing();
-  return NS_OK;
-}
-
 static NPIdentifier
 doGetIdentifier(JSContext *cx, const NPUTF8* name)
 {
@@ -2044,12 +2030,16 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
   }
 
   case NPNVprivateModeBool: {
-    bool privacy;
-    nsresult rv = GetPrivacyFromNPP(npp, &privacy);
-    if (NS_FAILED(rv))
-      return NPERR_GENERIC_ERROR;
-    *(NPBool*)result = (NPBool)privacy;
-    return NPERR_NO_ERROR;
+    nsCOMPtr<nsIDocument> doc = GetDocumentFromNPP(npp);
+    NS_ENSURE_TRUE(doc, NPERR_GENERIC_ERROR);
+    nsCOMPtr<nsPIDOMWindow> domwindow = doc->GetWindow();
+    if (domwindow) {
+      nsCOMPtr<nsIDocShell> docShell = domwindow->GetDocShell();
+      nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(docShell);
+      *(NPBool*)result = (NPBool)(loadContext && loadContext->UsePrivateBrowsing());
+      return NPERR_NO_ERROR;
+    }
+    return NPERR_GENERIC_ERROR;
   }
 
   case NPNVdocumentOrigin: {
@@ -2739,15 +2729,12 @@ _getauthenticationinfo(NPP instance, const char *protocol, const char *host,
   if (!authManager)
     return NPERR_GENERIC_ERROR;
 
-  bool authPrivate = false;
-  GetPrivacyFromNPP(instance, &authPrivate);
-
   nsAutoString unused, uname16, pwd16;
   if (NS_FAILED(authManager->GetAuthIdentity(proto, nsDependentCString(host),
                                              port, nsDependentCString(scheme),
                                              nsDependentCString(realm),
                                              EmptyCString(), unused, uname16,
-                                             pwd16, authPrivate))) {
+                                             pwd16))) {
     return NPERR_GENERIC_ERROR;
   }
 

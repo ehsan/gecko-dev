@@ -4,7 +4,8 @@
 
 function run_test() {
 
-  var cps = new ContentPrefInstance(null);
+  var cps = Cc["@mozilla.org/content-pref/service;1"].
+            getService(Ci.nsIContentPrefService);
 
   // Make sure disk synchronization checking is turned off by default.
   var statement = cps.DBConnection.createStatement("PRAGMA synchronous");

@@ -35,10 +35,10 @@ public:
    * Fetch the last used directory for this location from the content
    * pref service, if it is available.
    *
-   * @param aDoc  current document
+   * @param aURI URI of the current page
    * @param aFile path to the last used directory
    */
-  nsresult FetchLastUsedDirectory(nsIDocument* aDoc, nsIFile** aFile);
+  nsresult FetchLastUsedDirectory(nsIURI* aURI, nsIFile** aFile);
 
   /**
    * Store the last used directory for this location using the
@@ -47,7 +47,7 @@ public:
    * @param aFile file chosen by the user - the path to the parent of this
    *        file will be stored
    */
-  nsresult StoreLastUsedDirectory(nsIDocument* aDoc, nsIFile* aFile);
+  nsresult StoreLastUsedDirectory(nsIURI* aURI, nsIFile* aFile);
 };
 
 class nsHTMLInputElement : public nsGenericHTMLFormElement,

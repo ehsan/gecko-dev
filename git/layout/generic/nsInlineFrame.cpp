@@ -19,7 +19,6 @@
 #include "nsAutoPtr.h"
 #include "nsFrameManager.h"
 #include "nsDisplayList.h"
-#include "mozilla/Likely.h"
 
 #ifdef DEBUG
 #undef NOISY_PUSHING
@@ -507,7 +506,7 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
         // This scenario doesn't happen often, but it can happen.
         nsIFrame* nextSibling = child->GetNextSibling();
         child = child->GetNextInFlow();
-        if (MOZ_UNLIKELY(child)) {
+        if (NS_UNLIKELY(child)) {
           while (child != nextSibling && nextSibling) {
             nextSibling = nextSibling->GetNextSibling();
           }

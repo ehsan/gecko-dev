@@ -39,7 +39,7 @@ using namespace mozilla;
 using namespace js;
 using namespace xpc;
 
-using mozilla::dom::DestroyProtoAndIfaceCache;
+using mozilla::dom::DestroyProtoOrIfaceCache;
 
 /***************************************************************************/
 // stuff used by all
@@ -2989,7 +2989,7 @@ sandbox_finalize(JSFreeOp *fop, JSObject *obj)
     nsIScriptObjectPrincipal *sop =
         (nsIScriptObjectPrincipal *)xpc_GetJSPrivate(obj);
     NS_IF_RELEASE(sop);
-    DestroyProtoAndIfaceCache(obj);
+    DestroyProtoOrIfaceCache(obj);
 }
 
 static JSBool
@@ -3054,9 +3054,22 @@ WrapForSandbox(JSContext *cx, bool wantXrays, jsval *vp)
 
 xpc::SandboxProxyHandler xpc::sandboxProxyHandler;
 
+// A proxy handler that lets us wrap callables and invoke them with
+// the correct this object, while forwarding all other operations down
+// to them directly.
+class SandboxCallableProxyHandler : public js::DirectWrapper {
+public:
+    SandboxCallableProxyHandler() : js::DirectWrapper(0)
+    {
+    }
+
+    virtual bool call(JSContext *cx, JSObject *proxy, unsigned argc,
+                      Value *vp);
+};
+
 bool
-xpc::SandboxCallableProxyHandler::call(JSContext *cx, JSObject *proxy,
-                                       unsigned argc, Value *vp)
+SandboxCallableProxyHandler::call(JSContext *cx, JSObject *proxy, unsigned argc,
+                                  Value *vp)
 {
     // We forward the call to our underlying callable. The callable to forward
     // to can be gotten via GetProxyCall.
@@ -3086,7 +3099,7 @@ xpc::SandboxCallableProxyHandler::call(JSContext *cx, JSObject *proxy,
                     JS_ARGV(cx, vp), vp);
 }
 
-xpc::SandboxCallableProxyHandler xpc::sandboxCallableProxyHandler;
+static SandboxCallableProxyHandler sandboxCallableProxyHandler;
 
 // Wrap a callable such that if we're called with oldThisObj as the
 // "this" we will instead call it with newThisObj as the this.
@@ -3103,7 +3116,7 @@ WrapCallable(JSContext *cx, JSObject *callable, JSObject *sandboxProtoProxy)
 
     // We need to pass the given callable in as the "call" and
     // "construct" so we get a function proxy.
-    return js::NewProxyObject(cx, &xpc::sandboxCallableProxyHandler,
+    return js::NewProxyObject(cx, &sandboxCallableProxyHandler,
                               ObjectValue(*callable), nullptr,
                               sandboxProtoProxy, callable, callable);
 }
@@ -3204,51 +3217,6 @@ xpc::SandboxProxyHandler::getOwnPropertyDescriptor(JSContext *cx,
         desc->obj = nullptr;
 
     return true;
-}
-
-/*
- * Reuse the BaseProxyHandler versions of the derived traps that are implemented
- * in terms of the fundamental traps.
- */
-
-bool
-xpc::SandboxProxyHandler::has(JSContext *cx, JSObject *proxy, jsid id, bool *bp)
-{
-    return BaseProxyHandler::has(cx, proxy, id, bp);
-}
-bool
-xpc::SandboxProxyHandler::hasOwn(JSContext *cx, JSObject *proxy, jsid id,
-                                 bool *bp)
-{
-    return BaseProxyHandler::hasOwn(cx, proxy, id, bp);
-}
-
-bool
-xpc::SandboxProxyHandler::get(JSContext *cx, JSObject *proxy, JSObject *receiver,
-                              jsid id, Value *vp)
-{
-    return BaseProxyHandler::get(cx, proxy, receiver, id, vp);
-}
-
-bool
-xpc::SandboxProxyHandler::set(JSContext *cx, JSObject *proxy, JSObject *receiver,
-                              jsid id, bool strict, Value *vp)
-{
-    return BaseProxyHandler::set(cx, proxy, receiver, id, strict, vp);
-}
-
-bool
-xpc::SandboxProxyHandler::keys(JSContext *cx, JSObject *proxy,
-                               AutoIdVector &props)
-{
-    return BaseProxyHandler::keys(cx, proxy, props);
-}
-
-bool
-xpc::SandboxProxyHandler::iterate(JSContext *cx, JSObject *proxy, unsigned flags,
-                                  Value *vp)
-{
-    return BaseProxyHandler::iterate(cx, proxy, flags, vp);
 }
 
 nsresult

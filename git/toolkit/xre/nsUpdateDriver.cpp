@@ -71,16 +71,9 @@
 #endif
 
 #ifdef PR_LOGGING
-static PRLogModuleInfo *
-GetUpdateLog()
-{
-  static PRLogModuleInfo *sUpdateLog;
-  if (!sUpdateLog)
-    sUpdateLog = PR_NewLogModule("updatedriver");
-  return sUpdateLog;
-}
+static PRLogModuleInfo *sUpdateLog = PR_NewLogModule("updatedriver");
 #endif
-#define LOG(args) PR_LOG(GetUpdateLog(), PR_LOG_DEBUG, args)
+#define LOG(args) PR_LOG(sUpdateLog, PR_LOG_DEBUG, args)
 
 #ifdef XP_WIN
 static const char kUpdaterBin[] = "updater.exe";

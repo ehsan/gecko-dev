@@ -14,11 +14,10 @@
 #include "nsUnicodeRange.h"
 #include "nsUnicodeProperties.h"
 
-#include "mozilla/Attributes.h"
-#include "mozilla/Likely.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/TimeStamp.h"
+#include "mozilla/Attributes.h"
 
 using namespace mozilla;
 
@@ -422,7 +421,7 @@ gfxPlatformFontList::SystemFindFontForChar(const uint32_t aCh,
 #ifdef PR_LOGGING
     PRLogModuleInfo *log = gfxPlatform::GetLog(eGfxLog_textrun);
 
-    if (MOZ_UNLIKELY(log)) {
+    if (NS_UNLIKELY(log)) {
         uint32_t charRange = gfxFontUtils::CharRangeBit(aCh);
         uint32_t unicodeRange = FindCharUnicodeRange(aCh);
         int32_t script = mozilla::unicode::GetScriptCode(aCh);

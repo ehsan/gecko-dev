@@ -21,7 +21,6 @@
 #include "nsGkAtoms.h"
 #include "mozilla/dom/HTMLCollectionBinding.h"
 #include "mozilla/dom/NodeListBinding.h"
-#include "mozilla/Likely.h"
 
 // Form related includes
 #include "nsIDOMHTMLFormElement.h"
@@ -49,7 +48,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsBaseContentList)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
   if (nsCCUncollectableMarker::sGeneration && tmp->IsBlack() &&
-      MOZ_LIKELY(!cb.WantAllTraces())) {
+      NS_LIKELY(!cb.WantAllTraces())) {
     return NS_SUCCESS_INTERRUPTED_TRAVERSE;
   }
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSTARRAY_OF_NSCOMPTR(mElements)

@@ -386,8 +386,6 @@ nsSVGMarkerProperty *
 nsSVGEffects::GetMarkerProperty(nsIURI *aURI, nsIFrame *aFrame,
                                 const FramePropertyDescriptor *aProp)
 {
-  NS_ABORT_IF_FALSE(aFrame->GetType() == nsGkAtoms::svgPathGeometryFrame,
-                    "Bad frame");
   return static_cast<nsSVGMarkerProperty*>(
           GetEffectProperty(aURI, aFrame, aProp, CreateMarkerProperty));
 }
@@ -529,7 +527,7 @@ nsSVGEffects::UpdateEffects(nsIFrame *aFrame)
   GetEffectProperty(aFrame->GetStyleSVGReset()->mFilter,
                     aFrame, FilterProperty(), CreateFilterProperty);
 
-  if (aFrame->GetType() == nsGkAtoms::svgPathGeometryFrame) {
+  if (aFrame->IsFrameOfType(nsIFrame::eSVG)) {
     // Set marker properties here to avoid reference loops
     const nsStyleSVG *style = aFrame->GetStyleSVG();
     GetEffectProperty(style->mMarkerStart, aFrame, MarkerBeginProperty(),

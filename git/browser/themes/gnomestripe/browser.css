@@ -1423,6 +1423,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 
 /* Star button */
 #star-button {
+  padding: 1px;
   list-style-image: url("chrome://browser/skin/places/starPage.png");
 }
 
@@ -2651,7 +2652,8 @@ html|*#gcli-output-frame {
 
 .social-notification-icon-image {
   margin: 5px 3px;
-  -moz-image-region: rect(0, 16px, 16px, 0);
+  width: 16px;
+  height: 16px;
 }
 
 .social-notification-icon-hbox {
@@ -2725,7 +2727,7 @@ html|*#gcli-output-frame {
 
 .chat-title {
   font-weight: bold;
-  color: black;
+  color: -moz-dialogtext;
   text-shadow: none;
   cursor: inherit;
 }
@@ -2803,13 +2805,6 @@ html|*#gcli-output-frame {
 
 .chatbar-button > menupopup > menuitem[activity] {
   font-weight: bold;
-}
-
-.chatbar-button > menupopup > .menuitem-iconic > .menu-iconic-left > .menu-iconic-icon {
-  width: auto;
-  height: auto;
-  max-height: 16px;
-  max-width: 16px;
 }
 
 .chatbar-innerbox {

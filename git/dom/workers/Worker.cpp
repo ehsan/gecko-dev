@@ -25,6 +25,25 @@ USING_WORKERS_NAMESPACE
 using namespace mozilla::dom;
 using mozilla::ErrorResult;
 
+// These are temporary until these classes are moved to be codegenerated.
+bool
+WorkerResolveProperty(JSContext* cx, JSObject* wrapper, jsid id, bool set,
+                      JSPropertyDescriptor* desc)
+{
+  return true;
+}
+bool
+WorkerEnumerateProperties(JSContext* cx, JSObject* wrapper,
+                          JS::AutoIdVector& props)
+{
+  return true;
+}
+NativePropertyHooks mozilla::dom::workers::sNativePropertyHooks =
+  { WorkerResolveProperty, WorkerResolveProperty,
+    WorkerEnumerateProperties, WorkerEnumerateProperties,
+    NULL };
+
+
 namespace {
 
 class Worker
@@ -280,6 +299,8 @@ private:
 MOZ_STATIC_ASSERT(prototypes::MaxProtoChainLength == 3,
                   "The MaxProtoChainLength must match our manual DOMJSClasses");
 
+// When this DOMJSClass is removed and it's the last consumer of
+// sNativePropertyHooks then sNativePropertyHooks should be removed too.
 DOMJSClass Worker::sClass = {
   {
     "Worker",
@@ -293,7 +314,7 @@ DOMJSClass Worker::sClass = {
     { prototypes::id::EventTarget_workers, prototypes::id::_ID_Count,
       prototypes::id::_ID_Count },
     false,
-    &sWorkerNativePropertyHooks
+    &sNativePropertyHooks
   }
 };
 
@@ -404,6 +425,8 @@ private:
 MOZ_STATIC_ASSERT(prototypes::MaxProtoChainLength == 3,
                   "The MaxProtoChainLength must match our manual DOMJSClasses");
 
+// When this DOMJSClass is removed and it's the last consumer of
+// sNativePropertyHooks then sNativePropertyHooks should be removed too.
 DOMJSClass ChromeWorker::sClass = {
   { "ChromeWorker",
     JSCLASS_IS_DOMJSCLASS | JSCLASS_HAS_RESERVED_SLOTS(2) |
@@ -416,7 +439,7 @@ DOMJSClass ChromeWorker::sClass = {
     { prototypes::id::EventTarget_workers, prototypes::id::_ID_Count,
       prototypes::id::_ID_Count },
     false,
-    &sWorkerNativePropertyHooks
+    &sNativePropertyHooks
   }
 };
 

@@ -137,9 +137,8 @@
 #include <windows.h>
 #endif
 
-#include "mozilla/CondVar.h"
-#include "mozilla/Likely.h"
 #include "mozilla/Mutex.h"
+#include "mozilla/CondVar.h"
 #include "mozilla/StandardInteger.h"
 #include "mozilla/Telemetry.h"
 
@@ -1689,7 +1688,7 @@ private:
         MOZ_ASSERT(root);
         MOZ_ASSERT(participant);
 
-        if (!participant->CanSkipInCC(root) || MOZ_UNLIKELY(WantAllTraces())) {
+        if (!participant->CanSkipInCC(root) || NS_UNLIKELY(WantAllTraces())) {
             AddNode(root, participant);
         }
     }
@@ -1755,7 +1754,7 @@ GCGraphBuilder::GCGraphBuilder(GCGraph &aGraph,
 
     mFlags |= flags;
 
-    mMergeCompartments = mMergeCompartments && MOZ_LIKELY(!WantAllTraces());
+    mMergeCompartments = mMergeCompartments && NS_LIKELY(!WantAllTraces());
 }
 
 GCGraphBuilder::~GCGraphBuilder()
@@ -1932,12 +1931,12 @@ GCGraphBuilder::NoteJSChild(void *child)
     }
 
     nsCString edgeName;
-    if (MOZ_UNLIKELY(WantDebugInfo())) {
+    if (NS_UNLIKELY(WantDebugInfo())) {
         edgeName.Assign(mNextEdgeName);
         mNextEdgeName.Truncate();
     }
 
-    if (xpc_GCThingIsGrayCCThing(child) || MOZ_UNLIKELY(WantAllTraces())) {
+    if (xpc_GCThingIsGrayCCThing(child) || NS_UNLIKELY(WantAllTraces())) {
         if (JSCompartment *comp = MergeCompartment(child)) {
             NoteChild(comp, mJSCompParticipant, edgeName);
         } else {

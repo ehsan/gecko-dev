@@ -28,7 +28,6 @@
 #include "jsapi.h"
 #include "nsThread.h"
 #include <media/MediaProfiles.h>
-#include "mozilla/FileUtils.h"
 #include "nsDirectoryServiceDefs.h" // for NS_GetSpecialDirectory
 #include "nsPrintfCString.h"
 #include "DOMCameraManager.h"
@@ -735,17 +734,20 @@ nsGonkCameraControl::StartRecordingImpl(StartRecordingTask* aStartRecording)
   filename->GetNativePath(nativeFilename);
   DOM_CAMERA_LOGI("Video filename is '%s'\n", nativeFilename.get());
 
-  ScopedClose fd(open(nativeFilename.get(), O_RDWR | O_CREAT, 0644));
+  int fd = open(nativeFilename.get(), O_RDWR | O_CREAT, 0644);
   if (fd < 0) {
     DOM_CAMERA_LOGE("Couldn't create file '%s': (%d) %s\n", nativeFilename.get(), errno, strerror(errno));
     return NS_ERROR_FAILURE;
   }
 
-  nsresult rv = SetupRecording(fd);
-  NS_ENSURE_SUCCESS(rv, rv);
-
+  if (SetupRecording(fd) != NS_OK) {
+    DOM_CAMERA_LOGE("SetupRecording() failed\n");
+    close(fd);
+    return NS_ERROR_FAILURE;
+  }
   if (mRecorder->start() != OK) {
     DOM_CAMERA_LOGE("mRecorder->start() failed\n");
+    close(fd);
     return NS_ERROR_FAILURE;
   }
 

@@ -384,6 +384,8 @@ XPCWrappedNativeScope::StartFinalizationPhaseOfGC(JSFreeOp *fop, XPCJSRuntime* r
         if (cur->mGlobalJSObject &&
             JS_IsAboutToBeFinalized(cur->mGlobalJSObject)) {
             cur->mGlobalJSObject.finalize(fop->runtime());
+            if (cur->GetCachedDOMPrototypes().IsInitialized())
+                 cur->GetCachedDOMPrototypes().Clear();
             // Move this scope from the live list to the dying list.
             if (prev)
                 prev->mNext = next;
@@ -656,6 +658,22 @@ XPCWrappedNativeScope::RemoveWrappedNativeProtos()
                                       GetRuntime()->GetDetachedWrappedNativeProtoMap());
     mMainThreadWrappedNativeProtoMap->Enumerate(WNProtoRemover,
                                                 GetRuntime()->GetDetachedWrappedNativeProtoMap());
+}
+
+static PLDHashOperator
+TraceDOMPrototype(const char* aKey, JSObject* aData, void* aClosure)
+{
+    JSTracer *trc = static_cast<JSTracer*>(aClosure);
+    JS_CALL_OBJECT_TRACER(trc, aData, "DOM prototype");
+    return PL_DHASH_NEXT;
+}
+
+void
+XPCWrappedNativeScope::TraceDOMPrototypes(JSTracer *trc)
+{
+    if (mCachedDOMPrototypes.IsInitialized()) {
+        mCachedDOMPrototypes.EnumerateRead(TraceDOMPrototype, trc);
+    }
 }
 
 /***************************************************************************/

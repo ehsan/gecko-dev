@@ -10,6 +10,7 @@
 
 #include "mozilla/Attributes.h"
 #include "nsICSSDeclaration.h"
+#include "nsIDOMCSS2Properties.h"
 #include "nsCOMPtr.h"
 #include "mozilla/dom/CSS2PropertiesBinding.h"
 
@@ -26,7 +27,8 @@ class Rule;
 }
 }
 
-class nsDOMCSSDeclaration : public nsICSSDeclaration
+class nsDOMCSSDeclaration : public nsICSSDeclaration,
+                            public nsIDOMCSS2Properties
 {
 public:
   // Only implement QueryInterface; subclasses have the responsibility
@@ -58,6 +60,10 @@ public:
                          const nsAString & value, const nsAString & priority) MOZ_OVERRIDE;
   NS_IMETHOD GetLength(uint32_t *aLength) MOZ_OVERRIDE;
   NS_IMETHOD GetParentRule(nsIDOMCSSRule * *aParentRule) MOZ_OVERRIDE = 0;
+
+  // We implement this as a shim which forwards to GetPropertyValue
+  // and SetPropertyValue; subclasses need not.
+  NS_DECL_NSIDOMCSS2PROPERTIES
 
   // WebIDL interface for CSS2Properties
 #define CSS_PROP_DOMPROP_PREFIXED(prop_) Moz ## prop_

@@ -38,7 +38,6 @@
 #include "nsRuleNode.h"
 #include "nsMediaFeatures.h"
 #include "nsDOMClassInfoID.h"
-#include "mozilla/Likely.h"
 
 using namespace mozilla;
 
@@ -1490,7 +1489,7 @@ nsCSSStyleSheet::ReplaceStyleRule(css::Rule* aOld, css::Rule* aNew)
 
   if (NS_SUCCEEDED(WillDirty())) {
     int32_t index = mInner->mOrderedRules.IndexOf(aOld);
-    if (MOZ_UNLIKELY(index == -1)) {
+    if (NS_UNLIKELY(index == -1)) {
       NS_NOTREACHED("Couldn't find old rule");
       return;
     }

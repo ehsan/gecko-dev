@@ -26,7 +26,6 @@
 #include "nsDisplayList.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsIReflowCallback.h"
-#include "mozilla/Likely.h"
 
 using namespace mozilla;
 
@@ -1391,7 +1390,7 @@ nsMathMLContainerFrame::FixInterFrameSpacing(nsHTMLReflowMetrics& aDesiredSize)
 {
   nscoord gap = 0;
   nsIContent* parentContent = mParent->GetContent();
-  if (MOZ_UNLIKELY(!parentContent)) {
+  if (NS_UNLIKELY(!parentContent)) {
     return 0;
   }
   nsIAtom *parentTag = parentContent->Tag();
@@ -1424,7 +1423,7 @@ nsMathMLContainerFrame::FixInterFrameSpacing(nsHTMLReflowMetrics& aDesiredSize)
 nsMathMLContainerFrame::DidReflowChildren(nsIFrame* aFirst, nsIFrame* aStop)
 
 {
-  if (MOZ_UNLIKELY(!aFirst))
+  if (NS_UNLIKELY(!aFirst))
     return;
 
   for (nsIFrame* frame = aFirst;

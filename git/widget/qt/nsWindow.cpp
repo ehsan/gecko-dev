@@ -64,7 +64,6 @@ using namespace QtMobility;
 #include "nsQtKeyUtils.h"
 #include "mozilla/Services.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Likely.h"
 #include "nsIWidgetListener.h"
 
 #include "nsIStringBundle.h"
@@ -1057,7 +1056,7 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
         targetSurface = gBufferSurface;
     }
 
-    if (MOZ_UNLIKELY(!targetSurface))
+    if (NS_UNLIKELY(!targetSurface))
         return false;
 
     nsRefPtr<gfxContext> ctx = new gfxContext(targetSurface);
@@ -1092,7 +1091,7 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
 
     // DispatchEvent can Destroy us (bug 378273), avoid doing any paint
     // operations below if that happened - it will lead to XError and exit().
-    if (MOZ_UNLIKELY(mIsDestroyed))
+    if (NS_UNLIKELY(mIsDestroyed))
         return painted;
 
     if (!painted)
@@ -1325,7 +1324,7 @@ nsWindow::OnButtonPressEvent(QGraphicsSceneMouseEvent *aEvent)
 
     // right menu click on linux should also pop up a context menu
     if (domButton == nsMouseEvent::eRightButton &&
-        MOZ_LIKELY(!mIsDestroyed)) {
+        NS_LIKELY(!mIsDestroyed)) {
         nsMouseEvent contextMenuEvent(true, NS_CONTEXTMENU, this,
                                       nsMouseEvent::eReal);
         InitButtonEvent(contextMenuEvent, aEvent, 1);
@@ -1575,7 +1574,7 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
         nsEventStatus status = DispatchEvent(&downEvent);
 
         // DispatchEvent can Destroy us (bug 378273)
-        if (MOZ_UNLIKELY(mIsDestroyed)) {
+        if (NS_UNLIKELY(mIsDestroyed)) {
             qWarning() << "Returning[" << __LINE__ << "]: " << "Window destroyed";
             return status;
         }
@@ -3190,9 +3189,6 @@ NS_IMETHODIMP_(InputContext)
 nsWindow::GetInputContext()
 {
     mInputContext.mIMEState.mOpen = IMEState::OPEN_STATE_NOT_SUPPORTED;
-    // Our qt widget looks like using only one context per process.
-    // However, it's better to set the context's pointer.
-    mInputContext.mNativeIMEContext = qApp->inputContext();
     return mInputContext;
 }
 
