@@ -2871,8 +2871,10 @@ MapToFloatUserPixels(const gfxSize& aSize,
                   aPt.y*aDest.size.height/aSize.height + aDest.pos.y);
 }
 
-/* static */ gfxRect
-nsLayoutUtils::RectToGfxRect(const nsRect& aRect, PRInt32 aAppUnitsPerDevPixel)
+// helper function to convert a nsRect to a gfxRect
+// borrowed from nsCSSRendering.cpp
+static gfxRect
+RectToGfxRect(const nsRect& aRect, PRInt32 aAppUnitsPerDevPixel)
 {
   return gfxRect(gfxFloat(aRect.x) / aAppUnitsPerDevPixel,
                  gfxFloat(aRect.y) / aAppUnitsPerDevPixel,
@@ -2932,12 +2934,9 @@ ComputeSnappedImageDrawingParameters(gfxContext*     aCtx,
   if (aDest.IsEmpty() || aFill.IsEmpty())
     return SnappedImageDrawingParameters();
 
-  gfxRect devPixelDest =
-    nsLayoutUtils::RectToGfxRect(aDest, aAppUnitsPerDevPixel);
-  gfxRect devPixelFill =
-    nsLayoutUtils::RectToGfxRect(aFill, aAppUnitsPerDevPixel);
-  gfxRect devPixelDirty =
-    nsLayoutUtils::RectToGfxRect(aDirty, aAppUnitsPerDevPixel);
+  gfxRect devPixelDest = RectToGfxRect(aDest, aAppUnitsPerDevPixel);
+  gfxRect devPixelFill = RectToGfxRect(aFill, aAppUnitsPerDevPixel);
+  gfxRect devPixelDirty = RectToGfxRect(aDirty, aAppUnitsPerDevPixel);
 
   PRBool ignoreScale = PR_FALSE;
 #ifdef MOZ_GFX_OPTIMIZE_MOBILE
