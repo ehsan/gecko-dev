@@ -707,11 +707,8 @@ nsUserFontSet::ReplaceFontEntry(gfxProxyFontEntry *aProxy,
       break;
     }
   }
-  gfxMixedFontFamily *family =
-    static_cast<gfxMixedFontFamily*>(aProxy->Family());
-  if (family) {
-    family->ReplaceFontEntry(aProxy, aFontEntry);
-  }
+  static_cast<gfxMixedFontFamily*>(aProxy->Family())->
+    ReplaceFontEntry(aProxy, aFontEntry);
 }
 
 nsCSSFontFaceRule*

@@ -109,7 +109,7 @@ nsJSUtils::GetStaticScriptGlobal(JSContext* aContext, JSObject* aObj)
   glob = JS_GetGlobalForObject(aContext, glob);
   NS_ABORT_IF_FALSE(glob, "Infallible returns null");
 
-  clazz = JS_GetClass(glob);
+  clazz = JS_GET_CLASS(aContext, glob);
 
   if (!clazz ||
       !(clazz->flags & JSCLASS_HAS_PRIVATE) ||

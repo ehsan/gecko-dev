@@ -192,16 +192,9 @@ IdToString(JSContext *cx, jsid id)
 {
     if (JSID_IS_STRING(id))
         return JSID_TO_ATOM(id);
-
-    JSString *str;
-     if (JS_LIKELY(JSID_IS_INT(id)))
-        str = js_IntToString(cx, JSID_TO_INT(id));
-    else
-        str = ToStringSlow(cx, IdToValue(id));    
-
-    if (!str)
-        return NULL;
-    return str->ensureFlat(cx);
+    if (JS_LIKELY(JSID_IS_INT(id)))
+        return js_IntToString(cx, JSID_TO_INT(id))->ensureFlat(cx);
+    return ToStringSlow(cx, IdToValue(id))->ensureFlat(cx);
 }
 
 inline

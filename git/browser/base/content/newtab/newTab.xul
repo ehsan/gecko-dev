@@ -33,8 +33,10 @@
         <li class="cell"/><li class="cell"/><li class="cell"/>
       </ul>
 
-      <xul:script type="text/javascript;version=1.8"
-                  src="chrome://browser/content/newtab/newTab.js"/>
+      <xul:script type="text/javascript;version=1.8" src="chrome://browser/content/newtab/newTab.js"/>
+      <xul:script type="text/javascript;version=1.8">
+        gPage.init("#toolbar", "#grid");
+      </xul:script>
     </body>
   </xul:vbox>
 </xul:window>

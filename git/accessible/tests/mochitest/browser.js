@@ -26,14 +26,6 @@ function browserWindow()
 }
 
 /**
- * Return the document of the browser window.
- */
-function browserDocument()
-{
-  return browserWindow().document;
-}
-
-/**
  * Return tab browser object.
  */
 function tabBrowser()

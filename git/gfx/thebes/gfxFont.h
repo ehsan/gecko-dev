@@ -57,7 +57,6 @@
 #include "gfxPlatform.h"
 #include "nsIAtom.h"
 #include "nsISupportsImpl.h"
-#include "gfxPattern.h"
 
 typedef struct _cairo_scaled_font cairo_scaled_font_t;
 
@@ -1324,8 +1323,7 @@ public:
      */
     virtual void Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
                       gfxContext *aContext, DrawMode aDrawMode, gfxPoint *aBaselineOrigin,
-                      Spacing *aSpacing, gfxPattern *aStrokePattern);
-
+                      Spacing *aSpacing);
     /**
      * Measure a run of characters. See gfxTextRun::Metrics.
      * @param aTight if false, then return the union of the glyph extents
@@ -2371,7 +2369,7 @@ public:
               gfxFont::DrawMode aDrawMode,
               PRUint32 aStart, PRUint32 aLength,
               PropertyProvider *aProvider,
-              gfxFloat *aAdvanceWidth, gfxPattern *aStrokePattern);
+              gfxFloat *aAdvanceWidth);
 
     /**
      * Computes the ReflowMetrics for a substring.
@@ -2816,7 +2814,7 @@ private:
     // **** drawing helper ****
     void DrawGlyphs(gfxFont *aFont, gfxContext *aContext,
                     gfxFont::DrawMode aDrawMode, gfxPoint *aPt,
-                    gfxPattern *aStrokePattern, PRUint32 aStart, PRUint32 aEnd,
+                    PRUint32 aStart, PRUint32 aEnd,
                     PropertyProvider *aProvider,
                     PRUint32 aSpacingStart, PRUint32 aSpacingEnd);
 

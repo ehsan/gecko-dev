@@ -56,13 +56,7 @@ namespace statistics {
    * Report that ISimpleDOM* has been used.
    */
   inline void ISimpleDOMUsed()
-  {
-    static bool firstTime = true;
-    if (firstTime) {
-      Telemetry::Accumulate(Telemetry::ISIMPLE_DOM_USAGE, 1);
-      firstTime = false;
-    }
-  }
+    { Telemetry::Accumulate(Telemetry::ISIMPLE_DOM_USAGE, 1); }
 
   /**
    * Report that IAccessibleTable has been used.

@@ -79,7 +79,7 @@ let PlacesDBUtils = {
   _executeTasks: function PDBU__executeTasks(aTasks)
   {
     if (PlacesDBUtils._isShuttingDown) {
-      aTasks.log("- We are shutting down. Will not schedule the tasks.");
+      tasks.log("- We are shutting down. Will not schedule the tasks.");
       aTasks.clear();
     }
 
@@ -88,14 +88,6 @@ let PlacesDBUtils = {
       task.call(PlacesDBUtils, aTasks);
     }
     else {
-      // All tasks have been completed.
-      // Telemetry the time it took for maintenance, if a start time exists.
-      if (aTasks._telemetryStart) {
-        Services.telemetry.getHistogramById("PLACES_IDLE_MAINTENANCE_TIME_MS")
-                          .add(Date.now() - aTasks._telemetryStart);
-        aTasks._telemetryStart = 0;
-      }
-
       if (aTasks.callback) {
         let scope = aTasks.scope || Cu.getGlobalForObject(aTasks.callback);
         aTasks.callback.call(scope, aTasks.messages);
@@ -136,7 +128,6 @@ let PlacesDBUtils = {
     , this.checkCoherence
     , this._refreshUI
     ]);
-    tasks._telemetryStart = Date.now();
     tasks.callback = aCallback;
     tasks.scope = aScope;
     this._executeTasks(tasks);
@@ -1030,12 +1021,11 @@ function Tasks(aTasks)
     if (Array.isArray(aTasks)) {
       this._list = aTasks.slice(0, aTasks.length);
     }
-    else if (typeof(aTasks) == "object" && aTasks instanceof Tasks) {
+    else if ("list" in aTasks) {
       this._list = aTasks.list;
       this._log = aTasks.messages;
       this.callback = aTasks.callback;
       this.scope = aTasks.scope;
-      this._telemetryStart = aTasks._telemetryStart;
     }
   }
 }
@@ -1045,7 +1035,6 @@ Tasks.prototype = {
   _log: [],
   callback: null,
   scope: null,
-  _telemetryStart: 0,
 
   /**
    * Adds a task to the top of the list.

@@ -76,6 +76,8 @@ EXTRA_JS_MODULES = \
   nsFormAutoCompleteResult.jsm \
   $(NULL)
 
-TEST_DIRS += test
+ifdef ENABLE_TESTS
+DIRS += test
+endif
 
 include $(topsrcdir)/config/rules.mk

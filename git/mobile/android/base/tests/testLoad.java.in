@@ -7,10 +7,10 @@ public class testLoad extends BaseTest {
     public void testLoad() {
         setTestType("mochitest");
         String url = getAbsoluteUrl("/robocop/robocop_boxes.html");
-
-        Actions.RepeatedEventExpecter paintExpecter = mActions.expectPaint();
         loadUrl(url);
-        paintExpecter.blockUntilClear(500);
+
+        mActions.expectPaint().blockForEvent();
+        getInstrumentation().waitForIdleSync();
 
         int[][] painted = mDriver.getPaintedSurface();
         mAsserter.ispixel(painted[0][0], 0, 255, 255, "Pixel at 0, 0");

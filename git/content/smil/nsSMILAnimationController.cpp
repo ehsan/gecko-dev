@@ -687,12 +687,10 @@ nsSMILAnimationController::SampleAnimation(AnimationElementPtrKey* aKey,
   NS_ENSURE_TRUE(aData, PL_DHASH_NEXT);
 
   nsISMILAnimationElement* animElem = aKey->GetKey();
-  if (animElem->PassesConditionalProcessingTests()) {
-    SampleAnimationParams* params = static_cast<SampleAnimationParams*>(aData);
+  SampleAnimationParams* params = static_cast<SampleAnimationParams*>(aData);
 
-    SampleTimedElement(animElem, params->mActiveContainers);
-    AddAnimationToCompositorTable(animElem, params->mCompositorTable);
-  }
+  SampleTimedElement(animElem, params->mActiveContainers);
+  AddAnimationToCompositorTable(animElem, params->mCompositorTable);
 
   return PL_DHASH_NEXT;
 }

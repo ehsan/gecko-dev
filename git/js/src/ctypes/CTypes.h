@@ -348,7 +348,7 @@ struct ClosureInfo
   };
 };
 
-bool IsCTypesGlobal(JSObject* obj);
+bool IsCTypesGlobal(JSContext* cx, JSObject* obj);
 
 JSCTypesCallbacks* GetCallbacks(JSContext* cx, JSObject* obj);
 
@@ -454,8 +454,8 @@ namespace CType {
     JSObject* typeProto, JSObject* dataProto, const char* name, TypeCode type,
     jsval size, jsval align, ffi_type* ffiType);
 
-  bool IsCType(JSObject* obj);
-  bool IsCTypeProto(JSObject* obj);
+  bool IsCType(JSContext* cx, JSObject* obj);
+  bool IsCTypeProto(JSContext* cx, JSObject* obj);
   TypeCode GetTypeCode(JSContext* cx, JSObject* typeObj);
   bool TypesEqual(JSContext* cx, JSObject* t1, JSObject* t2);
   size_t GetSize(JSContext* cx, JSObject* obj);
@@ -518,8 +518,8 @@ namespace CData {
 
   JSObject* GetCType(JSContext* cx, JSObject* dataObj);
   void* GetData(JSContext* cx, JSObject* dataObj);
-  bool IsCData(JSObject* obj);
-  bool IsCDataProto(JSObject* obj);
+  bool IsCData(JSContext* cx, JSObject* obj);
+  bool IsCDataProto(JSContext* cx, JSObject* obj);
 
   // Attached by JSAPI as the function 'ctypes.cast'
   JSBool Cast(JSContext* cx, uintN argc, jsval* vp);
@@ -528,11 +528,11 @@ namespace CData {
 }
 
 namespace Int64 {
-  bool IsInt64(JSObject* obj);
+  bool IsInt64(JSContext* cx, JSObject* obj);
 }
 
 namespace UInt64 {
-  bool IsUInt64(JSObject* obj);
+  bool IsUInt64(JSContext* cx, JSObject* obj);
 }
 
 }

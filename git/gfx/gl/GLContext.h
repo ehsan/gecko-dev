@@ -545,7 +545,6 @@ public:
         mHasRobustness(false),
         mContextLost(false),
         mVendor(-1),
-        mRenderer(-1),
         mDebugMode(0),
         mCreationFormat(aFormat),
         mSharedContext(aSharedContext),
@@ -689,20 +688,9 @@ public:
         VendorOther
     };
 
-    enum {
-        RendererAdreno200,
-        RendererOther
-    };
-
     int Vendor() const {
         return mVendor;
     }
-
-    int Renderer() const {
-        return mRenderer;
-    }
-
-    bool CanUploadSubTextures();
 
     /**
      * If this context wraps a double-buffered target, swap the back
@@ -779,7 +767,6 @@ protected:
     bool mFlushGuaranteesResolve;
 
 public:
-
     void SetFlushGuaranteesResolve(bool aFlushGuaranteesResolve) {
         mFlushGuaranteesResolve = aFlushGuaranteesResolve;
     }
@@ -1394,7 +1381,6 @@ protected:
     bool mContextLost;
 
     PRInt32 mVendor;
-    PRInt32 mRenderer;
 
     enum {
         DebugEnabled = 1 << 0,
@@ -2697,23 +2683,23 @@ public:
 };
 
 inline bool
-DoesStringMatch(const char* aString, const char *aWantedString)
+DoesVendorStringMatch(const char* aVendorString, const char *aWantedVendor)
 {
-    if (!aString || !aWantedString)
+    if (!aVendorString || !aWantedVendor)
         return false;
 
-    const char *occurrence = strstr(aString, aWantedString);
+    const char *occurrence = strstr(aVendorString, aWantedVendor);
 
-    // aWanted not found
+    // aWantedVendor not found
     if (!occurrence)
         return false;
 
-    // aWantedString preceded by alpha character
-    if (occurrence != aString && isalpha(*(occurrence-1)))
+    // aWantedVendor preceded by alpha character
+    if (occurrence != aVendorString && isalpha(*(occurrence-1)))
         return false;
 
     // aWantedVendor followed by alpha character
-    const char *afterOccurrence = occurrence + strlen(aWantedString);
+    const char *afterOccurrence = occurrence + strlen(aWantedVendor);
     if (isalpha(*afterOccurrence))
         return false;
 

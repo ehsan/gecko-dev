@@ -91,8 +91,7 @@ nsSVGForeignObjectFrame::Init(nsIContent* aContent,
 
   nsresult rv = nsSVGForeignObjectFrameBase::Init(aContent, aParent, aPrevInFlow);
   AddStateBits(aParent->GetStateBits() &
-               (NS_STATE_SVG_NONDISPLAY_CHILD | NS_STATE_SVG_CLIPPATH_CHILD |
-                NS_STATE_SVG_REDRAW_SUSPENDED));
+               (NS_STATE_SVG_NONDISPLAY_CHILD | NS_STATE_SVG_CLIPPATH_CHILD));
   if (NS_SUCCEEDED(rv)) {
     nsSVGUtils::GetOuterSVGFrame(this)->RegisterForeignObject(this);
   }
@@ -440,17 +439,15 @@ nsSVGForeignObjectFrame::NotifySVGChanged(PRUint32 aFlags)
   }
 }
 
-void
+NS_IMETHODIMP
 nsSVGForeignObjectFrame::NotifyRedrawSuspended()
 {
-  AddStateBits(NS_STATE_SVG_REDRAW_SUSPENDED);
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 nsSVGForeignObjectFrame::NotifyRedrawUnsuspended()
 {
-  RemoveStateBits(NS_STATE_SVG_REDRAW_SUSPENDED);
-
   if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
     if (GetStateBits() & NS_STATE_SVG_DIRTY) {
       UpdateGraphic(); // invalidate our entire area
@@ -458,6 +455,7 @@ nsSVGForeignObjectFrame::NotifyRedrawUnsuspended()
       FlushDirtyRegion(0); // only invalidate areas dirtied by our descendants
     }
   }
+  return NS_OK;
 }
 
 gfxRect
@@ -667,8 +665,7 @@ void
 nsSVGForeignObjectFrame::FlushDirtyRegion(PRUint32 aFlags)
 {
   if ((mSameDocDirtyRegion.IsEmpty() && mSubDocDirtyRegion.IsEmpty()) ||
-      mInReflow ||
-      (GetStateBits() & NS_STATE_SVG_REDRAW_SUSPENDED))
+      mInReflow)
     return;
 
   nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(this);
@@ -676,6 +673,9 @@ nsSVGForeignObjectFrame::FlushDirtyRegion(PRUint32 aFlags)
     NS_ERROR("null outerSVGFrame");
     return;
   }
+
+  if (outerSVGFrame->IsRedrawSuspended())
+    return;
 
   InvalidateDirtyRect(outerSVGFrame, mSameDocDirtyRegion.GetBounds(), aFlags);
   InvalidateDirtyRect(outerSVGFrame, mSubDocDirtyRegion.GetBounds(),
