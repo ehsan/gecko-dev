@@ -143,7 +143,7 @@ protected:
   virtual already_AddRefed<nsAccessible> CreateTreeItemAccessible(PRInt32 aRow);
 
   nsCOMPtr<nsITreeBoxObject> mTree;
-  nsITreeView* mTreeView;
+  nsCOMPtr<nsITreeView> mTreeView;
   nsAccessibleHashtable mAccessibleCache;
 };
 
@@ -244,7 +244,7 @@ protected:
   void GetCellName(nsITreeColumn* aColumn, nsAString& aName);
 
   nsCOMPtr<nsITreeBoxObject> mTree;
-  nsITreeView* mTreeView;
+  nsCOMPtr<nsITreeView> mTreeView;
   PRInt32 mRow;
 };
 

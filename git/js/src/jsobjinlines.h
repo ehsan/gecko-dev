@@ -47,6 +47,7 @@
 #include "jsarray.h"
 #include "jsbool.h"
 #include "jscntxt.h"
+#include "jsdate.h"
 #include "jsfun.h"
 #include "jsgcmark.h"
 #include "jsiter.h"

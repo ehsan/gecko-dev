@@ -46,8 +46,6 @@ import org.mozilla.gecko.gfx.LayerController;
 import org.mozilla.gecko.gfx.LayerView;
 import org.mozilla.gecko.gfx.ScreenshotLayer;
 import org.mozilla.gecko.FloatUtils;
-import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
-import org.mozilla.gecko.gfx.ViewportMetrics;
 
 import java.io.*;
 import java.lang.reflect.*;
@@ -74,6 +72,7 @@ import android.media.MediaScannerConnection;
 import android.media.MediaScannerConnection.MediaScannerConnectionClient;
 import android.provider.Settings;
 import android.view.accessibility.AccessibilityManager;
+import android.view.accessibility.AccessibilityEvent;
 import android.opengl.GLES20;
 
 import android.util.*;
@@ -231,8 +230,6 @@ public class GeckoAppShell
     public static native void scheduleResumeComposition(int width, int height);
 
     public static native void unlockDatabaseFile(String databasePath);
-
-    public static native SurfaceBits getSurfaceBits(Surface surface);
 
     private static class GeckoMediaScannerClient implements MediaScannerConnectionClient {
         private String mFile = "";
@@ -1518,13 +1515,11 @@ public class GeckoAppShell
 
     public static void addPluginView(View view,
                                      int x, int y,
-                                     int w, int h)
-{
-        ImmutableViewportMetrics pluginViewport;
-
-        Log.i(LOGTAG, "addPluginView:" + view + " @ x:" + x + " y:" + y + " w:" + w + " h:" + h);
-        
-        GeckoApp.mAppContext.addPluginView(view, new Rect(x, y, x + w, y + h));
+                                     int w, int h,
+                                     String metadata)
+    {
+        Log.i(LOGTAG, "addPluginView:" + view + " @ x:" + x + " y:" + y + " w:" + w + " h:" + h + " metadata: " + metadata);
+        GeckoApp.mAppContext.addPluginView(view, x, y, w, h, metadata);
     }
 
     public static void removePluginView(View view) {
@@ -1541,11 +1536,12 @@ public class GeckoAppShell
                                    int x, int y,
                                    int w, int h,
                                    boolean inverted,
-                                   boolean blend)
+                                   boolean blend,
+                                   String metadata)
     {
-        Log.i(LOGTAG, "showSurface:" + surface + " @ x:" + x + " y:" + y + " w:" + w + " h:" + h + " inverted: " + inverted + " blend: " + blend);
+        Log.i(LOGTAG, "showSurface:" + surface + " @ x:" + x + " y:" + y + " w:" + w + " h:" + h + " inverted: " + inverted + " blend: " + blend + " metadata: " + metadata);
         try {
-            GeckoApp.mAppContext.showSurface(surface, x, y, w, h, inverted, blend);
+            GeckoApp.mAppContext.showSurface(surface, x, y, w, h, inverted, blend, metadata);
         } catch (Exception e) {
             Log.i(LOGTAG, "Error in showSurface:", e);
         }
@@ -1966,6 +1962,29 @@ public class GeckoAppShell
             }
         }
         return false;
+    }
+
+    public static void emitGeckoAccessibilityEvent (int eventType, String[] textList, String description, boolean enabled, boolean checked, boolean password) {
+        AccessibilityManager accessibilityManager =
+            (AccessibilityManager) GeckoApp.mAppContext.getSystemService(Context.ACCESSIBILITY_SERVICE);
+
+        if (!accessibilityManager.isEnabled())
+            return;
+
+        LayerController layerController = GeckoApp.mAppContext.getLayerController();
+        LayerView layerView = layerController.getView();
+
+        AccessibilityEvent event = AccessibilityEvent.obtain(eventType);
+        event.setClassName(layerView.getClass().getName());
+        event.setPackageName(GeckoApp.mAppContext.getPackageName());
+        event.setEnabled(enabled);
+        event.setChecked(checked);
+        event.setPassword(password);
+        event.setContentDescription(description);
+        for (String text: textList)
+            event.getText().add(text);
+
+        accessibilityManager.sendAccessibilityEvent(event);
     }
 
     public static void viewSizeChanged() {

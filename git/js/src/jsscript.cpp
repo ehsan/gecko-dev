@@ -1719,7 +1719,9 @@ void
 CurrentScriptFileLineOriginSlow(JSContext *cx, const char **file, unsigned *linenop,
                                 JSPrincipals **origin)
 {
-    ScriptFrameIter iter(cx);
+    FrameRegsIter iter(cx);
+    while (!iter.done() && !iter.fp()->isScriptFrame())
+        ++iter;
 
     if (iter.done()) {
         *file = NULL;
@@ -1728,9 +1730,9 @@ CurrentScriptFileLineOriginSlow(JSContext *cx, const char **file, unsigned *line
         return;
     }
 
-    JSScript *script = iter.script();
+    JSScript *script = iter.fp()->script();
     *file = script->filename;
-    *linenop = PCToLineNumber(iter.script(), iter.pc());
+    *linenop = PCToLineNumber(iter.fp()->script(), iter.pc());
     *origin = script->originPrincipals;
 }
 

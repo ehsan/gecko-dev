@@ -1715,6 +1715,10 @@ JSBool js_StopPerf()
         waitpid(perfPid, NULL, 0);
     }
 
+    /*
+     * If kill() failed, assume it failed because perf died early and continue
+     * on as though perf had been successfully killed.
+     */
     perfPid = 0;
     return true;
 }
@@ -1797,7 +1801,7 @@ JS_UnwrapObject(JSObject *obj)
 JS_FRIEND_API(JSBool)
 js_CallContextDebugHandler(JSContext *cx)
 {
-    ScriptFrameIter iter(cx);
+    FrameRegsIter iter(cx);
     JS_ASSERT(!iter.done());
 
     jsval rval;

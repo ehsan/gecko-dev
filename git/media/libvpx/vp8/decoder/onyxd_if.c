@@ -20,6 +20,7 @@
 #include "vpx_scale/yv12extend.h"
 #include "vp8/common/loopfilter.h"
 #include "vp8/common/swapyv12buffer.h"
+#include "vp8/common/g_common.h"
 #include "vp8/common/threading.h"
 #include "decoderthreading.h"
 #include <stdio.h>
@@ -56,7 +57,7 @@ void vp8dx_initialize()
 }
 
 
-struct VP8D_COMP * vp8dx_create_decompressor(VP8D_CONFIG *oxcf)
+VP8D_PTR vp8dx_create_decompressor(VP8D_CONFIG *oxcf)
 {
     VP8D_COMP *pbi = vpx_memalign(32, sizeof(VP8D_COMP));
 
@@ -107,8 +108,7 @@ struct VP8D_COMP * vp8dx_create_decompressor(VP8D_CONFIG *oxcf)
 
     pbi->decoded_key_frame = 0;
 
-    pbi->input_fragments = oxcf->input_fragments;
-    pbi->num_fragments = 0;
+    pbi->input_partition = oxcf->input_partition;
 
     /* Independent partitions is activated when a frame updates the
      * token probability table to have equal probabilities over the
@@ -116,12 +116,14 @@ struct VP8D_COMP * vp8dx_create_decompressor(VP8D_CONFIG *oxcf)
      */
     pbi->independent_partitions = 0;
 
-    return pbi;
+    return (VP8D_PTR) pbi;
 }
 
 
-void vp8dx_remove_decompressor(VP8D_COMP *pbi)
+void vp8dx_remove_decompressor(VP8D_PTR ptr)
 {
+    VP8D_COMP *pbi = (VP8D_COMP *) ptr;
+
     if (!pbi)
         return;
 
@@ -139,8 +141,9 @@ void vp8dx_remove_decompressor(VP8D_COMP *pbi)
 }
 
 
-vpx_codec_err_t vp8dx_get_reference(VP8D_COMP *pbi, VP8_REFFRAME ref_frame_flag, YV12_BUFFER_CONFIG *sd)
+vpx_codec_err_t vp8dx_get_reference(VP8D_PTR ptr, VP8_REFFRAME ref_frame_flag, YV12_BUFFER_CONFIG *sd)
 {
+    VP8D_COMP *pbi = (VP8D_COMP *) ptr;
     VP8_COMMON *cm = &pbi->common;
     int ref_fb_idx;
 
@@ -170,8 +173,9 @@ vpx_codec_err_t vp8dx_get_reference(VP8D_COMP *pbi, VP8_REFFRAME ref_frame_flag,
 }
 
 
-vpx_codec_err_t vp8dx_set_reference(VP8D_COMP *pbi, VP8_REFFRAME ref_frame_flag, YV12_BUFFER_CONFIG *sd)
+vpx_codec_err_t vp8dx_set_reference(VP8D_PTR ptr, VP8_REFFRAME ref_frame_flag, YV12_BUFFER_CONFIG *sd)
 {
+    VP8D_COMP *pbi = (VP8D_COMP *) ptr;
     VP8_COMMON *cm = &pbi->common;
     int *ref_fb_ptr = NULL;
     int free_fb;
@@ -296,134 +300,118 @@ static int swap_frame_buffers (VP8_COMMON *cm)
     return err;
 }
 
-int vp8dx_receive_compressed_data(VP8D_COMP *pbi, unsigned long size, const unsigned char *source, int64_t time_stamp)
+int vp8dx_receive_compressed_data(VP8D_PTR ptr, unsigned long size, const unsigned char *source, int64_t time_stamp)
 {
 #if HAVE_ARMV7
     int64_t dx_store_reg[8];
 #endif
+    VP8D_COMP *pbi = (VP8D_COMP *) ptr;
     VP8_COMMON *cm = &pbi->common;
     int retcode = 0;
 
     /*if(pbi->ready_for_new_data == 0)
         return -1;*/
 
-    if (pbi == 0)
+    if (ptr == 0)
     {
         return -1;
     }
 
     pbi->common.error.error_code = VPX_CODEC_OK;
 
-    if (pbi->num_fragments == 0)
+    if (pbi->input_partition && !(source == NULL && size == 0))
     {
-        /* New frame, reset fragment pointers and sizes */
-        vpx_memset(pbi->fragments, 0, sizeof(pbi->fragments));
-        vpx_memset(pbi->fragment_sizes, 0, sizeof(pbi->fragment_sizes));
-    }
-    if (pbi->input_fragments && !(source == NULL && size == 0))
-    {
-        /* Store a pointer to this fragment and return. We haven't
+        /* Store a pointer to this partition and return. We haven't
          * received the complete frame yet, so we will wait with decoding.
          */
-        assert(pbi->num_fragments < MAX_PARTITIONS);
-        pbi->fragments[pbi->num_fragments] = source;
-        pbi->fragment_sizes[pbi->num_fragments] = size;
-        pbi->num_fragments++;
-        if (pbi->num_fragments > (1 << EIGHT_PARTITION) + 1)
+        pbi->partitions[pbi->num_partitions] = source;
+        pbi->partition_sizes[pbi->num_partitions] = size;
+        pbi->source_sz += size;
+        pbi->num_partitions++;
+        if (pbi->num_partitions > (1<<pbi->common.multi_token_partition) + 1)
+            pbi->common.multi_token_partition++;
+        if (pbi->common.multi_token_partition > EIGHT_PARTITION)
         {
             pbi->common.error.error_code = VPX_CODEC_UNSUP_BITSTREAM;
             pbi->common.error.setjmp = 0;
-            pbi->num_fragments = 0;
             return -1;
         }
         return 0;
     }
-
-    if (!pbi->input_fragments)
+    else
     {
-        pbi->fragments[0] = source;
-        pbi->fragment_sizes[0] = size;
-        pbi->num_fragments = 1;
-    }
-    assert(pbi->common.multi_token_partition <= EIGHT_PARTITION);
-    if (pbi->num_fragments == 0)
-    {
-        pbi->num_fragments = 1;
-        pbi->fragments[0] = NULL;
-        pbi->fragment_sizes[0] = 0;
-    }
-
-    if (!pbi->ec_active &&
-        pbi->num_fragments <= 1 && pbi->fragment_sizes[0] == 0)
-    {
-        /* If error concealment is disabled we won't signal missing frames
-         * to the decoder.
-         */
-        if (cm->fb_idx_ref_cnt[cm->lst_fb_idx] > 1)
+        if (!pbi->input_partition)
         {
-            /* The last reference shares buffer with another reference
-             * buffer. Move it to its own buffer before setting it as
-             * corrupt, otherwise we will make multiple buffers corrupt.
-             */
-            const int prev_idx = cm->lst_fb_idx;
-            cm->fb_idx_ref_cnt[prev_idx]--;
-            cm->lst_fb_idx = get_free_fb(cm);
-            vp8_yv12_copy_frame_ptr(&cm->yv12_fb[prev_idx],
-                                    &cm->yv12_fb[cm->lst_fb_idx]);
+            pbi->Source = source;
+            pbi->source_sz = size;
         }
-        /* This is used to signal that we are missing frames.
-         * We do not know if the missing frame(s) was supposed to update
-         * any of the reference buffers, but we act conservative and
-         * mark only the last buffer as corrupted.
-         */
-        cm->yv12_fb[cm->lst_fb_idx].corrupted = 1;
 
-        /* Signal that we have no frame to show. */
-        cm->show_frame = 0;
+        if (pbi->source_sz == 0)
+        {
+           /* This is used to signal that we are missing frames.
+            * We do not know if the missing frame(s) was supposed to update
+            * any of the reference buffers, but we act conservative and
+            * mark only the last buffer as corrupted.
+            */
+            cm->yv12_fb[cm->lst_fb_idx].corrupted = 1;
 
-        pbi->num_fragments = 0;
+            /* If error concealment is disabled we won't signal missing frames to
+             * the decoder.
+             */
+            if (!pbi->ec_active)
+            {
+                /* Signal that we have no frame to show. */
+                cm->show_frame = 0;
 
-        /* Nothing more to do. */
-        return 0;
-    }
+                pbi->num_partitions = 0;
+                if (pbi->input_partition)
+                    pbi->common.multi_token_partition = 0;
 
-#if HAVE_ARMV7
-#if CONFIG_RUNTIME_CPU_DETECT
-    if (cm->rtcd.flags & HAS_NEON)
-#endif
-    {
-        vp8_push_neon(dx_store_reg);
-    }
-#endif
+                /* Nothing more to do. */
+                return 0;
+            }
+        }
 
-    cm->new_fb_idx = get_free_fb (cm);
-
-    if (setjmp(pbi->common.error.jmp))
-    {
 #if HAVE_ARMV7
 #if CONFIG_RUNTIME_CPU_DETECT
         if (cm->rtcd.flags & HAS_NEON)
 #endif
         {
-            vp8_pop_neon(dx_store_reg);
+            vp8_push_neon(dx_store_reg);
         }
 #endif
-        pbi->common.error.setjmp = 0;
 
-        pbi->num_fragments = 0;
+        cm->new_fb_idx = get_free_fb (cm);
 
-       /* We do not know if the missing frame(s) was supposed to update
-        * any of the reference buffers, but we act conservative and
-        * mark only the last buffer as corrupted.
-        */
-        cm->yv12_fb[cm->lst_fb_idx].corrupted = 1;
+        if (setjmp(pbi->common.error.jmp))
+        {
+#if HAVE_ARMV7
+#if CONFIG_RUNTIME_CPU_DETECT
+            if (cm->rtcd.flags & HAS_NEON)
+#endif
+            {
+                vp8_pop_neon(dx_store_reg);
+            }
+#endif
+            pbi->common.error.setjmp = 0;
 
-        if (cm->fb_idx_ref_cnt[cm->new_fb_idx] > 0)
-          cm->fb_idx_ref_cnt[cm->new_fb_idx]--;
-        return -1;
+            pbi->num_partitions = 0;
+            if (pbi->input_partition)
+                pbi->common.multi_token_partition = 0;
+
+           /* We do not know if the missing frame(s) was supposed to update
+            * any of the reference buffers, but we act conservative and
+            * mark only the last buffer as corrupted.
+            */
+            cm->yv12_fb[cm->lst_fb_idx].corrupted = 1;
+
+            if (cm->fb_idx_ref_cnt[cm->new_fb_idx] > 0)
+              cm->fb_idx_ref_cnt[cm->new_fb_idx]--;
+            return -1;
+        }
+
+        pbi->common.error.setjmp = 1;
     }
-
-    pbi->common.error.setjmp = 1;
 
     retcode = vp8_decode_frame(pbi);
 
@@ -439,7 +427,6 @@ int vp8dx_receive_compressed_data(VP8D_COMP *pbi, unsigned long size, const unsi
 #endif
         pbi->common.error.error_code = VPX_CODEC_ERROR;
         pbi->common.error.setjmp = 0;
-        pbi->num_fragments = 0;
         if (cm->fb_idx_ref_cnt[cm->new_fb_idx] > 0)
           cm->fb_idx_ref_cnt[cm->new_fb_idx]--;
         return retcode;
@@ -460,7 +447,6 @@ int vp8dx_receive_compressed_data(VP8D_COMP *pbi, unsigned long size, const unsi
 #endif
             pbi->common.error.error_code = VPX_CODEC_ERROR;
             pbi->common.error.setjmp = 0;
-            pbi->num_fragments = 0;
             return -1;
         }
     } else
@@ -478,7 +464,6 @@ int vp8dx_receive_compressed_data(VP8D_COMP *pbi, unsigned long size, const unsi
 #endif
             pbi->common.error.error_code = VPX_CODEC_ERROR;
             pbi->common.error.setjmp = 0;
-            pbi->num_fragments = 0;
             return -1;
         }
 
@@ -497,7 +482,7 @@ int vp8dx_receive_compressed_data(VP8D_COMP *pbi, unsigned long size, const unsi
     /* swap the mode infos to storage for future error concealment */
     if (pbi->ec_enabled && pbi->common.prev_mi)
     {
-        MODE_INFO* tmp = pbi->common.prev_mi;
+        const MODE_INFO* tmp = pbi->common.prev_mi;
         int row, col;
         pbi->common.prev_mi = pbi->common.mi;
         pbi->common.mi = tmp;
@@ -522,7 +507,10 @@ int vp8dx_receive_compressed_data(VP8D_COMP *pbi, unsigned long size, const unsi
 
     pbi->ready_for_new_data = 0;
     pbi->last_time_stamp = time_stamp;
-    pbi->num_fragments = 0;
+    pbi->num_partitions = 0;
+    if (pbi->input_partition)
+        pbi->common.multi_token_partition = 0;
+    pbi->source_sz = 0;
 
 #if 0
     {
@@ -569,9 +557,10 @@ int vp8dx_receive_compressed_data(VP8D_COMP *pbi, unsigned long size, const unsi
     pbi->common.error.setjmp = 0;
     return retcode;
 }
-int vp8dx_get_raw_frame(VP8D_COMP *pbi, YV12_BUFFER_CONFIG *sd, int64_t *time_stamp, int64_t *time_end_stamp, vp8_ppflags_t *flags)
+int vp8dx_get_raw_frame(VP8D_PTR ptr, YV12_BUFFER_CONFIG *sd, int64_t *time_stamp, int64_t *time_end_stamp, vp8_ppflags_t *flags)
 {
     int ret = -1;
+    VP8D_COMP *pbi = (VP8D_COMP *) ptr;
 
     if (pbi->ready_for_new_data == 1)
         return ret;
@@ -605,27 +594,4 @@ int vp8dx_get_raw_frame(VP8D_COMP *pbi, YV12_BUFFER_CONFIG *sd, int64_t *time_st
 #endif /*!CONFIG_POSTPROC*/
     vp8_clear_system_state();
     return ret;
-}
-
-
-/* This function as written isn't decoder specific, but the encoder has
- * much faster ways of computing this, so it's ok for it to live in a
- * decode specific file.
- */
-int vp8dx_references_buffer( VP8_COMMON *oci, int ref_frame )
-{
-    const MODE_INFO *mi = oci->mi;
-    int mb_row, mb_col;
-
-    for (mb_row = 0; mb_row < oci->mb_rows; mb_row++)
-    {
-        for (mb_col = 0; mb_col < oci->mb_cols; mb_col++,mi++)
-        {
-            if( mi->mbmi.ref_frame == ref_frame)
-              return 1;
-        }
-        mi++;
-    }
-    return 0;
-
 }

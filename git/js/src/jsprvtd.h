@@ -160,7 +160,7 @@ class StackFrame;
 class StackSegment;
 class StackSpace;
 class ContextStack;
-class ScriptFrameIter;
+class FrameRegsIter;
 class CallReceiver;
 class CallArgs;
 

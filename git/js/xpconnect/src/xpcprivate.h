@@ -1417,6 +1417,7 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj);
         nsnull, /* deleteSpecial */                                           \
         XPC_WN_JSOp_Enumerate,                                                \
         XPC_WN_JSOp_TypeOf_Function,                                          \
+        nsnull, /* fix            */                                          \
         XPC_WN_JSOp_ThisObject,                                               \
         XPC_WN_JSOp_Clear                                                     \
     }
@@ -1453,6 +1454,7 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj);
         nsnull, /* deleteSpecial */                                           \
         XPC_WN_JSOp_Enumerate,                                                \
         XPC_WN_JSOp_TypeOf_Object,                                            \
+        nsnull, /* fix            */                                          \
         XPC_WN_JSOp_ThisObject,                                               \
         XPC_WN_JSOp_Clear                                                     \
     }
@@ -1592,7 +1594,6 @@ public:
     IsDyingScope(XPCWrappedNativeScope *scope);
 
     void SetComponents(nsXPCComponents* aComponents);
-    nsXPCComponents *GetComponents();
     void SetGlobal(XPCCallContext& ccx, JSObject* aGlobal, nsISupports* aNative);
 
     static void InitStatics() { gScopes = nsnull; gDyingScopes = nsnull; }
@@ -1642,7 +1643,7 @@ private:
     Native2WrappedNativeMap*         mWrappedNativeMap;
     ClassInfo2WrappedNativeProtoMap* mWrappedNativeProtoMap;
     ClassInfo2WrappedNativeProtoMap* mMainThreadWrappedNativeProtoMap;
-    nsRefPtr<nsXPCComponents>        mComponents;
+    nsXPCComponents*                 mComponents;
     XPCWrappedNativeScope*           mNext;
     // The JS global object for this scope.  If non-null, this will be the
     // default parent for the XPCWrappedNatives that have us as the scope,
@@ -3886,21 +3887,19 @@ public:
 
 public:
     static JSBool
-    AttachComponentsObject(XPCCallContext& ccx,
-                           XPCWrappedNativeScope* aScope,
-                           JSObject* aGlobal);
+    AttachNewComponentsObject(XPCCallContext& ccx,
+                              XPCWrappedNativeScope* aScope,
+                              JSObject* aGlobal);
 
     void SystemIsBeingShutDown() {ClearMembers();}
 
     virtual ~nsXPCComponents();
 
 private:
-    nsXPCComponents(XPCWrappedNativeScope* aScope);
+    nsXPCComponents();
     void ClearMembers();
 
 private:
-    friend class XPCWrappedNativeScope;
-    XPCWrappedNativeScope*          mScope;
     nsXPCComponents_Interfaces*     mInterfaces;
     nsXPCComponents_InterfacesByID* mInterfacesByID;
     nsXPCComponents_Classes*        mClasses;

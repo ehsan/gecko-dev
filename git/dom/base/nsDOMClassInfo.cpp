@@ -309,7 +309,6 @@
 #include "nsIDOMHTMLSourceElement.h"
 #include "nsIDOMHTMLVideoElement.h"
 #include "nsIDOMHTMLAudioElement.h"
-#include "nsIDOMMediaStream.h"
 #include "nsIDOMProgressEvent.h"
 #include "nsIDOMCSS2Properties.h"
 #include "nsIDOMCSSCharsetRule.h"
@@ -535,8 +534,6 @@ using mozilla::dom::indexedDB::IDBWrapperCache;
 
 #include "DOMError.h"
 #include "DOMRequest.h"
-
-#include "mozilla/Likely.h"
 
 #undef None // something included above defines this preprocessor symbol, maybe Xlib headers
 #include "WebGLContext.h"
@@ -1481,8 +1478,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(TimeRanges, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(MediaStream, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
 #endif
 
   NS_DEFINE_CLASSINFO_DATA(ProgressEvent, nsDOMGenericSH,
@@ -1970,23 +1965,6 @@ WrapNativeParent(JSContext *cx, JSObject *scope, nsISupports *native,
   nsresult rv = WrapNative(cx, scope, native, nativeWrapperCache, false, &v);
   NS_ENSURE_SUCCESS(rv, rv);
   *parentObj = JSVAL_TO_OBJECT(v);
-  return NS_OK;
-}
-
-// Helper to handle torn-down inner windows.
-static inline nsresult
-SetParentToWindow(nsGlobalWindow *win, JSObject **parent)
-{
-  MOZ_ASSERT(win);
-  MOZ_ASSERT(win->IsInnerWindow());
-  *parent = win->FastGetGlobalJSObject();
-
-  if (MOZ_UNLIKELY(!*parent)) {
-    // The only known case where this can happen is when the inner window has
-    // been torn down. See bug 691178 comment 11.
-    MOZ_ASSERT(win->IsClosedOrClosing());
-    return NS_ERROR_FAILURE;
-  }
   return NS_OK;
 }
 
@@ -4138,10 +4116,6 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_BEGIN(TimeRanges, nsIDOMTimeRanges)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMTimeRanges)
   DOM_CLASSINFO_MAP_END  
-
-  DOM_CLASSINFO_MAP_BEGIN(MediaStream, nsIDOMMediaStream)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMMediaStream)
-  DOM_CLASSINFO_MAP_END
 #endif
 
   DOM_CLASSINFO_MAP_BEGIN(ProgressEvent, nsIDOMProgressEvent)
@@ -4655,9 +4629,8 @@ nsDOMClassInfo::PreCreate(nsISupports *nativeObj, JSContext *cx,
   }
 
   if (piwin->IsOuterWindow()) {
-    nsGlobalWindow *win = ((nsGlobalWindow *)piwin.get())->
-                            GetCurrentInnerWindowInternal();
-    return SetParentToWindow(win, parentObj);
+    *parentObj = ((nsGlobalWindow *)piwin.get())->
+      GetCurrentInnerWindowInternal()->GetGlobalJSObject();
   }
 
   return NS_OK;
@@ -5192,15 +5165,20 @@ nsWindowSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
   nsGlobalWindow *win = nsGlobalWindow::FromSupports(nativeObj);
   NS_ASSERTION(win->IsInnerWindow(), "Should be inner window.");
 
-  // We sometimes get a disconnected window during file api test. :-(
-  if (!win->GetOuterWindowInternal())
-    return NS_ERROR_FAILURE;
+  JSObject *winObj = win->FastGetGlobalJSObject();
+  if (!winObj) {
 
-  // If we're bootstrapping, we don't have a JS object yet.
-  if (win->GetOuterWindowInternal()->IsCreatingInnerWindow())
+    // See bug 691178 comment 11 for why this is necessary.
+    if (win->IsClosedOrClosing())
+      return NS_ERROR_FAILURE;
+
+    NS_ASSERTION(win->GetOuterWindowInternal()->IsCreatingInnerWindow(),
+                 "should have a JS object by this point");
     return NS_OK;
+  }
 
-  return SetParentToWindow(win, parentObj);
+  *parentObj = winObj;
+  return NS_OK;
 }
 
 // This JS class piggybacks on nsHTMLDocumentSH::ReleaseDocument()...
@@ -6051,7 +6029,8 @@ nsDOMConstructor::PreCreate(JSContext *cx, JSObject *globalObj, JSObject **paren
   }
 
   nsGlobalWindow *win = static_cast<nsGlobalWindow *>(owner.get());
-  return SetParentToWindow(win, parentObj);
+  *parentObj = win->FastGetGlobalJSObject();
+  return NS_OK;
 }
 
 nsresult
@@ -7501,7 +7480,7 @@ nsLocationSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
   }
 
   *parentObj = sgo->GetGlobalJSObject();
-  return *parentObj ? NS_OK : NS_ERROR_FAILURE;
+  return NS_OK;
 }
 
 // DOM Navigator helper
@@ -7600,7 +7579,14 @@ nsNavigatorSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
 
     return NS_ERROR_UNEXPECTED;
   }
-  return SetParentToWindow(win, parentObj);
+
+  JSObject *global = win->GetGlobalJSObject();
+
+  if (global) {
+    *parentObj = global;
+  }
+
+  return NS_OK;
 }
 
 // DOM Node helper
@@ -7867,7 +7853,7 @@ nsEventTargetSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
 
   *parentObj = native_parent ? native_parent->GetGlobalJSObject() : globalObj;
 
-  return *parentObj ? NS_OK : NS_ERROR_FAILURE;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -10019,8 +10005,9 @@ nsHistorySH::PreCreate(nsISupports *nativeObj, JSContext *cx,
     NS_WARNING("refusing to create history object in the wrong scope");
     return NS_ERROR_FAILURE;
   }
-  return SetParentToWindow(static_cast<nsGlobalWindow *>(innerWindow.get()),
-                           parentObj);
+
+  *parentObj = static_cast<nsGlobalWindow *>(innerWindow.get())->FastGetGlobalJSObject();
+  return NS_OK;
 }
 
 NS_IMETHODIMP

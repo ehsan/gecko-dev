@@ -746,11 +746,7 @@ AndroidGeckoSurfaceView::GetSurface()
 jobject
 AndroidGeckoSurfaceView::GetSurfaceHolder()
 {
-    JNIEnv *env = GetJNIForThread();
-    if (!env)
-        return nsnull;
-
-    return env->CallObjectMethod(wrapped_obj, jGetHolderMethod);
+    return GetJNIForThread()->CallObjectMethod(wrapped_obj, jGetHolderMethod);
 }
 
 void
@@ -890,13 +886,8 @@ nsJNIString::nsJNIString(jstring jstr, JNIEnv *jenv)
         return;
     }
     JNIEnv *jni = jenv;
-    if (!jni) {
+    if (!jni)
         jni = AndroidBridge::GetJNIEnv();
-        if (!jni) {
-            SetIsVoid(true);
-            return;
-        }
-    }
     const jchar* jCharPtr = jni->GetStringChars(jstr, NULL);
 
     if (!jCharPtr) {

@@ -3404,9 +3404,7 @@ JSBool
 CType::CreateArray(JSContext* cx, unsigned argc, jsval* vp)
 {
   JSObject* baseType = JS_THIS_OBJECT(cx, vp);
-  if (!baseType)
-    return JS_FALSE;
-  if (!CType::IsCType(baseType)) {
+  if (!baseType || !CType::IsCType(baseType)) {
     JS_ReportError(cx, "not a CType");
     return JS_FALSE;
   }
@@ -3437,9 +3435,7 @@ JSBool
 CType::ToString(JSContext* cx, unsigned argc, jsval* vp)
 {
   JSObject* obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj)
-    return JS_FALSE;
-  if (!CType::IsCType(obj) && !CType::IsCTypeProto(obj)) {
+  if (!obj || !(CType::IsCType(obj) || CType::IsCTypeProto(obj))) {
     JS_ReportError(cx, "not a CType");
     return JS_FALSE;
   }
@@ -3467,9 +3463,8 @@ JSBool
 CType::ToSource(JSContext* cx, unsigned argc, jsval* vp)
 {
   JSObject* obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj)
-    return JS_FALSE;
-  if (!CType::IsCType(obj) && !CType::IsCTypeProto(obj))
+  if (!obj ||
+      !(CType::IsCType(obj) || CType::IsCTypeProto(obj)))
   {
     JS_ReportError(cx, "not a CType");
     return JS_FALSE;
@@ -3704,9 +3699,7 @@ JSBool
 PointerType::IsNull(JSContext* cx, unsigned argc, jsval* vp)
 {
   JSObject* obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj)
-    return JS_FALSE;
-  if (!CData::IsCData(obj)) {
+  if (!obj || !CData::IsCData(obj)) {
     JS_ReportError(cx, "not a CData");
     return JS_FALSE;
   }
@@ -3728,9 +3721,7 @@ JSBool
 PointerType::OffsetBy(JSContext* cx, int offset, jsval* vp)
 {
   JSObject* obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj)
-    return JS_FALSE;
-  if (!CData::IsCData(obj)) {
+  if (!obj || !CData::IsCData(obj)) {
     JS_ReportError(cx, "not a CData");
     return JS_FALSE;
   }
@@ -4235,9 +4226,7 @@ JSBool
 ArrayType::AddressOfElement(JSContext* cx, unsigned argc, jsval* vp)
 {
   JSObject* obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj)
-    return JS_FALSE;
-  if (!CData::IsCData(obj)) {
+  if (!obj || !CData::IsCData(obj)) {
     JS_ReportError(cx, "not a CData");
     return JS_FALSE;
   }
@@ -4613,9 +4602,8 @@ JSBool
 StructType::Define(JSContext* cx, unsigned argc, jsval* vp)
 {
   JSObject* obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj)
-    return JS_FALSE;
-  if (!CType::IsCType(obj) ||
+  if (!obj ||
+      !CType::IsCType(obj) ||
       CType::GetTypeCode(obj) != TYPE_struct) {
     JS_ReportError(cx, "not a StructType");
     return JS_FALSE;
@@ -4861,9 +4849,7 @@ JSBool
 StructType::AddressOfField(JSContext* cx, unsigned argc, jsval* vp)
 {
   JSObject* obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj)
-    return JS_FALSE;
-  if (!CData::IsCData(obj)) {
+  if (!obj || !CData::IsCData(obj)) {
     JS_ReportError(cx, "not a CData");
     return JS_FALSE;
   }
@@ -6089,9 +6075,7 @@ CData::Address(JSContext* cx, unsigned argc, jsval* vp)
   }
 
   JSObject* obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj)
-    return JS_FALSE;
-  if (!IsCData(obj)) {
+  if (!obj || !IsCData(obj)) {
     JS_ReportError(cx, "not a CData");
     return JS_FALSE;
   }
@@ -6199,9 +6183,7 @@ CData::ReadString(JSContext* cx, unsigned argc, jsval* vp)
   }
 
   JSObject* obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj)
-    return JS_FALSE;
-  if (!IsCData(obj)) {
+  if (!obj || !IsCData(obj)) {
     JS_ReportError(cx, "not a CData");
     return JS_FALSE;
   }
@@ -6312,9 +6294,8 @@ CData::ToSource(JSContext* cx, unsigned argc, jsval* vp)
   }
 
   JSObject* obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj)
-    return JS_FALSE;
-  if (!CData::IsCData(obj) && !CData::IsCDataProto(obj)) {
+  if (!obj ||
+      !(CData::IsCData(obj) || CData::IsCDataProto(obj))) {
     JS_ReportError(cx, "not a CData");
     return JS_FALSE;
   }
@@ -6367,9 +6348,7 @@ JSBool
 CDataFinalizer::Methods::ToSource(JSContext *cx, unsigned argc, jsval *vp)
 {
   JSObject* objThis = JS_THIS_OBJECT(cx, vp);
-  if (!objThis)
-    return JS_FALSE;
-  if (!CDataFinalizer::IsCDataFinalizer(objThis)) {
+  if (!objThis || !CDataFinalizer::IsCDataFinalizer(objThis)) {
     JS_ReportError(cx, "not a CDataFinalizer");
     return JS_FALSE;
   }
@@ -6426,9 +6405,7 @@ JSBool
 CDataFinalizer::Methods::ToString(JSContext *cx, unsigned argc, jsval *vp)
 {
   JSObject* objThis = JS_THIS_OBJECT(cx, vp);
-  if (!objThis)
-    return JS_FALSE;
-  if (!CDataFinalizer::IsCDataFinalizer(objThis)) {
+  if (!objThis || !CDataFinalizer::IsCDataFinalizer(objThis)) {
     JS_ReportError(cx, "not a CDataFinalizer");
     return JS_FALSE;
   }
@@ -6720,9 +6697,7 @@ CDataFinalizer::Methods::Forget(JSContext* cx, unsigned argc, jsval *vp)
   }
 
   JSObject *obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj)
-    return JS_FALSE;
-  if (!CDataFinalizer::IsCDataFinalizer(obj)) {
+  if (!obj || !CDataFinalizer::IsCDataFinalizer(obj)) {
     return TypeError(cx, "a CDataFinalizer", OBJECT_TO_JSVAL(obj));
   }
 
@@ -6765,9 +6740,7 @@ CDataFinalizer::Methods::Dispose(JSContext* cx, unsigned argc, jsval *vp)
   }
 
   JSObject *obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj)
-    return JS_FALSE;
-  if (!CDataFinalizer::IsCDataFinalizer(obj)) {
+  if (!obj || !CDataFinalizer::IsCDataFinalizer(obj)) {
     return TypeError(cx, "a CDataFinalizer", OBJECT_TO_JSVAL(obj));
   }
 
@@ -7035,9 +7008,7 @@ JSBool
 Int64::ToString(JSContext* cx, unsigned argc, jsval* vp)
 {
   JSObject* obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj)
-    return JS_FALSE;
-  if (!Int64::IsInt64(obj)) {
+  if (!obj || !Int64::IsInt64(obj)) {
     JS_ReportError(cx, "not an Int64");
     return JS_FALSE;
   }
@@ -7049,9 +7020,7 @@ JSBool
 Int64::ToSource(JSContext* cx, unsigned argc, jsval* vp)
 {
   JSObject* obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj)
-    return JS_FALSE;
-  if (!Int64::IsInt64(obj)) {
+  if (!obj || !Int64::IsInt64(obj)) {
     JS_ReportError(cx, "not an Int64");
     return JS_FALSE;
   }
@@ -7210,9 +7179,7 @@ JSBool
 UInt64::ToString(JSContext* cx, unsigned argc, jsval* vp)
 {
   JSObject* obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj)
-    return JS_FALSE;
-  if (!UInt64::IsUInt64(obj)) {
+  if (!obj || !UInt64::IsUInt64(obj)) {
     JS_ReportError(cx, "not a UInt64");
     return JS_FALSE;
   }
@@ -7224,9 +7191,7 @@ JSBool
 UInt64::ToSource(JSContext* cx, unsigned argc, jsval* vp)
 {
   JSObject* obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj)
-    return JS_FALSE;
-  if (!UInt64::IsUInt64(obj)) {
+  if (!obj || !UInt64::IsUInt64(obj)) {
     JS_ReportError(cx, "not a UInt64");
     return JS_FALSE;
   }

@@ -41,7 +41,6 @@
 #include "GlobalObject.h"
 
 #include "jscntxt.h"
-#include "jsdate.h"
 #include "jsexn.h"
 #include "jsmath.h"
 #include "json.h"
@@ -241,7 +240,8 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
     throwTypeError = js_NewFunction(cx, NULL, ThrowTypeError, 0, 0, self, NULL);
     if (!throwTypeError)
         return NULL;
-    if (!throwTypeError->preventExtensions(cx))
+    AutoIdVector ids(cx);
+    if (!throwTypeError->preventExtensions(cx, &ids))
         return NULL;
     self->setThrowTypeError(throwTypeError);
 

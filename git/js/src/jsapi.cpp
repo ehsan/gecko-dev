@@ -5234,7 +5234,7 @@ JS_ExecuteScript(JSContext *cx, JSObject *obj, JSScript *scriptArg, jsval *rval)
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj);
     if (cx->compartment != obj->compartment())
-        *(volatile int *) 0 = 0xf0;
+        *(int *) 0 = 0xf0;
     AutoLastFrameCheck lfc(cx);
 
     JS::Anchor<JSScript *> script;
@@ -6619,7 +6619,7 @@ JS_DescribeScriptedCaller(JSContext *cx, JSScript **script, unsigned *lineno)
     if (lineno)
         *lineno = 0;
 
-    ScriptFrameIter i(cx);
+    FrameRegsIter i(cx);
     if (i.done())
         return JS_FALSE;
 
@@ -6724,7 +6724,7 @@ JS_DecodeInterpretedFunction(JSContext *cx, const void *data, uint32_t length,
 JS_PUBLIC_API(JSObject *)
 JS_GetScriptedGlobal(JSContext *cx)
 {
-    ScriptFrameIter i(cx);
+    FrameRegsIter i(cx);
     if (i.done())
         return JS_GetGlobalForScopeChain(cx);
 

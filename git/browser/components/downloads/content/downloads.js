@@ -56,19 +56,18 @@ const DownloadsPanel = {
   //// Initialization and termination
 
   /**
-   * Internal state of the downloads panel, based on one of the kState
-   * constants.  This is not the same state as the XUL panel element.
+   * State of the downloads panel, based on one of the kPanel constants.
    */
-  _state: 0,
+  _panelState: 0,
 
-  /** The panel is not linked to downloads data yet. */
-  get kStateUninitialized() 0,
-  /** This object is linked to data, but the panel is invisible. */
-  get kStateHidden() 1,
+  /** Download data has not been loaded. */
+  get kPanelUninitialized() 0,
+  /** Download data is loading, but the user interface is invisible. */
+  get kPanelHidden() 1,
   /** The panel will be shown as soon as possible. */
-  get kStateShowing() 2,
-  /** The panel is open. */
-  get kStateShown() 3,
+  get kPanelShowing() 2,
+  /** The panel is open, though download data might still be loading. */
+  get kPanelShown() 3,
 
   /**
    * Location of the panel overlay.
@@ -85,12 +84,12 @@ const DownloadsPanel = {
    */
   initialize: function DP_initialize(aCallback)
   {
-    if (this._state != this.kStateUninitialized) {
+    if (this._panelState != this.kPanelUninitialized) {
       DownloadsOverlayLoader.ensureOverlayLoaded(this.kDownloadsOverlay,
                                                  aCallback);
       return;
     }
-    this._state = this.kStateHidden;
+    this._panelState = this.kPanelHidden;
 
     window.addEventListener("unload", this.onWindowUnload, false);
 
@@ -116,7 +115,7 @@ const DownloadsPanel = {
    */
   terminate: function DP_terminate()
   {
-    if (this._state == this.kStateUninitialized) {
+    if (this._panelState == this.kPanelUninitialized) {
       return;
     }
 
@@ -128,7 +127,7 @@ const DownloadsPanel = {
     DownloadsViewController.terminate();
     DownloadsCommon.data.removeView(DownloadsView);
 
-    this._state = this.kStateUninitialized;
+    this._panelState = this.kPanelUninitialized;
   },
 
   //////////////////////////////////////////////////////////////////////////////
@@ -164,7 +163,7 @@ const DownloadsPanel = {
       setTimeout(function () DownloadsPanel._openPopupIfDataReady(), 0);
     }.bind(this));
 
-    this._state = this.kStateShowing;
+    this._panelState = this.kPanelShowing;
   },
 
   /**
@@ -182,7 +181,7 @@ const DownloadsPanel = {
     // Ensure that we allow the panel to be reopened.  Note that, if the popup
     // was open, then the onPopupHidden event handler has already updated the
     // current state, otherwise we must update the state ourselves.
-    this._state = this.kStateHidden;
+    this._panelState = this.kPanelHidden;
   },
 
   /**
@@ -190,8 +189,8 @@ const DownloadsPanel = {
    */
   get isPanelShowing()
   {
-    return this._state == this.kStateShowing ||
-           this._state == this.kStateShown;
+    return this._panelState == this.kPanelShowing ||
+           this._panelState == this.kPanelShown;
   },
 
   //////////////////////////////////////////////////////////////////////////////
@@ -221,8 +220,6 @@ const DownloadsPanel = {
       return;
     }
 
-    this._state = this.kStateShown;
-
     // Since at most one popup is open at any given time, we can set globally.
     DownloadsCommon.indicatorData.attentionSuppressed = true;
 
@@ -249,7 +246,7 @@ const DownloadsPanel = {
     DownloadsButton.releaseAnchor();
 
     // Allow the panel to be reopened.
-    this._state = this.kStateHidden;
+    this._panelState = this.kPanelHidden;
   },
 
   //////////////////////////////////////////////////////////////////////////////
@@ -278,7 +275,7 @@ const DownloadsPanel = {
   _focusPanel: function DP_focusPanel()
   {
     // We may be invoked while the panel is still waiting to be shown.
-    if (this._state != this.kStateShown) {
+    if (this._panelState != this.kPanelShown) {
       return;
     }
 
@@ -298,9 +295,11 @@ const DownloadsPanel = {
   {
     // We don't want to open the popup if we already displayed it, or if we are
     // still loading data.
-    if (this._state != this.kStateShowing || DownloadsView.loading) {
+    if (this._panelState != this.kPanelShowing || DownloadsView.loading) {
       return;
     }
+
+    this._panelState = this.kPanelShown;
 
     // Make sure that clicking outside the popup cannot reopen it accidentally.
     this.panel.popupBoxObject.setConsumeRollupEvent(Ci.nsIPopupBoxObject
@@ -309,16 +308,6 @@ const DownloadsPanel = {
     // Ensure the anchor is visible.  If that is not possible, show the panel
     // anchored to the top area of the window, near the default anchor position.
     DownloadsButton.getAnchor(function DP_OPIDR_callback(aAnchor) {
-      // At this point, if the window is minimized, opening the panel could fail
-      // without any notification, and there would be no way to either open or
-      // close the panel anymore.  To prevent this, check if the window is
-      // minimized and in that case force the panel to the closed state.
-      if (window.windowState == Ci.nsIDOMChromeWindow.STATE_MINIMIZED) {
-        DownloadsButton.releaseAnchor();
-        this._state = this.kStateHidden;
-        return;
-      }
-
       if (aAnchor) {
         this.panel.openPopup(aAnchor, "bottomcenter topright", 0, 0, false,
                              null);

@@ -15,15 +15,6 @@
 #include "onyxc_int.h"
 #include "treecoder.h"
 
-typedef enum
-{
-    SUBMVREF_NORMAL,
-    SUBMVREF_LEFT_ZED,
-    SUBMVREF_ABOVE_ZED,
-    SUBMVREF_LEFT_ABOVE_SAME,
-    SUBMVREF_LEFT_ABOVE_ZED
-} sumvfref_t;
-
 typedef const int vp8_mbsplit[16];
 
 #define VP8_NUMMBSPLITS 4

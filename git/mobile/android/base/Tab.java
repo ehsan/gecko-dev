@@ -77,7 +77,7 @@ public final class Tab {
     private String mTitle;
     private Drawable mFavicon;
     private String mFaviconUrl;
-    private JSONObject mIdentityData;
+    private String mSecurityMode;
     private Drawable mThumbnail;
     private List<HistoryEntry> mHistory;
     private int mHistoryIndex;
@@ -90,7 +90,7 @@ public final class Tab {
     private String mContentType;
     private boolean mHasTouchListeners;
     private ArrayList<View> mPluginViews;
-    private HashMap<Object, Layer> mPluginLayers;
+    private HashMap<Surface, Layer> mPluginLayers;
     private ContentResolver mContentResolver;
     private ContentObserver mContentObserver;
     private int mCheckerboardColor = Color.WHITE;
@@ -119,7 +119,7 @@ public final class Tab {
         mTitle = title;
         mFavicon = null;
         mFaviconUrl = null;
-        mIdentityData = null;
+        mSecurityMode = "unknown";
         mThumbnail = null;
         mHistory = new ArrayList<HistoryEntry>();
         mHistoryIndex = -1;
@@ -129,8 +129,8 @@ public final class Tab {
         mDocumentURI = "";
         mContentType = "";
         mPluginViews = new ArrayList<View>();
-        mPluginLayers = new HashMap<Object, Layer>();
-        mState = "about:home".equals(url) ? STATE_SUCCESS : STATE_LOADING;
+        mPluginLayers = new HashMap<Surface, Layer>();
+        setState(STATE_LOADING);
         mContentResolver = Tabs.getInstance().getContentResolver();
         mContentObserver = new ContentObserver(GeckoAppShell.getHandler()) {
             public void onChange(boolean selfChange) {
@@ -270,16 +270,7 @@ public final class Tab {
     }
 
     public String getSecurityMode() {
-        try {
-            return mIdentityData.getString("mode");
-        } catch (Exception e) {
-            // If mIdentityData is null, or we get a JSONException
-            return SiteIdentityPopup.UNKNOWN;
-        }
-    }
-
-    public JSONObject getIdentityData() {
-        return mIdentityData;
+        return mSecurityMode;
     }
 
     public boolean isBookmark() {
@@ -338,7 +329,11 @@ public final class Tab {
     }
 
     public void setState(int state) {
-        mState = state;
+        // Pages implemented in Java are not bound by Gecko state
+        if ("about:home".equals(mUrl))
+            mState = STATE_SUCCESS;
+        else
+            mState = state;
     }
 
     public int getState() {
@@ -377,9 +372,8 @@ public final class Tab {
         Log.i(LOGTAG, "Updated favicon URL for tab with id: " + mId);
     }
 
-
-    public void updateIdentityData(JSONObject identityData) {
-        mIdentityData = identityData;
+    public void updateSecurityMode(String mode) {
+        mSecurityMode = mode;
     }
 
     private void updateBookmark() {
@@ -557,20 +551,20 @@ public final class Tab {
         return mPluginViews.toArray(new View[mPluginViews.size()]);
     }
 
-    public void addPluginLayer(Object surfaceOrView, Layer layer) {
-        mPluginLayers.put(surfaceOrView, layer);
+    public void addPluginLayer(Surface surface, Layer layer) {
+        mPluginLayers.put(surface, layer);
     }
 
-    public Layer getPluginLayer(Object surfaceOrView) {
-        return mPluginLayers.get(surfaceOrView);
+    public Layer getPluginLayer(Surface surface) {
+        return mPluginLayers.get(surface);
     }
 
     public Collection<Layer> getPluginLayers() {
         return mPluginLayers.values();
     }
 
-    public Layer removePluginLayer(Object surfaceOrView) {
-        return mPluginLayers.remove(surfaceOrView);
+    public Layer removePluginLayer(Surface surface) {
+        return mPluginLayers.remove(surface);
     }
 
     public int getCheckerboardColor() {

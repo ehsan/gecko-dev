@@ -848,8 +848,7 @@ private:
     nsCOMPtr<nsIAtom> mForcedCharset;
     nsCOMPtr<nsIAtom> mParentCharset;
     nsTObserverArray<nsWeakPtr> mPrivacyObservers;
-    PRInt32           mParentCharsetSource;
-    nsCString         mOriginalUriString;
+    PRInt32          mParentCharsetSource;
 
 #ifdef DEBUG
     // We're counting the number of |nsDocShells| to help find leaks

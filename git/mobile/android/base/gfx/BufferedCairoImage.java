@@ -52,12 +52,17 @@ public class BufferedCairoImage extends CairoImage {
 
     /** Creates a buffered Cairo image from a byte buffer. */
     public BufferedCairoImage(ByteBuffer inBuffer, int inWidth, int inHeight, int inFormat) {
-        setBuffer(inBuffer, inWidth, inHeight, inFormat);
+        mBuffer = inBuffer; mSize = new IntSize(inWidth, inHeight); mFormat = inFormat;
     }
 
     /** Creates a buffered Cairo image from an Android bitmap. */
     public BufferedCairoImage(Bitmap bitmap) {
-        setBitmap(bitmap);
+        mFormat = CairoUtils.bitmapConfigToCairoFormat(bitmap.getConfig());
+        mSize = new IntSize(bitmap.getWidth(), bitmap.getHeight());
+        mNeedToFreeBuffer = true;
+        // XXX Why is this * 4? Shouldn't it depend on mFormat?
+        mBuffer = GeckoAppShell.allocateDirectBuffer(mSize.getArea() * 4);
+        bitmap.copyPixelsToBuffer(mBuffer.asIntBuffer());
     }
 
      protected void finalize() throws Throwable {
@@ -77,22 +82,5 @@ public class BufferedCairoImage extends CairoImage {
     public IntSize getSize() { return mSize; }
     @Override
     public int getFormat() { return mFormat; }
-
-
-    public void setBuffer(ByteBuffer buffer, int width, int height, int format) {
-        mBuffer = buffer;
-        mSize = new IntSize(width, height);
-        mFormat = format;
-    }
-
-    public void setBitmap(Bitmap bitmap) {
-        mFormat = CairoUtils.bitmapConfigToCairoFormat(bitmap.getConfig());
-        mSize = new IntSize(bitmap.getWidth(), bitmap.getHeight());
-        mNeedToFreeBuffer = true;
-
-        int bpp = CairoUtils.bitsPerPixelForCairoFormat(mFormat);
-        mBuffer = GeckoAppShell.allocateDirectBuffer(mSize.getArea() * bpp);
-        bitmap.copyPixelsToBuffer(mBuffer.asIntBuffer());
-    }
 }
 

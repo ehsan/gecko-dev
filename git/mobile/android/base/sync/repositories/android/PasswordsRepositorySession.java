@@ -28,7 +28,6 @@ import org.mozilla.gecko.sync.repositories.domain.PasswordRecord;
 import org.mozilla.gecko.sync.repositories.domain.Record;
 
 import android.content.ContentProviderClient;
-import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
@@ -446,10 +445,7 @@ public class PasswordsRepositorySession extends
     // record.timeLastUsed = now();
     ContentValues cv = getContentValues(record);
     Uri insertedUri = passwordsProvider.insert(BrowserContractHelpers.PASSWORDS_CONTENT_URI, cv);
-    if (insertedUri == null) {
-      throw new RemoteException(); // Not much to be done here, save throw.
-    }
-    record.androidID = ContentUris.parseId(insertedUri);
+    record.androidID = RepoUtils.getAndroidIdFromUri(insertedUri);
     return record;
   }
 

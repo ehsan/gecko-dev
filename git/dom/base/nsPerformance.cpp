@@ -319,11 +319,3 @@ nsPerformance::GetNavigation(nsIDOMPerformanceNavigation** aNavigation)
   NS_IF_ADDREF(*aNavigation = mNavigation);
   return NS_OK;
 }
-
-NS_IMETHODIMP
-nsPerformance::Now(DOMHighResTimeStamp* aNow)
-{
-  *aNow = mDOMTiming->TimeStampToDOMHighRes(mozilla::TimeStamp::Now());
-  return NS_OK;
-}
-

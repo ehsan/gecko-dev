@@ -41,15 +41,12 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.gfx.CairoImage;
-import org.mozilla.gecko.gfx.BufferedCairoImage;
 import org.mozilla.gecko.gfx.FloatSize;
 import org.mozilla.gecko.gfx.GeckoLayerClient;
 import org.mozilla.gecko.gfx.IntSize;
 import org.mozilla.gecko.gfx.Layer;
 import org.mozilla.gecko.gfx.LayerController;
 import org.mozilla.gecko.gfx.LayerView;
-import org.mozilla.gecko.gfx.PluginLayer;
 import org.mozilla.gecko.gfx.RectUtils;
 import org.mozilla.gecko.gfx.SurfaceTextureLayer;
 import org.mozilla.gecko.gfx.ViewportMetrics;
@@ -85,8 +82,6 @@ import android.graphics.drawable.BitmapDrawable;
 import android.widget.*;
 import android.hardware.*;
 import android.location.*;
-import android.view.accessibility.AccessibilityManager;
-import android.view.accessibility.AccessibilityEvent;
 
 import android.util.*;
 import android.net.*;
@@ -138,7 +133,6 @@ abstract public class GeckoApp
 
     public static BrowserToolbar mBrowserToolbar;
     public static DoorHangerPopup mDoorHangerPopup;
-    public static SiteIdentityPopup mSiteIdentityPopup;
     public static FormAssistPopup mFormAssistPopup;
     public Favicons mFavicons;
 
@@ -666,7 +660,7 @@ abstract public class GeckoApp
         tab.setContentType(contentType);
         tab.updateFavicon(null);
         tab.updateFaviconURL(null);
-        tab.updateIdentityData(null);
+        tab.updateSecurityMode("unknown");
         tab.removeTransientDoorHangers();
         tab.setHasTouchListeners(false);
         tab.setCheckerboardColor(Color.WHITE);
@@ -678,28 +672,28 @@ abstract public class GeckoApp
                 if (Tabs.getInstance().isSelectedTab(tab)) {
                     mBrowserToolbar.setTitle(uri);
                     mBrowserToolbar.setFavicon(null);
-                    mBrowserToolbar.setSecurityMode(tab.getSecurityMode());
+                    mBrowserToolbar.setSecurityMode("unknown");
                     mDoorHangerPopup.updatePopup();
                     mBrowserToolbar.setShadowVisibility(!(tab.getURL().startsWith("about:")));
 
                     if (tab != null)
-                        hidePlugins(tab);
+                        hidePlugins(tab, true);
                 }
             }
         });
     }
 
-    void handleSecurityChange(final int tabId, final JSONObject identityData) {
+    void handleSecurityChange(final int tabId, final String mode) {
         final Tab tab = Tabs.getInstance().getTab(tabId);
         if (tab == null)
             return;
 
-        tab.updateIdentityData(identityData);
+        tab.updateSecurityMode(mode);
         
         mMainHandler.post(new Runnable() { 
             public void run() {
                 if (Tabs.getInstance().isSelectedTab(tab))
-                    mBrowserToolbar.setSecurityMode(tab.getSecurityMode());
+                    mBrowserToolbar.setSecurityMode(mode);
             }
         });
     }
@@ -872,9 +866,9 @@ abstract public class GeckoApp
                 handleLocationChange(tabId, uri, documentURI, contentType, sameDocument);
             } else if (event.equals("Content:SecurityChange")) {
                 final int tabId = message.getInt("tabID");
-                final JSONObject identity = message.getJSONObject("identity");
-                Log.i(LOGTAG, "Security Mode - " + identity.getString("mode"));
-                handleSecurityChange(tabId, identity);
+                final String mode = message.getString("mode");
+                Log.i(LOGTAG, "Security Mode - " + mode);
+                handleSecurityChange(tabId, mode);
             } else if (event.equals("Content:StateChange")) {
                 final int tabId = message.getInt("tabID");
                 final String uri = message.getString("uri");
@@ -1023,30 +1017,22 @@ abstract public class GeckoApp
                     }
                 });
             } else if (event.equals("Accessibility:Event")) {
-                final AccessibilityEvent accEvent = AccessibilityEvent.obtain(message.getInt("eventType"));
-                accEvent.setClassName(LayerView.class.getName());
-                accEvent.setPackageName(mAppContext.getPackageName());
+                final int eventType = message.getInt("eventType");
 
                 final JSONArray text = message.getJSONArray("text");
-                for (int i = 0; i < text.length(); i++)
-                    accEvent.getText().add(text.getString(i));
+                final int len = text.length();
+                final String[] textList = new String[len];
+                for (int i = 0; i < len; i++)
+                    textList[i] = text.getString(i);
 
-                accEvent.setContentDescription(message.optString("description"));
-                accEvent.setEnabled(message.optBoolean("enabled", true));
-                accEvent.setChecked(message.optBoolean("checked"));
-                accEvent.setPassword(message.optBoolean("password"));
-                accEvent.setAddedCount(message.optInt("addedCount"));
-                accEvent.setRemovedCount(message.optInt("removedCount"));
-                accEvent.setFromIndex(message.optInt("fromIndex"));
-                accEvent.setItemCount(message.optInt("itemCount"));
-                accEvent.setCurrentItemIndex(message.optInt("currentItemIndex"));
-                accEvent.setBeforeText(message.optString("beforeText"));
-
+                final String description = message.optString("description");
+                final boolean enabled = message.optBoolean("enabled", true);
+                final boolean checked = message.optBoolean("checked");
+                final boolean password = message.optBoolean("password");
                 mMainHandler.post(new Runnable() {
                     public void run() {
-                        AccessibilityManager accessibilityManager =
-                            (AccessibilityManager) mAppContext.getSystemService(Context.ACCESSIBILITY_SERVICE);
-                        accessibilityManager.sendAccessibilityEvent(accEvent);
+                        GeckoAppShell.emitGeckoAccessibilityEvent(eventType, textList, description,
+                                                                  enabled, checked, password);
                     }
                 });
             }
@@ -1204,8 +1190,9 @@ abstract public class GeckoApp
         if (tab == null)
             return;
 
-        tab.setState("about:home".equals(uri) ? Tab.STATE_SUCCESS : Tab.STATE_LOADING);
-        tab.updateIdentityData(null);
+        tab.updateURL(uri);
+        tab.setState(Tab.STATE_LOADING);
+        tab.updateSecurityMode("unknown");
         if (Tabs.getInstance().isSelectedTab(tab))
             getLayerController().getView().getRenderer().resetCheckerboard();
         mMainHandler.post(new Runnable() {
@@ -1333,20 +1320,57 @@ abstract public class GeckoApp
         }
     }
 
-    void addPluginView(final View view, final Rect rect) {
+    void addPluginView(final View view,
+                       final int x, final int y,
+                       final int w, final int h,
+                       final String metadata) {
         mMainHandler.post(new Runnable() { 
             public void run() {
+                PluginLayoutParams lp;
+
                 Tabs tabs = Tabs.getInstance();
                 Tab tab = tabs.getSelectedTab();
 
-                PluginLayer layer = (PluginLayer) tab.getPluginLayer(view);
-                if (layer == null) {
-                    layer = new PluginLayer(view, rect, mLayerController.getView().getRenderer().getMaxTextureSize());
-                    tab.addPluginLayer(view, layer);
-                    mLayerController.getView().addLayer(layer);
+                if (tab == null)
+                    return;
+
+                ImmutableViewportMetrics targetViewport = mLayerController.getViewportMetrics();
+                ImmutableViewportMetrics pluginViewport;
+                
+                try {
+                    JSONObject viewportObject = new JSONObject(metadata);
+                    pluginViewport = new ImmutableViewportMetrics(new ViewportMetrics(viewportObject));
+                } catch (JSONException e) {
+                    Log.e(LOGTAG, "Bad viewport metadata: ", e);
+                    return;
+                }
+
+                if (mPluginContainer.indexOfChild(view) == -1) {
+                    lp = new PluginLayoutParams(x, y, w, h, pluginViewport);
+
+                    view.setWillNotDraw(false);
+                    if (view instanceof SurfaceView) {
+                        SurfaceView sview = (SurfaceView)view;
+
+                        sview.setZOrderOnTop(false);
+                        sview.setZOrderMediaOverlay(true);
+                    }
+
+                    mPluginContainer.addView(view, lp);
+                    tab.addPluginView(view);
                 } else {
-                    layer.reset(rect);
-                    layer.setVisible(true);
+                    lp = (PluginLayoutParams)view.getLayoutParams();
+                    lp.reset(x, y, w, h, pluginViewport);
+                    lp.reposition(targetViewport);
+                    try {
+                        mPluginContainer.updateViewLayout(view, lp);
+                        view.setVisibility(View.VISIBLE);
+                    } catch (IllegalArgumentException e) {
+                        Log.i(LOGTAG, "e:" + e);
+                        // it can be the case where we
+                        // get an update before the view
+                        // is actually attached.
+                    }
                 }
             }
         });
@@ -1355,13 +1379,16 @@ abstract public class GeckoApp
     void removePluginView(final View view) {
         mMainHandler.post(new Runnable() { 
             public void run() {
-                Tabs tabs = Tabs.getInstance();
-                Tab tab = tabs.getSelectedTab();
+                try {
+                    mPluginContainer.removeView(view);
 
-                PluginLayer layer = (PluginLayer) tab.removePluginLayer(view);
-                if (layer != null) {
-                    layer.destroy();
-                }
+                    Tabs tabs = Tabs.getInstance();
+                    Tab tab = tabs.getSelectedTab();
+                    if (tab == null)
+                        return;
+
+                    tab.removePluginView(view);
+                } catch (Exception e) {}
             }
         });
     }
@@ -1392,18 +1419,31 @@ abstract public class GeckoApp
     }
 
     public void showSurface(Surface surface, int x, int y,
-                            int w, int h, boolean inverted, boolean blend) {
+                            int w, int h, boolean inverted, boolean blend,
+                            String metadata) {
         Tabs tabs = Tabs.getInstance();
         Tab tab = tabs.getSelectedTab();
         if (tab == null)
             return;
+
+        ViewportMetrics metrics;
+        try {
+            metrics = new ViewportMetrics(new JSONObject(metadata));
+        } catch (JSONException e) {
+            Log.e(LOGTAG, "Bad viewport metadata: ", e);
+            return;
+        }
+
+        PointF origin = metrics.getOrigin();
+        x = x + (int)origin.x;
+        y = y + (int)origin.y;
 
         LayerView layerView = mLayerController.getView();
         SurfaceTextureLayer layer = (SurfaceTextureLayer)tab.getPluginLayer(surface);
         if (layer == null)
             return;
 
-        layer.update(new Rect(x, y, x + w, y + h), inverted, blend);
+        layer.update(new Rect(x, y, x + w, y + h), metrics.getZoomFactor(), inverted, blend);
         layerView.addLayer(layer);
 
         // FIXME: shouldn't be necessary, layer will request
@@ -1440,45 +1480,71 @@ abstract public class GeckoApp
         mLayerController.getView().requestRender();
     }
 
-    public void hidePlugins() {
+    public void hidePlugins(boolean hideLayers) {
         Tabs tabs = Tabs.getInstance();
         Tab tab = tabs.getSelectedTab();
 
         if (tab == null)
             return;
 
-        hidePlugins(tab);
+        hidePlugins(tab, hideLayers);
     }
-    
-    public void hidePlugins(Tab tab) {
-        for (Layer layer : tab.getPluginLayers()) {
-            if (layer instanceof PluginLayer) {
-                ((PluginLayer) layer).setVisible(false);
-            }
 
-            hidePluginLayer(layer);
+    public void hidePlugins(Tab tab, boolean hideLayers) {
+        for (View view : tab.getPluginViews()) {
+            view.setVisibility(View.GONE);
         }
 
-        requestRender();
+        if (hideLayers) {
+            for (Layer layer : tab.getPluginLayers()) {
+                hidePluginLayer(layer);
+            }
+
+            requestRender();
+        }
     }
 
     public void showPlugins() {
-        Tabs tabs = Tabs.getInstance();
-        Tab tab = tabs.getSelectedTab();
-
-        showPlugins(tab);
+        repositionPluginViews(true);
     }
 
     public void showPlugins(Tab tab) {
+        repositionPluginViews(tab, true);
+
         for (Layer layer : tab.getPluginLayers()) {
             showPluginLayer(layer);
-
-            if (layer instanceof PluginLayer) {
-                ((PluginLayer) layer).setVisible(true);
-            }
         }
 
         requestRender();
+    }
+
+    public void repositionPluginViews(boolean setVisible) {
+        Tabs tabs = Tabs.getInstance();
+        Tab tab = tabs.getSelectedTab();
+
+        if (tab == null)
+            return;
+
+        repositionPluginViews(tab, setVisible);
+    }
+
+    public void repositionPluginViews(Tab tab, boolean setVisible) {
+        ImmutableViewportMetrics targetViewport = mLayerController.getViewportMetrics();
+
+        if (targetViewport == null)
+            return;
+
+        for (View view : tab.getPluginViews()) {
+            PluginLayoutParams lp = (PluginLayoutParams)view.getLayoutParams();
+            lp.reposition(targetViewport);
+
+            if (setVisible) {
+                view.setVisibility(View.VISIBLE);
+            }
+
+            if (mPluginContainer.indexOfChild(view) >= 0)
+                mPluginContainer.updateViewLayout(view, lp);
+        }
     }
 
     public void setFullScreen(final boolean fullscreen) {
@@ -1666,7 +1732,6 @@ abstract public class GeckoApp
         mPluginContainer = (AbsoluteLayout) findViewById(R.id.plugin_container);
 
         mDoorHangerPopup = new DoorHangerPopup(this);
-        mSiteIdentityPopup = new SiteIdentityPopup(this);
         mFormAssistPopup = (FormAssistPopup) findViewById(R.id.form_assist_popup);
 
         Log.w(LOGTAG, "zerdatime " + SystemClock.uptimeMillis() + " - UI almost up");
@@ -1957,9 +2022,6 @@ abstract public class GeckoApp
         // Undo whatever we did in onPause.
         super.onResume();
 
-        if (mSiteIdentityPopup != null)
-            mSiteIdentityPopup.dismiss();
-
         int newOrientation = getResources().getConfiguration().orientation;
 
         if (mOrientation != newOrientation) {
@@ -2084,10 +2146,7 @@ abstract public class GeckoApp
 
         if (mOrientation != newConfig.orientation) {
             mOrientation = newConfig.orientation;
-            if (mFormAssistPopup != null)
-                mFormAssistPopup.hide();
-            if (mSiteIdentityPopup != null)
-                mSiteIdentityPopup.dismiss();
+            mFormAssistPopup.hide();
             refreshActionBar();
         }
     }
@@ -2558,11 +2617,6 @@ abstract public class GeckoApp
             return;
         }
 
-        if (mSiteIdentityPopup.isShowing()) {
-            mSiteIdentityPopup.dismiss();
-            return;
-        }
-
         if (mDOMFullScreen) {
             GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("FullScreen:Exit", null));
             return;
@@ -2799,8 +2853,6 @@ abstract public class GeckoApp
     public GeckoLayerClient getLayerClient() { return mLayerClient; }
     public LayerController getLayerController() { return mLayerController; }
 
-    public AbsoluteLayout getPluginContainer() { return mPluginContainer; }
-
     // accelerometer
     public void onAccuracyChanged(Sensor sensor, int accuracy) {}
 
@@ -2841,5 +2893,85 @@ abstract public class GeckoApp
                 return true;
             }
         });
+    }
+}
+
+class PluginLayoutParams extends AbsoluteLayout.LayoutParams
+{
+    private static final int MAX_DIMENSION = 2048;
+    private static final String LOGTAG = "GeckoApp.PluginLayoutParams";
+
+    private int mOriginalX;
+    private int mOriginalY;
+    private int mOriginalWidth;
+    private int mOriginalHeight;
+    private ImmutableViewportMetrics mOriginalViewport;
+    private float mLastResolution;
+
+    public PluginLayoutParams(int aX, int aY, int aWidth, int aHeight, ImmutableViewportMetrics aViewport) {
+        super(aWidth, aHeight, aX, aY);
+
+        Log.i(LOGTAG, "Creating plugin at " + aX + ", " + aY + ", " + aWidth + "x" + aHeight + ", (" + (aViewport.zoomFactor * 100) + "%)");
+
+        mOriginalX = aX;
+        mOriginalY = aY;
+        mOriginalWidth = aWidth;
+        mOriginalHeight = aHeight;
+        mOriginalViewport = aViewport;
+        mLastResolution = aViewport.zoomFactor;
+
+        clampToMaxSize();
+    }
+
+    private void clampToMaxSize() {
+        if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+            if (width > height) {
+                height = (int)(((float)height/(float)width) * MAX_DIMENSION);
+                width = MAX_DIMENSION;
+            } else {
+                width = (int)(((float)width/(float)height) * MAX_DIMENSION);
+                height = MAX_DIMENSION;
+            }
+        }
+    }
+
+    public void reset(int aX, int aY, int aWidth, int aHeight, ImmutableViewportMetrics aViewport) {
+        PointF origin = aViewport.getOrigin();
+
+        this.x = mOriginalX = aX;
+        this.y = mOriginalY = aY;
+        width = mOriginalWidth = aWidth;
+        height = mOriginalHeight = aHeight;
+        mOriginalViewport = aViewport;
+        mLastResolution = aViewport.zoomFactor;
+
+        clampToMaxSize();
+    }
+
+    private void reposition(Point aOffset, float aResolution) {
+        this.x = mOriginalX + aOffset.x;
+        this.y = mOriginalY + aOffset.y;
+
+        if (!FloatUtils.fuzzyEquals(mLastResolution, aResolution)) {
+            width = Math.round(aResolution * mOriginalWidth);
+            height = Math.round(aResolution * mOriginalHeight);
+            mLastResolution = aResolution;
+
+            clampToMaxSize();
+        }
+    }
+
+    public void reposition(ImmutableViewportMetrics viewport) {
+        PointF targetOrigin = viewport.getOrigin();
+        PointF originalOrigin = mOriginalViewport.getOrigin();
+
+        Point offset = new Point(Math.round(originalOrigin.x - targetOrigin.x),
+                                 Math.round(originalOrigin.y - targetOrigin.y));
+
+        reposition(offset, viewport.zoomFactor);
+    }
+
+    public float getLastResolution() {
+        return mLastResolution;
     }
 }

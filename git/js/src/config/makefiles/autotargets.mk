@@ -50,5 +50,8 @@ endif
 
 AUTO_DEPS +=$(GENERATED_DIRS_DEPS)
 
+
 # Complain loudly if deps have not loaded so getargv != $(NULL)
-$(call requiredfunction,getargv)
+ifndef getargv
+  $(error config/makefiles/makeutil.mk has not been included)
+endif

@@ -231,15 +231,12 @@ ImageContainer::GetCurrentAsSurface(gfxIntSize *aSize)
     CrossProcessMutexAutoLock autoLock(*mRemoteDataMutex);
     EnsureActiveImage();
 
-    if (!mActiveImage)
-      return nsnull;
     *aSize = mRemoteData->mSize;
-  } else {
-    if (!mActiveImage)
-      return nsnull;
-    *aSize = mActiveImage->GetSize();
+    return mActiveImage ? mActiveImage->GetAsSurface() : nsnull;
   }
-  return mActiveImage->GetAsSurface();
+
+  *aSize = mActiveImage->GetSize();
+  return mActiveImage ? mActiveImage->GetAsSurface() : nsnull;
 }
 
 gfxIntSize

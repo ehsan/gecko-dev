@@ -210,7 +210,7 @@ protected:
   enum { eAction_Click = 0 };
 
   nsCOMPtr<nsITreeBoxObject> mTree;
-  nsITreeView* mTreeView;
+  nsCOMPtr<nsITreeView> mTreeView;
 
   PRInt32 mRow;
   nsCOMPtr<nsITreeColumn> mColumn;
