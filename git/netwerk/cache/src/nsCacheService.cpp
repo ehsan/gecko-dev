@@ -579,7 +579,7 @@ nsCacheProfilePrefObserver::MemoryCacheCapacity()
         return capacity;
     }
 
-    PRUint64 bytes = PR_GetPhysicalMemorySize();
+    static PRUint64 bytes = PR_GetPhysicalMemorySize();
     CACHE_LOG_DEBUG(("Physical Memory size is %llu\n", bytes));
 
     // If getting the physical memory failed, arbitrarily assume
@@ -1494,6 +1494,11 @@ void
 nsCacheService::OnProfileShutdown(PRBool cleanse)
 {
     if (!gService)  return;
+    if (!gService->mInitialized) {
+        // The cache service has been shut down, but someone is still holding
+        // a reference to it. Ignore this call.
+        return;
+    }
     nsCacheServiceAutoLock lock;
 
     gService->DoomActiveEntries();

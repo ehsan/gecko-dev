@@ -314,7 +314,7 @@ var gViewController = {
 
           if (numUpdated == 0) {
             document.getElementById("updates-checkNow").hidden = false;
-            document.getElementById("updates-nonefound").hidden = false;
+            document.getElementById("updates-noneFound").hidden = false;
             return;
           }
 
@@ -708,7 +708,22 @@ var gDiscoverView = {
     var url = Cc["@mozilla.org/toolkit/URLFormatterService;1"]
                 .getService(Ci.nsIURLFormatter)
                 .formatURLPref(PREF_DISCOVERURL);
-    this._browser.homePage = url;
+
+    AddonManager.getAllAddons(function(aAddons) {
+      var list = {};
+      aAddons.forEach(function(aAddon) {
+        list[aAddon.id] = {
+          name: aAddon.name,
+          version: aAddon.version,
+          type: aAddon.type,
+          userDisabled: aAddon.userDisabled,
+          isCompatible: aAddon.isCompatible,
+          isBlocklisted: aAddon.blocklistState == Ci.nsIBlocklistService.STATE_BLOCKED
+        }
+      });
+
+      gDiscoverView._browser.homePage = url + "#" + JSON.stringify(list);
+    });
   },
 
   show: function() {
@@ -758,11 +773,12 @@ var gSearchView = {
     gHeader.searchQuery = aQuery;
     aQuery = aQuery.trim().toLocaleLowerCase();
 
-    while (this._listBox.itemCount > 0)
-      this._listBox.removeItemAt(0);
+    while (this._listBox.lastChild.localName == "richlistitem")
+      this._listBox.removeChild(this._listBox.lastChild);
 
     var self = this;
     AddonManager.getAddonsByTypes(null, function(aAddonsList) {
+      var elementCount = 0;
       for (let i = 0; i < aAddonsList.length; i++) {
         let addon = aAddonsList[i];
         let score = 0;
@@ -775,9 +791,10 @@ var gSearchView = {
         let item = createItem(addon);
         item.setAttribute("relevancescore", score);
         self._listBox.appendChild(item);
+        elementCount++;
       }
 
-      if (self._listBox.childElementCount > 0)
+      if (elementCount > 0)
         self.onSortChanged("relevancescore", false);
       else
         self.showEmptyNotice(true);
@@ -799,7 +816,7 @@ var gSearchView = {
 
   calculateMatchScore: function(aStr, aQuery, aMultiplier) {
     var score = 0;
-    if (aQuery.length == 0)
+    if (!aStr || aQuery.length == 0)
       return score;
 
     aStr = aStr.trim().toLocaleLowerCase();
@@ -831,14 +848,16 @@ var gSearchView = {
 
   showEmptyNotice: function(aShow) {
     this._emptyNotice.hidden = !aShow;
-    this._listBox.collasped = aShow;
   },
 
   onSortChanged: function(aSortBy, aAscending) {
+    var header = this._listBox.firstChild;
+    this._listBox.removeChild(header);
     var sortService = Cc["@mozilla.org/xul/xul-sort-service;1"].
                       getService(Ci.nsIXULSortService);
     sortService.sort(this._listBox, aSortBy,
                      aAscending ? "ascending" : "descending");
+    this._listBox.insertBefore(header, this._listBox.firstChild);
   },
 
   getSelectedAddon: function() {
@@ -938,7 +957,6 @@ var gListView = {
 
   showEmptyNotice: function(aShow) {
     this._emptyNotice.hidden = !aShow;
-    this._listBox.collasped = aShow;
   },
 
   onSortChanged: function(aSortBy, aAscending) {

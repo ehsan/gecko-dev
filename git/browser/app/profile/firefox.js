@@ -57,7 +57,7 @@ pref("browser.hiddenWindowChromeURL", "chrome://browser/content/hiddenWindow.xul
 pref("extensions.logging.enabled", false);
 
 // Preferences for AMO integration
-pref("extensions.webservice.discoverURL", "https://services.addons.mozilla.org/%LOCALE%/%APP%/discovery");
+pref("extensions.webservice.discoverURL", "https://services.addons.mozilla.org/%LOCALE%/%APP%/discovery/%VERSION%/%OS%");
 
 // Blocklist preferences
 pref("extensions.blocklist.enabled", true);
@@ -536,9 +536,6 @@ pref("accessibility.typeaheadfind.timeout", 5000);
 pref("accessibility.typeaheadfind.linksonly", false);
 pref("accessibility.typeaheadfind.flashBar", 1);
 
-// Disable the default plugin for firefox
-pref("plugin.default_plugin_disabled", true);
-
 // plugin finder service url
 pref("pfs.datasource.url", "https://pfs.mozilla.org/plugins/PluginFinderService.php?mimetype=%PLUGIN_MIMETYPE%&appID=%APP_ID%&appVersion=%APP_VERSION%&clientOS=%CLIENT_OS%&chromeLocale=%CHROME_LOCALE%&appRelease=%APP_RELEASE%");
 
@@ -886,13 +883,21 @@ pref("toolbar.customization.usesheet", true);
 pref("toolbar.customization.usesheet", false);
 #endif
 
+// The default for this pref reflects whether the build is capable of IPC.
+// (Turning it on in a no-IPC build will have no effect.)
 #ifdef XP_MACOSX
+// OSX still has only partial support for IPC.  Note that the PowerPC
+// and x86 builds must generate identical copies of this file, so we
+// can't make the prefs indicate that IPC is not available at all in
+// PowerPC builds.
 pref("dom.ipc.plugins.enabled", false);
 // These plug-ins will run OOP by default
 pref("dom.ipc.plugins.enabled.flash player.plugin", true);
 pref("dom.ipc.plugins.enabled.javaplugin2_npapi.plugin", true);
-#else
+#elifdef MOZ_IPC
 pref("dom.ipc.plugins.enabled", true);
+#else
+pref("dom.ipc.plugins.enabled", false);
 #endif
 
 #ifdef XP_WIN
