@@ -95,10 +95,6 @@ function Tooltip(doc) {
 module.exports.Tooltip = Tooltip;
 
 Tooltip.prototype = {
-  defaultPosition: "before_start",
-  defaultOffsetX: 0,
-  defaultOffsetY: 0,
-
   /**
    * Show the tooltip. It might be wise to append some content first if you
    * don't want the tooltip to be empty. You may access the content of the
@@ -109,12 +105,9 @@ Tooltip.prototype = {
    *        https://developer.mozilla.org/en-US/docs/XUL/PopupGuide/Positioning
    *        Defaults to before_start
    */
-  show: function(anchor,
-    position = this.defaultPosition,
-    x = this.defaultOffsetX,
-    y = this.defaultOffsetY) {
+  show: function(anchor, position="before_start") {
     this.panel.hidden = false;
-    this.panel.openPopup(anchor, position, x, y);
+    this.panel.openPopup(anchor, position);
   },
 
   /**
@@ -265,44 +258,11 @@ Tooltip.prototype = {
   },
 
   /**
-   * Sets some text as the content of this tooltip.
-   *
-   * @param string[] messages
-   *        A list of text messages.
-   */
-  setTextContent: function(...messages) {
-    let vbox = this.doc.createElement("vbox");
-    vbox.className = "devtools-tooltip-simple-text-container";
-    vbox.setAttribute("flex", "1");
-
-    for (let text of messages) {
-      let description = this.doc.createElement("description");
-      description.setAttribute("flex", "1");
-      description.className = "devtools-tooltip-simple-text";
-      description.textContent = text;
-      vbox.appendChild(description);
-    }
-
-    this.content = vbox;
-  },
-
-  /**
    * Fill the tooltip with an image, displayed over a tiled background useful
-   * for transparent images. Also adds the image dimension as a label at the
-   * bottom.
-   * @param {string} imageUrl
-   *        The url to load the image from
-   * @param {Object} options
-   *        The following options are supported:
-   *        - resized : whether or not the image identified by imageUrl has been
-   *        resized before this function was called.
-   *        - naturalWidth/naturalHeight : the original size of the image before
-   *        it was resized, if if was resized before this function was called.
-   *        If not provided, will be measured on the loaded image.
-   *        - maxDim : if the image should be resized before being shown, pass
-   *        a number here
+   * for transparent images.
+   * Also adds the image dimension as a label at the bottom.
    */
-  setImageContent: function(imageUrl, options={}) {
+  setImageContent: function(imageUrl, maxDim=400) {
     // Main container
     let vbox = this.doc.createElement("vbox");
     vbox.setAttribute("align", "center")
@@ -319,9 +279,9 @@ Tooltip.prototype = {
     // Display the image
     let image = this.doc.createElement("image");
     image.setAttribute("src", imageUrl);
-    if (options.maxDim) {
-      image.style.maxWidth = options.maxDim + "px";
-      image.style.maxHeight = options.maxDim + "px";
+    if (maxDim) {
+      image.style.maxWidth = maxDim + "px";
+      image.style.maxHeight = maxDim + "px";
     }
     tiles.appendChild(image);
 
@@ -334,9 +294,11 @@ Tooltip.prototype = {
       imgObj.onload = null;
 
       // Display dimensions
-      let w = options.naturalWidth || imgObj.naturalWidth;
-      let h = options.naturalHeight || imgObj.naturalHeight;
-      label.textContent = w + " x " + h;
+      label.textContent = imgObj.naturalWidth + " x " + imgObj.naturalHeight;
+      if (imgObj.naturalWidth > maxDim ||
+        imgObj.naturalHeight > maxDim) {
+        label.textContent += " *";
+      }
     }
   },
 
@@ -347,9 +309,7 @@ Tooltip.prototype = {
   setCssBackgroundImageContent: function(cssBackground, sheetHref, maxDim=400) {
     let uri = getBackgroundImageUri(cssBackground, sheetHref);
     if (uri) {
-      this.setImageContent(uri, {
-        maxDim: maxDim
-      });
+      this.setImageContent(uri, maxDim);
     }
   },
 
