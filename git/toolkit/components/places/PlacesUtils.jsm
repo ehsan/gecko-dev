@@ -2224,7 +2224,7 @@ XPCOMUtils.defineLazyServiceGetter(this, "focusManager",
 function updateCommandsOnActiveWindow()
 {
   let win = focusManager.activeWindow;
-  if (win && win instanceof Ci.nsIDOMWindow) {
+  if (win && win instanceof Ci.nsIDOMWindowInternal) {
     // Updating "undo" will cause a group update including "redo".
     win.updateCommands("undo");
   }

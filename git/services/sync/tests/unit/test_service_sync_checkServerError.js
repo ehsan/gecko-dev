@@ -305,6 +305,9 @@ add_test(function test_engine_applyFailed() {
 
 
 function run_test() {
+  if (DISABLE_TESTS_BUG_604565)
+    return;
+
   Engines.register(CatapultEngine);
   run_next_test();
 }

@@ -37,8 +37,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsHTMLInputElement.h"
-
 #include "nsIDOMHTMLInputElement.h"
 #include "nsITextControlElement.h"
 #include "nsIDOMNSEditableElement.h"
@@ -113,6 +111,7 @@
 
 // input type=image
 #include "nsImageLoadingContent.h"
+#include "nsIDOMWindowInternal.h"
 
 #include "mozAutoDocUpdate.h"
 #include "nsContentCreatorFunctions.h"
@@ -125,6 +124,8 @@
 // JS headers are needed for the pattern attribute.
 #include "jsapi.h"
 #include "jscntxt.h"
+
+#include "nsHTMLInputElement.h"
 
 using namespace mozilla::dom;
 
@@ -267,7 +268,7 @@ AsyncClickHandler::Run()
 {
   nsresult rv;
 
-  // Get parent nsPIDOMWindow object.
+  // Get parent nsIDOMWindowInternal object.
   nsCOMPtr<nsIDocument> doc = mInput->GetOwnerDoc();
   if (!doc)
     return NS_ERROR_FAILURE;

@@ -42,6 +42,7 @@
 
 #include "nsPIDOMWindow.h"
 #include "nsIDOMWindowUtils.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsIDOMHTMLDocument.h"
 #include "nsIDocument.h"
 #include "nsIHTMLDocument.h"
@@ -1213,15 +1214,21 @@ nsEditingSession::SetupEditorCommandController(
   NS_ENSURE_ARG_POINTER(aWindow);
   NS_ENSURE_ARG_POINTER(aContext);
   NS_ENSURE_ARG_POINTER(aControllerId);
+
+  nsresult rv;
+  nsCOMPtr<nsIDOMWindowInternal> domWindowInt =
+                                    do_QueryInterface(aWindow, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
   
   nsCOMPtr<nsIControllers> controllers;      
-  nsresult rv = aWindow->GetControllers(getter_AddRefs(controllers));
+  rv = domWindowInt->GetControllers(getter_AddRefs(controllers));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // We only have to create each singleton controller once
   // We know this has happened once we have a controllerId value
   if (!*aControllerId)
   {
+    nsresult rv;
     nsCOMPtr<nsIController> controller;
     controller = do_CreateInstance(aControllerClassName, &rv);
     NS_ENSURE_SUCCESS(rv, rv);  
@@ -1251,10 +1258,15 @@ NS_IMETHODIMP
 nsEditingSession::SetEditorOnControllers(nsIDOMWindow *aWindow,
                                          nsIEditor* aEditor)
 {
-  NS_ENSURE_TRUE(aWindow, NS_ERROR_NULL_POINTER);
+  nsresult rv;
+  
+  // set the editor on the controller
+  nsCOMPtr<nsIDOMWindowInternal> domWindowInt =
+                                     do_QueryInterface(aWindow, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
   
   nsCOMPtr<nsIControllers> controllers;      
-  nsresult rv = aWindow->GetControllers(getter_AddRefs(controllers));
+  rv = domWindowInt->GetControllers(getter_AddRefs(controllers));
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsISupports> editorAsISupports = do_QueryInterface(aEditor);
@@ -1303,10 +1315,11 @@ nsEditingSession::RemoveEditorControllers(nsIDOMWindow *aWindow)
 {
   // Remove editor controllers from the aWindow, call when we're 
   // tearing down/detaching editor.
+  nsCOMPtr<nsIDOMWindowInternal> domWindowInt(do_QueryInterface(aWindow));
 
   nsCOMPtr<nsIControllers> controllers;
-  if (aWindow)
-    aWindow->GetControllers(getter_AddRefs(controllers));
+  if (domWindowInt)
+    domWindowInt->GetControllers(getter_AddRefs(controllers));
 
   if (controllers)
   {

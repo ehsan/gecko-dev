@@ -289,7 +289,6 @@ var treeView = {
   isSeparator: function(idx)         { return false; },
   isSorted: function()               { return false; },
   isEditable: function(idx, column)  { return false; },
-  canDrop: function(idx, orientation, dt) { return false; },
   getLevel: function(idx)            { return this.isContainer(idx) ? 0 : 1; },
 
   getParentIndex: function(idx) {

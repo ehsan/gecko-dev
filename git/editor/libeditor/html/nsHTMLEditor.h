@@ -446,7 +446,7 @@ protected:
   NS_IMETHOD  InitRules();
 
   // Create the event listeners for the editor to install
-  virtual void CreateEventListeners();
+  virtual nsresult CreateEventListeners();
 
   virtual nsresult InstallEventListeners();
   virtual void RemoveEventListeners();

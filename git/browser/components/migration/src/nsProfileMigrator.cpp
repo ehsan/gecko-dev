@@ -39,7 +39,7 @@
 
 #include "nsIBrowserProfileMigrator.h"
 #include "nsIComponentManager.h"
-#include "nsIDOMWindow.h"
+#include "nsIDOMWindowInternal.h"
 #include "nsILocalFile.h"
 #include "nsIObserverService.h"
 #include "nsIProperties.h"
