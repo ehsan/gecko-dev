@@ -79,15 +79,16 @@ public:
   }
 };
 
-Telephony::Telephony(nsPIDOMWindow* aOwner)
-  : nsDOMEventTargetHelper(aOwner),
-    mActiveCall(nullptr), mEnumerated(false)
+Telephony::Telephony()
+: mActiveCall(nullptr), mEnumerated(false)
 {
   if (!gTelephonyList) {
     gTelephonyList = new TelephonyList();
   }
 
   gTelephonyList->AppendElement(this);
+
+  SetIsDOMBinding();
 }
 
 Telephony::~Telephony()
@@ -151,7 +152,9 @@ Telephony::Create(nsPIDOMWindow* aOwner, ErrorResult& aRv)
     return nullptr;
   }
 
-  nsRefPtr<Telephony> telephony = new Telephony(aOwner);
+  nsRefPtr<Telephony> telephony = new Telephony();
+
+  telephony->BindToOwner(aOwner);
 
   telephony->mProvider = ril;
   telephony->mListener = new Listener(telephony);

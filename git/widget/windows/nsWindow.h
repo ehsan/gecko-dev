@@ -421,7 +421,6 @@ protected:
   static void             UnregisterSpecialDropdownHooks();
   static bool             GetPopupsToRollup(nsIRollupListener* aRollupListener,
                                             uint32_t* aPopupsToRollup);
-  static bool             NeedsToHandleNCActivateDelayed(HWND aWnd);
   static bool             DealWithPopups(HWND inWnd, UINT inMsg, WPARAM inWParam, LPARAM inLParam, LRESULT* outResult);
 
   /**

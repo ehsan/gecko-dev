@@ -86,13 +86,6 @@ CompositorD3D9::GetMaxTextureSize() const
   return mDeviceManager ? mDeviceManager->GetMaxTextureSize() : INT32_MAX;
 }
 
-TemporaryRef<DataTextureSource>
-CompositorD3D9::CreateDataTextureSource(TextureFlags aFlags)
-{
-  return new DataTextureSourceD3D9(FORMAT_UNKNOWN, this,
-                                   !(aFlags & TEXTURE_DISALLOW_BIGIMAGE));
-}
-
 TemporaryRef<CompositingRenderTarget>
 CompositorD3D9::CreateRenderTarget(const gfx::IntRect &aRect,
                                    SurfaceInitMode aInit)
@@ -330,36 +323,16 @@ CompositorD3D9::DrawQuad(const gfx::Rect &aRect,
                                              textureCoords.width,
                                              textureCoords.height),
                                            1);
-
-      const int Y = 0, Cb = 1, Cr = 2;
-      TextureSource* source = ycbcrEffect->mTexture;
-
-      if (!source) {
-        NS_WARNING("No texture to composite");
-        return;
-      }
-
-      if (!source->GetSubSource(Y) || !source->GetSubSource(Cb) || !source->GetSubSource(Cr)) {
-        // This can happen if we failed to upload the textures, most likely
-        // because of unsupported dimensions (we don't tile YCbCr textures).
-        return;
-      }
-
-      TextureSourceD3D9* sourceY  = source->GetSubSource(Y)->AsSourceD3D9();
-      TextureSourceD3D9* sourceCb = source->GetSubSource(Cb)->AsSourceD3D9();
-      TextureSourceD3D9* sourceCr = source->GetSubSource(Cr)->AsSourceD3D9();
-
-
-      MOZ_ASSERT(sourceY->GetD3D9Texture());
-      MOZ_ASSERT(sourceCb->GetD3D9Texture());
-      MOZ_ASSERT(sourceCr->GetD3D9Texture());
+                                    
+      TextureSourceD3D9* source = ycbcrEffect->mTexture->AsSourceD3D9();
+      TextureSourceD3D9::YCbCrTextures textures = source->GetYCbCrTextures();
 
       /*
        * Send 3d control data and metadata
        */
       if (mDeviceManager->GetNv3DVUtils()) {
         Nv_Stereo_Mode mode;
-        switch (source->AsSourceD3D9()->GetStereoMode()) {
+        switch (textures.mStereoMode) {
         case STEREO_MODE_LEFT_RIGHT:
           mode = NV_STEREO_MODE_LEFT_RIGHT;
           break;
@@ -380,14 +353,14 @@ CompositorD3D9::DrawQuad(const gfx::Rect &aRect,
         // Send control data even in mono case so driver knows to leave stereo mode.
         mDeviceManager->GetNv3DVUtils()->SendNv3DVControl(mode, true, FIREFOX_3DV_APP_HANDLE);
 
-        if (source->AsSourceD3D9()->GetStereoMode() != STEREO_MODE_MONO) {
+        if (textures.mStereoMode != STEREO_MODE_MONO) {
           mDeviceManager->GetNv3DVUtils()->SendNv3DVControl(mode, true, FIREFOX_3DV_APP_HANDLE);
 
           nsRefPtr<IDirect3DSurface9> renderTarget;
           d3d9Device->GetRenderTarget(0, getter_AddRefs(renderTarget));
           mDeviceManager->GetNv3DVUtils()->SendNv3DVMetaData((unsigned int)aRect.width,
                                                              (unsigned int)aRect.height,
-                                                             (HANDLE)(sourceY->GetD3D9Texture()),
+                                                             (HANDLE)(textures.mY),
                                                              (HANDLE)(renderTarget));
         }
       }
@@ -395,9 +368,9 @@ CompositorD3D9::DrawQuad(const gfx::Rect &aRect,
       // Linear scaling is default here, adhering to mFilter is difficult since
       // presumably even with point filtering we'll still want chroma upsampling
       // to be linear. In the current approach we can't.
-      device()->SetTexture(Y, sourceY->GetD3D9Texture());
-      device()->SetTexture(Cb, sourceCb->GetD3D9Texture());
-      device()->SetTexture(Cr, sourceCr->GetD3D9Texture());
+      d3d9Device->SetTexture(0, textures.mY);
+      d3d9Device->SetTexture(1, textures.mCb);
+      d3d9Device->SetTexture(2, textures.mCr);
       maskTexture = mDeviceManager->SetShaderMode(DeviceManagerD3D9::YCBCRLAYER, maskType);
     }
     break;

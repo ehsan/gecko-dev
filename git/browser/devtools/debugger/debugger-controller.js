@@ -841,6 +841,7 @@ StackFrames.prototype = {
 
     // Start recording any added variables or properties in any scope and
     // clear existing scopes to create each one dynamically.
+    DebuggerView.Variables.createHierarchy();
     DebuggerView.Variables.empty();
 
     // If watch expressions evaluation results are available, create a scope
@@ -1539,7 +1540,6 @@ Tracer.prototype = {
       location: location,
       id: this._idCounter++
     };
-
     this._stack.push(item);
     DebuggerView.Tracer.addTrace({
       type: "call",
@@ -1598,7 +1598,7 @@ Tracer.prototype = {
       getOwnPropertyNames: (callback) => {
         callback({
           ownPropertyNames: aObject.ownProperties
-            ? Object.keys(aObject.ownProperties)
+            ?  Object.keys(aObject.ownProperties)
             : []
         });
       },

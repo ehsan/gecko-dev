@@ -145,8 +145,7 @@ public:
   IMPL_EVENT_HANDLER(error);
 
 protected:
-  IDBRequest(IDBDatabase* aDatabase);
-  IDBRequest(nsPIDOMWindow* aOwner);
+  IDBRequest();
   ~IDBRequest();
 
   // At most one of these three fields can be non-null.
@@ -212,7 +211,7 @@ public:
   IMPL_EVENT_HANDLER(upgradeneeded);
 
 protected:
-  IDBOpenDBRequest(nsPIDOMWindow* aOwner);
+  IDBOpenDBRequest();
   ~IDBOpenDBRequest();
 
   // Only touched on the main thread.

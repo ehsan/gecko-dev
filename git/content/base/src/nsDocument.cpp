@@ -6805,7 +6805,7 @@ nsIDocument::AdoptNode(nsINode& aAdoptedNode, ErrorResult& rv)
 
       JS::Rooted<JS::Value> v(cx);
       rv = nsContentUtils::WrapNative(cx, global, this, this, &v,
-                                      /* aAllowWrapping = */ false);
+                                      nullptr, /* aAllowWrapping = */ false);
       if (rv.Failed())
         return nullptr;
       newScope = &v.toObject();
@@ -8821,10 +8821,6 @@ void
 nsDocument::ScrollToRef()
 {
   if (mScrolledToRefAlready) {
-    nsCOMPtr<nsIPresShell> shell = GetShell();
-    if (shell) {
-      shell->ScrollToAnchor();
-    }
     return;
   }
 
@@ -11473,9 +11469,11 @@ nsIDocument::WrapObject(JSContext *aCx, JS::Handle<JSObject*> aScope)
   JSAutoCompartment ac(aCx, obj);
 
   JS::Rooted<JS::Value> winVal(aCx);
+  nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
   nsresult rv = nsContentUtils::WrapNative(aCx, obj, win,
                                            &NS_GET_IID(nsIDOMWindow),
                                            &winVal,
+                                           getter_AddRefs(holder),
                                            false);
   if (NS_FAILED(rv)) {
     Throw(aCx, rv);

@@ -11,7 +11,7 @@
 
 USING_FILE_NAMESPACE
 
-DOMFileRequest::DOMFileRequest(nsPIDOMWindow* aWindow)
+DOMFileRequest::DOMFileRequest(nsIDOMWindow* aWindow)
   : FileRequest(aWindow)
 {
 }

@@ -24,7 +24,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(FileRequest, DOMRequest)
 
   static already_AddRefed<FileRequest>
-  Create(nsPIDOMWindow* aOwner, LockedFile* aLockedFile, bool aIsFileRequest);
+  Create(nsIDOMWindow* aOwner, LockedFile* aLockedFile, bool aIsFileRequest);
 
   // nsIDOMEventTarget
   virtual nsresult
@@ -40,7 +40,7 @@ public:
   NotifyHelperCompleted(FileHelper* aFileHelper);
 
 protected:
-  FileRequest(nsPIDOMWindow* aWindow);
+  FileRequest(nsIDOMWindow* aWindow);
   ~FileRequest();
 
   void
