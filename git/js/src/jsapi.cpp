@@ -57,7 +57,6 @@
 #endif
 
 #include "builtin/Eval.h"
-#include "builtin/Intl.h"
 #include "builtin/MapObject.h"
 #include "builtin/RegExp.h"
 #include "builtin/ParallelArray.h"

@@ -132,7 +132,6 @@ let ScriptContexts = {};
   ["Sanitizer", "chrome://browser/content/sanitize.js"],
   ["SanitizeUI", "chrome://browser/content/sanitizeUI.js"],
   ["SSLExceptions", "chrome://browser/content/exceptions.js"],
-  ["ItemPinHelper", "chrome://browser/content/helperui/ItemPinHelper.js"],
 #ifdef MOZ_SERVICES_SYNC
   ["WeaveGlue", "chrome://browser/content/sync.js"],
   ["SyncPairDevice", "chrome://browser/content/sync.js"],

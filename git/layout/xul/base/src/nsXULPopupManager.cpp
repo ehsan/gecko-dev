@@ -341,10 +341,6 @@ nsMenuPopupFrame* GetPopupToMoveOrResize(nsIFrame* aFrame)
   if (menuPopupFrame->PopupState() != ePopupOpenAndVisible)
     return nullptr;
 
-  nsIWidget* widget = menuPopupFrame->GetWidget();
-  if (widget && !widget->IsVisible())
-    return nullptr;
-
   return menuPopupFrame;
 }
 

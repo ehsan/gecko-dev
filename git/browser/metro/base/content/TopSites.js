@@ -396,7 +396,7 @@ TopSitesView.prototype = {
   onPageChanged: function(aURI, aWhat, aValue) {
   },
 
-  onDeleteVisits: function (aURI, aVisitTime, aGUID, aReason, aTransitionType) {
+  onPageExpired: function(aURI, aVisitTime, aWholeEntry) {
   },
 
   QueryInterface: function(iid) {

@@ -9,12 +9,25 @@
 
 #include "AudioNode.h"
 #include "AudioParam.h"
-#include "mozilla/dom/BiquadFilterNodeBinding.h"
+#include "mozilla/ErrorResult.h"
+#include "mozilla/TypedEnum.h"
 
 namespace mozilla {
 namespace dom {
 
 class AudioContext;
+
+MOZ_BEGIN_ENUM_CLASS(BiquadTypeEnum, uint16_t)
+  LOWPASS = 0,
+  HIGHPASS = 1,
+  BANDPASS = 2,
+  LOWSHELF = 3,
+  HIGHSHELF = 4,
+  PEAKING = 5,
+  NOTCH = 6,
+  ALLPASS = 7,
+  Max = 7
+MOZ_END_ENUM_CLASS(BiquadTypeEnum)
 
 class BiquadFilterNode : public AudioNode
 {
@@ -32,20 +45,15 @@ public:
     return true;
   }
 
-  BiquadFilterType Type() const
+  uint16_t Type() const
   {
-    return mType;
+    return static_cast<uint16_t> (mType);
   }
-  void SetType(BiquadFilterType aType);
+  void SetType(uint16_t aType, ErrorResult& aRv);
 
   AudioParam* Frequency() const
   {
     return mFrequency;
-  }
-
-  AudioParam* Detune() const
-  {
-    return mDetune;
   }
 
   AudioParam* Q() const
@@ -58,20 +66,14 @@ public:
     return mGain;
   }
 
-  void GetFrequencyResponse(const Float32Array& aFrequencyHz,
-                            Float32Array& aMagResponse,
-                            Float32Array& aPhaseResponse);
-
 private:
   static void SendFrequencyToStream(AudioNode* aNode);
-  static void SendDetuneToStream(AudioNode* aNode);
   static void SendQToStream(AudioNode* aNode);
   static void SendGainToStream(AudioNode* aNode);
 
 private:
-  BiquadFilterType mType;
+  BiquadTypeEnum mType;
   nsRefPtr<AudioParam> mFrequency;
-  nsRefPtr<AudioParam> mDetune;
   nsRefPtr<AudioParam> mQ;
   nsRefPtr<AudioParam> mGain;
 };
