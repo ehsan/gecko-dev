@@ -219,7 +219,8 @@ typedef enum JSOp {
 #define GET_INDEX(pc)           GET_UINT16(pc)
 #define SET_INDEX(pc,i)         ((pc)[1] = INDEX_HI(i), (pc)[2] = INDEX_LO(i))
 
-#define GET_INDEXBASE(pc)       (JS_ASSERT(*(pc) == JSOP_INDEXBASE),          \
+#define GET_INDEXBASE(pc)       (JS_ASSERT(*(pc) == JSOP_INDEXBASE            \
+                                           || *(pc) == JSOP_TRAP),            \
                                  ((uintN)((pc)[1])) << 16)
 #define INDEXBASE_LEN           1
 
@@ -471,7 +472,14 @@ JS_END_EXTERN_C
  * Get the length of variable-length bytecode like JSOP_TABLESWITCH.
  */
 extern size_t
-js_GetVariableBytecodeLength(jsbytecode *pc);
+js_GetVariableBytecodeLength(JSOp op, jsbytecode *pc);
+
+inline size_t
+js_GetVariableBytecodeLength(jsbytecode *pc)
+{
+    JS_ASSERT(*pc != JSOP_TRAP);
+    return js_GetVariableBytecodeLength(JSOp(*pc), pc);
+}
 
 namespace js {
 
@@ -528,20 +536,12 @@ GetDecomposeLength(jsbytecode *pc, size_t len)
      * The last byte of a DECOMPOSE op stores the decomposed length. This can
      * vary across different instances of an opcode due to INDEXBASE ops.
      */
-    JS_ASSERT(size_t(js_CodeSpec[*pc].length) == len);
+    JS_ASSERT_IF(JSOp(*pc) != JSOP_TRAP, size_t(js_CodeSpec[*pc].length) == len);
     return (uintN) pc[len - 1];
 }
 
-static inline uintN
-GetBytecodeLength(jsbytecode *pc)
-{
-    JSOp op = (JSOp)*pc;
-    JS_ASSERT(op < JSOP_LIMIT);
-
-    if (js_CodeSpec[op].length != -1)
-        return js_CodeSpec[op].length;
-    return js_GetVariableBytecodeLength(pc);
-}
+extern size_t
+GetBytecodeLength(JSContext *cx, JSScript *script, jsbytecode *pc);
 
 extern bool
 IsValidBytecodeOffset(JSContext *cx, JSScript *script, size_t offset);
@@ -553,6 +553,24 @@ FlowsIntoNext(JSOp op)
     return op != JSOP_STOP && op != JSOP_RETURN && op != JSOP_RETRVAL && op != JSOP_THROW &&
            op != JSOP_GOTO && op != JSOP_GOTOX && op != JSOP_RETSUB;
 }
+
+/*
+ * AutoScriptUntrapper mutates the given script in place to replace JSOP_TRAP
+ * opcodes with the original opcode they replaced. The destructor mutates the
+ * script back into its original state.
+ */
+class AutoScriptUntrapper
+{
+    JSContext *cx;
+    JSScript *origScript;
+    jsbytecode *origCode;
+    size_t nbytes;
+    bool saveOriginal(JSScript *script);
+  public:
+    AutoScriptUntrapper();
+    bool untrap(JSContext *cx, JSScript *script);
+    ~AutoScriptUntrapper();
+};
 
 /*
  * Counts accumulated for a single opcode in a script. The counts tracked vary
@@ -604,6 +622,7 @@ class OpcodeCounts
          * Access ops include all name, element and property reads, as well as
          * SETELEM and SETPROP (for ElementCounts/PropertyCounts alignment).
          */
+        JS_ASSERT(op != JSOP_TRAP);
         if (op == JSOP_SETELEM || op == JSOP_SETPROP || op == JSOP_SETMETHOD)
             return true;
         int format = js_CodeSpec[op].format;
@@ -651,6 +670,7 @@ class OpcodeCounts
     };
 
     static bool arithOp(JSOp op) {
+        JS_ASSERT(op != JSOP_TRAP);
         return !!(js_CodeSpec[op].format & (JOF_INCDEC | JOF_ARITH));
     }
 

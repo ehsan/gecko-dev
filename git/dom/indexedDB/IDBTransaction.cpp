@@ -181,6 +181,10 @@ IDBTransaction::~IDBTransaction()
   NS_ASSERTION(!mConnection, "Should have called CommitOrRollback!");
   NS_ASSERTION(!mCreating, "Should have been cleared already!");
   NS_ASSERTION(mFiredCompleteOrAbort, "Should have fired event!");
+
+  if (mListenerManager) {
+    mListenerManager->Disconnect();
+  }
 }
 
 void

@@ -110,9 +110,6 @@
 #define NS_LIVEMARKSERVICE_CONTRACTID \
   "@mozilla.org/browser/livemark-service;2"
 
-#define NS_TAGGINGSERVICE_CONTRACTID \
-"@mozilla.org/browser/tagging-service;1"
-
 #define NS_FAVICONSERVICE_CONTRACTID \
   "@mozilla.org/browser/favicon-service;1"
 

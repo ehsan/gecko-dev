@@ -173,7 +173,7 @@
       let target = eventTarget || this.target;
       if (target && type) {
         let touchEvent = this.sendTouchEvent(evt, target, type);
-        if (touchEvent.defaultPrevented && canPreventMouseEvents)
+        if (touchEvent.getPreventDefault() && canPreventMouseEvents)
           preventMouseEvents = true;
       }
 
@@ -204,7 +204,7 @@
         debug('fire context-menu');
 
         target.dispatchEvent(evt);
-        if (!evt.defaultPrevented)
+        if (!evt.getPreventDefault())
           return;
 
         doc.releaseCapture();

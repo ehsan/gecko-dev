@@ -56,7 +56,8 @@ catch(ex) {
   do_throw("Could not get database connection\n");
 }
 
-add_test(function test_keywordRemovedOnUniqueItemRemoval() {
+// main
+function run_test() {
   var bookmarkedURI = uri("http://foo.bar");
   var keyword = "testkeyword";
 
@@ -73,22 +74,12 @@ add_test(function test_keywordRemovedOnUniqueItemRemoval() {
   // remove bookmark
   bmsvc.removeItem(bookmarkId);
 
-  waitForAsyncUpdates(function() {
-    // Check that keyword has been removed from the database.
-    // The removal is asynchronous.
-    var sql = "SELECT id FROM moz_keywords WHERE keyword = ?1";
-    var stmt = mDBConn.createStatement(sql);
-    stmt.bindByIndex(0, keyword);
-    do_check_false(stmt.executeStep());
-    stmt.finalize();
-
-    run_next_test();
-  });
-});
-
-add_test(function test_keywordNotRemovedOnNonUniqueItemRemoval() {
-  var bookmarkedURI = uri("http://foo.bar");
-  var keyword = "testkeyword";
+  // check that keyword has been removed
+  var sql = "SELECT id FROM moz_keywords WHERE keyword = ?1";
+  var stmt = mDBConn.createStatement(sql);
+  stmt.bindByIndex(0, keyword);
+  do_check_false(stmt.executeStep());
+  stmt.finalize();
 
   // TEST 2
   // 1. add 2 bookmarks
@@ -110,18 +101,10 @@ add_test(function test_keywordNotRemovedOnNonUniqueItemRemoval() {
   // remove first bookmark
   bmsvc.removeItem(bookmarkId1);
 
-  waitForAsyncUpdates(function() {
-    // check that keyword is still there
-    var sql = "SELECT id FROM moz_keywords WHERE keyword = ?1";
-    var stmt = mDBConn.createStatement(sql);
-    stmt.bindByIndex(0, keyword);
-    do_check_true(stmt.executeStep());
-    stmt.finalize();
-
-    run_next_test();
-  });
-});
-
-function run_test() {
-  run_next_test();
+  // check that keyword is still there
+  var sql = "SELECT id FROM moz_keywords WHERE keyword = ?1";
+  var stmt = mDBConn.createStatement(sql);
+  stmt.bindByIndex(0, keyword);
+  do_check_true(stmt.executeStep());
+  stmt.finalize();
 }

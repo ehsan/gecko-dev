@@ -580,7 +580,7 @@ FrameState::computeAllocation(jsbytecode *target)
         return NULL;
 
     if (a->analysis->getCode(target).exceptionEntry || a->analysis->getCode(target).switchTarget ||
-        a->script->hasBreakpointsAt(target)) {
+        JSOp(*target) == JSOP_TRAP) {
         /* State must be synced at exception and switch targets, and at traps. */
 #ifdef DEBUG
         if (IsJaegerSpewChannelActive(JSpew_Regalloc)) {

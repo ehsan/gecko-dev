@@ -788,9 +788,27 @@ nsIURI*
 nsChromeRegistry::ManifestProcessingContext::GetManifestURI()
 {
   if (!mManifestURI) {
-    nsCString uri;
-    mFile.GetURIString(uri);
-    NS_NewURI(getter_AddRefs(mManifestURI), uri);
+    nsCOMPtr<nsIIOService> io = mozilla::services::GetIOService();
+    if (!io) {
+      NS_WARNING("No IO service trying to process chrome manifests");
+      return NULL;
+    }
+
+    if (mPath) {
+      nsCOMPtr<nsIURI> fileURI;
+      io->NewFileURI(mFile, getter_AddRefs(fileURI));
+
+      nsCAutoString spec;
+      fileURI->GetSpec(spec);
+      spec.Insert(NS_LITERAL_CSTRING("jar:"), 0);
+      spec.AppendLiteral("!/");
+      spec.Append(mPath);
+
+      NS_NewURI(getter_AddRefs(mManifestURI), spec, NULL, NULL, io);
+    }
+    else {
+      io->NewFileURI(mFile, getter_AddRefs(mManifestURI));
+    }
   }
   return mManifestURI;
 }

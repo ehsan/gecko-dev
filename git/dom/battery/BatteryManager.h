@@ -66,6 +66,7 @@ public:
   NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetWrapperCache::)
 
   BatteryManager();
+  virtual ~BatteryManager();
 
   void Init(nsPIDOMWindow *aWindow, nsIScriptContext* aScriptContext);
   void Shutdown();

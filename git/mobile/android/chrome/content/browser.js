@@ -173,7 +173,6 @@ var BrowserApp = {
     Services.obs.addObserver(this, "FullScreen:Exit", false);
     Services.obs.addObserver(this, "Viewport:Change", false);
     Services.obs.addObserver(this, "AgentMode:Change", false);
-    Services.obs.addObserver(this, "SearchEngines:Get", false);
 
     function showFullScreenWarning() {
       NativeWindow.toast.show(Strings.browser.GetStringFromName("alertFullScreenToast"), "short");
@@ -514,34 +513,6 @@ var BrowserApp = {
     }
   },
 
-  getSearchEngines: function() {
-    let engineData = Services.search.getEngines({});
-    let searchEngines = engineData.map(function (engine) {
-      return {
-        name: engine.name,
-        iconURI: engine.iconURI.spec
-      };
-    });
-
-    sendMessageToJava({
-      gecko: {
-        type: "SearchEngines:Data",
-        searchEngines: searchEngines
-      }
-    });
-  },
-
-  getSearchOrFixupURI: function(aData) {
-    let args = JSON.parse(aData);
-    let uri;
-    if (args.engine) {
-      let engine = Services.search.getEngineByName(args.engine);
-      uri = engine.getSubmission(args.url).uri;
-    } else
-      uri = URIFixup.createFixupURI(args.url, Ci.nsIURIFixup.FIXUP_FLAG_ALLOW_KEYWORD_LOOKUP);
-    return uri ? uri.spec : args.url;
-  },
-
   scrollToFocusedInput: function(aBrowser) {
     let doc = aBrowser.contentDocument;
     if (!doc)
@@ -571,9 +542,11 @@ var BrowserApp = {
     } else if (aTopic == "Session:Stop") {
       browser.stop();
     } else if (aTopic == "Tab:Add") {
-      let newTab = this.addTab(this.getSearchOrFixupURI(aData));
+      let uri = URIFixup.createFixupURI(aData, Ci.nsIURIFixup.FIXUP_FLAG_ALLOW_KEYWORD_LOOKUP);
+      let newTab = this.addTab(uri ? uri.spec : aData);
     } else if (aTopic == "Tab:Load") {
-      browser.loadURI(this.getSearchOrFixupURI(aData));
+      let uri = URIFixup.createFixupURI(aData, Ci.nsIURIFixup.FIXUP_FLAG_ALLOW_KEYWORD_LOOKUP);
+      browser.loadURI(uri ? uri.spec : aData);
     } else if (aTopic == "Tab:Select") {
       this.selectTab(this.getTabForId(parseInt(aData)));
     } else if (aTopic == "Tab:Close") {
@@ -600,8 +573,6 @@ var BrowserApp = {
     } else if (aTopic == "Viewport:Change") {
       this.selectedTab.viewport = JSON.parse(aData);
       ViewportHandler.onResize();
-    } else if (aTopic == "SearchEngines:Get") {
-      this.getSearchEngines();
     }
   },
 
@@ -1171,7 +1142,6 @@ Tab.prototype = {
     let zoom = (aReset ? this.getDefaultZoomLevel() : this._viewport.zoom);
     let xpos = (aReset ? win.scrollX * zoom : this._viewport.x);
     let ypos = (aReset ? win.scrollY * zoom : this._viewport.y);
-
     this.viewportExcess = { x: 0, y: 0 };
     this.viewport = { x: xpos, y: ypos,
                       offsetX: 0, offsetY: 0,
@@ -1475,8 +1445,8 @@ Tab.prototype = {
     if ("defaultZoom" in md && md.defaultZoom)
       return md.defaultZoom;
 
-    let browserWidth = parseInt(this.browser.style.width);
-    return gScreenWidth / browserWidth;
+    let browserWidth = this.browser.getBoundingClientRect().width;
+    return screen.width / browserWidth;
   },
 
   getPageZoomLevel: function getPageZoomLevel() {

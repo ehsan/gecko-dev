@@ -233,9 +233,9 @@ let gClickHandler = {
 
     let isPanelClick = linkId == "panellink";
     let returnValue = gTestWin.contentAreaClick(event, isPanelClick);
-    let prevent = event.defaultPrevented;
+    let prevent = event.getPreventDefault();
     is(prevent, gCurrentTest.preventDefault,
-       gCurrentTest.desc + ": event.defaultPrevented is correct (" + prevent + ")")
+       gCurrentTest.desc + ": event.getPreventDefault() is correct (" + prevent + ")")
 
     // Check that all required methods have been called.
     gCurrentTest.expectedInvokedMethods.forEach(function(aExpectedMethodName) {

@@ -51,8 +51,7 @@
 #include "nsRuleProcessorData.h"
 
 #define PL_ARENA_CONST_ALIGN_MASK 7
-// We want page-sized arenas so there's no fragmentation involved.
-#define NS_CASCADEENUMDATA_ARENA_BLOCK_SIZE (4096)
+#define NS_RULEHASH_ARENA_BLOCK_SIZE (256)
 #include "plarena.h"
 
 #include "nsCRT.h"
@@ -118,8 +117,6 @@ PRUint8 nsCSSRuleProcessor::sWinThemeId = LookAndFeel::eWindowsTheme_Generic;
 struct RuleSelectorPair {
   RuleSelectorPair(css::StyleRule* aRule, nsCSSSelector* aSelector)
     : mRule(aRule), mSelector(aSelector) {}
-  // If this class ever grows a destructor, deal with
-  // PerWeightDataListItem appropriately.
 
   css::StyleRule*   mRule;
   nsCSSSelector*    mSelector; // which of |mRule|'s selectors
@@ -424,6 +421,7 @@ public:
   void AppendRule(const RuleSelectorPair &aRuleInfo);
   void EnumerateAllRules(Element* aElement, RuleProcessorData* aData,
                          NodeMatchContext& aNodeMatchContext);
+  PLArenaPool& Arena() { return mArena; }
 
   PRInt64 SizeOf() const;
 
@@ -451,6 +449,8 @@ protected:
     EnumData data = { arr.Elements(), arr.Elements() + arr.Length() };
     return data;
   }
+
+  PLArenaPool mArena;
 
 #ifdef RULE_HASH_STATS
   PRUint32    mUniversalSelectors;
@@ -489,6 +489,8 @@ RuleHash::RuleHash(bool aQuirksMode)
 #endif
 {
   MOZ_COUNT_CTOR(RuleHash);
+  // Initialize our arena
+  PL_INIT_ARENA_POOL(&mArena, "RuleHashArena", NS_RULEHASH_ARENA_BLOCK_SIZE);
 
   PL_DHashTableInit(&mTagTable, &RuleHash_TagTable_Ops, nsnull,
                     sizeof(RuleHashTagTableEntry), 64);
@@ -550,6 +552,7 @@ RuleHash::~RuleHash()
   PL_DHashTableFinish(&mClassTable);
   PL_DHashTableFinish(&mTagTable);
   PL_DHashTableFinish(&mNameSpaceTable);
+  PL_FinishArenaPool(&mArena);
 }
 
 void RuleHash::AppendRuleToTable(PLDHashTable* aTable, const void* aKey,
@@ -762,6 +765,12 @@ RuleHash::SizeOf() const
                          RuleHashTableSizeOfEnumerator, &n);
 
   n += mUniversalRules.SizeOf();
+
+  const PLArena* current = &mArena.first;
+  while (current) {
+    n += current->limit - current->base;
+    current = current->next;
+  }
 
   return n;
 }
@@ -2824,37 +2833,13 @@ AddRule(RuleSelectorPair* aRuleInfo, RuleCascadeData* aCascade)
   return true;
 }
 
-struct PerWeightDataListItem : public RuleSelectorPair {
-  PerWeightDataListItem(css::StyleRule* aRule, nsCSSSelector* aSelector)
-    : RuleSelectorPair(aRule, aSelector)
-    , mNext(nsnull)
-  {}
-  // No destructor; these are arena-allocated
-
-
-  // Placement new to arena allocate the PerWeightDataListItem
-  void *operator new(size_t aSize, PLArenaPool &aArena) CPP_THROW_NEW {
-    void *mem;
-    PL_ARENA_ALLOCATE(mem, &aArena, aSize);
-    return mem;
-  }
-
-  PerWeightDataListItem *mNext;
-};
-
 struct PerWeightData {
-  PerWeightData()
-    : mRuleSelectorPairs(nsnull)
-    , mTail(&mRuleSelectorPairs)
-  {}
-
   PRInt32 mWeight;
-  PerWeightDataListItem *mRuleSelectorPairs;
-  PerWeightDataListItem **mTail;
+  nsTArray<RuleSelectorPair> mRules; // forward order
 };
 
 struct RuleByWeightEntry : public PLDHashEntryHdr {
-  PerWeightData data; // mWeight is key, mRuleSelectorPairs are value
+  PerWeightData data; // mWeight is key, mRules are value
 };
 
 static PLDHashNumber
@@ -2880,13 +2865,20 @@ InitWeightEntry(PLDHashTable *table, PLDHashEntryHdr *hdr,
   return true;
 }
 
+static void
+ClearWeightEntry(PLDHashTable *table, PLDHashEntryHdr *hdr)
+{
+  RuleByWeightEntry* entry = static_cast<RuleByWeightEntry*>(hdr);
+  entry->~RuleByWeightEntry();
+}
+
 static PLDHashTableOps gRulesByWeightOps = {
     PL_DHashAllocTable,
     PL_DHashFreeTable,
     HashIntKey,
     MatchWeightEntry,
     PL_DHashMoveEntryStub,
-    PL_DHashClearEntryStub,
+    ClearWeightEntry,
     PL_DHashFinalizeStub,
     InitWeightEntry
 };
@@ -2896,37 +2888,34 @@ struct CascadeEnumData {
                   nsTArray<nsFontFaceRuleContainer>& aFontFaceRules,
                   nsTArray<nsCSSKeyframesRule*>& aKeyframesRules,
                   nsMediaQueryResultCacheKey& aKey,
+                  PLArenaPool& aArena,
                   PRUint8 aSheetType)
     : mPresContext(aPresContext),
       mFontFaceRules(aFontFaceRules),
       mKeyframesRules(aKeyframesRules),
       mCacheKey(aKey),
+      mArena(aArena),
       mSheetType(aSheetType)
   {
     if (!PL_DHashTableInit(&mRulesByWeight, &gRulesByWeightOps, nsnull,
                           sizeof(RuleByWeightEntry), 64))
       mRulesByWeight.ops = nsnull;
-
-    // Initialize our arena
-    PL_INIT_ARENA_POOL(&mArena, "CascadeEnumDataArena",
-                       NS_CASCADEENUMDATA_ARENA_BLOCK_SIZE);
   }
 
   ~CascadeEnumData()
   {
     if (mRulesByWeight.ops)
       PL_DHashTableFinish(&mRulesByWeight);
-    PL_FinishArenaPool(&mArena);
   }
 
   nsPresContext* mPresContext;
   nsTArray<nsFontFaceRuleContainer>& mFontFaceRules;
   nsTArray<nsCSSKeyframesRule*>& mKeyframesRules;
   nsMediaQueryResultCacheKey& mCacheKey;
-  PLArenaPool mArena;
+  PLArenaPool& mArena;
   // Hooray, a manual PLDHashTable since nsClassHashtable doesn't
   // provide a getter that gives me a *reference* to the value.
-  PLDHashTable mRulesByWeight; // of PerWeightDataListItem linked lists
+  PLDHashTable mRulesByWeight; // of RuleValue* linked lists (?)
   PRUint8 mSheetType;
 };
 
@@ -2957,14 +2946,9 @@ CascadeRuleEnumFunc(css::Rule* aRule, void* aData)
       if (!entry)
         return false;
       entry->data.mWeight = weight;
-      // entry->data.mRuleSelectorPairs should be linked in forward order;
-      // entry->data.mTail is the slot to write to.
-      PerWeightDataListItem *newItem =
-        new (data->mArena) PerWeightDataListItem(styleRule, sel->mSelectors);
-      if (newItem) {
-        *(entry->data.mTail) = newItem;
-        entry->data.mTail = &newItem->mNext;
-      }
+      // entry->data.mRules must be in forward order.
+      entry->data.mRules.AppendElement(RuleSelectorPair(styleRule,
+                                                        sel->mSelectors));
     }
   }
   else if (css::Rule::MEDIA_RULE == type ||
@@ -3091,6 +3075,7 @@ nsCSSRuleProcessor::RefreshRuleCascade(nsPresContext* aPresContext)
       CascadeEnumData data(aPresContext, newCascade->mFontFaceRules,
                            newCascade->mKeyframesRules,
                            newCascade->mCacheKey,
+                           newCascade->mRuleHash.Arena(),
                            mSheetType);
       if (!data.mRulesByWeight.ops)
         return; /* out of memory */
@@ -3111,11 +3096,12 @@ nsCSSRuleProcessor::RefreshRuleCascade(nsPresContext* aPresContext)
       // Put things into the rule hash.
       // The primary sort is by weight...
       for (PRUint32 i = 0; i < weightCount; ++i) {
-        // and the secondary sort is by order.  mRuleSelectorPairs is already in
+        // and the secondary sort is by order.  mRules are already in
         // the right order..
-        for (PerWeightDataListItem *cur = weightArray[i].mRuleSelectorPairs;
-             cur;
-             cur = cur->mNext) {
+        nsTArray<RuleSelectorPair>& arr = weightArray[i].mRules;
+        for (RuleSelectorPair *cur = arr.Elements(),
+                              *end = cur + arr.Length();
+             cur != end; ++cur) {
           if (!AddRule(cur, newCascade))
             return; /* out of memory */
         }

@@ -51,7 +51,6 @@
 #include "nsString.h"
 #include "nsdefs.h"
 #include <windows.h>
-#include <commdlg.h>
 /**
  * Native Windows FileSelector wrapper
  */
@@ -79,18 +78,12 @@ public:
   NS_IMETHOD AppendFilter(const nsAString& aTitle, const nsAString& aFilter);
 
 protected:
-  enum PickerType {
-    PICKER_TYPE_OPEN,
-    PICKER_TYPE_SAVE,
-  };
-
   /* method from nsBaseFilePicker */
   virtual void InitNative(nsIWidget *aParent,
                           const nsAString& aTitle,
                           PRInt16 aMode);
   static void GetQualifiedPath(const PRUnichar *aInPath, nsString &aOutPath);
   void GetFilterListArray(nsString& aFilterList);
-  bool GetFileName(OPENFILENAMEW* ofn, PickerType aType);
 
   nsCOMPtr<nsIWidget>    mParentWidget;
   nsString               mTitle;

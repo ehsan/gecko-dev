@@ -323,6 +323,9 @@ struct JS_FRIEND_API(JSCompartment) {
      */
     js::GlobalObjectSet              debuggees;
 
+  public:
+    js::BreakpointSiteMap            breakpointSites;
+
   private:
     JSCompartment *thisForCtor() { return this; }
 
@@ -358,8 +361,12 @@ struct JS_FRIEND_API(JSCompartment) {
                         js::GlobalObjectSet::Enum *debuggeesEnum = NULL);
     bool setDebugModeFromC(JSContext *cx, bool b);
 
-    void clearBreakpointsIn(JSContext *cx, js::Debugger *dbg, JSObject *handler);
-    void clearTraps(JSContext *cx);
+    js::BreakpointSite *getBreakpointSite(jsbytecode *pc);
+    js::BreakpointSite *getOrCreateBreakpointSite(JSContext *cx, JSScript *script, jsbytecode *pc,
+                                                  js::GlobalObject *scriptGlobal);
+    void clearBreakpointsIn(JSContext *cx, js::Debugger *dbg, JSScript *script, JSObject *handler);
+    void clearTraps(JSContext *cx, JSScript *script);
+    bool markTrapClosuresIteratively(JSTracer *trc);
 
   private:
     void sweepBreakpoints(JSContext *cx);

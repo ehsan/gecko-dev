@@ -49,8 +49,6 @@ import android.content.Intent;
 
 public class VideoPlayer extends Activity
 {
-    public static final String VIDEO_ACTION = "org.mozilla.gecko.PLAY_VIDEO";
-
     /** Called when the activity is first created. */
     @Override
     public void onCreate(Bundle savedInstanceState)
@@ -62,8 +60,6 @@ public class VideoPlayer extends Activity
         mediaController.setAnchorView(mVideoView);
         Intent intent = getIntent();
         Uri data = intent.getData();
-        if (data == null)
-            return;
         String spec = null;
         if ("vnd.youtube".equals(data.getScheme())) {
             String ssp = data.getSchemeSpecificPart();

@@ -255,10 +255,7 @@ nsTableCellFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
     PRInt32 colIndex, rowIndex;
     GetColIndex(colIndex);
     GetRowIndex(rowIndex);
-    // row span needs to be clamped as we do not create rows in the cellmap
-    // which do not have cells originating in them
-    nsRect damageArea(colIndex, rowIndex, GetColSpan(), NS_MIN(GetRowSpan(),
-                      tableFrame->GetRowCount() - rowIndex));
+    nsRect damageArea(colIndex, rowIndex, GetColSpan(), GetRowSpan());
     tableFrame->AddBCDamageArea(damageArea);
   }
 }

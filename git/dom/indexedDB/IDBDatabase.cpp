@@ -203,6 +203,10 @@ IDBDatabase::~IDBDatabase()
       mgr->UnregisterDatabase(this);
     }
   }
+
+  if (mListenerManager) {
+    mListenerManager->Disconnect();
+  }
 }
 
 void

@@ -91,6 +91,13 @@ BatteryManager::BatteryManager()
 {
 }
 
+BatteryManager::~BatteryManager()
+{
+  if (mListenerManager) {
+    mListenerManager->Disconnect();
+  }
+}
+
 void
 BatteryManager::Init(nsPIDOMWindow *aWindow, nsIScriptContext* aScriptContext)
 {

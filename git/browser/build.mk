@@ -80,9 +80,6 @@ package:
 package-compare:
 	@$(MAKE) -C browser/installer package-compare
 
-stage-package:
-	@$(MAKE) -C browser/installer stage-package
-
 install::
 	@$(MAKE) -C browser/installer install
 

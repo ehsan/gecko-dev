@@ -125,11 +125,8 @@ public class GeckoSoftwareLayerClient extends LayerClient implements GeckoEventL
         super.setLayerController(layerController);
 
         layerController.setRoot(mTileLayer);
-        if (mGeckoViewport != null) {
+        if (mGeckoViewport != null)
             layerController.setViewportMetrics(mGeckoViewport);
-            layerController.notifyPanZoomControllerOfGeometryChange(false);
-        }
-
         geometryChanged();
         GeckoAppShell.registerGeckoEventListener("Viewport:Update", this);
         GeckoAppShell.registerGeckoEventListener("Viewport:UpdateLater", this);
@@ -169,7 +166,6 @@ public class GeckoSoftwareLayerClient extends LayerClient implements GeckoEventL
                                 controller.setPageSize(mGeckoViewport.getPageSize());
                         } else {
                             controller.setViewportMetrics(mGeckoViewport);
-                            controller.notifyPanZoomControllerOfGeometryChange(true);
                         }
                     }
                 });
@@ -203,15 +199,10 @@ public class GeckoSoftwareLayerClient extends LayerClient implements GeckoEventL
     }
 
     public Bitmap getBitmap() {
-        try {
-            Bitmap b = Bitmap.createBitmap(mWidth, mHeight,
-                                           CairoUtils.cairoFormatTobitmapConfig(mFormat));
-            b.copyPixelsFromBuffer(mBuffer.asIntBuffer());
-            return b;
-        } catch (OutOfMemoryError oom) {
-            Log.e(LOGTAG, "Unable to create bitmap", oom);
-            return null;
-        }
+        Bitmap b = Bitmap.createBitmap(mWidth, mHeight,
+                                       CairoUtils.cairoFormatTobitmapConfig(mFormat));
+        b.copyPixelsFromBuffer(mBuffer.asIntBuffer());
+        return b;
     }
 
     /** Returns the back buffer. This function is for Gecko to use. */

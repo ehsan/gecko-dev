@@ -1720,7 +1720,7 @@ SpdySession::ResumeRecv(nsAHttpTransaction *caller)
 bool
 SpdySession::IsPersistent()
 {
-  return true;
+  return PR_TRUE;
 }
 
 nsresult
@@ -1778,7 +1778,7 @@ bool
 SpdySession::IsDone()
 {
   NS_ABORT_IF_FALSE(false, "SpdySession::IsDone()");
-  return false;
+  return PR_FALSE;
 }
 
 nsresult

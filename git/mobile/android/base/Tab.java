@@ -141,13 +141,9 @@ public class Tab {
                     GeckoApp.mAppContext.getWindowManager().getDefaultDisplay().getMetrics(metrics);
                     sMinDim = Math.min(metrics.widthPixels, metrics.heightPixels);
                 }
-                if (b != null) {
-                    Bitmap bitmap = Bitmap.createBitmap(b, 0, 0, sMinDim, sMinDim);
-                    mThumbnail = new BitmapDrawable(bitmap);
-                    saveThumbnailToDB(bitmap);
-                } else {
-                    mThumbnail = null;
-                }
+                Bitmap bitmap = Bitmap.createBitmap(b, 0, 0, sMinDim, sMinDim);
+                mThumbnail = new BitmapDrawable(bitmap);
+                saveThumbnailToDB(bitmap);
             }
         });
     }

@@ -198,24 +198,29 @@ JS_SetSingleStepMode(JSContext *cx, JSScript *script, JSBool singleStep)
 JS_PUBLIC_API(JSBool)
 JS_SetTrap(JSContext *cx, JSScript *script, jsbytecode *pc, JSTrapHandler handler, jsval closure)
 {
-    assertSameCompartment(cx, script, closure);
-
     if (!CheckDebugMode(cx))
         return false;
 
-    BreakpointSite *site = script->getOrCreateBreakpointSite(cx, pc, NULL);
+    BreakpointSite *site = script->compartment()->getOrCreateBreakpointSite(cx, script, pc, NULL);
     if (!site)
         return false;
     site->setTrap(cx, handler, closure);
     return true;
 }
 
+JS_PUBLIC_API(JSOp)
+JS_GetTrapOpcode(JSContext *cx, JSScript *script, jsbytecode *pc)
+{
+    BreakpointSite *site = script->compartment()->getBreakpointSite(pc);
+    return site ? site->realOpcode : JSOp(*pc);
+}
+
 JS_PUBLIC_API(void)
 JS_ClearTrap(JSContext *cx, JSScript *script, jsbytecode *pc,
              JSTrapHandler *handlerp, jsval *closurep)
 {
-    if (BreakpointSite *site = script->getBreakpointSite(pc)) {
-        site->clearTrap(cx, handlerp, closurep);
+    if (BreakpointSite *site = script->compartment()->getBreakpointSite(pc)) {
+        site->clearTrap(cx, NULL, handlerp, closurep);
     } else {
         if (handlerp)
             *handlerp = NULL;
@@ -227,13 +232,13 @@ JS_ClearTrap(JSContext *cx, JSScript *script, jsbytecode *pc,
 JS_PUBLIC_API(void)
 JS_ClearScriptTraps(JSContext *cx, JSScript *script)
 {
-    script->clearTraps(cx);
+    script->compartment()->clearTraps(cx, script);
 }
 
 JS_PUBLIC_API(void)
 JS_ClearAllTrapsForCompartment(JSContext *cx)
 {
-    cx->compartment->clearTraps(cx);
+    cx->compartment->clearTraps(cx, NULL);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -630,12 +635,6 @@ JS_GetFrameFunctionObject(JSContext *cx, JSStackFrame *fpArg)
 
     JS_ASSERT(fp->callee().isFunction());
     return &fp->callee();
-}
-
-JS_PUBLIC_API(JSFunction *)
-JS_GetScriptFunction(JSContext *cx, JSScript *script)
-{
-    return script->function();
 }
 
 JS_PUBLIC_API(JSObject *)

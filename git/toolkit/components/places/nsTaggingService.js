@@ -62,6 +62,29 @@ function TaggingService() {
 
 TaggingService.prototype = {
   /**
+   * If there's no tag with the given name or id, null is returned;
+   */
+  _getTagResult: function TS__getTagResult(aTagNameOrId) {
+    if (!aTagNameOrId)
+      throw Cr.NS_ERROR_INVALID_ARG;
+
+    var tagId = null;
+    if (typeof(aTagNameOrId) == "string")
+      tagId = this._getItemIdForTag(aTagNameOrId);
+    else
+      tagId = aTagNameOrId;
+
+    if (tagId == -1)
+      return null;
+
+    var options = PlacesUtils.history.getNewQueryOptions();
+    var query = PlacesUtils.history.getNewQuery();
+    query.setFolders([tagId], 1);
+    var result = PlacesUtils.history.executeQuery(query, options);
+    return result;
+  },
+
+  /**
    * Creates a tag container under the tags-root with the given name.
    *
    * @param aTagName
@@ -93,24 +116,11 @@ TaggingService.prototype = {
     var tagId = this._getItemIdForTag(aTagName);
     if (tagId == -1)
       return -1;
-    // Using bookmarks service API for this would be a pain.
-    // Until tags implementation becomes sane, go the query way.
-    let db = PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase)
-                                .DBConnection;
-    let stmt = db.createStatement(
-      "SELECT id FROM moz_bookmarks "
-    + "WHERE parent = :tag_id "
-    + "AND fk = (SELECT id FROM moz_places WHERE url = :page_url)"
-    );
-    stmt.params.tag_id = tagId;
-    stmt.params.page_url = aURI.spec;
-    try {
-      if (stmt.executeStep()) {
-        return stmt.row.id;
-      }
-    }
-    finally {
-      stmt.finalize();
+    var bookmarkIds = PlacesUtils.bookmarks.getBookmarkIdsForURI(aURI);
+    for (var i=0; i < bookmarkIds.length; i++) {
+      var parent = PlacesUtils.bookmarks.getFolderIdForItem(bookmarkIds[i]);
+      if (parent == tagId)
+        return bookmarkIds[i];
     }
     return -1;
   },
@@ -213,24 +223,14 @@ TaggingService.prototype = {
    *        the itemId of the tag element under the tags root
    */
   _removeTagIfEmpty: function TS__removeTagIfEmpty(aTagId) {
-    let count = 0;
-    let db = PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase)
-                                .DBConnection;
-    let stmt = db.createStatement(
-      "SELECT count(*) AS count FROM moz_bookmarks "
-    + "WHERE parent = :tag_id"
-    );
-    stmt.params.tag_id = aTagId;
-    try {
-      if (stmt.executeStep()) {
-        count = stmt.row.count;
-      }
-    }
-    finally {
-      stmt.finalize();
-    }
-
-    if (count == 0) {
+    var result = this._getTagResult(aTagId);
+    if (!result)
+      return;
+    var node = PlacesUtils.asContainer(result.root);
+    node.containerOpen = true;
+    var cc = node.childCount;
+    node.containerOpen = false;
+    if (cc == 0) {
       PlacesUtils.bookmarks.removeItem(aTagId);
     }
   },
@@ -271,34 +271,27 @@ TaggingService.prototype = {
   },
 
   // nsITaggingService
-  getURIsForTag: function TS_getURIsForTag(aTagName) {
-    if (!aTagName || aTagName.length == 0)
+  getURIsForTag: function TS_getURIsForTag(aTag) {
+    if (!aTag || aTag.length == 0)
       throw Cr.NS_ERROR_INVALID_ARG;
 
-    let uris = [];
-    let tagId = this._getItemIdForTag(aTagName);
-    if (tagId == -1)
-      return uris;
-
-    let db = PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase)
-                                .DBConnection;
-    let stmt = db.createStatement(
-      "SELECT h.url FROM moz_places h "
-    + "JOIN moz_bookmarks b ON b.fk = h.id "
-    + "WHERE b.parent = :tag_id "
-    );
-    stmt.params.tag_id = tagId;
-    try {
-      while (stmt.executeStep()) {
+    var uris = [];
+    var tagResult = this._getTagResult(aTag);
+    if (tagResult) {
+      var tagNode = tagResult.root;
+      tagNode.QueryInterface(Ci.nsINavHistoryContainerResultNode);
+      tagNode.containerOpen = true;
+      var cc = tagNode.childCount;
+      for (var i = 0; i < cc; i++) {
         try {
-          uris.push(Services.io.newURI(stmt.row.url, null, null));
-        } catch (ex) {}
+          uris.push(Services.io.newURI(tagNode.getChild(i).uri, null, null));
+        } catch (ex) {
+          // This is an invalid node, tags should only contain valid uri nodes.
+          // continue to next node.
+        }
       }
+      tagNode.containerOpen = false;
     }
-    finally {
-      stmt.finalize();
-    }
-
     return uris;
   },
 
@@ -328,21 +321,18 @@ TaggingService.prototype = {
   get _tagFolders() {
     if (!this.__tagFolders) {
       this.__tagFolders = [];
-
-      let db = PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase)
-                                  .DBConnection;
-      let stmt = db.createStatement(
-        "SELECT id, title FROM moz_bookmarks WHERE parent = :tags_root "
-      );
-      stmt.params.tags_root = PlacesUtils.tagsFolderId;
-      try {
-        while (stmt.executeStep()) {
-          this.__tagFolders[stmt.row.id] = stmt.row.title;
-        }
+      var options = PlacesUtils.history.getNewQueryOptions();
+      var query = PlacesUtils.history.getNewQuery();
+      query.setFolders([PlacesUtils.tagsFolderId], 1);
+      var tagsResult = PlacesUtils.history.executeQuery(query, options);
+      var root = tagsResult.root;
+      root.containerOpen = true;
+      var cc = root.childCount;
+      for (var i=0; i < cc; i++) {
+        var child = root.getChild(i);
+        this.__tagFolders[child.itemId] = child.title;
       }
-      finally {
-        stmt.finalize();
-      }
+      root.containerOpen = false;
     }
 
     return this.__tagFolders;
@@ -360,11 +350,6 @@ TaggingService.prototype = {
     return allTags;
   },
 
-  // nsITaggingService
-  get hasTags() {
-    return this._tagFolders.length > 0;
-  },
-
   // nsIObserver
   observe: function TS_observe(aSubject, aTopic, aData) {
     if (aTopic == TOPIC_SHUTDOWN) {
@@ -375,47 +360,29 @@ TaggingService.prototype = {
 
   /**
    * If the only bookmark items associated with aURI are contained in tag
-   * folders, returns the IDs of those items.  This can be the case if
+   * folders, returns the IDs of those tag folders.  This can be the case if
    * the URI was bookmarked and tagged at some point, but the bookmark was
-   * removed, leaving only the bookmark items in tag folders.  If the URI is
-   * either properly bookmarked or not tagged just returns and empty array.
+   * removed, leaving only the bookmark items in tag folders.  Returns null
+   * if the URI is either properly bookmarked or not tagged.
    *
    * @param   aURI
    *          A URI (string) that may or may not be bookmarked
-   * @returns an array of item ids
+   * @returns null or an array of tag IDs
    */
-  _getTaggedItemIdsIfUnbookmarkedURI:
-  function TS__getTaggedItemIdsIfUnbookmarkedURI(aURI) {
-    var itemIds = [];
+  _getTagsIfUnbookmarkedURI: function TS__getTagsIfUnbookmarkedURI(aURI) {
+    var tagIds = [];
     var isBookmarked = false;
+    var itemIds = PlacesUtils.bookmarks.getBookmarkIdsForURI(aURI);
 
-    // Using bookmarks service API for this would be a pain.
-    // Until tags implementation becomes sane, go the query way.
-    let db = PlacesUtils.history.QueryInterface(Ci.nsPIPlacesDatabase)
-                                .DBConnection;
-    let stmt = db.createStatement(
-      "SELECT id, parent "
-    + "FROM moz_bookmarks "
-    + "WHERE fk = (SELECT id FROM moz_places WHERE url = :page_url)"
-    );
-    stmt.params.page_url = aURI.spec;
-    try {
-      while (stmt.executeStep() && !isBookmarked) {
-        if (this._tagFolders[stmt.row.parent]) {
-          // This is a tag entry.
-          itemIds.push(stmt.row.id);
-        }
-        else {
-          // This is a real bookmark, so the bookmarked URI is not an orphan.
-          isBookmarked = true;
-        }
-      }
-    }
-    finally {
-      stmt.finalize();
+    for (let i = 0; !isBookmarked && i < itemIds.length; i++) {
+      var parentId = PlacesUtils.bookmarks.getFolderIdForItem(itemIds[i]);
+      if (this._tagFolders[parentId])
+        tagIds.push(parentId);
+      else
+        isBookmarked = true;
     }
 
-    return isBookmarked ? [] : itemIds;
+    return !isBookmarked && tagIds.length > 0 ? tagIds : null;
   },
 
   // nsINavBookmarkObserver
@@ -432,21 +399,20 @@ TaggingService.prototype = {
   onItemRemoved: function TS_onItemRemoved(aItemId, aFolderId, aIndex,
                                            aItemType, aURI) {
     // Item is a tag folder.
-    if (aFolderId == PlacesUtils.tagsFolderId && this._tagFolders[aItemId]) {
+    if (aFolderId == PlacesUtils.tagsFolderId && this._tagFolders[aItemId])
       delete this._tagFolders[aItemId];
-    }
+
     // Item is a bookmark that was removed from a non-tag folder.
     else if (aURI && !this._tagFolders[aFolderId]) {
+
       // If the only bookmark items now associated with the bookmark's URI are
       // contained in tag folders, the URI is no longer properly bookmarked, so
       // untag it.
-      let itemIds = this._getTaggedItemIdsIfUnbookmarkedURI(aURI);
-      for (let i = 0; i < itemIds.length; i++) {
-        try {
-          PlacesUtils.bookmarks.removeItem(itemIds[i]);
-        } catch (ex) {}
-      }
+      var tagIds = this._getTagsIfUnbookmarkedURI(aURI);
+      if (tagIds)
+        this.untagURI(aURI, tagIds);
     }
+
     // Item is a tag entry.  If this was the last entry for this tag, remove it.
     else if (aURI && this._tagFolders[aFolderId]) {
       this._removeTagIfEmpty(aFolderId);

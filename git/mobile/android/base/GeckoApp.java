@@ -598,13 +598,9 @@ abstract public class GeckoApp
                 mLastUri = lastHistoryEntry.mUri;
                 mLastTitle = lastHistoryEntry.mTitle;
                 Bitmap bitmap = mSoftwareLayerClient.getBitmap();
-                if (bitmap != null) {
-                    ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 0, bos);
-                    mLastScreen = bos.toByteArray();
-                } else {
-                    mLastScreen = null;
-                }
+                ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                bitmap.compress(Bitmap.CompressFormat.PNG, 0, bos);
+                mLastScreen = bos.toByteArray();
             }
         }
     };
@@ -1105,7 +1101,15 @@ abstract public class GeckoApp
 
                 if (Tabs.getInstance().isSelectedTab(tab)) {
                     mBrowserToolbar.setTitle(tab.getDisplayTitle());
-                    tab.updateThumbnail(mSoftwareLayerClient.getBitmap());
+                    Bitmap screencap = null;
+                    try {
+                        screencap = mSoftwareLayerClient.getBitmap();
+                    } catch (OutOfMemoryError oom) {
+                        Log.e(LOGTAG, "Unable to generate thumbnail", oom);
+                    }
+                    if (screencap != null) {
+                        tab.updateThumbnail(screencap);
+                    }
                 }
                 onTabsChanged(tab);
             }
@@ -1893,10 +1897,9 @@ abstract public class GeckoApp
             if (data != null) {
                 String url = data.getStringExtra(AwesomeBar.URL_KEY);
                 AwesomeBar.Type type = AwesomeBar.Type.valueOf(data.getStringExtra(AwesomeBar.TYPE_KEY));
-                String searchEngine = data.getStringExtra(AwesomeBar.SEARCH_KEY);
                 if (url != null && url.length() > 0) {
                     mBrowserToolbar.setProgressVisibility(true);
-                    loadRequest(url, type, searchEngine);
+                    loadUrl(url, type);
                 }
             }
             break;
@@ -1921,27 +1924,14 @@ abstract public class GeckoApp
         startActivityForResult(intent, CAMERA_CAPTURE_REQUEST);
     }
 
-    // If searchEngine is provided, url will be used as the search query.
-    // Otherwise, the url is loaded.
-    private void loadRequest(String url, AwesomeBar.Type type, String searchEngine) {
+    public void loadUrl(String url, AwesomeBar.Type type) {
         mBrowserToolbar.setTitle(url);
         Log.d(LOGTAG, type.name());
-        JSONObject args = new JSONObject();
-        try {
-            args.put("url", url);
-            args.put("engine", searchEngine);
-        } catch (Exception e) {
-            Log.e(LOGTAG, "error building JSON arguments");
-        }
         if (type == AwesomeBar.Type.ADD) {
-            GeckoAppShell.sendEventToGecko(new GeckoEvent("Tab:Add", args.toString()));
+            GeckoAppShell.sendEventToGecko(new GeckoEvent("Tab:Add", url));
         } else {
-            GeckoAppShell.sendEventToGecko(new GeckoEvent("Tab:Load", args.toString()));
+            GeckoAppShell.sendEventToGecko(new GeckoEvent("Tab:Load", url));
         }
-    }
-
-    public void loadUrl(String url, AwesomeBar.Type type) {
-        loadRequest(url, type, null);
     }
 
     public GeckoSoftwareLayerClient getSoftwareLayerClient() { return mSoftwareLayerClient; }

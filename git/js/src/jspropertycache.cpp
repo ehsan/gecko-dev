@@ -120,7 +120,7 @@ PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, JSObject *po
      */
     jsbytecode *pc;
     JSScript *script = cx->stack.currentScript(&pc);
-    op = JSOp(*pc);
+    op = js_GetOpcode(cx, script, pc);
     cs = &js_CodeSpec[op];
 
     if ((cs->format & JOF_SET) && obj->watched())
@@ -190,7 +190,7 @@ PropertyCache::fullTest(JSContext *cx, jsbytecode *pc, JSObject **objp, JSObject
     JS_ASSERT(this == &JS_PROPERTY_CACHE(cx));
     JS_ASSERT(uint32(pc - script->code) < script->length);
 
-    JSOp op = JSOp(*pc);
+    JSOp op = js_GetOpcode(cx, script, pc);
     const JSCodeSpec &cs = js_CodeSpec[op];
 
     obj = *objp;

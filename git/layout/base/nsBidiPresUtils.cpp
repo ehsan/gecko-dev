@@ -80,7 +80,6 @@ struct BidiParagraphData {
   nsTArray<nsLineBox*> mLinePerFrame;
   nsDataHashtable<nsISupportsHashKey, PRInt32> mContentToFrameIndex;
   bool                mIsVisual;
-  bool                mReset;
   nsBidiLevel         mParaLevel;
   nsIContent*         mPrevContent;
   nsAutoPtr<nsBidi>   mBidiEngine;
@@ -158,12 +157,10 @@ struct BidiParagraphData {
     if (IS_DEFAULT_LEVEL(mParaLevel)) {
       mParaLevel = (mParaLevel == NSBIDI_DEFAULT_RTL) ? NSBIDI_RTL : NSBIDI_LTR;
     }                    
-    mReset = false;
   }
 
   void Reset(nsIFrame* aFrame, BidiParagraphData *aBpd)
   {
-    mReset = true;
     mLogicalFrames.Clear();
     mLinePerFrame.Clear();
     mContentToFrameIndex.Clear();
@@ -1120,7 +1117,7 @@ nsBidiPresUtils::TraverseFrames(nsBlockFrame*              aBlockFrame,
            * last part of the sub-paragraph.
            */
           bool isLastContinuation = !frame->GetNextContinuation();
-          if (!frame->GetPrevContinuation() || !subParagraph->mReset) {
+          if (!frame->GetPrevContinuation()) {
             subParagraph->Reset(kid, aBpd);
           }
           TraverseFrames(aBlockFrame, aLineIter, kid, subParagraph);

@@ -401,6 +401,13 @@ nsXHREventTarget::SetOnloadend(nsIDOMEventListener* aOnLoadend)
 
 /////////////////////////////////////////////
 
+nsXMLHttpRequestUpload::~nsXMLHttpRequestUpload()
+{
+  if (mListenerManager) {
+    mListenerManager->Disconnect();
+  }
+}
+
 DOMCI_DATA(XMLHttpRequestUpload, nsXMLHttpRequestUpload)
 
 NS_INTERFACE_MAP_BEGIN(nsXMLHttpRequestUpload)
@@ -440,6 +447,10 @@ nsXMLHttpRequest::nsXMLHttpRequest()
 
 nsXMLHttpRequest::~nsXMLHttpRequest()
 {
+  if (mListenerManager) {
+    mListenerManager->Disconnect();
+  }
+
   if (mState & (XML_HTTP_REQUEST_STOPPED |
                 XML_HTTP_REQUEST_SENT |
                 XML_HTTP_REQUEST_LOADING)) {
