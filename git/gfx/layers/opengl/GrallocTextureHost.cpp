@@ -295,7 +295,7 @@ void
 GrallocTextureSourceOGL::DeallocateDeviceData()
 {
   if (mEGLImage) {
-    MOZ_ASSERT(mCompositor);
+    MOZ_ASSERT(gl());
     if (!gl() || !gl()->MakeCurrent()) {
       return;
     }

@@ -795,17 +795,18 @@ BasicLayerManager::PaintLayer(gfxContext* aTarget,
   RenderTraceScope trace("BasicLayerManager::PaintLayer", "707070");
 
   const nsIntRect* clipRect = aLayer->GetEffectiveClipRect();
-  BasicContainerLayer* container =
-    static_cast<BasicContainerLayer*>(aLayer->AsContainerLayer());
-  bool needsGroup = container &&
+  // aLayer might not be a container layer, but if so we take care not to use
+  // the container variable
+  BasicContainerLayer* container = static_cast<BasicContainerLayer*>(aLayer);
+  bool needsGroup = aLayer->GetFirstChild() &&
                     container->UseIntermediateSurface();
   BasicImplData* data = ToData(aLayer);
   bool needsClipToVisibleRegion =
     data->GetClipToVisibleRegion() && !aLayer->AsThebesLayer();
-  NS_ASSERTION(needsGroup || !container ||
+  NS_ASSERTION(needsGroup || !aLayer->GetFirstChild() ||
                container->GetOperator() == CompositionOp::OP_OVER,
                "non-OVER operator should have forced UseIntermediateSurface");
-  NS_ASSERTION(!container || !aLayer->GetMaskLayer() ||
+  NS_ASSERTION(!aLayer->GetFirstChild() || !aLayer->GetMaskLayer() ||
                container->UseIntermediateSurface(),
                "ContainerLayer with mask layer should force UseIntermediateSurface");
 

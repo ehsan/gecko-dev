@@ -612,8 +612,8 @@ Telephony::EnumerateCallState(uint32_t aServiceId, uint32_t aCallIndex,
   // Didn't know anything about this call before now.
   nsRefPtr<TelephonyCallId> id = CreateCallId(aNumber, aNumberPresentation,
                                               aName, aNamePresentation);
-  call = CreateCall(id, aServiceId, aCallIndex, aCallState,
-                    aIsEmergency, aIsConference, aIsSwitchable, aIsMergeable);
+  CreateCall(id, aServiceId, aCallIndex, aCallState,
+             aIsEmergency, aIsConference, aIsSwitchable, aIsMergeable);
 
   return NS_OK;
 }

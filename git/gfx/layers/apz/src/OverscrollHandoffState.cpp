@@ -69,18 +69,6 @@ OverscrollHandoffChain::ForEachApzc(APZCMethod aMethod) const
   }
 }
 
-bool
-OverscrollHandoffChain::AnyApzc(APZCPredicate aPredicate) const
-{
-  MOZ_ASSERT(Length() > 0);
-  for (uint32_t i = 0; i < Length(); ++i) {
-    if ((mChain[i]->*aPredicate)()) {
-      return true;
-    }
-  }
-  return false;
-}
-
 void
 OverscrollHandoffChain::FlushRepaints() const
 {
@@ -139,13 +127,6 @@ OverscrollHandoffChain::CanBePanned(const AsyncPanZoomController* aApzc) const
 
   return false;
 }
-
-bool
-OverscrollHandoffChain::HasOverscrolledApzc() const
-{
-  return AnyApzc(&AsyncPanZoomController::IsOverscrolled);
-}
-
 
 } // namespace layers
 } // namespace mozilla

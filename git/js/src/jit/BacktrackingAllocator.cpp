@@ -13,6 +13,52 @@ using namespace js::jit;
 using mozilla::DebugOnly;
 
 bool
+SplitPositions::append(CodePosition pos)
+{
+    MOZ_ASSERT(empty() || positions_.back() < pos,
+               "split positions must be sorted");
+    return positions_.append(pos);
+}
+
+bool
+SplitPositions::empty() const
+{
+    return positions_.empty();
+}
+
+SplitPositionsIterator::SplitPositionsIterator(const SplitPositions &splitPositions)
+  : splitPositions_(splitPositions),
+    current_(splitPositions_.positions_.begin())
+{
+    JS_ASSERT(!splitPositions_.empty());
+}
+
+// Proceed to the next split after |pos|.
+void
+SplitPositionsIterator::advancePast(CodePosition pos)
+{
+    JS_ASSERT(!splitPositions_.empty());
+    while (current_ < splitPositions_.positions_.end() && *current_ <= pos)
+        ++current_;
+}
+
+// Test whether |pos| is at or beyond the next split.
+bool
+SplitPositionsIterator::isBeyondNextSplit(CodePosition pos) const
+{
+    JS_ASSERT(!splitPositions_.empty());
+    return current_ < splitPositions_.positions_.end() && pos >= *current_;
+}
+
+// Test whether |pos| is beyond the next split.
+bool
+SplitPositionsIterator::isEndBeyondNextSplit(CodePosition pos) const
+{
+    JS_ASSERT(!splitPositions_.empty());
+    return current_ < splitPositions_.positions_.end() && pos > *current_;
+}
+
+bool
 BacktrackingAllocator::init()
 {
     RegisterSet remainingRegisters(allRegisters_);
@@ -1521,7 +1567,7 @@ BacktrackingAllocator::trySplitAcrossHotcode(LiveInterval *interval, bool *succe
 
     IonSpew(IonSpew_RegAlloc, "  split across hot range %s", hotRange->toString());
 
-    SplitPositionVector splitPositions;
+    SplitPositions splitPositions;
     if (!splitPositions.append(hotRange->from) || !splitPositions.append(hotRange->to))
         return false;
     *success = true;
@@ -1579,7 +1625,7 @@ BacktrackingAllocator::trySplitAfterLastRegisterUse(LiveInterval *interval, Live
     IonSpew(IonSpew_RegAlloc, "  split after last register use at %u",
             lastRegisterTo.bits());
 
-    SplitPositionVector splitPositions;
+    SplitPositions splitPositions;
     if (!splitPositions.append(lastRegisterTo))
         return false;
     *success = true;
@@ -1628,7 +1674,7 @@ BacktrackingAllocator::trySplitBeforeFirstRegisterUse(LiveInterval *interval, Li
     IonSpew(IonSpew_RegAlloc, "  split before first register use at %u",
             firstRegisterFrom.bits());
 
-    SplitPositionVector splitPositions;
+    SplitPositions splitPositions;
     if (!splitPositions.append(firstRegisterFrom))
         return false;
     *success = true;
@@ -1710,40 +1756,12 @@ BacktrackingAllocator::splitAtAllRegisterUses(LiveInterval *interval)
     return split(interval, newIntervals) && requeueIntervals(newIntervals);
 }
 
-// Find the next split position after the current position.
-static size_t NextSplitPosition(size_t activeSplitPosition,
-                                const SplitPositionVector &splitPositions,
-                                CodePosition currentPos)
-{
-    while (activeSplitPosition < splitPositions.length() &&
-           splitPositions[activeSplitPosition] <= currentPos)
-    {
-        ++activeSplitPosition;
-    }
-    return activeSplitPosition;
-}
-
-// Test whether the current position has just crossed a split point.
-static bool SplitHere(size_t activeSplitPosition,
-                      const SplitPositionVector &splitPositions,
-                      CodePosition currentPos)
-{
-    return activeSplitPosition < splitPositions.length() &&
-           currentPos >= splitPositions[activeSplitPosition];
-}
-
 bool
-BacktrackingAllocator::splitAt(LiveInterval *interval,
-                               const SplitPositionVector &splitPositions)
+BacktrackingAllocator::splitAt(LiveInterval *interval, const SplitPositions &splitPositions)
 {
     // Split the interval at the given split points. Unlike splitAtAllRegisterUses,
     // consolidate any register uses which have no intervening split points into the
     // same resulting interval.
-
-    // splitPositions should be non-empty and sorted.
-    JS_ASSERT(!splitPositions.empty());
-    for (size_t i = 1; i < splitPositions.length(); ++i)
-        JS_ASSERT(splitPositions[i-1] < splitPositions[i]);
 
     // Don't spill the interval until after the end of its definition.
     CodePosition spillStart = interval->start();
@@ -1780,15 +1798,17 @@ BacktrackingAllocator::splitAt(LiveInterval *interval,
         lastRegisterUse = interval->start();
     }
 
-    size_t activeSplitPosition = NextSplitPosition(0, splitPositions, interval->start());
+    SplitPositionsIterator splitIter(splitPositions);
+    splitIter.advancePast(interval->start());
+
     for (UsePositionIterator iter(interval->usesBegin()); iter != interval->usesEnd(); iter++) {
         LInstruction *ins = insData[iter->pos].ins();
         if (iter->pos < spillStart) {
             newIntervals.back()->addUseAtEnd(new(alloc()) UsePosition(iter->use, iter->pos));
-            activeSplitPosition = NextSplitPosition(activeSplitPosition, splitPositions, iter->pos);
+            splitIter.advancePast(iter->pos);
         } else if (isRegisterUse(iter->use, ins)) {
             if (lastRegisterUse.bits() == 0 ||
-                SplitHere(activeSplitPosition, splitPositions, iter->pos))
+                splitIter.isBeyondNextSplit(iter->pos))
             {
                 // Place this register use into a different interval from the
                 // last one if there are any split points between the two uses.
@@ -1796,9 +1816,7 @@ BacktrackingAllocator::splitAt(LiveInterval *interval,
                 newInterval->setSpillInterval(spillInterval);
                 if (!newIntervals.append(newInterval))
                     return false;
-                activeSplitPosition = NextSplitPosition(activeSplitPosition,
-                                                        splitPositions,
-                                                        iter->pos);
+                splitIter.advancePast(iter->pos);
             }
             newIntervals.back()->addUseAtEnd(new(alloc()) UsePosition(iter->use, iter->pos));
             lastRegisterUse = iter->pos;
@@ -1853,7 +1871,7 @@ BacktrackingAllocator::splitAcrossCalls(LiveInterval *interval)
     // are introduced by buildLivenessInfo only for calls when allocating for
     // the backtracking allocator. fixedIntervalsUnion is sorted backwards, so
     // iterate through it backwards.
-    SplitPositionVector callPositions;
+    SplitPositions callPositions;
     IonSpewStart(IonSpew_RegAlloc, "  split across calls at ");
     for (size_t i = fixedIntervalsUnion->numRanges(); i > 0; i--) {
         const LiveInterval::Range *range = fixedIntervalsUnion->getRange(i - 1);
@@ -1861,13 +1879,11 @@ BacktrackingAllocator::splitAcrossCalls(LiveInterval *interval)
             if (!callPositions.empty())
                 IonSpewCont(IonSpew_RegAlloc, ", ");
             IonSpewCont(IonSpew_RegAlloc, "%u", range->from);
-
             if (!callPositions.append(range->from))
                 return false;
         }
     }
     IonSpewFin(IonSpew_RegAlloc);
-
 
     return splitAt(interval, callPositions);
 }

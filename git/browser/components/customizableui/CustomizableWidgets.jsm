@@ -949,22 +949,7 @@ if (Services.metro && Services.metro.supported) {
 #endif
 #endif
 
-let isPanicButtonEnabled = Services.prefs.getBoolPref("privacy.panicButton.enabled");
-#ifndef NIGHTLY_BUILD
-if (Services.prefs.getBoolPref("privacy.panicButton.useLocaleList")) {
-  let chromeRegistry = Cc["@mozilla.org/chrome/chrome-registry;1"]
-                       .getService(Ci.nsIXULChromeRegistry);
-  let browserLocale = chromeRegistry.getSelectedLocale("browser");
-  let enabledLocales = [];
-  try {
-    enabledLocales = Services.prefs.getCharPref("privacy.panicButton.enabledLocales").split(' ');
-  } catch (ex) {
-    Cu.reportError(ex);
-  }
-  isPanicButtonEnabled = isPanicButtonEnabled && enabledLocales.indexOf(browserLocale) != -1;
-}
-#endif
-if (isPanicButtonEnabled) {
+if (Services.prefs.getBoolPref("privacy.panicButton.enabled")) {
   CustomizableWidgets.push({
     id: "panic-button",
     type: "view",

@@ -951,9 +951,6 @@ dictionary Dict : ParentDict {
   sequence<long>? seq5 = [];
 
   long dashed-name;
-
-  required long requiredLong;
-  required object requiredObject;
 };
 
 dictionary ParentDict : GrandparentDict {

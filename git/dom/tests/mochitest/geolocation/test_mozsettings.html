@@ -14,14 +14,12 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=478911
 <a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=777594">Mozilla Bug 777594</a>
 <p id="display"></p>
 <div id="content" style="display: none">
-
+  
 </div>
 <pre id="test">
 <script class="testbody" type="text/javascript">
 
 SimpleTest.waitForExplicitFinish();
-
-var timeToWaitMs = 1000;
 
 resume_geolocationProvider(function() {
   force_prompt(true, test1);
@@ -48,7 +46,7 @@ function test2() {
       setTimeout(function() {
 	  navigator.geolocation.getCurrentPosition(successCallbackAfterMozsettingOff,
                                                    failureCallbackAfterMozsettingOff);
-        }, timeToWaitMs); // need to wait a bit for all of these async callbacks to finish
+        }, 500); // need to wait a bit for all of these async callbacks to finish
   });
 }
 
@@ -60,7 +58,7 @@ function successCallbackAfterMozsettingOff(position) {
       setTimeout(function() {
          navigator.geolocation.getCurrentPosition(successCallbackAfterMozsettingOn,
                                                   failureCallbackAfterMozsettingOn);
-        }, timeToWaitMs); // need to wait a bit for all of these async callbacks to finish
+        }, 500); // need to wait a bit for all of these async callbacks to finish
     });
 }
 
@@ -72,7 +70,7 @@ function failureCallbackAfterMozsettingOff(error) {
       setTimeout(function() {
          navigator.geolocation.getCurrentPosition(successCallbackAfterMozsettingOn,
                                                   failureCallbackAfterMozsettingOn);
-        }, timeToWaitMs); // need to wait a bit for all of these async callbacks to finish
+        }, 500); // need to wait a bit for all of these async callbacks to finish
     });
 }
 

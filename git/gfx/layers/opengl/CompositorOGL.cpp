@@ -589,10 +589,7 @@ CompositorOGL::PrepareViewport(const gfx::IntSize& aSize,
     viewMatrix.Scale(1.0f, -1.0f);
   }
 
-  MOZ_ASSERT(mCurrentRenderTarget, "No destination");
-  // If we're drawing directly to the window then we want to offset
-  // drawing by the render offset.
-  if (!mTarget && mCurrentRenderTarget->IsWindow()) {
+  if (!mTarget) {
     viewMatrix.Translate(mRenderOffset.x, mRenderOffset.y);
   }
 
@@ -649,8 +646,8 @@ CompositorOGL::SetRenderTarget(CompositingRenderTarget *aSurface)
   CompositingRenderTargetOGL* surface
     = static_cast<CompositingRenderTargetOGL*>(aSurface);
   if (mCurrentRenderTarget != surface) {
-    mCurrentRenderTarget = surface;
     surface->BindRenderTarget();
+    mCurrentRenderTarget = surface;
   }
 }
 
@@ -1020,14 +1017,9 @@ CompositorOGL::DrawQuad(const Rect& aRect,
     js::ProfileEntry::Category::GRAPHICS);
 
   MOZ_ASSERT(mFrameInProgress, "frame not started");
-  MOZ_ASSERT(mCurrentRenderTarget, "No destination");
 
   Rect clipRect = aClipRect;
-  // aClipRect is in destination coordinate space (after all
-  // transforms and offsets have been applied) so if our
-  // drawing is going to be shifted by mRenderOffset then we need
-  // to shift the clip rect by the same amount.
-  if (!mTarget && mCurrentRenderTarget->IsWindow()) {
+  if (!mTarget) {
     clipRect.MoveBy(mRenderOffset.x, mRenderOffset.y);
   }
   IntRect intClipRect;

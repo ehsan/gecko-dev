@@ -789,7 +789,7 @@ class XPCShellTests(object):
         if isinstance(self.manifest, manifestparser.TestManifest):
             mp = self.manifest
         else:
-            mp = manifestparser.TestManifest(strict=True)
+            mp = manifestparser.TestManifest(strict=False)
             if self.manifest is None:
                 for testdir in self.testdirs:
                     if testdir:
