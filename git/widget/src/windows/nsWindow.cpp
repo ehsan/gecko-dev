@@ -106,6 +106,8 @@
 
 #ifdef MOZ_IPC
 #include "mozilla/ipc/SyncChannel.h"
+#include "mozilla/plugins/PluginInstanceParent.h"
+using mozilla::plugins::PluginInstanceParent;
 #endif
 
 #include "nsWindow.h"
@@ -209,10 +211,6 @@
 #include "nsGfxCIID.h"
 #endif
 
-// A magic APP message that can be sent to quit, sort of like a QUERYENDSESSION/ENDSESSION,
-// but without the query.
-#define MOZ_WM_APP_QUIT (WM_APP+0x0300)
-
 /**************************************************************
  **************************************************************
  **
@@ -282,6 +280,13 @@ LPFNLRESULTFROMOBJECT
                 nsWindow::sLresultFromObject      = 0;
 #endif // ACCESSIBILITY
 
+#ifdef MOZ_IPC
+// Used in OOPP plugin focus processing.
+const PRUnichar* kOOPPPluginFocusEventId   = L"OOPP Plugin Focus Widget Event";
+PRUint32        nsWindow::sOOPPPluginFocusEvent   =
+                  RegisterWindowMessageW(kOOPPPluginFocusEventId);
+#endif
+
 /**************************************************************
  *
  * SECTION: globals variables
@@ -329,7 +334,6 @@ static void UpdateLastInputEventTime() {
   if (is)
     is->IdleTimeWasModified();
 }
-
 
 // Global user preference for disabling native theme. Used
 // in NativeWindowTheme.
@@ -2105,7 +2109,7 @@ NS_METHOD nsWindow::Invalidate(PRBool aIsSynchronous)
     VERIFY(::InvalidateRect(mWnd, NULL, FALSE));
 
     if (aIsSynchronous) {
-      VERIFY(::UpdateWindow(mWnd));
+      UpdateWindowInternal(mWnd);
     }
   }
   return NS_OK;
@@ -2139,7 +2143,7 @@ NS_METHOD nsWindow::Invalidate(const nsIntRect & aRect, PRBool aIsSynchronous)
     VERIFY(::InvalidateRect(mWnd, &rect, FALSE));
 
     if (aIsSynchronous) {
-      VERIFY(::UpdateWindow(mWnd));
+      UpdateWindowInternal(mWnd);
     }
   }
   return NS_OK;
@@ -2183,7 +2187,7 @@ NS_IMETHODIMP nsWindow::Update()
   // updates can come through for windows no longer holding an mWnd during
   // deletes triggered by JavaScript in buttons with mouse feedback
   if (mWnd)
-    VERIFY(::UpdateWindow(mWnd));
+    UpdateWindowInternal(mWnd);
 
   return rv;
 }
@@ -3144,7 +3148,12 @@ BOOL CALLBACK nsWindow::DispatchStarvedPaints(HWND aWnd, LPARAM aMsg)
     // invalidated rect. If it does. Dispatch a synchronous
     // paint.
     if (GetUpdateRect(aWnd, NULL, FALSE)) {
-      VERIFY(::UpdateWindow(aWnd));
+      nsWindow* win = GetNSWindowPtr(aWnd);
+      if (win)
+        win->UpdateWindowInternal(aWnd);
+      else
+        // Bad, this could hang a plugin process. Is this possible?
+        VERIFY(::UpdateWindow(aWnd));
     }
   }
   return TRUE;
@@ -4606,6 +4615,15 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
       if (msg == nsAppShell::GetTaskbarButtonCreatedMessage())
         SetHasTaskbarIconBeenCreated();
+#endif
+#ifdef MOZ_IPC
+    if (msg == sOOPPPluginFocusEvent) {
+      // With OOPP, the plugin window exists in another process and is a child of
+      // this window. This window is a placeholder plugin window for the dom. We
+      // receive this event when the child window receives focus. (sent from
+      // PluginInstanceParent.cpp)
+      ::SendMessage(mWnd, WM_MOUSEACTIVATE, 0, 0); // See nsPluginNativeWindowWin.cpp
+    } 
 #endif
     }
     break;
@@ -7038,6 +7056,7 @@ void nsWindow::InitTrackPointHack()
   const WCHAR wstrKeys[][40] = {L"Software\\Lenovo\\TrackPoint",
                                 L"Software\\Lenovo\\UltraNav",
                                 L"Software\\Alps\\Apoint\\TrackPoint",
+                                L"Software\\Synaptics\\SynTPEnh\\UltraNavUSB",
                                 L"Software\\Synaptics\\SynTPEnh\\UltraNavPS2"};    
   // If anything fails turn the hack off
   sTrackPointHack = false;
@@ -7092,6 +7111,30 @@ LPARAM nsWindow::lParamToClient(LPARAM lParam)
   pt.y = GET_Y_LPARAM(lParam);
   ::ScreenToClient(mWnd, &pt);
   return MAKELPARAM(pt.x, pt.y);
+}
+
+// If this window hosts a plugin window from another process then we cannot use
+// the windows UpdateWindow function to update it. Doing so sends a synchronous
+// WM_PAINT message to the plugin process which may call back to this process
+// in response. As this process is waiting for the UpdateWindow call to return
+// we deadlock. To work around this we issue an IPC call to the plugin process
+// to force the redraw since the IPC call handles reentrancy properly.
+void nsWindow::UpdateWindowInternal(HWND aWnd)
+{
+  if (aWnd) {
+#ifdef MOZ_IPC
+    if (mWindowType == eWindowType_plugin) {
+      PluginInstanceParent* instance = reinterpret_cast<PluginInstanceParent*>(
+        ::GetPropW(aWnd, L"PluginInstanceParentProperty"));
+      if (instance) {
+        if (!instance->CallUpdateWindow())
+          NS_ERROR("Failed to send message!");
+        return;
+      }
+    }
+#endif
+    VERIFY(::UpdateWindow(aWnd));
+  }
 }
 
 /**************************************************************
