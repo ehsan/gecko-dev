@@ -1650,8 +1650,10 @@ nsDocShell::MaybeInitTiming()
         return NS_OK;
     }
 
-    mTiming = new nsDOMNavigationTiming();
-    mTiming->NotifyNavigationStart();
+    if (Preferences::GetBool("dom.enable_performance", false)) {
+        mTiming = new nsDOMNavigationTiming();
+        mTiming->NotifyNavigationStart();
+    }
     return NS_OK;
 }
 
@@ -9518,9 +9520,11 @@ nsDocShell::DoURILoad(nsIURI * aURI,
         }
     }
 
-    nsCOMPtr<nsITimedChannel> timedChannel(do_QueryInterface(channel));
-    if (timedChannel) {
-        timedChannel->SetTimingEnabled(true);
+    if (Preferences::GetBool("dom.enable_performance", false)) {
+        nsCOMPtr<nsITimedChannel> timedChannel(do_QueryInterface(channel));
+        if (timedChannel) {
+            timedChannel->SetTimingEnabled(true);
+        }
     }
 
     rv = DoChannelLoad(channel, uriLoader, aBypassClassifier);

@@ -41,8 +41,8 @@ Module::~Module()
 static JSBool
 SealObjectAndPrototype(JSContext* cx, JSObject* parent, const char* name)
 {
-  JS::Rooted<JS::Value> prop(cx);
-  if (!JS_GetProperty(cx, parent, name, prop.address()))
+  JS::Value prop;
+  if (!JS_GetProperty(cx, parent, name, &prop))
     return false;
 
   if (prop.isUndefined()) {
@@ -50,16 +50,16 @@ SealObjectAndPrototype(JSContext* cx, JSObject* parent, const char* name)
     return true;
   }
 
-  JS::Rooted<JSObject*> obj(cx, prop.toObjectOrNull());
-  if (!JS_GetProperty(cx, obj, "prototype", prop.address()))
+  JSObject* obj = JSVAL_TO_OBJECT(prop);
+  if (!JS_GetProperty(cx, obj, "prototype", &prop))
     return false;
 
-  JS::Rooted<JSObject*> prototype(cx, prop.toObjectOrNull());
+  JSObject* prototype = JSVAL_TO_OBJECT(prop);
   return JS_FreezeObject(cx, obj) && JS_FreezeObject(cx, prototype);
 }
 
 static JSBool
-InitAndSealPerfMeasurementClass(JSContext* cx, JS::Handle<JSObject*> global)
+InitAndSealPerfMeasurementClass(JSContext* cx, JSObject* global)
 {
   // Init the PerfMeasurement class
   if (!JS::RegisterPerfMeasurement(cx, global))

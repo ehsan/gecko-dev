@@ -965,9 +965,9 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
   WorkerPrivate* worker = GetWorkerPrivateFromContext(aCx);
   JS_ASSERT(worker);
 
-  JS::Rooted<JSObject*> global(aCx,
+  JSObject* global =
     JS_NewGlobalObject(aCx, DedicatedWorkerGlobalScope::Class(),
-                       GetWorkerPrincipal()));
+                       GetWorkerPrincipal());
   if (!global) {
     return NULL;
   }

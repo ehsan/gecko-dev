@@ -3338,8 +3338,11 @@ nsPerformance*
 nsPIDOMWindow::GetPerformance()
 {
   MOZ_ASSERT(IsInnerWindow());
-  CreatePerformanceObjectIfNeeded();
-  return mPerformance;
+  if (HasPerformanceSupport()) {
+    CreatePerformanceObjectIfNeeded();
+    return mPerformance;
+  }
+  return nullptr;
 }
 
 void
@@ -11212,6 +11215,13 @@ bool
 nsGlobalWindow::HasIndexedDBSupport()
 {
   return Preferences::GetBool("indexedDB.feature.enabled", true);
+}
+
+// static
+bool
+nsPIDOMWindow::HasPerformanceSupport()
+{
+  return Preferences::GetBool("dom.enable_performance", false);
 }
 
 static size_t

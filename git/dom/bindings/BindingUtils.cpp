@@ -275,7 +275,7 @@ Constructor(JSContext* cx, unsigned argc, JS::Value* vp)
 }
 
 static JSObject*
-CreateConstructor(JSContext* cx, JS::Handle<JSObject*> global, const char* name,
+CreateConstructor(JSContext* cx, JSObject* global, const char* name,
                   const JSNativeHolder* nativeHolder, unsigned ctorNargs)
 {
   JSFunction* fun = js::NewFunctionWithReserved(cx, Constructor, ctorNargs,
@@ -293,8 +293,8 @@ CreateConstructor(JSContext* cx, JS::Handle<JSObject*> global, const char* name,
 }
 
 static bool
-DefineConstructor(JSContext* cx, JS::Handle<JSObject*> global, const char* name,
-                  JS::Handle<JSObject*> constructor)
+DefineConstructor(JSContext* cx, JSObject* global, const char* name,
+                  JSObject* constructor)
 {
   JSBool alreadyDefined;
   if (!JS_AlreadyHasOwnProperty(cx, global, name, &alreadyDefined)) {
@@ -308,16 +308,16 @@ DefineConstructor(JSContext* cx, JS::Handle<JSObject*> global, const char* name,
 }
 
 static JSObject*
-CreateInterfaceObject(JSContext* cx, JS::Handle<JSObject*> global,
+CreateInterfaceObject(JSContext* cx, JSObject* global,
                       JSClass* constructorClass,
                       const JSNativeHolder* constructorNative,
                       unsigned ctorNargs, const NamedConstructor* namedConstructors,
-                      JS::Handle<JSObject*> proto,
+                      JSObject* proto,
                       const NativeProperties* properties,
                       const NativeProperties* chromeOnlyProperties,
                       const char* name)
 {
-  JS::Rooted<JSObject*> constructor(cx);
+  JSObject* constructor;
   bool isCallbackInterface = constructorClass == js::Jsvalify(&js::ObjectClass);
   if (constructorClass) {
     JSObject* constructorProto;
@@ -342,23 +342,22 @@ CreateInterfaceObject(JSContext* cx, JS::Handle<JSObject*> global,
   if (constructorClass && !isCallbackInterface) {
     // Have to shadow Function.prototype.toString, since that throws
     // on things that are not js::FunctionClass.
-    JS::Rooted<JSFunction*> toString(cx,
-      js::DefineFunctionWithReserved(cx, constructor,
-                                     "toString",
-                                     InterfaceObjectToString,
-                                     0, 0));
+    JSFunction* toString = js::DefineFunctionWithReserved(cx, constructor,
+                                                          "toString",
+                                                          InterfaceObjectToString,
+                                                          0, 0);
     if (!toString) {
       return NULL;
     }
+
+    JSObject* toStringObj = JS_GetFunctionObject(toString);
+    js::SetFunctionNativeReserved(toStringObj, TOSTRING_CLASS_RESERVED_SLOT,
+                                  PRIVATE_TO_JSVAL(constructorClass));
 
     JSString *str = ::JS_InternString(cx, name);
     if (!str) {
       return NULL;
     }
-    JSObject* toStringObj = JS_GetFunctionObject(toString);
-    js::SetFunctionNativeReserved(toStringObj, TOSTRING_CLASS_RESERVED_SLOT,
-                                  PRIVATE_TO_JSVAL(constructorClass));
-
     js::SetFunctionNativeReserved(toStringObj, TOSTRING_NAME_RESERVED_SLOT,
                                   STRING_TO_JSVAL(str));
 
@@ -414,10 +413,10 @@ CreateInterfaceObject(JSContext* cx, JS::Handle<JSObject*> global,
   if (namedConstructors) {
     int namedConstructorSlot = DOM_INTERFACE_SLOTS_BASE;
     while (namedConstructors->mName) {
-      JS::Rooted<JSObject*> namedConstructor(cx,
-        CreateConstructor(cx, global, namedConstructors->mName,
-                          &namedConstructors->mHolder,
-                          namedConstructors->mNargs));
+      JSObject* namedConstructor = CreateConstructor(cx, global,
+                                                     namedConstructors->mName,
+                                                     &namedConstructors->mHolder,
+                                                     namedConstructors->mNargs);
       if (!namedConstructor ||
           !JS_DefineProperty(cx, namedConstructor, "prototype",
                              JS::ObjectValue(*proto), JS_PropertyStub,
@@ -453,14 +452,13 @@ DefineWebIDLBindingPropertiesOnXPCProto(JSContext* cx, JSObject* proto, const Na
 }
 
 static JSObject*
-CreateInterfacePrototypeObject(JSContext* cx, JS::Handle<JSObject*> global,
-                               JS::Handle<JSObject*> parentProto,
-                               JSClass* protoClass,
+CreateInterfacePrototypeObject(JSContext* cx, JSObject* global,
+                               JSObject* parentProto, JSClass* protoClass,
                                const NativeProperties* properties,
                                const NativeProperties* chromeOnlyProperties)
 {
-  JS::Rooted<JSObject*> ourProto(cx,
-    JS_NewObjectWithUniqueType(cx, protoClass, parentProto, global));
+  JSObject* ourProto = JS_NewObjectWithUniqueType(cx, protoClass, parentProto,
+                                                  global);
   if (!ourProto) {
     return NULL;
   }
@@ -503,8 +501,7 @@ CreateInterfacePrototypeObject(JSContext* cx, JS::Handle<JSObject*> global,
 }
 
 void
-CreateInterfaceObjects(JSContext* cx, JS::Handle<JSObject*> global,
-                       JS::Handle<JSObject*> protoProto,
+CreateInterfaceObjects(JSContext* cx, JSObject* global, JSObject* protoProto,
                        JSClass* protoClass, JSObject** protoCache,
                        JSClass* constructorClass, const JSNativeHolder* constructor,
                        unsigned ctorNargs, const NamedConstructor* namedConstructors,
@@ -538,11 +535,10 @@ CreateInterfaceObjects(JSContext* cx, JS::Handle<JSObject*> global,
              "If, and only if, there is an interface object we need to cache "
              "it");
 
-  JS::Rooted<JSObject*> proto(cx);
+  JSObject* proto;
   if (protoClass) {
-    proto =
-      CreateInterfacePrototypeObject(cx, global, protoProto, protoClass,
-                                     properties, chromeOnlyProperties);
+    proto = CreateInterfacePrototypeObject(cx, global, protoProto, protoClass,
+                                           properties, chromeOnlyProperties);
     if (!proto) {
       return;
     }
@@ -553,7 +549,7 @@ CreateInterfaceObjects(JSContext* cx, JS::Handle<JSObject*> global,
     *protoCache = proto;
   }
   else {
-    MOZ_ASSERT(!proto);
+    proto = NULL;
   }
 
   JSObject* interface;
@@ -1474,9 +1470,9 @@ ReparentWrapper(JSContext* aCx, JS::HandleObject aObjArg)
   // return early we must avoid ending up with two reflectors pointing to the
   // same native. Other than that, the objects we create will just go away.
 
-  JS::Rooted<JSObject*> global(aCx,
-                               js::GetGlobalForObjectCrossCompartment(newParent));
-  JS::Handle<JSObject*> proto = (domClass->mGetProto)(aCx, global);
+  JSObject *proto =
+    (domClass->mGetProto)(aCx,
+                          js::GetGlobalForObjectCrossCompartment(newParent));
   if (!proto) {
     return NS_ERROR_FAILURE;
   }

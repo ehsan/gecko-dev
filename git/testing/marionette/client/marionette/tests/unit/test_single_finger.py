@@ -6,6 +6,7 @@ import time
 from marionette_test import MarionetteTestCase
 from marionette import Actions
 from errors import NoSuchElementException, MarionetteException
+from unittest import skip
 
 class testSingleFinger(MarionetteTestCase):
     def test_wait(self):
@@ -131,8 +132,7 @@ class testSingleFinger(MarionetteTestCase):
         time.sleep(10)
         self.assertEqual("ContextEnd", self.marionette.execute_script("return document.getElementById('mozLinkCopy').innerHTML;"))
 
-    """
-    #Skipping due to Bug 865334
+    @skip("Skipping due to Bug 865334")
     def test_long_press_fail(self):
         testTouch = self.marionette.absolute_url("testAction.html")
         self.marionette.navigate(testTouch)
@@ -140,7 +140,6 @@ class testSingleFinger(MarionetteTestCase):
         action = Actions(self.marionette)
         action.press(button).long_press(button, 5)
         self.assertRaises(MarionetteException, action.perform)
-    """
 
     def test_wrong_value(self):
         testTouch = self.marionette.absolute_url("testAction.html")
@@ -157,8 +156,7 @@ class testSingleFinger(MarionetteTestCase):
         self.assertEqual("End", self.marionette.execute_script("return document.getElementById('mozLinkScroll').innerHTML;"))
         self.assertEqual("Start", self.marionette.execute_script("return document.getElementById('mozLinkScrollStart').innerHTML;"))
 
-    """
-    #Skipping due to Bug 865334
+    @skip("Skipping due to Bug 865334")
     def test_touchcancel_chain(self):
         testTouch = self.marionette.absolute_url("testAction.html")
         self.marionette.navigate(testTouch)
@@ -168,7 +166,6 @@ class testSingleFinger(MarionetteTestCase):
         action.perform()
         time.sleep(15)
         self.assertEqual("End", self.marionette.execute_script("return document.getElementById('mozLinkCancel').innerHTML;"))
-    """
 
     def test_mouse_single_tap(self):
         testTouch = self.marionette.absolute_url("testAction.html")

@@ -415,8 +415,7 @@ private:
   // exist already.
   MiscContainer* EnsureEmptyMiscContainer();
   bool EnsureEmptyAtomArray();
-  already_AddRefed<nsStringBuffer>
-    GetStringBuffer(const nsAString& aValue) const;
+  nsStringBuffer* GetStringBuffer(const nsAString& aValue) const;
   // aStrict is set true if stringifying the return value equals with
   // aValue.
   int32_t StringToInteger(const nsAString& aValue,
