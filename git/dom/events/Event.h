@@ -29,7 +29,6 @@ namespace dom {
 
 class EventTarget;
 class ErrorEvent;
-class ProgressEvent;
 
 // Dummy class so we can cast through it to get from nsISupports to
 // Event subclasses with only two non-ambiguous static casts.
@@ -94,11 +93,6 @@ public:
   }
 
   virtual ErrorEvent* AsErrorEvent()
-  {
-    return nullptr;
-  }
-
-  virtual ProgressEvent* AsProgressEvent()
   {
     return nullptr;
   }

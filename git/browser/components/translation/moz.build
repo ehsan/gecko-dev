@@ -21,9 +21,5 @@ BROWSER_CHROME_MANIFESTS += [
 ]
 
 XPCSHELL_TESTS_MANIFESTS += [
-    'test/unit/xpcshell.ini'
-]
-
-EXTRA_PP_COMPONENTS += [
-    'translation.manifest',
+    'test/xpcshell.ini'
 ]

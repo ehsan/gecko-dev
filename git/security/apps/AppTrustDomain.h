@@ -22,7 +22,7 @@ public:
 
   SECStatus GetCertTrust(mozilla::pkix::EndEntityOrCA endEntityOrCA,
                          const mozilla::pkix::CertPolicyId& policy,
-                         const SECItem& candidateCertDER,
+                         const CERTCertificate* candidateCert,
                  /*out*/ mozilla::pkix::TrustLevel* trustLevel) MOZ_OVERRIDE;
   SECStatus FindPotentialIssuers(const SECItem* encodedIssuerName,
                                  PRTime time,

@@ -111,8 +111,6 @@ public:
 
   Result Init();
 
-  const SECItem& GetDER() const { return nssCert->derCert; }
-
   const SECItem* encodedBasicConstraints;
   const SECItem* encodedCertificatePolicies;
   const SECItem* encodedExtendedKeyUsage;
