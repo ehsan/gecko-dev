@@ -6772,7 +6772,7 @@ nsGlobalWindow::GetDocument(nsIDOMDocumentView ** aDocumentView)
 //*****************************************************************************
 
 NS_IMETHODIMP
-nsGlobalWindow::GetSessionStorage(nsIDOMStorage ** aSessionStorage)
+nsGlobalWindow::GetSessionStorage(nsIDOMStorageObsolete ** aSessionStorage)
 {
   FORWARD_TO_INNER(GetSessionStorage, (aSessionStorage), NS_ERROR_UNEXPECTED);
 
@@ -6819,7 +6819,7 @@ nsGlobalWindow::GetGlobalStorage(nsIDOMStorageList ** aGlobalStorage)
 }
 
 NS_IMETHODIMP
-nsGlobalWindow::GetLocalStorage(nsIDOMStorage2 ** aLocalStorage)
+nsGlobalWindow::GetLocalStorage(nsIDOMStorage ** aLocalStorage)
 {
   FORWARD_TO_INNER(GetLocalStorage, (aLocalStorage), NS_ERROR_UNEXPECTED);
 
@@ -6996,7 +6996,7 @@ nsGlobalWindow::Observe(nsISupports* aSubject, const char* aTopic,
       nsCOMPtr<nsIDocShell_MOZILLA_1_9_1> docShell =
         do_QueryInterface(GetDocShell());
       if (principal && docShell) {
-        nsCOMPtr<nsIDOMStorage> storage;
+        nsCOMPtr<nsIDOMStorageObsolete> storage;
         docShell->GetSessionStorageForPrincipal(principal,
                                                 PR_FALSE,
                                                 getter_AddRefs(storage));
@@ -7090,7 +7090,7 @@ FirePendingStorageEvents(const nsAString& aKey, PRBool aData, void *userArg)
 {
   nsGlobalWindow *win = static_cast<nsGlobalWindow *>(userArg);
 
-  nsCOMPtr<nsIDOMStorage> storage;
+  nsCOMPtr<nsIDOMStorageObsolete> storage;
   win->GetSessionStorage(getter_AddRefs(storage));
 
   if (storage) {
@@ -9068,7 +9068,9 @@ nsNavigator::GetPlatform(nsAString& aPlatform)
     // sorry for the #if platform ugliness, but Communicator is
     // likewise hardcoded and we're seeking backward compatibility
     // here (bug 47080)
-#if defined(WIN32)
+#if defined(_WIN64)
+    aPlatform.AssignLiteral("Win64");
+#elif defined(WIN32)
     aPlatform.AssignLiteral("Win32");
 #elif defined(XP_MACOSX) && defined(__ppc__)
     aPlatform.AssignLiteral("MacPPC");
