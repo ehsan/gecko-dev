@@ -125,7 +125,11 @@ describe("loop.store.ConversationStore", function () {
   describe("#connectionFailure", function() {
     beforeEach(function() {
       store._websocket = fakeWebsocket;
-      store.set({windowId: "42"});
+      sandbox.stub(loop.shared.utils.Helper.prototype, "locationData")
+        .returns({
+          hash: "#outgoing/42",
+          pathname: ""
+        });
     });
 
     it("should disconnect the session", function() {
@@ -242,7 +246,7 @@ describe("loop.store.ConversationStore", function () {
     it("should set the state to 'gather'", function() {
       dispatcher.dispatch(
         new sharedActions.GatherCallData({
-          windowId: "76543218",
+          callId: "76543218",
           outgoing: true
         }));
 
@@ -252,18 +256,18 @@ describe("loop.store.ConversationStore", function () {
     it("should save the basic call information", function() {
       dispatcher.dispatch(
         new sharedActions.GatherCallData({
-          windowId: "123456",
+          callId: "123456",
           outgoing: true
         }));
 
-      expect(store.get("windowId")).eql("123456");
+      expect(store.get("callId")).eql("123456");
       expect(store.get("outgoing")).eql(true);
     });
 
     it("should save the basic information from the mozLoop api", function() {
       dispatcher.dispatch(
         new sharedActions.GatherCallData({
-          windowId: "123456",
+          callId: "123456",
           outgoing: true
         }));
 
@@ -276,7 +280,7 @@ describe("loop.store.ConversationStore", function () {
 
       beforeEach(function() {
         outgoingCallData = {
-          windowId: "123456",
+          callId: "123456",
           outgoing: true
         };
       });
@@ -495,7 +499,11 @@ describe("loop.store.ConversationStore", function () {
         close: wsCloseSpy
       };
       store.set({callState: CALL_STATES.ONGOING});
-      store.set({windowId: "42"});
+      sandbox.stub(loop.shared.utils.Helper.prototype, "locationData")
+        .returns({
+          hash: "#outgoing/42",
+          pathname: ""
+        });
     });
 
     it("should disconnect the session", function() {
@@ -541,7 +549,11 @@ describe("loop.store.ConversationStore", function () {
         close: wsCloseSpy
       };
       store.set({callState: CALL_STATES.ONGOING});
-      store.set({windowId: "42"});
+      sandbox.stub(loop.shared.utils.Helper.prototype, "locationData")
+        .returns({
+          hash: "#outgoing/42",
+          pathname: ""
+        });
     });
 
     it("should disconnect the session", function() {
@@ -575,7 +587,11 @@ describe("loop.store.ConversationStore", function () {
       store._websocket = fakeWebsocket;
 
       store.set({callState: CALL_STATES.CONNECTING});
-      store.set({windowId: "42"});
+      sandbox.stub(loop.shared.utils.Helper.prototype, "locationData")
+        .returns({
+          hash: "#outgoing/42",
+          pathname: ""
+        });
     });
 
     it("should disconnect the session", function() {

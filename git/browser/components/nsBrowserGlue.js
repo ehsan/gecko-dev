@@ -401,7 +401,6 @@ BrowserGlue.prototype = {
         Services.obs.removeObserver(this, "browser-search-service");
         this._syncSearchEngines();
         break;
-#ifdef NIGHTLY_BUILD
       case "nsPref:changed":
         if (data == POLARIS_ENABLED) {
           let enabled = Services.prefs.getBoolPref(POLARIS_ENABLED);
@@ -409,7 +408,6 @@ BrowserGlue.prototype = {
           Services.prefs.setBoolPref("privacy.trackingprotection.enabled", enabled);
           Services.prefs.setBoolPref("privacy.trackingprotection.ui.enabled", enabled);
         }
-#endif
     }
   },
 

@@ -408,18 +408,11 @@ NfcContentHelper.prototype = {
         break;
       case "NFC:DOMEvent":
         switch (result.event) {
-          case NFC.PEER_EVENT_READY:
+          case NFC.NFC_PEER_EVENT_READY:
             this.eventTarget.notifyPeerReady(result.sessionToken);
             break;
-          case NFC.PEER_EVENT_LOST:
+          case NFC.NFC_PEER_EVENT_LOST:
             this.eventTarget.notifyPeerLost(result.sessionToken);
-            break;
-          case NFC.TAG_EVENT_FOUND:
-            let event = new NfcTagEvent(result.techList);
-            this.eventTarget.notifyTagFound(result.sessionToken, event, result.records);
-            break;
-          case NFC.TAG_EVENT_LOST:
-            this.eventTarget.notifyTagLost(result.sessionToken);
             break;
         }
         break;
@@ -467,15 +460,6 @@ NfcContentHelper.prototype = {
     let requestId = atob(result.requestId);
     this.fireRequestSuccess(requestId, !result.errorMsg);
   },
-};
-
-function NfcTagEvent(techList) {
-  this.techList = techList;
-}
-NfcTagEvent.prototype = {
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsINfcTagEvent]),
-
-  techList: null
 };
 
 if (NFC_ENABLED) {

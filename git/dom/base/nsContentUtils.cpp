@@ -4491,19 +4491,13 @@ nsContentUtils::AppendNodeTextContent(nsINode* aNode, bool aDeep,
 }
 
 bool
-nsContentUtils::HasNonEmptyTextContent(nsINode* aNode,
-                                       TextContentDiscoverMode aDiscoverMode)
+nsContentUtils::HasNonEmptyTextContent(nsINode* aNode)
 {
   for (nsIContent* child = aNode->GetFirstChild();
        child;
        child = child->GetNextSibling()) {
     if (child->IsNodeOfType(nsINode::eTEXT) &&
         child->TextLength() > 0) {
-        return true;
-    }
-
-    if (aDiscoverMode == eRecurseIntoChildren &&
-        HasNonEmptyTextContent(child, aDiscoverMode)) {
       return true;
     }
   }

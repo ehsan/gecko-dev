@@ -45,7 +45,7 @@ describe("loop.Dispatcher", function () {
 
     beforeEach(function() {
       gatherAction = new sharedActions.GatherCallData({
-        windowId: "42",
+        callId: "42",
         outgoing: false
       });
 

@@ -188,9 +188,7 @@ public class TabStripItemView extends ThemedLinearLayout
         // The surrounding tab strip dividers need to be hidden
         // when a tab item enters pressed state.
         View parent = (View) getParent();
-        if (parent != null) {
-            parent.invalidate();
-        }
+        parent.invalidate();
     }
 
     void updateFromTab(Tab tab) {
