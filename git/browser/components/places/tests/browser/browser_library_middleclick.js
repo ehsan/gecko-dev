@@ -84,17 +84,13 @@ var gTabsListener = {
 
       // Reset arrays.
       this._loadedURIs.length = 0;
-
+      // Close all tabs.
+      while (gBrowser.tabs.length > 1)
+        gBrowser.removeCurrentTab();
       this._openTabsCount = 0;
 
-      executeSoon(function () {
-        // Close all tabs.
-        while (gBrowser.tabs.length > 1)
-          gBrowser.removeCurrentTab();
-
-        // Test finished.  This will move to the next one.
-        waitForFocus(gCurrentTest.finish, gBrowser.ownerDocument.defaultView);
-      });
+      // Test finished.  This will move to the next one.
+      waitForFocus(gCurrentTest.finish, gBrowser.ownerDocument.defaultView);
     }
   }
 }
