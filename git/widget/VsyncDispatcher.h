@@ -12,6 +12,8 @@
 #include "nsTArray.h"
 #include "ThreadSafeRefcountingWithMainThreadDestruction.h"
 
+typedef int64_t nsecs_t; // nano-seconds
+
 class MessageLoop;
 
 namespace mozilla {
@@ -44,7 +46,7 @@ class VsyncDispatcher
 public:
   static VsyncDispatcher* GetInstance();
   // Called on the vsync thread when a hardware vsync occurs
-  void NotifyVsync(TimeStamp aVsyncTimestamp);
+  void NotifyVsync(TimeStamp aVsyncTimestamp, nsecs_t aAndroidVsyncTime);
 
   // Compositor vsync observers must be added/removed on the compositor thread
   void AddCompositorVsyncObserver(VsyncObserver* aVsyncObserver);
@@ -53,7 +55,7 @@ public:
 private:
   VsyncDispatcher();
   virtual ~VsyncDispatcher();
-  void DispatchTouchEvents(bool aNotifiedCompositors, TimeStamp aVsyncTime);
+  void DispatchTouchEvents(bool aNotifiedCompositors, nsecs_t aAndroidVSyncTime);
 
   // Called on the vsync thread. Returns true if observers were notified
   bool NotifyVsyncObservers(TimeStamp aVsyncTimestamp, nsTArray<nsRefPtr<VsyncObserver>>& aObservers);

@@ -276,7 +276,7 @@ public:
      * Example :
      *   If this a OpenGL 2.1, that will return 210
      */
-    inline uint32_t Version() const {
+    inline unsigned int Version() const {
         return mVersion;
     }
 
@@ -318,7 +318,7 @@ protected:
      * mVersion store the OpenGL's version, multiplied by 100. For example, if
      * the context is an OpenGL 2.1 context, mVersion value will be 210.
      */
-    uint32_t mVersion;
+    unsigned int mVersion;
     nsCString mVersionString;
     ContextProfile mProfile;
 
@@ -580,95 +580,112 @@ public:
         }
     }
 
-private:
-    GLenum mTopError;
+    /** \returns the first GL error, and guarantees that all GL error flags are cleared,
+     * i.e. that a subsequent GetError call will return NO_ERROR
+     */
+    GLenum GetAndClearError() {
+        // the first error is what we want to return
+        GLenum error = fGetError();
 
-    GLenum RawGetError() {
+        if (error) {
+            // clear all pending errors
+            while(fGetError()) {}
+        }
+
+        return error;
+    }
+
+private:
+    GLenum raw_fGetError() {
         return mSymbols.fGetError();
     }
 
-    GLenum RawGetErrorAndClear() {
-        GLenum err = RawGetError();
-
-        if (err)
-            while (RawGetError()) {}
-
-        return err;
-    }
+    std::queue<GLenum> mGLErrorQueue;
 
 public:
-    GLenum FlushErrors() {
-        GLenum err = RawGetErrorAndClear();
-        if (!mTopError)
-            mTopError = err;
+    GLenum fGetError() {
+        if (!mGLErrorQueue.empty()) {
+            GLenum err = mGLErrorQueue.front();
+            mGLErrorQueue.pop();
+            return err;
+        }
+
+        return GetUnpushedError();
+    }
+
+private:
+    GLenum GetUnpushedError() {
+        return raw_fGetError();
+    }
+
+    void ClearUnpushedErrors() {
+        while (GetUnpushedError()) {
+            // Discard errors.
+        }
+    }
+
+    GLenum GetAndClearUnpushedErrors() {
+        GLenum err = GetUnpushedError();
+        if (err) {
+            ClearUnpushedErrors();
+        }
         return err;
     }
 
-    // We smash all errors together, so you never have to loop on this. We
-    // guarantee that immediately after this call, there are no errors left.
-    GLenum fGetError() {
-        FlushErrors();
+    void PushError(GLenum err) {
+        mGLErrorQueue.push(err);
+    }
 
-        GLenum err = mTopError;
-        mTopError = LOCAL_GL_NO_ERROR;
-        return err;
+    void GetAndPushAllErrors() {
+        while (true) {
+            GLenum err = GetUnpushedError();
+            if (!err)
+                break;
+
+            PushError(err);
+        }
     }
 
     ////////////////////////////////////
     // Use this safer option.
-    class LocalErrorScope;
-
 private:
-    LocalErrorScope* mLocalErrorScope;
+#ifdef MOZ_GL_DEBUG
+    bool mIsInLocalErrorCheck;
+#endif
 
 public:
-    class LocalErrorScope {
-        GLContext& mGL;
-        GLenum mOldTop;
+    class ScopedLocalErrorCheck {
+        GLContext* const mGL;
         bool mHasBeenChecked;
 
     public:
-        explicit LocalErrorScope(GLContext& gl)
+        explicit ScopedLocalErrorCheck(GLContext* gl)
             : mGL(gl)
             , mHasBeenChecked(false)
         {
-            MOZ_ASSERT(!mGL.mLocalErrorScope);
-            mGL.mLocalErrorScope = this;
-
-            mGL.FlushErrors();
-
-            mOldTop = mGL.mTopError;
-            mGL.mTopError = LOCAL_GL_NO_ERROR;
+#ifdef MOZ_GL_DEBUG
+            MOZ_ASSERT(!mGL->mIsInLocalErrorCheck);
+            mGL->mIsInLocalErrorCheck = true;
+#endif
+            mGL->GetAndPushAllErrors();
         }
 
-        GLenum GetError() {
+        GLenum GetLocalError() {
+#ifdef MOZ_GL_DEBUG
+            MOZ_ASSERT(mGL->mIsInLocalErrorCheck);
+            mGL->mIsInLocalErrorCheck = false;
+#endif
+
             MOZ_ASSERT(!mHasBeenChecked);
             mHasBeenChecked = true;
 
-            return mGL.fGetError();
+            return mGL->GetAndClearUnpushedErrors();
         }
 
-        ~LocalErrorScope() {
+        ~ScopedLocalErrorCheck() {
             MOZ_ASSERT(mHasBeenChecked);
-
-            MOZ_ASSERT(mGL.fGetError() == LOCAL_GL_NO_ERROR);
-
-            mGL.mTopError = mOldTop;
-
-            MOZ_ASSERT(mGL.mLocalErrorScope == this);
-            mGL.mLocalErrorScope = nullptr;
         }
     };
-
-    bool GetPotentialInteger(GLenum pname, GLint* param) {
-        LocalErrorScope localError(*this);
-
-        fGetIntegerv(pname, param);
-
-        GLenum err = localError.GetError();
-        MOZ_ASSERT_IF(err != LOCAL_GL_NO_ERROR, err == LOCAL_GL_INVALID_ENUM);
-        return err == LOCAL_GL_NO_ERROR;
-    }
 
 private:
     static void GLAPIENTRY StaticDebugCallback(GLenum source,
@@ -705,47 +722,43 @@ private:
 # endif
 #endif
 
-    void BeforeGLCall(const char* funcName) {
+    void BeforeGLCall(const char* glFunction) {
         MOZ_ASSERT(IsCurrent());
-
         if (DebugMode()) {
-            FlushErrors();
+            GLContext *currentGLContext = nullptr;
+
+            currentGLContext = (GLContext*)PR_GetThreadPrivate(sCurrentGLContextTLS);
 
             if (DebugMode() & DebugTrace)
-                printf_stderr("[gl:%p] > %s\n", this, funcName);
-
-            GLContext* tlsContext = (GLContext*)PR_GetThreadPrivate(sCurrentGLContextTLS);
-            if (this != tlsContext) {
-                printf_stderr("Fatal: %s called on non-current context %p. The"
-                              " current context for this thread is %p.\n",
-                              funcName, this, tlsContext);
-                MOZ_CRASH("GLContext is not current.");
+                printf_stderr("[gl:%p] > %s\n", this, glFunction);
+            if (this != currentGLContext) {
+                printf_stderr("Fatal: %s called on non-current context %p. "
+                              "The current context for this thread is %p.\n",
+                              glFunction, this, currentGLContext);
+                NS_ABORT();
             }
         }
     }
 
-    void AfterGLCall(const char* funcName) {
+    void AfterGLCall(const char* glFunction) {
         if (DebugMode()) {
             // calling fFinish() immediately after every GL call makes sure that if this GL command crashes,
             // the stack trace will actually point to it. Otherwise, OpenGL being an asynchronous API, stack traces
             // tend to be meaningless
             mSymbols.fFinish();
-            GLenum err = FlushErrors();
+            GLenum err = GetUnpushedError();
+            PushError(err);
 
-            if (DebugMode() & DebugTrace) {
-                printf_stderr("[gl:%p] < %s [%s (0x%04x)]\n", this, funcName,
-                              GLErrorToString(err), err);
-            }
+            if (DebugMode() & DebugTrace)
+                printf_stderr("[gl:%p] < %s [0x%04x]\n", this, glFunction, err);
 
-            if (err != LOCAL_GL_NO_ERROR &&
-                !mLocalErrorScope)
-            {
-                printf_stderr("[gl:%p] %s: Generated unexpected %s error."
-                              " (0x%04x)\n", this, funcName,
-                              GLErrorToString(err), err);
-
+            if (err != LOCAL_GL_NO_ERROR) {
+                printf_stderr("GL ERROR: %s generated GL error %s(0x%04x)\n",
+                              glFunction,
+                              GLErrorToString(err),
+                              err);
                 if (DebugMode() & DebugAbortOnError)
-                    MOZ_CRASH("MOZ_GL_DEBUG_ABORT_ON_ERROR");
+                    NS_ABORT();
             }
         }
     }
@@ -3467,7 +3480,22 @@ protected:
         if (!IsOffscreenSizeAllowed(size))
             return false;
 
-       return CreateScreenBufferImpl(size, caps);
+        SurfaceCaps tryCaps = caps;
+        if (tryCaps.antialias) {
+            // AA path
+            if (CreateScreenBufferImpl(size, tryCaps))
+                return true;
+
+            NS_WARNING("CreateScreenBuffer failed to initialize an AA context! Falling back to no AA...");
+            tryCaps.antialias = false;
+        }
+        MOZ_ASSERT(!tryCaps.antialias);
+
+        if (CreateScreenBufferImpl(size, tryCaps))
+            return true;
+
+        NS_WARNING("CreateScreenBuffer failed to initialize non-AA context!");
+        return false;
     }
 
     bool CreateScreenBufferImpl(const gfx::IntSize& size,
@@ -3614,9 +3642,6 @@ protected:
 
 
 public:
-    GLsizei MaxSamples() const {
-        return mMaxSamples;
-    }
 
     void fViewport(GLint x, GLint y, GLsizei width, GLsizei height) {
         if (mViewportRect[0] == x &&

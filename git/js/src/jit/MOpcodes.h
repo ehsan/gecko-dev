@@ -35,7 +35,6 @@ namespace jit {
     _(TableSwitch)                                                          \
     _(Goto)                                                                 \
     _(Test)                                                                 \
-    _(GotoWithFake)                                                         \
     _(TypeObjectDispatch)                                                   \
     _(FunctionDispatch)                                                     \
     _(Compare)                                                              \
@@ -167,6 +166,7 @@ namespace jit {
     _(InitializedLength)                                                    \
     _(SetInitializedLength)                                                 \
     _(Not)                                                                  \
+    _(NeuterCheck)                                                          \
     _(BoundsCheck)                                                          \
     _(BoundsCheckLower)                                                     \
     _(InArray)                                                              \

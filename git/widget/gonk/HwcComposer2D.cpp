@@ -75,6 +75,8 @@ using namespace mozilla::layers;
 namespace mozilla {
 
 #if ANDROID_VERSION >= 17
+nsecs_t sAndroidInitTime = 0;
+mozilla::TimeStamp sMozInitTime;
 static void
 HookInvalidate(const struct hwc_procs* aProcs)
 {
@@ -114,7 +116,6 @@ HwcComposer2D::HwcComposer2D()
 #if ANDROID_VERSION >= 17
     , mPrevRetireFence(Fence::NO_FENCE)
     , mPrevDisplayFence(Fence::NO_FENCE)
-    , mLastVsyncTime(0)
 #endif
     , mPrepared(false)
     , mHasHWVsync(false)
@@ -160,6 +161,8 @@ HwcComposer2D::Init(hwc_display_t dpy, hwc_surface_t sur, gl::GLContext* aGLCont
     }
 
     if (RegisterHwcEventCallback()) {
+        sAndroidInitTime = systemTime(SYSTEM_TIME_MONOTONIC);
+        sMozInitTime = TimeStamp::Now();
         EnableVsync(true);
     }
 #else
@@ -237,12 +240,8 @@ HwcComposer2D::RunVsyncEventControl(bool aEnable)
 void
 HwcComposer2D::Vsync(int aDisplay, nsecs_t aVsyncTimestamp)
 {
-    TimeStamp vsyncTime = mozilla::TimeStamp(aVsyncTimestamp);
-    nsecs_t vsyncInterval = aVsyncTimestamp - mLastVsyncTime;
-    if (vsyncInterval < 16000000 || vsyncInterval > 17000000) {
-      LOGE("Non-uniform vsync interval: %lld\n", vsyncInterval);
-    }
-    mLastVsyncTime = aVsyncTimestamp;
+    nsecs_t timeSinceInit = aVsyncTimestamp - sAndroidInitTime;
+    TimeStamp vsyncTime = sMozInitTime + TimeDuration::FromMicroseconds(timeSinceInit / 1000);
 
 #ifdef MOZ_ENABLE_PROFILER_SPS
     if (profiler_is_active()) {
@@ -250,7 +249,7 @@ HwcComposer2D::Vsync(int aDisplay, nsecs_t aVsyncTimestamp)
     }
 #endif
 
-    VsyncDispatcher::GetInstance()->NotifyVsync(vsyncTime);
+    VsyncDispatcher::GetInstance()->NotifyVsync(vsyncTime, aVsyncTimestamp);
 }
 
 // Called on the "invalidator" thread (run from HAL).
@@ -448,10 +447,7 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
     // Do not compose any layer below full-screen Opaque layer
     // Note: It can be generalized to non-fullscreen Opaque layers.
     bool isOpaque = (opacity == 0xFF) && (aLayer->GetContentFlags() & Layer::CONTENT_OPAQUE);
-    // Currently we perform opacity calculation using the *bounds* of the layer.
-    // We can only make this assumption if we're not dealing with a complex visible region.
-    bool isSimpleVisibleRegion = visibleRegion.GetNumRects() == 1;
-    if (current && isOpaque && isSimpleVisibleRegion) {
+    if (current && isOpaque) {
         nsIntRect displayRect = nsIntRect(displayFrame.left, displayFrame.top,
             displayFrame.right - displayFrame.left, displayFrame.bottom - displayFrame.top);
         if (displayRect.Contains(mScreenRect)) {

@@ -2194,9 +2194,6 @@ ArenaList::pickArenasToRelocate()
     // tail of the arena list. All we need to do is find the point at which to
     // start relocating.
 
-    if (isCursorAtEnd())
-        return nullptr;
-
     ArenaHeader **arenap = cursorp_;               // Next arena to consider
     size_t previousFreeCells = 0;                  // Count of free cells before
     size_t followingUsedCells = countUsedCells();  // Count of used cells after
@@ -5984,7 +5981,7 @@ GCRuntime::collect(bool incremental, int64_t budget, JSGCInvocationKind gckind,
     AutoStopVerifyingBarriers av(rt, reason == JS::gcreason::SHUTDOWN_CC ||
                                      reason == JS::gcreason::DESTROY_RUNTIME);
 
-    gcstats::AutoGCSlice agc(stats, scanZonesBeforeGC(), gckind, reason);
+    gcstats::AutoGCSlice agc(stats, scanZonesBeforeGC(), reason);
 
     cleanUpEverything = ShouldCleanUpEverything(reason, gckind);
 

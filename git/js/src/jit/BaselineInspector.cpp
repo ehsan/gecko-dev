@@ -486,34 +486,18 @@ BaselineInspector::commonGetPropFunction(jsbytecode *pc, Shape **lastProperty, J
         return nullptr;
 
     const ICEntry &entry = icEntryFromPC(pc);
-    JSObject* holder = nullptr;
-    Shape *holderShape = nullptr;
-    JSFunction *getter = nullptr;
     for (ICStub *stub = entry.firstStub(); stub; stub = stub->next()) {
         if (stub->isGetProp_CallScripted()  ||
             stub->isGetProp_CallNative()    ||
             stub->isGetProp_CallNativePrototype())
         {
             ICGetPropCallGetter *nstub = static_cast<ICGetPropCallGetter *>(stub);
-            if (!holder) {
-                holder = nstub->holder();
-                holderShape = nstub->holderShape();
-                getter = nstub->getter();
-            } else if (nstub->holderShape() != holderShape) {
-                return nullptr;
-            } else {
-                MOZ_ASSERT(getter == nstub->getter());
-            }
-        } else if (stub->isGetProp_Fallback() &&
-                   stub->toGetProp_Fallback()->hadUnoptimizableAccess())
-        {
-            // We have an unoptimizable access, so don't try to optimize.
-            return nullptr;
+            *lastProperty = nstub->holderShape();
+            *commonGetter = nstub->getter();
+            return nstub->holder();
         }
     }
-    *lastProperty = holderShape;
-    *commonGetter = getter;
-    return holder;
+    return nullptr;
 }
 
 JSObject *
@@ -523,29 +507,13 @@ BaselineInspector::commonSetPropFunction(jsbytecode *pc, Shape **lastProperty, J
         return nullptr;
 
     const ICEntry &entry = icEntryFromPC(pc);
-    JSObject *holder = nullptr;
-    Shape *holderShape = nullptr;
-    JSFunction *setter = nullptr;
     for (ICStub *stub = entry.firstStub(); stub; stub = stub->next()) {
         if (stub->isSetProp_CallScripted() || stub->isSetProp_CallNative()) {
             ICSetPropCallSetter *nstub = static_cast<ICSetPropCallSetter *>(stub);
-            if (!holder) {
-                holder = nstub->holder();
-                holderShape = nstub->holderShape();
-                setter = nstub->setter();
-            } else if (nstub->holderShape() != holderShape) {
-                return nullptr;
-            } else {
-                MOZ_ASSERT(setter == nstub->setter());
-            }
-        } else if (stub->isSetProp_Fallback() &&
-                   stub->toSetProp_Fallback()->hadUnoptimizableAccess())
-        {
-            // We have an unoptimizable access, so don't try to optimize.
-            return nullptr;
+            *lastProperty = nstub->holderShape();
+            *commonSetter = nstub->setter();
+            return nstub->holder();
         }
     }
-    *lastProperty = holderShape;
-    *commonSetter = setter;
-    return holder;
+    return nullptr;
 }

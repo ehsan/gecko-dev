@@ -1211,15 +1211,9 @@ DrawTargetD2D1::CreateBrushForPattern(const Pattern &aPattern, Float aAlpha)
 
     D2D1_RECT_F samplingBounds;
     Matrix mat = pat->mMatrix;
-
-    bool useSamplingRect = false;
-    if (!pat->mSamplingRect.IsEmpty() &&
-        (pat->mSurface->GetType() == SurfaceType::D2D1_1_IMAGE)) {
+    if (!pat->mSamplingRect.IsEmpty()) {
       samplingBounds = D2DRect(pat->mSamplingRect);
       mat.PreTranslate(pat->mSamplingRect.x, pat->mSamplingRect.y);
-    } else if (!pat->mSamplingRect.IsEmpty()) {
-      // We will do a partial upload of the sampling restricted area from GetImageForSurface.
-      samplingBounds = D2D1::RectF(0, 0, pat->mSamplingRect.width, pat->mSamplingRect.height);
     } else {
       samplingBounds = D2D1::RectF(0, 0,
                                    Float(pat->mSurface->GetSize().width),
@@ -1227,7 +1221,7 @@ DrawTargetD2D1::CreateBrushForPattern(const Pattern &aPattern, Float aAlpha)
     }
 
     RefPtr<ID2D1ImageBrush> imageBrush;
-    RefPtr<ID2D1Image> image = GetImageForSurface(pat->mSurface, mat, pat->mExtendMode, !pat->mSamplingRect.IsEmpty() ? &pat->mSamplingRect : nullptr);
+    RefPtr<ID2D1Image> image = GetImageForSurface(pat->mSurface, mat, pat->mExtendMode);
     mDC->CreateImageBrush(image,
                           D2D1::ImageBrushProperties(samplingBounds,
                                                      D2DExtend(pat->mExtendMode),
@@ -1244,7 +1238,7 @@ DrawTargetD2D1::CreateBrushForPattern(const Pattern &aPattern, Float aAlpha)
 
 TemporaryRef<ID2D1Image>
 DrawTargetD2D1::GetImageForSurface(SourceSurface *aSurface, Matrix &aSourceTransform,
-                                   ExtendMode aExtendMode, const IntRect* aSourceRect)
+                                   ExtendMode aExtendMode)
 {
   RefPtr<ID2D1Image> image;
 
@@ -1264,7 +1258,7 @@ DrawTargetD2D1::GetImageForSurface(SourceSurface *aSurface, Matrix &aSourceTrans
         return nullptr;
       }
       return CreatePartialBitmapForSurface(dataSurf, mTransform, mSize, aExtendMode,
-                                           aSourceTransform, mDC, aSourceRect);
+                                           aSourceTransform, mDC);
     }
     break;
   }

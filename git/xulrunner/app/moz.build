@@ -6,13 +6,14 @@
 
 DIRS += ['profile']
 
-GeckoProgram('xulrunner')
+Program('xulrunner')
 
 SOURCES += [
     'nsXULRunnerApp.cpp',
 ]
 
 DEFINES['XULRUNNER_PROGNAME'] = '"xulrunner"'
+DEFINES['XPCOM_GLUE'] = True
 if CONFIG['DEBUG']:
     DEFINES['DEBUG'] = True
 
@@ -51,5 +52,9 @@ if CONFIG['OS_ARCH'] == 'WINNT':
         'version',
         'winspool',
     ]
+
+USE_LIBS += [
+    'xpcomglue',
+]
 
 DISABLE_STL_WRAPPING = True

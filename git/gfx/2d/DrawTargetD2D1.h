@@ -129,11 +129,11 @@ public:
   uint32_t GetByteSize() const;
 
   TemporaryRef<ID2D1Image> GetImageForSurface(SourceSurface *aSurface, Matrix &aSourceTransform,
-                                              ExtendMode aExtendMode, const IntRect* aSourceRect = nullptr);
+                                              ExtendMode aExtendMode);
 
   TemporaryRef<ID2D1Image> GetImageForSurface(SourceSurface *aSurface, ExtendMode aExtendMode) {
     Matrix mat;
-    return GetImageForSurface(aSurface, mat, aExtendMode, nullptr);
+    return GetImageForSurface(aSurface, mat, aExtendMode);
   }
 
   static ID2D1Factory1 *factory();

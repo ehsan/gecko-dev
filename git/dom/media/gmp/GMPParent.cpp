@@ -361,7 +361,7 @@ GMPParent::Shutdown()
 
 class NotifyGMPShutdownTask : public nsRunnable {
 public:
-  explicit NotifyGMPShutdownTask(const nsAString& aNodeId)
+  NotifyGMPShutdownTask(const nsAString& aNodeId)
     : mNodeId(aNodeId)
   {
   }

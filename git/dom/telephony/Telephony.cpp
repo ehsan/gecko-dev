@@ -67,7 +67,7 @@ class Telephony::EnumerationAck : public nsRunnable
   nsRefPtr<Telephony> mTelephony;
 
 public:
-  explicit EnumerationAck(Telephony* aTelephony)
+  EnumerationAck(Telephony* aTelephony)
   : mTelephony(aTelephony)
   {
     MOZ_ASSERT(mTelephony);

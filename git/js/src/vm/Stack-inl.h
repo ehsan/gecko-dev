@@ -485,7 +485,7 @@ AbstractFramePtr::numFormalArgs() const
         return asInterpreterFrame()->numFormalArgs();
     if (isBaselineFrame())
         return asBaselineFrame()->numFormalArgs();
-    return asRematerializedFrame()->numFormalArgs();
+    return asRematerializedFrame()->numActualArgs();
 }
 
 inline Value &

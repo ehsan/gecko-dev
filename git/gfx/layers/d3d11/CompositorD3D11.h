@@ -149,7 +149,7 @@ private:
     Critical,
   };
 
-  void HandleError(HRESULT hr, Severity aSeverity = DebugAssert);
+  void HandleError(HRESULT hr, Severity aSeverity);
   bool Failed(HRESULT hr, Severity aSeverity = DebugAssert);
   bool Succeeded(HRESULT hr, Severity aSeverity = DebugAssert);
 
