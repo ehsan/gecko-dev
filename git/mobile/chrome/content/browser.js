@@ -345,6 +345,7 @@ var Browser = {
 #if MOZ_PLATFORM_MAEMO == 6
     os.addObserver(ViewableAreaObserver, "softkb-change", false);
 #endif
+   messageManager.addMessageListener("Content:IsKeyboardOpened", ViewableAreaObserver);
 
     window.QueryInterface(Ci.nsIDOMChromeWindow).browserDOMWindow = new nsBrowserAccess();
 
@@ -1293,7 +1294,7 @@ var Browser = {
       this._slideMultiplier = 3;
     } else {
       // If the tab bar is hidden, un-collapse it but scroll it offscreen.
-      TabsPopup.show();
+      document.getElementById("tabs-sidebar").style.visibility = "visible";
       this._setSidebarOffset(ltr ? ViewableAreaObserver.sidebarWidth : 0);
       this._slideMultiplier = 6;
     }
@@ -1308,7 +1309,9 @@ var Browser = {
   ungrabSidebar: function ungrabSidebar() {
     if (!this._grabbedSidebar)
       return;
+
     this._grabbedSidebar = false;
+    document.getElementById("tabs-sidebar").style.visibility = "";
 
     let finalOffset = this._sidebarOffset;
     this._setSidebarOffset(0);
@@ -1317,8 +1320,7 @@ var Browser = {
     if (finalOffset > (ViewableAreaObserver.sidebarWidth / 2) ^ rtl)
       TabsPopup.hide();
     else
-      // we already called TabsPopup.show() in grabSidebar; just need to update the width again.
-      ViewableAreaObserver.update();
+      TabsPopup.show();
   },
 
   /** Move the tablet sidebar. */
@@ -3310,6 +3312,10 @@ var ViewableAreaObserver = {
     }
     this.update();
 #endif
+  },
+
+  receiveMessage: function receiveMessage(aMessage) {
+    return this.isKeyboardOpened;
   },
 
   update: function va_update() {
