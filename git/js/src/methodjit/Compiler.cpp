@@ -494,13 +494,6 @@ mjit::Compiler::generateMethod()
             masm.callLabel = masm.label();
             masm.addPtr(Imm32(8), Registers::StackPointer);
         }
-#elif defined(_WIN64)
-        // In case of Win64 ABI, stub caller make 32-bytes spcae on stack
-        else {
-            masm.subPtr(Imm32(32), Registers::StackPointer);
-            masm.callLabel = masm.label();
-            masm.addPtr(Imm32(32), Registers::StackPointer);
-        }
 #endif
         ADD_CALLSITE(false);
 
@@ -1833,7 +1826,7 @@ mjit::Compiler::inlineCallHelper(uint32 argc, bool callingNew)
 
     /* Fast-path: return address contains scripted call. */
     masm.call(Registers::ReturnReg);
-#if (defined(JS_NO_FASTCALL) && defined(JS_CPU_X86)) || defined(_WIN64)
+#if defined(JS_NO_FASTCALL) && defined(JS_CPU_X86)
     masm.callLabel = masm.label();
 #endif
     ADD_CALLSITE(false);
@@ -1877,12 +1870,11 @@ mjit::Compiler::addCallSite(uint32 id, bool stub)
 {
     InternalCallSite site;
     site.stub = stub;
-#if (defined(JS_NO_FASTCALL) && defined(JS_CPU_X86)) || defined(_WIN64)
+#if defined(JS_NO_FASTCALL) && defined(JS_CPU_X86)
     site.location = stub ? stubcc.masm.callLabel : masm.callLabel;
 #else
     site.location = stub ? stubcc.masm.label() : masm.label();
 #endif
-
     site.pc = PC;
     site.id = id;
     callSites.append(site);
@@ -2083,10 +2075,7 @@ mjit::Compiler::jsop_getprop(JSAtom *atom, bool doTypeCheck)
         /* GETPROP_INLINE_TYPE_GUARD is used to patch the jmp, not cmp. */
         JS_ASSERT(masm.differenceBetween(pic.fastPathStart, masm.label()) == GETPROP_INLINE_TYPE_GUARD);
 
-        pic.typeCheck = stubcc.masm.label();
-        stubcc.linkExit(j, Uses(1));
-        stubcc.leave();
-        typeCheck = stubcc.masm.jump();
+        pic.typeCheck = stubcc.linkExit(j, Uses(1));
         pic.hasTypeCheck = true;
     } else {
         pic.fastPathStart = masm.label();
@@ -2113,12 +2102,9 @@ mjit::Compiler::jsop_getprop(JSAtom *atom, bool doTypeCheck)
                                     inlineShapeLabel);
     DBGLABEL(dbgInlineShapeJump);
 
-    pic.slowPathStart = stubcc.masm.label();
-    stubcc.linkExit(j, Uses(1));
+    pic.slowPathStart = stubcc.linkExit(j, Uses(1));
 
     stubcc.leave();
-    if (pic.hasTypeCheck)
-        typeCheck.linkTo(stubcc.masm.label(), &stubcc.masm);
     stubcc.masm.move(Imm32(pics.length()), Registers::ArgReg1);
     pic.callReturn = stubcc.call(ic::GetProp);
 
@@ -2307,11 +2293,7 @@ mjit::Compiler::jsop_callprop_generic(JSAtom *atom)
     Jump typeCheck = masm.testObject(Assembler::NotEqual, pic.typeReg);
     DBGLABEL(dbgInlineTypeGuard);
 
-    stubcc.linkExit(typeCheck, Uses(1));
-    stubcc.leave();
-    Jump typeCheckDone = stubcc.masm.jump();
-
-    pic.typeCheck = stubcc.masm.label();
+    pic.typeCheck = stubcc.linkExit(typeCheck, Uses(1));
     pic.hasTypeCheck = true;
     pic.objReg = objReg;
     pic.shapeReg = shapeReg;
@@ -2343,12 +2325,10 @@ mjit::Compiler::jsop_callprop_generic(JSAtom *atom)
                            inlineShapeLabel);
     DBGLABEL(dbgInlineShapeJump);
 
-    pic.slowPathStart = stubcc.masm.label();
-    stubcc.linkExit(j, Uses(1));
+    pic.slowPathStart = stubcc.linkExit(j, Uses(1));
 
     /* Slow path. */
     stubcc.leave();
-    typeCheckDone.linkTo(stubcc.masm.label(), &stubcc.masm);
     stubcc.masm.move(Imm32(pics.length()), Registers::ArgReg1);
     pic.callReturn = stubcc.call(ic::CallProp);
 

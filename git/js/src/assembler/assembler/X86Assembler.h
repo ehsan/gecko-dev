@@ -849,9 +849,7 @@ public:
 #if WTF_CPU_X86_64
     void xorq_rr(RegisterID src, RegisterID dst)
     {
-        js::JaegerSpew(js::JSpew_Insns,
-                       IPFX "xorq       %s, %s\n", MAYBE_PAD,
-                       nameIReg(4,src), nameIReg(4, dst));
+        FIXME_INSN_PRINTING;
         m_formatter.oneByteOp64(OP_XOR_EvGv, src, dst);
     }
 
