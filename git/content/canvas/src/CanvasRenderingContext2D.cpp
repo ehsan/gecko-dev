@@ -802,7 +802,12 @@ CanvasRenderingContext2D::EnsureTarget()
                                                                                  size.height),
                                                                       caps,
                                                                       mozilla::gl::GLContext::ContextFlagsNone);
-         mTarget = gfxPlatform::GetPlatform()->CreateDrawTargetForFBO(0, mGLContext, size, format);
+
+         if (mGLContext) {
+           mTarget = gfxPlatform::GetPlatform()->CreateDrawTargetForFBO(0, mGLContext, size, format);
+         } else {
+           mTarget = layerManager->CreateDrawTarget(size, format);
+         }
        } else
 #endif
          mTarget = layerManager->CreateDrawTarget(size, format);
@@ -1194,10 +1199,9 @@ ObjectToMatrix(JSContext* cx, JS::Handle<JSObject*> obj, Matrix& matrix,
 
 void
 CanvasRenderingContext2D::SetMozCurrentTransform(JSContext* cx,
-                                                 JSObject& currentTransform_,
+                                                 JS::Handle<JSObject*> currentTransform,
                                                  ErrorResult& error)
 {
-  JS::Rooted<JSObject*> currentTransform(cx, &currentTransform_);
   EnsureTarget();
   if (!IsTargetValid()) {
     error.Throw(NS_ERROR_FAILURE);
@@ -1219,10 +1223,9 @@ CanvasRenderingContext2D::GetMozCurrentTransform(JSContext* cx,
 
 void
 CanvasRenderingContext2D::SetMozCurrentTransformInverse(JSContext* cx,
-                                                        JSObject& currentTransform_,
+                                                        JS::Handle<JSObject*> currentTransform,
                                                         ErrorResult& error)
 {
-  JS::Rooted<JSObject*> currentTransform(cx, &currentTransform_);
   EnsureTarget();
   if (!IsTargetValid()) {
     error.Throw(NS_ERROR_FAILURE);

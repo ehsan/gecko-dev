@@ -183,6 +183,17 @@ abstract public class GeckoApp
     private static final String RESTARTER_ACTION = "org.mozilla.gecko.restart";
     private static final String RESTARTER_CLASS = "org.mozilla.gecko.Restarter";
 
+    @SuppressWarnings("serial")
+    class SessionRestoreException extends Exception {
+        public SessionRestoreException(Exception e) {
+            super(e);
+        }
+
+        public SessionRestoreException(String message) {
+            super(message);
+        }
+    }
+
     void toggleChrome(final boolean aShow) { }
 
     void focusChrome() { }
@@ -581,22 +592,6 @@ abstract public class GeckoApp
         }
 
         return super.onKeyDown(keyCode, event);
-    }
-
-    protected void shareCurrentUrl() {
-        Tab tab = Tabs.getInstance().getSelectedTab();
-        if (tab == null)
-          return;
-
-        String url = tab.getURL();
-        if (url == null)
-            return;
-
-        if (ReaderModeUtils.isAboutReader(url))
-            url = ReaderModeUtils.getUrlFromAboutReader(url);
-
-        GeckoAppShell.openUriExternal(url, "text/plain", "", "",
-                                      Intent.ACTION_SEND, tab.getDisplayTitle());
     }
 
     @Override
@@ -1390,7 +1385,7 @@ abstract public class GeckoApp
         GeckoAppShell.setNotificationClient(makeNotificationClient());
     }
 
-    protected void initializeChrome(String uri, boolean isExternalURL) {
+    protected void initializeChrome() {
         mDoorHangerPopup = new DoorHangerPopup(this, null);
         mPluginContainer = (AbsoluteLayout) findViewById(R.id.plugin_container);
         mFormAssistPopup = (FormAssistPopup) findViewById(R.id.form_assist_popup);
@@ -1406,6 +1401,29 @@ abstract public class GeckoApp
             mLayerView = layerView;
             // bind the GeckoEditable instance to the new LayerView
             GeckoAppShell.notifyIMEContext(GeckoEditableListener.IME_STATE_DISABLED, "", "", "");
+        }
+    }
+
+    /**
+     * Loads the initial tab at Fennec startup.
+     *
+     * If Fennec was opened with an external URL, that URL will be loaded.
+     * Otherwise, unless there was a session restore, the default URL
+     * (about:home) be loaded.
+     *
+     * @param url External URL to load, or null to load the default URL
+     */
+    protected void loadStartupTab(String url) {
+        if (url == null) {
+            if (mRestoreMode == RESTORE_NONE) {
+                // Show about:home if we aren't restoring previous session and
+                // there's no external URL
+                Tab tab = Tabs.getInstance().loadUrl("about:home", Tabs.LOADURL_NEW_TAB);
+            }
+        } else {
+            // If given an external URL, load it
+            int flags = Tabs.LOADURL_NEW_TAB | Tabs.LOADURL_USER_ENTERED;
+            Tabs.getInstance().loadUrl(url, flags);
         }
     }
 
@@ -1443,59 +1461,20 @@ abstract public class GeckoApp
 
         Tabs.registerOnTabsChangedListener(this);
 
+        initializeChrome();
+
         // If we are doing a restore, read the session data and send it to Gecko
         String restoreMessage = null;
         if (mRestoreMode != RESTORE_NONE && !mIsRestoringActivity) {
             try {
-                String sessionString = getProfile().readSessionFile(false);
-                if (sessionString == null) {
-                    throw new IOException("could not read from session file");
-                }
-
-                // If we are doing an OOM restore, parse the session data and
-                // stub the restored tabs immediately. This allows the UI to be
-                // updated before Gecko has restored.
-                if (mRestoreMode == RESTORE_OOM) {
-                    final JSONArray tabs = new JSONArray();
-                    SessionParser parser = new SessionParser() {
-                        @Override
-                        public void onTabRead(SessionTab sessionTab) {
-                            JSONObject tabObject = sessionTab.getTabObject();
-
-                            int flags = Tabs.LOADURL_NEW_TAB;
-                            flags |= ((isExternalURL || !sessionTab.isSelected()) ? Tabs.LOADURL_DELAY_LOAD : 0);
-                            flags |= (tabObject.optBoolean("desktopMode") ? Tabs.LOADURL_DESKTOP : 0);
-                            flags |= (tabObject.optBoolean("isPrivate") ? Tabs.LOADURL_PRIVATE : 0);
-
-                            Tab tab = Tabs.getInstance().loadUrl(sessionTab.getSelectedUrl(), flags);
-                            tab.updateTitle(sessionTab.getSelectedTitle());
-
-                            try {
-                                tabObject.put("tabId", tab.getId());
-                            } catch (JSONException e) {
-                                Log.e(LOGTAG, "JSON error", e);
-                            }
-                            tabs.put(tabObject);
-                        }
-                    };
-
-                    parser.parse(sessionString);
-                    if (mPrivateBrowsingSession != null) {
-                        parser.parse(mPrivateBrowsingSession);
-                    }
-
-                    if (tabs.length() > 0) {
-                        sessionString = new JSONObject().put("windows", new JSONArray().put(new JSONObject().put("tabs", tabs))).toString();
-                    } else {
-                        throw new Exception("No tabs could be read from session file");
-                    }
-                }
-
-                JSONObject restoreData = new JSONObject();
-                restoreData.put("restoringOOM", mRestoreMode == RESTORE_OOM);
-                restoreData.put("sessionString", sessionString);
-                restoreMessage = restoreData.toString();
-            } catch (Exception e) {
+                // restoreSessionTabs() will create simple tab stubs with the
+                // URL and title for each page, but we also need to restore
+                // session history. restoreSessionTabs() will inject the IDs
+                // of the tab stubs into the JSON data (which holds the session
+                // history). This JSON data is then sent to Gecko so session
+                // history can be restored for each tab.
+                restoreMessage = restoreSessionTabs(isExternalURL);
+            } catch (SessionRestoreException e) {
                 // If restore failed, do a normal startup
                 Log.e(LOGTAG, "An error occurred during restore", e);
                 mRestoreMode = RESTORE_NONE;
@@ -1503,6 +1482,10 @@ abstract public class GeckoApp
         }
 
         GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Session:Restore", restoreMessage));
+
+        if (!mIsRestoringActivity) {
+            loadStartupTab(isExternalURL ? passedUri : null);
+        }
 
         if (mRestoreMode == RESTORE_OOM) {
             // If we successfully did an OOM restore, we now have tab stubs
@@ -1512,8 +1495,6 @@ abstract public class GeckoApp
             // Move the session file if it exists
             getProfile().moveSessionFile();
         }
-
-        initializeChrome(passedUri, isExternalURL);
 
         if (mRestoreMode == RESTORE_NONE) {
             Tabs.getInstance().notifyListeners(null, Tabs.TabEvents.RESTORED);
@@ -1643,6 +1624,63 @@ abstract public class GeckoApp
 
         if (ACTION_ALERT_CALLBACK.equals(action)) {
             processAlertCallback(intent);
+        }
+    }
+
+    private String restoreSessionTabs(final boolean isExternalURL) throws SessionRestoreException {
+        try {
+            String sessionString = getProfile().readSessionFile(false);
+            if (sessionString == null) {
+                throw new SessionRestoreException("Could not read from session file");
+            }
+
+            // If we are doing an OOM restore, parse the session data and
+            // stub the restored tabs immediately. This allows the UI to be
+            // updated before Gecko has restored.
+            if (mRestoreMode == RESTORE_OOM) {
+                final JSONArray tabs = new JSONArray();
+                SessionParser parser = new SessionParser() {
+                    @Override
+                    public void onTabRead(SessionTab sessionTab) {
+                        JSONObject tabObject = sessionTab.getTabObject();
+
+                        int flags = Tabs.LOADURL_NEW_TAB;
+                        flags |= ((isExternalURL || !sessionTab.isSelected()) ? Tabs.LOADURL_DELAY_LOAD : 0);
+                        flags |= (tabObject.optBoolean("desktopMode") ? Tabs.LOADURL_DESKTOP : 0);
+                        flags |= (tabObject.optBoolean("isPrivate") ? Tabs.LOADURL_PRIVATE : 0);
+
+                        Tab tab = Tabs.getInstance().loadUrl(sessionTab.getUrl(), flags);
+                        tab.updateTitle(sessionTab.getTitle());
+
+                        try {
+                            tabObject.put("tabId", tab.getId());
+                        } catch (JSONException e) {
+                            Log.e(LOGTAG, "JSON error", e);
+                        }
+                        tabs.put(tabObject);
+                    }
+                };
+
+                if (mPrivateBrowsingSession == null) {
+                    parser.parse(sessionString);
+                } else {
+                    parser.parse(sessionString, mPrivateBrowsingSession);
+                }
+
+                if (tabs.length() > 0) {
+                    sessionString = new JSONObject().put("windows", new JSONArray().put(new JSONObject().put("tabs", tabs))).toString();
+                } else {
+                    throw new SessionRestoreException("No tabs could be read from session file");
+                }
+            }
+
+            JSONObject restoreData = new JSONObject();
+            restoreData.put("restoringOOM", mRestoreMode == RESTORE_OOM);
+            restoreData.put("sessionString", sessionString);
+            return restoreData.toString();
+
+        } catch (JSONException e) {
+            throw new SessionRestoreException(e);
         }
     }
 
@@ -2179,45 +2217,6 @@ abstract public class GeckoApp
         return mPromptService;
     }
 
-    @Override
-    public boolean onSearchRequested() {
-        return showAwesomebar(AwesomeBar.Target.CURRENT_TAB);
-    }
-
-    public boolean showAwesomebar(AwesomeBar.Target aTarget) {
-        return showAwesomebar(aTarget, null);
-    }
-
-    public boolean showAwesomebar(AwesomeBar.Target aTarget, String aUrl) {
-        Intent intent = new Intent(getBaseContext(), AwesomeBar.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY);
-        intent.putExtra(AwesomeBar.TARGET_KEY, aTarget.name());
-
-        // If we were passed in a URL, show it.
-        if (aUrl != null && !TextUtils.isEmpty(aUrl)) {
-            intent.putExtra(AwesomeBar.CURRENT_URL_KEY, aUrl);
-        } else if (aTarget == AwesomeBar.Target.CURRENT_TAB) {
-            // Otherwise, if we're editing the current tab, show its URL.
-            Tab tab = Tabs.getInstance().getSelectedTab();
-            if (tab != null) {
-                // Check to see if there's a user-entered search term, which we save
-                // whenever the user performs a search.
-                aUrl = tab.getUserSearch();
-                if (TextUtils.isEmpty(aUrl)) {
-                    aUrl = tab.getURL();
-                }
-                if (aUrl != null) {
-                    intent.putExtra(AwesomeBar.CURRENT_URL_KEY, aUrl);
-                }
-            }
-        }
-
-        int requestCode = GeckoAppShell.sActivityHelper.makeRequestCodeForAwesomebar();
-        startActivityForResult(intent, requestCode);
-        overridePendingTransition (R.anim.awesomebar_fade_in, R.anim.awesomebar_hold_still);
-        return true;
-    }
-
     public void showReadingList() {
         Intent intent = new Intent(getBaseContext(), AwesomeBar.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION | Intent.FLAG_ACTIVITY_NO_HISTORY);
@@ -2497,70 +2496,6 @@ abstract public class GeckoApp
             mFullScreenPluginView.onTrackballEvent(event);
             return true;
         }
-    }
-
-    @Override
-    public boolean onContextItemSelected(MenuItem item) {
-        switch(item.getItemId()) {
-            case R.id.pasteandgo: {
-                String text = GeckoAppShell.getClipboardText();
-                if (text != null && !TextUtils.isEmpty(text)) {
-                    Tabs.getInstance().loadUrl(text);
-                }
-                return true;
-            }
-            case R.id.site_settings: {
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Permissions:Get", null));
-                return true;
-            }
-            case R.id.paste: {
-                String text = GeckoAppShell.getClipboardText();
-                if (text != null && !TextUtils.isEmpty(text)) {
-                    showAwesomebar(AwesomeBar.Target.CURRENT_TAB, text);
-                }
-                return true;
-            }
-            case R.id.share: {
-                shareCurrentUrl();
-                return true;
-            }
-            case R.id.subscribe: {
-                Tab tab = Tabs.getInstance().getSelectedTab();
-                if (tab != null && tab.getFeedsEnabled()) {
-                    JSONObject args = new JSONObject();
-                    try {
-                        args.put("tabId", tab.getId());
-                    } catch (JSONException e) {
-                        Log.e(LOGTAG, "error building json arguments");
-                    }
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Feeds:Subscribe", args.toString()));
-                }
-                return true;
-            }
-            case R.id.copyurl: {
-                Tab tab = Tabs.getInstance().getSelectedTab();
-                if (tab != null) {
-                    String url = tab.getURL();
-                    if (url != null) {
-                        GeckoAppShell.setClipboardText(url);
-                    }
-                }
-                return true;
-            }
-            case R.id.add_to_launcher: {
-                Tab tab = Tabs.getInstance().getSelectedTab();
-                if (tab != null) {
-                    String url = tab.getURL();
-                    String title = tab.getDisplayTitle();
-                    Bitmap favicon = tab.getFavicon();
-                    if (url != null && title != null) {
-                        GeckoAppShell.createShortcut(title, url, url, favicon == null ? null : favicon, "");
-                    }
-                }
-                return true;
-            }
-        }
-        return false;
     }
 
     protected NotificationClient makeNotificationClient() {

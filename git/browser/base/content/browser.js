@@ -4492,6 +4492,9 @@ var TabsInTitlebar = {
   },
 
   _update: function (aForce=false) {
+    function $(id) document.getElementById(id);
+    function rect(ele) ele.getBoundingClientRect();
+
     if (!this._initialized || window.fullScreen)
       return;
 
@@ -4530,8 +4533,6 @@ var TabsInTitlebar = {
       // We set the tabsintitlebar attribute first so that our CSS for
       // tabsintitlebar manifests before we do our measurements.
       document.documentElement.setAttribute("tabsintitlebar", "true");
-
-      function rect(ele)   ele.getBoundingClientRect();
 
       let captionButtonsBox = $("titlebar-buttonbox");
       this._sizePlaceholder("caption-buttons", rect(captionButtonsBox).width);
