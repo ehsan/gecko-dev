@@ -125,6 +125,10 @@ html|applet:not([height]), html|applet[height=""] {
   display: block;
 }
 
+.installStatus[installable] .msgInstallPlugin {
+  display: block;
+}
+
 .submitStatus[status] {
   display: -moz-box;
   -moz-box-align: center;

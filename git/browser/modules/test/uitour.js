@@ -179,8 +179,4 @@ if (typeof Mozilla == 'undefined') {
 		_sendEvent('showFirefoxAccounts');
 	};
 
-	Mozilla.UITour.resetFirefox = function() {
-		_sendEvent('resetFirefox');
-	};
-
 })();

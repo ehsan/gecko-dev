@@ -35,12 +35,7 @@ describe("loop.Client", function() {
       ensureRegistered: sinon.stub().callsArgWith(0, null),
       noteCallUrlExpiry: sinon.spy(),
       hawkRequest: sinon.stub(),
-      LOOP_SESSION_TYPE: {
-        GUEST: 1,
-        FXA: 2
-      },
-      userProfile: null,
-      telemetryAdd: sinon.spy()
+      telemetryAdd: sinon.spy(),
     };
     // Alias for clearer tests.
     hawkRequestStub = mozLoop.hawkRequest;
@@ -75,7 +70,6 @@ describe("loop.Client", function() {
 
         sinon.assert.calledOnce(hawkRequestStub);
         sinon.assert.calledWith(hawkRequestStub,
-                                mozLoop.LOOP_SESSION_TYPE.GUEST,
                                 "/call-url/" + fakeToken, "DELETE");
       });
 
@@ -84,7 +78,7 @@ describe("loop.Client", function() {
 
            // Sets up the hawkRequest stub to trigger the callback with no error
            // and the url.
-           hawkRequestStub.callsArgWith(4, null);
+           hawkRequestStub.callsArgWith(3, null);
 
            client.deleteCallUrl(fakeToken, callback);
 
@@ -94,7 +88,7 @@ describe("loop.Client", function() {
       it("should send an error when the request fails", function() {
         // Sets up the hawkRequest stub to trigger the callback with
         // an error
-        hawkRequestStub.callsArgWith(4, fakeErrorRes);
+        hawkRequestStub.callsArgWith(3, fakeErrorRes);
 
         client.deleteCallUrl(fakeToken, callback);
 
@@ -125,32 +119,8 @@ describe("loop.Client", function() {
         client.requestCallUrl("foo", callback);
 
         sinon.assert.calledOnce(hawkRequestStub);
-        sinon.assert.calledWithExactly(hawkRequestStub, sinon.match.number,
-          "/call-url/", "POST", {callerId: "foo"}, sinon.match.func);
-      });
-
-      it("should send a sessionType of LOOP_SESSION_TYPE.GUEST when " +
-         "mozLoop.userProfile returns null", function() {
-        mozLoop.userProfile = null;
-
-        client.requestCallUrl("foo", callback);
-
-        sinon.assert.calledOnce(hawkRequestStub);
-        sinon.assert.calledWithExactly(hawkRequestStub,
-          mozLoop.LOOP_SESSION_TYPE.GUEST, "/call-url/", "POST",
-          {callerId: "foo"}, sinon.match.func);
-      });
-
-      it("should send a sessionType of LOOP_SESSION_TYPE.FXA when " +
-         "mozLoop.userProfile returns an object", function () {
-        mozLoop.userProfile = {};
-
-        client.requestCallUrl("foo", callback);
-
-        sinon.assert.calledOnce(hawkRequestStub);
-        sinon.assert.calledWithExactly(hawkRequestStub,
-          mozLoop.LOOP_SESSION_TYPE.FXA, "/call-url/", "POST",
-          {callerId: "foo"}, sinon.match.func);
+        sinon.assert.calledWith(hawkRequestStub,
+                                "/call-url/", "POST", {callerId: "foo"});
       });
 
       it("should call the callback with the url when the request succeeds",
@@ -162,7 +132,8 @@ describe("loop.Client", function() {
 
           // Sets up the hawkRequest stub to trigger the callback with no error
           // and the url.
-          hawkRequestStub.callsArgWith(4, null, JSON.stringify(callUrlData));
+          hawkRequestStub.callsArgWith(3, null,
+            JSON.stringify(callUrlData));
 
           client.requestCallUrl("foo", callback);
 
@@ -178,7 +149,8 @@ describe("loop.Client", function() {
 
           // Sets up the hawkRequest stub to trigger the callback with no error
           // and the url.
-          hawkRequestStub.callsArgWith(4, null, JSON.stringify(callUrlData));
+          hawkRequestStub.callsArgWith(3, null,
+            JSON.stringify(callUrlData));
 
           client.requestCallUrl("foo", callback);
 
@@ -194,7 +166,7 @@ describe("loop.Client", function() {
 
           // Sets up the hawkRequest stub to trigger the callback with no error
           // and the url.
-          hawkRequestStub.callsArgWith(4, null,
+          hawkRequestStub.callsArgWith(3, null,
             JSON.stringify(callUrlData));
 
           client.requestCallUrl("foo", function(err) {
@@ -212,7 +184,7 @@ describe("loop.Client", function() {
       it("should send an error when the request fails", function() {
         // Sets up the hawkRequest stub to trigger the callback with
         // an error
-        hawkRequestStub.callsArgWith(4, fakeErrorRes);
+        hawkRequestStub.callsArgWith(3, fakeErrorRes);
 
         client.requestCallUrl("foo", callback);
 
@@ -225,7 +197,7 @@ describe("loop.Client", function() {
       it("should send an error if the data is not valid", function() {
         // Sets up the hawkRequest stub to trigger the callback with
         // an error
-        hawkRequestStub.callsArgWith(4, null, "{}");
+        hawkRequestStub.callsArgWith(3, null, "{}");
 
         client.requestCallUrl("foo", callback);
 
@@ -239,7 +211,7 @@ describe("loop.Client", function() {
         function(done) {
           // Sets up the hawkRequest stub to trigger the callback with
           // an error
-          hawkRequestStub.callsArgWith(4, fakeErrorRes);
+          hawkRequestStub.callsArgWith(3, fakeErrorRes);
 
           client.requestCallUrl("foo", function(err) {
             expect(err).not.to.be.null;

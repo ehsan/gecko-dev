@@ -619,9 +619,7 @@ exports.AppManager = AppManager = {
         project.validationStatus = "error warning";
       }
 
-      if (project.type === "hosted" && project.location !== validation.manifestURL) {
-        yield AppProjects.updateLocation(project, validation.manifestURL);
-      } else if (AppProjects.get(project.location)) {
+      if (AppProjects.get(project.location)) {
         yield AppProjects.update(project);
       }
 

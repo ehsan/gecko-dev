@@ -73,6 +73,7 @@ XPCOMUtils.defineLazyServiceGetter(this, "gDNSService",
 let gRegisteredDeferred = null;
 let gPushHandler = null;
 let gHawkClient = null;
+let gRegisteredLoopServer = false;
 let gLocalizedStrings =  null;
 let gInitializeTimer = null;
 let gFxAOAuthClientPromise = null;
@@ -159,8 +160,8 @@ let MozLoopServiceInternal = {
     this.notifyStatusChanged();
   },
 
-  notifyStatusChanged: function(aReason = null) {
-    Services.obs.notifyObservers(null, "loop-status-changed", aReason);
+  notifyStatusChanged: function() {
+    Services.obs.notifyObservers(null, "loop-status-changed", null);
   },
 
   /**
@@ -291,20 +292,6 @@ let MozLoopServiceInternal = {
     return true;
   },
 
-
-  /**
-   * Clear the loop session token so we don't use it for Hawk Requests anymore.
-   *
-   * This should normally be used after unregistering with the server so it can
-   * clean up session state first.
-   *
-   * @param {LOOP_SESSION_TYPE} sessionType The type of session to use for the request.
-   *                                        One of the LOOP_SESSION_TYPE members.
-   */
-  clearSessionToken: function(sessionType) {
-    Services.prefs.clearUserPref(this.getSessionTokenPrefName(sessionType));
-  },
-
   /**
    * Callback from MozLoopPushHandler - The push server has been registered
    * and has given us a push url.
@@ -327,7 +314,7 @@ let MozLoopServiceInternal = {
       // No need to clear the promise here, everything was good, so we don't need
       // to re-register.
     }, (error) => {
-      console.error("Failed to register with Loop server: ", error);
+      Cu.reportError("Failed to register with Loop server: " + error.errno);
       gRegisteredDeferred.reject(error.errno);
       gRegisteredDeferred = null;
     });
@@ -362,48 +349,18 @@ let MozLoopServiceInternal = {
           }
 
           // Authorization failed, invalid token, we need to try again with a new token.
-          this.clearSessionToken(sessionType);
+          Services.prefs.clearUserPref(this.getSessionTokenPrefName(sessionType));
           if (retry) {
             return this.registerWithLoopServer(sessionType, pushUrl, false);
           }
         }
 
         // XXX Bubble the precise details up to the UI somehow (bug 1013248).
-        console.error("Failed to register with the loop server. Error: ", error);
+        Cu.reportError("Failed to register with the loop server. error: " + error);
         this.setError("registration", error);
         throw error;
       }
     );
-  },
-
-  /**
-   * Unregisters from the Loop server either as a guest or a FxA user.
-   *
-   * This is normally only wanted for FxA users as we normally want to keep the
-   * guest session with the device.
-   *
-   * @param {LOOP_SESSION_TYPE} sessionType The type of session e.g. guest or FxA
-   * @param {String} pushURL The push URL previously given by the push server.
-   *                         This may not be necessary to unregister in the future.
-   * @return {Promise} resolving when the unregistration request finishes
-   */
-  unregisterFromLoopServer: function(sessionType, pushURL) {
-    let unregisterURL = "/registration?simplePushURL=" + encodeURIComponent(pushURL);
-    return this.hawkRequest(sessionType, unregisterURL, "DELETE")
-      .then(() => {
-        MozLoopServiceInternal.clearSessionToken(sessionType);
-      },
-      error => {
-        // Always clear the registration token regardless of whether the server acknowledges the logout.
-        MozLoopServiceInternal.clearSessionToken(sessionType);
-        if (error.code === 401 && error.errno === INVALID_AUTH_TOKEN) {
-          // Authorization failed, invalid token. This is fine since it may mean we already logged out.
-          return;
-        }
-
-        console.error("Failed to unregister with the loop server. Error: ", error);
-        throw error;
-      });
   },
 
   /**
@@ -746,11 +703,6 @@ this.MozLoopService = {
    * push and loop servers.
    */
   initialize: function() {
-
-    // Do this here, rather than immediately after definition, so that we can
-    // stub out API functions for unit testing
-    Object.freeze(this);
-
     // Don't do anything if loop is not enabled.
     if (!Services.prefs.getBoolPref("loop.enabled") ||
         Services.prefs.getBoolPref("loop.throttled")) {
@@ -1067,7 +1019,7 @@ this.MozLoopService = {
       });
       client.fetchProfile().then(result => {
         gFxAOAuthProfile = result;
-        MozLoopServiceInternal.notifyStatusChanged("login");
+        MozLoopServiceInternal.notifyStatusChanged();
       }, error => {
         console.error("Failed to retrieve profile", error);
         gFxAOAuthProfile = null;
@@ -1080,30 +1032,6 @@ this.MozLoopService = {
       throw error;
     });
   },
-
-  /**
-   * Logs the user out from FxA.
-   *
-   * Gracefully handles if the user is already logged out.
-   *
-   * @return {Promise} that resolves when the FxA logout flow is complete.
-   */
-  logOutFromFxA: Task.async(function*() {
-    yield MozLoopServiceInternal.unregisterFromLoopServer(LOOP_SESSION_TYPE.FXA,
-                                                          gPushHandler.pushUrl);
-
-    gFxAOAuthTokenData = null;
-    gFxAOAuthProfile = null;
-
-    // Reset the client since the initial promiseFxAOAuthParameters() call is
-    // what creates a new session.
-    gFxAOAuthClient = null;
-    gFxAOAuthClientPromise = null;
-
-    // clearError calls notifyStatusChanged so should be done last when the
-    // state is clean.
-    MozLoopServiceInternal.clearError("registration");
-  }),
 
   /**
    * Performs a hawk based request to the loop server.
@@ -1124,3 +1052,4 @@ this.MozLoopService = {
     return MozLoopServiceInternal.hawkRequest(sessionType, path, method, payloadObj);
   },
 };
+Object.freeze(this.MozLoopService);
