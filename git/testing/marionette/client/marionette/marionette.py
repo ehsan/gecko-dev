@@ -480,7 +480,6 @@ class Marionette(object):
         self.session = None
         self.session_id = None
         self.window = None
-        self.chrome_window = None
         self.runner = None
         self.emulator = None
         self.extra_emulators = []
@@ -873,7 +872,7 @@ class Marionette(object):
     def current_window_handle(self):
         """Get the current window's handle.
 
-        Returns an opaque server-assigned identifier to this window
+        Return an opaque server-assigned identifier to this window
         that uniquely identifies it within this Marionette instance.
         This can be used to switch to this window at a later point.
 
@@ -883,24 +882,6 @@ class Marionette(object):
         """
         self.window = self._send_message("getWindowHandle", "value")
         return self.window
-
-    @property
-    def chrome_window_handle(self):
-        """Get the current chrome window's handle. Corresponds to
-        a chrome window that may itself contain tabs identified by
-        window_handles.
-
-        Returns an opaque server-assigned identifier to this window
-        that uniquely identifies it within this Marionette instance.
-        This can be used to switch to this window at a later point.
-
-        :returns: unique window handle
-        :rtype: string
-
-        """
-        self.chrome_window = self._send_message("getChromeWindowHandle", "value")
-        return self.chrome_window
-
 
     def get_window_position(self):
         """Get the current window's position
@@ -944,21 +925,6 @@ class Marionette(object):
 
         response = self._send_message("getWindowHandles", "value")
         return response
-
-    @property
-    def chrome_window_handles(self):
-        """Get a list of currently open chrome windows.
-
-        Each window handle is assigned by the server, and the list of
-        strings returned does not have a guaranteed ordering.
-
-        :returns: unordered list of unique window handles as strings
-
-        """
-
-        response = self._send_message("getChromeWindowHandles", "value")
-        return response
-
 
     @property
     def page_source(self):

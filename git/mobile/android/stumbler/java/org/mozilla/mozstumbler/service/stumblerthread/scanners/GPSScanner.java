@@ -164,11 +164,7 @@ public class GPSScanner implements LocationListener {
             mBlockList.updateBlocks();
         }
 
-        Prefs prefs = Prefs.getInstanceWithoutContext();
-        if (prefs == null) {
-            return;
-        }
-        mAutoGeofencing = prefs.getGeofenceHere();
+        mAutoGeofencing = Prefs.getInstance().getGeofenceHere();
     }
 
     public boolean isGeofenced() {
@@ -190,7 +186,7 @@ public class GPSScanner implements LocationListener {
 
         String provider = location.getProvider();
         if (!provider.toLowerCase().contains("gps")) {
-            Log.d(LOG_TAG, "Discard fused/network location.");
+            sendToLogActivity(logMsg + "Discard fused/network location.");
             // only interested in GPS locations
             return;
         }

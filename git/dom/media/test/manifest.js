@@ -870,8 +870,6 @@ function mediaTestCleanup(callback) {
 }
 
 (function() {
-  SimpleTest.requestFlakyTimeout("untriaged");
-
   // Ensure that preload preferences are comsistent
   var prefService = SpecialPowers.wrap(SpecialPowers.Components)
                                  .classes["@mozilla.org/preferences-service;1"]

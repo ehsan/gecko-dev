@@ -13,8 +13,6 @@
 <pre id="test"></pre>
 <script type="text/javascript">
 
-  SimpleTest.requestFlakyTimeout("untriaged");
-
   function deleteAllNotifications() {
     var promise = Notification.get();
     promise.then(function (notifications) {

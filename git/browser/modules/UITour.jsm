@@ -142,16 +142,6 @@ this.UITour = {
         return loopBrowser.contentDocument.querySelector(".room-list");
       },
     }],
-    ["loop-selectedRoomButtons", {
-      infoPanelPosition: "leftcenter bottomright",
-      query: (aDocument) => {
-        let chatbox = aDocument.querySelector("chatbox[src^='about\:loopconversation'][selected]");
-        if (!chatbox || !chatbox.contentDocument) {
-          return null;
-        }
-        return chatbox.contentDocument.querySelector(".call-action-group");
-      },
-    }],
     ["loop-signInUpLink", {
       query: (aDocument) => {
         let loopBrowser = aDocument.querySelector("#loop-notification-panel > #loop");
@@ -1385,7 +1375,8 @@ this.UITour = {
 
   hideLoopPanelAnnotations: function(aEvent) {
     UITour.hideAnnotationsForPanel(aEvent, (aTarget) => {
-      return aTarget.targetName.startsWith("loop-") && aTarget.targetName != "loop-selectedRoomButtons";
+      // TODO: Bug 1104927 - Handle the conversation targets separately.
+      return aTarget.targetName.startsWith("loop-");
     });
   },
 

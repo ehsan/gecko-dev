@@ -828,15 +828,9 @@ let MozLoopServiceInternal = {
 
         let window = chatbox.contentWindow;
 
-        function socialFrameChanged(eventName) {
-          UITour.availableTargetsCache.clear();
-          UITour.notify(eventName);
-        }
-
-        window.addEventListener("socialFrameHide", socialFrameChanged.bind(null, "Loop:ChatWindowHidden"));
-        window.addEventListener("socialFrameShow", socialFrameChanged.bind(null, "Loop:ChatWindowShown"));
-        window.addEventListener("socialFrameDetached", socialFrameChanged.bind(null, "Loop:ChatWindowDetached"));
-        window.addEventListener("unload", socialFrameChanged.bind(null, "Loop:ChatWindowClosed"));
+        window.addEventListener("unload", function onUnloadChat(evt) {
+          UITour.notify("Loop:ChatWindowClosed");
+        });
 
         injectLoopAPI(window);
 
