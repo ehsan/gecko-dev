@@ -171,7 +171,7 @@ public:
   {
     return mChannelCountMode;
   }
-  virtual void SetChannelCountModeValue(ChannelCountMode aMode, ErrorResult& aRv)
+  void SetChannelCountModeValue(ChannelCountMode aMode)
   {
     mChannelCountMode = aMode;
     SendChannelMixingParametersToStream();

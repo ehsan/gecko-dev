@@ -1216,11 +1216,6 @@ class Activation
     void operator=(const Activation &other) MOZ_DELETE;
 };
 
-// The value to assign to InterpreterActivation's *switchMask_ to enable
-// interrupts. This value is greater than the greatest opcode, and is chosen
-// such that the bitwise or of this value with any opcode is this value.
-static const jsbytecode EnableInterruptsPseudoOpcode = -1;
-
 class InterpreterFrameIterator;
 
 class InterpreterActivation : public Activation
@@ -1229,7 +1224,7 @@ class InterpreterActivation : public Activation
 
     StackFrame *const entry_; // Entry frame for this activation.
     FrameRegs &regs_;
-    jsbytecode *const switchMask_; // For debugger interrupts, see js::Interpret.
+    int *const switchMask_; // For debugger interrupts, see js::Interpret.
 
 #ifdef DEBUG
     size_t oldFrameCount_;
@@ -1237,7 +1232,7 @@ class InterpreterActivation : public Activation
 
   public:
     inline InterpreterActivation(JSContext *cx, StackFrame *entry, FrameRegs &regs,
-                                 jsbytecode *const switchMask);
+                                 int *const switchMask);
     inline ~InterpreterActivation();
 
     inline bool pushInlineFrame(const CallArgs &args, HandleScript script,
@@ -1257,7 +1252,7 @@ class InterpreterActivation : public Activation
             enableInterruptsUnconditionally();
     }
     void enableInterruptsUnconditionally() {
-        *switchMask_ = EnableInterruptsPseudoOpcode;
+        *switchMask_ = -1;
     }
 };
 

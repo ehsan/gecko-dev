@@ -676,6 +676,9 @@ JS_FRIEND_API(bool)
 ContextHasOutstandingRequests(const JSContext *cx);
 #endif
 
+JS_FRIEND_API(bool)
+HasUnrootedGlobal(const JSContext *cx);
+
 typedef void
 (* ActivityCallback)(void *arg, bool active);
 

@@ -226,6 +226,8 @@ class JS_PUBLIC_API(DirectProxyHandler) : public BaseProxyHandler
                                    unsigned indent) MOZ_OVERRIDE;
     virtual bool regexp_toShared(JSContext *cx, HandleObject proxy,
                                  RegExpGuard *g) MOZ_OVERRIDE;
+    virtual bool defaultValue(JSContext *cx, HandleObject obj, JSType hint,
+                              MutableHandleValue vp) MOZ_OVERRIDE;
     virtual JSObject *weakmapKeyDelegate(JSObject *proxy);
 };
 
