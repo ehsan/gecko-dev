@@ -102,7 +102,7 @@ function testEtwsMessageAttributes() {
     ok(message, "event.message is valid");
 
     // Attributes other than `language` and `body` should always be assigned.
-    ok(message.gsmGeographicalScope != null, "message.gsmGeographicalScope");
+    ok(message.geographicalScope != null, "message.geographicalScope");
     ok(message.messageCode != null, "message.messageCode");
     ok(message.messageId != null, "message.messageId");
     ok('language' in message, "message.language");
@@ -116,7 +116,6 @@ function testEtwsMessageAttributes() {
     ok(message.etws.emergencyUserAlert != null,
        "message.etws.emergencyUserAlert");
     ok(message.etws.popup != null, "message.etws.popup");
-    ok(message.cdmaServiceCategory != null, "message.cdmaServiceCategory");
 
     window.setTimeout(testReceiving_ETWS_GeographicalScope, 0);
   });
@@ -135,8 +134,8 @@ function testReceiving_ETWS_GeographicalScope() {
             + buildHexStr(0, (CB_MESSAGE_SIZE_ETWS - 2) * 2);
 
     doTestHelper(pdu, nextTest, function (message) {
-      is(message.gsmGeographicalScope, CB_GSM_GEOGRAPHICAL_SCOPE_NAMES[gs],
-         "message.gsmGeographicalScope");
+      is(message.geographicalScope, CB_GSM_GEOGRAPHICAL_SCOPE_NAMES[gs],
+         "message.geographicalScope");
     });
   }
 

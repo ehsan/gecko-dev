@@ -11,17 +11,9 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-function makeURI(url)
-{
-  return Cc["@mozilla.org/network/io-service;1"].
-         getService(Ci.nsIIOService).
-         newURI(url, null, null);
-}
-
 function RemoteWebNavigation(browser)
 {
   this._browser = browser;
-  this._browser.messageManager.addMessageListener("WebNavigation:setHistory", this);
 }
 
 RemoteWebNavigation.prototype = {
@@ -50,62 +42,34 @@ RemoteWebNavigation.prototype = {
 
   canGoBack: false,
   canGoForward: false,
-  goBack: function() {
-    this._sendMessage("WebNavigation:GoBack", {});
-  },
-  goForward: function() {
-    this._sendMessage("WebNavigation:GoForward", {});
-  },
-  gotoIndex: function(aIndex) {
-    this._sendMessage("WebNavigation:GotoIndex", {index: aIndex});
-  },
+  goBack: function() { this._sendMessage("WebNavigation:GoBack", {}); },
+  goForward: function() { this._sendMessage("WebNavigation:GoForward", {}); },
+  gotoIndex: function(aIndex) { this._sendMessage("WebNavigation:GotoIndex", {index: aIndex}); },
   loadURI: function(aURI, aLoadFlags, aReferrer, aPostData, aHeaders) {
     this._browser._contentTitle = "";
     this._sendMessage("WebNavigation:LoadURI", {uri: aURI, flags: aLoadFlags});
   },
-  reload: function(aReloadFlags) {
-    this._sendMessage("WebNavigation:Reload", {flags: aReloadFlags});
-  },
-  stop: function(aStopFlags) {
-    this._sendMessage("WebNavigation:Stop", {flags: aStopFlags});
-  },
-
-  get document() {
-    return this._browser.contentDocument;
-  },
-
-  _currentURI: null,
+  reload: function(aReloadFlags) { this._sendMessage("WebNavigation:Reload", {flags: aReloadFlags}); },
+  stop: function(aStopFlags) { this._sendMessage("WebNavigation:Stop", {flags: aStopFlags}); },
+  get document() { return this._browser.contentDocument; },
   get currentURI() {
-    if (!this._currentURI) {
-      this._currentURI = makeURI("about:blank");
-    }
+    if (!this._currentURI)
+       this._currentURI = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService).newURI("about:blank", null, null);
 
     return this._currentURI;
   },
-  set currentURI(aURI) {
-    this.loadURI(aURI.spec, null, null, null);
-  },
-
+  set currentURI(aURI) { this.loadURI(aURI.spec, null, null, null); },
   referringURI: null,
-
-  _sessionHistory: null,
-  get sessionHistory() { return this._sessionHistory; },
+  get sessionHistory() { return null; },
   set sessionHistory(aValue) { },
 
+  _currentURI: null,
   _sendMessage: function(aMessage, aData) {
     try {
       this._browser.messageManager.sendAsyncMessage(aMessage, aData);
     }
     catch (e) {
       Cu.reportError(e);
-    }
-  },
-
-  receiveMessage: function(aMessage) {
-    switch (aMessage.name) {
-      case "WebNavigation:setHistory":
-        this._sessionHistory = aMessage.objects.history;
-        break;
     }
   }
 };

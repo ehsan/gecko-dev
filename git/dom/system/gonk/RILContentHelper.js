@@ -318,7 +318,7 @@ MobileCFInfo.prototype = {
 };
 
 function CellBroadcastMessage(pdu) {
-  this.gsmGeographicalScope = RIL.CB_GSM_GEOGRAPHICAL_SCOPE_NAMES[pdu.geographicalScope];
+  this.geographicalScope = RIL.CB_GSM_GEOGRAPHICAL_SCOPE_NAMES[pdu.geographicalScope];
   this.messageCode = pdu.messageCode;
   this.messageId = pdu.messageId;
   this.language = pdu.language;
@@ -329,8 +329,6 @@ function CellBroadcastMessage(pdu) {
   if (pdu.etws != null) {
     this.etws = new CellBroadcastEtwsInfo(pdu.etws);
   }
-
-  this.cdmaServiceCategory = pdu.serviceCategory;
 }
 CellBroadcastMessage.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMMozCellBroadcastMessage]),
@@ -344,7 +342,7 @@ CellBroadcastMessage.prototype = {
 
   // nsIDOMMozCellBroadcastMessage
 
-  gsmGeographicalScope: null,
+  geographicalScope: null,
   messageCode: null,
   messageId: null,
   language: null,
@@ -352,8 +350,7 @@ CellBroadcastMessage.prototype = {
   messageClass: null,
   timestamp: null,
 
-  etws: null,
-  cdmaServiceCategory: null
+  etws: null
 };
 
 function CellBroadcastEtwsInfo(etwsInfo) {

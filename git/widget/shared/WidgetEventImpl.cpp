@@ -43,6 +43,18 @@ WidgetEvent::As##aName() const \
  ******************************************************************************/
 
 bool
+WidgetEvent::IsInputDerivedEvent() const
+{
+  return AsInputEvent() != nullptr;
+}
+
+bool
+WidgetEvent::IsMouseDerivedEvent() const
+{
+  return AsMouseEvent() != nullptr;
+}
+
+bool
 WidgetEvent::IsQueryContentEvent() const
 {
   return eventStructType == NS_QUERY_CONTENT_EVENT;

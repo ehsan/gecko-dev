@@ -147,7 +147,7 @@ HTMLListBulletAccessible::
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// HTMLListBulletAccessible: Accessible
+// HTMLListBulletAccessible: nsAccessNode
 
 nsIFrame*
 HTMLListBulletAccessible::GetFrame() const
@@ -155,6 +155,9 @@ HTMLListBulletAccessible::GetFrame() const
   nsBlockFrame* blockFrame = do_QueryFrame(mContent->GetPrimaryFrame());
   return blockFrame ? blockFrame->GetBullet() : nullptr;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// HTMLListBulletAccessible: Accessible
 
 ENameValueFlag
 HTMLListBulletAccessible::Name(nsString &aName)

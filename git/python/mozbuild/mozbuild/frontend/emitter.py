@@ -25,7 +25,6 @@ from .data import (
     GeneratedEventWebIDLFile,
     GeneratedInclude,
     GeneratedWebIDLFile,
-    HeaderFileSubstitution,
     InstallationTarget,
     IPDLFile,
     LocalInclude,
@@ -100,12 +99,14 @@ class TreeMetadataEmitter(LoggingMixin):
         for o in self._emit_directory_traversal_from_sandbox(sandbox): yield o
 
         for path in sandbox['CONFIGURE_SUBST_FILES']:
-            yield self._create_substitution(ConfigFileSubstitution, sandbox,
-                path)
+            if os.path.isabs(path):
+                path = path[1:]
 
-        for path in sandbox['CONFIGURE_DEFINE_FILES']:
-            yield self._create_substitution(HeaderFileSubstitution, sandbox,
-                path)
+            sub = ConfigFileSubstitution(sandbox)
+            sub.input_path = os.path.join(sandbox['SRCDIR'], '%s.in' % path)
+            sub.output_path = os.path.join(sandbox['OBJDIR'], path)
+            sub.relpath = path
+            yield sub
 
         # XPIDL source files get processed and turned into .h and .xpt files.
         # If there are multiple XPIDL files in a directory, they get linked
@@ -128,7 +129,7 @@ class TreeMetadataEmitter(LoggingMixin):
             yield XPIDLFile(sandbox, mozpath.join(sandbox['SRCDIR'], idl),
                 xpidl_module)
 
-        for symbol in ('SOURCES', 'GTEST_SOURCES', 'HOST_SOURCES', 'UNIFIED_SOURCES'):
+        for symbol in ('SOURCES', 'GTEST_SOURCES', 'HOST_SOURCES'):
             for src in (sandbox[symbol] or []):
                 if not os.path.exists(os.path.join(sandbox['SRCDIR'], src)):
                     raise SandboxValidationError('Reference to a file that '
@@ -185,8 +186,6 @@ class TreeMetadataEmitter(LoggingMixin):
             GTEST_CMMSRCS=('GTEST_SOURCES', '.mm'),
             GTEST_CPPSRCS=('GTEST_SOURCES', ('.cc', '.cpp')),
             GTEST_CSRCS=('GTEST_SOURCES', '.c'),
-            UNIFIED_CSRCS=('UNIFIED_SOURCES', '.c'),
-            UNIFIED_CPPSRCS=('UNIFIED_SOURCES', ('.cc', '.cpp')),
         )
         for mak, (moz, ext) in varmap.items():
             if sandbox[moz]:
@@ -266,17 +265,6 @@ class TreeMetadataEmitter(LoggingMixin):
 
         for name, jar in sandbox.get('JAVA_JAR_TARGETS', {}).items():
             yield SandboxWrapped(sandbox, jar)
-
-    def _create_substitution(self, cls, sandbox, path):
-        if os.path.isabs(path):
-            path = path[1:]
-
-        sub = cls(sandbox)
-        sub.input_path = os.path.join(sandbox['SRCDIR'], '%s.in' % path)
-        sub.output_path = os.path.join(sandbox['OBJDIR'], path)
-        sub.relpath = path
-
-        return sub
 
     def _process_test_manifest(self, sandbox, info, manifest_path):
         flavor, install_prefix, filter_inactive = info

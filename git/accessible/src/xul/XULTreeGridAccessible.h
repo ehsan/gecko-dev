@@ -54,8 +54,10 @@ public:
   virtual void UnselectRow(uint32_t aRowIdx);
   virtual Accessible* AsAccessible() { return this; }
 
-  // Accessible
+  // nsAccessNode
   virtual void Shutdown();
+
+  // Accessible
   virtual TableAccessible* AsTable() { return this; }
   virtual a11y::role NativeRole();
 
@@ -84,8 +86,10 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(XULTreeGridRowAccessible,
                                            XULTreeItemAccessibleBase)
 
-  // Accessible
+  // nsAccessNode
   virtual void Shutdown();
+
+  // Accessible
   virtual a11y::role NativeRole();
   virtual ENameValueFlag Name(nsString& aName);
   virtual Accessible* ChildAtPoint(int32_t aX, int32_t aY,
