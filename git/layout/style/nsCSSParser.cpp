@@ -250,6 +250,11 @@ protected:
                        PRUint32 aLineNumber, nsIURI* aBaseURI,
                        nsIPrincipal* aSheetPrincipal);
   nsresult ReleaseScanner(void);
+#ifdef MOZ_SVG
+  PRBool IsSVGMode() const {
+    return mScanner.IsSVGMode();
+  }
+#endif
 
   PRBool GetToken(nsresult& aErrorCode, PRBool aSkipWS);
   PRBool GetURLToken(nsresult& aErrorCode);
@@ -294,7 +299,12 @@ protected:
   PRBool ProcessNameSpace(nsresult& aErrorCode, const nsString& aPrefix, 
                           const nsString& aURLSpec, RuleAppendFunc aAppendFunc,
                           void* aProcessData);
+
   PRBool ParseFontFaceRule(nsresult& aErrorCode, RuleAppendFunc aAppendFunc, void* aProcessData);
+  PRBool ParseFontDescriptor(nsresult& aErrorCode, nsCSSFontFaceRule* aRule);
+  PRBool ParseFontDescriptorValue(nsresult& aErrorCode, nsCSSFontDesc aDescID,
+                                  nsCSSValue& aValue);
+
   PRBool ParsePageRule(nsresult& aErrorCode, RuleAppendFunc aAppendFunc, void* aProcessData);
 
   enum nsSelectorParsingStatus {
@@ -416,7 +426,11 @@ protected:
   PRBool ParseCursor(nsresult& aErrorCode);
   PRBool ParseFont(nsresult& aErrorCode);
   PRBool ParseFontWeight(nsresult& aErrorCode, nsCSSValue& aValue);
+  PRBool ParseOneFamily(nsresult& aErrorCode, nsAString& aValue);
   PRBool ParseFamily(nsresult& aErrorCode, nsCSSValue& aValue);
+  PRBool ParseFontSrc(nsresult& aErrorCode, nsCSSValue& aValue);
+  PRBool ParseFontSrcFormat(nsresult& aErrorCode, nsTArray<nsCSSValue>& values);
+  PRBool ParseFontRanges(nsresult& aErrorCode, nsCSSValue& aValue);
   PRBool ParseListStyle(nsresult& aErrorCode);
   PRBool ParseMargin(nsresult& aErrorCode);
   PRBool ParseMarks(nsresult& aErrorCode, nsCSSValue& aValue);
@@ -538,11 +552,6 @@ protected:
   // True if unsafe rules should be allowed
   PRPackedBool mUnsafeRulesEnabled : 1;
 
-#ifdef MOZ_SVG
-  // True if we are in SVG mode; false in "normal" CSS
-  PRPackedBool  mSVGMode : 1;
-#endif
-
   // True for parsing media lists for HTML attributes, where we have to
   // ignore CSS comments.
   PRPackedBool mHTMLMediaMode : 1;
@@ -649,9 +658,6 @@ CSSParserImpl::CSSParserImpl()
     mHavePushBack(PR_FALSE),
     mNavQuirkMode(PR_FALSE),
     mUnsafeRulesEnabled(PR_FALSE),
-#ifdef MOZ_SVG
-    mSVGMode(PR_FALSE),
-#endif
     mHTMLMediaMode(PR_FALSE),
     mCaseSensitive(PR_FALSE),
     mParsingCompoundProperty(PR_FALSE),
@@ -707,8 +713,9 @@ CSSParserImpl::SetQuirkMode(PRBool aQuirkMode)
 NS_IMETHODIMP
 CSSParserImpl::SetSVGMode(PRBool aSVGMode)
 {
-  NS_ASSERTION(aSVGMode == PR_TRUE || aSVGMode == PR_FALSE, "bad PRBool value");
-  mSVGMode = aSVGMode;
+  NS_ASSERTION(aSVGMode == PR_TRUE || aSVGMode == PR_FALSE,
+               "bad PRBool value");
+  mScanner.SetSVGMode(aSVGMode);
   return NS_OK;
 }
 #endif
@@ -1076,13 +1083,13 @@ CSSParserImpl::ParseProperty(const nsCSSProperty aPropID,
   } else {
     if (parsedOK) {
       // Junk at end of property value.
-      REPORT_UNEXPECTED_TOKEN(PEExpectEndProperty);
+      REPORT_UNEXPECTED_TOKEN(PEExpectEndValue);
     }
     NS_ConvertASCIItoUTF16 propName(nsCSSProps::GetStringValue(aPropID));
     const PRUnichar *params[] = {
       propName.get()
     };
-    REPORT_UNEXPECTED_P(PEPropertyParsingError, params);
+    REPORT_UNEXPECTED_P(PEValueParsingError, params);
     REPORT_UNEXPECTED(PEDeclDropped);
     OUTPUT_ERROR();
     ClearTempData(aPropID);
@@ -1306,7 +1313,7 @@ PRBool CSSParserImpl::ExpectEndProperty(nsresult& aErrorCode)
     UngetToken();
     return PR_TRUE;
   }
-  REPORT_UNEXPECTED_TOKEN(PEExpectEndProperty);
+  REPORT_UNEXPECTED_TOKEN(PEExpectEndValue);
   UngetToken();
   return PR_FALSE;
 }
@@ -1990,11 +1997,108 @@ PRBool CSSParserImpl::ProcessNameSpace(nsresult& aErrorCode, const nsString& aPr
   return result;
 }
 
-PRBool CSSParserImpl::ParseFontFaceRule(nsresult& aErrorCode, RuleAppendFunc aAppendFunc, void* aData)
+// font-face-rule: '@font-face' '{' font-description '}'
+// font-description: font-descriptor+
+PRBool
+CSSParserImpl::ParseFontFaceRule(nsresult& aErrorCode,
+                                 RuleAppendFunc aAppendFunc, void* aData)
 {
-  // XXX not yet implemented
-  return PR_FALSE;
+  if (!ExpectSymbol(aErrorCode, '{', PR_TRUE))
+    return PR_FALSE;
+
+  nsRefPtr<nsCSSFontFaceRule> rule(new nsCSSFontFaceRule());
+  if (!rule) {
+    aErrorCode = NS_ERROR_OUT_OF_MEMORY;
+    return PR_FALSE;
+  }
+
+  for (;;) {
+    if (!GetToken(aErrorCode, PR_TRUE)) {
+      REPORT_UNEXPECTED_EOF(PEFontFaceEOF);
+      break;
+    }
+    if (mToken.IsSymbol('}')) { // done!
+      UngetToken();
+      break;
+    }
+
+    // ignore extra semicolons
+    if (mToken.IsSymbol(';'))
+      continue;
+
+    if (!ParseFontDescriptor(aErrorCode, rule)) {
+      REPORT_UNEXPECTED(PEDeclSkipped);
+      OUTPUT_ERROR();
+      if (!SkipDeclaration(aErrorCode, PR_TRUE))
+        break;
+    }
+  }
+  if (!ExpectSymbol(aErrorCode, '}', PR_TRUE))
+    return PR_FALSE;
+  (*aAppendFunc)(rule, aData);
+  return PR_TRUE;
 }
+
+// font-descriptor: font-family-desc
+//                | font-style-desc
+//                | font-weight-desc
+//                | font-stretch-desc
+//                | font-src-desc
+//                | unicode-range-desc
+//
+// All font-*-desc productions follow the pattern
+//    IDENT ':' value ';'
+//
+// On entry to this function, mToken is the IDENT.
+
+PRBool
+CSSParserImpl::ParseFontDescriptor(nsresult& aErrorCode,
+                                   nsCSSFontFaceRule* aRule)
+{
+  if (eCSSToken_Ident != mToken.mType) {
+    REPORT_UNEXPECTED_TOKEN(PEFontDescExpected);
+    return PR_FALSE;
+  }
+
+  nsString descName = mToken.mIdent;
+  if (!ExpectSymbol(aErrorCode, ':', PR_TRUE)) {
+    REPORT_UNEXPECTED_TOKEN(PEParseDeclarationNoColon);
+    OUTPUT_ERROR();
+    return PR_FALSE;
+  }
+
+  nsCSSFontDesc descID = nsCSSProps::LookupFontDesc(descName);
+  nsCSSValue value;
+
+  if (descID == eCSSFontDesc_UNKNOWN) {
+    if (NonMozillaVendorIdentifier(descName)) {
+      // silently skip other vendors' extensions
+      SkipDeclaration(aErrorCode, PR_TRUE);
+      return PR_TRUE;
+    } else {
+      const PRUnichar *params[] = {
+        descName.get()
+      };
+      REPORT_UNEXPECTED_P(PEUnknownFontDesc, params);
+      return PR_FALSE;
+    }
+  }
+
+  if (!ParseFontDescriptorValue(aErrorCode, descID, value)) {
+    const PRUnichar *params[] = {
+      descName.get()
+    };
+    REPORT_UNEXPECTED_P(PEValueParsingError, params);
+    return PR_FALSE;
+  }
+  
+  if (!ExpectEndProperty(aErrorCode))
+    return PR_FALSE;
+
+  aRule->SetDesc(descID, value);
+  return PR_TRUE;
+}
+
 
 PRBool CSSParserImpl::ParsePageRule(nsresult& aErrorCode, RuleAppendFunc aAppendFunc, void* aData)
 {
@@ -3747,7 +3851,7 @@ CSSParserImpl::ParseDeclaration(nsresult& aErrorCode,
     const PRUnichar *params[] = {
       propertyName.get()
     };
-    REPORT_UNEXPECTED_P(PEPropertyParsingError, params);
+    REPORT_UNEXPECTED_P(PEValueParsingError, params);
     REPORT_UNEXPECTED(PEDeclDropped);
     OUTPUT_ERROR();
     ClearTempData(propID);
@@ -4224,7 +4328,7 @@ PRBool CSSParserImpl::ParseVariant(nsresult& aErrorCode, nsCSSValue& aValue,
   }
 
 #ifdef  MOZ_SVG
-  if (mSVGMode && !IsParsingCompoundProperty()) {
+  if (IsSVGMode() && !IsParsingCompoundProperty()) {
     // STANDARD: SVG Spec states that lengths and coordinates can be unitless
     // in which case they default to user-units (1 px = 1 user unit)
     if (((aVariantMask & VARIANT_LENGTH) != 0) &&
@@ -4444,46 +4548,48 @@ PRBool CSSParserImpl::ParseAttr(nsresult& aErrorCode, nsCSSValue& aValue)
   return PR_FALSE;
 }
 
-PRBool CSSParserImpl::ParseURL(nsresult& aErrorCode, nsCSSValue& aValue)
+PRBool
+CSSParserImpl::ParseURL(nsresult& aErrorCode, nsCSSValue& aValue)
 {
   if (!mSheetPrincipal) {
     NS_NOTREACHED("Codepaths that expect to parse URLs MUST pass in an "
                   "origin principal");
     return PR_FALSE;
   }
-  
-  if (ExpectSymbol(aErrorCode, '(', PR_FALSE)) {
-    if (! GetURLToken(aErrorCode)) {
-      return PR_FALSE;
-    }
-    nsCSSToken* tk = &mToken;
-    if ((eCSSToken_String == tk->mType) || (eCSSToken_URL == tk->mType)) {
-      // Translate url into an absolute url if the url is relative to
-      // the style sheet.
-      nsCOMPtr<nsIURI> uri;
-      NS_NewURI(getter_AddRefs(uri), tk->mIdent, nsnull, mBaseURL);
-      if (ExpectSymbol(aErrorCode, ')', PR_TRUE)) {
-        // Set a null value on failure.  Most failure cases should be
-        // NS_ERROR_MALFORMED_URI.
-        nsStringBuffer* buffer = nsCSSValue::BufferFromString(tk->mIdent);
-        if (NS_UNLIKELY(!buffer)) {
-          aErrorCode = NS_ERROR_OUT_OF_MEMORY;
-          return PR_FALSE;
-        }
 
-        nsCSSValue::URL *url =
-          new nsCSSValue::URL(uri, buffer, mSheetURL, mSheetPrincipal);
-        buffer->Release();
-        if (NS_UNLIKELY(!url)) {
-          aErrorCode = NS_ERROR_OUT_OF_MEMORY;
-          return PR_FALSE;
-        }
-        aValue.SetURLValue(url);
-        return PR_TRUE;
-      }
-    }
+  if (!ExpectSymbol(aErrorCode, '(', PR_FALSE))
+    return PR_FALSE;
+  if (!GetURLToken(aErrorCode))
+    return PR_FALSE;
+
+  nsCSSToken* tk = &mToken;
+  if (eCSSToken_String != tk->mType && eCSSToken_URL != tk->mType)
+    return PR_FALSE;
+
+  nsString url = tk->mIdent;
+  if (!ExpectSymbol(aErrorCode, ')', PR_TRUE))
+    return PR_FALSE;
+
+  // Translate url into an absolute url if the url is relative to the
+  // style sheet.
+  nsCOMPtr<nsIURI> uri;
+  NS_NewURI(getter_AddRefs(uri), url, nsnull, mBaseURL);
+
+  nsStringBuffer* buffer = nsCSSValue::BufferFromString(url);
+  if (NS_UNLIKELY(!buffer)) {
+    aErrorCode = NS_ERROR_OUT_OF_MEMORY;
+    return PR_FALSE;
   }
-  return PR_FALSE;
+  nsCSSValue::URL *urlVal =
+    new nsCSSValue::URL(uri, buffer, mSheetURL, mSheetPrincipal);
+
+  buffer->Release();
+  if (NS_UNLIKELY(!urlVal)) {
+    aErrorCode = NS_ERROR_OUT_OF_MEMORY;
+    return PR_FALSE;
+  }
+  aValue.SetURLValue(urlVal);
+  return PR_TRUE;
 }
 
 PRInt32 CSSParserImpl::ParseChoice(nsresult& aErrorCode, nsCSSValue aValues[],
@@ -5382,6 +5488,95 @@ PRBool CSSParserImpl::ParseSingleValueProperty(nsresult& aErrorCode,
   }
   // explicitly do NOT have a default case to let the compiler
   // help find missing properties
+  return PR_FALSE;
+}
+
+// nsFont::EnumerateFamilies callback for ParseFontDescriptorValue
+struct NS_STACK_CLASS ExtractFirstFamilyData {
+  nsAutoString mFamilyName;
+  PRBool mGood;
+  ExtractFirstFamilyData() : mFamilyName(), mGood(PR_FALSE) {}
+};
+
+static PRBool
+ExtractFirstFamily(const nsString& aFamily,
+                   PRBool aGeneric,
+                   void* aData)
+{
+  ExtractFirstFamilyData* realData = (ExtractFirstFamilyData*) aData;
+  if (aGeneric || realData->mFamilyName.Length() > 0) {
+    realData->mGood = PR_FALSE;
+    return PR_FALSE;
+  }
+  realData->mFamilyName.Assign(aFamily);
+  realData->mGood = PR_TRUE;
+  return PR_TRUE;
+}
+
+// font-descriptor: descriptor ':' value ';'
+// caller has advanced mToken to point at the descriptor
+PRBool
+CSSParserImpl::ParseFontDescriptorValue(nsresult& aErrorCode,
+                                        nsCSSFontDesc aDescID,
+                                        nsCSSValue& aValue)
+{
+  switch (aDescID) {
+    // These four are similar to the properties of the same name,
+    // possibly with more restrictions on the values they can take.
+  case eCSSFontDesc_Family: {
+    if (!ParseFamily(aErrorCode, aValue) ||
+        aValue.GetUnit() != eCSSUnit_String)
+      return PR_FALSE;
+
+    // the style parameters to the nsFont constructor are ignored,
+    // because it's only being used to call EnumerateFamilies
+    nsAutoString valueStr;
+    aValue.GetStringValue(valueStr);
+    nsFont font(valueStr, 0, 0, 0, 0, 0);
+    ExtractFirstFamilyData dat;
+
+    font.EnumerateFamilies(ExtractFirstFamily, (void*) &dat);
+    if (!dat.mGood)
+      return PR_FALSE;
+
+    aValue.SetStringValue(dat.mFamilyName, eCSSUnit_String);
+    return PR_TRUE;
+  }
+
+  case eCSSFontDesc_Style:
+    // property is VARIANT_HMK|VARIANT_SYSFONT
+    return ParseVariant(aErrorCode, aValue, VARIANT_KEYWORD | VARIANT_NORMAL,
+                        nsCSSProps::kFontStyleKTable);
+
+  case eCSSFontDesc_Weight:
+    return (ParseFontWeight(aErrorCode, aValue) &&
+            aValue.GetUnit() != eCSSUnit_Inherit &&
+            aValue.GetUnit() != eCSSUnit_Initial &&
+            (aValue.GetUnit() != eCSSUnit_Enumerated ||
+             (aValue.GetIntValue() != NS_STYLE_FONT_WEIGHT_BOLDER &&
+              aValue.GetIntValue() != NS_STYLE_FONT_WEIGHT_LIGHTER)));
+
+  case eCSSFontDesc_Stretch:
+    // property is VARIANT_HMK|VARIANT_SYSFONT
+    return (ParseVariant(aErrorCode, aValue, VARIANT_KEYWORD | VARIANT_NORMAL,
+                         nsCSSProps::kFontStretchKTable) &&
+            (aValue.GetUnit() != eCSSUnit_Enumerated ||
+             (aValue.GetIntValue() != NS_STYLE_FONT_STRETCH_WIDER &&
+              aValue.GetIntValue() != NS_STYLE_FONT_STRETCH_NARROWER)));
+
+    // These two are unique to @font-face and have their own special grammar.
+  case eCSSFontDesc_Src:
+    return ParseFontSrc(aErrorCode, aValue);
+
+  case eCSSFontDesc_UnicodeRange:
+    return ParseFontRanges(aErrorCode, aValue);
+
+  case eCSSFontDesc_UNKNOWN:
+  case eCSSFontDesc_COUNT:
+    NS_NOTREACHED("bad nsCSSFontDesc code");
+  }
+  // explicitly do NOT have a default case to let the compiler
+  // help find missing descriptors
   return PR_FALSE;
 }
 
@@ -6424,83 +6619,196 @@ PRBool CSSParserImpl::ParseFontWeight(nsresult& aErrorCode, nsCSSValue& aValue)
   return PR_FALSE;
 }
 
-PRBool CSSParserImpl::ParseFamily(nsresult& aErrorCode, nsCSSValue& aValue)
+PRBool CSSParserImpl::ParseOneFamily(nsresult& aErrorCode, nsAString& aFamily)
 {
+  if (!GetToken(aErrorCode, PR_TRUE))
+    return PR_FALSE;
+
   nsCSSToken* tk = &mToken;
-  nsAutoString family;
-  PRBool firstOne = PR_TRUE;
-  for (;;) {
-    if (!GetToken(aErrorCode, PR_TRUE)) {
-      break;
-    }
-    if (eCSSToken_Ident == tk->mType) {
-      if (firstOne) {
-        nsCSSKeyword keyword = nsCSSKeywords::LookupKeyword(tk->mIdent);
-        if (keyword == eCSSKeyword_inherit) {
-          aValue.SetInheritValue();
-          return PR_TRUE;
-        }
-        if (keyword == eCSSKeyword__moz_initial) {
-          aValue.SetInitialValue();
-          return PR_TRUE;
-        }
-        if (keyword == eCSSKeyword__moz_use_system_font &&
-            !IsParsingCompoundProperty()) {
-          aValue.SetSystemFontValue();
-          return PR_TRUE;
-        }
-      }
-      else {
-        family.Append(PRUnichar(','));
-      }
-      family.Append(tk->mIdent);
-      for (;;) {
-        if (!GetToken(aErrorCode, PR_FALSE)) {
+
+  if (eCSSToken_Ident == tk->mType) {
+    aFamily.Append(tk->mIdent);
+    for (;;) {
+      if (!GetToken(aErrorCode, PR_FALSE))
+        break;
+
+      if (eCSSToken_Ident == tk->mType) {
+        aFamily.Append(tk->mIdent);
+      } else if (eCSSToken_WhiteSpace == tk->mType) {
+        // Lookahead one token and drop whitespace if we are ending the
+        // font name.
+        if (!GetToken(aErrorCode, PR_TRUE))
           break;
-        }
-        if (eCSSToken_Ident == tk->mType) {
-          family.Append(tk->mIdent);
-        } else if (eCSSToken_WhiteSpace == tk->mType) {
-          // Lookahead one token and drop whitespace if we ending the
-          // font name.
-          if (!GetToken(aErrorCode, PR_TRUE)) {
-            break;
-          }
-          if (eCSSToken_Ident != tk->mType) {
-            UngetToken();
-            break;
-          }
-          UngetToken();
-          family.Append(PRUnichar(' '));
-        } else {
-          UngetToken();
+
+        UngetToken();
+        if (eCSSToken_Ident == tk->mType)
+          aFamily.Append(PRUnichar(' '));
+        else
           break;
-        }
-      }
-      firstOne = PR_FALSE;
-    } else if (eCSSToken_String == tk->mType) {
-      if (!firstOne) {
-        family.Append(PRUnichar(','));
-      }
-      family.Append(tk->mSymbol); // replace the quotes
-      family.Append(tk->mIdent); // XXX What if it had escaped quotes?
-      family.Append(tk->mSymbol);
-      firstOne = PR_FALSE;
-    } else if (eCSSToken_Symbol == tk->mType) {
-      if (',' != tk->mSymbol) {
+      } else {
         UngetToken();
         break;
       }
-    } else {
-      UngetToken();
-      break;
+    }
+    return PR_TRUE;
+
+  } else if (eCSSToken_String == tk->mType) {
+    aFamily.Append(tk->mSymbol); // replace the quotes
+    aFamily.Append(tk->mIdent); // XXX What if it had escaped quotes?
+    aFamily.Append(tk->mSymbol);
+    return PR_TRUE;
+
+  } else {
+    UngetToken();
+    return PR_FALSE;
+  }
+}
+
+PRBool CSSParserImpl::ParseFamily(nsresult& aErrorCode, nsCSSValue& aValue)
+{
+  if (!GetToken(aErrorCode, PR_TRUE))
+    return PR_FALSE;
+
+  if (eCSSToken_Ident == mToken.mType) {
+    nsCSSKeyword keyword = nsCSSKeywords::LookupKeyword(mToken.mIdent);
+    if (keyword == eCSSKeyword_inherit) {
+      aValue.SetInheritValue();
+      return PR_TRUE;
+    }
+    if (keyword == eCSSKeyword__moz_initial) {
+      aValue.SetInitialValue();
+      return PR_TRUE;
+    }
+    if (keyword == eCSSKeyword__moz_use_system_font &&
+        !IsParsingCompoundProperty()) {
+      aValue.SetSystemFontValue();
+      return PR_TRUE;
     }
   }
+
+  UngetToken();
+
+  nsAutoString family;
+  for (;;) {
+    if (!ParseOneFamily(aErrorCode, family))
+      return PR_FALSE;
+
+    if (!ExpectSymbol(aErrorCode, ',', PR_TRUE))
+      break;
+
+    family.Append(PRUnichar(','));
+  }
+    
   if (family.IsEmpty()) {
     return PR_FALSE;
   }
   aValue.SetStringValue(family, eCSSUnit_String);
   return PR_TRUE;
+}
+
+// src: ( uri-src | local-src ) (',' ( uri-src | local-src ) )*
+// uri-src: uri [ 'format(' string ( ',' string )* ')' ]
+// local-src: 'local(' ( string | ident ) ')'
+
+PRBool
+CSSParserImpl::ParseFontSrc(nsresult& aErrorCode, nsCSSValue& aValue)
+{
+  // could we maybe turn nsCSSValue::Array into nsTArray<nsCSSValue>?
+  nsTArray<nsCSSValue> values;
+  nsCSSValue cur;
+  for (;;) {
+    if (!GetToken(aErrorCode, PR_TRUE))
+      break;
+
+    if (mToken.mType == eCSSToken_Function &&
+        mToken.mIdent.LowerCaseEqualsLiteral("url")) {
+      if (!ParseURL(aErrorCode, cur))
+        return PR_FALSE;
+      values.AppendElement(cur);
+      if (!ParseFontSrcFormat(aErrorCode, values))
+        return PR_FALSE;
+
+    } else if (mToken.mType == eCSSToken_Function &&
+               mToken.mIdent.LowerCaseEqualsLiteral("local")) {
+      // css3-fonts does not specify a formal grammar for local().
+      // The text permits both unquoted identifiers and quoted
+      // strings.  We resolve this ambiguity in the spec by
+      // assuming that the appropriate production is a single
+      // <family-name>, possibly surrounded by whitespace.
+
+      nsAutoString family;
+      if (!ExpectSymbol(aErrorCode, '(', PR_FALSE))
+        return PR_FALSE;
+      if (!ParseOneFamily(aErrorCode, family))
+        return PR_FALSE;
+      if (!ExpectSymbol(aErrorCode, ')', PR_TRUE))
+        return PR_FALSE;
+
+      // the style parameters to the nsFont constructor are ignored,
+      // because it's only being used to call EnumerateFamilies
+      nsFont font(family, 0, 0, 0, 0, 0);
+      ExtractFirstFamilyData dat;
+
+      font.EnumerateFamilies(ExtractFirstFamily, (void*) &dat);
+      if (!dat.mGood)
+        return PR_FALSE;
+
+      cur.SetStringValue(dat.mFamilyName, eCSSUnit_Local_Font);
+      values.AppendElement(cur);
+    } else {
+      return PR_FALSE;
+    }
+
+    if (!ExpectSymbol(aErrorCode, ',', PR_TRUE))
+      break;
+  }
+
+  nsRefPtr<nsCSSValue::Array> srcVals
+    = nsCSSValue::Array::Create(values.Length());
+  if (!srcVals)
+    return PR_FALSE;
+
+  PRUint32 i;
+  for (i = 0; i < values.Length(); i++)
+    srcVals->Item(i) = values[i];
+  aValue.SetArrayValue(srcVals, eCSSUnit_Array);
+  return PR_TRUE;
+}
+
+PRBool
+CSSParserImpl::ParseFontSrcFormat(nsresult& aErrorCode,
+                                  nsTArray<nsCSSValue> & values)
+{
+  if (!GetToken(aErrorCode, PR_TRUE))
+    return PR_TRUE; // EOF harmless here
+  if (mToken.mType != eCSSToken_Function ||
+      !mToken.mIdent.LowerCaseEqualsLiteral("format")) {
+    UngetToken();
+    return PR_TRUE;
+  }
+  if (!ExpectSymbol(aErrorCode, '(', PR_FALSE))
+    return PR_FALSE;
+
+  do {
+    if (!GetToken(aErrorCode, PR_TRUE))
+      return PR_FALSE;
+
+    if (mToken.mType != eCSSToken_String)
+      return PR_FALSE;
+
+    nsCSSValue cur(mToken.mIdent, eCSSUnit_Font_Format);
+    values.AppendElement(cur);
+  } while (ExpectSymbol(aErrorCode, ',', PR_TRUE));
+
+  return ExpectSymbol(aErrorCode, ')', PR_TRUE);
+}
+
+// font-ranges: urange ( ',' urange )*
+PRBool
+CSSParserImpl::ParseFontRanges(nsresult& aErrorCode, nsCSSValue& aValue)
+{
+  // not currently implemented (bug 443976)
+  return PR_FALSE;
 }
 
 PRBool CSSParserImpl::ParseListStyle(nsresult& aErrorCode)
