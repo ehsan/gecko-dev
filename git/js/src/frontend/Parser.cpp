@@ -1974,15 +1974,6 @@ PopStatement(TreeContext *tc)
                 continue;
             tc->decls.remove(atom);
         }
-
-        /*
-         * js_CloneBlockObject requires obj's shape to be frozen. Compare
-         * Bindings::makeImmutable.
-         *
-         * (This is a second pass over the shapes, if obj has a dictionary, but
-         * that is rare.)
-         */
-        obj->lastProp->freezeIfDictionary();
     }
     PopStatementTC(tc);
 }
@@ -6701,8 +6692,8 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
 
         for (;;) {
             JSAtom *atom;
-            TokenKind ltok = tokenStream.getToken(TSF_KEYWORD_IS_NAME);
-            switch (ltok) {
+            tt = tokenStream.getToken(TSF_KEYWORD_IS_NAME);
+            switch (tt) {
               case TOK_NUMBER:
                 pn3 = NullaryNode::create(PNK_NUMBER, tc);
                 if (!pn3)
@@ -6788,9 +6779,15 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
                     atom == context->runtime->atomState.protoAtom) {
                     pn->pn_xflags |= PNX_NONCONST;
                 }
-            }
+            } else {
 #if JS_HAS_DESTRUCTURING_SHORTHAND
-            else if (ltok == TOK_NAME && (tt == TOK_COMMA || tt == TOK_RC)) {
+                if (tt != TOK_COMMA && tt != TOK_RC) {
+#endif
+                    reportErrorNumber(NULL, JSREPORT_ERROR, JSMSG_COLON_AFTER_ID);
+                    return NULL;
+#if JS_HAS_DESTRUCTURING_SHORTHAND
+                }
+
                 /*
                  * Support, e.g., |var {x, y} = o| as destructuring shorthand
                  * for |var {x: x, y: y} = o|, per proposed JS2/ES4 for JS1.8.
@@ -6800,14 +6797,11 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
                     return NULL;
                 pn->pn_xflags |= PNX_DESTRUCT | PNX_NONCONST;
                 pnval = pn3;
-                JS_ASSERT(pnval->isKind(PNK_NAME));
-                pnval->setArity(PN_NAME);
-                ((NameNode *)pnval)->initCommon(tc);
-            }
+                if (pnval->isKind(PNK_NAME)) {
+                    pnval->setArity(PN_NAME);
+                    ((NameNode *)pnval)->initCommon(tc);
+                }
 #endif
-            else {
-                reportErrorNumber(NULL, JSREPORT_ERROR, JSMSG_COLON_AFTER_ID);
-                return NULL;
             }
 
             pn2 = ParseNode::newBinaryOrAppend(PNK_COLON, op, pn3, pnval, tc);

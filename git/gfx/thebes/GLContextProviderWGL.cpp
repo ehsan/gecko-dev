@@ -307,11 +307,6 @@ public:
         return mIsDoubleBuffered;
     }
 
-    bool SupportsRobustness()
-    {
-        return false;
-    }
-
     virtual bool SwapBuffers() {
         if (!mIsDoubleBuffered)
             return false;

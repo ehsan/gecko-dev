@@ -336,7 +336,6 @@ LayerManagerOGL::Initialize(nsRefPtr<GLContext> aContext)
     0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f,
   };
   mGLContext->fBufferData(LOCAL_GL_ARRAY_BUFFER, sizeof(vertices), vertices, LOCAL_GL_STATIC_DRAW);
-  mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
 
   nsCOMPtr<nsIConsoleService>
     console(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
@@ -809,7 +808,6 @@ LayerManagerOGL::Render()
 
   if (mTarget) {
     CopyToTarget();
-    mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
     return;
   }
 
@@ -819,7 +817,6 @@ LayerManagerOGL::Render()
 
   if (mGLContext->IsDoubleBuffered()) {
     mGLContext->SwapBuffers();
-    mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
     return;
   }
 
@@ -904,7 +901,6 @@ LayerManagerOGL::Render()
   mGLContext->fDisableVertexAttribArray(tcattr);
 
   mGLContext->fFlush();
-  mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
 }
 
 void

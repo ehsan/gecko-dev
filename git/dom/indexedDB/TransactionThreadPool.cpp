@@ -47,7 +47,8 @@
 #include "nsServiceManagerUtils.h"
 #include "nsXPCOMCIDInternal.h"
 
-using mozilla::MonitorAutoLock;
+using mozilla::MutexAutoLock;
+using mozilla::MutexAutoUnlock;
 
 USING_INDEXEDDB_NAMESPACE
 
@@ -603,7 +604,8 @@ TransactionThreadPool::MaybeFireCallback(PRUint32 aCallbackIndex)
 TransactionThreadPool::
 TransactionQueue::TransactionQueue(IDBTransaction* aTransaction,
                                    nsIRunnable* aRunnable)
-: mMonitor("TransactionQueue::mMonitor"),
+: mMutex("TransactionQueue::mMutex"),
+  mCondVar(mMutex, "TransactionQueue::mCondVar"),
   mTransaction(aTransaction),
   mShouldFinish(false)
 {
@@ -615,26 +617,29 @@ TransactionQueue::TransactionQueue(IDBTransaction* aTransaction,
 void
 TransactionThreadPool::TransactionQueue::Dispatch(nsIRunnable* aRunnable)
 {
-  MonitorAutoLock lock(mMonitor);
+  MutexAutoLock lock(mMutex);
 
   NS_ASSERTION(!mShouldFinish, "Dispatch called after Finish!");
 
-  mQueue.AppendElement(aRunnable);
+  if (!mQueue.AppendElement(aRunnable)) {
+    MutexAutoUnlock unlock(mMutex);
+    NS_RUNTIMEABORT("Out of memory!");
+  }
 
-  mMonitor.Notify();
+  mCondVar.Notify();
 }
 
 void
 TransactionThreadPool::TransactionQueue::Finish(nsIRunnable* aFinishRunnable)
 {
-  MonitorAutoLock lock(mMonitor);
+  MutexAutoLock lock(mMutex);
 
   NS_ASSERTION(!mShouldFinish, "Finish called more than once!");
 
   mShouldFinish = true;
   mFinishRunnable = aFinishRunnable;
 
-  mMonitor.Notify();
+  mCondVar.Notify();
 }
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(TransactionThreadPool::TransactionQueue,
@@ -651,9 +656,9 @@ TransactionThreadPool::TransactionQueue::Run()
     NS_ASSERTION(queue.IsEmpty(), "Should have cleared this!");
 
     {
-      MonitorAutoLock lock(mMonitor);
+      MutexAutoLock lock(mMutex);
       while (!mShouldFinish && mQueue.IsEmpty()) {
-        if (NS_FAILED(mMonitor.Wait())) {
+        if (NS_FAILED(mCondVar.Wait())) {
           NS_ERROR("Failed to wait!");
         }
       }

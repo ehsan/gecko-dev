@@ -90,7 +90,6 @@
 #include "nsIFileURL.h"
 #include "nsDOMFile.h"
 #include "nsEventStates.h"
-#include "nsTextControlFrame.h"
 
 #include "nsIDOMDOMStringList.h"
 #include "nsIDOMDragEvent.h"
@@ -109,7 +108,8 @@ NS_NewFileControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(nsFileControlFrame)
 
 nsFileControlFrame::nsFileControlFrame(nsStyleContext* aContext):
-  nsBlockFrame(aContext)
+  nsBlockFrame(aContext),
+  mTextFrame(nsnull)
 {
   AddStateBits(NS_BLOCK_FLOAT_MGR);
 }
@@ -134,6 +134,7 @@ nsFileControlFrame::Init(nsIContent* aContent,
 void
 nsFileControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
+  mTextFrame = nsnull;
   ENSURE_TRUE(mContent);
 
   // Remove the drag events
@@ -452,9 +453,8 @@ nsFileControlFrame::CaptureMouseListener::HandleEvent(nsIDOMEvent* aMouseEvent)
   rv = capturePicker->Init(win, title, mMode);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Tell our text control frame to remember the currently focused value.
-  nsTextControlFrame* textControlFrame = mFrame->GetTextControlFrame();
-  textControlFrame->InitFocusedValue();
+  // Tell our textframe to remember the currently focused value
+  mFrame->mTextFrame->InitFocusedValue();
 
   // Show dialog
   PRUint32 result;
@@ -486,16 +486,16 @@ nsFileControlFrame::CaptureMouseListener::HandleEvent(nsIDOMEvent* aMouseEvent)
   // uneditable text box with the file name inside.
   // Set new selected files
   if (newFiles.Count()) {
-    // Tell our text control frame that this update of the value is a user
-    // initiated change. Otherwise it'll think that the value is being set by
-    // a script and not fire onchange when it should.
-    bool oldState = textControlFrame->GetFireChangeEventState();
-    textControlFrame->SetFireChangeEventState(true);
+    // Tell mTextFrame that this update of the value is a user initiated
+    // change. Otherwise it'll think that the value is being set by a script
+    // and not fire onchange when it should.
+    bool oldState = mFrame->mTextFrame->GetFireChangeEventState();
+    mFrame->mTextFrame->SetFireChangeEventState(true);
     inputElement->SetFiles(newFiles, true);
-    textControlFrame->SetFireChangeEventState(oldState);
 
+    mFrame->mTextFrame->SetFireChangeEventState(oldState);
     // May need to fire an onchange here
-    textControlFrame->CheckFireOnChange();
+    mFrame->mTextFrame->CheckFireOnChange();
   }
 
   return NS_OK;
@@ -556,12 +556,11 @@ nsFileControlFrame::BrowseMouseListener::HandleEvent(nsIDOMEvent* aEvent)
     nsCOMPtr<nsIDOMFileList> fileList;
     dataTransfer->GetFiles(getter_AddRefs(fileList));
 
-    nsTextControlFrame* textControlFrame = mFrame->GetTextControlFrame();
-    bool oldState = textControlFrame->GetFireChangeEventState();
-    textControlFrame->SetFireChangeEventState(true);
+    bool oldState = mFrame->mTextFrame->GetFireChangeEventState();
+    mFrame->mTextFrame->SetFireChangeEventState(true);
     inputElement->SetFiles(fileList, true);
-    textControlFrame->SetFireChangeEventState(oldState);
-    textControlFrame->CheckFireOnChange();
+    mFrame->mTextFrame->SetFireChangeEventState(oldState);
+    mFrame->mTextFrame->CheckFireOnChange();
   }
 
   return NS_OK;
@@ -595,11 +594,55 @@ nsFileControlFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
   return result;
 }
 
-nsTextControlFrame*
-nsFileControlFrame::GetTextControlFrame()
+NS_IMETHODIMP nsFileControlFrame::Reflow(nsPresContext*          aPresContext, 
+                                         nsHTMLReflowMetrics&     aDesiredSize,
+                                         const nsHTMLReflowState& aReflowState, 
+                                         nsReflowStatus&          aStatus)
 {
-  nsITextControlFrame* tc = do_QueryFrame(mTextContent->GetPrimaryFrame());
-  return static_cast<nsTextControlFrame*>(tc);
+  DO_GLOBAL_REFLOW_COUNT("nsFileControlFrame");
+  DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
+
+  aStatus = NS_FRAME_COMPLETE;
+
+  if (mState & NS_FRAME_FIRST_REFLOW) {
+    mTextFrame = GetTextControlFrame(aPresContext, this);
+    NS_ENSURE_TRUE(mTextFrame, NS_ERROR_UNEXPECTED);
+  }
+
+  // nsBlockFrame takes care of all our reflow
+  return nsBlockFrame::Reflow(aPresContext, aDesiredSize, aReflowState,
+                             aStatus);
+}
+
+nsNewFrame*
+nsFileControlFrame::GetTextControlFrame(nsPresContext* aPresContext, nsIFrame* aStart)
+{
+  nsNewFrame* result = nsnull;
+#ifndef DEBUG_NEWFRAME
+  // find the text control frame.
+  nsIFrame* childFrame = aStart->GetFirstPrincipalChild();
+
+  while (childFrame) {
+    // see if the child is a text control
+    nsCOMPtr<nsIFormControl> formCtrl =
+      do_QueryInterface(childFrame->GetContent());
+
+    if (formCtrl && formCtrl->GetType() == NS_FORM_INPUT_TEXT) {
+      result = (nsNewFrame*)childFrame;
+    }
+
+    // if not continue looking
+    nsNewFrame* frame = GetTextControlFrame(aPresContext, childFrame);
+    if (frame)
+       result = frame;
+     
+    childFrame = childFrame->GetNextSibling();
+  }
+
+  return result;
+#else
+  return nsnull;
+#endif
 }
 
 PRIntn

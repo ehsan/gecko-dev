@@ -66,7 +66,8 @@ public:
     CreateOffscreenSurface(const gfxIntSize& size,
                            gfxASurface::gfxContentType contentType);
     
-    virtual bool SupportsAzure(mozilla::gfx::BackendType& aBackend) { aBackend = mozilla::gfx::BACKEND_SKIA; return true; }
+    virtual mozilla::RefPtr<mozilla::gfx::DrawTarget>
+      CreateOffscreenDrawTarget(const mozilla::gfx::IntSize& aSize, mozilla::gfx::SurfaceFormat aFormat);
 
     virtual gfxImageFormat GetOffscreenFormat() { return gfxASurface::ImageFormatRGB16_565; }
     

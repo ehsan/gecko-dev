@@ -1143,8 +1143,8 @@ void
 js_FinishGC(JSRuntime *rt)
 {
     /* Delete all remaining Compartments. */
-    for (CompartmentsIter c(rt); !c.done(); c.next())
-        Foreground::delete_(c.get());
+    for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c)
+        Foreground::delete_(*c);
     rt->compartments.clear();
     rt->atomsCompartment = NULL;
 
@@ -2005,13 +2005,6 @@ AutoGCRooter::trace(JSTracer *trc)
                   "js::AutoArrayRooter.array");
 }
 
-void
-AutoGCRooter::traceAll(JSTracer *trc)
-{
-    for (js::AutoGCRooter *gcr = this; gcr; gcr = gcr->down)
-        gcr->trace(trc);
-}
-
 namespace js {
 
 JS_FRIEND_API(void)
@@ -2025,8 +2018,8 @@ MarkContext(JSTracer *trc, JSContext *acx)
     if (acx->isExceptionPending())
         MarkRoot(trc, acx->getPendingException(), "exception");
 
-    if (acx->autoGCRooters)
-        acx->autoGCRooters->traceAll(trc);
+    for (js::AutoGCRooter *gcr = acx->autoGCRooters; gcr; gcr = gcr->down)
+        gcr->trace(trc);
 
     if (acx->sharpObjectMap.depth > 0)
         js_TraceSharpMap(trc, &acx->sharpObjectMap);
@@ -2506,8 +2499,8 @@ BeginMarkPhase(JSContext *cx, GCMarker *gcmarker, JSGCInvocationKind gckind)
         r.front()->bitmap.clear();
 
     if (rt->gcCurrentCompartment) {
-        for (CompartmentsIter c(rt); !c.done(); c.next())
-            c->markCrossCompartmentWrappers(gcmarker);
+        for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c)
+            (*c)->markCrossCompartmentWrappers(gcmarker);
         Debugger::markCrossCompartmentDebuggerObjectReferents(gcmarker);
     }
 
@@ -2545,9 +2538,9 @@ EndMarkPhase(JSContext *cx, GCMarker *gcmarker, JSGCInvocationKind gckind)
 #ifdef DEBUG
     /* Make sure that we didn't mark an object in another compartment */
     if (rt->gcCurrentCompartment) {
-        for (CompartmentsIter c(rt); !c.done(); c.next()) {
-            JS_ASSERT_IF(c != rt->gcCurrentCompartment && c != rt->atomsCompartment,
-                         c->arenas.checkArenaListAllUnmarked());
+        for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c) {
+            JS_ASSERT_IF(*c != rt->gcCurrentCompartment && *c != rt->atomsCompartment,
+                         (*c)->arenas.checkArenaListAllUnmarked());
         }
     }
 #endif
@@ -2956,8 +2949,8 @@ GCCycle(JSContext *cx, JSCompartment *comp, JSGCInvocationKind gckind)
     rt->gcCurrentCompartment = NULL;
     rt->gcWeakMapList = NULL;
 
-    for (CompartmentsIter c(rt); !c.done(); c.next())
-        c->setGCLastBytes(c->gcBytes, gckind);
+    for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c)
+        (*c)->setGCLastBytes((*c)->gcBytes, gckind);
 }
 
 void
@@ -3037,13 +3030,13 @@ class AutoCopyFreeListToArenas {
   public:
     AutoCopyFreeListToArenas(JSRuntime *rt)
       : rt(rt) {
-        for (CompartmentsIter c(rt); !c.done(); c.next())
-            c->arenas.copyFreeListsToArenas();
+        for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c)
+            (*c)->arenas.copyFreeListsToArenas();
     }
 
     ~AutoCopyFreeListToArenas() {
-        for (CompartmentsIter c(rt); !c.done(); c.next())
-            c->arenas.clearFreeListsInArenas();
+        for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c)
+            (*c)->arenas.clearFreeListsInArenas();
     }
 };
 
@@ -3130,15 +3123,16 @@ IterateCompartmentsArenasCells(JSContext *cx, void *data,
     AutoUnlockGC unlock(rt);
 
     AutoCopyFreeListToArenas copy(rt);
-    for (CompartmentsIter c(rt); !c.done(); c.next()) {
-        (*compartmentCallback)(cx, data, c);
+    for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c) {
+        JSCompartment *compartment = *c;
+        (*compartmentCallback)(cx, data, compartment);
 
         for (size_t thingKind = 0; thingKind != FINALIZE_LIMIT; thingKind++) {
             JSGCTraceKind traceKind = MapAllocToTraceKind(AllocKind(thingKind));
             size_t thingSize = Arena::thingSize(AllocKind(thingKind));
             IterateArenaCallbackOp arenaOp(cx, data, arenaCallback, traceKind, thingSize);
             IterateCellCallbackOp cellOp(cx, data, cellCallback, traceKind, thingSize);
-            ForEachArenaAndCell(c, AllocKind(thingKind), arenaOp, cellOp);
+            ForEachArenaAndCell(compartment, AllocKind(thingKind), arenaOp, cellOp);
         }
     }
 }
@@ -3192,8 +3186,8 @@ IterateCells(JSContext *cx, JSCompartment *compartment, AllocKind thingKind,
         for (CellIterUnderGC i(compartment, thingKind); !i.done(); i.next())
             cellCallback(cx, data, i.getCell(), traceKind, thingSize);
     } else {
-        for (CompartmentsIter c(rt); !c.done(); c.next()) {
-            for (CellIterUnderGC i(c, thingKind); !i.done(); i.next())
+        for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c) {
+            for (CellIterUnderGC i(*c, thingKind); !i.done(); i.next())
                 cellCallback(cx, data, i.getCell(), traceKind, thingSize);
         }
     }
@@ -3412,10 +3406,10 @@ StartVerifyBarriers(JSContext *cx)
      * code in the compartment.
      */
 #ifdef JS_METHODJIT
-    for (CompartmentsIter c(rt); !c.done(); c.next()) {
-        mjit::ClearAllFrames(c);
+    for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c) {
+        mjit::ClearAllFrames(*c);
 
-        for (CellIterUnderGC i(c, FINALIZE_SCRIPT); !i.done(); i.next()) {
+        for (CellIterUnderGC i(*c, FINALIZE_SCRIPT); !i.done(); i.next()) {
             JSScript *script = i.get<JSScript>();
             mjit::ReleaseScriptCode(cx, script);
 
@@ -3473,9 +3467,9 @@ StartVerifyBarriers(JSContext *cx)
 
     rt->gcVerifyData = trc;
     rt->gcIncrementalTracer = &trc->gcmarker;
-    for (CompartmentsIter c(rt); !c.done(); c.next()) {
-        c->gcIncrementalTracer = &trc->gcmarker;
-        c->needsBarrier_ = true;
+    for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c) {
+        (*c)->gcIncrementalTracer = &trc->gcmarker;
+        (*c)->needsBarrier_ = true;
     }
 
     return;
@@ -3484,12 +3478,6 @@ oom:
     js_free(trc->root);
     trc->~VerifyTracer();
     js_free(trc);
-}
-
-static void
-CheckAutorooter(JSTracer *jstrc, void *thing, JSGCTraceKind kind)
-{
-    static_cast<Cell *>(thing)->markIfUnmarked();
 }
 
 /*
@@ -3544,17 +3532,9 @@ EndVerifyBarriers(JSContext *cx)
 
     rt->gcVerifyData = NULL;
     rt->gcIncrementalTracer = NULL;
-    for (CompartmentsIter c(rt); !c.done(); c.next()) {
-        c->gcIncrementalTracer = NULL;
-        c->needsBarrier_ = false;
-    }
-
-    JS_TRACER_INIT(trc, cx, CheckAutorooter);
-
-    JSContext *iter = NULL;
-    while (JSContext *acx = js_ContextIterator(rt, JS_TRUE, &iter)) {
-        if (acx->autoGCRooters)
-            acx->autoGCRooters->traceAll(trc);
+    for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c) {
+        (*c)->gcIncrementalTracer = NULL;
+        (*c)->needsBarrier_ = false;
     }
 
     JS_TRACER_INIT(trc, cx, CheckEdge);

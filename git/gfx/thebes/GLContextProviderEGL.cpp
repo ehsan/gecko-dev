@@ -764,11 +764,6 @@ public:
         mIsDoubleBuffered = aIsDB;
     }
 
-    bool SupportsRobustness()
-    {
-        return false;
-    }
-
 #if defined(MOZ_X11) && defined(MOZ_EGL_XRENDER_COMPOSITE)
     gfxASurface* GetOffscreenPixmapSurface()
     {

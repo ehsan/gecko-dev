@@ -58,7 +58,7 @@ double
 txUnionNodeTest::getDefaultPriority()
 {
     NS_ERROR("Don't call getDefaultPriority on txUnionPattern");
-    return txDouble::NaN;
+    return Double::NaN;
 }
 
 bool

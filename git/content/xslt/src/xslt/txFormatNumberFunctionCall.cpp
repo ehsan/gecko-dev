@@ -112,16 +112,16 @@ txFormatNumberFunctionCall::evaluate(txIEvalContext* aContext,
     }
 
     // Special cases
-    if (txDouble::isNaN(value)) {
+    if (Double::isNaN(value)) {
         return aContext->recycler()->getStringResult(format->mNaN, aResult);
     }
 
-    if (value == txDouble::POSITIVE_INFINITY) {
+    if (value == Double::POSITIVE_INFINITY) {
         return aContext->recycler()->getStringResult(format->mInfinity,
                                                      aResult);
     }
 
-    if (value == txDouble::NEGATIVE_INFINITY) {
+    if (value == Double::NEGATIVE_INFINITY) {
         nsAutoString res;
         res.Append(format->mMinusSign);
         res.Append(format->mInfinity);
@@ -143,7 +143,7 @@ txFormatNumberFunctionCall::evaluate(txIEvalContext* aContext,
 
     // Get right subexpression
     inQuote = false;
-    if (txDouble::isNeg(value)) {
+    if (Double::isNeg(value)) {
         while (pos < formatLen &&
                (inQuote ||
                 formatStr.CharAt(pos) != format->mPatternSeparator)) {

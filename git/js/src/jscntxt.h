@@ -1451,7 +1451,15 @@ class AutoGCRooter {
 
     /* Implemented in jsgc.cpp. */
     inline void trace(JSTracer *trc);
-    void traceAll(JSTracer *trc);
+
+#ifdef __GNUC__
+# pragma GCC visibility push(default)
+#endif
+    friend JS_FRIEND_API(void) MarkContext(JSTracer *trc, JSContext *acx);
+    friend void MarkRuntime(JSTracer *trc);
+#ifdef __GNUC__
+# pragma GCC visibility pop
+#endif
 
   protected:
     AutoGCRooter * const down;

@@ -541,7 +541,6 @@ public:
         mIsGLES2(false),
 #endif
         mIsGlobalSharedContext(false),
-        mHasRobustness(false),
         mVendor(-1),
         mDebugMode(0),
         mCreationFormat(aFormat),
@@ -661,12 +660,6 @@ public:
     bool HasES2Compatibility() {
         return mIsGLES2 || IsExtensionSupported(ARB_ES2_compatibility);
     }
-
-    /**
-     * The derived class is expected to provide information on whether or not it
-     * supports robustness.
-     */
-    virtual bool SupportsRobustness() = 0;
 
     enum {
         VendorIntel,
@@ -1315,10 +1308,6 @@ public:
         CONTEXT_INNOCENT_CONTEXT_RESET_ARB = 0x8254,
         CONTEXT_UNKNOWN_CONTEXT_RESET_ARB = 0x8255,
     };
-
-    bool HasRobustness() {
-        return mHasRobustness;
-    }
 
 protected:
     bool mInitialized;

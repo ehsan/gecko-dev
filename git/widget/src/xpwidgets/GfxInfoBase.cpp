@@ -912,10 +912,6 @@ GfxInfoBase::RemoveCollector(GfxInfoCollectorBase* collector)
       break;
     }
   }
-  if (sCollectors->IsEmpty()) {
-    delete sCollectors;
-    sCollectors = nsnull;
-  }
 }
 
 GfxInfoCollectorBase::GfxInfoCollectorBase()

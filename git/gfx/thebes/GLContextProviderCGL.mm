@@ -188,11 +188,6 @@ public:
       return gUseDoubleBufferedWindows; 
     }
 
-    bool SupportsRobustness()
-    {
-        return false;
-    }
-
     bool SwapBuffers()
     {
       [mContext flushBuffer];

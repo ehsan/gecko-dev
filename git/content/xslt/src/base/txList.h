@@ -46,7 +46,7 @@ class txListIterator;
 /**
  * Represents an ordered list of Object pointers. Modeled after a Java 2 List.
 **/
-class txList : public txObject {
+class txList : public TxObject {
 
 friend class txListIterator;
 

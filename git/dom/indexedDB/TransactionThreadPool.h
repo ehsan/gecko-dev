@@ -46,7 +46,8 @@
 #include "nsIObserver.h"
 #include "nsIRunnable.h"
 
-#include "mozilla/Monitor.h"
+#include "mozilla/Mutex.h"
+#include "mozilla/CondVar.h"
 #include "nsClassHashtable.h"
 #include "nsHashKeys.h"
 #include "nsRefPtrHashtable.h"
@@ -105,7 +106,8 @@ protected:
     inline void Finish(nsIRunnable* aFinishRunnable);
 
   private:
-    mozilla::Monitor mMonitor;
+    mozilla::Mutex mMutex;
+    mozilla::CondVar mCondVar;
     IDBTransaction* mTransaction;
     nsAutoTArray<nsCOMPtr<nsIRunnable>, 10> mQueue;
     nsCOMPtr<nsIRunnable> mFinishRunnable;

@@ -12,11 +12,12 @@
 # for the specific language governing rights and limitations under the
 # License.
 #
-# The Original Code is mozilla.org code.
+# The Original Code is Mozilla libxul
 #
 # The Initial Developer of the Original Code is
-# Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2007
+# Benjamin Smedberg <benjamin@smedbergs.us>
+#
+# Portions created by the Initial Developer are Copyright (C) 2005
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -35,29 +36,24 @@
 #
 # ***** END LICENSE BLOCK *****
 
-DEPTH		= ../../..
-topsrcdir	= @top_srcdir@
-srcdir		= @srcdir@
-VPATH		= @srcdir@
-relativesrcdir  = layout/xul/test
+# need widget/src/windows for resource.h (included from widget.rc)
+LOCAL_INCLUDES += \
+	-I$(topsrcdir)/config \
+	-I$(topsrcdir)/widget/src/windows \
+	-I$(topsrcdir)/widget/src/build \
+	$(NULL)
 
-include $(DEPTH)/config/autoconf.mk
-include $(topsrcdir)/config/rules.mk
+OS_LIBS += $(LIBICONV)
 
-_TEST_FILES =\
-		test_bug386386.html \
-		test_bug394800.xhtml \
-		test_bug563416.html \
-		$(NULL)
+DEFINES += \
+	-D_IMPL_NS_COM \
+	-D_IMPL_NS_STRINGAPI \
+	-DEXPORT_XPT_API \
+	-DEXPORT_XPTC_API \
+	-D_IMPL_NS_GFX \
+	-D_IMPL_NS_WIDGET \
+	$(NULL)
 
-_CHROME_FILES = \
-		test_bug372685.xul \
-		test_bug398982-1.xul \
-		test_bug398982-2.xul \
-		$(NULL)
-
-libs:: $(_TEST_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
-
-libs:: $(_CHROME_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/chrome/$(relativesrcdir)
+ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
+OS_LIBS += $(call EXPAND_LIBNAME,usp10 oleaut32)
+endif

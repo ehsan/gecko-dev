@@ -258,16 +258,13 @@ class VertexDeclarationCache
 class Context
 {
   public:
-    Context(const egl::Config *config, const gl::Context *shareContext, bool notifyResets, bool robustAccess);
+    Context(const egl::Config *config, const gl::Context *shareContext);
 
     ~Context();
 
     void makeCurrent(egl::Display *display, egl::Surface *surface);
 
     void markAllStateDirty();
-
-    virtual void markContextLost();
-    bool isContextLost();
 
     // State manipulation
     void setClearColor(float red, float green, float blue, float alpha);
@@ -420,7 +417,7 @@ class Context
 
     bool getQueryParameterInfo(GLenum pname, GLenum *type, unsigned int *numParams);
 
-    void readPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLsizei *bufSize, void* pixels);
+    void readPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void* pixels);
     void clear(GLbitfield mask);
     void drawArrays(GLenum mode, GLint first, GLsizei count);
     void drawElements(GLenum mode, GLsizei count, GLenum type, const void *indices);
@@ -437,8 +434,6 @@ class Context
     void recordInvalidFramebufferOperation();
 
     GLenum getError();
-    GLenum getResetStatus();
-    virtual bool isResetNotificationEnabled();
 
     bool supportsShaderModel3() const;
     int getMaximumVaryingVectors() const;
@@ -457,12 +452,12 @@ class Context
     bool supportsDXT1Textures() const;
     bool supportsDXT3Textures() const;
     bool supportsDXT5Textures() const;
-    bool supportsFloat32Textures() const;
-    bool supportsFloat32LinearFilter() const;
-    bool supportsFloat32RenderableTextures() const;
-    bool supportsFloat16Textures() const;
-    bool supportsFloat16LinearFilter() const;
-    bool supportsFloat16RenderableTextures() const;
+    bool supportsFloatTextures() const;
+    bool supportsFloatLinearFilter() const;
+    bool supportsFloatRenderableTextures() const;
+    bool supportsHalfFloatTextures() const;
+    bool supportsHalfFloatLinearFilter() const;
+    bool supportsHalfFloatRenderableTextures() const;
     bool supportsLuminanceTextures() const;
     bool supportsLuminanceAlphaTextures() const;
     bool supports32bitIndices() const;
@@ -536,12 +531,7 @@ class Context
     bool mOutOfMemory;
     bool mInvalidFramebufferOperation;
 
-    // Current/lost context flags
     bool mHasBeenCurrent;
-    bool mContextLost;
-    GLenum mResetStatus;
-    GLenum mResetStrategy;
-    bool mRobustAccess;
 
     unsigned int mAppliedTextureSerialPS[MAX_TEXTURE_IMAGE_UNITS];
     unsigned int mAppliedTextureSerialVS[MAX_VERTEX_TEXTURE_IMAGE_UNITS_VTF];
@@ -572,12 +562,12 @@ class Context
     bool mSupportsDXT1Textures;
     bool mSupportsDXT3Textures;
     bool mSupportsDXT5Textures;
-    bool mSupportsFloat32Textures;
-    bool mSupportsFloat32LinearFilter;
-    bool mSupportsFloat32RenderableTextures;
-    bool mSupportsFloat16Textures;
-    bool mSupportsFloat16LinearFilter;
-    bool mSupportsFloat16RenderableTextures;
+    bool mSupportsFloatTextures;
+    bool mSupportsFloatLinearFilter;
+    bool mSupportsFloatRenderableTextures;
+    bool mSupportsHalfFloatTextures;
+    bool mSupportsHalfFloatLinearFilter;
+    bool mSupportsHalfFloatRenderableTextures;
     bool mSupportsLuminanceTextures;
     bool mSupportsLuminanceAlphaTextures;
     bool mSupports32bitIndices;
@@ -610,12 +600,12 @@ class Context
 extern "C"
 {
 // Exported functions for use by EGL
-gl::Context *glCreateContext(const egl::Config *config, const gl::Context *shareContext, bool notifyResets, bool robustAccess);
+gl::Context *glCreateContext(const egl::Config *config, const gl::Context *shareContext);
 void glDestroyContext(gl::Context *context);
 void glMakeCurrent(gl::Context *context, egl::Display *display, egl::Surface *surface);
 gl::Context *glGetCurrentContext();
 __eglMustCastToProperFunctionPointerType __stdcall glGetProcAddress(const char *procname);
-bool __stdcall glBindTexImage(egl::Surface *surface);
+void __stdcall glBindTexImage(egl::Surface *surface);
 }
 
 #endif   // INCLUDE_CONTEXT_H_

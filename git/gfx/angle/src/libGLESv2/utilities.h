@@ -21,11 +21,10 @@ namespace gl
 
 struct Color;
 
-int UniformExternalComponentCount(GLenum type);
+int UniformComponentCount(GLenum type);
 int UniformInternalComponentCount(GLenum type);
 GLenum UniformComponentType(GLenum type);
-size_t UniformInternalSize(GLenum type);
-size_t UniformExternalSize(GLenum type);
+size_t UniformTypeSize(GLenum type);
 int VariableRowCount(GLenum type);
 int VariableColumnCount(GLenum type);
 
@@ -39,8 +38,6 @@ bool IsCompressed(GLenum format);
 bool IsCubemapTextureTarget(GLenum target);
 bool IsTextureTarget(GLenum target);
 bool CheckTextureFormatType(GLenum format, GLenum type);
-GLenum ExtractFormat(GLenum internalformat);
-GLenum ExtractType(GLenum internalformat);
 
 bool IsColorRenderable(GLenum internalformat);
 bool IsDepthRenderable(GLenum internalformat);
@@ -77,8 +74,6 @@ GLuint GetGreenSize(D3DFORMAT colorFormat);
 GLuint GetBlueSize(D3DFORMAT colorFormat);
 GLuint GetDepthSize(D3DFORMAT depthFormat);
 GLuint GetStencilSize(D3DFORMAT stencilFormat);
-bool IsFloat32Format(D3DFORMAT surfaceFormat);
-bool IsFloat16Format(D3DFORMAT surfaceFormat);
 
 GLsizei GetSamplesFromMultisampleType(D3DMULTISAMPLE_TYPE type);
 
@@ -89,19 +84,5 @@ GLenum ConvertDepthStencilFormat(D3DFORMAT format);
 
 std::string getTempPath();
 void writeFile(const char* path, const void* data, size_t size);
-
-inline bool isDeviceLostError(HRESULT errorCode)
-{
-    switch (errorCode)
-    {
-      case D3DERR_DRIVERINTERNALERROR:
-      case D3DERR_DEVICELOST:
-      case D3DERR_DEVICEHUNG:
-      case D3DERR_DEVICEREMOVED:
-        return true;
-      default:
-        return false;
-    }
-};
 
 #endif  // LIBGLESV2_UTILITIES_H

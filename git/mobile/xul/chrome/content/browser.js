@@ -61,7 +61,6 @@ const kBrowserViewZoomLevelPrecision = 10000;
 
 // allow panning after this timeout on pages with registered touch listeners
 const kTouchTimeout = 300;
-const kSetInactiveStateTimeout = 100;
 
 const kDefaultMetadata = { autoSize: false, allowZoom: true, autoScale: true };
 
@@ -2702,7 +2701,7 @@ var ActivityObserver = {
       // On Maemo all backgrounded applications getting portrait orientation
       // so if browser had landscape mode then we need timeout in order
       // to finish last rotate/paint operation and have nice lookine browser in TS
-      setTimeout(function() { Browser.selectedTab.active = activeTabState; }, activeTabState ? 0 : kSetInactiveStateTimeout);
+      setTimeout(function() { Browser.selectedTab.active = activeTabState; }, 0);
     }
   }
 };

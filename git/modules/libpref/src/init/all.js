@@ -3366,6 +3366,3 @@ pref("layout.3d-transforms.enabled", true);
 
 // Battery API
 pref("dom.battery.enabled", true);
-
-// enable JS dump() function.
-pref("browser.dom.window.dump.enabled", false);
