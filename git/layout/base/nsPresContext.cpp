@@ -212,7 +212,27 @@ nsPresContext::nsPresContext(nsIDocument* aDocument, nsPresContextType aType)
   : mType(aType), mDocument(aDocument), mMinFontSize(0),
     mTextZoom(1.0), mFullZoom(1.0), mPageSize(-1, -1), mPPScale(1.0f),
     mViewportStyleOverflow(NS_STYLE_OVERFLOW_AUTO, NS_STYLE_OVERFLOW_AUTO),
-    mImageAnimationModePref(imgIContainer::kNormalAnimMode)
+    mImageAnimationModePref(imgIContainer::kNormalAnimMode),
+    // Font sizes default to zero; they will be set in GetFontPreferences
+    mDefaultVariableFont("serif", NS_FONT_STYLE_NORMAL, NS_FONT_VARIANT_NORMAL,
+                         NS_FONT_WEIGHT_NORMAL, NS_FONT_STRETCH_NORMAL, 0, 0),
+    mDefaultFixedFont("monospace", NS_FONT_STYLE_NORMAL,
+                      NS_FONT_VARIANT_NORMAL, NS_FONT_WEIGHT_NORMAL,
+                      NS_FONT_STRETCH_NORMAL, 0, 0),
+    mDefaultSerifFont("serif", NS_FONT_STYLE_NORMAL, NS_FONT_VARIANT_NORMAL,
+                      NS_FONT_WEIGHT_NORMAL, NS_FONT_STRETCH_NORMAL, 0, 0),
+    mDefaultSansSerifFont("sans-serif", NS_FONT_STYLE_NORMAL,
+                          NS_FONT_VARIANT_NORMAL, NS_FONT_WEIGHT_NORMAL,
+                          NS_FONT_STRETCH_NORMAL, 0, 0),
+    mDefaultMonospaceFont("monospace", NS_FONT_STYLE_NORMAL,
+                          NS_FONT_VARIANT_NORMAL, NS_FONT_WEIGHT_NORMAL,
+                          NS_FONT_STRETCH_NORMAL, 0, 0),
+    mDefaultCursiveFont("cursive", NS_FONT_STYLE_NORMAL,
+                        NS_FONT_VARIANT_NORMAL, NS_FONT_WEIGHT_NORMAL,
+                        NS_FONT_STRETCH_NORMAL, 0, 0),
+    mDefaultFantasyFont("fantasy", NS_FONT_STYLE_NORMAL,
+                        NS_FONT_VARIANT_NORMAL, NS_FONT_WEIGHT_NORMAL,
+                        NS_FONT_STRETCH_NORMAL, 0, 0)
 {
   // NOTE! nsPresContext::operator new() zeroes out all members, so don't
   // bother initializing members to 0.
@@ -423,51 +443,9 @@ static bool sLookAndFeelChanged;
 // one prescontext.
 static bool sThemeChanged;
 
-const nsPresContext::LangGroupFontPrefs*
-nsPresContext::GetFontPrefsForLang(nsIAtom *aLanguage) const
+void
+nsPresContext::GetFontPreferences()
 {
-  // Get language group for aLanguage:
-
-  nsresult rv;
-  nsIAtom *langGroupAtom = nsnull;
-  if (!aLanguage) {
-    aLanguage = mLanguage;
-  }
-  if (aLanguage && mLangService) {
-    langGroupAtom = mLangService->GetLanguageGroup(aLanguage, &rv);
-  }
-  if (NS_FAILED(rv) || !langGroupAtom) {
-    langGroupAtom = nsGkAtoms::x_western; // Assume x-western is safe...
-  }
-
-  // Look for cached prefs for this lang group.
-  // Most documents will only use one (or very few) language groups. Rather
-  // than have the overhead of a hash lookup, we simply look along what will
-  // typically be a very short (usually of length 1) linked list. There are 31
-  // language groups, so in the worst case scenario we'll need to traverse 31
-  // link items.
-
-  LangGroupFontPrefs *prefs =
-    const_cast<LangGroupFontPrefs*>(&mLangGroupFontPrefs);
-  if (prefs->mLangGroup) { // if initialized
-    DebugOnly<PRUint32> count = 0;
-    for (;;) {
-      NS_ASSERTION(++count < 35, "Lang group count exceeded!!!");
-      if (prefs->mLangGroup == langGroupAtom) {
-        return prefs;
-      }
-      if (!prefs->mNext) {
-        break;
-      }
-      prefs = prefs->mNext;
-    }
-
-    // nothing cached, so go on and fetch the prefs for this lang group:
-    prefs = prefs->mNext = new LangGroupFontPrefs;
-  }
-
-  prefs->mLangGroup = langGroupAtom;
-
   /* Fetch the font prefs to be used -- see bug 61883 for details.
      Not all prefs are needed upfront. Some are fallback prefs intended
      for the GFX font sub-system...
@@ -476,7 +454,7 @@ nsPresContext::GetFontPrefsForLang(nsIAtom *aLanguage) const
   font.size.unit = px | pt    XXX could be folded in the size... bug 90440
 
   2) attributes for generic fonts --------------------------------------
-  font.default.[langGroup] = serif | sans-serif - fallback generic font
+  font.default = serif | sans-serif - fallback generic font
   font.name.[generic].[langGroup] = current user' selected font on the pref dialog
   font.name-list.[generic].[langGroup] = fontname1, fontname2, ... [factory pre-built list]
   font.size.[generic].[langGroup] = integer - settable by the user
@@ -484,11 +462,24 @@ nsPresContext::GetFontPrefsForLang(nsIAtom *aLanguage) const
   font.minimum-size.[langGroup] = integer - settable by the user
   */
 
-  nsCAutoString langGroup;
-  langGroupAtom->ToUTF8String(langGroup);
+  mDefaultVariableFont.size = CSSPixelsToAppUnits(16);
+  mDefaultFixedFont.size = CSSPixelsToAppUnits(13);
 
-  prefs->mDefaultVariableFont.size = CSSPixelsToAppUnits(16);
-  prefs->mDefaultFixedFont.size = CSSPixelsToAppUnits(13);
+  // the font prefs are based on langGroup, not actual language
+  nsCAutoString langGroup;
+  if (mLanguage && mLangService) {
+    nsresult rv;
+    nsIAtom *group = mLangService->GetLanguageGroup(mLanguage, &rv);
+    if (NS_SUCCEEDED(rv) && group) {
+      group->ToUTF8String(langGroup);
+    }
+    else {
+      langGroup.AssignLiteral("x-western"); // Assume x-western is safe...
+    }
+  }
+  else {
+    langGroup.AssignLiteral("x-western"); // Assume x-western is safe...
+  }
 
   nsCAutoString pref;
 
@@ -507,8 +498,6 @@ nsPresContext::GetFontPrefsForLang(nsIAtom *aLanguage) const
       unit = eUnit_pt;
     }
     else {
-      // XXX should really send this warning to the user (Error Console?).
-      // And just default to unit = eUnit_px?
       NS_WARNING("unexpected font-size unit -- expected: 'px' or 'pt'");
       unit = eUnit_unknown;
     }
@@ -516,32 +505,29 @@ nsPresContext::GetFontPrefsForLang(nsIAtom *aLanguage) const
 
   // get font.minimum-size.[langGroup]
 
-  MAKE_FONT_PREF_KEY(pref, "font.minimum-size.", langGroup);
+  pref.Assign("font.minimum-size.");
+  pref.Append(langGroup);
 
   PRInt32 size = Preferences::GetInt(pref.get());
   if (unit == eUnit_px) {
-    prefs->mMinimumFontSize = CSSPixelsToAppUnits(size);
+    mMinimumFontSizePref = CSSPixelsToAppUnits(size);
   }
   else if (unit == eUnit_pt) {
-    prefs->mMinimumFontSize = CSSPointsToAppUnits(size);
+    mMinimumFontSizePref = CSSPointsToAppUnits(size);
   }
 
   nsFont* fontTypes[] = {
-    &prefs->mDefaultVariableFont,
-    &prefs->mDefaultFixedFont,
-    &prefs->mDefaultSerifFont,
-    &prefs->mDefaultSansSerifFont,
-    &prefs->mDefaultMonospaceFont,
-    &prefs->mDefaultCursiveFont,
-    &prefs->mDefaultFantasyFont
+    &mDefaultVariableFont,
+    &mDefaultFixedFont,
+    &mDefaultSerifFont,
+    &mDefaultSansSerifFont,
+    &mDefaultMonospaceFont,
+    &mDefaultCursiveFont,
+    &mDefaultFantasyFont
   };
   PR_STATIC_ASSERT(NS_ARRAY_LENGTH(fontTypes) == eDefaultFont_COUNT);
 
-  // Get attributes specific to each generic font. We do not get the user's
-  // generic-font-name-to-specific-family-name preferences because its the
-  // generic name that should be fed into the cascade. It is up to the GFX
-  // code to look up the font prefs to convert generic names to specific
-  // family names as necessary.
+  // get attributes specific to each generic font
   nsCAutoString generic_dot_langGroup;
   for (PRUint32 eType = 0; eType < ArrayLength(fontTypes); ++eType) {
     generic_dot_langGroup.Assign(kGenericFont[eType]);
@@ -552,17 +538,17 @@ nsPresContext::GetFontPrefsForLang(nsIAtom *aLanguage) const
     // set the default variable font (the other fonts are seen as 'generic' fonts
     // in GFX and will be queried there when hunting for alternative fonts)
     if (eType == eDefaultFont_Variable) {
-      MAKE_FONT_PREF_KEY(pref, "font.name.variable.", langGroup);
+      MAKE_FONT_PREF_KEY(pref, "font.name", generic_dot_langGroup);
 
       nsAdoptingString value = Preferences::GetString(pref.get());
       if (!value.IsEmpty()) {
-        prefs->mDefaultVariableFont.name.Assign(value);
+        font->name.Assign(value);
       }
       else {
         MAKE_FONT_PREF_KEY(pref, "font.default.", langGroup);
         value = Preferences::GetString(pref.get());
         if (!value.IsEmpty()) {
-          prefs->mDefaultVariableFont.name.Assign(value);
+          mDefaultVariableFont.name.Assign(value);
         }
       } 
     }
@@ -572,12 +558,12 @@ nsPresContext::GetFontPrefsForLang(nsIAtom *aLanguage) const
         // to have the same default font-size as "-moz-fixed" (this tentative
         // size may be overwritten with the specific value for "monospace" when
         // "font.size.monospace.[langGroup]" is read -- see below)
-        prefs->mDefaultMonospaceFont.size = prefs->mDefaultFixedFont.size;
+        font->size = mDefaultFixedFont.size;
       }
       else if (eType != eDefaultFont_Fixed) {
         // all the other generic fonts are initialized with the size of the
         // variable font, but their specific size can supersede later -- see below
-        font->size = prefs->mDefaultVariableFont.size;
+        font->size = mDefaultVariableFont.size;
       }
     }
 
@@ -614,8 +600,6 @@ nsPresContext::GetFontPrefsForLang(nsIAtom *aLanguage) const
            font->sizeAdjust);
 #endif
   }
-
-  return prefs;
 }
 
 void
@@ -756,7 +740,7 @@ nsPresContext::GetUserPreferences()
 
   mPrefScrollbarSide = Preferences::GetInt("layout.scrollbar.side");
 
-  ResetCachedFontPrefs();
+  GetFontPreferences();
 
   // * image animation
   const nsAdoptingCString& animatePref =
@@ -1139,7 +1123,7 @@ nsPresContext::UpdateCharSet(const nsCString& aCharSet)
       NS_RELEASE(mLanguage);
       NS_IF_ADDREF(mLanguage = mLangService->GetLocaleLanguage()); 
     }
-    ResetCachedFontPrefs();
+    GetFontPreferences();
   }
 #ifdef IBMBIDI
   //ahmed
@@ -1321,34 +1305,32 @@ nsPresContext::SetImageAnimationModeExternal(PRUint16 aMode)
 }
 
 const nsFont*
-nsPresContext::GetDefaultFont(PRUint8 aFontID, nsIAtom *aLanguage) const
+nsPresContext::GetDefaultFont(PRUint8 aFontID) const
 {
-  const LangGroupFontPrefs *prefs = GetFontPrefsForLang(aLanguage);
-
   const nsFont *font;
   switch (aFontID) {
     // Special (our default variable width font and fixed width font)
     case kPresContext_DefaultVariableFont_ID:
-      font = &prefs->mDefaultVariableFont;
+      font = &mDefaultVariableFont;
       break;
     case kPresContext_DefaultFixedFont_ID:
-      font = &prefs->mDefaultFixedFont;
+      font = &mDefaultFixedFont;
       break;
     // CSS
     case kGenericFont_serif:
-      font = &prefs->mDefaultSerifFont;
+      font = &mDefaultSerifFont;
       break;
     case kGenericFont_sans_serif:
-      font = &prefs->mDefaultSansSerifFont;
+      font = &mDefaultSansSerifFont;
       break;
     case kGenericFont_monospace:
-      font = &prefs->mDefaultMonospaceFont;
+      font = &mDefaultMonospaceFont;
       break;
     case kGenericFont_cursive:
-      font = &prefs->mDefaultCursiveFont;
+      font = &mDefaultCursiveFont;
       break;
     case kGenericFont_fantasy: 
-      font = &prefs->mDefaultFantasyFont;
+      font = &mDefaultFantasyFont;
       break;
     default:
       font = nsnull;

@@ -315,7 +315,7 @@ gfxFontUtils::ReadCMAPTableFormat12(const PRUint8 *aBuf, PRUint32 aLength,
         prevEndCharCode = endCharCode;
     }
 
-    aCharacterMap.Compact();
+    aCharacterMap.mBlocks.Compact();
 
     return NS_OK;
 }
@@ -395,7 +395,7 @@ gfxFontUtils::ReadCMAPTableFormat4(const PRUint8 *aBuf, PRUint32 aLength,
         }
     }
 
-    aCharacterMap.Compact();
+    aCharacterMap.mBlocks.Compact();
 
     return NS_OK;
 }

@@ -3,20 +3,11 @@ package @ANDROID_PACKAGE_NAME@.tests;
 
 import @ANDROID_PACKAGE_NAME@.*;
 
-/**
- * A panning performance test.
- * Drags the page a bunch of times and measures the frames per second
- * that fennec draws at.
- */
-public class testPan extends PixelTest {
+public class testPan extends BaseTest {
+    private static final String URL = "http://mochi.test:8888/startup_test/fenncmark/wikipedia.html";
 
     public void testPan() {
-        setTestType("talos");
-        String url = getAbsoluteUrl("/startup_test/fennecmark/wikipedia.html");
-
-        mActions.expectGeckoEvent("Gecko:Ready").blockForEvent();
-
-        loadAndPaint(url);
+        loadUrl(URL);
 
         mDriver.setupScrollHandling();
 

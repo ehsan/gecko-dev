@@ -414,7 +414,7 @@ interface_hasInstance(JSContext *cx, JSObject *obj, const JS::Value *vp, JSBool 
             } else {
                 JSObject *protoObj = JSVAL_TO_OBJECT(prototype);
                 JSObject *proto = other;
-                while ((proto = JS_GetPrototype(proto))) {
+                while ((proto = JS_GetPrototype(cx, proto))) {
                     if (proto == protoObj) {
                         *bp = true;
                         return true;
@@ -491,10 +491,8 @@ ListBase<LC>::getPrototype(JSContext *cx, XPCWrappedNativeScope *scope)
 
     JSObject *interfacePrototype;
     if (cache.IsInitialized()) {
-        if (cache.Get(sInterfaceClass.name, &interfacePrototype)) {
-            xpc_UnmarkGrayObject(interfacePrototype);
+        if (cache.Get(sInterfaceClass.name, &interfacePrototype))
             return interfacePrototype;
-        }
     } else if (!cache.Init()) {
         return NULL;
     }
@@ -623,13 +621,12 @@ GetArrayIndexFromId(JSContext *cx, jsid id)
         return -1;
     if (NS_LIKELY(JSID_IS_ATOM(id))) {
         JSAtom *atom = JSID_TO_ATOM(id);
-        jschar s = *js::GetAtomChars(atom);
+        jschar s = *atom->chars();
         if (NS_LIKELY((unsigned)s >= 'a' && (unsigned)s <= 'z'))
             return -1;
 
         jsuint i;
-        JSLinearString *str = js::AtomToLinearString(JSID_TO_ATOM(id));
-        return js::StringIsArrayIndex(str, &i) ? i : -1;
+        return js::StringIsArrayIndex(JSID_TO_ATOM(id), &i) ? i : -1;
     }
     return IdToInt32(cx, id);
 }
@@ -761,7 +758,7 @@ ListBase<LC>::ensureExpandoObject(JSContext *cx, JSObject *obj)
             return NULL;
 
         js::SetProxyExtra(obj, JSPROXYSLOT_EXPANDO, ObjectValue(*expando));
-        JS_SetPrivate(expando, js::GetProxyPrivate(obj).toPrivate());
+        JS_SetPrivate(cx, expando, js::GetProxyPrivate(obj).toPrivate());
     }
     return expando;
 }
@@ -1251,13 +1248,6 @@ template<class LC>
 bool
 ListBase<LC>::iterate(JSContext *cx, JSObject *proxy, uintN flags, Value *vp)
 {
-    if (flags == JSITER_FOR_OF) {
-        JSObject *iterobj = JS_NewElementIterator(cx, proxy);
-        if (!iterobj)
-            return false;
-        vp->setObject(*iterobj);
-        return true;
-    }
     return ProxyHandler::iterate(cx, proxy, flags, vp);
 }
 
@@ -1314,7 +1304,10 @@ NoBase::getPrototype(JSContext *cx, XPCWrappedNativeScope *scope)
     // We need to pass the object prototype to JS_NewObject. If we pass NULL then the JS engine
     // will look up a prototype on the global by using the class' name and we'll recurse into
     // getPrototype.
-    return JS_GetObjectPrototype(cx, scope->GetGlobalJSObject());
+    JSObject* proto;
+    if (!js_GetClassPrototype(cx, scope->GetGlobalJSObject(), JSProto_Object, &proto))
+        return NULL;
+    return proto;
 }
 
 

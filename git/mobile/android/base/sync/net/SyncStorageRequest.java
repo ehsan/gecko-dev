@@ -170,13 +170,10 @@ public class SyncStorageRequest implements Resource {
       if (ifUnmodifiedSince != null) {
         request.setHeader("x-weave-if-unmodified-since", ifUnmodifiedSince);
       }
-      if (request.getMethod().equalsIgnoreCase("DELETE")) {
-        request.addHeader("x-confirm-delete", "1");
-      }
     }
   }
 
-  public static String USER_AGENT = "Firefox AndroidSync 0.5";
+  public static String USER_AGENT = "Firefox AndroidSync 0.3";
   protected SyncResourceDelegate resourceDelegate;
   public SyncStorageRequestDelegate delegate;
   protected BaseResource resource;
@@ -195,6 +192,7 @@ public class SyncStorageRequest implements Resource {
   }
 
   public void delete() {
+    this.resource.request.addHeader("x-confirm-delete", "1");
     this.resource.delete();
   }
 

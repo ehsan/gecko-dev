@@ -93,7 +93,7 @@ nsIDOMWebGLRenderingContext_BufferData(JSContext *cx, uintN argc, jsval *vp)
     nsIDOMWebGLRenderingContext *self;
     xpc_qsSelfRef selfref;
     JS::AutoValueRooter tvr(cx);
-    if (!xpc_qsUnwrapThis(cx, obj, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
+    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
         return JS_FALSE;
 
     if (argc < 3)
@@ -166,7 +166,7 @@ nsIDOMWebGLRenderingContext_BufferSubData(JSContext *cx, uintN argc, jsval *vp)
     nsIDOMWebGLRenderingContext *self;
     xpc_qsSelfRef selfref;
     JS::AutoValueRooter tvr(cx);
-    if (!xpc_qsUnwrapThis(cx, obj, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
+    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
         return JS_FALSE;
 
     if (argc < 3)
@@ -240,7 +240,7 @@ nsIDOMWebGLRenderingContext_CompressedTexImage2D(JSContext *cx, uintN argc, jsva
     nsIDOMWebGLRenderingContext *self;
     xpc_qsSelfRef selfref;
     JS::AutoValueRooter tvr(cx);
-    if (!xpc_qsUnwrapThis(cx, obj, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
+    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
         return JS_FALSE;
 
     if (argc != 7)
@@ -290,7 +290,7 @@ nsIDOMWebGLRenderingContext_CompressedTexSubImage2D(JSContext *cx, uintN argc, j
     nsIDOMWebGLRenderingContext *self;
     xpc_qsSelfRef selfref;
     JS::AutoValueRooter tvr(cx);
-    if (!xpc_qsUnwrapThis(cx, obj, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
+    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
         return JS_FALSE;
 
     if (argc != 7)
@@ -341,7 +341,7 @@ nsIDOMWebGLRenderingContext_ReadPixels(JSContext *cx, uintN argc, jsval *vp)
     nsIDOMWebGLRenderingContext *self;
     xpc_qsSelfRef selfref;
     JS::AutoValueRooter tvr(cx);
-    if (!xpc_qsUnwrapThis(cx, obj, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
+    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
         return JS_FALSE;
 
     if (argc < 7)
@@ -401,7 +401,7 @@ nsIDOMWebGLRenderingContext_TexImage2D(JSContext *cx, uintN argc, jsval *vp)
     nsIDOMWebGLRenderingContext *self;
     xpc_qsSelfRef selfref;
     JS::AutoValueRooter tvr(cx);
-    if (!xpc_qsUnwrapThis(cx, obj, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
+    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
         return JS_FALSE;
 
     if (argc < 6 || argc == 7 || argc == 8)
@@ -445,7 +445,7 @@ nsIDOMWebGLRenderingContext_TexImage2D(JSContext *cx, uintN argc, jsval *vp)
             JS_GetProperty(cx, argv5, "data", &js_data);
             if (js_width  == JSVAL_VOID ||
                 js_height == JSVAL_VOID ||
-                !js_data.isObject())
+                js_data   == JSVAL_VOID)
             {
                 xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 5);
                 return JS_FALSE;
@@ -522,7 +522,7 @@ nsIDOMWebGLRenderingContext_TexSubImage2D(JSContext *cx, uintN argc, jsval *vp)
     nsIDOMWebGLRenderingContext *self;
     xpc_qsSelfRef selfref;
     JS::AutoValueRooter tvr(cx);
-    if (!xpc_qsUnwrapThis(cx, obj, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
+    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
         return JS_FALSE;
 
     if (argc < 7 || argc == 8)
@@ -566,7 +566,7 @@ nsIDOMWebGLRenderingContext_TexSubImage2D(JSContext *cx, uintN argc, jsval *vp)
             JS_GetProperty(cx, argv6, "data", &js_data);
             if (js_width  == JSVAL_VOID ||
                 js_height == JSVAL_VOID ||
-                !js_data.isObject())
+                js_data   == JSVAL_VOID)
             {
                 xpc_qsThrowBadArg(cx, NS_ERROR_FAILURE, vp, 6);
                 return JS_FALSE;
@@ -633,7 +633,7 @@ helper_nsIDOMWebGLRenderingContext_Uniform_x_iv(JSContext *cx, uintN argc, jsval
     nsIDOMWebGLRenderingContext *self;
     xpc_qsSelfRef selfref;
     JS::AutoValueRooter tvr(cx);
-    if (!xpc_qsUnwrapThis(cx, obj, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
+    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
         return JS_FALSE;
 
     if (argc < 2)
@@ -707,7 +707,7 @@ helper_nsIDOMWebGLRenderingContext_Uniform_x_fv(JSContext *cx, uintN argc, jsval
     nsIDOMWebGLRenderingContext *self;
     xpc_qsSelfRef selfref;
     JS::AutoValueRooter tvr(cx);
-    if (!xpc_qsUnwrapThis(cx, obj, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
+    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
         return JS_FALSE;
 
     if (argc < 2)
@@ -779,7 +779,7 @@ helper_nsIDOMWebGLRenderingContext_UniformMatrix_x_fv(JSContext *cx, uintN argc,
     nsIDOMWebGLRenderingContext *self;
     xpc_qsSelfRef selfref;
     JS::AutoValueRooter tvr(cx);
-    if (!xpc_qsUnwrapThis(cx, obj, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
+    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
         return JS_FALSE;
 
     if (argc < 3)
@@ -852,7 +852,7 @@ helper_nsIDOMWebGLRenderingContext_VertexAttrib_x_fv(JSContext *cx, uintN argc, 
     nsIDOMWebGLRenderingContext *self;
     xpc_qsSelfRef selfref;
     JS::AutoValueRooter tvr(cx);
-    if (!xpc_qsUnwrapThis(cx, obj, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
+    if (!xpc_qsUnwrapThis(cx, obj, nsnull, &self, &selfref.ptr, tvr.jsval_addr(), nsnull))
         return JS_FALSE;
 
     if (argc < 2)

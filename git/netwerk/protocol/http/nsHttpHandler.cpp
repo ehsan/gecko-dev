@@ -62,7 +62,7 @@
 #include "nsCategoryManagerUtils.h"
 #include "nsICacheService.h"
 #include "nsIPrefService.h"
-#include "nsIPrefBranch.h"
+#include "nsIPrefBranch2.h"
 #include "nsIPrefLocalizedString.h"
 #include "nsISocketProviderService.h"
 #include "nsISocketProvider.h"
@@ -258,7 +258,7 @@ nsHttpHandler::Init()
     InitUserAgentComponents();
 
     // monitor some preference changes
-    nsCOMPtr<nsIPrefBranch> prefBranch = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    nsCOMPtr<nsIPrefBranch2> prefBranch = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (prefBranch) {
         prefBranch->AddObserver(HTTP_PREF_PREFIX, this, true);
         prefBranch->AddObserver(UA_PREF_PREFIX, this, true);
@@ -270,7 +270,7 @@ nsHttpHandler::Init()
         PrefsChanged(prefBranch, nsnull);
     }
 
-    mMisc.AssignLiteral("rv:" MOZILLA_UAVERSION);
+    mMisc.AssignLiteral("rv:" MOZILLA_VERSION);
 
     nsCOMPtr<nsIXULAppInfo> appInfo =
         do_GetService("@mozilla.org/xre/app-info;1");
@@ -308,7 +308,7 @@ nsHttpHandler::Init()
     if (NS_FAILED(rv)) return rv;
 
 #ifdef ANDROID
-    mProductSub.AssignLiteral(MOZILLA_UAVERSION);
+    mProductSub.AssignLiteral(MOZ_APP_UA_VERSION);
 #else
     mProductSub.AssignLiteral(MOZ_UA_BUILDID);
 #endif
@@ -685,7 +685,7 @@ nsHttpHandler::InitUserAgentComponents()
     nsCOMPtr<nsIPropertyBag2> infoService = do_GetService("@mozilla.org/system-info;1");
     NS_ASSERTION(infoService, "Could not find a system info service");
 
-    bool isTablet = false;
+    bool isTablet;
     infoService->GetPropertyAsBool(NS_LITERAL_STRING("tablet"), &isTablet);
     if (isTablet)
         mCompatDevice.AssignLiteral("Tablet");

@@ -55,11 +55,11 @@ public interface RepositorySessionFetchRecordsDelegate {
    *        which the request was received.
    *        E.g., the (normalized) value of the X-Weave-Timestamp header.
    */
-  public void onFetchCompleted(final long fetchEnd);
+  public void onFetchCompleted(long end);
 
   // Shorthand for calling onFetchedRecord for each record in turn, then
   // calling onFetchCompleted.
-  public void onFetchSucceeded(Record[] records, final long fetchEnd);
+  public void onFetchSucceeded(Record[] records, long end);
 
   public RepositorySessionFetchRecordsDelegate deferredFetchDelegate(ExecutorService executor);
 }

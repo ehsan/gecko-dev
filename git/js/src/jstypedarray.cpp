@@ -67,8 +67,6 @@
 #include "jsobjinlines.h"
 #include "jstypedarrayinlines.h"
 
-#include "vm/MethodGuard-inl.h"
-
 using namespace mozilla;
 using namespace js;
 using namespace js::gc;
@@ -229,19 +227,17 @@ JSObject::allocateArrayBufferSlots(JSContext *cx, uint32_t size, uint8_t *conten
     size_t usableSlots = ARRAYBUFFER_RESERVED_SLOTS - ObjectElements::VALUES_PER_HEADER;
 
     if (size > sizeof(Value) * usableSlots) {
-        ObjectElements *newheader = (ObjectElements *)cx->calloc_(size + sizeof(ObjectElements));
+        ObjectElements *newheader = (ObjectElements *)cx->malloc_(size + sizeof(ObjectElements));
         if (!newheader)
             return false;
         elements = newheader->elements();
-        if (contents)
-            memcpy(elements, contents, size);
     } else {
         elements = fixedElements();
-        if (contents)
-            memcpy(elements, contents, size);
-        else
-            memset(elements, 0, size);
     }
+    if (contents)
+        memcpy(elements, contents, size);
+    else
+        memset(elements, 0, size);
 
     ObjectElements *header = getElementsHeader();
 
@@ -1099,7 +1095,7 @@ class TypedArrayTemplate
     static void
     obj_trace(JSTracer *trc, JSObject *obj)
     {
-        MarkValue(trc, &obj->getFixedSlotRef(FIELD_BUFFER), "typedarray.buffer");
+        MarkValue(trc, obj->getFixedSlotRef(FIELD_BUFFER), "typedarray.buffer");
     }
 
     static JSBool
@@ -2182,7 +2178,6 @@ Class ArrayBuffer::slowClass = {
 Class js::ArrayBufferClass = {
     "ArrayBuffer",
     JSCLASS_HAS_PRIVATE |
-    JSCLASS_IMPLEMENTS_BARRIERS |
     Class::NON_NATIVE |
     JSCLASS_HAS_RESERVED_SLOTS(ARRAYBUFFER_RESERVED_SLOTS) |
     JSCLASS_HAS_CACHED_PROTO(JSProto_ArrayBuffer),
@@ -2194,9 +2189,11 @@ Class js::ArrayBufferClass = {
     JS_ResolveStub,
     JS_ConvertStub,
     NULL,           /* finalize    */
+    NULL,           /* reserved0   */
     NULL,           /* checkAccess */
     NULL,           /* call        */
     NULL,           /* construct   */
+    NULL,           /* xdrObject   */
     NULL,           /* hasInstance */
     ArrayBuffer::obj_trace,
     JS_NULL_CLASS_EXT,
@@ -2299,8 +2296,7 @@ JSFunctionSpec _typedArray::jsfuncs[] = {                                      \
 {                                                                              \
     #_typedArray,                                                              \
     JSCLASS_HAS_RESERVED_SLOTS(TypedArray::FIELD_MAX) |                        \
-    JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |                        \
-    JSCLASS_FOR_OF_ITERATION |                                                 \
+    JSCLASS_HAS_PRIVATE |                                                      \
     Class::NON_NATIVE,                                                         \
     JS_PropertyStub,         /* addProperty */                                 \
     JS_PropertyStub,         /* delProperty */                                 \
@@ -2310,19 +2306,14 @@ JSFunctionSpec _typedArray::jsfuncs[] = {                                      \
     JS_ResolveStub,                                                            \
     JS_ConvertStub,                                                            \
     NULL,                    /* finalize    */                                 \
+    NULL,                    /* reserved0   */                                 \
     NULL,                    /* checkAccess */                                 \
     NULL,                    /* call        */                                 \
     NULL,                    /* construct   */                                 \
+    NULL,                    /* xdrObject   */                                 \
     NULL,                    /* hasInstance */                                 \
     _typedArray::obj_trace,  /* trace       */                                 \
-    {                                                                          \
-        NULL,       /* equality    */                                          \
-        NULL,       /* outerObject */                                          \
-        NULL,       /* innerObject */                                          \
-        JS_ElementIteratorStub,                                                \
-        NULL,       /* unused      */                                          \
-        false,      /* isWrappedNative */                                      \
-    },                                                                         \
+    JS_NULL_CLASS_EXT,                                                         \
     {                                                                          \
         _typedArray::obj_lookupGeneric,                                        \
         _typedArray::obj_lookupProperty,                                       \

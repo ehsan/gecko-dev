@@ -606,6 +606,12 @@ nsDummyJavaPluginOwner::InvalidateRegion(NPRegion invalidRegion)
 }
 
 NS_IMETHODIMP
+nsDummyJavaPluginOwner::ForceRedraw()
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
 nsDummyJavaPluginOwner::GetNetscapeWindow(void *value)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
@@ -1864,7 +1870,7 @@ ReparentWaiverWrappers(JSDHashTable *table, JSDHashEntryHdr *hdr,
 
     // We reparent wrappers that have as their parent an inner window whose
     // outer has the new inner window as its current inner.
-    JSObject *parent = JS_GetParent(value);
+    JSObject *parent = JS_GetParent(closure->mCx, value);
     JSObject *outer = JS_ObjectToOuterObject(closure->mCx, parent);
     if (outer) {
       JSObject *inner = JS_ObjectToInnerObject(closure->mCx, outer);
@@ -4448,22 +4454,17 @@ nsGlobalWindow::GetNearestWidget()
 NS_IMETHODIMP
 nsGlobalWindow::SetFullScreen(bool aFullScreen)
 {
-  return SetFullScreenInternal(aFullScreen, true);
-}
-
-nsresult
-nsGlobalWindow::SetFullScreenInternal(bool aFullScreen, bool aRequireTrust)
-{
   FORWARD_TO_OUTER(SetFullScreen, (aFullScreen), NS_ERROR_NOT_INITIALIZED);
 
   NS_ENSURE_TRUE(mDocShell, NS_ERROR_FAILURE);
 
   bool rootWinFullScreen;
   GetFullScreen(&rootWinFullScreen);
-  // Only chrome can change our fullScreen mode, unless we're running in
-  // untrusted mode.
-  if (aFullScreen == rootWinFullScreen || 
-      (aRequireTrust && !nsContentUtils::IsCallerTrustedForWrite())) {
+  // Only chrome can change our fullScreen mode, unless the DOM full-screen
+  // API is enabled.
+  if ((aFullScreen == rootWinFullScreen || 
+      !nsContentUtils::IsCallerTrustedForWrite()) &&
+      !nsContentUtils::IsFullScreenApiEnabled()) {
     return NS_OK;
   }
 
@@ -4473,11 +4474,11 @@ nsGlobalWindow::SetFullScreenInternal(bool aFullScreen, bool aRequireTrust)
   nsCOMPtr<nsIDocShellTreeItem> treeItem = do_QueryInterface(mDocShell);
   nsCOMPtr<nsIDocShellTreeItem> rootItem;
   treeItem->GetRootTreeItem(getter_AddRefs(rootItem));
-  nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(rootItem);
+  nsCOMPtr<nsIDOMWindow> window = do_GetInterface(rootItem);
   if (!window)
     return NS_ERROR_FAILURE;
   if (rootItem != treeItem)
-    return window->SetFullScreenInternal(aFullScreen, aRequireTrust);
+    return window->SetFullScreen(aFullScreen);
 
   // make sure we don't try to set full screen on a non-chrome window,
   // which might happen in embedding world
@@ -9359,6 +9360,12 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
                           handler->GetScriptVersion(), nsnull,
                           &is_undefined);
     } else {
+      // Let the script handler know about the "secret" final argument that
+      // indicates timeout lateness in milliseconds
+      TimeDuration lateness = now - timeout->mWhen;
+
+      handler->SetLateness(lateness.ToMilliseconds());
+
       nsCOMPtr<nsIVariant> dummy;
       nsCOMPtr<nsISupports> me(static_cast<nsIDOMWindow *>(this));
       scx->CallEventHandler(me, FastGetGlobalJSObject(),
@@ -9974,7 +9981,7 @@ nsGlobalWindow::SaveWindowState(nsISupports **aState)
                                                getter_AddRefs(proto));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  JSObject *realProto = JS_GetPrototype(mJSObject);
+  JSObject *realProto = JS_GetPrototype(cx, mJSObject);
   nsCOMPtr<nsIXPConnectJSObjectHolder> realProtoHolder;
   if (realProto) {
     rv = xpc->HoldObject(cx, realProto, getter_AddRefs(realProtoHolder));

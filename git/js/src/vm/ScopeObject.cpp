@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 6; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=8 sw=4 et tw=78:
  *
  * ***** BEGIN LICENSE BLOCK *****
@@ -65,12 +65,8 @@ using namespace js::types;
 CallObject *
 CallObject::create(JSContext *cx, JSScript *script, JSObject &enclosing, JSObject *callee)
 {
-    RootedVarShape shape(cx);
-    shape = script->bindings.callObjectShape(cx);
-    if (shape == NULL)
-        return NULL;
-
-    gc::AllocKind kind = gc::GetGCObjectKind(shape->numFixedSlots() + 1);
+    Bindings &bindings = script->bindings;
+    gc::AllocKind kind = gc::GetGCObjectKind(bindings.lastShape()->numFixedSlots() + 1);
 
     RootedVarTypeObject type(cx);
 
@@ -79,8 +75,11 @@ CallObject::create(JSContext *cx, JSScript *script, JSObject &enclosing, JSObjec
         return NULL;
 
     HeapValue *slots;
-    if (!PreallocateObjectDynamicSlots(cx, shape, &slots))
+    if (!PreallocateObjectDynamicSlots(cx, bindings.lastShape(), &slots))
         return NULL;
+
+    RootedVarShape shape(cx);
+    shape = bindings.lastShape();
 
     JSObject *obj = JSObject::create(cx, kind, shape, type, slots);
     if (!obj)
@@ -382,9 +381,11 @@ Class js::WithClass = {
     JS_ResolveStub,
     JS_ConvertStub,
     NULL,                    /* finalize */
+    NULL,                    /* reserved    */
     NULL,                    /* checkAccess */
     NULL,                    /* call        */
     NULL,                    /* construct   */
+    NULL,                    /* xdrObject   */
     NULL,                    /* hasInstance */
     NULL,                    /* trace       */
     JS_NULL_CLASS_EXT,
@@ -615,7 +616,7 @@ FindObjectIndex(JSObjectArray *array, JSObject *obj)
 }
 
 bool
-js::XDRStaticBlockObject(JSXDRState *xdr, JSScript *script, StaticBlockObject **objp)
+js_XDRStaticBlockObject(JSXDRState *xdr, StaticBlockObject **objp)
 {
     JSContext *cx = xdr->cx;
 
@@ -625,8 +626,8 @@ js::XDRStaticBlockObject(JSXDRState *xdr, JSScript *script, StaticBlockObject **
     uint32_t depthAndCount = 0;
     if (xdr->mode == JSXDR_ENCODE) {
         obj = *objp;
-        parentId = JSScript::isValidOffset(script->objectsOffset)
-                   ? FindObjectIndex(script->objects(), obj->enclosingBlock())
+        parentId = JSScript::isValidOffset(xdr->script->objectsOffset)
+                   ? FindObjectIndex(xdr->script->objects(), obj->enclosingBlock())
                    : NO_PARENT_INDEX;
         uint32_t depth = obj->stackDepth();
         JS_ASSERT(depth <= UINT16_MAX);
@@ -652,7 +653,7 @@ js::XDRStaticBlockObject(JSXDRState *xdr, JSScript *script, StaticBlockObject **
          */
         obj->setEnclosingBlock(parentId == NO_PARENT_INDEX
                                ? NULL
-                               : &script->getObject(parentId)->asStaticBlock());
+                               : &xdr->script->getObject(parentId)->asStaticBlock());
     }
 
     AutoObjectRooter tvr(cx, obj);

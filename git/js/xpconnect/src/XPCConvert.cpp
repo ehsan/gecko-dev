@@ -73,6 +73,8 @@ using namespace mozilla;
 
 #define ILLEGAL_CHAR_RANGE(c) (0!=((c) & 0x80))
 
+static intN sXPCOMUCStringFinalizerIndex = -1;
+
 /***********************************************************/
 
 // static
@@ -114,12 +116,38 @@ XPCConvert::GetISupportsFromJSObject(JSObject* obj, nsISupports** iface)
 /***************************************************************************/
 
 static void
-FinalizeXPCOMUCString(const JSStringFinalizer *fin, jschar *chars)
+FinalizeXPCOMUCString(JSContext *cx, JSString *str)
 {
-    nsMemory::Free(chars);
+    NS_ASSERTION(sXPCOMUCStringFinalizerIndex != -1,
+                 "XPCConvert: XPCOM Unicode string finalizer called uninitialized!");
+
+    jschar* buffer = const_cast<jschar *>(JS_GetStringCharsZ(cx, str));
+    NS_ASSERTION(buffer, "How could this OOM if we allocated the memory?");
+    nsMemory::Free(buffer);
 }
 
-static const JSStringFinalizer sXPCOMUCStringFinalizer = { FinalizeXPCOMUCString };
+
+static JSBool
+AddXPCOMUCStringFinalizer()
+{
+
+    sXPCOMUCStringFinalizerIndex =
+        JS_AddExternalStringFinalizer(FinalizeXPCOMUCString);
+
+    if (sXPCOMUCStringFinalizerIndex == -1) {
+        return false;
+    }
+
+    return true;
+}
+
+//static
+void
+XPCConvert::RemoveXPCOMUCStringFinalizer()
+{
+    JS_RemoveExternalStringFinalizer(FinalizeXPCOMUCString);
+    sXPCOMUCStringFinalizerIndex = -1;
+}
 
 // static
 JSBool
@@ -291,9 +319,13 @@ XPCConvert::NativeData2JS(XPCLazyCallContext& lccx, jsval* d, const void* s,
                     if (!p)
                         return false;
 
+                    if (sXPCOMUCStringFinalizerIndex == -1 &&
+                        !AddXPCOMUCStringFinalizer())
+                        return false;
+
                     JSString* jsString =
                         JS_NewExternalString(cx, p, len,
-                                             &sXPCOMUCStringFinalizer);
+                                             sXPCOMUCStringFinalizerIndex);
 
                     if (!jsString) {
                         nsMemory::Free(p);
@@ -318,10 +350,14 @@ XPCConvert::NativeData2JS(XPCLazyCallContext& lccx, jsval* d, const void* s,
                     if (!unicodeString)
                         return false;
 
+                    if (sXPCOMUCStringFinalizerIndex == -1 &&
+                        !AddXPCOMUCStringFinalizer())
+                        return false;
+
                     JSString* jsString = JS_NewExternalString(cx,
                                                               (jschar*)unicodeString,
                                                               cString->Length(),
-                                                              &sXPCOMUCStringFinalizer);
+                                                              sXPCOMUCStringFinalizerIndex);
 
                     if (!jsString) {
                         nsMemory::Free(unicodeString);
@@ -1184,7 +1220,7 @@ XPCConvert::JSObject2NativeInterface(XPCCallContext& ccx,
         // we aren't, throw an exception eagerly.
         JSObject* inner = nsnull;
         if (XPCWrapper::IsSecurityWrapper(src)) {
-            inner = XPCWrapper::Unwrap(cx, src, false);
+            inner = XPCWrapper::Unwrap(cx, src);
             if (!inner) {
                 if (pErr)
                     *pErr = NS_ERROR_XPC_SECURITY_MANAGER_VETO;

@@ -257,7 +257,7 @@ Parser::trace(JSTracer *trc)
 {
     ObjectBox *objbox = traceListHead;
     while (objbox) {
-        MarkObjectRoot(trc, &objbox->object, "parser.object");
+        MarkRoot(trc, objbox->object, "parser.object");
         if (objbox->isFunctionBox)
             static_cast<FunctionBox *>(objbox)->bindings.trace(trc);
         objbox = objbox->traceLink;
@@ -1294,7 +1294,8 @@ Parser::functionArguments(TreeContext &funtc, FunctionBox *funbox, ParseNode **l
                 rhs->pn_cookie.set(funtc.staticLevel, slot);
                 rhs->pn_dflags |= PND_BOUND;
 
-                ParseNode *item = new_<BinaryNode>(PNK_ASSIGN, JSOP_NOP, lhs->pn_pos, lhs, rhs);
+                ParseNode *item =
+                    ParseNode::newBinaryOrAppend(PNK_ASSIGN, JSOP_NOP, lhs, rhs, &funtc);
                 if (!item)
                     return false;
                 if (!list) {
@@ -1331,7 +1332,6 @@ Parser::functionArguments(TreeContext &funtc, FunctionBox *funbox, ParseNode **l
                  *     until after all arguments have been parsed.
                  */
                 if (funtc.decls.lookupFirst(name)) {
-                    funtc.bindings.noteDup();
                     duplicatedArg = name;
                     if (destructuringArg)
                         goto report_dup_and_destructuring;
@@ -1868,7 +1868,6 @@ Parser::statements()
     tc->blockNode = saveBlock;
 
     pn->pn_pos.end = tokenStream.currentToken().pos.end;
-    JS_ASSERT(pn->pn_pos.begin <= pn->pn_pos.end);
     return pn;
 }
 
@@ -3138,23 +3137,6 @@ Parser::switchStatement()
     return pn;
 }
 
-bool
-Parser::matchInOrOf(bool *isForOfp)
-{
-    if (tokenStream.matchToken(TOK_IN)) {
-        *isForOfp = false;
-        return true;
-    }
-    if (tokenStream.matchToken(TOK_NAME)) {
-        if (tokenStream.currentToken().name() == context->runtime->atomState.ofAtom) {
-            *isForOfp = true;
-            return true;
-        }
-        tokenStream.ungetToken();
-    }
-    return false;
-}
-
 ParseNode *
 Parser::forStatement()
 {
@@ -3260,27 +3242,18 @@ Parser::forStatement()
     ParseNode *forHead;     /* initialized by both branches. */
     StmtInfo letStmt;       /* used if blockObj != NULL. */
     ParseNode *pn2, *pn3;   /* forHead->pn_kid1 and pn_kid2. */
-    bool forOf;
-    if (pn1 && matchInOrOf(&forOf)) {
+    if (pn1 && tokenStream.matchToken(TOK_IN)) {
         /*
-         * Parse the rest of the for/in or for/of head.
+         * Parse the rest of the for/in head.
          *
-         * Here pn1 is everything to the left of 'in' or 'of'. At the end of
-         * this block, pn1 is a decl or NULL, pn2 is the assignment target that
-         * receives the enumeration value each iteration, and pn3 is the rhs of
-         * 'in'.
+         * Here pn1 is everything to the left of 'in'. At the end of this block,
+         * pn1 is a decl or NULL, pn2 is the assignment target that receives the
+         * enumeration value each iteration, and pn3 is the rhs of 'in'.
          */
+        pn->pn_iflags |= JSITER_ENUMERATE;
         forStmt.type = STMT_FOR_IN_LOOP;
 
-        /* Set pn_iflags and rule out invalid combinations. */
-        if (forOf && pn->pn_iflags != 0) {
-            JS_ASSERT(pn->pn_iflags == JSITER_FOREACH);
-            reportErrorNumber(NULL, JSREPORT_ERROR, JSMSG_BAD_FOR_EACH_LOOP);
-            return NULL;
-        }
-        pn->pn_iflags |= (forOf ? JSITER_FOR_OF : JSITER_ENUMERATE);
-
-        /* Check that the left side of the 'in' or 'of' is valid. */
+        /* Check that the left side of the 'in' is valid. */
         if (forDecl
             ? (pn1->pn_count > 1 || pn1->isOp(JSOP_DEFCONST)
 #if JS_HAS_DESTRUCTURING
@@ -4351,9 +4324,7 @@ Parser::variables(ParseNodeKind kind, StaticBlockObject *blockObj, VarContext va
 
             if (!CheckDestructuring(context, &data, pn2, tc))
                 return NULL;
-            bool ignored;
-            if ((tc->flags & TCF_IN_FOR_INIT) && matchInOrOf(&ignored)) {
-                tokenStream.ungetToken();
+            if ((tc->flags & TCF_IN_FOR_INIT) && tokenStream.peekToken() == TOK_IN) {
                 pn->append(pn2);
                 continue;
             }
@@ -5403,7 +5374,7 @@ Parser::comprehensionTail(ParseNode *kid, uintN blockid, bool isGenexp,
         /*
          * FOR node is binary, left is loop control and right is body.  Use
          * index to count each block-local let-variable on the left-hand side
-         * of the in/of.
+         * of the IN.
          */
         pn2 = BinaryNode::create(PNK_FOR, tc);
         if (!pn2)
@@ -5457,20 +5428,7 @@ Parser::comprehensionTail(ParseNode *kid, uintN blockid, bool isGenexp,
             return NULL;
         }
 
-        bool forOf;
-        if (!matchInOrOf(&forOf)) {
-            reportErrorNumber(NULL, JSREPORT_ERROR, JSMSG_IN_AFTER_FOR_NAME);
-            return NULL;
-        }
-        if (forOf) {
-            if (pn2->pn_iflags != JSITER_ENUMERATE) {
-                JS_ASSERT(pn2->pn_iflags == (JSITER_FOREACH | JSITER_ENUMERATE));
-                reportErrorNumber(NULL, JSREPORT_ERROR, JSMSG_BAD_FOR_EACH_LOOP);
-                return NULL;
-            }
-            pn2->pn_iflags = JSITER_FOR_OF;
-        }
-
+        MUST_MATCH_TOKEN(TOK_IN, JSMSG_IN_AFTER_FOR_NAME);
         ParseNode *pn4 = expr();
         if (!pn4)
             return NULL;
@@ -5794,6 +5752,15 @@ Parser::memberExpr(JSBool allowCallSyntax)
                                                       tokenStream.currentToken().pos.end);
                     if (!nextMember)
                         return NULL;
+
+                    /*
+                     * A property access of the form |<expr>.arguments| might
+                     * access this function's arguments, so we need to flag a
+                     * potential arguments use to ensure an arguments object
+                     * will be created.  See bug 721322.
+                     */
+                    if (tc->inFunction() && field == context->runtime->atomState.argumentsAtom)
+                        tc->noteArgumentsPropertyAccess(nextMember);
                 }
             }
 #if JS_HAS_XML_SUPPORT
@@ -6952,7 +6919,6 @@ Parser::primaryExpr(TokenKind tt, bool afterDoubleDot)
         for (;;) {
             JSAtom *atom;
             TokenKind ltok = tokenStream.getToken(TSF_KEYWORD_IS_NAME);
-            TokenPtr begin = tokenStream.currentToken().pos.begin;
             switch (ltok) {
               case TOK_NUMBER:
                 pn3 = NullaryNode::create(PNK_NUMBER, tc);
@@ -7019,10 +6985,7 @@ Parser::primaryExpr(TokenKind tt, bool afterDoubleDot)
 
                     /* NB: Getter function in { get x(){} } is unnamed. */
                     pn2 = functionDef(NULL, op == JSOP_GETTER ? Getter : Setter, Expression);
-                    if (!pn2)
-                        return NULL;
-                    TokenPos pos = {begin, pn2->pn_pos.end};
-                    pn2 = new_<BinaryNode>(PNK_COLON, op, pos, pn3, pn2);
+                    pn2 = ParseNode::newBinaryOrAppend(PNK_COLON, op, pn3, pn2, tc);
                     goto skip;
                 }
               case TOK_STRING: {
@@ -7052,16 +7015,16 @@ Parser::primaryExpr(TokenKind tt, bool afterDoubleDot)
             tt = tokenStream.getToken();
             if (tt == TOK_COLON) {
                 pnval = assignExpr();
-                if (!pnval)
-                    return NULL;
 
                 /*
                  * Treat initializers which mutate __proto__ as non-constant,
                  * so that we can later assume singleton objects delegate to
                  * the default Object.prototype.
                  */
-                if (!pnval->isConstant() || atom == context->runtime->atomState.protoAtom)
+                if ((pnval && !pnval->isConstant()) ||
+                    atom == context->runtime->atomState.protoAtom) {
                     pn->pn_xflags |= PNX_NONCONST;
+                }
             }
 #if JS_HAS_DESTRUCTURING_SHORTHAND
             else if (ltok == TOK_NAME && (tt == TOK_COMMA || tt == TOK_RC)) {
@@ -7084,10 +7047,7 @@ Parser::primaryExpr(TokenKind tt, bool afterDoubleDot)
                 return NULL;
             }
 
-            {
-                TokenPos pos = {begin, pnval->pn_pos.end};
-                pn2 = new_<BinaryNode>(PNK_COLON, op, pos, pn3, pnval);
-            }
+            pn2 = ParseNode::newBinaryOrAppend(PNK_COLON, op, pn3, pnval, tc);
           skip:
             if (!pn2)
                 return NULL;

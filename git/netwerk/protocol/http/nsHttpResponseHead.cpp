@@ -213,14 +213,13 @@ nsHttpResponseHead::ParseHeaderLine(const char *line)
     // handle some special case headers...
     if (hdr == nsHttp::Content_Length) {
         PRInt64 len;
-        const char *ignored;
         // permit only a single value here.
-        if (nsHttp::ParseInt64(val, &ignored, &len)) {
+        if (nsHttp::ParseInt64(val, &len)) {
             mContentLength = len;
         }
         else {
-            // If this is a negative content length then just ignore it 
-            LOG(("invalid content-length! %s\n", val));
+            LOG(("invalid content-length!\n"));
+            return NS_ERROR_CORRUPTED_CONTENT;
         }
     }
     else if (hdr == nsHttp::Content_Type) {

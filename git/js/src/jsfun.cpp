@@ -71,9 +71,8 @@
 #include "frontend/BytecodeCompiler.h"
 #include "frontend/BytecodeEmitter.h"
 #include "frontend/TokenStream.h"
-#include "vm/Debugger.h"
-#include "vm/MethodGuard.h"
 #include "vm/ScopeObject.h"
+#include "vm/Debugger.h"
 
 #if JS_HAS_GENERATORS
 # include "jsiter.h"
@@ -92,14 +91,20 @@
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
 #include "jsscriptinlines.h"
-#include "vm/ArgumentsObject-inl.h"
 #include "vm/ScopeObject-inl.h"
+#include "vm/ArgumentsObject-inl.h"
 #include "vm/Stack-inl.h"
 
 using namespace mozilla;
 using namespace js;
 using namespace js::gc;
 using namespace js::types;
+
+inline JSObject *
+JSObject::getThrowTypeError() const
+{
+    return global().getThrowTypeError();
+}
 
 JSBool
 js_GetArgsValue(JSContext *cx, StackFrame *fp, Value *vp)
@@ -470,8 +475,8 @@ strictargs_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags, JSObject 
         }
 
         attrs = JSPROP_PERMANENT | JSPROP_GETTER | JSPROP_SETTER | JSPROP_SHARED;
-        getter = CastAsPropertyOp(argsobj.global().getThrowTypeError());
-        setter = CastAsStrictPropertyOp(argsobj.global().getThrowTypeError());
+        getter = CastAsPropertyOp(argsobj.getThrowTypeError());
+        setter = CastAsStrictPropertyOp(argsobj.getThrowTypeError());
     }
 
     Value undef = UndefinedValue();
@@ -525,7 +530,7 @@ args_trace(JSTracer *trc, JSObject *obj)
 {
     ArgumentsObject &argsobj = obj->asArguments();
     ArgumentsData *data = argsobj.data();
-    MarkValue(trc, &data->callee, js_callee_str);
+    MarkValue(trc, data->callee, js_callee_str);
     MarkValueRange(trc, argsobj.initialLength(), data->slots, js_arguments_str);
 
     /*
@@ -540,7 +545,7 @@ args_trace(JSTracer *trc, JSObject *obj)
 #if JS_HAS_GENERATORS
     StackFrame *fp = argsobj.maybeStackFrame();
     if (fp && fp->isFloatingGenerator())
-        MarkObject(trc, &js_FloatingFrameToGenerator(fp)->obj, "generator object");
+        MarkObject(trc, js_FloatingFrameToGenerator(fp)->obj, "generator object");
 #endif
 }
 
@@ -552,10 +557,9 @@ args_trace(JSTracer *trc, JSObject *obj)
  */
 Class js::NormalArgumentsObjectClass = {
     "Arguments",
-    JSCLASS_NEW_RESOLVE | JSCLASS_IMPLEMENTS_BARRIERS |
+    JSCLASS_NEW_RESOLVE |
     JSCLASS_HAS_RESERVED_SLOTS(NormalArgumentsObject::RESERVED_SLOTS) |
-    JSCLASS_HAS_CACHED_PROTO(JSProto_Object) |
-    JSCLASS_FOR_OF_ITERATION,
+    JSCLASS_HAS_CACHED_PROTO(JSProto_Object),
     JS_PropertyStub,         /* addProperty */
     args_delProperty,
     JS_PropertyStub,         /* getProperty */
@@ -564,19 +568,13 @@ Class js::NormalArgumentsObjectClass = {
     reinterpret_cast<JSResolveOp>(args_resolve),
     JS_ConvertStub,
     args_finalize,           /* finalize   */
+    NULL,                    /* reserved0   */
     NULL,                    /* checkAccess */
     NULL,                    /* call        */
     NULL,                    /* construct   */
+    NULL,                    /* xdrObject   */
     NULL,                    /* hasInstance */
-    args_trace,
-    {
-        NULL,       /* equality    */
-        NULL,       /* outerObject */
-        NULL,       /* innerObject */
-        JS_ElementIteratorStub,
-        NULL,       /* unused      */
-        false,      /* isWrappedNative */
-    }
+    args_trace
 };
 
 /*
@@ -586,10 +584,9 @@ Class js::NormalArgumentsObjectClass = {
  */
 Class js::StrictArgumentsObjectClass = {
     "Arguments",
-    JSCLASS_NEW_RESOLVE | JSCLASS_IMPLEMENTS_BARRIERS |
+    JSCLASS_NEW_RESOLVE |
     JSCLASS_HAS_RESERVED_SLOTS(StrictArgumentsObject::RESERVED_SLOTS) |
-    JSCLASS_HAS_CACHED_PROTO(JSProto_Object) |
-    JSCLASS_FOR_OF_ITERATION,
+    JSCLASS_HAS_CACHED_PROTO(JSProto_Object),
     JS_PropertyStub,         /* addProperty */
     args_delProperty,
     JS_PropertyStub,         /* getProperty */
@@ -598,19 +595,13 @@ Class js::StrictArgumentsObjectClass = {
     reinterpret_cast<JSResolveOp>(strictargs_resolve),
     JS_ConvertStub,
     args_finalize,           /* finalize   */
+    NULL,                    /* reserved0   */
     NULL,                    /* checkAccess */
     NULL,                    /* call        */
     NULL,                    /* construct   */
+    NULL,                    /* xdrObject   */
     NULL,                    /* hasInstance */
-    args_trace,
-    {
-        NULL,       /* equality    */
-        NULL,       /* outerObject */
-        NULL,       /* innerObject */
-        JS_ElementIteratorStub,
-        NULL,       /* unused      */
-        false,      /* isWrappedNative */
-    }
+    args_trace
 };
 
 namespace js {
@@ -933,13 +924,13 @@ call_trace(JSTracer *trc, JSObject *obj)
 #if JS_HAS_GENERATORS
     StackFrame *fp = (StackFrame *) obj->getPrivate();
     if (fp && fp->isFloatingGenerator())
-        MarkObject(trc, &js_FloatingFrameToGenerator(fp)->obj, "generator object");
+        MarkObject(trc, js_FloatingFrameToGenerator(fp)->obj, "generator object");
 #endif
 }
 
 JS_PUBLIC_DATA(Class) js::CallClass = {
     "Call",
-    JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
+    JSCLASS_HAS_PRIVATE |
     JSCLASS_HAS_RESERVED_SLOTS(CallObject::RESERVED_SLOTS) |
     JSCLASS_NEW_RESOLVE | JSCLASS_IS_ANONYMOUS,
     JS_PropertyStub,         /* addProperty */
@@ -950,9 +941,11 @@ JS_PUBLIC_DATA(Class) js::CallClass = {
     (JSResolveOp)call_resolve,
     NULL,                    /* convert: Leave it NULL so we notice if calls ever escape */
     NULL,                    /* finalize */
+    NULL,                    /* reserved0   */
     NULL,                    /* checkAccess */
     NULL,                    /* call        */
     NULL,                    /* construct   */
+    NULL,                    /* xdrObject   */
     NULL,                    /* hasInstance */
     call_trace
 };
@@ -1084,17 +1077,14 @@ fun_getProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 
     /* Find fun's top-most activation record. */
     StackFrame *fp = js_GetTopStackFrame(cx, FRAME_EXPAND_NONE);
-    for (; fp; fp = fp->prev()) {
-        if (!fp->isFunctionFrame() || fp->isEvalFrame())
-            continue;
-        Value callee;
-        if (!fp->getValidCalleeObject(cx, &callee))
-            return false;
-        if (&callee.toObject() == fun)
-            break;
-    }
     if (!fp)
         return true;
+
+    while (!fp->isFunctionFrame() || &fp->callee() != fun || fp->isEvalFrame()) {
+        fp = fp->prev();
+        if (!fp)
+            return true;
+    }
 
 #ifdef JS_METHODJIT
     if (JSID_IS_ATOM(id, cx->runtime->atomState.callerAtom) && fp && fp->prev()) {
@@ -1233,8 +1223,8 @@ ResolveInterpretedFunctionPrototype(JSContext *cx, JSObject *obj)
      * Make the prototype object an instance of Object with the same parent
      * as the function object itself.
      */
-    JSObject *objProto = obj->global().getOrCreateObjectPrototype(cx);
-    if (!objProto)
+    JSObject *objProto;
+    if (!js_GetClassPrototype(cx, obj->getParent(), JSProto_Object, &objProto))
         return NULL;
     JSObject *proto = NewObjectWithGivenProto(cx, &ObjectClass, objProto, NULL);
     if (!proto || !proto->setSingletonType(cx))
@@ -1318,7 +1308,7 @@ fun_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
             StrictPropertyOp setter;
             uintN attrs = JSPROP_PERMANENT;
             if (fun->isInterpreted() ? fun->inStrictMode() : fun->isBoundFunction()) {
-                JSObject *throwTypeError = fun->global().getThrowTypeError();
+                JSObject *throwTypeError = fun->getThrowTypeError();
 
                 getter = CastAsPropertyOp(throwTypeError);
                 setter = CastAsStrictPropertyOp(throwTypeError);
@@ -1344,7 +1334,7 @@ fun_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
 
 /* XXX store parent and proto, if defined */
 JSBool
-js::XDRFunctionObject(JSXDRState *xdr, JSObject **objp)
+js_XDRFunctionObject(JSXDRState *xdr, JSObject **objp)
 {
     JSContext *cx;
     JSFunction *fun;
@@ -1387,7 +1377,7 @@ js::XDRFunctionObject(JSXDRState *xdr, JSObject **objp)
     if (!JS_XDRUint32(xdr, &flagsword))
         return false;
 
-    if (!XDRScript(xdr, &script))
+    if (!js_XDRScript(xdr, &script))
         return false;
 
     if (xdr->mode == JSXDR_DECODE) {
@@ -1405,7 +1395,11 @@ js::XDRFunctionObject(JSXDRState *xdr, JSObject **objp)
     return true;
 }
 
-#endif /* JS_HAS_XDR */
+#else  /* !JS_HAS_XDR */
+
+#define js_XDRFunctionObject NULL
+
+#endif /* !JS_HAS_XDR */
 
 /*
  * [[HasInstance]] internal method for Function objects: fetch the .prototype
@@ -1456,7 +1450,7 @@ JSFunction::trace(JSTracer *trc)
 
     if (isInterpreted()) {
         if (script())
-            MarkScript(trc, &script(), "script");
+            MarkScript(trc, script(), "script");
         if (environment())
             MarkObjectUnbarriered(trc, environment(), "fun_callscope");
     }
@@ -1475,14 +1469,6 @@ fun_finalize(JSContext *cx, JSObject *obj)
         obj->toFunction()->finalizeUpvars();
 }
 
-size_t
-JSFunction::sizeOfMisc(JSMallocSizeOfFun mallocSizeOf) const
-{
-    return (isFlatClosure() && hasFlatClosureUpvars()) ?
-           mallocSizeOf(getFlatClosureUpvars()) :
-           0;
-}
-
 /*
  * Reserve two slots in all function objects for XPConnect.  Note that this
  * does not bloat every instance, only those on which reserved slots are set,
@@ -1490,7 +1476,7 @@ JSFunction::sizeOfMisc(JSMallocSizeOfFun mallocSizeOf) const
  */
 JS_FRIEND_DATA(Class) js::FunctionClass = {
     js_Function_str,
-    JSCLASS_NEW_RESOLVE | JSCLASS_IMPLEMENTS_BARRIERS |
+    JSCLASS_NEW_RESOLVE |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Function),
     JS_PropertyStub,         /* addProperty */
     JS_PropertyStub,         /* delProperty */
@@ -1500,9 +1486,11 @@ JS_FRIEND_DATA(Class) js::FunctionClass = {
     (JSResolveOp)fun_resolve,
     JS_ConvertStub,
     fun_finalize,
+    NULL,                    /* reserved0   */
     NULL,                    /* checkAccess */
     NULL,                    /* call        */
     NULL,                    /* construct   */
+    NULL,
     fun_hasInstance,
     fun_trace
 };
@@ -2220,7 +2208,7 @@ js_CloneFunctionObject(JSContext *cx, JSFunction *fun, JSObject *parent,
             JS_ASSERT(script->compartment() != cx->compartment);
 
             clone->script().init(NULL);
-            JSScript *cscript = CloneScript(cx, script);
+            JSScript *cscript = js_CloneScript(cx, script);
             if (!cscript)
                 return NULL;
 

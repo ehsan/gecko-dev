@@ -79,7 +79,6 @@
 
 #ifdef JS_METHODJIT
 # include "assembler/assembler/MacroAssembler.h"
-# include "methodjit/MethodJIT.h"
 #endif
 #include "frontend/TokenStream.h"
 #include "frontend/ParseMaps.h"
@@ -125,23 +124,13 @@ JSRuntime::triggerOperationCallback()
     JS_ATOMIC_SET(&interrupt, 1);
 }
 
-void
-JSRuntime::setJitHardening(bool enabled)
-{
-    jitHardening = enabled;
-    if (execAlloc_)
-        execAlloc_->setRandomize(enabled);
-}
-
 JSC::ExecutableAllocator *
 JSRuntime::createExecutableAllocator(JSContext *cx)
 {
     JS_ASSERT(!execAlloc_);
     JS_ASSERT(cx->runtime == this);
 
-    JSC::AllocationBehavior randomize =
-        jitHardening ? JSC::AllocationCanRandomize : JSC::AllocationDeterministic;
-    execAlloc_ = new_<JSC::ExecutableAllocator>(randomize);
+    execAlloc_ = new_<JSC::ExecutableAllocator>();
     if (!execAlloc_)
         js_ReportOutOfMemory(cx);
     return execAlloc_;
@@ -157,6 +146,24 @@ JSRuntime::createBumpPointerAllocator(JSContext *cx)
     if (!bumpAlloc_)
         js_ReportOutOfMemory(cx);
     return bumpAlloc_;
+}
+
+RegExpPrivateCache *
+JSRuntime::createRegExpPrivateCache(JSContext *cx)
+{
+    JS_ASSERT(!repCache_);
+    JS_ASSERT(cx->runtime == this);
+
+    RegExpPrivateCache *newCache = new_<RegExpPrivateCache>(this);
+
+    if (!newCache || !newCache->init()) {
+        js_ReportOutOfMemory(cx);
+        delete_<RegExpPrivateCache>(newCache);
+        return NULL;
+    }
+
+    repCache_ = newCache;
+    return repCache_;
 }
 
 JSScript *
@@ -282,10 +289,10 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
                 c->clearTraps(cx);
             JS_ClearAllWatchPoints(cx);
 
-            GC(cx, NULL, GC_NORMAL, gcreason::LAST_CONTEXT);
+            js_GC(cx, NULL, GC_NORMAL, gcreason::LAST_CONTEXT);
 
         } else if (mode == JSDCM_FORCE_GC) {
-            GC(cx, NULL, GC_NORMAL, gcreason::DESTROY_CONTEXT);
+            js_GC(cx, NULL, GC_NORMAL, gcreason::DESTROY_CONTEXT);
         } else if (mode == JSDCM_MAYBE_GC) {
             JS_MaybeGC(cx);
         }
@@ -875,7 +882,7 @@ js_InvokeOperationCallback(JSContext *cx)
     JS_ATOMIC_SET(&rt->interrupt, 0);
 
     if (rt->gcIsNeeded)
-        GCSlice(cx, rt->gcTriggerCompartment, GC_NORMAL, rt->gcTriggerReason);
+        js_GC(cx, rt->gcTriggerCompartment, GC_NORMAL, rt->gcTriggerReason);
 
 #ifdef JS_THREADSAFE
     /*
@@ -970,7 +977,6 @@ JSContext::JSContext(JSRuntime *rt)
     stack(thisDuringConstruction()),  /* depends on cx->thread_ */
     parseMapPool_(NULL),
     globalObject(NULL),
-    sharpObjectMap(this),
     argumentFormatMap(NULL),
     lastMessage(NULL),
     errorReporter(NULL),
@@ -1002,6 +1008,7 @@ JSContext::JSContext(JSRuntime *rt)
     , stackIterAssertionEnabled(true)
 #endif
 {
+    PodZero(&sharpObjectMap);
     PodZero(&link);
 #ifdef JS_THREADSAFE
     PodZero(&threadLinks);
@@ -1165,6 +1172,9 @@ JSRuntime::purge(JSContext *cx)
 
     /* FIXME: bug 506341 */
     propertyCache.purge(cx);
+
+    delete_<RegExpPrivateCache>(repCache_);
+    repCache_ = NULL;
 }
 
 void
@@ -1253,9 +1263,6 @@ void
 JSContext::updateJITEnabled()
 {
 #ifdef JS_METHODJIT
-    // This allocator randomization is actually a compartment-wide option.
-    if (compartment && compartment->hasJaegerCompartment())
-        compartment->jaegerCompartment()->execAlloc()->setRandomize(runtime->getJitHardening());
     methodJitEnabled = (runOptions & JSOPTION_METHODJIT) && !IsJITBrokenHere();
 #endif
 }
@@ -1269,26 +1276,6 @@ JSContext::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf) const
      * added later.
      */
     return mallocSizeOf(this) + busyArrays.sizeOfExcludingThis(mallocSizeOf);
-}
-
-void
-JSContext::mark(JSTracer *trc)
-{
-    /* Stack frames and slots are traced by StackSpace::mark. */
-
-    /* Mark other roots-by-definition in the JSContext. */
-    if (globalObject && !hasRunOption(JSOPTION_UNROOTED_GLOBAL))
-        MarkObjectRoot(trc, &globalObject, "global object");
-    if (isExceptionPending())
-        MarkValueRoot(trc, &exception, "exception");
-
-    if (autoGCRooters)
-        autoGCRooters->traceAll(trc);
-
-    if (sharpObjectMap.depth > 0)
-        js_TraceSharpMap(trc, &sharpObjectMap);
-
-    MarkValueRoot(trc, &iterValue, "iterValue");
 }
 
 namespace JS {

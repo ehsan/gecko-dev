@@ -2768,18 +2768,21 @@ panel[dimmed="true"] {
 
 /* Highlighter - Node Infobar - text */
 
-html|*#highlighter-nodeinfobar-tagname {
+#highlighter-nodeinfobar-tagname {
   color: white;
 }
 
-html|*#highlighter-nodeinfobar-id {
+#highlighter-nodeinfobar-id {
   color: hsl(90, 79%, 52%);
+}
+
+.highlighter-nodeinfobar-class {
+  color: hsl(200, 100%, 65%);
 }
 
 /* Highlighter - Node Infobar - box & arrow */
 
 #highlighter-nodeinfobar {
-  color: hsl(200, 100%, 65%);
   border: 1px solid hsla(210, 19%, 63%, .5);
   border-radius: 3px;
   padding: 8px 16px;

@@ -444,7 +444,7 @@ public:
 
     unsigned int getType() { return type; }
     unsigned int getFlags() { return flags; }
-    unsigned int getAlign() { return align; }
+    unsigned int getAlign() { return type == PT_LOAD ? 0x1000 : align; /* TODO: remove this gross hack */ }
 
     ElfSection *getFirstSection() { return sections.empty() ? NULL : sections.front(); }
     int getVPDiff() { return v_p_diff; }

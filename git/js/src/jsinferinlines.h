@@ -741,7 +741,7 @@ void
 TypeScript::trace(JSTracer *trc)
 {
     if (hasScope() && global)
-        gc::MarkObject(trc, &global, "script_global");
+        gc::MarkObject(trc, global, "script_global");
 
     /* Note: nesting does not keep anything alive. */
 }
@@ -1159,9 +1159,6 @@ inline TypeObject::TypeObject(JSObject *proto, bool function, bool unknown)
 {
     PodZero(this);
 
-    /* Inner objects may not appear on prototype chains. */
-    JS_ASSERT_IF(proto, !proto->getClass()->ext.outerObject);
-
     this->proto = proto;
 
     if (function)
@@ -1343,7 +1340,7 @@ TypeNewScript::writeBarrierPre(TypeNewScript *newScript)
     JSCompartment *comp = newScript->fun->compartment();
     if (comp->needsBarrier()) {
         MarkObjectUnbarriered(comp->barrierTracer(), newScript->fun, "write barrier");
-        MarkShape(comp->barrierTracer(), &newScript->shape, "write barrier");
+        MarkShapeUnbarriered(comp->barrierTracer(), newScript->shape, "write barrier");
     }
 #endif
 }

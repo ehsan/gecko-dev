@@ -61,8 +61,6 @@
 #include <windows.h>
 #include <objbase.h>
 
-class nsIMemoryMultiReporter;
-
 // Utility to get a Windows HDC from a thebes context,
 // used by both GDI and Uniscribe font shapers
 struct DCFromContext {
@@ -284,8 +282,6 @@ private:
 
     // TODO: unify this with mPrefFonts (NB: holds families, not fonts) in gfxPlatformFontList
     nsDataHashtable<nsCStringHashKey, nsTArray<nsRefPtr<gfxFontEntry> > > mPrefFonts;
-
-    nsIMemoryMultiReporter* mGPUAdapterMultiReporter;
 };
 
 #endif /* GFX_WINDOWS_PLATFORM_H */

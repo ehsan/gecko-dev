@@ -58,7 +58,6 @@
 #include "nsIObserverService.h"
 #include "nsIStringBundle.h"
 #include "nsISupportsPrimitives.h"
-#include "nsWeakReference.h"
 #include "nsITimer.h"
 #include "nsString.h"
 
@@ -77,8 +76,7 @@ class nsDownload;
 
 class nsDownloadManager : public nsIDownloadManager,
                           public nsINavHistoryObserver,
-                          public nsIObserver,
-                          public nsSupportsWeakReference
+                          public nsIObserver
 {
 public:
   NS_DECL_ISUPPORTS

@@ -78,17 +78,19 @@ EnsureSucceededOrThrow(JSContext* aCx, nsresult rv)
 
 inline nsIDOMBlob*
 GetDOMBlobFromJSObject(JSContext* aCx, JSObject* aObj) {
-  // aObj can be null as JS_ConvertArguments("o") successfully converts JS
-  // null to a null pointer to JSObject 
+  JSClass* classPtr = NULL;
+
   if (aObj) {
-    nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aObj);
+    nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aCx, aObj);
     if (blob) {
       return blob;
     }
+
+    classPtr = JS_GET_CLASS(aCx, aObj);
   }
 
   JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL, JSMSG_UNEXPECTED_TYPE,
-                       aObj ? JS_GetClass(aObj)->name : "Object", "not a Blob.");
+                       classPtr ? classPtr->name : "Object", "not a Blob.");
   return NULL;
 }
 
@@ -110,13 +112,13 @@ public:
   }
 
   static FileReaderSyncPrivate*
-  GetPrivate(JSObject* aObj)
+  GetPrivate(JSContext* aCx, JSObject* aObj)
   {
     if (aObj) {
-      JSClass* classPtr = JS_GetClass(aObj);
+      JSClass* classPtr = JS_GET_CLASS(aCx, aObj);
       if (classPtr == &sClass) {
         FileReaderSyncPrivate* fileReader =
-          GetJSPrivateSafeish<FileReaderSyncPrivate>(aObj);
+          GetJSPrivateSafeish<FileReaderSyncPrivate>(aCx, aObj);
         return fileReader;
       }
     }
@@ -127,14 +129,20 @@ private:
   static FileReaderSyncPrivate*
   GetInstancePrivate(JSContext* aCx, JSObject* aObj, const char* aFunctionName)
   {
-    FileReaderSyncPrivate* fileReader = GetPrivate(aObj);
-    if (fileReader) {
-      return fileReader;
+    JSClass* classPtr = NULL;
+
+    if (aObj) {
+      FileReaderSyncPrivate* fileReader = GetPrivate(aCx, aObj);
+      if (fileReader) {
+        return fileReader;
+      }
+
+      classPtr = JS_GET_CLASS(aCx, aObj);
     }
 
     JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL,
                          JSMSG_INCOMPATIBLE_PROTO, sClass.name, aFunctionName,
-                         JS_GetClass(aObj)->name);
+                         classPtr ? classPtr->name : "Object");
     return NULL;
   }
 
@@ -149,7 +157,10 @@ private:
     FileReaderSyncPrivate* fileReader = new FileReaderSyncPrivate();
     NS_ADDREF(fileReader);
 
-    SetJSPrivateSafeish(obj, fileReader);
+    if (!SetJSPrivateSafeish(aCx, obj, fileReader)) {
+      NS_RELEASE(fileReader);
+      return false;
+    }
 
     JS_SET_RVAL(aCx, aVp, OBJECT_TO_JSVAL(obj));
     return true;
@@ -158,9 +169,9 @@ private:
   static void
   Finalize(JSContext* aCx, JSObject* aObj)
   {
-    JS_ASSERT(JS_GetClass(aObj) == &sClass);
+    JS_ASSERT(JS_GET_CLASS(aCx, aObj) == &sClass);
     FileReaderSyncPrivate* fileReader =
-      GetJSPrivateSafeish<FileReaderSyncPrivate>(aObj);
+      GetJSPrivateSafeish<FileReaderSyncPrivate>(aCx, aObj);
     NS_IF_RELEASE(fileReader);
   }
 

@@ -39,9 +39,7 @@
 #ifndef _nsDocAccessible_H_
 #define _nsDocAccessible_H_
 
-#include "nsIAccessibleCursorable.h"
 #include "nsIAccessibleDocument.h"
-#include "nsIAccessiblePivot.h"
 
 #include "nsEventShell.h"
 #include "nsHyperTextAccessibleWrap.h"
@@ -60,7 +58,6 @@
 #include "nsIDocShellTreeNode.h"
 
 class nsIScrollableView;
-class nsAccessiblePivot;
 
 const PRUint32 kDefaultCacheSize = 256;
 
@@ -77,10 +74,8 @@ class nsDocAccessible : public nsHyperTextAccessibleWrap,
                         public nsIDocumentObserver,
                         public nsIObserver,
                         public nsIScrollPositionListener,
-                        public nsSupportsWeakReference,
-                        public nsIAccessibleCursorable,
-                        public nsIAccessiblePivotObserver
-{
+                        public nsSupportsWeakReference
+{  
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsDocAccessible, nsAccessible)
 
@@ -89,15 +84,11 @@ class nsDocAccessible : public nsHyperTextAccessibleWrap,
 
   NS_DECL_NSIOBSERVER
 
-  NS_DECL_NSIACCESSIBLECURSORABLE
-
-  NS_DECL_NSIACCESSIBLEPIVOTOBSERVER
-
 public:
   using nsAccessible::GetParent;
 
   nsDocAccessible(nsIDocument *aDocument, nsIContent *aRootContent,
-                  nsIPresShell* aPresShell);
+                  nsIWeakReference* aShell);
   virtual ~nsDocAccessible();
 
   // nsIAccessible
@@ -139,11 +130,6 @@ public:
   // nsDocAccessible
 
   /**
-   * Return presentation shell for this document accessible.
-   */
-  nsIPresShell* PresShell() const { return mPresShell; }
-
-  /**
    * Return true if associated DOM document was loaded and isn't unloading.
    */
   bool IsContentLoaded() const
@@ -175,8 +161,7 @@ public:
    * Return true if the document has given document state.
    */
   bool HasLoadState(LoadState aState) const
-    { return (mLoadState & static_cast<PRUint32>(aState)) == 
-        static_cast<PRUint32>(aState); }
+    { return (mLoadState & aState) == aState; }
 
   /**
    * Return a native window handler or pointer depending on platform.
@@ -187,7 +172,7 @@ public:
    * Return the parent document.
    */
   nsDocAccessible* ParentDocument() const
-    { return mParent ? mParent->Document() : nsnull; }
+    { return mParent ? mParent->GetDocAccessible() : nsnull; }
 
   /**
    * Return the child document count.
@@ -382,8 +367,6 @@ public:
   void RecreateAccessible(nsIContent* aContent);
 
 protected:
-
-  void LastRelease();
 
   // nsAccessible
   virtual void CacheChildren();
@@ -613,16 +596,6 @@ protected:
   nsTArray<nsRefPtr<nsDocAccessible> > mChildDocuments;
 
   /**
-   * Whether we support nsIAccessibleCursorable, used when querying the interface.
-   */
-  bool mIsCursorable;
-
-  /**
-   * The virtual cursor of the document when it supports nsIAccessibleCursorable.
-   */
-  nsRefPtr<nsAccessiblePivot> mVirtualCursor;
-
-  /**
    * A storage class for pairing content with one of its relation attributes.
    */
   class AttrRelProvider
@@ -661,10 +634,6 @@ protected:
    */
   nsRefPtr<NotificationController> mNotificationController;
   friend class NotificationController;
-
-private:
-
-  nsIPresShell* mPresShell;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsDocAccessible,

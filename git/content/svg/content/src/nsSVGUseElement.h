@@ -103,8 +103,7 @@ public:
   void DestroyAnonymousContent();
 
   // nsSVGElement specializations:
-  virtual gfxMatrix PrependLocalTransformsTo(const gfxMatrix &aMatrix,
-                      TransformTypes aWhich = eAllTransforms) const;
+  virtual gfxMatrix PrependLocalTransformTo(const gfxMatrix &aMatrix) const;
 
   // nsIContent interface
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;

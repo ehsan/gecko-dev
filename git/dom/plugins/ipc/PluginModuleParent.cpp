@@ -687,11 +687,12 @@ PluginModuleParent::HandleGUIEvent(NPP instance,
 #endif
 
 nsresult
-PluginModuleParent::GetImageContainer(NPP instance,
-                             mozilla::layers::ImageContainer** aContainer)
+PluginModuleParent::GetImage(NPP instance,
+                             mozilla::layers::ImageContainer* aContainer,
+                             mozilla::layers::Image** aImage)
 {
     PluginInstanceParent* i = InstCast(instance);
-    return !i ? NS_ERROR_FAILURE : i->GetImageContainer(aContainer);
+    return !i ? NS_ERROR_FAILURE : i->GetImage(aContainer, aImage);
 }
 
 nsresult

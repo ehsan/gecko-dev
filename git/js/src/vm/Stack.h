@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=4 sw=4 et tw=79 ft=cpp:
  *
  * ***** BEGIN LICENSE BLOCK *****
@@ -422,22 +422,20 @@ class StackFrame
     void initCallFrame(JSContext *cx, JSFunction &callee,
                        JSScript *script, uint32_t nactual, StackFrame::Flags flags);
 
-    /* Used for getFixupFrame (for FixupArity). */
-    void initFixupFrame(StackFrame *prev, StackFrame::Flags flags, void *ncode, uintN nactual);
+    /* Used for SessionInvoke. */
+    void resetCallFrame(JSScript *script);
+
+    /* Called by jit stubs and serve as a specification for jit-code. */
+    void initJitFrameCallerHalf(StackFrame *prev, StackFrame::Flags flags, void *ncode);
+    void initJitFrameEarlyPrologue(JSFunction *fun, uint32_t nactual);
+    bool initJitFrameLatePrologue(JSContext *cx, Value **limit);
 
     /* Used for eval. */
     void initExecuteFrame(JSScript *script, StackFrame *prev, FrameRegs *regs,
                           const Value &thisv, JSObject &scopeChain, ExecuteType type);
 
     /* Used when activating generators. */
-    enum TriggerPostBarriers {
-        DoPostBarrier = true,
-        NoPostBarrier = false
-    };
-    template <class T, class U, TriggerPostBarriers doPostBarrier>
-    void stealFrameAndSlots(StackFrame *fp, T *vp, StackFrame *otherfp, U *othervp,
-                            Value *othersp);
-    void writeBarrierPost();
+    void stealFrameAndSlots(Value *vp, StackFrame *otherfp, Value *othervp, Value *othersp);
 
     /* Perhaps one fine day we will remove dummy frames. */
     void initDummyFrame(JSContext *cx, JSObject &chain);
@@ -545,12 +543,6 @@ class StackFrame
     Value &varSlot(uintN i) {
         JS_ASSERT(i < script()->nfixed);
         JS_ASSERT_IF(maybeFun(), i < script()->bindings.countVars());
-        return slots()[i];
-    }
-
-    Value &localSlot(uintN i) {
-        /* Let variables can be above script->nfixed. */
-        JS_ASSERT(i < script()->nslots);
         return slots()[i];
     }
 
@@ -995,11 +987,7 @@ class StackFrame
 
     /* Return value */
 
-    bool hasReturnValue() const {
-        return !!(flags_ & HAS_RVAL);
-    }
-
-    Value &returnValue() {
+    const Value &returnValue() {
         if (!(flags_ & HAS_RVAL))
             rval_.setUndefined();
         return rval_;
@@ -1204,9 +1192,6 @@ class StackFrame
 #endif
 
     void methodjitStaticAsserts();
-
-  public:
-    void mark(JSTracer *trc);
 };
 
 static const size_t VALUES_PER_STACK_FRAME = sizeof(StackFrame) / sizeof(Value);
@@ -1379,10 +1364,6 @@ class StackSegment
         return regs_ ? regs_->fp() : NULL;
     }
 
-    jsbytecode *maybepc() const {
-        return regs_ ? regs_->pc : NULL;
-    }
-
     CallArgsList &calls() const {
         JS_ASSERT(calls_);
         return *calls_;
@@ -1553,10 +1534,6 @@ class StackSpace
 
     /* Called during GC: mark segments, frames, and slots under firstUnused. */
     void mark(JSTracer *trc);
-    void markFrameSlots(JSTracer *trc, StackFrame *fp, Value *slotsEnd, jsbytecode *pc);
-
-    /* Called during GC: sets active flag on compartments with active frames. */
-    void markActiveCompartments();
 
     /* We only report the committed size;  uncommitted size is uninteresting. */
     JS_FRIEND_API(size_t) sizeOfCommitted();
@@ -1595,7 +1572,7 @@ class ContextStack
 
     inline StackFrame *
     getCallFrame(JSContext *cx, MaybeReportError report, const CallArgs &args,
-                 JSFunction *fun, JSScript *script, StackFrame::Flags *pflags) const;
+                 JSFunction *fun, JSScript *script, /*StackFrame::Flags*/ uint32_t *pflags) const;
 
     /* Make pop* functions private since only called by guard classes. */
     void popSegment();
@@ -1708,7 +1685,10 @@ class ContextStack
     /*
      * Called by the methodjit for an arity mismatch. Arity mismatch can be
      * hot, so getFixupFrame avoids doing call setup performed by jit code when
-     * FixupArity returns.
+     * FixupArity returns. In terms of work done:
+     *
+     *   getFixupFrame = pushInlineFrame -
+     *                   (fp->initJitFrameLatePrologue + regs->prepareToRun)
      */
     StackFrame *getFixupFrame(JSContext *cx, MaybeReportError report,
                               const CallArgs &args, JSFunction *fun, JSScript *script,

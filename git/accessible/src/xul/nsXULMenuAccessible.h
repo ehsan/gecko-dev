@@ -51,7 +51,7 @@ class nsXULMenuitemAccessible : public nsAccessibleWrap
 public:
   enum { eAction_Click = 0 };
 
-  nsXULMenuitemAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULMenuitemAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsIAccessible
   NS_IMETHOD DoAction(PRUint8 index);
@@ -66,7 +66,7 @@ public:
   virtual void GetPositionAndSizeInternal(PRInt32 *aPosInSet,
                                           PRInt32 *aSetSize);
 
-  virtual bool CanHaveAnonChildren();
+  virtual bool GetAllowsAnonChildAccessibles();
 
   // ActionAccessible
   virtual PRUint8 ActionCount();
@@ -85,7 +85,7 @@ public:
 class nsXULMenuSeparatorAccessible : public nsXULMenuitemAccessible
 {
 public:
-  nsXULMenuSeparatorAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULMenuSeparatorAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsIAccessible
   NS_IMETHOD DoAction(PRUint8 index);
@@ -107,7 +107,7 @@ public:
 class nsXULMenupopupAccessible : public XULSelectControlAccessible
 {
 public:
-  nsXULMenupopupAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULMenupopupAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);
@@ -128,7 +128,7 @@ public:
 class nsXULMenubarAccessible : public nsAccessibleWrap
 {
 public:
-  nsXULMenubarAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXULMenubarAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
   virtual nsresult GetNameInternal(nsAString& aName);

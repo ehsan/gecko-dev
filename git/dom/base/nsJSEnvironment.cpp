@@ -135,14 +135,11 @@ static PRLogModuleInfo* gJSDiagnostics;
 // doing the first GC.
 #define NS_FIRST_GC_DELAY           10000 // ms
 
-// Maximum amount of time that should elapse between incremental GC slices
-#define NS_INTERSLICE_GC_DELAY      100 // ms
-
 // The amount of time we wait between a request to CC (after GC ran)
 // and doing the actual CC.
-#define NS_CC_DELAY                 6000 // ms
+#define NS_CC_DELAY                 5000 // ms
 
-#define NS_CC_SKIPPABLE_DELAY       400 // ms
+#define NS_CC_SKIPPABLE_DELAY       250 // ms
 
 #define NS_CC_FORCED                (5 * 60 * PR_USEC_PER_SEC) // 5 min
 
@@ -157,9 +154,6 @@ static nsITimer *sCCTimer;
 static PRTime sLastCCEndTime;
 
 static bool sGCHasRun;
-static bool sCCLockedOut;
-
-static js::GCSliceCallback sPrevGCSliceCallback;
 
 // The number of currently pending document loads. This count isn't
 // guaranteed to always reflect reality and can't easily as we don't
@@ -1002,6 +996,11 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
   else
     newDefaultJSOptions &= ~JSOPTION_METHODJIT_ALWAYS;
 
+  if (useHardening)
+    newDefaultJSOptions &= ~JSOPTION_SOFTEN;
+  else
+    newDefaultJSOptions |= JSOPTION_SOFTEN;
+
   if (useTypeInference)
     newDefaultJSOptions |= JSOPTION_TYPE_INFERENCE;
   else
@@ -1035,9 +1034,6 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
 
   // Save the new defaults for the next page load (InitContext).
   context->mDefaultJSOptions = newDefaultJSOptions;
-
-  JSRuntime *rt = JS_GetRuntime(context->mContext);
-  JS_SetJitHardening(rt, useHardening);
 
 #ifdef JS_GC_ZEAL
   PRInt32 zeal = Preferences::GetInt(js_zeal_option_str, -1);
@@ -1905,7 +1901,7 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, JSObject* aScope,
     JSObject *obj = aHandler;
     if (js::IsFunctionProxy(obj))
       obj = js::UnwrapObject(obj);
-    JSString *id = JS_GetFunctionId(static_cast<JSFunction *>(JS_GetPrivate(obj)));
+    JSString *id = JS_GetFunctionId(static_cast<JSFunction *>(JS_GetPrivate(mContext, obj)));
     JSAutoByteString bytes;
     const char *name = !id ? "anonymous" : bytes.encode(mContext, id) ? bytes.ptr() : "<error>";
     NS_TIME_FUNCTION_FMT(1.0, "%s (line %d) (function: %s)", MOZ_FUNCTION_NAME, __LINE__, name);
@@ -2199,7 +2195,7 @@ nsJSContext::GetGlobalObject()
   }
 #endif
 
-  JSClass *c = JS_GetClass(global);
+  JSClass *c = JS_GET_CLASS(mContext, global);
 
   if (!c || ((~c->flags) & (JSCLASS_HAS_PRIVATE |
                             JSCLASS_PRIVATE_IS_NSISUPPORTS))) {
@@ -2276,8 +2272,8 @@ nsJSContext::ConnectToInner(nsIScriptGlobalObject *aNewInner, JSObject *aOuterGl
   // the global object's compartment as its default compartment,
   // so update that now since it might have changed.
   JS_SetGlobalObject(mContext, aOuterGlobal);
-  NS_ASSERTION(JS_GetPrototype(aOuterGlobal) ==
-               JS_GetPrototype(newInnerJSObject),
+  NS_ASSERTION(JS_GetPrototype(mContext, aOuterGlobal) ==
+               JS_GetPrototype(mContext, newInnerJSObject),
                "outer and inner globals should have the same prototype");
 
   return NS_OK;
@@ -2338,7 +2334,7 @@ nsJSContext::SetOuterObject(JSObject* aOuterObject)
   JS_SetGlobalObject(mContext, aOuterObject);
 
   // NB: JS_SetGlobalObject sets mContext->compartment.
-  JSObject *inner = JS_GetParent(aOuterObject);
+  JSObject *inner = JS_GetParent(mContext, aOuterObject);
 
   nsIXPConnect *xpc = nsContentUtils::XPConnect();
   nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
@@ -2348,7 +2344,7 @@ nsJSContext::SetOuterObject(JSObject* aOuterObject)
   NS_ABORT_IF_FALSE(wrapper, "bad wrapper");
 
   wrapper->RefreshPrototype();
-  JS_SetPrototype(mContext, aOuterObject, JS_GetPrototype(inner));
+  JS_SetPrototype(mContext, aOuterObject, JS_GetPrototype(mContext, inner));
 
   return NS_OK;
 }
@@ -3103,8 +3099,8 @@ nsJSContext::ClearScope(void *aGlobalObj, bool aClearFromProtoChain)
       nsWindowSH::InvalidateGlobalScopePolluter(mContext, obj);
 
       // Clear up obj's prototype chain, but not Object.prototype.
-      for (JSObject *o = ::JS_GetPrototype(obj), *next;
-           o && (next = ::JS_GetPrototype(o)); o = next)
+      for (JSObject *o = ::JS_GetPrototype(mContext, obj), *next;
+           o && (next = ::JS_GetPrototype(mContext, o)); o = next)
         ::JS_ClearScope(mContext, o);
     }
   }
@@ -3280,11 +3276,6 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
     return;
   }
 
-  if (sCCLockedOut) {
-    // We're in the middle of an incremental GC; finish it first
-    nsJSContext::GarbageCollectNow(js::gcreason::CC_FORCED, nsGCNormal);
-  }
-
   SAMPLE_LABEL("GC", "CycleCollectNow");
   NS_TIME_FUNCTION_MIN(1.0);
 
@@ -3318,9 +3309,6 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
     Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_TIME_BETWEEN, timeBetween);
   }
   sLastCCEndTime = now;
-
-  Telemetry::Accumulate(Telemetry::FORGET_SKIPPABLE_MAX,
-                        sMaxForgetSkippableTime / PR_USEC_PER_MSEC);
 
   if (sPostGCEventsToConsole) {
     PRTime delta = 0;
@@ -3368,7 +3356,7 @@ GCTimerFired(nsITimer *aTimer, void *aClosure)
   NS_RELEASE(sGCTimer);
 
   uintptr_t reason = reinterpret_cast<uintptr_t>(aClosure);
-  nsJSContext::GarbageCollectNow(static_cast<js::gcreason::Reason>(reason), nsGCIncremental);
+  nsJSContext::GarbageCollectNow(static_cast<js::gcreason::Reason>(reason), nsGCNormal);
 }
 
 void
@@ -3386,9 +3374,6 @@ CCTimerFired(nsITimer *aTimer, void *aClosure)
   if (sDidShutdown) {
     return;
   }
-  if (sCCLockedOut) {
-    return;
-  }
   ++sCCTimerFireCount;
   if (sCCTimerFireCount < (NS_CC_DELAY / NS_CC_SKIPPABLE_DELAY)) {
     PRUint32 suspected = nsCycleCollector_suspectedCount();
@@ -3397,20 +3382,25 @@ CCTimerFired(nsITimer *aTimer, void *aClosure)
       return;
     }
     
-    PRTime startTime = PR_Now();
+    PRTime startTime;
+    if (sPostGCEventsToConsole) {
+      startTime = PR_Now();
+    }
     nsCycleCollector_forgetSkippable();
     sPreviousSuspectedCount = nsCycleCollector_suspectedCount();
     sCleanupSinceLastGC = true;
-    PRTime delta = PR_Now() - startTime;
-    if (sMinForgetSkippableTime > delta) {
-      sMinForgetSkippableTime = delta;
+    if (sPostGCEventsToConsole) {
+      PRTime delta = PR_Now() - startTime;
+      if (sMinForgetSkippableTime > delta) {
+        sMinForgetSkippableTime = delta;
+      }
+      if (sMaxForgetSkippableTime < delta) {
+        sMaxForgetSkippableTime = delta;
+      }
+      sTotalForgetSkippableTime += delta;
+      sRemovedPurples += (suspected - sPreviousSuspectedCount);
+      ++sForgetSkippableBeforeCC;
     }
-    if (sMaxForgetSkippableTime < delta) {
-      sMaxForgetSkippableTime = delta;
-    }
-    sTotalForgetSkippableTime += delta;
-    sRemovedPurples += (suspected - sPreviousSuspectedCount);
-    ++sForgetSkippableBeforeCC;
   } else {
     sPreviousSuspectedCount = 0;
     nsJSContext::KillCCTimer();
@@ -3457,7 +3447,7 @@ nsJSContext::LoadEnd()
 
 // static
 void
-nsJSContext::PokeGC(js::gcreason::Reason aReason, int aDelay)
+nsJSContext::PokeGC(js::gcreason::Reason aReason)
 {
   if (sGCTimer) {
     // There's already a timer for GC'ing, just return
@@ -3474,11 +3464,9 @@ nsJSContext::PokeGC(js::gcreason::Reason aReason, int aDelay)
   static bool first = true;
 
   sGCTimer->InitWithFuncCallback(GCTimerFired, reinterpret_cast<void *>(aReason),
-                                 aDelay
-                                 ? aDelay
-                                 : (first
-                                    ? NS_FIRST_GC_DELAY
-                                    : NS_GC_DELAY),
+                                 first
+                                 ? NS_FIRST_GC_DELAY
+                                 : NS_GC_DELAY,
                                  nsITimer::TYPE_ONE_SHOT);
 
   first = false;
@@ -3565,11 +3553,11 @@ nsJSContext::GC(js::gcreason::Reason aReason)
 }
 
 static void
-DOMGCSliceCallback(JSRuntime *aRt, js::GCProgress aProgress, const js::GCDescription &aDesc)
+DOMGCFinishedCallback(JSRuntime *rt, JSCompartment *comp, const char *status)
 {
   NS_ASSERTION(NS_IsMainThread(), "GCs must run on the main thread");
 
-  if (aDesc.logMessage && sPostGCEventsToConsole) {
+  if (sPostGCEventsToConsole) {
     PRTime now = PR_Now();
     PRTime delta = 0;
     if (sFirstCollectionTime) {
@@ -3581,66 +3569,45 @@ DOMGCSliceCallback(JSRuntime *aRt, js::GCProgress aProgress, const js::GCDescrip
     NS_NAMED_LITERAL_STRING(kFmt, "GC(T+%.1f) %s");
     nsString msg;
     msg.Adopt(nsTextFormatter::smprintf(kFmt.get(),
-                                        double(delta) / PR_USEC_PER_SEC,
-                                        aDesc.logMessage));
+                                        double(delta) / PR_USEC_PER_SEC, status));
     nsCOMPtr<nsIConsoleService> cs = do_GetService(NS_CONSOLESERVICE_CONTRACTID);
     if (cs) {
       cs->LogStringMessage(msg.get());
     }
   }
 
-  // Prevent cycle collections during incremental GC.
-  if (aProgress == js::GC_CYCLE_BEGIN) {
-    sCCLockedOut = true;
-  } else if (aProgress == js::GC_CYCLE_END) {
-    sCCLockedOut = false;
-  }
+  sCCollectedWaitingForGC = 0;
+  sCleanupSinceLastGC = false;
 
-  // The GC has more work to do, so schedule another GC slice.
-  if (aProgress == js::GC_SLICE_END) {
+  if (sGCTimer) {
+    // If we were waiting for a GC to happen, kill the timer.
     nsJSContext::KillGCTimer();
-    nsJSContext::KillCCTimer();
 
-    nsJSContext::PokeGC(js::gcreason::INTER_SLICE_GC, NS_INTERSLICE_GC_DELAY);
-  }
+    // If this is a compartment GC, restart it. We still want
+    // a full GC to happen. Compartment GCs usually happen as a
+    // result of last-ditch or MaybeGC. In both cases its
+    // probably a time of heavy activity and we want to delay
+    // the full GC, but we do want it to happen eventually.
+    if (comp) {
+      nsJSContext::PokeGC(js::gcreason::POST_COMPARTMENT);
 
-  if (aProgress == js::GC_CYCLE_END) {
-    sCCollectedWaitingForGC = 0;
-    sCleanupSinceLastGC = false;
-
-    if (sGCTimer) {
-      // If we were waiting for a GC to happen, kill the timer.
-      nsJSContext::KillGCTimer();
-
-      // If this is a compartment GC, restart it. We still want
-      // a full GC to happen. Compartment GCs usually happen as a
-      // result of last-ditch or MaybeGC. In both cases its
-      // probably a time of heavy activity and we want to delay
-      // the full GC, but we do want it to happen eventually.
-      if (aDesc.isCompartment) {
-        nsJSContext::PokeGC(js::gcreason::POST_COMPARTMENT);
-
-        // We poked the GC, so we can kill any pending CC here.
-        nsJSContext::KillCCTimer();
-      }
-    } else {
-      // If this was a full GC, poke the CC to run soon.
-      if (!aDesc.isCompartment) {
-        sGCHasRun = true;
-        nsJSContext::MaybePokeCC();
-      }
+      // We poked the GC, so we can kill any pending CC here.
+      nsJSContext::KillCCTimer();
     }
-
-    // If we didn't end up scheduling a GC, make sure that we release GC buffers
-    // soon after canceling previous shrinking attempt.
-    nsJSContext::KillShrinkGCBuffersTimer();
-    if (!sGCTimer) {
-      nsJSContext::PokeShrinkGCBuffers();
+  } else {
+    // If this was a full GC, poke the CC to run soon.
+    if (!comp) {
+      sGCHasRun = true;
+      nsJSContext::MaybePokeCC();
     }
   }
 
-  if (sPrevGCSliceCallback)
-    (*sPrevGCSliceCallback)(aRt, aProgress, aDesc);
+  // If we didn't end up scheduling a GC, make sure that we release GC buffers
+  // soon after canceling previous shrinking attempt 
+  nsJSContext::KillShrinkGCBuffersTimer();
+  if (!sGCTimer) {
+    nsJSContext::PokeShrinkGCBuffers();
+  }
 }
 
 // Script object mananagement - note duplicate implementation
@@ -3734,7 +3701,6 @@ nsJSRuntime::Startup()
   // initialize all our statics, so that we can restart XPCOM
   sGCTimer = sCCTimer = nsnull;
   sGCHasRun = false;
-  sCCLockedOut = false;
   sLastCCEndTime = 0;
   sPendingLoadCount = 0;
   sLoadingInProgress = false;
@@ -3806,27 +3772,10 @@ SetMemoryMaxPrefChangedCallback(const char* aPrefName, void* aClosure)
 static int
 SetMemoryGCModePrefChangedCallback(const char* aPrefName, void* aClosure)
 {
-  PRBool enableCompartmentGC = Preferences::GetBool("javascript.options.mem.gc_per_compartment");
-  PRBool enableIncrementalGC = Preferences::GetBool("javascript.options.mem.gc_incremental");
-  JSGCMode mode;
-  if (enableIncrementalGC) {
-    mode = JSGC_MODE_INCREMENTAL;
-  } else if (enableCompartmentGC) {
-    mode = JSGC_MODE_COMPARTMENT;
-  } else {
-    mode = JSGC_MODE_GLOBAL;
-  }
-  JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_MODE, mode);
-  return 0;
-}
-
-static int
-SetMemoryGCSliceTimePrefChangedCallback(const char* aPrefName, void* aClosure)
-{
-  PRInt32 pref = Preferences::GetInt(aPrefName, -1);
-  // handle overflow and negative pref values
-  if (pref > 0 && pref < 100000)
-    JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_SLICE_TIME_BUDGET, pref);
+  bool enableCompartmentGC = Preferences::GetBool(aPrefName);
+  JS_SetGCParameter(nsJSRuntime::sRuntime, JSGC_MODE, enableCompartmentGC
+                                                      ? JSGC_MODE_COMPARTMENT
+                                                      : JSGC_MODE_GLOBAL);
   return 0;
 }
 
@@ -3913,7 +3862,7 @@ nsJSRuntime::Init()
   // Let's make sure that our main thread is the same as the xpcom main thread.
   NS_ASSERTION(NS_IsMainThread(), "bad");
 
-  sPrevGCSliceCallback = js::SetGCSliceCallback(sRuntime, DOMGCSliceCallback);
+  ::JS_SetGCFinishedCallback(sRuntime, DOMGCFinishedCallback);
 
   JSSecurityCallbacks *callbacks = JS_GetRuntimeSecurityCallbacks(sRuntime);
   NS_ASSERTION(callbacks, "SecMan should have set security callbacks!");
@@ -3957,16 +3906,6 @@ nsJSRuntime::Init()
                                 "javascript.options.mem.gc_per_compartment");
   SetMemoryGCModePrefChangedCallback("javascript.options.mem.gc_per_compartment",
                                      nsnull);
-
-  Preferences::RegisterCallback(SetMemoryGCModePrefChangedCallback,
-                                "javascript.options.mem.gc_incremental");
-  SetMemoryGCModePrefChangedCallback("javascript.options.mem.gc_incremental",
-                                     nsnull);
-
-  Preferences::RegisterCallback(SetMemoryGCSliceTimePrefChangedCallback,
-                                "javascript.options.mem.gc_incremental_slice_ms");
-  SetMemoryGCSliceTimePrefChangedCallback("javascript.options.mem.gc_incremental_slice_ms",
-                                          nsnull);
 
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
   if (!obs)
@@ -4178,6 +4117,10 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsJSArgArray)
 nsresult
 nsJSArgArray::GetArgs(PRUint32 *argc, void **argv)
 {
+  if (!mArgv) {
+    NS_WARNING("nsJSArgArray has no argv!");
+    return NS_ERROR_UNEXPECTED;
+  }
   *argv = (void *)mArgv;
   *argc = mArgc;
   return NS_OK;

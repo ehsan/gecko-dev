@@ -151,8 +151,6 @@ public:
   virtual bool GetValueMissingState(const nsAString& aName) const;
   virtual void SetValueMissingState(const nsAString& aName, bool aValue);
 
-  virtual nsEventStates IntrinsicState() const;
-
   // nsIContent
   virtual bool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
@@ -176,7 +174,7 @@ public:
                            nsIAtom* aPrefix, const nsAString& aValue,
                            bool aNotify);
   virtual nsresult AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                const nsAttrValue* aValue, bool aNotify);
+                                const nsAString* aValue, bool aNotify);
 
   /**
    * Forget all information about the current submission (and the fact that we

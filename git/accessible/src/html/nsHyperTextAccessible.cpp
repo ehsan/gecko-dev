@@ -41,7 +41,6 @@
 
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
-#include "nsDocAccessible.h"
 #include "nsTextAttrs.h"
 #include "Role.h"
 #include "States.h"
@@ -72,8 +71,8 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHyperTextAccessible::
-  nsHyperTextAccessible(nsIContent* aNode, nsDocAccessible* aDoc) :
-  nsAccessibleWrap(aNode, aDoc)
+  nsHyperTextAccessible(nsIContent *aNode, nsIWeakReference *aShell) :
+  nsAccessibleWrap(aNode, aShell)
 {
   mFlags |= eHyperTextAccessible;
 }
@@ -210,8 +209,7 @@ nsIntRect nsHyperTextAccessible::GetBoundsForString(nsIFrame *aFrame, PRUint32 a
                                              &startContentOffsetInFrame, &frame);
   NS_ENSURE_SUCCESS(rv, screenRect);
 
-  NS_ENSURE_TRUE(mDoc, screenRect);
-  nsIPresShell* shell = mDoc->PresShell();
+  nsCOMPtr<nsIPresShell> shell = GetPresShell();
   NS_ENSURE_TRUE(shell, screenRect);
 
   nsPresContext *context = shell->GetPresContext();
@@ -884,10 +882,7 @@ nsresult nsHyperTextAccessible::GetTextHelper(EGetTextType aType, nsAccessibleTe
   NS_ENSURE_ARG_POINTER(aEndOffset);
   *aStartOffset = *aEndOffset = 0;
 
-  if (!mDoc)
-    return NS_ERROR_FAILURE;
-
-  nsIPresShell* presShell = mDoc->PresShell();
+  nsCOMPtr<nsIPresShell> presShell = GetPresShell();
   if (!presShell) {
     return NS_ERROR_FAILURE;
   }
@@ -1153,7 +1148,7 @@ nsHyperTextAccessible::GetTextAttributes(bool aIncludeDefAttrs,
   // Compute spelling attributes on text accessible only.
   nsIFrame *offsetFrame = accAtOffset->GetFrame();
   if (offsetFrame && offsetFrame->GetType() == nsGkAtoms::textFrame) {
-    nsCOMPtr<nsIDOMNode> node = accAtOffset->DOMNode();
+    nsCOMPtr<nsIDOMNode> node = accAtOffset->GetDOMNode();
 
     PRInt32 nodeOffset = 0;
     nsresult rv = RenderedToContentOffset(offsetFrame, offsetInAcc,
@@ -1298,10 +1293,7 @@ nsHyperTextAccessible::GetOffsetAtPoint(PRInt32 aX, PRInt32 aY,
                                         PRUint32 aCoordType, PRInt32 *aOffset)
 {
   *aOffset = -1;
-  if (!mDoc)
-    return NS_ERROR_FAILURE;
-
-  nsIPresShell* shell = mDoc->PresShell();
+  nsCOMPtr<nsIPresShell> shell = GetPresShell();
   if (!shell) {
     return NS_ERROR_FAILURE;
   }
@@ -1551,12 +1543,14 @@ nsHyperTextAccessible::GetAssociatedEditor(nsIEditor **aEditor)
   if (!editingSession)
     return NS_OK; // No editing session interface
 
-  NS_ENSURE_TRUE(mDoc, NS_ERROR_FAILURE);
-  nsIDocument* docNode = mDoc->GetDocumentNode();
-  NS_ENSURE_TRUE(docNode, NS_ERROR_FAILURE);
+  nsCOMPtr<nsIPresShell> shell = GetPresShell();
+  NS_ENSURE_TRUE(shell, NS_ERROR_FAILURE);
+
+  nsCOMPtr<nsIDocument> doc = shell->GetDocument();
+  NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
 
   nsCOMPtr<nsIEditor> editor;
-  return editingSession->GetEditorForWindow(docNode->GetWindow(), aEditor);
+  return editingSession->GetEditorForWindow(doc->GetWindow(), aEditor);
 }
 
 /**
@@ -1566,17 +1560,12 @@ nsHyperTextAccessible::GetAssociatedEditor(nsIEditor **aEditor)
 nsresult
 nsHyperTextAccessible::SetSelectionRange(PRInt32 aStartPos, PRInt32 aEndPos)
 {
-  bool isFocusable = State() & states::FOCUSABLE;
-
-  // If accessible is focusable then focus it before setting the selection to
-  // neglect control's selection changes on focus if any (for example, inputs
-  // that do select all on focus).
-  // some input controls
-  if (isFocusable)
-    TakeFocus();
+  nsresult rv = TakeFocus();
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Set the selection
   SetSelectionBounds(0, aStartPos, aEndPos);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // If range 0 was successfully set, clear any additional selection 
   // ranges remaining from previous selection
@@ -1596,18 +1585,14 @@ nsHyperTextAccessible::SetSelectionRange(PRInt32 aStartPos, PRInt32 aEndPos)
     domSel->RemoveRange(range);
   }
 
-  // When selection is done, move the focus to the selection if accessible is
-  // not focusable. That happens when selection is set within hypertext
-  // accessible.
-  if (isFocusable)
-    return NS_OK;
-
+  // Now that selection is done, move the focus to the selection.
   nsFocusManager* DOMFocusManager = nsFocusManager::GetFocusManager();
   if (DOMFocusManager) {
-    NS_ENSURE_TRUE(mDoc, NS_ERROR_FAILURE);
-    nsIDocument* docNode = mDoc->GetDocumentNode();
-    NS_ENSURE_TRUE(docNode, NS_ERROR_FAILURE);
-    nsCOMPtr<nsPIDOMWindow> window = docNode->GetWindow();
+    nsCOMPtr<nsIPresShell> shell = GetPresShell();
+    NS_ENSURE_TRUE(shell, NS_ERROR_FAILURE);
+    nsCOMPtr<nsIDocument> doc = shell->GetDocument();
+    NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
+    nsCOMPtr<nsPIDOMWindow> window = doc->GetWindow();
     nsCOMPtr<nsIDOMElement> result;
     DOMFocusManager->MoveFocus(window, nsnull, nsIFocusManager::MOVEFOCUS_CARET,
                                nsIFocusManager::FLAG_BYMOVEFOCUS, getter_AddRefs(result));
@@ -1628,18 +1613,7 @@ nsHyperTextAccessible::SetCaretOffset(PRInt32 aCaretOffset)
 NS_IMETHODIMP
 nsHyperTextAccessible::GetCaretOffset(PRInt32 *aCaretOffset)
 {
-  NS_ENSURE_ARG_POINTER(aCaretOffset);
   *aCaretOffset = -1;
-
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
-
-  // Not focused focusable accessible except document accessible doesn't have
-  // a caret.
-  if (!IsDoc() && !FocusMgr()->IsFocused(this) &&
-      (State() & states::FOCUSABLE)) {
-    return NS_OK;
-  }
 
   // No caret if the focused node is not inside this DOM node and this DOM node
   // is not inside of focused node.
@@ -2281,8 +2255,10 @@ nsHyperTextAccessible::GetDOMPointByFrameOffset(nsIFrame *aFrame,
   if (!aFrame) {
     // If the given frame is null then set offset after the DOM node of the
     // given accessible.
+    nsCOMPtr<nsIAccessNode> accessNode(do_QueryInterface(aAccessible));
+
     nsCOMPtr<nsIDOMNode> DOMNode;
-    aAccessible->GetDOMNode(getter_AddRefs(DOMNode));
+    accessNode->GetDOMNode(getter_AddRefs(DOMNode));
     nsCOMPtr<nsIContent> content(do_QueryInterface(DOMNode));
     NS_ENSURE_STATE(content);
 

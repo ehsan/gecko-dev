@@ -71,12 +71,7 @@
 
   <stringbundle id="preferencesBundle" src="chrome://browser/locale/preferences/preferences.properties"/>
 
-  <vbox id="autoSafeMode" hidden="true">
-    <label class="header plain" value="&autoSafeModeIntro.label;"/>
-    <description>&autoSafeModeDescription.label;</description>
-  </vbox>
-
-  <description id="manualSafeMode">&safeModeDescription.label;</description>
+  <description>&safeModeDescription.label;</description>
 
   <separator class="thin"/>
 

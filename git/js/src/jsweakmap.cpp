@@ -54,8 +54,6 @@
 #include "jsgcinlines.h"
 #include "jsobjinlines.h"
 
-#include "vm/MethodGuard-inl.h"
-
 using namespace js;
 
 namespace js {
@@ -64,7 +62,7 @@ bool
 WeakMapBase::markAllIteratively(JSTracer *tracer)
 {
     bool markedAny = false;
-    JSRuntime *rt = tracer->runtime;
+    JSRuntime *rt = tracer->context->runtime;
     for (WeakMapBase *m = rt->gcWeakMapList; m; m = m->next) {
         if (m->markIteratively(tracer))
             markedAny = true;
@@ -75,7 +73,7 @@ WeakMapBase::markAllIteratively(JSTracer *tracer)
 void
 WeakMapBase::sweepAll(JSTracer *tracer)
 {
-    JSRuntime *rt = tracer->runtime;
+    JSRuntime *rt = tracer->context->runtime;
     for (WeakMapBase *m = rt->gcWeakMapList; m; m = m->next)
         m->sweep(tracer);
 }
@@ -83,7 +81,7 @@ WeakMapBase::sweepAll(JSTracer *tracer)
 void
 WeakMapBase::traceAllMappings(WeakMapTracer *tracer)
 {
-    JSRuntime *rt = tracer->runtime;
+    JSRuntime *rt = tracer->context->runtime;
     for (WeakMapBase *m = rt->gcWeakMapList; m; m = m->next)
         m->traceMappings(tracer);
 }
@@ -114,21 +112,13 @@ GetObjectMap(JSObject *obj)
 }
 
 static JSObject *
-GetKeyArg(JSContext *cx, CallArgs &args) 
+NonNullObject(JSContext *cx, Value *vp)
 {
-    Value *vp = &args[0];
     if (vp->isPrimitive()) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_NOT_NONNULL_OBJECT);
         return NULL;
     }
-    JSObject &key = vp->toObject();
-
-    // If the key is from another compartment, and we store the wrapper as the key
-    // the wrapper might be GC-ed since it is not strong referenced (Bug 673468).
-    // To avoid this we always use the unwrapped object as the key instead of its
-    // security wrapper. This also means that if the keys are ever exposed they must
-    // be re-wrapped (see: JS_NondeterministicGetWeakMapKeys).
-    return JS_UnwrapObject(&key);
+    return &vp->toObject();
 }
 
 static JSBool
@@ -146,10 +136,9 @@ WeakMap_has(JSContext *cx, uintN argc, Value *vp)
                              "WeakMap.has", "0", "s");
         return false;
     }
-    JSObject *key = GetKeyArg(cx, args);
+    JSObject *key = NonNullObject(cx, &args[0]);
     if (!key)
         return false;
-
     ObjectValueMap *map = GetObjectMap(obj);
     if (map) {
         ObjectValueMap::Ptr ptr = map->lookup(key);
@@ -178,10 +167,9 @@ WeakMap_get(JSContext *cx, uintN argc, Value *vp)
                              "WeakMap.get", "0", "s");
         return false;
     }
-    JSObject *key = GetKeyArg(cx, args);
+    JSObject *key = NonNullObject(cx, &args[0]);
     if (!key)
         return false;
-
     ObjectValueMap *map = GetObjectMap(obj);
     if (map) {
         ObjectValueMap::Ptr ptr = map->lookup(key);
@@ -210,10 +198,9 @@ WeakMap_delete(JSContext *cx, uintN argc, Value *vp)
                              "WeakMap.delete", "0", "s");
         return false;
     }
-    JSObject *key = GetKeyArg(cx, args);
+    JSObject *key = NonNullObject(cx, &args[0]);
     if (!key)
         return false;
-    
     ObjectValueMap *map = GetObjectMap(obj);
     if (map) {
         ObjectValueMap::Ptr ptr = map->lookup(key);
@@ -243,10 +230,9 @@ WeakMap_set(JSContext *cx, uintN argc, Value *vp)
                              "WeakMap.set", "0", "s");
         return false;
     }
-    JSObject *key = GetKeyArg(cx, args);
+    JSObject *key = NonNullObject(cx, &args[0]);
     if (!key)
         return false;
-    
     Value value = (args.length() > 1) ? args[1] : UndefinedValue();
 
     ObjectValueMap *map = GetObjectMap(obj);
@@ -291,12 +277,7 @@ JS_NondeterministicGetWeakMapKeys(JSContext *cx, JSObject *obj, JSObject **ret)
     ObjectValueMap *map = GetObjectMap(obj);
     if (map) {
         for (ObjectValueMap::Range r = map->nondeterministicAll(); !r.empty(); r.popFront()) {
-            JSObject *key = r.front().key;
-            // Re-wrapping the key (see comment of GetKeyArg)
-            if (!JS_WrapObject(cx, &key))
-                return false;
-
-            if (!js_NewbornArrayPush(cx, arr, ObjectValue(*key)))
+            if (!js_NewbornArrayPush(cx, arr, ObjectValue(*r.front().key)))
                 return false;
         }
     }
@@ -314,16 +295,8 @@ WeakMap_mark(JSTracer *trc, JSObject *obj)
 static void
 WeakMap_finalize(JSContext *cx, JSObject *obj)
 {
-    if (ObjectValueMap *map = GetObjectMap(obj)) {
-        map->check();
-#ifdef DEBUG
-        map->~ObjectValueMap();
-        memset(map, 0xdc, sizeof(ObjectValueMap));
-        cx->free_(map);
-#else
-        cx->delete_(map);
-#endif
-    }
+    ObjectValueMap *map = GetObjectMap(obj);
+    cx->delete_(map);
 }
 
 static JSBool
@@ -339,7 +312,7 @@ WeakMap_construct(JSContext *cx, uintN argc, Value *vp)
 
 Class js::WeakMapClass = {
     "WeakMap",
-    JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
+    JSCLASS_HAS_PRIVATE |
     JSCLASS_HAS_CACHED_PROTO(JSProto_WeakMap),
     JS_PropertyStub,         /* addProperty */
     JS_PropertyStub,         /* delProperty */
@@ -349,10 +322,12 @@ Class js::WeakMapClass = {
     JS_ResolveStub,
     JS_ConvertStub,
     WeakMap_finalize,
+    NULL,                    /* reserved0   */
     NULL,                    /* checkAccess */
     NULL,                    /* call        */
     NULL,                    /* construct   */
     NULL,                    /* xdrObject   */
+    NULL,                    /* hasInstance */
     WeakMap_mark
 };
 

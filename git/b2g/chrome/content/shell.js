@@ -1,14 +1,45 @@
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- /
 /* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is B2G.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 const CC = Components.Constructor;
-const Cr = Components.results;
 
 const LocalFile = CC('@mozilla.org/file/local;1',
                      'nsILocalFile',
@@ -27,23 +58,26 @@ XPCOMUtils.defineLazyGetter(Services, 'ss', function() {
            .getService(Ci.nsIStyleSheetService);
 });
 
-XPCOMUtils.defineLazyGetter(Services, 'idle', function() {
-  return Cc['@mozilla.org/widget/idleservice;1']
-           .getService(Ci.nsIIdleService);
-});
-
-XPCOMUtils.defineLazyServiceGetter(Services, 'fm', function(){
-  return Cc['@mozilla.org/focus-managr;1']
-           .getService(Ci.nsFocusManager);
-});
+// In order to use http:// scheme instead of file:// scheme
+// (that is much more restricted) the following code kick-off
+// a local http server listening on http://127.0.0.1:7777 and
+// http://localhost:7777.
+function startupHttpd(baseDir, port) {
+  const httpdURL = 'chrome://browser/content/httpd.js';
+  let httpd = {};
+  Services.scriptloader.loadSubScript(httpdURL, httpd);
+  let server = new httpd.nsHttpServer();
+  server.registerDirectory('/', new LocalFile(baseDir));
+  server.registerContentType('appcache', 'text/cache-manifest');
+  server.start(port);
+}
 
 // FIXME Bug 707625
 // until we have a proper security model, add some rights to
 // the pre-installed web applications
-// XXX never grant 'content-camera' to non-gaia apps
 function addPermissions(urls) {
   let permissions = [
-    'indexedDB', 'indexedDB-unlimited', 'webapps-manage', 'offline-app', 'content-camera'
+    'indexedDB', 'indexedDB-unlimited', 'webapps-manage', 'offline-app'
   ];
   urls.forEach(function(url) {
     let uri = Services.io.newURI(url, null, null);
@@ -55,11 +89,10 @@ function addPermissions(urls) {
   });
 }
 
+
 var shell = {
   // FIXME/bug 678695: this should be a system setting
   preferredScreenBrightness: 1.0,
-  
-  isDebug: false,
 
   get contentBrowser() {
     delete this.contentBrowser;
@@ -96,8 +129,6 @@ var shell = {
     window.controllers.appendController(this);
     window.addEventListener('keypress', this);
     window.addEventListener('MozApplicationManifest', this);
-    window.addEventListener("AppCommand", this);
-    window.addEventListener('mozfullscreenchange', this);
     this.contentBrowser.addEventListener('load', this, true);
 
     try {
@@ -105,7 +136,17 @@ var shell = {
 
       let fileScheme = 'file://';
       if (homeURL.substring(0, fileScheme.length) == fileScheme) {
-        homeURL = 'http://localhost:7777' + homeURL.replace(fileScheme, '');
+        homeURL = homeURL.replace(fileScheme, '');
+
+        let baseDir = homeURL.split('/');
+        baseDir.pop();
+        baseDir = baseDir.join('/');
+
+        const SERVER_PORT = 6666;
+        startupHttpd(baseDir, SERVER_PORT);
+
+        let baseHost = 'http://localhost';
+        homeURL = homeURL.replace(baseDir, baseHost + ':' + SERVER_PORT);
       }
       addPermissions([homeURL]);
     } catch (e) {
@@ -113,12 +154,12 @@ var shell = {
       return alert(msg);
     }
 
-    // Load webapi.js as a frame script
+    // Load webapi+apps.js as a frame script
     let frameScriptUrl = 'chrome://browser/content/webapi.js';
     try {
       messageManager.loadFrameScript(frameScriptUrl, true);
     } catch (e) {
-      dump('Error loading ' + frameScriptUrl + ' as a frame script: ' + e + '\n');
+      dump('Error when loading ' + frameScriptUrl + ' as a frame script: ' + e + '\n');
     }
 
     let browser = this.contentBrowser;
@@ -130,7 +171,6 @@ var shell = {
     window.controllers.removeController(this);
     window.removeEventListener('keypress', this);
     window.removeEventListener('MozApplicationManifest', this);
-    window.removeEventListener('AppCommand', this);
   },
 
   supportsCommand: function shell_supportsCommand(cmd) {
@@ -158,36 +198,6 @@ var shell = {
     }
   },
 
-  toggleDebug: function shell_toggleDebug() {
-    this.isDebug = !this.isDebug;
-
-    if (this.isDebug) {
-      Services.prefs.setBoolPref("layers.acceleration.draw-fps", true);
-      Services.prefs.setBoolPref("nglayout.debug.paint_flashing", true);
-    } else {
-      Services.prefs.setBoolPref("layers.acceleration.draw-fps", false);
-      Services.prefs.setBoolPref("nglayout.debug.paint_flashing", false);
-    }
-  },
- 
-  changeVolume: function shell_changeVolume(aDelta) {
-    let audioManager = Cc["@mozilla.org/telephony/audiomanager;1"].getService(Ci.nsIAudioManager);
-
-    let steps = 10;
-    try {
-      steps = Services.prefs.getIntPref("media.volume.steps");
-      if (steps <= 0)
-        steps = 1;
-    } catch(e) {}
-
-    let volume = audioManager.masterVolume + aDelta / steps;
-    if (volume > 1)
-      volume = 1;
-    if (volume < 0)
-      volume = 0;
-    audioManager.masterVolume = volume;
-  },
-
   handleEvent: function shell_handleEvent(evt) {
     switch (evt.type) {
       case 'keypress':
@@ -209,30 +219,6 @@ var shell = {
             this.doCommand('cmd_close');
             break;
         }
-        break;
-      case 'AppCommand':
-        switch (evt.command) {
-          case 'Menu':
-            this.sendEvent(content, 'menu');
-            break;
-          case 'Search':
-            this.toggleDebug();
-            break;
-          case 'VolumeUp':
-            this.changeVolume(1);
-            break;
-          case 'VolumeDown':
-            this.changeVolume(-1);
-            break;
-        }
-        break;
-
-      case 'mozfullscreenchange':
-        // When the screen goes fullscreen make sure to set the focus to the
-        // main window so noboby can prevent the ESC key to get out fullscreen
-        // mode
-        if (document.mozFullScreen)
-          Services.fm.focusedWindow = window;
         break;
       case 'load':
         this.contentBrowser.removeEventListener('load', this, true);
@@ -300,20 +286,7 @@ var shell = {
   }
 };
 
-(function PowerManager() {
-  let idleHandler = {
-    observe: function(subject, topic, time) {
-      if (topic === "idle") {
-        // TODO: Check wakelock status. See bug 697132.
-        shell.turnScreenOff();
-      }
-    },
-  }
-  let idleTimeout = Services.prefs.getIntPref("power.screen.timeout");
-  if (idleTimeout) {
-    Services.idle.addIdleObserver(idleHandler, idleTimeout);
-  }
-})();
+
 
 function nsBrowserAccess() {
 }
@@ -344,60 +317,4 @@ nsBrowserAccess.prototype = {
     return contentWindow == window;
   }
 };
-
-// Pipe `console` log messages to the nsIConsoleService which writes them
-// to logcat.
-Services.obs.addObserver(function onConsoleAPILogEvent(subject, topic, data) {
-  let message = subject.wrappedJSObject;
-  let prefix = "Content JS " + message.level.toUpperCase() +
-               " at " + message.filename + ":" + message.lineNumber +
-               " in " + (message.functionName || "anonymous") + ": ";
-  Services.console.logStringMessage(prefix + Array.join(message.arguments, " "));
-}, "console-api-log-event", false);
-
-(function Repl() {
-  if (!Services.prefs.getBoolPref('b2g.remote-js.enabled')) {
-    return;
-  }
-  const prompt = 'JS> ';
-  let output;
-  let reader = {
-    onInputStreamReady : function repl_readInput(input) {
-      let sin = Cc['@mozilla.org/scriptableinputstream;1']
-                  .createInstance(Ci.nsIScriptableInputStream);
-      sin.init(input);
-      try {
-        let val = eval(sin.read(sin.available()));
-        let ret = (typeof val === 'undefined') ? 'undefined\n' : val + '\n';
-        output.write(ret, ret.length);
-        // TODO: check if socket has been closed
-      } catch (e) {
-        if (e.result === Cr.NS_BASE_STREAM_CLOSED ||
-            (typeof e === 'object' && e.result === Cr.NS_BASE_STREAM_CLOSED)) {
-          return;
-        }
-        let message = (typeof e === 'object') ? e.message + '\n' : e + '\n';
-        output.write(message, message.length);
-      }
-      output.write(prompt, prompt.length);
-      input.asyncWait(reader, 0, 0, Services.tm.mainThread);
-    }
-  }
-  let listener = {
-    onSocketAccepted: function repl_acceptConnection(serverSocket, clientSocket) {
-      dump('Accepted connection on ' + clientSocket.host + '\n');
-      let input = clientSocket.openInputStream(Ci.nsITransport.OPEN_BLOCKING, 0, 0)
-                              .QueryInterface(Ci.nsIAsyncInputStream);
-      output = clientSocket.openOutputStream(Ci.nsITransport.OPEN_BLOCKING, 0, 0);
-      output.write(prompt, prompt.length);
-      input.asyncWait(reader, 0, 0, Services.tm.mainThread);
-    }
-  }
-  let serverPort = Services.prefs.getIntPref('b2g.remote-js.port');
-  let serverSocket = Cc['@mozilla.org/network/server-socket;1']
-                       .createInstance(Ci.nsIServerSocket);
-  serverSocket.init(serverPort, true, -1);
-  dump('Opened socket on ' + serverSocket.port + '\n');
-  serverSocket.asyncListen(listener);
-})();
 

@@ -202,12 +202,11 @@ var BrowserApp = {
 
     getBridge().setDrawMetadataProvider(MetadataProvider);
 
-    getBridge().browserApp = this;
-
     Services.obs.addObserver(this, "Tab:Add", false);
     Services.obs.addObserver(this, "Tab:Load", false);
     Services.obs.addObserver(this, "Tab:Selected", false);
     Services.obs.addObserver(this, "Tab:Closed", false);
+    Services.obs.addObserver(this, "Tab:Screenshot", false);
     Services.obs.addObserver(this, "Session:Back", false);
     Services.obs.addObserver(this, "Session:Forward", false);
     Services.obs.addObserver(this, "Session:Reload", false);
@@ -222,9 +221,6 @@ var BrowserApp = {
     Services.obs.addObserver(this, "FullScreen:Exit", false);
     Services.obs.addObserver(this, "Viewport:Change", false);
     Services.obs.addObserver(this, "SearchEngines:Get", false);
-    Services.obs.addObserver(this, "Passwords:Init", false);
-
-    Services.obs.addObserver(this, "sessionstore-state-purge-complete", false);
 
     function showFullScreenWarning() {
       NativeWindow.toast.show(Strings.browser.GetStringFromName("alertFullScreenToast"), "short");
@@ -345,54 +341,32 @@ var BrowserApp = {
         type: "Gecko:Ready"
       }
     });
-
-    // after gecko has loaded, set the checkerboarding pref once at startup (for testing only)
-    sendMessageToJava({
-      gecko: {
-        "type": "Checkerboard:Toggle",
-        "value": Services.prefs.getBoolPref("gfx.show_checkerboard_pattern")
-      }
-    });
   },
 
   _showTelemetryPrompt: function _showTelemetryPrompt() {
-    const PREF_TELEMETRY_PROMPTED = "toolkit.telemetry.prompted";
-    const PREF_TELEMETRY_ENABLED = "toolkit.telemetry.enabled";
-    const PREF_TELEMETRY_REJECTED = "toolkit.telemetry.rejected";
-
-    // This is used to reprompt users when privacy message changes
-    const TELEMETRY_PROMPT_REV = 2;
-
-    let telemetryPrompted = null;
+    let telemetryPrompted = false;
     try {
-      telemetryPrompted = Services.prefs.getIntPref(PREF_TELEMETRY_PROMPTED);
+      telemetryPrompted = Services.prefs.getBoolPref("toolkit.telemetry.prompted");
     } catch (e) { /* Optional */ }
-
-    // If the user has seen the latest telemetry prompt, do not prompt again
-    // else clear old prefs and reprompt
-    if (telemetryPrompted === TELEMETRY_PROMPT_REV)
+    if (telemetryPrompted)
       return;
 
-    Services.prefs.clearUserPref(PREF_TELEMETRY_PROMPTED);
-    Services.prefs.clearUserPref(PREF_TELEMETRY_ENABLED);
-  
     let buttons = [
       {
         label: Strings.browser.GetStringFromName("telemetry.optin.yes"),
         callback: function () {
-          Services.prefs.setIntPref(PREF_TELEMETRY_PROMPTED, TELEMETRY_PROMPT_REV);
-          Services.prefs.setBoolPref(PREF_TELEMETRY_ENABLED, true);
+          Services.prefs.setBoolPref("toolkit.telemetry.prompted", true);
+          Services.prefs.setBoolPref("toolkit.telemetry.enabled", true);
         }
       },
       {
         label: Strings.browser.GetStringFromName("telemetry.optin.no"),
         callback: function () {
-          Services.prefs.setIntPref(PREF_TELEMETRY_PROMPTED, TELEMETRY_PROMPT_REV);
-          Services.prefs.setBoolPref(PREF_TELEMETRY_REJECTED, true);
+          Services.prefs.setBoolPref("toolkit.telemetry.prompted", true);
+          Services.prefs.setBoolPref("toolkit.telemetry.enabled", false);
         }
       }
     ];
-
     let brandShortName = Strings.brand.GetStringFromName("brandShortName");
     let message = Strings.browser.formatStringFromName("telemetry.optin.message", [brandShortName], 1);
     NativeWindow.doorhanger.show(message, "telemetry-optin", buttons);
@@ -556,6 +530,36 @@ var BrowserApp = {
 
     aTab.destroy();
     this._tabs.splice(this._tabs.indexOf(aTab), 1);
+  },
+
+  screenshotQueue: null,
+
+  screenshotTab: function screenshotTab(aData) {
+      if (this.screenshotQueue == null) {
+          this.screenShotQueue = [];
+          this.doScreenshotTab(aData);
+      } else {
+          this.screenshotQueue.push(aData);
+      }
+  },
+
+  doNextScreenshot: function() {
+      if (this.screenshotQueue == null || this.screenshotQueue.length == 0) {
+          this.screenshotQueue = null;
+          return;
+      }
+      let data = this.screenshotQueue.pop();
+      if (data == null) {
+          this.screenshotQueue = null;
+          return;
+      }
+      this.doScreenshotTab(data);
+  },
+
+  doScreenshotTab: function doScreenshotTab(aData) {
+      let json = JSON.parse(aData);
+      let tab = this.getTabForId(parseInt(json.tabID));
+      tab.screenshot(json.source, json.destination);
   },
 
   // Use this method to select a tab from JS. This method sends a message
@@ -935,6 +939,10 @@ var BrowserApp = {
       this._handleTabSelected(this.getTabForId(parseInt(aData)));
     } else if (aTopic == "Tab:Closed") {
       this._handleTabClosed(this.getTabForId(parseInt(aData)));
+    } else if (aTopic == "Tab:Screenshot") {
+      this.screenshotTab(aData);
+    } else if (aTopic == "Tab:Screenshot:Cancel") {
+      this.screenshotQueue = null;
     } else if (aTopic == "Browser:Quit") {
       this.quit();
     } else if (aTopic == "SaveAs:PDF") {
@@ -954,14 +962,6 @@ var BrowserApp = {
       ViewportHandler.onResize();
     } else if (aTopic == "SearchEngines:Get") {
       this.getSearchEngines();
-    } else if (aTopic == "Passwords:Init") {
-      var storage = Components.classes["@mozilla.org/login-manager/storage/mozStorage;1"].  
-        getService(Components.interfaces.nsILoginManagerStorage);
-      storage.init();
-
-      sendMessageToJava({gecko: { type: "Passwords:Init:Return" }});
-    } else if (aTopic == "sessionstore-state-purge-complete") {
-      sendMessageToJava({ gecko: { type: "Session:StatePurged" }});
     }
   },
 
@@ -969,16 +969,7 @@ var BrowserApp = {
     delete this.defaultBrowserWidth;
     let width = Services.prefs.getIntPref("browser.viewport.desktopWidth");
     return this.defaultBrowserWidth = width;
-  },
-
-  // nsIAndroidBrowserApp
-  getWindowForTab: function(tabId) {
-      let tab = this.getTabForId(tabId);
-      if (!tab.browser)
-	  return null;
-      return tab.browser.contentWindow;
   }
-
 };
 
 var NativeWindow = {
@@ -1112,15 +1103,6 @@ var NativeWindow = {
                  NativeWindow.toast.show(label, "short");
                });
 
-      this.add(Strings.browser.GetStringFromName("contextmenu.shareLink"),
-               this.linkShareableContext,
-               function(aTarget) {
-                 let url = NativeWindow.contextmenus._getLinkURL(aTarget);
-                 let title = aTarget.textContent || aTarget.title;
-                 let sharing = Cc["@mozilla.org/uriloader/external-sharing-app-service;1"].getService(Ci.nsIExternalSharingAppService);
-                 sharing.shareWithDefault(url, "text/plain", title);
-               });
-
       this.add(Strings.browser.GetStringFromName("contextmenu.fullScreen"),
                this.SelectorContext("video:not(:-moz-full-screen)"),
                function(aTarget) {
@@ -1205,32 +1187,6 @@ var NativeWindow = {
 
           let dontOpen = /^(mailto|javascript|news|snews)$/;
           return (scheme && !dontOpen.test(scheme));
-        }
-        return false;
-      }
-    },
-
-    linkShareableContext: {
-      matches: function linkShareableContextMatches(aElement) {
-        if (aElement.nodeType == Ci.nsIDOMNode.ELEMENT_NODE &&
-            ((aElement instanceof Ci.nsIDOMHTMLAnchorElement && aElement.href) ||
-            (aElement instanceof Ci.nsIDOMHTMLAreaElement && aElement.href) ||
-            aElement instanceof Ci.nsIDOMHTMLLinkElement ||
-            aElement.getAttributeNS(kXLinkNamespace, "type") == "simple")) {
-          let uri;
-          try {
-            let url = NativeWindow.contextmenus._getLinkURL(aElement);
-            uri = Services.io.newURI(url, null, null);
-          } catch (e) {
-            return false;
-          }
-
-          let scheme = uri.scheme;
-          if (!scheme)
-            return false;
-
-          let dontShare = /^(chrome|about|file|javascript|resource)$/;
-          return (scheme && !dontShare.test(scheme));
         }
         return false;
       }
@@ -1390,39 +1346,34 @@ nsBrowserAccess.prototype = {
       }
     }
 
-    Services.io.offline = false;
-
-    let referrer;
-    if (aOpener) {
-      try {
-        let location = aOpener.location;
-        referrer = Services.io.newURI(location, null, null);
-      } catch(e) { }
-    }
-
     let newTab = (aWhere == Ci.nsIBrowserDOMWindow.OPEN_NEWWINDOW || aWhere == Ci.nsIBrowserDOMWindow.OPEN_NEWTAB);
 
-    if (newTab) {
-      let parentId = -1;
-      if (!isExternal) {
-        let parent = BrowserApp.getTabForBrowser(BrowserApp.getBrowserForWindow(aOpener.top));
-        if (parent)
-          parentId = parent.id;
-      }
-
-      // BrowserApp.addTab calls loadURIWithFlags with the appropriate params
-      let tab = BrowserApp.addTab(aURI ? aURI.spec : "about:blank", { flags: loadflags,
-                                                                      referrerURI: referrer,
-                                                                      external: isExternal,
-                                                                      parentId: parentId,
-                                                                      selected: true });
-      return tab.browser;
+    let parentId = -1;
+    if (newTab && !isExternal) {
+      let parent = BrowserApp.getTabForBrowser(BrowserApp.getBrowserForWindow(aOpener));
+      if (parent)
+        parentId = parent.id;
     }
 
-    // OPEN_CURRENTWINDOW and illegal values
-    let browser = BrowserApp.selectedBrowser;
-    if (aURI && browser)
-      browser.loadURIWithFlags(aURI.spec, loadflags, referrer, null, null);
+    let browser;
+    if (newTab) {
+      let tab = BrowserApp.addTab("about:blank", { external: isExternal, parentId: parentId, selected: true });
+      browser = tab.browser;
+    } else { // OPEN_CURRENTWINDOW and illegal values
+      browser = BrowserApp.selectedBrowser;
+    }
+
+    Services.io.offline = false;
+    try {
+      let referrer;
+      if (aURI && browser) {
+        if (aOpener) {
+          let location = aOpener.location;
+          referrer = Services.io.newURI(location, null, null);
+        }
+        browser.loadURIWithFlags(aURI.spec, loadflags, referrer, null, null);
+      }
+    } catch(e) { }
 
     return browser;
   },
@@ -1461,7 +1412,7 @@ function Tab(aURL, aParams) {
   this.viewportExcess = { x: 0, y: 0 };
   this.documentIdForCurrentViewport = null;
   this.userScrollPos = { x: 0, y: 0 };
-  this._pluginCount = 0;
+  this._pluginsToPlay = [];
   this._pluginOverlayShowing = false;
 }
 
@@ -1631,6 +1582,33 @@ Tab.prototype = {
       this.updateTransform();
   },
 
+  screenshot: function(aSrc, aDst) {
+      if (!this.browser || !this.browser.contentWindow)
+        return;
+
+      let canvas = document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
+      canvas.setAttribute("width", aDst.width);  
+      canvas.setAttribute("height", aDst.height);
+      canvas.setAttribute("moz-opaque", "true");
+
+      let ctx = canvas.getContext("2d");
+      let flags = ctx.DRAWWINDOW_DO_NOT_FLUSH;
+      ctx.drawWindow(this.browser.contentWindow, 0, 0, aSrc.width, aSrc.height, "#fff", flags);
+      let message = {
+        gecko: {
+          type: "Tab:ScreenshotData",
+          tabID: this.id,
+          width: aDst.width,
+          height: aDst.height,
+          data: canvas.toDataURL()
+        }
+      };
+      sendMessageToJava(message);
+      Services.tm.mainThread.dispatch(function() {
+	  BrowserApp.doNextScreenshot()
+      }, Ci.nsIThread.DISPATCH_NORMAL);
+  },
+
   updateTransform: function() {
     let hasZoom = (Math.abs(this._viewport.zoom - 1.0) >= 1e-6);
     let x = this._viewport.offsetX + Math.round(-this.viewportExcess.x * this._viewport.zoom);
@@ -1751,10 +1729,8 @@ Tab.prototype = {
           }.bind(this), true);
         }
 
-        // Show a plugin doorhanger if there are plugins on the page but no
-        // clickable overlays showing (this doesn't work on pages loaded after
-        // back/forward navigation - see bug 719875)
-        if (this._pluginCount && !this._pluginOverlayShowing)
+        // Show a plugin doorhanger if there are no clickable overlays showing
+        if (this._pluginsToPlay.length && !this._pluginOverlayShowing)
           PluginHelper.showDoorHanger(this);
 
         break;
@@ -1846,11 +1822,10 @@ Tab.prototype = {
       }
 
       case "PluginClickToPlay": {
-        // Keep track of the number of plugins to know whether or not to show
-        // the hidden plugins doorhanger
-        this._pluginCount++;
-
         let plugin = aEvent.target;
+        // Keep track of all the plugins on the current page
+        this._pluginsToPlay.push(plugin);
+
         let overlay = plugin.ownerDocument.getAnonymousElementByAttribute(plugin, "class", "mainBox");
         if (!overlay)
           return;
@@ -1862,8 +1837,8 @@ Tab.prototype = {
           return;
         }
 
-        // Add click to play listener to the overlay
-        overlay.addEventListener("click", (function(event) {
+        // Add click to play listener
+        plugin.addEventListener("click", (function(event) {
           // Play all the plugin objects when the user clicks on one
           PluginHelper.playAllPlugins(this, event);
         }).bind(this), true);
@@ -1876,7 +1851,7 @@ Tab.prototype = {
         // Check to make sure it's top-level pagehide
         if (aEvent.target.defaultView == this.browser.contentWindow) {
           // Reset plugin state when we leave the page
-          this._pluginCount = 0;
+          this._pluginsToPlay = [];
           this._pluginOverlayShowing = false;
         }
         break;
@@ -1885,10 +1860,6 @@ Tab.prototype = {
   },
 
   onStateChange: function(aWebProgress, aRequest, aStateFlags, aStatus) {
-    let contentWin = aWebProgress.DOMWindow;
-    if (contentWin != contentWin.top)
-        return;
-
     if (aStateFlags & Ci.nsIWebProgressListener.STATE_IS_NETWORK) {
       // Filter optimization: Only really send NETWORK state changes to Java listener
       let browser = BrowserApp.getBrowserForWindow(aWebProgress.DOMWindow);
@@ -1896,18 +1867,13 @@ Tab.prototype = {
       if (browser)
         uri = browser.currentURI.spec;
 
-      // Check to see if we restoring the content from a previous presentation (session)
-      // since there should be no real network activity
-      let restoring = aStateFlags & Ci.nsIWebProgressListener.STATE_RESTORING;
-      let showProgress = restoring ? false : this.showProgress;
-
       let message = {
         gecko: {
           type: "Content:StateChange",
           tabID: this.id,
           uri: uri,
           state: aStateFlags,
-          showProgress: showProgress
+          showProgress: this.showProgress
         }
       };
       sendMessageToJava(message);
@@ -2087,7 +2053,7 @@ Tab.prototype = {
     let minScale = this.getPageZoomLevel(screenW);
     viewportH = Math.max(viewportH, screenH / minScale);
 
-    let oldBrowserWidth = parseInt(this.browser.style.minWidth);
+    let oldBrowserWidth = parseInt(this.browser.style.width);
     this.setBrowserSize(viewportW, viewportH);
 
     // Avoid having the scroll position jump around after device rotation.
@@ -2111,7 +2077,7 @@ Tab.prototype = {
     if ("defaultZoom" in md && md.defaultZoom)
       return md.defaultZoom;
 
-    let browserWidth = parseInt(this.browser.style.minWidth);
+    let browserWidth = parseInt(this.browser.style.width);
     return gScreenWidth / browserWidth;
   },
 
@@ -2125,10 +2091,8 @@ Tab.prototype = {
   },
 
   setBrowserSize: function(aWidth, aHeight) {
-    // Using min width/height so as not to conflict with the fullscreen style rule.
-    // See Bug #709813.
-    this.browser.style.minWidth = aWidth + "px";
-    this.browser.style.minHeight = aHeight + "px";
+    this.browser.style.width = aWidth + "px";
+    this.browser.style.height = aHeight + "px";
   },
 
   getRequestLoadContext: function(aRequest) {
@@ -2160,6 +2124,7 @@ Tab.prototype = {
         // Is it on the top level?
         let contentDocument = aSubject;
         if (contentDocument == this.browser.contentDocument) {
+          sendMessageToJava({ gecko: { type: "Document:Shown" } });
           ViewportHandler.updateMetadata(this);
           this.documentIdForCurrentViewport = ViewportHandler.getIdForDocument(contentDocument);
         }
@@ -2916,6 +2881,14 @@ var FormAssistant = {
     return (aElement instanceof HTMLSelectElement);
   },
 
+  _isOptionElement: function(aElement) {
+    return aElement instanceof HTMLOptionElement;
+  },
+
+  _isOptionGroupElement: function(aElement) {
+    return aElement instanceof HTMLOptGroupElement;
+  },
+
   getListForElement: function(aElement) {
     let result = {
       type: "Prompt:Show",
@@ -2930,15 +2903,15 @@ var FormAssistant = {
       ];
     }
 
-    this.forOptions(aElement, function(aNode, aIndex, aIsGroup, aInGroup) {
+    this.forOptions(aElement, function(aNode, aIndex) {
       let item = {
         label: aNode.text || aNode.label,
-        isGroup: aIsGroup,
-        inGroup: aInGroup,
+        isGroup: this._isOptionGroupElement(aNode),
+        inGroup: this._isOptionGroupElement(aNode.parentNode),
         disabled: aNode.disabled,
         id: aIndex
       }
-      if (aInGroup)
+      if (item.inGroup)
         item.disabled = item.disabled || aNode.parentNode.disabled;
 
       result.listitems[aIndex] = item;
@@ -2950,27 +2923,26 @@ var FormAssistant = {
   forOptions: function(aElement, aFunction) {
     let optionIndex = 0;
     let children = aElement.children;
-    let numChildren = children.length;
     // if there are no children in this select, we add a dummy row so that at least something appears
-    if (numChildren == 0)
+    if (children.length == 0)
       aFunction.call(this, {label:""}, optionIndex);
-    for (let i = 0; i < numChildren; i++) {
+    for (let i = 0; i < children.length; i++) {
       let child = children[i];
-      if (child instanceof HTMLOptionElement) {
-        // This is a regular choice under no group.
-        aFunction.call(this, child, optionIndex, false, false);
-        optionIndex++;
-      } else if (child instanceof HTMLOptGroupElement) {
-        aFunction.call(this, child, optionIndex, true, false);
+      if (this._isOptionGroupElement(child)) {
+        aFunction.call(this, child, optionIndex);
         optionIndex++;
 
         let subchildren = child.children;
-        let numSubchildren = subchildren.length;
-        for (let j = 0; j < numSubchildren; j++) {
+        for (let j = 0; j < subchildren.length; j++) {
           let subchild = subchildren[j];
-          aFunction.call(this, subchild, optionIndex, false, true);
+          aFunction.call(this, subchild, optionIndex);
           optionIndex++;
         }
+
+      } else if (this._isOptionElement(child)) {
+        // This is a regular choice under no group.
+        aFunction.call(this, child, optionIndex);
+        optionIndex++;
       }
     }
   }
@@ -3083,31 +3055,7 @@ var XPInstallObserver = {
     this.onInstallFailed(aInstall);
   },
 
-  onDownloadCancelled: function(aInstall) {
-    let host = (aInstall.originatingURI instanceof Ci.nsIStandardURL) && aInstall.originatingURI.host;
-    if (!host)
-      host = (aInstall.sourceURI instanceof Ci.nsIStandardURL) && aInstall.sourceURI.host;
-
-    let error = (host || aInstall.error == 0) ? "addonError" : "addonLocalError";
-    if (aInstall.error != 0)
-      error += aInstall.error;
-    else if (aInstall.addon && aInstall.addon.blocklistState == Ci.nsIBlocklistService.STATE_BLOCKED)
-      error += "Blocklisted";
-    else if (aInstall.addon && (!aInstall.addon.isCompatible || !aInstall.addon.isPlatformCompatible))
-      error += "Incompatible";
-    else
-      return; // No need to show anything in this case.
-
-    let msg = Strings.browser.GetStringFromName(error);
-    // TODO: formatStringFromName
-    msg = msg.replace("#1", aInstall.name);
-    if (host)
-      msg = msg.replace("#2", host);
-    msg = msg.replace("#3", Strings.brand.GetStringFromName("brandShortName"));
-    msg = msg.replace("#4", Services.appinfo.version);
-
-    NativeWindow.toast.show(msg, "short");
-  }
+  onDownloadCancelled: function(aInstall) {}
 };
 
 // Blindly copied from Safari documentation for now.
@@ -3782,40 +3730,22 @@ var PluginHelper = {
   },
 
   playAllPlugins: function(aTab, aEvent) {
+    let plugins = aTab._pluginsToPlay;
+    if (!plugins.length)
+      return;
+
     if (aEvent) {
       if (!aEvent.isTrusted)
         return;
       aEvent.preventDefault();
     }
 
-    this._findAndPlayAllPlugins(aTab.browser.contentWindow);
-  },
-
-  // Helper function that recurses through sub-frames to find all plugin objects
-  _findAndPlayAllPlugins: function _findAndPlayAllPlugins(aWindow) {
-    let embeds = aWindow.document.getElementsByTagName("embed");
-    for (let i = 0; i < embeds.length; i++) {
-      if (!embeds[i].hasAttribute("played"))
-        this._playPlugin(embeds[i]);
+    for (let i = 0; i < plugins.length; i++) {
+      let objLoadingContent = plugins[i].QueryInterface(Ci.nsIObjectLoadingContent);
+      objLoadingContent.playPlugin();
     }
-
-    let objects = aWindow.document.getElementsByTagName("object");
-    for (let i = 0; i < objects.length; i++) {
-      if (!objects[i].hasAttribute("played"))
-        this._playPlugin(objects[i]);
-    }
-
-    for (let i = 0; i < aWindow.frames.length; i++) {
-      this._findAndPlayAllPlugins(aWindow.frames[i]);
-    }
-  },
-
-  _playPlugin: function _playPlugin(aPlugin) {
-    let objLoadingContent = aPlugin.QueryInterface(Ci.nsIObjectLoadingContent);
-    objLoadingContent.playPlugin();
-
-    // Set an attribute on the plugin object to avoid re-loading it
-    aPlugin.setAttribute("played", true);
+    // Clear _pluginsToPlay so we don't accidentally re-load them
+    aTab._pluginsToPlay = [];
   },
 
   getPluginPreference: function getPluginPreference() {
@@ -4191,6 +4121,7 @@ var CharacterEncoding = {
     let docCharset = browser.docShell.QueryInterface(Ci.nsIDocCharset);
     docCharset.charset = aEncoding;
     browser.reload(Ci.nsIWebNavigation.LOAD_FLAGS_CHARSET_CHANGE);
-  }
+  },
+
 };
 

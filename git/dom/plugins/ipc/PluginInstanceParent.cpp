@@ -464,12 +464,7 @@ PluginInstanceParent::AnswerPStreamNotifyConstructor(PStreamNotifyParent* actor,
                                            file, actor);
     }
 
-    if (streamDestroyed) {
-        // If the stream was destroyed, we must return an error code in the
-        // constructor.
-        *result = NPERR_GENERIC_ERROR;
-    }
-    else {
+    if (!streamDestroyed) {
         static_cast<StreamNotifyParent*>(actor)->ClearDestructionFlag();
         if (*result != NPERR_NO_ERROR)
             return PStreamNotifyParent::Send__delete__(actor,
@@ -631,7 +626,7 @@ PluginInstanceParent::HandleGUIEvent(const nsGUIEvent& anEvent, bool* handled)
 #endif
 
 nsresult
-PluginInstanceParent::GetImageContainer(ImageContainer** aContainer)
+PluginInstanceParent::GetImage(ImageContainer* aContainer, Image** aImage)
 {
 #ifdef XP_MACOSX
     nsIOSurface* ioSurface = NULL;
@@ -655,14 +650,8 @@ PluginInstanceParent::GetImageContainer(ImageContainer** aContainer)
     }
 #endif
 
-    ImageContainer *container = GetImageContainer();
-
-    if (!container) {
-        return NS_ERROR_FAILURE;
-    }
-
     nsRefPtr<Image> image;
-    image = container->CreateImage(&format, 1);
+    image = aContainer->CreateImage(&format, 1);
     if (!image) {
         return NS_ERROR_FAILURE;
     }
@@ -674,10 +663,7 @@ PluginInstanceParent::GetImageContainer(ImageContainer** aContainer)
         MacIOSurfaceImage::Data ioData;
         ioData.mIOSurface = ioSurface;
         ioImage->SetData(ioData);
-        container->SetCurrentImage(ioImage);
-
-        NS_IF_ADDREF(container);
-        *aContainer = container;
+        *aImage = image.forget().get();
         return NS_OK;
     }
 #endif
@@ -689,10 +675,7 @@ PluginInstanceParent::GetImageContainer(ImageContainer** aContainer)
     cairoData.mSize = mFrontSurface->GetSize();
     pluginImage->SetData(cairoData);
 
-    container->SetCurrentImage(pluginImage);
-
-    NS_IF_ADDREF(container);
-    *aContainer = container;
+    *aImage = image.forget().get();
     return NS_OK;
 }
 
@@ -868,17 +851,6 @@ PluginInstanceParent::BackgroundDescriptor()
     // If this is ever used, which it shouldn't be, it will trigger a
     // hard assertion in IPDL-generated code.
     return SurfaceDescriptor();
-}
-
-ImageContainer*
-PluginInstanceParent::GetImageContainer()
-{
-  if (mImageContainer) {
-    return mImageContainer;
-  }
-
-  mImageContainer = LayerManager::CreateImageContainer();
-  return mImageContainer;
 }
 
 PPluginBackgroundDestroyerParent*

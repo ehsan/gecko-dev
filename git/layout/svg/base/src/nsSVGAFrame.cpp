@@ -179,7 +179,7 @@ nsSVGAFrame::GetCanvasTM()
     nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
     nsSVGAElement *content = static_cast<nsSVGAElement*>(mContent);
 
-    gfxMatrix tm = content->PrependLocalTransformsTo(parent->GetCanvasTM());
+    gfxMatrix tm = content->PrependLocalTransformTo(parent->GetCanvasTM());
 
     mCanvasTM = new gfxMatrix(tm);
   }

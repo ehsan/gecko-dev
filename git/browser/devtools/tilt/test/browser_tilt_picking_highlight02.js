@@ -24,7 +24,8 @@ function test() {
         Services.obs.addObserver(whenHighlighting, HIGHLIGHTING, false);
 
         presenter.onSetupMesh = function() {
-          presenter.highlightNodeAt(presenter.canvas.width / 2, 10);
+          presenter.highlightNodeAt(presenter.canvas.width / 2,
+                                    presenter.canvas.height / 2);
         };
       }
     });

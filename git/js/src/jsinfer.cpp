@@ -349,7 +349,7 @@ types::TypeFailure(JSContext *cx, const char *fmt, ...)
     cx->compartment->types.print(cx, true);
 
     /* Always active, even in release builds */
-    MOZ_Assert(msgbuf, __FILE__, __LINE__);
+    JS_Assert(msgbuf, __FILE__, __LINE__);
     
     *((volatile int *)NULL) = 0;  /* Should never be reached */
 }
@@ -2094,11 +2094,11 @@ types::ArrayPrototypeHasIndexedProperty(JSContext *cx, JSScript *script)
     if (!cx->typeInferenceEnabled() || !script->hasGlobal())
         return true;
 
-    JSObject *proto = script->global()->getOrCreateArrayPrototype(cx);
-    if (!proto)
+    JSObject *proto;
+    if (!js_GetClassPrototype(cx, NULL, JSProto_Array, &proto, NULL))
         return true;
 
-    do {
+    while (proto) {
         TypeObject *type = proto->getType(cx);
         if (type->unknownProperties())
             return true;
@@ -2106,7 +2106,7 @@ types::ArrayPrototypeHasIndexedProperty(JSContext *cx, JSScript *script)
         if (!indexTypes || indexTypes->isOwnProperty(cx, type, true) || indexTypes->knownNonEmpty(cx))
             return true;
         proto = proto->getProto();
-    } while (proto);
+    }
 
     return false;
 }
@@ -2195,7 +2195,7 @@ TypeCompartment::nukeTypes(JSContext *cx)
 
 #ifdef JS_THREADSAFE
     AutoLockGC maybeLock;
-    if (!cx->runtime->gcRunning)
+    if (!cx->runtime->gcMarkAndSweep)
         maybeLock.lock(cx->runtime);
 #endif
 
@@ -2618,7 +2618,7 @@ struct types::ObjectTableKey
     typedef JSObject * Lookup;
 
     static inline uint32_t hash(JSObject *obj) {
-        return (uint32_t) (JSID_BITS(obj->lastProperty()->propid().get()) ^
+        return (uint32_t) (JSID_BITS(obj->lastProperty()->propid()) ^
                          obj->slotSpan() ^ obj->numFixedSlots() ^
                          ((uint32_t)(size_t)obj->getProto() >> 2));
     }
@@ -3822,6 +3822,7 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
       case JSOP_LAMBDA:
       case JSOP_LAMBDA_FC:
       case JSOP_DEFFUN:
+      case JSOP_DEFFUN_FC:
       case JSOP_DEFLOCALFUN:
       case JSOP_DEFLOCALFUN_FC: {
         unsigned off = (op == JSOP_DEFLOCALFUN || op == JSOP_DEFLOCALFUN_FC) ? SLOTNO_LEN : 0;
@@ -4555,12 +4556,6 @@ AnalyzeNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun, JSO
         if (op != JSOP_THIS)
             continue;
 
-        /* Maintain ordering property on how 'this' is used, as described above. */
-        if (offset < lastThisPopped) {
-            *pbaseobj = NULL;
-            return false;
-        }
-
         SSAValue thisv = SSAValue::PushedValue(offset, 0);
         SSAUseChain *uses = analysis->useChain(thisv);
 
@@ -4570,6 +4565,11 @@ AnalyzeNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun, JSO
             return false;
         }
 
+        /* Maintain ordering property on how 'this' is used, as described above. */
+        if (offset < lastThisPopped) {
+            *pbaseobj = NULL;
+            return false;
+        }
         lastThisPopped = uses->offset;
 
         /* Only handle 'this' values popped in unconditional code. */
@@ -5032,7 +5032,7 @@ TypeMonitorCallSlow(JSContext *cx, JSObject *callee,
 }
 
 static inline bool
-IsAboutToBeFinalized(TypeObjectKey *key)
+IsAboutToBeFinalized(JSContext *cx, TypeObjectKey *key)
 {
     /* Mask out the low bit indicating whether this is a type or JS object. */
     return !reinterpret_cast<const gc::Cell *>(uintptr_t(key) & ~1)->isMarked();
@@ -5662,9 +5662,6 @@ JSObject::splicePrototype(JSContext *cx, JSObject *proto)
      */
     JS_ASSERT_IF(cx->typeInferenceEnabled(), hasSingletonType());
 
-    /* Inner objects may not appear on prototype chains. */
-    JS_ASSERT_IF(proto, !proto->getClass()->ext.outerObject);
-
     /*
      * Force type instantiation when splicing lazy types. This may fail,
      * in which case inference will be disabled for the compartment.
@@ -5945,7 +5942,7 @@ TypeSet::sweep(JSContext *cx, JSCompartment *compartment)
         objectCount = 0;
         for (unsigned i = 0; i < oldCapacity; i++) {
             TypeObjectKey *object = oldArray[i];
-            if (object && !IsAboutToBeFinalized(object)) {
+            if (object && !IsAboutToBeFinalized(cx, object)) {
                 TypeObjectKey **pentry =
                     HashSetInsert<TypeObjectKey *,TypeObjectKey,TypeObjectKey>
                         (compartment, objectSet, objectCount, object);
@@ -5958,7 +5955,7 @@ TypeSet::sweep(JSContext *cx, JSCompartment *compartment)
         setBaseObjectCount(objectCount);
     } else if (objectCount == 1) {
         TypeObjectKey *object = (TypeObjectKey *) objectSet;
-        if (IsAboutToBeFinalized(object)) {
+        if (IsAboutToBeFinalized(cx, object)) {
             objectSet = NULL;
             setBaseObjectCount(0);
         }
@@ -6158,7 +6155,7 @@ TypeCompartment::sweep(JSContext *cx)
             const AllocationSiteKey &key = e.front().key;
             TypeObject *object = e.front().value;
 
-            if (IsAboutToBeFinalized(key.script) || !object->isMarked())
+            if (IsAboutToBeFinalized(cx, key.script) || !object->isMarked())
                 e.removeFront();
         }
     }
@@ -6220,7 +6217,7 @@ TypeScript::Sweep(JSContext *cx, JSScript *script)
         Type type = result->type;
 
         if (!type.isUnknown() && !type.isAnyObject() && type.isObject() &&
-            IsAboutToBeFinalized(type.objectKey())) {
+            IsAboutToBeFinalized(cx, type.objectKey())) {
             *presult = result->next;
             cx->delete_(result);
         } else {

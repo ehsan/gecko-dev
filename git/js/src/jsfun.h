@@ -290,12 +290,6 @@ struct JSFunction : public JSObject
     inline JSAtom *methodAtom() const;
     inline void setMethodAtom(JSAtom *atom);
 
-    /*
-     * Measures things hanging off this JSFunction that are counted by the
-     * |miscSize| argument in JSObject::sizeOfExcludingThis().
-     */
-    size_t sizeOfMisc(JSMallocSizeOfFun mallocSizeOf) const;
-
   private:
     /* 
      * These member functions are inherited from JSObject, but should never be applied to
@@ -437,12 +431,8 @@ js_PutArgsObject(js::StackFrame *fp);
 inline bool
 js_IsNamedLambda(JSFunction *fun) { return (fun->flags & JSFUN_LAMBDA) && fun->atom; }
 
-namespace js {
-
 extern JSBool
-XDRFunctionObject(JSXDRState *xdr, JSObject **objp);
-
-} /* namespace js */
+js_XDRFunctionObject(JSXDRState *xdr, JSObject **objp);
 
 extern JSBool
 js_fun_apply(JSContext *cx, uintN argc, js::Value *vp);

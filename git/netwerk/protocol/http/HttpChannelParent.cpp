@@ -356,15 +356,15 @@ HttpChannelParent::RecvRedirect2Verify(const nsresult& result,
   if (!mRedirectCallback) {
     // Bug 621446 investigation (optimization turned off above)
     if (mReceivedRedirect2Verify)
-      NS_RUNTIMEABORT("Duplicate fire");
+      ::PR_Abort();
     if (mSentRedirect1BeginFailed)
-      NS_RUNTIMEABORT("Send to child failed");
+      ::PR_Abort();
     if (mSentRedirect1Begin && NS_FAILED(result))
-      NS_RUNTIMEABORT("Redirect failed");
+      ::PR_Abort();
     if (mSentRedirect1Begin && NS_SUCCEEDED(result))
-      NS_RUNTIMEABORT("Redirect succeeded");
+      ::PR_Abort();
     if (!mRedirectChannel)
-      NS_RUNTIMEABORT("Missing redirect channel");
+      ::PR_Abort();
   }
 
   mReceivedRedirect2Verify = true;

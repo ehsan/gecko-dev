@@ -49,9 +49,8 @@
 #include "LayerManagerOGL.h"
 #include "nsAutoPtr.h"
 #include "nsAppShell.h"
-#include "nsIdleService.h"
-#include "nsScreenManagerGonk.h"
 #include "nsTArray.h"
+#include "nsIdleService.h"
 #include "nsWindow.h"
 
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Gonk" , ## args)
@@ -64,9 +63,6 @@ using namespace mozilla::layers;
 using namespace mozilla::widget;
 
 nsIntRect gScreenBounds;
-static uint32_t sScreenRotation;
-static nsIntRect sVirtualBounds;
-static gfxMatrix sRotationMatrix;
 
 static nsRefPtr<GLContext> sGLContext;
 static nsTArray<nsWindow *> sTopWindows;
@@ -78,9 +74,6 @@ static bool sFramebufferOpen;
 nsWindow::nsWindow()
 {
     if (!sGLContext && !sFramebufferOpen) {
-        // workaround Bug 725143
-        hal::SetScreenEnabled(true);
-
         // We (apparently) don't have a way to tell if allocating the
         // fbs succeeded or failed.
         gNativeWindow = new android::FramebufferNativeWindow();
@@ -99,7 +92,6 @@ nsWindow::nsWindow()
                 NS_RUNTIMEABORT("Can't open GL context and can't fall back on /dev/graphics/fb0 ...");
             }
         }
-        sVirtualBounds = gScreenBounds;
     }
 }
 
@@ -126,9 +118,7 @@ nsWindow::DoDraw(void)
 
     LayerManager* lm = gWindowToRedraw->GetLayerManager();
     if (LayerManager::LAYERS_OPENGL == lm->GetBackendType()) {
-        LayerManagerOGL* oglm = static_cast<LayerManagerOGL*>(lm);
-        oglm->SetClippingRegion(event.region);
-        oglm->SetWorldTransform(sRotationMatrix);
+        static_cast<LayerManagerOGL*>(lm)->SetClippingRegion(event.region);
         gWindowToRedraw->mEventCallback(&event);
     } else if (LayerManager::LAYERS_BASIC == lm->GetBackendType()) {
         MOZ_ASSERT(sFramebufferOpen);
@@ -171,7 +161,7 @@ nsWindow::Create(nsIWidget *aParent,
                  nsDeviceContext *aContext,
                  nsWidgetInitData *aInitData)
 {
-    BaseCreate(aParent, IS_TOPLEVEL() ? sVirtualBounds : aRect,
+    BaseCreate(aParent, IS_TOPLEVEL() ? gScreenBounds : aRect,
                aHandleEventFunction, aContext, aInitData);
 
     mBounds = aRect;
@@ -180,7 +170,7 @@ nsWindow::Create(nsIWidget *aParent,
     mParent = parent;
 
     if (!aNativeParent) {
-        mBounds = sVirtualBounds;
+        mBounds = gScreenBounds;
     }
 
     if (!IS_TOPLEVEL())
@@ -188,7 +178,7 @@ nsWindow::Create(nsIWidget *aParent,
 
     sTopWindows.AppendElement(this);
 
-    Resize(0, 0, sVirtualBounds.width, sVirtualBounds.height, false);
+    Resize(0, 0, gScreenBounds.width, gScreenBounds.height, false);
     return NS_OK;
 }
 
@@ -273,10 +263,9 @@ nsWindow::Resize(PRInt32 aX,
     event.time = PR_Now() / 1000;
 
     nsIntRect rect(aX, aY, aWidth, aHeight);
-    mBounds = rect;
     event.windowSize = &rect;
-    event.mWinWidth = sVirtualBounds.width;
-    event.mWinHeight = sVirtualBounds.height;
+    event.mWinWidth = gScreenBounds.width;
+    event.mWinHeight = gScreenBounds.height;
 
     (*mEventCallback)(&event);
 
@@ -446,7 +435,7 @@ nsWindow::BringToTop()
 
     nsGUIEvent event(true, NS_ACTIVATE, this);
     (*mEventCallback)(&event);
-    Invalidate(sVirtualBounds);
+    Invalidate(gScreenBounds);
 }
 
 void
@@ -471,150 +460,4 @@ nsWindow::GetGLFrameBufferFormat()
         return LOCAL_GL_RGB;
     }
     return LOCAL_GL_NONE;
-}
-
-// nsScreenGonk.cpp
-
-nsScreenGonk::nsScreenGonk(void *nativeScreen)
-{
-}
-
-nsScreenGonk::~nsScreenGonk()
-{
-}
-
-NS_IMETHODIMP
-nsScreenGonk::GetRect(PRInt32 *outLeft,  PRInt32 *outTop,
-                      PRInt32 *outWidth, PRInt32 *outHeight)
-{
-    *outLeft = sVirtualBounds.x;
-    *outTop = sVirtualBounds.y;
-
-    *outWidth = sVirtualBounds.width;
-    *outHeight = sVirtualBounds.height;
-
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsScreenGonk::GetAvailRect(PRInt32 *outLeft,  PRInt32 *outTop,
-                           PRInt32 *outWidth, PRInt32 *outHeight)
-{
-    return GetRect(outLeft, outTop, outWidth, outHeight);
-}
-
-
-NS_IMETHODIMP
-nsScreenGonk::GetPixelDepth(PRInt32 *aPixelDepth)
-{
-    // XXX do we need to lie here about 16bpp?  Or
-    // should we actually check and return the right thing?
-    *aPixelDepth = 24;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsScreenGonk::GetColorDepth(PRInt32 *aColorDepth)
-{
-    return GetPixelDepth(aColorDepth);
-}
-
-NS_IMETHODIMP
-nsScreenGonk::GetRotation(PRUint32* aRotation)
-{
-    *aRotation = sScreenRotation;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsScreenGonk::SetRotation(PRUint32 aRotation)
-{
-    if (!(ROTATION_0_DEG <= aRotation && aRotation <= ROTATION_270_DEG))
-        return NS_ERROR_ILLEGAL_VALUE;
-
-    if (sScreenRotation == aRotation)
-        return NS_OK;
-
-    sScreenRotation = aRotation;
-    sRotationMatrix.Reset();
-    switch (aRotation) {
-    case nsIScreen::ROTATION_0_DEG:
-        sVirtualBounds = gScreenBounds;
-        break;
-    case nsIScreen::ROTATION_90_DEG:
-        sRotationMatrix.Translate(gfxPoint(gScreenBounds.width, 0));
-        sRotationMatrix.Rotate(M_PI / 2);
-        sVirtualBounds = nsIntRect(0, 0, gScreenBounds.height,
-                                         gScreenBounds.width);
-        break;
-    case nsIScreen::ROTATION_180_DEG:
-        sRotationMatrix.Translate(gfxPoint(gScreenBounds.width,
-                                           gScreenBounds.height));
-        sRotationMatrix.Rotate(M_PI);
-        sVirtualBounds = gScreenBounds;
-        break;
-    case nsIScreen::ROTATION_270_DEG:
-        sRotationMatrix.Translate(gfxPoint(0, gScreenBounds.height));
-        sRotationMatrix.Rotate(M_PI * 3 / 2);
-        sVirtualBounds = nsIntRect(0, 0, gScreenBounds.height,
-                                         gScreenBounds.width);
-        break;
-    default:
-        MOZ_NOT_REACHED("Unknown rotation");
-        break;
-    }
-
-    for (unsigned int i = 0; i < sTopWindows.Length(); i++)
-        sTopWindows[i]->Resize(sVirtualBounds.width,
-                               sVirtualBounds.height,
-                               !i);
-
-    return NS_OK;
-}
-
-uint32_t
-nsScreenGonk::GetRotation()
-{
-    return sScreenRotation;
-}
-
-NS_IMPL_ISUPPORTS1(nsScreenManagerGonk, nsIScreenManager)
-
-nsScreenManagerGonk::nsScreenManagerGonk()
-{
-    mOneScreen = new nsScreenGonk(nsnull);
-}
-
-nsScreenManagerGonk::~nsScreenManagerGonk()
-{
-}
-
-NS_IMETHODIMP
-nsScreenManagerGonk::GetPrimaryScreen(nsIScreen **outScreen)
-{
-    NS_IF_ADDREF(*outScreen = mOneScreen.get());
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsScreenManagerGonk::ScreenForRect(PRInt32 inLeft,
-                                   PRInt32 inTop,
-                                   PRInt32 inWidth,
-                                   PRInt32 inHeight,
-                                   nsIScreen **outScreen)
-{
-    return GetPrimaryScreen(outScreen);
-}
-
-NS_IMETHODIMP
-nsScreenManagerGonk::ScreenForNativeWidget(void *aWidget, nsIScreen **outScreen)
-{
-    return GetPrimaryScreen(outScreen);
-}
-
-NS_IMETHODIMP
-nsScreenManagerGonk::GetNumberOfScreens(PRUint32 *aNumberOfScreens)
-{
-    *aNumberOfScreens = 1;
-    return NS_OK;
 }

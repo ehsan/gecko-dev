@@ -859,7 +859,7 @@ TransferZoomLevels(nsIDocument* aFromDoc,
     return;
 
   toCtxt->SetFullZoom(fromCtxt->GetFullZoom());
-  toCtxt->SetMinFontSize(fromCtxt->MinFontSize(nsnull));
+  toCtxt->SetMinFontSize(fromCtxt->MinFontSize());
   toCtxt->SetTextZoom(fromCtxt->TextZoom());
 }
 
@@ -1724,7 +1724,7 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_DESTROY(nsDocument,
                                               nsNodeUtils::LastRelease(this))
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsDocument)
-  return nsGenericElement::CanSkip(tmp, aRemovingAllowed);
+  return nsGenericElement::CanSkip(tmp);
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_END
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_BEGIN(nsDocument)
@@ -2118,6 +2118,7 @@ nsDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
   }
 #endif
 
+  SetPrincipal(nsnull);
   mSecurityInfo = nsnull;
 
   mDocumentLoadGroup = nsnull;
@@ -2166,12 +2167,6 @@ nsDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
 
   // Release the stylesheets list.
   mDOMStyleSheets = nsnull;
-
-  // Release our principal after tearing down the document, rather than before.
-  // This ensures that, during teardown, the document and the dying window (which
-  // already nulled out its document pointer and cached the principal) have
-  // matching principals.
-  SetPrincipal(nsnull);
 
   // Clear the original URI so SetDocumentURI sets it.
   mOriginalURI = nsnull;
@@ -2463,41 +2458,25 @@ nsDocument::InitCSP()
     // regular-strength CSP.
     if (cspHeaderValue.IsEmpty()) {
       mCSP->SetReportOnlyMode(true);
-
-      // Need to tokenize the header value since multiple headers could be
-      // concatenated into one comma-separated list of policies.
-      // See RFC2616 section 4.2 (last paragraph)
-      nsCharSeparatedTokenizer tokenizer(cspROHeaderValue, ',');
-      while (tokenizer.hasMoreTokens()) {
-        const nsSubstring& policy = tokenizer.nextToken();
-        mCSP->RefinePolicy(policy, chanURI);
-#ifdef PR_LOGGING
-        {
-          PR_LOG(gCspPRLog, PR_LOG_DEBUG,
-                  ("CSP (report only) refined with policy: \"%s\"",
-                    NS_ConvertUTF16toUTF8(policy).get()));
-        }
-#endif
+      mCSP->RefinePolicy(cspROHeaderValue, chanURI);
+#ifdef PR_LOGGING 
+      {
+        PR_LOG(gCspPRLog, PR_LOG_DEBUG, 
+                ("CSP (report only) refined, policy: \"%s\"", 
+                  NS_ConvertUTF16toUTF8(cspROHeaderValue).get()));
       }
+#endif
     } else {
       //XXX(sstamm): maybe we should post a warning when both read only and regular 
       // CSP headers are present.
-
-      // Need to tokenize the header value since multiple headers could be
-      // concatenated into one comma-separated list of policies.
-      // See RFC2616 section 4.2 (last paragraph)
-      nsCharSeparatedTokenizer tokenizer(cspHeaderValue, ',');
-      while (tokenizer.hasMoreTokens()) {
-        const nsSubstring& policy = tokenizer.nextToken();
-        mCSP->RefinePolicy(policy, chanURI);
-#ifdef PR_LOGGING
-        {
-          PR_LOG(gCspPRLog, PR_LOG_DEBUG,
-                ("CSP refined with policy: \"%s\"",
-                  NS_ConvertUTF16toUTF8(policy).get()));
-        }
-#endif
+      mCSP->RefinePolicy(cspHeaderValue, chanURI);
+#ifdef PR_LOGGING 
+      {
+        PR_LOG(gCspPRLog, PR_LOG_DEBUG, 
+               ("CSP refined, policy: \"%s\"",
+                NS_ConvertUTF16toUTF8(cspHeaderValue).get()));
       }
+#endif
     }
 
     // Check for frame-ancestor violation
@@ -5133,9 +5112,11 @@ NS_IMETHODIMP
 nsDocument::GetDefaultView(nsIDOMWindow** aDefaultView)
 {
   *aDefaultView = nsnull;
-  nsCOMPtr<nsPIDOMWindow> win = GetWindow();
-  win.forget(aDefaultView);
-  return NS_OK;
+  nsPIDOMWindow* win = GetWindow();
+  if (!win) {
+    return NS_OK;
+  }
+  return CallQueryInterface(win, aDefaultView);
 }
 
 NS_IMETHODIMP
@@ -8118,7 +8099,7 @@ nsIDocument::ScheduleFrameRequestCallback(nsIFrameRequestCallback* aCallback,
   PRInt32 newHandle = ++mFrameRequestCallbackCounter;
 
   bool alreadyRegistered = !mFrameRequestCallbacks.IsEmpty();
-  DebugOnly<FrameRequest*> request =
+  FrameRequest *request =
     mFrameRequestCallbacks.AppendElement(FrameRequest(aCallback, newHandle));
   NS_ASSERTION(request, "This is supposed to be infallible!");
   if (!alreadyRegistered && mPresShell && IsEventHandlingEnabled()) {
@@ -8301,8 +8282,11 @@ nsDocument::RemoveImage(imgIRequest* aImage)
   NS_ENSURE_ARG_POINTER(aImage);
 
   // Get the old count. It should exist and be > 0.
-  PRUint32 count = 0;
-  DebugOnly<bool> found = mImageTracker.Get(aImage, &count);
+  PRUint32 count;
+#ifdef DEBUG
+  bool found =
+#endif
+  mImageTracker.Get(aImage, &count);
   NS_ABORT_IF_FALSE(found, "Removing image that wasn't in the tracker!");
   NS_ABORT_IF_FALSE(count > 0, "Entry in the cache tracker with count 0!");
 
@@ -8526,7 +8510,7 @@ public:
   NS_IMETHOD Run()
   {
     if (mDoc->GetWindow()) {
-      mDoc->GetWindow()->SetFullScreenInternal(mValue, false);
+      mDoc->GetWindow()->SetFullScreen(mValue);
     }
     return NS_OK;
   }

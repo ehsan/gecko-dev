@@ -2625,7 +2625,7 @@ nsXPCComponents_Utils::LookupMethod(const JS::Value& object,
 
     JSObject* obj = JSVAL_TO_OBJECT(object);
     while (obj && !js::IsWrapper(obj) && !IS_WRAPPER_CLASS(js::GetObjectClass(obj)))
-        obj = JS_GetPrototype(obj);
+        obj = JS_GetPrototype(cx, obj);
 
     if (!obj)
         return NS_ERROR_XPC_BAD_CONVERT_JS;
@@ -2907,7 +2907,7 @@ static JSClass SandboxClass = {
     XPCONNECT_GLOBAL_FLAGS,
     JS_PropertyStub,   JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
     sandbox_enumerate, sandbox_resolve, sandbox_convert,  sandbox_finalize,
-    NULL, NULL, NULL, NULL, TraceXPCGlobal
+    NULL, NULL, NULL, NULL, NULL, NULL, TraceXPCGlobal
 };
 
 static JSFunctionSpec SandboxFunctions[] = {
@@ -3034,7 +3034,9 @@ xpc_CreateSandboxObject(JSContext * cx, jsval * vp, nsISupports *prinOrSop, JSOb
         }
 
         // Pass on ownership of sop to |sandbox|.
-        JS_SetPrivate(sandbox, sop.forget().get());
+        if (!JS_SetPrivate(cx, sandbox, sop.forget().get())) {
+            return NS_ERROR_XPC_UNEXPECTED;
+        }
 
         rv = xpc->InitClasses(cx, sandbox);
         if (NS_SUCCEEDED(rv) &&

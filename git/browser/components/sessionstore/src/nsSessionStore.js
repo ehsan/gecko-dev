@@ -131,7 +131,6 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/debug.js");
 
 Cu.import("resource:///modules/TelemetryTimestamps.jsm");
-Cu.import("resource:///modules/TelemetryStopwatch.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
   Cu.import("resource://gre/modules/NetUtil.jsm");
@@ -164,7 +163,8 @@ function debug(aMsg) {
 function SessionStoreService() {
   XPCOMUtils.defineLazyGetter(this, "_prefBranch", function () {
     return Cc["@mozilla.org/preferences-service;1"].
-           getService(Ci.nsIPrefService).getBranch("browser.");
+           getService(Ci.nsIPrefService).getBranch("browser.").
+           QueryInterface(Ci.nsIPrefBranch2);
   });
 
   // minimal interval between two save operations (in milliseconds)
@@ -3654,8 +3654,6 @@ SessionStoreService.prototype = {
     // if we crash.
     let pinnedOnly = this._loadState == STATE_RUNNING && !this._resume_from_crash;
 
-    TelemetryStopwatch.start("FX_SESSION_RESTORE_COLLECT_DATA_MS");
-
     var oState = this._getCurrentState(aUpdateAll, pinnedOnly);
     if (!oState)
       return;
@@ -3694,8 +3692,6 @@ SessionStoreService.prototype = {
     if (this._lastSessionState)
       oState.lastSessionState = this._lastSessionState;
 
-    TelemetryStopwatch.finish("FX_SESSION_RESTORE_COLLECT_DATA_MS");
-
     this._saveStateObject(oState);
   },
 
@@ -3703,11 +3699,9 @@ SessionStoreService.prototype = {
    * write a state object to disk
    */
   _saveStateObject: function sss_saveStateObject(aStateObj) {
-    TelemetryStopwatch.start("FX_SESSION_RESTORE_SERIALIZE_DATA_MS");
     var stateString = Cc["@mozilla.org/supports-string;1"].
                         createInstance(Ci.nsISupportsString);
     stateString.data = this._toJSONString(aStateObj);
-    TelemetryStopwatch.finish("FX_SESSION_RESTORE_SERIALIZE_DATA_MS");
 
     Services.obs.notifyObservers(stateString, "sessionstore-state-write", "");
 
@@ -3816,7 +3810,7 @@ SessionStoreService.prototype = {
     argString.data = "";
 
     // Build feature string
-    let features = "chrome,dialog=no,macsuppressanimation,all";
+    let features = "chrome,dialog=no,all";
     let winState = aState.windows[0];
     WINDOW_ATTRIBUTES.forEach(function(aFeature) {
       // Use !isNaN as an easy way to ignore sizemode and check for numbers
@@ -4434,7 +4428,6 @@ SessionStoreService.prototype = {
    *        String data
    */
   _writeFile: function sss_writeFile(aFile, aData) {
-    TelemetryStopwatch.start("FX_SESSION_RESTORE_WRITE_FILE_MS");
     // Initialize the file output stream.
     var ostream = Cc["@mozilla.org/network/safe-file-output-stream;1"].
                   createInstance(Ci.nsIFileOutputStream);
@@ -4450,7 +4443,6 @@ SessionStoreService.prototype = {
     var self = this;
     NetUtil.asyncCopy(istream, ostream, function(rc) {
       if (Components.isSuccessCode(rc)) {
-        TelemetryStopwatch.finish("FX_SESSION_RESTORE_WRITE_FILE_MS");
         Services.obs.notifyObservers(null,
                                      "sessionstore-state-write-complete",
                                      "");

@@ -80,7 +80,7 @@
 #include "nsCSSValue.h"
 #include "nsIRunnable.h"
 #include "nsThreadUtils.h"
-#include "nsDOMEventTargetHelper.h"
+#include "nsDOMEventTargetWrapperCache.h"
 #include "xpcprivate.h"
 #include "XrayWrapper.h"
 
@@ -530,10 +530,6 @@ using mozilla::dom::indexedDB::IDBWrapperCache;
 #include "Telephony.h"
 #include "TelephonyCall.h"
 #include "CallEvent.h"
-#endif
-
-#ifdef MOZ_B2G_BT
-#include "BluetoothAdapter.h"
 #endif
 
 #include "DOMError.h"
@@ -1631,11 +1627,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 #endif
 
-#ifdef MOZ_B2G_BT
-  NS_DEFINE_CLASSINFO_DATA(BluetoothAdapter, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-#endif
-
   NS_DEFINE_CLASSINFO_DATA(DOMError, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 };
@@ -2432,9 +2423,6 @@ nsDOMClassInfo::Init()
 #endif
     DOM_CLASSINFO_MAP_CONDITIONAL_ENTRY(nsIDOMMozNavigatorNetwork,
                                         network::IsAPIEnabled())
-#ifdef MOZ_B2G_BT
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNavigatorBluetooth)
-#endif
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(Plugin, nsIDOMPlugin)
@@ -3165,12 +3153,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_CONDITIONAL_ENTRY(nsITouchEventReceiver,          \
                                         nsDOMTouchEvent::PrefEnabled())
 
-#define DOM_CLASSINFO_SVG_TEXT_CONTENT_ELEMENT_MAP_ENTRIES \
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGTextContentElement)   \
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGTests)                \
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGStylable)             \
-    DOM_CLASSINFO_SVG_ELEMENT_MAP_ENTRIES
-
 #define DOM_CLASSINFO_SVG_GRAPHIC_ELEMENT_MAP_ENTRIES \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGLocatable)       \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGTransformable)   \
@@ -3203,8 +3185,12 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(SVGAltGlyphElement, nsIDOMSVGAltGlyphElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGTextPositioningElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGTextContentElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGTests)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGURIReference)
-    DOM_CLASSINFO_SVG_TEXT_CONTENT_ELEMENT_MAP_ENTRIES
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGStylable)
+    DOM_CLASSINFO_SVG_ELEMENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(SVGAnimateElement, nsIDOMSVGAnimateElement)
@@ -3445,12 +3431,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_SVG_ELEMENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(SVGForeignObjectElement, nsIDOMSVGForeignObjectElement)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGForeignObjectElement)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGTests)
-    DOM_CLASSINFO_SVG_GRAPHIC_ELEMENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
   DOM_CLASSINFO_MAP_BEGIN(SVGGElement, nsIDOMSVGGElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGGElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGTests)
@@ -3566,6 +3546,7 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(SVGSVGElement, nsIDOMSVGSVGElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGSVGElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGFitToViewBox)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGLocatable)
@@ -3598,8 +3579,12 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(SVGTextPathElement, nsIDOMSVGTextPathElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGTextContentElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGTests)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGURIReference)
-    DOM_CLASSINFO_SVG_TEXT_CONTENT_ELEMENT_MAP_ENTRIES
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGStylable)
+    DOM_CLASSINFO_SVG_ELEMENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(SVGTitleElement, nsIDOMSVGTitleElement)
@@ -3610,7 +3595,11 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(SVGTSpanElement, nsIDOMSVGTSpanElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGTextPositioningElement)
-    DOM_CLASSINFO_SVG_TEXT_CONTENT_ELEMENT_MAP_ENTRIES
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGTextContentElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGTests)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGStylable)
+    DOM_CLASSINFO_SVG_ELEMENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(SVGUnknownElement, nsIDOMSVGElement)
@@ -3941,6 +3930,11 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
+  DOM_CLASSINFO_MAP_BEGIN(SVGForeignObjectElement, nsIDOMSVGForeignObjectElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGForeignObjectElement)
+    DOM_CLASSINFO_SVG_GRAPHIC_ELEMENT_MAP_ENTRIES
+  DOM_CLASSINFO_MAP_END
+
   DOM_CLASSINFO_MAP_BEGIN(XULCommandEvent, nsIDOMXULCommandEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMXULCommandEvent)
     DOM_CLASSINFO_UI_EVENT_MAP_ENTRIES
@@ -4124,6 +4118,7 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(DataTransfer, nsIDOMDataTransfer)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDataTransfer)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSDataTransfer)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(NotifyPaintEvent, nsIDOMNotifyPaintEvent)
@@ -4368,12 +4363,6 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_BEGIN(CallEvent, nsIDOMCallEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMCallEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEvent)
-  DOM_CLASSINFO_MAP_END
-#endif
-
-#ifdef MOZ_B2G_BT
-  DOM_CLASSINFO_MAP_BEGIN(BluetoothAdapter, nsIDOMBluetoothAdapter)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMBluetoothAdapter)
   DOM_CLASSINFO_MAP_END
 #endif
 
@@ -4908,8 +4897,8 @@ nsDOMClassInfo::PostCreatePrototype(JSContext * cx, JSObject * proto)
                  "Incorrect object class!");
   }
 
-  NS_ASSERTION(::JS_GetPrototype(proto) &&
-               JS_GetClass(::JS_GetPrototype(proto)) == sObjectClass,
+  NS_ASSERTION(::JS_GetPrototype(cx, proto) &&
+               JS_GET_CLASS(cx, ::JS_GetPrototype(cx, proto)) == sObjectClass,
                "Hmm, somebody did something evil?");
 
 #ifdef DEBUG
@@ -5216,10 +5205,10 @@ nsWindowSH::SecurityCheckOnSetProp(JSContext *cx, JSObject *obj, jsid id, JSBool
 }
 
 static nsHTMLDocument*
-GetDocument(JSObject *obj)
+GetDocument(JSContext *cx, JSObject *obj)
 {
   return static_cast<nsHTMLDocument*>(
-    static_cast<nsIHTMLDocument*>(::JS_GetPrivate(obj)));
+    static_cast<nsIHTMLDocument*>(::JS_GetPrivate(cx, obj)));
 }
 
 // static
@@ -5238,7 +5227,7 @@ nsWindowSH::GlobalScopePolluterNewResolve(JSContext *cx, JSObject *obj,
     return JS_TRUE;
   }
 
-  nsHTMLDocument *document = GetDocument(obj);
+  nsHTMLDocument *document = GetDocument(cx, obj);
 
   if (!document ||
       document->GetCompatibilityMode() != eCompatibility_NavQuirks) {
@@ -5248,7 +5237,7 @@ nsWindowSH::GlobalScopePolluterNewResolve(JSContext *cx, JSObject *obj,
     return JS_TRUE;
   }
 
-  JSObject *proto = ::JS_GetPrototype(obj);
+  JSObject *proto = ::JS_GetPrototype(cx, obj);
   JSBool hasProp;
 
   if (!proto || !::JS_HasPropertyById(cx, proto, id, &hasProp) ||
@@ -5298,17 +5287,17 @@ nsWindowSH::InvalidateGlobalScopePolluter(JSContext *cx, JSObject *obj)
 
   JSAutoRequest ar(cx);
 
-  while ((proto = ::JS_GetPrototype(obj))) {
-    if (JS_GetClass(proto) == &sGlobalScopePolluterClass) {
-      nsIHTMLDocument *doc = (nsIHTMLDocument *)::JS_GetPrivate(proto);
+  while ((proto = ::JS_GetPrototype(cx, obj))) {
+    if (JS_GET_CLASS(cx, proto) == &sGlobalScopePolluterClass) {
+      nsIHTMLDocument *doc = (nsIHTMLDocument *)::JS_GetPrivate(cx, proto);
 
       NS_IF_RELEASE(doc);
 
-      ::JS_SetPrivate(proto, nsnull);
+      ::JS_SetPrivate(cx, proto, nsnull);
 
       // Pull the global scope polluter out of the prototype chain so
       // that it can be freed.
-      ::JS_SplicePrototype(cx, obj, ::JS_GetPrototype(proto));
+      ::JS_SplicePrototype(cx, obj, ::JS_GetPrototype(cx, proto));
 
       break;
     }
@@ -5340,8 +5329,8 @@ nsWindowSH::InstallGlobalScopePolluter(JSContext *cx, JSObject *obj,
   // Find the place in the prototype chain where we want this global
   // scope polluter (right before Object.prototype).
 
-  while ((proto = ::JS_GetPrototype(o))) {
-    if (JS_GetClass(proto) == sObjectClass) {
+  while ((proto = ::JS_GetPrototype(cx, o))) {
+    if (JS_GET_CLASS(cx, proto) == sObjectClass) {
       // Set the global scope polluters prototype to Object.prototype
       ::JS_SplicePrototype(cx, gsp, proto);
 
@@ -5355,7 +5344,9 @@ nsWindowSH::InstallGlobalScopePolluter(JSContext *cx, JSObject *obj,
   // Object.prototype to be the global scope polluter.
   ::JS_SplicePrototype(cx, o, gsp);
 
-  ::JS_SetPrivate(gsp, doc);
+  if (!::JS_SetPrivate(cx, gsp, doc)) {
+    return NS_ERROR_UNEXPECTED;
+  }
 
   // The global scope polluter will release doc on destruction (or
   // invalidation).
@@ -5456,7 +5447,7 @@ nsWindowSH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     // only do that if the JSClass name is one that is likely to be a
     // window object.
 
-    const char *name = JS_GetClass(JSVAL_TO_OBJECT(*vp))->name;
+    const char *name = JS_GET_CLASS(cx, JSVAL_TO_OBJECT(*vp))->name;
 
     // The list of Window class names here need to be kept in sync
     // with the actual class names! The class name
@@ -5915,7 +5906,7 @@ nsDOMConstructor::HasInstance(nsIXPConnectWrappedNative *wrapper,
     dom_obj = wrapped_obj;
   }
 
-  JSClass *dom_class = JS_GetClass(dom_obj);
+  JSClass *dom_class = JS_GET_CLASS(cx, dom_obj);
   if (!dom_class) {
     NS_ERROR("nsDOMConstructor::HasInstance can't get class.");
     return NS_ERROR_UNEXPECTED;
@@ -5938,8 +5929,8 @@ nsDOMConstructor::HasInstance(nsIXPConnectWrappedNative *wrapper,
     JS_ASSERT(!JSVAL_IS_PRIMITIVE(val));
     JSObject *dot_prototype = JSVAL_TO_OBJECT(val);
 
-    JSObject *proto = JS_GetPrototype(dom_obj);
-    for ( ; proto; proto = JS_GetPrototype(proto)) {
+    JSObject *proto = JS_GetPrototype(cx, dom_obj);
+    for ( ; proto; proto = JS_GetPrototype(cx, proto)) {
       if (proto == dot_prototype) {
         *bp = true;
         break;
@@ -6310,11 +6301,11 @@ ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
         return NS_ERROR_UNEXPECTED;
       }
 
-      JSObject *xpc_proto_proto = ::JS_GetPrototype(dot_prototype);
+      JSObject *xpc_proto_proto = ::JS_GetPrototype(cx, dot_prototype);
 
       if (proto &&
           (!xpc_proto_proto ||
-           JS_GetClass(xpc_proto_proto) == sObjectClass)) {
+           JS_GET_CLASS(cx, xpc_proto_proto) == sObjectClass)) {
         if (!JS_WrapObject(cx, &proto) ||
             !JS_SetPrototype(cx, dot_prototype, proto)) {
           return NS_ERROR_UNEXPECTED;
@@ -7641,8 +7632,8 @@ NS_IMETHODIMP
 nsEventTargetSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
                            JSObject *globalObj, JSObject **parentObj)
 {
-  nsDOMEventTargetHelper *target =
-    nsDOMEventTargetHelper::FromSupports(nativeObj);
+  nsDOMEventTargetWrapperCache *target =
+    nsDOMEventTargetWrapperCache::FromSupports(nativeObj);
 
   nsCOMPtr<nsIScriptGlobalObject> native_parent;
   target->GetParentObject(getter_AddRefs(native_parent));
@@ -7668,8 +7659,8 @@ nsEventTargetSH::AddProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 void
 nsEventTargetSH::PreserveWrapper(nsISupports *aNative)
 {
-  nsDOMEventTargetHelper *target =
-    nsDOMEventTargetHelper::FromSupports(aNative);
+  nsDOMEventTargetWrapperCache *target =
+    nsDOMEventTargetWrapperCache::FromSupports(aNative);
   nsContentUtils::PreserveWrapper(aNative, target);
 }
 
@@ -8160,7 +8151,7 @@ nsNamedArraySH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
         return NS_ERROR_FAILURE;
       }
 
-      JSObject *proto = ::JS_GetPrototype(realObj);
+      JSObject *proto = ::JS_GetPrototype(cx, realObj);
 
       if (proto) {
         JSBool hasProp;
@@ -8737,9 +8728,12 @@ nsHTMLDocumentSH::GetDocumentAllNodeList(JSContext *cx, JSObject *obj,
   // node list part (i.e. access to elements by index) not walk the
   // document each time, we create a nsContentList and hold on to it
   // in a reserved slot (0) on the document.all JSObject.
+  jsval collection;
   nsresult rv = NS_OK;
 
-  jsval collection = JS_GetReservedSlot(obj, 0);
+  if (!JS_GetReservedSlot(cx, obj, 0, &collection)) {
+    return JS_FALSE;
+  }
 
   if (!JSVAL_IS_PRIMITIVE(collection)) {
     // We already have a node list in our reserved slot, use it.
@@ -8775,7 +8769,9 @@ nsHTMLDocumentSH::GetDocumentAllNodeList(JSContext *cx, JSObject *obj,
     list.forget(nodeList);
 
     // ... and store it in our reserved slot.
-    JS_SetReservedSlot(obj, 0, collection);
+    if (!JS_SetReservedSlot(cx, obj, 0, collection)) {
+      return JS_FALSE;
+    }
   }
 
   if (NS_FAILED(rv)) {
@@ -8809,7 +8805,7 @@ nsHTMLDocumentSH::DocumentAllGetProperty(JSContext *cx, JSObject *obj,
     }
   }
 
-  nsHTMLDocument *doc = GetDocument(obj);
+  nsHTMLDocument *doc = GetDocument(cx, obj);
   nsISupports *result;
   nsWrapperCache *cache;
   nsresult rv = NS_OK;
@@ -8914,7 +8910,7 @@ nsHTMLDocumentSH::DocumentAllNewResolve(JSContext *cx, JSObject *obj, jsid id,
 
     v = JSVAL_ONE;
   } else if (id == sTags_id) {
-    nsHTMLDocument *doc = GetDocument(obj);
+    nsHTMLDocument *doc = GetDocument(cx, obj);
 
     JSObject *tags = ::JS_NewObject(cx, &sHTMLDocumentAllTagsClass, nsnull,
                                     ::JS_GetGlobalForObject(cx, obj));
@@ -8922,7 +8918,9 @@ nsHTMLDocumentSH::DocumentAllNewResolve(JSContext *cx, JSObject *obj, jsid id,
       return JS_FALSE;
     }
 
-    ::JS_SetPrivate(tags, doc);
+    if (!::JS_SetPrivate(cx, tags, doc)) {
+      return JS_FALSE;
+    }
 
     // The "tags" JSObject now also owns doc.
     NS_ADDREF(doc);
@@ -8950,7 +8948,7 @@ nsHTMLDocumentSH::DocumentAllNewResolve(JSContext *cx, JSObject *obj, jsid id,
 void
 nsHTMLDocumentSH::ReleaseDocument(JSContext *cx, JSObject *obj)
 {
-  nsIHTMLDocument *doc = (nsIHTMLDocument *)::JS_GetPrivate(obj);
+  nsIHTMLDocument *doc = (nsIHTMLDocument *)::JS_GetPrivate(cx, obj);
 
   NS_IF_RELEASE(doc);
 }
@@ -8979,7 +8977,7 @@ nsHTMLDocumentSH::CallToGetPropMapper(JSContext *cx, uintN argc, jsval *vp)
   // another method, use the document.all callee object as self.
   JSObject *self;
   if (JSVAL_IS_OBJECT(JS_CALLEE(cx, vp)) &&
-      ::JS_GetClass(JSVAL_TO_OBJECT(JS_CALLEE(cx, vp))) == &sHTMLDocumentAllClass) {
+      ::JS_GetClass(cx, JSVAL_TO_OBJECT(JS_CALLEE(cx, vp))) == &sHTMLDocumentAllClass) {
     self = JSVAL_TO_OBJECT(JS_CALLEE(cx, vp));
   } else {
     self = JS_THIS_OBJECT(cx, vp);
@@ -8998,10 +8996,10 @@ nsHTMLDocumentSH::CallToGetPropMapper(JSContext *cx, uintN argc, jsval *vp)
 
 
 static inline JSObject *
-GetDocumentAllHelper(JSObject *obj)
+GetDocumentAllHelper(JSContext *cx, JSObject *obj)
 {
-  while (obj && JS_GetClass(obj) != &sHTMLDocumentAllHelperClass) {
-    obj = ::JS_GetPrototype(obj);
+  while (obj && JS_GET_CLASS(cx, obj) != &sHTMLDocumentAllHelperClass) {
+    obj = ::JS_GetPrototype(cx, obj);
   }
 
   return obj;
@@ -9029,7 +9027,7 @@ nsHTMLDocumentSH::DocumentAllHelperGetProperty(JSContext *cx, JSObject *obj,
     return JS_TRUE;
   }
 
-  JSObject *helper = GetDocumentAllHelper(obj);
+  JSObject *helper = GetDocumentAllHelper(cx, obj);
 
   if (!helper) {
     NS_ERROR("Uh, how'd we get here?");
@@ -9039,7 +9037,7 @@ nsHTMLDocumentSH::DocumentAllHelperGetProperty(JSContext *cx, JSObject *obj,
     return JS_TRUE;
   }
 
-  PRUint32 flags = PrivateToFlags(::JS_GetPrivate(helper));
+  PRUint32 flags = PrivateToFlags(::JS_GetPrivate(cx, helper));
 
   if (flags & JSRESOLVE_DETECTING || !(flags & JSRESOLVE_QUALIFIED)) {
     // document.all is either being detected, e.g. if (document.all),
@@ -9069,7 +9067,9 @@ nsHTMLDocumentSH::DocumentAllHelperGetProperty(JSContext *cx, JSObject *obj,
       }
 
       // Let the JSObject take over ownership of doc.
-      ::JS_SetPrivate(all, doc);
+      if (!::JS_SetPrivate(cx, all, doc)) {
+        return JS_FALSE;
+      }
 
       doc.forget();
 
@@ -9087,7 +9087,7 @@ nsHTMLDocumentSH::DocumentAllHelperNewResolve(JSContext *cx, JSObject *obj,
 {
   if (id == nsDOMClassInfo::sAll_id) {
     // document.all is resolved for the first time. Define it.
-    JSObject *helper = GetDocumentAllHelper(obj);
+    JSObject *helper = GetDocumentAllHelper(cx, obj);
 
     if (helper) {
       if (!::JS_DefineProperty(cx, helper, "all", JSVAL_VOID, nsnull, nsnull,
@@ -9109,9 +9109,9 @@ nsHTMLDocumentSH::DocumentAllTagsNewResolve(JSContext *cx, JSObject *obj,
                                             JSObject **objp)
 {
   if (JSID_IS_STRING(id)) {
-    nsDocument *doc = GetDocument(obj);
+    nsDocument *doc = GetDocument(cx, obj);
 
-    JSObject *proto = ::JS_GetPrototype(obj);
+    JSObject *proto = ::JS_GetPrototype(cx, obj);
     if (NS_UNLIKELY(!proto)) {
       return JS_TRUE;
     }
@@ -9189,9 +9189,10 @@ nsHTMLDocumentSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
       nsIDocument *doc = static_cast<nsIDocument*>(wrapper->Native());
 
       if (doc->GetCompatibilityMode() == eCompatibility_NavQuirks) {
-        JSObject *helper = GetDocumentAllHelper(::JS_GetPrototype(obj));
+        JSObject *helper =
+          GetDocumentAllHelper(cx, ::JS_GetPrototype(cx, obj));
 
-        JSObject *proto = ::JS_GetPrototype(helper ? helper : obj);
+        JSObject *proto = ::JS_GetPrototype(cx, helper ? helper : obj);
 
         // Check if the property all is defined on obj's (or helper's
         // if obj doesn't exist) prototype, if it is, don't expose our
@@ -9208,7 +9209,7 @@ nsHTMLDocumentSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
           // shadowing of the now defined "all" property.
           JSObject *tmp = obj, *tmpProto;
 
-          while ((tmpProto = ::JS_GetPrototype(tmp)) != helper) {
+          while ((tmpProto = ::JS_GetPrototype(cx, tmp)) != helper) {
             tmp = tmpProto;
           }
 
@@ -9225,7 +9226,7 @@ nsHTMLDocumentSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
           PrintWarningOnConsole(cx, "DocumentAllUsed");
 
           helper = ::JS_NewObject(cx, &sHTMLDocumentAllHelperClass,
-                                  ::JS_GetPrototype(obj),
+                                  ::JS_GetPrototype(cx, obj),
                                   ::JS_GetGlobalForObject(cx, obj));
 
           if (!helper) {
@@ -9243,8 +9244,10 @@ nsHTMLDocumentSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
         // If we have (or just created) a helper, pass the resolve flags
         // to the helper as its private data.
-        if (helper) {
-          ::JS_SetPrivate(helper, FlagsToPrivate(flags));
+        if (helper && !::JS_SetPrivate(cx, helper, FlagsToPrivate(flags))) {
+          nsDOMClassInfo::ThrowJSException(cx, NS_ERROR_UNEXPECTED);
+
+          return NS_ERROR_UNEXPECTED;
         }
       }
 
@@ -9694,7 +9697,7 @@ nsHTMLPluginObjElementSH::SetupProtoChain(nsIXPConnectWrappedNative *wrapper,
     return NS_ERROR_UNEXPECTED;
   }
 
-  if (pi_proto && JS_GetClass(pi_proto) != sObjectClass) {
+  if (pi_proto && JS_GET_CLASS(cx, pi_proto) != sObjectClass) {
     // The plugin wrapper has a proto that's not Object.prototype, set
     // 'pi.__proto__.__proto__' to the original 'this.__proto__'
     if (pi_proto != my_proto && !::JS_SetPrototype(cx, pi_proto, my_proto)) {
@@ -9789,7 +9792,7 @@ nsHTMLPluginObjElementSH::GetProperty(nsIXPConnectWrappedNative *wrapper,
 {
   JSAutoRequest ar(cx);
 
-  JSObject *pi_obj = ::JS_GetPrototype(obj);
+  JSObject *pi_obj = ::JS_GetPrototype(cx, obj);
   if (NS_UNLIKELY(!pi_obj)) {
     return NS_OK;
   }
@@ -9818,7 +9821,7 @@ nsHTMLPluginObjElementSH::SetProperty(nsIXPConnectWrappedNative *wrapper,
 {
   JSAutoRequest ar(cx);
 
-  JSObject *pi_obj = ::JS_GetPrototype(obj);
+  JSObject *pi_obj = ::JS_GetPrototype(cx, obj);
   if (NS_UNLIKELY(!pi_obj)) {
     return NS_OK;
   }
@@ -9897,7 +9900,7 @@ nsHTMLPluginObjElementSH::GetPluginJSObject(JSContext *cx, JSObject *obj,
   if (plugin_inst) {
     plugin_inst->GetJSObject(cx, plugin_obj);
     if (*plugin_obj) {
-      *plugin_proto = ::JS_GetPrototype(*plugin_obj);
+      *plugin_proto = ::JS_GetPrototype(cx, *plugin_obj);
     }
   }
 
@@ -10296,7 +10299,7 @@ nsStorageSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
   // First check to see if the property is defined on our prototype.
 
-  JSObject *proto = ::JS_GetPrototype(realObj);
+  JSObject *proto = ::JS_GetPrototype(cx, realObj);
   JSBool hasProp;
 
   if (proto &&
@@ -10482,7 +10485,7 @@ nsStorage2SH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     return JS_FALSE;
   }
 
-  JSObject *proto = ::JS_GetPrototype(realObj);
+  JSObject *proto = ::JS_GetPrototype(cx, realObj);
   JSBool hasProp;
 
   if (proto &&

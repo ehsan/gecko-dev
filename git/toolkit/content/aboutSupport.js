@@ -57,7 +57,6 @@ const PREFS_WHITELIST = [
   "browser.history_expire_",
   "browser.link.open_newwindow",
   "browser.places.",
-  "browser.sessionstore.",
   "browser.startup.homepage",
   "browser.tabs.",
   "browser.zoom.",
@@ -85,7 +84,6 @@ const PREFS_WHITELIST = [
   "privacy.",
   "security.",
   "svg.",
-  "toolkit.startup.recent_crashes",
   "webgl."
 ];
 
@@ -116,7 +114,6 @@ window.onload = function () {
   populatePreferencesSection();
   populateExtensionsSection();
   populateGraphicsSection();
-  populateJavaScriptSection();
 }
 
 function populateExtensionsSection() {
@@ -383,24 +380,17 @@ function populateGraphicsSection() {
   ]);
 }
 
-function populateJavaScriptSection() {
-  let enabled = window.QueryInterface(Ci.nsIInterfaceRequestor)
-        .getInterface(Ci.nsIDOMWindowUtils)
-        .isIncrementalGCEnabled();
-  document.getElementById("javascript-incremental-gc").textContent = enabled ? "1" : "0";
-}
-
 function getPrefValue(aName) {
   let value = "";
   let type = Services.prefs.getPrefType(aName);
   switch (type) {
-    case Ci.nsIPrefBranch.PREF_STRING:
+    case Ci.nsIPrefBranch2.PREF_STRING:
       value = Services.prefs.getComplexValue(aName, Ci.nsISupportsString).data;
       break;
-    case Ci.nsIPrefBranch.PREF_BOOL:
+    case Ci.nsIPrefBranch2.PREF_BOOL:
       value = Services.prefs.getBoolPref(aName);
       break;
-    case Ci.nsIPrefBranch.PREF_INT:
+    case Ci.nsIPrefBranch2.PREF_INT:
       value = Services.prefs.getIntPref(aName);
       break;
   }

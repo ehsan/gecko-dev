@@ -105,8 +105,7 @@ nsSVGDisplayContainerFrame::Init(nsIContent* aContent,
 {
   if (!(GetStateBits() & NS_STATE_IS_OUTER_SVG)) {
     AddStateBits(aParent->GetStateBits() &
-      (NS_STATE_SVG_NONDISPLAY_CHILD | NS_STATE_SVG_CLIPPATH_CHILD |
-       NS_STATE_SVG_REDRAW_SUSPENDED));
+      (NS_STATE_SVG_NONDISPLAY_CHILD | NS_STATE_SVG_CLIPPATH_CHILD));
   }
   nsresult rv = nsSVGContainerFrameBase::Init(aContent, aParent, aPrevInFlow);
   return rv;
@@ -146,14 +145,11 @@ NS_IMETHODIMP
 nsSVGDisplayContainerFrame::RemoveFrame(ChildListID aListID,
                                         nsIFrame* aOldFrame)
 {
-  // Force the invalidation before it's too late
-  RemoveStateBits(NS_STATE_SVG_REDRAW_SUSPENDED);
-
   nsSVGUtils::InvalidateCoveredRegion(aOldFrame);
 
   nsresult rv = nsSVGContainerFrame::RemoveFrame(aListID, aOldFrame);
 
-  if (!(GetStateBits() & (NS_STATE_SVG_NONDISPLAY_CHILD | NS_STATE_IS_OUTER_SVG))) {
+  if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
     nsSVGUtils::NotifyAncestorsOfFilterRegionChange(this);
   }
 
@@ -238,16 +234,30 @@ nsSVGDisplayContainerFrame::NotifySVGChanged(PRUint32 aFlags)
   nsSVGUtils::NotifyChildrenOfSVGChange(this, aFlags);
 }
 
-void
+NS_IMETHODIMP
 nsSVGDisplayContainerFrame::NotifyRedrawSuspended()
 {
-  nsSVGUtils::NotifyRedrawSuspended(this);
+  for (nsIFrame* kid = mFrames.FirstChild(); kid;
+       kid = kid->GetNextSibling()) {
+    nsISVGChildFrame* SVGFrame = do_QueryFrame(kid);
+    if (SVGFrame) {
+      SVGFrame->NotifyRedrawSuspended();
+    }
+  }
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 nsSVGDisplayContainerFrame::NotifyRedrawUnsuspended()
 {
-  nsSVGUtils::NotifyRedrawUnsuspended(this);
+  for (nsIFrame* kid = mFrames.FirstChild(); kid;
+       kid = kid->GetNextSibling()) {
+    nsISVGChildFrame* SVGFrame = do_QueryFrame(kid);
+    if (SVGFrame) {
+      SVGFrame->NotifyRedrawUnsuspended();
+    }
+  }
+  return NS_OK;
 }
 
 gfxRect
@@ -266,7 +276,7 @@ nsSVGDisplayContainerFrame::GetBBoxContribution(
       nsIContent *content = kid->GetContent();
       if (content->IsSVG() && !content->IsNodeOfType(nsINode::eTEXT)) {
         transform = static_cast<nsSVGElement*>(content)->
-                      PrependLocalTransformsTo(aToBBoxUserspace);
+                      PrependLocalTransformTo(aToBBoxUserspace);
       }
       // We need to include zero width/height vertical/horizontal lines, so we have
       // to use UnionEdges, but we must special case the first bbox so that we don't

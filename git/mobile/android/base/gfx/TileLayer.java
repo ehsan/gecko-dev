@@ -37,10 +37,8 @@
 
 package org.mozilla.gecko.gfx;
 
-import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.RectF;
-import android.graphics.Region;
 import android.opengl.GLES20;
 import android.util.Log;
 import javax.microedition.khronos.opengles.GL10;
@@ -61,14 +59,14 @@ public abstract class TileLayer extends Layer {
     private final CairoImage mImage;
     private final boolean mRepeat;
     private IntSize mSize;
-    private boolean mSkipTextureUpdate;
+    private Rect mValidTextureRect;
     private int[] mTextureIDs;
 
     public TileLayer(boolean repeat, CairoImage image) {
         mRepeat = repeat;
         mImage = image;
         mSize = new IntSize(0, 0);
-        mSkipTextureUpdate = false;
+        mValidTextureRect = new Rect();
 
         IntSize bufferSize = mImage.getSize();
         mDirtyRect = new Rect();
@@ -134,22 +132,26 @@ public abstract class TileLayer extends Layer {
         }
     }
 
-    /** Tells the tile not to update the texture on the next update. */
-    public void setSkipTextureUpdate(boolean skip) {
-        mSkipTextureUpdate = skip;
+    /**
+     * Tells the tile that its texture contents are invalid. This will also
+     * clear any invalidated area.
+     */
+    public void invalidateTexture() {
+        mValidTextureRect.setEmpty();
+        mDirtyRect.setEmpty();
     }
 
-    public boolean getSkipTextureUpdate() {
-        return mSkipTextureUpdate;
+    /**
+     * Returns a handle to the valid texture area rectangle. Modifying this
+     * Rect will modify the valid texture area for this layer.
+     */
+    public Rect getValidTextureArea() {
+        return mValidTextureRect;
     }
 
     @Override
     protected boolean performUpdates(GL10 gl, RenderContext context) {
         super.performUpdates(gl, context);
-
-        if (mSkipTextureUpdate) {
-            return false;
-        }
 
         // Reallocate the texture if the size has changed
         validateTexture(gl);
@@ -158,24 +160,20 @@ public abstract class TileLayer extends Layer {
         if (!mImage.getSize().isPositive())
             return true;
 
-        // If we haven't allocated a texture, assume the whole region is dirty
-        if (mTextureIDs == null) {
-            uploadFullTexture(gl);
-        } else {
-            uploadDirtyRect(gl, mDirtyRect);
-        }
-
+        // Update the dirty region
+        uploadDirtyRect(gl, mDirtyRect);
         mDirtyRect.setEmpty();
 
         return true;
     }
 
-    private void uploadFullTexture(GL10 gl) {
-        IntSize bufferSize = mImage.getSize();
-        uploadDirtyRect(gl, new Rect(0, 0, bufferSize.width, bufferSize.height));
-    }
-
     private void uploadDirtyRect(GL10 gl, Rect dirtyRect) {
+        IntSize bufferSize = mImage.getSize();
+        Rect bufferRect = new Rect(0, 0, bufferSize.width, bufferSize.height);
+
+        // Make sure the dirty region intersects with the buffer
+        dirtyRect.intersect(bufferRect);
+
         // If we have nothing to upload, just return for now
         if (dirtyRect.isEmpty())
             return;
@@ -185,6 +183,11 @@ public abstract class TileLayer extends Layer {
         if (imageBuffer == null)
             return;
 
+        // Mark the dirty region as valid. Note, we assume that the valid area
+        // can be enclosed by a rectangle (ideally we'd use a Region, but it'd
+        // be slower and it probably isn't necessary).
+        mValidTextureRect.union(dirtyRect);
+
         boolean newlyCreated = false;
 
         if (mTextureIDs == null) {
@@ -193,32 +196,23 @@ public abstract class TileLayer extends Layer {
             newlyCreated = true;
         }
 
-        IntSize bufferSize = mImage.getSize();
-        Rect bufferRect = new Rect(0, 0, bufferSize.width, bufferSize.height);
-
         int cairoFormat = mImage.getFormat();
         CairoGLInfo glInfo = new CairoGLInfo(cairoFormat);
 
         bindAndSetGLParameters(gl);
 
-        if (newlyCreated || dirtyRect.contains(bufferRect)) {
+        if (newlyCreated || dirtyRect.equals(bufferRect)) {
             if (mSize.equals(bufferSize)) {
-                gl.glTexImage2D(GL10.GL_TEXTURE_2D, 0, glInfo.internalFormat, mSize.width, mSize.height,
+                gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, glInfo.internalFormat, mSize.width, mSize.height,
                                 0, glInfo.format, glInfo.type, imageBuffer);
                 return;
             } else {
-                gl.glTexImage2D(GL10.GL_TEXTURE_2D, 0, glInfo.internalFormat, mSize.width, mSize.height,
+                gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, glInfo.internalFormat, mSize.width, mSize.height,
                                 0, glInfo.format, glInfo.type, null);
-                gl.glTexSubImage2D(GL10.GL_TEXTURE_2D, 0, 0, 0, bufferSize.width, bufferSize.height,
+                gl.glTexSubImage2D(gl.GL_TEXTURE_2D, 0, 0, 0, bufferSize.width, bufferSize.height,
                                    glInfo.format, glInfo.type, imageBuffer);
                 return;
             }
-        }
-
-        // Make sure that the dirty region intersects with the buffer rect,
-        // otherwise we'll end up with an invalid buffer pointer.
-        if (!Rect.intersects(dirtyRect, bufferRect)) {
-            return;
         }
 
         /*
@@ -237,8 +231,8 @@ public abstract class TileLayer extends Layer {
         }
 
         viewBuffer.position(position);
-        gl.glTexSubImage2D(GL10.GL_TEXTURE_2D, 0, 0, dirtyRect.top, bufferSize.width,
-                           Math.min(bufferSize.height - dirtyRect.top, dirtyRect.height()),
+        gl.glTexSubImage2D(gl.GL_TEXTURE_2D, 0, 0, dirtyRect.top,
+                           bufferSize.width, dirtyRect.height(),
                            glInfo.format, glInfo.type, viewBuffer);
     }
 

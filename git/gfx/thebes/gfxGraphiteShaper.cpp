@@ -90,6 +90,7 @@ ReleaseTableFunc(const PRUint32& /* aKey */,
                  gfxGraphiteShaper::TableRec& aData,
                  void* /* aUserArg */)
 {
+    hb_blob_unlock(aData.mBlob);
     hb_blob_destroy(aData.mBlob);
     return PL_DHASH_REMOVE;
 }
@@ -123,8 +124,11 @@ gfxGraphiteShaper::GetTable(PRUint32 aTag, size_t *aLength)
         if (blob) {
             // mFont->GetFontTable() gives us a reference to the blob.
             // We will destroy (release) it in our destructor.
+            // Meanwhile, we hold the blob locked because Graphite expects
+            // the table pointer to remain valid for the life of the face.
             tableRec.mBlob = blob;
-            tableRec.mData = hb_blob_get_data(blob, &tableRec.mLength);
+            tableRec.mData = hb_blob_lock(blob);
+            tableRec.mLength = hb_blob_get_length(blob);
             mTables.Put(aTag, tableRec);
         } else {
             return nsnull;

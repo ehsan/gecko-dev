@@ -82,8 +82,8 @@ public:
   nsresult SetBaseValueString(const nsAString& aValue,
                               nsSVGElement *aSVGElement,
                               bool aDoSetAttr);
-  void GetBaseValueString(nsAString& aValue) const;
-  void GetAnimValueString(nsAString& aValue) const;
+  void GetBaseValueString(nsAString& aValue);
+  void GetAnimValueString(nsAString& aValue);
 
   float GetBaseValue(nsSVGElement* aSVGElement) const
     { return mBaseVal / GetUnitScaleFactor(aSVGElement, mSpecifiedUnitType); }
@@ -148,9 +148,8 @@ private:
   float GetUnitScaleFactor(nsSVGSVGElement *aCtx, PRUint8 aUnitType) const;
 
   // SetBaseValue and SetAnimValue set the value in user units
-  void SetBaseValue(float aValue, nsSVGElement *aSVGElement, bool aDoSetAttr);
-  void SetBaseValueInSpecifiedUnits(float aValue, nsSVGElement *aSVGElement,
-                                    bool aDoSetAttr);
+  void SetBaseValue(float aValue, nsSVGElement *aSVGElement);
+  void SetBaseValueInSpecifiedUnits(float aValue, nsSVGElement *aSVGElement);
   void SetAnimValue(float aValue, nsSVGElement *aSVGElement);
   void SetAnimValueInSpecifiedUnits(float aValue, nsSVGElement *aSVGElement);
   nsresult NewValueSpecifiedUnits(PRUint16 aUnitType, float aValue,
@@ -181,7 +180,7 @@ private:
         if (!NS_finite(aValue)) {
           return NS_ERROR_ILLEGAL_VALUE;
         }
-        mVal->SetBaseValue(aValue, mSVGElement, true);
+        mVal->SetBaseValue(aValue, mSVGElement);
         return NS_OK;
       }
 
@@ -192,7 +191,7 @@ private:
         if (!NS_finite(aValue)) {
           return NS_ERROR_ILLEGAL_VALUE;
         }
-        mVal->SetBaseValueInSpecifiedUnits(aValue, mSVGElement, true);
+        mVal->SetBaseValueInSpecifiedUnits(aValue, mSVGElement);
         return NS_OK;
       }
 

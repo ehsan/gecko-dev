@@ -53,14 +53,12 @@
 #include "jsobj.h"
 #include "jsstr.h"
 
+#include "vm/BooleanObject-inl.h"
 #include "vm/GlobalObject.h"
 
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
 #include "jsstrinlines.h"
-
-#include "vm/BooleanObject-inl.h"
-#include "vm/MethodGuard-inl.h"
 
 using namespace js;
 using namespace js::types;
@@ -159,7 +157,7 @@ js_InitBooleanClass(JSContext *cx, JSObject *obj)
     JSObject *booleanProto = global->createBlankPrototype(cx, &BooleanClass);
     if (!booleanProto)
         return NULL;
-    booleanProto->setFixedSlot(BooleanObject::PRIMITIVE_VALUE_SLOT, BooleanValue(false));
+    booleanProto->setPrimitiveThis(BooleanValue(false));
 
     JSFunction *ctor = global->createConstructor(cx, Boolean, &BooleanClass,
                                                  CLASS_ATOM(cx, Boolean), 1);

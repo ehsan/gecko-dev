@@ -88,11 +88,9 @@
 #include "builtin/RegExp.h"
 #include "frontend/BytecodeCompiler.h"
 #include "frontend/BytecodeEmitter.h"
-#include "gc/Memory.h"
 #include "js/MemoryMetrics.h"
 #include "mozilla/Util.h"
 #include "yarr/BumpPointerAllocator.h"
-#include "vm/MethodGuard.h"
 
 #include "jsatominlines.h"
 #include "jsinferinlines.h"
@@ -703,6 +701,7 @@ JSRuntime::JSRuntime()
     tempLifoAlloc(TEMP_LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
     execAlloc_(NULL),
     bumpAlloc_(NULL),
+    repCache_(NULL),
     nativeStackBase(0),
     nativeStackQuota(0),
     interpreterFrames(NULL),
@@ -721,9 +720,13 @@ JSRuntime::JSRuntime()
     gcUserAvailableChunkListHead(NULL),
     gcKeepAtoms(0),
     gcBytes(0),
+    gcTriggerBytes(0),
+    gcLastBytes(0),
     gcMaxBytes(0),
     gcMaxMallocBytes(0),
     gcNumArenasFreeCommitted(0),
+    gcNumber(0),
+    gcIncrementalTracer(NULL),
     gcVerifyData(NULL),
     gcChunkAllocationSinceLastGC(false),
     gcNextFullGCTime(0),
@@ -732,20 +735,12 @@ JSRuntime::JSRuntime()
     gcIsNeeded(0),
     gcWeakMapList(NULL),
     gcStats(thisFromCtor()),
-    gcNumber(0),
-    gcStartNumber(0),
     gcTriggerReason(gcreason::NO_REASON),
     gcTriggerCompartment(NULL),
     gcCurrentCompartment(NULL),
     gcCheckCompartment(NULL),
-    gcIncrementalState(gc::NO_INCREMENTAL),
-    gcCompartmentCreated(false),
-    gcLastMarkSlice(false),
-    gcInterFrameGC(0),
-    gcSliceBudget(SliceBudget::Unlimited),
-    gcIncrementalEnabled(true),
-    gcIncrementalCompartment(NULL),
     gcPoke(false),
+    gcMarkAndSweep(false),
     gcRunning(false),
 #ifdef JS_GC_ZEAL
     gcZeal_(0),
@@ -754,7 +749,7 @@ JSRuntime::JSRuntime()
     gcDebugCompartmentGC(false),
 #endif
     gcCallback(NULL),
-    gcSliceCallback(NULL),
+    gcFinishedCallback(NULL),
     gcMallocBytes(0),
     gcBlackRootsTraceOp(NULL),
     gcBlackRootsData(NULL),
@@ -821,9 +816,6 @@ JSRuntime::init(uint32_t maxbytes)
     if (!js_InitGC(this, maxbytes))
         return false;
 
-    if (!gcMarker.init())
-        return false;
-
     if (!(atomsCompartment = this->new_<JSCompartment>(this)) ||
         !atomsCompartment->init(NULL) ||
         !compartments.append(atomsCompartment)) {
@@ -857,6 +849,7 @@ JSRuntime::~JSRuntime()
 
     delete_<JSC::ExecutableAllocator>(execAlloc_);
     delete_<WTF::BumpPointerAllocator>(bumpAlloc_);
+    JS_ASSERT(!repCache_);
 
 #ifdef DEBUG
     /* Don't hurt everyone in leaky ol' Mozilla with a fatal JS_ASSERT! */
@@ -952,8 +945,6 @@ JS_NewRuntime(uint32_t maxbytes)
 #undef MSG_DEF
 #endif /* DEBUG */
 
-        InitMemorySubsystem();
-
         js_NewRuntimeWasCalled = JS_TRUE;
     }
 
@@ -994,6 +985,30 @@ JS_PUBLIC_API(void)
 JS_SetRuntimePrivate(JSRuntime *rt, void *data)
 {
     rt->data = data;
+}
+
+JS_PUBLIC_API(size_t)
+JS::SystemCompartmentCount(const JSRuntime *rt)
+{
+    size_t n = 0;
+    for (size_t i = 0; i < rt->compartments.length(); i++) {
+        if (rt->compartments[i]->isSystemCompartment) {
+            ++n;
+        }
+    }
+    return n;
+}
+
+JS_PUBLIC_API(size_t)
+JS::UserCompartmentCount(const JSRuntime *rt)
+{
+    size_t n = 0;
+    for (size_t i = 0; i < rt->compartments.length(); i++) {
+        if (!rt->compartments[i]->isSystemCompartment) {
+            ++n;
+        }
+    }
+    return n;
 }
 
 #ifdef JS_THREADSAFE
@@ -1312,12 +1327,6 @@ JS_ToggleOptions(JSContext *cx, uint32_t options)
     uintN oldopts = cx->allOptions();
     uintN newopts = oldopts ^ options;
     return SetOptionsCommon(cx, newopts);
-}
-
-JS_PUBLIC_API(void)
-JS_SetJitHardening(JSRuntime *rt, JSBool enabled)
-{
-    rt->setJitHardening(!!enabled);
 }
 
 JS_PUBLIC_API(const char *)
@@ -2161,14 +2170,6 @@ JS_GetClassObject(JSContext *cx, JSObject *obj, JSProtoKey key, JSObject **objp)
 }
 
 JS_PUBLIC_API(JSObject *)
-JS_GetObjectPrototype(JSContext *cx, JSObject *forObj)
-{
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, forObj);
-    return forObj->global().getOrCreateObjectPrototype(cx);
-}
-
-JS_PUBLIC_API(JSObject *)
 JS_GetGlobalForObject(JSContext *cx, JSObject *obj)
 {
     AssertNoGC(cx);
@@ -2423,7 +2424,13 @@ JS_SetExtraGCRootsTracer(JSRuntime *rt, JSTraceDataOp traceOp, void *data)
 JS_PUBLIC_API(void)
 JS_TracerInit(JSTracer *trc, JSContext *cx, JSTraceCallback callback)
 {
-    InitTracer(trc, cx->runtime, cx, callback);
+    trc->runtime = cx->runtime;
+    trc->context = cx;
+    trc->callback = callback;
+    trc->debugPrinter = NULL;
+    trc->debugPrintArg = NULL;
+    trc->debugPrintIndex = size_t(-1);
+    trc->eagerlyTraceWeakMaps = true;
 }
 
 JS_PUBLIC_API(void)
@@ -2622,9 +2629,8 @@ typedef struct JSDumpingTracer {
 } JSDumpingTracer;
 
 static void
-DumpNotify(JSTracer *trc, void **thingp, JSGCTraceKind kind)
+DumpNotify(JSTracer *trc, void *thing, JSGCTraceKind kind)
 {
-    void *thing = *thingp;
     JSDumpingTracer *dtrc;
     JSContext *cx;
     JSDHashEntryStub *entry;
@@ -2855,7 +2861,8 @@ JS_CompartmentGC(JSContext *cx, JSCompartment *comp)
     /* We cannot GC the atoms compartment alone; use a full GC instead. */
     JS_ASSERT(comp != cx->runtime->atomsCompartment);
 
-    GC(cx, comp, GC_NORMAL, gcreason::API);
+    js::gc::VerifyBarriers(cx, true);
+    js_GC(cx, comp, GC_NORMAL, gcreason::API);
 }
 
 JS_PUBLIC_API(void)
@@ -2890,10 +2897,11 @@ JS_SetGCCallbackRT(JSRuntime *rt, JSGCCallback cb)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_IsAboutToBeFinalized(void *thing)
+JS_IsAboutToBeFinalized(JSContext *cx, void *thing)
 {
-    gc::Cell *t = static_cast<gc::Cell *>(thing);
-    return IsAboutToBeFinalized(t);
+    JS_ASSERT(thing);
+    JS_ASSERT(!cx->runtime->gcIncrementalTracer);
+    return IsAboutToBeFinalized(cx, (gc::Cell *)thing);
 }
 
 JS_PUBLIC_API(void)
@@ -2909,15 +2917,11 @@ JS_SetGCParameter(JSRuntime *rt, JSGCParamKey key, uint32_t value)
       case JSGC_MAX_MALLOC_BYTES:
         rt->setGCMaxMallocBytes(value);
         break;
-      case JSGC_SLICE_TIME_BUDGET:
-        rt->gcSliceBudget = SliceBudget::TimeBudget(value);
-        break;
       default:
         JS_ASSERT(key == JSGC_MODE);
         rt->gcMode = JSGCMode(value);
         JS_ASSERT(rt->gcMode == JSGC_MODE_GLOBAL ||
-                  rt->gcMode == JSGC_MODE_COMPARTMENT ||
-                  rt->gcMode == JSGC_MODE_INCREMENTAL);
+                  rt->gcMode == JSGC_MODE_COMPARTMENT);
         return;
     }
 }
@@ -2938,11 +2942,9 @@ JS_GetGCParameter(JSRuntime *rt, JSGCParamKey key)
         return uint32_t(rt->gcChunkPool.getEmptyCount());
       case JSGC_TOTAL_CHUNKS:
         return uint32_t(rt->gcChunkSet.count() + rt->gcChunkPool.getEmptyCount());
-      case JSGC_SLICE_TIME_BUDGET:
-        return uint32_t(rt->gcSliceBudget > 0 ? rt->gcSliceBudget / PRMJ_USEC_PER_MSEC : 0);
       default:
         JS_ASSERT(key == JSGC_NUMBER);
-        return uint32_t(rt->gcNumber);
+        return rt->gcNumber;
     }
 }
 
@@ -2964,27 +2966,51 @@ JS_FlushCaches(JSContext *cx)
 {
 }
 
+JS_PUBLIC_API(intN)
+JS_AddExternalStringFinalizer(JSStringFinalizeOp finalizer)
+{
+    return JSExternalString::changeFinalizer(NULL, finalizer);
+}
+
+JS_PUBLIC_API(intN)
+JS_RemoveExternalStringFinalizer(JSStringFinalizeOp finalizer)
+{
+    return JSExternalString::changeFinalizer(finalizer, NULL);
+}
+
 JS_PUBLIC_API(JSString *)
-JS_NewExternalString(JSContext *cx, const jschar *chars, size_t length,
-                     const JSStringFinalizer *fin)
+JS_NewExternalString(JSContext *cx, const jschar *chars, size_t length, intN type)
 {
     AssertNoGC(cx);
     CHECK_REQUEST(cx);
-    JSString *s = JSExternalString::new_(cx, chars, length, fin);
+    JSString *s = JSExternalString::new_(cx, chars, length, type, NULL);
     Probes::createString(cx, s, length);
     return s;
 }
 
-extern JS_PUBLIC_API(JSBool)
-JS_IsExternalString(JSString *str)
+extern JS_PUBLIC_API(JSString *)
+JS_NewExternalStringWithClosure(JSContext *cx, const jschar *chars, size_t length,
+                                intN type, void *closure)
 {
+    AssertNoGC(cx);
+    CHECK_REQUEST(cx);
+    return JSExternalString::new_(cx, chars, length, type, closure);
+}
+
+extern JS_PUBLIC_API(JSBool)
+JS_IsExternalString(JSContext *cx, JSString *str)
+{
+    AssertNoGC(cx);
+    CHECK_REQUEST(cx);
     return str->isExternal();
 }
 
-extern JS_PUBLIC_API(const JSStringFinalizer *)
-JS_GetExternalStringFinalizer(JSString *str)
+extern JS_PUBLIC_API(void *)
+JS_GetExternalStringClosure(JSContext *cx, JSString *str)
 {
-    return str->asExternal().externalFinalizer();
+    AssertNoGCOrFlatString(cx, str);
+    CHECK_REQUEST(cx);
+    return str->asExternal().externalClosure();
 }
 
 JS_PUBLIC_API(void)
@@ -2993,7 +3019,7 @@ JS_SetNativeStackQuota(JSRuntime *rt, size_t stackSize)
     rt->nativeStackQuota = stackSize;
     if (!rt->nativeStackBase)
         return;
-
+    
 #if JS_STACK_GROWTH_DIRECTION > 0
     if (stackSize == 0) {
         rt->nativeStackLimit = UINTPTR_MAX;
@@ -3117,11 +3143,19 @@ JS_LinkConstructorAndPrototype(JSContext *cx, JSObject *ctor, JSObject *proto)
     return LinkConstructorAndPrototype(cx, ctor, proto);
 }
 
+#ifdef JS_THREADSAFE
+JS_PUBLIC_API(JSClass *)
+JS_GetClass(JSContext *cx, JSObject *obj)
+{
+    return obj->getJSClass();
+}
+#else
 JS_PUBLIC_API(JSClass *)
 JS_GetClass(JSObject *obj)
 {
     return obj->getJSClass();
 }
+#endif
 
 JS_PUBLIC_API(JSBool)
 JS_InstanceOf(JSContext *cx, JSObject *obj, JSClass *clasp, jsval *argv)
@@ -3151,17 +3185,18 @@ JS_HasInstance(JSContext *cx, JSObject *obj, jsval v, JSBool *bp)
 }
 
 JS_PUBLIC_API(void *)
-JS_GetPrivate(JSObject *obj)
+JS_GetPrivate(JSContext *cx, JSObject *obj)
 {
     /* This function can be called by a finalizer. */
     return obj->getPrivate();
 }
 
-JS_PUBLIC_API(void)
-JS_SetPrivate(JSObject *obj, void *data)
+JS_PUBLIC_API(JSBool)
+JS_SetPrivate(JSContext *cx, JSObject *obj, void *data)
 {
     /* This function can be called by a finalizer. */
     obj->setPrivate(data);
+    return true;
 }
 
 JS_PUBLIC_API(void *)
@@ -3173,8 +3208,10 @@ JS_GetInstancePrivate(JSContext *cx, JSObject *obj, JSClass *clasp, jsval *argv)
 }
 
 JS_PUBLIC_API(JSObject *)
-JS_GetPrototype(JSObject *obj)
+JS_GetPrototype(JSContext *cx, JSObject *obj)
 {
+    CHECK_REQUEST(cx);
+    assertSameCompartment(cx, obj);
     return obj->getProto();
 }
 
@@ -3188,9 +3225,10 @@ JS_SetPrototype(JSContext *cx, JSObject *obj, JSObject *proto)
 }
 
 JS_PUBLIC_API(JSObject *)
-JS_GetParent(JSObject *obj)
+JS_GetParent(JSContext *cx, JSObject *obj)
 {
     JS_ASSERT(!obj->isScope());
+    assertSameCompartment(cx, obj);
     return obj->getParent();
 }
 
@@ -4276,7 +4314,7 @@ prop_iter_trace(JSTracer *trc, JSObject *obj)
     } else {
         /* Non-native case: mark each id in the JSIdArray private. */
         JSIdArray *ida = (JSIdArray *) pdata;
-        MarkIdRange(trc, ida->length, ida->vector, "prop iter");
+        MarkIdRange(trc, ida->vector, ida->vector + ida->length, "prop iter");
     }
 }
 
@@ -4291,9 +4329,11 @@ static Class prop_iter_class = {
     JS_ResolveStub,
     JS_ConvertStub,
     prop_iter_finalize,
+    NULL,           /* reserved0   */
     NULL,           /* checkAccess */
     NULL,           /* call        */
     NULL,           /* construct   */
+    NULL,           /* xdrObject   */
     NULL,           /* hasInstance */
     prop_iter_trace
 };
@@ -4378,32 +4418,22 @@ JS_NextProperty(JSContext *cx, JSObject *iterobj, jsid *idp)
     return JS_TRUE;
 }
 
-JS_PUBLIC_API(JSObject *)
-JS_NewElementIterator(JSContext *cx, JSObject *obj)
+JS_PUBLIC_API(JSBool)
+JS_GetReservedSlot(JSContext *cx, JSObject *obj, uint32_t index, jsval *vp)
+{
+    /* This function can be called by a finalizer. */
+    CHECK_REQUEST(cx);
+    assertSameCompartment(cx, obj);
+    return js_GetReservedSlot(cx, obj, index, vp);
+}
+
+JS_PUBLIC_API(JSBool)
+JS_SetReservedSlot(JSContext *cx, JSObject *obj, uint32_t index, jsval v)
 {
     AssertNoGC(cx);
     CHECK_REQUEST(cx);
-    assertSameCompartment(cx, obj);
-    return ElementIteratorObject::create(cx, obj);
-}
-
-JS_PUBLIC_API(JSObject *)
-JS_ElementIteratorStub(JSContext *cx, JSObject *obj, JSBool keysonly)
-{
-    JS_ASSERT(!keysonly);
-    return JS_NewElementIterator(cx, obj);
-}
-
-JS_PUBLIC_API(jsval)
-JS_GetReservedSlot(JSObject *obj, uint32_t index)
-{
-    return obj->getReservedSlot(index);
-}
-
-JS_PUBLIC_API(void)
-JS_SetReservedSlot(JSObject *obj, uint32_t index, jsval v)
-{
-    obj->setReservedSlot(index, v);
+    assertSameCompartment(cx, obj, v);
+    return js_SetReservedSlot(cx, obj, index, v);
 }
 
 JS_PUBLIC_API(JSObject *)
@@ -6339,7 +6369,7 @@ JS_ExecuteRegExp(JSContext *cx, JSObject *obj, JSObject *reobj, jschar *chars, s
     CHECK_REQUEST(cx);
 
     RegExpStatics *res = obj->asGlobal().getRegExpStatics();
-    return ExecuteRegExp(cx, res, reobj->asRegExp(), NULL, chars, length,
+    return ExecuteRegExp(cx, res, &reobj->asRegExp(), NULL, chars, length,
                          indexp, test ? RegExpTest : RegExpExec, rval);
 }
 
@@ -6371,7 +6401,7 @@ JS_ExecuteRegExpNoStatics(JSContext *cx, JSObject *obj, jschar *chars, size_t le
     AssertNoGC(cx);
     CHECK_REQUEST(cx);
 
-    return ExecuteRegExp(cx, NULL, obj->asRegExp(), NULL, chars, length, indexp,
+    return ExecuteRegExp(cx, NULL, &obj->asRegExp(), NULL, chars, length, indexp,
                          test ? RegExpTest : RegExpExec, rval);
 }
 
@@ -6583,7 +6613,7 @@ JS_AbortIfWrongThread(JSRuntime *rt)
 {
 #ifdef JS_THREADSAFE
     if (!rt->onOwnerThread())
-        MOZ_Assert("rt->onOwnerThread()", __FILE__, __LINE__);
+        JS_Assert("rt->onOwnerThread()", __FILE__, __LINE__);
 #endif
 }
 
@@ -6591,16 +6621,7 @@ JS_AbortIfWrongThread(JSRuntime *rt)
 JS_PUBLIC_API(void)
 JS_SetGCZeal(JSContext *cx, uint8_t zeal, uint32_t frequency, JSBool compartment)
 {
-#ifdef JS_GC_ZEAL
-    const char *env = getenv("JS_GC_ZEAL");
-    if (env) {
-        zeal = atoi(env);
-        frequency = 1;
-        compartment = false;
-    }
-#endif
-
-    bool schedule = zeal >= js::gc::ZealAllocValue;
+    bool schedule = zeal >= js::gc::ZealAllocThreshold && zeal < js::gc::ZealVerifierThreshold;
     cx->runtime->gcZeal_ = zeal;
     cx->runtime->gcZealFrequency = frequency;
     cx->runtime->gcNextScheduled = schedule ? frequency : 0;

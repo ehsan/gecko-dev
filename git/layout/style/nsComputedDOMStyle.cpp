@@ -83,7 +83,6 @@
 #include "nsDisplayList.h"
 #include "nsDOMCSSDeclaration.h"
 #include "mozilla/dom/Element.h"
-#include "nsGenericElement.h"
 #include "CSSCalc.h"
 
 using namespace mozilla;
@@ -162,25 +161,7 @@ nsComputedDOMStyle::Shutdown()
 }
 
 
-// If nsComputedDOMStyle is changed so that any additional fields are
-// traversed by the cycle collector (for instance, if wrapper cache
-// handling is changed) then CAN_SKIP must be updated.
 NS_IMPL_CYCLE_COLLECTION_1(nsComputedDOMStyle, mContent)
-
-// nsComputedDOMStyle has only one cycle collected field, so if
-// mContent is going to be skipped, the style isn't part of a garbage
-// cycle.
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsComputedDOMStyle)
-  return !tmp->mContent || nsGenericElement::CanSkip(tmp->mContent, true);
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_END
-
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_BEGIN(nsComputedDOMStyle)
-  return !tmp->mContent || nsGenericElement::CanSkipInCC(tmp->mContent);
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_END
-
-// CanSkipThis returns false to avoid problems with incomplete unlinking.
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_BEGIN(nsComputedDOMStyle)
-NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_END
 
 // QueryInterface implementation for nsComputedDOMStyle
 NS_INTERFACE_MAP_BEGIN(nsComputedDOMStyle)
@@ -1127,12 +1108,13 @@ nsComputedDOMStyle::DoGetMozTransform()
     resultString.Append(NS_LITERAL_STRING(", "));
   }
   resultString.AppendFloat(matrix._41);
-  resultString.Append(NS_LITERAL_STRING(", "));
+  resultString.Append(NS_LITERAL_STRING("px, "));
   resultString.AppendFloat(matrix._42);
+  resultString.Append(NS_LITERAL_STRING("px"));
   if (is3D) {
     resultString.Append(NS_LITERAL_STRING(", "));
     resultString.AppendFloat(matrix._43);
-    resultString.Append(NS_LITERAL_STRING(", "));
+    resultString.Append(NS_LITERAL_STRING("px, "));
     resultString.AppendFloat(matrix._44);
   }
   resultString.Append(NS_LITERAL_STRING(")"));
@@ -1222,8 +1204,7 @@ nsComputedDOMStyle::DoGetFontFamily()
   const nsString& fontName = font->mFont.name;
   if (font->mGenericID == kGenericFont_NONE && !font->mFont.systemFont) {
     const nsFont* defaultFont =
-      presContext->GetDefaultFont(kPresContext_DefaultVariableFont_ID,
-                                  font->mLanguage);
+      presContext->GetDefaultFont(kPresContext_DefaultVariableFont_ID);
 
     PRInt32 lendiff = fontName.Length() - defaultFont->name.Length();
     if (lendiff > 0) {
@@ -1516,7 +1497,6 @@ nsComputedDOMStyle::GetCSSGradientString(const nsStyleGradient* aGradient,
     case eStyleUnit_Degree: aString.AppendLiteral("deg"); break;
     case eStyleUnit_Grad: aString.AppendLiteral("grad"); break;
     case eStyleUnit_Radian: aString.AppendLiteral("rad"); break;
-    case eStyleUnit_Turn: aString.AppendLiteral("turn"); break;
     default: NS_NOTREACHED("unrecognized angle unit");
     }
     needSep = true;
@@ -3787,6 +3767,10 @@ nsComputedDOMStyle::GetFrameBoundsWidthForTransform(nscoord& aWidth)
 
   AssertFlushedPendingReflows();
 
+  // Check to see that we're transformed.
+  if (!mInnerFrame->GetStyleDisplay()->HasTransform())
+    return false;
+
   aWidth = nsDisplayTransform::GetFrameBoundsForTransform(mInnerFrame).width;
   return true;
 }
@@ -3800,6 +3784,10 @@ nsComputedDOMStyle::GetFrameBoundsHeightForTransform(nscoord& aHeight)
   }
 
   AssertFlushedPendingReflows();
+
+  // Check to see that we're transformed.
+  if (!mInnerFrame->GetStyleDisplay()->HasTransform())
+    return false;
 
   aHeight = nsDisplayTransform::GetFrameBoundsForTransform(mInnerFrame).height;
   return true;

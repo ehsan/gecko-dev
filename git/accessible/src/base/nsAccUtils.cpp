@@ -163,7 +163,7 @@ nsAccUtils::GetPositionAndSizeForXULSelectControlItem(nsIContent *aContent,
     nsCOMPtr<nsINode> currNode(do_QueryInterface(currItem));
 
     nsAccessible* itemAcc = currNode ?
-      GetAccService()->GetAccessible(currNode, nsnull) : nsnull;
+      GetAccService()->GetAccessible(currNode) : nsnull;
 
     if (!itemAcc || itemAcc->State() & states::INVISIBLE) {
       (*aSetSize)--;
@@ -205,7 +205,7 @@ nsAccUtils::GetPositionAndSizeForXULContainerItem(nsIContent *aContent,
     nsCOMPtr<nsINode> itemNode(do_QueryInterface(item));
 
     nsAccessible* itemAcc = itemNode ?
-      GetAccService()->GetAccessible(itemNode, nsnull) : nsnull;
+      GetAccService()->GetAccessible(itemNode) : nsnull;
 
     if (itemAcc) {
       PRUint32 itemRole = Role(itemAcc);
@@ -226,7 +226,7 @@ nsAccUtils::GetPositionAndSizeForXULContainerItem(nsIContent *aContent,
     nsCOMPtr<nsINode> itemNode(do_QueryInterface(item));
 
     nsAccessible* itemAcc =
-      itemNode ? GetAccService()->GetAccessible(itemNode, nsnull) : nsnull;
+      itemNode ? GetAccService()->GetAccessible(itemNode) : nsnull;
 
     if (itemAcc) {
       PRUint32 itemRole = Role(itemAcc);
@@ -353,11 +353,11 @@ nsAccUtils::GetARIAToken(dom::Element* aElement, nsIAtom* aAttr)
   return nsnull;
 }
 
-nsAccessible*
+nsAccessible *
 nsAccUtils::GetAncestorWithRole(nsAccessible *aDescendant, PRUint32 aRole)
 {
-  nsAccessible* document = aDescendant->Document();
-  nsAccessible* parent = aDescendant;
+  nsAccessible *document = aDescendant->GetDocAccessible();
+  nsAccessible *parent = aDescendant;
   while ((parent = parent->Parent())) {
     PRUint32 testRole = parent->Role();
     if (testRole == aRole)
@@ -389,7 +389,7 @@ nsAccUtils::GetSelectableContainer(nsAccessible* aAccessible, PRUint64 aState)
 nsAccessible*
 nsAccUtils::GetMultiSelectableContainer(nsINode* aNode)
 {
-  nsAccessible* accessible = GetAccService()->GetAccessible(aNode, nsnull);
+  nsAccessible* accessible = GetAccService()->GetAccessible(aNode);
   if (accessible) {
     nsAccessible* container = GetSelectableContainer(accessible,
                                                      accessible->State());
@@ -425,12 +425,11 @@ nsAccUtils::GetTextAccessibleFromSelection(nsISelection* aSelection)
   nsCOMPtr<nsINode> focusNode(do_QueryInterface(focusDOMNode));
   nsCOMPtr<nsINode> resultNode =
     nsCoreUtils::GetDOMNodeFromDOMPoint(focusNode, focusOffset);
+  nsCOMPtr<nsIWeakReference> weakShell(nsCoreUtils::GetWeakShellFor(resultNode));
 
   // Get text accessible containing the result node.
-  nsDocAccessible* doc = 
-    GetAccService()->GetDocAccessible(resultNode->OwnerDoc());
-  nsAccessible* accessible = doc ? 
-    doc->GetAccessibleOrContainer(resultNode) : nsnull;
+  nsAccessible* accessible =
+    GetAccService()->GetAccessibleOrContainer(resultNode, weakShell);
   if (!accessible) {
     NS_NOTREACHED("No nsIAccessibleText for selection change event!");
     return nsnull;
@@ -526,8 +525,9 @@ nsAccUtils::GetScreenCoordsForWindow(nsAccessNode *aAccessNode)
 nsIntPoint
 nsAccUtils::GetScreenCoordsForParent(nsAccessNode *aAccessNode)
 {
-  nsDocAccessible* document = aAccessNode->Document();
-  nsAccessible* parent = document->GetContainerAccessible(aAccessNode->GetNode());
+  nsAccessible *parent =
+    GetAccService()->GetContainerAccessible(aAccessNode->GetNode(),
+                                            aAccessNode->GetWeakShell());
   if (!parent)
     return nsIntPoint(0, 0);
 

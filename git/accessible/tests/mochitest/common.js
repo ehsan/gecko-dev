@@ -18,6 +18,7 @@ const nsIAccessibleCoordinateType = Components.interfaces.nsIAccessibleCoordinat
 
 const nsIAccessibleRelation = Components.interfaces.nsIAccessibleRelation;
 
+const nsIAccessNode = Components.interfaces.nsIAccessNode;
 const nsIAccessible = Components.interfaces.nsIAccessible;
 
 const nsIAccessibleDocument = Components.interfaces.nsIAccessibleDocument;
@@ -29,13 +30,10 @@ const nsIAccessibleEditableText = Components.interfaces.nsIAccessibleEditableTex
 const nsIAccessibleHyperLink = Components.interfaces.nsIAccessibleHyperLink;
 const nsIAccessibleHyperText = Components.interfaces.nsIAccessibleHyperText;
 
-const nsIAccessibleCursorable = Components.interfaces.nsIAccessibleCursorable;
 const nsIAccessibleImage = Components.interfaces.nsIAccessibleImage;
-const nsIAccessiblePivot = Components.interfaces.nsIAccessiblePivot;
 const nsIAccessibleSelectable = Components.interfaces.nsIAccessibleSelectable;
 const nsIAccessibleTable = Components.interfaces.nsIAccessibleTable;
 const nsIAccessibleTableCell = Components.interfaces.nsIAccessibleTableCell;
-const nsIAccessibleTraversalRule = Components.interfaces.nsIAccessibleTraversalRule;
 const nsIAccessibleValue = Components.interfaces.nsIAccessibleValue;
 
 const nsIObserverService = Components.interfaces.nsIObserverService;
@@ -52,17 +50,10 @@ const nsIPropertyElement = Components.interfaces.nsIPropertyElement;
 
 ////////////////////////////////////////////////////////////////////////////////
 // OS detect
-
-const MAC = (navigator.platform.indexOf("Mac") != -1);
-const LINUX = (navigator.platform.indexOf("Linux") != -1);
-const SOLARIS = (navigator.platform.indexOf("SunOS") != -1);
-const WIN = (navigator.platform.indexOf("Win") != -1);
-
-////////////////////////////////////////////////////////////////////////////////
-// Application detect
-// Firefox is assumed by default.
-
-const SEAMONKEY = navigator.userAgent.match(/ SeaMonkey\//);
+const MAC = (navigator.platform.indexOf("Mac") != -1)? true : false;
+const LINUX = (navigator.platform.indexOf("Linux") != -1)? true : false;
+const SOLARIS = (navigator.platform.indexOf("SunOS") != -1)? true : false;
+const WIN = (navigator.platform.indexOf("Win") != -1)? true : false;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Accessible general
@@ -127,8 +118,10 @@ function getNode(aAccOrNodeOrID)
   if (aAccOrNodeOrID instanceof nsIDOMNode)
     return aAccOrNodeOrID;
 
-  if (aAccOrNodeOrID instanceof nsIAccessible)
+  if (aAccOrNodeOrID instanceof nsIAccessible) {
+    aAccOrNodeOrID.QueryInterface(nsIAccessNode);
     return aAccOrNodeOrID.DOMNode;
+  }
 
   node = document.getElementById(aAccOrNodeOrID);
   if (!node) {
@@ -171,6 +164,7 @@ function getAccessible(aAccOrElmOrID, aInterfaces, aElmObj, aDoNotFailIf)
   var elm = null;
 
   if (aAccOrElmOrID instanceof nsIAccessible) {
+    aAccOrElmOrID.QueryInterface(nsIAccessNode);
     elm = aAccOrElmOrID.DOMNode;
 
   } else if (aAccOrElmOrID instanceof nsIDOMNode) {
@@ -201,6 +195,8 @@ function getAccessible(aAccOrElmOrID, aInterfaces, aElmObj, aDoNotFailIf)
       return null;
     }
   }
+
+  acc.QueryInterface(nsIAccessNode);
 
   if (!aInterfaces)
     return acc;
@@ -258,7 +254,8 @@ function getContainerAccessible(aAccOrElmOrID)
  */
 function getRootAccessible(aAccOrElmOrID)
 {
-  var acc = getAccessible(aAccOrElmOrID ? aAccOrElmOrID : document);
+  var acc = getAccessible(aAccOrElmOrID ? aAccOrElmOrID : document,
+                          [nsIAccessNode]);
   return acc ? acc.rootDocument.QueryInterface(nsIAccessible) : null;
 }
 
@@ -267,10 +264,11 @@ function getRootAccessible(aAccOrElmOrID)
  */
 function getTabDocAccessible(aAccOrElmOrID)
 {
-  var acc = getAccessible(aAccOrElmOrID ? aAccOrElmOrID : document);
+  var acc = getAccessible(aAccOrElmOrID ? aAccOrElmOrID : document,
+                          [nsIAccessNode]);
 
   var docAcc = acc.document.QueryInterface(nsIAccessible);
-  var containerDocAcc = docAcc.parent.document;
+  var containerDocAcc = docAcc.parent.QueryInterface(nsIAccessNode).document;
 
   // Test is running is stand-alone mode.
   if (acc.rootDocument == containerDocAcc)
@@ -287,6 +285,27 @@ function getApplicationAccessible()
 {
   return gAccRetrieval.getApplicationAccessible().
     QueryInterface(nsIAccessibleApplication);
+}
+
+/**
+ * Run through accessible tree of the given identifier so that we ensure
+ * accessible tree is created.
+ */
+function ensureAccessibleTree(aAccOrElmOrID)
+{
+  var acc = getAccessible(aAccOrElmOrID);
+  if (!acc)
+    return;
+
+  var child = acc.firstChild;
+  while (child) {
+    ensureAccessibleTree(child);
+    try {
+      child = child.nextSibling;
+    } catch (e) {
+      child = null;
+    }
+  }
 }
 
 /**
@@ -562,7 +581,7 @@ function getTextFromClipboard()
 function prettyName(aIdentifier)
 {
   if (aIdentifier instanceof nsIAccessible) {
-    var acc = getAccessible(aIdentifier);
+    var acc = getAccessible(aIdentifier, [nsIAccessNode]);
     var msg = "[" + getNodePrettyName(acc.DOMNode);
     try {
       msg += ", role: " + roleToString(acc.role);

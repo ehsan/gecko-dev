@@ -5849,8 +5849,8 @@ echo "$ac_t""$ac_cv_prog_gcc_traditional" 1>&6
   fi
 fi
 
-_SAVE_LIBS="$LIBS"
-LIBS="$LIBS $OS_LIBS"
+_SAVE_LDFLAGS="$LDFLAGS"
+LDFLAGS="$OS_LIBS"
 for ac_func in lchown strerror dladdr
 do
 echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
@@ -5906,7 +5906,7 @@ else
 fi
 done
 
-LIBS="$_SAVE_LIBS"
+LDFLAGS="$_SAVE_LDFLAGS"
 
 
 

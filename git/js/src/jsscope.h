@@ -466,6 +466,7 @@ struct Shape : public js::gc::Cell
     friend class js::Bindings;
     friend struct js::StackShape;
     friend struct js::StackBaseShape;
+    friend bool IsShapeAboutToBeFinalized(JSContext *cx, const js::Shape *shape);
 
   protected:
     HeapPtrBaseShape    base_;
@@ -559,10 +560,6 @@ struct Shape : public js::gc::Cell
     }
 
     const HeapPtrShape &previous() const {
-        return parent;
-    }
-
-    HeapPtrShape &previousRef() {
         return parent;
     }
 
@@ -774,12 +771,8 @@ struct Shape : public js::gc::Cell
         slotInfo = slotInfo | ((count + 1) << LINEAR_SEARCHES_SHIFT);
     }
 
-    const HeapId &propid() const {
-        JS_ASSERT(!isEmptyShape());
-        JS_ASSERT(!JSID_IS_VOID(propid_));
-        return propid_;
-    }
-    HeapId &propidRef() { JS_ASSERT(!JSID_IS_VOID(propid_)); return propid_; }
+    jsid propid() const { JS_ASSERT(!isEmptyShape()); return maybePropid(); }
+    jsid maybePropid() const { JS_ASSERT(!JSID_IS_VOID(propid_)); return propid_; }
 
     int16_t shortid() const { JS_ASSERT(hasShortID()); return maybeShortid(); }
     int16_t maybeShortid() const { return shortid_; }
@@ -1003,7 +996,7 @@ struct StackShape
 
     StackShape(const Shape *shape)
       : base(shape->base()->unowned()),
-        propid(const_cast<Shape *>(shape)->propidRef()),
+        propid(shape->maybePropid()),
         slot_(shape->slotInfo & Shape::SLOT_MASK),
         attrs(shape->attrs),
         flags(shape->flags),
@@ -1089,7 +1082,7 @@ Shape::search(JSContext *cx, Shape *start, jsid id, Shape ***pspp, bool adding)
                 return SHAPE_FETCH(spp);
             }
         }
-        /*
+        /* 
          * No table built -- there weren't enough entries, or OOM occurred.
          * Don't increment numLinearSearches, to keep hasTable() false.
          */
@@ -1099,7 +1092,7 @@ Shape::search(JSContext *cx, Shape *start, jsid id, Shape ***pspp, bool adding)
     }
 
     for (Shape *shape = start; shape; shape = shape->parent) {
-        if (shape->propidRef() == id)
+        if (shape->maybePropid() == id)
             return shape;
     }
 

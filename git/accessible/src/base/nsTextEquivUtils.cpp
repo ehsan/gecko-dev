@@ -118,7 +118,7 @@ nsTextEquivUtils::AppendTextEquivFromContent(nsAccessible *aInitiatorAcc,
 
   gInitiatorAcc = aInitiatorAcc;
 
-  nsIPresShell* shell = nsCoreUtils::GetPresShellFor(aContent);
+  nsCOMPtr<nsIWeakReference> shell = nsCoreUtils::GetWeakShellFor(aContent);
   if (!shell) {
     NS_ASSERTION(true, "There is no presshell!");
     gInitiatorAcc = nsnull;
@@ -135,8 +135,8 @@ nsTextEquivUtils::AppendTextEquivFromContent(nsAccessible *aInitiatorAcc,
   bool goThroughDOMSubtree = true;
 
   if (isVisible) {
-    nsAccessible* accessible =
-      GetAccService()->GetAccessible(aContent, shell);
+    nsAccessible *accessible =
+      GetAccService()->GetAccessibleInWeakShell(aContent, shell);
     if (accessible) {
       rv = AppendFromAccessible(accessible, aString);
       goThroughDOMSubtree = false;

@@ -83,7 +83,6 @@
 #include "prmem.h"
 #include "nsDOMFile.h"
 #include "nsWrapperCacheInlines.h"
-#include "nsDOMEventTargetHelper.h"
 
 using namespace mozilla;
 
@@ -439,19 +438,13 @@ nsWebSocket::~nsWebSocket()
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsWebSocket)
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsWebSocket)
-  bool isBlack = tmp->IsBlack();
-  if (isBlack|| tmp->mKeepingAlive) {
+  if (tmp->IsBlack()) {
     if (tmp->mListenerManager) {
       tmp->mListenerManager->UnmarkGrayJSListeners();
       NS_UNMARK_LISTENER_WRAPPER(Open)
       NS_UNMARK_LISTENER_WRAPPER(Error)
       NS_UNMARK_LISTENER_WRAPPER(Message)
       NS_UNMARK_LISTENER_WRAPPER(Close)
-    }
-    if (!isBlack) {
-      xpc_UnmarkGrayObject(tmp->PreservingWrapper() ? 
-                           tmp->GetWrapperPreserveColor() :
-                           tmp->GetExpandoObjectPreserveColor());
     }
     return true;
   }
@@ -466,11 +459,11 @@ NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_BEGIN(nsWebSocket)
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(nsWebSocket,
-                                               nsDOMEventTargetHelper)
+                                               nsDOMEventTargetWrapperCache)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsWebSocket,
-                                                  nsDOMEventTargetHelper)
+                                                  nsDOMEventTargetWrapperCache)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnOpenListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnMessageListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnCloseListener)
@@ -481,7 +474,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsWebSocket,
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsWebSocket,
-                                                nsDOMEventTargetHelper)
+                                                nsDOMEventTargetWrapperCache)
   tmp->Disconnect();
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnOpenListener)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnMessageListener)
@@ -501,10 +494,10 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsWebSocket)
   NS_INTERFACE_MAP_ENTRY(nsIWebSocketListener)
   NS_INTERFACE_MAP_ENTRY(nsIRequest)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(WebSocket)
-NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
+NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetWrapperCache)
 
-NS_IMPL_ADDREF_INHERITED(nsWebSocket, nsDOMEventTargetHelper)
-NS_IMPL_RELEASE_INHERITED(nsWebSocket, nsDOMEventTargetHelper)
+NS_IMPL_ADDREF_INHERITED(nsWebSocket, nsDOMEventTargetWrapperCache)
+NS_IMPL_RELEASE_INHERITED(nsWebSocket, nsDOMEventTargetWrapperCache)
 
 //-----------------------------------------------------------------------------
 // nsWebSocket::nsIJSNativeInitializer methods:

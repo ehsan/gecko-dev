@@ -18,7 +18,7 @@ constructHook(JSContext *cx, uintN argc, jsval *vp)
         JS_ReportError(cx, "test failed, could not construct object");
         return false;
     }
-    if (strcmp(JS_GetClass(obj)->name, "Object") != 0) {
+    if (strcmp(JS_GET_CLASS(cx, obj)->name, "Object") != 0) {
         JS_ReportError(cx, "test failed, wrong class for 'this'");
         return false;
     }
@@ -86,7 +86,7 @@ BEGIN_TEST(testNewObject_1)
         0,
         JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
         JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, NULL,
-        NULL, NULL, constructHook
+        NULL, NULL, NULL, constructHook, NULL, NULL, NULL, NULL
     };
     JSObject *ctor = JS_NewObject(cx, &cls, NULL, NULL);
     CHECK(ctor);

@@ -70,10 +70,6 @@ EXTRA_COMPONENTS = \
   TelemetryPing.js \
   $(NULL)
 
-EXTRA_JS_MODULES = \
-  TelemetryStopwatch.jsm \
-  $(NULL)
-
 CPPSRCS = \
   Telemetry.cpp \
   $(NULL)
@@ -83,10 +79,8 @@ EXTRA_DSO_LDOPTS += \
   $(MOZ_JS_LIBS) \
   $(NULL)
 
-TEST_DIRS += tests
-
-ifdef MOZILLA_OFFICIAL
-DEFINES += -DMOZILLA_OFFICIAL
+ifdef ENABLE_TESTS
+DIRS += tests
 endif
 
 include $(topsrcdir)/config/config.mk

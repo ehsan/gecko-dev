@@ -68,6 +68,7 @@ public class Tabs implements GeckoEventListener {
         GeckoAppShell.registerGeckoEventListener("Tab:Added", this);
         GeckoAppShell.registerGeckoEventListener("Tab:Close", this);
         GeckoAppShell.registerGeckoEventListener("Tab:Select", this);
+        GeckoAppShell.registerGeckoEventListener("Tab:ScreenshotData", this);
         GeckoAppShell.registerGeckoEventListener("Session:RestoreBegin", this);
         GeckoAppShell.registerGeckoEventListener("Session:RestoreEnd", this);
     }
@@ -145,7 +146,7 @@ public class Tabs implements GeckoEventListener {
         });
 
         // Pass a message to Gecko to update tab state in BrowserApp
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Tab:Selected", String.valueOf(tab.getId())));
+        GeckoAppShell.sendEventToGecko(new GeckoEvent("Tab:Selected", String.valueOf(tab.getId())));
         return selectedTab = tab;
     }
 
@@ -187,7 +188,7 @@ public class Tabs implements GeckoEventListener {
     }
 
     /** Close tab and then select nextTab */
-    public void closeTab(final Tab tab, Tab nextTab) {
+    public void closeTab(Tab tab, Tab nextTab) {
         if (tab == null || nextTab == null)
             return;
 
@@ -195,19 +196,20 @@ public class Tabs implements GeckoEventListener {
 
         int tabId = tab.getId();
         removeTab(tabId);
+        tab.removeAllDoorHangers();
 
+        final Tab closedTab = tab;
         GeckoApp.mAppContext.mMainHandler.post(new Runnable() { 
             public void run() {
-                GeckoApp.mAppContext.onTabsChanged(tab);
+                GeckoApp.mAppContext.onTabsChanged(closedTab);
                 GeckoApp.mBrowserToolbar.updateTabCountAndAnimate(Tabs.getInstance().getCount());
                 GeckoApp.mDoorHangerPopup.updatePopup();
-                GeckoApp.mAppContext.hidePlugins(tab, true);
-                tab.onDestroy();
+                GeckoApp.mAppContext.hidePlugins(closedTab, true);
             }
         });
 
         // Pass a message to Gecko to update tab state in BrowserApp
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Tab:Closed", String.valueOf(tabId)));
+        GeckoAppShell.sendEventToGecko(new GeckoEvent("Tab:Closed", String.valueOf(tabId)));
     }
 
     /** Return the tab that will be selected by default after this one is closed */
@@ -286,6 +288,13 @@ public class Tabs implements GeckoEventListener {
                 closeTab(tab);
             } else if (event.equals("Tab:Select")) {
                 selectTab(message.getInt("tabID"));
+            } else if (event.equals("Tab:ScreenshotData")) {
+                Tab tab = getTab(message.getInt("tabID"));
+                String data = message.getString("data");
+                if (data.length() < 22)
+                    return;
+                byte[] compressed = GeckoAppShell.decodeBase64(data.substring(22));
+                GeckoApp.mAppContext.processThumbnail(tab, null, compressed);
             } else if (event.equals("Session:RestoreBegin")) {
                 mRestoringSession = true;
             } else if (event.equals("Session:RestoreEnd")) {

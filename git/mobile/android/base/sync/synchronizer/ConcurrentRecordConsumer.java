@@ -37,7 +37,7 @@
 
 package org.mozilla.gecko.sync.synchronizer;
 
-import org.mozilla.gecko.sync.Logger;
+import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.sync.repositories.domain.Record;
 
 import android.util.Log;
@@ -51,7 +51,7 @@ import android.util.Log;
  *
  */
 class ConcurrentRecordConsumer extends RecordConsumer {
-  private static final String LOG_TAG = "CRecordConsumer";
+  private static final String LOG_TAG = "ConcurrentRecordConsumer";
 
   /**
    * When this is true and all records have been processed, the consumer
@@ -65,15 +65,21 @@ class ConcurrentRecordConsumer extends RecordConsumer {
   }
 
   private static void info(String message) {
-    Logger.info(LOG_TAG, message);
+    Utils.logToStdout(LOG_TAG, "::INFO: ", message);
+    Log.i(LOG_TAG, message);
   }
 
   private static void debug(String message) {
-    Logger.debug(LOG_TAG, message);
+    Utils.logToStdout(LOG_TAG, ":: DEBUG: ", message);
+    Log.d(LOG_TAG, message);
   }
 
   private static void trace(String message) {
-    Logger.trace(LOG_TAG, message);
+    if (!Utils.ENABLE_TRACE_LOGGING) {
+      return;
+    }
+    Utils.logToStdout(LOG_TAG, ":: TRACE: ", message);
+    Log.d(LOG_TAG, message);
   }
 
   private Object monitor = new Object();
@@ -104,7 +110,7 @@ class ConcurrentRecordConsumer extends RecordConsumer {
   private Object countMonitor = new Object();
   @Override
   public void stored() {
-    trace("Record stored. Notifying.");
+    debug("Record stored. Notifying.");
     synchronized (countMonitor) {
       counter++;
     }
@@ -133,13 +139,7 @@ class ConcurrentRecordConsumer extends RecordConsumer {
       while (!delegate.getQueue().isEmpty()) {
         trace("Grabbing record...");
         Record record = delegate.getQueue().remove();
-        trace("Storing record... " + delegate);
-        try {
-          delegate.store(record);
-        } catch (Exception e) {
-          // TODO: Bug 709371: track records that failed to apply.
-          Log.e(LOG_TAG, "Caught error in store.", e);
-        }
+        delegate.store(record);
         trace("Done with record.");
       }
       synchronized (monitor) {

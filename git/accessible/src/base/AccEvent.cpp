@@ -139,7 +139,7 @@ NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(AccEvent, Release)
 nsAccessible*
 AccEvent::GetAccessibleForNode() const
 {
-  return mNode ? GetAccService()->GetAccessible(mNode, nsnull) : nsnull;
+  return mNode ? GetAccService()->GetAccessible(mNode) : nsnull;
 }
 
 void
@@ -289,14 +289,6 @@ AccHideEvent::
   mParent = mAccessible->Parent();
   mNextSibling = mAccessible->NextSibling();
   mPrevSibling = mAccessible->PrevSibling();
-}
-
-already_AddRefed<nsAccEvent>
-AccHideEvent::CreateXPCOMObject()
-{
-  nsAccEvent* event = new nsAccHideEvent(this);
-  NS_ADDREF(event);
-  return event;
 }
 
 

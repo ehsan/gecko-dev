@@ -57,7 +57,6 @@
 #include "gfxPlatform.h"
 #include "nsIAtom.h"
 #include "nsISupportsImpl.h"
-#include "gfxPattern.h"
 
 typedef struct _cairo_scaled_font cairo_scaled_font_t;
 
@@ -510,22 +509,10 @@ public:
         mFaceNamesInitialized(false),
         mHasStyles(false),
         mIsSimpleFamily(false),
-        mIsBadUnderlineFamily(false),
-        mCharacterMapInitialized(false)
+        mIsBadUnderlineFamily(false)
         { }
 
-    virtual ~gfxFontFamily() {
-        // clear Family pointers in our faces; the font entries might stay
-        // alive due to cached font objects, but they can no longer refer
-        // to their families.
-        PRUint32 i = mAvailableFonts.Length();
-        while (i) {
-             gfxFontEntry *fe = mAvailableFonts[--i];
-             if (fe) {
-                 fe->SetFamily(nsnull);
-             }
-        }
-    }
+    virtual ~gfxFontFamily() { }
 
     const nsString& Name() { return mName; }
 
@@ -584,28 +571,10 @@ public:
     // read in cmaps for all the faces
     void ReadCMAP() {
         PRUint32 i, numFonts = mAvailableFonts.Length();
-        for (i = 0; i < numFonts; i++) {
-            gfxFontEntry *fe = mAvailableFonts[i];
-            if (!fe) {
-                continue;
-            }
-            fe->ReadCMAP();
-            mCharacterMap.Union(fe->mCharacterMap);
-        }
-        mCharacterMap.Compact();
-        mCharacterMapInitialized = true;
-    }
-
-    bool TestCharacterMap(PRUint32 aCh) {
-        if (!mCharacterMapInitialized) {
-            ReadCMAP();
-        }
-        return mCharacterMap.test(aCh);
-    }
-
-    void ResetCharacterMap() {
-        mCharacterMap.reset();
-        mCharacterMapInitialized = false;
+        // called from RunLoader BEFORE CheckForSimpleFamily so that there cannot
+        // be any NULL entries in mAvailableFonts
+        for (i = 0; i < numFonts; i++)
+            mAvailableFonts[i]->ReadCMAP();
     }
 
     // mark this family as being in the "bad" underline offset blacklist
@@ -648,14 +617,12 @@ protected:
 
     nsString mName;
     nsTArray<nsRefPtr<gfxFontEntry> >  mAvailableFonts;
-    gfxSparseBitSet mCharacterMap;
     bool mOtherFamilyNamesInitialized;
     bool mHasOtherFamilyNames;
     bool mFaceNamesInitialized;
     bool mHasStyles;
     bool mIsSimpleFamily;
     bool mIsBadUnderlineFamily;
-    bool mCharacterMapInitialized;
 
     enum {
         // for "simple" families, the faces are stored in mAvailableFonts
@@ -1345,8 +1312,7 @@ public:
      */
     virtual void Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
                       gfxContext *aContext, DrawMode aDrawMode, gfxPoint *aBaselineOrigin,
-                      Spacing *aSpacing, gfxPattern *aStrokePattern);
-
+                      Spacing *aSpacing);
     /**
      * Measure a run of characters. See gfxTextRun::Metrics.
      * @param aTight if false, then return the union of the glyph extents
@@ -2392,7 +2358,7 @@ public:
               gfxFont::DrawMode aDrawMode,
               PRUint32 aStart, PRUint32 aLength,
               PropertyProvider *aProvider,
-              gfxFloat *aAdvanceWidth, gfxPattern *aStrokePattern);
+              gfxFloat *aAdvanceWidth);
 
     /**
      * Computes the ReflowMetrics for a substring.
@@ -2837,7 +2803,7 @@ private:
     // **** drawing helper ****
     void DrawGlyphs(gfxFont *aFont, gfxContext *aContext,
                     gfxFont::DrawMode aDrawMode, gfxPoint *aPt,
-                    gfxPattern *aStrokePattern, PRUint32 aStart, PRUint32 aEnd,
+                    PRUint32 aStart, PRUint32 aEnd,
                     PropertyProvider *aProvider,
                     PRUint32 aSpacingStart, PRUint32 aSpacingEnd);
 

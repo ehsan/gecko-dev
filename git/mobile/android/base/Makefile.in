@@ -57,8 +57,8 @@ SYNC_RES_DRAWABLE_MDPI=$(shell cat $(topsrcdir)/mobile/android/sync/android-draw
 SYNC_RES_DRAWABLE_HDPI=$(shell cat $(topsrcdir)/mobile/android/sync/android-drawable-hdpi-resources.mn | tr '\n' ' ';)
 SYNC_RES_LAYOUT=$(shell cat $(topsrcdir)/mobile/android/sync/android-layout-resources.mn | tr '\n' ' ';)
 SYNC_RES_VALUES=$(shell cat $(topsrcdir)/mobile/android/sync/android-values-resources.mn | tr '\n' ' ';)
-SYNC_RES_XML=res/xml/sync_authenticator.xml
-SYNC_PP_RES_XML=res/xml/sync_syncadapter.xml res/xml/sync_options.xml
+SYNC_RES_XML=res/xml/sync_authenticator.xml res/xml/sync_options.xml
+SYNC_PP_RES_XML=res/xml/sync_syncadapter.xml
 
 FENNEC_JAVA_FILES = \
   AboutHomeContent.java \
@@ -72,7 +72,6 @@ FENNEC_JAVA_FILES = \
   db/AndroidBrowserDB.java \
   db/BrowserDB.java \
   db/LocalBrowserDB.java \
-  db/DBUtils.java \
   DoorHanger.java \
   DoorHangerPopup.java \
   Favicons.java \
@@ -150,7 +149,6 @@ FENNEC_PP_JAVA_FILES = \
   Restarter.java \
   db/BrowserContract.java \
   db/BrowserProvider.java \
-  db/PasswordsProvider.java \
   SmsManager.java \
   $(NULL)
 
@@ -295,6 +293,8 @@ RES_DRAWABLE_BASE = \
   res/drawable/abouthome_sync_logo.png \
   res/drawable/abouthome_sync_bg.9.png \
   res/drawable/abouthome_sync_pressed_bg.9.png \
+  res/drawable/abouthome_topsite_placeholder.png \
+  res/drawable/abouthome_topsite_shadow.9.png \
   res/drawable/awesomebar_tab.9.png \
   res/drawable/awesomebar_tab_pressed.9.png \
   res/drawable/ic_addons_empty.png \
@@ -343,6 +343,8 @@ RES_DRAWABLE_HDPI = \
   res/drawable-hdpi/abouthome_sync_logo.png \
   res/drawable-hdpi/abouthome_sync_bg.9.png \
   res/drawable-hdpi/abouthome_sync_pressed_bg.9.png \
+  res/drawable-hdpi/abouthome_topsite_placeholder.png \
+  res/drawable-hdpi/abouthome_topsite_shadow.9.png \
   res/drawable-hdpi/awesomebar_tab.9.png \
   res/drawable-hdpi/awesomebar_tab_pressed.9.png \
   res/drawable-hdpi/ic_addons_empty.png \
@@ -405,6 +407,8 @@ RES_DRAWABLE_XHDPI_V11 = \
   res/drawable-xhdpi-v11/abouthome_sync_logo.png \
   res/drawable-xhdpi-v11/abouthome_sync_bg.9.png \
   res/drawable-xhdpi-v11/abouthome_sync_pressed_bg.9.png \
+  res/drawable-xhdpi-v11/abouthome_topsite_placeholder.png \
+  res/drawable-xhdpi-v11/abouthome_topsite_shadow.9.png \
   res/drawable-xhdpi-v11/awesomebar_tab.9.png \
   res/drawable-xhdpi-v11/awesomebar_tab_pressed.9.png \
   res/drawable-xhdpi-v11/ic_addons_empty.png \
@@ -593,10 +597,9 @@ classes.dex: $(FENNEC_JAVA_FILES) $(FENNEC_PP_JAVA_FILES) $(SYNC_JAVA_FILES) $(S
 
 PP_RES_XML=$(SYNC_PP_RES_XML)
 
-# This is kinda awful; if any of the source files change, we remake them all.
-$(PP_RES_XML): $(patsubst res/%,$(srcdir)/resources/%.in,$(PP_RES_XML))
+$(PP_RES_XML): $(subst res/,$(srcdir)/resources/, $(PP_RES_XML).in)
 	$(PYTHON) $(topsrcdir)/config/Preprocessor.py \
-             $(AUTOMATION_PPARGS) $(DEFINES) $(ACDEFINES) $(subst res,$(srcdir)/resources,$@).in > $@
+             $(AUTOMATION_PPARGS) $(DEFINES) $(ACDEFINES) $< > $@
 
 # AndroidManifest.xml includes these files, so they need to be marked as dependencies.
 SYNC_MANIFEST_FRAGMENTS = $(wildcard $(topsrcdir)/mobile/android/sync/manifests/*.in)
@@ -632,10 +635,10 @@ $(RESOURCES): $(RES_DIRS) $(subst res/,$(srcdir)/resources/,$(RESOURCES))
 	$(NSINSTALL) $(subst res/,$(srcdir)/resources/,$@) $(dir $@)
 
 
-R.java: $(MOZ_APP_ICON) $(RESOURCES) $(RES_DRAWABLE) $(RES_DRAWABLE_LDPI) $(RES_DRAWABLE_MDPI) $(RES_DRAWABLE_HDPI) $(PP_RES_XML) res/values/defaults.xml res/drawable/sync_ic_launcher.png res/drawable/icon.png res/drawable-hdpi/icon.png res/values/strings.xml AndroidManifest.xml FORCE
+R.java: $(MOZ_APP_ICON) $(RESOURCES) $(RES_DRAWABLE) $(RES_DRAWABLE_LDPI) $(RES_DRAWABLE_MDPI) $(RES_DRAWABLE_HDPI) $(PP_RES_XML) res/values/defaults.xml res/drawable/sync_icon.png res/drawable/icon.png res/drawable-hdpi/icon.png res/values/strings.xml AndroidManifest.xml FORCE
 	$(AAPT) package -f -M AndroidManifest.xml -I $(ANDROID_SDK)/android.jar -S res -J . --custom-package org.mozilla.gecko
 
-gecko.ap_: AndroidManifest.xml res/drawable/sync_ic_launcher.png res/drawable/icon.png res/drawable-hdpi/icon.png $(RESOURCES) $(RES_DRAWABLE) $(RES_DRAWABLE_LDPI) $(RES_DRAWABLE_MDPI) $(RES_DRAWABLE_HDPI) $(PP_RES_XML) res/values/defaults.xml res/values/strings.xml FORCE
+gecko.ap_: AndroidManifest.xml res/drawable/sync_icon.png res/drawable/icon.png res/drawable-hdpi/icon.png $(RESOURCES) $(RES_DRAWABLE) $(RES_DRAWABLE_LDPI) $(RES_DRAWABLE_MDPI) $(RES_DRAWABLE_HDPI) $(PP_RES_XML) res/values/defaults.xml res/values/strings.xml FORCE
 	$(AAPT) package -f -M AndroidManifest.xml -I $(ANDROID_SDK)/android.jar  -S res -F $@
 
 libs:: classes.dex package-name.txt

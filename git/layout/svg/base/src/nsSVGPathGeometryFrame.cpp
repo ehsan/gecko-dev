@@ -159,16 +159,8 @@ nsSVGPathGeometryFrame::GetFrameForPoint(const nsPoint &aPoint)
     fillRule = GetClipRule();
   } else {
     hitTestFlags = GetHitTestFlags();
-    // XXX once bug 614732 is fixed, aPoint won't need any conversion in order
-    // to compare it with mRect.
-    gfxMatrix canvasTM = GetCanvasTM();
-    if (canvasTM.IsSingular()) {
-      return nsnull;
-    }
-    nsPoint point =
-      nsSVGUtils::TransformOuterSVGPointToChildFrame(aPoint, canvasTM, PresContext());
     if (!hitTestFlags || ((hitTestFlags & SVG_HIT_TEST_CHECK_MRECT) &&
-                          !mRect.Contains(point)))
+                          !mRect.Contains(aPoint)))
       return nsnull;
     fillRule = GetStyleSVG()->mFillRule;
   }
@@ -204,25 +196,17 @@ nsSVGPathGeometryFrame::GetFrameForPoint(const nsPoint &aPoint)
 NS_IMETHODIMP_(nsRect)
 nsSVGPathGeometryFrame::GetCoveredRegion()
 {
-  // See bug 614732 comment 32:
-  //return nsSVGUtils::TransformFrameRectToOuterSVG(mRect, GetCanvasTM(), PresContext());
-  return mCoveredRegion;
+  return mRect;
 }
 
 NS_IMETHODIMP
 nsSVGPathGeometryFrame::UpdateCoveredRegion()
 {
-  gfxRect extent = GetBBoxContribution(gfxMatrix(),
+  gfxRect extent = GetBBoxContribution(GetCanvasTM(),
     nsSVGUtils::eBBoxIncludeFill | nsSVGUtils::eBBoxIgnoreFillIfNone |
     nsSVGUtils::eBBoxIncludeStroke | nsSVGUtils::eBBoxIgnoreStrokeIfNone |
     nsSVGUtils::eBBoxIncludeMarkers);
-  mRect = nsLayoutUtils::RoundGfxRectToAppRect(extent,
-            PresContext()->AppUnitsPerCSSPixel());
-
-  // See bug 614732 comment 32.
-  mCoveredRegion = nsSVGUtils::TransformFrameRectToOuterSVG(
-    mRect, GetCanvasTM(), PresContext());
-
+  mRect = nsSVGUtils::ToAppPixelRect(PresContext(), extent);
   return NS_OK;
 }
 
@@ -252,19 +236,20 @@ nsSVGPathGeometryFrame::NotifySVGChanged(PRUint32 aFlags)
   }
 }
 
-void
+NS_IMETHODIMP
 nsSVGPathGeometryFrame::NotifyRedrawSuspended()
 {
-  AddStateBits(NS_STATE_SVG_REDRAW_SUSPENDED);
+  // XXX should we cache the fact that redraw is suspended?
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 nsSVGPathGeometryFrame::NotifyRedrawUnsuspended()
 {
-  RemoveStateBits(NS_STATE_SVG_REDRAW_SUSPENDED);
-
   if (GetStateBits() & NS_STATE_SVG_DIRTY)
     nsSVGUtils::UpdateGraphic(this);
+
+  return NS_OK;
 }
 
 gfxRect
@@ -323,9 +308,7 @@ nsSVGPathGeometryFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
       pathExtents.SizeTo(0, 0);
     }
     bbox =
-      bbox.Union(nsSVGUtils::PathExtentsToMaxStrokeExtents(pathExtents,
-                                                           this,
-                                                           aToBBoxUserspace));
+      bbox.Union(nsSVGUtils::PathExtentsToMaxStrokeExtents(pathExtents, this));
   }
 
   // Account for markers:
@@ -384,7 +367,7 @@ nsSVGPathGeometryFrame::GetCanvasTM()
   nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
   nsSVGGraphicElement *content = static_cast<nsSVGGraphicElement*>(mContent);
 
-  return content->PrependLocalTransformsTo(parent->GetCanvasTM());
+  return content->PrependLocalTransformTo(parent->GetCanvasTM());
 }
 
 //----------------------------------------------------------------------

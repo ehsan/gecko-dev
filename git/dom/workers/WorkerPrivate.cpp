@@ -102,7 +102,7 @@ using mozilla::MutexAutoLock;
 using mozilla::TimeDuration;
 using mozilla::TimeStamp;
 using mozilla::dom::workers::exceptions::ThrowDOMExceptionForCode;
-using mozilla::xpconnect::memory::ReportJSRuntimeExplicitTreeStats;
+using mozilla::xpconnect::memory::ReportJSRuntimeStats;
 
 USING_WORKERS_NAMESPACE
 
@@ -228,12 +228,6 @@ public:
     return NS_OK;
   }
 
-  NS_IMETHOD GetName(nsACString &aName)
-  {
-      aName.AssignLiteral("workers");
-      return NS_OK;
-  }
-
   NS_IMETHOD
   CollectReports(nsIMemoryMultiReporterCallback* aCallback,
                  nsISupports* aClosure)
@@ -249,7 +243,7 @@ public:
 
     // Always report, even if we're disabled, so that we at least get an entry
     // in about::memory.
-    ReportJSRuntimeExplicitTreeStats(rtStats, mPathPrefix, aCallback, aClosure);
+    ReportJSRuntimeStats(rtStats, mPathPrefix, aCallback, aClosure);
 
     return NS_OK;
   }
@@ -338,7 +332,7 @@ struct WorkerStructuredCloneCallbacks
 
     // See if this is a File object.
     {
-      nsIDOMFile* file = file::GetDOMFileFromJSObject(aObj);
+      nsIDOMFile* file = file::GetDOMFileFromJSObject(aCx, aObj);
       if (file) {
         if (JS_WriteUint32Pair(aWriter, DOMWORKER_SCTAG_FILE, 0) &&
             JS_WriteBytes(aWriter, &file, sizeof(file))) {
@@ -350,7 +344,7 @@ struct WorkerStructuredCloneCallbacks
 
     // See if this is a Blob object.
     {
-      nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aObj);
+      nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aCx, aObj);
       if (blob) {
         nsCOMPtr<nsIMutable> mutableBlob = do_QueryInterface(blob);
         if (mutableBlob && NS_SUCCEEDED(mutableBlob->SetMutable(false)) &&
@@ -777,8 +771,7 @@ class CompileScriptRunnable : public WorkerRunnable
 {
 public:
   CompileScriptRunnable(WorkerPrivate* aWorkerPrivate)
-  : WorkerRunnable(aWorkerPrivate, WorkerThread, ModifyBusyCount,
-                   SkipWhenClearing)
+  : WorkerRunnable(aWorkerPrivate, WorkerThread, ModifyBusyCount)
   { }
 
   bool
@@ -806,8 +799,7 @@ class CloseEventRunnable : public WorkerRunnable
 {
 public:
   CloseEventRunnable(WorkerPrivate* aWorkerPrivate)
-  : WorkerRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount,
-                   SkipWhenClearing)
+  : WorkerRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount)
   { }
 
   bool
@@ -860,8 +852,7 @@ public:
                        nsTArray<nsCOMPtr<nsISupports> >& aClonedObjects)
   : WorkerRunnable(aWorkerPrivate, aTarget, aTarget == WorkerThread ?
                                                        ModifyBusyCount :
-                                                       UnchangedBusyCount,
-                   SkipWhenClearing)
+                                                       UnchangedBusyCount)
   {
     aData.steal(&mData, &mDataByteCount);
 
@@ -1013,8 +1004,7 @@ public:
                       const nsString& aFilename, const nsString& aLine,
                       PRUint32 aLineNumber, PRUint32 aColumnNumber,
                       PRUint32 aFlags, PRUint32 aErrorNumber)
-  : WorkerRunnable(aWorkerPrivate, ParentThread, UnchangedBusyCount,
-                   SkipWhenClearing),
+  : WorkerRunnable(aWorkerPrivate, ParentThread, UnchangedBusyCount),
     mMessage(aMessage), mFilename(aFilename), mLine(aLine),
     mLineNumber(aLineNumber), mColumnNumber(aColumnNumber), mFlags(aFlags),
     mErrorNumber(aErrorNumber)
@@ -1216,8 +1206,7 @@ class TimerRunnable : public WorkerRunnable
 {
 public:
   TimerRunnable(WorkerPrivate* aWorkerPrivate)
-  : WorkerRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount,
-                   SkipWhenClearing)
+  : WorkerRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount)
   { }
 
   bool
@@ -1320,8 +1309,7 @@ class KillCloseEventRunnable : public WorkerRunnable
 
 public:
   KillCloseEventRunnable(WorkerPrivate* aWorkerPrivate)
-  : WorkerRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount,
-                   SkipWhenClearing)
+  : WorkerRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount)
   { }
 
   ~KillCloseEventRunnable()
@@ -1560,10 +1548,9 @@ mozilla::dom::workers::AssertIsOnMainThread()
 }
 
 WorkerRunnable::WorkerRunnable(WorkerPrivate* aWorkerPrivate, Target aTarget,
-                               BusyBehavior aBusyBehavior,
-                               ClearingBehavior aClearingBehavior)
+                               BusyBehavior aBusyBehavior)
 : mWorkerPrivate(aWorkerPrivate), mTarget(aTarget),
-  mBusyBehavior(aBusyBehavior), mClearingBehavior(aClearingBehavior)
+  mBusyBehavior(aBusyBehavior)
 {
   NS_ASSERTION(aWorkerPrivate, "Null worker private!");
 }
@@ -2608,7 +2595,7 @@ WorkerPrivate::DoRunLoop(JSContext* aCx)
     Status currentStatus;
     bool scheduleIdleGC;
 
-    WorkerRunnable* event;
+    nsIRunnable* event;
     {
       MutexAutoLock lock(mMutex);
 
@@ -2650,7 +2637,7 @@ WorkerPrivate::DoRunLoop(JSContext* aCx)
         // Keep track of whether or not this is the idle GC event.
         eventIsNotIdleGCEvent = event != idleGCEvent;
 
-        static_cast<nsIRunnable*>(event)->Run();
+        event->Run();
         NS_RELEASE(event);
       }
 
@@ -2873,7 +2860,7 @@ WorkerPrivate::ProcessAllControlRunnables()
   bool result = true;
 
   for (;;) {
-    WorkerRunnable* event;
+    nsIRunnable* event;
     {
       MutexAutoLock lock(mMutex);
       if (!mControlQueue.Pop(event)) {
@@ -2881,7 +2868,7 @@ WorkerPrivate::ProcessAllControlRunnables()
       }
     }
 
-    if (NS_FAILED(static_cast<nsIRunnable*>(event)->Run())) {
+    if (NS_FAILED(event->Run())) {
       result = false;
     }
 
@@ -2960,13 +2947,8 @@ WorkerPrivate::ClearQueue(EventQueue* aQueue)
   AssertIsOnWorkerThread();
   mMutex.AssertCurrentThreadOwns();
 
-  WorkerRunnable* event;
+  nsIRunnable* event;
   while (aQueue->Pop(event)) {
-    if (event->WantsToRunDuringClear()) {
-      MutexAutoUnlock unlock(mMutex);
-
-      static_cast<nsIRunnable*>(event)->Run();
-    }
     event->Release();
   }
 }
@@ -3194,7 +3176,7 @@ WorkerPrivate::RunSyncLoop(JSContext* aCx, PRUint32 aSyncLoopKey)
   SyncQueue* syncQueue = mSyncQueues[aSyncLoopKey].get();
 
   for (;;) {
-    WorkerRunnable* event;
+    nsIRunnable* event;
     {
       MutexAutoLock lock(mMutex);
 
@@ -3208,7 +3190,7 @@ WorkerPrivate::RunSyncLoop(JSContext* aCx, PRUint32 aSyncLoopKey)
     JS_GC(mJSContext);
 #endif
 
-    static_cast<nsIRunnable*>(event)->Run();
+    event->Run();
     NS_RELEASE(event);
 
 #ifdef EXTRA_GC
@@ -3712,11 +3694,7 @@ WorkerPrivate::RunExpiredTimeouts(JSContext* aCx)
 
       NS_ASSERTION(!mTimeouts.Contains(info), "Shouldn't have duplicates!");
 
-      // NB: We must ensure that info->mTargetTime > now (where now is the
-      // now above, not literally TimeStamp::Now()) or we will remove the
-      // interval in the next loop below.
-      info->mTargetTime = NS_MAX(info->mTargetTime + info->mInterval,
-                                 now + TimeDuration::FromMilliseconds(1));
+      info->mTargetTime += info->mInterval;
       mTimeouts.InsertElementSorted(info, comparator);
     }
   }
@@ -3728,8 +3706,6 @@ WorkerPrivate::RunExpiredTimeouts(JSContext* aCx)
   for (PRUint32 index = 0; index < mTimeouts.Length(); ) {
     nsAutoPtr<TimeoutInfo>& info = mTimeouts[index];
     if (info->mTargetTime <= now || info->mCanceled) {
-      NS_ASSERTION(!info->mIsInterval || info->mCanceled,
-                   "Interval timers can only be removed when canceled!");
       mTimeouts.RemoveElement(info);
     }
     else {

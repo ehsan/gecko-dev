@@ -256,9 +256,9 @@ class ClonedBlockObject : public BlockObject
     const Value &closedSlot(unsigned i);
 };
 
-extern bool
-XDRStaticBlockObject(JSXDRState *xdr, JSScript *script, StaticBlockObject **objp);
-
 }  /* namespace js */
+
+extern bool
+js_XDRStaticBlockObject(JSXDRState *xdr, js::StaticBlockObject **objp);
 
 #endif /* ScopeObject_h___ */

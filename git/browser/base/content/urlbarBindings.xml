@@ -82,7 +82,8 @@
       <constructor><![CDATA[
         this._prefs = Components.classes["@mozilla.org/preferences-service;1"]
                                 .getService(Components.interfaces.nsIPrefService)
-                                .getBranch("browser.urlbar.");
+                                .getBranch("browser.urlbar.")
+                                .QueryInterface(Components.interfaces.nsIPrefBranch2);
 
         this._prefs.addObserver("", this, false);
         this.clickSelectsAll = this._prefs.getBoolPref("clickSelectsAll");

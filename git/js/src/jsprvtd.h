@@ -124,12 +124,18 @@ struct ArgumentsData;
 struct Class;
 
 class RegExpObject;
+class RegExpMatcher;
 class RegExpObjectBuilder;
-class RegExpShared;
 class RegExpStatics;
 class MatchPairs;
 
-namespace detail { class RegExpCode; }
+namespace detail {
+
+class RegExpPrivate;
+class RegExpPrivateCode;
+class RegExpPrivateCacheValue;
+
+} /* namespace detail */
 
 enum RegExpFlag
 {
@@ -214,6 +220,12 @@ class Breakpoint;
 class BreakpointSite;
 class Debugger;
 class WatchpointMap;
+
+typedef HashMap<JSAtom *,
+                detail::RegExpPrivateCacheValue,
+                DefaultHasher<JSAtom *>,
+                RuntimeAllocPolicy>
+    RegExpPrivateCache;
 
 /*
  * Env is the type of what ES5 calls "lexical environments" (runtime

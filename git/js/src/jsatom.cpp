@@ -154,7 +154,6 @@ const char *const js_common_atom_names[] = {
     js_noSuchMethod_str,        /* noSuchMethodAtom             */
     "[object Null]",            /* objectNullAtom               */
     "[object Undefined]",       /* objectUndefinedAtom          */
-    "of",                       /* ofAtom                       */
     js_proto_str,               /* protoAtom                    */
     js_set_str,                 /* setAtom                      */
     js_source_str,              /* sourceAtom                   */
@@ -387,9 +386,7 @@ js_TraceAtomState(JSTracer *trc)
 
     if (rt->gcKeepAtoms) {
         for (AtomSet::Range r = state->atoms.all(); !r.empty(); r.popFront()) {
-            JSAtom *tmp = r.front().asPtr();
-            MarkStringRoot(trc, &tmp, "locked_atom");
-            JS_ASSERT(tmp == r.front().asPtr());
+            MarkRoot(trc, r.front().asPtr(), "locked_atom");
         }
     } else {
         for (AtomSet::Range r = state->atoms.all(); !r.empty(); r.popFront()) {
@@ -397,28 +394,26 @@ js_TraceAtomState(JSTracer *trc)
             if (!entry.isTagged())
                 continue;
 
-            JSAtom *tmp = entry.asPtr();
-            MarkStringRoot(trc, &tmp, "interned_atom");
-            JS_ASSERT(tmp == entry.asPtr());
+            MarkRoot(trc, entry.asPtr(), "interned_atom");
         }
     }
 }
 
 void
-js_SweepAtomState(JSRuntime *rt)
+js_SweepAtomState(JSContext *cx)
 {
-    JSAtomState *state = &rt->atomState;
+    JSAtomState *state = &cx->runtime->atomState;
 
     for (AtomSet::Enum e(state->atoms); !e.empty(); e.popFront()) {
         AtomStateEntry entry = e.front();
 
         if (entry.isTagged()) {
             /* Pinned or interned key cannot be finalized. */
-            JS_ASSERT(!IsAboutToBeFinalized(entry.asPtr()));
+            JS_ASSERT(!IsAboutToBeFinalized(cx, entry.asPtr()));
             continue;
         }
 
-        if (IsAboutToBeFinalized(entry.asPtr()))
+        if (IsAboutToBeFinalized(cx, entry.asPtr()))
             e.removeFront();
     }
 }

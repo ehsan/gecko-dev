@@ -54,6 +54,7 @@
 #include "nsBinaryStream.h"
 #include "nsCRT.h"
 #include "nsIStreamBufferAccess.h"
+#include "nsMemory.h"
 #include "prlong.h"
 #include "nsString.h"
 #include "nsISerializable.h"
@@ -219,7 +220,7 @@ nsBinaryOutputStream::WriteWStringZ(const PRUnichar* aString)
     if (length <= 64) {
         copy = temp;
     } else {
-        copy = reinterpret_cast<PRUnichar*>(moz_malloc(byteCount));
+        copy = reinterpret_cast<PRUnichar*>(nsMemory::Alloc(byteCount));
         if (!copy)
             return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -228,7 +229,7 @@ nsBinaryOutputStream::WriteWStringZ(const PRUnichar* aString)
         copy[i] = NS_SWAP16(aString[i]);
     rv = WriteBytes(reinterpret_cast<const char*>(copy), byteCount);
     if (copy != temp)
-        moz_free(copy);
+        nsMemory::Free(copy);
 #endif
 
     return rv;
@@ -724,17 +725,17 @@ nsBinaryInputStream::ReadBytes(PRUint32 aLength, char* *_rval)
     PRUint32 bytesRead;
     char* s;
 
-    s = reinterpret_cast<char*>(moz_malloc(aLength));
+    s = reinterpret_cast<char*>(nsMemory::Alloc(aLength));
     if (!s)
         return NS_ERROR_OUT_OF_MEMORY;
 
     rv = Read(s, aLength, &bytesRead);
     if (NS_FAILED(rv)) {
-        moz_free(s);
+        nsMemory::Free(s);
         return rv;
     }
     if (bytesRead != aLength) {
-        moz_free(s);
+        nsMemory::Free(s);
         return NS_ERROR_FAILURE;
     }
 

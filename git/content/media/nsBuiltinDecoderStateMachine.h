@@ -136,7 +136,6 @@ public:
   typedef mozilla::ReentrantMonitor ReentrantMonitor;
   typedef mozilla::TimeStamp TimeStamp;
   typedef mozilla::TimeDuration TimeDuration;
-  typedef mozilla::VideoFrameContainer VideoFrameContainer;
 
   nsBuiltinDecoderStateMachine(nsBuiltinDecoder* aDecoder, nsBuiltinDecoderReader* aReader, bool aRealTime = false);
   ~nsBuiltinDecoderStateMachine();

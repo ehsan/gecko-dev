@@ -68,7 +68,7 @@
 #include "WorkerInlines.h"
 
 #define PROPERTY_FLAGS \
-  (JSPROP_ENUMERATE | JSPROP_SHARED)
+  JSPROP_ENUMERATE | JSPROP_SHARED
 
 #define FUNCTION_FLAGS \
   JSPROP_ENUMERATE
@@ -659,12 +659,15 @@ public:
   static JSBool
   InitPrivate(JSContext* aCx, JSObject* aObj, WorkerPrivate* aWorkerPrivate)
   {
-    JS_ASSERT(JS_GetClass(aObj) == &sClass);
-    JS_ASSERT(!GetJSPrivateSafeish<DedicatedWorkerGlobalScope>(aObj));
+    JS_ASSERT(JS_GET_CLASS(aCx, aObj) == &sClass);
+    JS_ASSERT(!GetJSPrivateSafeish<DedicatedWorkerGlobalScope>(aCx, aObj));
 
     DedicatedWorkerGlobalScope* priv =
       new DedicatedWorkerGlobalScope(aWorkerPrivate);
-    SetJSPrivateSafeish(aObj, priv);
+    if (!SetJSPrivateSafeish(aCx, aObj, priv)) {
+      delete priv;
+      return false;
+    }
 
     return true;
   }
@@ -719,14 +722,20 @@ private:
   static DedicatedWorkerGlobalScope*
   GetInstancePrivate(JSContext* aCx, JSObject* aObj, const char* aFunctionName)
   {
-    JSClass* classPtr = JS_GetClass(aObj);
-    if (classPtr == &sClass) {
-      return GetJSPrivateSafeish<DedicatedWorkerGlobalScope>(aObj);
+    // JS_GetInstancePrivate is ok to be called with a null aObj, so this should
+    // be too.
+    JSClass* classPtr = NULL;
+
+    if (aObj) {
+      classPtr = JS_GET_CLASS(aCx, aObj);
+      if (classPtr == &sClass) {
+        return GetJSPrivateSafeish<DedicatedWorkerGlobalScope>(aCx, aObj);
+      }
     }
 
     JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL,
                          JSMSG_INCOMPATIBLE_PROTO, sClass.name, aFunctionName,
-                         classPtr->name);
+                         classPtr ? classPtr->name : "object");
     return NULL;
   }
 
@@ -754,9 +763,9 @@ private:
   static void
   Finalize(JSContext* aCx, JSObject* aObj)
   {
-    JS_ASSERT(JS_GetClass(aObj) == &sClass);
+    JS_ASSERT(JS_GET_CLASS(aCx, aObj) == &sClass);
     DedicatedWorkerGlobalScope* scope =
-      GetJSPrivateSafeish<DedicatedWorkerGlobalScope>(aObj);
+      GetJSPrivateSafeish<DedicatedWorkerGlobalScope>(aCx, aObj);
     if (scope) {
       scope->FinalizeInstance(aCx);
       delete scope;
@@ -766,9 +775,9 @@ private:
   static void
   Trace(JSTracer* aTrc, JSObject* aObj)
   {
-    JS_ASSERT(JS_GetClass(aObj) == &sClass);
+    JS_ASSERT(JS_GET_CLASS(aTrc->context, aObj) == &sClass);
     DedicatedWorkerGlobalScope* scope =
-      GetJSPrivateSafeish<DedicatedWorkerGlobalScope>(aObj);
+      GetJSPrivateSafeish<DedicatedWorkerGlobalScope>(aTrc->context, aObj);
     if (scope) {
       scope->TraceInstance(aTrc);
     }
@@ -799,10 +808,10 @@ private:
 
 JSClass DedicatedWorkerGlobalScope::sClass = {
   "DedicatedWorkerGlobalScope",
-  JSCLASS_GLOBAL_FLAGS | JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_NEW_RESOLVE,
+  JSCLASS_GLOBAL_FLAGS | JSCLASS_HAS_PRIVATE | JSCLASS_NEW_RESOLVE,
   JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
   JS_EnumerateStub, reinterpret_cast<JSResolveOp>(Resolve), JS_ConvertStub,
-  Finalize, NULL, NULL, NULL, NULL, Trace
+  Finalize, NULL, NULL, NULL, NULL, NULL, NULL, Trace, NULL
 };
 
 JSPropertySpec DedicatedWorkerGlobalScope::sProperties[] = {
@@ -824,13 +833,21 @@ WorkerGlobalScope*
 WorkerGlobalScope::GetInstancePrivate(JSContext* aCx, JSObject* aObj,
                                       const char* aFunctionName)
 {
-  JSClass* classPtr = JS_GetClass(aObj);
-  if (classPtr == &sClass || classPtr == DedicatedWorkerGlobalScope::Class()) {
-    return GetJSPrivateSafeish<WorkerGlobalScope>(aObj);
+  // JS_GetInstancePrivate is ok to be called with a null aObj, so this should
+  // be too.
+  JSClass* classPtr = NULL;
+
+  if (aObj) {
+    classPtr = JS_GET_CLASS(aCx, aObj);
+    if (classPtr == &sClass ||
+        classPtr == DedicatedWorkerGlobalScope::Class()) {
+      return GetJSPrivateSafeish<WorkerGlobalScope>(aCx, aObj);
+    }
   }
 
   JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL, JSMSG_INCOMPATIBLE_PROTO,
-                       sClass.name, aFunctionName, classPtr->name);
+                       sClass.name, aFunctionName,
+                       classPtr ? classPtr->name : "object");
   return NULL;
 }
 

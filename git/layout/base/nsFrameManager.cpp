@@ -215,15 +215,20 @@ protected:
 
 //----------------------------------------------------------------------
 
+nsFrameManager::nsFrameManager()
+{
+}
+
 nsFrameManager::~nsFrameManager()
 {
   NS_ASSERTION(!mPresShell, "nsFrameManager::Destroy never called");
 }
 
 nsresult
-nsFrameManager::Init(nsStyleSet* aStyleSet)
+nsFrameManager::Init(nsIPresShell* aPresShell,
+                     nsStyleSet*  aStyleSet)
 {
-  if (!mPresShell) {
+  if (!aPresShell) {
     NS_ERROR("null pres shell");
     return NS_ERROR_FAILURE;
   }
@@ -233,6 +238,7 @@ nsFrameManager::Init(nsStyleSet* aStyleSet)
     return NS_ERROR_FAILURE;
   }
 
+  mPresShell = aPresShell;
   mStyleSet = aStyleSet;
   return NS_OK;
 }
@@ -263,7 +269,7 @@ nsFrameManager::Destroy()
 
 // Placeholder frame functions
 nsPlaceholderFrame*
-nsFrameManager::GetPlaceholderFrameFor(const nsIFrame* aFrame)
+nsFrameManager::GetPlaceholderFrameFor(nsIFrame* aFrame)
 {
   NS_PRECONDITION(aFrame, "null param unexpected");
 
@@ -1060,13 +1066,6 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
     aMinChange =
       NS_SubtractHint(aMinChange, nsChangeHint_ClearAncestorIntrinsics);
   }
-
-  // We need to generate a new change list entry for every frame whose style
-  // comparision returns one of these hints. These hints don't automatically
-  // update all their descendant frames.
-  aMinChange = NS_SubtractHint(aMinChange, nsChangeHint_UpdateTransformLayer);
-  aMinChange = NS_SubtractHint(aMinChange, nsChangeHint_UpdateOpacityLayer);
-  aMinChange = NS_SubtractHint(aMinChange, nsChangeHint_UpdateOverflow);
 
   // It would be nice if we could make stronger assertions here; they
   // would let us simplify the ?: expressions below setting |content|

@@ -364,22 +364,6 @@ nsColumnSetFrame::ChooseColumnStrategy(const nsHTMLReflowState& aReflowState)
   nscoord colGap = GetColumnGap(this, colStyle);
   PRInt32 numColumns = colStyle->mColumnCount;
 
-  bool isBalancing = colStyle->mColumnFill == NS_STYLE_COLUMN_FILL_BALANCE;
-  if (isBalancing) {
-    const PRUint32 MAX_NESTED_COLUMN_BALANCING = 2;
-    PRUint32 cnt = 1;
-    for (const nsHTMLReflowState* rs = aReflowState.parentReflowState;
-         rs && cnt < MAX_NESTED_COLUMN_BALANCING;
-         rs = rs->parentReflowState) {
-      if (rs->mFlags.mIsColumnBalancing) {
-        ++cnt;
-      }
-    }
-    if (cnt == MAX_NESTED_COLUMN_BALANCING) {
-      numColumns = 1;
-    }
-  }
-
   nscoord colWidth;
   if (colStyle->mColumnWidth.GetUnit() == eStyleUnit_Coord) {
     colWidth = colStyle->mColumnWidth.GetCoordValue();
@@ -433,7 +417,7 @@ nsColumnSetFrame::ChooseColumnStrategy(const nsHTMLReflowState& aReflowState)
   }
 
   // If column-fill is set to 'balance', then we want to balance the columns.
-  if (isBalancing) {
+  if (colStyle->mColumnFill == NS_STYLE_COLUMN_FILL_BALANCE) {
     // Balancing!
 
     if (numColumns <= 0) {
@@ -673,7 +657,6 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
                                        aReflowState.ComputedHeight());
       kidReflowState.mFlags.mIsTopOfPage = true;
       kidReflowState.mFlags.mTableIsSplittable = false;
-      kidReflowState.mFlags.mIsColumnBalancing = aConfig.mBalanceColCount < PR_INT32_MAX;
           
 #ifdef DEBUG_roc
       printf("*** Reflowing child #%d %p: availHeight=%d\n",
@@ -1100,11 +1083,7 @@ nsColumnSetFrame::Reflow(nsPresContext*           aPresContext,
   
   CheckInvalidateSizeChange(aDesiredSize);
 
-  // XXXjwir3: This call should be replaced with FinishWithAbsoluteFrames
-  //           when bug 724978 is fixed and nsColumnSetFrame is a full absolute
-  //           container.
-  FinishAndStoreOverflow(&aDesiredSize);
-
+  FinishReflowWithAbsoluteFrames(aPresContext, aDesiredSize, aReflowState, aStatus);
   aDesiredSize.mCarriedOutBottomMargin = carriedOutBottomMargin;
 
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);

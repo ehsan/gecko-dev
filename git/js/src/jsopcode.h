@@ -271,7 +271,9 @@ struct JSCodeSpec {
     uint8_t             prec;           /* operator precedence */
     uint32_t            format;         /* immediate operand format */
 
+#ifdef __cplusplus
     uint32_t type() const { return JOF_TYPE(format); }
+#endif
 };
 
 extern const JSCodeSpec js_CodeSpec[];
@@ -357,6 +359,7 @@ js_GetIndexFromBytecode(JSScript *script, jsbytecode *pc, ptrdiff_t pcoff);
         (dbl) = (script)->getConst(index_).toDouble();                        \
     JS_END_MACRO
 
+#ifdef __cplusplus
 namespace js {
 
 extern uintN
@@ -366,6 +369,7 @@ extern uintN
 StackDefs(JSScript *script, jsbytecode *pc);
 
 }  /* namespace js */
+#endif  /* __cplusplus */
 
 /*
  * Decompilers, for script, function, and expression pretty-printing.
@@ -425,6 +429,7 @@ JS_END_EXTERN_C
 #define JSDVG_IGNORE_STACK      0
 #define JSDVG_SEARCH_STACK      1
 
+#ifdef __cplusplus
 /*
  * Get the length of variable-length bytecode like JSOP_TABLESWITCH.
  */
@@ -504,7 +509,6 @@ class Sprinter
      * the beginning of this new data
      */
     ptrdiff_t put(const char *s, size_t len);
-    ptrdiff_t put(const char *s);
     ptrdiff_t putString(JSString *str);
 
     /* Prints a formatted string into the buffer */
@@ -518,6 +522,15 @@ class Sprinter
     ptrdiff_t getOffset() const;
     ptrdiff_t getOffsetOf(const char *string) const;
 };
+
+extern ptrdiff_t
+SprintPut(Sprinter *sp, const char *s, size_t len);
+
+extern ptrdiff_t
+SprintCString(Sprinter *sp, const char *s);
+
+extern ptrdiff_t
+SprintString(Sprinter *sp, JSString *str);
 
 extern ptrdiff_t
 Sprint(Sprinter *sp, const char *format, ...);
@@ -688,8 +701,9 @@ class OpcodeCounts
 };
 
 } /* namespace js */
+#endif /* __cplusplus */
 
-#if defined(DEBUG)
+#if defined(DEBUG) && defined(__cplusplus)
 /*
  * Disassemblers, for debugging only.
  */

@@ -39,6 +39,7 @@
 #include "nsSVGInnerSVGFrame.h"
 #include "nsIFrame.h"
 #include "nsISVGChildFrame.h"
+#include "nsSVGOuterSVGFrame.h"
 #include "nsIDOMSVGAnimatedRect.h"
 #include "nsSVGSVGElement.h"
 #include "nsSVGContainerFrame.h"
@@ -215,28 +216,33 @@ nsSVGInnerSVGFrame::GetFrameForPoint(const nsPoint &aPoint)
 //----------------------------------------------------------------------
 // nsISVGSVGFrame methods:
 
-void
+NS_IMETHODIMP
 nsSVGInnerSVGFrame::SuspendRedraw()
 {
-  if (GetParent()->GetStateBits() & NS_STATE_SVG_REDRAW_SUSPENDED)
-    return;
-
-  nsSVGUtils::NotifyRedrawSuspended(this);
+  nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(this);
+  if (!outerSVGFrame) {
+    NS_ERROR("no outer svg frame");
+    return NS_ERROR_FAILURE;
+  }
+  return outerSVGFrame->SuspendRedraw();
 }
 
-void
+NS_IMETHODIMP
 nsSVGInnerSVGFrame::UnsuspendRedraw()
 {
-  if (GetParent()->GetStateBits() & NS_STATE_SVG_REDRAW_SUSPENDED)
-    return;
-
-  nsSVGUtils::NotifyRedrawUnsuspended(this);
+  nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(this);
+  if (!outerSVGFrame) {
+    NS_ERROR("no outer svg frame");
+    return NS_ERROR_FAILURE;
+  }
+  return outerSVGFrame->UnsuspendRedraw();
 }
 
-void
+NS_IMETHODIMP
 nsSVGInnerSVGFrame::NotifyViewportChange()
 {
   NS_ERROR("Inner SVG frames should not get Viewport changes.");
+  return NS_ERROR_FAILURE;
 }
 
 //----------------------------------------------------------------------
@@ -251,7 +257,7 @@ nsSVGInnerSVGFrame::GetCanvasTM()
     nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
     nsSVGSVGElement *content = static_cast<nsSVGSVGElement*>(mContent);
 
-    gfxMatrix tm = content->PrependLocalTransformsTo(parent->GetCanvasTM());
+    gfxMatrix tm = content->PrependLocalTransformTo(parent->GetCanvasTM());
 
     mCanvasTM = new gfxMatrix(tm);
   }

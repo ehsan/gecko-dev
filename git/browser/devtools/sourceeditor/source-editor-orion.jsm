@@ -22,7 +22,6 @@
  * Contributor(s):
  *   Mihai Sucan <mihai.sucan@gmail.com> (original author)
  *   Kenny Heaton <kennyheaton@gmail.com>
- *   Spyros Livathinos <livathinos.spyros@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -65,7 +64,7 @@ const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
  * SourceEditor.THEMES to Orion CSS files.
  */
 const ORION_THEMES = {
-  mozilla: ["chrome://browser/skin/devtools/orion.css"],
+  mozilla: ["chrome://browser/content/orion-mozilla.css"],
 };
 
 /**
@@ -76,11 +75,6 @@ const ORION_EVENTS = {
   ContextMenu: "ContextMenu",
   TextChanged: "ModelChanged",
   Selection: "Selection",
-  Focus: "Focus",
-  Blur: "Blur",
-  MouseOver: "MouseOver",
-  MouseOut: "MouseOut",
-  MouseMove: "MouseMove",
 };
 
 /**
@@ -813,20 +807,6 @@ SourceEditor.prototype = {
   getLineDelimiter: function SE_getLineDelimiter()
   {
     return this._model.getLineDelimiter();
-  },
-
-  /**
-   * Get the indentation string used in the document being edited.
-   *
-   * @return string
-   *         The indentation string.
-   */
-  getIndentationString: function SE_getIndentationString()
-  {
-    if (this._expandTab) {
-      return (new Array(this._tabSize + 1)).join(" ");
-    }
-    return "\t";
   },
 
   /**

@@ -349,7 +349,7 @@ public:
 
   nsFrameList& GetColGroups();
 
-  virtual nsIFrame* GetParentStyleContextFrame() const;
+  virtual nsIFrame* GetParentStyleContextFrame();
 
   /**
    * Get the "type" of the frame

@@ -484,18 +484,16 @@ IsSupportedImage(const nsCString& aMimeType)
   return NS_SUCCEEDED(rv) && supported;
 }
 
-nsresult nsObjectLoadingContent::IsPluginEnabledForType(const nsCString& aMIMEType)
+static bool
+IsSupportedPlugin(const nsCString& aMIMEType, bool aShouldPlay)
 {
-  if (!mShouldPlay) {
-    return NS_ERROR_PLUGIN_CLICKTOPLAY;
-  }
-
   nsCOMPtr<nsIPluginHost> pluginHostCOM(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
   nsPluginHost *pluginHost = static_cast<nsPluginHost*>(pluginHostCOM.get());
   if (!pluginHost) {
     return false;
   }
-  return pluginHost->IsPluginEnabledForType(aMIMEType.get());
+  nsresult rv = pluginHost->IsPluginEnabledForType(aMIMEType.get(), aShouldPlay);
+  return NS_SUCCEEDED(rv);
 }
 
 static void
@@ -519,12 +517,9 @@ GetExtensionFromURI(nsIURI* uri, nsCString& ext)
  * Checks whether a plugin exists and is enabled for the extension
  * in the given URI. The MIME type is returned in the mimeType out parameter.
  */
-bool nsObjectLoadingContent::IsPluginEnabledByExtension(nsIURI* uri, nsCString& mimeType)
+static bool
+IsPluginEnabledByExtension(nsIURI* uri, nsCString& mimeType, bool aShouldPlay)
 {
-  if (!mShouldPlay) {
-    return false;
-  }
-
   nsCAutoString ext;
   GetExtensionFromURI(uri, ext);
 
@@ -539,7 +534,8 @@ bool nsObjectLoadingContent::IsPluginEnabledByExtension(nsIURI* uri, nsCString& 
   }
 
   const char* typeFromExt;
-  if (NS_SUCCEEDED(pluginHost->IsPluginEnabledForExtension(ext.get(), typeFromExt))) {
+  if (NS_SUCCEEDED(pluginHost->IsPluginEnabledForExtension(ext.get(), typeFromExt,
+                                                           aShouldPlay))) {
     mimeType = typeFromExt;
     return true;
   }
@@ -572,10 +568,6 @@ nsObjectLoadingContent::~nsObjectLoadingContent()
 nsresult
 nsObjectLoadingContent::InstantiatePluginInstance(const char* aMimeType, nsIURI* aURI)
 {
-  if (!mShouldPlay) {
-    return NS_ERROR_PLUGIN_CLICKTOPLAY;
-  }
-
   // Don't do anything if we already have an active instance.
   if (mInstanceOwner) {
     return NS_OK;
@@ -593,6 +585,11 @@ nsObjectLoadingContent::InstantiatePluginInstance(const char* aMimeType, nsIURI*
   // of this method.
   nsCOMPtr<nsIObjectLoadingContent> kungFuDeathGrip = this;
   nsCOMPtr<nsIContent> thisContent = do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
+
+  nsCString typeToUse(aMimeType);
+  if (typeToUse.IsEmpty() && aURI) {
+    IsPluginEnabledByExtension(aURI, typeToUse, mShouldPlay);
+  }
 
   nsCOMPtr<nsIURI> baseURI;
   if (!aURI) {
@@ -733,10 +730,10 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
   if ((channelType.EqualsASCII(APPLICATION_OCTET_STREAM) && 
        !mContentType.IsEmpty() &&
        GetTypeOfContent(mContentType) != eType_Document) ||
-      // Need to check IsPluginEnabledForType() in addition to GetTypeOfContent()
+      // Need to check IsSupportedPlugin() in addition to GetTypeOfContent()
       // because otherwise the default plug-in's catch-all behavior would
       // confuse things.
-      (NS_SUCCEEDED(IsPluginEnabledForType(mContentType)) && 
+      (IsSupportedPlugin(mContentType, mShouldPlay) && 
        GetTypeOfContent(mContentType) == eType_Plugin)) {
     // Set the type we'll use for dispatch on the channel.  Otherwise we could
     // end up trying to dispatch to a nsFrameLoader, which will complain that
@@ -755,7 +752,7 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
 
   if (mContentType.EqualsASCII(APPLICATION_OCTET_STREAM)) {
     nsCAutoString extType;
-    if (IsPluginEnabledByExtension(uri, extType)) {
+    if (IsPluginEnabledByExtension(uri, extType, mShouldPlay)) {
       mContentType = extType;
       chan->SetContentType(extType);
     }
@@ -874,10 +871,6 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
       break;
     }
     case eType_Plugin: {
-      if (mType != newType) {
-        mType = newType;
-        notifier.Notify();
-      }
       nsCOMPtr<nsIPluginHost> pluginHostCOM(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
       nsPluginHost *pluginHost = static_cast<nsPluginHost*>(pluginHostCOM.get());
       if (!pluginHost) {
@@ -1300,8 +1293,8 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
 
   nsCAutoString overrideType;
   if ((caps & eOverrideServerType) &&
-      ((!aTypeHint.IsEmpty() && NS_SUCCEEDED(IsPluginEnabledForType(aTypeHint))) ||
-       (aURI && IsPluginEnabledByExtension(aURI, overrideType)))) {
+      ((!aTypeHint.IsEmpty() && IsSupportedPlugin(aTypeHint, mShouldPlay)) ||
+       (aURI && IsPluginEnabledByExtension(aURI, overrideType, mShouldPlay)))) {
     ObjectType newType;
     if (overrideType.IsEmpty()) {
       newType = GetTypeOfContent(aTypeHint);
@@ -1437,7 +1430,7 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
       return NS_OK;
     }
 
-    if (NS_SUCCEEDED(IsPluginEnabledForType(aTypeHint))) {
+    if (IsSupportedPlugin(aTypeHint, mShouldPlay)) {
       mType = eType_Plugin;
     } else {
       rv = NS_ERROR_NOT_AVAILABLE;
@@ -1747,7 +1740,7 @@ nsObjectLoadingContent::GetTypeOfContent(const nsCString& aMIMEType)
     return eType_Document;
   }
 
-  if ((caps & eSupportPlugins) && NS_SUCCEEDED(IsPluginEnabledForType(aMIMEType))) {
+  if ((caps & eSupportPlugins) && IsSupportedPlugin(aMIMEType, mShouldPlay)) {
     return eType_Plugin;
   }
 
@@ -1758,10 +1751,16 @@ nsresult
 nsObjectLoadingContent::TypeForClassID(const nsAString& aClassID,
                                        nsACString& aType)
 {
+  nsCOMPtr<nsIPluginHost> pluginHostCOM(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
+  nsPluginHost *pluginHost = static_cast<nsPluginHost*>(pluginHostCOM.get());
+  if (!pluginHost) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
   if (StringBeginsWith(aClassID, NS_LITERAL_STRING("java:"))) {
     // Supported if we have a java plugin
     aType.AssignLiteral("application/x-java-vm");
-    nsresult rv = IsPluginEnabledForType(NS_LITERAL_CSTRING("application/x-java-vm"));
+    nsresult rv = pluginHost->IsPluginEnabledForType("application/x-java-vm");
     return NS_SUCCEEDED(rv) ? NS_OK : NS_ERROR_NOT_AVAILABLE;
   }
 
@@ -1769,11 +1768,11 @@ nsObjectLoadingContent::TypeForClassID(const nsAString& aClassID,
   if (StringBeginsWith(aClassID, NS_LITERAL_STRING("clsid:"), nsCaseInsensitiveStringComparator())) {
     // Check if we have a plugin for that
 
-    if (NS_SUCCEEDED(IsPluginEnabledForType(NS_LITERAL_CSTRING("application/x-oleobject")))) {
+    if (NS_SUCCEEDED(pluginHost->IsPluginEnabledForType("application/x-oleobject"))) {
       aType.AssignLiteral("application/x-oleobject");
       return NS_OK;
     }
-    if (NS_SUCCEEDED(IsPluginEnabledForType(NS_LITERAL_CSTRING("application/oleobject")))) {
+    if (NS_SUCCEEDED(pluginHost->IsPluginEnabledForType("application/oleobject"))) {
       aType.AssignLiteral("application/oleobject");
       return NS_OK;
     }
@@ -1829,7 +1828,7 @@ nsObjectLoadingContent::HandleBeingBlockedByContentPolicy(nsresult aStatus,
   }
 }
 
-PluginSupportState
+/* static */ PluginSupportState
 nsObjectLoadingContent::GetPluginSupportState(nsIContent* aContent,
                                               const nsCString& aContentType)
 {
@@ -1863,10 +1862,16 @@ nsObjectLoadingContent::GetPluginSupportState(nsIContent* aContent,
     GetPluginDisabledState(aContentType);
 }
 
-PluginSupportState
+/* static */ PluginSupportState
 nsObjectLoadingContent::GetPluginDisabledState(const nsCString& aContentType)
 {
-  nsresult rv = IsPluginEnabledForType(aContentType);
+  nsCOMPtr<nsIPluginHost> pluginHostCOM(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
+  nsPluginHost *pluginHost = static_cast<nsPluginHost*>(pluginHostCOM.get());
+  if (!pluginHost) {
+    return ePluginUnsupported;
+  }
+
+  nsresult rv = pluginHost->IsPluginEnabledForType(aContentType.get());
   if (rv == NS_ERROR_PLUGIN_DISABLED)
     return ePluginDisabled;
   if (rv == NS_ERROR_PLUGIN_CLICKTOPLAY)
@@ -1944,17 +1949,13 @@ nsObjectLoadingContent::SyncStartPluginInstance()
   NS_ASSERTION(nsContentUtils::IsSafeToRunScript(),
                "Must be able to run script in order to instantiate a plugin instance!");
 
-  // Don't even attempt to start an instance unless the content is in
-  // the document.
-  nsCOMPtr<nsIContent> thisContent =
-    do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
+  // Don't even attempt to start an instance unless the content is in the document.
+  nsCOMPtr<nsIContent> thisContent = do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
   if (!thisContent->IsInDoc()) {
     return NS_ERROR_FAILURE;
   }
 
-  nsCOMPtr<nsIURI> kungFuURIGrip(mURI);
-  nsCString contentType(mContentType);
-  return InstantiatePluginInstance(contentType.get(), mURI.get());
+  return InstantiatePluginInstance(mContentType.get(), mURI.get());
 }
 
 NS_IMETHODIMP
@@ -2111,7 +2112,6 @@ nsObjectLoadingContent::PlayPlugin()
   if (!nsContentUtils::IsCallerChrome())
     return NS_OK;
 
-  mSrcStreamLoadInitiated = false;
   mShouldPlay = true;
   return LoadObject(mURI, true, mContentType, true);
 }

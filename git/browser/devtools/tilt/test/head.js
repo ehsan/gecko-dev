@@ -37,9 +37,6 @@ const DEFAULT_HTML = "data:text/html," +
         "A robot must protect its own existence as long as such protection " +
         "does not conflict with the First or Second Laws." +
       "</div>" +
-      "<div id='far-far-away' style='position: absolute; top: 250%;'>" +
-        "I like bacon." +
-      "</div>" +
     "<body>" +
   "</html>";
 
@@ -140,10 +137,8 @@ function createTilt(callbacks, close) {
       if ("function" === typeof callbacks.onInspectorOpen) {
         callbacks.onInspectorOpen();
       }
-      executeSoon(function() {
-        Services.obs.addObserver(onTiltOpen, INITIALIZING, false);
-        Tilt.initialize();
-      });
+      Services.obs.addObserver(onTiltOpen, INITIALIZING, false);
+      Tilt.initialize();
     });
   }
 
@@ -155,10 +150,8 @@ function createTilt(callbacks, close) {
         callbacks.onTiltOpen(Tilt.visualizers[Tilt.currentWindowId]);
       }
       if (close) {
-        executeSoon(function() {
-          Services.obs.addObserver(onTiltClose, DESTROYED, false);
-          Tilt.destroy(Tilt.currentWindowId);
-        });
+        Services.obs.addObserver(onTiltClose, DESTROYED, false);
+        Tilt.destroy(Tilt.currentWindowId);
       }
     });
   }
@@ -171,10 +164,8 @@ function createTilt(callbacks, close) {
         callbacks.onTiltClose();
       }
       if (close) {
-        executeSoon(function() {
-          Services.obs.addObserver(onInspectorClose, INSPECTOR_CLOSED, false);
-          InspectorUI.closeInspectorUI();
-        });
+        Services.obs.addObserver(onInspectorClose, INSPECTOR_CLOSED, false);
+        InspectorUI.closeInspectorUI();
       }
     });
   }

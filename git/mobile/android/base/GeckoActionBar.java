@@ -42,10 +42,6 @@ import android.graphics.drawable.Drawable;
 import android.view.View;
 
 public class GeckoActionBar {
-
-    public static View getCustomView(Activity activity) {
-        return activity.getActionBar().getCustomView();
-    }
  
     public static void hide(Activity activity) {
         activity.getActionBar().hide();
@@ -66,8 +62,4 @@ public class GeckoActionBar {
     public static void setDisplayHomeAsUpEnabled(Activity activity, boolean enabled) {
          activity.getActionBar().setDisplayHomeAsUpEnabled(enabled);
     } 
- 
-    public static void show(Activity activity) {
-        activity.getActionBar().show();
-    }
 }

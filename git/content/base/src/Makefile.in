@@ -81,7 +81,6 @@ CPPSRCS		= \
 		nsAtomListUtils.cpp \
 		nsAttrAndChildArray.cpp \
 		nsAttrValue.cpp \
-		nsAttrValueOrString.cpp \
 		nsCCUncollectableMarker.cpp \
 		nsChannelPolicy.cpp \
 		nsCommentNode.cpp \
@@ -99,6 +98,7 @@ CPPSRCS		= \
 		nsDOMAttributeMap.cpp \
 		nsDOMBlobBuilder.cpp \
 		nsDOMDocumentType.cpp \
+		nsDOMEventTargetWrapperCache.cpp \
 		nsDOMFile.cpp \
 		nsDOMFileReader.cpp \
 		nsDOMLists.cpp \

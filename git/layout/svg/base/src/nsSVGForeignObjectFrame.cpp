@@ -91,8 +91,7 @@ nsSVGForeignObjectFrame::Init(nsIContent* aContent,
 
   nsresult rv = nsSVGForeignObjectFrameBase::Init(aContent, aParent, aPrevInFlow);
   AddStateBits(aParent->GetStateBits() &
-               (NS_STATE_SVG_NONDISPLAY_CHILD | NS_STATE_SVG_CLIPPATH_CHILD |
-                NS_STATE_SVG_REDRAW_SUSPENDED));
+               (NS_STATE_SVG_NONDISPLAY_CHILD | NS_STATE_SVG_CLIPPATH_CHILD));
   if (NS_SUCCEEDED(rv)) {
     nsSVGUtils::GetOuterSVGFrame(this)->RegisterForeignObject(this);
   }
@@ -229,29 +228,10 @@ nsSVGForeignObjectFrame::PaintSVG(nsSVGRenderState *aContext,
     return NS_ERROR_FAILURE;
   }
 
-  nsRect kidDirtyRect = kid->GetVisualOverflowRect();
-
   /* Check if we need to draw anything. */
   if (aDirtyRect) {
-    // Transform the dirty rect into app units in our userspace.
-    gfxMatrix invmatrix = matrix;
-    invmatrix.Invert();
-    NS_ASSERTION(!invmatrix.IsSingular(),
-                 "inverse of non-singular matrix should be non-singular");
-
-    gfxRect transDirtyRect = gfxRect(aDirtyRect->x, aDirtyRect->y,
-                                     aDirtyRect->width, aDirtyRect->height);
-    transDirtyRect = invmatrix.TransformBounds(transDirtyRect);
-
-    kidDirtyRect.IntersectRect(kidDirtyRect,
-      nsLayoutUtils::RoundGfxRectToAppRect(transDirtyRect,
-                       PresContext()->AppUnitsPerCSSPixel()));
-
-    // XXX after bug 614732 is fixed, we will compare mRect with aDirtyRect,
-    // not with kidDirtyRect. I.e.
-    // PRInt32 appUnitsPerDevPx = PresContext()->AppUnitsPerDevPixel();
-    // mRect.ToOutsidePixels(appUnitsPerDevPx).Intersects(*aDirtyRect)
-    if (kidDirtyRect.IsEmpty())
+    PRInt32 appUnitsPerDevPx = PresContext()->AppUnitsPerDevPixel();
+    if (!mRect.ToOutsidePixels(appUnitsPerDevPx).Intersects(*aDirtyRect))
       return NS_OK;
   }
 
@@ -270,6 +250,27 @@ nsSVGForeignObjectFrame::PaintSVG(nsSVGRenderState *aContext,
   }
 
   gfx->Multiply(matrixForChildren);
+
+  // Transform the dirty rect into the rectangle containing the
+  // transformed dirty rect.
+  gfxMatrix invmatrix = matrix.Invert();
+  NS_ASSERTION(!invmatrix.IsSingular(),
+               "inverse of non-singular matrix should be non-singular");
+
+  nsRect kidDirtyRect = kid->GetVisualOverflowRect();
+  if (aDirtyRect) {
+    gfxRect transDirtyRect = gfxRect(aDirtyRect->x, aDirtyRect->y,
+                                     aDirtyRect->width, aDirtyRect->height);
+    transDirtyRect = invmatrix.TransformBounds(transDirtyRect);
+
+    transDirtyRect.Scale(nsPresContext::AppUnitsPerCSSPixel());
+    nsPoint tl(NSToCoordFloor(transDirtyRect.X()),
+               NSToCoordFloor(transDirtyRect.Y()));
+    nsPoint br(NSToCoordCeil(transDirtyRect.XMost()),
+               NSToCoordCeil(transDirtyRect.YMost()));
+    kidDirtyRect.IntersectRect(kidDirtyRect,
+                               nsRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y));
+  }
 
   PRUint32 flags = nsLayoutUtils::PAINT_IN_TRANSFORM;
   if (aContext->IsPaintingToWindow()) {
@@ -342,9 +343,7 @@ nsSVGForeignObjectFrame::GetFrameForPoint(const nsPoint &aPoint)
 NS_IMETHODIMP_(nsRect)
 nsSVGForeignObjectFrame::GetCoveredRegion()
 {
-  // See bug 614732 comment 32:
-  //return nsSVGUtils::TransformFrameRectToOuterSVG(mRect, GetCanvasTM(), PresContext());
-  return mCoveredRegion;
+  return mRect;
 }
 
 NS_IMETHODIMP
@@ -362,11 +361,8 @@ nsSVGForeignObjectFrame::UpdateCoveredRegion()
   if (h < 0.0f) h = 0.0f;
 
   // GetCanvasTM includes the x,y translation
-  mRect = nsLayoutUtils::RoundGfxRectToAppRect(
-                           gfxRect(0.0, 0.0, w, h),
-                           PresContext()->AppUnitsPerCSSPixel());
-  mCoveredRegion = ToCanvasBounds(gfxRect(0.0, 0.0, w, h), GetCanvasTM(), PresContext());
-
+  mRect = ToCanvasBounds(gfxRect(0.0, 0.0, w, h), GetCanvasTM(), PresContext());
+  
   return NS_OK;
 }
 
@@ -443,17 +439,15 @@ nsSVGForeignObjectFrame::NotifySVGChanged(PRUint32 aFlags)
   }
 }
 
-void
+NS_IMETHODIMP
 nsSVGForeignObjectFrame::NotifyRedrawSuspended()
 {
-  AddStateBits(NS_STATE_SVG_REDRAW_SUSPENDED);
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 nsSVGForeignObjectFrame::NotifyRedrawUnsuspended()
 {
-  RemoveStateBits(NS_STATE_SVG_REDRAW_SUSPENDED);
-
   if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
     if (GetStateBits() & NS_STATE_SVG_DIRTY) {
       UpdateGraphic(); // invalidate our entire area
@@ -461,6 +455,7 @@ nsSVGForeignObjectFrame::NotifyRedrawUnsuspended()
       FlushDirtyRegion(0); // only invalidate areas dirtied by our descendants
     }
   }
+  return NS_OK;
 }
 
 gfxRect
@@ -495,7 +490,7 @@ nsSVGForeignObjectFrame::GetCanvasTM()
     nsSVGForeignObjectElement *content =
       static_cast<nsSVGForeignObjectElement*>(mContent);
 
-    gfxMatrix tm = content->PrependLocalTransformsTo(parent->GetCanvasTM());
+    gfxMatrix tm = content->PrependLocalTransformTo(parent->GetCanvasTM());
 
     mCanvasTM = new gfxMatrix(tm);
   }
@@ -590,6 +585,7 @@ nsSVGForeignObjectFrame::DoReflow()
     return;
 
   // initiate a synchronous reflow here and now:  
+  nsSize availableSpace(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
   nsIPresShell* presShell = presContext->PresShell();
   NS_ASSERTION(presShell, "null presShell");
   nsRefPtr<nsRenderingContext> renderingContext =
@@ -624,7 +620,7 @@ nsSVGForeignObjectFrame::DoReflow()
   // page/column breaking at that height.
   NS_ASSERTION(reflowState.mComputedBorderPadding == nsMargin(0, 0, 0, 0) &&
                reflowState.mComputedMargin == nsMargin(0, 0, 0, 0),
-               "style system should ensure that :-moz-svg-foreign-content "
+               "style system should ensure that :-moz-svg-foreign content "
                "does not get styled");
   NS_ASSERTION(reflowState.ComputedWidth() == size.width,
                "reflow state made child wrong size");
@@ -648,18 +644,19 @@ nsSVGForeignObjectFrame::InvalidateDirtyRect(nsSVGOuterSVGFrame* aOuter,
   if (aRect.IsEmpty())
     return;
 
-  // Don't invalidate areas outside our bounds:
-  nsRect rect = aRect.Intersect(mRect);
-  if (rect.IsEmpty())
-    return;
-
   // The areas dirtied by children are in app units, relative to this frame.
-  // We need to convert the rect from app units in our userspace to app units
-  // relative to our nsSVGOuterSVGFrame's content rect.
+  // We need to convert the rect to userspace to use IntersectRect.
 
   gfxRect r(aRect.x, aRect.y, aRect.width, aRect.height);
   r.Scale(1.0 / nsPresContext::AppUnitsPerCSSPixel());
-  rect = ToCanvasBounds(r, GetCanvasTM(), PresContext());
+
+  nsRect rect = ToCanvasBounds(r, GetCanvasTM(), PresContext());
+
+  // Don't invalidate areas outside our bounds:
+  rect.IntersectRect(rect, mRect);
+  if (rect.IsEmpty())
+    return;
+
   rect = nsSVGUtils::FindFilterInvalidation(this, rect);
   aOuter->InvalidateWithFlags(rect, aFlags);
 }
@@ -668,8 +665,7 @@ void
 nsSVGForeignObjectFrame::FlushDirtyRegion(PRUint32 aFlags)
 {
   if ((mSameDocDirtyRegion.IsEmpty() && mSubDocDirtyRegion.IsEmpty()) ||
-      mInReflow ||
-      (GetStateBits() & NS_STATE_SVG_REDRAW_SUSPENDED))
+      mInReflow)
     return;
 
   nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(this);
@@ -677,6 +673,9 @@ nsSVGForeignObjectFrame::FlushDirtyRegion(PRUint32 aFlags)
     NS_ERROR("null outerSVGFrame");
     return;
   }
+
+  if (outerSVGFrame->IsRedrawSuspended())
+    return;
 
   InvalidateDirtyRect(outerSVGFrame, mSameDocDirtyRegion.GetBounds(), aFlags);
   InvalidateDirtyRect(outerSVGFrame, mSubDocDirtyRegion.GetBounds(),

@@ -286,9 +286,6 @@ pref("accessibility.typeaheadfind.prefillwithselection", true);
 // use Mac OS X Appearance panel text smoothing setting when rendering text, disabled by default
 pref("gfx.use_text_smoothing_setting", false);
 
-// show checkerboard pattern on android, enabled by default (option exists for image analysis testing)
-pref("gfx.show_checkerboard_pattern", true);
-
 // loading and rendering of framesets and iframes
 pref("browser.frames.enabled", true);
 
@@ -321,9 +318,6 @@ pref("nglayout.events.dispatchLeftClickOnly", true);
 
 // whether or not to draw images while dragging
 pref("nglayout.enable_drag_images", true);
-
-// enable/disable paint flashing --- useful for debugging
-pref("nglayout.debug.paint_flashing", false);
 
 // scrollbar snapping region
 // 0 - off
@@ -634,7 +628,6 @@ pref("privacy.popups.disable_from_plugins", 2);
 pref("privacy.donottrackheader.enabled",    false);
 
 pref("dom.event.contextmenu.enabled",       true);
-pref("dom.event.clipboardevents.enabled",   true);
 
 pref("javascript.enabled",                  true);
 pref("javascript.options.strict",           false);
@@ -656,8 +649,6 @@ pref("javascript.options.typeinference", true);
 pref("javascript.options.mem.high_water_mark", 128);
 pref("javascript.options.mem.max", -1);
 pref("javascript.options.mem.gc_per_compartment", true);
-pref("javascript.options.mem.gc_incremental", true);
-pref("javascript.options.mem.gc_incremental_slice_ms", 10);
 pref("javascript.options.mem.log", false);
 pref("javascript.options.gc_on_memory_pressure", true);
 
@@ -810,7 +801,7 @@ pref("network.http.connection-retry-timeout", 250);
 pref("network.http.fast-fallback-to-IPv4", true);
 
 // Try and use SPDY when using SSL
-pref("network.http.spdy.enabled", true);
+pref("network.http.spdy.enabled", false);
 pref("network.http.spdy.chunk-size", 4096);
 pref("network.http.spdy.timeout", 180);
 pref("network.http.spdy.coalesce-hostnames", true);
@@ -1038,9 +1029,6 @@ pref("network.negotiate-auth.trusted-uris", "");
 // This list controls which URIs can support delegation.
 pref("network.negotiate-auth.delegation-uris", "");
 
-// Do not allow SPNEGO by default when challenged by a local server.
-pref("network.negotiate-auth.allow-non-fqdn", false);
-
 // Allow SPNEGO by default when challenged by a proxy server.
 pref("network.negotiate-auth.allow-proxies", true);
 
@@ -1071,7 +1059,6 @@ pref("network.auth.force-generic-ntlm", false);
 // Window's domain logon.  The trusted-uris pref follows the format of the
 // trusted-uris pref for negotiate authentication.
 pref("network.automatic-ntlm-auth.allow-proxies", true);
-pref("network.automatic-ntlm-auth.allow-non-fqdn", false);
 pref("network.automatic-ntlm-auth.trusted-uris", "");
 
 // This preference controls whether or not the LM hash will be included in

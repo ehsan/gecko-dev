@@ -53,7 +53,6 @@
 #include "jsautooplen.h"
 
 #include "vm/ScopeObject-inl.h"
-#include "vm/StringObject-inl.h"
 
 #if defined JS_POLYIC
 
@@ -102,7 +101,7 @@ class PICStubCompiler : public BaseCompiler
     JSScript *script;
     ic::PICInfo &pic;
     void *stub;
-    uint64_t gcNumber;
+    uint32_t gcNumber;
 
   public:
     bool canCallHook;
@@ -945,7 +944,7 @@ class GetPropCompiler : public PICStubCompiler
 
         Jump notStringObj = masm.guardShape(pic.objReg, obj);
 
-        masm.loadPayload(Address(pic.objReg, StringObject::getPrimitiveValueOffset()), pic.objReg);
+        masm.loadPayload(Address(pic.objReg, JSObject::getPrimitiveThisOffset()), pic.objReg);
         masm.loadPtr(Address(pic.objReg, JSString::offsetOfLengthAndFlags()), pic.objReg);
         masm.urshift32(Imm32(JSString::LENGTH_SHIFT), pic.objReg);
         masm.move(ImmType(JSVAL_TYPE_INT32), pic.shapeReg);
@@ -1760,35 +1759,28 @@ class BindNameCompiler : public PICStubCompiler
 
         BindNameLabels &labels = pic.bindNameLabels();
 
-        if (!IsCacheableNonGlobalScope(scopeChain))
-            return disable("non-cacheable obj at start of scope chain");
-
         /* Guard on the shape of the scope chain. */
         masm.loadPtr(Address(JSFrameReg, StackFrame::offsetOfScopeChain()), pic.objReg);
         masm.loadShape(pic.objReg, pic.shapeReg);
         Jump firstShape = masm.branchPtr(Assembler::NotEqual, pic.shapeReg,
                                          ImmPtr(scopeChain->lastProperty()));
 
-        if (scopeChain != obj) {
-            /* Walk up the scope chain. */
-            JSObject *tobj = &scopeChain->asScope().enclosingScope();
-            Address parent(pic.objReg, ScopeObject::offsetOfEnclosingScope());
-            while (tobj) {
-                if (!IsCacheableNonGlobalScope(tobj))
-                    return disable("non-cacheable obj in scope chain");
-                masm.loadPayload(parent, pic.objReg);
-                masm.loadShape(pic.objReg, pic.shapeReg);
-                Jump shapeTest = masm.branchPtr(Assembler::NotEqual, pic.shapeReg,
-                                                ImmPtr(tobj->lastProperty()));
-                if (!fails.append(shapeTest))
-                    return error();
-                if (tobj == obj)
-                    break;
-                tobj = &tobj->asScope().enclosingScope();
-            }
-            if (tobj != obj)
-                return disable("indirect hit");
+        /* Walk up the scope chain. */
+        JSObject *tobj = scopeChain;
+        Address parent(pic.objReg, ScopeObject::offsetOfEnclosingScope());
+        while (tobj && tobj != obj) {
+            if (!IsCacheableNonGlobalScope(tobj))
+                return disable("non-cacheable obj in scope chain");
+            masm.loadPayload(parent, pic.objReg);
+            masm.loadShape(pic.objReg, pic.shapeReg);
+            Jump shapeTest = masm.branchPtr(Assembler::NotEqual, pic.shapeReg,
+                                            ImmPtr(tobj->lastProperty()));
+            if (!fails.append(shapeTest))
+                return error();
+            tobj = &tobj->asScope().enclosingScope();
         }
+        if (tobj != obj)
+            return disable("indirect hit");
 
         Jump done = masm.jump();
 
@@ -1893,7 +1885,7 @@ GetPropMaybeCached(VMFrame &f, ic::PICInfo *pic, bool cached)
                     LookupStatus status = cc.generateStringObjLengthStub();
                     if (status == Lookup_Error)
                         THROW();
-                    JSString *str = obj->asString().unbox();
+                    JSString *str = obj->getPrimitiveThis().toString();
                     f.regs.sp[-1].setInt32(str->length());
                 }
                 return;
@@ -1936,7 +1928,7 @@ GetPropMaybeCached(VMFrame &f, ic::PICInfo *pic, bool cached)
 
     Value v;
     if (cached) {
-        if (!GetPropertyOperation(f.cx, f.pc(), f.regs.sp[-1], &v))
+        if (!GetPropertyOperation(f.cx, f.pc(), ObjectValue(*obj), &v))
             THROW();
     } else {
         if (!obj->getProperty(f.cx, name, &v))

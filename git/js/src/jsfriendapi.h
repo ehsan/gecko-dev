@@ -100,11 +100,7 @@ enum {
     JS_TELEMETRY_GC_IS_COMPARTMENTAL,
     JS_TELEMETRY_GC_MS,
     JS_TELEMETRY_GC_MARK_MS,
-    JS_TELEMETRY_GC_SWEEP_MS,
-    JS_TELEMETRY_GC_SLICE_MS,
-    JS_TELEMETRY_GC_MMU_50,
-    JS_TELEMETRY_GC_RESET,
-    JS_TELEMETRY_GC_INCREMENTAL_DISABLED
+    JS_TELEMETRY_GC_SWEEP_MS
 };
 
 typedef void
@@ -112,6 +108,12 @@ typedef void
 
 extern JS_FRIEND_API(void)
 JS_SetAccumulateTelemetryCallback(JSRuntime *rt, JSAccumulateTelemetryDataCallback callback);
+
+typedef void
+(* JSGCFinishedCallback)(JSRuntime *rt, JSCompartment *comp, const char *description);
+
+extern JS_FRIEND_API(void)
+JS_SetGCFinishedCallback(JSRuntime *rt, JSGCFinishedCallback callback);
 
 extern JS_FRIEND_API(JSPrincipals *)
 JS_GetCompartmentPrincipals(JSCompartment *compartment);
@@ -280,19 +282,15 @@ typedef void
                          void *v, JSGCTraceKind vkind);
 
 struct WeakMapTracer {
-    JSRuntime            *runtime;
+    JSContext            *context;
     WeakMapTraceCallback callback;
 
-    WeakMapTracer(JSRuntime *rt, WeakMapTraceCallback cb)
-        : runtime(rt), callback(cb) {}
+    WeakMapTracer(JSContext *cx, WeakMapTraceCallback cb)
+        : context(cx), callback(cb) {}
 };
 
 extern JS_FRIEND_API(void)
 TraceWeakMaps(WeakMapTracer *trc);
-
-extern JS_FRIEND_API(bool)
-GCThingIsMarkedGray(void *thing);
-
 
 /*
  * Shadow declarations of JS internal structures, for access by inline access
@@ -336,11 +334,6 @@ struct Object {
             return fixedSlots()[slot];
         return slots[slot - nfixed];
     }
-};
-
-struct Atom {
-    size_t _;
-    const jschar *chars;
 };
 
 } /* namespace shadow */
@@ -469,18 +462,6 @@ GetObjectShape(JSObject *obj)
     return reinterpret_cast<Shape *>(shape);
 }
 
-inline const jschar *
-GetAtomChars(JSAtom *atom)
-{
-    return reinterpret_cast<shadow::Atom *>(atom)->chars;
-}
-
-inline JSLinearString *
-AtomToLinearString(JSAtom *atom)
-{
-    return reinterpret_cast<JSLinearString *>(atom);
-}
-
 static inline js::PropertyOp
 CastAsJSPropertyOp(JSObject *object)
 {
@@ -515,7 +496,6 @@ IsObjectInContextCompartment(const JSObject *obj, const JSContext *cx);
 #define JSITER_KEYVALUE   0x4   /* destructuring for-in wants [key, value] */
 #define JSITER_OWNONLY    0x8   /* iterate over obj's own properties only */
 #define JSITER_HIDDEN     0x10  /* also enumerate non-enumerable properties */
-#define JSITER_FOR_OF     0x20  /* harmony for-of loop */
 
 inline uintptr_t
 GetContextStackLimit(const JSContext *cx)
@@ -701,64 +681,11 @@ CompartmentGCForReason(JSContext *cx, JSCompartment *comp, gcreason::Reason reas
 extern JS_FRIEND_API(void)
 ShrinkingGC(JSContext *cx, gcreason::Reason reason);
 
-extern JS_FRIEND_API(void)
-IncrementalGC(JSContext *cx, gcreason::Reason reason);
-
-extern JS_FRIEND_API(void)
-SetGCSliceTimeBudget(JSContext *cx, int64_t millis);
-
-enum GCProgress {
-    /*
-     * During non-incremental GC, the GC is bracketed by JSGC_CYCLE_BEGIN/END
-     * callbacks. During an incremental GC, the sequence of callbacks is as
-     * follows:
-     *   JSGC_CYCLE_BEGIN, JSGC_SLICE_END  (first slice)
-     *   JSGC_SLICE_BEGIN, JSGC_SLICE_END  (second slice)
-     *   ...
-     *   JSGC_SLICE_BEGIN, JSGC_CYCLE_END  (last slice)
-     */
-
-    GC_CYCLE_BEGIN,
-    GC_SLICE_BEGIN,
-    GC_SLICE_END,
-    GC_CYCLE_END
-};
-
-struct GCDescription {
-    const char *logMessage;
-    bool isCompartment;
-
-    GCDescription(const char *msg, bool isCompartment)
-      : logMessage(msg), isCompartment(isCompartment) {}
-};
-
-typedef void
-(* GCSliceCallback)(JSRuntime *rt, GCProgress progress, const GCDescription &desc);
-
-extern JS_FRIEND_API(GCSliceCallback)
-SetGCSliceCallback(JSRuntime *rt, GCSliceCallback callback);
-
-extern JS_FRIEND_API(bool)
-WantGCSlice(JSRuntime *rt);
-
-/*
- * Signals a good place to do an incremental slice, because the browser is
- * drawing a frame.
- */
-extern JS_FRIEND_API(void)
-NotifyDidPaint(JSContext *cx);
-
-extern JS_FRIEND_API(bool)
-IsIncrementalGCEnabled(JSRuntime *rt);
-
 extern JS_FRIEND_API(bool)
 IsIncrementalBarrierNeeded(JSRuntime *rt);
 
 extern JS_FRIEND_API(bool)
 IsIncrementalBarrierNeeded(JSContext *cx);
-
-extern JS_FRIEND_API(bool)
-IsIncrementalBarrierNeededOnObject(JSObject *obj);
 
 extern JS_FRIEND_API(void)
 IncrementalReferenceBarrier(void *ptr);
@@ -805,6 +732,14 @@ class ObjectPtr
 };
 
 } /* namespace js */
+
+/*
+ * If protoKey is not JSProto_Null, then clasp is ignored. If protoKey is
+ * JSProto_Null, clasp must non-null.
+ */
+extern JS_FRIEND_API(JSBool)
+js_GetClassPrototype(JSContext *cx, JSObject *scope, JSProtoKey protoKey,
+                     JSObject **protop, js::Class *clasp = NULL);
 
 #endif
 

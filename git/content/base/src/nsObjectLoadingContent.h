@@ -328,7 +328,9 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      *
      * This should only be called if the type of this content is eType_Null.
      */
-    PluginSupportState GetPluginSupportState(nsIContent* aContent, const nsCString& aContentType);
+    static PluginSupportState
+      GetPluginSupportState(nsIContent* aContent,
+                            const nsCString& aContentType);
 
     /**
      * If the plugin for aContentType is disabled, return ePluginDisabled.
@@ -337,17 +339,17 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      *
      * This should only be called if the type of this content is eType_Null.
      */
-    PluginSupportState GetPluginDisabledState(const nsCString& aContentType);
+    static PluginSupportState
+      GetPluginDisabledState(const nsCString& aContentType);
 
     /**
      * When there is no usable plugin available this will send UI events and
      * update the AutoFallback object appropriate to the reason for there being
      * no plugin available.
      */
-    void UpdateFallbackState(nsIContent* aContent, AutoFallback& fallback, const nsCString& aTypeHint);
-
-    nsresult IsPluginEnabledForType(const nsCString& aMIMEType);
-    bool IsPluginEnabledByExtension(nsIURI* uri, nsCString& mimeType);
+    static void
+      UpdateFallbackState(nsIContent* aContent, AutoFallback& fallback,
+                          const nsCString& aTypeHint);
 
     /**
      * The final listener to ship the data to (imagelib, uriloader, etc)

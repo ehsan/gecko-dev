@@ -56,9 +56,6 @@ function createAndStartHTTPServer(port) {
     server.registerFile("/search/guid:rewrite%40tests.mozilla.org",
                         do_get_file("rewrite-search.xml"));
 
-    server.registerFile("/search/guid:missing-sourceuri%40tests.mozilla.org",
-                        do_get_file("missing-sourceuri.xml"));
-
     server.start(port);
 
     return server;
@@ -454,7 +451,7 @@ add_test(function test_source_uri_rewrite() {
 
   let installCalled = false;
   store.__proto__.installAddonFromSearchResult =
-    function testInstallAddon(addon, metadata, cb) {
+    function testInstallAddon(addon, cb) {
 
     do_check_eq("http://127.0.0.1:8888/require.xpi?src=sync",
                 addon.sourceURI.spec);
@@ -472,31 +469,11 @@ add_test(function test_source_uri_rewrite() {
   let server = createAndStartHTTPServer(HTTP_PORT);
 
   let installCallback = Async.makeSpinningCallback();
-  store.installAddons([{id: "rewrite@tests.mozilla.org"}], installCallback);
+  store.installAddonsFromIDs(["rewrite@tests.mozilla.org"], installCallback);
 
   installCallback.wait();
   do_check_true(installCalled);
   store.__proto__.installAddonFromSearchResult = oldFunction;
-
-  Svc.Prefs.reset("addons.ignoreRepositoryChecking");
-  server.stop(run_next_test);
-});
-
-add_test(function test_handle_empty_source_uri() {
-  _("Ensure that search results without a sourceURI are properly ignored.");
-
-  Svc.Prefs.set("addons.ignoreRepositoryChecking", true);
-
-  let server = createAndStartHTTPServer(HTTP_PORT);
-
-  const ID = "missing-sourceuri@tests.mozilla.org";
-
-  let cb = Async.makeSpinningCallback();
-  store.installAddons([{id: ID}], cb);
-  let result = cb.wait();
-
-  do_check_true("installedIDs" in result);
-  do_check_eq(0, result.installedIDs.length);
 
   Svc.Prefs.reset("addons.ignoreRepositoryChecking");
   server.stop(run_next_test);

@@ -73,17 +73,13 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPREFSERVICE
   NS_FORWARD_NSIPREFBRANCH(sRootBranch->)
+  NS_FORWARD_NSIPREFBRANCH2(sRootBranch->)
   NS_DECL_NSIOBSERVER
 
   Preferences();
   virtual ~Preferences();
 
   nsresult Init();
-
-  /**
-   * Reset loaded user prefs then read them
-   */
-  static nsresult ResetAndReadUserPrefs();
 
   /**
    * Returns the singleton instance which is addreffed.
@@ -109,7 +105,7 @@ public:
    * Returns shared pref branch instance.
    * NOTE: not addreffed.
    */
-  static nsIPrefBranch* GetRootBranch()
+  static nsIPrefBranch2* GetRootBranch()
   {
     NS_ENSURE_TRUE(InitStaticMembers(), nsnull);
     return sRootBranch;
@@ -344,6 +340,7 @@ public:
                                     void** aResult);
 
   // Used to synchronise preferences between chrome and content processes.
+  static nsresult ReadExtensionPrefs(nsIFile *aFile);
   static void MirrorPreferences(nsTArray<PrefTuple,
                                 nsTArrayInfallibleAllocator> *aArray);
   static bool MirrorPreference(const char *aPref, PrefTuple *aTuple);
@@ -364,7 +361,8 @@ private:
   nsCOMPtr<nsIFile>        mCurrentFile;
 
   static Preferences*      sPreferences;
-  static nsIPrefBranch*    sRootBranch;
+  static nsIPrefBranch2*   sRootBranch;
+  // NOTE: default branch doesn't return nsIPrefBranch2 interface at query.
   static nsIPrefBranch*    sDefaultRootBranch;
   static bool              sShutdown;
 

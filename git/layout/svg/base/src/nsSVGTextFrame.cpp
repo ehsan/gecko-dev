@@ -209,13 +209,20 @@ nsSVGTextFrame::NotifySVGChanged(PRUint32 aFlags)
   }
 }
 
-void
+NS_IMETHODIMP
+nsSVGTextFrame::NotifyRedrawSuspended()
+{
+  mMetricsState = suspended;
+
+  return nsSVGTextFrameBase::NotifyRedrawSuspended();
+}
+
+NS_IMETHODIMP
 nsSVGTextFrame::NotifyRedrawUnsuspended()
 {
-  RemoveStateBits(NS_STATE_SVG_REDRAW_SUSPENDED);
-
+  mMetricsState = unsuspended;
   UpdateGlyphPositioning(false);
-  nsSVGTextFrameBase::NotifyRedrawUnsuspended();
+  return nsSVGTextFrameBase::NotifyRedrawUnsuspended();
 }
 
 NS_IMETHODIMP
@@ -274,7 +281,7 @@ nsSVGTextFrame::GetCanvasTM()
     nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
     nsSVGGraphicElement *content = static_cast<nsSVGGraphicElement*>(mContent);
 
-    gfxMatrix tm = content->PrependLocalTransformsTo(parent->GetCanvasTM());
+    gfxMatrix tm = content->PrependLocalTransformTo(parent->GetCanvasTM());
 
     mCanvasTM = new gfxMatrix(tm);
   }
@@ -331,7 +338,7 @@ nsSVGTextFrame::SetWhitespaceHandling(nsSVGGlyphFrame *aFrame)
 void
 nsSVGTextFrame::UpdateGlyphPositioning(bool aForceGlobalTransform)
 {
-  if ((GetStateBits() & NS_STATE_SVG_REDRAW_SUSPENDED) || !mPositioningDirty)
+  if (mMetricsState == suspended || !mPositioningDirty)
     return;
 
   mPositioningDirty = false;

@@ -70,7 +70,7 @@ class nsXFormsAccessible : public nsHyperTextAccessibleWrap,
                            public nsXFormsAccessibleBase
 {
 public:
-  nsXFormsAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXFormsAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsIAccessible
 
@@ -90,7 +90,7 @@ public:
 
   // Denies accessible nodes in anonymous content of xforms element by
   // always returning false value.
-  virtual bool CanHaveAnonChildren();
+  virtual bool GetAllowsAnonChildAccessibles();
 
 protected:
   // Returns value of first child xforms element by tagname that is bound to
@@ -124,14 +124,14 @@ protected:
 class nsXFormsContainerAccessible : public nsXFormsAccessible
 {
 public:
-  nsXFormsContainerAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXFormsContainerAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
   virtual mozilla::a11y::role NativeRole();
 
   // Allows accessible nodes in anonymous content of xforms element by
   // always returning true value.
-  virtual bool CanHaveAnonChildren();
+  virtual bool GetAllowsAnonChildAccessibles();
 };
 
 
@@ -142,7 +142,7 @@ public:
 class nsXFormsEditableAccessible : public nsXFormsAccessible
 {
 public:
-  nsXFormsEditableAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXFormsEditableAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsIAccessibleEditableText
   NS_IMETHOD GetAssociatedEditor(nsIEditor **aEditor);
@@ -159,7 +159,7 @@ public:
 class nsXFormsSelectableAccessible : public nsXFormsEditableAccessible
 {
 public:
-  nsXFormsSelectableAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
+  nsXFormsSelectableAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // SelectAccessible
   virtual bool IsSelect();
@@ -186,8 +186,8 @@ protected:
 class nsXFormsSelectableItemAccessible : public nsXFormsAccessible
 {
 public:
-  nsXFormsSelectableItemAccessible(nsIContent* aContent,
-                                   nsDocAccessible* aDoc);
+  nsXFormsSelectableItemAccessible(nsIContent *aContent,
+                                   nsIWeakReference *aShell);
 
   NS_IMETHOD GetValue(nsAString& aValue);
   NS_IMETHOD DoAction(PRUint8 aIndex);

@@ -80,7 +80,7 @@ public:
   NS_IMETHODIMP_(nsRect) GetCoveredRegion();
   NS_IMETHOD UpdateCoveredRegion();
   NS_IMETHOD InitialUpdate();
-  virtual void NotifyRedrawUnsuspended();
+  NS_IMETHOD NotifyRedrawUnsuspended();
   virtual gfxRect GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
                                       PRUint32 aFlags);
 
@@ -186,15 +186,13 @@ nsSVGSwitchFrame::InitialUpdate()
   return nsSVGSwitchFrameBase::InitialUpdate();
 }
 
-void
+NS_IMETHODIMP
 nsSVGSwitchFrame::NotifyRedrawUnsuspended()
 {
-  RemoveStateBits(NS_STATE_SVG_REDRAW_SUSPENDED);
-
   if (GetStateBits() & NS_STATE_SVG_DIRTY)
     nsSVGUtils::UpdateGraphic(this);
 
-  nsSVGSwitchFrameBase::NotifyRedrawUnsuspended();
+  return nsSVGSwitchFrameBase::NotifyRedrawUnsuspended();
 }
 
 gfxRect
@@ -208,7 +206,7 @@ nsSVGSwitchFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
     gfxMatrix transform = aToBBoxUserspace;
     if (content->IsSVG()) {
       transform = static_cast<nsSVGElement*>(content)->
-                    PrependLocalTransformsTo(aToBBoxUserspace);
+                    PrependLocalTransformTo(aToBBoxUserspace);
     }
     return svgKid->GetBBoxContribution(transform, aFlags);
   }

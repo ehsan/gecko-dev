@@ -3027,7 +3027,7 @@ PropertyProvider::GetHyphenationBreaks(PRUint32 aStart, PRUint32 aLength,
   if (!mTextStyle->WhiteSpaceCanWrap() ||
       mTextStyle->mHyphens == NS_STYLE_HYPHENS_NONE)
   {
-    memset(aBreakBefore, false, aLength*sizeof(bool));
+    memset(aBreakBefore, false, aLength);
     return;
   }
 
@@ -3054,7 +3054,7 @@ PropertyProvider::GetHyphenationBreaks(PRUint32 aStart, PRUint32 aLength,
         mFrag->CharAt(run.GetOriginalOffset() + run.GetRunLength() - 1) == CH_SHY;
     } else {
       PRInt32 runOffsetInSubstring = run.GetSkippedOffset() - aStart;
-      memset(aBreakBefore + runOffsetInSubstring, false, run.GetRunLength()*sizeof(bool));
+      memset(aBreakBefore + runOffsetInSubstring, false, run.GetRunLength());
       // Don't allow hyphen breaks at the start of the line
       aBreakBefore[runOffsetInSubstring] = allowHyphenBreakBeforeNextChar &&
           (!(mFrame->GetStateBits() & TEXT_START_OF_LINE) ||
@@ -5563,7 +5563,7 @@ nsTextFrame::DrawTextRun(gfxContext* const aCtx,
                          bool aDrawSoftHyphen)
 {
   mTextRun->Draw(aCtx, aTextBaselinePt, gfxFont::GLYPH_FILL, aOffset, aLength,
-                 &aProvider, &aAdvanceWidth, nsnull);
+                 &aProvider, &aAdvanceWidth);
 
   if (aDrawSoftHyphen) {
     // Don't use ctx as the context, because we need a reference context here,
@@ -5575,8 +5575,7 @@ nsTextFrame::DrawTextRun(gfxContext* const aCtx,
       gfxFloat hyphenBaselineX = aTextBaselinePt.x + mTextRun->GetDirection() * aAdvanceWidth -
         (mTextRun->IsRightToLeft() ? hyphenTextRun->GetAdvanceWidth(0, hyphenTextRun->GetLength(), nsnull) : 0);
       hyphenTextRun->Draw(aCtx, gfxPoint(hyphenBaselineX, aTextBaselinePt.y),
-                          gfxFont::GLYPH_FILL, 0, hyphenTextRun->GetLength(),
-                          nsnull, nsnull, nsnull);
+                          gfxFont::GLYPH_FILL, 0, hyphenTextRun->GetLength(), nsnull, nsnull);
     }
   }
 }
@@ -6314,7 +6313,7 @@ ClusterIterator::ClusterIterator(nsTextFrame* aTextFrame, PRInt32 aPosition,
     mDirection = 0; // signal failure
     return;
   }
-  memset(mWordBreaks.Elements(), false, (textLen + 1)*sizeof(bool));
+  memset(mWordBreaks.Elements(), false, textLen + 1);
   PRInt32 textStart;
   if (aDirection > 0) {
     if (aContext.IsEmpty()) {

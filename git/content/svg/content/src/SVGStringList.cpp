@@ -62,14 +62,14 @@ SVGStringList::CopyFrom(const SVGStringList& rhs)
 }
 
 void
-SVGStringList::GetValue(nsAString& aValue) const
+SVGStringList::GetValue(nsAString& aValue, bool aIsCommaSeparated) const
 {
   aValue.Truncate();
   PRUint32 last = mStrings.Length() - 1;
   for (PRUint32 i = 0; i < mStrings.Length(); ++i) {
     aValue.Append(mStrings[i]);
     if (i != last) {
-      if (mIsCommaSeparated) {
+      if (aIsCommaSeparated) {
         aValue.Append(',');
       }
       aValue.Append(' ');
@@ -78,11 +78,11 @@ SVGStringList::GetValue(nsAString& aValue) const
 }
 
 nsresult
-SVGStringList::SetValue(const nsAString& aValue)
+SVGStringList::SetValue(const nsAString& aValue, bool aIsCommaSeparated)
 {
   SVGStringList temp;
 
-  if (mIsCommaSeparated) {
+  if (aIsCommaSeparated) {
     nsCharSeparatedTokenizerTemplate<IsSVGWhitespace>
       tokenizer(aValue, ',');
 

@@ -1247,12 +1247,8 @@ public:
    */
   bool Preserves3D() const;
 
-  bool HasPerspective() const;
-
   // Calculate the overflow size of all child frames, taking preserve-3d into account
   void ComputePreserve3DChildrenOverflow(nsOverflowAreas& aOverflowAreas, const nsRect& aBounds);
-
-  void RecomputePerspectiveChildrenOverflow(const nsIFrame* aStartFrame, const nsRect* aBounds);
 
   /**
    * Event handling of GUI events.
@@ -2433,7 +2429,7 @@ public:
    *         style context.  Null is permitted, and means that this frame's
    *         style context should be the root of the style context tree.
    */
-  virtual nsIFrame* GetParentStyleContextFrame() const = 0;
+  virtual nsIFrame* GetParentStyleContextFrame() = 0;
 
   /**
    * Determines whether a frame is visible for painting;

@@ -33,7 +33,7 @@ class DeviceManagerADB(DeviceManager):
       self.verifyRunAs(packageName)
     except:
       self.useRunAs = False
-      self.packageName = packageName
+      self.packageName = None
     try:
       self.verifyZip()
     except:
@@ -237,7 +237,6 @@ class DeviceManagerADB(DeviceManager):
   def listFiles(self, rootdir):
       p = self.runCmd(["shell", "ls", "-a", rootdir])
       data = p.stdout.readlines()
-      data[:] = [item.rstrip('\r\n') for item in data]
       if (len(data) == 1):
           if (data[0] == rootdir):
               return []
@@ -283,7 +282,7 @@ class DeviceManagerADB(DeviceManager):
       self.checkCmd(["shell"] + cmd)
       return outputFile
 
-    acmd = ["shell", "am", "start", "-W"]
+    acmd = ["shell", "am","start"]
     cmd = ' '.join(cmd).strip()
     i = cmd.find(" ")
     # SUT identifies the URL by looking for :\\ -- another strategy to consider
@@ -298,18 +297,10 @@ class DeviceManagerADB(DeviceManager):
       args = cmd[i:].strip()
     acmd.append("-n")
     acmd.append(cmd[0:i] + "/.App")
+    acmd.append("--es")
     if args != "":
-      acmd.append("--es")
       acmd.append("args")
       acmd.append(args)
-    if env != '' and env != None:
-      envCnt = 0
-      # env is expected to be a dict of environment variables
-      for envkey, envval in env.iteritems():
-        acmd.append("--es")
-        acmd.append("env" + str(envCnt))
-        acmd.append(envkey + "=" + envval);
-        envCnt += 1
     if uri != "":
       acmd.append("-d")
       acmd.append(''.join(['\'',uri, '\'']));
@@ -684,13 +675,7 @@ class DeviceManagerADB(DeviceManager):
     if (packageName and self.isCpAvailable() and devroot):
       tmpDir = self.getTempDir()
 
-      # The problem here is that run-as doesn't cause a non-zero exit code
-      # when failing because of a non-existent or non-debuggable package :(
-      runAsOut = self.runCmd(["shell", "run-as", packageName, "mkdir", devroot + "/sanity"]).communicate()[0]
-      if runAsOut.startswith("run-as:") and ("not debuggable" in runAsOut[0] or
-                                             "is unknown" in runAsOut[0]):
-        raise DMError("run-as failed sanity check")
-
+      self.checkCmd(["shell", "run-as", packageName, "mkdir", devroot + "/sanity"])
       self.checkCmd(["push", os.path.abspath(sys.argv[0]), tmpDir + "/tmpfile"])
       if self.useDDCopy:
         self.checkCmd(["shell", "run-as", packageName, "dd", "if=" + tmpDir + "/tmpfile", "of=" + devroot + "/sanity/tmpfile"])

@@ -2136,7 +2136,7 @@ public:
     INDEX_MAX = PR_UINT32_MAX >> nsDisplayItem::TYPE_BITS
   };
 
-  const gfx3DMatrix& GetTransform(float aAppUnitsPerPixel);
+  const gfx3DMatrix& GetTransform(float aFactor);
 
   float GetHitDepthAtPoint(const nsPoint& aPoint);
 
@@ -2175,11 +2175,6 @@ public:
                                 const nsIFrame* aFrame,
                                 const nsPoint &aOrigin,
                                 nsRect* aOutRect);
-  
-  static bool UntransformRectMatrix(const nsRect &aUntransformedBounds, 
-                                    const gfx3DMatrix& aMatrix,
-                                    float aAppUnitsPerPixel,
-                                    nsRect* aOutRect);
 
   /**
    * Returns the bounds of a frame as defined for resolving percentage
@@ -2203,7 +2198,7 @@ public:
    *
    * @param aFrame The frame to get the matrix from.
    * @param aOrigin Relative to which point this transform should be applied.
-   * @param aAppUnitsPerPixel The number of app units per graphics unit.
+   * @param aScaleFactor The number of app units per graphics unit.
    * @param aBoundsOverride [optional] If this is nsnull (the default), the
    *        computation will use the value of GetFrameBoundsForTransform(aFrame)
    *        for the frame's bounding rectangle. Otherwise, it will use the
@@ -2212,7 +2207,7 @@ public:
    */
   static gfx3DMatrix GetResultingTransformMatrix(const nsIFrame* aFrame,
                                                  const nsPoint& aOrigin,
-                                                 float aAppUnitsPerPixel,
+                                                 float aFactor,
                                                  const nsRect* aBoundsOverride = nsnull,
                                                  nsIFrame** aOutAncestor = nsnull);
   /**
@@ -2225,7 +2220,7 @@ public:
 private:
   nsDisplayWrapList mStoredList;
   gfx3DMatrix mTransform;
-  float mCachedAppUnitsPerPixel;
+  float mCachedFactor;
   PRUint32 mIndex;
 };
 

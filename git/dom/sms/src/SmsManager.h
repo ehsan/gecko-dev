@@ -40,7 +40,7 @@
 
 #include "nsIDOMSmsManager.h"
 #include "nsIObserver.h"
-#include "nsDOMEventTargetHelper.h"
+#include "nsDOMEventTargetWrapperCache.h"
 
 class nsIDOMMozSmsMessage;
 
@@ -50,17 +50,17 @@ namespace sms {
 
 class SmsManager : public nsIDOMMozSmsManager
                  , public nsIObserver
-                 , public nsDOMEventTargetHelper
+                 , public nsDOMEventTargetWrapperCache
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
   NS_DECL_NSIDOMMOZSMSMANAGER
 
-  NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
+  NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetWrapperCache::)
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(SmsManager,
-                                           nsDOMEventTargetHelper)
+                                           nsDOMEventTargetWrapperCache)
 
   void Init(nsPIDOMWindow *aWindow, nsIScriptContext* aScriptContext);
   void Shutdown();

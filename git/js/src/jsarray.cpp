@@ -127,7 +127,6 @@
 #include "methodjit/StubCalls-inl.h"
 
 #include "vm/ArgumentsObject.h"
-#include "vm/MethodGuard.h"
 
 #include "ds/Sort.h"
 
@@ -1216,7 +1215,7 @@ array_fix(JSContext *cx, JSObject *obj, bool *success, AutoIdVector *props)
 
 Class js::ArrayClass = {
     "Array",
-    Class::NON_NATIVE | JSCLASS_HAS_CACHED_PROTO(JSProto_Array) | JSCLASS_FOR_OF_ITERATION,
+    Class::NON_NATIVE | JSCLASS_HAS_CACHED_PROTO(JSProto_Array),
     JS_PropertyStub,         /* addProperty */
     JS_PropertyStub,         /* delProperty */
     JS_PropertyStub,         /* getProperty */
@@ -1225,19 +1224,14 @@ Class js::ArrayClass = {
     JS_ResolveStub,
     JS_ConvertStub,
     NULL,
+    NULL,           /* reserved0   */
     NULL,           /* checkAccess */
     NULL,           /* call        */
     NULL,           /* construct   */
+    NULL,           /* xdrObject   */
     NULL,           /* hasInstance */
     array_trace,    /* trace       */
-    {
-        NULL,       /* equality    */
-        NULL,       /* outerObject */
-        NULL,       /* innerObject */
-        JS_ElementIteratorStub,
-        NULL,       /* unused      */
-        false,      /* isWrappedNative */
-    },
+    JS_NULL_CLASS_EXT,
     {
         array_lookupGeneric,
         array_lookupProperty,
@@ -1278,28 +1272,14 @@ Class js::ArrayClass = {
 
 Class js::SlowArrayClass = {
     "Array",
-    JSCLASS_HAS_CACHED_PROTO(JSProto_Array) | JSCLASS_FOR_OF_ITERATION,
+    JSCLASS_HAS_CACHED_PROTO(JSProto_Array),
     slowarray_addProperty,
     JS_PropertyStub,         /* delProperty */
     JS_PropertyStub,         /* getProperty */
     JS_StrictPropertyStub,   /* setProperty */
     JS_EnumerateStub,
     JS_ResolveStub,
-    JS_ConvertStub,
-    NULL,
-    NULL,           /* checkAccess */
-    NULL,           /* call        */
-    NULL,           /* construct   */
-    NULL,           /* hasInstance */
-    NULL,           /* trace       */
-    {
-        NULL,       /* equality    */
-        NULL,       /* outerObject */
-        NULL,       /* innerObject */
-        JS_ElementIteratorStub,
-        NULL,       /* unused      */
-        false,      /* isWrappedNative */
-    }
+    JS_ConvertStub
 };
 
 bool
@@ -1431,22 +1411,23 @@ JSObject::makeDenseArraySlow(JSContext *cx)
 class ArraySharpDetector
 {
     JSContext *cx;
-    bool success;
+    JSHashEntry *he;
     bool alreadySeen;
     bool sharp;
 
   public:
     ArraySharpDetector(JSContext *cx)
       : cx(cx),
-        success(false),
+        he(NULL),
         alreadySeen(false),
         sharp(false)
     {}
 
     bool init(JSObject *obj) {
-        success = js_EnterSharpObject(cx, obj, NULL, &alreadySeen, &sharp);
-        if (!success)
+        he = js_EnterSharpObject(cx, obj, NULL, &alreadySeen);
+        if (!he)
             return false;
+        sharp = IS_SHARP(he);
         return true;
     }
 
@@ -1456,7 +1437,7 @@ class ArraySharpDetector
     }
 
     ~ArraySharpDetector() {
-        if (success && !sharp)
+        if (he && !sharp)
             js_LeaveSharpObject(cx, NULL);
     }
 };
@@ -3586,7 +3567,9 @@ static JSBool
 array_isArray(JSContext *cx, uintN argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    bool isArray = args.length() > 0 && IsObjectWithClass(args[0], ESClass_Array, cx);
+    bool isArray = args.length() > 0 &&
+                   args[0].isObject() &&
+                   ObjectClassIs(args[0].toObject(), ESClass_Array, cx);
     args.rval().setBoolean(isArray);
     return true;
 }

@@ -444,9 +444,11 @@ listTemplate = (
 "    JS_ResolveStub,\n"
 "    JS_ConvertStub,\n"
 "    JS_FinalizeStub,\n"
+"    NULL,                   /* reserved0 */\n"
 "    NULL,                   /* checkAccess */\n"
 "    NULL,                   /* call */\n"
 "    NULL,                   /* construct */\n"
+"    NULL,                   /* xdrObject */\n"
 "    interface_hasInstance\n"
 "};\n"
 "\n")
@@ -578,8 +580,10 @@ def writeBindingStub(f, classname, member, stubName, isSetter=False):
                     "        return false;\n" % classname)
         return "%sWrapper::getListObject(obj)" % classname
     def writeCheckForFailure(f, isMethod, isGeter, haveCcx):
-        f.write("    if (NS_FAILED(rv))\n"
-                "        return xpc_qsThrowMethodFailedWithDetails(cx, rv, \"%s\", \"%s\");\n" % (classname, member.name))
+        f.write("    if (NS_FAILED(rv)) {\n"
+                "        xpc_qsThrowMethodFailedWithDetails(cx, rv, \"%s\", \"%s\");\n"
+                "        return JS_FALSE;\n"
+                "    }\n" % (classname, member.name))
     def writeResultWrapping(f, member, jsvalPtr, jsvalRef):
         if member.kind == 'method' and member.notxpcom and len(member.params) > 0 and member.params[len(member.params) - 1].paramtype == 'out':
             assert member.params[len(member.params) - 1].realtype.kind == 'native' and member.params[len(member.params) - 1].realtype.nativename == 'nsWrapperCache'

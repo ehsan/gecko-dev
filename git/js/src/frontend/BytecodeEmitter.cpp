@@ -983,7 +983,7 @@ static bool
 EmitIndex32(JSContext *cx, JSOp op, uint32_t index, BytecodeEmitter *bce)
 {
     const size_t len = 1 + UINT32_INDEX_LEN;
-    JS_ASSERT(size_t(js_CodeSpec[op].length) == len);
+    JS_ASSERT(js_CodeSpec[op].length == len);
     ptrdiff_t offset = EmitCheck(cx, bce, len);
     if (offset < 0)
         return false;
@@ -5138,9 +5138,8 @@ EmitFunc(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             return false;
         if (pn->pn_cookie.isFree()) {
             bce->switchToProlog();
-            MOZ_ASSERT(!fun->isFlatClosure(),
-                       "global functions can't have upvars, so they are never flat");
-            if (!EmitFunctionOp(cx, JSOP_DEFFUN, index, bce))
+            JSOp op = fun->isFlatClosure() ? JSOP_DEFFUN_FC : JSOP_DEFFUN;
+            if (!EmitFunctionOp(cx, op, index, bce))
                 return false;
             bce->switchToMain();
         }

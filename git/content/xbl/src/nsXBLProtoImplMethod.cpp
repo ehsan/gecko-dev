@@ -289,17 +289,13 @@ nsresult
 nsXBLProtoImplMethod::Write(nsIScriptContext* aContext,
                             nsIObjectOutputStream* aStream)
 {
-  if (mJSMethodObject) {
-    nsresult rv = aStream->Write8(XBLBinding_Serialize_Method);
-    NS_ENSURE_SUCCESS(rv, rv);
+  nsresult rv = aStream->Write8(XBLBinding_Serialize_Method);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = aStream->WriteWStringZ(mName);
-    NS_ENSURE_SUCCESS(rv, rv);
+  rv = aStream->WriteWStringZ(mName);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-    return XBL_SerializeFunction(aContext, aStream, mJSMethodObject);
-  }
-
-  return NS_OK;
+  return XBL_SerializeFunction(aContext, aStream, mJSMethodObject);
 }
 
 nsresult

@@ -43,10 +43,11 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.mozilla.gecko.sync.CryptoRecord;
 import org.mozilla.gecko.sync.ExtendedJSONObject;
-import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.NonArrayJSONException;
 import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.sync.repositories.android.RepoUtils;
+
+import android.util.Log;
 
 /**
  * Visits are in microsecond precision.
@@ -82,32 +83,6 @@ public class HistoryRecord extends Record {
   public long      fennecDateVisited;
   public long      fennecVisitCount;
 
-  @SuppressWarnings("unchecked")
-  private JSONArray copyVisits() {
-    if (this.visits == null) {
-      return null;
-    }
-    JSONArray out = new JSONArray();
-    out.addAll(this.visits);
-    return out;
-  }
-
-  @Override
-  public Record copyWithIDs(String guid, long androidID) {
-    HistoryRecord out = new HistoryRecord(guid, this.collection, this.lastModified, this.deleted);
-    out.androidID = androidID;
-    out.sortIndex = this.sortIndex;
-
-    // Copy HistoryRecord fields.
-    out.title             = this.title;
-    out.histURI           = this.histURI;
-    out.fennecDateVisited = this.fennecDateVisited;
-    out.fennecVisitCount  = this.fennecVisitCount;
-    out.visits            = this.copyVisits();
-
-    return out;
-  }
-
   @Override
   public void initFromPayload(CryptoRecord payload) {
     ExtendedJSONObject p = payload.payload;
@@ -123,7 +98,7 @@ public class HistoryRecord extends Record {
     try {
       this.visits = p.getArray("visits");
     } catch (NonArrayJSONException e) {
-      Logger.error(LOG_TAG, "Got non-array visits in history record " + this.guid, e);
+      Log.e(LOG_TAG, "Got non-array visits in history record " + this.guid, e);
       this.visits = new JSONArray();
     }
   }
@@ -132,7 +107,7 @@ public class HistoryRecord extends Record {
   public CryptoRecord getPayload() {
     CryptoRecord rec = new CryptoRecord(this);
     rec.payload = new ExtendedJSONObject();
-    Logger.debug(LOG_TAG, "Getting payload for history record " + this.guid + " (" + this.guid.length() + ").");
+    Log.d(LOG_TAG, "Getting payload for history record " + this.guid + " (" + this.guid.length() + ").");
     rec.payload.put("id",      this.guid);
     rec.payload.put("title",   this.title);
     rec.payload.put("histUri", this.histURI);             // TODO: encoding?
@@ -140,63 +115,32 @@ public class HistoryRecord extends Record {
     return rec;
   }
 
-
-  /**
-   * We consider two history records to be congruent if they represent the
-   * same history record regardless of visits.
-   */
-  @Override
-  public boolean congruentWith(Object o) {
-    if (o == null || !(o instanceof HistoryRecord)) {
+  public boolean equalsExceptVisits(Object o) {
+    if (!(o instanceof HistoryRecord)) {
       return false;
     }
     HistoryRecord other = (HistoryRecord) o;
-    if (!super.congruentWith(other)) {
-      return false;
-    }
-    return RepoUtils.stringsEqual(this.title, other.title) &&
+    return super.equals(other) &&
+           RepoUtils.stringsEqual(this.title, other.title) &&
            RepoUtils.stringsEqual(this.histURI, other.histURI);
   }
 
-  @Override
-  public boolean equalPayloads(Object o) {
-    if (o == null || !(o instanceof HistoryRecord)) {
-      Logger.debug(LOG_TAG, "Not a HistoryRecord: " + o);
-      return false;
-    }
+  public boolean equalsIncludingVisits(Object o) {
     HistoryRecord other = (HistoryRecord) o;
-    if (!super.equalPayloads(other)) {
-      Logger.debug(LOG_TAG, "super.equalPayloads returned false.");
-      return false;
-    }
-    return RepoUtils.stringsEqual(this.title, other.title) &&
-           RepoUtils.stringsEqual(this.histURI, other.histURI) &&
-           checkVisitsEquals(other);
+    return equalsExceptVisits(other) && this.checkVisitsEquals(other);
   }
 
   @Override
-  public boolean equalAndroidIDs(Record other) {
-    return super.equalAndroidIDs(other) &&
-           this.equalFennecVisits(other);
-  }
-
-  private boolean equalFennecVisits(Record other) {
-    if (!(other instanceof HistoryRecord)) {
-      return false;
-    }
-    HistoryRecord h = (HistoryRecord) other;
-    return this.fennecDateVisited == h.fennecDateVisited &&
-           this.fennecVisitCount  == h.fennecVisitCount;
+  /**
+   * We consider two history records to be equal if they represent the
+   * same history record regardless of visits.
+   */
+  public boolean equals(Object o) {
+    return equalsExceptVisits(o);
   }
 
   private boolean checkVisitsEquals(HistoryRecord other) {
-    Logger.debug(LOG_TAG, "Checking visits.");
-    if (Logger.logVerbose(LOG_TAG)) {
-      // Don't JSON-encode unless we're logging.
-      Logger.trace(LOG_TAG, ">> Mine:   " + ((this.visits == null) ? "null" : this.visits.toJSONString()));
-      Logger.trace(LOG_TAG, ">> Theirs: " + ((other.visits == null) ? "null" : other.visits.toJSONString()));
-    }
-
+    
     // Handle nulls.
     if (this.visits == other.visits) {
       return true;

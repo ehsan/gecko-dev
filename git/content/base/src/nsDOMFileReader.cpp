@@ -79,7 +79,6 @@
 #include "xpcpublic.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsDOMJSUtils.h"
-#include "nsDOMEventTargetHelper.h"
 
 #include "jstypedarray.h"
 
@@ -115,7 +114,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(nsDOMFileReader,
-                                               nsDOMEventTargetHelper)
+                                               nsDOMEventTargetWrapperCache)
   if(tmp->mResultArrayBuffer) {
     NS_IMPL_CYCLE_COLLECTION_TRACE_JS_CALLBACK(tmp->mResultArrayBuffer,
                                                "mResultArrayBuffer")
@@ -174,7 +173,7 @@ nsDOMFileReader::~nsDOMFileReader()
 nsresult
 nsDOMFileReader::Init()
 {
-  nsDOMEventTargetHelper::Init();
+  nsDOMEventTargetWrapperCache::Init();
 
   nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
   nsCOMPtr<nsIPrincipal> subjectPrincipal;

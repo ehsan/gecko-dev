@@ -127,9 +127,9 @@ XPCWrappedNativeScope::GetNewOrUsed(XPCCallContext& ccx, JSObject* aGlobal)
         scope->SetGlobal(ccx, aGlobal);
     }
     if (js::GetObjectClass(aGlobal)->flags & JSCLASS_XPCONNECT_GLOBAL)
-        JS_SetReservedSlot(aGlobal,
-                           JSCLASS_GLOBAL_SLOT_COUNT,
-                           PRIVATE_TO_JSVAL(scope));
+        JS_ALWAYS_TRUE(JS_SetReservedSlot(ccx, aGlobal,
+                                          JSCLASS_GLOBAL_SLOT_COUNT,
+                                          PRIVATE_TO_JSVAL(scope)));
     return scope;
 }
 
@@ -214,9 +214,11 @@ js::Class XPC_WN_NoHelper_Proto_JSClass = {
     nsnull,                         // finalize;
 
     /* Optionally non-null members start here. */
+    nsnull,                         // reserved0;
     nsnull,                         // checkAccess;
     nsnull,                         // call;
     nsnull,                         // construct;
+    nsnull,                         // xdrObject;
     nsnull,                         // hasInstance;
     nsnull,                         // trace;
 
@@ -325,8 +327,6 @@ XPCWrappedNativeScope::GetPrototypeNoHelper(XPCCallContext& ccx)
 
         NS_ASSERTION(mPrototypeNoHelper,
                      "Failed to create prototype for wrappers w/o a helper");
-    } else {
-        xpc_UnmarkGrayObject(mPrototypeNoHelper);
     }
 
     return mPrototypeNoHelper;
@@ -418,8 +418,10 @@ XPCWrappedNativeScope::FinishedMarkPhaseOfGC(JSContext* cx, XPCJSRuntime* rt)
     while (cur) {
         XPCWrappedNativeScope* next = cur->mNext;
 
+        js::AutoSwitchCompartment sc(cx, cur->mGlobalJSObject);
+
         if (cur->mGlobalJSObject &&
-            JS_IsAboutToBeFinalized(cur->mGlobalJSObject)) {
+            JS_IsAboutToBeFinalized(cx, cur->mGlobalJSObject)) {
             cur->mGlobalJSObject.finalize(cx);
             cur->mScriptObjectPrincipal = nsnull;
             if (cur->GetCachedDOMPrototypes().IsInitialized())
@@ -434,11 +436,11 @@ XPCWrappedNativeScope::FinishedMarkPhaseOfGC(JSContext* cx, XPCJSRuntime* rt)
             cur = nsnull;
         } else {
             if (cur->mPrototypeJSObject &&
-                JS_IsAboutToBeFinalized(cur->mPrototypeJSObject)) {
+                JS_IsAboutToBeFinalized(cx, cur->mPrototypeJSObject)) {
                 cur->mPrototypeJSObject.finalize(cx);
             }
             if (cur->mPrototypeNoHelper &&
-                JS_IsAboutToBeFinalized(cur->mPrototypeNoHelper)) {
+                JS_IsAboutToBeFinalized(cx, cur->mPrototypeNoHelper)) {
                 cur->mPrototypeNoHelper = nsnull;
             }
         }
@@ -555,9 +557,10 @@ XPCWrappedNativeScope::KillDyingScopes()
 
 struct ShutdownData
 {
-    ShutdownData()
-        : wrapperCount(0),
+    ShutdownData(JSContext* acx)
+        : cx(acx), wrapperCount(0),
           protoCount(0) {}
+    JSContext* cx;
     int wrapperCount;
     int protoCount;
 };
@@ -570,7 +573,7 @@ WrappedNativeShutdownEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
     XPCWrappedNative* wrapper = ((Native2WrappedNativeMap::Entry*)hdr)->value;
 
     if (wrapper->IsValid()) {
-        wrapper->SystemIsBeingShutDown();
+        wrapper->SystemIsBeingShutDown(data->cx);
         data->wrapperCount++;
     }
     return JS_DHASH_REMOVE;
@@ -582,21 +585,21 @@ WrappedNativeProtoShutdownEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
 {
     ShutdownData* data = (ShutdownData*) arg;
     ((ClassInfo2WrappedNativeProtoMap::Entry*)hdr)->value->
-        SystemIsBeingShutDown();
+        SystemIsBeingShutDown(data->cx);
     data->protoCount++;
     return JS_DHASH_REMOVE;
 }
 
 //static
 void
-XPCWrappedNativeScope::SystemIsBeingShutDown()
+XPCWrappedNativeScope::SystemIsBeingShutDown(JSContext* cx)
 {
     DEBUG_TrackScopeTraversal();
     DEBUG_TrackScopeShutdown();
 
     int liveScopeCount = 0;
 
-    ShutdownData data;
+    ShutdownData data(cx);
 
     XPCWrappedNativeScope* cur;
 
@@ -618,6 +621,12 @@ XPCWrappedNativeScope::SystemIsBeingShutDown()
         // Give the Components object a chance to try to clean up.
         if (cur->mComponents)
             cur->mComponents->SystemIsBeingShutDown();
+
+        JSAutoEnterCompartment ac;
+
+        // XXX: What if we have no global in the scope???
+        if (cur->mGlobalJSObject)
+            ac.enter(cx, cur->mGlobalJSObject);
 
         // Walk the protos first. Wrapper shutdown can leave dangling
         // proto pointers in the proto map.

@@ -58,8 +58,9 @@ public:
     mIsAnimated = false;
   }
 
-  nsresult SetBaseValueAtom(const nsIAtom* aValue, nsSVGElement *aSVGElement);
-  nsIAtom* GetBaseValueAtom() const;
+  nsresult SetBaseValueString(const nsAString& aValue,
+                              nsSVGElement *aSVGElement);
+  void GetBaseValueString(nsAString& aValue);
 
   void SetBaseValue(bool aValue, nsSVGElement *aSVGElement);
   bool GetBaseValue() const

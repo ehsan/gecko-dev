@@ -94,12 +94,15 @@ function whenLoaded(aElement, aCallback) {
  * @param aMessage The info message to print when comparing the pixel color.
  */
 function captureAndCheckColor(aRed, aGreen, aBlue, aMessage) {
-  let browser = gBrowser.selectedBrowser;
+  let window = gBrowser.selectedTab.linkedBrowser.contentWindow;
 
-  // Capture the screenshot.
-  PageThumbs.captureAndStore(browser, function () {
+  let key = Date.now();
+  let data = PageThumbs.capture(window);
+
+  // Store the thumbnail in the cache.
+  PageThumbs.store(key, data, function () {
     let width = 100, height = 100;
-    let thumb = PageThumbs.getThumbnailURL(browser.currentURI.spec, width, height);
+    let thumb = PageThumbs.getThumbnailURL(key, width, height);
 
     getXULDocument(function (aDocument) {
       let htmlns = "http://www.w3.org/1999/xhtml";
@@ -145,7 +148,6 @@ function getXULDocument(aCallback) {
   }, false);
 
   doc.body.appendChild(iframe);
-  registerCleanupFunction(function () { doc.body.removeChild(iframe); });
 }
 
 /**

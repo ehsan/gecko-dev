@@ -38,7 +38,6 @@
 package org.mozilla.gecko.db;
 
 import android.content.ContentResolver;
-import android.database.ContentObserver;
 import android.database.Cursor;
 import android.graphics.drawable.BitmapDrawable;
 
@@ -52,7 +51,6 @@ public class BrowserDB {
         public static String THUMBNAIL = "thumbnail";
         public static String DATE_LAST_VISITED = "date-last-visited";
         public static String VISITS = "visits";
-        public static String KEYWORD = "keyword";
     }
 
     private static BrowserDBIface sDb;
@@ -77,21 +75,13 @@ public class BrowserDB {
 
         public void clearHistory(ContentResolver cr);
 
-        public Cursor getMobileBookmarks(ContentResolver cr);
-
-        public Cursor getDesktopBookmarks(ContentResolver cr);
+        public Cursor getAllBookmarks(ContentResolver cr);
 
         public boolean isBookmark(ContentResolver cr, String uri);
 
-        public String getUrlForKeyword(ContentResolver cr, String keyword);
-
         public void addBookmark(ContentResolver cr, String title, String uri);
 
-        public void removeBookmark(ContentResolver cr, int id);
-
-        public void removeBookmarksWithURL(ContentResolver cr, String uri);
-
-        public void updateBookmark(ContentResolver cr, String oldUri, String uri, String title, String keyword);
+        public void removeBookmark(ContentResolver cr, String uri);
 
         public BitmapDrawable getFaviconForUrl(ContentResolver cr, String uri);
 
@@ -100,8 +90,6 @@ public class BrowserDB {
         public void updateThumbnailForUrl(ContentResolver cr, String uri, BitmapDrawable thumbnail);
 
         public byte[] getThumbnailForUrl(ContentResolver cr, String uri);
-
-        public void registerBookmarkObserver(ContentResolver cr, ContentObserver observer);
     }
 
     static {
@@ -146,18 +134,10 @@ public class BrowserDB {
         sDb.clearHistory(cr);
     }
 
-    public static Cursor getMobileBookmarks(ContentResolver cr) {
-        return sDb.getMobileBookmarks(cr);
+    public static Cursor getAllBookmarks(ContentResolver cr) {
+        return sDb.getAllBookmarks(cr);
     }
 
-    public static Cursor getDesktopBookmarks(ContentResolver cr) {
-        return sDb.getDesktopBookmarks(cr);
-    }
-
-    public static String getUrlForKeyword(ContentResolver cr, String keyword) {
-        return sDb.getUrlForKeyword(cr, keyword);
-    }
-    
     public static boolean isBookmark(ContentResolver cr, String uri) {
         return sDb.isBookmark(cr, uri);
     }
@@ -166,16 +146,8 @@ public class BrowserDB {
         sDb.addBookmark(cr, title, uri);
     }
 
-    public static void removeBookmark(ContentResolver cr, int id) {
-        sDb.removeBookmark(cr, id);
-    }
-
-    public static void removeBookmarksWithURL(ContentResolver cr, String uri) {
-        sDb.removeBookmarksWithURL(cr, uri);
-    }
-
-    public static void updateBookmark(ContentResolver cr, String oldUri, String uri, String title, String keyword) {
-        sDb.updateBookmark(cr, oldUri, uri, title, keyword);
+    public static void removeBookmark(ContentResolver cr, String uri) {
+        sDb.removeBookmark(cr, uri);
     }
 
     public static BitmapDrawable getFaviconForUrl(ContentResolver cr, String uri) {
@@ -192,13 +164,5 @@ public class BrowserDB {
 
     public static byte[] getThumbnailForUrl(ContentResolver cr, String uri) {
         return sDb.getThumbnailForUrl(cr, uri);
-    }
-
-    public static void registerBookmarkObserver(ContentResolver cr, ContentObserver observer) {
-        sDb.registerBookmarkObserver(cr, observer);
-    }
-
-    public static void unregisterBookmarkObserver(ContentResolver cr, ContentObserver observer) {
-        cr.unregisterContentObserver(observer);
     }
 }
