@@ -672,7 +672,9 @@ nsPluginStreamListenerPeer::OnStartRequest(nsIRequest *request,
           mPluginInstance->Start();
           mOwner->CreateWidget();
           // If we've got a native window, the let the plugin know about it.
-          mOwner->SetWindow();
+          nsCOMPtr<nsIPluginInstanceOwner_MOZILLA_2_0_BRANCH> owner = do_QueryInterface(mOwner);
+          if (owner)
+            owner->SetWindow();
         }
       }
     }
@@ -874,7 +876,9 @@ nsresult nsPluginStreamListenerPeer::ServeStreamAsFile(nsIRequest *request,
       window->window = widget->GetNativeData(NS_NATIVE_PLUGIN_PORT);
     }
 #endif
-    mOwner->SetWindow();
+    nsCOMPtr<nsIPluginInstanceOwner_MOZILLA_2_0_BRANCH> owner = do_QueryInterface(mOwner);
+    if (owner)
+      owner->SetWindow();
   }
   
   mSeekable = PR_FALSE;

@@ -897,8 +897,10 @@ nsTextInputListener::EditAction()
   }
 
   // Fire input event
+  nsCOMPtr<nsIEditor_MOZILLA_2_0_BRANCH> editor20 = do_QueryInterface(editor);
+  NS_ASSERTION(editor20, "Something is very wrong!");
   PRBool trusted = PR_FALSE;
-  editor->GetLastKeypressEventTrusted(&trusted);
+  editor20->GetLastKeypressEventTrusted(&trusted);
   frame->FireOnInput(trusted);
 
   // mFrame may be dead after this, but we don't need to check for it, because

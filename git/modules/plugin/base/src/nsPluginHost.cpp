@@ -431,8 +431,9 @@ nsPluginHost::~nsPluginHost()
   sInst = nsnull;
 }
 
-NS_IMPL_ISUPPORTS4(nsPluginHost,
+NS_IMPL_ISUPPORTS5(nsPluginHost,
                    nsIPluginHost,
+                   nsIPluginHost_MOZILLA_2_0_BRANCH,
                    nsIObserver,
                    nsITimerCallback,
                    nsISupportsWeakReference)
@@ -1107,7 +1108,9 @@ nsPluginHost::DoInstantiateEmbeddedPlugin(const char *aMimeType, nsIURI* aURL,
     aOwner->CreateWidget();
 
     // If we've got a native window, the let the plugin know about it.
-    aOwner->SetWindow();
+    nsCOMPtr<nsIPluginInstanceOwner_MOZILLA_2_0_BRANCH> owner = do_QueryInterface(aOwner);
+    if (owner)
+      owner->SetWindow();
 
     // create an initial stream with data
     // don't make the stream if it's a java applet or we don't have SRC or DATA attribute
@@ -1182,12 +1185,15 @@ NS_IMETHODIMP nsPluginHost::InstantiateFullPagePlugin(const char *aMimeType,
       aOwner->CreateWidget();
 
       // If we've got a native window, the let the plugin know about it.
-      aOwner->SetWindow();
+      nsCOMPtr<nsIPluginInstanceOwner_MOZILLA_2_0_BRANCH> owner = do_QueryInterface(aOwner);
+      if (owner)
+        owner->SetWindow();
 
       rv = NewFullPagePluginStream(aURI, instance, aStreamListener);
 
       // If we've got a native window, the let the plugin know about it.
-      aOwner->SetWindow();
+      if (owner)
+        owner->SetWindow();
     }
   }
 
@@ -1242,7 +1248,9 @@ nsresult nsPluginHost::FindStoppedPluginForURL(nsIURI* aURL,
     aOwner->CreateWidget();
 
     // If we've got a native window, the let the plugin know about it.
-    aOwner->SetWindow();
+    nsCOMPtr<nsIPluginInstanceOwner_MOZILLA_2_0_BRANCH> owner = do_QueryInterface(aOwner);
+    if (owner)
+      owner->SetWindow();
 
     return NS_OK;
   }

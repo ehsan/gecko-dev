@@ -6750,8 +6750,10 @@ nsDocument::WalkRadioGroup(const nsAString& aName,
     return NS_OK;
   }
 
+  PRBool stop = PR_FALSE;
   for (int i = 0; i < radioGroup->mRadioButtons.Count(); i++) {
-    if (!aVisitor->Visit(radioGroup->mRadioButtons[i])) {
+    aVisitor->Visit(radioGroup->mRadioButtons[i], &stop);
+    if (stop) {
       return NS_OK;
     }
   }
