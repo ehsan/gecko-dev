@@ -63,10 +63,6 @@
 #define STATIC_ASSERT(condition)                                \
     extern void np_static_assert(int arg[(condition) ? 1 : -1])
 
-static char sPluginName[] = PLUGIN_NAME; 
-static char sPluginDescription[] = PLUGIN_DESCRIPTION;
-static char sPluginVersion[] = PLUGIN_VERSION;
-
 //
 // Intentional crash
 //
@@ -535,11 +531,9 @@ bool scriptableConstruct(NPObject* npobj, const NPVariant* args, uint32_t argCou
 NP_EXPORT(char*)
 NP_GetPluginVersion()
 {
-  return sPluginVersion;
+  return PLUGIN_VERSION;
 }
 #endif
-
-static char sMimeDescription[] = "application/x-test:tst:Test mimetype";
 
 #if defined(XP_UNIX)
 NP_EXPORT(char*) NP_GetMIMEDescription()
@@ -547,7 +541,7 @@ NP_EXPORT(char*) NP_GetMIMEDescription()
 char* NP_GetMIMEDescription()
 #endif
 {
-  return sMimeDescription;
+  return "application/x-test:tst:Test mimetype";
 }
 
 #ifdef XP_UNIX
@@ -555,10 +549,10 @@ NP_EXPORT(NPError)
 NP_GetValue(void* future, NPPVariable aVariable, void* aValue) {
   switch (aVariable) {
     case NPPVpluginNameString:
-      *((char**)aValue) = sPluginName;
+      *((char**)aValue) = PLUGIN_NAME;
       break;
     case NPPVpluginDescriptionString:
-      *((char**)aValue) = sPluginDescription;
+      *((char**)aValue) = PLUGIN_DESCRIPTION;
       break;
     default:
       return NPERR_INVALID_PARAM;
@@ -599,7 +593,7 @@ NP_EXPORT(NPError) NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs)
 
   initializeIdentifiers();
 
-  for (unsigned int i = 0; i < ARRAY_LENGTH(sPluginPropertyValues); i++) {
+  for (int i = 0; i < ARRAY_LENGTH(sPluginPropertyValues); i++) {
     VOID_TO_NPVARIANT(sPluginPropertyValues[i]);
   }
 
@@ -645,7 +639,7 @@ NPError OSCALL NP_Shutdown()
 {
   clearIdentifiers();
 
-  for (unsigned int i = 0; i < ARRAY_LENGTH(sPluginPropertyValues); i++) {
+  for (int i = 0; i < ARRAY_LENGTH(sPluginPropertyValues); i++) {
     NPN_ReleaseVariantValue(&sPluginPropertyValues[i]);
   }
 

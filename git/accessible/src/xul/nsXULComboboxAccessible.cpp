@@ -145,7 +145,7 @@ nsXULComboboxAccessible::GetDescription(nsAString& aDescription)
   menuListElm->GetSelectedItem(getter_AddRefs(focusedOptionItem));
   nsCOMPtr<nsIDOMNode> focusedOptionNode(do_QueryInterface(focusedOptionItem));
   if (focusedOptionNode) {
-    nsAccessible *focusedOption =
+    nsRefPtr<nsAccessible> focusedOption =
       GetAccService()->GetAccessibleInWeakShell(focusedOptionNode, mWeakShell);
     NS_ENSURE_TRUE(focusedOption, NS_ERROR_FAILURE);
 

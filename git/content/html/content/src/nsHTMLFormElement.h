@@ -37,7 +37,7 @@
 #include "nsCOMPtr.h"
 #include "nsIForm.h"
 #include "nsIFormControl.h"
-#include "nsFormSubmission.h"
+#include "nsIFormSubmission.h"
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMHTMLFormElement.h"
 #include "nsIDOMNSHTMLFormElement.h"

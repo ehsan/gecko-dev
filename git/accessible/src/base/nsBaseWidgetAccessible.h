@@ -110,7 +110,7 @@ protected:
   /**
    * Return an accessible for cached action node.
    */
-  nsAccessible *GetActionAccessible() const;
+  already_AddRefed<nsAccessible> GetActionAccessible();
 
   /**
    * Cache action node.

@@ -45,7 +45,7 @@
 #include "nsPresContext.h"
 #include "nsIFormControl.h"
 #include "nsIForm.h"
-#include "nsFormSubmission.h"
+#include "nsIFormSubmission.h"
 #include "nsIURL.h"
 
 #include "nsIFrame.h"

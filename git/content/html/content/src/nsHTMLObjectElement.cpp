@@ -47,7 +47,7 @@
 #include "nsIDOMGetSVGDocument.h"
 #endif
 #include "nsIDOMHTMLObjectElement.h"
-#include "nsFormSubmission.h"
+#include "nsIFormSubmission.h"
 #include "nsIObjectFrame.h"
 #include "nsIPluginInstance.h"
 

@@ -138,7 +138,7 @@ NS_IMETHODIMP nsXULSelectableAccessible::GetSelectedChildren(nsIArray **aChildre
       nsCOMPtr<nsIDOMXULSelectControlItemElement> selectedItem;
       xulMultiSelect->GetSelectedItem(index, getter_AddRefs(selectedItem));
       nsCOMPtr<nsIDOMNode> selectedNode(do_QueryInterface(selectedItem));
-      nsAccessible *selectedAcc =
+      nsRefPtr<nsAccessible> selectedAcc =
         GetAccService()->GetAccessibleInWeakShell(selectedNode, mWeakShell);
       if (selectedAcc)
         selectedAccessibles->AppendElement(static_cast<nsIAccessible*>(selectedAcc),
@@ -150,10 +150,10 @@ NS_IMETHODIMP nsXULSelectableAccessible::GetSelectedChildren(nsIArray **aChildre
     mSelectControl->GetSelectedItem(getter_AddRefs(selectedItem));
     nsCOMPtr<nsIDOMNode> selectedNode(do_QueryInterface(selectedItem));
     if(selectedNode) {
-      nsAccessible *selectedAcc =
+      nsRefPtr<nsAccessible> selectedAcc =
         GetAccService()->GetAccessibleInWeakShell(selectedNode, mWeakShell);
       if (selectedAcc)
-        selectedAccessibles->AppendElement(static_cast<nsIAccessible*>(selectedAcc),
+        selectedAccessibles->AppendElement(static_cast<nsIAccessible*>(selectedAcc.get()),
                                            PR_FALSE);
     }
   }
@@ -187,12 +187,12 @@ NS_IMETHODIMP nsXULSelectableAccessible::RefSelection(PRInt32 aIndex, nsIAccessi
   if (!selectedItem)
     return NS_ERROR_FAILURE;
 
-  nsAccessible *selectedAcc =
+  nsRefPtr<nsAccessible> selectedAcc =
     GetAccService()->GetAccessibleInWeakShell(selectedItem, mWeakShell);
   if (!selectedAcc)
     return NS_ERROR_FAILURE;
 
-  NS_ADDREF(*aAccessible = selectedAcc);
+  CallQueryInterface(selectedAcc, aAccessible);
   return NS_OK;
 }
 

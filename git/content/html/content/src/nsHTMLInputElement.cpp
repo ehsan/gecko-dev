@@ -59,7 +59,7 @@
 #include "nsMappedAttributes.h"
 #include "nsIFormControl.h"
 #include "nsIForm.h"
-#include "nsFormSubmission.h"
+#include "nsIFormSubmission.h"
 #include "nsIDocument.h"
 #include "nsIPresShell.h"
 #include "nsIFormControlFrame.h"

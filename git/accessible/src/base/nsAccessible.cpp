@@ -859,11 +859,13 @@ nsAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY, PRBool aDeepestChild,
     return NS_OK;
   }
 
-  nsAccessible *accessible = GetAccService()->GetAccessible(relevantNode);
+  nsCOMPtr<nsIAccessible> accessible;
+  GetAccService()->GetAccessibleFor(relevantNode, getter_AddRefs(accessible));
   if (!accessible) {
     // No accessible for the node with the point, so find the first
     // accessible in the DOM parent chain
-    accessible = GetAccService()->GetContainerAccessible(relevantNode, PR_TRUE);
+    accDocument->GetAccessibleInParentChain(relevantNode, PR_TRUE,
+                                            getter_AddRefs(accessible));
     if (!accessible) {
       NS_IF_ADDREF(*aChild = fallbackAnswer);
       return NS_OK;
@@ -2711,7 +2713,7 @@ nsAccessible::GetLinkOffset(PRInt32 *aStartOffset, PRInt32 *aEndOffset)
   nsAccessible *parent = GetParent();
   NS_ENSURE_STATE(parent);
 
-  PRUint32 characterCount = 0;
+  PRInt32 characterCount = 0;
 
   PRInt32 childCount = parent->GetChildCount();
   for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
@@ -2723,7 +2725,10 @@ nsAccessible::GetLinkOffset(PRInt32 *aStartOffset, PRInt32 *aEndOffset)
       return NS_OK;
     }
 
-    characterCount += nsAccUtils::TextLength(sibling);
+    if (nsAccUtils::IsText(sibling))
+      characterCount += nsAccUtils::TextLength(sibling);
+    else
+      ++ characterCount;
   }
 
   return NS_ERROR_FAILURE;
@@ -2820,26 +2825,27 @@ nsAccessible::GetParent()
   if (mParent)
     return mParent;
 
-#ifdef DEBUG
   nsDocAccessible *docAccessible = GetDocAccessible();
   NS_ASSERTION(docAccessible, "No document accessible for valid accessible!");
-#endif
 
-  nsAccessible *parent = GetAccService()->GetContainerAccessible(mDOMNode,
-                                                                 PR_TRUE);
-  NS_ASSERTION(parent, "No accessible parent for valid accessible!");
-  if (!parent)
+  if (!docAccessible)
     return nsnull;
 
-#ifdef DEBUG
-  NS_ASSERTION(!parent->IsDefunct(), "Defunct parent!");
+  nsCOMPtr<nsIAccessible> parent;
+  docAccessible->GetAccessibleInParentChain(mDOMNode, PR_TRUE,
+                                            getter_AddRefs(parent));
 
-  parent->EnsureChildren();
+  nsRefPtr<nsAccessible> parentAcc = do_QueryObject(parent);
+
+#ifdef DEBUG
+  NS_ASSERTION(!parentAcc->IsDefunct(), "Defunct parent!");
+
+  parentAcc->EnsureChildren();
   if (parent != mParent)
     NS_WARNING("Bad accessible tree!");
 #endif
 
-  return parent;
+  return parentAcc;
 }
 
 nsAccessible*
@@ -2996,17 +3002,17 @@ nsAccessible::GetSiblingAtOffset(PRInt32 aOffset, nsresult* aError)
   return child;
 }
 
-nsAccessible *
-nsAccessible::GetFirstAvailableAccessible(nsIDOMNode *aStartNode) const
+already_AddRefed<nsAccessible>
+nsAccessible::GetFirstAvailableAccessible(nsIDOMNode *aStartNode)
 {
   nsCOMPtr<nsIDOMTreeWalker> walker; 
   nsCOMPtr<nsIDOMNode> currentNode(aStartNode);
 
   while (currentNode) {
-    nsAccessible *accessible =
+    nsRefPtr<nsAccessible> accessible =
       GetAccService()->GetAccessibleInWeakShell(currentNode, mWeakShell);
     if (accessible)
-      return accessible;
+      return accessible.forget();
 
     if (!walker) {
       // Instantiate walker lazily since we won't need it in 90% of the cases

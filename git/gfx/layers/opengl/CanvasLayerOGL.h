@@ -66,14 +66,15 @@ public:
   // LayerOGL implementation
   virtual LayerType GetType() { return TYPE_CANVAS; }
   virtual Layer* GetLayer() { return this; }
-  virtual void RenderLayer(int aPreviousFrameBuffer,
-                           const nsIntPoint& aOffset);
+  virtual void RenderLayer(int aPreviousDestination,
+                           DrawThebesLayerCallback aCallback,
+                           void* aCallbackData);
 
 protected:
-  nsRefPtr<gfxASurface> mCanvasSurface;
-  nsRefPtr<GLContext> mCanvasGLContext;
+  nsRefPtr<gfxASurface> mSurface;
+  nsRefPtr<GLContext> mGLContext;
 
-  GLuint mTexture;
+  unsigned int mTexture;
 
   nsIntRect mBounds;
   nsIntRect mUpdatedRect;

@@ -62,7 +62,6 @@
 #ifdef MOZ_SMIL
 #include "nsSMILAnimationController.h"
 #endif // MOZ_SMIL
-#include "nsIScriptGlobalObject.h"
 
 class nsIContent;
 class nsPresContext;
@@ -73,6 +72,7 @@ class nsIStyleSheet;
 class nsIStyleRule;
 class nsCSSStyleSheet;
 class nsIViewManager;
+class nsIScriptGlobalObject;
 class nsIDOMEvent;
 class nsIDOMEventTarget;
 class nsIDeviceContext;
@@ -116,8 +116,8 @@ class Element;
 } // namespace mozilla
 
 #define NS_IDOCUMENT_IID      \
-{ 0xdf6c0752, 0xe780, 0x4576, \
-  { 0x95, 0x3c, 0x7e, 0xf1, 0xde, 0x9f, 0xd7, 0xf0 } }
+{ 0xeb847679, 0x3b48, 0x411c, \
+  { 0xa9, 0xb8, 0x8a, 0xdc, 0xdb, 0xc6, 0x47, 0xb8 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -629,13 +629,8 @@ public:
    * for event/script handling. Do not process any events/script if the method
    * returns null, but aHasHadScriptHandlingObject is true.
    */
-  nsIScriptGlobalObject*
-    GetScriptHandlingObject(PRBool& aHasHadScriptHandlingObject) const
-  {
-    aHasHadScriptHandlingObject = mHasHadScriptHandlingObject;
-    return mScriptGlobalObject ? mScriptGlobalObject.get() :
-                                 GetScriptHandlingObjectInternal();
-  }
+  virtual nsIScriptGlobalObject*
+    GetScriptHandlingObject(PRBool& aHasHadScriptHandlingObject) const = 0;
   virtual void SetScriptHandlingObject(nsIScriptGlobalObject* aScriptObject) = 0;
 
   /**
@@ -1389,9 +1384,6 @@ protected:
   // Never ever call this. Only call GetInnerWindow!
   virtual nsPIDOMWindow *GetInnerWindowInternal() = 0;
 
-  // Never ever call this. Only call GetScriptHandlingObject!
-  virtual nsIScriptGlobalObject* GetScriptHandlingObjectInternal() const = 0;
-
   /**
    * These methods should be called before and after dispatching
    * a mutation event.
@@ -1495,14 +1487,6 @@ protected:
 
   // True while this document is being cloned to a static document.
   PRPackedBool mCreatingStaticClone;
-
-  // True if document has ever had script handling object.
-  PRPackedBool mHasHadScriptHandlingObject;
-
-  // The document's script global object, the object from which the
-  // document can get its script context and scope. This is the
-  // *inner* window object.
-  nsCOMPtr<nsIScriptGlobalObject> mScriptGlobalObject;
 
   // If mIsStaticDocument is true, mOriginalDocument points to the original
   // document.

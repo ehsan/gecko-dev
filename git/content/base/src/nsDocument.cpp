@@ -3682,10 +3682,12 @@ nsDocument::SetScriptGlobalObject(nsIScriptGlobalObject *aScriptGlobalObject)
 }
 
 nsIScriptGlobalObject*
-nsDocument::GetScriptHandlingObjectInternal() const
+nsDocument::GetScriptHandlingObject(PRBool& aHasHadScriptHandlingObject) const
 {
-  NS_ASSERTION(!mScriptGlobalObject,
-               "Do not call this when mScriptGlobalObject is set!");
+  aHasHadScriptHandlingObject = mHasHadScriptHandlingObject;
+  if (mScriptGlobalObject) {
+    return mScriptGlobalObject;
+  }
 
   nsCOMPtr<nsIScriptGlobalObject> scriptHandlingObject =
     do_QueryReferent(mScriptObject);
