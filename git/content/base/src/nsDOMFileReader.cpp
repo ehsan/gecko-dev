@@ -147,7 +147,7 @@ nsDOMFileReader::Constructor(const GlobalObject& aGlobal, ErrorResult& aRv)
 {
   nsRefPtr<nsDOMFileReader> fileReader = new nsDOMFileReader();
 
-  nsCOMPtr<nsPIDOMWindow> owner = do_QueryInterface(aGlobal.GetAsSupports());
+  nsCOMPtr<nsPIDOMWindow> owner = do_QueryInterface(aGlobal.Get());
   if (!owner) {
     NS_WARNING("Unexpected nsIJSNativeInitializer owner");
     aRv.Throw(NS_ERROR_FAILURE);

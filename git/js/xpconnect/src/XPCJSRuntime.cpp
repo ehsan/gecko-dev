@@ -35,7 +35,6 @@
 #include "jsfriendapi.h"
 #include "jsprf.h"
 #include "js/MemoryMetrics.h"
-#include "mozilla/dom/AtomList.h"
 #include "mozilla/dom/DOMJSClass.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/Element.h"
@@ -54,7 +53,6 @@
 using namespace mozilla;
 using namespace xpc;
 using namespace JS;
-using mozilla::dom::PerThreadAtomCache;
 
 /***************************************************************************/
 
@@ -1519,10 +1517,6 @@ XPCJSRuntime::~XPCJSRuntime()
         MOZ_ASSERT(!mScratchStrings[i].mInUse, "Uh, string wrapper still in use!");
     }
 #endif
-
-    auto rtPrivate = static_cast<PerThreadAtomCache*>(JS_GetRuntimePrivate(Runtime()));
-    delete rtPrivate;
-    JS_SetRuntimePrivate(Runtime(), nullptr);
 }
 
 static void
@@ -2904,10 +2898,6 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
     MOZ_ASSERT(Runtime());
     JSRuntime* runtime = Runtime();
 
-    auto rtPrivate = new PerThreadAtomCache();
-    memset(rtPrivate, 0, sizeof(PerThreadAtomCache));
-    JS_SetRuntimePrivate(runtime, rtPrivate);
-
     // Unconstrain the runtime's threshold on nominal heap size, to avoid
     // triggering GC too often if operating continuously near an arbitrary
     // finite threshold (0xffffffff is infinity for uint32_t parameters).
@@ -3267,9 +3257,9 @@ XPCJSRuntime::GetJunkScope()
         SandboxOptions options(cx);
         options.sandboxName.AssignASCII("XPConnect Junk Compartment");
         RootedValue v(cx);
-        nsresult rv = CreateSandboxObject(cx, v.address(),
-                                          nsContentUtils::GetSystemPrincipal(),
-                                          options);
+        nsresult rv = xpc_CreateSandboxObject(cx, v.address(),
+                                              nsContentUtils::GetSystemPrincipal(),
+                                              options);
 
         NS_ENSURE_SUCCESS(rv, nullptr);
 

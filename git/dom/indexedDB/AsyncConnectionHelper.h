@@ -117,6 +117,11 @@ public:
     return mTransaction;
   }
 
+  nsISupports* GetSource() const
+  {
+    return mRequest ? mRequest->Source() : nullptr;
+  }
+
   virtual nsresult GetResultCode() MOZ_OVERRIDE
   {
     return mResultCode;

@@ -48,7 +48,6 @@ using mozilla::plugins::PluginInstanceParent;
 
 #include "nsUXThemeData.h"
 #include "nsUXThemeConstants.h"
-#include "mozilla/gfx/2D.h"
 
 extern "C" {
 #define PIXMAN_DONT_DEFINE_STDINT
@@ -358,17 +357,7 @@ bool nsWindow::OnPaint(HDC aDC, uint32_t aNestingLevel)
             return false;
           }
 
-          nsRefPtr<gfxContext> thebesContext;
-          if (gfxPlatform::GetPlatform()->SupportsAzureContentForType(mozilla::gfx::BACKEND_CAIRO)) {
-            RefPtr<mozilla::gfx::DrawTarget> dt =
-              gfxPlatform::GetPlatform()->CreateDrawTargetForSurface(targetSurface,
-                                                                     mozilla::gfx::IntSize(targetSurface->GetSize().width,
-                                                                                           targetSurface->GetSize().height));
-            thebesContext = new gfxContext(dt);
-          } else {
-            thebesContext = new gfxContext(targetSurface);
-          }
-
+          nsRefPtr<gfxContext> thebesContext = new gfxContext(targetSurface);
           if (IsRenderMode(gfxWindowsPlatform::RENDER_DIRECT2D)) {
             const nsIntRect* r;
             for (nsIntRegionRectIterator iter(region);

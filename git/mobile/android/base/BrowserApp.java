@@ -1481,6 +1481,7 @@ abstract public class BrowserApp extends GeckoApp
         // FIXME: do animation if animate is true
         mHomePager.hide();
 
+        mBrowserToolbar.setShadowVisibility(true);
         mBrowserToolbar.setNextFocusDownId(R.id.layer_view);
 
         // Refresh toolbar height to possibly restore the toolbar padding

@@ -476,15 +476,17 @@ JSObject::ensureDenseElements(js::ExclusiveContext *cx, uint32_t index, uint32_t
 }
 
 /* static */ inline bool
-JSObject::setSingletonType(js::ExclusiveContext *cx, js::HandleObject obj)
+JSObject::setSingletonType(js::ExclusiveContext *cxArg, js::HandleObject obj)
 {
-    if (!cx->typeInferenceEnabled())
+    if (!cxArg->typeInferenceEnabled())
         return true;
 
-    JS_ASSERT_IF(cx->isJSContext(),
-                 !IsInsideNursery(cx->asJSContext()->runtime(), obj.get()));
+    JSContext *cx = cxArg->asJSContext();
 
-    js::types::TypeObject *type = cx->getLazyType(obj->getClass(), obj->getTaggedProto());
+    JS_ASSERT(!IsInsideNursery(cx->runtime(), obj.get()));
+
+    js::types::TypeObject *type =
+        cx->compartment()->getLazyType(cx, obj->getClass(), obj->getTaggedProto());
     if (!type)
         return false;
 
