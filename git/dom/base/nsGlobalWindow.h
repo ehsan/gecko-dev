@@ -320,7 +320,6 @@ public:
   virtual NS_HIDDEN_(bool) WouldReuseInnerWindow(nsIDocument *aNewDocument);
 
   virtual NS_HIDDEN_(void) SetDocShell(nsIDocShell* aDocShell);
-  virtual void DetachFromDocShell();
   virtual NS_HIDDEN_(nsresult) SetNewDocument(nsIDocument *aDocument,
                                               nsISupports *aState,
                                               bool aForceReuseInnerWindow);
@@ -811,7 +810,7 @@ protected:
   // could own objects that are implemented in JavaScript, then those
   // objects will keep the global object (this object) alive.  To prevent
   // these cycles, ownership of such members must be released in
-  // |CleanUp| and |DetachFromDocShell|.
+  // |CleanUp| and |SetDocShell|.
 
   // This member is also used on both inner and outer windows, but
   // for slightly different purposes. On inner windows it means the

@@ -4,12 +4,10 @@
 
 
 #include "domstubs.idl"
-interface nsIContentFrameMessageManager;
 
 // Sole purpose is to be able to identify the concrete class nsTabChild
-[uuid(bf1eddf9-731b-4a4b-bd65-9a712a892832)]
+[uuid(a89f8ab5-ff71-492a-8ed5-71185446fa66)]
 interface nsITabChild : nsISupports
 {
-  readonly attribute nsIContentFrameMessageManager messageManager;
 };
 
