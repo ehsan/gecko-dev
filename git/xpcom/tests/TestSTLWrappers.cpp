@@ -12,7 +12,7 @@
 
 // gcc errors out if we |try ... catch| with -fno-exceptions, but we
 // can still test on windows
-#ifdef _MSC_VER
+#ifdef XP_WIN
 #  define TRY       try
 #  define CATCH(e)  catch (e)
 #else

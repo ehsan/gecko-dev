@@ -711,7 +711,7 @@ nsXBLPrototypeBinding::InstantiateInsertionPoints(nsXBLBinding* aBinding)
 nsIContent*
 nsXBLPrototypeBinding::GetInsertionPoint(nsIContent* aBoundElement,
                                          nsIContent* aCopyRoot,
-                                         const nsIContent* aChild,
+                                         nsIContent* aChild,
                                          PRUint32* aIndex)
 {
   if (!mInsertionPointTable)

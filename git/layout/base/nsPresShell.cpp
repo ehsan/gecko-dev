@@ -2496,7 +2496,7 @@ PresShell::InitialReflow(nscoord aWidth, nscoord aHeight)
 
       // Have the style sheet processor construct frame for the root
       // content object down
-      mFrameConstructor->ContentInserted(nsnull, root, 0, nsnull, PR_FALSE);
+      mFrameConstructor->ContentInserted(nsnull, root, 0, nsnull);
       VERIFY_STYLE_TREE;
 
       // Something in mFrameConstructor->ContentInserted may have caused
@@ -2519,7 +2519,6 @@ PresShell::InitialReflow(nscoord aWidth, nscoord aHeight)
     // case XBL constructors changed styles somewhere.
     {
       nsAutoScriptBlocker scriptBlocker;
-      mFrameConstructor->CreateNeededFrames();
       mFrameConstructor->ProcessPendingRestyles();
     }
 
@@ -2630,7 +2629,6 @@ PresShell::ResizeReflow(nscoord aWidth, nscoord aHeight)
     // Make sure style is up to date
     {
       nsAutoScriptBlocker scriptBlocker;
-      mFrameConstructor->CreateNeededFrames();
       mFrameConstructor->ProcessPendingRestyles();
     }
 
@@ -4605,7 +4603,6 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
 #endif // MOZ_SMIL
 
       nsAutoScriptBlocker scriptBlocker;
-      mFrameConstructor->CreateNeededFrames();
       mFrameConstructor->ProcessPendingRestyles();
     }
 
@@ -4624,7 +4621,6 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
     // the frame type.
     if (!mIsDestroying) {
       nsAutoScriptBlocker scriptBlocker;
-      mFrameConstructor->CreateNeededFrames();
       mFrameConstructor->ProcessPendingRestyles();
     }
 
@@ -4796,7 +4792,7 @@ PresShell::ContentAppended(nsIDocument *aDocument,
   // frame reconstruction.
   mFrameConstructor->RestyleForAppend(aContainer, aNewIndexInContainer);
 
-  mFrameConstructor->ContentAppended(aContainer, aNewIndexInContainer, PR_TRUE);
+  mFrameConstructor->ContentAppended(aContainer, aNewIndexInContainer);
   VERIFY_STYLE_TREE;
 }
 
@@ -4822,7 +4818,7 @@ PresShell::ContentInserted(nsIDocument* aDocument,
     mFrameConstructor->RestyleForInsertOrChange(aContainer, aChild);
 
   mFrameConstructor->ContentInserted(aContainer, aChild,
-                                     aIndexInContainer, nsnull, PR_TRUE);
+                                     aIndexInContainer, nsnull);
   VERIFY_STYLE_TREE;
 }
 

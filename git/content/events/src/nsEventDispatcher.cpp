@@ -198,8 +198,7 @@ public:
       if (!MayHaveListenerManager() && !aMayHaveNewListenerManagers) {
         return NS_OK;
       }
-      mManager =
-        static_cast<nsEventListenerManager*>(mTarget->GetListenerManager(PR_FALSE));
+      mManager = mTarget->GetListenerManager(PR_FALSE);
     }
     if (mManager) {
       NS_ASSERTION(aVisitor.mEvent->currentTarget == nsnull,
@@ -241,7 +240,7 @@ public:
   // Event retargeting must happen whenever mNewTarget is non-null.
   nsCOMPtr<nsPIDOMEventTarget>      mNewTarget;
   // Cache mTarget's event listener manager.
-  nsRefPtr<nsEventListenerManager>  mManager;
+  nsCOMPtr<nsIEventListenerManager> mManager;
 
   static PRUint32                   sMaxEtciCount;
   static PRUint32                   sCurrentEtciCount;

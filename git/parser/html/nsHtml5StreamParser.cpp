@@ -245,7 +245,7 @@ nsHtml5StreamParser::SetupDecodingAndWriteSniffingBufferAndCurrentSegment(const 
   NS_ENSURE_SUCCESS(rv, rv);
   rv = convManager->GetUnicodeDecoder(mCharset.get(), getter_AddRefs(mUnicodeDecoder));
   if (rv == NS_ERROR_UCONV_NOCONV) {
-    mCharset.AssignLiteral("windows-1252"); // lower case is the raw form
+    mCharset.Assign("windows-1252"); // lower case is the raw form
     mCharsetSource = kCharsetFromWeakDocTypeDefault;
     rv = convManager->GetUnicodeDecoderRaw(mCharset.get(), getter_AddRefs(mUnicodeDecoder));
     mTreeBuilder->SetDocumentCharset(mCharset, mCharsetSource);
@@ -284,7 +284,6 @@ nsHtml5StreamParser::SetupDecodingFromBom(const char* aCharsetName, const char* 
   NS_ENSURE_SUCCESS(rv, rv);
   rv = convManager->GetUnicodeDecoderRaw(aDecoderCharsetName, getter_AddRefs(mUnicodeDecoder));
   NS_ENSURE_SUCCESS(rv, rv);
-  mUnicodeDecoder->SetInputErrorBehavior(nsIUnicodeDecoder::kOnError_Recover);
   mCharset.Assign(aCharsetName);
   mCharsetSource = kCharsetFromByteOrderMark;
   mTreeBuilder->SetDocumentCharset(mCharset, mCharsetSource);
@@ -323,7 +322,7 @@ nsHtml5StreamParser::FinalizeSniffing(const PRUint8* aFromSegment, // can be nul
   }
   if (mCharsetSource == kCharsetUninitialized) {
     // Hopefully this case is never needed, but dealing with it anyway
-    mCharset.AssignLiteral("windows-1252");
+    mCharset.Assign("windows-1252");
     mCharsetSource = kCharsetFromWeakDocTypeDefault;
     mTreeBuilder->SetDocumentCharset(mCharset, mCharsetSource);
   }
@@ -338,7 +337,7 @@ nsHtml5StreamParser::SniffStreamBytes(const PRUint8* aFromSegment,
   NS_ASSERTION(IsParserThread(), "Wrong thread!");
   nsresult rv = NS_OK;
   PRUint32 writeCount;
-  for (PRUint32 i = 0; i < aCount && mBomState != BOM_SNIFFING_OVER; i++) {
+  for (PRUint32 i = 0; i < aCount; i++) {
     switch (mBomState) {
       case BOM_SNIFFING_NOT_STARTED:
         NS_ASSERTION(i == 0, "Bad BOM sniffing state.");
@@ -401,11 +400,11 @@ nsHtml5StreamParser::SniffStreamBytes(const PRUint8* aFromSegment,
         mBomState = BOM_SNIFFING_OVER;
         break;
       default:
-        mBomState = BOM_SNIFFING_OVER;
-        break;
+        goto bom_loop_end;
     }
   }
   // if we get here, there either was no BOM or the BOM sniffing isn't complete yet
+  bom_loop_end:
   
   if (!mMetaScanner) {
     mMetaScanner = new nsHtml5MetaScanner();
@@ -432,7 +431,6 @@ nsHtml5StreamParser::SniffStreamBytes(const PRUint8* aFromSegment,
   mMetaScanner->sniff(&readable, getter_AddRefs(mUnicodeDecoder), mCharset);
   if (mUnicodeDecoder) {
     // meta scan successful
-    mUnicodeDecoder->SetInputErrorBehavior(nsIUnicodeDecoder::kOnError_Recover);
     mCharsetSource = kCharsetFromMetaPrescan;
     mTreeBuilder->SetDocumentCharset(mCharset, mCharsetSource);
     mMetaScanner = nsnull;
@@ -475,33 +473,23 @@ nsHtml5StreamParser::WriteStreamBytes(const PRUint8* aFromSegment,
     NS_ASSERTION(mLastBuffer->getEnd() <= NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE, "The Unicode decoder wrote too much data.");
 
     if (NS_FAILED(convResult)) {
-      // There's an illegal byte in the input. It's now the responsibility
-      // of this calling code to output a U+FFFD REPLACEMENT CHARACTER and
-      // reset the decoder.
-
-      NS_ASSERTION(totalByteCount < aCount,
-                   "The decoder signaled an error but consumed all input.");
-      if (totalByteCount < aCount) {
-        // advance over the bad byte
+      if (totalByteCount < aCount) { // mimicking nsScanner even though this seems wrong
         ++totalByteCount;
         ++aFromSegment;
       }
-
-      // Emit the REPLACEMENT CHARACTER
       mLastBuffer->getBuffer()[end] = 0xFFFD;
       ++end;
       mLastBuffer->setEnd(end);
       if (end == NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE) {
-          mLastBuffer = mLastBuffer->next = new nsHtml5UTF16Buffer(NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE);
+          mLastBuffer = (mLastBuffer->next = new nsHtml5UTF16Buffer(NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE));
       }
-
       mUnicodeDecoder->Reset();
       if (totalByteCount == aCount) {
         *aWriteCount = totalByteCount;
         return NS_OK;
       }
     } else if (convResult == NS_PARTIAL_MORE_OUTPUT) {
-      mLastBuffer = mLastBuffer->next = new nsHtml5UTF16Buffer(NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE);
+      mLastBuffer = (mLastBuffer->next = new nsHtml5UTF16Buffer(NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE));
       NS_ASSERTION(totalByteCount < aCount, "The Unicode decoder has consumed too many bytes.");
     } else {
       NS_ASSERTION(totalByteCount == aCount, "The Unicode decoder consumed the wrong number of bytes.");
@@ -714,6 +702,7 @@ nsHtml5StreamParser::internalEncodingDeclaration(nsString* aEncoding)
     return;
   }
 
+  // The encodings are different.
   if (mReparseForbidden) {
     return; // not reparsing even if we wanted to
   }
@@ -747,6 +736,7 @@ nsHtml5StreamParser::internalEncodingDeclaration(nsString* aEncoding)
     return;
   }
   
+  // we still want to reparse
   mTreeBuilder->NeedsCharsetSwitchTo(preferred);
   mTreeBuilder->Flush();
   Interrupt();
@@ -789,7 +779,7 @@ nsHtml5StreamParser::ParseAvailableData()
             return; // no more data for now but expecting more
           case STREAM_ENDED:
             if (mAtEOF) {
-              return;
+                return;
             }
             mAtEOF = PR_TRUE;
             mTokenizer->eof();
@@ -803,9 +793,10 @@ nsHtml5StreamParser::ParseAvailableData()
             NS_NOTREACHED("It should be impossible to reach this.");
             return;
         }
+      } else {
+        mFirstBuffer = mFirstBuffer->next;
+        continue;
       }
-      mFirstBuffer = mFirstBuffer->next;
-      continue;
     }
 
     // now we have a non-empty buffer
@@ -873,7 +864,6 @@ nsHtml5StreamParser::ContinueAfterScripts(nsHtml5Tokenizer* aTokenizer,
     if (mSpeculations.IsEmpty()) {
       // Not quite sure how exactly this happens...
       // Maybe an artifact of defer scripts?
-      NS_WARNING("ContinueAfterScripts called without speculations.");
       return;
     }
     nsHtml5Speculation* speculation = mSpeculations.ElementAt(0);
@@ -911,11 +901,9 @@ nsHtml5StreamParser::ContinueAfterScripts(nsHtml5Tokenizer* aTokenizer,
   {
     mozilla::MutexAutoLock tokenizerAutoLock(mTokenizerMutex);
     #ifdef DEBUG
-    {
       nsCOMPtr<nsIThread> mainThread;
       NS_GetMainThread(getter_AddRefs(mainThread));
       mAtomTable.SetPermittedLookupThread(mainThread);
-    }
     #endif
     // In principle, the speculation mutex should be acquired here,
     // but there's no point, because the parser thread only acquires it
@@ -943,7 +931,7 @@ nsHtml5StreamParser::ContinueAfterScripts(nsHtml5Tokenizer* aTokenizer,
       mTreeBuilder->SetOpSink(mExecutor->GetStage());
       mExecutor->StartReadingFromStage();
       mSpeculating = PR_FALSE;
-      mFlushTimer->Cancel();
+      mFlushTimer->Cancel(); // just in case
       mFlushTimer->InitWithFuncCallback(nsHtml5StreamParser::TimerCallback, 
                                         static_cast<void*> (this), 
                                         sTimerContinueDelay, 
@@ -968,7 +956,7 @@ nsHtml5StreamParser::ContinueAfterScripts(nsHtml5Tokenizer* aTokenizer,
         mTreeBuilder->SetOpSink(mExecutor->GetStage());
         mExecutor->StartReadingFromStage();
         mSpeculating = PR_FALSE;
-        mFlushTimer->Cancel();
+        mFlushTimer->Cancel(); // just in case
         mFlushTimer->InitWithFuncCallback(nsHtml5StreamParser::TimerCallback, 
                                           static_cast<void*> (this), 
                                           sTimerContinueDelay, 
@@ -1054,7 +1042,7 @@ nsHtml5StreamParser::PostTimerFlush()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  mFlushTimer->Cancel();
+  mFlushTimer->Cancel(); // just in case
 
   // The following line reads a mutex-protected variable without acquiring 
   // the mutex. This is OK, because failure to exit early here is harmless.

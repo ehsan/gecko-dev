@@ -1714,7 +1714,7 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
   PR_SetEnv("MOZ_LAUNCHED_CHILD=1");
 
 #if defined(XP_MACOSX)
-  SetupMacCommandLine(gRestartArgc, gRestartArgv, PR_TRUE);
+  SetupMacCommandLine(gRestartArgc, gRestartArgv);
   LaunchChildMac(gRestartArgc, gRestartArgv);
 #else
   nsCOMPtr<nsILocalFile> lf;
@@ -1919,7 +1919,7 @@ ShowProfileManager(nsIToolkitProfileService* aProfileSvc,
     NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
 
 #ifdef XP_MACOSX
-    SetupMacCommandLine(gRestartArgc, gRestartArgv, PR_TRUE);
+    SetupMacCommandLine(gRestartArgc, gRestartArgv);
 #endif
 
 #ifdef XP_WIN
@@ -2009,7 +2009,7 @@ ImportProfiles(nsIToolkitProfileService* aPService,
       xpcom.RegisterProfileService();
 
 #ifdef XP_MACOSX
-      SetupMacCommandLine(gRestartArgc, gRestartArgv, PR_TRUE);
+      SetupMacCommandLine(gRestartArgc, gRestartArgv);
 #endif
 
       nsCOMPtr<nsIProfileMigrator> migrator
@@ -3468,7 +3468,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
             cmdLine = do_CreateInstance("@mozilla.org/toolkit/command-line;1");
             NS_ENSURE_TRUE(cmdLine, 1);
 
-            SetupMacCommandLine(gArgc, gArgv, PR_FALSE);
+            SetupMacCommandLine(gArgc, gArgv);
 
             rv = cmdLine->Init(gArgc, gArgv,
                                workingDir, nsICommandLine::STATE_INITIAL_LAUNCH);
@@ -3557,7 +3557,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 #endif
 
 #ifdef XP_MACOSX
-          SetupMacCommandLine(gRestartArgc, gRestartArgv, PR_TRUE);
+          SetupMacCommandLine(gRestartArgc, gRestartArgv);
 #endif
         }
       }

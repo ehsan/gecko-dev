@@ -385,7 +385,7 @@ PLACES_FACTORY_SINGLETON_IMPLEMENTATION(nsNavHistory, gHistoryService)
 
 nsNavHistory::nsNavHistory()
 : mBatchLevel(0)
-, mBatchDBTransaction(nsnull)
+, mBatchHasTransaction(PR_FALSE)
 , mCachedNow(0)
 , mExpireNowTimer(nsnull)
 , mLastSessionID(0)
@@ -4284,7 +4284,11 @@ nsresult
 nsNavHistory::BeginUpdateBatch()
 {
   if (mBatchLevel++ == 0) {
-    mBatchDBTransaction = new mozStorageTransaction(mDBConn, PR_FALSE);
+    PRBool transactionInProgress = PR_TRUE; // default to no transaction on err
+    mDBConn->GetTransactionInProgress(&transactionInProgress);
+    mBatchHasTransaction = ! transactionInProgress;
+    if (mBatchHasTransaction)
+      mDBConn->BeginTransaction();
 
     NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
                      nsINavHistoryObserver, OnBeginUpdateBatch());
@@ -4297,13 +4301,9 @@ nsresult
 nsNavHistory::EndUpdateBatch()
 {
   if (--mBatchLevel == 0) {
-    if (mBatchDBTransaction) {
-      nsresult rv = mBatchDBTransaction->Commit();
-      NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Batch failed to commit transaction");
-      delete mBatchDBTransaction;
-      mBatchDBTransaction = nsnull;
-    }
-
+    if (mBatchHasTransaction)
+      mDBConn->CommitTransaction();
+    mBatchHasTransaction = PR_FALSE;
     NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
                      nsINavHistoryObserver, OnEndUpdateBatch());
   }

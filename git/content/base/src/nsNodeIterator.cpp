@@ -301,7 +301,7 @@ nsNodeIterator::NextOrPrevNode(NodePointer::MoveToMethodType aMove,
 
     *_retval = nsnull;
 
-    if (mDetached || mInAcceptNode)
+    if (mDetached)
         return NS_ERROR_DOM_INVALID_STATE_ERR;
 
     mWorkingPointer = mPointer;
