@@ -35,13 +35,8 @@ if (!('BrowserElementIsPreloaded' in this)) {
     Services.scriptloader.loadSubScript("chrome://browser/content/ErrorPage.js");
   } catch (e) {
   }
-
   Services.scriptloader.loadSubScript("chrome://global/content/BrowserElementPanning.js");
-  ContentPanning.init();
-
   Services.scriptloader.loadSubScript("chrome://global/content/BrowserElementChildPreload.js");
-} else {
-  ContentPanning.init();
 }
 
 var BrowserElementIsReady = true;

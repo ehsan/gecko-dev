@@ -33,7 +33,7 @@ typedef struct
 
 int rd_cost_mby(MACROBLOCKD *);
 
-#ifdef VP8_ENTROPY_STATS
+#ifdef ENTROPY_STATS
 void init_context_counters();
 void print_context_counters();
 

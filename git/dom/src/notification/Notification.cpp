@@ -734,9 +734,9 @@ void
 Notification::Close()
 {
   // Queue a task to close the notification.
-  nsCOMPtr<nsIRunnable> closeNotificationTask =
+  nsCOMPtr<nsIRunnable> showNotificationTask =
     new NotificationTask(this, NotificationTask::eClose);
-  NS_DispatchToMainThread(closeNotificationTask);
+  NS_DispatchToMainThread(showNotificationTask);
 }
 
 void
@@ -771,9 +771,7 @@ Notification::CloseInternal()
 nsresult
 Notification::GetOrigin(nsPIDOMWindow* aWindow, nsString& aOrigin)
 {
-  if (!aWindow) {
-    return NS_ERROR_FAILURE;
-  }
+  MOZ_ASSERT(aWindow);
   nsresult rv;
   nsIDocument* doc = aWindow->GetExtantDoc();
   NS_ENSURE_TRUE(doc, NS_ERROR_UNEXPECTED);

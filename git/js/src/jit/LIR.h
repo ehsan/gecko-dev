@@ -569,7 +569,7 @@ class LSafepoint;
 class LInstructionVisitor;
 
 class LInstruction
-  : public TempObject,
+  : public OldTempObject,
     public InlineListNode<LInstruction>
 {
     uint32_t id_;

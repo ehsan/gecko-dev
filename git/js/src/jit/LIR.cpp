@@ -83,7 +83,7 @@ LBlock::getEntryMoveGroup(TempAllocator &alloc)
 {
     if (entryMoveGroup_)
         return entryMoveGroup_;
-    entryMoveGroup_ = LMoveGroup::New(alloc);
+    entryMoveGroup_ = new LMoveGroup(alloc);
     if (begin()->isLabel())
         insertAfter(*begin(), entryMoveGroup_);
     else
@@ -96,7 +96,7 @@ LBlock::getExitMoveGroup(TempAllocator &alloc)
 {
     if (exitMoveGroup_)
         return exitMoveGroup_;
-    exitMoveGroup_ = LMoveGroup::New(alloc);
+    exitMoveGroup_ = new LMoveGroup(alloc);
     insertBefore(*rbegin(), exitMoveGroup_);
     return exitMoveGroup_;
 }
@@ -165,7 +165,7 @@ LPhi::LPhi(MPhi *mir)
 LPhi *
 LPhi::New(MIRGenerator *gen, MPhi *ins)
 {
-    LPhi *phi = new(gen->alloc()) LPhi(ins);
+    LPhi *phi = new LPhi(ins);
     if (!phi->init(gen))
         return nullptr;
     return phi;

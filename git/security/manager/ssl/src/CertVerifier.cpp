@@ -25,12 +25,15 @@ CertVerifier::CertVerifier(missing_cert_download_config mcdc,
                            ocsp_download_config odc,
                            ocsp_strict_config osc,
                            any_revo_fresh_config arfc,
+                           const char *firstNetworkRevocationMethod,
                            ocsp_get_config ogc)
   : mMissingCertDownloadEnabled(mcdc == missing_cert_download_on)
   , mCRLDownloadEnabled(cdc == crl_download_allowed)
   , mOCSPDownloadEnabled(odc == ocsp_on)
   , mOCSPStrict(osc == ocsp_strict)
   , mRequireRevocationInfo(arfc == any_revo_strict)
+  , mCRLFirst(firstNetworkRevocationMethod != nullptr &&
+              !strcmp("crl", firstNetworkRevocationMethod))
   , mOCSPGETEnabled(ogc == ocsp_get_enabled)
 {
   MOZ_COUNT_CTOR(CertVerifier);
@@ -358,7 +361,8 @@ CertVerifier::VerifyCert(CERTCertificate * cert,
     ;
 
   rev.leafTests.preferred_methods[0] =
-  rev.chainTests.preferred_methods[0] = cert_revocation_method_ocsp;
+  rev.chainTests.preferred_methods[0] =
+    mCRLFirst ? cert_revocation_method_crl : cert_revocation_method_ocsp;
 
   rev.leafTests.cert_rev_method_independent_flags =
   rev.chainTests.cert_rev_method_independent_flags =

@@ -12,10 +12,9 @@
 #include "vp8/common/reconinter.h"
 #include "vpx/vpx_integer.h"
 #include "vpx_mem/vpx_mem.h"
-#include "vp8_rtcd.h"
+#include "vpx_rtcd.h"
 
 #include <emmintrin.h>
-#include "vpx_ports/emmintrin_compat.h"
 
 union sum_union {
     __m128i v;

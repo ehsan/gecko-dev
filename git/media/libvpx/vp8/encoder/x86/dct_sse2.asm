@@ -29,7 +29,7 @@
     movsxd      rax, dword ptr arg(2)
     lea         rcx, [rsi + rax*2]
 %else
-  %if LIBVPX_YASM_WIN64
+  %ifidn __OUTPUT_FORMAT__,x64
     %define     input       rcx
     %define     output      rdx
     %define     pitch       r8
@@ -53,7 +53,7 @@
     RESTORE_GOT
     pop         rbp
 %else
-  %if LIBVPX_YASM_WIN64
+  %ifidn __OUTPUT_FORMAT__,x64
     RESTORE_XMM
   %endif
 %endif

@@ -48,7 +48,8 @@ this.NFC_TECHS = {
   0:'NDEF',
   1:'NDEF_WRITEABLE',
   2:'NDEF_FORMATABLE',
-  3:'P2P'
+  3:'P2P',
+  4:'NFC_A'
 };
 
 // TODO: Bug 933595. Fill-in all error codes for Gonk/nfcd protocol

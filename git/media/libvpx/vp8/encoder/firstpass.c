@@ -12,7 +12,6 @@
 #include <limits.h>
 #include <stdio.h>
 
-#include "./vpx_scale_rtcd.h"
 #include "block.h"
 #include "onyx_int.h"
 #include "vp8/common/variance.h"
@@ -21,7 +20,7 @@
 #include "vp8/common/systemdependent.h"
 #include "mcomp.h"
 #include "firstpass.h"
-#include "vpx_scale/vpx_scale.h"
+#include "vpx_scale/vpxscale.h"
 #include "encodemb.h"
 #include "vp8/common/extend.h"
 #include "vpx_mem/vpx_mem.h"
@@ -711,8 +710,8 @@ skip_motion_search:
                         neutral_count++;
                     }
 
-                    d->bmi.mv.as_mv.row *= 8;
-                    d->bmi.mv.as_mv.col *= 8;
+                    d->bmi.mv.as_mv.row <<= 3;
+                    d->bmi.mv.as_mv.col <<= 3;
                     this_error = motion_error;
                     vp8_set_mbmode_and_mvs(x, NEWMV, &d->bmi.mv);
                     vp8_encode_inter16x16y(x);
@@ -858,9 +857,7 @@ skip_motion_search:
      */
     if ((cm->current_video_frame > 0) &&
         (cpi->twopass.this_frame_stats.pcnt_inter > 0.20) &&
-        ((cpi->twopass.this_frame_stats.intra_error /
-          DOUBLE_DIVIDE_CHECK(cpi->twopass.this_frame_stats.coded_error)) >
-         2.0))
+        ((cpi->twopass.this_frame_stats.intra_error / cpi->twopass.this_frame_stats.coded_error) > 2.0))
     {
         vp8_yv12_copy_frame(lst_yv12, gld_yv12);
     }
@@ -909,16 +906,13 @@ extern const int vp8_bits_per_mb[2][QINDEX_RANGE];
 
 static double bitcost( double prob )
 {
-  if (prob > 0.000122)
-    return -log(prob) / log(2.0);
-  else
-    return 13.0;
+    return -(log( prob ) / log( 2.0 ));
 }
 static int64_t estimate_modemvcost(VP8_COMP *cpi,
                                      FIRSTPASS_STATS * fpstats)
 {
     int mv_cost;
-    int64_t mode_cost;
+    int mode_cost;
 
     double av_pct_inter = fpstats->pcnt_inter / fpstats->count;
     double av_pct_motion = fpstats->pcnt_motion / fpstats->count;
@@ -940,9 +934,10 @@ static int64_t estimate_modemvcost(VP8_COMP *cpi,
     /* Crude estimate of overhead cost from modes
      * << 9 is the normalization to (bits * 512) used in vp8_bits_per_mb
      */
-    mode_cost =((((av_pct_inter - av_pct_motion) * zz_cost) +
-                (av_pct_motion * motion_cost) +
-                (av_intra * intra_cost)) * cpi->common.MBs) * 512;
+    mode_cost =
+        (int)( ( ((av_pct_inter - av_pct_motion) * zz_cost) +
+                 (av_pct_motion * motion_cost) +
+                 (av_intra * intra_cost) ) * cpi->common.MBs ) << 9;
 
     return mv_cost + mode_cost;
 }
@@ -1327,7 +1322,7 @@ static int estimate_kf_group_q(VP8_COMP *cpi, double section_err, int section_ta
     return Q;
 }
 
-extern void vp8_new_framerate(VP8_COMP *cpi, double framerate);
+extern void vp8_new_frame_rate(VP8_COMP *cpi, double framerate);
 
 void vp8_init_second_pass(VP8_COMP *cpi)
 {
@@ -1351,9 +1346,9 @@ void vp8_init_second_pass(VP8_COMP *cpi)
      * sum duration is not. Its calculated based on the actual durations of
      * all frames from the first pass.
      */
-    vp8_new_framerate(cpi, 10000000.0 * cpi->twopass.total_stats.count / cpi->twopass.total_stats.duration);
+    vp8_new_frame_rate(cpi, 10000000.0 * cpi->twopass.total_stats.count / cpi->twopass.total_stats.duration);
 
-    cpi->output_framerate = cpi->framerate;
+    cpi->output_frame_rate = cpi->frame_rate;
     cpi->twopass.bits_left = (int64_t)(cpi->twopass.total_stats.duration * cpi->oxcf.target_bandwidth / 10000000.0) ;
     cpi->twopass.bits_left -= (int64_t)(cpi->twopass.total_stats.duration * two_pass_min_rate / 10000000.0);
 
@@ -2120,25 +2115,23 @@ static void define_gf_group(VP8_COMP *cpi, FIRSTPASS_STATS *this_frame)
         (cpi->twopass.kf_group_error_left > 0))
     {
         cpi->twopass.gf_group_bits =
-            (int64_t)(cpi->twopass.kf_group_bits *
-                      (gf_group_err / cpi->twopass.kf_group_error_left));
+            (int)((double)cpi->twopass.kf_group_bits *
+                  (gf_group_err / (double)cpi->twopass.kf_group_error_left));
     }
     else
         cpi->twopass.gf_group_bits = 0;
 
-    cpi->twopass.gf_group_bits =
+    cpi->twopass.gf_group_bits = (int)(
         (cpi->twopass.gf_group_bits < 0)
             ? 0
             : (cpi->twopass.gf_group_bits > cpi->twopass.kf_group_bits)
-                ? cpi->twopass.kf_group_bits : cpi->twopass.gf_group_bits;
+                ? cpi->twopass.kf_group_bits : cpi->twopass.gf_group_bits);
 
     /* Clip cpi->twopass.gf_group_bits based on user supplied data rate
      * variability limit (cpi->oxcf.two_pass_vbrmax_section)
      */
-    if (cpi->twopass.gf_group_bits >
-        (int64_t)max_bits * cpi->baseline_gf_interval)
-        cpi->twopass.gf_group_bits =
-            (int64_t)max_bits * cpi->baseline_gf_interval;
+    if (cpi->twopass.gf_group_bits > max_bits * cpi->baseline_gf_interval)
+        cpi->twopass.gf_group_bits = max_bits * cpi->baseline_gf_interval;
 
     /* Reset the file position */
     reset_fpf_position(cpi, start_pos);
@@ -2400,7 +2393,7 @@ static void assign_std_frame_bits(VP8_COMP *cpi, FIRSTPASS_STATS *this_frame)
     target_frame_size += cpi->min_frame_bandwidth;
 
     /* Every other frame gets a few extra bits */
-    if ( (cpi->frames_since_golden & 0x01) &&
+    if ( (cpi->common.frames_since_golden & 0x01) &&
          (cpi->frames_till_gf_update_due > 0) )
     {
         target_frame_size += cpi->twopass.alt_extra_bits;
@@ -2452,7 +2445,7 @@ void vp8_second_pass(VP8_COMP *cpi)
          */
         if (cpi->oxcf.error_resilient_mode)
         {
-            cpi->twopass.gf_group_bits = cpi->twopass.kf_group_bits;
+            cpi->twopass.gf_group_bits = (int)cpi->twopass.kf_group_bits;
             cpi->twopass.gf_group_error_left =
                                   (int)cpi->twopass.kf_group_error_left;
             cpi->baseline_gf_interval = cpi->twopass.frames_to_key;
@@ -2531,7 +2524,7 @@ void vp8_second_pass(VP8_COMP *cpi)
 
     /* Set nominal per second bandwidth for this frame */
     cpi->target_bandwidth = (int)
-    (cpi->per_frame_bandwidth * cpi->output_framerate);
+    (cpi->per_frame_bandwidth * cpi->output_frame_rate);
     if (cpi->target_bandwidth < 0)
         cpi->target_bandwidth = 0;
 
@@ -3187,7 +3180,7 @@ static void find_next_key_frame(VP8_COMP *cpi, FIRSTPASS_STATS *this_frame)
 
         /* Convert to a per second bitrate */
         cpi->target_bandwidth = (int)(cpi->twopass.kf_bits *
-                                      cpi->output_framerate);
+                                      cpi->output_frame_rate);
     }
 
     /* Note the total error score of the kf group minus the key frame itself */
@@ -3226,7 +3219,7 @@ static void find_next_key_frame(VP8_COMP *cpi, FIRSTPASS_STATS *this_frame)
         cpi->common.vert_scale = NORMAL;
 
         /* Calculate Average bits per frame. */
-        av_bits_per_frame = cpi->oxcf.target_bandwidth / DOUBLE_DIVIDE_CHECK((double)cpi->framerate);
+        av_bits_per_frame = cpi->oxcf.target_bandwidth / DOUBLE_DIVIDE_CHECK((double)cpi->frame_rate);
 
         /* CBR... Use the clip average as the target for deciding resample */
         if (cpi->oxcf.end_usage == USAGE_STREAM_FROM_SERVER)
@@ -3301,7 +3294,7 @@ static void find_next_key_frame(VP8_COMP *cpi, FIRSTPASS_STATS *this_frame)
         }
         else
         {
-            int64_t clip_bits = (int64_t)(cpi->twopass.total_stats.count * cpi->oxcf.target_bandwidth / DOUBLE_DIVIDE_CHECK((double)cpi->framerate));
+            int64_t clip_bits = (int64_t)(cpi->twopass.total_stats.count * cpi->oxcf.target_bandwidth / DOUBLE_DIVIDE_CHECK((double)cpi->frame_rate));
             int64_t over_spend = cpi->oxcf.starting_buffer_level - cpi->buffer_level;
 
             /* If triggered last time the threshold for triggering again is
