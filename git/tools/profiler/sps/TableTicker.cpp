@@ -36,8 +36,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include <sys/stat.h>   // open
+#include <fcntl.h>      // open
+#include <unistd.h>
 #include <string>
 #include <stdio.h>
+#include <semaphore.h>
 #include "sps_sampler.h"
 #include "platform.h"
 #include "nsXULAppAPI.h"
@@ -46,33 +50,8 @@
 
 using std::string;
 
-#ifdef XP_WIN
-#include <windows.h>
-#define getpid GetCurrentProcessId
-#else
-#include <unistd.h>
-#endif
-
-#ifndef MAXPATHLEN
-#ifdef PATH_MAX
-#define MAXPATHLEN PATH_MAX
-#elif defined(MAX_PATH)
-#define MAXPATHLEN MAX_PATH
-#elif defined(_MAX_PATH)
-#define MAXPATHLEN _MAX_PATH
-#elif defined(CCHMAXPATH)
-#define MAXPATHLEN CCHMAXPATH
-#else
-#define MAXPATHLEN 1024
-#endif
-#endif
-
-#if _MSC_VER
-#define snprintf _snprintf
-#endif
-
-mozilla::tls::key pkey_stack;
-mozilla::tls::key pkey_ticker;
+pthread_key_t pkey_stack;
+pthread_key_t pkey_ticker;
 // We need to track whether we've been initialized otherwise
 // we end up using pkey_stack without initializing it.
 // Because pkey_stack is totally opaque to us we can't reuse
@@ -256,27 +235,15 @@ public:
   SaveProfileTask() {}
 
   NS_IMETHOD Run() {
-    TableTicker *t = mozilla::tls::get<TableTicker>(pkey_ticker);
+    TableTicker *t = (TableTicker*)pthread_getspecific(pkey_ticker);
 
-    char buff[MAXPATHLEN];
+    char buff[PATH_MAX];
 #ifdef ANDROID
   #define FOLDER "/sdcard/"
-#elif defined(XP_WIN)
-  #define FOLDER "%TEMP%\\"
 #else
   #define FOLDER "/tmp/"
 #endif
-
-    snprintf(buff, MAXPATHLEN, "%sprofile_%i_%i.txt", FOLDER, XRE_GetProcessType(), getpid());
-
-#ifdef XP_WIN
-    // Expand %TEMP% on Windows
-    {
-      char tmp[MAXPATHLEN];
-      ExpandEnvironmentStringsA(buff, tmp, mozilla::ArrayLength(tmp));
-      strcpy(buff, tmp);
-    }
-#endif
+    snprintf(buff, PATH_MAX, FOLDER "profile_%i_%i.txt", XRE_GetProcessType(), getpid());
 
     FILE* stream = ::fopen(buff, "w");
     if (stream) {
@@ -407,15 +374,19 @@ void ProfileEntry::WriteTag(Profile *profile, FILE *stream)
 void mozilla_sampler_init()
 {
   // TODO linux port: Use TLS with ifdefs
-  if (!mozilla::tls::create(&pkey_stack) ||
-      !mozilla::tls::create(&pkey_ticker)) {
+  // TODO window port: See bug 683229 comment 15
+  // profiler uses getspecific because TLS is not supported on android.
+  // getspecific was picked over nspr because it had less overhead required
+  // to make the checkpoint function fast.
+  if (pthread_key_create(&pkey_stack, NULL) ||
+        pthread_key_create(&pkey_ticker, NULL)) {
     LOG("Failed to init.");
     return;
   }
   stack_key_initialized = true;
 
   Stack *stack = new Stack();
-  mozilla::tls::set(pkey_stack, stack);
+  pthread_setspecific(pkey_stack, stack);
 
   // We can't open pref so we use an environment variable
   // to know if we should trigger the profiler on startup
@@ -437,7 +408,7 @@ void mozilla_sampler_deinit()
 }
 
 void mozilla_sampler_save() {
-  TableTicker *t = mozilla::tls::get<TableTicker>(pkey_ticker);
+  TableTicker *t = (TableTicker*)pthread_getspecific(pkey_ticker);
   if (!t) {
     return;
   }
@@ -449,7 +420,7 @@ void mozilla_sampler_save() {
 }
 
 char* mozilla_sampler_get_profile() {
-  TableTicker *t = mozilla::tls::get<TableTicker>(pkey_ticker);
+  TableTicker *t = (TableTicker*)pthread_getspecific(pkey_ticker);
   if (!t) {
     return NULL;
   }
@@ -465,7 +436,7 @@ char* mozilla_sampler_get_profile() {
 // Values are only honored on the first start
 void mozilla_sampler_start(int aProfileEntries, int aInterval)
 {
-  Stack *stack = mozilla::tls::get<Stack>(pkey_stack);
+  Stack *stack = (Stack*)pthread_getspecific(pkey_stack);
   if (!stack) {
     ASSERT(false);
     return;
@@ -474,24 +445,24 @@ void mozilla_sampler_start(int aProfileEntries, int aInterval)
   mozilla_sampler_stop();
 
   TableTicker *t = new TableTicker(aInterval, aProfileEntries, stack);
-  mozilla::tls::set(pkey_ticker, t);
+  pthread_setspecific(pkey_ticker, t);
   t->Start();
 }
 
 void mozilla_sampler_stop()
 {
-  TableTicker *t = mozilla::tls::get<TableTicker>(pkey_ticker);
+  TableTicker *t = (TableTicker*)pthread_getspecific(pkey_ticker);
   if (!t) {
     return;
   }
 
   t->Stop();
-  mozilla::tls::set(pkey_ticker, (Stack*)NULL);
+  pthread_setspecific(pkey_ticker, NULL);
 }
 
 bool mozilla_sampler_is_active()
 {
-  TableTicker *t = mozilla::tls::get<TableTicker>(pkey_ticker);
+  TableTicker *t = (TableTicker*)pthread_getspecific(pkey_ticker);
   if (!t) {
     return false;
   }

@@ -134,15 +134,14 @@ public:
   void Push();
   void Pop();
 
-  size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
-    size_t n = 0;
+  PRUint32 Size() {
+    PRUint32 result = 0;
     StackBlock *block = mBlocks;
     while (block) {
-      n += aMallocSizeOf(block, sizeof(StackBlock));
+      result += sizeof(StackBlock);
       block = block->mNext;
     }
-    n += aMallocSizeOf(mMarks, mMarkLength * sizeof(StackMark));
-    return n;
+    return result;
   }
 
 private:
@@ -881,14 +880,14 @@ private:
 
 public:
 
-  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
-    size_t n = 0;
+  PRUint32 EstimateMemoryUsed() {
+    PRUint32 result = 0;
 
-    n += aMallocSizeOf(this, sizeof(PresShell));
-    n += mStackArena.SizeOfExcludingThis(aMallocSizeOf);
-    n += mFrameArena.SizeOfExcludingThis(aMallocSizeOf);
+    result += sizeof(PresShell);
+    result += mStackArena.Size();
+    result += mFrameArena.Size();
 
-    return n;
+    return result;
   }
 
   size_t SizeOfTextRuns(nsMallocSizeOfFun aMallocSizeOf);

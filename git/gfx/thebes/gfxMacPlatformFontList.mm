@@ -368,7 +368,7 @@ ATSFontEntry::GetFontTable(PRUint32 aTableTag, FallibleTArray<PRUint8>& aBuffer)
         return NS_ERROR_FAILURE;
     }
 
-    if (!aBuffer.SetLength(dataLength)) {
+    if (!aBuffer.AppendElements(dataLength)) {
         return NS_ERROR_OUT_OF_MEMORY;
     }
     PRUint8 *dataPtr = aBuffer.Elements();

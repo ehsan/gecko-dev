@@ -464,11 +464,6 @@ public:
   virtual ~DrawTarget() {}
 
   virtual BackendType GetType() const = 0;
-  /**
-   * Returns a SourceSurface which is a snapshot of the current contents of the DrawTarget.
-   * Multiple calls to Snapshot() without any drawing operations in between will
-   * normally return the same SourceSurface object.
-   */
   virtual TemporaryRef<SourceSurface> Snapshot() = 0;
   virtual IntSize GetSize() = 0;
 

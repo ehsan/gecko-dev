@@ -114,6 +114,7 @@ abstract public class GeckoApp
 
     private IntentFilter mConnectivityFilter;
     private IntentFilter mBatteryFilter;
+    private IntentFilter mSmsFilter;
 
     private BroadcastReceiver mConnectivityReceiver;
     private BroadcastReceiver mSmsReceiver;
@@ -730,16 +731,12 @@ abstract public class GeckoApp
     public File getProfileDir(final String profileName) {
         if (mProfileDir == null && !mUserDefinedProfile) {
             File mozDir = new File(GeckoAppShell.sHomeDir, "mozilla");
-            if (!mozDir.exists()) {
-                // Profile directory may have been deleted or not created yet.
-                return null;
-            }
             File[] profiles = mozDir.listFiles(new FileFilter() {
                 public boolean accept(File pathname) {
                     return pathname.getName().endsWith("." + profileName);
                 }
             });
-            if (profiles != null && profiles.length == 1)
+            if (profiles.length == 1)
                 mProfileDir = profiles[0];
         }
         return mProfileDir;
@@ -1394,11 +1391,11 @@ abstract public class GeckoApp
         batteryFilter.addAction(Intent.ACTION_BATTERY_CHANGED);
         mBatteryReceiver = new GeckoBatteryManager();
         registerReceiver(mBatteryReceiver, batteryFilter);
-
-        IntentFilter smsFilter = new IntentFilter();
-        smsFilter.addAction("android.provider.Telephony.SMS_RECEIVED");
+                
+        mSmsFilter = new IntentFilter();
+        mSmsFilter.addAction("android.provider.Telephony.SMS_RECEIVED");
         mSmsReceiver = new GeckoSmsManager();
-        registerReceiver(mSmsReceiver, smsFilter);
+        registerReceiver(mSmsReceiver, mSmsFilter);
 
         final GeckoApp self = this;
  
@@ -1504,6 +1501,7 @@ abstract public class GeckoApp
         // onPause will be followed by either onResume or onStop.
         super.onPause();
 
+        unregisterReceiver(mSmsReceiver);
         unregisterReceiver(mConnectivityReceiver);
     }
 
@@ -1521,6 +1519,7 @@ abstract public class GeckoApp
         if (checkLaunchState(LaunchState.Launching))
             onNewIntent(getIntent());
 
+        registerReceiver(mSmsReceiver, mSmsFilter);
         registerReceiver(mConnectivityReceiver, mConnectivityFilter);
         if (mOwnActivityDepth > 0)
             mOwnActivityDepth--;
@@ -1596,7 +1595,6 @@ abstract public class GeckoApp
 
         super.onDestroy();
 
-        unregisterReceiver(mSmsReceiver);
         unregisterReceiver(mBatteryReceiver);
     }
 

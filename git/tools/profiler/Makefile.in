@@ -51,7 +51,6 @@ include $(DEPTH)/config/autoconf.mk
 EXPORTS = \
   sampler.h \
   sps_sampler.h \
-  thread_helper.h \
   $(NULL)
 
 LOCAL_INCLUDES += \
@@ -96,17 +95,6 @@ CPPSRCS += \
   TableTicker.cpp \
   $(NULL)
 endif
-
-ifeq ($(OS_TARGET),WINNT)
-
-DEFINES += -DMOZ_ENABLE_PROFILER_SPS
-
-CPPSRCS += \
-  platform-win32.cc \
-  TableTicker.cpp \
-  $(NULL)
-endif
-
 
 
 include $(topsrcdir)/config/rules.mk

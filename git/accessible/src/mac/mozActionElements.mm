@@ -43,6 +43,9 @@
 
 using namespace mozilla::a11y;
 
+extern const NSString *kInstanceDescriptionAttribute; // NSAccessibilityDescriptionAttribute
+extern const NSString *kTopLevelUIElementAttribute;   // NSAccessibilityTopLevelUIElementAttribute
+
 enum CheckboxValue {
   // these constants correspond to the values in the OS
   kUnchecked = 0,
@@ -64,12 +67,12 @@ enum CheckboxValue {
                                                   NSAccessibilitySizeAttribute, // required
                                                   NSAccessibilityWindowAttribute, // required
                                                   NSAccessibilityPositionAttribute, // required
-                                                  NSAccessibilityTopLevelUIElementAttribute, // required
+                                                  kTopLevelUIElementAttribute, // required
                                                   NSAccessibilityHelpAttribute,
                                                   NSAccessibilityEnabledAttribute, // required
                                                   NSAccessibilityFocusedAttribute, // required
                                                   NSAccessibilityTitleAttribute, // required
-                                                  NSAccessibilityDescriptionAttribute,
+                                                  kInstanceDescriptionAttribute,
                                                   nil];
   }
   return attributes;
@@ -191,13 +194,13 @@ enum CheckboxValue {
                                                   NSAccessibilityRoleAttribute, // required
                                                   NSAccessibilitySizeAttribute, // required
                                                   NSAccessibilityWindowAttribute, // required
-                                                  NSAccessibilityTopLevelUIElementAttribute, // required
+                                                  kTopLevelUIElementAttribute, // required
                                                   NSAccessibilityHelpAttribute,
                                                   NSAccessibilityEnabledAttribute, // required
                                                   NSAccessibilityFocusedAttribute, // required
                                                   NSAccessibilityTitleAttribute, // required for popupmenus, and for menubuttons with a title
                                                   NSAccessibilityChildrenAttribute, // required
-                                                  NSAccessibilityDescriptionAttribute, // required if it has no title attr
+                                                  kInstanceDescriptionAttribute, // required if it has no title attr
                                                   nil];
   }
   return attributes;

@@ -44,6 +44,7 @@
 #include "nsMai.h"
 #include "prlink.h"
 #include "prenv.h"
+#include "mozilla/Preferences.h"
 #include "nsIGConfService.h"
 #include "nsIServiceManager.h"
 #include "nsAutoPtr.h"
@@ -63,6 +64,10 @@ static const char sATKLibName[] = "libatk-1.0.so.0";
 static const char sATKHyperlinkImplGetTypeSymbol[] =
     "atk_hyperlink_impl_get_type";
 static const char sAccEnv [] = "GNOME_ACCESSIBILITY";
+static const char sUseSystemPrefsKey[] =
+    "config.use_system_prefs";
+static const char sAccessibilityKey [] =
+    "config.use_system_prefs.accessibility";
 static const char sGconfAccessibilityKey[] =
     "/desktop/gnome/interface/accessibility";
 
@@ -625,13 +630,18 @@ nsApplicationAccessibleWrap::Init()
         isGnomeATEnabled = !!atoi(envValue);
     } else {
         //check gconf-2 setting
-      nsresult rv;
-      nsCOMPtr<nsIGConfService> gconf =
-        do_GetService(NS_GCONFSERVICE_CONTRACTID, &rv);
-      if (NS_SUCCEEDED(rv) && gconf) {
-          gconf->GetBool(NS_LITERAL_CSTRING(sGconfAccessibilityKey),
-                         &isGnomeATEnabled);
-      }
+        if (Preferences::GetBool(sUseSystemPrefsKey, false)) {
+            nsresult rv;
+            nsCOMPtr<nsIGConfService> gconf =
+                do_GetService(NS_GCONFSERVICE_CONTRACTID, &rv);
+            if (NS_SUCCEEDED(rv) && gconf) {
+                gconf->GetBool(NS_LITERAL_CSTRING(sGconfAccessibilityKey),
+                               &isGnomeATEnabled);
+            }
+        } else {
+            isGnomeATEnabled =
+                Preferences::GetBool(sAccessibilityKey, false);
+        }
     }
 
     if (isGnomeATEnabled) {

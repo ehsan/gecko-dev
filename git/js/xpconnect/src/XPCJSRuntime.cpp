@@ -1235,8 +1235,6 @@ XPCJSRuntime::~XPCJSRuntime()
 
 namespace {
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(JsMallocSizeOf, "js")
-
 void
 CompartmentCallback(JSContext *cx, void *vdata, JSCompartment *compartment)
 {
@@ -1255,9 +1253,9 @@ CompartmentCallback(JSContext *cx, void *vdata, JSCompartment *compartment)
     curr->mjitCode = method + unused;
 #endif
     JS_GetTypeInferenceMemoryStats(cx, compartment, &curr->typeInferenceMemory,
-                                   JsMallocSizeOf);
+                                   MemoryReporterMallocSizeOf);
     curr->shapesCompartmentTables =
-        js::GetCompartmentShapeTableSize(compartment, JsMallocSizeOf);
+        js::GetCompartmentShapeTableSize(compartment, MemoryReporterMallocSizeOf);
 }
 
 void
@@ -1302,14 +1300,14 @@ CellCallback(JSContext *cx, void *vdata, void *thing, JSGCTraceKind traceKind,
             } else {
                 curr->gcHeapObjectsNonFunction += thingSize;
             }
-            curr->objectSlots += js::GetObjectDynamicSlotSize(obj, JsMallocSizeOf);
+            curr->objectSlots += js::GetObjectDynamicSlotSize(obj, MemoryReporterMallocSizeOf);
             break;
         }
         case JSTRACE_STRING:
         {
             JSString *str = static_cast<JSString *>(thing);
             curr->gcHeapStrings += thingSize;
-            curr->stringChars += str->charsHeapSize(JsMallocSizeOf);
+            curr->stringChars += str->charsHeapSize(MemoryReporterMallocSizeOf);
             break;
         }
         case JSTRACE_SHAPE:
@@ -1318,13 +1316,13 @@ CellCallback(JSContext *cx, void *vdata, void *thing, JSGCTraceKind traceKind,
             if (shape->inDictionary()) {
                 curr->gcHeapShapesDict += thingSize;
                 curr->shapesExtraDictTables +=
-                    shape->sizeOfPropertyTable(JsMallocSizeOf);
+                    shape->sizeOfPropertyTable(MemoryReporterMallocSizeOf);
             } else {
                 curr->gcHeapShapesTree += thingSize;
                 curr->shapesExtraTreeTables +=
-                    shape->sizeOfPropertyTable(JsMallocSizeOf);
+                    shape->sizeOfPropertyTable(MemoryReporterMallocSizeOf);
                 curr->shapesExtraTreeShapeKids +=
-                    shape->sizeOfKids(JsMallocSizeOf);
+                    shape->sizeOfKids(MemoryReporterMallocSizeOf);
             }
             break;
         }
@@ -1337,9 +1335,9 @@ CellCallback(JSContext *cx, void *vdata, void *thing, JSGCTraceKind traceKind,
         {
             JSScript *script = static_cast<JSScript *>(thing);
             curr->gcHeapScripts += thingSize;
-            curr->scriptData += script->dataSize(JsMallocSizeOf);
+            curr->scriptData += script->dataSize(MemoryReporterMallocSizeOf);
 #ifdef JS_METHODJIT
-            curr->mjitData += script->jitDataSize(JsMallocSizeOf);
+            curr->mjitData += script->jitDataSize(MemoryReporterMallocSizeOf);
 #endif
             break;
         }
@@ -1348,7 +1346,7 @@ CellCallback(JSContext *cx, void *vdata, void *thing, JSGCTraceKind traceKind,
             js::types::TypeObject *obj = static_cast<js::types::TypeObject *>(thing);
             curr->gcHeapTypeObjects += thingSize;
             JS_GetTypeInferenceObjectStats(obj, &curr->typeInferenceMemory,
-                                           JsMallocSizeOf);
+                                           MemoryReporterMallocSizeOf);
             break;
         }
         case JSTRACE_XML:
@@ -1560,12 +1558,12 @@ CollectCompartmentStatsForRuntime(JSRuntime *rt, IterateData *data)
                                            ArenaCallback, CellCallback);
         js::IterateChunks(cx, data, ChunkCallback);
 
-        data->runtimeObject = JsMallocSizeOf(rt, sizeof(JSRuntime));
+        data->runtimeObject = MemoryReporterMallocSizeOf(rt, sizeof(JSRuntime));
 
         // Nb: we use sizeOfExcludingThis() because atomState.atoms is within
         // JSRuntime, and so counted when JSRuntime is counted.
         data->runtimeAtomsTable =
-            rt->atomState.atoms.sizeOfExcludingThis(JsMallocSizeOf);
+            rt->atomState.atoms.sizeOfExcludingThis(MemoryReporterMallocSizeOf);
 
         {
             #ifndef JS_THREADSAFE
@@ -1579,13 +1577,13 @@ CollectCompartmentStatsForRuntime(JSRuntime *rt, IterateData *data)
             JSContext *acx, *iter = NULL;
             while ((acx = JS_ContextIteratorUnlocked(rt, &iter)) != NULL) {
                 data->runtimeContexts +=
-                    acx->sizeOfIncludingThis(JsMallocSizeOf);
+                    acx->sizeOfIncludingThis(MemoryReporterMallocSizeOf);
             }
 
             for (JSThread::Map::Range r = rt->threads.all(); !r.empty(); r.popFront()) {
                 JSThread *thread = r.front().value;
                 size_t normal, temporary, regexpCode, stackCommitted;
-                thread->sizeOfIncludingThis(JsMallocSizeOf,
+                thread->sizeOfIncludingThis(MemoryReporterMallocSizeOf,
                                             &normal,
                                             &temporary,
                                             &regexpCode,
@@ -1600,9 +1598,9 @@ CollectCompartmentStatsForRuntime(JSRuntime *rt, IterateData *data)
 
         XPCJSRuntime *xpcrt = nsXPConnect::GetRuntimeInstance();
         data->xpconnect +=
-            xpcrt->SizeOfIncludingThis(JsMallocSizeOf);
+            xpcrt->SizeOfIncludingThis(MemoryReporterMallocSizeOf);
         data->xpconnect +=
-            XPCWrappedNativeScope::SizeOfAllScopesIncludingThis(JsMallocSizeOf);
+            XPCWrappedNativeScope::SizeOfAllScopesIncludingThis(MemoryReporterMallocSizeOf);
     }
 
     JS_DestroyContextNoGC(cx);

@@ -841,28 +841,21 @@ var AddonRepository = {
    *         The callback to pass results to
    */
   searchAddons: function(aSearchTerms, aMaxResults, aCallback) {
+    let substitutions = {
+      API_VERSION : API_VERSION,
+      TERMS : encodeURIComponent(aSearchTerms),
+
+      // Get twice as many results to account for potential filtering
+      MAX_RESULTS : 2 * aMaxResults
+    };
+
     let checkCompatibility = true;
     try {
       checkCompatibility = Services.prefs.getBoolPref(PREF_CHECK_COMPATIBILITY);
     } catch(e) { }
-    let strictCompatibility = STRICT_COMPATIBILITY_DEFAULT;
-    try {
-      strictCompatibility = Services.prefs.getBoolPref(PREF_EM_STRICT_COMPATIBILITY);
-    } catch(e) { }
 
-    let compatMode = "normal";
     if (!checkCompatibility)
-      compatMode = "ignore";
-    else if (strictCompatibility)
-      compatMode = "strict";
-
-    let substitutions = {
-      API_VERSION : API_VERSION,
-      TERMS : encodeURIComponent(aSearchTerms),
-      // Get twice as many results to account for potential filtering
-      MAX_RESULTS : 2 * aMaxResults,
-      COMPATIBILITY_MODE : compatMode,
-    };
+      substitutions.VERSION = "";
 
     let url = this._formatURLPref(PREF_GETADDONS_GETSEARCHRESULTS, substitutions);
 

@@ -622,8 +622,6 @@ struct MemoryReporterData
 
 } // anonymous namespace
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(LayoutMallocSizeOf, "layout")
-
 /* static */ PLDHashOperator
 PresShell::MemoryReporter::SizeEnumerator(PresShellPtrKey *aEntry,
                                           void *userArg)
@@ -661,14 +659,14 @@ PresShell::MemoryReporter::SizeEnumerator(PresShellPtrKey *aEntry,
   nsCAutoString stylePath = str + NS_LITERAL_CSTRING("/styledata");
   nsCAutoString textRunsPath = str + NS_LITERAL_CSTRING("/textruns");
 
-  PRInt64 arenasSize =
-    aShell->SizeOfIncludingThis(LayoutMallocSizeOf) +
-    aShell->mPresContext->SizeOfIncludingThis(LayoutMallocSizeOf);
+  PRUint32 arenasSize;
+  arenasSize = aShell->EstimateMemoryUsed();
+  arenasSize += aShell->mPresContext->EstimateMemoryUsed();
 
-  PRInt64 styleSize =
-    aShell->StyleSet()->SizeOfIncludingThis(LayoutMallocSizeOf);
+  PRUint32 styleSize;
+  styleSize = aShell->StyleSet()->SizeOf();
 
-  PRInt64 textRunsSize = aShell->SizeOfTextRuns(LayoutMallocSizeOf);
+  PRInt64 textRunsSize = aShell->SizeOfTextRuns(MemoryReporterMallocSizeOf);
 
   data->callback->
     Callback(EmptyCString(), arenaPath, nsIMemoryReporter::KIND_HEAP,
@@ -689,8 +687,6 @@ PresShell::MemoryReporter::SizeEnumerator(PresShellPtrKey *aEntry,
 
   return PL_DHASH_NEXT;
 }
-
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(GfxTextrunWordCacheMallocSizeOf, "gfx/textrun-word-cache")
 
 NS_IMETHODIMP
 PresShell::MemoryReporter::CollectReports(nsIMemoryMultiReporterCallback* aCb,
@@ -713,7 +709,7 @@ PresShell::MemoryReporter::CollectReports(nsIMemoryMultiReporterCallback* aCb,
 
   // now total up cached runs that aren't otherwise accounted for
   PRInt64 textRunWordCacheSize =
-    gfxTextRunWordCache::MaybeSizeOfExcludingThis(GfxTextrunWordCacheMallocSizeOf);
+    gfxTextRunWordCache::MaybeSizeOfExcludingThis(MemoryReporterMallocSizeOf);
 
   aCb->Callback(EmptyCString(), kTextRunWordCachePath,
                 nsIMemoryReporter::KIND_HEAP, nsIMemoryReporter::UNITS_BYTES,

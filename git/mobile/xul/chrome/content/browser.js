@@ -54,7 +54,6 @@ let Cu = Components.utils;
 let Cr = Components.results;
 
 
-#ifdef ANDROID
 function getBridge() {
   return Cc["@mozilla.org/android/bridge;1"].getService(Ci.nsIAndroidBridge);
 }
@@ -62,7 +61,6 @@ function getBridge() {
 function sendMessageToJava(aMessage) {
   return getBridge().handleGeckoMessage(JSON.stringify(aMessage));
 }
-#endif
 
 
 function getBrowser() {
@@ -178,14 +176,12 @@ var Browser = {
 
   startup: function startup() {
     var self = this;
-
-#ifdef ANDROID
+    
     sendMessageToJava({
       gecko: {
         type: "Gecko:Ready"
       }
     });
-#endif
 
     try {
       messageManager.loadFrameScript("chrome://browser/content/Util.js", true);

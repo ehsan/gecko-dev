@@ -121,6 +121,8 @@ static bool sAccessibilityChecked = false;
 /* static */
 bool nsWindow::sAccessibilityEnabled = false;
 static const char sAccEnv [] = "GNOME_ACCESSIBILITY";
+static const char sUseSystemPrefsKey[] = "config.use_system_prefs";
+static const char sAccessibilityKey [] = "config.use_system_prefs.accessibility";
 static const char sGconfAccessibilityKey[] = "/desktop/gnome/interface/accessibility";
 #endif
 
@@ -4339,8 +4341,9 @@ nsWindow::Create(nsIWidget        *aParent,
         if (envValue) {
             sAccessibilityEnabled = atoi(envValue) != 0;
             LOG(("Accessibility Env %s=%s\n", sAccEnv, envValue));
-        } else {
-            //check gconf-2 setting
+        }
+        //check gconf-2 setting
+        else if (Preferences::GetBool(sUseSystemPrefsKey, false)) {
             nsCOMPtr<nsIGConfService> gconf =
                 do_GetService(NS_GCONFSERVICE_CONTRACTID, &rv); 
             if (NS_SUCCEEDED(rv) && gconf) {
@@ -4350,6 +4353,10 @@ nsWindow::Create(nsIWidget        *aParent,
                 gconf->GetBool(NS_LITERAL_CSTRING(sGconfAccessibilityKey),
                                &sAccessibilityEnabled);
             }
+
+        } else {
+            sAccessibilityEnabled =
+                Preferences::GetBool(sAccessibilityKey, false);
         }
     }
 #endif

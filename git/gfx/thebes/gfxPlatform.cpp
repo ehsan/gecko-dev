@@ -66,9 +66,6 @@
 #include "gfxUserFontSet.h"
 #include "gfxUnicodeProperties.h"
 #include "harfbuzz/hb-unicode.h"
-#ifdef MOZ_GRAPHITE
-#include "gfxGraphiteShaper.h"
-#endif
 
 #include "nsUnicodeRange.h"
 #include "nsServiceManagerUtils.h"
@@ -153,10 +150,6 @@ SRGBOverrideObserver::Observe(nsISupports *aSubject,
 #define GFX_PREF_HARFBUZZ_SCRIPTS "gfx.font_rendering.harfbuzz.scripts"
 #define HARFBUZZ_SCRIPTS_DEFAULT  gfxUnicodeProperties::SHAPING_DEFAULT
 
-#ifdef MOZ_GRAPHITE
-#define GFX_PREF_GRAPHITE_SHAPING "gfx.font_rendering.graphite.enabled"
-#endif
-
 static const char* kObservedPrefs[] = {
     "gfx.downloadable_fonts.",
     "gfx.font_rendering.",
@@ -232,9 +225,6 @@ gfxPlatform::gfxPlatform()
     mUseHarfBuzzScripts = UNINITIALIZED_VALUE;
     mAllowDownloadableFonts = UNINITIALIZED_VALUE;
     mDownloadableFontsSanitize = UNINITIALIZED_VALUE;
-#ifdef MOZ_GRAPHITE
-    mGraphiteShapingEnabled = UNINITIALIZED_VALUE;
-#endif
 }
 
 gfxPlatform*
@@ -347,9 +337,6 @@ gfxPlatform::Shutdown()
     gfxTextRunWordCache::Shutdown();
     gfxFontCache::Shutdown();
     gfxFontGroup::Shutdown();
-#ifdef MOZ_GRAPHITE
-    gfxGraphiteShaper::Shutdown();
-#endif
 #if defined(XP_MACOSX) || defined(XP_WIN) // temporary, until this is implemented on others
     gfxPlatformFontList::Shutdown();
 #endif
@@ -602,19 +589,6 @@ gfxPlatform::SanitizeDownloadedFonts()
 
     return mDownloadableFontsSanitize;
 }
-
-#ifdef MOZ_GRAPHITE
-bool
-gfxPlatform::UseGraphiteShaping()
-{
-    if (mGraphiteShapingEnabled == UNINITIALIZED_VALUE) {
-        mGraphiteShapingEnabled =
-            Preferences::GetBool(GFX_PREF_GRAPHITE_SHAPING, false);
-    }
-
-    return mGraphiteShapingEnabled;
-}
-#endif
 
 bool
 gfxPlatform::UseHarfBuzzForScript(PRInt32 aScriptCode)
@@ -1355,12 +1329,6 @@ gfxPlatform::FontsPrefsChanged(const char *aPref)
         mAllowDownloadableFonts = UNINITIALIZED_VALUE;
     } else if (!strcmp(GFX_DOWNLOADABLE_FONTS_SANITIZE, aPref)) {
         mDownloadableFontsSanitize = UNINITIALIZED_VALUE;
-#ifdef MOZ_GRAPHITE
-    } else if (!strcmp(GFX_PREF_GRAPHITE_SHAPING, aPref)) {
-        mGraphiteShapingEnabled = UNINITIALIZED_VALUE;
-        gfxTextRunWordCache::Flush();
-        gfxFontCache::GetCache()->AgeAllGenerations();
-#endif
     } else if (!strcmp(GFX_PREF_HARFBUZZ_SCRIPTS, aPref)) {
         mUseHarfBuzzScripts = UNINITIALIZED_VALUE;
         gfxTextRunWordCache::Flush();

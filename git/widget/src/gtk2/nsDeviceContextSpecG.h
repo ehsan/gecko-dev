@@ -76,6 +76,7 @@ public:
   NS_IMETHOD EndPage() { return NS_OK; }
 
   NS_IMETHOD GetPath (const char **aPath);    
+  NS_IMETHOD GetPrintMethod(PrintMethod &aMethod);
   static nsresult GetPrintMethod(const char *aPrinter, PrintMethod &aMethod);
   virtual ~nsDeviceContextSpecGTK();
   

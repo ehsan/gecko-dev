@@ -212,9 +212,6 @@ public:
         mSymbolFont(false),
         mIgnoreGDEF(false),
         mWeight(500), mStretch(NS_FONT_STRETCH_NORMAL),
-#ifdef MOZ_GRAPHITE
-        mCheckedForGraphiteTables(false),
-#endif
         mHasCmapTable(false),
         mCmapInitialized(false),
         mUVSOffset(0), mUVSData(nsnull),
@@ -246,16 +243,6 @@ public:
     bool IgnoreGDEF() const { return mIgnoreGDEF; }
 
     virtual bool IsSymbolFont();
-
-#ifdef MOZ_GRAPHITE
-    inline bool HasGraphiteTables() {
-        if (!mCheckedForGraphiteTables) {
-            CheckForGraphiteTables();
-            mCheckedForGraphiteTables = true;
-        }
-        return mHasGraphiteTables;
-    }
-#endif
 
     inline bool HasCmapTable() {
         if (!mCmapInitialized) {
@@ -331,10 +318,6 @@ public:
     PRUint16         mWeight;
     PRInt16          mStretch;
 
-#ifdef MOZ_GRAPHITE
-    bool             mHasGraphiteTables;
-    bool             mCheckedForGraphiteTables;
-#endif
     bool             mHasCmapTable;
     bool             mCmapInitialized;
     gfxSparseBitSet  mCharacterMap;
@@ -362,9 +345,6 @@ protected:
         mSymbolFont(false),
         mIgnoreGDEF(false),
         mWeight(500), mStretch(NS_FONT_STRETCH_NORMAL),
-#ifdef MOZ_GRAPHITE
-        mCheckedForGraphiteTables(false),
-#endif
         mHasCmapTable(false),
         mCmapInitialized(false),
         mUVSOffset(0), mUVSData(nsnull),
@@ -377,10 +357,6 @@ protected:
         NS_NOTREACHED("oops, somebody didn't override CreateFontInstance");
         return nsnull;
     }
-
-#ifdef MOZ_GRAPHITE
-    virtual void CheckForGraphiteTables();
-#endif
 
     gfxFontFamily *mFamily;
 
@@ -1028,13 +1004,6 @@ public:
         return mFontEntry->HasCmapTable();
     }
 
-#ifdef MOZ_GRAPHITE
-    // check whether this is an sfnt we can potentially use with Graphite
-    bool FontCanSupportGraphite() {
-        return mFontEntry->HasGraphiteTables();
-    }
-#endif
-
     // Access to raw font table data (needed for Harfbuzz):
     // returns a pointer to data owned by the fontEntry or the OS,
     // which will remain valid until released.
@@ -1283,9 +1252,6 @@ protected:
     // of the text run being shaped
     nsAutoPtr<gfxFontShaper>   mPlatformShaper;
     nsAutoPtr<gfxFontShaper>   mHarfBuzzShaper;
-#ifdef MOZ_GRAPHITE
-    nsAutoPtr<gfxFontShaper>   mGraphiteShaper;
-#endif
 
     // Create a default platform text shaper for this font.
     // (TODO: This should become pure virtual once all font backends have

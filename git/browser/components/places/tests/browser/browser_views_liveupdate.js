@@ -336,7 +336,7 @@ var bookmarksObserver = {
         let cellText = tree.view.getCellText(aElementOrTreeIndex,
                                              tree.columns.getColumnAt(0));
         if (!aNewValue)
-          return cellText == PlacesUIUtils.getBestTitle(tree.view.nodeForTreeIndex(aElementOrTreeIndex), true);
+          return cellText == PlacesUIUtils.getBestTitle(tree.view.nodeForTreeIndex(aElementOrTreeIndex));
         return cellText == aNewValue;
       }
       else {

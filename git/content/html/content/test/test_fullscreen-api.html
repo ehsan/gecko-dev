@@ -49,14 +49,7 @@ var gTestWindows = [
 var testWindow = null;
 var gTestIndex = 0;
 
-const isWinXP = navigator.userAgent.indexOf("Windows NT 5.1") != -1;
-
 function nextTest() {
-  if (isWinXP) {
-    todo(false, "Can't reliably run full-screen tests on Windows XP due to bug 704010");
-    SimpleTest.finish();
-    return;
-  }
   if (testWindow) {
     testWindow.close();
   }

@@ -831,9 +831,9 @@ nsMediaChannelStream::EnsureCacheUpToDate()
 }
 
 bool
-nsMediaChannelStream::IsSuspendedByCache(nsMediaStream** aActiveStream)
+nsMediaChannelStream::IsSuspendedByCache()
 {
-  return mCacheStream.AreAllStreamsForResourceSuspended(aActiveStream);
+  return mCacheStream.AreAllStreamsForResourceSuspended();
 }
 
 bool
@@ -949,13 +949,7 @@ public:
   }
   virtual PRInt64 GetCachedDataEnd(PRInt64 aOffset) { return NS_MAX(aOffset, mSize); }
   virtual bool    IsDataCachedToEndOfStream(PRInt64 aOffset) { return true; }
-  virtual bool    IsSuspendedByCache(nsMediaStream** aActiveStream)
-  {
-    if (aActiveStream) {
-      *aActiveStream = nsnull;
-    }
-    return false;
-  }
+  virtual bool    IsSuspendedByCache() { return false; }
   virtual bool    IsSuspended() { return false; }
 
   nsresult GetCachedRanges(nsTArray<nsByteRange>& aRanges);

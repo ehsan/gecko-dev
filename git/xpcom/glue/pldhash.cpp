@@ -811,7 +811,7 @@ SizeOfEntryEnumerator(PLDHashTable *table, PLDHashEntryHdr *hdr,
 }
 
 size_t
-PL_DHashTableSizeOfExcludingThis(const PLDHashTable *table,
+PL_DHashTableSizeOfExcludingThis(PLDHashTable *table,
                                  PLDHashSizeOfEntryFun sizeOfEntry,
                                  nsMallocSizeOfFun mallocSizeOf)
 {
@@ -821,15 +821,14 @@ PL_DHashTableSizeOfExcludingThis(const PLDHashTable *table,
                       ENTRY_STORE_EXTRA);
     if (sizeOfEntry) {
         SizeOfEntryEnumeratorArg arg = { 0, sizeOfEntry, mallocSizeOf };
-        PL_DHashTableEnumerate(const_cast<PLDHashTable *>(table),
-                               SizeOfEntryEnumerator, &arg);
+        PL_DHashTableEnumerate(table, SizeOfEntryEnumerator, &arg);
         n += arg.total;
     }
     return n;
 }
 
 size_t
-PL_DHashTableSizeOfIncludingThis(const PLDHashTable *table,
+PL_DHashTableSizeOfIncludingThis(PLDHashTable *table,
                                  PLDHashSizeOfEntryFun sizeOfEntry,
                                  nsMallocSizeOfFun mallocSizeOf)
 {

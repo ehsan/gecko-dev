@@ -166,7 +166,7 @@ Bindings::add(JSContext *cx, JSAtom *name, BindingKind kind)
     }
 
     BaseShape base(&CallClass, NULL, BaseShape::VAROBJ, attrs, getter, setter);
-    UnownedBaseShape *nbase = BaseShape::getUnowned(cx, base);
+    BaseShape *nbase = BaseShape::getUnowned(cx, base);
     if (!nbase)
         return NULL;
 

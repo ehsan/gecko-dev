@@ -1301,15 +1301,12 @@ StoreAndNotifyEmbedVisit(VisitData& aPlace,
   (void)NS_DispatchToMainThread(event);
 }
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(HistoryLinksHashtableMallocSizeOf,
-                                     "history-links-hashtable")
-
 PRInt64 GetHistoryObserversSize()
 {
   History* history = History::GetService();
   if (!history)
     return 0;
-  return history->SizeOfIncludingThis(HistoryLinksHashtableMallocSizeOf);
+  return history->SizeOfIncludingThis(MemoryReporterMallocSizeOf);
 }
 
 NS_MEMORY_REPORTER_IMPLEMENT(HistoryService,
