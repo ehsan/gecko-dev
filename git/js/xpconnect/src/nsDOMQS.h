@@ -12,10 +12,11 @@
 #include "mozilla/dom/HTMLImageElement.h"
 #include "mozilla/dom/HTMLOptionElement.h"
 #include "HTMLOptGroupElement.h"
-#include "nsHTMLVideoElement.h"
+#include "mozilla/dom/HTMLVideoElement.h"
 #include "nsHTMLDocument.h"
 #include "nsICSSDeclaration.h"
 #include "nsSVGElement.h"
+#include "nsDOMEvent.h"
 #include "mozilla/dom/EventTargetBinding.h"
 #include "mozilla/dom/NodeBinding.h"
 #include "mozilla/dom/ElementBinding.h"
@@ -50,6 +51,7 @@ NEW_BINDING(nsGenericHTMLElement, HTMLElement);
 NEW_BINDING(nsIDocument, Document);
 NEW_BINDING(nsDocument, Document);
 NEW_BINDING(nsSVGElement, SVGElement);
+NEW_BINDING(nsDOMEvent, Event);
 
 #define DEFINE_UNWRAP_CAST(_interface, _base, _bit)                           \
 template <>                                                                   \
@@ -173,7 +175,7 @@ DEFINE_UNWRAP_CAST_HTML(form, nsHTMLFormElement)
 DEFINE_UNWRAP_CAST_HTML(img, mozilla::dom::HTMLImageElement)
 DEFINE_UNWRAP_CAST_HTML(optgroup, mozilla::dom::HTMLOptGroupElement)
 DEFINE_UNWRAP_CAST_HTML(option, mozilla::dom::HTMLOptionElement)
-DEFINE_UNWRAP_CAST_HTML(video, nsHTMLVideoElement)
+DEFINE_UNWRAP_CAST_HTML(video, mozilla::dom::HTMLVideoElement)
 
 inline nsISupports*
 ToSupports(nsContentList *p)

@@ -40,8 +40,8 @@ class Image;
 } // namespace image
 } // namespace mozilla
 
-class imgRequestProxy : public imgIRequest, 
-                        public nsISupportsPriority, 
+class imgRequestProxy : public imgIRequest,
+                        public nsISupportsPriority,
                         public nsISecurityInfoProvider,
                         public nsITimedChannel
 {
@@ -143,6 +143,7 @@ protected:
   void OnStopFrame       ();
   void OnStopDecode      ();
   void OnDiscard         ();
+  void OnUnlockedDraw    ();
   void OnImageIsAnimated ();
 
   /* non-virtual sort-of-nsIRequestObserver methods */

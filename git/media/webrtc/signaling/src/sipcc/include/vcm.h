@@ -29,6 +29,8 @@
 #define CC_IS_AUDIO(id) ((id == CC_AUDIO_1) ? TRUE:FALSE)
 /** Evaluates to TRUE for video media streams where id is the mcap_id of the given stream */
 #define CC_IS_VIDEO(id) ((id == CC_VIDEO_1) ? TRUE:FALSE)
+/** Evaluates to TRUE for datachannel streams where id is the mcap_id of the given stream */
+#define CC_IS_DATACHANNEL(id) ((id == CC_DATACHANNEL_1) ? TRUE:FALSE)
 
 
 /** Definitions for direction requesting Play tone to user */
@@ -672,9 +674,11 @@ int vcmTxStart(cc_mcapid_t mcap_id,
         size_t max_digest_len);
 
 
-  short vcmSetDataChannelParameters(const char *peerconnection,
+  short vcmInitializeDataChannel(const char *peerconnection,
+        int track_id,
         cc_uint16_t streams,
-        int sctp_port,
+        int local_datachannel_port,
+        int remote_datachannel_port,
         const char* protocol);
 
 /*!
@@ -1002,6 +1006,15 @@ int vcmDtmfBurst(int digit, int duration, int direction);
  * @return int
  */
 int vcmGetILBCMode();
+
+/**
+ * vcmOnSdpParseError
+ *
+ * This method is called for each parsing error of SDP.  It does not necessarily
+ * mean the SDP read was fatal and can be called many times for the same SDP.
+ *
+ */
+int vcmOnSdpParseError(const char *peercconnection, const char *message);
 
 //Using C++ for gips. This is the end of extern "C" above.
 #ifdef __cplusplus

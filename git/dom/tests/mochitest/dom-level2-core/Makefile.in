@@ -11,8 +11,6 @@ relativesrcdir	= @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-DIRS = files
-
 MOCHITEST_FILES_A	= \
 		DOMTestCase.js \
 		exclusions.js \
@@ -167,8 +165,6 @@ MOCHITEST_FILES_D	= \
 		test_hasAttributeNS03.html \
 		test_hasAttributeNS04.html \
 		test_hasAttributeNS05.html \
-		test_hasAttributes01.html \
-		test_hasAttributes02.html \
 		test_hc_namednodemapinvalidtype1.html \
 		test_hc_nodedocumentfragmentnormalize1.html \
 		test_hc_nodedocumentfragmentnormalize2.html \
@@ -190,16 +186,6 @@ MOCHITEST_FILES_D	= \
 		test_importNode16.html \
 		test_importNode17.html \
 		test_internalSubset01.html \
-		test_isSupported04.html \
-		test_isSupported05.html \
-		test_isSupported06.html \
-		test_isSupported07.html \
-		test_isSupported09.html \
-		test_isSupported10.html \
-		test_isSupported11.html \
-		test_isSupported12.html \
-		test_isSupported13.html \
-		test_isSupported14.html \
 		$(NULL)
 
 MOCHITEST_FILES_E	= \
@@ -242,13 +228,6 @@ MOCHITEST_FILES_E	= \
 		test_nodegetownerdocument01.html \
 		test_nodegetownerdocument02.html \
 		test_nodegetprefix03.html \
-		test_nodehasattributes01.html \
-		test_nodehasattributes02.html \
-		test_nodehasattributes03.html \
-		test_nodehasattributes04.html \
-		test_nodeissupported01.html \
-		test_nodeissupported02.html \
-		test_nodeissupported04.html \
 		$(NULL)
 
 MOCHITEST_FILES_F	= \

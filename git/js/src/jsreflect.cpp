@@ -134,6 +134,7 @@ typedef AutoValueVector NodeVector;
 class NodeBuilder
 {
     JSContext   *cx;
+    TokenStream *tokenStream;
     bool        saveLoc;               /* save source location information?     */
     char const  *src;                  /* source filename or null               */
     RootedValue srcval;                /* source filename JS value or null      */
@@ -144,7 +145,7 @@ class NodeBuilder
 
   public:
     NodeBuilder(JSContext *c, bool l, char const *s)
-        : cx(c), saveLoc(l), src(s), srcval(c),
+        : cx(c), tokenStream(NULL), saveLoc(l), src(s), srcval(c),
           callbacksRoots(c, callbacks, AST_LIMIT), userv(c), undefinedVal(c, UndefinedValue())
     {
         MakeRangeGCSafe(callbacks, mozilla::ArrayLength(callbacks));
@@ -194,6 +195,10 @@ class NodeBuilder
         }
 
         return true;
+    }
+
+    void setTokenStream(TokenStream *ts) {
+        tokenStream = ts;
     }
 
   private:
@@ -676,15 +681,20 @@ NodeBuilder::newNodeLoc(TokenPos *pos, MutableHandleValue dst)
 
     dst.setObject(*loc);
 
+    uint32_t startLineNum, startColumnIndex;
+    uint32_t endLineNum, endColumnIndex;
+    tokenStream->srcCoords.lineNumAndColumnIndex(pos->begin, &startLineNum, &startColumnIndex);
+    tokenStream->srcCoords.lineNumAndColumnIndex(pos->end, &endLineNum, &endColumnIndex);
+
     if (!newObject(&to))
         return false;
     val.setObject(*to);
     if (!setProperty(loc, "start", val))
         return false;
-    val.setNumber(pos->begin.lineno);
+    val.setNumber(startLineNum);
     if (!setProperty(to, "line", val))
         return false;
-    val.setNumber(pos->begin.index);
+    val.setNumber(startColumnIndex);
     if (!setProperty(to, "column", val))
         return false;
 
@@ -693,10 +703,10 @@ NodeBuilder::newNodeLoc(TokenPos *pos, MutableHandleValue dst)
     val.setObject(*to);
     if (!setProperty(loc, "end", val))
         return false;
-    val.setNumber(pos->end.lineno);
+    val.setNumber(endLineNum);
     if (!setProperty(to, "line", val))
         return false;
-    val.setNumber(pos->end.index);
+    val.setNumber(endColumnIndex);
     if (!setProperty(to, "column", val))
         return false;
 
@@ -1457,7 +1467,7 @@ NodeBuilder::function(ASTType type, TokenPos *pos,
 class ASTSerializer
 {
     JSContext           *cx;
-    Parser              *parser;
+    Parser<FullParseHandler> *parser;
     NodeBuilder         builder;
     DebugOnly<uint32_t> lineno;
 
@@ -1551,8 +1561,9 @@ class ASTSerializer
         return builder.init(userobj);
     }
 
-    void setParser(Parser *p) {
+    void setParser(Parser<FullParseHandler> *p) {
         parser = p;
+        builder.setTokenStream(&p->tokenStream);
     }
 
     bool program(ParseNode *pn, MutableHandleValue dst);
@@ -1719,7 +1730,7 @@ ASTSerializer::blockStatement(ParseNode *pn, MutableHandleValue dst)
 bool
 ASTSerializer::program(ParseNode *pn, MutableHandleValue dst)
 {
-    JS_ASSERT(pn->pn_pos.begin.lineno == lineno);
+    JS_ASSERT(parser->tokenStream.srcCoords.lineNum(pn->pn_pos.begin) == lineno);
 
     NodeVector stmts(cx);
     return statements(pn, stmts) &&
@@ -2297,7 +2308,10 @@ ASTSerializer::expression(ParseNode *pn, MutableHandleValue dst)
     JS_CHECK_RECURSION(cx, return false);
     switch (pn->getKind()) {
       case PNK_FUNCTION:
-        return function(pn, AST_FUNC_EXPR, dst);
+      {
+        ASTType type = pn->pn_funbox->function()->isArrow() ? AST_ARROW_EXPR : AST_FUNC_EXPR;
+        return function(pn, type, dst);
+      }
 
       case PNK_COMMA:
       {
@@ -2523,7 +2537,7 @@ ASTSerializer::expression(ParseNode *pn, MutableHandleValue dst)
       {
         /* The parser notes any uninitialized properties by setting the PNX_DESTRUCT flag. */
         if (pn->pn_xflags & PNX_DESTRUCT) {
-            parser->reportError(pn, JSMSG_BAD_OBJECT_INIT);
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_OBJECT_INIT);
             return false;
         }
         NodeVector elts(cx);
@@ -3031,7 +3045,7 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
     size_t length = stable->length();
     CompileOptions options(cx);
     options.setFileAndLine(filename, lineno);
-    Parser parser(cx, options, chars.get(), length, /* foldConstants = */ false);
+    Parser<FullParseHandler> parser(cx, options, chars.get(), length, /* foldConstants = */ false);
     if (!parser.init())
         return JS_FALSE;
 

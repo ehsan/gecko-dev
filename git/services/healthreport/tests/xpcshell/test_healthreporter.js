@@ -689,6 +689,7 @@ add_task(function test_basic_appinfo() {
     reporter._shutdown();
   }
 });
+
 // Ensure collection occurs if upload is disabled.
 add_task(function test_collect_when_upload_disabled() {
   let reporter = getJustReporter("collect_when_upload_disabled");
@@ -698,7 +699,6 @@ add_task(function test_collect_when_upload_disabled() {
   let name = "healthreport-testing-collect_when_upload_disabled-healthreport-lastDailyCollection";
   let pref = "app.update.lastUpdateTime." + name;
   do_check_false(Services.prefs.prefHasUserValue(pref));
-
   try {
     yield reporter.onInit();
     do_check_true(Services.prefs.prefHasUserValue(pref));

@@ -143,7 +143,7 @@ IceCandidate.prototype = {
 
   constructor: function(win, candidateInitDict) {
     if (this._win) {
-      throw new Error("Constructor already called");
+      throw new Components.Exception("Constructor already called");
     }
     this._win = win;
     if (candidateInitDict !== undefined) {
@@ -178,7 +178,7 @@ SessionDescription.prototype = {
 
   constructor: function(win, descriptionInitDict) {
     if (this._win) {
-      throw new Error("Constructor already called");
+      throw new Components.Exception("Constructor already called");
     }
     this._win = win;
     if (descriptionInitDict !== undefined) {
@@ -250,10 +250,10 @@ PeerConnection.prototype = {
   // Constructor is an explicit function, because of nsIDOMGlobalObjectConstructor.
   constructor: function(win, rtcConfig) {
     if (!Services.prefs.getBoolPref("media.peerconnection.enabled")) {
-      throw new Error("PeerConnection not enabled (did you set the pref?)");
+      throw new Components.Exception("PeerConnection not enabled (did you set the pref?)");
     }
     if (this._win) {
-      throw new Error("RTCPeerConnection constructor already called");
+      throw new Components.Exception("RTCPeerConnection constructor already called");
     }
     if (!rtcConfig ||
         !Services.prefs.getBoolPref("media.peerconnection.use_document_iceservers")) {
@@ -263,7 +263,7 @@ PeerConnection.prototype = {
     this._mustValidateRTCConfiguration(rtcConfig,
         "RTCPeerConnection constructor passed invalid RTCConfiguration");
     if (_globalPCList._networkdown) {
-      throw new Error("Can't create RTCPeerConnections when the network is down");
+      throw new Components.Exception("Can't create RTCPeerConnections when the network is down");
     }
 
     this._pc = Cc["@mozilla.org/peerconnection;1"].
@@ -344,23 +344,26 @@ PeerConnection.prototype = {
       try {
         return ios.newURI(uriStr, null, null);
       } catch (e if (e.result == Cr.NS_ERROR_MALFORMED_URI)) {
-        throw new Error(errorMsg + " - malformed URI: " + uriStr);
+        throw new Components.Exception(errorMsg + " - malformed URI: " + uriStr,
+                                       Cr.NS_ERROR_MALFORMED_URI);
       }
     }
     function mustValidateServer(server) {
       let url = nicerNewURI(server.url, errorMsg);
       if (!(url.scheme in { stun:1, stuns:1, turn:1, turns:1 })) {
-        throw new Error (errorMsg + " - improper scheme: " + url.scheme);
+        throw new Components.Exception(errorMsg + " - improper scheme: " + url.scheme,
+                                       Cr.NS_ERROR_MALFORMED_URI);
       }
       if (server.credential && isObject(server.credential)) {
-        throw new Error (errorMsg + " - invalid credential");
+        throw new Components.Exception(errorMsg + " - invalid credential");
       }
     }
     if (!isObject(rtcConfig)) {
-      throw new Error (errorMsg);
+      throw new Components.Exception(errorMsg);
     }
     if (!isArraylike(rtcConfig.iceServers)) {
-      throw new Error (errorMsg + " - iceServers [] property not present");
+      throw new Components.Exception(errorMsg +
+                                     " - iceServers [] property not present");
     }
     let len = rtcConfig.iceServers.length;
     for (let i=0; i < len; i++) {
@@ -400,40 +403,42 @@ PeerConnection.prototype = {
     // Parse-aid: Testing for pilot error of missing outer block avoids
     // otherwise silent no-op since both mandatory and optional are optional
     if (!isObject(constraints) || Array.isArray(constraints)) {
-      throw new Error(errorMsg);
+      throw new Components.Exception(errorMsg);
     }
     if (constraints.mandatory) {
       // Testing for pilot error of using [] on mandatory here throws nicer msg
       // (arrays would throw in loop below regardless but with more cryptic msg)
       if (!isObject(constraints.mandatory) || Array.isArray(constraints.mandatory)) {
-        throw new Error(errorMsg + " - malformed mandatory constraints");
+        throw new Components.Exception(errorMsg + " - malformed mandatory constraints");
       }
       for (let constraint in constraints.mandatory) {
         if (!(constraint in SUPPORTED_CONSTRAINTS) &&
             constraints.mandatory.hasOwnProperty(constraint)) {
-          throw new Error (errorMsg + " - " +
-                           ((constraint in OTHER_KNOWN_CONSTRAINTS)?
-                            "unsupported" : "unknown") +
-                           " mandatory constraint: " + constraint);
+          throw new Components.Exception(errorMsg + " - " +
+                                         ((constraint in OTHER_KNOWN_CONSTRAINTS)?
+                                          "unsupported" : "unknown") +
+                                         " mandatory constraint: " + constraint);
         }
       }
     }
     if (constraints.optional) {
       if (!isArraylike(constraints.optional)) {
-        throw new Error(errorMsg + " - malformed optional constraint array");
+        throw new Components.Exception(errorMsg +
+                                       " - malformed optional constraint array");
       }
       let len = constraints.optional.length;
       for (let i = 0; i < len; i += 1) {
         if (!isObject(constraints.optional[i])) {
-          throw new Error(errorMsg + " - malformed optional constraint: " +
-                          constraints.optional[i]);
+          throw new Components.Exception(errorMsg +
+                                         " - malformed optional constraint: " +
+                                         constraints.optional[i]);
         }
         let constraints_per_entry = 0;
         for (let constraint in constraints.optional[i]) {
           if (constraints.optional[i].hasOwnProperty(constraint)) {
             if (constraints_per_entry) {
-              throw new Error (errorMsg +
-                               " - optional constraint must be single key/value pair");
+              throw new Components.Exception(errorMsg +
+                  " - optional constraint must be single key/value pair");
             }
             constraints_per_entry += 1;
           }
@@ -448,7 +453,7 @@ PeerConnection.prototype = {
   // spec. See Bug 831756.
   _checkClosed: function() {
     if (this._closed) {
-      throw new Error ("Peer connection is closed");
+      throw new Components.Exception("Peer connection is closed");
     }
   },
 
@@ -473,26 +478,16 @@ PeerConnection.prototype = {
     this._onCreateAnswerFailure = onError;
 
     if (!this.remoteDescription) {
-      this._observer.onCreateAnswerError(3); // PC_INVALID_REMOTE_SDP
-      /*
-        This needs to be matched to spec -- see bug 834270. The final
-        code will be of the form:
 
-      this._observer.onCreateAnswerError(ci.IPeerConnection.kInvalidState,
+      this._observer.onCreateAnswerError(Ci.IPeerConnection.kInvalidState,
                                          "setRemoteDescription not called");
-      */
       return;
     }
 
     if (this.remoteDescription.type != "offer") {
-      this._observer.onCreateAnswerError(3); // PC_INVALID_REMOTE_SDP
-      /*
-        This needs to be matched to spec -- see bug 834270. The final
-        code will be of the form:
 
-      this._observer.onCreateAnswerError(ci.IPeerConnection.kInvalidState,
+      this._observer.onCreateAnswerError(Ci.IPeerConnection.kInvalidState,
                                          "No outstanding offer");
-      */
       return;
     }
 
@@ -535,9 +530,8 @@ PeerConnection.prototype = {
         type = Ci.IPeerConnection.kActionAnswer;
         break;
       default:
-        throw new Error(
-          "Invalid type " + desc.type + " provided to setLocalDescription"
-        );
+        throw new Components.Exception("Invalid type " + desc.type +
+                                       " provided to setLocalDescription");
         break;
     }
 
@@ -565,9 +559,8 @@ PeerConnection.prototype = {
         type = Ci.IPeerConnection.kActionAnswer;
         break;
       default:
-        throw new Error(
-          "Invalid type " + desc.type + " provided to setRemoteDescription"
-        );
+        throw new Components.Exception("Invalid type " + desc.type +
+                                       " provided to setRemoteDescription");
         break;
     }
 
@@ -585,11 +578,11 @@ PeerConnection.prototype = {
 
   addIceCandidate: function(cand, onSuccess, onError) {
     if (!cand) {
-      throw new Error ("NULL candidate passed to addIceCandidate!");
+      throw new Components.Exception("NULL candidate passed to addIceCandidate!");
     }
 
     if (!cand.candidate || !cand.sdpMLineIndex) {
-      throw new Error ("Invalid candidate passed to addIceCandidate!");
+      throw new Components.Exception("Invalid candidate passed to addIceCandidate!");
     }
 
     this._onAddIceCandidateSuccess = onSuccess;
@@ -612,11 +605,8 @@ PeerConnection.prototype = {
   },
 
   removeStream: function(stream) {
-    this._queueOrRun({
-      func: this._pc.removeStream,
-      args: [stream],
-      wait: false
-    });
+     //Bug844295: Not implemeting this functionality.
+     return Cr.NS_ERROR_NOT_IMPLEMENTED;
   },
 
   close: function() {
@@ -662,12 +652,48 @@ PeerConnection.prototype = {
     };
   },
 
+  get readyState() {
+    // checking for our local pc closed indication
+    // before invoking the pc methods.
+    if(this._closed) {
+      return "closed";
+    }
+
+    var state="undefined";
+    switch (this._pc.readyState) {
+      case Ci.IPeerConnection.kNew:
+        state = "new";
+        break;
+      case Ci.IPeerConnection.kNegotiating:
+        state = "negotiating";
+        break;
+      case Ci.IPeerConnection.kActive:
+        state = "active";
+        break;
+      case Ci.IPeerConnection.kClosing:
+        state = "closing";
+        break;
+      case Ci.IPeerConnection.kClosed:
+        state = "closed";
+        break;
+    }
+    return state;
+  },
+
   createDataChannel: function(label, dict) {
     this._checkClosed();
-    if (dict &&
-        dict.maxRetransmitTime != undefined &&
+    if (dict == undefined) {
+	dict = {};
+    }
+    if (dict.maxRetransmitTime != undefined &&
         dict.maxRetransmitNum != undefined) {
-      throw new Error("Both maxRetransmitTime and maxRetransmitNum cannot be provided");
+      throw new Components.Exception("Both maxRetransmitTime and maxRetransmitNum cannot be provided");
+    }
+    let protocol;
+    if (dict.protocol == undefined) {
+      protocol = "";
+    } else {
+      protocol = dict.protocol;
     }
 
     // Must determine the type where we still know if entries are undefined.
@@ -681,11 +707,10 @@ PeerConnection.prototype = {
     }
 
     // Synchronous since it doesn't block.
-    // TODO -- this may need to be revisited, based on how the
-    // spec ends up defining data channel handling
     let channel = this._pc.createDataChannel(
-      label, type, dict.outOfOrderAllowed, dict.maxRetransmitTime,
-      dict.maxRetransmitNum
+      label, protocol, type, dict.outOfOrderAllowed, dict.maxRetransmitTime,
+      dict.maxRetransmitNum, dict.preset ? true : false,
+      dict.stream != undefined ? dict.stream : 0xFFFF
     );
     return channel;
   },
@@ -710,6 +735,39 @@ PeerConnectionObserver.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.IPeerConnectionObserver,
                                          Ci.nsISupportsWeakReference]),
 
+  // These strings must match those defined in the WebRTC spec.
+  reasonName: [
+    "NO_ERROR", // Should never happen -- only used for testing
+    "INVALID_CONSTRAINTS_TYPE",
+    "INVALID_CANDIDATE_TYPE",
+    "INVALID_MEDIASTREAM_TRACK",
+    "INVALID_STATE",
+    "INVALID_SESSION_DESCRIPTION",
+    "INCOMPATIBLE_SESSION_DESCRIPTION",
+    "INCOMPATIBLE_CONSTRAINTS",
+    "INCOMPATIBLE_MEDIASTREAMTRACK",
+    "INTERNAL_ERROR"
+  ],
+
+  callErrorCallback: function(callback, code, message) {
+    if (code > Ci.IPeerConnection.kMaxErrorType) {
+      code = Ci.IPeerConnection.kInternalError;
+    }
+
+    if (typeof message !== "string") {
+      message = this.reasonName[code];
+    }
+
+    if (callback) {
+      try {
+        callback.onCallback({
+          name: this.reasonName[code], message: message,
+          __exposedProps__: { name: "rw", message: "rw" }
+        });
+      } catch(e) {}
+    }
+  },
+
   onCreateOfferSuccess: function(offer) {
     if (this._dompc._onCreateOfferSuccess) {
       try {
@@ -722,12 +780,8 @@ PeerConnectionObserver.prototype = {
     this._dompc._executeNext();
   },
 
-  onCreateOfferError: function(code) {
-    if (this._dompc._onCreateOfferFailure) {
-      try {
-        this._dompc._onCreateOfferFailure.onCallback(code);
-      } catch(e) {}
-    }
+  onCreateOfferError: function(code, message) {
+    this.callErrorCallback (this._dompc._onCreateOfferFailure, code, message);
     this._dompc._executeNext();
   },
 
@@ -743,68 +797,58 @@ PeerConnectionObserver.prototype = {
     this._dompc._executeNext();
   },
 
-  onCreateAnswerError: function(code) {
-    if (this._dompc._onCreateAnswerFailure) {
-      try {
-        this._dompc._onCreateAnswerFailure.onCallback(code);
-      } catch(e) {}
-    }
+  onCreateAnswerError: function(code, message) {
+    this.callErrorCallback (this._dompc._onCreateAnswerFailure, code, message);
     this._dompc._executeNext();
   },
 
-  onSetLocalDescriptionSuccess: function(code) {
+  onSetLocalDescriptionSuccess: function() {
     this._dompc._localType = this._dompc._pendingType;
     this._dompc._pendingType = null;
     if (this._dompc._onSetLocalDescriptionSuccess) {
       try {
-        this._dompc._onSetLocalDescriptionSuccess.onCallback(code);
+        this._dompc._onSetLocalDescriptionSuccess.onCallback();
       } catch(e) {}
     }
     this._dompc._executeNext();
   },
 
-  onSetRemoteDescriptionSuccess: function(code) {
+  onSetRemoteDescriptionSuccess: function() {
     this._dompc._remoteType = this._dompc._pendingType;
     this._dompc._pendingType = null;
     if (this._dompc._onSetRemoteDescriptionSuccess) {
       try {
-        this._dompc._onSetRemoteDescriptionSuccess.onCallback(code);
+        this._dompc._onSetRemoteDescriptionSuccess.onCallback();
       } catch(e) {}
     }
     this._dompc._executeNext();
   },
 
-  onSetLocalDescriptionError: function(code) {
+  onSetLocalDescriptionError: function(code, message) {
     this._dompc._pendingType = null;
-    if (this._dompc._onSetLocalDescriptionFailure) {
-      try {
-        this._dompc._onSetLocalDescriptionFailure.onCallback(code);
-      } catch(e) {}
-    }
+    this.callErrorCallback (this._dompc._onSetLocalDescriptionFailure, code,
+                            message);
     this._dompc._executeNext();
   },
 
-  onSetRemoteDescriptionError: function(code) {
+  onSetRemoteDescriptionError: function(code, message) {
     this._dompc._pendingType = null;
-    if (this._dompc._onSetRemoteDescriptionFailure) {
-      this._dompc._onSetRemoteDescriptionFailure.onCallback(code);
-    }
+    this.callErrorCallback (this._dompc._onSetRemoteDescriptionFailure, code,
+                            message);
     this._dompc._executeNext();
   },
 
-  onAddIceCandidateSuccess: function(code) {
+  onAddIceCandidateSuccess: function() {
     this._dompc._pendingType = null;
     if (this._dompc._onAddIceCandidateSuccess) {
-      this._dompc._onAddIceCandidateSuccess.onCallback(code);
+      this._dompc._onAddIceCandidateSuccess.onCallback();
     }
     this._dompc._executeNext();
   },
 
-  onAddIceCandidateError: function(code) {
+  onAddIceCandidateError: function(code, message) {
     this._dompc._pendingType = null;
-    if (this._dompc._onAddIceCandidateError) {
-      this._dompc._onAddIceCandidateError.onCallback(code);
-    }
+    this.callErrorCallback (this._dompc._onAddIceCandidateError, code, message);
     this._dompc._executeNext();
   },
 
@@ -892,7 +936,10 @@ PeerConnectionObserver.prototype = {
   notifyDataChannel: function(channel) {
     if (this._dompc.ondatachannel) {
       try {
-        this._dompc.ondatachannel.onCallback(channel);
+        this._dompc.ondatachannel.onCallback({
+          channel: channel,
+          __exposedProps__: { channel: "r" }
+        });
       } catch(e) {}
     }
   },

@@ -35,9 +35,7 @@ public class TabsButton extends ShapedButton {
         mCropped = a.getBoolean(R.styleable.TabsButton_cropped, false);
         a.recycle();
 
-        a = context.obtainStyledAttributes(attrs, R.styleable.TabsPanel);
-        mSideBar = a.getBoolean(R.styleable.TabsPanel_sidebar, false);
-        a.recycle();
+        mSideBar = false;
 
         // Paint to draw the background.
         mPaint = new Paint();
@@ -172,12 +170,14 @@ public class TabsButton extends ShapedButton {
 
         Resources resources = this.getContext().getResources();
         StateListDrawable stateList1 = new StateListDrawable();
-        stateList1.addState(new int[] { android.R.attr.state_pressed }, resources.getDrawable(R.drawable.highlight));
+        stateList1.addState(new int[] { android.R.attr.state_pressed }, new ColorDrawable(resources.getColor(R.color.highlight_tabs)));
+        stateList1.addState(new int[] { android.R.attr.state_focused }, new ColorDrawable(resources.getColor(R.color.highlight_tabs_focused)));
         stateList1.addState(new int[] { R.attr.state_private }, new ColorDrawable(resources.getColor(R.color.background_tabs_light)));
         stateList1.addState(new int[] {}, lightWeight1);
 
         StateListDrawable stateList2 = new StateListDrawable();
-        stateList2.addState(new int[] { android.R.attr.state_pressed }, resources.getDrawable(R.drawable.highlight));
+        stateList2.addState(new int[] { android.R.attr.state_pressed }, new ColorDrawable(resources.getColor(R.color.highlight_tabs)));
+        stateList2.addState(new int[] { android.R.attr.state_focused }, new ColorDrawable(resources.getColor(R.color.highlight_tabs_focused)));
         stateList2.addState(new int[] { R.attr.state_private }, new ColorDrawable(resources.getColor(R.color.background_tabs_dark)));
         stateList2.addState(new int[] {}, lightWeight2);
 
@@ -196,5 +196,13 @@ public class TabsButton extends ShapedButton {
     @Override
     public void onLightweightThemeReset() {
         setBackgroundResource(R.drawable.tabs_button);
+    }
+
+    public void setIsSideBar(boolean isSideBar) {
+        if (mSideBar == isSideBar)
+            return;
+
+        mSideBar = isSideBar;
+        requestLayout();
     }
 }

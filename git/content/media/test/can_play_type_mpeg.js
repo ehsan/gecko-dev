@@ -35,7 +35,7 @@ function check_mp4(v, enabled) {
 
   check("audio/mp3; codecs=\"mp3\"", "probably");
   check("audio/mp3; codecs=mp3", "probably");
-  
+
   check("audio/mp4; codecs=\"mp4a.40.2\"", "probably");
   check("audio/mp4; codecs=mp4a.40.2", "probably");
   check("audio/x-m4a; codecs=\"mp4a.40.2\"", "probably");

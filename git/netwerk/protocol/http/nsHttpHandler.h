@@ -16,6 +16,7 @@
 #include "nsString.h"
 #include "nsCOMPtr.h"
 #include "nsWeakReference.h"
+#include "mozilla/Telemetry.h"
 
 #include "nsIHttpProtocolHandler.h"
 #include "nsIProtocolProxyService.h"
@@ -25,7 +26,6 @@
 #include "nsIStreamConverterService.h"
 #include "nsICacheSession.h"
 #include "nsICookieService.h"
-#include "nsIIDNService.h"
 #include "nsITimer.h"
 #include "nsIStrictTransportSecurityService.h"
 #include "nsISpeculativeConnect.h"
@@ -74,7 +74,6 @@ public:
     PRIntervalTime SpdyTimeout()             { return mSpdyTimeout; }
     uint16_t       MaxRequestAttempts()      { return mMaxRequestAttempts; }
     const char    *DefaultSocketType()       { return mDefaultSocketType.get(); /* ok to return null */ }
-    nsIIDNService *IDNConverter()            { return mIDNConverter; }
     uint32_t       PhishyUserPassLength()    { return mPhishyUserPassLength; }
     uint8_t        GetQoSBits()              { return mQoSBits; }
     uint16_t       GetIdleSynTimeout()       { return mIdleSynTimeout; }
@@ -285,7 +284,6 @@ private:
     nsCOMPtr<nsIStreamConverterService> mStreamConvSvc;
     nsCOMPtr<nsIObserverService>        mObserverService;
     nsCOMPtr<nsICookieService>          mCookieService;
-    nsCOMPtr<nsIIDNService>             mIDNConverter;
     nsCOMPtr<nsIStrictTransportSecurityService> mSTSService;
 
     // the authentication credentials cache
@@ -414,6 +412,25 @@ private:
     // Whether or not to block requests for non head js/css items (e.g. media)
     // while those elements load.
     bool           mCritialRequestPrioritization;
+
+
+public:
+    // For the Cache Effect Experiment (see StartCacheExperiment in cpp)
+
+    static void StartCacheExperiment(nsITimer * aTimer, void * aClosure);
+    static void FinishCacheExperiment(nsITimer * aTimer, void * aClosure);
+
+    const static uint32_t kExperimentStartupDelay = 1000 * 60 * 2; // 2 mins
+    const static uint32_t kExperimentStartupDuration = 1000 * 60 * 15; // 15 mins
+    const static mozilla::Telemetry::ID kNullTelemetryID = static_cast<mozilla::Telemetry::ID>(0);
+
+    mozilla::Telemetry::ID mCacheEffectExperimentTelemetryID;
+    bool     mCacheEffectExperimentOnce;
+    nsCOMPtr<nsITimer> mCacheEffectExperimentTimer;
+
+    // only update these on the socket thread, but reading them from the main thread is ok
+    uint64_t mCacheEffectExperimentSlowConn;
+    uint64_t mCacheEffectExperimentFastConn;
 };
 
 //-----------------------------------------------------------------------------

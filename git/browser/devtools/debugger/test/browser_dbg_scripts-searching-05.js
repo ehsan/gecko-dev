@@ -14,7 +14,7 @@ var gTab = null;
 var gDebuggee = null;
 var gDebugger = null;
 var gEditor = null;
-var gScripts = null;
+var gSources = null;
 var gSearchView = null;
 var gSearchBox = null;
 
@@ -58,7 +58,7 @@ function test()
 function testScriptSearching() {
   gDebugger.DebuggerController.activeThread.resume(function() {
     gEditor = gDebugger.DebuggerView.editor;
-    gScripts = gDebugger.DebuggerView.Sources;
+    gSources = gDebugger.DebuggerView.Sources;
     gSearchView = gDebugger.DebuggerView.GlobalSearch;
     gSearchBox = gDebugger.DebuggerView.Filtering._searchbox;
 
@@ -76,17 +76,17 @@ function doSearch() {
 
   gDebugger.addEventListener("Debugger:GlobalSearch:MatchFound", function _onEvent(aEvent) {
     gDebugger.removeEventListener(aEvent.type, _onEvent);
-    info("Current script url:\n" + gScripts.selectedValue + "\n");
+    info("Current script url:\n" + gSources.selectedValue + "\n");
     info("Debugger editor text:\n" + gEditor.getText() + "\n");
 
-    let url = gScripts.selectedValue;
+    let url = gSources.selectedValue;
     if (url.indexOf("-02.js") != -1) {
       executeSoon(function() {
         info("Editor caret position: " + gEditor.getCaretPosition().toSource() + "\n");
         ok(gEditor.getCaretPosition().line == 5 &&
            gEditor.getCaretPosition().col == 0,
           "The editor shouldn't have jumped to a matching line yet.");
-        is(gScripts.visibleItems.length, 2,
+        is(gSources.visibleItems.length, 2,
           "Not all the scripts are shown after the global search.");
 
         isnot(gSearchView._container._list.childNodes.length, 0,
@@ -109,37 +109,30 @@ function doSearch() {
 
 function testLocationChange()
 {
-  let viewCleared = false;
-  let cacheCleared = false;
-
-  function _maybeFinish() {
-    if (viewCleared && cacheCleared) {
-      closeDebuggerAndFinish();
+  gDebugger.DebuggerController.client.addListener("tabNavigated", function onTabNavigated(aEvent, aPacket) {
+    dump("tabNavigated state " + aPacket.state + "\n");
+    if (aPacket.state == "start") {
+      return;
     }
-  }
 
-  gDebugger.addEventListener("Debugger:GlobalSearch:ViewCleared", function _onViewCleared(aEvent) {
-    gDebugger.removeEventListener(aEvent.type, _onViewCleared);
+    gDebugger.DebuggerController.client.removeListener("tabNavigated", onTabNavigated);
 
-    is(gSearchView._container._list.childNodes.length, 0,
-      "The global search pane shouldn't have any child nodes after a page navigation.");
-    is(gSearchView._container._parent.hidden, true,
-      "The global search pane shouldn't be visible after a page navigation.");
-    is(gSearchView._splitter.hidden, true,
-      "The global search pane splitter shouldn't be visible after a page navigation.");
+    ok(true, "tabNavigated event was fired after location change.");
+    info("Still attached to the tab.");
 
-    viewCleared = true;
-    _maybeFinish();
-  });
+    executeSoon(function() {
+      is(gSearchView._container._list.childNodes.length, 0,
+        "The global search pane shouldn't have any child nodes after a page navigation.");
+      is(gSearchView._container._parent.hidden, true,
+        "The global search pane shouldn't be visible after a page navigation.");
+      is(gSearchView._splitter.hidden, true,
+        "The global search pane splitter shouldn't be visible after a page navigation.");
 
-  gDebugger.addEventListener("Debugger:GlobalSearch:CacheCleared", function _onCacheCleared(aEvent) {
-    gDebugger.removeEventListener(aEvent.type, _onCacheCleared);
+      is(gDebugger.DebuggerController.SourceScripts.getCache().length, 0,
+        "The scripts sources cache for global searching should be cleared after a page navigation.")
 
-    is(gSearchView._cache.size, 0,
-      "The scripts sources cache for global searching should be cleared after a page navigation.")
-
-    cacheCleared = true;
-    _maybeFinish();
+      closeDebuggerAndFinish();
+    });
   });
 
   content.location = TAB1_URL;
@@ -171,7 +164,7 @@ registerCleanupFunction(function() {
   gDebuggee = null;
   gDebugger = null;
   gEditor = null;
-  gScripts = null;
+  gSources = null;
   gSearchView = null;
   gSearchBox = null;
 });

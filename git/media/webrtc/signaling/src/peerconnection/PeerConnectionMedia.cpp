@@ -3,10 +3,10 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 #include <string>
 
+#include "CSFLog.h"
+
 #include "nspr.h"
 #include "cc_constants.h"
-#include "CSFLog.h"
-#include "CSFLogStream.h"
 
 #include "nricectx.h"
 #include "nricemediastream.h"
@@ -60,11 +60,60 @@ LocalSourceStreamInfo::VideoTrackCount()
   return mVideoTracks.Length();
 }
 
+void LocalSourceStreamInfo::DetachTransport_s()
+{
+  ASSERT_ON_THREAD(mParent->GetSTSThread());
+  // walk through all the MediaPipelines and call the shutdown
+  // functions for transport. Must be on the STS thread.
+  for (std::map<int, mozilla::RefPtr<mozilla::MediaPipeline> >::iterator it =
+           mPipelines.begin(); it != mPipelines.end();
+       ++it) {
+    it->second->ShutdownTransport_s();
+  }
+}
+
+void LocalSourceStreamInfo::DetachMedia_m()
+{
+  ASSERT_ON_THREAD(mParent->GetMainThread());
+  // walk through all the MediaPipelines and call the shutdown
+  // functions. Must be on the main thread.
+  for (std::map<int, mozilla::RefPtr<mozilla::MediaPipeline> >::iterator it =
+           mPipelines.begin(); it != mPipelines.end();
+       ++it) {
+    it->second->ShutdownMedia_m();
+  }
+}
+
+void RemoteSourceStreamInfo::DetachTransport_s()
+{
+  ASSERT_ON_THREAD(mParent->GetSTSThread());
+  // walk through all the MediaPipelines and call the shutdown
+  // transport functions. Must be on the STS thread.
+  for (std::map<int, mozilla::RefPtr<mozilla::MediaPipeline> >::iterator it =
+           mPipelines.begin(); it != mPipelines.end();
+       ++it) {
+    it->second->ShutdownTransport_s();
+  }
+}
+
+void RemoteSourceStreamInfo::DetachMedia_m()
+{
+  ASSERT_ON_THREAD(mParent->GetMainThread());
+
+  // walk through all the MediaPipelines and call the shutdown
+  // media functions. Must be on the main thread.
+  for (std::map<int, mozilla::RefPtr<mozilla::MediaPipeline> >::iterator it =
+           mPipelines.begin(); it != mPipelines.end();
+       ++it) {
+    it->second->ShutdownMedia_m();
+  }
+}
+
 PeerConnectionImpl* PeerConnectionImpl::CreatePeerConnection()
 {
   PeerConnectionImpl *pc = new PeerConnectionImpl();
 
-  CSFLogDebugS(logTag, "Created PeerConnection: " << static_cast<void*>(pc));
+  CSFLogDebug(logTag, "Created PeerConnection: %p", pc);
 
   return pc;
 }
@@ -72,6 +121,9 @@ PeerConnectionImpl* PeerConnectionImpl::CreatePeerConnection()
 
 nsresult PeerConnectionMedia::Init(const std::vector<NrIceStunServer>& stun_servers)
 {
+  mMainThread = mParent->GetMainThread();
+  mSTSThread = mParent->GetSTSThread();
+
   // TODO(ekr@rtfm.com): need some way to set not offerer later
   // Looks like a bug in the NrIceCtx API.
   mIceCtx = NrIceCtx::Create("PC:" + mParent->GetHandle(), true);
@@ -79,14 +131,25 @@ nsresult PeerConnectionMedia::Init(const std::vector<NrIceStunServer>& stun_serv
     CSFLogError(logTag, "%s: Failed to create Ice Context", __FUNCTION__);
     return NS_ERROR_FAILURE;
   }
-  nsresult rv = mIceCtx->SetStunServers(stun_servers);
-  if (NS_FAILED(rv)) {
+  nsresult rv;
+  if (NS_FAILED(rv = mIceCtx->SetStunServers(stun_servers))) {
+    CSFLogError(logTag, "%s: Failed to set stun servers", __FUNCTION__);
+    return rv;
+  }
+  if (NS_FAILED(rv = mDNSResolver->Init())) {
+    CSFLogError(logTag, "%s: Failed to initialize dns resolver", __FUNCTION__);
+    return rv;
+  }
+  if (NS_FAILED(rv = mIceCtx->SetResolver(mDNSResolver->AllocateResolver()))) {
+    CSFLogError(logTag, "%s: Failed to get dns resolver", __FUNCTION__);
     return rv;
   }
   mIceCtx->SignalGatheringCompleted.connect(this,
                                             &PeerConnectionMedia::IceGatheringCompleted);
   mIceCtx->SignalCompleted.connect(this,
                                    &PeerConnectionMedia::IceCompleted);
+  mIceCtx->SignalFailed.connect(this,
+                                &PeerConnectionMedia::IceFailed);
 
   // Create three streams to start with.
   // One each for audio, video and DataChannel
@@ -122,17 +185,10 @@ nsresult PeerConnectionMedia::Init(const std::vector<NrIceStunServer>& stun_serv
     mIceStreams[i]->SignalReady.connect(this, &PeerConnectionMedia::IceStreamReady);
   }
 
-  // Start gathering
-  nsresult res;
-  mIceCtx->thread()->Dispatch(WrapRunnableRet(
-    mIceCtx, &NrIceCtx::StartGathering, &res), NS_DISPATCH_SYNC
-  );
-
-  if (NS_FAILED(res)) {
-    CSFLogErrorS(logTag, __FUNCTION__ << ": StartGathering failed: " <<
-        static_cast<uint32_t>(res));
-    return res;
-  }
+  // TODO(ekr@rtfm.com): When we have a generic error reporting mechanism,
+  // figure out how to report that StartGathering failed. Bug 827982.
+  RUN_ON_THREAD(mIceCtx->thread(),
+                WrapRunnable(mIceCtx, &NrIceCtx::StartGathering), NS_DISPATCH_NORMAL);
 
   return NS_OK;
 }
@@ -147,7 +203,8 @@ PeerConnectionMedia::AddStream(nsIDOMMediaStream* aMediaStream, uint32_t *stream
 
   DOMMediaStream* stream = static_cast<DOMMediaStream*>(aMediaStream);
 
-  CSFLogDebugS(logTag, __FUNCTION__ << ": MediaStream: " << static_cast<void*>(aMediaStream));
+  CSFLogDebug(logTag, "%s: MediaStream: %p",
+    __FUNCTION__, aMediaStream);
 
   // Adding tracks here based on nsDOMMediaStream expectation settings
   uint32_t hints = stream->GetHintContents();
@@ -162,20 +219,19 @@ PeerConnectionMedia::AddStream(nsIDOMMediaStream* aMediaStream, uint32_t *stream
   // allow one of each.
   // TODO(ekr@rtfm.com): remove this when multiple of each stream
   // is allowed
-  PR_Lock(mLocalSourceStreamsLock);
+  mozilla::MutexAutoLock lock(mLocalSourceStreamsLock);
   for (uint32_t u = 0; u < mLocalSourceStreams.Length(); u++) {
     nsRefPtr<LocalSourceStreamInfo> localSourceStream = mLocalSourceStreams[u];
 
     if (localSourceStream->GetMediaStream()->GetHintContents() & hints) {
       CSFLogError(logTag, "Only one stream of any given type allowed");
-      PR_Unlock(mLocalSourceStreamsLock);
       return NS_ERROR_FAILURE;
     }
   }
 
   // OK, we're good to add
   nsRefPtr<LocalSourceStreamInfo> localSourceStream =
-    new LocalSourceStreamInfo(stream);
+      new LocalSourceStreamInfo(stream, this);
   *stream_id = mLocalSourceStreams.Length();
 
   if (hints & DOMMediaStream::HINT_CONTENTS_AUDIO) {
@@ -188,7 +244,6 @@ PeerConnectionMedia::AddStream(nsIDOMMediaStream* aMediaStream, uint32_t *stream
 
   mLocalSourceStreams.AppendElement(localSourceStream);
 
-  PR_Unlock(mLocalSourceStreamsLock);
   return NS_OK;
 }
 
@@ -199,62 +254,81 @@ PeerConnectionMedia::RemoveStream(nsIDOMMediaStream* aMediaStream, uint32_t *str
 
   DOMMediaStream* stream = static_cast<DOMMediaStream*>(aMediaStream);
 
-  CSFLogDebugS(logTag, __FUNCTION__ << ": MediaStream: " << static_cast<void*>(aMediaStream));
+  CSFLogDebug(logTag, "%s: MediaStream: %p",
+    __FUNCTION__, aMediaStream);
 
-  PR_Lock(mLocalSourceStreamsLock);
+  mozilla::MutexAutoLock lock(mLocalSourceStreamsLock);
   for (uint32_t u = 0; u < mLocalSourceStreams.Length(); u++) {
     nsRefPtr<LocalSourceStreamInfo> localSourceStream = mLocalSourceStreams[u];
     if (localSourceStream->GetMediaStream() == stream) {
       *stream_id = u;
-      PR_Unlock(mLocalSourceStreamsLock);
       return NS_OK;
     }
   }
 
-  PR_Unlock(mLocalSourceStreamsLock);
   return NS_ERROR_ILLEGAL_VALUE;
 }
 
 void
 PeerConnectionMedia::SelfDestruct()
 {
-   CSFLogDebug(logTag, "%s: Disconnecting media streams from PC", __FUNCTION__);
+  ASSERT_ON_THREAD(mMainThread);
 
-   DisconnectMediaStreams();
+  CSFLogDebug(logTag, "%s: ", __FUNCTION__);
 
-   CSFLogDebug(logTag, "%s: Disconnecting transport", __FUNCTION__);
-   // Shutdown the transport.
-   RUN_ON_THREAD(mParent->GetSTSThread(), WrapRunnable(
-       this, &PeerConnectionMedia::ShutdownMediaTransport), NS_DISPATCH_SYNC);
+  // Shutdown the transport.
+  RUN_ON_THREAD(mSTSThread, WrapRunnable(
+      this, &PeerConnectionMedia::ShutdownMediaTransport_s),
+                NS_DISPATCH_NORMAL);
 
   CSFLogDebug(logTag, "%s: Media shut down", __FUNCTION__);
-
-  // This should destroy the object.
-  this->Release();
 }
 
 void
-PeerConnectionMedia::DisconnectMediaStreams()
+PeerConnectionMedia::SelfDestruct_m()
 {
+  ASSERT_ON_THREAD(mMainThread);
+
+  CSFLogDebug(logTag, "%s: ", __FUNCTION__);
+
+  // Shut down the media
   for (uint32_t i=0; i < mLocalSourceStreams.Length(); ++i) {
-    mLocalSourceStreams[i]->Detach();
+    mLocalSourceStreams[i]->DetachMedia_m();
   }
 
   for (uint32_t i=0; i < mRemoteSourceStreams.Length(); ++i) {
-    mRemoteSourceStreams[i]->Detach();
+    mRemoteSourceStreams[i]->DetachMedia_m();
   }
 
   mLocalSourceStreams.Clear();
   mRemoteSourceStreams.Clear();
+
+  // Final self-destruct.
+  this->Release();
 }
 
 void
-PeerConnectionMedia::ShutdownMediaTransport()
+PeerConnectionMedia::ShutdownMediaTransport_s()
 {
+  ASSERT_ON_THREAD(mSTSThread);
+
+  CSFLogDebug(logTag, "%s: ", __FUNCTION__);
+
+  for (uint32_t i=0; i < mLocalSourceStreams.Length(); ++i) {
+    mLocalSourceStreams[i]->DetachTransport_s();
+  }
+
+  for (uint32_t i=0; i < mRemoteSourceStreams.Length(); ++i) {
+    mRemoteSourceStreams[i]->DetachTransport_s();
+  }
+
   disconnect_all();
   mTransportFlows.clear();
   mIceStreams.clear();
   mIceCtx = NULL;
+
+  mMainThread->Dispatch(WrapRunnable(this, &PeerConnectionMedia::SelfDestruct_m),
+                        NS_DISPATCH_NORMAL);
 }
 
 LocalSourceStreamInfo*
@@ -308,11 +382,18 @@ PeerConnectionMedia::IceCompleted(NrIceCtx *aCtx)
 }
 
 void
+PeerConnectionMedia::IceFailed(NrIceCtx *aCtx)
+{
+  MOZ_ASSERT(aCtx);
+  SignalIceFailed(aCtx);
+}
+
+void
 PeerConnectionMedia::IceStreamReady(NrIceMediaStream *aStream)
 {
   MOZ_ASSERT(aStream);
 
-  CSFLogDebugS(logTag, __FUNCTION__ << ": "  << aStream->name().c_str());
+  CSFLogDebug(logTag, "%s: %s", __FUNCTION__, aStream->name().c_str());
 }
 
 
@@ -337,7 +418,7 @@ RemoteSourceStreamInfo::StorePipeline(int aTrack,
 {
   MOZ_ASSERT(mPipelines.find(aTrack) == mPipelines.end());
   if (mPipelines.find(aTrack) != mPipelines.end()) {
-    CSFLogErrorS(logTag, __FUNCTION__ << ": Request to store duplicate track " << aTrack);
+    CSFLogError(logTag, "%s: Request to store duplicate track %d", __FUNCTION__, aTrack);
     return;
   }
   CSFLogDebug(logTag, "%s track %d %s = %p", __FUNCTION__, aTrack, aIsVideo ? "video" : "audio",

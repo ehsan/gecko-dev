@@ -337,6 +337,7 @@ ChromeActions.prototype = {
       }, '*');
     };
 
+    var self = this;
     this.dataListener.oncomplete =
       function ChromeActions_dataListenerComplete(data, errorCode) {
 
@@ -346,7 +347,7 @@ ChromeActions.prototype = {
         errorCode: errorCode
       }, '*');
 
-      delete this.dataListener;
+      delete self.dataListener;
     };
 
     return true;
@@ -375,8 +376,9 @@ ChromeActions.prototype = {
            'updateControlState' in getChromeWindow(this.domWindow).gFindBar;
   },
   supportsDocumentFonts: function() {
-    var pref = getIntPref('browser.display.use_document_fonts', 1);
-    return !!pref;
+    var prefBrowser = getIntPref('browser.display.use_document_fonts', 1);
+    var prefGfx = getBoolPref('gfx.downloadable_fonts.enabled', true);
+    return (!!prefBrowser && prefGfx);
   },
   fallback: function(url, sendResponse) {
     var self = this;

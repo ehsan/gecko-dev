@@ -46,7 +46,7 @@ interface nsIFileCallback : nsISupports {
   void receive(in nsIDOMBlob file);
 };
 
-[scriptable, uuid(a7062fca-41c6-4520-b777-3bb30fd77273)]
+[scriptable, uuid(7a65eb33-0441-456f-9d58-575ce4421a3f)]
 interface nsIDOMHTMLCanvasElement : nsIDOMHTMLElement
 {
   attribute unsigned long width;

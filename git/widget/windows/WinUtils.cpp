@@ -27,6 +27,11 @@
 #include "nsIObserver.h"
 #include "imgIEncoder.h"
 
+#ifdef NS_ENABLE_TSF
+#include <textstor.h>
+#include "nsTextStore.h"
+#endif // #ifdef NS_ENABLE_TSF
+
 namespace mozilla {
 namespace widget {
 
@@ -42,8 +47,12 @@ namespace widget {
   const char FaviconHelper::kJumpListCacheDir[] = "jumpListCache";
   const char FaviconHelper::kShortcutCacheDir[] = "shortcutCache";
 
-// SHCreateItemFromParsingName is only available on vista and up.
-WinUtils::SHCreateItemFromParsingNamePtr WinUtils::sCreateItemFromParsingName = nullptr;
+// apis available on vista and up.
+WinUtils::SHCreateItemFromParsingNamePtr WinUtils::sCreateItemFromParsingName = NULL;
+WinUtils::SHGetKnownFolderPathPtr WinUtils::sGetKnownFolderPath = NULL;
+
+static const PRUnichar kSehllLibraryName[] =  L"shell32.dll";
+static HMODULE sShellDll = NULL;
 
 /* static */ 
 WinUtils::WinVersion
@@ -62,6 +71,42 @@ WinUtils::GetWindowsVersion()
   version =
     (osInfo.dwMajorVersion & 0xff) << 8 | (osInfo.dwMinorVersion & 0xff);
   return static_cast<WinVersion>(version);
+}
+
+/* static */
+bool
+WinUtils::PeekMessage(LPMSG aMsg, HWND aWnd, UINT aFirstMessage,
+                      UINT aLastMessage, UINT aOption)
+{
+#ifdef NS_ENABLE_TSF
+  ITfMessagePump* msgPump = nsTextStore::GetMessagePump();
+  if (msgPump) {
+    BOOL ret = FALSE;
+    HRESULT hr = msgPump->PeekMessageW(aMsg, aWnd, aFirstMessage, aLastMessage,
+                                       aOption, &ret);
+    NS_ENSURE_TRUE(SUCCEEDED(hr), false);
+    return ret;
+  }
+#endif // #ifdef NS_ENABLE_TSF
+  return ::PeekMessageW(aMsg, aWnd, aFirstMessage, aLastMessage, aOption);
+}
+
+/* static */
+bool
+WinUtils::GetMessage(LPMSG aMsg, HWND aWnd, UINT aFirstMessage,
+                     UINT aLastMessage)
+{
+#ifdef NS_ENABLE_TSF
+  ITfMessagePump* msgPump = nsTextStore::GetMessagePump();
+  if (msgPump) {
+    BOOL ret = FALSE;
+    HRESULT hr = msgPump->GetMessageW(aMsg, aWnd, aFirstMessage, aLastMessage,
+                                      &ret);
+    NS_ENSURE_TRUE(SUCCEEDED(hr), false);
+    return ret;
+  }
+#endif // #ifdef NS_ENABLE_TSF
+  return ::GetMessageW(aMsg, aWnd, aFirstMessage, aLastMessage);
 }
 
 /* static */
@@ -364,35 +409,53 @@ WinUtils::InitMSG(UINT aMessage, WPARAM wParam, LPARAM lParam)
 }
 
 /* static */
-bool
-WinUtils::VistaCreateItemFromParsingNameInit()
-{
-  // Load and store Vista+ SHCreateItemFromParsingName
-  if (sCreateItemFromParsingName) {
-    return true;
-  }
-  static HMODULE sShellDll = nullptr;
-  if (sShellDll) {
-    return false;
-  }
-  static const PRUnichar kSehllLibraryName[] =  L"shell32.dll";
-  sShellDll = ::LoadLibraryW(kSehllLibraryName);
-  if (!sShellDll) {
-    return false;
-  }
-  sCreateItemFromParsingName = (SHCreateItemFromParsingNamePtr)
-    GetProcAddress(sShellDll, "SHCreateItemFromParsingName");
-  return sCreateItemFromParsingName != nullptr;
-}
-
-/* static */
 HRESULT
 WinUtils::SHCreateItemFromParsingName(PCWSTR pszPath, IBindCtx *pbc,
                                       REFIID riid, void **ppv)
 {
-  if (!VistaCreateItemFromParsingNameInit())
+  if (sCreateItemFromParsingName) {
+    return sCreateItemFromParsingName(pszPath, pbc, riid, ppv);
+  }
+
+  if (!sShellDll) {
+    sShellDll = ::LoadLibraryW(kSehllLibraryName);
+    if (!sShellDll) {
+      return false;
+    }
+  }
+
+  sCreateItemFromParsingName = (SHCreateItemFromParsingNamePtr)
+    GetProcAddress(sShellDll, "SHCreateItemFromParsingName");
+  if (!sCreateItemFromParsingName)
     return E_FAIL;
+
   return sCreateItemFromParsingName(pszPath, pbc, riid, ppv);
+}
+
+/* static */
+HRESULT 
+WinUtils::SHGetKnownFolderPath(REFKNOWNFOLDERID rfid,
+                               DWORD dwFlags,
+                               HANDLE hToken,
+                               PWSTR *ppszPath)
+{
+  if (sGetKnownFolderPath) {
+    return sGetKnownFolderPath(rfid, dwFlags, hToken, ppszPath);
+  }
+
+  if (!sShellDll) {
+    sShellDll = ::LoadLibraryW(kSehllLibraryName);
+    if (!sShellDll) {
+      return false;
+    }
+  }
+
+  sGetKnownFolderPath = (SHGetKnownFolderPathPtr)
+    GetProcAddress(sShellDll, "SHGetKnownFolderPath");
+  if (!sGetKnownFolderPath)
+    return E_FAIL;
+
+  return sGetKnownFolderPath(rfid, dwFlags, hToken, ppszPath);
 }
 
 #ifdef MOZ_PLACES

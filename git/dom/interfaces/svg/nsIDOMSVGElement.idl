@@ -10,7 +10,7 @@ interface nsIDOMCSSStyleDeclaration;
 interface nsIDOMCSSValue;
 
 
-[scriptable, uuid(7ccf8faf-29b4-4113-bb23-bc187bac27cf)]
+[scriptable, uuid(dd62ac57-a9ad-46d4-80a9-6cf179970c66)]
 interface nsIDOMSVGElement : nsIDOMElement
 {
   attribute DOMString id;

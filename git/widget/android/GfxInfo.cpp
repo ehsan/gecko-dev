@@ -299,17 +299,10 @@ const nsTArray<GfxDriverInfo>&
 GfxInfo::GetGfxDriverInfo()
 {
   if (mDriverInfo->IsEmpty()) {
-#ifdef MOZ_ANDROID_OMTC
     APPEND_TO_DRIVER_BLOCKLIST2( DRIVER_OS_ALL,
       (nsAString&) GfxDriverInfo::GetDeviceVendor(VendorAll), GfxDriverInfo::allDevices,
       nsIGfxInfo::FEATURE_OPENGL_LAYERS, nsIGfxInfo::FEATURE_NO_INFO,
       DRIVER_COMPARISON_IGNORED, GfxDriverInfo::allDriverVersions );
-#else
-    APPEND_TO_DRIVER_BLOCKLIST2( DRIVER_OS_ALL,
-      (nsAString&) GfxDriverInfo::GetDeviceVendor(VendorAll), GfxDriverInfo::allDevices,
-      nsIGfxInfo::FEATURE_OPENGL_LAYERS, nsIGfxInfo::FEATURE_BLOCKED_DEVICE,
-      DRIVER_COMPARISON_IGNORED, GfxDriverInfo::allDriverVersions );
-#endif
   }
 
   return *mDriverInfo;
@@ -403,11 +396,40 @@ GfxInfo::GetFeatureStatusImpl(int32_t aFeature,
       }
       else if (CompareVersions(mOSVersion.get(), "4.1.0") < 0)
       {
+        // Whitelist:
+        //   All Samsung ICS devices
+        //   All Galaxy nexus ICS devices
+        //   Sony Xperia Ion (LT28) ICS devices
         bool isWhitelisted =
+          cModel.Equals("LT28h", nsCaseInsensitiveCStringComparator()) ||
           cManufacturer.Equals("samsung", nsCaseInsensitiveCStringComparator()) ||
           cModel.Equals("galaxy nexus", nsCaseInsensitiveCStringComparator()); // some Galaxy Nexus have manufacturer=amazon
 
         if (!isWhitelisted) {
+          *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DEVICE;
+          return NS_OK;
+        }
+      }
+      else if (CompareVersions(mOSVersion.get(), "4.2.0") < 0)
+      {
+        // Whitelist:
+        //   All JB phones except for those in blocklist below
+        // Blocklist:
+        //   Samsung SPH-L710 (Bug 812881)
+        //   Samsung SGH-T999 (Bug 812881)
+        //   Samsung SCH-I535 (Bug 812881)
+        //   Samsung GT-I8190 (Bug 812881)
+        //   Samsung SGH-I747M (Bug 812881)
+        //   Samsung SGH-I747 (Bug 812881)
+        bool isBlocklisted =
+          cModel.Equals("SAMSUNG-SPH-L710", nsCaseInsensitiveCStringComparator()) ||
+          cModel.Equals("SAMSUNG-SGH-T999", nsCaseInsensitiveCStringComparator()) ||
+          cModel.Equals("SAMSUNG-SCH-I535", nsCaseInsensitiveCStringComparator()) ||
+          cModel.Equals("SAMSUNG-GT-I8190", nsCaseInsensitiveCStringComparator()) ||
+          cModel.Equals("SAMSUNG-SGH-I747M", nsCaseInsensitiveCStringComparator()) ||
+          cModel.Equals("SAMSUNG-SGH-I747", nsCaseInsensitiveCStringComparator());
+
+        if (isBlocklisted) {
           *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DEVICE;
           return NS_OK;
         }

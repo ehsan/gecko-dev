@@ -50,6 +50,13 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=741267
         ok(false, "'XMLHttpRequest.prototype' shouldn't throw in a sandbox");
       }
       try {
+        var img = Components.utils.evalInSandbox("Image.prototype", sandbox);
+        ok(img, "'Image.prototype' in a sandbox should return the interface prototype object");
+        ok(isXrayWrapper(img), "Getting an interface prototype object on an Xray wrapper should return an Xray wrapper");
+      } catch (e) {
+        ok(false, "'Image.prototype' shouldn't throw in a sandbox");
+      }
+      try {
         var xhr = Components.utils.evalInSandbox("XMLHttpRequest", sandbox);
         xhr.prototype = false;
       } catch (e) {
@@ -215,6 +222,15 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=741267
         is(es.url, "about:blank", "What is this object?");
       } catch (e) {
         ok(false, "Should be able to create an EventSource in a sandbox " + e);
+      }
+
+      try {
+        var nodeFilterIface = Components.utils.evalInSandbox(
+          'NodeFilter.myExpando = "FAIL"; NodeFilter', sandbox);
+        is(nodeFilterIface.myExpando, undefined,
+           "Should have Xrays for callback interface objects");
+      } catch (e) {
+        ok(false, "Should be able to return NodeFilter from a sandbox " + e);
       }
 
       SimpleTest.finish();

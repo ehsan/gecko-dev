@@ -1325,6 +1325,9 @@ var gCSSProperties = {
 				"url(404.png) green padding-box",
 				"url(404.png) border-box transparent",
 				"content-box url(404.png) blue",
+				"url(404.png) green padding-box padding-box",
+				"url(404.png) green padding-box border-box",
+				"content-box border-box url(404.png) blue",
 		],
 		invalid_values: [
 			/* mixes with keywords have to be in correct order */
@@ -1351,6 +1354,11 @@ var gCSSProperties = {
 			/* bug 513395: old syntax for gradients */
 			"-moz-radial-gradient(10% bottom, 30px, 20px 20px, 10px, from(#ffffff), to(black)) scroll no-repeat",
 			"-moz-linear-gradient(10px 10px, 20px 20px, from(red), to(blue)) repeat",
+			/* clip and origin separated in the shorthand */
+			"url(404.png) padding-box green border-box",
+			"url(404.png) padding-box green padding-box",
+			"transparent padding-box url(404.png) border-box",
+			"transparent padding-box url(404.png) padding-box",
 		]
 	},
 	"background-attachment": {
@@ -2758,7 +2766,7 @@ var gCSSProperties = {
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		prerequisites: { "display": "block" },
-		initial_values: [ "auto", "0", "calc(0em)", "calc(-2px)", "calc(-1%)" ],
+		initial_values: [ "0", "calc(0em)", "calc(-2px)", "calc(-1%)" ],
 		other_values: [ "30px", "50%",
 			"calc(2px)",
 			"calc(50%)",
@@ -2766,14 +2774,14 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [ "none", "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available", "5" ]
+		invalid_values: [ "auto", "none", "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available", "5" ]
 	},
 	"min-width": {
 		domProp: "minWidth",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		prerequisites: { "display": "block" },
-		initial_values: [ "auto", "0", "calc(0em)", "calc(-2px)", "calc(-1%)" ],
+		initial_values: [ "0", "calc(0em)", "calc(-2px)", "calc(-1%)" ],
 		other_values: [ "30px", "50%", "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available",
 			"calc(2px)",
 			"calc(50%)",
@@ -2781,7 +2789,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [ "none", "5" ]
+		invalid_values: [ "auto", "none", "5" ]
 	},
 	"opacity": {
 		domProp: "opacity",

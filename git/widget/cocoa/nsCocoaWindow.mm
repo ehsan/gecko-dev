@@ -1651,11 +1651,6 @@ NS_IMETHODIMP nsCocoaWindow::GetSheetWindowParent(NSWindow** sheetWindowParent)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsCocoaWindow::ResetInputState()
-{
-  return NS_OK;
-}
-
 // Invokes callback and ProcessEvent methods on Event Listener object
 NS_IMETHODIMP 
 nsCocoaWindow::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
@@ -2818,7 +2813,7 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
     // setBottomCornerRounded: is a private API call, so we check to make sure
     // we respond to it just in case.
     if ([self respondsToSelector:@selector(setBottomCornerRounded:)])
-      [self setBottomCornerRounded:NO];
+      [self setBottomCornerRounded:nsCocoaFeatures::OnLionOrLater()];
 
     [self setAutorecalculatesContentBorderThickness:NO forEdge:NSMaxYEdge];
     [self setContentBorderThickness:0.0f forEdge:NSMaxYEdge];

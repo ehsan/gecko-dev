@@ -1,12 +1,14 @@
 . "$topsrcdir/browser/config/mozconfigs/common"
 
 # for pgo
-mk_add_options PROFILE_GEN_SCRIPT='$(PYTHON) $(MOZ_OBJDIR)/_profile/pgo/profileserver.py'
+mk_add_options PROFILE_GEN_SCRIPT='$(MAKE) -C $(MOZ_OBJDIR) pgo-profile-run'
 
 ac_add_options --enable-update-channel=${MOZ_UPDATE_CHANNEL}
 ac_add_options --enable-update-packaging
 ac_add_options --enable-jemalloc
 ac_add_options --enable-signmar
+ac_add_options --enable-profiling
+ac_add_options --enable-metro
 
 # Nightlies only since this has a cost in performance
 ac_add_options --enable-js-diagnostics

@@ -98,7 +98,6 @@ AppInfoMeasurement.prototype = Object.freeze({
   },
 });
 
-
 /**
  * Legacy version of app info before Telemetry was added.
  *
@@ -170,7 +169,7 @@ AppInfoProvider.prototype = Object.freeze({
     AppInfoMeasurement,
     AppInfoMeasurement1,
     AppVersionMeasurement1,
-    AppVersionMeasurement2
+    AppVersionMeasurement2,
   ],
 
   pullOnly: true,
@@ -885,13 +884,17 @@ CrashesProvider.prototype = Object.freeze({
     let pending = yield service.getPendingFiles();
     let submitted = yield service.getSubmittedFiles();
 
+    function getAgeLimit() {
+      return 0;
+    }
+
     let lastCheck = yield this.getState("lastCheck");
     if (!lastCheck) {
-      lastCheck = 0;
+      lastCheck = getAgeLimit();
     } else {
       lastCheck = parseInt(lastCheck, 10);
       if (Number.isNaN(lastCheck)) {
-        lastCheck = 0;
+        lastCheck = getAgeLimit();
       }
     }
 
