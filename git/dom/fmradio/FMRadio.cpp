@@ -27,7 +27,7 @@ using mozilla::Preferences;
 
 BEGIN_FMRADIO_NAMESPACE
 
-class FMRadioRequest MOZ_FINAL : public FMRadioReplyRunnable
+class FMRadioRequest MOZ_FINAL : public ReplyRunnable
                                , public DOMRequest
 {
 public:

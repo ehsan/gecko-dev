@@ -15,7 +15,6 @@
 #include "nsJSUtils.h"
 #include "nsContentUtils.h"
 #include "nsIScriptError.h"
-#include "nsIXPConnect.h"
 #include <algorithm>
 
 using namespace mozilla;

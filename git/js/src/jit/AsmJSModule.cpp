@@ -22,13 +22,8 @@
 using namespace js;
 
 void
-AsmJSModule::initHeap(Handle<ArrayBufferObject*> heap, JSContext *cx)
+AsmJSModule::patchHeapAccesses(ArrayBufferObject *heap, JSContext *cx)
 {
-    JS_ASSERT(linked_);
-    JS_ASSERT(!maybeHeap_);
-    maybeHeap_ = heap;
-    heapDatum() = heap->dataPointer();
-
     JS_ASSERT(IsPowerOfTwo(heap->byteLength()));
 #if defined(JS_CPU_X86)
     uint8_t *heapOffset = heap->dataPointer();

@@ -191,19 +191,12 @@ const DownloadsPanel = {
   //// Panel interface
 
   /**
-   * Main panel element in the browser window, or null if the panel overlay
-   * hasn't been loaded yet.
+   * Main panel element in the browser window.
    */
   get panel()
   {
-    // If the downloads panel overlay hasn't loaded yet, just return null
-    // without reseting this.panel.
-    let downloadsPanel = document.getElementById("downloadsPanel");
-    if (!downloadsPanel)
-      return null;
-
     delete this.panel;
-    return this.panel = downloadsPanel;
+    return this.panel = document.getElementById("downloadsPanel");
   },
 
   /**

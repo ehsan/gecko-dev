@@ -32,7 +32,6 @@
 #include "nsAutoPtr.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/TimeStamp.h"
-#include "mozilla/AppUnits.h"
 #include "prclist.h"
 #include "nsThreadUtils.h"
 #include "ScrollbarStyles.h"
@@ -557,25 +556,25 @@ public:
    */
   float ScreenWidthInchesForFontInflation(bool* aChanged = nullptr);
 
-  static int32_t AppUnitsPerCSSPixel() { return mozilla::AppUnitsPerCSSPixel(); }
+  static int32_t AppUnitsPerCSSPixel() { return nsDeviceContext::AppUnitsPerCSSPixel(); }
   int32_t AppUnitsPerDevPixel() const  { return mDeviceContext->AppUnitsPerDevPixel(); }
   static int32_t AppUnitsPerCSSInch() { return nsDeviceContext::AppUnitsPerCSSInch(); }
 
   static nscoord CSSPixelsToAppUnits(int32_t aPixels)
   { return NSToCoordRoundWithClamp(float(aPixels) *
-             float(AppUnitsPerCSSPixel())); }
+             float(nsDeviceContext::AppUnitsPerCSSPixel())); }
 
   static nscoord CSSPixelsToAppUnits(float aPixels)
   { return NSToCoordRoundWithClamp(aPixels *
-             float(AppUnitsPerCSSPixel())); }
+             float(nsDeviceContext::AppUnitsPerCSSPixel())); }
 
   static int32_t AppUnitsToIntCSSPixels(nscoord aAppUnits)
   { return NSAppUnitsToIntPixels(aAppUnits,
-             float(AppUnitsPerCSSPixel())); }
+             float(nsDeviceContext::AppUnitsPerCSSPixel())); }
 
   static float AppUnitsToFloatCSSPixels(nscoord aAppUnits)
   { return NSAppUnitsToFloatPixels(aAppUnits,
-             float(AppUnitsPerCSSPixel())); }
+             float(nsDeviceContext::AppUnitsPerCSSPixel())); }
 
   nscoord DevPixelsToAppUnits(int32_t aPixels) const
   { return NSIntPixelsToAppUnits(aPixels,
@@ -583,7 +582,7 @@ public:
 
   int32_t AppUnitsToDevPixels(nscoord aAppUnits) const
   { return NSAppUnitsToIntPixels(aAppUnits,
-             float(AppUnitsPerDevPixel())); }
+             float(mDeviceContext->AppUnitsPerDevPixel())); }
 
   int32_t CSSPixelsToDevPixels(int32_t aPixels)
   { return AppUnitsToDevPixels(CSSPixelsToAppUnits(aPixels)); }

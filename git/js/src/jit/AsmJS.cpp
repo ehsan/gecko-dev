@@ -39,7 +39,6 @@ using namespace js::jit;
 
 using mozilla::AddToHash;
 using mozilla::ArrayLength;
-using mozilla::CountLeadingZeroes32;
 using mozilla::DebugOnly;
 using mozilla::HashGeneric;
 using mozilla::IsNaN;
@@ -3118,10 +3117,8 @@ FoldMaskedArrayIndex(FunctionCompiler &f, ParseNode **indexExpr, int32_t *mask,
     if (IsLiteralUint32(maskNode, &mask2)) {
         // Flag the access to skip the bounds check if the mask ensures that an 'out of
         // bounds' access can not occur based on the current heap length constraint.
-        if (mask2 == 0 ||
-            CountLeadingZeroes32(f.m().minHeapLength() - 1) <= CountLeadingZeroes32(mask2)) {
+        if (mozilla::CountLeadingZeroes32(f.m().minHeapLength() - 1) <= mozilla::CountLeadingZeroes32(mask2))
             *needsBoundsCheck = NO_BOUNDS_CHECK;
-        }
         *mask &= mask2;
         *indexExpr = indexNode;
         return true;
@@ -5981,8 +5978,7 @@ GenerateFFIIonExit(ModuleCompiler &m, const ModuleCompiler::ExitDescriptor &exit
       case RetType::Void:
         break;
       case RetType::Signed:
-        masm.convertValueToInt32(JSReturnOperand, ReturnFloatReg, ReturnReg, &oolConvert,
-                                 /* -0 check */ false);
+        masm.convertValueToInt32(JSReturnOperand, ReturnFloatReg, ReturnReg, &oolConvert);
         break;
       case RetType::Double:
         masm.convertValueToDouble(JSReturnOperand, ReturnFloatReg, &oolConvert);

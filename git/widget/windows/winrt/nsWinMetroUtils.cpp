@@ -340,7 +340,6 @@ nsWinMetroUtils::LaunchInDesktop(const nsAString &aPath, const nsAString &aArgum
   if (!ShellExecuteEx(&sinfo)) {
     return NS_ERROR_FAILURE;
   }
-  return NS_OK;
 }
 
 NS_IMETHODIMP
