@@ -404,11 +404,6 @@ pref("browser.search.order.1",                "chrome://browser-region/locale/re
 pref("browser.search.order.2",                "chrome://browser-region/locale/region.properties");
 pref("browser.search.order.3",                "chrome://browser-region/locale/region.properties");
 
-pref("browser.search.defaultenginename.US",      "data:text/plain,browser.search.defaultenginename.US=Yahoo");
-pref("browser.search.order.US.1",                "data:text/plain,browser.search.order.US.1=Yahoo");
-pref("browser.search.order.US.2",                "data:text/plain,browser.search.order.US.2=Google");
-pref("browser.search.order.US.3",                "data:text/plain,browser.search.order.US.3=Bing");
-
 // search bar results always open in a new tab
 pref("browser.search.openintab", false);
 
@@ -1825,7 +1820,7 @@ pref("privacy.trackingprotection.ui.enabled", false);
 #endif
 
 #ifdef NIGHTLY_BUILD
-pref("browser.tabs.remote.autostart.1", true);
+pref("browser.tabs.remote.autostart.1", false);
 #endif
 
 // Temporary pref to allow printing in e10s windows on some platforms.
