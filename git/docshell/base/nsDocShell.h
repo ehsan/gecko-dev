@@ -693,8 +693,6 @@ protected:
         nsRefPtr<nsDocShell> mDocShell;
     };
 
-    bool JustStartedNetworkLoad();
-
     // hash of session storages, keyed by domain
     nsInterfaceHashtable<nsCStringHashKey, nsIDOMStorage> mStorages;
 
