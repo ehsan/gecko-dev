@@ -60,11 +60,13 @@ function test() {
   registerCleanupFunction(function() {
     clearAllPluginPermissions();
     Services.prefs.clearUserPref("extensions.blocklist.suppressUI");
+    getTestPlugin().enabledState = Ci.nsIPluginTag.STATE_ENABLED;
+    getTestPlugin("Second Test Plug-in").enabledState = Ci.nsIPluginTag.STATE_ENABLED;
   });
   Services.prefs.setBoolPref("extensions.blocklist.suppressUI", true);
 
-  setTestPluginEnabledState(Ci.nsIPluginTag.STATE_CLICKTOPLAY);
-  setTestPluginEnabledState(Ci.nsIPluginTag.STATE_CLICKTOPLAY, "Second Test Plug-in");
+  var plugin = getTestPlugin();
+  plugin.enabledState = Ci.nsIPluginTag.STATE_ENABLED;
 
   var newTab = gBrowser.addTab();
   gBrowser.selectedTab = newTab;

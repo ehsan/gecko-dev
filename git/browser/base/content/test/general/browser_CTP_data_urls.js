@@ -59,6 +59,8 @@ function test() {
   registerCleanupFunction(function() {
     clearAllPluginPermissions();
     Services.prefs.clearUserPref("extensions.blocklist.suppressUI");
+    getTestPlugin().enabledState = Ci.nsIPluginTag.STATE_ENABLED;
+    getTestPlugin("Second Test Plug-in").enabledState = Ci.nsIPluginTag.STATE_ENABLED;
   });
   Services.prefs.setBoolPref("extensions.blocklist.suppressUI", true);
 
@@ -68,8 +70,8 @@ function test() {
   gTestBrowser.addEventListener("load", pageLoad, true);
 
   Services.prefs.setBoolPref("plugins.click_to_play", true);
-  setTestPluginEnabledState(Ci.nsIPluginTag.STATE_CLICKTOPLAY);
-  setTestPluginEnabledState(Ci.nsIPluginTag.STATE_CLICKTOPLAY, "Second Test Plug-in");
+  getTestPlugin().enabledState = Ci.nsIPluginTag.STATE_CLICKTOPLAY;
+  getTestPlugin("Second Test Plug-in").enabledState = Ci.nsIPluginTag.STATE_CLICKTOPLAY;
 
   prepareTest(test1a, gHttpTestRoot + "plugin_data_url.html");
 }

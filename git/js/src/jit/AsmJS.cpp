@@ -24,9 +24,7 @@
 #include "jit/CodeGenerator.h"
 #include "jit/MIR.h"
 #include "jit/MIRGraph.h"
-#ifdef JS_ION_PERF
-# include "jit/PerfSpewer.h"
-#endif
+#include "jit/PerfSpewer.h"
 #include "vm/Interpreter.h"
 
 #include "jsinferinlines.h"

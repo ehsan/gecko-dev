@@ -2085,7 +2085,7 @@ ConvertJSValueToByteString(JSContext* cx, JS::Handle<JS::Value> v,
                            JS::MutableHandle<JS::Value> pval, bool nullable,
                            nsACString& result)
 {
-  JS::Rooted<JSString*> s(cx);
+  JSString *s;
   if (v.isString()) {
     s = v.toString();
   } else {

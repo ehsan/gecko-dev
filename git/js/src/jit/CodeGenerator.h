@@ -237,10 +237,7 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitIteratorMore(LIteratorMore *lir);
     bool visitIteratorEnd(LIteratorEnd *lir);
     bool visitArgumentsLength(LArgumentsLength *lir);
-    bool visitGetFrameArgument(LGetFrameArgument *lir);
-    bool visitSetFrameArgumentT(LSetFrameArgumentT *lir);
-    bool visitSetFrameArgumentC(LSetFrameArgumentC *lir);
-    bool visitSetFrameArgumentV(LSetFrameArgumentV *lir);
+    bool visitGetArgument(LGetArgument *lir);
     bool visitRunOncePrologue(LRunOncePrologue *lir);
     bool emitRest(LInstruction *lir, Register array, Register numActuals,
                   Register temp0, Register temp1, unsigned numFormals,

@@ -737,8 +737,7 @@ JSRuntime::updateMallocCounter(JS::Zone *zone, size_t nbytes)
 JS_FRIEND_API(void)
 JSRuntime::onTooMuchMalloc()
 {
-    if (CurrentThreadCanAccessRuntime(this))
-        TriggerGC(this, JS::gcreason::TOO_MUCH_MALLOC);
+    TriggerGC(this, JS::gcreason::TOO_MUCH_MALLOC);
 }
 
 JS_FRIEND_API(void *)
