@@ -58,6 +58,7 @@ class nsIAccessible;
 
 class nsPluginInstanceOwner;
 class nsPluginHost;
+class nsIPluginInstance;
 class nsPresContext;
 class nsDisplayPlugin;
 class nsIDOMElement;
