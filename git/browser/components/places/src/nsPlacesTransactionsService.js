@@ -128,7 +128,7 @@ placesTransactionsService.prototype = {
     
     // if the item is a livemark container we will not save its children and
     // will use createLivemark to undo.
-    if (PlacesUtils.livemarks.isLivemark(aItemId))
+    if (PlacesUtils.itemIsLivemark(aItemId))
       return new placesRemoveLivemarkTransaction(aItemId);
 
     return new placesRemoveItemTransaction(aItemId);
@@ -685,6 +685,7 @@ placesRemoveItemTransaction.prototype = {
       this._transactions
           .push(new placesRemoveItemTransaction(contents.getChild(i).itemId));
     }
+    contents.containerOpen = false;
   }
 };
 
@@ -751,20 +752,6 @@ function placesSetItemAnnotationTransactions(aItemId, aAnnotationObject) {
                     flags: 0,
                     value: null,
                     expires: Ci.nsIAnnotationService.EXPIRE_NEVER };
-
-  if (PlacesUtils.annotations.itemHasAnnotation(this.id, this._anno.name)) {
-    // fill the old anno if it is set
-    var flags = {}, expires = {}, mimeType = {}, type = {};
-    PlacesUtils.annotations.getItemAnnotationInfo(this.id, this._anno.name,
-                                                  flags, expires, mimeType, type);
-    this._oldAnno.flags = flags.value;
-    this._oldAnno.expires = expires.value;
-    this._oldAnno.mimeType = mimeType.value;
-    this._oldAnno.type = type.value;
-    this._oldAnno.value = PlacesUtils.annotations
-                                     .getItemAnnotation(this.id, this._anno.name);
-  }
-
   this.redoTransaction = this.doTransaction;
 }
 
@@ -772,6 +759,23 @@ placesSetItemAnnotationTransactions.prototype = {
   __proto__: placesBaseTransaction.prototype,
 
   doTransaction: function PSIAT_doTransaction() {
+    // Since this can be used as a child transaction this.id will be known
+    // only at this point, after the external caller has set it.
+    if (PlacesUtils.annotations.itemHasAnnotation(this.id, this._anno.name)) {
+      // Save the old annotation if it is set.
+      var flags = {}, expires = {}, mimeType = {}, type = {};
+      PlacesUtils.annotations.getItemAnnotationInfo(this.id, this._anno.name,
+                                                    flags, expires, mimeType,
+                                                    type);
+      this._oldAnno.flags = flags.value;
+      this._oldAnno.expires = expires.value;
+      this._oldAnno.mimeType = mimeType.value;
+      this._oldAnno.type = type.value;
+      this._oldAnno.value = PlacesUtils.annotations
+                                       .getItemAnnotation(this.id,
+                                                          this._anno.name);
+    }
+
     PlacesUtils.setAnnotationsForItem(this.id, [this._anno]);
   },
 
@@ -849,7 +853,7 @@ placesEditBookmarkPostDataTransactions.prototype = {
   __proto__: placesBaseTransaction.prototype,
 
   doTransaction: function PEUPDT_doTransaction() {
-    this._oldPostData = PlacesUtils.getPostDataForBookmark(this._id);
+    this._oldPostData = PlacesUtils.getPostDataForBookmark(this.id);
     PlacesUtils.setPostDataForBookmark(this.id, this._newPostData);
   },
 
@@ -988,7 +992,8 @@ placesSortFolderByNameTransactions.prototype = {
   doTransaction: function PSSFBN_doTransaction() {
     this._oldOrder = [];
 
-    var contents = PlacesUtils.getFolderContents(this._folderId, false, false).root;
+    var contents =
+      PlacesUtils.getFolderContents(this._folderId, false, false).root;
     var count = contents.childCount;
 
     // sort between separators
@@ -1017,6 +1022,8 @@ placesSortFolderByNameTransactions.prototype = {
       else
         preSep.push(item);
     }
+    contents.containerOpen = false;
+
     if (preSep.length > 0) {
       preSep.sort(sortingMethod);
       newOrder = newOrder.concat(preSep);

@@ -85,7 +85,7 @@
 #include "nsIXPConnect.h"
 #include "nsDOMCID.h"
 #include "nsIScriptObjectOwner.h" // for nsIScriptEventHandlerOwner
-#include "nsIFocusController.h"
+#include "nsFocusManager.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMNSDocument.h"
 #include "nsContentUtils.h"
@@ -1176,6 +1176,12 @@ found:
                                            EmptyString(), aDOMEvent);
           }
           if (*aDOMEvent) {
+            if (!aEvent->currentTarget) {
+              aEvent->currentTarget = aCurrentTarget->GetTargetForDOMEvent();
+              if (!aEvent->currentTarget) {
+                break;
+              }
+            }
             nsRefPtr<nsIDOMEventListener> kungFuDeathGrip = ls->mListener;
             if (useTypeInterface) {
               pusher.Pop();
@@ -1191,6 +1197,8 @@ found:
       }
     }
   }
+
+  aEvent->currentTarget = nsnull;
 
   if (!hasListener) {
     mNoListenerForEvent = aEvent->message;

@@ -41,7 +41,6 @@
 
 #include "nsIAccessibleStates.h"
 #include "nsIAccessibleTypes.h"
-#include "nsPIAccessible.h"
 
 #include "nsAccessibleEventData.h"
 #include "nsHyperTextAccessible.h"
@@ -294,6 +293,11 @@ nsAccUtils::SetLiveContainerAttributes(nsIPersistentProperties *aAttributes,
           nsAutoString live;
           GetLiveAttrValue(role->liveAttRule, live);
           SetAccAttr(aAttributes, nsAccessibilityAtoms::containerLive, live);
+
+          // For default live containers, expose the container-live-role attribute
+          nsAccUtils::SetAccAttr(aAttributes,
+                                 nsAccessibilityAtoms::containerLiveRole,
+                                 NS_ConvertASCIItoUTF16(role->roleString));
         }
       }
     }
@@ -340,14 +344,13 @@ nsAccUtils::FireAccEvent(PRUint32 aEventType, nsIAccessible *aAccessible,
 {
   NS_ENSURE_ARG(aAccessible);
 
-  nsCOMPtr<nsPIAccessible> pAccessible(do_QueryInterface(aAccessible));
-  NS_ASSERTION(pAccessible, "Accessible doesn't implement nsPIAccessible");
+  nsRefPtr<nsAccessible> acc(nsAccUtils::QueryAccessible(aAccessible));
 
   nsCOMPtr<nsIAccessibleEvent> event =
     new nsAccEvent(aEventType, aAccessible, aIsAsynch);
   NS_ENSURE_TRUE(event, NS_ERROR_OUT_OF_MEMORY);
 
-  return pAccessible->FireAccessibleEvent(event);
+  return acc->FireAccessibleEvent(event);
 }
 
 PRBool
@@ -719,11 +722,21 @@ nsAccUtils::GetLiveAttrValue(PRUint32 aRule, nsAString& aValue)
 already_AddRefed<nsAccessible>
 nsAccUtils::QueryAccessible(nsIAccessible *aAccessible)
 {
-  nsAccessible* accessible = nsnull;
+  nsAccessible* acc = nsnull;
   if (aAccessible)
-    CallQueryInterface(aAccessible, &accessible);
-  
-  return accessible;
+    CallQueryInterface(aAccessible, &acc);
+
+  return acc;
+}
+
+already_AddRefed<nsAccessible>
+nsAccUtils::QueryAccessible(nsIAccessNode *aAccessNode)
+{
+  nsAccessible* acc = nsnull;
+  if (aAccessNode)
+    CallQueryInterface(aAccessNode, &acc);
+
+  return acc;
 }
 
 already_AddRefed<nsHTMLTableAccessible>
@@ -797,10 +810,10 @@ nsAccUtils::TextLength(nsIAccessible *aAccessible)
   // text. They don't have their own frame.
   // XXX In the future, list bullets may have frame and anon content, so 
   // we should be able to remove this at that point
-  nsCOMPtr<nsPIAccessible> pAcc(do_QueryInterface(aAccessible));
-  
+  nsRefPtr<nsAccessible> acc(nsAccUtils::QueryAccessible(aAccessible));
+
   nsAutoString text;
-  pAcc->AppendTextTo(text, 0, PR_UINT32_MAX); // Get all the text
+  acc->AppendTextTo(text, 0, PR_UINT32_MAX); // Get all the text
   return text.Length();
 }
 

@@ -66,6 +66,7 @@
 #include "nsILocalFileMac.h"
 #include "nsGfxCIID.h"
 #include "nsIMenuRollup.h"
+#include "nsIDOMSimpleGestureEvent.h"
 
 #include "nsDragService.h"
 #include "nsClipboard.h"
@@ -75,7 +76,7 @@
 #include "nsMenuUtilsX.h"
 #include "nsMenuBarX.h"
 
-#include "nsIDOMSimpleGestureEvent.h"
+#include "npapi.h"
 
 #include "gfxContext.h"
 #include "gfxQuartzSurface.h"
@@ -101,11 +102,6 @@
 PRLogModuleInfo* sCocoaLog = nsnull;
 #endif
 
-// npapi.h defines NPEventType_AdjustCursorEvent but we don't want to include npapi.h here.
-// We need to send this in the "what" field for certain native plugin events. WebKit does
-// this as well.
-#define adjustCursorEvent 33
-
 extern "C" {
   CG_EXTERN void CGContextResetCTM(CGContextRef);
   CG_EXTERN void CGContextSetCTM(CGContextRef, CGAffineTransform);
@@ -125,7 +121,6 @@ CFStringRef kOurTISPropertyInputSourceID = NULL;
 CFStringRef kOurTISPropertyInputSourceLanguages = NULL;
 
 // these are defined in nsCocoaWindow.mm
-extern PRBool gCocoaWindowMethodsSwizzled;
 extern PRBool gConsumeRollupEvent;
 
 PRBool gChildViewMethodsSwizzled = PR_FALSE;
@@ -180,7 +175,6 @@ PRUint32 nsChildView::sLastInputEventCount = 0;
 - (void) convertCocoaKeyEvent:(NSEvent*)aKeyEvent toGeckoEvent:(nsKeyEvent*)outGeckoEvent;
 
 - (NSMenu*)contextMenu;
-- (TopLevelWindowData*)ensureWindowData;
 
 - (void)setIsPluginView:(BOOL)aIsPlugin;
 - (BOOL)isPluginView;
@@ -492,7 +486,6 @@ nsChildView::nsChildView() : nsBaseWidget()
 , mIsPluginView(PR_FALSE)
 , mPluginDrawing(PR_FALSE)
 , mPluginIsCG(PR_FALSE)
-, mInSetFocus(PR_FALSE)
 {
 #ifdef PR_LOGGING
   if (!sCocoaLog) {
@@ -580,12 +573,6 @@ nsresult nsChildView::StandardCreate(nsIWidget *aParent,
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  // See NSWindow (MethodSwizzling) in nsCocoaWindow.mm.
-  if (!gCocoaWindowMethodsSwizzled) {
-    nsToolkit::SwizzleMethods([NSWindow class], @selector(sendEvent:),
-                              @selector(nsCocoaWindow_NSWindow_sendEvent:));
-    gCocoaWindowMethodsSwizzled = PR_TRUE;
-  }
   // See NSView (MethodSwizzling) below.
   if (nsToolkit::OnLeopardOrLater() && !gChildViewMethodsSwizzled) {
     nsToolkit::SwizzleMethods([NSView class], @selector(mouseDownCanMoveWindow),
@@ -644,7 +631,7 @@ nsresult nsChildView::StandardCreate(nsIWidget *aParent,
   // if this is a ChildView, make sure that our per-window data
   // is set up
   if ([mView isKindOfClass:[ChildView class]])
-    [(ChildView*)mView ensureWindowData];
+    [[WindowDataMap sharedWindowDataMap] ensureDataForWindow:[mView window]];
 
   return NS_OK;
 
@@ -674,7 +661,7 @@ void nsChildView::TearDownView()
 
   NSWindow* win = [mView window];
   NSResponder* responder = [win firstResponder];
-  
+
   // We're being unhooked from the view hierarchy, don't leave our view
   // or a child view as the window first responder.
   if (responder && [responder isKindOfClass:[NSView class]] &&
@@ -1072,55 +1059,9 @@ NS_IMETHODIMP nsChildView::SetFocus(PRBool aRaise)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  // Don't do anything if SetFocus() has been called reentrantly on the same
-  // object.  Sometimes calls to nsChildView::DispatchEvent() can get
-  // temporarily stuck, causing calls to [ChildView sendFocusEvent:] and
-  // SetFocus() to be reentered.  These reentrant calls are probably the
-  // result of one or more bugs, and doing things on a reentrant call can
-  // cause problems:  For example if mView is already the first responder and
-  // we send it an NS_GOTFOCUS event (see below), this causes the Mochitests
-  // to get stuck in the toolkit/content/tests/widgets/test_popup_button.xul
-  // test.
-  if (mInSetFocus)
-    return NS_OK;
-  mInSetFocus = PR_TRUE;
   NSWindow* window = [mView window];
-  if (window) {
-    nsAutoRetainCocoaObject kungFuDeathGrip(mView);
-    // For reasons that aren't yet clear, focus changes within a window (as
-    // opposed to those between windows or between apps) should only trigger
-    // NS_LOSTFOCUS and NS_GOTFOCUS events (sent to Gecko) in the context of
-    // a call to nsChildView::SetFocus() (or nsCocoaWindow::SetFocus(), which
-    // in any case re-routes to nsChildView::SetFocus()).  If we send these
-    // events on every intra-window focus change (on every call to
-    // [ChildView becomeFirstResponder:] or [ChildView resignFirstResponder:]),
-    // the result will be strange focus bugs (like bmo bugs 399471, 403232,
-    // 404433 and 408266).
-    NSResponder* firstResponder = [window firstResponder];
-    if ([mView isEqual:firstResponder]) {
-      // Sometimes SetFocus() is called on an nsChildView object that's
-      // already focused.  In principle this shouldn't happen, and in any
-      // case we shouldn't have to dispatch any events.  But if we don't, we
-      // sometimes get text-input cursors blinking in more than one text
-      // field, or still blinking when the browser is no longer active.  For
-      // reasons that aren't at all clear, this problem can be avoided by
-      // always sending an NS_GOTFOCUS message here.
-      if ([mView isKindOfClass:[ChildView class]])
-        [(ChildView *)mView sendFocusEvent:NS_GOTFOCUS];
-    } else {
-      // Retain and release firstResponder around the call to
-      // makeFirstResponder.
-      [firstResponder retain];
-      if ([window makeFirstResponder:mView]) {
-        if ([firstResponder isKindOfClass:[ChildView class]])
-          [(ChildView *)firstResponder sendFocusEvent:NS_LOSTFOCUS];
-        if ([mView isKindOfClass:[ChildView class]])
-          [(ChildView *)mView sendFocusEvent:NS_GOTFOCUS];
-      }
-      [firstResponder release];
-    }
-  }
-  mInSetFocus = PR_FALSE;
+  if (window)
+    [window makeFirstResponder:mView];
   return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
@@ -2443,12 +2384,6 @@ NSEvent* gLastDragEvent = nil;
   mGeckoChild = nsnull;
   mWindow = nil;
 
-  // A child widget can be destroyed without being unfocused (by Gecko).
-  WindowDataMap* windowMap = [WindowDataMap sharedWindowDataMap];
-  TopLevelWindowData* windowData = [windowMap dataForWindow:[self window]];
-  if (windowData)
-    [windowData markShouldUnfocus:self];
-
   // Just in case we're destroyed abruptly and missed the draggingExited
   // or performDragOperation message.
   NS_IF_RELEASE(mDragService);
@@ -2563,23 +2498,23 @@ NSEvent* gLastDragEvent = nil;
   // we have to loop up through superviews in case the view that received the
   // mouseDown is in fact a plugin view with no scrollbars
   while (currView) {
-    // This is a hack I learned in nsView::GetViewFor(nsIWidget* aWidget)
-    // that I'm not sure is kosher. If anyone knows a better way to get
-    // the view for a widget, I'd love to hear it. --Nathan
-
-    void* clientData;
-    [currView widget]->GetClientData(clientData);
-
-    nsISupports* data = (nsISupports*)clientData;
-    nsCOMPtr<nsIInterfaceRequestor> req(do_QueryInterface(data));
-    if (req) {
-      req->GetInterface(NS_GET_IID(nsIScrollableView), (void**)&scrollableView);
-      if (scrollableView)
-        break;
+    nsIWidget* widget = [currView widget];
+    if (widget) {
+      void* clientData;
+      if (NS_SUCCEEDED(widget->GetClientData(clientData))) {
+        nsISupports* data = (nsISupports*)clientData;
+        nsCOMPtr<nsIInterfaceRequestor> req(do_QueryInterface(data));
+        if (req) {
+          req->GetInterface(NS_GET_IID(nsIScrollableView), (void**)&scrollableView);
+          if (scrollableView)
+            break;
+        }
+      }
     }
 
-    if ([[currView superview] isMemberOfClass:[ChildView class]])
-        currView = (ChildView*)[currView superview];
+    NSView* superview = [currView superview];
+    if (superview && [superview isMemberOfClass:[ChildView class]])
+        currView = (ChildView*)superview;
     else
         currView = nil;
   }
@@ -2763,22 +2698,6 @@ NSEvent* gLastDragEvent = nil;
 {
   if (!mGeckoChild)
     return;
-
-  // Keep track of the results of calling sendFocusEvent: in our NSWindow.
-  WindowDataMap* windowMap = [WindowDataMap sharedWindowDataMap];
-  TopLevelWindowData* windowData = [windowMap dataForWindow:[self window]];
-  if (windowData) {
-    switch (eventType) {
-      case NS_LOSTFOCUS:
-        [windowData markShouldUnfocus:self];
-        break;
-      case NS_GOTFOCUS:
-        [windowData markShouldFocus:self];
-        break;
-      default:
-        break;
-    }
-  }
 
   nsEventStatus status = nsEventStatus_eIgnore;
   nsGUIEvent focusGuiEvent(PR_TRUE, eventType, mGeckoChild);
@@ -3223,23 +3142,34 @@ static const PRInt32 sShadowInvalidationInterval = 100;
       // if we're dealing with menus, we probably have submenus and
       // we don't want to rollup if the click is in a parent menu of
       // the current submenu
+      PRUint32 popupsToRollup = PR_UINT32_MAX;
       nsCOMPtr<nsIMenuRollup> menuRollup;
       menuRollup = (do_QueryInterface(gRollupListener));
       if (menuRollup) {
         nsAutoTArray<nsIWidget*, 5> widgetChain;
         menuRollup->GetSubmenuWidgetChain(&widgetChain);
+        PRUint32 sameTypeCount = menuRollup->GetSubmenuWidgetChain(&widgetChain);
         for (PRUint32 i = 0; i < widgetChain.Length(); i++) {
           nsIWidget* widget = widgetChain[i];
           NSWindow* currWindow = (NSWindow*)widget->GetNativeData(NS_NATIVE_WINDOW);
           if (nsCocoaUtils::IsEventOverWindow(theEvent, currWindow)) {
-            shouldRollup = PR_FALSE;
+            // don't roll up if the mouse event occured within a menu of the
+            // same type. If the mouse event occured in a menu higher than
+            // that, roll up, but pass the number of popups to Rollup so
+            // that only those of the same type close up.
+            if (i < sameTypeCount) {
+              shouldRollup = PR_FALSE;
+            }
+            else {
+              popupsToRollup = sameTypeCount;
+            }
             break;
           }
         }
       }
 
       if (shouldRollup) {
-        gRollupListener->Rollup(nsnull);
+        gRollupListener->Rollup(popupsToRollup, nsnull);
         consumeEvent = (BOOL)gConsumeRollupEvent;
       }
     }
@@ -3584,7 +3514,7 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
   event.refPoint.y = nscoord((PRInt32)localEventLocation->y);
 
   EventRecord macEvent;
-  macEvent.what = adjustCursorEvent;
+  macEvent.what = NPEventType_AdjustCursorEvent;
   macEvent.message = 0;
   macEvent.when = ::TickCount();
   ::GetGlobalMouse(&macEvent.where);
@@ -3722,7 +3652,7 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
 
   // create native EventRecord for use by plugins
   EventRecord macEvent;
-  macEvent.what = adjustCursorEvent;
+  macEvent.what = NPEventType_AdjustCursorEvent;
   macEvent.message = 0;
   macEvent.when = ::TickCount();
   ::GetGlobalMouse(&macEvent.where);
@@ -4121,28 +4051,6 @@ static nsEventStatus SendGeckoMouseEnterOrExitEvent(PRBool isTrusted,
     return [(NSView<mozView>*)superView contextMenu];
 
   return nil;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
-}
-
-
-- (TopLevelWindowData*)ensureWindowData
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
-
-  if (!mWindow)
-    return nil;
-
-  WindowDataMap* windowMap = [WindowDataMap sharedWindowDataMap];
-
-  TopLevelWindowData* windowData = [windowMap dataForWindow:mWindow];
-  if (!windowData)
-  {
-    windowData = [[TopLevelWindowData alloc] initWithWindow:mWindow];
-    [windowMap setData:windowData forWindow:mWindow]; // takes ownership
-    [windowData release];
-  }
-  return windowData;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
@@ -6079,13 +5987,12 @@ static BOOL keyUpAlreadySentKeyDown = NO;
 
   // check to see if the window implements the mozWindow protocol. This
   // allows embedders to avoid re-entrant calls to -makeKeyAndOrderFront,
-  // which can happen because these activate/focus calls propagate out
+  // which can happen because these activate calls propagate out
   // to the embedder via nsIEmbeddingSiteWindow::SetFocus().
   BOOL isMozWindow = [[self window] respondsToSelector:@selector(setSuppressMakeKeyFront:)];
   if (isMozWindow)
     [[self window] setSuppressMakeKeyFront:YES];
 
-  [self sendFocusEvent:NS_GOTFOCUS];
   [self sendFocusEvent:NS_ACTIVATE];
 
   if (isMozWindow)
@@ -6103,7 +6010,6 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
   [self sendFocusEvent:NS_DEACTIVATE];
-  [self sendFocusEvent:NS_LOSTFOCUS];
 }
 
 

@@ -48,7 +48,6 @@
 #include "nsIContentViewer.h"
 #include "nsIDocumentViewer.h"
 #include "nsPIDOMWindow.h"
-#include "nsIFocusController.h"
 #include "nsStyleSet.h"
 #include "nsImageLoader.h"
 #include "nsIContent.h"
@@ -1266,7 +1265,7 @@ nsPresContext::SetupBackgroundImageLoaders(nsIFrame* aFrame,
 {
   nsRefPtr<nsImageLoader> loaders;
   NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, aStyleBackground) {
-    imgIRequest *image = aStyleBackground->mLayers[i].mImage.mRequest;
+    imgIRequest *image = aStyleBackground->mLayers[i].mImage;
     loaders = nsImageLoader::Create(aFrame, image, PR_FALSE, loaders);
   }
   SetImageLoaders(aFrame, BACKGROUND_IMAGE, loaders);
@@ -1557,7 +1556,7 @@ nsPresContext::SetPrintSettings(nsIPrintSettings *aPrintSettings)
 }
 
 PRBool
-nsPresContext::EnsureVisible(PRBool aUnsuppressFocus)
+nsPresContext::EnsureVisible()
 {
   nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mContainer));
   if (docShell) {
@@ -1569,22 +1568,8 @@ nsPresContext::EnsureVisible(PRBool aUnsuppressFocus)
       nsCOMPtr<nsPresContext> currentPresContext;
       docV->GetPresContext(getter_AddRefs(currentPresContext));
       if (currentPresContext == this) {
-        // OK, this is us.  We want to call Show() on the content viewer.  But
-        // first, we need to suppress focus changes; otherwise the focus will
-        // get sent to the wrong place (toplevel window).
-        nsCOMPtr<nsPIDOMWindow> privWindow = do_GetInterface(docShell);
-        // XXXbz privWindow should never really be null!
-        nsIFocusController* fc =
-          privWindow ? privWindow->GetRootFocusController() : nsnull;
-        if (fc) {
-          fc->SetSuppressFocus(PR_TRUE,
-                               "nsPresContext::EnsureVisible Suppression");
-        }
+        // OK, this is us.  We want to call Show() on the content viewer.
         cv->Show();
-        if (fc && aUnsuppressFocus) {
-          fc->SetSuppressFocus(PR_FALSE,
-                               "nsPresContext::EnsureVisible Suppression");
-        }
         return PR_TRUE;
       }
     }
@@ -1625,9 +1610,9 @@ nsPresContext::IsChrome() const
 nsPresContext::HasAuthorSpecifiedRules(nsIFrame *aFrame, PRUint32 ruleTypeMask) const
 {
   return
-    UseDocumentColors() &&
     nsRuleNode::HasAuthorSpecifiedRules(aFrame->GetStyleContext(),
-                                        ruleTypeMask);
+                                        ruleTypeMask,
+                                        UseDocumentColors());
 }
 
 static void
