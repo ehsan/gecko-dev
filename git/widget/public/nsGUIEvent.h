@@ -120,8 +120,7 @@ class nsHashKey;
 #define NS_PRIV_EVENT_FLAG_SCRIPT         0x0080
 #define NS_EVENT_FLAG_NO_CONTENT_DISPATCH 0x0100
 #define NS_EVENT_FLAG_SYSTEM_EVENT        0x0200
-// Event has been dispatched at least once
-#define NS_EVENT_DISPATCHED               0x0400
+#define NS_EVENT_FLAG_STOP_DISPATCH_IMMEDIATELY 0x0400 // @see nsIDOM3Event::stopImmediatePropagation()
 #define NS_EVENT_FLAG_DISPATCHING         0x0800
 
 #define NS_PRIV_EVENT_UNTRUSTED_PERMITTED 0x8000
@@ -1124,7 +1123,7 @@ enum nsDragDropEventStatus {
   NS_ASSERTION(NS_IS_EVENT_IN_DISPATCH(event), \
                "Event never got marked for dispatch!"); \
   (event)->flags &= ~NS_EVENT_FLAG_DISPATCHING; \
-  (event)->flags |= NS_EVENT_DISPATCHED;
+  (event)->flags |= NS_EVENT_FLAG_STOP_DISPATCH_IMMEDIATELY;
 
 /*
  * Virtual key bindings for keyboard events.

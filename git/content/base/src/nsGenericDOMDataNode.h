@@ -45,7 +45,6 @@
 
 #include "nsIDOMCharacterData.h"
 #include "nsIDOMEventTarget.h"
-#include "nsIDOM3Text.h"
 #include "nsTextFragment.h"
 #include "nsVoidArray.h"
 #include "nsDOMError.h"
@@ -311,19 +310,6 @@ protected:
 
   nsresult SplitText(PRUint32 aOffset, nsIDOMText** aReturn);
 
-  friend class nsText3Tearoff;
-
-  static PRUint32 FirstLogicallyAdjacentTextNode(nsIContent* aParent,
-                                                 PRUint32 aIndex);
-
-  static PRUint32 LastLogicallyAdjacentTextNode(nsIContent* aParent,
-                                                PRUint32 aIndex,
-                                                PRUint32 aCount);
-
-  nsresult GetWholeText(nsAString& aWholeText);
-
-  nsresult ReplaceWholeText(const nsAFlatString& aContent, nsIDOMText **aReturn);
-
   nsresult SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
                            const PRUnichar* aBuffer, PRUint32 aLength,
                            PRBool aNotify);
@@ -345,27 +331,6 @@ private:
   void SetBidiStatus();
 
   already_AddRefed<nsIAtom> GetCurrentValueAtom();
-};
-
-/** Tearoff class for the nsIDOM3Text portion of nsGenericDOMDataNode. */
-class nsText3Tearoff : public nsIDOM3Text
-{
-public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-
-  NS_DECL_NSIDOM3TEXT
-
-  NS_DECL_CYCLE_COLLECTION_CLASS(nsText3Tearoff)
-
-  nsText3Tearoff(nsGenericDOMDataNode *aNode) : mNode(aNode)
-  {
-  }
-
-protected:
-  virtual ~nsText3Tearoff() {}
-
-private:
-  nsRefPtr<nsGenericDOMDataNode> mNode;
 };
 
 //----------------------------------------------------------------------
