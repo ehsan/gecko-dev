@@ -6,9 +6,6 @@
 
 // The test extension uses an insecure update url.
 Services.prefs.setBoolPref("extensions.checkUpdateSecurity", false);
-// This test requires lightweight themes update to be enabled even if the app
-// doesn't support lightweight themes.
-Services.prefs.setBoolPref("lightweightThemes.update.enabled", true);
 
 Components.utils.import("resource://gre/modules/LightweightThemeManager.jsm");
 
