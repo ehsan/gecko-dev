@@ -480,8 +480,6 @@ CycleCollectedJSRuntime::CycleCollectedJSRuntime(JSRuntime* aParentRuntime,
   }
   JS_SetGrayGCRootsTracer(mJSRuntime, TraceGrayJS, this);
   JS_SetGCCallback(mJSRuntime, GCCallback, this);
-  JS::SetOutOfMemoryCallback(mJSRuntime, OutOfMemoryCallback, this);
-  JS::SetLargeAllocationFailureCallback(mJSRuntime, LargeAllocationFailureCallback, this);
   JS_SetContextCallback(mJSRuntime, ContextCallback, this);
   JS_SetDestroyZoneCallback(mJSRuntime, XPCStringConvert::FreeZoneCache);
   JS_SetSweepZoneCallback(mJSRuntime, XPCStringConvert::ClearZoneCache);
@@ -745,25 +743,6 @@ CycleCollectedJSRuntime::GCCallback(JSRuntime* aRuntime,
   MOZ_ASSERT(aRuntime == self->Runtime());
 
   self->OnGC(aStatus);
-}
-
-/* static */ void
-CycleCollectedJSRuntime::OutOfMemoryCallback(JSContext *aContext,
-                                             void* aData)
-{
-  CycleCollectedJSRuntime* self = static_cast<CycleCollectedJSRuntime*>(aData);
-
-  MOZ_ASSERT(JS_GetRuntime(aContext) == self->Runtime());
-
-  self->OnOutOfMemory();
-}
-
-/* static */ void
-CycleCollectedJSRuntime::LargeAllocationFailureCallback(void* aData)
-{
-  CycleCollectedJSRuntime* self = static_cast<CycleCollectedJSRuntime*>(aData);
-
-  self->OnLargeAllocationFailure();
 }
 
 /* static */ bool
@@ -1205,16 +1184,4 @@ CycleCollectedJSRuntime::OnGC(JSGCStatus aStatus)
   }
 
   CustomGCCallback(aStatus);
-}
-
-void
-CycleCollectedJSRuntime::OnOutOfMemory()
-{
-  CustomOutOfMemoryCallback();
-}
-
-void
-CycleCollectedJSRuntime::OnLargeAllocationFailure()
-{
-  CustomLargeAllocationFailureCallback();
 }

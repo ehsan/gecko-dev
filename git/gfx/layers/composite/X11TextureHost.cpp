@@ -13,9 +13,8 @@
 #include "gfxXlibSurface.h"
 #include "gfx2DGlue.h"
 
-namespace mozilla {
-namespace layers {
-
+using namespace mozilla;
+using namespace mozilla::layers;
 using namespace mozilla::gfx;
 
 X11TextureHost::X11TextureHost(TextureFlags aFlags,
@@ -84,7 +83,4 @@ IntSize
 X11TextureHost::GetSize() const
 {
   return ToIntSize(mSurface->GetSize());
-}
-
-}
 }

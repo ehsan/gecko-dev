@@ -1492,11 +1492,6 @@ namespace dmd {
 static bool
 ReportAndDump(JSContext *cx, unsigned argc, JS::Value *vp)
 {
-  if (!dmd::IsRunning()) {
-    JS_ReportError(cx, "DMD is not running");
-    return false;
-  }
-
   JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
   JSString *str = JS::ToString(cx, args.get(0));
   if (!str)
@@ -1513,6 +1508,7 @@ ReportAndDump(JSContext *cx, unsigned argc, JS::Value *vp)
   }
 
   dmd::ClearReports();
+  fprintf(stderr, "DMD: running reporters...\n");
   dmd::RunReportersForThisProcess();
   dmd::Writer writer(FpWrite, fp);
   dmd::Dump(writer);
@@ -2916,6 +2912,16 @@ AsmJSCacheOpenEntryForWrite(JS::Handle<JSObject*> aGlobal,
                                        aSize, aMemory, aHandle);
 }
 
+static void
+OnLargeAllocationFailure()
+{
+  nsCOMPtr<nsIObserverService> os =
+    mozilla::services::GetObserverService();
+  if (os) {
+    os->NotifyObservers(nullptr, "memory-pressure", MOZ_UTF16("heap-minimize"));
+  }
+}
+
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID, NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
 
 void
@@ -2974,6 +2980,8 @@ nsJSContext::EnsureStatics()
     asmjscache::GetBuildId
   };
   JS::SetAsmJSCacheOps(sRuntime, &asmJSCacheOps);
+
+  JS::SetLargeAllocationFailureCallback(sRuntime, OnLargeAllocationFailure);
 
   // Set these global xpconnect options...
   Preferences::RegisterCallbackAndCall(ReportAllJSExceptionsPrefChangedCallback,

@@ -965,7 +965,14 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
                               Label *label)
     {
         JS_ASSERT(cond == Equal || cond == NotEqual);
-        branchTestValue(cond, val, MagicValue(why), label);
+        // Test for magic
+        Label notmagic;
+        Condition testCond = testMagic(cond, val);
+        j(InvertCondition(testCond), &notmagic);
+        // Test magic value
+        unboxMagic(val, ScratchReg);
+        branch32(cond, ScratchReg, Imm32(static_cast<int32_t>(why)), label);
+        bind(&notmagic);
     }
     Condition testMagic(Condition cond, const ValueOperand &src) {
         splitTag(src, ScratchReg);

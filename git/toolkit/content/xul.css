@@ -818,8 +818,12 @@ textbox[type="number"] {
 
 /********** autocomplete textbox **********/
 
-/* SeaMonkey does not use the new toolkit's autocomplete widget */
+/* SeaMonkey don't use the new toolkit's autocomplete widget yet.... */
 %ifdef MOZ_SUITE
+%define AUTOCOMPLETE_OLD_STYLE
+%endif
+
+%ifdef AUTOCOMPLETE_OLD_STYLE
 
 textbox[type="autocomplete"] {
   -moz-binding: url("chrome://global/content/autocomplete.xml#autocomplete");

@@ -302,46 +302,6 @@ GetHashTypeFromMechanism(CK_MECHANISM_TYPE mech)
     }
 }
 
-/*
- * Returns true if "params" contains a valid set of PSS parameters
- */
-static PRBool
-sftk_ValidatePssParams(const CK_RSA_PKCS_PSS_PARAMS *params)
-{
-    if (!params) {
-        return PR_FALSE;
-    }
-    if (GetHashTypeFromMechanism(params->hashAlg) == HASH_AlgNULL ||
-        GetHashTypeFromMechanism(params->mgf) == HASH_AlgNULL) {
-        return PR_FALSE;
-    }
-    return PR_TRUE;
-}
-
-/*
- * Returns true if "params" contains a valid set of OAEP parameters
- */
-static PRBool
-sftk_ValidateOaepParams(const CK_RSA_PKCS_OAEP_PARAMS *params)
-{
-    if (!params) {
-        return PR_FALSE;
-    }
-    /* The requirements of ulSourceLen/pSourceData come from PKCS #11, which
-     * state:
-     *   If the parameter is empty, pSourceData must be NULL and
-     *   ulSourceDataLen must be zero.
-     */
-    if (params->source != CKZ_DATA_SPECIFIED ||
-        (GetHashTypeFromMechanism(params->hashAlg) == HASH_AlgNULL) ||
-        (GetHashTypeFromMechanism(params->mgf) == HASH_AlgNULL) ||
-        (params->ulSourceDataLen == 0 && params->pSourceData != NULL) ||
-        (params->ulSourceDataLen != 0 && params->pSourceData == NULL)) {
-        return PR_FALSE;
-    }
-    return PR_TRUE;
-}
-
 /* 
  * return a context based on the SFTKContext type.
  */
@@ -628,6 +588,11 @@ sftk_RSAEncryptOAEP(SFTKOAEPEncryptInfo *info, unsigned char *output,
     hashAlg = GetHashTypeFromMechanism(info->params->hashAlg);
     maskHashAlg = GetHashTypeFromMechanism(info->params->mgf);
 
+    if (info->params->source != CKZ_DATA_SPECIFIED) {
+        PORT_SetError(SEC_ERROR_INVALID_ALGORITHM);
+        return SECFailure;
+    }
+
     return RSA_EncryptOAEP(&info->key->u.rsa, hashAlg, maskHashAlg,
                            (const unsigned char*)info->params->pSourceData,
                            info->params->ulSourceDataLen, NULL, 0,
@@ -651,6 +616,11 @@ sftk_RSADecryptOAEP(SFTKOAEPDecryptInfo *info, unsigned char *output,
 
     hashAlg = GetHashTypeFromMechanism(info->params->hashAlg);
     maskHashAlg = GetHashTypeFromMechanism(info->params->mgf);
+
+    if (info->params->source != CKZ_DATA_SPECIFIED) {
+        PORT_SetError(SEC_ERROR_INVALID_ALGORITHM);
+        return SECFailure;
+    }
 
     rv = RSA_DecryptOAEP(&info->key->u.rsa, hashAlg, maskHashAlg,
                          (const unsigned char*)info->params->pSourceData,
@@ -740,18 +710,19 @@ sftk_CryptInit(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechanism,
 	}
 	context->destroy = sftk_Null;
 	break;
+/* XXX: Disabled until unit tests land.
     case CKM_RSA_PKCS_OAEP:
 	if (key_type != CKK_RSA) {
 	    crv = CKR_KEY_TYPE_INCONSISTENT;
 	    break;
 	}
-	if (pMechanism->ulParameterLen != sizeof(CK_RSA_PKCS_OAEP_PARAMS) ||
-	    !sftk_ValidateOaepParams((CK_RSA_PKCS_OAEP_PARAMS*)pMechanism->pParameter)) {
+	context->multi = PR_FALSE;
+	context->rsa = PR_TRUE;
+	if (pMechanism->ulParameterLen != sizeof(CK_RSA_PKCS_OAEP_PARAMS)) {
 	    crv = CKR_MECHANISM_PARAM_INVALID;
 	    break;
 	}
-	context->multi = PR_FALSE;
-	context->rsa = PR_TRUE;
+	/\* XXX: Need Parameter validation here *\/
 	if (isEncrypt) {
 	    SFTKOAEPEncryptInfo *info = PORT_New(SFTKOAEPEncryptInfo);
 	    if (info == NULL) {
@@ -787,6 +758,7 @@ sftk_CryptInit(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechanism,
 	}
 	context->destroy = (SFTKDestroy) sftk_Space;
 	break;
+*/
     case CKM_RC2_CBC_PAD:
 	context->doPad = PR_TRUE;
 	/* fall thru */
@@ -2414,8 +2386,7 @@ finish_rsa:
 	    break;
 	} 
 	context->rsa = PR_TRUE;
-	if (pMechanism->ulParameterLen != sizeof(CK_RSA_PKCS_PSS_PARAMS) ||
-	    !sftk_ValidatePssParams((const CK_RSA_PKCS_PSS_PARAMS*)pMechanism->pParameter)) {
+	if (pMechanism->ulParameterLen != sizeof(CK_RSA_PKCS_PSS_PARAMS)) {
 	    crv = CKR_MECHANISM_PARAM_INVALID;
 	    break;
 	}
@@ -3052,8 +3023,7 @@ finish_rsa:
 	    break;
 	} 
 	context->rsa = PR_TRUE;
-	if (pMechanism->ulParameterLen != sizeof(CK_RSA_PKCS_PSS_PARAMS) ||
-	    !sftk_ValidatePssParams((const CK_RSA_PKCS_PSS_PARAMS*)pMechanism->pParameter)) {
+	if (pMechanism->ulParameterLen != sizeof(CK_RSA_PKCS_PSS_PARAMS)) {
 	    crv = CKR_MECHANISM_PARAM_INVALID;
 	    break;
 	}

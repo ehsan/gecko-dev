@@ -162,14 +162,14 @@ nsNSSCertificateFakeTransport::GetSerialNumber(nsAString &_serialNumber)
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetSha256Fingerprint(nsAString& aSha256Fingerprint)
+nsNSSCertificateFakeTransport::GetSha1Fingerprint(nsAString &_sha1Fingerprint)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetSha1Fingerprint(nsAString& aSha1Fingerprint)
+nsNSSCertificateFakeTransport::GetMd5Fingerprint(nsAString &_md5Fingerprint)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;

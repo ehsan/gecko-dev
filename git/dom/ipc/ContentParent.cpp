@@ -822,19 +822,19 @@ ContentParent::CreateBrowserOrApp(const TabContext& aContext,
     nsRefPtr<ContentParent> p = sAppContentParents->Get(manifestURL);
 
     if (!p && Preferences::GetBool("dom.ipc.reuse_parent_app")) {
-        nsAutoString parentAppManifestURL;
+        nsAutoString parentAppURL;
         aFrameElement->GetAttr(kNameSpaceID_None,
-                               nsGkAtoms::parentapp, parentAppManifestURL);
-        nsAdoptingString systemAppManifestURL =
-            Preferences::GetString("browser.manifestURL");
+                               nsGkAtoms::parentapp, parentAppURL);
+        nsAdoptingString systemAppURL =
+            Preferences::GetString("browser.homescreenURL");
         nsCOMPtr<nsIAppsService> appsService =
             do_GetService(APPS_SERVICE_CONTRACTID);
-        if (!parentAppManifestURL.IsEmpty() &&
-            !parentAppManifestURL.Equals(systemAppManifestURL) &&
+        if (!parentAppURL.IsEmpty() &&
+            !parentAppURL.Equals(systemAppURL) &&
             appsService) {
             nsCOMPtr<mozIApplication> parentApp;
             nsCOMPtr<mozIApplication> app;
-            appsService->GetAppByManifestURL(parentAppManifestURL,
+            appsService->GetAppByManifestURL(parentAppURL,
                                              getter_AddRefs(parentApp));
             appsService->GetAppByManifestURL(manifestURL,
                                              getter_AddRefs(app));
@@ -849,7 +849,7 @@ ContentParent::CreateBrowserOrApp(const TabContext& aContext,
                 NS_SUCCEEDED(parentApp->GetAppStatus(&parentAppStatus)) &&
                 parentAppStatus == nsIPrincipal::APP_STATUS_CERTIFIED) {
                 // Check if we can re-use the process of the parent app.
-                p = sAppContentParents->Get(parentAppManifestURL);
+                p = sAppContentParents->Get(parentAppURL);
             }
         }
     }

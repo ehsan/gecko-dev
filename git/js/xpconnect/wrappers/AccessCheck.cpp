@@ -84,6 +84,12 @@ AccessCheck::isChrome(JSObject *obj)
     return isChrome(js::GetObjectCompartment(obj));
 }
 
+bool
+AccessCheck::callerIsChrome()
+{
+    return nsContentUtils::IsCallerChrome();
+}
+
 nsIPrincipal *
 AccessCheck::getPrincipal(JSCompartment *compartment)
 {

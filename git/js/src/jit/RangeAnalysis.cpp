@@ -1176,15 +1176,6 @@ MAbs::computeRange(TempAllocator &alloc)
 }
 
 void
-MFloor::computeRange(TempAllocator &alloc)
-{
-    Range other(getOperand(0));
-    Range *copy = new(alloc) Range(other);
-    copy->resetFractionalPart();
-    setRange(copy);
-}
-
-void
 MMinMax::computeRange(TempAllocator &alloc)
 {
     if (specialization_ != MIRType_Int32 && specialization_ != MIRType_Double)

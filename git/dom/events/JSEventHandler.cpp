@@ -18,7 +18,6 @@
 #include "nsDOMJSUtils.h"
 #include "WorkerPrivate.h"
 #include "mozilla/ContentEvents.h"
-#include "mozilla/HoldDropJSObjects.h"
 #include "mozilla/JSEventHandler.h"
 #include "mozilla/Likely.h"
 #include "mozilla/dom/ErrorEvent.h"
@@ -36,14 +35,6 @@ JSEventHandler::JSEventHandler(nsISupports* aTarget,
 {
   nsCOMPtr<nsISupports> base = do_QueryInterface(aTarget);
   mTarget = base.get();
-  // Note, we call HoldJSObjects to get CanSkip called before CC.
-  HoldJSObjects(this);
-}
-
-JSEventHandler::~JSEventHandler()
-{
-  NS_ASSERTION(!mTarget, "Should have called Disconnect()!");
-  DropJSObjects(this);
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(JSEventHandler)

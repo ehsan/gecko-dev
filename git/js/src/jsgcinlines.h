@@ -42,8 +42,8 @@ struct AutoMarkInDeadZone
     bool scheduled;
 };
 
-inline Allocator *
-ThreadSafeContext::allocator() const
+inline Allocator *const
+ThreadSafeContext::allocator()
 {
     JS_ASSERT_IF(isJSContext(), &asJSContext()->zone()->allocator == allocator_);
     return allocator_;

@@ -489,7 +489,6 @@ DataStoreServiceChild.prototype = {
     debug("DataStoreServiceChild init");
     this._successCb = aSuccessCb;
     this._errorCb = aErrorCb;
-    this._name = aName;
 
     this.initDOMRequestHelper(aWindow, [ "DataStore:Get:Return:OK",
                                          "DataStore:Get:Return:KO" ]);
@@ -500,10 +499,6 @@ DataStoreServiceChild.prototype = {
 
   receiveMessage: function(aMessage) {
     debug("DataStoreServiceChild receiveMessage");
-
-    if (aMessage.data.name != this._name) {
-      return;
-    }
 
     switch (aMessage.name) {
       case 'DataStore:Get:Return:OK':
