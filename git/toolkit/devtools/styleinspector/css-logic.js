@@ -917,13 +917,10 @@ CssLogic.findCssSelector = function CssLogic_findCssSelector(ele) {
     }
   }
 
-  // Not unique enough yet.  As long as it's not a child of the document,
-  // continue recursing up until it is unique enough.
-  if (ele.parentNode !== document) {
-    index = positionInNodeList(ele, ele.parentNode.children) + 1;
-    selector = CssLogic_findCssSelector(ele.parentNode) + ' > ' +
-            tagName + ':nth-child(' + index + ')';
-  }
+  // So we can be unique w.r.t. our parent, and use recursion
+  index = positionInNodeList(ele, ele.parentNode.children) + 1;
+  selector = CssLogic_findCssSelector(ele.parentNode) + ' > ' +
+          tagName + ':nth-child(' + index + ')';
 
   return selector;
 };

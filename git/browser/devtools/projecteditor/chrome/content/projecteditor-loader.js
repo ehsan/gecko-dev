@@ -7,9 +7,9 @@ const promise = require("projecteditor/helpers/promise");
 const ProjectEditor = require("projecteditor/projecteditor");
 
 const SAMPLE_PATH = buildTempDirectoryStructure();
-const SAMPLE_NAME = "DevTools Content Application Name";
+const SAMPLE_NAME = "DevTools Content";
 const SAMPLE_PROJECT_URL = "http://mozilla.org";
-const SAMPLE_ICON = "chrome://browser/skin/devtools/tool-debugger.svg";
+const SAMPLE_ICON = "chrome://browser/skin/devtools/tool-options.svg";
 
 /**
  * Create a workspace for working on projecteditor, available at
@@ -56,13 +56,11 @@ document.addEventListener("DOMContentLoaded", function onDOMReady(e) {
     projecteditor.setProjectToAppPath(SAMPLE_PATH, {
       name: SAMPLE_NAME,
       iconUrl: SAMPLE_ICON,
-      projectOverviewURL: SAMPLE_PROJECT_URL,
-      validationStatus: "valid"
+      projectOverviewURL: SAMPLE_PROJECT_URL
     }).then(() => {
       let allResources = projecteditor.project.allResources();
       console.log("All resources have been loaded", allResources, allResources.map(r=>r.basename).join("|"));
     });
-
   });
 
 }, false);
