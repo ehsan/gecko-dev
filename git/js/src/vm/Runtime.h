@@ -73,6 +73,8 @@ js_ReportAllocationOverflow(js::ThreadSafeContext *cx);
 extern void
 js_ReportOverRecursed(js::ThreadSafeContext *cx);
 
+namespace JSC { class ExecutableAllocator; }
+
 namespace js {
 
 class Activation;
@@ -816,7 +818,7 @@ struct JSRuntime : public JS::shadow::Runtime,
      * Both of these allocators are used for regular expression code which is shared at the
      * thread-data level.
      */
-    js::jit::ExecutableAllocator *execAlloc_;
+    JSC::ExecutableAllocator *execAlloc_;
     js::jit::JitRuntime *jitRuntime_;
 
     /*
@@ -828,18 +830,18 @@ struct JSRuntime : public JS::shadow::Runtime,
     /* Space for interpreter frames. */
     js::InterpreterStack interpreterStack_;
 
-    js::jit::ExecutableAllocator *createExecutableAllocator(JSContext *cx);
+    JSC::ExecutableAllocator *createExecutableAllocator(JSContext *cx);
     js::jit::JitRuntime *createJitRuntime(JSContext *cx);
 
   public:
-    js::jit::ExecutableAllocator *getExecAlloc(JSContext *cx) {
+    JSC::ExecutableAllocator *getExecAlloc(JSContext *cx) {
         return execAlloc_ ? execAlloc_ : createExecutableAllocator(cx);
     }
-    js::jit::ExecutableAllocator &execAlloc() {
+    JSC::ExecutableAllocator &execAlloc() {
         JS_ASSERT(execAlloc_);
         return *execAlloc_;
     }
-    js::jit::ExecutableAllocator *maybeExecAlloc() {
+    JSC::ExecutableAllocator *maybeExecAlloc() {
         return execAlloc_;
     }
     js::jit::JitRuntime *getJitRuntime(JSContext *cx) {

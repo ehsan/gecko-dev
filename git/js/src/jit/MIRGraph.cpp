@@ -104,17 +104,6 @@ MIRGraph::insertBlockAfter(MBasicBlock *at, MBasicBlock *block)
 }
 
 void
-MIRGraph::renumberBlocksAfter(MBasicBlock *at)
-{
-    MBasicBlockIterator iter = begin(at);
-    iter++;
-
-    uint32_t id = at->id();
-    for (; iter != end(); iter++)
-        iter->setId(++id);
-}
-
-void
 MIRGraph::removeBlocksAfter(MBasicBlock *start)
 {
     MBasicBlockIterator iter(begin());
@@ -906,15 +895,6 @@ MBasicBlock::insertAfter(MInstruction *at, MInstruction *ins)
     graph().allocDefinitionId(ins);
     instructions_.insertAfter(at, ins);
     ins->setTrackedSite(at->trackedSite());
-}
-
-void
-MBasicBlock::insertAtEnd(MInstruction *ins)
-{
-    if (hasLastIns())
-        insertBefore(lastIns(), ins);
-    else
-        add(ins);
 }
 
 void

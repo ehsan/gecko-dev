@@ -515,7 +515,7 @@ JSRuntime::addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::Runtim
     {
         AutoLockForInterrupt lock(this);
         if (jitRuntime()) {
-            if (jit::ExecutableAllocator *ionAlloc = jitRuntime()->ionAlloc(this))
+            if (JSC::ExecutableAllocator *ionAlloc = jitRuntime()->ionAlloc(this))
                 ionAlloc->addSizeOfCode(&rtSizes->code);
         }
     }
@@ -556,13 +556,13 @@ JSRuntime::requestInterrupt(InterruptMode mode)
     }
 }
 
-jit::ExecutableAllocator *
+JSC::ExecutableAllocator *
 JSRuntime::createExecutableAllocator(JSContext *cx)
 {
     JS_ASSERT(!execAlloc_);
     JS_ASSERT(cx->runtime() == this);
 
-    execAlloc_ = js_new<jit::ExecutableAllocator>();
+    execAlloc_ = js_new<JSC::ExecutableAllocator>();
     if (!execAlloc_)
         js_ReportOutOfMemory(cx);
     return execAlloc_;
