@@ -1582,8 +1582,7 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   }
 
   // Enable Error Console?
-  // XXX Temporarily always-enabled, see bug 601201
-  let consoleEnabled = true || gPrefService.getBoolPref("devtools.errorconsole.enabled");
+  let consoleEnabled = gPrefService.getBoolPref("devtools.errorconsole.enabled");
   if (consoleEnabled) {
     document.getElementById("javascriptConsole").hidden = false;
     document.getElementById("key_errorConsole").removeAttribute("disabled");

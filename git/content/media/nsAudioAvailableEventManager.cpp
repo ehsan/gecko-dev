@@ -40,7 +40,7 @@
 #include "nsTArray.h"
 #include "nsAudioAvailableEventManager.h"
 
-#define MILLISECONDS_PER_SECOND 1000.0f
+#define MILLISECONDS_PER_SECOND 1000
 #define MAX_PENDING_EVENTS 100
 
 using namespace mozilla;
@@ -52,7 +52,7 @@ private:
   nsAutoArrayPtr<float> mFrameBuffer;
 public:
   nsAudioAvailableEventRunner(nsBuiltinDecoder* aDecoder, float* aFrameBuffer,
-                              PRUint32 aFrameBufferLength, float aTime) :
+                              PRUint32 aFrameBufferLength, PRUint64 aTime) :
     mDecoder(aDecoder),
     mFrameBuffer(aFrameBuffer),
     mFrameBufferLength(aFrameBufferLength),
@@ -72,9 +72,7 @@ public:
   }
 
   const PRUint32 mFrameBufferLength;
-
-  // Start time of the buffer data (in seconds).
-  const float mTime;
+  const PRUint64 mTime;
 };
 
 
@@ -106,7 +104,7 @@ void nsAudioAvailableEventManager::DispatchPendingEvents(PRUint64 aCurrentTime)
   while (mPendingEvents.Length() > 0) {
     nsAudioAvailableEventRunner* e =
       (nsAudioAvailableEventRunner*)mPendingEvents[0].get();
-    if (e->mTime * MILLISECONDS_PER_SECOND > aCurrentTime) {
+    if (e->mTime > aCurrentTime) {
       break;
     }
     nsCOMPtr<nsIRunnable> event = mPendingEvents[0];
@@ -139,11 +137,11 @@ void nsAudioAvailableEventManager::QueueWrittenAudioData(float* aAudioData,
 
   // Group audio samples into optimal size for event dispatch, and queue.
   while (signalBufferTail <= audioDataLength) {
-    float time = 0.0;
+    PRUint64 time = 0;
     // Guard against unsigned number overflow during first frame time calculation.
     if (aEndTimeSampleOffset > mSignalBufferPosition + audioDataLength) {
-      time = (aEndTimeSampleOffset - mSignalBufferPosition - audioDataLength) / 
-             mSamplesPerSecond;
+      time = MILLISECONDS_PER_SECOND * (aEndTimeSampleOffset -
+             mSignalBufferPosition - audioDataLength) / mSamplesPerSecond;
     }
 
     // Fill the signalBuffer.
@@ -221,11 +219,9 @@ void nsAudioAvailableEventManager::Drain(PRUint64 aEndTime)
          (mSignalBufferLength - mSignalBufferPosition) * sizeof(float));
 
   // Force this last event to go now.
-  float time = (aEndTime / MILLISECONDS_PER_SECOND) - 
-               (mSignalBufferPosition / mSamplesPerSecond);
   nsCOMPtr<nsIRunnable> lastEvent =
     new nsAudioAvailableEventRunner(mDecoder, mSignalBuffer.forget(),
-                                    mSignalBufferLength, time);
+                                    mSignalBufferLength, aEndTime);
   NS_DispatchToMainThread(lastEvent, NS_DISPATCH_NORMAL);
 
   mSignalBufferPosition = 0;

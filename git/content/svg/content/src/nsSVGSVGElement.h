@@ -205,7 +205,6 @@ public:
 
   // public helpers:
   gfxMatrix GetViewBoxTransform();
-  PRBool    HasValidViewbox() const { return mViewBox.IsValid(); }
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
