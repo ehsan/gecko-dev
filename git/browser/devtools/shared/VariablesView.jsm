@@ -698,7 +698,7 @@ Scope.prototype = {
    * Shows the scope's title header.
    */
   showHeader: function S_showHeader() {
-    if (this._isHeaderVisible || !this._nameString) {
+    if (this._isHeaderVisible) {
       return;
     }
     this._target.removeAttribute("non-header");
@@ -787,18 +787,6 @@ Scope.prototype = {
    * @param boolean aFlag
    */
   set twisty(aFlag) aFlag ? this.showArrow() : this.hideArrow(),
-
-  /**
-   * Gets the expand lock state.
-   * @return boolean
-   */
-  get locked() this._locked,
-
-  /**
-   * Sets the expand lock state.
-   * @param boolean aFlag
-   */
-  set locked(aFlag) this._locked = aFlag,
 
   /**
    * Adds an event listener for a certain event on this scope's title.
@@ -1398,9 +1386,7 @@ create({ constructor: Variable, proto: Scope.prototype }, {
   get setter() this._initialDescriptor.set,
 
   /**
-   * Sets the specific grip for this variable (applies the text content and
-   * class name to the value label).
-   *
+   * Sets the specific grip for this variable.
    * The grip should contain the value or the type & class, as defined in the
    * remote debugger protocol. For convenience, undefined and null are
    * both considered types.
@@ -1415,18 +1401,23 @@ create({ constructor: Variable, proto: Scope.prototype }, {
    *             - { type: "object", class: "Object" }
    */
   _setGrip: function V__setGrip(aGrip) {
-    // Don't allow displaying grip information if there's no name available.
-    if (!this._nameString) {
-      return;
-    }
-
     if (aGrip === undefined) {
       aGrip = { type: "undefined" };
     }
     if (aGrip === null) {
       aGrip = { type: "null" };
     }
+    this._applyGrip(aGrip);
+  },
 
+  /**
+   * Applies the necessary text content and class name to a value node based
+   * on a grip.
+   *
+   * @param any aGrip
+   *        @see Variable._setGrip
+   */
+  _applyGrip: function V__applyGrip(aGrip) {
     let prevGrip = this._valueGrip;
     if (prevGrip) {
       this._valueLabel.classList.remove(VariablesView.getClass(prevGrip));
@@ -1450,16 +1441,11 @@ create({ constructor: Variable, proto: Scope.prototype }, {
   _init: function V__init(aName, aDescriptor) {
     this._idString = generateId(this._nameString = aName);
     this._displayScope(aName, "variable");
-
-    // Don't allow displaying variable information there's no name available.
-    if (this._nameString) {
-      this._displayVariable();
-      this._customizeVariable();
-      this._prepareTooltip();
-      this._setAttributes();
-      this._addEventListeners();
-    }
-
+    this._displayVariable();
+    this._customizeVariable();
+    this._prepareTooltip();
+    this._setAttributes();
+    this._addEventListeners();
     this._onInit(this.ownerView._store.size < LAZY_APPEND_BATCH);
   },
 
@@ -1544,16 +1530,18 @@ create({ constructor: Variable, proto: Scope.prototype }, {
       let document = this.document;
 
       let tooltip = document.createElement("tooltip");
-      tooltip.id = "tooltip-" + this._idString;
+      tooltip.id = "tooltip-" + this.id;
 
       let configurableLabel = document.createElement("label");
-      let enumerableLabel = document.createElement("label");
-      let writableLabel = document.createElement("label");
       configurableLabel.setAttribute("value", "configurable");
+
+      let enumerableLabel = document.createElement("label");
       enumerableLabel.setAttribute("value", "enumerable");
+
+      let writableLabel = document.createElement("label");
       writableLabel.setAttribute("value", "writable");
 
-      tooltip.setAttribute("orient", "horizontal");
+      tooltip.setAttribute("orient", "horizontal")
       tooltip.appendChild(configurableLabel);
       tooltip.appendChild(enumerableLabel);
       tooltip.appendChild(writableLabel);
@@ -1859,16 +1847,11 @@ create({ constructor: Property, proto: Variable.prototype }, {
   _init: function P__init(aName, aDescriptor) {
     this._idString = generateId(this._nameString = aName);
     this._displayScope(aName, "property");
-
-    // Don't allow displaying property information there's no name available.
-    if (this._nameString) {
-      this._displayVariable();
-      this._customizeVariable();
-      this._prepareTooltip();
-      this._setAttributes();
-      this._addEventListeners();
-    }
-
+    this._displayVariable();
+    this._customizeVariable();
+    this._prepareTooltip();
+    this._setAttributes();
+    this._addEventListeners();
     this._onInit(this.ownerView._store.size < LAZY_APPEND_BATCH);
   },
 
@@ -2007,9 +1990,9 @@ VariablesView.isPrimitive = function VV_isPrimitive(aDescriptor) {
     return true;
   }
 
-  // For convenience, undefined, null and long strings are considered primitives.
+  // For convenience, undefined and null are both considered types.
   let type = grip.type;
-  if (type == "undefined" || type == "null" || type == "longString") {
+  if (type == "undefined" || type == "null") {
     return true;
   }
 
@@ -2104,8 +2087,6 @@ VariablesView.getString = function VV_getString(aGrip, aConciseFlag) {
         return "undefined";
       case "null":
         return "null";
-      case "longString":
-        return "\"" + aGrip.initial + "\"";
       default:
         if (!aConciseFlag) {
           return "[" + aGrip.type + " " + aGrip.class + "]";

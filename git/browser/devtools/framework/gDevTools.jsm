@@ -342,28 +342,6 @@ let gDevToolsBrowser = {
   },
 
   /**
-   * Add a <key> to <keyset id="devtoolsKeyset">.
-   * Appending a <key> element is not always enough. The <keyset> needs
-   * to be detached and reattached to make sure the <key> is taken into
-   * account (see bug 832984).
-   *
-   * @param {XULDocument} doc
-   *        The document to which keys are to be added
-   * @param {XULElement} or {DocumentFragment} keys
-   *        Keys to add
-   */
-  attachKeybindingsToBrowser: function DT_attachKeybindingsToBrowser(doc, keys) {
-    let devtoolsKeyset = doc.getElementById("devtoolsKeyset");
-    if (!devtoolsKeyset) {
-      devtoolsKeyset = doc.createElement("keyset");
-      devtoolsKeyset.setAttribute("id", "devtoolsKeyset");
-    }
-    devtoolsKeyset.appendChild(keys);
-    let mainKeyset = doc.getElementById("mainKeyset");
-    mainKeyset.parentNode.insertBefore(devtoolsKeyset, mainKeyset);
-  },
-
-  /**
    * Add the menuitem for a tool to all open browser windows.
    *
    * @param {object} toolDefinition
@@ -388,7 +366,7 @@ let gDevToolsBrowser = {
       doc.getElementById("mainCommandSet").appendChild(elements.cmd);
 
       if (elements.key) {
-        this.attachKeybindingsToBrowser(doc, elements.keys);
+        doc.getElementById("mainKeyset").appendChild(elements.key);
       }
 
       doc.getElementById("mainBroadcasterSet").appendChild(elements.bc);
@@ -442,7 +420,8 @@ let gDevToolsBrowser = {
     let mcs = doc.getElementById("mainCommandSet");
     mcs.appendChild(fragCommands);
 
-    this.attachKeybindingsToBrowser(doc, fragKeys);
+    let mks = doc.getElementById("mainKeyset");
+    mks.appendChild(fragKeys);
 
     let mbs = doc.getElementById("mainBroadcasterSet");
     mbs.appendChild(fragBroadcasters);
