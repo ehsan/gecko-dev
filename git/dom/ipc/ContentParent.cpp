@@ -34,7 +34,7 @@
 #include "mozilla/dom/bluetooth/PBluetoothParent.h"
 #include "mozilla/dom/PFMRadioParent.h"
 #include "mozilla/dom/devicestorage/DeviceStorageRequestParent.h"
-#include "mozilla/dom/telephony/TelephonyParent.h"
+#include "mozilla/dom/GeolocationBinding.h"
 #include "SmsParent.h"
 #include "mozilla/Hal.h"
 #include "mozilla/hal_sandbox/PHalParent.h"
@@ -148,9 +148,7 @@ using namespace mozilla::dom::devicestorage;
 using namespace mozilla::dom::indexedDB;
 using namespace mozilla::dom::power;
 using namespace mozilla::dom::mobilemessage;
-using namespace mozilla::dom::telephony;
 using namespace mozilla::hal;
-using namespace mozilla::idl;
 using namespace mozilla::ipc;
 using namespace mozilla::layers;
 using namespace mozilla::net;
@@ -2246,25 +2244,6 @@ ContentParent::DeallocPSmsParent(PSmsParent* aSms)
     return true;
 }
 
-PTelephonyParent*
-ContentParent::AllocPTelephonyParent()
-{
-    if (!AssertAppProcessPermission(this, "telephony")) {
-        return nullptr;
-    }
-
-    TelephonyParent* actor = new TelephonyParent();
-    NS_ADDREF(actor);
-    return actor;
-}
-
-bool
-ContentParent::DeallocPTelephonyParent(PTelephonyParent* aActor)
-{
-    static_cast<TelephonyParent*>(aActor)->Release();
-    return true;
-}
-
 PStorageParent*
 ContentParent::AllocPStorageParent()
 {
@@ -2642,8 +2621,8 @@ AddGeolocationListener(nsIDOMGeoPositionCallback* watcher, bool highAccuracy)
     return -1;
   }
 
-  GeoPositionOptions* options = new GeoPositionOptions();
-  options->enableHighAccuracy = highAccuracy;
+  PositionOptions* options = new PositionOptions();
+  options->mEnableHighAccuracy = highAccuracy;
   int32_t retval = 1;
   geo->WatchPosition(watcher, nullptr, options, &retval);
   return retval;

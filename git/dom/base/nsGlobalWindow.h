@@ -34,7 +34,6 @@
 #include "nsEventListenerManager.h"
 #include "nsIPrincipal.h"
 #include "nsSize.h"
-#include "nsRect.h"
 #include "mozFlushType.h"
 #include "prclist.h"
 #include "nsIDOMStorageEvent.h"
@@ -49,6 +48,7 @@
 
 #include "mozilla/dom/EventTarget.h"
 #include "Units.h"
+#include "nsComponentManagerUtils.h"
 
 #ifdef MOZ_B2G
 #include "nsIDOMWindowB2G.h"
@@ -97,7 +97,8 @@ class nsGlobalWindow;
 class nsDOMEventTargetHelper;
 class nsDOMWindowUtils;
 class nsIIdleService;
-class nsIntSize;
+struct nsIntSize;
+struct nsRect;
 
 class nsWindowSizes;
 
