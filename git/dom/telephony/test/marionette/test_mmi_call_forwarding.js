@@ -112,14 +112,15 @@ function testSetCallForwarding(aData) {
     is(aEvent.timeSeconds, aData.timeSeconds, "check timeSeconds");
     is(aEvent.serviceClass, aData.serviceClass, "check serviceClass");
   }));
-
-  // Check MMI result.
-  promises.push(gSendMMI(MMI_CODE).then(aResult => {
-    ok(aResult.success, "success");
-    is(aResult.serviceCode, "scCallForwarding", "Check service code");
-    is(aResult.statusMessage, "smServiceRegistered", "Check status message");
-    is(aResult.additionalInformation, undefined, "Check additional information");
-  }));
+  // Check DOMRequest's result.
+  promises.push(sendMMI(MMI_CODE)
+    .then(function resolve(aResult) {
+      is(aResult.serviceCode, "scCallForwarding", "Check service code");
+      is(aResult.statusMessage, "smServiceRegistered", "Check status message");
+      is(aResult.additionalInformation, undefined, "Check additional information");
+    }, function reject(aError) {
+      ok(false, "got '" + aError.name + "' error");
+    }));
 
   return Promise.all(promises);
 }
@@ -129,28 +130,30 @@ function testGetCallForwarding(aExpectedData) {
   let MMI_CODE = "*#" + CF_REASON_TO_MMI[aExpectedData.reason] + "#";
   log("Test " + MMI_CODE);
 
-  return gSendMMI(MMI_CODE).then(aResult => {
-    ok(aResult.success, "success");
-    is(aResult.serviceCode, "scCallForwarding", "Check service code");
-    is(aResult.statusMessage, "smServiceInterrogated", "Check status message");
-    ok(Array.isArray(aResult.additionalInformation),
-       "additionalInformation should be an array");
+  return sendMMI(MMI_CODE)
+    .then(function resolve(aResult) {
+      is(aResult.serviceCode, "scCallForwarding", "Check service code");
+      is(aResult.statusMessage, "smServiceInterrogated", "Check status message");
+      is(Array.isArray(aResult.additionalInformation), true,
+         "additionalInformation should be an array");
 
-    for (let i = 0; i < aResult.additionalInformation.length; i++) {
-     let result = aResult.additionalInformation[i];
+      for (let i = 0; i < aResult.additionalInformation.length; i++) {
+        let result = aResult.additionalInformation[i];
 
-     // Only need to check the result containing the serviceClass that we are
-     // interested in.
-     if (!(result.serviceClass & aExpectedData.serviceClass)) {
-       continue;
-     }
+        // Only need to check the result containing the serviceClass that we are
+        // interested in.
+        if (!(result.serviceClass & aExpectedData.serviceClass)) {
+          continue;
+        }
 
-     is(result.active, true, "check active");
-     is(result.reason, aExpectedData.reason, "check reason");
-     is(result.number, aExpectedData.number, "check number");
-     is(result.timeSeconds, aExpectedData.timeSeconds, "check timeSeconds");
-    }
-  });
+        is(result.active, true, "check active");
+        is(result.reason, aExpectedData.reason, "check reason");
+        is(result.number, aExpectedData.number, "check number");
+        is(result.timeSeconds, aExpectedData.timeSeconds, "check timeSeconds");
+      }
+    }, function reject(aError) {
+      ok(false, MMI_CODE + " got error: " + aError.name);
+    });
 }
 
 function clearAllCallForwardingSettings() {
@@ -182,11 +185,8 @@ startTestWithPermissions(['mobileconnection'], function() {
     promise = promise.then(() => testSetCallForwarding(data))
                      .then(() => testGetCallForwarding(data));
   }
-
   // reset call forwarding settings.
-  return promise.then(() => clearAllCallForwardingSettings())
-    .then(null, cause => {
-      ok(false, 'promise rejects during test: ' + cause);
-    })
+  return promise.then(null, () => { ok(false, "promise reject during test"); })
+    .then(() => clearAllCallForwardingSettings())
     .then(finish);
 });

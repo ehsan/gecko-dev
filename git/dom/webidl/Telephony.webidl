@@ -20,10 +20,10 @@ interface Telephony : EventTarget {
    * Make a phone call or send the mmi code depending on the number provided.
    *
    * TelephonyCall - for call setup
-   * MMICall - for MMI code
+   * DOMRequest - for MMI code
    */
   [Throws]
-  Promise<(TelephonyCall or MMICall)> dial(DOMString number, optional unsigned long serviceId);
+  Promise<(TelephonyCall or DOMRequest)> dial(DOMString number, optional unsigned long serviceId);
 
   [Throws]
   Promise<TelephonyCall> dialEmergency(DOMString number, optional unsigned long serviceId);
