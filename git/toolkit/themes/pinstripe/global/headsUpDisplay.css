@@ -36,9 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-%include shared.inc
-@namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
-
 .hud-box {
     border-bottom: 1px solid #aaa;
 }
@@ -59,9 +56,10 @@
     font-weight: bold;
 }
 
-.hud-output-node div {
+.hud-output-node * {
     -moz-user-select: text;
     white-space: pre-wrap;
+    -moz-user-focus: normal;
 }
 
 .hud-output-node .hud-network {
@@ -110,6 +108,12 @@
 
 .hud-group:first-child .hud-divider {
     display: none;
+}
+
+.hud-filter-cat {
+    color: #6b6b6b;
+    font-weight: bold;
+    margin: 0px 12px 0px 0px;
 }
 
 /* JSTerm Styles */
@@ -164,7 +168,6 @@
 
 /* these need to be revised ... */
 .hud-console-filter-toolbar {
-    background: @scopeBarBackground@ !important;
-    padding: 4px 1px;
+    padding: 1px 0px;
     -moz-box-align: center;
 }

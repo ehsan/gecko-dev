@@ -132,9 +132,6 @@ class GeckoAppShell
         System.loadLibrary("ssl3");
         System.loadLibrary("smime3");
 
-        // JS
-        System.loadLibrary("mozjs");
-
         // XUL
         System.loadLibrary("xul");
 
@@ -157,7 +154,7 @@ class GeckoAppShell
         sGeckoRunning = true;
 
         // First argument is the .apk path
-        String combinedArgs = apkPath;
+        String combinedArgs = apkPath + " -omnijar " + apkPath;
         if (args != null)
             combinedArgs += " " + args;
         if (url != null)
