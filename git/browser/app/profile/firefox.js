@@ -447,8 +447,8 @@ pref("browser.gesture.pinch.out.shift", "cmd_fullZoomReset");
 pref("browser.gesture.pinch.in.shift", "cmd_fullZoomReset");
 pref("browser.gesture.twist.latched", false);
 pref("browser.gesture.twist.threshold", 25);
-pref("browser.gesture.twist.right", "");
-pref("browser.gesture.twist.left", "");
+pref("browser.gesture.twist.right", "Browser:NextTab");
+pref("browser.gesture.twist.left", "Browser:PrevTab");
 pref("browser.gesture.tap", "cmd_fullZoomReset");
 
 // 0=lines, 1=pages, 2=history , 3=text size
@@ -822,10 +822,3 @@ pref("browser.bookmarks.editDialog.firstEditField", "namePicker");
 
 // base url for the wifi geolocation network provider
 pref("geo.wifi.uri", "https://www.google.com/loc/json");
-
-// Whether to use a panel that looks like an OS X sheet for customization
-#ifdef XP_MACOSX
-pref("toolbar.customization.usesheet", true);
-#else
-pref("toolbar.customization.usesheet", false);
-#endif

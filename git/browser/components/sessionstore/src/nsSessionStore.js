@@ -326,10 +326,8 @@ SessionStoreService.prototype = {
       this._loadState = STATE_QUITTING;
       break;
     case "quit-application":
-      if (aData == "restart") {
+      if (aData == "restart")
         this._prefBranch.setBoolPref("sessionstore.resume_session_once", true);
-        this._clearingOnShutdown = false;
-      }
       this._loadState = STATE_QUITTING; // just to be sure
       this._uninit();
       break;

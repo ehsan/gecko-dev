@@ -141,7 +141,6 @@
 #include "nsRange.h"
 #include "mozAutoDocUpdate.h"
 #include "nsCCUncollectableMarker.h"
-#include "prprf.h"
 
 #define NS_MAX_DOCUMENT_WRITE_DEPTH 20
 
@@ -2392,20 +2391,6 @@ nsHTMLDocument::GetHeight(PRInt32* aHeight)
   return GetBodySize(&width, aHeight);
 }
 
-static void
-LegacyRGBToHex(nscolor aColor, nsAString& aResult)
-{
-  if (NS_GET_A(aColor) == 255) {
-    char buf[10];
-    PR_snprintf(buf, sizeof(buf), "#%02x%02x%02x",
-                NS_GET_R(aColor), NS_GET_G(aColor), NS_GET_B(aColor));
-    CopyASCIItoUTF16(buf, aResult);
-  } else {
-    NS_NOTREACHED("non-opaque color property cannot be stringified");
-    aResult.Truncate();
-  }
-}
-
 NS_IMETHODIMP
 nsHTMLDocument::GetAlinkColor(nsAString& aAlinkColor)
 {
@@ -2419,7 +2404,7 @@ nsHTMLDocument::GetAlinkColor(nsAString& aAlinkColor)
     nscolor color;
     nsresult rv = mAttrStyleSheet->GetActiveLinkColor(color);
     if (NS_SUCCEEDED(rv)) {
-      LegacyRGBToHex(color, aAlinkColor);
+      NS_RGBToHex(color, aAlinkColor);
     }
   }
 
@@ -2458,7 +2443,7 @@ nsHTMLDocument::GetLinkColor(nsAString& aLinkColor)
     nscolor color;
     nsresult rv = mAttrStyleSheet->GetLinkColor(color);
     if (NS_SUCCEEDED(rv)) {
-      LegacyRGBToHex(color, aLinkColor);
+      NS_RGBToHex(color, aLinkColor);
     }
   }
 
@@ -2497,7 +2482,7 @@ nsHTMLDocument::GetVlinkColor(nsAString& aVlinkColor)
     nscolor color;
     nsresult rv = mAttrStyleSheet->GetVisitedLinkColor(color);
     if (NS_SUCCEEDED(rv)) {
-      LegacyRGBToHex(color, aVlinkColor);
+      NS_RGBToHex(color, aVlinkColor);
     }
   }
 

@@ -106,9 +106,7 @@ public:
 
   // Called by the video decoder object, on the main thread,
   // when it has read the first frame of the video
-  // aResourceFullyLoaded should be true if the resource has been
-  // fully loaded and the caller will call ResourceLoaded next.
-  void FirstFrameLoaded(PRBool aResourceFullyLoaded);
+  void FirstFrameLoaded();
 
   // Called by the video decoder object, on the main thread,
   // when the resource has completed downloading.

@@ -90,15 +90,6 @@ oggplay_callback_theora (OGGZ * oggz, ogg_packet * op, long serialno,
   int                     musec;
 #endif
 
-  if ( (granulepos > 0) && (common->last_granulepos > granulepos)) {
-    /* 
-     * the granule position is not monotonically increasing,
-     * something wrong with the page!
-     * skipping this page..... 
-     */
-    return 0;
-  }
-
   /*
    * always decode headers
    */
@@ -169,19 +160,10 @@ oggplay_callback_theora (OGGZ * oggz, ogg_packet * op, long serialno,
 #endif
 
   if (granulepos != -1) {
-    /* 
-     * save last granule position in order to be able to validate
-     * that it's monotonically increasing
-     */
-    common->last_granulepos = granulepos;
-
-    /* calculate the frame number */
     granuleshift = oggz_get_granuleshift(oggz, serialno);
     frame = (granulepos >> granuleshift);
     frame += (granulepos & ((1 << granuleshift) - 1));
-    
-    /* calculate the current location in the stream */
-    common->current_loc = frame * common->granuleperiod;    
+    common->current_loc = frame * common->granuleperiod;
   } else {
     common->current_loc = -1;
   }
@@ -554,7 +536,7 @@ oggplay_initialise_decoder(OggPlay *me, int content_type, int serialno) {
   decoder->content_type = content_type;
   decoder->content_type_name =
           oggz_stream_get_content_type (me->oggz, serialno);
-  decoder->active = 0;
+  decoder->active = 1;
   decoder->final_granulepos = -1;
   decoder->player = me;
   decoder->decoded_type = OGGPLAY_TYPE_UNKNOWN;

@@ -131,20 +131,14 @@ LOCAL_INCLUDES	= \
 		-I$(srcdir)/../reflect/xptinfo/src \
 		$(NULL)
 
-EXPORTS_NAMESPACES = mozilla
-
 SDK_HEADERS =  \
-  nsXPCOM.h       \
-  nsXPCOMCID.h    \
-  $(NULL)
+		nsXPCOM.h       \
+		nsXPCOMCID.h    \
+		$(NULL)
 
 EXPORTS	= \
-  nsXPCOMCIDInternal.h \
-  $(NULL)
-
-EXPORTS_mozilla = \
-  XPCOM.h \
-  $(NULL)
+		nsXPCOMCIDInternal.h \
+		$(NULL)
 
 # Force use of PIC
 FORCE_USE_PIC	= 1 

@@ -36,7 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/TimeStamp.h"
+#include "nsTimeStamp.h"
 #include "prlock.h"
 
 namespace mozilla {

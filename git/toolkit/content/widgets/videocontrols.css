@@ -7,7 +7,3 @@
 .scrubber .scale-thumb {
     -moz-binding: url("chrome://global/content/bindings/videocontrols.xml#timeThumb");
 }
-
-.mediaControlsFrame {
-    direction: ltr;
-}

@@ -136,11 +136,12 @@ void nsFloatManager::Shutdown()
 }
 
 nsFlowAreaRect
-nsFloatManager::GetFlowArea(nscoord aYOffset, BandInfoType aInfoType,
-                            nscoord aHeight, nscoord aContentAreaWidth,
-                            SavedState* aState) const
+nsFloatManager::GetBand(nscoord aYOffset,
+                        nscoord aMaxHeight,
+                        nscoord aContentAreaWidth,
+                        SavedState* aState) const
 {
-  NS_ASSERTION(aHeight >= 0, "unexpected max height");
+  NS_ASSERTION(aMaxHeight >= 0, "unexpected max height");
   NS_ASSERTION(aContentAreaWidth >= 0, "unexpected content area width");
 
   nscoord top = aYOffset + mY;
@@ -165,15 +166,14 @@ nsFloatManager::GetFlowArea(nscoord aYOffset, BandInfoType aInfoType,
   if (floatCount == 0 ||
       (mFloats[floatCount-1].mLeftYMost <= top &&
        mFloats[floatCount-1].mRightYMost <= top)) {
-    return nsFlowAreaRect(0, aYOffset, aContentAreaWidth, aHeight, PR_FALSE);
+    return nsFlowAreaRect(0, aYOffset, aContentAreaWidth, aMaxHeight, PR_FALSE);
   }
 
   nscoord bottom;
-  if (aHeight == nscoord_MAX) {
-    NS_ASSERTION(aInfoType == BAND_FROM_POINT, "bad height");
+  if (aMaxHeight == nscoord_MAX) {
     bottom = nscoord_MAX;
   } else {
-    bottom = top + aHeight;
+    bottom = top + aMaxHeight;
     if (bottom < top || bottom > nscoord_MAX) {
       NS_WARNING("bad value");
       bottom = nscoord_MAX;
@@ -202,23 +202,16 @@ nsFloatManager::GetFlowArea(nscoord aYOffset, BandInfoType aInfoType,
       continue;
     }
     nscoord floatTop = fi.mRect.y, floatBottom = fi.mRect.YMost();
-    if (top < floatTop && aInfoType == BAND_FROM_POINT) {
+    if (floatTop > top) {
       // This float is below our band.  Shrink our band's height if needed.
       if (floatTop < bottom) {
         bottom = floatTop;
       }
-    }
-    // If top == bottom (which happens only with WIDTH_WITHIN_HEIGHT),
-    // we include floats that begin at our 0-height vertical area.  We
-    // need to to this to satisfy the invariant that a
-    // WIDTH_WITHIN_HEIGHT call is at least as narrow on both sides as a
-    // BAND_WITHIN_POINT call beginning at its top.
-    else if (top < floatBottom &&
-             (floatTop < bottom || (floatTop == bottom && top == bottom))) {
+    } else if (floatBottom > top) {
       // This float is in our band.
 
       // Shrink our band's height if needed.
-      if (floatBottom < bottom && aInfoType == BAND_FROM_POINT) {
+      if (floatBottom < bottom) {
         bottom = floatBottom;
       }
 

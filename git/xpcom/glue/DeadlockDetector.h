@@ -47,7 +47,7 @@
 #include "nsTArray.h"
 
 #ifdef NS_TRACE_MALLOC
-#  include "nsTraceMalloc.h"
+#  include "tracemalloc/nsTraceMalloc.h"
 #endif  // ifdef NS_TRACE_MALLOC
 
 namespace mozilla {

@@ -440,8 +440,7 @@ function doDragStartSynthetic(event)
   is(event.type, "dragstart", "synthetic dragstart event type");
 
   var dt = event.dataTransfer;
-  todo(dt instanceof DataTransfer, "synthetic dragstart dataTransfer is DataTransfer");
-//  Uncomment next line once the todo instanceof above is fixed.
+//  ok(dt instanceof DataTransfer, "synthetic dragstart dataTransfer is DataTransfer");
 //  checkTypes(dt, [], 0, "synthetic dragstart");
 
   is(event.detail, 1, "synthetic dragstart detail");
@@ -456,9 +455,8 @@ function doDragStartSynthetic(event)
   is(event.button, 0, "synthetic dragstart button ");
   is(event.relatedTarget, null, "synthetic dragstart relatedTarget");
 
-//  Uncomment next two lines once the todo instanceof above is fixed.
-//  dt.setData("text/plain", "Text");
-//  is(dt.getData("text/plain"), "Text", "synthetic dragstart data is set after adding");
+  dt.setData("text/plain", "Text");
+  is(dt.getData("text/plain"), "Text", "synthetic dragstart data is set after adding");
 }
 
 function doDragOverSynthetic(event)
@@ -466,8 +464,7 @@ function doDragOverSynthetic(event)
   is(event.type, "dragover", "synthetic dragover event type");
 
   var dt = event.dataTransfer;
-  todo(dt instanceof DataTransfer, "synthetic dragover dataTransfer is DataTransfer");
-//  Uncomment next line once the todo instanceof above is fixed.
+//  ok(dt instanceof DataTransfer, "synthetic dragover dataTransfer is DataTransfer");
 // checkTypes(dt, [], 0, "synthetic dragover");
 
   is(event.detail, 0, "synthetic dragover detail");
@@ -482,9 +479,8 @@ function doDragOverSynthetic(event)
   is(event.button, 2, "synthetic dragover button");
   is(event.relatedTarget, document.documentElement, "synthetic dragover relatedTarget");
 
-//  Uncomment next two lines once the todo instanceof above is fixed.
-//  dt.setData("text/plain", "Text");
-//  is(dt.getData("text/plain"), "Text", "synthetic dragover data is set after adding");
+  dt.setData("text/plain", "Text");
+  is(dt.getData("text/plain"), "Text", "synthetic dragover data is set after adding");
 }
 
 function onDragStartDraggable(event)
