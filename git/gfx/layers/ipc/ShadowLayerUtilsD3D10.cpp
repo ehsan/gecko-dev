@@ -21,7 +21,7 @@ namespace layers {
 // D3D10 doesn't need all these yet.
 bool
 ISurfaceAllocator::PlatformAllocSurfaceDescriptor(const gfxIntSize&,
-                                                  gfxContentType,
+                                                  gfxASurface::gfxContentType,
                                                   uint32_t,
                                                   SurfaceDescriptor*)
 {

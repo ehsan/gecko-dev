@@ -6,15 +6,9 @@
 
 MODULE = 'imglib2'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsImageModule.cpp',
 ]
 
 LIBRARY_NAME = 'imglib2'
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-EXPORT_LIBRARY = True
 

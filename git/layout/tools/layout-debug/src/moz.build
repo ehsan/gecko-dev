@@ -15,7 +15,7 @@ EXPORTS += [
     'nsLayoutDebugCIID.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'nsDebugFactory.cpp',
     'nsLayoutDebugCLH.cpp',
     'nsLayoutDebuggingTools.cpp',
@@ -23,10 +23,4 @@ SOURCES += [
 ]
 
 LIBRARY_NAME = 'gkdebug'
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-EXPORT_LIBRARY = True
 

@@ -48,7 +48,6 @@ struct DeviceAttachmentsD3D11
   RefPtr<ID3D11PixelShader> mRGBAShader[3];
   RefPtr<ID3D11PixelShader> mRGBShader[2];
   RefPtr<ID3D11PixelShader> mYCbCrShader[2];
-  RefPtr<ID3D11PixelShader> mComponentAlphaShader[2];
   RefPtr<ID3D11Buffer> mPSConstantBuffer;
   RefPtr<ID3D11Buffer> mVSConstantBuffer;
   RefPtr<ID3D11RasterizerState> mRasterizerState;
@@ -56,14 +55,11 @@ struct DeviceAttachmentsD3D11
   RefPtr<ID3D11SamplerState> mPointSamplerState;
   RefPtr<ID3D11BlendState> mPremulBlendState;
   RefPtr<ID3D11BlendState> mNonPremulBlendState;
-  RefPtr<ID3D11BlendState> mComponentBlendState;
 };
 
 CompositorD3D11::CompositorD3D11(nsIWidget* aWidget)
-  : mAttachments(nullptr)
-  , mWidget(aWidget)
-  , mHwnd(nullptr)
-  , mDisableSequenceForNextFrame(false)
+  : mWidget(aWidget)
+  , mAttachments(nullptr)
 {
   sBackend = LAYERS_D3D11;
 }
@@ -109,8 +105,6 @@ CompositorD3D11::Initialize()
   if (!mContext) {
     return false;
   }
-
-  mHwnd = (HWND)mWidget->GetNativeData(NS_NATIVE_WINDOW);
 
   memset(&mVSConstants, 0, sizeof(VertexShaderConstants));
 
@@ -224,24 +218,6 @@ CompositorD3D11::Initialize()
     if (FAILED(hr)) {
       return false;
     }
-
-    if (gfxPlatform::ComponentAlphaEnabled()) {
-      D3D11_RENDER_TARGET_BLEND_DESC rtBlendComponent = {
-        TRUE,
-        D3D11_BLEND_ONE,
-        D3D11_BLEND_INV_SRC1_COLOR,
-        D3D11_BLEND_OP_ADD,
-        D3D11_BLEND_ONE,
-        D3D11_BLEND_INV_SRC_ALPHA,
-        D3D11_BLEND_OP_ADD,
-        D3D11_COLOR_WRITE_ENABLE_ALL
-      };
-      blendDesc.RenderTarget[0] = rtBlendComponent;
-      hr = mDevice->CreateBlendState(&blendDesc, byRef(mAttachments->mComponentBlendState));
-      if (FAILED(hr)) {
-        return false;
-      }
-    }
   }
 
   nsRefPtr<IDXGIDevice> dxgiDevice;
@@ -271,7 +247,7 @@ CompositorD3D11::Initialize()
     swapDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     // Use double buffering to enable flip
     swapDesc.BufferCount = 2;
-    swapDesc.Scaling = DXGI_SCALING_NONE;
+    swapDesc.Scaling = DXGI_SCALING_STRETCH;
     // All Metro style apps must use this SwapEffect
     swapDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
     swapDesc.Flags = 0;
@@ -306,7 +282,7 @@ CompositorD3D11::Initialize()
     swapDesc.SampleDesc.Quality = 0;
     swapDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     swapDesc.BufferCount = 1;
-    swapDesc.OutputWindow = mHwnd;
+    swapDesc.OutputWindow = (HWND)mWidget->GetNativeData(NS_NATIVE_WINDOW);
     swapDesc.Windowed = TRUE;
     // We don't really need this flag, however it seems on some NVidia hardware
     // smaller area windows do not present properly without this flag. This flag
@@ -349,7 +325,7 @@ CompositorD3D11::GetTextureFactoryIdentifier()
 }
 
 bool
-CompositorD3D11::CanUseCanvasLayerForSize(const gfx::IntSize& aSize)
+CompositorD3D11::CanUseCanvasLayerForSize(const gfxIntSize& aSize)
 {
   int32_t maxTextureSize = GetMaxTextureSize();
 
@@ -375,10 +351,6 @@ CompositorD3D11::CreateRenderTarget(const gfx::IntRect& aRect,
 
   RefPtr<ID3D11Texture2D> texture;
   mDevice->CreateTexture2D(&desc, nullptr, byRef(texture));
-  NS_ASSERTION(texture, "Could not create texture");
-  if (!texture) {
-    return nullptr;
-  }
 
   RefPtr<CompositingRenderTargetD3D11> rt = new CompositingRenderTargetD3D11(texture);
   rt->SetSize(IntSize(aRect.width, aRect.height));
@@ -401,10 +373,6 @@ CompositorD3D11::CreateRenderTargetFromSource(const gfx::IntRect &aRect,
 
   RefPtr<ID3D11Texture2D> texture;
   mDevice->CreateTexture2D(&desc, nullptr, byRef(texture));
-  NS_ASSERTION(texture, "Could not create texture");
-  if (!texture) {
-    return nullptr;
-  }
 
   if (aSource) {
     const CompositingRenderTargetD3D11* sourceD3D11 =
@@ -466,12 +434,6 @@ CompositorD3D11::SetPSForEffect(Effect* aEffect, MaskType aMaskType)
   case EFFECT_YCBCR:
     mContext->PSSetShader(mAttachments->mYCbCrShader[aMaskType], nullptr, 0);
     return;
-  case EFFECT_COMPONENT_ALPHA:
-    mContext->PSSetShader(mAttachments->mComponentAlphaShader[aMaskType], nullptr, 0);
-    return;
-  default:
-    NS_WARNING("No shader to load");
-    return;
   }
 }
 
@@ -491,7 +453,7 @@ CompositorD3D11::DrawQuad(const gfx::Rect& aRect,
 
   mPSConstants.layerOpacity[0] = aOpacity;
 
-  bool restoreBlendMode = false;
+  bool isPremultiplied = true;
 
   MaskType maskType = MaskNone;
 
@@ -559,10 +521,7 @@ CompositorD3D11::DrawQuad(const gfx::Rect& aRect,
       ID3D11ShaderResourceView* srView = view;
       mContext->PSSetShaderResources(0, 1, &srView);
 
-      if (!texturedEffect->mPremultiplied) {
-        mContext->OMSetBlendState(mAttachments->mNonPremulBlendState, sBlendFactor, 0xFFFFFFFF);
-        restoreBlendMode = true;
-      }
+      isPremultiplied = texturedEffect->mPremultiplied;
 
       SetSamplerForFilter(texturedEffect->mFilter);
     }
@@ -587,36 +546,16 @@ CompositorD3D11::DrawQuad(const gfx::Rect& aRect,
       mContext->PSSetShaderResources(0, 3, srViews);
     }
     break;
-  case EFFECT_COMPONENT_ALPHA:
-    {
-      MOZ_ASSERT(gfxPlatform::ComponentAlphaEnabled());
-      MOZ_ASSERT(mAttachments->mComponentBlendState);
-      EffectComponentAlpha* effectComponentAlpha =
-        static_cast<EffectComponentAlpha*>(aEffectChain.mPrimaryEffect.get());
-      TextureSourceD3D11* sourceOnWhite = effectComponentAlpha->mOnWhite->AsSourceD3D11();
-      TextureSourceD3D11* sourceOnBlack = effectComponentAlpha->mOnBlack->AsSourceD3D11();
-      SetSamplerForFilter(effectComponentAlpha->mFilter);
-
-      mVSConstants.textureCoords = effectComponentAlpha->mTextureCoords;
-      RefPtr<ID3D11ShaderResourceView> views[2];
-      mDevice->CreateShaderResourceView(sourceOnBlack->GetD3D11Texture(), nullptr, byRef(views[0]));
-      mDevice->CreateShaderResourceView(sourceOnWhite->GetD3D11Texture(), nullptr, byRef(views[1]));
-
-      ID3D11ShaderResourceView* srViews[2] = { views[0], views[1] };
-      mContext->PSSetShaderResources(0, 2, srViews);
-
-      mContext->OMSetBlendState(mAttachments->mComponentBlendState, sBlendFactor, 0xFFFFFFFF);
-      restoreBlendMode = true;
-    }
-    break;
   default:
-    NS_WARNING("Unknown shader type");
     return;
   }
   UpdateConstantBuffers();
 
+  if (!isPremultiplied) {
+    mContext->OMSetBlendState(mAttachments->mNonPremulBlendState, sBlendFactor, 0xFFFFFFFF);
+  }
   mContext->Draw(4, 0);
-  if (restoreBlendMode) {
+  if (!isPremultiplied) {
     mContext->OMSetBlendState(mAttachments->mPremulBlendState, sBlendFactor, 0xFFFFFFFF);
   }
 }
@@ -628,20 +567,9 @@ CompositorD3D11::BeginFrame(const Rect* aClipRectIn,
                             Rect* aClipRectOut,
                             Rect* aRenderBoundsOut)
 {
-  // Don't composite if we are minimised. Other than for the sake of efficency,
-  // this is important because resizing our buffers when mimised will fail and
-  // cause a crash when we're restored.
-  NS_ASSERTION(mHwnd, "Couldn't find an HWND when initialising?");
-  if (::IsIconic(mHwnd)) {
-    *aRenderBoundsOut = Rect();
-    return;
-  }
-
   UpdateRenderTarget();
 
-  // Failed to create a render target.
-  if (!mDefaultRT ||
-      mSize.width == 0 || mSize.height == 0) {
+  if (mSize.width == 0 || mSize.height == 0) {
     *aRenderBoundsOut = Rect();
     return;
   }
@@ -686,17 +614,11 @@ void
 CompositorD3D11::EndFrame()
 {
   mContext->Flush();
+  mSwapChain->Present(0, 0);
 
-  nsIntSize oldSize = mSize;
-  EnsureSize();
-  if (oldSize == mSize) {
-    mSwapChain->Present(0, mDisableSequenceForNextFrame ? DXGI_PRESENT_DO_NOT_SEQUENCE : 0);
-    mDisableSequenceForNextFrame = false;
-    if (mTarget) {
-      PaintToTarget();
-    }
+  if (mTarget) {
+    PaintToTarget();
   }
-  
   mCurrentRT = nullptr;
 }
 
@@ -750,15 +672,16 @@ CompositorD3D11::VerifyBufferSize()
 
   mDefaultRT = nullptr;
 
-  if (IsRunningInWindowsMetro()) {
-    mSwapChain->ResizeBuffers(2, mSize.width, mSize.height,
-                              DXGI_FORMAT_B8G8R8A8_UNORM,
-                              0);
-    mDisableSequenceForNextFrame = true;
-  } else if (gfxWindowsPlatform::IsOptimus()) {
+  if (gfxWindowsPlatform::IsOptimus()) {
     mSwapChain->ResizeBuffers(1, mSize.width, mSize.height,
                               DXGI_FORMAT_B8G8R8A8_UNORM,
                               0);
+#ifdef MOZ_METRO
+  } else if (IsRunningInWindowsMetro()) {
+    mSwapChain->ResizeBuffers(2, mSize.width, mSize.height,
+                              DXGI_FORMAT_B8G8R8A8_UNORM,
+                              0);
+#endif
   } else {
     mSwapChain->ResizeBuffers(1, mSize.width, mSize.height,
                               DXGI_FORMAT_B8G8R8A8_UNORM,
@@ -831,9 +754,6 @@ CompositorD3D11::CreateShaders()
   LOAD_PIXEL_SHADER(RGBShader);
   LOAD_PIXEL_SHADER(RGBAShader);
   LOAD_PIXEL_SHADER(YCbCrShader);
-  if (gfxPlatform::ComponentAlphaEnabled()) {
-    LOAD_PIXEL_SHADER(ComponentAlphaShader);
-  }
 
 #undef LOAD_PIXEL_SHADER
 
@@ -907,15 +827,17 @@ CompositorD3D11::PaintToTarget()
 
   D3D11_MAPPED_SUBRESOURCE map;
   mContext->Map(readTexture, 0, D3D11_MAP_READ, 0, &map);
-  RefPtr<DataSourceSurface> sourceSurface =
-    Factory::CreateWrappingDataSourceSurface((uint8_t*)map.pData,
-                                             map.RowPitch,
-                                             IntSize(bbDesc.Width, bbDesc.Height),
-                                             FORMAT_B8G8R8A8);
-  mTarget->CopySurface(sourceSurface,
-                       IntRect(0, 0, bbDesc.Width, bbDesc.Height),
-                       IntPoint());
-  mTarget->Flush();
+
+  nsRefPtr<gfxImageSurface> tmpSurface =
+    new gfxImageSurface((unsigned char*)map.pData,
+                        gfxIntSize(bbDesc.Width, bbDesc.Height),
+                        map.RowPitch,
+                        gfxASurface::ImageFormatARGB32);
+
+  mTarget->SetSource(tmpSurface);
+  mTarget->SetOperator(gfxContext::OPERATOR_SOURCE);
+  mTarget->Paint();
+
   mContext->Unmap(readTexture, 0);
 }
 

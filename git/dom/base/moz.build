@@ -14,6 +14,11 @@ XPIDL_SOURCES += [
     'nsISiteSpecificUserAgent.idl',
 ]
 
+XPIDL_FLAGS += [
+    '-I$(topsrcdir)/dom/interfaces/base',
+    '-I$(topsrcdir)/dom/interfaces/events',
+]
+
 MODULE = 'dom'
 
 EXPORTS += [
@@ -37,12 +42,13 @@ EXPORTS += [
     'nsIScriptGlobalObjectOwner.h',
     'nsIScriptNameSpaceManager.h',
     'nsIScriptObjectPrincipal.h',
+    'nsIScriptRuntime.h',
     'nsIScriptTimeoutHandler.h',
     'nsJSEnvironment.h',
     'nsJSUtils.h',
-    'nsPerformance.h',
     'nsPIDOMWindow.h',
     'nsPIWindowRoot.h',
+    'nsPerformance.h',
     'nsStructuredCloneContainer.h',
     'nsWindowMemoryReporter.h',
     'nsWrapperCache.h',
@@ -53,30 +59,23 @@ EXPORTS.mozilla.dom += [
     'BarProps.h',
     'DOMCursor.h',
     'DOMError.h',
-    'DOMException.h',
     'DOMRequest.h',
-    'MessageChannel.h',
-    'MessagePort.h',
-    'MessagePortList.h',
     'ScreenOrientation.h',
     'StructuredCloneTags.h',
     'URL.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'BarProps.cpp',
-    'CompositionStringSynthesizer.cpp',
     'Crypto.cpp',
     'DOMCursor.cpp',
     'DOMError.cpp',
-    'DOMException.cpp',
     'DOMRequest.cpp',
-    'MessageChannel.cpp',
-    'MessagePort.cpp',
-    'MessagePortList.cpp',
     'Navigator.cpp',
+    'URL.cpp',
     'nsContentPermissionHelper.cpp',
     'nsDOMClassInfo.cpp',
+    'nsDOMException.cpp',
     'nsDOMNavigationTiming.cpp',
     'nsDOMScriptObjectFactory.cpp',
     'nsDOMWindowList.cpp',
@@ -99,8 +98,6 @@ SOURCES += [
     'nsWindowMemoryReporter.cpp',
     'nsWindowRoot.cpp',
     'nsWrapperCache.cpp',
-    'URL.cpp',
-    'WindowNamedPropertiesHandler.cpp',
 ]
 
 EXTRA_COMPONENTS += [
@@ -116,38 +113,3 @@ EXTRA_JS_MODULES += [
     'IndexedDBHelper.jsm',
     'ObjectWrapper.jsm',
 ]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
-
-LIBRARY_NAME = 'jsdombase_s'
-
-LOCAL_INCLUDES += [
-    '../battery',
-    '../bluetooth',
-    '../icc/src',
-    '../media',
-    '../network/src',
-    '../src/geolocation',
-    '../src/storage',
-    '../time',
-    '/content/base/src',
-    '/content/events/src',
-    '/content/html/document/src',
-    '/content/xbl/src',
-    '/content/xul/document/src',
-    '/layout/generic',
-    '/layout/style',
-    '/layout/xul/base/src',
-]
-
-if CONFIG['MOZ_B2G_RIL']:
-    LOCAL_INCLUDES += [
-        '../fmradio',
-        '../system/gonk',
-    ]
-
-include('/ipc/chromium/chromium-config.mozbuild')

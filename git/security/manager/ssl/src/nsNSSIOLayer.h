@@ -14,7 +14,6 @@
 #include "nsDataHashtable.h"
 #include "nsTHashtable.h"
 #include "mozilla/TimeStamp.h"
-#include "sslt.h"
 
 namespace mozilla {
 namespace psm {
@@ -41,16 +40,21 @@ public:
   nsresult GetFileDescPtr(PRFileDesc** aFilePtr);
   nsresult SetFileDescPtr(PRFileDesc* aFilePtr);
 
-  bool IsHandshakePending() const { return mHandshakePending; }
-  void SetHandshakeNotPending() { mHandshakePending = false; }
+  nsresult GetHandshakePending(bool *aHandshakePending);
+  nsresult SetHandshakePending(bool aHandshakePending);
 
   void GetPreviousCert(nsIX509Cert** _result);
   
   void SetHasCleartextPhase(bool aHasCleartextPhase);
   bool GetHasCleartextPhase();
   
-  void SetTLSVersionRange(SSLVersionRange range) { mTLSVersionRange = range; }
-  SSLVersionRange GetTLSVersionRange() const { return mTLSVersionRange; };
+  void SetHandshakeInProgress(bool aIsIn);
+  bool GetHandshakeInProgress() { return mHandshakeInProgress; }
+  void SetFirstServerHelloReceived() { mFirstServerHelloReceived = true; }
+  bool GetFirstServerHelloReceived() { return mFirstServerHelloReceived; }
+  bool HandshakeTimeout();
+
+  void SetAllowTLSIntoleranceTimeout(bool aAllow);
 
   PRStatus CloseSocketAndDestroy(
                 const nsNSSShutDownPreventionLock & proofOfLock);
@@ -58,11 +62,6 @@ public:
   void SetNegotiatedNPN(const char *value, uint32_t length);
   void SetHandshakeCompleted(bool aResumedSession);
   void NoteTimeUntilReady();
-
-  // Note that this is only valid *during* a handshake; at the end of the handshake,
-  // it gets reset back to false.
-  void SetFullHandshake() { mIsFullHandshake = true; }
-  bool IsFullHandshake() const { return mIsFullHandshake; }
 
   bool GetJoined() { return mJoined; }
   void SetSentClientCert() { mSentClientCert = true; }
@@ -88,6 +87,12 @@ public:
   {
     return mCertVerificationState == waiting_for_cert_verification;
   }
+
+  bool IsSSL3Enabled() const { return mSSL3Enabled; }
+  void SetSSL3Enabled(bool enabled) { mSSL3Enabled = enabled; }
+  bool IsTLSEnabled() const { return mTLSEnabled; }
+  void SetTLSEnabled(bool enabled) { mTLSEnabled = enabled; }
+
   void AddPlaintextBytesRead(uint64_t val) { mPlaintextBytesRead += val; }
 
   bool IsPreliminaryHandshakeDone() const { return mPreliminaryHandshakeDone; }
@@ -120,9 +125,12 @@ private:
 
   mozilla::psm::SharedSSLState& mSharedState;
   bool mForSTARTTLS;
-  SSLVersionRange mTLSVersionRange;
+  bool mSSL3Enabled;
+  bool mTLSEnabled;
   bool mHandshakePending;
   bool mHasCleartextPhase;
+  bool mHandshakeInProgress;
+  bool mAllowTLSIntoleranceTimeout;
   bool mRememberClientAuthCertificate;
   bool mPreliminaryHandshakeDone; // after false start items are complete
   PRIntervalTime mHandshakeStartTime;
@@ -132,7 +140,6 @@ private:
 
   nsCString mNegotiatedNPN;
   bool      mNPNCompleted;
-  bool      mIsFullHandshake;
   bool      mHandshakeCompleted;
   bool      mJoined;
   bool      mSentClientCert;
@@ -165,43 +172,36 @@ public:
   static PRIOMethods nsSSLIOLayerMethods;
   static PRIOMethods nsSSLPlaintextLayerMethods;
 
+  mozilla::Mutex *mutex;
+  nsTHashtable<nsCStringHashKey> *mTLSIntolerantSites;
+  nsTHashtable<nsCStringHashKey> *mTLSTolerantSites;
+
   nsTHashtable<nsCStringHashKey> *mRenegoUnrestrictedSites;
   bool mTreatUnsafeNegotiationAsBroken;
   int32_t mWarnLevelMissingRFC5746;
 
   void setTreatUnsafeNegotiationAsBroken(bool broken);
   bool treatUnsafeNegotiationAsBroken();
+
   void setWarnLevelMissingRFC5746(int32_t level);
   int32_t getWarnLevelMissingRFC5746();
 
-private:
-  struct IntoleranceEntry
-  {
-    uint16_t tolerant;
-    uint16_t intolerant;
+  static void getSiteKey(nsNSSSocketInfo *socketInfo, nsCSubstring &key);
+  bool rememberPossibleTLSProblemSite(nsNSSSocketInfo *socketInfo);
+  void rememberTolerantSite(nsNSSSocketInfo *socketInfo);
 
-    void AssertInvariant() const
-    {
-      MOZ_ASSERT(intolerant == 0 || tolerant < intolerant);
-    }
-  };
-  nsDataHashtable<nsCStringHashKey, IntoleranceEntry> mTLSIntoleranceInfo;
-public:
-  void rememberTolerantAtVersion(const nsACString & hostname, int16_t port,
-                                 uint16_t tolerant);
-  bool rememberIntolerantAtVersion(const nsACString & hostname, int16_t port,
-                                   uint16_t intolerant, uint16_t minVersion);
-  void adjustForTLSIntolerance(const nsACString & hostname, int16_t port,
-                               /*in/out*/ SSLVersionRange & range);
+  void addIntolerantSite(const nsCString &str);
+  void removeIntolerantSite(const nsCString &str);
+  bool isKnownAsIntolerantSite(const nsCString &str);
 
   void setRenegoUnrestrictedSites(const nsCString &str);
   bool isRenegoUnrestrictedSite(const nsCString &str);
+
   void clearStoredData();
 
   bool mFalseStartRequireNPN;
   bool mFalseStartRequireForwardSecrecy;
 private:
-  mozilla::Mutex mutex;
   nsCOMPtr<nsIObserver> mPrefObserver;
 };
 

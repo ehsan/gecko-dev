@@ -7,11 +7,6 @@ let Ci = Components.interfaces;
 Components.utils.import("resource://gre/modules/Services.jsm");
 
 var ViewConfig = {
-  get _main() {
-    delete this._main;
-    return this._main = document.getElementById("main-container");
-  },
-
   get _container() {
     delete this._container;
     return this._container = document.getElementById("prefs-container");
@@ -23,7 +18,6 @@ var ViewConfig = {
   },
 
   init: function init() {
-    this._main.addEventListener("click", this, false);
     window.addEventListener("resize", this, false);
     window.addEventListener("prefchange", this, false);
     window.addEventListener("prefnew", this, false);
@@ -35,7 +29,6 @@ var ViewConfig = {
   },
 
   uninit: function uninit() {
-    this._main.removeEventListener("click", this, false);
     window.removeEventListener("resize", this, false);
     window.removeEventListener("prefchange", this, false);
     window.removeEventListener("prefnew", this, false);
@@ -43,6 +36,7 @@ var ViewConfig = {
 
   filter: function filter(aValue) {
     let row = document.getElementById("editor-row");
+    row.setAttribute("hidden", aValue != "");
 
     let container = this._container;
     container.scrollBoxObject.scrollTo(0, 0);
@@ -175,10 +169,6 @@ var ViewConfig = {
       case "prefnew":
         this._handlePrefChange(aEvent.detail, aEvent.type == "prefnew");
         break;
-
-      case "click":
-        this._onClick();
-        break;
     }
   },
 
@@ -188,12 +178,6 @@ var ViewConfig = {
     let height = window.innerHeight - textbox.getBoundingClientRect().height;
 
     mainBox.setAttribute("height", height);
-  },
-
-  _onClick: function () {
-    // Blur the search box when tapping anywhere else in the content
-    // in order to close the soft keyboard.
-    document.getElementById("textbox").blur();
   },
 
   _handlePrefChange: function _handlePrefChange(aIndex, aNew) {

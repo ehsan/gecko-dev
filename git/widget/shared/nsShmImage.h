@@ -16,8 +16,7 @@
 #ifdef MOZ_HAVE_SHMIMAGE
 
 #include "nsIWidget.h"
-#include "gfxTypes.h"
-#include "nsAutoPtr.h"
+#include "gfxASurface.h"
 
 #include "mozilla/X11Util.h"
 #include <X11/Xlib.h>
@@ -32,7 +31,6 @@
 
 class QRect;
 class QWidget;
-class gfxASurface;
 
 class nsShmImage {
     NS_INLINE_DECL_REFCOUNTING(nsShmImage)
@@ -40,7 +38,7 @@ class nsShmImage {
     typedef mozilla::ipc::SharedMemorySysV SharedMemorySysV;
 
 public:
-    typedef gfxImageFormat Format;
+    typedef gfxASurface::gfxImageFormat Format;
 
     static bool UseShm();
     static already_AddRefed<nsShmImage>

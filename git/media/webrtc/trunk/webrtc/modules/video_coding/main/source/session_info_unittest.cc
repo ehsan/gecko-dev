@@ -19,41 +19,34 @@ namespace webrtc {
 
 class TestSessionInfo : public ::testing::Test {
  protected:
+  enum { kPacketBufferSize = 10 };
+  enum { kFrameBufferSize = 10 * kPacketBufferSize };
+
   virtual void SetUp() {
-    memset(packet_buffer_, 0, sizeof(packet_buffer_));
-    memset(frame_buffer_, 0, sizeof(frame_buffer_));
+    memset(packet_buffer_, 0, kPacketBufferSize);
+    memset(frame_buffer_, 0, kFrameBufferSize);
     session_.Reset();
     packet_.Reset();
     packet_.frameType = kVideoFrameDelta;
-    packet_.sizeBytes = packet_buffer_size();
+    packet_.sizeBytes = kPacketBufferSize;
     packet_.dataPtr = packet_buffer_;
     packet_.seqNum = 0;
     packet_.timestamp = 0;
   }
 
   void FillPacket(uint8_t start_value) {
-    for (int i = 0; i < packet_buffer_size(); ++i)
+    for (int i = 0; i < kPacketBufferSize; ++i)
       packet_buffer_[i] = start_value + i;
   }
 
   void VerifyPacket(uint8_t* start_ptr, uint8_t start_value) {
-    for (int j = 0; j < packet_buffer_size(); ++j) {
+    for (int j = 0; j < kPacketBufferSize; ++j) {
       ASSERT_EQ(start_value + j, start_ptr[j]);
     }
   }
 
-  int packet_buffer_size() const {
-    return sizeof(packet_buffer_) / sizeof(packet_buffer_[0]);
-  }
-  int frame_buffer_size() const {
-    return sizeof(frame_buffer_) / sizeof(frame_buffer_[0]);
-  }
-
-  enum { kPacketBufferSize = 10 };
-
   uint8_t packet_buffer_[kPacketBufferSize];
-  uint8_t frame_buffer_[10 * kPacketBufferSize];
-
+  uint8_t frame_buffer_[kFrameBufferSize];
   VCMSessionInfo session_;
   VCMPacket packet_;
 };
@@ -74,12 +67,12 @@ class TestVP8Partitions : public TestSessionInfo {
   bool VerifyPartition(int partition_id,
                        int packets_expected,
                        int start_value) {
-    EXPECT_EQ(static_cast<uint32_t>(packets_expected * packet_buffer_size()),
+    EXPECT_EQ(static_cast<uint32_t>(packets_expected * kPacketBufferSize),
               fragmentation_.fragmentationLength[partition_id]);
     for (int i = 0; i < packets_expected; ++i) {
       int packet_index = fragmentation_.fragmentationOffset[partition_id] +
-          i * packet_buffer_size();
-      if (packet_index + packet_buffer_size() > frame_buffer_size())
+          i * kPacketBufferSize;
+      if (packet_index + kPacketBufferSize > kFrameBufferSize)
         return false;
       VerifyPacket(frame_buffer_ + packet_index, start_value + i);
     }
@@ -100,9 +93,9 @@ class TestNalUnits : public TestSessionInfo {
 
   bool VerifyNalu(int offset, int packets_expected, int start_value) {
     EXPECT_GE(session_.SessionLength(),
-              packets_expected * packet_buffer_size());
+              packets_expected * kPacketBufferSize);
     for (int i = 0; i < packets_expected; ++i) {
-      int packet_index = (offset + i) * packet_buffer_size();
+      int packet_index = offset * kPacketBufferSize + i * kPacketBufferSize;
       VerifyPacket(frame_buffer_ + packet_index, start_value + i);
     }
     return true;
@@ -111,7 +104,7 @@ class TestNalUnits : public TestSessionInfo {
 
 class TestNackList : public TestSessionInfo {
  protected:
-  static const size_t kMaxSeqNumListLength = 30;
+  enum { kMaxSeqNumListLength = 30 };
 
   virtual void SetUp() {
     TestSessionInfo::SetUp();
@@ -121,7 +114,7 @@ class TestNackList : public TestSessionInfo {
 
   void BuildSeqNumList(uint16_t low,
                        uint16_t high) {
-    size_t i = 0;
+    int i = 0;
     while (low != high + 1) {
       EXPECT_LT(i, kMaxSeqNumListLength);
       if (i >= kMaxSeqNumListLength) {
@@ -147,10 +140,10 @@ class TestNackList : public TestSessionInfo {
 TEST_F(TestSessionInfo, TestSimpleAPIs) {
   packet_.isFirstPacket = true;
   packet_.seqNum = 0xFFFE;
-  packet_.sizeBytes = packet_buffer_size();
+  packet_.sizeBytes = kPacketBufferSize;
   packet_.frameType = kVideoFrameKey;
   FillPacket(0);
-  ASSERT_EQ(packet_buffer_size(),
+  ASSERT_EQ(kPacketBufferSize,
             session_.InsertPacket(packet_, frame_buffer_, false, 0));
   EXPECT_FALSE(session_.HaveLastPacket());
   EXPECT_EQ(kVideoFrameKey, session_.FrameType());
@@ -158,7 +151,7 @@ TEST_F(TestSessionInfo, TestSimpleAPIs) {
   packet_.isFirstPacket = false;
   packet_.markerBit = true;
   packet_.seqNum += 1;
-  ASSERT_EQ(packet_buffer_size(),
+  ASSERT_EQ(kPacketBufferSize,
             session_.InsertPacket(packet_, frame_buffer_, false, 0));
   EXPECT_TRUE(session_.HaveLastPacket());
   EXPECT_EQ(packet_.seqNum, session_.HighSequenceNumber());
@@ -182,27 +175,27 @@ TEST_F(TestSessionInfo, NormalOperation) {
   packet_.markerBit = false;
   FillPacket(0);
   ASSERT_EQ(session_.InsertPacket(packet_, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
 
   packet_.isFirstPacket = false;
   for (int i = 1; i < 9; ++i) {
     packet_.seqNum += 1;
     FillPacket(i);
     ASSERT_EQ(session_.InsertPacket(packet_, frame_buffer_, false, 0),
-              packet_buffer_size());
+              kPacketBufferSize);
   }
 
   packet_.seqNum += 1;
   packet_.markerBit = true;
   FillPacket(9);
   ASSERT_EQ(session_.InsertPacket(packet_, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
 
   EXPECT_EQ(0, session_.packets_not_decodable());
-  EXPECT_EQ(10 * packet_buffer_size(), session_.SessionLength());
+  EXPECT_EQ(10 * kPacketBufferSize, session_.SessionLength());
   for (int i = 0; i < 10; ++i) {
     SCOPED_TRACE("Calling VerifyPacket");
-    VerifyPacket(frame_buffer_ + i * packet_buffer_size(), i);
+    VerifyPacket(frame_buffer_ + i * kPacketBufferSize, i);
   }
 }
 
@@ -215,10 +208,10 @@ TEST_F(TestVP8Partitions, TwoPartitionsOneLoss) {
   packet_header_.header.markerBit = false;
   packet_header_.header.sequenceNumber = 0;
   FillPacket(0);
-  VCMPacket* packet = new VCMPacket(packet_buffer_, packet_buffer_size(),
+  VCMPacket* packet = new VCMPacket(packet_buffer_, kPacketBufferSize,
                                     packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   packet_header_.type.Video.isFirstPacket = false;
@@ -227,9 +220,9 @@ TEST_F(TestVP8Partitions, TwoPartitionsOneLoss) {
   packet_header_.header.markerBit = false;
   packet_header_.header.sequenceNumber += 2;
   FillPacket(2);
-  packet = new VCMPacket(packet_buffer_, packet_buffer_size(), packet_header_);
+  packet = new VCMPacket(packet_buffer_, kPacketBufferSize, packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   packet_header_.type.Video.isFirstPacket = false;
@@ -238,16 +231,16 @@ TEST_F(TestVP8Partitions, TwoPartitionsOneLoss) {
   packet_header_.header.markerBit = true;
   packet_header_.header.sequenceNumber += 1;
   FillPacket(3);
-  packet = new VCMPacket(packet_buffer_, packet_buffer_size(), packet_header_);
+  packet = new VCMPacket(packet_buffer_, kPacketBufferSize, packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   // One packet should be removed (end of partition 0).
   EXPECT_EQ(session_.BuildVP8FragmentationHeader(frame_buffer_,
-                                                 frame_buffer_size(),
+                                                 kFrameBufferSize,
                                                  &fragmentation_),
-            2 * packet_buffer_size());
+            2*kPacketBufferSize);
   SCOPED_TRACE("Calling VerifyPartition");
   EXPECT_TRUE(VerifyPartition(0, 1, 0));
   SCOPED_TRACE("Calling VerifyPartition");
@@ -263,10 +256,10 @@ TEST_F(TestVP8Partitions, TwoPartitionsOneLoss2) {
   packet_header_.header.markerBit = false;
   packet_header_.header.sequenceNumber = 1;
   FillPacket(1);
-  VCMPacket* packet = new VCMPacket(packet_buffer_, packet_buffer_size(),
+  VCMPacket* packet = new VCMPacket(packet_buffer_, kPacketBufferSize,
                                     packet_header_);
-  ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+  ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0)
+            , kPacketBufferSize);
   delete packet;
 
   packet_header_.type.Video.isFirstPacket = false;
@@ -275,9 +268,9 @@ TEST_F(TestVP8Partitions, TwoPartitionsOneLoss2) {
   packet_header_.header.markerBit = false;
   packet_header_.header.sequenceNumber += 1;
   FillPacket(2);
-  packet = new VCMPacket(packet_buffer_, packet_buffer_size(), packet_header_);
+  packet = new VCMPacket(packet_buffer_, kPacketBufferSize, packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   packet_header_.type.Video.isFirstPacket = false;
@@ -286,9 +279,9 @@ TEST_F(TestVP8Partitions, TwoPartitionsOneLoss2) {
   packet_header_.header.markerBit = false;
   packet_header_.header.sequenceNumber += 1;
   FillPacket(3);
-  packet = new VCMPacket(packet_buffer_, packet_buffer_size(), packet_header_);
+  packet = new VCMPacket(packet_buffer_, kPacketBufferSize, packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   packet_header_.type.Video.isFirstPacket = false;
@@ -297,16 +290,16 @@ TEST_F(TestVP8Partitions, TwoPartitionsOneLoss2) {
   packet_header_.header.markerBit = true;
   packet_header_.header.sequenceNumber += 2;
   FillPacket(5);
-  packet = new VCMPacket(packet_buffer_, packet_buffer_size(), packet_header_);
+  packet = new VCMPacket(packet_buffer_, kPacketBufferSize, packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   // One packet should be removed (end of partition 2), 3 left.
   EXPECT_EQ(session_.BuildVP8FragmentationHeader(frame_buffer_,
-                                                 frame_buffer_size(),
+                                                 kFrameBufferSize,
                                                  &fragmentation_),
-            3 * packet_buffer_size());
+            3*kPacketBufferSize);
   SCOPED_TRACE("Calling VerifyPartition");
   EXPECT_TRUE(VerifyPartition(0, 2, 1));
   SCOPED_TRACE("Calling VerifyPartition");
@@ -323,10 +316,10 @@ TEST_F(TestVP8Partitions, TwoPartitionsNoLossWrap) {
   packet_header_.header.markerBit = false;
   packet_header_.header.sequenceNumber = 0xfffd;
   FillPacket(0);
-  VCMPacket* packet = new VCMPacket(packet_buffer_, packet_buffer_size(),
+  VCMPacket* packet = new VCMPacket(packet_buffer_, kPacketBufferSize,
                                     packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   packet_header_.type.Video.isFirstPacket = false;
@@ -335,9 +328,9 @@ TEST_F(TestVP8Partitions, TwoPartitionsNoLossWrap) {
   packet_header_.header.markerBit = false;
   packet_header_.header.sequenceNumber += 1;
   FillPacket(1);
-  packet = new VCMPacket(packet_buffer_, packet_buffer_size(), packet_header_);
+  packet = new VCMPacket(packet_buffer_, kPacketBufferSize, packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   packet_header_.type.Video.isFirstPacket = false;
@@ -346,9 +339,9 @@ TEST_F(TestVP8Partitions, TwoPartitionsNoLossWrap) {
   packet_header_.header.markerBit = false;
   packet_header_.header.sequenceNumber += 1;
   FillPacket(2);
-  packet = new VCMPacket(packet_buffer_, packet_buffer_size(), packet_header_);
+  packet = new VCMPacket(packet_buffer_, kPacketBufferSize, packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   packet_header_.type.Video.isFirstPacket = false;
@@ -357,16 +350,16 @@ TEST_F(TestVP8Partitions, TwoPartitionsNoLossWrap) {
   packet_header_.header.markerBit = true;
   packet_header_.header.sequenceNumber += 1;
   FillPacket(3);
-  packet = new VCMPacket(packet_buffer_, packet_buffer_size(), packet_header_);
+  packet = new VCMPacket(packet_buffer_, kPacketBufferSize, packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   // No packet should be removed.
   EXPECT_EQ(session_.BuildVP8FragmentationHeader(frame_buffer_,
-                                                 frame_buffer_size(),
+                                                 kFrameBufferSize,
                                                  &fragmentation_),
-            4 * packet_buffer_size());
+            4*kPacketBufferSize);
   SCOPED_TRACE("Calling VerifyPartition");
   EXPECT_TRUE(VerifyPartition(0, 2, 0));
   SCOPED_TRACE("Calling VerifyPartition");
@@ -383,10 +376,10 @@ TEST_F(TestVP8Partitions, TwoPartitionsLossWrap) {
   packet_header_.header.markerBit = false;
   packet_header_.header.sequenceNumber = 0xfffd;
   FillPacket(0);
-  VCMPacket* packet = new VCMPacket(packet_buffer_, packet_buffer_size(),
+  VCMPacket* packet = new VCMPacket(packet_buffer_, kPacketBufferSize,
                                     packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   packet_header_.type.Video.isFirstPacket = false;
@@ -395,9 +388,9 @@ TEST_F(TestVP8Partitions, TwoPartitionsLossWrap) {
   packet_header_.header.markerBit = false;
   packet_header_.header.sequenceNumber += 1;
   FillPacket(1);
-  packet = new VCMPacket(packet_buffer_, packet_buffer_size(), packet_header_);
+  packet = new VCMPacket(packet_buffer_, kPacketBufferSize, packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   packet_header_.type.Video.isFirstPacket = false;
@@ -406,9 +399,9 @@ TEST_F(TestVP8Partitions, TwoPartitionsLossWrap) {
   packet_header_.header.markerBit = false;
   packet_header_.header.sequenceNumber += 1;
   FillPacket(2);
-  packet = new VCMPacket(packet_buffer_, packet_buffer_size(), packet_header_);
+  packet = new VCMPacket(packet_buffer_, kPacketBufferSize, packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   packet_header_.type.Video.isFirstPacket = false;
@@ -417,16 +410,16 @@ TEST_F(TestVP8Partitions, TwoPartitionsLossWrap) {
   packet_header_.header.markerBit = true;
   packet_header_.header.sequenceNumber += 2;
   FillPacket(3);
-  packet = new VCMPacket(packet_buffer_, packet_buffer_size(), packet_header_);
+  packet = new VCMPacket(packet_buffer_, kPacketBufferSize, packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   // One packet should be removed from the last partition
   EXPECT_EQ(session_.BuildVP8FragmentationHeader(frame_buffer_,
-                                                 frame_buffer_size(),
+                                                 kFrameBufferSize,
                                                  &fragmentation_),
-            3 * packet_buffer_size());
+            3*kPacketBufferSize);
   SCOPED_TRACE("Calling VerifyPartition");
   EXPECT_TRUE(VerifyPartition(0, 2, 0));
   SCOPED_TRACE("Calling VerifyPartition");
@@ -444,10 +437,10 @@ TEST_F(TestVP8Partitions, ThreePartitionsOneMissing) {
   packet_header_.header.markerBit = false;
   packet_header_.header.sequenceNumber = 1;
   FillPacket(1);
-  VCMPacket* packet = new VCMPacket(packet_buffer_, packet_buffer_size(),
+  VCMPacket* packet = new VCMPacket(packet_buffer_, kPacketBufferSize,
                                     packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   packet_header_.type.Video.isFirstPacket = false;
@@ -456,9 +449,9 @@ TEST_F(TestVP8Partitions, ThreePartitionsOneMissing) {
   packet_header_.header.markerBit = false;
   packet_header_.header.sequenceNumber += 1;
   FillPacket(2);
-  packet = new VCMPacket(packet_buffer_, packet_buffer_size(), packet_header_);
+  packet = new VCMPacket(packet_buffer_, kPacketBufferSize, packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   packet_header_.type.Video.isFirstPacket = false;
@@ -467,9 +460,9 @@ TEST_F(TestVP8Partitions, ThreePartitionsOneMissing) {
   packet_header_.header.markerBit = false;
   packet_header_.header.sequenceNumber += 3;
   FillPacket(5);
-  packet = new VCMPacket(packet_buffer_, packet_buffer_size(), packet_header_);
+  packet = new VCMPacket(packet_buffer_, kPacketBufferSize, packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   packet_header_.type.Video.isFirstPacket = false;
@@ -478,16 +471,16 @@ TEST_F(TestVP8Partitions, ThreePartitionsOneMissing) {
   packet_header_.header.markerBit = true;
   packet_header_.header.sequenceNumber += 1;
   FillPacket(6);
-  packet = new VCMPacket(packet_buffer_, packet_buffer_size(), packet_header_);
+  packet = new VCMPacket(packet_buffer_, kPacketBufferSize, packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   // No packet should be removed.
   EXPECT_EQ(session_.BuildVP8FragmentationHeader(frame_buffer_,
-                                                 frame_buffer_size(),
+                                                 kFrameBufferSize,
                                                  &fragmentation_),
-            4 * packet_buffer_size());
+            4*kPacketBufferSize);
   SCOPED_TRACE("Calling VerifyPartition");
   EXPECT_TRUE(VerifyPartition(0, 2, 1));
   SCOPED_TRACE("Calling VerifyPartition");
@@ -504,10 +497,10 @@ TEST_F(TestVP8Partitions, ThreePartitionsLossInSecond) {
   packet_header_.header.markerBit = false;
   packet_header_.header.sequenceNumber = 1;
   FillPacket(1);
-  VCMPacket* packet = new VCMPacket(packet_buffer_, packet_buffer_size(),
+  VCMPacket* packet = new VCMPacket(packet_buffer_, kPacketBufferSize,
                                     packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   packet_header_.type.Video.isFirstPacket = false;
@@ -516,10 +509,9 @@ TEST_F(TestVP8Partitions, ThreePartitionsLossInSecond) {
   packet_header_.header.markerBit = false;
   packet_header_.header.sequenceNumber += 1;
   FillPacket(2);
-  packet = new VCMPacket(packet_buffer_, packet_buffer_size(),
-                         packet_header_);
+  packet = new VCMPacket(packet_buffer_, kPacketBufferSize, packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   packet_header_.type.Video.isFirstPacket = false;
@@ -528,9 +520,9 @@ TEST_F(TestVP8Partitions, ThreePartitionsLossInSecond) {
   packet_header_.header.markerBit = false;
   packet_header_.header.sequenceNumber += 2;
   FillPacket(4);
-  packet = new VCMPacket(packet_buffer_, packet_buffer_size(), packet_header_);
+  packet = new VCMPacket(packet_buffer_, kPacketBufferSize, packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   packet_header_.type.Video.isFirstPacket = false;
@@ -539,9 +531,9 @@ TEST_F(TestVP8Partitions, ThreePartitionsLossInSecond) {
   packet_header_.header.markerBit = false;
   packet_header_.header.sequenceNumber += 1;
   FillPacket(5);
-  packet = new VCMPacket(packet_buffer_, packet_buffer_size(), packet_header_);
+  packet = new VCMPacket(packet_buffer_, kPacketBufferSize, packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   packet_header_.type.Video.isFirstPacket = false;
@@ -550,9 +542,9 @@ TEST_F(TestVP8Partitions, ThreePartitionsLossInSecond) {
   packet_header_.header.markerBit = false;
   packet_header_.header.sequenceNumber += 1;
   FillPacket(6);
-  packet = new VCMPacket(packet_buffer_, packet_buffer_size(), packet_header_);
+  packet = new VCMPacket(packet_buffer_, kPacketBufferSize, packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   packet_header_.type.Video.isFirstPacket = false;
@@ -561,16 +553,16 @@ TEST_F(TestVP8Partitions, ThreePartitionsLossInSecond) {
   packet_header_.header.markerBit = true;
   packet_header_.header.sequenceNumber += 1;
   FillPacket(7);
-  packet = new VCMPacket(packet_buffer_, packet_buffer_size(), packet_header_);
+  packet = new VCMPacket(packet_buffer_, kPacketBufferSize, packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   // 2 partitions left. 2 packets removed from second partition
   EXPECT_EQ(session_.BuildVP8FragmentationHeader(frame_buffer_,
-                                                 frame_buffer_size(),
+                                                 kFrameBufferSize,
                                                  &fragmentation_),
-            4 * packet_buffer_size());
+            4*kPacketBufferSize);
   SCOPED_TRACE("Calling VerifyPartition");
   EXPECT_TRUE(VerifyPartition(0, 2, 1));
   SCOPED_TRACE("Calling VerifyPartition");
@@ -587,10 +579,10 @@ TEST_F(TestVP8Partitions, AggregationOverTwoPackets) {
   packet_header_.header.markerBit = false;
   packet_header_.header.sequenceNumber = 0;
   FillPacket(0);
-  VCMPacket* packet = new VCMPacket(packet_buffer_, packet_buffer_size(),
+  VCMPacket* packet = new VCMPacket(packet_buffer_, kPacketBufferSize,
                                     packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   packet_header_.type.Video.isFirstPacket = false;
@@ -599,9 +591,9 @@ TEST_F(TestVP8Partitions, AggregationOverTwoPackets) {
   packet_header_.header.markerBit = false;
   packet_header_.header.sequenceNumber += 1;
   FillPacket(1);
-  packet = new VCMPacket(packet_buffer_, packet_buffer_size(), packet_header_);
+  packet = new VCMPacket(packet_buffer_, kPacketBufferSize, packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   packet_header_.type.Video.isFirstPacket = false;
@@ -610,16 +602,16 @@ TEST_F(TestVP8Partitions, AggregationOverTwoPackets) {
   packet_header_.header.markerBit = true;
   packet_header_.header.sequenceNumber += 1;
   FillPacket(2);
-  packet = new VCMPacket(packet_buffer_, packet_buffer_size(), packet_header_);
+  packet = new VCMPacket(packet_buffer_, kPacketBufferSize, packet_header_);
   ASSERT_EQ(session_.InsertPacket(*packet, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
   delete packet;
 
   // No packets removed.
   EXPECT_EQ(session_.BuildVP8FragmentationHeader(frame_buffer_,
-                                                 frame_buffer_size(),
+                                                 kFrameBufferSize,
                                                  &fragmentation_),
-            3 * packet_buffer_size());
+            3*kPacketBufferSize);
   EXPECT_EQ(0, session_.packets_not_decodable());
   SCOPED_TRACE("Calling VerifyPartition");
   EXPECT_TRUE(VerifyPartition(0, 2, 0));
@@ -651,7 +643,7 @@ TEST_F(TestNalUnits, OneIsolatedNaluLoss) {
   packet_.markerBit = false;
   FillPacket(0);
   ASSERT_EQ(session_.InsertPacket(packet_, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
 
   packet_.isFirstPacket = false;
   packet_.completeNALU = kNaluComplete;
@@ -659,10 +651,10 @@ TEST_F(TestNalUnits, OneIsolatedNaluLoss) {
   packet_.markerBit = true;
   FillPacket(2);
   ASSERT_EQ(session_.InsertPacket(packet_, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
 
   EXPECT_EQ(0, session_.MakeDecodable());
-  EXPECT_EQ(2 * packet_buffer_size(), session_.SessionLength());
+  EXPECT_EQ(2 * kPacketBufferSize, session_.SessionLength());
   EXPECT_EQ(0, session_.packets_not_decodable());
   SCOPED_TRACE("Calling VerifyNalu");
   EXPECT_TRUE(VerifyNalu(0, 1, 0));
@@ -677,7 +669,7 @@ TEST_F(TestNalUnits, LossInMiddleOfNalu) {
   packet_.markerBit = false;
   FillPacket(0);
   ASSERT_EQ(session_.InsertPacket(packet_, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
 
   packet_.isFirstPacket = false;
   packet_.completeNALU = kNaluEnd;
@@ -685,10 +677,10 @@ TEST_F(TestNalUnits, LossInMiddleOfNalu) {
   packet_.markerBit = true;
   FillPacket(2);
   ASSERT_EQ(session_.InsertPacket(packet_, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
 
-  EXPECT_EQ(packet_buffer_size(), session_.MakeDecodable());
-  EXPECT_EQ(packet_buffer_size(), session_.SessionLength());
+  EXPECT_EQ(kPacketBufferSize, session_.MakeDecodable());
+  EXPECT_EQ(kPacketBufferSize, session_.SessionLength());
   EXPECT_EQ(1, session_.packets_not_decodable());
   SCOPED_TRACE("Calling VerifyNalu");
   EXPECT_TRUE(VerifyNalu(0, 1, 0));
@@ -701,7 +693,7 @@ TEST_F(TestNalUnits, StartAndEndOfLastNalUnitLost) {
   packet_.markerBit = false;
   FillPacket(0);
   ASSERT_EQ(session_.InsertPacket(packet_, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
 
   packet_.isFirstPacket = false;
   packet_.completeNALU = kNaluIncomplete;
@@ -709,10 +701,10 @@ TEST_F(TestNalUnits, StartAndEndOfLastNalUnitLost) {
   packet_.markerBit = false;
   FillPacket(1);
   ASSERT_EQ(session_.InsertPacket(packet_, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
 
-  EXPECT_EQ(packet_buffer_size(), session_.MakeDecodable());
-  EXPECT_EQ(packet_buffer_size(), session_.SessionLength());
+  EXPECT_EQ(kPacketBufferSize, session_.MakeDecodable());
+  EXPECT_EQ(kPacketBufferSize, session_.SessionLength());
   EXPECT_EQ(1, session_.packets_not_decodable());
   SCOPED_TRACE("Calling VerifyNalu");
   EXPECT_TRUE(VerifyNalu(0, 1, 0));
@@ -726,7 +718,7 @@ TEST_F(TestNalUnits, ReorderWrapNoLoss) {
   packet_.markerBit = false;
   FillPacket(1);
   ASSERT_EQ(session_.InsertPacket(packet_, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
 
   packet_.isFirstPacket = true;
   packet_.completeNALU = kNaluComplete;
@@ -734,7 +726,7 @@ TEST_F(TestNalUnits, ReorderWrapNoLoss) {
   packet_.markerBit = false;
   FillPacket(0);
   ASSERT_EQ(session_.InsertPacket(packet_, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
 
   packet_.isFirstPacket = false;
   packet_.completeNALU = kNaluEnd;
@@ -742,11 +734,11 @@ TEST_F(TestNalUnits, ReorderWrapNoLoss) {
   packet_.markerBit = true;
   FillPacket(2);
   ASSERT_EQ(session_.InsertPacket(packet_, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
 
   EXPECT_EQ(0, session_.MakeDecodable());
   EXPECT_EQ(0, session_.packets_not_decodable());
-  EXPECT_EQ(3 * packet_buffer_size(), session_.SessionLength());
+  EXPECT_EQ(3*kPacketBufferSize, session_.SessionLength());
   SCOPED_TRACE("Calling VerifyNalu");
   EXPECT_TRUE(VerifyNalu(0, 1, 0));
 }
@@ -758,7 +750,7 @@ TEST_F(TestNalUnits, WrapLosses) {
   packet_.markerBit = false;
   FillPacket(1);
   ASSERT_EQ(session_.InsertPacket(packet_, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
 
   packet_.isFirstPacket = false;
   packet_.completeNALU = kNaluEnd;
@@ -766,9 +758,9 @@ TEST_F(TestNalUnits, WrapLosses) {
   packet_.markerBit = true;
   FillPacket(2);
   ASSERT_EQ(session_.InsertPacket(packet_, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
 
-  EXPECT_EQ(2 * packet_buffer_size(), session_.MakeDecodable());
+  EXPECT_EQ(2 * kPacketBufferSize, session_.MakeDecodable());
   EXPECT_EQ(0, session_.SessionLength());
   EXPECT_EQ(2, session_.packets_not_decodable());
 }
@@ -782,7 +774,7 @@ TEST_F(TestNalUnits, ReorderWrapLosses) {
   packet_.markerBit = true;
   FillPacket(2);
   ASSERT_EQ(session_.InsertPacket(packet_, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
 
   packet_.seqNum -= 2;
   packet_.isFirstPacket = false;
@@ -790,9 +782,9 @@ TEST_F(TestNalUnits, ReorderWrapLosses) {
   packet_.markerBit = false;
   FillPacket(1);
   ASSERT_EQ(session_.InsertPacket(packet_, frame_buffer_, false, 0),
-            packet_buffer_size());
+            kPacketBufferSize);
 
-  EXPECT_EQ(2 * packet_buffer_size(), session_.MakeDecodable());
+  EXPECT_EQ(2 * kPacketBufferSize, session_.MakeDecodable());
   EXPECT_EQ(0, session_.SessionLength());
   EXPECT_EQ(2, session_.packets_not_decodable());
 }

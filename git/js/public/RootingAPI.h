@@ -8,13 +8,11 @@
 #define js_RootingAPI_h
 
 #include "mozilla/GuardObjects.h"
-#include "mozilla/NullPtr.h"
 #include "mozilla/TypeTraits.h"
 
-#include "jspubtd.h"
-
-#include "js/TypeDecls.h"
 #include "js/Utility.h"
+
+#include "jspubtd.h"
 
 /*
  * Moving GC Stack Rooting
@@ -99,6 +97,7 @@
 
 namespace js {
 
+class Module;
 class ScriptSourceObject;
 
 template <typename T>
@@ -117,13 +116,13 @@ template <typename T>
 class HeapBase {};
 
 /*
- * js::NullPtr acts like a nullptr pointer in contexts that require a Handle.
+ * js::NullPtr acts like a NULL pointer in contexts that require a Handle.
  *
  * Handle provides an implicit constructor for js::NullPtr so that, given:
  *   foo(Handle<JSObject*> h);
  * callers can simply write:
  *   foo(js::NullPtr());
- * which avoids creating a Rooted<JSObject*> just to pass nullptr.
+ * which avoids creating a Rooted<JSObject*> just to pass NULL.
  *
  * This is the SpiderMonkey internal variant. js::NullPtr should be used in
  * preference to JS::NullPtr to avoid the GOT access required for JS_PUBLIC_API
@@ -144,6 +143,9 @@ namespace JS {
 
 template <typename T> class Rooted;
 
+template <typename T> class Handle;
+template <typename T> class MutableHandle;
+
 /* This is exposing internal state of the GC for inlining purposes. */
 JS_FRIEND_API(bool) isGCEnabled();
 
@@ -153,13 +155,13 @@ CheckStackRoots(JSContext *cx);
 #endif
 
 /*
- * JS::NullPtr acts like a nullptr pointer in contexts that require a Handle.
+ * JS::NullPtr acts like a NULL pointer in contexts that require a Handle.
  *
  * Handle provides an implicit constructor for JS::NullPtr so that, given:
  *   foo(Handle<JSObject*> h);
  * callers can simply write:
  *   foo(JS::NullPtr());
- * which avoids creating a Rooted<JSObject*> just to pass nullptr.
+ * which avoids creating a Rooted<JSObject*> just to pass NULL.
  */
 struct JS_PUBLIC_API(NullPtr)
 {
@@ -375,7 +377,7 @@ class TenuredHeap : public js::HeapBase<T>
 template <typename T>
 class MOZ_NONHEAP_CLASS Handle : public js::HandleBase<T>
 {
-    friend class JS::MutableHandle<T>;
+    friend class MutableHandle<T>;
 
   public:
     /* Creates a handle from a handle of a type convertible to T. */
@@ -388,14 +390,14 @@ class MOZ_NONHEAP_CLASS Handle : public js::HandleBase<T>
         ptr = reinterpret_cast<const T *>(handle.address());
     }
 
-    /* Create a handle for a nullptr pointer. */
+    /* Create a handle for a NULL pointer. */
     Handle(js::NullPtr) {
         static_assert(mozilla::IsPointer<T>::value,
                       "js::NullPtr overload not valid for non-pointer types");
         ptr = reinterpret_cast<const T *>(&js::NullPtr::constNullValue);
     }
 
-    /* Create a handle for a nullptr pointer. */
+    /* Create a handle for a NULL pointer. */
     Handle(JS::NullPtr) {
         static_assert(mozilla::IsPointer<T>::value,
                       "JS::NullPtr overload not valid for non-pointer types");
@@ -455,17 +457,23 @@ class MOZ_NONHEAP_CLASS Handle : public js::HandleBase<T>
     bool operator!=(const T &other) const { return *ptr != other; }
     bool operator==(const T &other) const { return *ptr == other; }
 
-    /* Change this handle to point to the same rooted location RHS does. */
-    void repoint(const Handle &rhs) { ptr = rhs.address(); }
-
   private:
     Handle() {}
 
     const T *ptr;
 
-    template <typename S> void operator=(S) MOZ_DELETE;
-    void operator=(Handle) MOZ_DELETE;
+    template <typename S>
+    void operator=(S v) MOZ_DELETE;
 };
+
+typedef Handle<JSObject*>                   HandleObject;
+typedef Handle<js::Module*>                 HandleModule;
+typedef Handle<js::ScriptSourceObject *>    HandleScriptSource;
+typedef Handle<JSFunction*>                 HandleFunction;
+typedef Handle<JSScript*>                   HandleScript;
+typedef Handle<JSString*>                   HandleString;
+typedef Handle<jsid>                        HandleId;
+typedef Handle<Value>                       HandleValue;
 
 /*
  * Similar to a handle, but the underlying storage can be changed. This is
@@ -480,10 +488,6 @@ class MOZ_STACK_CLASS MutableHandle : public js::MutableHandleBase<T>
 {
   public:
     inline MutableHandle(Rooted<T> *root);
-    MutableHandle(int) MOZ_DELETE;
-#ifdef MOZ_HAVE_CXX11_NULLPTR
-    MutableHandle(decltype(nullptr)) MOZ_DELETE;
-#endif
 
     void set(T v) {
         JS_ASSERT(!js::GCMethods<T>::poisoned(v));
@@ -521,6 +525,13 @@ class MOZ_STACK_CLASS MutableHandle : public js::MutableHandleBase<T>
     template <typename S> void operator=(S v) MOZ_DELETE;
     void operator=(MutableHandle other) MOZ_DELETE;
 };
+
+typedef MutableHandle<JSObject*>   MutableHandleObject;
+typedef MutableHandle<JSFunction*> MutableHandleFunction;
+typedef MutableHandle<JSScript*>   MutableHandleScript;
+typedef MutableHandle<JSString*>   MutableHandleString;
+typedef MutableHandle<jsid>        MutableHandleId;
+typedef MutableHandle<Value>       MutableHandleValue;
 
 #ifdef JSGC_GENERATIONAL
 JS_PUBLIC_API(void) HeapCellPostBarrier(js::gc::Cell **cellp);
@@ -603,7 +614,7 @@ struct RootKind<T *>
 template <typename T>
 struct GCMethods<T *>
 {
-    static T *initial() { return nullptr; }
+    static T *initial() { return NULL; }
     static ThingRootKind kind() { return RootKind<T *>::rootKind(); }
     static bool poisoned(T *v) { return JS::IsPoisonedPtr(v); }
     static bool needsPostBarrier(T *v) { return v; }
@@ -718,15 +729,12 @@ class MOZ_STACK_CLASS Rooted : public js::RootedBase<T>
         init(js::PerThreadDataFriendFields::getMainThread(rt));
     }
 
-    // Note that we need to let the compiler generate the default destructor in
-    // non-exact-rooting builds because of a bug in the instrumented PGO builds
-    // using MSVC, see bug 915735 for more details.
-#ifdef JSGC_TRACK_EXACT_ROOTS
     ~Rooted() {
+#ifdef JSGC_TRACK_EXACT_ROOTS
         JS_ASSERT(*stack == reinterpret_cast<Rooted<void*>*>(this));
         *stack = prev;
-    }
 #endif
+    }
 
 #ifdef JSGC_TRACK_EXACT_ROOTS
     Rooted<T> *previous() { return prev; }
@@ -794,6 +802,8 @@ class Rooted<JSStableString *>;
 #endif
 
 typedef Rooted<JSObject*>                   RootedObject;
+typedef Rooted<js::Module*>                 RootedModule;
+typedef Rooted<js::ScriptSourceObject *>    RootedScriptSource;
 typedef Rooted<JSFunction*>                 RootedFunction;
 typedef Rooted<JSScript*>                   RootedScript;
 typedef Rooted<JSString*>                   RootedString;
@@ -846,10 +856,6 @@ class SkipRoot
     void init(js::ContextFriendFields *cx, const T *ptr, size_t count) {}
 
   public:
-    ~SkipRoot() {
-        // An empty destructor is needed to avoid warnings from clang about
-        // unused local variables of this type.
-    }
 
 #endif /* DEBUG && JSGC_ROOT_ANALYSIS */
 
@@ -1056,7 +1062,7 @@ inline void MaybeCheckStackRoots(JSContext *cx)
 class CompilerRootNode
 {
   protected:
-    CompilerRootNode(js::gc::Cell *ptr) : next(nullptr), ptr_(ptr) {}
+    CompilerRootNode(js::gc::Cell *ptr) : next(NULL), ptr_(ptr) {}
 
   public:
     void **address() { return (void **)&ptr_; }

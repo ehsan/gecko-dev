@@ -13,13 +13,17 @@ XPIDL_SOURCES += [
 
 XPIDL_MODULE = 'dom_alarm'
 
+XPIDL_FLAGS += [
+    '-I$(topsrcdir)/dom/interfaces/base',
+]
+
 MODULE = 'dom'
 
 EXPORTS.mozilla.dom.alarm += [
     'AlarmHalService.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'AlarmHalService.cpp',
 ]
 
@@ -32,12 +36,3 @@ EXTRA_JS_MODULES += [
     'AlarmDB.jsm',
     'AlarmService.jsm',
 ]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'domalarm_s'
-
-include('/ipc/chromium/chromium-config.mozbuild')
-

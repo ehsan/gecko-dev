@@ -8,21 +8,18 @@
 #ifndef nsCSSRendering_h___
 #define nsCSSRendering_h___
 
+#include "nsStyleConsts.h"
 #include "gfxBlur.h"
 #include "gfxContext.h"
+#include "gfxImageSurface.h"
 #include "nsLayoutUtils.h"
-#include "nsStyleStruct.h"
-#include "nsIFrame.h"
 
+struct nsPoint;
 class nsStyleContext;
 class nsPresContext;
 class nsRenderingContext;
 
 namespace mozilla {
-
-namespace layers {
-class ImageContainer;
-}
 
 // A CSSSizeOrRatio represents a (possibly partially specified) size for use
 // in computing image sizes. Either or both of the width and height might be

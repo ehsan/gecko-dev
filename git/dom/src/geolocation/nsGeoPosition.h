@@ -14,7 +14,8 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsWrapperCache.h"
 #include "mozilla/dom/Nullable.h"
-#include "js/TypeDecls.h"
+
+struct JSContext;
 
 ////////////////////////////////////////////////////
 // nsGeoPositionCoords

@@ -2886,6 +2886,7 @@
   "[[\"forwarddelete\",\"\"]] \"<p>foo[]</p><br><p>bar</p>\" compare innerHTML":true,
   "[[\"forwarddelete\",\"\"]] \"<p>foo[]</p><br><br><p>bar</p>\" compare innerHTML":true,
   "[[\"forwarddelete\",\"\"]] \"<p>foo[]</p><img src=/img/lion.svg><p>bar\" compare innerHTML":true,
+  "[[\"forwarddelete\",\"\"]] \"foo[]<img src=/img/lion.svg>bar\" compare innerHTML":true,
   "[[\"forwarddelete\",\"\"]] \"foo []&nbsp;\" compare innerHTML":true,
   "[[\"forwarddelete\",\"\"]] \"foo []<span>&nbsp;</span> bar\" compare innerHTML":true,
   "[[\"forwarddelete\",\"\"]] \"foo <span>&nbsp;</span>[] bar\" compare innerHTML":true,

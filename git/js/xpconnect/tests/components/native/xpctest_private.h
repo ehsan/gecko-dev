@@ -11,6 +11,7 @@
 
 #include "nsISupports.h"
 #include "nsMemory.h"
+#include "jsapi.h"
 #include "nsStringGlue.h"
 #include "xpctest_attributes.h"
 #include "xpctest_params.h"

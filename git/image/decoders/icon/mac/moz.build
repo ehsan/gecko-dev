@@ -8,11 +8,6 @@ MODULE = 'imgicon'
 
 LIBRARY_NAME = 'imgiconmac_s'
 
-SOURCES += [
+CMMSRCS += [
     'nsIconChannelCocoa.mm',
 ]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-

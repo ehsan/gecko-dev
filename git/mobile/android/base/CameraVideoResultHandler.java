@@ -41,8 +41,7 @@ class CameraVideoResultHandler implements ActivityResultHandler {
 
     @Override
     public void onActivityResult(int resultCode, Intent data) {
-        // Intent.getData() can return null. Avoid a crash. See bug 904551.
-        if (data == null || data.getData() == null || resultCode != Activity.RESULT_OK) {
+        if (data == null || resultCode != Activity.RESULT_OK) {
             sendResult("");
             return;
         }

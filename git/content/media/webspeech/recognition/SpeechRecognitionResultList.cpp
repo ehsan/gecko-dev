@@ -6,6 +6,8 @@
 
 #include "SpeechRecognitionResultList.h"
 
+#include "nsContentUtils.h"
+
 #include "mozilla/dom/SpeechRecognitionResultListBinding.h"
 
 #include "SpeechRecognition.h"

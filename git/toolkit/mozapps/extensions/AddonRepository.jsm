@@ -23,8 +23,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "DeferredSave",
                                   "resource://gre/modules/DeferredSave.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "AddonRepository_SQLiteMigrator",
                                   "resource://gre/modules/AddonRepository_SQLiteMigrator.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "Promise",
-                                  "resource://gre/modules/Promise.jsm");
 
 this.EXPORTED_SYMBOLS = [ "AddonRepository" ];
 
@@ -528,16 +526,33 @@ this.AddonRepository = {
   _maxResults: null,
   
   /**
+   * Initialize AddonRepository.
+   */
+  initialize: function AddonRepo_initialize() {
+    Services.obs.addObserver(this, "xpcom-shutdown", false);
+  },
+
+  /**
+   * Observe xpcom-shutdown notification, so we can shutdown cleanly.
+   */
+  observe: function AddonRepo_observe(aSubject, aTopic, aData) {
+    if (aTopic == "xpcom-shutdown") {
+      Services.obs.removeObserver(this, "xpcom-shutdown");
+      this.shutdown();
+    }
+  },
+
+  /**
    * Shut down AddonRepository
-   * return: promise{integer} resolves with the result of flushing
-   *         the AddonRepository database
    */
   shutdown: function AddonRepo_shutdown() {
     this.cancelSearch();
 
     this._addons = null;
     this._pendingCallbacks = null;
-    return AddonDatabase.shutdown(false);
+    AddonDatabase.shutdown(function shutdown_databaseShutdown() {
+      Services.obs.notifyObservers(null, "addon-repository-shutdown", null);
+    });
   },
 
   /**
@@ -1499,6 +1514,7 @@ this.AddonRepository = {
   }
 
 };
+AddonRepository.initialize();
 
 var AddonDatabase = {
   // true if the database connection has been opened
@@ -1628,11 +1644,13 @@ var AddonDatabase = {
    *         An optional boolean to skip flushing data to disk. Useful
    *         when the database is going to be deleted afterwards.
    */
-  shutdown: function AD_shutdown(aSkipFlush) {
+  shutdown: function AD_shutdown(aCallback, aSkipFlush) {
     this.databaseOk = true;
+    aCallback = aCallback || function() {};
 
     if (!this.initialized) {
-      return Promise.resolve(0);
+      aCallback();
+      return;
     }
 
     this.initialized = false;
@@ -1642,9 +1660,9 @@ var AddonDatabase = {
     });
 
     if (aSkipFlush) {
-      return Promise.resolve(0);
+      aCallback();
     } else {
-      return this.Writer.flush();
+      this.Writer.flush().then(aCallback, aCallback);
     }
   },
 
@@ -1658,14 +1676,13 @@ var AddonDatabase = {
   delete: function AD_delete(aCallback) {
     this.DB = BLANK_DB();
 
-    this.Writer.flush()
-      .then(null, () => {})
-      // shutdown(true) never rejects
-      .then(() => this.shutdown(true))
-      .then(() => OS.File.remove(this.jsonFile.path, {}))
-      .then(null, error => ERROR("Unable to delete Addon Repository file " +
-                                 this.jsonFile.path, error))
-      .then(aCallback);
+    this.Writer.flush().then(null, () => {}).then(() => {
+      this.shutdown(() => {
+        let promise = OS.File.remove(this.jsonFile.path, {});
+        if (aCallback)
+          promise.then(aCallback, aCallback);
+      }, true);
+    });
   },
 
   toJSON: function AD_toJSON() {

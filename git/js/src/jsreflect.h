@@ -10,6 +10,10 @@
 #ifndef jsreflect_h
 #define jsreflect_h
 
+#include <stdlib.h>
+
+#include "jspubtd.h"
+
 namespace js {
 
 enum ASTType {

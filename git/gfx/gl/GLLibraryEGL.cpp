@@ -15,8 +15,6 @@
 namespace mozilla {
 namespace gl {
 
-GLLibraryEGL sEGLLibrary;
-
 // should match the order of EGLExtensions, and be null-terminated.
 static const char *sExtensionNames[] = {
     "EGL_KHR_image_base",
@@ -321,7 +319,7 @@ GLLibraryEGL::InitExtensions()
     const bool firstRun = false;
 #endif
 
-    GLContext::InitializeExtensionsBitSet(mAvailableExtensions, extensions, sExtensionNames, firstRun && debugMode);
+    mAvailableExtensions.Load(extensions, sExtensionNames, firstRun && debugMode);
 
 #ifdef DEBUG
     firstRun = false;
@@ -397,25 +395,6 @@ GLLibraryEGL::DumpEGLConfigs()
 
     delete [] ec;
 }
-
-#ifdef DEBUG
-/*static*/ void
-GLLibraryEGL::BeforeGLCall(const char* glFunction)
-{
-    if (GLContext::DebugMode()) {
-        if (GLContext::DebugMode() & GLContext::DebugTrace)
-            printf_stderr("[egl] > %s\n", glFunction);
-    }
-}
-
-/*static*/ void
-GLLibraryEGL::AfterGLCall(const char* glFunction)
-{
-    if (GLContext::DebugMode() & GLContext::DebugTrace) {
-        printf_stderr("[egl] < %s\n", glFunction);
-    }
-}
-#endif
 
 } /* namespace gl */
 } /* namespace mozilla */

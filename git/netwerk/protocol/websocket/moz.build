@@ -20,7 +20,7 @@ EXPORTS.mozilla.net += [
     'WebSocketChannelParent.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'BaseWebSocketChannel.cpp',
     'WebSocketChannel.cpp',
     'WebSocketChannelChild.cpp',
@@ -30,14 +30,3 @@ SOURCES += [
 IPDL_SOURCES += [
     'PWebSocket.ipdl',
 ]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
-
-LIBRARY_NAME = 'nkwebsocket_s'
-
-include('/ipc/chromium/chromium-config.mozbuild')
-

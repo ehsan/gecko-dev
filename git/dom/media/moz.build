@@ -19,16 +19,11 @@ XPIDL_MODULE = 'dom_media'
 
 MODULE = 'dom'
 
-EXPORTS.mozilla.dom += [
-    'GetUserMediaRequest.h',
-]
-
 EXPORTS.mozilla += [
     'MediaManager.h',
 ]
 
-SOURCES += [
-    'GetUserMediaRequest.cpp',
+CPP_SOURCES += [
     'MediaManager.cpp',
 ]
 
@@ -36,24 +31,3 @@ EXTRA_COMPONENTS += [
     'PeerConnection.js',
     'PeerConnection.manifest',
 ]
-
-if CONFIG['MOZ_B2G']:
-    EXPORTS.mozilla += [
-        'MediaPermissionGonk.h',
-    ]
-    SOURCES += [
-        'MediaPermissionGonk.cpp',
-    ]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'dom_media_s'
-
-LOCAL_INCLUDES += [
-    '../base',
-    '../camera',
-]
-
-include('/ipc/chromium/chromium-config.mozbuild')

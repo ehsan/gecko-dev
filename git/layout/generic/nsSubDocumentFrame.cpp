@@ -8,35 +8,54 @@
  * as <frame>, <iframe>, and some <object>s
  */
 
-#include "nsSubDocumentFrame.h"
-
 #include "mozilla/layout/RenderFrameParent.h"
 
+#include "nsSubDocumentFrame.h"
 #include "nsCOMPtr.h"
 #include "nsGenericHTMLElement.h"
 #include "nsAttrValueInlines.h"
 #include "nsIDocShell.h"
+#include "nsIDocShellLoadInfo.h"
+#include "nsIDocShellTreeItem.h"
+#include "nsIDocShellTreeNode.h"
+#include "nsIDocShellTreeOwner.h"
+#include "nsIBaseWindow.h"
 #include "nsIContentViewer.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
+#include "nsIComponentManager.h"
+#include "nsFrameManager.h"
+#include "nsIStreamListener.h"
+#include "nsIURL.h"
+#include "nsNetUtil.h"
 #include "nsIDocument.h"
 #include "nsView.h"
 #include "nsViewManager.h"
 #include "nsGkAtoms.h"
+#include "nsStyleCoord.h"
+#include "nsStyleContext.h"
 #include "nsStyleConsts.h"
 #include "nsFrameSetFrame.h"
 #include "nsIDOMHTMLFrameElement.h"
+#include "nsIDOMHTMLIFrameElement.h"
+#include "nsIDOMXULElement.h"
+#include "nsIScriptSecurityManager.h"
+#include "nsXPIDLString.h"
 #include "nsIScrollable.h"
 #include "nsINameSpaceManager.h"
+#include "nsWeakReference.h"
+#include "nsIDOMWindow.h"
 #include "nsDisplayList.h"
+#include "nsUnicharUtils.h"
 #include "nsIScrollableFrame.h"
 #include "nsIObjectLoadingContent.h"
 #include "nsLayoutUtils.h"
 #include "FrameLayerBuilder.h"
 #include "nsObjectFrame.h"
+#include "nsIServiceManager.h"
 #include "nsContentUtils.h"
+#include "LayerTreeInvalidation.h"
 #include "nsIPermissionManager.h"
-#include "nsServiceManagerUtils.h"
 
 using namespace mozilla;
 using mozilla::layout::RenderFrameParent;
@@ -50,6 +69,8 @@ GetDocumentFromView(nsView* aView)
   nsIPresShell* ps =  f ? f->PresContext()->PresShell() : nullptr;
   return ps ? ps->GetDocument() : nullptr;
 }
+
+class AsyncFrameInit;
 
 nsSubDocumentFrame::nsSubDocumentFrame(nsStyleContext* aContext)
   : nsLeafFrame(aContext)
@@ -242,6 +263,9 @@ nsSubDocumentFrame::GetSubdocumentSize()
 bool
 nsSubDocumentFrame::PassPointerEventsToChildren()
 {
+  if (StyleVisibility()->mPointerEvents != NS_STYLE_POINTER_EVENTS_NONE) {
+    return true;
+  }
   // Limit use of mozpasspointerevents to documents with embedded:apps/chrome
   // permission, because this could be used by the parent document to discover
   // which parts of the subdocument are transparent to events (if subdocument
@@ -274,29 +298,15 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   if (!IsVisibleForPainting(aBuilder))
     return;
 
-  // If we are pointer-events:none then we don't need to HitTest background
-  bool pointerEventsNone = StyleVisibility()->mPointerEvents == NS_STYLE_POINTER_EVENTS_NONE;
-  if (!aBuilder->IsForEventDelivery() || !pointerEventsNone) {
-    DisplayBorderBackgroundOutline(aBuilder, aLists);
-  }
-
-  bool passPointerEventsToChildren = false;
-  if (aBuilder->IsForEventDelivery()) {
-    passPointerEventsToChildren = PassPointerEventsToChildren();
-    // If mozpasspointerevents is set, then we should allow subdocument content
-    // to handle events even if we're pointer-events:none.
-    if (pointerEventsNone && !passPointerEventsToChildren) {
-      return;
-    }
-  }
-
-  // If we're passing pointer events to children then we have to descend into
-  // subdocuments no matter what, to determine which parts are transparent for
-  // elementFromPoint.
-  if (!mInnerView ||
-      (!aBuilder->GetDescendIntoSubdocuments() && !passPointerEventsToChildren)) {
+  // If mozpasspointerevents is set, then we should allow subdocument content
+  // to handle events even if we're pointer-events:none.
+  if (aBuilder->IsForEventDelivery() && !PassPointerEventsToChildren())
     return;
-  }
+
+  DisplayBorderBackgroundOutline(aBuilder, aLists);
+
+  if (!mInnerView)
+    return;
 
   nsFrameLoader* frameLoader = FrameLoader();
   if (frameLoader) {
@@ -553,7 +563,7 @@ nsSubDocumentFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
   return result;
 }
 
-/* virtual */ IntrinsicSize
+/* virtual */ nsIFrame::IntrinsicSize
 nsSubDocumentFrame::GetIntrinsicSize()
 {
   nsIFrame* subDocRoot = ObtainIntrinsicSizeFrame();

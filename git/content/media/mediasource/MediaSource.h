@@ -7,36 +7,25 @@
 #ifndef mozilla_dom_MediaSource_h_
 #define mozilla_dom_MediaSource_h_
 
-#include "MediaSourceDecoder.h"
-#include "js/RootingAPI.h"
-#include "mozilla/Assertions.h"
+#include "AsyncEventRunner.h"
 #include "mozilla/Attributes.h"
+#include "mozilla/Monitor.h"
 #include "mozilla/dom/MediaSourceBinding.h"
-#include "nsAutoPtr.h"
+#include "mozilla/dom/TypedArray.h"
 #include "nsCOMPtr.h"
-#include "nsCycleCollectionNoteChild.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsDOMEventTargetHelper.h"
-#include "nsID.h"
-#include "nsISupports.h"
+#include "nsWrapperCache.h"
 #include "nscore.h"
 
-struct JSContext;
-class JSObject;
-class nsPIDOMWindow;
-
 namespace mozilla {
-
-class ErrorResult;
-template <typename T> class AsyncEventRunner;
-
 namespace dom {
 
-class GlobalObject;
-class SourceBuffer;
+class HTMLMediaElement;
+class MediaSourceInputAdapter;
 class SourceBufferList;
+class SourceBuffer;
 class TimeRanges;
-template <typename T> class Optional;
 
 #define MOZILLA_DOM_MEDIASOURCE_IMPLEMENTATION_IID \
   { 0x3839d699, 0x22c5, 0x439f, \
@@ -46,9 +35,7 @@ class MediaSource MOZ_FINAL : public nsDOMEventTargetHelper
 {
 public:
   /** WebIDL Methods. */
-  static already_AddRefed<MediaSource>
-  Constructor(const GlobalObject& aGlobal,
-              ErrorResult& aRv);
+  static already_AddRefed<MediaSource> Constructor(const GlobalObject& aGlobal, ErrorResult& aRv);
 
   SourceBufferList* SourceBuffers();
   SourceBufferList* ActiveSourceBuffers();
@@ -61,8 +48,7 @@ public:
   void RemoveSourceBuffer(SourceBuffer& aSourceBuffer, ErrorResult& aRv);
 
   void EndOfStream(const Optional<MediaSourceEndOfStreamError>& aError, ErrorResult& aRv);
-  static bool IsTypeSupported(const GlobalObject& aGlobal,
-                              const nsAString& aType);
+  static bool IsTypeSupported(const GlobalObject& aGlobal, const nsAString& aType);
   /** End WebIDL Methods. */
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -73,27 +59,49 @@ public:
 
   JSObject* WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
 
-  // Attach this MediaSource to Decoder aDecoder.  Returns false if already attached.
-  bool Attach(MediaSourceDecoder* aDecoder);
-  void Detach();
+  const nsString& GetType()
+  {
+    return mContentType;
+  }
+
+  already_AddRefed<nsIInputStream> CreateInternalStream();
+
+
+  void AppendData(const uint8_t* aData, uint32_t aLength, ErrorResult& aRv);
+
+  // Semi-private, for MediaSourceInputAdapter only.
+  nsTArray<uint8_t> const& GetData()
+  {
+    return mData;
+  }
+
+  Monitor& GetMonitor()
+  {
+    return mMonitor;
+  }
+
+  bool AppendDone() const
+  {
+    return mReadyState == MediaSourceReadyState::Closed;
+  }
+
+  // Attach this MediaSource to MediaElement aElement.  Returns false if already attached.
+  bool AttachElement(HTMLMediaElement* aElement);
+  void DetachElement();
 
   // Set mReadyState to aState and fire the required events at the MediaSource.
   void SetReadyState(MediaSourceReadyState aState);
 
   void GetBuffered(TimeRanges* aRanges);
 
- // Used by SourceBuffer to call CreateSubDecoder.
-  MediaSourceDecoder* GetDecoder()
-  {
-    return mDecoder;
-  }
-
 private:
   explicit MediaSource(nsPIDOMWindow* aWindow);
 
-  friend class AsyncEventRunner<MediaSource>;
+  friend class AsyncEventRunnner<MediaSource>;
   void DispatchSimpleEvent(const char* aName);
   void QueueAsyncSimpleEvent(const char* aName);
+
+  void NotifyListeners();
 
   void DurationChange(double aNewDuration, ErrorResult& aRv);
   void EndOfStreamInternal(const Optional<MediaSourceEndOfStreamError>& aError, ErrorResult& aRv);
@@ -102,17 +110,25 @@ private:
 
   double mDuration;
 
+  nsTArray<nsRefPtr<MediaSourceInputAdapter> > mAdapters;
+
+  // Protected by monitor.
+  nsTArray<uint8_t> mData;
+
+  // Protects access to mData.
+  Monitor mMonitor;
+
   nsRefPtr<SourceBufferList> mSourceBuffers;
   nsRefPtr<SourceBufferList> mActiveSourceBuffers;
 
-  nsRefPtr<MediaSourceDecoder> mDecoder;
+  nsRefPtr<HTMLMediaElement> mElement;
 
+  nsString mContentType;
   MediaSourceReadyState mReadyState;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(MediaSource, MOZILLA_DOM_MEDIASOURCE_IMPLEMENTATION_IID)
 
 } // namespace dom
-
 } // namespace mozilla
 #endif /* mozilla_dom_MediaSource_h_ */

@@ -19,7 +19,7 @@
 #include "nsIWebNavigation.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "shared-libraries.h"
-#include "js/Value.h"
+#include "jsapi.h"
 
 using std::string;
 
@@ -70,7 +70,7 @@ nsProfiler::Observe(nsISupports *aSubject,
 }
 
 NS_IMETHODIMP
-nsProfiler::StartProfiler(uint32_t aEntries, double aInterval,
+nsProfiler::StartProfiler(uint32_t aEntries, uint32_t aInterval,
                           const char** aFeatures, uint32_t aFeatureCount,
                           const char** aThreadNameFilters, uint32_t aFilterCount)
 {

@@ -10,7 +10,6 @@ import java.util.Set;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.background.common.DateUtils.DateFormatter;
 import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.background.healthreport.HealthReportStorage.Field;
 
@@ -23,11 +22,9 @@ public class HealthReportGenerator {
   private static final String LOG_TAG = "GeckoHealthGen";
 
   private final HealthReportStorage storage;
-  private final DateFormatter dateFormatter;
 
   public HealthReportGenerator(HealthReportStorage storage) {
     this.storage = storage;
-    this.dateFormatter = new DateFormatter();
   }
 
   @SuppressWarnings("static-method")
@@ -79,10 +76,10 @@ public class HealthReportGenerator {
     JSONObject document = new JSONObject();
 
     if (lastPingTime >= HealthReportConstants.EARLIEST_LAST_PING) {
-      document.put("lastPingDate", dateFormatter.getDateString(lastPingTime));
+      document.put("lastPingDate", HealthReportUtils.getDateString(lastPingTime));
     }
 
-    document.put("thisPingDate", dateFormatter.getDateString(now()));
+    document.put("thisPingDate", HealthReportUtils.getDateString(now()));
     document.put("version", PAYLOAD_VERSION);
 
     document.put("environments", getEnvironmentsJSON(currentEnvironment, envs));
@@ -150,7 +147,7 @@ public class HealthReportGenerator {
 
         if (dateChanged) {
           if (dateObject != null) {
-            days.put(dateFormatter.getDateStringForDay(lastDate), dateObject);
+            days.put(HealthReportUtils.getDateStringForDay(lastDate), dateObject);
           }
           dateObject = new JSONObject();
           lastDate = cDate;
@@ -182,7 +179,7 @@ public class HealthReportGenerator {
         cursor.moveToNext();
         continue;
       }
-      days.put(dateFormatter.getDateStringForDay(lastDate), dateObject);
+      days.put(HealthReportUtils.getDateStringForDay(lastDate), dateObject);
     } finally {
       cursor.close();
     }
@@ -388,115 +385,22 @@ public class HealthReportGenerator {
     return gecko;
   }
 
-  // Null-safe string comparison.
-  private static boolean stringsDiffer(final String a, final String b) {
-    if (a == null) {
-      return b != null;
-    }
-    return !a.equals(b);
-  }
-
   private static JSONObject getAppInfo(Environment e, Environment current) throws JSONException {
     JSONObject appinfo = new JSONObject();
-
-    Logger.debug(LOG_TAG, "Generating appinfo for v" + e.version + " env " + e.hash);
-
-    // Is the environment in question newer than the diff target, or is
-    // there no diff target?
-    final boolean outdated = current == null ||
-                             e.version > current.version;
-
-    // Is the environment in question a different version (lower or higher),
-    // or is there no diff target?
-    final boolean differ = outdated || current.version > e.version;
-
-    // Always produce an output object if there's a version mismatch or this
-    // isn't a diff. Otherwise, track as we go if there's any difference.
-    boolean changed = differ;
-
-    switch (e.version) {
-    // There's a straightforward correspondence between environment versions
-    // and appinfo versions.
-    case 2:
-      appinfo.put("_v", 3);
-      break;
-    case 1:
-      appinfo.put("_v", 2);
-      break;
-    default:
-      Logger.warn(LOG_TAG, "Unknown environment version: " + e.version);
-      return appinfo;
-    }
-
-    switch (e.version) {
-    case 2:
-      if (populateAppInfoV2(appinfo, e, current, outdated)) {
-        changed = true;
-      }
-      // Fall through.
-
-    case 1:
-      // There is no older version than v1, so don't check outdated.
-      if (populateAppInfoV1(e, current, appinfo)) {
-        changed = true;
-      }
-    }
-
-    if (!changed) {
-      return null;
-    }
-
-    return appinfo;
-  }
-
-  private static boolean populateAppInfoV1(Environment e,
-                                           Environment current,
-                                           JSONObject appinfo)
-    throws JSONException {
-    boolean changes = false;
+    int changes = 0;
     if (current == null || current.isBlocklistEnabled != e.isBlocklistEnabled) {
       appinfo.put("isBlocklistEnabled", e.isBlocklistEnabled);
-      changes = true;
+      changes++;
     }
-
     if (current == null || current.isTelemetryEnabled != e.isTelemetryEnabled) {
       appinfo.put("isTelemetryEnabled", e.isTelemetryEnabled);
-      changes = true;
+      changes++;
     }
-
-    return changes;
-  }
-
-  private static boolean populateAppInfoV2(JSONObject appinfo,
-                                           Environment e,
-                                           Environment current,
-                                           final boolean outdated)
-    throws JSONException {
-    boolean changes = false;
-    if (outdated ||
-        stringsDiffer(current.osLocale, e.osLocale)) {
-      appinfo.put("osLocale", e.osLocale);
-      changes = true;
+    if (current != null && changes == 0) {
+      return null;
     }
-
-    if (outdated ||
-        stringsDiffer(current.appLocale, e.appLocale)) {
-      appinfo.put("appLocale", e.appLocale);
-      changes = true;
-    }
-
-    if (outdated ||
-        stringsDiffer(current.distribution, e.distribution)) {
-      appinfo.put("distribution", e.distribution);
-      changes = true;
-    }
-
-    if (outdated ||
-        current.acceptLangSet != e.acceptLangSet) {
-      appinfo.put("acceptLangIsUserSet", e.acceptLangSet);
-      changes = true;
-    }
-    return changes;
+    appinfo.put("_v", 2);
+    return appinfo;
   }
 
   private static JSONObject getAddonCounts(Environment e, Environment current) throws JSONException {

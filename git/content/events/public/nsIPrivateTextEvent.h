@@ -6,6 +6,7 @@
 #ifndef nsIPrivateTextEvent_h__
 #define nsIPrivateTextEvent_h__
 
+#include "nsEvent.h"
 #include "nsISupports.h"
 #include "nsIPrivateTextRange.h"
 

@@ -11,7 +11,6 @@
 
 #include <cctype>
 
-#include "mozilla/NullPtr.h"
 #include "crashreporter.h"
 #include "crashreporter_gtk_common.h"
 
@@ -31,9 +30,9 @@ static bool gEmailFieldHint = true;
 static bool gCommentFieldHint = true;
 
 // handle from dlopen'ing libgnome
-static void* gnomeLib = nullptr;
+static void* gnomeLib = NULL;
 // handle from dlopen'ing libgnomeui
-static void* gnomeuiLib = nullptr;
+static void* gnomeuiLib = NULL;
 
 static void LoadSettings()
 {
@@ -119,7 +118,7 @@ void SendReport()
 
   // and spawn a thread to do the sending
   GError* err;
-  gSendThreadID = g_thread_create(SendThread, nullptr, TRUE, &err);
+  gSendThreadID = g_thread_create(SendThread, NULL, TRUE, &err);
 }
 
 static void ShowReportInfo(GtkTextView* viewReportTextView)
@@ -179,7 +178,7 @@ static void ViewReportClicked(GtkButton* button,
                                            GTK_DIALOG_MODAL,
                                            GTK_STOCK_OK,
                                            GTK_RESPONSE_OK,
-                                           nullptr));
+                                           NULL));
 
   GtkWidget* scrolled = gtk_scrolled_window_new(0, 0);
   gtk_container_add(GTK_CONTAINER(dialog->vbox), scrolled);
@@ -236,26 +235,26 @@ static void CommentInsert(GtkTextBuffer* buffer,
 static void UpdateHintText(GtkWidget* widget, gboolean gainedFocus,
                            bool* hintShowing, const char* hintText)
 {
-  GtkTextBuffer* buffer = nullptr;
+  GtkTextBuffer* buffer = NULL;
   if (GTK_IS_TEXT_VIEW(widget))
     buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(widget));
 
   if (gainedFocus) {
     if (*hintShowing) {
-      if (buffer == nullptr) { // sort of cheating
+      if (buffer == NULL) { // sort of cheating
         gtk_entry_set_text(GTK_ENTRY(widget), "");
       }
       else { // GtkTextView
         gtk_text_buffer_set_text(buffer, "", 0);
       }
-      gtk_widget_modify_text(widget, GTK_STATE_NORMAL, nullptr);
+      gtk_widget_modify_text(widget, GTK_STATE_NORMAL, NULL);
       *hintShowing = false;
     }
   }
   else {
     // lost focus
-    const char* text = nullptr;
-    if (buffer == nullptr) {
+    const char* text = NULL;
+    if (buffer == NULL) {
       text = gtk_entry_get_text(GTK_ENTRY(widget));
     }
     else {
@@ -265,10 +264,10 @@ static void UpdateHintText(GtkWidget* widget, gboolean gainedFocus,
       text = gtk_text_buffer_get_text(buffer, &start, &end, TRUE);
     }
 
-    if (text == nullptr || text[0] == '\0') {
+    if (text == NULL || text[0] == '\0') {
       *hintShowing = true;
 
-      if (buffer == nullptr) {
+      if (buffer == NULL) {
         gtk_entry_set_text(GTK_ENTRY(widget), hintText);
       }
       else {
@@ -348,7 +347,7 @@ void TryInitGnome()
 
   if (gnome_program_init && libgnomeui_module_info_get) {
     gnome_program_init("crashreporter", "1.0", libgnomeui_module_info_get(),
-                       gArgc, gArgv, nullptr);
+                       gArgc, gArgv, NULL);
   }
 
 }
@@ -505,7 +504,7 @@ bool UIShowCrashUI(const string& dumpfile,
 
   // Get the throbber image from alongside the executable
   char* dir = g_path_get_dirname(gArgv[0]);
-  char* path = g_build_filename(dir, "Throbber-small.gif", nullptr);
+  char* path = g_build_filename(dir, "Throbber-small.gif", NULL);
   g_free(dir);
   gThrobber = gtk_image_new_from_file(path);
   gtk_box_pack_start(GTK_BOX(progressBox), gThrobber, FALSE, FALSE, 0);

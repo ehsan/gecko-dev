@@ -6,18 +6,17 @@
 
 MODULE = 'layout'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsBox.cpp',
     'nsBoxFrame.cpp',
     'nsBoxLayout.cpp',
     'nsBoxLayoutState.cpp',
-    'nsBoxObject.cpp',
     'nsButtonBoxFrame.cpp',
     'nsRepeatService.cpp',
     'nsRootBoxFrame.cpp',
+    'nsScrollBoxFrame.cpp',
     'nsScrollbarButtonFrame.cpp',
     'nsScrollbarFrame.cpp',
-    'nsScrollBoxFrame.cpp',
     'nsSliderFrame.cpp',
     'nsSprocketLayout.cpp',
     'nsStackFrame.cpp',
@@ -26,39 +25,31 @@ SOURCES += [
 ]
 
 if CONFIG['MOZ_XUL']:
-    SOURCES += [
+    CPP_SOURCES += [
+        'nsScrollBoxObject.cpp',
         'nsContainerBoxObject.cpp',
-        'nsDeckFrame.cpp',
-        'nsDocElementBoxFrame.cpp',
-        'nsGroupBoxFrame.cpp',
-        'nsImageBoxFrame.cpp',
-        'nsLeafBoxFrame.cpp',
-        'nsListBoxBodyFrame.cpp',
-        'nsListBoxLayout.cpp',
+        'nsMenuBoxObject.cpp',
+        'nsPopupBoxObject.cpp',
         'nsListBoxObject.cpp',
-        'nsListItemFrame.cpp',
+        'nsBoxObject.cpp',
+        'nsImageBoxFrame.cpp',
+        'nsDocElementBoxFrame.cpp',
+        'nsLeafBoxFrame.cpp',
+        'nsTextBoxFrame.cpp',
+        'nsGroupBoxFrame.cpp',
+        'nsSplitterFrame.cpp',
+        'nsDeckFrame.cpp',
+        'nsProgressMeterFrame.cpp',
+        'nsMenuPopupFrame.cpp',
+        'nsMenuFrame.cpp',
         'nsMenuBarFrame.cpp',
         'nsMenuBarListener.cpp',
-        'nsMenuBoxObject.cpp',
-        'nsMenuFrame.cpp',
-        'nsMenuPopupFrame.cpp',
-        'nsPopupBoxObject.cpp',
         'nsPopupSetFrame.cpp',
-        'nsProgressMeterFrame.cpp',
-        'nsResizerFrame.cpp',
-        'nsScrollBoxObject.cpp',
-        'nsSplitterFrame.cpp',
-        'nsTextBoxFrame.cpp',
         'nsTitleBarFrame.cpp',
+        'nsResizerFrame.cpp',
+        'nsListBoxBodyFrame.cpp',
+        'nsListItemFrame.cpp',
+        'nsListBoxLayout.cpp',
         'nsXULLabelFrame.cpp',
         'nsXULPopupManager.cpp',
     ]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
-
-LIBRARY_NAME = 'gkxulbase_s'
-

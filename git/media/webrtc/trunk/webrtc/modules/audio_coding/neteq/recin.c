@@ -17,12 +17,13 @@
 
 #include <string.h>
 
+#include "signal_processing_library.h"
+
 #include "automode.h"
 #include "dtmf_buffer.h"
-#include "mcu_dsp_common.h"
 #include "neteq_defines.h"
 #include "neteq_error_codes.h"
-#include "signal_processing_library.h"
+
 
 int WebRtcNetEQ_RecInInternal(MCUInst_t *MCU_inst, RTPPacket_t *RTPpacketInput,
                               uint32_t uw32_timeRec)
@@ -35,8 +36,6 @@ int WebRtcNetEQ_RecInInternal(MCUInst_t *MCU_inst, RTPPacket_t *RTPpacketInput,
     int curr_Codec;
     int16_t isREDPayload = 0;
     int32_t temp_bufsize;
-    int is_sync_rtp = MCU_inst->av_sync && WebRtcNetEQ_IsSyncPayload(
-        RTPpacketInput->payload, RTPpacketInput->payloadLen);
 #ifdef NETEQ_RED_CODEC
     RTPPacket_t* RTPpacketPtr[2]; /* Support for redundancy up to 2 payloads */
     RTPpacketPtr[0] = &RTPpacket[0];
@@ -78,23 +77,15 @@ int WebRtcNetEQ_RecInInternal(MCUInst_t *MCU_inst, RTPPacket_t *RTPpacketInput,
 
     }
 
-    if (!is_sync_rtp) { /* Update only if it not sync packet. */
-      /* Call RTCP statistics if it is not sync packet. */
-      i_ok |= WebRtcNetEQ_RTCPUpdate(&(MCU_inst->RTCP_inst),
-                                     RTPpacket[0].seqNumber,
-                                     RTPpacket[0].timeStamp, uw32_timeRec);
-    }
+    /* Call RTCP statistics */
+    i_ok |= WebRtcNetEQ_RTCPUpdate(&(MCU_inst->RTCP_inst), RTPpacket[0].seqNumber,
+        RTPpacket[0].timeStamp, uw32_timeRec);
 
     /* If Redundancy is supported and this is the redundancy payload, separate the payloads */
 #ifdef NETEQ_RED_CODEC
     if (RTPpacket[0].payloadType == WebRtcNetEQ_DbGetPayload(&MCU_inst->codec_DB_inst,
         kDecoderRED))
     {
-        if (is_sync_rtp)
-        {
-            /* Sync packet should not have RED payload type. */
-            return RECIN_SYNC_RTP_NOT_ACCEPTABLE;
-        }
 
         /* Split the payload into a main and a redundancy payloads */
         i_ok = WebRtcNetEQ_RedundancySplit(RTPpacketPtr, 2, &i_No_Of_Payloads);
@@ -136,7 +127,7 @@ int WebRtcNetEQ_RecInInternal(MCUInst_t *MCU_inst, RTPPacket_t *RTPpacketInput,
 
         /* Force update of SplitInfo if it's iLBC because of potential change between 20/30ms */
         if (RTPpacket[i_k].payloadType == WebRtcNetEQ_DbGetPayload(&MCU_inst->codec_DB_inst,
-            kDecoderILBC) && !is_sync_rtp) /* Don't update if sync RTP. */
+            kDecoderILBC))
         {
             i_ok = WebRtcNetEQ_DbGetSplitInfo(
                 &MCU_inst->PayloadSplit_inst,
@@ -184,12 +175,6 @@ int WebRtcNetEQ_RecInInternal(MCUInst_t *MCU_inst, RTPPacket_t *RTPpacketInput,
         if (RTPpacket[i_k].payloadType == WebRtcNetEQ_DbGetPayload(&MCU_inst->codec_DB_inst,
             kDecoderAVT))
         {
-            if (is_sync_rtp)
-            {
-                /* Sync RTP should not have AVT payload type. */
-                return RECIN_SYNC_RTP_NOT_ACCEPTABLE;
-            }
-
 #ifdef NETEQ_ATEVENT_DECODE
             if (MCU_inst->AVT_PlayoutOn)
             {
@@ -220,11 +205,6 @@ int WebRtcNetEQ_RecInInternal(MCUInst_t *MCU_inst, RTPPacket_t *RTPpacketInput,
             /* Get CNG sample rate */
             uint16_t fsCng = WebRtcNetEQ_DbGetSampleRate(&MCU_inst->codec_DB_inst,
                 RTPpacket[i_k].payloadType);
-            if (is_sync_rtp)
-            {
-                /* Sync RTP should not have CNG payload type. */
-                return RECIN_SYNC_RTP_NOT_ACCEPTABLE;
-            }
 
             /* Force sampling frequency to 32000 Hz CNG 48000 Hz. */
             /* TODO(tlegrand): remove limitation once ACM has full 48 kHz
@@ -265,11 +245,6 @@ int WebRtcNetEQ_RecInInternal(MCUInst_t *MCU_inst, RTPPacket_t *RTPpacketInput,
                 {
                     return RECIN_UNKNOWNPAYLOAD;
                 }
-                if (is_sync_rtp)
-                {
-                    /* Sync RTP should not cause codec change. */
-                    return RECIN_SYNC_RTP_CHANGED_CODEC;
-                }
                 MCU_inst->current_Codec = curr_Codec;
                 MCU_inst->current_Payload = RTPpacket[i_k].payloadType;
                 i_ok = WebRtcNetEQ_DbGetSplitInfo(&MCU_inst->PayloadSplit_inst,
@@ -305,11 +280,10 @@ int WebRtcNetEQ_RecInInternal(MCUInst_t *MCU_inst, RTPPacket_t *RTPpacketInput,
     }
 
     /*
-     * If not sync RTP, update Bandwidth Estimate.
-     * Only send the main payload to BWE.
+     * Update Bandwidth Estimate
+     * Only send the main payload to BWE
      */
-    if (!is_sync_rtp &&
-        (curr_Codec = WebRtcNetEQ_DbGetCodec(&MCU_inst->codec_DB_inst,
+    if ((curr_Codec = WebRtcNetEQ_DbGetCodec(&MCU_inst->codec_DB_inst,
         RTPpacket[0].payloadType)) >= 0)
     {
         codecPos = MCU_inst->codec_DB_inst.position[curr_Codec];

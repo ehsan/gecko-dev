@@ -3,10 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "nsComplexBreaker.h"
 #include <Carbon/Carbon.h>
-#include <stdint.h>
-#include "nsDebug.h"
-#include "nscore.h"
 
 void
 NS_GetComplexLineBreaks(const PRUnichar* aText, uint32_t aLength,
@@ -17,10 +15,7 @@ NS_GetComplexLineBreaks(const PRUnichar* aText, uint32_t aLength,
 
   memset(aBreakBefore, false, aLength * sizeof(uint8_t));
 
-  OSStatus status = UCCreateTextBreakLocator(nullptr,
-                                             0,
-                                             kUCTextBreakLineMask,
-                                             &breakLocator);
+  OSStatus status = UCCreateTextBreakLocator(NULL, 0, kUCTextBreakLineMask, &breakLocator);
 
   if (status != noErr)
     return;
@@ -32,7 +27,7 @@ NS_GetComplexLineBreaks(const PRUnichar* aText, uint32_t aLength,
                   position == 0 ? kUCTextBreakLeadingEdgeMask : 
                                   (kUCTextBreakLeadingEdgeMask | 
                                    kUCTextBreakIterateMask),
-                  reinterpret_cast<const UniChar*>(aText),
+                  aText, 
                   aLength, 
                   position, 
                   &offset);

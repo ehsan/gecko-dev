@@ -8,6 +8,7 @@
 
 #include "mozilla/MathAlgorithms.h"
 
+#include "jit/Lowering.h"
 #include "jit/MIR.h"
 
 #include "jit/shared/Lowering-shared-inl.h"
@@ -28,6 +29,17 @@ LTableSwitchV *
 LIRGeneratorX86Shared::newLTableSwitchV(MTableSwitch *tableswitch)
 {
     return new LTableSwitchV(temp(), tempFloat(), temp(), tableswitch);
+}
+
+bool
+LIRGeneratorX86Shared::visitInterruptCheck(MInterruptCheck *ins)
+{
+    LInterruptCheck *lir = new LInterruptCheck();
+    if (!add(lir, ins))
+        return false;
+    if (!assignSafepoint(lir, ins))
+        return false;
+    return true;
 }
 
 bool
@@ -61,7 +73,7 @@ LIRGeneratorX86Shared::visitPowHalf(MPowHalf *ins)
 {
     MDefinition *input = ins->input();
     JS_ASSERT(input->type() == MIRType_Double);
-    LPowHalfD *lir = new LPowHalfD(useRegisterAtStart(input));
+    LPowHalfD *lir = new LPowHalfD(useRegisterAtStart(input), temp());
     return defineReuseInput(lir, ins, 0);
 }
 
@@ -121,7 +133,7 @@ LIRGeneratorX86Shared::lowerMulI(MMul *mul, MDefinition *lhs, MDefinition *rhs)
     // Note: lhs is used twice, so that we can restore the original value for the
     // negative zero check.
     LMulI *lir = new LMulI(useRegisterAtStart(lhs), useOrConstant(rhs), use(lhs));
-    if (mul->fallible() && !assignSnapshot(lir, Bailout_BaselineInfo))
+    if (mul->fallible() && !assignSnapshot(lir))
         return false;
     return defineReuseInput(lir, mul, 0);
 }
@@ -145,31 +157,14 @@ LIRGeneratorX86Shared::lowerDivI(MDiv *div)
         int32_t shift = FloorLog2(rhs);
         if (rhs > 0 && 1 << shift == rhs) {
             LDivPowTwoI *lir = new LDivPowTwoI(useRegisterAtStart(div->lhs()), useRegister(div->lhs()), shift);
-            if (div->fallible() && !assignSnapshot(lir, Bailout_BaselineInfo))
+            if (div->fallible() && !assignSnapshot(lir))
                 return false;
             return defineReuseInput(lir, div, 0);
         }
     }
 
-    // Optimize x/x. This is quaint, but it also protects the LDivI code below.
-    // Since LDivI requires lhs to be in %eax, and since the register allocator
-    // can't put a virtual register in two physical registers at the same time,
-    // this puts rhs in %eax too, and since rhs isn't marked usedAtStart, it
-    // would conflict with the %eax output register. (rhs could be marked
-    // usedAtStart but for the fact that LDivI clobbers %edx early and rhs could
-    // happen to be in %edx).
-    if (div->lhs() == div->rhs()) {
-        if (!div->canBeDivideByZero())
-            return define(new LInteger(1), div);
-
-        LDivSelfI *lir = new LDivSelfI(useRegisterAtStart(div->lhs()));
-        if (div->fallible() && !assignSnapshot(lir, Bailout_BaselineInfo))
-            return false;
-        return define(lir, div);
-    }
-
     LDivI *lir = new LDivI(useFixed(div->lhs(), eax), useRegister(div->rhs()), tempFixed(edx));
-    if (div->fallible() && !assignSnapshot(lir, Bailout_BaselineInfo))
+    if (div->fallible() && !assignSnapshot(lir))
         return false;
     return defineFixed(lir, div, LAllocation(AnyRegister(eax)));
 }
@@ -185,13 +180,13 @@ LIRGeneratorX86Shared::lowerModI(MMod *mod)
         int32_t shift = FloorLog2(rhs);
         if (rhs > 0 && 1 << shift == rhs) {
             LModPowTwoI *lir = new LModPowTwoI(useRegisterAtStart(mod->lhs()), shift);
-            if (mod->fallible() && !assignSnapshot(lir, Bailout_BaselineInfo))
+            if (mod->fallible() && !assignSnapshot(lir))
                 return false;
             return defineReuseInput(lir, mod, 0);
         }
     }
     LModI *lir = new LModI(useRegister(mod->lhs()), useRegister(mod->rhs()), tempFixed(eax));
-    if (mod->fallible() && !assignSnapshot(lir, Bailout_BaselineInfo))
+    if (mod->fallible() && !assignSnapshot(lir))
         return false;
     return defineFixed(lir, mod, LAllocation(AnyRegister(edx)));
 }
@@ -224,9 +219,9 @@ LIRGeneratorX86Shared::visitAsmJSUDiv(MAsmJSUDiv *div)
 bool
 LIRGeneratorX86Shared::lowerUMod(MInstruction *mod)
 {
-    LUDivOrMod *lir = new LUDivOrMod(useFixedAtStart(mod->getOperand(0), eax),
+    LUDivOrMod *lir = new LUDivOrMod(useFixed(mod->getOperand(0), eax),
                                      useRegister(mod->getOperand(1)),
-                                     tempFixed(eax));
+                                     LDefinition::BogusTemp());
     return defineFixed(lir, mod, LAllocation(AnyRegister(edx)));
 }
 
@@ -264,19 +259,10 @@ LIRGeneratorX86Shared::lowerConstantDouble(double d, MInstruction *mir)
 }
 
 bool
-LIRGeneratorX86Shared::lowerConstantFloat32(float f, MInstruction *mir)
-{
-    return define(new LFloat32(f), mir);
-}
-
-bool
 LIRGeneratorX86Shared::visitConstant(MConstant *ins)
 {
     if (ins->type() == MIRType_Double)
         return lowerConstantDouble(ins->value().toDouble(), ins);
-
-    if (ins->type() == MIRType_Float32)
-        return lowerConstantFloat32(ins->value().toDouble(), ins);
 
     // Emit non-double constants at their uses.
     if (ins->canEmitAtUses())
@@ -293,14 +279,4 @@ LIRGeneratorX86Shared::lowerTruncateDToInt32(MTruncateToInt32 *ins)
 
     LDefinition maybeTemp = Assembler::HasSSE3() ? LDefinition::BogusTemp() : tempFloat();
     return define(new LTruncateDToInt32(useRegister(opd), maybeTemp), ins);
-}
-
-bool
-LIRGeneratorX86Shared::lowerTruncateFToInt32(MTruncateToInt32 *ins)
-{
-    MDefinition *opd = ins->input();
-    JS_ASSERT(opd->type() == MIRType_Float32);
-
-    LDefinition maybeTemp = Assembler::HasSSE3() ? LDefinition::BogusTemp() : tempFloat();
-    return define(new LTruncateFToInt32(useRegister(opd), maybeTemp), ins);
 }

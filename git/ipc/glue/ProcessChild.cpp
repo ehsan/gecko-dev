@@ -27,7 +27,7 @@ ProcessChild::ProcessChild(ProcessHandle parentHandle)
 
 ProcessChild::~ProcessChild()
 {
-  gProcessChild = nullptr;
+  gProcessChild = NULL;
 }
 
 } // namespace ipc

@@ -16,6 +16,7 @@
 #include "States.h"
 
 #include "nsCOMPtr.h"
+#include "nsRect.h"
 
 #include "nsTArray.h"
 #include "nsAutoPtr.h"

@@ -23,46 +23,14 @@ function makeURI(aURL, aOriginCharset, aBaseURI) {
 // --------------------------------
 // View prototype for shared functionality
 
-function View(aSet) {
-  this._set = aSet;
-  this._set.controller = this;
-
-  this.viewStateObserver = {
-    observe: (aSubject, aTopic, aData) => this._adjustDOMforViewState(aData)
-  };
-  Services.obs.addObserver(this.viewStateObserver, "metro_viewstate_changed", false);
-
-  this._adjustDOMforViewState();
+function View() {
 }
 
 View.prototype = {
-  destruct: function () {
-    Services.obs.removeObserver(this.viewStateObserver, "metro_viewstate_changed");
-  },
 
-  _adjustDOMforViewState: function _adjustDOMforViewState(aState) {
-    let grid = this._set;
-    if (!grid) {
-      return;
-    }
-    if (!aState) {
-      aState = grid.getAttribute("viewstate");
-    }
-    switch (aState) {
-      case "snapped":
-        grid.setAttribute("nocontext", true);
-        grid.selectNone();
-        break;
-      case "portrait":
-        grid.removeAttribute("nocontext");
-        grid.setAttribute("vertical", true);
-        break;
-      default:
-        grid.removeAttribute("nocontext");
-        grid.removeAttribute("vertical");
-    }
-    if ("arrangeItems" in grid) {
-      grid.arrangeItems();
+  onViewStateChange: function (aState) {
+    if (this._set) {
+      this._set.setAttribute("suppressonselect", (aState == "snapped"));
     }
   },
 
@@ -90,15 +58,8 @@ View.prototype = {
     let successAction = function(foreground, background) {
       aItem.style.color = foreground; //color text
       aItem.setAttribute("customColor", background);
-      let matteColor =  0xffffff; // white
-      let alpha = 0.04; // the tint weight
-      let [,r,g,b] = background.match(/rgb\((\d+),(\d+),(\d+)/);
-      // get the rgb value that represents this color at given opacity over a white matte
-      let tintColor = ColorUtils.addRgbColors(matteColor, ColorUtils.createDecimalColorWord(r,g,b,alpha));
-      aItem.setAttribute("tintColor", ColorUtils.convertDecimalToRgbColor(tintColor));
-      // when bound, use the setter to propogate the color change through the tile
-      if ('color' in aItem) {
-        aItem.color = background;
+      if (aItem.refresh) {
+        aItem.refresh();
       }
     };
     let failureAction = function() {};

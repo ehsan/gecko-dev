@@ -260,17 +260,7 @@ ConsoleAPI.prototype = {
   {
     let [method, args, meta] = aCall;
 
-    let frame;
-    if (meta.stack.length) {
-      frame = meta.stack[0];
-    } else {
-      frame = {
-        filename: "",
-        lineNumber: 0,
-        functionName: "",
-      };
-    }
-
+    let frame = meta.stack[0];
     let consoleEvent = {
       ID: this._outerID,
       innerID: this._innerID,

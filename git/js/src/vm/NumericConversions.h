@@ -14,6 +14,9 @@
 
 #include <math.h>
 
+/* A NaN whose bit pattern conforms to JS::Value's bit pattern restrictions. */
+extern double js_NaN;
+
 namespace js {
 
 namespace detail {

@@ -8,7 +8,10 @@
 #include "SVGLength.h"
 #include "nsSVGElement.h"
 #include "mozilla/dom/SVGSVGElement.h"
+#include "nsString.h"
 #include "nsTextFormatter.h"
+#include "prdtoa.h"
+#include "nsMathUtils.h"
 #include "SVGContentUtils.h"
 #include <limits>
 #include <algorithm>
@@ -34,22 +37,40 @@ SVGLength::GetValueAsString(nsAString &aValue) const
 }
 
 bool
-SVGLength::SetValueFromString(const nsAString &aValueAsString)
+SVGLength::SetValueFromString(const nsAString &aValue)
 {
-  nsAutoString units;
-  float value;
+  float tmpValue;
+  uint16_t tmpUnit;
 
-  if (!SVGContentUtils::ParseNumber(aValueAsString, value, units)) {
-    return false;
-  }
+  NS_ConvertUTF16toUTF8 value(aValue);
+  const char *str = value.get();
 
-  uint16_t unitType = GetUnitTypeForString(units);
-  if (!IsValidUnitType(unitType)) {
-    return false;
+  while (*str != '\0' && IsSVGWhitespace(*str)) {
+    ++str;
   }
-  mValue = value;
-  mUnit = uint8_t(unitType);
-  return true;
+  char *unit;
+  tmpValue = float(PR_strtod(str, &unit));
+  if (unit != str && NS_finite(tmpValue)) {
+    char *theRest = unit;
+    while (*theRest != '\0' && !IsSVGWhitespace(*theRest)) {
+      ++theRest;
+    }
+    tmpUnit = GetUnitTypeForString(
+                Substring(aValue, unit - str, theRest - unit));
+    if (tmpUnit == nsIDOMSVGLength::SVG_LENGTHTYPE_UNKNOWN) {
+      // SVGContentUtils::ReportToConsole
+      return false;
+    }
+    while (*theRest && IsSVGWhitespace(*theRest)) {
+      ++theRest;
+    }
+    if (!*theRest) {
+      mValue = tmpValue;
+      mUnit = tmpUnit;
+      return true;
+    }
+  }
+  return false;
 }
 
 inline static bool

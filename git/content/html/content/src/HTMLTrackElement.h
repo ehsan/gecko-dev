@@ -21,19 +21,10 @@
 namespace mozilla {
 namespace dom {
 
-// Map html attribute string values to TextTrackKind enums.
-static const nsAttrValue::EnumTable kKindTable[] = {
-  { "subtitles", static_cast<int16_t>(TextTrackKind::Subtitles) },
-  { "captions", static_cast<int16_t>(TextTrackKind::Captions) },
-  { "descriptions", static_cast<int16_t>(TextTrackKind::Descriptions) },
-  { "chapters", static_cast<int16_t>(TextTrackKind::Chapters) },
-  { "metadata", static_cast<int16_t>(TextTrackKind::Metadata) },
-  { 0 }
-};
-
-class WebVTTListener;
+class WebVTTLoadListener;
 
 class HTMLTrackElement MOZ_FINAL : public nsGenericHTMLElement
+                                 , public nsIDOMHTMLElement
 {
 public:
   HTMLTrackElement(already_AddRefed<nsINodeInfo> aNodeInfo);
@@ -44,12 +35,18 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(HTMLTrackElement,
                                            nsGenericHTMLElement)
 
+  // nsIDOMNode
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+
+  // nsIDOMElement
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLElement
+  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
+
   // HTMLTrackElement WebIDL
-  void GetKind(DOMString& aKind) const;
-  void SetKind(const nsAString& aKind, ErrorResult& aError)
-  {
-    SetHTMLAttr(nsGkAtoms::kind, aKind, aError);
-  }
+  TextTrackKind Kind() const;
+  void SetKind(TextTrackKind aKind, ErrorResult& aError);
 
   void GetSrc(DOMString& aSrc) const
   {
@@ -102,11 +99,15 @@ public:
     LOADED = 2U,
     ERROR = 3U
   };
-  uint16_t ReadyState() const;
+  uint16_t ReadyState() const
+  {
+    return mReadyState;
+  }
 
   TextTrack* Track();
 
   virtual nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const MOZ_OVERRIDE;
+  virtual nsIDOMNode* AsDOMNode() MOZ_OVERRIDE { return this; }
 
   // For Track, ItemValue reflects the src attribute
   virtual void GetItemValueText(nsAString& aText) MOZ_OVERRIDE
@@ -143,17 +144,19 @@ protected:
                              JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
   void OnChannelRedirect(nsIChannel* aChannel, nsIChannel* aNewChannel,
                          uint32_t aFlags);
-  // Open a new channel to the HTMLTrackElement's src attribute and call
-  // mListener's LoadResource().
+  // Will open a new channel for the HTMLTrackElement's src attribute and load
+  // HTMLTrackElement's WebVTTLoadListener by calling WebVTTLoadListener's
+  // LoadResource().
   void LoadResource();
 
   friend class TextTrackCue;
-  friend class WebVTTListener;
+  friend class WebVTTLoadListener;
 
   nsRefPtr<TextTrack> mTrack;
   nsCOMPtr<nsIChannel> mChannel;
   nsRefPtr<HTMLMediaElement> mMediaParent;
-  nsRefPtr<WebVTTListener> mListener;
+  nsRefPtr<WebVTTLoadListener> mLoadListener;
+  uint16_t mReadyState;
 
   void CreateTextTrack();
 };

@@ -7,16 +7,15 @@
 #include "nsILocaleService.h"
 #include "nsIServiceManager.h"
 #include "prmem.h"
-#include "nsString.h"
 
 NS_IMPL_ISUPPORTS1(nsCollationMacUC, nsICollation)
 
 nsCollationMacUC::nsCollationMacUC() 
   : mInit(false)
   , mHasCollator(false)
-  , mLocale(nullptr)
+  , mLocale(NULL)
   , mLastStrength(-1)
-  , mCollator(nullptr)
+  , mCollator(NULL)
   , mBuffer(nullptr)
   , mBufferLen(1)
 {
@@ -175,7 +174,7 @@ NS_IMETHODIMP nsCollationMacUC::CompareString(int32_t strength, const nsAString&
   err = ::UCCompareText(mCollator, 
                         (const UniChar *) PromiseFlatString(string1).get(), (UniCharCount) string1.Length(),
                         (const UniChar *) PromiseFlatString(string2).get(), (UniCharCount) string2.Length(),
-                        nullptr, (SInt32*) result);
+                        NULL, (SInt32*) result);
 
   NS_ENSURE_TRUE((err == noErr), NS_ERROR_FAILURE);
   return NS_OK;
@@ -194,7 +193,7 @@ NS_IMETHODIMP nsCollationMacUC::CompareRawSortKey(const uint8_t* key1, uint32_t 
   OSStatus err;
   err = ::UCCompareCollationKeys((const UCCollationValue*) key1, (ItemCount) len1,
                                  (const UCCollationValue*) key2, (ItemCount) len2,
-                                 nullptr, (SInt32*) result);
+                                 NULL, (SInt32*) result);
 
   NS_ENSURE_TRUE((err == noErr), NS_ERROR_FAILURE);
 

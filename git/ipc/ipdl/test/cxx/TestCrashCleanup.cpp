@@ -26,7 +26,7 @@ void DeleteSubprocess(Mutex* mutex, CondVar* cvar)
     MutexAutoLock lock(*mutex);
 
     delete gSubprocess;
-    gSubprocess = nullptr;
+    gSubprocess = NULL;
 
     cvar->Notify();
 }
@@ -34,7 +34,7 @@ void DeleteSubprocess(Mutex* mutex, CondVar* cvar)
 void DeleteTheWorld()
 {
     delete static_cast<TestCrashCleanupParent*>(gParentActor);
-    gParentActor = nullptr;
+    gParentActor = NULL;
 
     // needs to be synchronous to avoid affecting event ordering on
     // the main thread

@@ -13,8 +13,8 @@
 
 #include <list>
 
-#include "webrtc/modules/remote_bitrate_estimator/include/rtp_to_ntp.h"
-#include "webrtc/typedefs.h"
+#include "modules/remote_bitrate_estimator/include/rtp_to_ntp.h"
+#include "typedefs.h"  // NOLINT
 
 namespace webrtc {
 

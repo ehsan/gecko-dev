@@ -25,9 +25,11 @@ deactivate () {
         unset _OLD_VIRTUAL_PS1
     fi
 
-    PYTHONPATH="$_OLD_PYTHONPATH"
-    export PYTHONPATH
-    unset _OLD_PYTHONPATH
+    if [ -n "$_OLD_PYTHONPATH" ] ; then
+        PYTHONPATH="$_OLD_PYTHONPATH"
+        export PYTHONPATH
+        unset _OLD_PYTHONPATH
+    fi
 
     unset CUDDLEFISH_ROOT
 

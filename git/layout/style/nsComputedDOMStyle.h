@@ -13,13 +13,10 @@
 #include "nsCOMPtr.h"
 #include "nscore.h"
 #include "nsCSSProperty.h"
-#include "nsCSSProps.h"
 #include "nsDOMCSSDeclaration.h"
 #include "nsStyleContext.h"
+#include "nsStyleStruct.h"
 #include "nsIWeakReferenceUtils.h"
-#include "mozilla/gfx/Types.h"
-#include "nsCoord.h"
-#include "nsColor.h"
 #include "nsIContent.h"
 
 namespace mozilla {
@@ -28,42 +25,11 @@ class Element;
 }
 }
 
-struct nsComputedStyleMap;
 class nsIFrame;
 class nsIPresShell;
 class nsDOMCSSValueList;
-class nsMargin;
 class nsROCSSPrimitiveValue;
-class nsStyleBackground;
-class nsStyleBorder;
-class nsStyleContent;
-class nsStyleColumn;
-class nsStyleColor;
-class nsStyleCoord;
-class nsStyleCorners;
-class nsStyleDisplay;
-class nsStyleFilter;
-class nsStyleFont;
-class nsStyleGradient;
-class nsStyleImage;
-class nsStyleList;
-class nsStyleMargin;
-class nsStyleOutline;
-class nsStylePadding;
-class nsStylePosition;
-class nsStyleQuotes;
-class nsStyleSides;
-class nsStyleSVG;
-class nsStyleSVGReset;
-class nsStyleTable;
-class nsStyleText;
-class nsStyleTextReset;
-class nsStyleTimingFunction;
-class nsStyleUIReset;
-class nsStyleVisibility;
-class nsStyleXUL;
-class nsTimingFunction;
-class gfx3DMatrix;
+class nsStyleContext;
 
 class nsComputedDOMStyle MOZ_FINAL : public nsDOMCSSDeclaration
 {
@@ -129,9 +95,6 @@ public:
 
   static nsROCSSPrimitiveValue* MatrixToCSSValue(gfx3DMatrix& aMatrix);
 
-  static void RegisterPrefChangeCallbacks();
-  static void UnregisterPrefChangeCallbacks();
-
 private:
   void AssertFlushedPendingReflows() {
     NS_ASSERTION(mFlushedPendingReflows,
@@ -139,11 +102,6 @@ private:
   }
 
   nsMargin GetAdjustedValuesForBoxSizing();
-
-  // Helper method for DoGetTextAlign[Last].
-  mozilla::dom::CSSValue* CreateTextAlignValue(uint8_t aAlign,
-                                               bool aAlignTrue,
-                                               const int32_t aTable[]);
 
 #define STYLE_STRUCT(name_, checkdata_cb_)                              \
   const nsStyle##name_ * Style##name_() {                               \
@@ -165,8 +123,6 @@ private:
   mozilla::dom::CSSValue* GetAbsoluteOffset(mozilla::css::Side aSide);
 
   mozilla::dom::CSSValue* GetRelativeOffset(mozilla::css::Side aSide);
-
-  mozilla::dom::CSSValue* GetStickyOffset(mozilla::css::Side aSide);
 
   mozilla::dom::CSSValue* GetStaticOffset(mozilla::css::Side aSide);
 
@@ -224,7 +180,6 @@ private:
   mozilla::dom::CSSValue* DoGetMaxWidth();
   mozilla::dom::CSSValue* DoGetMinHeight();
   mozilla::dom::CSSValue* DoGetMinWidth();
-  mozilla::dom::CSSValue* DoGetMixBlendMode();
   mozilla::dom::CSSValue* DoGetLeft();
   mozilla::dom::CSSValue* DoGetTop();
   mozilla::dom::CSSValue* DoGetRight();
@@ -351,13 +306,12 @@ private:
   mozilla::dom::CSSValue* DoGetLineHeight();
   mozilla::dom::CSSValue* DoGetTextAlign();
   mozilla::dom::CSSValue* DoGetTextAlignLast();
-  mozilla::dom::CSSValue* DoGetTextCombineHorizontal();
+  mozilla::dom::CSSValue* DoGetMozTextBlink();
   mozilla::dom::CSSValue* DoGetTextDecoration();
   mozilla::dom::CSSValue* DoGetTextDecorationColor();
   mozilla::dom::CSSValue* DoGetTextDecorationLine();
   mozilla::dom::CSSValue* DoGetTextDecorationStyle();
   mozilla::dom::CSSValue* DoGetTextIndent();
-  mozilla::dom::CSSValue* DoGetTextOrientation();
   mozilla::dom::CSSValue* DoGetTextOverflow();
   mozilla::dom::CSSValue* DoGetTextTransform();
   mozilla::dom::CSSValue* DoGetTextShadow();
@@ -387,7 +341,6 @@ private:
   mozilla::dom::CSSValue* DoGetDisplay();
   mozilla::dom::CSSValue* DoGetPosition();
   mozilla::dom::CSSValue* DoGetClip();
-  mozilla::dom::CSSValue* DoGetImageOrientation();
   mozilla::dom::CSSValue* DoGetOverflow();
   mozilla::dom::CSSValue* DoGetOverflowX();
   mozilla::dom::CSSValue* DoGetOverflowY();
@@ -534,8 +487,6 @@ private:
 
   bool GetCBContentWidth(nscoord& aWidth);
   bool GetCBContentHeight(nscoord& aWidth);
-  bool GetScrollFrameContentWidth(nscoord& aWidth);
-  bool GetScrollFrameContentHeight(nscoord& aHeight);
   bool GetFrameBoundsWidthForTransform(nscoord &aWidth);
   bool GetFrameBoundsHeightForTransform(nscoord &aHeight);
   bool GetFrameBorderRectWidth(nscoord& aWidth);
@@ -543,10 +494,20 @@ private:
 
   /* Helper functions for computing the filter property style. */
   void SetCssTextToCoord(nsAString& aCssText, const nsStyleCoord& aCoord);
-  mozilla::dom::CSSValue* CreatePrimitiveValueForStyleFilter(
+  nsROCSSPrimitiveValue* CreatePrimitiveValueForStyleFilter(
     const nsStyleFilter& aStyleFilter);
 
-  static nsComputedStyleMap* GetComputedStyleMap();
+  struct ComputedStyleMapEntry
+  {
+    // Create a pointer-to-member-function type.
+    typedef mozilla::dom::CSSValue* (nsComputedDOMStyle::*ComputeMethod)();
+
+    nsCSSProperty mProperty;
+    ComputeMethod mGetter;
+    bool mNeedsLayoutFlush;
+  };
+
+  static const ComputedStyleMapEntry* GetQueryablePropertyMap(uint32_t* aLength);
 
   // We don't really have a good immutable representation of "presentation".
   // Given the way GetComputedStyle is currently used, we should just grab the

@@ -11,6 +11,7 @@
 #define nsXULPopupManager_h__
 
 #include "prlog.h"
+#include "nsGUIEvent.h"
 #include "nsIContent.h"
 #include "nsIRollupListener.h"
 #include "nsIDOMEventListener.h"
@@ -21,7 +22,6 @@
 #include "nsIReflowCallback.h"
 #include "nsThreadUtils.h"
 #include "nsStyleConsts.h"
-#include "nsWidgetInitData.h"
 #include "mozilla/Attributes.h"
 
 // X.h defines KeyPress
@@ -51,7 +51,6 @@ class nsMenuBarFrame;
 class nsMenuParent;
 class nsIDOMKeyEvent;
 class nsIDocShellTreeItem;
-class nsPIDOMWindow;
 
 // when a menu command is executed, the closemenu attribute may be used
 // to define how the menu should be closed up
@@ -104,6 +103,11 @@ enum nsNavigationDirection {
                                             dir == eNavigationDirection_Last)
 
 PR_STATIC_ASSERT(NS_STYLE_DIRECTION_LTR == 0 && NS_STYLE_DIRECTION_RTL == 1);
+PR_STATIC_ASSERT((NS_VK_HOME == NS_VK_END + 1) &&
+                 (NS_VK_LEFT == NS_VK_END + 2) &&
+                 (NS_VK_UP == NS_VK_END + 3) &&
+                 (NS_VK_RIGHT == NS_VK_END + 4) &&
+                 (NS_VK_DOWN == NS_VK_END + 5));
 
 /**
  * DirectionFromKeyCodeTable: two arrays, the first for left-to-right and the
@@ -114,7 +118,7 @@ extern const nsNavigationDirection DirectionFromKeyCodeTable[2][6];
 
 #define NS_DIRECTION_FROM_KEY_CODE(frame, keycode)                     \
   (DirectionFromKeyCodeTable[frame->StyleVisibility()->mDirection]  \
-                            [keycode - nsIDOMKeyEvent::DOM_VK_END])
+                            [keycode - NS_VK_END])
 
 // nsMenuChainItem holds info about an open popup. Items are stored in a
 // doubly linked list. Note that the linked list is stored beginning from
@@ -732,7 +736,7 @@ protected:
   nsIntPoint mCachedMousePoint;
 
   // cached modifiers
-  mozilla::Modifiers mCachedModifiers;
+  mozilla::widget::Modifiers mCachedModifiers;
 
   // set to the currently active menu bar, if any
   nsMenuBarFrame* mActiveMenuBar;

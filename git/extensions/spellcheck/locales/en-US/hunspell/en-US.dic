@@ -1,4 +1,4 @@
-57451
+57446
 0/nm
 0th/pt
 1/n1
@@ -18771,7 +18771,6 @@ autobiographic
 autobiographical/Y
 autobiography/SM
 autoclave/MS
-autocomplete/S
 autocracy/SM
 autocrat/SM
 autocratic
@@ -35368,7 +35367,6 @@ interrogatory/SM
 interrupt/ZGMDRS
 interrupter/M
 interruptibility
-interruptible/U
 interruption/MS
 interscholastic
 intersect/GDS
@@ -38836,7 +38834,6 @@ migraine/MS
 migrant/MS
 migrate/AGDS
 migration/SM
-migrator/SM
 migratory
 mikado/MS
 mike/MGDS
@@ -44944,7 +44941,6 @@ professorship/MS
 proffer/GMDS
 proficiency/SM
 proficient/MYS
-profiler/SM
 profit/BGD
 profitability/M
 profitable/U
@@ -44975,7 +44971,6 @@ program/ZGMDRS
 programer/M
 programmable/SM
 programmatic
-programmatically
 programmed/CA
 programmer/MS
 programming/MS
@@ -46287,7 +46282,6 @@ recur/S
 recurred
 recurrence/SM
 recurring
-recurse/DGSV
 recursion/S
 recuse/DGS
 recyclable/MS
@@ -46808,6 +46802,7 @@ resistivity
 resistless
 resistor/MS
 resitting
+resizing
 resold
 resole/DSG
 resolute/XPYTNR
@@ -49492,7 +49487,7 @@ sixths
 sixtieth/M
 sixtieths
 sixty/SMH
-size/AMGBDRS
+size/MGBDRS
 sizing/M
 sizzle/DRSMZG
 ska/M
@@ -53640,7 +53635,7 @@ too
 took/A
 tool's
 tool/ADGS
-toolbar/MS
+toolbar
 toolbox/MS
 toolkit
 toolmaker/MS

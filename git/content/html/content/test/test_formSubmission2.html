@@ -152,7 +152,10 @@ function clickImage(aTarget, aX, aY)
   aTarget.style.left = "0";
   aTarget.offsetTop;
 
-  var wu = SpecialPowers.getDOMWindowUtils(aTarget.ownerDocument.defaultView);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var wu = aTarget.ownerDocument.defaultView
+    .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+    .getInterface(Components.interfaces.nsIDOMWindowUtils);
 
   wu.sendMouseEvent('mousedown',  aX, aY, 0, 1, 0);
   wu.sendMouseEvent('mouseup',  aX, aY, 0, 0, 0);

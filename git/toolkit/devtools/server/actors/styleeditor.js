@@ -104,7 +104,7 @@ StyleEditorActor.prototype = {
    * @return {object} JSON message to with BaseURI
    */
   onGetBaseURI: function() {
-    return { baseURI: this.document.baseURIObject.spec };
+    return { baseURI: this.document.baseURIObject };
   },
 
   /**
@@ -622,10 +622,13 @@ StyleSheetActor.prototype = {
       }
     };
 
-    channel.loadGroup = this.window.QueryInterface(Ci.nsIInterfaceRequestor)
+    if (channel instanceof Ci.nsIPrivateBrowsingChannel) {
+      let loadContext = this.window
+                            .QueryInterface(Ci.nsIInterfaceRequestor)
                             .getInterface(Ci.nsIWebNavigation)
-                            .QueryInterface(Ci.nsIDocumentLoader)
-                            .loadGroup;
+                            .QueryInterface(Ci.nsILoadContext);
+      channel.setPrivate(loadContext.usePrivateBrowsing);
+    }
     channel.loadFlags = channel.LOAD_FROM_CACHE;
     channel.asyncOpen(streamListener, null);
   },

@@ -12,6 +12,9 @@
 #include "nsRect.h"
 #include "nsPoint.h"
 #include "nsSize.h"
+#include "gfxTypes.h"
+#include "nsID.h"
+#include "gfxContext.h"
 #include "gfxPattern.h"
 #include "gfxDrawable.h"
 #include "gfxImageSurface.h"
@@ -22,7 +25,6 @@
 #endif
 #include "nsAutoPtr.h"
 #include "imgIContainer.h"
-#include "gfxColor.h"
 
 class imgFrame
 {
@@ -30,10 +32,10 @@ public:
   imgFrame();
   ~imgFrame();
 
-  nsresult Init(int32_t aX, int32_t aY, int32_t aWidth, int32_t aHeight, gfxImageFormat aFormat, uint8_t aPaletteDepth = 0);
+  nsresult Init(int32_t aX, int32_t aY, int32_t aWidth, int32_t aHeight, gfxASurface::gfxImageFormat aFormat, uint8_t aPaletteDepth = 0);
   nsresult Optimize();
 
-  void Draw(gfxContext *aContext, GraphicsFilter aFilter,
+  void Draw(gfxContext *aContext, gfxPattern::GraphicsFilter aFilter,
             const gfxMatrix &aUserSpaceToImageSpace, const gfxRect& aFill,
             const nsIntMargin &aPadding, const nsIntRect &aSubimage,
             uint32_t aImageFlags = imgIContainer::FLAG_NONE);
@@ -42,7 +44,7 @@ public:
   bool GetIsDirty() const;
 
   nsIntRect GetRect() const;
-  gfxImageFormat GetFormat() const;
+  gfxASurface::gfxImageFormat GetFormat() const;
   bool GetNeedsBackground() const;
   uint32_t GetImageBytesPerRow() const;
   uint32_t GetImageDataLength() const;
@@ -104,7 +106,7 @@ public:
   }
 
   size_t SizeOfExcludingThisWithComputedFallbackIfHeap(
-           gfxMemoryLocation aLocation,
+           gfxASurface::MemoryLocation aLocation,
            mozilla::MallocSizeOf aMallocSizeOf) const;
 
   uint8_t GetPaletteDepth() const { return mPaletteDepth; }
@@ -119,9 +121,9 @@ private: // methods
 
   struct SurfaceWithFormat {
     nsRefPtr<gfxDrawable> mDrawable;
-    gfxImageFormat mFormat;
+    gfxImageSurface::gfxImageFormat mFormat;
     SurfaceWithFormat() {}
-    SurfaceWithFormat(gfxDrawable* aDrawable, gfxImageFormat aFormat)
+    SurfaceWithFormat(gfxDrawable* aDrawable, gfxImageSurface::gfxImageFormat aFormat)
      : mDrawable(aDrawable), mFormat(aFormat) {}
     bool IsValid() { return !!mDrawable; }
   };
@@ -167,7 +169,7 @@ private: // data
   /** Indicates how many readers currently have locked this frame */
   int32_t mLockCount;
 
-  gfxImageFormat mFormat;
+  gfxASurface::gfxImageFormat mFormat;
   uint8_t      mPaletteDepth;
   int8_t       mBlendMethod;
   bool mSinglePixel;

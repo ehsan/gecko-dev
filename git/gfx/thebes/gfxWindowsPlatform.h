@@ -52,7 +52,7 @@ class IDirect3DDevice9;
 class ID3D11Device;
 class IDXGIAdapter1;
 
-class nsIMemoryReporter;
+class nsIMemoryMultiReporter;
 
 // Utility to get a Windows HDC from a thebes context,
 // used by both GDI and Uniscribe font shapers
@@ -60,10 +60,10 @@ struct DCFromContext {
     DCFromContext(gfxContext *aContext) {
         dc = nullptr;
         nsRefPtr<gfxASurface> aSurface = aContext->CurrentSurface();
-        NS_ASSERTION(aSurface || !aContext->IsCairo(), "DCFromContext: null surface");
+        NS_ASSERTION(aSurface, "DCFromContext: null surface");
         if (aSurface &&
-            (aSurface->GetType() == gfxSurfaceTypeWin32 ||
-             aSurface->GetType() == gfxSurfaceTypeWin32Printing))
+            (aSurface->GetType() == gfxASurface::SurfaceTypeWin32 ||
+             aSurface->GetType() == gfxASurface::SurfaceTypeWin32Printing))
         {
             dc = static_cast<gfxWindowsSurface*>(aSurface.get())->GetDC();
             needsRelease = false;
@@ -126,10 +126,10 @@ public:
     virtual gfxPlatformFontList* CreatePlatformFontList();
 
     already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
-                                                         gfxContentType contentType);
+                                                         gfxASurface::gfxContentType contentType);
     virtual already_AddRefed<gfxASurface>
       CreateOffscreenImageSurface(const gfxIntSize& aSize,
-                                  gfxContentType aContentType);
+                                  gfxASurface::gfxContentType aContentType);
 
     virtual mozilla::TemporaryRef<mozilla::gfx::ScaledFont>
       GetScaledFontForFont(mozilla::gfx::DrawTarget* aTarget, gfxFont *aFont);
@@ -246,8 +246,7 @@ public:
         kWindowsServer2003 = 0x50002,
         kWindowsVista = 0x60000,
         kWindows7 = 0x60001,
-        kWindows8 = 0x60002,
-        kWindows8_1 = 0x60003
+        kWindows8 = 0x60002
     };
 
     static int32_t WindowsOSVersion(int32_t *aBuildNum = nullptr);
@@ -316,7 +315,7 @@ private:
     // TODO: unify this with mPrefFonts (NB: holds families, not fonts) in gfxPlatformFontList
     nsDataHashtable<nsCStringHashKey, nsTArray<nsRefPtr<gfxFontEntry> > > mPrefFonts;
 
-    nsIMemoryReporter* mGPUAdapterReporter;
+    nsIMemoryMultiReporter* mGPUAdapterMultiReporter;
 };
 
 #endif /* GFX_WINDOWS_PLATFORM_H */

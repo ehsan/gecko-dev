@@ -62,7 +62,7 @@ class TestGetIP(unittest.TestCase):
         """ Test that the control flow path for get_ip() using
         _get_interface_list() is works """
 
-        if mozinfo.isLinux or mozinfo.isMac:
+        if mozinfo.isLinux:
 
             with mock.patch('socket.gethostbyname') as byname:
                 # Force socket.gethostbyname to return None

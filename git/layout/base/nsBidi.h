@@ -7,6 +7,8 @@
 #ifndef nsBidi_h__
 #define nsBidi_h__
 
+#include "nsCOMPtr.h"
+#include "nsString.h"
 #include "nsBidiUtils.h"
 
 // Bidi reordering engine from ICU
@@ -556,7 +558,7 @@ public:
    * circumstances, unlike <code>GetLevelAt</code>.
    *
    * @param aLevels receives a pointer to the levels array for the text,
-   *       or <code>nullptr</code> if an error occurs.
+   *       or <code>NULL</code> if an error occurs.
    *
    * @see nsBidiLevel
    */
@@ -583,11 +585,11 @@ public:
    *      The l-value that you point to here may be the
    *      same expression (variable) as the one for
    *      <code>aLogicalStart</code>.
-   *      This pointer can be <code>nullptr</code> if this
+   *      This pointer can be <code>NULL</code> if this
    *      value is not necessary.
    *
    * @param aLevel will receive the level of the run.
-   *      This pointer can be <code>nullptr</code> if this
+   *      This pointer can be <code>NULL</code> if this
    *      value is not necessary.
    */
   nsresult GetLogicalRun(int32_t aLogicalStart, int32_t* aLogicalLimit, nsBidiLevel* aLevel);
@@ -617,10 +619,10 @@ public:
    *      range <code>[0..CountRuns-1]</code>.
    *
    * @param aLogicalStart is the first logical character index in the text.
-   *      The pointer may be <code>nullptr</code> if this index is not needed.
+   *      The pointer may be <code>NULL</code> if this index is not needed.
    *
    * @param aLength is the number of characters (at least one) in the run.
-   *      The pointer may be <code>nullptr</code> if this is not needed.
+   *      The pointer may be <code>NULL</code> if this is not needed.
    *
    * @param aDirection will receive the directionality of the run,
    *       <code>NSBIDI_LTR==0</code> or <code>NSBIDI_RTL==1</code>,

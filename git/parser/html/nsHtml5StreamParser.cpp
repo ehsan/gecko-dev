@@ -26,9 +26,9 @@
 #include "nsINestedURI.h"
 #include "nsCharsetSource.h"
 #include "nsIWyciwygChannel.h"
+#include "nsIInputStreamChannel.h"
 #include "nsIThreadRetargetableRequest.h"
 #include "nsPrintfCString.h"
-#include "nsNetUtil.h"
 
 #include "mozilla/dom/EncodingUtils.h"
 
@@ -173,6 +173,7 @@ nsHtml5StreamParser::nsHtml5StreamParser(nsHtml5TreeOpExecutor* aExecutor,
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   mFlushTimer->SetTarget(mThread);
+  mAtomTable.Init(); // we aren't checking for OOM anyway...
 #ifdef DEBUG
   mAtomTable.SetPermittedLookupThread(mThread);
 #endif
@@ -799,13 +800,8 @@ nsHtml5StreamParser::WriteStreamBytes(const uint8_t* aFromSegment,
                                       uint32_t* aWriteCount)
 {
   NS_ASSERTION(IsParserThread(), "Wrong thread!");
-  // mLastBuffer should always point to a buffer of the size
+  // mLastBuffer always points to a buffer of the size
   // NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE.
-  if (!mLastBuffer) {
-    NS_WARNING("mLastBuffer should not be null!");
-    MarkAsBroken();
-    return NS_ERROR_NULL_POINTER;
-  }
   if (mLastBuffer->getEnd() == NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE) {
     nsRefPtr<nsHtml5OwningUTF16Buffer> newBuf =
       nsHtml5OwningUTF16Buffer::FalliblyCreate(
@@ -882,14 +878,7 @@ nsHtml5StreamParser::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
   bool scriptingEnabled = mMode == LOAD_AS_DATA ?
                                    false : mExecutor->IsScriptEnabled();
   mOwner->StartTokenizer(scriptingEnabled);
-
-  bool isSrcdoc = false;
-  nsCOMPtr<nsIChannel> channel;
-  nsresult rv = GetChannel(getter_AddRefs(channel));
-  if (NS_SUCCEEDED(rv)) {
-    isSrcdoc = NS_IsSrcdocChannel(channel);
-  }
-  mTreeBuilder->setIsSrcdocDocument(isSrcdoc);
+  mTreeBuilder->setIsSrcdocDocument(IsSrcdocDocument());
   mTreeBuilder->setScriptingEnabled(scriptingEnabled);
   mTreeBuilder->SetPreventScriptExecution(!((mMode == NORMAL) &&
                                             scriptingEnabled));
@@ -925,7 +914,7 @@ nsHtml5StreamParser::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
   NS_ASSERTION(!mLastBuffer, "How come we have the last buffer set?");
   mFirstBuffer = mLastBuffer = newBuf;
 
-  rv = NS_OK;
+  nsresult rv = NS_OK;
 
   // The line below means that the encoding can end up being wrong if
   // a view-source URL is loaded without having the encoding hint from a
@@ -1505,7 +1494,7 @@ nsHtml5StreamParser::ContinueAfterScripts(nsHtml5Tokenizer* aTokenizer,
       mTokenizer->setLineNumber(speculation->GetStartLineNumber());
 
       nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                      NS_LITERAL_CSTRING("DOM Events"),
+                                      "DOM Events",
                                       mExecutor->GetDocument(),
                                       nsContentUtils::eDOM_PROPERTIES,
                                       "SpeculationFailed",
@@ -1683,4 +1672,21 @@ nsHtml5StreamParser::MarkAsBroken()
   if (NS_FAILED(NS_DispatchToMainThread(mExecutorFlusher))) {
     NS_WARNING("failed to dispatch executor flush event");
   }
+}
+
+bool
+nsHtml5StreamParser::IsSrcdocDocument()
+{
+  nsresult rv;
+
+  bool isSrcdoc = false;
+  nsCOMPtr<nsIChannel> channel;
+  rv = GetChannel(getter_AddRefs(channel));
+  if (NS_SUCCEEDED(rv)) {
+    nsCOMPtr<nsIInputStreamChannel> isr = do_QueryInterface(channel);
+    if (isr) {
+      isr->GetIsSrcdocChannel(&isSrcdoc);
+    }
+  }
+  return isSrcdoc;
 }

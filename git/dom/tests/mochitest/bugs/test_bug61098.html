@@ -31,8 +31,8 @@ var promptState;
 function registerMockPromptService()
 {
   netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-  var XPCOMUtils = SpecialPowers.Cu.import("resource://gre/modules/XPCOMUtils.jsm").XPCOMUtils;
-  var Ci = SpecialPowers.Ci;
+  Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+  var Ci = Components.interfaces;
 
   function MockPrompt(aDOMWindow) {
     this.domWindow = aDOMWindow;
@@ -53,8 +53,8 @@ function registerMockPromptService()
       // accounting for triggering the "stop showing more prompts" code for
       // abusive pages.
       var winUtils = SpecialPowers.getDOMWindowUtils(this.domWindow);
-      winUtils.enterModalState();
-      winUtils.leaveModalState();
+      var w = winUtils.enterModalStateWithWindow();
+      winUtils.leaveModalStateWithWindow(w);
     },
 
     alert: function(aDialogTitle, aText)
@@ -220,16 +220,18 @@ function registerMockPromptService()
 
 function enableDialogLoopBlocking()
 {
-  var prefs = SpecialPowers.Cc["@mozilla.org/preferences-service;1"].
-    getService(SpecialPowers.Ci.nsIPrefBranch);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var prefs = Components.classes["@mozilla.org/preferences-service;1"].
+    getService(Components.interfaces.nsIPrefBranch);
 
   prefs.setIntPref("dom.successive_dialog_time_limit", 3);
 }
 
 function resetDialogLoopBlocking()
 {
-  var prefs = SpecialPowers.Cc["@mozilla.org/preferences-service;1"].
-    getService(SpecialPowers.Ci.nsIPrefBranch);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var prefs = Components.classes["@mozilla.org/preferences-service;1"].
+    getService(Components.interfaces.nsIPrefBranch);
 
   prefs.setIntPref("dom.successive_dialog_time_limit", 0);
 }

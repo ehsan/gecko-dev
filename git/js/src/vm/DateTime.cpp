@@ -69,7 +69,7 @@ UTCToLocalStandardOffsetSeconds()
 #endif
 
     // Get the current time.
-    time_t currentMaybeWithDST = time(nullptr);
+    time_t currentMaybeWithDST = time(NULL);
     if (currentMaybeWithDST == time_t(-1))
         return 0;
 

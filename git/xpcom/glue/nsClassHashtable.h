@@ -27,14 +27,6 @@ public:
   typedef T* UserDataType;
   typedef nsBaseHashtable< KeyClass, nsAutoPtr<T>, T* > base_type;
 
-  nsClassHashtable()
-  {
-  }
-  explicit nsClassHashtable(uint32_t aInitSize)
-    : nsBaseHashtable<KeyClass,nsAutoPtr<T>,T*>(aInitSize)
-  {
-  }
-
   /**
    * @copydoc nsBaseHashtable::Get
    * @param pData if the key doesn't exist, pData will be set to nullptr.
@@ -43,14 +35,13 @@ public:
 
   /**
    * @copydoc nsBaseHashtable::Get
-   * @returns nullptr if the key is not present.
+   * @returns NULL if the key is not present.
    */
   UserDataType Get(KeyType aKey) const;
 
   /**
    * Remove the entry for the given key from the hashtable and return it in
-   * aOut.  If the key is not in the hashtable, aOut's pointer is set to
-   * nullptr.
+   * aOut.  If the key is not in the hashtable, aOut's pointer is set to NULL.
    *
    * Normally, an entry is deleted when it's removed from an nsClassHashtable,
    * but this function transfers ownership of the entry back to the caller
@@ -92,7 +83,7 @@ nsClassHashtable<KeyClass,T>::Get(KeyType aKey) const
   typename base_type::EntryType* ent = this->GetEntry(aKey);
 
   if (!ent)
-    return nullptr;
+    return NULL;
 
   return ent->mData;
 }

@@ -6,40 +6,28 @@
 #ifndef MOZILLA_GFX_TEXTUREHOST_H
 #define MOZILLA_GFX_TEXTUREHOST_H
 
-#include <stddef.h>                     // for size_t
-#include <stdint.h>                     // for uint64_t, uint32_t, uint8_t
-#include "gfxTypes.h"
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
-#include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
-#include "mozilla/RefPtr.h"             // for RefPtr, TemporaryRef, etc
-#include "mozilla/gfx/2D.h"             // for DataSourceSurface
-#include "mozilla/gfx/Point.h"          // for IntSize, IntPoint
-#include "mozilla/gfx/Types.h"          // for SurfaceFormat, etc
-#include "mozilla/layers/CompositorTypes.h"  // for TextureFlags, etc
-#include "mozilla/layers/LayersTypes.h"  // for LayerRenderState, etc
-#include "mozilla/mozalloc.h"           // for operator delete
-#include "nsCOMPtr.h"                   // for already_AddRefed
-#include "nsDebug.h"                    // for NS_RUNTIMEABORT
-#include "nsRegion.h"                   // for nsIntRegion
-#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
-#include "nscore.h"                     // for nsACString
+#include "mozilla/layers/LayersTypes.h"
+#include "nsRect.h"
+#include "nsRegion.h"
+#include "mozilla/gfx/Rect.h"
+#include "mozilla/layers/CompositorTypes.h"
+#include "nsAutoPtr.h"
+#include "mozilla/RefPtr.h"
+#include "mozilla/layers/ISurfaceAllocator.h"
 
-class gfxImageSurface;
 class gfxReusableSurfaceWrapper;
-struct nsIntPoint;
-struct nsIntSize;
-struct nsIntRect;
+class gfxImageSurface;
 
 namespace mozilla {
-namespace ipc {
-class Shmem;
+namespace gfx {
+class DataSourceSurface;
+}
 }
 
+namespace mozilla {
 namespace layers {
 
 class Compositor;
-class CompositableHost;
-class CompositableBackendSpecificData;
 class SurfaceDescriptor;
 class ISurfaceAllocator;
 class TextureSourceOGL;
@@ -79,8 +67,14 @@ public:
 class TextureSource : public RefCounted<TextureSource>
 {
 public:
-  TextureSource();
-  virtual ~TextureSource();
+  TextureSource()
+  {
+    MOZ_COUNT_CTOR(TextureSource);
+  }
+  virtual ~TextureSource()
+  {
+    MOZ_COUNT_DTOR(TextureSource);
+  }
 
   /**
    * Return the size of the texture in texels.
@@ -118,10 +112,9 @@ public:
    */
   virtual TileIterator* AsTileIterator() { return nullptr; }
 
-  virtual void SetCompositableBackendSpecificData(CompositableBackendSpecificData* aBackendData);
-
-protected:
-  RefPtr<CompositableBackendSpecificData> mCompositableBackendData;
+#ifdef MOZ_LAYERS_HAVE_LOG
+  virtual void PrintInfo(nsACString& aTo, const char* aPrefix);
+#endif
 };
 
 
@@ -142,7 +135,7 @@ public:
   }
 
   /**
-   * Should be overridden in order to deallocate the data that is associated
+   * Should be overriden in order to deallocate the data that is associated
    * with the rendering backend, such as GL textures.
    */
   virtual void DeallocateDeviceData() = 0;
@@ -215,7 +208,6 @@ public:
     SetUpdateSerial(0);
   }
 
-#ifdef DEBUG
   /**
    * Provide read access to the data as a DataSourceSurface.
    *
@@ -223,8 +215,6 @@ public:
    * XXX - implement everywhere and make it pure virtual.
    */
   virtual TemporaryRef<gfx::DataSourceSurface> ReadBack() { return nullptr; };
-#endif
-
 private:
   uint32_t mUpdateSerial;
 };
@@ -261,9 +251,13 @@ class TextureHost : public RefCounted<TextureHost>
 {
 public:
   TextureHost(uint64_t aID,
-              TextureFlags aFlags);
+              TextureFlags aFlags)
+    : mID(aID)
+    , mNextTexture(nullptr)
+    , mFlags(aFlags)
+  {}
 
-  virtual ~TextureHost();
+  virtual ~TextureHost() {}
 
   /**
    * Factory method.
@@ -320,13 +314,13 @@ public:
   virtual void SetCompositor(Compositor* aCompositor) {}
 
   /**
-   * Should be overridden in order to deallocate the data that is associated
+   * Should be overriden in order to deallocate the data that is associated
    * with the rendering backend, such as GL textures.
    */
   virtual void DeallocateDeviceData() {}
 
   /**
-   * Should be overridden in order to deallocate the data that is shared with
+   * Should be overriden in order to deallocate the data that is shared with
    * the content side, such as shared memory.
    */
   virtual void DeallocateSharedData() {}
@@ -355,7 +349,7 @@ public:
 
   /**
    * Debug facility.
-   * XXX - cool kids use Moz2D. See bug 882113.
+   * XXX - cool kids use Moz2D
    */
   virtual already_AddRefed<gfxImageSurface> GetAsSurface() = 0;
 
@@ -377,23 +371,25 @@ public:
    */
   virtual LayerRenderState GetRenderState()
   {
-    // By default we return an empty render state, this should be overridden
+    // By default we return an empty render state, this should be overriden
     // by the TextureHost implementations that are used on B2G with Composer2D
     return LayerRenderState();
   }
 
-  virtual void SetCompositableBackendSpecificData(CompositableBackendSpecificData* aBackendData);
-
 #ifdef MOZ_LAYERS_HAVE_LOG
-  virtual const char *Name() { return "TextureHost"; }
-  virtual void PrintInfo(nsACString& aTo, const char* aPrefix);
+  virtual void PrintInfo(nsACString& aTo, const char* aPrefix)
+  {
+    RefPtr<TextureSource> source = GetTextureSources();
+    if (source) {
+      source->PrintInfo(aTo, aPrefix);
+    }
+  }
 #endif
 
 protected:
   uint64_t mID;
   RefPtr<TextureHost> mNextTexture;
   TextureFlags mFlags;
-  RefPtr<CompositableBackendSpecificData> mCompositableBackendData;
 };
 
 /**
@@ -441,9 +437,9 @@ public:
    */
   virtual gfx::SurfaceFormat GetFormat() const MOZ_OVERRIDE;
 
-  virtual gfx::IntSize GetSize() const MOZ_OVERRIDE { return mSize; }
-
   virtual already_AddRefed<gfxImageSurface> GetAsSurface() MOZ_OVERRIDE;
+
+  virtual gfx::IntSize GetSize() const MOZ_OVERRIDE { return mSize; }
 
 protected:
   bool Upload(nsIntRegion *aRegion = nullptr);
@@ -480,10 +476,6 @@ public:
 
   virtual uint8_t* GetBuffer() MOZ_OVERRIDE;
 
-#ifdef MOZ_LAYERS_HAVE_LOG
-  virtual const char *Name() MOZ_OVERRIDE { return "ShmemTextureHost"; }
-#endif
-
 protected:
   ipc::Shmem* mShmem;
   ISurfaceAllocator* mDeallocator;
@@ -508,10 +500,6 @@ public:
   virtual void DeallocateSharedData() MOZ_OVERRIDE;
 
   virtual uint8_t* GetBuffer() MOZ_OVERRIDE;
-
-#ifdef MOZ_LAYERS_HAVE_LOG
-  virtual const char *Name() MOZ_OVERRIDE { return "MemoryTextureHost"; }
-#endif
 
 protected:
   uint8_t* mBuffer;
@@ -581,8 +569,7 @@ public:
    */
   static TemporaryRef<DeprecatedTextureHost> CreateDeprecatedTextureHost(SurfaceDescriptorType aDescriptorType,
                                                      uint32_t aDeprecatedTextureHostFlags,
-                                                     uint32_t aTextureFlags,
-                                                     CompositableHost* aCompositableHost);
+                                                     uint32_t aTextureFlags);
 
   DeprecatedTextureHost();
   virtual ~DeprecatedTextureHost();
@@ -675,7 +662,7 @@ public:
    * Ensure that a buffer of the given size/type has been allocated so that
    * we can update it using Update and/or CopyTo.
    */
-  virtual void EnsureBuffer(const nsIntSize& aSize, gfxContentType aType)
+  virtual void EnsureBuffer(const nsIntSize& aSize, gfxASurface::gfxContentType aType)
   {
     NS_RUNTIMEABORT("DeprecatedTextureHost doesn't support EnsureBuffer");
   }
@@ -697,7 +684,6 @@ public:
 
 
   SurfaceDescriptor* GetBuffer() const { return mBuffer; }
-  virtual SurfaceDescriptor* LockSurfaceDescriptor() const { return GetBuffer(); }
 
   /**
    * Set a SurfaceDescriptor for this texture host. By setting a buffer and
@@ -709,7 +695,7 @@ public:
   // see bug 865908 about fixing this.
   virtual void SetBuffer(SurfaceDescriptor* aBuffer, ISurfaceAllocator* aAllocator)
   {
-    MOZ_ASSERT(!mBuffer || mBuffer == aBuffer, "Will leak the old mBuffer");
+    MOZ_ASSERT(!mBuffer, "Will leak the old mBuffer");
     mBuffer = aBuffer;
     mDeAllocator = aAllocator;
   }

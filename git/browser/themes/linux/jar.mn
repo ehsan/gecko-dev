@@ -18,7 +18,6 @@ browser.jar:
 #ifdef MOZ_SERVICES_SYNC
   skin/classic/browser/aboutSyncTabs.css
 #endif
-  skin/classic/browser/aboutTabCrashed.css
   skin/classic/browser/actionicon-tab.png
 * skin/classic/browser/browser.css
   skin/classic/browser/click-to-play-warning-stripes.png
@@ -32,7 +31,6 @@ browser.jar:
   skin/classic/browser/identity-icons-https.png
   skin/classic/browser/identity-icons-https-ev.png
   skin/classic/browser/identity-icons-https-mixed-active.png
-  skin/classic/browser/identity-icons-https-mixed-display.png
   skin/classic/browser/Info.png
   skin/classic/browser/mixed-content-blocked-16.png
   skin/classic/browser/mixed-content-blocked-64.png
@@ -70,6 +68,7 @@ browser.jar:
   skin/classic/browser/downloads/download-notification-start.png (downloads/download-notification-start.png)
   skin/classic/browser/downloads/download-summary.png (downloads/download-summary.png)
   skin/classic/browser/downloads/downloads.css        (downloads/downloads.css)
+  skin/classic/browser/downloads/indicator.css        (downloads/indicator.css)
   skin/classic/browser/feeds/feedIcon.png             (feeds/feedIcon.png)
   skin/classic/browser/feeds/feedIcon16.png           (feeds/feedIcon16.png)
   skin/classic/browser/feeds/videoFeedIcon.png        (feeds/feedIcon.png)
@@ -80,6 +79,7 @@ browser.jar:
   skin/classic/browser/feeds/subscribe-ui.css         (feeds/subscribe-ui.css)
   skin/classic/browser/newtab/newTab.css              (newtab/newTab.css)
   skin/classic/browser/newtab/controls.png            (newtab/controls.png)
+  skin/classic/browser/newtab/noise.png               (newtab/noise.png)
   skin/classic/browser/places/bookmarksMenu.png       (places/bookmarksMenu.png)
   skin/classic/browser/places/bookmarksToolbar.png    (places/bookmarksToolbar.png)
   skin/classic/browser/places/calendar.png            (places/calendar.png)
@@ -127,7 +127,7 @@ browser.jar:
   skin/classic/browser/devtools/dark-theme.css        (../shared/devtools/dark-theme.css)
   skin/classic/browser/devtools/light-theme.css       (../shared/devtools/light-theme.css)
   skin/classic/browser/devtools/controls.png          (../shared/devtools/controls.png)
-* skin/classic/browser/devtools/widgets.css           (devtools/widgets.css)
+  skin/classic/browser/devtools/widgets.css           (devtools/widgets.css)
   skin/classic/browser/devtools/commandline-icon.png  (devtools/commandline-icon.png)
   skin/classic/browser/devtools/command-paintflashing.png  (devtools/command-paintflashing.png)
   skin/classic/browser/devtools/command-responsivemode.png (devtools/command-responsivemode.png)
@@ -143,7 +143,6 @@ browser.jar:
   skin/classic/browser/devtools/orion.css             (devtools/orion.css)
   skin/classic/browser/devtools/orion-container.css   (devtools/orion-container.css)
   skin/classic/browser/devtools/orion-task.png        (devtools/orion-task.png)
-  skin/classic/browser/devtools/orion-error.png       (devtools/orion-error.png)
   skin/classic/browser/devtools/orion-breakpoint.png  (devtools/orion-breakpoint.png)
   skin/classic/browser/devtools/orion-debug-location.png (devtools/orion-debug-location.png)
   skin/classic/browser/devtools/breadcrumbs-scrollbutton.png                 (devtools/breadcrumbs-scrollbutton.png)
@@ -173,7 +172,6 @@ browser.jar:
   skin/classic/browser/devtools/breadcrumbs/rtl-start-selected.png           (devtools/breadcrumbs/rtl-start-selected.png)
   skin/classic/browser/devtools/splitview.css         (devtools/splitview.css)
   skin/classic/browser/devtools/styleeditor.css       (devtools/styleeditor.css)
-* skin/classic/browser/devtools/shadereditor.css      (devtools/shadereditor.css)
   skin/classic/browser/devtools/debugger.css          (devtools/debugger.css)
 * skin/classic/browser/devtools/profiler.css          (devtools/profiler.css)
   skin/classic/browser/devtools/netmonitor.css        (devtools/netmonitor.css)
@@ -185,7 +183,6 @@ browser.jar:
   skin/classic/browser/devtools/itemArrow-rtl.png     (devtools/itemArrow-rtl.png)
   skin/classic/browser/devtools/itemArrow-ltr.png     (devtools/itemArrow-ltr.png)
   skin/classic/browser/devtools/background-noise-toolbar.png (devtools/background-noise-toolbar.png)
-  skin/classic/browser/devtools/noise.png             (devtools/noise.png)
   skin/classic/browser/devtools/inspect-button.png    (devtools/inspect-button.png)
   skin/classic/browser/devtools/dropmarker.png        (devtools/dropmarker.png)
   skin/classic/browser/devtools/layout-background-grid.png (devtools/layout-background-grid.png)
@@ -197,7 +194,6 @@ browser.jar:
   skin/classic/browser/devtools/debugger-step-in.png   (devtools/debugger-step-in.png)
   skin/classic/browser/devtools/debugger-step-out.png  (devtools/debugger-step-out.png)
   skin/classic/browser/devtools/debugger-step-over.png (devtools/debugger-step-over.png)
-  skin/classic/browser/devtools/debugger-blackbox.png  (devtools/debugger-blackbox.png)
   skin/classic/browser/devtools/responsive-se-resizer.png (devtools/responsive-se-resizer.png)
   skin/classic/browser/devtools/responsive-vertical-resizer.png (devtools/responsive-vertical-resizer.png)
   skin/classic/browser/devtools/responsive-horizontal-resizer.png (devtools/responsive-horizontal-resizer.png)
@@ -218,7 +214,6 @@ browser.jar:
   skin/classic/browser/devtools/tool-styleeditor.png      (devtools/tool-styleeditor.png)
   skin/classic/browser/devtools/tool-profiler.png         (devtools/tool-profiler.png)
   skin/classic/browser/devtools/tool-network.png          (devtools/tool-network.png)
-  skin/classic/browser/devtools/tool-scratchpad.png       (devtools/tool-scratchpad.png)
   skin/classic/browser/devtools/close.png                 (devtools/close.png)
   skin/classic/browser/devtools/vview-delete.png          (devtools/vview-delete.png)
   skin/classic/browser/devtools/vview-edit.png            (devtools/vview-edit.png)
@@ -226,21 +221,6 @@ browser.jar:
   skin/classic/browser/devtools/font-inspector.css        (devtools/font-inspector.css)
   skin/classic/browser/devtools/computedview.css          (devtools/computedview.css)
   skin/classic/browser/devtools/arrow-e.png               (devtools/arrow-e.png)
-  skin/classic/browser/devtools/responsiveui-rotate.png   (../shared/devtools/responsiveui-rotate.png)
-  skin/classic/browser/devtools/responsiveui-touch.png    (../shared/devtools/responsiveui-touch.png)
-  skin/classic/browser/devtools/responsiveui-screenshot.png (../shared/devtools/responsiveui-screenshot.png)
-  skin/classic/browser/devtools/app-manager/connection-footer.css     (../shared/devtools/app-manager/connection-footer.css)
-  skin/classic/browser/devtools/app-manager/index.css                 (../shared/devtools/app-manager/index.css)
-  skin/classic/browser/devtools/app-manager/device.css                (../shared/devtools/app-manager/device.css)
-  skin/classic/browser/devtools/app-manager/projects.css              (../shared/devtools/app-manager/projects.css)
-  skin/classic/browser/devtools/app-manager/help.css                  (../shared/devtools/app-manager/help.css)
-  skin/classic/browser/devtools/app-manager/warning.svg               (../shared/devtools/app-manager/images/warning.svg)
-  skin/classic/browser/devtools/app-manager/error.svg                 (../shared/devtools/app-manager/images/error.svg)
-  skin/classic/browser/devtools/app-manager/plus.svg                  (../shared/devtools/app-manager/images/plus.svg)
-  skin/classic/browser/devtools/app-manager/remove.svg                (../shared/devtools/app-manager/images/remove.svg)
-  skin/classic/browser/devtools/app-manager/index-icons.svg           (../shared/devtools/app-manager/images/index-icons.svg)
-  skin/classic/browser/devtools/app-manager/rocket.svg                (../shared/devtools/app-manager/images/rocket.svg)
-  skin/classic/browser/devtools/app-manager/noise.png                 (../shared/devtools/app-manager/images/noise.png)
 #ifdef MOZ_SERVICES_SYNC
   skin/classic/browser/sync-16-throbber.png
   skin/classic/browser/sync-16.png

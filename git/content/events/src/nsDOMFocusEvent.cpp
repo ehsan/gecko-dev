@@ -5,7 +5,6 @@
 
 #include "nsDOMFocusEvent.h"
 #include "prtime.h"
-#include "mozilla/ContentEvents.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -13,17 +12,24 @@ using namespace mozilla::dom;
 NS_IMPL_ISUPPORTS_INHERITED1(nsDOMFocusEvent, nsDOMUIEvent, nsIDOMFocusEvent)
 
 nsDOMFocusEvent::nsDOMFocusEvent(mozilla::dom::EventTarget* aOwner,
-                                 nsPresContext* aPresContext,
-                                 InternalFocusEvent* aEvent)
-  : nsDOMUIEvent(aOwner, aPresContext,
-                 aEvent ? aEvent :
-                          new InternalFocusEvent(false, NS_FOCUS_CONTENT))
+                                 nsPresContext* aPresContext, nsFocusEvent* aEvent)
+  : nsDOMUIEvent(aOwner, aPresContext, aEvent ?
+                 static_cast<nsGUIEvent*>(aEvent) :
+                 static_cast<nsGUIEvent*>(new nsFocusEvent(false, NS_FOCUS_CONTENT)))
 {
   if (aEvent) {
     mEventIsInternal = false;
   } else {
     mEventIsInternal = true;
     mEvent->time = PR_Now();
+  }
+}
+
+nsDOMFocusEvent::~nsDOMFocusEvent()
+{
+  if (mEventIsInternal && mEvent) {
+    delete static_cast<nsFocusEvent*>(mEvent);
+    mEvent = nullptr;
   }
 }
 
@@ -39,7 +45,7 @@ nsDOMFocusEvent::GetRelatedTarget(nsIDOMEventTarget** aRelatedTarget)
 mozilla::dom::EventTarget*
 nsDOMFocusEvent::GetRelatedTarget()
 {
-  return mEvent->AsFocusEvent()->relatedTarget;
+  return static_cast<nsFocusEvent*>(mEvent)->relatedTarget;
 }
 
 nsresult
@@ -52,7 +58,7 @@ nsDOMFocusEvent::InitFocusEvent(const nsAString& aType,
 {
   nsresult rv = nsDOMUIEvent::InitUIEvent(aType, aCanBubble, aCancelable, aView, aDetail);
   NS_ENSURE_SUCCESS(rv, rv);
-  mEvent->AsFocusEvent()->relatedTarget = aRelatedTarget;
+  static_cast<nsFocusEvent*>(mEvent)->relatedTarget = aRelatedTarget;
   return NS_OK;
 }
 
@@ -62,7 +68,7 @@ nsDOMFocusEvent::Constructor(const mozilla::dom::GlobalObject& aGlobal,
                              const mozilla::dom::FocusEventInit& aParam,
                              mozilla::ErrorResult& aRv)
 {
-  nsCOMPtr<mozilla::dom::EventTarget> t = do_QueryInterface(aGlobal.GetAsSupports());
+  nsCOMPtr<mozilla::dom::EventTarget> t = do_QueryInterface(aGlobal.Get());
   nsRefPtr<nsDOMFocusEvent> e = new nsDOMFocusEvent(t, nullptr, nullptr);
   bool trusted = e->Init(t);
   aRv = e->InitFocusEvent(aType, aParam.mBubbles, aParam.mCancelable, aParam.mView,
@@ -74,7 +80,7 @@ nsDOMFocusEvent::Constructor(const mozilla::dom::GlobalObject& aGlobal,
 nsresult NS_NewDOMFocusEvent(nsIDOMEvent** aInstancePtrResult,
                              mozilla::dom::EventTarget* aOwner,
                              nsPresContext* aPresContext,
-                             InternalFocusEvent* aEvent)
+                             nsFocusEvent* aEvent)
 {
   nsDOMFocusEvent* it = new nsDOMFocusEvent(aOwner, aPresContext, aEvent);
   return CallQueryInterface(it, aInstancePtrResult);

@@ -38,7 +38,7 @@ gTests.push({
     yield addTab(chromeRoot + "browser_selection_basic.html");
 
     yield waitForCondition(function () {
-        return !BrowserUI.isStartTabVisible;
+        return !StartUI.isStartPageVisible;
       }, 10000, 100);
 
     yield hideContextUI();
@@ -284,14 +284,11 @@ gTests.push({
                   400,
                   400,
                   400,
-                  350);
+                  200);
 
     yield waitForCondition(function () {
         return !SelectionHelperUI.isSelectionUIVisible;
       }, kCommonWaitMs, kCommonPollMs);
-
-    // cancel fling from scroll above
-    TouchModule.cancelPending();
 
     // active state - should be disabled after a page scroll
     is(SelectionHelperUI.isActive, false, "selection inactive");
@@ -350,36 +347,12 @@ gTests.push({
   tearDown: setUpAndTearDown,
 });
 
-gTests.push({
-  desc: "bug 903737 - right click targeting",
-  setUp: setUpAndTearDown,
-  run: function test() {
-    yield hideContextUI();
-    let range = gWindow.document.createRange();
-    range.selectNode(gWindow.document.getElementById("seldiv"));
-    gWindow.getSelection().addRange(range);
-    let promise = waitForEvent(document, "popupshown");
-    sendContextMenuClickToElement(gWindow, gWindow.document.getElementById("seldiv"));
-    yield promise;
-    promise = waitForEvent(document, "popuphidden");
-    ContextMenuUI.hide();
-    yield promise;
-    let emptydiv = gWindow.document.getElementById("emptydiv");
-    let coords = logicalCoordsForElement(emptydiv);
-    InputSourceHelper.isPrecise = true;
-    sendContextMenuClick(coords.x, coords.y);
-    yield waitForCondition(function () {
-      return ContextUI.tabbarVisible;
-    });
-    yield hideContextUI();
-  },
-  tearDown: setUpAndTearDown,
-});
-
 function test() {
   if (!isLandscapeMode()) {
     todo(false, "browser_selection_tests need landscape mode to run.");
     return;
   }
+
+  requestLongerTimeout(3);
   runTests();
 }

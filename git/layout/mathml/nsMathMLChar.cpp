@@ -3,18 +3,23 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsMathMLChar.h"
 #include "mozilla/MathAlgorithms.h"
 
 #include "nsCOMPtr.h"
-#include "nsIFrame.h"
+#include "nsFrame.h"
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
+#include "nsStyleConsts.h"
+#include "nsString.h"
 #include "nsUnicharUtils.h"
 #include "nsRenderingContext.h"
+#include "gfxPlatform.h"
 
 #include "mozilla/Preferences.h"
+#include "nsISupportsPrimitives.h"
+#include "nsIComponentManager.h"
 #include "nsIPersistentProperties2.h"
+#include "nsIServiceManager.h"
 #include "nsIObserverService.h"
 #include "nsIObserver.h"
 #include "nsNetUtil.h"
@@ -26,6 +31,7 @@
 #include "nsDisplayList.h"
 
 #include "nsMathMLOperators.h"
+#include "nsMathMLChar.h"
 #include <algorithm>
 
 using namespace mozilla;
@@ -33,6 +39,7 @@ using namespace mozilla;
 //#define NOISY_SEARCH 1
 
 // -----------------------------------------------------------------------------
+static const PRUnichar   kSpaceCh   = PRUnichar(' ');
 static const nsGlyphCode kNullGlyph = {{0, 0}, 0};
 typedef enum {eExtension_base, eExtension_variants, eExtension_parts}
   nsMathfontPrefExtension;
@@ -605,12 +612,6 @@ InitGlobals(nsPresContext* aPresContext)
 
 // -----------------------------------------------------------------------------
 // And now the implementation of nsMathMLChar
-
-nsMathMLChar::~nsMathMLChar()
-{
-  MOZ_COUNT_DTOR(nsMathMLChar);
-  mStyleContext->Release();
-}
 
 nsStyleContext*
 nsMathMLChar::GetStyleContext() const
@@ -1250,7 +1251,7 @@ nsMathMLChar::StretchEnumContext::EnumCallback(const nsString& aFamily,
   nsStyleContext *sc = context->mChar->mStyleContext;
   nsFont font = sc->StyleFont()->mFont;
   if (!aGeneric && !SetFontFamily(sc, context->mRenderingContext,
-                                  font, nullptr, kNullGlyph, aFamily))
+                                  font, NULL, kNullGlyph, aFamily))
      return true; // Could not set the family
 
   context->mGlyphTable = glyphTable;

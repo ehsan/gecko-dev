@@ -33,10 +33,6 @@
   <popupset id="inspectorPopupSet">
     <!-- Used by the Markup Panel, the Highlighter and the Breadcrumbs -->
     <menupopup id="inspector-node-popup">
-      <menuitem id="node-menu-edithtml"
-        label="&inspectorHTMLEdit.label;"
-        accesskey="&inspectorHTMLEdit.accesskey;"
-        oncommand="inspector.editHTML()"/>
       <menuitem id="node-menu-copyinner"
         label="&inspectorHTMLCopyInner.label;"
         accesskey="&inspectorHTMLCopyInner.accesskey;"
@@ -75,6 +71,7 @@
         <toolbarbutton id="inspector-inspect-toolbutton"
           tooltiptext="&inspector.selectButton.tooltip;"
           class="devtools-toolbarbutton"
+          hidden="true"
           oncommand="inspector.highlighter.toggleLockState()"/>
         <arrowscrollbox id="inspector-breadcrumbs"
           class="breadcrumbs-widget-container"

@@ -5,24 +5,7 @@
 
 #include "SourceBuffer.h"
 
-#include "AsyncEventRunner.h"
-#include "DecoderTraits.h"
-#include "MediaDecoder.h"
-#include "MediaSourceDecoder.h"
-#include "SourceBufferResource.h"
-#include "mozilla/ErrorResult.h"
-#include "mozilla/FloatingPoint.h"
-#include "mozilla/dom/MediaSourceBinding.h"
-#include "mozilla/dom/TimeRanges.h"
-#include "nsError.h"
-#include "nsIEventTarget.h"
-#include "nsIRunnable.h"
-#include "nsThreadUtils.h"
-#include "prlog.h"
-#include "SubBufferDecoder.h"
-
-struct JSContext;
-class JSObject;
+#include "nsContentUtils.h"
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gMediaSourceLog;
@@ -32,96 +15,30 @@ extern PRLogModuleInfo* gMediaSourceLog;
 #endif
 
 namespace mozilla {
-
-class MediaResource;
-class ReentrantMonitor;
-
-namespace layers {
-
-class ImageContainer;
-
-} // namespace layers
-
-ReentrantMonitor&
-SubBufferDecoder::GetReentrantMonitor()
-{
-  return mParentDecoder->GetReentrantMonitor();
-}
-
-bool
-SubBufferDecoder::OnStateMachineThread() const
-{
-  return mParentDecoder->OnStateMachineThread();
-}
-
-bool
-SubBufferDecoder::OnDecodeThread() const
-{
-  return mParentDecoder->OnDecodeThread();
-}
-
-SourceBufferResource*
-SubBufferDecoder::GetResource() const
-{
-  return static_cast<SourceBufferResource*>(mResource.get());
-}
-
-void
-SubBufferDecoder::SetMediaDuration(int64_t aDuration)
-{
-  mParentDecoder->SetMediaDuration(aDuration);
-}
-
-void
-SubBufferDecoder::UpdateEstimatedMediaDuration(int64_t aDuration)
-{
-  mParentDecoder->UpdateEstimatedMediaDuration(aDuration);
-}
-
-void
-SubBufferDecoder::SetMediaSeekable(bool aMediaSeekable)
-{
-  mParentDecoder->SetMediaSeekable(aMediaSeekable);
-}
-
-void
-SubBufferDecoder::SetTransportSeekable(bool aTransportSeekable)
-{
-  mParentDecoder->SetTransportSeekable(aTransportSeekable);
-}
-
-layers::ImageContainer*
-SubBufferDecoder::GetImageContainer()
-{
-  return mParentDecoder->GetImageContainer();
-}
-
 namespace dom {
 
 void
 SourceBuffer::SetMode(SourceBufferAppendMode aMode, ErrorResult& aRv)
 {
-  if (!IsAttached() || mUpdating) {
+  if (!mAttached || mUpdating) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
-  MOZ_ASSERT(mMediaSource->ReadyState() != MediaSourceReadyState::Closed);
   if (mMediaSource->ReadyState() == MediaSourceReadyState::Ended) {
     mMediaSource->SetReadyState(MediaSourceReadyState::Open);
   }
-  // TODO: Test append state.
-  // TODO: If aMode is "sequence", set sequence start time.
+  // TODO:: Test append state.
+  // TODO:: If aMode is "sequence", set sequence start time.
   mAppendMode = aMode;
 }
 
 void
 SourceBuffer::SetTimestampOffset(double aTimestampOffset, ErrorResult& aRv)
 {
-  if (!IsAttached() || mUpdating) {
+  if (!mAttached || mUpdating) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
-  MOZ_ASSERT(mMediaSource->ReadyState() != MediaSourceReadyState::Closed);
   if (mMediaSource->ReadyState() == MediaSourceReadyState::Ended) {
     mMediaSource->SetReadyState(MediaSourceReadyState::Open);
   }
@@ -133,19 +50,19 @@ SourceBuffer::SetTimestampOffset(double aTimestampOffset, ErrorResult& aRv)
 already_AddRefed<TimeRanges>
 SourceBuffer::GetBuffered(ErrorResult& aRv)
 {
-  if (!IsAttached()) {
+  if (!mAttached) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return nullptr;
   }
   nsRefPtr<TimeRanges> ranges = new TimeRanges();
-  mDecoder->GetBuffered(ranges);
+  // TODO: Populate ranges.
   return ranges.forget();
 }
 
 void
 SourceBuffer::SetAppendWindowStart(double aAppendWindowStart, ErrorResult& aRv)
 {
-  if (!IsAttached() || mUpdating) {
+  if (!mAttached || mUpdating) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
@@ -159,7 +76,7 @@ SourceBuffer::SetAppendWindowStart(double aAppendWindowStart, ErrorResult& aRv)
 void
 SourceBuffer::SetAppendWindowEnd(double aAppendWindowEnd, ErrorResult& aRv)
 {
-  if (!IsAttached() || mUpdating) {
+  if (!mAttached || mUpdating) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
@@ -172,13 +89,13 @@ SourceBuffer::SetAppendWindowEnd(double aAppendWindowEnd, ErrorResult& aRv)
 }
 
 void
-SourceBuffer::AppendBuffer(const ArrayBuffer& aData, ErrorResult& aRv)
+SourceBuffer::AppendBuffer(ArrayBuffer& aData, ErrorResult& aRv)
 {
   AppendData(aData.Data(), aData.Length(), aRv);
 }
 
 void
-SourceBuffer::AppendBuffer(const ArrayBufferView& aData, ErrorResult& aRv)
+SourceBuffer::AppendBuffer(ArrayBufferView& aData, ErrorResult& aRv)
 {
   AppendData(aData.Data(), aData.Length(), aRv);
 }
@@ -186,7 +103,7 @@ SourceBuffer::AppendBuffer(const ArrayBufferView& aData, ErrorResult& aRv)
 void
 SourceBuffer::Abort(ErrorResult& aRv)
 {
-  if (!IsAttached()) {
+  if (!mAttached) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
@@ -199,6 +116,7 @@ SourceBuffer::Abort(ErrorResult& aRv)
     AbortUpdating();
   }
   // TODO: Run reset parser algorithm.
+  // XXX: Need to run these two resets through setters?
   mAppendWindowStart = 0;
   mAppendWindowEnd = PositiveInfinity();
 }
@@ -206,14 +124,14 @@ SourceBuffer::Abort(ErrorResult& aRv)
 void
 SourceBuffer::Remove(double aStart, double aEnd, ErrorResult& aRv)
 {
-  if (!IsAttached() || mUpdating ||
-      mMediaSource->ReadyState() != MediaSourceReadyState::Open) {
-    aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
-    return;
-  }
   if (aStart < 0 || aStart > mMediaSource->Duration() ||
       aEnd <= aStart) {
     aRv.Throw(NS_ERROR_DOM_INVALID_ACCESS_ERR);
+    return;
+  }
+  if (!mAttached || mUpdating ||
+      mMediaSource->ReadyState() != MediaSourceReadyState::Open) {
+    aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
   StartUpdating();
@@ -222,20 +140,20 @@ SourceBuffer::Remove(double aStart, double aEnd, ErrorResult& aRv)
 }
 
 void
-SourceBuffer::Detach()
+SourceBuffer::Attach()
 {
-  Ended();
-  mDecoder = nullptr;
-  mMediaSource = nullptr;
+  MOZ_ASSERT(!mAttached);
+  mAttached = true;
 }
 
 void
-SourceBuffer::Ended()
+SourceBuffer::Detach()
 {
-  mDecoder->GetResource()->Ended();
+  MOZ_ASSERT(mAttached);
+  mAttached = false;
 }
 
-SourceBuffer::SourceBuffer(MediaSource* aMediaSource, const nsACString& aType)
+SourceBuffer::SourceBuffer(MediaSource* aMediaSource)
   : nsDOMEventTargetHelper(aMediaSource->GetParentObject())
   , mMediaSource(aMediaSource)
   , mAppendWindowStart(0)
@@ -243,18 +161,9 @@ SourceBuffer::SourceBuffer(MediaSource* aMediaSource, const nsACString& aType)
   , mTimestampOffset(0)
   , mAppendMode(SourceBufferAppendMode::Segments)
   , mUpdating(false)
+  , mAttached(false)
 {
   MOZ_ASSERT(aMediaSource);
-  MediaSourceDecoder* parentDecoder = aMediaSource->GetDecoder();
-  mDecoder = parentDecoder->CreateSubDecoder(aType);
-  MOZ_ASSERT(mDecoder);
-}
-
-SourceBuffer::~SourceBuffer()
-{
-  if (mDecoder) {
-    mDecoder->GetResource()->Ended();
-  }
 }
 
 MediaSource*
@@ -280,7 +189,7 @@ void
 SourceBuffer::QueueAsyncSimpleEvent(const char* aName)
 {
   LOG(PR_LOG_DEBUG, ("%p Queuing event %s to SourceBuffer", this, aName));
-  nsCOMPtr<nsIRunnable> event = new AsyncEventRunner<SourceBuffer>(this, aName);
+  nsCOMPtr<nsIRunnable> event = new AsyncEventRunnner<SourceBuffer>(this, aName);
   NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
 }
 
@@ -313,7 +222,7 @@ SourceBuffer::AbortUpdating()
 void
 SourceBuffer::AppendData(const uint8_t* aData, uint32_t aLength, ErrorResult& aRv)
 {
-  if (!IsAttached() || mUpdating) {
+  if (!mAttached || mUpdating) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
@@ -322,14 +231,9 @@ SourceBuffer::AppendData(const uint8_t* aData, uint32_t aLength, ErrorResult& aR
   }
   // TODO: Run coded frame eviction algorithm.
   // TODO: Test buffer full flag.
-  LOG(PR_LOG_DEBUG, ("%p Append(ArrayBuffer=%u)", this, aLength));
+  mMediaSource->AppendData(aData, aLength, aRv); // XXX: Appending to input buffer.
   StartUpdating();
-  // XXX: For future reference: NDA call must run on the main thread.
-  mDecoder->NotifyDataArrived(reinterpret_cast<const char*>(aData),
-                              aLength,
-                              mDecoder->GetResource()->GetLength());
   // TODO: Run buffer append algorithm asynchronously (would call StopUpdating()).
-  mDecoder->GetResource()->AppendData(aData, aLength);
   StopUpdating();
 }
 
@@ -342,5 +246,4 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(SourceBuffer)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
 } // namespace dom
-
 } // namespace mozilla

@@ -13,7 +13,9 @@
 #include "jscompartment.h"
 #include "jsgc.h"
 #include "jsopcode.h"
+#include "jsproxy.h"
 
+#include "gc/Heap.h"
 #include "jit/BaselineJIT.h"
 #include "jit/BaselineRegisters.h"
 
@@ -198,9 +200,6 @@ class ICFallbackStub;
 class ICEntry
 {
   private:
-    // A pointer to the baseline IC stub for this instruction.
-    ICStub *firstStub_;
-
     // Offset from the start of the JIT code where the IC
     // load and call instructions are.
     uint32_t returnOffset_;
@@ -211,9 +210,12 @@ class ICEntry
     // Whether this IC is for a bytecode op.
     uint32_t isForOp_ : 1;
 
+    // A pointer to the baseline IC stub for this instruction.
+    ICStub *firstStub_;
+
   public:
     ICEntry(uint32_t pcOffset, bool isForOp)
-      : firstStub_(nullptr), returnOffset_(), pcOffset_(pcOffset), isForOp_(isForOp)
+      : returnOffset_(), pcOffset_(pcOffset), isForOp_(isForOp), firstStub_(NULL)
     {}
 
     CodeOffsetLabel returnOffset() const {
@@ -245,7 +247,7 @@ class ICEntry
     }
 
     bool hasStub() const {
-        return firstStub_ != nullptr;
+        return firstStub_ != NULL;
     }
     ICStub *firstStub() const {
         JS_ASSERT(hasStub());
@@ -324,14 +326,11 @@ class ICEntry
     _(Call_Scripted)            \
     _(Call_AnyScripted)         \
     _(Call_Native)              \
-    _(Call_ScriptedApplyArray)  \
     _(Call_ScriptedApplyArguments) \
                                 \
     _(GetElem_Fallback)         \
-    _(GetElem_NativeSlot)       \
-    _(GetElem_NativePrototypeSlot) \
-    _(GetElem_NativePrototypeCallNative) \
-    _(GetElem_NativePrototypeCallScripted) \
+    _(GetElem_Native)           \
+    _(GetElem_NativePrototype)  \
     _(GetElem_String)           \
     _(GetElem_Dense)            \
     _(GetElem_TypedArray)       \
@@ -408,7 +407,7 @@ class ICUpdatedStub;
 
 // Constant iterator that traverses arbitrary chains of ICStubs.
 // No requirements are made of the ICStub used to construct this
-// iterator, aside from that the stub be part of a nullptr-terminated
+// iterator, aside from that the stub be part of a NULL-terminated
 // chain.
 // The iterator is considered to be at its end once it has been
 // incremented _past_ the last stub.  Thus, if 'atEnd()' returns
@@ -428,7 +427,7 @@ class ICStubConstIterator
         return ICStubConstIterator(stub);
     }
     static ICStubConstIterator End(ICStub *stub) {
-        return ICStubConstIterator(nullptr);
+        return ICStubConstIterator(NULL);
     }
 
     bool operator ==(const ICStubConstIterator &other) const {
@@ -457,7 +456,7 @@ class ICStubConstIterator
     }
 
     bool atEnd() const {
-        return currentStub_ == nullptr;
+        return currentStub_ == NULL;
     }
 };
 
@@ -562,6 +561,15 @@ class ICStub
     void trace(JSTracer *trc);
 
   protected:
+    // The kind of the stub.
+    //  High bit is 'isFallback' flag.
+    //  Second high bit is 'isMonitored' flag.
+    Trait trait_ : 3;
+    Kind kind_ : 13;
+
+    // A 16-bit field usable by subtypes of ICStub for subtype-specific small-info
+    uint16_t extra_;
+
     // The raw jitcode to call for this stub.
     uint8_t *stubCode_;
 
@@ -569,33 +577,24 @@ class ICStub
     // either be a fallback or inert IC stub.
     ICStub *next_;
 
-    // A 16-bit field usable by subtypes of ICStub for subtype-specific small-info
-    uint16_t extra_;
-
-    // The kind of the stub.
-    //  High bit is 'isFallback' flag.
-    //  Second high bit is 'isMonitored' flag.
-    Trait trait_ : 3;
-    Kind kind_ : 13;
-
     inline ICStub(Kind kind, IonCode *stubCode)
-      : stubCode_(stubCode->raw()),
-        next_(nullptr),
+      : trait_(Regular),
+        kind_(kind),
         extra_(0),
-        trait_(Regular),
-        kind_(kind)
+        stubCode_(stubCode->raw()),
+        next_(NULL)
     {
-        JS_ASSERT(stubCode != nullptr);
+        JS_ASSERT(stubCode != NULL);
     }
 
     inline ICStub(Kind kind, Trait trait, IonCode *stubCode)
-      : stubCode_(stubCode->raw()),
-        next_(nullptr),
+      : trait_(trait),
+        kind_(kind),
         extra_(0),
-        trait_(trait),
-        kind_(kind)
+        stubCode_(stubCode->raw()),
+        next_(NULL)
     {
-        JS_ASSERT(stubCode != nullptr);
+        JS_ASSERT(stubCode != NULL);
     }
 
     inline Trait trait() const {
@@ -683,7 +682,7 @@ class ICStub
     }
 
     inline bool hasNext() const {
-        return next_ != nullptr;
+        return next_ != NULL;
     }
 
     inline void setNext(ICStub *stub) {
@@ -734,13 +733,8 @@ class ICStub
           case Call_Scripted:
           case Call_AnyScripted:
           case Call_Native:
-          case Call_ScriptedApplyArray:
           case Call_ScriptedApplyArguments:
           case UseCount_Fallback:
-          case GetElem_NativeSlot:
-          case GetElem_NativePrototypeSlot:
-          case GetElem_NativePrototypeCallNative:
-          case GetElem_NativePrototypeCallScripted:
           case GetProp_CallScripted:
           case GetProp_CallNative:
           case GetProp_CallDOMProxyNative:
@@ -792,15 +786,15 @@ class ICFallbackStub : public ICStub
 
     ICFallbackStub(Kind kind, IonCode *stubCode)
       : ICStub(kind, ICStub::Fallback, stubCode),
-        icEntry_(nullptr),
+        icEntry_(NULL),
         numOptimizedStubs_(0),
-        lastStubPtrAddr_(nullptr) {}
+        lastStubPtrAddr_(NULL) {}
 
     ICFallbackStub(Kind kind, Trait trait, IonCode *stubCode)
       : ICStub(kind, trait, stubCode),
-        icEntry_(nullptr),
+        icEntry_(NULL),
         numOptimizedStubs_(0),
-        lastStubPtrAddr_(nullptr)
+        lastStubPtrAddr_(NULL)
     {
         JS_ASSERT(trait == ICStub::Fallback ||
                   trait == ICStub::MonitoredFallback);
@@ -820,8 +814,8 @@ class ICFallbackStub : public ICStub
     // address until after compile when the BaselineScript is created.  This method
     // allows these fields to be fixed up at that point.
     void fixupICEntry(ICEntry *icEntry) {
-        JS_ASSERT(icEntry_ == nullptr);
-        JS_ASSERT(lastStubPtrAddr_ == nullptr);
+        JS_ASSERT(icEntry_ == NULL);
+        JS_ASSERT(lastStubPtrAddr_ == NULL);
         icEntry_ = icEntry;
         lastStubPtrAddr_ = icEntry_->addressOfFirstStub();
     }
@@ -829,7 +823,7 @@ class ICFallbackStub : public ICStub
     // Add a new stub to the IC chain terminated by this fallback stub.
     void addNewStub(ICStub *stub) {
         JS_ASSERT(*lastStubPtrAddr_ == this);
-        JS_ASSERT(stub->next() == nullptr);
+        JS_ASSERT(stub->next() == NULL);
         stub->setNext(this);
         *lastStubPtrAddr_ = stub;
         lastStubPtrAddr_ = stub->addressOfNext();
@@ -904,7 +898,7 @@ class ICMonitoredFallbackStub : public ICFallbackStub
 
     ICMonitoredFallbackStub(Kind kind, IonCode *stubCode)
       : ICFallbackStub(kind, ICStub::MonitoredFallback, stubCode),
-        fallbackMonitorStub_(nullptr) {}
+        fallbackMonitorStub_(NULL) {}
 
   public:
     bool initMonitoringChain(JSContext *cx, ICStubSpace *space);
@@ -932,7 +926,7 @@ class ICUpdatedStub : public ICStub
 
     ICUpdatedStub(Kind kind, IonCode *stubCode)
       : ICStub(kind, ICStub::Updated, stubCode),
-        firstUpdateStub_(nullptr),
+        firstUpdateStub_(NULL),
         numOptimizedStubs_(0)
     {}
 
@@ -948,10 +942,10 @@ class ICUpdatedStub : public ICStub
             firstUpdateStub_ = stub;
         } else {
             ICStub *iter = firstUpdateStub_;
-            JS_ASSERT(iter->next() != nullptr);
+            JS_ASSERT(iter->next() != NULL);
             while (!iter->next()->isTypeUpdate_Fallback())
                 iter = iter->next();
-            JS_ASSERT(iter->next()->next() == nullptr);
+            JS_ASSERT(iter->next()->next() == NULL);
             stub->setNext(iter->next());
             iter->setNext(stub);
         }
@@ -1037,7 +1031,6 @@ class ICStubCompiler
         JS_ASSERT(!regs.has(BaselineStackReg));
 #ifdef JS_CPU_ARM
         JS_ASSERT(!regs.has(BaselineTailCallReg));
-        regs.take(BaselineSecondScratchReg);
 #endif
         regs.take(BaselineFrameReg);
         regs.take(BaselineStubReg);
@@ -1074,7 +1067,7 @@ class ICStubCompiler
     ICStubSpace *getStubSpace(JSScript *script) {
         if (ICStub::CanMakeCalls(kind))
             return script->baselineScript()->fallbackStubSpace();
-        return script->compartment()->jitCompartment()->optimizedStubSpace();
+        return script->compartment()->ionCompartment()->optimizedStubSpace();
     }
 };
 
@@ -1109,7 +1102,7 @@ class ICUseCount_Fallback : public ICFallbackStub
   public:
     static inline ICUseCount_Fallback *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICUseCount_Fallback>(code);
     }
 
@@ -1142,7 +1135,7 @@ class ICProfiler_Fallback : public ICFallbackStub
   public:
     static inline ICProfiler_Fallback *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICProfiler_Fallback>(code);
     }
 
@@ -1179,7 +1172,7 @@ class ICProfiler_PushFunction : public ICStub
                                                const char *str, HandleScript script)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICProfiler_PushFunction>(code, str, script);
     }
 
@@ -1242,7 +1235,7 @@ class TypeCheckPrimitiveSetStub : public ICStub
     TypeCheckPrimitiveSetStub *updateTypesAndCode(uint16_t flags, IonCode *code) {
         JS_ASSERT(flags && !(flags & ~ValidFlags()));
         if (!code)
-            return nullptr;
+            return NULL;
         extra_ = flags;
         updateCode(code);
         return this;
@@ -1339,9 +1332,9 @@ class ICTypeMonitor_Fallback : public ICStub
       : ICStub(ICStub::TypeMonitor_Fallback, stubCode),
         mainFallbackStub_(mainFallbackStub),
         firstMonitorStub_(thisFromCtor()),
-        lastMonitorStubPtrAddr_(nullptr),
+        lastMonitorStubPtrAddr_(NULL),
         numOptimizedMonitorStubs_(0),
-        hasFallbackStub_(mainFallbackStub != nullptr),
+        hasFallbackStub_(mainFallbackStub != NULL),
         argumentIndex_(argumentIndex)
     { }
 
@@ -1352,7 +1345,7 @@ class ICTypeMonitor_Fallback : public ICStub
     void addOptimizedMonitorStub(ICStub *stub) {
         stub->setNext(this);
 
-        JS_ASSERT((lastMonitorStubPtrAddr_ != nullptr) ==
+        JS_ASSERT((lastMonitorStubPtrAddr_ != NULL) ==
                   (numOptimizedMonitorStubs_ || !hasFallbackStub_));
 
         if (lastMonitorStubPtrAddr_)
@@ -1362,7 +1355,7 @@ class ICTypeMonitor_Fallback : public ICStub
             JS_ASSERT(firstMonitorStub_ == this);
             firstMonitorStub_ = stub;
         } else {
-            JS_ASSERT(firstMonitorStub_ != nullptr);
+            JS_ASSERT(firstMonitorStub_ != NULL);
         }
 
         lastMonitorStubPtrAddr_ = stub->addressOfNext();
@@ -1375,7 +1368,7 @@ class ICTypeMonitor_Fallback : public ICStub
         uint32_t argumentIndex)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICTypeMonitor_Fallback>(code, mainFbStub, argumentIndex);
     }
 
@@ -1431,8 +1424,8 @@ class ICTypeMonitor_Fallback : public ICStub
     // Fixup the IC entry as for a normal fallback stub, for this/arguments.
     void fixupICEntry(ICEntry *icEntry) {
         JS_ASSERT(!hasFallbackStub_);
-        JS_ASSERT(icEntry_ == nullptr);
-        JS_ASSERT(lastMonitorStubPtrAddr_ == nullptr);
+        JS_ASSERT(icEntry_ == NULL);
+        JS_ASSERT(lastMonitorStubPtrAddr_ == NULL);
         icEntry_ = icEntry;
         lastMonitorStubPtrAddr_ = icEntry_->addressOfFirstStub();
     }
@@ -1460,7 +1453,7 @@ class ICTypeMonitor_Fallback : public ICStub
 
         Compiler(JSContext *cx, uint32_t argumentIndex)
           : ICStubCompiler(cx, ICStub::TypeMonitor_Fallback),
-            mainFallbackStub_(nullptr),
+            mainFallbackStub_(NULL),
             argumentIndex_(argumentIndex)
         { }
 
@@ -1484,7 +1477,7 @@ class ICTypeMonitor_PrimitiveSet : public TypeCheckPrimitiveSetStub
                                                   uint16_t flags)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICTypeMonitor_PrimitiveSet>(code, flags);
     }
 
@@ -1501,7 +1494,7 @@ class ICTypeMonitor_PrimitiveSet : public TypeCheckPrimitiveSetStub
             TypeCheckPrimitiveSetStub *stub =
                 this->TypeCheckPrimitiveSetStub::Compiler::updateStub();
             if (!stub)
-                return nullptr;
+                return NULL;
             return stub->toMonitorStub();
         }
 
@@ -1525,7 +1518,7 @@ class ICTypeMonitor_SingleObject : public ICStub
             ICStubSpace *space, IonCode *code, HandleObject obj)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICTypeMonitor_SingleObject>(code, obj);
     }
 
@@ -1567,7 +1560,7 @@ class ICTypeMonitor_TypeObject : public ICStub
             ICStubSpace *space, IonCode *code, HandleTypeObject type)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICTypeMonitor_TypeObject>(code, type);
     }
 
@@ -1613,7 +1606,7 @@ class ICTypeUpdate_Fallback : public ICStub
   public:
     static inline ICTypeUpdate_Fallback *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICTypeUpdate_Fallback>(code);
     }
 
@@ -1646,7 +1639,7 @@ class ICTypeUpdate_PrimitiveSet : public TypeCheckPrimitiveSetStub
                                                  uint16_t flags)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICTypeUpdate_PrimitiveSet>(code, flags);
     }
 
@@ -1663,7 +1656,7 @@ class ICTypeUpdate_PrimitiveSet : public TypeCheckPrimitiveSetStub
             TypeCheckPrimitiveSetStub *stub =
                 this->TypeCheckPrimitiveSetStub::Compiler::updateStub();
             if (!stub)
-                return nullptr;
+                return NULL;
             return stub->toUpdateStub();
         }
 
@@ -1688,7 +1681,7 @@ class ICTypeUpdate_SingleObject : public ICStub
                                                  HandleObject obj)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICTypeUpdate_SingleObject>(code, obj);
     }
 
@@ -1731,7 +1724,7 @@ class ICTypeUpdate_TypeObject : public ICStub
                                                HandleTypeObject type)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICTypeUpdate_TypeObject>(code, type);
     }
 
@@ -1773,7 +1766,7 @@ class ICThis_Fallback : public ICFallbackStub
   public:
     static inline ICThis_Fallback *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICThis_Fallback>(code);
     }
 
@@ -1796,76 +1789,58 @@ class ICNewArray_Fallback : public ICFallbackStub
 {
     friend class ICStubSpace;
 
-    HeapPtrObject templateObject_;
-
-    ICNewArray_Fallback(IonCode *stubCode, JSObject *templateObject)
-      : ICFallbackStub(ICStub::NewArray_Fallback, stubCode), templateObject_(templateObject)
+    ICNewArray_Fallback(IonCode *stubCode)
+      : ICFallbackStub(ICStub::NewArray_Fallback, stubCode)
     {}
 
   public:
-    static inline ICNewArray_Fallback *New(ICStubSpace *space, IonCode *code,
-                                           JSObject *templateObject) {
+    static inline ICNewArray_Fallback *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
-        return space->allocate<ICNewArray_Fallback>(code, templateObject);
+            return NULL;
+        return space->allocate<ICNewArray_Fallback>(code);
     }
 
     class Compiler : public ICStubCompiler {
-        RootedObject templateObject;
         bool generateStubCode(MacroAssembler &masm);
 
       public:
-        Compiler(JSContext *cx, JSObject *templateObject)
-          : ICStubCompiler(cx, ICStub::NewArray_Fallback),
-            templateObject(cx, templateObject)
+        Compiler(JSContext *cx)
+          : ICStubCompiler(cx, ICStub::NewArray_Fallback)
         {}
 
         ICStub *getStub(ICStubSpace *space) {
-            return ICNewArray_Fallback::New(space, getStubCode(), templateObject);
+            return ICNewArray_Fallback::New(space, getStubCode());
         }
     };
-
-    HeapPtrObject &templateObject() {
-        return templateObject_;
-    }
 };
 
 class ICNewObject_Fallback : public ICFallbackStub
 {
     friend class ICStubSpace;
 
-    HeapPtrObject templateObject_;
-
-    ICNewObject_Fallback(IonCode *stubCode, JSObject *templateObject)
-      : ICFallbackStub(ICStub::NewObject_Fallback, stubCode), templateObject_(templateObject)
+    ICNewObject_Fallback(IonCode *stubCode)
+      : ICFallbackStub(ICStub::NewObject_Fallback, stubCode)
     {}
 
   public:
-    static inline ICNewObject_Fallback *New(ICStubSpace *space, IonCode *code,
-                                            JSObject *templateObject) {
+    static inline ICNewObject_Fallback *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
-        return space->allocate<ICNewObject_Fallback>(code, templateObject);
+            return NULL;
+        return space->allocate<ICNewObject_Fallback>(code);
     }
 
     class Compiler : public ICStubCompiler {
-        RootedObject templateObject;
         bool generateStubCode(MacroAssembler &masm);
 
       public:
-        Compiler(JSContext *cx, JSObject *templateObject)
-          : ICStubCompiler(cx, ICStub::NewObject_Fallback),
-            templateObject(cx, templateObject)
+        Compiler(JSContext *cx)
+          : ICStubCompiler(cx, ICStub::NewObject_Fallback)
         {}
 
         ICStub *getStub(ICStubSpace *space) {
-            return ICNewObject_Fallback::New(space, getStubCode(), templateObject);
+            return ICNewObject_Fallback::New(space, getStubCode());
         }
     };
-
-    HeapPtrObject &templateObject() {
-        return templateObject_;
-    }
 };
 
 // Compare
@@ -1884,7 +1859,7 @@ class ICCompare_Fallback : public ICFallbackStub
 
     static inline ICCompare_Fallback *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICCompare_Fallback>(code);
     }
 
@@ -1913,7 +1888,7 @@ class ICCompare_Int32 : public ICStub
   public:
     static inline ICCompare_Int32 *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICCompare_Int32>(code);
     }
 
@@ -1943,7 +1918,7 @@ class ICCompare_Double : public ICStub
   public:
     static inline ICCompare_Double *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICCompare_Double>(code);
     }
 
@@ -1975,7 +1950,7 @@ class ICCompare_NumberWithUndefined : public ICStub
   public:
     static inline ICCompare_NumberWithUndefined *New(ICStubSpace *space, IonCode *code, bool lhsIsUndefined) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICCompare_NumberWithUndefined>(code, lhsIsUndefined);
     }
 
@@ -2018,7 +1993,7 @@ class ICCompare_String : public ICStub
   public:
     static inline ICCompare_String *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICCompare_String>(code);
     }
 
@@ -2048,7 +2023,7 @@ class ICCompare_Boolean : public ICStub
   public:
     static inline ICCompare_Boolean *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICCompare_Boolean>(code);
     }
 
@@ -2078,7 +2053,7 @@ class ICCompare_Object : public ICStub
   public:
     static inline ICCompare_Object *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICCompare_Object>(code);
     }
 
@@ -2108,7 +2083,7 @@ class ICCompare_ObjectWithUndefined : public ICStub
   public:
     static inline ICCompare_ObjectWithUndefined *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICCompare_ObjectWithUndefined>(code);
     }
 
@@ -2154,7 +2129,7 @@ class ICCompare_Int32WithBoolean : public ICStub
                                                   bool lhsIsInt32)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICCompare_Int32WithBoolean>(code, lhsIsInt32);
     }
 
@@ -2202,7 +2177,7 @@ class ICToBool_Fallback : public ICFallbackStub
 
     static inline ICToBool_Fallback *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICToBool_Fallback>(code);
     }
 
@@ -2231,7 +2206,7 @@ class ICToBool_Int32 : public ICStub
   public:
     static inline ICToBool_Int32 *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICToBool_Int32>(code);
     }
 
@@ -2260,7 +2235,7 @@ class ICToBool_String : public ICStub
   public:
     static inline ICToBool_String *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICToBool_String>(code);
     }
 
@@ -2289,7 +2264,7 @@ class ICToBool_NullUndefined : public ICStub
   public:
     static inline ICToBool_NullUndefined *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICToBool_NullUndefined>(code);
     }
 
@@ -2318,7 +2293,7 @@ class ICToBool_Double : public ICStub
   public:
     static inline ICToBool_Double *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICToBool_Double>(code);
     }
 
@@ -2347,7 +2322,7 @@ class ICToBool_Object : public ICStub
   public:
     static inline ICToBool_Object *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICToBool_Object>(code);
     }
 
@@ -2379,7 +2354,7 @@ class ICToNumber_Fallback : public ICFallbackStub
   public:
     static inline ICToNumber_Fallback *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICToNumber_Fallback>(code);
     }
 
@@ -2413,29 +2388,20 @@ class ICBinaryArith_Fallback : public ICFallbackStub
         extra_ = 0;
     }
 
-    static const uint16_t SAW_DOUBLE_RESULT_BIT = 0x1;
-    static const uint16_t UNOPTIMIZABLE_OPERANDS_BIT = 0x2;
-
   public:
     static const uint32_t MAX_OPTIMIZED_STUBS = 8;
 
     static inline ICBinaryArith_Fallback *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICBinaryArith_Fallback>(code);
     }
 
-    bool sawDoubleResult() const {
-        return extra_ & SAW_DOUBLE_RESULT_BIT;
+    bool sawDoubleResult() {
+        return extra_;
     }
     void setSawDoubleResult() {
-        extra_ |= SAW_DOUBLE_RESULT_BIT;
-    }
-    bool hadUnoptimizableOperands() const {
-        return extra_ & UNOPTIMIZABLE_OPERANDS_BIT;
-    }
-    void noteUnoptimizableOperands() {
-        extra_ |= UNOPTIMIZABLE_OPERANDS_BIT;
+        extra_ = 1;
     }
 
     // Compiler for this stub kind.
@@ -2466,7 +2432,7 @@ class ICBinaryArith_Int32 : public ICStub
   public:
     static inline ICBinaryArith_Int32 *New(ICStubSpace *space, IonCode *code, bool allowDouble) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICBinaryArith_Int32>(code, allowDouble);
     }
     bool allowDouble() const {
@@ -2509,7 +2475,7 @@ class ICBinaryArith_StringConcat : public ICStub
   public:
     static inline ICBinaryArith_StringConcat *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICBinaryArith_StringConcat>(code);
     }
 
@@ -2542,7 +2508,7 @@ class ICBinaryArith_StringObjectConcat : public ICStub
     static inline ICBinaryArith_StringObjectConcat *New(ICStubSpace *space, IonCode *code,
                                                         bool lhsIsString) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICBinaryArith_StringObjectConcat>(code, lhsIsString);
     }
 
@@ -2582,7 +2548,7 @@ class ICBinaryArith_Double : public ICStub
   public:
     static inline ICBinaryArith_Double *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICBinaryArith_Double>(code);
     }
 
@@ -2620,7 +2586,7 @@ class ICBinaryArith_BooleanWithInt32 : public ICStub
     static inline ICBinaryArith_BooleanWithInt32 *New(ICStubSpace *space, IonCode *code,
                                                       bool lhsIsBool, bool rhsIsBool) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICBinaryArith_BooleanWithInt32>(code, lhsIsBool, rhsIsBool);
     }
 
@@ -2676,7 +2642,7 @@ class ICBinaryArith_DoubleWithInt32 : public ICStub
     static inline ICBinaryArith_DoubleWithInt32 *New(ICStubSpace *space, IonCode *code,
                                                      bool lhsIsDouble) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICBinaryArith_DoubleWithInt32>(code, lhsIsDouble);
     }
 
@@ -2725,7 +2691,7 @@ class ICUnaryArith_Fallback : public ICFallbackStub
 
     static inline ICUnaryArith_Fallback *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICUnaryArith_Fallback>(code);
     }
 
@@ -2763,7 +2729,7 @@ class ICUnaryArith_Int32 : public ICStub
   public:
     static inline ICUnaryArith_Int32 *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICUnaryArith_Int32>(code);
     }
 
@@ -2793,7 +2759,7 @@ class ICUnaryArith_Double : public ICStub
   public:
     static inline ICUnaryArith_Double *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICUnaryArith_Double>(code);
     }
 
@@ -2831,7 +2797,7 @@ class ICGetElem_Fallback : public ICMonitoredFallbackStub
 
     static inline ICGetElem_Fallback *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICGetElem_Fallback>(code);
     }
 
@@ -2862,9 +2828,9 @@ class ICGetElem_Fallback : public ICMonitoredFallbackStub
         ICStub *getStub(ICStubSpace *space) {
             ICGetElem_Fallback *stub = ICGetElem_Fallback::New(space, getStubCode());
             if (!stub)
-                return nullptr;
+                return NULL;
             if (!stub->initMonitoringChain(cx, space))
-                return nullptr;
+                return NULL;
             return stub;
         }
     };
@@ -2872,22 +2838,14 @@ class ICGetElem_Fallback : public ICMonitoredFallbackStub
 
 class ICGetElemNativeStub : public ICMonitoredStub
 {
-  public:
-    enum AccessType { FixedSlot = 0, DynamicSlot, NativeGetter, ScriptedGetter };
+    HeapPtrShape shape_;
+    HeapValue idval_;
+    uint32_t offset_;
 
   protected:
-    HeapPtrShape shape_;
-    HeapPtrPropertyName name_;
-
-    static const unsigned NEEDS_ATOMIZE_SHIFT = 0;
-    static const uint16_t NEEDS_ATOMIZE_MASK = 0x1;
-
-    static const unsigned ACCESSTYPE_SHIFT = 1;
-    static const uint16_t ACCESSTYPE_MASK = 0x3;
-
     ICGetElemNativeStub(ICStub::Kind kind, IonCode *stubCode, ICStub *firstMonitorStub,
-                        HandleShape shape, HandlePropertyName name, AccessType acctype,
-                        bool needsAtomize);
+                        HandleShape shape, HandleValue idval,
+                        bool isFixedSlot, uint32_t offset);
 
     ~ICGetElemNativeStub();
 
@@ -2899,311 +2857,130 @@ class ICGetElemNativeStub : public ICMonitoredStub
         return offsetof(ICGetElemNativeStub, shape_);
     }
 
-    HeapPtrPropertyName &name() {
-        return name_;
+    HeapValue &idval() {
+        return idval_;
     }
-    static size_t offsetOfName() {
-        return offsetof(ICGetElemNativeStub, name_);
-    }
-
-    AccessType accessType() const {
-        return static_cast<AccessType>((extra_ >> ACCESSTYPE_SHIFT) & ACCESSTYPE_MASK);
+    static size_t offsetOfIdval() {
+        return offsetof(ICGetElemNativeStub, idval_);
     }
 
-    bool needsAtomize() const {
-        return (extra_ >> NEEDS_ATOMIZE_SHIFT) & NEEDS_ATOMIZE_MASK;
-    }
-};
-
-class ICGetElemNativeSlotStub : public ICGetElemNativeStub
-{
-  protected:
-    uint32_t offset_;
-
-    ICGetElemNativeSlotStub(ICStub::Kind kind, IonCode *stubCode, ICStub *firstMonitorStub,
-                            HandleShape shape, HandlePropertyName name,
-                            AccessType acctype, bool needsAtomize, uint32_t offset)
-      : ICGetElemNativeStub(kind, stubCode, firstMonitorStub, shape, name, acctype, needsAtomize),
-        offset_(offset)
-    {
-        JS_ASSERT(kind == GetElem_NativeSlot || kind == GetElem_NativePrototypeSlot);
-        JS_ASSERT(acctype == FixedSlot || acctype == DynamicSlot);
-    }
-
-  public:
     uint32_t offset() const {
         return offset_;
     }
-
     static size_t offsetOfOffset() {
-        return offsetof(ICGetElemNativeSlotStub, offset_);
+        return offsetof(ICGetElemNativeStub, offset_);
+    }
+
+    bool isFixedSlot() const {
+        return extra_;
     }
 };
 
-class ICGetElemNativeGetterStub : public ICGetElemNativeStub
-{
-  protected:
-    HeapPtrFunction getter_;
-    uint32_t pcOffset_;
-
-    ICGetElemNativeGetterStub(ICStub::Kind kind, IonCode *stubCode, ICStub *firstMonitorStub,
-                            HandleShape shape, HandlePropertyName name, AccessType acctype,
-                            bool needsAtomize, HandleFunction getter, uint32_t pcOffset);
-
-  public:
-    HeapPtrFunction &getter() {
-        return getter_;
-    }
-    static size_t offsetOfGetter() {
-        return offsetof(ICGetElemNativeGetterStub, getter_);
-    }
-
-    static size_t offsetOfPCOffset() {
-        return offsetof(ICGetElemNativeGetterStub, pcOffset_);
-    }
-};
-
-class ICGetElem_NativeSlot : public ICGetElemNativeSlotStub
+class ICGetElem_Native : public ICGetElemNativeStub
 {
     friend class ICStubSpace;
-    ICGetElem_NativeSlot(IonCode *stubCode, ICStub *firstMonitorStub,
-                         HandleShape shape, HandlePropertyName name,
-                         AccessType acctype, bool needsAtomize, uint32_t offset)
-      : ICGetElemNativeSlotStub(ICStub::GetElem_NativeSlot, stubCode, firstMonitorStub, shape,
-                                name, acctype, needsAtomize, offset)
+    ICGetElem_Native(IonCode *stubCode, ICStub *firstMonitorStub,
+                     HandleShape shape, HandleValue idval,
+                     bool isFixedSlot, uint32_t offset)
+      : ICGetElemNativeStub(ICStub::GetElem_Native, stubCode, firstMonitorStub, shape, idval,
+                            isFixedSlot, offset)
     {}
 
   public:
-    static inline ICGetElem_NativeSlot *New(ICStubSpace *space, IonCode *code,
-                                            ICStub *firstMonitorStub,
-                                            HandleShape shape, HandlePropertyName name,
-                                            AccessType acctype, bool needsAtomize, uint32_t offset)
+    static inline ICGetElem_Native *New(ICStubSpace *space, IonCode *code,
+                                        ICStub *firstMonitorStub,
+                                        HandleShape shape, HandleValue idval,
+                                        bool isFixedSlot, uint32_t offset)
     {
         if (!code)
-            return nullptr;
-        return space->allocate<ICGetElem_NativeSlot>(code, firstMonitorStub, shape, name,
-                                                     acctype, needsAtomize, offset);
+            return NULL;
+        return space->allocate<ICGetElem_Native>(code, firstMonitorStub, shape, idval,
+                                                 isFixedSlot, offset);
     }
 };
 
-class ICGetElem_NativePrototypeSlot : public ICGetElemNativeSlotStub
+class ICGetElem_NativePrototype : public ICGetElemNativeStub
 {
     friend class ICStubSpace;
     HeapPtrObject holder_;
     HeapPtrShape holderShape_;
 
-    ICGetElem_NativePrototypeSlot(IonCode *stubCode, ICStub *firstMonitorStub,
-                                  HandleShape shape, HandlePropertyName name,
-                                  AccessType acctype, bool needsAtomize, uint32_t offset,
-                                  HandleObject holder, HandleShape holderShape);
+    ICGetElem_NativePrototype(IonCode *stubCode, ICStub *firstMonitorStub,
+                              HandleShape shape, HandleValue idval,
+                              bool isFixedSlot, uint32_t offset,
+                              HandleObject holder, HandleShape holderShape);
 
   public:
-    static inline ICGetElem_NativePrototypeSlot *New(ICStubSpace *space, IonCode *code,
-                                                     ICStub *firstMonitorStub,
-                                                     HandleShape shape, HandlePropertyName name,
-                                                     AccessType acctype, bool needsAtomize,
-                                                     uint32_t offset, HandleObject holder,
-                                                     HandleShape holderShape)
+    static inline ICGetElem_NativePrototype *New(ICStubSpace *space, IonCode *code,
+                                                 ICStub *firstMonitorStub,
+                                                 HandleShape shape, HandleValue idval,
+                                                 bool isFixedSlot, uint32_t offset,
+                                                 HandleObject holder, HandleShape holderShape)
     {
         if (!code)
-            return nullptr;
-        return space->allocate<ICGetElem_NativePrototypeSlot>(
-                    code, firstMonitorStub, shape, name, acctype, needsAtomize, offset, holder,
-                    holderShape);
+            return NULL;
+        return space->allocate<ICGetElem_NativePrototype>(code, firstMonitorStub, shape, idval,
+                                                          isFixedSlot, offset, holder, holderShape);
     }
 
     HeapPtrObject &holder() {
         return holder_;
     }
     static size_t offsetOfHolder() {
-        return offsetof(ICGetElem_NativePrototypeSlot, holder_);
+        return offsetof(ICGetElem_NativePrototype, holder_);
     }
 
     HeapPtrShape &holderShape() {
         return holderShape_;
     }
     static size_t offsetOfHolderShape() {
-        return offsetof(ICGetElem_NativePrototypeSlot, holderShape_);
+        return offsetof(ICGetElem_NativePrototype, holderShape_);
     }
 };
 
-class ICGetElemNativePrototypeCallStub : public ICGetElemNativeGetterStub
-{
-    friend class ICStubSpace;
-    HeapPtrObject holder_;
-    HeapPtrShape holderShape_;
-
-  protected:
-    ICGetElemNativePrototypeCallStub(ICStub::Kind kind, IonCode *stubCode, ICStub *firstMonitorStub,
-                                     HandleShape shape, HandlePropertyName name,
-                                     AccessType acctype, bool needsAtomize, HandleFunction getter,
-                                     uint32_t pcOffset, HandleObject holder,
-                                     HandleShape holderShape);
-
-  public:
-    HeapPtrObject &holder() {
-        return holder_;
-    }
-    static size_t offsetOfHolder() {
-        return offsetof(ICGetElemNativePrototypeCallStub, holder_);
-    }
-
-    HeapPtrShape &holderShape() {
-        return holderShape_;
-    }
-    static size_t offsetOfHolderShape() {
-        return offsetof(ICGetElemNativePrototypeCallStub, holderShape_);
-    }
-};
-
-class ICGetElem_NativePrototypeCallNative : public ICGetElemNativePrototypeCallStub
-{
-    friend class ICStubSpace;
-
-    ICGetElem_NativePrototypeCallNative(IonCode *stubCode, ICStub *firstMonitorStub,
-                                        HandleShape shape, HandlePropertyName name,
-                                        AccessType acctype, bool needsAtomize,
-                                        HandleFunction getter, uint32_t pcOffset,
-                                        HandleObject holder, HandleShape holderShape)
-      : ICGetElemNativePrototypeCallStub(GetElem_NativePrototypeCallNative,
-                                         stubCode, firstMonitorStub, shape, name,
-                                         acctype, needsAtomize, getter, pcOffset, holder,
-                                         holderShape)
-    {}
-
-  public:
-    static inline ICGetElem_NativePrototypeCallNative *New(
-                    ICStubSpace *space, IonCode *code, ICStub *firstMonitorStub,
-                    HandleShape shape, HandlePropertyName name, AccessType acctype,
-                    bool needsAtomize, HandleFunction getter, uint32_t pcOffset,
-                    HandleObject holder, HandleShape holderShape)
-    {
-        if (!code)
-            return nullptr;
-        return space->allocate<ICGetElem_NativePrototypeCallNative>(
-                        code, firstMonitorStub, shape, name, acctype, needsAtomize, getter,
-                        pcOffset, holder, holderShape);
-    }
-};
-
-class ICGetElem_NativePrototypeCallScripted : public ICGetElemNativePrototypeCallStub
-{
-    friend class ICStubSpace;
-
-    ICGetElem_NativePrototypeCallScripted(IonCode *stubCode, ICStub *firstMonitorStub,
-                                        HandleShape shape, HandlePropertyName name,
-                                        AccessType acctype, bool needsAtomize,
-                                        HandleFunction getter, uint32_t pcOffset,
-                                        HandleObject holder, HandleShape holderShape)
-      : ICGetElemNativePrototypeCallStub(GetElem_NativePrototypeCallScripted,
-                                         stubCode, firstMonitorStub, shape, name,
-                                         acctype, needsAtomize, getter, pcOffset, holder,
-                                         holderShape)
-    {}
-
-  public:
-    static inline ICGetElem_NativePrototypeCallScripted *New(
-                    ICStubSpace *space, IonCode *code, ICStub *firstMonitorStub,
-                    HandleShape shape, HandlePropertyName name, AccessType acctype,
-                    bool needsAtomize, HandleFunction getter, uint32_t pcOffset,
-                    HandleObject holder, HandleShape holderShape)
-    {
-        if (!code)
-            return nullptr;
-        return space->allocate<ICGetElem_NativePrototypeCallScripted>(
-                        code, firstMonitorStub, shape, name, acctype, needsAtomize, getter,
-                        pcOffset, holder, holderShape);
-    }
-};
-
-// Compiler for GetElem_NativeSlot and GetElem_NativePrototypeSlot stubs.
+// Compiler for GetElem_Native and GetElem_NativePrototype stubs.
 class ICGetElemNativeCompiler : public ICStubCompiler
 {
     ICStub *firstMonitorStub_;
     HandleObject obj_;
     HandleObject holder_;
-    HandlePropertyName name_;
-    ICGetElemNativeStub::AccessType acctype_;
-    bool needsAtomize_;
+    HandleValue idval_;
+    bool isFixedSlot_;
     uint32_t offset_;
-    HandleFunction getter_;
-    uint32_t pcOffset_;
 
-    bool emitCallNative(MacroAssembler &masm, Register objReg);
-    bool emitCallScripted(MacroAssembler &masm, Register objReg);
     bool generateStubCode(MacroAssembler &masm);
 
   protected:
     virtual int32_t getKey() const {
-        return static_cast<int32_t>(kind) | (static_cast<int32_t>(needsAtomize_) << 16) |
-               (static_cast<int32_t>(acctype_) << 17);
+        return static_cast<int32_t>(kind) | (static_cast<int32_t>(isFixedSlot_) << 16);
     }
 
   public:
     ICGetElemNativeCompiler(JSContext *cx, ICStub::Kind kind, ICStub *firstMonitorStub,
-                            HandleObject obj, HandleObject holder, HandlePropertyName name,
-                            ICGetElemNativeStub::AccessType acctype, bool needsAtomize,
-                            uint32_t offset)
+                            HandleObject obj, HandleObject holder, HandleValue idval,
+                            bool isFixedSlot, uint32_t offset)
       : ICStubCompiler(cx, kind),
         firstMonitorStub_(firstMonitorStub),
         obj_(obj),
         holder_(holder),
-        name_(name),
-        acctype_(acctype),
-        needsAtomize_(needsAtomize),
-        offset_(offset),
-        getter_(js::NullPtr()),
-        pcOffset_(0)
-    {}
-
-    ICGetElemNativeCompiler(JSContext *cx, ICStub::Kind kind, ICStub *firstMonitorStub,
-                            HandleObject obj, HandleObject holder, HandlePropertyName name,
-                            ICGetElemNativeStub::AccessType acctype, bool needsAtomize,
-                            HandleFunction getter, uint32_t pcOffset)
-      : ICStubCompiler(cx, kind),
-        firstMonitorStub_(firstMonitorStub),
-        obj_(obj),
-        holder_(holder),
-        name_(name),
-        acctype_(acctype),
-        needsAtomize_(needsAtomize),
-        offset_(0),
-        getter_(getter),
-        pcOffset_(pcOffset)
+        idval_(idval),
+        isFixedSlot_(isFixedSlot),
+        offset_(offset)
     {}
 
     ICStub *getStub(ICStubSpace *space) {
         RootedShape shape(cx, obj_->lastProperty());
-        if (kind == ICStub::GetElem_NativeSlot) {
+        if (kind == ICStub::GetElem_Native) {
             JS_ASSERT(obj_ == holder_);
-            return ICGetElem_NativeSlot::New(
-                    space, getStubCode(), firstMonitorStub_, shape, name_, acctype_, needsAtomize_,
-                    offset_);
+            return ICGetElem_Native::New(space, getStubCode(), firstMonitorStub_, shape, idval_,
+                                         isFixedSlot_, offset_);
         }
 
         JS_ASSERT(obj_ != holder_);
+        JS_ASSERT(kind == ICStub::GetElem_NativePrototype);
         RootedShape holderShape(cx, holder_->lastProperty());
-        if (kind == ICStub::GetElem_NativePrototypeSlot) {
-            return ICGetElem_NativePrototypeSlot::New(
-                    space, getStubCode(), firstMonitorStub_, shape, name_, acctype_, needsAtomize_,
-                    offset_, holder_, holderShape);
-        }
-
-        if (kind == ICStub::GetElem_NativePrototypeCallNative) {
-            return ICGetElem_NativePrototypeCallNative::New(
-                    space, getStubCode(), firstMonitorStub_, shape, name_, acctype_, needsAtomize_,
-                    getter_, pcOffset_, holder_, holderShape);
-        }
-
-        JS_ASSERT(kind == ICStub::GetElem_NativePrototypeCallScripted);
-        if (kind == ICStub::GetElem_NativePrototypeCallScripted) {
-            return ICGetElem_NativePrototypeCallScripted::New(
-                    space, getStubCode(), firstMonitorStub_, shape, name_, acctype_, needsAtomize_,
-                    getter_, pcOffset_, holder_, holderShape);
-        }
-
-        MOZ_ASSUME_UNREACHABLE("Invalid kind.");
-        return nullptr;
+        return ICGetElem_NativePrototype::New(space, getStubCode(), firstMonitorStub_, shape,
+                                              idval_, isFixedSlot_, offset_, holder_, holderShape);
     }
 };
 
@@ -3217,7 +2994,7 @@ class ICGetElem_String : public ICStub
   public:
     static inline ICGetElem_String *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICGetElem_String>(code);
     }
 
@@ -3249,7 +3026,7 @@ class ICGetElem_Dense : public ICMonitoredStub
                                        ICStub *firstMonitorStub, HandleShape shape)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICGetElem_Dense>(code, firstMonitorStub, shape);
     }
 
@@ -3295,7 +3072,7 @@ class ICGetElem_TypedArray : public ICStub
                                             HandleShape shape, uint32_t type)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICGetElem_TypedArray>(code, shape, type);
     }
 
@@ -3349,7 +3126,7 @@ class ICGetElem_Arguments : public ICMonitoredStub
                                            ICStub *firstMonitorStub, Which which)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICGetElem_Arguments>(code, firstMonitorStub, which);
     }
 
@@ -3398,15 +3175,8 @@ class ICSetElem_Fallback : public ICFallbackStub
 
     static inline ICSetElem_Fallback *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICSetElem_Fallback>(code);
-    }
-
-    void noteArrayWriteHole() {
-        extra_ = 1;
-    }
-    bool hasArrayWriteHole() const {
-        return extra_;
     }
 
     // Compiler for this stub kind.
@@ -3438,7 +3208,7 @@ class ICSetElem_Dense : public ICUpdatedStub
     static inline ICSetElem_Dense *New(ICStubSpace *space, IonCode *code, HandleShape shape,
                                        HandleTypeObject type) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICSetElem_Dense>(code, shape, type);
     }
 
@@ -3476,7 +3246,7 @@ class ICSetElem_Dense : public ICUpdatedStub
         ICUpdatedStub *getStub(ICStubSpace *space) {
             ICSetElem_Dense *stub = ICSetElem_Dense::New(space, getStubCode(), shape_, type_);
             if (!stub || !stub->initUpdatingChain(cx, space))
-                return nullptr;
+                return NULL;
             return stub;
         }
     };
@@ -3543,7 +3313,7 @@ class ICSetElem_DenseAddImpl : public ICSetElem_DenseAdd
                                               const AutoShapeVector *shapes)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICSetElem_DenseAddImpl<ProtoChainDepth> >(code, type, shapes);
     }
 
@@ -3600,7 +3370,7 @@ class ICSetElem_TypedArray : public ICStub
                                             bool expectOutOfBounds)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICSetElem_TypedArray>(code, shape, type, expectOutOfBounds);
     }
 
@@ -3661,7 +3431,7 @@ class ICIn_Fallback : public ICFallbackStub
   public:
     static inline ICIn_Fallback *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICIn_Fallback>(code);
     }
 
@@ -3698,7 +3468,7 @@ class ICGetName_Fallback : public ICMonitoredFallbackStub
 
     static inline ICGetName_Fallback *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICGetName_Fallback>(code);
     }
 
@@ -3714,7 +3484,7 @@ class ICGetName_Fallback : public ICMonitoredFallbackStub
         ICStub *getStub(ICStubSpace *space) {
             ICGetName_Fallback *stub = ICGetName_Fallback::New(space, getStubCode());
             if (!stub || !stub->initMonitoringChain(cx, space))
-                return nullptr;
+                return NULL;
             return stub;
         }
     };
@@ -3736,7 +3506,7 @@ class ICGetName_Global : public ICMonitoredStub
                                         HandleShape shape, uint32_t slot)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICGetName_Global>(code, firstMonitorStub, shape, slot);
     }
 
@@ -3798,7 +3568,7 @@ class ICGetName_Scope : public ICMonitoredStub
                                        AutoShapeVector *shapes, uint32_t offset)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICGetName_Scope<NumHops> >(code, firstMonitorStub, shapes, offset);
     }
 
@@ -3859,7 +3629,7 @@ class ICBindName_Fallback : public ICFallbackStub
   public:
     static inline ICBindName_Fallback *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICBindName_Fallback>(code);
     }
 
@@ -3892,7 +3662,7 @@ class ICGetIntrinsic_Fallback : public ICMonitoredFallbackStub
   public:
     static inline ICGetIntrinsic_Fallback *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICGetIntrinsic_Fallback>(code);
     }
 
@@ -3908,7 +3678,7 @@ class ICGetIntrinsic_Fallback : public ICMonitoredFallbackStub
         ICStub *getStub(ICStubSpace *space) {
             ICGetIntrinsic_Fallback *stub = ICGetIntrinsic_Fallback::New(space, getStubCode());
             if (!stub || !stub->initMonitoringChain(cx, space))
-                return nullptr;
+                return NULL;
             return stub;
         }
     };
@@ -3929,7 +3699,7 @@ class ICGetIntrinsic_Constant : public ICStub
                                                HandleValue value)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICGetIntrinsic_Constant>(code, value);
     }
 
@@ -3970,7 +3740,7 @@ class ICGetProp_Fallback : public ICMonitoredFallbackStub
 
     static inline ICGetProp_Fallback *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICGetProp_Fallback>(code);
     }
 
@@ -4005,7 +3775,7 @@ class ICGetProp_Fallback : public ICMonitoredFallbackStub
         ICStub *getStub(ICStubSpace *space) {
             ICGetProp_Fallback *stub = ICGetProp_Fallback::New(space, getStubCode());
             if (!stub || !stub->initMonitoringChain(cx, space))
-                return nullptr;
+                return NULL;
             return stub;
         }
     };
@@ -4023,7 +3793,7 @@ class ICGetProp_ArrayLength : public ICStub
   public:
     static inline ICGetProp_ArrayLength *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICGetProp_ArrayLength>(code);
     }
 
@@ -4053,7 +3823,7 @@ class ICGetProp_TypedArrayLength : public ICStub
   public:
     static inline ICGetProp_TypedArrayLength *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICGetProp_TypedArrayLength>(code);
     }
 
@@ -4091,7 +3861,7 @@ class ICGetProp_String : public ICMonitoredStub
                                         HandleShape stringProtoShape, uint32_t offset)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICGetProp_String>(code, firstMonitorStub, stringProtoShape, offset);
     }
 
@@ -4149,7 +3919,7 @@ class ICGetProp_StringLength : public ICStub
   public:
     static inline ICGetProp_StringLength *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICGetProp_StringLength>(code);
     }
 
@@ -4211,7 +3981,7 @@ class ICGetProp_Native : public ICGetPropNativeStub
                                         uint32_t offset)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICGetProp_Native>(code, firstMonitorStub, shape, offset);
     }
 };
@@ -4238,7 +4008,7 @@ class ICGetProp_NativePrototype : public ICGetPropNativeStub
                                                  HandleShape holderShape)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICGetProp_NativePrototype>(code, firstMonitorStub, shape, offset,
                                                           holder, holderShape);
     }
@@ -4398,7 +4168,7 @@ class ICGetProp_CallScripted : public ICGetPropCallGetter
                 HandleFunction getter, uint32_t pcOffset)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICGetProp_CallScripted>(code, firstMonitorStub,
                                                        shape, holder, holderShape, getter,
                                                        pcOffset);
@@ -4444,7 +4214,7 @@ class ICGetProp_CallNative : public ICGetPropCallGetter
                 HandleFunction getter, uint32_t pcOffset)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICGetProp_CallNative>(code, firstMonitorStub,
                                                      shape, holder, holderShape, getter,
                                                      pcOffset);
@@ -4480,7 +4250,7 @@ class ICGetPropCallDOMProxyNativeStub : public ICMonitoredStub
     // Proxy handler to check against.
     BaseProxyHandler *proxyHandler_;
 
-    // Object shape of expected expando object. (nullptr if no expando object should be there)
+    // Object shape of expected expando object. (NULL if no expando object should be there)
     HeapPtrShape expandoShape_;
 
     // Holder and its shape.
@@ -4562,7 +4332,7 @@ class ICGetProp_CallDOMProxyNative : public ICGetPropCallDOMProxyNativeStub
             HandleFunction getter, uint32_t pcOffset)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICGetProp_CallDOMProxyNative>(code, firstMonitorStub, shape,
                                                    proxyHandler, expandoShape, holder,
                                                    holderShape, getter, pcOffset);
@@ -4598,7 +4368,7 @@ class ICGetProp_CallDOMProxyWithGenerationNative : public ICGetPropCallDOMProxyN
             HandleFunction getter, uint32_t pcOffset)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICGetProp_CallDOMProxyWithGenerationNative>(code, firstMonitorStub,
                                                    shape, proxyHandler, expandoAndGeneration,
                                                    generation, expandoShape, holder, holderShape,
@@ -4664,7 +4434,7 @@ class ICGetProp_DOMProxyShadowed : public ICMonitoredStub
                                                   HandlePropertyName name, uint32_t pcOffset)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICGetProp_DOMProxyShadowed>(code, firstMonitorStub, shape,
                                                            proxyHandler, name, pcOffset);
     }
@@ -4726,7 +4496,7 @@ class ICGetProp_ArgumentsLength : public ICStub
     static inline ICGetProp_ArgumentsLength *New(ICStubSpace *space, IonCode *code)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICGetProp_ArgumentsLength>(code);
     }
 
@@ -4771,7 +4541,7 @@ class ICSetProp_Fallback : public ICFallbackStub
 
     static inline ICSetProp_Fallback *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICSetProp_Fallback>(code);
     }
 
@@ -4817,7 +4587,7 @@ class ICSetProp_Native : public ICUpdatedStub
                                         HandleShape shape, uint32_t offset)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICSetProp_Native>(code, type, shape, offset);
     }
     HeapPtrTypeObject &type() {
@@ -4922,7 +4692,7 @@ class ICSetProp_NativeAddImpl : public ICSetProp_NativeAdd
             const AutoShapeVector *shapes, HandleShape newShape, uint32_t offset)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICSetProp_NativeAddImpl<ProtoChainDepth> >(
                             code, type, shapes, newShape, offset);
     }
@@ -5061,7 +4831,7 @@ class ICSetProp_CallScripted : public ICSetPropCallSetter
                                               uint32_t pcOffset)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICSetProp_CallScripted>(code, shape, holder, holderShape, setter,
                                                        pcOffset);
     }
@@ -5105,7 +4875,7 @@ class ICSetProp_CallNative : public ICSetPropCallSetter
                                             uint32_t pcOffset)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICSetProp_CallNative>(code, shape, holder, holderShape, setter,
                                                      pcOffset);
     }
@@ -5143,16 +4913,10 @@ class ICCallStubCompiler : public ICStubCompiler
       : ICStubCompiler(cx, kind)
     { }
 
-    enum FunApplyThing {
-        FunApply_MagicArgs,
-        FunApply_Array
-    };
-
     void pushCallArguments(MacroAssembler &masm, GeneralRegisterSet regs, Register argcReg);
     Register guardFunApply(MacroAssembler &masm, GeneralRegisterSet regs, Register argcReg,
-                           bool checkNative, FunApplyThing applyThing, Label *failure);
+                           bool checkNative, Label *failure);
     void pushCallerArguments(MacroAssembler &masm, GeneralRegisterSet regs);
-    void pushArrayArguments(MacroAssembler &masm, Address arrayVal, GeneralRegisterSet regs);
 };
 
 class ICCall_Fallback : public ICMonitoredFallbackStub
@@ -5179,7 +4943,7 @@ class ICCall_Fallback : public ICMonitoredFallbackStub
     static inline ICCall_Fallback *New(ICStubSpace *space, IonCode *code, bool isConstructing)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICCall_Fallback>(code, isConstructing);
     }
 
@@ -5219,7 +4983,7 @@ class ICCall_Fallback : public ICMonitoredFallbackStub
         ICStub *getStub(ICStubSpace *space) {
             ICCall_Fallback *stub = ICCall_Fallback::New(space, getStubCode(), isConstructing_);
             if (!stub || !stub->initMonitoringChain(cx, space))
-                return nullptr;
+                return NULL;
             return stub;
         }
     };
@@ -5231,30 +4995,23 @@ class ICCall_Scripted : public ICMonitoredStub
 
   protected:
     HeapPtrScript calleeScript_;
-    HeapPtrObject templateObject_;
     uint32_t pcOffset_;
 
-    ICCall_Scripted(IonCode *stubCode, ICStub *firstMonitorStub,
-                    HandleScript calleeScript, HandleObject templateObject,
+    ICCall_Scripted(IonCode *stubCode, ICStub *firstMonitorStub, HandleScript calleeScript,
                     uint32_t pcOffset);
 
   public:
     static inline ICCall_Scripted *New(
-            ICStubSpace *space, IonCode *code, ICStub *firstMonitorStub,
-            HandleScript calleeScript, HandleObject templateObject,
+            ICStubSpace *space, IonCode *code, ICStub *firstMonitorStub, HandleScript calleeScript,
             uint32_t pcOffset)
     {
         if (!code)
-            return nullptr;
-        return space->allocate<ICCall_Scripted>(code, firstMonitorStub,
-                                                calleeScript, templateObject, pcOffset);
+            return NULL;
+        return space->allocate<ICCall_Scripted>(code, firstMonitorStub, calleeScript, pcOffset);
     }
 
     HeapPtrScript &calleeScript() {
         return calleeScript_;
-    }
-    HeapPtrObject &templateObject() {
-        return templateObject_;
     }
 
     static size_t offsetOfCalleeScript() {
@@ -5282,7 +5039,7 @@ class ICCall_AnyScripted : public ICMonitoredStub
                                           ICStub *firstMonitorStub, uint32_t pcOffset)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICCall_AnyScripted>(code, firstMonitorStub, pcOffset);
     }
 
@@ -5297,7 +5054,6 @@ class ICCallScriptedCompiler : public ICCallStubCompiler {
     ICStub *firstMonitorStub_;
     bool isConstructing_;
     RootedScript calleeScript_;
-    RootedObject templateObject_;
     uint32_t pcOffset_;
     bool generateStubCode(MacroAssembler &masm);
 
@@ -5306,14 +5062,12 @@ class ICCallScriptedCompiler : public ICCallStubCompiler {
     }
 
   public:
-    ICCallScriptedCompiler(JSContext *cx, ICStub *firstMonitorStub,
-                           HandleScript calleeScript, HandleObject templateObject,
-                           bool isConstructing, uint32_t pcOffset)
+    ICCallScriptedCompiler(JSContext *cx, ICStub *firstMonitorStub, HandleScript calleeScript,
+                            bool isConstructing, uint32_t pcOffset)
       : ICCallStubCompiler(cx, ICStub::Call_Scripted),
         firstMonitorStub_(firstMonitorStub),
         isConstructing_(isConstructing),
         calleeScript_(cx, calleeScript),
-        templateObject_(cx, templateObject),
         pcOffset_(pcOffset)
     { }
 
@@ -5322,15 +5076,13 @@ class ICCallScriptedCompiler : public ICCallStubCompiler {
       : ICCallStubCompiler(cx, ICStub::Call_AnyScripted),
         firstMonitorStub_(firstMonitorStub),
         isConstructing_(isConstructing),
-        calleeScript_(cx, nullptr),
-        templateObject_(cx, nullptr),
+        calleeScript_(cx, NULL),
         pcOffset_(pcOffset)
     { }
 
     ICStub *getStub(ICStubSpace *space) {
         if (calleeScript_) {
-            return ICCall_Scripted::New(space, getStubCode(), firstMonitorStub_,
-                                        calleeScript_, templateObject_,
+            return ICCall_Scripted::New(space, getStubCode(), firstMonitorStub_, calleeScript_,
                                         pcOffset_);
         }
         return ICCall_AnyScripted::New(space, getStubCode(), firstMonitorStub_, pcOffset_);
@@ -5343,29 +5095,22 @@ class ICCall_Native : public ICMonitoredStub
 
   protected:
     HeapPtrFunction callee_;
-    HeapPtrObject templateObject_;
     uint32_t pcOffset_;
 
-    ICCall_Native(IonCode *stubCode, ICStub *firstMonitorStub,
-                  HandleFunction callee, HandleObject templateObject,
+    ICCall_Native(IonCode *stubCode, ICStub *firstMonitorStub, HandleFunction callee,
                   uint32_t pcOffset);
 
   public:
     static inline ICCall_Native *New(ICStubSpace *space, IonCode *code, ICStub *firstMonitorStub,
-                                     HandleFunction callee, HandleObject templateObject,
-                                     uint32_t pcOffset)
+                                     HandleFunction callee, uint32_t pcOffset)
     {
         if (!code)
-            return nullptr;
-        return space->allocate<ICCall_Native>(code, firstMonitorStub,
-                                              callee, templateObject, pcOffset);
+            return NULL;
+        return space->allocate<ICCall_Native>(code, firstMonitorStub, callee, pcOffset);
     }
 
     HeapPtrFunction &callee() {
         return callee_;
-    }
-    HeapPtrObject &templateObject() {
-        return templateObject_;
     }
 
     static size_t offsetOfCallee() {
@@ -5381,7 +5126,6 @@ class ICCall_Native : public ICMonitoredStub
         ICStub *firstMonitorStub_;
         bool isConstructing_;
         RootedFunction callee_;
-        RootedObject templateObject_;
         uint32_t pcOffset_;
         bool generateStubCode(MacroAssembler &masm);
 
@@ -5390,75 +5134,17 @@ class ICCall_Native : public ICMonitoredStub
         }
 
       public:
-        Compiler(JSContext *cx, ICStub *firstMonitorStub,
-                 HandleFunction callee, HandleObject templateObject,
+        Compiler(JSContext *cx, ICStub *firstMonitorStub, HandleFunction callee,
                  bool isConstructing, uint32_t pcOffset)
           : ICCallStubCompiler(cx, ICStub::Call_Native),
             firstMonitorStub_(firstMonitorStub),
             isConstructing_(isConstructing),
             callee_(cx, callee),
-            templateObject_(cx, templateObject),
             pcOffset_(pcOffset)
         { }
 
         ICStub *getStub(ICStubSpace *space) {
-            return ICCall_Native::New(space, getStubCode(), firstMonitorStub_,
-                                      callee_, templateObject_, pcOffset_);
-        }
-    };
-};
-
-class ICCall_ScriptedApplyArray : public ICMonitoredStub
-{
-    friend class ICStubSpace;
-  public:
-    // The maximum length of an inlineable funcall array.
-    // Keep this small to avoid controllable stack overflows by attackers passing large
-    // arrays to fun.apply.
-    static const uint32_t MAX_ARGS_ARRAY_LENGTH = 16;
-
-  protected:
-    uint32_t pcOffset_;
-
-    ICCall_ScriptedApplyArray(IonCode *stubCode, ICStub *firstMonitorStub, uint32_t pcOffset)
-      : ICMonitoredStub(ICStub::Call_ScriptedApplyArray, stubCode, firstMonitorStub),
-        pcOffset_(pcOffset)
-    {}
-
-  public:
-    static inline ICCall_ScriptedApplyArray *New(ICStubSpace *space, IonCode *code,
-                                                 ICStub *firstMonitorStub, uint32_t pcOffset)
-    {
-        if (!code)
-            return nullptr;
-        return space->allocate<ICCall_ScriptedApplyArray>(code, firstMonitorStub, pcOffset);
-    }
-
-    static size_t offsetOfPCOffset() {
-        return offsetof(ICCall_ScriptedApplyArray, pcOffset_);
-    }
-
-    // Compiler for this stub kind.
-    class Compiler : public ICCallStubCompiler {
-      protected:
-        ICStub *firstMonitorStub_;
-        uint32_t pcOffset_;
-        bool generateStubCode(MacroAssembler &masm);
-
-        virtual int32_t getKey() const {
-            return static_cast<int32_t>(kind);
-        }
-
-      public:
-        Compiler(JSContext *cx, ICStub *firstMonitorStub, uint32_t pcOffset)
-          : ICCallStubCompiler(cx, ICStub::Call_ScriptedApplyArray),
-            firstMonitorStub_(firstMonitorStub),
-            pcOffset_(pcOffset)
-        { }
-
-        ICStub *getStub(ICStubSpace *space) {
-            return ICCall_ScriptedApplyArray::New(space, getStubCode(), firstMonitorStub_,
-                                                      pcOffset_);
+            return ICCall_Native::New(space, getStubCode(), firstMonitorStub_, callee_, pcOffset_);
         }
     };
 };
@@ -5480,7 +5166,7 @@ class ICCall_ScriptedApplyArguments : public ICMonitoredStub
                                                      ICStub *firstMonitorStub, uint32_t pcOffset)
     {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICCall_ScriptedApplyArguments>(code, firstMonitorStub, pcOffset);
     }
 
@@ -5535,7 +5221,7 @@ class ICTableSwitch : public ICStub
     static inline ICTableSwitch *New(ICStubSpace *space, IonCode *code, void **table,
                                      int32_t min, int32_t length, void *defaultTarget) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICTableSwitch>(code, table, min, length, defaultTarget);
     }
 
@@ -5567,7 +5253,7 @@ class ICIteratorNew_Fallback : public ICFallbackStub
   public:
     static inline ICIteratorNew_Fallback *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICIteratorNew_Fallback>(code);
     }
 
@@ -5598,7 +5284,7 @@ class ICIteratorMore_Fallback : public ICFallbackStub
   public:
     static inline ICIteratorMore_Fallback *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICIteratorMore_Fallback>(code);
     }
 
@@ -5629,7 +5315,7 @@ class ICIteratorMore_Native : public ICStub
   public:
     static inline ICIteratorMore_Native *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICIteratorMore_Native>(code);
     }
 
@@ -5660,16 +5346,8 @@ class ICIteratorNext_Fallback : public ICFallbackStub
   public:
     static inline ICIteratorNext_Fallback *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICIteratorNext_Fallback>(code);
-    }
-
-    void setHasNonStringResult() {
-        JS_ASSERT(extra_ == 0);
-        extra_ = 1;
-    }
-    bool hasNonStringResult() const {
-        return extra_;
     }
 
     class Compiler : public ICStubCompiler {
@@ -5699,7 +5377,7 @@ class ICIteratorNext_Native : public ICStub
   public:
     static inline ICIteratorNext_Native *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICIteratorNext_Native>(code);
     }
 
@@ -5730,7 +5408,7 @@ class ICIteratorClose_Fallback : public ICFallbackStub
   public:
     static inline ICIteratorClose_Fallback *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICIteratorClose_Fallback>(code);
     }
 
@@ -5762,7 +5440,7 @@ class ICInstanceOf_Fallback : public ICFallbackStub
   public:
     static inline ICInstanceOf_Fallback *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICInstanceOf_Fallback>(code);
     }
 
@@ -5795,7 +5473,7 @@ class ICTypeOf_Fallback : public ICFallbackStub
   public:
     static inline ICTypeOf_Fallback *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICTypeOf_Fallback>(code);
     }
 
@@ -5828,7 +5506,7 @@ class ICTypeOf_Typed : public ICFallbackStub
   public:
     static inline ICTypeOf_Typed *New(ICStubSpace *space, IonCode *code, JSType type) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICTypeOf_Typed>(code, type);
     }
 
@@ -5873,7 +5551,7 @@ class ICRetSub_Fallback : public ICFallbackStub
 
     static inline ICRetSub_Fallback *New(ICStubSpace *space, IonCode *code) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICRetSub_Fallback>(code);
     }
 
@@ -5912,7 +5590,7 @@ class ICRetSub_Resume : public ICStub
     static ICRetSub_Resume *New(ICStubSpace *space, IonCode *code, uint32_t pcOffset,
                                 uint8_t *addr) {
         if (!code)
-            return nullptr;
+            return NULL;
         return space->allocate<ICRetSub_Resume>(code, pcOffset, addr);
     }
 

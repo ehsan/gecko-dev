@@ -8,6 +8,7 @@
 #include "plstr.h"
 #include "nsXULPrototypeDocument.h"
 #include "nsCSSStyleSheet.h"
+#include "nsIScriptRuntime.h"
 #include "nsIServiceManager.h"
 #include "nsIURI.h"
 
@@ -22,7 +23,7 @@
 #include "nsNetUtil.h"
 #include "nsAppDirectoryServiceDefs.h"
 
-#include "js/Tracer.h"
+#include "jsapi.h"
 
 #include "mozilla/Preferences.h"
 #include "mozilla/scache/StartupCache.h"
@@ -89,6 +90,15 @@ nsXULPrototypeCache::GetInstance()
 {
     if (!sInstance) {
         NS_ADDREF(sInstance = new nsXULPrototypeCache());
+
+        sInstance->mPrototypeTable.Init();
+        sInstance->mStyleSheetTable.Init();
+        sInstance->mScriptTable.Init();
+        sInstance->mXBLDocTable.Init();
+
+        sInstance->mCacheURITable.Init();
+        sInstance->mInputStreamTable.Init();
+        sInstance->mOutputStreamTable.Init();
 
         UpdategDisableXULCache();
 
@@ -194,8 +204,6 @@ nsresult
 nsXULPrototypeCache::PutScript(nsIURI* aURI,
                                JS::Handle<JSScript*> aScriptObject)
 {
-    MOZ_ASSERT(aScriptObject, "Need a non-NULL script");
-
 #ifdef DEBUG
     if (mScriptTable.Get(aURI)) {
         nsAutoCString scriptName;
@@ -316,6 +324,8 @@ nsXULPrototypeCache::AbortCaching()
     mCacheURITable.Clear();
 }
 
+
+static const char kDisableXULDiskCachePref[] = "nglayout.debug.disable_xul_fastload";
 
 nsresult
 nsXULPrototypeCache::WritePrototype(nsXULPrototypeDocument* aPrototypeDocument)

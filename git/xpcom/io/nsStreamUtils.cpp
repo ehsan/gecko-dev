@@ -13,9 +13,6 @@
 #include "nsIRunnable.h"
 #include "nsISafeOutputStream.h"
 #include "nsString.h"
-#include "nsIAsyncInputStream.h"
-#include "nsIAsyncOutputStream.h"
-#include "nsIBufferedStreams.h"
 
 using namespace mozilla;
 
@@ -669,11 +666,6 @@ TestInputStream(nsIInputStream *inStr,
 bool
 NS_InputStreamIsBuffered(nsIInputStream *stream)
 {
-    nsCOMPtr<nsIBufferedInputStream> bufferedIn = do_QueryInterface(stream);
-    if (bufferedIn) {
-        return true;
-    }
-
     bool result = false;
     uint32_t n;
     nsresult rv = stream->ReadSegments(TestInputStream,
@@ -697,11 +689,6 @@ TestOutputStream(nsIOutputStream *outStr,
 bool
 NS_OutputStreamIsBuffered(nsIOutputStream *stream)
 {
-    nsCOMPtr<nsIBufferedOutputStream> bufferedOut = do_QueryInterface(stream);
-    if (bufferedOut) {
-        return true;
-    }
-
     bool result = false;
     uint32_t n;
     stream->WriteSegments(TestOutputStream, &result, 1, &n);
@@ -785,31 +772,4 @@ NS_WriteSegmentThunk(nsIInputStream *inStr,
     nsWriteSegmentThunk *thunk = static_cast<nsWriteSegmentThunk *>(closure);
     return thunk->mFun(thunk->mStream, thunk->mClosure, buffer, offset, count,
                        countWritten);
-}
-
-NS_METHOD
-NS_FillArray(FallibleTArray<char>& aDest, nsIInputStream *aInput,
-             uint32_t aKeep, uint32_t *aNewBytes)
-{
-  MOZ_ASSERT(aInput, "null stream");
-  MOZ_ASSERT(aKeep <= aDest.Length(), "illegal keep count");
-
-  char* aBuffer = aDest.Elements();
-  int64_t keepOffset = int64_t(aDest.Length()) - aKeep;
-  if (0 != aKeep && keepOffset > 0) {
-    memmove(aBuffer, aBuffer + keepOffset, aKeep);
-  }
-
-  nsresult rv =
-    aInput->Read(aBuffer + aKeep, aDest.Capacity() - aKeep, aNewBytes);
-  if (NS_FAILED(rv)) {
-    *aNewBytes = 0;
-  }
-  // NOTE: we rely on the fact that the new slots are NOT initialized by
-  // SetLengthAndRetainStorage here, see nsTArrayElementTraits::Construct()
-  // in nsTArray.h:
-  aDest.SetLengthAndRetainStorage(aKeep + *aNewBytes);
-
-  MOZ_ASSERT(aDest.Length() <= aDest.Capacity(), "buffer overflow");
-  return rv;
 }

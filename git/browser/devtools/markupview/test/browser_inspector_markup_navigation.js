@@ -34,6 +34,7 @@ function test() {
     ["left", "node7"],
     ["right", "node7"],
     ["right", "*text*"],
+    ["right", "*text*"],
     ["down", "node8"],
     ["right", "node8"],
     ["left", "node8"],

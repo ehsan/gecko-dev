@@ -16,7 +16,7 @@
 #include "nsAutoPtr.h"
 
 #include "nsBaseWidget.h"
-#include "mozilla/EventForwards.h"
+#include "nsGUIEvent.h"
 
 #include "nsWeakReference.h"
 
@@ -148,8 +148,7 @@ public:
     NS_IMETHOD         SetTitle(const nsAString& aTitle);
     NS_IMETHOD         SetIcon(const nsAString& aIconSpec);
     virtual nsIntPoint WidgetToScreenOffset();
-    NS_IMETHOD         DispatchEvent(mozilla::WidgetGUIEvent* aEvent,
-                                     nsEventStatus& aStatus);
+    NS_IMETHOD         DispatchEvent(nsGUIEvent *aEvent, nsEventStatus &aStatus);
 
     NS_IMETHOD         EnableDragDrop(bool aEnable);
     NS_IMETHOD         CaptureMouse(bool aCapture);
@@ -159,9 +158,7 @@ public:
     NS_IMETHOD         SetWindowClass(const nsAString& xulWinType);
 
     NS_IMETHOD         GetAttention(int32_t aCycleCount);
-    NS_IMETHOD         BeginResizeDrag(mozilla::WidgetGUIEvent* aEvent,
-                                       int32_t aHorizontal,
-                                       int32_t aVertical);
+    NS_IMETHOD         BeginResizeDrag   (nsGUIEvent* aEvent, int32_t aHorizontal, int32_t aVertical);
 
     NS_IMETHOD_(void) SetInputContext(const InputContext& aContext,
                                       const InputContextAction& aAction);
@@ -183,7 +180,11 @@ public:
     void DispatchDeactivateEventOnTopLevelWindow(void);
     void DispatchResizeEvent(nsIntRect &aRect, nsEventStatus &aStatus);
 
-    nsEventStatus DispatchEvent(mozilla::WidgetGUIEvent* aEvent);
+    nsEventStatus DispatchEvent(nsGUIEvent *aEvent) {
+        nsEventStatus status;
+        DispatchEvent(aEvent, status);
+        return status;
+    }
 
     // Some of the nsIWidget methods
     virtual bool IsEnabled() const;
@@ -308,9 +309,7 @@ private:
     void*              SetupPluginPort(void);
     nsresult           SetWindowIconList(const nsTArray<nsCString> &aIconList);
     void               SetDefaultIcon(void);
-    void               InitButtonEvent(mozilla::WidgetMouseEvent& event,
-                                       QGraphicsSceneMouseEvent* aEvent,
-                                       int aClickCount = 1);
+    void               InitButtonEvent(nsMouseEvent &event, QGraphicsSceneMouseEvent *aEvent, int aClickCount = 1);
     nsEventStatus      DispatchCommandEvent(nsIAtom* aCommand);
     nsEventStatus      DispatchContentCommandEvent(int32_t aMsg);
     MozQWidget*        createQWidget(MozQWidget* parent,
@@ -333,7 +332,7 @@ private:
 
     // all of our DND stuff
     // this is the last window that had a drag event happen on it.
-    void   InitDragEvent(mozilla::WidgetMouseEvent& aEvent);
+    void   InitDragEvent         (nsMouseEvent &aEvent);
 
     // this is everything we need to be able to fire motion events
     // repeatedly
@@ -373,7 +372,34 @@ private:
     // event (like a keypress or mouse click).
     void UserActivity();
 
-    inline void ProcessMotionEvent();
+    inline void ProcessMotionEvent() {
+        if (mPinchEvent.needDispatch) {
+            double distance = DistanceBetweenPoints(mPinchEvent.centerPoint, mPinchEvent.touchPoint);
+            distance *= 2;
+            mPinchEvent.delta = distance - mPinchEvent.prevDistance;
+            nsIntPoint centerPoint(mPinchEvent.centerPoint.x(), mPinchEvent.centerPoint.y());
+            DispatchGestureEvent(NS_SIMPLE_GESTURE_MAGNIFY_UPDATE,
+                                 0, mPinchEvent.delta, centerPoint);
+            mPinchEvent.prevDistance = distance;
+        }
+        if (mMoveEvent.needDispatch) {
+            nsMouseEvent event(true, NS_MOUSE_MOVE, this, nsMouseEvent::eReal);
+
+            event.refPoint.x = nscoord(mMoveEvent.pos.x());
+            event.refPoint.y = nscoord(mMoveEvent.pos.y());
+
+            event.InitBasicModifiers(mMoveEvent.modifiers & Qt::ControlModifier,
+                                     mMoveEvent.modifiers & Qt::AltModifier,
+                                     mMoveEvent.modifiers & Qt::ShiftModifier,
+                                     mMoveEvent.modifiers & Qt::MetaModifier);
+            event.clickCount      = 0;
+
+            DispatchEvent(&event);
+            mMoveEvent.needDispatch = false;
+        }
+
+        mTimerStarted = false;
+    }
 
     void DispatchMotionToMainThread() {
         if (!mTimerStarted) {

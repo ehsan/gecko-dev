@@ -1,3 +1,4 @@
+/* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -24,7 +25,7 @@ const Hotkey = exports.Hotkey = function Hotkey(options) {
     throw new TypeError(INVALID_HOTKEY);
   }
 
-  this.onPress = options.onPress && options.onPress.bind(this);
+  this.onPress = options.onPress;
   this.toString = stringify.bind(null, hotkey);
   // Registering listener on keyboard combination enclosed by this hotkey.
   // Please note that `this.toString()` is a normalized version of

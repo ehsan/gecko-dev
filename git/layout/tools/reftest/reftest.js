@@ -109,9 +109,6 @@ var gUnexpectedCrashDumpFiles = { };
 var gCrashDumpDir;
 var gFailedNoPaint = false;
 
-// The enabled-state of the test-plugins, stored so they can be reset later
-var gTestPluginEnabledStates = null;
-
 const TYPE_REFTEST_EQUAL = '==';
 const TYPE_REFTEST_NOTEQUAL = '!=';
 const TYPE_LOAD = 'load';     // test without a reference (just test that it does
@@ -211,20 +208,6 @@ function IDForEventTarget(event)
     }
 }
 
-function getTestPlugin(aName) {
-  var ph = CC["@mozilla.org/plugin/host;1"].getService(CI.nsIPluginHost);
-  var tags = ph.getPluginTags();
-
-  // Find the test plugin
-  for (var i = 0; i < tags.length; i++) {
-    if (tags[i].name == aName)
-      return tags[i];
-  }
-
-  LogWarning("Failed to find the test-plugin.");
-  return null;
-}
-
 this.OnRefTestLoad = function OnRefTestLoad(win)
 {
     gCrashDumpDir = CC[NS_DIRECTORY_SERVICE_CONTRACTID]
@@ -272,7 +255,7 @@ this.OnRefTestLoad = function OnRefTestLoad(win)
 
 #if BOOTSTRAP
 #if REFTEST_B2G
-    var doc = gContainingWindow.document.getElementsByTagName("html")[0];
+    var doc = gContainingWindow.document.getElementsByTagName("window")[0];
 #else
     var doc = gContainingWindow.document.getElementById('main-window');
 #endif
@@ -283,17 +266,6 @@ this.OnRefTestLoad = function OnRefTestLoad(win)
 #else
     document.getElementById("reftest-window").appendChild(gBrowser);
 #endif
-
-    // reftests should have the test plugins enabled, not click-to-play
-    let plugin1 = getTestPlugin("Test Plug-in");
-    let plugin2 = getTestPlugin("Second Test Plug-in");
-    if (plugin1 && plugin2) {
-      gTestPluginEnabledStates = [plugin1.enabledState, plugin2.enabledState];
-      plugin1.enabledState = CI.nsIPluginTag.STATE_ENABLED;
-      plugin2.enabledState = CI.nsIPluginTag.STATE_ENABLED;
-    } else {
-      LogWarning("Could not get test plugin tags.");
-    }
 
     gBrowserMessageManager = gBrowser.QueryInterface(CI.nsIFrameLoaderOwner)
                                      .frameLoader.messageManager;
@@ -406,10 +378,8 @@ function InitAndStartRefTests()
         DoneTests();
     }
 
-    // Focus the content browser.
-    if (gFocusFilterMode != FOCUS_FILTER_NON_NEEDS_FOCUS_TESTS) {
-        gBrowser.focus();
-    }
+    // Focus the content browser
+    gBrowser.focus();
 
     StartTests();
 }
@@ -528,14 +498,6 @@ function StartTests()
 
 function OnRefTestUnload()
 {
-  let plugin1 = getTestPlugin("Test Plug-in");
-  let plugin2 = getTestPlugin("Second Test Plug-in");
-  if (plugin1 && plugin2) {
-    plugin1.enabledState = gTestPluginEnabledStates[0];
-    plugin2.enabledState = gTestPluginEnabledStates[1];
-  } else {
-    LogWarning("Failed to get test plugin tags.");
-  }
 }
 
 // Read all available data from an input stream and return it
@@ -576,6 +538,14 @@ function BuildConditionSandbox(aURL) {
         sandbox.smallScreen = true;
     }
 
+#if REFTEST_B2G
+    // XXX nsIGfxInfo isn't available in B2G
+    sandbox.d2d = false;
+    sandbox.azureQuartz = false;
+    sandbox.azureSkia = false;
+    sandbox.azureSkiaGL = false;
+    sandbox.contentSameGfxBackendAsCanvas = false;
+#else
     var gfxInfo = (NS_GFXINFO_CONTRACTID in CC) && CC[NS_GFXINFO_CONTRACTID].getService(CI.nsIGfxInfo);
     try {
       sandbox.d2d = gfxInfo.D2DEnabled;
@@ -589,6 +559,7 @@ function BuildConditionSandbox(aURL) {
     // true if we are using the same Azure backend for rendering canvas and content
     sandbox.contentSameGfxBackendAsCanvas = info.AzureContentBackend == info.AzureCanvasBackend
                                             || (info.AzureContentBackend == "none" && info.AzureCanvasBackend == "cairo");
+#endif
 
     sandbox.layersGPUAccelerated =
       gWindowUtils.layerManagerType != "Basic";
@@ -1156,15 +1127,6 @@ function Focus()
     return true;
 }
 
-function Blur()
-{
-    // On non-remote reftests, this will transfer focus to the dummy window
-    // we created to hold focus for non-needs-focus tests.  Buggy tests
-    // (ones which require focus but don't request needs-focus) will then
-    // fail.
-    gContainingWindow.blur();
-}
-
 function StartCurrentTest()
 {
     gTestLog = [];
@@ -1197,9 +1159,6 @@ function StartCurrentTest()
     }
     else {
         gDumpLog("REFTEST TEST-START | " + gURLs[0].prettyPath + "\n");
-        if (!gURLs[0].needsFocus) {
-            Blur();
-        }
         var currentTest = gTotalTests - gURLs.length;
         gContainingWindow.document.title = "reftest: " + currentTest + " / " + gTotalTests +
             " (" + Math.floor(100 * (currentTest / gTotalTests)) + "%)";

@@ -12,6 +12,7 @@
 #include "mozilla/layers/ImageBridgeChild.h"
 
 #include "prlog.h"
+#include "prenv.h"
 
 #include "gfxPlatform.h"
 
@@ -37,16 +38,17 @@
 #include "gfxPlatformFontList.h"
 #include "gfxContext.h"
 #include "gfxImageSurface.h"
+#include "gfxUserFontSet.h"
 #include "nsUnicodeProperties.h"
 #include "harfbuzz/hb.h"
 #include "gfxGraphiteShaper.h"
-#include "gfx2DGlue.h"
-#include "gfxGradientCache.h"
 
 #include "nsUnicodeRange.h"
 #include "nsServiceManagerUtils.h"
 #include "nsTArray.h"
+#include "nsUnicharUtilCIID.h"
 #include "nsILocaleService.h"
+#include "nsReadableUtils.h"
 
 #include "nsWeakReference.h"
 
@@ -63,8 +65,13 @@
 #endif
 
 #ifdef USE_SKIA
-#include "mozilla/Hal.h"
 #include "skia/SkGraphics.h"
+#endif
+
+#ifdef USE_SKIA_GPU
+#include "skia/GrContext.h"
+#include "skia/GrGLInterface.h"
+#include "GLContextSkia.h"
 #endif
 
 #include "mozilla/Preferences.h"
@@ -97,6 +104,7 @@ static int gCMSIntent = -2;
 static void ShutdownCMS();
 static void MigratePrefs();
 
+static bool sDrawLayerBorders = false;
 static bool sDrawFrameCounter = false;
 
 #include "mozilla/gfx/2D.h"
@@ -142,9 +150,6 @@ SRGBOverrideObserver::Observe(nsISupports *aSubject,
 #define GFX_PREF_FALLBACK_USE_CMAPS  "gfx.font_rendering.fallback.always_use_cmaps"
 
 #define GFX_PREF_OPENTYPE_SVG "gfx.font_rendering.opentype_svg.enabled"
-
-#define GFX_PREF_WORD_CACHE_CHARLIMIT "gfx.font_rendering.wordcache.charlimit"
-#define GFX_PREF_WORD_CACHE_MAXENTRIES "gfx.font_rendering.wordcache.maxentries"
 
 #define GFX_PREF_GRAPHITE_SHAPING "gfx.font_rendering.graphite.enabled"
 
@@ -243,18 +248,12 @@ static const char *gPrefLangNames[] = {
 };
 
 gfxPlatform::gfxPlatform()
-  : mAzureCanvasBackendCollector(MOZ_THIS_IN_INITIALIZER_LIST(),
-                                 &gfxPlatform::GetAzureBackendInfo)
-  , mDrawLayerBorders(false)
-  , mDrawTileBorders(false)
-  , mDrawBigImageBorders(false)
+  : mAzureCanvasBackendCollector(this, &gfxPlatform::GetAzureBackendInfo)
 {
     mUseHarfBuzzScripts = UNINITIALIZED_VALUE;
     mAllowDownloadableFonts = UNINITIALIZED_VALUE;
     mFallbackUsesCmaps = UNINITIALIZED_VALUE;
 
-    mWordCacheCharLimit = UNINITIALIZED_VALUE;
-    mWordCacheMaxEntries = UNINITIALIZED_VALUE;
     mGraphiteShapingEnabled = UNINITIALIZED_VALUE;
     mOpenTypeSVGEnabled = UNINITIALIZED_VALUE;
     mBidiNumeralOption = UNINITIALIZED_VALUE;
@@ -266,23 +265,9 @@ gfxPlatform::gfxPlatform()
     mLayersUseDeprecated =
         Preferences::GetBool("layers.use-deprecated-textures", true);
 
-    Preferences::AddBoolVarCache(&mDrawLayerBorders,
-                                 "layers.draw-borders",
-                                 false);
-    Preferences::AddBoolVarCache(&mDrawTileBorders,
-                                 "layers.draw-tile-borders",
-                                 false);
-    Preferences::AddBoolVarCache(&mDrawBigImageBorders,
-                                 "layers.draw-bigimage-borders",
-                                 false);
-
     uint32_t canvasMask = (1 << BACKEND_CAIRO) | (1 << BACKEND_SKIA);
-    uint32_t contentMask = 1 << BACKEND_CAIRO;
+    uint32_t contentMask = 0;
     InitBackendPrefs(canvasMask, contentMask);
-
-#ifdef USE_SKIA
-    InitializeSkiaCaches();
-#endif
 }
 
 gfxPlatform*
@@ -364,18 +349,17 @@ gfxPlatform::Init()
     mozilla::gl::GLContext::StaticInit();
 #endif
 
-    bool useOffMainThreadCompositing = OffMainThreadCompositionRequired() ||
-                                       GetPrefLayersOffMainThreadCompositionEnabled();
+    bool useOffMainThreadCompositing = GetPrefLayersOffMainThreadCompositionEnabled() ||
+        Preferences::GetBool("browser.tabs.remote", false);
+    useOffMainThreadCompositing &= GetPlatform()->SupportsOffMainThreadCompositing();
 
-    if (!OffMainThreadCompositionRequired()) {
-      useOffMainThreadCompositing &= GetPlatform()->SupportsOffMainThreadCompositing();
-    }
-
-    if (useOffMainThreadCompositing && (XRE_GetProcessType() == GeckoProcessType_Default)) {
+    if (useOffMainThreadCompositing && (XRE_GetProcessType() ==
+                                        GeckoProcessType_Default)) {
         CompositorParent::StartUp();
-        if (Preferences::GetBool("layers.async-video.enabled", false)) {
+        if (Preferences::GetBool("layers.async-video.enabled",false)) {
             ImageBridgeChild::StartUp();
         }
+
     }
 
     nsresult rv;
@@ -389,18 +373,9 @@ gfxPlatform::Init()
 
     gPlatform->mScreenReferenceSurface =
         gPlatform->CreateOffscreenSurface(gfxIntSize(1,1),
-                                          GFX_CONTENT_COLOR_ALPHA);
+                                          gfxASurface::CONTENT_COLOR_ALPHA);
     if (!gPlatform->mScreenReferenceSurface) {
         NS_RUNTIMEABORT("Could not initialize mScreenReferenceSurface");
-    }
-
-    if (gPlatform->SupportsAzureContent()) {
-        gPlatform->mScreenReferenceDrawTarget =
-            gPlatform->CreateOffscreenContentDrawTarget(IntSize(1, 1),
-                                                        FORMAT_B8G8R8A8);
-      if (!gPlatform->mScreenReferenceDrawTarget) {
-        NS_RUNTIMEABORT("Could not initialize mScreenReferenceDrawTarget");
-      }
     }
 
     rv = gfxFontCache::Init();
@@ -442,6 +417,10 @@ gfxPlatform::Init()
 
     gPlatform->mOrientationSyncMillis = Preferences::GetUint("layers.orientation.sync.timeout", (uint32_t)0);
 
+    mozilla::Preferences::AddBoolVarCache(&sDrawLayerBorders,
+                                          "layers.draw-borders",
+                                          false);
+
     mozilla::Preferences::AddBoolVarCache(&sDrawFrameCounter,
                                           "layers.frame-counter",
                                           false);
@@ -456,7 +435,6 @@ gfxPlatform::Shutdown()
     // started up. That's OK, they can handle it.
     gfxFontCache::Shutdown();
     gfxFontGroup::Shutdown();
-    gfxGradientCache::Shutdown();
     gfxGraphiteShaper::Shutdown();
 #if defined(XP_MACOSX) || defined(XP_WIN) // temporary, until this is implemented on others
     gfxPlatformFontList::Shutdown();
@@ -511,7 +489,6 @@ gfxPlatform::Shutdown()
 gfxPlatform::~gfxPlatform()
 {
     mScreenReferenceSurface = nullptr;
-    mScreenReferenceDrawTarget = nullptr;
 
     // The cairo folks think we should only clean up in debug builds,
     // but we're generally in the habit of trying to shut down as
@@ -548,7 +525,7 @@ gfxPlatform::PreferMemoryOverShmem() const {
 
 already_AddRefed<gfxASurface>
 gfxPlatform::CreateOffscreenImageSurface(const gfxIntSize& aSize,
-                                         gfxContentType aContentType)
+                                         gfxASurface::gfxContentType aContentType)
 {
   nsRefPtr<gfxASurface> newSurface;
   newSurface = new gfxImageSurface(aSize, OptimalFormatForContent(aContentType));
@@ -558,7 +535,7 @@ gfxPlatform::CreateOffscreenImageSurface(const gfxIntSize& aSize,
 
 already_AddRefed<gfxASurface>
 gfxPlatform::OptimizeImage(gfxImageSurface *aSurface,
-                           gfxImageFormat format)
+                           gfxASurface::gfxImageFormat format)
 {
     const gfxIntSize& surfaceSize = aSurface->GetSize();
 
@@ -599,7 +576,7 @@ gfxPlatform::CreateDrawTargetForUpdateSurface(gfxASurface *aSurface, const IntSi
 #ifdef XP_MACOSX
   // this is a bit of a hack that assumes that the buffer associated with the CGContext
   // will live around long enough that nothing bad will happen.
-  if (aSurface->GetType() == gfxSurfaceTypeQuartz) {
+  if (aSurface->GetType() == gfxASurface::SurfaceTypeQuartz) {
     return Factory::CreateDrawTargetForCairoCGContext(static_cast<gfxQuartzSurface*>(aSurface)->GetCGContext(), aSize);
   }
 #endif
@@ -653,10 +630,6 @@ gfxPlatform::ClearSourceSurfaceForSurface(gfxASurface *aSurface)
 RefPtr<SourceSurface>
 gfxPlatform::GetSourceSurfaceForSurface(DrawTarget *aTarget, gfxASurface *aSurface)
 {
-  if (!aSurface->CairoSurface() || aSurface->CairoStatus()) {
-    return nullptr;
-  }
-
   void *userData = aSurface->GetData(&kSourceSurface);
 
   if (userData) {
@@ -670,9 +643,9 @@ gfxPlatform::GetSourceSurfaceForSurface(DrawTarget *aTarget, gfxASurface *aSurfa
   }
 
   SurfaceFormat format;
-  if (aSurface->GetContentType() == GFX_CONTENT_ALPHA) {
+  if (aSurface->GetContentType() == gfxASurface::CONTENT_ALPHA) {
     format = FORMAT_A8;
-  } else if (aSurface->GetContentType() == GFX_CONTENT_COLOR) {
+  } else if (aSurface->GetContentType() == gfxASurface::CONTENT_COLOR) {
     format = FORMAT_B8G8R8X8;
   } else {
     format = FORMAT_B8G8R8A8;
@@ -681,7 +654,7 @@ gfxPlatform::GetSourceSurfaceForSurface(DrawTarget *aTarget, gfxASurface *aSurfa
   RefPtr<SourceSurface> srcBuffer;
 
 #ifdef XP_WIN
-  if (aSurface->GetType() == gfxSurfaceTypeD2D &&
+  if (aSurface->GetType() == gfxASurface::SurfaceTypeD2D &&
       format != FORMAT_A8) {
     NativeSurface surf;
     surf.mFormat = format;
@@ -714,7 +687,7 @@ gfxPlatform::GetSourceSurfaceForSurface(DrawTarget *aTarget, gfxASurface *aSurfa
     nsRefPtr<gfxImageSurface> imgSurface = aSurface->GetAsImageSurface();
 
     bool isWin32ImageSurf = imgSurface &&
-                            aSurface->GetType() == gfxSurfaceTypeWin32;
+                            aSurface->GetType() == gfxASurface::SurfaceTypeWin32;
 
     if (!imgSurface) {
       imgSurface = new gfxImageSurface(aSurface->GetSize(), OptimalFormatForContent(aSurface->GetContentType()));
@@ -726,16 +699,16 @@ gfxPlatform::GetSourceSurfaceForSurface(DrawTarget *aTarget, gfxASurface *aSurfa
 
     gfxImageFormat cairoFormat = imgSurface->Format();
     switch(cairoFormat) {
-      case gfxImageFormatARGB32:
+      case gfxASurface::ImageFormatARGB32:
         format = FORMAT_B8G8R8A8;
         break;
-      case gfxImageFormatRGB24:
+      case gfxASurface::ImageFormatRGB24:
         format = FORMAT_B8G8R8X8;
         break;
-      case gfxImageFormatA8:
+      case gfxASurface::ImageFormatA8:
         format = FORMAT_A8;
         break;
-      case gfxImageFormatRGB16_565:
+      case gfxASurface::ImageFormatRGB16_565:
         format = FORMAT_R5G6B5;
         break;
       default:
@@ -753,6 +726,10 @@ gfxPlatform::GetSourceSurfaceForSurface(DrawTarget *aTarget, gfxASurface *aSurfa
       // alive. This is true if gfxASurface actually -is- an ImageSurface or
       // if it is a gfxWindowsSurface which supports GetAsImageSurface.
       if (imgSurface != aSurface && !isWin32ImageSurf) {
+        // This shouldn't happen for now, it can be easily supported by making
+        // a copy. For now let's just abort.
+        NS_RUNTIMEABORT("Attempt to create unsupported SourceSurface from"
+            "non-image surface.");
         return nullptr;
       }
 
@@ -817,7 +794,7 @@ gfxPlatform::SupportsAzureContentForDrawTarget(DrawTarget* aTarget)
     return false;
   }
 
-  return SupportsAzureContentForType(aTarget->GetType());
+  return (1 << aTarget->GetType()) & mContentBackendBitmask;
 }
 
 bool
@@ -825,39 +802,6 @@ gfxPlatform::UseAcceleratedSkiaCanvas()
 {
   return Preferences::GetBool("gfx.canvas.azure.accelerated", false) &&
          mPreferredCanvasBackend == BACKEND_SKIA;
-}
-
-void
-gfxPlatform::InitializeSkiaCaches()
-{
-#ifdef USE_SKIA_GPU
-  if (UseAcceleratedSkiaCanvas()) {
-    bool usingDynamicCache = Preferences::GetBool("gfx.canvas.skiagl.dynamic-cache", false);
-
-    int cacheItemLimit = Preferences::GetInt("gfx.canvas.skiagl.cache-items", 256);
-    int cacheSizeLimit = Preferences::GetInt("gfx.canvas.skiagl.cache-size", 96);
-
-    // Prefs are in megabytes, but we want the sizes in bytes
-    cacheSizeLimit *= 1024*1024;
-
-    if (usingDynamicCache) {
-      uint32_t totalMemory = mozilla::hal::GetTotalSystemMemory();
-
-      if (totalMemory <= 256*1024*1024) {
-        // We need a very minimal cache on 256 meg devices
-        cacheSizeLimit = 2*1024*1024;
-      } else if (totalMemory > 0) {
-        cacheSizeLimit = totalMemory / 16;
-      }
-    }
-
-#ifdef DEBUG
-    printf_stderr("Determined SkiaGL cache limits: Size %i, Items: %i\n", cacheSizeLimit, cacheItemLimit);
-#endif
-
-    Factory::SetGlobalSkiaCacheLimits(cacheItemLimit, cacheSizeLimit);
-  }
-#endif
 }
 
 already_AddRefed<gfxASurface>
@@ -882,7 +826,7 @@ gfxPlatform::GetThebesSurfaceForDrawTarget(DrawTarget *aTarget)
   }
 
   IntSize size = data->GetSize();
-  gfxImageFormat format = OptimalFormatForContent(ContentForFormat(data->GetFormat()));
+  gfxASurface::gfxImageFormat format = OptimalFormatForContent(ContentForFormat(data->GetFormat()));
 
 
   nsRefPtr<gfxASurface> surf =
@@ -922,7 +866,7 @@ gfxPlatform::CreateDrawTargetForBackend(BackendType aBackend, const IntSize& aSi
 }
 
 RefPtr<DrawTarget>
-gfxPlatform::CreateOffscreenCanvasDrawTarget(const IntSize& aSize, SurfaceFormat aFormat)
+gfxPlatform::CreateOffscreenDrawTarget(const IntSize& aSize, SurfaceFormat aFormat)
 {
   NS_ASSERTION(mPreferredCanvasBackend, "No backend.");
   RefPtr<DrawTarget> target = CreateDrawTargetForBackend(mPreferredCanvasBackend, aSize, aFormat);
@@ -934,22 +878,12 @@ gfxPlatform::CreateOffscreenCanvasDrawTarget(const IntSize& aSize, SurfaceFormat
   return CreateDrawTargetForBackend(mFallbackCanvasBackend, aSize, aFormat);
 }
 
-RefPtr<DrawTarget>
-gfxPlatform::CreateOffscreenContentDrawTarget(const IntSize& aSize, SurfaceFormat aFormat)
-{
-  NS_ASSERTION(mContentBackend, "No backend.");
-  return CreateDrawTargetForBackend(mContentBackend, aSize, aFormat);
-}
 
 RefPtr<DrawTarget>
 gfxPlatform::CreateDrawTargetForData(unsigned char* aData, const IntSize& aSize, int32_t aStride, SurfaceFormat aFormat)
 {
-  NS_ASSERTION(mContentBackend, "No backend.");
-  if (mContentBackend == BACKEND_CAIRO) {
-    nsRefPtr<gfxImageSurface> image = new gfxImageSurface(aData, gfxIntSize(aSize.width, aSize.height), aStride, SurfaceFormatToImageFormat(aFormat)); 
-    return Factory::CreateDrawTargetForCairoSurface(image->CairoSurface(), aSize);
-  }
-  return Factory::CreateDrawTargetForData(mContentBackend, aData, aSize, aStride, aFormat);
+  NS_ASSERTION(mPreferredCanvasBackend, "No backend.");
+  return Factory::CreateDrawTargetForData(mPreferredCanvasBackend, aData, aSize, aStride, aFormat);
 }
 
 /* static */ BackendType
@@ -1011,34 +945,6 @@ gfxPlatform::OpenTypeSVGEnabled()
     }
 
     return mOpenTypeSVGEnabled > 0;
-}
-
-uint32_t
-gfxPlatform::WordCacheCharLimit()
-{
-    if (mWordCacheCharLimit == UNINITIALIZED_VALUE) {
-        mWordCacheCharLimit =
-            Preferences::GetInt(GFX_PREF_WORD_CACHE_CHARLIMIT, 32);
-        if (mWordCacheCharLimit < 0) {
-            mWordCacheCharLimit = 32;
-        }
-    }
-
-    return uint32_t(mWordCacheCharLimit);
-}
-
-uint32_t
-gfxPlatform::WordCacheMaxEntries()
-{
-    if (mWordCacheMaxEntries == UNINITIALIZED_VALUE) {
-        mWordCacheMaxEntries =
-            Preferences::GetInt(GFX_PREF_WORD_CACHE_MAXENTRIES, 10000);
-        if (mWordCacheMaxEntries < 0) {
-            mWordCacheMaxEntries = 10000;
-        }
-    }
-
-    return uint32_t(mWordCacheMaxEntries);
 }
 
 bool
@@ -1275,20 +1181,10 @@ gfxPlatform::IsLangCJK(eFontPrefLang aLang)
     }
 }
 
-mozilla::layers::DiagnosticTypes
-gfxPlatform::GetLayerDiagnosticTypes()
+bool
+gfxPlatform::DrawLayerBorders()
 {
-  mozilla::layers::DiagnosticTypes type = DIAGNOSTIC_NONE;
-  if (mDrawLayerBorders) {
-    type |= mozilla::layers::DIAGNOSTIC_LAYER_BORDERS;
-  }
-  if (mDrawTileBorders) {
-    type |= mozilla::layers::DIAGNOSTIC_TILE_BORDERS;
-  }
-  if (mDrawBigImageBorders) {
-    type |= mozilla::layers::DIAGNOSTIC_BIGIMAGE_BORDERS;
-  }
-  return type;
+    return sDrawLayerBorders;
 }
 
 bool
@@ -1442,9 +1338,8 @@ gfxPlatform::InitBackendPrefs(uint32_t aCanvasBitmask, uint32_t aContentBitmask)
       mPreferredCanvasBackend = BACKEND_CAIRO;
     }
     mFallbackCanvasBackend = GetCanvasBackendPref(aCanvasBitmask & ~(1 << mPreferredCanvasBackend));
-
+    mContentBackend = GetContentBackendPref(aContentBitmask);
     mContentBackendBitmask = aContentBitmask;
-    mContentBackend = GetContentBackendPref(mContentBackendBitmask);
 }
 
 /* static */ BackendType
@@ -1454,17 +1349,16 @@ gfxPlatform::GetCanvasBackendPref(uint32_t aBackendBitmask)
 }
 
 /* static */ BackendType
-gfxPlatform::GetContentBackendPref(uint32_t &aBackendBitmask)
+gfxPlatform::GetContentBackendPref(uint32_t aBackendBitmask)
 {
     return GetBackendPref("gfx.content.azure.enabled", "gfx.content.azure.backends", aBackendBitmask);
 }
 
 /* static */ BackendType
-gfxPlatform::GetBackendPref(const char* aEnabledPrefName, const char* aBackendPrefName, uint32_t &aBackendBitmask)
+gfxPlatform::GetBackendPref(const char* aEnabledPrefName, const char* aBackendPrefName, uint32_t aBackendBitmask)
 {
     if (aEnabledPrefName &&
         !Preferences::GetBool(aEnabledPrefName, false)) {
-        aBackendBitmask = 0;
         return BACKEND_NONE;
     }
 
@@ -1474,20 +1368,13 @@ gfxPlatform::GetBackendPref(const char* aEnabledPrefName, const char* aBackendPr
         ParseString(prefString, ',', backendList);
     }
 
-    uint32_t allowedBackends = 0;
-    BackendType result = BACKEND_NONE;
     for (uint32_t i = 0; i < backendList.Length(); ++i) {
-        BackendType type = BackendTypeForName(backendList[i]);
-        if ((1 << type) & aBackendBitmask) {
-            allowedBackends |= (1 << type);
-            if (result == BACKEND_NONE) {
-                result = type;
-            }
+        BackendType result = BackendTypeForName(backendList[i]);
+        if ((1 << result) & aBackendBitmask) {
+            return result;
         }
     }
-
-    aBackendBitmask = allowedBackends;
-    return result;
+    return BACKEND_NONE;
 }
 
 bool
@@ -1840,16 +1727,6 @@ gfxPlatform::GetBidiNumeralOption()
     return mBidiNumeralOption;
 }
 
-static void
-FlushFontAndWordCaches()
-{
-    gfxFontCache *fontCache = gfxFontCache::GetCache();
-    if (fontCache) {
-        fontCache->AgeAllGenerations();
-        fontCache->FlushShapedWordCaches();
-    }
-}
-
 void
 gfxPlatform::FontsPrefsChanged(const char *aPref)
 {
@@ -1858,18 +1735,20 @@ gfxPlatform::FontsPrefsChanged(const char *aPref)
         mAllowDownloadableFonts = UNINITIALIZED_VALUE;
     } else if (!strcmp(GFX_PREF_FALLBACK_USE_CMAPS, aPref)) {
         mFallbackUsesCmaps = UNINITIALIZED_VALUE;
-    } else if (!strcmp(GFX_PREF_WORD_CACHE_CHARLIMIT, aPref)) {
-        mWordCacheCharLimit = UNINITIALIZED_VALUE;
-        FlushFontAndWordCaches();
-    } else if (!strcmp(GFX_PREF_WORD_CACHE_MAXENTRIES, aPref)) {
-        mWordCacheMaxEntries = UNINITIALIZED_VALUE;
-        FlushFontAndWordCaches();
     } else if (!strcmp(GFX_PREF_GRAPHITE_SHAPING, aPref)) {
         mGraphiteShapingEnabled = UNINITIALIZED_VALUE;
-        FlushFontAndWordCaches();
+        gfxFontCache *fontCache = gfxFontCache::GetCache();
+        if (fontCache) {
+            fontCache->AgeAllGenerations();
+            fontCache->FlushShapedWordCaches();
+        }
     } else if (!strcmp(GFX_PREF_HARFBUZZ_SCRIPTS, aPref)) {
         mUseHarfBuzzScripts = UNINITIALIZED_VALUE;
-        FlushFontAndWordCaches();
+        gfxFontCache *fontCache = gfxFontCache::GetCache();
+        if (fontCache) {
+            fontCache->AgeAllGenerations();
+            fontCache->FlushShapedWordCaches();
+        }
     } else if (!strcmp(BIDI_NUMERAL_PREF, aPref)) {
         mBidiNumeralOption = UNINITIALIZED_VALUE;
     } else if (!strcmp(GFX_PREF_OPENTYPE_SVG, aPref)) {
@@ -1917,24 +1796,24 @@ gfxPlatform::GetScreenDepth() const
 }
 
 mozilla::gfx::SurfaceFormat
-gfxPlatform::Optimal2DFormatForContent(gfxContentType aContent)
+gfxPlatform::Optimal2DFormatForContent(gfxASurface::gfxContentType aContent)
 {
   switch (aContent) {
-  case GFX_CONTENT_COLOR:
+  case gfxASurface::CONTENT_COLOR:
     switch (GetOffscreenFormat()) {
-    case gfxImageFormatARGB32:
+    case gfxASurface::ImageFormatARGB32:
       return mozilla::gfx::FORMAT_B8G8R8A8;
-    case gfxImageFormatRGB24:
+    case gfxASurface::ImageFormatRGB24:
       return mozilla::gfx::FORMAT_B8G8R8X8;
-    case gfxImageFormatRGB16_565:
+    case gfxASurface::ImageFormatRGB16_565:
       return mozilla::gfx::FORMAT_R5G6B5;
     default:
-      NS_NOTREACHED("unknown gfxImageFormat for GFX_CONTENT_COLOR");
+      NS_NOTREACHED("unknown gfxImageFormat for CONTENT_COLOR");
       return mozilla::gfx::FORMAT_B8G8R8A8;
     }
-  case GFX_CONTENT_ALPHA:
+  case gfxASurface::CONTENT_ALPHA:
     return mozilla::gfx::FORMAT_A8;
-  case GFX_CONTENT_COLOR_ALPHA:
+  case gfxASurface::CONTENT_COLOR_ALPHA:
     return mozilla::gfx::FORMAT_B8G8R8A8;
   default:
     NS_NOTREACHED("unknown gfxContentType");
@@ -1943,18 +1822,18 @@ gfxPlatform::Optimal2DFormatForContent(gfxContentType aContent)
 }
 
 gfxImageFormat
-gfxPlatform::OptimalFormatForContent(gfxContentType aContent)
+gfxPlatform::OptimalFormatForContent(gfxASurface::gfxContentType aContent)
 {
   switch (aContent) {
-  case GFX_CONTENT_COLOR:
+  case gfxASurface::CONTENT_COLOR:
     return GetOffscreenFormat();
-  case GFX_CONTENT_ALPHA:
-    return gfxImageFormatA8;
-  case GFX_CONTENT_COLOR_ALPHA:
-    return gfxImageFormatARGB32;
+  case gfxASurface::CONTENT_ALPHA:
+    return gfxASurface::ImageFormatA8;
+  case gfxASurface::CONTENT_COLOR_ALPHA:
+    return gfxASurface::ImageFormatARGB32;
   default:
     NS_NOTREACHED("unknown gfxContentType");
-    return gfxImageFormatARGB32;
+    return gfxASurface::ImageFormatARGB32;
   }
 }
 
@@ -1987,8 +1866,6 @@ static bool sPrefLayersPreferD3D9 = false;
 static bool sLayersSupportsD3D9 = true;
 static int  sPrefLayoutFrameRate = -1;
 static bool sBufferRotationEnabled = false;
-static bool sComponentAlphaEnabled = true;
-static bool sPrefBrowserTabsRemote = false;
 
 static bool sLayersAccelerationPrefsInitialized = false;
 
@@ -2006,8 +1883,6 @@ InitLayersAccelerationPrefs()
     sPrefLayersPreferD3D9 = Preferences::GetBool("layers.prefer-d3d9", false);
     sPrefLayoutFrameRate = Preferences::GetInt("layout.frame_rate", -1);
     sBufferRotationEnabled = Preferences::GetBool("layers.bufferrotation.enabled", true);
-    sComponentAlphaEnabled = Preferences::GetBool("layers.componentalpha.enabled", true);
-    sPrefBrowserTabsRemote = Preferences::GetBool("browser.tabs.remote", false);
 
     nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
     if (gfxInfo) {
@@ -2044,12 +1919,6 @@ gfxPlatform::GetPrefLayersAccelerationForceEnabled()
 {
   InitLayersAccelerationPrefs();
   return sPrefLayersAccelerationForceEnabled;
-}
-
-bool gfxPlatform::OffMainThreadCompositionRequired()
-{
-  InitLayersAccelerationPrefs();
-  return sPrefBrowserTabsRemote;
 }
 
 bool
@@ -2104,15 +1973,4 @@ gfxPlatform::DisableBufferRotation()
   MutexAutoLock autoLock(*gGfxPlatformPrefsLock);
 
   sBufferRotationEnabled = false;
-}
-
-bool
-gfxPlatform::ComponentAlphaEnabled()
-{
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
-  return false;
-#endif
-
-  InitLayersAccelerationPrefs();
-  return sComponentAlphaEnabled;
 }

@@ -14,8 +14,6 @@
 #include "mozilla/MemoryReporting.h"
 #include "nsCSSProps.h"
 #include "nsCSSPropertySet.h"
-#include "nsCSSValue.h"
-#include "imgRequestProxy.h"
 
 struct nsRuleData;
 class nsCSSExpandedDataBlock;

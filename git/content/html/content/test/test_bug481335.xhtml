@@ -51,7 +51,10 @@ function checkLinkColor(aElmId, aExpectedColor, aMessage) {
   // Because link coloring is asynchronous, we wait until we get the right
   // result, or we will time out (resulting in a failure).
   function getColor() {
-    var utils = SpecialPowers.getDOMWindowUtils(window);
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    var utils = document.defaultView.
+                  QueryInterface(Components.interfaces.nsIInterfaceRequestor).
+                  getInterface(Components.interfaces.nsIDOMWindowUtils);
     return utils.getVisitedDependentComputedStyle($(aElmId), "", "color");
   }
   while (getColor() != aExpectedColor) {

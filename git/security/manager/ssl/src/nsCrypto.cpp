@@ -44,16 +44,13 @@
 #include "nsIPrompt.h"
 #include "nsIFilePicker.h"
 #include "nsJSPrincipals.h"
-#include "nsJSUtils.h"
 #include "nsIPrincipal.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIGenKeypairInfoDlg.h"
 #include "nsIDOMCryptoDialogs.h"
 #include "nsIFormSigningDialog.h"
-#include "nsIContentSecurityPolicy.h"
-#include "nsIURI.h"
 #include "jsapi.h"
-#include "js/OldDebugAPI.h"
+#include "jsdbgapi.h"
 #include <ctype.h>
 #include "pk11func.h"
 #include "keyhi.h"
@@ -844,9 +841,7 @@ cryptojs_generateOneKeyPair(JSContext *cx, nsKeyPairInfo *keyPairInfo,
             mustMoveKey = true;
           }
         
-          if (used_slot) {
-            PK11_FreeSlot(used_slot);
-          }
+          PK11_FreeSlot(used_slot);
         }
       }
     }
@@ -1849,7 +1844,7 @@ loser:
 static nsISupports *
 GetISupportsFromContext(JSContext *cx)
 {
-    if (JS::ContextOptionsRef(cx).privateIsNSISupports())
+    if (JS_GetOptions(cx) & JSOPTION_PRIVATE_IS_NSISUPPORTS)
         return static_cast<nsISupports *>(JS_GetContextPrivate(cx));
 
     return nullptr;
@@ -1896,39 +1891,6 @@ nsCrypto::GenerateCRMFRequest(JSContext* aContext,
   JS::RootedObject script_obj(aContext, GetWrapper());
   if (MOZ_UNLIKELY(!script_obj)) {
     aRv.Throw(NS_ERROR_UNEXPECTED);
-    return nullptr;
-  }
-
-  nsCOMPtr<nsIContentSecurityPolicy> csp;
-  if (!nsContentUtils::GetContentSecurityPolicy(aContext, getter_AddRefs(csp))) {
-    NS_ERROR("Error: failed to get CSP");
-    aRv.Throw(NS_ERROR_FAILURE);
-    return nullptr;
-  }
-
-  bool evalAllowed = true;
-  bool reportEvalViolations = false;
-  if (csp && NS_FAILED(csp->GetAllowsEval(&reportEvalViolations, &evalAllowed))) {
-    NS_WARNING("CSP: failed to get allowsEval");
-    aRv.Throw(NS_ERROR_FAILURE);
-    return nullptr;
-  }
-
-  if (reportEvalViolations) {
-    NS_NAMED_LITERAL_STRING(scriptSample, "window.crypto.generateCRMFRequest: call to eval() or related function blocked by CSP");
-
-    const char *fileName;
-    uint32_t lineNum;
-    nsJSUtils::GetCallingLocation(aContext, &fileName, &lineNum);
-    csp->LogViolationDetails(nsIContentSecurityPolicy::VIOLATION_TYPE_EVAL,
-                             NS_ConvertASCIItoUTF16(fileName),
-                             scriptSample,
-                             lineNum);
-  }
-
-  if (!evalAllowed) {
-    NS_WARNING("eval() not allowed by Content Security Policy");
-    aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
 
@@ -2080,6 +2042,7 @@ nsCrypto::GenerateCRMFRequest(JSContext* aContext,
   return crmf.forget();
 }
 
+
 // Reminder that we inherit the memory passed into us here.
 // An implementation to let us back up certs as an event.
 nsP12Runnable::nsP12Runnable(nsIX509Cert **certArr, int32_t numCerts,
@@ -2209,7 +2172,7 @@ nsCryptoRunnable::Run()
   JSAutoRequest ar(cx);
   JSAutoCompartment ac(cx, m_args->m_scope);
 
-  bool ok =
+  JSBool ok =
     JS_EvaluateScriptForPrincipals(cx, m_args->m_scope,
                                    nsJSPrincipals::get(m_args->m_principals),
                                    m_args->m_jsCallback, 
@@ -2351,7 +2314,7 @@ nsCrypto::ImportUserCertificates(const nsAString& aNickname,
       localNick = currCert->nickname;
     }
     else if (!nickname || nickname[0] == '\0') {
-      nsNSSCertificateDB::get_default_nickname(currCert, ctx, localNick, locker);
+      nsNSSCertificateDB::get_default_nickname(currCert, ctx, localNick);
     } else {
       //This is the case where we're getting a brand new
       //cert that doesn't have the same subjectName as a cert
@@ -2407,7 +2370,7 @@ nsCrypto::ImportUserCertificates(const nsAString& aNickname,
            node = CERT_LIST_NEXT(node), i++) {
         derCerts[i] = node->cert->derCert;
       }
-      nsNSSCertificateDB::ImportValidCACerts(numCAs, derCerts, ctx, locker);
+      nsNSSCertificateDB::ImportValidCACerts(numCAs, derCerts, ctx);
       nsMemory::Free(derCerts);
     }
   }

@@ -1,6 +1,6 @@
 // Basic preventExtensions test.
 
-var g = newGlobal();
+var g = newGlobal('new-compartment');
 var obj = g.eval("({x: 1})");
 assertEq(g.Object.isExtensible(obj), true);
 

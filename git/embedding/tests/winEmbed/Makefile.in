@@ -27,6 +27,15 @@
 #
 # ***** END LICENSE BLOCK *****
 
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+XPI_NAME	= winembed
+
 RESFILE		= winEmbed.res
 
 LIBS = \

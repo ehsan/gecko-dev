@@ -51,9 +51,7 @@ nsVolume::nsVolume(const Volume* aVolume)
     mState(aVolume->State()),
     mMountGeneration(aVolume->MountGeneration()),
     mMountLocked(aVolume->IsMountLocked()),
-    mIsFake(false),
-    mIsMediaPresent(aVolume->MediaPresent()),
-    mIsSharing(aVolume->IsSharing())
+    mIsFake(false)
 {
 }
 
@@ -95,30 +93,12 @@ bool nsVolume::Equals(nsIVolume* aVolume)
     return false;
   }
 
-  bool isSharing;
-  aVolume->GetIsSharing(&isSharing);
-  if (mIsSharing != isSharing) {
-    return false;
-  }
-
   return true;
-}
-
-NS_IMETHODIMP nsVolume::GetIsMediaPresent(bool *aIsMediaPresent)
-{
-  *aIsMediaPresent = mIsMediaPresent;
-  return NS_OK;
 }
 
 NS_IMETHODIMP nsVolume::GetIsMountLocked(bool *aIsMountLocked)
 {
   *aIsMountLocked = mMountLocked;
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsVolume::GetIsSharing(bool *aIsSharing)
-{
-  *aIsSharing = mIsSharing;
   return NS_OK;
 }
 
@@ -174,11 +154,9 @@ void
 nsVolume::LogState() const
 {
   if (mState == nsIVolume::STATE_MOUNTED) {
-    LOG("nsVolume: %s state %s @ '%s' gen %d locked %d fake %d "
-        "media %d sharing %d",
+    LOG("nsVolume: %s state %s @ '%s' gen %d locked %d fake %d",
         NameStr().get(), StateStr(), MountPointStr().get(),
-        MountGeneration(), (int)IsMountLocked(), (int)IsFake(),
-        (int)IsMediaPresent(), (int)IsSharing());
+        MountGeneration(), (int)IsMountLocked(), (int)IsFake());
     return;
   }
 
@@ -193,8 +171,6 @@ void nsVolume::Set(nsIVolume* aVolume)
   aVolume->GetMountPoint(mMountPoint);
   aVolume->GetState(&mState);
   aVolume->GetIsFake(&mIsFake);
-  aVolume->GetIsMediaPresent(&mIsMediaPresent);
-  aVolume->GetIsSharing(&mIsSharing);
 
   int32_t volMountGeneration;
   aVolume->GetMountGeneration(&volMountGeneration);
@@ -259,17 +235,6 @@ nsVolume::UpdateMountLock(bool aMountLocked)
      NewRunnableFunction(Volume::UpdateMountLock,
                          NS_LossyConvertUTF16toASCII(Name()),
                          MountGeneration(), aMountLocked));
-}
-
-void
-nsVolume::SetIsFake(bool aIsFake)
-{
-  mIsFake = aIsFake;
-  if (mIsFake) {
-    // The media is always present for fake volumes.
-    mIsMediaPresent = true;
-    MOZ_ASSERT(!mIsSharing);
-  }
 }
 
 void

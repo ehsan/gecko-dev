@@ -9,7 +9,6 @@
 #include "nsIDOMCommandEvent.h"
 #include "nsDOMEvent.h"
 #include "mozilla/dom/CommandEventBinding.h"
-#include "mozilla/EventForwards.h"
 
 class nsDOMCommandEvent : public nsDOMEvent,
                           public nsIDOMCommandEvent
@@ -17,7 +16,8 @@ class nsDOMCommandEvent : public nsDOMEvent,
 public:
   nsDOMCommandEvent(mozilla::dom::EventTarget* aOwner,
                     nsPresContext* aPresContext,
-                    mozilla::WidgetCommandEvent* aEvent);
+                    nsCommandEvent* aEvent);
+  virtual ~nsDOMCommandEvent();
 
   NS_DECL_ISUPPORTS_INHERITED
 

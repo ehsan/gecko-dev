@@ -1,5 +1,0 @@
-{
- "runtests": {"content/canvas/test/webgl": ""},
- "excludetests": {}
-}
-

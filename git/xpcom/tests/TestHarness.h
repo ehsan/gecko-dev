@@ -14,7 +14,7 @@
 
 #if defined(_MSC_VER) && defined(MOZ_STATIC_JS)
 /*
- * Including js/OldDebugAPI.h may cause build break with --disable-shared-js
+ * Including jsdbgapi.h may cause build break with --disable-shared-js
  * This is a workaround for bug 673616.
  */
 #define STATIC_JS_API
@@ -36,6 +36,7 @@
 #include "nsIProperties.h"
 #include "nsIObserverService.h"
 #include "nsXULAppAPI.h"
+#include "jsdbgapi.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -101,17 +102,17 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
     NS_DECL_ISUPPORTS
 
     ScopedXPCOM(const char* testName,
-                nsIDirectoryServiceProvider *dirSvcProvider = nullptr)
+                nsIDirectoryServiceProvider *dirSvcProvider = NULL)
     : mDirSvcProvider(dirSvcProvider)
     {
       mTestName = testName;
       printf("Running %s tests...\n", mTestName);
 
-      nsresult rv = NS_InitXPCOM2(&mServMgr, nullptr, this);
+      nsresult rv = NS_InitXPCOM2(&mServMgr, NULL, this);
       if (NS_FAILED(rv))
       {
         fail("NS_InitXPCOM2 returned failure code 0x%x", rv);
-        mServMgr = nullptr;
+        mServMgr = NULL;
         return;
       }
     }
@@ -140,7 +141,7 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
       if (mServMgr)
       {
         NS_RELEASE(mServMgr);
-        nsresult rv = NS_ShutdownXPCOM(nullptr);
+        nsresult rv = NS_ShutdownXPCOM(NULL);
         if (NS_FAILED(rv))
         {
           fail("XPCOM shutdown failed with code 0x%x", rv);
@@ -153,7 +154,7 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
 
     bool failed()
     {
-      return mServMgr == nullptr;
+      return mServMgr == NULL;
     }
 
     already_AddRefed<nsIFile> GetProfileDirectory()

@@ -71,7 +71,6 @@ public class VideoCaptureAndroid implements PreviewCallback, Callback {
     private int mCaptureWidth = -1;
     private int mCaptureHeight = -1;
     private int mCaptureFPS = -1;
-
     private int mCaptureRotation = 0;
 
     private AppStateListener mAppStateListener = null;
@@ -107,6 +106,7 @@ public class VideoCaptureAndroid implements PreviewCallback, Callback {
             // Invoked every time there's a new Camera preview frame
         }
     }
+
     public static
     void DeleteVideoCaptureAndroid(VideoCaptureAndroid captureAndroid) {
         Log.d(TAG, "DeleteVideoCaptureAndroid");
@@ -280,7 +280,6 @@ public class VideoCaptureAndroid implements PreviewCallback, Callback {
             currentCapability.maxFPS = frameRate;
             PixelFormat.getPixelFormatInfo(PIXEL_FORMAT, pixelFormat);
 
-
             Camera.Parameters parameters = camera.getParameters();
             parameters.setPreviewSize(currentCapability.width,
                     currentCapability.height);
@@ -356,18 +355,13 @@ public class VideoCaptureAndroid implements PreviewCallback, Callback {
     public void onPreviewFrame(byte[] data, Camera camera) {
         previewBufferLock.lock();
 
-        String dataLengthStr = "does not exist";
-        if(data != null) {
-          dataLengthStr = Integer.toString(data.length);
-        }
-
         // The following line is for debug only
-        Log.v(TAG, "preview frame length " + dataLengthStr +
+        Log.v(TAG, "preview frame length " + data.length +
               " context" + context);
         if (isCaptureRunning) {
             // If StartCapture has been called but not StopCapture
             // Call the C++ layer with the captured frame
-            if (data != null && data.length == expectedFrameSize) {
+            if (data.length == expectedFrameSize) {
                 ProvideCameraFrame(data, expectedFrameSize, mCaptureRotation,
                                    context);
                 if (ownsBuffers) {

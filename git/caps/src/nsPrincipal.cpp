@@ -4,23 +4,30 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsPrincipal.h"
-
 #include "mozIThirdPartyUtil.h"
 #include "nscore.h"
 #include "nsScriptSecurityManager.h"
 #include "nsString.h"
 #include "nsReadableUtils.h"
+#include "plstr.h"
 #include "pratom.h"
+#include "nsCRT.h"
 #include "nsIURI.h"
+#include "nsIFileURL.h"
+#include "nsIProtocolHandler.h"
+#include "nsNetUtil.h"
 #include "nsJSPrincipals.h"
+#include "nsVoidArray.h"
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
 #include "nsIClassInfoImpl.h"
 #include "nsError.h"
 #include "nsIContentSecurityPolicy.h"
+#include "nsContentUtils.h"
 #include "nsCxPusher.h"
 #include "jswrapper.h"
+
+#include "nsPrincipal.h"
 
 #include "mozilla/Preferences.h"
 #include "mozilla/HashFunctions.h"
@@ -424,17 +431,19 @@ nsPrincipal::SetDomain(nsIURI* aDomain)
 }
 
 NS_IMETHODIMP
-nsPrincipal::GetJarPrefix(nsACString& aJarPrefix)
+nsPrincipal::GetExtendedOrigin(nsACString& aExtendedOrigin)
 {
   MOZ_ASSERT(mAppId != nsIScriptSecurityManager::UNKNOWN_APP_ID);
 
-  mozilla::GetJarPrefix(mAppId, mInMozBrowser, aJarPrefix);
+  mozilla::GetExtendedOrigin(mCodebase, mAppId, mInMozBrowser, aExtendedOrigin);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsPrincipal::GetAppStatus(uint16_t* aAppStatus)
 {
+  MOZ_ASSERT(mAppId != nsIScriptSecurityManager::UNKNOWN_APP_ID);
+
   *aAppStatus = GetAppStatus();
   return NS_OK;
 }
@@ -560,8 +569,8 @@ nsPrincipal::Write(nsIObjectOutputStream* aStream)
 uint16_t
 nsPrincipal::GetAppStatus()
 {
-  NS_WARN_IF_FALSE(mAppId != nsIScriptSecurityManager::UNKNOWN_APP_ID,
-                   "Asking for app status on a principal with an unknown app id");
+  MOZ_ASSERT(mAppId != nsIScriptSecurityManager::UNKNOWN_APP_ID);
+
   // Installed apps have a valid app id (not NO_APP_ID or UNKNOWN_APP_ID)
   // and they are not inside a mozbrowser.
   if (mAppId == nsIScriptSecurityManager::NO_APP_ID ||
@@ -572,8 +581,9 @@ nsPrincipal::GetAppStatus()
   nsCOMPtr<nsIAppsService> appsService = do_GetService(APPS_SERVICE_CONTRACTID);
   NS_ENSURE_TRUE(appsService, nsIPrincipal::APP_STATUS_NOT_INSTALLED);
 
-  nsCOMPtr<mozIApplication> app;
-  appsService->GetAppByLocalId(mAppId, getter_AddRefs(app));
+  nsCOMPtr<mozIDOMApplication> domApp;
+  appsService->GetAppByLocalId(mAppId, getter_AddRefs(domApp));
+  nsCOMPtr<mozIApplication> app = do_QueryInterface(domApp);
   NS_ENSURE_TRUE(app, nsIPrincipal::APP_STATUS_NOT_INSTALLED);
 
   uint16_t status = nsIPrincipal::APP_STATUS_INSTALLED;
@@ -772,10 +782,9 @@ nsExpandedPrincipal::GetWhiteList(nsTArray<nsCOMPtr<nsIPrincipal> >** aWhiteList
 }
 
 NS_IMETHODIMP
-nsExpandedPrincipal::GetJarPrefix(nsACString& aJarPrefix)
+nsExpandedPrincipal::GetExtendedOrigin(nsACString& aExtendedOrigin)
 {
-  aJarPrefix.Truncate();
-  return NS_OK;
+  return GetOrigin(getter_Copies(aExtendedOrigin));
 }
 
 NS_IMETHODIMP

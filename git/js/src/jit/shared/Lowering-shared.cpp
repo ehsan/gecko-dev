@@ -8,6 +8,7 @@
 
 #include "jit/LIR.h"
 #include "jit/MIR.h"
+#include "jit/MIRGraph.h"
 
 using namespace js;
 using namespace jit;
@@ -62,11 +63,11 @@ LIRGeneratorShared::buildSnapshot(LInstruction *ins, MResumePoint *rp, BailoutKi
 {
     LSnapshot *snapshot = LSnapshot::New(gen, rp, kind);
     if (!snapshot)
-        return nullptr;
+        return NULL;
 
     FlattenedMResumePointIter iter(rp);
     if (!iter.init())
-        return nullptr;
+        return NULL;
 
     size_t i = 0;
     for (MResumePoint **it = iter.begin(), **end = iter.end(); it != end; ++it) {
@@ -81,16 +82,8 @@ LIRGeneratorShared::buildSnapshot(LInstruction *ins, MResumePoint *rp, BailoutKi
                 ins = ins->toPassArg()->getArgument();
             JS_ASSERT(!ins->isPassArg());
 
-            if (ins->isBox())
-                ins = ins->toBox()->getOperand(0);
-
             // Guards should never be eliminated.
             JS_ASSERT_IF(ins->isUnused(), !ins->isGuard());
-
-            // Snapshot operands other than constants should never be
-            // emitted-at-uses. Try-catch support depends on there being no
-            // code between an instruction and the LOsiPoint that follows it.
-            JS_ASSERT_IF(!ins->isConstant(), !ins->isEmittedAtUses());
 
             // The register allocation will fill these fields in with actual
             // register/stack assignments. During code generation, we can restore
@@ -104,6 +97,8 @@ LIRGeneratorShared::buildSnapshot(LInstruction *ins, MResumePoint *rp, BailoutKi
                 *type = LConstantIndex::Bogus();
                 *payload = use(ins, LUse::KEEPALIVE);
             } else {
+                if (!ensureDefined(ins))
+                    return NULL;
                 *type = useType(ins, LUse::KEEPALIVE);
                 *payload = usePayload(ins, LUse::KEEPALIVE);
             }
@@ -120,11 +115,11 @@ LIRGeneratorShared::buildSnapshot(LInstruction *ins, MResumePoint *rp, BailoutKi
 {
     LSnapshot *snapshot = LSnapshot::New(gen, rp, kind);
     if (!snapshot)
-        return nullptr;
+        return NULL;
 
     FlattenedMResumePointIter iter(rp);
     if (!iter.init())
-        return nullptr;
+        return NULL;
 
     size_t i = 0;
     for (MResumePoint **it = iter.begin(), **end = iter.end(); it != end; ++it) {
@@ -134,18 +129,6 @@ LIRGeneratorShared::buildSnapshot(LInstruction *ins, MResumePoint *rp, BailoutKi
 
             if (def->isPassArg())
                 def = def->toPassArg()->getArgument();
-            JS_ASSERT(!def->isPassArg());
-
-            if (def->isBox())
-                def = def->toBox()->getOperand(0);
-
-            // Guards should never be eliminated.
-            JS_ASSERT_IF(def->isUnused(), !def->isGuard());
-
-            // Snapshot operands other than constants should never be
-            // emitted-at-uses. Try-catch support depends on there being no
-            // code between an instruction and the LOsiPoint that follows it.
-            JS_ASSERT_IF(!def->isConstant(), !def->isEmittedAtUses());
 
             LAllocation *a = snapshot->getEntry(i);
 

@@ -22,7 +22,8 @@
   let mgr = Cc["@mozilla.org/memory-reporter-manager;1"].
             getService(Ci.nsIMemoryReporterManager);
 
-  // Remove all the real reporters;  save them to restore at the end.
+  // Remove all the real reporters and multi-reporters;  save them to
+  // restore at the end.
   mgr.blockRegistration();
   let e = mgr.enumerateReporters();
   let realReporters = [];
@@ -30,6 +31,13 @@
     let r = e.getNext().QueryInterface(Ci.nsIMemoryReporter);
     mgr.unregisterReporter(r);
     realReporters.push(r);
+  }
+  e = mgr.enumerateMultiReporters();
+  let realMultiReporters = [];
+  while (e.hasMoreElements()) {
+    let r = e.getNext().QueryInterface(Ci.nsIMemoryMultiReporter);
+    mgr.unregisterMultiReporter(r);
+    realMultiReporters.push(r);
   }
 
   // Setup a minimal number of fake reporters.
@@ -39,18 +47,22 @@
   const OTHER = Ci.nsIMemoryReporter.KIND_OTHER;
   const BYTES = Ci.nsIMemoryReporter.UNITS_BYTES;
 
+  function f(aPath, aKind, aAmount, aDesc) {
+    return {
+      process:     "",
+      path:        aPath,
+      kind:        aKind,
+      units:       BYTES,
+      amount:      aAmount,
+      description: aDesc
+    };
+  }
+
   let fakeReporters = [
-    { name: "fake1",
-      collectReports: function(aCbObj, aClosure) {
-        function f(aP, aK, aA, aD) {
-          aCbObj.callback("", aP, aK, BYTES, aA, aD, aClosure);
-        }
-        f("heap-allocated",     OTHER,   250 * MB, "Heap allocated.");
-        f("explicit/a/b",       HEAP,     50 * MB, "A b.");
-        f("other/a",            OTHER,   0.2 * MB, "Other a.");
-        f("other/b",            OTHER,   0.1 * MB, "Other b.");
-      }
-    }
+    f("heap-allocated",     OTHER,   250 * MB, "Heap allocated."),
+    f("explicit/a/b",       HEAP,     50 * MB, "A b."),
+    f("other/a",            OTHER,   0.2 * MB, "Other a."),
+    f("other/b",            OTHER,   0.1 * MB, "Other b."),
   ];
 
   for (let i = 0; i < fakeReporters.length; i++) {
@@ -66,13 +78,17 @@
   <![CDATA[
   function finish()
   {
-    // Unregister fake reporters and re-register the real reporters, just in
-    // case subsequent tests rely on them.
+    // Unregister fake reporters and multi-reporters, re-register the real
+    // reporters and multi-reporters, just in case subsequent tests rely on
+    // them.
     for (let i = 0; i < fakeReporters.length; i++) {
       mgr.unregisterReporter(fakeReporters[i]);
     }
     for (let i = 0; i < realReporters.length; i++) {
       mgr.registerReporterEvenIfBlocked(realReporters[i]);
+    }
+    for (let i = 0; i < realMultiReporters.length; i++) {
+      mgr.registerMultiReporterEvenIfBlocked(realMultiReporters[i]);
     }
     mgr.unblockRegistration();
 
@@ -159,7 +175,7 @@
       synthesizeKey("A", {accelKey: true});
       synthesizeKey("C", {accelKey: true});
       let actual = SpecialPowers.getClipboardData("text/unicode");
-      actual = actual.replace(/\(pid \d+\)/g, "(pid NNN)");
+      actual = actual.replace(/\(pid \d+\)/, "(pid NNN)");
 
       if (actual === aExpected) {
         SimpleTest.ok(true, "Clipboard has the expected contents");
@@ -204,7 +220,6 @@ Explicit Allocations\n\
 \n\
 Other Measurements\n\
 \n\
-End of Explicit-only process\n\
 Main Process (pid NNN)\n\
 Explicit Allocations\n\
 \n\
@@ -214,31 +229,12 @@ Explicit Allocations\n\
 \n\
 Other Measurements\n\
 \n\
-1,024 B (100.0%) -- compartments\n\
-└──1,024 B (100.0%) ── system/a\n\
-\n\
-1,024 B (100.0%) -- ghost-windows\n\
-└──1,024 B (100.0%) ── a\n\
-\n\
 314,572 B (100.0%) -- other\n\
 ├──209,715 B (66.67%) ── a\n\
 └──104,857 B (33.33%) ── b\n\
 \n\
-1,024 B (100.0%) -- pss\n\
-└──1,024 B (100.0%) ── a\n\
-\n\
-1,024 B (100.0%) -- rss\n\
-└──1,024 B (100.0%) ── a\n\
-\n\
-1,024 B (100.0%) -- size\n\
-└──1,024 B (100.0%) ── a\n\
-\n\
-1,024 B (100.0%) -- swap\n\
-└──1,024 B (100.0%) ── a\n\
-\n\
 262,144,000 B ── heap-allocated\n\
 \n\
-End of Main Process (pid NNN)\n\
 Other-only process\n\
 \n\
 WARNING: the 'heap-allocated' memory reporter does not work for this platform and/or configuration. This means that 'heap-unclassified' is not shown and the 'explicit' tree shows less memory than it should.\n\
@@ -252,7 +248,6 @@ Other Measurements\n\
 \n\
 500,000 B ── heap-allocated\n\
 \n\
-End of Other-only process\n\
 ";
 
   let expectedGood2 =
@@ -272,14 +267,12 @@ Other Measurements\n\
 \n\
 262,144,000 B ── heap-allocated\n\
 \n\
-End of Main Process (pid NNN)\n\
 ";
 
   // This is the output for a malformed data file.
   let expectedBad =
 "\
-Invalid memory report(s): missing 'hasMozMallocUsableSize' property\
-";
+Invalid memory report(s): missing 'hasMozMallocUsableSize' property";
 
   // This is the output for a diff.
   let expectedDiff =
@@ -299,7 +292,6 @@ Other Measurements\n\
 3,000 B ── canvas-2d-pixel-bytes [2] [+]\n\
  -100 B ── foobar [-]\n\
 \n\
-End of P\n\
 P2 (pid NNN)\n\
 \n\
 WARNING: the 'heap-allocated' memory reporter does not work for this platform and/or configuration. This means that 'heap-unclassified' is not shown and the 'explicit' tree shows less memory than it should.\n\
@@ -309,7 +301,6 @@ Other Measurements\n\
 \n\
 11 B ── z 0xNNN\n\
 \n\
-End of P2 (pid NNN)\n\
 P3\n\
 \n\
 WARNING: the 'heap-allocated' memory reporter does not work for this platform and/or configuration. This means that 'heap-unclassified' is not shown and the 'explicit' tree shows less memory than it should.\n\
@@ -319,7 +310,6 @@ Other Measurements\n\
 \n\
 -55 B ── p3 [-]\n\
 \n\
-End of P3\n\
 P4\n\
 \n\
 WARNING: the 'heap-allocated' memory reporter does not work for this platform and/or configuration. This means that 'heap-unclassified' is not shown and the 'explicit' tree shows less memory than it should.\n\
@@ -329,20 +319,18 @@ Other Measurements\n\
 \n\
 66 B ── p4 [+]\n\
 \n\
-End of P4\n\
 ";
 
   let frames = [
     // This loads a pre-existing file that is valid.
     { filename: "memory-reports-good.json", expected: expectedGood, dumpFirst: false },
 
-    // This dumps to a file and then reads it back in.
+    // This dumps to a file and then reads it back in.  The output is the same as the first test.
     { filename: "memory-reports-dumped.json.gz", expected: expectedGood2, dumpFirst: true },
 
     // This loads a pre-existing file that is invalid.
     { filename: "memory-reports-bad.json",  expected: expectedBad, dumpFirst: false },
 
-    // This loads a pre-existing diff file.
     { filename: "memory-reports-diff1.json", filename2: "memory-reports-diff2.json",  expected: expectedDiff, dumpFirst: false }
   ];
 

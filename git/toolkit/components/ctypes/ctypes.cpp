@@ -11,7 +11,6 @@
 #include "nsNativeCharsetUtils.h"
 #include "mozilla/Preferences.h"
 #include "mozJSComponentLoader.h"
-#include "nsZipArchive.h"
 
 #define JSCTYPES_CONTRACTID \
   "@mozilla.org/jsctypes;1"
@@ -31,12 +30,12 @@ UnicodeToNative(JSContext *cx, const jschar *source, size_t slen)
   nsresult rv = NS_CopyUnicodeToNative(unicode, native);
   if (NS_FAILED(rv)) {
     JS_ReportError(cx, "could not convert string to native charset");
-    return nullptr;
+    return NULL;
   }
 
   char* result = static_cast<char*>(JS_malloc(cx, native.Length() + 1));
   if (!result)
-    return nullptr;
+    return NULL;
 
   memcpy(result, native.get(), native.Length() + 1);
   return result;
@@ -64,7 +63,7 @@ Module::~Module()
 #define XPC_MAP_FLAGS nsIXPCScriptable::WANT_CALL
 #include "xpc_map_end.h"
 
-static bool
+static JSBool
 SealObjectAndPrototype(JSContext* cx, JSObject* parent, const char* name)
 {
   JS::Rooted<JS::Value> prop(cx);
@@ -84,7 +83,7 @@ SealObjectAndPrototype(JSContext* cx, JSObject* parent, const char* name)
   return JS_FreezeObject(cx, obj) && JS_FreezeObject(cx, prototype);
 }
 
-static bool
+static JSBool
 InitAndSealCTypesClass(JSContext* cx, JS::Handle<JSObject*> global)
 {
   // Init the ctypes object.
@@ -134,13 +133,13 @@ Module::Call(nsIXPConnectWrappedNative* wrapper,
 NS_DEFINE_NAMED_CID(JSCTYPES_CID);
 
 static const mozilla::Module::CIDEntry kCTypesCIDs[] = {
-  { &kJSCTYPES_CID, false, nullptr, mozilla::ctypes::ModuleConstructor },
-  { nullptr }
+  { &kJSCTYPES_CID, false, NULL, mozilla::ctypes::ModuleConstructor },
+  { NULL }
 };
 
 static const mozilla::Module::ContractIDEntry kCTypesContracts[] = {
   { JSCTYPES_CONTRACTID, &kJSCTYPES_CID },
-  { nullptr }
+  { NULL }
 };
 
 static const mozilla::Module kCTypesModule = {

@@ -4,7 +4,6 @@
  * This program is made available under an ISC-style license.  See the
  * accompanying file LICENSE for details.
  */
-#undef NDEBUG
 #if defined(HAVE_CONFIG_H)
 #include "config.h"
 #endif
@@ -39,12 +38,6 @@ uint32_t
 ms_to_hns(uint32_t ms)
 {
   return ms * 10000;
-}
-
-uint32_t
-hns_to_ms(uint32_t hns)
-{
-  return hns / 10000;
 }
 
 double
@@ -126,7 +119,7 @@ struct cubeb_stream
   uint32_t buffer_frame_count;
   /* Resampler instance. If this is !NULL, resampling should happen. */
   SpeexResamplerState * resampler;
-  /* Buffer to resample from, into the mix buffer or the final buffer. */
+  /* Buffer to resample from, into the upmix buffer or the final buffer. */
   float * resampling_src_buffer;
   /* Pointer to the function used to refill the buffer, depending
    * on the respective samplerate of the stream and the mix. */
@@ -135,9 +128,10 @@ struct cubeb_stream
   uint32_t leftover_frame_count;
   uint32_t leftover_frame_size;
   float * leftover_frames_buffer;
-  /* Buffer used to downmix or upmix to the number of channels the mixer has.
-   * its size is |frames_to_bytes_before_mix(buffer_frame_count)|. */
-  float * mix_buffer;
+  /* upmix buffer of size |buffer_frame_count * bytes_per_frame / 2|. */
+  float * upmix_buffer;
+  /* Number of bytes per frame. Prefer to use frames_to_bytes_before_upmix. */
+  uint8_t bytes_per_frame;
   /* True if the stream is draining. */
   bool draining;
 };
@@ -145,12 +139,7 @@ struct cubeb_stream
 namespace {
 bool should_upmix(cubeb_stream * stream)
 {
-  return stream->mix_params.channels > stream->stream_params.channels;
-}
-
-bool should_downmix(cubeb_stream * stream)
-{
-  return stream->mix_params.channels < stream->stream_params.channels;
+  return stream->upmix_buffer;
 }
 
 /* Upmix function, copies a mono channel in two interleaved
@@ -160,7 +149,7 @@ void
 mono_to_stereo(T * in, long insamples, T * out)
 {
   int j = 0;
-  for (int i = 0; i < insamples; ++i, j += 2) {
+  for (int i = 0; i < insamples; i++, j+=2) {
     out[j] = out[j + 1] = in[i];
   }
 }
@@ -169,7 +158,6 @@ template<typename T>
 void
 upmix(T * in, long inframes, T * out, int32_t in_channels, int32_t out_channels)
 {
-  assert(out_channels >= in_channels);
   /* If we are playing a mono stream over stereo speakers, copy the data over. */
   if (in_channels == 1 && out_channels == 2) {
     mono_to_stereo(in, inframes, out);
@@ -177,29 +165,15 @@ upmix(T * in, long inframes, T * out, int32_t in_channels, int32_t out_channels)
   }
   /* Otherwise, put silence in other channels. */
   long out_index = 0;
-  for (long i = 0; i < inframes * in_channels; i += in_channels) {
-    for (int j = 0; j < in_channels; ++j) {
+  for (long i = 0; i < inframes * in_channels; i+=in_channels) {
+    for (int j = 0; j < in_channels; j++) {
       out[out_index + j] = in[i + j];
+      if (in_channels == 1) {
+        out[out_index + j + 1] = in[i + j];
+      }
     }
-    for (int j = in_channels; j < out_channels; ++j) {
+    for (int j = in_channels; j < out_channels; j++) {
       out[out_index + j] = 0.0;
-    }
-    out_index += out_channels;
-  }
-}
-
-template<typename T>
-void
-downmix(T * in, long inframes, T * out, int32_t in_channels, int32_t out_channels)
-{
-  assert(in_channels >= out_channels);
-  /* We could use a downmix matrix here, applying mixing weight based on the
-   * channel, but directsound and winmm simply drop the channels that cannot be
-   * rendered by the hardware, so we do the same for consistency. */
-  long out_index = 0;
-  for (long i = 0; i < inframes * in_channels; i += in_channels) {
-    for (int j = 0; j < out_channels; ++j) {
-      out[out_index + j] = in[i + j];
     }
     out_index += out_channels;
   }
@@ -208,7 +182,7 @@ downmix(T * in, long inframes, T * out, int32_t in_channels, int32_t out_channel
 /* This returns the size of a frame in the stream,
  * before the eventual upmix occurs. */
 static size_t
-frames_to_bytes_before_mix(cubeb_stream * stm, size_t frames)
+frame_to_bytes_before_upmix(cubeb_stream * stm, size_t frames)
 {
   size_t stream_frame_size = stm->stream_params.channels * sizeof(float);
   return stream_frame_size * frames;
@@ -228,7 +202,7 @@ refill_with_resampling(cubeb_stream * stm, float * data, long frames_needed)
   long frame_requested = before_resampling - stm->leftover_frame_count;
 
   size_t leftover_bytes =
-    frames_to_bytes_before_mix(stm, stm->leftover_frame_count);
+    frame_to_bytes_before_upmix(stm, stm->leftover_frame_count);
 
   /* Copy the previous leftover frames to the front of the buffer. */
   memcpy(stm->resampling_src_buffer, stm->leftover_frames_buffer, leftover_bytes);
@@ -244,11 +218,11 @@ refill_with_resampling(cubeb_stream * stm, float * data, long frames_needed)
   uint32_t in_frames = before_resampling;
   uint32_t out_frames = frames_needed;
 
-  /* If we need to upmix after resampling, resample into the mix buffer to
-   * avoid a copy. */
+  /* if we need to upmix after resampling, resample into
+   * the upmix buffer to avoid a copy */
   float * resample_dest;
-  if (should_upmix(stm) || should_downmix(stm)) {
-    resample_dest = stm->mix_buffer;
+  if (should_upmix(stm)) {
+    resample_dest = stm->upmix_buffer;
   } else {
     resample_dest = data;
   }
@@ -262,11 +236,11 @@ refill_with_resampling(cubeb_stream * stm, float * data, long frames_needed)
   /* Copy the leftover frames to buffer for the next time. */
   stm->leftover_frame_count = before_resampling - in_frames;
   size_t unresampled_bytes =
-    frames_to_bytes_before_mix(stm, stm->leftover_frame_count);
+    frame_to_bytes_before_upmix(stm, stm->leftover_frame_count);
 
   uint8_t * leftover_frames_start =
     reinterpret_cast<uint8_t *>(stm->resampling_src_buffer);
-  leftover_frames_start += frames_to_bytes_before_mix(stm, in_frames);
+  leftover_frames_start += frame_to_bytes_before_upmix(stm, in_frames);
 
   assert(stm->leftover_frame_count <= stm->leftover_frame_size);
   memcpy(stm->leftover_frames_buffer, leftover_frames_start, unresampled_bytes);
@@ -278,26 +252,23 @@ refill_with_resampling(cubeb_stream * stm, float * data, long frames_needed)
   if (should_upmix(stm)) {
     upmix(resample_dest, out_frames, data,
           stm->stream_params.channels, stm->mix_params.channels);
-  } else if (should_downmix(stm)) {
-    downmix(resample_dest, out_frames, data,
-            stm->stream_params.channels, stm->mix_params.channels);
   }
 }
 
 void
 refill(cubeb_stream * stm, float * data, long frames_needed)
 {
-  /* If we need to upmix/downmix, get the data into the mix buffer to avoid a
-   * copy, then do the processing process. */
+  /* If we need to upmix after resampling, get the data into
+   * the upmix buffer to avoid a copy. */
   float * dest;
-  if (should_upmix(stm) || should_downmix(stm)) {
-    dest = stm->mix_buffer;
+  if (should_upmix(stm)) {
+    dest = stm->upmix_buffer;
   } else {
     dest = data;
   }
 
   long got = stm->data_callback(stm, stm->user_ptr, dest, frames_needed);
-  assert(got <= frames_needed);
+
   if (got != frames_needed) {
     LOG("draining.");
     stm->draining = true;
@@ -306,9 +277,6 @@ refill(cubeb_stream * stm, float * data, long frames_needed)
   if (should_upmix(stm)) {
     upmix(dest, got, data,
           stm->stream_params.channels, stm->mix_params.channels);
-  } else if (should_downmix(stm)) {
-    downmix(dest, got, data,
-            stm->stream_params.channels, stm->mix_params.channels);
   }
 }
 
@@ -365,7 +333,6 @@ wasapi_stream_render_loop(LPVOID stream)
         is_playing = false;
         continue;
       }
-      assert(padding <= stm->buffer_frame_count);
 
       if (stm->draining) {
         if (padding == 0) {
@@ -539,63 +506,6 @@ wasapi_get_max_channel_count(cubeb * ctx, uint32_t * max_channels)
   return CUBEB_OK;
 }
 
-int
-wasapi_get_min_latency(cubeb * ctx, cubeb_stream_params params, uint32_t * latency_ms)
-{
-  HRESULT hr;
-  IAudioClient * client;
-  REFERENCE_TIME default_period;
-
-  hr = ctx->device->Activate(__uuidof(IAudioClient),
-                             CLSCTX_INPROC_SERVER,
-                             NULL, (void **)&client);
-
-  if (FAILED(hr)) {
-    return CUBEB_ERROR;
-  }
-
-  /* The second parameter is for exclusive mode, that we don't use. */
-  hr= client->GetDevicePeriod(&default_period, NULL);
-
-  /* According to the docs, the best latency we can achieve is by synchronizing
-   * the stream and the engine.
-   * http://msdn.microsoft.com/en-us/library/windows/desktop/dd370871%28v=vs.85%29.aspx */
-  *latency_ms = hns_to_ms(default_period);
-
-  SafeRelease(client);
-
-  return CUBEB_OK;
-}
-
-int
-wasapi_get_preferred_sample_rate(cubeb * ctx, uint32_t * rate)
-{
-  HRESULT hr;
-  IAudioClient * client;
-  WAVEFORMATEX * mix_format;
-
-  hr = ctx->device->Activate(__uuidof(IAudioClient),
-                             CLSCTX_INPROC_SERVER,
-                             NULL, (void **)&client);
-
-  if (FAILED(hr)) {
-    return CUBEB_ERROR;
-  }
-
-  hr = client->GetMixFormat(&mix_format);
-
-  if (FAILED(hr)) {
-    SafeRelease(client);
-    return CUBEB_ERROR;
-  }
-
-  *rate = mix_format->nSamplesPerSec;
-
-  CoTaskMemFree(mix_format);
-  SafeRelease(client);
-
-  return CUBEB_OK;
-}
 
 void wasapi_stream_destroy(cubeb_stream * stm);
 
@@ -604,13 +514,12 @@ void wasapi_stream_destroy(cubeb_stream * stm);
 static void
 handle_channel_layout(cubeb_stream * stm,  WAVEFORMATEX ** mix_format, const cubeb_stream_params * stream_params)
 {
-  /* Common case: the hardware is stereo. Up-mixing and down-mixing will be
-   * handled in the callback. */
-  if ((*mix_format)->nChannels <= 2) {
+  /* Common case: the hardware supports stereo, and the stream is mono or
+   * stereo. Easy. */
+  if ((*mix_format)->nChannels == 2 &&
+      stream_params->channels <= 2) {
     return;
   }
-
-  /* Otherwise, the hardware supports more than two channels. */
 
   /* The docs say that GetMixFormat is always of type WAVEFORMATEXTENSIBLE [1],
    * so the reinterpret_cast below should be safe. In practice, this is not
@@ -650,10 +559,8 @@ handle_channel_layout(cubeb_stream * stm,  WAVEFORMATEX ** mix_format, const cub
 
   if (hr == S_FALSE) {
     /* Not supported, but WASAPI gives us a suggestion. Use it, and handle the
-     * eventual upmix/downmix ourselves */
+     * eventual upmix ourselve */
     LOG("Using WASAPI suggested format: channels: %d", closest->nChannels);
-    WAVEFORMATEXTENSIBLE * closest_pcm = reinterpret_cast<WAVEFORMATEXTENSIBLE *>(closest);
-    assert(closest_pcm->SubFormat == format_pcm->SubFormat);
     CoTaskMemFree(*mix_format);
     *mix_format = closest;
   } else if (hr == AUDCLNT_E_UNSUPPORTED_FORMAT) {
@@ -661,6 +568,8 @@ handle_channel_layout(cubeb_stream * stm,  WAVEFORMATEX ** mix_format, const cub
     assert(false && "Format not supported, and no suggestion from WASAPI.");
   } else if (hr == S_OK) {
     LOG("Requested format accepted by WASAPI.");
+  } else {
+    assert(false && "Not reached.");
   }
 }
 
@@ -679,6 +588,17 @@ wasapi_stream_init(cubeb * context, cubeb_stream ** stream,
   if (FAILED(hr)) {
     LOG("Could not initialize COM.");
     return CUBEB_ERROR;
+  }
+
+  /* 30ms in shared mode is the minimum we can get when using WASAPI */
+  if (latency < 30) {
+    LOG("Latency too low: got %u (30ms minimum)", latency);
+    return CUBEB_ERROR_INVALID_PARAMETER;
+  }
+
+  /* we don't support more that two channels for now. */
+  if (stream_params.channels > 2) {
+    return CUBEB_ERROR_INVALID_FORMAT;
   }
 
   cubeb_stream * stm = (cubeb_stream *)calloc(1, sizeof(cubeb_stream));
@@ -724,6 +644,9 @@ wasapi_stream_init(cubeb * context, cubeb_stream ** stream,
   * and the format the stream we want to play uses. */
   stm->client->GetMixFormat(&mix_format);
 
+  /* this is the number of bytes per frame after the eventual upmix. */
+  stm->bytes_per_frame = static_cast<uint8_t>(mix_format->nBlockAlign);
+
   handle_channel_layout(stm, &mix_format, &stream_params);
 
   /* Shared mode WASAPI always supports float32 sample format, so this
@@ -757,7 +680,7 @@ wasapi_stream_init(cubeb * context, cubeb_stream ** stream,
      * that is, the samples not consumed by the resampler that we will end up
      * using next time the render callback is called. */
     stm->leftover_frame_size = static_cast<uint32_t>(ceilf(1 / resampling_rate * 2) + 1);
-    stm->leftover_frames_buffer = (float *)malloc(frames_to_bytes_before_mix(stm, stm->leftover_frame_size));
+    stm->leftover_frames_buffer = (float *)malloc(frame_to_bytes_before_upmix(stm, stm->leftover_frame_size));
 
     stm->refill_function = &refill_with_resampling;
   } else {
@@ -787,8 +710,10 @@ wasapi_stream_init(cubeb * context, cubeb_stream ** stream,
     return CUBEB_ERROR;
   }
 
-  if (should_upmix(stm) || should_downmix(stm)) {
-    stm->mix_buffer = (float *) malloc(frames_to_bytes_before_mix(stm, stm->buffer_frame_count));
+  assert(stm->mix_params.channels >= 2);
+
+  if (stm->mix_params.channels != stm->stream_params.channels) {
+    stm->upmix_buffer = (float *) malloc(frame_to_bytes_before_upmix(stm, stm->buffer_frame_count));
   }
 
   /* If we are going to resample, we will end up needing a buffer
@@ -797,7 +722,7 @@ wasapi_stream_init(cubeb * context, cubeb_stream ** stream,
    * factor and the channel layout into account. */
   if (stm->resampler) {
     size_t frames_needed = static_cast<size_t>(frame_count_at_rate(stm->buffer_frame_count, resampling_rate));
-    stm->resampling_src_buffer = (float *)malloc(frames_to_bytes_before_mix(stm, frames_needed));
+    stm->resampling_src_buffer = (float *)malloc(frame_to_bytes_before_upmix(stm, frames_needed));
   }
 
   hr = stm->client->SetEventHandle(stm->refill_event);
@@ -858,7 +783,7 @@ void wasapi_stream_destroy(cubeb_stream * stm)
 
   free(stm->leftover_frames_buffer);
   free(stm->resampling_src_buffer);
-  free(stm->mix_buffer);
+  free(stm->upmix_buffer);
   free(stm);
   CoUninitialize();
 }
@@ -947,16 +872,14 @@ int wasapi_stream_get_latency(cubeb_stream * stm, uint32_t * latency)
 cubeb_ops const wasapi_ops = {
   /*.init =*/ wasapi_init,
   /*.get_backend_id =*/ wasapi_get_backend_id,
-  /*.get_max_channel_count =*/ wasapi_get_max_channel_count,
-  /*.get_min_latency =*/ wasapi_get_min_latency,
-  /*.get_preferred_sample_rate =*/ wasapi_get_preferred_sample_rate,
+  /*.get_max_channel_count*/ wasapi_get_max_channel_count,
   /*.destroy =*/ wasapi_destroy,
   /*.stream_init =*/ wasapi_stream_init,
   /*.stream_destroy =*/ wasapi_stream_destroy,
   /*.stream_start =*/ wasapi_stream_start,
   /*.stream_stop =*/ wasapi_stream_stop,
-  /*.stream_get_position =*/ wasapi_stream_get_position,
-  /*.stream_get_latency =*/ wasapi_stream_get_latency
+  /*.stream_get_position =*/ wasapi_stream_get_position
+  ///*.stream_get_latency =*/ wasapi_stream_get_latency
  };
 } // namespace anonymous
 

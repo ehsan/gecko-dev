@@ -7,8 +7,6 @@
 #include "nsMemory.h"
 #include "nsString.h"
 
-#include "jsapi.h"
-
 #include "mozStoragePrivateHelpers.h"
 #include "mozStorageStatementParams.h"
 #include "mozIStorageStatement.h"
@@ -48,7 +46,7 @@ StatementParams::SetProperty(nsIXPConnectWrappedNative *aWrapper,
                              JSContext *aCtx,
                              JSObject *aScopeObj,
                              jsid aId,
-                             JS::Value *_vp,
+                             jsval *_vp,
                              bool *_retval)
 {
   NS_ENSURE_TRUE(mStatement, NS_ERROR_NOT_INITIALIZED);

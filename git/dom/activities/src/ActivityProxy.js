@@ -89,7 +89,7 @@ ActivityProxy.prototype = {
 
   cleanup: function actProxy_cleanup() {
     debug("cleanup");
-    if (cpmm && !this.cleanedUp) {
+    if (!this.cleanedUp) {
       cpmm.removeMessageListener("Activity:FireSuccess", this);
       cpmm.removeMessageListener("Activity:FireError", this);
     }

@@ -6,6 +6,6 @@
 
 PROGRAM = 'ssltunnel'
 
-SOURCES += [
+CPP_SOURCES += [
     'ssltunnel.cpp',
 ]

@@ -4,14 +4,10 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "EventTarget.h"
-#include "mozilla/dom/EventListenerBinding.h"
-#include "mozilla/dom/EventHandlerBinding.h"
 
 USING_WORKERS_NAMESPACE
 using mozilla::ErrorResult;
-using mozilla::dom::EventListener;
-using mozilla::dom::Nullable;
-using mozilla::dom::EventHandlerNonNull;
+using namespace mozilla::dom;
 
 void
 EventTarget::_trace(JSTracer* aTrc)
@@ -27,53 +23,42 @@ EventTarget::_finalize(JSFreeOp* aFop)
   DOMBindingBase::_finalize(aFop);
 }
 
-already_AddRefed<EventHandlerNonNull>
+JSObject*
 EventTarget::GetEventListener(const nsAString& aType, ErrorResult& aRv) const
 {
   JSContext* cx = GetJSContext();
 
-  JS::RootedString type(cx,
-    JS_NewUCStringCopyN(cx, aType.BeginReading(), aType.Length()));
+  JSString* type =
+    JS_NewUCStringCopyN(cx, aType.BeginReading(), aType.Length());
   if (!type || !(type = JS_InternJSString(cx, type))) {
     aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
-    return nullptr;
+    return NULL;
   }
 
-  JS::RootedObject listener(
-    cx, mListenerManager.GetEventListener(INTERNED_STRING_TO_JSID(cx, type)));
-  if (!listener) {
-    return nullptr;
-  }
-
-  nsRefPtr<EventHandlerNonNull> handler = new EventHandlerNonNull(listener);
-  return handler.forget();
+  return mListenerManager.GetEventListener(INTERNED_STRING_TO_JSID(cx, type));
 }
 
 void
 EventTarget::SetEventListener(const nsAString& aType,
-                              EventHandlerNonNull* aListener,
+                              JS::Handle<JSObject*> aListener,
                               ErrorResult& aRv)
 {
   JSContext* cx = GetJSContext();
 
-  JS::RootedString type(cx,
-    JS_NewUCStringCopyN(cx, aType.BeginReading(), aType.Length()));
+  JSString* type =
+    JS_NewUCStringCopyN(cx, aType.BeginReading(), aType.Length());
   if (!type || !(type = JS_InternJSString(cx, type))) {
     aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
     return;
   }
 
-  JS::RootedObject listener(cx);
-  if (aListener) {
-    listener = aListener->Callable();
-  }
   mListenerManager.SetEventListener(cx, INTERNED_STRING_TO_JSID(cx, type),
-                                    listener, aRv);
+                                    aListener, aRv);
 }
 
 void
 EventTarget::AddEventListener(const nsAString& aType,
-                              EventListener* aListener,
+                              JS::Handle<JSObject*> aListener,
                               bool aCapturing, Nullable<bool> aWantsUntrusted,
                               ErrorResult& aRv)
 {
@@ -83,8 +68,8 @@ EventTarget::AddEventListener(const nsAString& aType,
 
   JSContext* cx = GetJSContext();
 
-  JS::RootedString type(cx,
-    JS_NewUCStringCopyN(cx, aType.BeginReading(), aType.Length()));
+  JSString* type =
+    JS_NewUCStringCopyN(cx, aType.BeginReading(), aType.Length());
   if (!type || !(type = JS_InternJSString(cx, type))) {
     aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
     return;
@@ -92,13 +77,13 @@ EventTarget::AddEventListener(const nsAString& aType,
 
   bool wantsUntrusted = !aWantsUntrusted.IsNull() && aWantsUntrusted.Value();
   mListenerManager.AddEventListener(cx, INTERNED_STRING_TO_JSID(cx, type),
-                                    aListener->Callback(), aCapturing,
-                                    wantsUntrusted, aRv);
+                                    aListener, aCapturing, wantsUntrusted,
+                                    aRv);
 }
 
 void
 EventTarget::RemoveEventListener(const nsAString& aType,
-                                 EventListener* aListener,
+                                 JS::Handle<JSObject*> aListener,
                                  bool aCapturing, ErrorResult& aRv)
 {
   if (!aListener) {
@@ -107,13 +92,13 @@ EventTarget::RemoveEventListener(const nsAString& aType,
 
   JSContext* cx = GetJSContext();
 
-  JS::RootedString type(cx,
-    JS_NewUCStringCopyN(cx, aType.BeginReading(), aType.Length()));
+  JSString* type =
+    JS_NewUCStringCopyN(cx, aType.BeginReading(), aType.Length());
   if (!type || !(type = JS_InternJSString(cx, type))) {
     aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
     return;
   }
 
   mListenerManager.RemoveEventListener(cx, INTERNED_STRING_TO_JSID(cx, type),
-                                       aListener->Callback(), aCapturing);
+                                       aListener, aCapturing);
 }

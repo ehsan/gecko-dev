@@ -153,7 +153,7 @@ const SNIPPETS_OBJECTSTORE_NAME = "snippets";
 let gInitialized = false;
 let gObserver = new MutationObserver(function (mutations) {
   for (let mutation of mutations) {
-    if (mutation.attributeName == "searchEngineName") {
+    if (mutation.attributeName == "searchEngineURL") {
       setupSearchEngine();
       if (!gInitialized) {
         ensureSnippetsMapThen(loadSnippets);
@@ -170,10 +170,6 @@ window.addEventListener("pageshow", function () {
   window.gObserver.observe(document.documentElement, { attributes: true });
   fitToWidth();
   window.addEventListener("resize", fitToWidth);
-
-  // Ask chrome to update snippets.
-  var event = new CustomEvent("AboutHomeLoad", {bubbles:true});
-  document.dispatchEvent(event);
 });
 
 window.addEventListener("pagehide", function() {
@@ -295,17 +291,52 @@ function ensureSnippetsMapThen(aCallback)
 function onSearchSubmit(aEvent)
 {
   let searchTerms = document.getElementById("searchText").value;
-  let engineName = document.documentElement.getAttribute("searchEngineName");
+  let searchURL = document.documentElement.getAttribute("searchEngineURL");
 
-  if (engineName && searchTerms.length > 0) {
-    // Send an event that will perform a search and Firefox Health Report will
-    // record that a search from about:home has occurred.
-    let eventData = JSON.stringify({
-      engineName: engineName,
-      searchTerms: searchTerms
-    });
-    let event = new CustomEvent("AboutHomeSearchEvent", {detail: eventData});
+  if (searchURL && searchTerms.length > 0) {
+    // Send an event that a search was performed. This was originally
+    // added so Firefox Health Report could record that a search from
+    // about:home had occurred.
+    let engineName = document.documentElement.getAttribute("searchEngineName");
+    let event = new CustomEvent("AboutHomeSearchEvent", {detail: engineName});
     document.dispatchEvent(event);
+
+    const SEARCH_TOKEN = "_searchTerms_";
+    let searchPostData = document.documentElement.getAttribute("searchEnginePostData");
+    if (searchPostData) {
+      // Check if a post form already exists. If so, remove it.
+      const POST_FORM_NAME = "searchFormPost";
+      let form = document.forms[POST_FORM_NAME];
+      if (form) {
+        form.parentNode.removeChild(form);
+      }
+
+      // Create a new post form.
+      form = document.body.appendChild(document.createElement("form"));
+      form.setAttribute("name", POST_FORM_NAME);
+      // Set the URL to submit the form to.
+      form.setAttribute("action", searchURL.replace(SEARCH_TOKEN, searchTerms));
+      form.setAttribute("method", "post");
+
+      // Create new <input type=hidden> elements for search param.
+      searchPostData = searchPostData.split("&");
+      for (let postVar of searchPostData) {
+        let [name, value] = postVar.split("=");
+        if (value == SEARCH_TOKEN) {
+          value = searchTerms;
+        }
+        let input = document.createElement("input");
+        input.setAttribute("type", "hidden");
+        input.setAttribute("name", name);
+        input.setAttribute("value", value);
+        form.appendChild(input);
+      }
+      // Submit the form.
+      form.submit();
+   } else {
+      searchURL = searchURL.replace(SEARCH_TOKEN, encodeURIComponent(searchTerms));
+      window.location.href = searchURL;
+    }
   }
 
   aEvent.preventDefault();
@@ -342,15 +373,6 @@ function setupSearchEngine()
 }
 
 /**
- * Inform the test harness that we're done loading the page.
- */
-function loadSucceeded()
-{
-  var event = new CustomEvent("AboutHomeLoadSnippetsSucceeded", {bubbles:true});
-  document.dispatchEvent(event);
-}
-
-/**
  * Update the local snippets from the remote storage, then show them through
  * showSnippets.
  */
@@ -358,10 +380,6 @@ function loadSnippets()
 {
   if (!gSnippetsMap)
     throw new Error("Snippets map has not properly been initialized");
-
-  // Allow tests to modify the snippets map before using it.
-  var event = new CustomEvent("AboutHomeLoadSnippets", {bubbles:true});
-  document.dispatchEvent(event);
 
   // Check cached snippets version.
   let cachedVersion = gSnippetsMap.get("snippets-cached-version") || 0;
@@ -383,7 +401,6 @@ function loadSnippets()
       xhr.open("GET", updateURL, true);
     } catch (ex) {
       showSnippets();
-      loadSucceeded();
       return;
     }
     // Even if fetching should fail we don't want to spam the server, thus
@@ -399,12 +416,10 @@ function loadSnippets()
         gSnippetsMap.set("snippets-cached-version", currentVersion);
       }
       showSnippets();
-      loadSucceeded();
     };
     xhr.send(null);
   } else {
     showSnippets();
-    loadSucceeded();
   }
 }
 

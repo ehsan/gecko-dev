@@ -20,8 +20,8 @@
 #include "nsScrollbarFrame.h"
 #include "nsIScrollbarMediator.h"
 #include "nsRepeatService.h"
+#include "nsGUIEvent.h"
 #include "mozilla/LookAndFeel.h"
-#include "mozilla/MouseEvents.h"
 
 using namespace mozilla;
 
@@ -39,8 +39,8 @@ NS_NewScrollbarButtonFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(nsScrollbarButtonFrame)
 
 NS_IMETHODIMP
-nsScrollbarButtonFrame::HandleEvent(nsPresContext* aPresContext,
-                                    WidgetGUIEvent* aEvent,
+nsScrollbarButtonFrame::HandleEvent(nsPresContext* aPresContext, 
+                                    nsGUIEvent* aEvent,
                                     nsEventStatus* aEventStatus)
 {  
   NS_ENSURE_ARG_POINTER(aEventStatus);
@@ -80,18 +80,18 @@ nsScrollbarButtonFrame::HandleEvent(nsPresContext* aPresContext,
 
 
 bool
-nsScrollbarButtonFrame::HandleButtonPress(nsPresContext* aPresContext,
-                                          WidgetGUIEvent* aEvent,
-                                          nsEventStatus* aEventStatus)
+nsScrollbarButtonFrame::HandleButtonPress(nsPresContext* aPresContext, 
+                                          nsGUIEvent*     aEvent,
+                                          nsEventStatus*  aEventStatus)
 {
   // Get the desired action for the scrollbar button.
   LookAndFeel::IntID tmpAction;
-  uint16_t button = aEvent->AsMouseEvent()->button;
-  if (button == WidgetMouseEvent::eLeftButton) {
+  uint16_t button = static_cast<nsMouseEvent*>(aEvent)->button;
+  if (button == nsMouseEvent::eLeftButton) {
     tmpAction = LookAndFeel::eIntID_ScrollButtonLeftMouseButtonAction;
-  } else if (button == WidgetMouseEvent::eMiddleButton) {
+  } else if (button == nsMouseEvent::eMiddleButton) {
     tmpAction = LookAndFeel::eIntID_ScrollButtonMiddleMouseButtonAction;
-  } else if (button == WidgetMouseEvent::eRightButton) {
+  } else if (button == nsMouseEvent::eRightButton) {
     tmpAction = LookAndFeel::eIntID_ScrollButtonRightMouseButtonAction;
   } else {
     return false;
@@ -169,9 +169,9 @@ nsScrollbarButtonFrame::HandleButtonPress(nsPresContext* aPresContext,
 }
 
 NS_IMETHODIMP 
-nsScrollbarButtonFrame::HandleRelease(nsPresContext* aPresContext,
-                                      WidgetGUIEvent* aEvent,
-                                      nsEventStatus* aEventStatus)
+nsScrollbarButtonFrame::HandleRelease(nsPresContext* aPresContext, 
+                                      nsGUIEvent*     aEvent,
+                                      nsEventStatus*  aEventStatus)
 {
   nsIPresShell::SetCapturingContent(nullptr, 0);
   // we're not active anymore
@@ -192,8 +192,7 @@ void nsScrollbarButtonFrame::Notify()
 }
 
 void
-nsScrollbarButtonFrame::MouseClicked(nsPresContext* aPresContext,
-                                     WidgetGUIEvent* aEvent) 
+nsScrollbarButtonFrame::MouseClicked(nsPresContext* aPresContext, nsGUIEvent* aEvent) 
 {
   nsButtonBoxFrame::MouseClicked(aPresContext, aEvent);
   //MouseClicked();

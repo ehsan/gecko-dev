@@ -12,6 +12,8 @@
 #include "nsAtomTable.h"
 #include "nsStaticAtom.h"
 #include "nsString.h"
+#include "nsReadableUtils.h"
+#include "nsUTF8Utils.h"
 #include "nsCRT.h"
 #include "pldhash.h"
 #include "prenv.h"
@@ -20,6 +22,9 @@
 #include "nsHashKeys.h"
 #include "nsAutoPtr.h"
 #include "nsUnicharUtils.h"
+
+#define PL_ARENA_CONST_ALIGN_MASK 3
+#include "plarena.h"
 
 using namespace mozilla;
 
@@ -475,6 +480,12 @@ NS_SizeOfAtomTablesIncludingThis(MallocSizeOf aMallocSizeOf) {
 
 #define ATOM_HASHTABLE_INITIAL_SIZE  4096
 
+static void HandleOOM()
+{
+  fputs("Out of memory allocating atom hashtable.\n", stderr);
+  MOZ_CRASH();
+}
+
 static inline void
 EnsureTableExists()
 {
@@ -482,7 +493,7 @@ EnsureTableExists()
       !PL_DHashTableInit(&gAtomTable, &AtomTableOps, 0,
                          sizeof(AtomTableEntry), ATOM_HASHTABLE_INITIAL_SIZE)) {
     // Initialization failed.
-    NS_ABORT_OOM(ATOM_HASHTABLE_INITIAL_SIZE * sizeof(AtomTableEntry));
+    HandleOOM();
   }
 }
 
@@ -496,7 +507,7 @@ GetAtomHashEntry(const char* aString, uint32_t aLength)
     static_cast<AtomTableEntry*>
                (PL_DHashTableOperate(&gAtomTable, &key, PL_DHASH_ADD));
   if (!e) {
-    NS_ABORT_OOM(gAtomTable.entryCount * gAtomTable.entrySize);
+    HandleOOM();
   }
   return e;
 }
@@ -511,7 +522,7 @@ GetAtomHashEntry(const PRUnichar* aString, uint32_t aLength)
     static_cast<AtomTableEntry*>
                (PL_DHashTableOperate(&gAtomTable, &key, PL_DHASH_ADD));
   if (!e) {
-    NS_ABORT_OOM(gAtomTable.entryCount * gAtomTable.entrySize);
+    HandleOOM();
   }
   return e;
 }
@@ -543,9 +554,16 @@ RegisterStaticAtoms(const nsStaticAtom* aAtoms, uint32_t aAtomCount)
   
   if (!gStaticAtomTable && !gStaticAtomTableSealed) {
     gStaticAtomTable = new nsDataHashtable<nsStringHashKey, nsIAtom*>();
+    if (!gStaticAtomTable) {
+      delete gStaticAtomTable;
+      gStaticAtomTable = nullptr;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+    gStaticAtomTable->Init();
   }
   
   for (uint32_t i=0; i<aAtomCount; i++) {
+#ifdef NS_STATIC_ATOM_USE_WIDE_STRINGS
     NS_ASSERTION(nsCRT::IsAscii((PRUnichar*)aAtoms[i].mStringBuffer->Data()),
                  "Static atoms must be ASCII!");
 
@@ -579,6 +597,22 @@ RegisterStaticAtoms(const nsStaticAtom* aAtoms, uint32_t aAtomCount)
         gStaticAtomTable->Put(nsAtomString(atom), atom);
       }
     }
+#else // NS_STATIC_ATOM_USE_WIDE_STRINGS
+    NS_ASSERTION(nsCRT::IsAscii((char*)aAtoms[i].mStringBuffer->Data()),
+                 "Static atoms must be ASCII!");
+
+    uint32_t stringLen = aAtoms[i].mStringBuffer->StorageSize() - 1;
+
+    NS_ConvertASCIItoUTF16 str((char*)aAtoms[i].mStringBuffer->Data(),
+                               stringLen);
+    nsIAtom* atom = NS_NewPermanentAtom(str);
+    *aAtoms[i].mAtom = atom;
+
+    if (!gStaticAtomTableSealed) {
+      gStaticAtomTable->Put(str, atom);
+    }
+#endif
+
   }
   return NS_OK;
 }

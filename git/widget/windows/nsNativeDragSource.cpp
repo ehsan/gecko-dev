@@ -32,12 +32,12 @@ nsNativeDragSource::~nsNativeDragSource()
 STDMETHODIMP
 nsNativeDragSource::QueryInterface(REFIID riid, void** ppv)
 {
-  *ppv=nullptr;
+  *ppv=NULL;
 
   if (IID_IUnknown==riid || IID_IDropSource==riid)
     *ppv=this;
 
-  if (nullptr!=*ppv) {
+  if (NULL!=*ppv) {
     ((LPUNKNOWN)*ppv)->AddRef();
     return S_OK;
   }

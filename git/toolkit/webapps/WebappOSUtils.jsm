@@ -8,38 +8,31 @@ const CC = Components.Constructor;
 const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/AppsUtils.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
 
 this.EXPORTED_SYMBOLS = ["WebappOSUtils"];
 
-// Returns the MD5 hash of a string.
-function computeHash(aString) {
-  let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
-                  createInstance(Ci.nsIScriptableUnicodeConverter);
-  converter.charset = "UTF-8";
-  let result = {};
-  // Data is an array of bytes.
-  let data = converter.convertToByteArray(aString, result);
-
-  let hasher = Cc["@mozilla.org/security/hash;1"].
-               createInstance(Ci.nsICryptoHash);
-  hasher.init(hasher.MD5);
-  hasher.update(data, data.length);
-  // We're passing false to get the binary hash and not base64.
-  let hash = hasher.finish(false);
-
-  function toHexString(charCode) {
-    return ("0" + charCode.toString(16)).slice(-2);
-  }
-
-  // Convert the binary hash data to a hex string.
-  return [toHexString(hash.charCodeAt(i)) for (i in hash)].join("");
-}
-
 this.WebappOSUtils = {
   getUniqueName: function(aApp) {
-    return this.sanitizeStringForFilename(aApp.name).toLowerCase() + "-" +
-           computeHash(aApp.manifestURL);
+    let name;
+
+    // During the installation of a new app, the aApp object
+    // doesn't have a name property. We then need to use the manifest.
+    // For some mozApps calls, the aApp object doesn't have a manifest
+    // associated, and so we need to use the name property.
+    // They're guaranteed to be always identical to the application
+    // name in the user locale.
+    if (aApp.name) {
+      name = aApp.name;
+    } else {
+      let manifest =
+        new ManifestHelper(aApp.updateManifest || aApp.manifest, aApp.origin);
+      name = manifest.name;
+    }
+
+    return this.sanitizeStringForFilename(name).toLowerCase() + "-" +
+           AppsUtils.computeHash(aApp.manifestURL);
   },
 
   /**
@@ -55,7 +48,6 @@ this.WebappOSUtils = {
     let uniqueName = this.getUniqueName(aApp);
 
 #ifdef XP_WIN
-    let isOldNamingScheme = false;
     let appRegKey;
     try {
       let open = CC("@mozilla.org/windows-registry-key;1",
@@ -64,12 +56,10 @@ this.WebappOSUtils = {
                        "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\" +
                        uniqueName, Ci.nsIWindowsRegKey.ACCESS_READ);
     } catch (ex) {
-      // Fall back to the old installation naming scheme
       try {
         appRegKey = open(Ci.nsIWindowsRegKey.ROOT_KEY_CURRENT_USER,
                          "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\" +
                          aApp.origin, Ci.nsIWindowsRegKey.ACCESS_READ);
-        isOldNamingScheme = true;
       } catch (ex) {
         return null;
       }
@@ -85,13 +75,6 @@ this.WebappOSUtils = {
       appRegKey.close();
     }
 
-    installLocation = installLocation.substring(1, installLocation.length - 1);
-
-    if (isOldNamingScheme &&
-        !this.isOldInstallPathValid(aApp, installLocation)) {
-      return null;
-    }
-
     let initWithPath = CC("@mozilla.org/file/local;1",
                           "nsILocalFile", "initWithPath");
     let launchTarget = initWithPath(installLocation);
@@ -103,28 +86,20 @@ this.WebappOSUtils = {
                      .createInstance(Ci.nsIMacWebAppUtils);
 
     try {
-      let path;
-      if (path = mwaUtils.pathForAppWithIdentifier(uniqueName)) {
-        return [ uniqueName, path ];
+      if (mwaUtils.pathForAppWithIdentifier(uniqueName)) {
+        return uniqueName;
+      }
+      if (mwaUtils.pathForAppWithIdentifier(aApp.origin)) {
+        return aApp.origin;
       }
     } catch(ex) {}
 
-    // Fall back to the old installation naming scheme
-    try {
-      let path;
-      if ((path = mwaUtils.pathForAppWithIdentifier(aApp.origin)) &&
-           this.isOldInstallPathValid(aApp, path)) {
-        return [ aApp.origin, path ];
-      }
-    } catch(ex) {}
-
-    return [ null, null ];
+    return null;
 #elifdef XP_UNIX
     let exeFile = Services.dirsvc.get("Home", Ci.nsIFile);
     exeFile.append("." + uniqueName);
     exeFile.append("webapprt-stub");
 
-    // Fall back to the old installation naming scheme
     if (!exeFile.exists()) {
       exeFile = Services.dirsvc.get("Home", Ci.nsIFile);
 
@@ -136,72 +111,13 @@ this.WebappOSUtils = {
       exeFile.append(installDir);
       exeFile.append("webapprt-stub");
 
-      if (!exeFile.exists() ||
-          !this.isOldInstallPathValid(aApp, exeFile.parent.path)) {
+      if (!exeFile.exists()) {
         return null;
       }
     }
 
     return exeFile;
 #endif
-  },
-
-  getInstallPath: function(aApp) {
-#ifdef MOZ_B2G
-    // All b2g builds
-    return aApp.basePath + "/" + aApp.id;
-
-#elifdef MOZ_FENNEC
-   // All fennec
-    return aApp.basePath + "/" + aApp.id;
-
-#elifdef MOZ_PHOENIX
-   // Firefox
-
-#ifdef XP_WIN
-    let execFile = this.getLaunchTarget(aApp);
-    if (!execFile) {
-      return null;
-    }
-
-    return execFile.parent.path;
-#elifdef XP_MACOSX
-    let [ bundleID, path ] = this.getLaunchTarget(aApp);
-    return path;
-#elifdef XP_UNIX
-    let execFile = this.getLaunchTarget(aApp);
-    if (!execFile) {
-      return null;
-    }
-
-    return execFile.parent.path;
-#endif
-
-#elifdef MOZ_WEBAPP_RUNTIME
-    // Webapp runtime
-
-#ifdef XP_WIN
-    let execFile = this.getLaunchTarget(aApp);
-    if (!execFile) {
-      return null;
-    }
-
-    return execFile.parent.path;
-#elifdef XP_MACOSX
-    let [ bundleID, path ] = this.getLaunchTarget(aApp);
-    return path;
-#elifdef XP_UNIX
-    let execFile = this.getLaunchTarget(aApp);
-    if (!execFile) {
-      return null;
-    }
-
-    return execFile.parent.path;
-#endif
-
-#endif
-    // Anything unsupported, like Metro
-    throw new Error("Unsupported apps platform");
   },
 
   launch: function(aApp) {
@@ -225,7 +141,7 @@ this.WebappOSUtils = {
 
     return true;
 #elifdef XP_MACOSX
-    let [ launchIdentifier, path ] = this.getLaunchTarget(aApp);
+    let launchIdentifier = this.getLaunchTarget(aApp);
     if (!launchIdentifier) {
       return false;
     }
@@ -286,24 +202,6 @@ this.WebappOSUtils = {
   },
 
   /**
-   * Returns true if the given install path (in the old naming scheme) actually
-   * belongs to the given application.
-   */
-  isOldInstallPathValid: function(aApp, aInstallPath) {
-    // Applications with an origin that starts with "app" are packaged apps and
-    // packaged apps have never been installed using the old naming scheme.
-    // After bug 910465, we'll have a better way to check if an app is
-    // packaged.
-    if (aApp.origin.startsWith("app")) {
-      return false;
-    }
-
-    // Bug 915480: We could check the app name from the manifest to
-    // better verify the installation path.
-    return true;
-  },
-
-  /**
    * Checks if the given app is locally installed.
    */
   isLaunchable: function(aApp) {
@@ -316,7 +214,7 @@ this.WebappOSUtils = {
 
     return true;
 #elifdef XP_MACOSX
-    if (!this.getInstallPath(aApp)) {
+    if (!this.getLaunchTarget(aApp)) {
       return false;
     }
 
@@ -339,7 +237,6 @@ this.WebappOSUtils = {
     desktopINI.append("applications");
     desktopINI.append("owa-" + uniqueName + ".desktop");
 
-    // Fall back to the old installation naming scheme
     if (!desktopINI.exists()) {
       if (xdg_data_home_env) {
         desktopINI = new FileUtils.File(xdg_data_home_env);
@@ -354,15 +251,7 @@ this.WebappOSUtils = {
 
       desktopINI.append("owa-" + oldUniqueName + ".desktop");
 
-      if (!desktopINI.exists()) {
-        return false;
-      }
-
-      let installDir = Services.dirsvc.get("Home", Ci.nsIFile);
-      installDir.append("." + origin.scheme + ";" + origin.host +
-                        (origin.port != -1 ? ";" + origin.port : ""));
-
-      return isOldInstallPathValid(aApp, installDir.path);
+      return desktopINI.exists();
     }
 
     return true;

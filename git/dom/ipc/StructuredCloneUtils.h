@@ -7,11 +7,10 @@
 #ifndef mozilla_dom_StructuredCloneUtils_h
 #define mozilla_dom_StructuredCloneUtils_h
 
+#include "jsapi.h"
 #include "nsCOMPtr.h"
 #include "nsTArray.h"
 #include "nsIDOMFile.h"
-
-#include "js/StructuredClone.h"
 
 namespace mozilla {
 
@@ -36,19 +35,18 @@ StructuredCloneData
 
 bool
 ReadStructuredClone(JSContext* aCx, uint64_t* aData, size_t aDataLength,
-                    const StructuredCloneClosure& aClosure,
-                    JS::MutableHandle<JS::Value> aClone);
+                    const StructuredCloneClosure& aClosure, JS::Value* aClone);
 
 inline bool
 ReadStructuredClone(JSContext* aCx, const StructuredCloneData& aData,
-                    JS::MutableHandle<JS::Value> aClone)
+                    JS::Value* aClone)
 {
   return ReadStructuredClone(aCx, aData.mData, aData.mDataLength,
                              aData.mClosure, aClone);
 }
 
 bool
-WriteStructuredClone(JSContext* aCx, JS::Handle<JS::Value> aSource,
+WriteStructuredClone(JSContext* aCx, const JS::Value& aSource,
                      JSAutoStructuredCloneBuffer& aBuffer,
                      StructuredCloneClosure& aClosure);
 

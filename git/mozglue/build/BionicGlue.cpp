@@ -9,8 +9,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <android/log.h>
-
-#include "mozilla/Alignment.h"
+#include <mozilla/Util.h>
 
 #include <vector>
 
@@ -102,7 +101,7 @@ extern "C" NS_EXPORT pid_t
 WRAP(fork)(void)
 {
   pid_t pid;
-  for (auto it = atfork.rbegin();
+  for (std::vector<AtForkFuncs>::reverse_iterator it = atfork.rbegin();
        it < atfork.rend(); ++it)
     if (it->prepare)
       it->prepare();
@@ -110,13 +109,13 @@ WRAP(fork)(void)
   switch ((pid = __fork())) {
   case 0:
     cpuacct_add(getuid());
-    for (auto it = atfork.begin();
+    for (std::vector<AtForkFuncs>::iterator it = atfork.begin();
          it < atfork.end(); ++it)
       if (it->child)
         it->child();
     break;
   default:
-    for (auto it = atfork.begin();
+    for (std::vector<AtForkFuncs>::iterator it = atfork.begin();
          it < atfork.end(); ++it)
       if (it->parent)
         it->parent();

@@ -10,7 +10,7 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "SocialService", "resource://gre/modules/SocialService.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils", "resource://gre/modules/PrivateBrowsingUtils.jsm");
 
-this.EXPORTED_SYMBOLS = ["MozSocialAPI", "openChatWindow", "findChromeWindowForChats", "closeAllChatWindows"];
+this.EXPORTED_SYMBOLS = ["MozSocialAPI", "openChatWindow", "findChromeWindowForChats"];
 
 this.MozSocialAPI = {
   _enabled: false,
@@ -49,7 +49,7 @@ function injectController(doc, topic, data) {
       return;
     }
 
-    let containingBrowser = window.QueryInterface(Ci.nsIInterfaceRequestor)
+    var containingBrowser = window.QueryInterface(Ci.nsIInterfaceRequestor)
                                   .getInterface(Ci.nsIWebNavigation)
                                   .QueryInterface(Ci.nsIDocShell)
                                   .chromeEventHandler;
@@ -66,13 +66,8 @@ function injectController(doc, topic, data) {
       return;
     }
 
-    // we always handle window.close on social content, even if they are not
-    // "enabled".  "enabled" is about the worker state and a provider may
-    // still be in e.g. the share panel without having their worker enabled.
-    handleWindowClose(window);
-
     SocialService.getProvider(doc.nodePrincipal.origin, function(provider) {
-      if (provider && provider.enabled) {
+      if (provider && provider.workerURL && provider.enabled) {
         attachToWindow(provider, window);
       }
     });
@@ -93,7 +88,7 @@ function attachToWindow(provider, targetWindow) {
     return;
   }
 
-  let port = provider.workerURL ? provider.getWorkerPort(targetWindow) : null;
+  var port = provider.getWorkerPort(targetWindow);
 
   let mozSocialObj = {
     // Use a method for backwards compat with existing providers, but we
@@ -211,17 +206,13 @@ function attachToWindow(provider, targetWindow) {
     return targetWindow.navigator.wrappedJSObject.mozSocial = contentObj;
   });
 
-  if (port) {
-    targetWindow.addEventListener("unload", function () {
-      // We want to close the port, but also want the target window to be
-      // able to use the port during an unload event they setup - so we
-      // set a timer which will fire after the unload events have all fired.
-      schedule(function () { port.close(); });
-    });
-  }
-}
+  targetWindow.addEventListener("unload", function () {
+    // We want to close the port, but also want the target window to be
+    // able to use the port during an unload event they setup - so we
+    // set a timer which will fire after the unload events have all fired.
+    schedule(function () { port.close(); });
+  });
 
-function handleWindowClose(targetWindow) {
   // We allow window.close() to close the panel, so add an event handler for
   // this, then cancel the event (so the window itself doesn't die) and
   // close the panel instead.
@@ -237,10 +228,10 @@ function handleWindowClose(targetWindow) {
                 .QueryInterface(Ci.nsIDocShell)
                 .chromeEventHandler;
     while (elt) {
-      if (elt.localName == "panel") {
+      if (elt.nodeName == "panel") {
         elt.hidePopup();
         break;
-      } else if (elt.localName == "chatbox") {
+      } else if (elt.nodeName == "chatbox") {
         elt.close();
         break;
       }
@@ -309,7 +300,7 @@ function findChromeWindowForChats(preferredWindow) {
   }
   while (enumerator.hasMoreElements()) {
     let win = enumerator.getNext();
-    if (!win.closed && isWindowGoodForChats(win))
+    if (win && isWindowGoodForChats(win))
       topMost = win;
   }
   return topMost;
@@ -334,28 +325,4 @@ this.openChatWindow =
   // getAttention is ignored if the target window is already foreground, so
   // we can call it unconditionally.
   chromeWindow.getAttention();
-}
-
-this.closeAllChatWindows =
- function closeAllChatWindows(provider) {
-  // close all attached chat windows
-  let winEnum = Services.wm.getEnumerator("navigator:browser");
-  while (winEnum.hasMoreElements()) {
-    let win = winEnum.getNext();
-    if (!win.SocialChatBar)
-      continue;
-    let chats = [c for (c of win.SocialChatBar.chatbar.children) if (c.content.getAttribute("origin") == provider.origin)];
-    [c.close() for (c of chats)];
-  }
-
-  // close all standalone chat windows
-  winEnum = Services.wm.getEnumerator("Social:Chat");
-  while (winEnum.hasMoreElements()) {
-    let win = winEnum.getNext();
-    if (win.closed)
-      continue;
-    let origin = win.document.getElementById("chatter").content.getAttribute("origin");
-    if (provider.origin == origin)
-      win.close();
-  }
 }

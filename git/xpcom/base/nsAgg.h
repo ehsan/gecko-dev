@@ -72,7 +72,7 @@ class NS_CYCLE_COLLECTION_INNERCLASS                                        \
  : public nsXPCOMCycleCollectionParticipant                                 \
 {                                                                           \
 public:                                                                     \
-  NS_IMETHOD_(void) Unlink(void *p);                                        \
+  NS_IMETHOD Unlink(void *p);                                               \
   NS_IMETHOD Traverse(void *p, nsCycleCollectionTraversalCallback &cb);     \
   NS_IMETHOD_(void) DeleteCycleCollectable(void* p)                         \
   {                                                                         \
@@ -92,7 +92,6 @@ public:                                                                     \
     return &_class::NS_CYCLE_COLLECTION_INNERNAME;                          \
   }                                                                         \
 };                                                                          \
-NS_CHECK_FOR_RIGHT_PARTICIPANT_IMPL(_class);                                \
 static NS_CYCLE_COLLECTION_INNERCLASS NS_CYCLE_COLLECTION_INNERNAME;
 
 // Put this in your class's constructor:
@@ -143,7 +142,8 @@ _class::Internal::AddRef(void)                                              \
 {                                                                           \
     _class* agg = NS_CYCLE_COLLECTION_CLASSNAME(_class)::Downcast(this);    \
     MOZ_ASSERT(int32_t(agg->mRefCnt) >= 0, "illegal refcnt");               \
-    NS_ASSERT_OWNINGTHREAD_AGGREGATE(agg, _class);                          \
+    NS_CheckThreadSafe(agg->_mOwningThread.GetThread(),                     \
+                       #_class " not thread-safe");                         \
     nsrefcnt count = agg->mRefCnt.incr();                                   \
     NS_LOG_ADDREF(this, count, #_class, sizeof(*agg));                      \
     return count;                                                           \
@@ -153,7 +153,8 @@ _class::Internal::Release(void)                                             \
 {                                                                           \
     _class* agg = NS_CYCLE_COLLECTION_CLASSNAME(_class)::Downcast(this);    \
     MOZ_ASSERT(int32_t(agg->mRefCnt) > 0, "dup release");                   \
-    NS_ASSERT_OWNINGTHREAD_AGGREGATE(agg, _class);                          \
+    NS_CheckThreadSafe(agg->_mOwningThread.GetThread(),                     \
+                       #_class " not thread-safe");                         \
     nsrefcnt count = agg->mRefCnt.decr(this);                               \
     NS_LOG_RELEASE(this, count, #_class);                                   \
     return count;                                                           \

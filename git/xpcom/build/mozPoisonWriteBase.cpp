@@ -75,7 +75,7 @@ void DebugFilesAutoLock::Clear() {
   Lock = nullptr;
 }
 
-static char *sProfileDirectory = nullptr;
+static char *sProfileDirectory = NULL;
 
 // Return a vector used to hold the IDs of the current debug files. On unix
 // an ID is a file descriptor. On Windows it is a file HANDLE.
@@ -117,7 +117,7 @@ public:
         MozillaUnRegisterDebugFD(fd);
         fclose(mFile);
         mSHA1.finish(aHash);
-        mFile = nullptr;
+        mFile = NULL;
     }
 private:
     FILE *mFile;
@@ -201,8 +201,7 @@ bool ValidWriteAssert(bool ok)
     do {
       // mkstemp isn't supported so keep trying until we get a file
       int result = _mktemp_s(name, strlen(name) + 1);
-      hFile = CreateFileA(name, GENERIC_WRITE, 0, nullptr,
-                          CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+      hFile = CreateFileA(name, GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
     } while (GetLastError() == ERROR_FILE_EXISTS);
 
     if (hFile == INVALID_HANDLE_VALUE) {

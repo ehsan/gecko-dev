@@ -4,12 +4,8 @@
 
 "use strict";
 
-// Don't modify this, instead set services.push.debug.
-let gDebuggingEnabled = false;
-
 function debug(s) {
-  if (gDebuggingEnabled)
-    dump("-*- Push.js: " + s + "\n");
+  // dump("-*- Push.js: " + s + "\n");
 }
 
 const Cc = Components.classes;
@@ -43,18 +39,29 @@ Push.prototype = {
                                           Ci.nsISupportsWeakReference]),
 
   init: function(aWindow) {
-    // Set debug first so that all debugging actually works.
-    // NOTE: We don't add an observer here like in PushService. Flipping the
-    // pref will require a reload of the app/page, which seems acceptable.
-    gDebuggingEnabled = Services.prefs.getBoolPref("services.push.debug");
     debug("init()");
 
     let principal = aWindow.document.nodePrincipal;
+
+    this._pageURL = principal.URI;
+
     let appsService = Cc["@mozilla.org/AppsService;1"]
                         .getService(Ci.nsIAppsService);
-
+    this._app = appsService.getAppByLocalId(principal.appId);
     this._manifestURL = appsService.getManifestURLByLocalId(principal.appId);
-    this._pageURL = principal.URI;
+    if (!this._manifestURL) {
+	// Now what?  XXXbz should this be tested in a Func for this
+	// interface so it wouldn't appear at all?
+	return;
+    }
+
+    let perm = Services.perms.testExactPermissionFromPrincipal(principal,
+                                                               "push");
+    if (perm != Ci.nsIPermissionManager.ALLOW_ACTION) {
+	// Now what?  XXXbz should this be tested in a Func for this
+	// interface so it wouldn't appear at all?
+	return;
+    }
 
     this.initDOMRequestHelper(aWindow, [
       "PushService:Register:OK",
@@ -104,7 +111,7 @@ Push.prototype = {
 
   register: function() {
     debug("register()");
-    let req = this.createRequest();
+    var req = this.createRequest();
     if (!Services.prefs.getBoolPref("services.push.connection.enabled")) {
       // If push socket is disabled by the user, immediately error rather than
       // timing out.
@@ -122,7 +129,7 @@ Push.prototype = {
 
   unregister: function(aPushEndpoint) {
     debug("unregister(" + aPushEndpoint + ")");
-    let req = this.createRequest();
+    var req = this.createRequest();
     this._cpmm.sendAsyncMessage("Push:Unregister", {
                                   pageURL: this._pageURL.spec,
                                   manifestURL: this._manifestURL,
@@ -134,7 +141,7 @@ Push.prototype = {
 
   registrations: function() {
     debug("registrations()");
-    let req = this.createRequest();
+    var req = this.createRequest();
     this._cpmm.sendAsyncMessage("Push:Registrations", {
                                   manifestURL: this._manifestURL,
                                   requestID: this.getRequestId(req)

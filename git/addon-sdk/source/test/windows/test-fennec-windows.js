@@ -13,36 +13,34 @@ const { browserWindows } = require('sdk/windows');
 const ERR_MSG = 'This method is not yet supported by Fennec, consider using require("sdk/tabs") instead';
 
 // TEST: browserWindows.length for Fennec
-exports.testBrowserWindowsLength = function(assert) {
-  assert.equal(browserWindows.length, 1, "Only one window open");
+exports.testBrowserWindowsLength = function(test) {
+  test.assertEqual(browserWindows.length, 1, "Only one window open");
 };
 
 // TEST: open & close window
-exports.testOpenWindow = function(assert) {
+exports.testOpenWindow = function(test) {
   let tabCount = browserWindows.activeWindow.tabs.length;
   let url = "data:text/html;charset=utf-8,<title>windows%20API%20test</title>";
 
   try {
     browserWindows.open({url: url});
-    assert.fail('Error was not thrown');
+    test.fail('Error was not thrown');
   }
   catch(e) {
-    assert.equal(e.message, ERR_MSG, 'Error is thrown on windows.open');
-    assert.equal(browserWindows.length, 1, "Only one window open");
+    test.assertEqual(e.message, ERR_MSG, 'Error is thrown on windows.open');
+    test.assertEqual(browserWindows.length, 1, "Only one window open");
   }
 };
 
-exports.testCloseWindow = function(assert) {
+exports.testCloseWindow = function(test) {
   let window = browserWindows.activeWindow;
 
   try {
     window.close();
-    assert.fail('Error was not thrown');
+    test.fail('Error was not thrown');
   }
   catch(e) {
-    assert.equal(e.message, ERR_MSG, 'Error is thrown on windows.close');
-    assert.equal(browserWindows.length, 1, "Only one window open");
+    test.assertEqual(e.message, ERR_MSG, 'Error is thrown on windows.close');
+    test.assertEqual(browserWindows.length, 1, "Only one window open");
   }
 };
-
-require('sdk/test').run(exports);

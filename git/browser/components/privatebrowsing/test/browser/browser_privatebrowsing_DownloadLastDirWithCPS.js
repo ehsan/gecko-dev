@@ -235,9 +235,6 @@ function runTest() {
 
   // check that the last dir store got cleared in a new PB window
   pbWin.close();
-  // And give it time to close
-  executeSoon(moveAlong);
-  yield;
   let pbWin = yield createWindow({private: true});
   let pbDownloadLastDir = new DownloadLastDir(pbWin);
 

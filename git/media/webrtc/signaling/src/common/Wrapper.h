@@ -152,7 +152,6 @@ public:
 	public: \
 		static classname ## Ptr wrap(handletype handle); \
 		static void reset(); \
-                static void release(handletype handle); \
 	private: \
 		friend class Wrapper<classname>; \
 		typedef classname ## Ptr Ptr; \
@@ -170,8 +169,5 @@ public:
 	void classname::reset() \
 	{ \
 		getWrapper().reset(); \
-	} \
-        void classname::release(handletype handle) \
-        { \
-                getWrapper().release(handle); \
-        }
+	}
+

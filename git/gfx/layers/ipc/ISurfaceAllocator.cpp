@@ -6,18 +6,15 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ISurfaceAllocator.h"
-#include <sys/types.h>                  // for int32_t
-#include "gfxASurface.h"                // for gfxASurface, etc
-#include "gfxPlatform.h"                // for gfxPlatform, gfxImageFormat
-#include "gfxSharedImageSurface.h"      // for gfxSharedImageSurface
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
-#include "mozilla/ipc/SharedMemory.h"   // for SharedMemory, etc
-#include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor, etc
-#include "ShadowLayerUtils.h"
-#include "mozilla/mozalloc.h"           // for operator delete[], etc
-#include "nsAutoPtr.h"                  // for nsRefPtr, getter_AddRefs, etc
-#include "nsDebug.h"                    // for NS_RUNTIMEABORT
-#include "nsXULAppAPI.h"                // for XRE_GetProcessType, etc
+#include "mozilla/ipc/SharedMemory.h"
+#include "gfxSharedImageSurface.h"
+#include "gfxPlatform.h"
+#include "gfxASurface.h"
+#include "mozilla/layers/LayersSurfaces.h"
+#include "mozilla/layers/SharedPlanarYCbCrImage.h"
+#include "mozilla/layers/SharedRGBImage.h"
+#include "nsXULAppAPI.h"
+
 #ifdef DEBUG
 #include "prenv.h"
 #endif
@@ -29,7 +26,16 @@ namespace layers {
 
 SharedMemory::SharedMemoryType OptimalShmemType()
 {
+#if defined(MOZ_PLATFORM_MAEMO) && defined(MOZ_HAVE_SHAREDMEMORYSYSV)
+  // Use SysV memory because maemo5 on the N900 only allots 64MB to
+  // /dev/shm, even though it has 1GB(!!) of system memory.  Sys V shm
+  // is allocated from a different pool.  We don't want an arbitrary
+  // cap that's much much lower than available memory on the memory we
+  // use for layers.
+  return SharedMemory::TYPE_SYSV;
+#else
   return SharedMemory::TYPE_BASIC;
+#endif
 }
 
 bool
@@ -41,11 +47,11 @@ IsSurfaceDescriptorValid(const SurfaceDescriptor& aSurface)
 
 bool
 ISurfaceAllocator::AllocSharedImageSurface(const gfxIntSize& aSize,
-                               gfxContentType aContent,
+                               gfxASurface::gfxContentType aContent,
                                gfxSharedImageSurface** aBuffer)
 {
   SharedMemory::SharedMemoryType shmemType = OptimalShmemType();
-  gfxImageFormat format = gfxPlatform::GetPlatform()->OptimalFormatForContent(aContent);
+  gfxASurface::gfxImageFormat format = gfxPlatform::GetPlatform()->OptimalFormatForContent(aContent);
 
   nsRefPtr<gfxSharedImageSurface> back =
     gfxSharedImageSurface::CreateUnsafe(this, aSize, format, shmemType);
@@ -59,7 +65,7 @@ ISurfaceAllocator::AllocSharedImageSurface(const gfxIntSize& aSize,
 
 bool
 ISurfaceAllocator::AllocSurfaceDescriptor(const gfxIntSize& aSize,
-                                          gfxContentType aContent,
+                                          gfxASurface::gfxContentType aContent,
                                           SurfaceDescriptor* aBuffer)
 {
   return AllocSurfaceDescriptorWithCaps(aSize, aContent, DEFAULT_BUFFER_CAPS, aBuffer);
@@ -67,7 +73,7 @@ ISurfaceAllocator::AllocSurfaceDescriptor(const gfxIntSize& aSize,
 
 bool
 ISurfaceAllocator::AllocSurfaceDescriptorWithCaps(const gfxIntSize& aSize,
-                                                  gfxContentType aContent,
+                                                  gfxASurface::gfxContentType aContent,
                                                   uint32_t aCaps,
                                                   SurfaceDescriptor* aBuffer)
 {
@@ -91,7 +97,7 @@ ISurfaceAllocator::AllocSurfaceDescriptorWithCaps(const gfxIntSize& aSize,
 #ifdef XP_MACOSX
     // Workaround a bug in Quartz where drawing an a8 surface to another a8
     // surface with OPERATOR_SOURCE still requires the destination to be clear.
-    if (format == gfxImageFormatA8) {
+    if (format == gfxASurface::ImageFormatA8) {
       memset(data, 0, stride * aSize.height);
     }
 #endif
@@ -131,7 +137,6 @@ ISurfaceAllocator::DestroySharedSurface(SurfaceDescriptor* aSurface)
       DeallocShmem(aSurface->get_RGBImage().data());
       break;
     case SurfaceDescriptor::TSurfaceDescriptorD3D9:
-    case SurfaceDescriptor::TSurfaceDescriptorDIB:
     case SurfaceDescriptor::TSurfaceDescriptorD3D10:
       break;
     case SurfaceDescriptor::TMemoryImage:
@@ -149,7 +154,7 @@ ISurfaceAllocator::DestroySharedSurface(SurfaceDescriptor* aSurface)
 #if !defined(MOZ_HAVE_PLATFORM_SPECIFIC_LAYER_BUFFERS)
 bool
 ISurfaceAllocator::PlatformAllocSurfaceDescriptor(const gfxIntSize&,
-                                                  gfxContentType,
+                                                  gfxASurface::gfxContentType,
                                                   uint32_t,
                                                   SurfaceDescriptor*)
 {

@@ -7,6 +7,7 @@
 #define nsJSNPRuntime_h_
 
 #include "nscore.h"
+#include "jsapi.h"
 #include "npapi.h"
 #include "npruntime.h"
 #include "pldhash.h"
@@ -30,7 +31,7 @@ public:
   const NPP mNpp;
 };
 
-extern const JSClass sNPObjectJSWrapperClass;
+extern JSClass sNPObjectJSWrapperClass;
 
 class nsJSObjWrapper : public NPObject,
                        public nsJSObjWrapperKey

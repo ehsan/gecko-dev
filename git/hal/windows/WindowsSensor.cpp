@@ -115,10 +115,8 @@ EnableSensorNotifications(SensorType aSensor)
   }
 
   nsRefPtr<ISensorManager> manager;
-  if (FAILED(CoCreateInstance(CLSID_SensorManager, nullptr,
-                              CLSCTX_INPROC_SERVER,
-                              IID_ISensorManager, 
-                              getter_AddRefs(manager)))) {
+  if (FAILED(CoCreateInstance(CLSID_SensorManager, NULL, CLSCTX_INPROC_SERVER,
+                              IID_ISensorManager, getter_AddRefs(manager)))) {
     return;
   }
 
@@ -145,7 +143,7 @@ EnableSensorNotifications(SensorType aSensor)
   // Set report interval to 100ms if possible. 
   // Default value depends on drivers.
   nsRefPtr<IPortableDeviceValues> values;
-  if (SUCCEEDED(CoCreateInstance(CLSID_PortableDeviceValues, nullptr,
+  if (SUCCEEDED(CoCreateInstance(CLSID_PortableDeviceValues, NULL,
                                  CLSCTX_INPROC_SERVER,
                                  IID_IPortableDeviceValues,
                                  getter_AddRefs(values)))) {
@@ -175,7 +173,7 @@ void
 DisableSensorNotifications(SensorType aSensor)
 {
   if (aSensor == SENSOR_ACCELERATION && sAccelerometer) {
-    sAccelerometer->SetEventSink(nullptr);
+    sAccelerometer->SetEventSink(NULL);
     sAccelerometer = nullptr;
   }
 }

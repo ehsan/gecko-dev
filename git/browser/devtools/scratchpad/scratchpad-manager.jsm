@@ -112,7 +112,7 @@ this.ScratchpadManager = {
                  .createInstance(Ci.nsIDialogParamBlock);
 
     params.SetNumberStrings(2);
-    params.SetString(0, this.createUid());
+    params.SetString(0, JSON.stringify(this._nextUid++));
 
     if (aState) {
       if (typeof aState != 'object') {
@@ -129,14 +129,6 @@ this.ScratchpadManager = {
     ShutdownObserver.init();
 
     return win;
-  },
-
-  /**
-   * Create a unique ID for a new Scratchpad.
-   */
-  createUid: function SPM_createUid()
-  {
-    return JSON.stringify(this._nextUid++);
   }
 };
 

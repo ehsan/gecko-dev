@@ -62,8 +62,8 @@ struct BufferSlice {
     BufferSlice *getNext() { return this->next; }
     BufferSlice *getPrev() { return this->prev; }
     void setNext(BufferSlice<SliceSize> *next_) {
-        JS_ASSERT(this->next == nullptr);
-        JS_ASSERT(next_->prev == nullptr);
+        JS_ASSERT(this->next == NULL);
+        JS_ASSERT(next_->prev == NULL);
         this->next = next_;
         next_->prev = this;
     }
@@ -72,9 +72,9 @@ struct BufferSlice {
     unsigned int size() {
         return nodeSize;
     }
-    BufferSlice() : prev(nullptr), next(nullptr), nodeSize(0) {}
+    BufferSlice() : next(NULL), prev(NULL), nodeSize(0) {}
     void putBlob(uint32_t instSize, uint8_t* inst) {
-        if (inst != nullptr)
+        if (inst != NULL)
             memcpy(&instructions[size()], inst, instSize);
         nodeSize += instSize;
     }
@@ -84,7 +84,7 @@ template<int SliceSize, class Inst>
 struct AssemblerBuffer
 {
   public:
-    AssemblerBuffer() : head(nullptr), tail(nullptr), m_oom(false), m_bail(false), bufferSize(0), LifoAlloc_(8192) {}
+    AssemblerBuffer() : head(NULL), tail(NULL), m_oom(false), m_bail(false), bufferSize(0), LifoAlloc_(8192) {}
   protected:
     typedef BufferSlice<SliceSize> Slice;
     typedef AssemblerBuffer<SliceSize, Inst> AssemblerBuffer_;
@@ -105,23 +105,23 @@ struct AssemblerBuffer
         Slice *tmp = static_cast<Slice*>(a.alloc(sizeof(Slice)));
         if (!tmp) {
             m_oom = true;
-            return nullptr;
+            return NULL;
         }
         new (tmp) Slice;
         return tmp;
     }
     bool ensureSpace(int size) {
-        if (tail != nullptr && tail->size()+size <= SliceSize)
+        if (tail != NULL && tail->size()+size <= SliceSize)
             return true;
         Slice *tmp = newSlice(LifoAlloc_);
-        if (tmp == nullptr)
+        if (tmp == NULL)
             return false;
-        if (tail != nullptr) {
+        if (tail != NULL) {
             bufferSize += tail->size();
             tail->setNext(tmp);
         }
         tail = tmp;
-        if (head == nullptr) {
+        if (head == NULL) {
             finger = tmp;
             finger_offset = 0;
             head = tmp;
@@ -149,7 +149,7 @@ struct AssemblerBuffer
     }
     unsigned int size() const {
         int executableSize;
-        if (tail != nullptr)
+        if (tail != NULL)
             executableSize = bufferSize + tail->size();
         else
             executableSize = bufferSize;
@@ -177,7 +177,7 @@ struct AssemblerBuffer
         int local_off = off.getOffset();
         // don't update the structure's finger in place, so there is the option
         // to not update it.
-        Slice *cur = nullptr;
+        Slice *cur = NULL;
         int cur_off;
         // get the offset that we'd be dealing with by walking through backwards
         int end_off = bufferSize - local_off;
@@ -203,37 +203,37 @@ struct AssemblerBuffer
             cur_off = bufferSize;
         }
         int count = 0;
+        char sigil;
         if (local_off < cur_off) {
-            for (; cur != nullptr; cur = cur->getPrev(), cur_off -= cur->size()) {
+            for (; cur != NULL; cur = cur->getPrev(), cur_off -= cur->size()) {
                 if (local_off >= cur_off) {
                     local_off -= cur_off;
                     break;
                 }
                 count++;
             }
-            JS_ASSERT(cur != nullptr);
+            JS_ASSERT(cur != NULL);
         } else {
-            for (; cur != nullptr; cur = cur->getNext()) {
-                int cur_size = cur->size();
-                if (local_off < cur_off + cur_size) {
+            for (; cur != NULL; cur = cur->getNext()) {
+                if (local_off < cur_off + cur->size()) {
                     local_off -= cur_off;
                     break;
                 }
-                cur_off += cur_size;
+                cur_off += cur->size();
                 count++;
             }
-            JS_ASSERT(cur != nullptr);
+            JS_ASSERT(cur != NULL);
         }
         if (count > 2 || used_finger) {
             finger = cur;
             finger_offset = cur_off;
         }
         // the offset within this node should not be larger than the node itself.
-        JS_ASSERT(local_off < (int)cur->size());
+        JS_ASSERT(local_off < cur->size());
         return (Inst*)&cur->instructions[local_off];
     }
     BufferOffset nextOffset() const {
-        if (tail != nullptr)
+        if (tail != NULL)
             return BufferOffset(bufferSize + tail->size());
         else
             return BufferOffset(bufferSize);

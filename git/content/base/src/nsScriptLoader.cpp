@@ -17,9 +17,9 @@
 #include "mozilla/dom/Element.h"
 #include "nsGkAtoms.h"
 #include "nsNetUtil.h"
-#include "nsIJSRuntimeService.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptContext.h"
+#include "nsIScriptRuntime.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIPrincipal.h"
 #include "nsJSPrincipals.h"
@@ -46,8 +46,6 @@
 #include "mozilla/dom/Element.h"
 #include "nsCrossSiteListenerProxy.h"
 #include "nsSandboxFlags.h"
-#include "nsContentTypeParser.h"
-#include "nsINetworkSeer.h"
 
 #include "mozilla/CORSMode.h"
 #include "mozilla/Attributes.h"
@@ -71,7 +69,6 @@ public:
     : mElement(aElement),
       mLoading(true),
       mIsInline(true),
-      mHasSourceMapURL(false),
       mJSVersion(aVersion),
       mLineNo(1),
       mCORSMode(aCORSMode)
@@ -95,15 +92,12 @@ public:
   }
 
   nsCOMPtr<nsIScriptElement> mElement;
-  bool mLoading;          // Are we still waiting for a load to complete?
-  bool mIsInline;         // Is the script inline or loaded?
-  bool mHasSourceMapURL;  // Does the HTTP header have a source map url?
-  nsString mSourceMapURL; // Holds source map url for loaded scripts
-  nsString mScriptText;   // Holds script for text loaded scripts
+  bool mLoading;             // Are we still waiting for a load to complete?
+  bool mIsInline;            // Is the script inline or loaded?
+  nsString mScriptText;              // Holds script for loaded scripts
   uint32_t mJSVersion;
   nsCOMPtr<nsIURI> mURI;
   nsCOMPtr<nsIPrincipal> mOriginPrincipal;
-  nsAutoCString mURL;   // Keep the URI's filename alive during off thread parsing.
   int32_t mLineNo;
   const CORSMode mCORSMode;
 };
@@ -329,10 +323,6 @@ nsScriptLoader::StartLoad(nsScriptLoadRequest *aRequest, const nsAString &aType,
                                   false);
     httpChannel->SetReferrer(mDocument->GetDocumentURI());
   }
-
-  nsCOMPtr<nsILoadContext> loadContext(do_QueryInterface(docshell));
-  mozilla::net::SeerLearn(aRequest->mURI, mDocument->GetDocumentURI(),
-      nsINetworkSeer::LEARN_LOAD_SUBRESOURCE, loadContext);
 
   nsCOMPtr<nsIStreamLoader> loader;
   rv = NS_NewStreamLoader(getter_AddRefs(loader), this);
@@ -701,121 +691,11 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
   return ProcessRequest(request) == NS_ERROR_HTMLPARSER_BLOCK;
 }
 
-namespace {
-
-class NotifyOffThreadScriptLoadCompletedRunnable : public nsRunnable
-{
-    nsRefPtr<nsScriptLoader> mLoader;
-    void *mToken;
-
-public:
-    NotifyOffThreadScriptLoadCompletedRunnable(already_AddRefed<nsScriptLoader> aLoader,
-                                               void *aToken)
-      : mLoader(aLoader), mToken(aToken)
-    {}
-
-    NS_DECL_NSIRUNNABLE
-};
-
-} /* anonymous namespace */
-
 nsresult
-nsScriptLoader::ProcessOffThreadRequest(void **aOffThreadToken)
-{
-    nsCOMPtr<nsScriptLoadRequest> request = mOffThreadScriptRequest;
-    mOffThreadScriptRequest = nullptr;
-    nsresult rv = ProcessRequest(request, aOffThreadToken);
-    mDocument->UnblockOnload(false);
-    return rv;
-}
-
-NS_IMETHODIMP
-NotifyOffThreadScriptLoadCompletedRunnable::Run()
-{
-    MOZ_ASSERT(NS_IsMainThread());
-
-    nsresult rv = mLoader->ProcessOffThreadRequest(&mToken);
-
-    if (mToken) {
-      // The result of the off thread parse was not actually needed to process
-      // the request (disappearing window, some other error, ...). Finish the
-      // request to avoid leaks in the JS engine.
-      nsCOMPtr<nsIJSRuntimeService> svc = do_GetService("@mozilla.org/js/xpc/RuntimeService;1");
-      NS_ENSURE_TRUE(svc, NS_ERROR_FAILURE);
-      JSRuntime *rt;
-      svc->GetRuntime(&rt);
-      NS_ENSURE_TRUE(rt, NS_ERROR_FAILURE);
-      JS::FinishOffThreadScript(nullptr, rt, mToken);
-    }
-
-    return rv;
-}
-
-static void
-OffThreadScriptLoaderCallback(void *aToken, void *aCallbackData)
-{
-    // Be careful not to adjust the refcount on the loader, as this callback
-    // may be invoked off the main thread.
-    nsScriptLoader* aLoader = static_cast<nsScriptLoader*>(aCallbackData);
-    nsRefPtr<NotifyOffThreadScriptLoadCompletedRunnable> notify =
-        new NotifyOffThreadScriptLoadCompletedRunnable(
-            already_AddRefed<nsScriptLoader>(aLoader), aToken);
-    NS_DispatchToMainThread(notify);
-}
-
-nsresult
-nsScriptLoader::AttemptAsyncScriptParse(nsScriptLoadRequest* aRequest)
-{
-  if (!aRequest->mElement->GetScriptAsync() || aRequest->mIsInline) {
-    return NS_ERROR_FAILURE;
-  }
-
-  if (mOffThreadScriptRequest) {
-    return NS_ERROR_FAILURE;
-  }
-
-  JSObject *unrootedGlobal;
-  nsCOMPtr<nsIScriptContext> context = GetScriptContext(&unrootedGlobal);
-  if (!context) {
-    return NS_ERROR_FAILURE;
-  }
-  AutoPushJSContext cx(context->GetNativeContext());
-  JS::Rooted<JSObject*> global(cx, unrootedGlobal);
-
-  JS::CompileOptions options(cx);
-  FillCompileOptionsForRequest(aRequest, global, &options);
-
-  if (!JS::CanCompileOffThread(cx, options)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  mOffThreadScriptRequest = aRequest;
-  if (!JS::CompileOffThread(cx, global, options,
-                            aRequest->mScriptText.get(), aRequest->mScriptText.Length(),
-                            OffThreadScriptLoaderCallback,
-                            static_cast<void*>(this))) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-
-  // This reference will be consumed by the NotifyOffThreadScriptLoadCompletedRunnable.
-  NS_ADDREF(this);
-
-  mDocument->BlockOnload();
-
-  return NS_OK;
-}
-
-nsresult
-nsScriptLoader::ProcessRequest(nsScriptLoadRequest* aRequest, void **aOffThreadToken)
+nsScriptLoader::ProcessRequest(nsScriptLoadRequest* aRequest)
 {
   NS_ASSERTION(nsContentUtils::IsSafeToRunScript(),
                "Processing requests when running scripts is unsafe.");
-
-  if (!aOffThreadToken) {
-    nsresult rv = AttemptAsyncScriptParse(aRequest);
-    if (rv != NS_ERROR_FAILURE)
-      return rv;
-  }
 
   NS_ENSURE_ARG(aRequest);
   nsAFlatString* script;
@@ -871,7 +751,7 @@ nsScriptLoader::ProcessRequest(nsScriptLoadRequest* aRequest, void **aOffThreadT
       doc->BeginEvaluatingExternalScript();
     }
     aRequest->mElement->BeginEvaluating();
-    rv = EvaluateScript(aRequest, *script, aOffThreadToken);
+    rv = EvaluateScript(aRequest, *script);
     aRequest->mElement->EndEvaluating();
     if (doc) {
       doc->EndEvaluatingExternalScript();
@@ -919,51 +799,9 @@ nsScriptLoader::FireScriptEvaluated(nsresult aResult,
   aRequest->FireScriptEvaluated(aResult);
 }
 
-nsIScriptContext *
-nsScriptLoader::GetScriptContext(JSObject **aGlobal)
-{
-  nsPIDOMWindow *pwin = mDocument->GetInnerWindow();
-  if (!pwin) {
-    return nullptr;
-  }
-
-  nsCOMPtr<nsIScriptGlobalObject> globalObject = do_QueryInterface(pwin);
-  NS_ASSERTION(globalObject, "windows must be global objects");
-
-  // and make sure we are setup for this type of script.
-  nsresult rv = globalObject->EnsureScriptEnvironment();
-  if (NS_FAILED(rv)) {
-    return nullptr;
-  }
-
-  *aGlobal = globalObject->GetGlobalJSObject();
-  return globalObject->GetScriptContext();
-}
-
-void
-nsScriptLoader::FillCompileOptionsForRequest(nsScriptLoadRequest *aRequest,
-                                             JS::Handle<JSObject *> scopeChain,
-                                             JS::CompileOptions *aOptions)
-{
-  // It's very important to use aRequest->mURI, not the final URI of the channel
-  // aRequest ended up getting script data from, as the script filename.
-  nsContentUtils::GetWrapperSafeScriptFilename(mDocument, aRequest->mURI, aRequest->mURL);
-
-  aOptions->setFileAndLine(aRequest->mURL.get(), aRequest->mLineNo);
-  aOptions->setVersion(JSVersion(aRequest->mJSVersion));
-  aOptions->setCompileAndGo(JS_IsGlobalObject(scopeChain));
-  if (aRequest->mHasSourceMapURL) {
-    aOptions->setSourceMapURL(aRequest->mSourceMapURL.get());
-  }
-  if (aRequest->mOriginPrincipal) {
-    aOptions->setOriginPrincipals(nsJSPrincipals::get(aRequest->mOriginPrincipal));
-  }
-}
-
 nsresult
 nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
-                               const nsAFlatString& aScript,
-                               void** aOffThreadToken)
+                               const nsAFlatString& aScript)
 {
   nsresult rv = NS_OK;
 
@@ -979,19 +817,28 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
     return NS_ERROR_FAILURE;
   }
 
+  nsPIDOMWindow *pwin = mDocument->GetInnerWindow();
+  NS_ASSERTION(pwin, "shouldn't be called with a null inner window");
+
+  nsCOMPtr<nsIScriptGlobalObject> globalObject = do_QueryInterface(pwin);
+  NS_ASSERTION(globalObject, "windows must be global objects");
+
   // Get the script-type to be used by this element.
   NS_ASSERTION(scriptContent, "no content - what is default script-type?");
+
+  // and make sure we are setup for this type of script.
+  rv = globalObject->EnsureScriptEnvironment();
+  if (NS_FAILED(rv))
+    return rv;
 
   // Make sure context is a strong reference since we access it after
   // we've executed a script, which may cause all other references to
   // the context to go away.
-  JSObject *unrootedGlobal;
-  nsCOMPtr<nsIScriptContext> context = GetScriptContext(&unrootedGlobal);
+  nsCOMPtr<nsIScriptContext> context = globalObject->GetScriptContext();
   if (!context) {
     return NS_ERROR_FAILURE;
   }
   AutoPushJSContext cx(context->GetNativeContext());
-  JS::Rooted<JSObject*> global(cx, unrootedGlobal);
 
   bool oldProcessingScriptTag = context->GetProcessingScriptTag();
   context->SetProcessingScriptTag(true);
@@ -1000,13 +847,22 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
   nsCOMPtr<nsIScriptElement> oldCurrent = mCurrentScript;
   mCurrentScript = aRequest->mElement;
 
+  // It's very important to use aRequest->mURI, not the final URI of the channel
+  // aRequest ended up getting script data from, as the script filename.
+  nsAutoCString url;
+  nsContentUtils::GetWrapperSafeScriptFilename(mDocument, aRequest->mURI, url);
+
   JSVersion version = JSVersion(aRequest->mJSVersion);
   if (version != JSVERSION_UNKNOWN) {
     JS::CompileOptions options(cx);
-    FillCompileOptionsForRequest(aRequest, global, &options);
+    options.setFileAndLine(url.get(), aRequest->mLineNo)
+           .setVersion(JSVersion(aRequest->mJSVersion));
+    if (aRequest->mOriginPrincipal) {
+      options.setOriginPrincipals(nsJSPrincipals::get(aRequest->mOriginPrincipal));
+    }
+    JS::Rooted<JSObject*> global(cx, globalObject->GetGlobalJSObject());
     rv = context->EvaluateString(aScript, global,
-                                 options, /* aCoerceToString = */ false, nullptr,
-                                 aOffThreadToken);
+                                 options, /* aCoerceToString = */ false, nullptr);
   }
 
   // Put the old script back in case it wants to do anything else.
@@ -1309,11 +1165,6 @@ nsScriptLoader::PrepareLoadedRequest(nsScriptLoadRequest* aRequest,
     if (NS_SUCCEEDED(rv) && !requestSucceeded) {
       return NS_ERROR_NOT_AVAILABLE;
     }
-
-    nsAutoCString sourceMapURL;
-    httpChannel->GetResponseHeader(NS_LITERAL_CSTRING("X-SourceMap"), sourceMapURL);
-    aRequest->mHasSourceMapURL = true;
-    aRequest->mSourceMapURL = NS_ConvertUTF8toUTF16(sourceMapURL);
   }
 
   nsCOMPtr<nsIChannel> channel = do_QueryInterface(req);

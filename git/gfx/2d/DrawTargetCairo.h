@@ -51,20 +51,12 @@ class GradientStopsCairo : public GradientStops
 class DrawTargetCairo : public DrawTarget
 {
 public:
-  friend class BorrowedCairoContext;
-
   DrawTargetCairo();
   virtual ~DrawTargetCairo();
 
   virtual BackendType GetType() const { return BACKEND_CAIRO; }
   virtual TemporaryRef<SourceSurface> Snapshot();
   virtual IntSize GetSize();
-
-  virtual void SetPermitSubpixelAA(bool aPermitSubpixelAA);
-
-  virtual bool LockBits(uint8_t** aData, IntSize* aSize,
-                        int32_t* aStride, SurfaceFormat* aFormat);
-  virtual void ReleaseBits(uint8_t* aData);
 
   virtual void Flush();
   virtual void DrawSurface(SourceSurface *aSurface,
@@ -84,8 +76,6 @@ public:
   virtual void CopySurface(SourceSurface *aSurface,
                            const IntRect &aSourceRect,
                            const IntPoint &aDestination);
-  virtual void CopyRect(const IntRect &aSourceRect,
-                        const IntPoint &aDestination);
 
   virtual void FillRect(const Rect &aRect,
                         const Pattern &aPattern,
@@ -150,14 +140,14 @@ public:
 
   bool Init(cairo_surface_t* aSurface, const IntSize& aSize);
 
+  void SetPathObserver(CairoPathContext* aPathObserver);
+
   virtual void SetTransform(const Matrix& aTransform);
 
   // Call to set up aContext for drawing (with the current transform, etc).
   // Pass the path you're going to be using if you have one.
   // Implicitly calls WillChange(aPath).
   void PrepareForDrawing(cairo_t* aContext, const Path* aPath = nullptr);
-
-  static cairo_surface_t *GetDummySurface();
 
 private: // methods
   // Init cairo surface without doing a cairo_surface_reference() call.
@@ -167,14 +157,7 @@ private: // methods
   void DrawPattern(const Pattern& aPattern,
                    const StrokeOptions& aStrokeOptions,
                    const DrawOptions& aOptions,
-                   DrawPatternType aDrawType,
-                   bool aPathBoundsClip = false);
-
-  void CopySurfaceInternal(cairo_surface_t* aSurface,
-                           const IntRect& aSource,
-                           const IntPoint& aDest);
-
-  Rect GetUserSpaceClip();
+                   DrawPatternType aDrawType);
 
   // Call before you make any changes to the backing surface with which this
   // context is associated. Pass the path you're going to be using if you have
@@ -193,12 +176,15 @@ private: // data
   cairo_surface_t* mSurface;
   IntSize mSize;
 
-  uint8_t* mLockedBits;
-
   // The latest snapshot of this surface. This needs to be told when this
   // target is modified. We keep it alive as a cache.
   RefPtr<SourceSurfaceCairo> mSnapshot;
-  static cairo_surface_t *mDummySurface;
+
+  // It is safe to use a regular pointer here because the CairoPathContext will
+  // deregister itself on destruction. Using a RefPtr would extend the life-
+  // span of the CairoPathContext. This causes a problem when
+  // PathBuilderCairo.Finish()
+  mutable CairoPathContext* mPathObserver;
 };
 
 }

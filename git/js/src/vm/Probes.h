@@ -11,17 +11,20 @@
 #include "javascript-trace.h"
 #endif
 
+#include "jsobj.h"
+#include "jspubtd.h"
+
 #include "vm/Stack.h"
 
 namespace js {
 
-namespace probes {
+namespace Probes {
 
 /*
  * Static probes
  *
  * The probe points defined in this file are scattered around the SpiderMonkey
- * source tree. The presence of probes::SomeEvent() means that someEvent is
+ * source tree. The presence of Probes::someEvent() means that someEvent is
  * about to happen or has happened. To the extent possible, probes should be
  * inserted in all paths associated with a given event, regardless of the
  * active runmode (interpreter/traceJIT/methodJIT/ionJIT).
@@ -57,36 +60,37 @@ extern const char anonymousName[];
  * to decide whether they can optimize in a way that would prevent probes from
  * firing.
  */
-bool CallTrackingActive(JSContext *);
+bool callTrackingActive(JSContext *);
 
 /*
  * Test whether anything is looking for JIT native code registration events.
  * This information will not be collected otherwise.
  */
-bool WantNativeAddressInfo(JSContext *);
+bool wantNativeAddressInfo(JSContext *);
 
 /* Entering a JS function */
-bool EnterScript(JSContext *, JSScript *, JSFunction *, StackFrame *);
+bool enterScript(JSContext *, JSScript *, JSFunction *, StackFrame *);
 
 /* About to leave a JS function */
-bool ExitScript(JSContext *, JSScript *, JSFunction *, bool popSPSFrame);
+bool exitScript(JSContext *, JSScript *, JSFunction *, AbstractFramePtr);
+bool exitScript(JSContext *, JSScript *, JSFunction *, StackFrame *);
 
 /* Executing a script */
-bool StartExecution(JSScript *script);
+bool startExecution(JSScript *script);
 
 /* Script has completed execution */
-bool StopExecution(JSScript *script);
+bool stopExecution(JSScript *script);
 
 /*
  * Object has been created. |obj| must exist (its class and size are read)
  */
-bool CreateObject(ExclusiveContext *cx, JSObject *obj);
+bool createObject(ExclusiveContext *cx, JSObject *obj);
 
 /*
  * Object is about to be finalized. |obj| must still exist (its class is
  * read)
  */
-bool FinalizeObject(JSObject *obj);
+bool finalizeObject(JSObject *obj);
 
 /* JIT code observation */
 
@@ -108,11 +112,11 @@ JITGranularityRequested(JSContext *cx);
  * (ICs are unregistered in a batch, so individual ICs are not registered.)
  */
 void
-DiscardExecutableRegion(void *start, size_t size);
+discardExecutableRegion(void *start, size_t size);
 
 /*
- * Internal: DTrace-specific functions to be called during probes::EnterScript
- * and probes::ExitScript. These will not be inlined, but the argument
+ * Internal: DTrace-specific functions to be called during Probes::enterScript
+ * and Probes::exitScript. These will not be inlined, but the argument
  * marshalling required for these probe points is expensive enough that it
  * shouldn't really matter.
  */
@@ -125,7 +129,7 @@ void DTraceExitJSFun(JSContext *cx, JSFunction *fun, JSScript *script);
 static const char *ObjectClassname(JSObject *obj) {
     if (!obj)
         return "(null object)";
-    const Class *clasp = obj->getClass();
+    Class *clasp = obj->getClass();
     if (!clasp)
         return "(null)";
     const char *class_name = clasp->name;
@@ -136,7 +140,7 @@ static const char *ObjectClassname(JSObject *obj) {
 #endif
 
 inline bool
-probes::CreateObject(ExclusiveContext *cx, JSObject *obj)
+Probes::createObject(ExclusiveContext *cx, JSObject *obj)
 {
     bool ok = true;
 
@@ -149,16 +153,16 @@ probes::CreateObject(ExclusiveContext *cx, JSObject *obj)
 }
 
 inline bool
-probes::FinalizeObject(JSObject *obj)
+Probes::finalizeObject(JSObject *obj)
 {
     bool ok = true;
 
 #ifdef INCLUDE_MOZILLA_DTRACE
     if (JAVASCRIPT_OBJECT_FINALIZE_ENABLED()) {
-        const Class *clasp = obj->getClass();
+        Class *clasp = obj->getClass();
 
-        /* the first arg is nullptr - reserved for future use (filename?) */
-        JAVASCRIPT_OBJECT_FINALIZE(nullptr, (char *)clasp->name, (uintptr_t)obj);
+        /* the first arg is NULL - reserved for future use (filename?) */
+        JAVASCRIPT_OBJECT_FINALIZE(NULL, (char *)clasp->name, (uintptr_t)obj);
     }
 #endif
 

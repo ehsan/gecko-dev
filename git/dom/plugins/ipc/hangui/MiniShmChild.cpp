@@ -13,12 +13,12 @@ namespace mozilla {
 namespace plugins {
 
 MiniShmChild::MiniShmChild()
-  : mParentEvent(nullptr),
-    mParentGuard(nullptr),
-    mChildEvent(nullptr),
-    mChildGuard(nullptr),
-    mFileMapping(nullptr),
-    mRegWait(nullptr),
+  : mParentEvent(NULL),
+    mParentGuard(NULL),
+    mChildEvent(NULL),
+    mChildGuard(NULL),
+    mFileMapping(NULL),
+    mRegWait(NULL),
     mView(nullptr),
     mTimeout(INFINITE)
 {}
@@ -61,7 +61,7 @@ MiniShmChild::Init(MiniShmObserver* aObserver, const std::wstring& aCookie,
     return NS_ERROR_ALREADY_INITIALIZED;
   }
   std::wistringstream iss(aCookie);
-  HANDLE mapHandle = nullptr;
+  HANDLE mapHandle = NULL;
   iss >> mapHandle;
   if (!iss) {
     return NS_ERROR_ILLEGAL_VALUE;
@@ -114,7 +114,7 @@ MiniShmChild::Init(MiniShmObserver* aObserver, const std::wstring& aCookie,
   rv = GetWritePtrInternal(initCompleteStruct);
   if (NS_FAILED(rv)) {
     ::UnregisterWaitEx(mRegWait, INVALID_HANDLE_VALUE);
-    mRegWait = nullptr;
+    mRegWait = NULL;
     return NS_ERROR_FAILURE;
   }
 
@@ -133,15 +133,15 @@ MiniShmChild::Init(MiniShmObserver* aObserver, const std::wstring& aCookie,
   rv = Send();
   if (NS_FAILED(rv)) {
     initCompleteStruct->mSucceeded = false;
-    mFileMapping = nullptr;
+    mFileMapping = NULL;
     view.Set(mView);
     mView = nullptr;
-    mParentEvent = nullptr;
-    mParentGuard = nullptr;
-    mChildEvent = nullptr;
-    mChildGuard = nullptr;
+    mParentEvent = NULL;
+    mParentGuard = NULL;
+    mChildEvent = NULL;
+    mChildGuard = NULL;
     ::UnregisterWaitEx(mRegWait, INVALID_HANDLE_VALUE);
-    mRegWait = nullptr;
+    mRegWait = NULL;
     return rv;
   }
 

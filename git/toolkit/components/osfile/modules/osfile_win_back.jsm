@@ -34,12 +34,11 @@
      if (exports.OS && exports.OS.Win && exports.OS.Win.File) {
        return; // Avoid double initialization
      }
+     exports.OS = require("resource://gre/modules/osfile/osfile_shared_allthreads.jsm").OS;
+     exports.OS.Win.File = {};
 
-     let SharedAll = require("resource://gre/modules/osfile/osfile_shared_allthreads.jsm");
-     let SysAll = require("resource://gre/modules/osfile/osfile_win_allthreads.jsm");
-     let LOG = SharedAll.LOG.bind(SharedAll, "Unix", "back");
-     let libc = SysAll.libc;
-     let Const = SharedAll.Constants.Win;
+     let LOG = OS.Shared.LOG.bind(OS.Shared, "Win", "back");
+     let libc = exports.OS.Shared.Win.libc;
 
      /**
       * Initialize the Windows module.
@@ -52,15 +51,17 @@
        if (aDeclareFFI) {
          declareFFI = aDeclareFFI.bind(null, libc);
        } else {
-         declareFFI = SysAll.declareFFI;
+         declareFFI = exports.OS.Shared.Win.declareFFI;
        }
-       let declareLazyFFI = SharedAll.declareLazyFFI;
 
-       // Initialize types that require additional OS-specific
-       // support - either finalization or matching against
-       // OS-specific constants.
-       let Type = Object.create(SysAll.Type);
-       let SysFile = exports.OS.Win.File = { Type: Type };
+       // Shorthands
+       let OSWin = exports.OS.Win;
+       let WinFile = exports.OS.Win.File;
+       if (!exports.OS.Types) {
+         exports.OS.Types = {};
+       }
+       let Type = exports.OS.Shared.Type;
+       let Types = Type;
 
        // Initialize types
 
@@ -68,10 +69,10 @@
         * A C integer holding INVALID_HANDLE_VALUE in case of error or
         * a file descriptor in case of success.
         */
-       Type.HANDLE =
-         Type.voidptr_t.withName("HANDLE");
-       Type.HANDLE.importFromC = function importFromC(maybe) {
-         if (Type.int.cast(maybe).value == INVALID_HANDLE) {
+       Types.HANDLE =
+         Types.voidptr_t.withName("HANDLE");
+       Types.HANDLE.importFromC = function importFromC(maybe) {
+         if (Types.int.cast(maybe).value == INVALID_HANDLE) {
            // Ensure that API clients can effectively compare against
            // Const.INVALID_HANDLE_VALUE. Without this cast,
            // == would always return |false|.
@@ -79,88 +80,88 @@
          }
          return ctypes.CDataFinalizer(maybe, this.finalizeHANDLE);
        };
-       Type.HANDLE.finalizeHANDLE = function placeholder() {
+       Types.HANDLE.finalizeHANDLE = function placeholder() {
          throw new Error("finalizeHANDLE should be implemented");
        };
-       let INVALID_HANDLE = Const.INVALID_HANDLE_VALUE;
+       let INVALID_HANDLE = exports.OS.Constants.Win.INVALID_HANDLE_VALUE;
 
-       Type.file_HANDLE = Type.HANDLE.withName("file HANDLE");
-       SharedAll.defineLazyGetter(Type.file_HANDLE,
+       Types.file_HANDLE = Types.HANDLE.withName("file HANDLE");
+       exports.OS.Shared.defineLazyGetter(Types.file_HANDLE,
          "finalizeHANDLE",
          function() {
-           return SysFile._CloseHandle;
+           return _CloseHandle;
          });
 
-       Type.find_HANDLE = Type.HANDLE.withName("find HANDLE");
-       SharedAll.defineLazyGetter(Type.find_HANDLE,
+       Types.find_HANDLE = Types.HANDLE.withName("find HANDLE");
+       exports.OS.Shared.defineLazyGetter(Types.find_HANDLE,
          "finalizeHANDLE",
          function() {
-           return SysFile._FindClose;
+           return _FindClose;
          });
 
-       Type.DWORD = Type.int32_t.withName("DWORD");
+       Types.DWORD = Types.int32_t.withName("DWORD");
 
        /**
         * A C integer holding -1 in case of error or a positive integer
         * in case of success.
         */
-       Type.negative_or_DWORD =
-         Type.DWORD.withName("negative_or_DWORD");
+       Types.negative_or_DWORD =
+         Types.DWORD.withName("negative_or_DWORD");
 
        /**
         * A C integer holding 0 in case of error or a positive integer
         * in case of success.
         */
-       Type.zero_or_DWORD =
-         Type.DWORD.withName("zero_or_DWORD");
+       Types.zero_or_DWORD =
+         Types.DWORD.withName("zero_or_DWORD");
 
        /**
         * A C integer holding 0 in case of error, any other value in
         * case of success.
         */
-       Type.zero_or_nothing =
-         Type.int.withName("zero_or_nothing");
+       Types.zero_or_nothing =
+         Types.int.withName("zero_or_nothing");
 
-       Type.SECURITY_ATTRIBUTES =
-         Type.void_t.withName("SECURITY_ATTRIBUTES");
+       Types.SECURITY_ATTRIBUTES =
+         Types.void_t.withName("SECURITY_ATTRIBUTES");
 
-       Type.FILETIME =
-         new SharedAll.Type("FILETIME",
+       Types.FILETIME =
+         new Type("FILETIME",
                   ctypes.StructType("FILETIME", [
-                  { lo: Type.DWORD.implementation },
-                  { hi: Type.DWORD.implementation }]));
+                  { lo: Types.DWORD.implementation },
+                  { hi: Types.DWORD.implementation }]));
 
-       Type.FindData =
-         new SharedAll.Type("FIND_DATA",
+       Types.FindData =
+         new Type("FIND_DATA",
                   ctypes.StructType("FIND_DATA", [
                     { dwFileAttributes: ctypes.uint32_t },
-                    { ftCreationTime:   Type.FILETIME.implementation },
-                    { ftLastAccessTime: Type.FILETIME.implementation },
-                    { ftLastWriteTime:  Type.FILETIME.implementation },
-                    { nFileSizeHigh:    Type.DWORD.implementation },
-                    { nFileSizeLow:     Type.DWORD.implementation },
-                    { dwReserved0:      Type.DWORD.implementation },
-                    { dwReserved1:      Type.DWORD.implementation },
-                    { cFileName:        ctypes.ArrayType(ctypes.jschar, Const.MAX_PATH) },
+                    { ftCreationTime:   Types.FILETIME.implementation },
+                    { ftLastAccessTime: Types.FILETIME.implementation },
+                    { ftLastWriteTime:  Types.FILETIME.implementation },
+                    { nFileSizeHigh:    Types.DWORD.implementation },
+                    { nFileSizeLow:     Types.DWORD.implementation },
+                    { dwReserved0:      Types.DWORD.implementation },
+                    { dwReserved1:      Types.DWORD.implementation },
+                    { cFileName:        ctypes.ArrayType(ctypes.jschar, exports.OS.Constants.Win.MAX_PATH) },
                     { cAlternateFileName: ctypes.ArrayType(ctypes.jschar, 14) }
                       ]));
 
-       Type.FILE_INFORMATION =
-         new SharedAll.Type("FILE_INFORMATION",
+       Types.FILE_INFORMATION =
+         new Type("FILE_INFORMATION",
                   ctypes.StructType("FILE_INFORMATION", [
                     { dwFileAttributes: ctypes.uint32_t },
-                    { ftCreationTime:   Type.FILETIME.implementation },
-                    { ftLastAccessTime: Type.FILETIME.implementation },
-                    { ftLastWriteTime:  Type.FILETIME.implementation },
+                    { ftCreationTime:   Types.FILETIME.implementation },
+                    { ftLastAccessTime: Types.FILETIME.implementation },
+                    { ftLastWriteTime:  Types.FILETIME.implementation },
                     { dwVolumeSerialNumber: ctypes.uint32_t },
-                    { nFileSizeHigh:    Type.DWORD.implementation },
-                    { nFileSizeLow:     Type.DWORD.implementation },
+                    { nFileSizeHigh:    Types.DWORD.implementation },
+                    { nFileSizeLow:     Types.DWORD.implementation },
                     { nNumberOfLinks:   ctypes.uint32_t },
                     { nFileIndex: ctypes.uint64_t }
                    ]));
 
-       Type.SystemTime =
-         new SharedAll.Type("SystemTime",
+       Types.SystemTime =
+         new Type("SystemTime",
                   ctypes.StructType("SystemTime", [
                   { wYear:      ctypes.int16_t },
                   { wMonth:     ctypes.int16_t },
@@ -174,12 +175,12 @@
 
        // Special case: these functions are used by the
        // finalizer
-       SharedAll.declareLazy(SysFile, "_CloseHandle", libc,
-                      "CloseHandle", ctypes.winapi_abi,
+       let _CloseHandle = WinFile._CloseHandle =
+         libc.declare("CloseHandle", ctypes.winapi_abi,
                         /*return */ctypes.bool,
                         /*handle*/ ctypes.voidptr_t);
 
-       SysFile.CloseHandle = function(fd) {
+       WinFile.CloseHandle = function(fd) {
          if (fd == INVALID_HANDLE) {
            return true;
          } else {
@@ -187,12 +188,12 @@
          }
        };
 
-       SharedAll.declareLazy(SysFile, "_FindClose", libc,
-                      "FindClose", ctypes.winapi_abi,
+       let _FindClose =
+         libc.declare("FindClose", ctypes.winapi_abi,
                         /*return */ctypes.bool,
                         /*handle*/ ctypes.voidptr_t);
 
-       SysFile.FindClose = function(handle) {
+       WinFile.FindClose = function(handle) {
          if (handle == INVALID_HANDLE) {
            return true;
          } else {
@@ -202,140 +203,135 @@
 
        // Declare libc functions as functions of |OS.Win.File|
 
-       declareLazyFFI(SysFile, "CopyFile", libc,
-         "CopyFileW", ctypes.winapi_abi,
-                    /*return*/ Type.zero_or_nothing,
-                    /*sourcePath*/ Type.path,
-                    /*destPath*/   Type.path,
-                    /*bailIfExist*/Type.bool);
+       WinFile.CopyFile =
+         declareFFI("CopyFileW", ctypes.winapi_abi,
+                    /*return*/ Types.zero_or_nothing,
+                    /*sourcePath*/ Types.path,
+                    /*destPath*/   Types.path,
+                    /*bailIfExist*/Types.bool);
 
-       declareLazyFFI(SysFile, "CreateDirectory", libc,
-         "CreateDirectoryW", ctypes.winapi_abi,
-                    /*return*/ Type.zero_or_nothing,
-                    /*name*/   Type.jschar.in_ptr,
-                    /*security*/Type.SECURITY_ATTRIBUTES.in_ptr);
+       WinFile.CreateDirectory =
+         declareFFI("CreateDirectoryW", ctypes.winapi_abi,
+                    /*return*/ Types.zero_or_nothing,
+                    /*name*/   Types.jschar.in_ptr,
+                    /*security*/Types.SECURITY_ATTRIBUTES.in_ptr);
 
-       declareLazyFFI(SysFile, "CreateFile", libc,
-         "CreateFileW", ctypes.winapi_abi,
-                    /*return*/  Type.file_HANDLE,
-                    /*name*/    Type.path,
-                    /*access*/  Type.DWORD,
-                    /*share*/   Type.DWORD,
-                    /*security*/Type.SECURITY_ATTRIBUTES.in_ptr,
-                    /*creation*/Type.DWORD,
-                    /*flags*/   Type.DWORD,
-                    /*template*/Type.HANDLE);
+       WinFile.CreateFile =
+         declareFFI("CreateFileW", ctypes.winapi_abi,
+                    /*return*/  Types.file_HANDLE,
+                    /*name*/    Types.path,
+                    /*access*/  Types.DWORD,
+                    /*share*/   Types.DWORD,
+                    /*security*/Types.SECURITY_ATTRIBUTES.in_ptr,
+                    /*creation*/Types.DWORD,
+                    /*flags*/   Types.DWORD,
+                    /*template*/Types.HANDLE);
 
-       declareLazyFFI(SysFile, "DeleteFile", libc,
-         "DeleteFileW", ctypes.winapi_abi,
-                    /*return*/ Type.zero_or_nothing,
-                    /*path*/   Type.path);
+       WinFile.DeleteFile =
+         declareFFI("DeleteFileW", ctypes.winapi_abi,
+                    /*return*/ Types.zero_or_nothing,
+                    /*path*/   Types.path);
 
-       declareLazyFFI(SysFile, "FileTimeToSystemTime", libc,
-         "FileTimeToSystemTime", ctypes.winapi_abi,
-                    /*return*/ Type.zero_or_nothing,
-                    /*filetime*/Type.FILETIME.in_ptr,
-                    /*systime*/ Type.SystemTime.out_ptr);
+       WinFile.FileTimeToSystemTime =
+         declareFFI("FileTimeToSystemTime", ctypes.winapi_abi,
+                    /*return*/ Types.zero_or_nothing,
+                    /*filetime*/Types.FILETIME.in_ptr,
+                    /*systime*/ Types.SystemTime.out_ptr);
 
-       declareLazyFFI(SysFile, "FindFirstFile", libc,
-         "FindFirstFileW", ctypes.winapi_abi,
-                    /*return*/ Type.find_HANDLE,
-                    /*pattern*/Type.path,
-                    /*data*/   Type.FindData.out_ptr);
+       WinFile.FindFirstFile =
+         declareFFI("FindFirstFileW", ctypes.winapi_abi,
+                    /*return*/ Types.find_HANDLE,
+                    /*pattern*/Types.path,
+                    /*data*/   Types.FindData.out_ptr);
 
-       declareLazyFFI(SysFile, "FindNextFile", libc,
-         "FindNextFileW", ctypes.winapi_abi,
-                    /*return*/ Type.zero_or_nothing,
-                    /*prev*/   Type.find_HANDLE,
-                    /*data*/   Type.FindData.out_ptr);
+       WinFile.FindNextFile =
+         declareFFI("FindNextFileW", ctypes.winapi_abi,
+                    /*return*/ Types.zero_or_nothing,
+                    /*prev*/   Types.find_HANDLE,
+                    /*data*/   Types.FindData.out_ptr);
 
-       declareLazyFFI(SysFile, "FormatMessage", libc,
-         "FormatMessageW", ctypes.winapi_abi,
-                    /*return*/ Type.DWORD,
-                    /*flags*/  Type.DWORD,
-                    /*source*/ Type.void_t.in_ptr,
-                    /*msgid*/  Type.DWORD,
-                    /*langid*/ Type.DWORD,
-                    /*buf*/    Type.out_wstring,
-                    /*size*/   Type.DWORD,
-                    /*Arguments*/Type.void_t.in_ptr
+       WinFile.FormatMessage =
+         declareFFI("FormatMessageW", ctypes.winapi_abi,
+                    /*return*/ Types.DWORD,
+                    /*flags*/  Types.DWORD,
+                    /*source*/ Types.void_t.in_ptr,
+                    /*msgid*/  Types.DWORD,
+                    /*langid*/ Types.DWORD,
+                    /*buf*/    Types.out_wstring,
+                    /*size*/   Types.DWORD,
+                    /*Arguments*/Types.void_t.in_ptr
                    );
 
-       declareLazyFFI(SysFile, "GetCurrentDirectory", libc,
-         "GetCurrentDirectoryW", ctypes.winapi_abi,
-                    /*return*/ Type.zero_or_DWORD,
-                    /*length*/ Type.DWORD,
-                    /*buf*/    Type.out_path
+       WinFile.GetCurrentDirectory =
+         declareFFI("GetCurrentDirectoryW", ctypes.winapi_abi,
+                    /*return*/ Types.zero_or_DWORD,
+                    /*length*/ Types.DWORD,
+                    /*buf*/    Types.out_path
                    );
 
-       declareLazyFFI(SysFile, "GetFileInformationByHandle", libc,
-         "GetFileInformationByHandle", ctypes.winapi_abi,
-                    /*return*/ Type.zero_or_nothing,
-                    /*handle*/ Type.HANDLE,
-                    /*info*/   Type.FILE_INFORMATION.out_ptr);
+       WinFile.GetFileInformationByHandle =
+         declareFFI("GetFileInformationByHandle", ctypes.winapi_abi,
+                    /*return*/ Types.zero_or_nothing,
+                    /*handle*/ Types.HANDLE,
+                    /*info*/   Types.FILE_INFORMATION.out_ptr);
 
-       declareLazyFFI(SysFile, "MoveFileEx", libc,
-         "MoveFileExW", ctypes.winapi_abi,
-                    /*return*/   Type.zero_or_nothing,
-                    /*sourcePath*/ Type.path,
-                    /*destPath*/ Type.path,
-                    /*flags*/    Type.DWORD
+       WinFile.MoveFileEx =
+         declareFFI("MoveFileExW", ctypes.winapi_abi,
+                    /*return*/   Types.zero_or_nothing,
+                    /*sourcePath*/ Types.path,
+                    /*destPath*/ Types.path,
+                    /*flags*/    Types.DWORD
                    );
 
-       declareLazyFFI(SysFile, "ReadFile", libc,
-         "ReadFile", ctypes.winapi_abi,
-                    /*return*/ Type.zero_or_nothing,
-                    /*file*/   Type.HANDLE,
-                    /*buffer*/ Type.voidptr_t,
-                    /*nbytes*/ Type.DWORD,
-                    /*nbytes_read*/Type.DWORD.out_ptr,
-                    /*overlapped*/Type.void_t.inout_ptr // FIXME: Implement?
+       WinFile.ReadFile =
+         declareFFI("ReadFile", ctypes.winapi_abi,
+                    /*return*/ Types.zero_or_nothing,
+                    /*file*/   Types.HANDLE,
+                    /*buffer*/ Types.voidptr_t,
+                    /*nbytes*/ Types.DWORD,
+                    /*nbytes_read*/Types.DWORD.out_ptr,
+                    /*overlapped*/Types.void_t.inout_ptr // FIXME: Implement?
          );
 
-       declareLazyFFI(SysFile, "RemoveDirectory", libc,
-         "RemoveDirectoryW", ctypes.winapi_abi,
-                    /*return*/ Type.zero_or_nothing,
-                    /*path*/   Type.path);
+       WinFile.RemoveDirectory =
+         declareFFI("RemoveDirectoryW", ctypes.winapi_abi,
+                    /*return*/ Types.zero_or_nothing,
+                    /*path*/   Types.path);
 
-       declareLazyFFI(SysFile, "SetCurrentDirectory", libc,
-         "SetCurrentDirectoryW", ctypes.winapi_abi,
-                    /*return*/ Type.zero_or_nothing,
-                    /*path*/   Type.path
+       WinFile.SetCurrentDirectory =
+         declareFFI("SetCurrentDirectoryW", ctypes.winapi_abi,
+                    /*return*/ Types.zero_or_nothing,
+                    /*path*/   Types.path
                    );
 
-       declareLazyFFI(SysFile, "SetEndOfFile", libc,
-         "SetEndOfFile", ctypes.winapi_abi,
-                    /*return*/ Type.zero_or_nothing,
-                    /*file*/   Type.HANDLE);
+       WinFile.SetEndOfFile =
+         declareFFI("SetEndOfFile", ctypes.winapi_abi,
+                    /*return*/ Types.zero_or_nothing,
+                    /*file*/   Types.HANDLE);
 
-       declareLazyFFI(SysFile, "SetFilePointer", libc,
-         "SetFilePointer", ctypes.winapi_abi,
-                    /*return*/ Type.negative_or_DWORD,
-                    /*file*/   Type.HANDLE,
-                    /*distlow*/Type.long,
-                    /*disthi*/ Type.long.in_ptr,
-                    /*method*/ Type.DWORD);
+       WinFile.SetFilePointer =
+         declareFFI("SetFilePointer", ctypes.winapi_abi,
+                    /*return*/ Types.negative_or_DWORD,
+                    /*file*/   Types.HANDLE,
+                    /*distlow*/Types.long,
+                    /*disthi*/ Types.long.in_ptr,
+                    /*method*/ Types.DWORD);
 
-       declareLazyFFI(SysFile, "WriteFile", libc,
-         "WriteFile", ctypes.winapi_abi,
-                    /*return*/ Type.zero_or_nothing,
-                    /*file*/   Type.HANDLE,
-                    /*buffer*/ Type.voidptr_t,
-                    /*nbytes*/ Type.DWORD,
-                    /*nbytes_wr*/Type.DWORD.out_ptr,
-                    /*overlapped*/Type.void_t.inout_ptr // FIXME: Implement?
+       WinFile.WriteFile =
+         declareFFI("WriteFile", ctypes.winapi_abi,
+                    /*return*/ Types.zero_or_nothing,
+                    /*file*/   Types.HANDLE,
+                    /*buffer*/ Types.voidptr_t,
+                    /*nbytes*/ Types.DWORD,
+                    /*nbytes_wr*/Types.DWORD.out_ptr,
+                    /*overlapped*/Types.void_t.inout_ptr // FIXME: Implement?
          );
 
-        declareLazyFFI(SysFile, "FlushFileBuffers", libc,
-          "FlushFileBuffers", ctypes.winapi_abi,
-                     /*return*/ Type.zero_or_nothing,
-                     /*file*/   Type.HANDLE);
+        WinFile.FlushFileBuffers =
+          declareFFI("FlushFileBuffers", ctypes.winapi_abi,
+                     /*return*/ Types.zero_or_nothing,
+                     /*file*/   Types.HANDLE);
      };
-
-     exports.OS.Win = {
-       File: {
-           _init:  init
-       }
-     };
+     exports.OS.Win.File._init = init;
    })(this);
 }

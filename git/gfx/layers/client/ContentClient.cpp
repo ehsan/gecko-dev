@@ -4,33 +4,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/layers/ContentClient.h"
-#include "BasicLayers.h"                // for BasicLayerManager
-#include "Layers.h"                     // for ThebesLayer, Layer, etc
-#include "gfxColor.h"                   // for gfxRGBA
-#include "gfxContext.h"                 // for gfxContext, etc
-#include "gfxPlatform.h"                // for gfxPlatform
-#include "gfxPoint.h"                   // for gfxIntSize, gfxPoint
-#include "gfxTeeSurface.h"              // for gfxTeeSurface
-#include "gfxUtils.h"                   // for gfxUtils
-#include "ipc/ShadowLayers.h"           // for ShadowLayerForwarder
-#include "mozilla/Util.h"               // for ArrayLength
-#include "mozilla/gfx/2D.h"             // for DrawTarget, Factory
-#include "mozilla/gfx/BasePoint.h"      // for BasePoint
-#include "mozilla/gfx/BaseSize.h"       // for BaseSize
-#include "mozilla/gfx/Rect.h"           // for Rect
-#include "mozilla/gfx/Types.h"
+#include "mozilla/gfx/2D.h"
+#include "BasicThebesLayer.h"
+#include "nsIWidget.h"
+#include "gfxUtils.h"
+#include "gfxPlatform.h"
 #include "mozilla/layers/LayerManagerComposite.h"
-#include "mozilla/layers/LayersMessages.h"  // for ThebesBufferData
-#include "mozilla/layers/LayersTypes.h"
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsDebug.h"                    // for NS_ASSERTION, NS_WARNING, etc
-#include "nsISupportsImpl.h"            // for gfxContext::Release, etc
-#include "nsIWidget.h"                  // for nsIWidget
-#include "prenv.h"                      // for PR_GetEnv
+#include "gfxTeeSurface.h"
 #ifdef XP_WIN
 #include "gfxWindowsPlatform.h"
 #endif
-#include "gfx2DGlue.h"
 
 namespace mozilla {
 
@@ -78,26 +61,12 @@ ContentClientBasic::ContentClientBasic(CompositableForwarder* aForwarder,
 : ContentClient(aForwarder), ThebesLayerBuffer(ContainsVisibleBounds), mManager(aManager)
 {}
 
-void
+already_AddRefed<gfxASurface>
 ContentClientBasic::CreateBuffer(ContentType aType,
                                  const nsIntRect& aRect,
                                  uint32_t aFlags,
-                                 gfxASurface** aBlackSurface,
-                                 gfxASurface** aWhiteSurface,
-                                 RefPtr<gfx::DrawTarget>* aBlackDT,
-                                 RefPtr<gfx::DrawTarget>* aWhiteDT)
+                                 gfxASurface**)
 {
-  MOZ_ASSERT(!(aFlags & BUFFER_COMPONENT_ALPHA));
-  if (gfxPlatform::GetPlatform()->SupportsAzureContent()) {
-    gfxImageFormat format =
-      gfxPlatform::GetPlatform()->OptimalFormatForContent(aType);
-
-    *aBlackDT = gfxPlatform::GetPlatform()->CreateOffscreenContentDrawTarget(
-      IntSize(aRect.width, aRect.height),
-      ImageFormatToSurfaceFormat(format));
-    return;
-  }
-
   nsRefPtr<gfxASurface> referenceSurface = GetBuffer();
   if (!referenceSurface) {
     gfxContext* defaultTarget = mManager->GetDefaultTarget();
@@ -110,9 +79,18 @@ ContentClientBasic::CreateBuffer(ContentType aType,
       }
     }
   }
-  nsRefPtr<gfxASurface> ret = referenceSurface->CreateSimilarSurface(
+  return referenceSurface->CreateSimilarSurface(
     aType, gfxIntSize(aRect.width, aRect.height));
-  *aBlackSurface = ret.forget().get();
+}
+
+TemporaryRef<DrawTarget>
+ContentClientBasic::CreateDTBuffer(ContentType aType,
+                                 const nsIntRect& aRect,
+                                 uint32_t aFlags)
+{
+  NS_RUNTIMEABORT("ContentClientBasic does not support Moz2D drawing yet!");
+  // TODO[Bas] - Implement me!?
+  return nullptr;
 }
 
 void
@@ -164,16 +142,14 @@ ContentClientRemoteBuffer::EndPaint()
 bool
 ContentClientRemoteBuffer::CreateAndAllocateDeprecatedTextureClient(RefPtr<DeprecatedTextureClient>& aClient)
 {
-  aClient = CreateDeprecatedTextureClient(TEXTURE_CONTENT, mContentType);
+  aClient = CreateDeprecatedTextureClient(TEXTURE_CONTENT);
   MOZ_ASSERT(aClient, "Failed to create texture client");
 
   if (!aClient->EnsureAllocated(mSize, mContentType)) {
-    aClient = CreateDeprecatedTextureClient(TEXTURE_FALLBACK, mContentType);
+    aClient = CreateDeprecatedTextureClient(TEXTURE_FALLBACK);
     MOZ_ASSERT(aClient, "Failed to create texture client");
     if (!aClient->EnsureAllocated(mSize, mContentType)) {
       NS_WARNING("Could not allocate texture client");
-      aClient->SetFlags(0);
-      aClient = nullptr;
       return false;
     }
   }
@@ -202,7 +178,7 @@ ContentClientRemoteBuffer::BuildDeprecatedTextureClients(ContentType aType,
 
   mContentType = aType;
   mSize = gfx::IntSize(aRect.width, aRect.height);
-  mTextureInfo.mTextureFlags = aFlags & ~TEXTURE_DEALLOCATE_CLIENT;
+  mTextureInfo.mTextureFlags = aFlags | TEXTURE_DEALLOCATE_HOST;
 
   if (!CreateAndAllocateDeprecatedTextureClient(mDeprecatedTextureClient)) {
     return;
@@ -210,59 +186,40 @@ ContentClientRemoteBuffer::BuildDeprecatedTextureClients(ContentType aType,
   
   if (aFlags & BUFFER_COMPONENT_ALPHA) {
     if (!CreateAndAllocateDeprecatedTextureClient(mDeprecatedTextureClientOnWhite)) {
-      mDeprecatedTextureClient->SetFlags(0);
-      mDeprecatedTextureClient = nullptr;
       return;
     }
-    mTextureInfo.mTextureFlags |= TEXTURE_COMPONENT_ALPHA;
+    mTextureInfo.mTextureFlags |= ComponentAlpha;
   }
 
   CreateFrontBufferAndNotify(aRect);
 }
 
-bool
-ContentClientBasic::SupportsAzureContent() const
+TemporaryRef<DrawTarget>
+ContentClientRemoteBuffer::CreateDTBuffer(ContentType aType,
+                                          const nsIntRect& aRect,
+                                          uint32_t aFlags)
 {
-  return gfxPlatform::GetPlatform()->SupportsAzureContent();
-}
- 
-bool
-ContentClientRemoteBuffer::SupportsAzureContent() const
-{
-  MOZ_ASSERT(mDeprecatedTextureClient);
+  MOZ_ASSERT(!(aFlags & BUFFER_COMPONENT_ALPHA), "We don't support component alpha here!");
+  BuildDeprecatedTextureClients(aType, aRect, aFlags);
 
-  return gfxPlatform::GetPlatform()->SupportsAzureContentForType(
-    mDeprecatedTextureClient->BackendType());
+  RefPtr<DrawTarget> ret = mDeprecatedTextureClient->LockDrawTarget();
+  return ret.forget();
 }
 
-void
+already_AddRefed<gfxASurface>
 ContentClientRemoteBuffer::CreateBuffer(ContentType aType,
                                         const nsIntRect& aRect,
                                         uint32_t aFlags,
-                                        gfxASurface** aBlackSurface,
-                                        gfxASurface** aWhiteSurface,
-                                        RefPtr<gfx::DrawTarget>* aBlackDT,
-                                        RefPtr<gfx::DrawTarget>* aWhiteDT)
+                                        gfxASurface** aWhiteSurface)
 {
   BuildDeprecatedTextureClients(aType, aRect, aFlags);
-  if (!mDeprecatedTextureClient) {
-    return;
-  }
 
-  if (gfxPlatform::GetPlatform()->SupportsAzureContentForType(
-        mDeprecatedTextureClient->BackendType())) {
-    *aBlackDT = mDeprecatedTextureClient->LockDrawTarget();
-    if (aFlags & BUFFER_COMPONENT_ALPHA) {
-      *aWhiteDT = mDeprecatedTextureClientOnWhite->LockDrawTarget();
-    }
-  } else {
-    nsRefPtr<gfxASurface> ret = mDeprecatedTextureClient->LockSurface();
-    *aBlackSurface = ret.forget().get();
-    if (aFlags & BUFFER_COMPONENT_ALPHA) {
-     nsRefPtr<gfxASurface> retWhite = mDeprecatedTextureClientOnWhite->LockSurface();
-      *aWhiteSurface = retWhite.forget().get();
-    }
+  nsRefPtr<gfxASurface> ret = mDeprecatedTextureClient->LockSurface();
+  if (aFlags & BUFFER_COMPONENT_ALPHA) {
+    nsRefPtr<gfxASurface> retWhite = mDeprecatedTextureClientOnWhite->LockSurface();
+    *aWhiteSurface = retWhite.forget().get();
   }
+  return ret.forget();
 }
 
 nsIntRegion
@@ -345,23 +302,11 @@ void
 ContentClientDoubleBuffered::CreateFrontBufferAndNotify(const nsIntRect& aBufferRect)
 {
   if (!CreateAndAllocateDeprecatedTextureClient(mFrontClient)) {
-    mDeprecatedTextureClient->SetFlags(0);
-    mDeprecatedTextureClient = nullptr;
-    if (mDeprecatedTextureClientOnWhite) {
-      mDeprecatedTextureClientOnWhite->SetFlags(0);
-      mDeprecatedTextureClientOnWhite = nullptr;
-    }
     return;
   }
 
-  if (mTextureInfo.mTextureFlags & TEXTURE_COMPONENT_ALPHA) {
+  if (mTextureInfo.mTextureFlags & ComponentAlpha) {
     if (!CreateAndAllocateDeprecatedTextureClient(mFrontClientOnWhite)) {
-      mDeprecatedTextureClient->SetFlags(0);
-      mDeprecatedTextureClient = nullptr;
-      mDeprecatedTextureClientOnWhite->SetFlags(0);
-      mDeprecatedTextureClientOnWhite = nullptr;
-      mFrontClient->SetFlags(0);
-      mFrontClient = nullptr;
       return;
     }
   }
@@ -370,11 +315,11 @@ ContentClientDoubleBuffered::CreateFrontBufferAndNotify(const nsIntRect& aBuffer
   mFrontBufferRotation = nsIntPoint();
   
   mForwarder->CreatedDoubleBuffer(this,
-                                  *mFrontClient->LockSurfaceDescriptor(),
-                                  *mDeprecatedTextureClient->LockSurfaceDescriptor(),
+                                  *mFrontClient->GetDescriptor(),
+                                  *mDeprecatedTextureClient->GetDescriptor(),
                                   mTextureInfo,
-                                  mFrontClientOnWhite ? mFrontClientOnWhite->LockSurfaceDescriptor() : nullptr,
-                                  mDeprecatedTextureClientOnWhite ? mDeprecatedTextureClientOnWhite->LockSurfaceDescriptor() : nullptr);
+                                  mFrontClientOnWhite ? mFrontClientOnWhite->GetDescriptor() : nullptr,
+                                  mDeprecatedTextureClientOnWhite ? mDeprecatedTextureClientOnWhite->GetDescriptor() : nullptr);
 }
 
 void
@@ -479,13 +424,21 @@ ContentClientDoubleBuffered::SyncFrontBufferToBackBuffer()
 
   nsIntRegion updateRegion = mFrontUpdatedRegion;
 
+  int32_t xBoundary = mBufferRect.XMost() - mBufferRotation.x;
+  int32_t yBoundary = mBufferRect.YMost() - mBufferRotation.y;
+
+  // Figure out whether the area we want to copy wraps the edges of our buffer.
+  bool needFullCopy = (xBoundary < updateRegion.GetBounds().XMost() &&
+                       xBoundary > updateRegion.GetBounds().x) ||
+                      (yBoundary < updateRegion.GetBounds().YMost() &&
+                       yBoundary > updateRegion.GetBounds().y);
+  
   // This is a tricky trade off, we're going to get stuff out of our
   // frontbuffer now, but the next PaintThebes might throw it all (or mostly)
   // away if the visible region has changed. This is why in reality we want
   // this code integrated with PaintThebes to always do the optimal thing.
 
-  if (mDidSelfCopy) {
-    mDidSelfCopy = false;
+  if (needFullCopy) {
     // We can't easily draw our front buffer into us, since we're going to be
     // copying stuff around anyway it's easiest if we just move our situation
     // to non-rotated while we're at it. If this situation occurs we'll have
@@ -500,21 +453,15 @@ ContentClientDoubleBuffered::SyncFrontBufferToBackBuffer()
  
   AutoDeprecatedTextureClient autoTextureFront;
   AutoDeprecatedTextureClient autoTextureFrontOnWhite;
-  if (SupportsAzureContent()) {
-    // We need to ensure that we lock these two buffers in the same
-    // order as the compositor to prevent deadlocks.
-    DrawTarget* dt = autoTextureFront.GetDrawTarget(mFrontClient);
-    DrawTarget* dtOnWhite = autoTextureFrontOnWhite.GetDrawTarget(mFrontClientOnWhite);
-    RotatedBuffer frontBuffer(dt,
-                              dtOnWhite,
+  if (gfxPlatform::GetPlatform()->SupportsAzureContent()) {
+    RotatedBuffer frontBuffer(autoTextureFront.GetDrawTarget(mFrontClient),
+                              autoTextureFrontOnWhite.GetDrawTarget(mFrontClientOnWhite),
                               mFrontBufferRect,
                               mFrontBufferRotation);
     UpdateDestinationFrom(frontBuffer, updateRegion);
   } else {
-    gfxASurface* surf = autoTextureFront.GetSurface(mFrontClient);
-    gfxASurface* surfOnWhite = autoTextureFrontOnWhite.GetSurface(mFrontClientOnWhite);
-    RotatedBuffer frontBuffer(surf,
-                              surfOnWhite,
+    RotatedBuffer frontBuffer(autoTextureFront.GetSurface(mFrontClient),
+                              autoTextureFrontOnWhite.GetSurface(mFrontClientOnWhite),
                               mFrontBufferRect,
                               mFrontBufferRotation);
     UpdateDestinationFrom(frontBuffer, updateRegion);
@@ -537,9 +484,13 @@ ContentClientDoubleBuffered::UpdateDestinationFrom(const RotatedBuffer& aSource,
     gfxUtils::ClipToRegion(destCtx, aUpdateRegion);
   }
 
-  if (SupportsAzureContent()) {
+  if (gfxPlatform::GetPlatform()->SupportsAzureContent()) {
     MOZ_ASSERT(!destCtx->IsCairo());
-    aSource.DrawBufferWithRotation(destCtx->GetDrawTarget(), BUFFER_BLACK, 1.0, OP_SOURCE);
+
+    if (destCtx->GetDrawTarget()->GetFormat() == FORMAT_B8G8R8A8) {
+      destCtx->GetDrawTarget()->ClearRect(Rect(0, 0, mFrontBufferRect.width, mFrontBufferRect.height));
+    }
+    aSource.DrawBufferWithRotation(destCtx->GetDrawTarget(), BUFFER_BLACK);
   } else {
     aSource.DrawBufferWithRotation(destCtx, BUFFER_BLACK);
   }
@@ -555,9 +506,13 @@ ContentClientDoubleBuffered::UpdateDestinationFrom(const RotatedBuffer& aSource,
       gfxUtils::ClipToRegion(destCtx, aUpdateRegion);
     }
 
-    if (SupportsAzureContent()) {
+    if (gfxPlatform::GetPlatform()->SupportsAzureContent()) {
       MOZ_ASSERT(!destCtx->IsCairo());
-      aSource.DrawBufferWithRotation(destCtx->GetDrawTarget(), BUFFER_WHITE, 1.0, OP_SOURCE);
+
+      if (destCtx->GetDrawTarget()->GetFormat() == FORMAT_B8G8R8A8) {
+        destCtx->GetDrawTarget()->ClearRect(Rect(0, 0, mFrontBufferRect.width, mFrontBufferRect.height));
+      }
+      aSource.DrawBufferWithRotation(destCtx->GetDrawTarget(), BUFFER_WHITE);
     } else {
       aSource.DrawBufferWithRotation(destCtx, BUFFER_WHITE);
     }
@@ -578,9 +533,9 @@ void
 ContentClientSingleBuffered::CreateFrontBufferAndNotify(const nsIntRect& aBufferRect)
 {
   mForwarder->CreatedSingleBuffer(this,
-                                  *mDeprecatedTextureClient->LockSurfaceDescriptor(),
+                                  *mDeprecatedTextureClient->GetDescriptor(),
                                   mTextureInfo,
-                                  mDeprecatedTextureClientOnWhite ? mDeprecatedTextureClientOnWhite->LockSurfaceDescriptor() : nullptr);
+                                  mDeprecatedTextureClientOnWhite ? mDeprecatedTextureClientOnWhite->GetDescriptor() : nullptr);
 }
 
 void
@@ -590,41 +545,22 @@ ContentClientSingleBuffered::SyncFrontBufferToBackBuffer()
     return;
   }
 
-  if (SupportsAzureContent()) {
-    DrawTarget* backBuffer = GetDTBuffer();
-    if (!backBuffer && mDeprecatedTextureClient) {
-      backBuffer = mDeprecatedTextureClient->LockDrawTarget();
-    }
-
-    RefPtr<DrawTarget> oldBuffer;
-    oldBuffer = SetDTBuffer(backBuffer,
-                            mBufferRect,
-                            mBufferRotation);
-
-    backBuffer = GetDTBufferOnWhite();
-    if (!backBuffer && mDeprecatedTextureClientOnWhite) {
-      backBuffer = mDeprecatedTextureClientOnWhite->LockDrawTarget();
-    }
-
-    oldBuffer = SetDTBufferOnWhite(backBuffer);
-  } else {
-    gfxASurface* backBuffer = GetBuffer();
-    if (!backBuffer && mDeprecatedTextureClient) {
-      backBuffer = mDeprecatedTextureClient->LockSurface();
-    }
-
-    nsRefPtr<gfxASurface> oldBuffer;
-    oldBuffer = SetBuffer(backBuffer,
-                          mBufferRect,
-                          mBufferRotation);
-
-    backBuffer = GetBufferOnWhite();
-    if (!backBuffer && mDeprecatedTextureClientOnWhite) {
-      backBuffer = mDeprecatedTextureClientOnWhite->LockSurface();
-    }
-
-    oldBuffer = SetBufferOnWhite(backBuffer);
+  gfxASurface* backBuffer = GetBuffer();
+  if (!backBuffer && mDeprecatedTextureClient) {
+    backBuffer = mDeprecatedTextureClient->LockSurface();
   }
+
+  nsRefPtr<gfxASurface> oldBuffer;
+  oldBuffer = SetBuffer(backBuffer,
+                        mBufferRect,
+                        mBufferRotation);
+
+  backBuffer = GetBufferOnWhite();
+  if (!backBuffer && mDeprecatedTextureClientOnWhite) {
+    backBuffer = mDeprecatedTextureClientOnWhite->LockSurface();
+  }
+
+  oldBuffer = SetBufferOnWhite(backBuffer);
 
   mIsNewBuffer = false;
   mFrontAndBackBufferDiffer = false;
@@ -678,7 +614,7 @@ ContentClientIncremental::BeginPaintBuffer(ThebesLayer* aLayer,
     canReuseBuffer = neededRegion.GetBounds().Size() <= mBufferRect.Size() &&
       mHasBuffer &&
       (!(aFlags & ThebesLayerBuffer::PAINT_WILL_RESAMPLE) ||
-       !(mTextureInfo.mTextureFlags & TEXTURE_ALLOW_REPEAT));
+       !(mTextureInfo.mTextureFlags & AllowRepeat));
 
     if (canReuseBuffer) {
       if (mBufferRect.Contains(neededRegion.GetBounds())) {
@@ -694,13 +630,15 @@ ContentClientIncremental::BeginPaintBuffer(ThebesLayer* aLayer,
     }
 
     if (mode == Layer::SURFACE_COMPONENT_ALPHA) {
-      if (!gfxPlatform::ComponentAlphaEnabled() ||
-          !aLayer->GetParent() ||
-          !aLayer->GetParent()->SupportsComponentAlphaChildren()) {
+#ifdef MOZ_GFX_OPTIMIZE_MOBILE
+      mode = Layer::SURFACE_SINGLE_CHANNEL_ALPHA;
+#else
+      if (!aLayer->GetParent() || !aLayer->GetParent()->SupportsComponentAlphaChildren()) {
         mode = Layer::SURFACE_SINGLE_CHANNEL_ALPHA;
       } else {
-        contentType = GFX_CONTENT_COLOR;
+        contentType = gfxASurface::CONTENT_COLOR;
       }
+ #endif
     }
 
     if ((aFlags & ThebesLayerBuffer::PAINT_WILL_RESAMPLE) &&
@@ -708,10 +646,10 @@ ContentClientIncremental::BeginPaintBuffer(ThebesLayer* aLayer,
          neededRegion.GetNumRects() > 1)) {
       // The area we add to neededRegion might not be painted opaquely
       if (mode == Layer::SURFACE_OPAQUE) {
-        contentType = GFX_CONTENT_COLOR_ALPHA;
+        contentType = gfxASurface::CONTENT_COLOR_ALPHA;
         mode = Layer::SURFACE_SINGLE_CHANNEL_ALPHA;
       }
-      // For component alpha layers, we leave contentType as GFX_CONTENT_COLOR.
+      // For component alpha layers, we leave contentType as CONTENT_COLOR.
 
       // We need to validate the entire buffer, to make sure that only valid
       // pixels are sampled
@@ -762,9 +700,9 @@ ContentClientIncremental::BeginPaintBuffer(ThebesLayer* aLayer,
   nsIntRect drawBounds = result.mRegionToDraw.GetBounds();
   bool createdBuffer = false;
 
-  uint32_t bufferFlags = canHaveRotation ? TEXTURE_ALLOW_REPEAT : 0;
+  uint32_t bufferFlags = canHaveRotation ? AllowRepeat : 0;
   if (mode == Layer::SURFACE_COMPONENT_ALPHA) {
-    bufferFlags |= TEXTURE_COMPONENT_ALPHA;
+    bufferFlags |= ComponentAlpha;
   }
   if (canReuseBuffer) {
     nsIntRect keepArea;
@@ -894,14 +832,12 @@ ContentClientIncremental::BeginPaintBuffer(ThebesLayer* aLayer,
   // although they never cover it. This leads to two draw rects, the narow strip and the actually
   // newly exposed area. It would be wise to fix this glitch in any way to have simpler
   // clip and draw regions.
-  result.mClip = CLIP_DRAW;
+  gfxUtils::ClipToRegion(result.mContext, result.mRegionToDraw);
 
-  if (mContentType == GFX_CONTENT_COLOR_ALPHA) {
-    result.mContext->Save();
-    gfxUtils::ClipToRegion(result.mContext, result.mRegionToDraw);
+  if (mContentType == gfxASurface::CONTENT_COLOR_ALPHA) {
     result.mContext->SetOperator(gfxContext::OPERATOR_CLEAR);
     result.mContext->Paint();
-    result.mContext->Restore();
+    result.mContext->SetOperator(gfxContext::OPERATOR_OVER);
   }
 
   return result;

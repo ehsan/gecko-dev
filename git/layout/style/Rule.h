@@ -95,7 +95,7 @@ public:
   }
 
   /**
-   * Clones |this|. Never returns nullptr.
+   * Clones |this|. Never returns NULL.
    */
   virtual already_AddRefed<Rule> Clone() const = 0;
 

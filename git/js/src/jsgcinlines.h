@@ -9,7 +9,13 @@
 
 #include "jsgc.h"
 
-#include "gc/Zone.h"
+#include "jscntxt.h"
+#include "jscompartment.h"
+#include "jslock.h"
+
+#include "js/RootingAPI.h"
+#include "vm/ForkJoin.h"
+#include "vm/Shape.h"
 
 namespace js {
 
@@ -26,9 +32,8 @@ struct AutoMarkInDeadZone
       : zone(zone),
         scheduled(zone->scheduledForDestruction)
     {
-        JSRuntime *rt = zone->runtimeFromMainThread();
-        if (rt->gcManipulatingDeadZones && zone->scheduledForDestruction) {
-            rt->gcObjectsMarkedInDeadZones++;
+        if (zone->rt->gcManipulatingDeadZones && zone->scheduledForDestruction) {
+            zone->rt->gcObjectsMarkedInDeadZones++;
             zone->scheduledForDestruction = false;
         }
     }
@@ -49,31 +54,10 @@ ThreadSafeContext::allocator()
     return allocator_;
 }
 
-template <typename T>
-inline bool
-ThreadSafeContext::isThreadLocal(T thing) const
-{
-    if (!isForkJoinSlice())
-        return true;
-
-    if (!IsInsideNursery(runtime_, thing) &&
-        allocator_->arenas.containsArena(runtime_, thing->arenaHeader()))
-    {
-        // GC should be suppressed in preparation for mutating thread local
-        // objects, as we don't want to trip any barriers.
-        JS_ASSERT(!thing->zoneFromAnyThread()->needsBarrier());
-        JS_ASSERT(!thing->runtimeFromAnyThread()->needsBarrier());
-
-        return true;
-    }
-
-    return false;
-}
-
 namespace gc {
 
 static inline AllocKind
-GetGCObjectKind(const Class *clasp)
+GetGCObjectKind(Class *clasp)
 {
     if (clasp == FunctionClassPtr)
         return JSFunction::FinalizeKind;
@@ -91,13 +75,22 @@ ShouldNurseryAllocate(const Nursery &nursery, AllocKind kind, InitialHeap heap)
 }
 #endif
 
+inline bool
+IsInsideNursery(JSRuntime *rt, const void *thing)
+{
+#ifdef JSGC_GENERATIONAL
+    return rt->gcNursery.isInside(thing);
+#endif
+    return false;
+}
+
 inline JSGCTraceKind
 GetGCThingTraceKind(const void *thing)
 {
     JS_ASSERT(thing);
     const Cell *cell = static_cast<const Cell *>(thing);
 #ifdef JSGC_GENERATIONAL
-    if (IsInsideNursery(cell->runtimeFromMainThread(), cell))
+    if (IsInsideNursery(cell->runtime(), cell))
         return JSTRACE_OBJECT;
 #endif
     return MapAllocToTraceKind(cell->tenuredGetAllocKind());
@@ -130,13 +123,13 @@ class ArenaIter
     }
 
     void init() {
-        aheader = nullptr;
-        remainingHeader = nullptr;
+        aheader = NULL;
+        remainingHeader = NULL;
     }
 
     void init(ArenaHeader *aheaderArg) {
         aheader = aheaderArg;
-        remainingHeader = nullptr;
+        remainingHeader = NULL;
     }
 
     void init(JS::Zone *zone, AllocKind kind) {
@@ -144,7 +137,7 @@ class ArenaIter
         remainingHeader = zone->allocator.arenas.getFirstArenaToSweep(kind);
         if (!aheader) {
             aheader = remainingHeader;
-            remainingHeader = nullptr;
+            remainingHeader = NULL;
         }
     }
 
@@ -160,7 +153,7 @@ class ArenaIter
         aheader = aheader->next;
         if (!aheader) {
             aheader = remainingHeader;
-            remainingHeader = nullptr;
+            remainingHeader = NULL;
         }
     }
 };
@@ -226,7 +219,7 @@ class CellIterImpl
                 break;
             }
             if (aiter.done()) {
-                cell = nullptr;
+                cell = NULL;
                 return;
             }
             ArenaHeader *aheader = aiter.get();
@@ -244,12 +237,12 @@ class CellIterUnderGC : public CellIterImpl
 {
   public:
     CellIterUnderGC(JS::Zone *zone, AllocKind kind) {
-        JS_ASSERT(zone->runtimeFromAnyThread()->isHeapBusy());
+        JS_ASSERT(zone->rt->isHeapBusy());
         init(zone, kind);
     }
 
     CellIterUnderGC(ArenaHeader *aheader) {
-        JS_ASSERT(aheader->zone->runtimeFromAnyThread()->isHeapBusy());
+        JS_ASSERT(aheader->zone->rt->isHeapBusy());
         init(aheader);
     }
 };
@@ -275,16 +268,16 @@ class CellIter : public CellIterImpl
         if (IsBackgroundFinalized(kind) &&
             zone->allocator.arenas.needBackgroundFinalizeWait(kind))
         {
-            gc::FinishBackgroundFinalize(zone->runtimeFromMainThread());
+            gc::FinishBackgroundFinalize(zone->rt);
         }
         if (lists->isSynchronizedFreeList(kind)) {
-            lists = nullptr;
+            lists = NULL;
         } else {
-            JS_ASSERT(!zone->runtimeFromMainThread()->isHeapBusy());
+            JS_ASSERT(!zone->rt->isHeapBusy());
             lists->copyFreeListToArena(kind);
         }
 #ifdef DEBUG
-        counter = &zone->runtimeFromAnyThread()->noGCOrAllocationCheck;
+        counter = &zone->rt->noGCOrAllocationCheck;
         ++*counter;
 #endif
         init(zone, kind);
@@ -363,7 +356,7 @@ typedef CompartmentsIterT<GCZoneGroupIter> GCCompartmentGroupIter;
 #ifdef JSGC_GENERATIONAL
 /*
  * Attempt to allocate a new GC thing out of the nursery. If there is not enough
- * room in the nursery or there is an OOM, this method will return nullptr.
+ * room in the nursery or there is an OOM, this method will return NULL.
  */
 template <typename T, AllowGC allowGC>
 inline T *
@@ -388,7 +381,7 @@ TryNewNurseryGCThing(ThreadSafeContext *cxArg, size_t thingSize)
             return t;
         }
     }
-    return nullptr;
+    return NULL;
 }
 #endif /* JSGC_GENERATIONAL */
 
@@ -406,21 +399,18 @@ NewGCThing(ThreadSafeContext *cx, AllocKind kind, size_t thingSize, InitialHeap 
 
     if (cx->isJSContext()) {
         JSContext *ncx = cx->asJSContext();
-#ifdef JS_GC_ZEAL
-        JSRuntime *rt = ncx->runtime();
-#endif
-        JS_ASSERT_IF(rt->isAtomsCompartment(ncx->compartment()),
+        JS_ASSERT_IF(ncx->compartment() == ncx->runtime()->atomsCompartment,
                      kind == FINALIZE_STRING ||
                      kind == FINALIZE_SHORT_STRING ||
                      kind == FINALIZE_IONCODE);
-        JS_ASSERT(!rt->isHeapBusy());
-        JS_ASSERT(!rt->noGCOrAllocationCheck);
+        JS_ASSERT(!ncx->runtime()->isHeapBusy());
+        JS_ASSERT(!ncx->runtime()->noGCOrAllocationCheck);
 
         /* For testing out of memory conditions */
         JS_OOM_POSSIBLY_FAIL_REPORT(ncx);
 
 #ifdef JS_GC_ZEAL
-        if (rt->needZealousGC() && allowGC)
+        if (ncx->runtime()->needZealousGC() && allowGC)
             js::gc::RunDebugGC(ncx);
 #endif
 

@@ -41,10 +41,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=265203
 
 /** Test for Bug 265203 **/
 
-// Turn off spatial navigation because it hijacks VK_RIGHT and VK_LEFT keydown
-// events
-SpecialPowers.setBoolPref("snav.enabled", false);
-
 var gTestStarted = false;
 var expectedResult = [ null, 0, null ];
 var nextTest;
@@ -93,8 +89,19 @@ function test3() {
     synthesizeKey("VK_RIGHT", { });
     synthesizeKey("VK_RIGHT", { });
     expectedResult = [ $("a3").firstChild, 7, $("a3") ]
-    nextTest = SimpleTest.finish;
+    nextTest = endTest;
     testFocus();
+}
+
+function endTest() {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var prefs = Components.classes["@mozilla.org/preferences-service;1"].
+                getService(Components.interfaces.nsIPrefBranch);
+  try {
+    prefs.setBoolPref("accessibility.browsewithcaret", false);
+  } finally {
+    SimpleTest.finish();
+  }
 }
 
 function startTest() {
@@ -102,11 +109,21 @@ function startTest() {
     return;
   gTestStarted = true;
 
-  SpecialPowers.pushPrefEnv({"set": [["accessibility.browsewithcaret", true]]}, test0);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var prefs = Components.classes["@mozilla.org/preferences-service;1"].
+                getService(Components.interfaces.nsIPrefBranch);
+  try {
+    prefs.setBoolPref("accessibility.browsewithcaret", true);
+    test0();
+  } catch(e) {
+    endTest();
+  }
 }
+
 
 SimpleTest.waitForExplicitFinish();
 SimpleTest.waitForFocus(startTest);
+
 
 </script>
 </pre>

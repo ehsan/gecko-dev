@@ -9,16 +9,20 @@
 #include "gfxQuartzSurface.h"
 #include "gfxQuartzImageSurface.h"
 #include "mozilla/gfx/2D.h"
+#include "mozilla/gfx/QuartzSupport.h"
 
 #include "gfxMacPlatformFontList.h"
 #include "gfxMacFont.h"
 #include "gfxCoreTextShaper.h"
 #include "gfxUserFontSet.h"
 
+#include "nsCRT.h"
 #include "nsTArray.h"
+#include "nsUnicodeRange.h"
+
 #include "mozilla/Preferences.h"
+
 #include "qcms.h"
-#include "gfx2DGlue.h"
 
 #include <dlfcn.h>
 
@@ -67,7 +71,7 @@ gfxPlatformMac::gfxPlatformMac()
     mFontAntiAliasingThreshold = ReadAntiAliasingThreshold();
 
     uint32_t canvasMask = (1 << BACKEND_CAIRO) | (1 << BACKEND_SKIA) | (1 << BACKEND_COREGRAPHICS);
-    uint32_t contentMask = (1 << BACKEND_CAIRO) | (1 << BACKEND_COREGRAPHICS);
+    uint32_t contentMask = (1 << BACKEND_COREGRAPHICS);
     InitBackendPrefs(canvasMask, contentMask);
 }
 
@@ -89,7 +93,7 @@ gfxPlatformMac::CreatePlatformFontList()
 
 already_AddRefed<gfxASurface>
 gfxPlatformMac::CreateOffscreenSurface(const gfxIntSize& size,
-                                       gfxContentType contentType)
+                                       gfxASurface::gfxContentType contentType)
 {
     nsRefPtr<gfxASurface> newSurface =
       new gfxQuartzSurface(size, OptimalFormatForContent(contentType));
@@ -98,7 +102,7 @@ gfxPlatformMac::CreateOffscreenSurface(const gfxIntSize& size,
 
 already_AddRefed<gfxASurface>
 gfxPlatformMac::CreateOffscreenImageSurface(const gfxIntSize& aSize,
-                                            gfxContentType aContentType)
+                                            gfxASurface::gfxContentType aContentType)
 {
     nsRefPtr<gfxASurface> surface = CreateOffscreenSurface(aSize, aContentType);
 #ifdef DEBUG
@@ -111,7 +115,7 @@ gfxPlatformMac::CreateOffscreenImageSurface(const gfxIntSize& aSize,
 
 already_AddRefed<gfxASurface>
 gfxPlatformMac::OptimizeImage(gfxImageSurface *aSurface,
-                              gfxImageFormat format)
+                              gfxASurface::gfxImageFormat format)
 {
     const gfxIntSize& surfaceSize = aSurface->GetSize();
     nsRefPtr<gfxImageSurface> isurf = aSurface;
@@ -231,6 +235,7 @@ gfxPlatformMac::UpdateFontList()
 static const char kFontArialUnicodeMS[] = "Arial Unicode MS";
 static const char kFontAppleBraille[] = "Apple Braille";
 static const char kFontAppleSymbols[] = "Apple Symbols";
+static const char kFontAppleMyungjo[] = "AppleMyungjo";
 static const char kFontGeneva[] = "Geneva";
 static const char kFontGeezaPro[] = "Geeza Pro";
 static const char kFontHiraginoKakuGothic[] = "Hiragino Kaku Gothic ProN";
@@ -337,8 +342,8 @@ gfxPlatformMac::OSXVersion()
         OSErr err = ::Gestalt(gestaltSystemVersion, reinterpret_cast<SInt32*>(&mOSXVersion));
         if (err != noErr) {
             //This should probably be changed when our minimum version changes
-            NS_ERROR("Couldn't determine OS X version, assuming 10.6");
-            mOSXVersion = MAC_OS_X_VERSION_10_6_HEX;
+            NS_ERROR("Couldn't determine OS X version, assuming 10.4");
+            mOSXVersion = MAC_OS_X_VERSION_10_4_HEX;
         }
     }
     return mOSXVersion;
@@ -379,8 +384,8 @@ gfxPlatformMac::CreateThebesSurfaceAliasForDrawTarget_hack(mozilla::gfx::DrawTar
     size_t stride = CGBitmapContextGetBytesPerRow(cg);
     gfxIntSize size(aTarget->GetSize().width, aTarget->GetSize().height);
     nsRefPtr<gfxImageSurface> imageSurface = new gfxImageSurface(data, size, stride, bpp == 2
-                                                                                     ? gfxImageFormatRGB16_565
-                                                                                     : gfxImageFormatARGB32);
+                                                                                     ? gfxASurface::ImageFormatRGB16_565
+                                                                                     : gfxASurface::ImageFormatARGB32);
     // Here we should return a gfxQuartzImageSurface but quartz will assumes that image surfaces
     // don't change which wont create a proper alias to the draw target, therefore we have to
     // return a plain image surface.
@@ -398,9 +403,9 @@ gfxPlatformMac::GetThebesSurfaceForDrawTarget(DrawTarget *aTarget)
     RefPtr<DataSourceSurface> sourceData = source->GetDataSurface();
     unsigned char* data = sourceData->GetData();
     nsRefPtr<gfxImageSurface> surf = new gfxImageSurface(data, ThebesIntSize(sourceData->GetSize()), sourceData->Stride(),
-                                                         gfxImageFormatARGB32);
+                                                         gfxImageSurface::ImageFormatARGB32);
     // We could fix this by telling gfxImageSurface it owns data.
-    nsRefPtr<gfxImageSurface> cpy = new gfxImageSurface(ThebesIntSize(sourceData->GetSize()), gfxImageFormatARGB32);
+    nsRefPtr<gfxImageSurface> cpy = new gfxImageSurface(ThebesIntSize(sourceData->GetSize()), gfxImageSurface::ImageFormatARGB32);
     cpy->CopyFrom(surf);
     return cpy.forget();
   } else if (aTarget->GetType() == BACKEND_COREGRAPHICS) {
@@ -429,31 +434,92 @@ gfxPlatformMac::UseAcceleratedCanvas()
 bool
 gfxPlatformMac::SupportsOffMainThreadCompositing()
 {
-  return true;
+  // 10.6.X has crashes on tinderbox with OMTC, so disable it
+  // for now.
+  if (OSXVersion() >= 0x1070) {
+    return true;
+  }
+  return GetPrefLayersOffMainThreadCompositionForceEnabled();
 }
 
 qcms_profile *
 gfxPlatformMac::GetPlatformCMSOutputProfile()
 {
-    CGColorSpaceRef cspace = ::CGDisplayCopyColorSpace(::CGMainDisplayID());
-    if (!cspace) {
-        cspace = ::CGColorSpaceCreateDeviceRGB();
-    }
-    if (!cspace) {
+    qcms_profile *profile = nullptr;
+    CMProfileRef cmProfile;
+    CMProfileLocation *location;
+    UInt32 locationSize;
+
+    /* There a number of different ways that we could try to get a color
+       profile to use.  On 10.5 all of these methods seem to give the same
+       results. On 10.6, the results are different and the following method,
+       using CGMainDisplayID() seems to best match what we are looking for.
+       Currently, both Google Chrome and Qt4 use a similar method.
+
+       CMTypes.h describes CMDisplayIDType:
+       "Data type for ColorSync DisplayID reference
+        On 8 & 9 this is a AVIDType
+	On X this is a CGSDisplayID"
+
+       CGMainDisplayID gives us a CGDirectDisplayID which presumeably
+       corresponds directly to a CGSDisplayID */
+    CGDirectDisplayID displayID = CGMainDisplayID();
+
+    CMError err = CMGetProfileByAVID(static_cast<CMDisplayIDType>(displayID), &cmProfile);
+    if (err != noErr)
         return nullptr;
-    }
 
-    CFDataRef iccp = ::CGColorSpaceCopyICCProfile(cspace);
-
-    ::CFRelease(cspace);
-
-    if (!iccp) {
+    // get the size of location
+    err = NCMGetProfileLocation(cmProfile, nullptr, &locationSize);
+    if (err != noErr)
         return nullptr;
+
+    // allocate enough room for location
+    location = static_cast<CMProfileLocation*>(malloc(locationSize));
+    if (!location)
+        goto fail_close;
+
+    err = NCMGetProfileLocation(cmProfile, location, &locationSize);
+    if (err != noErr)
+        goto fail_location;
+
+    switch (location->locType) {
+#ifndef __LP64__
+    case cmFileBasedProfile: {
+        FSRef fsRef;
+        if (!FSpMakeFSRef(&location->u.fileLoc.spec, &fsRef)) {
+            char path[512];
+            if (!FSRefMakePath(&fsRef, reinterpret_cast<UInt8*>(path), sizeof(path))) {
+                profile = qcms_profile_from_path(path);
+#ifdef DEBUG_tor
+                if (profile)
+                    fprintf(stderr,
+                            "ICM profile read from %s fileLoc successfully\n", path);
+#endif
+            }
+        }
+        break;
+    }
+#endif
+    case cmPathBasedProfile:
+        profile = qcms_profile_from_path(location->u.pathLoc.path);
+#ifdef DEBUG_tor
+        if (profile)
+            fprintf(stderr,
+                    "ICM profile read from %s pathLoc successfully\n",
+                    device.u.pathLoc.path);
+#endif
+        break;
+    default:
+#ifdef DEBUG_tor
+        fprintf(stderr, "Unhandled ColorSync profile location\n");
+#endif
+        break;
     }
 
-    qcms_profile* profile = qcms_profile_from_memory(::CFDataGetBytePtr(iccp), static_cast<size_t>(::CFDataGetLength(iccp)));
-
-    ::CFRelease(iccp);
-
+fail_location:
+    free(location);
+fail_close:
+    CMCloseProfile(cmProfile);
     return profile;
 }

@@ -9,9 +9,12 @@
 #include "nsIContent.h"
 #include "nsXBLProtoImplProperty.h"
 #include "nsUnicharUtils.h"
+#include "nsContentUtils.h"
 #include "nsCxPusher.h"
 #include "nsReadableUtils.h"
+#include "nsIScriptContext.h"
 #include "nsJSUtils.h"
+#include "nsIScriptGlobalObject.h"
 #include "nsXBLPrototypeBinding.h"
 #include "nsXBLSerialize.h"
 #include "xpcpublic.h"
@@ -129,24 +132,33 @@ nsXBLProtoImplProperty::InstallMember(JSContext *aCx,
   MOZ_ASSERT(mGetter.IsCompiled() && mSetter.IsCompiled());
   MOZ_ASSERT(js::IsObjectInContextCompartment(aTargetClassObject, aCx));
   JS::Rooted<JSObject*> globalObject(aCx, JS_GetGlobalForObject(aCx, aTargetClassObject));
-  MOZ_ASSERT(xpc::IsInXBLScope(globalObject) ||
-             globalObject == xpc::GetXBLScope(aCx, globalObject));
+  JS::Rooted<JSObject*> scopeObject(aCx, xpc::GetXBLScope(aCx, globalObject));
+  NS_ENSURE_TRUE(scopeObject, NS_ERROR_OUT_OF_MEMORY);
 
+  // now we want to reevaluate our property using aContext and the script object for this window...
   if (mGetter.GetJSFunction() || mSetter.GetJSFunction()) {
+    // First, enter the compartment of the scope object and clone the functions.
+    JSAutoCompartment ac(aCx, scopeObject);
+
     JS::Rooted<JSObject*> getter(aCx, nullptr);
     if (mGetter.GetJSFunction()) {
-      if (!(getter = ::JS_CloneFunctionObject(aCx, mGetter.GetJSFunction(), globalObject)))
+      if (!(getter = ::JS_CloneFunctionObject(aCx, mGetter.GetJSFunction(), scopeObject)))
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
     JS::Rooted<JSObject*> setter(aCx, nullptr);
     if (mSetter.GetJSFunction()) {
-      if (!(setter = ::JS_CloneFunctionObject(aCx, mSetter.GetJSFunction(), globalObject)))
+      if (!(setter = ::JS_CloneFunctionObject(aCx, mSetter.GetJSFunction(), scopeObject)))
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
+    // Now, enter the content compartment, wrap the getter/setter, and define
+    // them on the class object.
+    JSAutoCompartment ac2(aCx, aTargetClassObject);
     nsDependentString name(mName);
-    if (!::JS_DefineUCProperty(aCx, aTargetClassObject,
+    if (!JS_WrapObject(aCx, getter.address()) ||
+        !JS_WrapObject(aCx, setter.address()) ||
+        !::JS_DefineUCProperty(aCx, aTargetClassObject,
                                static_cast<const jschar*>(mName),
                                name.Length(), JSVAL_VOID,
                                JS_DATA_TO_FUNC_PTR(JSPropertyOp, getter.get()),
@@ -158,10 +170,9 @@ nsXBLProtoImplProperty::InstallMember(JSContext *aCx,
 }
 
 nsresult
-nsXBLProtoImplProperty::CompileMember(const nsCString& aClassStr,
+nsXBLProtoImplProperty::CompileMember(nsIScriptContext* aContext, const nsCString& aClassStr,
                                       JS::Handle<JSObject*> aClassObject)
 {
-  AssertInCompilationScope();
   NS_PRECONDITION(!mIsCompiled,
                   "Trying to compile an already-compiled property");
   NS_PRECONDITION(aClassObject,
@@ -188,7 +199,7 @@ nsXBLProtoImplProperty::CompileMember(const nsCString& aClassStr,
   if (getterText && getterText->GetText()) {
     nsDependentString getter(getterText->GetText());
     if (!getter.IsEmpty()) {
-      AutoJSContext cx;
+      AutoPushJSContext cx(aContext->GetNativeContext());
       JSAutoCompartment ac(cx, aClassObject);
       JS::CompileOptions options(cx);
       options.setFileAndLine(functionUri.get(), getterText->GetLineNumber())
@@ -235,7 +246,7 @@ nsXBLProtoImplProperty::CompileMember(const nsCString& aClassStr,
   if (setterText && setterText->GetText()) {
     nsDependentString setter(setterText->GetText());
     if (!setter.IsEmpty()) {
-      AutoJSContext cx;
+      AutoPushJSContext cx(aContext->GetNativeContext());
       JSAutoCompartment ac(cx, aClassObject);
       JS::CompileOptions options(cx);
       options.setFileAndLine(functionUri.get(), setterText->GetLineNumber())
@@ -286,18 +297,19 @@ nsXBLProtoImplProperty::Trace(const TraceCallbacks& aCallbacks, void *aClosure)
 }
 
 nsresult
-nsXBLProtoImplProperty::Read(nsIObjectInputStream* aStream,
+nsXBLProtoImplProperty::Read(nsIScriptContext* aContext,
+                             nsIObjectInputStream* aStream,
                              XBLBindingSerializeDetails aType)
 {
-  AssertInCompilationScope();
   MOZ_ASSERT(!mIsCompiled);
   MOZ_ASSERT(!mGetter.GetUncompiled() && !mSetter.GetUncompiled());
 
-  AutoJSContext cx;
+  JSContext *cx = aContext->GetNativeContext();
+
   JS::Rooted<JSObject*> getterObject(cx);
   if (aType == XBLBinding_Serialize_GetterProperty ||
       aType == XBLBinding_Serialize_GetterSetterProperty) {
-    nsresult rv = XBL_DeserializeFunction(aStream, &getterObject);
+    nsresult rv = XBL_DeserializeFunction(aContext, aStream, &getterObject);
     NS_ENSURE_SUCCESS(rv, rv);
 
     mJSAttributes |= JSPROP_GETTER | JSPROP_SHARED;
@@ -307,7 +319,7 @@ nsXBLProtoImplProperty::Read(nsIObjectInputStream* aStream,
   JS::Rooted<JSObject*> setterObject(cx);
   if (aType == XBLBinding_Serialize_SetterProperty ||
       aType == XBLBinding_Serialize_GetterSetterProperty) {
-    nsresult rv = XBL_DeserializeFunction(aStream, &setterObject);
+    nsresult rv = XBL_DeserializeFunction(aContext, aStream, &setterObject);
     NS_ENSURE_SUCCESS(rv, rv);
 
     mJSAttributes |= JSPROP_SETTER | JSPROP_SHARED;
@@ -322,9 +334,9 @@ nsXBLProtoImplProperty::Read(nsIObjectInputStream* aStream,
 }
 
 nsresult
-nsXBLProtoImplProperty::Write(nsIObjectOutputStream* aStream)
+nsXBLProtoImplProperty::Write(nsIScriptContext* aContext,
+                              nsIObjectOutputStream* aStream)
 {
-  AssertInCompilationScope();
   XBLBindingSerializeDetails type;
 
   if (mJSAttributes & JSPROP_GETTER) {
@@ -353,14 +365,14 @@ nsXBLProtoImplProperty::Write(nsIObjectOutputStream* aStream)
   if (mJSAttributes & JSPROP_GETTER) {
     JS::Handle<JSObject*> function =
       JS::Handle<JSObject*>::fromMarkedLocation(mGetter.AsHeapObject().address());
-    rv = XBL_SerializeFunction(aStream, function);
+    rv = XBL_SerializeFunction(aContext, aStream, function);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
   if (mJSAttributes & JSPROP_SETTER) {
      JS::Handle<JSObject*> function =
       JS::Handle<JSObject*>::fromMarkedLocation(mSetter.AsHeapObject().address());
-    rv = XBL_SerializeFunction(aStream, function);
+    rv = XBL_SerializeFunction(aContext, aStream, function);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 

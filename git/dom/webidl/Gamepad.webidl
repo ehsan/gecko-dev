@@ -6,12 +6,6 @@
 interface nsIVariant;
 
 [Pref="dom.gamepad.enabled"]
-interface GamepadButton {
-  readonly    attribute boolean pressed;
-  readonly    attribute double  value;
-};
-
-[Pref="dom.gamepad.enabled"]
 interface Gamepad {
   /**
    * An identifier, unique per type of device.
@@ -37,7 +31,7 @@ interface Gamepad {
 
   /**
    * The current state of all buttons on the device, an
-   * array of GamepadButton.
+   * array of doubles.
    */
   [Throws]
   readonly attribute nsIVariant buttons;

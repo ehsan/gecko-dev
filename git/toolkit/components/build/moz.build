@@ -10,13 +10,7 @@ EXPORTS += [
     'nsToolkitCompsCID.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'nsToolkitCompsModule.cpp',
 ]
-
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'toolkitcomps'
-
-EXPORT_LIBRARY = True
 

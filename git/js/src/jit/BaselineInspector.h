@@ -9,6 +9,9 @@
 
 #ifdef JS_ION
 
+#include "jscntxt.h"
+#include "jscompartment.h"
+
 #include "jit/BaselineIC.h"
 #include "jit/BaselineJIT.h"
 #include "jit/MIR.h"
@@ -40,18 +43,17 @@ class SetElemICInspector : public ICInspector
     bool sawOOBDenseWrite() const;
     bool sawOOBTypedArrayWrite() const;
     bool sawDenseWrite() const;
-    bool sawTypedArrayWrite() const;
 };
 
 class BaselineInspector
 {
   private:
-    JSScript *script;
+    RootedScript script;
     ICEntry *prevLookedUpEntry;
 
   public:
-    BaselineInspector(JSScript *script)
-      : script(script), prevLookedUpEntry(nullptr)
+    BaselineInspector(JSContext *cx, JSScript *rawScript)
+      : script(cx, rawScript), prevLookedUpEntry(NULL)
     {
         JS_ASSERT(script);
     }
@@ -82,7 +84,7 @@ class BaselineInspector
 
     template <typename ICInspectorType>
     ICInspectorType makeICInspector(jsbytecode *pc, ICStub::Kind expectedFallbackKind) {
-        ICEntry *ent = nullptr;
+        ICEntry *ent = NULL;
         if (hasBaselineScript()) {
             ent = &icEntryFromPC(pc);
             JS_ASSERT(ent->fallbackStub()->kind() == expectedFallbackKind);
@@ -94,8 +96,7 @@ class BaselineInspector
     bool dimorphicStub(jsbytecode *pc, ICStub **pfirst, ICStub **psecond);
 
   public:
-    typedef Vector<Shape *, 4, IonAllocPolicy> ShapeVector;
-    bool maybeShapesForPropertyOp(jsbytecode *pc, ShapeVector &shapes);
+    bool maybeShapesForPropertyOp(jsbytecode *pc, Vector<Shape *> &shapes);
 
     SetElemICInspector setElemICInspector(jsbytecode *pc) {
         return makeICInspector<SetElemICInspector>(pc, ICStub::SetElem_Fallback);
@@ -109,13 +110,6 @@ class BaselineInspector
     bool hasSeenNegativeIndexGetElement(jsbytecode *pc);
     bool hasSeenAccessedGetter(jsbytecode *pc);
     bool hasSeenDoubleResult(jsbytecode *pc);
-    bool hasSeenNonStringIterNext(jsbytecode *pc);
-
-    JSObject *getTemplateObject(jsbytecode *pc);
-    JSObject *getTemplateObjectForNative(jsbytecode *pc, Native native);
-
-    DeclEnvObject *templateDeclEnvObject();
-    CallObject *templateCallObject();
 };
 
 } // namespace jit

@@ -8,7 +8,6 @@
 
 #include "jit/AliasAnalysis.h"
 #include "jit/IonAnalysis.h"
-#include "jit/MIRGenerator.h"
 #include "jit/ValueNumbering.h"
 
 using namespace js;
@@ -112,16 +111,16 @@ UnreachableCodeElimination::optimizableSuccessor(MBasicBlock *block)
 {
     // If the last instruction in `block` is a test instruction of a
     // constant value, returns the successor that the branch will
-    // always branch to at runtime. Otherwise, returns nullptr.
+    // always branch to at runtime. Otherwise, returns NULL.
 
     MControlInstruction *ins = block->lastIns();
     if (!ins->isTest())
-        return nullptr;
+        return NULL;
 
     MTest *testIns = ins->toTest();
     MDefinition *v = testIns->getOperand(0);
     if (!v->isConstant())
-        return nullptr;
+        return NULL;
 
     const Value &val = v->toConstant()->value();
     BranchDirection bdir = ToBoolean(val) ? TRUE_BRANCH : FALSE_BRANCH;
@@ -194,7 +193,7 @@ UnreachableCodeElimination::prunePointlessBranchesAndMarkReachableBlocks()
         block->end(gotoIns);
         MBasicBlock *successorWithPhis = block->successorWithPhis();
         if (successorWithPhis && successorWithPhis != succ)
-            block->setSuccessorWithPhis(nullptr, 0);
+            block->setSuccessorWithPhis(NULL, 0);
     }
 
     return true;
@@ -250,7 +249,7 @@ UnreachableCodeElimination::removeUnmarkedBlocksAndClearDominators()
                 // predecessors need to have the successorWithPhis
                 // flag cleared.
                 for (size_t i = 0; i < block->numPredecessors(); i++)
-                    block->getPredecessor(i)->setSuccessorWithPhis(nullptr, 0);
+                    block->getPredecessor(i)->setSuccessorWithPhis(NULL, 0);
             }
 
             if (block->isLoopBackedge()) {
@@ -298,7 +297,7 @@ UnreachableCodeElimination::removeUnmarkedBlocksAndClearDominators()
                     MCall *call = iter->toCall();
                     for (size_t i = 0; i < call->numStackArgs(); i++) {
                         JS_ASSERT(call->getArg(i)->isPassArg());
-                        JS_ASSERT(call->getArg(i)->hasOneDefUse());
+                        JS_ASSERT(call->getArg(i)->defUseCount() == 1);
                         MPassArg *arg = call->getArg(i)->toPassArg();
                         arg->replaceAllUsesWith(arg->getArgument());
                     }

@@ -251,18 +251,18 @@ SharedSurface_Basic::Create(GLContext* gl,
                                    formats.color_texType,
                                    size);
 
-    gfxImageFormat format = gfxImageFormatRGB24;
+    gfxASurface::gfxImageFormat format = gfxASurface::ImageFormatRGB24;
     switch (formats.color_texInternalFormat) {
     case LOCAL_GL_RGB:
     case LOCAL_GL_RGB8:
         if (formats.color_texType == LOCAL_GL_UNSIGNED_SHORT_5_6_5)
-            format = gfxImageFormatRGB16_565;
+            format = gfxASurface::ImageFormatRGB16_565;
         else
-            format = gfxImageFormatRGB24;
+            format = gfxASurface::ImageFormatRGB24;
         break;
     case LOCAL_GL_RGBA:
     case LOCAL_GL_RGBA8:
-        format = gfxImageFormatARGB32;
+        format = gfxASurface::ImageFormatARGB32;
         break;
     default:
         MOZ_CRASH("Unhandled Tex format.");
@@ -273,7 +273,7 @@ SharedSurface_Basic::Create(GLContext* gl,
 SharedSurface_Basic::SharedSurface_Basic(GLContext* gl,
                                          const gfxIntSize& size,
                                          bool hasAlpha,
-                                         gfxImageFormat format,
+                                         gfxASurface::gfxImageFormat format,
                                          GLuint tex)
     : SharedSurface_GL(SharedSurfaceType::Basic,
                        AttachmentType::GLTexture,

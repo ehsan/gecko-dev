@@ -24,9 +24,6 @@ struct cubeb_stream {
 #if defined(USE_PULSE)
 int pulse_init(cubeb ** context, char const * context_name);
 #endif
-#if defined(USE_JACK)
-int jack_init (cubeb ** context, char const * context_name);
-#endif
 #if defined(USE_ALSA)
 int alsa_init(cubeb ** context, char const * context_name);
 #endif
@@ -90,9 +87,6 @@ cubeb_init(cubeb ** context, char const * context_name)
 #if defined(USE_PULSE)
     pulse_init,
 #endif
-#if defined(USE_JACK)
-    jack_init,
-#endif
 #if defined(USE_ALSA)
     alsa_init,
 #endif
@@ -154,24 +148,6 @@ cubeb_get_max_channel_count(cubeb * context, uint32_t * max_channels)
   }
 
   return context->ops->get_max_channel_count(context, max_channels);
-}
-
-int
-cubeb_get_min_latency(cubeb * context, cubeb_stream_params params, uint32_t * latency_ms)
-{
-  if (!latency_ms) {
-    return CUBEB_ERROR_INVALID_PARAMETER;
-  }
-  return context->ops->get_min_latency(context, params, latency_ms);
-}
-
-int
-cubeb_get_preferred_sample_rate(cubeb * context, uint32_t * rate)
-{
-  if (!rate) {
-    return CUBEB_ERROR_INVALID_PARAMETER;
-  }
-  return context->ops->get_preferred_sample_rate(context, rate);
 }
 
 void
@@ -247,14 +223,4 @@ cubeb_stream_get_position(cubeb_stream * stream, uint64_t * position)
   }
 
   return stream->context->ops->stream_get_position(stream, position);
-}
-
-int
-cubeb_stream_get_latency(cubeb_stream * stream, uint32_t * latency)
-{
-  if (!stream || !latency) {
-    return CUBEB_ERROR_INVALID_PARAMETER;
-  }
-
-  return stream->context->ops->stream_get_latency(stream, latency);
 }

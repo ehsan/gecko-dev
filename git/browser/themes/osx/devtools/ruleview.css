@@ -14,18 +14,14 @@
   -moz-user-select: none;
 }
 
-.ruleview-header {
+.ruleview-rule-inheritance {
   border-top-width: 1px;
   border-bottom-width: 1px;
   border-top-style: solid;
   border-bottom-style: solid;
   padding: 1px 4px;
+  margin-top: 4px;
   -moz-user-select: none;
-}
-
-.ruleview-rule-pseudo-element {
-  padding-left:20px;
-  border-left: solid 10px;
 }
 
 .ruleview-rule-source:hover {
@@ -50,8 +46,7 @@
 .ruleview-warning {
   background: url("chrome://browser/skin/devtools/alerticon-warning.png");
   -moz-margin-start: 5px;
-  display: inline-block;
-  vertical-align: top;
+  vertical-align: middle;
   width: 13px;
   height: 12px;
 }
@@ -98,14 +93,6 @@
 
 .ruleview-computed {
   -moz-margin-start: 35px;
-}
-
-.ruleview-colorswatch {
-  border-radius: 50%;
-  width: 1em;
-  height: 1em;
-  vertical-align: text-top;
-  -moz-margin-end: 5px;
 }
 
 .ruleview-overridden {

@@ -25,7 +25,6 @@
 #include "nsArrayUtils.h"
 #include "nsIArray.h"
 #include "nsIVariant.h"
-#include "nsILoadContextInfo.h"
 #include "nsThreadUtils.h"
 #include "nsISerializable.h"
 #include "nsSerializationHelper.h"
@@ -887,8 +886,6 @@ nsOfflineCacheDevice::nsOfflineCacheDevice()
   , mDeltaCounter(0)
   , mAutoShutdown(false)
   , mLock("nsOfflineCacheDevice.lock")
-  , mActiveCaches(5)
-  , mLockedEntries(64)
 {
 }
 
@@ -1352,6 +1349,13 @@ nsOfflineCacheDevice::InitActiveCaches()
 {
   MutexAutoLock lock(mLock);
 
+  mCaches.Init();
+  mActiveCachesByGroup.Init();
+
+  mActiveCaches.Init(5);
+
+  mLockedEntries.Init(64);
+
   AutoResetStatement statement(mStatement_EnumerateGroups);
 
   bool hasRows;
@@ -1398,7 +1402,8 @@ nsOfflineCacheDevice::Shutdown()
 
   {
     MutexAutoLock lock(mLock);
-    mCaches.EnumerateRead(ShutdownApplicationCache, this);
+    if (mCaches.IsInitialized())
+      mCaches.EnumerateRead(ShutdownApplicationCache, this);
   }
 
   {
@@ -1625,7 +1630,7 @@ nsOfflineCacheDevice::BindEntry(nsCacheEntry *entry)
   nsOfflineCacheRecord rec;
   rec.clientID = cid;
   rec.key = key;
-  rec.metaData = nullptr; // don't write any metadata now.
+  rec.metaData = NULL; // don't write any metadata now.
   rec.metaDataLen = 0;
   rec.generation = binding->mGeneration;
   rec.dataSize = 0;
@@ -1872,8 +1877,8 @@ nsOfflineCacheDevice::Visit(nsICacheVisitor *visitor)
     if (NS_FAILED(rv) || !hasRows)
       break;
 
-    statement->GetSharedUTF8String(0, nullptr, &rec.clientID);
-    statement->GetSharedUTF8String(1, nullptr, &rec.key);
+    statement->GetSharedUTF8String(0, NULL, &rec.clientID);
+    statement->GetSharedUTF8String(1, NULL, &rec.key);
     statement->GetSharedBlob(2, &rec.metaDataLen,
                              (const uint8_t **) &rec.metaData);
     rec.generation     = statement->AsInt32(3);
@@ -2424,33 +2429,31 @@ nsOfflineCacheDevice::DiscardByAppId(int32_t appID, bool browserEntriesOnly)
   rv = AppendJARIdentifier(jaridsuffix, appID, browserEntriesOnly);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  {
-    AutoResetStatement statement(mStatement_EnumerateApps);
-    rv = statement->BindUTF8StringByIndex(0, jaridsuffix);
+  AutoResetStatement statement(mStatement_EnumerateApps);
+  rv = statement->BindUTF8StringByIndex(0, jaridsuffix);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  bool hasRows;
+  rv = statement->ExecuteStep(&hasRows);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  while (hasRows) {
+    nsAutoCString group;
+    rv = statement->GetUTF8String(0, group);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    bool hasRows;
+    nsCString clientID;
+    rv = statement->GetUTF8String(1, clientID);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsCOMPtr<nsIRunnable> ev =
+      new nsOfflineCacheDiscardCache(this, group, clientID);
+
+    rv = nsCacheService::DispatchToCacheIOThread(ev);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     rv = statement->ExecuteStep(&hasRows);
     NS_ENSURE_SUCCESS(rv, rv);
-
-    while (hasRows) {
-      nsAutoCString group;
-      rv = statement->GetUTF8String(0, group);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      nsCString clientID;
-      rv = statement->GetUTF8String(1, clientID);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      nsCOMPtr<nsIRunnable> ev =
-        new nsOfflineCacheDiscardCache(this, group, clientID);
-
-      rv = nsCacheService::DispatchToCacheIOThread(ev);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      rv = statement->ExecuteStep(&hasRows);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
   }
 
   if (!browserEntriesOnly) {
@@ -2465,7 +2468,7 @@ nsOfflineCacheDevice::DiscardByAppId(int32_t appID, bool browserEntriesOnly)
 bool
 nsOfflineCacheDevice::CanUseCache(nsIURI *keyURI,
                                   const nsACString &clientID,
-                                  nsILoadContextInfo *loadContextInfo)
+                                  nsILoadContext *loadContext)
 {
   {
     MutexAutoLock lock(mLock);
@@ -2496,9 +2499,12 @@ nsOfflineCacheDevice::CanUseCache(nsIURI *keyURI,
   uint32_t appId = NECKO_NO_APP_ID;
   bool isInBrowserElement = false;
 
-  if (loadContextInfo) {
-      appId = loadContextInfo->AppId();
-      isInBrowserElement = loadContextInfo->IsInBrowserElement();
+  if (loadContext) {
+      rv = loadContext->GetAppId(&appId);
+      NS_ENSURE_SUCCESS(rv, false);
+
+      rv = loadContext->GetIsInBrowserElement(&isInBrowserElement);
+      NS_ENSURE_SUCCESS(rv, false);
   }
 
   // Check the groupID we found is equal to groupID based
@@ -2518,7 +2524,7 @@ nsOfflineCacheDevice::CanUseCache(nsIURI *keyURI,
 
 nsresult
 nsOfflineCacheDevice::ChooseApplicationCache(const nsACString &key,
-                                             nsILoadContextInfo *loadContextInfo,
+                                             nsILoadContext *loadContext,
                                              nsIApplicationCache **out)
 {
   *out = nullptr;
@@ -2546,7 +2552,7 @@ nsOfflineCacheDevice::ChooseApplicationCache(const nsACString &key,
       rv = statement->GetUTF8String(0, clientID);
       NS_ENSURE_SUCCESS(rv, rv);
 
-      if (CanUseCache(keyURI, clientID, loadContextInfo)) {
+      if (CanUseCache(keyURI, clientID, loadContext)) {
         return GetApplicationCache(clientID, out);
       }
     }
@@ -2578,7 +2584,7 @@ nsOfflineCacheDevice::ChooseApplicationCache(const nsACString &key,
       rv = nsstatement->GetUTF8String(0, clientID);
       NS_ENSURE_SUCCESS(rv, rv);
 
-      if (CanUseCache(keyURI, clientID, loadContextInfo)) {
+      if (CanUseCache(keyURI, clientID, loadContext)) {
         return GetApplicationCache(clientID, out);
       }
     }

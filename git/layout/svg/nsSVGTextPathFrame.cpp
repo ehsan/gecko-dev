@@ -7,7 +7,6 @@
 #include "nsSVGTextPathFrame.h"
 
 // Keep others in (case-insensitive) order:
-#include "gfxPath.h"
 #include "nsContentUtils.h"
 #include "nsSVGEffects.h"
 #include "nsSVGLength2.h"
@@ -111,8 +110,8 @@ nsSVGTextPathFrame::GetPathFrame()
   return frame && frame->GetContent()->Tag() == nsGkAtoms::path ? frame : nullptr;
 }
 
-already_AddRefed<gfxPath>
-nsSVGTextPathFrame::GetPath()
+already_AddRefed<gfxFlattenedPath>
+nsSVGTextPathFrame::GetFlattenedPath()
 {
   nsIFrame *path = GetPathFrame();
 
@@ -120,7 +119,7 @@ nsSVGTextPathFrame::GetPath()
     nsSVGPathGeometryElement *element =
       static_cast<nsSVGPathGeometryElement*>(path->GetContent());
 
-    return element->GetPath(element->PrependLocalTransformsTo(gfxMatrix()));
+    return element->GetFlattenedPath(element->PrependLocalTransformsTo(gfxMatrix()));
   }
   return nullptr;
 }
@@ -132,7 +131,7 @@ nsSVGTextPathFrame::GetStartOffset()
   nsSVGLength2 *length = &tp->mLengthAttributes[SVGTextPathElement::STARTOFFSET];
 
   if (length->IsPercentage()) {
-    nsRefPtr<gfxPath> data = GetPath();
+    nsRefPtr<gfxFlattenedPath> data = GetFlattenedPath();
     return data ? (length->GetAnimValInSpecifiedUnits() * data->GetLength() / 100.0) : 0.0;
   }
   return length->GetAnimValue(tp) * GetOffsetScale();

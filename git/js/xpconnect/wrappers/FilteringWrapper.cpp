@@ -6,12 +6,15 @@
 
 #include "FilteringWrapper.h"
 #include "AccessCheck.h"
+#include "WaiveXrayWrapper.h"
 #include "ChromeObjectWrapper.h"
 #include "XrayWrapper.h"
+#include "WrapperFactory.h"
+
+#include "XPCWrapper.h"
 
 #include "jsapi.h"
 
-using namespace JS;
 using namespace js;
 
 namespace xpc {
@@ -45,13 +48,13 @@ Filter(JSContext *cx, HandleObject wrapper, AutoIdVector &props)
 
 template <typename Policy>
 static bool
-FilterSetter(JSContext *cx, JSObject *wrapper, jsid id, JS::MutableHandle<JSPropertyDescriptor> desc)
+FilterSetter(JSContext *cx, JSObject *wrapper, jsid id, js::PropertyDescriptor *desc)
 {
     bool setAllowed = Policy::check(cx, wrapper, id, Wrapper::SET);
     if (!setAllowed) {
         if (JS_IsExceptionPending(cx))
             return false;
-        desc.setSetter(nullptr);
+        desc->setter = nullptr;
     }
     return true;
 }
@@ -60,8 +63,7 @@ template <typename Base, typename Policy>
 bool
 FilteringWrapper<Base, Policy>::getPropertyDescriptor(JSContext *cx, HandleObject wrapper,
                                                       HandleId id,
-                                                      JS::MutableHandle<JSPropertyDescriptor> desc,
-                                                      unsigned flags)
+                                                      js::PropertyDescriptor *desc, unsigned flags)
 {
     assertEnteredPolicy(cx, wrapper, id);
     if (!Base::getPropertyDescriptor(cx, wrapper, id, desc, flags))
@@ -73,7 +75,7 @@ template <typename Base, typename Policy>
 bool
 FilteringWrapper<Base, Policy>::getOwnPropertyDescriptor(JSContext *cx, HandleObject wrapper,
                                                          HandleId id,
-                                                         JS::MutableHandle<JSPropertyDescriptor> desc,
+                                                         js::PropertyDescriptor *desc,
                                                          unsigned flags)
 {
     assertEnteredPolicy(cx, wrapper, id);

@@ -10,7 +10,6 @@
 #include "nsIThread.h"
 #include "nsThreadUtils.h"
 #include "gfxImageSurface.h"
-#include "gfxContext.h"
 
 namespace mozilla {
 namespace layers {
@@ -72,7 +71,7 @@ public:
       new gfxImageSurface((unsigned char*)mappedTex.pData,
                           gfxIntSize(desc.Width, desc.Height),
                           mappedTex.RowPitch,
-                          gfxImageFormatRGB24);
+                          gfxASurface::ImageFormatRGB24);
 
     nsRefPtr<gfxContext> ctx =
       update->mLayer->GetSink()->BeginUpdate(update->mUpdateRect + offset,

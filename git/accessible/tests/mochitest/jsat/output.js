@@ -25,9 +25,7 @@ function testContextOutput(expected, aAccOrElmOrID, aOldAccOrElmOrID, aGenerator
   var output = aGenerator.genForContext(context).output;
 
   isDeeply(output, expected,
-           "Context output is correct for " + aAccOrElmOrID +
-           " (output: " + output.join(", ") + ") ==" +
-           " (expected: " + expected.join(", ") + ")");
+    "Context output is correct for " + aAccOrElmOrID);
 }
 
 /**

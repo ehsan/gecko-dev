@@ -159,11 +159,11 @@ void nsGIFDecoder2::BeginGIF()
 //******************************************************************************
 void nsGIFDecoder2::BeginImageFrame(uint16_t aDepth)
 {
-  gfxImageFormat format;
+  gfxASurface::gfxImageFormat format;
   if (mGIFStruct.is_transparent)
-    format = gfxImageFormatARGB32;
+    format = gfxASurface::ImageFormatARGB32;
   else
-    format = gfxImageFormatRGB24;
+    format = gfxASurface::ImageFormatRGB24;
 
   MOZ_ASSERT(HasSize());
 
@@ -188,7 +188,7 @@ void nsGIFDecoder2::BeginImageFrame(uint16_t aDepth)
                  format);
   } else {
     // Our preallocated frame matches up, with the possible exception of alpha.
-    if (format == gfxImageFormatRGB24) {
+    if (format == gfxASurface::ImageFormatRGB24) {
       GetCurrentFrame()->SetHasNoAlpha();
     }
   }
@@ -664,12 +664,6 @@ nsGIFDecoder2::WriteInternal(const char *aBuffer, uint32_t aCount)
       mGIFStruct.screen_width = GETINT16(q);
       mGIFStruct.screen_height = GETINT16(q + 2);
       mGIFStruct.global_colormap_depth = (q[4]&0x07) + 1;
-
-      if (IsSizeDecode()) {
-        MOZ_ASSERT(!mGIFOpen, "Gif should not be open at this point");
-        PostSize(mGIFStruct.screen_width, mGIFStruct.screen_height);
-        return;
-      }
 
       // screen_bgcolor is not used
       //mGIFStruct.screen_bgcolor = q[5];

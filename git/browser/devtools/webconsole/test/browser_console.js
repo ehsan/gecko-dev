@@ -64,7 +64,15 @@ function consoleOpened(hud)
     contentConsole = text.indexOf("bug587757b");
     execValue = text.indexOf("browser.xul");
     exception = text.indexOf("foobarExceptionBug587757");
-    xhrRequest = text.indexOf("test-console.html");
+
+    xhrRequest = false;
+    let urls = output.querySelectorAll(".webconsole-msg-url");
+    for (let url of urls) {
+      if (url.value.indexOf(TEST_URI) > -1) {
+        xhrRequest = true;
+        break;
+      }
+    }
   }
 
   function showResults()
@@ -73,7 +81,7 @@ function consoleOpened(hud)
     isnot(contentConsole, -1, "content window console.log() is displayed");
     isnot(execValue, -1, "jsterm eval result is displayed");
     isnot(exception, -1, "exception is displayed");
-    isnot(xhrRequest, -1, "xhr request is displayed");
+    ok(xhrRequest, "xhr request is displayed");
   }
 
   waitForSuccess({
@@ -84,7 +92,7 @@ function consoleOpened(hud)
              contentConsole > -1 &&
              execValue > -1 &&
              exception > -1 &&
-             xhrRequest > -1;
+             xhrRequest;
     },
     successFn: () => {
       showResults();

@@ -14,8 +14,6 @@ const ROLE_CELL = Ci.nsIAccessibleRole.ROLE_CELL;
 const ROLE_COLUMNHEADER = Ci.nsIAccessibleRole.ROLE_COLUMNHEADER;
 const ROLE_ROWHEADER = Ci.nsIAccessibleRole.ROLE_ROWHEADER;
 
-const RELATION_LABEL_FOR = Ci.nsIAccessibleRelation.RELATION_LABEL_FOR;
-
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, 'Services',
   'resource://gre/modules/Services.jsm');
@@ -268,15 +266,6 @@ this.Utils = {
     return true;
   },
 
-  matchAttributeValue: function matchAttributeValue(aAttributeValue, values) {
-    let attrSet = new Set(aAttributeValue.split(' '));
-    for (let value of values) {
-      if (attrSet.has(value)) {
-        return value;
-      }
-    }
-  },
-
   getLandmarkName: function getLandmarkName(aAccessible) {
     const landmarks = [
       'banner',
@@ -292,21 +281,11 @@ this.Utils = {
     }
 
     // Looking up a role that would match a landmark.
-    return this.matchAttributeValue(roles, landmarks);
-  },
-
-  getEmbeddedControl: function getEmbeddedControl(aLabel) {
-    if (aLabel) {
-      let relation = aLabel.getRelationByType(RELATION_LABEL_FOR);
-      for (let i = 0; i < relation.targetsCount; i++) {
-        let target = relation.getTarget(i);
-        if (target.parent === aLabel) {
-          return target;
-        }
+    for (let landmark of landmarks) {
+      if (roles.indexOf(landmark) > -1) {
+        return landmark;
       }
     }
-
-    return null;
   }
 };
 
@@ -441,43 +420,23 @@ this.Logger = {
 /**
  * PivotContext: An object that generates and caches context information
  * for a given accessible and its relationship with another accessible.
- *
- * If the given accessible is a label for a nested control, then this
- * context will represent the nested control instead of the label.
- * With the exception of bounds calculation, which will use the containing
- * label. In this case the |accessible| field would be the embedded control,
- * and the |accessibleForBounds| field would be the label.
  */
 this.PivotContext = function PivotContext(aAccessible, aOldAccessible,
-  aStartOffset, aEndOffset, aIgnoreAncestry = false,
-  aIncludeInvisible = false) {
+                                          aStartOffset, aEndOffset) {
   this._accessible = aAccessible;
-  this._nestedControl = Utils.getEmbeddedControl(aAccessible);
   this._oldAccessible =
     this._isDefunct(aOldAccessible) ? null : aOldAccessible;
   this.startOffset = aStartOffset;
   this.endOffset = aEndOffset;
-  this._ignoreAncestry = aIgnoreAncestry;
-  this._includeInvisible = aIncludeInvisible;
 }
 
 PivotContext.prototype = {
   get accessible() {
-    // If the current pivot accessible has a nested control,
-    // make this context use it publicly.
-    return this._nestedControl || this._accessible;
+    return this._accessible;
   },
 
   get oldAccessible() {
     return this._oldAccessible;
-  },
-
-  get isNestedControl() {
-    return !!this._nestedControl;
-  },
-
-  get accessibleForBounds() {
-    return this._accessible;
   },
 
   get textAndAdjustedOffsets() {
@@ -538,7 +497,7 @@ PivotContext.prototype = {
    */
   get oldAncestry() {
     if (!this._oldAncestry) {
-      if (!this._oldAccessible || this._ignoreAncestry) {
+      if (!this._oldAccessible) {
         this._oldAncestry = [];
       } else {
         this._oldAncestry = this._getAncestry(this._oldAccessible);
@@ -553,8 +512,7 @@ PivotContext.prototype = {
    */
   get currentAncestry() {
     if (!this._currentAncestry) {
-      this._currentAncestry = this._ignoreAncestry ? [] :
-        this._getAncestry(this.accessible);
+      this._currentAncestry = this._getAncestry(this._accessible);
     }
     return this._currentAncestry;
   },
@@ -566,7 +524,7 @@ PivotContext.prototype = {
    */
   get newAncestry() {
     if (!this._newAncestry) {
-      this._newAncestry = this._ignoreAncestry ? [] : [currentAncestor for (
+      this._newAncestry = [currentAncestor for (
         [index, currentAncestor] of Iterator(this.currentAncestry)) if (
           currentAncestor !== this.oldAncestry[index])];
     }
@@ -585,14 +543,9 @@ PivotContext.prototype = {
     }
     let child = aAccessible.firstChild;
     while (child) {
-      let include;
-      if (this._includeInvisible) {
-        include = true;
-      } else {
-        let [state,] = Utils.getStates(child);
-        include = !(state & Ci.nsIAccessibleStates.STATE_INVISIBLE);
-      }
-      if (include) {
+      let state = {};
+      child.getState(state, {});
+      if (!(state.value & Ci.nsIAccessibleStates.STATE_INVISIBLE)) {
         if (aPreorder) {
           yield child;
           [yield node for (node of this._traverse(child, aPreorder, aStop))];
@@ -615,7 +568,7 @@ PivotContext.prototype = {
    * traversal should stop.
    */
   subtreeGenerator: function subtreeGenerator(aPreorder, aStop) {
-    return this._traverse(this.accessible, aPreorder, aStop);
+    return this._traverse(this._accessible, aPreorder, aStop);
   },
 
   getCellInfo: function getCellInfo(aAccessible) {
@@ -710,7 +663,7 @@ PivotContext.prototype = {
 
   get bounds() {
     if (!this._bounds) {
-      this._bounds = Utils.getBounds(this.accessibleForBounds);
+      this._bounds = Utils.getBounds(this._accessible);
     }
 
     return this._bounds.clone();
@@ -750,6 +703,7 @@ PrefCache.prototype = {
     if (!this.type) {
       this.type = aBranch.getPrefType(this.name);
     }
+
     switch (this.type) {
       case Ci.nsIPrefBranch.PREF_STRING:
         return aBranch.getCharPref(this.name);

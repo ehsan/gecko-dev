@@ -257,12 +257,12 @@ NS_IMETHODIMP nsClipboard::SetNativeClipboardData ( int32_t aWhichClipboard )
   }
 
   IDataObject * dataObj;
-  if ( NS_SUCCEEDED(CreateNativeDataObject(mTransferable, &dataObj, nullptr)) ) { // this add refs dataObj
+  if ( NS_SUCCEEDED(CreateNativeDataObject(mTransferable, &dataObj, NULL)) ) { // this add refs dataObj
     ::OleSetClipboard(dataObj);
     dataObj->Release();
   } else {
     // Clear the native clipboard
-    ::OleSetClipboard(nullptr);
+    ::OleSetClipboard(NULL);
   }
 
   mIgnoreEmptyNotification = false;
@@ -279,7 +279,7 @@ nsresult nsClipboard::GetGlobalData(HGLOBAL aHGBL, void ** aData, uint32_t * aLe
   // precaution, allocate an extra 2 bytes (but don't report them!) and
   // null them out to ensure that all of our strlen calls will succeed.
   nsresult  result = NS_ERROR_FAILURE;
-  if (aHGBL != nullptr) {
+  if (aHGBL != NULL) {
     LPSTR lpStr = (LPSTR) GlobalLock(aHGBL);
     DWORD allocSize = GlobalSize(aHGBL);
     char* data = static_cast<char*>(nsMemory::Alloc(allocSize + sizeof(PRUnichar)));
@@ -305,17 +305,16 @@ nsresult nsClipboard::GetGlobalData(HGLOBAL aHGBL, void ** aData, uint32_t * aLe
 
     FormatMessageW( 
         FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
-        nullptr,
+        NULL,
         GetLastError(),
         MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
         (LPWSTR) &lpMsgBuf,
         0,
-        nullptr 
+        NULL 
     );
 
     // Display the string.
-    MessageBoxW( nullptr, (LPCWSTR) lpMsgBuf, L"GetLastError",
-                 MB_OK | MB_ICONINFORMATION );
+    MessageBoxW( NULL, (LPCWSTR) lpMsgBuf, L"GetLastError", MB_OK|MB_ICONINFORMATION );
 
     // Free the buffer.
     LocalFree( lpMsgBuf );    
@@ -489,7 +488,7 @@ nsresult nsClipboard::GetNativeDataOffClipboard(IDataObject * aDataObject, UINT 
                 // if there really are multiple drag items.
                 HDROP dropFiles = (HDROP) GlobalLock(stm.hGlobal);
 
-                UINT numFiles = ::DragQueryFileW(dropFiles, 0xFFFFFFFF, nullptr, 0);
+                UINT numFiles = ::DragQueryFileW(dropFiles, 0xFFFFFFFF, NULL, 0);
                 NS_ASSERTION ( numFiles > 0, "File drop flavor, but no files...hmmmm" );
                 NS_ASSERTION ( aIndex < numFiles, "Asked for a file index out of range of list" );
                 if (numFiles > 0) {
@@ -955,7 +954,7 @@ nsClipboard::EmptyClipboard(int32_t aWhichClipboard)
   // has the clipboard open.  So to avoid this race condition for OpenClipboard
   // we do not empty the clipboard when we're setting it.
   if (aWhichClipboard == kGlobalClipboard && !mEmptyingForSetData) {
-    OleSetClipboard(nullptr);
+    OleSetClipboard(NULL);
   }
   return nsBaseClipboard::EmptyClipboard(aWhichClipboard);
 }

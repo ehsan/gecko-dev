@@ -5,7 +5,7 @@
 
 #include "SVGMotionSMILPathUtils.h"
 #include "nsCharSeparatedTokenizer.h"
-#include "nsContentUtils.h" // for NS_ENSURE_FINITE2
+#include "nsContentUtils.h"
 #include "SVGContentUtils.h"
 #include "SVGLength.h"
 
@@ -76,10 +76,10 @@ SVGMotionSMILPathUtils::PathGenerator::
   return true;
 }
 
-already_AddRefed<gfxPath>
+already_AddRefed<gfxFlattenedPath>
 SVGMotionSMILPathUtils::PathGenerator::GetResultingPath()
 {
-  return mGfxContext.CopyPath();
+  return mGfxContext.GetFlattenedPath();
 }
 
 //----------------------------------------------------------------------
@@ -106,7 +106,7 @@ SVGMotionSMILPathUtils::PathGenerator::
     return false;
   }
 
-  if (tokenizer.separatorAfterCurrentToken() ||  // Trailing comma.
+  if (tokenizer.lastTokenEndedWithSeparator() || // Trailing comma.
       tokenizer.hasMoreTokens()) {               // More text remains
     return false;
   }

@@ -1,6 +1,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 "use strict";
 
 const { Loader } = require("sdk/test/loader");
@@ -43,6 +44,7 @@ exports["test frame removed properly"] = function(assert, done) {
   }));
 };
 
+
 exports["test unload detaches panels"] = function(assert, done) {
   let loader = Loader(module);
   let { add, remove, HiddenFrame } = loader.require("sdk/frame/hidden-frame");
@@ -67,5 +69,7 @@ exports["test unload detaches panels"] = function(assert, done) {
     done();
   }
 };
+
+
 
 require("test").run(exports);

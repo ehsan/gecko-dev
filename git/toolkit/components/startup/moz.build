@@ -16,29 +16,27 @@ EXPORTS.mozilla += [
 
 XPCSHELL_TESTS_MANIFESTS += ['tests/unit/xpcshell.ini']
 
-SOURCES += [
-    'nsAppStartup.cpp',
+CPP_SOURCES += [
     'StartupTimeline.cpp',
+    'nsAppStartup.cpp',
 ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'os2':
-    SOURCES += [
+    CPP_SOURCES += [
         'nsUserInfoOS2.cpp',
     ]
 elif CONFIG['OS_ARCH'] == 'WINNT':
-    SOURCES += [
+    CPP_SOURCES += [
         'nsUserInfoWin.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
-    SOURCES += [
+    CMMSRCS += [
         'nsUserInfoMac.mm',
     ]
 else:
-    SOURCES += [
+    CPP_SOURCES += [
         'nsUserInfoUnix.cpp',
     ]
 
 LIBRARY_NAME = 'appstartup_s'
-
-LIBXUL_LIBRARY = True
 

@@ -10,11 +10,17 @@
 
 #include "mozilla/DebugOnly.h"
 
+#include "nsBlockReflowContext.h"
 #include "nsBlockFrame.h"
 #include "nsLineLayout.h"
 #include "nsPresContext.h"
-#include "nsIFrameInlines.h"
+#include "nsGkAtoms.h"
+#include "nsIFrame.h"
+#include "nsFrameManager.h"
 #include "mozilla/AutoRestore.h"
+#include "FrameLayerBuilder.h"
+
+#include "nsINameSpaceManager.h"
 #include <algorithm>
 
 #ifdef DEBUG
@@ -388,7 +394,8 @@ nsBlockReflowState::RecoverFloats(nsLineList::iterator aLine,
     while (fc) {
       nsIFrame* floatFrame = fc->mFloat;
       if (aDeltaY != 0) {
-        floatFrame->MovePositionBy(nsPoint(0, aDeltaY));
+        nsPoint p = floatFrame->GetPosition();
+        floatFrame->SetPosition(nsPoint(p.x, p.y + aDeltaY));
         nsContainerFrame::PositionFrameView(floatFrame);
         nsContainerFrame::PositionChildViews(floatFrame);
       }
@@ -811,7 +818,8 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
                  floatMargin.top + floatY);
 
   // If float is relatively positioned, factor that in as well
-  nsHTMLReflowState::ApplyRelativePositioning(aFloat, floatOffsets, &origin);
+  nsHTMLReflowState::ApplyRelativePositioning(floatDisplay, floatOffsets,
+                                              &origin);
 
   // Position the float and make sure and views are properly
   // positioned. We need to explicitly position its child views as

@@ -11,13 +11,12 @@
 #include "AudioStream.h"
 #include "nsTArray.h"
 #include "nsIRunnable.h"
+#include "nsISupportsImpl.h"
 #include "StreamBuffer.h"
 #include "TimeVarying.h"
 #include "VideoFrameContainer.h"
 #include "VideoSegment.h"
-#include "MainThreadUtils.h"
-
-class nsIRunnable;
+#include "nsThreadUtils.h"
 
 namespace mozilla {
 
@@ -346,20 +345,6 @@ public:
     NS_ASSERTION(NS_IsMainThread(), "Call only on main thread");
     mMainThreadListeners.RemoveElement(aListener);
   }
-  /**
-   * Ensure a runnable will run on the main thread after running all pending
-   * updates that were sent from the graph thread or will be sent before the
-   * graph thread receives the next graph update.
-   *
-   * If the graph has been shutdown or destroyed, or if it is non-realtime
-   * and has not started, then the runnable will be run
-   * synchronously/immediately.  (There are no pending updates in these
-   * situations.)
-   *
-   * Main thread only.
-   */
-  void RunAfterPendingUpdates(nsRefPtr<nsIRunnable> aRunnable);
-
   // Signal that the client is done with this MediaStream. It will be deleted later.
   virtual void Destroy();
   // Returns the main-thread's view of how much data has been processed by
@@ -706,17 +691,6 @@ public:
    */
   void EndAllTrackAndFinish();
 
-  /**
-   * Note: Only call from Media Graph thread (eg NotifyPull)
-   *
-   * Returns amount of time (data) that is currently buffered in the track,
-   * assuming playout via PlayAudio or via a TrackUnion - note that
-   * NotifyQueuedTrackChanges() on a SourceMediaStream will occur without
-   * any "extra" buffering, but NotifyQueued TrackChanges() on a TrackUnion
-   * will be buffered.
-   */
-  TrackTicks GetBufferedTicks(TrackID aID);
-
   // XXX need a Reset API
 
   friend class MediaStreamGraphImpl;
@@ -933,7 +907,10 @@ public:
   friend class MediaStreamGraphImpl;
 
   // Do not call these from outside MediaStreamGraph.cpp!
-  virtual void AddInput(MediaInputPort* aPort);
+  virtual void AddInput(MediaInputPort* aPort)
+  {
+    mInputs.AppendElement(aPort);
+  }
   virtual void RemoveInput(MediaInputPort* aPort)
   {
     mInputs.RemoveElement(aPort);
@@ -959,9 +936,6 @@ public:
    */
   virtual void ForwardTrackEnabled(TrackID aOutputID, bool aEnabled) {};
 
-  bool InCycle() const { return mInCycle; }
-
-
 protected:
   // This state is all accessed only on the media graph thread.
 
@@ -974,7 +948,7 @@ protected:
 };
 
 // Returns ideal audio rate for processing
-inline TrackRate IdealAudioRate() { return AudioStream::PreferredSampleRate(); }
+inline TrackRate IdealAudioRate() { return 48000; }
 
 /**
  * Initially, at least, we will have a singleton MediaStreamGraph per
@@ -991,7 +965,6 @@ public:
   // Main thread only
   static MediaStreamGraph* GetInstance();
   static MediaStreamGraph* CreateNonRealtimeInstance();
-  // Idempotent
   static void DestroyNonRealtimeInstance(MediaStreamGraph* aGraph);
 
   // Control API.
@@ -1033,7 +1006,12 @@ public:
   CreateAudioNodeExternalInputStream(AudioNodeEngine* aEngine,
                                      TrackRate aSampleRate = 0);
 
-  bool IsNonRealtime() const;
+  /**
+   * Returns the number of graph updates sent. This can be used to track
+   * whether a given update has been processed by the graph thread and reflected
+   * in main-thread stream state.
+   */
+  int64_t GetCurrentGraphUpdateIndex() { return mGraphUpdatesSent; }
   /**
    * Start processing non-realtime for a specific number of ticks.
    */
@@ -1043,8 +1021,7 @@ public:
    * Media graph thread only.
    * Dispatches a runnable that will run on the main thread after all
    * main-thread stream state has been next updated.
-   * Should only be called during MediaStreamListener callbacks or during
-   * ProcessedMediaStream::ProduceOutput().
+   * Should only be called during MediaStreamListener callbacks.
    */
   void DispatchToMainThreadAfterStreamStateUpdate(already_AddRefed<nsIRunnable> aRunnable)
   {
@@ -1053,7 +1030,7 @@ public:
 
 protected:
   MediaStreamGraph()
-    : mNextGraphUpdateIndex(1)
+    : mGraphUpdatesSent(1)
   {
     MOZ_COUNT_CTOR(MediaStreamGraph);
   }
@@ -1066,9 +1043,9 @@ protected:
   nsTArray<nsCOMPtr<nsIRunnable> > mPendingUpdateRunnables;
 
   // Main thread only
-  // The number of updates we have sent to the media graph thread + 1.
-  // We start this at 1 just to ensure that 0 is usable as a special value.
-  int64_t mNextGraphUpdateIndex;
+  // The number of updates we have sent to the media graph thread. We start
+  // this at 1 just to ensure that 0 is usable as a special value.
+  int64_t mGraphUpdatesSent;
 };
 
 }

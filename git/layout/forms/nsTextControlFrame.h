@@ -8,15 +8,21 @@
 
 #include "mozilla/Attributes.h"
 #include "nsContainerFrame.h"
+#include "nsBlockFrame.h"
+#include "nsIFormControlFrame.h"
 #include "nsIAnonymousContentCreator.h"
 #include "nsITextControlFrame.h"
+#include "nsDisplayList.h"
+#include "nsIScrollableFrame.h"
+#include "nsStubMutationObserver.h"
 #include "nsITextControlElement.h"
 #include "nsIStatefulFrame.h"
+#include "nsIEditor.h"
 
 class nsISelectionController;
+class nsIDOMCharacterData;
 class EditorInitializerEntryTracker;
 class nsTextEditorState;
-class nsIEditor;
 namespace mozilla {
 namespace dom {
 class Element;
@@ -39,6 +45,8 @@ public:
   virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
 
   virtual nsIScrollableFrame* GetScrollTargetFrame() MOZ_OVERRIDE {
+    if (!IsScrollable())
+      return nullptr;
     return do_QueryFrame(GetFirstPrincipalChild());
   }
 
@@ -167,6 +175,40 @@ public: //for methods who access nsTextControlFrame directly
   nsresult MaybeBeginSecureKeyboardInput();
   void MaybeEndSecureKeyboardInput();
 
+  class MOZ_STACK_CLASS ValueSetter {
+  public:
+    ValueSetter(nsIEditor* aEditor)
+      : mEditor(aEditor)
+      , mCanceled(false)
+    {
+      MOZ_ASSERT(aEditor);
+
+      // To protect against a reentrant call to SetValue, we check whether
+      // another SetValue is already happening for this frame.  If it is,
+      // we must wait until we unwind to re-enable oninput events.
+      mEditor->GetSuppressDispatchingInputEvent(&mOuterTransaction);
+    }
+    void Cancel() {
+      mCanceled = true;
+    }
+    void Init() {
+      mEditor->SetSuppressDispatchingInputEvent(true);
+    }
+    ~ValueSetter() {
+      mEditor->SetSuppressDispatchingInputEvent(mOuterTransaction);
+
+      if (mCanceled) {
+        return;
+      }
+    }
+
+  private:
+    nsCOMPtr<nsIEditor> mEditor;
+    bool mOuterTransaction;
+    bool mCanceled;
+  };
+  friend class ValueSetter;
+
 #define DEFINE_TEXTCTRL_FORWARDER(type, name)                                  \
   type name() {                                                                \
     nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(GetContent()); \
@@ -233,6 +275,13 @@ protected:
   nsresult OffsetToDOMPoint(int32_t aOffset, nsIDOMNode** aResult, int32_t* aPosition);
 
   /**
+   * Find out whether this control is scrollable (i.e. if it is not a single
+   * line text control)
+   * @return whether this control is scrollable
+   */
+  bool IsScrollable() const;
+
+  /**
    * Update the textnode under our anonymous div to show the new
    * value. This should only be called when we have no editor yet.
    * @throws NS_ERROR_UNEXPECTED if the div has no text content
@@ -292,7 +341,7 @@ private:
 
 private:
   // these packed bools could instead use the high order bits on mState, saving 4 bytes 
-  bool mEditorHasBeenInitialized;
+  bool mUseEditor;
   bool mIsProcessing;
   // Keep track if we have asked a placeholder node creation.
   bool mUsePlaceholder;

@@ -54,6 +54,7 @@
 #include "nsInterfaceHashtable.h"
 #include "nsClassHashtable.h"
 #include "nsRefPtrHashtable.h"
+#include "mozilla/TimeStamp.h"
 
 // interfaces that inherit directly from nsISupports
 
@@ -73,6 +74,7 @@
 #include "nsIErrorService.h"
 #include "nsIEventTarget.h"
 #include "nsIException.h"
+#include "nsIExceptionService.h"
 #include "nsIFactory.h"
 #include "nsIFile.h"
 #include "nsIHashable.h"
@@ -81,6 +83,7 @@
 #include "nsIInterfaceRequestor.h"
 #include "nsILineInputStream.h"
 #include "nsIMemory.h"
+#include "nsIMemoryReporter.h"
 #include "nsIMutable.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"

@@ -7,7 +7,6 @@
 #include "GLContext.h"
 #include "gfxImageSurface.h"
 #include "mozilla/gfx/MacIOSurface.h"
-#include "mozilla/DebugOnly.h"
 
 namespace mozilla {
 namespace gl {

@@ -43,11 +43,13 @@ import android.os.PowerManager;
 import android.os.RemoteException;
 import android.provider.Settings;
 import android.util.Log;
+import android.view.Gravity;
+import android.widget.Toast;
 import android.os.Environment;
 
 public class WatcherService extends Service
 {
-    private final String prgVersion = "Watcher Version 1.17";
+    private final String prgVersion = "Watcher Version 1.16";
     private final String LOGTAG = "Watcher";
 
     String sErrorPrefix = "##Installer Error## ";
@@ -133,16 +135,16 @@ public class WatcherService extends Service
         try {
             if (nStayOn != 0) {
                 if (!Settings.System.putInt(getContentResolver(), Settings.System.STAY_ON_WHILE_PLUGGED_IN, BatteryManager.BATTERY_PLUGGED_AC | BatteryManager.BATTERY_PLUGGED_USB)) {
-                    Log.e(LOGTAG, "Screen couldn't be set to Always On [stay on while plugged in]");
+                    doToast("Screen couldn't be set to Always On [stay on while plugged in]");
                 }
             }
         } catch (Exception e) {
             e.printStackTrace();
             String sExcept = e.getMessage();
-            Log.e(LOGTAG, "Screen couldn't be set to Always On [exception " + sExcept + "]");
+            doToast("Screen couldn't be set to Always On [exception " + sExcept + "]");
         }
 
-        Log.i(LOGTAG, "WatcherService created");
+        doToast("WatcherService created");
         }
 
     public String GetIniData(String sSection, String sKey, String sFile, String sDefault)
@@ -226,7 +228,7 @@ public class WatcherService extends Service
                 {
                 if (!this.bStartedTimer) 
                     {
-                    Log.i(LOGTAG, "WatcherService started");
+                    doToast("WatcherService started");
                     myTimer = new Timer();
                     Date startSchedule = new Date(System.currentTimeMillis() + lDelay);
                     myTimer.schedule(new MyTime(), startSchedule, lPeriod);
@@ -235,11 +237,11 @@ public class WatcherService extends Service
                 }
             else
                 {
-                Log.w(LOGTAG, "WatcherService unknown command");
+                doToast("WatcherService unknown command");
                 }
             }
         else
-            Log.w(LOGTAG, "WatcherService intent had null command");
+            doToast("WatcherService created");
         }
 
     public void writeVersion() {
@@ -278,7 +280,7 @@ public class WatcherService extends Service
     @Override
     public void onDestroy() {
         super.onDestroy();
-        Log.i(LOGTAG, "WatcherService destroyed");
+        doToast("WatcherService destroyed");
         if (pwl != null)
             pwl.release();
         stopForegroundCompat(R.string.foreground_service_started);
@@ -444,6 +446,14 @@ public class WatcherService extends Service
             }
         }
     }
+
+    public void doToast(String sMsg)
+        {
+        Log.i(LOGTAG, sMsg);
+        Toast toast = Toast.makeText(this, sMsg, Toast.LENGTH_LONG);
+        toast.setGravity(Gravity.TOP|Gravity.CENTER_HORIZONTAL, 0, 100);
+        toast.show();
+        }
 
     public void CheckMem() 
         {

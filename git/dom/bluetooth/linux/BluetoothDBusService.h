@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_bluetooth_bluetoothdbusservice_h__
-#define mozilla_dom_bluetooth_bluetoothdbusservice_h__
+#ifndef mozilla_dom_bluetooth_bluetoothdbuseventservice_h__
+#define mozilla_dom_bluetooth_bluetoothdbuseventservice_h__
 
 #include "mozilla/Attributes.h"
 #include "BluetoothCommon.h"
@@ -22,11 +22,9 @@ BEGIN_BLUETOOTH_NAMESPACE
  */
 
 class BluetoothDBusService : public BluetoothService
+                           , private mozilla::ipc::RawDBusConnection
 {
 public:
-  BluetoothDBusService();
-  ~BluetoothDBusService();
-
   bool IsReady();
 
   virtual nsresult StartInternal() MOZ_OVERRIDE;
@@ -38,7 +36,7 @@ public:
   virtual nsresult GetDefaultAdapterPathInternal(
                                              BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
-  virtual nsresult GetConnectedDevicePropertiesInternal(uint16_t aServiceUuid,
+  virtual nsresult GetConnectedDevicePropertiesInternal(uint16_t aProfileId,
                                              BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
   virtual nsresult GetPairedDevicePropertiesInternal(
@@ -62,6 +60,9 @@ public:
   static bool
   AddReservedServicesInternal(const nsTArray<uint32_t>& aServices,
                               nsTArray<uint32_t>& aServiceHandlesContainer);
+
+  static bool
+  RemoveReservedServicesInternal(const nsTArray<uint32_t>& aServiceHandles);
 
   virtual nsresult
   GetScoSocket(const nsAString& aObjectPath,
@@ -99,18 +100,20 @@ public:
   SetPairingConfirmationInternal(const nsAString& aDeviceAddress, bool aConfirm,
                                  BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
+  virtual bool
+  SetAuthorizationInternal(const nsAString& aDeviceAddress, bool aAllow,
+                           BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
+
   virtual void
   Connect(const nsAString& aDeviceAddress,
-          uint32_t aCod,
-          uint16_t aServiceUuid,
-          BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
+          const uint16_t aProfileId,
+          BluetoothReplyRunnable* aRunnable);
 
   virtual bool
-  IsConnected(uint16_t aServiceUuid) MOZ_OVERRIDE;
+  IsConnected(uint16_t aProfileId) MOZ_OVERRIDE;
 
   virtual void
-  Disconnect(const nsAString& aDeviceAddress, uint16_t aServiceUuid,
-             BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
+  Disconnect(const uint16_t aProfileId, BluetoothReplyRunnable* aRunnable);
 
   virtual void
   SendFile(const nsAString& aDeviceAddress,
@@ -136,15 +139,6 @@ public:
   IsScoConnected(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
   virtual void
-  AnswerWaitingCall(BluetoothReplyRunnable* aRunnable);
-
-  virtual void
-  IgnoreWaitingCall(BluetoothReplyRunnable* aRunnable);
-
-  virtual void
-  ToggleCalls(BluetoothReplyRunnable* aRunnable);
-
-  virtual void
   SendMetaData(const nsAString& aTitle,
                const nsAString& aArtist,
                const nsAString& aAlbum,
@@ -168,9 +162,6 @@ public:
   SendSinkMessage(const nsAString& aDeviceAddresses,
                   const nsAString& aMessage) MOZ_OVERRIDE;
 
-  virtual nsresult
-  SendInputMessage(const nsAString& aDeviceAddresses,
-                   const nsAString& aMessage) MOZ_OVERRIDE;
 private:
   /**
    * For DBus Control method of "UpdateNotification", event id should be
@@ -203,12 +194,8 @@ private:
 
   void UpdateNotification(ControlEventId aEventId, uint64_t aData);
 
-  nsresult SendAsyncDBusMessage(const nsAString& aObjectPath,
-                                const char* aInterface,
-                                const nsAString& aMessage,
-                                mozilla::ipc::DBusReplyCallback aCallback);
+  void DisconnectAllAcls(const nsAString& aAdapterPath);
 
-  nsRefPtr<mozilla::ipc::RawDBusConnection> mConnection;
 };
 
 END_BLUETOOTH_NAMESPACE

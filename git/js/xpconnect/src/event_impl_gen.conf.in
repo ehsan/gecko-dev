@@ -10,14 +10,18 @@
 simple_events = [
     'ProgressEvent',
     'StorageEvent',
+    'DeviceProximityEvent',
     'MozSettingsEvent',
+    'UserProximityEvent',
     'CustomEvent',
     'PageTransitionEvent',
     'DOMTransactionEvent',
     'PopStateEvent',
     'HashChangeEvent',
     'CloseEvent',
+    'MozContactChangeEvent',
     'DeviceOrientationEvent',
+    'DeviceLightEvent',
     'MozApplicationEvent',
     'SmartCardEvent',
     'StyleRuleChangeEvent',
@@ -28,10 +32,10 @@ simple_events = [
     'BluetoothStatusChangedEvent',
 #endif
 #ifdef MOZ_B2G_RIL
+    'CallEvent',
     'CFStateChangeEvent',
     'DataErrorEvent',
-    'MozEmergencyCbModeEvent',
-    'MozOtaStatusEvent',
+    'IccCardLockErrorEvent',
     'MozWifiStatusChangeEvent',
     'MozWifiConnectionInfoEvent',
     'MozCellBroadcastEvent',
@@ -46,7 +50,13 @@ simple_events = [
 #endif
     'DeviceStorageChangeEvent',
     'PopupBlockedEvent',
+    'BlobEvent',
     'RecordErrorEvent',
+#ifdef MOZ_GAMEPAD
+    'GamepadEvent',
+    'GamepadButtonEvent',
+    'GamepadAxisMoveEvent',
+#endif
 #ifdef MOZ_WEBSPEECH
     'SpeechRecognitionEvent',
 #endif
@@ -68,10 +78,9 @@ exclude_automatic_type_include = [
 
 """ Map xpidl interface names to implementation classes. The third column is the canonical interface. """
 xpidl_to_native = [
-    ['nsIDOMBluetoothDevice', 'bluetooth::BluetoothDevice', 'nsIDOMBluetoothDevice'],
     ['nsIDOMDocument', 'nsIDocument', 'nsIDocument'],
     ['nsIDOMElement', 'mozilla::dom::Element', 'mozilla::dom::Element'],
     ['nsIDOMCSSStyleSheet', 'nsCSSStyleSheet', 'nsIStyleSheet'],
-    ['nsIDOMWindow', 'nsGlobalWindow', 'nsIDOMEventTarget']
+    ['nsIDOMGamepad', 'Gamepad', 'nsIDOMGamepad']
   ]
 

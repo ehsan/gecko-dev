@@ -4,6 +4,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsProperties.h"
+#include "nsString.h"
+#include "nsCRT.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,7 +70,7 @@ GetKeysEnumerate(const char *key, nsISupports* data,
                  void *arg)
 {
     GetKeysEnumData *gkedp = (GetKeysEnumData *)arg;
-    gkedp->keys[gkedp->next] = strdup(key);
+    gkedp->keys[gkedp->next] = nsCRT::strdup(key);
 
     if (!gkedp->keys[gkedp->next]) {
         gkedp->res = NS_ERROR_OUT_OF_MEMORY;

@@ -12,7 +12,7 @@
 #include "nsSMILInstanceTime.h"
 #include "nsSMILParserUtils.h"
 #include "nsEventListenerManager.h"
-#include "nsIDOMKeyEvent.h"
+#include "nsGUIEvent.h"
 #include "nsIDOMTimeEvent.h"
 #include "nsString.h"
 #include <limits>
@@ -372,7 +372,7 @@ nsSMILTimeValueSpec::GetEventListenerManager(Element* aTarget)
   if (!target)
     return nullptr;
 
-  return target->GetOrCreateListenerManager();
+  return target->GetListenerManager(true);
 }
 
 void

@@ -8,7 +8,6 @@ let Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
-Cu.import("resource://gre/modules/RemoteAddonsChild.jsm");
 
 let WebProgressListener = {
   init: function() {
@@ -56,17 +55,17 @@ let WebProgressListener = {
   },
 
   onLocationChange: function onLocationChange(aWebProgress, aRequest, aLocationURI, aFlags) {
+    let spec = aLocationURI ? aLocationURI.spec : "";
+    let charset = content.document.characterSet;
+
     let json = this._setupJSON(aWebProgress, aRequest);
     let objects = this._setupObjects(aWebProgress);
 
-    json.location = aLocationURI ? aLocationURI.spec : "";
-
-    if (json.isTopLevel) {
-      json.canGoBack = docShell.canGoBack;
-      json.canGoForward = docShell.canGoForward;
-      json.documentURI = content.document.documentURIObject.spec;
-      json.charset = content.document.characterSet;
-    }
+    json.documentURI = aWebProgress.DOMWindow.document.documentURIObject.spec;
+    json.location = spec;
+    json.canGoBack = docShell.canGoBack;
+    json.canGoForward = docShell.canGoForward;
+    json.charset = charset.toString();
 
     sendAsyncMessage("Content:LocationChange", json, objects);
   },
@@ -187,23 +186,6 @@ let SecurityUI = {
   }
 };
 
-let ControllerCommands = {
-  init: function () {
-    addMessageListener("ControllerCommands:Do", this);
-  },
-
-  receiveMessage: function(message) {
-    switch(message.name) {
-      case "ControllerCommands:Do":
-        if (docShell.isCommandEnabled(message.data))
-          docShell.doCommand(message.data);
-        break;
-    }
-  }
-}
-
-ControllerCommands.init()
-
 addEventListener("DOMTitleChanged", function (aEvent) {
   let document = content.document;
   switch (aEvent.type) {
@@ -224,6 +206,4 @@ addEventListener("ImageContentLoaded", function (aEvent) {
     sendAsyncMessage("ImageDocumentLoaded", { width: req.image.width,
                                               height: req.image.height });
   }
-}, false);
-
-RemoteAddonsChild.init(this);
+}, false)

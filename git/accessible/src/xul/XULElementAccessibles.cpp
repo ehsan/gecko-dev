@@ -46,11 +46,14 @@ XULLabelAccessible::
   nsTextBoxFrame* textBoxFrame = do_QueryFrame(mContent->GetPrimaryFrame());
   if (textBoxFrame) {
     mValueTextLeaf = new XULLabelTextLeafAccessible(mContent, mDoc);
-    mDoc->BindToDocument(mValueTextLeaf, nullptr);
+    if (mDoc->BindToDocument(mValueTextLeaf, nullptr)) {
+      nsAutoString text;
+      textBoxFrame->GetCroppedTitle(text);
+      mValueTextLeaf->SetText(text);
+      return;
+    }
 
-    nsAutoString text;
-    textBoxFrame->GetCroppedTitle(text);
-    mValueTextLeaf->SetText(text);
+    mValueTextLeaf = nullptr;
   }
 }
 
@@ -87,10 +90,10 @@ XULLabelAccessible::NativeState()
 }
 
 Relation
-XULLabelAccessible::RelationByType(RelationType aType)
+XULLabelAccessible::RelationByType(uint32_t aType)
 {
   Relation rel = HyperTextAccessibleWrap::RelationByType(aType);
-  if (aType == RelationType::LABEL_FOR) {
+  if (aType == nsIAccessibleRelation::RELATION_LABEL_FOR) {
     // Caption is the label for groupbox
     nsIContent* parent = mContent->GetFlattenedTreeParent();
     if (parent && parent->Tag() == nsGkAtoms::caption) {
@@ -180,12 +183,12 @@ XULTooltipAccessible::NativeRole()
 
 XULLinkAccessible::
   XULLinkAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-  XULLabelAccessible(aContent, aDoc)
+  HyperTextAccessibleWrap(aContent, aDoc)
 {
 }
 
 // Expose nsIAccessibleHyperLink unconditionally
-NS_IMPL_ISUPPORTS_INHERITED1(XULLinkAccessible, XULLabelAccessible,
+NS_IMPL_ISUPPORTS_INHERITED1(XULLinkAccessible, HyperTextAccessibleWrap,
                              nsIAccessibleHyperLink)
 
 ////////////////////////////////////////////////////////////////////////////////

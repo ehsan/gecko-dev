@@ -6,7 +6,6 @@
 
 #include <algorithm>
 
-#include "mozilla/Atomics.h"
 #include "base/compiler_specific.h"
 #include "base/lazy_instance.h"
 #include "base/logging.h"
@@ -33,6 +32,7 @@
 #endif
 
 #include "MessagePump.h"
+#include "pratom.h"
 
 using base::Time;
 using base::TimeDelta;
@@ -87,11 +87,11 @@ MessageLoop* MessageLoop::current() {
   return lazy_tls_ptr.Pointer()->Get();
 }
 
-static mozilla::Atomic<int32_t> message_loop_id_seq(0);
+int32_t message_loop_id_seq = 0;
 
 MessageLoop::MessageLoop(Type type)
     : type_(type),
-      id_(++message_loop_id_seq),
+      id_(PR_ATOMIC_INCREMENT(&message_loop_id_seq)),
       nestable_tasks_allowed_(true),
       exception_restoration_(false),
       state_(NULL),

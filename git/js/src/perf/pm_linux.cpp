@@ -15,6 +15,8 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
+#include "jsutil.h"
+
 #include "perf/jsperf.h"
 
 using namespace js;

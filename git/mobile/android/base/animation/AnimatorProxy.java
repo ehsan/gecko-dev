@@ -236,7 +236,7 @@ class AnimatorProxy {
 
         @Override
         public void setAlpha(float alpha) {
-            if (mAlpha == alpha)
+            if (alpha == alpha)
                 return;
 
             mAlpha = alpha;

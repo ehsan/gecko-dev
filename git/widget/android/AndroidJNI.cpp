@@ -22,7 +22,6 @@
 #include <android/log.h>
 #include "nsIObserverService.h"
 #include "mozilla/Services.h"
-#include "nsThreadUtils.h"
 
 #ifdef MOZ_CRASHREPORTER
 #include "nsICrashReporter.h"
@@ -59,7 +58,7 @@ extern "C" {
 NS_EXPORT void JNICALL
 Java_org_mozilla_gecko_GeckoAppShell_nativeInit(JNIEnv *jenv, jclass jc)
 {
-    AndroidBridge::ConstructBridge(jenv);
+    AndroidBridge::ConstructBridge(jenv, jc);
 }
 
 NS_EXPORT void JNICALL
@@ -813,7 +812,7 @@ Java_org_mozilla_gecko_GeckoAppShell_getNextMessageFromQueue(JNIEnv* jenv, jclas
     }
 
     if (!jMessageQueueCls || !jNextMethod)
-        return nullptr;
+        return NULL;
 
     if (jMessagesField) {
         jobject msg = jenv->GetObjectField(queue, jMessagesField);
@@ -821,7 +820,7 @@ Java_org_mozilla_gecko_GeckoAppShell_getNextMessageFromQueue(JNIEnv* jenv, jclas
         // It turns out to be an order of magnitude more performant to do this extra check here and
         // block less vs. one fewer checks here and more blocking.
         if (!msg) {
-            return nullptr;
+            return NULL;
         }
     }
     return jenv->CallObjectMethod(queue, jNextMethod);
@@ -905,7 +904,7 @@ Java_org_mozilla_gecko_gfx_NativePanZoomController_destroy(JNIEnv* env, jobject 
         return;
     }
 
-    jobject oldRef = AndroidBridge::Bridge()->SetNativePanZoomController(nullptr);
+    jobject oldRef = AndroidBridge::Bridge()->SetNativePanZoomController(NULL);
     if (!oldRef) {
         MOZ_ASSERT(false, "Clearing a non-existent NPZC");
     } else {
@@ -966,7 +965,7 @@ Java_org_mozilla_gecko_ANRReporter_requestNativeStack(JNIEnv*, jclass)
     // Buffer one sample and let the profiler wait a long time
     profiler_start(100, 10000, NATIVE_STACK_FEATURES,
         sizeof(NATIVE_STACK_FEATURES) / sizeof(char*),
-        nullptr, 0);
+        NULL, 0);
     return JNI_TRUE;
 }
 
@@ -975,7 +974,7 @@ Java_org_mozilla_gecko_ANRReporter_getNativeStack(JNIEnv* jenv, jclass)
 {
     if (!profiler_is_active()) {
         // Maybe profiler support is disabled?
-        return nullptr;
+        return NULL;
     }
     char *profile = profiler_get_profile();
     while (profile && !strlen(profile)) {
@@ -983,7 +982,7 @@ Java_org_mozilla_gecko_ANRReporter_getNativeStack(JNIEnv* jenv, jclass)
         sched_yield();
         profile = profiler_get_profile();
     }
-    jstring result = nullptr;
+    jstring result = NULL;
     if (profile) {
         result = jenv->NewStringUTF(profile);
         free(profile);

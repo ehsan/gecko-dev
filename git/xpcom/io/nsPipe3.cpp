@@ -15,9 +15,6 @@
 #include "prlog.h"
 #include "nsIClassInfoImpl.h"
 #include "nsAlgorithm.h"
-#include "nsMemory.h"
-#include "nsIAsyncInputStream.h"
-#include "nsIAsyncOutputStream.h"
 
 using namespace mozilla;
 

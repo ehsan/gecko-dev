@@ -22,7 +22,7 @@
 
 #include "Events.h"
 #include "EventTarget.h"
-#include "mozilla/dom/Exceptions.h"
+#include "Exceptions.h"
 #include "File.h"
 #include "RuntimeService.h"
 #include "WorkerPrivate.h"
@@ -30,12 +30,13 @@
 
 #include "DOMBindingInlines.h"
 #include "mozilla/Attributes.h"
-#include "nsComponentManagerUtils.h"
 
 using namespace mozilla;
 
 using namespace mozilla::dom;
 USING_WORKERS_NAMESPACE
+
+using mozilla::dom::workers::exceptions::ThrowDOMExceptionForNSResult;
 
 // XXX Need to figure this out...
 #define UNCATCHABLE_EXCEPTION NS_ERROR_OUT_OF_MEMORY
@@ -715,7 +716,7 @@ public:
           clonedObjects.SwapElements(mClonedObjects);
 
           JS::Rooted<JS::Value> response(aCx);
-          if (!responseBuffer.read(aCx, &response, callbacks, &clonedObjects)) {
+          if (!responseBuffer.read(aCx, response.address(), callbacks, &clonedObjects)) {
             return false;
           }
 
@@ -801,7 +802,7 @@ private:
     WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
     {
       if (NS_FAILED(mErrorCode)) {
-        Throw(aCx, mErrorCode);
+        ThrowDOMExceptionForNSResult(aCx, mErrorCode);
         aWorkerPrivate->StopSyncLoop(mSyncQueueKey, false);
       }
       else {
@@ -1154,7 +1155,7 @@ public:
         WorkerStructuredCloneCallbacks(true);
 
       JS::Rooted<JS::Value> body(cx);
-      if (mBody.read(cx, &body, callbacks, &mClonedObjects)) {
+      if (mBody.read(cx, body.address(), callbacks, &mClonedObjects)) {
         if (NS_FAILED(xpc->JSValToVariant(cx, body.address(),
                                           getter_AddRefs(variant)))) {
           rv = NS_ERROR_DOM_INVALID_STATE_ERR;
@@ -1458,8 +1459,8 @@ XMLHttpRequest::_finalize(JSFreeOp* aFop)
 
 // static
 XMLHttpRequest*
-XMLHttpRequest::Constructor(const GlobalObject& aGlobal,
-                            const MozXMLHttpRequestParameters& aParams,
+XMLHttpRequest::Constructor(const WorkerGlobalObject& aGlobal,
+                            const MozXMLHttpRequestParametersWorkers& aParams,
                             ErrorResult& aRv)
 {
   JSContext* cx = aGlobal.GetContext();
@@ -1970,10 +1971,10 @@ XMLHttpRequest::Send(JSObject* aBody, ErrorResult& aRv)
 
   JSContext* cx = GetJSContext();
 
-  JS::Rooted<JS::Value> valToClone(cx);
+  jsval valToClone;
   if (JS_IsArrayBufferObject(aBody) || JS_IsArrayBufferViewObject(aBody) ||
       file::GetDOMBlobFromJSObject(aBody)) {
-    valToClone.setObject(*aBody);
+    valToClone = OBJECT_TO_JSVAL(aBody);
   }
   else {
     JSString* bodyStr = JS_ValueToString(cx, OBJECT_TO_JSVAL(aBody));
@@ -1981,7 +1982,7 @@ XMLHttpRequest::Send(JSObject* aBody, ErrorResult& aRv)
       aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
       return;
     }
-    valToClone.setString(bodyStr);
+    valToClone = STRING_TO_JSVAL(bodyStr);
   }
 
   JSStructuredCloneCallbacks* callbacks =

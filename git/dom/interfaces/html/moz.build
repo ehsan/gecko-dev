@@ -9,9 +9,9 @@ XPIDL_SOURCES += [
     'nsIDOMHTMLAppletElement.idl',
     'nsIDOMHTMLAreaElement.idl',
     'nsIDOMHTMLAudioElement.idl',
+    'nsIDOMHTMLBRElement.idl',
     'nsIDOMHTMLBaseElement.idl',
     'nsIDOMHTMLBodyElement.idl',
-    'nsIDOMHTMLBRElement.idl',
     'nsIDOMHTMLButtonElement.idl',
     'nsIDOMHTMLByteRanges.idl',
     'nsIDOMHTMLCanvasElement.idl',
@@ -25,23 +25,23 @@ XPIDL_SOURCES += [
     'nsIDOMHTMLFormElement.idl',
     'nsIDOMHTMLFrameElement.idl',
     'nsIDOMHTMLFrameSetElement.idl',
+    'nsIDOMHTMLHRElement.idl',
     'nsIDOMHTMLHeadElement.idl',
     'nsIDOMHTMLHeadingElement.idl',
-    'nsIDOMHTMLHRElement.idl',
     'nsIDOMHTMLHtmlElement.idl',
     'nsIDOMHTMLIFrameElement.idl',
     'nsIDOMHTMLImageElement.idl',
     'nsIDOMHTMLInputElement.idl',
-    'nsIDOMHTMLLabelElement.idl',
     'nsIDOMHTMLLIElement.idl',
+    'nsIDOMHTMLLabelElement.idl',
     'nsIDOMHTMLLinkElement.idl',
     'nsIDOMHTMLMapElement.idl',
     'nsIDOMHTMLMediaElement.idl',
     'nsIDOMHTMLMenuElement.idl',
     'nsIDOMHTMLMenuItemElement.idl',
     'nsIDOMHTMLMetaElement.idl',
-    'nsIDOMHTMLObjectElement.idl',
     'nsIDOMHTMLOListElement.idl',
+    'nsIDOMHTMLObjectElement.idl',
     'nsIDOMHTMLOptGroupElement.idl',
     'nsIDOMHTMLOptionElement.idl',
     'nsIDOMHTMLOptionsCollection.idl',
@@ -67,6 +67,11 @@ XPIDL_SOURCES += [
 ]
 
 XPIDL_MODULE = 'dom_html'
+
+XPIDL_FLAGS += [
+    '-I$(topsrcdir)/dom/interfaces/base',
+    '-I$(topsrcdir)/dom/interfaces/core',
+]
 
 MODULE = 'dom'
 

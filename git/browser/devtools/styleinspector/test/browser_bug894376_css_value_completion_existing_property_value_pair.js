@@ -47,7 +47,7 @@ function openRuleView()
     let node = content.document.getElementsByTagName("h1")[0];
     inspector.selection.setNode(node);
 
-    inspector.once("inspector-updated", testCompletion);
+    inspector.sidebar.once("ruleview-ready", testCompletion);
   });
 }
 

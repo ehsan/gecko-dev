@@ -6,6 +6,8 @@
 #include "ScaledFontCairo.h"
 #include "Logging.h"
 
+#include "gfxFont.h"
+
 #ifdef MOZ_ENABLE_FREETYPE
 #include <ft2build.h>
 #include FT_FREETYPE_H

@@ -4,6 +4,10 @@
 
 #include "nsISupports.idl"
 
+%{C++
+#include "jsapi.h"
+%}
+
 interface nsIURI;
 
 interface mozILivemarkCallback;

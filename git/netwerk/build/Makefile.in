@@ -3,6 +3,21 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+DEPTH     = @DEPTH@
+topsrcdir = @top_srcdir@
+srcdir    = @srcdir@
+VPATH     = @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+LIBRARY_NAME   = necko
+MSVC_ENABLE_PGO := 1
+EXPORT_LIBRARY = 1
+IS_COMPONENT   = 1
+MODULE_NAME    = necko
+LIBXUL_LIBRARY = 1
+FAIL_ON_WARNINGS := 1
+
 SHARED_LIBRARY_LIBS = \
   ../base/src/$(LIB_PREFIX)neckobase_s.$(LIB_SUFFIX) \
   ../dns/$(LIB_PREFIX)neckodns_s.$(LIB_SUFFIX) \
@@ -11,16 +26,11 @@ SHARED_LIBRARY_LIBS = \
   ../streamconv/converters/$(LIB_PREFIX)nkcnvts_s.$(LIB_SUFFIX) \
   ../mime/$(LIB_PREFIX)nkmime_s.$(LIB_SUFFIX) \
   ../cache/$(LIB_PREFIX)nkcache_s.$(LIB_SUFFIX) \
-  ../cache2/$(LIB_PREFIX)nkcache2_s.$(LIB_SUFFIX) \
   ../protocol/about/$(LIB_PREFIX)nkabout_s.$(LIB_SUFFIX) \
   $(foreach d,$(filter-out about,$(NECKO_PROTOCOLS)), \
     ../protocol/$(d)/$(LIB_PREFIX)nk$(d)_s.$(LIB_SUFFIX)) \
   ../ipc/$(LIB_PREFIX)neckoipc_s.$(LIB_SUFFIX) \
   $(NULL)
-
-ifdef MOZ_RTSP
-SHARED_LIBRARY_LIBS += ../protocol/rtsp/$(LIB_PREFIX)nkrtsp_s.$(LIB_SUFFIX)
-endif
 
 ifdef MOZ_SRTP
 SHARED_LIBRARY_LIBS += \
@@ -43,6 +53,11 @@ endif
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
     SHARED_LIBRARY_LIBS += \
         ../system/mac/$(LIB_PREFIX)neckosystem_s.$(LIB_SUFFIX)
+endif
+
+ifdef MOZ_ENABLE_LIBCONIC
+    SHARED_LIBRARY_LIBS += \
+        ../system/maemo/$(LIB_PREFIX)neckosystem_s.$(LIB_SUFFIX)
 endif
 
 ifdef MOZ_ENABLE_QTNETWORK
@@ -82,6 +97,10 @@ ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
     LOCAL_INCLUDES += -I$(srcdir)/../system/mac
 endif
 
+ifdef MOZ_ENABLE_LIBCONIC
+    LOCAL_INCLUDES += -I$(srcdir)/../system/maemo
+endif
+
 ifdef MOZ_ENABLE_QTNETWORK
     LOCAL_INCLUDES += -I$(srcdir)/../system/qt
 endif
@@ -105,8 +124,7 @@ LOCAL_INCLUDES += -I$(srcdir)/../wifi
 
 endif
 
-ifdef MOZ_RTSP
-    LOCAL_INCLUDES += -I$(srcdir)/../protocol/rtsp
-endif
-
+include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/config/rules.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
+

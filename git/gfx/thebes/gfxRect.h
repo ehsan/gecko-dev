@@ -6,13 +6,15 @@
 #ifndef GFX_RECT_H
 #define GFX_RECT_H
 
+#include "nsAlgorithm.h"
 #include "gfxTypes.h"
 #include "gfxPoint.h"
+#include "gfxCore.h"
 #include "nsDebug.h"
-#include "nsRect.h"
 #include "mozilla/gfx/BaseMargin.h"
 #include "mozilla/gfx/BaseRect.h"
 #include "mozilla/Assertions.h"
+#include "nsRect.h"
 
 struct gfxMargin : public mozilla::gfx::BaseMargin<gfxFloat, gfxMargin> {
   typedef mozilla::gfx::BaseMargin<gfxFloat, gfxMargin> Super;

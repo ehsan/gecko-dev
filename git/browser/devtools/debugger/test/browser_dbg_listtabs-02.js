@@ -1,19 +1,17 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/**
- * Make sure the root actor's live tab list implementation works as specified.
- */
+// Make sure the root actor's live tab list implementation works as specified.
 
-let gTestPage = "data:text/html;charset=utf-8," + encodeURIComponent(
-  "<title>JS Debugger BrowserTabList test page</title><body>Yo.</body>");
-
+let testPage = ("data:text/html;charset=utf-8,"
+                + encodeURIComponent("<title>JS Debugger BrowserTabList test page</title>" +
+                                     "<body>Yo.</body>"));
 // The tablist object whose behavior we observe.
-let gTabList;
-let gFirstActor, gActorA;
-let gTabA, gTabB, gTabC;
-let gNewWindow;
-
+let tabList;
+let firstActor, actorA;
+let tabA, tabB, tabC;
+let newWin;
 // Stock onListChanged handler.
 let onListChangedCount = 0;
 function onListChangedHandler() {
@@ -21,190 +19,132 @@ function onListChangedHandler() {
 }
 
 function test() {
-  if (!DebuggerServer.initialized) {
-    DebuggerServer.init(() => true);
-    DebuggerServer.addBrowserActors();
-  }
+  tabList = new DebuggerServer.BrowserTabList("fake DebuggerServerConnection");
+  tabList._testing = true;
+  tabList.onListChanged = onListChangedHandler;
 
-  gTabList = new DebuggerServer.BrowserTabList("fake DebuggerServerConnection");
-  gTabList._testing = true;
-  gTabList.onListChanged = onListChangedHandler;
-
-  checkSingleTab()
-    .then(addTabA)
-    .then(testTabA)
-    .then(addTabB)
-    .then(testTabB)
-    .then(removeTabA)
-    .then(testTabClosed)
-    .then(addTabC)
-    .then(testTabC)
-    .then(removeTabC)
-    .then(testNewWindow)
-    .then(removeNewWindow)
-    .then(testWindowClosed)
-    .then(removeTabB)
-    .then(checkSingleTab)
-    .then(finish);
+  checkSingleTab();
+  // Open a new tab. We should be notified.
+  is(onListChangedCount, 0, "onListChanged handler call count");
+  tabA = addTab(testPage, onTabA);
 }
 
 function checkSingleTab() {
-  return gTabList.getList().then(aTabActors => {
-    is(aTabActors.length, 1, "initial tab list: contains initial tab");
-    gFirstActor = aTabActors[0];
-    is(gFirstActor.url, "about:blank", "initial tab list: initial tab URL is 'about:blank'");
-    is(gFirstActor.title, "New Tab", "initial tab list: initial tab title is 'New Tab'");
-  });
+  var tabActors = [t for (t of tabList)];
+  is(tabActors.length, 1, "initial tab list: contains initial tab");
+  firstActor = tabActors[0];
+  is(firstActor.url, "about:blank", "initial tab list: initial tab URL is 'about:blank'");
+  is(firstActor.title, "New Tab", "initial tab list: initial tab title is 'New Tab'");
 }
 
-function addTabA() {
-  return addTab(gTestPage).then(aTab => {
-    gTabA = aTab;
-  });
-}
-
-function testTabA() {
+function onTabA() {
   is(onListChangedCount, 1, "onListChanged handler call count");
 
-  return gTabList.getList().then(aTabActors => {
-    let tabActors = new Set(aTabActors);
-    is(tabActors.size, 2, "gTabA opened: two tabs in list");
-    ok(tabActors.has(gFirstActor), "gTabA opened: initial tab present");
+  var tabActors = new Set([t for (t of tabList)]);
+  is(tabActors.size, 2, "tabA opened: two tabs in list");
+  ok(tabActors.has(firstActor), "tabA opened: initial tab present");
 
-    info("actors: " + [a.url for (a of tabActors)]);
-    gActorA = [a for (a of tabActors) if (a !== gFirstActor)][0];
-    ok(gActorA.url.match(/^data:text\/html;/), "gTabA opened: new tab URL");
-    is(gActorA.title, "JS Debugger BrowserTabList test page", "gTabA opened: new tab title");
-  });
+  info("actors: " + [a.url for (a of tabActors)]);
+  actorA = [a for (a of tabActors) if (a !== firstActor)][0];
+  ok(actorA.url.match(/^data:text\/html;/), "tabA opened: new tab URL");
+  is(actorA.title, "JS Debugger BrowserTabList test page", "tabA opened: new tab title");
+
+  tabB = addTab(testPage, onTabB);
 }
 
-function addTabB() {
-  return addTab(gTestPage).then(aTab => {
-    gTabB = aTab;
-  });
-}
-
-function testTabB() {
+function onTabB() {
   is(onListChangedCount, 2, "onListChanged handler call count");
 
-  return gTabList.getList().then(aTabActors => {
-    let tabActors = new Set(aTabActors);
-    is(tabActors.size, 3, "gTabB opened: three tabs in list");
-  });
-}
+  var tabActors = new Set([t for (t of tabList)]);
+  is(tabActors.size, 3, "tabB opened: three tabs in list");
 
-function removeTabA() {
-  let deferred = promise.defer();
-
-  once(gBrowser.tabContainer, "TabClose").then(aEvent => {
+  // Test normal close.
+  gBrowser.tabContainer.addEventListener("TabClose", function onClose(aEvent) {
+    gBrowser.tabContainer.removeEventListener("TabClose", onClose, false);
     ok(!aEvent.detail, "This was a normal tab close");
-
     // Let the actor's TabClose handler finish first.
-    executeSoon(deferred.resolve);
+    executeSoon(testTabClose);
   }, false);
-
-  removeTab(gTabA);
-  return deferred.promise;
+  gBrowser.removeTab(tabA);
 }
 
-function testTabClosed() {
+function testTabClose() {
   is(onListChangedCount, 3, "onListChanged handler call count");
 
-  gTabList.getList().then(aTabActors => {
-    let tabActors = new Set(aTabActors);
-    is(tabActors.size, 2, "gTabA closed: two tabs in list");
-    ok(tabActors.has(gFirstActor), "gTabA closed: initial tab present");
+  var tabActors = new Set([t for (t of tabList)]);
+  is(tabActors.size, 2, "tabA closed: two tabs in list");
+  ok(tabActors.has(firstActor), "tabA closed: initial tab present");
 
-    info("actors: " + [a.url for (a of tabActors)]);
-    gActorA = [a for (a of tabActors) if (a !== gFirstActor)][0];
-    ok(gActorA.url.match(/^data:text\/html;/), "gTabA closed: new tab URL");
-    is(gActorA.title, "JS Debugger BrowserTabList test page", "gTabA closed: new tab title");
-  });
+  info("actors: " + [a.url for (a of tabActors)]);
+  actorA = [a for (a of tabActors) if (a !== firstActor)][0];
+  ok(actorA.url.match(/^data:text\/html;/), "tabA closed: new tab URL");
+  is(actorA.title, "JS Debugger BrowserTabList test page", "tabA closed: new tab title");
+
+  // Test tab close by moving tab to a window.
+  tabC = addTab(testPage, onTabC);
 }
 
-function addTabC() {
-  return addTab(gTestPage).then(aTab => {
-    gTabC = aTab;
-  });
-}
-
-function testTabC() {
+function onTabC() {
   is(onListChangedCount, 4, "onListChanged handler call count");
 
-  gTabList.getList().then(aTabActors => {
-    let tabActors = new Set(aTabActors);
-    is(tabActors.size, 3, "gTabC opened: three tabs in list");
-  });
-}
+  var tabActors = new Set([t for (t of tabList)]);
+  is(tabActors.size, 3, "tabC opened: three tabs in list");
 
-function removeTabC() {
-  let deferred = promise.defer();
-
-  once(gBrowser.tabContainer, "TabClose").then(aEvent => {
+  gBrowser.tabContainer.addEventListener("TabClose", function onClose2(aEvent) {
+    gBrowser.tabContainer.removeEventListener("TabClose", onClose2, false);
     ok(aEvent.detail, "This was a tab closed by moving");
-
     // Let the actor's TabClose handler finish first.
-    executeSoon(deferred.resolve);
+    executeSoon(testWindowClose);
   }, false);
-
-  gNewWindow = gBrowser.replaceTabWithWindow(gTabC);
-  return deferred.promise;
+  newWin = gBrowser.replaceTabWithWindow(tabC);
 }
 
-function testNewWindow() {
+function testWindowClose() {
   is(onListChangedCount, 5, "onListChanged handler call count");
 
-  return gTabList.getList().then(aTabActors => {
-    let tabActors = new Set(aTabActors);
-    is(tabActors.size, 3, "gTabC closed: three tabs in list");
-    ok(tabActors.has(gFirstActor), "gTabC closed: initial tab present");
+  var tabActors = new Set([t for (t of tabList)]);
+  is(tabActors.size, 3, "tabC closed: three tabs in list");
+  ok(tabActors.has(firstActor), "tabC closed: initial tab present");
 
-    info("actors: " + [a.url for (a of tabActors)]);
-    gActorA = [a for (a of tabActors) if (a !== gFirstActor)][0];
-    ok(gActorA.url.match(/^data:text\/html;/), "gTabC closed: new tab URL");
-    is(gActorA.title, "JS Debugger BrowserTabList test page", "gTabC closed: new tab title");
-  });
-}
+  info("actors: " + [a.url for (a of tabActors)]);
+  actorA = [a for (a of tabActors) if (a !== firstActor)][0];
+  ok(actorA.url.match(/^data:text\/html;/), "tabC closed: new tab URL");
+  is(actorA.title, "JS Debugger BrowserTabList test page", "tabC closed: new tab title");
 
-function removeNewWindow() {
-  let deferred = promise.defer();
-
-  once(gNewWindow, "unload").then(aEvent => {
+  // Cleanup.
+  newWin.addEventListener("unload", function onUnload(aEvent) {
+    newWin.removeEventListener("unload", onUnload, false);
     ok(!aEvent.detail, "This was a normal window close");
-
     // Let the actor's TabClose handler finish first.
-    executeSoon(deferred.resolve);
+    executeSoon(checkWindowClose);
   }, false);
-
-  gNewWindow.close();
-  return deferred.promise;
+  newWin.close();
 }
 
-function testWindowClosed() {
+function checkWindowClose() {
   is(onListChangedCount, 6, "onListChanged handler call count");
 
-  return gTabList.getList().then(aTabActors => {
-    let tabActors = new Set(aTabActors);
-    is(tabActors.size, 2, "gNewWindow closed: two tabs in list");
-    ok(tabActors.has(gFirstActor), "gNewWindow closed: initial tab present");
+  // Check that closing a XUL window leaves the other actors intact.
+  var tabActors = new Set([t for (t of tabList)]);
+  is(tabActors.size, 2, "newWin closed: two tabs in list");
+  ok(tabActors.has(firstActor), "newWin closed: initial tab present");
 
-    info("actors: " + [a.url for (a of tabActors)]);
-    gActorA = [a for (a of tabActors) if (a !== gFirstActor)][0];
-    ok(gActorA.url.match(/^data:text\/html;/), "gNewWindow closed: new tab URL");
-    is(gActorA.title, "JS Debugger BrowserTabList test page", "gNewWindow closed: new tab title");
-  });
+  info("actors: " + [a.url for (a of tabActors)]);
+  actorA = [a for (a of tabActors) if (a !== firstActor)][0];
+  ok(actorA.url.match(/^data:text\/html;/), "newWin closed: new tab URL");
+  is(actorA.title, "JS Debugger BrowserTabList test page", "newWin closed: new tab title");
+
+  // Test normal close.
+  gBrowser.tabContainer.addEventListener("TabClose", function onClose(aEvent) {
+    gBrowser.tabContainer.removeEventListener("TabClose", onClose, false);
+    ok(!aEvent.detail, "This was a normal tab close");
+    // Let the actor's TabClose handler finish first.
+    executeSoon(finishTest);
+  }, false);
+  gBrowser.removeTab(tabB);
 }
 
-function removeTabB() {
-  let deferred = promise.defer();
-
-  once(gBrowser.tabContainer, "TabClose").then(aEvent => {
-    ok(!aEvent.detail, "This was a normal tab close");
-
-    // Let the actor's TabClose handler finish first.
-    executeSoon(deferred.resolve);
-  }, false);
-
-  removeTab(gTabB);
-  return deferred.promise;
+function finishTest() {
+  checkSingleTab();
+  finish();
 }

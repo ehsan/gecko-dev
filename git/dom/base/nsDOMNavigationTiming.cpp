@@ -7,9 +7,9 @@
 #include "nsCOMPtr.h"
 #include "nsContentUtils.h"
 #include "nsIScriptSecurityManager.h"
+#include "nscore.h"
 #include "prtime.h"
-#include "nsIURI.h"
-#include "mozilla/TimeStamp.h"
+#include "TimeStamp.h"
 
 nsDOMNavigationTiming::nsDOMNavigationTiming()
 {

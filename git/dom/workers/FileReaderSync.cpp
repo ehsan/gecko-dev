@@ -6,10 +6,6 @@
 
 #include "FileReaderSync.h"
 
-#include "jsfriendapi.h"
-#include "mozilla/Base64.h"
-#include "mozilla/dom/EncodingUtils.h"
-#include "mozilla/dom/FileReaderSyncBinding.h"
 #include "nsCExternalHandlerService.h"
 #include "nsComponentManagerUtils.h"
 #include "nsCOMPtr.h"
@@ -25,41 +21,57 @@
 #include "nsISupportsImpl.h"
 #include "nsNetUtil.h"
 #include "nsServiceManagerUtils.h"
-
 #include "File.h"
 #include "RuntimeService.h"
+#include "DOMBindingInlines.h"
+
+#include "mozilla/Base64.h"
+#include "mozilla/dom/EncodingUtils.h"
 
 USING_WORKERS_NAMESPACE
 using namespace mozilla;
 using mozilla::dom::Optional;
-using mozilla::dom::GlobalObject;
+using mozilla::dom::WorkerGlobalObject;
 
-NS_IMPL_ADDREF(FileReaderSync)
-NS_IMPL_RELEASE(FileReaderSync)
-
+NS_IMPL_ADDREF_INHERITED(FileReaderSync, DOMBindingBase)
+NS_IMPL_RELEASE_INHERITED(FileReaderSync, DOMBindingBase)
 NS_INTERFACE_MAP_BEGIN(FileReaderSync)
   NS_INTERFACE_MAP_ENTRY(nsICharsetDetectionObserver)
-NS_INTERFACE_MAP_END
+NS_INTERFACE_MAP_END_INHERITING(DOMBindingBase)
+
+FileReaderSync::FileReaderSync(JSContext* aCx)
+  : DOMBindingBase(aCx)
+{
+}
+
+void
+FileReaderSync::_trace(JSTracer* aTrc)
+{
+  DOMBindingBase::_trace(aTrc);
+}
+
+void
+FileReaderSync::_finalize(JSFreeOp* aFop)
+{
+  DOMBindingBase::_finalize(aFop);
+}
 
 // static
-already_AddRefed<FileReaderSync>
-FileReaderSync::Constructor(const GlobalObject& aGlobal, ErrorResult& aRv)
+FileReaderSync*
+FileReaderSync::Constructor(const WorkerGlobalObject& aGlobal, ErrorResult& aRv)
 {
-  nsRefPtr<FileReaderSync> frs = new FileReaderSync();
+  nsRefPtr<FileReaderSync> frs = new FileReaderSync(aGlobal.GetContext());
 
-  return frs.forget();
+  if (!Wrap(aGlobal.GetContext(), aGlobal.Get(), frs)) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return nullptr;
+  }
+
+  return frs;
 }
 
 JSObject*
-FileReaderSync::WrapObject(JSContext* aCx, JS::HandleObject aScope)
-{
-  return FileReaderSyncBinding_workers::Wrap(aCx, aScope, this);
-}
-
-JSObject*
-FileReaderSync::ReadAsArrayBuffer(JSContext* aCx,
-                                  JS::Handle<JSObject*> aScopeObj,
-                                  JS::Handle<JSObject*> aBlob,
+FileReaderSync::ReadAsArrayBuffer(JSContext* aCx, JS::Handle<JSObject*> aBlob,
                                   ErrorResult& aRv)
 {
   nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aBlob);

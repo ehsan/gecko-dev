@@ -259,10 +259,9 @@ nsNullPrincipal::CheckMayLoad(nsIURI* aURI, bool aReport, bool aAllowIfInheritsP
 }
 
 NS_IMETHODIMP
-nsNullPrincipal::GetJarPrefix(nsACString& aJarPrefix)
+nsNullPrincipal::GetExtendedOrigin(nsACString& aExtendedOrigin)
 {
-  aJarPrefix.Truncate();
-  return NS_OK;
+  return GetOrigin(getter_Copies(aExtendedOrigin));
 }
 
 NS_IMETHODIMP

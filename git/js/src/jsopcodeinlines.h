@@ -9,6 +9,7 @@
 
 #include "jsopcode.h"
 
+#include "jsautooplen.h"
 #include "jsscript.h"
 
 namespace js {

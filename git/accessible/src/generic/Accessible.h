@@ -7,7 +7,6 @@
 #define _Accessible_H_
 
 #include "mozilla/a11y/AccTypes.h"
-#include "mozilla/a11y/RelationType.h"
 #include "mozilla/a11y/Role.h"
 #include "mozilla/a11y/States.h"
 #include "nsAccessNode.h"
@@ -19,7 +18,7 @@
 #include "nsIAccessibleStates.h"
 
 #include "nsIContent.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsTArray.h"
 #include "nsRefPtrHashtable.h"
 
@@ -295,7 +294,7 @@ public:
   /**
    * Get the relation of the given type.
    */
-  virtual Relation RelationByType(RelationType aType);
+  virtual mozilla::a11y::Relation RelationByType(uint32_t aType);
 
   //////////////////////////////////////////////////////////////////////////////
   // Initializing methods
@@ -435,11 +434,6 @@ public:
   virtual bool CanHaveAnonChildren();
 
   /**
-   * Return true if the accessible is an acceptable child.
-   */
-  virtual bool IsAcceptableChild(Accessible* aPossibleChild) const { return true; }
-
-  /**
    * Returns text of accessible if accessible has text role otherwise empty
    * string.
    *
@@ -487,7 +481,6 @@ public:
   bool IsHyperText() const { return HasGenericType(eHyperText); }
   HyperTextAccessible* AsHyperText();
 
-  bool IsHTMLBr() const { return mType == eHTMLBRType; }
   bool IsHTMLFileInput() const { return mType == eHTMLFileInputType; }
 
   bool IsHTMLListItem() const { return mType == eHTMLLiType; }

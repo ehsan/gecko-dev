@@ -16,10 +16,11 @@ EXPORTS += [
     'nsUnicodeScriptCodes.h',
 ]
 
-include('objs.mozbuild')
-
-SOURCES += intl_unicharutil_util_cppsrcs
+CPP_SOURCES += [
+    'nsBidiUtils.cpp',
+    'nsSpecialCasingData.cpp',
+    'nsUnicharUtils.cpp',
+    'nsUnicodeProperties.cpp',
+]
 
 LIBRARY_NAME = 'unicharutil_external_s'
-
-FORCE_STATIC_LIB = True

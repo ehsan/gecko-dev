@@ -6,13 +6,10 @@
 
 MODULE = 'nestegg'
 
-SOURCES += [
+CSRCS += [
     'halloc.c',
     'nestegg.c',
 ]
 
 LIBRARY_NAME = 'nestegg'
 
-MSVC_ENABLE_PGO = True
-
-FORCE_STATIC_LIB = True

@@ -24,11 +24,7 @@
     <content>
       <xul:stringbundle src="chrome://browser/locale/search.properties"
                         anonid="searchbar-stringbundle"/>
-      <!--
-      There is a dependency between "maxrows" attribute and
-      "SuggestAutoComplete._historyLimit" (nsSearchSuggestions.js). Changing
-      one of them requires changing the other one.
-      -->
+
       <xul:textbox class="searchbar-textbox"
                    anonid="searchbar-textbox"
                    type="autocomplete"
@@ -482,8 +478,8 @@
           }
           
           // null parameter below specifies HTML response for search
-          var submission = this.currentEngine.getSubmission(aData, null, "searchbar");
-          BrowserSearch.recordSearchInHealthReport(this.currentEngine, "searchbar");
+          var submission = this.currentEngine.getSubmission(aData);
+          BrowserSearch.recordSearchInHealthReport(this.currentEngine.name, "searchbar");
           openUILinkIn(submission.uri.spec, aWhere, null, submission.postData);
         ]]></body>
       </method>
@@ -531,14 +527,14 @@
         var engine = this.currentEngine;
         var connector =
             Services.io.QueryInterface(Components.interfaces.nsISpeculativeConnect);
-        var searchURI = engine.getSubmission("dummy", null, "searchbar").uri;
+        var searchURI = engine.getSubmission("dummy").uri;
         let callbacks = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
                               .getInterface(Components.interfaces.nsIWebNavigation)
                               .QueryInterface(Components.interfaces.nsILoadContext);
         connector.speculativeConnect(searchURI, callbacks);
 
         if (engine.supportsResponseType(SUGGEST_TYPE)) {
-          var suggestURI = engine.getSubmission("dummy", SUGGEST_TYPE, "searchbar").uri;
+          var suggestURI = engine.getSubmission("dummy", SUGGEST_TYPE).uri;
           if (suggestURI.prePath != searchURI.prePath)
             connector.speculativeConnect(suggestURI, callbacks);
         }

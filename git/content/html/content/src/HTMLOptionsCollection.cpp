@@ -7,7 +7,6 @@
 
 #include "HTMLOptGroupElement.h"
 #include "mozAutoDocUpdate.h"
-#include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/HTMLOptionElement.h"
 #include "mozilla/dom/HTMLOptionsCollectionBinding.h"
@@ -19,12 +18,14 @@
 #include "nsEventStates.h"
 #include "nsFormSubmission.h"
 #include "nsGkAtoms.h"
+#include "nsGUIEvent.h"
 #include "nsIComboboxControlFrame.h"
 #include "nsIDocument.h"
 #include "nsIDOMHTMLOptGroupElement.h"
 #include "nsIFormControlFrame.h"
 #include "nsIForm.h"
 #include "nsIFormProcessor.h"
+#include "nsIFrame.h"
 #include "nsIListControlFrame.h"
 #include "nsLayoutUtils.h"
 #include "nsMappedAttributes.h"
@@ -167,20 +168,17 @@ HTMLOptionsCollection::SetOption(uint32_t aIndex,
   
   nsCOMPtr<nsIDOMNode> ret;
   if (index == mElements.Length()) {
-    nsCOMPtr<nsIDOMNode> node = do_QueryInterface(aOption);
-    rv = mSelect->AppendChild(node, getter_AddRefs(ret));
+    rv = mSelect->AppendChild(aOption, getter_AddRefs(ret));
   } else {
     // Find the option they're talking about and replace it
     // hold a strong reference to follow COM rules.
-    nsRefPtr<HTMLOptionElement> refChild = ItemAsOption(index);
+    nsCOMPtr<nsIDOMHTMLOptionElement> refChild = ItemAsOption(index);
     NS_ENSURE_TRUE(refChild, NS_ERROR_UNEXPECTED);
 
-    nsCOMPtr<nsINode> parent = refChild->GetParent();
+    nsCOMPtr<nsIDOMNode> parent;
+    refChild->GetParentNode(getter_AddRefs(parent));
     if (parent) {
-      nsCOMPtr<nsINode> node = do_QueryInterface(aOption);
-      ErrorResult res;
-      parent->ReplaceChild(*node, *refChild, res);
-      rv = res.ErrorCode();
+      rv = parent->ReplaceChild(aOption, refChild, getter_AddRefs(ret));
     }
   }
 
@@ -348,8 +346,7 @@ HTMLOptionsCollection::Add(nsIDOMHTMLOptionElement* aOption,
     return NS_ERROR_NOT_INITIALIZED;
   }
 
-  nsCOMPtr<nsIDOMHTMLElement> elem = do_QueryInterface(aOption);
-  return mSelect->Add(elem, aBefore);
+  return mSelect->Add(aOption, aBefore);
 }
 
 void
@@ -357,11 +354,6 @@ HTMLOptionsCollection::Add(const HTMLOptionOrOptGroupElement& aElement,
                            const Nullable<HTMLElementOrLong>& aBefore,
                            ErrorResult& aError)
 {
-  if (!mSelect) {
-    aError.Throw(NS_ERROR_NOT_INITIALIZED);
-    return;
-  }
-
   mSelect->Add(aElement, aBefore, aError);
 }
 

@@ -12,8 +12,6 @@
 #include "nsError.h"
 #include "nsDisplayList.h"
 #include "FrameLayerBuilder.h"
-#include "nsSVGEffects.h"
-#include "imgIContainer.h"
 
 namespace mozilla {
 namespace css {
@@ -73,6 +71,10 @@ void
 ImageLoader::AssociateRequestToFrame(imgIRequest* aRequest,
                                      nsIFrame* aFrame)
 {
+  MOZ_ASSERT(mRequestToFrameMap.IsInitialized() &&
+             mFrameToRequestMap.IsInitialized() &&
+             mImages.IsInitialized());
+
   nsCOMPtr<imgINotificationObserver> observer;
   aRequest->GetNotificationObserver(getter_AddRefs(observer));
   if (!observer) {
@@ -168,6 +170,10 @@ ImageLoader::DisassociateRequestFromFrame(imgIRequest* aRequest,
 {
   FrameSet* frameSet = nullptr;
   RequestSet* requestSet = nullptr;
+
+  MOZ_ASSERT(mRequestToFrameMap.IsInitialized() &&
+             mFrameToRequestMap.IsInitialized() &&
+             mImages.IsInitialized());
 
 #ifdef DEBUG
   {
@@ -323,13 +329,6 @@ void InvalidateImagesCallback(nsIFrame* aFrame,
 
   aItem->Invalidate();
   aFrame->SchedulePaint();
-
-  // Update ancestor rendering observers (-moz-element etc)
-  nsIFrame *f = aFrame;
-  while (f && !f->HasAnyStateBits(NS_FRAME_DESCENDANT_NEEDS_PAINT)) {
-    nsSVGEffects::InvalidateDirectRenderingObservers(f);
-    f = nsLayoutUtils::GetCrossDocParentFrame(f);
-  }
 }
 
 void

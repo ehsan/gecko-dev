@@ -16,7 +16,6 @@
 #include "mozilla/dom/Element.h"
 #include "nsDebug.h"
 #include "nsStyleUtil.h"
-#include "nsIDocument.h"
 
 using namespace mozilla::dom;
 
@@ -30,20 +29,22 @@ struct ValueWrapper {
   nsStyleAnimation::Value mCSSValue;
 };
 
+// Helper "zero" values of various types
+// -------------------------------------
+static const nsStyleAnimation::Value
+  sZeroCoord(0, nsStyleAnimation::Value::CoordConstructor);
+static const nsStyleAnimation::Value
+  sZeroPercent(0.0f, nsStyleAnimation::Value::PercentConstructor);
+static const nsStyleAnimation::Value
+  sZeroFloat(0.0f,  nsStyleAnimation::Value::FloatConstructor);
+static const nsStyleAnimation::Value
+  sZeroColor(NS_RGB(0,0,0), nsStyleAnimation::Value::ColorConstructor);
+
 // Helper Methods
 // --------------
 static const nsStyleAnimation::Value*
 GetZeroValueForUnit(nsStyleAnimation::Unit aUnit)
 {
-  static const nsStyleAnimation::Value
-    sZeroCoord(0, nsStyleAnimation::Value::CoordConstructor);
-  static const nsStyleAnimation::Value
-    sZeroPercent(0.0f, nsStyleAnimation::Value::PercentConstructor);
-  static const nsStyleAnimation::Value
-    sZeroFloat(0.0f,  nsStyleAnimation::Value::FloatConstructor);
-  static const nsStyleAnimation::Value
-    sZeroColor(NS_RGB(0,0,0), nsStyleAnimation::Value::ColorConstructor);
-
   NS_ABORT_IF_FALSE(aUnit != nsStyleAnimation::eUnit_Null,
                     "Need non-null unit for a zero value");
   switch (aUnit) {
@@ -92,14 +93,12 @@ FinalizeStyleAnimationValues(const nsStyleAnimation::Value*& aValue1,
   // eUnit_Float) mixed with unitless 0 length (parsed as eUnit_Coord).  These
   // won't interoperate in nsStyleAnimation, since their Units don't match.
   // In this case, we replace the eUnit_Coord 0 value with eUnit_Float 0 value.
-  const nsStyleAnimation::Value& zeroCoord =
-    *GetZeroValueForUnit(nsStyleAnimation::eUnit_Coord);
-  if (*aValue1 == zeroCoord &&
+  if (*aValue1 == sZeroCoord &&
       aValue2->GetUnit() == nsStyleAnimation::eUnit_Float) {
-    aValue1 = GetZeroValueForUnit(nsStyleAnimation::eUnit_Float);
-  } else if (*aValue2 == zeroCoord &&
+    aValue1 = &sZeroFloat;
+  } else if (*aValue2 == sZeroCoord &&
              aValue1->GetUnit() == nsStyleAnimation::eUnit_Float) {
-    aValue2 = GetZeroValueForUnit(nsStyleAnimation::eUnit_Float);
+    aValue2 = &sZeroFloat;
   }
 
   return true;

@@ -18,14 +18,6 @@ var NavButtonSlider = {
   _mouseDown: false,
   _yPos: -1,
 
-  get back() {
-    return this._back;
-  },
-
-  get plus() {
-    return this._plus;
-  },
-
   /*
    * custom dragger, see input.js
    */
@@ -80,7 +72,7 @@ var NavButtonSlider = {
     Services.prefs.addObserver(kNavButtonPref, this, false);
   },
 
-  observe: function (aSubject, aTopic, aData) {
+  observe: function BrowserUI_observe(aSubject, aTopic, aData) {
     if (aTopic == "nsPref:changed" && aData == kNavButtonPref) {
       this._updateVisibility();
     }

@@ -13,17 +13,16 @@
  * This file includes unit tests for the RTCPSender.
  */
 
-#include "testing/gmock/include/gmock/gmock.h"
-#include "testing/gtest/include/gtest/gtest.h"
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 
-#include "webrtc/common_types.h"
-#include "webrtc/modules/remote_bitrate_estimator/include/mock/mock_remote_bitrate_observer.h"
-#include "webrtc/modules/remote_bitrate_estimator/include/remote_bitrate_estimator.h"
-#include "webrtc/modules/rtp_rtcp/interface/rtp_header_parser.h"
-#include "webrtc/modules/rtp_rtcp/source/rtcp_receiver.h"
-#include "webrtc/modules/rtp_rtcp/source/rtcp_sender.h"
-#include "webrtc/modules/rtp_rtcp/source/rtp_rtcp_impl.h"
-#include "webrtc/modules/rtp_rtcp/source/rtp_utility.h"
+#include "common_types.h"
+#include "modules/remote_bitrate_estimator/include/remote_bitrate_estimator.h"
+#include "modules/remote_bitrate_estimator/include/mock/mock_remote_bitrate_observer.h"
+#include "modules/rtp_rtcp/source/rtcp_receiver.h"
+#include "modules/rtp_rtcp/source/rtcp_sender.h"
+#include "modules/rtp_rtcp/source/rtp_utility.h"
+#include "modules/rtp_rtcp/source/rtp_rtcp_impl.h"
 
 namespace webrtc {
 
@@ -278,7 +277,9 @@ class RtcpSenderTest : public ::testing::Test {
         system_clock_(Clock::GetRealTimeClock()),
         remote_bitrate_observer_(),
         remote_bitrate_estimator_(
-            RemoteBitrateEstimatorFactory().Create(
+            RemoteBitrateEstimator::Create(
+                over_use_detector_options_,
+                RemoteBitrateEstimator::kSingleStreamEstimation,
                 &remote_bitrate_observer_,
                 system_clock_)) {
     test_transport_ = new TestTransport();
@@ -354,11 +355,7 @@ TEST_F(RtcpSenderTest, TestCompound) {
   EXPECT_EQ(0, rtp_rtcp_impl_->RegisterReceivePayload(codec_inst));
 
   // Make sure RTP packet has been received.
-  scoped_ptr<RtpHeaderParser> parser(RtpHeaderParser::Create());
-  RTPHeader header;
-  EXPECT_TRUE(parser->Parse(packet_, packet_length, &header));
-  EXPECT_EQ(0, rtp_rtcp_impl_->IncomingRtpPacket(packet_, packet_length,
-                                                 header));
+  EXPECT_EQ(0, rtp_rtcp_impl_->IncomingPacket(packet_, packet_length));
 
   EXPECT_EQ(0, rtcp_sender_->SetIJStatus(true));
   EXPECT_EQ(0, rtcp_sender_->SetRTCPStatus(kRtcpCompound));

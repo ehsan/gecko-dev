@@ -12,12 +12,6 @@
 
 interface Principal;
 
-dictionary IDBOpenDBOptions
-{
-  [EnforceRange] unsigned long long version;
-  StorageType storage;
-};
-
 /**
  * Interface that defines the indexedDB property on a window.  See
  * http://dvcs.w3.org/hg/IndexedDB/raw-file/tip/Overview.html#idl-def-IDBFactory
@@ -27,17 +21,11 @@ interface IDBFactory {
   [Throws]
   IDBOpenDBRequest
   open(DOMString name,
-       [EnforceRange] unsigned long long version);
+       [EnforceRange] optional unsigned long long version);
 
   [Throws]
   IDBOpenDBRequest
-  open(DOMString name,
-       optional IDBOpenDBOptions options);
-
-  [Throws]
-  IDBOpenDBRequest
-  deleteDatabase(DOMString name,
-                 optional IDBOpenDBOptions options);
+  deleteDatabase(DOMString name);
 
   [Throws]
   short
@@ -48,17 +36,10 @@ interface IDBFactory {
   IDBOpenDBRequest
   openForPrincipal(Principal principal,
                    DOMString name,
-                   [EnforceRange] unsigned long long version);
-
-  [Throws, ChromeOnly]
-  IDBOpenDBRequest
-  openForPrincipal(Principal principal,
-                   DOMString name,
-                   optional IDBOpenDBOptions options);
+                   [EnforceRange] optional unsigned long long version);
 
   [Throws, ChromeOnly]
   IDBOpenDBRequest
   deleteForPrincipal(Principal principal,
-                     DOMString name,
-                     optional IDBOpenDBOptions options);
+                     DOMString name);
 };

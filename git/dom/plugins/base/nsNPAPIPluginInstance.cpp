@@ -23,8 +23,6 @@
 #include "nsContentUtils.h"
 #include "nsPluginInstanceOwner.h"
 
-#include "nsThreadUtils.h"
-#include "nsIDOMElement.h"
 #include "nsIDocument.h"
 #include "nsIDocShell.h"
 #include "nsIScriptGlobalObject.h"
@@ -38,7 +36,6 @@
 #include "nsVersionComparator.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/unused.h"
-#include "nsILoadContext.h"
 
 using namespace mozilla;
 
@@ -52,7 +49,6 @@ using namespace mozilla;
 #include "mozilla/dom/ScreenOrientation.h"
 #include "mozilla/Hal.h"
 #include "GLContextProvider.h"
-#include "GLContext.h"
 #include "TexturePoolOGL.h"
 
 using namespace mozilla::gl;
@@ -138,9 +134,9 @@ public:
       return 0;
 
     SharedTextureHandle handle =
-      sPluginContext->CreateSharedHandle(gl::SameProcess,
+      sPluginContext->CreateSharedHandle(GLContext::SameProcess,
                                          (void*)mTextureInfo.mTexture,
-                                         gl::TextureID);
+                                         GLContext::TextureID);
 
     // We want forget about this now, so delete the texture. Assigning it to zero
     // ensures that we create a new one in Lock()
@@ -193,7 +189,7 @@ nsNPAPIPluginInstance::nsNPAPIPluginInstance()
 #endif
   , mHaveJavaC2PJSObjectQuirk(false)
 {
-  mNPP.pdata = nullptr;
+  mNPP.pdata = NULL;
   mNPP.ndata = this;
 
   PLUGIN_LOG(PLUGIN_LOG_BASIC, ("nsNPAPIPluginInstance ctor: this=%p\n",this));
@@ -536,9 +532,7 @@ nsNPAPIPluginInstance::Start()
   // before returning. If the plugin returns failure, we'll clear it out below.
   mRunning = RUNNING;
 
-  nsresult newResult = library->NPP_New((char*)mimetype, &mNPP, (uint16_t)mode,
-                                        count, (char**)names, (char**)values,
-                                        nullptr, &error);
+  nsresult newResult = library->NPP_New((char*)mimetype, &mNPP, (uint16_t)mode, count, (char**)names, (char**)values, NULL, &error);
   mInPluginInitCall = oldVal;
 
   NPP_PLUGIN_LOG(PLUGIN_LOG_NORMAL,
@@ -556,11 +550,11 @@ nsNPAPIPluginInstance::Start()
 
 nsresult nsNPAPIPluginInstance::SetWindow(NPWindow* window)
 {
-  // NPAPI plugins don't want a SetWindow(nullptr).
+  // NPAPI plugins don't want a SetWindow(NULL).
   if (!window || RUNNING != mRunning)
     return NS_OK;
 
-#if (MOZ_WIDGET_GTK == 2)
+#if defined(MOZ_WIDGET_GTK2)
   // bug 108347, flash plugin on linux doesn't like window->width <=
   // 0, but Java needs wants this call.
   if (!nsPluginHost::IsJavaMIMEType(mMIMEType) && window->type == NPWindowTypeWindow &&
@@ -1018,9 +1012,9 @@ SharedTextureHandle nsNPAPIPluginInstance::CreateSharedHandle()
     return mContentTexture->CreateSharedHandle();
   } else if (mContentSurface) {
     EnsureGLContext();
-    return sPluginContext->CreateSharedHandle(gl::SameProcess,
+    return sPluginContext->CreateSharedHandle(GLContext::SameProcess,
                                               mContentSurface,
-                                              gl::SurfaceTexture);
+                                              GLContext::SurfaceTexture);
   } else return 0;
 }
 
@@ -1207,6 +1201,23 @@ nsNPAPIPluginInstance::AsyncSetWindow(NPWindow* window)
 
   return library->AsyncSetWindow(&mNPP, window);
 }
+
+#if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
+nsresult
+nsNPAPIPluginInstance::HandleGUIEvent(const nsGUIEvent& anEvent, bool* handled)
+{
+  if (RUNNING != mRunning) {
+    *handled = false;
+    return NS_OK;
+  }
+
+  AutoPluginLibraryCall library(this);
+  if (!library)
+    return NS_ERROR_FAILURE;
+
+  return library->HandleGUIEvent(&mNPP, anEvent, handled);
+}
+#endif
 
 nsresult
 nsNPAPIPluginInstance::GetImageContainer(ImageContainer**aContainer)
@@ -1441,7 +1452,7 @@ PluginTimerCallback(nsITimer *aTimer, void *aClosure)
   // Make sure we still have an instance and the timer is still alive
   // after the callback.
   nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance*)npp->ndata;
-  if (!inst || !inst->TimerWithID(id, nullptr))
+  if (!inst || !inst->TimerWithID(id, NULL))
     return;
 
   // use UnscheduleTimer to clean up if this is a one-shot timer
@@ -1478,7 +1489,7 @@ nsNPAPIPluginInstance::ScheduleTimer(uint32_t interval, NPBool repeat, void (*ti
 
   // generate ID that is unique to this instance
   uint32_t uniqueID = mTimers.Length();
-  while ((uniqueID == 0) || TimerWithID(uniqueID, nullptr))
+  while ((uniqueID == 0) || TimerWithID(uniqueID, NULL))
     uniqueID++;
   newTimer->id = uniqueID;
 
@@ -1601,7 +1612,7 @@ nsNPAPIPluginInstance::GetJSContext(JSContext* *outContext)
 
   nsRefPtr<nsPluginInstanceOwner> deathGrip(mOwner);
 
-  *outContext = nullptr;
+  *outContext = NULL;
   nsCOMPtr<nsIDocument> document;
 
   nsresult rv = mOwner->GetDocument(getter_AddRefs(document));

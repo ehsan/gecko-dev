@@ -3,10 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/ContentEvents.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/MathAlgorithms.h"
-#include "mozilla/MouseEvents.h"
 #include "mozilla/Likely.h"
 
 #include "nsCOMPtr.h"
@@ -23,6 +21,7 @@
 #include "nsIContent.h"
 #include "nsStyleContext.h"
 #include "nsIBoxObject.h"
+#include "nsGUIEvent.h"
 #include "nsAsyncDOMEvent.h"
 #include "nsIDOMDataContainerEvent.h"
 #include "nsIDOMMouseEvent.h"
@@ -112,7 +111,6 @@ NS_QUERYFRAME_TAIL_INHERITING(nsLeafBoxFrame)
 nsTreeBodyFrame::nsTreeBodyFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 :nsLeafBoxFrame(aPresShell, aContext),
  mSlots(nullptr),
- mImageCache(16),
  mTopRowIndex(0),
  mPageLength(0),
  mHorzPosition(0),
@@ -129,8 +127,7 @@ nsTreeBodyFrame::nsTreeBodyFrame(nsIPresShell* aPresShell, nsStyleContext* aCont
  mHasFixedRowCount(false),
  mVerticalOverflow(false),
  mHorizontalOverflow(false),
- mReflowCallbackPosted(false),
- mCheckingOverflow(false)
+ mReflowCallbackPosted(false)
 {
   mColumns = new nsTreeColumns(this);
 }
@@ -171,6 +168,9 @@ nsTreeBodyFrame::Init(nsIContent*     aContent,
   mIndentation = GetIndentation();
   mRowHeight = GetRowHeight();
 
+  mCreatedListeners.Init();
+
+  mImageCache.Init(16);
   EnsureBoxObject();
 
   if (LookAndFeel::GetInt(LookAndFeel::eIntID_UseOverlayScrollbars) != 0) {
@@ -918,44 +918,24 @@ nsTreeBodyFrame::CheckOverflow(const ScrollParts& aParts)
       }
     }
   }
-
-  nsWeakFrame weakFrame(this);
-
+ 
   nsRefPtr<nsPresContext> presContext = PresContext();
-  nsCOMPtr<nsIPresShell> presShell = presContext->GetPresShell();
   nsCOMPtr<nsIContent> content = mContent;
 
   if (verticalOverflowChanged) {
-    InternalScrollPortEvent event(true,
-      mVerticalOverflow ? NS_SCROLLPORT_OVERFLOW : NS_SCROLLPORT_UNDERFLOW,
-      nullptr);
-    event.orient = InternalScrollPortEvent::vertical;
+    nsScrollPortEvent event(true, mVerticalOverflow ? NS_SCROLLPORT_OVERFLOW
+                            : NS_SCROLLPORT_UNDERFLOW, nullptr);
+    event.orient = nsScrollPortEvent::vertical;
     nsEventDispatcher::Dispatch(content, presContext, &event);
   }
 
   if (horizontalOverflowChanged) {
-    InternalScrollPortEvent event(true,
-      mHorizontalOverflow ? NS_SCROLLPORT_OVERFLOW : NS_SCROLLPORT_UNDERFLOW,
-      nullptr);
-    event.orient = InternalScrollPortEvent::horizontal;
+    nsScrollPortEvent event(true,
+                            mHorizontalOverflow ? NS_SCROLLPORT_OVERFLOW
+                            : NS_SCROLLPORT_UNDERFLOW, nullptr);
+    event.orient = nsScrollPortEvent::horizontal;
     nsEventDispatcher::Dispatch(content, presContext, &event);
   }
-
-  // The synchronous event dispatch above can trigger reflow notifications.
-  // Flush those explicitly now, so that we can guard against potential infinite
-  // recursion. See bug 905909.
-  if (!weakFrame.IsAlive()) {
-    return;
-  }
-  NS_ASSERTION(!mCheckingOverflow, "mCheckingOverflow should not already be set");
-  // Don't use AutoRestore since we want to not touch mCheckingOverflow if we fail
-  // the weakFrame.IsAlive() check below
-  mCheckingOverflow = true;
-  presShell->FlushPendingNotifications(Flush_Layout);
-  if (!weakFrame.IsAlive()) {
-    return;
-  }
-  mCheckingOverflow = false;
 }
 
 void
@@ -2551,10 +2531,10 @@ nsTreeBodyFrame::GetCursor(const nsPoint& aPoint,
   return nsLeafBoxFrame::GetCursor(aPoint, aCursor);
 }
 
-static uint32_t GetDropEffect(WidgetGUIEvent* aEvent)
+static uint32_t GetDropEffect(nsGUIEvent* aEvent)
 {
   NS_ASSERTION(aEvent->eventStructType == NS_DRAG_EVENT, "wrong event type");
-  WidgetDragEvent* dragEvent = aEvent->AsDragEvent();
+  nsDragEvent* dragEvent = static_cast<nsDragEvent *>(aEvent);
   nsContentUtils::SetDataTransferInEvent(dragEvent);
 
   uint32_t action = 0;
@@ -2565,7 +2545,7 @@ static uint32_t GetDropEffect(WidgetGUIEvent* aEvent)
 
 NS_IMETHODIMP
 nsTreeBodyFrame::HandleEvent(nsPresContext* aPresContext,
-                             WidgetGUIEvent* aEvent,
+                             nsGUIEvent* aEvent,
                              nsEventStatus* aEventStatus)
 {
   if (aEvent->message == NS_MOUSE_ENTER_SYNTH || aEvent->message == NS_MOUSE_MOVE) {
@@ -2700,9 +2680,9 @@ nsTreeBodyFrame::HandleEvent(nsPresContext* aPresContext,
 
         // The dataTransfer was initialized by the call to GetDropEffect above.
         bool canDropAtNewLocation = false;
+        nsDragEvent* dragEvent = static_cast<nsDragEvent *>(aEvent);
         mView->CanDrop(mSlots->mDropRow, mSlots->mDropOrient,
-                       aEvent->AsDragEvent()->dataTransfer,
-                       &canDropAtNewLocation);
+                       dragEvent->dataTransfer, &canDropAtNewLocation);
 
         if (canDropAtNewLocation) {
           // Invalidate row at the new location.
@@ -2732,7 +2712,7 @@ nsTreeBodyFrame::HandleEvent(nsPresContext* aPresContext,
     }
 
     NS_ASSERTION(aEvent->eventStructType == NS_DRAG_EVENT, "wrong event type");
-    WidgetDragEvent* dragEvent = aEvent->AsDragEvent();
+    nsDragEvent* dragEvent = static_cast<nsDragEvent*>(aEvent);
     nsContentUtils::SetDataTransferInEvent(dragEvent);
 
     mView->Drop(mSlots->mDropRow, mSlots->mDropOrient, dragEvent->dataTransfer);
@@ -3392,7 +3372,7 @@ nsTreeBodyFrame::PaintTwisty(int32_t              aRowIndex,
           
         // Paint the image.
         nsLayoutUtils::DrawSingleUnscaledImage(&aRenderingContext, image,
-            GraphicsFilter::FILTER_NEAREST, pt, &aDirtyRect,
+            gfxPattern::FILTER_NEAREST, pt, &aDirtyRect,
             imgIContainer::FLAG_NONE, &imageSize);
       }
     }
@@ -3527,7 +3507,7 @@ nsTreeBodyFrame::PaintImage(int32_t              aRowIndex,
 
     gfxContext* ctx = aRenderingContext.ThebesContext();
     if (opacity != 1.0f) {
-      ctx->PushGroup(GFX_CONTENT_COLOR_ALPHA);
+      ctx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
     }
 
     nsLayoutUtils::DrawImage(&aRenderingContext, image,
@@ -3644,7 +3624,7 @@ nsTreeBodyFrame::PaintText(int32_t              aRowIndex,
 
   gfxContext* ctx = aRenderingContext.ThebesContext();
   if (opacity != 1.0f) {
-    ctx->PushGroup(GFX_CONTENT_COLOR_ALPHA);
+    ctx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
   }
 
   nsLayoutUtils::DrawString(this, &aRenderingContext, text.get(), text.Length(),
@@ -3715,7 +3695,7 @@ nsTreeBodyFrame::PaintCheckbox(int32_t              aRowIndex,
 
     // Paint the image.
     nsLayoutUtils::DrawSingleUnscaledImage(&aRenderingContext, image,
-        GraphicsFilter::FILTER_NEAREST, pt, &aDirtyRect,
+        gfxPattern::FILTER_NEAREST, pt, &aDirtyRect,
         imgIContainer::FLAG_NONE, &imageSize);
   }
 }
@@ -4334,9 +4314,7 @@ nsTreeBodyFrame::CanAutoScroll(int32_t aRowIndex)
 // For non-containers, if the mouse is in the top 50% of the row, the drop is
 // _before_ and the bottom 50% _after_
 void 
-nsTreeBodyFrame::ComputeDropPosition(WidgetGUIEvent* aEvent,
-                                     int32_t* aRow,
-                                     int16_t* aOrient,
+nsTreeBodyFrame::ComputeDropPosition(nsGUIEvent* aEvent, int32_t* aRow, int16_t* aOrient,
                                      int16_t* aScrollLines)
 {
   *aOrient = -1;
@@ -4475,7 +4453,7 @@ void
 nsTreeBodyFrame::FireScrollEvent()
 {
   mScrollEvent.Forget();
-  WidgetGUIEvent event(true, NS_SCROLL_EVENT, nullptr);
+  nsScrollbarEvent event(true, NS_SCROLL_EVENT, nullptr);
   // scroll events fired at elements don't bubble
   event.mFlags.mBubbles = false;
   nsEventDispatcher::Dispatch(GetContent(), PresContext(), &event);
@@ -4492,22 +4470,6 @@ nsTreeBodyFrame::PostScrollEvent()
     NS_WARNING("failed to dispatch ScrollEvent");
   } else {
     mScrollEvent = ev;
-  }
-}
-
-void
-nsTreeBodyFrame::ScrollbarActivityStarted() const
-{
-  if (mScrollbarActivity) {
-    mScrollbarActivity->ActivityStarted();
-  }
-}
-
-void
-nsTreeBodyFrame::ScrollbarActivityStopped() const
-{
-  if (mScrollbarActivity) {
-    mScrollbarActivity->ActivityStopped();
   }
 }
 
@@ -4685,17 +4647,7 @@ nsTreeBodyFrame::FullScrollbarsUpdate(bool aNeedsFullInvalidation)
   }
   InvalidateScrollbars(parts, weakColumnsFrame);
   NS_ENSURE_TRUE(weakFrame.IsAlive(), false);
-
-  // Overflow checking dispatches synchronous events, which can cause infinite
-  // recursion during reflow. Do the first overflow check synchronously, but
-  // force any nested checks to round-trip through the event loop. See bug
-  // 905909.
-  nsRefPtr<nsOverflowChecker> checker = new nsOverflowChecker(this);
-  if (!mCheckingOverflow) {
-    nsContentUtils::AddScriptRunner(checker);
-  } else {
-    NS_DispatchToCurrentThread(checker);
-  }
+  nsContentUtils::AddScriptRunner(new nsOverflowChecker(this));
   return weakFrame.IsAlive();
 }
 

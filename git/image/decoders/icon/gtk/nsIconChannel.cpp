@@ -268,7 +268,7 @@ GetIconSize(nsIMozIconURI *aIconURI)
     int size;
 
     GtkIconSize icon_size = moz_gtk_icon_size(iconSizeString.get());
-    gtk_icon_size_lookup(icon_size, &size, nullptr);
+    gtk_icon_size_lookup(icon_size, &size, NULL);
     return size;
   }
 }
@@ -328,8 +328,7 @@ nsIconChannel::InitWithGnome(nsIMozIconURI *aIconURI)
     }
 
     char* empty[] = { "" };
-    _gnome_init(NS_ConvertUTF16toUTF8(appName).get(),
-                "1.0", 1, empty, nullptr, 0, nullptr);
+    _gnome_init(NS_ConvertUTF16toUTF8(appName).get(), "1.0", 1, empty, NULL, 0, NULL);
   }
 
   uint32_t iconSize = GetIconSize(aIconURI);
@@ -387,9 +386,9 @@ nsIconChannel::InitWithGnome(nsIMozIconURI *aIconURI)
     }
   }
 
-  char* name = _gnome_icon_lookup(gIconTheme, nullptr, spec.get(), nullptr,
-                                  &fileInfo, type.get(),
-                                  GNOME_ICON_LOOKUP_FLAGS_NONE, nullptr);
+  char* name = _gnome_icon_lookup(gIconTheme, NULL, spec.get(), NULL, &fileInfo,
+                                  type.get(), GNOME_ICON_LOOKUP_FLAGS_NONE,
+                                  NULL);
 
   _gnome_vfs_file_info_clear(&fileInfo);
   if (!name)
@@ -427,7 +426,7 @@ nsIconChannel::InitWithGnome(nsIMozIconURI *aIconURI)
 nsresult
 nsIconChannel::InitWithGIO(nsIMozIconURI *aIconURI)
 {
-  GIcon *icon = nullptr;
+  GIcon *icon = NULL;
   nsCOMPtr<nsIURL> fileURI;
 
   // Read icon content
@@ -442,8 +441,7 @@ nsIconChannel::InitWithGIO(nsIMozIconURI *aIconURI)
       GFile *file = g_file_new_for_uri(spec.get());
       GFileInfo *fileInfo = g_file_query_info(file,
                                               G_FILE_ATTRIBUTE_STANDARD_ICON,
-                                              G_FILE_QUERY_INFO_NONE,
-                                              nullptr, nullptr);
+                                              G_FILE_QUERY_INFO_NONE, NULL, NULL);
       g_object_unref(file);
       if (fileInfo) {
         // icon from g_content_type_get_icon doesn't need unref
@@ -468,7 +466,7 @@ nsIconChannel::InitWithGIO(nsIMozIconURI *aIconURI)
         ms->GetTypeFromExtension(fileExt, type);
       }
     }
-    char *ctype = nullptr; // character representation of content type
+    char *ctype = NULL; // character representation of content type
     if (!type.IsEmpty()) {
       ctype = g_content_type_from_mime_type(type.get());
     }
@@ -480,7 +478,7 @@ nsIconChannel::InitWithGIO(nsIMozIconURI *aIconURI)
 
   // Get default icon theme
   GtkIconTheme *iconTheme = gtk_icon_theme_get_default();  
-  GtkIconInfo *iconInfo = nullptr;
+  GtkIconInfo *iconInfo = NULL;
   // Get icon size
   int32_t iconSize = GetIconSize(aIconURI);
 
@@ -503,7 +501,7 @@ nsIconChannel::InitWithGIO(nsIMozIconURI *aIconURI)
   }
   
   // Create a GdkPixbuf buffer containing icon and scale it
-  GdkPixbuf* buf = gtk_icon_info_load_icon(iconInfo, nullptr);
+  GdkPixbuf* buf = gtk_icon_info_load_icon(iconInfo, NULL);
   gtk_icon_info_free(iconInfo);
   if (!buf) {
     return NS_ERROR_UNEXPECTED;
@@ -595,7 +593,7 @@ nsIconChannel::Init(nsIURI* aURI)
 
   ensure_stock_image_widget();
   GtkStyle *style = gtk_widget_get_style(gStockImageWidget);
-  GtkIconSet *icon_set = nullptr;
+  GtkIconSet *icon_set = NULL;
   if (!useIconName) {
     icon_set = gtk_style_lookup_icon_set(style, stockID.get());
   }
@@ -616,15 +614,15 @@ nsIconChannel::Init(nsIURI* aURI)
   }
 
   GdkPixbuf *icon =
-    gtk_icon_set_render_icon(icon_set, style, direction, state,
-                             icon_size, gStockImageWidget, nullptr);
+    gtk_icon_set_render_icon (icon_set, style, direction, state,
+                              icon_size, gStockImageWidget, NULL);
   if (useIconName) {
     gtk_icon_set_unref(icon_set);
   }
 
   // According to documentation, gtk_icon_set_render_icon() never returns
-  // nullptr, but it does return nullptr when we have the problem reported
-  // here: https://bugzilla.gnome.org/show_bug.cgi?id=629878#c13
+  // NULL, but it does return NULL when we have the problem reported here:
+  // https://bugzilla.gnome.org/show_bug.cgi?id=629878#c13
   if (!icon)
     return NS_ERROR_NOT_AVAILABLE;
   

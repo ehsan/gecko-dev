@@ -11,7 +11,6 @@ MODULE = 'content'
 
 EXPORTS += [
     'AsyncEventRunner.h',
-    'MediaSourceDecoder.h',
 ]
 
 EXPORTS.mozilla.dom += [
@@ -20,17 +19,10 @@ EXPORTS.mozilla.dom += [
     'SourceBufferList.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'MediaSource.cpp',
-    'MediaSourceDecoder.cpp',
+    'MediaSourceInputAdapter.cpp',
     'SourceBuffer.cpp',
     'SourceBufferList.cpp',
-    'SourceBufferResource.cpp',
 ]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'gkconmediasource_s'
 

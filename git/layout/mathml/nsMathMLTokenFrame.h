@@ -7,6 +7,7 @@
 #define nsMathMLTokenFrame_h___
 
 #include "mozilla/Attributes.h"
+#include "nsCOMPtr.h"
 #include "nsMathMLContainerFrame.h"
 
 //
@@ -78,7 +79,7 @@ protected:
   // depending on its textual content
   bool SetTextStyle();
 
-  void MarkTextFramesAsTokenMathML();
+  void ForceTrimChildTextFrames();
 };
 
 #endif /* nsMathMLTokentFrame_h___ */

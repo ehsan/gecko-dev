@@ -4,13 +4,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsRect.h"
-#include "mozilla/gfx/Types.h"          // for NS_SIDE_BOTTOM, etc
-#include "nsDeviceContext.h"            // for nsDeviceContext
-#include "nsString.h"               // for nsAutoString, etc
-#include "nsMargin.h"                   // for nsMargin
+#include "nsString.h"
+#include "nsDeviceContext.h"
+#include "prlog.h"
 
-static_assert((NS_SIDE_TOP == 0) && (NS_SIDE_RIGHT == 1) && (NS_SIDE_BOTTOM == 2) && (NS_SIDE_LEFT == 3),
-              "The mozilla::css::Side sequence must match the nsMargin nscoord sequence");
+// the mozilla::css::Side sequence must match the nsMargin nscoord sequence
+PR_STATIC_ASSERT((NS_SIDE_TOP == 0) && (NS_SIDE_RIGHT == 1) && (NS_SIDE_BOTTOM == 2) && (NS_SIDE_LEFT == 3));
 
 #ifdef DEBUG
 // Diagnostics

@@ -33,6 +33,7 @@
 #include "mozAutoDocUpdate.h"
 #include "nsTextNode.h"
 
+#include "jsapi.h"
 #include "pldhash.h"
 #include "rdf.h"
 

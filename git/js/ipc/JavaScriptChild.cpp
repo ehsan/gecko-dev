@@ -112,13 +112,13 @@ JavaScriptChild::fail(JSContext *cx, ReturnStatus *rs)
 {
     // By default, we set |undefined| unless we can get a more meaningful
     // exception.
-    *rs = ReturnStatus(ReturnException(JSVariant(void_t())));
+    *rs = ReturnStatus(false, JSVariant(void_t()));
 
     // Note we always return true from this function, since this propagates
     // to the IPC code, and we don't want a JS failure to cause the death
     // of the child process.
 
-    RootedValue exn(cx);
+    jsval exn;
     if (!JS_GetPendingException(cx, &exn))
         return true;
 
@@ -127,21 +127,16 @@ JavaScriptChild::fail(JSContext *cx, ReturnStatus *rs)
     // that would crash.
     JS_ClearPendingException(cx);
 
-    if (JS_IsStopIteration(exn)) {
-        *rs = ReturnStatus(ReturnStopIteration());
+    if (!toVariant(cx, exn, &rs->exn()))
         return true;
-    }
 
-    // If this fails, we still don't want to exit. Just return an invalid
-    // exception.
-    (void) toVariant(cx, exn, &rs->get_ReturnException().exn());
     return true;
 }
 
 bool
 JavaScriptChild::ok(ReturnStatus *rs)
 {
-    *rs = ReturnStatus(ReturnSuccess());
+    *rs = ReturnStatus(true, JSVariant(void_t()));
     return true;
 }
 
@@ -193,11 +188,11 @@ JavaScriptChild::AnswerGetPropertyDescriptor(const ObjectId &objId, const nsStri
     if (!convertGeckoStringToId(cx, id, &internedId))
         return fail(cx, rs);
 
-    Rooted<JSPropertyDescriptor> desc(cx);
+    JSPropertyDescriptor desc;
     if (!JS_GetPropertyDescriptorById(cx, obj, internedId, flags, &desc))
         return fail(cx, rs);
 
-    if (!desc.object())
+    if (!desc.obj)
         return ok(rs);
 
     if (!fromDescriptor(cx, desc, out))
@@ -226,11 +221,11 @@ JavaScriptChild::AnswerGetOwnPropertyDescriptor(const ObjectId &objId, const nsS
     if (!convertGeckoStringToId(cx, id, &internedId))
         return fail(cx, rs);
 
-    Rooted<JSPropertyDescriptor> desc(cx);
+    JSPropertyDescriptor desc;
     if (!JS_GetPropertyDescriptorById(cx, obj, internedId, flags, &desc))
         return fail(cx, rs);
 
-    if (desc.object() != obj)
+    if (desc.obj != obj)
         return ok(rs);
 
     if (!fromDescriptor(cx, desc, out))
@@ -256,18 +251,13 @@ JavaScriptChild::AnswerDefineProperty(const ObjectId &objId, const nsString &id,
     if (!convertGeckoStringToId(cx, id, &internedId))
         return fail(cx, rs);
 
-    Rooted<JSPropertyDescriptor> desc(cx);
+    JSPropertyDescriptor desc;
     if (!toDescriptor(cx, descriptor, &desc))
         return false;
 
-    if (!js::CheckDefineProperty(cx, obj, internedId, desc.value(), desc.getter(),
-                                 desc.setter(), desc.attributes()))
-    {
-        return fail(cx, rs);
-    }
-
-    if (!JS_DefinePropertyById(cx, obj, internedId, desc.value(), desc.getter(),
-                               desc.setter(), desc.attributes()))
+    RootedValue v(cx, desc.value);
+    if (!js::CheckDefineProperty(cx, obj, internedId, v, desc.getter, desc.setter, desc.attrs) ||
+        !JS_DefinePropertyById(cx, obj, internedId, v, desc.getter, desc.setter, desc.attrs))
     {
         return fail(cx, rs);
     }
@@ -294,8 +284,14 @@ JavaScriptChild::AnswerDelete(const ObjectId &objId, const nsString &id, ReturnS
     if (!convertGeckoStringToId(cx, id, &internedId))
         return fail(cx, rs);
 
-    if (!JS_DeletePropertyById2(cx, obj, internedId, success))
+    RootedValue v(cx);
+    if (!JS_DeletePropertyById2(cx, obj, internedId, &v))
         return fail(cx, rs);
+
+    JSBool b;
+    if (!JS_ValueToBoolean(cx, v, &b))
+        return fail(cx, rs);
+    *success = !!b;
 
     return ok(rs);
 }
@@ -318,7 +314,7 @@ JavaScriptChild::AnswerHas(const ObjectId &objId, const nsString &id, ReturnStat
     if (!convertGeckoStringToId(cx, id, &internedId))
         return fail(cx, rs);
 
-    bool found;
+    JSBool found;
     if (!JS_HasPropertyById(cx, obj, internedId, &found))
         return fail(cx, rs);
     *bp = !!found;
@@ -344,10 +340,10 @@ JavaScriptChild::AnswerHasOwn(const ObjectId &objId, const nsString &id, ReturnS
     if (!convertGeckoStringToId(cx, id, &internedId))
         return fail(cx, rs);
 
-    Rooted<JSPropertyDescriptor> desc(cx);
+    JSPropertyDescriptor desc;
     if (!JS_GetPropertyDescriptorById(cx, obj, internedId, 0, &desc))
         return fail(cx, rs);
-    *bp = (desc.object() == obj);
+    *bp = (desc.obj == obj);
 
     return ok(rs);
 }
@@ -377,7 +373,7 @@ JavaScriptChild::AnswerGet(const ObjectId &objId, const ObjectId &receiverId, co
     if (!convertGeckoStringToId(cx, id, &internedId))
         return fail(cx, rs);
 
-    JS::RootedValue val(cx);
+    JS::Rooted<JS::Value> val(cx);
     if (!JS_ForwardGetPropertyTo(cx, obj, internedId, receiver, &val))
         return fail(cx, rs);
 
@@ -440,7 +436,7 @@ JavaScriptChild::AnswerIsExtensible(const ObjectId &objId, ReturnStatus *rs, boo
     if (!obj)
         return false;
 
-    bool extensible;
+    JSBool extensible;
     if (!JS_IsExtensible(cx, obj, &extensible))
         return fail(cx, rs);
 
@@ -496,15 +492,16 @@ JavaScriptChild::AnswerCall(const ObjectId &objId, const nsTArray<JSParam> &argv
         }
     }
 
-    RootedValue rval(cx);
-    {
-        AutoSaveContextOptions asco(cx);
-        ContextOptionsRef(cx).setDontReportUncaught(true);
+    uint32_t oldOpts =
+        JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_DONT_REPORT_UNCAUGHT);
 
-        bool success = JS::Call(cx, vals[1], vals[0], vals.length() - 2, vals.begin() + 2, &rval);
-        if (!success)
-            return fail(cx, rs);
-    }
+    RootedValue rval(cx);
+    bool success = JS::Call(cx, vals[1], vals[0], vals.length() - 2, vals.begin() + 2, &rval);
+
+    JS_SetOptions(cx, oldOpts);
+
+    if (!success)
+        return fail(cx, rs);
 
     if (!toVariant(cx, rval, result))
         return fail(cx, rs);
@@ -521,7 +518,7 @@ JavaScriptChild::AnswerCall(const ObjectId &objId, const nsTArray<JSParam> &argv
         RootedObject obj(cx, &outobjects[i].toObject());
 
         RootedValue v(cx);
-        bool found;
+        JSBool found;
         if (JS_HasProperty(cx, obj, "value", &found)) {
             if (!JS_GetProperty(cx, obj, "value", &v))
                 return fail(cx, rs);
@@ -536,7 +533,7 @@ JavaScriptChild::AnswerCall(const ObjectId &objId, const nsTArray<JSParam> &argv
     // treat this as the outparam never having been set.
     for (size_t i = 0; i < vals.length(); i++) {
         JSVariant variant;
-        if (!toVariant(cx, vals.handleAt(i), &variant))
+        if (!toVariant(cx, vals[i], &variant))
             return fail(cx, rs);
         outparams->ReplaceElementAt(i, JSParam(variant));
     }
@@ -646,7 +643,7 @@ JavaScriptChild::AnswerDOMInstanceOf(const ObjectId &objId, const int &prototype
 
     JSAutoCompartment comp(cx, obj);
 
-    bool tmp;
+    JSBool tmp;
     if (!mozilla::dom::InterfaceHasInstance(cx, prototypeID, depth, obj, &tmp))
         return fail(cx, rs);
     *instanceof = tmp;

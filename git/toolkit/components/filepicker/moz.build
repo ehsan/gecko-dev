@@ -6,14 +6,12 @@
 
 if CONFIG['MOZ_XUL'] and \
     CONFIG['MOZ_WIDGET_TOOLKIT'] not in ('android', 'qt', 'os2', 'cocoa', 'windows'):
-        LIBXUL_LIBRARY = True
-        EXPORT_LIBRARY = True
         MODULE = 'filepicker'
         LIBRARY_NAME = 'fileview'
         XPIDL_SOURCES += [
             'nsIFileView.idl',
         ]
-        SOURCES += [
+        CPP_SOURCES += [
             'nsFileView.cpp',
         ]
         EXTRA_COMPONENTS += [
@@ -21,7 +19,4 @@ if CONFIG['MOZ_XUL'] and \
         ]
         EXTRA_PP_COMPONENTS += [
             'nsFilePicker.manifest',
-        ]
-        DIRS += [
-            'test',
         ]

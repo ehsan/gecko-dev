@@ -8,36 +8,45 @@
 #define mozilla_dom_Navigator_h
 
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/ErrorResult.h"
 #include "nsIDOMNavigator.h"
+#include "nsIDOMMobileMessageManager.h"
 #include "nsIMozNavigatorNetwork.h"
 #include "nsAutoPtr.h"
+#include "nsWeakReference.h"
+#include "DeviceStorage.h"
 #include "nsWrapperCache.h"
-#include "nsString.h"
-#include "nsTArray.h"
 
 class nsPluginArray;
 class nsMimeTypeArray;
 class nsPIDOMWindow;
 class nsIDOMMozConnection;
-class nsIDOMMozMobileMessageManager;
-class nsIDOMNavigatorSystemMessages;
-class nsDOMCameraManager;
-class nsDOMDeviceStorage;
 
 namespace mozilla {
 namespace dom {
 class Geolocation;
 class systemMessageCallback;
-class MediaStreamConstraints;
-class MediaStreamConstraintsInternal;
 }
 }
 
+#ifdef MOZ_MEDIA_NAVIGATOR
+#include "nsIDOMNavigatorUserMedia.h"
+#endif
+
 #ifdef MOZ_B2G_RIL
+class nsIDOMTelephony;
 class nsIDOMMozMobileConnection;
+class nsIDOMMozCellBroadcast;
+class nsIDOMMozVoicemail;
 class nsIDOMMozIccManager;
 #endif // MOZ_B2G_RIL
+
+#ifdef MOZ_B2G_BT
+class nsIDOMBluetoothManager;
+#endif // MOZ_B2G_BT
+
+#include "nsIDOMNavigatorSystemMessages.h"
+
+#include "DOMCameraManager.h"
 
 //*****************************************************************************
 // Navigator: Script "navigator" object
@@ -52,12 +61,6 @@ namespace battery {
 class BatteryManager;
 } // namespace battery
 
-#ifdef MOZ_B2G_FM
-class FMRadio;
-#endif
-
-class Promise;
-
 class DesktopNotificationCenter;
 class MobileMessageManager;
 class MozIdleObserver;
@@ -65,10 +68,16 @@ class MozIdleObserver;
 class Gamepad;
 #endif // MOZ_GAMEPAD
 #ifdef MOZ_MEDIA_NAVIGATOR
-class NavigatorUserMediaSuccessCallback;
-class NavigatorUserMediaErrorCallback;
+class MozDOMGetUserMediaSuccessCallback;
+class MozDOMGetUserMediaErrorCallback;
 class MozGetUserMediaDevicesSuccessCallback;
 #endif // MOZ_MEDIA_NAVIGATOR
+
+namespace icc {
+#ifdef MOZ_B2G_RIL
+class IccManager;
+#endif
+}
 
 namespace network {
 class Connection;
@@ -77,20 +86,9 @@ class MobileConnection;
 #endif
 } // namespace Connection;
 
-#ifdef MOZ_B2G_BT
-namespace bluetooth {
-class BluetoothManager;
-} // namespace bluetooth
-#endif // MOZ_B2G_BT
-
-#ifdef MOZ_B2G_RIL
-class CellBroadcast;
-class IccManager;
-class Telephony;
-class Voicemail;
-#endif
-
+namespace power {
 class PowerManager;
+} // namespace power
 
 namespace time {
 class TimeManager;
@@ -172,10 +170,8 @@ public:
   // The XPCOM GetDoNotTrack is ok
   Geolocation* GetGeolocation(ErrorResult& aRv);
   battery::BatteryManager* GetBattery(ErrorResult& aRv);
-  already_AddRefed<Promise> GetDataStores(const nsAString &aName,
-                                          ErrorResult& aRv);
-  bool Vibrate(uint32_t aDuration);
-  bool Vibrate(const nsTArray<uint32_t>& aDuration);
+  void Vibrate(uint32_t aDuration, ErrorResult& aRv);
+  void Vibrate(const nsTArray<uint32_t>& aDuration, ErrorResult& aRv);
   void GetAppCodeName(nsString& aAppCodeName, ErrorResult& aRv)
   {
     aRv = GetAppCodeName(aAppCodeName);
@@ -192,7 +188,7 @@ public:
   {
     aRv = GetBuildID(aBuildID);
   }
-  PowerManager* GetMozPower(ErrorResult& aRv);
+  nsIDOMMozPowerManager* GetMozPower(ErrorResult& aRv);
   bool JavaEnabled(ErrorResult& aRv);
   bool TaintEnabled()
   {
@@ -218,20 +214,17 @@ public:
                             ErrorResult& aRv);
   bool MozHasPendingMessage(const nsAString& aType, ErrorResult& aRv);
 #ifdef MOZ_B2G_RIL
-  Telephony* GetMozTelephony(ErrorResult& aRv);
+  nsIDOMTelephony* GetMozTelephony(ErrorResult& aRv);
   nsIDOMMozMobileConnection* GetMozMobileConnection(ErrorResult& aRv);
-  CellBroadcast* GetMozCellBroadcast(ErrorResult& aRv);
-  Voicemail* GetMozVoicemail(ErrorResult& aRv);
+  nsIDOMMozCellBroadcast* GetMozCellBroadcast(ErrorResult& aRv);
+  nsIDOMMozVoicemail* GetMozVoicemail(ErrorResult& aRv);
   nsIDOMMozIccManager* GetMozIccManager(ErrorResult& aRv);
 #endif // MOZ_B2G_RIL
 #ifdef MOZ_GAMEPAD
   void GetGamepads(nsTArray<nsRefPtr<Gamepad> >& aGamepads, ErrorResult& aRv);
 #endif // MOZ_GAMEPAD
-#ifdef MOZ_B2G_FM
-  FMRadio* GetMozFMRadio(ErrorResult& aRv);
-#endif
 #ifdef MOZ_B2G_BT
-  bluetooth::BluetoothManager* GetMozBluetooth(ErrorResult& aRv);
+  nsIDOMBluetoothManager* GetMozBluetooth(ErrorResult& aRv);
 #endif // MOZ_B2G_BT
 #ifdef MOZ_TIME_MANAGER
   time::TimeManager* GetMozTime(ErrorResult& aRv);
@@ -240,14 +233,12 @@ public:
   system::AudioChannelManager* GetMozAudioChannelManager(ErrorResult& aRv);
 #endif // MOZ_AUDIO_CHANNEL_MANAGER
 #ifdef MOZ_MEDIA_NAVIGATOR
-  void MozGetUserMedia(JSContext* aCx,
-                       const MediaStreamConstraints& aConstraints,
-                       NavigatorUserMediaSuccessCallback& aOnSuccess,
-                       NavigatorUserMediaErrorCallback& aOnError,
+  void MozGetUserMedia(nsIMediaStreamOptions* aParams,
+                       MozDOMGetUserMediaSuccessCallback* aOnSuccess,
+                       MozDOMGetUserMediaErrorCallback* aOnError,
                        ErrorResult& aRv);
-  void MozGetUserMediaDevices(const MediaStreamConstraintsInternal& aConstraints,
-                              MozGetUserMediaDevicesSuccessCallback& aOnSuccess,
-                              NavigatorUserMediaErrorCallback& aOnError,
+  void MozGetUserMediaDevices(MozGetUserMediaDevicesSuccessCallback* aOnSuccess,
+                              MozDOMGetUserMediaErrorCallback* aOnError,
                               ErrorResult& aRv);
 #endif // MOZ_MEDIA_NAVIGATOR
   bool DoNewResolve(JSContext* aCx, JS::Handle<JSObject*> aObject,
@@ -258,7 +249,6 @@ public:
   // WebIDL helper methods
   static bool HasBatterySupport(JSContext* /* unused*/, JSObject* /*unused */);
   static bool HasPowerSupport(JSContext* /* unused */, JSObject* aGlobal);
-  static bool HasPhoneNumberSupport(JSContext* /* unused */, JSObject* aGlobal);
   static bool HasIdleSupport(JSContext* /* unused */, JSObject* aGlobal);
   static bool HasWakeLockSupport(JSContext* /* unused*/, JSObject* /*unused */);
   static bool HasDesktopNotificationSupport(JSContext* /* unused*/,
@@ -285,9 +275,6 @@ public:
 #ifdef MOZ_B2G_BT
   static bool HasBluetoothSupport(JSContext* /* unused */, JSObject* aGlobal);
 #endif // MOZ_B2G_BT
-#ifdef MOZ_B2G_FM
-  static bool HasFMRadioSupport(JSContext* /* unused */, JSObject* aGlobal);
-#endif // MOZ_B2G_FM
 #ifdef MOZ_TIME_MANAGER
   static bool HasTimeSupport(JSContext* /* unused */, JSObject* aGlobal);
 #endif // MOZ_TIME_MANAGER
@@ -295,11 +282,6 @@ public:
   static bool HasUserMediaSupport(JSContext* /* unused */,
                                   JSObject* /* unused */);
 #endif // MOZ_MEDIA_NAVIGATOR
-
-  static bool HasPushNotificationsSupport(JSContext* /* unused */,
-                                          JSObject* aGlobal);
-
-  static bool HasInputMethodSupport(JSContext* /* unused */, JSObject* aGlobal);
 
   nsPIDOMWindow* GetParentObject() const
   {
@@ -321,21 +303,20 @@ private:
   nsRefPtr<Geolocation> mGeolocation;
   nsRefPtr<DesktopNotificationCenter> mNotification;
   nsRefPtr<battery::BatteryManager> mBatteryManager;
-#ifdef MOZ_B2G_FM
-  nsRefPtr<FMRadio> mFMRadio;
-#endif
-  nsRefPtr<PowerManager> mPowerManager;
+  nsRefPtr<power::PowerManager> mPowerManager;
   nsRefPtr<MobileMessageManager> mMobileMessageManager;
+#ifdef MOZ_B2G_RIL
+  nsCOMPtr<nsIDOMTelephony> mTelephony;
+  nsCOMPtr<nsIDOMMozVoicemail> mVoicemail;
+#endif
   nsRefPtr<network::Connection> mConnection;
 #ifdef MOZ_B2G_RIL
   nsRefPtr<network::MobileConnection> mMobileConnection;
-  nsRefPtr<CellBroadcast> mCellBroadcast;
-  nsRefPtr<IccManager> mIccManager;
-  nsRefPtr<Telephony> mTelephony;
-  nsRefPtr<Voicemail> mVoicemail;
+  nsCOMPtr<nsIDOMMozCellBroadcast> mCellBroadcast;
+  nsRefPtr<icc::IccManager> mIccManager;
 #endif
 #ifdef MOZ_B2G_BT
-  nsCOMPtr<bluetooth::BluetoothManager> mBluetooth;
+  nsCOMPtr<nsIDOMBluetoothManager> mBluetooth;
 #endif
 #ifdef MOZ_AUDIO_CHANNEL_MANAGER
   nsRefPtr<system::AudioChannelManager> mAudioChannelManager;

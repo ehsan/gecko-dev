@@ -6,32 +6,23 @@
 #include "mozilla/dom/ContentChild.h"
 #include "SmsIPCService.h"
 #include "nsXULAppAPI.h"
+#include "jsapi.h"
 #include "mozilla/dom/mobilemessage/SmsChild.h"
 #include "SmsMessage.h"
 #include "SmsFilter.h"
 #include "SmsSegmentInfo.h"
 #include "DictionaryHelpers.h"
 #include "nsJSUtils.h"
+#include "nsContentUtils.h"
 #include "nsCxPusher.h"
 #include "mozilla/dom/MobileMessageManagerBinding.h"
 #include "mozilla/dom/MozMmsMessageBinding.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/Preferences.h"
-#include "nsString.h"
 
 using namespace mozilla::dom;
 using namespace mozilla::dom::mobilemessage;
 
 namespace {
-
-const char* kPrefRilNumRadioInterfaces = "ril.numRadioInterfaces";
-#define kPrefMmsDefaultServiceId "dom.mms.defaultServiceId"
-#define kPrefSmsDefaultServiceId "dom.sms.defaultServiceId"
-const char* kObservedPrefs[] = {
-  kPrefMmsDefaultServiceId,
-  kPrefSmsDefaultServiceId,
-  nullptr
-};
 
 // TODO: Bug 767082 - WebSMS: sSmsChild leaks at shutdown
 PSmsChild* gSmsChild;
@@ -84,69 +75,16 @@ SendCursorRequest(const IPCMobileMessageCursor& aRequest,
   actor.forget(aResult);
   return NS_OK;
 }
-
-uint32_t
-getDefaultServiceId(const char* aPrefKey)
-{
-  int32_t id = mozilla::Preferences::GetInt(aPrefKey, 0);
-  int32_t numRil = mozilla::Preferences::GetInt(kPrefRilNumRadioInterfaces, 1);
-
-  if (id >= numRil || id < 0) {
-    id = 0;
-  }
-
-  return id;
-}
-
 } // anonymous namespace
 
-NS_IMPL_ISUPPORTS4(SmsIPCService,
+NS_IMPL_ISUPPORTS3(SmsIPCService,
                    nsISmsService,
                    nsIMmsService,
-                   nsIMobileMessageDatabaseService,
-                   nsIObserver)
-
-SmsIPCService::SmsIPCService()
-{
-  Preferences::AddStrongObservers(this, kObservedPrefs);
-  mMmsDefaultServiceId = getDefaultServiceId(kPrefMmsDefaultServiceId);
-  mSmsDefaultServiceId = getDefaultServiceId(kPrefSmsDefaultServiceId);
-}
-
-/*
- * Implementation of nsIObserver.
- */
-
-NS_IMETHODIMP
-SmsIPCService::Observe(nsISupports* aSubject,
-                       const char* aTopic,
-                       const PRUnichar* aData)
-{
-  if (!strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID)) {
-    nsDependentString data(aData);
-    if (data.EqualsLiteral(kPrefMmsDefaultServiceId)) {
-      mMmsDefaultServiceId = getDefaultServiceId(kPrefMmsDefaultServiceId);
-    } else if (data.EqualsLiteral(kPrefSmsDefaultServiceId)) {
-      mSmsDefaultServiceId = getDefaultServiceId(kPrefSmsDefaultServiceId);
-    }
-    return NS_OK;
-  }
-
-  MOZ_ASSERT(false, "SmsIPCService got unexpected topic!");
-  return NS_ERROR_UNEXPECTED;
-}
+                   nsIMobileMessageDatabaseService)
 
 /*
  * Implementation of nsISmsService.
  */
-
-NS_IMETHODIMP
-SmsIPCService::GetSmsDefaultServiceId(uint32_t* aServiceId)
-{
-  *aServiceId = mSmsDefaultServiceId;
-  return NS_OK;
-}
-
 NS_IMETHODIMP
 SmsIPCService::HasSupport(bool* aHasSupport)
 {
@@ -159,11 +97,19 @@ SmsIPCService::HasSupport(bool* aHasSupport)
 }
 
 NS_IMETHODIMP
-SmsIPCService::GetSegmentInfoForText(const nsAString& aText,
-                                     nsIMobileMessageCallback* aRequest)
+SmsIPCService::GetSegmentInfoForText(const nsAString & aText,
+                                     nsIDOMMozSmsSegmentInfo** aResult)
 {
-  return SendRequest(GetSegmentInfoForTextRequest(nsString(aText)),
-                                                  aRequest);
+  PSmsChild* smsChild = GetSmsChild();
+  NS_ENSURE_TRUE(smsChild, NS_ERROR_FAILURE);
+
+  SmsSegmentInfoData data;
+  bool ok = smsChild->SendGetSegmentInfoForText(nsString(aText), &data);
+  NS_ENSURE_TRUE(ok, NS_ERROR_FAILURE);
+
+  nsCOMPtr<nsIDOMMozSmsSegmentInfo> info = new SmsSegmentInfo(data);
+  info.forget(aResult);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -297,17 +243,6 @@ GetSendMmsMessageRequestFromParams(const JS::Value& aParam,
   request.subject() = params.mSubject;
 
   return true;
-}
-
-/*
- * Implementation of nsIMmsService.
- */
-
-NS_IMETHODIMP
-SmsIPCService::GetMmsDefaultServiceId(uint32_t* aServiceId)
-{
-  *aServiceId = mMmsDefaultServiceId;
-  return NS_OK;
 }
 
 NS_IMETHODIMP

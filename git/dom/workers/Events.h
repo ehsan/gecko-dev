@@ -8,7 +8,7 @@
 
 #include "Workers.h"
 
-#include "js/StructuredClone.h"
+class JSAutoStructuredCloneBuffer;
 
 BEGIN_WORKERS_NAMESPACE
 
@@ -32,11 +32,8 @@ CreateErrorEvent(JSContext* aCx, JS::Handle<JSString*> aMessage,
                  uint32_t aLineNumber, bool aMainRuntime);
 
 JSObject*
-CreateProgressEvent(JSContext* aCx, JS::Handle<JSString*> aType,
-                    bool aLengthComputable, double aLoaded, double aTotal);
-
-JSObject*
-CreateConnectEvent(JSContext* aCx, JS::Handle<JSObject*> aMessagePort);
+CreateProgressEvent(JSContext* aCx, JSString* aType, bool aLengthComputable,
+                    double aLoaded, double aTotal);
 
 bool
 IsSupportedEventClass(JSObject* aEvent);

@@ -7,21 +7,14 @@
 #ifndef mozilla_layers_GestureEventListener_h
 #define mozilla_layers_GestureEventListener_h
 
-#include <stdint.h>                     // for uint64_t
-#include "InputData.h"                  // for MultiTouchInput, etc
-#include "Units.h"                      // for ScreenIntPoint
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT_HELPER2
-#include "mozilla/EventForwards.h"      // for nsEventStatus
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsISupportsImpl.h"
-#include "nsTArray.h"                   // for nsTArray
+#include "mozilla/RefPtr.h"
+#include "InputData.h"
+#include "Axis.h"
 
-class CancelableTask;
+#include "base/message_loop.h"
 
 namespace mozilla {
 namespace layers {
-
-class AsyncPanZoomController;
 
 /**
  * Platform-non-specific, generalized gesture event listener. This class

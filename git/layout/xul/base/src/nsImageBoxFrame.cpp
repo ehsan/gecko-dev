@@ -41,6 +41,7 @@
 #include "nsIURI.h"
 #include "nsNetUtil.h"
 #include "nsThreadUtils.h"
+#include "nsGUIEvent.h"
 #include "nsEventDispatcher.h"
 #include "nsDisplayList.h"
 #include "ImageLayers.h"
@@ -48,11 +49,8 @@
 
 #include "nsContentUtils.h"
 
-#include "mozilla/BasicEvents.h"
-
 #define ONLOAD_CALLED_TOO_EARLY 1
 
-using namespace mozilla;
 using namespace mozilla::layers;
 
 class nsImageBoxFrameEvent : public nsRunnable
@@ -82,7 +80,7 @@ nsImageBoxFrameEvent::Run()
   }
 
   nsEventStatus status = nsEventStatus_eIgnore;
-  WidgetEvent event(true, mMessage);
+  nsEvent event(true, mMessage);
 
   event.mFlags.mBubbles = false;
   nsEventDispatcher::Dispatch(mContent, pres_context, &event, nullptr, &status);
@@ -498,7 +496,7 @@ nsImageBoxFrame::GetPrefSize(nsBoxLayoutState& aState)
      GetImageSize();
 
   if (!mUseSrcAttr && (mSubRect.width > 0 || mSubRect.height > 0))
-    size = mSubRect.Size();
+    size = nsSize(mSubRect.width, mSubRect.height);
   else
     size = mImageSize;
 

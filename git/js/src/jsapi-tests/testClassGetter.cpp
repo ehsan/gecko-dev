@@ -12,16 +12,16 @@
 int called_test_fn;
 int called_test_prop_get;
 
-static bool test_prop_get( JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::MutableHandleValue vp )
+static JSBool test_prop_get( JSContext *cx, JS::HandleObject obj, JS::HandleId id, JS::MutableHandleValue vp )
 {
     called_test_prop_get++;
-    return true;
+    return JS_TRUE;
 }
 
-static bool
+static JSBool
 PTest(JSContext* cx, unsigned argc, jsval *vp);
 
-static const JSClass ptestClass = {
+static JSClass ptestClass = {
     "PTest",
     JSCLASS_HAS_PRIVATE,
 
@@ -34,19 +34,19 @@ static const JSClass ptestClass = {
     JS_ConvertStub
 };
 
-static bool
+static JSBool
 PTest(JSContext* cx, unsigned argc, jsval *vp)
 {
     JSObject *obj = JS_NewObjectForConstructor(cx, &ptestClass, vp);
     if (!obj)
-        return false;
+        return JS_FALSE;
     JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(obj));
-    return true;
+    return JS_TRUE;
 }
-static bool test_fn(JSContext *cx, unsigned argc, jsval *vp)
+static JSBool test_fn(JSContext *cx, unsigned argc, jsval *vp)
 {
     called_test_fn++;
-    return true;
+    return JS_TRUE;
 }
 
 static const JSFunctionSpec ptestFunctions[] = {
@@ -56,14 +56,14 @@ static const JSFunctionSpec ptestFunctions[] = {
 
 BEGIN_TEST(testClassGetter_isCalled)
 {
-    CHECK(JS_InitClass(cx, global, nullptr, &ptestClass, PTest, 0,
-                       nullptr, ptestFunctions, nullptr, nullptr));
+    CHECK(JS_InitClass(cx, global, NULL, &ptestClass, PTest, 0,
+                       NULL, ptestFunctions, NULL, NULL));
 
     EXEC("function check() { var o = new PTest(); o.test_fn(); o.test_value1; o.test_value2; o.test_value1; }");
 
     for (int i = 1; i < 9; i++) {
         JS::RootedValue rval(cx);
-        CHECK(JS_CallFunctionName(cx, global, "check", 0, nullptr, rval.address()));
+        CHECK(JS_CallFunctionName(cx, global, "check", 0, NULL, rval.address()));
         CHECK_SAME(INT_TO_JSVAL(called_test_fn), INT_TO_JSVAL(i));
         CHECK_SAME(INT_TO_JSVAL(called_test_prop_get), INT_TO_JSVAL(4 * i));
     }

@@ -4,15 +4,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsHtml5Parser.h"
-
-#include "mozilla/AutoRestore.h"
-#include "nsContentUtils.h" // for kLoadAsData
+#include "nsContentUtils.h"
 #include "nsHtml5Tokenizer.h"
 #include "nsHtml5TreeBuilder.h"
+#include "nsHtml5Parser.h"
 #include "nsHtml5AtomTable.h"
 #include "nsHtml5DependentUTF16Buffer.h"
-#include "nsNetUtil.h"
+#include "nsIInputStreamChannel.h"
 
 NS_INTERFACE_TABLE_HEAD(nsHtml5Parser)
   NS_INTERFACE_TABLE2(nsHtml5Parser, nsIParser, nsISupportsWeakReference)
@@ -42,6 +40,7 @@ nsHtml5Parser::nsHtml5Parser()
   , mTokenizer(new nsHtml5Tokenizer(mTreeBuilder, false))
   , mRootContextLineNumber(1)
 {
+  mAtomTable.Init(); // we aren't checking for OOM anyway...
   mTokenizer->setInterner(&mAtomTable);
   // There's a zeroing operator new for everything else
 }
@@ -218,13 +217,7 @@ nsHtml5Parser::Parse(const nsAString& aSourceBuffer,
     mExecutor->SetParser(this);
     mTreeBuilder->setScriptingEnabled(mExecutor->IsScriptEnabled());
 
-    bool isSrcdoc = false;
-    nsCOMPtr<nsIChannel> channel;
-    rv = GetChannel(getter_AddRefs(channel));
-    if (NS_SUCCEEDED(rv)) {
-      isSrcdoc = NS_IsSrcdocChannel(channel);
-    }
-    mTreeBuilder->setIsSrcdocDocument(isSrcdoc);
+    mTreeBuilder->setIsSrcdocDocument(IsSrcdocDocument());
 
     mTokenizer->start();
     mExecutor->Start();
@@ -688,13 +681,7 @@ nsHtml5Parser::Initialize(nsIDocument* aDoc,
 void
 nsHtml5Parser::StartTokenizer(bool aScriptingEnabled) {
 
-  bool isSrcdoc = false;
-  nsCOMPtr<nsIChannel> channel;
-  nsresult rv = GetChannel(getter_AddRefs(channel));
-  if (NS_SUCCEEDED(rv)) {
-    isSrcdoc = NS_IsSrcdocChannel(channel);
-  }
-  mTreeBuilder->setIsSrcdocDocument(isSrcdoc);
+  mTreeBuilder->setIsSrcdocDocument(IsSrcdocDocument());
 
   mTreeBuilder->SetPreventScriptExecution(!aScriptingEnabled);
   mTreeBuilder->setScriptingEnabled(aScriptingEnabled);
@@ -718,5 +705,22 @@ nsHtml5Parser::ContinueAfterFailedCharsetSwitch()
   NS_PRECONDITION(mStreamParser, 
     "Tried to continue after failed charset switch without a stream parser");
   mStreamParser->ContinueAfterFailedCharsetSwitch();
+}
+
+bool
+nsHtml5Parser::IsSrcdocDocument()
+{
+  nsresult rv;
+
+  bool isSrcdoc = false;
+  nsCOMPtr<nsIChannel> channel;
+  rv = GetChannel(getter_AddRefs(channel));
+  if (NS_SUCCEEDED(rv)) {
+    nsCOMPtr<nsIInputStreamChannel> isr = do_QueryInterface(channel);
+    if (isr) {
+      isr->GetIsSrcdocChannel(&isSrcdoc);
+    }
+  }
+  return isSrcdoc;
 }
 

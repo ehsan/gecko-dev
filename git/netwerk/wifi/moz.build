@@ -4,8 +4,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-FAIL_ON_WARNINGS = True
-
 XPIDL_SOURCES += [
     'nsIWifiAccessPoint.idl',
     'nsIWifiListener.idl',
@@ -16,43 +14,38 @@ XPIDL_MODULE = 'necko_wifi'
 
 MODULE = 'necko'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsWifiAccessPoint.cpp',
 ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
-    SOURCES += [
+    CPP_SOURCES += [
         'nsWifiMonitorGonk.cpp',
     ]
 else:
-    SOURCES += [
+    CPP_SOURCES += [
         'nsWifiMonitor.cpp',
     ]
 
 if CONFIG['OS_ARCH'] == 'Darwin':
-    # osx_corewlan.mm has warnings I don't understand.
-    FAIL_ON_WARNINGS = False
-    SOURCES += [
+    CPP_SOURCES += [
         'nsWifiScannerMac.cpp',
     ]
-    SOURCES += [
+    CMMSRCS += [
         'osx_corewlan.mm',
     ]
 elif CONFIG['OS_ARCH'] == 'WINNT':
-    SOURCES += [
+    CPP_SOURCES += [
         'nsWifiScannerWin.cpp',
     ]
 elif CONFIG['OS_ARCH'] == 'SunOS':
-    SOURCES += [
+    CPP_SOURCES += [
         'nsWifiScannerSolaris.cpp',
     ]
 
 if CONFIG['NECKO_WIFI_DBUS']:
-    SOURCES += [
+    CPP_SOURCES += [
         'nsWifiScannerDBus.cpp',
     ]
 
 LIBRARY_NAME = 'neckowifi_s'
-
-LIBXUL_LIBRARY = True
-

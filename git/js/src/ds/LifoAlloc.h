@@ -55,7 +55,7 @@ class BumpChunk
     explicit BumpChunk(size_t bumpSpaceSize)
       : bump(reinterpret_cast<char *>(MOZ_THIS_IN_INITIALIZER_LIST()) + sizeof(BumpChunk)),
         limit(bump + bumpSpaceSize),
-        next_(nullptr), bumpSpaceSize(bumpSpaceSize)
+        next_(NULL), bumpSpaceSize(bumpSpaceSize)
     {
         JS_ASSERT(bump == AlignPtr(bump));
     }
@@ -130,11 +130,11 @@ class BumpChunk
         char *newBump = aligned + n;
 
         if (newBump > limit)
-            return nullptr;
+            return NULL;
 
         // Check for overflow.
         if (JS_UNLIKELY(newBump < bump))
-            return nullptr;
+            return NULL;
 
         JS_ASSERT(canAlloc(n)); // Ensure consistency between "can" and "try".
         setBump(newBump);
@@ -181,32 +181,19 @@ class LifoAlloc
 
     void reset(size_t defaultChunkSize) {
         JS_ASSERT(mozilla::RoundUpPow2(defaultChunkSize) == defaultChunkSize);
-        first = latest = last = nullptr;
+        first = latest = last = NULL;
         defaultChunkSize_ = defaultChunkSize;
         markCount = 0;
         curSize_ = 0;
     }
 
-    // Append unused chunks to the end of this LifoAlloc.
-    void appendUnused(BumpChunk *start, BumpChunk *end) {
+    void append(BumpChunk *start, BumpChunk *end) {
         JS_ASSERT(start && end);
         if (last)
             last->setNext(start);
         else
             first = latest = start;
         last = end;
-    }
-
-    // Append used chunks to the end of this LifoAlloc. We act as if all the
-    // chunks in |this| are used, even if they're not, so memory may be wasted.
-    void appendUsed(BumpChunk *start, BumpChunk *latest, BumpChunk *end) {
-        JS_ASSERT(start && latest &&  end);
-        if (last)
-            last->setNext(start);
-        else
-            first = latest = start;
-        last = end;
-        this->latest = latest;
     }
 
     void incrementCurSize(size_t size) {
@@ -267,7 +254,7 @@ class LifoAlloc
             return result;
 
         if (!getOrCreateChunk(n))
-            return nullptr;
+            return NULL;
 
         return latest->allocInfallible(n);
     }
@@ -305,16 +292,17 @@ class LifoAlloc
 
     template <typename T>
     T *newArray(size_t count) {
+        void *mem = alloc(sizeof(T) * count);
+        if (!mem)
+            return NULL;
         JS_STATIC_ASSERT(mozilla::IsPod<T>::value);
-        return newArrayUninitialized<T>(count);
+        return (T *) mem;
     }
 
     // Create an array with uninitialized elements of type |T|.
     // The caller is responsible for initialization.
     template <typename T>
     T *newArrayUninitialized(size_t count) {
-        if (count & mozilla::tl::MulOverflowMask<sizeof(T)>::value)
-            return nullptr;
         return static_cast<T *>(alloc(sizeof(T) * count));
     }
 
@@ -324,7 +312,7 @@ class LifoAlloc
         friend class LifoAlloc;
         Mark(BumpChunk *chunk, void *markInChunk) : chunk(chunk), markInChunk(markInChunk) {}
       public:
-        Mark() : chunk(nullptr), markInChunk(nullptr) {}
+        Mark() : chunk(NULL), markInChunk(NULL) {}
     };
 
     Mark mark() {
@@ -429,7 +417,7 @@ class LifoAlloc
         Enum(LifoAlloc &alloc)
           : alloc_(&alloc),
             chunk_(alloc.first),
-            position_(static_cast<char *>(alloc.first ? alloc.first->start() : nullptr))
+            position_(static_cast<char *>(alloc.first ? alloc.first->start() : NULL))
         {}
 
         // Return true if there are no more bytes to enumerate.
@@ -446,7 +434,7 @@ class LifoAlloc
         // Move the read position forward by |size| bytes.
         void popFront(size_t size) {
             ensureSpaceAndAlignment(size);
-            position_ = position_ + size;
+            position_ = detail::AlignPtr(position_ + size);
         }
 
         // Update the bytes at the current position with a new value.

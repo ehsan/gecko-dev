@@ -108,6 +108,8 @@ SpecialPowers.addAutoCompletePopupEventListener(window, "popupshown", popupShown
 function runTest() {
     testNum++;
 
+    // Seems we need to enable this again, or sendKeyEvent() complaints.
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
     info("Starting test #" + testNum);
 
     switch(testNum) {

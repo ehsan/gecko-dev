@@ -15,6 +15,7 @@ namespace mozilla {
 namespace dom {
 
 class HTMLOutputElement MOZ_FINAL : public nsGenericHTMLFormElement,
+                                    public nsIDOMHTMLElement,
                                     public nsStubMutationObserver,
                                     public nsIConstraintValidation
 {
@@ -26,6 +27,15 @@ public:
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
+
+  // nsIDOMNode
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+
+  // nsIDOMElement
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLElement
+  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
 
   // nsIFormControl
   NS_IMETHOD_(uint32_t) GetType() const { return NS_FORM_OUTPUT; }
@@ -58,6 +68,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(HTMLOutputElement,
                                            nsGenericHTMLFormElement)
 
+  virtual nsIDOMNode* AsDOMNode() MOZ_OVERRIDE { return this; }
   virtual JSObject* WrapNode(JSContext* aCx,
                              JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
 
@@ -86,7 +97,11 @@ public:
 
   void SetDefaultValue(const nsAString& aDefaultValue, ErrorResult& aRv);
 
-  void GetValue(nsAString& aValue);
+  void GetValue(nsAString& aValue)
+  {
+    nsContentUtils::GetNodeTextContent(this, true, aValue);
+  }
+
   void SetValue(const nsAString& aValue, ErrorResult& aRv);
 
   // nsIConstraintValidation::WillValidate is fine.

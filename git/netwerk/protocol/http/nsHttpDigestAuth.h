@@ -8,11 +8,10 @@
 #define nsDigestAuth_h__
 
 #include "nsIHttpAuthenticator.h"
-#include "nsStringFwd.h"
+#include "nsICryptoHash.h"
+#include "nsString.h"
 #include "nsCOMPtr.h"
 #include "mozilla/Attributes.h"
-
-class nsICryptoHash;
 
 #define ALGO_SPECIFIED 0x01
 #define ALGO_MD5 0x02

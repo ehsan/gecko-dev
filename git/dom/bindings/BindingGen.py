@@ -5,14 +5,9 @@
 import os
 import cPickle
 from Configuration import Configuration
-from Codegen import CGBindingRoot, replaceFileIfChanged, CGEventRoot
-from mozbuild.makeutil import Makefile
-from mozbuild.pythonutil import iter_modules_in_path
-from buildconfig import topsrcdir
+from Codegen import CGBindingRoot, replaceFileIfChanged
 
-
-def generate_binding_files(config, outputprefix, srcprefix, webidlfile,
-                           generatedEventsWebIDLFiles):
+def generate_binding_files(config, outputprefix, srcprefix, webidlfile):
     """
     |config| Is the configuration object.
     |outputprefix| is a prefix to use for the header guards and filename.
@@ -23,23 +18,10 @@ def generate_binding_files(config, outputprefix, srcprefix, webidlfile,
     replaceFileIfChanged(outputprefix + ".h", root.declare())
     replaceFileIfChanged(outputprefix + ".cpp", root.define())
 
-    if webidlfile in generatedEventsWebIDLFiles:
-        eventName = webidlfile[:-len(".webidl")]
-        generatedEvent = CGEventRoot(config, eventName)
-        replaceFileIfChanged(eventName + ".h", generatedEvent.declare())
-        replaceFileIfChanged(eventName + ".cpp", generatedEvent.define())
-
-    mk = Makefile()
-    # NOTE: it's VERY important that we output dependencies for the FooBinding
-    # file here, not for the header or generated cpp file.  These dependencies
-    # are used later to properly determine changedDeps and prevent rebuilding
-    # too much.  See the comment explaining $(binding_dependency_trackers) in
-    # Makefile.in.
-    rule = mk.create_rule([outputprefix])
-    rule.add_dependencies(os.path.join(srcprefix, x) for x in sorted(root.deps()))
-    rule.add_dependencies(iter_modules_in_path(topsrcdir))
-    with open(depsname, 'w') as f:
-        mk.dump(f)
+    with open(depsname, 'wb') as f:
+        # Sort so that our output is stable
+        f.write("\n".join(outputprefix + ": " + os.path.join(srcprefix, x) for
+                          x in sorted(root.deps())))
 
 def main():
     # Parse arguments.
@@ -66,8 +48,7 @@ def main():
             file.close()
         return contents
     allWebIDLFiles = readFile(args[2]).split()
-    generatedEventsWebIDLFiles = readFile(args[3]).split()
-    changedDeps = readFile(args[4]).split()
+    changedDeps = readFile(args[3]).split()
 
     if all(f.endswith("Binding") or f == "ParserResults.pkl" for f in changedDeps):
         toRegenerate = filter(lambda f: f.endswith("Binding"), changedDeps)
@@ -91,8 +72,7 @@ def main():
     for webIDLFile in toRegenerate:
         assert webIDLFile.endswith(".webidl")
         outputPrefix = webIDLFile[:-len(".webidl")] + "Binding"
-        generate_binding_files(config, outputPrefix, srcPrefix, webIDLFile,
-                               generatedEventsWebIDLFiles);
+        generate_binding_files(config, outputPrefix, srcPrefix, webIDLFile);
 
 if __name__ == '__main__':
     main()

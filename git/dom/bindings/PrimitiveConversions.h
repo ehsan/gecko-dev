@@ -13,12 +13,10 @@
 
 #include <limits>
 #include <math.h>
-#include <stdint.h>
-
-#include "jsapi.h"
 #include "mozilla/Assertions.h"
-#include "mozilla/ErrorResult.h"
+#include "mozilla/dom/BindingUtils.h"
 #include "mozilla/FloatingPoint.h"
+#include "xpcpublic.h"
 
 namespace mozilla {
 namespace dom {
@@ -189,10 +187,10 @@ struct PrimitiveConversionTraits_Limits {
 template<>
 struct PrimitiveConversionTraits_Limits<int64_t> {
   static inline int64_t min() {
-    return -(1LL << 53);
+    return -(1LL << 53) + 1;
   }
   static inline int64_t max() {
-    return (1LL << 53);
+    return (1LL << 53) - 1;
   }
 };
 
@@ -202,7 +200,7 @@ struct PrimitiveConversionTraits_Limits<uint64_t> {
     return 0;
   }
   static inline uint64_t max() {
-    return (1LL << 53);
+    return (1LL << 53) - 1;
   }
 };
 
@@ -307,7 +305,7 @@ struct PrimitiveConversionTraits<bool, B> : public DisallowedConversion<bool> {}
 
 template<>
 struct PrimitiveConversionTraits<bool, eDefault> {
-  typedef bool jstype;
+  typedef JSBool jstype;
   typedef bool intermediateType;
   static inline bool converter(JSContext* /* unused */, JS::Handle<JS::Value> v,
                                jstype* retval) {

@@ -12,6 +12,8 @@
 
 #include "mozilla/Array.h"
 
+#include "jscntxt.h"
+
 #include "jit/Bailouts.h"
 #include "jit/InlineList.h"
 #include "jit/IonAllocPolicy.h"
@@ -20,6 +22,8 @@
 #include "jit/MIRGraph.h"
 #include "jit/Registers.h"
 #include "jit/Safepoints.h"
+#include "jit/shared/Assembler-shared.h"
+#include "jit/VMFunctions.h"
 
 namespace js {
 namespace jit {
@@ -538,7 +542,6 @@ class LDefinition
           case MIRType_Object:
             return LDefinition::OBJECT;
           case MIRType_Double:
-          case MIRType_Float32:
             return LDefinition::DOUBLE;
 #if defined(JS_PUNBOX64)
           case MIRType_Value:
@@ -585,9 +588,9 @@ class LInstruction
 
     LInstruction()
       : id_(0),
-        snapshot_(nullptr),
-        safepoint_(nullptr),
-        mir_(nullptr)
+        snapshot_(NULL),
+        safepoint_(NULL),
+        mir_(NULL)
     { }
 
   public:
@@ -613,7 +616,7 @@ class LInstruction
     // Hook for opcodes to add extra high level detail about what code will be
     // emitted for the op.
     virtual const char *extraName() const {
-        return nullptr;
+        return NULL;
     }
 
   public:
@@ -713,8 +716,8 @@ class LInstructionVisitor
     }
 
     LInstructionVisitor()
-      : ins_(nullptr),
-        lastPC_(nullptr)
+      : ins_(NULL),
+        lastPC_(NULL)
     {}
 
   public:
@@ -738,8 +741,8 @@ class LBlock : public TempObject
 
     LBlock(MBasicBlock *block)
       : block_(block),
-        entryMoveGroup_(nullptr),
-        exitMoveGroup_(nullptr)
+        entryMoveGroup_(NULL),
+        exitMoveGroup_(NULL)
     { }
 
   public:
@@ -844,7 +847,7 @@ class LInstructionHelper : public LInstruction
     }
     MBasicBlock *getSuccessor(size_t i) const {
         JS_ASSERT(false);
-        return nullptr;
+        return NULL;
     }
     void setSuccessor(size_t i, MBasicBlock *successor) {
         JS_ASSERT(false);
@@ -984,12 +987,6 @@ class LSafepoint : public TempObject
     // The subset of liveRegs which contains gcthing pointers.
     GeneralRegisterSet gcRegs_;
 
-#ifdef CHECK_OSIPOINT_REGISTERS
-    // Temp regs of the current instruction. This set is never written to the
-    // safepoint; it's only used by assertions during compilation.
-    RegisterSet tempRegs_;
-#endif
-
     // Offset to a position in the safepoint stream, or
     // INVALID_SAFEPOINT_OFFSET.
     uint32_t safepointOffset_;
@@ -1034,14 +1031,6 @@ class LSafepoint : public TempObject
     const RegisterSet &liveRegs() const {
         return liveRegs_;
     }
-#ifdef CHECK_OSIPOINT_REGISTERS
-    void addTempRegister(AnyRegister reg) {
-        tempRegs_.addUnchecked(reg);
-    }
-    const RegisterSet &tempRegs() const {
-        return tempRegs_;
-    }
-#endif
     void addGcRegister(Register reg) {
         gcRegs_.addUnchecked(reg);
     }
@@ -1343,7 +1332,7 @@ class LIRGraph
     // Snapshot taken before any LIR has been lowered.
     LSnapshot *entrySnapshot_;
 
-    // LBlock containing LOsrEntry, or nullptr.
+    // LBlock containing LOsrEntry, or NULL.
     LBlock *osrBlock_;
 
     MIRGraph &mir_;

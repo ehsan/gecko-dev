@@ -824,12 +824,6 @@ let Actor = Class({
       message: err.toString()
     });
   },
-
-  _queueResponse: function(create) {
-    let pending = this._pendingResponse || promise.resolve(null);
-    let response = create(pending);
-    this._pendingResponse = response;
-  }
 });
 exports.Actor = Actor;
 
@@ -876,8 +870,8 @@ let actorProto = function(actorProto) {
       let frozenSpec = desc.value._methodSpec;
       let spec = {};
       spec.name = frozenSpec.name || name;
-      spec.request = Request(object.merge({type: spec.name}, frozenSpec.request || undefined));
-      spec.response = Response(frozenSpec.response || undefined);
+      spec.request = Request(object.merge({type: spec.name}, frozenSpec.request));
+      spec.response = Response(frozenSpec.response);
       spec.telemetry = frozenSpec.telemetry;
       spec.release = frozenSpec.release;
       spec.oneway = frozenSpec.oneway;
@@ -915,27 +909,20 @@ let actorProto = function(actorProto) {
           response.from = this.actorID;
           // If spec.release has been specified, destroy the object.
           if (spec.release) {
-            try {
-              this.destroy();
-            } catch(e) {
-              this.writeError(e);
-              return;
-            }
+            this.destroy();
           }
 
           conn.send(response);
         };
 
-        this._queueResponse(p => {
-          return p
-            .then(() => ret)
-            .then(sendReturn)
-            .then(null, this.writeError.bind(this));
-        })
+        if (ret && ret.then) {
+          ret.then(sendReturn).then(null, this.writeError.bind(this));
+        } else {
+          sendReturn(ret);
+        }
+
       } catch(e) {
-        this._queueResponse(p => {
-          return p.then(() => this.writeError(e));
-        });
+        this.writeError(e);
       }
     };
 
@@ -993,12 +980,6 @@ let Front = Class({
   },
 
   destroy: function() {
-    // Reject all outstanding requests, they won't make sense after
-    // the front is destroyed.
-    while (this._requests && this._requests.length > 0) {
-      let deferred = this._requests.shift();
-      deferred.reject(new Error("Connection closed"));
-    }
     Pool.prototype.destroy.call(this);
     this.actorID = null;
   },
@@ -1058,10 +1039,7 @@ let Front = Class({
 
     // Remaining packets must be responses.
     if (this._requests.length === 0) {
-      let msg = "Unexpected packet from " + this.actorID + ", " + packet.type;
-      let err = Error(msg);
-      console.error(err);
-      throw err;
+      throw Error("Unexpected packet from " + this.actorID + ", " + packet.type);
     }
 
     let deferred = this._requests.shift();

@@ -9,7 +9,9 @@
 #include "AudioNodeEngine.h"
 #include "AudioNodeStream.h"
 #include "blink/Reverb.h"
-#include "PlayingRefChangeHandler.h"
+
+#include <cmath>
+#include "nsMathUtils.h"
 
 namespace mozilla {
 namespace dom {
@@ -24,7 +26,7 @@ NS_IMPL_RELEASE_INHERITED(ConvolverNode, AudioNode)
 
 class ConvolverNodeEngine : public AudioNodeEngine
 {
-  typedef PlayingRefChangeHandler PlayingRefChanged;
+  typedef PlayingRefChangeHandler<ConvolverNode> PlayingRefChanged;
 public:
   ConvolverNodeEngine(AudioNode* aNode, bool aNormalize)
     : AudioNodeEngine(aNode)
@@ -33,6 +35,7 @@ public:
     , mSampleRate(0.0f)
     , mUseBackgroundThreads(!aNode->Context()->IsOffline())
     , mNormalize(aNormalize)
+    , mSeenInput(false)
   {
   }
 
@@ -91,6 +94,7 @@ public:
 
     if (!mBuffer || !mBufferLength || !mSampleRate) {
       mReverb = nullptr;
+      mSeenInput = false;
       mLeftOverData = INT32_MIN;
       return;
     }
@@ -106,27 +110,31 @@ public:
                                  AudioChunk* aOutput,
                                  bool* aFinished)
   {
+    if (!mSeenInput && aInput.IsNull()) {
+      aOutput->SetNull(WEBAUDIO_BLOCK_SIZE);
+      return;
+    }
     if (!mReverb) {
       *aOutput = aInput;
       return;
     }
 
+    mSeenInput = true;
     AudioChunk input = aInput;
     if (aInput.IsNull()) {
-      if (mLeftOverData > 0) {
-        mLeftOverData -= WEBAUDIO_BLOCK_SIZE;
-        AllocateAudioBlock(1, &input);
-        WriteZeroesToAudioBlock(&input, 0, WEBAUDIO_BLOCK_SIZE);
-      } else {
-        if (mLeftOverData != INT32_MIN) {
-          mLeftOverData = INT32_MIN;
-          nsRefPtr<PlayingRefChanged> refchanged =
-            new PlayingRefChanged(aStream, PlayingRefChanged::RELEASE);
-          aStream->Graph()->
-            DispatchToMainThreadAfterStreamStateUpdate(refchanged.forget());
-        }
-        aOutput->SetNull(WEBAUDIO_BLOCK_SIZE);
-        return;
+      AllocateAudioBlock(1, &input);
+      WriteZeroesToAudioBlock(&input, 0, WEBAUDIO_BLOCK_SIZE);
+
+      mLeftOverData -= WEBAUDIO_BLOCK_SIZE;
+      if (mLeftOverData <= 0) {
+        // Note: this keeps spamming the main thread with messages as long
+        // as there is nothing to play. This isn't great, but it avoids
+        // problems with some messages being ignored when they're rejected by
+        // ConvolverNode::AcceptPlayingRefRelease.
+        mLeftOverData = 0;
+        nsRefPtr<PlayingRefChanged> refchanged =
+          new PlayingRefChanged(aStream, PlayingRefChanged::RELEASE);
+        NS_DispatchToMainThread(refchanged);
       }
     } else {
       if (aInput.mVolume != 1.0f) {
@@ -143,10 +151,9 @@ public:
       if (mLeftOverData <= 0) {
         nsRefPtr<PlayingRefChanged> refchanged =
           new PlayingRefChanged(aStream, PlayingRefChanged::ADDREF);
-        aStream->Graph()->
-          DispatchToMainThreadAfterStreamStateUpdate(refchanged.forget());
+        NS_DispatchToMainThread(refchanged);
       }
-      mLeftOverData = mBufferLength;
+      mLeftOverData = mBufferLength + WEBAUDIO_BLOCK_SIZE;
       MOZ_ASSERT(mLeftOverData > 0);
     }
     AllocateAudioBlock(2, aOutput);
@@ -162,6 +169,7 @@ private:
   float mSampleRate;
   bool mUseBackgroundThreads;
   bool mNormalize;
+  bool mSeenInput;
 };
 
 ConvolverNode::ConvolverNode(AudioContext* aContext)
@@ -169,6 +177,7 @@ ConvolverNode::ConvolverNode(AudioContext* aContext)
               2,
               ChannelCountMode::Clamped_max,
               ChannelInterpretation::Speakers)
+  , mMediaStreamGraphUpdateIndexAtLastInputConnection(0)
   , mNormalize(true)
 {
   ConvolverNodeEngine* engine = new ConvolverNodeEngine(this, mNormalize);

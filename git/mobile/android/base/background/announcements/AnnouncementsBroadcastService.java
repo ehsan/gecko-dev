@@ -18,7 +18,7 @@ import android.content.SharedPreferences.Editor;
 /**
  * A service which listens to broadcast intents from the system and from the
  * browser, registering or unregistering the main
- * {@link AnnouncementsService} with the {@link AlarmManager}.
+ * {@link AnnouncementsStartReceiver} with the {@link AlarmManager}.
  */
 public class AnnouncementsBroadcastService extends BackgroundService {
   private static final String WORKER_THREAD_NAME = "AnnouncementsBroadcastServiceWorker";
@@ -28,24 +28,10 @@ public class AnnouncementsBroadcastService extends BackgroundService {
     super(WORKER_THREAD_NAME);
   }
 
-  protected static SharedPreferences getSharedPreferences(Context context) {
-    return context.getSharedPreferences(AnnouncementsConstants.PREFS_BRANCH,
-        GlobalConstants.SHARED_PREFERENCES_MODE);
-  }
-
-  protected SharedPreferences getSharedPreferences() {
-    return this.getSharedPreferences(AnnouncementsConstants.PREFS_BRANCH,
-        GlobalConstants.SHARED_PREFERENCES_MODE);
-  }
-
   private void toggleAlarm(final Context context, boolean enabled) {
-    final Class<?> serviceClass = AnnouncementsService.class;
-    Logger.info(LOG_TAG, (enabled ? "R" : "Unr") + "egistering " + serviceClass.getSimpleName() +
-        ".");
+    Logger.info(LOG_TAG, (enabled ? "R" : "Unr") + "egistering announcements broadcast receiver...");
 
-    final Intent service = new Intent(context, serviceClass);
-    final PendingIntent pending =  PendingIntent.getService(context, 0, service,
-        PendingIntent.FLAG_CANCEL_CURRENT);
+    final PendingIntent pending = createPendingIntent(context, AnnouncementsStartReceiver.class);
 
     if (!enabled) {
       cancelAlarm(pending);
@@ -65,7 +51,7 @@ public class AnnouncementsBroadcastService extends BackgroundService {
    */
   public static void recordLastLaunch(final Context context) {
     final long now = System.currentTimeMillis();
-    final SharedPreferences preferences = getSharedPreferences(context);
+    final SharedPreferences preferences = context.getSharedPreferences(AnnouncementsConstants.PREFS_BRANCH, GlobalConstants.SHARED_PREFERENCES_MODE);
 
     // One of several things might be true, according to our logs:
     //
@@ -107,12 +93,12 @@ public class AnnouncementsBroadcastService extends BackgroundService {
   }
 
   public static long getPollInterval(final Context context) {
-    final SharedPreferences preferences = getSharedPreferences(context);
+    SharedPreferences preferences = context.getSharedPreferences(AnnouncementsConstants.PREFS_BRANCH, GlobalConstants.SHARED_PREFERENCES_MODE);
     return preferences.getLong(AnnouncementsConstants.PREF_ANNOUNCE_FETCH_INTERVAL_MSEC, AnnouncementsConstants.DEFAULT_ANNOUNCE_FETCH_INTERVAL_MSEC);
   }
 
   public static void setPollInterval(final Context context, long interval) {
-    final SharedPreferences preferences = getSharedPreferences(context);
+    SharedPreferences preferences = context.getSharedPreferences(AnnouncementsConstants.PREFS_BRANCH, GlobalConstants.SHARED_PREFERENCES_MODE);
     preferences.edit().putLong(AnnouncementsConstants.PREF_ANNOUNCE_FETCH_INTERVAL_MSEC, interval).commit();
   }
 
@@ -160,7 +146,8 @@ public class AnnouncementsBroadcastService extends BackgroundService {
     // Primarily intended for debugging and testing, but this doesn't do any harm.
     if (!enabled) {
       Logger.info(LOG_TAG, "!enabled: clearing last fetch.");
-      final SharedPreferences sharedPreferences = getSharedPreferences();
+      final SharedPreferences sharedPreferences = this.getSharedPreferences(AnnouncementsConstants.PREFS_BRANCH,
+                                                                            GlobalConstants.SHARED_PREFERENCES_MODE);
       final Editor editor = sharedPreferences.edit();
       editor.remove(AnnouncementsConstants.PREF_LAST_FETCH_LOCAL_TIME);
       editor.remove(AnnouncementsConstants.PREF_EARLIEST_NEXT_ANNOUNCE_FETCH);

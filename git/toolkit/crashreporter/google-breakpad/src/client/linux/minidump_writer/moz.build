@@ -6,7 +6,7 @@
 
 MODULE = 'writer'
 
-SOURCES += [
+CPP_SOURCES += [
     'linux_dumper.cc',
     'linux_ptrace_dumper.cc',
     'minidump_writer.cc',
@@ -14,7 +14,3 @@ SOURCES += [
 
 LIBRARY_NAME = 'minidump_writer_s'
 
-XPI_NAME = 'crashreporter'
-
-# need static lib
-FORCE_STATIC_LIB = True

@@ -185,7 +185,7 @@ function test() {
         setup: 'pagemod remove',
         check: {
           input:  'pagemod remove',
-          hints:                ' attribute',
+          hints:                '',
           markup: 'IIIIIIIVIIIIII',
           status: 'ERROR'
         },

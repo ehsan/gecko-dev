@@ -11,7 +11,6 @@ XPIDL_SOURCES += [
     'nsIContentViewerContainer.idl',
     'nsIContentViewerEdit.idl',
     'nsIContentViewerFile.idl',
-    'nsIContentViewerInternal.idl',
     'nsIDocCharset.idl',
     'nsIDocShell.idl',
     'nsIDocShellLoadInfo.idl',
@@ -37,10 +36,10 @@ XPIDL_SOURCES += [
 MODULE = 'docshell'
 
 EXPORTS += [
+    'SerializedLoadContext.h',
     'nsDocShellLoadTypes.h',
     'nsILinkHandler.h',
     'nsIWebShellServices.h',
-    'SerializedLoadContext.h',
 ]
 
 EXPORTS.mozilla += [
@@ -48,9 +47,11 @@ EXPORTS.mozilla += [
     'LoadContext.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'LoadContext.cpp',
+    'SerializedLoadContext.cpp',
     'nsAboutRedirector.cpp',
+    'nsDSURIContentListener.cpp',
     'nsDefaultURIFixup.cpp',
     'nsDocShell.cpp',
     'nsDocShellEditorData.cpp',
@@ -58,18 +59,6 @@ SOURCES += [
     'nsDocShellLoadInfo.cpp',
     'nsDocShellTransferableHooks.cpp',
     'nsDownloadHistory.cpp',
-    'nsDSURIContentListener.cpp',
     'nsWebNavigationInfo.cpp',
-    'SerializedLoadContext.cpp',
 ]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
-
-LIBRARY_NAME = 'basedocshell_s'
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

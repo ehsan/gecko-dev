@@ -10,8 +10,9 @@
 #ifndef nsIScrollFrame_h___
 #define nsIScrollFrame_h___
 
+#include "nsISupports.h"
 #include "nsCoord.h"
-#include "ScrollbarStyles.h"
+#include "nsPresContext.h"
 #include "mozilla/gfx/Point.h"
 #include "nsIScrollbarOwner.h"
 #include "Units.h"
@@ -22,9 +23,6 @@
 class nsBoxLayoutState;
 class nsIScrollPositionListener;
 class nsIFrame;
-class nsPresContext;
-class nsIContent;
-class nsRenderingContext;
 
 /**
  * Interface for frames that are scrollable. This interface exposes
@@ -43,12 +41,13 @@ public:
    */
   virtual nsIFrame* GetScrolledFrame() const = 0;
 
+  typedef nsPresContext::ScrollbarStyles ScrollbarStyles;
   /**
    * Get the styles (NS_STYLE_OVERFLOW_SCROLL, NS_STYLE_OVERFLOW_HIDDEN,
    * or NS_STYLE_OVERFLOW_AUTO) governing the horizontal and vertical
    * scrollbars for this frame.
    */
-  virtual mozilla::ScrollbarStyles GetScrollbarStyles() const = 0;
+  virtual ScrollbarStyles GetScrollbarStyles() const = 0;
 
   enum { HORIZONTAL = 0x01, VERTICAL = 0x02 };
   /**
@@ -263,11 +262,6 @@ public:
    * @see nsIStatefulFrame::RestoreState
    */
   virtual void ClearDidHistoryRestore() = 0;
-  /**
-   * Determine if the passed in rect is nearly visible according to the image
-   * visibility heuristics for how close it is to the visible scrollport.
-   */
-  virtual bool IsRectNearlyVisible(const nsRect& aRect) = 0;
 };
 
 #endif

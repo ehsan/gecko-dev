@@ -8,13 +8,17 @@ user preferences
 
 __all__ = ('PreferencesReadError', 'Preferences')
 
-import json
 import mozfile
 import os
 import re
 import tokenize
 from ConfigParser import SafeConfigParser as ConfigParser
 from StringIO import StringIO
+
+try:
+    import json
+except ImportError:
+    import simplejson as json
 
 class PreferencesReadError(Exception):
     """read error for prefrences files"""

@@ -9,6 +9,7 @@
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsComputedDOMStyle.h"
+#include "nsContentUtils.h"
 #include "nsDebug.h"
 #include "nsEditProperty.h"
 #include "nsError.h"
@@ -43,7 +44,6 @@
 #include "nsStringFwd.h"
 #include "nsUnicharUtils.h"
 #include "nscore.h"
-#include "nsContentUtils.h" // for nsAutoScriptBlocker
 
 class nsIDOMEventListener;
 class nsISelection;
@@ -171,7 +171,7 @@ nsHTMLEditor::CreateAnonymousElement(const nsAString & aTag, nsIDOMNode *  aPare
     nsAutoScriptBlocker scriptBlocker;
 
     // establish parenthood of the element
-    newContent->SetIsNativeAnonymousRoot();
+    newContent->SetNativeAnonymous();
     res = newContent->BindToTree(doc, parentContent, parentContent, true);
     if (NS_FAILED(res)) {
       newContent->UnbindFromTree();

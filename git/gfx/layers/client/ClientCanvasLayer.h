@@ -6,26 +6,21 @@
 #ifndef GFX_CLIENTCANVASLAYER_H
 #define GFX_CLIENTCANVASLAYER_H
 
-#include "mozilla/layers/CanvasClient.h"  // for CanvasClient, etc
-#include "ClientLayerManager.h"         // for ClientLayerManager, etc
-#include "CopyableCanvasLayer.h"        // for CopyableCanvasLayer
-#include "Layers.h"                     // for CanvasLayer, etc
-#include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
-#include "mozilla/RefPtr.h"             // for RefPtr
-#include "mozilla/layers/LayersMessages.h"  // for CanvasLayerAttributes, etc
-#include "mozilla/mozalloc.h"           // for operator delete
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsDebug.h"                    // for NS_ASSERTION
-#include "nsRegion.h"                   // for nsIntRegion
-#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
+#include "ClientLayerManager.h"
+#include "nsXULAppAPI.h"
+#include "gfxASurface.h"
+#include "mozilla/Preferences.h"
+#include "mozilla/layers/LayerTransaction.h"
+#include "mozilla/layers/CanvasClient.h"
+#include "CopyableCanvasLayer.h"
 
 using namespace mozilla::gfx;
 
 namespace mozilla {
 namespace layers {
 
-class CompositableClient;
-class ShadowableLayer;
+class CanvasClient2D;
+class CanvasClientWebGL;
 
 class ClientCanvasLayer : public CopyableCanvasLayer,
                           public ClientLayer
@@ -33,8 +28,7 @@ class ClientCanvasLayer : public CopyableCanvasLayer,
   typedef CanvasClient::CanvasClientType CanvasClientType;
 public:
   ClientCanvasLayer(ClientLayerManager* aLayerManager) :
-    CopyableCanvasLayer(aLayerManager,
-                        static_cast<ClientLayer*>(MOZ_THIS_IN_INITIALIZER_LIST()))
+    CopyableCanvasLayer(aLayerManager, static_cast<ClientLayer*>(this))
   {
     MOZ_COUNT_CTOR(ClientCanvasLayer);
   }
@@ -42,7 +36,7 @@ public:
   {
     MOZ_COUNT_DTOR(ClientCanvasLayer);
     if (mCanvasClient) {
-      mCanvasClient->OnDetach();
+      mCanvasClient->Detach();
       mCanvasClient = nullptr;
     }
   }

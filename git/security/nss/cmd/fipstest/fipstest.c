@@ -3616,6 +3616,7 @@ void hmac_test(char *reqfn)
         goto loser;
     }      
     msg = PORT_ZAlloc(msgLen);
+    memset(msg, 0, msgLen);
     if (msg == NULL) {
         goto loser;
     } 
@@ -3676,7 +3677,7 @@ void hmac_test(char *reqfn)
             keyLen = 0; 
             TLen = 0;
             memset(key, 0, sizeof key);     
-            memset(msg, 0, msgLen);
+            memset(msg, 0, sizeof msg);  
             memset(HMAC, 0, sizeof HMAC);
             continue;
         }

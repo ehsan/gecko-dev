@@ -3,8 +3,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
+interface TelephonyCall;
 
-[Constructor(DOMString type, optional CallEventInit eventInitDict), Pref="dom.telephony.enabled"]
+[Constructor(DOMString type, optional CallEventInit eventInitDict), HeaderFile="GeneratedEventClasses.h"]
 interface CallEvent : Event
 {
   readonly attribute TelephonyCall? call;

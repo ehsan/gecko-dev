@@ -8,7 +8,6 @@
 
 #include "nsIDOMClipboardEvent.h"
 #include "nsDOMEvent.h"
-#include "mozilla/EventForwards.h"
 #include "mozilla/dom/ClipboardEventBinding.h"
 
 class nsDOMClipboardEvent : public nsDOMEvent,
@@ -17,7 +16,8 @@ class nsDOMClipboardEvent : public nsDOMEvent,
 public:
   nsDOMClipboardEvent(mozilla::dom::EventTarget* aOwner,
                       nsPresContext* aPresContext,
-                      mozilla::InternalClipboardEvent* aEvent);
+                      nsClipboardEvent* aEvent);
+  virtual ~nsDOMClipboardEvent();
 
   NS_DECL_ISUPPORTS_INHERITED
 

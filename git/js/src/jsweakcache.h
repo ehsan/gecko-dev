@@ -7,10 +7,11 @@
 #ifndef jsweakcache_h
 #define jsweakcache_h
 
+#include "jsapi.h"
 #include "jscntxt.h"
+#include "jsobj.h"
+
 #include "gc/Marking.h"
-#include "js/HashTable.h"
-#include "vm/Runtime.h"
 
 namespace js {
 

@@ -1,3 +1,6 @@
+for (var i = -1; i < 1; i += 0.05)
+    assertNear(Math.atanh(Math.tanh(i)), i);
+
 var tanh_data = [
     [-0.9999983310699463, -6.998237084679027],
     [-0.9999978542327881, -6.87257975132917],
@@ -266,15 +269,10 @@ var tanh_data = [
     [1e-10, 1e-10],
 ];
 
-var sloppy_tolerance = 10;  // FIXME
+for (let [x, y] of tanh_data)
+    assertNear(Math.atanh(x), y);
 
-for (var [x, y] of tanh_data)
-    assertNear(Math.atanh(x), y, sloppy_tolerance);
-
-assertNear(Math.atanh(+3 / 5), +Math.log(2), sloppy_tolerance);
-assertNear(Math.atanh(-3 / 5), -Math.log(2), sloppy_tolerance);
-
-for (var i = -1; i < 1; i += 0.05)
-    assertNear(Math.atanh(Math.tanh(i)), i, sloppy_tolerance);
+assertNear(Math.atanh(+3 / 5), +Math.log(2));
+assertNear(Math.atanh(-3 / 5), -Math.log(2));
 
 reportCompare(0, 0, "ok");

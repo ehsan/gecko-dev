@@ -2,17 +2,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/dom/StkCommandEvent.h"
-
-#include "jsfriendapi.h"
-#include "nsJSON.h"
+#include "nsContentUtils.h"
 #include "SimToolKit.h"
+#include "StkCommandEvent.h"
+
+#include "nsJSON.h"
+#include "jsapi.h"
+#include "jsfriendapi.h"
 
 namespace mozilla {
 namespace dom {
+namespace icc {
 
 already_AddRefed<StkCommandEvent>
-StkCommandEvent::Create(EventTarget* aOwner,
+StkCommandEvent::Create(mozilla::dom::EventTarget* aOwner,
                         const nsAString& aMessage)
 {
   nsRefPtr<StkCommandEvent> event = new StkCommandEvent(aOwner);
@@ -43,5 +46,6 @@ StkCommandEvent::GetCommand(JSContext* aCx, JS::Value* aCommand)
   return NS_OK;
 }
 
-} // namespace dom
-} // namespace mozilla
+}
+}
+}

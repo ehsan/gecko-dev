@@ -6,7 +6,7 @@
 
 MODULE = 'widget'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsAppShell.cpp',
     'nsBidiKeyboard.cpp',
     'nsClipboard.cpp',
@@ -16,8 +16,8 @@ SOURCES += [
     'nsIdleServiceOS2.cpp',
     'nsLookAndFeel.cpp',
     'nsOS2Uni.cpp',
-    'nsPrintOptionsOS2.cpp',
     'nsPrintOS2.cpp',
+    'nsPrintOptionsOS2.cpp',
     'nsRwsService.cpp',
     'nsScreenManagerOS2.cpp',
     'nsScreenOS2.cpp',
@@ -28,8 +28,4 @@ SOURCES += [
 ]
 
 LIBRARY_NAME = 'wdgtos2'
-
-LIBXUL_LIBRARY = True
-
-EXPORT_LIBRARY = True
 

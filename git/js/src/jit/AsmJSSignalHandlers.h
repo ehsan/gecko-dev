@@ -16,11 +16,6 @@ struct JSRuntime;
 
 namespace js {
 
-// Returns whether signal handlers for asm.js and for JitRuntime access
-// violations have been installed.
-bool
-EnsureAsmJSSignalHandlersInstalled(JSRuntime *rt);
-
 // Force any currently-executing asm.js code to call
 // js_HandleExecutionInterrupt.
 extern void
@@ -39,14 +34,16 @@ class AsmJSMachExceptionHandler
     pthread_t thread_;
     mach_port_t port_;
 
-    void uninstall();
+    void release();
 
   public:
     AsmJSMachExceptionHandler();
-    ~AsmJSMachExceptionHandler() { uninstall(); }
+    ~AsmJSMachExceptionHandler() { release(); }
     mach_port_t port() const { return port_; }
     bool installed() const { return installed_; }
     bool install(JSRuntime *rt);
+    void clearCurrentThread();
+    void setCurrentThread();
 };
 #endif
 

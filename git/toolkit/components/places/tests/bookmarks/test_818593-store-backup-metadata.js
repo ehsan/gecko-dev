@@ -30,23 +30,23 @@ add_task(function test_saveBookmarksToJSONFile_and_create()
 
   // Ensure the backup would be copied to our backups folder when the original
   // backup is saved somewhere else.
-  let recentBackup = yield PlacesBackups.getMostRecentBackup();
+  let recentBackup = PlacesBackups.getMostRecent();
   let todayFilename = PlacesBackups.getFilenameForDate();
-  do_check_eq(OS.Path.basename(recentBackup),
+  do_check_eq(recentBackup.leafName,
               todayFilename.replace(/\.json/, "_" + nodeCount + ".json"));
 
   // Clear all backups in our backups folder.
   yield PlacesBackups.create(0);
-  do_check_eq((yield PlacesBackups.getBackupFiles()).length, 0);
+  do_check_eq(PlacesBackups.entries.length, 0);
 
   // Test create() which saves bookmarks with metadata on the filename.
   yield PlacesBackups.create();
-  do_check_eq((yield PlacesBackups.getBackupFiles()).length, 1);
+  do_check_eq(PlacesBackups.entries.length, 1);
 
-  mostRecentBackupFile = yield PlacesBackups.getMostRecentBackup();
+  mostRecentBackupFile = PlacesBackups.getMostRecent();
   do_check_neq(mostRecentBackupFile, null);
   let rx = new RegExp("^" + todayFilename.replace(/\.json/, "") + "_([0-9]+)\.json$");
-  let matches = OS.Path.basename(recentBackup).match(rx);
+  let matches = mostRecentBackupFile.leafName.match(rx);
   do_check_true(matches.length > 0 && parseInt(matches[1]) == nodeCount);
 
   // Cleanup

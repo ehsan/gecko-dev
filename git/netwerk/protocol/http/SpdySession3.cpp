@@ -8,15 +8,16 @@
 #include "HttpLog.h"
 
 #include "mozilla/Telemetry.h"
+#include "mozilla/Preferences.h"
 #include "nsHttp.h"
 #include "nsHttpHandler.h"
+#include "nsHttpConnection.h"
 #include "nsILoadGroup.h"
 #include "prprf.h"
 #include "prnetdb.h"
 #include "SpdyPush3.h"
 #include "SpdySession3.h"
 #include "SpdyStream3.h"
-#include "PSpdyPush.h"
 
 #include <algorithm>
 
@@ -75,6 +76,8 @@ SpdySession3::SpdySession3(nsAHttpTransaction *aHttpTransaction,
   LOG3(("SpdySession3::SpdySession3 %p transaction 1 = %p serial=0x%X\n",
         this, aHttpTransaction, mSerial));
 
+  mStreamIDHash.Init();
+  mStreamTransactionHash.Init();
   mConnection = aHttpTransaction->Connection();
   mInputFrameBuffer = new char[mInputFrameBufferSize];
   mOutputQueueBuffer = new char[mOutputQueueSize];
@@ -859,10 +862,7 @@ SpdySession3::CleanupStream(SpdyStream3 *aStream, nsresult aResult,
 {
   MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
   LOG3(("SpdySession3::CleanupStream %p %p 0x%X %X\n",
-        this, aStream, aStream ? aStream->StreamID() : 0, aResult));
-  if (!aStream) {
-    return;
-  }
+        this, aStream, aStream->StreamID(), aResult));
 
   SpdyPushedStream3 *pushSource = nullptr;
 
@@ -991,7 +991,7 @@ SpdySession3::HandleSynStream(SpdySession3 *self)
     self->mShouldGoAway = true;
 
   bool resetStream = true;
-  SpdyPushCache *cache = nullptr;
+  SpdyPushCache3 *cache = nullptr;
 
   if (!(flags & kFlag_Data_UNI)) {
     // pushed streams require UNIDIRECTIONAL flag
@@ -1020,10 +1020,10 @@ SpdySession3::HandleSynStream(SpdySession3 *self)
   } else {
     nsILoadGroupConnectionInfo *loadGroupCI = associatedStream->LoadGroupConnectionInfo();
     if (loadGroupCI) {
-      loadGroupCI->GetSpdyPushCache(&cache);
+      loadGroupCI->GetSpdyPushCache3(&cache);
       if (!cache) {
-        cache = new SpdyPushCache();
-        if (!cache || NS_FAILED(loadGroupCI->SetSpdyPushCache(cache))) {
+        cache = new SpdyPushCache3();
+        if (!cache || NS_FAILED(loadGroupCI->SetSpdyPushCache3(cache))) {
           delete cache;
           cache = nullptr;
         }
@@ -1104,7 +1104,7 @@ SpdySession3::HandleSynStream(SpdySession3 *self)
     return NS_OK;
   }
 
-  if (!cache->RegisterPushedStreamSpdy3(key, pushedStream)) {
+  if (!cache->RegisterPushedStream(key, pushedStream)) {
     LOG(("SpdySession3::HandleSynStream registerPushedStream Failed\n"));
     self->CleanupStream(pushedStream, NS_ERROR_FAILURE, RST_INVALID_STREAM);
     self->ResetDownstreamState();
@@ -1625,7 +1625,20 @@ SpdySession3::HandleWindowUpdate(SpdySession3 *self)
     return NS_OK;
   }
 
+  int64_t oldRemoteWindow = self->mInputFrameDataStream->RemoteWindow();
   self->mInputFrameDataStream->UpdateRemoteWindow(delta);
+
+  LOG3(("SpdySession3::HandleWindowUpdate %p stream 0x%X window "
+        "%d increased by %d.\n", self, streamID, oldRemoteWindow, delta));
+
+  // If the stream had a <=0 window, that has now opened
+  // schedule it for writing again
+  if (oldRemoteWindow <= 0 &&
+      self->mInputFrameDataStream->RemoteWindow() > 0) {
+    self->mReadyForWrite.Push(self->mInputFrameDataStream);
+    self->SetWriteCallbacks();
+  }
+
   self->ResetDownstreamState();
   return NS_OK;
 }
@@ -2595,7 +2608,7 @@ SpdySession3::RequestHead()
   MOZ_ASSERT(false,
              "SpdySession3::RequestHead() "
              "should not be called after SPDY is setup");
-  return nullptr;
+  return NULL;
 }
 
 uint32_t

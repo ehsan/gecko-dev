@@ -5,7 +5,7 @@
 #include "nsISO2022CNToUnicode.h"
 #include "nsUCSupport.h"
 #include "nsICharsetConverterManager.h"
-#include "nsServiceManagerUtils.h"
+#include "nsIServiceManager.h"
 
 static NS_DEFINE_CID(kCharsetConverterManagerCID, NS_ICHARSETCONVERTERMANAGER_CID);
 

@@ -28,7 +28,7 @@ class SplayTree
         Node *left, *right, *parent;
 
         Node(const T &item)
-          : item(item), left(nullptr), right(nullptr), parent(nullptr)
+          : item(item), left(NULL), right(NULL), parent(NULL)
         {}
     };
 
@@ -40,8 +40,8 @@ class SplayTree
 
   public:
 
-    SplayTree(LifoAlloc *alloc = nullptr)
-      : alloc(alloc), root(nullptr), freeList(nullptr)
+    SplayTree(LifoAlloc *alloc = NULL)
+      : alloc(alloc), root(NULL), freeList(NULL)
     {}
 
     void setAllocator(LifoAlloc *alloc) {
@@ -58,7 +58,7 @@ class SplayTree
             return false;
         Node *last = lookup(v);
         splay(last);
-        checkCoherency(root, nullptr);
+        checkCoherency(root, NULL);
         if (C::compare(v, last->item) == 0) {
             *res = last->item;
             return true;
@@ -88,7 +88,7 @@ class SplayTree
         element->parent = last;
 
         splay(element);
-        checkCoherency(root, nullptr);
+        checkCoherency(root, NULL);
         return true;
     }
 
@@ -116,7 +116,7 @@ class SplayTree
             swapChild = swap->right;
         } else {
             freeNode(root);
-            root = nullptr;
+            root = NULL;
             return;
         }
 
@@ -132,7 +132,7 @@ class SplayTree
         root->item = swap->item;
         freeNode(swap);
 
-        checkCoherency(root, nullptr);
+        checkCoherency(root, NULL);
     }
 
     template <class Op>
@@ -255,7 +255,7 @@ class SplayTree
 #ifdef DEBUG
         if (!node) {
             JS_ASSERT(!root);
-            return nullptr;
+            return NULL;
         }
         JS_ASSERT_IF(!node->parent, node == root);
         JS_ASSERT_IF(minimum, C::compare(minimum->item, node->item) < 0);
@@ -270,7 +270,7 @@ class SplayTree
         }
         return node;
 #else
-        return nullptr;
+        return NULL;
 #endif
     }
 };

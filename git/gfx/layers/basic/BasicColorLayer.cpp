@@ -3,20 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "BasicLayersImpl.h"            // for FillWithMask, etc
-#include "Layers.h"                     // for ColorLayer, etc
-#include "BasicImplData.h"              // for BasicImplData
-#include "BasicLayers.h"                // for BasicLayerManager
-#include "gfxContext.h"                 // for gfxContext, etc
-#include "gfxRect.h"                    // for gfxRect
-#include "mozilla/mozalloc.h"           // for operator new
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsCOMPtr.h"                   // for already_AddRefed
-#include "nsDebug.h"                    // for NS_ASSERTION
-#include "nsISupportsImpl.h"            // for Layer::AddRef, etc
-#include "nsRect.h"                     // for nsIntRect
-#include "nsRegion.h"                   // for nsIntRegion
-#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
+#include "mozilla/layers/PLayerTransactionParent.h"
+#include "BasicLayersImpl.h"
 
 using namespace mozilla::gfx;
 
@@ -26,8 +14,7 @@ namespace layers {
 class BasicColorLayer : public ColorLayer, public BasicImplData {
 public:
   BasicColorLayer(BasicLayerManager* aLayerManager) :
-    ColorLayer(aLayerManager,
-               static_cast<BasicImplData*>(MOZ_THIS_IN_INITIALIZER_LIST()))
+    ColorLayer(aLayerManager, static_cast<BasicImplData*>(this))
   {
     MOZ_COUNT_CTOR(BasicColorLayer);
   }
@@ -48,8 +35,7 @@ public:
     if (IsHidden())
       return;
     gfxContextAutoSaveRestore contextSR(aContext);
-    gfxContext::GraphicsOperator mixBlendMode = GetEffectiveMixBlendMode();
-    AutoSetOperator setOptimizedOperator(aContext, mixBlendMode != gfxContext::OPERATOR_OVER ? mixBlendMode : GetOperator());
+    AutoSetOperator setOperator(aContext, GetOperator());
 
     aContext->SetColor(mColor);
 

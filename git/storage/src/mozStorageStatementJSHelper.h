@@ -21,8 +21,8 @@ public:
   NS_DECL_NSIXPCSCRIPTABLE
 
 private:
-  nsresult getRow(Statement *, JSContext *, JSObject *, JS::Value *);
-  nsresult getParams(Statement *, JSContext *, JSObject *, JS::Value *);
+  nsresult getRow(Statement *, JSContext *, JSObject *, jsval *);
+  nsresult getParams(Statement *, JSContext *, JSObject *, jsval *);
 };
 
 } // namespace storage

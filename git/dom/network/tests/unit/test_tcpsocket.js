@@ -74,12 +74,6 @@ Cu.import("resource://gre/modules/Services.jsm");
  *
  */
 
-function get_platform() {
-  var xulRuntime = Components.classes["@mozilla.org/xre/app-info;1"]
-                              .getService(Components.interfaces.nsIXULRuntime);
-  return xulRuntime.OS;
-}
-
 /**
  * Spin up a listening socket and associate at most one live, accepted socket
  * with ourselves.
@@ -498,12 +492,8 @@ add_test(clientCloses);
 add_test(connectSock);
 add_test(bufferedClose);
 
-if (get_platform() !== "Darwin") {
-  // This test intermittently fails way too often on OS X, for unknown reasons.
-  // Please, diagnose and fix it if you can.
-  // - get an error on an attempt to connect to a non-listening port
-  add_test(badConnect);
-}
+// - get an error on an attempt to connect to a non-listening port
+add_test(badConnect);
 
 // send a buffer, get a drain, send a buffer, get a drain
 add_test(connectSock);

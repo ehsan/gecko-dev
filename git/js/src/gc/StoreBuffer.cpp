@@ -12,7 +12,7 @@
 
 #include "vm/ForkJoin.h"
 
-#include "jsgcinlines.h"
+#include "vm/ObjectImpl-inl.h"
 
 using namespace js;
 using namespace js::gc;
@@ -25,11 +25,11 @@ StoreBuffer::SlotEdge::slotLocation() const
 {
     if (kind == HeapSlot::Element) {
         if (offset >= object->getDenseInitializedLength())
-            return nullptr;
+            return NULL;
         return (HeapSlot *)&object->getDenseElement(offset);
     }
     if (offset >= object->slotSpan())
-        return nullptr;
+        return NULL;
     return &object->getSlotRef(offset);
 }
 
@@ -37,7 +37,7 @@ JS_ALWAYS_INLINE void *
 StoreBuffer::SlotEdge::deref() const
 {
     HeapSlot *loc = slotLocation();
-    return (loc && loc->isGCThing()) ? loc->toGCThing() : nullptr;
+    return (loc && loc->isGCThing()) ? loc->toGCThing() : NULL;
 }
 
 JS_ALWAYS_INLINE void *
@@ -122,6 +122,25 @@ StoreBuffer::MonoTypeBuffer<T>::mark(JSTracer *trc)
     }
 }
 
+namespace js {
+namespace gc {
+class AccumulateEdgesTracer : public JSTracer
+{
+    EdgeSet *edges;
+
+    static void tracer(JSTracer *jstrc, void **thingp, JSGCTraceKind kind) {
+        AccumulateEdgesTracer *trc = static_cast<AccumulateEdgesTracer *>(jstrc);
+        trc->edges->put(thingp);
+    }
+
+  public:
+    AccumulateEdgesTracer(JSRuntime *rt, EdgeSet *edgesArg) : edges(edgesArg) {
+        JS_TracerInit(this, rt, AccumulateEdgesTracer::tracer);
+    }
+};
+} /* namespace gc */
+} /* namespace js */
+
 /*** RelocatableMonoTypeBuffer ***/
 
 template <typename T>
@@ -191,7 +210,6 @@ StoreBuffer::GenericBuffer::mark(JSTracer *trc)
 void
 StoreBuffer::CellPtrEdge::mark(JSTracer *trc)
 {
-    JS_ASSERT(GetGCThingTraceKind(*edge) == JSTRACE_OBJECT);
     MarkObjectRoot(trc, reinterpret_cast<JSObject**>(edge), "store buffer edge");
 }
 
@@ -286,7 +304,7 @@ void
 StoreBuffer::setAboutToOverflow()
 {
     aboutToOverflow = true;
-    runtime->triggerOperationCallback(JSRuntime::TriggerCallbackMainThread);
+    runtime->triggerOperationCallback();
 }
 
 bool
@@ -299,7 +317,7 @@ JS_PUBLIC_API(void)
 JS::HeapCellPostBarrier(js::gc::Cell **cellp)
 {
     JS_ASSERT(*cellp);
-    JSRuntime *runtime = (*cellp)->runtimeFromMainThread();
+    JSRuntime *runtime = (*cellp)->runtime();
     runtime->gcStoreBuffer.putRelocatableCell(cellp);
 }
 
@@ -308,7 +326,7 @@ JS::HeapCellRelocate(js::gc::Cell **cellp)
 {
     /* Called with old contents of *pp before overwriting. */
     JS_ASSERT(*cellp);
-    JSRuntime *runtime = (*cellp)->runtimeFromMainThread();
+    JSRuntime *runtime = (*cellp)->runtime();
     runtime->gcStoreBuffer.removeRelocatableCell(cellp);
 }
 
@@ -316,7 +334,7 @@ JS_PUBLIC_API(void)
 JS::HeapValuePostBarrier(JS::Value *valuep)
 {
     JS_ASSERT(JSVAL_IS_TRACEABLE(*valuep));
-    JSRuntime *runtime = static_cast<js::gc::Cell *>(valuep->toGCThing())->runtimeFromMainThread();
+    JSRuntime *runtime = static_cast<js::gc::Cell *>(valuep->toGCThing())->runtime();
     runtime->gcStoreBuffer.putRelocatableValue(valuep);
 }
 
@@ -325,7 +343,7 @@ JS::HeapValueRelocate(JS::Value *valuep)
 {
     /* Called with old contents of *valuep before overwriting. */
     JS_ASSERT(JSVAL_IS_TRACEABLE(*valuep));
-    JSRuntime *runtime = static_cast<js::gc::Cell *>(valuep->toGCThing())->runtimeFromMainThread();
+    JSRuntime *runtime = static_cast<js::gc::Cell *>(valuep->toGCThing())->runtime();
     runtime->gcStoreBuffer.removeRelocatableValue(valuep);
 }
 

@@ -8,15 +8,8 @@
 #ifndef __FilteringWrapper_h__
 #define __FilteringWrapper_h__
 
-#include "mozilla/Attributes.h"
-#include "jswrapper.h"
-#include "js/CallNonGenericMethod.h"
-
-struct JSPropertyDescriptor;
-
-namespace JS {
-class AutoIdVector;
-}
+#include <jsapi.h>
+#include <jswrapper.h>
 
 namespace xpc {
 
@@ -27,19 +20,17 @@ class FilteringWrapper : public Base {
     virtual ~FilteringWrapper();
 
     virtual bool getPropertyDescriptor(JSContext *cx, JS::Handle<JSObject*> wrapper,
-                                       JS::Handle<jsid> id,
-                                       JS::MutableHandle<JSPropertyDescriptor> desc,
+                                       JS::Handle<jsid> id, js::PropertyDescriptor *desc,
                                        unsigned flags) MOZ_OVERRIDE;
     virtual bool getOwnPropertyDescriptor(JSContext *cx, JS::Handle<JSObject*> wrapper,
-                                          JS::Handle<jsid> id,
-                                          JS::MutableHandle<JSPropertyDescriptor> desc,
+                                          JS::Handle<jsid> id, js::PropertyDescriptor *desc,
                                           unsigned flags) MOZ_OVERRIDE;
     virtual bool getOwnPropertyNames(JSContext *cx, JS::Handle<JSObject*> wrapper,
-                                     JS::AutoIdVector &props) MOZ_OVERRIDE;
+                                     js::AutoIdVector &props) MOZ_OVERRIDE;
     virtual bool enumerate(JSContext *cx, JS::Handle<JSObject*> wrapper,
-                           JS::AutoIdVector &props) MOZ_OVERRIDE;
+                           js::AutoIdVector &props) MOZ_OVERRIDE;
     virtual bool keys(JSContext *cx, JS::Handle<JSObject*> wrapper,
-                      JS::AutoIdVector &props) MOZ_OVERRIDE;
+                      js::AutoIdVector &props) MOZ_OVERRIDE;
     virtual bool iterate(JSContext *cx, JS::Handle<JSObject*> wrapper, unsigned flags,
                          JS::MutableHandle<JS::Value> vp) MOZ_OVERRIDE;
     virtual bool nativeCall(JSContext *cx, JS::IsAcceptableThis test, JS::NativeImpl impl,

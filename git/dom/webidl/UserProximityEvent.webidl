@@ -4,7 +4,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-[Constructor(DOMString type, optional UserProximityEventInit eventInitDict)]
+[Constructor(DOMString type, optional UserProximityEventInit eventInitDict), HeaderFile="GeneratedEventClasses.h"]
 interface UserProximityEvent : Event
 {
   readonly attribute boolean near;

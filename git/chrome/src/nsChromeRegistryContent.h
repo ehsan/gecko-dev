@@ -7,8 +7,10 @@
 #define nsChromeRegistryContent_h
 
 #include "nsChromeRegistry.h"
+#include "nsTArray.h"
 #include "nsClassHashtable.h"
 
+class nsCString;
 struct ChromePackage;
 struct ResourceMapping;
 struct OverrideMapping;

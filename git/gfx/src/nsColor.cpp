@@ -5,15 +5,17 @@
 
 #include "mozilla/Util.h"
 
+#include "plstr.h"
 #include "nsColor.h"
-#include <sys/types.h>                  // for int32_t
-#include "mozilla/Util.h"               // for ArrayLength
-#include "mozilla/mozalloc.h"           // for operator delete, etc
-#include "nsColorNames.h"               // for nsColorNames
-#include "nsDebug.h"                    // for NS_ASSERTION, etc
+#include "nsColorNames.h"
+#include "nsString.h"
+#include "nscore.h"
+#include "nsCoord.h"
+#include "nsCOMPtr.h"
+#include "nsIServiceManager.h"
+#include <math.h>
+#include "prprf.h"
 #include "nsStaticNameTable.h"
-#include "nsString.h"               // for nsAutoCString, nsString, etc
-#include "nscore.h"                     // for nsAString, etc
 
 using namespace mozilla;
 

@@ -50,9 +50,9 @@ typedef GLXLibrary::LibraryType LibType;
 static LibType gCurrLib = GLXLibrary::OPENGL_LIB;
 
 LibType
-GLXLibrary::SelectLibrary(const ContextFlags& aFlags)
+GLXLibrary::SelectLibrary(const GLContext::ContextFlags& aFlags)
 {
-  return (aFlags & ContextFlagsMesaLLVMPipe)
+  return (aFlags & GLContext::ContextFlagsMesaLLVMPipe)
           ? GLXLibrary::MESA_LLVMPIPE_LIB
           : GLXLibrary::OPENGL_LIB;
 }
@@ -263,7 +263,6 @@ GLXLibrary::EnsureInitialized(LibType libType)
     }
 
     mIsATI = serverVendor && DoesStringMatch(serverVendor, "ATI");
-    mIsNVIDIA = serverVendor && DoesStringMatch(serverVendor, "NVIDIA Corporation");
     mClientIsMesa = clientVendor && DoesStringMatch(clientVendor, "Mesa");
 
     mInitialized = true;
@@ -279,7 +278,7 @@ GLXLibrary::SupportsTextureFromPixmap(gfxASurface* aSurface)
         return false;
     }
     
-    if (aSurface->GetType() != gfxSurfaceTypeXlib || !mUseTextureFromPixmap) {
+    if (aSurface->GetType() != gfxASurface::SurfaceTypeXlib || !mUseTextureFromPixmap) {
         return false;
     }
 
@@ -368,10 +367,7 @@ GLXLibrary::CreatePixmap(gfxASurface* aSurface)
         // again).
         //
         // This checks that the depth matches in one of the two ways.
-        // NVIDIA now forces format->depth == depth so only the first way
-        // is checked for NVIDIA
-        if (depth != format->depth &&
-            (mIsNVIDIA || depth != format->depth - alphaSize) ) {
+        if (depth != format->depth && depth != format->depth - alphaSize) {
             continue;
         }
 
@@ -937,7 +933,7 @@ TRY_AGAIN_NO_SHARING:
 
     bool TextureImageSupportsGetBackingSurface()
     {
-        return false;
+        return mGLX->UseTextureFromPixmap();
     }
 
     virtual already_AddRefed<TextureImage>
@@ -945,7 +941,7 @@ TRY_AGAIN_NO_SHARING:
                        TextureImage::ContentType aContentType,
                        GLenum aWrapMode,
                        TextureImage::Flags aFlags = TextureImage::NoFlags,
-                       TextureImage::ImageFormat aImageFormat = gfxImageFormatUnknown);
+                       TextureImage::ImageFormat aImageFormat = gfxASurface::ImageFormatUnknown);
 
 private:
     friend class GLContextProviderGLX;
@@ -1069,7 +1065,7 @@ private:
         , mTexture(aTexture)
         , sGLXLib(sGLXLibrary[aLibType])
     {
-        if (aSurface->GetContentType() == GFX_CONTENT_COLOR_ALPHA) {
+        if (aSurface->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA) {
             mTextureFormat = FORMAT_R8G8B8A8;
         } else {
             mTextureFormat = FORMAT_R8G8B8X8;
@@ -1106,7 +1102,7 @@ GLContextGLX::CreateTextureImage(const nsIntSize& aSize,
 
     Display *display = DefaultXDisplay();
     int xscreen = DefaultScreen(display);
-    gfxImageFormat imageFormat =
+    gfxASurface::gfxImageFormat imageFormat =
         gfxPlatform::GetPlatform()->OptimalFormatForContent(aContentType);
 
     XRenderPictFormat* xrenderFormat =
@@ -1121,7 +1117,7 @@ GLContextGLX::CreateTextureImage(const nsIntSize& aSize,
 
     NS_ASSERTION(surface, "Failed to create xlib surface!");
 
-    if (aContentType == GFX_CONTENT_COLOR_ALPHA) {
+    if (aContentType == gfxASurface::CONTENT_COLOR_ALPHA) {
         nsRefPtr<gfxContext> ctx = new gfxContext(surface);
         ctx->SetOperator(gfxContext::OPERATOR_CLEAR);
         ctx->Paint();
@@ -1131,7 +1127,7 @@ GLContextGLX::CreateTextureImage(const nsIntSize& aSize,
     GLXPixmap pixmap = mGLX->CreatePixmap(surface);
     // GLX might not be able to give us an A8 pixmap. If so, just use CPU
     // memory.
-    if (!pixmap && imageFormat == gfxImageFormatA8) {
+    if (!pixmap && imageFormat == gfxASurface::ImageFormatA8) {
         return GLContext::CreateTextureImage(aSize,
                                              aContentType,
                                              aWrapMode,
@@ -1160,7 +1156,7 @@ GLContextGLX::CreateTextureImage(const nsIntSize& aSize,
 }
 
 static GLContextGLX *
-GetGlobalContextGLX(const ContextFlags aFlags = ContextFlagsNone)
+GetGlobalContextGLX(const GLContext::ContextFlags aFlags = GLContext::ContextFlagsNone)
 {
     return static_cast<GLContextGLX*>(GLContextProviderGLX::GetGlobalContext(aFlags));
 }
@@ -1384,9 +1380,9 @@ DONE_CREATING_PIXMAP:
     if (!error && // earlier recorded error
         !serverError)
     {
-        ContextFlags flag = libToUse == GLXLibrary::MESA_LLVMPIPE_LIB
-                                         ? ContextFlagsMesaLLVMPipe
-                                         : ContextFlagsNone;
+        GLContext::ContextFlags flag = libToUse == GLXLibrary::MESA_LLVMPIPE_LIB
+                                         ? GLContext::ContextFlagsMesaLLVMPipe
+                                         : GLContext::ContextFlagsNone;
         // We might have an alpha channel, but it doesn't matter.
         SurfaceCaps dummyCaps = SurfaceCaps::Any();
         GLContextGLX* shareContext = GetGlobalContextGLX(flag);
@@ -1424,6 +1420,21 @@ GLContextProviderGLX::CreateOffscreen(const gfxIntSize& size,
         return nullptr;
 
     return glContext.forget();
+}
+
+SharedTextureHandle
+GLContextProviderGLX::CreateSharedHandle(GLContext::SharedTextureShareType shareType,
+                                         void* buffer,
+                                         GLContext::SharedTextureBufferType bufferType)
+{
+  return 0;
+}
+
+already_AddRefed<gfxASurface>
+GLContextProviderGLX::GetSharedHandleAsSurface(GLContext::SharedTextureShareType shareType,
+                                               SharedTextureHandle sharedHandle)
+{
+  return nullptr;
 }
 
 static nsRefPtr<GLContext> gGlobalContext[GLXLibrary::LIBS_MAX];

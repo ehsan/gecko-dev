@@ -9,10 +9,10 @@
  */
 
 #include <math.h>
-#include "webrtc/test/testsupport/fileutils.h"
-#include "webrtc/voice_engine/test/win_test/WinTest.h"
-#include "webrtc/voice_engine/test/win_test/WinTestDlg.h"
-#include "webrtc/voice_engine/test/win_test/stdafx.h"
+#include "stdafx.h"
+#include "WinTest.h"
+#include "WinTestDlg.h"
+#include "testsupport/fileutils.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -61,14 +61,14 @@ class ConnectionObserver : public  VoEConnectionObserver
 {
 public:
     ConnectionObserver();
-    virtual void OnPeriodicDeadOrAlive(int channel, bool alive);
+    virtual void OnPeriodicDeadOrAlive(const int channel, const bool alive);
 };
 
 ConnectionObserver::ConnectionObserver()
 {
 }
 
-void ConnectionObserver::OnPeriodicDeadOrAlive(int channel, bool alive)
+void ConnectionObserver::OnPeriodicDeadOrAlive(const int channel, const bool alive)
 {
     CString str;
     str.Format(_T("OnPeriodicDeadOrAlive(channel=%d) => alive=%d"), channel, alive);
@@ -79,7 +79,7 @@ void ConnectionObserver::OnPeriodicDeadOrAlive(int channel, bool alive)
 //    VoiceEngineObserver
 // ----------------------------------------------------------------------------
 
-void CWinTestDlg::CallbackOnError(int channel, int errCode)
+void CWinTestDlg::CallbackOnError(const int channel, const int errCode)
 {
     _nErrorCallbacks++;
 
@@ -129,14 +129,14 @@ void CWinTestDlg::CallbackOnError(int channel, int errCode)
 //    VoERTPObserver
 // ----------------------------------------------------------------------------
 
-void CWinTestDlg::OnIncomingCSRCChanged(int channel, unsigned int CSRC, bool added)
+void CWinTestDlg::OnIncomingCSRCChanged(const int channel, const unsigned int CSRC, const bool added)
 {
     CString str;
     str.Format(_T("OnIncomingCSRCChanged(channel=%d) => CSRC=%u, added=%d"), channel, CSRC, added);
     SetDlgItemText(IDC_EDIT_ERROR_CALLBACK, (LPCTSTR)str);
 }
 
-void CWinTestDlg::OnIncomingSSRCChanged(int channel, unsigned int SSRC)
+void CWinTestDlg::OnIncomingSSRCChanged(const int channel, const unsigned int SSRC)
 {
     CString str;
     str.Format(_T("OnIncomingSSRCChanged(channel=%d) => SSRC=%u"), channel, SSRC);
@@ -184,24 +184,24 @@ class MediaProcessImpl : public VoEMediaProcess
 {
 public:
     MediaProcessImpl();
-    virtual void Process(int channel,
-                         ProcessingTypes type,
+    virtual void Process(const int channel,
+                         const ProcessingTypes type,
                          int16_t audio_10ms[],
-                         int length,
-                         int samplingFreqHz,
-                         bool stereo);
+                         const int length,
+                         const int samplingFreqHz,
+                         const bool stereo);
 };
 
 MediaProcessImpl::MediaProcessImpl()
 {
 }
 
-void MediaProcessImpl::Process(int channel,
-                               ProcessingTypes type,
+void MediaProcessImpl::Process(const int channel,
+                               const ProcessingTypes type,
                                int16_t audio_10ms[],
-                               int length,
-                               int samplingFreqHz,
-                               bool stereo)
+                               const int length,
+                               const int samplingFreqHz,
+                               const bool stereo)
 {
     int x = rand() % 100;
 
@@ -3585,3 +3585,4 @@ void CWinTestDlg::OnBnClickedButtonTest1()
 {
     // add tests here...
 }
+

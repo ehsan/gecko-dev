@@ -1,10 +1,8 @@
 assertEq(Math.cbrt(1), 1);
 assertEq(Math.cbrt(-1), -1);
 
-var sloppy_tolerance = 200;  // FIXME
-
-assertNear(Math.cbrt(1e-300), 1e-100, sloppy_tolerance);
-assertNear(Math.cbrt(-1e-300), -1e-100, sloppy_tolerance);
+assertNear(Math.cbrt(1e-300), 1e-100);
+assertNear(Math.cbrt(-1e-300), -1e-100);
 
 var cbrt_data = [
     [ Math.E, 1.3956124250860895 ], 
@@ -13,7 +11,8 @@ var cbrt_data = [
     [ Math.SQRT2, 1.1224620483093728 ]
 ];
 
-for (var [x, y] of cbrt_data)
-    assertNear(Math.cbrt(x), y, sloppy_tolerance);
+for (let [x, y] of cbrt_data)
+    assertNear(Math.cbrt(x), y);
 
 reportCompare(0, 0, "ok");
+

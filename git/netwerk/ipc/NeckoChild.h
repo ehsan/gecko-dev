@@ -48,10 +48,8 @@ protected:
                                                        const nsString& aBinaryType);
   virtual bool DeallocPTCPServerSocketChild(PTCPServerSocketChild*);
   virtual PRemoteOpenFileChild* AllocPRemoteOpenFileChild(const URIParams&,
-                                                          const OptionalURIParams&);
+                                                          PBrowserChild*);
   virtual bool DeallocPRemoteOpenFileChild(PRemoteOpenFileChild*);
-  virtual PRtspControllerChild* AllocPRtspControllerChild();
-  virtual bool DeallocPRtspControllerChild(PRtspControllerChild*);
 };
 
 /**

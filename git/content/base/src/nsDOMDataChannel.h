@@ -10,22 +10,22 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/DataChannelBinding.h"
 #include "mozilla/dom/TypedArray.h"
-#include "mozilla/net/DataChannelListener.h"
+#include "mozilla/net/DataChannel.h"
 #include "nsDOMEventTargetHelper.h"
 #include "nsIDOMDataChannel.h"
-#include "nsIInputStream.h"
-
-
-namespace mozilla {
-class DataChannel;
-};
 
 class nsDOMDataChannel : public nsDOMEventTargetHelper,
                          public nsIDOMDataChannel,
                          public mozilla::DataChannelListener
 {
 public:
-  nsDOMDataChannel(already_AddRefed<mozilla::DataChannel> aDataChannel);
+  nsDOMDataChannel(already_AddRefed<mozilla::DataChannel> aDataChannel)
+    : mDataChannel(aDataChannel)
+    , mBinaryType(DC_BINARY_TYPE_BLOB)
+  {
+    SetIsDOMBinding();
+  }
+
   ~nsDOMDataChannel();
 
   nsresult Init(nsPIDOMWindow* aDOMWindow);
@@ -67,9 +67,8 @@ public:
   }
   void Send(const nsAString& aData, mozilla::ErrorResult& aRv);
   void Send(nsIDOMBlob* aData, mozilla::ErrorResult& aRv);
-  void Send(const mozilla::dom::ArrayBuffer& aData, mozilla::ErrorResult& aRv);
-  void Send(const mozilla::dom::ArrayBufferView& aData,
-            mozilla::ErrorResult& aRv);
+  void Send(mozilla::dom::ArrayBuffer& aData, mozilla::ErrorResult& aRv);
+  void Send(mozilla::dom::ArrayBufferView& aData, mozilla::ErrorResult& aRv);
 
   // Uses XPIDL GetProtocol.
   bool Ordered() const;

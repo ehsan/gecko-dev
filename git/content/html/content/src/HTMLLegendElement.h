@@ -13,7 +13,8 @@
 namespace mozilla {
 namespace dom {
 
-class HTMLLegendElement MOZ_FINAL : public nsGenericHTMLElement
+class HTMLLegendElement MOZ_FINAL : public nsGenericHTMLElement,
+                                    public nsIDOMHTMLElement
 {
 public:
   HTMLLegendElement(already_AddRefed<nsINodeInfo> aNodeInfo)
@@ -24,7 +25,18 @@ public:
 
   NS_IMPL_FROMCONTENT_HTML_WITH_TAG(HTMLLegendElement, legend)
 
-  using nsGenericHTMLElement::Focus;
+  // nsISupports
+  NS_DECL_ISUPPORTS_INHERITED
+
+  // nsIDOMNode
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+
+  // nsIDOMElement
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLElement
+  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
+
   virtual void Focus(ErrorResult& aError) MOZ_OVERRIDE;
 
   virtual void PerformAccesskey(bool aKeyCausesActivation,
@@ -61,6 +73,8 @@ public:
 
     return fieldsetControl ? fieldsetControl->GetFormElement() : nullptr;
   }
+
+  virtual nsIDOMNode* AsDOMNode() MOZ_OVERRIDE { return this; }
 
   /**
    * WebIDL Interface

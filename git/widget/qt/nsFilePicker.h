@@ -37,12 +37,13 @@ public:
 
 private:
     ~nsFilePicker();
-    void InitNative(nsIWidget*, const nsAString&);
+    void InitNative(nsIWidget*, const nsAString&, short int);
 
 protected:
     QPointer<QFileDialog> mDialog;
     nsCOMArray<nsIFile> mFiles;
 
+    int16_t   mMode;
     int16_t   mSelectedType;
     nsCString mFile;
     nsString  mTitle;

@@ -86,8 +86,9 @@ function performWebConsoleTests(hud)
   jsterm.clearOutput();
   jsterm.execute("$0", onNodeOutput);
 
-  function onNodeOutput(node)
+  function onNodeOutput()
   {
+    let node = outputNode.querySelector(".webconsole-msg-output");
     isnot(node.textContent.indexOf("[object HTMLHeadingElement"), -1,
           "correct output for $0");
 
@@ -95,17 +96,21 @@ function performWebConsoleTests(hud)
     jsterm.execute("$0.textContent = 'bug653531'", onNodeUpdate);
   }
 
-  function onNodeUpdate(node)
+  function onNodeUpdate()
   {
+    let node = outputNode.querySelector(".webconsole-msg-output");
     isnot(node.textContent.indexOf("bug653531"), -1,
           "correct output for $0.textContent");
     let inspector = gDevTools.getToolbox(target).getPanel("inspector");
     is(inspector.selection.node.textContent, "bug653531",
        "node successfully updated");
 
-    gBrowser.removeCurrentTab();
-    finishTest();
+    executeSoon(finishUp);
   }
+}
+
+function finishUp() {
+  finishTest();
 }
 
 function test()

@@ -20,6 +20,7 @@
 #include "prinit.h"
 #include "prtime.h" 	/* for PR_Now() */
 
+#define XXX
 static PRBool policyWasSet;
 
 /* This ordered list is indexed by (SSL_CK_xx * 3)   */
@@ -627,9 +628,8 @@ ssl2_SendServerFinishedMessage(sslSocket *ss)
 		(*ss->sec.uncache)(sid);
 	    rv = (SECStatus)sent;
 	} else if (!ss->opt.noCache) {
-	    if (sid->cached == never_cached) {
-		(*ss->sec.cache)(sid);
-	    }
+	    /* Put the sid in session-id cache, (may already be there) */
+	    (*ss->sec.cache)(sid);
 	    rv = SECSuccess;
 	}
 	ssl_FreeSID(sid);
@@ -2171,7 +2171,7 @@ ssl2_ClientRegSessionID(sslSocket *ss, PRUint8 *s)
 	sid->peerCert = CERT_DupCertificate(ss->sec.peerCert);
 
     }
-    if (!ss->opt.noCache && sid->cached == never_cached)
+    if (!ss->opt.noCache)
 	(*ss->sec.cache)(sid);
 }
 

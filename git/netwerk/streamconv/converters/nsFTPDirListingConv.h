@@ -6,9 +6,11 @@
 #define __nsftpdirlistingdconv__h__
 
 #include "nsIStreamConverter.h"
+#include "nsIChannel.h"
+#include "nsIURI.h"
 #include "nsString.h"
 
-class nsIURI;
+#include "nsIFactory.h"
 
 #define NS_FTPDIRLISTINGCONVERTER_CID                         \
 { /* 14C0E880-623E-11d3-A178-0050041CAF44 */         \

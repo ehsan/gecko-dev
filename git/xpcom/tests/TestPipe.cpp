@@ -8,8 +8,6 @@
 #include "nsIPipe.h"
 #include "nsIMemory.h"
 #include "mozilla/Attributes.h"
-#include "nsIAsyncInputStream.h"
-#include "nsIAsyncOutputStream.h"
 
 /** NS_NewPipe2 reimplemented, because it's not exported by XPCOM */
 nsresult TP_NewPipe2(nsIAsyncInputStream** input,
@@ -108,7 +106,7 @@ NS_IMETHODIMP_(void*) BackwardsAllocator::Alloc(size_t size)
   if (size != mSize)
   {
     NS_ERROR("umm, why would this be reached for this test?");
-    return nullptr;
+    return NULL;
   }
 
   uint32_t index = mIndex;
@@ -123,13 +121,13 @@ NS_IMETHODIMP_(void*) BackwardsAllocator::Alloc(size_t size)
   }
 
   NS_ERROR("shouldn't reach here in this test");
-  return nullptr;
+  return NULL;
 }
 
 NS_IMETHODIMP_(void*) BackwardsAllocator::Realloc(void* ptr, size_t newSize)
 {
   NS_ERROR("shouldn't reach here in this test");
-  return nullptr;
+  return NULL;
 }
 
 NS_IMETHODIMP_(void) BackwardsAllocator::Free(void* ptr)

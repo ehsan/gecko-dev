@@ -11,22 +11,26 @@
 // BWETester.cpp : Defines the entry point for the console application.
 //
 
-#include <time.h>
-
 #include <fstream>
-#include <iostream>
 #include <string>
+#include <iostream>
+#include <ctime>
 
-#include "webrtc/system_wrappers/interface/event_wrapper.h"
-#include "webrtc/system_wrappers/interface/trace.h"
-#include "webrtc/modules/rtp_rtcp/test/BWEStandAlone/BWEConvergenceTest.h"
-#include "webrtc/modules/rtp_rtcp/test/BWEStandAlone/BWEStabilityTest.h"
-#include "webrtc/modules/rtp_rtcp/test/BWEStandAlone/BWETwoWayLimitFinding.h"
-#include "webrtc/modules/rtp_rtcp/test/BWEStandAlone/MatlabPlot.h"
+#include "event_wrapper.h"
+#include "trace.h"
+
+#include "BWEStabilityTest.h"
+#include "BWEConvergenceTest.h"
+#include "BWETwoWayLimitFinding.h"
+
+#include "MatlabPlot.h"
+
+//#include "vld.h"
 
 #ifdef MATLAB
 MatlabEngine eng;
 #endif
+
 
 class testContainer
 {
@@ -62,6 +66,7 @@ public:
     int _delaySlave;
     std::string _instr;
 };
+
 
 // This is were the test cases are created.
 // Syntax:

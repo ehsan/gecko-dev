@@ -13,7 +13,7 @@
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsDebug.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 
 #define BEGIN_WORKERS_NAMESPACE \
   namespace mozilla { namespace dom { namespace workers {
@@ -55,6 +55,7 @@ struct JSSettings
     JSSettings_JSGC_HIGH_FREQUENCY_HEAP_GROWTH_MAX,
     JSSettings_JSGC_HIGH_FREQUENCY_LOW_LIMIT,
     JSSettings_JSGC_HIGH_FREQUENCY_HIGH_LIMIT,
+    JSSettings_JSGC_ANALYSIS_PURGE_TRIGGER,
     JSSettings_JSGC_ALLOCATION_THRESHOLD,
     JSSettings_JSGC_SLICE_TIME_BUDGET,
     JSSettings_JSGC_DYNAMIC_HEAP_GROWTH,
@@ -95,11 +96,11 @@ struct JSSettings
   // Settings that change based on chrome/content context.
   struct JSContentChromeSettings
   {
-    JS::ContextOptions options;
+    uint32_t options;
     int32_t maxScriptRuntime;
 
     JSContentChromeSettings()
-    : options(), maxScriptRuntime(0)
+    : options(0), maxScriptRuntime(0)
     { }
   };
 
@@ -163,18 +164,18 @@ struct JSSettings
 };
 
 // All of these are implemented in RuntimeService.cpp
-bool
+JSBool
 ResolveWorkerClasses(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aId,
                      unsigned aFlags, JS::MutableHandle<JSObject*> aObjp);
 
 void
-CancelWorkersForWindow(nsPIDOMWindow* aWindow);
+CancelWorkersForWindow(JSContext* aCx, nsPIDOMWindow* aWindow);
 
 void
-SuspendWorkersForWindow(nsPIDOMWindow* aWindow);
+SuspendWorkersForWindow(JSContext* aCx, nsPIDOMWindow* aWindow);
 
 void
-ResumeWorkersForWindow(nsPIDOMWindow* aWindow);
+ResumeWorkersForWindow(nsIScriptContext* aCx, nsPIDOMWindow* aWindow);
 
 class WorkerTask {
 public:
@@ -224,14 +225,6 @@ void
 ThrowDOMExceptionForNSResult(JSContext* aCx, nsresult aNSResult);
 
 } // namespace exceptions
-
-// Throws the JSMSG_GETTER_ONLY exception.  This shouldn't be used going
-// forward -- getter-only properties should just use JS_PSG for the setter
-// (implying no setter at all), which will not throw when set in non-strict
-// code but will in strict code.  Old code should use this only for temporary
-// compatibility reasons.
-extern bool
-GetterOnlyJSNative(JSContext* aCx, unsigned aArgc, JS::Value* aVp);
 
 END_WORKERS_NAMESPACE
 

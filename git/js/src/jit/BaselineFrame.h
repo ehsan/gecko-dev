@@ -9,6 +9,9 @@
 
 #ifdef JS_ION
 
+#include "jscntxt.h"
+#include "jscompartment.h"
+
 #include "jit/IonFrames.h"
 #include "vm/Stack.h"
 
@@ -125,7 +128,7 @@ class BaselineFrame
         return CalleeTokenToFunction(calleeToken());
     }
     JSFunction *maybeFun() const {
-        return isFunctionFrame() ? fun() : nullptr;
+        return isFunctionFrame() ? fun() : NULL;
     }
     JSFunction *callee() const {
         return CalleeTokenToFunction(calleeToken());
@@ -155,8 +158,8 @@ class BaselineFrame
 
     Value &unaliasedFormal(unsigned i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING) const {
         JS_ASSERT(i < numFormalArgs());
-        JS_ASSERT_IF(checkAliasing, !script()->argsObjAliasesFormals() &&
-                                    !script()->formalIsAliased(i));
+        JS_ASSERT_IF(checkAliasing, !script()->argsObjAliasesFormals());
+        JS_ASSERT_IF(checkAliasing, !script()->formalIsAliased(i));
         return argv()[i];
     }
 
@@ -217,7 +220,7 @@ class BaselineFrame
         return *blockChain_;
     }
     StaticBlockObject *maybeBlockChain() const {
-        return hasBlockChain() ? blockChain_ : nullptr;
+        return hasBlockChain() ? blockChain_ : NULL;
     }
     void setBlockChain(StaticBlockObject &block) {
         flags_ |= HAS_BLOCKCHAIN;
@@ -225,7 +228,7 @@ class BaselineFrame
     }
     void setBlockChainNull() {
         JS_ASSERT(!hasBlockChain());
-        blockChain_ = nullptr;
+        blockChain_ = NULL;
     }
     StaticBlockObject **addressOfBlockChain() {
         return &blockChain_;
@@ -285,7 +288,7 @@ class BaselineFrame
     }
 
     void *maybeHookData() const {
-        return hasHookData() ? hookData_ : nullptr;
+        return hasHookData() ? hookData_ : NULL;
     }
 
     void setHookData(void *v) {

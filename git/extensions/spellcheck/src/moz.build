@@ -6,7 +6,7 @@
 
 MODULE = 'spellchecker'
 
-SOURCES += [
+CPP_SOURCES += [
     'mozEnglishWordUtils.cpp',
     'mozGenericWordUtils.cpp',
     'mozInlineSpellChecker.cpp',
@@ -18,8 +18,4 @@ SOURCES += [
 ]
 
 LIBRARY_NAME = 'spellchecker'
-
-LIBXUL_LIBRARY = True
-
-EXPORT_LIBRARY = True
 

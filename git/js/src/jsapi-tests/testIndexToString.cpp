@@ -64,7 +64,7 @@ BEGIN_TEST(testIndexToString)
         if (!js::StaticStrings::hasUint(u))
             CHECK(cx->compartment()->dtoaCache.lookup(10, u) == str);
 
-        bool match = false;
+        JSBool match = JS_FALSE;
         CHECK(JS_StringEqualsAscii(cx, str, tests[i].expected, &match));
         CHECK(match);
     }
@@ -97,7 +97,7 @@ BEGIN_TEST(testStringToPropertyName)
     JSFlatString *hiStr = NewString(cx, hiChars);
     CHECK(hiStr);
     CHECK(!hiStr->isIndex(&index));
-    CHECK(hiStr->toPropertyName(cx) != nullptr);
+    CHECK(hiStr->toPropertyName(cx) != NULL);
 
     static const jschar maxChars[] = { '4', '2', '9', '4', '9', '6', '7', '2', '9', '5' };
     JSFlatString *maxStr = NewString(cx, maxChars);
@@ -109,7 +109,7 @@ BEGIN_TEST(testStringToPropertyName)
     JSFlatString *maxPlusOneStr = NewString(cx, maxPlusOneChars);
     CHECK(maxPlusOneStr);
     CHECK(!maxPlusOneStr->isIndex(&index));
-    CHECK(maxPlusOneStr->toPropertyName(cx) != nullptr);
+    CHECK(maxPlusOneStr->toPropertyName(cx) != NULL);
 
     return true;
 }

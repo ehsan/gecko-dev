@@ -180,12 +180,18 @@ destroying the MediaDecoder object.
 
 #include "nsISupports.h"
 #include "nsCOMPtr.h"
+#include "nsIThread.h"
+#include "nsIChannel.h"
 #include "nsIObserver.h"
 #include "nsAutoPtr.h"
+#include "nsSize.h"
+#include "prlog.h"
+#include "gfxContext.h"
+#include "gfxRect.h"
 #include "MediaResource.h"
 #include "mozilla/ReentrantMonitor.h"
-#include "mozilla/TimeStamp.h"
 #include "MediaStreamGraph.h"
+#include "MediaDecoderOwner.h"
 #include "AudioChannelCommon.h"
 #include "AbstractMediaDecoder.h"
 
@@ -207,7 +213,9 @@ namespace layers {
 class Image;
 } //namespace layers
 
+class MediaByteRange;
 class VideoFrameContainer;
+class AudioStream;
 class MediaDecoderStateMachine;
 class MediaDecoderOwner;
 
@@ -478,10 +486,9 @@ public:
   // changed. Called on main thread only.
   virtual void NotifyPrincipalChanged();
 
-  // Called by the MediaResource to keep track of the number of bytes read
-  // from the resource. Called on the main by an event runner dispatched
-  // by the MediaResource read functions.
-  void NotifyBytesConsumed(int64_t aBytes, int64_t aOffset) MOZ_FINAL MOZ_OVERRIDE;
+  // Called by the decode thread to keep track of the number of bytes read
+  // from the resource.
+  void NotifyBytesConsumed(int64_t aBytes) MOZ_FINAL MOZ_OVERRIDE;
 
   int64_t GetEndMediaTime() const MOZ_FINAL MOZ_OVERRIDE;
 
@@ -498,18 +505,7 @@ public:
   // from a content header. Must be called from the main thread only.
   virtual void SetDuration(double aDuration);
 
-  // Sets the initial duration of the media. Called while the media metadata
-  // is being read and the decode is being setup.
   void SetMediaDuration(int64_t aDuration) MOZ_OVERRIDE;
-  // Updates the media duration. This is called while the media is being
-  // played, calls before the media has reached loaded metadata are ignored.
-  // The duration is assumed to be an estimate, and so a degree of
-  // instability is expected; if the incoming duration is not significantly
-  // different from the existing duration, the change request is ignored.
-  // If the incoming duration is significantly different, the duration is
-  // changed, this causes a durationchanged event to fire to the media
-  // element.
-  void UpdateEstimatedMediaDuration(int64_t aDuration) MOZ_OVERRIDE;
 
   // Set a flag indicating whether seeking is supported
   virtual void SetMediaSeekable(bool aMediaSeekable) MOZ_OVERRIDE;
@@ -533,7 +529,6 @@ public:
 
   // Invalidate the frame.
   void Invalidate();
-  void InvalidateWithFlags(uint32_t aFlags);
 
   // Suspend any media downloads that are in progress. Called by the
   // media element when it is sent to the bfcache, or when we need
@@ -683,10 +678,6 @@ public:
   // change. Call on the main thread only.
   void ChangeState(PlayState aState);
 
-  // Called by |ChangeState|, to update the state machine.
-  // Call on the main thread only and the lock must be obtained.
-  virtual void ApplyStateToStateMachine(PlayState aState);
-
   // May be called by the reader to notify this decoder that the metadata from
   // the media file has been read. Call on the decode thread only.
   void OnReadMetadataCompleted() MOZ_OVERRIDE { }
@@ -699,7 +690,7 @@ public:
   // Call on the main thread only.
   void FirstFrameLoaded();
 
-  // Returns true if the resource has been loaded. Acquires the monitor.
+  // Returns true if the resource has been loaded. Must be in monitor.
   // Call from any thread.
   virtual bool IsDataCachedToEndOfResource();
 
@@ -771,9 +762,6 @@ public:
 #ifdef MOZ_WEBM
   static bool IsWebMEnabled();
 #endif
-#ifdef MOZ_RTSP
-  static bool IsRtspEnabled();
-#endif
 
 #ifdef MOZ_GSTREAMER
   static bool IsGStreamerEnabled();
@@ -793,10 +781,6 @@ public:
 
 #ifdef MOZ_WMF
   static bool IsWMFEnabled();
-#endif
-
-#ifdef MOZ_APPLEMEDIA
-  static bool IsAppleMP3Enabled();
 #endif
 
   // Schedules the state machine to run one cycle on the shared state
@@ -960,6 +944,13 @@ public:
   double mInitialPlaybackRate;
   bool mInitialPreservesPitch;
 
+  // Position to seek to when the seek notification is received by the
+  // decode thread. Written by the main thread and read via the
+  // decode thread. Synchronised using mReentrantMonitor. If the
+  // value is negative then no seek has been requested. When a seek is
+  // started this is reset to negative.
+  double mRequestedSeekTime;
+
   // Duration of the media resource. Set to -1 if unknown.
   // Set when the metadata is loaded. Accessed on the main thread
   // only.
@@ -1042,10 +1033,6 @@ public:
   // Should be true only when PlayState is PLAY_STATE_LOADING.
   bool mIsDormant;
 
-  // True if this decoder is exiting from dormant state.
-  // Should be true only when PlayState is PLAY_STATE_LOADING.
-  bool mIsExitingDormant;
-
   // Set to one of the valid play states.
   // This can only be changed on the main thread while holding the decoder
   // monitor. Thus, it can be safely read while holding the decoder monitor
@@ -1061,15 +1048,6 @@ public:
   // Any change to the state must call NotifyAll on the monitor.
   // This can only be PLAY_STATE_PAUSED or PLAY_STATE_PLAYING.
   PlayState mNextState;
-
-  // Position to seek to when the seek notification is received by the
-  // decode thread.
-  // This can only be changed on the main thread while holding the decoder
-  // monitor. Thus, it can be safely read while holding the decoder monitor
-  // OR on the main thread.
-  // If the value is negative then no seek has been requested. When a seek is
-  // started this is reset to negative.
-  double mRequestedSeekTime;
 
   // True when we have fully loaded the resource and reported that
   // to the element (i.e. reached NETWORK_LOADED state).

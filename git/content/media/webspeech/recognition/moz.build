@@ -25,11 +25,9 @@ EXPORTS.mozilla.dom += [
     'test/FakeSpeechRecognitionService.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'EnableWebSpeechRecognitionCheck.cpp',
-    'endpointer.cc',
-    'energy_endpointer.cc',
-    'energy_endpointer_params.cc',
+    'FakeSpeechRecognitionService.cpp',
     'SpeechGrammar.cpp',
     'SpeechGrammarList.cpp',
     'SpeechRecognition.cpp',
@@ -37,15 +35,8 @@ SOURCES += [
     'SpeechRecognitionResult.cpp',
     'SpeechRecognitionResultList.cpp',
     'SpeechStreamListener.cpp',
-    'test/FakeSpeechRecognitionService.cpp',
+    'endpointer.cc',
+    'energy_endpointer.cc',
+    'energy_endpointer_params.cc',
 ]
 
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'gkconwebspeechrecognition_s'
-
-LOCAL_INCLUDES += [
-    '/dom/base',
-]
-
-include('/ipc/chromium/chromium-config.mozbuild')

@@ -5,22 +5,33 @@
 
 /* rendering object for HTML <frameset> elements */
 
-#include "nsFrameSetFrame.h"
-
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Likely.h"
 
+#include "nsCOMPtr.h"
+#include "nsFrameSetFrame.h"
 #include "nsGenericHTMLElement.h"
 #include "nsAttrValueInlines.h"
 #include "nsLeafFrame.h"
 #include "nsContainerFrame.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
+#include "nsIComponentManager.h"
+#include "nsIStreamListener.h"
+#include "nsIURL.h"
+#include "nsIDocument.h"
+#include "nsINodeInfo.h"
+#include "nsView.h"
+#include "nsViewManager.h"
+#include "nsWidgetsCID.h"
 #include "nsGkAtoms.h"
+#include "nsStyleCoord.h"
 #include "nsStyleConsts.h"
 #include "nsStyleContext.h"
 #include "nsHTMLParts.h"
+#include "nsGUIEvent.h"
 #include "nsRenderingContext.h"
+#include "nsIServiceManager.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsINameSpaceManager.h"
 #include "nsCSSAnonBoxes.h"
@@ -33,7 +44,6 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/HTMLFrameSetElement.h"
 #include "mozilla/LookAndFeel.h"
-#include "mozilla/MouseEvents.h"
 #include "nsSubDocumentFrame.h"
 
 using namespace mozilla;
@@ -87,7 +97,7 @@ public:
 #endif
 
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext,
-                         WidgetGUIEvent* aEvent,
+                         nsGUIEvent* aEvent,
                          nsEventStatus* aEventStatus);
 
   NS_IMETHOD GetCursor(const nsPoint&    aPoint,
@@ -681,7 +691,7 @@ void nsHTMLFramesetFrame::GetSizeOfChild(nsIFrame* aChild,
 
 
 NS_METHOD nsHTMLFramesetFrame::HandleEvent(nsPresContext* aPresContext,
-                                           WidgetGUIEvent* aEvent,
+                                           nsGUIEvent*    aEvent,
                                            nsEventStatus* aEventStatus)
 {
   NS_ENSURE_ARG_POINTER(aEventStatus);
@@ -692,7 +702,9 @@ NS_METHOD nsHTMLFramesetFrame::HandleEvent(nsPresContext* aPresContext,
         MouseDrag(aPresContext, aEvent);
 	      break;
       case NS_MOUSE_BUTTON_UP:
-        if (aEvent->AsMouseEvent()->button == WidgetMouseEvent::eLeftButton) {
+        if (aEvent->eventStructType == NS_MOUSE_EVENT &&
+            static_cast<nsMouseEvent*>(aEvent)->button ==
+              nsMouseEvent::eLeftButton) {
           EndMouseDrag(aPresContext);
         }
 	      break;
@@ -1276,7 +1288,7 @@ nsHTMLFramesetFrame::SetBorderResize(nsHTMLFramesetBorderFrame* aBorderFrame)
 void
 nsHTMLFramesetFrame::StartMouseDrag(nsPresContext*             aPresContext,
                                     nsHTMLFramesetBorderFrame* aBorder,
-                                    WidgetGUIEvent*            aEvent)
+                                    nsGUIEvent*                aEvent)
 {
 #if 0
   int32_t index;
@@ -1305,7 +1317,7 @@ nsHTMLFramesetFrame::StartMouseDrag(nsPresContext*             aPresContext,
 
 void
 nsHTMLFramesetFrame::MouseDrag(nsPresContext* aPresContext,
-                               WidgetGUIEvent* aEvent)
+                               nsGUIEvent*    aEvent)
 {
   // if the capture ended, reset the drag state
   if (nsIPresShell::GetCapturingContent() != GetContent()) {
@@ -1577,7 +1589,7 @@ void nsHTMLFramesetBorderFrame::PaintBorder(nsRenderingContext& aRenderingContex
 
 NS_IMETHODIMP
 nsHTMLFramesetBorderFrame::HandleEvent(nsPresContext* aPresContext,
-                                       WidgetGUIEvent* aEvent,
+                                       nsGUIEvent*    aEvent,
                                        nsEventStatus* aEventStatus)
 {
   NS_ENSURE_ARG_POINTER(aEventStatus);
@@ -1588,8 +1600,9 @@ nsHTMLFramesetBorderFrame::HandleEvent(nsPresContext* aPresContext,
     return NS_OK;
   }
 
-  if (aEvent->message == NS_MOUSE_BUTTON_DOWN &&
-      aEvent->AsMouseEvent()->button == WidgetMouseEvent::eLeftButton) {
+  if (aEvent->eventStructType == NS_MOUSE_EVENT &&
+      aEvent->message == NS_MOUSE_BUTTON_DOWN &&
+      static_cast<nsMouseEvent*>(aEvent)->button == nsMouseEvent::eLeftButton) {
     nsHTMLFramesetFrame* parentFrame = do_QueryFrame(GetParent());
     if (parentFrame) {
       parentFrame->StartMouseDrag(aPresContext, this, aEvent);

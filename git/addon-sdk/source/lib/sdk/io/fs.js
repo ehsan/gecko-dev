@@ -1,6 +1,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 "use strict";
 
 module.metadata = {
@@ -108,14 +109,8 @@ function remove(path, recursive) {
   }
 }
 
-/**
- * Utility function to convert either an octal number or string
- * into an octal number
- * 0777 => 0777
- * "0644" => 0644
- */
 function Mode(mode, fallback) {
-  return isString(mode) ? parseInt(mode, 8) : mode || fallback;
+  return isString(mode) ? parseInt(mode) : mode || fallback;
 }
 function Flags(flag) {
   return !isString(flag) ? flag :
@@ -400,15 +395,8 @@ exports.lchown = lchown;
  * Synchronous chmod(2).
  */
 function chmodSync (path, mode) {
-  let file;
-  try {
-    file = new nsILocalFile(path);
-  } catch(e) {
-    throw FSError("chmod", "ENOENT", 34, path);
-  }
-
-  file.permissions = Mode(mode);
-}
+  throw Error("Not implemented yet!!");
+};
 exports.chmodSync = chmodSync;
 /**
  * Asynchronous chmod(2). No arguments other than a possible exception are
@@ -429,7 +417,7 @@ exports.fchmodSync = fchmodSync;
  * given to the completion callback.
  */
 let fchmod = Async(fchmodSync);
-exports.fchmod = fchmod;
+exports.chmod = fchmod;
 
 
 /**
@@ -857,9 +845,6 @@ exports.readFileSync = readFileSync;
  * exists. data can be a string or a buffer.
  */
 function writeFile(path, content, encoding, callback) {
-  if (!isString(path))
-    throw new TypeError('path must be a string');
-
   try {
     if (isFunction(encoding)) {
       callback = encoding

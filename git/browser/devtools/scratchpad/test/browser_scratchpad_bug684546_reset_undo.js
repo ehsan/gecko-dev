@@ -101,8 +101,7 @@ function fileAImported(aStatus, aFileContent)
 
   is(gScratchpad.getText(), gFileAContent, "the editor content is correct");
 
-  gScratchpad.editor.replaceText("new text",
-    gScratchpad.editor.getPosition(gScratchpad.getText().length));
+  gScratchpad.setText("new text", gScratchpad.getText().length);
 
   is(gScratchpad.getText(), gFileAContent + "new text", "text updated correctly");
   gScratchpad.undo();
@@ -130,8 +129,7 @@ function fileBImported(aStatus, aFileContent)
   is(gScratchpad.getText(), gFileBContent,
       "the editor content is still correct after undo");
 
-  gScratchpad.editor.replaceText("new text",
-    gScratchpad.editor.getPosition(gScratchpad.getText().length));
+  gScratchpad.setText("new text", gScratchpad.getText().length);
   is(gScratchpad.getText(), gFileBContent + "new text", "text updated correctly");
 
   gScratchpad.undo();

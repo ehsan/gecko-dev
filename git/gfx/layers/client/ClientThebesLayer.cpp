@@ -4,24 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ClientThebesLayer.h"
-#include "ClientTiledThebesLayer.h"     // for ClientTiledThebesLayer
-#include <stdint.h>                     // for uint32_t
-#include "GeckoProfiler.h"              // for PROFILER_LABEL
-#include "client/ClientLayerManager.h"  // for ClientLayerManager, etc
-#include "gfxASurface.h"                // for gfxASurface, etc
-#include "gfxContext.h"                 // for gfxContext
-#include "gfxRect.h"                    // for gfxRect
-#include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
-#include "mozilla/gfx/2D.h"             // for DrawTarget
-#include "mozilla/gfx/Matrix.h"         // for Matrix
-#include "mozilla/gfx/Rect.h"           // for Rect, IntRect
-#include "mozilla/gfx/Types.h"          // for Float, etc
-#include "mozilla/layers/LayersTypes.h"
-#include "mozilla/Preferences.h"
-#include "nsAutoPtr.h"                  // for nsRefPtr
-#include "nsCOMPtr.h"                   // for already_AddRefed
-#include "nsISupportsImpl.h"            // for Layer::AddRef, etc
-#include "nsRect.h"                     // for nsIntRect
+#include "ClientTiledThebesLayer.h"
 
 using namespace mozilla::gfx;
 
@@ -48,7 +31,7 @@ SetAntialiasingFlags(Layer* aLayer, gfxContext* aTarget)
                             dt->GetOpaqueRect().Contains(intTransformedBounds));
   } else {
     nsRefPtr<gfxASurface> surface = aTarget->CurrentSurface();
-    if (surface->GetContentType() != GFX_CONTENT_COLOR_ALPHA) {
+    if (surface->GetContentType() != gfxASurface::CONTENT_COLOR_ALPHA) {
       // Destination doesn't have alpha channel; no need to set any special flags
       return;
     }
@@ -75,8 +58,8 @@ ClientThebesLayer::PaintThebes()
 
   bool canUseOpaqueSurface = CanUseOpaqueSurface();
   ContentType contentType =
-    canUseOpaqueSurface ? GFX_CONTENT_COLOR :
-                          GFX_CONTENT_COLOR_ALPHA;
+    canUseOpaqueSurface ? gfxASurface::CONTENT_COLOR :
+                          gfxASurface::CONTENT_COLOR_ALPHA;
 
   {
     uint32_t flags = 0;
@@ -106,7 +89,7 @@ ClientThebesLayer::PaintThebes()
 
       PaintBuffer(state.mContext,
                   state.mRegionToDraw, extendedDrawRegion, state.mRegionToInvalidate,
-                  state.mDidSelfCopy, state.mClip);
+                  state.mDidSelfCopy);
       MOZ_LAYERS_LOG_IF_SHADOWABLE(this, ("Layer::Mutated(%p) PaintThebes", this));
       Mutated();
     } else {
@@ -146,7 +129,7 @@ ClientThebesLayer::PaintBuffer(gfxContext* aContext,
                                const nsIntRegion& aRegionToDraw,
                                const nsIntRegion& aExtendedRegionToDraw,
                                const nsIntRegion& aRegionToInvalidate,
-                               bool aDidSelfCopy, DrawRegionClip aClip)
+                               bool aDidSelfCopy)
 {
   ContentClientRemote* contentClientRemote = static_cast<ContentClientRemote*>(mContentClient.get());
   MOZ_ASSERT(contentClientRemote->GetIPDLActor());
@@ -161,8 +144,7 @@ ClientThebesLayer::PaintBuffer(gfxContext* aContext,
   }
   ClientManager()->GetThebesLayerCallback()(this, 
                                             aContext, 
-                                            aExtendedRegionToDraw,
-                                            aClip,
+                                            aExtendedRegionToDraw, 
                                             aRegionToInvalidate,
                                             ClientManager()->GetThebesLayerCallbackData());
 
@@ -187,12 +169,14 @@ already_AddRefed<ThebesLayer>
 ClientLayerManager::CreateThebesLayer()
 {
   NS_ASSERTION(InConstruction(), "Only allowed in construction phase");
-  if (Preferences::GetBool("layers.force-tiles") && GetCompositorBackendType() == LAYERS_OPENGL) {
+#ifdef FORCE_BASICTILEDTHEBESLAYER
+  if (GetCompositorBackendType() == LAYERS_OPENGL) {
     nsRefPtr<ClientTiledThebesLayer> layer =
       new ClientTiledThebesLayer(this);
     CREATE_SHADOW(Thebes);
     return layer.forget();
   } else
+#endif
   {
     nsRefPtr<ClientThebesLayer> layer =
       new ClientThebesLayer(this);

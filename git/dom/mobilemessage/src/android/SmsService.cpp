@@ -7,20 +7,13 @@
 #include "SmsService.h"
 #include "SmsSegmentInfo.h"
 #include "AndroidBridge.h"
+#include "jsapi.h"
 
 namespace mozilla {
 namespace dom {
 namespace mobilemessage {
 
 NS_IMPL_ISUPPORTS1(SmsService, nsISmsService)
-
-NS_IMETHODIMP
-SmsService::GetSmsDefaultServiceId(uint32_t* aServiceId)
-{
-  // Android has no official DSDS support.
-  *aServiceId = 0;
-  return NS_OK;
-}
 
 NS_IMETHODIMP
 SmsService::HasSupport(bool* aHasSupport)
@@ -30,16 +23,19 @@ SmsService::HasSupport(bool* aHasSupport)
 }
 
 NS_IMETHODIMP
-SmsService::GetSegmentInfoForText(const nsAString& aText,
-                                  nsIMobileMessageCallback* aRequest)
+SmsService::GetSegmentInfoForText(const nsAString & aText,
+                                  nsIDOMMozSmsSegmentInfo** aResult)
 {
   if (!AndroidBridge::Bridge()) {
     return NS_ERROR_FAILURE;
   }
 
-  nsresult rv = AndroidBridge::Bridge()->GetSegmentInfoForText(aText, aRequest);
+  SmsSegmentInfoData data;
+  nsresult rv = AndroidBridge::Bridge()->GetSegmentInfoForText(aText, &data);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  nsCOMPtr<nsIDOMMozSmsSegmentInfo> info = new SmsSegmentInfo(data);
+  info.forget(aResult);
   return NS_OK;
 }
 

@@ -35,6 +35,9 @@ protected:
   RecvHasSupport(bool* aHasSupport) MOZ_OVERRIDE;
 
   virtual bool
+  RecvGetSegmentInfoForText(const nsString& aText, SmsSegmentInfoData* aResult) MOZ_OVERRIDE;
+
+  virtual bool
   RecvAddSilentNumber(const nsString& aNumber) MOZ_OVERRIDE;
 
   virtual bool
@@ -116,9 +119,6 @@ protected:
 
   bool
   DoRequest(const MarkMessageReadRequest& aRequest);
-
-  bool
-  DoRequest(const GetSegmentInfoForTextRequest& aRequest);
 
   nsresult
   SendReply(const MessageReply& aReply);

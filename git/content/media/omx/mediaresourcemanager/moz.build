@@ -6,7 +6,7 @@
 
 MODULE = 'content'
 
-SOURCES += [
+CPP_SOURCES += [
     'IMediaResourceManagerClient.cpp',
     'IMediaResourceManagerDeathNotifier.cpp',
     'IMediaResourceManagerService.cpp',
@@ -14,8 +14,3 @@ SOURCES += [
     'MediaResourceManagerService.cpp',
 ]
 
-LIBRARY_NAME = 'mediaresourcemanager'
-
-include('/ipc/chromium/chromium-config.mozbuild')
-
-FORCE_STATIC_LIB = True

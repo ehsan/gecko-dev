@@ -32,6 +32,8 @@
 
 using namespace mozilla::dom;
 
+static const char kMozStr[] = "moz";
+
 #define kXMLNS "xmlns"
 
 // to be readable, we assume that an indented line contains

@@ -9,9 +9,7 @@
 #include "AudioNodeStream.h"
 #include "AudioListener.h"
 #include "AudioBufferSourceNode.h"
-#include "PlayingRefChangeHandler.h"
 #include "blink/HRTFPanner.h"
-#include "blink/HRTFDatabaseLoader.h"
 
 using WebCore::HRTFDatabaseLoader;
 using WebCore::HRTFPanner;
@@ -44,7 +42,9 @@ public:
   explicit PannerNodeEngine(AudioNode* aNode)
     : AudioNodeEngine(aNode)
     // Please keep these default values consistent with PannerNode::PannerNode below.
+    , mPanningModel(PanningModelType::HRTF)
     , mPanningModelFunction(&PannerNodeEngine::HRTFPanningFunction)
+    , mDistanceModel(DistanceModelType::Inverse)
     , mDistanceModelFunction(&PannerNodeEngine::InverseGainFunction)
     , mPosition()
     , mOrientation(1., 0., 0.)
@@ -59,7 +59,6 @@ public:
     // to some dummy values here.
     , mListenerDopplerFactor(0.)
     , mListenerSpeedOfSound(0.)
-    , mLeftOverData(INT_MIN)
   {
     // HRTFDatabaseLoader needs to be fetched on the main thread.
     TemporaryRef<HRTFDatabaseLoader> loader =
@@ -71,7 +70,8 @@ public:
   {
     switch (aIndex) {
     case PannerNode::PANNING_MODEL:
-      switch (PanningModelType(aParam)) {
+      mPanningModel = PanningModelType(aParam);
+      switch (mPanningModel) {
         case PanningModelType::Equalpower:
           mPanningModelFunction = &PannerNodeEngine::EqualPowerPanningFunction;
           break;
@@ -84,7 +84,8 @@ public:
       }
       break;
     case PannerNode::DISTANCE_MODEL:
-      switch (DistanceModelType(aParam)) {
+      mDistanceModel = DistanceModelType(aParam);
+      switch (mDistanceModel) {
         case DistanceModelType::Inverse:
           mDistanceModelFunction = &PannerNodeEngine::InverseGainFunction;
           break;
@@ -138,36 +139,6 @@ public:
                                  AudioChunk* aOutput,
                                  bool *aFinished) MOZ_OVERRIDE
   {
-    if (aInput.IsNull()) {
-      // mLeftOverData != INT_MIN means that the panning model was HRTF and a
-      // tail-time reference was added.  Even if the model is now equalpower,
-      // the reference will need to be removed.
-      if (mLeftOverData > 0 &&
-          mPanningModelFunction == &PannerNodeEngine::HRTFPanningFunction) {
-        mLeftOverData -= WEBAUDIO_BLOCK_SIZE;
-      } else {
-        if (mLeftOverData != INT_MIN) {
-          mLeftOverData = INT_MIN;
-          mHRTFPanner->reset();
-
-          nsRefPtr<PlayingRefChangeHandler> refchanged =
-            new PlayingRefChangeHandler(aStream, PlayingRefChangeHandler::RELEASE);
-          aStream->Graph()->
-            DispatchToMainThreadAfterStreamStateUpdate(refchanged.forget());
-        }
-        *aOutput = aInput;
-        return;
-      }
-    } else if (mPanningModelFunction == &PannerNodeEngine::HRTFPanningFunction) {
-      if (mLeftOverData == INT_MIN) {
-        nsRefPtr<PlayingRefChangeHandler> refchanged =
-          new PlayingRefChangeHandler(aStream, PlayingRefChangeHandler::ADDREF);
-        aStream->Graph()->
-          DispatchToMainThreadAfterStreamStateUpdate(refchanged.forget());
-      }
-      mLeftOverData = mHRTFPanner->maxTailFrames();
-    }
-
     (this->*mPanningModelFunction)(aInput, aOutput);
   }
 
@@ -190,8 +161,10 @@ public:
   float ExponentialGainFunction(float aDistance);
 
   nsAutoPtr<HRTFPanner> mHRTFPanner;
+  PanningModelType mPanningModel;
   typedef void (PannerNodeEngine::*PanningModelFunction)(const AudioChunk& aInput, AudioChunk* aOutput);
   PanningModelFunction mPanningModelFunction;
+  DistanceModelType mDistanceModel;
   typedef float (PannerNodeEngine::*DistanceModelFunction)(float aDistance);
   DistanceModelFunction mDistanceModelFunction;
   ThreeDPoint mPosition;
@@ -209,7 +182,6 @@ public:
   ThreeDPoint mListenerVelocity;
   double mListenerDopplerFactor;
   double mListenerSpeedOfSound;
-  int mLeftOverData;
 };
 
 PannerNode::PannerNode(AudioContext* aContext)
@@ -310,6 +282,11 @@ void
 PannerNodeEngine::EqualPowerPanningFunction(const AudioChunk& aInput,
                                             AudioChunk* aOutput)
 {
+  if (aInput.IsNull()) {
+    *aOutput = aInput;
+    return;
+  }
+
   float azimuth, elevation, gainL, gainR, normalizedAzimuth, distanceGain, coneGain;
   int inputChannels = aInput.mChannelData.Length();
 

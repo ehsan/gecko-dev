@@ -8,7 +8,7 @@ MODULE = 'libandroidstagefrightfroyo'
 NO_DIST_INSTALL = True
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] != 'gonk':
-    SOURCES += [
+    CPP_SOURCES += [
         'libstagefright.cpp',
     ]
 

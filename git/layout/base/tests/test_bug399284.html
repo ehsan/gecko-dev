@@ -18,8 +18,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=399284
 /** Test for Bug 399284 **/
 const testContent = "<p id='testPara'>The quick brown fox jumps over the lazy dog";
 
-const Ci = SpecialPowers.Ci;
-const Cc = SpecialPowers.Cc;
+netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+const Ci = Components.interfaces;
+const Cc = Components.classes;
 var ccManager = Cc["@mozilla.org/charset-converter-manager;1"].getService(Ci.nsICharsetConverterManager);
 
 var decoderList = ccManager.getDecoderList();

@@ -1,35 +1,145 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+#include "ClientLayerManager.h"
+#include "gfxPlatform.h"
 
-#ifndef GFX_CLIENTCONTAINERLAYER_H
-#define GFX_CLIENTCONTAINERLAYER_H
+using namespace mozilla::layers;
 
-#include <stdint.h>                     // for uint32_t
-#include "ClientLayerManager.h"         // for ClientLayerManager, etc
-#include "Layers.h"                     // for Layer, ContainerLayer, etc
-#include "gfx3DMatrix.h"                // for gfx3DMatrix
-#include "gfxMatrix.h"                  // for gfxMatrix
-#include "gfxPlatform.h"                // for gfxPlatform
-#include "nsDebug.h"                    // for NS_ASSERTION
-#include "nsISupportsUtils.h"           // for NS_ADDREF, NS_RELEASE
-#include "nsRegion.h"                   // for nsIntRegion
-#include "nsTArray.h"                   // for nsAutoTArray
-#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
+template<class Container> void
+ContainerInsertAfter(Layer* aChild, Layer* aAfter, Container* aContainer)
+{
+  NS_ASSERTION(aChild->Manager() == aContainer->Manager(),
+               "Child has wrong manager");
+  NS_ASSERTION(!aChild->GetParent(),
+               "aChild already in the tree");
+  NS_ASSERTION(!aChild->GetNextSibling() && !aChild->GetPrevSibling(),
+               "aChild already has siblings?");
+  NS_ASSERTION(!aAfter ||
+               (aAfter->Manager() == aContainer->Manager() &&
+                aAfter->GetParent() == aContainer),
+               "aAfter is not our child");
 
-namespace mozilla {
-namespace layers {
+  aChild->SetParent(aContainer);
+  if (aAfter == aContainer->mLastChild) {
+    aContainer->mLastChild = aChild;
+  }
+  if (!aAfter) {
+    aChild->SetNextSibling(aContainer->mFirstChild);
+    if (aContainer->mFirstChild) {
+      aContainer->mFirstChild->SetPrevSibling(aChild);
+    }
+    aContainer->mFirstChild = aChild;
+    NS_ADDREF(aChild);
+    aContainer->DidInsertChild(aChild);
+    return;
+  }
 
-class ShadowableLayer;
+  Layer* next = aAfter->GetNextSibling();
+  aChild->SetNextSibling(next);
+  aChild->SetPrevSibling(aAfter);
+  if (next) {
+    next->SetPrevSibling(aChild);
+  }
+  aAfter->SetNextSibling(aChild);
+  NS_ADDREF(aChild);
+  aContainer->DidInsertChild(aChild);
+}
+
+template<class Container> void
+ContainerRemoveChild(Layer* aChild, Container* aContainer)
+{
+  NS_ASSERTION(aChild->Manager() == aContainer->Manager(),
+               "Child has wrong manager");
+  NS_ASSERTION(aChild->GetParent() == aContainer,
+               "aChild not our child");
+
+  Layer* prev = aChild->GetPrevSibling();
+  Layer* next = aChild->GetNextSibling();
+  if (prev) {
+    prev->SetNextSibling(next);
+  } else {
+    aContainer->mFirstChild = next;
+  }
+  if (next) {
+    next->SetPrevSibling(prev);
+  } else {
+    aContainer->mLastChild = prev;
+  }
+
+  aChild->SetNextSibling(nullptr);
+  aChild->SetPrevSibling(nullptr);
+  aChild->SetParent(nullptr);
+
+  aContainer->DidRemoveChild(aChild);
+  NS_RELEASE(aChild);
+}
+
+template<class Container> void
+ContainerRepositionChild(Layer* aChild, Layer* aAfter, Container* aContainer)
+{
+  NS_ASSERTION(aChild->Manager() == aContainer->Manager(),
+               "Child has wrong manager");
+  NS_ASSERTION(aChild->GetParent() == aContainer,
+               "aChild not our child");
+  NS_ASSERTION(!aAfter ||
+               (aAfter->Manager() == aContainer->Manager() &&
+                aAfter->GetParent() == aContainer),
+               "aAfter is not our child");
+
+  Layer* prev = aChild->GetPrevSibling();
+  Layer* next = aChild->GetNextSibling();
+  if (prev == aAfter) {
+    // aChild is already in the correct position, nothing to do.
+    return;
+  }
+  if (prev) {
+    prev->SetNextSibling(next);
+  }
+  if (next) {
+    next->SetPrevSibling(prev);
+  }
+  if (!aAfter) {
+    aChild->SetPrevSibling(nullptr);
+    aChild->SetNextSibling(aContainer->mFirstChild);
+    if (aContainer->mFirstChild) {
+      aContainer->mFirstChild->SetPrevSibling(aChild);
+    }
+    aContainer->mFirstChild = aChild;
+    return;
+  }
+
+  Layer* afterNext = aAfter->GetNextSibling();
+  if (afterNext) {
+    afterNext->SetPrevSibling(aChild);
+  } else {
+    aContainer->mLastChild = aChild;
+  }
+  aAfter->SetNextSibling(aChild);
+  aChild->SetPrevSibling(aAfter);
+  aChild->SetNextSibling(afterNext);
+}
+
+static bool
+HasOpaqueAncestorLayer(Layer* aLayer)
+{
+  for (Layer* l = aLayer->GetParent(); l; l = l->GetParent()) {
+    if (l->GetContentFlags() & Layer::CONTENT_OPAQUE)
+      return true;
+  }
+  return false;
+}
 
 class ClientContainerLayer : public ContainerLayer,
                              public ClientLayer
 {
+  template<class Container>
+  friend void ContainerInsertAfter(Layer* aChild, Layer* aAfter, Container* aContainer);
+  template<class Container>
+  friend void ContainerRemoveChild(Layer* aChild, Container* aContainer);
+  template<class Container>
+  friend void ContainerRepositionChild(Layer* aChild, Layer* aAfter, Container* aContainer);
+
 public:
   ClientContainerLayer(ClientLayerManager* aManager) :
-    ContainerLayer(aManager,
-                   static_cast<ClientLayer*>(MOZ_THIS_IN_INITIALIZER_LIST()))
+    ContainerLayer(aManager, static_cast<ClientLayer*>(this))
   {
     MOZ_COUNT_CTOR(ClientContainerLayer);
     mSupportsComponentAlphaChildren = true;
@@ -37,7 +147,7 @@ public:
   virtual ~ClientContainerLayer()
   {
     while (mFirstChild) {
-      ContainerLayer::RemoveChild(mFirstChild);
+      ContainerRemoveChild(mFirstChild, this);
     }
 
     MOZ_COUNT_DTOR(ClientContainerLayer);
@@ -61,7 +171,7 @@ public:
             transform3D.Is2D(&transform) && 
             !transform.HasNonIntegerTranslation()) {
           SetSupportsComponentAlphaChildren(
-            gfxPlatform::ComponentAlphaEnabled());
+            gfxPlatform::GetPlatform()->UsesSubpixelAATextRendering());
         }
       }
     } else {
@@ -88,33 +198,33 @@ public:
                  "Can only set properties in construction phase");
     ContainerLayer::SetVisibleRegion(aRegion);
   }
-  virtual void InsertAfter(Layer* aChild, Layer* aAfter) MOZ_OVERRIDE
+  virtual void InsertAfter(Layer* aChild, Layer* aAfter)
   {
     NS_ASSERTION(ClientManager()->InConstruction(),
                  "Can only set properties in construction phase");
     ClientManager()->InsertAfter(ClientManager()->Hold(this),
                                  ClientManager()->Hold(aChild),
                                  aAfter ? ClientManager()->Hold(aAfter) : nullptr);
-    ContainerLayer::InsertAfter(aChild, aAfter);
+    ContainerInsertAfter(aChild, aAfter, this);
   }
 
-  virtual void RemoveChild(Layer* aChild) MOZ_OVERRIDE
+  virtual void RemoveChild(Layer* aChild)
   { 
     NS_ASSERTION(ClientManager()->InConstruction(),
                  "Can only set properties in construction phase");
     ClientManager()->RemoveChild(ClientManager()->Hold(this),
                                  ClientManager()->Hold(aChild));
-    ContainerLayer::RemoveChild(aChild);
+    ContainerRemoveChild(aChild, this);
   }
 
-  virtual void RepositionChild(Layer* aChild, Layer* aAfter) MOZ_OVERRIDE
+  virtual void RepositionChild(Layer* aChild, Layer* aAfter)
   {
     NS_ASSERTION(ClientManager()->InConstruction(),
                  "Can only set properties in construction phase");
     ClientManager()->RepositionChild(ClientManager()->Hold(this),
                                      ClientManager()->Hold(aChild),
                                      aAfter ? ClientManager()->Hold(aAfter) : nullptr);
-    ContainerLayer::RepositionChild(aChild, aAfter);
+    ContainerRepositionChild(aChild, aAfter, this);
   }
   
   virtual Layer* AsLayer() { return this; }
@@ -140,8 +250,7 @@ class ClientRefLayer : public RefLayer,
                        public ClientLayer {
 public:
   ClientRefLayer(ClientLayerManager* aManager) :
-    RefLayer(aManager,
-             static_cast<ClientLayer*>(MOZ_THIS_IN_INITIALIZER_LIST()))
+    RefLayer(aManager, static_cast<ClientLayer*>(this))
   {
     MOZ_COUNT_CTOR(ClientRefLayer);
   }
@@ -171,8 +280,3 @@ private:
     return static_cast<ClientLayerManager*>(mManager);
   }
 };
-
-}
-}
-
-#endif

@@ -118,11 +118,6 @@ public class AnnouncementsService extends BackgroundService implements Announcem
     Logger.setThreadLogTag(AnnouncementsConstants.GLOBAL_LOG_TAG);
     Logger.debug(LOG_TAG, "Running AnnouncementsService.");
 
-    if (AnnouncementsConstants.DISABLED) {
-      Logger.debug(LOG_TAG, "Announcements disabled. Returning from AnnouncementsService.");
-      return;
-    }
-
     if (!shouldFetchAnnouncements()) {
       Logger.debug(LOG_TAG, "Not fetching.");
       return;
@@ -141,7 +136,7 @@ public class AnnouncementsService extends BackgroundService implements Announcem
     return getSharedPreferences().getLong(AnnouncementsConstants.PREF_LAST_LAUNCH, 0);
   }
 
-  protected SharedPreferences getSharedPreferences() {
+  private SharedPreferences getSharedPreferences() {
     return this.getSharedPreferences(AnnouncementsConstants.PREFS_BRANCH, GlobalConstants.SHARED_PREFERENCES_MODE);
   }
 

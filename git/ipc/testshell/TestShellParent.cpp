@@ -35,47 +35,47 @@ TestShellParent::CommandDone(TestShellCommandParent* command,
                              const nsString& aResponse)
 {
   // XXX what should happen if the callback fails?
-  /*bool ok = */command->RunCallback(aResponse);
+  /*JSBool ok = */command->RunCallback(aResponse);
   command->ReleaseCallback();
 
   return true;
 }
 
-bool
+JSBool
 TestShellCommandParent::SetCallback(JSContext* aCx,
                                     JS::Value aCallback)
 {
   if (!mCallback.Hold(aCx)) {
-    return false;
+    return JS_FALSE;
   }
 
   mCallback = aCallback;
   mCx = aCx;
 
-  return true;
+  return JS_TRUE;
 }
 
-bool
+JSBool
 TestShellCommandParent::RunCallback(const nsString& aResponse)
 {
-  NS_ENSURE_TRUE(*mCallback.ToJSValPtr() != JSVAL_NULL && mCx, false);
+  NS_ENSURE_TRUE(*mCallback.ToJSValPtr() != JSVAL_NULL && mCx, JS_FALSE);
 
   JSAutoRequest ar(mCx);
-  NS_ENSURE_TRUE(mCallback.ToJSObject(), false);
+  NS_ENSURE_TRUE(mCallback.ToJSObject(), JS_FALSE);
   JSAutoCompartment ac(mCx, mCallback.ToJSObject());
   JS::Rooted<JSObject*> global(mCx, JS::CurrentGlobalOrNull(mCx));
 
   JSString* str = JS_NewUCStringCopyN(mCx, aResponse.get(), aResponse.Length());
-  NS_ENSURE_TRUE(str, false);
+  NS_ENSURE_TRUE(str, JS_FALSE);
 
   JS::Rooted<JS::Value> strVal(mCx, JS::StringValue(str));
 
   JS::Rooted<JS::Value> rval(mCx);
-  bool ok = JS_CallFunctionValue(mCx, global, mCallback, 1, strVal.address(),
+  JSBool ok = JS_CallFunctionValue(mCx, global, mCallback, 1, strVal.address(),
                                    rval.address());
-  NS_ENSURE_TRUE(ok, false);
+  NS_ENSURE_TRUE(ok, JS_FALSE);
 
-  return true;
+  return JS_TRUE;
 }
 
 void

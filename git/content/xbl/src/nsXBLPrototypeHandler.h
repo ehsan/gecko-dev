@@ -15,8 +15,10 @@
 #include "nsIWeakReference.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsCycleCollectionParticipant.h"
-#include "js/TypeDecls.h"
 
+#include "js/RootingAPI.h"
+
+class JSObject;
 class nsIDOMEvent;
 class nsIContent;
 class nsIDOMUIEvent;
@@ -134,8 +136,8 @@ public:
     return (mType & NS_HANDLER_ALLOW_UNTRUSTED) != 0;
   }
 
-  nsresult Read(nsIObjectInputStream* aStream);
-  nsresult Write(nsIObjectOutputStream* aStream);
+  nsresult Read(nsIScriptContext* aContext, nsIObjectInputStream* aStream);
+  nsresult Write(nsIScriptContext* aContext, nsIObjectOutputStream* aStream);
 
 public:
   static uint32_t gRefCnt;

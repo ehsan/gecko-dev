@@ -17,18 +17,18 @@ XPIDL_SOURCES += [
 
 MODULE = 'url-classifier'
 
-SOURCES += [
+CPP_SOURCES += [
     'ChunkSet.cpp',
     'Classifier.cpp',
     'HashStore.cpp',
     'LookupCache.cpp',
+    'ProtocolParser.cpp',
     'nsCheckSummedOutputStream.cpp',
     'nsUrlClassifierDBService.cpp',
     'nsUrlClassifierPrefixSet.cpp',
     'nsUrlClassifierProxies.cpp',
     'nsUrlClassifierStreamUpdater.cpp',
     'nsUrlClassifierUtils.cpp',
-    'ProtocolParser.cpp',
 ]
 
 EXTRA_COMPONENTS += [
@@ -47,15 +47,3 @@ LIBRARY_NAME = 'urlclassifier_s'
 EXTRA_JS_MODULES += [
     'SafeBrowsing.jsm',
 ]
-
-EXPORTS += [
-    'Entries.h',
-    'LookupCache.h',
-    'nsUrlClassifierPrefixSet.h',
-]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True

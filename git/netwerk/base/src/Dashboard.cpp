@@ -2,20 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http:mozilla.org/MPL/2.0/. */
 
-#include "mozilla/dom/NetDashboardBinding.h"
+#include "nsContentUtils.h"
+#include "nsCxPusher.h"
 #include "mozilla/net/Dashboard.h"
 #include "mozilla/net/HttpInfo.h"
-#include "nsCxPusher.h"
-#include "nsHttp.h"
-#include "nsICancelable.h"
-#include "nsIDNSService.h"
-#include "nsIDNSRecord.h"
-#include "nsIInputStream.h"
-#include "nsISocketTransport.h"
-#include "nsIThread.h"
-#include "nsSocketTransportService2.h"
-#include "nsThreadUtils.h"
-#include "nsURLHelper.h"
+#include "mozilla/dom/NetDashboardBinding.h"
+#include "jsapi.h"
 
 using mozilla::AutoSafeJSContext;
 namespace mozilla {
@@ -26,11 +18,6 @@ NS_IMPL_ISUPPORTS5(Dashboard, nsIDashboard, nsIDashboardEventNotifier,
                               nsIDNSListener)
 using mozilla::dom::Sequence;
 
-struct ConnStatus
-{
-    nsString creationSts;
-};
-
 Dashboard::Dashboard()
 {
     mEnableLogging = false;
@@ -38,8 +25,6 @@ Dashboard::Dashboard()
 
 Dashboard::~Dashboard()
 {
-    if (mDnsup.cancel)
-        mDnsup.cancel->Cancel(NS_ERROR_ABORT);
 }
 
 NS_IMETHODIMP
@@ -418,6 +403,66 @@ Dashboard::RequestDNSInfo(NetDashboardCallback* cb)
     return NS_OK;
 }
 
+NS_IMETHODIMP
+Dashboard::RequestDNSLookup(const nsACString &aHost, NetDashboardCallback* cb)
+{
+    if (mDnsup.cb)
+        return NS_ERROR_FAILURE;
+    mDnsup.cb = cb;
+    nsresult rv;
+    mDnsup.thread = NS_GetCurrentThread();
+
+    if (!mDnsup.serv) {
+        mDnsup.serv = do_GetService("@mozilla.org/network/dns-service;1", &rv);
+        if (NS_FAILED(rv)) {
+            mDnsup.cb = nullptr;
+            return rv;
+        }
+    }
+    mDnsup.serv->AsyncResolve(aHost, 0, this, mDnsup.thread, getter_AddRefs(mDnsup.mCancel));
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+Dashboard::OnLookupComplete(nsICancelable *aRequest, nsIDNSRecord *aRecord, nsresult aStatus)
+{
+    AutoSafeJSContext cx;
+
+    mozilla::dom::DNSLookupDict dict;
+    dict.mAddress.Construct();
+    dict.mError.Construct();
+    dict.mAnswer.Construct();
+
+    Sequence<nsString> &addresses = dict.mAddress.Value();
+    nsString &error = dict.mError.Value();
+    bool &answer = dict.mAnswer.Value();
+
+    if (!NS_FAILED(aStatus)) {
+        answer = true;
+        bool hasMore;
+        aRecord->HasMore(&hasMore);
+        while(hasMore) {
+           nsCString nextAddress;
+           aRecord->GetNextAddrAsString(nextAddress);
+           CopyASCIItoUTF16(nextAddress, *addresses.AppendElement());
+           aRecord->HasMore(&hasMore);
+        }
+    } else {
+        answer = false;
+        CopyASCIItoUTF16(GetErrorString(aStatus), error);
+    }
+
+    JS::RootedValue val(cx);
+    if (!dict.ToObject(cx, JS::NullPtr(), &val)) {
+        mDnsup.cb = nullptr;
+        return NS_ERROR_FAILURE;
+    }
+    mDnsup.cb->OnDashboardDataAvailable(val);
+    mDnsup.cb = nullptr;
+
+    return NS_OK;
+}
+
 void
 Dashboard::GetDnsInfoDispatch()
 {
@@ -485,72 +530,6 @@ Dashboard::GetDNSCacheEntries()
     return NS_OK;
 }
 
-NS_IMETHODIMP
-Dashboard::RequestDNSLookup(const nsACString &aHost, NetDashboardCallback *cb)
-{
-    if (mDnsup.cb)
-        return NS_ERROR_FAILURE;
-    nsresult rv;
-
-    if (!mDnsup.serv) {
-        mDnsup.serv = do_GetService("@mozilla.org/network/dns-service;1", &rv);
-        if (NS_FAILED(rv))
-            return rv;
-    }
-
-    mDnsup.cb = cb;
-    rv = mDnsup.serv->AsyncResolve(aHost, 0, this, NS_GetCurrentThread(), getter_AddRefs(mDnsup.cancel));
-    if (NS_FAILED(rv)) {
-        mDnsup.cb = nullptr;
-        return rv;
-    }
-
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-Dashboard::OnLookupComplete(nsICancelable *aRequest, nsIDNSRecord *aRecord, nsresult aStatus)
-{
-    MOZ_ASSERT(aRequest == mDnsup.cancel);
-    mDnsup.cancel = nullptr;
-
-    AutoSafeJSContext cx;
-
-    mozilla::dom::DNSLookupDict dict;
-    dict.mAddress.Construct();
-    dict.mError.Construct();
-    dict.mAnswer.Construct();
-
-    Sequence<nsString> &addresses = dict.mAddress.Value();
-    nsString &error = dict.mError.Value();
-    bool &answer = dict.mAnswer.Value();
-
-    if (NS_SUCCEEDED(aStatus)) {
-        answer = true;
-        bool hasMore;
-        aRecord->HasMore(&hasMore);
-        while(hasMore) {
-           nsCString nextAddress;
-           aRecord->GetNextAddrAsString(nextAddress);
-           CopyASCIItoUTF16(nextAddress, *addresses.AppendElement());
-           aRecord->HasMore(&hasMore);
-        }
-    } else {
-        answer = false;
-        CopyASCIItoUTF16(GetErrorString(aStatus), error);
-    }
-
-    JS::RootedValue val(cx);
-    if (!dict.ToObject(cx, JS::NullPtr(), &val)) {
-        mDnsup.cb = nullptr;
-        return NS_ERROR_FAILURE;
-    }
-    mDnsup.cb->OnDashboardDataAvailable(val);
-    mDnsup.cb = nullptr;
-
-    return NS_OK;
-}
-
 void
 HttpConnInfo::SetHTTP1ProtocolVersion(uint8_t pv)
 {
@@ -574,12 +553,8 @@ HttpConnInfo::SetHTTP2ProtocolVersion(uint8_t pv)
 {
     if (pv == SPDY_VERSION_2)
         protocolVersion.Assign(NS_LITERAL_STRING("spdy/2"));
-    else if (pv == SPDY_VERSION_3)
+    else
         protocolVersion.Assign(NS_LITERAL_STRING("spdy/3"));
-    else {
-        MOZ_ASSERT (pv == SPDY_VERSION_31);
-        protocolVersion.Assign(NS_LITERAL_STRING("spdy/3.1"));
-    }
 }
 
 NS_IMETHODIMP
@@ -595,8 +570,7 @@ Dashboard::RequestConnection(const nsACString& aHost, uint32_t aPort,
     if (NS_FAILED(rv)) {
         ConnStatus status;
         CopyASCIItoUTF16(GetErrorString(rv), status.creationSts);
-        nsCOMPtr<nsIRunnable> event =
-            NS_NewRunnableMethodWithArg<ConnStatus>(this, &Dashboard::GetConnectionStatus, status);
+        nsCOMPtr<nsIRunnable> event = new DashConnStatusRunnable(this, status);
         mConn.thread->Dispatch(event, NS_DISPATCH_NORMAL);
         return rv;
     }
@@ -666,7 +640,7 @@ Dashboard::OnTransportStatus(nsITransport *aTransport, nsresult aStatus,
 
     ConnStatus status;
     CopyASCIItoUTF16(GetErrorString(aStatus), status.creationSts);
-    nsCOMPtr<nsIRunnable> event = NS_NewRunnableMethodWithArg<ConnStatus>(this, &Dashboard::GetConnectionStatus, status);
+    nsCOMPtr<nsIRunnable> event = new DashConnStatusRunnable(this, status);
     mConn.thread->Dispatch(event, NS_DISPATCH_NORMAL);
 
     return NS_OK;
@@ -685,7 +659,7 @@ Dashboard::Notify(nsITimer *timer)
 
     ConnStatus status;
     status.creationSts.Assign(NS_LITERAL_STRING("NS_ERROR_NET_TIMEOUT"));
-    nsCOMPtr<nsIRunnable> event = NS_NewRunnableMethodWithArg<ConnStatus>(this, &Dashboard::GetConnectionStatus, status);
+    nsCOMPtr<nsIRunnable> event = new DashConnStatusRunnable(this, status);
     mConn.thread->Dispatch(event, NS_DISPATCH_NORMAL);
 
     return NS_OK;
@@ -745,7 +719,7 @@ Dashboard::GetErrorString(nsresult rv)
         if (errors[i].key == rv)
             return errors[i].error;
 
-    return nullptr;
+    return NULL;
 }
 
 } } // namespace mozilla::net

@@ -3,27 +3,44 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 #include "nsCOMPtr.h"
+#include "nsReadableUtils.h"
 #include "nsComboboxControlFrame.h"
 #include "nsFocusManager.h"
 #include "nsFormControlFrame.h"
+#include "nsFrameManager.h"
+#include "nsGfxButtonControlFrame.h"
 #include "nsGkAtoms.h"
 #include "nsCSSAnonBoxes.h"
 #include "nsHTMLParts.h"
 #include "nsIFormControl.h"
 #include "nsINameSpaceManager.h"
+#include "nsIDOMElement.h"
 #include "nsIListControlFrame.h"
+#include "nsIDOMHTMLCollection.h"
+#include "nsIDOMHTMLSelectElement.h"
+#include "nsIDOMHTMLOptionElement.h"
 #include "nsPIDOMWindow.h"
 #include "nsIPresShell.h"
 #include "nsContentList.h"
 #include "nsView.h"
 #include "nsViewManager.h"
+#include "nsEventDispatcher.h"
+#include "nsEventListenerManager.h"
 #include "nsIDOMNode.h"
 #include "nsISelectControlFrame.h"
+#include "nsXPCOM.h"
+#include "nsISupportsPrimitives.h"
+#include "nsIComponentManager.h"
 #include "nsContentUtils.h"
+#include "nsTextFragment.h"
+#include "nsCSSFrameConstructor.h"
 #include "nsIDocument.h"
 #include "nsINodeInfo.h"
 #include "nsIScrollableFrame.h"
 #include "nsListControlFrame.h"
+#include "nsContentCID.h"
+#include "nsIServiceManager.h"
+#include "nsGUIEvent.h"
 #include "nsAutoPtr.h"
 #include "nsStyleSet.h"
 #include "nsNodeInfoManager.h"
@@ -31,13 +48,15 @@
 #include "nsLayoutUtils.h"
 #include "nsDisplayList.h"
 #include "nsITheme.h"
+#include "nsThemeConstants.h"
 #include "nsAsyncDOMEvent.h"
 #include "nsRenderingContext.h"
+#include "mozilla/Preferences.h"
+#include "nsContentList.h"
 #include "mozilla/Likely.h"
 #include <algorithm>
 #include "nsTextNode.h"
 #include "mozilla/LookAndFeel.h"
-#include "mozilla/MouseEvents.h"
 
 using namespace mozilla;
 
@@ -300,9 +319,9 @@ nsComboboxControlFrame::ShowPopup(bool aShowPopup)
 
   // fire a popup dom event
   nsEventStatus status = nsEventStatus_eIgnore;
-  WidgetMouseEvent event(true, aShowPopup ?
-                         NS_XUL_POPUP_SHOWING : NS_XUL_POPUP_HIDING, nullptr,
-                         WidgetMouseEvent::eReal);
+  nsMouseEvent event(true, aShowPopup ?
+                     NS_XUL_POPUP_SHOWING : NS_XUL_POPUP_HIDING, nullptr,
+                     nsMouseEvent::eReal);
 
   nsCOMPtr<nsIPresShell> shell = PresContext()->GetPresShell();
   if (shell)
@@ -1093,8 +1112,8 @@ nsComboboxControlFrame::OnSetSelectedIndex(int32_t aOldIndex, int32_t aNewIndex)
 
 NS_IMETHODIMP
 nsComboboxControlFrame::HandleEvent(nsPresContext* aPresContext,
-                                    WidgetGUIEvent* aEvent,
-                                    nsEventStatus* aEventStatus)
+                                       nsGUIEvent*     aEvent,
+                                       nsEventStatus*  aEventStatus)
 {
   NS_ENSURE_ARG_POINTER(aEventStatus);
 

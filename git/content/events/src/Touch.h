@@ -6,20 +6,19 @@
 #ifndef mozilla_dom_Touch_h
 #define mozilla_dom_Touch_h
 
+#include "nsIDOMTouchEvent.h"
+#include "nsString.h"
+#include "nsTArray.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/EventForwards.h"
+#include "nsJSEnvironment.h"
 #include "nsWrapperCache.h"
-#include "nsAutoPtr.h"
+#include "mozilla/dom/EventTarget.h"
 #include "Units.h"
-
-class nsPresContext;
 
 namespace mozilla {
 namespace dom {
 
-class EventTarget;
-
-class Touch MOZ_FINAL : public nsISupports
+class Touch MOZ_FINAL : public nsIDOMTouch
                       , public nsWrapperCache
 {
 public:
@@ -36,22 +35,56 @@ public:
         int32_t aRadiusX,
         int32_t aRadiusY,
         float aRotationAngle,
-        float aForce);
+        float aForce)
+    {
+      SetIsDOMBinding();
+      mTarget = aTarget;
+      mIdentifier = aIdentifier;
+      mPagePoint = CSSIntPoint(aPageX, aPageY);
+      mScreenPoint = nsIntPoint(aScreenX, aScreenY);
+      mClientPoint = CSSIntPoint(aClientX, aClientY);
+      mRefPoint = nsIntPoint(0, 0);
+      mPointsInitialized = true;
+      mRadius.x = aRadiusX;
+      mRadius.y = aRadiusY;
+      mRotationAngle = aRotationAngle;
+      mForce = aForce;
+
+      mChanged = false;
+      mMessage = 0;
+      nsJSContext::LikelyShortLivingObjectCreated();
+    }
   Touch(int32_t aIdentifier,
         nsIntPoint aPoint,
         nsIntPoint aRadius,
         float aRotationAngle,
-        float aForce);
+        float aForce)
+    {
+      SetIsDOMBinding();
+      mIdentifier = aIdentifier;
+      mPagePoint = CSSIntPoint(0, 0);
+      mScreenPoint = nsIntPoint(0, 0);
+      mClientPoint = CSSIntPoint(0, 0);
+      mRefPoint = aPoint;
+      mPointsInitialized = false;
+      mRadius = aRadius;
+      mRotationAngle = aRotationAngle;
+      mForce = aForce;
 
-  ~Touch();
-
+      mChanged = false;
+      mMessage = 0;
+      nsJSContext::LikelyShortLivingObjectCreated();
+    }
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(Touch)
+  NS_DECL_NSIDOMTOUCH
 
-  void InitializePoints(nsPresContext* aPresContext, WidgetEvent* aEvent);
+  void InitializePoints(nsPresContext* aPresContext, nsEvent* aEvent);
 
-  void SetTarget(mozilla::dom::EventTarget* aTarget);
-
+  void SetTarget(mozilla::dom::EventTarget *aTarget)
+  {
+    mTarget = aTarget;
+  }
   bool Equals(Touch* aTouch);
 
   virtual JSObject* WrapObject(JSContext* aCx,

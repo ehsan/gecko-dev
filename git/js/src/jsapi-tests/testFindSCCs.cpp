@@ -8,6 +8,9 @@
 #include <stdarg.h>
 #include <string.h>
 
+#include "jscntxt.h"
+#include "jsgc.h"
+
 #include "gc/FindSCCs.h"
 #include "jsapi-tests/tests.h"
 
@@ -135,7 +138,7 @@ void setup(unsigned count)
     vertex_count = count;
     for (unsigned i = 0; i < MaxVertices; ++i) {
         TestNode &v = Vertex[i];
-        v.gcNextGraphNode = nullptr;
+        v.gcNextGraphNode = NULL;
         v.index = i;
         memset(&v.hasEdge, 0, sizeof(v.hasEdge));
     }
@@ -148,7 +151,7 @@ void edge(unsigned src_index, unsigned dest_index)
 
 void run()
 {
-    finder = new ComponentFinder<TestNode>(rt->mainThread.nativeStackLimit[js::StackForSystemCode]);
+    finder = new ComponentFinder<TestNode>(rt->mainThread.nativeStackLimit);
     for (unsigned i = 0; i < vertex_count; ++i)
         finder->addNode(&Vertex[i]);
     resultsList = finder->getResultsList();
@@ -161,14 +164,14 @@ bool group(int vertex, ...)
     va_list ap;
     va_start(ap, vertex);
     while (vertex != -1) {
-        CHECK(v != nullptr);
+        CHECK(v != NULL);
         CHECK(v->index == unsigned(vertex));
         v = v->nextNodeInGroup();
         vertex = va_arg(ap, int);
     }
     va_end(ap);
 
-    CHECK(v == nullptr);
+    CHECK(v == NULL);
     resultsList = resultsList->nextGroup();
     return true;
 }
@@ -180,24 +183,24 @@ bool remaining(int vertex, ...)
     va_list ap;
     va_start(ap, vertex);
     while (vertex != -1) {
-        CHECK(v != nullptr);
+        CHECK(v != NULL);
         CHECK(v->index == unsigned(vertex));
         v = (TestNode *)v->gcNextGraphNode;
         vertex = va_arg(ap, int);
     }
     va_end(ap);
 
-    CHECK(v == nullptr);
-    resultsList = nullptr;
+    CHECK(v == NULL);
+    resultsList = NULL;
     return true;
 }
 
 bool end()
 {
-    CHECK(resultsList == nullptr);
+    CHECK(resultsList == NULL);
 
     delete finder;
-    finder = nullptr;
+    finder = NULL;
     return true;
 }
 END_TEST(testFindSCCs)
@@ -207,7 +210,7 @@ struct TestNode2 : public GraphNodeBase<TestNode2>
     TestNode2 *edge;
 
     TestNode2() :
-        edge(nullptr)
+        edge(NULL)
     {
     }
 
@@ -239,7 +242,7 @@ BEGIN_TEST(testFindSCCsStackLimit)
     for (unsigned i = initial; i < (max - 10); ++i)
         vertices[i].edge = &vertices[i + 1];
 
-    ComponentFinder<TestNode2> finder(rt->mainThread.nativeStackLimit[js::StackForSystemCode]);
+    ComponentFinder<TestNode2> finder(rt->mainThread.nativeStackLimit);
     for (unsigned i = 0; i < max; ++i)
         finder.addNode(&vertices[i]);
 

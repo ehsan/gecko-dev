@@ -34,7 +34,6 @@ class nsDOMFileReader : public mozilla::dom::FileIOObject,
                         public nsSupportsWeakReference
 {
   typedef mozilla::ErrorResult ErrorResult;
-  typedef mozilla::dom::GlobalObject GlobalObject;
 public:
   nsDOMFileReader();
   virtual ~nsDOMFileReader();
@@ -66,7 +65,7 @@ public:
 
   // WebIDL
   static already_AddRefed<nsDOMFileReader>
-  Constructor(const GlobalObject& aGlobal, ErrorResult& aRv);
+  Constructor(const mozilla::dom::GlobalObject& aGlobal, ErrorResult& aRv);
   void ReadAsArrayBuffer(JSContext* aCx, nsIDOMBlob* aBlob, ErrorResult& aRv)
   {
     MOZ_ASSERT(aBlob);

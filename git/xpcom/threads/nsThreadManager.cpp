@@ -10,6 +10,7 @@
 #include "nsIClassInfoImpl.h"
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
+#include "nsCycleCollectorUtils.h"
 
 using namespace mozilla;
 
@@ -41,7 +42,7 @@ AppendAndRemoveThread(PRThread *key, nsRefPtr<nsThread> &thread, void *arg)
 // statically allocated instance
 NS_IMETHODIMP_(nsrefcnt) nsThreadManager::AddRef() { return 2; }
 NS_IMETHODIMP_(nsrefcnt) nsThreadManager::Release() { return 1; }
-NS_IMPL_CLASSINFO(nsThreadManager, nullptr,
+NS_IMPL_CLASSINFO(nsThreadManager, NULL,
                   nsIClassInfo::THREADSAFE | nsIClassInfo::SINGLETON,
                   NS_THREADMANAGER_CID)
 NS_IMPL_QUERY_INTERFACE1_CI(nsThreadManager, nsIThreadManager)
@@ -52,6 +53,8 @@ NS_IMPL_CI_INTERFACE_GETTER1(nsThreadManager, nsIThreadManager)
 nsresult
 nsThreadManager::Init()
 {
+  mThreadsByPRThread.Init();
+
   if (PR_NewThreadPrivateIndex(&mCurThreadIndex, ReleaseObject) == PR_FAILURE)
     return NS_ERROR_FAILURE;
 
@@ -269,6 +272,13 @@ nsThreadManager::GetIsMainThread(bool *result)
   // This method may be called post-Shutdown
 
   *result = (PR_GetCurrentThread() == mMainPRThread);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsThreadManager::GetIsCycleCollectorThread(bool *result)
+{
+  *result = bool(NS_IsCycleCollectorThread());
   return NS_OK;
 }
 

@@ -1,78 +1,93 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
-
-/**
- * Tests if pausing and resuming in the main loop works properly.
+/* vim:set ts=2 sw=2 sts=2 et: */
+/*
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-const TAB_URL = EXAMPLE_URL + "doc_pause-exceptions.html";
-
-let gTab, gDebuggee, gPanel, gDebugger;
-let gResumeButton, gResumeKey, gFrames;
+var gPane = null;
+var gTab = null;
+var gDebugger = null;
+var gView = null;
+var gLH = null;
+var gL10N = null;
 
 function test() {
-  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
+  debug_tab_pane(STACK_URL, function(aTab, aDebuggee, aPane) {
     gTab = aTab;
-    gDebuggee = aDebuggee;
-    gPanel = aPanel;
-    gDebugger = gPanel.panelWin;
-    gResumeButton = gDebugger.document.getElementById("resume");
-    gResumeKey = gDebugger.document.getElementById("resumeKey");
-    gFrames = gDebugger.DebuggerView.StackFrames;
+    gPane = aPane;
+    gDebugger = gPane.panelWin;
+    gView = gDebugger.DebuggerView;
+    gLH = gDebugger.LayoutHelpers;
+    gL10N = gDebugger.L10N;
 
     testPause();
   });
 }
 
 function testPause() {
-  is(gDebugger.gThreadClient.paused, false,
-    "Should be running after starting the test.");
+  is(gDebugger.DebuggerController.activeThread.paused, false,
+    "Should be running after debug_tab_pane.");
 
-  is(gResumeButton.getAttribute("tooltiptext"),
-     gDebugger.L10N.getFormatStr("pauseButtonTooltip",
-      gDebugger.ShortcutUtils.prettifyShortcut(gResumeKey)),
-    "Button tooltip should be 'pause' when running.");
+  let button = gDebugger.document.getElementById("resume");
+  is(button.getAttribute("tooltiptext"),
+     gL10N.getFormatStr("pauseButtonTooltip",
+      gLH.prettyKey(gDebugger.document.getElementById("resumeKey"))),
+    "Button tooltip should be pause when running.");
 
-  gDebugger.gThreadClient.addOneTimeListener("paused", () => {
-    is(gDebugger.gThreadClient.paused, true,
-      "Should be paused after an interrupt request.");
+  gDebugger.DebuggerController.activeThread.addOneTimeListener("paused", function() {
+    Services.tm.currentThread.dispatch({ run: function() {
 
-    is(gResumeButton.getAttribute("tooltiptext"),
-       gDebugger.L10N.getFormatStr("resumeButtonTooltip",
-        gDebugger.ShortcutUtils.prettifyShortcut(gResumeKey)),
-      "Button tooltip should be 'resume' when paused.");
+      let frames = gDebugger.DebuggerView.StackFrames.widget._list;
+      let childNodes = frames.childNodes;
 
-    is(gFrames.itemCount, 0,
-      "Should have no frames when paused in the main loop.");
+      is(gDebugger.DebuggerController.activeThread.paused, true,
+        "Should be paused after an interrupt request.");
 
-    testResume();
+      is(button.getAttribute("tooltiptext"),
+         gL10N.getFormatStr("resumeButtonTooltip",
+          gLH.prettyKey(gDebugger.document.getElementById("resumeKey"))),
+        "Button tooltip should be resume when paused.");
+
+      is(frames.querySelectorAll(".dbg-stackframe").length, 0,
+        "Should have no frames when paused in the main loop.");
+
+      testResume();
+    }}, 0);
   });
 
-  EventUtils.sendMouseEvent({ type: "mousedown" }, gResumeButton, gDebugger);
+  EventUtils.sendMouseEvent({ type: "mousedown" },
+    gDebugger.document.getElementById("resume"),
+    gDebugger);
 }
 
 function testResume() {
-  gDebugger.gThreadClient.addOneTimeListener("resumed", () => {
-    is(gDebugger.gThreadClient.paused, false,
-      "Should be paused after an interrupt request.");
+  gDebugger.DebuggerController.activeThread.addOneTimeListener("resumed", function() {
+    Services.tm.currentThread.dispatch({ run: function() {
 
-    is(gResumeButton.getAttribute("tooltiptext"),
-       gDebugger.L10N.getFormatStr("pauseButtonTooltip",
-        gDebugger.ShortcutUtils.prettifyShortcut(gResumeKey)),
-      "Button tooltip should be pause when running.");
+      is(gDebugger.DebuggerController.activeThread.paused, false,
+        "Should be paused after an interrupt request.");
 
-    closeDebuggerAndFinish(gPanel);
+      let button = gDebugger.document.getElementById("resume");
+      is(button.getAttribute("tooltiptext"),
+         gL10N.getFormatStr("pauseButtonTooltip",
+          gLH.prettyKey(gDebugger.document.getElementById("resumeKey"))),
+        "Button tooltip should be pause when running.");
+
+      closeDebuggerAndFinish();
+    }}, 0);
   });
 
-  EventUtils.sendMouseEvent({ type: "mousedown" }, gResumeButton, gDebugger);
+  EventUtils.sendMouseEvent({ type: "mousedown" },
+    gDebugger.document.getElementById("resume"),
+    gDebugger);
 }
 
 registerCleanupFunction(function() {
+  removeTab(gTab);
+  gPane = null;
   gTab = null;
-  gDebuggee = null;
-  gPanel = null;
   gDebugger = null;
-  gResumeButton = null;
-  gResumeKey = null;
-  gFrames = null;
+  gView = null;
+  gLH = null;
+  gL10N = null;
 });

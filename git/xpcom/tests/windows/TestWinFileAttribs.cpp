@@ -45,10 +45,10 @@ nsresult TestWinAttribs()
     hIndexed = CreateFileW(L".\\indexbit.txt", 
                             GENERIC_READ | GENERIC_WRITE,
                             0, 
-                            nullptr,
+                            NULL,
                             CREATE_ALWAYS,        
                             FILE_ATTRIBUTE_NORMAL, //FILE_ATTRIBUTE_NOT_CONTENT_INDEXED, not supported by cf
-                            nullptr);  
+                            NULL);  
 
     if(hIndexed == INVALID_HANDLE_VALUE)
     {
@@ -59,7 +59,7 @@ nsresult TestWinAttribs()
     CloseHandle(hIndexed);
 
     GetFullPathNameW((LPCWSTR)L".\\indexbit.txt", 
-                        MAX_PATH, filePath, nullptr);
+                        MAX_PATH, filePath, NULL);
 
     //wprintf(filePath);
     //wprintf(L"\n");

@@ -3,17 +3,17 @@ namespace mozilla {
 namespace _ipdltest {
 
 
-intr protocol PTestLatency {
+rpc protocol PTestLatency {
 
 child:
     __delete__();
     Ping();
     Ping5();
-    intr Rpc();
+    rpc Rpc();
     Spam();
-    intr Synchro();
+    rpc Synchro();
     CompressedSpam(uint32_t seqno) compress;
-    intr Synchro2() returns (uint32_t lastSeqno,
+    rpc Synchro2() returns (uint32_t lastSeqno,
                             uint32_t numMessagesDispatched);
 
 parent:

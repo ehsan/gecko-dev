@@ -6,6 +6,7 @@
 #include "SVGAnimatedAngle.h"
 #include "nsSVGAngle.h"
 #include "mozilla/dom/SVGAnimatedAngleBinding.h"
+#include "nsContentUtils.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;

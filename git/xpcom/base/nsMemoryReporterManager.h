@@ -6,6 +6,8 @@
 
 #include "nsIMemoryReporter.h"
 #include "mozilla/Mutex.h"
+#include "mozilla/Attributes.h"
+#include "nsString.h"
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
 
@@ -20,36 +22,13 @@ public:
   nsMemoryReporterManager();
   virtual ~nsMemoryReporterManager();
 
-  // Functions that (a) implement distinguished amounts, and (b) are outside of
-  // this module.
-  struct AmountFns {
-    mozilla::InfallibleAmountFn mJSMainRuntimeGCHeap;
-    mozilla::InfallibleAmountFn mJSMainRuntimeTemporaryPeak;
-    mozilla::InfallibleAmountFn mJSMainRuntimeCompartmentsSystem;
-    mozilla::InfallibleAmountFn mJSMainRuntimeCompartmentsUser;
-
-    mozilla::InfallibleAmountFn mImagesContentUsedUncompressed;
-
-    mozilla::InfallibleAmountFn mStorageSQLite;
-
-    mozilla::InfallibleAmountFn mLowMemoryEventsVirtual;
-    mozilla::InfallibleAmountFn mLowMemoryEventsPhysical;
-
-    mozilla::InfallibleAmountFn mGhostWindows;
-  };
-  AmountFns mAmountFns;
-
-  // Functions that measure per-tab memory consumption.
-  struct SizeOfTabFns {
-    mozilla::JSSizeOfTabFn    mJS;
-    mozilla::NonJSSizeOfTabFn mNonJS;
-  };
-  SizeOfTabFns mSizeOfTabFns;
-
 private:
-  nsresult RegisterReporterHelper(nsIMemoryReporter *aReporter, bool aForce);
+  nsresult RegisterReporterHelper(nsIMemoryReporter *reporter, bool aForce);
+  nsresult RegisterMultiReporterHelper(nsIMemoryMultiReporter *reporter,
+                                       bool aForce);
 
   nsTHashtable<nsISupportsHashKey> mReporters;
+  nsTHashtable<nsISupportsHashKey> mMultiReporters;
   Mutex mMutex;
   bool mIsRegistrationBlocked;
 };

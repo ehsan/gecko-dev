@@ -13,13 +13,13 @@ BEGIN_TEST(testContexts_IsRunning)
         return true;
     }
 
-    static bool chk(JSContext *cx, unsigned argc, jsval *vp)
+    static JSBool chk(JSContext *cx, unsigned argc, jsval *vp)
     {
         JSRuntime *rt = JS_GetRuntime(cx);
         JSContext *acx = JS_NewContext(rt, 8192);
         if (!acx) {
             JS_ReportOutOfMemory(cx);
-            return false;
+            return JS_FALSE;
         }
 
         // acx should not be running
@@ -36,7 +36,7 @@ BEGIN_TEST(testContexts_bug563735)
     JSContext *cx2 = JS_NewContext(rt, 8192);
     CHECK(cx2);
 
-    bool ok;
+    JSBool ok;
     {
         JSAutoRequest req(cx2);
         JSAutoCompartment ac(cx2, global);

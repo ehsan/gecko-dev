@@ -147,18 +147,8 @@
           ],
           
           'conditions' : [
-              ## Mac and BSDs
+              ## Mac
               [ 'OS == "mac"', {
-                'defines' : [
-                    'DARWIN',
-                ],
-              }],
-              [ 'os_bsd == 1', {
-                'defines' : [
-                    'BSD',
-                ],
-              }],
-              [ 'OS == "mac" or os_bsd == 1', {
                 'cflags_mozilla': [
                     '-Wall',
                     '-Wno-parentheses',
@@ -166,6 +156,7 @@
                     '-Wmissing-prototypes',
                  ],
                  'defines' : [
+                     'DARWIN',
                      'HAVE_LIBM=1',
                      'HAVE_STRDUP=1',
                      'HAVE_STRLCPY=1',

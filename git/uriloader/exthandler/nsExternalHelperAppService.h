@@ -143,6 +143,13 @@ protected:
   NS_HIDDEN_(bool) GetTypeFromExtras(const nsACString& aExtension,
                                        nsACString& aMIMEType);
 
+  /**
+   * Fixes the file permissions to be correct. Base class has a no-op
+   * implementation, subclasses can use this to correctly inherit ACLs from the
+   * parent directory, to make the permissions obey the umask, etc.
+   */
+  virtual void FixFilePermissions(nsIFile* aFile);
+
 #ifdef PR_LOGGING
   /**
    * NSPR Logging Module. Usage: set NSPR_LOG_MODULES=HelperAppService:level,
@@ -152,8 +159,9 @@ protected:
   static PRLogModuleInfo* mLog;
 
 #endif
-  // friend, so that it can access the nspr log module.
+  // friend, so that it can access the nspr log module and FixFilePermissions
   friend class nsExternalAppHandler;
+  friend class nsExternalLoadRequest;
 
   /**
    * Helper function for ExpungeTemporaryFiles and ExpungeTemporaryPrivateFiles
@@ -373,14 +381,9 @@ protected:
   void ProcessAnyRefreshTags();
 
   /**
-   * Notify our nsITransfer object that we are done with the download.  This is
-   * always called after the target file has been closed.
-   *
-   * @param aStatus
-   *        NS_OK for success, or a failure code if the download failed.
-   *        A partially downloaded file may still be available in this case.
+   * Notify our nsITransfer object that we are done with the download.
    */
-  void NotifyTransfer(nsresult aStatus);
+  nsresult NotifyTransfer();
 
   /**
    * Helper routine that searches a pref string for a given mime type

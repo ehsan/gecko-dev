@@ -6,6 +6,7 @@
 #include "DOMBindingBase.h"
 
 #include "jsfriendapi.h"
+#include "mozilla/dom/DOMJSClass.h"
 #include "nsContentUtils.h"
 #include "nsWrapperCacheInlines.h"
 

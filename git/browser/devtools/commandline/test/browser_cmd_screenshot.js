@@ -170,7 +170,9 @@ function addWindow(windowOptions, callback) {
 
   let win = OpenBrowserWindow(windowOptions);
 
-  whenDelayedStartupFinished(win, function() {
+  let onLoad = function() {
+    win.removeEventListener("load", onLoad, false);
+
     // Would like to get rid of this executeSoon, but without it the url
     // (TEST_URI) provided in addTabWithToolbarRunTests hasn't loaded
     executeSoon(function() {
@@ -185,7 +187,9 @@ function addWindow(windowOptions, callback) {
         deferred.reject(ex);
       }
     });
-  });
+  };
+
+  win.addEventListener("load", onLoad, false);
 
   return deferred.promise;
 }

@@ -4,15 +4,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#ifdef IBMBIDI
+
 #ifndef nsBidiPresUtils_h___
 #define nsBidiPresUtils_h___
 
-#ifdef IBMBIDI
-
+#include "nsTArray.h"
 #include "nsBidi.h"
 #include "nsBidiUtils.h"
-#include "nsHashKeys.h"
-#include "nsCoord.h"
+#include "nsCOMPtr.h"
+#include "nsDataHashtable.h"
+#include "nsBlockFrame.h"
+#include "nsTHashtable.h"
 
 #ifdef DrawText
 #undef DrawText
@@ -21,11 +24,6 @@
 struct BidiParagraphData;
 struct BidiLineData;
 class nsIFrame;
-class nsBlockFrame;
-class nsPresContext;
-class nsRenderingContext;
-class nsBlockInFlowLineIterator;
-template<class T> class nsTHashtable;
 
 /**
  * A structure representing some continuation state for each frame on the line,
@@ -475,6 +473,6 @@ private:
                            PRUnichar* aDest);
 };
 
-#endif // IBMBIDI
-
 #endif /* nsBidiPresUtils_h___ */
+
+#endif // IBMBIDI

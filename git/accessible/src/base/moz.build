@@ -10,8 +10,8 @@ MODULE = 'accessibility'
 
 EXPORTS += [
     'AccEvent.h',
-    'nsAccessibilityService.h',
     'nsAccessNode.h',
+    'nsAccessibilityService.h',
 ]
 
 EXPORTS.mozilla.a11y += [
@@ -19,7 +19,6 @@ EXPORTS.mozilla.a11y += [
     'DocManager.h',
     'FocusManager.h',
     'Platform.h',
-    'RelationType.h',
     'Role.h',
     'SelectionManager.h',
     'States.h',
@@ -30,14 +29,13 @@ if CONFIG['MOZ_DEBUG']:
         'Logging.h',
     ]
 
-SOURCES += [
+CPP_SOURCES += [
     'AccCollector.cpp',
     'AccEvent.cpp',
     'AccGroupInfo.cpp',
     'AccIterator.cpp',
     'ARIAMap.cpp',
     'ARIAStateMap.cpp',
-    'Asserts.cpp',
     'DocManager.cpp',
     'EventQueue.cpp',
     'Filters.cpp',
@@ -50,6 +48,7 @@ SOURCES += [
     'nsCoreUtils.cpp',
     'nsEventShell.cpp',
     'nsTextEquivUtils.cpp',
+    'RoleAsserts.cpp',
     'SelectionManager.cpp',
     'StyleInfo.cpp',
     'TextAttrs.cpp',
@@ -58,42 +57,9 @@ SOURCES += [
 ]
 
 if a11y_log:
-    SOURCES += [
+    CPP_SOURCES += [
         'Logging.cpp',
     ]
 
 LIBRARY_NAME = 'accessibility_base_s'
 
-LIBXUL_LIBRARY = True
-
-LOCAL_INCLUDES += [
-    '../../../content/xbl/src',
-    '../../../ipc/chromium/src',
-    '../../../layout/generic',
-    '../../../layout/style',
-    '../../../layout/svg',
-    '../../../layout/xul/base/src',
-    '../../../layout/xul/tree/',
-    '../generic',
-    '../html',
-    '../xpcom',
-    '../xul',
-]
-
-if CONFIG['MOZ_ENABLE_GTK']:
-    LOCAL_INCLUDES += [
-        '../atk',
-    ]
-elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
-    LOCAL_INCLUDES += [
-        '../windows/ia2',
-        '../windows/msaa',
-    ]
-elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
-    LOCAL_INCLUDES += [
-        '../mac',
-    ]
-else:
-    LOCAL_INCLUDES += [
-        '../other',
-    ]

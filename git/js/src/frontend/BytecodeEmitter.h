@@ -11,22 +11,18 @@
  * JS bytecode generation.
  */
 
-#include "jscntxt.h"
+#include "jsatom.h"
 #include "jsopcode.h"
+#include "jspubtd.h"
 #include "jsscript.h"
 
 #include "frontend/ParseMaps.h"
+#include "frontend/SharedContext.h"
 #include "frontend/SourceNotes.h"
+#include "vm/ScopeObject.h"
 
 namespace js {
 namespace frontend {
-
-class FullParseHandler;
-class ObjectBox;
-class ParseNode;
-template <typename ParseHandler> class Parser;
-class SharedContext;
-class TokenStream;
 
 struct CGTryNoteList {
     Vector<JSTryNote> list;
@@ -41,7 +37,7 @@ struct CGObjectList {
     uint32_t            length;     /* number of emitted so far objects */
     ObjectBox           *lastbox;   /* last emitted object */
 
-    CGObjectList() : length(0), lastbox(nullptr) {}
+    CGObjectList() : length(0), lastbox(NULL) {}
 
     unsigned add(ObjectBox *objbox);
     unsigned indexOf(JSObject *obj);
@@ -124,10 +120,6 @@ struct BytecodeEmitter
 
     bool            emittingRunOnceLambda:1; /* true while emitting a lambda which is only
                                                 expected to run once. */
-    bool            lazyRunOnceLambda:1; /* true while lazily emitting a script for
-                                          * a lambda which is only expected to run once. */
-
-    bool isRunOnceLambda();
 
     bool            insideEval:1;       /* True if compiling an eval-expression or a function
                                            nested inside an eval. */

@@ -7,8 +7,17 @@
 #define nsHTMLButtonControlFrame_h___
 
 #include "mozilla/Attributes.h"
+#include "nsCOMPtr.h"
 #include "nsContainerFrame.h"
 #include "nsIFormControlFrame.h"
+#include "nsHTMLParts.h"
+
+#include "nsStyleContext.h"
+#include "nsLeafFrame.h"
+#include "nsCSSRendering.h"
+#include "nsISupports.h"
+#include "nsStyleConsts.h"
+#include "nsIComponentManager.h"
 #include "nsButtonFrameRenderer.h"
 
 class nsRenderingContext;
@@ -40,7 +49,7 @@ public:
                     nsReflowStatus&          aStatus) MOZ_OVERRIDE;
 
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
-                         mozilla::WidgetGUIEvent* aEvent,
+                         nsGUIEvent* aEvent,
                          nsEventStatus* aEventStatus) MOZ_OVERRIDE;
 
   virtual void Init(nsIContent*      aContent,
@@ -92,12 +101,12 @@ public:
 
 protected:
   virtual bool IsInput() { return false; }
-  // Reflows the button's sole child frame, and computes the desired size
-  // of the button itself from the results.
   void ReflowButtonContents(nsPresContext* aPresContext,
-                            nsHTMLReflowMetrics& aButtonDesiredSize,
-                            const nsHTMLReflowState& aButtonReflowState,
-                            nsIFrame* aFirstKid);
+                            nsHTMLReflowMetrics& aDesiredSize,
+                            const nsHTMLReflowState& aReflowState,
+                            nsIFrame* aFirstKid,
+                            nsMargin aFocusPadding,
+                            nsReflowStatus& aStatus);
 
   nsButtonFrameRenderer mRenderer;
 };

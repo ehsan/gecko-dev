@@ -7,6 +7,8 @@
 
 #include "nsFontInflationData.h"
 #include "FramePropertyTable.h"
+#include "nsTextFragment.h"
+#include "nsIFormControlFrame.h"
 #include "nsTextControlFrame.h"
 #include "nsListControlFrame.h"
 #include "nsComboboxControlFrame.h"
@@ -100,17 +102,17 @@ static nsIFrame*
 NearestCommonAncestorFirstInFlow(nsIFrame *aFrame1, nsIFrame *aFrame2,
                                  nsIFrame *aKnownCommonAncestor)
 {
-  aFrame1 = aFrame1->FirstInFlow();
-  aFrame2 = aFrame2->FirstInFlow();
-  aKnownCommonAncestor = aKnownCommonAncestor->FirstInFlow();
+  aFrame1 = aFrame1->GetFirstInFlow();
+  aFrame2 = aFrame2->GetFirstInFlow();
+  aKnownCommonAncestor = aKnownCommonAncestor->GetFirstInFlow();
 
   nsAutoTArray<nsIFrame*, 32> ancestors1, ancestors2;
   for (nsIFrame *f = aFrame1; f != aKnownCommonAncestor;
-       (f = f->GetParent()) && (f = f->FirstInFlow())) {
+       (f = f->GetParent()) && (f = f->GetFirstInFlow())) {
     ancestors1.AppendElement(f);
   }
   for (nsIFrame *f = aFrame2; f != aKnownCommonAncestor;
-       (f = f->GetParent()) && (f = f->FirstInFlow())) {
+       (f = f->GetParent()) && (f = f->GetFirstInFlow())) {
     ancestors2.AppendElement(f);
   }
 
@@ -131,14 +133,14 @@ static nscoord
 ComputeDescendantWidth(const nsHTMLReflowState& aAncestorReflowState,
                        nsIFrame *aDescendantFrame)
 {
-  nsIFrame *ancestorFrame = aAncestorReflowState.frame->FirstInFlow();
+  nsIFrame *ancestorFrame = aAncestorReflowState.frame->GetFirstInFlow();
   if (aDescendantFrame == ancestorFrame) {
     return aAncestorReflowState.ComputedWidth();
   }
 
   AutoInfallibleTArray<nsIFrame*, 16> frames;
   for (nsIFrame *f = aDescendantFrame; f != ancestorFrame;
-       f = f->GetParent()->FirstInFlow()) {
+       f = f->GetParent()->GetFirstInFlow()) {
     frames.AppendElement(f);
   }
 
@@ -156,8 +158,8 @@ ComputeDescendantWidth(const nsHTMLReflowState& aAncestorReflowState,
       (i == 0) ? aAncestorReflowState : reflowStates[i - 1];
     nsSize availSize(parentReflowState.ComputedWidth(), NS_UNCONSTRAINEDSIZE);
     nsIFrame *frame = frames[len - i - 1];
-    NS_ABORT_IF_FALSE(frame->GetParent()->FirstInFlow() ==
-                        parentReflowState.frame->FirstInFlow(),
+    NS_ABORT_IF_FALSE(frame->GetParent()->GetFirstInFlow() ==
+                        parentReflowState.frame->GetFirstInFlow(),
                       "bad logic in this function");
     new (reflowStates + i) nsHTMLReflowState(presContext, parentReflowState,
                                              frame, availSize);
@@ -202,8 +204,8 @@ nsFontInflationData::UpdateWidth(const nsHTMLReflowState &aReflowState)
   nsIFrame *nca = NearestCommonAncestorFirstInFlow(firstInflatableDescendant,
                                                    lastInflatableDescendant,
                                                    bfc);
-  while (!nca->IsContainerForFontSizeInflation()) {
-    nca = nca->GetParent()->FirstInFlow();
+  while (!nsLayoutUtils::IsContainerForFontSizeInflation(nca)) {
+    nca = nca->GetParent()->GetFirstInFlow();
   }
 
   nscoord newNCAWidth = ComputeDescendantWidth(aReflowState, nca);

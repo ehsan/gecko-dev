@@ -6,9 +6,10 @@
 
 #include "jit/ValueNumbering.h"
 
+#include "jit/CompileInfo.h"
+#include "jit/Ion.h"
+#include "jit/IonBuilder.h"
 #include "jit/IonSpewer.h"
-#include "jit/MIRGenerator.h"
-#include "jit/MIRGraph.h"
 
 using namespace js;
 using namespace js::jit;
@@ -23,18 +24,19 @@ ValueNumberer::ValueNumberer(MIRGenerator *mir, MIRGraph &graph, bool optimistic
 uint32_t
 ValueNumberer::lookupValue(MDefinition *ins)
 {
+
     ValueMap::AddPtr p = values.lookupForAdd(ins);
+
     if (p) {
         // make sure this is in the correct group
         setClass(ins, p->key);
-        return p->value;
+    } else {
+        if (!values.add(p, ins, ins->id()))
+            return 0;
+        breakClass(ins);
     }
 
-    if (!values.add(p, ins, ins->id()))
-        return 0;
-    breakClass(ins);
-
-    return ins->id();
+    return p->value;
 }
 
 MDefinition *
@@ -304,7 +306,7 @@ ValueNumberer::findDominatingDef(InstructionMap &defs, MDefinition *ins, size_t 
         value.validUntil = index + ins->block()->numDominated();
 
         if(!defs.put(ins->valueNumber(), value))
-            return nullptr;
+            return NULL;
 
         dom = ins;
     } else {
@@ -443,7 +445,7 @@ uint32_t
 MDefinition::valueNumber() const
 {
     JS_ASSERT(block_);
-    if (valueNumber_ == nullptr)
+    if (valueNumber_ == NULL)
         return 0;
     return valueNumber_->valueNumber();
 }
@@ -463,7 +465,7 @@ MDefinition *
 ValueNumberer::findSplit(MDefinition *def)
 {
     for (MDefinition *vncheck = def->valueNumberData()->classNext;
-         vncheck != nullptr;
+         vncheck != NULL;
          vncheck = vncheck->valueNumberData()->classNext) {
         if (!def->congruentTo(vncheck)) {
             IonSpew(IonSpew_GVN, "Proceeding with split because %d is not congruent to %d",
@@ -471,7 +473,7 @@ ValueNumberer::findSplit(MDefinition *def)
             return vncheck;
         }
     }
-    return nullptr;
+    return NULL;
 }
 
 void
@@ -480,9 +482,9 @@ ValueNumberer::breakClass(MDefinition *def)
     if (def->valueNumber() == def->id()) {
         IonSpew(IonSpew_GVN, "Breaking congruence with itself: %d", def->id());
         ValueNumberData *defdata = def->valueNumberData();
-        JS_ASSERT(defdata->classPrev == nullptr);
+        JS_ASSERT(defdata->classPrev == NULL);
         // If the def was the only member of the class, then there is nothing to do.
-        if (defdata->classNext == nullptr)
+        if (defdata->classNext == NULL)
             return;
         // If upon closer inspection, we are still equivalent to this class
         // then there isn't anything for us to do.
@@ -509,10 +511,10 @@ ValueNumberer::breakClass(MDefinition *def)
 
         //lastOld is now the last element of the old list (congruent to
         //|def|)
-        lastOld->valueNumberData()->classNext = nullptr;
+        lastOld->valueNumberData()->classNext = NULL;
 
 #ifdef DEBUG
-        for (MDefinition *tmp = def; tmp != nullptr; tmp = tmp->valueNumberData()->classNext) {
+        for (MDefinition *tmp = def; tmp != NULL; tmp = tmp->valueNumberData()->classNext) {
             JS_ASSERT(tmp->valueNumber() == def->valueNumber());
             JS_ASSERT(tmp->congruentTo(def));
             JS_ASSERT(tmp != newRep);
@@ -521,11 +523,11 @@ ValueNumberer::breakClass(MDefinition *def)
         //|newRep| is now the first element of a new list, therefore it is the
         //new canonical element. Mark the remaining elements in the list
         //(including |newRep|)
-        newdata->classPrev = nullptr;
+        newdata->classPrev = NULL;
         IonSpew(IonSpew_GVN, "Choosing a new representative: %d", newRep->id());
 
         // make the VN of every member in the class the VN of the new representative number.
-        for (MDefinition *tmp = newRep; tmp != nullptr; tmp = tmp->valueNumberData()->classNext) {
+        for (MDefinition *tmp = newRep; tmp != NULL; tmp = tmp->valueNumberData()->classNext) {
             // if this instruction is already scheduled to be processed, don't do anything.
             if (tmp->isInWorklist())
                 continue;
@@ -550,7 +552,7 @@ ValueNumberer::breakClass(MDefinition *def)
             defdata->classNext->valueNumberData()->classPrev = defdata->classPrev;
 
         // Make sure there is no nastinees accidentally linking elements into the old list later.
-        defdata->classPrev = nullptr;
-        defdata->classNext = nullptr;
+        defdata->classPrev = NULL;
+        defdata->classNext = NULL;
     }
 }

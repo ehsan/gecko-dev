@@ -133,10 +133,10 @@ public:
     return mHasVideo;
   }
 
-  virtual nsresult ReadMetadata(MediaInfo* aInfo,
+  virtual nsresult ReadMetadata(VideoInfo* aInfo,
                                 MetadataTags** aTags);
   virtual nsresult Seek(int64_t aTime, int64_t aStartTime, int64_t aEndTime, int64_t aCurrentTime);
-  virtual nsresult GetBuffered(dom::TimeRanges* aBuffered, int64_t aStartTime);
+  virtual nsresult GetBuffered(TimeRanges* aBuffered, int64_t aStartTime);
   virtual void NotifyDataArrived(const char* aBuffer, uint32_t aLength, int64_t aOffset);
 
 #ifdef MOZ_DASH
@@ -221,13 +221,13 @@ protected:
     AUDIO = 1
   };
 
-  // Read a packet from the nestegg file. Returns nullptr if all packets for
+  // Read a packet from the nestegg file. Returns NULL if all packets for
   // the particular track have been read. Pass VIDEO or AUDIO to indicate the
   // type of the packet we want to read.
 #ifdef MOZ_DASH
   nsReturnRef<NesteggPacketHolder> NextPacketInternal(TrackType aTrackType);
 
-  // Read a packet from the nestegg file. Returns nullptr if all packets for
+  // Read a packet from the nestegg file. Returns NULL if all packets for
   // the particular track have been read. Pass VIDEO or AUDIO to indicate the
   // type of the packet we want to read. If the reader reaches a switch access
   // point, this function will get a packet from |mNextReader|.

@@ -123,13 +123,20 @@ public class SiteIdentityPopup extends ArrowPopup
 
     @Override
     public void onButtonClick(DoorHanger dh, String tag) {
-        try {
-            JSONObject data = new JSONObject();
-            data.put("allowMixedContent", tag.equals("disable"));
-            GeckoEvent e = GeckoEvent.createBroadcastEvent("Session:Reload", data.toString());
+        if (tag.equals("disable")) {
+            // To disable mixed content blocking, reload the page with a flag to load mixed content.
+            try {
+                JSONObject data = new JSONObject();
+                data.put("allowMixedContent", true);
+                GeckoEvent e = GeckoEvent.createBroadcastEvent("Session:Reload", data.toString());
+                GeckoAppShell.sendEventToGecko(e);
+            } catch (JSONException e) {
+                Log.e(LOGTAG, "Exception creating message to allow mixed content", e);
+            }
+        } else if (tag.equals("enable")) {
+            // To enable mixed content blocking, reload the page without any flags.
+            GeckoEvent e = GeckoEvent.createBroadcastEvent("Session:Reload", "");
             GeckoAppShell.sendEventToGecko(e);
-        } catch (JSONException e) {
-            Log.e(LOGTAG, "Exception creating message to enable/disable mixed content blocking", e);
         }
 
         dismiss();

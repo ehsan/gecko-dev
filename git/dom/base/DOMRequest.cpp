@@ -6,11 +6,14 @@
 
 #include "DOMRequest.h"
 
+#include "mozilla/Util.h"
 #include "DOMError.h"
+#include "nsEventDispatcher.h"
+#include "nsDOMEvent.h"
+#include "nsContentUtils.h"
 #include "nsCxPusher.h"
 #include "nsThreadUtils.h"
 #include "DOMCursor.h"
-#include "nsIDOMEvent.h"
 
 using mozilla::dom::DOMRequest;
 using mozilla::dom::DOMRequestService;
@@ -189,7 +192,10 @@ DOMRequest::FireEvent(const nsAString& aType, bool aBubble, bool aCancelable)
 void
 DOMRequest::RootResultVal()
 {
-  mozilla::HoldJSObjects(this);
+  nsXPCOMCycleCollectionParticipant *participant;
+  CallQueryInterface(this, &participant);
+  nsContentUtils::HoldJSObjects(NS_CYCLE_COLLECTION_UPCAST(this, DOMRequest),
+                                participant);
 }
 
 NS_IMPL_ISUPPORTS1(DOMRequestService, nsIDOMRequestService)

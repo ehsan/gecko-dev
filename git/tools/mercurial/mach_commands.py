@@ -26,10 +26,7 @@ class VersionControlCommands(object):
         from hgsetup.wizard import MercurialSetupWizard
 
         wizard = MercurialSetupWizard(self._context.state_dir)
-        config_paths = ['~/.hgrc']
-        if sys.platform in ('win32', 'cygwin'):
-          config_paths.insert(0, '~/mercurial.ini')
-        result = wizard.run(map(os.path.expanduser, config_paths))
+        result = wizard.run(os.path.expanduser('~/.hgrc'))
 
         # Touch a file so we can periodically prompt to update extensions.
         state_path = os.path.join(self._context.state_dir,

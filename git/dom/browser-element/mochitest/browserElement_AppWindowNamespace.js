@@ -32,9 +32,6 @@ function runTest() {
       iframe2.addEventListener('mozbrowseropenwindow', function(e) {
         ok(true, "Got second mozbrowseropenwindow event.");
         SpecialPowers.removePermission("embed-apps", document);
-
-        // We're not going to open this, but we don't want the platform to either
-        e.preventDefault();
         SimpleTest.finish();
       });
 

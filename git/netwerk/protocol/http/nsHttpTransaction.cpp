@@ -9,16 +9,20 @@
 
 #include "base/basictypes.h"
 
+#include "nsIOService.h"
 #include "nsHttpHandler.h"
 #include "nsHttpTransaction.h"
+#include "nsHttpConnection.h"
 #include "nsHttpRequestHead.h"
 #include "nsHttpResponseHead.h"
 #include "nsHttpChunkedDecoder.h"
 #include "nsTransportUtils.h"
 #include "nsNetUtil.h"
-#include "nsCRT.h"
+#include "nsProxyRelease.h"
+#include "nsIOService.h"
 
 #include "nsISeekableStream.h"
+#include "nsISocketTransport.h"
 #include "nsMultiplexInputStream.h"
 #include "nsStringStream.h"
 #include "mozilla/VisualEventTracer.h"
@@ -27,11 +31,6 @@
 #include "nsServiceManagerUtils.h"   // do_GetService
 #include "nsIHttpActivityObserver.h"
 #include "nsSocketTransportService2.h"
-#include "nsICancelable.h"
-#include "nsIEventTarget.h"
-#include "nsIInputStream.h"
-#include "nsITransport.h"
-#include "nsIOService.h"
 #include <algorithm>
 
 
@@ -122,13 +121,13 @@ nsHttpTransaction::nsHttpTransaction()
     , mPassedRatePacing(false)
     , mSynchronousRatePaceRequest(false)
 {
-    LOG(("Creating nsHttpTransaction @%p\n", this));
+    LOG(("Creating nsHttpTransaction @%x\n", this));
     gHttpHandler->GetMaxPipelineObjectSize(&mMaxPipelineObjectSize);
 }
 
 nsHttpTransaction::~nsHttpTransaction()
 {
-    LOG(("Destroying nsHttpTransaction @%p\n", this));
+    LOG(("Destroying nsHttpTransaction @%x\n", this));
 
     if (mTokenBucketCancel) {
         mTokenBucketCancel->Cancel(NS_ERROR_ABORT);
@@ -946,11 +945,11 @@ nsHttpTransaction::Restart()
 
     // limit the number of restart attempts - bug 92224
     if (++mRestartCount >= gHttpHandler->MaxRequestAttempts()) {
-        LOG(("reached max request attempts, failing transaction @%p\n", this));
+        LOG(("reached max request attempts, failing transaction @%x\n", this));
         return NS_ERROR_NET_RESET;
     }
 
-    LOG(("restarting transaction @%p\n", this));
+    LOG(("restarting transaction @%x\n", this));
 
     // rewind streams in case we already wrote out the request
     nsCOMPtr<nsISeekableStream> seekable = do_QueryInterface(mRequestStream);

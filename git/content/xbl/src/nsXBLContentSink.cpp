@@ -11,6 +11,7 @@
 #include "nsIDOMNode.h"
 #include "nsGkAtoms.h"
 #include "nsINameSpaceManager.h"
+#include "nsHTMLTokens.h"
 #include "nsIURI.h"
 #include "nsTextFragment.h"
 #ifdef MOZ_XUL
@@ -54,7 +55,7 @@ nsXBLContentSink::nsXBLContentSink()
     mSecondaryState(eXBL_None),
     mDocInfo(nullptr),
     mIsChromeOrResource(false),
-    mFoundFirstBinding(false),
+    mFoundFirstBinding(false),    
     mBinding(nullptr),
     mHandler(nullptr),
     mImplementation(nullptr),
@@ -213,7 +214,7 @@ nsXBLContentSink::ReportUnexpectedElement(nsIAtom* aElementName,
   const PRUnichar* params[] = { elementName.get() };
 
   return nsContentUtils::ReportToConsole(nsIScriptError::errorFlag,
-                                         NS_LITERAL_CSTRING("XBL Content Sink"),
+                                         "XBL Content Sink",
                                          mDocument,
                                          nsContentUtils::eXBL_PROPERTIES,
                                          "UnexpectedElement",
@@ -453,15 +454,8 @@ nsXBLContentSink::OnOpenContainer(const PRUnichar **aAtts,
     NS_ASSERTION(mBinding, "Must have binding here");
       
     mSecondaryState = eXBL_InConstructor;
-    nsAutoString name;
-    if (!mCurrentBindingID.IsEmpty()) {
-      name.Assign(mCurrentBindingID);
-      name.AppendLiteral("_XBL_Constructor");
-    } else {
-      name.AppendLiteral("XBL_Constructor");
-    }
     nsXBLProtoImplAnonymousMethod* newMethod =
-      new nsXBLProtoImplAnonymousMethod(name.get());
+      new nsXBLProtoImplAnonymousMethod();
     if (newMethod) {
       newMethod->SetLineNumber(aLineNumber);
       mBinding->SetConstructor(newMethod);
@@ -473,15 +467,8 @@ nsXBLContentSink::OnOpenContainer(const PRUnichar **aAtts,
                      mSecondaryState == eXBL_None);
     NS_ASSERTION(mBinding, "Must have binding here");
     mSecondaryState = eXBL_InDestructor;
-    nsAutoString name;
-    if (!mCurrentBindingID.IsEmpty()) {
-      name.Assign(mCurrentBindingID);
-      name.AppendLiteral("_XBL_Destructor");
-    } else {
-      name.AppendLiteral("XBL_Destructor");
-    }
     nsXBLProtoImplAnonymousMethod* newMethod =
-      new nsXBLProtoImplAnonymousMethod(name.get());
+      new nsXBLProtoImplAnonymousMethod();
     if (newMethod) {
       newMethod->SetLineNumber(aLineNumber);
       mBinding->SetDestructor(newMethod);
@@ -543,8 +530,9 @@ nsresult
 nsXBLContentSink::ConstructBinding(uint32_t aLineNumber)
 {
   nsCOMPtr<nsIContent> binding = GetCurrentContent();
-  binding->GetAttr(kNameSpaceID_None, nsGkAtoms::id, mCurrentBindingID);
-  NS_ConvertUTF16toUTF8 cid(mCurrentBindingID);
+  nsAutoString id;
+  binding->GetAttr(kNameSpaceID_None, nsGkAtoms::id, id);
+  NS_ConvertUTF16toUTF8 cid(id);
 
   nsresult rv = NS_OK;
 
@@ -569,7 +557,7 @@ nsXBLContentSink::ConstructBinding(uint32_t aLineNumber)
     }
   } else {
     nsContentUtils::ReportToConsole(nsIScriptError::errorFlag,
-                                    NS_LITERAL_CSTRING("XBL Content Sink"), nullptr,
+                                    "XBL Content Sink", nullptr,
                                     nsContentUtils::eXBL_PROPERTIES,
                                     "MissingIdAttr", nullptr, 0,
                                     mDocumentURI,
@@ -658,7 +646,7 @@ nsXBLContentSink::ConstructHandler(const PRUnichar **aAtts, uint32_t aLineNumber
     // shorthand syntax.
     mState = eXBL_Error;
     nsContentUtils::ReportToConsole(nsIScriptError::errorFlag,
-                                    NS_LITERAL_CSTRING("XBL Content Sink"),
+                                    "XBL Content Sink",
                                     mDocument,
                                     nsContentUtils::eXBL_PROPERTIES,
                                     "CommandNotInChrome", nullptr, 0,
@@ -788,7 +776,6 @@ nsXBLContentSink::ConstructProperty(const PRUnichar **aAtts, uint32_t aLineNumbe
   const PRUnichar* readonly = nullptr;
   const PRUnichar* onget    = nullptr;
   const PRUnichar* onset    = nullptr;
-  bool exposeToUntrustedContent = false;
 
   nsCOMPtr<nsIAtom> prefix, localName;
   for (; *aAtts; aAtts += 2) {
@@ -813,21 +800,15 @@ nsXBLContentSink::ConstructProperty(const PRUnichar **aAtts, uint32_t aLineNumbe
     else if (localName == nsGkAtoms::onset) {
       onset = aAtts[1];
     }
-    else if (localName == nsGkAtoms::exposeToUntrustedContent &&
-             nsDependentString(aAtts[1]).EqualsLiteral("true"))
-    {
-      exposeToUntrustedContent = true;
-    }
   }
 
   if (name) {
     // All of our pointers are now filled in. Construct our property with all of
     // these parameters.
     mProperty = new nsXBLProtoImplProperty(name, onget, onset, readonly, aLineNumber);
-    if (exposeToUntrustedContent) {
-      mProperty->SetExposeToUntrustedContent(true);
+    if (mProperty) {
+      AddMember(mProperty);
     }
-    AddMember(mProperty);
   }
 }
 
@@ -837,14 +818,8 @@ nsXBLContentSink::ConstructMethod(const PRUnichar **aAtts)
   mMethod = nullptr;
 
   const PRUnichar* name = nullptr;
-  const PRUnichar* expose = nullptr;
   if (FindValue(aAtts, nsGkAtoms::name, &name)) {
     mMethod = new nsXBLProtoImplMethod(name);
-    if (FindValue(aAtts, nsGkAtoms::exposeToUntrustedContent, &expose) &&
-        nsDependentString(expose).EqualsLiteral("true"))
-    {
-      mMethod->SetExposeToUntrustedContent(true);
-    }
   }
 
   if (mMethod) {

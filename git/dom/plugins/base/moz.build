@@ -33,16 +33,17 @@ EXPORTS += [
     'nsPluginLogging.h',
     'nsPluginNativeWindow.h',
     'nsPluginPlayPreviewInfo.h',
+    'nsPluginTags.h',
     'nsPluginsCID.h',
     'nsPluginsDir.h',
-    'nsPluginTags.h',
 ]
 
 EXPORTS.mozilla += [
     'PluginPRLibrary.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
+    'PluginPRLibrary.cpp',
     'nsJSNPRuntime.cpp',
     'nsNPAPIPlugin.cpp',
     'nsNPAPIPluginInstance.cpp',
@@ -53,61 +54,37 @@ SOURCES += [
     'nsPluginPlayPreviewInfo.cpp',
     'nsPluginStreamListenerPeer.cpp',
     'nsPluginTags.cpp',
-    'PluginPRLibrary.cpp',
 ]
 
 if CONFIG['OS_ARCH'] == 'WINNT':
-    SOURCES += [
-        'nsPluginDirServiceProvider.cpp',
-        'nsPluginNativeWindowWin.cpp',
+    CPP_SOURCES += [
         'nsPluginsDirWin.cpp',
+        'nsPluginNativeWindowWin.cpp',
+        'nsPluginDirServiceProvider.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'os2':
-    SOURCES += [
-        'nsPluginNativeWindowOS2.cpp',
+    CPP_SOURCES += [
         'nsPluginsDirOS2.cpp',
+        'nsPluginNativeWindowOS2.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
-    SOURCES += [
-        'nsPluginNativeWindow.cpp',
+    CPP_SOURCES += [
         'nsPluginsDirDarwin.cpp',
+        'nsPluginNativeWindow.cpp',
     ]
 else:
-    SOURCES += [
+    CPP_SOURCES += [
         'nsPluginsDirUnix.cpp',
     ]
     if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gtk2':
-        SOURCES += [
+        CPP_SOURCES += [
             'nsPluginNativeWindowGtk2.cpp',
         ]
     elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'qt':
-        SOURCES += [
+        CPP_SOURCES += [
             'nsPluginNativeWindowQt.cpp',
         ]
     else:
-        SOURCES += [
+        CPP_SOURCES += [
             'nsPluginNativeWindow.cpp',
         ]
-
-if CONFIG['MOZ_WIDGET_TOOLKIT'] != 'android':
-    # android_npapi.h extends the NPNVariable and NPPVariable enums
-    # using #defines, which results in Wswitch warnings in gcc-4.6.
-    # Therefore, enable FAIL_ON_WARNINGS only on non-Android platforms.
-    FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
-
-LIBRARY_NAME = 'gkplugin'
-
-EXPORT_LIBRARY = True
-
-LOCAL_INCLUDES += [
-    '/content/base/src',
-    '/dom/base',
-    '/layout/generic',
-    '/layout/xul/base/src',
-]
-
-include('/ipc/chromium/chromium-config.mozbuild')

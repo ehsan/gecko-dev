@@ -32,10 +32,11 @@
 
 #if ENABLE_YARR_JIT
 
-#include "assembler/assembler/MacroAssemblerCodeRef.h"
+#include "assembler/assembler/MacroAssembler.h"
 
 #include "yarr/MatchResult.h"
 #include "yarr/Yarr.h"
+#include "yarr/YarrPattern.h"
 
 #if WTF_CPU_X86 && !WTF_COMPILER_MSVC && !WTF_COMPILER_SUNCC
 #define YARR_CALL __attribute__ ((regparm (3)))

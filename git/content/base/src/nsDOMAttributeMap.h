@@ -16,12 +16,18 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsIDOMMozNamedAttrMap.h"
 #include "nsRefPtrHashtable.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsWrapperCache.h"
 
 class nsIAtom;
 class nsINodeInfo;
 class nsIDocument;
+
+namespace mozilla {
+namespace dom {
+class Element;
+} // namespace dom
+} // namespace mozilla
 
 /**
  * Structure used as a key for caching Attrs in nsDOMAttributeMap's mAttributeCache.
@@ -205,9 +211,5 @@ private:
   already_AddRefed<Attr> RemoveAttribute(nsINodeInfo* aNodeInfo);
 };
 
-// XXX khuey yes this is crazy.  The bindings code needs to see this include,
-// but if we pull it in at the top of the file we get a circular include
-// problem.
-#include "mozilla/dom/Element.h"
 
 #endif /* nsDOMAttributeMap_h */

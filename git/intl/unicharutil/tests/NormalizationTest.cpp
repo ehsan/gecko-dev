@@ -4,11 +4,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <stdio.h>
+#include "nsISupports.h"
 #include "nsXPCOM.h"
+#include "nsIServiceManager.h"
+#include "nsNetUtil.h"
+#include "nsCOMPtr.h"
 #include "nsIUnicodeNormalizer.h"
 #include "nsStringAPI.h"
 #include "nsCharTraits.h"
-#include "nsServiceManagerUtils.h"
 
 struct testcaseLine {
   wchar_t* c1;

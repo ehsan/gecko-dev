@@ -50,7 +50,7 @@ CString sFirefoxPath;
 
 static void Log(const wchar_t *fmt, ...)
 {
-  va_list a = nullptr;
+  va_list a = NULL;
   wchar_t szDebugString[1024];
   if(!lstrlenW(fmt))
     return;
@@ -66,7 +66,7 @@ static void Log(const wchar_t *fmt, ...)
 
 static void Fail(bool aRequestRetry, const wchar_t *fmt, ...)
 {
-  va_list a = nullptr;
+  va_list a = NULL;
   wchar_t szDebugString[1024];
   if(!lstrlenW(fmt))
     return;
@@ -93,7 +93,7 @@ static bool GetModulePath(CStringW& aPathBuffer)
   WCHAR buffer[MAX_PATH];
   memset(buffer, 0, sizeof(buffer));
 
-  if (!GetModuleFileName(nullptr, buffer, MAX_PATH)) {
+  if (!GetModuleFileName(NULL, buffer, MAX_PATH)) {
     Fail(false, L"GetModuleFileName failed.");
     return false;
   }
@@ -145,7 +145,7 @@ static bool GetDefaultBrowserAppModelID(WCHAR* aIDBuffer,
   }
   DWORD len = aCharLength * sizeof(WCHAR);
   memset(aIDBuffer, 0, len);
-  if (RegQueryValueExW(key, L"AppUserModelID", nullptr, nullptr,
+  if (RegQueryValueExW(key, L"AppUserModelID", NULL, NULL,
                        (LPBYTE)aIDBuffer, &len) != ERROR_SUCCESS || !len) {
     RegCloseKey(key);
     return false;
@@ -174,7 +174,7 @@ static bool SetupTestOutputPipe()
   SECURITY_ATTRIBUTES saAttr;
   saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
   saAttr.bInheritHandle = TRUE;
-  saAttr.lpSecurityDescriptor = nullptr;
+  saAttr.lpSecurityDescriptor = NULL;
 
   gTestOutputPipe =
     CreateNamedPipeW(L"\\\\.\\pipe\\metrotestharness",
@@ -182,7 +182,7 @@ static bool SetupTestOutputPipe()
                      PIPE_TYPE_BYTE|PIPE_WAIT,
                      1,
                      PIPE_BUFFER_SIZE,
-                     PIPE_BUFFER_SIZE, 0, nullptr);
+                     PIPE_BUFFER_SIZE, 0, NULL);
 
   if (gTestOutputPipe == INVALID_HANDLE_VALUE) {
     Log(L"Failed to create named logging pipe.");
@@ -194,12 +194,10 @@ static bool SetupTestOutputPipe()
 static void ReadPipe()
 {
   DWORD numBytesRead;
-  while (ReadFile(gTestOutputPipe, buffer, PIPE_BUFFER_SIZE,
-                  &numBytesRead, nullptr) &&
+  while (ReadFile(gTestOutputPipe, buffer, PIPE_BUFFER_SIZE, &numBytesRead, NULL) &&
          numBytesRead) {
     buffer[numBytesRead] = '\0';
     printf("%s", buffer);
-    fflush(stdout);
   }
 }
 
@@ -211,7 +209,7 @@ static int Launch()
 
   // The interface that allows us to activate the browser
   CComPtr<IApplicationActivationManager> activateMgr;
-  if (FAILED(CoCreateInstance(CLSID_ApplicationActivationManager, nullptr,
+  if (FAILED(CoCreateInstance(CLSID_ApplicationActivationManager, NULL,
                               CLSCTX_LOCAL_SERVER,
                               IID_IApplicationActivationManager,
                               (void**)&activateMgr))) {
@@ -231,7 +229,7 @@ static int Launch()
   // Hand off focus rights if the terminal has focus to the out-of-process
   // activation server (explorer.exe). Without this the metro interface
   // won't launch.
-  hr = CoAllowSetForegroundWindow(activateMgr, nullptr);
+  hr = CoAllowSetForegroundWindow(activateMgr, NULL);
   if (FAILED(hr)) {
     // Log but don't fail. This has happened on vms with certain terminals run by
     // QA during mozmill testing.
@@ -266,7 +264,7 @@ static int Launch()
   } else {
     // Use the module path
     char path[MAX_PATH];
-    if (!GetModuleFileNameA(nullptr, path, MAX_PATH)) {
+    if (!GetModuleFileNameA(NULL, path, MAX_PATH)) {
       Fail(false, L"GetModuleFileNameA errorno=%d", GetLastError());
       return FAILURE;
     }
@@ -291,9 +289,9 @@ static int Launch()
 
   Log(L"Writing out tests.ini to: '%s'", CStringW(testFilePath));
   HANDLE hTestFile = CreateFileA(testFilePath, GENERIC_WRITE,
-                                 0, nullptr, CREATE_ALWAYS,
+                                 0, NULL, CREATE_ALWAYS,
                                  FILE_ATTRIBUTE_NORMAL,
-                                 nullptr);
+                                 NULL);
   if (hTestFile == INVALID_HANDLE_VALUE) {
     Fail(false, L"CreateFileA errorno=%d", GetLastError());
     return FAILURE;
@@ -308,8 +306,7 @@ static int Launch()
   asciiParams += sAppParams;
   asciiParams.Trim();
   Log(L"Browser command line args: '%s'", CString(asciiParams));
-  if (!WriteFile(hTestFile, asciiParams, asciiParams.GetLength(),
-                 nullptr, 0)) {
+  if (!WriteFile(hTestFile, asciiParams, asciiParams.GetLength(), NULL, 0)) {
     CloseHandle(hTestFile);
     Fail(false, L"WriteFile errorno=%d", GetLastError());
     return FAILURE;
@@ -330,10 +327,7 @@ static int Launch()
     return RETRY;
   }
 
-  Log(L"Activation succeeded.");
-
-  // automation.py picks up on this, don't mess with it.
-  Log(L"METRO_BROWSER_PROCESS=%d", processID);
+  Log(L"Activation succeeded. processid=%d", processID);
 
   HANDLE child = OpenProcess(SYNCHRONIZE, FALSE, processID);
   if (!child) {
@@ -353,7 +347,7 @@ static int Launch()
     } else if (waitResult == WAIT_OBJECT_0 + 1) {
       ReadPipe();
     } else if (waitResult == WAIT_OBJECT_0 + 2 &&
-               PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
+               PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
       TranslateMessage(&msg);
       DispatchMessage(&msg);
     }
@@ -369,7 +363,7 @@ static int Launch()
 
 int wmain(int argc, WCHAR* argv[])
 {
-  CoInitialize(nullptr);
+  CoInitialize(NULL);
 
   int idx;
   bool firefoxParam = false;

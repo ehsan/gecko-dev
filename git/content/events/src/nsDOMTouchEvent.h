@@ -6,18 +6,15 @@
 #define nsDOMTouchEvent_h_
 
 #include "nsDOMUIEvent.h"
+#include "nsIDOMTouchEvent.h"
+#include "nsString.h"
 #include "nsTArray.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/EventForwards.h"
 #include "nsJSEnvironment.h"
-#include "mozilla/dom/Touch.h"
 #include "mozilla/dom/TouchEventBinding.h"
 #include "nsWrapperCache.h"
 
-
-class nsAString;
-
-class nsDOMTouchList MOZ_FINAL : public nsISupports
+class nsDOMTouchList MOZ_FINAL : public nsIDOMTouchList
                                , public nsWrapperCache
 {
   typedef mozilla::dom::Touch Touch;
@@ -25,6 +22,7 @@ class nsDOMTouchList MOZ_FINAL : public nsISupports
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsDOMTouchList)
+  NS_DECL_NSIDOMTOUCHLIST
 
   nsDOMTouchList(nsISupports* aParent)
     : mParent(aParent)
@@ -79,18 +77,22 @@ protected:
   nsTArray< nsRefPtr<Touch> > mPoints;
 };
 
-class nsDOMTouchEvent : public nsDOMUIEvent
+class nsDOMTouchEvent : public nsDOMUIEvent,
+                        public nsIDOMTouchEvent
 {
 public:
   nsDOMTouchEvent(mozilla::dom::EventTarget* aOwner,
-                  nsPresContext* aPresContext,
-                  mozilla::WidgetTouchEvent* aEvent);
+                  nsPresContext* aPresContext, nsTouchEvent* aEvent);
+  virtual ~nsDOMTouchEvent();
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsDOMTouchEvent, nsDOMUIEvent)
+  NS_DECL_NSIDOMTOUCHEVENT
+
+  NS_FORWARD_TO_NSDOMUIEVENT
 
   virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+			       JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
   {
     return mozilla::dom::TouchEventBinding::Wrap(aCx, aScope, this);
   }
@@ -99,10 +101,25 @@ public:
   nsDOMTouchList* TargetTouches();
   nsDOMTouchList* ChangedTouches();
 
-  bool AltKey();
-  bool MetaKey();
-  bool CtrlKey();
-  bool ShiftKey();
+  bool AltKey()
+  {
+    return static_cast<nsInputEvent*>(mEvent)->IsAlt();
+  }
+
+  bool MetaKey()
+  {
+    return static_cast<nsInputEvent*>(mEvent)->IsMeta();
+  }
+
+  bool CtrlKey()
+  {
+    return static_cast<nsInputEvent*>(mEvent)->IsControl();
+  }
+
+  bool ShiftKey()
+  {
+    return static_cast<nsInputEvent*>(mEvent)->IsShift();
+  }
 
   void InitTouchEvent(const nsAString& aType,
                       bool aCanBubble,
@@ -113,10 +130,15 @@ public:
                       bool aAltKey,
                       bool aShiftKey,
                       bool aMetaKey,
-                      nsDOMTouchList* aTouches,
-                      nsDOMTouchList* aTargetTouches,
-                      nsDOMTouchList* aChangedTouches,
-                      mozilla::ErrorResult& aRv);
+                      nsIDOMTouchList* aTouches,
+                      nsIDOMTouchList* aTargetTouches,
+                      nsIDOMTouchList* aChangedTouches,
+                      mozilla::ErrorResult& aRv)
+  {
+    aRv = InitTouchEvent(aType, aCanBubble, aCancelable, aView, aDetail,
+                         aCtrlKey, aAltKey, aShiftKey, aMetaKey,
+                         aTouches, aTargetTouches, aChangedTouches);
+  }
 
   static bool PrefEnabled();
 protected:

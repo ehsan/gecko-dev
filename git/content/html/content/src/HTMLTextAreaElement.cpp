@@ -9,7 +9,6 @@
 #include "mozAutoDocUpdate.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/HTMLTextAreaElementBinding.h"
-#include "mozilla/MouseEvents.h"
 #include "mozilla/Util.h"
 #include "nsAttrValueInlines.h"
 #include "nsContentCID.h"
@@ -18,6 +17,7 @@
 #include "nsEventDispatcher.h"
 #include "nsFocusManager.h"
 #include "nsFormSubmission.h"
+#include "nsGUIEvent.h"
 #include "nsIComponentManager.h"
 #include "nsIConstraintValidation.h"
 #include "nsIControllers.h"
@@ -38,7 +38,6 @@
 #include "nsReadableUtils.h"
 #include "nsStyleConsts.h"
 #include "nsTextEditorState.h"
-#include "nsIController.h"
 
 static NS_DEFINE_CID(kXULControllersCID,  NS_XULCONTROLLERS_CID);
 
@@ -86,13 +85,15 @@ NS_IMPL_RELEASE_INHERITED(HTMLTextAreaElement, Element)
 
 // QueryInterface implementation for HTMLTextAreaElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLTextAreaElement)
+  NS_HTML_CONTENT_INTERFACES(nsGenericHTMLFormElementWithState)
   NS_INTERFACE_TABLE_INHERITED5(HTMLTextAreaElement,
                                 nsIDOMHTMLTextAreaElement,
                                 nsITextControlElement,
                                 nsIDOMNSEditableElement,
                                 nsIMutationObserver,
                                 nsIConstraintValidation)
-NS_INTERFACE_TABLE_TAIL_INHERITING(nsGenericHTMLFormElementWithState)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE
+NS_ELEMENT_INTERFACE_MAP_END
 
 
 // nsIDOMHTMLTextAreaElement
@@ -135,7 +136,7 @@ HTMLTextAreaElement::Select()
   }
 
   nsEventStatus status = nsEventStatus_eIgnore;
-  WidgetGUIEvent event(true, NS_FORM_SELECTED, nullptr);
+  nsGUIEvent event(true, NS_FORM_SELECTED, nullptr);
   // XXXbz HTMLInputElement guards against this reentering; shouldn't we?
   nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this), presContext,
                               &event, nullptr, &status);
@@ -477,8 +478,9 @@ HTMLTextAreaElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
     aVisitor.mItemFlags |= NS_NO_CONTENT_DISPATCH;
   }
   if (aVisitor.mEvent->message == NS_MOUSE_CLICK &&
-      aVisitor.mEvent->AsMouseEvent()->button ==
-        WidgetMouseEvent::eMiddleButton) {
+      aVisitor.mEvent->eventStructType == NS_MOUSE_EVENT &&
+      static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==
+        nsMouseEvent::eMiddleButton) {
     aVisitor.mEvent->mFlags.mNoContentDispatch = false;
   }
 
@@ -894,108 +896,6 @@ HTMLTextAreaElement::SetSelectionRange(uint32_t aSelectionStart,
 
   if (NS_FAILED(rv)) {
     aError.Throw(rv);
-  }
-}
-
-void
-HTMLTextAreaElement::SetRangeText(const nsAString& aReplacement,
-                                  ErrorResult& aRv)
-{
-  int32_t start, end;
-  aRv = GetSelectionRange(&start, &end);
-  if (aRv.Failed()) {
-    if (mState.IsSelectionCached()) {
-      start = mState.GetSelectionProperties().mStart;
-      end = mState.GetSelectionProperties().mEnd;
-      aRv = NS_OK;
-    }
-  }
-
-  SetRangeText(aReplacement, start, end, mozilla::dom::SelectionMode::Preserve,
-               aRv, start, end);
-}
-
-void
-HTMLTextAreaElement::SetRangeText(const nsAString& aReplacement,
-                                  uint32_t aStart, uint32_t aEnd,
-                                  const SelectionMode& aSelectMode,
-                                  ErrorResult& aRv, int32_t aSelectionStart,
-                                  int32_t aSelectionEnd)
-{
-  if (aStart > aEnd) {
-    aRv.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
-    return;
-  }
-
-  nsAutoString value;
-  GetValueInternal(value, false);
-  uint32_t inputValueLength = value.Length();
-
-  if (aStart > inputValueLength) {
-    aStart = inputValueLength;
-  }
-
-  if (aEnd > inputValueLength) {
-    aEnd = inputValueLength;
-  }
-
-  if (aSelectionStart == -1 && aSelectionEnd == -1) {
-      aRv = GetSelectionRange(&aSelectionStart, &aSelectionEnd);
-      if (aRv.Failed()) {
-        if (mState.IsSelectionCached()) {
-          aSelectionStart = mState.GetSelectionProperties().mStart;
-          aSelectionEnd = mState.GetSelectionProperties().mEnd;
-          aRv = NS_OK;
-        }
-      }
-  }
-
-  if (aStart < aEnd) {
-    value.Replace(aStart, aEnd - aStart, aReplacement);
-    SetValueInternal(value, false);
-  }
-
-  uint32_t newEnd = aStart + aReplacement.Length();
-  int32_t delta =  aReplacement.Length() - (aEnd - aStart);
-
-  switch (aSelectMode) {
-    case mozilla::dom::SelectionMode::Select:
-    {
-      aSelectionStart = aStart;
-      aSelectionEnd = newEnd;
-    }
-    break;
-    case mozilla::dom::SelectionMode::Start:
-    {
-      aSelectionStart = aSelectionEnd = aStart;
-    }
-    break;
-    case mozilla::dom::SelectionMode::End:
-    {
-      aSelectionStart = aSelectionEnd = newEnd;
-    }
-    break;
-    case mozilla::dom::SelectionMode::Preserve:
-    {
-      if ((uint32_t)aSelectionStart > aEnd)
-        aSelectionStart += delta;
-      else if ((uint32_t)aSelectionStart > aStart)
-       aSelectionStart = aStart;
-
-      if ((uint32_t)aSelectionEnd > aEnd)
-        aSelectionEnd += delta;
-      else if ((uint32_t)aSelectionEnd > aStart)
-        aSelectionEnd = newEnd;
-    }
-    break;
-  }
-
-  Optional<nsAString> direction;
-  SetSelectionRange(aSelectionStart, aSelectionEnd, direction, aRv);
-  if (!aRv.Failed()) {
-    nsRefPtr<nsAsyncDOMEvent> event =
-      new nsAsyncDOMEvent(this, NS_LITERAL_STRING("select"), true, false);
-    event->PostDOMEvent();
   }
 }
 

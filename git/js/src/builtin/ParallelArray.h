@@ -7,13 +7,19 @@
 #ifndef builtin_ParallelArray_h
 #define builtin_ParallelArray_h
 
+#include "jsapi.h"
+#include "jscntxt.h"
 #include "jsobj.h"
+
+#include "jit/Ion.h"
+#include "vm/ForkJoin.h"
+#include "vm/ThreadPool.h"
 
 namespace js {
 
 class ParallelArrayObject : public JSObject
 {
-    static const Class protoClass;
+    static Class protoClass;
     static const JSFunctionSpec methods[];
     static const uint32_t NumFixedSlots = 4;
     static const uint32_t NumCtors = 4;
@@ -22,10 +28,10 @@ class ParallelArrayObject : public JSObject
     static bool initProps(JSContext *cx, HandleObject obj);
 
   public:
-    static const Class class_;
+    static Class class_;
 
-    static bool construct(JSContext *cx, unsigned argc, Value *vp);
-    static bool constructHelper(JSContext *cx, MutableHandleFunction ctor, CallArgs &args);
+    static JSBool construct(JSContext *cx, unsigned argc, Value *vp);
+    static JSBool constructHelper(JSContext *cx, MutableHandleFunction ctor, CallArgs &args);
 
     // Creates a new ParallelArray instance with the correct number of slots
     // and so forth.

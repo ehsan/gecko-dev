@@ -43,16 +43,6 @@ function getScreenXY(element)
   return [screenX, screenY];
 }
 
-function hidePopup() {
-  window.requestAnimationFrame(
-    function() {
-      setTimeout(
-        function() {
-          document.getElementById("popup").hidePopup();
-        }, 0);
-    });
-}
-
 function runTests()
 {
   [, gScreenY] = getScreenXY(document.documentElement);
@@ -83,12 +73,7 @@ function nextTest()
       popup.removeChild(popup.lastChild);
   }
 
-  window.requestAnimationFrame(function() {
-    setTimeout(
-      function() {
-        popup.openPopupAtScreen(100, y, false);
-      }, 0);
-  });
+  popup.openPopupAtScreen(100, y, false);
 }
 
 function popupShown()
@@ -149,7 +134,7 @@ function popupShown()
   sbo.getPosition(sx, sy);
   is(sy.value, expectedScrollPos, "menu scroll position");
 
-  hidePopup();
+  popup.hidePopup();
 }
 
 function is(l, r, n) { window.opener.wrappedJSObject.SimpleTest.is(l,r,n); }
@@ -241,7 +226,7 @@ function contextMenuPopupShown()
       break;
   }
 
-  hidePopup();
+  popup.hidePopup();
 }
 
 function contextMenuPopupHidden()

@@ -475,10 +475,7 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
 
   // try to find an extant window with the given name
   nsCOMPtr<nsIDOMWindow> foundWindow;
-  if (SafeGetWindowByName(name, aParent, getter_AddRefs(foundWindow)) ==
-      NS_ERROR_DOM_INVALID_ACCESS_ERR) {
-    return NS_ERROR_DOM_INVALID_ACCESS_ERR;
-  }
+  SafeGetWindowByName(name, aParent, getter_AddRefs(foundWindow));
   GetWindowTreeItem(foundWindow, getter_AddRefs(newDocShellItem));
 
   // no extant window? make a new one.
@@ -546,26 +543,21 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
     callerContextGuard.Push(cx);
   }
 
-  uint32_t activeDocsSandboxFlags = 0;
   if (!newDocShellItem) {
     // We're going to either open up a new window ourselves or ask a
     // nsIWindowProvider for one.  In either case, we'll want to set the right
     // name on it.
     windowNeedsName = true;
 
-    // If the parent trying to open a new window is sandboxed
-    // without 'allow-popups', this is not allowed and we fail here.
+    // If the parent trying to open a new window is sandboxed,
+    // this is not allowed and we fail here.
     if (aParent) {
       nsCOMPtr<nsIDOMDocument> domdoc;
       aParent->GetDocument(getter_AddRefs(domdoc));
       nsCOMPtr<nsIDocument> doc = do_QueryInterface(domdoc);
 
-      if (doc) {
-        // Save sandbox flags for copying to new browsing context (docShell).
-        activeDocsSandboxFlags = doc->GetSandboxFlags();
-        if (activeDocsSandboxFlags & SANDBOXED_AUXILIARY_NAVIGATION) {
-          return NS_ERROR_DOM_INVALID_ACCESS_ERR;
-        }
+      if (doc && (doc->GetSandboxFlags() & SANDBOXED_NAVIGATION)) {
+        return NS_ERROR_FAILURE;
       }
     }
 
@@ -717,16 +709,6 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
 
   nsCOMPtr<nsIDocShell> newDocShell(do_QueryInterface(newDocShellItem));
   NS_ENSURE_TRUE(newDocShell, NS_ERROR_UNEXPECTED);
-
-  // Set up sandboxing attributes if the window is new.
-  // The flags can only be non-zero for new windows.
-  if (activeDocsSandboxFlags != 0) {
-    newDocShell->SetSandboxFlags(activeDocsSandboxFlags);
-    nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aParent);
-    if (window) {
-      newDocShell->SetOnePermittedSandboxedNavigator(window->GetDocShell());
-    }
-  }
   
   rv = ReadyOpenedDocShellItem(newDocShellItem, aParent, windowIsNew, _retval);
   if (NS_FAILED(rv))
@@ -768,6 +750,52 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
       newDocShellItem->SetName(name);
     } else {
       newDocShellItem->SetName(EmptyString());
+    }
+  }
+
+  // Inherit the right character set into the new window to use as a fallback
+  // in the event the document being loaded does not specify a charset.  When
+  // aCalledFromJS is true, we want to use the character set of the document in
+  // the caller; otherwise we want to use the character set of aParent's
+  // docshell. Failing to set this charset is not fatal, so we want to continue
+  // in the face of errors.
+  nsCOMPtr<nsIContentViewer> newCV;
+  newDocShell->GetContentViewer(getter_AddRefs(newCV));
+  nsCOMPtr<nsIMarkupDocumentViewer> newMuCV = do_QueryInterface(newCV);
+  if (newMuCV) {
+    nsCOMPtr<nsIDocShellTreeItem> parentItem;
+    GetWindowTreeItem(aParent, getter_AddRefs(parentItem));
+
+    if (aCalledFromJS) {
+      nsCOMPtr<nsIDocShellTreeItem> callerItem = GetCallerTreeItem(parentItem);
+      nsCOMPtr<nsPIDOMWindow> callerWin = do_GetInterface(callerItem);
+      if (callerWin) {
+        nsCOMPtr<nsIDocument> doc = callerWin->GetExtantDoc();
+        if (doc) {
+          newMuCV->SetDefaultCharacterSet(doc->GetDocumentCharacterSet());
+        }
+      }
+    }
+    else {
+      nsCOMPtr<nsIDocShell> parentDocshell = do_QueryInterface(parentItem);
+      // parentDocshell may be null if the parent got closed in the meantime
+      if (parentDocshell) {
+        nsCOMPtr<nsIContentViewer> parentCV;
+        parentDocshell->GetContentViewer(getter_AddRefs(parentCV));
+        nsCOMPtr<nsIMarkupDocumentViewer> parentMuCV =
+          do_QueryInterface(parentCV);
+        if (parentMuCV) {
+          nsAutoCString charset;
+          nsresult res = parentMuCV->GetDefaultCharacterSet(charset);
+          if (NS_SUCCEEDED(res)) {
+            newMuCV->SetDefaultCharacterSet(charset);
+          }
+          res = parentMuCV->GetPrevDocCharacterSet(charset);
+          if (NS_SUCCEEDED(res)) {
+            newMuCV->SetPrevDocCharacterSet(charset);
+          }
+        }
+      }
     }
   }
 
@@ -938,10 +966,17 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
     // we need that to show a modal window.
     NS_ENSURE_TRUE(newChrome, NS_ERROR_NOT_AVAILABLE);
 
+    nsCOMPtr<nsPIDOMWindow> modalContentWindow;
+
     // Dispatch dialog events etc, but we only want to do that if
     // we're opening a modal content window (the helper classes are
     // no-ops if given no window), for chrome dialogs we don't want to
     // do any of that (it's done elsewhere for us).
+
+    if (windowIsModalContentDialog) {
+      modalContentWindow = do_QueryInterface(*_retval);
+    }
+
     nsAutoWindowStateHelper windowStateHelper(aParent);
 
     if (!windowStateHelper.DefaultEnabled()) {
@@ -965,7 +1000,7 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow *aParent,
       // Reset popup state while opening a modal dialog, and firing
       // events about the dialog, to prevent the current state from
       // being active the whole time a modal dialog is open.
-      nsAutoPopupStatePusher popupStatePusher(openAbused);
+      nsAutoPopupStatePusher popupStatePusher(modalContentWindow, openAbused);
   
       newChrome->ShowAsModal();
     }
@@ -1271,7 +1306,6 @@ nsWindowWatcher::GetWindowByName(const PRUnichar *aTargetName,
   if (!aResult) {
     return NS_ERROR_INVALID_ARG;
   }
-  nsresult rv;
 
   *aResult = nullptr;
 
@@ -1281,18 +1315,18 @@ nsWindowWatcher::GetWindowByName(const PRUnichar *aTargetName,
   GetWindowTreeItem(aCurrentWindow, getter_AddRefs(startItem));
   if (startItem) {
     // Note: original requestor is null here, per idl comments
-    rv = startItem->FindItemWithName(aTargetName, nullptr, nullptr,
+    startItem->FindItemWithName(aTargetName, nullptr, nullptr,
                                 getter_AddRefs(treeItem));
   }
   else {
     // Note: original requestor is null here, per idl comments
-    rv = FindItemWithName(aTargetName, nullptr, nullptr, getter_AddRefs(treeItem));
+    FindItemWithName(aTargetName, nullptr, nullptr, getter_AddRefs(treeItem));
   }
 
   nsCOMPtr<nsIDOMWindow> domWindow = do_GetInterface(treeItem);
   domWindow.swap(*aResult);
 
-  return rv;
+  return NS_OK;
 }
 
 bool
@@ -1704,7 +1738,6 @@ nsWindowWatcher::SafeGetWindowByName(const nsAString& aName,
                                      nsIDOMWindow** aResult)
 {
   *aResult = nullptr;
-  nsresult rv;
   
   nsCOMPtr<nsIDocShellTreeItem> startItem;
   GetWindowTreeItem(aCurrentWindow, getter_AddRefs(startItem));
@@ -1715,17 +1748,17 @@ nsWindowWatcher::SafeGetWindowByName(const nsAString& aName,
 
   nsCOMPtr<nsIDocShellTreeItem> foundItem;
   if (startItem) {
-    rv = startItem->FindItemWithName(flatName.get(), nullptr, callerItem,
+    startItem->FindItemWithName(flatName.get(), nullptr, callerItem,
                                 getter_AddRefs(foundItem));
   }
   else {
-    rv = FindItemWithName(flatName.get(), nullptr, callerItem,
+    FindItemWithName(flatName.get(), nullptr, callerItem,
                      getter_AddRefs(foundItem));
   }
 
   nsCOMPtr<nsIDOMWindow> foundWin = do_GetInterface(foundItem);
   foundWin.swap(*aResult);
-  return rv;
+  return NS_OK;
 }
 
 /* Fetch the nsIDOMWindow corresponding to the given nsIDocShellTreeItem.

@@ -17,7 +17,10 @@
 #include "nsIInputStream.h"
 #include "nsIStorageStream.h"
 
+#include "jspubtd.h"
+
 #include "mozilla/scache/StartupCache.h"
+
 
 class nsCSSStyleSheet;
 

@@ -16,30 +16,19 @@
 
 MODULE = 'display'
 
-SOURCES += [
+CPP_SOURCES += [
     'BootAnimation.cpp',
 ]
 
-if CONFIG['ANDROID_VERSION'] >= '18':
-    SOURCES += [
+if CONFIG['ANDROID_VERSION'] == '18':
+    CPP_SOURCES += [
         'FramebufferSurface.cpp',
-        'GonkDisplayJB.cpp',
-    ]
-elif CONFIG['ANDROID_VERSION'] == '17':
-    SOURCES += [
-        'FramebufferSurface.cpp',
-        'GonkDisplayJB.cpp',
         'GraphicBufferAlloc.cpp',
+        'GonkDisplayJB.cpp',
     ]
 elif CONFIG['ANDROID_VERSION'] == '15':
-    SOURCES += [
+    CPP_SOURCES += [
         'GonkDisplayICS.cpp'
     ]
 else:
     error('Unsupported platform version: %s' % (CONFIG['ANDROID_VERSION']))
-
-LIBRARY_NAME = 'display'
-
-include('/ipc/chromium/chromium-config.mozbuild')
-
-FORCE_STATIC_LIB = True

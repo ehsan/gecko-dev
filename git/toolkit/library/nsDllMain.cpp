@@ -123,7 +123,7 @@ FARPROC WINAPI DelayDllLoadHook(unsigned dliNotify, PDelayLoadInfo pdli)
       !strnicmp(pdli->dlp.szProcName, kfailfast, strlen(kfailfast))) {
     return (FARPROC)__abi_MozFailFast;
   }
-  return nullptr;
+  return NULL;
 }
 
 ExternC PfnDliHook __pfnDliNotifyHook2 = DelayDllLoadHook;

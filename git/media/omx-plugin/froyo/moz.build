@@ -7,7 +7,7 @@
 MODULE = 'omxpluginfroyo'
 NO_DIST_INSTALL = True
 
-SOURCES += [
+CPP_SOURCES += [
     'OmxPluginFroyo.cpp',
 ]
 

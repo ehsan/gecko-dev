@@ -83,6 +83,10 @@ public:
   
   nsresult ProcessMouseDown(nsIDOMEvent* aKeyEvent);
   nsresult ProcessKeyPress(nsIDOMEvent* aKeyEvent);
+#if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
+  nsresult Text(nsIDOMEvent* aTextEvent);
+#endif
+
   nsresult Destroy();  
 
 #ifdef XP_WIN
@@ -106,7 +110,7 @@ public:
   void* GetPluginPortFromWidget();
   void ReleasePluginPort(void* pluginPort);
 
-  nsEventStatus ProcessEvent(const mozilla::WidgetGUIEvent& anEvent);
+  nsEventStatus ProcessEvent(const nsGUIEvent & anEvent);
   
 #ifdef XP_MACOSX
   enum { ePluginPaintEnable, ePluginPaintDisable };
@@ -165,7 +169,7 @@ public:
   const char* GetPluginName()
   {
     if (mInstance && mPluginHost) {
-      const char* name = nullptr;
+      const char* name = NULL;
       if (NS_SUCCEEDED(mPluginHost->GetPluginName(mInstance, &name)) && name)
         return name;
     }
@@ -320,8 +324,6 @@ private:
   nsresult DispatchKeyToPlugin(nsIDOMEvent* aKeyEvent);
   nsresult DispatchMouseToPlugin(nsIDOMEvent* aMouseEvent);
   nsresult DispatchFocusToPlugin(nsIDOMEvent* aFocusEvent);
-
-  int mLastMouseDownButtonType;
   
   nsresult EnsureCachedAttrParamArrays();
   

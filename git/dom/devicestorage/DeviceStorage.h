@@ -21,9 +21,6 @@
 #define DEVICESTORAGE_MUSIC      "music"
 #define DEVICESTORAGE_APPS       "apps"
 #define DEVICESTORAGE_SDCARD     "sdcard"
-#define DEVICESTORAGE_CRASHES    "crashes"
-
-class nsIInputStream;
 
 namespace mozilla {
 namespace dom {
@@ -157,20 +154,15 @@ public:
   NS_DECL_NSIOBSERVER
   NS_DECL_NSIDOMEVENTTARGET
 
-  virtual nsEventListenerManager*
-  GetExistingListenerManager() const MOZ_OVERRIDE;
-  virtual nsEventListenerManager*
-  GetOrCreateListenerManager() MOZ_OVERRIDE;
-
   virtual void
   AddEventListener(const nsAString& aType,
-                   mozilla::dom::EventListener* aListener,
+                   nsIDOMEventListener* aListener,
                    bool aUseCapture,
                    const mozilla::dom::Nullable<bool>& aWantsUntrusted,
                    ErrorResult& aRv) MOZ_OVERRIDE;
 
   virtual void RemoveEventListener(const nsAString& aType,
-                                   mozilla::dom::EventListener* aListener,
+                                   nsIDOMEventListener* aListener,
                                    bool aUseCapture,
                                    ErrorResult& aRv) MOZ_OVERRIDE;
 
@@ -308,7 +300,6 @@ private:
   static mozilla::StaticRefPtr<VolumeNameCache> sVolumeNameCache;
 
 #ifdef MOZ_WIDGET_GONK
-  nsString mLastStatus;
   void DispatchMountChangeEvent(nsAString& aVolumeStatus);
 #endif
 

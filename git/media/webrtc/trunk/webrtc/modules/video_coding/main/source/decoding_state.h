@@ -32,7 +32,9 @@ class VCMDecodingState {
   bool ContinuousFrame(const VCMFrameBuffer* frame) const;
   void SetState(const VCMFrameBuffer* frame);
   void CopyFrom(const VCMDecodingState& state);
-  bool UpdateEmptyFrame(const VCMFrameBuffer* frame);
+  // Set the decoding state one frame back.
+  void SetStateOneBack(const VCMFrameBuffer* frame);
+  void UpdateEmptyFrame(const VCMFrameBuffer* frame);
   // Update the sequence number if the timestamp matches current state and the
   // sequence number is higher than the current one. This accounts for packets
   // arriving late.

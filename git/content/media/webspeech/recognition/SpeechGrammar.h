@@ -10,12 +10,13 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsString.h"
 #include "nsWrapperCache.h"
-#include "js/TypeDecls.h"
 
 #include "mozilla/Attributes.h"
 #include "mozilla/ErrorResult.h"
 
 #include "EnableWebSpeechRecognitionCheck.h"
+
+struct JSContext;
 
 namespace mozilla {
 namespace dom {
@@ -38,8 +39,7 @@ public:
   virtual JSObject* WrapObject(JSContext* aCx,
                                JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
 
-  static SpeechGrammar* Constructor(const GlobalObject& aGlobal,
-                                    ErrorResult& aRv);
+  static SpeechGrammar* Constructor(const GlobalObject& aGlobal, ErrorResult& aRv);
 
   void GetSrc(nsString& aRetVal, ErrorResult& aRv) const;
 

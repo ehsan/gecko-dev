@@ -122,8 +122,7 @@ nsDataDocumentContentPolicy::ShouldLoad(uint32_t aContentType,
   if (aContentType == nsIContentPolicy::TYPE_OBJECT ||
       aContentType == nsIContentPolicy::TYPE_DOCUMENT ||
       aContentType == nsIContentPolicy::TYPE_SUBDOCUMENT ||
-      aContentType == nsIContentPolicy::TYPE_SCRIPT ||
-      aContentType == nsIContentPolicy::TYPE_XSLT) {
+      aContentType == nsIContentPolicy::TYPE_SCRIPT) {
     *aDecision = nsIContentPolicy::REJECT_TYPE;
   }
 

@@ -7,13 +7,19 @@
 #define nsFtpProtocolHandler_h__
 
 #include "nsFtpControlConnection.h"
+#include "nsIServiceManager.h"
 #include "nsIProxiedProtocolHandler.h"
 #include "nsTArray.h"
+#include "nsIIOService.h"
 #include "nsITimer.h"
+#include "nsIObserverService.h"
+#include "nsICacheSession.h"
 #include "nsIObserver.h"
 #include "nsWeakReference.h"
+#include "nsCRT.h"
 
-class nsICacheSession;
+class nsITimer;
+class nsIStreamListener;
 
 //-----------------------------------------------------------------------------
 

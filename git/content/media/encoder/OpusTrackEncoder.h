@@ -6,25 +6,12 @@
 #ifndef OpusTrackEncoder_h_
 #define OpusTrackEncoder_h_
 
-#include <stdint.h>
-#include <speex/speex_resampler.h>
 #include "TrackEncoder.h"
+#include "nsCOMPtr.h"
 
 struct OpusEncoder;
 
 namespace mozilla {
-
-// Opus meta data structure
-class OpusMetadata : public TrackMetadataBase
-{
-public:
-  // The ID Header of OggOpus. refer to http://wiki.xiph.org/OggOpus.
-  nsTArray<uint8_t> mIdHeader;
-  // The Comment Header of OggOpus.
-  nsTArray<uint8_t> mCommentHeader;
-
-  MetadataKind GetKind() const MOZ_OVERRIDE { return METADATA_OPUS; }
-};
 
 class OpusTrackEncoder : public AudioTrackEncoder
 {
@@ -32,9 +19,9 @@ public:
   OpusTrackEncoder();
   virtual ~OpusTrackEncoder();
 
-  nsRefPtr<TrackMetadataBase> GetMetadata() MOZ_OVERRIDE;
+  nsresult GetHeader(nsTArray<uint8_t>* aOutput) MOZ_OVERRIDE;
 
-  nsresult GetEncodedTrack(EncodedFrameContainer& aData) MOZ_OVERRIDE;
+  nsresult GetEncodedTrack(nsTArray<uint8_t>* aOutput, int &aOutputDuration) MOZ_OVERRIDE;
 
 protected:
   int GetPacketDuration() MOZ_OVERRIDE;
@@ -42,11 +29,11 @@ protected:
   nsresult Init(int aChannels, int aSamplingRate) MOZ_OVERRIDE;
 
 private:
-  /**
-   * Get the samplerate of the data to be fed to the Opus encoder. This might be
-   * different from the intput samplerate if resampling occurs.
-   */
-  int GetOutputSampleRate();
+  enum {
+    ID_HEADER,
+    COMMENT_HEADER,
+    DATA
+  } mEncoderState;
 
   /**
    * The Opus encoder from libopus.
@@ -67,12 +54,6 @@ private:
    * in order to align the time of input and output.
    */
   int mLookahead;
-
-  /**
-   * If the input sample rate does not divide 48kHz evenly, the input data are
-   * resampled.
-   */
-  SpeexResamplerState* mResampler;
 };
 
 }

@@ -35,7 +35,7 @@ class CategoryLeaf : public nsDepCharHashKey
 public:
   CategoryLeaf(const char* aKey)
     : nsDepCharHashKey(aKey),
-      value(nullptr) { }
+      value(NULL) { }
   const char* value;
 };
 
@@ -114,7 +114,7 @@ public:
                         const char* aKey,
                         const char* aValue,
                         bool aReplace = true,
-                        char** aOldValue = nullptr);
+                        char** aOldValue = NULL);
 
   static nsresult Create(nsISupports* aOuter, REFNSIID aIID, void** aResult);
   void InitMemoryReporter();
@@ -122,15 +122,14 @@ public:
   static nsCategoryManager* GetSingleton();
   static void Destroy();
 
-  static int64_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
+  static int64_t GetCategoryManagerSize();
+  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
 
 private:
   static nsCategoryManager* gCategoryManager;
 
   nsCategoryManager();
   ~nsCategoryManager();
-
-  size_t SizeOfIncludingThisHelper(mozilla::MallocSizeOf aMallocSizeOf);
 
   CategoryNode* get_category(const char* aName);
   void NotifyObservers(const char* aTopic,
@@ -142,7 +141,7 @@ private:
   mozilla::Mutex mLock;
   bool mSuppressNotifications;
 
-  nsCOMPtr<nsIMemoryReporter> mReporter;
+  nsIMemoryReporter* mReporter;
 };
 
 #endif

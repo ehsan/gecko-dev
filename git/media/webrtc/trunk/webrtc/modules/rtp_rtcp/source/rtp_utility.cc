@@ -8,18 +8,15 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/rtp_rtcp/source/rtp_utility.h"
+#include "rtp_utility.h"
 
 #include <cassert>
 #include <cmath>  // ceil
 #include <cstring>  // memcpy
 
 #if defined(_WIN32)
-// Order for these headers are important
 #include <Windows.h>  // FILETIME
-
 #include <WinSock.h>  // timeval
-
 #include <MMSystem.h>  // timeGetTime
 #elif ((defined WEBRTC_LINUX) || (defined WEBRTC_BSD) || (defined WEBRTC_MAC))
 #include <sys/time.h>  // gettimeofday
@@ -29,8 +26,8 @@
 #include <stdio.h>
 #endif
 
-#include "webrtc/system_wrappers/interface/tick_util.h"
-#include "webrtc/system_wrappers/interface/trace.h"
+#include "system_wrappers/interface/tick_util.h"
+#include "system_wrappers/interface/trace.h"
 
 #if (defined(_DEBUG) && defined(_WIN32) && (_MSC_VER >= 1400))
 #define DEBUG_PRINT(...)           \
@@ -89,15 +86,15 @@ uint32_t ConvertNTPTimeToMS(uint32_t NTPsec, uint32_t NTPfrac) {
  * Misc utility routines
  */
 
-const uint8_t* GetPayloadData(const RTPHeader& rtp_header,
+const uint8_t* GetPayloadData(const WebRtcRTPHeader* rtp_header,
                               const uint8_t* packet) {
-  return packet + rtp_header.headerLength;
+  return packet + rtp_header->header.headerLength;
 }
 
-uint16_t GetPayloadDataLength(const RTPHeader& rtp_header,
+uint16_t GetPayloadDataLength(const WebRtcRTPHeader* rtp_header,
                               const uint16_t packet_length) {
-  uint16_t length = packet_length - rtp_header.paddingLength -
-      rtp_header.headerLength;
+  uint16_t length = packet_length - rtp_header->header.paddingLength -
+      rtp_header->header.headerLength;
   return static_cast<uint16_t>(length);
 }
 
@@ -291,7 +288,7 @@ bool RTPHeaderParser::RTCP() const {
   return RTCP;
 }
 
-bool RTPHeaderParser::Parse(RTPHeader& header,
+bool RTPHeaderParser::Parse(WebRtcRTPHeader& parsedPacket,
                             RtpHeaderExtensionMap* ptrExtensionMap) const {
   const ptrdiff_t length = _ptrRTPDataEnd - _ptrRTPDataBegin;
 
@@ -335,30 +332,28 @@ bool RTPHeaderParser::Parse(RTPHeader& header,
     return false;
   }
 
-  header.markerBit      = M;
-  header.payloadType    = PT;
-  header.sequenceNumber = sequenceNumber;
-  header.timestamp      = RTPTimestamp;
-  header.ssrc           = SSRC;
-  header.numCSRCs       = CC;
-  header.paddingLength  = P ? *(_ptrRTPDataEnd - 1) : 0;
+  parsedPacket.header.markerBit      = M;
+  parsedPacket.header.payloadType    = PT;
+  parsedPacket.header.sequenceNumber = sequenceNumber;
+  parsedPacket.header.timestamp      = RTPTimestamp;
+  parsedPacket.header.ssrc           = SSRC;
+  parsedPacket.header.numCSRCs       = CC;
+  parsedPacket.header.paddingLength  = P ? *(_ptrRTPDataEnd - 1) : 0;
 
   for (unsigned int i = 0; i < CC; ++i) {
     uint32_t CSRC = *ptr++ << 24;
     CSRC += *ptr++ << 16;
     CSRC += *ptr++ << 8;
     CSRC += *ptr++;
-    header.arrOfCSRCs[i] = CSRC;
+    parsedPacket.header.arrOfCSRCs[i] = CSRC;
   }
+  parsedPacket.type.Audio.numEnergy = parsedPacket.header.numCSRCs;
 
-  header.headerLength   = 12 + CSRCocts;
+  parsedPacket.header.headerLength   = 12 + CSRCocts;
 
   // If in effect, MAY be omitted for those packets for which the offset
   // is zero.
-  header.extension.transmissionTimeOffset = 0;
-
-  // May not be present in packet.
-  header.extension.absoluteSendTime = 0;
+  parsedPacket.extension.transmissionTimeOffset = 0;
 
   if (X) {
     /* RTP header extension, RFC 3550.
@@ -375,7 +370,7 @@ bool RTPHeaderParser::Parse(RTPHeader& header,
       return false;
     }
 
-    header.headerLength += 4;
+    parsedPacket.header.headerLength += 4;
 
     uint16_t definedByProfile = *ptr++ << 8;
     definedByProfile += *ptr++;
@@ -387,20 +382,20 @@ bool RTPHeaderParser::Parse(RTPHeader& header,
     if (remain < (4 + XLen)) {
       return false;
     }
-    if (definedByProfile == kRtpOneByteHeaderExtensionId) {
+    if (definedByProfile == RTP_ONE_BYTE_HEADER_EXTENSION) {
       const uint8_t* ptrRTPDataExtensionEnd = ptr + XLen;
-      ParseOneByteExtensionHeader(header,
+      ParseOneByteExtensionHeader(parsedPacket,
                                   ptrExtensionMap,
                                   ptrRTPDataExtensionEnd,
                                   ptr);
     }
-    header.headerLength += XLen;
+    parsedPacket.header.headerLength += XLen;
   }
   return true;
 }
 
 void RTPHeaderParser::ParseOneByteExtensionHeader(
-    RTPHeader& header,
+    WebRtcRTPHeader& parsedPacket,
     const RtpHeaderExtensionMap* ptrExtensionMap,
     const uint8_t* ptrRTPDataExtensionEnd,
     const uint8_t* ptr) const {
@@ -448,11 +443,10 @@ void RTPHeaderParser::ParseOneByteExtensionHeader(
         int32_t transmissionTimeOffset = *ptr++ << 16;
         transmissionTimeOffset += *ptr++ << 8;
         transmissionTimeOffset += *ptr++;
-        header.extension.transmissionTimeOffset =
-            transmissionTimeOffset;
+        parsedPacket.extension.transmissionTimeOffset = transmissionTimeOffset;
         if (transmissionTimeOffset & 0x800000) {
           // Negative offset, correct sign for Word24 to Word32.
-          header.extension.transmissionTimeOffset |= 0xFF000000;
+          parsedPacket.extension.transmissionTimeOffset |= 0xFF000000;
         }
         break;
       }
@@ -470,24 +464,6 @@ void RTPHeaderParser::ParseOneByteExtensionHeader(
         // const uint8_t level = (*ptr & 0x7f);
         // DEBUG_PRINT("RTP_AUDIO_LEVEL_UNIQUE_ID: ID=%u, len=%u, V=%u,
         // level=%u", ID, len, V, level);
-        break;
-      }
-      case kRtpExtensionAbsoluteSendTime: {
-        if (len != 2) {
-          WEBRTC_TRACE(kTraceWarning, kTraceRtpRtcp, -1,
-                       "Incorrect absolute send time len: %d", len);
-          return;
-        }
-        //  0                   1                   2                   3
-        //  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-        // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-        // |  ID   | len=2 |              absolute send time               |
-        // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-        uint32_t absoluteSendTime = *ptr++ << 16;
-        absoluteSendTime += *ptr++ << 8;
-        absoluteSendTime += *ptr++;
-        header.extension.absoluteSendTime = absoluteSendTime;
         break;
       }
       default: {

@@ -589,9 +589,9 @@ interface WebGLRenderingContext {
 
     void generateMipmap(GLenum target);
 
-    [NewObject]
+    [Creator]
     WebGLActiveInfo? getActiveAttrib(WebGLProgram? program, GLuint index);
-    [NewObject]
+    [Creator]
     WebGLActiveInfo? getActiveUniform(WebGLProgram? program, GLuint index);
 
     sequence<WebGLShader>? getAttachedShaders(WebGLProgram? program);
@@ -612,7 +612,7 @@ interface WebGLRenderingContext {
     any getRenderbufferParameter(GLenum target, GLenum pname);
     any getShaderParameter(WebGLShader? shader, GLenum pname);
 
-    [NewObject]
+    [Creator]
     WebGLShaderPrecisionFormat? getShaderPrecisionFormat(GLenum shadertype, GLenum precisiontype);
 
     DOMString? getShaderInfoLog(WebGLShader? shader);
@@ -624,7 +624,7 @@ interface WebGLRenderingContext {
     [Throws]
     any getUniform(WebGLProgram? program, WebGLUniformLocation? location);
 
-    [NewObject]
+    [Creator]
     WebGLUniformLocation? getUniformLocation(WebGLProgram? program, DOMString name);
 
     [Throws]
@@ -895,13 +895,4 @@ interface WebGLExtensionVertexArray {
     void deleteVertexArrayOES(WebGLVertexArray? arrayObject);
     [WebGLHandlesContextLoss] GLboolean isVertexArrayOES(WebGLVertexArray? arrayObject);
     void bindVertexArrayOES(WebGLVertexArray? arrayObject);
-};
-
-[NoInterfaceObject]
-interface WebGLExtensionInstancedArrays {
-    const GLenum VERTEX_ATTRIB_ARRAY_DIVISOR_ANGLE = 0x88FE;
-
-    void drawArraysInstancedANGLE(GLenum mode, GLint first, GLsizei count, GLsizei primcount);
-    void drawElementsInstancedANGLE(GLenum mode, GLsizei count, GLenum type, GLintptr offset, GLsizei primcount);
-    void vertexAttribDivisorANGLE(GLuint index, GLuint divisor);
 };

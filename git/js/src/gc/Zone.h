@@ -7,14 +7,22 @@
 #ifndef gc_Zone_h
 #define gc_Zone_h
 
+#include "mozilla/Attributes.h"
+#include "mozilla/GuardObjects.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Util.h"
 
 #include "jscntxt.h"
+#include "jsfun.h"
 #include "jsgc.h"
 #include "jsinfer.h"
+#include "jsobj.h"
 
 #include "gc/FindSCCs.h"
+#include "gc/StoreBuffer.h"
+#include "vm/GlobalObject.h"
+#include "vm/RegExpObject.h"
+#include "vm/Shape.h"
 
 namespace js {
 
@@ -92,14 +100,11 @@ namespace JS {
  * zone.)
  */
 
-struct Zone : public JS::shadow::Zone,
+struct Zone : private JS::shadow::Zone,
               public js::gc::GraphNodeBase<JS::Zone>,
               public js::MallocProvider<JS::Zone>
 {
-  private:
-    friend bool js::CurrentThreadCanAccessZone(Zone *zone);
-
-  public:
+    JSRuntime                    *rt;
     js::Allocator                allocator;
 
     js::CompartmentVector        compartments;
@@ -112,8 +117,12 @@ struct Zone : public JS::shadow::Zone,
   public:
     bool                         active;  // GC flag, whether there are active frames
 
+    bool needsBarrier() const {
+        return needsBarrier_;
+    }
+
     bool compileBarriers(bool needsBarrier) const {
-        return needsBarrier || runtimeFromMainThread()->gcZeal() == js::gc::ZealVerifierPreValue;
+        return needsBarrier || rt->gcZeal() == js::gc::ZealVerifierPreValue;
     }
 
     bool compileBarriers() const {
@@ -127,8 +136,13 @@ struct Zone : public JS::shadow::Zone,
 
     void setNeedsBarrier(bool needs, ShouldUpdateIon updateIon);
 
-    const bool *AddressOfNeedsBarrier() const {
-        return &needsBarrier_;
+    static size_t OffsetOfNeedsBarrier() {
+        return offsetof(Zone, needsBarrier_);
+    }
+
+    js::GCMarker *barrierTracer() {
+        JS_ASSERT(needsBarrier_);
+        return &rt->gcMarker;
     }
 
   public:
@@ -147,7 +161,7 @@ struct Zone : public JS::shadow::Zone,
 
   public:
     bool isCollecting() const {
-        if (runtimeFromMainThread()->isHeapCollecting())
+        if (rt->isHeapCollecting())
             return gcState != NoGC;
         else
             return needsBarrier();
@@ -162,40 +176,32 @@ struct Zone : public JS::shadow::Zone,
      * tracer.
      */
     bool requireGCTracer() const {
-        return runtimeFromMainThread()->isHeapMajorCollecting() && gcState != NoGC;
+        return rt->isHeapMajorCollecting() && gcState != NoGC;
     }
 
     void setGCState(CompartmentGCState state) {
-        JS_ASSERT(runtimeFromMainThread()->isHeapBusy());
-        JS_ASSERT_IF(state != NoGC, canCollect());
+        JS_ASSERT(rt->isHeapBusy());
         gcState = state;
     }
 
     void scheduleGC() {
-        JS_ASSERT(!runtimeFromMainThread()->isHeapBusy());
-        gcScheduled = true;
+        JS_ASSERT(!rt->isHeapBusy());
+
+        /* Note: zones cannot be collected while in use by other threads. */
+        if (!usedByExclusiveThread)
+            gcScheduled = true;
     }
 
     void unscheduleGC() {
         gcScheduled = false;
     }
 
-    bool isGCScheduled() {
-        return gcScheduled && canCollect();
+    bool isGCScheduled() const {
+        return gcScheduled;
     }
 
     void setPreservingCode(bool preserving) {
         gcPreserveCode = preserving;
-    }
-
-    bool canCollect() {
-        // Zones cannot be collected while in use by other threads.
-        if (usedByExclusiveThread)
-            return false;
-        JSRuntime *rt = runtimeFromMainThread();
-        if (rt->isAtomsZone(this) && rt->exclusiveThreadsPresent())
-            return false;
-        return true;
     }
 
     bool wasGCStarted() const {
@@ -203,7 +209,7 @@ struct Zone : public JS::shadow::Zone,
     }
 
     bool isGCMarking() {
-        if (runtimeFromMainThread()->isHeapCollecting())
+        if (rt->isHeapCollecting())
             return gcState == Mark || gcState == MarkGray;
         else
             return needsBarrier();
@@ -252,18 +258,15 @@ struct Zone : public JS::shadow::Zone,
     /* This compartment's gray roots. */
     js::Vector<js::GrayRoot, 0, js::SystemAllocPolicy> gcGrayRoots;
 
-    /* Per-zone data for use by an embedder. */
-    void *data;
-
     Zone(JSRuntime *rt);
     ~Zone();
     bool init(JSContext *cx);
 
     void findOutgoingEdges(js::gc::ComponentFinder<JS::Zone> &finder);
 
-    void discardJitCode(js::FreeOp *fop);
+    void discardJitCode(js::FreeOp *fop, bool discardConstraints);
 
-    void addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, size_t *typePool);
+    void sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, size_t *typePool);
 
     void setGCLastBytes(size_t lastBytes, js::JSGCInvocationKind gckind);
     void reduceGCTriggerBytes(size_t amount);
@@ -289,10 +292,10 @@ struct Zone : public JS::shadow::Zone,
     void onTooMuchMalloc();
 
     void *onOutOfMemory(void *p, size_t nbytes) {
-        return runtimeFromMainThread()->onOutOfMemory(p, nbytes);
+        return rt->onOutOfMemory(p, nbytes);
     }
     void reportAllocationOverflow() {
-        js_ReportAllocationOverflow(nullptr);
+        js_ReportAllocationOverflow(NULL);
     }
 
     void markTypes(JSTracer *trc);

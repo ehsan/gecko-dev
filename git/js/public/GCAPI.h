@@ -7,11 +7,7 @@
 #ifndef js_GCAPI_h
 #define js_GCAPI_h
 
-#include "mozilla/NullPtr.h"
-
 #include "js/HeapAPI.h"
-#include "js/RootingAPI.h"
-#include "js/Value.h"
 
 namespace JS {
 
@@ -19,12 +15,13 @@ namespace JS {
     /* Reasons internal to the JS engine */     \
     D(API)                                      \
     D(MAYBEGC)                                  \
-    D(DESTROY_RUNTIME)                          \
+    D(LAST_CONTEXT)                             \
     D(DESTROY_CONTEXT)                          \
     D(LAST_DITCH)                               \
     D(TOO_MUCH_MALLOC)                          \
     D(ALLOC_TRIGGER)                            \
     D(DEBUG_GC)                                 \
+    D(DEBUG_MODE_GC)                            \
     D(TRANSPLANT)                               \
     D(RESET)                                    \
     D(OUT_OF_NURSERY)                           \
@@ -209,25 +206,12 @@ PokeGC(JSRuntime *rt);
 extern JS_FRIEND_API(bool)
 WasIncrementalGC(JSRuntime *rt);
 
-extern JS_FRIEND_API(size_t)
-GetGCNumber();
-
-class AutoAssertNoGC {
-#ifdef DEBUG
-    size_t gcNumber;
-
-  public:
-    AutoAssertNoGC();
-    ~AutoAssertNoGC();
-#endif
-};
-
-class JS_PUBLIC_API(ObjectPtr)
+class ObjectPtr
 {
     Heap<JSObject *> value;
 
   public:
-    ObjectPtr() : value(nullptr) {}
+    ObjectPtr() : value(NULL) {}
 
     ObjectPtr(JSObject *obj) : value(obj) {}
 
@@ -237,7 +221,7 @@ class JS_PUBLIC_API(ObjectPtr)
     void finalize(JSRuntime *rt) {
         if (IsIncrementalBarrierNeeded(rt))
             IncrementalObjectBarrier(value);
-        value = nullptr;
+        value = NULL;
     }
 
     void init(JSObject *obj) { value = obj; }
@@ -248,7 +232,9 @@ class JS_PUBLIC_API(ObjectPtr)
         IncrementalObjectBarrier(value);
     }
 
-    bool isAboutToBeFinalized();
+    bool isAboutToBeFinalized() {
+        return JS_IsAboutToBeFinalized(&value);
+    }
 
     ObjectPtr &operator=(JSObject *obj) {
         IncrementalObjectBarrier(value);
@@ -256,7 +242,9 @@ class JS_PUBLIC_API(ObjectPtr)
         return *this;
     }
 
-    void trace(JSTracer *trc, const char *name);
+    void trace(JSTracer *trc, const char *name) {
+        JS_CallHeapObjectTracer(trc, &value, name);
+    }
 
     JSObject &operator*() const { return *value; }
     JSObject *operator->() const { return value; }
@@ -267,7 +255,7 @@ class JS_PUBLIC_API(ObjectPtr)
  * Unsets the gray bit for anything reachable from |thing|. |kind| should not be
  * JSTRACE_SHAPE. |thing| should be non-null.
  */
-extern JS_FRIEND_API(bool)
+extern JS_FRIEND_API(void)
 UnmarkGrayGCThingRecursively(void *thing, JSGCTraceKind kind);
 
 /*
@@ -288,7 +276,7 @@ ExposeGCThingToActiveJS(void *thing, JSGCTraceKind kind)
      * All live objects in the nursery are moved to tenured at the beginning of
      * each GC slice, so the gray marker never sees nursery things.
      */
-    if (js::gc::IsInsideNursery(rt, thing))
+    if (uintptr_t(thing) >= rt->gcNurseryStart_ && uintptr_t(thing) < rt->gcNurseryEnd_)
         return;
 #endif
     if (IsIncrementalBarrierNeededOnGCThing(rt, thing, kind))
@@ -302,37 +290,6 @@ ExposeValueToActiveJS(const Value &v)
 {
     if (v.isMarkable())
         ExposeGCThingToActiveJS(v.toGCThing(), v.gcKind());
-}
-
-static JS_ALWAYS_INLINE void
-ExposeObjectToActiveJS(JSObject *obj)
-{
-    ExposeGCThingToActiveJS(obj, JSTRACE_OBJECT);
-}
-
-/*
- * If a GC is currently marking, mark the object black.
- */
-static JS_ALWAYS_INLINE void
-MarkGCThingAsLive(JSRuntime *rt_, void *thing, JSGCTraceKind kind)
-{
-    shadow::Runtime *rt = shadow::Runtime::asShadowRuntime(rt_);
-#ifdef JSGC_GENERATIONAL
-    /*
-     * Any object in the nursery will not be freed during any GC running at that time.
-     */
-    if (js::gc::IsInsideNursery(rt, thing))
-        return;
-#endif
-    if (IsIncrementalBarrierNeededOnGCThing(rt, thing, kind))
-        IncrementalReferenceBarrier(thing, kind);
-}
-
-static JS_ALWAYS_INLINE void
-MarkStringAsLive(Zone *zone, JSString *string)
-{
-    JSRuntime *rt = JS::shadow::Zone::asShadowZone(zone)->runtimeFromMainThread();
-    MarkGCThingAsLive(rt, string, JSTRACE_STRING);
 }
 
 } /* namespace JS */

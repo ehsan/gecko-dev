@@ -12,13 +12,16 @@
 #include "mozilla/dom/PBlobParent.h"
 #include "mozilla/dom/PBlobStreamChild.h"
 #include "mozilla/dom/PBlobStreamParent.h"
+#include "mozilla/dom/PContent.h"
 
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsTArray.h"
+#include "nsThreadUtils.h"
 
 class nsIDOMBlob;
-template<class T> class nsRevocableEventPtr;
+class nsIIPCSerializableInputStream;
+class nsIInputStream;
 
 namespace mozilla {
 namespace dom {
@@ -169,7 +172,7 @@ public:
   typedef typename BlobTraits<ActorFlavor>::BaseType BaseType;
   typedef RemoteBlob<ActorFlavor> RemoteBlobType;
   typedef mozilla::ipc::IProtocolManager<
-                      mozilla::ipc::IProtocol>::ActorDestroyReason
+                      mozilla::ipc::RPCChannel::RPCListener>::ActorDestroyReason
           ActorDestroyReason;
 
 protected:

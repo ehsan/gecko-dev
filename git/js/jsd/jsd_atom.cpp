@@ -45,8 +45,8 @@ _atom_smasher(JSHashEntry *he, int i, void *arg)
 
     free(((JSDAtom*)(he->value))->str);
     free(he->value);
-    he->value = nullptr;
-    he->key   = nullptr;
+    he->value = NULL;
+    he->key   = NULL;
     return HT_ENUMERATE_NEXT;
 }
 
@@ -63,12 +63,12 @@ _compareAtoms(const void *v1, const void *v2)
 }        
 
 
-bool
+JSBool
 jsd_CreateAtomTable(JSDContext* jsdc)
 {
     jsdc->atoms = JS_NewHashTable(256, JS_HashString,
                                   _compareAtomKeys, _compareAtoms,
-                                  nullptr, nullptr);
+                                  NULL, NULL);
 #ifdef TEST_ATOMS
     _testAtoms(jsdc);
 #endif    
@@ -80,9 +80,9 @@ jsd_DestroyAtomTable(JSDContext* jsdc)
 {
     if( jsdc->atoms )
     {
-        JS_HashTableEnumerateEntries(jsdc->atoms, _atom_smasher, nullptr);
+        JS_HashTableEnumerateEntries(jsdc->atoms, _atom_smasher, NULL);
         JS_HashTableDestroy(jsdc->atoms);
-        jsdc->atoms = nullptr;
+        jsdc->atoms = NULL;
     }
 }
 
@@ -94,7 +94,7 @@ jsd_AddAtom(JSDContext* jsdc, const char* str)
     if(!str)
     {
         JS_ASSERT(0);
-        return nullptr;
+        return NULL;
     }
 
     JSD_LOCK_ATOMS(jsdc);
@@ -114,7 +114,7 @@ jsd_AddAtom(JSDContext* jsdc, const char* str)
             {
                 free(atom->str);
                 free(atom);
-                atom = nullptr;
+                atom = NULL;
             }
         }
     }

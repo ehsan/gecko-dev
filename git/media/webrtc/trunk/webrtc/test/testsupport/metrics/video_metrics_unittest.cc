@@ -8,10 +8,10 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/test/testsupport/metrics/video_metrics.h"
+#include "testsupport/metrics/video_metrics.h"
 
-#include "testing/gtest/include/gtest/gtest.h"
-#include "webrtc/test/testsupport/fileutils.h"
+#include "gtest/gtest.h"
+#include "testsupport/fileutils.h"
 
 namespace webrtc {
 

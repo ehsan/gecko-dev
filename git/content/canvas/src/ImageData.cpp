@@ -6,7 +6,8 @@
 
 #include "mozilla/dom/ImageData.h"
 
-#include "mozilla/HoldDropJSObjects.h"
+#include "nsDOMClassInfoID.h"
+#include "nsContentUtils.h"
 #include "mozilla/dom/ImageDataBinding.h"
 
 #include "jsapi.h"
@@ -38,7 +39,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 void
 ImageData::HoldData()
 {
-  mozilla::HoldJSObjects(this);
+  NS_HOLD_JS_OBJECTS(this, ImageData);
 }
 
 void
@@ -46,7 +47,7 @@ ImageData::DropData()
 {
   if (mData) {
     mData = nullptr;
-    mozilla::DropJSObjects(this);
+    NS_DROP_JS_OBJECTS(this, ImageData);
   }
 }
 

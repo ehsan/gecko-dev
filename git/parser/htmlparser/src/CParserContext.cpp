@@ -12,7 +12,6 @@
 #include "nsIHTMLContentSink.h"
 #include "nsHTMLTokenizer.h"
 #include "nsMimeTypes.h"
-#include "nsHTMLTokenizer.h"
 
 CParserContext::CParserContext(CParserContext* aPrevContext,
                                nsScanner* aScanner, 
@@ -31,7 +30,8 @@ CParserContext::CParserContext(CParserContext* aPrevContext,
     mAutoDetectStatus(aStatus),
     mParserCommand(aCommand),
     mMultipart(true),
-    mCopyUnused(aCopyUnused)
+    mCopyUnused(aCopyUnused),
+    mNumConsumed(0)
 { 
   MOZ_COUNT_CTOR(CParserContext); 
 } 
@@ -72,7 +72,18 @@ CParserContext::GetTokenizer(nsIDTD* aDTD,
 
   if (!mTokenizer) {
     if (type == NS_IPARSER_FLAG_HTML || mParserCommand == eViewSource) {
-      mTokenizer = new nsHTMLTokenizer;
+      nsCOMPtr<nsIHTMLContentSink> theSink = do_QueryInterface(aSink);
+      mTokenizer = new nsHTMLTokenizer(mDTDMode, mDocType, mParserCommand,
+                                       nsHTMLTokenizer::GetFlags(aSink));
+      if (!mTokenizer) {
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
+
+      // Make sure the new tokenizer has all of the necessary information.
+      // XXX this might not be necessary.
+      if (mPrevContext) {
+        mTokenizer->CopyState(mPrevContext->mTokenizer);
+      }
     }
     else if (type == NS_IPARSER_FLAG_XML) {
       mTokenizer = do_QueryInterface(aDTD, &result);

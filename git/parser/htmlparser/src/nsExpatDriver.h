@@ -67,6 +67,8 @@ public:
                                     const PRUnichar* aNotationName);
 
 private:
+  nsresult HandleToken(CToken* aToken);
+
   // Load up an external stream to get external entity information
   nsresult OpenInputStreamFromExternalDTD(const PRUnichar* aFPIStr,
                                           const PRUnichar* aURLStr,

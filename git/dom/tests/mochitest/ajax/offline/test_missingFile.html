@@ -12,7 +12,8 @@ var gGotChecking = false;
 var gGotDownloading = false;
 
 function finishTest() {
-  OfflineTest.teardownAndFinish();
+  OfflineTest.teardown();
+  OfflineTest.finish();
 }
 
 function handleError() {

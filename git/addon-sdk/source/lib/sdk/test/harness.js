@@ -148,9 +148,6 @@ function reportMemoryUsage() {
   var mgr = Cc["@mozilla.org/memory-reporter-manager;1"]
             .getService(Ci.nsIMemoryReporterManager);
 
-  // XXX: this code is *so* bogus -- nsIMemoryReporter changed its |memoryUsed|
-  // field to |amount| *years* ago, and even bigger changes have happened
-  // since -- that it must just never be run.
   var reporters = mgr.enumerateReporters();
   if (reporters.hasMoreElements())
     print("\n");
@@ -379,7 +376,14 @@ function getPotentialLeaks() {
 
   let enm = mgr.enumerateReporters();
   while (enm.hasMoreElements()) {
-    let mr = enm.getNext().QueryInterface(Ci.nsIMemoryReporter);
+    let reporter = enm.getNext().QueryInterface(Ci.nsIMemoryReporter);
+    logReporter(reporter.process, reporter.path, reporter.kind, reporter.units,
+                reporter.amount, reporter.description);
+  }
+
+  let enm = mgr.enumerateMultiReporters();
+  while (enm.hasMoreElements()) {
+    let mr = enm.getNext().QueryInterface(Ci.nsIMemoryMultiReporter);
     mr.collectReports(logReporter, null);
   }
 
@@ -422,7 +426,7 @@ var POINTLESS_ERRORS = [
   'Invalid chrome URI:',
   'OpenGL LayerManager Initialized Succesfully.',
   '[JavaScript Error: "TelemetryStopwatch:',
-  'reference to undefined property',
+  '[JavaScript Warning: "ReferenceError: reference to undefined property',
   '[JavaScript Error: "The character encoding of the HTML document was ' +
     'not declared.',
   '[Javascript Warning: "Error: Failed to preserve wrapper of wrapped ' +

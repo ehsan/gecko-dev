@@ -19,6 +19,7 @@ class nsXULAlerts {
 public:
   nsXULAlerts()
   {
+    mNamedWindows.Init();
   }
 
   virtual ~nsXULAlerts() {}

@@ -14,8 +14,8 @@
 #ifndef VPM_DENOISING_H
 #define VPM_DENOISING_H
 
-#include "webrtc/modules/video_processing/main/interface/video_processing.h"
-#include "webrtc/typedefs.h"
+#include "typedefs.h"
+#include "video_processing.h"
 
 namespace webrtc {
 

@@ -9,7 +9,6 @@
 #include "nsIStringEnumerator.h"
 #include "nsICategoryManager.h"
 #include "nsISupportsPrimitives.h"
-#include "nsISimpleEnumerator.h"
 
 #define DEFAULT_SPELL_CHECKER "@mozilla.org/spellchecker/engine;1"
 
@@ -280,6 +279,7 @@ mozSpellChecker::GetDictionaryList(nsTArray<nsString> *aDictionaryList)
 
   // For catching duplicates
   nsClassHashtable<nsStringHashKey, nsCString> dictionaries;
+  dictionaries.Init();
 
   nsCOMArray<mozISpellCheckingEngine> spellCheckingEngines;
   rv = GetEngineList(&spellCheckingEngines);

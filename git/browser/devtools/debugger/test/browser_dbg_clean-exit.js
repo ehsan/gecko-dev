@@ -1,39 +1,43 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
-
-/**
- * Test that closing a tab with the debugger in a paused state exits cleanly.
+/*
+ * Any copyright is dedicated to the Public Domain.
+ * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-let gTab, gDebuggee, gPanel, gDebugger;
+// Test that closing a tab with the debugger in a paused state exits cleanly.
 
-const TAB_URL = EXAMPLE_URL + "doc_inline-debugger-statement.html";
+var gPane = null;
+var gTab = null;
+var gDebugger = null;
+
+const DEBUGGER_TAB_URL = EXAMPLE_URL + "browser_dbg_debuggerstatement.html";
 
 function test() {
-  initDebugger(TAB_URL).then(([aTab, aDebuggee, aPanel]) => {
+  debug_tab_pane(DEBUGGER_TAB_URL, function(aTab, aDebuggee, aPane) {
     gTab = aTab;
-    gDebuggee = aDebuggee;
-    gPanel = aPanel;
-    gDebugger = gPanel.panelWin;
+    gPane = aPane;
+    gDebugger = gPane.panelWin;
 
     testCleanExit();
   });
 }
 
 function testCleanExit() {
-  waitForSourceAndCaretAndScopes(gPanel, ".html", 16).then(() => {
-    is(gDebugger.gThreadClient.paused, true,
-      "Should be paused after the debugger statement.");
+  gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
+    Services.tm.currentThread.dispatch({ run: function() {
 
-    closeDebuggerAndFinish(gPanel, { whilePaused: true });
+      is(gDebugger.DebuggerController.activeThread.paused, true,
+        "Should be paused after the debugger statement.");
+
+      closeDebuggerAndFinish();
+    }}, 0);
   });
 
-  gDebuggee.runDebuggerStatement();
+  gTab.linkedBrowser.contentWindow.wrappedJSObject.runDebuggerStatement();
 }
 
 registerCleanupFunction(function() {
+  removeTab(gTab);
+  gPane = null;
   gTab = null;
-  gDebuggee = null;
-  gPanel = null;
   gDebugger = null;
 });

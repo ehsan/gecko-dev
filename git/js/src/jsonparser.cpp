@@ -8,8 +8,6 @@
 
 #include "mozilla/RangedPtr.h"
 
-#include <ctype.h>
-
 #include "jsarray.h"
 #include "jscompartment.h"
 #include "jsnum.h"
@@ -60,7 +58,7 @@ void
 JSONParser::error(const char *msg)
 {
     if (errorHandling == RaiseError)
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_JSON_BAD_PARSE, msg);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE, msg);
 }
 
 bool
@@ -540,7 +538,7 @@ JSONParser::createFinishedObject(PropertyVector &properties)
     gc::AllocKind allocKind = gc::GetGCObjectKind(properties.length());
     RootedObject obj(cx, NewBuiltinClassInstance(cx, &JSObject::class_, allocKind));
     if (!obj)
-        return nullptr;
+        return NULL;
 
     RootedId propid(cx);
     RootedValue value(cx);
@@ -552,7 +550,7 @@ JSONParser::createFinishedObject(PropertyVector &properties)
                                   JS_PropertyStub, JS_StrictPropertyStub, JSPROP_ENUMERATE,
                                   0, 0))
         {
-            return nullptr;
+            return NULL;
         }
     }
 

@@ -9,8 +9,6 @@
 #include "WMF.h"
 #include "MediaDecoderReader.h"
 #include "nsAutoPtr.h"
-#include "mozilla/RefPtr.h"
-#include "nsRect.h"
 
 namespace mozilla {
 
@@ -22,8 +20,8 @@ namespace dom {
 class TimeRanges;
 }
 
-// Decoder backend for reading H.264/AAC in MP4/M4A, and MP3 files using
-// Windows Media Foundation.
+// Decoder backend for reading H.264/AAC in MP4/M4A and MP3 audio files,
+// using Windows Media Foundation.
 class WMFReader : public MediaDecoderReader
 {
 public:
@@ -40,13 +38,16 @@ public:
   bool HasAudio() MOZ_OVERRIDE;
   bool HasVideo() MOZ_OVERRIDE;
 
-  nsresult ReadMetadata(MediaInfo* aInfo,
+  nsresult ReadMetadata(VideoInfo* aInfo,
                         MetadataTags** aTags) MOZ_OVERRIDE;
 
   nsresult Seek(int64_t aTime,
                 int64_t aStartTime,
                 int64_t aEndTime,
                 int64_t aCurrentTime) MOZ_OVERRIDE;
+
+  nsresult GetBuffered(mozilla::dom::TimeRanges* aBuffered,
+                       int64_t aStartTime) MOZ_OVERRIDE;
 
   void OnDecodeThreadStart() MOZ_OVERRIDE;
   void OnDecodeThreadFinish() MOZ_OVERRIDE;
@@ -72,6 +73,11 @@ private:
 
   // Attempt to initialize DXVA. Returns true on success.
   bool InitializeDXVA();  
+
+  // Notifies the MediaDecoder of the number of bytes we have consumed
+  // since last time we called this. We call this once per call to
+  // DecodeVideoFrame() and/or DecodeAudioData().
+  void NotifyBytesConsumed();
 
   RefPtr<IMFSourceReader> mSourceReader;
   RefPtr<WMFByteStream> mByteStream;

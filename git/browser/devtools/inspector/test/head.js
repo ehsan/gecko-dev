@@ -13,7 +13,7 @@ SimpleTest.registerCleanupFunction(() => {
 
 
 let tempScope = {};
-Cu.import("resource://gre/modules/devtools/LayoutHelpers.jsm", tempScope);
+Cu.import("resource:///modules/devtools/LayoutHelpers.jsm", tempScope);
 let LayoutHelpers = tempScope.LayoutHelpers;
 
 let {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", tempScope);
@@ -77,8 +77,7 @@ function getHighlitNode()
   // Get midpoint of diagonal line.
   let midpoint = midPoint(a, b);
 
-  let lh = new LayoutHelpers(window.content);
-  return lh.getElementFromPoint(h.win.document, midpoint.x,
+  return LayoutHelpers.getElementFromPoint(h.win.document, midpoint.x,
     midpoint.y);
 }
 
@@ -108,11 +107,6 @@ function ruleView()
   let sidebar = getActiveInspector().sidebar;
   let iframe = sidebar.tabbox.querySelector(".iframe-ruleview");
   return iframe.contentWindow.ruleView;
-}
-
-function getComputedView() {
-  let inspector = getActiveInspector();
-  return inspector.sidebar.getWindowForTab("computedview").computedview.view;
 }
 
 function synthesizeKeyFromKeyTag(aKeyId) {
@@ -174,22 +168,3 @@ function focusSearchBoxUsingShortcut(panelWin, callback) {
   EventUtils.synthesizeKey(name, modifiers);
 }
 
-function getComputedPropertyValue(aName)
-{
-  let computedview = getComputedView();
-  let props = computedview.styleDocument.querySelectorAll(".property-view");
-
-  for (let prop of props) {
-    let name = prop.querySelector(".property-name");
-
-    if (name.textContent === aName) {
-      let value = prop.querySelector(".property-value");
-      return value.textContent;
-    }
-  }
-}
-
-SimpleTest.registerCleanupFunction(function () {
-  let target = TargetFactory.forTab(gBrowser.selectedTab);
-  gDevTools.closeToolbox(target);
-});

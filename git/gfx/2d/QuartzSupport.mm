@@ -458,20 +458,26 @@ MacIOSurface::CGLTexImageIOSurface2D(void *c)
 }
 
 CGColorSpaceRef CreateSystemColorSpace() {
-  CGColorSpaceRef cspace = ::CGDisplayCopyColorSpace(::CGMainDisplayID());
-  if (!cspace) {
-    cspace = ::CGColorSpaceCreateDeviceRGB();
-  }
-  return cspace;
+    CMProfileRef system_profile = nullptr;
+    CGColorSpaceRef cspace = nullptr;
+
+    if (::CMGetSystemProfile(&system_profile) == noErr) {
+      // Create a colorspace with the systems profile
+      cspace = ::CGColorSpaceCreateWithPlatformColorSpace(system_profile);
+      ::CMCloseProfile(system_profile);
+    } else {
+      // Default to generic
+      cspace = ::CGColorSpaceCreateWithName(kCGColorSpaceGenericRGB);
+    }
+
+    return cspace;
 }
 
 CGContextRef MacIOSurface::CreateIOSurfaceContext() {
-  CGColorSpaceRef cspace = CreateSystemColorSpace();
   CGContextRef ref = MacIOSurfaceLib::IOSurfaceContextCreate(mIOSurfacePtr,
                                                 GetDevicePixelWidth(),
                                                 GetDevicePixelHeight(),
-                                                8, 32, cspace, 0x2002);
-  ::CGColorSpaceRelease(cspace);
+                                                8, 32, CreateSystemColorSpace(), 0x2002);
   return ref;
 }
 
@@ -633,7 +639,9 @@ nsresult nsCARenderer::SetupRenderer(void *aCALayer, int aWidth, int aHeight,
                 dataProvider, nullptr, true, kCGRenderingIntentDefault);
 
     ::CGDataProviderRelease(dataProvider);
-    ::CGColorSpaceRelease(colorSpace);
+    if (colorSpace) {
+      ::CGColorSpaceRelease(colorSpace);
+    }
     if (!mCGImage) {
       mUnsupportedWidth = aWidth;
       mUnsupportedHeight = aHeight;
@@ -807,8 +815,7 @@ void nsCARenderer::AttachIOSurface(RefPtr<MacIOSurface> aSurface) {
     // Rebind the FBO to make it live
     ::glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, mFBO);
 
-    if (static_cast<int>(mIOSurface->GetWidth()) != width ||
-        static_cast<int>(mIOSurface->GetHeight()) != height) {
+    if (mIOSurface->GetWidth() != width || mIOSurface->GetHeight() != height) {
       width = mIOSurface->GetWidth();
       height = mIOSurface->GetHeight();
       SetBounds(width, height);

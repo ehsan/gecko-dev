@@ -6,21 +6,12 @@
 
 MODULE = 'xpcom'
 
-include('../objs.mozbuild')
-
-SOURCES += xpcom_gluens_src_cppsrcs
-SOURCES += xpcom_glue_src_cppsrcs
-
-SOURCES += [
-    '../GenericModule.cpp',
-    '../nsStringAPI.cpp',
+CPP_SOURCES += [
+    '$(XPCOM_GLUENS_SRC_LCPPSRCS)',
+    '$(XPCOM_GLUE_SRC_LCPPSRCS)',
+    'GenericModule.cpp',
+    'nsStringAPI.cpp',
 ]
 
 LIBRARY_NAME = 'xpcomglue_s_nomozalloc'
 
-SDK_LIBRARY = [
-    "%s%s.%s" % (CONFIG['LIB_PREFIX'], 'xpcomglue_s_nomozalloc', CONFIG['LIB_SUFFIX']),
-]
-
-# we don't want the shared lib, but we want to force the creation of a static lib.
-FORCE_STATIC_LIB = True

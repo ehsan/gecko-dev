@@ -13,7 +13,7 @@ function test() {
         setup: 'cookie',
         check: {
           input:  'cookie',
-          hints:        ' list',
+          hints:        '',
           markup: 'IIIIII',
           status: 'ERROR'
         },

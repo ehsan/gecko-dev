@@ -13,9 +13,11 @@
 #include "nsISignatureVerifier.h"
 #include "nsIEntropyCollector.h"
 #include "nsIStringBundle.h"
+#include "nsIPrefBranch.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
 #ifndef MOZ_DISABLE_CRYPTOLEGACY
+#include "nsIDOMEventTarget.h"
 #endif
 #include "nsINSSErrorsService.h"
 #include "nsNSSCallbacks.h"
@@ -24,7 +26,6 @@
 #include "nsClientAuthRemember.h"
 #include "prerror.h"
 
-class nsIDOMWindow;
 class nsIPrompt;
 class SmartCardThreadList;
 
@@ -184,8 +185,8 @@ private:
   void InstallLoadableRoots();
   void UnloadLoadableRoots();
   void CleanupIdentityInfo();
-  void setValidationOptions(bool isInitialSetting);
-  nsresult setEnabledTLSVersions();
+  void setValidationOptions(nsIPrefBranch * pref);
+  nsresult setEnabledTLSVersions(nsIPrefBranch * pref);
   nsresult InitializePIPNSSBundle();
   nsresult ConfigureInternalPKCS11Token();
   nsresult RegisterObservers();
@@ -202,6 +203,7 @@ private:
   
   nsCOMPtr<nsIStringBundle> mPIPNSSBundle;
   nsCOMPtr<nsIStringBundle> mNSSErrorsBundle;
+  nsCOMPtr<nsIPrefBranch> mPrefBranch;
   bool mNSSInitialized;
   bool mObserversRegistered;
   static int mInstanceCount;

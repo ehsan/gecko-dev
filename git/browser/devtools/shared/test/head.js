@@ -4,7 +4,6 @@
 
 let {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
 let TargetFactory = devtools.TargetFactory;
-let {console} = Cu.import("resource://gre/modules/devtools/Console.jsm", {});
 
 /**
  * Open a new tab at a URL and call a callback on load

@@ -30,7 +30,7 @@ interface HTMLMediaElement : HTMLElement {
   readonly attribute unsigned short networkState;
   [SetterThrows]
            attribute DOMString preload;
-  [NewObject]
+  [Creator]
   readonly attribute TimeRanges buffered;
   void load();
   DOMString canPlayType(DOMString type);
@@ -55,9 +55,9 @@ interface HTMLMediaElement : HTMLElement {
            attribute double defaultPlaybackRate;
   [SetterThrows]
            attribute double playbackRate;
-  [NewObject]
+  [Creator]
   readonly attribute TimeRanges played;
-  [NewObject]
+  [Creator]
   readonly attribute TimeRanges seekable;
   readonly attribute boolean ended;
   [SetterThrows]
@@ -114,11 +114,11 @@ partial interface HTMLMediaElement {
   // used within MozAudioAvailable events to be changed.  The new size must
   // be between 512 and 16384.  The default size, for a  media element with
   // audio is (mozChannels * 1024).
-  [Pref="media.audio_data.enabled", GetterThrows]
+  [GetterThrows]
   readonly attribute unsigned long mozChannels;
-  [Pref="media.audio_data.enabled", GetterThrows]
+  [GetterThrows]
   readonly attribute unsigned long mozSampleRate;
-  [Pref="media.audio_data.enabled", Throws]
+  [Throws]
            attribute unsigned long mozFrameBufferLength;
 
   // Mozilla extension: return embedded metadata from the stream as a

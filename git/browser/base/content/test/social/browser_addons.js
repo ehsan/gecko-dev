@@ -13,14 +13,14 @@ let manifest = { // builtin provider
   origin: "https://example.com",
   sidebarURL: "https://example.com/browser/browser/base/content/test/social/social_sidebar.html",
   workerURL: "https://example.com/browser/browser/base/content/test/social/social_worker.js",
-  iconURL: "https://example.com/browser/browser/base/content/test/general/moz.png"
+  iconURL: "https://example.com/browser/browser/base/content/test/moz.png"
 };
 let manifest2 = { // used for testing install
   name: "provider 2",
   origin: "https://test1.example.com",
   sidebarURL: "https://test1.example.com/browser/browser/base/content/test/social/social_sidebar.html",
   workerURL: "https://test1.example.com/browser/browser/base/content/test/social/social_worker.js",
-  iconURL: "https://test1.example.com/browser/browser/base/content/test/general/moz.png",
+  iconURL: "https://test1.example.com/browser/browser/base/content/test/moz.png",
   version: 1
 };
 
@@ -50,10 +50,9 @@ function installListener(next, aManifest) {
   let expectEvent = "onInstalling";
   let prefname = getManifestPrefname(aManifest);
   // wait for the actual removal to call next
-  SocialService.registerProviderListener(function providerListener(topic, origin, providers) {
-    if (topic == "provider-disabled") {
+  SocialService.registerProviderListener(function providerListener(topic, data) {
+    if (topic == "provider-removed") {
       SocialService.unregisterProviderListener(providerListener);
-      is(origin, aManifest.origin, "provider disabled");
       executeSoon(next);
     }
   });
@@ -296,15 +295,14 @@ var tests = {
           Social.enabled = true;
 
           // watch for the provider-update and test the new version
-          SocialService.registerProviderListener(function providerListener(topic, origin, providers) {
+          SocialService.registerProviderListener(function providerListener(topic, data) {
             if (topic != "provider-update")
               return;
-            is(origin, addonManifest.origin, "provider updated")
             SocialService.unregisterProviderListener(providerListener);
             Services.prefs.clearUserPref("social.whitelist");
-            let provider = Social._getProviderFromOrigin(origin);
+            let provider = Social._getProviderFromOrigin(addonManifest.origin);
             is(provider.manifest.version, 2, "manifest version is 2");
-            Social.uninstallProvider(origin, function() {
+            Social.uninstallProvider(addonManifest.origin, function() {
               gBrowser.removeTab(tab);
               next();
             });

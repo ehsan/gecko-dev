@@ -221,19 +221,6 @@ nsNavHistoryResultNode::GetTags(nsAString& aTags) {
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsNavHistoryResultNode::GetPageGuid(nsACString& aPageGuid) {
-  aPageGuid = mPageGuid;
-  return NS_OK;
-}
-
-
-NS_IMETHODIMP
-nsNavHistoryResultNode::GetBookmarkGuid(nsACString& aBookmarkGuid) {
-  aBookmarkGuid = mBookmarkGuid;
-  return NS_OK;
-}
-
 
 void
 nsNavHistoryResultNode::OnRemoving()
@@ -1621,8 +1608,8 @@ nsNavHistoryContainerResultNode::ChangeTitles(nsIURI* aURI,
   NS_ENSURE_SUCCESS(rv, rv);
 
   // The recursive function will update the result's tree nodes, but only if we
-  // give it a non-null pointer.  So if there isn't a tree, just pass nullptr
-  // so it doesn't bother trying to call the result.
+  // give it a non-null pointer.  So if there isn't a tree, just pass NULL so
+  // it doesn't bother trying to call the result.
   nsNavHistoryResult* result = GetResult();
   NS_ENSURE_STATE(result);
 
@@ -4012,14 +3999,13 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsNavHistoryResult)
 NS_INTERFACE_MAP_END
 
 nsNavHistoryResult::nsNavHistoryResult(nsNavHistoryContainerResultNode* aRoot)
-  : mRootNode(aRoot)
-  , mNeedsToApplySortingMode(false)
-  , mIsHistoryObserver(false)
-  , mIsBookmarkFolderObserver(false)
-  , mIsAllBookmarksObserver(false)
-  , mBookmarkFolderObservers(128)
-  , mBatchInProgress(false)
-  , mSuppressNotifications(false)
+: mRootNode(aRoot)
+, mNeedsToApplySortingMode(false)
+, mIsHistoryObserver(false)
+, mIsBookmarkFolderObserver(false)
+, mIsAllBookmarksObserver(false)
+, mBatchInProgress(false)
+, mSuppressNotifications(false)
 {
   mRootNode->mResult = this;
 }
@@ -4078,6 +4064,8 @@ nsNavHistoryResult::Init(nsINavHistoryQuery** aQueries,
   mSortingMode = aOptions->SortingMode();
   rv = aOptions->GetSortingAnnotation(mSortingAnnotation);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  mBookmarkFolderObservers.Init(128);
 
   NS_ASSERTION(mRootNode->mIndentLevel == -1,
                "Root node's indent level initialized wrong");

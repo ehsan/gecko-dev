@@ -85,24 +85,21 @@ class IonFrameIterator
   private:
     mutable const SafepointIndex *cachedSafepointIndex_;
     const JitActivation *activation_;
-    ExecutionMode mode_;
 
     void dumpBaseline() const;
 
   public:
-    explicit IonFrameIterator(uint8_t *top, ExecutionMode mode)
+    IonFrameIterator(uint8_t *top)
       : current_(top),
         type_(IonFrame_Exit),
-        returnAddressToFp_(nullptr),
+        returnAddressToFp_(NULL),
         frameSize_(0),
-        cachedSafepointIndex_(nullptr),
-        activation_(nullptr),
-        mode_(mode)
+        cachedSafepointIndex_(NULL),
+        activation_(NULL)
     { }
 
-    explicit IonFrameIterator(JSContext *cx);
-    explicit IonFrameIterator(const ActivationIterator &activations);
-    explicit IonFrameIterator(IonJSFrameLayout *fp, ExecutionMode mode);
+    IonFrameIterator(const ActivationIterator &activations);
+    IonFrameIterator(IonJSFrameLayout *fp);
 
     // Current frame information.
     FrameType type() const {
@@ -146,16 +143,19 @@ class IonFrameIterator
         return type_ == IonFrame_BaselineStub;
     }
     bool isNative() const;
-    bool isOOLNative() const;
+    bool isOOLNativeGetter() const;
     bool isOOLPropertyOp() const;
-    bool isOOLProxy() const;
+    bool isOOLProxyGet() const;
     bool isDOMExit() const;
     bool isEntry() const {
         return type_ == IonFrame_Entry;
     }
     bool isFunctionFrame() const;
+    bool isParallelFunctionFrame() const;
 
     bool isConstructing() const;
+
+    bool isEntryJSFrame() const;
 
     void *calleeToken() const;
     JSFunction *callee() const;
@@ -163,6 +163,7 @@ class IonFrameIterator
     unsigned numActualArgs() const;
     JSScript *script() const;
     void baselineScriptAndPc(JSScript **scriptRes, jsbytecode **pcRes) const;
+    Value *nativeVp() const;
     Value *actualArgs() const;
 
     // Returns the return address of the frame above this one (that is, the
@@ -273,9 +274,6 @@ class SnapshotIterator : public SnapshotReader
         else
             skip();
 
-        // Skip slot for return value.
-        skip();
-
         // Skip slot for arguments object.
         if (script->argumentsHasVarBinding())
             skip();
@@ -344,17 +342,10 @@ class InlineFrameIteratorMaybeGC
         resetOn(iter);
     }
 
-    InlineFrameIteratorMaybeGC(JSRuntime *rt, const IonFrameIterator *iter)
-      : callee_(rt),
-        script_(rt)
-    {
-        resetOn(iter);
-    }
-
     InlineFrameIteratorMaybeGC(JSContext *cx, const IonBailoutIterator *iter);
 
     InlineFrameIteratorMaybeGC(JSContext *cx, const InlineFrameIteratorMaybeGC *iter)
-      : frame_(iter ? iter->frame_ : nullptr),
+      : frame_(iter ? iter->frame_ : NULL),
         framesRead_(0),
         callee_(cx),
         script_(cx)
@@ -412,7 +403,7 @@ class InlineFrameIteratorMaybeGC
             // Get the non overflown arguments
             unsigned formal_end = (end < nformal) ? end : nformal;
             SnapshotIterator s(si_);
-            s.readFrameArgs(op, nullptr, nullptr, nullptr, start, nformal, formal_end, script());
+            s.readFrameArgs(op, NULL, NULL, NULL, start, nformal, formal_end, script());
 
             // The overflown arguments are not available in current frame.
             // They are the last pushed arguments in the parent frame of this inlined frame.
@@ -422,18 +413,18 @@ class InlineFrameIteratorMaybeGC
             SnapshotIterator parent_s(it.snapshotIterator());
 
             // Skip over all slots untill we get to the last slots (= arguments slots of callee)
-            // the +3 is for [this], [returnvalue], [scopechain], and maybe +1 for [argsObj]
-            JS_ASSERT(parent_s.slots() >= nactual + 3 + argsObjAdj);
-            unsigned skip = parent_s.slots() - nactual - 3 - argsObjAdj;
+            // the +2 is for [this] and [scopechain], and maybe +1 for [argsObj]
+            JS_ASSERT(parent_s.slots() >= nactual + 2 + argsObjAdj);
+            unsigned skip = parent_s.slots() - nactual - 2 - argsObjAdj;
             for (unsigned j = 0; j < skip; j++)
                 parent_s.skip();
 
             // Get the overflown arguments
-            parent_s.readFrameArgs(op, nullptr, nullptr, nullptr, nformal, nactual, end, it.script());
+            parent_s.readFrameArgs(op, NULL, NULL, NULL, nformal, nactual, end, it.script());
         } else {
             SnapshotIterator s(si_);
             Value *argv = frame_->actualArgs();
-            s.readFrameArgs(op, argv, nullptr, nullptr, start, nformal, end, script());
+            s.readFrameArgs(op, argv, NULL, NULL, start, nformal, end, script());
         }
     }
 
@@ -469,9 +460,6 @@ class InlineFrameIteratorMaybeGC
         // scopeChain
         s.skip();
 
-        // return value
-        s.skip();
-
         // Arguments object.
         if (script()->argumentsHasVarBinding())
             s.skip();
@@ -491,15 +479,6 @@ class InlineFrameIteratorMaybeGC
     void dump() const;
 
     void resetOn(const IonFrameIterator *iter);
-
-    const IonFrameIterator &frame() const {
-        return *frame_;
-    }
-
-    // Inline frame number, 0 for the outermost (non-inlined) frame.
-    size_t frameNo() const {
-        return start_.frameCount() - framesRead_;
-    }
 
   private:
     InlineFrameIteratorMaybeGC() MOZ_DELETE;

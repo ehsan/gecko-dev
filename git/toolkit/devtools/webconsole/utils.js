@@ -1,4 +1,4 @@
-/* -*- js2-basic-offset: 2; indent-tabs-mode: nil; -*- */
+/* -*- Mode: js2; js2-basic-offset: 2; indent-tabs-mode: nil; -*- */
 /* vim: set ft=javascript ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
@@ -6,7 +6,7 @@
 
 "use strict";
 
-const {Cc, Ci, Cu, components} = require("chrome");
+const {Cc, Ci, Cu} = require("chrome");
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
@@ -174,23 +174,10 @@ let WebConsoleUtils = {
    */
   abbreviateSourceURL: function WCU_abbreviateSourceURL(aSourceURL)
   {
-    if (aSourceURL.substr(0, 5) == "data:") {
-      let commaIndex = aSourceURL.indexOf(",");
-      if (commaIndex > -1) {
-        aSourceURL = "data:" + aSourceURL.substring(commaIndex + 1);
-      }
-    }
-
     // Remove any query parameters.
     let hookIndex = aSourceURL.indexOf("?");
     if (hookIndex > -1) {
       aSourceURL = aSourceURL.substring(0, hookIndex);
-    }
-
-    // Remove any hash fragments.
-    let hashIndex = aSourceURL.indexOf("#");
-    if (hashIndex > -1) {
-      aSourceURL = aSourceURL.substring(0, hashIndex);
     }
 
     // Remove a trailing "/".
@@ -330,36 +317,29 @@ let WebConsoleUtils = {
    */
   createValueGrip: function WCU_createValueGrip(aValue, aObjectWrapper)
   {
-    switch (typeof aValue) {
+    let type = typeof(aValue);
+    switch (type) {
       case "boolean":
+      case "number":
         return aValue;
       case "string":
-        return aObjectWrapper(aValue);
-      case "number":
-        if (aValue === Infinity) {
-          return { type: "Infinity" };
-        }
-        else if (aValue === -Infinity) {
-          return { type: "-Infinity" };
-        }
-        else if (Number.isNaN(aValue)) {
-          return { type: "NaN" };
-        }
-        else if (!aValue && 1 / aValue === -Infinity) {
-          return { type: "-0" };
-        }
-        return aValue;
-      case "undefined":
-        return { type: "undefined" };
+          return aObjectWrapper(aValue);
       case "object":
+      case "function":
+        if (aValue) {
+          return aObjectWrapper(aValue);
+        }
+      default:
         if (aValue === null) {
           return { type: "null" };
         }
-      case "function":
-        return aObjectWrapper(aValue);
-      default:
-        Cu.reportError("Failed to provide a grip for value of " + typeof aValue
-                       + ": " + aValue);
+
+        if (aValue === undefined) {
+          return { type: "undefined" };
+        }
+
+        Cu.reportError("Failed to provide a grip for value of " + type + ": " +
+                       aValue);
         return null;
     }
   },
@@ -2586,98 +2566,6 @@ ConsoleProgressListener.prototype = {
     this._webProgress = null;
     this.window = null;
     this.owner = null;
-  },
-};
-
-
-/**
- * A ReflowObserver that listens for reflow events from the page.
- * Implements nsIReflowObserver.
- *
- * @constructor
- * @param object aWindow
- *        The window for which we need to track reflow.
- * @param object aOwner
- *        The listener owner which needs to implement:
- *        - onReflowActivity(aReflowInfo)
- */
-
-function ConsoleReflowListener(aWindow, aListener)
-{
-  this.docshell = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                         .getInterface(Ci.nsIWebNavigation)
-                         .QueryInterface(Ci.nsIDocShell);
-  this.listener = aListener;
-  this.docshell.addWeakReflowObserver(this);
-}
-
-exports.ConsoleReflowListener = ConsoleReflowListener;
-
-ConsoleReflowListener.prototype =
-{
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIReflowObserver,
-                                         Ci.nsISupportsWeakReference]),
-  docshell: null,
-  listener: null,
-
-  /**
-   * Forward reflow event to listener.
-   *
-   * @param DOMHighResTimeStamp aStart
-   * @param DOMHighResTimeStamp aEnd
-   * @param boolean aInterruptible
-   */
-  sendReflow: function CRL_sendReflow(aStart, aEnd, aInterruptible)
-  {
-    let frame = components.stack.caller.caller;
-
-    let filename = frame.filename;
-
-    if (filename) {
-      // Because filename could be of the form "xxx.js -> xxx.js -> xxx.js",
-      // we only take the last part.
-      filename = filename.split(" ").pop();
-    }
-
-    this.listener.onReflowActivity({
-      interruptible: aInterruptible,
-      start: aStart,
-      end: aEnd,
-      sourceURL: filename,
-      sourceLine: frame.lineNumber,
-      functionName: frame.name
-    });
-  },
-
-  /**
-   * On uninterruptible reflow
-   *
-   * @param DOMHighResTimeStamp aStart
-   * @param DOMHighResTimeStamp aEnd
-   */
-  reflow: function CRL_reflow(aStart, aEnd)
-  {
-    this.sendReflow(aStart, aEnd, false);
-  },
-
-  /**
-   * On interruptible reflow
-   *
-   * @param DOMHighResTimeStamp aStart
-   * @param DOMHighResTimeStamp aEnd
-   */
-  reflowInterruptible: function CRL_reflowInterruptible(aStart, aEnd)
-  {
-    this.sendReflow(aStart, aEnd, true);
-  },
-
-  /**
-   * Unregister listener.
-   */
-  destroy: function CRL_destroy()
-  {
-    this.docshell.removeWeakReflowObserver(this);
-    this.listener = this.docshell = null;
   },
 };
 

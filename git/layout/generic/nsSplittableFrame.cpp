@@ -9,8 +9,10 @@
  */
 
 #include "nsSplittableFrame.h"
+#include "nsIContent.h"
+#include "nsPresContext.h"
+#include "nsStyleContext.h"
 #include "nsContainerFrame.h"
-#include "nsIFrameInlines.h"
 
 NS_IMPL_FRAMEARENA_HELPERS(nsSplittableFrame)
 
@@ -51,13 +53,13 @@ nsIFrame* nsSplittableFrame::GetPrevContinuation() const
   return mPrevContinuation;
 }
 
-void
-nsSplittableFrame::SetPrevContinuation(nsIFrame* aFrame)
+NS_METHOD nsSplittableFrame::SetPrevContinuation(nsIFrame* aFrame)
 {
   NS_ASSERTION (!aFrame || GetType() == aFrame->GetType(), "setting a prev continuation with incorrect type!");
   NS_ASSERTION (!IsInPrevContinuationChain(aFrame, this), "creating a loop in continuation chain!");
   mPrevContinuation = aFrame;
   RemoveStateBits(NS_FRAME_IS_FLUID_CONTINUATION);
+  return NS_OK;
 }
 
 nsIFrame* nsSplittableFrame::GetNextContinuation() const
@@ -65,35 +67,33 @@ nsIFrame* nsSplittableFrame::GetNextContinuation() const
   return mNextContinuation;
 }
 
-void
-nsSplittableFrame::SetNextContinuation(nsIFrame* aFrame)
+NS_METHOD nsSplittableFrame::SetNextContinuation(nsIFrame* aFrame)
 {
   NS_ASSERTION (!aFrame || GetType() == aFrame->GetType(),  "setting a next continuation with incorrect type!");
   NS_ASSERTION (!IsInNextContinuationChain(aFrame, this), "creating a loop in continuation chain!");
   mNextContinuation = aFrame;
   if (aFrame)
     aFrame->RemoveStateBits(NS_FRAME_IS_FLUID_CONTINUATION);
+  return NS_OK;
 }
 
-nsIFrame*
-nsSplittableFrame::FirstContinuation() const
+nsIFrame* nsSplittableFrame::GetFirstContinuation() const
 {
   nsSplittableFrame* firstContinuation = const_cast<nsSplittableFrame*>(this);
   while (firstContinuation->mPrevContinuation)  {
     firstContinuation = static_cast<nsSplittableFrame*>(firstContinuation->mPrevContinuation);
   }
-  MOZ_ASSERT(firstContinuation, "post-condition failed");
+  NS_POSTCONDITION(firstContinuation, "illegal state in continuation chain.");
   return firstContinuation;
 }
 
-nsIFrame*
-nsSplittableFrame::LastContinuation() const
+nsIFrame* nsSplittableFrame::GetLastContinuation() const
 {
   nsSplittableFrame* lastContinuation = const_cast<nsSplittableFrame*>(this);
   while (lastContinuation->mNextContinuation)  {
     lastContinuation = static_cast<nsSplittableFrame*>(lastContinuation->mNextContinuation);
   }
-  MOZ_ASSERT(lastContinuation, "post-condition failed");
+  NS_POSTCONDITION(lastContinuation, "illegal state in continuation chain.");
   return lastContinuation;
 }
 
@@ -130,13 +130,13 @@ nsIFrame* nsSplittableFrame::GetPrevInFlow() const
   return (GetStateBits() & NS_FRAME_IS_FLUID_CONTINUATION) ? mPrevContinuation : nullptr;
 }
 
-void
-nsSplittableFrame::SetPrevInFlow(nsIFrame* aFrame)
+NS_METHOD nsSplittableFrame::SetPrevInFlow(nsIFrame* aFrame)
 {
   NS_ASSERTION (!aFrame || GetType() == aFrame->GetType(), "setting a prev in flow with incorrect type!");
   NS_ASSERTION (!IsInPrevContinuationChain(aFrame, this), "creating a loop in continuation chain!");
   mPrevContinuation = aFrame;
   AddStateBits(NS_FRAME_IS_FLUID_CONTINUATION);
+  return NS_OK;
 }
 
 nsIFrame* nsSplittableFrame::GetNextInFlow() const
@@ -145,35 +145,33 @@ nsIFrame* nsSplittableFrame::GetNextInFlow() const
     mNextContinuation : nullptr;
 }
 
-void
-nsSplittableFrame::SetNextInFlow(nsIFrame* aFrame)
+NS_METHOD nsSplittableFrame::SetNextInFlow(nsIFrame* aFrame)
 {
   NS_ASSERTION (!aFrame || GetType() == aFrame->GetType(),  "setting a next in flow with incorrect type!");
   NS_ASSERTION (!IsInNextContinuationChain(aFrame, this), "creating a loop in continuation chain!");
   mNextContinuation = aFrame;
   if (aFrame)
     aFrame->AddStateBits(NS_FRAME_IS_FLUID_CONTINUATION);
+  return NS_OK;
 }
 
-nsIFrame*
-nsSplittableFrame::FirstInFlow() const
+nsIFrame* nsSplittableFrame::GetFirstInFlow() const
 {
   nsSplittableFrame* firstInFlow = const_cast<nsSplittableFrame*>(this);
-  while (nsIFrame* prev = firstInFlow->GetPrevInFlow())  {
+  while (nsIFrame *prev = firstInFlow->GetPrevInFlow())  {
     firstInFlow = static_cast<nsSplittableFrame*>(prev);
   }
-  MOZ_ASSERT(firstInFlow, "post-condition failed");
+  NS_POSTCONDITION(firstInFlow, "illegal state in flow chain.");
   return firstInFlow;
 }
 
-nsIFrame*
-nsSplittableFrame::LastInFlow() const
+nsIFrame* nsSplittableFrame::GetLastInFlow() const
 {
   nsSplittableFrame* lastInFlow = const_cast<nsSplittableFrame*>(this);
   while (nsIFrame* next = lastInFlow->GetNextInFlow())  {
     lastInFlow = static_cast<nsSplittableFrame*>(next);
   }
-  MOZ_ASSERT(lastInFlow, "post-condition failed");
+  NS_POSTCONDITION(lastInFlow, "illegal state in flow chain.");
   return lastInFlow;
 }
 

@@ -34,6 +34,8 @@ run_for_effects := $(shell if test ! -d $(DIST); then $(NSINSTALL) -D $(DIST); f
 
 AB = $(firstword $(subst -, ,$(AB_CD)))
 
+core_abspath = $(if $(findstring :,$(1)),$(1),$(if $(filter /%,$(1)),$(1),$(CURDIR)/$(1)))
+
 # These are defaulted to be compatible with the files the wget-en-US target
 # pulls. You may override them if you provide your own files. You _must_
 # override them when MOZ_PKG_PRETTYNAMES is defined - the defaults will not
@@ -49,7 +51,7 @@ DEFINES += \
 	-DMOZ_LANGPACK_EID=$(MOZ_LANGPACK_EID) \
 	-DMOZ_APP_VERSION=$(MOZ_APP_VERSION) \
 	-DMOZ_APP_MAXVERSION=$(MOZ_APP_MAXVERSION) \
-	-DLOCALE_SRCDIR=$(abspath $(LOCALE_SRCDIR)) \
+	-DLOCALE_SRCDIR=$(call core_abspath,$(LOCALE_SRCDIR)) \
 	-DPKG_BASENAME="$(PKG_BASENAME)" \
 	-DPKG_INST_BASENAME="$(PKG_INST_BASENAME)" \
 	$(NULL)

@@ -55,9 +55,8 @@ DoesBinaryMatchAllowedCertificates(LPCWSTR basePathForUpdate, LPCWSTR filePath)
 
   // Get the number of subkeys.
   DWORD subkeyCount = 0;
-  retCode = RegQueryInfoKeyW(baseKey, nullptr, nullptr, nullptr, &subkeyCount,
-                             nullptr, nullptr, nullptr, nullptr, nullptr,
-                             nullptr, nullptr);
+  retCode = RegQueryInfoKeyW(baseKey, NULL, NULL, NULL, &subkeyCount, NULL,
+                             NULL, NULL, NULL, NULL, NULL, NULL);
   if (retCode != ERROR_SUCCESS) {
     LOG_WARN(("Could not query info key.  (%d)", retCode));
     return FALSE;
@@ -68,8 +67,8 @@ DoesBinaryMatchAllowedCertificates(LPCWSTR basePathForUpdate, LPCWSTR filePath)
     WCHAR subkeyBuffer[MAX_KEY_LENGTH];
     DWORD subkeyBufferCount = MAX_KEY_LENGTH;  
     retCode = RegEnumKeyExW(baseKey, i, subkeyBuffer, 
-                            &subkeyBufferCount, nullptr, 
-                            nullptr, nullptr, nullptr); 
+                            &subkeyBufferCount, NULL, 
+                            NULL, NULL, NULL); 
     if (retCode != ERROR_SUCCESS) {
       LOG_WARN(("Could not enum certs.  (%d)", retCode));
       return FALSE;
@@ -94,7 +93,7 @@ DoesBinaryMatchAllowedCertificates(LPCWSTR basePathForUpdate, LPCWSTR filePath)
     WCHAR issuer[MAX_CHAR_COUNT] = { L'\0' };
 
     // Get the name from the registry
-    retCode = RegQueryValueExW(subKey, L"name", 0, nullptr, 
+    retCode = RegQueryValueExW(subKey, L"name", 0, NULL, 
                                (LPBYTE)name, &valueBufSize);
     if (retCode != ERROR_SUCCESS) {
       LOG_WARN(("Could not obtain name from registry.  (%d)", retCode));
@@ -103,7 +102,7 @@ DoesBinaryMatchAllowedCertificates(LPCWSTR basePathForUpdate, LPCWSTR filePath)
 
     // Get the issuer from the registry
     valueBufSize = MAX_CHAR_COUNT * sizeof(WCHAR);
-    retCode = RegQueryValueExW(subKey, L"issuer", 0, nullptr, 
+    retCode = RegQueryValueExW(subKey, L"issuer", 0, NULL, 
                                (LPBYTE)issuer, &valueBufSize);
     if (retCode != ERROR_SUCCESS) {
       LOG_WARN(("Could not obtain issuer from registry.  (%d)", retCode));

@@ -13,7 +13,7 @@
 #include <cstdlib>
 #include <fstream>
 
-#include "testing/gtest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
 #include "webrtc/common_video/libyuv/include/webrtc_libyuv.h"
 #include "webrtc/system_wrappers/interface/scoped_ptr.h"
 #include "webrtc/test/testsupport/fileutils.h"
@@ -211,3 +211,4 @@ TEST_F(FrameEditingTest, RepeatFrames) {
 }
 }  // namespace test
 }  // namespace webrtc
+

@@ -7,12 +7,10 @@
 #ifndef EncodedBufferCache_h_
 #define EncodedBufferCache_h_
 
-#include "nsCOMPtr.h"
 #include "nsTArray.h"
-#include "mozilla/Mutex.h"
-
-struct PRFileDesc;
-class nsIDOMBlob;
+#include "mozilla/ReentrantMonitor.h"
+#include "prio.h"
+#include "nsDOMFile.h"
 
 namespace mozilla {
 
@@ -28,12 +26,13 @@ class EncodedBufferCache
 public:
   EncodedBufferCache(uint32_t aMaxMemoryStorage)
   : mFD(nullptr),
-    mMutex("EncodedBufferCache.Data.Mutex"),
+    mReentrantMonitor("EncodedBufferCache.Data.Monitor"),
     mDataSize(0),
     mMaxMemoryStorage(aMaxMemoryStorage),
     mTempFileEnabled(false) { }
   ~EncodedBufferCache()
   {
+    NS_ASSERTION(mDataSize == 0, "still has data in EncodedBuffers!");
   }
   // Append buffers in cache, check if the queue is too large then switch to write buffer to file system
   // aBuf will append to mEncodedBuffers or temporary File, aBuf also be cleared
@@ -47,7 +46,7 @@ private:
   // File handle for the temporary file
   PRFileDesc* mFD;
   // Used to protect the mEncodedBuffer for avoiding AppendBuffer/Consume on different thread at the same time.
-  Mutex mMutex;
+  ReentrantMonitor mReentrantMonitor;
   // the current buffer size can be read
   uint64_t mDataSize;
   // The maximal buffer allowed in memory

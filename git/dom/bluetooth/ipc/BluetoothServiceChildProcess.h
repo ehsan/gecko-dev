@@ -52,7 +52,7 @@ public:
                                     MOZ_OVERRIDE;
 
   virtual nsresult
-  GetConnectedDevicePropertiesInternal(uint16_t aServiceUuid,
+  GetConnectedDevicePropertiesInternal(uint16_t aProfileId,
                                        BluetoothReplyRunnable* aRunnable)
                                        MOZ_OVERRIDE;
   virtual nsresult
@@ -111,19 +111,22 @@ public:
                                  BluetoothReplyRunnable* aRunnable)
                                  MOZ_OVERRIDE;
 
+  virtual bool
+  SetAuthorizationInternal(const nsAString& aDeviceAddress,
+                           bool aAllow,
+                           BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
+
   virtual void
   Connect(const nsAString& aDeviceAddress,
-          uint32_t aCod,
-          uint16_t aServiceUuid,
+          const uint16_t aProfileId,
           BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
   virtual void
-  Disconnect(const nsAString& aDeviceAddress,
-             uint16_t aServiceUuid,
+  Disconnect(const uint16_t aProfileId,
              BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
   virtual bool
-  IsConnected(uint16_t aServiceUuid) MOZ_OVERRIDE;
+  IsConnected(uint16_t aProfileId) MOZ_OVERRIDE;
 
   virtual void
   SendFile(const nsAString& aDeviceAddress,
@@ -150,15 +153,6 @@ public:
   IsScoConnected(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
 
   virtual void
-  AnswerWaitingCall(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-  virtual void
-  IgnoreWaitingCall(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-  virtual void
-  ToggleCalls(BluetoothReplyRunnable* aRunnable) MOZ_OVERRIDE;
-
-  virtual void
   SendMetaData(const nsAString& aTitle,
                const nsAString& aArtist,
                const nsAString& aAlbum,
@@ -181,10 +175,6 @@ public:
   virtual nsresult
   SendSinkMessage(const nsAString& aDeviceAddresses,
                   const nsAString& aMessage) MOZ_OVERRIDE;
-
-  virtual nsresult
-  SendInputMessage(const nsAString& aDeviceAddresses,
-                   const nsAString& aMessage) MOZ_OVERRIDE;
 
 protected:
   BluetoothServiceChildProcess();

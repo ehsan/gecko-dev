@@ -13,6 +13,7 @@
 
 #include "nsPoint.h"
 #include "nsAutoPtr.h"
+#include "nsRect.h"
 
 class nsPresState
 {

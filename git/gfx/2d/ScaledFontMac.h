@@ -25,8 +25,7 @@ public:
   virtual SkTypeface* GetSkTypeface();
 #endif
   virtual TemporaryRef<Path> GetPathForGlyphs(const GlyphBuffer &aBuffer, const DrawTarget *aTarget);
-  virtual void CopyGlyphsToBuilder(const GlyphBuffer &aBuffer, PathBuilder *aBuilder, const Matrix *aTransformHint);
-  virtual bool GetFontFileData(FontFileDataOutput aDataCallback, void *aBaton);
+  virtual void CopyGlyphsToBuilder(const GlyphBuffer &aBuffer, PathBuilder *aBuilder);
 
 private:
   friend class DrawTargetCG;

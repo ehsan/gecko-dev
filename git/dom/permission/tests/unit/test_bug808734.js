@@ -21,8 +21,7 @@ var gData = [
 // test substitute
 {
   permission: "storage",
-  expected: ["indexedDB-unlimited", "offline-app", "pin-app",
-             "default-persistent-storage"]
+  expected: ["indexedDB-unlimited", "offline-app", "pin-app"]
 },
 // test unknown access
 {

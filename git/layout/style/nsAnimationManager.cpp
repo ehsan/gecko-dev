@@ -12,10 +12,10 @@
 #include "nsStyleSet.h"
 #include "nsCSSRules.h"
 #include "nsStyleAnimation.h"
+#include "nsSMILKeySpline.h"
 #include "nsEventDispatcher.h"
+#include "nsCSSFrameConstructor.h"
 #include "nsLayoutUtils.h"
-#include "nsIFrame.h"
-#include "nsIDocument.h"
 #include <math.h>
 
 using namespace mozilla;
@@ -402,8 +402,7 @@ ElementAnimations::CanPerformOnCompositorThread(CanAnimateFlags aFlags) const
       const AnimationProperty& prop = anim.mProperties[propIdx];
       if (!CanAnimatePropertyOnCompositor(mElement,
                                           prop.mProperty,
-                                          aFlags) ||
-          IsCompositorAnimationDisabledForFrame(frame)) {
+                                          aFlags)) {
         return false;
       }
       if (prop.mProperty == eCSSProperty_opacity) {
@@ -698,7 +697,9 @@ struct KeyframeDataComparator {
 
 class ResolvedStyleCache {
 public:
-  ResolvedStyleCache() : mCache(16) {}
+  ResolvedStyleCache() {
+    mCache.Init(16); // FIXME: make infallible!
+  }
   nsStyleContext* Get(nsPresContext *aPresContext,
                       nsStyleContext *aParentStyleContext,
                       nsCSSKeyframeRule *aKeyframe);
@@ -982,8 +983,7 @@ nsAnimationManager::GetAnimationRule(mozilla::dom::Element* aElement,
     return nullptr;
   }
 
-  NS_WARN_IF_FALSE(!ea->mNeedsRefreshes ||
-                   ea->mStyleRuleRefreshTime ==
+  NS_WARN_IF_FALSE(ea->mStyleRuleRefreshTime ==
                      mPresContext->RefreshDriver()->MostRecentRefresh(),
                    "should already have refreshed style rule");
 

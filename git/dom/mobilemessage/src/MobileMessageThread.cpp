@@ -8,8 +8,9 @@
 #include "jsapi.h"           // For OBJECT_TO_JSVAL and JS_NewDateObjectMsec
 #include "jsfriendapi.h"     // For js_DateGetMsecSinceEpoch
 #include "nsJSUtils.h"       // For nsDependentJSString
+#include "nsContentUtils.h"  // For nsTArrayHelpers.h
 #include "nsTArrayHelpers.h" // For nsTArrayToJSArray
-#include "mozilla/dom/mobilemessage/Constants.h" // For MessageType
+#include "Constants.h"       // For MessageType
 
 
 using namespace mozilla::dom::mobilemessage;
@@ -65,7 +66,7 @@ MobileMessageThread::Create(const uint64_t aId,
     for (uint32_t i = 0; i < length; ++i) {
       JS::Rooted<JS::Value> val(aCx);
 
-      if (!JS_GetElement(aCx, obj, i, &val) || !val.isString()) {
+      if (!JS_GetElement(aCx, obj, i, val.address()) || !val.isString()) {
         return NS_ERROR_INVALID_ARG;
       }
 

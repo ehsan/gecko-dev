@@ -33,6 +33,7 @@
 #include "base/basictypes.h"
 #include "nsPoint.h"
 #include "npapi.h"
+#include "nsRect.h"
 
 // Make this includable from non-Objective-C code.
 #ifndef __OBJC__

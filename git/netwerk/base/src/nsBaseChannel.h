@@ -13,6 +13,7 @@
 #include "nsInputStreamPump.h"
 
 #include "nsIChannel.h"
+#include "nsIInputStream.h"
 #include "nsIURI.h"
 #include "nsILoadGroup.h"
 #include "nsIStreamListener.h"
@@ -23,8 +24,6 @@
 #include "PrivateBrowsingChannel.h"
 #include "nsThreadUtils.h"
 #include "nsNetUtil.h"
-
-class nsIInputStream;
 
 //-----------------------------------------------------------------------------
 // nsBaseChannel is designed to be subclassed.  The subclass is responsible for
@@ -58,7 +57,7 @@ public:
 
   // This method must be called to initialize the basechannel instance.
   nsresult Init() {
-    return NS_OK;
+    return nsHashPropertyBag::Init();
   }
 
 protected:

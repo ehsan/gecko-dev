@@ -10,8 +10,9 @@
 #include "nsPoint.h"
 #include "nsTArray.h"
 #include "Units.h"
-#include "mozilla/EventForwards.h"
 
+class nsTouchEvent;
+class nsMouseEvent;
 namespace mozilla {
 
 
@@ -27,7 +28,7 @@ class PinchGestureInput;
 class TapGestureInput;
 
 // This looks unnecessary now, but as we add more and more classes that derive
-// from InputType (eventually probably almost as many as *Events.h has), it
+// from InputType (eventually probably almost as many as nsGUIEvent.h has), it
 // will be more and more clear what's going on with a macro that shortens the
 // definition of the RTTI functions.
 #define INPUTDATA_AS_CHILD_TYPE(type, enumID) \
@@ -44,9 +45,8 @@ public:
   InputType mInputType;
   // Time in milliseconds that this data is relevant to. This only really
   // matters when this data is used as an event. We use uint32_t instead of
-  // TimeStamp because it is easier to convert from WidgetInputEvent. The time
-  // is platform-specific but it in the case of B2G and Fennec it is since
-  // startup.
+  // TimeStamp because it is easier to convert from nsInputEvent. The time is
+  // platform-specific but it in the case of B2G and Fennec it is since startup.
   uint32_t mTime;
 
   INPUTDATA_AS_CHILD_TYPE(MultiTouchInput, MULTITOUCH_INPUT)
@@ -70,11 +70,11 @@ protected:
 /**
  * Data container for a single touch input. Similar to dom::Touch, but used in
  * off-main-thread situations. This is more for just storing touch data, whereas
- * dom::Touch is more useful for dispatching through the DOM (which can only
- * happen on the main thread). dom::Touch also bears the problem of storing
- * pointers to nsIWidget instances which can only be used on the main thread,
- * so if instead we used dom::Touch and ever set these pointers
- * off-main-thread, Bad Things Can Happen(tm).
+ * dom::Touch derives from nsIDOMTouch so it is more useful for dispatching
+ * through the DOM (which can only happen on the main thread). dom::Touch also
+ * bears the problem of storing pointers to nsIWidget instances which can only
+ * be used on the main thread, so if instead we used dom::Touch and ever set
+ * these pointers off-main-thread, Bad Things Can Happen(tm).
  *
  * Note that this doesn't inherit from InputData because this itself is not an
  * event. It is only a container/struct that should have any number of instances
@@ -126,12 +126,11 @@ public:
 };
 
 /**
- * Similar to WidgetTouchEvent, but for use off-main-thread. Also only stores a
- * screen touch point instead of the many different coordinate spaces
- * WidgetTouchEvent stores its touch point in. This includes a way to initialize
- * itself from a WidgetTouchEvent by copying all relevant data over. Note that
- * this copying from WidgetTouchEvent functionality can only be used on the main
- * thread.
+ * Similar to nsTouchEvent, but for use off-main-thread. Also only stores a
+ * screen touch point instead of the many different coordinate spaces nsTouchEvent
+ * stores its touch point in. This includes a way to initialize itself from an
+ * nsTouchEvent by copying all relevant data over. Note that this copying from
+ * nsTouchEvent functionality can only be used on the main thread.
  *
  * Stores an array of SingleTouchData.
  */
@@ -160,15 +159,15 @@ public:
   {
   }
 
-  MultiTouchInput(const WidgetTouchEvent& aTouchEvent);
+  MultiTouchInput(const nsTouchEvent& aTouchEvent);
 
-  // This conversion from WidgetMouseEvent to MultiTouchInput is needed because
-  // on the B2G emulator we can only receive mouse events, but we need to be
-  // able to pan correctly. To do this, we convert the events into a format that
-  // the panning code can handle. This code is very limited and only supports
+  // This conversion from nsMouseEvent to MultiTouchInput is needed because on
+  // the B2G emulator we can only receive mouse events, but we need to be able
+  // to pan correctly. To do this, we convert the events into a format that the
+  // panning code can handle. This code is very limited and only supports
   // SingleTouchData. It also sends garbage for the identifier, radius, force
   // and rotation angle.
-  MultiTouchInput(const WidgetMouseEvent& aMouseEvent);
+  MultiTouchInput(const nsMouseEvent& aMouseEvent);
 
   MultiTouchType mType;
   nsTArray<SingleTouchData> mTouches;

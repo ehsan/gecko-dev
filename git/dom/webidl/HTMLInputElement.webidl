@@ -12,13 +12,6 @@
  * and create derivative works of this document.
  */
 
-enum SelectionMode {
-  "select",
-  "start",
-  "end",
-  "preserve",
-};
-
 interface nsIControllers;
 
 interface HTMLInputElement : HTMLElement {
@@ -40,8 +33,6 @@ interface HTMLInputElement : HTMLElement {
   readonly attribute HTMLFormElement? form;
   [Pure]
   readonly attribute FileList? files;
-  [Throws, Pref="dom.input.dirpicker"]
-  void openDirectoryPicker();
   [Pure, SetterThrows]
            attribute DOMString formAction;
   [Pure, SetterThrows]
@@ -121,11 +112,8 @@ interface HTMLInputElement : HTMLElement {
            attribute long selectionEnd;
   [Throws]
            attribute DOMString selectionDirection;
-  [Throws]
-  void setRangeText(DOMString replacement);
-  [Throws]
-  void setRangeText(DOMString replacement, unsigned long start,
-    unsigned long end, optional SelectionMode selectionMode = "preserve");
+  // Bug 850364 void setRangeText(DOMString replacement);
+  // Bug 850364 setRangeText(DOMString replacement, unsigned long start, unsigned long end, optional SelectionMode selectionMode);
 
   // also has obsolete members
 };

@@ -11,16 +11,12 @@
 // Modified from the Chromium original:
 // src/media/base/sinc_resampler_unittest.cc
 
-// MSVC++ requires this to be set before any other includes to get M_PI.
-#define _USE_MATH_DEFINES
-
 #include <cmath>
 
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "webrtc/common_audio/resampler/sinc_resampler.h"
 #include "webrtc/common_audio/resampler/sinusoidal_linear_chirp_source.h"
-#include "webrtc/system_wrappers/interface/cpu_features_wrapper.h"
 #include "webrtc/system_wrappers/interface/scoped_ptr.h"
 #include "webrtc/system_wrappers/interface/stringize_macros.h"
 #include "webrtc/system_wrappers/interface/tick_util.h"
@@ -98,9 +94,9 @@ TEST(SincResamplerTest, Flush) {
 }
 
 // Define platform independent function name for Convolve* tests.
-#if defined(WEBRTC_ARCH_X86_FAMILY)
+#if defined(WEBRTC_USE_SSE2) && defined(__SSE__)
 #define CONVOLVE_FUNC Convolve_SSE
-#elif defined(WEBRTC_ARCH_ARM_V7)
+#elif defined(WEBRTC_ARCH_ARM_NEON) || defined(WEBRTC_DETECT_ARM_NEON)
 #define CONVOLVE_FUNC Convolve_NEON
 #endif
 
@@ -109,12 +105,6 @@ TEST(SincResamplerTest, Flush) {
 // will be tested by the parameterized SincResampler tests below.
 #if defined(CONVOLVE_FUNC)
 TEST(SincResamplerTest, Convolve) {
-#if defined(WEBRTC_ARCH_X86_FAMILY)
-  ASSERT_TRUE(WebRtc_GetCPUInfo(kSSE2));
-#elif defined(WEBRTC_ARCH_ARM_V7)
-  ASSERT_TRUE(WebRtc_GetCPUFeaturesARM() & kCPUFeatureNEON);
-#endif
-
   // Initialize a dummy resampler.
   MockSource mock_source;
   SincResampler resampler(kSampleRateRatio, &mock_source);
@@ -169,12 +159,6 @@ TEST(SincResamplerTest, ConvolveBenchmark) {
   printf("Convolve_C took %.2fms.\n", total_time_c_us / 1000);
 
 #if defined(CONVOLVE_FUNC)
-#if defined(WEBRTC_ARCH_X86_FAMILY)
-  ASSERT_TRUE(WebRtc_GetCPUInfo(kSSE2));
-#elif defined(WEBRTC_ARCH_ARM_V7)
-  ASSERT_TRUE(WebRtc_GetCPUFeaturesARM() & kCPUFeatureNEON);
-#endif
-
   // Benchmark with unaligned input pointer.
   start = TickTime::Now();
   for (int j = 0; j < kConvolveIterations; ++j) {
@@ -242,22 +226,9 @@ TEST_P(SincResamplerTest, Resample) {
   SinusoidalLinearChirpSource resampler_source(
       input_rate_, input_samples, input_nyquist_freq, 0);
 
-  const double io_ratio = input_rate_ / static_cast<double>(output_rate_);
   SincResampler resampler(
-      io_ratio,
+      input_rate_ / static_cast<double>(output_rate_),
       &resampler_source);
-
-  // Force an update to the sample rate ratio to ensure dyanmic sample rate
-  // changes are working correctly.
-  scoped_array<float> kernel(new float[SincResampler::kKernelStorageSize]);
-  memcpy(kernel.get(), resampler.get_kernel_for_testing(),
-         SincResampler::kKernelStorageSize);
-  resampler.SetRatio(M_PI);
-  ASSERT_NE(0, memcmp(kernel.get(), resampler.get_kernel_for_testing(),
-                      SincResampler::kKernelStorageSize));
-  resampler.SetRatio(io_ratio);
-  ASSERT_EQ(0, memcmp(kernel.get(), resampler.get_kernel_for_testing(),
-                      SincResampler::kKernelStorageSize));
 
   // TODO(dalecurtis): If we switch to AVX/SSE optimization, we'll need to
   // allocate these on 32-byte boundaries and ensure they're sized % 32 bytes.
@@ -367,3 +338,4 @@ INSTANTIATE_TEST_CASE_P(
         std::tr1::make_tuple(192000, 192000, kResamplingRMSError, -73.52)));
 
 }  // namespace webrtc
+

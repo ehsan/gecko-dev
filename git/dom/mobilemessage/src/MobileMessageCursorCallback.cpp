@@ -67,13 +67,13 @@ MobileMessageCursorCallback::NotifyCursorResult(nsISupports* aResult)
   AutoPushJSContext cx(scriptContext->GetNativeContext());
   NS_ENSURE_TRUE(cx, NS_ERROR_FAILURE);
 
-  JS::Rooted<JSObject*> global(cx, scriptContext->GetWindowProxy());
+  JS::Rooted<JSObject*> global(cx, scriptContext->GetNativeGlobal());
   NS_ENSURE_TRUE(global, NS_ERROR_FAILURE);
 
   JSAutoCompartment ac(cx, global);
 
   JS::Rooted<JS::Value> wrappedResult(cx);
-  rv = nsContentUtils::WrapNative(cx, global, aResult, &wrappedResult);
+  rv = nsContentUtils::WrapNative(cx, global, aResult, wrappedResult.address());
   NS_ENSURE_SUCCESS(rv, rv);
 
   mDOMCursor->FireSuccess(wrappedResult);

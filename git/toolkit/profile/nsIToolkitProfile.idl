@@ -6,6 +6,7 @@
 #include "nsISupports.idl"
 
 interface nsIFile;
+interface nsIToolkitProfile;
 interface nsIProfileUnlocker;
 
 /**

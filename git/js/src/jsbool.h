@@ -6,18 +6,17 @@
 
 #ifndef jsbool_h
 #define jsbool_h
-
 /*
  * JS boolean interface.
  */
 
-#include "NamespaceImports.h"
+#include "jsapi.h"
 
 extern JSObject *
 js_InitBooleanClass(JSContext *cx, js::HandleObject obj);
 
 extern JSString *
-js_BooleanToString(js::ExclusiveContext *cx, bool b);
+js_BooleanToString(js::ExclusiveContext *cx, JSBool b);
 
 namespace js {
 

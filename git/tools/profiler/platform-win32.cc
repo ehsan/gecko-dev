@@ -80,16 +80,10 @@ Sampler::GetThreadHandle(PlatformData* aData)
 
 class SamplerThread : public Thread {
  public:
-  SamplerThread(double interval, Sampler* sampler)
+  SamplerThread(int interval, Sampler* sampler)
       : Thread("SamplerThread")
       , interval_(interval)
-      , sampler_(sampler)
-  {
-    interval_ = floor(interval + 0.5);
-    if (interval_ <= 0) {
-      interval_ = 1;
-    }
-  }
+      , sampler_(sampler) {}
 
   static void StartSampler(Sampler* sampler) {
     if (instance_ == NULL) {
@@ -182,7 +176,7 @@ class SamplerThread : public Thread {
   }
 
   Sampler* sampler_;
-  int interval_; // units: ms
+  const int interval_;
 
   // Protects the process wide state below.
   static SamplerThread* instance_;
@@ -193,7 +187,7 @@ class SamplerThread : public Thread {
 SamplerThread* SamplerThread::instance_ = NULL;
 
 
-Sampler::Sampler(double interval, bool profiling, int entrySize)
+Sampler::Sampler(int interval, bool profiling, int entrySize)
     : interval_(interval),
       profiling_(profiling),
       paused_(false),
@@ -254,20 +248,14 @@ void Thread::Start() {
                      ThreadEntry,
                      this,
                      0,
-                     (unsigned int*) &thread_id_));
+                     &thread_id_));
 }
 
 // Wait for thread to terminate.
 void Thread::Join() {
-  if (thread_id_ != GetCurrentId()) {
+  if (thread_id_ != GetCurrentThreadId()) {
     WaitForSingleObject(thread_, INFINITE);
   }
-}
-
-/* static */ Thread::tid_t
-Thread::GetCurrentId()
-{
-  return GetCurrentThreadId();
 }
 
 void OS::Sleep(int milliseconds) {
@@ -281,25 +269,10 @@ bool Sampler::RegisterCurrentThread(const char* aName,
   if (!Sampler::sRegisteredThreadsMutex)
     return false;
 
-
   mozilla::MutexAutoLock lock(*Sampler::sRegisteredThreadsMutex);
 
-  int id = GetCurrentThreadId();
-
-  for (uint32_t i = 0; i < sRegisteredThreads->size(); i++) {
-    ThreadInfo* info = sRegisteredThreads->at(i);
-    if (info->ThreadId() == id) {
-      // Thread already registered. This means the first unregister will be
-      // too early.
-      ASSERT(false);
-      return false;
-    }
-  }
-
-  set_tls_stack_top(stackTop);
-
-  ThreadInfo* info = new ThreadInfo(aName, id,
-    aIsMainThread, aPseudoStack, stackTop);
+  ThreadInfo* info = new ThreadInfo(aName, GetCurrentThreadId(),
+    aIsMainThread, aPseudoStack);
 
   if (sActiveSampler) {
     sActiveSampler->RegisterThread(info);
@@ -316,8 +289,6 @@ void Sampler::UnregisterCurrentThread()
   if (!Sampler::sRegisteredThreadsMutex)
     return;
 
-  tlsStackTop.set(nullptr);
-
   mozilla::MutexAutoLock lock(*Sampler::sRegisteredThreadsMutex);
 
   int id = GetCurrentThreadId();
@@ -331,26 +302,3 @@ void Sampler::UnregisterCurrentThread()
     }
   }
 }
-
-void TickSample::PopulateContext(void* aContext)
-{
-  MOZ_ASSERT(aContext);
-  CONTEXT* pContext = reinterpret_cast<CONTEXT*>(aContext);
-  context = pContext;
-  RtlCaptureContext(pContext);
-
-#if defined(SPS_PLAT_amd64_windows)
-
-  pc = reinterpret_cast<Address>(pContext->Rip);
-  sp = reinterpret_cast<Address>(pContext->Rsp);
-  fp = reinterpret_cast<Address>(pContext->Rbp);
-
-#elif defined(SPS_PLAT_x86_windows)
-
-  pc = reinterpret_cast<Address>(pContext->Eip);
-  sp = reinterpret_cast<Address>(pContext->Esp);
-  fp = reinterpret_cast<Address>(pContext->Ebp);
-
-#endif
-}
-

@@ -11,8 +11,6 @@
 
 #include "jit/CompileInfo.h"
 
-#include "jsscriptinlines.h"
-
 namespace js {
 namespace jit {
 
@@ -22,7 +20,6 @@ HasIonScript(JSScript *script, ExecutionMode cmode)
     switch (cmode) {
       case SequentialExecution: return script->hasIonScript();
       case ParallelExecution: return script->hasParallelIonScript();
-      default:;
     }
     MOZ_ASSUME_UNREACHABLE("No such execution mode");
 }
@@ -33,7 +30,6 @@ GetIonScript(JSScript *script, ExecutionMode cmode)
     switch (cmode) {
       case SequentialExecution: return script->maybeIonScript();
       case ParallelExecution: return script->maybeParallelIonScript();
-      default:;
     }
     MOZ_ASSUME_UNREACHABLE("No such execution mode");
 }
@@ -44,7 +40,6 @@ SetIonScript(JSScript *script, ExecutionMode cmode, IonScript *ionScript)
     switch (cmode) {
       case SequentialExecution: script->setIonScript(ionScript); return;
       case ParallelExecution: script->setParallelIonScript(ionScript); return;
-      default:;
     }
     MOZ_ASSUME_UNREACHABLE("No such execution mode");
 }
@@ -55,7 +50,6 @@ OffsetOfIonInJSScript(ExecutionMode cmode)
     switch (cmode) {
       case SequentialExecution: return JSScript::offsetOfIonScript();
       case ParallelExecution: return JSScript::offsetOfParallelIonScript();
-      default:;
     }
     MOZ_ASSUME_UNREACHABLE("No such execution mode");
 }
@@ -66,11 +60,15 @@ CanIonCompile(JSScript *script, ExecutionMode cmode)
     switch (cmode) {
       case SequentialExecution: return script->canIonCompile();
       case ParallelExecution: return script->canParallelIonCompile();
-      case DefinitePropertiesAnalysis: return true;
-      default:;
     }
     MOZ_ASSUME_UNREACHABLE("No such execution mode");
     return false;
+}
+
+static inline bool
+CanIonCompile(JSFunction *fun, ExecutionMode cmode)
+{
+    return fun->isInterpreted() && CanIonCompile(fun->nonLazyScript(), cmode);
 }
 
 static inline bool
@@ -79,7 +77,6 @@ CompilingOffThread(JSScript *script, ExecutionMode cmode)
     switch (cmode) {
       case SequentialExecution: return script->isIonCompilingOffThread();
       case ParallelExecution: return script->isParallelIonCompilingOffThread();
-      default:;
     }
     MOZ_ASSUME_UNREACHABLE("No such execution mode");
 }
@@ -90,7 +87,16 @@ CompilingOffThread(HandleScript script, ExecutionMode cmode)
     switch (cmode) {
       case SequentialExecution: return script->isIonCompilingOffThread();
       case ParallelExecution: return script->isParallelIonCompilingOffThread();
-      default:;
+    }
+    MOZ_ASSUME_UNREACHABLE("No such execution mode");
+}
+
+static inline types::CompilerOutput::Kind
+CompilerOutputKind(ExecutionMode cmode)
+{
+    switch (cmode) {
+      case SequentialExecution: return types::CompilerOutput::Ion;
+      case ParallelExecution: return types::CompilerOutput::ParallelIon;
     }
     MOZ_ASSUME_UNREACHABLE("No such execution mode");
 }

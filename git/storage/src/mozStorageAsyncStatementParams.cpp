@@ -8,8 +8,6 @@
 #include "nsString.h"
 #include "nsCOMPtr.h"
 
-#include "jsapi.h"
-
 #include "mozStoragePrivateHelpers.h"
 #include "mozStorageAsyncStatement.h"
 #include "mozStorageAsyncStatementParams.h"
@@ -49,7 +47,7 @@ AsyncStatementParams::SetProperty(
   JSContext *aCtx,
   JSObject *aScopeObj,
   jsid aId,
-  JS::Value *_vp,
+  jsval *_vp,
   bool *_retval
 )
 {

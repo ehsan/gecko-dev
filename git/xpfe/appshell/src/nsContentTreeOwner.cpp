@@ -12,6 +12,7 @@
 // Helper Classes
 #include "nsIServiceManager.h"
 #include "nsAutoPtr.h"
+#include "nsContentUtils.h"
 #include "nsCxPusher.h"
 
 // Interfaces needed to be included
@@ -31,16 +32,11 @@
 #include "nsIURIFixup.h"
 #include "nsCDefaultURIFixup.h"
 #include "nsIWebNavigation.h"
-#include "nsDocShellCID.h"
-#include "nsIExternalURLHandlerService.h"
-#include "nsIMIMEInfo.h"
-#include "nsIWidget.h"
 #include "mozilla/BrowserElementParent.h"
 
 #include "nsIDOMDocument.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIURI.h"
-#include "nsIDocument.h"
 #if defined(XP_MACOSX)
 #include "nsThreadUtils.h"
 #endif
@@ -837,36 +833,14 @@ nsContentTreeOwner::ProvideWindow(nsIDOMWindow* aParent,
       !(aChromeFlags & (nsIWebBrowserChrome::CHROME_MODAL |
                         nsIWebBrowserChrome::CHROME_OPENAS_DIALOG |
                         nsIWebBrowserChrome::CHROME_OPENAS_CHROME))) {
-
-    BrowserElementParent::OpenWindowResult opened =
+    *aWindowIsNew =
       BrowserElementParent::OpenWindowInProcess(aParent, aURI, aName,
                                                 aFeatures, aReturn);
 
-    // If OpenWindowInProcess handled the open (by opening it or blocking the
+    // If OpenWindowInProcess failed (perhaps because the embedder blocked the
     // popup), tell our caller not to proceed trying to create a new window
     // through other means.
-    if (opened != BrowserElementParent::OPEN_WINDOW_IGNORED) {
-      *aWindowIsNew = opened == BrowserElementParent::OPEN_WINDOW_ADDED;
-      return *aWindowIsNew ? NS_OK : NS_ERROR_ABORT;
-    }
-
-    // If we're in an app and the target is _blank, send the url to the OS
-    if (aName.LowerCaseEqualsLiteral("_blank")) {
-      nsCOMPtr<nsIExternalURLHandlerService> exUrlServ(
-                        do_GetService(NS_EXTERNALURLHANDLERSERVICE_CONTRACTID));
-      if (exUrlServ) {
-
-        nsCOMPtr<nsIHandlerInfo> info;
-        bool found;
-        exUrlServ->GetURLHandlerInfoFromOS(aURI, &found, getter_AddRefs(info));
-  
-        if (info && found) {
-          info->LaunchWithURI(aURI, nullptr);
-          return NS_ERROR_ABORT;
-        }
-
-      }
-    }
+    return *aWindowIsNew ? NS_OK : NS_ERROR_ABORT;
   }
 
   // the parent window is fullscreen mode or not.

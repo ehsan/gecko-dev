@@ -9,20 +9,21 @@
 
 #include "nsSocketTransportService2.h"
 #include "nsSocketTransport2.h"
+#include "nsReadableUtils.h"
 #include "nsError.h"
 #include "prnetdb.h"
 #include "prerror.h"
+#include "plstr.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsServiceManagerUtils.h"
+#include "nsIOService.h"
 #include "NetworkActivityMonitor.h"
 #include "nsIObserverService.h"
 #include "mozilla/Services.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Likely.h"
 #include "mozilla/PublicSSL.h"
-#include "nsThreadUtils.h"
-#include "nsIFile.h"
 
 using namespace mozilla;
 using namespace mozilla::net;
@@ -573,31 +574,6 @@ nsSocketTransportService::CreateTransport(const char **types,
 }
 
 NS_IMETHODIMP
-nsSocketTransportService::CreateUnixDomainTransport(nsIFile *aPath,
-                                                    nsISocketTransport **result)
-{
-    nsresult rv;
-
-    NS_ENSURE_TRUE(mInitialized, NS_ERROR_NOT_INITIALIZED);
-
-    nsAutoCString path;
-    rv = aPath->GetNativePath(path);
-    if (NS_FAILED(rv))
-        return rv;
-
-    nsRefPtr<nsSocketTransport> trans = new nsSocketTransport();
-    if (!trans)
-        return NS_ERROR_OUT_OF_MEMORY;
-
-    rv = trans->InitWithFilename(path.get());
-    if (NS_FAILED(rv))
-        return rv;
-
-    trans.forget(result);
-    return NS_OK;
-}
-
-NS_IMETHODIMP
 nsSocketTransportService::GetAutodialEnabled(bool *value)
 {
     *value = mAutodialEnabled;
@@ -634,22 +610,10 @@ nsSocketTransportService::AfterProcessNextEvent(nsIThreadInternal* thread,
     return NS_OK;
 }
 
-#ifdef MOZ_NUWA_PROCESS
-#include "ipc/Nuwa.h"
-#endif
-
 NS_IMETHODIMP
 nsSocketTransportService::Run()
 {
     PR_SetCurrentThreadName("Socket Thread");
-
-#ifdef MOZ_NUWA_PROCESS
-    if (IsNuwaProcess()) {
-        NS_ASSERTION(NuwaMarkCurrentThread != nullptr,
-                     "NuwaMarkCurrentThread is undefined!");
-        NuwaMarkCurrentThread(nullptr, nullptr);
-    }
-#endif
 
     SOCKET_LOG(("STS thread init\n"));
 
@@ -657,7 +621,7 @@ nsSocketTransportService::Run()
 
     gSocketThread = PR_GetCurrentThread();
 
-    // add thread event to poll list (mThreadEvent may be nullptr)
+    // add thread event to poll list (mThreadEvent may be NULL)
     mPollList[0].fd = mThreadEvent;
     mPollList[0].in_flags = PR_POLL_READ;
     mPollList[0].out_flags = 0;
@@ -1087,14 +1051,10 @@ nsSocketTransportService::DiscoverMaxCount()
     return PR_SUCCESS;
 }
 
-
-// Used to return connection info to Dashboard.cpp
 void
 nsSocketTransportService::AnalyzeConnection(nsTArray<SocketInfo> *data,
         struct SocketContext *context, bool aActive)
 {
-    if (context->mHandler->mIsPrivate)
-        return;
     PRFileDesc *aFD = context->mFD;
     bool tcp = (PR_GetDescType(aFD) == PR_DESC_SOCKET_TCP);
 

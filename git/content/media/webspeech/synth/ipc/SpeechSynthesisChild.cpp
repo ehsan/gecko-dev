@@ -158,12 +158,6 @@ SpeechTaskChild::SendAudio(const JS::Value& aData, const JS::Value& aLandmarks,
   MOZ_CRASH("Should never be called from child");
 }
 
-NS_IMETHODIMP
-SpeechTaskChild::SendAudioNative(int16_t* aData, uint32_t aDataLen)
-{
-  MOZ_CRASH("Should never be called from child");
-}
-
 void
 SpeechTaskChild::Pause()
 {

@@ -15,7 +15,8 @@ function manifestUpdated()
   xhr.send();
 
   OfflineTest.is(xhr.status, 200, "Should have fallen back.");
-  OfflineTest.teardownAndFinish();
+  OfflineTest.teardown();
+  OfflineTest.finish();
 }
 
 if (OfflineTest.setup()) {

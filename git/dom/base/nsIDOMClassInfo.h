@@ -34,7 +34,7 @@
    nsIXPCScriptable::CLASSINFO_INTERFACES_ONLY)
 
 
-#ifdef MOZILLA_INTERNAL_API
+#ifdef _IMPL_NS_LAYOUT
 
 // See nsDOMClassInfoID.h
 
@@ -57,7 +57,7 @@
       sof->GetClassInfoInstance(eDOMClassInfo_##_class##_id);              \
   } else
 
-#endif /* MOZILLA_INTERNAL_API */
+#endif /* _IMPL_NS_LAYOUT */
 
 // Looks up the nsIClassInfo for a class name registered with the 
 // nsScriptNamespaceManager. Remember to release NS_CLASSINFO_NAME(_class)

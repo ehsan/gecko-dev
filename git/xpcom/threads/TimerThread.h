@@ -15,13 +15,9 @@
 
 #include "nsTArray.h"
 
-#include "mozilla/Atomics.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Monitor.h"
-
-namespace mozilla {
-class TimeStamp;
-}
+#include "mozilla/TimeStamp.h"
 
 class TimerThread MOZ_FINAL : public nsIRunnable,
                               public nsIObserver
@@ -56,7 +52,7 @@ public:
 private:
   ~TimerThread();
 
-  mozilla::Atomic<int32_t> mInitInProgress;
+  int32_t mInitInProgress;
   bool    mInitialized;
 
   // These two internal helper methods must be called while mLock is held.

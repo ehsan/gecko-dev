@@ -207,12 +207,6 @@ public:
                           const nsAString &aCrossOrigin,
                           bool aScriptFromHead);
 
-  /**
-   * Process a request that was deferred so that the script could be compiled
-   * off thread.
-   */
-  nsresult ProcessOffThreadRequest(void **aOffThreadToken);
-
 private:
   /**
    * Unblocks the creator parser of the parser-blocking scripts.
@@ -267,22 +261,14 @@ private:
   bool AddPendingChildLoader(nsScriptLoader* aChild) {
     return mPendingChildLoaders.AppendElement(aChild) != nullptr;
   }
-
-  nsresult AttemptAsyncScriptParse(nsScriptLoadRequest* aRequest);
-  nsresult ProcessRequest(nsScriptLoadRequest* aRequest,
-                          void **aOffThreadToken = nullptr);
+  
+  nsresult ProcessRequest(nsScriptLoadRequest* aRequest);
   void FireScriptAvailable(nsresult aResult,
                            nsScriptLoadRequest* aRequest);
   void FireScriptEvaluated(nsresult aResult,
                            nsScriptLoadRequest* aRequest);
   nsresult EvaluateScript(nsScriptLoadRequest* aRequest,
-                          const nsAFlatString& aScript,
-                          void **aOffThreadToken);
-
-  nsIScriptContext *GetScriptContext(JSObject **aGlobal);
-  void FillCompileOptionsForRequest(nsScriptLoadRequest *aRequest,
-                                    JS::Handle<JSObject *> scopeChain,
-                                    JS::CompileOptions *aOptions);
+                          const nsAFlatString& aScript);
 
   nsresult PrepareLoadedRequest(nsScriptLoadRequest* aRequest,
                                 nsIStreamLoader* aLoader,
@@ -316,7 +302,6 @@ private:
   };
   nsTArray<PreloadInfo> mPreloads;
 
-  nsCOMPtr<nsScriptLoadRequest> mOffThreadScriptRequest;
   nsCOMPtr<nsIScriptElement> mCurrentScript;
   nsCOMPtr<nsIScriptElement> mCurrentParserInsertedScript;
   // XXXbz do we want to cycle-collect these or something?  Not sure.

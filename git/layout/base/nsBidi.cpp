@@ -7,7 +7,7 @@
 
 #include "nsBidi.h"
 #include "nsUnicodeProperties.h"
-#include "nsCRTGlue.h"
+#include "nsCRT.h"
 
 using namespace mozilla::unicode;
 
@@ -145,7 +145,7 @@ nsBidi::~nsBidi()
 
 void nsBidi::Init()
 {
-  /* reset the object, all pointers nullptr, all flags false, all sizes 0 */
+  /* reset the object, all pointers NULL, all flags false, all sizes 0 */
   mLength = 0;
   mParaLevel = 0;
   mFlags = 0;
@@ -157,13 +157,13 @@ void nsBidi::Init()
   mRunsSize = 0;
   mRunCount = -1;
 
-  mDirProps=nullptr;
-  mLevels=nullptr;
-  mRuns=nullptr;
+  mDirProps=NULL;
+  mLevels=NULL;
+  mRuns=NULL;
 
-  mDirPropsMemory=nullptr;
-  mLevelsMemory=nullptr;
-  mRunsMemory=nullptr;
+  mDirPropsMemory=NULL;
+  mLevelsMemory=NULL;
+  mRunsMemory=NULL;
 
   mMayAllocateText=false;
   mMayAllocateRuns=false;
@@ -171,13 +171,13 @@ void nsBidi::Init()
 }
 
 /*
- * We are allowed to allocate memory if aMemory==nullptr or
+ * We are allowed to allocate memory if aMemory==NULL or
  * aMayAllocate==true for each array that we need.
  * We also try to grow and shrink memory as needed if we
  * allocate it.
  *
  * Assume aSizeNeeded>0.
- * If *aMemory!=nullptr, then assume *aSize>0.
+ * If *aMemory!=NULL, then assume *aSize>0.
  *
  * ### this realloc() may unnecessarily copy the old data,
  * which we know we don't need any more;
@@ -186,13 +186,13 @@ void nsBidi::Init()
 bool nsBidi::GetMemory(void **aMemory, size_t *aSize, bool aMayAllocate, size_t aSizeNeeded)
 {
   /* check for existing memory */
-  if(*aMemory==nullptr) {
+  if(*aMemory==NULL) {
     /* we need to allocate memory */
     if(!aMayAllocate) {
       return false;
     } else {
       *aMemory=moz_malloc(aSizeNeeded);
-      if (*aMemory!=nullptr) {
+      if (*aMemory!=NULL) {
         *aSize=aSizeNeeded;
         return true;
       } else {
@@ -209,7 +209,7 @@ bool nsBidi::GetMemory(void **aMemory, size_t *aSize, bool aMayAllocate, size_t 
       /* we may try to grow or shrink */
       void *memory=moz_realloc(*aMemory, aSizeNeeded);
 
-      if(memory!=nullptr) {
+      if(memory!=NULL) {
         *aMemory=memory;
         *aSize=aSizeNeeded;
         return true;
@@ -242,7 +242,7 @@ nsresult nsBidi::SetPara(const PRUnichar *aText, int32_t aLength,
   nsBidiDirection direction;
 
   /* check the argument values */
-  if(aText==nullptr ||
+  if(aText==NULL ||
      ((NSBIDI_MAX_EXPLICIT_LEVEL<aParaLevel) && !IS_DEFAULT_LEVEL(aParaLevel)) ||
      aLength<-1
     ) {
@@ -259,9 +259,9 @@ nsresult nsBidi::SetPara(const PRUnichar *aText, int32_t aLength,
   mDirection=NSBIDI_LTR;
   mTrailingWSStart=aLength;  /* the levels[] will reflect the WS run */
 
-  mDirProps=nullptr;
-  mLevels=nullptr;
-  mRuns=nullptr;
+  mDirProps=NULL;
+  mLevels=NULL;
+  mRuns=NULL;
 
   if(aLength==0) {
     /*
@@ -299,7 +299,7 @@ nsresult nsBidi::SetPara(const PRUnichar *aText, int32_t aLength,
   }
 
   /* are explicit levels specified? */
-  if(aEmbeddingLevels==nullptr) {
+  if(aEmbeddingLevels==NULL) {
     /* no: determine explicit levels according to the (Xn) rules */\
     if(GETLEVELSMEMORY(aLength)) {
       mLevels=mLevelsMemory;
@@ -347,7 +347,7 @@ nsresult nsBidi::SetPara(const PRUnichar *aText, int32_t aLength,
        * Examples for "insignificant" ones are empty embeddings
        * LRE-PDF, LRE-RLE-PDF-PDF, etc.
        */
-      if(aEmbeddingLevels==nullptr && !(mFlags&DIRPROP_FLAG_MULTI_RUNS)) {
+      if(aEmbeddingLevels==NULL && !(mFlags&DIRPROP_FLAG_MULTI_RUNS)) {
         ResolveImplicitLevels(0, aLength,
                     GET_LR_FROM_LEVEL(mParaLevel),
                     GET_LR_FROM_LEVEL(mParaLevel));
@@ -1122,7 +1122,7 @@ nsresult nsBidi::GetLength(int32_t* aLength)
  * This means that there is a nsBidi object with a levels
  * and a dirProps array.
  * paraLevel and direction are also set.
- * Only if the length of the text is zero, then levels==dirProps==nullptr.
+ * Only if the length of the text is zero, then levels==dirProps==NULL.
  *
  * The overall directionality of the paragraph
  * or line is used to bypass the reordering steps if possible.
@@ -1164,7 +1164,7 @@ nsresult nsBidi::SetLine(nsIBidi* aParaBidi, int32_t aStart, int32_t aLimit)
   int32_t length;
 
   /* check the argument values */
-  if(pParent==nullptr) {
+  if(pParent==NULL) {
     return NS_ERROR_INVALID_POINTER;
   } else if(aStart<0 || aStart>aLimit || aLimit>pParent->mLength) {
     return NS_ERROR_INVALID_ARG;
@@ -1174,7 +1174,7 @@ nsresult nsBidi::SetLine(nsIBidi* aParaBidi, int32_t aStart, int32_t aLimit)
   length=mLength=aLimit-aStart;
   mParaLevel=pParent->mParaLevel;
 
-  mRuns=nullptr;
+  mRuns=NULL;
   mFlags=0;
 
   if(length>0) {
@@ -1260,8 +1260,8 @@ nsresult nsBidi::SetLine(nsIBidi* aParaBidi, int32_t aStart, int32_t aLimit)
     mDirection=mParaLevel&1 ? NSBIDI_RTL : NSBIDI_LTR;
     mTrailingWSStart=mRunCount=0;
 
-    mDirProps=nullptr;
-    mLevels=nullptr;
+    mDirProps=NULL;
+    mLevels=NULL;
   }
   return NS_OK;
 }
@@ -1317,7 +1317,7 @@ nsresult nsBidi::GetLevels(nsBidiLevel** aLevels)
 
   length = mLength;
   if(length<=0) {
-    *aLevels = nullptr;
+    *aLevels = NULL;
     return NS_ERROR_INVALID_ARG;
   }
 
@@ -1350,7 +1350,7 @@ nsresult nsBidi::GetLevels(nsBidiLevel** aLevels)
     return NS_OK;
   } else {
     /* out of memory */
-    *aLevels = nullptr;
+    *aLevels = NULL;
     return NS_ERROR_OUT_OF_MEMORY;
   }
 }
@@ -1374,10 +1374,10 @@ nsresult nsBidi::GetLogicalRun(int32_t aLogicalStart, int32_t *aLogicalLimit, ns
   }
 
   if(mDirection!=NSBIDI_MIXED || aLogicalStart>=mTrailingWSStart) {
-    if(aLogicalLimit!=nullptr) {
+    if(aLogicalLimit!=NULL) {
       *aLogicalLimit=length;
     }
-    if(aLevel!=nullptr) {
+    if(aLevel!=NULL) {
       *aLevel=mParaLevel;
     }
   } else {
@@ -1388,10 +1388,10 @@ nsresult nsBidi::GetLogicalRun(int32_t aLogicalStart, int32_t *aLogicalLimit, ns
     length=mTrailingWSStart;
     while(++aLogicalStart<length && level==levels[aLogicalStart]) {}
 
-    if(aLogicalLimit!=nullptr) {
+    if(aLogicalLimit!=NULL) {
       *aLogicalLimit=aLogicalStart;
     }
-    if(aLevel!=nullptr) {
+    if(aLevel!=NULL) {
       *aLevel=level;
     }
   }
@@ -1421,10 +1421,10 @@ nsresult nsBidi::GetVisualRun(int32_t aRunIndex, int32_t *aLogicalStart, int32_t
     return NS_OK;
   } else {
     int32_t start=mRuns[aRunIndex].logicalStart;
-    if(aLogicalStart!=nullptr) {
+    if(aLogicalStart!=NULL) {
       *aLogicalStart=GET_INDEX(start);
     }
-    if(aLength!=nullptr) {
+    if(aLength!=NULL) {
       if(aRunIndex>0) {
         *aLength=mRuns[aRunIndex].visualLimit-
              mRuns[aRunIndex-1].visualLimit;
@@ -1725,8 +1725,7 @@ nsresult nsBidi::ReorderVisual(const nsBidiLevel *aLevels, int32_t aLength, int3
   int32_t start, end, limit, temp;
   nsBidiLevel minLevel, maxLevel;
 
-  if(aIndexMap==nullptr ||
-     !PrepareReorder(aLevels, aLength, aIndexMap, &minLevel, &maxLevel)) {
+  if(aIndexMap==NULL || !PrepareReorder(aLevels, aLength, aIndexMap, &minLevel, &maxLevel)) {
     return NS_OK;
   }
 
@@ -1790,7 +1789,7 @@ bool nsBidi::PrepareReorder(const nsBidiLevel *aLevels, int32_t aLength,
   int32_t start;
   nsBidiLevel level, minLevel, maxLevel;
 
-  if(aLevels==nullptr || aLength<=0) {
+  if(aLevels==NULL || aLength<=0) {
     return false;
   }
 
@@ -1933,7 +1932,7 @@ nsresult nsBidi::GetLogicalMap(int32_t *aIndexMap)
   rv = GetLevels(&levels);
   if(NS_FAILED(rv)) {
     return rv;
-  } else if(aIndexMap==nullptr) {
+  } else if(aIndexMap==NULL) {
     return NS_ERROR_INVALID_ARG;
   } else {
     return ReorderLogical(levels, mLength, aIndexMap);
@@ -1942,14 +1941,14 @@ nsresult nsBidi::GetLogicalMap(int32_t *aIndexMap)
 
 nsresult nsBidi::GetVisualMap(int32_t *aIndexMap)
 {
-  int32_t* runCount=nullptr;
+  int32_t* runCount=NULL;
   nsresult rv;
 
   /* CountRuns() checks all of its and our arguments */
   rv = CountRuns(runCount);
   if(NS_FAILED(rv)) {
     return rv;
-  } else if(aIndexMap==nullptr) {
+  } else if(aIndexMap==NULL) {
     return NS_ERROR_INVALID_ARG;
   } else {
     /* fill a visual-to-logical index map using the runs[] */
@@ -1984,8 +1983,7 @@ nsresult nsBidi::ReorderLogical(const nsBidiLevel *aLevels, int32_t aLength, int
   int32_t start, limit, sumOfSosEos;
   nsBidiLevel minLevel, maxLevel;
 
-  if(aIndexMap==nullptr ||
-     !PrepareReorder(aLevels, aLength, aIndexMap, &minLevel, &maxLevel)) {
+  if(aIndexMap==NULL || !PrepareReorder(aLevels, aLength, aIndexMap, &minLevel, &maxLevel)) {
     return NS_OK;
   }
 
@@ -2047,7 +2045,7 @@ nsresult nsBidi::ReorderLogical(const nsBidiLevel *aLevels, int32_t aLength, int
 
 nsresult nsBidi::InvertMap(const int32_t *aSrcMap, int32_t *aDestMap, int32_t aLength)
 {
-  if(aSrcMap!=nullptr && aDestMap!=nullptr) {
+  if(aSrcMap!=NULL && aDestMap!=NULL) {
     aSrcMap+=aLength;
     while(aLength>0) {
       aDestMap[*--aSrcMap]=--aLength;
@@ -2199,8 +2197,8 @@ int32_t nsBidi::doWriteReverse(const PRUnichar *src, int32_t srcLength,
 
 nsresult nsBidi::WriteReverse(const PRUnichar *aSrc, int32_t aSrcLength, PRUnichar *aDest, uint16_t aOptions, int32_t *aDestSize)
 {
-  if( aSrc==nullptr || aSrcLength<0 ||
-      aDest==nullptr
+  if( aSrc==NULL || aSrcLength<0 ||
+      aDest==NULL
     ) {
     return NS_ERROR_INVALID_ARG;
   }

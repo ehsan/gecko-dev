@@ -29,14 +29,22 @@ ParseIntegerOptionalInteger(const nsAString& aValue,
   nsCharSeparatedTokenizerTemplate<IsSVGWhitespace>
     tokenizer(aValue, ',',
               nsCharSeparatedTokenizer::SEPARATOR_OPTIONAL);
-  if (tokenizer.whitespaceBeforeFirstToken()) {
+  if (tokenizer.firstTokenBeganWithWhitespace()) {
     return NS_ERROR_DOM_SYNTAX_ERR;
   }
 
   uint32_t i;
   for (i = 0; i < 2 && tokenizer.hasMoreTokens(); ++i) {
-    if (!SVGContentUtils::ParseInteger(tokenizer.nextToken(), aValues[i])) {
-      return NS_ERROR_DOM_SYNTAX_ERR;
+    NS_ConvertUTF16toUTF8 utf8Token(tokenizer.nextToken());
+    const char *token = utf8Token.get();
+    if (*token == '\0') {
+      return NS_ERROR_DOM_SYNTAX_ERR; // empty string (e.g. two commas in a row)
+    }
+
+    char *end;
+    aValues[i] = strtol(token, &end, 10);
+    if (*end != '\0' || !NS_finite(aValues[i])) {
+      return NS_ERROR_DOM_SYNTAX_ERR; // parse error
     }
   }
   if (i == 1) {
@@ -45,8 +53,8 @@ ParseIntegerOptionalInteger(const nsAString& aValue,
 
   if (i == 0                    ||                // Too few values.
       tokenizer.hasMoreTokens() ||                // Too many values.
-      tokenizer.whitespaceAfterCurrentToken() ||  // Trailing whitespace.
-      tokenizer.separatorAfterCurrentToken()) {   // Trailing comma.
+      tokenizer.lastTokenEndedWithWhitespace() || // Trailing whitespace.
+      tokenizer.lastTokenEndedWithSeparator()) {  // Trailing comma.
     return NS_ERROR_DOM_SYNTAX_ERR;
   }
 

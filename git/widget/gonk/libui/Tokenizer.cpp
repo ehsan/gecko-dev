@@ -15,7 +15,6 @@
  */
 
 #define LOG_TAG "Tokenizer"
-#include "cutils_log.h"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -23,6 +22,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include "utils_Log.h"
 #include "Tokenizer.h"
 
 // Enables debug output for the tokenizer.
@@ -35,18 +35,15 @@ static inline bool isDelimiter(char ch, const char* delimiters) {
     return strchr(delimiters, ch) != NULL;
 }
 
-Tokenizer::Tokenizer(const String8& filename, FileMap* fileMap, char* buffer,
-        bool ownBuffer, size_t length) :
+Tokenizer::Tokenizer(const String8& filename, FileMap* fileMap, char* buffer, size_t length) :
         mFilename(filename), mFileMap(fileMap),
-        mBuffer(buffer), mOwnBuffer(ownBuffer), mLength(length),
-        mCurrent(buffer), mLineNumber(1) {
+        mBuffer(buffer), mLength(length), mCurrent(buffer), mLineNumber(1) {
 }
 
 Tokenizer::~Tokenizer() {
     if (mFileMap) {
         mFileMap->release();
-    }
-    if (mOwnBuffer) {
+    } else {
         delete[] mBuffer;
     }
 }
@@ -68,7 +65,6 @@ status_t Tokenizer::open(const String8& filename, Tokenizer** outTokenizer) {
             size_t length = size_t(stat.st_size);
 
             FileMap* fileMap = new FileMap();
-            bool ownBuffer = false;
             char* buffer;
             if (fileMap->create(NULL, fd, 0, length, true)) {
                 fileMap->advise(FileMap::SEQUENTIAL);
@@ -81,7 +77,6 @@ status_t Tokenizer::open(const String8& filename, Tokenizer** outTokenizer) {
                 // The length we obtained from stat is wrong too (it will always be 4096)
                 // so we must trust that read will read the entire file.
                 buffer = new char[length];
-                ownBuffer = true;
                 ssize_t nrd = read(fd, buffer, length);
                 if (nrd < 0) {
                     result = -errno;
@@ -94,19 +89,12 @@ status_t Tokenizer::open(const String8& filename, Tokenizer** outTokenizer) {
             }
 
             if (!result) {
-                *outTokenizer = new Tokenizer(filename, fileMap, buffer, ownBuffer, length);
+                *outTokenizer = new Tokenizer(filename, fileMap, buffer, length);
             }
         }
         close(fd);
     }
     return result;
-}
-
-status_t Tokenizer::fromContents(const String8& filename,
-        const char* contents, Tokenizer** outTokenizer) {
-    *outTokenizer = new Tokenizer(filename, NULL,
-            const_cast<char*>(contents), false, strlen(contents));
-    return OK;
 }
 
 String8 Tokenizer::getLocation() const {

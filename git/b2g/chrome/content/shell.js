@@ -6,12 +6,13 @@
 
 Cu.import('resource://gre/modules/ContactService.jsm');
 Cu.import('resource://gre/modules/SettingsChangeNotifier.jsm');
-Cu.import('resource://gre/modules/DataStoreChangeNotifier.jsm');
+#ifdef MOZ_B2G_FM
+Cu.import('resource://gre/modules/DOMFMRadioParent.jsm');
+#endif
 Cu.import('resource://gre/modules/AlarmService.jsm');
 Cu.import('resource://gre/modules/ActivitiesService.jsm');
 Cu.import('resource://gre/modules/PermissionPromptHelper.jsm');
 Cu.import('resource://gre/modules/ObjectWrapper.jsm');
-Cu.import('resource://gre/modules/NotificationDB.jsm');
 Cu.import('resource://gre/modules/accessibility/AccessFu.jsm');
 Cu.import('resource://gre/modules/Payment.jsm');
 Cu.import("resource://gre/modules/AppsUtils.jsm");
@@ -185,7 +186,7 @@ var shell = {
 
   get contentBrowser() {
     delete this.contentBrowser;
-    return this.contentBrowser = document.getElementById('systemapp');
+    return this.contentBrowser = document.getElementById('homescreen');
   },
 
   get homeURL() {
@@ -268,29 +269,25 @@ var shell = {
     }
 
     let manifestURL = this.manifestURL;
-    // <html:iframe id="systemapp"
+    // <html:iframe id="homescreen"
     //              mozbrowser="true" allowfullscreen="true"
-    //              style="overflow: hidden; height: 100%; width: 100%; border: none;"
+    //              style="overflow: hidden; -moz-box-flex: 1; border: none;"
     //              src="data:text/html;charset=utf-8,%3C!DOCTYPE html>%3Cbody style='background:black;'>"/>
-    let systemAppFrame =
+    let browserFrame =
       document.createElementNS('http://www.w3.org/1999/xhtml', 'html:iframe');
-    systemAppFrame.setAttribute('id', 'systemapp');
-    systemAppFrame.setAttribute('mozbrowser', 'true');
-    systemAppFrame.setAttribute('mozapp', manifestURL);
-    systemAppFrame.setAttribute('allowfullscreen', 'true');
-    systemAppFrame.setAttribute('style', "overflow: hidden; height: 100%; width: 100%; border: none;");
-    systemAppFrame.setAttribute('src', "data:text/html;charset=utf-8,%3C!DOCTYPE html>%3Cbody style='background:black;");
-    let container = document.getElementById('container');
-#ifdef MOZ_WIDGET_COCOA
-    container.removeChild(document.getElementById('placeholder'));
-#endif
-    container.appendChild(systemAppFrame);
+    browserFrame.setAttribute('id', 'homescreen');
+    browserFrame.setAttribute('mozbrowser', 'true');
+    browserFrame.setAttribute('mozapp', manifestURL);
+    browserFrame.setAttribute('allowfullscreen', 'true');
+    browserFrame.setAttribute('style', "overflow: hidden; -moz-box-flex: 1; border: none;");
+    browserFrame.setAttribute('src', "data:text/html;charset=utf-8,%3C!DOCTYPE html>%3Cbody style='background:black;");
+    document.getElementById('shell').appendChild(browserFrame);
 
-    systemAppFrame.contentWindow
-                  .QueryInterface(Ci.nsIInterfaceRequestor)
-                  .getInterface(Ci.nsIWebNavigation)
-                  .sessionHistory = Cc["@mozilla.org/browser/shistory;1"]
-                                      .createInstance(Ci.nsISHistory);
+    browserFrame.contentWindow
+                .QueryInterface(Ci.nsIInterfaceRequestor)
+                .getInterface(Ci.nsIWebNavigation)
+                .sessionHistory = Cc["@mozilla.org/browser/shistory;1"]
+                                    .createInstance(Ci.nsISHistory);
 
     // Capture all key events so we can filter out hardware buttons
     // And send them to Gaia via mozChromeEvents.
@@ -302,7 +299,6 @@ var shell = {
     window.addEventListener('keyup', this, true);
     window.addEventListener('MozApplicationManifest', this);
     window.addEventListener('mozfullscreenchange', this);
-    window.addEventListener('MozAfterPaint', this);
     window.addEventListener('sizemodechange', this);
     this.contentBrowser.addEventListener('mozbrowserloadstart', this, true);
 
@@ -466,21 +462,35 @@ var shell = {
         }
         break;
       case 'mozbrowserloadstart':
-        if (content.document.location == 'about:blank') {
-          this.contentBrowser.addEventListener('mozbrowserlocationchange', this, true);
+        if (content.document.location == 'about:blank')
           return;
-        }
 
-        this.notifyContentStart();
+        this.contentBrowser.removeEventListener('mozbrowserloadstart', this, true);
+
+        this.reportCrash(true);
+
+        Cu.import('resource://gre/modules/Webapps.jsm');
+        DOMApplicationRegistry.allAppsLaunchable = true;
+
+        this.sendEvent(window, 'ContentStart');
+
+        content.addEventListener('load', function shell_homeLoaded() {
+          content.removeEventListener('load', shell_homeLoaded);
+          shell.isHomeLoaded = true;
+
+#ifdef MOZ_WIDGET_GONK
+          libcutils.property_set('sys.boot_completed', '1');
+#endif
+
+          Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
+
+          if ('pendingChromeEvents' in shell) {
+            shell.pendingChromeEvents.forEach((shell.sendChromeEvent).bind(shell));
+          }
+          delete shell.pendingChromeEvents;
+        });
+
         break;
-      case 'mozbrowserlocationchange':
-        if (content.document.location == 'about:blank') {
-          return;
-        }
-
-        this.notifyContentStart();
-       break;
-
       case 'MozApplicationManifest':
         try {
           if (!Services.prefs.getBoolPref('browser.cache.offline.enable'))
@@ -515,26 +525,12 @@ var shell = {
           dump('Error while creating offline cache: ' + e + '\n');
         }
         break;
-      case 'MozAfterPaint':
-        window.removeEventListener('MozAfterPaint', this);
-        this.sendChromeEvent({
-          type: 'system-first-paint'
-        });
-        break;
     }
   },
 
   sendEvent: function shell_sendEvent(content, type, details) {
     let event = content.document.createEvent('CustomEvent');
     event.initCustomEvent(type, true, true, details ? details : {});
-    content.dispatchEvent(event);
-  },
-
-  sendCustomEvent: function shell_sendCustomEvent(type, details) {
-    let content = getContentWindow();
-    let event = content.document.createEvent('CustomEvent');
-    let payload = details ? ObjectWrapper.wrap(details, content) : {};
-    event.initCustomEvent(type, true, true, payload);
     content.dispatchEvent(event);
   },
 
@@ -554,7 +550,8 @@ var shell = {
 
   openAppForSystemMessage: function shell_openAppForSystemMessage(msg) {
     let origin = Services.io.newURI(msg.manifest, null, null).prePath;
-    let payload = {
+    this.sendChromeEvent({
+      type: 'open-app',
       url: msg.uri,
       manifestURL: msg.manifest,
       isActivity: (msg.type == 'activity'),
@@ -563,8 +560,7 @@ var shell = {
       target: msg.target,
       expectingSystemMessage: true,
       extra: msg.extra
-    }
-    this.sendCustomEvent('open-app', payload);
+    });
   },
 
   receiveMessage: function shell_receiveMessage(message) {
@@ -596,40 +592,6 @@ var shell = {
         sender.sendAsyncMessage(activity.response, { success: false });
       }
     }
-  },
-
-  notifyContentStart: function shell_notifyContentStart() {
-    this.contentBrowser.removeEventListener('mozbrowserloadstart', this, true);
-    this.contentBrowser.removeEventListener('mozbrowserlocationchange', this, true);
-
-    let content = this.contentBrowser.contentWindow;
-
-    this.reportCrash(true);
-
-    Cu.import('resource://gre/modules/Webapps.jsm');
-    DOMApplicationRegistry.allAppsLaunchable = true;
-
-    this.sendEvent(window, 'ContentStart');
-
-#ifdef MOZ_B2G_RIL
-    Cu.import('resource://gre/modules/OperatorApps.jsm');
-#endif
-
-    content.addEventListener('load', function shell_homeLoaded() {
-      content.removeEventListener('load', shell_homeLoaded);
-      shell.isHomeLoaded = true;
-
-#ifdef MOZ_WIDGET_GONK
-      libcutils.property_set('sys.boot_completed', '1');
-#endif
-
-      Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
-
-      if ('pendingChromeEvents' in shell) {
-        shell.pendingChromeEvents.forEach((shell.sendChromeEvent).bind(shell));
-      }
-      delete shell.pendingChromeEvents;
-    });
   }
 };
 
@@ -645,18 +607,9 @@ Services.obs.addObserver(function onSystemMessageOpenApp(subject, topic, data) {
   shell.openAppForSystemMessage(msg);
 }, 'system-messages-open-app', false);
 
-Services.obs.addObserver(function onInterAppCommConnect(subject, topic, data) {
-  data = JSON.parse(data);
-  shell.sendChromeEvent({ type: "inter-app-comm-permission",
-                          chromeEventID: data.callerID,
-                          manifestURL: data.manifestURL,
-                          keyword: data.keyword,
-                          peers: data.appsToSelect });
-}, 'inter-app-comm-select-app', false);
-
-Services.obs.addObserver(function onFullscreenOriginChange(subject, topic, data) {
+Services.obs.addObserver(function(aSubject, aTopic, aData) {
   shell.sendChromeEvent({ type: "fullscreenoriginchange",
-                          fullscreenorigin: data });
+                          fullscreenorigin: aData });
 }, "fullscreen-origin-change", false);
 
 Services.obs.addObserver(function onWebappsStart(subject, topic, data) {
@@ -723,16 +676,6 @@ var CustomEventManager = {
       case 'captive-portal-login-cancel':
         CaptivePortalLoginHelper.handleEvent(detail);
         break;
-      case 'inter-app-comm-permission':
-        Services.obs.notifyObservers(null, 'inter-app-comm-select-app-result',
-          JSON.stringify({ callerID: detail.chromeEventID,
-                           keyword: detail.keyword,
-                           manifestURL: detail.manifestURL,
-                           selectedApps: detail.peers }));
-        break;
-      case 'inputmethod-update-layouts':
-        KeyboardHelper.handleEvent(detail);
-        break;
     }
   }
 }
@@ -760,19 +703,16 @@ var AlertsHelper = {
       topic = "alertfinished";
     }
 
-    if (uid.startsWith("alert")) {
-      try {
-        listener.observer.observe(null, topic, listener.cookie);
-      } catch (e) { }
-    } else {
+    if (uid.startsWith("app-notif")) {
       try {
         listener.mm.sendAsyncMessage("app-notification-return", {
           uid: uid,
           topic: topic,
           target: listener.target
         });
-      } catch (e) {
+      } catch(e) {
         // we get an exception if the app is not launched yet
+
         gSystemMessenger.sendMessage("notification", {
             clicked: (detail.type === "desktop-notification-click"),
             title: listener.title,
@@ -783,6 +723,10 @@ var AlertsHelper = {
           Services.io.newURI(listener.manifestURL, null, null)
         );
       }
+    } else if (uid.startsWith("alert")) {
+      try {
+        listener.observer.observe(null, topic, listener.cookie);
+      } catch (e) { }
     }
 
     // we're done with this notification
@@ -799,7 +743,7 @@ var AlertsHelper = {
     this._listeners[uid] = listener;
 
     let app = DOMApplicationRegistry.getAppByManifestURL(listener.manifestURL);
-    DOMApplicationRegistry.getManifestFor(app.manifestURL, function(manifest) {
+    DOMApplicationRegistry.getManifestFor(app.origin, function(manifest) {
       let helper = new ManifestHelper(manifest, app.origin);
       let getNotificationURLFor = function(messages) {
         if (!messages)
@@ -813,9 +757,6 @@ var AlertsHelper = {
             return helper.resolveFromOrigin(message["notification"]);
           }
         }
-
-        // No message found...
-        return null;
       }
 
       listener.target = getNotificationURLFor(manifest.messages);
@@ -850,13 +791,12 @@ var AlertsHelper = {
 
     if (!manifestUrl || !manifestUrl.length) {
       send(null, null);
-      return;
     }
 
     // If we have a manifest URL, get the icon and title from the manifest
     // to prevent spoofing.
     let app = DOMApplicationRegistry.getAppByManifestURL(manifestUrl);
-    DOMApplicationRegistry.getManifestFor(manifestUrl, function(aManifest) {
+    DOMApplicationRegistry.getManifestFor(app.origin, function(aManifest) {
       let helper = new ManifestHelper(aManifest, app.origin);
       send(helper.name, helper.iconURLForSize(128));
     });
@@ -892,24 +832,22 @@ var AlertsHelper = {
     if (!aMessage.target.assertAppHasPermission("desktop-notification")) {
       Cu.reportError("Desktop-notification message " + aMessage.name +
                      " from a content process with no desktop-notification privileges.");
-      return;
+      return null;
     }
 
     let data = aMessage.data;
-    let details = data.details;
     let listener = {
       mm: aMessage.target,
       title: data.title,
       text: data.text,
-      manifestURL: details.manifestURL,
+      manifestURL: data.manifestURL,
       imageURL: data.imageURL
-    };
+    }
     this.registerAppListener(data.uid, listener);
 
     this.showNotification(data.imageURL, data.title, data.text,
-                          details.textClickable, null,
-                          data.uid, details.dir,
-                          details.lang, details.manifestURL);
+                          data.textClickable, null,
+                          data.uid, null, null, data.manifestURL);
   },
 }
 
@@ -951,22 +889,17 @@ var WebappsHelper = {
 
     switch(topic) {
       case "webapps-launch":
-        DOMApplicationRegistry.getManifestFor(json.manifestURL, function(aManifest) {
+        DOMApplicationRegistry.getManifestFor(json.origin, function(aManifest) {
           if (!aManifest)
             return;
 
           let manifest = new ManifestHelper(aManifest, json.origin);
-          let payload = {
-            __exposedProps__: {
-              timestamp: "r",
-              url: "r",
-              manifestURL: "r"
-            },
-            timestamp: json.timestamp,
-            url: manifest.fullLaunchPath(json.startPoint),
-            manifestURL: json.manifestURL
-          }
-          shell.sendEvent(getContentWindow(), "webapps-launch", payload);
+          shell.sendChromeEvent({
+            "type": "webapps-launch",
+            "timestamp": json.timestamp,
+            "url": manifest.fullLaunchPath(json.startPoint),
+            "manifestURL": json.manifestURL
+          });
         });
         break;
       case "webapps-ask-install":
@@ -978,11 +911,10 @@ var WebappsHelper = {
         });
         break;
       case "webapps-close":
-        shell.sendEvent(getContentWindow(), "webapps-close",
-          {
-            __exposedProps__: { "manifestURL": "r" },
-            "manifestURL": json.manifestURL
-          });
+        shell.sendChromeEvent({
+          "type": "webapps-close",
+          "manifestURL": json.manifestURL
+        });
         break;
     }
   }
@@ -1064,20 +996,11 @@ let RemoteDebugger = {
       }
       DebuggerServer.addActors('chrome://browser/content/dbg-browser-actors.js');
       DebuggerServer.addActors("resource://gre/modules/devtools/server/actors/webapps.js");
-      DebuggerServer.registerModule("devtools/server/actors/device");
-      DebuggerServer.registerModule("devtools/server/actors/inspector")
-
-#ifdef MOZ_WIDGET_GONK
-      DebuggerServer.onConnectionChange = function(what) {
-        AdbController.updateState();
-      }
-#endif
     }
 
-    let path = Services.prefs.getCharPref("devtools.debugger.unix-domain-socket") ||
-               "/data/local/debugger-socket";
+    let port = Services.prefs.getIntPref('devtools.debugger.remote-port') || 6000;
     try {
-      DebuggerServer.openListener(path);
+      DebuggerServer.openListener(port);
     } catch (e) {
       dump('Unable to start debugger server: ' + e + '\n');
     }
@@ -1095,12 +1018,6 @@ let RemoteDebugger = {
     }
   }
 }
-
-let KeyboardHelper = {
-  handleEvent: function keyboard_handleEvent(detail) {
-    Keyboard.setLayouts(detail.layouts);
-  }
-};
 
 // This is the backend for Gaia's screenshot feature.  Gaia requests a
 // screenshot by sending a mozContentEvent with detail.type set to
@@ -1185,15 +1102,8 @@ window.addEventListener('ContentStart', function cr_onContentStart() {
 });
 
 window.addEventListener('ContentStart', function update_onContentStart() {
-  Cu.import('resource://gre/modules/WebappsUpdater.jsm');
-  WebappsUpdater.handleContentStart(shell);
-
-  let promptCc = Cc["@mozilla.org/updates/update-prompt;1"];
-  if (!promptCc) {
-    return;
-  }
-
-  let updatePrompt = promptCc.createInstance(Ci.nsIUpdatePrompt);
+  let updatePrompt = Cc["@mozilla.org/updates/update-prompt;1"]
+                       .createInstance(Ci.nsIUpdatePrompt);
   if (!updatePrompt) {
     return;
   }
@@ -1239,15 +1149,6 @@ window.addEventListener('ContentStart', function update_onContentStart() {
 }, "audio-channel-changed", false);
 })();
 
-(function defaultVolumeChannelChangedTracker() {
-  Services.obs.addObserver(function(aSubject, aTopic, aData) {
-    shell.sendChromeEvent({
-      type: 'default-volume-channel-changed',
-      channel: aData
-    });
-}, "default-volume-channel-changed", false);
-})();
-
 (function visibleAudioChannelChangedTracker() {
   Services.obs.addObserver(function(aSubject, aTopic, aData) {
     shell.sendChromeEvent({
@@ -1259,82 +1160,24 @@ window.addEventListener('ContentStart', function update_onContentStart() {
 })();
 
 (function recordingStatusTracker() {
-  // Recording status is tracked per process with following data structure:
-  // {<processId>: {count: <N>,
-  //                requestURL: <requestURL>,
-  //                isApp: <isApp>,
-  //                audioCount: <N>,
-  //                videoCount: <N>}}
-  let gRecordingActiveProcesses = {};
-
-  let recordingHandler = function(aSubject, aTopic, aData) {
-    let props = aSubject.QueryInterface(Ci.nsIPropertyBag2);
-    let processId = (props.hasKey('childID')) ? props.get('childID')
-                                              : 'main';
-    if (processId && !gRecordingActiveProcesses.hasOwnProperty(processId)) {
-      gRecordingActiveProcesses[processId] = {count: 0,
-                                              requestURL: props.get('requestURL'),
-                                              isApp: props.get('isApp'),
-                                              audioCount: 0,
-                                              videoCount: 0 };
-    }
-
-    let currentActive = gRecordingActiveProcesses[processId];
-    let wasActive = (currentActive['count'] > 0);
-    let wasAudioActive = (currentActive['audioCount'] > 0);
-    let wasVideoActive = (currentActive['videoCount'] > 0);
-
-    switch (aData) {
-      case 'starting':
-        currentActive['count']++;
-        currentActive['audioCount'] += (props.get('isAudio')) ? 1 : 0;
-        currentActive['videoCount'] += (props.get('isVideo')) ? 1 : 0;
-        break;
-      case 'shutdown':
-        currentActive['count']--;
-        currentActive['audioCount'] -= (props.get('isAudio')) ? 1 : 0;
-        currentActive['videoCount'] -= (props.get('isVideo')) ? 1 : 0;
-        break;
-      case 'content-shutdown':
-        currentActive['count'] = 0;
-        currentActive['audioCount'] = 0;
-        currentActive['videoCount'] = 0;
-        break;
-    }
-
-    if (currentActive['count'] > 0) {
-      gRecordingActiveProcesses[processId] = currentActive;
-    } else {
-      delete gRecordingActiveProcesses[processId];
-    }
-
-    // We need to track changes if any active state is changed.
-    let isActive = (currentActive['count'] > 0);
-    let isAudioActive = (currentActive['audioCount'] > 0);
-    let isVideoActive = (currentActive['videoCount'] > 0);
-    if ((isActive != wasActive) ||
-        (isAudioActive != wasAudioActive) ||
-        (isVideoActive != wasVideoActive)) {
-      shell.sendChromeEvent({
-        type: 'recording-status',
-        active: isActive,
-        requestURL: currentActive['requestURL'],
-        isApp: currentActive['isApp'],
-        isAudio: isAudioActive,
-        isVideo: isVideoActive
-      });
-    }
-  };
-  Services.obs.addObserver(recordingHandler, 'recording-device-events', false);
-  Services.obs.addObserver(recordingHandler, 'recording-device-ipc-events', false);
+  let gRecordingActiveCount = 0;
 
   Services.obs.addObserver(function(aSubject, aTopic, aData) {
-    // send additional recording events if content process is being killed
-    let processId = aSubject.QueryInterface(Ci.nsIPropertyBag2).get('childID');
-    if (gRecordingActiveProcesses.hasOwnProperty(processId)) {
-      Services.obs.notifyObservers(aSubject, 'recording-device-ipc-events', 'content-shutdown');
+    let oldCount = gRecordingActiveCount;
+    if (aData == "starting") {
+      gRecordingActiveCount += 1;
+    } else if (aData == "shutdown") {
+      gRecordingActiveCount -= 1;
     }
-  }, 'ipc:content-shutdown', false);
+
+    // We need to track changes from 1 <-> 0
+    if (gRecordingActiveCount + oldCount == 1) {
+      shell.sendChromeEvent({
+        type: 'recording-status',
+        active: (gRecordingActiveCount == 1)
+      });
+    }
+}, "recording-device-events", false);
 })();
 
 (function volumeStateTracker() {
@@ -1345,6 +1188,16 @@ window.addEventListener('ContentStart', function update_onContentStart() {
     });
 }, 'volume-state-changed', false);
 })();
+
+Services.obs.addObserver(function(aSubject, aTopic, aData) {
+  let data = JSON.parse(aData);
+  shell.sendChromeEvent({
+    type: "activity-done",
+    success: data.success,
+    manifestURL: data.manifestURL,
+    pageURL: data.pageURL
+  });
+}, "activity-done", false);
 
 #ifdef MOZ_WIDGET_GONK
 // Devices don't have all the same partition size for /cache where we
@@ -1361,103 +1214,3 @@ window.addEventListener('ContentStart', function update_onContentStart() {
   Services.prefs.setIntPref("browser.cache.disk.capacity", size);
 }) ()
 #endif
-
-#ifdef MOZ_WIDGET_GONK
-let SensorsListener = {
-  sensorsListenerDevices: ['crespo'],
-  device: libcutils.property_get("ro.product.device"),
-
-  deviceNeedsWorkaround: function SensorsListener_deviceNeedsWorkaround() {
-    return (this.sensorsListenerDevices.indexOf(this.device) != -1);
-  },
-
-  handleEvent: function SensorsListener_handleEvent(evt) {
-    switch(evt.type) {
-      case 'devicemotion':
-        // Listener that does nothing, we need this to have the sensor being
-        // able to report correct values, as explained in bug 753245, comment 6
-        // and in bug 871916
-        break;
-
-      default:
-        break;
-    }
-  },
-
-  observe: function SensorsListener_observe(subject, topic, data) {
-    // We remove the listener when the screen is off, otherwise sensor will
-    // continue to bother us with data and we won't be able to get the
-    // system into suspend state, thus draining battery.
-    if (data === 'on') {
-      window.addEventListener('devicemotion', this);
-    } else {
-      window.removeEventListener('devicemotion', this);
-    }
-  },
-
-  init: function SensorsListener_init() {
-    if (this.deviceNeedsWorkaround()) {
-      // On boot, enable the listener, screen will be on.
-      window.addEventListener('devicemotion', this);
-
-      // Then listen for further screen state changes
-      Services.obs.addObserver(this, 'screen-state-changed', false);
-    }
-  }
-}
-
-SensorsListener.init();
-#endif
-
-// Calling this observer will cause a shutdown an a profile reset.
-// Use eg. : Services.obs.notifyObservers(null, 'b2g-reset-profile', null);
-Services.obs.addObserver(function resetProfile(subject, topic, data) {
-  Services.obs.removeObserver(resetProfile, topic);
-
-  // Listening for 'profile-before-change2' which is late in the shutdown
-  // sequence, but still has xpcom access.
-  Services.obs.addObserver(function clearProfile(subject, topic, data) {
-    Services.obs.removeObserver(clearProfile, topic);
-#ifdef MOZ_WIDGET_GONK
-    let json = Cc['@mozilla.org/file/local;1'].createInstance(Ci.nsIFile);
-    json.initWithPath('/system/b2g/webapps/webapps.json');
-    let toRemove = json.exists()
-      // This is a user build, just rm -r /data/local /data/b2g/mozilla
-      ? ['/data/local', '/data/b2g/mozilla']
-      // This is an eng build. We clear the profile and a set of files
-      // under /data/local.
-      : ['/data/b2g/mozilla',
-         '/data/local/permissions.sqlite',
-         '/data/local/storage',
-         '/data/local/OfflineCache'];
-
-    toRemove.forEach(function(dir) {
-      try {
-        let file = Cc['@mozilla.org/file/local;1'].createInstance(Ci.nsIFile);
-        file.initWithPath(dir);
-        file.remove(true);
-      } catch(e) { dump(e); }
-    });
-#else
-    // Desktop builds.
-    let profile = Services.dirsvc.get('ProfD', Ci.nsIFile);
-
-    // We don't want to remove everything from the profile, since this
-    // would prevent us from starting up.
-    let whitelist = ['defaults', 'extensions', 'settings.json',
-                     'user.js', 'webapps'];
-    let enumerator = profile.directoryEntries;
-    while (enumerator.hasMoreElements()) {
-      let file = enumerator.getNext().QueryInterface(Ci.nsIFile);
-      if (whitelist.indexOf(file.leafName) == -1) {
-        file.remove(true);
-      }
-    }
-#endif
-  },
-  'profile-before-change2', false);
-
-  let appStartup = Cc['@mozilla.org/toolkit/app-startup;1']
-                     .getService(Ci.nsIAppStartup);
-  appStartup.quit(Ci.nsIAppStartup.eForceQuit);
-}, 'b2g-reset-profile', false);

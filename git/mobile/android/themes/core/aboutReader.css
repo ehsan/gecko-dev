@@ -26,11 +26,11 @@ body {
 }
 
 .sans-serif {
-  font-family: sans-serif;
+  font-family: "Open Sans",sans-serif;
 }
 
 .serif {
-  font-family: serif;
+  font-family: "Charis SIL",serif;
 }
 
 .message {
@@ -48,7 +48,7 @@ body {
 
 .domain,
 .credits {
-  font-family: sans-serif;
+  font-family: "Open Sans", sans-serif;
 }
 
 .domain {
@@ -59,7 +59,6 @@ body {
 }
 
 .domain-border {
-  margin-top: 15px;
   border-bottom: 1.5px solid #777777;
   width: 50%;
 }
@@ -237,7 +236,7 @@ body {
 .content .caption,
 .content .wp-caption-text,
 .content figcaption {
-  font-family: sans-serif;
+  font-family: "Open Sans", sans-serif;
   margin: 0px !important;
   padding-top: 4px !important;
 }
@@ -519,7 +518,7 @@ body {
   background-image: url('chrome://browser/skin/images/reader-style-icon-mdpi.png');
 }
 
-@media screen and (min-resolution: 1.25dppx) {
+@media screen and (min-resolution: 200dpi) {
   .dropdown-arrow {
     background-image: url('chrome://browser/skin/images/reader-dropdown-arrow-hdpi.png');
   }
@@ -557,7 +556,7 @@ body {
   }
 }
 
-@media screen and (min-resolution: 2dppx) {
+@media screen and (min-resolution: 300dpi) {
   .dropdown-arrow {
     background-image: url('chrome://browser/skin/images/reader-dropdown-arrow-xhdpi.png');
   }

@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "GLContextProvider.h"
-#include "GLContext.h"
 #include "nsDebug.h"
 #include "nsIWidget.h"
 #include "OpenGL/OpenGL.h"
@@ -103,16 +102,8 @@ public:
     {
         MarkDestroyed();
 
-        if (mContext) {
-            if ([NSOpenGLContext currentContext] == mContext) {
-                // Clear the current context before releasing. If we don't do
-                // this, the next time we call [NSOpenGLContext currentContext],
-                // "invalid context" will be printed to the console.
-                [NSOpenGLContext clearCurrentContext];
-            }
+        if (mContext)
             [mContext release];
-        }
-
     }
 
     GLContextType GetContextType() {
@@ -194,13 +185,46 @@ public:
                        TextureImage::ContentType aContentType,
                        GLenum aWrapMode,
                        TextureImage::Flags aFlags = TextureImage::NoFlags,
-                       TextureImage::ImageFormat aImageFormat = gfxImageFormatUnknown) MOZ_OVERRIDE;
+                       TextureImage::ImageFormat aImageFormat = gfxASurface::ImageFormatUnknown) MOZ_OVERRIDE;
 
     virtual already_AddRefed<TextureImage>
     TileGenFunc(const nsIntSize& aSize,
                 TextureImage::ContentType aContentType,
                 TextureImage::Flags aFlags = TextureImage::NoFlags,
-                TextureImage::ImageFormat aImageFormat = gfxImageFormatUnknown) MOZ_OVERRIDE;
+                TextureImage::ImageFormat aImageFormat = gfxASurface::ImageFormatUnknown) MOZ_OVERRIDE;
+
+    virtual SharedTextureHandle CreateSharedHandle(SharedTextureShareType shareType,
+                                                   void* buffer,
+                                                   SharedTextureBufferType bufferType)
+    {
+        return GLContextProviderCGL::CreateSharedHandle(shareType, buffer, bufferType);
+    }
+
+    virtual void ReleaseSharedHandle(SharedTextureShareType shareType,
+                                     SharedTextureHandle sharedHandle)
+    {
+        if (sharedHandle) {
+            reinterpret_cast<MacIOSurface*>(sharedHandle)->Release();
+        }
+    }
+
+    virtual bool GetSharedHandleDetails(SharedTextureShareType shareType,
+                                        SharedTextureHandle sharedHandle,
+                                        SharedHandleDetails& details)
+    {
+        MacIOSurface* surf = reinterpret_cast<MacIOSurface*>(sharedHandle);
+        details.mTarget = LOCAL_GL_TEXTURE_RECTANGLE_ARB;
+        details.mTextureFormat = surf->HasAlpha() ? FORMAT_R8G8B8A8 : FORMAT_R8G8B8X8;
+        return true;
+    }
+
+    virtual bool AttachSharedHandle(SharedTextureShareType shareType,
+                                    SharedTextureHandle sharedHandle)
+    {
+        MacIOSurface* surf = reinterpret_cast<MacIOSurface*>(sharedHandle);
+        surf->CGLTexImageIOSurface2D(mContext);
+        return true;
+    }
 
     NSOpenGLContext *mContext;
     GLuint mTempTextureName;
@@ -315,7 +339,7 @@ private:
                     ContentType aContentType,
                     GLContext* aContext,
                     TextureImage::Flags aFlags = TextureImage::NoFlags,
-                    TextureImage::ImageFormat aImageFormat = gfxImageFormatUnknown)
+                    TextureImage::ImageFormat aImageFormat = gfxASurface::ImageFormatUnknown)
         : BasicTextureImage(aTexture, aSize, aWrapMode, aContentType,
                             aContext, aFlags, aImageFormat)
         , mPixelBuffer(0)
@@ -491,6 +515,47 @@ GLContextProviderCGL::GetGlobalContext(const ContextFlags)
     }
 
     return gGlobalContext;
+}
+
+SharedTextureHandle
+GLContextProviderCGL::CreateSharedHandle(GLContext::SharedTextureShareType shareType,
+                                         void* buffer,
+                                         GLContext::SharedTextureBufferType bufferType)
+{
+    if (shareType != GLContext::SameProcess ||
+        bufferType != GLContext::IOSurface) {
+        return 0;
+    }
+
+    MacIOSurface* surf = static_cast<MacIOSurface*>(buffer);
+    surf->AddRef();
+
+    return (SharedTextureHandle)surf;
+}
+
+already_AddRefed<gfxASurface>
+GLContextProviderCGL::GetSharedHandleAsSurface(GLContext::SharedTextureShareType shareType,
+                                               SharedTextureHandle sharedHandle)
+{
+  MacIOSurface* surf = reinterpret_cast<MacIOSurface*>(sharedHandle);
+  surf->Lock();
+  size_t bytesPerRow = surf->GetBytesPerRow();
+  size_t ioWidth = surf->GetWidth();
+  size_t ioHeight = surf->GetHeight();
+
+  unsigned char* ioData = (unsigned char*)surf->GetBaseAddress();
+
+  nsRefPtr<gfxImageSurface> imgSurface =
+    new gfxImageSurface(gfxIntSize(ioWidth, ioHeight), gfxASurface::ImageFormatARGB32);
+
+  for (size_t i = 0; i < ioHeight; i++) {
+    memcpy(imgSurface->Data() + i * imgSurface->Stride(),
+           ioData + i * bytesPerRow, ioWidth * 4);
+  }
+
+  surf->Unlock();
+
+  return imgSurface.forget();
 }
 
 void

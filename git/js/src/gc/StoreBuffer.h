@@ -17,13 +17,16 @@
 #include "mozilla/ReentrancyGuard.h"
 
 #include "jsalloc.h"
+#include "jsgc.h"
+#include "jsobj.h"
 
 #include "ds/LifoAlloc.h"
 #include "gc/Nursery.h"
-#include "js/Tracer.h"
 
 namespace js {
 namespace gc {
+
+class AccumulateEdgesTracer;
 
 /*
  * BufferableRef represents an abstract reference for use in the generational
@@ -57,7 +60,7 @@ class HashKeyRef : public BufferableRef
             return;
         JS_SET_TRACING_LOCATION(trc, (void*)&*p);
         Mark(trc, &key, "HashKeyRef");
-        map->rekeyIfMoved(prior, key);
+        map->rekey(prior, key);
     }
 };
 
@@ -70,10 +73,10 @@ typedef HashSet<void *, PointerHasher<void *, 3>, SystemAllocPolicy> EdgeSet;
 class StoreBuffer
 {
     /* The size of a single block of store buffer storage space. */
-    static const size_t ChunkSize = 1 << 16; /* 64KiB */
+    const static size_t ChunkSize = 1 << 16; /* 64KiB */
 
     /* The size at which a block is about to overflow. */
-    static const size_t MinAvailableSize = (size_t)(ChunkSize * 1.0 / 8.0);
+    const static size_t MinAvailableSize = (size_t)(ChunkSize * 1.0 / 8.0);
 
     /*
      * This buffer holds only a single type of edge. Using this buffer is more
@@ -118,7 +121,7 @@ class StoreBuffer
         /* Add one item to the buffer. */
         void put(const T &t) {
             mozilla::ReentrancyGuard g(*this);
-            JS_ASSERT(CurrentThreadCanAccessRuntime(owner->runtime));
+            JS_ASSERT(!owner->inParallelSection());
 
             if (!enabled_)
                 return;
@@ -157,7 +160,7 @@ class StoreBuffer
 
         /* Record a removal from the buffer. */
         void unput(const T &v) {
-            JS_ASSERT(CurrentThreadCanAccessRuntime(this->owner->runtime));
+            JS_ASSERT(!this->owner->inParallelSection());
             MonoTypeBuffer<T>::put(v.tagged());
         }
     };
@@ -192,7 +195,7 @@ class StoreBuffer
         template <typename T>
         void put(const T &t) {
             mozilla::ReentrancyGuard g(*this);
-            JS_ASSERT(CurrentThreadCanAccessRuntime(owner->runtime));
+            JS_ASSERT(!owner->inParallelSection());
 
             /* Ensure T is derived from BufferableRef. */
             (void)static_cast<const BufferableRef*>(&t);
@@ -250,13 +253,13 @@ class StoreBuffer
         friend class StoreBuffer::MonoTypeBuffer<ValueEdge>;
         friend class StoreBuffer::RelocatableMonoTypeBuffer<ValueEdge>;
 
-        JS::Value *edge;
+        Value *edge;
 
-        explicit ValueEdge(JS::Value *v) : edge(v) {}
+        explicit ValueEdge(Value *v) : edge(v) {}
         bool operator==(const ValueEdge &other) const { return edge == other.edge; }
         bool operator!=(const ValueEdge &other) const { return edge != other.edge; }
 
-        void *deref() const { return edge->isGCThing() ? edge->toGCThing() : nullptr; }
+        void *deref() const { return edge->isGCThing() ? edge->toGCThing() : NULL; }
         void *location() const { return (void *)untagged().edge; }
 
         bool inRememberedSet(const Nursery &nursery) const {
@@ -269,8 +272,8 @@ class StoreBuffer
 
         void mark(JSTracer *trc);
 
-        ValueEdge tagged() const { return ValueEdge((JS::Value *)(uintptr_t(edge) | 1)); }
-        ValueEdge untagged() const { return ValueEdge((JS::Value *)(uintptr_t(edge) & ~1)); }
+        ValueEdge tagged() const { return ValueEdge((Value *)(uintptr_t(edge) | 1)); }
+        ValueEdge untagged() const { return ValueEdge((Value *)(uintptr_t(edge) & ~1)); }
         bool isTagged() const { return bool(uintptr_t(edge) & 1); }
     };
 
@@ -281,9 +284,9 @@ class StoreBuffer
 
         JSObject *object;
         uint32_t offset;
-        int kind; // this is really just HeapSlot::Kind, but we can't see that type easily here
+        HeapSlot::Kind kind;
 
-        SlotEdge(JSObject *object, int kind, uint32_t offset)
+        SlotEdge(JSObject *object, HeapSlot::Kind kind, uint32_t offset)
           : object(object), offset(offset), kind(kind)
         {}
 
@@ -382,7 +385,7 @@ class StoreBuffer
     bool isAboutToOverflow() const { return aboutToOverflow; }
 
     /* Insert a single edge into the buffer/remembered set. */
-    void putValue(JS::Value *valuep) {
+    void putValue(Value *valuep) {
         ValueEdge edge(valuep);
         if (!edge.inRememberedSet(nursery_))
             return;
@@ -394,7 +397,7 @@ class StoreBuffer
             return;
         bufferCell.put(edge);
     }
-    void putSlot(JSObject *obj, int kind, uint32_t slot, void *target) {
+    void putSlot(JSObject *obj, HeapSlot::Kind kind, uint32_t slot, void *target) {
         SlotEdge edge(obj, kind, slot);
         /* This is manually inlined because slotLocation cannot be defined here. */
         if (nursery_.isInside(obj) || !nursery_.isInside(target))
@@ -406,29 +409,17 @@ class StoreBuffer
     }
 
     /* Insert or update a single edge in the Relocatable buffer. */
-    void putRelocatableValue(JS::Value *valuep) {
-        ValueEdge edge(valuep);
-        if (!edge.inRememberedSet(nursery_))
-            return;
-        bufferRelocVal.put(edge);
+    void putRelocatableValue(Value *v) {
+        bufferRelocVal.put(ValueEdge(v));
     }
-    void putRelocatableCell(Cell **cellp) {
-        CellPtrEdge edge(cellp);
-        if (!edge.inRememberedSet(nursery_))
-            return;
-        bufferRelocCell.put(edge);
+    void putRelocatableCell(Cell **c) {
+        bufferRelocCell.put(CellPtrEdge(c));
     }
-    void removeRelocatableValue(JS::Value *valuep) {
-        ValueEdge edge(valuep);
-        if (!edge.inRememberedSet(nursery_))
-            return;
-        bufferRelocVal.unput(edge);
+    void removeRelocatableValue(Value *v) {
+        bufferRelocVal.unput(ValueEdge(v));
     }
-    void removeRelocatableCell(Cell **cellp) {
-        CellPtrEdge edge(cellp);
-        if (!edge.inRememberedSet(nursery_))
-            return;
-        bufferRelocCell.unput(edge);
+    void removeRelocatableCell(Cell **c) {
+        bufferRelocCell.unput(CellPtrEdge(c));
     }
 
     /* Insert an entry into the generic buffer. */

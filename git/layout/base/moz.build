@@ -10,14 +10,25 @@ XPIDL_SOURCES += [
     'nsIStyleSheetService.idl',
 ]
 
+if not CONFIG['MOZ_XUL']:
+    XPIDL_SOURCES += [
+        'nsIBoxObject.idl',
+    ]
+    EXPORTS    += [
+        'nsPIBoxObject.h',
+    ]
+    CPP_SOURCES += [
+        'nsBoxObject.cpp',
+    ]
+
 if CONFIG['IBMBIDI']:
-    SOURCES += [
-        'nsBidi.cpp',
+    CPP_SOURCES += [
         'nsBidiPresUtils.cpp',
+        'nsBidi.cpp',
     ]
 
 if CONFIG['MOZ_DEBUG']:
-    SOURCES += [
+    CPP_SOURCES += [
         'nsAutoLayoutPhase.cpp',
     ]
 
@@ -30,13 +41,15 @@ EXPORTS += [
     'DisplayListClipState.h',
     'FrameLayerBuilder.h',
     'FramePropertyTable.h',
+    'StackArena.h',
+    'Units.h',
     'nsArenaMemoryStats.h',
     'nsBidi.h',
     'nsBidiPresUtils.h',
+    'nsCSSFrameConstructor.h',
     'nsCaret.h',
     'nsChangeHint.h',
     'nsCompatibility.h',
-    'nsCSSFrameConstructor.h',
     'nsDisplayItemTypes.h',
     'nsDisplayItemTypesList.h',
     'nsDisplayList.h',
@@ -56,27 +69,29 @@ EXPORTS += [
     'nsPresState.h',
     'nsRefreshDriver.h',
     'nsStyleChangeList.h',
-    'ScrollbarStyles.h',
-    'StackArena.h',
-    'Units.h',
 ]
 
 EXPORTS.mozilla += [
     'PaintTracker.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'DisplayItemClip.cpp',
     'DisplayListClipState.cpp',
     'FrameLayerBuilder.cpp',
     'FramePropertyTable.cpp',
     'MaskLayerImageCache.cpp',
-    'nsCaret.cpp',
-    'nsCounterManager.cpp',
+    'PaintTracker.cpp',
+    'PositionedEventTargeting.cpp',
+    'RestyleManager.cpp',
+    'RestyleTracker.cpp',
+    'StackArena.cpp',
     'nsCSSColorUtils.cpp',
     'nsCSSFrameConstructor.cpp',
     'nsCSSRendering.cpp',
     'nsCSSRenderingBorders.cpp',
+    'nsCaret.cpp',
+    'nsCounterManager.cpp',
     'nsDisplayList.cpp',
     'nsDisplayListInvalidation.cpp',
     'nsDocumentViewer.cpp',
@@ -93,20 +108,5 @@ SOURCES += [
     'nsRefreshDriver.cpp',
     'nsStyleChangeList.cpp',
     'nsStyleSheetService.cpp',
-    'PaintTracker.cpp',
-    'PositionedEventTargeting.cpp',
-    'RestyleManager.cpp',
-    'RestyleTracker.cpp',
-    'StackArena.cpp',
 ]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
-
-LIBRARY_NAME = 'gkbase_s'
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

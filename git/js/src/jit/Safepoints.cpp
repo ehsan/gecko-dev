@@ -8,7 +8,6 @@
 
 #include "mozilla/MathAlgorithms.h"
 
-#include "jit/BitSet.h"
 #include "jit/IonSpewer.h"
 #include "jit/LIR.h"
 
@@ -53,13 +52,12 @@ void
 SafepointWriter::writeGcRegs(LSafepoint *safepoint)
 {
     GeneralRegisterSet gc = safepoint->gcRegs();
-    GeneralRegisterSet spilledGpr = safepoint->liveRegs().gprs();
-    FloatRegisterSet spilledFloat = safepoint->liveRegs().fpus();
+    GeneralRegisterSet spilled = safepoint->liveRegs().gprs();
     GeneralRegisterSet slots = safepoint->slotsOrElementsRegs();
     GeneralRegisterSet valueRegs;
 
-    WriteRegisterMask(stream_, spilledGpr.bits());
-    if (!spilledGpr.empty()) {
+    WriteRegisterMask(stream_, spilled.bits());
+    if (!spilled.empty()) {
         WriteRegisterMask(stream_, gc.bits());
         WriteRegisterMask(stream_, slots.bits());
 
@@ -70,14 +68,12 @@ SafepointWriter::writeGcRegs(LSafepoint *safepoint)
     }
 
     // GC registers are a subset of the spilled registers.
-    JS_ASSERT((valueRegs.bits() & ~spilledGpr.bits()) == 0);
-    JS_ASSERT((gc.bits() & ~spilledGpr.bits()) == 0);
-
-    WriteRegisterMask(stream_, spilledFloat.bits());
+    JS_ASSERT((valueRegs.bits() & ~spilled.bits()) == 0);
+    JS_ASSERT((gc.bits() & ~spilled.bits()) == 0);
 
 #ifdef DEBUG
     if (IonSpewEnabled(IonSpew_Safepoints)) {
-        for (GeneralRegisterForwardIterator iter(spilledGpr); iter.more(); iter++) {
+        for (GeneralRegisterForwardIterator iter(spilled); iter.more(); iter++) {
             const char *type = gc.has(*iter)
                                ? "gc"
                                : slots.has(*iter)
@@ -87,8 +83,6 @@ SafepointWriter::writeGcRegs(LSafepoint *safepoint)
                                    : "any";
             IonSpew(IonSpew_Safepoints, "    %s reg: %s", type, (*iter).name());
         }
-        for (FloatRegisterForwardIterator iter(spilledFloat); iter.more(); iter++)
-            IonSpew(IonSpew_Safepoints, "    float reg: %s", (*iter).name());
     }
 #endif
 }
@@ -205,7 +199,6 @@ static const uint32_t PAYLOAD_INFO_SHIFT = TYPE_INFO_SHIFT - PART_INFO_BITS;
 
 JS_STATIC_ASSERT(PAYLOAD_INFO_SHIFT == 0);
 
-#ifdef JS_NUNBOX32
 static inline NunboxPartKind
 AllocationToPartKind(const LAllocation &a)
 {
@@ -237,6 +230,7 @@ CanEncodeInfoInHeader(const LAllocation &a, uint32_t *out)
     return *out < MAX_INFO_VALUE;
 }
 
+#ifdef JS_NUNBOX32
 void
 SafepointWriter::writeNunboxParts(LSafepoint *safepoint)
 {
@@ -338,12 +332,12 @@ SafepointReader::SafepointReader(IonScript *script, const SafepointIndex *si)
 {
     osiCallPointOffset_ = stream_.readUnsigned();
 
-    // gcSpills is a subset of allGprSpills.
-    allGprSpills_ = GeneralRegisterSet(stream_.readUnsigned());
-    if (allGprSpills_.empty()) {
-        gcSpills_ = allGprSpills_;
-        valueSpills_ = allGprSpills_;
-        slotsOrElementsSpills_ = allGprSpills_;
+    // gcSpills is a subset of allSpills.
+    allSpills_ = GeneralRegisterSet(stream_.readUnsigned());
+    if (allSpills_.empty()) {
+        gcSpills_ = allSpills_;
+        valueSpills_ = allSpills_;
+        slotsOrElementsSpills_ = allSpills_;
     } else {
         gcSpills_ = GeneralRegisterSet(stream_.readUnsigned());
         slotsOrElementsSpills_ = GeneralRegisterSet(stream_.readUnsigned());
@@ -351,8 +345,6 @@ SafepointReader::SafepointReader(IonScript *script, const SafepointIndex *si)
         valueSpills_ = GeneralRegisterSet(stream_.readUnsigned());
 #endif
     }
-
-    allFloatSpills_ = FloatRegisterSet(stream_.readUnsigned());
 
     advanceFromGcRegs();
 }

@@ -14,6 +14,7 @@
 
 #include "nsXULContentSink.h"
 
+#include "jsapi.h"
 #include "jsfriendapi.h"
 
 #include "nsCOMPtr.h"
@@ -29,6 +30,7 @@
 #include "nsINodeInfo.h"
 #include "nsIScriptContext.h"
 #include "nsIScriptGlobalObject.h"
+#include "nsIScriptRuntime.h"
 #include "nsIServiceManager.h"
 #include "nsIURL.h"
 #include "nsParserBase.h"
@@ -55,7 +57,6 @@
 #include "nsXMLContentSink.h"
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
-#include "nsContentTypeParser.h"
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gLog;
@@ -566,7 +567,8 @@ XULContentSinkImpl::HandleEndElement(const PRUnichar *aName)
             script->mOutOfLine = false;
             if (doc)
                 script->Compile(mText, mTextLength, mDocumentURL,
-                                script->mLineNo, doc, mPrototype);
+                                script->mLineNo, doc,
+                                mPrototype->GetScriptGlobalObject());
         }
 
         FlushText(false);
@@ -984,7 +986,8 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
           // file right away.  Otherwise we'll end up reloading the script and
           // corrupting the FastLoad file trying to serialize it, in the case
           // where it's already there.
-          script->DeserializeOutOfLine(nullptr, mPrototype);
+          if (globalObject)
+                script->DeserializeOutOfLine(nullptr, globalObject);
       }
 
       nsPrototypeArray* children = nullptr;

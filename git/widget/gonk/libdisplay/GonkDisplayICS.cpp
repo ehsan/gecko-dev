@@ -160,19 +160,9 @@ GonkDisplayICS::GetHWCDevice()
     return mHwc;
 }
 
-void*
-GonkDisplayICS::GetFBSurface()
-{
-    return mFBSurface.get();
-}
-
 bool
 GonkDisplayICS::SwapBuffers(EGLDisplay dpy, EGLSurface sur)
 {
-    // Should be called when composition rendering is complete for a frame.
-    // Only HWC v1.0 needs this call. ICS gonk always needs the call.
-    mFBSurface->compositionComplete();
-
     if (!mHwc)
         return eglSwapBuffers(dpy, sur);
 
@@ -194,17 +184,6 @@ GonkDisplayICS::QueueBuffer(ANativeWindowBuffer *buf)
 {
     ANativeWindow *window = static_cast<ANativeWindow *>(mFBSurface.get());
     return !window->queueBuffer(window, buf);
-}
-
-void
-GonkDisplayICS::UpdateFBSurface(EGLDisplay dpy, EGLSurface sur)
-{
-    eglSwapBuffers(dpy, sur);
-}
-
-void
-GonkDisplayICS::SetFBReleaseFd(int fd)
-{
 }
 
 __attribute__ ((visibility ("default")))

@@ -11,9 +11,12 @@
 #include "mozilla/ipc/PTestShellParent.h"
 #include "mozilla/ipc/PTestShellCommandParent.h"
 
-#include "js/TypeDecls.h"
+#include "jsapi.h"
 #include "nsAutoJSValHolder.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
+
+struct JSContext;
+class JSObject;
 
 namespace mozilla {
 
@@ -38,11 +41,12 @@ public:
 class TestShellCommandParent : public PTestShellCommandParent
 {
 public:
-  TestShellCommandParent() : mCx(nullptr) { }
+  TestShellCommandParent() : mCx(NULL) { }
 
-  bool SetCallback(JSContext* aCx, JS::Value aCallback);
+  JSBool SetCallback(JSContext* aCx,
+                     JS::Value aCallback);
 
-  bool RunCallback(const nsString& aResponse);
+  JSBool RunCallback(const nsString& aResponse);
 
   void ReleaseCallback();
 

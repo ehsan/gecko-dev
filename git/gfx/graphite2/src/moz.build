@@ -6,11 +6,6 @@
 
 MODULE = 'graphite2'
 
-if CONFIG['OS_TARGET'] == 'WINNT':
-    FORCE_STATIC_LIB = True
-else:
-    LIBXUL_LIBRARY = True
-
 # This should contain all of the _PUBLIC_HEADERS from files.mk
 EXPORTS.graphite2 += [
     '../include/graphite2/Font.h',
@@ -20,16 +15,24 @@ EXPORTS.graphite2 += [
 ]
 
 if CONFIG['GNU_CC']:
-    SOURCES += [
+    CPP_SOURCES += [
         'direct_machine.cpp'
     ]
 else:
-    SOURCES += [
+    CPP_SOURCES += [
         'call_machine.cpp'
     ]
 
 # This should contain all of the _SOURCES from files.mk, except *_machine.cpp
-SOURCES += [
+CPP_SOURCES += [
+    'gr_char_info.cpp',
+    'gr_face.cpp',
+    'gr_features.cpp',
+    'gr_font.cpp',
+    'gr_logging.cpp',
+    'gr_segment.cpp',
+    'gr_slot.cpp',
+    'json.cpp',
     'Bidi.cpp',
     'CachedFace.cpp',
     'CmapCache.cpp',
@@ -40,14 +43,6 @@ SOURCES += [
     'Font.cpp',
     'GlyphCache.cpp',
     'GlyphFace.cpp',
-    'gr_char_info.cpp',
-    'gr_face.cpp',
-    'gr_features.cpp',
-    'gr_font.cpp',
-    'gr_logging.cpp',
-    'gr_segment.cpp',
-    'gr_slot.cpp',
-    'json.cpp',
     'Justifier.cpp',
     'NameTable.cpp',
     'Pass.cpp',
@@ -63,6 +58,4 @@ SOURCES += [
 ]
 
 LIBRARY_NAME = 'mozgraphite2'
-
-MSVC_ENABLE_PGO = True
 

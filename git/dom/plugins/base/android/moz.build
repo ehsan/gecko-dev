@@ -7,11 +7,11 @@
 MODULE = 'plugin'
 
 EXPORTS += [
-    'android_npapi.h',
     'ANPKeyCodes.h',
+    'android_npapi.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'ANPAudio.cpp',
     'ANPBitmap.cpp',
     'ANPEvent.cpp',
@@ -24,14 +24,4 @@ SOURCES += [
     'ANPVideo.cpp',
     'ANPWindow.cpp',
 ]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
-LIBRARY_NAME = 'gkpluginandroid_s'
-
-EXPORT_LIBRARY = True
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

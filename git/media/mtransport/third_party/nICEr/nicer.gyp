@@ -8,7 +8,6 @@
 {
   'variables' : {
     'build_with_gonk%': 0,
-    'have_ethtool_cmd_speed_hi%': 1
   },
   'targets' : [
       {
@@ -77,10 +76,6 @@
                 "./src/net/transport_addr.h",
                 "./src/net/transport_addr_reg.c",
                 "./src/net/transport_addr_reg.h",
-                "./src/net/local_addr.c",
-                "./src/net/local_addr.h",
-                "./src/net/nr_interface_prioritizer.c",
-                "./src/net/nr_interface_prioritizer.h",
 
                 # STUN
                 "./src/stun/addrs.c",
@@ -139,19 +134,8 @@
           ],
           
           'conditions' : [
-              ## Mac and BSDs
+              ## Mac
               [ 'OS == "mac"', {
-                'defines' : [
-                    'DARWIN',
-                    'HAVE_XLOCALE',
-                ],
-              }],
-              [ 'os_bsd == 1', {
-                'defines' : [
-                    'BSD',
-                ],
-              }],
-              [ 'OS == "mac" or os_bsd == 1', {
                 'cflags_mozilla': [
                     '-Wall',
                     '-Wno-parentheses',
@@ -159,6 +143,7 @@
                     '-Wmissing-prototypes',
                  ],
                  'defines' : [
+                     'DARWIN',
                      'HAVE_LIBM=1',
                      'HAVE_STRDUP=1',
                      'HAVE_STRLCPY=1',
@@ -235,11 +220,6 @@
              ['build_with_gonk==1', {
                'defines': [
                   "USE_PLATFORM_NR_STUN_GET_ADDRS",
-               ]
-             }],
-             ['have_ethtool_cmd_speed_hi==0', {
-               'defines': [
-                  "DONT_HAVE_ETHTOOL_SPEED_HI",
                ]
              }]
           ],
