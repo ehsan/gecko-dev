@@ -52,8 +52,8 @@ function run_test_1() {
     "onInstallEnded",
   ], callback_soon(check_test_1));
 
-  // We don't need to wait on the promise, just waiting for the install to finish is enough.
-  AddonManagerInternal.backgroundUpdateCheck();
+  // Fake a timer event
+  gInternalManager.notify(null);
 }
 
 function check_test_1() {
@@ -78,8 +78,15 @@ function run_test_2() {
     }
   });
 
-  // Run the background update
-  AddonManagerInternal.backgroundUpdateCheck().then(run_test_3);
+  function observer() {
+    Services.obs.removeObserver(arguments.callee, "addons-background-update-complete");
+    do_execute_soon(run_test_3);
+  }
+
+  Services.obs.addObserver(observer, "addons-background-update-complete", false);
+
+  // Fake a timer event
+  gInternalManager.notify(null);
 }
 
 // Install a newer hotfix
@@ -100,7 +107,8 @@ function run_test_3() {
     "onInstallEnded",
   ], callback_soon(check_test_3));
 
-  AddonManagerInternal.backgroundUpdateCheck();
+  // Fake a timer event
+  gInternalManager.notify(null);
 }
 
 function check_test_3() {
@@ -128,7 +136,15 @@ function run_test_4() {
     }
   });
 
-  AddonManagerInternal.backgroundUpdateCheck().then(run_test_5);
+  function observer() {
+    Services.obs.removeObserver(arguments.callee, "addons-background-update-complete");
+    do_execute_soon(run_test_5);
+  }
+
+  Services.obs.addObserver(observer, "addons-background-update-complete", false);
+
+  // Fake a timer event
+  gInternalManager.notify(null);
 }
 
 // Don't install an older hotfix
@@ -144,7 +160,15 @@ function run_test_5() {
     }
   });
 
-  AddonManagerInternal.backgroundUpdateCheck().then(run_test_6);
+  function observer() {
+    Services.obs.removeObserver(arguments.callee, "addons-background-update-complete");
+    do_execute_soon(run_test_6);
+  }
+
+  Services.obs.addObserver(observer, "addons-background-update-complete", false);
+
+  // Fake a timer event
+  gInternalManager.notify(null);
 }
 
 // Don't re-download an already pending install
@@ -167,7 +191,8 @@ function run_test_6() {
     "onInstallEnded",
   ], callback_soon(check_test_6));
 
-  AddonManagerInternal.backgroundUpdateCheck();
+  // Fake a timer event
+  gInternalManager.notify(null);
 }
 
 function check_test_6() {
@@ -177,13 +202,20 @@ function check_test_6() {
     }
   });
 
-  AddonManagerInternal.backgroundUpdateCheck()
-    .then(promiseRestartManager)
-    .then(() => promiseAddonByID("hotfix@tests.mozilla.org"))
-    .then(aAddon => {
+  function observer() {
+    Services.obs.removeObserver(arguments.callee, "addons-background-update-complete");
+    restartManager();
+
+    AddonManager.getAddonByID("hotfix@tests.mozilla.org", function(aAddon) {
       aAddon.uninstall();
-      run_test_7();
+      do_execute_soon(run_test_7);
     });
+  }
+
+  Services.obs.addObserver(observer, "addons-background-update-complete", false);
+
+  // Fake a timer event
+  gInternalManager.notify(null);
 }
 
 // Start downloading again if something cancels the install
@@ -204,7 +236,8 @@ function run_test_7() {
     "onInstallEnded",
   ], check_test_7);
 
-  AddonManagerInternal.backgroundUpdateCheck();
+  // Fake a timer event
+  gInternalManager.notify(null);
 }
 
 function check_test_7(aInstall) {
@@ -230,7 +263,8 @@ function check_test_7(aInstall) {
     "onInstallEnded",
   ], callback_soon(finish_test_7));
 
-  AddonManagerInternal.backgroundUpdateCheck();
+  // Fake a timer event
+  gInternalManager.notify(null);
 }
 
 function finish_test_7() {
@@ -265,7 +299,8 @@ function run_test_8() {
     "onInstallEnded",
   ], check_test_8);
 
-  AddonManagerInternal.backgroundUpdateCheck();
+  // Fake a timer event
+  gInternalManager.notify(null);
 }
 
 function check_test_8() {
@@ -286,7 +321,8 @@ function check_test_8() {
     "onInstallEnded",
   ], finish_test_8);
 
-  AddonManagerInternal.backgroundUpdateCheck();
+  // Fake a timer event
+  gInternalManager.notify(null);
 }
 
 function finish_test_8() {

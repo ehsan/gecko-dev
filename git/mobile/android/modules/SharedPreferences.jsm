@@ -76,7 +76,7 @@ function SharedPreferencesImpl(options = {}) {
 
 SharedPreferencesImpl.prototype = Object.freeze({
   _set: function _set(prefs) {
-    Messaging.sendRequest({
+    sendMessageToJava({
       type: "SharedPreferences:Set",
       preferences: prefs,
       scope: this._scope,
@@ -109,13 +109,13 @@ SharedPreferencesImpl.prototype = Object.freeze({
 
   _get: function _get(prefs, callback) {
     let result = null;
-    Messaging.sendRequestForResult({
+    sendMessageToJava({
       type: "SharedPreferences:Get",
       preferences: prefs,
       scope: this._scope,
       profileName: this._profileName,
       branch: this._branch,
-    }).then((data) => {
+    }, (data) => {
       result = data.values;
     });
 
@@ -206,7 +206,7 @@ SharedPreferencesImpl.prototype = Object.freeze({
     this._listening = true;
 
     Services.obs.addObserver(this, "SharedPreferences:Changed", false);
-    Messaging.sendRequest({
+    sendMessageToJava({
       type: "SharedPreferences:Observe",
       enable: true,
       scope: this._scope,
@@ -243,7 +243,7 @@ SharedPreferencesImpl.prototype = Object.freeze({
     this._listening = false;
 
     Services.obs.removeObserver(this, "SharedPreferences:Changed");
-    Messaging.sendRequest({
+    sendMessageToJava({
       type: "SharedPreferences:Observe",
       enable: false,
       scope: this._scope,

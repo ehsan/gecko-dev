@@ -29,7 +29,7 @@ var windowListener = {
             height: XPCNativeWrapper.unwrap(e.target).documentElement.scrollHeight,
             cheight: XPCNativeWrapper.unwrap(e.target).documentElement.clientHeight,
           };
-          _sendMessageToJava(message);
+          let retVal = _sendMessageToJava(message);
         });
       }
     }, false);

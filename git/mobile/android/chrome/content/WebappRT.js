@@ -64,7 +64,7 @@ let WebappRT = {
     }
 
     // If the app is in debug mode, configure and enable the remote debugger.
-    Messaging.sendRequestForResult({ type: "NativeApp:IsDebuggable" }).then((response) => {
+    sendMessageToJava({ type: "NativeApp:IsDebuggable" }, (response) => {
       if (response.isDebuggable) {
         this._enableRemoteDebugger(aUrl);
       }
@@ -149,9 +149,6 @@ let WebappRT = {
     let port = serv.port;
     serv.close();
     Services.prefs.setIntPref("devtools.debugger.remote-port", port);
-    // Clear the UNIX domain socket path to ensure a TCP socket will be used
-    // instead.
-    Services.prefs.setCharPref("devtools.debugger.unix-domain-socket", "");
 
     Services.prefs.setBoolPref("devtools.debugger.remote-enabled", true);
 

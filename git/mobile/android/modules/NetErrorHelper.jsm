@@ -101,7 +101,7 @@ handlers.wifi = {
     this.node = Cu.getWeakReference(node);
     Services.obs.addObserver(this, "network:link-status-changed", true);
 
-    Messaging.sendRequest({
+    sendMessageToJava({
       type: "Wifi:Enable"
     });
   },

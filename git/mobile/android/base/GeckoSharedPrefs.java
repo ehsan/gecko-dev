@@ -204,10 +204,10 @@ public final class GeckoSharedPrefs {
         // Update prefs version accordingly.
         appEditor.putInt(PREFS_VERSION_KEY, PREFS_VERSION);
 
-        appEditor.apply();
-        profileEditor.apply();
+        appEditor.commit();
+        profileEditor.commit();
         if (pmEditor != null) {
-            pmEditor.apply();
+            pmEditor.commit();
         }
 
         Log.d(LOGTAG, "All keys have been migrated");

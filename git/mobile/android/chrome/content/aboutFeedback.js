@@ -48,7 +48,7 @@ function init() {
 	document.getElementById("last-url").value = aData;
   }, "Feedback:LastUrl", false);
 
-  Messaging.sendRequest({ type: "Feedback:LastUrl" });
+  sendMessageToJava({ type: "Feedback:LastUrl" });
 }
 
 function uninit() {
@@ -66,7 +66,7 @@ function updateActiveSection(aSection) {
 }
 
 function openPlayStore() {
-  Messaging.sendRequest({ type: "Feedback:OpenPlayStore" });
+  sendMessageToJava({ type: "Feedback:OpenPlayStore" });
 
   window.close();
 }
@@ -74,7 +74,7 @@ function openPlayStore() {
 function maybeLater() {
   window.close();
 
-  Messaging.sendRequest({ type: "Feedback:MaybeLater" });
+  sendMessageToJava({ type: "Feedback:MaybeLater" });
 }
 
 function sendFeedback(aEvent) {

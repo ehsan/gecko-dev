@@ -88,7 +88,7 @@ let healthReportWrapper = {
 
   refreshPayload: function () {
     console.log("AboutHealthReport: page requested fresh payload.");
-    Messaging.sendRequest({
+    sendMessageToJava({
       type: EVENT_HEALTH_REQUEST,
     });
   },
@@ -120,7 +120,7 @@ let healthReportWrapper = {
 
   showSettings: function () {
     console.log("AboutHealthReport: showing settings.");
-    Messaging.sendRequest({
+    sendMessageToJava({
       type: "Settings:Show",
       resource: "preferences_vendor",
     });
@@ -128,7 +128,7 @@ let healthReportWrapper = {
 
   launchUpdater: function () {
     console.log("AboutHealthReport: launching updater.");
-    Messaging.sendRequest({
+    sendMessageToJava({
       type: "Updater:Launch",
     });
   },

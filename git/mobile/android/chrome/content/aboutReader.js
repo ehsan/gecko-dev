@@ -4,7 +4,6 @@
 
 let Ci = Components.interfaces, Cc = Components.classes, Cu = Components.utils;
 
-Cu.import("resource://gre/modules/Messaging.jsm");
 Cu.import("resource://gre/modules/Services.jsm")
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
@@ -309,7 +308,7 @@ AboutReader.prototype = {
   },
 
   _requestReadingListStatus: function Reader_requestReadingListStatus() {
-    Messaging.sendRequest({
+    gChromeWin.sendMessageToJava({
       type: "Reader:ListStatusRequest",
       url: this._article.url
     });
@@ -336,7 +335,7 @@ AboutReader.prototype = {
         let json = JSON.stringify({ fromAboutReader: true, url: this._article.url });
         Services.obs.notifyObservers(null, "Reader:Add", json);
 
-        Messaging.sendRequest({
+        gChromeWin.sendMessageToJava({
           type: "Reader:Added",
           result: result,
           title: this._article.title,
@@ -360,7 +359,7 @@ AboutReader.prototype = {
     if (!this._article)
       return;
 
-    Messaging.sendRequest({
+    gChromeWin.sendMessageToJava({
       type: "Reader:Share",
       url: this._article.url,
       title: this._article.title
@@ -525,14 +524,14 @@ AboutReader.prototype = {
   },
 
   _setBrowserToolbarVisiblity: function Reader_setBrowserToolbarVisiblity(visible) {
-    Messaging.sendRequest({
+    gChromeWin.sendMessageToJava({
       type: "BrowserToolbar:Visibility",
       visible: visible
     });
   },
 
   _setSystemUIVisibility: function Reader_setSystemUIVisibility(visible) {
-    Messaging.sendRequest({
+    gChromeWin.sendMessageToJava({
       type: "SystemUI:Visibility",
       visible: visible
     });
@@ -561,7 +560,7 @@ AboutReader.prototype = {
   },
 
   _requestFavicon: function Reader_requestFavicon() {
-    Messaging.sendRequest({
+    gChromeWin.sendMessageToJava({
       type: "Reader:FaviconRequest",
       url: this._article.url
     });
