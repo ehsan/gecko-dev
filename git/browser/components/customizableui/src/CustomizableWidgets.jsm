@@ -171,31 +171,30 @@ const CustomizableWidgets = [{
       }
 #endif
 
-      let utils = RecentlyClosedTabsAndWindowsMenuUtils;
-      let tabsFragment = utils.getTabsFragment(doc.defaultView, "toolbarbutton", true,
-                                               "menuRestoreAllTabsSubview.label");
+      let tabsFragment = RecentlyClosedTabsAndWindowsMenuUtils.getTabsFragment(doc.defaultView, "toolbarbutton");
       let separator = doc.getElementById("PanelUI-recentlyClosedTabs-separator");
       let elementCount = tabsFragment.childElementCount;
       separator.hidden = !elementCount;
       while (--elementCount >= 0) {
-        tabsFragment.children[elementCount].classList.add("subviewbutton");
+        if (tabsFragment.children[elementCount].localName != "toolbarbutton")
+          continue;
+        tabsFragment.children[elementCount].setAttribute("class", "subviewbutton");
       }
       recentlyClosedTabs.appendChild(tabsFragment);
 
-      let windowsFragment = utils.getWindowsFragment(doc.defaultView, "toolbarbutton", true,
-                                                     "menuRestoreAllWindowsSubview.label");
+      let windowsFragment = RecentlyClosedTabsAndWindowsMenuUtils.getWindowsFragment(doc.defaultView, "toolbarbutton");
       separator = doc.getElementById("PanelUI-recentlyClosedWindows-separator");
       elementCount = windowsFragment.childElementCount;
       separator.hidden = !elementCount;
       while (--elementCount >= 0) {
-        windowsFragment.children[elementCount].classList.add("subviewbutton");
+        if (windowsFragment.children[elementCount].localName != "toolbarbutton")
+          continue;
+        windowsFragment.children[elementCount].setAttribute("class", "subviewbutton");
       }
       recentlyClosedWindows.appendChild(windowsFragment);
-      aEvent.target.addEventListener("command", win.PanelUI);
     },
     onViewHiding: function(aEvent) {
       LOG("History view is being hidden!");
-      aEvent.target.removeEventListener("command", win.PanelUI);
     }
   }, {
     id: "privatebrowsing-button",

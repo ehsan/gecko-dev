@@ -44,7 +44,7 @@ WebMWriter::SetMetadata(TrackMetadataBase* aMetadata)
     MOZ_ASSERT(meta, "Cannot find vp8 encoder metadata");
     mEbmlComposer->SetVideoConfig(meta->mWidth, meta->mHeight,
                                   meta->mEncodedFrameRate);
-    mMetadataRequiredFlag = mMetadataRequiredFlag & ~ContainerWriter::CREATE_VIDEO_TRACK;
+    mMetadataRequiredFlag = mMetadataRequiredFlag & ~ContainerWriter::HAS_VIDEO;
   }
 
   if (aMetadata->GetKind() == TrackMetadataBase::METADATA_VORBIS) {
@@ -52,7 +52,7 @@ WebMWriter::SetMetadata(TrackMetadataBase* aMetadata)
     MOZ_ASSERT(meta, "Cannot find vorbis encoder metadata");
     mEbmlComposer->SetAudioConfig(meta->mSamplingFrequency, meta->mChannels, meta->mBitDepth);
     mEbmlComposer->SetAudioCodecPrivateData(meta->mData);
-    mMetadataRequiredFlag = mMetadataRequiredFlag & ~ContainerWriter::CREATE_AUDIO_TRACK;
+    mMetadataRequiredFlag = mMetadataRequiredFlag & ~ContainerWriter::HAS_AUDIO;
   }
 
   if (!mMetadataRequiredFlag) {
