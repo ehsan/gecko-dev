@@ -104,6 +104,7 @@ protected:
   PRPackedBool mFollowLinksDirty;
 
   static const char      kPathSepChar;
+  static const PRUnichar kPathSepUnichar;
   static const PRInt64   kJanuaryFirst1970Seconds;    
 };
 

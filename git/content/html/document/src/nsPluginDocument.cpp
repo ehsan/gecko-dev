@@ -144,7 +144,8 @@ nsPluginStreamListener::SetupPlugin()
     return NS_OK;
   }
 
-  nsIObjectFrame* objFrame = do_QueryFrame(frame);
+  nsIObjectFrame* objFrame;
+  CallQueryInterface(frame, &objFrame);
   if (!objFrame) {
     mPluginDoc->AllowNormalInstantiation();
     return NS_ERROR_UNEXPECTED;
@@ -341,7 +342,9 @@ nsPluginDocument::Print()
   nsIFrame* frame = shell->GetPrimaryFrameFor(mPluginContent);
   NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
 
-  nsIObjectFrame* objectFrame = do_QueryFrame(frame);
+  nsIObjectFrame* objectFrame = nsnull;
+  CallQueryInterface(frame, &objectFrame);
+
   if (objectFrame) {
     nsCOMPtr<nsIPluginInstance> pi;
     objectFrame->GetPluginInstance(*getter_AddRefs(pi));

@@ -240,13 +240,14 @@ protected:
     if (mBidiEnabled) {
       // Find the containing block frame
       nsIFrame* frame = aFrame;
-      do {
+      nsresult rv = NS_ERROR_FAILURE;
+      while (frame &&
+             frame->IsFrameOfType(nsIFrame::eLineParticipant) &&
+             NS_FAILED(rv)) {
         frame = frame->GetParent();
-        mBlockFrame = do_QueryFrame(frame);
+        rv = frame->QueryInterface(kBlockFrameCID, (void**)&mBlockFrame);
       }
-      while (frame && frame->IsFrameOfType(nsIFrame::eLineParticipant));
-
-      NS_ASSERTION(mBlockFrame, "Cannot find containing block.");
+      NS_ASSERTION(NS_SUCCEEDED(rv) && mBlockFrame, "Cannot find containing block.");
 
       mLineContinuationPoint = mContinuationPoint;
     }
@@ -1314,7 +1315,7 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
       drawBackgroundColor = PR_FALSE;
   } else {
     bgColor = NS_RGB(255, 255, 255);
-    if (drawBackgroundImage || !aColor.IsTransparent())
+    if (drawBackgroundImage || NS_GET_A(aColor.mBackgroundColor) > 0)
       drawBackgroundColor = PR_TRUE;
   }
 
@@ -1457,13 +1458,12 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
   nsCOMPtr<imgIContainer> image;
   req->GetImage(getter_AddRefs(image));
 
-  nsIntSize imageIntSize;
-  image->GetWidth(&imageIntSize.width);
-  image->GetHeight(&imageIntSize.height);
-
   nsSize imageSize;
-  imageSize.width = nsPresContext::CSSPixelsToAppUnits(imageIntSize.width);
-  imageSize.height = nsPresContext::CSSPixelsToAppUnits(imageIntSize.height);
+  image->GetWidth(&imageSize.width);
+  image->GetHeight(&imageSize.height);
+
+  imageSize.width = nsPresContext::CSSPixelsToAppUnits(imageSize.width);
+  imageSize.height = nsPresContext::CSSPixelsToAppUnits(imageSize.height);
 
   req = nsnull;
 
@@ -1532,10 +1532,10 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
             // If the current frame is smaller than its container, we
             // need to paint the background color even if the frame
             // itself is opaque.
-            nsIntSize iSize;
+            nsSize iSize;
             image->GetWidth(&iSize.width);
             image->GetHeight(&iSize.height);
-            nsIntRect iframeRect;
+            nsRect iframeRect;
             gfxImgFrame->GetRect(iframeRect);
             if (iSize.width != iframeRect.width ||
                 iSize.height != iframeRect.height) {

@@ -379,7 +379,7 @@ public:
   static void EndTransaction();
   static void OnEvent(nsEvent* aEvent);
 protected:
-  static nsIntPoint GetScreenPoint(nsGUIEvent* aEvent);
+  static nsPoint GetScreenPoint(nsGUIEvent* aEvent);
   static PRUint32 GetTimeoutTime();
   static PRUint32 GetIgnoreMoveDelayTime();
 
@@ -451,7 +451,7 @@ nsMouseWheelTransaction::OnEvent(nsEvent* aEvent)
       if (((nsMouseEvent*)aEvent)->reason == nsMouseEvent::eReal) {
         // If the cursor is moving to be outside the frame,
         // terminate the scrollwheel transaction.
-        nsIntPoint pt = GetScreenPoint((nsGUIEvent*)aEvent);
+        nsPoint pt = GetScreenPoint((nsGUIEvent*)aEvent);
         nsIntRect r = sTargetFrame->GetScreenRectExternal();
         if (!r.Contains(pt)) {
           EndTransaction();
@@ -482,13 +482,13 @@ nsMouseWheelTransaction::OnEvent(nsEvent* aEvent)
   }
 }
 
-nsIntPoint
+nsPoint
 nsMouseWheelTransaction::GetScreenPoint(nsGUIEvent* aEvent)
 {
   NS_ASSERTION(aEvent, "aEvent is null");
   NS_ASSERTION(aEvent->widget, "aEvent-widget is null");
-  nsIntRect tmpRect;
-  aEvent->widget->WidgetToScreen(nsIntRect(aEvent->refPoint, nsIntSize(1, 1)),
+  nsRect tmpRect;
+  aEvent->widget->WidgetToScreen(nsRect(aEvent->refPoint, nsSize(1, 1)),
                                  tmpRect);
   return tmpRect.TopLeft();
 }
@@ -1960,8 +1960,8 @@ nsEventStateManager::BeginTrackingDragGesture(nsPresContext* aPresContext,
 {
   // Note that |inDownEvent| could be either a mouse down event or a
   // synthesized mouse move event.
-  nsIntRect screenPt;
-  inDownEvent->widget->WidgetToScreen(nsIntRect(inDownEvent->refPoint, nsIntSize(1, 1)),
+  nsRect screenPt;
+  inDownEvent->widget->WidgetToScreen(nsRect(inDownEvent->refPoint, nsSize(1, 1)),
                                       screenPt);
   mGestureDownPoint = screenPt.TopLeft();
 
@@ -2004,7 +2004,7 @@ nsEventStateManager::FillInEventFromGestureDown(nsMouseEvent* aEvent)
   // Set the coordinates in the new event to the coordinates of
   // the old event, adjusted for the fact that the widget might be
   // different
-  nsIntRect tmpRect(0, 0, 1, 1);
+  nsRect tmpRect(0, 0, 1, 1);
   aEvent->widget->WidgetToScreen(tmpRect, tmpRect);
   aEvent->refPoint = mGestureDownPoint - tmpRect.TopLeft();
   aEvent->isShift = mGestureDownShift;
@@ -2065,10 +2065,10 @@ nsEventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
     }
 
     // fire drag gesture if mouse has moved enough
-    nsIntRect tmpRect;
-    aEvent->widget->WidgetToScreen(nsIntRect(aEvent->refPoint, nsIntSize(1, 1)),
+    nsRect tmpRect;
+    aEvent->widget->WidgetToScreen(nsRect(aEvent->refPoint, nsSize(1, 1)),
                                    tmpRect);
-    nsIntPoint pt = tmpRect.TopLeft();
+    nsPoint pt = tmpRect.TopLeft();
     if (PR_ABS(pt.x - mGestureDownPoint.x) > pixelThresholdX ||
         PR_ABS(pt.y - mGestureDownPoint.y) > pixelThresholdY) {
 #ifdef CLICK_HOLD_CONTEXT_MENUS
@@ -2379,7 +2379,8 @@ nsEventStateManager::DoDefaultDragStart(nsPresContext* aPresContext,
           if (presShell) {
             nsIFrame* frame = presShell->GetPrimaryFrameFor(content);
             if (frame) {
-              nsTreeBodyFrame* treeBody = do_QueryFrame(frame);
+              nsTreeBodyFrame* treeBody;
+              CallQueryInterface(frame, &treeBody);
               treeBody->GetSelectionRegion(getter_AddRefs(region));
             }
           }
@@ -2534,7 +2535,8 @@ static nsIScrollableView*
 GetScrollableViewForFrame(nsPresContext* aPresContext, nsIFrame* aFrame)
 {
   for (; aFrame; aFrame = GetParentFrameToScroll(aPresContext, aFrame)) {
-    nsIScrollableViewProvider* svp = do_QueryFrame(aFrame);
+    nsIScrollableViewProvider* svp;
+    CallQueryInterface(aFrame, &svp);
     if (svp) {
       nsIScrollableView* scrollView = svp->GetScrollableView();
       if (scrollView)
@@ -2610,7 +2612,8 @@ nsEventStateManager::DoScrollText(nsPresContext* aPresContext,
   // operation, even if the mouse hasn't moved.
   nsIFrame* lastScrollFrame = nsMouseWheelTransaction::GetTargetFrame();
   if (lastScrollFrame) {
-    nsIScrollableViewProvider* svp = do_QueryFrame(lastScrollFrame);
+    nsIScrollableViewProvider* svp;
+    CallQueryInterface(lastScrollFrame, &svp);
     if (svp) {
       scrollView = svp->GetScrollableView();
       nsMouseWheelTransaction::UpdateTransaction();
@@ -2625,7 +2628,8 @@ nsEventStateManager::DoScrollText(nsPresContext* aPresContext,
        scrollFrame = GetParentFrameToScroll(aPresContext, scrollFrame)) {
     // Check whether the frame wants to provide us with a scrollable view.
     scrollView = nsnull;
-    nsIScrollableViewProvider* svp = do_QueryFrame(scrollFrame);
+    nsIScrollableViewProvider* svp;
+    CallQueryInterface(scrollFrame, &svp);
     if (svp) {
       scrollView = svp->GetScrollableView();
     }
@@ -2654,7 +2658,8 @@ nsEventStateManager::DoScrollText(nsPresContext* aPresContext,
       }
 
       // Comboboxes need special care.
-      nsIComboboxControlFrame* comboBox = do_QueryFrame(scrollFrame);
+      nsIComboboxControlFrame* comboBox = nsnull;
+      CallQueryInterface(scrollFrame, &comboBox);
       if (comboBox) {
         if (comboBox->IsDroppedDown()) {
           // Don't propagate to parent when drop down menu is active.
@@ -3588,7 +3593,8 @@ nsEventStateManager::NotifyMouseOut(nsGUIEvent* aEvent, nsIContent* aMovingInto)
   if (mLastMouseOverFrame) {
     // if the frame is associated with a subdocument,
     // tell the subdocument that we're moving out of it
-    nsIFrameFrame* subdocFrame = do_QueryFrame(mLastMouseOverFrame.GetFrame());
+    nsIFrameFrame* subdocFrame;
+    CallQueryInterface(mLastMouseOverFrame.GetFrame(), &subdocFrame);
     if (subdocFrame) {
       nsCOMPtr<nsIDocShell> docshell;
       subdocFrame->GetDocShell(getter_AddRefs(docshell));
@@ -5209,7 +5215,9 @@ nsEventStateManager::SendFocusBlur(nsPresContext* aPresContext,
       currentFocusFrame = presShell->GetPrimaryFrameFor(mCurrentFocus);
     if (!currentFocusFrame)
       currentFocusFrame = mCurrentTarget;
-    nsIObjectFrame* objFrame = do_QueryFrame(currentFocusFrame);
+    nsIObjectFrame* objFrame = nsnull;
+    if (currentFocusFrame)
+      CallQueryInterface(currentFocusFrame, &objFrame);
     if (objFrame) {
       nsIView* view = currentFocusFrame->GetViewExternal();
       NS_ASSERTION(view, "Object frames must have views");

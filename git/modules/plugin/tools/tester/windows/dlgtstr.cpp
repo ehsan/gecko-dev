@@ -48,7 +48,7 @@ extern CLogger * pLogger;
 
 static void onCommand(HWND hWnd, int id, HWND hWndCtl, UINT codeNotify)
 {
-  CPlugin * pPlugin = (CPlugin *)GetWindowLongPtr(hWnd, DWLP_USER);
+  CPlugin * pPlugin = (CPlugin *)GetWindowLong(hWnd, DWL_USER);
   if(!pPlugin)
     return;
 
@@ -128,7 +128,7 @@ static BOOL onInitDialog(HWND hWnd, HWND hWndFocus, LPARAM lParam)
 {
   CPlugin * pPlugin = (CPlugin *)lParam;
 
-  SetWindowLongPtr(hWnd, DWLP_USER, (LONG_PTR)pPlugin);
+  SetWindowLong(hWnd, DWL_USER, (long)pPlugin);
 
   SetWindowPos(hWnd, NULL, 0,0, 0,0, SWP_NOZORDER | SWP_NOSIZE);
 
@@ -163,7 +163,7 @@ static BOOL onInitDialog(HWND hWnd, HWND hWndFocus, LPARAM lParam)
 
 static void onDestroy(HWND hWnd)
 {
-  CPlugin * pPlugin = (CPlugin *)GetWindowLongPtr(hWnd, DWLP_USER);
+  CPlugin * pPlugin = (CPlugin *)GetWindowLong(hWnd, DWL_USER);
   pPlugin->onDestroy();
 }
 

@@ -29,7 +29,6 @@ function jitstatHandler(f)
     f("recorderAborted");
     f("traceCompleted");
     f("sideExitIntoInterpreter");
-    f("timeoutIntoInterpreter");
     f("typeMapMismatchAtEntry");
     f("returnToDifferentLoopHeader");
     f("traceTriggered");
@@ -37,36 +36,20 @@ function jitstatHandler(f)
     f("treesTrashed");
     f("slotPromoted");
     f("unstableLoopVariable");
+    f("noCompatInnerTrees");
     f("breakLoopExits");
     f("returnLoopExits");
-    f("mergedLoopExits")
-    f("noCompatInnerTrees");
 }
 
 function test(f)
 {
   if (!testName || testName == f.name) {
-    var expectedJITstats = f.jitstats;
-    if (expectedJITstats)
-    {
-      var expectedProps = {};
-      jitstatHandler(function(prop) {
-                       if (prop in expectedJITstats)
-                         expectedProps[prop] = true;
-                     });
-      for (var p in expectedJITstats)
-      {
-        if (!(p in expectedProps))
-          throw "Bad property in " + f.name + ".expected: " + p;
-      }
-    }
-
     // Collect our jit stats
     var localJITstats = {};
-    jitstatHandler(function(prop) {
+    jitstatHandler(function(prop, local, global) {
                      localJITstats[prop] = tracemonkey[prop];
                    });
-    check(f.name, f(), f.expected, localJITstats, expectedJITstats);
+    check(f.name, f(), f.expected, localJITstats, f.jitstats);
   }
 }
 
@@ -2174,15 +2157,6 @@ function testNumToString() {
 testNumToString.expected = "123456789,-123456789,123456789,-123456789,75bcd15,-75bcd15,21i3v9,-21i3v9";
 test(testNumToString);
 
-function testLongNumToString() {
-    var s;
-    for (var i = 0; i < 5; i++)
-        s = (0x08000000).toString(2);
-    return s;
-}
-testLongNumToString.expected = '1000000000000000000000000000';
-test(testLongNumToString);
-
 function testSubstring() {
     for (var i = 0; i < 5; ++i) {
         actual = "".substring(5);
@@ -3665,12 +3639,12 @@ test(testUnaryImacros);
 function testAddAnyInconvertibleObject()
 {
   var count = 0;
-  function toString() { ++count; if (count == 95) return {}; return "" + count; }
+  function toString() { ++count; if (count == 5) return {}; return "" + count; }
 
   var threw = false;
   try
   {
-    for (var i = 0; i < 100; i++)
+    for (var i = 0; i < 10; i++)
     {
         var o = {valueOf: undefined, toString: toString};
         var q = 5 + o;
@@ -3679,12 +3653,12 @@ function testAddAnyInconvertibleObject()
   catch (e)
   {
     threw = true;
-    if (i !== 94)
-      return "expected i === 94, got " + i;
-    if (q !== "594")
-      return "expected q === '594', got " + q + " (type " + typeof q + ")";
-    if (count !== 95)
-      return "expected count === 95, got " + count;
+    if (i !== 4)
+      return "expected i === 4, got " + i;
+    if (q !== "54")
+      return "expected q === '54', got " + q + " (type " + typeof q + ")";
+    if (count !== 5)
+      return "expected count === 5, got " + count;
   }
   if (!threw)
     return "expected throw with 5 + o"; // hey, a rhyme!
@@ -3695,25 +3669,19 @@ testAddAnyInconvertibleObject.expected = "pass";
 testAddAnyInconvertibleObject.jitstats = {
   recorderStarted: 1,
   recorderAborted: 0,
-  sideExitIntoInterpreter: 93
+  sideExits: 1
 };
 test(testAddAnyInconvertibleObject);
 
 function testAddInconvertibleObjectAny()
 {
   var count = 0;
-  function toString()
-  {
-    ++count;
-    if (count == 95)
-      return {};
-    return "" + count;
-  }
+  function toString() { ++count; if (count == 5) return {}; return "" + count; }
 
   var threw = false;
   try
   {
-    for (var i = 0; i < 100; i++)
+    for (var i = 0; i < 10; i++)
     {
         var o = {valueOf: undefined, toString: toString};
         var q = o + 5;
@@ -3722,12 +3690,12 @@ function testAddInconvertibleObjectAny()
   catch (e)
   {
     threw = true;
-    if (i !== 94)
-      return "expected i === 94, got " + i;
-    if (q !== "945")
-      return "expected q === '945', got " + q + " (type " + typeof q + ")";
-    if (count !== 95)
-      return "expected count === 95, got " + count;
+    if (i !== 4)
+      return "expected i === 4, got " + i;
+    if (q !== "45")
+      return "expected q === '54', got " + q + " (type " + typeof q + ")";
+    if (count !== 5)
+      return "expected count === 5, got " + count;
   }
   if (!threw)
     return "expected throw with o + 5";
@@ -3738,21 +3706,21 @@ testAddInconvertibleObjectAny.expected = "pass";
 testAddInconvertibleObjectAny.jitstats = {
   recorderStarted: 1,
   recorderAborted: 0,
-  sideExitIntoInterpreter: 93
+  sideExits: 1
 };
 test(testAddInconvertibleObjectAny);
 
 function testAddInconvertibleObjectInconvertibleObject()
 {
   var count1 = 0;
-  function toString1() { ++count1; if (count1 == 95) return {}; return "" + count1; }
+  function toString1() { ++count1; if (count1 == 5) return {}; return "" + count1; }
   var count2 = 0;
-  function toString2() { ++count2; if (count2 == 95) return {}; return "" + count2; }
+  function toString2() { ++count2; if (count2 == 5) return {}; return "" + count2; }
 
   var threw = false;
   try
   {
-    for (var i = 0; i < 100; i++)
+    for (var i = 0; i < 10; i++)
     {
         var o1 = {valueOf: undefined, toString: toString1};
         var o2 = {valueOf: undefined, toString: toString2};
@@ -3762,14 +3730,14 @@ function testAddInconvertibleObjectInconvertibleObject()
   catch (e)
   {
     threw = true;
-    if (i !== 94)
-      return "expected i === 94, got " + i;
-    if (q !== "9494")
-      return "expected q === '9494', got " + q + " (type " + typeof q + ")";
-    if (count1 !== 95)
-      return "expected count1 === 95, got " + count1;
-    if (count2 !== 94)
-      return "expected count2 === 94, got " + count2;
+    if (i !== 4)
+      return "expected i === 4, got " + i;
+    if (q !== "44")
+      return "expected q === '44', got " + q + " (type " + typeof q + ")";
+    if (count1 !== 5)
+      return "expected count1 === 5, got " + count1;
+    if (count2 !== 4)
+      return "expected count2 === 5, got " + count2;
   }
   if (!threw)
     return "expected throw with o1 + o2";
@@ -3780,33 +3748,33 @@ testAddInconvertibleObjectInconvertibleObject.expected = "pass";
 testAddInconvertibleObjectInconvertibleObject.jitstats = {
   recorderStarted: 1,
   recorderAborted: 0,
-  sideExitIntoInterpreter: 93
+  sideExits: 1
 };
 test(testAddInconvertibleObjectInconvertibleObject);
 
 function testBitOrAnyInconvertibleObject()
 {
   var count = 0;
-  function toString() { ++count; if (count == 95) return {}; return count; }
+  function toString() { ++count; if (count == 5) return {}; return count; }
 
   var threw = false;
   try
   {
-    for (var i = 0; i < 100; i++)
+    for (var i = 0; i < 10; i++)
     {
         var o = {valueOf: undefined, toString: toString};
-        var q = 1 | o;
+        var q = 2 | o;
     }
   }
   catch (e)
   {
     threw = true;
-    if (i !== 94)
-      return "expected i === 94, got " + i;
-    if (q !== 95)
-      return "expected q === 95, got " + q;
-    if (count !== 95)
-      return "expected count === 95, got " + count;
+    if (i !== 4)
+      return "expected i === 4, got " + i;
+    if (q !== 6)
+      return "expected q === 6, got " + q;
+    if (count !== 5)
+      return "expected count === 5, got " + count;
   }
   if (!threw)
     return "expected throw with 2 | o"; // hey, a rhyme!
@@ -3817,33 +3785,33 @@ testBitOrAnyInconvertibleObject.expected = "pass";
 testBitOrAnyInconvertibleObject.jitstats = {
   recorderStarted: 1,
   recorderAborted: 0,
-  sideExitIntoInterpreter: 93
+  sideExits: 1
 };
 test(testBitOrAnyInconvertibleObject);
 
 function testBitOrInconvertibleObjectAny()
 {
   var count = 0;
-  function toString() { ++count; if (count == 95) return {}; return count; }
+  function toString() { ++count; if (count == 5) return {}; return count; }
 
   var threw = false;
   try
   {
-    for (var i = 0; i < 100; i++)
+    for (var i = 0; i < 10; i++)
     {
         var o = {valueOf: undefined, toString: toString};
-        var q = o | 1;
+        var q = o | 2;
     }
   }
   catch (e)
   {
     threw = true;
-    if (i !== 94)
+    if (i !== 4)
       return "expected i === 4, got " + i;
-    if (q !== 95)
-      return "expected q === 95, got " + q;
-    if (count !== 95)
-      return "expected count === 95, got " + count;
+    if (q !== 6)
+      return "expected q === 6, got " + q;
+    if (count !== 5)
+      return "expected count === 5, got " + count;
   }
   if (!threw)
     return "expected throw with o | 2";
@@ -3854,21 +3822,21 @@ testBitOrInconvertibleObjectAny.expected = "pass";
 testBitOrInconvertibleObjectAny.jitstats = {
   recorderStarted: 1,
   recorderAborted: 0,
-  sideExitIntoInterpreter: 93
+  sideExits: 1
 };
 test(testBitOrInconvertibleObjectAny);
 
 function testBitOrInconvertibleObjectInconvertibleObject()
 {
   var count1 = 0;
-  function toString1() { ++count1; if (count1 == 95) return {}; return count1; }
+  function toString1() { ++count1; if (count1 == 5) return {}; return count1; }
   var count2 = 0;
-  function toString2() { ++count2; if (count2 == 95) return {}; return count2; }
+  function toString2() { ++count2; if (count2 == 5) return {}; return count2; }
 
   var threw = false;
   try
   {
-    for (var i = 0; i < 100; i++)
+    for (var i = 0; i < 10; i++)
     {
         var o1 = {valueOf: undefined, toString: toString1};
         var o2 = {valueOf: undefined, toString: toString2};
@@ -3878,14 +3846,14 @@ function testBitOrInconvertibleObjectInconvertibleObject()
   catch (e)
   {
     threw = true;
-    if (i !== 94)
-      return "expected i === 94, got " + i;
-    if (q !== 94)
-      return "expected q === 94, got " + q;
-    if (count1 !== 95)
-      return "expected count1 === 95, got " + count1;
-    if (count2 !== 94)
-      return "expected count2 === 94, got " + count2;
+    if (i !== 4)
+      return "expected i === 4, got " + i;
+    if (q !== 4)
+      return "expected q === 4, got " + q;
+    if (count1 !== 5)
+      return "expected count1 === 5, got " + count1;
+    if (count2 !== 4)
+      return "expected count2 === 5, got " + count2;
   }
   if (!threw)
     return "expected throw with o1 | o2";
@@ -3896,7 +3864,7 @@ testBitOrInconvertibleObjectInconvertibleObject.expected = "pass";
 testBitOrInconvertibleObjectInconvertibleObject.jitstats = {
   recorderStarted: 1,
   recorderAborted: 0,
-  sideExitIntoInterpreter: 93
+  sideExits: 1
 };
 test(testBitOrInconvertibleObjectInconvertibleObject);
 
@@ -3977,17 +3945,6 @@ function testLirBufOOM()
 }
 testLirBufOOM.expected = "ok";
 test(testLirBufOOM);
-
-function testStringResolve() {
-    var x = 0;
-    for each (let d in [new String('q'), new String('q'), new String('q')]) {
-        if (("" + (0 in d)) === "true")
-            x++;
-    }
-    return x;
-}
-testStringResolve.expected = 3;
-test(testStringResolve);
 
 /*****************************************************************************
  *                                                                           *

@@ -78,9 +78,6 @@
 static PRUintn threadTPIndex;
 static JSBool  tpIndexInited = JS_FALSE;
 
-static void
-InitOperationLimit(JSContext *cx);
-
 JS_BEGIN_EXTERN_C
 JSBool
 js_InitThreadPrivateIndex(void (*ptr)(void *))
@@ -254,7 +251,7 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
     memset(cx, 0, sizeof *cx);
 
     cx->runtime = rt;
-    js_InitOperationLimit(cx);
+    JS_ClearOperationCallback(cx);
     cx->debugHooks = &rt->globalDebugHooks;
 #if JS_STACK_GROWTH_DIRECTION > 0
     cx->stackLimit = (jsuword)-1;
@@ -1358,11 +1355,10 @@ js_ResetOperationCount(JSContext *cx)
     JS_ASSERT(cx->operationLimit > 0);
 
     cx->operationCount = (int32) cx->operationLimit;
-    JSOperationCallback cb = cx->operationCallback;
-    if (cb) {
-        if (!cx->branchCallbackWasSet)
-            return cb(cx);
+    if (cx->operationCallbackIsSet)
+        return cx->operationCallback(cx);
 
+    if (cx->operationCallback) {
         /*
          * Invoke the deprecated branch callback. It may be called only when
          * the top-most frame is scripted or JSOPTION_NATIVE_BRANCH_CALLBACK
@@ -1371,7 +1367,7 @@ js_ResetOperationCount(JSContext *cx)
         fp = js_GetTopStackFrame(cx);
         script = fp ? fp->script : NULL;
         if (script || JS_HAS_OPTION(cx, JSOPTION_NATIVE_BRANCH_CALLBACK))
-            return ((JSBranchCallback) cb)(cx, script);
+            return ((JSBranchCallback) cx->operationCallback)(cx, script);
     }
     return JS_TRUE;
 }

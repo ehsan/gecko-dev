@@ -123,9 +123,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS0(nsScriptLoadRequest)
 nsScriptLoader::nsScriptLoader(nsIDocument *aDocument)
   : mDocument(aDocument),
     mBlockerCount(0),
-    mEnabled(PR_TRUE),
-    mDeferEnabled(PR_FALSE),
-    mUnblockOnloadWhenDoneProcessing(PR_FALSE)
+    mEnabled(PR_TRUE)
 {
 }
 
@@ -713,15 +711,6 @@ nsScriptLoader::ProcessPendingRequests()
     mPendingChildLoaders.RemoveElementAt(0);
     child->RemoveExecuteBlocker();
   }
-
-  if (mUnblockOnloadWhenDoneProcessing && mDocument &&
-      !GetFirstPendingRequest()) {
-    // No more pending scripts; time to unblock onload.
-    // OK to unblock onload synchronously here, since callers must be
-    // prepared for the world changing anyway.
-    mUnblockOnloadWhenDoneProcessing = PR_FALSE;
-    mDocument->UnblockOnload(PR_TRUE);
-  }
 }
 
 PRBool
@@ -999,11 +988,6 @@ nsScriptLoader::ShouldExecuteScript(nsIDocument* aDocument,
 void
 nsScriptLoader::EndDeferringScripts()
 {
-  if (mDeferEnabled) {
-    // Have to check because we apparently get EndDeferringScripts
-    // without BeginDeferringScripts in some cases
-    mUnblockOnloadWhenDoneProcessing = PR_TRUE;
-  }
   mDeferEnabled = PR_FALSE;
   for (PRUint32 i = 0; i < (PRUint32)mRequests.Count(); ++i) {
     mRequests[i]->mDefer = PR_FALSE;

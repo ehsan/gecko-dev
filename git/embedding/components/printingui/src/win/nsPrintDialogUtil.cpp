@@ -75,6 +75,8 @@ WIN_LIBS=                                       \
 #include "nsIPrintSettings.h"
 #include "nsIPrintSettingsWin.h"
 #include "nsIPrintOptions.h"
+#include "nsWidgetsCID.h"
+static NS_DEFINE_IID(kPrinterEnumeratorCID, NS_PRINTER_ENUMERATOR_CID);
 
 #include "nsRect.h"
 
@@ -511,7 +513,7 @@ static HWND CreateControl(LPCTSTR          aType,
                           HWND             aHdlg, 
                           int              aId, 
                           const nsAString& aStr, 
-                          const nsIntRect& aRect)
+                          const nsRect&    aRect)
 {
   nsCAutoString str;
   if (NS_FAILED(NS_CopyUnicodeToNative(aStr, str)))
@@ -539,7 +541,7 @@ static HWND CreateRadioBtn(HINSTANCE        aHInst,
                            HWND             aHdlg, 
                            int              aId, 
                            const char*      aStr, 
-                           const nsIntRect& aRect)
+                           const nsRect&    aRect)
 {
   nsString cStr;
   cStr.AssignWithConversion(aStr);
@@ -552,7 +554,7 @@ static HWND CreateGroupBox(HINSTANCE        aHInst,
                            HWND             aHdlg, 
                            int              aId, 
                            const nsAString& aStr, 
-                           const nsIntRect& aRect)
+                           const nsRect&    aRect)
 {
   return CreateControl("BUTTON", BS_GROUPBOX, aHInst, aHdlg, aId, aStr, aRect);
 }
@@ -663,7 +665,7 @@ static UINT CALLBACK PrintHookProc(HWND hdlg, UINT uiMsg, WPARAM wParam, LPARAM 
     int y         = top+(rad1Rect.top-dlgRect.top);     // starting pos of first radio
     int rbWidth   = dlgRect.right - rad1Rect.left - 5;  // measure from rb left to the edge of the groupbox
                                                         // (5 is arbitrary)
-    nsIntRect rect;
+    nsRect rect;
 
     // Create and position the radio buttons
     //
@@ -829,8 +831,9 @@ static HGLOBAL CreateGlobalDevModeAndInit(LPCWSTR aPrintName, nsIPrintSettings* 
 // helper
 static PRUnichar * GetDefaultPrinterNameFromGlobalPrinters()
 {
+  nsresult rv;
   PRUnichar * printerName = nsnull;
-  nsCOMPtr<nsIPrinterEnumerator> prtEnum = do_GetService("@mozilla.org/gfx/printerenumerator;1");
+  nsCOMPtr<nsIPrinterEnumerator> prtEnum = do_GetService(kPrinterEnumeratorCID, &rv);
   if (prtEnum) {
     prtEnum->GetDefaultPrinterName(&printerName);
   }

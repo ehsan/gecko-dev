@@ -125,8 +125,8 @@ static nsIFrame* GetScrolledBox(nsBoxObject* aScrollBox) {
   nsIFrame* frame = aScrollBox->GetFrame(PR_FALSE);
   if (!frame) 
     return nsnull;
-  nsIScrollableFrame* scrollFrame = do_QueryFrame(frame);
-  if (!scrollFrame) {
+  nsIScrollableFrame* scrollFrame;
+  if (NS_FAILED(CallQueryInterface(frame, &scrollFrame))) {
     NS_WARNING("nsIScrollBoxObject attached to something that's not a scroll frame!");
     return nsnull;
   }
@@ -288,9 +288,9 @@ NS_IMETHODIMP nsScrollBoxObject::ScrollToElement(nsIDOMElement *child)
     nsPoint cp;
     scrollableView->GetScrollPosition(cp.x,cp.y);
 
-    nsIntRect prect;
-    GetOffsetRect(prect);
-    crect = nsIntRect::ToAppUnits(prect, nsPresContext::AppUnitsPerCSSPixel());
+    GetOffsetRect(crect);    
+    crect.x = nsPresContext::CSSPixelsToAppUnits(crect.x);
+    crect.y = nsPresContext::CSSPixelsToAppUnits(crect.y);
     nscoord newx=cp.x, newy=cp.y;
 
     // we only scroll in the direction of the scrollbox orientation
@@ -388,9 +388,11 @@ NS_IMETHODIMP nsScrollBoxObject::EnsureElementIsVisible(nsIDOMElement *child)
     // get our current info
     nsPoint cp;
     scrollableView->GetScrollPosition(cp.x,cp.y);
-    nsIntRect prect;
-    GetOffsetRect(prect);
-    crect = nsIntRect::ToAppUnits(prect, nsPresContext::AppUnitsPerCSSPixel());
+    GetOffsetRect(crect);    
+    crect.x = nsPresContext::CSSPixelsToAppUnits(crect.x);
+    crect.y = nsPresContext::CSSPixelsToAppUnits(crect.y);
+    crect.width = nsPresContext::CSSPixelsToAppUnits(crect.width);
+    crect.height = nsPresContext::CSSPixelsToAppUnits(crect.height);
 
     nscoord newx=cp.x, newy=cp.y;
 
@@ -433,8 +435,8 @@ nsScrollBoxObject::GetScrollableView()
   if (!frame) 
     return nsnull;
   
-  nsIScrollableFrame* scrollFrame = do_QueryFrame(frame);
-  if (!scrollFrame)
+  nsIScrollableFrame* scrollFrame;
+  if (NS_FAILED(CallQueryInterface(frame, &scrollFrame)))
     return nsnull;
 
   nsIScrollableView* scrollingView = scrollFrame->GetScrollableView();

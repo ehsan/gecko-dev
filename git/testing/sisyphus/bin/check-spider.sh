@@ -95,7 +95,14 @@ if [[ -z "$product" || -z "$branch" || -z "$executablepath" || -z "$profilename"
     usage
 fi
 
-checkProductBranch $product $branch
+if [[ "$product" != "firefox" && "$product" != "thunderbird" && "$product" != "fennec" ]]; then
+    error "product \"$product\" must be one of firefox, thunderbird, or fennec" $LINENO
+fi
+
+if [[ "$branch" != "1.8.0" && "$branch" != "1.8.1" && "$branch" != "1.9.0"  && "$branch" != "1.9.1" ]]; 
+    then
+    error "branch \"$branch\" must be one of 1.8.0, 1.8.1, 1.9.0 1.9.1" $LINENO
+fi
 
 executable=`get_executable $product $branch $executablepath`
 
