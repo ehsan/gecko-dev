@@ -8,8 +8,8 @@ function spawnTest () {
   let { panel } = yield initPerformance(SIMPLE_URL);
   let { EVENTS, PerformanceController, OverviewView } = panel.panelWin;
 
-  // Enable memory to test all the overview graphs.
-  Services.prefs.setBoolPref(MEMORY_PREF, true);
+  Services.prefs.setBoolPref("devtools.performance.ui.enable-memory", true);
+  Services.prefs.setBoolPref("devtools.performance.ui.enable-framerate", true);
 
   yield startRecording(panel);
 
@@ -23,6 +23,9 @@ function spawnTest () {
   yield waitUntil(() => updated > 10);
 
   yield stopRecording(panel);
+
+  // Wait for the overview graph to be rerendered *after* recording.
+  yield once(OverviewView, EVENTS.OVERVIEW_RENDERED);
 
   ok(OverviewView.markersOverview.width > 0,
     "The overview's framerate graph has a width.");

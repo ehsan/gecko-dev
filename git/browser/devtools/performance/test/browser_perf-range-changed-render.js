@@ -27,12 +27,12 @@ function spawnTest () {
   ok(true, "Waterfall rerenders when a range in the overview graph is selected.");
 
   rendered = once(JsCallTreeView, EVENTS.JS_CALL_TREE_RENDERED);
-  yield DetailsView.selectView("js-calltree");
+  DetailsView.selectView("js-calltree");
   yield rendered;
   ok(true, "Call tree rerenders after its corresponding pane is shown.");
 
   rendered = once(JsFlameGraphView, EVENTS.JS_FLAMEGRAPH_RENDERED);
-  yield DetailsView.selectView("js-flamegraph");
+  DetailsView.selectView("js-flamegraph");
   yield rendered;
   ok(true, "Flamegraph rerenders after its corresponding pane is shown.");
 
@@ -42,12 +42,12 @@ function spawnTest () {
   ok(true, "Flamegraph rerenders when a range in the overview graph is removed.");
 
   rendered = once(JsCallTreeView, EVENTS.JS_CALL_TREE_RENDERED);
-  yield DetailsView.selectView("js-calltree");
+  DetailsView.selectView("js-calltree");
   yield rendered;
   ok(true, "Call tree rerenders after its corresponding pane is shown.");
 
   rendered = once(WaterfallView, EVENTS.WATERFALL_RENDERED);
-  yield DetailsView.selectView("waterfall");
+  DetailsView.selectView("waterfall");
   yield rendered;
   ok(true, "Waterfall rerenders after its corresponding pane is shown.");
 

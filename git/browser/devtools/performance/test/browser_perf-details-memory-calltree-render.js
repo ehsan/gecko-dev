@@ -8,7 +8,7 @@ function spawnTest () {
   let { panel } = yield initPerformance(SIMPLE_URL);
   let { EVENTS, DetailsView, MemoryCallTreeView } = panel.panelWin;
 
-  yield DetailsView.selectView("memory-calltree");
+  DetailsView.selectView("memory-calltree");
   ok(DetailsView.isViewSelected(MemoryCallTreeView), "The call tree is now selected.");
 
   yield startRecording(panel);

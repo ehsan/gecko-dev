@@ -11,9 +11,7 @@ enum CellBroadcastMessageClass {"class-0", "class-1", "class-2",
 enum CellBroadcastEtwsWarningType {"earthquake", "tsunami",
                                    "earthquake-tsunami", "test", "other"};
 
-[Pref="dom.cellbroadcast.enabled",
- CheckPermissions="cellbroadcast",
- AvailableIn="CertifiedApps"]
+[Pref="dom.cellbroadcast.enabled"]
 interface MozCellBroadcastMessage
 {
   /**
@@ -74,9 +72,7 @@ interface MozCellBroadcastMessage
   readonly attribute unsigned short? cdmaServiceCategory;
 };
 
-[Pref="dom.cellbroadcast.enabled",
- CheckPermissions="cellbroadcast",
- AvailableIn="CertifiedApps"]
+[Pref="dom.cellbroadcast.enabled"]
 interface MozCellBroadcastEtwsInfo
 {
   /**

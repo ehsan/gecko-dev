@@ -22,9 +22,9 @@ public class EditorBranch implements Editor {
     this.editor = prefs.edit();
   }
 
-  @Override
   public void apply() {
-    this.editor.apply();
+    // Android <=r8 SharedPreferences.Editor does not contain apply() for overriding.
+    this.editor.commit();
   }
 
   @Override

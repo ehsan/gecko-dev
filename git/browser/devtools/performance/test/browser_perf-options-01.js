@@ -8,7 +8,7 @@ function spawnTest () {
   let { panel } = yield initPerformance(SIMPLE_URL);
   let { EVENTS, DetailsView, JsCallTreeView } = panel.panelWin;
 
-  yield DetailsView.selectView("js-calltree");
+  DetailsView.selectView("js-calltree");
 
   // Manually call the _onPrefChanged function so we can catch an error
   try {
