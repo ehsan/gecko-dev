@@ -1,4 +1,8 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* vim:expandtab:shiftwidth=4:tabstop=4:
+ */
+/*
+ *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -12,14 +16,16 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla Corporation code.
+ * The Original Code is from xterm-122 source XFree86:
+ *  xc/programs/xterm/keysym2ucs.h,v 1.1 1999/06/12 15:37:18 dawes Exp.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2009
+ * The Initial Developer of the Original Code is
+ * Markus G. Kuhn <mkuhn@acm.org> and Richard Verhoeven <river@win.tue.nl>.
+ * Portions created by the Initial Developer are Copyright (C) 2001
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Bas Schouten <bschouten@mozilla.com>
+ *   Frank Tang <ftang@netscape.com> adopt into mozilla
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -34,59 +40,22 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
+/*
+ * This module converts keysym values into the corresponding ISO 10646-1
+ * (UCS, Unicode) values.
+ */
 
-#ifndef GFX_THEBESLAYERD3D9_H
-#define GFX_THEBESLAYERD3D9_H
+#include <X11/X.h>
 
-#include "Layers.h"
-#include "LayerManagerD3D9.h"
-#include "gfxImageSurface.h"
+#ifdef __cplusplus
+extern "C" { 
+#endif
+
+long keysym2ucs(KeySym keysym); 
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
 
 
-namespace mozilla {
-namespace layers {
 
-class ThebesLayerD3D9 : public ThebesLayer, 
-                        public LayerD3D9
-{
-public:
-  ThebesLayerD3D9(LayerManagerD3D9 *aManager);
-  virtual ~ThebesLayerD3D9();
-
-  /* Layer implementation */
-  void SetVisibleRegion(const nsIntRegion& aRegion);
-
-  /* ThebesLayer implementation */
-  void InvalidateRegion(const nsIntRegion& aRegion);
-
-  /* LayerD3D9 implementation */
-  LayerType GetType();
-  Layer* GetLayer();
-  virtual PRBool IsEmpty();
-  virtual void RenderLayer();
-  virtual void CleanResources();
-
-  /* ThebesLayerD3D9 */
-  const nsIntRect &GetVisibleRect();
-  const nsIntRect &GetInvalidatedRect();
-
-private:
-  /* 
-   * Visible rectangle, this is used to know the size and position of the quad
-   * when doing the rendering of this layer.
-   */
-  nsIntRect mVisibleRect;
-  /*
-   * Currently invalidated rectangular area.
-   */
-  nsIntRect mInvalidatedRect;
-
-  /*
-   * D3D9 texture
-   */
-  nsRefPtr<IDirect3DTexture9> mTexture;
-};
-
-} /* layers */
-} /* mozilla */
-#endif /* GFX_THEBESLAYERD3D9_H */

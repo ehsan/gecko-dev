@@ -1,4 +1,5 @@
-/* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -12,18 +13,20 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla Corporation code.
+ * The Original Code is Mozilla Communicator client code, released
+ * March 31, 1998.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2009
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1999
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Bas Schouten <bschouten@mozilla.com>
+ *   John Bandhauer <jband@netscape.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
  * of those above. If you wish to allow use of your version of this file only
  * under the terms of either the GPL or the LGPL, and not to allow others to
@@ -35,46 +38,28 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef GFX_CONTAINERLAYERD3D9_H
-#define GFX_CONTAINERLAYERD3D9_H
+/* Module code for XPCTools. */
 
-#include "Layers.h"
-#include "LayerManagerD3D9.h"
+#include "xpctools_private.h"
 
-namespace mozilla {
-namespace layers {
+// Module implementation for the xpctools library
 
-class ContainerLayerD3D9 : public ContainerLayer, 
-                          public LayerD3D9
-{
-public:
-  ContainerLayerD3D9(LayerManagerD3D9 *aManager);
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsXPCToolsCompiler)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsXPCToolsProfiler)
 
-  const nsIntRect &GetVisibleRect();
+// {331148C0-E599-11d3-8F65-0010A4E73D9A}
+#define COMPILER_CID \
+    { 0x331148c0, 0xe599, 0x11d3, \
+        { 0x8f, 0x65, 0x0, 0x10, 0xa4, 0xe7, 0x3d, 0x9a } }
 
-  /* ContainerLayer implementation */
-  void SetVisibleRegion(const nsIntRegion& aRegion);
+// {7F5D12E0-E97B-11d3-8F69-0010A4E73D9A}
+#define PROFILER_CID \
+    { 0x7f5d12e0, 0xe97b, 0x11d3, \
+        { 0x8f, 0x69, 0x0, 0x10, 0xa4, 0xe7, 0x3d, 0x9a } }
 
-  void InsertAfter(Layer* aChild, Layer* aAfter);
-
-  void RemoveChild(Layer* aChild);
-
-  /* LayerD3D9 implementation */
-  LayerType GetType();
-
-  Layer* GetLayer();
-
-  LayerD3D9* GetFirstChildD3D9();
-
-  PRBool IsEmpty();
-
-  void RenderLayer();
-
-private:
-  nsIntRect mVisibleRect;
+static const nsModuleComponentInfo components[] = {
+ {nsnull, COMPILER_CID, XPCTOOLS_COMPILER_CONTRACTID, nsXPCToolsCompilerConstructor},
+ {nsnull, PROFILER_CID, XPCTOOLS_PROFILER_CONTRACTID, nsXPCToolsProfilerConstructor}
 };
 
-} /* layers */
-} /* mozilla */
-
-#endif /* GFX_CONTAINERLAYERD3D9_H */
+NS_IMPL_NSGETMODULE(xpctools, components)

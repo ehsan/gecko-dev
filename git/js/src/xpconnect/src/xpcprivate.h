@@ -127,6 +127,10 @@
 #include "nsISecurityCheckedComponent.h"
 #endif
 
+#ifdef XPC_TOOLS_SUPPORT
+#include "nsIXPCToolsProfiler.h"
+#endif
+
 #include "nsIThreadInternal.h"
 
 #ifdef XPC_IDISPATCH_SUPPORT
@@ -549,6 +553,11 @@ private:
     PLDHashTable             mJSRoots;
 #endif
     PRBool                   mCycleCollecting;
+
+#ifdef XPC_TOOLS_SUPPORT
+    nsCOMPtr<nsIXPCToolsProfiler> mProfiler;
+    nsCOMPtr<nsILocalFile>        mProfilerOutputFile;
+#endif
 
 #ifndef XPCONNECT_STANDALONE
     typedef nsBaseHashtable<nsVoidPtrHashKey, nsISupports*, nsISupports*> ScopeSet;

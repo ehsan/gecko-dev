@@ -1708,9 +1708,12 @@ nsXULTreeBuilder::CloseContainer(PRInt32 aIndex)
 
     nsTreeRows::iterator iter = mRows[aIndex];
 
-    if (iter->mSubtree)
-        RemoveMatchesFor(*iter->mSubtree);
+    nsTreeRows::Subtree& subtree = *(iter->mSubtree);
 
+    RemoveMatchesFor(subtree);
+
+    // Update the view
+    iter = mRows[aIndex];
 
     PRInt32 count = mRows.GetSubtreeSizeFor(iter);
     mRows.RemoveSubtreeFor(iter);

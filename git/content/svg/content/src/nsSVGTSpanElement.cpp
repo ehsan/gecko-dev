@@ -36,20 +36,23 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "nsSVGStylableElement.h"
 #include "nsGkAtoms.h"
 #include "nsIDOMSVGTSpanElement.h"
 #include "nsSVGSVGElement.h"
 #include "nsSVGTextPositioningElement.h"
 
-typedef nsSVGTextPositioningElement nsSVGTSpanElementBase;
+typedef nsSVGStylableElement nsSVGTSpanElementBase;
 
-class nsSVGTSpanElement : public nsSVGTSpanElementBase, // = nsIDOMSVGTextPositioningElement
-                          public nsIDOMSVGTSpanElement
+class nsSVGTSpanElement : public nsSVGTSpanElementBase,
+                          public nsIDOMSVGTSpanElement,
+                          public nsSVGTextPositioningElement // = nsIDOMSVGTextPositioningElement
 {
 protected:
   friend nsresult NS_NewSVGTSpanElement(nsIContent **aResult,
                                         nsINodeInfo *aNodeInfo);
   nsSVGTSpanElement(nsINodeInfo* aNodeInfo);
+  nsresult Init();
   
 public:
   // interfaces:
@@ -62,8 +65,8 @@ public:
   NS_FORWARD_NSIDOMNODE(nsSVGTSpanElementBase::)
   NS_FORWARD_NSIDOMELEMENT(nsSVGTSpanElementBase::)
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGTSpanElementBase::)
-  NS_FORWARD_NSIDOMSVGTEXTCONTENTELEMENT(nsSVGTSpanElementBase::)
-  NS_FORWARD_NSIDOMSVGTEXTPOSITIONINGELEMENT(nsSVGTSpanElementBase::)
+  NS_FORWARD_NSIDOMSVGTEXTCONTENTELEMENT(nsSVGTextContentElement::)
+  NS_FORWARD_NSIDOMSVGTEXTPOSITIONINGELEMENT(nsSVGTextPositioningElement::)
 
   // nsIContent interface
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
@@ -71,6 +74,9 @@ public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
 protected:
+  virtual nsSVGTextContainerFrame* GetTextContainerFrame() {
+    return do_QueryFrame(GetPrimaryFrame(Flush_Layout));
+  }
 
   // nsSVGElement overrides
   virtual PRBool IsEventName(nsIAtom* aName);
@@ -106,6 +112,18 @@ nsSVGTSpanElement::nsSVGTSpanElement(nsINodeInfo *aNodeInfo)
 }
 
   
+nsresult
+nsSVGTSpanElement::Init()
+{
+  nsresult rv = nsSVGTSpanElementBase::Init();
+  NS_ENSURE_SUCCESS(rv,rv);
+
+  rv = Initialise(this);
+  NS_ENSURE_SUCCESS(rv,rv);
+
+  return rv;
+}
+
 //----------------------------------------------------------------------
 // nsIDOMNode methods
 

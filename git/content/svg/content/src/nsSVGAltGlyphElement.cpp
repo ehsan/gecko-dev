@@ -32,22 +32,25 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "nsSVGStylableElement.h"
 #include "nsGkAtoms.h"
 #include "nsIDOMSVGAltGlyphElement.h"
 #include "nsIDOMSVGURIReference.h"
 #include "nsSVGString.h"
 #include "nsSVGTextPositioningElement.h"
 
-typedef nsSVGTextPositioningElement nsSVGAltGlyphElementBase;
+typedef nsSVGStylableElement nsSVGAltGlyphElementBase;
 
-class nsSVGAltGlyphElement : public nsSVGAltGlyphElementBase, // = nsIDOMSVGTextPositioningElement
+class nsSVGAltGlyphElement : public nsSVGAltGlyphElementBase,
                              public nsIDOMSVGAltGlyphElement,
-                             public nsIDOMSVGURIReference
+                             public nsIDOMSVGURIReference, 
+                             public nsSVGTextPositioningElement // = nsIDOMSVGTextPositioningElement
 {
 protected:
   friend nsresult NS_NewSVGAltGlyphElement(nsIContent **aResult,
                                            nsINodeInfo *aNodeInfo);
   nsSVGAltGlyphElement(nsINodeInfo* aNodeInfo);
+  nsresult Init();
   
 public:
   // interfaces:
@@ -61,8 +64,8 @@ public:
   NS_FORWARD_NSIDOMNODE(nsSVGAltGlyphElementBase::)
   NS_FORWARD_NSIDOMELEMENT(nsSVGAltGlyphElementBase::)
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGAltGlyphElementBase::)
-  NS_FORWARD_NSIDOMSVGTEXTCONTENTELEMENT(nsSVGAltGlyphElementBase::)
-  NS_FORWARD_NSIDOMSVGTEXTPOSITIONINGELEMENT(nsSVGAltGlyphElementBase::)
+  NS_FORWARD_NSIDOMSVGTEXTCONTENTELEMENT(nsSVGTextContentElement::)
+  NS_FORWARD_NSIDOMSVGTEXTPOSITIONINGELEMENT(nsSVGTextPositioningElement::)
 
   // nsIContent interface
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
@@ -70,6 +73,9 @@ public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
 protected:
+  virtual nsSVGTextContainerFrame* GetTextContainerFrame() {
+    return do_QueryFrame(GetPrimaryFrame(Flush_Layout));
+  }
 
   // nsSVGElement overrides
   virtual StringAttributesInfo GetStringInfo();
@@ -113,6 +119,17 @@ nsSVGAltGlyphElement::nsSVGAltGlyphElement(nsINodeInfo *aNodeInfo)
 {
 }
 
+nsresult
+nsSVGAltGlyphElement::Init()
+{
+  nsresult rv = nsSVGAltGlyphElementBase::Init();
+  NS_ENSURE_SUCCESS(rv,rv);
+
+  rv = Initialise(this);
+  NS_ENSURE_SUCCESS(rv,rv);
+
+  return rv;
+}
 
 //----------------------------------------------------------------------
 // nsIDOMNode methods

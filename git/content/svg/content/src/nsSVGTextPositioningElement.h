@@ -41,27 +41,13 @@
 #include "nsIDOMSVGAnimatedLengthList.h"
 #include "nsIDOMSVGAnimatedNumberList.h"
 
-class nsSVGElement;
-
-typedef nsSVGTextContentElement nsSVGTextPositioningElementBase;
-
-/**
- * Note that nsSVGTextElement does not inherit this class - it reimplements it
- * instead (see its documenting comment). The upshot is that any changes to
- * this class also need to be made in nsSVGTextElement.
- */
-class nsSVGTextPositioningElement : public nsSVGTextPositioningElementBase
+class nsSVGTextPositioningElement : public nsSVGTextContentElement
 {
 public:
   NS_DECL_NSIDOMSVGTEXTPOSITIONINGELEMENT
 
 protected:
-
-  nsSVGTextPositioningElement(nsINodeInfo *aNodeInfo)
-    : nsSVGTextPositioningElementBase(aNodeInfo)
-  {}
-
-  nsresult Init();
+  nsresult Initialise(nsSVGElement *aSVGElement);
 
   // nsIDOMSVGTextPositioning properties:
   nsCOMPtr<nsIDOMSVGAnimatedLengthList> mX;
