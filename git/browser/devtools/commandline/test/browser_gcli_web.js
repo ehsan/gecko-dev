@@ -1063,44 +1063,44 @@ exports.check = function(checks) {
       }
 
       if (assignment == null) {
-        test.ok(false, 'Unknown arg: ' + paramName);
+        test.ok(false, 'Unknown parameter: ' + paramName);
         return;
       }
 
       if (check.value) {
         test.is(assignment.value,
                 check.value,
-                'arg[\'' + paramName + '\'].value');
+                'checkStatus value for ' + paramName);
       }
 
       if (check.name) {
         test.is(assignment.value.name,
                 check.name,
-                'arg[\'' + paramName + '\'].name');
+                'checkStatus name for ' + paramName);
       }
 
       if (check.type) {
         test.is(assignment.arg.type,
                 check.type,
-                'arg[\'' + paramName + '\'].type');
+                'checkStatus type for ' + paramName);
       }
 
       if (check.arg) {
         test.is(assignment.arg.toString(),
                 check.arg,
-                'arg[\'' + paramName + '\'].arg');
+                'checkStatus arg for ' + paramName);
       }
 
       if (check.status) {
         test.is(assignment.getStatus().toString(),
                 check.status,
-                'arg[\'' + paramName + '\'].status');
+                'checkStatus status for ' + paramName);
       }
 
       if (check.message) {
         test.is(assignment.getMessage(),
                 check.message,
-                'arg[\'' + paramName + '\'].message');
+                'checkStatus message for ' + paramName);
       }
     });
   }
@@ -1733,7 +1733,6 @@ exports.setup = function() {
   canon.addCommand(exports.tselarr);
   canon.addCommand(exports.tsm);
   canon.addCommand(exports.tsg);
-  canon.addCommand(exports.tscook);
 };
 
 exports.shutdown = function() {
@@ -1757,7 +1756,6 @@ exports.shutdown = function() {
   canon.removeCommand(exports.tselarr);
   canon.removeCommand(exports.tsm);
   canon.removeCommand(exports.tsg);
-  canon.removeCommand(exports.tscook);
 
   types.deregisterType(exports.optionType);
   types.deregisterType(exports.optionValue);
@@ -1975,46 +1973,6 @@ exports.tsg = {
     }
   ],
   exec: createExec('tsg')
-};
-
-exports.tscook = {
-  name: 'tscook',
-  description: 'param group test to catch problems with cookie command',
-  params: [
-    {
-      name: 'key',
-      type: 'string',
-      description: 'tscookKeyDesc'
-    },
-    {
-      name: 'value',
-      type: 'string',
-      description: 'tscookValueDesc'
-    },
-    {
-      group: 'tscookOptionsDesc',
-      params: [
-        {
-          name: 'path',
-          type: 'string',
-          defaultValue: '/',
-          description: 'tscookPathDesc'
-        },
-        {
-          name: 'domain',
-          type: 'string',
-          defaultValue: null,
-          description: 'tscookDomainDesc'
-        },
-        {
-          name: 'secure',
-          type: 'boolean',
-          description: 'tscookSecureDesc'
-        }
-      ]
-    }
-  ],
-  exec: createExec('tscook')
 };
 
 
@@ -2924,40 +2882,6 @@ exports.testCompleted = function(options) {
       bool: { value: undefined, status: 'VALID' },
       txt2: { value: undefined, status: 'VALID' },
       num: { value: undefined, status: 'VALID' }
-    }
-  });
-
-  helpers.setInput('tscook key value --path path --');
-  helpers.check({
-    input:  'tscook key value --path path --',
-    markup: 'VVVVVVVVVVVVVVVVVVVVVVVVVVVVVII',
-    directTabText: 'domain',
-    arrowTabText: '',
-    status: 'ERROR',
-    emptyParameters: [ ],
-    args: {
-      key: { value: 'key', status: 'VALID' },
-      value: { value: 'value', status: 'VALID' },
-      path: { value: 'path', status: 'VALID' },
-      domain: { value: undefined, status: 'VALID' },
-      secure: { value: false, status: 'VALID' }
-    }
-  });
-
-  helpers.setInput('tscook key value --path path --domain domain --');
-  helpers.check({
-    input:  'tscook key value --path path --domain domain --',
-    markup: 'VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVII',
-    directTabText: 'secure',
-    arrowTabText: '',
-    status: 'ERROR',
-    emptyParameters: [ ],
-    args: {
-      key: { value: 'key', status: 'VALID' },
-      value: { value: 'value', status: 'VALID' },
-      path: { value: 'path', status: 'VALID' },
-      domain: { value: 'domain', status: 'VALID' },
-      secure: { value: false, status: 'VALID' }
     }
   });
 

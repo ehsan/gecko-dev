@@ -5292,14 +5292,14 @@ exports.CommandAssignment = CommandAssignment;
 /**
  * Special assignment used when ignoring parameters that don't have a home
  */
-function UnassignedAssignment(requisition, arg) {
+function UnassignedAssignment(requisition, arg, isIncompleteName) {
   this.param = new canon.Parameter({
     name: '__unassigned',
     description: l10n.lookup('cliOptions'),
     type: {
       name: 'param',
       requisition: requisition,
-      isIncompleteName: (arg.text.charAt(0) === '-')
+      isIncompleteName: isIncompleteName
     },
   });
   this.paramIndex = -1;
@@ -5538,15 +5538,8 @@ Requisition.prototype.cloneAssignments = function() {
 Requisition.prototype.getStatus = function() {
   var status = Status.VALID;
   if (this._unassigned.length !== 0) {
-    var isAllIncomplete = true;
-    this._unassigned.forEach(function(assignment) {
-      if (!assignment.param.type.isIncompleteName) {
-        isAllIncomplete = false;
-      }
-    });
-    status = isAllIncomplete ? Status.INCOMPLETE : Status.ERROR;
+    return Status.ERROR;
   }
-
   this.getAssignments(true).forEach(function(assignment) {
     var assignStatus = assignment.getStatus();
     if (assignStatus > status) {
@@ -6365,7 +6358,7 @@ Requisition.prototype._split = function(args) {
  */
 Requisition.prototype._addUnassignedArgs = function(args) {
   args.forEach(function(arg) {
-    this._unassigned.push(new UnassignedAssignment(this, arg));
+    this._unassigned.push(new UnassignedAssignment(this, arg, false));
   }.bind(this));
 };
 
@@ -6408,7 +6401,7 @@ Requisition.prototype._assign = function(args) {
 
   // Positional arguments can still be specified by name, but if they are
   // then we need to ignore them when working them out positionally
-  var unassignedParams = this.getParameterNames();
+  var names = this.getParameterNames();
 
   // We collect the arguments used in arrays here before assigning
   var arrayArgs = {};
@@ -6421,7 +6414,7 @@ Requisition.prototype._assign = function(args) {
     while (i < args.length) {
       if (assignment.param.isKnownAs(args[i].text)) {
         var arg = args.splice(i, 1)[0];
-        unassignedParams = unassignedParams.filter(function(test) {
+        names = names.filter(function(test) {
           return test !== assignment.param.name;
         });
 
@@ -6458,7 +6451,7 @@ Requisition.prototype._assign = function(args) {
   }, this);
 
   // What's left are positional parameters assign in order
-  unassignedParams.forEach(function(name) {
+  names.forEach(function(name) {
     var assignment = this.getAssignment(name);
 
     // If not set positionally, and we can't set it non-positionally,
@@ -6492,7 +6485,7 @@ Requisition.prototype._assign = function(args) {
             arg.text.charAt(0) === '-';
 
         if (isIncompleteName) {
-          this._unassigned.push(new UnassignedAssignment(this, arg));
+          this._unassigned.push(new UnassignedAssignment(this, arg, true));
         }
         else {
           var conversion = assignment.param.type.parse(arg);
@@ -7050,10 +7043,6 @@ FocusManager.prototype._checkShow = function() {
  * available inputs
  */
 FocusManager.prototype._shouldShowTooltip = function() {
-  if (!this._hasFocus) {
-    return { visible: false, reason: '!hasFocus' };
-  }
-
   if (eagerHelper.value === Eagerness.NEVER) {
     return { visible: false, reason: 'eagerHelper !== NEVER' };
   }
@@ -7082,10 +7071,6 @@ FocusManager.prototype._shouldShowTooltip = function() {
  * available inputs
  */
 FocusManager.prototype._shouldShowOutput = function() {
-  if (!this._hasFocus) {
-    return { visible: false, reason: '!hasFocus' };
-  }
-
   if (this._recentOutput) {
     return { visible: true, reason: 'recentOutput' };
   }
@@ -9742,7 +9727,7 @@ Completer.prototype._getCompleterTemplateData = function() {
   // arrowTabText is for when we need to use an -> to show what will be used
   var directTabText = '';
   var arrowTabText = '';
-  var current = this.requisition.getAssignmentAt(input.cursor.start);
+  var current = this.inputter.assignment;
 
   if (input.typed.trim().length !== 0) {
     var prediction = current.conversion.getPredictionAt(this.choice);
