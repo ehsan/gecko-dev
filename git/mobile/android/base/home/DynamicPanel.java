@@ -15,7 +15,6 @@ import org.mozilla.gecko.db.DBUtils;
 import org.mozilla.gecko.db.HomeProvider;
 import org.mozilla.gecko.home.HomeConfig.PanelConfig;
 import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
-import org.mozilla.gecko.home.PanelLayout.ContextMenuRegistry;
 import org.mozilla.gecko.home.PanelLayout.DatasetHandler;
 import org.mozilla.gecko.home.PanelLayout.DatasetRequest;
 import org.mozilla.gecko.util.GeckoEventListener;
@@ -227,18 +226,10 @@ public class DynamicPanel extends HomeFragment {
      * Lazily creates layout for panel data.
      */
     private void createPanelLayout() {
-        final ContextMenuRegistry contextMenuRegistry = new ContextMenuRegistry() {
-            @Override
-            public void register(View view) {
-                registerForContextMenu(view);
-            }
-        };
-
         switch(mPanelConfig.getLayoutType()) {
             case FRAME:
                 final PanelDatasetHandler datasetHandler = new PanelDatasetHandler();
-                mPanelLayout = new FramePanelLayout(getActivity(), mPanelConfig, datasetHandler,
-                        mUrlOpenListener, contextMenuRegistry);
+                mPanelLayout = new FramePanelLayout(getActivity(), mPanelConfig, datasetHandler, mUrlOpenListener);
                 break;
 
             default:

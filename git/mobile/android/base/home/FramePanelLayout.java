@@ -19,9 +19,8 @@ class FramePanelLayout extends PanelLayout {
     private final View mChildView;
     private final ViewConfig mChildConfig;
 
-    public FramePanelLayout(Context context, PanelConfig panelConfig, DatasetHandler datasetHandler,
-        OnUrlOpenListener urlOpenListener, ContextMenuRegistry contextMenuRegistry) {
-        super(context, panelConfig, datasetHandler, urlOpenListener, contextMenuRegistry);
+    public FramePanelLayout(Context context, PanelConfig panelConfig, DatasetHandler datasetHandler, OnUrlOpenListener urlOpenListener) {
+        super(context, panelConfig, datasetHandler, urlOpenListener);
 
         // This layout can only hold one view so we simply
         // take the first defined view from PanelConfig.

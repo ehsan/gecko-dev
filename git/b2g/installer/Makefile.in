@@ -86,7 +86,7 @@ simulator: make-package
 	@echo 'Building simulator addon...'
 	$(PYTHON) $(topsrcdir)/b2g/simulator/build_xpi.py $(MOZ_PKG_PLATFORM)
 
-libs:: simulator
+default:: simulator
 
 # Ensure copying Simulator xpi to ftp
 UPLOAD_EXTRA_FILES += fxos-simulator-*-*.xpi
