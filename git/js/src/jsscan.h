@@ -38,9 +38,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef TokenStream_h__
-#define TokenStream_h__
-
+#ifndef jsscan_h___
+#define jsscan_h___
 /*
  * JS lexical scanner interface.
  */
@@ -783,4 +782,4 @@ ReportStrictModeError(JSContext *cx, TokenStream *ts, JSTreeContext *tc, JSParse
 
 } /* namespace js */
 
-#endif /* TokenStream_h__ */
+#endif /* jsscan_h___ */

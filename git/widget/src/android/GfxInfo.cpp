@@ -97,16 +97,15 @@ GfxInfo::GetAdapterDescription(nsAString & aAdapterDescription)
   aAdapterDescription.AssignASCII(mozilla::gl::GetVendor());
   if (mozilla::AndroidBridge::Bridge()) {
       nsAutoString str;
-      aAdapterDescription.Append(NS_LITERAL_STRING(", Model: '"));
+      aAdapterDescription.Append(NS_LITERAL_STRING(" "));
       if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "MODEL", str))
         aAdapterDescription.Append(str);
-      aAdapterDescription.Append(NS_LITERAL_STRING("', Manufacturer: '"));
+      aAdapterDescription.Append(NS_LITERAL_STRING(" "));
       if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "MANUFACTURER", str))
         aAdapterDescription.Append(str);
-      aAdapterDescription.Append(NS_LITERAL_STRING("', Hardware: '"));
+      aAdapterDescription.Append(NS_LITERAL_STRING(" "));
       if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "HARDWARE", str))
         aAdapterDescription.Append(str);
-      aAdapterDescription.Append(NS_LITERAL_STRING("'"));
   }
 
   return NS_OK;

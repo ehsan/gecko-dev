@@ -77,6 +77,7 @@
 #include "jslock.h"
 #include "jsnum.h"
 #include "jsobj.h"
+#include "jsparse.h"
 #include "jsprobes.h"
 #include "jsproxy.h"
 #include "jsscope.h"
@@ -87,7 +88,6 @@
 #include "jsxml.h"
 #endif
 
-#include "frontend/Parser.h"
 #include "methodjit/MethodJIT.h"
 #include "vm/Debugger.h"
 #include "vm/String.h"

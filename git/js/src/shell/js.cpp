@@ -63,6 +63,7 @@
 #include "jscntxt.h"
 #include "jsdate.h"
 #include "jsdbgapi.h"
+#include "jsemit.h"
 #include "jsfun.h"
 #include "jsgc.h"
 #include "jsiter.h"
@@ -70,6 +71,7 @@
 #include "jsnum.h"
 #include "jsobj.h"
 #include "json.h"
+#include "jsparse.h"
 #include "jsreflect.h"
 #include "jsscope.h"
 #include "jsscript.h"
@@ -78,10 +80,6 @@
 #include "jstypedarrayinlines.h"
 #include "jsxml.h"
 #include "jsperf.h"
-
-#include "frontend/CodeGenerator.h"
-#include "frontend/Parser.h"
-#include "methodjit/MethodJIT.h"
 
 #include "prmjtime.h"
 
@@ -103,6 +101,7 @@
 #include "jsinterpinlines.h"
 #include "jsobjinlines.h"
 #include "jsscriptinlines.h"
+#include "methodjit/MethodJIT.h"
 
 #ifdef XP_UNIX
 #include <unistd.h>

@@ -1281,8 +1281,7 @@ JSScript::ensureRanInference(JSContext *cx)
         js::types::AutoEnterTypeInference enter(cx);
         analysis()->analyzeTypes(cx);
     }
-    return !analysis()->OOM() &&
-        !cx->compartment->types.pendingNukeTypes;
+    return !analysis()->OOM();
 }
 
 inline bool

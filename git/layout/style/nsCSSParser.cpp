@@ -343,7 +343,7 @@ protected:
   bool GatherMedia(nsMediaList* aMedia,
                      bool aInAtRule);
   bool ParseMediaQuery(bool aInAtRule, nsMediaQuery **aQuery,
-                         bool *aHitStop);
+                         bool *aParsedSomething, bool *aHitStop);
   bool ParseMediaQueryExpression(nsMediaQuery* aQuery);
   void ProcessImport(const nsString& aURLSpec,
                      nsMediaList* aMedia,
@@ -1179,8 +1179,13 @@ CSSParserImpl::ParseMediaList(const nsSubstring& aBuffer,
   // to a media query.  (The main substative difference is the relative
   // precedence of commas and paretheses.)
 
-  GatherMedia(aMediaList, false); // can only fail on low-level error (OOM)
-
+  if (!GatherMedia(aMediaList, false)) {
+    aMediaList->Clear();
+    aMediaList->SetNonEmpty(); // don't match anything
+    if (!mHTMLMediaMode) {
+      OUTPUT_ERROR();
+    }
+  }
   nsresult rv = mScanner.GetLowLevelError();
   CLEAR_ERROR();
   ReleaseScanner();
@@ -1624,9 +1629,11 @@ CSSParserImpl::ParseURLOrString(nsString& aURL)
 bool
 CSSParserImpl::ParseMediaQuery(bool aInAtRule,
                                nsMediaQuery **aQuery,
+                               bool *aParsedSomething,
                                bool *aHitStop)
 {
   *aQuery = nsnull;
+  *aParsedSomething = false;
   *aHitStop = false;
 
   // "If the comma-separated list is the empty list it is assumed to
@@ -1651,8 +1658,9 @@ CSSParserImpl::ParseMediaQuery(bool aInAtRule,
   }
   UngetToken();
 
-  nsMediaQuery* query = new nsMediaQuery;
-  *aQuery = query;
+  *aParsedSomething = true;
+
+  nsAutoPtr<nsMediaQuery> query(new nsMediaQuery);
   if (!query) {
     mScanner.SetLowLevelError(NS_ERROR_OUT_OF_MEMORY);
     return false;
@@ -1729,6 +1737,7 @@ CSSParserImpl::ParseMediaQuery(bool aInAtRule,
       query->SetHadUnknownExpression();
     }
   }
+  *aQuery = query.forget();
   return true;
 }
 
@@ -1740,16 +1749,12 @@ CSSParserImpl::GatherMedia(nsMediaList* aMedia,
 {
   for (;;) {
     nsAutoPtr<nsMediaQuery> query;
-    bool hitStop;
+    bool parsedSomething, hitStop;
     if (!ParseMediaQuery(aInAtRule, getter_Transfers(query),
-                         &hitStop)) {
+                         &parsedSomething, &hitStop)) {
       NS_ASSERTION(!hitStop, "should return true when hit stop");
-      OUTPUT_ERROR();
       if (NS_FAILED(mScanner.GetLowLevelError())) {
         return false;
-      }
-      if (query) {
-        query->SetHadUnknownExpression();
       }
       if (aInAtRule) {
         const PRUnichar stopChars[] =
@@ -1764,6 +1769,9 @@ CSSParserImpl::GatherMedia(nsMediaList* aMedia,
         UngetToken();
         hitStop = true;
       }
+    }
+    if (parsedSomething) {
+      aMedia->SetNonEmpty();
     }
     if (query) {
       nsresult rv = aMedia->AppendQuery(query);

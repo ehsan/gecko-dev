@@ -267,20 +267,15 @@ nsGSettingsCollection::GetInt(const nsACString& aKey,
   return NS_OK;
 }
 
-// These types are local to nsGSettingsService::Init, but ISO C++98 doesn't
-// allow a template (ArrayLength) to be instantiated based on a local type.
-// Boo-urns!
-typedef void (*nsGSettingsFunc)();
-struct nsGSettingsDynamicFunction {
-  const char *functionName;
-  nsGSettingsFunc *function;
-};
-
 nsresult
 nsGSettingsService::Init()
 {
 #define FUNC(name, type, params) { #name, (nsGSettingsFunc *)&_##name },
-  static const nsGSettingsDynamicFunction kGSettingsSymbols[] = {
+  typedef void (*nsGSettingsFunc)();
+  static const struct nsGSettingsDynamicFunction {
+    const char *functionName;
+    nsGSettingsFunc *function;
+  } kGSettingsSymbols[] = {
     GSETTINGS_FUNCTIONS
   };
 #undef FUNC
