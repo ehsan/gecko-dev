@@ -310,10 +310,8 @@ private:
   
   void FixUpURLS(const nsString &name, nsAString &value);
 #ifdef ANDROID
-  bool AddPluginView(const gfxRect& aRect);
+  void AddPluginView(const gfxRect& aRect);
   void RemovePluginView();
-  bool mPluginViewAdded;
-  gfxRect mLastPluginRect;
 #endif 
  
   nsPluginNativeWindow       *mPluginWindow;
