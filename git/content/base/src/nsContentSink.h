@@ -133,7 +133,8 @@ class nsContentSink : public nsICSSLoaderObserver,
   NS_HIDDEN_(nsresult) WillResumeImpl(void);
   NS_HIDDEN_(nsresult) DidProcessATokenImpl(void);
   NS_HIDDEN_(void) WillBuildModelImpl(void);
-  NS_HIDDEN_(void) DidBuildModelImpl(PRBool aTerminated);
+  NS_HIDDEN_(void) DidBuildModelImpl(void);
+  NS_HIDDEN_(PRBool) ReadyToCallDidBuildModelImpl(PRBool aTerminated);
   NS_HIDDEN_(void) DropParserAndPerfHint(void);
   PRBool IsScriptExecutingImpl();
 
@@ -337,6 +338,8 @@ protected:
   PRUint8 mDeferredLayoutStart : 1;
   // If true, we deferred notifications until sheets load
   PRUint8 mDeferredFlushTags : 1;
+  // If true, we did get a ReadyToCallDidBuildModel call
+  PRUint8 mDidGetReadyToCallDidBuildModelCall : 1;
   // If false, we're not ourselves a document observer; that means we
   // shouldn't be performing any more content model notifications,
   // since we're not longer updating our child counts.

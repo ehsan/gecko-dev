@@ -84,7 +84,7 @@ function check_results(aExpectedCount, aExpectedCountWithHidden) {
   query.maxVisits = visit_count;
   var options = hs.getNewQueryOptions();
   options.queryType = Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY;
-  var result = hs.executeQuery(query, options);
+  result = hs.executeQuery(query, options);
   var root = result.root;
   root.containerOpen = true;
   // Children without hidden ones

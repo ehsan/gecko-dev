@@ -62,7 +62,6 @@ DIRS += \
 	typeaheadfind \
 	parentalcontrols \
 	passwordmgr \
-	aboutmemory \
 	$(NULL)
 
 ifneq (,$(filter cocoa, $(MOZ_WIDGET_TOOLKIT)))

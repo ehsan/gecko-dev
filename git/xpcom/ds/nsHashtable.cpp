@@ -389,10 +389,15 @@ nsHashtable::nsHashtable(nsIObjectInputStream* aStream,
 
                         rv = aReadEntryFunc(aStream, &key, &data);
                         if (NS_SUCCEEDED(rv)) {
-                            Put(key, data);
-
-                            // XXXbe must we clone key? can't we hand off
-                            aFreeEntryFunc(aStream, key, nsnull);
+                            if (!Put(key, data)) {
+                                rv = NS_ERROR_OUT_OF_MEMORY;
+                                aFreeEntryFunc(aStream, key, data);
+                            } else {
+                                // XXXbe must we clone key? can't we hand off
+                                aFreeEntryFunc(aStream, key, nsnull);
+                            }
+                            if (NS_FAILED(rv))
+                                break;
                         }
                     }
                 }

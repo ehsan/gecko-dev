@@ -1602,9 +1602,10 @@ nsParser::DidBuildModel(nsresult anErrorCode)
       // Let sink know if we're about to end load because we've been terminated.
       // In that case we don't want it to run deferred scripts.
       PRBool terminated = mInternalState == NS_ERROR_HTMLPARSER_STOPPARSING;
-      if (mDTD && mSink) {
+      if (mDTD && mSink &&
+          mSink->ReadyToCallDidBuildModel(terminated)) {
         nsresult dtdResult =  mDTD->DidBuildModel(anErrorCode),
-                sinkResult = mSink->DidBuildModel(terminated);
+                sinkResult = mSink->DidBuildModel();
         // nsIDTD::DidBuildModel used to be responsible for calling
         // nsIContentSink::DidBuildModel, but that obligation isn't expressible
         // in the nsIDTD interface itself, so it's sounder and simpler to give
@@ -1767,7 +1768,7 @@ nsParser::Terminate(void)
   } else if (mSink) {
     // We have no parser context or no DTD yet (so we got terminated before we
     // got any data).  Manually break the reference cycle with the sink.
-    result = mSink->DidBuildModel(PR_TRUE);
+    result = mSink->DidBuildModel();
     NS_ENSURE_SUCCESS(result, result);
   }
 

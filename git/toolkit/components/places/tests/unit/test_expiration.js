@@ -522,10 +522,11 @@ function startExpireNeither() {
   // set date maximum to 3
   prefs.setIntPref("browser.history_expire_days", 3);
 
-  // Changing expiration preferences triggers partial expiration.
+  // Changing expiration preferences has already triggered expiration, it will
+  // run after the partial expiration timer (3,5s).
 
   // Check results.
-  do_timeout(600, "checkExpireNeither();");
+  do_timeout(3600, "checkExpireNeither();");
 }
 
 function checkExpireNeither() {
@@ -583,10 +584,11 @@ function startExpireDaysOnly() {
   // set date maximum to 3
   prefs.setIntPref("browser.history_expire_days", 3);
 
-  // Changing expiration preferences triggers partial expiration.
+  // Changing expiration preferences has already triggered expiration, it will
+  // run after the partial expiration timer (3,5s).
 
   // Check results.
-  do_timeout(600, "checkExpireDaysOnly();");
+  do_timeout(3600, "checkExpireDaysOnly();");
 }
 
 function checkExpireDaysOnly() {
@@ -653,10 +655,11 @@ function startExpireBoth() {
   // set date minimum to 1
   prefs.setIntPref("browser.history_expire_days_min", 1);
 
-  // Changing expiration preferences triggers partial expiration.
+  // Changing expiration preferences has already triggered expiration, it will
+  // run after the partial expiration timer (3,5s).
 
   // Check results.
-  do_timeout(600, "checkExpireBoth();"); // incremental expiration timer is 3500
+  do_timeout(3600, "checkExpireBoth();"); // incremental expiration timer is 3500
 }
 
 function checkExpireBoth() {
@@ -711,10 +714,11 @@ function startExpireNeitherOver() {
   // set date maximum to 3
   prefs.setIntPref("browser.history_expire_days", 3);
 
-  // Changing expiration preferences triggers partial expiration.
+  // Changing expiration preferences has already triggered expiration, it will
+  // run after the partial expiration timer (3,5s).
 
   // Check results.
-  do_timeout(600, "checkExpireNeitherOver();");
+  do_timeout(3600, "checkExpireNeitherOver();");
 }
 
 function checkExpireNeitherOver() {
@@ -760,10 +764,11 @@ function startExpireHistoryDisabled() {
   // set date maximum to 0
   prefs.setIntPref("browser.history_expire_days", 0);
 
-  // Changing expiration preferences triggers partial expiration.
+  // Changing expiration preferences has already triggered expiration, it will
+  // run after the partial expiration timer (3,5s).
 
   // Check results.
-  do_timeout(600, "checkExpireHistoryDisabled();");
+  do_timeout(3600, "checkExpireHistoryDisabled();");
 }
 
 function checkExpireHistoryDisabled() {
@@ -812,10 +817,11 @@ function startExpireBadPrefs() {
   // set date maximum to 1
   prefs.setIntPref("browser.history_expire_days", 1);
 
-  // Changing expiration preferences triggers partial expiration.
+  // Changing expiration preferences has already triggered expiration, it will
+  // run after the partial expiration timer (3,5s).
 
   // Check results.
-  do_timeout(600, "checkExpireBadPrefs();");
+  do_timeout(3600, "checkExpireBadPrefs();");
 }
 
 function checkExpireBadPrefs() {

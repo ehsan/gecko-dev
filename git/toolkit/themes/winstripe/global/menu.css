@@ -147,10 +147,6 @@ menubar > menu[_moz-menuactive="true"],
 menubar > menu[_moz-menuactive="true"][open="true"] {
   color: -moz-menubarhovertext;
 }
-menubar > menu:-moz-lwtheme {
-  -moz-appearance: none;
-  color: inherit !important;
-}
 
 /* ..... internal content .... */
 

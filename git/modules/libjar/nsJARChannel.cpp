@@ -174,8 +174,7 @@ nsJARInputThunk::EnsureJarStream()
     }
 
     // ask the JarStream for the content length
-    rv = mJarStream->Available((PRUint32 *) &mContentLength);
-    if (NS_FAILED(rv)) return rv;
+    mJarStream->Available((PRUint32 *) &mContentLength);
 
     return NS_OK;
 }

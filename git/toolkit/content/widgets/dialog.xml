@@ -160,28 +160,21 @@
             // give focus to the first focusable element in the dialog
             if (!document.commandDispatcher.focusedElement) {
               document.commandDispatcher.advanceFocusIntoSubtree(dialog);
-
               var focusedElt = document.commandDispatcher.focusedElement;
               if (focusedElt) {
-                var initialFocusedElt = focusedElt;
-                while (focusedElt.localName == "tab" ||
-                       focusedElt.getAttribute("noinitialfocus") == "true") {
+                if (focusedElt.localName == 'tab') {
+                  // Move focus into the tab
                   document.commandDispatcher.advanceFocusIntoSubtree(focusedElt);
-                  focusedElt = document.commandDispatcher.focusedElement;
-                  if (focusedElt == initialFocusedElt)
-                    break;
-                }
-
-                if (initialFocusedElt.localName == "tab") {
-                  if (focusedElt.hasAttribute("dlgtype")) {
+                  if (document.commandDispatcher.focusedElement.hasAttribute("dlgtype")) {
                     // We don't want to focus on anonymous OK, Cancel, etc. buttons,
                     // so return focus to the tab itself
-                    initialFocusedElt.focus();
+                    focusedElt.focus();
                   }
                 }
 #ifndef XP_MACOSX
-                else if (focusedElt.hasAttribute("dlgtype") && focusedElt != defaultButton) {
-                  defaultButton.focus();
+                else {
+                  if (focusedElt.hasAttribute("dlgtype") && focusedElt != defaultButton)
+                    defaultButton.focus();
                 }
 #endif
               }

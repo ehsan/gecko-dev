@@ -94,7 +94,7 @@ nsFrameList::SetFrames(nsIFrame* aFrameList)
 }
 
 void
-nsFrameList::RemoveFrame(nsIFrame* aFrame)
+nsFrameList::RemoveFrame(nsIFrame* aFrame, nsIFrame* aPrevSiblingHint)
 {
   NS_PRECONDITION(aFrame, "null ptr");
   NS_PRECONDITION(ContainsFrame(aFrame), "wrong list");
@@ -108,13 +108,16 @@ nsFrameList::RemoveFrame(nsIFrame* aFrame)
     }
   }
   else {
-    nsIFrame* prevSibling = aFrame->GetPrevSibling();
-    NS_ASSERTION(prevSibling && prevSibling->GetNextSibling() == aFrame,
-                 "Broken frame linkage");
-    prevSibling->SetNextSibling(nextFrame);
-    aFrame->SetNextSibling(nsnull);
-    if (!nextFrame) {
-      mLastChild = prevSibling;
+    nsIFrame* prevSibling = aPrevSiblingHint;
+    if (!prevSibling || prevSibling->GetNextSibling() != aFrame) {
+      prevSibling = GetPrevSiblingFor(aFrame);
+    }
+    if (prevSibling) {
+      prevSibling->SetNextSibling(nextFrame);
+      aFrame->SetNextSibling(nsnull);
+      if (!nextFrame) {
+        mLastChild = prevSibling;
+      }
     }
   }
 }
@@ -124,9 +127,9 @@ nsFrameList::RemoveFrameIfPresent(nsIFrame* aFrame)
 {
   NS_PRECONDITION(aFrame, "null ptr");
 
-  for (Enumerator e(*this); !e.AtEnd(); e.Next()) {
-    if (e.get() == aFrame) {
-      RemoveFrame(aFrame);
+  for (FrameLinkEnumerator iter(*this); !iter.AtEnd(); iter.Next()) {
+    if (iter.NextFrame() == aFrame) {
+      RemoveFrame(aFrame, iter.PrevFrame());
       return PR_TRUE;
     }
   }
@@ -158,10 +161,10 @@ nsFrameList::RemoveFirstChild()
 }
 
 void
-nsFrameList::DestroyFrame(nsIFrame* aFrame)
+nsFrameList::DestroyFrame(nsIFrame* aFrame, nsIFrame* aPrevSiblingHint)
 {
   NS_PRECONDITION(aFrame, "null ptr");
-  RemoveFrame(aFrame);
+  RemoveFrame(aFrame, aPrevSiblingHint);
   aFrame->Destroy();
 }
 
@@ -428,6 +431,28 @@ nsFrameList::SortByContentOrder()
   mLastChild = f;
 }
 
+nsIFrame*
+nsFrameList::GetPrevSiblingFor(nsIFrame* aFrame) const
+{
+  NS_PRECONDITION(aFrame, "null ptr");
+  NS_PRECONDITION(mFirstChild, "GetPrevSiblingFor() on empty frame list");
+
+  if (aFrame == mFirstChild) {
+    return nsnull;
+  }
+  nsIFrame* frame = mFirstChild;
+  while (frame) {
+    nsIFrame* next = frame->GetNextSibling();
+    if (next == aFrame) {
+      break;
+    }
+    frame = next;
+  }
+
+  NS_POSTCONDITION(frame, "GetPrevSiblingFor() on wrong frame list");
+  return frame;
+}
+
 void
 nsFrameList::ApplySetParent(nsIFrame* aParent) const
 {
@@ -460,7 +485,7 @@ nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
   
   nsIFrame* parent = mFirstChild->GetParent();
   if (!parent)
-    return aFrame ? aFrame->GetPrevSibling() : LastChild();
+    return aFrame ? GetPrevSiblingFor(aFrame) : LastChild();
 
   nsBidiLevel baseLevel = nsBidiPresUtils::GetFrameBaseLevel(mFirstChild);  
   nsBidiPresUtils* bidiUtils = mFirstChild->PresContext()->GetBidiUtils();
@@ -479,7 +504,7 @@ nsFrameList::GetPrevVisualFor(nsIFrame* aFrame) const
       // Just get the next or prev sibling, depending on block and frame direction.
       nsBidiLevel frameEmbeddingLevel = nsBidiPresUtils::GetFrameEmbeddingLevel(mFirstChild);
       if ((frameEmbeddingLevel & 1) == (baseLevel & 1)) {
-        return aFrame ? aFrame->GetPrevSibling() : LastChild();
+        return aFrame ? GetPrevSiblingFor(aFrame) : LastChild();
       } else {
         return aFrame ? aFrame->GetNextSibling() : mFirstChild;
       }    
@@ -535,7 +560,7 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
   
   nsIFrame* parent = mFirstChild->GetParent();
   if (!parent)
-    return aFrame ? aFrame->GetPrevSibling() : mFirstChild;
+    return aFrame ? GetPrevSiblingFor(aFrame) : mFirstChild;
 
   nsBidiLevel baseLevel = nsBidiPresUtils::GetFrameBaseLevel(mFirstChild);
   nsBidiPresUtils* bidiUtils = mFirstChild->PresContext()->GetBidiUtils();
@@ -556,7 +581,7 @@ nsFrameList::GetNextVisualFor(nsIFrame* aFrame) const
       if ((frameEmbeddingLevel & 1) == (baseLevel & 1)) {
         return aFrame ? aFrame->GetNextSibling() : mFirstChild;
       } else {
-        return aFrame ? aFrame->GetPrevSibling() : LastChild();
+        return aFrame ? GetPrevSiblingFor(aFrame) : LastChild();
       }
     }
   }

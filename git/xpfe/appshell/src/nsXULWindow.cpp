@@ -742,10 +742,8 @@ NS_IMETHODIMP nsXULWindow::GetParentNativeWindow(nativeWindow* aParentNativeWind
   nsCOMPtr<nsIWidget> parentWidget;
   NS_ENSURE_SUCCESS(GetParentWidget(getter_AddRefs(parentWidget)), NS_ERROR_FAILURE);
 
-  if (parentWidget) {
-    *aParentNativeWindow = parentWidget->GetNativeData(NS_NATIVE_WIDGET);
-  }
-
+  *aParentNativeWindow = parentWidget->GetNativeData(NS_NATIVE_WIDGET);
+   
   return NS_OK;
 }
 

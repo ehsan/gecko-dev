@@ -44,12 +44,17 @@ VPATH = @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 MODULE = jsctypes
+XPIDL_MODULE = jsctypes
 MODULE_NAME = jsctypes
 GRE_MODULE = 1
 
-# package the js module whether ctypes is enabled or not.
+# package the interface whether ctypes is enabled or not.
 EXTRA_JS_MODULES = \
     ctypes.jsm \
+    $(NULL)
+
+XPIDLSRCS = \
+    nsIForeignLibrary.idl \
     $(NULL)
 
 ifdef BUILD_CTYPES

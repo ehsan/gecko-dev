@@ -40,32 +40,33 @@
 #ifndef LIBRARY_H
 #define LIBRARY_H
 
-#include "Function.h"
-#include "jsapi.h"
+#include "nsIForeignLibrary.h"
+
+#define FOREIGNLIBRARY_CONTRACTID \
+  "@mozilla.org/jsctypes;1"
+
+#define FOREIGNLIBRARY_CID \
+{ 0xc797702, 0x1c60, 0x4051, { 0x9d, 0xd7, 0x4d, 0x74, 0x5, 0x60, 0x56, 0x42 } }
 
 struct PRLibrary;
-class Function;
 
 namespace mozilla {
 namespace ctypes {
 
-class Library
+class Library : public nsIForeignLibrary
 {
 public:
-  static JSObject* Create(JSContext* cx, jsval aPath);
-  static void Finalize(JSContext* cx, JSObject* obj);
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIFOREIGNLIBRARY
 
-  static PRLibrary* GetLibrary(JSContext* cx, JSObject* obj);
-  static bool AddFunction(JSContext* cx, JSObject* aLibrary, Function* aFunction);
+  Library();
 
-  // JSFastNative functions
-  static JSBool Open(JSContext* cx, uintN argc, jsval* vp);
-  static JSBool Close(JSContext* cx, uintN argc, jsval* vp);
-  static JSBool Declare(JSContext* cx, uintN argc, jsval* vp);
+  bool IsOpen() { return mLibrary != nsnull; }
 
 private:
-  // nothing to instantiate here!
-  Library();
+  ~Library();
+
+  PRLibrary* mLibrary;
 };
 
 }

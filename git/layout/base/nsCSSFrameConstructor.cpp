@@ -2014,11 +2014,14 @@ static void
 PullOutCaptionFrames(nsFrameItems& aItems, nsFrameItems& aCaptions)
 {
   nsIFrame *child = aItems.FirstChild();
+  nsIFrame* prev = nsnull;
   while (child) {
     nsIFrame *nextSibling = child->GetNextSibling();
     if (nsGkAtoms::tableCaptionFrame == child->GetType()) {
-      aItems.RemoveFrame(child);
+      aItems.RemoveFrame(child, prev);
       aCaptions.AddChild(child);
+    } else {
+      prev = child;
     }
     child = nextSibling;
   }
@@ -3460,15 +3463,17 @@ nsCSSFrameConstructor::ConstructFieldSetFrame(nsFrameConstructorState& aState,
   nsFrameItems fieldsetKids;
   fieldsetKids.AddChild(blockFrame);
 
-  for (nsFrameList::Enumerator e(childItems); !e.AtEnd(); e.Next()) {
-    nsLegendFrame* legendFrame = do_QueryFrame(e.get());
+  for (nsFrameList::FrameLinkEnumerator link(childItems);
+       !link.AtEnd();
+       link.Next()) {
+    nsLegendFrame* legendFrame = do_QueryFrame(link.NextFrame());
     if (legendFrame) {
       // We want the legend to be the first frame in the fieldset child list.
       // That way the EventStateManager will do the right thing when tabbing
       // from a selection point within the legend (bug 236071), which is
       // used for implementing legend access keys (bug 81481).
       // GetAdjustedParentFrame() below depends on this frame order.
-      childItems.RemoveFrame(legendFrame);
+      childItems.RemoveFrame(link.NextFrame(), link.PrevFrame());
       // Make sure to reparent the legend so it has the fieldset as the parent.
       fieldsetKids.InsertFrame(newFrame, nsnull, legendFrame);
       break;
@@ -3965,7 +3970,7 @@ nsCSSFrameConstructor::ConstructFrameFromItemInternal(FrameConstructionItem& aIt
             break;
         }
 
-        childItems.RemoveFrame(f);
+        childItems.RemoveFrame(f, nsnull);
         if (wrapFrame) {
           currentBlock.AddChild(f);
         } else {
@@ -5695,7 +5700,7 @@ FindAppendPrevSibling(nsIFrame* aParentFrame, nsIFrame* aAfterFrame)
 {
   if (aAfterFrame) {
     NS_ASSERTION(aAfterFrame->GetParent() == aParentFrame, "Wrong parent");
-    return aAfterFrame->GetPrevSibling();
+    return aParentFrame->GetChildList(nsnull).GetPrevSiblingFor(aAfterFrame);
   }
 
   return aParentFrame->GetLastChild(nsnull);
@@ -9553,7 +9558,8 @@ nsCSSFrameConstructor::ProcessChildren(nsFrameConstructorState& aState,
                               itemsToConstruct);
   }
 
-  if (!aFrame->IsLeaf()) {
+  if (!aFrame->IsLeaf() &&
+      mDocument->BindingManager()->ShouldBuildChildFrames(aContent)) {
     // :before/:after content should have the same style context parent
     // as normal kids.
     // Note that we don't use this style context for looking up things like
@@ -10177,7 +10183,7 @@ nsCSSFrameConstructor::WrapFramesInFirstLetterFrame(
     if (parentFrame == aBlockFrame) {
       // Take textFrame out of the block's frame list and substitute the
       // letter frame(s) instead.
-      aBlockFrames.DestroyFrame(textFrame);
+      aBlockFrames.DestroyFrame(textFrame, prevFrame);
       aBlockFrames.InsertFrames(nsnull, prevFrame, letterFrames);
     }
     else {
@@ -10338,7 +10344,18 @@ nsCSSFrameConstructor::RemoveFloatingFirstLetterFrames(
     frameToDelete = nextFrameToDelete;
   }
 
-  nsIFrame* prevSibling = placeholderFrame->GetPrevSibling();
+  // First find out where (in the content) the placeholder frames
+  // text is and its previous sibling frame, if any.  Note that:
+  // 1)  The placeholder had better be in the principal child list of
+  //     parentFrame.
+  // 2)  It's probably near the beginning (since we're a first-letter frame),
+  //     so just doing a linear search for the prevSibling is ok.
+  // 3)  Trying to use FindPreviousSibling will fail if the first-letter is in
+  //     anonymous content (eg generated content).
+  const nsFrameList& siblingList(parentFrame->GetChildList(nsnull));
+  NS_ASSERTION(siblingList.ContainsFrame(placeholderFrame),
+               "Placeholder not in parent's principal child list?");
+  nsIFrame* prevSibling = siblingList.GetPrevSiblingFor(placeholderFrame);
 
   // Now that everything is set...
 #ifdef NOISY_FIRST_LETTER

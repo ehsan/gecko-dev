@@ -97,6 +97,7 @@ public:
   }
 
   virtual PRBool NeedsView() { return PR_TRUE; }
+  virtual nsresult CreateWidgetForView(nsIView* aView);
 
 #ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
@@ -194,10 +195,13 @@ protected:
   static void PaintPrintPlugin(nsIFrame* aFrame,
                                nsIRenderingContext* aRenderingContext,
                                const nsRect& aDirtyRect, nsPoint aPt);
+  static void PaintPlugin(nsIFrame* aFrame,
+                               nsIRenderingContext* aRenderingContext,
+                               const nsRect& aDirtyRect, nsPoint aPt);
   void PrintPlugin(nsIRenderingContext& aRenderingContext,
                    const nsRect& aDirtyRect);
   void PaintPlugin(nsIRenderingContext& aRenderingContext,
-                   const nsRect& aDirtyRect, const nsRect& aPluginRect);
+                   const nsRect& aDirtyRect, const nsPoint& aFramePt);
 
   /**
    * Makes sure that mInstanceOwner is valid and without a current plugin
@@ -208,9 +212,9 @@ protected:
   /**
    * Get the widget geometry for the plugin. aRegion is in some appunits
    * coordinate system whose origin is device-pixel-aligned (if possible),
-   * and aPluginOrigin gives the top-left of the plugin frame's content-rect
-   * in that coordinate system. It doesn't matter what that coordinate
-   * system actually is, as long as aRegion and aPluginOrigin are consistent.
+   * and aPluginOrigin gives the top-left of the plugin in that coordinate
+   * system. It doesn't matter what that coordinate system actually is,
+   * as long as aRegion and aPluginOrigin are consistent.
    * This will append a Configuration object to aConfigurations
    * containing the widget, its desired position, size and clip region.
    */
@@ -225,7 +229,6 @@ protected:
 
 private:
   nsRefPtr<nsPluginInstanceOwner> mInstanceOwner;
-  nsIView*                        mInnerView;
   nsCOMPtr<nsIWidget>             mWidget;
   nsIntRect                       mWindowlessRect;
 
@@ -251,10 +254,10 @@ public:
   virtual Type GetType() { return TYPE_PLUGIN; }
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
   virtual PRBool IsOpaque(nsDisplayListBuilder* aBuilder);
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx);
-  virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                                   nsRegion* aVisibleRegion);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
+     const nsRect& aDirtyRect);
+  virtual PRBool OptimizeVisibility(nsDisplayListBuilder* aBuilder,
+      nsRegion* aVisibleRegion);
 
   NS_DISPLAY_DECL_NAME("Plugin")
 

@@ -521,9 +521,8 @@ nsHTMLScriptElement::GetScriptDeferred()
 {
   PRBool defer;
   GetDefer(&defer);
-  nsCOMPtr<nsIURI> uri = GetScriptURI();
 
-  return defer && uri;
+  return defer;
 }
 
 PRBool

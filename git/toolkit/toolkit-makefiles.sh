@@ -641,6 +641,7 @@ MAKEFILES_embedding="
   embedding/components/printingui/Makefile
   embedding/components/printingui/src/Makefile
   embedding/components/printingui/src/mac/Makefile
+  embedding/components/printingui/src/mac/printpde/Makefile
   embedding/components/printingui/src/unixshared/Makefile
   embedding/components/printingui/src/win/Makefile
   embedding/components/webbrowserpersist/Makefile
@@ -652,6 +653,7 @@ MAKEFILES_embedding="
   embedding/components/ui/Makefile
   embedding/components/ui/helperAppDlg/Makefile
   embedding/components/ui/progressDlg/Makefile
+  embedding/config/Makefile
   embedding/tests/Makefile
   embedding/tests/winEmbed/Makefile
 "
@@ -1245,11 +1247,17 @@ if [ "$MOZ_JAVAXPCOM" ]; then
   "
 fi
 
-if [ "$MOZ_STATIC_COMPONENTS" -o "$MOZ_META_COMPONENTS" ]; then
+if [ "$MOZ_COMPONENTLIB" ]; then
   add_makefiles "
-    modules/staticmod/Makefile
+    embedding/componentlib/Makefile
   "
-fi
+else
+  if [ "$MOZ_STATIC_COMPONENTS" -o "$MOZ_META_COMPONENTS" ]; then
+    add_makefiles "
+      modules/staticmod/Makefile
+    "
+  fi
+fi # MOZ_COMPONENTLIB
 
 if [ "$MOZ_MEDIA" ]; then
  add_makefiles "

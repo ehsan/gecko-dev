@@ -271,7 +271,7 @@ XULContentSinkImpl::WillBuildModel(nsDTDMode aDTDMode)
 }
 
 NS_IMETHODIMP 
-XULContentSinkImpl::DidBuildModel(PRBool aTerminated)
+XULContentSinkImpl::DidBuildModel(void)
 {
     nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocument);
     if (doc) {

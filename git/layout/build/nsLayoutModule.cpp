@@ -117,7 +117,6 @@
 
 // DOM includes
 #include "nsDOMException.h"
-#include "nsDOMFileRequest.h"
 #include "nsGlobalWindowCommands.h"
 #include "nsIControllerCommandTable.h"
 #include "nsJSProtocolHandler.h"
@@ -290,7 +289,6 @@ NS_GENERIC_AGGREGATED_CONSTRUCTOR_INIT(nsXPathEvaluator, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(txNodeSetAdaptor, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDOMSerializer)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsXMLHttpRequest, Init)
-NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsDOMFileRequest, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDOMParser)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsDOMStorageManager,
                                          nsDOMStorageManager::GetInstance)
@@ -1366,11 +1364,6 @@ static const nsModuleComponentInfo gComponents[] = {
     NS_XMLSERIALIZER_CID,
     NS_XMLSERIALIZER_CONTRACTID,
     nsDOMSerializerConstructor },
-
-  { "FileRequest",
-    NS_FILEREQUEST_CID,
-    NS_FILEREQUEST_CONTRACTID,
-    nsDOMFileRequestConstructor },
 
   { "XMLHttpRequest",
     NS_XMLHTTPREQUEST_CID,

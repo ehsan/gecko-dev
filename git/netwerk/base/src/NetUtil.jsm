@@ -148,19 +148,7 @@ const NetUtil = {
             throw exception;
         }
 
-        return this.ioService.newURI(aSpec, aOriginCharset, aBaseURI);
-    },
-
-    /**
-     * Returns a reference to nsIIOService.
-     *
-     * @return a reference to nsIIOService.
-     */
-    get ioService()
-    {
-        delete this.ioService;
-        return this.ioService = Cc["@mozilla.org/network/io-service;1"].
-                                getService(Ci.nsIIOService);
+        return ioService.newURI(aSpec, aOriginCharset, aBaseURI);
     },
 };
 
@@ -172,3 +160,6 @@ Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 // Define our lazy getters.
 XPCOMUtils.defineLazyServiceGetter(this, "ioUtil", "@mozilla.org/io-util;1",
                                    "nsIIOUtil");
+XPCOMUtils.defineLazyServiceGetter(this, "ioService",
+                                   "@mozilla.org/network/io-service;1",
+                                   "nsIIOService");

@@ -51,10 +51,6 @@ public:
 
   nsresult Init();
 
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
-  static UINT GetTaskbarButtonCreatedMessage();
-#endif
-
 protected:
   virtual void ScheduleNativeEventCallback();
   virtual PRBool ProcessNextNativeEvent(PRBool mayWait);

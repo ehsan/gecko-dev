@@ -39,9 +39,10 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "Function.h"
-#include "Library.h"
-#include "nsAutoPtr.h"
-#include "jscntxt.h"
+#include "nsComponentManagerUtils.h"
+#include "nsServiceManagerUtils.h"
+#include "nsIXPConnect.h"
+#include "nsCRT.h"
 
 namespace mozilla {
 namespace ctypes {
@@ -49,26 +50,6 @@ namespace ctypes {
 /*******************************************************************************
 ** Static helpers
 *******************************************************************************/
-
-template<class IntegerType>
-static IntegerType
-Convert(jsdouble d)
-{
-  return IntegerType(d);
-}
-
-#ifdef _MSC_VER
-// MSVC can't perform double to unsigned __int64 conversion when the
-// double is greater than 2^63 - 1. Help it along a little.
-template<>
-static PRUint64
-Convert<PRUint64>(jsdouble d)
-{
-  return d > 0x7fffffffffffffffui64 ?
-         PRUint64(d - 0x8000000000000000ui64) + 0x8000000000000000ui64 :
-         PRUint64(d);
-}
-#endif
 
 template<class IntegerType>
 static bool
@@ -84,7 +65,7 @@ jsvalToIntStrict(jsval aValue, IntegerType *aResult)
   }
   if (JSVAL_IS_DOUBLE(aValue)) {
     jsdouble d = *JSVAL_TO_DOUBLE(aValue);
-    *aResult = Convert<IntegerType>(d);
+    *aResult = IntegerType(d);
 
     // Don't silently lose bits here -- check that aValue really is an
     // integer value, and has the right sign.
@@ -153,19 +134,17 @@ TypeError(JSContext* cx, const char* expected, jsval actual)
 }
 
 static bool
-GetABI(JSContext* cx, jsval aCallType, ffi_abi& aResult)
+GetABI(PRUint16 aCallType, ffi_abi& aResult)
 {
-  ABICode abi = Module::GetABICode(cx, aCallType);
-
   // determine the ABI from the subset of those available on the
-  // given platform. TYPE_DEFAULT specifies the default
+  // given platform. nsIForeignLibrary::DEFAULT specifies the default
   // C calling convention (cdecl) on each platform.
-  switch (abi) {
-  case ABI_default_abi:
+  switch (aCallType) {
+  case nsIForeignLibrary::DEFAULT:
     aResult = FFI_DEFAULT_ABI;
     return true;
-#if defined(_WIN32) && !defined(_WIN64)
-  case ABI_stdcall_abi:
+#if defined(_WIN32)
+  case nsIForeignLibrary::STDCALL:
     aResult = FFI_STDCALL;
     return true;
 #endif
@@ -177,51 +156,59 @@ GetABI(JSContext* cx, jsval aCallType, ffi_abi& aResult)
 static bool
 PrepareType(JSContext* aContext, jsval aType, Type& aResult)
 {
-  aResult.mType = Module::GetTypeCode(aContext, aType);
+  // for now, the only types we accept are integer values.
+  if (!JSVAL_IS_INT(aType)) {
+    JS_ReportError(aContext, "Invalid type specification");
+    return false;
+  }
 
-  switch (aResult.mType) {
-  case TYPE_void_t:
+  PRInt32 type = JSVAL_TO_INT(aType);
+
+  switch (type) {
+  case nsIForeignLibrary::VOID:
     aResult.mFFIType = ffi_type_void;
     break;
-  case TYPE_int8_t:
+  case nsIForeignLibrary::INT8:
     aResult.mFFIType = ffi_type_sint8;
     break;
-  case TYPE_int16_t:
+  case nsIForeignLibrary::INT16:
     aResult.mFFIType = ffi_type_sint16;
     break;
-  case TYPE_int32_t:
+  case nsIForeignLibrary::INT32:
     aResult.mFFIType = ffi_type_sint32;
     break;
-  case TYPE_int64_t:
+  case nsIForeignLibrary::INT64:
     aResult.mFFIType = ffi_type_sint64;
     break;
-  case TYPE_bool:
-  case TYPE_uint8_t:
+  case nsIForeignLibrary::BOOL:
+  case nsIForeignLibrary::UINT8:
     aResult.mFFIType = ffi_type_uint8;
     break;
-  case TYPE_uint16_t:
+  case nsIForeignLibrary::UINT16:
     aResult.mFFIType = ffi_type_uint16;
     break;
-  case TYPE_uint32_t:
+  case nsIForeignLibrary::UINT32:
     aResult.mFFIType = ffi_type_uint32;
     break;
-  case TYPE_uint64_t:
+  case nsIForeignLibrary::UINT64:
     aResult.mFFIType = ffi_type_uint64;
     break;
-  case TYPE_float:
+  case nsIForeignLibrary::FLOAT:
     aResult.mFFIType = ffi_type_float;
     break;
-  case TYPE_double:
+  case nsIForeignLibrary::DOUBLE:
     aResult.mFFIType = ffi_type_double;
     break;
-  case TYPE_string:
-  case TYPE_ustring:
+  case nsIForeignLibrary::STRING:
+  case nsIForeignLibrary::USTRING:
     aResult.mFFIType = ffi_type_pointer;
     break;
   default:
     JS_ReportError(aContext, "Invalid type specification");
     return false;
   }
+
+  aResult.mType = type;
 
   return true;
 }
@@ -232,7 +219,7 @@ PrepareValue(JSContext* aContext, const Type& aType, jsval aValue, Value& aResul
   jsdouble d;
 
   switch (aType.mType) {
-  case TYPE_bool:
+  case nsIForeignLibrary::BOOL:
     // Do not implicitly lose bits, but allow the values 0, 1, and -0.
     // Programs can convert explicitly, if needed, using `Boolean(v)` or `!!v`.
     if (!jsvalToIntStrict(aValue, &aResult.mValue.mUint8) ||
@@ -241,63 +228,61 @@ PrepareValue(JSContext* aContext, const Type& aType, jsval aValue, Value& aResul
 
     aResult.mData = &aResult.mValue.mUint8;
     break;
-  case TYPE_int8_t:
+  case nsIForeignLibrary::INT8:
     // Do not implicitly lose bits.
     if (!jsvalToIntStrict(aValue, &aResult.mValue.mInt8))
       return TypeError(aContext, "int8", aValue);
 
     aResult.mData = &aResult.mValue.mInt8;
     break;
-  case TYPE_int16_t:
+  case nsIForeignLibrary::INT16:
     // Do not implicitly lose bits.
     if (!jsvalToIntStrict(aValue, &aResult.mValue.mInt16))
       return TypeError(aContext, "int16", aValue);
 
     aResult.mData = &aResult.mValue.mInt16;
     break;
-  case TYPE_int32_t:
+  case nsIForeignLibrary::INT32:
     // Do not implicitly lose bits.
     if (!jsvalToIntStrict(aValue, &aResult.mValue.mInt32))
       return TypeError(aContext, "int32", aValue);
 
     aResult.mData = &aResult.mValue.mInt32;
-    break;
-  case TYPE_int64_t:
+  case nsIForeignLibrary::INT64:
     // Do not implicitly lose bits.
     if (!jsvalToIntStrict(aValue, &aResult.mValue.mInt64))
       return TypeError(aContext, "int64", aValue);
 
     aResult.mData = &aResult.mValue.mInt64;
     break;
-  case TYPE_uint8_t:
+  case nsIForeignLibrary::UINT8:
     // Do not implicitly lose bits.
     if (!jsvalToIntStrict(aValue, &aResult.mValue.mUint8))
       return TypeError(aContext, "uint8", aValue);
 
     aResult.mData = &aResult.mValue.mUint8;
     break;
-  case TYPE_uint16_t:
+  case nsIForeignLibrary::UINT16:
     // Do not implicitly lose bits.
     if (!jsvalToIntStrict(aValue, &aResult.mValue.mUint16))
       return TypeError(aContext, "uint16", aValue);
 
     aResult.mData = &aResult.mValue.mUint16;
     break;
-  case TYPE_uint32_t:
+  case nsIForeignLibrary::UINT32:
     // Do not implicitly lose bits.
     if (!jsvalToIntStrict(aValue, &aResult.mValue.mUint32))
       return TypeError(aContext, "uint32", aValue);
 
     aResult.mData = &aResult.mValue.mUint32;
-    break;
-  case TYPE_uint64_t:
+  case nsIForeignLibrary::UINT64:
     // Do not implicitly lose bits.
     if (!jsvalToIntStrict(aValue, &aResult.mValue.mUint64))
       return TypeError(aContext, "uint64", aValue);
 
     aResult.mData = &aResult.mValue.mUint64;
     break;
-  case TYPE_float:
+  case nsIForeignLibrary::FLOAT:
     if (!jsvalToDoubleStrict(aValue, &d))
       return TypeError(aContext, "float", aValue);
 
@@ -308,14 +293,14 @@ PrepareValue(JSContext* aContext, const Type& aType, jsval aValue, Value& aResul
     aResult.mValue.mFloat = float(d);
     aResult.mData = &aResult.mValue.mFloat;
     break;
-  case TYPE_double:
+  case nsIForeignLibrary::DOUBLE:
     if (!jsvalToDoubleStrict(aValue, &d))
       return TypeError(aContext, "double", aValue);
 
     aResult.mValue.mDouble = d;
     aResult.mData = &aResult.mValue.mDouble;
     break;
-  case TYPE_string:
+  case nsIForeignLibrary::STRING:
     if (JSVAL_IS_NULL(aValue)) {
       // Allow passing a null pointer.
       aResult.mValue.mPointer = nsnull;
@@ -329,7 +314,7 @@ PrepareValue(JSContext* aContext, const Type& aType, jsval aValue, Value& aResul
 
     aResult.mData = &aResult.mValue.mPointer;
     break;
-  case TYPE_ustring:
+  case nsIForeignLibrary::USTRING:
     if (JSVAL_IS_NULL(aValue)) {
       // Allow passing a null pointer.
       aResult.mValue.mPointer = nsnull;
@@ -355,42 +340,42 @@ static void
 PrepareReturnValue(const Type& aType, Value& aResult)
 {
   switch (aType.mType) {
-  case TYPE_void_t:
+  case nsIForeignLibrary::VOID:
     aResult.mData = nsnull;
     break;
-  case TYPE_int8_t:
+  case nsIForeignLibrary::INT8:
     aResult.mData = &aResult.mValue.mInt8;
     break;
-  case TYPE_int16_t:
+  case nsIForeignLibrary::INT16:
     aResult.mData = &aResult.mValue.mInt16;
     break;
-  case TYPE_int32_t:
+  case nsIForeignLibrary::INT32:
     aResult.mData = &aResult.mValue.mInt32;
     break;
-  case TYPE_int64_t:
+  case nsIForeignLibrary::INT64:
     aResult.mData = &aResult.mValue.mInt64;
     break;
-  case TYPE_bool:
-  case TYPE_uint8_t:
+  case nsIForeignLibrary::BOOL:
+  case nsIForeignLibrary::UINT8:
     aResult.mData = &aResult.mValue.mUint8;
     break;
-  case TYPE_uint16_t:
+  case nsIForeignLibrary::UINT16:
     aResult.mData = &aResult.mValue.mUint16;
     break;
-  case TYPE_uint32_t:
+  case nsIForeignLibrary::UINT32:
     aResult.mData = &aResult.mValue.mUint32;
     break;
-  case TYPE_uint64_t:
+  case nsIForeignLibrary::UINT64:
     aResult.mData = &aResult.mValue.mUint64;
     break;
-  case TYPE_float:
+  case nsIForeignLibrary::FLOAT:
     aResult.mData = &aResult.mValue.mFloat;
     break;
-  case TYPE_double:
+  case nsIForeignLibrary::DOUBLE:
     aResult.mData = &aResult.mValue.mDouble;
     break;
-  case TYPE_string:
-  case TYPE_ustring:
+  case nsIForeignLibrary::STRING:
+  case nsIForeignLibrary::USTRING:
     aResult.mData = &aResult.mValue.mPointer;
     break;
   default:
@@ -406,51 +391,51 @@ ConvertReturnValue(JSContext* aContext,
                    jsval* aValue)
 {
   switch (aResultType.mType) {
-  case TYPE_void_t:
+  case nsIForeignLibrary::VOID:
     *aValue = JSVAL_VOID;
     break;
-  case TYPE_bool:
+  case nsIForeignLibrary::BOOL:
     *aValue = aResultValue.mValue.mUint8 ? JSVAL_TRUE : JSVAL_FALSE;
     break;
-  case TYPE_int8_t:
+  case nsIForeignLibrary::INT8:
     *aValue = INT_TO_JSVAL(aResultValue.mValue.mInt8);
     break;
-  case TYPE_int16_t:
+  case nsIForeignLibrary::INT16:
     *aValue = INT_TO_JSVAL(aResultValue.mValue.mInt16);
     break;
-  case TYPE_int32_t:
+  case nsIForeignLibrary::INT32:
     if (!JS_NewNumberValue(aContext, jsdouble(aResultValue.mValue.mInt32), aValue))
       return false;
     break;
-  case TYPE_int64_t:
+  case nsIForeignLibrary::INT64:
     // Implicit conversion with loss of bits.  :-[
     if (!JS_NewNumberValue(aContext, jsdouble(aResultValue.mValue.mInt64), aValue))
       return false;
     break;
-  case TYPE_uint8_t:
+  case nsIForeignLibrary::UINT8:
     *aValue = INT_TO_JSVAL(aResultValue.mValue.mUint8);
     break;
-  case TYPE_uint16_t:
+  case nsIForeignLibrary::UINT16:
     *aValue = INT_TO_JSVAL(aResultValue.mValue.mUint16);
     break;
-  case TYPE_uint32_t:
+  case nsIForeignLibrary::UINT32:
     if (!JS_NewNumberValue(aContext, jsdouble(aResultValue.mValue.mUint32), aValue))
       return false;
     break;
-  case TYPE_uint64_t:
+  case nsIForeignLibrary::UINT64:
     // Implicit conversion with loss of bits.  :-[
     if (!JS_NewNumberValue(aContext, jsdouble(aResultValue.mValue.mUint64), aValue))
       return false;
     break;
-  case TYPE_float:
+  case nsIForeignLibrary::FLOAT:
     if (!JS_NewNumberValue(aContext, jsdouble(aResultValue.mValue.mFloat), aValue))
       return false;
     break;
-  case TYPE_double:
+  case nsIForeignLibrary::DOUBLE:
     if (!JS_NewNumberValue(aContext, jsdouble(aResultValue.mValue.mDouble), aValue))
       return false;
     break;
-  case TYPE_string: {
+  case nsIForeignLibrary::STRING: {
     if (!aResultValue.mValue.mPointer) {
       // Allow returning a null pointer.
       *aValue = JSVAL_NULL;
@@ -464,7 +449,7 @@ ConvertReturnValue(JSContext* aContext,
     }
     break;
   }
-  case TYPE_ustring: {
+  case nsIForeignLibrary::USTRING: {
     if (!aResultValue.mValue.mPointer) {
       // Allow returning a null pointer.
       *aValue = JSVAL_NULL;
@@ -487,11 +472,13 @@ ConvertReturnValue(JSContext* aContext,
 }
 
 /*******************************************************************************
-** Function implementation
+** Function
 *******************************************************************************/
 
+NS_IMPL_ISUPPORTS1(Function, nsIXPCScriptable)
+
 Function::Function()
-  : mNext(NULL)
+  : mFunc(nsnull)
 {
 }
 
@@ -501,16 +488,17 @@ Function::~Function()
 
 bool
 Function::Init(JSContext* aContext,
+               Library* aLibrary,
                PRFuncPtr aFunc,
-               jsval aCallType,
+               PRUint16 aCallType,
                jsval aResultType,
-               jsval* aArgTypes,
-               uintN aArgLength)
+               const nsTArray<jsval>& aArgTypes)
 {
+  mLibrary = aLibrary;
   mFunc = aFunc;
 
   // determine the ABI
-  if (!GetABI(aContext, aCallType, mCallType)) {
+  if (!GetABI(aCallType, mCallType)) {
     JS_ReportError(aContext, "Invalid ABI specification");
     return false;
   }
@@ -520,13 +508,12 @@ Function::Init(JSContext* aContext,
     return false;
 
   // prepare the argument types
-  mArgTypes.SetCapacity(aArgLength);
-  for (PRUint32 i = 0; i < aArgLength; ++i) {
+  for (PRUint32 i = 0; i < aArgTypes.Length(); ++i) {
     if (!PrepareType(aContext, aArgTypes[i], *mArgTypes.AppendElement()))
       return false;
 
     // disallow void argument types
-    if (mArgTypes[i].mType == TYPE_void_t) {
+    if (mArgTypes[i].mType == nsIForeignLibrary::VOID) {
       JS_ReportError(aContext, "Cannot have void argument type");
       return false;
     }
@@ -553,17 +540,12 @@ Function::Init(JSContext* aContext,
 }
 
 bool
-Function::Execute(JSContext* cx, PRUint32 argc, jsval* vp)
+Function::Execute(JSContext* aContext, PRUint32 aArgc, jsval* aArgv, jsval* aValue)
 {
-  if (argc != mArgTypes.Length()) {
-    JS_ReportError(cx, "Number of arguments does not match declaration");
-    return false;
-  }
-
   // prepare the values for each argument
   nsAutoTArray<Value, 16> values;
   for (PRUint32 i = 0; i < mArgTypes.Length(); ++i) {
-    if (!PrepareValue(cx, mArgTypes[i], JS_ARGV(cx, vp)[i], *values.AppendElement()))
+    if (!PrepareValue(aContext, mArgTypes[i], aArgv[i], *values.AppendElement()))
       return false;
   }
 
@@ -579,93 +561,50 @@ Function::Execute(JSContext* cx, PRUint32 argc, jsval* vp)
 
   // suspend the request before we call into the function, since the call
   // may block or otherwise take a long time to return.
-  jsrefcount rc = JS_SuspendRequest(cx);
+  jsrefcount rc = JS_SuspendRequest(aContext);
 
-  ffi_call(&mCIF, FFI_FN(mFunc), resultValue.mData, ffiValues.Elements());
+  ffi_call(&mCIF, mFunc, resultValue.mData, ffiValues.Elements());
 
-  JS_ResumeRequest(cx, rc);
+  JS_ResumeRequest(aContext, rc);
 
   // prepare a JS object from the result
-  jsval rval;
-  if (!ConvertReturnValue(cx, mResultType, resultValue, &rval))
-    return false;
-
-  JS_SET_RVAL(cx, vp, rval);
-  return true;
+  return ConvertReturnValue(aContext, mResultType, resultValue, aValue);
 }
 
 /*******************************************************************************
-** JSObject implementation
+** nsIXPCScriptable implementation
 *******************************************************************************/
 
-JSObject*
-Function::Create(JSContext* aContext,
-                 JSObject* aLibrary,
-                 PRFuncPtr aFunc,
-                 const char* aName,
-                 jsval aCallType,
-                 jsval aResultType,
-                 jsval* aArgTypes,
-                 uintN aArgLength)
+#define XPC_MAP_CLASSNAME Function
+#define XPC_MAP_QUOTED_CLASSNAME "Function"
+#define XPC_MAP_WANT_CALL
+#define XPC_MAP_FLAGS nsIXPCScriptable::WANT_CALL
+
+#include "xpc_map_end.h"
+
+NS_IMETHODIMP
+Function::Call(nsIXPConnectWrappedNative* wrapper,
+               JSContext* cx,
+               JSObject* obj, 
+               PRUint32 argc, 
+               jsval* argv, 
+               jsval* vp, 
+               PRBool* _retval)
 {
-  // create new Function instance
-  nsAutoPtr<Function> self(new Function());
-  if (!self)
-    return NULL;
-
-  // deduce and check the ABI and parameter types
-  if (!self->Init(aContext, aFunc, aCallType, aResultType, aArgTypes, aArgLength))
-    return NULL;
-
-  // create and root the new JS function object
-  JSFunction* fn = JS_NewFunction(aContext, JSNative(Function::Call),
-                     aArgLength, JSFUN_FAST_NATIVE, NULL, aName);
-  if (!fn)
-    return NULL;
-
-  JSObject* fnObj = JS_GetFunctionObject(fn);
-  JSAutoTempValueRooter fnRoot(aContext, fnObj);
-
-  // stash a pointer to self, which Function::Call will need at call time
-  if (!JS_SetReservedSlot(aContext, fnObj, 0, PRIVATE_TO_JSVAL(self.get())))
-    return NULL;
-
-  // make a strong reference to the library for GC-safety
-  if (!JS_SetReservedSlot(aContext, fnObj, 1, OBJECT_TO_JSVAL(aLibrary)))
-    return NULL;
-
-  // tell the library we exist, so it can delete our Function instance
-  // when it comes time to finalize. (JS functions don't have finalizers.)
-  if (!Library::AddFunction(aContext, aLibrary, self))
-    return NULL;
-
-  self.forget();
-  return fnObj;
-}
-
-static Function*
-GetFunction(JSContext* cx, JSObject* obj)
-{
-  jsval slot;
-  JS_GetReservedSlot(cx, obj, 0, &slot);
-  return static_cast<Function*>(JSVAL_TO_PRIVATE(slot));
-}
-
-JSBool
-Function::Call(JSContext* cx, uintN argc, jsval* vp)
-{
-  JSObject* callee = JSVAL_TO_OBJECT(JS_CALLEE(cx, vp));
-
-  jsval slot;
-  JS_GetReservedSlot(cx, callee, 1, &slot);
-
-  PRLibrary* library = Library::GetLibrary(cx, JSVAL_TO_OBJECT(slot));
-  if (!library) {
-    JS_ReportError(cx, "library is not open");
-    return JS_FALSE;
+  if (!mLibrary->IsOpen()) {
+    JS_ReportError(cx, "Library is not open");
+    *_retval = PR_FALSE;
+    return NS_OK;
   }
 
-  return GetFunction(cx, callee)->Execute(cx, argc, vp);
+  if (argc != mArgTypes.Length()) {
+    JS_ReportError(cx, "Number of arguments does not match declaration");
+    *_retval = PR_FALSE;
+    return NS_OK;
+  }
+
+  *_retval = Execute(cx, argc, argv, vp);
+  return NS_OK;
 }
 
 }
