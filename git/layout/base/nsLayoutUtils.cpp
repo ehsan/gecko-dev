@@ -2707,7 +2707,7 @@ static FrameMetrics
 CalculateFrameMetricsForDisplayPort(nsIFrame* aScrollFrame,
                                     nsIScrollableFrame* aScrollFrameAsScrollable) {
   // Calculate the metrics necessary for calculating the displayport.
-  // This code has a lot in common with the code in ComputeFrameMetrics();
+  // This code has a lot in common with the code in RecordFrameMetrics();
   // we may want to refactor this at some point.
   FrameMetrics metrics;
   nsPresContext* presContext = aScrollFrame->PresContext();
@@ -6729,7 +6729,7 @@ nsLayoutUtils::CalculateCompositionSizeForFrame(nsIFrame* aFrame)
   nsIPresShell* presShell = presContext->PresShell();
 
   // See the comments in the code that calculates the root
-  // composition bounds in ComputeFrameMetrics.
+  // composition bounds in RecordFrameMetrics.
   // TODO: Reuse that code here.
   bool isRootContentDocRootScrollFrame = presContext->IsRootContentDocument()
                                       && aFrame == presShell->GetRootScrollFrame();

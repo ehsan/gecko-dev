@@ -166,6 +166,7 @@ public class GeckoView extends LayerView
         EventDispatcher.getInstance().registerGeckoThreadListener(mNativeEventListener,
             "Accessibility:Ready");
 
+        ThreadUtils.setUiThread(Thread.currentThread(), new Handler());
         initializeView(EventDispatcher.getInstance());
 
         if (GeckoThread.checkAndSetLaunchState(GeckoThread.LaunchState.Launching, GeckoThread.LaunchState.Launched)) {

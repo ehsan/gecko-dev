@@ -1181,6 +1181,8 @@ public abstract class GeckoApp
         GeckoAppShell.setContextGetter(this);
         GeckoAppShell.setGeckoInterface(this);
 
+        ThreadUtils.setUiThread(Thread.currentThread(), new Handler());
+
         Tabs.getInstance().attachToContext(this);
         try {
             Favicons.initializeWithContext(this);

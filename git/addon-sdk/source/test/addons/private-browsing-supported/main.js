@@ -5,12 +5,14 @@
 
 const { merge } = require('sdk/util/object');
 const app = require('sdk/system/xul-app');
+const { isGlobalPBSupported } = require('sdk/private-browsing/utils');
 
 merge(module.exports,
   require('./test-tabs'),
   require('./test-page-mod'),
   require('./test-private-browsing'),
-  require('./test-sidebar')
+  require('./test-sidebar'),
+  isGlobalPBSupported ? require('./test-global-private-browsing') : {}
 );
 
 // Doesn't make sense to test window-utils and windows on fennec,

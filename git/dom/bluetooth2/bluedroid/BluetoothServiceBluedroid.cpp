@@ -19,7 +19,6 @@
 #include "BluetoothServiceBluedroid.h"
 
 #include "BluetoothA2dpManager.h"
-#include "BluetoothGattManager.h"
 #include "BluetoothHfpManager.h"
 #include "BluetoothOppManager.h"
 #include "BluetoothProfileController.h"
@@ -168,8 +167,7 @@ public:
   {
     static void (* const sDeinitManager[])(BluetoothProfileResultHandler*) = {
       BluetoothHfpManager::DeinitHfpInterface,
-      BluetoothA2dpManager::DeinitA2dpInterface,
-      BluetoothGattManager::DeinitGattInterface
+      BluetoothA2dpManager::DeinitA2dpInterface
     };
 
     MOZ_ASSERT(NS_IsMainThread());
@@ -306,8 +304,7 @@ public:
   {
     static void (* const sInitManager[])(BluetoothProfileResultHandler*) = {
       BluetoothHfpManager::InitHfpInterface,
-      BluetoothA2dpManager::InitA2dpInterface,
-      BluetoothGattManager::InitGattInterface
+      BluetoothA2dpManager::InitA2dpInterface
     };
 
     MOZ_ASSERT(NS_IsMainThread());

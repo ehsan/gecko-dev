@@ -66,7 +66,6 @@ NS_IMPL_CYCLE_COLLECTION_INHERITED(nsDOMCameraControl, DOMMediaStream,
                                    mOnRecorderStateChangeCb,
                                    mOnPreviewStateChangeCb,
                                    mOnAutoFocusMovingCb,
-                                   mOnAutoFocusCompletedCb,
                                    mOnFacesDetectedCb)
 
 /* static */
@@ -156,7 +155,6 @@ nsDOMCameraControl::nsDOMCameraControl(uint32_t aCameraId,
   , mOnRecorderStateChangeCb(nullptr)
   , mOnPreviewStateChangeCb(nullptr)
   , mOnAutoFocusMovingCb(nullptr)
-  , mOnAutoFocusCompletedCb(nullptr)
   , mOnFacesDetectedCb(nullptr)
   , mWindow(aWindow)
 {
@@ -620,17 +618,6 @@ nsDOMCameraControl::SetOnAutoFocusMoving(CameraAutoFocusMovingCallback* aCb)
   mOnAutoFocusMovingCb = aCb;
 }
 
-CameraAutoFocusCallback*
-nsDOMCameraControl::GetOnAutoFocusCompleted()
-{
-  return mOnAutoFocusCompletedCb;
-}
-void
-nsDOMCameraControl::SetOnAutoFocusCompleted(CameraAutoFocusCallback* aCb)
-{
-  mOnAutoFocusCompletedCb = aCb;
-}
-
 CameraFaceDetectionCallback*
 nsDOMCameraControl::GetOnFacesDetected()
 {
@@ -984,7 +971,6 @@ nsDOMCameraControl::Shutdown()
   mOnRecorderStateChangeCb = nullptr;
   mOnPreviewStateChangeCb = nullptr;
   mOnAutoFocusMovingCb = nullptr;
-  mOnAutoFocusCompletedCb = nullptr;
   mOnFacesDetectedCb = nullptr;
 
   mCameraControl->Shutdown();
@@ -1176,12 +1162,6 @@ nsDOMCameraControl::OnAutoFocusComplete(bool aAutoFocusSucceeded)
 
   nsRefPtr<CameraAutoFocusCallback> cb = mAutoFocusOnSuccessCb.forget();
   mAutoFocusOnErrorCb = nullptr;
-  if (cb) {
-    ErrorResult ignored;
-    cb->Call(aAutoFocusSucceeded, ignored);
-  }
-
-  cb = mOnAutoFocusCompletedCb;
   if (cb) {
     ErrorResult ignored;
     cb->Call(aAutoFocusSucceeded, ignored);

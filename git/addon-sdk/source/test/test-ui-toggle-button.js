@@ -299,7 +299,6 @@ exports['test button global state updated'] = function(assert) {
 }
 
 exports['test button global state set and get with state method'] = function(assert) {
-  let state;
   let loader = Loader(module);
   let { ToggleButton } = loader.require('sdk/ui');
 
@@ -310,7 +309,7 @@ exports['test button global state set and get with state method'] = function(ass
   });
 
   // read the button's state
-  state = button.state(button);
+  let state = button.state(button);
 
   assert.equal(state.label, 'my button',
     'label is correct');
@@ -380,7 +379,6 @@ exports['test button global state updated on multiple windows'] = function(asser
 };
 
 exports['test button window state'] = function(assert, done) {
-  let state;
   let loader = Loader(module);
   let { ToggleButton } = loader.require('sdk/ui');
   let { browserWindows } = loader.require('sdk/windows');
@@ -414,7 +412,7 @@ exports['test button window state'] = function(assert, done) {
     assert.equal(button.disabled, false,
       'global disabled unchanged');
 
-    state = button.state(mainWindow);
+    let state = button.state(mainWindow);
 
     assert.equal(state.label, 'my button',
       'previous window label unchanged');
@@ -423,7 +421,7 @@ exports['test button window state'] = function(assert, done) {
     assert.equal(state.disabled, false,
       'previous window disabled unchanged');
 
-    state = button.state(activeWindow);
+    let state = button.state(activeWindow);
 
     assert.equal(state.label, 'New label',
       'active window label updated');
@@ -452,7 +450,7 @@ exports['test button window state'] = function(assert, done) {
 
     // check the nodes properties
     let node = nodes[0];
-    state = button.state(mainWindow);
+    let state = button.state(mainWindow);
 
     assert.equal(node.getAttribute('label'), state.label,
       'node label is correct');
@@ -464,8 +462,8 @@ exports['test button window state'] = function(assert, done) {
     assert.equal(node.hasAttribute('disabled'), state.disabled,
       'disabled is correct');
 
-    node = nodes[1];
-    state = button.state(activeWindow);
+    let node = nodes[1];
+    let state = button.state(activeWindow);
 
     assert.equal(node.getAttribute('label'), state.label,
       'node label is correct');
@@ -527,8 +525,6 @@ exports['test button tab state'] = function(assert, done) {
       // check the states
 
       Cu.schedulePreciseGC(() => {
-        let state;
-
         assert.equal(button.label, 'my button',
           'global label unchanged');
         assert.equal(button.icon, './icon.png',
@@ -536,7 +532,7 @@ exports['test button tab state'] = function(assert, done) {
         assert.equal(button.disabled, false,
           'global disabled unchanged');
 
-        state = button.state(mainTab);
+        let state = button.state(mainTab);
 
         assert.equal(state.label, 'Tab label',
           'previous tab label updated');
@@ -545,7 +541,7 @@ exports['test button tab state'] = function(assert, done) {
         assert.equal(state.disabled, false,
           'previous tab disabled unchanged');
 
-        state = button.state(tab);
+        let state = button.state(tab);
 
         assert.equal(state.label, 'Window label',
           'active tab inherited from window state');
@@ -575,7 +571,7 @@ exports['test button tab state'] = function(assert, done) {
 
         // check the node properties
 
-        state = button.state(tabs.activeTab);
+        let state = button.state(tabs.activeTab);
 
         assert.equal(node.getAttribute('label'), state.label,
           'node label is correct');
@@ -688,7 +684,7 @@ exports['test button icon set'] = function(assert) {
   assert.equal(node.getAttribute('image'), data.url(button.icon[size].substr(2)),
     'the icon is set properly in navbar');
 
-  size = 32 * devicePixelRatio;
+  let size = 32 * devicePixelRatio;
 
   CustomizableUI.addWidgetToArea(widgetId, CustomizableUI.AREA_PANEL);
 
