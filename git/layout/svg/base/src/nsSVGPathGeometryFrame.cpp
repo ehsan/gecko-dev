@@ -83,7 +83,7 @@ nsSVGPathGeometryFrame::AttributeChanged(PRInt32         aNameSpaceID,
   return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsSVGPathGeometryFrame::DidSetStyleContext()
 {
   nsSVGPathGeometryFrameBase::DidSetStyleContext();
@@ -101,6 +101,8 @@ nsSVGPathGeometryFrame::DidSetStyleContext()
   // best place to deal with style changes:
 
   nsSVGUtils::UpdateGraphic(this);
+
+  return NS_OK;
 }
 
 nsIAtom *

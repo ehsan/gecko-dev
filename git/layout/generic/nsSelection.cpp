@@ -225,6 +225,9 @@ public:
   nsIDOMNode*  FetchAnchorNode();  //where did the selection begin
   PRInt32      FetchAnchorOffset();
 
+  nsIDOMNode*  FetchOriginalAnchorNode();  //where did the ORIGINAL selection begin
+  PRInt32      FetchOriginalAnchorOffset();
+
   nsIDOMNode*  FetchFocusNode();   //where is the carret
   PRInt32      FetchFocusOffset();
 
@@ -235,12 +238,16 @@ public:
 
   nsDirection  GetDirection(){return mDirection;}
   void         SetDirection(nsDirection aDir){mDirection = aDir;}
+  PRBool       GetTrueDirection() {return mTrueDirection;}
+  void         SetTrueDirection(PRBool aBool){mTrueDirection = aBool;}
   NS_IMETHOD   CopyRangeToAnchorFocus(nsIDOMRange *aRange);
   
 
 //  NS_IMETHOD   GetPrimaryFrameForRangeEndpoint(nsIDOMNode *aNode, PRInt32 aOffset, PRBool aIsEndNode, nsIFrame **aResultFrame);
   NS_IMETHOD   GetPrimaryFrameForAnchorNode(nsIFrame **aResultFrame);
   NS_IMETHOD   GetPrimaryFrameForFocusNode(nsIFrame **aResultFrame, PRInt32 *aOffset, PRBool aVisual);
+  NS_IMETHOD   SetOriginalAnchorPoint(nsIDOMNode *aNode, PRInt32 aOffset);
+  NS_IMETHOD   GetOriginalAnchorPoint(nsIDOMNode **aNode, PRInt32 *aOffset);
   NS_IMETHOD   LookUpSelection(nsIContent *aContent, PRInt32 aContentOffset, PRInt32 aContentLength,
                              SelectionDetails **aReturnDetails, SelectionType aType, PRBool aSlowCheck);
   NS_IMETHOD   Repaint(nsPresContext* aPresContext);
@@ -352,6 +359,7 @@ private:
   nsTArray<RangeData> mRanges;
   nsTArray<PRInt32> mRangeEndings;    // references info mRanges
   nsCOMPtr<nsIDOMRange> mAnchorFocusRange;
+  nsCOMPtr<nsIDOMRange> mOriginalAnchorRange; //used as a point with range gravity for security
   nsFrameSelection *mFrameSelection;
   nsWeakPtr mPresShellWeak;
   nsRefPtr<nsAutoScrollTimer> mAutoScrollTimer;
@@ -360,6 +368,7 @@ private:
   CachedOffsetForFrame *mCachedOffsetForFrame;
   nsDirection mDirection;
   SelectionType mType;
+  PRPackedBool mTrueDirection;
 };
 
 // Stack-class to turn on/off selection batching for table selection
@@ -1946,6 +1955,7 @@ nsFrameSelection::TakeFocus(nsIContent *aNewFocus,
       mDomSelections[index]->AddRange(newRange);
       mBatching = batching;
       mChangesDuringBatching = changes;
+      mDomSelections[index]->SetOriginalAnchorPoint(domNode,aContentOffset);
     }
     else
     {
@@ -3528,6 +3538,7 @@ nsTypedSelection::nsTypedSelection()
   , mCachedOffsetForFrame(nsnull)
   , mDirection(eDirNext)
   , mType(nsISelectionController::SELECTION_NORMAL)
+  , mTrueDirection(PR_FALSE)
 {
 }
 
@@ -3536,6 +3547,7 @@ nsTypedSelection::nsTypedSelection(nsFrameSelection *aList)
   , mCachedOffsetForFrame(nsnull)
   , mDirection(eDirNext)
   , mType(nsISelectionController::SELECTION_NORMAL)
+  , mTrueDirection(PR_FALSE)
 {
 }
 
@@ -3720,6 +3732,29 @@ nsTypedSelection::FetchAnchorOffset()
   if (NS_SUCCEEDED(GetAnchorOffset(&returnval)))//this queries
     return returnval;
   return 0;
+}
+
+
+
+nsIDOMNode*
+nsTypedSelection::FetchOriginalAnchorNode()  //where did the ORIGINAL selection begin
+{
+  nsCOMPtr<nsIDOMNode>returnval;
+  PRInt32 unused;
+  GetOriginalAnchorPoint(getter_AddRefs(returnval),  &unused);//this queries
+  return returnval;
+}
+
+
+
+PRInt32
+nsTypedSelection::FetchOriginalAnchorOffset()
+{
+  nsCOMPtr<nsIDOMNode>unused;
+  PRInt32 returnval;
+  if (NS_SUCCEEDED(GetOriginalAnchorPoint(getter_AddRefs(unused), &returnval)))//this queries
+    return returnval;
+  return NS_OK;
 }
 
 
@@ -5432,6 +5467,8 @@ nsTypedSelection::Collapse(nsIDOMNode* aParentNode, PRInt32 aOffset)
     return NS_ERROR_FAILURE;
   nsresult result;
   // Delete all of the current ranges
+  if (NS_FAILED(SetOriginalAnchorPoint(aParentNode,aOffset)))
+    return NS_ERROR_FAILURE; //???
   nsCOMPtr<nsPresContext>  presContext;
   GetPresContext(getter_AddRefs(presContext));
   Clear(presContext);
@@ -5601,6 +5638,44 @@ nsTypedSelection::GetRangeAt(PRInt32 aIndex, nsIDOMRange** aReturn)
   NS_IF_ADDREF(*aReturn);
 
   return NS_OK;
+}
+
+
+NS_IMETHODIMP
+nsTypedSelection::SetOriginalAnchorPoint(nsIDOMNode *aNode, PRInt32 aOffset)
+{
+  if (!aNode){
+    mOriginalAnchorRange = 0;
+    return NS_OK;
+  }
+  nsCOMPtr<nsIDOMRange> newRange;
+  nsresult result;
+  NS_NewRange(getter_AddRefs(newRange));
+  if (!newRange) return NS_ERROR_OUT_OF_MEMORY;
+
+  result = newRange->SetStart(aNode,aOffset);
+  if (NS_FAILED(result))
+    return result;
+  result = newRange->SetEnd(aNode,aOffset);
+  if (NS_FAILED(result))
+    return result;
+
+  mOriginalAnchorRange = newRange;
+  return result;
+}
+
+
+NS_IMETHODIMP
+nsTypedSelection::GetOriginalAnchorPoint(nsIDOMNode **aNode, PRInt32 *aOffset)
+{
+  if (!aNode || !aOffset || !mOriginalAnchorRange)
+    return NS_ERROR_NULL_POINTER;
+  nsresult result;
+  result = mOriginalAnchorRange->GetStartContainer(aNode);
+  if (NS_FAILED(result))
+    return result;
+  result = mOriginalAnchorRange->GetStartOffset(aOffset);
+  return result;
 }
 
 

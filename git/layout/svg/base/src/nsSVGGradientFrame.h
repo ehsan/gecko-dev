@@ -65,7 +65,7 @@ public:
                                   float aGraphicOpacity);
 
   // nsIFrame interface:
-  virtual void DidSetStyleContext();
+  NS_IMETHOD DidSetStyleContext();
 
   NS_IMETHOD AttributeChanged(PRInt32         aNameSpaceID,
                               nsIAtom*        aAttribute,
