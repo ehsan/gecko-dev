@@ -1268,15 +1268,15 @@ GLContext::CreateTextureImage(const nsIntSize& aSize,
                                    aFlags, aImageFormat);
 }
 
-void GLContext::ApplyFilterToBoundTexture(GraphicsFilter aFilter)
+void GLContext::ApplyFilterToBoundTexture(gfxPattern::GraphicsFilter aFilter)
 {
     ApplyFilterToBoundTexture(LOCAL_GL_TEXTURE_2D, aFilter);
 }
 
 void GLContext::ApplyFilterToBoundTexture(GLuint aTarget,
-                                          GraphicsFilter aFilter)
+                                          gfxPattern::GraphicsFilter aFilter)
 {
-    if (aFilter == GraphicsFilter::FILTER_NEAREST) {
+    if (aFilter == gfxPattern::FILTER_NEAREST) {
         fTexParameteri(aTarget, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_NEAREST);
         fTexParameteri(aTarget, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_NEAREST);
     } else {

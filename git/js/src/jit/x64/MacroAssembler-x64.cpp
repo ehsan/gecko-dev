@@ -353,7 +353,7 @@ MacroAssemblerX64::handleFailureWithHandlerTail()
     // the bailout tail stub.
     bind(&bailout);
     loadPtr(Address(esp, offsetof(ResumeFromException, bailoutInfo)), r9);
-    mov(ImmWord(BAILOUT_RETURN_OK), rax);
+    movl(Imm32(BAILOUT_RETURN_OK), rax);
     jmp(Operand(rsp, offsetof(ResumeFromException, target)));
 }
 

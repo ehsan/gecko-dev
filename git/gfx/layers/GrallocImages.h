@@ -73,7 +73,7 @@ protected:
 class GrallocImage : public PlanarYCbCrImage
                    , public ISharedImage
 {
-  typedef PlanarYCbCrData Data;
+  typedef PlanarYCbCrImage::Data Data;
   static uint32_t sColorIdMap[];
 public:
   struct GrallocData {

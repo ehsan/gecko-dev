@@ -107,7 +107,7 @@ RotatedBuffer::DrawBufferQuadrant(gfxContext* aTarget,
   nsRefPtr<gfxPattern> pattern = new gfxPattern(source);
 
 #ifdef MOZ_GFX_OPTIMIZE_MOBILE
-  GraphicsFilter filter = GraphicsFilter::FILTER_NEAREST;
+  gfxPattern::GraphicsFilter filter = gfxPattern::FILTER_NEAREST;
   pattern->SetFilter(filter);
 #endif
 

@@ -10,6 +10,7 @@
 
 #include "nsMargin.h"
 #include "nsStyleCoord.h"
+#include "nsStyleStructInlines.h"
 #include "nsIFrame.h"
 #include "mozilla/Assertions.h"
 #include <algorithm>
@@ -310,9 +311,13 @@ public:
   const nsStylePadding*    mStylePadding;
   const nsStyleText*       mStyleText;
 
-  bool IsFloating() const;
+  bool IsFloating() const {
+    return mStyleDisplay->IsFloating(frame);
+  }
 
-  uint8_t GetDisplay() const;
+  uint8_t GetDisplay() const {
+    return mStyleDisplay->GetDisplay(frame);
+  }
 
   // a frame (e.g. nsTableCellFrame) which may need to generate a special 
   // reflow for percent height calculations 

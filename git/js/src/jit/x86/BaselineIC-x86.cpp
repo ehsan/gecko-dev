@@ -200,7 +200,7 @@ ICBinaryArith_Int32::Compiler::generateStubCode(MacroAssembler &masm)
         masm.j(Assembler::Signed, &failure);
 
         // Result is +0.
-        masm.mov(ImmWord(0), R0.payloadReg());
+        masm.xorl(R0.payloadReg(), R0.payloadReg());
         EmitReturnFromIC(masm);
         break;
       case JSOP_DIV:

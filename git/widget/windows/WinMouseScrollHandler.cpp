@@ -325,8 +325,7 @@ MouseScrollHandler::SynthesizeNativeMouseScrollEvent(nsWindowBase* aWidget,
 
 /* static */
 bool
-MouseScrollHandler::DispatchEvent(nsWindowBase* aWidget,
-                                  WidgetGUIEvent& aEvent)
+MouseScrollHandler::DispatchEvent(nsWindowBase* aWidget, nsGUIEvent& aEvent)
 {
   return aWidget->DispatchWindowEvent(&aEvent);
 }
@@ -334,7 +333,7 @@ MouseScrollHandler::DispatchEvent(nsWindowBase* aWidget,
 /* static */
 void
 MouseScrollHandler::InitEvent(nsWindowBase* aWidget,
-                              WidgetGUIEvent& aEvent,
+                              nsGUIEvent& aEvent,
                               nsIntPoint* aPoint)
 {
   NS_ENSURE_TRUE_VOID(aWidget);

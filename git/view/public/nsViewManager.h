@@ -121,9 +121,8 @@ public:
    * @param aViewTarget dispatch the event to this view
    * @param aStatus event handling status
    */
-  void DispatchEvent(mozilla::WidgetGUIEvent *aEvent,
-                     nsView* aViewTarget,
-                     nsEventStatus* aStatus);
+  void DispatchEvent(nsGUIEvent *aEvent,
+      nsView* aViewTarget, nsEventStatus* aStatus);
 
   /**
    * Given a parent view, insert another view as its child.

@@ -18,7 +18,6 @@
 #include "nsUnicodeProperties.h"
 #include "nsTextFrame.h"
 #include "nsBlockFrame.h"
-#include "nsIFrameInlines.h"
 #include <algorithm>
 
 #undef NOISY_BIDI

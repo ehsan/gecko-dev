@@ -390,9 +390,9 @@ nsMenuFrame::BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
 }
 
 NS_IMETHODIMP
-nsMenuFrame::HandleEvent(nsPresContext* aPresContext,
-                         WidgetGUIEvent* aEvent,
-                         nsEventStatus* aEventStatus)
+nsMenuFrame::HandleEvent(nsPresContext* aPresContext, 
+                         nsGUIEvent*     aEvent,
+                         nsEventStatus*  aEventStatus)
 {
   NS_ENSURE_ARG_POINTER(aEventStatus);
   if (nsEventStatus_eConsumeNoDefault == *aEventStatus ||
@@ -427,8 +427,7 @@ nsMenuFrame::HandleEvent(nsPresContext* aPresContext,
   }
   else if (aEvent->eventStructType == NS_MOUSE_EVENT &&
            aEvent->message == NS_MOUSE_BUTTON_DOWN &&
-           static_cast<WidgetMouseEvent*>(aEvent)->button ==
-             WidgetMouseEvent::eLeftButton &&
+           static_cast<nsMouseEvent*>(aEvent)->button == nsMouseEvent::eLeftButton &&
            !IsDisabled() && IsMenu()) {
     // The menu item was selected. Bring up the menu.
     // We have children.
@@ -447,8 +446,8 @@ nsMenuFrame::HandleEvent(nsPresContext* aPresContext,
 #ifndef NSCONTEXTMENUISMOUSEUP
            (aEvent->eventStructType == NS_MOUSE_EVENT &&
             aEvent->message == NS_MOUSE_BUTTON_UP &&
-            static_cast<WidgetMouseEvent*>(aEvent)->button ==
-              WidgetMouseEvent::eRightButton) &&
+            static_cast<nsMouseEvent*>(aEvent)->button ==
+              nsMouseEvent::eRightButton) &&
 #else
             aEvent->message == NS_CONTEXTMENU &&
 #endif
@@ -470,8 +469,7 @@ nsMenuFrame::HandleEvent(nsPresContext* aPresContext,
   }
   else if (aEvent->eventStructType == NS_MOUSE_EVENT &&
            aEvent->message == NS_MOUSE_BUTTON_UP &&
-           static_cast<WidgetMouseEvent*>(aEvent)->button ==
-             WidgetMouseEvent::eLeftButton &&
+           static_cast<nsMouseEvent*>(aEvent)->button == nsMouseEvent::eLeftButton &&
            !IsMenu() && !IsDisabled()) {
     // Execute the execute event handler.
     *aEventStatus = nsEventStatus_eConsumeNoDefault;
@@ -789,7 +787,7 @@ nsMenuFrame::SetDebug(nsBoxLayoutState& aState, nsIFrame* aList, bool aDebug)
 // In either case, do nothing if the item is disabled.
 //
 nsMenuFrame*
-nsMenuFrame::Enter(WidgetGUIEvent* aEvent)
+nsMenuFrame::Enter(nsGUIEvent *aEvent)
 {
   if (IsDisabled()) {
 #ifdef XP_WIN
@@ -1168,7 +1166,7 @@ nsMenuFrame::BuildAcceleratorText(bool aNotify)
 }
 
 void
-nsMenuFrame::Execute(WidgetGUIEvent* aEvent)
+nsMenuFrame::Execute(nsGUIEvent *aEvent)
 {
   // flip "checked" state if we're a checkbox menu, or an un-checked radio menu
   bool needToFlipChecked = false;
@@ -1200,7 +1198,7 @@ nsMenuFrame::ShouldBlink()
 }
 
 void
-nsMenuFrame::StartBlinking(WidgetGUIEvent* aEvent, bool aFlipChecked)
+nsMenuFrame::StartBlinking(nsGUIEvent *aEvent, bool aFlipChecked)
 {
   StopBlinking();
   CreateMenuCommandEvent(aEvent, aFlipChecked);
@@ -1239,7 +1237,7 @@ nsMenuFrame::StopBlinking()
 }
 
 void
-nsMenuFrame::CreateMenuCommandEvent(WidgetGUIEvent* aEvent, bool aFlipChecked)
+nsMenuFrame::CreateMenuCommandEvent(nsGUIEvent *aEvent, bool aFlipChecked)
 {
   // Create a trusted event if the triggering event was trusted, or if
   // we're called from chrome code (since at least one of our caller

@@ -15,8 +15,8 @@ nsDOMMouseEvent::nsDOMMouseEvent(mozilla::dom::EventTarget* aOwner,
                                  nsPresContext* aPresContext,
                                  WidgetInputEvent* aEvent)
   : nsDOMUIEvent(aOwner, aPresContext, aEvent ? aEvent :
-                 new WidgetMouseEvent(false, 0, nullptr,
-                                      WidgetMouseEvent::eReal))
+                 new nsMouseEvent(false, 0, nullptr,
+                                  nsMouseEvent::eReal))
 {
   // There's no way to make this class' ctor allocate an WidgetMouseScrollEvent.
   // It's not that important, though, since a scroll event is not a real
@@ -29,17 +29,16 @@ nsDOMMouseEvent::nsDOMMouseEvent(mozilla::dom::EventTarget* aOwner,
     mEventIsInternal = true;
     mEvent->time = PR_Now();
     mEvent->refPoint.x = mEvent->refPoint.y = 0;
-    static_cast<WidgetMouseEvent*>(mEvent)->inputSource =
-      nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;
+    static_cast<nsMouseEvent*>(mEvent)->inputSource = nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;
   }
 
   switch (mEvent->eventStructType)
   {
     case NS_MOUSE_EVENT:
-      NS_ASSERTION(static_cast<WidgetMouseEvent*>(mEvent)->reason
-                     != WidgetMouseEvent::eSynthesized,
+      NS_ASSERTION(static_cast<nsMouseEvent*>(mEvent)->reason
+                   != nsMouseEvent::eSynthesized,
                    "Don't dispatch DOM events from synthesized mouse events");
-      mDetail = static_cast<WidgetMouseEvent*>(mEvent)->clickCount;
+      mDetail = static_cast<nsMouseEvent*>(mEvent)->clickCount;
       break;
     default:
       break;
@@ -52,7 +51,7 @@ nsDOMMouseEvent::~nsDOMMouseEvent()
     switch (mEvent->eventStructType)
     {
       case NS_MOUSE_EVENT:
-        delete static_cast<WidgetMouseEvent*>(mEvent);
+        delete static_cast<nsMouseEvent*>(mEvent);
         break;
       default:
         delete mEvent;
@@ -98,7 +97,7 @@ nsDOMMouseEvent::InitMouseEvent(const nsAString & aType, bool aCanBubble, bool a
        inputEvent->refPoint.y = aScreenY;
 
        if (mEvent->eventStructType == NS_MOUSE_EVENT) {
-         WidgetMouseEvent* mouseEvent = static_cast<WidgetMouseEvent*>(mEvent);
+         nsMouseEvent* mouseEvent = static_cast<nsMouseEvent*>(mEvent);
          mouseEvent->clickCount = aDetail;
        }
        break;
@@ -220,7 +219,7 @@ nsDOMMouseEvent::Button()
       return static_cast<WidgetMouseEventBase*>(mEvent)->button;
     default:
       NS_WARNING("Tried to get mouse button for non-mouse event!");
-      return WidgetMouseEvent::eLeftButton;
+      return nsMouseEvent::eLeftButton;
   }
 }
 

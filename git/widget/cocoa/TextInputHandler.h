@@ -337,7 +337,7 @@ public:
    * @return                      TRUE if the event is consumed by web contents
    *                              or chrome contents.  Otherwise, FALSE.
    */
-  bool DispatchEvent(WidgetGUIEvent& aEvent);
+  bool DispatchEvent(nsGUIEvent& aEvent);
 
   /**
    * SetSelection() dispatches NS_SELECTION_SET event for the aRange.

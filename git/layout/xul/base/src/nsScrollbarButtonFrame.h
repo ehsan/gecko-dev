@@ -33,8 +33,8 @@ public:
 
   friend nsIFrame* NS_NewScrollbarButtonFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
-  NS_IMETHOD HandleEvent(nsPresContext* aPresContext,
-                         mozilla::WidgetGUIEvent* aEvent,
+  NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
+                         nsGUIEvent* aEvent,
                          nsEventStatus* aEventStatus) MOZ_OVERRIDE;
 
   static nsresult GetChildWithTag(nsPresContext* aPresContext,
@@ -42,31 +42,24 @@ public:
   static nsresult GetParentWithTag(nsIAtom* atom, nsIFrame* start, nsIFrame*& result);
 
   bool HandleButtonPress(nsPresContext* aPresContext,
-                         mozilla::WidgetGUIEvent* aEvent,
-                         nsEventStatus* aEventStatus);
+                         nsGUIEvent *    aEvent,
+                         nsEventStatus*  aEventStatus);
 
   NS_IMETHOD HandleMultiplePress(nsPresContext* aPresContext,
-                                 mozilla::WidgetGUIEvent* aEvent,
-                                 nsEventStatus* aEventStatus,
-                                 bool aControlHeld) MOZ_OVERRIDE
- {
-   return NS_OK;
- }
+                                 nsGUIEvent *    aEvent,
+                                 nsEventStatus*  aEventStatus,
+                                 bool aControlHeld) MOZ_OVERRIDE { return NS_OK; }
 
   NS_IMETHOD HandleDrag(nsPresContext* aPresContext,
-                        mozilla::WidgetGUIEvent* aEvent,
-                        nsEventStatus* aEventStatus) MOZ_OVERRIDE
-  {
-    return NS_OK;
-  }
+                        nsGUIEvent *    aEvent,
+                        nsEventStatus*  aEventStatus) MOZ_OVERRIDE { return NS_OK; }
 
   NS_IMETHOD HandleRelease(nsPresContext* aPresContext,
-                           mozilla::WidgetGUIEvent* aEvent,
-                           nsEventStatus* aEventStatus) MOZ_OVERRIDE;
+                           nsGUIEvent *    aEvent,
+                           nsEventStatus*  aEventStatus) MOZ_OVERRIDE;
 
 protected:
-  virtual void MouseClicked(nsPresContext* aPresContext,
-                            mozilla::WidgetGUIEvent* aEvent) MOZ_OVERRIDE;
+  virtual void MouseClicked(nsPresContext* aPresContext, nsGUIEvent* aEvent) MOZ_OVERRIDE;
   void DoButtonAction(bool aSmoothScroll);
 
   void StartRepeat() {

@@ -5,7 +5,7 @@
  */
 
 [ArrayClass]
-interface DOMRectList {
+interface ClientRectList {
   readonly attribute unsigned long length;
-  getter DOMRect? item(unsigned long index);
+  getter ClientRect? item(unsigned long index);
 };

@@ -12,7 +12,6 @@
 #include "mozilla/gfx/2D.h"
 #include "gfxUtils.h"
 #include <algorithm>
-#include "ImageContainer.h"
 
 namespace mozilla {
 using namespace mozilla::gfx;
@@ -140,7 +139,7 @@ protected:
 };
 
 void
-DeserializerToPlanarYCbCrImageData(YCbCrImageDataDeserializer& aDeserializer, PlanarYCbCrData& aData)
+DeserializerToPlanarYCbCrImageData(YCbCrImageDataDeserializer& aDeserializer, PlanarYCbCrImage::Data& aData)
 {
   aData.mYChannel = aDeserializer.GetYData();
   aData.mYStride = aDeserializer.GetYStride();
@@ -182,7 +181,7 @@ public:
   void ConvertImageToRGB(const SurfaceDescriptor& aImage)
   {
     YCbCrImageDataDeserializer deserializer(aImage.get_YCbCrImage().data().get<uint8_t>());
-    PlanarYCbCrData data;
+    PlanarYCbCrImage::Data data;
     DeserializerToPlanarYCbCrImageData(deserializer, data);
 
     gfxImageFormat format = gfxImageFormatRGB24;

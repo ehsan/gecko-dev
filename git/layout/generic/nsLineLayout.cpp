@@ -22,7 +22,6 @@
 #include "nsIContent.h"
 #include "nsLayoutUtils.h"
 #include "nsTextFrame.h"
-#include "nsStyleStructInlines.h"
 #include <algorithm>
 
 #ifdef DEBUG

@@ -630,7 +630,7 @@ MetroWidget::DeliverNextScrollEvent()
 
 // defined in nsWiondowBase, called from shared module KeyboardLayout.
 bool
-MetroWidget::DispatchKeyboardEvent(WidgetGUIEvent* aEvent)
+MetroWidget::DispatchKeyboardEvent(nsGUIEvent* aEvent)
 {
   MOZ_ASSERT(aEvent);
   WidgetKeyboardEvent* oldKeyEvent = static_cast<WidgetKeyboardEvent*>(aEvent);
@@ -1207,7 +1207,7 @@ void MetroWidget::UserActivity()
 // InitEvent assumes physical coordinates and is used by shared win32 code. Do
 // not hand winrt event coordinates to this routine.
 void
-MetroWidget::InitEvent(WidgetGUIEvent& event, nsIntPoint* aPoint)
+MetroWidget::InitEvent(nsGUIEvent& event, nsIntPoint* aPoint)
 {
   if (!aPoint) {
     event.refPoint.x = event.refPoint.y = 0;
@@ -1219,7 +1219,7 @@ MetroWidget::InitEvent(WidgetGUIEvent& event, nsIntPoint* aPoint)
 }
 
 bool
-MetroWidget::DispatchWindowEvent(WidgetGUIEvent* aEvent)
+MetroWidget::DispatchWindowEvent(nsGUIEvent* aEvent)
 {
   MOZ_ASSERT(aEvent);
   nsEventStatus status = nsEventStatus_eIgnore;
@@ -1228,7 +1228,7 @@ MetroWidget::DispatchWindowEvent(WidgetGUIEvent* aEvent)
 }
 
 NS_IMETHODIMP
-MetroWidget::DispatchEvent(WidgetGUIEvent* event, nsEventStatus & aStatus)
+MetroWidget::DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus)
 {
   if (event->IsInputDerivedEvent()) {
     UserActivity();

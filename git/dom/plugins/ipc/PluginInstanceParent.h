@@ -29,7 +29,6 @@ class gfxXlibSurface;
 #include "mozilla/unused.h"
 
 class gfxASurface;
-class gfxContext;
 
 namespace mozilla {
 namespace layers {

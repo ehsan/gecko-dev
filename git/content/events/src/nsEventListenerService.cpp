@@ -19,7 +19,6 @@
 #include "mozilla/Maybe.h"
 #include "nsServiceManagerUtils.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 using mozilla::AutoSafeJSContext;
 
@@ -193,7 +192,7 @@ nsEventListenerService::GetEventTargetChainFor(nsIDOMEventTarget* aEventTarget,
   *aCount = 0;
   *aOutArray = nullptr;
   NS_ENSURE_ARG(aEventTarget);
-  WidgetEvent event(true, NS_EVENT_NULL);
+  nsEvent event(true, NS_EVENT_NULL);
   nsCOMArray<EventTarget> targets;
   nsresult rv = nsEventDispatcher::Dispatch(aEventTarget, nullptr, &event,
                                             nullptr, nullptr, nullptr, &targets);

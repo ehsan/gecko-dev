@@ -139,16 +139,14 @@ class IDLUpdater(object):
 class UUIDProvider(object):
     @Command('uuid', category='misc',
         description='Generate a uuid.')
-    @CommandArgument('--format', '-f', choices=['idl', 'cpp', 'c++'],
+    @CommandArgument('--format', '-f', choices=['idl', 'cpp'], default='idl',
                      help='Output format for the generated uuid.')
-    def uuid(self, format=None):
+    def uuid(self, format):
         import uuid
         u = uuid.uuid4()
-        if format in [None, 'idl']:
+        if format == 'idl':
             print(u)
-            if format is None:
-                print('')
-        if format in [None, 'cpp', 'c++']:
+        else:
             u = u.hex
             print('{ 0x%s, 0x%s, 0x%s, \\' % (u[0:8], u[8:12], u[12:16]))
             pairs = tuple(map(lambda n: u[n:n+2], range(16, 32, 2)))

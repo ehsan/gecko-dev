@@ -96,11 +96,6 @@ class Message : public Pickle {
     return (header()->flags & URGENT_BIT) != 0;
   }
 
-  // True if this is an RPC message.
-  bool is_rpc() const {
-    return (header()->flags & RPC_BIT) != 0;
-  }
-
   // True if compression is enabled for this message.
   bool compress() const {
     return (header()->flags & COMPRESS_BIT) != 0;
@@ -156,14 +151,6 @@ class Message : public Pickle {
 
   void set_routing_id(int32_t new_id) {
     header()->routing = new_id;
-  }
-
-  int32_t transaction_id() const {
-    return header()->txid;
-  }
-
-  void set_transaction_id(int32_t txid) {
-    header()->txid = txid;
   }
 
   uint32_t interrupt_remote_stack_depth_guess() const {
@@ -292,10 +279,6 @@ class Message : public Pickle {
     header()->flags |= URGENT_BIT;
   }
 
-  void set_rpc() {
-    header()->flags |= RPC_BIT;
-  }
-
 #if !defined(OS_MACOSX)
  protected:
 #endif
@@ -311,8 +294,7 @@ class Message : public Pickle {
     HAS_SENT_TIME_BIT = 0x0080,
     INTERRUPT_BIT   = 0x0100,
     COMPRESS_BIT    = 0x0200,
-    URGENT_BIT      = 0x0400,
-    RPC_BIT         = 0x0800
+    URGENT_BIT      = 0x0400
   };
 
   struct Header : Pickle::Header {
@@ -325,13 +307,8 @@ class Message : public Pickle {
     uint32_t cookie;  // cookie to ACK that the descriptors have been read.
 # endif
 #endif
-    union {
-      // For Interrupt messages, a guess at what the *other* side's stack depth is.
-      uint32_t interrupt_remote_stack_depth_guess;
-
-      // For RPC and Urgent messages, a transaction ID for message ordering.
-      int32_t txid;
-    };
+    // For RPC messages, a guess at what the *other* side's stack depth is.
+    uint32_t interrupt_remote_stack_depth_guess;
     // The actual local stack depth.
     uint32_t interrupt_local_stack_depth;
     // Sequence number

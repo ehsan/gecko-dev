@@ -45,6 +45,8 @@ XPCOMUtils.defineLazyServiceGetter(this, "permissionPromptService",
                                    "@mozilla.org/permission-prompt-service;1",
                                    "nsIPermissionPromptService");
 
+let permissionManager = Cc["@mozilla.org/permissionmanager;1"].getService(Ci.nsIPermissionManager);
+let secMan = Cc["@mozilla.org/scriptsecuritymanager;1"].getService(Ci.nsIScriptSecurityManager);
 let appsService = Cc["@mozilla.org/AppsService;1"].getService(Ci.nsIAppsService);
 
 this.PermissionPromptHelper = {
@@ -64,10 +66,10 @@ this.PermissionPromptHelper = {
 
     let uri = Services.io.newURI(msg.origin, null, null);
     let principal =
-      Services.scriptSecurityManager.getAppCodebasePrincipal(uri, msg.appID, msg.browserFlag);
+      secMan.getAppCodebasePrincipal(uri, msg.appID, msg.browserFlag);
 
     let permValue =
-      Services.perms.testExactPermissionFromPrincipal(principal, access);
+      permissionManager.testExactPermissionFromPrincipal(principal, access);
 
     if (permValue == Ci.nsIPermissionManager.DENY_ACTION ||
         permValue == Ci.nsIPermissionManager.UNKNOWN_ACTION) {

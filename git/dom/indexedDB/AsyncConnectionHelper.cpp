@@ -25,7 +25,6 @@
 #include "ipc/IndexedDBChild.h"
 #include "ipc/IndexedDBParent.h"
 
-using namespace mozilla;
 USING_INDEXEDDB_NAMESPACE
 using mozilla::dom::quota::QuotaManager;
 
@@ -467,7 +466,7 @@ AsyncConnectionHelper::OnSuccess()
   nsresult rv = mRequest->DispatchEvent(event, &dummy);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-  WidgetEvent* internalEvent = event->GetInternalNSEvent();
+  nsEvent* internalEvent = event->GetInternalNSEvent();
   NS_ASSERTION(internalEvent, "This should never be null!");
 
   NS_ASSERTION(!mTransaction ||
@@ -510,7 +509,7 @@ AsyncConnectionHelper::OnError()
                  mTransaction->IsAborted(),
                  "How else can this be closed?!");
 
-    WidgetEvent* internalEvent = event->GetInternalNSEvent();
+    nsEvent* internalEvent = event->GetInternalNSEvent();
     NS_ASSERTION(internalEvent, "This should never be null!");
 
     if (internalEvent->mFlags.mExceptionHasBeenRisen &&

@@ -4329,15 +4329,7 @@ DebuggerGenericEval(JSContext *cx, const char *fullMethodName, const Value &code
         if (!env)
             return false;
     } else {
-        /*
-         * Use the global as 'this'. If the global is an inner object, it
-         * should have a thisObject hook that returns the appropriate outer
-         * object.
-         */
-        JSObject *thisObj = JSObject::thisObject(cx, scope);
-        if (!thisObj)
-            return false;
-        thisv = ObjectValue(*thisObj);
+        thisv = ObjectValue(*scope);
         env = scope;
     }
 
@@ -4592,20 +4584,13 @@ DebuggerObject_getDisplayName(JSContext *cx, unsigned argc, Value *vp)
 static bool
 DebuggerObject_getParameterNames(JSContext *cx, unsigned argc, Value *vp)
 {
-    THIS_DEBUGOBJECT_OWNER_REFERENT(cx, argc, vp, "get parameterNames", args, dbg, obj);
+    THIS_DEBUGOBJECT_REFERENT(cx, argc, vp, "get parameterNames", args, obj);
     if (!obj->is<JSFunction>()) {
         args.rval().setUndefined();
         return true;
     }
 
     RootedFunction fun(cx, &obj->as<JSFunction>());
-
-    /* Only hand out parameter info for debuggee functions. */
-    if (!dbg->observesGlobal(&fun->global())) {
-        args.rval().setUndefined();
-        return true;
-    }
-
     RootedObject result(cx, NewDenseAllocatedArray(cx, fun->nargs));
     if (!result)
         return false;
@@ -4671,12 +4656,6 @@ DebuggerObject_getScript(JSContext *cx, unsigned argc, Value *vp)
             return false;
     }
 
-    /* Only hand out debuggee scripts. */
-    if (!dbg->observesScript(script)) {
-        args.rval().setNull();
-        return true;
-    }
-
     RootedObject scriptObject(cx, dbg->wrapScript(cx, script));
     if (!scriptObject)
         return false;
@@ -4693,12 +4672,6 @@ DebuggerObject_getEnvironment(JSContext *cx, unsigned argc, Value *vp)
     /* Don't bother switching compartments just to check obj's type and get its env. */
     if (!obj->is<JSFunction>() || !obj->as<JSFunction>().isInterpreted()) {
         args.rval().setUndefined();
-        return true;
-    }
-
-    /* Only hand out environments of debuggee functions. */
-    if (!dbg->observesGlobal(&obj->global())) {
-        args.rval().setNull();
         return true;
     }
 
@@ -5152,35 +5125,23 @@ DebuggerObject_makeDebuggeeValue(JSContext *cx, unsigned argc, Value *vp)
 }
 
 static bool
-RequireGlobalObject(JSContext *cx, HandleValue dbgobj, HandleObject referent)
+RequireGlobalObject(JSContext *cx, HandleValue dbgobj, HandleObject obj)
 {
-    RootedObject obj(cx, referent);
-
     if (!obj->is<GlobalObject>()) {
-        const char *isWrapper = "";
-        const char *isWindowProxy = "";
-
-        /* Help the poor programmer by pointing out wrappers around globals... */
+        /* Help the poor programmer by pointing out wrappers around globals. */
         if (obj->is<WrapperObject>()) {
-            obj = js::UncheckedUnwrap(obj);
-            isWrapper = "a wrapper around ";
+            JSObject *unwrapped = js::UncheckedUnwrap(obj);
+            if (unwrapped->is<GlobalObject>()) {
+                js_ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_DEBUG_WRAPPER_IN_WAY,
+                                         JSDVG_SEARCH_STACK, dbgobj, NullPtr(),
+                                         "a global object", nullptr);
+                return false;
+            }
         }
 
-        /* ... and WindowProxies around Windows. */
-        if (IsOuterObject(obj)) {
-            obj = JS_ObjectToInnerObject(cx, obj);
-            isWindowProxy = "a WindowProxy referring to ";
-        }
-
-        if (obj->is<GlobalObject>()) {
-            js_ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_DEBUG_WRAPPER_IN_WAY,
-                                     JSDVG_SEARCH_STACK, dbgobj, NullPtr(),
-                                     isWrapper, isWindowProxy);
-        } else {
-            js_ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_DEBUG_BAD_REFERENT,
-                                     JSDVG_SEARCH_STACK, dbgobj, NullPtr(),
-                                     "a global object", nullptr);
-        }
+        js_ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_DEBUG_BAD_REFERENT,
+                                 JSDVG_SEARCH_STACK, dbgobj, NullPtr(),
+                                 "a global object", nullptr);
         return false;
     }
 
@@ -5234,13 +5195,7 @@ DebuggerObject_unsafeDereference(JSContext *cx, unsigned argc, Value *vp)
 {
     THIS_DEBUGOBJECT_REFERENT(cx, argc, vp, "unsafeDereference", args, referent);
     args.rval().setObject(*referent);
-    if (!cx->compartment()->wrap(cx, args.rval()))
-        return false;
-
-    // Wrapping should outerize inner objects.
-    JS_ASSERT(!IsInnerObject(&args.rval().toObject()));
-
-    return true;
+    return cx->compartment()->wrap(cx, args.rval());
 }
 
 static const JSPropertySpec DebuggerObject_properties[] = {
@@ -5308,8 +5263,7 @@ const Class DebuggerEnv_class = {
 };
 
 static JSObject *
-DebuggerEnv_checkThis(JSContext *cx, const CallArgs &args, const char *fnname,
-                      bool requireDebuggee = true)
+DebuggerEnv_checkThis(JSContext *cx, const CallArgs &args, const char *fnname)
 {
     if (!args.thisv().isObject()) {
         ReportObjectRequired(cx);
@@ -5332,20 +5286,6 @@ DebuggerEnv_checkThis(JSContext *cx, const CallArgs &args, const char *fnname,
                              "Debugger.Environment", fnname, "prototype object");
         return nullptr;
     }
-
-    /*
-     * Forbid access to Debugger.Environment objects that are not debuggee
-     * environments.
-     */
-    if (requireDebuggee) {
-        Rooted<Env*> env(cx, static_cast<Env *>(thisobj->getPrivate()));
-        if (!Debugger::fromChildJSObject(thisobj)->observesGlobal(&env->global())) {
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_DEBUG_NOT_DEBUGGEE,
-                                 "Debugger.Environment", "environment");
-            return nullptr;
-        }
-    }
-
     return thisobj;
 }
 
@@ -5462,23 +5402,6 @@ DebuggerEnv_getCallee(JSContext *cx, unsigned argc, Value *vp)
     args.rval().setObject(callobj.callee());
     if (!dbg->wrapDebuggeeValue(cx, args.rval()))
         return false;
-    return true;
-}
-
-static bool
-DebuggerEnv_getInspectable(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    JSObject *envobj = DebuggerEnv_checkThis(cx, args, "get inspectable", false);
-    if (!envobj)
-        return false;
-    Rooted<Env*> env(cx, static_cast<Env *>(envobj->getPrivate()));
-    JS_ASSERT(env);
-    JS_ASSERT(!env->is<ScopeObject>());
-
-    Debugger *dbg = Debugger::fromChildJSObject(envobj);
-
-    args.rval().setBoolean(dbg->observesGlobal(&env->global()));
     return true;
 }
 
@@ -5619,7 +5542,6 @@ static const JSPropertySpec DebuggerEnv_properties[] = {
     JS_PSG("object", DebuggerEnv_getObject, 0),
     JS_PSG("parent", DebuggerEnv_getParent, 0),
     JS_PSG("callee", DebuggerEnv_getCallee, 0),
-    JS_PSG("inspectable", DebuggerEnv_getInspectable, 0),
     JS_PS_END
 };
 

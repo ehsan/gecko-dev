@@ -722,7 +722,7 @@ nsXMLContentSink::ProcessStyleLink(nsIContent* aElement,
 
     // Do content policy check
     int16_t decision = nsIContentPolicy::ACCEPT;
-    rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_XSLT,
+    rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_STYLESHEET,
                                    url,
                                    mDocument->NodePrincipal(),
                                    aElement,

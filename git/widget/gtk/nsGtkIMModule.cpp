@@ -1565,7 +1565,7 @@ nsGtkIMModule::DeleteText(const int32_t aOffset, const uint32_t aNChars)
 }
 
 void
-nsGtkIMModule::InitEvent(WidgetGUIEvent& aEvent)
+nsGtkIMModule::InitEvent(nsGUIEvent &aEvent)
 {
     aEvent.time = PR_Now() / 1000;
 }
