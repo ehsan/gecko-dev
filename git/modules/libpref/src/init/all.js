@@ -66,9 +66,15 @@ pref("browser.cache.disk.smart_size.first_run", true);
 pref("browser.cache.disk.smart_size.enabled", true);
 // Size explicitly set by the user. Used when smart_size.enabled == false
 pref("browser.cache.disk.capacity",         256000);
+// User-controllable max-size for entries in disk-cache. Regardless of this
+// setting, no entries bigger than 1/8 of disk-cache will be cached
+pref("browser.cache.disk.max_entry_size",    5120);
 pref("browser.cache.memory.enable",         true);
-//pref("browser.cache.memory.capacity",     -1);
 // -1 = determine dynamically, 0 = none, n = memory capacity in kilobytes
+//pref("browser.cache.memory.capacity",     -1);
+// User-controllable max-size for entries in mem-cache. Regardless of this
+// setting, no entries bigger than 90% of the mem-cache will be cached
+pref("browser.cache.memory.max_entry_size",  5120);
 pref("browser.cache.disk_cache_ssl",        true);
 // 0 = once-per-session, 1 = each-time, 2 = never, 3 = when-appropriate/automatically
 pref("browser.cache.check_doc_frequency",   3);
@@ -812,6 +818,11 @@ pref("network.websocket.timeout.ping.response", 10);
 // Defines whether or not to try and negotiate the stream-deflate compression
 // extension with the websocket server
 pref("network.websocket.extensions.stream-deflate", true);
+
+// the maximum number of concurrent websocket sessions. By specification there
+// is never more than one handshake oustanding to an individual host at
+// one time.
+pref("network.websocket.max-connections", 200);
 
 // </ws>
 
