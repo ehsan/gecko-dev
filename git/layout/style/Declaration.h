@@ -50,12 +50,16 @@
 #error "This file should only be included within the layout library"
 #endif
 
-#include "nsCSSDataBlock.h"
-#include "nsCSSProperty.h"
-#include "nsCSSProps.h"
-#include "nsStringFwd.h"
-#include "nsTArray.h"
+#include "nsISupports.h"
+#include "nsColor.h"
 #include <stdio.h>
+#include "nsString.h"
+#include "nsCoord.h"
+#include "nsCSSValue.h"
+#include "nsCSSProps.h"
+#include "nsTArray.h"
+#include "nsCSSDataBlock.h"
+#include "nsCSSStruct.h"
 
 namespace mozilla {
 namespace css {
@@ -116,8 +120,8 @@ public:
    * After calling, |aExpandedData| should be in its initial state.
    */
   void CompressFrom(nsCSSExpandedDataBlock *aExpandedData) {
-    NS_ABORT_IF_FALSE(!mData, "oops");
-    NS_ABORT_IF_FALSE(!mImportantData, "oops");
+    NS_ASSERTION(!mData, "oops");
+    NS_ASSERTION(!mImportantData, "oops");
     aExpandedData->Compress(getter_Transfers(mData),
                             getter_Transfers(mImportantData));
     aExpandedData->AssertInitialState();
@@ -134,7 +138,7 @@ public:
     AssertMutable();
     aExpandedData->AssertInitialState();
 
-    NS_ABORT_IF_FALSE(mData, "oops");
+    NS_ASSERTION(mData, "oops");
     aExpandedData->Expand(mData.forget(), mImportantData.forget());
   }
 
@@ -153,47 +157,40 @@ public:
   }
 
   /**
-   * Attempt to replace the value for |aProperty| stored in this
-   * declaration with the matching value from |aFromBlock|.
-   * This method may only be called on a mutable declaration.
-   * It will fail (returning PR_FALSE) if |aProperty| is shorthand,
-   * is not already in this declaration, or does not have the indicated
-   * importance level.  If it returns PR_TRUE, it erases the value in
-   * |aFromBlock|.  |aChanged| is set to PR_TRUE if the declaration
-   * changed as a result of the call, and to PR_FALSE otherwise.
+   * Return a pointer to our current value for this property.
+   * Only returns non-null if the property is longhand, set, and
+   * has the indicated importance level.
+   *
+   * May only be called when not expanded, and the caller must call
+   * EnsureMutable first.
    */
-  PRBool TryReplaceValue(nsCSSProperty aProperty, PRBool aIsImportant,
-                         nsCSSExpandedDataBlock& aFromBlock,
-                         PRBool* aChanged)
-  {
+  void* SlotForValue(nsCSSProperty aProperty, PRBool aIsImportant) {
     AssertMutable();
     NS_ABORT_IF_FALSE(mData, "called while expanded");
 
     if (nsCSSProps::IsShorthand(aProperty)) {
-      *aChanged = PR_FALSE;
-      return PR_FALSE;
+      return nsnull;
     }
     nsCSSCompressedDataBlock *block = aIsImportant ? mImportantData : mData;
     // mImportantData might be null
     if (!block) {
-      *aChanged = PR_FALSE;
-      return PR_FALSE;
+      return nsnull;
     }
 
+    void *slot = block->SlotForValue(aProperty);
 #ifdef DEBUG
     {
       nsCSSCompressedDataBlock *other = aIsImportant ? mData : mImportantData;
-      NS_ABORT_IF_FALSE(!other || !other->ValueFor(aProperty) ||
-                        !block->ValueFor(aProperty),
+      NS_ABORT_IF_FALSE(!slot || !other || !other->StorageFor(aProperty),
                         "Property both important and not?");
     }
 #endif
-    return block->TryReplaceValue(aProperty, aFromBlock, aChanged);
+    return slot;
   }
 
   PRBool HasNonImportantValueFor(nsCSSProperty aProperty) const {
     NS_ABORT_IF_FALSE(!nsCSSProps::IsShorthand(aProperty), "must be longhand");
-    return !!mData->ValueFor(aProperty);
+    return !!mData->StorageFor(aProperty);
   }
 
   /**
