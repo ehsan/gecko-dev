@@ -7,7 +7,6 @@ package org.mozilla.gecko.db;
 
 import org.mozilla.gecko.db.BrowserContract.Bookmarks;
 import org.mozilla.gecko.db.BrowserContract.ExpirePriority;
-import org.mozilla.gecko.favicons.decoders.LoadFaviconResult;
 import org.mozilla.gecko.mozglue.RobocopTarget;
 
 import android.content.ContentResolver;
@@ -95,11 +94,11 @@ public class BrowserDB {
 
         public void removeReadingListItemWithURL(ContentResolver cr, String uri);
 
-        public LoadFaviconResult getFaviconForUrl(ContentResolver cr, String uri);
+        public Bitmap getFaviconForUrl(ContentResolver cr, String uri);
 
         public String getFaviconUrlForHistoryUrl(ContentResolver cr, String url);
 
-        public void updateFaviconForUrl(ContentResolver cr, String pageUri, byte[] encodedFavicon, String faviconUri);
+        public void updateFaviconForUrl(ContentResolver cr, String pageUri, Bitmap favicon, String faviconUri);
 
         public void updateThumbnailForUrl(ContentResolver cr, String uri, BitmapDrawable thumbnail);
 
@@ -258,7 +257,7 @@ public class BrowserDB {
         sDb.removeReadingListItemWithURL(cr, uri);
     }
 
-    public static LoadFaviconResult getFaviconForFaviconUrl(ContentResolver cr, String faviconURL) {
+    public static Bitmap getFaviconForFaviconUrl(ContentResolver cr, String faviconURL) {
         return sDb.getFaviconForUrl(cr, faviconURL);
     }
 
@@ -266,8 +265,8 @@ public class BrowserDB {
         return sDb.getFaviconUrlForHistoryUrl(cr, url);
     }
 
-    public static void updateFaviconForUrl(ContentResolver cr, String pageUri, byte[] encodedFavicon, String faviconUri) {
-        sDb.updateFaviconForUrl(cr, pageUri, encodedFavicon, faviconUri);
+    public static void updateFaviconForUrl(ContentResolver cr, String pageUri, Bitmap favicon, String faviconUri) {
+        sDb.updateFaviconForUrl(cr, pageUri, favicon, faviconUri);
     }
 
     public static void updateThumbnailForUrl(ContentResolver cr, String uri, BitmapDrawable thumbnail) {

@@ -6,13 +6,10 @@
 
 /* Private maps (hashtables). */
 
-#include "mozilla/MathAlgorithms.h"
 #include "mozilla/MemoryReporting.h"
 #include "xpcprivate.h"
 
 #include "js/HashTable.h"
-
-using namespace mozilla;
 
 /***************************************************************************/
 // static shared...
@@ -521,7 +518,7 @@ XPCNativeScriptableSharedMap::Entry::Hash(PLDHashTable *table, const void *key)
 
     h = (PLDHashNumber) obj->GetFlags();
     for (s = (const unsigned char*) obj->GetJSClass()->name; *s != '\0'; s++)
-        h = RotateLeft(h, 4) ^ *s;
+        h = JS_ROTATE_LEFT32(h, 4) ^ *s;
     return h;
 }
 

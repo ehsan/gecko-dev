@@ -46,7 +46,6 @@ interface nsIDocShellTreeItem : nsISupports
 	The type this item is.  
 	*/
 	attribute long itemType;
-	[noscript,notxpcom,nostdcall] long ItemType();
 
 	/*
 	Parent DocShell.

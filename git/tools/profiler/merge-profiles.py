@@ -41,19 +41,16 @@ def MergeProfiles(files):
             threads.append(thread)
 
             # Note that pid + sym, pid + location could be ambigious
-            # if we had pid=11 sym=1 && pid=1 sym=11.
-            pidStr = pid + ":"
+            # if we had pid=11 sym=1 && pid=1 sym=11. To avoid this we format
+            # pidStr with leading zeros.
+            pidStr = "%05d" % (int(pid))
 
             thread['startTime'] = fileData['profileJSON']['meta']['startTime']
             samples = thread['samples']
             for sample in thread['samples']:
                 for frame in sample['frames']:
                     if "location" in frame and frame['location'][0:2] == '0x':
-                        oldLoc = frame['location']
-                        newLoc = pidStr + oldLoc
-                        frame['location'] = newLoc
-                        # Default to the unprefixed symbol if no translation is available
-                        symTable[newLoc] = oldLoc
+                        frame['location'] = pidStr + frame['location']
 
         filesyms = fileData['symbolicationTable']
         for sym in filesyms.keys():

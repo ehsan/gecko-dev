@@ -408,10 +408,16 @@ DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
   // if set, serialize the content under this node
   nsCOMPtr<nsIContent> nodeToSerialize;
 
+  bool isChromeShell = false;
   nsCOMPtr<nsIWebNavigation> webnav = do_GetInterface(mWindow);
   nsCOMPtr<nsIDocShellTreeItem> dsti = do_QueryInterface(webnav);
-  const bool isChromeShell =
-    dsti && dsti->ItemType() == nsIDocShellTreeItem::typeChrome;
+  if (dsti) {
+    int32_t type = -1;
+    if (NS_SUCCEEDED(dsti->GetItemType(&type)) &&
+        type == nsIDocShellTreeItem::typeChrome) {
+      isChromeShell = true;
+    }
+  }
 
   // In chrome shells, only allow dragging inside editable areas.
   if (isChromeShell && !editingElement)
