@@ -65,7 +65,6 @@ void JS_FASTCALL SlowNew(VMFrame &f, uint32 argc);
 void JS_FASTCALL SlowCall(VMFrame &f, uint32 argc);
 void * JS_FASTCALL UncachedNew(VMFrame &f, uint32 argc);
 void * JS_FASTCALL UncachedCall(VMFrame &f, uint32 argc);
-void JS_FASTCALL Eval(VMFrame &f, uint32 argc);
 void JS_FASTCALL EnterScript(VMFrame &f);
 void JS_FASTCALL LeaveScript(VMFrame &f);
 
