@@ -8,6 +8,7 @@
 #define jit_IonTypes_h
 
 #include "mozilla/HashFunctions.h"
+#include "mozilla/TypedEnum.h"
 
 #include "jstypes.h"
 
@@ -631,7 +632,7 @@ enum ABIFunctionType
         (ArgType_General << (ArgType_Shift * 2))
 };
 
-enum class BarrierKind : uint32_t {
+MOZ_BEGIN_ENUM_CLASS(BarrierKind, uint32_t)
     // No barrier is needed.
     NoBarrier,
 
@@ -642,7 +643,7 @@ enum class BarrierKind : uint32_t {
     // Check if the value is in the TypeSet, including the object type if it's
     // an object.
     TypeSet
-};
+MOZ_END_ENUM_CLASS(BarrierKind)
 
 } // namespace jit
 } // namespace js

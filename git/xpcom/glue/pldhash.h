@@ -9,7 +9,6 @@
 /*
  * Double hashing, a la Knuth 6.
  */
-#include "mozilla/Attributes.h" // for MOZ_ALWAYS_INLINE
 #include "mozilla/fallible.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Types.h"

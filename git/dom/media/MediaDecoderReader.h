@@ -13,6 +13,8 @@
 #include "MediaQueue.h"
 #include "AudioCompactor.h"
 
+#include "mozilla/TypedEnum.h"
+
 namespace mozilla {
 
 namespace dom {

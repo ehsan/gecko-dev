@@ -8,6 +8,8 @@
 
 #include <stdint.h>
 
+#include "mozilla/TypedEnum.h"
+
 /**
  * XXX Following enums should be in BasicEvents.h.  However, currently, it's
  *     impossible to use foward delearation for enum.

@@ -12,11 +12,11 @@ namespace dom {
 
 // Use multiples of 2 since they can be bitwise ORed when calling
 // InvalidateServiceWorkerRegistrationWorker.
-enum class WhichServiceWorker {
+MOZ_BEGIN_ENUM_CLASS(WhichServiceWorker)
   INSTALLING_WORKER = 1,
   WAITING_WORKER    = 2,
   ACTIVE_WORKER     = 4,
-};
+MOZ_END_ENUM_CLASS(WhichServiceWorker)
 MOZ_MAKE_ENUM_CLASS_BITWISE_OPERATORS(WhichServiceWorker)
 
 } // dom namespace

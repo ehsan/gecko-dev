@@ -156,7 +156,7 @@ public:
   NS_DECL_ISUPPORTS
 
   NS_METHOD CollectReports(nsIHandleReportCallback* aHandleReport,
-                           nsISupports* aData, bool aAnonymize) MOZ_OVERRIDE
+                           nsISupports* aData, bool aAnonymize)
   {
     int64_t amount = 0;
     nsresult rv = ResidentUniqueDistinguishedAmount(&amount);

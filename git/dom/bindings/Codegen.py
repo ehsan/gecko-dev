@@ -8440,10 +8440,10 @@ class CGEnum(CGThing):
     def declare(self):
         decl = fill(
             """
-            enum class ${name} : uint32_t {
+            MOZ_BEGIN_ENUM_CLASS(${name}, uint32_t)
               $*{enums}
               EndGuard_
-            };
+            MOZ_END_ENUM_CLASS(${name})
             """,
             name=self.enum.identifier.name,
             enums=",\n".join(map(getEnumValueName, self.enum.values())) + ",\n")
