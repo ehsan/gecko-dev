@@ -14107,13 +14107,6 @@ nsGlobalWindow::CreateNamedPropertiesObject(JSContext *aCx,
   return WindowNamedPropertiesHandler::Create(aCx, aProto);
 }
 
-bool
-nsGlobalWindow::GetIsPrerendered()
-{
-  nsIDocShell* docShell = GetDocShell();
-  return docShell && docShell->GetIsPrerendered();
-}
-
 #ifdef MOZ_B2G
 void
 nsGlobalWindow::EnableNetworkEvent(uint32_t aType)

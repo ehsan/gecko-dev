@@ -164,8 +164,7 @@ private:
                                 // line and -1 if we are in a line.
 
   bool             mInWhitespace;
-  bool             mPreFormattedMail; // we're dealing with special DOM
-                                      // used by Thunderbird code.
+  bool             mPreFormatted;
   bool             mStartedOutput; // we've produced at least a character
 
   // While handling a new tag, this variable should remind if any line break

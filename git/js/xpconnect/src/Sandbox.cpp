@@ -195,6 +195,31 @@ SandboxImport(JSContext *cx, unsigned argc, Value *vp)
 }
 
 static bool
+SandboxCreateXMLHttpRequest(JSContext *cx, unsigned argc, jsval *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+
+    RootedObject global(cx, JS::CurrentGlobalOrNull(cx));
+    MOZ_ASSERT(global);
+
+    nsIScriptObjectPrincipal *sop =
+        static_cast<nsIScriptObjectPrincipal *>(xpc_GetJSPrivate(global));
+    nsCOMPtr<nsIGlobalObject> iglobal = do_QueryInterface(sop);
+
+    nsCOMPtr<nsIXMLHttpRequest> xhr = new nsXMLHttpRequest();
+    nsresult rv = xhr->Init(nsContentUtils::SubjectPrincipal(), nullptr,
+                            iglobal, nullptr, nullptr);
+    if (NS_FAILED(rv))
+        return false;
+
+    rv = nsContentUtils::WrapNative(cx, xhr, args.rval());
+    if (NS_FAILED(rv))
+        return false;
+
+    return true;
+}
+
+static bool
 SandboxCreateCrypto(JSContext *cx, JS::HandleObject obj)
 {
     MOZ_ASSERT(JS_IsGlobalObject(obj));
@@ -818,7 +843,7 @@ xpc::GlobalProperties::Define(JSContext *cx, JS::HandleObject obj)
         return false;
 
     if (XMLHttpRequest &&
-        !dom::XMLHttpRequestBinding::GetConstructorObject(cx, obj))
+        !JS_DefineFunction(cx, obj, "XMLHttpRequest", SandboxCreateXMLHttpRequest, 0, JSFUN_CONSTRUCTOR))
         return false;
 
     if (TextEncoder &&

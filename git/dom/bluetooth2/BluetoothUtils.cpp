@@ -246,9 +246,11 @@ DispatchStatusChangedEvent(const nsAString& aType,
   BT_APPEND_NAMED_VALUE(data, "address", nsString(aAddress));
   BT_APPEND_NAMED_VALUE(data, "status", aStatus);
 
+  BluetoothSignal signal(nsString(aType), NS_LITERAL_STRING(KEY_ADAPTER), data);
+
   BluetoothService* bs = BluetoothService::Get();
   NS_ENSURE_TRUE_VOID(bs);
-  bs->DistributeSignal(aType, NS_LITERAL_STRING(KEY_ADAPTER), data);
+  bs->DistributeSignal(signal);
 }
 
 bool
