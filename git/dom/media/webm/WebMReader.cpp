@@ -26,8 +26,9 @@
 #include "OggReader.h"
 
 // IntelWebMVideoDecoder uses the WMF backend, which is Windows Vista+ only.
-#if defined(MOZ_PDM_VPX)
+#if defined(MOZ_FMP4) && defined(MOZ_WMF)
 #include "IntelWebMVideoDecoder.h"
+#define MOZ_PDM_VPX 1
 #endif
 
 // Un-comment to enable logging of seek bisections.

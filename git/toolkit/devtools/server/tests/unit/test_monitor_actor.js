@@ -11,7 +11,7 @@ function run_test()
 {
   let EventEmitter = devtools.require("devtools/toolkit/event-emitter");
 
-  DebuggerServer.init();
+  DebuggerServer.init(function () { return true; });
   DebuggerServer.addBrowserActors();
 
   let client = new DebuggerClient(DebuggerServer.connectPipe());

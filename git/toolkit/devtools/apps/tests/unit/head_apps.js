@@ -21,7 +21,7 @@ let gClient, gActor, gActorFront;
 
 function connect(onDone) {
   // Initialize a loopback remote protocol connection
-  DebuggerServer.init();
+  DebuggerServer.init(function () { return true; });
   // We need to register browser actors to have `listTabs` working
   // and also have a root actor
   DebuggerServer.addBrowserActors();

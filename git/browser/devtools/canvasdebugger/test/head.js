@@ -184,7 +184,7 @@ function reload(aTarget, aWaitForTargetEvent = "navigate") {
 
 function initServer() {
   if (!DebuggerServer.initialized) {
-    DebuggerServer.init();
+    DebuggerServer.init(() => true);
     DebuggerServer.addBrowserActors();
   }
 }

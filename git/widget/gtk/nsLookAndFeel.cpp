@@ -284,17 +284,10 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor& aColor)
 #endif
         break;
 
-    case eColorID_threedlightshadow:
-        // 3-D highlighted inner edge color
-        // always same as background in GTK code
     case eColorID_threedface:
     case eColorID_buttonface:
         // 3-D face color
-#if (MOZ_WIDGET_GTK == 3)
-        aColor = sMozWindowBackground;
-#else
-        aColor = sButtonBackground;
-#endif
+        aColor = sFrameBackground;
         break;
 
     case eColorID_buttontext:
@@ -307,6 +300,11 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor& aColor)
     case eColorID_threedhighlight:
         // 3-D highlighted outer edge color
         aColor = sFrameOuterLightBorder;
+        break;
+
+    case eColorID_threedlightshadow:
+        // 3-D highlighted inner edge color
+        aColor = sFrameBackground; // always same as background in GTK code
         break;
 
     case eColorID_buttonshadow:
@@ -1143,7 +1141,7 @@ nsLookAndFeel::Init()
 
     style = gtk_widget_get_style(button);
     if (style) {
-        sButtonBackground = GDK_COLOR_TO_NS_RGB(style->bg[GTK_STATE_NORMAL]);
+        sFrameBackground = GDK_COLOR_TO_NS_RGB(style->bg[GTK_STATE_NORMAL]);
         sFrameOuterLightBorder =
             GDK_COLOR_TO_NS_RGB(style->light[GTK_STATE_NORMAL]);
         sFrameInnerDarkBorder =
@@ -1191,9 +1189,12 @@ nsLookAndFeel::Init()
     GtkWidget *frame = gtk_frame_new(nullptr);
     gtk_container_add(GTK_CONTAINER(parent), frame);
 
+    style = gtk_widget_get_style_context(frame);
+    gtk_style_context_get_background_color(style, GTK_STATE_FLAG_NORMAL, &color);
+    sFrameBackground = GDK_RGBA_TO_NS_RGBA(color);
+
     // TODO GTK3 - update sFrameOuterLightBorder 
     // for GTK_BORDER_STYLE_INSET/OUTSET/GROVE/RIDGE border styles (Bug 978172).
-    style = gtk_widget_get_style_context(frame);
     gtk_style_context_get_border_color(style, GTK_STATE_FLAG_NORMAL, &color);
     sFrameInnerDarkBorder = sFrameOuterLightBorder = GDK_RGBA_TO_NS_RGBA(color);
 #endif

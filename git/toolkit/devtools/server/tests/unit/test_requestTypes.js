@@ -38,7 +38,7 @@ function test_existent_actor(aClient, anActor)
 
 function run_test()
 {
-  DebuggerServer.init();
+  DebuggerServer.init(function () { return true; });
   DebuggerServer.addBrowserActors();
   var client = new DebuggerClient(DebuggerServer.connectPipe());
   client.connect(function() {

@@ -68,7 +68,7 @@ function runTests() {
 
   // Instantiate a minimal server
   if (!DebuggerServer.initialized) {
-    DebuggerServer.init();
+    DebuggerServer.init(function () { return true; });
   }
   if (!DebuggerServer.createRootActor) {
     DebuggerServer.addBrowserActors();

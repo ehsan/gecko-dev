@@ -36,7 +36,7 @@ exports.testDebugger = function(assert, done) {
   ok(true, 'PageMod was created');
 
   if (!DebuggerServer.initialized) {
-    DebuggerServer.init();
+    DebuggerServer.init(() => true);
     DebuggerServer.addBrowserActors();
   }
 

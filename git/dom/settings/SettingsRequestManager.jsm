@@ -4,18 +4,8 @@
 
 "use strict";
 
-let DEBUG = false;
-let VERBOSE = false;
-
-try {
-  DEBUG   =
-    Services.prefs.getBoolPref("dom.mozSettings.SettingsRequestManager.debug.enabled");
-  VERBOSE =
-    Services.prefs.getBoolPref("dom.mozSettings.SettingsRequestManager.verbose.enabled");
-} catch (ex) { }
-
+const DEBUG = false;
 function debug(s) { dump("-*- SettingsRequestManager: " + s + "\n"); }
-
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
@@ -43,9 +33,6 @@ const kAllSettingsWritePermission      = "settings" + kSettingsWriteSuffix;
 const kSomeSettingsReadPermission      = "settings-api" + kSettingsReadSuffix;
 const kSomeSettingsWritePermission     = "settings-api" + kSettingsWriteSuffix;
 
-XPCOMUtils.defineLazyServiceGetter(this, "mrm",
-                                   "@mozilla.org/memory-reporter-manager;1",
-                                   "nsIMemoryReporterManager");
 XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
                                    "@mozilla.org/parentprocessmessagemanager;1",
                                    "nsIMessageBroadcaster");
@@ -115,7 +102,7 @@ function SettingsLockInfo(aDB, aMsgMgr, aLockID, aIsServiceLock, aWindowID) {
     // Lets us know if this lock has been used to clear at any point.
     hasCleared: false,
     getObjectStore: function(aPrincipal) {
-      if (VERBOSE) debug("Getting transaction for " + this.lockID);
+      if (DEBUG) debug("Getting transaction for " + this.lockID);
       let store;
       // Test for transaction validity via trying to get the
       // datastore. If it doesn't work, assume the transaction is
@@ -125,9 +112,8 @@ function SettingsLockInfo(aDB, aMsgMgr, aLockID, aIsServiceLock, aWindowID) {
           store = this._transaction.objectStore(SETTINGSSTORE_NAME);
         } catch (e) {
           if (e.name == "InvalidStateError") {
-            if (VERBOSE) debug("Current transaction for " + this.lockID + " closed, trying to create new one.");
+            if (DEBUG) debug("Current transaction for " + this.lockID + " closed, trying to create new one.");
           } else {
-            if (DEBUG) debug("Unexpected exception, throwing: " + e);
             throw e;
           }
         }
@@ -137,14 +123,14 @@ function SettingsLockInfo(aDB, aMsgMgr, aLockID, aIsServiceLock, aWindowID) {
       // it means we don't have to do our own transaction order
       // bookkeeping.
       if (!SettingsPermissions.hasSomeWritePermission(aPrincipal)) {
-        if (VERBOSE) debug("Making READONLY transaction for " + this.lockID);
+        if (DEBUG) debug("Making READONLY transaction for " + this.lockID);
         this._transaction = aDB._db.transaction(SETTINGSSTORE_NAME, "readonly");
       } else {
-        if (VERBOSE) debug("Making READWRITE transaction for " + this.lockID);
+        if (DEBUG) debug("Making READWRITE transaction for " + this.lockID);
         this._transaction = aDB._db.transaction(SETTINGSSTORE_NAME, "readwrite");
       }
       this._transaction.oncomplete = function() {
-        if (VERBOSE) debug("Transaction for lock " + this.lockID + " closed");
+        if (DEBUG) debug("Transaction for lock " + this.lockID + " closed");
       }.bind(this);
       this._transaction.onabort = function () {
         if (DEBUG) debug("Transaction for lock " + this.lockID + " aborted");
@@ -157,7 +143,6 @@ function SettingsLockInfo(aDB, aMsgMgr, aLockID, aIsServiceLock, aWindowID) {
             if (DEBUG) debug("Cannot create objectstore on transaction for " + this.lockID);
             return null;
           } else {
-            if (DEBUG) debug("Unexpected exception, throwing: " + e);
             throw e;
           }
       }
@@ -181,17 +166,15 @@ let SettingsRequestManager = {
   settingsLockQueue: [],
   children: [],
   mmPrincipals: new Map(),
-  tasksConsumed: 0,
 
   init: function() {
-    if (VERBOSE) debug("init");
+    if (DEBUG) debug("init");
     this.settingsDB.init();
     this.messages.forEach((function(msgName) {
       ppmm.addMessageListener(msgName, this);
     }).bind(this));
     Services.obs.addObserver(this, kXpcomShutdownObserverTopic, false);
     Services.obs.addObserver(this, kInnerWindowDestroyed, false);
-    mrm.registerStrongReporter(this);
   },
 
   _serializePreservingBinaries: function _serializePreservingBinaries(aObject) {
@@ -226,7 +209,7 @@ let SettingsRequestManager = {
   },
 
   queueTask: function(aOperation, aData, aPrincipal) {
-    if (VERBOSE) debug("Queueing task: " + aOperation);
+    if (DEBUG) debug("Queueing task: " + aOperation);
 
     let defer = {};
 
@@ -263,7 +246,7 @@ let SettingsRequestManager = {
   // get, which means it will resolves afer the rest of the calls
   // queued to the DB.
   queueTaskReturn: function(aTask, aReturnValue) {
-    if (VERBOSE) debug("Making task queuing transaction request.");
+    if (DEBUG) debug("Making task queuing transaction request.");
     let data = aTask.data;
     let lock = this.lockInfo[data.lockID];
     let store = lock.getObjectStore(aTask.principal);
@@ -295,7 +278,7 @@ let SettingsRequestManager = {
   },
   
   taskGet: function(aTask) {
-    if (VERBOSE) debug("Running Get task on lock " + aTask.data.lockID);
+    if (DEBUG) debug("Running Get task on lock " + aTask.data.lockID);
 
     // Check that we have permissions for getting the value
     let data = aTask.data;
@@ -324,21 +307,21 @@ let SettingsRequestManager = {
 
     // If the value was set during this transaction, use the cached value
     if (data.name in lock.queuedSets) {
-      if (VERBOSE) debug("Returning cached set value " + lock.queuedSets[data.name] + " for " + data.name);
+      if (DEBUG) debug("Returning cached set value " + lock.queuedSets[data.name] + " for " + data.name);
       let local_results = {};
       local_results[data.name] = lock.queuedSets[data.name];
       return this.queueTaskReturn(aTask, {task: aTask, results: local_results});
     }
 
     // Create/Get transaction and make request
-    if (VERBOSE) debug("Making get transaction request for " + data.name);
+    if (DEBUG) debug("Making get transaction request for " + data.name);
     let store = lock.getObjectStore(aTask.principal);
     if (!store) {
       if (DEBUG) debug("Rejecting Get task on lock " + aTask.data.lockID);
       return Promise.reject({task: aTask, error: "Cannot get object store"});
     }
 
-    if (VERBOSE) debug("Making get request for " + data.name);
+    if (DEBUG) debug("Making get request for " + data.name);
     let getReq = (data.name === "*") ? store.mozGetAll() : store.mozGetAll(data.name);
 
     let defer = {};
@@ -348,11 +331,11 @@ let SettingsRequestManager = {
     });
 
     getReq.onsuccess = function(event) {
-      if (VERBOSE) debug("Request for '" + data.name + "' successful. " +
+      if (DEBUG) debug("Request for '" + data.name + "' successful. " +
             "Record count: " + event.target.result.length);
 
       if (event.target.result.length == 0) {
-        if (VERBOSE) debug("MOZSETTINGS-GET-WARNING: " + data.name + " is not in the database.\n");
+        if (DEBUG) debug("MOZSETTINGS-GET-WARNING: " + data.name + " is not in the database.\n");
       }
 
       let results = {};
@@ -360,7 +343,7 @@ let SettingsRequestManager = {
       for (let i in event.target.result) {
         let result = event.target.result[i];
         let name = result.settingName;
-        if (VERBOSE) debug(name + ": " + result.userValue +", " + result.defaultValue);
+        if (DEBUG) debug(name + ": " + result.userValue +", " + result.defaultValue);
         let value = result.userValue !== undefined ? result.userValue : result.defaultValue;
         results[name] = value;
       }
@@ -408,7 +391,7 @@ let SettingsRequestManager = {
 
     for (let i = 0; i < keys.length; i++) {
       let key = keys[i];
-      if (VERBOSE) debug("key: " + key + ", val: " + JSON.stringify(data.settings[key]) + ", type: " + typeof(data.settings[key]));
+      if (DEBUG) debug("key: " + key + ", val: " + JSON.stringify(data.settings[key]) + ", type: " + typeof(data.settings[key]));
       lock.queuedSets[key] = data.settings[key];
     }
 
@@ -427,13 +410,13 @@ let SettingsRequestManager = {
     if (aLockID == this.settingsLockQueue[0] || this.settingsLockQueue.length == 0) {
       // If a lock is currently at the head of the queue, run all tasks for
       // it.
-      if (VERBOSE) debug("Start running tasks for " + aLockID);
+      if (DEBUG) debug("Start running tasks for " + aLockID);
       this.queueConsume();
     } else {
       // If a lock isn't at the head of the queue, but requests to be run,
       // simply mark it as consumable, which means it will automatically run
       // once it comes to the head of the queue.
-      if (VERBOSE) debug("Queuing tasks for " + aLockID + " while waiting for " + this.settingsLockQueue[0]);
+      if (DEBUG) debug("Queuing tasks for " + aLockID + " while waiting for " + this.settingsLockQueue[0]);
     }
   },
 
@@ -445,7 +428,7 @@ let SettingsRequestManager = {
 
   finalizeSets: function(aTask) {
     let data = aTask.data;
-    if (VERBOSE) debug("Finalizing tasks for lock " + data.lockID);
+    if (DEBUG) debug("Finalizing tasks for lock " + data.lockID);
     let lock = this.lockInfo[data.lockID];
 
     if (!lock) {
@@ -459,13 +442,13 @@ let SettingsRequestManager = {
     // If we have cleared, there is no reason to continue finalizing
     // this lock. Just resolve promise with task and move on.
     if (lock.hasCleared) {
-      if (VERBOSE) debug("Clear was called on lock, skipping finalize");
+      if (DEBUG) debug("Clear was called on lock, skipping finalize");
       this.removeLock(data.lockID);
       return Promise.resolve({task: aTask});
     }
     let keys = Object.getOwnPropertyNames(lock.queuedSets);
     if (keys.length === 0) {
-      if (VERBOSE) debug("Nothing to finalize. Exiting.");
+      if (DEBUG) debug("Nothing to finalize. Exiting.");
       this.removeLock(data.lockID);
       return Promise.resolve({task: aTask});
     }
@@ -483,7 +466,7 @@ let SettingsRequestManager = {
     let finalValues = {};
     for (let i = 0; i < keys.length; i++) {
       let key = keys[i];
-      if (VERBOSE) debug("key: " + key + ", val: " + lock.queuedSets[key] + ", type: " + typeof(lock.queuedSets[key]));
+      if (DEBUG) debug("key: " + key + ", val: " + lock.queuedSets[key] + ", type: " + typeof(lock.queuedSets[key]));
       let checkDefer = {};
       let checkPromise = new Promise(function(resolve, reject) {
         checkDefer.resolve = resolve;
@@ -499,7 +482,7 @@ let SettingsRequestManager = {
         let defaultValue;
         if (!event.target.result) {
           defaultValue = null;
-          if (VERBOSE) debug("MOZSETTINGS-GET-WARNING: " + key + " is not in the database.\n");
+          if (DEBUG) debug("MOZSETTINGS-GET-WARNING: " + key + " is not in the database.\n");
         } else {
           defaultValue = event.target.result.defaultValue;
         }
@@ -507,8 +490,8 @@ let SettingsRequestManager = {
         finalValues[key] = {defaultValue: defaultValue, userValue: userValue};
         let setReq = store.put(obj);
         setReq.onsuccess = function() {
-          if (VERBOSE) debug("Set successful!");
-          if (VERBOSE) debug("key: " + key + ", val: " + finalValues[key] + ", type: " + typeof(finalValues[key]));
+          if (DEBUG) debug("Set successful!");
+          if (DEBUG) debug("key: " + key + ", val: " + finalValues[key] + ", type: " + typeof(finalValues[key]));
           return checkDefer.resolve({task: aTask});
         };
         setReq.onerror = function() {
@@ -550,7 +533,7 @@ let SettingsRequestManager = {
   // even by certified apps, which is why it has its own permission
   // (settings-clear).
   taskClear: function(aTask) {
-    if (VERBOSE) debug("Clearing");
+    if (DEBUG) debug("Clearing");
     let data = aTask.data;
     let lock = this.lockInfo[data.lockID];
 
@@ -595,7 +578,7 @@ let SettingsRequestManager = {
   },
 
   ensureConnection : function() {
-    if (VERBOSE) debug("Ensuring Connection");
+    if (DEBUG) debug("Ensuring Connection");
     let defer = {};
     let promiseWrapper = new Promise(function(resolve, reject) {
       defer.resolve = resolve;
@@ -612,7 +595,7 @@ let SettingsRequestManager = {
   },
 
   runTasks: function(aLockID) {
-    if (VERBOSE) debug("Running tasks for " + aLockID);
+    if (DEBUG) debug("Running tasks for " + aLockID);
     let lock = this.lockInfo[aLockID];
     if (!lock) {
       if (DEBUG) debug("Lock no longer alive, cannot run tasks");
@@ -621,7 +604,7 @@ let SettingsRequestManager = {
     let currentTask = lock.tasks.shift();
     let promises = [];
     while (currentTask) {
-      if (VERBOSE) debug("Running Operation " + currentTask.operation);
+      if (DEBUG) debug("Running Operation " + currentTask.operation);
       if (lock.finalizing) {
         // We should really never get to this point, but if we do,
         // fail every task that happens.
@@ -629,7 +612,6 @@ let SettingsRequestManager = {
         currentTask.defer.reject("Cannot call new task after finalizing");
       } else {
       let p;
-      this.tasksConsumed++;
       switch (currentTask.operation) {
         case "get":
           p = this.taskGet(currentTask);
@@ -660,12 +642,12 @@ let SettingsRequestManager = {
 
   consumeTasks: function() {
     if (this.settingsLockQueue.length == 0) {
-      if (VERBOSE) debug("Nothing to run!");
+      if (DEBUG) debug("Nothing to run!");
       return;
     }
 
     let lockID = this.settingsLockQueue[0];
-    if (VERBOSE) debug("Consuming tasks for " + lockID);
+    if (DEBUG) debug("Consuming tasks for " + lockID);
     let lock = this.lockInfo[lockID];
 
     // If a process dies, we should clean up after it via the
@@ -678,7 +660,7 @@ let SettingsRequestManager = {
     }
 
     if (!lock.consumable || lock.tasks.length === 0) {
-      if (VERBOSE) debug("No more tasks to run or not yet consuamble.");
+      if (DEBUG) debug("No more tasks to run or not yet consuamble.");
       return;
     }
 
@@ -692,7 +674,7 @@ let SettingsRequestManager = {
   },
 
   observe: function(aSubject, aTopic, aData) {
-    if (VERBOSE) debug("observe: " + aTopic);
+    if (DEBUG) debug("observe: " + aTopic);
     switch (aTopic) {
       case kXpcomShutdownObserverTopic:
         this.messages.forEach((function(msgName) {
@@ -700,7 +682,6 @@ let SettingsRequestManager = {
         }).bind(this));
         Services.obs.removeObserver(this, kXpcomShutdownObserverTopic);
         ppmm = null;
-        mrm.unregisterStrongReporter(this);
         break;
 
       case kInnerWindowDestroyed:
@@ -712,34 +693,6 @@ let SettingsRequestManager = {
         if (DEBUG) debug("Wrong observer topic: " + aTopic);
         break;
     }
-  },
-
-  collectReports: function(aCallback, aData, aAnonymize) {
-    for (let lockId of Object.keys(this.lockInfo)) {
-      let lock = this.lockInfo[lockId];
-      let length = lock.tasks.length;
-
-      if (length === 0) {
-        continue;
-      }
-
-      let path = "settings-locks/tasks/queue-length(id=" + lockId + ")";
-
-      aCallback.callback("", path,
-                         Ci.nsIMemoryReporter.KIND_OTHER,
-                         Ci.nsIMemoryReporter.UNITS_COUNT,
-                         length,
-                         "Tasks queue length for this lock",
-                         aData);
-    }
-
-    aCallback.callback("",
-                       "settings-locks/tasks/processed",
-                       Ci.nsIMemoryReporter.KIND_OTHER,
-                       Ci.nsIMemoryReporter.UNITS_COUNT,
-                       this.tasksConsumed,
-                       "The number of tasks that were executed.",
-                       aData);
   },
 
   sendSettingsChange: function(aKey, aValue, aIsServiceLock) {
@@ -755,7 +708,7 @@ let SettingsRequestManager = {
   },
 
   broadcastMessage: function broadcastMessage(aMsgName, aContent) {
-    if (VERBOSE) debug("Broadcast");
+    if (DEBUG) debug("Broadcast");
     this.children.forEach(function(msgMgr) {
       let principal = this.mmPrincipals.get(msgMgr);
       if (!principal) {
@@ -769,11 +722,11 @@ let SettingsRequestManager = {
         }
       }
     }.bind(this));
-    if (VERBOSE) debug("Finished Broadcasting");
+    if (DEBUG) debug("Finished Broadcasting");
   },
 
   addObserver: function(aMsgMgr, aPrincipal) {
-    if (VERBOSE) debug("Add observer for " + aPrincipal.origin);
+    if (DEBUG) debug("Add observer for " + aPrincipal.origin);
     if (this.children.indexOf(aMsgMgr) == -1) {
       this.children.push(aMsgMgr);
       this.mmPrincipals.set(aMsgMgr, aPrincipal);
@@ -781,7 +734,7 @@ let SettingsRequestManager = {
   },
 
   removeObserver: function(aMsgMgr) {
-    if (VERBOSE) {
+    if (DEBUG) {
       let principal = this.mmPrincipals.get(aMsgMgr);
       if (principal) {
         debug("Remove observer for " + principal.origin);
@@ -792,11 +745,11 @@ let SettingsRequestManager = {
       this.children.splice(index, 1);
       this.mmPrincipals.delete(aMsgMgr);
     }
-    if (VERBOSE) debug("Principal/MessageManager pairs left: " + this.mmPrincipals.size);
+    if (DEBUG) debug("Principal/MessageManager pairs left: " + this.mmPrincipals.size);
   },
 
   removeLock: function(aLockID) {
-    if (VERBOSE) debug("Removing lock " + aLockID);
+    if (DEBUG) debug("Removing lock " + aLockID);
     if (this.lockInfo[aLockID]) {
     let transaction = this.lockInfo[aLockID]._transaction;
     if (transaction) {
@@ -804,9 +757,8 @@ let SettingsRequestManager = {
         transaction.abort();
       } catch (e) {
         if (e.name == "InvalidStateError") {
-          if (VERBOSE) debug("Transaction for " + aLockID + " closed already");
+          if (DEBUG) debug("Transaction for " + aLockID + " closed already");
         } else {
-          if (DEBUG) debug("Unexpected exception, throwing: " + e);
           throw e;
         }
       }
@@ -838,10 +790,10 @@ let SettingsRequestManager = {
 
   enqueueForceFinalize: function(lock, principal) {
     if (!this.hasLockFinalizeTask(lock)) {
-      if (VERBOSE) debug("Alive lock has pending tasks: " + lock.lockID);
+      if (DEBUG) debug("Alive lock has pending tasks: " + lock.lockID);
       this.queueTask("finalize", {lockID: lock.lockID}, principal).then(
         function() {
-          if (VERBOSE) debug("Alive lock " + lock.lockID + " succeeded to force-finalize");
+          if (DEBUG) debug("Alive lock " + lock.lockID + " succeeded to force-finalize");
         },
         function(error) {
           if (DEBUG) debug("Alive lock " + lock.lockID + " failed to force-finalize due to error: " + error);
@@ -854,7 +806,7 @@ let SettingsRequestManager = {
   },
 
   forceFinalizeChildLocksNonOOP: function(windowId) {
-    if (VERBOSE) debug("Forcing finalize on child locks, non OOP");
+    if (DEBUG) debug("Forcing finalize on child locks, non OOP");
 
     for (let lockId of Object.keys(this.lockInfo)) {
       let lock = this.lockInfo[lockId];
@@ -866,7 +818,7 @@ let SettingsRequestManager = {
   },
 
   forceFinalizeChildLocksOOP: function(aMsgMgr) {
-    if (VERBOSE) debug("Forcing finalize on child locks, OOP");
+    if (DEBUG) debug("Forcing finalize on child locks, OOP");
 
     for (let lockId of Object.keys(this.lockInfo)) {
       let lock = this.lockInfo[lockId];
@@ -878,7 +830,7 @@ let SettingsRequestManager = {
   },
 
   receiveMessage: function(aMessage) {
-    if (VERBOSE) debug("receiveMessage " + aMessage.name + ": " + JSON.stringify(aMessage.data));
+    if (DEBUG) debug("receiveMessage " + aMessage.name + ": " + JSON.stringify(aMessage.data));
 
     let msg = aMessage.data;
     let mm = aMessage.target;
@@ -929,7 +881,7 @@ let SettingsRequestManager = {
 
     switch (aMessage.name) {
       case "child-process-shutdown":
-        if (VERBOSE) debug("Child process shutdown received.");
+        if (DEBUG) debug("Child process shutdown received.");
         this.forceFinalizeChildLocksOOP(mm);
         this.removeObserver(mm);
         break;
@@ -946,7 +898,7 @@ let SettingsRequestManager = {
         this.removeObserver(mm);
         break;
       case "Settings:CreateLock":
-        if (VERBOSE) debug("Received CreateLock for " + msg.lockID + " from " + aMessage.principal.origin + " window: " + msg.windowID);
+        if (DEBUG) debug("Received CreateLock for " + msg.lockID + " from " + aMessage.principal.origin + " window: " + msg.windowID);
         // If we try to create a lock ID that collides with one
         // already in the system, consider it a security violation and
         // kill.
@@ -963,7 +915,7 @@ let SettingsRequestManager = {
                                                      msg.windowID);
         break;
       case "Settings:Get":
-        if (VERBOSE) debug("Received getRequest from " + msg.lockID);
+        if (DEBUG) debug("Received getRequest from " + msg.lockID);
         this.queueTask("get", msg, aMessage.principal).then(function(settings) {
             returnMessage("Settings:Get:OK", {
               lockID: msg.lockID,
@@ -980,7 +932,7 @@ let SettingsRequestManager = {
         });
         break;
       case "Settings:Set":
-        if (VERBOSE) debug("Received Set Request from " + msg.lockID);
+        if (DEBUG) debug("Received Set Request from " + msg.lockID);
         this.queueTask("set", msg, aMessage.principal).then(function(settings) {
           returnMessage("Settings:Set:OK", {
             lockID: msg.lockID,
@@ -995,7 +947,7 @@ let SettingsRequestManager = {
         });
         break;
       case "Settings:Clear":
-        if (VERBOSE) debug("Received Clear Request from " + msg.lockID);
+        if (DEBUG) debug("Received Clear Request from " + msg.lockID);
         this.queueTask("clear", msg, aMessage.principal).then(function() {
           returnMessage("Settings:Clear:OK", {
             lockID: msg.lockID,
@@ -1010,7 +962,7 @@ let SettingsRequestManager = {
         });
         break;
       case "Settings:Finalize":
-        if (VERBOSE) debug("Received Finalize");
+        if (DEBUG) debug("Received Finalize");
         this.queueTask("finalize", msg, aMessage.principal).then(function() {
           returnMessage("Settings:Finalize:OK", {
             lockID: msg.lockID
@@ -1024,7 +976,7 @@ let SettingsRequestManager = {
       // YES THIS IS SUPPOSED TO FALL THROUGH. Finalize is considered a task
       // running situation, but it also needs to queue a task.
       case "Settings:Run":
-        if (VERBOSE) debug("Received Run");
+        if (DEBUG) debug("Received Run");
         this.startRunning(msg.lockID);
         break;
       default:

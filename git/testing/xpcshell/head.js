@@ -354,7 +354,7 @@ function _initDebugging(port) {
   }
 
   let {DebuggerServer} = Components.utils.import('resource://gre/modules/devtools/dbg-server.jsm', {});
-  DebuggerServer.init();
+  DebuggerServer.init(() => true);
   DebuggerServer.addBrowserActors();
   DebuggerServer.addActors("resource://testing-common/dbg-actors.js");
 
@@ -406,8 +406,7 @@ function _initDebugging(port) {
   do_print("*******************************************************************");
   do_print("")
 
-  let listener = DebuggerServer.openListener(port);
-  listener.allowConnection = () => true;
+  DebuggerServer.openListener(port);
 
   // spin an event loop until the debugger connects.
   let thr = Components.classes["@mozilla.org/thread-manager;1"]

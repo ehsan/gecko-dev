@@ -27,7 +27,7 @@ function run_test()
   Profiler.StartProfiler(1000000, 1, ["js"], 1);
 
   DevToolsUtils.waitForTime(WAIT_TIME).then(() => {
-    DebuggerServer.init();
+    DebuggerServer.init(() => true);
     DebuggerServer.addBrowserActors();
 
     connect_client((client, actor) => {
