@@ -14,15 +14,15 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Doug Turner <dougt@dougt.org>
+ * Michal Novotny <michal.novotny@gmail.com>.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
  *
  * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
  * of those above. If you wish to allow use of your version of this file only
  * under the terms of either the GPL or the LGPL, and not to allow others to
@@ -34,33 +34,27 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsAccelerometerCE_h
-#define nsAccelerometerCE_h
+#ifndef nsHttpActivityDistributor_h__
+#define nsHttpActivityDistributor_h__
 
-#include "nsAccelerometer.h"
-#include "nsAutoPtr.h"
+#include "nsIHttpActivityObserver.h"
+#include "nsCOMArray.h"
+#include "prlock.h"
 
-class Sensor
+class nsHttpActivityDistributor : public nsIHttpActivityDistributor
 {
- public:
-  virtual PRBool Startup() = 0;
-  virtual void Shutdown()  = 0;
-  virtual void GetValues(double *x, double *y, double *z) = 0;
+public:
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSIHTTPACTIVITYOBSERVER
+    NS_DECL_NSIHTTPACTIVITYDISTRIBUTOR
+
+    nsHttpActivityDistributor();
+    virtual ~nsHttpActivityDistributor();
+    nsresult Init();
+
+protected:
+    nsCOMArray<nsIHttpActivityObserver> mObservers;
+    PRLock       *mLock;
 };
 
-class nsAccelerometerWin : public nsAccelerometer
-{
- public:
-  nsAccelerometerWin();
-  ~nsAccelerometerWin();
-
-  void Startup();
-  void Shutdown();
-
-  nsCOMPtr<nsITimer> mUpdateTimer;
-  static void UpdateHandler(nsITimer *aTimer, void *aClosure);
-
-  class nsAutoPtr<Sensor> mSensor;
-};
-
-#endif
+#endif // nsHttpActivityDistributor_h__
