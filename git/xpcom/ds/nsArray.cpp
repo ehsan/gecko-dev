@@ -98,11 +98,9 @@ nsArray::IndexOf(PRUint32 aStartIndex, nsISupports* aElement,
 {
     // optimize for the common case by forwarding to mArray
     if (aStartIndex == 0) {
-        PRUint32 idx = mArray.IndexOf(aElement);
-        if (idx == PR_UINT32_MAX)
+        *aResult = mArray.IndexOf(aElement);
+        if (*aResult == PR_UINT32_MAX)
             return NS_ERROR_FAILURE;
-
-        *aResult = idx;
         return NS_OK;
     }
 

@@ -842,20 +842,15 @@ public:
                         const nsRect&               aDirtyRect,
                         const nsDisplayListSet&     aLists);
 
-  PRBool IsThemed(nsTransparencyMode* aTransparencyMode = nsnull) {
-    return IsThemed(GetStyleDisplay(), aTransparencyMode);
+  PRBool IsThemed() {
+    return IsThemed(GetStyleDisplay());
   }
-  PRBool IsThemed(const nsStyleDisplay* aDisp,
-                  nsTransparencyMode* aTransparencyMode = nsnull) {
+  PRBool IsThemed(const nsStyleDisplay* aDisp) {
     if (!aDisp->mAppearance)
       return PR_FALSE;
     nsPresContext* pc = PresContext();
     nsITheme *theme = pc->GetTheme();
-    if(!theme || !theme->ThemeSupportsWidget(pc, this, aDisp->mAppearance))
-      return PR_FALSE;
-    if (aTransparencyMode)
-      *aTransparencyMode = theme->GetWidgetTransparency(aDisp->mAppearance);
-    return PR_TRUE;
+    return theme && theme->ThemeSupportsWidget(pc, this, aDisp->mAppearance);
   }
   
   /**

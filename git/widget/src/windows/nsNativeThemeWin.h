@@ -75,8 +75,6 @@ public:
                                   nsSize* aResult,
                                   PRBool* aIsOverridable);
 
-  virtual nsTransparencyMode GetWidgetTransparency(PRUint8 aWidgetType);
-
   NS_IMETHOD WidgetStateChanged(nsIFrame* aFrame, PRUint8 aWidgetType, 
                                 nsIAtom* aAttribute, PRBool* aShouldRepaint);
 

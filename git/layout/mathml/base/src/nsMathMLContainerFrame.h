@@ -373,7 +373,7 @@ protected:
    * aStop == nsnull meaning all next siblings with the bit set.
    * The method does nothing if aFirst == nsnull.
    */
-  static void DidReflowChildren(nsIFrame* aFirst, nsIFrame* aStop = nsnull);
+  void DidReflowChildren(nsIFrame* aFirst, nsIFrame* aStop = nsnull);
 
 private:
   class RowChildFrameIterator;

@@ -2948,9 +2948,8 @@ nsLayoutUtils::GetFrameTransparency(nsIFrame* aFrame) {
   if (HasNonZeroCorner(aFrame->GetStyleContext()->GetStyleBorder()->mBorderRadius))
     return eTransparencyTransparent;
 
-  nsTransparencyMode transparency;
-  if (aFrame->IsThemed(&transparency))
-    return transparency;
+  if (aFrame->IsThemed())
+    return eTransparencyOpaque;
 
   if (aFrame->GetStyleDisplay()->mAppearance == NS_THEME_WIN_GLASS)
     return eTransparencyGlass;
