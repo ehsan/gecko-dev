@@ -14,7 +14,6 @@
 #include "nsGUIEvent.h"
 #include "nsAutoPtr.h"
 #include "BasicLayers.h"
-#include "nsIRollupListener.h"
 
 class nsIContent;
 class nsAutoRollup;
@@ -267,13 +266,6 @@ protected:
   BasicLayerManager* CreateBasicLayerManager();
 
   nsPopupType PopupType() const { return mPopupType; }
-
-  void NotifyRollupGeometryChange(nsIRollupListener* aRollupListener)
-  {
-    if (aRollupListener) {
-      aRollupListener->NotifyGeometryChange();
-    }
-  }
 
 protected:
   /**

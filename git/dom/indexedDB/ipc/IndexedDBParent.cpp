@@ -960,6 +960,9 @@ IndexedDBVersionChangeObjectStoreParent::RecvPIndexedDBIndexConstructor(
     const CreateIndexParams& params = aParams.get_CreateIndexParams();
     const IndexInfo& info = params.info();
 
+    // Copy...
+    nsTArray<nsString> keyPathArray = info.keyPathArray;
+
     nsRefPtr<IDBIndex> index;
 
     nsresult rv;
@@ -967,7 +970,8 @@ IndexedDBVersionChangeObjectStoreParent::RecvPIndexedDBIndexConstructor(
     {
       AutoSetCurrentTransaction asct(mObjectStore->Transaction());
 
-      rv = mObjectStore->CreateIndexInternal(info, getter_AddRefs(index));
+      rv = mObjectStore->CreateIndexInternal(info, keyPathArray,
+                                             getter_AddRefs(index));
     }
 
     NS_ENSURE_SUCCESS(rv, false);

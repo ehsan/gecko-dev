@@ -51,13 +51,7 @@ public:
     NS_DECL_NSITHREADOBSERVER
     NS_DECL_NSIDOMGEOPOSITIONCALLBACK
 
-    /**
-     * Create a new tab.
-     *
-     * |aIsBrowserFrame| indicates whether this tab is part of an
-     * <iframe mozbrowser>.
-     */
-    TabParent* CreateTab(PRUint32 aChromeFlags, bool aIsBrowserFrame);
+    TabParent* CreateTab(PRUint32 aChromeFlags);
 
     TestShellParent* CreateTestShell();
     bool DestroyTestShell(TestShellParent* aTestShell);
@@ -96,7 +90,7 @@ private:
 
     void Init();
 
-    virtual PBrowserParent* AllocPBrowser(const PRUint32& aChromeFlags, const bool& aIsBrowserFrame);
+    virtual PBrowserParent* AllocPBrowser(const PRUint32& aChromeFlags);
     virtual bool DeallocPBrowser(PBrowserParent* frame);
 
     virtual PCrashReporterParent* AllocPCrashReporter(const NativeThreadId& tid,

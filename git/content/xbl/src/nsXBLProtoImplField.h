@@ -41,13 +41,6 @@ public:
 
   const PRUnichar* GetName() const { return mName; }
 
-  unsigned AccessorAttributes() const {
-    return JSPROP_SHARED | JSPROP_GETTER | JSPROP_SETTER |
-           (mJSAttributes & (JSPROP_ENUMERATE | JSPROP_PERMANENT));
-  }
-
-  bool IsEmpty() const { return mFieldTextLength == 0; }
-
 protected:
   nsXBLProtoImplField* mNext;
   PRUnichar* mName;

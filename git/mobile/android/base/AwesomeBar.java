@@ -172,9 +172,12 @@ public class AwesomeBar extends GeckoActivity implements GeckoEventListener {
 
                 // If the AwesomeBar has a composition string, don't call updateGoButton().
                 // That method resets IME and composition state will be broken.
-                if (!hasCompositionString(s)) {
-                    updateGoButton(text);
+                if (hasCompositionString(s)) {
+                    return;
                 }
+
+                // no composition string. It is safe to update IME flags.
+                updateGoButton(text);
 
                 // cancel previous query
                 if (mSuggestTask != null) {

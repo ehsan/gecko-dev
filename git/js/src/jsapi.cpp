@@ -746,7 +746,6 @@ JSRuntime::JSRuntime()
     gcZealFrequency(0),
     gcNextScheduled(0),
     gcDeterministicOnly(false),
-    gcIncrementalLimit(0),
 #endif
     gcCallback(NULL),
     gcSliceCallback(NULL),
@@ -1389,8 +1388,14 @@ JS_EnterCrossCompartmentCallScript(JSContext *cx, JSScript *target)
 {
     AssertNoGC(cx);
     CHECK_REQUEST(cx);
-    GlobalObject &global = target->compartment()->global();
-    return JS_EnterCrossCompartmentCall(cx, &global);
+    GlobalObject *global = target->getGlobalObjectOrNull();
+    if (!global) {
+        SwitchToCompartment sc(cx, target->compartment());
+        global = GlobalObject::create(cx, &dummy_class);
+        if (!global)
+            return NULL;
+    }
+    return JS_EnterCrossCompartmentCall(cx, global);
 }
 
 JS_PUBLIC_API(JSCrossCompartmentCall *)
@@ -3290,6 +3295,16 @@ JS_GetObjectId(JSContext *cx, JSObject *obj, jsid *idp)
     return JS_TRUE;
 }
 
+JS_PUBLIC_API(JSObject *)
+JS_NewGlobalObject(JSContext *cx, JSClass *clasp)
+{
+    JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
+    AssertNoGC(cx);
+    CHECK_REQUEST(cx);
+
+    return GlobalObject::create(cx, Valueify(clasp));
+}
+
 class AutoHoldCompartment {
   public:
     explicit AutoHoldCompartment(JSCompartment *compartment JS_GUARD_OBJECT_NOTIFIER_PARAM)
@@ -3308,12 +3323,10 @@ class AutoHoldCompartment {
 };
 
 JS_PUBLIC_API(JSObject *)
-JS_NewGlobalObject(JSContext *cx, JSClass *clasp, JSPrincipals *principals)
+JS_NewCompartmentAndGlobalObject(JSContext *cx, JSClass *clasp, JSPrincipals *principals)
 {
     AssertNoGC(cx);
     CHECK_REQUEST(cx);
-    JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
-
     JSCompartment *compartment = NewCompartment(cx, principals);
     if (!compartment)
         return NULL;
@@ -3322,10 +3335,10 @@ JS_NewGlobalObject(JSContext *cx, JSClass *clasp, JSPrincipals *principals)
 
     JSCompartment *saved = cx->compartment;
     cx->setCompartment(compartment);
-    GlobalObject *global = GlobalObject::create(cx, Valueify(clasp));
+    JSObject *obj = JS_NewGlobalObject(cx, clasp);
     cx->setCompartment(saved);
 
-    return global;
+    return obj;
 }
 
 JS_PUBLIC_API(JSObject *)
@@ -6658,10 +6671,7 @@ JS_SetGCZeal(JSContext *cx, uint8_t zeal, uint32_t frequency)
                    "  4: Verify write barriers between instructions\n"
                    "  5: Verify write barriers between paints\n"
                    "  6: Verify stack rooting (ignoring XML and Reflect)\n"
-                   "  7: Verify stack rooting (all roots)\n"
-                   "  8: Incremental GC in two slices: 1) mark roots 2) finish collection\n"
-                   "  9: Incremental GC in two slices: 1) mark all 2) new marking and finish\n"
-                   " 10: Incremental GC in multiple slices\n");
+                   "  7: Verify stack rooting (all roots)\n");
         }
         const char *p = strchr(env, ',');
         zeal = atoi(env);

@@ -109,14 +109,8 @@ let webappsUI = {
       label: bundle.getString("webapps.install"),
       accessKey: bundle.getString("webapps.install.accesskey"),
       callback: function(notification) {
-        let app = WebappsInstaller.install(aData);
-        if (app) {
-          let localDir = null;
-          if (app.appcacheDefined && app.appProfile) {
-            localDir = app.appProfile.localDir;
-          }
-
-          DOMApplicationRegistry.confirmInstall(aData, false, localDir);
+        if (WebappsInstaller.install(aData)) {
+          DOMApplicationRegistry.confirmInstall(aData);
         } else {
           DOMApplicationRegistry.denyInstall(aData);
         }

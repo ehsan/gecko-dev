@@ -164,11 +164,15 @@ public:
     return NS_OK;
   }
 
-  nsresult AppendItem(JSContext* aCx,
-                      bool aFirstOfArray,
-                      const jsval aVal)
+  nsresult AppendArrayItem(JSContext* aCx,
+                           bool aFirst,
+                           const jsval aVal)
   {
-    nsresult rv = EncodeJSVal(aCx, aVal, aFirstOfArray ? eMaxType : 0);
+    if (aFirst) {
+      Unset();
+    }
+
+    nsresult rv = EncodeJSVal(aCx, aVal, aFirst ? eMaxType : 0);
     if (NS_FAILED(rv)) {
       Unset();
       return rv;

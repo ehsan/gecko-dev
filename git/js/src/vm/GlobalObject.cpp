@@ -242,25 +242,24 @@ GlobalObject::create(JSContext *cx, Class *clasp)
 {
     JS_ASSERT(clasp->flags & JSCLASS_IS_GLOBAL);
 
-    JSObject *obj = NewObjectWithGivenProto(cx, clasp, NULL, NULL);
-    if (!obj)
+    Rooted<GlobalObject*> obj(cx);
+
+    JSObject *obj_ = NewObjectWithGivenProto(cx, clasp, NULL, NULL);
+    if (!obj_)
         return NULL;
+    obj = &obj_->asGlobal();
 
-    Rooted<GlobalObject *> global(cx, &obj->asGlobal());
-
-    cx->compartment->initGlobal(*global);
-
-    if (!global->setSingletonType(cx) || !global->setVarObj(cx))
+    if (!obj->setSingletonType(cx) || !obj->setVarObj(cx))
         return NULL;
 
     /* Construct a regexp statics object for this global object. */
-    JSObject *res = RegExpStatics::create(cx, global);
+    JSObject *res = RegExpStatics::create(cx, obj);
     if (!res)
         return NULL;
-    global->initSlot(REGEXP_STATICS, ObjectValue(*res));
-    global->initFlags(0);
+    obj->initSlot(REGEXP_STATICS, ObjectValue(*res));
+    obj->initFlags(0);
 
-    return global;
+    return obj;
 }
 
 /* static */ bool

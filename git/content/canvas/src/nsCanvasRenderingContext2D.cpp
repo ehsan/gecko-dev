@@ -302,7 +302,6 @@ NS_INTERFACE_MAP_BEGIN(nsTextMetrics)
 NS_INTERFACE_MAP_END
 
 struct nsCanvasBidiProcessor;
-class CanvasRenderingContext2DUserData;
 
 /**
  ** nsCanvasRenderingContext2D
@@ -382,7 +381,6 @@ public:
         nsRefPtr<gfxPath> mPath;
     };
     friend class PathAutoSaveRestore;
-    friend class CanvasRenderingContext2DUserData;
 
 protected:
     nsresult GetImageDataArray(JSContext* aCx, int32_t aX, int32_t aY,
@@ -451,7 +449,6 @@ protected:
 
     // If mCanvasElement is not provided, then a docshell is
     nsCOMPtr<nsIDocShell> mDocShell;
-    nsTArray<CanvasRenderingContext2DUserData*> mUserDatas;
 
     // our drawing surfaces, contexts, and layers
     nsRefPtr<gfxContext> mThebes;
@@ -758,40 +755,6 @@ protected:
     friend struct nsCanvasBidiProcessor;
 };
 
-class CanvasRenderingContext2DUserData : public LayerUserData {
-public:
-    CanvasRenderingContext2DUserData(nsCanvasRenderingContext2D *aContext)
-        : mContext(aContext)
-    {
-        aContext->mUserDatas.AppendElement(this);
-    }
-    ~CanvasRenderingContext2DUserData()
-    {
-        if (mContext) {
-            mContext->mUserDatas.RemoveElement(this);
-        }
-    }
-    static void DidTransactionCallback(void* aData)
-    {
-        CanvasRenderingContext2DUserData* self =
-            static_cast<CanvasRenderingContext2DUserData*>(aData);
-        if (self->mContext) {
-            self->mContext->MarkContextClean();
-        }
-    }
-    bool IsForContext(nsCanvasRenderingContext2D *aContext)
-    {
-        return mContext == aContext;
-    }
-    void Forget()
-    {
-        mContext = nsnull;
-    }
-
-private:
-    nsCanvasRenderingContext2D *mContext;
-};
-
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsCanvasRenderingContext2D)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsCanvasRenderingContext2D)
 
@@ -847,10 +810,6 @@ nsCanvasRenderingContext2D::nsCanvasRenderingContext2D()
 nsCanvasRenderingContext2D::~nsCanvasRenderingContext2D()
 {
     Reset();
-    // Drop references from all CanvasRenderingContext2DUserDatas to this context
-    for (PRUint32 i = 0; i < mUserDatas.Length(); ++i) {
-        mUserDatas[i]->Forget();
-    }
     sNumLivingContexts--;
     if (!sNumLivingContexts) {
         delete[] sUnpremultiplyTable;
@@ -4195,6 +4154,19 @@ nsCanvasRenderingContext2D::SetMozImageSmoothingEnabled(bool val)
 
 static PRUint8 g2DContextLayerUserData;
 
+class CanvasRenderingContext2DUserData : public LayerUserData {
+public:
+  CanvasRenderingContext2DUserData(nsHTMLCanvasElement *aContent)
+    : mContent(aContent) {}
+  static void DidTransactionCallback(void* aData)
+  {
+    static_cast<CanvasRenderingContext2DUserData*>(aData)->mContent->MarkContextClean();
+  }
+
+private:
+  nsRefPtr<nsHTMLCanvasElement> mContent;
+};
+
 already_AddRefed<CanvasLayer>
 nsCanvasRenderingContext2D::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
                                            CanvasLayer *aOldLayer,
@@ -4203,14 +4175,10 @@ nsCanvasRenderingContext2D::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
     if (!EnsureSurface()) 
         return nsnull;
 
-    if (!mResetLayer && aOldLayer) {
-        CanvasRenderingContext2DUserData* userData =
-            static_cast<CanvasRenderingContext2DUserData*>(
-                    aOldLayer->GetUserData(&g2DContextLayerUserData));
-        if (userData && userData->IsForContext(this)) {
-            NS_ADDREF(aOldLayer);
-            return aOldLayer;
-        }
+    if (!mResetLayer && aOldLayer &&
+        aOldLayer->HasUserData(&g2DContextLayerUserData)) {
+        NS_ADDREF(aOldLayer);
+        return aOldLayer;
     }
 
     nsRefPtr<CanvasLayer> canvasLayer = aManager->CreateCanvasLayer();
@@ -4232,7 +4200,7 @@ nsCanvasRenderingContext2D::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
       // releasing the reference to the element.
       // The userData will receive DidTransactionCallbacks, which flush the
       // the invalidation state to indicate that the canvas is up to date.
-      userData = new CanvasRenderingContext2DUserData(this);
+      userData = new CanvasRenderingContext2DUserData(mCanvasElement);
       canvasLayer->SetDidTransactionCallback(
               CanvasRenderingContext2DUserData::DidTransactionCallback, userData);
     }

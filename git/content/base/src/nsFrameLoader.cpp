@@ -1505,6 +1505,13 @@ nsFrameLoader::MaybeCreateDocShell()
     mDocShell->SetChromeEventHandler(chromeEventHandler);
   }
 
+  nsCOMPtr<nsIObserverService> os = services::GetObserverService();
+  if (OwnerIsBrowserFrame() && os) {
+    mDocShell->SetIsBrowserFrame(true);
+    os->NotifyObservers(NS_ISUPPORTS_CAST(nsIFrameLoader*, this),
+                        "in-process-browser-frame-shown", NULL);
+  }
+
   // This is nasty, this code (the do_GetInterface(mDocShell) below)
   // *must* come *after* the above call to
   // mDocShell->SetChromeEventHandler() for the global window to get
@@ -1530,22 +1537,6 @@ nsFrameLoader::MaybeCreateDocShell()
   }
 
   EnsureMessageManager();
-
-  if (OwnerIsBrowserFrame()) {
-    mDocShell->SetIsBrowserFrame(true);
-
-    nsCOMPtr<nsIObserverService> os = services::GetObserverService();
-    if (os) {
-      os->NotifyObservers(NS_ISUPPORTS_CAST(nsIFrameLoader*, this),
-                          "in-process-browser-frame-shown", NULL);
-    }
-
-    if (mMessageManager) {
-      mMessageManager->LoadFrameScript(
-        NS_LITERAL_STRING("chrome://global/content/BrowserElementChild.js"),
-        /* allowDelayedLoad = */ true);
-    }
-  }
 
   return NS_OK;
 }
@@ -1908,8 +1899,7 @@ nsFrameLoader::TryRemoteBrowser()
 
   ContentParent* parent = ContentParent::GetNewOrUsed();
   NS_ASSERTION(parent->IsAlive(), "Process parent should be alive; something is very wrong!");
-  mRemoteBrowser = parent->CreateTab(chromeFlags,
-                                     /* aIsBrowserFrame = */ OwnerIsBrowserFrame());
+  mRemoteBrowser = parent->CreateTab(chromeFlags);
   if (mRemoteBrowser) {
     nsCOMPtr<nsIDOMElement> element = do_QueryInterface(mOwnerContent);
     mRemoteBrowser->SetOwnerElement(element);

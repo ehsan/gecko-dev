@@ -11,7 +11,6 @@
 #include "nsIIDBKeyRange.h"
 #include "nsIJSContextStack.h"
 
-#include "nsContentUtils.h"
 #include "nsDOMClassInfoID.h"
 #include "nsEventDispatcher.h"
 #include "nsThreadUtils.h"
@@ -364,6 +363,7 @@ IDBIndex::Create(IDBObjectStore* aObjectStore,
   index->mId = aIndexInfo->id;
   index->mName = aIndexInfo->name;
   index->mKeyPath = aIndexInfo->keyPath;
+  index->mKeyPathArray = aIndexInfo->keyPathArray;
   index->mUnique = aIndexInfo->unique;
   index->mMultiEntry = aIndexInfo->multiEntry;
 
@@ -396,11 +396,8 @@ IDBIndex::IDBIndex()
 : mId(LL_MININT),
   mActorChild(nsnull),
   mActorParent(nsnull),
-  mKeyPath(0),
-  mCachedKeyPath(JSVAL_VOID),
   mUnique(false),
-  mMultiEntry(false),
-  mRooted(false)
+  mMultiEntry(false)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 }
@@ -409,11 +406,6 @@ IDBIndex::~IDBIndex()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(!mActorParent, "Actor parent owns us, how can we be dying?!");
-
-  if (mRooted) {
-    NS_DROP_JS_OBJECTS(this, IDBIndex);
-  }
-
   if (mActorChild) {
     NS_ASSERTION(!IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
     mActorChild->Send__delete__(mActorChild);
@@ -658,24 +650,12 @@ IDBIndex::OpenCursorFromChildProcess(
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(IDBIndex)
 
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(IDBIndex)
-  NS_IMPL_CYCLE_COLLECTION_TRACE_JSVAL_MEMBER_CALLBACK(mCachedKeyPath)
-NS_IMPL_CYCLE_COLLECTION_TRACE_END
-
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(IDBIndex)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mObjectStore)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IDBIndex)
   // Don't unlink mObjectStore!
-
-  tmp->mCachedKeyPath = JSVAL_VOID;
-
-  if (tmp->mRooted) {
-    NS_DROP_JS_OBJECTS(tmp, IDBIndex);
-    tmp->mRooted = false;
-  }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(IDBIndex)
@@ -712,20 +692,33 @@ IDBIndex::GetKeyPath(JSContext* aCx,
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  if (!JSVAL_IS_VOID(mCachedKeyPath)) {
-    *aVal = mCachedKeyPath;
-    return NS_OK;
+  if (UsesKeyPathArray()) {
+    JSObject* array = JS_NewArrayObject(aCx, mKeyPathArray.Length(), nsnull);
+    if (!array) {
+      NS_WARNING("Failed to make array!");
+      return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+    }
+
+    for (PRUint32 i = 0; i < mKeyPathArray.Length(); ++i) {
+      jsval val;
+      nsString tmp(mKeyPathArray[i]);
+      if (!xpc::StringToJsval(aCx, tmp, &val)) {
+        return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+      }
+
+      if (!JS_SetElement(aCx, array, i, &val)) {
+        return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+      }
+    }
+
+    *aVal = OBJECT_TO_JSVAL(array);
   }
-
-  nsresult rv = GetKeyPath().ToJSVal(aCx, &mCachedKeyPath);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (JSVAL_IS_GCTHING(mCachedKeyPath)) {
-    NS_HOLD_JS_OBJECTS(this, IDBIndex);
-    mRooted = true;
+  else {
+    nsString tmp(mKeyPath);
+    if (!xpc::StringToJsval(aCx, tmp, aVal)) {
+      return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+    }
   }
-
-  *aVal = mCachedKeyPath;
   return NS_OK;
 }
 

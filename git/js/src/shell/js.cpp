@@ -2557,7 +2557,7 @@ static JSClass sandbox_class = {
 static JSObject *
 NewSandbox(JSContext *cx, bool lazy)
 {
-    RootedObject obj(cx, JS_NewGlobalObject(cx, &sandbox_class, NULL));
+    RootedObject obj(cx, JS_NewCompartmentAndGlobalObject(cx, &sandbox_class, NULL));
     if (!obj)
         return NULL;
 
@@ -3228,11 +3228,24 @@ Compile(JSContext *cx, unsigned argc, jsval *vp)
         return false;
     }
 
-    JSObject *global = JS_GetGlobalForScopeChain(cx);
+    static JSClass dummy_class = {
+        "jdummy",
+        JSCLASS_GLOBAL_FLAGS,
+        JS_PropertyStub,  JS_PropertyStub,
+        JS_PropertyStub,  JS_StrictPropertyStub,
+        JS_EnumerateStub, JS_ResolveStub,
+        JS_ConvertStub
+    };
+
+    JSObject *fakeGlobal = JS_NewGlobalObject(cx, &dummy_class);
+    if (!fakeGlobal)
+        return false;
+
     JSString *scriptContents = JSVAL_TO_STRING(arg0);
+
     unsigned oldopts = JS_GetOptions(cx);
     JS_SetOptions(cx, oldopts | JSOPTION_COMPILE_N_GO | JSOPTION_NO_SCRIPT_RVAL);
-    bool ok = JS_CompileUCScript(cx, global, JS_GetStringCharsZ(cx, scriptContents),
+    bool ok = JS_CompileUCScript(cx, fakeGlobal, JS_GetStringCharsZ(cx, scriptContents),
                                  JS_GetStringLength(scriptContents), "<string>", 1);
     JS_SetOptions(cx, oldopts);
 
@@ -3410,13 +3423,33 @@ Deserialize(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
+enum CompartmentKind { SAME_COMPARTMENT, NEW_COMPARTMENT };
+
 static JSObject *
-NewGlobalObject(JSContext *cx);
+NewGlobalObject(JSContext *cx, CompartmentKind compartment);
 
 static JSBool
 NewGlobal(JSContext *cx, unsigned argc, jsval *vp)
 {
-    JSObject *global = NewGlobalObject(cx);
+    if (argc != 1 || !JSVAL_IS_STRING(JS_ARGV(cx, vp)[0])) {
+        JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_INVALID_ARGS, "newGlobal");
+        return false;
+    }
+
+    JSString *str = JSVAL_TO_STRING(JS_ARGV(cx, vp)[0]);
+
+    JSBool equalSame = false, equalNew = false;
+    if (!JS_StringEqualsAscii(cx, str, "same-compartment", &equalSame) ||
+        !JS_StringEqualsAscii(cx, str, "new-compartment", &equalNew)) {
+        return false;
+    }
+
+    if (!equalSame && !equalNew) {
+        JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_INVALID_ARGS, "newGlobal");
+        return false;
+    }
+
+    JSObject *global = NewGlobalObject(cx, equalSame ? SAME_COMPARTMENT : NEW_COMPARTMENT);
     if (!global)
         return false;
 
@@ -4552,9 +4585,13 @@ DestroyContext(JSContext *cx, bool withGC)
 }
 
 static JSObject *
-NewGlobalObject(JSContext *cx)
+NewGlobalObject(JSContext *cx, CompartmentKind compartment)
 {
-    RootedObject glob(cx, JS_NewGlobalObject(cx, &global_class, NULL));
+    RootedObject glob(cx);
+
+    glob = (compartment == NEW_COMPARTMENT)
+           ? JS_NewCompartmentAndGlobalObject(cx, &global_class, NULL)
+           : JS_NewGlobalObject(cx, &global_class);
     if (!glob)
         return NULL;
 
@@ -4599,7 +4636,7 @@ NewGlobalObject(JSContext *cx)
             return NULL;
     }
 
-    if (!JS_WrapObject(cx, glob.address()))
+    if (compartment == NEW_COMPARTMENT && !JS_WrapObject(cx, glob.address()))
         return NULL;
 
     return glob;
@@ -4723,7 +4760,7 @@ Shell(JSContext *cx, OptionParser *op, char **envp)
     }
 
     RootedObject glob(cx);
-    glob = NewGlobalObject(cx);
+    glob = NewGlobalObject(cx, NEW_COMPARTMENT);
     if (!glob)
         return 1;
 
@@ -4742,7 +4779,7 @@ Shell(JSContext *cx, OptionParser *op, char **envp)
     class ShellWorkerHooks : public js::workers::WorkerHooks {
     public:
         JSObject *newGlobalObject(JSContext *cx) {
-            return NewGlobalObject(cx);
+            return NewGlobalObject(cx, NEW_COMPARTMENT);
         }
     };
     ShellWorkerHooks hooks;
