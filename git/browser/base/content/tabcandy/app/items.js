@@ -57,48 +57,6 @@ window.Item = function() {
   // A <Point> that describes the last size specifically chosen by the user.
   // Used by unsquish.
   this.userSize = null;
-  
-  this.dragOptions = {
-    cancelClass: 'close',
-    start: function(e, ui) {
-      drag.info = new Drag(this, e);
-    },
-    drag: function(e, ui) {
-      drag.info.drag(e, ui);
-    },
-    stop: function() {
-      drag.info.stop();
-      drag.info = null;
-    }
-  };
-  
-  this.dropOptions = {
-		over: function(){},
-		out: function(){
-			var group = drag.info.item.parent;
-			if(group) {
-				group.remove(drag.info.$el, {dontClose: true});
-			}
-				
-			iQ(this).removeClass("acceptsDrop");
-		},
-		drop: function(event){
-			iQ(this).removeClass("acceptsDrop");
-		},
-		// Function: dropAcceptFunction
-		// Given a DOM element, returns true if it should accept tabs being dropped on it.
-		// Private to this file.
-		accept: function dropAcceptFunction(el) {
-			var $el = iQ(el);
-			if($el.hasClass('tab')) {
-				var item = Items.item($el);
-				if(item && (!item.parent || !item.parent.expanded)) {
-					return true;
-				}
-			}
-			return false;
-		}
-	};
 };
 
 window.Item.prototype = { 
@@ -203,7 +161,6 @@ window.Item.prototype = {
   //
   setParent: function(parent) {
     this.parent = parent;
-    Trenches.unregister(this.container);
     this.save();
   },
 
@@ -402,39 +359,7 @@ window.Item.prototype = {
         height: this.bounds.height
       });
     }
-  },
-  
-  setTrenches: function(rect) {
-
-		var container = this.container;
-
-		if (!this.borderTrenches) {
-			var bT = this.borderTrenches = {};
-			bT.left = Trenches.register(container,"x","border","left");
-			bT.right = Trenches.register(container,"x","border","right");
-			bT.top = Trenches.register(container,"y","border","top");
-			bT.bottom = Trenches.register(container,"y","border","bottom");
-		}
-		var bT = this.borderTrenches;
-		bT.left.setWithRect(rect);
-		bT.right.setWithRect(rect);
-		bT.top.setWithRect(rect);
-		bT.bottom.setWithRect(rect);
-				
-		if (!this.guideTrenches) {
-			var gT = this.guideTrenches = {};
-			gT.left = Trenches.register(container,"x","guide","left");
-			gT.right = Trenches.register(container,"x","guide","right");
-			gT.top = Trenches.register(container,"y","guide","top");
-			gT.bottom = Trenches.register(container,"y","guide","bottom");
-		}
-		var gT = this.guideTrenches;
-		gT.left.setWithRect(rect);
-		gT.right.setWithRect(rect);
-		gT.top.setWithRect(rect);
-		gT.bottom.setWithRect(rect);
-
-  },
+  }  
 };  
 
 // ##########
@@ -547,8 +472,9 @@ window.Items = {
       figure();
     }
     
-    if(rows == 1) {
-      tabWidth = Math.min(Math.min(TabItems.tabWidth, bounds.width / count), bounds.height / tabAspect);
+    if(rows == 1 && columns == 1) {
+      var maxWidth = Math.max(TabItems.tabWidth, bounds.width / 2);
+      tabWidth = Math.min(Math.min(maxWidth, bounds.width / count), bounds.height / tabAspect);
       tabHeight = tabWidth * tabAspect;
     }
     
