@@ -57,9 +57,6 @@ public:
     {
     public:
         virtual ~RPCListener() { }
-
-        virtual void OnChannelClose() = 0;
-        virtual void OnChannelError() = 0;
         virtual Result OnMessageReceived(const Message& aMessage) = 0;
         virtual Result OnMessageReceived(const Message& aMessage,
                                          Message*& aReply) = 0;

@@ -5,4 +5,5 @@ protocol managerNoCtor {
 
 parent:
     // error: no ctor defined
+    ~managedNoCtor();
 };

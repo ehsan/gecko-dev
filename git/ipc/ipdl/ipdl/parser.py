@@ -145,14 +145,11 @@ reserved = set((
         'both',
         'call',
         'child',
-        '__delete__',
-        'delete',                       # reserve 'delete' to prevent its use
         'goto',
         'include',
         'manager',
         'manages',
         'namespace',
-        'nullable',
         'or',
         'parent',
         'protocol',
@@ -160,9 +157,11 @@ reserved = set((
         'returns',
         'rpc',
         'send',
+        'share',
         'start',
         'state',
         'sync',
+        'transfer',
         'union',
         'using'))
 tokens = [
@@ -397,13 +396,9 @@ def p_MessageBody(p):
 
 def p_MessageId(p):
     """MessageId : ID
-                 | __DELETE__
-                 | DELETE
                  | '~' ID"""
     if 3 == len(p):
-        _error(locFromTok(p, 1), "sorry, `%s()' destructor syntax is a relic from a bygone era.  Declare `__delete__()' in the `%s' protocol instead", p[1]+p[2], p[2])
-    elif 'delete' == p[1]:
-        _error(locFromTok(p, 1), "`delete' is a reserved identifier")
+        p[1] += p[2] # munge dtor name to "~Foo". handled later
     p[0] = p[1]
 
 def p_MessageInParams(p):
@@ -458,18 +453,9 @@ def p_Transitions(p):
         p[0] = [ p[1] ]
 
 def p_Transition(p):
-    """Transition : Trigger ID GOTO StateList ';'
-                  | Trigger __DELETE__ ';'
-                  | Trigger DELETE ';'"""
-    if 'delete' == p[2]:
-        _error(locFromTok(p, 1), "`delete' is a reserved identifier")
-    
+    """Transition : Trigger MessageId GOTO StateList ';'"""
     loc, trigger = p[1]
-    if 6 == len(p):
-        nextstates = p[4]
-    else:
-        nextstates = [ State.DEAD ]
-    p[0] = Transition(loc, trigger, p[2], nextstates)
+    p[0] = Transition(loc, trigger, p[2], p[4])
 
 def p_Trigger(p):
     """Trigger : SEND
@@ -527,14 +513,8 @@ def p_Param(p):
     p[0] = Param(locFromTok(p, 1), p[1], p[2])
 
 def p_Type(p):
-    """Type : MaybeNullable BasicType"""
-    # only actor types are nullable; we check this in the type checker
-    p[2].nullable = p[1]
-    p[0] = p[2]
-
-def p_BasicType(p):
-    """BasicType : ScalarType
-                 | ScalarType '[' ']'"""
+    """Type : ScalarType
+            | ScalarType '[' ']'"""
     if 4 == len(p):
         p[1].array = 1
     p[0] = p[1]
@@ -553,11 +533,6 @@ def p_ActorType(p):
     """ActorType : ID ':' State"""
     loc = locFromTok(p, 1)
     p[0] = TypeSpec(loc, QualifiedId(loc, p[1]), state=p[3])
- 
-def p_MaybeNullable(p):
-    """MaybeNullable : NULLABLE
-                     | """
-    p[0] = (2 == len(p))
 
 ##--------------------
 ## C++ stuff

@@ -8,6 +8,7 @@ protocol PTestDesc {
     manages PTestDescSub; 
 child:
     PTestDescSub();
+    ~PTestDescSub();
 
     Test(PTestDescSubsub a);
 

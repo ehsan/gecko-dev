@@ -2,11 +2,8 @@ rpc protocol trans_WrongDirection4 {
 
 child:
     rpc Msg();
-    delete();
 
 state S1:
     answer Msg goto S1;
 
-start state _:
-    send delete;
 };

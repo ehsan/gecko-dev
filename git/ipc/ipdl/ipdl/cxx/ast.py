@@ -77,11 +77,6 @@ class Visitor:
     def visitDecl(self, decl):
         decl.type.accept(self)
 
-    def visitParam(self, param):
-        self.visitDecl(param)
-        if param.default is not None:
-            param.default.accept(self)
-
     def visitClass(self, cls):
         for inherit in cls.inherits:
             inherit.accept(self)
@@ -320,7 +315,6 @@ Any type, naked or pointer, can be const (const T) or ref (T&).
 """
         assert isinstance(name, str)
         assert not isinstance(const, str)
-        assert not isinstance(T, str)
 
         Node.__init__(self)
         self.name = name
@@ -344,9 +338,6 @@ Type.BOOL = Type('bool')
 Type.INT = Type('int')
 Type.INTPTR = Type('intptr_t')
 Type.UINT32 = Type('uint32')
-Type.SIZE = Type('size_t')
-Type.VOID = Type('void')
-Type.VOIDPTR = Type('void', ptr=1)
 
 class TypeArray(Node):
     def __init__(self, basetype, nmemb):
@@ -404,14 +395,6 @@ class Decl(Node):
     def __deepcopy__(self, memo):
         return Decl(copy.deepcopy(self.type, memo), self.name)
 
-class Param(Decl):
-    def __init__(self, type, name, default=None):
-        Decl.__init__(self, type, name)
-        self.default = default
-    def __deepcopy__(self, memo):
-        return Param(copy.deepcopy(self.type, memo), self.name,
-                     copy.deepcopy(self.default, memo))
-
 ##------------------------------
 # class stuff
 class Class(Block):
@@ -453,7 +436,6 @@ class MethodDecl(Node):
         assert not (static and typeop)
         assert not (name and typeop)
         assert name is None or isinstance(name, str)
-        assert not isinstance(ret, list)
 
         if typeop is not None:
             ret = None
@@ -469,12 +451,12 @@ class MethodDecl(Node):
         self.typeop = typeop            # Type or None
 
     def __deepcopy__(self, memo):
-        return MethodDecl(
-            self.name,
-            copy.deepcopy(self.params, memo),
-            copy.deepcopy(self.ret, memo),
-            self.virtual, self.const, self.pure, self.static,
-            copy.deepcopy(self.typeop, memo))
+        return MethodDecl(self.name,
+                          copy.deepcopy(self.params, memo),
+                          copy.deepcopy(self.ret, memo),
+                          self.virtual,
+                          self.const,
+                          self.pure)
 
 class MethodDefn(Block):
     def __init__(self, decl):
@@ -500,11 +482,6 @@ class DestructorDecl(MethodDecl):
     def __init__(self, name, virtual=0):
         MethodDecl.__init__(self, name, params=[ ], ret=None,
                             virtual=virtual)
-
-    def __deepcopy__(self, memo):
-        return DestructorDecl(self.name, self.virtual)
-
-        
 class DestructorDefn(MethodDefn):
     def __init__(self, decl):  MethodDefn.__init__(self, decl)
 

@@ -45,6 +45,10 @@
 #include "nsStringGlue.h"
 #include "nsTArray.h"
 
+#include "IPCMessageStart.h"
+
+COMPILE_ASSERT(LastMsgIndex <= 64, need_to_update_IPC_MESSAGE_MACRO);
+
 namespace IPC {
 
 template <>

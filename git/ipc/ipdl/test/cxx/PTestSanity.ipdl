@@ -7,10 +7,12 @@ protocol PTestSanity {
 
 child:
     Ping(int zero, float zeroPtFive);
-    __delete__();
 
 parent:
     Pong(int one, float zeroPtTwoFive);
+
+both:
+    UNREACHED();
 
 
 state PING:
@@ -19,8 +21,9 @@ state PING:
 state PONG:
     recv Pong goto DEAD;
 
+    // hmm ... maybe support this idiom natively?
 state DEAD:
-    send __delete__;
+    send UNREACHED goto DEAD;
 };
 
 

@@ -7,4 +7,5 @@ child:
     Msg(array_OfActorsSub[] p);
 
     array_OfActorsSub();
+    ~array_OfActorsSub();
 };

@@ -41,14 +41,10 @@
 
 #include "mozilla/plugins/PPluginInstanceParent.h"
 #include "mozilla/plugins/PluginScriptableObjectParent.h"
-#if defined(OS_WIN)
-#include "mozilla/gfx/SharedDIBWin.h"
-#endif
 
 #include "npfunctions.h"
 #include "nsAutoPtr.h"
 #include "nsTArray.h"
-#include "nsRect.h"
 
 #undef _MOZ_LOG
 #define _MOZ_LOG(s) printf("[PluginInstanceParent] %s\n", s)
@@ -57,6 +53,7 @@ namespace mozilla {
 namespace plugins {
 
 class PBrowserStreamParent;
+class BrowserStreamParent;
 class PluginModuleParent;
 
 class PluginInstanceParent : public PPluginInstanceParent
@@ -92,15 +89,26 @@ public:
                         const bool& seekable,
                         NPError* rv,
                         uint16_t *stype);
+
     virtual bool
-    DeallocPBrowserStream(PBrowserStreamParent* stream);
+    AnswerPBrowserStreamDestructor(PBrowserStreamParent* stream,
+                                   const NPError& reason,
+                                   const bool& artificial);
+
+    virtual bool
+    DeallocPBrowserStream(PBrowserStreamParent* stream,
+                          const NPError& reason,
+                          const bool& artificial);
 
     virtual PPluginStreamParent*
     AllocPPluginStream(const nsCString& mimeType,
                        const nsCString& target,
                        NPError* result);
+
     virtual bool
-    DeallocPPluginStream(PPluginStreamParent* stream);
+    DeallocPPluginStream(PPluginStreamParent* stream,
+                         const NPError& reason,
+                         const bool& artificial);
 
     virtual bool
     AnswerNPN_GetValue_NPNVjavascriptEnabledBool(bool* value, NPError* result);
@@ -147,7 +155,8 @@ public:
                                    NPError* result);
 
     virtual bool
-    DeallocPStreamNotify(PStreamNotifyParent* notifyData);
+    DeallocPStreamNotify(PStreamNotifyParent* notifyData,
+                         const NPReason& reason);
 
     virtual bool
     RecvNPN_InvalidateRect(const NPRect& rect);
@@ -209,25 +218,8 @@ private:
     PluginModuleParent* mParent;
     NPP mNPP;
     const NPNetscapeFuncs* mNPNIface;
-    NPWindowType mWindowType;
 
     nsTArray<nsAutoPtr<PluginScriptableObjectParent> > mScriptableObjects;
-
-#if defined(OS_WIN)
-private:
-    // Used in rendering windowless plugins in other processes.
-    bool SharedSurfaceSetWindow(const NPWindow* aWindow, NPRemoteWindow& aRemoteWindow);
-    bool SharedSurfaceBeforePaint(RECT &rect, NPRemoteEvent& npremoteevent);
-    void SharedSurfaceAfterPaint(NPEvent* npevent);
-    void SharedSurfaceRelease();
-
-private:
-    gfx::SharedDIBWin  mSharedSurfaceDib;
-    nsIntRect          mPluginPort;
-    nsIntRect          mSharedSize;
-    PRUint32           mDoublePassEvent;
-    bool               mLocalCopyRender;
-#endif // defined(XP_WIN)
 };
 
 

@@ -21,7 +21,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Jim Mathies <jmathies@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -55,7 +54,6 @@ using namespace mozilla::plugins;
 #include "gtk2xtbin.h"
 
 #elif defined(OS_WIN)
-using mozilla::gfx::SharedDIB;
 
 #include <windows.h>
 
@@ -86,14 +84,6 @@ PluginInstanceChild::~PluginInstanceChild()
   DestroyPluginWindow();
 #endif
 }
-
-bool
-PluginInstanceChild::Answer__delete__(NPError* rv)
-{
-    return static_cast<PluginModuleChild*>(Manager())->
-        PluginInstanceDestroyed(this, rv);
-}
-
 
 NPError
 PluginInstanceChild::NPN_GetValue(NPNVariable aVar,
@@ -338,15 +328,8 @@ PluginInstanceChild::AnswerNPP_HandleEvent(const NPRemoteEvent& event,
                event.event.xgraphicsexpose.drawable);
 #endif
 
-    // Make a copy since we may modify values.
+    // plugins might be fooling with these, make a copy
     NPEvent evcopy = event.event;
-
-#ifdef OS_WIN
-    // Setup the shared dib for painting and update evcopy.
-    if (NPWindowTypeDrawable == mWindow.type && WM_PAINT == evcopy.event)
-        SharedSurfaceBeforePaint(evcopy);
-#endif
-
     *handled = mPluginIface->event(&mData, reinterpret_cast<void*>(&evcopy));
 
 #ifdef MOZ_X11
@@ -425,43 +408,25 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow,
     *rv = mPluginIface->setwindow(&mData, &mWindow);
 
 #elif defined(OS_WIN)
-    switch (aWindow.type) {
-      case NPWindowTypeWindow:
-      {
-          if (!CreatePluginWindow())
-              return false;
+    ReparentPluginWindow((HWND)aWindow.window);
+    SizePluginWindow(aWindow.width, aWindow.height);
 
-          ReparentPluginWindow((HWND)aWindow.window);
-          SizePluginWindow(aWindow.width, aWindow.height);
+    mWindow.window = (void*)mPluginWindowHWND;
+    mWindow.x = aWindow.x;
+    mWindow.y = aWindow.y;
+    mWindow.width = aWindow.width;
+    mWindow.height = aWindow.height;
+    mWindow.type = aWindow.type;
 
-          mWindow.window = (void*)mPluginWindowHWND;
-          mWindow.x = aWindow.x;
-          mWindow.y = aWindow.y;
-          mWindow.width = aWindow.width;
-          mWindow.height = aWindow.height;
-          mWindow.type = aWindow.type;
-
-          *rv = mPluginIface->setwindow(&mData, &mWindow);
-          if (*rv == NPERR_NO_ERROR) {
-              WNDPROC wndProc = reinterpret_cast<WNDPROC>(
-                  GetWindowLongPtr(mPluginWindowHWND, GWLP_WNDPROC));
-              if (wndProc != PluginWindowProc) {
-                  mPluginWndProc = reinterpret_cast<WNDPROC>(
-                      SetWindowLongPtr(mPluginWindowHWND, GWLP_WNDPROC,
-                                       reinterpret_cast<LONG>(PluginWindowProc)));
-              }
-          }
-      }
-      break;
-
-      case NPWindowTypeDrawable:
-          return SharedSurfaceSetWindow(aWindow, rv);
-      break;
-
-      default:
-          NS_NOTREACHED("Bad plugin window type.");
-          return false;
-      break;
+    *rv = mPluginIface->setwindow(&mData, &mWindow);
+    if (*rv == NPERR_NO_ERROR) {
+        WNDPROC wndProc = reinterpret_cast<WNDPROC>(
+            GetWindowLongPtr(mPluginWindowHWND, GWLP_WNDPROC));
+        if (wndProc != PluginWindowProc) {
+            mPluginWndProc = reinterpret_cast<WNDPROC>(
+                SetWindowLongPtr(mPluginWindowHWND, GWLP_WNDPROC,
+                                 reinterpret_cast<LONG>(PluginWindowProc)));
+        }
     }
 
 #elif defined(OS_MACOSX)
@@ -477,6 +442,11 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow,
 bool
 PluginInstanceChild::Initialize()
 {
+#if defined(OS_WIN)
+    if (!CreatePluginWindow())
+        return false;
+#endif
+
     return true;
 }
 
@@ -498,10 +468,6 @@ PluginInstanceChild::Destroy()
           PluginScriptableObjectChild::ScriptableInvalidate(object);
         }
     }
-
-#if defined(OS_WIN)
-    SharedSurfaceRelease();
-#endif
 }
 
 #if defined(OS_WIN)
@@ -539,28 +505,26 @@ PluginInstanceChild::RegisterWindowClass()
 bool
 PluginInstanceChild::CreatePluginWindow()
 {
-    // already initialized
-    if (mPluginWindowHWND)
-        return true;
-        
     if (!RegisterWindowClass())
         return false;
 
-    mPluginWindowHWND =
-        CreateWindowEx(WS_EX_LEFT | WS_EX_LTRREADING |
-                       WS_EX_NOPARENTNOTIFY | // XXXbent Get rid of this!
-                       WS_EX_RIGHTSCROLLBAR,
-                       kWindowClassName, 0,
-                       WS_POPUP | WS_CLIPCHILDREN | WS_CLIPSIBLINGS, 0, 0,
-                       0, 0, NULL, 0, GetModuleHandle(NULL), 0);
-    if (!mPluginWindowHWND)
-        return false;
-    if (!SetProp(mPluginWindowHWND, kPluginInstanceChildProperty, this))
-        return false;
+    if (!mPluginWindowHWND) {
+        mPluginWindowHWND =
+            CreateWindowEx(WS_EX_LEFT | WS_EX_LTRREADING |
+                           WS_EX_NOPARENTNOTIFY | // XXXbent Get rid of this!
+                           WS_EX_RIGHTSCROLLBAR,
+                           kWindowClassName, 0,
+                           WS_POPUP | WS_CLIPCHILDREN | WS_CLIPSIBLINGS, 0, 0,
+                           0, 0, NULL, 0, GetModuleHandle(NULL), 0);
+        if (!mPluginWindowHWND)
+            return false;
+        if (!SetProp(mPluginWindowHWND, kPluginInstanceChildProperty, this))
+            return false;
 
-    // Apparently some plugins require an ASCII WndProc.
-    SetWindowLongPtrA(mPluginWindowHWND, GWLP_WNDPROC,
-                      reinterpret_cast<LONG>(DefWindowProcA));
+        // Apparently some plugins require an ASCII WndProc.
+        SetWindowLongPtrA(mPluginWindowHWND, GWLP_WNDPROC,
+                          reinterpret_cast<LONG>(DefWindowProcA));
+    }
 
     return true;
 }
@@ -656,60 +620,6 @@ PluginInstanceChild::PluginWindowProc(HWND hWnd,
     return res;
 }
 
-/* windowless drawing helpers */
-
-bool
-PluginInstanceChild::SharedSurfaceSetWindow(const NPRemoteWindow& aWindow,
-                                            NPError* rv)
-{
-    // If the surfaceHandle is empty, parent is telling us we can reuse our cached
-    // memory surface and hdc. Otherwise, we need to reset, usually due to a
-    // expanding plugin port size.
-    if (!aWindow.surfaceHandle) {
-        if (!mSharedSurfaceDib.IsValid()) {
-            return false;
-        }
-    }
-    else {
-        // Attach to the new shared surface parent handed us.
-        if (NS_FAILED(mSharedSurfaceDib.Attach((SharedDIB::Handle)aWindow.surfaceHandle,
-                                               aWindow.width, aWindow.height, 32)))
-          return false;
-    }
-      
-    // NPRemoteWindow's origin is the origin of our shared dib.
-    mWindow.x      = 0;
-    mWindow.y      = 0;
-    mWindow.width  = aWindow.width;
-    mWindow.height = aWindow.height;
-    mWindow.type   = aWindow.type;
-
-    mWindow.window = reinterpret_cast<void*>(mSharedSurfaceDib.GetHDC());
-    *rv = mPluginIface->setwindow(&mData, &mWindow);
-
-    return true;
-}
-
-void
-PluginInstanceChild::SharedSurfaceRelease()
-{
-    mSharedSurfaceDib.Close();
-}
-
-void
-PluginInstanceChild::SharedSurfaceBeforePaint(NPEvent& evcopy)
-{
-    // Update the clip rect on our internal hdc
-    RECT* pRect = reinterpret_cast<RECT*>(evcopy.lParam);
-    if (pRect) {
-      HRGN clip = ::CreateRectRgnIndirect(pRect);
-      ::SelectClipRgn(mSharedSurfaceDib.GetHDC(), clip);
-      ::DeleteObject(clip);
-    }
-    // pass the internal hdc to the plugin
-    evcopy.wParam = WPARAM(mSharedSurfaceDib.GetHDC());
-}
-
 #endif // OS_WIN
 
 PPluginScriptableObjectChild*
@@ -729,7 +639,7 @@ PluginInstanceChild::AllocPPluginScriptableObject()
 
 bool
 PluginInstanceChild::DeallocPPluginScriptableObject(
-    PPluginScriptableObjectChild* aObject)
+                                          PPluginScriptableObjectChild* aObject)
 {
     AssertPluginThread();
 
@@ -796,7 +706,20 @@ PluginInstanceChild::AllocPBrowserStream(const nsCString& url,
 }
 
 bool
-PluginInstanceChild::DeallocPBrowserStream(PBrowserStreamChild* stream)
+PluginInstanceChild::AnswerPBrowserStreamDestructor(PBrowserStreamChild* stream,
+                                                    const NPError& reason,
+                                                    const bool& artificial)
+{
+    AssertPluginThread();
+    if (!artificial)
+        static_cast<BrowserStreamChild*>(stream)->NPP_DestroyStream(reason);
+    return true;
+}
+
+bool
+PluginInstanceChild::DeallocPBrowserStream(PBrowserStreamChild* stream,
+                                           const NPError& reason,
+                                           const bool& artificial)
 {
     AssertPluginThread();
     delete stream;
@@ -813,7 +736,21 @@ PluginInstanceChild::AllocPPluginStream(const nsCString& mimeType,
 }
 
 bool
-PluginInstanceChild::DeallocPPluginStream(PPluginStreamChild* stream)
+PluginInstanceChild::AnswerPPluginStreamDestructor(PPluginStreamChild* stream,
+                                                   const NPReason& reason,
+                                                   const bool& artificial)
+{
+    AssertPluginThread();
+    if (!artificial) {
+        static_cast<PluginStreamChild*>(stream)->NPP_DestroyStream(reason);
+    }
+    return true;
+}
+
+bool
+PluginInstanceChild::DeallocPPluginStream(PPluginStreamChild* stream,
+                                          const NPError& reason,
+                                          const bool& artificial)
 {
     AssertPluginThread();
     delete stream;
@@ -834,27 +771,22 @@ PluginInstanceChild::AllocPStreamNotify(const nsCString& url,
 }
 
 bool
-StreamNotifyChild::Answer__delete__(const NPReason& reason)
+PluginInstanceChild::AnswerPStreamNotifyDestructor(PStreamNotifyChild* notifyData,
+                                                   const NPReason& reason)
 {
     AssertPluginThread();
-    return static_cast<PluginInstanceChild*>(Manager())
-        ->NotifyStream(this, reason);
-}
 
-bool
-PluginInstanceChild::NotifyStream(StreamNotifyChild* notifyData,
-                                  NPReason reason)
-{
-    if (notifyData->mClosure)
-        mPluginIface->urlnotify(&mData, notifyData->mURL.get(), reason,
-                                notifyData->mClosure);
+    StreamNotifyChild* sn = static_cast<StreamNotifyChild*>(notifyData);
+    if (sn->mClosure)
+        mPluginIface->urlnotify(&mData, sn->mURL.get(), reason, sn->mClosure);
+
     return true;
 }
 
 bool
-PluginInstanceChild::DeallocPStreamNotify(PStreamNotifyChild* notifyData)
+PluginInstanceChild::DeallocPStreamNotify(PStreamNotifyChild* notifyData,
+                                          const NPReason& reason)
 {
-    AssertPluginThread();
     delete notifyData;
     return true;
 }
@@ -900,14 +832,14 @@ PluginInstanceChild::NPN_NewStream(NPMIMEType aMIMEType, const char* aWindow,
 {
     AssertPluginThread();
 
-    PluginStreamChild* ps = new PluginStreamChild();
+    PluginStreamChild* ps = new PluginStreamChild(this);
 
     NPError result;
     CallPPluginStreamConstructor(ps, nsDependentCString(aMIMEType),
                                  NullableString(aWindow), &result);
     if (NPERR_NO_ERROR != result) {
         *aStream = NULL;
-        PPluginStreamChild::Call__delete__(ps, NPERR_GENERIC_ERROR, true);
+        CallPPluginStreamDestructor(ps, NPERR_GENERIC_ERROR, true);
         return result;
     }
 
@@ -921,17 +853,10 @@ PluginInstanceChild::InternalInvalidateRect(NPRect* aInvalidRect)
     NS_ASSERTION(aInvalidRect, "Null pointer!");
 
 #ifdef OS_WIN
-    // Invalidate and draw locally for windowed plugins.
-    if (mWindow.type == NPWindowTypeWindow) {
-      NS_ASSERTION(IsWindow(mPluginWindowHWND), "Bad window?!");
-      RECT rect = { aInvalidRect->left, aInvalidRect->top,
-                    aInvalidRect->right, aInvalidRect->bottom };
-      InvalidateRect(mPluginWindowHWND, &rect, FALSE);
-      return false;
-    }
-    // Windowless need the invalidation to propegate to parent
-    // triggering wm_paint handle event calls.
-    return true;
+    NS_ASSERTION(IsWindow(mPluginWindowHWND), "Bad window?!");
+    RECT rect = { aInvalidRect->left, aInvalidRect->top,
+                  aInvalidRect->right, aInvalidRect->bottom };
+    InvalidateRect(mPluginWindowHWND, &rect, FALSE);
 #endif
 
     // Windowless plugins must return true!

@@ -1,7 +1,6 @@
 #ifndef mozilla__ipdltest_TestArrays_h
 #define mozilla__ipdltest_TestArrays_h 1
 
-#include "mozilla/_ipdltest/IPDLUnitTests.h"
 
 #include "mozilla/_ipdltest/PTestArraysParent.h"
 #include "mozilla/_ipdltest/PTestArraysChild.h"
@@ -40,7 +39,6 @@ public:
     void Main();
 
 protected:
-    NS_OVERRIDE
     virtual PTestArraysSubParent* AllocPTestArraysSub(const int& i)
     {
         PTestArraysSubParent* actor = new TestArraysSub(i);
@@ -48,32 +46,33 @@ protected:
         return actor;
     }
 
-    NS_OVERRIDE
-    virtual bool DeallocPTestArraysSub(PTestArraysSubParent* actor);
+    virtual bool DeallocPTestArraysSub(PTestArraysSubParent* actor)
+    {
+        delete actor;
+        return true;
+    }
 
-    NS_OVERRIDE
+    virtual bool
+    RecvPTestArraysSubDestructor(PTestArraysSubParent* actor);
+
     virtual bool RecvTest1(
             const nsTArray<int>& i1,
             nsTArray<int>* o1);
 
-    NS_OVERRIDE
     virtual bool RecvTest2(
             const nsTArray<PTestArraysSubParent*>& i1,
             nsTArray<PTestArraysSubParent*>* o1);
 
-    NS_OVERRIDE
     virtual bool RecvTest3(
             const IntDouble& i1,
             const IntDouble& i2,
             IntDouble* o1,
             IntDouble* o2);
 
-    NS_OVERRIDE
     virtual bool RecvTest4(
             const nsTArray<IntDouble>& i1,
             nsTArray<IntDouble>* o1);
 
-    NS_OVERRIDE
     virtual bool RecvTest5(
             const IntDoubleArrays& i1,
             const IntDoubleArrays& i2,
@@ -82,12 +81,10 @@ protected:
             IntDoubleArrays* o2,
             IntDoubleArrays* o3);
 
-    NS_OVERRIDE
     virtual bool RecvTest6(
             const nsTArray<IntDoubleArrays>& i1,
             nsTArray<IntDoubleArrays>* o1);
 
-    NS_OVERRIDE
     virtual bool RecvTest7(
             const Actors& i1,
             const Actors& i2,
@@ -96,12 +93,9 @@ protected:
             Actors* o2,
             Actors* o3);
 
-    NS_OVERRIDE
     virtual bool RecvTest8(
             const nsTArray<Actors>& i1,
             nsTArray<Actors>* o1);
-
-    NS_OVERRIDE
     virtual bool RecvTest9(
             const Unions& i1,
             const Unions& i2,
@@ -111,20 +105,9 @@ protected:
             Unions* o2,
             Unions* o3,
             Unions* o4);
-
-    NS_OVERRIDE
     virtual bool RecvTest10(
             const nsTArray<Unions>& i1,
             nsTArray<Unions>* o1);
-
-    NS_OVERRIDE
-    virtual void ActorDestroy(ActorDestroyReason why)
-    {
-        if (NormalShutdown != why)
-            fail("unexpected destruction!");  
-        passed("ok");
-        QuitParent();
-    }
 
 private:
     nsTArray<PTestArraysSubParent*> mKids;
@@ -139,31 +122,19 @@ public:
     virtual ~TestArraysChild();
 
 protected:
-    NS_OVERRIDE
     virtual PTestArraysSubChild* AllocPTestArraysSub(const int& i)
     {
         PTestArraysSubChild* actor = new TestArraysSub(i);
         mKids.AppendElement(actor);
         return actor;
     }
-
-    NS_OVERRIDE
     virtual bool DeallocPTestArraysSub(PTestArraysSubChild* actor)
     {
         delete actor;
         return true;
     }
 
-    NS_OVERRIDE
     virtual bool RecvStart();
-
-    NS_OVERRIDE
-    virtual void ActorDestroy(ActorDestroyReason why)
-    {
-        if (NormalShutdown != why)
-            fail("unexpected destruction!");
-        QuitChild();
-    }
 
 private:
     void Test1();

@@ -127,16 +127,6 @@ BrowserStreamChild::AnswerNPP_StreamAsFile(const nsCString& fname)
   return true;
 }
 
-bool
-BrowserStreamChild::Answer__delete__(const NPError& reason,
-                                     const bool& artificial)
-{
-  AssertPluginThread();
-  if (!artificial)
-    NPP_DestroyStream(reason);
-  return true;
-}
-
 NPError
 BrowserStreamChild::NPN_RequestRead(NPByteRange* aRangeList)
 {

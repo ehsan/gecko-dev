@@ -89,9 +89,6 @@ struct NPRemoteWindow
   VisualID visualID;
   Colormap colormap;
 #endif /* XP_UNIX */
-#if defined(XP_WIN)
-  base::SharedMemoryHandle surfaceHandle;
-#endif
 };
 
 // XXX maybe not the best place for these. better one?
@@ -281,9 +278,6 @@ struct ParamTraits<mozilla::plugins::NPRemoteWindow>
     aMsg->WriteULong(aParam.visualID);
     aMsg->WriteULong(aParam.colormap);
 #endif
-#if defined(XP_WIN)
-    WriteParam(aMsg, aParam.surfaceHandle);
-#endif
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
@@ -310,12 +304,6 @@ struct ParamTraits<mozilla::plugins::NPRemoteWindow>
       return false;
 #endif
 
-#if defined(XP_WIN)
-    base::SharedMemoryHandle surfaceHandle;
-    if (!ReadParam(aMsg, aIter, &surfaceHandle))
-      return false;
-#endif
-
     aResult->window = window;
     aResult->x = x;
     aResult->y = y;
@@ -326,9 +314,6 @@ struct ParamTraits<mozilla::plugins::NPRemoteWindow>
 #if defined(MOZ_X11) && defined(XP_UNIX) && !defined(XP_MACOSX)
     aResult->visualID = visualID;
     aResult->colormap = colormap;
-#endif
-#if defined(XP_WIN)
-    aResult->surfaceHandle = surfaceHandle;
 #endif
     return true;
   }
@@ -565,26 +550,6 @@ struct ParamTraits<mozilla::plugins::IPCByteRange>
   }
 };
 
-template <>
-struct ParamTraits<NPNVariable>
-{
-  typedef NPNVariable paramType;
-
-  static void Write(Message* aMsg, const paramType& aParam)
-  {
-    WriteParam(aMsg, int(aParam));
-  }
-
-  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
-  {
-    int intval;
-    if (ReadParam(aMsg, aIter, &intval)) {
-      *aResult = paramType(intval);
-      return true;
-    }
-    return false;
-  }
-};
 
 } /* namespace IPC */
 

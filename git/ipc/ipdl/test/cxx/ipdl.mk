@@ -8,7 +8,4 @@ IPDLSRCS =					\
   PTestManyChildAllocs.ipdl			\
   PTestManyChildAllocsSub.ipdl			\
   PTestSanity.ipdl				\
-  PTestShutdown.ipdl				\
-  PTestShutdownSub.ipdl				\
-  PTestShutdownSubsub.ipdl			\
   $(NULL)

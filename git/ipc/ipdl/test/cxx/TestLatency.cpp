@@ -1,7 +1,15 @@
 #include "TestLatency.h"
 
+#include "nsIAppShell.h"
+
+#include "nsCOMPtr.h"
+#include "nsServiceManagerUtils.h" // do_GetService()
+#include "nsWidgetsCID.h"       // NS_APPSHELL_CID
+
 #include "IPDLUnitTests.h"      // fail etc.
 
+
+#define NR_TRIALS 10000
 
 namespace mozilla {
 namespace _ipdltest {
@@ -58,7 +66,13 @@ TestLatencyParent::Ping5Pong5Trial()
 void
 TestLatencyParent::Exit()
 {
-    Close();
+    passed("average ping/pong latency: %g sec, average ping5/pong5 latency: %g sec",
+           mPPTimeTotal.ToSeconds() / (double) NR_TRIALS,
+           mPP5TimeTotal.ToSeconds() / (double) NR_TRIALS);
+
+    static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
+    nsCOMPtr<nsIAppShell> appShell (do_GetService(kAppShellCID));
+    appShell->Exit();
 }
 
 bool

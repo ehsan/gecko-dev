@@ -59,8 +59,6 @@ public:
     mClosure = aClosure;
   }
 
-  bool Answer__delete__(const NPReason& reason);
-
 private:
   nsCString mURL;
   void* mClosure;

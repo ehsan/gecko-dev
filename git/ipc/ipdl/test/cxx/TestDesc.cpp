@@ -1,5 +1,11 @@
 #include "TestDesc.h"
 
+#include "nsIAppShell.h"
+
+#include "nsCOMPtr.h"
+#include "nsServiceManagerUtils.h" // do_GetService()
+#include "nsWidgetsCID.h"       // NS_APPSHELL_CID
+
 #include "IPDLUnitTests.h"      // fail etc.
 
 namespace mozilla {
@@ -28,7 +34,11 @@ TestDescParent::RecvOk(PTestDescSubsubParent* a)
     if (!a)
         fail("didn't receive Subsub");
 
-    Close();
+    passed("ok");
+
+    static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
+    nsCOMPtr<nsIAppShell> appShell (do_GetService(kAppShellCID));
+    appShell->Exit();
 
     return true;
 }

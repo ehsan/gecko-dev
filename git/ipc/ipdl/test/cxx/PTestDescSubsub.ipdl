@@ -1,4 +1,3 @@
-
 include protocol "PTestDescSub.ipdl";
 
 namespace mozilla {
@@ -7,8 +6,7 @@ namespace _ipdltest {
 protocol PTestDescSubsub {
     manager PTestDescSub;
 
-child:
-    __delete__();
+    // empty
 };
 
 }

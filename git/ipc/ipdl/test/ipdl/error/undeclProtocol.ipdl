@@ -3,4 +3,5 @@ protocol undeclProtocol {
 
 child:
     undeclared();
+    ~undeclared();
 };

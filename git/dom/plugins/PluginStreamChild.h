@@ -51,20 +51,17 @@ class PluginStreamChild : public PPluginStreamChild, public AStream
   friend class PluginInstanceChild;
 
 public:
-  PluginStreamChild();
+  PluginStreamChild(PluginInstanceChild* instance);
   virtual ~PluginStreamChild() { }
 
   NS_OVERRIDE virtual bool IsBrowserStream() { return false; }
-
-  virtual bool Answer__delete__(const NPReason& reason,
-                                const bool& artificial);
 
   int32_t NPN_Write(int32_t length, void* buffer);
   void NPP_DestroyStream(NPError reason);
 
   void EnsureCorrectInstance(PluginInstanceChild* i)
   {
-    if (i != Instance())
+    if (i != mInstance)
       NS_RUNTIMEABORT("Incorrect stream instance");
   }
   void EnsureCorrectStream(NPStream* s)
@@ -74,8 +71,7 @@ public:
   }
 
 private:
-  PluginInstanceChild* Instance();
-
+  PluginInstanceChild* mInstance;
   NPStream mStream;
   bool mClosed;
 };

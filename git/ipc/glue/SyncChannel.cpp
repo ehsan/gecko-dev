@@ -76,7 +76,6 @@ bool
 SyncChannel::Send(Message* msg, Message* reply)
 {
     AssertWorkerThread();
-    mMutex.AssertNotCurrentThreadOwns();
     NS_ABORT_IF_FALSE(!ProcessingSyncMessage(),
                       "violation of sync handler invariant");
     NS_ABORT_IF_FALSE(msg->is_sync(), "can only Send() sync messages here");
@@ -178,12 +177,17 @@ void
 SyncChannel::OnChannelError()
 {
     AssertIOThread();
+    {
+        MutexAutoLock lock(mMutex);
 
-    AsyncChannel::OnChannelError();
+        mChannelState = ChannelError;
 
-    MutexAutoLock lock(mMutex);
-    if (AwaitingSyncReply())
-        NotifyWorkerThread();
+        if (AwaitingSyncReply()) {
+            NotifyWorkerThread();
+        }
+    }
+
+    return AsyncChannel::OnChannelError();
 }
 
 //

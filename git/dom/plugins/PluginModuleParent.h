@@ -66,8 +66,6 @@ namespace mozilla {
 namespace plugins {
 //-----------------------------------------------------------------------------
 
-class BrowserStreamParent;
-
 /**
  * PluginModuleParent
  *
@@ -93,14 +91,13 @@ protected:
                          NPError* rv);
 
     virtual bool
-    DeallocPPluginInstance(PPluginInstanceParent* aActor);
+    DeallocPPluginInstance(PPluginInstanceParent* aActor,
+                           NPError* _retval);
 
 public:
     PluginModuleParent(const char* aFilePath);
 
     virtual ~PluginModuleParent();
-
-    NS_OVERRIDE virtual void ActorDestroy(ActorDestroyReason why);
 
     /**
      * LoadModule
@@ -135,11 +132,6 @@ public:
     RecvNPN_GetStringIdentifiers(const nsTArray<nsCString>& aNames,
                                  nsTArray<NPRemoteIdentifier>* aIds);
 
-    virtual bool
-    AnswerNPN_GetValue_WithBoolReturn(const NPNVariable& aVariable,
-                                      NPError* aError,
-                                      bool* aBoolVal);
-
     const NPNetscapeFuncs* GetNetscapeFuncs() {
         return mNPNIface;
     }
@@ -149,7 +141,6 @@ public:
 
     bool EnsureValidNPIdentifier(NPIdentifier aIdentifier);
 
-    base::ProcessHandle ChildProcessHandle() { return mSubprocess->GetChildProcessHandle(); }
 private:
     void SetPluginFuncs(NPPluginFuncs* aFuncs);
 
@@ -210,7 +201,6 @@ private:
                              NPError* error);
 private:
     PluginProcessParent* mSubprocess;
-    bool mShutdown;
     const NPNetscapeFuncs* mNPNIface;
     nsTHashtable<nsVoidPtrHashKey> mValidIdentifiers;
 };

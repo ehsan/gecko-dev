@@ -109,7 +109,12 @@ protected:
                          NPError* rv);
 
     virtual bool
-    DeallocPPluginInstance(PPluginInstanceChild* aActor);
+    DeallocPPluginInstance(PPluginInstanceChild* aActor,
+                           NPError* rv);
+
+    virtual bool
+    AnswerPPluginInstanceDestructor(PPluginInstanceChild* aActor,
+                                    NPError* rv);
 
     virtual bool
     AnswerPPluginInstanceConstructor(PPluginInstanceChild* aActor,
@@ -120,9 +125,6 @@ protected:
                                      NPError* rv);
     virtual bool
     AnswerNP_Shutdown(NPError *rv);
-
-    virtual void
-    ActorDestroy(ActorDestroyReason why);
 
 public:
     PluginModuleChild();
@@ -151,10 +153,6 @@ public:
 #ifdef DEBUG
     bool NPObjectIsRegisteredForActor(PluginScriptableObjectChild* aActor);
 #endif
-
-    bool
-    PluginInstanceDestroyed(PluginInstanceChild* aActor,
-                            NPError* rv);
 
 private:
     bool InitGraphics();

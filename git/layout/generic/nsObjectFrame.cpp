@@ -205,9 +205,6 @@ enum { XKeyPress = KeyPress };
 #ifdef XP_WIN
 #include <wtypes.h>
 #include <winuser.h>
-#ifdef MOZ_IPC
-#define NS_OOPP_DOUBLEPASS_MSGID TEXT("MozDoublePassMsg")
-#endif
 #endif
 
 #ifdef XP_OS2
@@ -608,9 +605,6 @@ nsObjectFrame::Init(nsIContent*      aContent,
   if (NS_SUCCEEDED(rv)) {
     NotifyPluginEventObservers(NS_LITERAL_STRING("init").get());
   }
-#ifdef XP_WIN
-  mDoublePassEvent = 0;
-#endif
   return rv;
 }
 
@@ -1686,7 +1680,6 @@ nsObjectFrame::PaintPlugin(nsIRenderingContext& aRenderingContext,
       nsPoint origin;
       
       gfxWindowsNativeDrawing nativeDraw(ctx, frameGfxRect);
-      PRBool doublePass = PR_FALSE;
       do {
         HDC hdc = nativeDraw.BeginNativeDrawing();
         if (!hdc)
@@ -1749,26 +1742,7 @@ nsObjectFrame::PaintPlugin(nsIRenderingContext& aRenderingContext,
 
         mInstanceOwner->Paint(dirty, hdc);
         nativeDraw.EndNativeDrawing();
-        doublePass = nativeDraw.ShouldRenderAgain();
-#ifdef MOZ_IPC
-        if (doublePass) {
-          // OOP plugin specific: let the shim know we are in the middle of a double pass
-          // render. The second pass will reuse the previous rendering without going over
-          // the wire.
-          if (!mDoublePassEvent)
-            mDoublePassEvent = ::RegisterWindowMessage(NS_OOPP_DOUBLEPASS_MSGID);
-          if (mDoublePassEvent) {
-            NPEvent pluginEvent;
-            pluginEvent.event = mDoublePassEvent;
-            pluginEvent.wParam = 0;
-            pluginEvent.lParam = 0;
-            PRBool eventHandled = PR_FALSE;
-
-            inst->HandleEvent(&pluginEvent, &eventHandled);
-          }          
-        }
-#endif
-      } while (doublePass);
+      } while (nativeDraw.ShouldRenderAgain());
 
       nativeDraw.PaintToContext();
     } else if (!(ctx->GetFlags() & gfxContext::FLAG_DESTINED_FOR_SCREEN)) {
