@@ -1,5 +1,6 @@
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // getNetworks() can take some time..
 MARIONETTE_TIMEOUT = 60000;
@@ -34,17 +35,15 @@ function isTelkilaNetwork(network) {
 function testConnectionInfo() {
   let voice = connection.voice;
   is(voice.connected, true);
-  is(voice.state, "registered");
   is(voice.emergencyCallsOnly, false);
   is(voice.roaming, false);
   isAndroidNetwork(voice.network);
 
   let data = connection.data;
-  // data.connected = true means there's an active data call which we
-  // can't predict here.
-  is(data.state, "registered");
-  is(data.emergencyCallsOnly, false);
-  is(data.roaming, false);
+  // TODO Bug 762959: enable these checks when data state updates are implemented
+  // is(data.connected, true);
+  // is(data.emergencyCallsOnly, false);
+  // is(data.roaming, false);
   isAndroidNetwork(data.network);
 
   testGetNetworks();

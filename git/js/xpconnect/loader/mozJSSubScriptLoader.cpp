@@ -109,11 +109,6 @@ mozJSSubScriptLoader::ReadScript(nsIURI *uri, JSContext *cx, JSObject *target_ob
      * exceptions, including the source/line number */
     er = JS_SetErrorReporter(cx, mozJSLoaderErrorReporter);
 
-    JS::CompileOptions options(cx);
-    options.setPrincipals(nsJSPrincipals::get(principal))
-           .setFileAndLine(uriStr, 1)
-           .setSourcePolicy(JS::CompileOptions::LAZY_SOURCE);
-    JS::RootedObject target_obj_root(cx, target_obj);
     if (!charset.IsVoid()) {
         nsString script;
         rv = nsScriptLoader::ConvertToUTF16(nullptr, reinterpret_cast<const PRUint8*>(buf.get()), len,
@@ -123,10 +118,13 @@ mozJSSubScriptLoader::ReadScript(nsIURI *uri, JSContext *cx, JSObject *target_ob
             return ReportError(cx, LOAD_ERROR_BADCHARSET);
         }
 
-        *scriptp = JS::Compile(cx, target_obj_root, options,
-                               reinterpret_cast<const jschar*>(script.get()), script.Length());
+        *scriptp =
+            JS_CompileUCScriptForPrincipals(cx, target_obj, nsJSPrincipals::get(principal),
+                                            reinterpret_cast<const jschar*>(script.get()),
+                                            script.Length(), uriStr, 1);
     } else {
-        *scriptp = JS::Compile(cx, target_obj_root, options, buf.get(), len);
+        *scriptp = JS_CompileScriptForPrincipals(cx, target_obj, nsJSPrincipals::get(principal),
+                                                 buf.get(), len, uriStr, 1);
     }
 
     /* repent for our evil deeds */

@@ -292,10 +292,10 @@ DOMJSClass Worker::sClass = {
 
 JSPropertySpec Worker::sProperties[] = {
   { sEventStrings[STRING_onerror], STRING_onerror, PROPERTY_FLAGS,
-    JSOP_WRAPPER(GetEventListener), JSOP_WRAPPER(SetEventListener) },
+    GetEventListener, SetEventListener },
   { sEventStrings[STRING_onmessage], STRING_onmessage, PROPERTY_FLAGS,
-    JSOP_WRAPPER(GetEventListener), JSOP_WRAPPER(SetEventListener) },
-  { 0, 0, 0, JSOP_NULLWRAPPER, JSOP_NULLWRAPPER }
+    GetEventListener, SetEventListener },
+  { 0, 0, 0, NULL, NULL }
 };
 
 JSFunctionSpec Worker::sFunctions[] = {

@@ -62,18 +62,14 @@ NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 NS_IMPL_ADDREF_INHERITED(BluetoothAdapter, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(BluetoothAdapter, nsDOMEventTargetHelper)
 
-BluetoothAdapter::BluetoothAdapter(nsPIDOMWindow* aOwner, const BluetoothValue& aValue)
+BluetoothAdapter::BluetoothAdapter(nsPIDOMWindow* aOwner, const nsAString& aPath)
     : BluetoothPropertyContainer(BluetoothObjectType::TYPE_ADAPTER)
     , mJsUuids(nullptr)
     , mJsDeviceAddresses(nullptr)
     , mIsRooted(false)
 {
   BindToOwner(aOwner);
-  const InfallibleTArray<BluetoothNamedValue>& values =
-    aValue.get_ArrayOfBluetoothNamedValue();
-  for (uint32_t i = 0; i < values.Length(); ++i) {
-    SetPropertyByValue(values[i]);
-  }
+  mPath = aPath;
 }
 
 BluetoothAdapter::~BluetoothAdapter()
@@ -179,16 +175,21 @@ BluetoothAdapter::SetPropertyByValue(const BluetoothNamedValue& aValue)
 
 // static
 already_AddRefed<BluetoothAdapter>
-BluetoothAdapter::Create(nsPIDOMWindow* aOwner, const BluetoothValue& aValue)
+BluetoothAdapter::Create(nsPIDOMWindow* aOwner, const nsAString& aPath)
 {
+  // Make sure we at least have a path
+  NS_ASSERTION(!aPath.IsEmpty(), "Adapter created with empty path!");
+    
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
     NS_WARNING("BluetoothService not available!");
     return nullptr;
   }
 
-  nsRefPtr<BluetoothAdapter> adapter = new BluetoothAdapter(aOwner, aValue);
-  if (NS_FAILED(bs->RegisterBluetoothSignalHandler(adapter->GetPath(), adapter))) {
+  nsRefPtr<BluetoothAdapter> adapter = new BluetoothAdapter(aOwner, aPath);
+  nsString path;
+  path = adapter->GetPath();
+  if (NS_FAILED(bs->RegisterBluetoothSignalHandler(path, adapter))) {
     NS_WARNING("Failed to register object with observer!");
     return nullptr;
   }

@@ -137,7 +137,6 @@ static const PRUint8 gsRGBToLinearRGBMap[256] = {
 static bool sSMILEnabled;
 static bool sSVGDisplayListHitTestingEnabled;
 static bool sSVGDisplayListPaintingEnabled;
-static bool sSVGTextCSSFramesEnabled;
 
 bool
 NS_SMILEnabled()
@@ -155,12 +154,6 @@ bool
 NS_SVGDisplayListPaintingEnabled()
 {
   return sSVGDisplayListPaintingEnabled;
-}
-
-bool
-NS_SVGTextCSSFramesEnabled()
-{
-  return sSVGTextCSSFramesEnabled;
 }
 
 // we only take the address of this:
@@ -225,9 +218,6 @@ nsSVGUtils::Init()
 
   Preferences::AddBoolVarCache(&sSVGDisplayListPaintingEnabled,
                                "svg.display-lists.painting.enabled");
-
-  Preferences::AddBoolVarCache(&sSVGTextCSSFramesEnabled,
-                               "svg.text.css-frames.enabled");
 }
 
 nsSVGSVGElement*

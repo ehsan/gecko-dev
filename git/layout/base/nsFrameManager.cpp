@@ -1845,7 +1845,7 @@ HashKey(void* key)
   return NS_PTR_TO_INT32(key);
 }
 
-static int
+static PRIntn
 CompareKeys(void* key1, void* key2)
 {
   return key1 == key2;
@@ -1978,8 +1978,8 @@ nsFrameManagerBase::UndisplayedMap::RemoveNodesFor(nsIContent* aParentContent)
   }
 }
 
-static int
-RemoveUndisplayedEntry(PLHashEntry* he, int i, void* arg)
+static PRIntn
+RemoveUndisplayedEntry(PLHashEntry* he, PRIntn i, void* arg)
 {
   UndisplayedNode*  node = (UndisplayedNode*)(he->value);
   delete node;

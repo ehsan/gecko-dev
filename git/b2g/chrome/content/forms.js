@@ -61,7 +61,6 @@ let FormAssistant = {
           content.setTimeout(function showIMEForSelect() {
             sendAsyncMessage("Forms:Input", getJSON(evt.target));
           });
-          this.previousTarget = evt.target;
         } else if (evt.target instanceof HTMLOptionElement &&
                    evt.target.parentNode instanceof HTMLSelectElement) {
           content.setTimeout(function showIMEForSelect() {
@@ -182,21 +181,9 @@ function getJSON(element) {
 
   // FIXME/bug 344616 is input type="number"
   // Until then, let's return 'number' even if the platform returns 'text'
-  // Related to Bug 769352 - Implement <input type=date>
   let attributeType = element.getAttribute("type") || "";
-
-  if (attributeType) {
-    var typeLowerCase = attributeType.toLowerCase(); 
-    switch (typeLowerCase) {
-      case "number":
-      case "date":
-      case "time":
-      case "datetime":
-      case "datetime-local":
-        type = typeLowerCase;
-        break;
-    }
-  }
+  if (attributeType && attributeType.toLowerCase() === "number")
+    type = "number";
 
   return {
     "type": type.toLowerCase(),

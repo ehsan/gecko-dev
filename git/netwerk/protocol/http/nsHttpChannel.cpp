@@ -145,11 +145,11 @@ MaybeMarkCacheEntryValid(const void * channel,
         nsresult rv = cacheEntry->MarkValid();
         LOG(("Marking cache entry valid "
              "[channel=%p, entry=%p, access=%d, result=%d]",
-             channel, cacheEntry, int(cacheAccess), int(rv)));
+             channel, cacheEntry, PRIntn(cacheAccess), PRIntn(rv)));
     } else {
         LOG(("Not marking read-only cache entry valid "
              "[channel=%p, entry=%p, access=%d]", 
-             channel, cacheEntry, int(cacheAccess)));
+             channel, cacheEntry, PRIntn(cacheAccess)));
     }
 }
 
@@ -2891,7 +2891,7 @@ HttpCacheQuery::OnCacheEntryAvailable(nsICacheEntryDescriptor *entry,
 {
     LOG(("HttpCacheQuery::OnCacheEntryAvailable [channel=%p entry=%p "
          "access=%x status=%x, mRunConut=%d]\n", mChannel.get(), entry, access,
-         status, int(mRunCount)));
+         status, PRIntn(mRunCount)));
 
     // XXX Bug 759805: Sometimes we will call this method directly from
     // HttpCacheQuery::Run when AsyncOpenCacheEntry fails, but
@@ -4356,6 +4356,9 @@ nsHttpChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *context)
     NS_ENSURE_TRUE(!mWasOpened, NS_ERROR_ALREADY_OPENED);
 
     nsresult rv;
+
+    if (mCanceled)
+        return mStatus;
 
     rv = NS_CheckPortSafety(mURI);
     if (NS_FAILED(rv))
@@ -5862,7 +5865,7 @@ nsHttpChannel::DoInvalidateCacheEntry(const nsCString &key)
         GetCacheSessionNameForStoragePolicy(storagePolicy, mPrivateBrowsing);
 
     LOG(("DoInvalidateCacheEntry [channel=%p session=%s policy=%d key=%s]",
-         this, clientID, int(storagePolicy), key.get()));
+         this, clientID, PRIntn(storagePolicy), key.get()));
 
     nsresult rv;
     nsCOMPtr<nsICacheService> serv =
@@ -5881,7 +5884,7 @@ nsHttpChannel::DoInvalidateCacheEntry(const nsCString &key)
     }
 
     LOG(("DoInvalidateCacheEntry [channel=%p session=%s policy=%d key=%s rv=%d]",
-         this, clientID, int(storagePolicy), key.get(), int(rv)));
+         this, clientID, PRIntn(storagePolicy), key.get(), PRIntn(rv)));
 }
 
 nsCacheStoragePolicy

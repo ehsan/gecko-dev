@@ -7,7 +7,6 @@
 
 #include "nsIDOMDeviceStorage.h"
 #include "nsIFile.h"
-#include "nsIPrincipal.h"
 #include "nsIObserver.h"
 #include "nsDOMEventTargetHelper.h"
 
@@ -56,7 +55,7 @@ private:
   PRInt32 mStorageType;
   nsCOMPtr<nsIFile> mFile;
 
-  nsCOMPtr<nsIPrincipal> mPrincipal;
+  nsCOMPtr<nsIURI> mURI;
 
   friend class WatchFileEvent;
   friend class DeviceStorageRequest;

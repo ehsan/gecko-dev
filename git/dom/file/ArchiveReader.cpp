@@ -23,13 +23,11 @@ ArchiveReader::ArchiveReader()
   mWindow(nullptr),
   mStatus(NOT_STARTED)
 {
-  MOZ_COUNT_CTOR(ArchiveReader);
   nsLayoutStatics::AddRef();
 }
 
 ArchiveReader::~ArchiveReader()
 {
-  MOZ_COUNT_DTOR(ArchiveReader);
   nsLayoutStatics::Release();
 }
 

@@ -572,7 +572,7 @@ txXPathNodeUtils::getBaseURI(const txXPathNode& aNode, nsAString& aURI)
 }
 
 /* static */
-int
+PRIntn
 txXPathNodeUtils::comparePosition(const txXPathNode& aNode,
                                   const txXPathNode& aOtherNode)
 {

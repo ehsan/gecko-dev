@@ -435,11 +435,11 @@ static JSClass sCDataFinalizerClass = {
   (JSPROP_READONLY | JSPROP_PERMANENT)
 
 static JSPropertySpec sCTypeProps[] = {
-  { "name", 0, CTYPESPROP_FLAGS, JSOP_WRAPPER(CType::NameGetter), JSOP_NULLWRAPPER },
-  { "size", 0, CTYPESPROP_FLAGS, JSOP_WRAPPER(CType::SizeGetter), JSOP_NULLWRAPPER },
-  { "ptr", 0, CTYPESPROP_FLAGS, JSOP_WRAPPER(CType::PtrGetter), JSOP_NULLWRAPPER },
-  { "prototype", 0, CTYPESPROP_FLAGS, JSOP_WRAPPER(CType::PrototypeGetter), JSOP_NULLWRAPPER },
-  { 0, 0, 0, JSOP_NULLWRAPPER, JSOP_NULLWRAPPER }
+  { "name", 0, CTYPESPROP_FLAGS, CType::NameGetter, NULL },
+  { "size", 0, CTYPESPROP_FLAGS, CType::SizeGetter, NULL },
+  { "ptr", 0, CTYPESPROP_FLAGS, CType::PtrGetter, NULL },
+  { "prototype", 0, CTYPESPROP_FLAGS, CType::PrototypeGetter, NULL },
+  { 0, 0, 0, NULL, NULL }
 };
 
 static JSFunctionSpec sCTypeFunctions[] = {
@@ -457,8 +457,8 @@ static JSFunctionSpec sCABIFunctions[] = {
 
 static JSPropertySpec sCDataProps[] = {
   { "value", 0, JSPROP_SHARED | JSPROP_PERMANENT,
-    JSOP_WRAPPER(CData::ValueGetter), JSOP_WRAPPER(CData::ValueSetter) },
-  { 0, 0, 0, JSOP_NULLWRAPPER, JSOP_NULLWRAPPER }
+    CData::ValueGetter, CData::ValueSetter },
+  { 0, 0, 0, NULL, NULL }
 };
 
 static JSFunctionSpec sCDataFunctions[] = {
@@ -470,7 +470,7 @@ static JSFunctionSpec sCDataFunctions[] = {
 };
 
 static JSPropertySpec sCDataFinalizerProps[] = {
-  { 0, 0, 0, JSOP_NULLWRAPPER, JSOP_NULLWRAPPER }
+  { 0, 0, 0, NULL, NULL }
 };
 
 static JSFunctionSpec sCDataFinalizerFunctions[] = {
@@ -486,9 +486,8 @@ static JSFunctionSpec sPointerFunction =
   JS_FN("PointerType", PointerType::Create, 1, CTYPESCTOR_FLAGS);
 
 static JSPropertySpec sPointerProps[] = {
-  { "targetType", 0, CTYPESPROP_FLAGS,
-    JSOP_WRAPPER(PointerType::TargetTypeGetter), JSOP_NULLWRAPPER },
-  { 0, 0, 0, JSOP_NULLWRAPPER, JSOP_NULLWRAPPER }
+  { "targetType", 0, CTYPESPROP_FLAGS, PointerType::TargetTypeGetter, NULL },
+  { 0, 0, 0, NULL, NULL }
 };
 
 static JSFunctionSpec sPointerInstanceFunctions[] = {
@@ -497,23 +496,20 @@ static JSFunctionSpec sPointerInstanceFunctions[] = {
   JS_FN("decrement", PointerType::Decrement, 0, CTYPESFN_FLAGS),
   JS_FS_END
 };
-
+  
 static JSPropertySpec sPointerInstanceProps[] = {
   { "contents", 0, JSPROP_SHARED | JSPROP_PERMANENT,
-    JSOP_WRAPPER(PointerType::ContentsGetter),
-    JSOP_WRAPPER(PointerType::ContentsSetter) },
-  { 0, 0, 0, JSOP_NULLWRAPPER, JSOP_NULLWRAPPER }
+    PointerType::ContentsGetter, PointerType::ContentsSetter },
+  { 0, 0, 0, NULL, NULL }
 };
 
 static JSFunctionSpec sArrayFunction =
   JS_FN("ArrayType", ArrayType::Create, 1, CTYPESCTOR_FLAGS);
 
 static JSPropertySpec sArrayProps[] = {
-  { "elementType", 0, CTYPESPROP_FLAGS,
-    JSOP_WRAPPER(ArrayType::ElementTypeGetter), JSOP_NULLWRAPPER },
-  { "length", 0, CTYPESPROP_FLAGS,
-    JSOP_WRAPPER(ArrayType::LengthGetter), JSOP_NULLWRAPPER },
-  { 0, 0, 0, JSOP_NULLWRAPPER, JSOP_NULLWRAPPER }
+  { "elementType", 0, CTYPESPROP_FLAGS, ArrayType::ElementTypeGetter, NULL },
+  { "length", 0, CTYPESPROP_FLAGS, ArrayType::LengthGetter, NULL },
+  { 0, 0, 0, NULL, NULL }
 };
 
 static JSFunctionSpec sArrayInstanceFunctions[] = {
@@ -523,17 +519,16 @@ static JSFunctionSpec sArrayInstanceFunctions[] = {
 
 static JSPropertySpec sArrayInstanceProps[] = {
   { "length", 0, JSPROP_SHARED | JSPROP_READONLY | JSPROP_PERMANENT,
-    JSOP_WRAPPER(ArrayType::LengthGetter), JSOP_NULLWRAPPER },
-  { 0, 0, 0, JSOP_NULLWRAPPER, JSOP_NULLWRAPPER }
+    ArrayType::LengthGetter, NULL },
+  { 0, 0, 0, NULL, NULL }
 };
 
 static JSFunctionSpec sStructFunction =
   JS_FN("StructType", StructType::Create, 2, CTYPESCTOR_FLAGS);
 
 static JSPropertySpec sStructProps[] = {
-  { "fields", 0, CTYPESPROP_FLAGS,
-    JSOP_WRAPPER(StructType::FieldsArrayGetter), JSOP_NULLWRAPPER },
-  { 0, 0, 0, JSOP_NULLWRAPPER, JSOP_NULLWRAPPER }
+  { "fields", 0, CTYPESPROP_FLAGS, StructType::FieldsArrayGetter, NULL },
+  { 0, 0, 0, NULL, NULL }
 };
 
 static JSFunctionSpec sStructFunctions[] = {
@@ -550,15 +545,11 @@ static JSFunctionSpec sFunctionFunction =
   JS_FN("FunctionType", FunctionType::Create, 2, CTYPESCTOR_FLAGS);
 
 static JSPropertySpec sFunctionProps[] = {
-  { "argTypes", 0, CTYPESPROP_FLAGS,
-    JSOP_WRAPPER(FunctionType::ArgTypesGetter), JSOP_NULLWRAPPER },
-  { "returnType", 0, CTYPESPROP_FLAGS,
-    JSOP_WRAPPER(FunctionType::ReturnTypeGetter), JSOP_NULLWRAPPER },
-  { "abi", 0, CTYPESPROP_FLAGS,
-    JSOP_WRAPPER(FunctionType::ABIGetter), JSOP_NULLWRAPPER },
-  { "isVariadic", 0, CTYPESPROP_FLAGS,
-    JSOP_WRAPPER(FunctionType::IsVariadicGetter), JSOP_NULLWRAPPER },
-  { 0, 0, 0, JSOP_NULLWRAPPER, JSOP_NULLWRAPPER }
+  { "argTypes", 0, CTYPESPROP_FLAGS, FunctionType::ArgTypesGetter, NULL },
+  { "returnType", 0, CTYPESPROP_FLAGS, FunctionType::ReturnTypeGetter, NULL },
+  { "abi", 0, CTYPESPROP_FLAGS, FunctionType::ABIGetter, NULL },
+  { "isVariadic", 0, CTYPESPROP_FLAGS, FunctionType::IsVariadicGetter, NULL },
+  { 0, 0, 0, NULL, NULL }
 };
 
 static JSFunctionSpec sFunctionInstanceFunctions[] = {
@@ -625,12 +616,12 @@ static JSFunctionSpec sUInt64Functions[] = {
 
 static JSPropertySpec sModuleProps[] = {
   { "errno", 0, JSPROP_SHARED | JSPROP_PERMANENT,
-    JSOP_WRAPPER(CData::ErrnoGetter), JSOP_NULLWRAPPER },
+    CData::ErrnoGetter, NULL },
 #if defined(XP_WIN)
   { "winLastError", 0, JSPROP_SHARED | JSPROP_PERMANENT,
-    JSOP_WRAPPER(CData::LastErrorGetter), JSOP_NULLWRAPPER },
+    CData::LastErrorGetter, NULL },
 #endif // defined(XP_WIN)
-  { 0, 0, 0, JSOP_NULLWRAPPER, JSOP_NULLWRAPPER }
+  { 0, 0, 0, NULL, NULL }
 };
 
 static JSFunctionSpec sModuleFunctions[] = {
@@ -832,7 +823,7 @@ InitTypeConstructor(JSContext* cx,
                     MutableHandleObject typeProto,
                     MutableHandleObject dataProto)
 {
-  JSFunction* fun = js::DefineFunctionWithReserved(cx, parent, spec.name, spec.call.op,
+  JSFunction* fun = js::DefineFunctionWithReserved(cx, parent, spec.name, spec.call, 
                       spec.nargs, spec.flags);
   if (!fun)
     return false;

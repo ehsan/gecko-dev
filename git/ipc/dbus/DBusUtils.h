@@ -90,7 +90,6 @@ DBusMessage*  dbus_func_args_error(DBusConnection* conn,
 
 DBusMessage*  dbus_func_args_timeout(DBusConnection* conn,
                                      int timeout_ms,
-                                     DBusError* err,
                                      const char* path,
                                      const char* ifc,
                                      const char* func,
@@ -106,7 +105,6 @@ DBusMessage*  dbus_func_args_timeout_valist(DBusConnection* conn,
                                             int first_arg_type,
                                             va_list args);
 
-int dbus_returns_int32(DBusMessage *reply);
 
 }
 }

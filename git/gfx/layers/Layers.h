@@ -419,7 +419,7 @@ public:
    * Dump information about this layer manager and its managed tree to
    * aFile, which defaults to stderr.
    */
-  void Dump(FILE* aFile=NULL, const char* aPrefix="", bool aDumpHtml=false);
+  void Dump(FILE* aFile=NULL, const char* aPrefix="");
   /**
    * Dump information about just this layer manager itself to aFile,
    * which defaults to stderr.
@@ -880,7 +880,7 @@ public:
    * Dump information about this layer manager and its managed tree to
    * aFile, which defaults to stderr.
    */
-  void Dump(FILE* aFile=NULL, const char* aPrefix="", bool aDumpHtml=false);
+  void Dump(FILE* aFile=NULL, const char* aPrefix="");
   /**
    * Dump information about just this layer manager itself to aFile,
    * which defaults to stderr.

@@ -41,8 +41,7 @@ EnumerateToTArray(const PRUint64& aKey,
 
 nsresult
 FileManager::Init(nsIFile* aDirectory,
-                  mozIStorageConnection* aConnection,
-                  FactoryPrivilege aPrivilege)
+                  mozIStorageConnection* aConnection)
 {
   NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
 
@@ -104,10 +103,8 @@ FileManager::Init(nsIFile* aDirectory,
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (flag) {
-      if (aPrivilege != Chrome) {
-        rv = ss->UpdateQuotaInformationForFile(file);
-        NS_ENSURE_SUCCESS(rv, rv);
-      }
+      rv = ss->UpdateQuotaInformationForFile(file);
+      NS_ENSURE_SUCCESS(rv, rv);
     }
     else {
       rv = file->Remove(false);

@@ -438,7 +438,7 @@ class DeviceManager:
     id - unique id of the device
     uptime - uptime of the device
     uptimemillis - uptime of the device in milliseconds (NOT supported on all
-                   implementations)
+                   platforms)
     systime - system time of the device
     screen - screen resolution
     memory - memory stats

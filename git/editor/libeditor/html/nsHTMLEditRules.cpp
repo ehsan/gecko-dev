@@ -7625,7 +7625,7 @@ nsHTMLEditRules::RemoveEmptyNodes()
   NS_ENSURE_SUCCESS(res, res);
   
   nsCOMArray<nsINode> arrayOfEmptyNodes, arrayOfEmptyCites;
-  nsTArray<nsCOMPtr<nsINode> > skipList;
+  nsTArray<nsINode*> skipList;
 
   // check for empty nodes
   while (!iter->IsDone()) {

@@ -1014,7 +1014,7 @@ GetTranslationForThebesLayer(ThebesLayer* aLayer)
 
 static const double SUBPIXEL_OFFSET_EPSILON = 0.02;
 
-static bool
+static PRBool
 SubpixelOffsetFuzzyEqual(gfxPoint aV1, gfxPoint aV2)
 {
   return fabs(aV2.x - aV1.x) < SUBPIXEL_OFFSET_EPSILON &&
@@ -2425,23 +2425,16 @@ FrameLayerBuilder::InvalidateThebesLayerContents(nsIFrame* aFrame,
  * Returns true if we find a descendant with a container layer
  */
 static bool
-InternalInvalidateThebesLayersInSubtree(nsIFrame* aFrame, bool aTrustFrameGeometry)
+InternalInvalidateThebesLayersInSubtree(nsIFrame* aFrame)
 {
   if (!(aFrame->GetStateBits() & NS_FRAME_HAS_CONTAINER_LAYER_DESCENDANT))
     return false;
 
   bool foundContainerLayer = false;
   if (aFrame->GetStateBits() & NS_FRAME_HAS_CONTAINER_LAYER) {
-    if (aTrustFrameGeometry) {
-      // Just invalidate the area covered by the frame. This helps if a single
-      // region is being shared by multiple container layers.
-      FrameLayerBuilder::InvalidateThebesLayerContents(aFrame,
-        aFrame->GetVisualOverflowRectRelativeToSelf());
-    } else {
-      // Delete the invalid region to indicate that all Thebes contents
-      // need to be invalidated
-      aFrame->Properties().Delete(ThebesLayerInvalidRegionProperty());
-    }
+    // Delete the invalid region to indicate that all Thebes contents
+    // need to be invalidated
+    FrameLayerBuilder::InvalidateThebesLayerContents(aFrame, aFrame->GetVisualOverflowRectRelativeToSelf());
     foundContainerLayer = true;
   }
 
@@ -2464,8 +2457,7 @@ InternalInvalidateThebesLayersInSubtree(nsIFrame* aFrame, bool aTrustFrameGeomet
   for (; !lists.IsDone(); lists.Next()) {
     nsFrameList::Enumerator childFrames(lists.CurrentList());
     for (; !childFrames.AtEnd(); childFrames.Next()) {
-      if (InternalInvalidateThebesLayersInSubtree(childFrames.get(),
-                                                  aTrustFrameGeometry)) {
+      if (InternalInvalidateThebesLayersInSubtree(childFrames.get())) {
         foundContainerLayer = true;
       }
     }
@@ -2480,13 +2472,7 @@ InternalInvalidateThebesLayersInSubtree(nsIFrame* aFrame, bool aTrustFrameGeomet
 /* static */ void
 FrameLayerBuilder::InvalidateThebesLayersInSubtree(nsIFrame* aFrame)
 {
-  InternalInvalidateThebesLayersInSubtree(aFrame, true);
-}
-
-/* static */ void
-FrameLayerBuilder::InvalidateThebesLayersInSubtreeWithUntrustedFrameGeometry(nsIFrame* aFrame)
-{
-  InternalInvalidateThebesLayersInSubtree(aFrame, false);
+  InternalInvalidateThebesLayersInSubtree(aFrame);
 }
 
 /* static */ void
@@ -2827,9 +2813,9 @@ FrameLayerBuilder::CheckDOMModified()
 
 #ifdef MOZ_DUMP_PAINTING
 /* static */ void
-FrameLayerBuilder::DumpRetainedLayerTree(LayerManager* aManager, FILE* aFile, bool aDumpHtml)
+FrameLayerBuilder::DumpRetainedLayerTree(LayerManager* aManager, FILE* aFile)
 {
-  aManager->Dump(aFile, "", aDumpHtml);
+  aManager->Dump(aFile);
 }
 #endif
 

@@ -13,14 +13,11 @@
 # include <sys/resource.h>
 #endif
 
-#include "chrome/common/process_watcher.h"
-
 #include "CrashReporterParent.h"
 #include "History.h"
 #include "IDBFactory.h"
 #include "IndexedDBParent.h"
 #include "IndexedDatabaseManager.h"
-#include "mozIApplication.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
@@ -50,10 +47,8 @@
 #include "nsFrameMessageManager.h"
 #include "nsHashPropertyBag.h"
 #include "nsIAlertsService.h"
-#include "nsIAppsService.h"
 #include "nsIClipboard.h"
 #include "nsIConsoleService.h"
-#include "nsIDOMApplicationRegistry.h"
 #include "nsIDOMGeoGeolocation.h"
 #include "nsIDOMWindow.h"
 #include "nsIFilePicker.h"
@@ -62,7 +57,6 @@
 #include "nsIPresShell.h"
 #include "nsIRemoteBlob.h"
 #include "nsIScriptError.h"
-#include "nsIScriptSecurityManager.h"
 #include "nsISupportsPrimitives.h"
 #include "nsIWindowWatcher.h"
 #include "nsMemoryReporterManager.h"
@@ -153,7 +147,7 @@ nsTArray<ContentParent*>* ContentParent::gPrivateContent;
 // The first content child has ID 1, so the chrome process can have ID 0.
 static PRUint64 gContentChildID = 1;
 
-/*static*/ ContentParent*
+ContentParent*
 ContentParent::GetNewOrUsed()
 {
     if (!gNonAppContentParents)
@@ -169,7 +163,7 @@ ContentParent::GetNewOrUsed()
         NS_ASSERTION(p->IsAlive(), "Non-alive contentparent in gNonAppContentParents?");
         return p;
     }
-
+        
     nsRefPtr<ContentParent> p =
         new ContentParent(/* appManifestURL = */ EmptyString());
     p->Init();
@@ -177,20 +171,11 @@ ContentParent::GetNewOrUsed()
     return p;
 }
 
-/*static*/ TabParent*
-ContentParent::CreateBrowser(mozIApplication* aApp, bool aIsBrowserElement)
+ContentParent*
+ContentParent::GetForApp(const nsAString& aAppManifestURL)
 {
-    if (!aApp) {
-        if (ContentParent* cp = GetNewOrUsed()) {
-            nsRefPtr<TabParent> tp(new TabParent(aApp, aIsBrowserElement));
-            return static_cast<TabParent*>(
-                cp->SendPBrowserConstructor(
-                    // DeallocPBrowserParent() releases the ref we take here
-                    tp.forget().get(),
-                    /*chromeFlags*/0,
-                    aIsBrowserElement, nsIScriptSecurityManager::NO_APP_ID));
-        }
-        return nullptr;
+    if (aAppManifestURL.IsEmpty()) {
+        return GetNewOrUsed();
     }
 
     if (!gAppContentParents) {
@@ -200,39 +185,14 @@ ContentParent::CreateBrowser(mozIApplication* aApp, bool aIsBrowserElement)
     }
 
     // Each app gets its own ContentParent instance.
-    nsAutoString manifestURL;
-    if (NS_FAILED(aApp->GetManifestURL(manifestURL))) {
-        NS_ERROR("Failed to get manifest URL");
-        return nullptr;
-    }
-
-    nsCOMPtr<nsIAppsService> appsService = do_GetService(APPS_SERVICE_CONTRACTID);
-    if (!appsService) {
-        NS_ERROR("Failed to get apps service");
-        return nullptr;
-    }
-
-    // Send the local app ID to the new TabChild so it knows what app
-    // it is.
-    PRUint32 appId;
-    if (NS_FAILED(appsService->GetAppLocalIdByManifestURL(manifestURL, &appId))) {
-        NS_ERROR("Failed to get local app ID");
-        return nullptr;
-    }
-
-    ContentParent* p = gAppContentParents->Get(manifestURL);
+    ContentParent* p = gAppContentParents->Get(aAppManifestURL);
     if (!p) {
-        p = new ContentParent(manifestURL);
+        p = new ContentParent(aAppManifestURL);
         p->Init();
-        gAppContentParents->Put(manifestURL, p);
+        gAppContentParents->Put(aAppManifestURL, p);
     }
 
-    nsRefPtr<TabParent> tp(new TabParent(aApp, aIsBrowserElement));
-    return static_cast<TabParent*>(
-        // DeallocPBrowserParent() releases the ref we take here
-        p->SendPBrowserConstructor(tp.forget().get(),
-                                   /*chromeFlags*/0,
-                                   aIsBrowserElement, appId));
+    return p;
 }
 
 static PLDHashOperator
@@ -372,26 +332,6 @@ ContentParent::OnChannelConnected(int32 pid)
     }
 }
 
-void
-ContentParent::ProcessingError(Result what)
-{
-    if (MsgDropped == what) {
-        // Messages sent after crashes etc. are not a big deal.
-        return;
-    }
-    // Other errors are big deals.  This ensures the process is
-    // eventually killed, but doesn't immediately KILLITWITHFIRE
-    // because we want to get a minidump if possible.  After a timeout
-    // though, the process is forceably killed.
-    if (!KillProcess(OtherProcess(), 1, false)) {
-        NS_WARNING("failed to kill subprocess!");
-    }
-    XRE_GetIOMessageLoop()->PostTask(
-        FROM_HERE,
-        NewRunnableFunction(&ProcessWatcher::EnsureProcessTerminated,
-                            OtherProcess(), /*force=*/true));
-}
-
 namespace {
 
 void
@@ -493,6 +433,12 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
     NS_DispatchToCurrentThread(new DelayedDeleteContentParentTask(this));
 }
 
+TabParent*
+ContentParent::CreateTab(PRUint32 aChromeFlags, bool aIsBrowserElement, PRUint32 aAppId)
+{
+  return static_cast<TabParent*>(SendPBrowserConstructor(aChromeFlags, aIsBrowserElement, aAppId));
+}
+
 void
 ContentParent::NotifyTabDestroyed(PBrowserParent* aTab)
 {
@@ -543,9 +489,13 @@ ContentParent::ContentParent(const nsAString& aAppManifestURL)
 
     bool useOffMainThreadCompositing = !!CompositorParent::CompositorLoop();
     if (useOffMainThreadCompositing) {
-        // We need the subprocess's ProcessHandle to create the
-        // PCompositor channel below.  Block just until we have that.
-        mSubprocess->LaunchAndWaitForProcessHandle();
+        // FIXME.  Oh please fixme.  Somehow.
+        //
+        // We need the child process's ProcessHandle to do
+        // PCompositor::Open() below (on win32 ... sigh).  We don't
+        // get that until onconnect, but that's too late to open the
+        // compositor channel below.
+        mSubprocess->SyncLaunch();
     } else {
         mSubprocess->AsyncLaunch();
     }
@@ -894,40 +844,22 @@ ContentParent::AllocPCompositor(mozilla::ipc::Transport* aTransport,
 
 PBrowserParent*
 ContentParent::AllocPBrowser(const PRUint32& aChromeFlags,
-                             const bool& aIsBrowserElement, const AppId& aApp)
+                             const bool& aIsBrowserElement,
+                             const PRUint32& aAppId)
 {
-    // We only use this Alloc() method when the content processes asks
-    // us to open a window.  In that case, we're expecting to see the
-    // opening PBrowser as its app descriptor, and we can trust the data
-    // associated with that PBrowser since it's fully owned by this
-    // process.
-    if (AppId::TPBrowserParent != aApp.type()) {
-        NS_ERROR("Content process attempting to forge app ID");
-        return nullptr;
-    }
-    TabParent* opener = static_cast<TabParent*>(aApp.get_PBrowserParent());
-
-    // Popup windows of isBrowser frames are isBrowser if the parent
-    // isBrowser.  Allocating a !isBrowser frame with same app ID
-    // would allow the content to access data it's not supposed to.
-    if (opener && opener->IsBrowserElement() && !aIsBrowserElement) {
-        NS_ERROR("Content process attempting to escalate data access privileges");
-        return nullptr;
-    }
-
-    TabParent* parent = new TabParent(opener ? opener->GetApp() : nullptr,
-                                      aIsBrowserElement);
-    // We release this ref in DeallocPBrowser()
+  TabParent* parent = new TabParent();
+  if (parent){
     NS_ADDREF(parent);
-    return parent;
+  }
+  return parent;
 }
 
 bool
 ContentParent::DeallocPBrowser(PBrowserParent* frame)
 {
-    TabParent* parent = static_cast<TabParent*>(frame);
-    NS_RELEASE(parent);
-    return true;
+  TabParent* parent = static_cast<TabParent*>(frame);
+  NS_RELEASE(parent);
+  return true;
 }
 
 PDeviceStorageRequestParent*

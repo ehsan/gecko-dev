@@ -65,22 +65,14 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
 
     if (!CheckLength(cx, length))
         return NULL;
-    JS_ASSERT_IF(staticLevel != 0, options.sourcePolicy != CompileOptions::LAZY_SOURCE);
     ScriptSource *ss = cx->new_<ScriptSource>();
     if (!ss)
         return NULL;
     ScriptSourceHolder ssh(cx->runtime, ss);
     SourceCompressionToken sct(cx);
-    switch (options.sourcePolicy) {
-      case CompileOptions::SAVE_SOURCE:
+    if (!cx->hasRunOption(JSOPTION_ONLY_CNG_SOURCE) || options.compileAndGo) {
         if (!ss->setSourceCopy(cx, chars, length, false, &sct))
             return NULL;
-        break;
-      case CompileOptions::LAZY_SOURCE:
-        ss->setSourceRetrievable();
-        break;
-      case CompileOptions::NO_SOURCE:
-        break;
     }
 
     Parser parser(cx, options, chars, length, /* foldConstants = */ true);
@@ -244,11 +236,8 @@ frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun, CompileOptions 
         return NULL;
     ScriptSourceHolder ssh(cx->runtime, ss);
     SourceCompressionToken sct(cx);
-    JS_ASSERT(options.sourcePolicy != CompileOptions::LAZY_SOURCE);
-    if (options.sourcePolicy == CompileOptions::SAVE_SOURCE) {
-        if (!ss->setSourceCopy(cx, chars, length, true, &sct))
-            return NULL;
-    }
+    if (!ss->setSourceCopy(cx, chars, length, true, &sct))
+        return NULL;
 
     options.setCompileAndGo(false);
     Parser parser(cx, options, chars, length, /* foldConstants = */ true);

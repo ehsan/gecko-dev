@@ -97,4 +97,14 @@ LoadContext::GetAppId(PRUint32* aAppId)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+LoadContext::GetExtendedOrigin(nsIURI* aUri, nsACString& aResult)
+{
+  MOZ_ASSERT(mIsNotNull);
+
+  nsIScriptSecurityManager* ssmgr = nsContentUtils::GetSecurityManager();
+
+  return ssmgr->GetExtendedOrigin(aUri, mAppId, mIsInBrowserElement, aResult);
+}
+
 } // namespace mozilla

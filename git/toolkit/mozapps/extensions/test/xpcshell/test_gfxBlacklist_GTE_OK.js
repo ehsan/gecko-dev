@@ -6,7 +6,7 @@
 // blacklist entry is successfully blocked.
 // Uses test_gfxBlacklist.xml
 
-Components.utils.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 var gTestserver = null;
 
@@ -67,7 +67,7 @@ function run_test() {
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "3", "8");
   startupManager();
 
-  gTestserver = new HttpServer();
+  gTestserver = new nsHttpServer();
   gTestserver.registerDirectory("/data/", do_get_file("data"));
   gTestserver.start(4444);
 

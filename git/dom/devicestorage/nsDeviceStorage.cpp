@@ -34,7 +34,6 @@
 #include "mozilla/Services.h"
 #include "nsIObserverService.h"
 #include "GeneratedEvents.h"
-#include "mozilla/dom/PermissionMessageUtils.h"
 
 // Microsoft's API Name hackery sucks
 #undef CreateEvent
@@ -637,14 +636,14 @@ NS_IMPL_ADDREF_INHERITED(nsDOMDeviceStorageCursor, DOMRequest)
 NS_IMPL_RELEASE_INHERITED(nsDOMDeviceStorageCursor, DOMRequest)
 
 nsDOMDeviceStorageCursor::nsDOMDeviceStorageCursor(nsIDOMWindow* aWindow,
-                                                   nsIPrincipal* aPrincipal,
+                                                   nsIURI* aURI,
                                                    DeviceStorageFile* aFile,
                                                    PRUint64 aSince)
   : DOMRequest(aWindow)
   , mOkToCallContinue(false)
   , mSince(aSince)
   , mFile(aFile)
-  , mPrincipal(aPrincipal)
+  , mURI(aURI)
 {
 }
 
@@ -660,9 +659,9 @@ nsDOMDeviceStorageCursor::GetType(nsACString & aType)
 }
 
 NS_IMETHODIMP
-nsDOMDeviceStorageCursor::GetPrincipal(nsIPrincipal * *aRequestingPrincipal)
+nsDOMDeviceStorageCursor::GetUri(nsIURI * *aRequestingURI)
 {
-  NS_IF_ADDREF(*aRequestingPrincipal = mPrincipal);
+  NS_IF_ADDREF(*aRequestingURI = mURI);
   return NS_OK;
 }
 
@@ -938,28 +937,28 @@ public:
 
     DeviceStorageRequest(const DeviceStorageRequestType aRequestType,
                          nsPIDOMWindow *aWindow,
-                         nsIPrincipal *aPrincipal,
+                         nsIURI *aURI,
                          DeviceStorageFile *aFile,
                          DOMRequest* aRequest,
                          nsDOMDeviceStorage *aDeviceStorage,
                          nsIDOMEventListener *aListener)
       : mRequestType(aRequestType)
       , mWindow(aWindow)
-      , mPrincipal(aPrincipal)
+      , mURI(aURI)
       , mFile(aFile)
       , mRequest(aRequest)
       , mDeviceStorage(aDeviceStorage)
-      , mListener(aListener) {}
+      , mListener(aListener) {}  
 
     DeviceStorageRequest(const DeviceStorageRequestType aRequestType,
                          nsPIDOMWindow *aWindow,
-                         nsIPrincipal *aPrincipal,
+                         nsIURI *aURI,
                          DeviceStorageFile *aFile,
                          DOMRequest* aRequest,
                          nsIDOMBlob *aBlob = nullptr)
       : mRequestType(aRequestType)
       , mWindow(aWindow)
-      , mPrincipal(aPrincipal)
+      , mURI(aURI)
       , mFile(aFile)
       , mRequest(aRequest)
       , mBlob(aBlob) {}
@@ -988,7 +987,7 @@ public:
       AddRef();
 
       nsCString type = NS_LITERAL_CSTRING("device-storage");
-      child->SendPContentPermissionRequestConstructor(this, type, IPC::Principal(mPrincipal));
+      child->SendPContentPermissionRequestConstructor(this, type, IPC::URI(mURI));
 
       Sendprompt();
       return NS_OK;
@@ -1007,9 +1006,9 @@ public:
     return NS_OK;
   }
 
-  NS_IMETHOD GetPrincipal(nsIPrincipal * *aRequestingPrincipal)
+  NS_IMETHOD GetUri(nsIURI * *aRequestingURI)
   {
-    NS_IF_ADDREF(*aRequestingPrincipal = mPrincipal);
+    NS_IF_ADDREF(*aRequestingURI = mURI);
     return NS_OK;
   }
 
@@ -1154,7 +1153,7 @@ public:
 private:
   PRInt32 mRequestType;
   nsCOMPtr<nsPIDOMWindow> mWindow;
-  nsCOMPtr<nsIPrincipal> mPrincipal;
+  nsCOMPtr<nsIURI> mURI;
   nsRefPtr<DeviceStorageFile> mFile;
 
   nsRefPtr<DOMRequest> mRequest;
@@ -1227,14 +1226,14 @@ nsDOMDeviceStorage::Init(nsPIDOMWindow* aWindow, const nsAString &aType)
 
   BindToOwner(aWindow);
 
-  // Grab the principal of the document
+  // Grab the uri of the document
   nsCOMPtr<nsIDOMDocument> domdoc;
   aWindow->GetDocument(getter_AddRefs(domdoc));
   nsCOMPtr<nsIDocument> doc = do_QueryInterface(domdoc);
   if (!doc) {
     return NS_ERROR_FAILURE;
   }
-  mPrincipal = doc->NodePrincipal();
+  doc->NodePrincipal()->GetURI(getter_AddRefs(mURI));
   return NS_OK;
 }
 
@@ -1312,7 +1311,7 @@ nsDOMDeviceStorage::AddNamed(nsIDOMBlob *aBlob,
   }
   else {
     r = new DeviceStorageRequest(DeviceStorageRequest::DEVICE_STORAGE_REQUEST_WRITE,
-                                 win, mPrincipal, dsf, request, aBlob);
+                                 win, mURI, dsf, request, aBlob);
   }
   NS_DispatchToMainThread(r);
   return NS_OK;
@@ -1368,7 +1367,7 @@ nsDOMDeviceStorage::GetInternal(const JS::Value & aPath,
     r = new PostErrorEvent(request, POST_ERROR_EVENT_ILLEGAL_FILE_NAME, dsf);
   } else {
     r = new DeviceStorageRequest(DeviceStorageRequest::DEVICE_STORAGE_REQUEST_READ,
-                                 win, mPrincipal, dsf, request);
+                                 win, mURI, dsf, request);
   }
   NS_DispatchToMainThread(r);
   return NS_OK;
@@ -1403,7 +1402,7 @@ nsDOMDeviceStorage::Delete(const JS::Value & aPath, JSContext* aCx, nsIDOMDOMReq
   }
   else {
     r = new DeviceStorageRequest(DeviceStorageRequest::DEVICE_STORAGE_REQUEST_DELETE,
-                                 win, mPrincipal, dsf, request);
+                                 win, mURI, dsf, request);
   }
   NS_DispatchToMainThread(r);
   return NS_OK;
@@ -1486,8 +1485,7 @@ nsDOMDeviceStorage::EnumerateInternal(const JS::Value & aName,
   nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(mFile, path);
   dsf->SetEditable(aEditable);
 
-  nsRefPtr<nsDOMDeviceStorageCursor> cursor = new nsDOMDeviceStorageCursor(win, mPrincipal,
-                                                                           dsf, since);
+  nsRefPtr<nsDOMDeviceStorageCursor> cursor = new nsDOMDeviceStorageCursor(win, mURI, dsf, since);
   nsRefPtr<DeviceStorageCursorRequest> r = new DeviceStorageCursorRequest(cursor);
 
   NS_ADDREF(*aRetval = cursor);
@@ -1509,7 +1507,7 @@ nsDOMDeviceStorage::EnumerateInternal(const JS::Value & aName,
     r->AddRef();
 
     nsCString type = NS_LITERAL_CSTRING("device-storage");
-    child->SendPContentPermissionRequestConstructor(r, type, IPC::Principal(mPrincipal));
+    child->SendPContentPermissionRequestConstructor(r, type, IPC::URI(mURI));
 
     r->Sendprompt();
 
@@ -1615,7 +1613,7 @@ nsDOMDeviceStorage::AddEventListener(const nsAString & aType,
   nsRefPtr<DOMRequest> request = new DOMRequest(win);
   nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(mFile);
   nsCOMPtr<nsIRunnable> r = new DeviceStorageRequest(DeviceStorageRequest::DEVICE_STORAGE_REQUEST_WATCH,
-                                                     win, mPrincipal, dsf, request, this, aListener);
+                                                     win, mURI, dsf, request, this, aListener);
   NS_DispatchToMainThread(r);
   return nsDOMEventTargetHelper::AddEventListener(aType, aListener, aUseCapture, aWantsUntrusted, aArgc);
 }

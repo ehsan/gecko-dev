@@ -205,7 +205,7 @@ Instantiation::Hash(const void* aKey)
 }
 
 
-int
+PRIntn
 Instantiation::Compare(const void* aLeft, const void* aRight)
 {
     const Instantiation* left  = static_cast<const Instantiation*>(aLeft);

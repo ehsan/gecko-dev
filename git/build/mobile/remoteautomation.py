@@ -153,8 +153,7 @@ class RemoteAutomation(Automation):
 
             # Setting timeout at 1 hour since on a remote device this takes much longer
             self.timeout = 3600
-            # The benefit of the following sleep is unclear; it was formerly 15 seconds
-            time.sleep(1)
+            time.sleep(15)
 
         @property
         def pid(self):

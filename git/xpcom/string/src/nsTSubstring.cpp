@@ -750,7 +750,7 @@ nsTSubstring_CharT::StripChars( const char_type* aChars, PRUint32 aOffset )
     mLength = to - mData;
   }
 
-int
+PRIntn
 nsTSubstring_CharT::AppendFunc(void* arg, const char* s, PRUint32 len)
   {
     self_type* self = static_cast<self_type*>(arg);
@@ -793,7 +793,7 @@ void nsTSubstring_CharT::AppendPrintf( const char* format, va_list ap )
 static void 
 Modified_cnvtf(char *buf, int bufsz, int prcsn, double fval)
 {
-  int decpt, sign, numdigits;
+  PRIntn decpt, sign, numdigits;
   char *num, *nump;
   char *bufp = buf;
   char *endnum;

@@ -871,7 +871,6 @@ SpdyStream3::Uncompress(z_stream *context,
 
   context->avail_in = blockLen;
   context->next_in = reinterpret_cast<unsigned char *>(blockStart);
-  bool triedDictionary = false;
 
   do {
     context->next_out =
@@ -880,15 +879,8 @@ SpdyStream3::Uncompress(z_stream *context,
     context->avail_out = mDecompressBufferSize - mDecompressBufferUsed;
     int zlib_rv = inflate(context, Z_NO_FLUSH);
 
-    if (zlib_rv == Z_NEED_DICT) {
-      if (triedDictionary) {
-        LOG3(("SpdySession3::Uncompress %p Dictionary Error\n", this));
-        return NS_ERROR_FAILURE;
-      }
-      
-      triedDictionary = true;      
+    if (zlib_rv == Z_NEED_DICT)
       inflateSetDictionary(context, kDictionary, sizeof(kDictionary));
-    }
     
     if (zlib_rv == Z_DATA_ERROR || zlib_rv == Z_MEM_ERROR)
       return NS_ERROR_FAILURE;

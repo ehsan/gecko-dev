@@ -271,12 +271,12 @@ File(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static JSFunctionSpec gGlobalFun[] = {
-    JS_FS("dump",    Dump,   1,0),
-    JS_FS("debug",   Debug,  1,0),
-    JS_FS("atob",    Atob,   1,0),
-    JS_FS("btoa",    Btoa,   1,0),
-    JS_FS("File",    File,   1,JSFUN_CONSTRUCTOR),
-    JS_FS_END
+    {"dump",    Dump,   1,0},
+    {"debug",   Debug,  1,0},
+    {"atob",    Atob,   1,0},
+    {"btoa",    Btoa,   1,0},
+    {"File",    File,   1,JSFUN_CONSTRUCTOR},
+    {nullptr,nullptr,0,0}
 };
 
 class JSCLContextHelper
@@ -738,15 +738,8 @@ mozJSComponentLoader::GlobalForLocation(nsIFile *aComponentFile,
         // any exceptions out to our caller. Ensure that the engine doesn't
         // eagerly report the exception.
         uint32_t oldopts = JS_GetOptions(cx);
-        if (exception)
-            JS_SetOptions(cx, oldopts | JSOPTION_DONT_REPORT_UNCAUGHT);
-        JS::CompileOptions options(cx);
-        options.setPrincipals(nsJSPrincipals::get(mSystemPrincipal))
-               .setNoScriptRval(true)
-               .setVersion(JSVERSION_LATEST)
-               .setFileAndLine(nativePath.get(), 1)
-               .setSourcePolicy(JS::CompileOptions::LAZY_SOURCE);
-        JS::RootedObject rootedGlobal(cx, global);
+        JS_SetOptions(cx, oldopts | JSOPTION_NO_SCRIPT_RVAL |
+                      (exception ? JSOPTION_DONT_REPORT_UNCAUGHT : 0));
 
         if (realFile) {
 #ifdef HAVE_PR_MEMMAP
@@ -796,7 +789,10 @@ mozJSComponentLoader::GlobalForLocation(nsIFile *aComponentFile,
                 return NS_ERROR_FAILURE;
             }
 
-            script = JS::Compile(cx, rootedGlobal, options, buf, fileSize32);
+            script = JS_CompileScriptForPrincipalsVersion(cx, global,
+                                                          nsJSPrincipals::get(mSystemPrincipal),
+                                                          buf, fileSize32, nativePath.get(), 1,
+                                                          JSVERSION_LATEST);
 
             PR_MemUnmap(buf, fileSize32);
 
@@ -838,7 +834,10 @@ mozJSComponentLoader::GlobalForLocation(nsIFile *aComponentFile,
                 NS_WARNING("Failed to read file");
                 return NS_ERROR_FAILURE;
             }
-            script = JS::Compile(cx, rootedGlobal, options, buf, rlen);
+            script = JS_CompileScriptForPrincipalsVersion(cx, global,
+                                                          nsJSPrincipals::get(mSystemPrincipal),
+                                                          buf, rlen, nativePath.get(), 1,
+                                                          JSVERSION_LATEST);
 
             free(buf);
 
@@ -874,7 +873,10 @@ mozJSComponentLoader::GlobalForLocation(nsIFile *aComponentFile,
 
             buf[len] = '\0';
 
-            script = JS::Compile(cx, rootedGlobal, options, buf, bytesRead);
+            script = JS_CompileScriptForPrincipalsVersion(cx, global,
+                                                          nsJSPrincipals::get(mSystemPrincipal),
+                                                          buf, bytesRead, nativePath.get(), 1,
+                                                          JSVERSION_LATEST);
         }
         // Propagate the exception, if one exists. Also, don't leave the stale
         // exception on this context.

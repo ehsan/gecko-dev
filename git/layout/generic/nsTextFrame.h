@@ -274,86 +274,10 @@ public:
                               PRUint32* aStartOffset, PRUint32* aMaxLength,
                               nscoord* aSnappedLeftEdge,
                               nscoord* aSnappedRightEdge);
-
-  /**
-   * Object with various callbacks for PaintText() to invoke for different parts
-   * of the frame's text rendering, when we're generating paths rather than
-   * painting.
-   *
-   * Callbacks are invoked in the following order:
-   *
-   *   (NotifyBeforeSelectionBackground NotifySelectionBackgroundPathEmitted)?
-   *   (NotifyBeforeDecorationLine NotifyDecorationLinePathEmitted)*
-   *   NotifyBeforeText
-   *   NotifyGlyphPathEmitted*
-   *   NotifyAfterText
-   *   (NotifyBeforeDecorationLine NotifyDecorationLinePathEmitted)*
-   *   (NotifyBeforeSelectionDecorationLine NotifySelectionDecorationLinePathEmitted)*
-   *
-   * The color of each part of the frame's text rendering is passed as an argument
-   * to the NotifyBefore* callback for that part.  The nscolor can take on one of
-   * the three selection special colors defined in LookAndFeel.h --
-   * NS_TRANSPARENT, NS_SAME_AS_FOREGROUND_COLOR and
-   * NS_40PERCENT_FOREGROUND_COLOR.
-   */
-  struct DrawPathCallbacks : gfxTextRun::DrawCallbacks
-  {
-    /**
-     * Called just before any paths have been emitted to the gfxContext
-     * for the glyphs of the frame's text.
-     */
-    virtual void NotifyBeforeText(nscolor aColor) { }
-
-    /**
-     * Called just after all the paths have been emitted to the gfxContext
-     * for the glyphs of the frame's text.
-     */
-    virtual void NotifyAfterText() { }
-
-    /**
-     * Called just before a path corresponding to the selection background
-     * has been emitted to the gfxContext.
-     */
-    virtual void NotifyBeforeSelectionBackground(nscolor aColor) { }
-
-    /**
-     * Called just after a path corresponding to the selection background
-     * has been emitted to the gfxContext.
-     */
-    virtual void NotifySelectionBackgroundPathEmitted() { }
-
-    /**
-     * Called just before a path corresponding to a text decoration line
-     * has been emitted to the gfxContext.
-     */
-    virtual void NotifyBeforeDecorationLine(nscolor aColor) { }
-
-    /**
-     * Called just after a path corresponding to a text decoration line
-     * has been emitted to the gfxContext.
-     */
-    virtual void NotifyDecorationLinePathEmitted() { }
-
-    /**
-     * Called just before a path corresponding to a selection decoration line
-     * has been emitted to the gfxContext.
-     */
-    virtual void NotifyBeforeSelectionDecorationLine(nscolor aColor) { }
-
-    /**
-     * Called just after a path corresponding to a selection decoration line
-     * has been emitted to the gfxContext.
-     */
-    virtual void NotifySelectionDecorationLinePathEmitted() { }
-  };
-
-  // Primary frame paint method called from nsDisplayText.  Can also be used
-  // to generate paths rather than paint the frame's text by passing a callback
-  // object.  The private DrawText() is what applies the text to a graphics
-  // context.
+  // primary frame paint method called from nsDisplayText
+  // The private DrawText() is what applies the text to a graphics context
   void PaintText(nsRenderingContext* aRenderingContext, nsPoint aPt,
-                 const nsRect& aDirtyRect, const nsCharClipDisplayItem& aItem,
-                 DrawPathCallbacks* aCallbacks = nullptr);
+                 const nsRect& aDirtyRect, const nsCharClipDisplayItem& aItem);
   // helper: paint text frame when we're impacted by at least one selection.
   // Return false if the text was not painted and we should continue with
   // the fast path.
@@ -365,8 +289,7 @@ public:
                               PRUint32 aContentOffset,
                               PRUint32 aContentLength,
                               nsTextPaintStyle& aTextPaintStyle,
-                              const nsCharClipDisplayItem::ClipEdges& aClipEdges,
-                              DrawPathCallbacks* aCallbacks);
+                              const nsCharClipDisplayItem::ClipEdges& aClipEdges);
   // helper: paint text with foreground and background colors determined
   // by selection(s). Also computes a mask of all selection types applying to
   // our text, returned in aAllTypes.
@@ -382,8 +305,7 @@ public:
                                     nsTextPaintStyle& aTextPaintStyle,
                                     SelectionDetails* aDetails,
                                     SelectionType* aAllTypes,
-                             const nsCharClipDisplayItem::ClipEdges& aClipEdges,
-                                    DrawPathCallbacks* aCallbacks);
+                            const nsCharClipDisplayItem::ClipEdges& aClipEdges);
   // helper: paint text decorations for text selected by aSelectionType
   void PaintTextSelectionDecorations(gfxContext* aCtx,
                                      const gfxPoint& aFramePt,
@@ -394,8 +316,7 @@ public:
                                      PRUint32 aContentLength,
                                      nsTextPaintStyle& aTextPaintStyle,
                                      SelectionDetails* aDetails,
-                                     SelectionType aSelectionType,
-                                     DrawPathCallbacks* aCallbacks);
+                                     SelectionType aSelectionType);
 
   virtual nscolor GetCaretColorAt(PRInt32 aOffset);
 
@@ -597,12 +518,7 @@ protected:
       return !mStrikes.IsEmpty();
     }
   };
-  enum TextDecorationColorResolution {
-    eResolvedColors,
-    eUnresolvedColors
-  };
   void GetTextDecorations(nsPresContext* aPresContext,
-                          TextDecorationColorResolution aColorResolution,
                           TextDecorations& aDecorations);
 
   void DrawTextRun(gfxContext* const aCtx,
@@ -610,10 +526,8 @@ protected:
                    PRUint32 aOffset,
                    PRUint32 aLength,
                    PropertyProvider& aProvider,
-                   nscolor aTextColor,
                    gfxFloat& aAdvanceWidth,
-                   bool aDrawSoftHyphen,
-                   DrawPathCallbacks* aCallbacks);
+                   bool aDrawSoftHyphen);
 
   void DrawTextRunAndDecorations(gfxContext* const aCtx,
                                  const gfxRect& aDirtyRect,
@@ -623,13 +537,11 @@ protected:
                                  PRUint32 aLength,
                                  PropertyProvider& aProvider,
                                  const nsTextPaintStyle& aTextStyle,
-                                 nscolor aTextColor,
                              const nsCharClipDisplayItem::ClipEdges& aClipEdges,
                                  gfxFloat& aAdvanceWidth,
                                  bool aDrawSoftHyphen,
                                  const TextDecorations& aDecorations,
-                                 const nscolor* const aDecorationOverrideColor,
-                                 DrawPathCallbacks* aCallbacks);
+                                 const nscolor* const aDecorationOverrideColor);
 
   void DrawText(gfxContext* const aCtx,
                 const gfxRect& aDirtyRect,
@@ -639,12 +551,10 @@ protected:
                 PRUint32 aLength,
                 PropertyProvider& aProvider,
                 const nsTextPaintStyle& aTextStyle,
-                nscolor aTextColor,
                 const nsCharClipDisplayItem::ClipEdges& aClipEdges,
                 gfxFloat& aAdvanceWidth,
                 bool aDrawSoftHyphen,
-                const nscolor* const aDecorationOverrideColor = nullptr,
-                DrawPathCallbacks* aCallbacks = nullptr);
+                const nscolor* const aDecorationOverrideColor = nullptr);
 
   // Set non empty rect to aRect, it should be overflow rect or frame rect.
   // If the result rect is larger than the given rect, this returns true.

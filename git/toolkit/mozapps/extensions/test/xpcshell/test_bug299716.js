@@ -26,7 +26,7 @@ const checkListener = {
 }
 
 // Get the HTTP server.
-Components.utils.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 var testserver;
 
 var ADDONS = [
@@ -128,7 +128,7 @@ function run_test() {
   do_check_true(xpiFile.exists());
 
   // Create and configure the HTTP server.
-  testserver = new HttpServer();
+  testserver = new nsHttpServer();
   testserver.registerDirectory("/addons/", addonsDir);
   testserver.registerDirectory("/data/", dataDir);
   testserver.start(4444);

@@ -5,7 +5,7 @@
 // Checks that we rebuild something sensible from a database with a bad schema
 
 
-Components.utils.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 var testserver;
 
 // The test extension uses an insecure update url.
@@ -143,7 +143,7 @@ function run_test() {
   writeInstallRDFForExtension(theme2, profileDir);
 
   // Create and configure the HTTP server.
-  testserver = new HttpServer();
+  testserver = new nsHttpServer();
   testserver.registerDirectory("/addons/", do_get_file("addons"));
   testserver.registerDirectory("/data/", do_get_file("data"));
   testserver.start(4444);

@@ -9,10 +9,7 @@ const PREF_SELECTED_LOCALE = "general.useragent.locale";
 // Disables security checking our updates which haven't been signed
 Services.prefs.setBoolPref("extensions.checkUpdateSecurity", false);
 
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 // This is the data we expect to see sent as part of the update url.
 var EXPECTED = [
@@ -97,8 +94,8 @@ var BlocklistService = {
   },
 
   QueryInterface: function(iid) {
-    if (iid.equals(Ci.nsIBlocklistService)
-     || iid.equals(Ci.nsISupports))
+    if (iid.equals(Components.interfaces.nsIBlocklistService)
+     || iid.equals(Components.interfaces.nsISupports))
       return this;
 
     throw Components.results.NS_ERROR_NO_INTERFACE;
@@ -151,7 +148,7 @@ function run_test() {
   do_test_pending();
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1.9");
 
-  server = new HttpServer();
+  server = new nsHttpServer();
   server.registerPathHandler("/0", requestHandler);
   server.registerPathHandler("/1", requestHandler);
   server.registerPathHandler("/2", requestHandler);

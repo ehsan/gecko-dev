@@ -662,7 +662,7 @@ PRInt32 nsHTMLFramesetFrame::GetBorderWidth(nsPresContext* aPresContext,
 }
 
 
-int
+PRIntn
 nsHTMLFramesetFrame::GetSkipSides() const
 {
   return 0;

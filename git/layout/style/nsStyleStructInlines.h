@@ -56,21 +56,6 @@ nsStyleBorder::GetSubImage(PRUint8 aIndex) const
 }
 
 bool
-nsStyleText::HasTextShadow(const nsIFrame* aFrame) const
-{
-  return mTextShadow && !aFrame->IsSVGText();
-}
-
-nsCSSShadowArray*
-nsStyleText::GetTextShadow(const nsIFrame* aFrame) const
-{
-  if (aFrame->IsSVGText()) {
-    return nullptr;
-  }
-  return mTextShadow;
-}
-
-bool
 nsStyleDisplay::IsBlockInside(const nsIFrame* aFrame) const
 {
   if (aFrame->GetStateBits() & NS_FRAME_IS_SVG_TEXT) {

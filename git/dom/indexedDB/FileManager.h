@@ -60,8 +60,7 @@ public:
   }
 
   nsresult Init(nsIFile* aDirectory,
-                mozIStorageConnection* aConnection,
-                FactoryPrivilege aPrivilege);
+                mozIStorageConnection* aConnection);
 
   nsresult Load(mozIStorageConnection* aConnection);
 

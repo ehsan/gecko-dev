@@ -2821,8 +2821,6 @@ void nsHTMLMediaElement::PlaybackEnded()
     return;
   }
 
-  Pause();
-
   FireTimeUpdate(false);
   DispatchAsyncEvent(NS_LITERAL_STRING("ended"));
 }

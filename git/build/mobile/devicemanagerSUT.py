@@ -507,11 +507,16 @@ class DeviceManagerSUT(DeviceManager):
     except AgentError:
       return None
 
-    # The 'exec' command may wait for the process to start and end, so checking
-    # for the process here may result in process = None.
-    process = self.processExist(appname)
-    if (self.debug >= 4): print "got pid: %s for process: %s" % (process, appname)
+    # wait up to 30 seconds for process to start up
+    timeslept = 0
+    while (timeslept <= 30):
+      process = self.processExist(appname)
+      if (process is not None):
+        break
+      time.sleep(3)
+      timeslept += 3
 
+    if (self.debug >= 4): print "got pid: %s for process: %s" % (process, appname)
     return process
 
   # external function
@@ -913,7 +918,7 @@ class DeviceManagerSUT(DeviceManager):
   # os - name of the os
   # id - unique id of the device
   # uptime - uptime of the device
-  # uptimemillis - uptime of the device in milliseconds (SUTAgent 1.11+)
+  # uptimemillis - uptime of the device in milliseconds
   # systime - system time of the device
   # screen - screen resolution
   # rotation - rotation of the device (in degrees)

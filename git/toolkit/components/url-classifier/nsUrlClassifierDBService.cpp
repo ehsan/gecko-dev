@@ -3591,7 +3591,7 @@ nsresult nsUrlClassifierStore::ReadPrefixes(FallibleTArray<PRUint32>& array,
 
     const PRUint8 *blobdomain = mAllPrefixGetStatement->AsSharedBlob(0, &size);
     if (!blobdomain || (size != DOMAIN_LENGTH))
-      return NS_OK;
+      return false;
 
     domainval = *(reinterpret_cast<const PRUint32*>(blobdomain));
 

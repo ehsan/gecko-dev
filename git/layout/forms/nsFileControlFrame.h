@@ -143,7 +143,7 @@ protected:
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
   }
 
-  virtual int GetSkipSides() const;
+  virtual PRIntn GetSkipSides() const;
 
   /**
    * The text box input.

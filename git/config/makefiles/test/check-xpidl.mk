@@ -8,10 +8,6 @@ ifdef VERBOSE
   $(warning loading test)
 endif
 
-# Limit scope, we only need install_cmd= for testing
-INCLUDED_AUTOCONF_MK = 1
-include $(topsrcdir)/config/config.mk
-
 USE_AUTOTARGETS_MK = 1
 include $(topsrcdir)/config/makefiles/makeutils.mk
 
@@ -24,7 +20,6 @@ INSTALL := cp
 XPIDLSRCS = $(srcdir)/check-xpidl.mk
 
 include $(topsrcdir)/config/makefiles/xpidl.mk
-
 
 $(call requiredfunction,topsrcdir)
 $(call requiredfunction,XPIDL_GEN_DIR)

@@ -7,7 +7,7 @@
 Services.prefs.setBoolPref("extensions.checkUpdateSecurity", false);
 
 // Get the HTTP server.
-Components.utils.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 var testserver;
 
 var next_test = null;
@@ -130,7 +130,7 @@ function run_test() {
   const dataDir = do_get_file("data");
 
   // Create and configure the HTTP server.
-  testserver = new HttpServer();
+  testserver = new nsHttpServer();
   testserver.registerDirectory("/data/", dataDir);
   testserver.start(4444);
 

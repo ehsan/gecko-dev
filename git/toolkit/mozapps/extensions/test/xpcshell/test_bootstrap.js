@@ -27,7 +27,7 @@ userExtDir.append("extensions2");
 userExtDir.append(gAppInfo.ID);
 registerDirectory("XREUSysExt", userExtDir.parent);
 
-Components.utils.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 var testserver;
 
 function resetPrefs() {
@@ -87,7 +87,7 @@ function run_test() {
   resetPrefs();
 
   // Create and configure the HTTP server.
-  testserver = new HttpServer();
+  testserver = new nsHttpServer();
   testserver.registerDirectory("/addons/", do_get_file("addons"));
   testserver.start(4444);
 

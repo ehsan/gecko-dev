@@ -39,7 +39,8 @@ force_prompt(true);
 
 var comp = SpecialPowers.wrap(Components);
 SpecialPowers.setBoolPref("dom.mozSettings.enabled", true);
-SpecialPowers.addPermission("settings", true, document);
+SpecialPowers.addPermission("websettings-read", true, document);
+SpecialPowers.addPermission("websettings-readwrite", true, document);
 comp.utils.import("resource://gre/modules/SettingsChangeNotifier.jsm");
 
 toggleGeolocationSetting(false, function() {

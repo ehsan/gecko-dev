@@ -1385,8 +1385,8 @@ js_NewFunction(JSContext *cx, JSObject *funobj, Native native, unsigned nargs,
         fun->mutableScript().init(NULL);
         fun->initEnvironment(parent);
     } else {
-        JS_ASSERT(native);
-        fun->initNative(native, NULL);
+        fun->u.native = native;
+        JS_ASSERT(fun->u.native);
     }
     if (kind == JSFunction::ExtendedFinalizeKind) {
         fun->flags |= JSFUN_EXTENDED;
@@ -1419,7 +1419,7 @@ js_CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent,
         clone->initScript(fun->script());
         clone->initEnvironment(parent);
     } else {
-        clone->initNative(fun->native(), fun->jitInfo());
+        clone->u.native = fun->native();
     }
     clone->atom.init(fun->atom);
 

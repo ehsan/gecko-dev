@@ -65,7 +65,7 @@ protected:
   nsMathMLmoFrame(nsStyleContext* aContext) : nsMathMLTokenFrame(aContext) {}
   virtual ~nsMathMLmoFrame();
   
-  virtual int GetSkipSides() const { return 0; }
+  virtual PRIntn GetSkipSides() const { return 0; }
 
   nsMathMLChar     mMathMLChar; // Here is the MathMLChar that will deal with the operator.
   nsOperatorFlags  mFlags;

@@ -4602,11 +4602,15 @@ void
 gfxTextRun::DrawPartialLigature(gfxFont *aFont, gfxContext *aCtx,
                                 PRUint32 aStart, PRUint32 aEnd,
                                 gfxPoint *aPt,
-                                PropertyProvider *aProvider,
-                                gfxTextRun::DrawCallbacks *aCallbacks)
+                                PropertyProvider *aProvider)
 {
     if (aStart >= aEnd)
         return;
+
+    // Need to preserve the path, otherwise this can break canvas text-on-path;
+    // in general it seems like a good thing, as naive callers probably won't
+    // expect gfxTextRun::Draw to implicitly destroy the current path.
+    gfxContextPathAutoSaveRestore savePath(aCtx);
 
     // Draw partial ligature. We hack this by clipping the ligature.
     LigatureData data = ComputeLigatureData(aStart, aEnd, aProvider);
@@ -4615,33 +4619,20 @@ gfxTextRun::DrawPartialLigature(gfxFont *aFont, gfxContext *aCtx,
     gfxFloat right = clipExtents.XMost()*mAppUnitsPerDevUnit;
     ClipPartialLigature(this, &left, &right, aPt->x, &data);
 
-    {
-      // Need to preserve the path, otherwise this can break canvas text-on-path;
-      // in general it seems like a good thing, as naive callers probably won't
-      // expect gfxTextRun::Draw to implicitly destroy the current path.
-      gfxContextPathAutoSaveRestore savePath(aCtx);
-
-      // use division here to ensure that when the rect is aligned on multiples
-      // of mAppUnitsPerDevUnit, we clip to true device unit boundaries.
-      // Also, make sure we snap the rectangle to device pixels.
-      aCtx->Save();
-      aCtx->NewPath();
-      aCtx->Rectangle(gfxRect(left / mAppUnitsPerDevUnit,
-                              clipExtents.Y(),
-                              (right - left) / mAppUnitsPerDevUnit,
-                              clipExtents.Height()), true);
-      aCtx->Clip();
-    }
-
+    aCtx->Save();
+    aCtx->NewPath();
+    // use division here to ensure that when the rect is aligned on multiples
+    // of mAppUnitsPerDevUnit, we clip to true device unit boundaries.
+    // Also, make sure we snap the rectangle to device pixels.
+    aCtx->Rectangle(gfxRect(left/mAppUnitsPerDevUnit,
+                            clipExtents.Y(),
+                            (right - left)/mAppUnitsPerDevUnit,
+                            clipExtents.Height()), true);
+    aCtx->Clip();
     gfxFloat direction = GetDirection();
     gfxPoint pt(aPt->x - direction*data.mPartAdvance, aPt->y);
-    DrawGlyphs(aFont, aCtx,
-               aCallbacks ? gfxFont::GLYPH_PATH : gfxFont::GLYPH_FILL, &pt,
-               nullptr, data.mLigatureStart, data.mLigatureEnd, aProvider,
-               aStart, aEnd);
-    if (aCallbacks) {
-      aCallbacks->NotifyGlyphPathEmitted();
-    }
+    DrawGlyphs(aFont, aCtx, gfxFont::GLYPH_FILL, &pt, nullptr, data.mLigatureStart,
+               data.mLigatureEnd, aProvider, aStart, aEnd);
     aCtx->Restore();
 
     aPt->x += direction*data.mPartWidth;
@@ -4717,12 +4708,10 @@ void
 gfxTextRun::Draw(gfxContext *aContext, gfxPoint aPt, gfxFont::DrawMode aDrawMode,
                  PRUint32 aStart, PRUint32 aLength,
                  PropertyProvider *aProvider, gfxFloat *aAdvanceWidth,
-                 gfxPattern *aStrokePattern,
-                 gfxTextRun::DrawCallbacks *aCallbacks)
+                 gfxPattern *aStrokePattern)
 {
     NS_ASSERTION(aStart + aLength <= mCharacterCount, "Substring out of range");
     NS_ASSERTION(aDrawMode <= gfxFont::GLYPH_PATH, "GLYPH_PATH cannot be used with GLYPH_FILL or GLYPH_STROKE");
-    NS_ASSERTION(aDrawMode == gfxFont::GLYPH_PATH || !aCallbacks, "callback must not be specified unless using GLYPH_PATH");
 
     gfxFloat direction = GetDirection();
 
@@ -4766,24 +4755,15 @@ gfxTextRun::Draw(gfxContext *aContext, gfxPoint aPt, gfxFont::DrawMode aDrawMode
         PRUint32 ligatureRunEnd = end;
         ShrinkToLigatureBoundaries(&ligatureRunStart, &ligatureRunEnd);
         
-        bool drawPartial = aDrawMode == gfxFont::GLYPH_FILL ||
-                           aDrawMode == gfxFont::GLYPH_PATH && aCallbacks;
-
-        if (drawPartial) {
-            DrawPartialLigature(font, aContext, start, ligatureRunStart, &pt,
-                                aProvider, aCallbacks);
+        if (aDrawMode == gfxFont::GLYPH_FILL) {
+            DrawPartialLigature(font, aContext, start, ligatureRunStart, &pt, aProvider);
         }
 
         DrawGlyphs(font, aContext, aDrawMode, &pt, aStrokePattern, ligatureRunStart,
                    ligatureRunEnd, aProvider, ligatureRunStart, ligatureRunEnd);
 
-        if (aCallbacks) {
-          aCallbacks->NotifyGlyphPathEmitted();
-        }
-
-        if (drawPartial) {
-            DrawPartialLigature(font, aContext, ligatureRunEnd, end, &pt,
-                                aProvider, aCallbacks);
+        if (aDrawMode == gfxFont::GLYPH_FILL) {
+            DrawPartialLigature(font, aContext, ligatureRunEnd, end, &pt, aProvider);
         }
     }
 

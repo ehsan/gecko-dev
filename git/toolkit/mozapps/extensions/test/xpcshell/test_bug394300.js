@@ -6,7 +6,7 @@
 // Disables security checking our updates which haven't been signed
 Services.prefs.setBoolPref("extensions.checkUpdateSecurity", false);
 
-Components.utils.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 var server;
 
 // nsIAddonUpdateCheckListener implementation
@@ -45,7 +45,7 @@ function run_test()
       do_check_neq(updates[0], null);
       do_check_neq(updates[1], null);
 
-      server = new HttpServer();
+      server = new nsHttpServer();
       server.registerDirectory("/", do_get_file("data"));
       server.start(4444);
 

@@ -6,11 +6,8 @@
 package org.mozilla.gecko.gfx;
 
 import org.mozilla.gecko.GeckoApp;
-import org.mozilla.gecko.R;
 
 import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.PixelFormat;
 import android.graphics.SurfaceTexture;
 import android.os.Build;
@@ -34,12 +31,15 @@ import java.lang.reflect.Method;
 /**
  * A view rendered by the layer compositor.
  *
+ * This view delegates to LayerRenderer to actually do the drawing. Its role is largely that of a
+ * mediator between the LayerRenderer and the LayerController.
+ *
  * Note that LayerView is accessed by Robocop via reflection.
  */
 public class LayerView extends FrameLayout {
     private static String LOGTAG = "GeckoLayerView";
 
-    private GeckoLayerClient mLayerClient;
+    private LayerController mController;
     private TouchEventHandler mTouchEventHandler;
     private GLController mGLController;
     private InputConnectionHandler mInputConnectionHandler;
@@ -67,7 +67,7 @@ public class LayerView extends FrameLayout {
 
         try {
             // and then we can only use it if we have a hardware accelerated window
-            Method m = View.class.getMethod("isHardwareAccelerated", (Class[]) null);
+            Method m = View.class.getMethod("isHardwareAccelerated", new Class[0]);
             return (Boolean) m.invoke(this);
         } catch (Exception e) {
             Log.i(LOGTAG, "Not using TextureView: caught exception checking for hw accel: " + e.toString());
@@ -95,9 +95,9 @@ public class LayerView extends FrameLayout {
         mGLController = new GLController(this);
     }
 
-    void connect(GeckoLayerClient layerClient) {
-        mLayerClient = layerClient;
-        mTouchEventHandler = new TouchEventHandler(getContext(), this, layerClient);
+    void connect(LayerController controller) {
+        mController = controller;
+        mTouchEventHandler = new TouchEventHandler(getContext(), this, mController);
         mRenderer = new LayerRenderer(this);
         mInputConnectionHandler = null;
 
@@ -122,12 +122,12 @@ public class LayerView extends FrameLayout {
         return mTouchEventHandler.handleEvent(event);
     }
 
-    public GeckoLayerClient getLayerClient() { return mLayerClient; }
+    public LayerController getController() { return mController; }
     public TouchEventHandler getTouchEventHandler() { return mTouchEventHandler; }
 
     /** The LayerRenderer calls this to indicate that the window has changed size. */
     public void setViewportSize(IntSize size) {
-        mLayerClient.setViewportSize(new FloatSize(size));
+        mController.setViewportSize(new FloatSize(size));
     }
 
     public void setInputConnectionHandler(InputConnectionHandler inputConnectionHandler) {
@@ -237,20 +237,6 @@ public class LayerView extends FrameLayout {
         return mGLController;
     }
 
-    private Bitmap getDrawable(int resId) {
-        BitmapFactory.Options options = new BitmapFactory.Options();
-        options.inScaled = false;
-        return BitmapFactory.decodeResource(getContext().getResources(), resId, options);
-    }
-
-    Bitmap getBackgroundPattern() {
-        return getDrawable(R.drawable.tabs_tray_selected_bg);
-    }
-
-    Bitmap getShadowPattern() {
-        return getDrawable(R.drawable.shadow);
-    }
-
     private void onSizeChanged(int width, int height) {
         mGLController.surfaceChanged(width, height);
 
@@ -277,7 +263,7 @@ public class LayerView extends FrameLayout {
     /** This function is invoked by Gecko (compositor thread) via JNI; be careful when modifying signature. */
     public static GLController registerCxxCompositor() {
         try {
-            LayerView layerView = GeckoApp.mAppContext.getLayerClient().getView();
+            LayerView layerView = GeckoApp.mAppContext.getLayerController().getView();
             layerView.mListener.compositorCreated();
             return layerView.getGLController();
         } catch (Exception e) {

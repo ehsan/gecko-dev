@@ -24,7 +24,6 @@
 struct gfxMatrix;
 struct JSContext;
 struct JSObject;
-class mozIApplication;
 class nsFrameLoader;
 class nsIDOMElement;
 class nsIURI;
@@ -54,7 +53,7 @@ class TabParent : public PBrowserParent
     typedef mozilla::dom::ClonedMessageData ClonedMessageData;
 
 public:
-    TabParent(mozIApplication* aApp, bool aIsBrowserElement);
+    TabParent();
     virtual ~TabParent();
     nsIDOMElement* GetOwnerElement() { return mFrameElement; }
     void SetOwnerElement(nsIDOMElement* aElement);
@@ -63,9 +62,6 @@ public:
         mBrowserDOMWindow = aBrowserDOMWindow;
     }
  
-    mozIApplication* GetApp() { return mApp; }
-    bool IsBrowserElement() { return mIsBrowserElement; }
-
     void Destroy();
 
     virtual bool RecvMoveFocus(const bool& aForward);
@@ -105,8 +101,6 @@ public:
     virtual bool RecvSetBackgroundColor(const nscolor& aValue);
     virtual bool RecvGetDPI(float* aValue);
     virtual bool RecvGetWidgetNativeData(WindowsHandle* aValue);
-    virtual bool RecvNotifyDOMTouchListenerAdded();
-    virtual bool RecvZoomToRect(const gfxRect& aRect);
     virtual PContentDialogParent* AllocPContentDialog(const PRUint32& aType,
                                                       const nsCString& aName,
                                                       const nsCString& aFeatures,
@@ -126,7 +120,6 @@ public:
     void Show(const nsIntSize& size);
     void UpdateDimensions(const nsRect& rect, const nsIntSize& size);
     void UpdateFrame(const layers::FrameMetrics& aFrameMetrics);
-    void HandleDoubleTap(const nsIntPoint& aPoint);
     void Activate();
     void Deactivate();
 
@@ -154,8 +147,7 @@ public:
                            const nsIntSize& renderSize);
     virtual bool DeallocPDocumentRenderer(PDocumentRendererParent* actor);
 
-    virtual PContentPermissionRequestParent*
-    AllocPContentPermissionRequest(const nsCString& aType, const IPC::Principal& aPrincipal);
+    virtual PContentPermissionRequestParent* AllocPContentPermissionRequest(const nsCString& aType, const IPC::URI& uri);
     virtual bool DeallocPContentPermissionRequest(PContentPermissionRequestParent* actor);
 
     virtual POfflineCacheUpdateParent* AllocPOfflineCacheUpdate(
@@ -231,7 +223,6 @@ protected:
                                                   uint64_t* aLayersId) MOZ_OVERRIDE;
     virtual bool DeallocPRenderFrame(PRenderFrameParent* aFrame) MOZ_OVERRIDE;
 
-    nsCOMPtr<mozIApplication> mApp;
     // IME
     static TabParent *mIMETabParent;
     nsString mIMECacheText;
@@ -247,7 +238,6 @@ protected:
 
     float mDPI;
     bool mActive;
-    bool mIsBrowserElement;
     bool mShown;
 
 private:

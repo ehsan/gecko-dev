@@ -461,7 +461,11 @@ ReadExtensionPrefs(nsIFile *aFile)
         break;
       }
 
-      PREF_ParseBuf(&ps, buffer, read);
+      rv = PREF_ParseBuf(&ps, buffer, read);
+      if (NS_FAILED(rv)) {
+        NS_WARNING("Pref stream parse failed");
+        break;
+      }
     }
     PREF_FinalizeParseState(&ps);
   }

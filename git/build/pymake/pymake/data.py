@@ -1386,7 +1386,7 @@ class _NativeWrapper(_CommandWrapper):
         _CommandWrapper.__init__(self, cline, ignoreErrors, loc, context,
                                  **kwargs)
         # get the module and method to call
-        parts, badchar = process.clinetoargv(cline, blacklist_gray=False)
+        parts, badchar = process.clinetoargv(cline)
         if parts is None:
             raise DataError("native command '%s': shell metacharacter '%s' in command line" % (cline, badchar), self.loc)
         if len(parts) < 2:

@@ -552,9 +552,7 @@ SpdySession2::zlibInit()
   mUpstreamZlib.zfree = SpdyStream2::zlib_destructor;
   mUpstreamZlib.opaque = Z_NULL;
 
-  // mixing carte blanche compression with tls subjects us to traffic
-  // analysis attacks
-  deflateInit(&mUpstreamZlib, Z_NO_COMPRESSION);
+  deflateInit(&mUpstreamZlib, Z_DEFAULT_COMPRESSION);
   deflateSetDictionary(&mUpstreamZlib,
                        reinterpret_cast<const unsigned char *>
                        (SpdyStream2::kDictionary),
@@ -569,7 +567,6 @@ SpdySession2::DownstreamUncompress(char *blockStart, PRUint32 blockLen)
 
   mDownstreamZlib.avail_in = blockLen;
   mDownstreamZlib.next_in = reinterpret_cast<unsigned char *>(blockStart);
-  bool triedDictionary = false;
 
   do {
     mDownstreamZlib.next_out =
@@ -578,18 +575,11 @@ SpdySession2::DownstreamUncompress(char *blockStart, PRUint32 blockLen)
     mDownstreamZlib.avail_out = mDecompressBufferSize - mDecompressBufferUsed;
     int zlib_rv = inflate(&mDownstreamZlib, Z_NO_FLUSH);
 
-    if (zlib_rv == Z_NEED_DICT) {
-      if (triedDictionary) {
-        LOG3(("SpdySession2::DownstreamUncompress %p Dictionary Error\n", this));
-        return NS_ERROR_FAILURE;
-      }
-      
-      triedDictionary = true;
+    if (zlib_rv == Z_NEED_DICT)
       inflateSetDictionary(&mDownstreamZlib,
                            reinterpret_cast<const unsigned char *>
                            (SpdyStream2::kDictionary),
                            strlen(SpdyStream2::kDictionary) + 1);
-    }
     
     if (zlib_rv == Z_DATA_ERROR || zlib_rv == Z_MEM_ERROR)
       return NS_ERROR_FAILURE;

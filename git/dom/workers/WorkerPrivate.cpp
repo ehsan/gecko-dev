@@ -832,12 +832,14 @@ public:
 
 class NotifyRunnable : public WorkerControlRunnable
 {
+  bool mFromJSObjectFinalizer;
   Status mStatus;
 
 public:
-  NotifyRunnable(WorkerPrivate* aWorkerPrivate, Status aStatus)
+  NotifyRunnable(WorkerPrivate* aWorkerPrivate, bool aFromJSObjectFinalizer,
+                 Status aStatus)
   : WorkerControlRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount),
-    mStatus(aStatus)
+    mFromJSObjectFinalizer(aFromJSObjectFinalizer), mStatus(aStatus)
   {
     NS_ASSERTION(aStatus == Terminating || aStatus == Canceling ||
                  aStatus == Killing, "Bad status!");
@@ -847,8 +849,12 @@ public:
   PreDispatch(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   {
     // Modify here, but not in PostRun! This busy count addition will be matched
-    // by the CloseEventRunnable.
-    return aWorkerPrivate->ModifyBusyCount(aCx, true);
+    // by the CloseEventRunnable. If we're running from a finalizer there is no
+    // need to modify the count because future changes to the busy count will
+    // have no effect.
+    return mFromJSObjectFinalizer ?
+           true :
+           aWorkerPrivate->ModifyBusyCount(aCx, true);
   }
 
   bool
@@ -2013,7 +2019,7 @@ WorkerPrivateParent<Derived>::NotifyPrivate(JSContext* aCx, Status aStatus)
   mQueuedRunnables.Clear();
 
   nsRefPtr<NotifyRunnable> runnable =
-    new NotifyRunnable(ParentAsWorkerPrivate(), aStatus);
+    new NotifyRunnable(ParentAsWorkerPrivate(), !aCx, aStatus);
   return runnable->Dispatch(aCx);
 }
 
@@ -2157,7 +2163,7 @@ WorkerPrivateParent<Derived>::ModifyBusyCount(JSContext* aCx, bool aIncrease)
   NS_ASSERTION(aIncrease || mBusyCount, "Mismatched busy count mods!");
 
   if (aIncrease) {
-    if (mBusyCount++ == 0 && mJSObject) {
+    if (mBusyCount++ == 0) {
       if (!RootJSObject(aCx, true)) {
         return false;
       }
@@ -2165,7 +2171,7 @@ WorkerPrivateParent<Derived>::ModifyBusyCount(JSContext* aCx, bool aIncrease)
     return true;
   }
 
-  if (--mBusyCount == 0 && mJSObject) {
+  if (--mBusyCount == 0) {
     if (!RootJSObject(aCx, false)) {
       return false;
     }
@@ -2192,7 +2198,6 @@ WorkerPrivateParent<Derived>::RootJSObject(JSContext* aCx, bool aRoot)
 
   if (aRoot != mJSObjectRooted) {
     if (aRoot) {
-      NS_ASSERTION(mJSObject, "Nothing to root?");
       if (!JS_AddNamedObjectRoot(aCx, &mJSObject, "Worker root")) {
         NS_WARNING("JS_AddNamedObjectRoot failed!");
         return false;

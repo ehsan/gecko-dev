@@ -112,7 +112,7 @@ nsSupportsArray::~nsSupportsArray()
   DeleteArray();
 }
 
-void nsSupportsArray::GrowArrayBy(PRInt32 aGrowBy)
+bool nsSupportsArray::GrowArrayBy(PRInt32 aGrowBy)
 {
   // We have to grow the array. Grow by kGrowArrayBy slots if we're smaller
   // than kLinearThreshold bytes, or a power of two if we're larger.
@@ -139,6 +139,10 @@ void nsSupportsArray::GrowArrayBy(PRInt32 aGrowBy)
   nsISupports** oldArray = mArray;
 
   mArray = new nsISupports*[newCount];
+  if (!mArray) {                    // ran out of memory
+    mArray = oldArray;
+    return false;
+  }
   mArraySize = newCount;
 
 #if DEBUG_SUPPORTSARRAY
@@ -161,6 +165,8 @@ void nsSupportsArray::GrowArrayBy(PRInt32 aGrowBy)
       delete[] oldArray;
     }
   }
+
+  return true;
 }
 
 nsresult
@@ -170,6 +176,8 @@ nsSupportsArray::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
     return NS_ERROR_NO_AGGREGATION;
 
   nsCOMPtr<nsISupportsArray> it = new nsSupportsArray();
+  if (!it)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   return it->QueryInterface(aIID, aResult);
 }
@@ -198,6 +206,8 @@ nsSupportsArray::Read(nsIObjectInputStream *aStream)
     }
     else {
       nsISupports** array = new nsISupports*[newArraySize];
+      if (!array)
+        return NS_ERROR_OUT_OF_MEMORY;
       if (mArray != mAutoArray)
         delete[] mArray;
       mArray = array;
@@ -331,7 +341,8 @@ nsSupportsArray::InsertElementAt(nsISupports* aElement, PRUint32 aIndex)
   if (aIndex <= mCount) {
     if (mArraySize < (mCount + 1)) {
       // need to grow the array
-      GrowArrayBy(1);
+      if (!GrowArrayBy(1))
+        return false;
     }
 
     // Could be slightly more efficient if GrowArrayBy knew about the
@@ -372,7 +383,8 @@ nsSupportsArray::InsertElementsAt(nsISupportsArray* aElements, PRUint32 aIndex)
   if (aIndex <= mCount) {
     if (mArraySize < (mCount + countElements)) {
       // need to grow the array
-      GrowArrayBy(countElements);
+      if (!GrowArrayBy(countElements))
+        return false;
     }
 
     // Could be slightly more efficient if GrowArrayBy knew about the
@@ -717,6 +729,8 @@ NS_NewArrayEnumerator(nsISimpleEnumerator* *result,
                       nsISupportsArray* array)
 {
     nsArrayEnumerator* enumer = new nsArrayEnumerator(array);
+    if (enumer == nullptr)
+        return NS_ERROR_OUT_OF_MEMORY;
     *result = enumer; 
     NS_ADDREF(*result);
     return NS_OK;

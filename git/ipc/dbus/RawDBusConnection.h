@@ -31,10 +31,6 @@ public:
   RawDBusConnection();
   ~RawDBusConnection();
   nsresult EstablishDBusConnection();
-  DBusConnection* GetConnection() {
-    return mConnection;
-  }
-protected:
   Scoped<ScopedDBusConnectionPtrTraits> mConnection;
 };
 

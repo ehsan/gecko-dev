@@ -466,7 +466,7 @@ public:
         return !Equals(aInstantiation); }
 
     static PLHashNumber Hash(const void* aKey);
-    static int Compare(const void* aLeft, const void* aRight);
+    static PRIntn Compare(const void* aLeft, const void* aRight);
 };
 
 

@@ -369,18 +369,16 @@ nsDiskCacheMap::ShrinkRecords()
     PRUint32 newRecordsPerBucket = oldRecordsPerBucket;
     while (maxUsage < (newRecordsPerBucket >> 1))
         newRecordsPerBucket >>= 1;
-    if (newRecordsPerBucket < (kMinRecordCount / kBuckets))
-        newRecordsPerBucket = (kMinRecordCount / kBuckets);
-    NS_ASSERTION(newRecordsPerBucket <= oldRecordsPerBucket,
-                 "ShrinkRecords() can't grow records!");
+    if (newRecordsPerBucket < kMinRecordCount) 
+        newRecordsPerBucket = kMinRecordCount;
     if (newRecordsPerBucket == oldRecordsPerBucket)
         return NS_OK;
     // Move the buckets close to each other
-    for (bucketIndex = 1; bucketIndex < kBuckets; ++bucketIndex) {
+    for (bucketIndex = 0; bucketIndex < kBuckets; ++bucketIndex) {
         // Move bucket
         memmove(mRecordArray + bucketIndex * newRecordsPerBucket,
                 mRecordArray + bucketIndex * oldRecordsPerBucket,
-                newRecordsPerBucket * sizeof(nsDiskCacheRecord));
+                mHeader.mBucketUsage[bucketIndex] * sizeof(nsDiskCacheRecord));
     }
 
     // Shrink the record array memory block itself

@@ -280,12 +280,12 @@ nsGeolocationRequest::Notify(nsITimer* aTimer)
 }
  
 NS_IMETHODIMP
-nsGeolocationRequest::GetPrincipal(nsIPrincipal * *aRequestingPrincipal)
+nsGeolocationRequest::GetUri(nsIURI * *aRequestingURI)
 {
-  NS_ENSURE_ARG_POINTER(aRequestingPrincipal);
+  NS_ENSURE_ARG_POINTER(aRequestingURI);
 
-  nsCOMPtr<nsIPrincipal> principal = mLocator->GetPrincipal();
-  principal.forget(aRequestingPrincipal);
+  nsCOMPtr<nsIURI> uri = mLocator->GetURI();
+  uri.forget(aRequestingURI);
 
   return NS_OK;
 }
@@ -905,7 +905,7 @@ nsGeolocation::Init(nsIDOMWindow* aContentDom)
       return NS_ERROR_FAILURE;
     }
 
-    // Grab the principal of the document
+    // Grab the uri of the document
     nsCOMPtr<nsIDOMDocument> domdoc;
     aContentDom->GetDocument(getter_AddRefs(domdoc));
     nsCOMPtr<nsIDocument> doc = do_QueryInterface(domdoc);
@@ -913,11 +913,15 @@ nsGeolocation::Init(nsIDOMWindow* aContentDom)
       return NS_ERROR_FAILURE;
     }
 
-    mPrincipal = doc->NodePrincipal();
+    doc->NodePrincipal()->GetURI(getter_AddRefs(mURI));
+    
+    if (!mURI) {
+      return NS_ERROR_FAILURE;
+    }
   }
 
   // If no aContentDom was passed into us, we are being used
-  // by chrome/c++ and have no mOwner, no mPrincipal, and no need
+  // by chrome/c++ and have no mOwner, no mURI, and no need
   // to prompt.
   mService = nsGeolocationService::GetInstance();
   if (mService) {
@@ -943,7 +947,7 @@ nsGeolocation::Shutdown()
   }
 
   mService = nullptr;
-  mPrincipal = nullptr;
+  mURI = nullptr;
 }
 
 bool
@@ -1170,8 +1174,8 @@ nsGeolocation::RegisterRequestWithPrompt(nsGeolocationRequest* request)
     request->AddRef();
 
     nsCString type = NS_LITERAL_CSTRING("geolocation");
-    child->SendPContentPermissionRequestConstructor(request, type, IPC::Principal(mPrincipal));
-
+    child->SendPContentPermissionRequestConstructor(request, type, IPC::URI(mURI));
+    
     request->Sendprompt();
     return true;
   }
