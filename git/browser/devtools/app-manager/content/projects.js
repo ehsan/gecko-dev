@@ -14,8 +14,6 @@ const {AppProjects} = require("devtools/app-manager/app-projects");
 const {AppValidator} = require("devtools/app-manager/app-validator");
 const {Services} = Cu.import("resource://gre/modules/Services.jsm");
 const {FileUtils} = Cu.import("resource://gre/modules/FileUtils.jsm");
-const {installHosted, installPackaged} = require("devtools/app-actor-front");
-
 const promise = require("sdk/core/promise");
 
 window.addEventListener("message", function(event) {
@@ -165,39 +163,6 @@ let UI = {
     }
   },
 
-  install: function(button, location) {
-    button.dataset.originalTextContent = button.textContent;
-    button.textContent = Utils.l10n("project.installing");
-    button.disabled = true;
-    let project = AppProjects.get(location);
-    let install;
-    if (project.type == "packaged") {
-      install = installPackaged(this.connection.client, this.listTabsResponse.webappsActor, project.location, project.packagedAppOrigin);
-    } else {
-      let manifestURLObject = Services.io.newURI(project.location, null, null);
-      let origin = Services.io.newURI(manifestURLObject.prePath, null, null);
-      let appId = origin.host;
-      let metadata = {
-        origin: origin.spec,
-        manifestURL: project.location
-      };
-      install = installHosted(this.connection.client, this.listTabsResponse.webappsActor, appId, metadata, project.manifest);
-    }
-    install.then(function () {
-      button.disabled = false;
-      button.textContent = Utils.l10n("project.installed");
-      setTimeout(function() {
-        button.textContent = button.dataset.originalTextContent;
-      }, 1500);
-    },
-    function (res) {
-      button.disabled = false;
-      let message = res.error + ": " + res.message;
-      alert(message);
-      this.connection.log(message);
-    });
-  },
-
   start: function(location) {
     let project = AppProjects.get(location);
     let request = {
@@ -258,11 +223,8 @@ let UI = {
     this._getTargetForApp(manifest).then((target) => {
       gDevTools.showToolbox(target,
                             null,
-                            devtools.Toolbox.HostType.WINDOW).then(toolbox => {
-        this.connection.once(Connection.Events.DISCONNECTED, () => {
-          toolbox.destroy();
-        });
-      });
+                            devtools.Toolbox.HostType.WINDOW,
+                            this.connection.uid);
     }, console.error);
   },
 

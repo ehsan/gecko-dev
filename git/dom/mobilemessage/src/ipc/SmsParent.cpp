@@ -8,6 +8,7 @@
 #include "nsIMmsService.h"
 #include "nsIObserverService.h"
 #include "mozilla/Services.h"
+#include "Constants.h"
 #include "nsIDOMMozSmsMessage.h"
 #include "nsIDOMMozMmsMessage.h"
 #include "mozilla/unused.h"
@@ -20,7 +21,6 @@
 #include "nsIDOMFile.h"
 #include "mozilla/dom/ipc/Blob.h"
 #include "mozilla/dom/ContentParent.h"
-#include "mozilla/dom/mobilemessage/Constants.h" // For MessageType
 #include "nsContentUtils.h"
 #include "nsTArrayHelpers.h"
 #include "nsCxPusher.h"

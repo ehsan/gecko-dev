@@ -44,8 +44,6 @@ if (this.require) {
 const DBG_STRINGS_URI = "chrome://global/locale/devtools/debugger.properties";
 
 const nsFile = CC("@mozilla.org/file/local;1", "nsIFile", "initWithPath");
-Cu.import("resource://gre/modules/reflect.jsm");
-Cu.import("resource://gre/modules/devtools/DevToolsUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 let wantLogging = Services.prefs.getBoolPref("devtools.debugger.log");
@@ -74,7 +72,6 @@ loadSubScript.call(this, "resource://gre/modules/commonjs/sdk/core/promise.js");
 this.require = loaderRequire;
 
 Cu.import("resource://gre/modules/devtools/SourceMap.jsm");
-const escodegen = localRequire("escodegen/escodegen");
 
 loadSubScript.call(this, "resource://gre/modules/devtools/DevToolsUtils.js");
 
@@ -385,7 +382,7 @@ var DebuggerServer = {
       this.addActors("resource://gre/modules/devtools/server/actors/styleeditor.js");
       this.registerModule("devtools/server/actors/inspector");
     }
-    if (!("ContentAppActor" in DebuggerServer)) {
+    if (!("ContentTabActor" in DebuggerServer)) {
       this.addActors("resource://gre/modules/devtools/server/actors/childtab.js");
     }
   },

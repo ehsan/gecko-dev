@@ -362,6 +362,9 @@ Capture.prototype = {
     // notify, since it calls destroy, which cancels the timeout timer and
     // removes the didCapture message listener.
 
+    this.captureCallback(this);
+    this.destroy();
+
     if (data && data.telemetry) {
       // Telemetry is currently disabled in the content process (bug 680508).
       for (let id in data.telemetry) {
@@ -369,9 +372,7 @@ Capture.prototype = {
       }
     }
 
-    let done = () => {
-      this.captureCallback(this);
-      this.destroy();
+    let callOnDones = function callOnDonesFn() {
       for (let callback of this.doneCallbacks) {
         try {
           callback.call(this.options, this.url);
@@ -380,15 +381,15 @@ Capture.prototype = {
           Cu.reportError(err);
         }
       }
-    };
+    }.bind(this);
 
     if (!data) {
-      done();
+      callOnDones();
       return;
     }
 
     PageThumbs._store(this.url, data.finalURL, data.imageData, data.wasErrorResponse)
-              .then(done, done);
+              .then(callOnDones);
   },
 };
 

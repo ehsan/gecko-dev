@@ -48,10 +48,7 @@ function testTopLeft()
     ok (!view.element.classList.contains("show-pseudo-elements"), "Pseudo Elements are collapsed by twisty");
     expander.click();
     ok (view.element.classList.contains("show-pseudo-elements"), "Pseudo Elements are expanded again");
-
-    // Make sure that dblclicking on the header container also toggles the pseudo elements
-    EventUtils.synthesizeMouseAtCenter(gutters[0], {clickCount: 2}, inspector.sidebar.getWindowForTab("ruleview"));
-    ok (!view.element.classList.contains("show-pseudo-elements"), "Pseudo Elements are collapsed by dblclicking");
+    expander.click();
 
     let defaultView = element.ownerDocument.defaultView;
     let elementRule = elementRules[0];

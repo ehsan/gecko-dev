@@ -30,10 +30,12 @@ function getLoadContext() {
 }
 
 function testCopyPaste (isXHTML) {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
   var suppressUnicodeCheckIfHidden = !!isXHTML;
   var suppressHTMLCheck = !!isXHTML;
 
-  var webnav = SpecialPowers.wrap(window).QueryInterface(SpecialPowers.Ci.nsIInterfaceRequestor)
+  var webnav = window.QueryInterface(SpecialPowers.Ci.nsIInterfaceRequestor)
                      .getInterface(SpecialPowers.Ci.nsIWebNavigation)
 
   var docShell = webnav.QueryInterface(SpecialPowers.Ci.nsIDocShell);
@@ -41,7 +43,8 @@ function testCopyPaste (isXHTML) {
   var documentViewer = docShell.contentViewer
                                .QueryInterface(SpecialPowers.Ci.nsIContentViewerEdit);
 
-  var clipboard = SpecialPowers.Services.clipboard;
+  var clipboard = SpecialPowers.Cc["@mozilla.org/widget/clipboard;1"]
+                            .getService(SpecialPowers.Ci.nsIClipboard);
 
   var textarea = SpecialPowers.wrap(document.getElementById('input'));
 
@@ -85,14 +88,14 @@ function testCopyPaste (isXHTML) {
     transferable.init(getLoadContext());
     transferable.addDataFlavor(mime);
     clipboard.getData(transferable, 1);
-    var data = SpecialPowers.createBlankObject();
+    var data = {};
     transferable.getTransferData(mime, data, {}) ;
     return data;
   }
   function testClipboardValue(mime, expected) {
     if (suppressHTMLCheck && mime == "text/html")
       return null;
-    var data = SpecialPowers.wrap(getClipboardData(mime));
+    var data = getClipboardData(mime);
     is (data.value == null ? data.value :
         data.value.QueryInterface(SpecialPowers.Ci.nsISupportsString).data,
       expected,

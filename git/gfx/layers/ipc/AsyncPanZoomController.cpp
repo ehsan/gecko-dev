@@ -963,7 +963,7 @@ void AsyncPanZoomController::RequestContentRepaint() {
             mFrameMetrics.mScrollOffset.x) < EPSILON &&
       fabsf(mLastPaintRequestMetrics.mScrollOffset.y -
             mFrameMetrics.mScrollOffset.y) < EPSILON &&
-      mFrameMetrics.mCumulativeResolution == mLastPaintRequestMetrics.mCumulativeResolution) {
+      mFrameMetrics.mResolution == mLastPaintRequestMetrics.mResolution) {
     return;
   }
 
@@ -1110,11 +1110,8 @@ ViewTransform AsyncPanZoomController::GetCurrentAsyncTransform() {
   }
   LayerPoint translation = (mFrameMetrics.mScrollOffset - lastPaintScrollOffset)
                          * mLastContentPaintMetrics.LayersPixelsPerCSSPixel();
-
   return ViewTransform(-translation,
-                       mFrameMetrics.mZoom
-                     / mLastContentPaintMetrics.mDevPixelsPerCSSPixel
-                     / mFrameMetrics.GetParentResolution());
+                       mFrameMetrics.mZoom / mLastContentPaintMetrics.mDevPixelsPerCSSPixel);
 }
 
 void AsyncPanZoomController::NotifyLayersUpdated(const FrameMetrics& aLayerMetrics, bool aIsFirstPaint) {
@@ -1350,14 +1347,11 @@ void AsyncPanZoomController::TimeoutTouchListeners() {
 
 void AsyncPanZoomController::SetZoomAndResolution(const CSSToScreenScale& aZoom) {
   mMonitor.AssertCurrentThreadIn();
-  LayoutDeviceToParentLayerScale parentResolution = mFrameMetrics.GetParentResolution();
   mFrameMetrics.mZoom = aZoom;
   // We use ScreenToLayerScale(1) below in order to ask gecko to render
   // what's currently visible on the screen. This is effectively turning
   // the async zoom amount into the gecko zoom amount.
-  mFrameMetrics.mCumulativeResolution = aZoom / mFrameMetrics.mDevPixelsPerCSSPixel * ScreenToLayerScale(1);
-  // The parent resolution will not have changed.
-  mFrameMetrics.mResolution = mFrameMetrics.mCumulativeResolution / parentResolution;
+  mFrameMetrics.mResolution = aZoom / mFrameMetrics.mDevPixelsPerCSSPixel * ScreenToLayerScale(1);
 }
 
 void AsyncPanZoomController::UpdateZoomConstraints(bool aAllowZoom,

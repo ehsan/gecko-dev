@@ -92,7 +92,7 @@ class MarionetteTestResult(unittest._TextTestResult):
                         break
                 if skip_log:
                     return
-                self.stream.writeln('\nSTART LOG:')
+                self.stream.writeln('START LOG:')
                 for line in testcase.loglines:
                     self.stream.writeln(' '.join(line).encode('ascii', 'replace'))
                 self.stream.writeln('END LOG:')
@@ -159,8 +159,8 @@ class MarionetteTextTestRunner(unittest.TextTestRunner):
                 stopTestRun()
         stopTime = time.time()
         timeTaken = stopTime - startTime
-        result.printLogs(test)
         result.printErrors()
+        result.printLogs(test)
         if hasattr(result, 'separator2'):
             self.stream.writeln(result.separator2)
         run = result.testsRun

@@ -3,7 +3,6 @@ const ObservableObject = require("devtools/shared/observable-object");
 const promise = require("sdk/core/promise");
 
 const {EventEmitter} = Cu.import("resource:///modules/devtools/shared/event-emitter.js");
-const {generateUUID} = Cc['@mozilla.org/uuid-generator;1'].getService(Ci.nsIUUIDGenerator);
 
 /**
  * IndexedDB wrapper that just save project objects
@@ -97,13 +96,7 @@ const AppProjects = {
   addPackaged: function(folder) {
     let project = {
       type: "packaged",
-      location: folder.path,
-      // We need a unique id, that is the app origin,
-      // in order to identify the app when being installed on the device.
-      // The packaged app local path is a valid id, but only on the client.
-      // This origin will be used to generate the true id of an app:
-      // its manifest URL.
-      packagedAppOrigin: generateUUID().toString().slice(1, -1)
+      location: folder.path
     };
     return IDB.add(project).then(function () {
       store.object.projects.push(project);

@@ -58,7 +58,7 @@ class ThreadProfile
 public:
   ThreadProfile(const char* aName, int aEntrySize, PseudoStack *aStack,
                 int aThreadId, PlatformData* aPlatformData,
-                bool aIsMainThread, void *aStackTop);
+                bool aIsMainThread);
   ~ThreadProfile();
   void addTag(ProfileEntry aTag);
   void flush();
@@ -78,7 +78,6 @@ public:
   int ThreadId() const { return mThreadId; }
 
   PlatformData* GetPlatformData() { return mPlatformData; }
-  void* GetStackTop() const { return mStackTop; }
 private:
   // Circular buffer 'Keep One Slot Open' implementation
   // for simplicity
@@ -93,7 +92,6 @@ private:
   int            mThreadId;
   bool           mIsMainThread;
   PlatformData*  mPlatformData;  // Platform specific data.
-  void* const    mStackTop;
 };
 
 std::ostream& operator<<(std::ostream& stream, const ThreadProfile& profile);

@@ -252,12 +252,12 @@ function checkSocialUI(win) {
       {
         type: "link",
         id: "context-marklinkMenu",
-        label: "social.marklinkMenu.label"
+        label: "social.marklink.label"
       },
       {
         type: "page",
         id: "context-markpageMenu",
-        label: "social.markpageMenu.label"
+        label: "social.markpage.label"
       }
     ];
 

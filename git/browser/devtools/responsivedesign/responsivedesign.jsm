@@ -234,11 +234,9 @@ ResponsiveUI.prototype = {
    onPageUnload: function() {
      if (this.closing)
        return;
-     if (this.touchEventHandler) {
-       this.touchEnableBefore = this.touchEventHandler.enabled;
-       this.disableTouch();
-       delete this.touchEventHandler;
-     }
+     this.touchEnableBefore = this.touchEventHandler.enabled;
+     this.disableTouch();
+     delete this.touchEventHandler;
    },
 
   /**

@@ -32,9 +32,6 @@
 <!ENTITY connection.disconnecting "Disconnecting…">
 <!ENTITY connection.cancel "Cancel">
 <!ENTITY connection.or "or">
-<!ENTITY connection.noSimulatorInstalled "No simulator installed.">
-<!ENTITY connection.installFirstSimulator "Install simulator.">
-<!ENTITY connection.installAnotherSimulator "Add">
 
 <!ENTITY projects.localApps "Local Apps">
 <!ENTITY projects.addApp "Add">
@@ -48,5 +45,5 @@
 <!ENTITY projects.startApp "Start">
 <!ENTITY projects.stopApp "Stop">
 <!ENTITY projects.debugApp "Debug">
-<!ENTITY projects.hostedManifestPlaceHolder2 "http://example.com/app/manifest.webapp">
+<!ENTITY projects.hostedManifestPlaceHolder "http://example.com/app/webapp.manifest">
 <!ENTITY projects.noProject "No project linked. Add a new packaged app below (a directory) or a hosted app (link to a manifest file).">

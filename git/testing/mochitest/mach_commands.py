@@ -65,11 +65,6 @@ class MochitestRunner(MozbuildObject):
             # TODO Find adb automatically if it isn't on the path
             raise Exception(ADB_NOT_FOUND % ('mochitest-remote', b2g_home))
 
-        # Need to call relpath before os.chdir() below.
-        test_path = ''
-        if test_file:
-            test_path = self._wrap_path_argument(test_file).relpath()
-
         # TODO without os.chdir, chained imports fail below
         os.chdir(self.mochitest_dir)
 
@@ -91,12 +86,8 @@ class MochitestRunner(MozbuildObject):
         options.httpdPath = self.mochitest_dir
         options.xrePath = xre_path
 
-        if test_path:
-            test_root_file = mozpack.path.join(self.mochitest_dir, 'tests', test_path)
-            if not os.path.exists(test_root_file):
-                print('Specified test path does not exist: %s' % test_root_file)
-                return 1
-            options.testPath = test_path
+        if test_file:
+            options.testPath = test_file
         else:
             options.testManifest = 'b2g.json'
 

@@ -11,6 +11,7 @@
 #include "TelephonyCall.h"
 #include "TelephonyCallGroup.h"
 
+USING_TELEPHONY_NAMESPACE
 using namespace mozilla::dom;
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_2(CallsList,

@@ -33,12 +33,10 @@
   display: flex;
 }
 
-body.show-simulators .banner,
 body.edit-connection .banner {
   display: none !important;
 }
 
-body.show-simulators #banner-simulators,
 body.edit-connection #banner-editing {
   display: flex !important;
 }
@@ -70,6 +68,10 @@ body.edit-connection #banner-editing {
 
 #start-simulator-box {
   display: inline;
+}
+
+#start-simulator-box[simulators-count="0"] {
+  display: none;
 }
 
 /************** PIXELS **************/
@@ -191,18 +193,8 @@ button.action-cancel {
   background: linear-gradient(to bottom, #69B8FF, #339FFF );
 }
 
-#banner-simulators .connected-indicator,
 #banner-disconnected .connected-indicator,
 #banner-editing .connected-indicator,
 #banner-disconnecting .connected-indicator {
   background: linear-gradient(to bottom, #375A87, #1C4375 );
-}
-
-#banner-simulators .banner-content > * {
-  display: inline-block;
-}
-
-#banner-simulators[simulator-count="0"] .found-simulator,
-#banner-simulators:not([simulator-count="0"]) .no-simulator {
-  display: none;
 }
