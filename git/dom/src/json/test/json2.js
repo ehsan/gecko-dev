@@ -160,7 +160,6 @@
 
 if (!this.crockfordJSON) {
     crockfordJSON = {};
-    crockfordJSON.window = this;
 }
 (function () {
 

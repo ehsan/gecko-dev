@@ -4403,40 +4403,6 @@ testConvertibleObjectEqUndefined.jitstats = {
 };
 test(testConvertibleObjectEqUndefined);
 
-var globalProperty;
-function testFunctionToFunctionGlobalPropertyTransition()
-{
-  function g() { return "g" }
-  function h() { return "h"; }
-  var a = [g, g, g, g, h];
-  var results = [];
-  for (i = 0; i < 5; i++)
-  {
-    globalProperty = a[i];
-    results[i] = globalProperty();
-  }
-  return results.join("");
-}
-testFunctionToFunctionGlobalPropertyTransition.expected = "ggggh";
-test(testFunctionToFunctionGlobalPropertyTransition);
-
-function testUndefinedPropertyAccess() {
-    var x = [1,2,3];
-    var y = {};
-    var a = { foo: 1 };
-    y.__proto__ = x;
-    var z = [x, x, x, y, y, y, y, a, a, a];
-    var s = "";
-    for (var i = 0; i < z.length; ++i)
-        s += z[i].foo;
-    return s;
-}
-testUndefinedPropertyAccess.expected = "undefinedundefinedundefinedundefinedundefinedundefinedundefined111";
-testUndefinedPropertyAccess.jitstats = {
-    traceCompleted: 3
-};
-test(testUndefinedPropertyAccess);
-
 /*****************************************************************************
  *                                                                           *
  *  _____ _   _  _____ ______ _____ _______                                  *

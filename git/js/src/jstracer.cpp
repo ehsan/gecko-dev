@@ -905,33 +905,19 @@ public:
             if (isi2f(s0) || isu2f(s0))
                 return iu2fArg(s0);
             // XXX ARM -- check for qjoin(call(UnboxDouble),call(UnboxDouble))
-            if (s0->isCall()) {
-                const CallInfo* ci2 = s0->callInfo();
-                if (ci2 == &js_UnboxDouble_ci) {
-                    LIns* args2[] = { callArgN(s0, 0) };
-                    return out->insCall(&js_UnboxInt32_ci, args2);
-                } else if (ci2 == &js_StringToNumber_ci) {
-                    // callArgN's ordering is that as seen by the builtin, not as stored in
-                    // args here. True story!
-                    LIns* args2[] = { callArgN(s0, 1), callArgN(s0, 0) };
-                    return out->insCall(&js_StringToInt32_ci, args2);
-                } else if (ci2 == &js_String_p_charCodeAt0_ci) {
-                    // Use a fast path builtin for a charCodeAt that converts to an int right away.
-                    LIns* args2[] = { callArgN(s0, 0) };
-                    return out->insCall(&js_String_p_charCodeAt0_int_ci, args2);
-                } else if (ci2 == &js_String_p_charCodeAt_ci) {
-                    LIns* idx = callArgN(s0, 1);
-                    // If the index is not already an integer, force it to be an integer.
-                    idx = isPromote(idx)
-                        ? demote(out, idx)
-                        : out->insCall(&js_DoubleToInt32_ci, &idx);
-                    LIns* args2[] = { idx, callArgN(s0, 0) };
-                    return out->insCall(&js_String_p_charCodeAt_int_ci, args2);
-                }
+            if (s0->isCall() && s0->callInfo() == &js_UnboxDouble_ci) {
+                LIns* args2[] = { callArgN(s0, 0) };
+                return out->insCall(&js_UnboxInt32_ci, args2);
+            }
+            if (s0->isCall() && s0->callInfo() == &js_StringToNumber_ci) {
+                // callArgN's ordering is that as seen by the builtin, not as stored in args here.
+                // True story!
+                LIns* args2[] = { callArgN(s0, 1), callArgN(s0, 0) };
+                return out->insCall(&js_StringToInt32_ci, args2);
             }
         } else if (ci == &js_BoxDouble_ci) {
             JS_ASSERT(s0->isQuad());
-            if (isi2f(s0)) {
+            if (s0->isop(LIR_i2f)) {
                 LIns* args2[] = { s0->oprnd1(), args[1] };
                 return out->insCall(&js_BoxInt32_ci, args2);
             }
@@ -5577,18 +5563,20 @@ JS_STATIC_ASSERT(offsetof(JSObjectOps, newObjectMap) == 0);
 bool
 TraceRecorder::map_is_native(JSObjectMap* map, LIns* map_ins, LIns*& ops_ins, size_t op_offset)
 {
-#define OP(ops) (*(JSObjectOp*) ((char*)(ops) + op_offset))
-    if (OP(map->ops) != OP(&js_ObjectOps))
-        return false;
-
     ops_ins = addName(lir->insLoad(LIR_ldp, map_ins, offsetof(JSObjectMap, ops)), "ops");
     LIns* n = lir->insLoad(LIR_ldp, ops_ins, op_offset);
-    guard(true,
-          addName(lir->ins2(LIR_eq, n, INS_CONSTFUNPTR(OP(&js_ObjectOps))), "guard(native-map)"),
-          BRANCH_EXIT);
-#undef OP
 
-    return true;
+#define OP(ops) (*(JSObjectOp*) ((char*)(ops) + op_offset))
+
+    if (OP(map->ops) == OP(&js_ObjectOps)) {
+        guard(true, addName(lir->ins2(LIR_eq, n, INS_CONSTFUNPTR(OP(&js_ObjectOps))),
+                            "guard(native-map)"),
+              MISMATCH_EXIT);
+        return true;
+    }
+
+#undef OP
+    ABORT_TRACE("non-native map");
 }
 
 JS_REQUIRES_STACK bool
@@ -5633,7 +5621,7 @@ TraceRecorder::test_property_cache(JSObject* obj, LIns* obj_ins, JSObject*& obj2
         }
 
         if (!map_is_native(aobj->map, map_ins, ops_ins, op_offset))
-            ABORT_TRACE("non-native map");
+            return false;
     }
 
     JSAtom* atom;
@@ -5673,7 +5661,7 @@ TraceRecorder::test_property_cache(JSObject* obj, LIns* obj_ins, JSObject*& obj2
 
             // Use PCVAL_NULL to return "no such property" to our caller.
             pcval = PCVAL_NULL;
-            return true;
+            ABORT_TRACE("failed to find property");
         }
 
         OBJ_DROP_PROPERTY(cx, obj2, prop);
@@ -5734,7 +5722,7 @@ TraceRecorder::test_property_cache(JSObject* obj, LIns* obj_ins, JSObject*& obj2
         }
         map_ins = lir->insLoad(LIR_ldp, obj2_ins, (int)offsetof(JSObject, map));
         if (!map_is_native(obj2->map, map_ins, ops_ins))
-            ABORT_TRACE("non-native map");
+            return false;
 
         LIns* shape_ins = addName(lir->insLoad(LIR_ld, map_ins, offsetof(JSScope, shape)),
                                   "shape");
@@ -6027,13 +6015,10 @@ TraceRecorder::guardDenseArrayIndex(JSObject* obj, jsint idx, LIns* obj_ins,
 JS_REQUIRES_STACK bool
 TraceRecorder::guardElemOp(JSObject* obj, LIns* obj_ins, jsid id, size_t op_offset, jsval* vp)
 {
-    JS_ASSERT(op_offset == offsetof(JSObjectOps, getProperty) ||
-              op_offset == offsetof(JSObjectOps, setProperty));
-
     LIns* map_ins = lir->insLoad(LIR_ldp, obj_ins, (int)offsetof(JSObject, map));
     LIns* ops_ins;
     if (!map_is_native(obj->map, map_ins, ops_ins, op_offset))
-        ABORT_TRACE("non-native map");
+        return false;
 
     uint32 shape = OBJ_SHAPE(obj);
     if (JSID_IS_ATOM(id) && shape == treeInfo->globalShape)
@@ -6756,6 +6741,27 @@ TraceRecorder::functionCall(bool constructing, uintN argc)
             }
             argp--;
         }
+
+        /*
+         * If we got this far, and we have a charCodeAt, check that charCodeAt
+         * isn't going to return a NaN.
+         */
+        if (!constructing && known->builtin == &js_String_p_charCodeAt_ci) {
+            JSString* str = JSVAL_TO_STRING(tval);
+            jsval& arg = stackval(-1);
+
+            JS_ASSERT(JSVAL_IS_STRING(tval));
+            JS_ASSERT(isNumber(arg));
+
+            if (JSVAL_IS_INT(arg)) {
+                if (size_t(JSVAL_TO_INT(arg)) >= JSSTRING_LENGTH(str))
+                    ABORT_TRACE("invalid charCodeAt index");
+            } else {
+                double d = js_DoubleToInteger(*JSVAL_TO_DOUBLE(arg));
+                if (d < 0 || JSSTRING_LENGTH(str) <= d)
+                    ABORT_TRACE("invalid charCodeAt index");
+            }
+        }
         goto success;
 
 next_specialization:;
@@ -7012,30 +7018,6 @@ TraceRecorder::record_SetPropHit(JSPropCacheEntry* entry, JSScopeProperty* sprop
             ABORT_TRACE("lazy import of global slot failed");
 
         LIns* r_ins = get(&r);
-
-        /*
-         * Scope shape is determined by the ordered list of property names and
-         * other attributes (flags, getter/setter, etc.) but not value or type
-         * -- except for function-valued properties.  This function-based
-         * distinction enables various function-call optimizations.
-         *
-         * This shape requirement is addressed in the interpreter by branding
-         * the scope and updating any branded scope's shape every time the
-         * value changes to or from a function or when one function value is
-         * modified to a different function value; see GC_WRITE_BARRIER.
-         *
-         * On trace the shape requirement is mostly handled by normal shape
-         * guarding.  However, the global object's shape is required to be
-         * invariant at trace recording time, and since a function-to-function
-         * transition can change shape, we must handle this edge case
-         * separately with the following guard.  See also bug 473256.
-         */
-        if (VALUE_IS_FUNCTION(cx, r)) {
-            guard(true,
-                  lir->ins2(LIR_eq, r_ins, INS_CONSTPTR(JSVAL_TO_OBJECT(r))),
-                  MISMATCH_EXIT);
-        }
-
         set(&STOBJ_GET_SLOT(obj, slot), r_ins);
 
         JS_ASSERT(*pc != JSOP_INITPROP);
@@ -7048,7 +7030,7 @@ TraceRecorder::record_SetPropHit(JSPropCacheEntry* entry, JSScopeProperty* sprop
     LIns* map_ins = lir->insLoad(LIR_ldp, obj_ins, (int)offsetof(JSObject, map));
     LIns* ops_ins;
     if (!map_is_native(obj->map, map_ins, ops_ins, offsetof(JSObjectOps, setProperty)))
-        ABORT_TRACE("non-native map");
+        return false;
 
     LIns* shape_ins = addName(lir->insLoad(LIR_ld, map_ins, offsetof(JSScope, shape)), "shape");
     guard(true, addName(lir->ins2i(LIR_eq, shape_ins, entry->kshape), "guard(shape)"),
@@ -7377,13 +7359,11 @@ TraceRecorder::record_JSOP_CALLNAME()
     LIns* obj_ins = scopeChain();
     JSObject* obj2;
     jsuword pcval;
-
     if (!test_property_cache(obj, obj_ins, obj2, pcval))
         return false;
 
     if (PCVAL_IS_NULL(pcval) || !PCVAL_IS_OBJECT(pcval))
         ABORT_TRACE("callee is not an object");
-
     JS_ASSERT(HAS_FUNCTION_CLASS(PCVAL_TO_OBJECT(pcval)));
 
     stack(0, INS_CONSTPTR(PCVAL_TO_OBJECT(pcval)));
@@ -7662,7 +7642,7 @@ TraceRecorder::name(jsval*& vp)
         return false;
 
     if (slot == SPROP_INVALID_SLOT)
-        ABORT_TRACE("named property not found");
+        ABORT_TRACE("name op can't find named property");
 
     if (!lazilyImportGlobalSlot(slot))
         ABORT_TRACE("lazy import of global slot failed");
@@ -7694,28 +7674,6 @@ TraceRecorder::prop(JSObject* obj, LIns* obj_ins, uint32& slot, LIns*& v_ins)
     /* Check for non-existent property reference, which results in undefined. */
     const JSCodeSpec& cs = js_CodeSpec[*cx->fp->regs->pc];
     if (PCVAL_IS_NULL(pcval)) {
-        /*
-         * This trace will be valid as long as neither the object nor any object
-         * on its prototype chain change shape.
-         */
-        for (;;) {
-            LIns* map_ins = lir->insLoad(LIR_ldp, obj_ins, (int)offsetof(JSObject, map));
-            LIns* ops_ins;
-            if (map_is_native(obj->map, map_ins, ops_ins)) {
-                LIns* shape_ins = addName(lir->insLoad(LIR_ld, map_ins, offsetof(JSScope, shape)),
-                                          "shape");
-                guard(true,
-                      addName(lir->ins2i(LIR_eq, shape_ins, OBJ_SHAPE(obj)), "guard(shape)"),
-                      BRANCH_EXIT);
-            } else if (!guardDenseArray(obj, obj_ins, BRANCH_EXIT))
-                ABORT_TRACE("non-native object involved in undefined property access");
-
-            obj = JSVAL_TO_OBJECT(obj->fslots[JSSLOT_PROTO]);
-            if (!obj)
-                break;
-            obj_ins = stobj_get_fslot(obj_ins, JSSLOT_PROTO);
-        }
-
         v_ins = INS_CONST(JSVAL_TO_PSEUDO_BOOLEAN(JSVAL_VOID));
         JS_ASSERT(cs.ndefs == 1);
         stack(-cs.nuses, v_ins);
@@ -8254,10 +8212,6 @@ TraceRecorder::record_JSOP_BINDNAME()
     jsuword pcval;
     if (!test_property_cache(obj, obj_ins, obj2, pcval))
         return false;
-
-    if (PCVAL_IS_NULL(pcval))
-        ABORT_TRACE("JSOP_BINDNAME is trying to add a new property");
-
     if (obj2 != obj)
         ABORT_TRACE("JSOP_BINDNAME found a non-direct property on the global object");
 
