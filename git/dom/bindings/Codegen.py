@@ -3572,9 +3572,6 @@ class JSToNativeConversionInfo():
                        for whether we have a JS::Value.  Only used when
                        defaultValue is not None or when True is passed for
                        checkForValue to instantiateJSToNativeConversion.
-          ${passedToJSImpl} replaced by an expression that evaluates to a boolean
-                            for whether this value is being passed to a JS-
-                            implemented interface.
 
         declType: A CGThing representing the native C++ type we're converting
                   to.  This is allowed to be None if the conversion code is
@@ -3830,7 +3827,7 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
         return templateBody
 
     # A helper function for converting things that look like a JSObject*.
-    def handleJSObjectType(type, isMember, failureCode, exceptionCode, sourceDescription):
+    def handleJSObjectType(type, isMember, failureCode):
         if not isMember:
             if isOptional:
                 # We have a specialization of Optional that will use a
@@ -3846,19 +3843,6 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
             declType = CGGeneric("JSObject*")
             declArgs = None
         templateBody = "${declName} = &${val}.toObject();\n"
-
-        # For JS-implemented APIs, we refuse to allow passing objects that the
-        # API consumer does not subsume.
-        if not isinstance(descriptorProvider, Descriptor) or descriptorProvider.interface.isJSImplemented():
-            templateBody = fill("""
-                            if ($${passedToJSImpl} && !CallerSubsumes($${val})) {
-                              ThrowErrorMessage(cx, MSG_PERMISSION_DENIED_TO_PASS_ARG, "${sourceDescription}");
-                              $*{exceptionCode}
-                            }
-                            """,
-                            sourceDescription=sourceDescription,
-                            exceptionCode=exceptionCode) + templateBody
-
         setToNullCode = "${declName} = nullptr;\n"
         template = wrapObjectTemplate(templateBody, type, setToNullCode,
                                       failureCode)
@@ -3933,8 +3917,7 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
                 # We only need holderName here to handle isExternal()
                 # interfaces, which use an internal holder for the
                 # conversion even when forceOwningType ends up true.
-                "holderName": "tempHolder",
-                "passedToJSImpl": "${passedToJSImpl}"
+                "holderName": "tempHolder"
             })
 
         # NOTE: Keep this in sync with variadic conversions as needed
@@ -4038,8 +4021,7 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
                 # We only need holderName here to handle isExternal()
                 # interfaces, which use an internal holder for the
                 # conversion even when forceOwningType ends up true.
-                "holderName": "tempHolder",
-                "passedToJSImpl": "${passedToJSImpl}"
+                "holderName": "tempHolder"
             })
 
         templateBody = fill(
@@ -4132,7 +4114,7 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
             for memberType in interfaceMemberTypes:
                 name = getUnionMemberName(memberType)
                 interfaceObject.append(
-                    CGGeneric("(failed = !%s.TrySetTo%s(cx, ${val}, tryNext, ${passedToJSImpl})) || !tryNext" %
+                    CGGeneric("(failed = !%s.TrySetTo%s(cx, ${val}, tryNext)) || !tryNext" %
                               (unionArgumentObj, name)))
                 names.append(name)
             interfaceObject = CGWrapper(CGList(interfaceObject, " ||\n"),
@@ -4145,7 +4127,7 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
             assert len(arrayObjectMemberTypes) == 1
             name = getUnionMemberName(arrayObjectMemberTypes[0])
             arrayObject = CGGeneric(
-                "done = (failed = !%s.TrySetTo%s(cx, ${val}, tryNext, ${passedToJSImpl})) || !tryNext;\n" %
+                "done = (failed = !%s.TrySetTo%s(cx, ${val}, tryNext)) || !tryNext;\n" %
                 (unionArgumentObj, name))
             names.append(name)
         else:
@@ -4169,7 +4151,7 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
             memberType = callbackMemberTypes[0]
             name = getUnionMemberName(memberType)
             callbackObject = CGGeneric(
-                "done = (failed = !%s.TrySetTo%s(cx, ${val}, tryNext, ${passedToJSImpl})) || !tryNext;\n" %
+                "done = (failed = !%s.TrySetTo%s(cx, ${val}, tryNext)) || !tryNext;\n" %
                 (unionArgumentObj, name))
             names.append(name)
         else:
@@ -4180,7 +4162,7 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
             assert len(dictionaryMemberTypes) == 1
             name = getUnionMemberName(dictionaryMemberTypes[0])
             setDictionary = CGGeneric(
-                "done = (failed = !%s.TrySetTo%s(cx, ${val}, tryNext, ${passedToJSImpl})) || !tryNext;\n" %
+                "done = (failed = !%s.TrySetTo%s(cx, ${val}, tryNext)) || !tryNext;\n" %
                 (unionArgumentObj, name))
             names.append(name)
         else:
@@ -4191,7 +4173,7 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
             assert len(mozMapMemberTypes) == 1
             name = getUnionMemberName(mozMapMemberTypes[0])
             mozMapObject = CGGeneric(
-                "done = (failed = !%s.TrySetTo%s(cx, ${val}, tryNext, ${passedToJSImpl})) || !tryNext;\n" %
+                "done = (failed = !%s.TrySetTo%s(cx, ${val}, tryNext)) || !tryNext;\n" %
                 (unionArgumentObj, name))
             names.append(name)
         else:
@@ -4203,10 +4185,8 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
             # Very important to NOT construct a temporary Rooted here, since the
             # SetToObject call can call a Rooted constructor and we need to keep
             # stack discipline for Rooted.
-            object = CGGeneric("if (!%s.SetToObject(cx, &${val}.toObject(), ${passedToJSImpl})) {\n"
-                               "%s"
-                               "}\n"
-                               "done = true;\n" % (unionArgumentObj, indent(exceptionCode)))
+            object = CGGeneric("%s.SetToObject(cx, &${val}.toObject());\n"
+                               "done = true;\n" % unionArgumentObj)
             names.append(objectMemberTypes[0].name)
         else:
             object = None
@@ -4445,7 +4425,7 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
         if descriptor.nativeType == 'JSObject':
             # XXXbz Workers code does this sometimes
             assert descriptor.workers
-            return handleJSObjectType(type, isMember, failureCode, exceptionCode, sourceDescription)
+            return handleJSObjectType(type, isMember, failureCode)
 
         if descriptor.interface.isCallback():
             name = descriptor.interface.identifier.name
@@ -4527,7 +4507,7 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
                     isCallbackReturnValue,
                     firstCap(sourceDescription)))
         elif descriptor.workers:
-            return handleJSObjectType(type, isMember, failureCode, exceptionCode, sourceDescription)
+            return handleJSObjectType(type, isMember, failureCode)
         else:
             # Either external, or new-binding non-castable.  We always have a
             # holder for these, because we don't actually know whether we have
@@ -4846,19 +4826,6 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
 
         assert not isOptional
         templateBody = "${declName} = ${val};\n"
-
-        # For JS-implemented APIs, we refuse to allow passing objects that the
-        # API consumer does not subsume.
-        if not isinstance(descriptorProvider, Descriptor) or descriptorProvider.interface.isJSImplemented():
-            templateBody = fill("""
-                            if ($${passedToJSImpl} && !CallerSubsumes($${val})) {
-                              ThrowErrorMessage(cx, MSG_PERMISSION_DENIED_TO_PASS_ARG, "${sourceDescription}");
-                              $*{exceptionCode}
-                            }
-                            """,
-                            sourceDescription=sourceDescription,
-                            exceptionCode=exceptionCode) + templateBody
-
         # We may not have a default value if we're being converted for
         # a setter, say.
         if defaultValue:
@@ -4874,7 +4841,7 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
 
     if type.isObject():
         assert not isEnforceRange and not isClamp
-        return handleJSObjectType(type, isMember, failureCode, exceptionCode, sourceDescription)
+        return handleJSObjectType(type, isMember, failureCode)
 
     if type.isDictionary():
         # There are no nullable dictionaries
@@ -4924,7 +4891,7 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
         if type.nullable():
             dictLoc += ".SetValue()"
 
-        template += ('if (!%s.Init(cx, %s, "%s", ${passedToJSImpl})) {\n'
+        template += ('if (!%s.Init(cx, %s, "%s")) {\n'
                      "%s"
                      "}\n" % (dictLoc, val, firstCap(sourceDescription),
                               exceptionCodeIndented.define()))
@@ -5200,8 +5167,7 @@ class CGArgumentConverter(CGThing):
         self.replacementVariables = {
             "declName": "arg%d" % index,
             "holderName": ("arg%d" % index) + "_holder",
-            "obj": "obj",
-            "passedToJSImpl": toStringBool(isJSImplementedDescriptor(descriptorProvider))
+            "obj": "obj"
         }
         self.replacementVariables["val"] = string.Template(
             "args[${index}]").substitute(replacer)
@@ -5279,8 +5245,7 @@ class CGArgumentConverter(CGThing):
                 # conversion even when forceOwningType ends up true.
                 "holderName": "tempHolder",
                 # Use the same ${obj} as for the variadic arg itself
-                "obj": replacer["obj"],
-                "passedToJSImpl": toStringBool(isJSImplementedDescriptor(self.descriptorProvider))
+                "obj": replacer["obj"]
             }), 4)
 
         variadicConversion += ("  }\n"
@@ -6776,8 +6741,7 @@ class CGMethodCall(CGThing):
                         "holderName": ("arg%d" % distinguishingIndex) + "_holder",
                         "val": distinguishingArg,
                         "obj": "obj",
-                        "haveValue": "args.hasDefined(%d)" % distinguishingIndex,
-                        "passedToJSImpl": toStringBool(isJSImplementedDescriptor(descriptor))
+                        "haveValue": "args.hasDefined(%d)" % distinguishingIndex
                     },
                     checkForValue=argIsOptional)
                 caseBody.append(CGIndenter(testCode, indent))
@@ -8352,22 +8316,9 @@ def getUnionTypeTemplateVars(unionType, type, descriptorProvider,
                 mUnion.mValue.mObject.SetValue(cx, obj);
                 mUnion.mType = mUnion.eObject;
                 """)
-
-        # It's a bit sketchy to do the security check after setting the value,
-        # but it keeps the code cleaner and lets us avoid rooting |obj| over the
-        # call to CallerSubsumes().
-        body = body + dedent("""
-            if (passedToJSImpl && !CallerSubsumes(obj)) {
-              ThrowErrorMessage(cx, MSG_PERMISSION_DENIED_TO_PASS_ARG, "%s");
-              return false;
-            }
-            return true;
-            """)
-
-        setter = ClassMethod("SetToObject", "bool",
+        setter = ClassMethod("SetToObject", "void",
                              [Argument("JSContext*", "cx"),
-                              Argument("JSObject*", "obj"),
-                              Argument("bool", "passedToJSImpl", default="false")],
+                              Argument("JSObject*", "obj")],
                              inline=True, bodyInHeader=True,
                              body=body)
 
@@ -8387,8 +8338,7 @@ def getUnionTypeTemplateVars(unionType, type, descriptorProvider,
             val="value",
             declName="memberSlot",
             holderName=(holderName if ownsMembers else "%s.ref()" % holderName),
-            destroyHolder=destroyHolder,
-            passedToJSImpl="passedToJSImpl")
+            destroyHolder=destroyHolder)
 
         jsConversion = fill(
             """
@@ -8407,8 +8357,7 @@ def getUnionTypeTemplateVars(unionType, type, descriptorProvider,
         setter = ClassMethod("TrySetTo" + name, "bool",
                              [Argument("JSContext*", "cx"),
                               Argument("JS::Handle<JS::Value>", "value"),
-                              Argument("bool&", "tryNext"),
-                              Argument("bool", "passedToJSImpl", default="false")],
+                              Argument("bool&", "tryNext")],
                              inline=not ownsMembers,
                              bodyInHeader=not ownsMembers,
                              body=jsConversion)
@@ -9514,8 +9463,7 @@ class CGProxySpecialOperation(CGPerSignatureCall):
                 "declName": argument.identifier.name,
                 "holderName": argument.identifier.name + "_holder",
                 "val": argumentMutableValue,
-                "obj": "obj",
-                "passedToJSImpl": "false"
+                "obj": "obj"
             }
             self.cgRoot.prepend(instantiateJSToNativeConversion(info, templateValues))
         elif operation.isGetter() or operation.isDeleter():
@@ -11139,8 +11087,7 @@ class CGDictionary(CGThing):
         return ClassMethod("Init", "bool", [
             Argument('JSContext*', 'cx'),
             Argument('JS::Handle<JS::Value>', 'val'),
-            Argument('const char*', 'sourceDescription', default='"Value"'),
-            Argument('bool', 'passedToJSImpl', default='false')
+            Argument('const char*', 'sourceDescription', default='"Value"')
         ], body=body)
 
     def initFromJSONMethod(self):
@@ -11375,8 +11322,7 @@ class CGDictionary(CGThing):
             # We need a holder name for external interfaces, but
             # it's scoped down to the conversion so we can just use
             # anything we want.
-            "holderName": "holder",
-            "passedToJSImpl": "passedToJSImpl"
+            "holderName": "holder"
         }
         # We can't handle having a holderType here
         assert conversionInfo.holderType is None
@@ -11512,11 +11458,6 @@ class CGDictionary(CGThing):
                 trace = CGGeneric('%s.TraceSelf(trc);\n' % memberData)
             if type.nullable():
                 trace = CGIfWrapper(trace, "!%s.IsNull()" % memberNullable)
-        elif type.isMozMap():
-            # If you implement this, add a MozMap<object> to
-            # TestInterfaceJSDictionary and test it in test_bug1036214.html
-            # to make sure we end up with the correct security properties.
-            assert False
         else:
             assert False  # unknown type
 
@@ -13448,8 +13389,7 @@ class CallbackMember(CGNativeMember):
             # We actually want to pass in a null scope object here, because
             # wrapping things into our current compartment (that of mCallback)
             # is what we want.
-            "obj": "nullptr",
-            "passedToJSImpl": "false"
+            "obj": "nullptr"
         }
 
         if isJSImplementedDescriptor(self.descriptorProvider):

@@ -37,7 +37,7 @@ class ThebesLayerComposite : public ThebesLayer,
                              public LayerComposite
 {
 public:
-  explicit ThebesLayerComposite(LayerManagerComposite *aManager);
+  ThebesLayerComposite(LayerManagerComposite *aManager);
 
 protected:
   virtual ~ThebesLayerComposite();

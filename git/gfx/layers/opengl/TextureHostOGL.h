@@ -212,8 +212,8 @@ class TextureImageTextureSourceOGL : public DataTextureSource
                                    , public BigImageIterator
 {
 public:
-  explicit TextureImageTextureSourceOGL(gl::GLContext* aGL,
-                                        TextureFlags aFlags = TextureFlags::DEFAULT)
+  TextureImageTextureSourceOGL(gl::GLContext* aGL,
+                               TextureFlags aFlags = TextureFlags::DEFAULT)
     : mGL(aGL)
     , mFlags(aFlags)
     , mIterating(false)

@@ -32,7 +32,7 @@ class CompositableForwarder;
 class SharedTextureClientOGL : public TextureClient
 {
 public:
-  explicit SharedTextureClientOGL(TextureFlags aFlags);
+  SharedTextureClientOGL(TextureFlags aFlags);
 
   ~SharedTextureClientOGL();
 

@@ -302,7 +302,8 @@ XMLDocument::Load(const nsAString& aUrl, ErrorResult& aRv)
 
   WarnOnceAbout(nsIDocument::eUseOfDOM3LoadMethod);
 
-  nsCOMPtr<nsIDocument> callingDoc = GetEntryDocument();
+  nsCOMPtr<nsIDocument> callingDoc = nsContentUtils::GetDocumentFromContext();
+
   nsIURI *baseURI = mDocumentURI;
   nsAutoCString charset;
 

@@ -93,7 +93,6 @@ namespace jit {
     _(TruncateToInt32)                                                      \
     _(ToString)                                                             \
     _(NewArray)                                                             \
-    _(NewArrayCopyOnWrite)                                                  \
     _(NewObject)                                                            \
     _(NewDeclEnvObject)                                                     \
     _(NewCallObject)                                                        \
@@ -122,7 +121,6 @@ namespace jit {
     _(ConstantElements)                                                     \
     _(ConvertElementsToDoubles)                                             \
     _(MaybeToDoubleElement)                                                 \
-    _(MaybeCopyElementsForWrite)                                            \
     _(LoadSlot)                                                             \
     _(StoreSlot)                                                            \
     _(FunctionEnvironment)                                                  \

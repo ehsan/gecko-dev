@@ -523,9 +523,7 @@ js::Nursery::traceObject(MinorCollectionTracer *trc, JSObject *obj)
     if (!obj->isNative())
         return;
 
-    // Note: the contents of copy on write elements pointers are filled in
-    // during parsing and cannot contain nursery pointers.
-    if (!obj->hasEmptyElements() && !obj->denseElementsAreCopyOnWrite())
+    if (!obj->hasEmptyElements())
         markSlots(trc, obj->getDenseElements(), obj->getDenseInitializedLength());
 
     HeapSlot *fixedStart, *fixedEnd, *dynStart, *dynEnd;
@@ -671,7 +669,7 @@ js::Nursery::moveSlotsToTenured(JSObject *dst, JSObject *src, AllocKind dstKind)
 size_t
 js::Nursery::moveElementsToTenured(JSObject *dst, JSObject *src, AllocKind dstKind)
 {
-    if (src->hasEmptyElements() || src->denseElementsAreCopyOnWrite())
+    if (src->hasEmptyElements())
         return 0;
 
     Zone *zone = src->zone();

@@ -1790,10 +1790,6 @@ NS_IMETHODIMP nsCocoaWindow::SetFocus(bool aState)
     mPopupContentView->SetFocus(aState);
   }
   else if (aState && ([mWindow isVisible] || [mWindow isMiniaturized])) {
-    if ([mWindow isMiniaturized]) {
-      [mWindow deminiaturize:nil];
-    }
-
     [mWindow makeKeyAndOrderFront:nil];
     SendSetZLevelEvent();
   }

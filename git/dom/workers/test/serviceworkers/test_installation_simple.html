@@ -57,12 +57,11 @@
 
   function realWorker() {
     var p = navigator.serviceWorker.register("worker.js", { scope: "realworker*" });
-    return p.then(function(wr) {
-      ok(wr instanceof ServiceWorkerRegistration, "Register a ServiceWorker");
-
-      info(wr.scope);
-      ok(wr.scope == (new URL("realworker*", document.baseURI)).href, "Scope should match");
-
+    return p.then(function(w) {
+      ok(w instanceof ServiceWorker, "Register a ServiceWorker");
+      info(w.scope);
+      ok(w.scope == (new URL("realworker*", document.baseURI)).href, "Scope should match");
+      ok(w.url == (new URL("worker.js", document.baseURI)).href, "URL should be of the worker");
     }, function(e) {
       info("Error: " + e.name);
       ok(false, "realWorker Registration should have succeeded!");
@@ -74,14 +73,14 @@
     var q = navigator.serviceWorker.register("worker3.js", { scope: "foo/*" });
 
     return Promise.all([
-      p.then(function(wr) {
+      p.then(function(w) {
         ok(false, "First registration should fail with AbortError");
       }, function(e) {
         ok(e.name === "AbortError", "First registration should fail with AbortError");
       }),
 
-      q.then(function(wr) {
-        ok(wr instanceof ServiceWorkerRegistration, "Second registration should succeed");
+      q.then(function(w) {
+        ok(w instanceof ServiceWorker, "Second registration should succeed");
       }, function(e) {
         ok(false, "Second registration should succeed");
       })
@@ -98,7 +97,7 @@
 
   function parseError() {
     var p = navigator.serviceWorker.register("parse_error_worker.js");
-    return p.then(function(wr) {
+    return p.then(function(w) {
       ok(false, "Registration should fail with parse error");
     }, function(e) {
     info("NSM " + e.name);
@@ -108,7 +107,6 @@
 
   // FIXME(nsm): test for parse error when Update step doesn't happen (directly from register).
 
-  /* FIXME bug 1002571 - re-enable this test when GetRegistration is implemented.
   function updatefound() {
     var frame = document.createElement("iframe");
     frame.setAttribute("id", "simpleregister-frame");
@@ -139,7 +137,6 @@
     }
     return p;
   }
-  */
 
   function runTest() {
     simpleRegister()
@@ -150,6 +147,7 @@
       .then(abortPrevious)
       .then(networkError404)
       .then(parseError)
+      .then(updatefound)
       // put more tests here.
       .then(function() {
         SimpleTest.finish();
