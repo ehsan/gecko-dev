@@ -314,7 +314,9 @@ PopupNotifications.prototype = {
         if (!notification.dismissed) {
           this.window.getAttention();
         }
-        this._updateAnchorIcon(notifications, notification.anchorElement);
+        if (notification.anchorElement.parentNode != this.iconBox) {
+          this._updateAnchorIcon(notifications, notification.anchorElement);
+        }
         this._notify("backgroundShow");
       }
 

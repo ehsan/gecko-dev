@@ -313,11 +313,11 @@
     "n_buckets": 50,
     "description": "Time spent sweeping slowest compartment SCC (ms)"
   },
-  "GEOLOCATION_ACCURACY_EXPONENTIAL": {
+  "GEOLOCATION_ACCURACY": {
     "expires_in_version": "default",
-    "kind": "exponential",
-    "high": "100000",
-    "n_buckets": 50,
+    "kind": "linear",
+    "high": "18000",
+    "n_buckets": 200,
     "description": "Location accuracy"
   },
   "GEOLOCATION_ERROR": {

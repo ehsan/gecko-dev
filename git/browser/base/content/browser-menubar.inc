@@ -550,7 +550,6 @@
 #endif
                         command="View:PageInfo"/>
               <menu id="menu_mirrorTabCmd"
-                    hidden="true"
                     accesskey="&mirrorTabCmd.accesskey;"
                     label="&mirrorTabCmd.label;">
                 <menupopup id="menu_mirrorTab-popup"
