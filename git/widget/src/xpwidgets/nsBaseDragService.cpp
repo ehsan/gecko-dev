@@ -81,7 +81,7 @@ nsBaseDragService::nsBaseDragService()
     mHasImage(PR_FALSE), mUserCancelled(PR_FALSE),
     mDragAction(DRAGDROP_ACTION_NONE), mTargetSize(0,0),
     mImageX(0), mImageY(0), mScreenX(-1), mScreenY(-1), mSuppressLevel(0),
-    mInputSource(nsIDOMMouseEvent::MOZ_SOURCE_MOUSE)
+    mInputSource(nsIDOMNSMouseEvent::MOZ_SOURCE_MOUSE)
 {
 }
 
@@ -281,7 +281,9 @@ nsBaseDragService::InvokeDragSessionWithImage(nsIDOMNode* aDOMNode,
 
   aDragEvent->GetScreenX(&mScreenX);
   aDragEvent->GetScreenY(&mScreenY);
-  aDragEvent->GetMozInputSource(&mInputSource);
+
+  nsCOMPtr<nsIDOMNSMouseEvent> mouseEvent = do_QueryInterface(aDragEvent);
+  mouseEvent->GetMozInputSource(&mInputSource);
 
   return InvokeDragSession(aDOMNode, aTransferableArray, aRegion, aActionType);
 }
@@ -307,7 +309,9 @@ nsBaseDragService::InvokeDragSessionWithSelection(nsISelection* aSelection,
 
   aDragEvent->GetScreenX(&mScreenX);
   aDragEvent->GetScreenY(&mScreenY);
-  aDragEvent->GetMozInputSource(&mInputSource);
+
+  nsCOMPtr<nsIDOMNSMouseEvent> mouseEvent = do_QueryInterface(aDragEvent);
+  mouseEvent->GetMozInputSource(&mInputSource);
 
   // just get the focused node from the selection
   // XXXndeakin this should actually be the deepest node that contains both
@@ -395,7 +399,7 @@ nsBaseDragService::EndDragSession(PRBool aDoneDrag)
   mImageY = 0;
   mScreenX = -1;
   mScreenY = -1;
-  mInputSource = nsIDOMMouseEvent::MOZ_SOURCE_MOUSE;
+  mInputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_MOUSE;
 
   return NS_OK;
 }

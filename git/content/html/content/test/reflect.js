@@ -237,8 +237,6 @@ function reflectUnsignedInt(aParameters)
  * @param aParameters    Object    object containing the parameters, which are:
  *  - element            Element   node to test on
  *  - attribute          String    name of the attribute
- *     OR
- *    attribute          Object    object containing two attributes, 'content' and 'idl'
  *  - validValues        Array     valid values we support
  *  - invalidValues      Array     invalid values
  *  - defaultValue       String    [optional] default value when no valid value is set
@@ -247,103 +245,100 @@ function reflectUnsignedInt(aParameters)
 function reflectLimitedEnumerated(aParameters)
 {
   var element = aParameters.element;
-  var contentAttr = typeof aParameters.attribute === "string"
-                      ? aParameters.attribute : aParameters.attribute.content;
-  var idlAttr = typeof aParameters.attribute === "string"
-                  ? aParameters.attribute : aParameters.attribute.idl;
+  var attr = aParameters.attribute;
   var validValues = aParameters.validValues;
   var invalidValues = aParameters.invalidValues;
   var defaultValue = aParameters.defaultValue !== undefined
-                       ? aParameters.defaultValue : "";
+    ? aParameters.defaultValue : "";
   var unsupportedValues = aParameters.unsupportedValues !== undefined
-                            ? aParameters.unsupportedValues : [];
+    ? aParameters.unsupportedValues : [];
 
-  ok(idlAttr in element, idlAttr + " should be an IDL attribute of this element");
-  is(typeof element[idlAttr], "string", idlAttr + " IDL attribute should be a string");
+  ok(attr in element, attr + " should be an IDL attribute of this element");
+  is(typeof element[attr], "string", attr + " IDL attribute should be a string");
 
   // Explicitly check the default value.
-  element.removeAttribute(contentAttr);
-  is(element[idlAttr], defaultValue,
+  element.removeAttribute(attr);
+  is(element[attr], defaultValue,
      "When no attribute is set, the value should be the default value.");
 
   // Check valid values.
   validValues.forEach(function (v) {
-    element.setAttribute(contentAttr, v);
-    is(element[idlAttr], v,
-       v + " should be accepted as a valid value for " + idlAttr);
-    is(element.getAttribute(contentAttr), v,
+    element.setAttribute(attr, v);
+    is(element[attr], v,
+       v + " should be accepted as a valid value for " + attr);
+    is(element.getAttribute(attr), v,
        "Content attribute should return the value it has been set to.");
-    element.removeAttribute(contentAttr);
+    element.removeAttribute(attr);
 
-    element.setAttribute(contentAttr, v.toUpperCase());
-    is(element[idlAttr], v,
+    element.setAttribute(attr, v.toUpperCase());
+    is(element[attr], v,
        "Enumerated attributes should be case-insensitive.");
-    is(element.getAttribute(contentAttr), v.toUpperCase(),
+    is(element.getAttribute(attr), v.toUpperCase(),
        "Content attribute should not be lower-cased.");
-    element.removeAttribute(contentAttr);
+    element.removeAttribute(attr);
 
-    element[idlAttr] = v;
-    is(element[idlAttr], v,
-       v + " should be accepted as a valid value for " + idlAttr);
-    is(element.getAttribute(contentAttr), v,
+    element[attr] = v;
+    is(element[attr], v,
+       v + " should be accepted as a valid value for " + attr);
+    is(element.getAttribute(attr), v,
        "Content attribute should return the value it has been set to.");
-    element.removeAttribute(contentAttr);
+    element.removeAttribute(attr);
 
-    element[idlAttr] = v.toUpperCase();
-    is(element[idlAttr], v,
+    element[attr] = v.toUpperCase();
+    is(element[attr], v,
        "Enumerated attributes should be case-insensitive.");
-    is(element.getAttribute(contentAttr), v.toUpperCase(),
+    is(element.getAttribute(attr), v.toUpperCase(),
        "Content attribute should not be lower-cased.");
-    element.removeAttribute(contentAttr);
+    element.removeAttribute(attr);
   });
 
   // Check invalid values.
   invalidValues.forEach(function (v) {
-    element.setAttribute(contentAttr, v);
-    is(element[idlAttr], defaultValue,
+    element.setAttribute(attr, v);
+    is(element[attr], defaultValue,
        "When the content attribute is set to an invalid value, the default value should be returned.");
-    is(element.getAttribute(contentAttr), v,
+    is(element.getAttribute(attr), v,
        "Content attribute should not have been changed.");
-    element.removeAttribute(contentAttr);
+    element.removeAttribute(attr);
 
-    element[idlAttr] = v;
-    is(element[idlAttr], defaultValue,
+    element[attr] = v;
+    is(element[attr], defaultValue,
        "When the value is set to an invalid value, the default value should be returned.");
-    is(element.getAttribute(contentAttr), v,
+    is(element.getAttribute(attr), v,
        "Content attribute should not have been changed.");
-    element.removeAttribute(contentAttr);
+    element.removeAttribute(attr);
   });
 
   // Check valid values we currently do not support.
   // Basically, it's like the checks for the valid values but with some todo's.
   unsupportedValues.forEach(function (v) {
-    element.setAttribute(contentAttr, v);
-    todo_is(element[idlAttr], v,
-            v + " should be accepted as a valid value for " + idlAttr);
-    is(element.getAttribute(contentAttr), v,
+    element.setAttribute(attr, v);
+    todo_is(element[attr], v,
+            v + " should be accepted as a valid value for " + attr);
+    is(element.getAttribute(attr), v,
        "Content attribute should return the value it has been set to.");
-    element.removeAttribute(contentAttr);
+    element.removeAttribute(attr);
 
-    element.setAttribute(contentAttr, v.toUpperCase());
-    todo_is(element[idlAttr], v,
+    element.setAttribute(attr, v.toUpperCase());
+    todo_is(element[attr], v,
             "Enumerated attributes should be case-insensitive.");
-    is(element.getAttribute(contentAttr), v.toUpperCase(),
+    is(element.getAttribute(attr), v.toUpperCase(),
        "Content attribute should not be lower-cased.");
-    element.removeAttribute(contentAttr);
+    element.removeAttribute(attr);
 
-    element[idlAttr] = v;
-    todo_is(element[idlAttr], v,
-            v + " should be accepted as a valid value for " + idlAttr);
-    is(element.getAttribute(contentAttr), v,
+    element[attr] = v;
+    todo_is(element[attr], v,
+            v + " should be accepted as a valid value for " + attr);
+    is(element.getAttribute(attr), v,
        "Content attribute should return the value it has been set to.");
-    element.removeAttribute(contentAttr);
+    element.removeAttribute(attr);
 
-    element[idlAttr] = v.toUpperCase();
-    todo_is(element[idlAttr], v,
+    element[attr] = v.toUpperCase();
+    todo_is(element[attr], v,
             "Enumerated attributes should be case-insensitive.");
-    is(element.getAttribute(contentAttr), v.toUpperCase(),
+    is(element.getAttribute(attr), v.toUpperCase(),
        "Content attribute should not be lower-cased.");
-    element.removeAttribute(contentAttr);
+    element.removeAttribute(attr);
   });
 }
 

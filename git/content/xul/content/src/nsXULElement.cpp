@@ -253,13 +253,6 @@ nsXULElement::nsXULSlots::~nsXULSlots()
     }
 }
 
-void
-nsXULElement::nsXULSlots::Traverse(nsCycleCollectionTraversalCallback &cb)
-{
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mSlots->mFrameLoader");
-    cb.NoteXPCOMChild(NS_ISUPPORTS_CAST(nsIFrameLoader*, mFrameLoader));
-}
-
 nsINode::nsSlots*
 nsXULElement::CreateSlots()
 {
@@ -379,7 +372,10 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULElement,
     {
         nsXULSlots* slots = static_cast<nsXULSlots*>(tmp->GetExistingSlots());
         if (slots) {
-            slots->Traverse(cb);
+            NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mFrameLoader");
+            nsISupports *frameLoader =
+                static_cast<nsIFrameLoader*>(slots->mFrameLoader);
+            cb.NoteXPCOMChild(frameLoader);
         }
     }
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
@@ -698,7 +694,7 @@ nsXULElement::PerformAccesskey(PRBool aKeyCausesActivation,
           }
         }
         if (aKeyCausesActivation && tag != nsGkAtoms::textbox && tag != nsGkAtoms::menulist) {
-          elm->ClickWithInputSource(nsIDOMMouseEvent::MOZ_SOURCE_KEYBOARD);
+          elm->ClickWithInputSource(nsIDOMNSMouseEvent::MOZ_SOURCE_KEYBOARD);
         }
     }
     else {
@@ -2081,7 +2077,7 @@ nsXULElement::Blur()
 NS_IMETHODIMP
 nsXULElement::Click()
 {
-  return ClickWithInputSource(nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN);
+  return ClickWithInputSource(nsIDOMNSMouseEvent::MOZ_SOURCE_UNKNOWN);
 }
 
 nsresult

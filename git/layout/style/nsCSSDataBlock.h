@@ -55,16 +55,6 @@ class Declaration;
 }
 }
 
-/*
- * nsCSSCompressedDataBlock holds property-value pairs corresponding
- * to CSS declaration blocks.  Each pair is stored in a CDBValueStorage
- * object; these objects form an array at the end of the data block.
- */
-struct CDBValueStorage {
-    nsCSSProperty property;
-    nsCSSValue value;
-};
-
 /**
  * An |nsCSSCompressedDataBlock| holds a usually-immutable chunk of
  * property-value data for a CSS declaration block (which we misname a
@@ -122,10 +112,16 @@ public:
     static nsCSSCompressedDataBlock* CreateEmptyBlock();
 
 private:
+    PRInt32 mStyleBits; // the structs for which we have data, according to
+                        // |nsCachedStyleData::GetBitForSID|.
+
+    enum { block_chars = 4 }; // put 4 chars in the definition of the class
+                              // to ensure size not inflated by alignment
+
     void* operator new(size_t aBaseSize, size_t aDataSize) {
-        NS_ABORT_IF_FALSE(aBaseSize == sizeof(nsCSSCompressedDataBlock),
-                          "unexpected size for nsCSSCompressedDataBlock");
-        return ::operator new(aBaseSize + aDataSize);
+        // subtract off the extra size to store |mBlock_|
+        return ::operator new(aBaseSize + aDataSize -
+                              sizeof(char) * block_chars);
     }
 
     /**
@@ -133,34 +129,15 @@ private:
      */
     void Destroy();
 
-    PRInt32 mStyleBits; // the structs for which we have data, according to
-                        // |nsCachedStyleData::GetBitForSID|.
-    PRUint32 mDataSize;
-    // CDBValueStorage elements are stored after these fields.  Space for them
-    // is allocated in |operator new| above.  The static assertions following
-    // this class make sure that the CDBValueStorage elements are aligned
-    // appropriately.
-    
-    char* Block() { return (char*)this + sizeof(*this); }
-    char* BlockEnd() { return Block() + mDataSize; }
-    const char* Block() const { return (char*)this + sizeof(*this); }
-    const char* BlockEnd() const { return Block() + mDataSize; }
-    void SetBlockEnd(char *blockEnd) { 
-        /*
-         * Note:  if we ever change nsCSSDeclaration to store the declarations
-         * in order and also store repeated declarations of the same property,
-         * then we need to worry about checking for integer overflow here.
-         */
-        NS_ABORT_IF_FALSE(size_t(blockEnd - Block()) <= size_t(PR_UINT32_MAX),
-                          "overflow of mDataSize");
-        mDataSize = PRUint32(blockEnd - Block());
-    }
-    ptrdiff_t DataSize() const { return mDataSize; }
-};
+    char* mBlockEnd; // the byte after the last valid byte
+    char mBlock_[block_chars]; // must be the last member!
 
-/* Make sure the CDBValueStorage elements are aligned appropriately. */
-PR_STATIC_ASSERT(sizeof(nsCSSCompressedDataBlock) == 8);
-PR_STATIC_ASSERT(NS_ALIGNMENT_OF(CDBValueStorage) <= 8); 
+    char* Block() { return mBlock_; }
+    char* BlockEnd() { return mBlockEnd; }
+    const char* Block() const { return mBlock_; }
+    const char* BlockEnd() const { return mBlockEnd; }
+    ptrdiff_t DataSize() const { return BlockEnd() - Block(); }
+};
 
 class nsCSSExpandedDataBlock {
     friend class nsCSSCompressedDataBlock;

@@ -1205,21 +1205,6 @@ public:
   virtual PRBool IsTransformed() const;
 
   /**
-   * Returns whether this frame will attempt to preserve the 3d transforms of its
-   * children. This is a direct indicator of -moz-transform-style: preserve-3d.
-   */
-  PRBool Preserves3DChildren() const;
-
-  /**
-   * Returns whether this frame has a parent that Preserves3DChildren() and
-   * can respect this. Returns false if the frame is clipped.
-   */
-  PRBool Preserves3D() const;
-
-  // Calculate the overflow size of all child frames, taking preserve-3d into account
-  void ComputePreserve3DChildrenOverflow(nsOverflowAreas& aOverflowAreas, const nsRect& aBounds);
-
-  /**
    * Event handling of GUI events.
    *
    * @param   aEvent event structure describing the type of event and rge widget
@@ -2131,8 +2116,7 @@ public:
     INVALIDATE_NO_THEBES_LAYERS = 0x10,
     INVALIDATE_ONLY_THEBES_LAYERS = 0x20,
     INVALIDATE_EXCLUDE_CURRENT_PAINT = 0x40,
-    INVALIDATE_NO_UPDATE_LAYER_TREE = 0x80,
-    INVALIDATE_ALREADY_TRANSFORMED = 0x100
+    INVALIDATE_NO_UPDATE_LAYER_TREE = 0x80
   };
   virtual void InvalidateInternal(const nsRect& aDamageRect,
                                   nscoord aOffsetX, nscoord aOffsetY,
@@ -2519,7 +2503,7 @@ NS_PTR_TO_INT32(frame->Properties().Get(nsIFrame::EmbeddingLevelProperty()))
    * aRect must not be null!
    */
   PRBool GetAbsPosClipRect(const nsStyleDisplay* aDisp, nsRect* aRect,
-                           const nsSize& aSize) const;
+                           const nsSize& aSize);
 
   /**
    * Check if this frame is focusable and in the current tab order.

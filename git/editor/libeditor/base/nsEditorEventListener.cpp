@@ -51,6 +51,7 @@
 #include "nsISelectionController.h"
 #include "nsIDOMKeyEvent.h"
 #include "nsIDOMMouseEvent.h"
+#include "nsIDOMNSUIEvent.h"
 #include "nsIPrivateTextEvent.h"
 #include "nsIEditorMailSupport.h"
 #include "nsILookAndFeel.h"
@@ -340,15 +341,16 @@ nsEditorEventListener::KeyPress(nsIDOMEvent* aKeyEvent)
   // If the client pass cancelled the event, defaultPrevented will be true
   // below.
 
-  if (NSEvent) {
+  nsCOMPtr<nsIDOMNSUIEvent> UIEvent = do_QueryInterface(aKeyEvent);
+  if(UIEvent) {
     PRBool defaultPrevented;
-    NSEvent->GetPreventDefault(&defaultPrevented);
-    if (defaultPrevented) {
+    UIEvent->GetPreventDefault(&defaultPrevented);
+    if(defaultPrevented) {
       return NS_OK;
     }
   }
 
-  nsCOMPtr<nsIDOMKeyEvent> keyEvent = do_QueryInterface(aKeyEvent);
+  nsCOMPtr<nsIDOMKeyEvent>keyEvent = do_QueryInterface(aKeyEvent);
   if (!keyEvent) {
     //non-key event passed to keypress.  bad things.
     return NS_OK;
@@ -371,9 +373,14 @@ nsEditorEventListener::MouseClick(nsIDOMEvent* aMouseEvent)
     return NS_OK;
   }
 
+  nsresult rv;
+  nsCOMPtr<nsIDOMNSUIEvent> nsuiEvent = do_QueryInterface(aMouseEvent);
+  NS_ENSURE_TRUE(nsuiEvent, NS_ERROR_NULL_POINTER);
+
   PRBool preventDefault;
-  nsresult rv = nsevent->GetPreventDefault(&preventDefault);
-  if (NS_FAILED(rv) || preventDefault) {
+  rv = nsuiEvent->GetPreventDefault(&preventDefault);
+  if (NS_FAILED(rv) || preventDefault)
+  {
     // We're done if 'preventdefault' is true (see for example bug 70698).
     return rv;
   }
@@ -391,10 +398,10 @@ nsEditorEventListener::MouseClick(nsIDOMEvent* aMouseEvent)
     {
       // Set the selection to the point under the mouse cursor:
       nsCOMPtr<nsIDOMNode> parent;
-      if (NS_FAILED(mouseEvent->GetRangeParent(getter_AddRefs(parent))))
+      if (NS_FAILED(nsuiEvent->GetRangeParent(getter_AddRefs(parent))))
         return NS_ERROR_NULL_POINTER;
       PRInt32 offset = 0;
-      if (NS_FAILED(mouseEvent->GetRangeOffset(&offset)))
+      if (NS_FAILED(nsuiEvent->GetRangeOffset(&offset)))
         return NS_ERROR_NULL_POINTER;
 
       nsCOMPtr<nsISelection> selection;
@@ -509,28 +516,30 @@ nsresult
 nsEditorEventListener::DragOver(nsIDOMDragEvent* aDragEvent)
 {
   nsCOMPtr<nsIDOMNode> parent;
-  nsCOMPtr<nsIDOMNSEvent> domNSEvent = do_QueryInterface(aDragEvent);
-  if (domNSEvent) {
+  nsCOMPtr<nsIDOMNSUIEvent> nsuiEvent = do_QueryInterface(aDragEvent);
+  if (nsuiEvent) {
     PRBool defaultPrevented;
-    domNSEvent->GetPreventDefault(&defaultPrevented);
+    nsuiEvent->GetPreventDefault(&defaultPrevented);
     if (defaultPrevented)
+      return NS_OK;
+
+    nsuiEvent->GetRangeParent(getter_AddRefs(parent));
+    nsCOMPtr<nsIContent> dropParent = do_QueryInterface(parent);
+    NS_ENSURE_TRUE(dropParent, NS_ERROR_FAILURE);
+
+    if (!dropParent->IsEditable())
       return NS_OK;
   }
 
-  aDragEvent->GetRangeParent(getter_AddRefs(parent));
-  nsCOMPtr<nsIContent> dropParent = do_QueryInterface(parent);
-  NS_ENSURE_TRUE(dropParent, NS_ERROR_FAILURE);
-
-  if (!dropParent->IsEditable()) {
-    return NS_OK;
-  }
-
-  if (CanDrop(aDragEvent)) {
+  PRBool canDrop = CanDrop(aDragEvent);
+  if (canDrop)
+  {
     aDragEvent->PreventDefault(); // consumed
 
-    if (mCaret) {
+    if (mCaret && nsuiEvent)
+    {
       PRInt32 offset = 0;
-      nsresult rv = aDragEvent->GetRangeOffset(&offset);
+      nsresult rv = nsuiEvent->GetRangeOffset(&offset);
       NS_ENSURE_SUCCESS(rv, rv);
 
       // to avoid flicker, we could track the node and offset to see if we moved
@@ -584,24 +593,25 @@ nsEditorEventListener::Drop(nsIDOMDragEvent* aMouseEvent)
 {
   CleanupDragDropCaret();
 
-  nsCOMPtr<nsIDOMNSEvent> domNSEvent = do_QueryInterface(aMouseEvent);
-  if (domNSEvent) {
+  nsCOMPtr<nsIDOMNSUIEvent> nsuiEvent = do_QueryInterface(aMouseEvent);
+  if (nsuiEvent) {
     PRBool defaultPrevented;
-    domNSEvent->GetPreventDefault(&defaultPrevented);
+    nsuiEvent->GetPreventDefault(&defaultPrevented);
     if (defaultPrevented)
+      return NS_OK;
+
+    nsCOMPtr<nsIDOMNode> parent;
+    nsuiEvent->GetRangeParent(getter_AddRefs(parent));
+    nsCOMPtr<nsIContent> dropParent = do_QueryInterface(parent);
+    NS_ENSURE_TRUE(dropParent, NS_ERROR_FAILURE);
+
+    if (!dropParent->IsEditable())
       return NS_OK;
   }
 
-  nsCOMPtr<nsIDOMNode> parent;
-  aMouseEvent->GetRangeParent(getter_AddRefs(parent));
-  nsCOMPtr<nsIContent> dropParent = do_QueryInterface(parent);
-  NS_ENSURE_TRUE(dropParent, NS_ERROR_FAILURE);
-
-  if (!dropParent->IsEditable()) {
-    return NS_OK;
-  }
-
-  if (!CanDrop(aMouseEvent)) {
+  PRBool canDrop = CanDrop(aMouseEvent);
+  if (!canDrop)
+  {
     // was it because we're read-only?
     if (mEditor->IsReadonly() || mEditor->IsDisabled())
     {
@@ -688,12 +698,15 @@ nsEditorEventListener::CanDrop(nsIDOMDragEvent* aEvent)
     // Don't bother if collapsed - can always drop
     if (!isCollapsed)
     {
+      nsCOMPtr<nsIDOMNSUIEvent> nsuiEvent (do_QueryInterface(aEvent));
+      NS_ENSURE_TRUE(nsuiEvent, PR_FALSE);
+
       nsCOMPtr<nsIDOMNode> parent;
-      rv = aEvent->GetRangeParent(getter_AddRefs(parent));
+      rv = nsuiEvent->GetRangeParent(getter_AddRefs(parent));
       if (NS_FAILED(rv) || !parent) return PR_FALSE;
 
       PRInt32 offset = 0;
-      rv = aEvent->GetRangeOffset(&offset);
+      rv = nsuiEvent->GetRangeOffset(&offset);
       NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
       PRInt32 rangeCount;

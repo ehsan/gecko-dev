@@ -724,9 +724,6 @@ var Browser = {
     newTab.chromeTab.dispatchEvent(event);
     newTab.browser.messageManager.sendAsyncMessage("Browser:TabOpen");
 
-    let cmd = document.getElementById("cmd_showTabs");
-    cmd.setAttribute("label", this._tabs.length - 1);
-
     return newTab;
   },
 
@@ -741,9 +738,6 @@ var Browser = {
     }
 
     tab.browser.messageManager.sendAsyncMessage("Browser:CanUnload", {});
-
-    let cmd = document.getElementById("cmd_showTabs");
-    cmd.setAttribute("label", this._tabs.length - 1);
   },
 
   _doCloseTab: function _doCloseTab(aTab) {
@@ -840,10 +834,7 @@ var Browser = {
     if (tab)
       tab.active = true;
 
-    if (isFirstTab) {
-      // Don't waste time at startup updating the whole UI; just display the URL.
-      BrowserUI._titleChanged(browser);
-    } else {
+    if (!isFirstTab) {
       // Update all of our UI to reflect the new tab's location
       BrowserUI.updateURI();
       getIdentityHandler().checkIdentity();
@@ -1092,7 +1083,7 @@ var Browser = {
   /** Rect should be in browser coordinates. */
   _getZoomLevelForRect: function _getZoomLevelForRect(rect) {
     const margin = 15;
-    return this.selectedTab.clampZoomLevel(ViewableAreaObserver.width / (rect.width + margin * 2));
+    return this.selectedTab.clampZoomLevel(window.innerWidth / (rect.width + margin * 2));
   },
 
   /**
@@ -1964,7 +1955,7 @@ const ContentTouchHandler = {
     if (!tab.allowZoom)
       return;
 
-    let width = ViewableAreaObserver.width / Browser.getScaleRatio();
+    let width = window.innerWidth / Browser.getScaleRatio();
     this._dispatchMouseEvent("Browser:ZoomToPoint", aX, aY, { width: width });
   },
 
@@ -2798,17 +2789,20 @@ Tab.prototype = {
       let validW = viewportW > 0;
       let validH = viewportH > 0;
 
-      if (!validW)
-        viewportW = validH ? (viewportH * (screenW / screenH)) : Browser.defaultBrowserWidth;
-      if (!validH)
+      if (validW && !validH) {
         viewportH = viewportW * (screenH / screenW);
+      } else if (!validW && validH) {
+        viewportW = viewportH * (screenW / screenH);
+      } else if (!validW && !validH) {
+        viewportW = Browser.defaultBrowserWidth;
+        viewportH = Browser.defaultBrowserWidth * (screenH / screenW);
+      }
     }
 
     // Make sure the viewport height is not shorter than the window when
     // the page is zoomed out to show its full width.
-    let pageZoomLevel = this.getPageZoomLevel(screenW);
-    let minScale = this.clampZoomLevel(pageZoomLevel, pageZoomLevel);
-    viewportH = Math.max(viewportH, screenH / minScale);
+    if (viewportH * this.clampZoomLevel(this.getPageZoomLevel()) < screenH)
+      viewportH = Math.max(viewportH, screenH * (browser.contentDocumentWidth / screenW));
 
     if (browser.contentWindowWidth != viewportW || browser.contentWindowHeight != viewportH)
       browser.setWindowSize(viewportW, viewportH);
@@ -2940,23 +2934,11 @@ Tab.prototype = {
     }
   },
 
-  /**
-   * Takes a scale and restricts it based on this tab's zoom limits.
-   * @param aScale The original scale.
-   * @param aPageZoomLevel (optional) The zoom-to-fit scale, if known.
-   *   This is a performance optimization to avoid extra calls.
-   */
-  clampZoomLevel: function clampZoomLevel(aScale, aPageZoomLevel) {
-    let md = this.metadata;
-    if (!this.allowZoom) {
-      return (md && md.defaultZoom)
-        ? md.defaultZoom
-        : (aPageZoomLevel || this.getPageZoomLevel());
-    }
-
+  clampZoomLevel: function clampZoomLevel(aScale) {
     let browser = this._browser;
     let bounded = Util.clamp(aScale, ZoomManager.MIN, ZoomManager.MAX);
 
+    let md = this.metadata;
     if (md && md.minZoom)
       bounded = Math.max(bounded, md.minZoom);
     if (md && md.maxZoom)
@@ -3035,18 +3017,12 @@ Tab.prototype = {
     return this.clampZoomLevel(pageZoom);
   },
 
-  /**
-   * @param aScreenWidth (optional) The width of the browser widget, if known.
-   *   This is a performance optimization to save extra calls to getBoundingClientRect.
-   * @return The scale at which the browser will be zoomed out to fit the document width.
-   */
-  getPageZoomLevel: function getPageZoomLevel(aScreenWidth) {
+  getPageZoomLevel: function getPageZoomLevel() {
     let browserW = this._browser.contentDocumentWidth;
     if (browserW == 0)
       return 1.0;
 
-    let screenW = aScreenWidth || this._browser.getBoundingClientRect().width;
-    return screenW / browserW;
+    return this._browser.getBoundingClientRect().width / browserW;
   },
 
   get allowZoom() {

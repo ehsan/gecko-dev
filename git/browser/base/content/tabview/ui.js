@@ -1512,7 +1512,7 @@ let UI = {
         matches[0].zoomIn();
         zoomedIn = true;
       }
-      hideSearch();
+      hideSearch(null);
     }
 
     if (!zoomedIn) {
