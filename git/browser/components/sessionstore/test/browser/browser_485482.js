@@ -15,7 +15,7 @@
  *
  * The Initial Developer of the Original Code is
  * Simon Bünzli <zeniko@gmail.com>.
- * Portions created by the Initial Developer are Copyright (C) 2008
+ * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
@@ -35,37 +35,31 @@
  * ***** END LICENSE BLOCK ***** */
 
 function test() {
-  /** Test for Bug 367052 **/
+  /** Test for Bug 485482 **/
   
-  // test setup
-  let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
-  let tabbrowser = gBrowser;
   waitForExplicitFinish();
   
-  // make sure that the next closed tab will increase getClosedTabCount
-  let max_tabs_undo = gPrefService.getIntPref("browser.sessionstore.max_tabs_undo");
-  gPrefService.setIntPref("browser.sessionstore.max_tabs_undo", max_tabs_undo + 1);
-  let closedTabCount = ss.getClosedTabCount(window);
+  let uniqueValue = Math.random();
   
-  // restore a blank tab
-  let tab = tabbrowser.addTab("about:");
+  let testURL = "chrome://mochikit/content/browser/" +
+    "browser/components/sessionstore/test/browser/browser_485482_sample.html";
+  let tab = gBrowser.addTab(testURL);
   tab.linkedBrowser.addEventListener("load", function(aEvent) {
-    this.removeEventListener("load", arguments.callee, true);
+    let doc = tab.linkedBrowser.contentDocument;
+    doc.querySelector("input[type=text]").value = uniqueValue;
+    doc.querySelector("input[type=checkbox]").checked = true;
     
-    let browser = tabbrowser.getBrowserForTab(tab);
-    let history = browser.webNavigation.sessionHistory;
-    ok(history.count >= 1, "the new tab does have at least one history entry");
-    
-    ss.setTabState(tab, "{ entries: [] }");
-    tab.linkedBrowser.addEventListener("load", function(aEvent) {
-      ok(history.count == 0, "the tab was restored without any history whatsoever");
-      
-      tabbrowser.removeTab(tab);
-      ok(ss.getClosedTabCount(window) == closedTabCount,
-         "The closed blank tab wasn't added to Recently Closed Tabs");
+    let tab2 = gBrowser.duplicateTab(tab);
+    tab2.linkedBrowser.addEventListener("load", function(aEvent) {
+      doc = tab2.linkedBrowser.contentDocument;
+      is(doc.querySelector("input[type=text]").value, uniqueValue,
+         "generated XPath expression was valid");
+      ok(doc.querySelector("input[type=checkbox]").checked,
+         "generated XPath expression was valid");
       
       // clean up
-      gPrefService.clearUserPref("browser.sessionstore.max_tabs_undo");
+      gBrowser.removeTab(tab2);
+      gBrowser.removeTab(tab);
       finish();
     }, true);
   }, true);
