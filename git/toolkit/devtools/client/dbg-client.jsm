@@ -479,6 +479,11 @@ DebuggerClient.prototype = {
    */
   attachConsole:
   function (aConsoleActor, aListeners, aOnResponse) {
+    if (this._consoleClients.has(aConsoleActor)) {
+      setTimeout(() => aOnResponse({}, this._consoleClients.get(aConsoleActor)), 0);
+      return;
+    }
+
     let packet = {
       to: aConsoleActor,
       type: "startListeners",
@@ -488,12 +493,8 @@ DebuggerClient.prototype = {
     this.request(packet, (aResponse) => {
       let consoleClient;
       if (!aResponse.error) {
-        if (this._consoleClients.has(aConsoleActor)) {
-          consoleClient = this._consoleClients.get(aConsoleActor);
-        } else {
-          consoleClient = new WebConsoleClient(this, aConsoleActor);
-          this._consoleClients.set(aConsoleActor, consoleClient);
-        }
+        consoleClient = new WebConsoleClient(this, aConsoleActor);
+        this._consoleClients.set(aConsoleActor, consoleClient);
       }
       aOnResponse(aResponse, consoleClient);
     });

@@ -22,8 +22,7 @@
   }
 }
 
-@media (-moz-windows-default-theme) and (-moz-os-version: windows-vista),
-       (-moz-windows-default-theme) and (-moz-os-version: windows-win7) {
+@media (-moz-windows-default-theme) {
   #navigator-toolbox > toolbar:not(:-moz-lwtheme),
   #browser-bottombox:not(:-moz-lwtheme),
   .browserContainer > findbar {
@@ -170,6 +169,8 @@
      because of the border radius on the toolbar below the tab bar. */
   #main-window[sizemode=normal] #nav-bar {
     border-top: 1px solid @toolbarShadowColor@;
+    border-top-left-radius: 2.5px;
+    border-top-right-radius: 2.5px;
     background-clip: padding-box;
   }
 
@@ -196,18 +197,7 @@
 
   #main-menubar:not(:-moz-lwtheme):not(:-moz-window-inactive) {
     background-color: rgba(255,255,255,.5);
-  }
-
-  @media (-moz-os-version: windows-vista),
-         (-moz-os-version: windows-win7) {
-    #main-window[sizemode=normal] #nav-bar {
-      border-top-left-radius: 2.5px;
-      border-top-right-radius: 2.5px;
-    }
-
-    #main-menubar:not(:-moz-lwtheme):not(:-moz-window-inactive) {
-      border-radius: 4px;
-    }
+    border-radius: 4px;
   }
 
   #ctrlTab-panel {
