@@ -41,10 +41,3 @@ interface nsIDOMDeviceOrientationEvent : nsIDOMEvent
   readonly attribute boolean absolute;
 };
 
-dictionary DeviceOrientationEventInit : EventInit
-{
-  double alpha;
-  double beta;
-  double gamma;
-  boolean absolute;
-};
