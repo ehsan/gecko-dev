@@ -542,7 +542,7 @@
 /* Toolbar controls */
 
 .devtools-sidebar-tabs > tabs > tab {
-  min-height: 24px !important;
+  min-height: 1em !important;
   padding: 0 !important;
 }
 

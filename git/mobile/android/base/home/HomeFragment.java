@@ -191,34 +191,21 @@ abstract class HomeFragment extends Fragment {
         }
 
         if (itemId == R.id.home_remove) {
-            // Track notification queuing of removal so we don't notify multiple times.
-            boolean notifyQueued = false;
-            final String url = info.url;
-
-            // This might be a reading list item. Try removing it by url.
-            (new RemoveReadingListItemTask(context, url)).execute();
-
-            if (info.isInReadingList()) {
-                // For reading list, this may still double-notify because reading list is in Gecko.
-                notifyQueued = true;
+            // Prioritize removing a history entry over a bookmark in the case of a combined item.
+            if (info.hasHistoryId()) {
+                new RemoveHistoryTask(context, info.historyId).execute();
+                return true;
             }
 
             if (info.hasBookmarkId()) {
-                new RemoveBookmarkTask(context, info.bookmarkId, !notifyQueued).execute();
-                notifyQueued = true;
-            } else {
-                new RemoveBookmarkTask(context, url, false).execute();
+                new RemoveBookmarkTask(context, info.bookmarkId).execute();
+                return true;
             }
 
-            if (info.hasHistoryId()) {
-                new RemoveHistoryTask(context, info.historyId, !notifyQueued).execute();
-                notifyQueued = true;
-            } else {
-                // We can't know for sure if there is also a history item, but try anyways.
-                new RemoveHistoryTask(context, url, false).execute();
+            if (info.isInReadingList()) {
+                (new RemoveReadingListItemTask(context, info.readingListItemId, info.url)).execute();
+                return true;
             }
-
-            return notifyQueued;
         }
 
         return false;
@@ -287,53 +274,36 @@ abstract class HomeFragment extends Fragment {
     private static class RemoveBookmarkTask extends UiAsyncTask<Void, Void, Void> {
         private final Context mContext;
         private final int mId;
-        private final String mUrl;
-        private final boolean mNotify;
 
-        public RemoveBookmarkTask(Context context, int id, String url, boolean notify) {
+        public RemoveBookmarkTask(Context context, int id) {
             super(ThreadUtils.getBackgroundHandler());
 
             mContext = context;
             mId = id;
-            mUrl = url;
-            mNotify = notify;
-        }
-
-        public RemoveBookmarkTask(Context context, int id, boolean notify) {
-            this(context, id, null, notify);
-        }
-
-        public RemoveBookmarkTask(Context context, String url, boolean notify) {
-            this(context, -1, url, notify);
         }
 
         @Override
         public Void doInBackground(Void... params) {
             ContentResolver cr = mContext.getContentResolver();
-            if (mId > 0) {
-                BrowserDB.removeBookmark(cr, mId);
-            } else {
-                BrowserDB.removeBookmarksWithURL(cr, mUrl);
-            }
-
+            BrowserDB.removeBookmark(cr, mId);
             return null;
         }
 
         @Override
         public void onPostExecute(Void result) {
-            if (mNotify) {
-                Toast.makeText(mContext, R.string.page_removed, Toast.LENGTH_SHORT).show();
-            }
+            Toast.makeText(mContext, R.string.bookmark_removed, Toast.LENGTH_SHORT).show();
         }
     }
 
 
     private static class RemoveReadingListItemTask extends UiAsyncTask<Void, Void, Void> {
+        private final int mId;
         private final String mUrl;
         private final Context mContext;
 
-        public RemoveReadingListItemTask(Context context, String url) {
+        public RemoveReadingListItemTask(Context context, int id, String url) {
             super(ThreadUtils.getBackgroundHandler());
+            mId = id;
             mUrl = url;
             mContext = context;
         }
@@ -341,7 +311,7 @@ abstract class HomeFragment extends Fragment {
         @Override
         public Void doInBackground(Void... params) {
             ContentResolver cr = mContext.getContentResolver();
-            BrowserDB.removeReadingListItemWithURL(cr, mUrl);
+            BrowserDB.removeReadingListItem(cr, mId);
 
             GeckoEvent e = GeckoEvent.createBroadcastEvent("Reader:Remove", mUrl);
             GeckoAppShell.sendEventToGecko(e);
@@ -353,41 +323,23 @@ abstract class HomeFragment extends Fragment {
     private static class RemoveHistoryTask extends UiAsyncTask<Void, Void, Void> {
         private final Context mContext;
         private final int mId;
-        private final String mUrl;
-        private final boolean mNotify;
 
-        public RemoveHistoryTask(Context context, int id, boolean notify) {
-            this(context, id, null, notify);
-        }
-
-        public RemoveHistoryTask(Context context, String url, boolean notify) {
-            this(context, -1, url, notify);
-        }
-
-        public RemoveHistoryTask(Context context, int id, String url, boolean notify) {
+        public RemoveHistoryTask(Context context, int id) {
             super(ThreadUtils.getBackgroundHandler());
 
             mContext = context;
             mId = id;
-            mUrl = url;
-            mNotify = notify;
         }
 
         @Override
         public Void doInBackground(Void... params) {
-            if (mId > 0) {
-                BrowserDB.removeHistoryEntry(mContext.getContentResolver(), mId);
-            } else {
-                BrowserDB.removeHistoryEntry(mContext.getContentResolver(), mUrl);
-            }
+            BrowserDB.removeHistoryEntry(mContext.getContentResolver(), mId);
             return null;
         }
 
         @Override
         public void onPostExecute(Void result) {
-            if (mNotify) {
-                Toast.makeText(mContext, R.string.page_removed, Toast.LENGTH_SHORT).show();
-            }
+            Toast.makeText(mContext, R.string.history_removed, Toast.LENGTH_SHORT).show();
         }
     }
 }
