@@ -259,8 +259,8 @@ ClientLayerManager::GetRemoteRenderer()
 void
 ClientLayerManager::Composite()
 {
-  if (LayerTransactionChild* manager = mForwarder->GetShadowManager()) {
-    manager->SendForceComposite();
+  if (CompositorChild* remoteRenderer = GetRemoteRenderer()) {
+    remoteRenderer->SendForceComposite();
   }
 }
 

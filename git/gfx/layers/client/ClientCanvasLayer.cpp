@@ -25,7 +25,6 @@
 #ifdef XP_MACOSX
 #include "SharedSurfaceIO.h"
 #endif
-#include "gfxPrefs.h"                   // for WebGLForceLayersReadback
 
 using namespace mozilla::gfx;
 using namespace mozilla::gl;
@@ -46,7 +45,7 @@ ClientCanvasLayer::Initialize(const Data& aData)
         SurfaceStream::ChooseGLStreamType(SurfaceStream::OffMainThread,
                                           screen->PreserveBuffer());
     SurfaceFactory_GL* factory = nullptr;
-    if (!gfxPrefs::WebGLForceLayersReadback()) {
+    if (!mForceReadback) {
       if (ClientManager()->AsShadowForwarder()->GetCompositorBackendType() == mozilla::layers::LayersBackend::LAYERS_OPENGL) {
         if (mGLContext->GetContextType() == GLContextType::EGL) {
           bool isCrossProcess = !(XRE_GetProcessType() == GeckoProcessType_Default);
