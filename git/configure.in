@@ -1154,8 +1154,7 @@ tools are selected during the Xcode/Developer Tools installation.])
   AC_LANG_SAVE
   AC_MSG_CHECKING([for valid compiler/Mac OS X SDK combination])
   AC_LANG_CPLUSPLUS
-  AC_TRY_COMPILE([#include <new>
-                 int main() { return 0; }],
+  AC_TRY_COMPILE([#include <new>],[],
    result=yes,
    result=no)
   AC_LANG_RESTORE
@@ -2536,12 +2535,6 @@ ia64*-hpux*)
 
         MOZ_CHECK_HEADERS(mmintrin.h)
     	AC_DEFINE(_X86_)
-	;;
-    alpha-*)
-    	AC_DEFINE(_ALPHA_)
-	;;
-    mips-*)
-    	AC_DEFINE(_MIPS_)
 	;;
     x86_64-*)
         AC_DEFINE(_AMD64_)
@@ -4965,7 +4958,6 @@ MOZ_INSTALLER=1
 MOZ_IPC=1
 MOZ_JAVAXPCOM=
 MOZ_JSDEBUGGER=1
-MOZ_JSLOADER=1
 MOZ_MATHML=1
 MOZ_MORK=
 MOZ_MORKREADER=1
@@ -5011,7 +5003,6 @@ MOZ_UI_LOCALE=en-US
 MOZ_UNIVERSALCHARDET=1
 MOZ_URL_CLASSIFIER=
 MOZ_USE_NATIVE_UCONV=
-MOZ_VIEW_SOURCE=1
 MOZ_XSLT_STANDALONE=
 MOZ_XTF=1
 MOZ_XUL=1
@@ -5413,6 +5404,26 @@ incorrect])
       MOZ_ENABLE_QTNETWORK=1
       AC_DEFINE(MOZ_ENABLE_QTNETWORK)
     fi
+
+    MOZ_ENABLE_QTMOBILITY=
+    PKG_CHECK_MODULES(_QTMOBILITY, QtSensors,
+                      MOZ_ENABLE_QTMOBILITY=1,
+                      MOZ_ENABLE_QTMOBILITY=)
+    if test "$MOZ_ENABLE_QTMOBILITY"; then
+       MOZ_ENABLE_QTMOBILITY=1
+       MOZ_QT_CFLAGS="$MOZ_QT_CFLAGS $_QTMOBILITY_CFLAGS"
+       MOZ_QT_LIBS="$MOZ_QT_LIBS $_QTMOBILITY_LIBS"
+    else
+       AC_CHECK_LIB(QtSensors, main, [
+          MOZ_ENABLE_QTMOBILITY=1
+          MOZ_QT_CFLAGS="$MOZ_QT_CFLAGS -I/usr/include/qt4/QtMobility"
+          MOZ_QT_CFLAGS="$MOZ_QT_CFLAGS -I/usr/include/qt4/QtSensors"
+          MOZ_QT_LIBS="$MOZ_QT_LIBS -lQtSensors"
+       ])
+    fi
+    if test "$MOZ_ENABLE_QTMOBILITY"; then
+       AC_DEFINE(MOZ_ENABLE_QTMOBILITY)
+    fi
 fi
 
 AC_SUBST(GTK_CONFIG)
@@ -5423,6 +5434,7 @@ AC_SUBST(MOZ_ENABLE_GTK2)
 AC_SUBST(MOZ_ENABLE_PHOTON)
 AC_SUBST(MOZ_ENABLE_QT)
 AC_SUBST(MOZ_ENABLE_QTNETWORK)
+AC_SUBST(MOZ_ENABLE_QTMOBILITY)
 AC_SUBST(MOZ_ENABLE_XREMOTE)
 AC_SUBST(MOZ_GTK2_CFLAGS)
 AC_SUBST(MOZ_GTK2_LIBS)
@@ -5810,14 +5822,15 @@ dnl ========================================================
 dnl = Disable IPC support for tabs and plugins
 dnl ========================================================
 MOZ_ARG_DISABLE_BOOL(ipc,
-[  --disable-ipc           Disable IPC supports for tabs and plugins],
+[  --disable-ipc           Disable IPC for tabs and plugins (not supported)],
     MOZ_IPC=,
     MOZ_IPC=1)
 
-if test -n "$MOZ_IPC"; then
-    AC_DEFINE(MOZ_IPC)
+if test -z "$MOZ_IPC"; then
+  AC_MSG_ERROR([--disable-ipc is no longer supported.])
 fi
 
+AC_DEFINE(MOZ_IPC)
 AC_SUBST(MOZ_IPC)
 
 dnl ========================================================
@@ -5829,10 +5842,6 @@ MOZ_ARG_ENABLE_BOOL(ipdl-tests,
 [  --enable-ipdl-tests     Enable expensive IPDL tests],
     MOZ_IPDL_TESTS=1,
     MOZ_IPDL_TESTS=)
-
-if test -z "$MOZ_IPC" -a -n "$MOZ_IPDL_TESTS"; then
-    AC_MSG_ERROR([--enable-ipdl-tests requires --enable-ipc])
-fi
 
 if test -n "$MOZ_IPDL_TESTS"; then
     AC_DEFINE(MOZ_IPDL_TESTS)
@@ -5861,13 +5870,6 @@ IBMBIDI=1
 AC_DEFINE(IBMBIDI)
 
 dnl ========================================================
-dnl view source support on by default
-dnl ========================================================
-if test "$MOZ_VIEW_SOURCE"; then
-    AC_DEFINE(MOZ_VIEW_SOURCE)
-fi
-
-dnl ========================================================
 dnl accessibility support on by default on all platforms 
 dnl except OS X.
 dnl ========================================================
@@ -5890,13 +5892,6 @@ case "$target" in
     fi
     ;;
 esac
-fi
-
-dnl ========================================================
-dnl xpcom js loader support on by default
-dnl ========================================================
-if test "$MOZ_JSLOADER"; then
-    AC_DEFINE(MOZ_JSLOADER)
 fi
 
 dnl ========================================================
@@ -7381,17 +7376,6 @@ AC_SUBST(MOZ_OPTIMIZE_LDFLAGS)
 AC_SUBST(MOZ_OPTIMIZE_SIZE_TWEAK)
 
 dnl ========================================================
-dnl = (Deprecated) generation of debugger info for specific modules
-dnl ========================================================
-MOZ_ARG_ENABLE_STRING(debugger-info-modules,
-[  --enable-debugger-info-modules
-                          Enable/disable debugger info for specific modules],
-[ if test "$enableval" != "no"; then
-    AC_MSG_WARN([--enable-debugger-info-modules is deprecated, use --enable-debug-symbols instead])
-    MOZ_DEBUG_SYMBOLS=1
-  fi ])
-
-dnl ========================================================
 dnl = Enable generation of debug symbols
 dnl ========================================================
 MOZ_ARG_ENABLE_STRING(debug-symbols,
@@ -7406,7 +7390,10 @@ MOZ_ARG_ENABLE_STRING(debug-symbols,
               AC_MSG_ERROR([--enable-debug-symbols flags cannot be used with --enable-debug flags])
           fi
       fi
-  fi ])
+  else
+      MOZ_DEBUG_SYMBOLS=
+  fi ],
+  MOZ_DEBUG_SYMBOLS=1)
 
 if test -n "$MOZ_DEBUG" -o -n "$MOZ_DEBUG_SYMBOLS"; then
     AC_DEFINE(MOZ_DEBUG_SYMBOLS)
@@ -7742,11 +7729,30 @@ dnl ========================================================
 dnl = --disable-elf-hack
 dnl ========================================================
 
-USE_ELF_HACK=
+USE_ELF_HACK=1
 MOZ_ARG_DISABLE_BOOL(elf-hack,
 [  --disable-elf-hack      Disable elf hacks],
     USE_ELF_HACK=,
     USE_ELF_HACK=1)
+
+# Only enable elfhack where supported
+if test "$USE_ELF_HACK" = 1; then
+    case "${HOST_OS_ARCH},${OS_ARCH}" in
+    Linux,Linux)
+        case "${CPU_ARCH}" in
+        arm | x86 | x86_64)
+            USE_ELF_HACK=1
+            ;;
+        *)
+            USE_ELF_HACK=
+            ;;
+        esac
+        ;;
+    *)
+        USE_ELF_HACK=
+        ;;
+    esac
+fi
 
 dnl ========================================================
 dnl = 
@@ -8244,7 +8250,7 @@ MOZ_ARG_DISABLE_BOOL(md,
   [_cpp_md_flag=],
   [_cpp_md_flag=1],
   [dnl Default is to turn on -MD if using GNU-compatible compilers
-   if test "$GNU_CC" -a "$GNU_CXX" -a "$OS_ARCH" != "WINNT" -a "$OS_ARCH" != "WINCE"; then
+   if test "$GNU_CC" -a "$GNU_CXX"; then
      _cpp_md_flag=1
    fi
   dnl Default is to use -xM if using Sun Studio on Solaris
@@ -8303,14 +8309,20 @@ dnl ========================================================
 MOZ_ARG_HEADER(Static build options)
 
 MOZ_ARG_ENABLE_BOOL(static,
-[  --enable-static         Enable building of internal static libs],
+[  --enable-static         Enable building internal static libs],
     BUILD_STATIC_LIBS=1,
     BUILD_STATIC_LIBS=)
 
-MOZ_ARG_ENABLE_BOOL(libxul,
-[  --enable-libxul         Enable building of libxul],
-    MOZ_ENABLE_LIBXUL=1,
-    MOZ_ENABLE_LIBXUL=)
+MOZ_ENABLE_LIBXUL=1
+
+MOZ_ARG_DISABLE_BOOL(libxul,
+[  --disable-libxul        Disable building libxul (not supported)],
+    MOZ_ENABLE_LIBXUL=,
+    MOZ_ENABLE_LIBXUL=1)
+
+if test -z "$MOZ_ENABLE_LIBXUL"; then
+  AC_MSG_ERROR([--disable-libxul is no longer supported.])
+fi
 
 # split JS out by default to avoid VS2005 PGO crash (bug 591836).
 if test "$OS_ARCH" = "WINNT" -a "$CPU_ARCH" != "x86_64" ; then
@@ -8323,11 +8335,6 @@ MOZ_ARG_ENABLE_BOOL(shared-js,
     ENABLE_SHARED_JS=1,
     ENABLE_SHARED_JS=)
 
-if test -z "$MOZ_ENABLE_LIBXUL"; then
-  dnl --disable-libxul implies shared js
-  ENABLE_SHARED_JS=1
-fi
-
 if test -n "$ENABLE_SHARED_JS"; then
   JS_SHARED_LIBRARY=1
   MOZ_JS_LIBS=$MOZ_JS_SHARED_LIBS
@@ -8338,32 +8345,16 @@ fi
 AC_SUBST(JS_SHARED_LIBRARY)
 
 if test -n "$MOZ_STATIC_BUILD_UNSUPPORTED" -a -n "$BUILD_STATIC_LIBS"; then
-	AC_MSG_ERROR([--enable-static is not supported for building $MOZ_APP_NAME. You probably want --enable-libxul.])
+  AC_MSG_ERROR([--enable-static is not supported for building $MOZ_APP_NAME.])
 fi
 
 if test -n "$MOZ_ENABLE_LIBXUL" -a -n "$BUILD_STATIC_LIBS"; then
-	AC_MSG_ERROR([--enable-libxul is not compatible with --enable-static])
-fi
-
-if test -n "$MOZ_IPC" -a -z "$MOZ_ENABLE_LIBXUL"; then
-    AC_MSG_ERROR([--enable-ipc requires --enable-libxul])
-fi
-
-if test -z "$MOZ_ENABLE_LIBXUL" -a -n "$MOZ_OMNIJAR"; then
-    AC_MSG_ERROR([Omnijar packaging is incompatible with --disable-libxul. Please either --enable-libxul or --enable-chrome-format=jar|flat|symlink]);
+  AC_MSG_ERROR([--enable-libxul is not compatible with --enable-static])
 fi
 
 AC_SUBST(LIBXUL_LIBS)
-
-if test -n "$MOZ_ENABLE_LIBXUL"; then
-    XPCOM_LIBS="$LIBXUL_LIBS"
-    AC_DEFINE(MOZ_ENABLE_LIBXUL)
-else
-    if test -n "$BUILD_STATIC_LIBS"; then
-        AC_DEFINE(MOZ_STATIC_BUILD)
-    fi
-    XPCOM_LIBS="$DYNAMIC_XPCOM_LIBS"
-fi
+XPCOM_LIBS="$LIBXUL_LIBS"
+AC_DEFINE(MOZ_ENABLE_LIBXUL)
 
 dnl ========================================================
 dnl =
@@ -9006,7 +8997,6 @@ AC_SUBST(MOZ_SHARK)
 AC_SUBST(MOZ_CALLGRIND)
 AC_SUBST(MOZ_VTUNE)
 AC_SUBST(MOZ_PROFILING)
-AC_SUBST(MOZ_JSLOADER)
 AC_SUBST(MOZ_USE_NATIVE_UCONV)
 AC_SUBST(MOZ_QUANTIFY)
 AC_SUBST(LIBICONV)
@@ -9036,7 +9026,6 @@ AC_SUBST(ENABLE_TESTS)
 AC_SUBST(IBMBIDI)
 AC_SUBST(MOZ_UNIVERSALCHARDET)
 AC_SUBST(ACCESSIBILITY)
-AC_SUBST(MOZ_VIEW_SOURCE)
 AC_SUBST(MOZ_SPELLCHECK)
 AC_SUBST(MOZ_USER_DIR)
 AC_SUBST(MOZ_CRASHREPORTER)
@@ -9582,6 +9571,7 @@ if test "$MOZ_MEMORY"; then
      export MOZ_MEMORY_LDFLAGS
    fi
 fi
+export MOZ_APP_NAME
 AC_OUTPUT_SUBDIRS(js/src)
 ac_configure_args="$_SUBDIR_CONFIG_ARGS"
 
