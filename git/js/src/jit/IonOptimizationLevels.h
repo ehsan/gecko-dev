@@ -91,9 +91,6 @@ class OptimizationInfo
     // The maximum inlining depth.
     uint32_t maxInlineDepth_;
 
-    // Toggles whether scalar replacement is used.
-    bool scalarReplacement_;
-
     // The maximum inlining depth for functions.
     //
     // Inlining small functions has almost no compiling overhead
@@ -166,10 +163,6 @@ class OptimizationInfo
         if (!js_JitOptions.forceRegisterAllocator)
             return registerAllocator_;
         return js_JitOptions.forcedRegisterAllocator;
-    }
-
-    bool scalarReplacementEnabled() const {
-        return scalarReplacement_ && !js_JitOptions.disableScalarReplacement;
     }
 
     uint32_t smallFunctionMaxInlineDepth() const {

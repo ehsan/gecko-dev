@@ -146,12 +146,12 @@ FileService::IsShuttingDown()
 }
 
 nsresult
-FileService::Enqueue(FileHandleBase* aFileHandle, FileHelper* aFileHelper)
+FileService::Enqueue(FileHandle* aFileHandle, FileHelper* aFileHelper)
 {
   MOZ_ASSERT(NS_IsMainThread(), "Wrong thread!");
   MOZ_ASSERT(aFileHandle, "Null pointer!");
 
-  MutableFileBase* mutableFile = aFileHandle->MutableFile();
+  MutableFile* mutableFile = aFileHandle->mMutableFile;
 
   if (mutableFile->IsInvalid()) {
     return NS_ERROR_NOT_AVAILABLE;
@@ -221,12 +221,12 @@ FileService::Enqueue(FileHandleBase* aFileHandle, FileHelper* aFileHelper)
 }
 
 void
-FileService::NotifyFileHandleCompleted(FileHandleBase* aFileHandle)
+FileService::NotifyFileHandleCompleted(FileHandle* aFileHandle)
 {
   MOZ_ASSERT(NS_IsMainThread(), "Wrong thread!");
   MOZ_ASSERT(aFileHandle, "Null pointer!");
 
-  MutableFileBase* mutableFile = aFileHandle->MutableFile();
+  MutableFile* mutableFile = aFileHandle->mMutableFile;
   const nsACString& storageId = mutableFile->mStorageId;
 
   StorageInfo* storageInfo;
@@ -282,7 +282,7 @@ FileService::AbortFileHandlesForStorage(nsIOfflineStorage* aStorage)
     return;
   }
 
-  nsAutoTArray<nsRefPtr<FileHandleBase>, 10> fileHandles;
+  nsAutoTArray<nsRefPtr<FileHandle>, 10> fileHandles;
   storageInfo->CollectRunningAndDelayedFileHandles(aStorage, fileHandles);
 
   for (uint32_t index = 0; index < fileHandles.Length(); index++) {
@@ -334,7 +334,7 @@ FileService::MaybeFireCallback(StoragesCompleteCallback& aCallback)
   return true;
 }
 
-FileService::FileHandleQueue::FileHandleQueue(FileHandleBase* aFileHandle)
+FileService::FileHandleQueue::FileHandleQueue(FileHandle* aFileHandle)
 : mFileHandle(aFileHandle)
 {
   MOZ_ASSERT(aFileHandle, "Null pointer!");
@@ -353,7 +353,7 @@ FileService::FileHandleQueue::Enqueue(FileHelper* aFileHelper)
   mQueue.AppendElement(aFileHelper);
 
   nsresult rv;
-  if (mFileHandle->mRequestMode == FileHandleBase::PARALLEL) {
+  if (mFileHandle->mRequestMode == FileHandle::PARALLEL) {
     rv = aFileHelper->AsyncRun(this);
   }
   else {
@@ -368,7 +368,7 @@ void
 FileService::
 FileHandleQueue::OnFileHelperComplete(FileHelper* aFileHelper)
 {
-  if (mFileHandle->mRequestMode == FileHandleBase::PARALLEL) {
+  if (mFileHandle->mRequestMode == FileHandle::PARALLEL) {
     int32_t index = mQueue.IndexOf(aFileHelper);
     NS_ASSERTION(index != -1, "We don't know anything about this helper!");
 
@@ -411,7 +411,7 @@ FileService::DelayedEnqueueInfo::~DelayedEnqueueInfo()
 }
 
 FileService::FileHandleQueue*
-FileService::StorageInfo::CreateFileHandleQueue(FileHandleBase* aFileHandle)
+FileService::StorageInfo::CreateFileHandleQueue(FileHandle* aFileHandle)
 {
   nsRefPtr<FileHandleQueue>* fileHandleQueue =
     mFileHandleQueues.AppendElement();
@@ -420,7 +420,7 @@ FileService::StorageInfo::CreateFileHandleQueue(FileHandleBase* aFileHandle)
 }
 
 FileService::FileHandleQueue*
-FileService::StorageInfo::GetFileHandleQueue(FileHandleBase* aFileHandle)
+FileService::StorageInfo::GetFileHandleQueue(FileHandle* aFileHandle)
 {
   uint32_t count = mFileHandleQueues.Length();
   for (uint32_t index = 0; index < count; index++) {
@@ -433,7 +433,7 @@ FileService::StorageInfo::GetFileHandleQueue(FileHandleBase* aFileHandle)
 }
 
 void
-FileService::StorageInfo::RemoveFileHandleQueue(FileHandleBase* aFileHandle)
+FileService::StorageInfo::RemoveFileHandleQueue(FileHandle* aFileHandle)
 {
   for (uint32_t index = 0; index < mDelayedEnqueueInfos.Length(); index++) {
     if (mDelayedEnqueueInfos[index].mFileHandle == aFileHandle) {
@@ -453,7 +453,7 @@ FileService::StorageInfo::RemoveFileHandleQueue(FileHandleBase* aFileHandle)
   mFilesWriting.Clear();
 
   for (uint32_t index = 0, count = fileHandleCount; index < count; index++) {
-    FileHandleBase* fileHandle = mFileHandleQueues[index]->mFileHandle;
+    FileHandle* fileHandle = mFileHandleQueues[index]->mFileHandle;
     if (fileHandle == aFileHandle) {
       MOZ_ASSERT(count == fileHandleCount, "More than one match?!");
 
@@ -464,7 +464,7 @@ FileService::StorageInfo::RemoveFileHandleQueue(FileHandleBase* aFileHandle)
       continue;
     }
 
-    const nsAString& fileName = fileHandle->MutableFile()->mFileName;
+    const nsAString& fileName = fileHandle->mMutableFile->mFileName;
 
     if (fileHandle->mMode == FileMode::Readwrite) {
       if (!IsFileLockedForWriting(fileName)) {
@@ -497,8 +497,8 @@ bool
 FileService::StorageInfo::HasRunningFileHandles(nsIOfflineStorage* aStorage)
 {
   for (uint32_t index = 0; index < mFileHandleQueues.Length(); index++) {
-    FileHandleBase* fileHandle = mFileHandleQueues[index]->mFileHandle;
-    if (fileHandle->MutableFile()->Storage() == aStorage) {
+    FileHandle* fileHandle = mFileHandleQueues[index]->mFileHandle;
+    if (fileHandle->mMutableFile->Storage() == aStorage) {
       return true;
     }
   }
@@ -506,7 +506,7 @@ FileService::StorageInfo::HasRunningFileHandles(nsIOfflineStorage* aStorage)
 }
 
 FileService::DelayedEnqueueInfo*
-FileService::StorageInfo::CreateDelayedEnqueueInfo(FileHandleBase* aFileHandle,
+FileService::StorageInfo::CreateDelayedEnqueueInfo(FileHandle* aFileHandle,
                                                    FileHelper* aFileHelper)
 {
   DelayedEnqueueInfo* info = mDelayedEnqueueInfos.AppendElement();
@@ -517,19 +517,19 @@ FileService::StorageInfo::CreateDelayedEnqueueInfo(FileHandleBase* aFileHandle,
 
 void
 FileService::StorageInfo::CollectRunningAndDelayedFileHandles(
-                               nsIOfflineStorage* aStorage,
-                               nsTArray<nsRefPtr<FileHandleBase>>& aFileHandles)
+                                 nsIOfflineStorage* aStorage,
+                                 nsTArray<nsRefPtr<FileHandle>>& aFileHandles)
 {
   for (uint32_t index = 0; index < mFileHandleQueues.Length(); index++) {
-    FileHandleBase* fileHandle = mFileHandleQueues[index]->mFileHandle;
-    if (fileHandle->MutableFile()->Storage() == aStorage) {
+    FileHandle* fileHandle = mFileHandleQueues[index]->mFileHandle;
+    if (fileHandle->mMutableFile->Storage() == aStorage) {
       aFileHandles.AppendElement(fileHandle);
     }
   }
 
   for (uint32_t index = 0; index < mDelayedEnqueueInfos.Length(); index++) {
-    FileHandleBase* fileHandle = mDelayedEnqueueInfos[index].mFileHandle;
-    if (fileHandle->MutableFile()->Storage() == aStorage) {
+    FileHandle* fileHandle = mDelayedEnqueueInfos[index].mFileHandle;
+    if (fileHandle->mMutableFile->Storage() == aStorage) {
       aFileHandles.AppendElement(fileHandle);
     }
   }

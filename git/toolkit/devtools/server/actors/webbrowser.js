@@ -812,7 +812,7 @@ TabActor.prototype = {
     return {
       type: "tabAttached",
       threadActor: this.threadActor.actorID,
-      cacheDisabled: this._getCacheDisabled(),
+      cacheEnabled: this._getCacheEnabled(),
       javascriptEnabled: this._getJavascriptEnabled(),
       traits: this.traits,
     };
@@ -875,9 +875,10 @@ TabActor.prototype = {
       this._setJavascriptEnabled(options.javascriptEnabled);
       reload = true;
     }
-    if (typeof options.cacheDisabled !== "undefined" &&
-        options.cacheDisabled !== this._getCacheDisabled()) {
-      this._setCacheDisabled(options.cacheDisabled);
+    if (typeof options.cacheEnabled !== "undefined" &&
+        options.cacheEnabled !== this._getCacheEnabled()) {
+      this._setCacheEnabled(options.cacheEnabled);
+      reload = true;
     }
 
     // Reload if:
@@ -893,13 +894,12 @@ TabActor.prototype = {
   /**
    * Disable or enable the cache via docShell.
    */
-  _setCacheDisabled: function(disabled) {
+  _setCacheEnabled: function(allow) {
     let enable =  Ci.nsIRequest.LOAD_NORMAL;
     let disable = Ci.nsIRequest.LOAD_BYPASS_CACHE |
                   Ci.nsIRequest.INHIBIT_CACHING;
-
     if (this.docShell) {
-      this.docShell.defaultLoadFlags = disabled ? disable : enable;
+      this.docShell.defaultLoadFlags = allow ? enable : disable;
     }
   },
 
@@ -915,7 +915,7 @@ TabActor.prototype = {
   /**
    * Return cache allowed status.
    */
-  _getCacheDisabled: function() {
+  _getCacheEnabled: function() {
     if (!this.docShell) {
       // The tab is already closed.
       return null;
@@ -923,7 +923,7 @@ TabActor.prototype = {
 
     let disable = Ci.nsIRequest.LOAD_BYPASS_CACHE |
                   Ci.nsIRequest.INHIBIT_CACHING;
-    return this.docShell.defaultLoadFlags === disable;
+    return this.docShell.defaultLoadFlags !== disable;
   },
 
   /**
@@ -1152,11 +1152,7 @@ BrowserTabActor.prototype.constructor = BrowserTabActor;
 
 Object.defineProperty(BrowserTabActor.prototype, "docShell", {
   get: function() {
-    if (this._browser) {
-      return this._browser.docShell;
-    }
-    // The tab is closed.
-    return null;
+    return this._browser.docShell;
   },
   enumerable: true,
   configurable: false

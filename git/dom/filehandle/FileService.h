@@ -26,7 +26,7 @@ class nsIRunnable;
 namespace mozilla {
 namespace dom {
 
-class FileHandleBase;
+class FileHandle;
 
 class FileService MOZ_FINAL : public nsIObserver
 {
@@ -50,10 +50,10 @@ public:
   IsShuttingDown();
 
   nsresult
-  Enqueue(FileHandleBase* aFileHandle, FileHelper* aFileHelper);
+  Enqueue(FileHandle* aFileHandle, FileHelper* aFileHelper);
 
   void
-  NotifyFileHandleCompleted(FileHandleBase* aFileHandle);
+  NotifyFileHandleCompleted(FileHandle* aFileHandle);
 
   void
   WaitForStoragesToComplete(nsTArray<nsCOMPtr<nsIOfflineStorage> >& aStorages,
@@ -92,7 +92,7 @@ private:
 
   private:
     inline
-    FileHandleQueue(FileHandleBase* aFileHandle);
+    FileHandleQueue(FileHandle* aFileHandle);
 
     ~FileHandleQueue();
 
@@ -101,7 +101,7 @@ private:
 
     ThreadSafeAutoRefCnt mRefCnt;
     NS_DECL_OWNINGTHREAD
-    nsRefPtr<FileHandleBase> mFileHandle;
+    nsRefPtr<FileHandle> mFileHandle;
     nsTArray<nsRefPtr<FileHelper> > mQueue;
     nsRefPtr<FileHelper> mCurrentHelper;
   };
@@ -111,7 +111,7 @@ private:
     DelayedEnqueueInfo();
     ~DelayedEnqueueInfo();
 
-    nsRefPtr<FileHandleBase> mFileHandle;
+    nsRefPtr<FileHandle> mFileHandle;
     nsRefPtr<FileHelper> mFileHelper;
   };
 
@@ -121,13 +121,13 @@ private:
 
   public:
     inline FileHandleQueue*
-    CreateFileHandleQueue(FileHandleBase* aFileHandle);
+    CreateFileHandleQueue(FileHandle* aFileHandle);
 
     inline FileHandleQueue*
-    GetFileHandleQueue(FileHandleBase* aFileHandle);
+    GetFileHandleQueue(FileHandle* aFileHandle);
 
     void
-    RemoveFileHandleQueue(FileHandleBase* aFileHandle);
+    RemoveFileHandleQueue(FileHandle* aFileHandle);
 
     bool
     HasRunningFileHandles()
@@ -139,13 +139,12 @@ private:
     HasRunningFileHandles(nsIOfflineStorage* aStorage);
 
     inline DelayedEnqueueInfo*
-    CreateDelayedEnqueueInfo(FileHandleBase* aFileHandle,
-                             FileHelper* aFileHelper);
+    CreateDelayedEnqueueInfo(FileHandle* aFileHandle, FileHelper* aFileHelper);
 
     inline void
     CollectRunningAndDelayedFileHandles(
-                              nsIOfflineStorage* aStorage,
-                              nsTArray<nsRefPtr<FileHandleBase>>& aFileHandles);
+                                 nsIOfflineStorage* aStorage,
+                                 nsTArray<nsRefPtr<FileHandle>>& aFileHandles);
 
     void
     LockFileForReading(const nsAString& aFileName)

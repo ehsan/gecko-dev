@@ -8,7 +8,6 @@ EXPORTS += [
     'IMediaResourceManagerClient.h',
     'IMediaResourceManagerDeathNotifier.h',
     'IMediaResourceManagerService.h',
-    'MediaResourceHandler.h',
     'MediaResourceManagerClient.h',
     'MediaResourceManagerService.h',
 ]

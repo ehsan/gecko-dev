@@ -3138,7 +3138,7 @@ this.DOMApplicationRegistry = {
           aOldApp.downloadAvailable = false;
         }
         if (typeof e == 'object') {
-          Cu.reportError("Error while reading package: " + e + "\n" + e.stack);
+          Cu.reportError("Error while reading package:" + e);
           throw "INVALID_PACKAGE";
         } else {
           throw e;

@@ -22,13 +22,13 @@ namespace dom {
 
 namespace {
 
-FileHandleBase* gCurrentFileHandle = nullptr;
+FileHandle* gCurrentFileHandle = nullptr;
 
 } // anonymous namespace
 
-FileHelper::FileHelper(FileHandleBase* aFileHandle,
-                       FileRequestBase* aFileRequest)
-: mMutableFile(aFileHandle->MutableFile()),
+FileHelper::FileHelper(FileHandle* aFileHandle,
+                       FileRequest* aFileRequest)
+: mMutableFile(aFileHandle->mMutableFile),
   mFileHandle(aFileHandle),
   mFileRequest(aFileRequest),
   mResultCode(NS_OK),
@@ -75,7 +75,7 @@ FileHelper::AsyncRun(FileHelperListener* aListener)
   nsresult rv;
 
   nsCOMPtr<nsISupports> stream;
-  if (mFileHandle->mRequestMode == FileHandleBase::PARALLEL) {
+  if (mFileHandle->mRequestMode == FileHandle::PARALLEL) {
     rv = mFileHandle->CreateParallelStream(getter_AddRefs(stream));
   }
   else {
@@ -146,7 +146,7 @@ FileHelper::OnStreamProgress(uint64_t aProgress, uint64_t aProgressMax)
 }
 
 // static
-FileHandleBase*
+FileHandle*
 FileHelper::GetCurrentFileHandle()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -193,7 +193,7 @@ FileHelper::Finish()
     mResultCode = NS_ERROR_DOM_FILEHANDLE_ABORT_ERR;
   }
 
-  FileHandleBase* oldFileHandle = gCurrentFileHandle;
+  FileHandle* oldFileHandle = gCurrentFileHandle;
   gCurrentFileHandle = mFileHandle;
 
   if (mFileRequest) {

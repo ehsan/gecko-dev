@@ -4,10 +4,11 @@
 let doc = null, toolbox = null, panelWin = null, modifiedPrefs = [];
 
 function test() {
+  waitForExplicitFinish();
+
   const URL = "data:text/html;charset=utf8,test for dynamically registering and unregistering tools";
   Task.spawn(function* () {
-    let tab = yield addTab(URL);
-    let target = TargetFactory.forTab(tab);
+    let { target } = yield addTab(URL);
     let toolbox = yield gDevTools.showToolbox(target);
     yield testSelectTool(toolbox);
     yield testOptionsShortcut();

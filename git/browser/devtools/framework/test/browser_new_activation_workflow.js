@@ -10,7 +10,7 @@ let toolbox, target;
 let tempScope = {};
 
 function test() {
-  addTab("about:blank").then(function(aTab) {
+  addTab("about:blank", function(aBrowser, aTab) {
     target = TargetFactory.forTab(gBrowser.selectedTab);
     loadWebConsole(aTab).then(function() {
       console.log('loaded');

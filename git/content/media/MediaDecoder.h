@@ -873,7 +873,6 @@ public:
 
 #ifdef MOZ_OMX_DECODER
   static bool IsOmxEnabled();
-  static bool IsOmxAsyncEnabled();
 #endif
 
 #ifdef MOZ_ANDROID_OMX

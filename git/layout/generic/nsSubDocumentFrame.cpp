@@ -464,11 +464,10 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     }
 
     if (subdocRootFrame) {
-      nsIFrame* rootScrollFrame = presShell->GetRootScrollFrame();
       nsDisplayListBuilder::AutoCurrentScrollParentIdSetter idSetter(
           aBuilder,
-          ignoreViewportScrolling && rootScrollFrame && rootScrollFrame->GetContent()
-              ? nsLayoutUtils::FindOrCreateIDFor(rootScrollFrame->GetContent())
+          ignoreViewportScrolling && subdocRootFrame->GetContent()
+              ? nsLayoutUtils::FindOrCreateIDFor(subdocRootFrame->GetContent())
               : aBuilder->GetCurrentScrollParentId());
 
       aBuilder->SetAncestorHasTouchEventHandler(false);

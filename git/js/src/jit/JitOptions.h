@@ -36,7 +36,6 @@ struct JitOptions
 #endif
     bool checkRangeAnalysis;
     bool compileTryCatch;
-    bool disableScalarReplacement;
     bool disableGvn;
     bool disableLicm;
     bool disableInlining;

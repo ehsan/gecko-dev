@@ -15,23 +15,6 @@ if (!SpecialPowers.isMainProcess()) {
   }
 }
 
-function getBuffer(size)
-{
-  let buffer = new ArrayBuffer(size);
-  is(buffer.byteLength, size, "Correct byte length");
-  return buffer;
-}
-
-function getRandomBuffer(size)
-{
-  let buffer = getBuffer(size);
-  let view = new Uint8Array(buffer);
-  for (let i = 0; i < size; i++) {
-    view[i] = parseInt(Math.random() * 255)
-  }
-  return buffer;
-}
-
 function getView(size)
 {
   let buffer = new ArrayBuffer(size);
