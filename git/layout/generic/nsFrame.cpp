@@ -49,7 +49,7 @@
 #include "nsCSSPseudoElements.h"
 #include "nsCSSFrameConstructor.h"
 
-#include "nsFrameTraversal.h"
+#include "nsFrameIterator.h"
 #include "nsStyleChangeList.h"
 #include "nsIDOMRange.h"
 #include "nsRange.h"
@@ -5811,17 +5811,12 @@ nsFrame::GetNextPrevLineFromeBlockFrame(nsPresContext* aPresContext,
       //resultFrame is not a block frame
       result = NS_ERROR_FAILURE;
 
-      nsCOMPtr<nsIFrameEnumerator> frameTraversal;
-      result = NS_NewFrameTraversal(getter_AddRefs(frameTraversal),
-                                    aPresContext, resultFrame,
-                                    ePostOrder,
-                                    false, // aVisual
-                                    aPos->mScrollViewStop,
-                                    false     // aFollowOOFs
-                                    );
-      if (NS_FAILED(result))
-        return result;
-
+      uint32_t flags = nsFrameIterator::FLAG_NONE;
+      if (aPos->mScrollViewStop) {
+        flags |= nsFrameIterator::FLAG_LOCK_SCROLL;
+      }
+      nsFrameIterator frameTraversal(aPresContext, resultFrame,
+                                     ePostOrder, flags);
       nsIFrame *storeOldResultFrame = resultFrame;
       while ( !found ){
         nsPoint point;
@@ -5835,7 +5830,7 @@ nsFrame::GetNextPrevLineFromeBlockFrame(nsPresContext* aPresContext,
           return result;
         point.y = tempRect.height + offset.y;
 
-        //special check. if we allow non-text selection then we can allow a hit location to fall before a table.
+        //special check. if we allow non-text selection then we can allow a hit location to fall before a table. 
         //otherwise there is no way to get and click signal to fall before a table (it being a line iterator itself)
         nsIPresShell *shell = aPresContext->GetPresShell();
         if (!shell)
@@ -5898,8 +5893,8 @@ nsFrame::GetNextPrevLineFromeBlockFrame(nsPresContext* aPresContext,
         if (aPos->mDirection == eDirNext && (resultFrame == nearStoppingFrame))
           break;
         //always try previous on THAT line if that fails go the other way
-        frameTraversal->Prev();
-        resultFrame = frameTraversal->CurrentItem();
+        frameTraversal.Prev();
+        resultFrame = frameTraversal.CurrentItem();
         if (!resultFrame)
           return NS_ERROR_FAILURE;
       }
@@ -5907,13 +5902,12 @@ nsFrame::GetNextPrevLineFromeBlockFrame(nsPresContext* aPresContext,
       if (!found){
         resultFrame = storeOldResultFrame;
 
-        result = NS_NewFrameTraversal(getter_AddRefs(frameTraversal),
-                                      aPresContext, resultFrame,
-                                      eLeaf,
-                                      false, // aVisual
-                                      aPos->mScrollViewStop,
-                                      false     // aFollowOOFs
-                                      );
+        uint32_t flags = nsFrameIterator::FLAG_NONE;
+        if (aPos->mScrollViewStop) {
+          flags |= nsFrameIterator::FLAG_LOCK_SCROLL;
+        }
+        frameTraversal = nsFrameIterator(aPresContext, resultFrame,
+                                         eLeaf, flags);
       }
       while ( !found ){
         nsPoint point(aPos->mDesiredX, 0);
@@ -5944,8 +5938,8 @@ nsFrame::GetNextPrevLineFromeBlockFrame(nsPresContext* aPresContext,
         if (aPos->mDirection == eDirNext && (resultFrame == farStoppingFrame))
           break;
         //previous didnt work now we try "next"
-        frameTraversal->Next();
-        nsIFrame *tempFrame = frameTraversal->CurrentItem();
+        frameTraversal.Next();
+        nsIFrame *tempFrame = frameTraversal.CurrentItem();
         if (!tempFrame)
           break;
         resultFrame = tempFrame;
@@ -6669,23 +6663,22 @@ nsIFrame::GetFrameFromDirection(nsDirection aDirection, bool aVisual,
         return NS_ERROR_FAILURE; //we are done. cannot jump lines
     }
 
-    nsCOMPtr<nsIFrameEnumerator> frameTraversal;
-    result = NS_NewFrameTraversal(getter_AddRefs(frameTraversal),
-                                  presContext, traversedFrame,
-                                  eLeaf,
-                                  aVisual && presContext->BidiEnabled(),
-                                  aScrollViewStop,
-                                  true     // aFollowOOFs
-                                  );
-    if (NS_FAILED(result))
-      return result;
+    uint32_t flags = nsFrameIterator::FLAG_FOLLOW_OUT_OF_FLOW;
+    if (aScrollViewStop) {
+      flags |= nsFrameIterator::FLAG_LOCK_SCROLL;
+    }
+    if (aVisual && presContext->BidiEnabled()) {
+      flags |= nsFrameIterator::FLAG_VISUAL;
+    }
+    nsFrameIterator frameTraversal(presContext, traversedFrame,
+                                   eLeaf, flags);
 
     if (aDirection == eDirNext)
-      frameTraversal->Next();
+      frameTraversal.Next();
     else
-      frameTraversal->Prev();
+      frameTraversal.Prev();
 
-    traversedFrame = frameTraversal->CurrentItem();
+    traversedFrame = frameTraversal.CurrentItem();
     if (!traversedFrame)
       return NS_ERROR_FAILURE;
     traversedFrame->IsSelectable(&selectable, nullptr);
