@@ -990,9 +990,22 @@ var BrowserApp = {
       return;
 
     let focused = doc.activeElement;
+    while (focused instanceof HTMLFrameElement || focused instanceof HTMLIFrameElement) {
+      doc = focused.contentDocument;
+      focused = doc.activeElement;
+    }
+
     if ((focused instanceof HTMLInputElement && focused.mozIsTextField(false))
         || (focused instanceof HTMLTextAreaElement)
         || (focused.isContentEditable)) {
+
+      if (focused instanceof HTMLBodyElement) {
+        // we are putting focus into a contentEditable frame. scroll the frame into
+        // view instead of the contentEditable document contained within, because that
+        // results in a better user experience
+        focused = focused.ownerDocument.defaultView.frameElement;
+      }
+
       let tab = BrowserApp.getTabForBrowser(aBrowser);
       let win = aBrowser.contentWindow;
 
@@ -6453,7 +6466,7 @@ var WebappsUI = {
     request.onsuccess = function() {
       let foundMarket = false;
       for (let i = 0; i < request.result.length; i++) {
-        if (request.result[i].origin == this.MARKETPLACE.URI.prePath)
+        if (request.result[i].origin == WebappsUI.MARKETPLACE.URI.prePath)
           foundMarket = true;
       }
 

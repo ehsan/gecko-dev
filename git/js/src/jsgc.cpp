@@ -112,9 +112,10 @@ using namespace mozilla;
 using namespace js;
 using namespace js::gc;
 
-void * const JS::InternalHandleBase::zeroPointer = NULL;
-
 namespace js {
+
+void * const InternalHandleBase::zeroPointer = NULL;
+
 namespace gc {
 
 /*
@@ -3821,6 +3822,9 @@ BeginSweepPhase(JSRuntime *rt)
     /* Finalize unreachable (key,value) pairs in all weak maps. */
     WeakMapBase::sweepAll(&rt->gcMarker);
     rt->debugScopes->sweep();
+
+    /* Prune out dead views from ArrayBuffer's view lists. */
+    ArrayBufferObject::sweepAll(rt);
 
     /* Collect watch points associated with unreachable objects. */
     WatchpointMap::sweepAll(rt);
