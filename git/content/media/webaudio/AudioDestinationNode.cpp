@@ -246,7 +246,6 @@ AudioDestinationNode::AudioDestinationNode(AudioContext* aContext,
   , mAudioChannel(AudioChannel::Normal)
   , mIsOffline(aIsOffline)
   , mHasFinished(false)
-  , mAudioChannelAgentPlaying(false)
   , mExtraCurrentTime(0)
   , mExtraCurrentTimeSinceLastStartedBlocking(0)
   , mExtraCurrentTimeUpdatedSinceLastStableState(false)
@@ -426,18 +425,7 @@ AudioDestinationNode::HandleEvent(nsIDOMEvent* aEvent)
 NS_IMETHODIMP
 AudioDestinationNode::CanPlayChanged(int32_t aCanPlay)
 {
-  bool playing = aCanPlay == AudioChannelState::AUDIO_CHANNEL_STATE_NORMAL;
-  if (playing == mAudioChannelAgentPlaying) {
-    return NS_OK;
-  }
-
-  mAudioChannelAgentPlaying = playing;
-  SetCanPlay(playing);
-
-  Context()->DispatchTrustedEvent(
-    playing ? NS_LITERAL_STRING("mozinterruptend")
-            : NS_LITERAL_STRING("mozinterruptbegin"));
-
+  SetCanPlay(aCanPlay == AudioChannelState::AUDIO_CHANNEL_STATE_NORMAL);
   return NS_OK;
 }
 
@@ -542,9 +530,7 @@ AudioDestinationNode::CreateAudioChannelAgent()
 
   int32_t state = 0;
   mAudioChannelAgent->StartPlaying(&state);
-  mAudioChannelAgentPlaying =
-    state == AudioChannelState::AUDIO_CHANNEL_STATE_NORMAL;
-  SetCanPlay(mAudioChannelAgentPlaying);
+  SetCanPlay(state == AudioChannelState::AUDIO_CHANNEL_STATE_NORMAL);
 }
 
 void

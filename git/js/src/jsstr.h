@@ -34,9 +34,8 @@ ConcatStrings(ThreadSafeContext *cx,
               typename MaybeRooted<JSString*, allowGC>::HandleType right);
 
 // Return s advanced past any Unicode white space characters.
-template <typename CharT>
-static inline const CharT *
-SkipSpace(const CharT *s, const CharT *end)
+static inline const jschar *
+SkipSpace(const jschar *s, const jschar *end)
 {
     JS_ASSERT(s <= end);
 
@@ -61,6 +60,12 @@ CompareChars(const jschar *s1, size_t l1, const jschar *s2, size_t l2)
 }
 
 }  /* namespace js */
+
+extern JSString * JS_FASTCALL
+js_toLowerCase(JSContext *cx, JSString *str);
+
+extern JSString * JS_FASTCALL
+js_toUpperCase(JSContext *cx, JSString *str);
 
 struct JSSubString {
     size_t          length;
@@ -93,9 +98,9 @@ extern const char js_decodeURIComponent_str[];
 extern const char js_encodeURIComponent_str[];
 
 /* GC-allocate a string descriptor for the given malloc-allocated chars. */
-template <js::AllowGC allowGC, typename CharT>
+template <js::AllowGC allowGC>
 extern JSFlatString *
-js_NewString(js::ThreadSafeContext *cx, CharT *chars, size_t length);
+js_NewString(js::ThreadSafeContext *cx, jschar *chars, size_t length);
 
 extern JSLinearString *
 js_NewDependentString(JSContext *cx, JSString *base, size_t start, size_t length);

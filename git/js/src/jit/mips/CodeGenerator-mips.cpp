@@ -40,33 +40,16 @@ CodeGeneratorMIPS::CodeGeneratorMIPS(MIRGenerator *gen, LIRGraph *graph, MacroAs
 bool
 CodeGeneratorMIPS::generatePrologue()
 {
-    MOZ_ASSERT(!gen->compilingAsmJS());
-    // Note that this automatically sets MacroAssembler::framePushed().
-    masm.reserveStack(frameSize());
-    masm.checkStackAlignment();
-    return true;
-}
-
-bool
-CodeGeneratorMIPS::generateAsmJSPrologue(Label *stackOverflowLabel)
-{
-    JS_ASSERT(gen->compilingAsmJS());
-
-    masm.push(ra);
-
-    // The asm.js over-recursed handler wants to be able to assume that SP
-    // points to the return address, so perform the check after pushing ra but
-    // before pushing frameDepth.
-    if (!omitOverRecursedCheck()) {
-        masm.branchPtr(Assembler::AboveOrEqual,
-                       AsmJSAbsoluteAddress(AsmJSImm_StackLimit),
-                       StackPointer,
-                       stackOverflowLabel);
+    if (gen->compilingAsmJS()) {
+        masm.Push(ra);
+        // Note that this automatically sets MacroAssembler::framePushed().
+        masm.reserveStack(frameDepth_);
+    } else {
+        // Note that this automatically sets MacroAssembler::framePushed().
+        masm.reserveStack(frameSize());
+        masm.checkStackAlignment();
     }
 
-    // Note that this automatically sets MacroAssembler::framePushed().
-    masm.reserveStack(frameDepth_);
-    masm.checkStackAlignment();
     return true;
 }
 
@@ -84,12 +67,18 @@ CodeGeneratorMIPS::generateEpilogue()
     }
 #endif
 
-    if (gen->compilingAsmJS())
+    if (gen->compilingAsmJS()) {
+        // Pop the stack we allocated at the start of the function.
         masm.freeStack(frameDepth_);
-    else
+        masm.Pop(ra);
+        masm.abiret();
+        MOZ_ASSERT(masm.framePushed() == 0);
+    } else {
+        // Pop the stack we allocated at the start of the function.
         masm.freeStack(frameSize());
-    JS_ASSERT(masm.framePushed() == 0);
-    masm.ret();
+        MOZ_ASSERT(masm.framePushed() == 0);
+        masm.ret();
+    }
     return true;
 }
 
@@ -983,8 +972,14 @@ CodeGeneratorMIPS::toMoveOperand(const LAllocation *a) const
     if (a->isFloatReg()) {
         return MoveOperand(ToFloatRegister(a));
     }
+    MOZ_ASSERT((ToStackOffset(a) & 3) == 0);
     int32_t offset = ToStackOffset(a);
-    MOZ_ASSERT((offset & 3) == 0);
+
+    // The way the stack slots work, we assume that everything from
+    // depth == 0 downwards is writable. However, since our frame is included
+    // in this, ensure that the frame gets skipped.
+    if (gen->compilingAsmJS())
+        offset -= AlignmentMidPrologue;
 
     return MoveOperand(StackPointer, offset);
 }
@@ -1999,7 +1994,7 @@ CodeGeneratorMIPS::visitAsmJSLoadHeap(LAsmJSLoadHeap *ins)
     }
     masm.bind(&done);
 
-    return masm.append(AsmJSHeapAccess(bo.getOffset()));
+    return gen->noteHeapAccess(AsmJSHeapAccess(bo.getOffset()));
 }
 
 bool
@@ -2075,7 +2070,7 @@ CodeGeneratorMIPS::visitAsmJSStoreHeap(LAsmJSStoreHeap *ins)
     }
     masm.bind(&rejoin);
 
-    return masm.append(AsmJSHeapAccess(bo.getOffset()));
+    return gen->noteHeapAccess(AsmJSHeapAccess(bo.getOffset()));
 }
 
 bool

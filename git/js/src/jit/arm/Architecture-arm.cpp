@@ -15,10 +15,10 @@
 
 #include "jit/arm/Assembler-arm.h"
 
-#define HWCAP_USE_HARDFP_ABI (1 << 27)
+#define HWCAP_USE_HARDFP_ABI (1 << 28)
 
 #if !(defined(ANDROID) || defined(MOZ_B2G)) && !defined(JS_ARM_SIMULATOR)
-#define HWCAP_ARMv7 (1 << 28)
+#define HWCAP_ARMv7 (1 << 29)
 #include <asm/hwcap.h>
 #else
 #define HWCAP_VFP      (1<<0)

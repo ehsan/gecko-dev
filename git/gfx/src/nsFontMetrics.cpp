@@ -128,7 +128,7 @@ nsFontMetrics::Init(const nsFont& aFont, nsIAtom* aLanguage,
     aFont.AddFontFeaturesToStyle(&style);
 
     mFontGroup = gfxPlatform::GetPlatform()->
-        CreateFontGroup(aFont.fontlist, &style, aUserFontSet);
+        CreateFontGroup(aFont.name, &style, aUserFontSet);
     mFontGroup->SetTextPerfMetrics(aTextPerf);
     if (mFontGroup->FontListLength() < 1)
         return NS_ERROR_UNEXPECTED;

@@ -40,6 +40,13 @@ function getIntPref(prefName, def) {
   }
 }
 
+function defineAndExpose(obj, name, value) {
+  obj[name] = value;
+  if (!('__exposedProps__' in obj))
+    obj.__exposedProps__ = {};
+  obj.__exposedProps__[name] = 'r';
+}
+
 function visibilityChangeHandler(e) {
   // The visibilitychange event's target is the document.
   let win = e.target.defaultView;
@@ -307,15 +314,17 @@ BrowserElementParent.prototype = {
 
       evt = this._createEvent('usernameandpasswordrequired', detail,
                               /* cancelable */ true);
-      Cu.exportFunction(function(username, password) {
+      defineAndExpose(evt.detail, 'authenticate', function(username, password) {
         if (callbackCalled)
           return;
         callbackCalled = true;
         callback(true, username, password);
-      }, evt.detail, { defineAs: 'authenticate' });
+      });
     }
 
-    Cu.exportFunction(cancelCallback, evt.detail, { defineAs: 'cancel' });
+    defineAndExpose(evt.detail, 'cancel', function() {
+      cancelCallback();
+    });
 
     this._frameElement.dispatchEvent(evt);
 
@@ -373,9 +382,9 @@ BrowserElementParent.prototype = {
 
     if (detail.contextmenu) {
       var self = this;
-      Cu.exportFunction(function(id) {
+      defineAndExpose(evt.detail, 'contextMenuItemSelected', function(id) {
         self._sendAsyncMsg('fire-ctx-callback', {menuitem: id});
-      }, evt.detail, { defineAs: 'contextMenuItemSelected' });
+      });
     }
 
     // The embedder may have default actions on context menu events, so
@@ -453,7 +462,9 @@ BrowserElementParent.prototype = {
       self._sendAsyncMsg('unblock-modal-prompt', data);
     }
 
-    Cu.exportFunction(sendUnblockMsg, evt.detail, { defineAs: 'unblock' });
+    defineAndExpose(evt.detail, 'unblock', function() {
+      sendUnblockMsg();
+    });
 
     this._frameElement.dispatchEvent(evt);
 

@@ -289,7 +289,7 @@ HTMLLinkElement::UpdateImport()
     return;
   }
 
-  if (!nsStyleLinkElement::IsImportEnabled()) {
+  if (!Preferences::GetBool("dom.webcomponents.enabled")) {
     // For now imports are hidden behind a pref...
     return;
   }

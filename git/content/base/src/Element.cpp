@@ -1775,6 +1775,7 @@ Element::SetEventHandler(nsIAtom* aEventName,
 
   defer = defer && aDefer; // only defer if everyone agrees...
   manager->SetEventHandler(aEventName, aValue,
+                           nsIProgrammingLanguage::JAVASCRIPT,
                            defer, !nsContentUtils::IsChromeDoc(ownerDoc),
                            this);
   return NS_OK;

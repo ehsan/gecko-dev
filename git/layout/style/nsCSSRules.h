@@ -318,8 +318,8 @@ public:
   // nsIDOMCSSFontFaceRule interface
   NS_DECL_NSIDOMCSSFONTFEATUREVALUESRULE
 
-  const mozilla::FontFamilyList& GetFamilyList() { return mFamilyList; }
-  void SetFamilyList(const mozilla::FontFamilyList& aFamilyList);
+  const nsTArray<nsString>& GetFamilyList() { return mFamilyList; }
+  void SetFamilyList(const nsAString& aFamilyList, bool& aContainsGeneric);
 
   void AddValueList(int32_t aVariantAlternate,
                     nsTArray<gfxFontFeatureValueSet::ValueList>& aValueList);
@@ -341,7 +341,7 @@ public:
   }
 
 protected:
-  mozilla::FontFamilyList mFamilyList;
+  nsTArray<nsString> mFamilyList;
   nsTArray<gfxFontFeatureValueSet::FeatureValues> mFeatureValues;
 };
 

@@ -263,25 +263,21 @@ js::NewPropertyDescriptorObject(JSContext *cx, Handle<PropertyDescriptor> desc,
         return true;
     }
 
-    Rooted<PropDesc> d(cx);
+    /* We have our own property, so start creating the descriptor. */
+    AutoPropDescRooter d(cx);
 
     d.initFromPropertyDescriptor(desc);
     if (!d.makeObject(cx))
         return false;
-    vp.set(d.descriptorValue());
+    vp.set(d.pd());
     return true;
 }
 
 void
 PropDesc::initFromPropertyDescriptor(Handle<PropertyDescriptor> desc)
 {
-    MOZ_ASSERT(isUndefined());
-
-    if (!desc.object())
-        return;
-
     isUndefined_ = false;
-    descObj_ = nullptr;
+    pd_.setUndefined();
     attrs = uint8_t(desc.attributes());
     JS_ASSERT_IF(attrs & JSPROP_READONLY, !(attrs & (JSPROP_GETTER | JSPROP_SETTER)));
     if (desc.hasGetterOrSetterObject()) {
@@ -307,21 +303,6 @@ PropDesc::initFromPropertyDescriptor(Handle<PropertyDescriptor> desc)
     }
     hasEnumerable_ = true;
     hasConfigurable_ = true;
-}
-
-void
-PropDesc::populatePropertyDescriptor(HandleObject obj, MutableHandle<PropertyDescriptor> desc) const
-{
-    if (isUndefined()) {
-        desc.object().set(nullptr);
-        return;
-    }
-
-    desc.value().set(hasValue() ? value() : UndefinedValue());
-    desc.setGetter(getter());
-    desc.setSetter(setter());
-    desc.setAttributes(attributes());
-    desc.object().set(obj);
 }
 
 bool
@@ -353,7 +334,7 @@ PropDesc::makeObject(JSContext *cx)
         return false;
     }
 
-    descObj_ = obj;
+    pd_.setObject(*obj);
     return true;
 }
 
@@ -361,6 +342,7 @@ bool
 js::GetOwnPropertyDescriptor(JSContext *cx, HandleObject obj, HandleId id,
                              MutableHandle<PropertyDescriptor> desc)
 {
+    // FIXME: Call TrapGetOwnProperty directly once ScriptedIndirectProxies is removed
     if (obj->is<ProxyObject>())
         return Proxy::getOwnPropertyDescriptor(cx, obj, id, desc);
 
@@ -452,8 +434,6 @@ HasProperty(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp,
 bool
 PropDesc::initialize(JSContext *cx, const Value &origval, bool checkAccessors)
 {
-    MOZ_ASSERT(isUndefined());
-
     RootedValue v(cx, origval);
 
     /* 8.10.5 step 1 */
@@ -464,7 +444,7 @@ PropDesc::initialize(JSContext *cx, const Value &origval, bool checkAccessors)
     RootedObject desc(cx, &v.toObject());
 
     /* Make a copy of the descriptor. We might need it later. */
-    descObj_ = desc;
+    pd_ = v;
 
     isUndefined_ = false;
 
@@ -556,8 +536,6 @@ PropDesc::initialize(JSContext *cx, const Value &origval, bool checkAccessors)
 void
 PropDesc::complete()
 {
-    MOZ_ASSERT(!isUndefined());
-
     if (isGenericDescriptor() || isDataDescriptor()) {
         if (!hasValue_) {
             hasValue_ = true;
@@ -1066,8 +1044,12 @@ js::DefineProperty(JSContext *cx, HandleObject obj, HandleId id, const PropDesc 
     }
 
     if (obj->getOps()->lookupGeneric) {
+        /*
+         * FIXME: Once ScriptedIndirectProxies are removed, this code should call
+         * TrapDefineOwnProperty directly
+         */
         if (obj->is<ProxyObject>()) {
-            RootedValue pd(cx, desc.descriptorValue());
+            RootedValue pd(cx, desc.pd());
             return Proxy::defineProperty(cx, obj, id, pd);
         }
         return Reject(cx, obj, JSMSG_OBJECT_NOT_EXTENSIBLE, throwError, rval);
@@ -1080,12 +1062,13 @@ bool
 js::DefineOwnProperty(JSContext *cx, HandleObject obj, HandleId id, HandleValue descriptor,
                       bool *bp)
 {
-    Rooted<PropDesc> desc(cx);
-    if (!desc.initialize(cx, descriptor))
+    AutoPropDescArrayRooter descs(cx);
+    PropDesc *desc = descs.append();
+    if (!desc || !desc->initialize(cx, descriptor))
         return false;
 
     bool rval;
-    if (!DefineProperty(cx, obj, id, desc, true, &rval))
+    if (!DefineProperty(cx, obj, id, *desc, true, &rval))
         return false;
     *bp = !!rval;
     return true;
@@ -1095,12 +1078,15 @@ bool
 js::DefineOwnProperty(JSContext *cx, HandleObject obj, HandleId id,
                       Handle<PropertyDescriptor> descriptor, bool *bp)
 {
-    Rooted<PropDesc> desc(cx);
+    AutoPropDescArrayRooter descs(cx);
+    PropDesc *desc = descs.append();
+    if (!desc)
+        return false;
 
-    desc.initFromPropertyDescriptor(descriptor);
+    desc->initFromPropertyDescriptor(descriptor);
 
     bool rval;
-    if (!DefineProperty(cx, obj, id, desc, true, &rval))
+    if (!DefineProperty(cx, obj, id, *desc, true, &rval))
         return false;
     *bp = !!rval;
     return true;
@@ -1109,7 +1095,7 @@ js::DefineOwnProperty(JSContext *cx, HandleObject obj, HandleId id,
 
 bool
 js::ReadPropertyDescriptors(JSContext *cx, HandleObject props, bool checkAccessors,
-                            AutoIdVector *ids, AutoPropDescVector *descs)
+                            AutoIdVector *ids, AutoPropDescArrayRooter *descs)
 {
     if (!GetPropertyNames(cx, props, JSITER_OWNONLY, ids))
         return false;
@@ -1117,11 +1103,11 @@ js::ReadPropertyDescriptors(JSContext *cx, HandleObject props, bool checkAccesso
     RootedId id(cx);
     for (size_t i = 0, len = ids->length(); i < len; i++) {
         id = (*ids)[i];
-        Rooted<PropDesc> desc(cx);
+        PropDesc* desc = descs->append();
         RootedValue v(cx);
-        if (!JSObject::getGeneric(cx, props, props, id, &v) ||
-            !desc.initialize(cx, v, checkAccessors) ||
-            !descs->append(desc))
+        if (!desc ||
+            !JSObject::getGeneric(cx, props, props, id, &v) ||
+            !desc->initialize(cx, v, checkAccessors))
         {
             return false;
         }
@@ -1133,7 +1119,7 @@ bool
 js::DefineProperties(JSContext *cx, HandleObject obj, HandleObject props)
 {
     AutoIdVector ids(cx);
-    AutoPropDescVector descs(cx);
+    AutoPropDescArrayRooter descs(cx);
     if (!ReadPropertyDescriptors(cx, props, true, &ids, &descs))
         return false;
 
@@ -1148,9 +1134,13 @@ js::DefineProperties(JSContext *cx, HandleObject obj, HandleObject props)
     }
 
     if (obj->getOps()->lookupGeneric) {
+        /*
+         * FIXME: Once ScriptedIndirectProxies are removed, this code should call
+         * TrapDefineOwnProperty directly
+         */
         if (obj->is<ProxyObject>()) {
             for (size_t i = 0, len = ids.length(); i < len; i++) {
-                RootedValue pd(cx, descs[i].descriptorValue());
+                RootedValue pd(cx, descs[i].pd());
                 if (!Proxy::defineProperty(cx, obj, ids[i], pd))
                     return false;
             }

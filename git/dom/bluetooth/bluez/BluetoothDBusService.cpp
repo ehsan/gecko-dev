@@ -3436,13 +3436,14 @@ BluetoothDBusService::ToggleCalls(BluetoothReplyRunnable* aRunnable)
 class OnUpdateSdpRecordsRunnable : public nsRunnable
 {
 public:
-  OnUpdateSdpRecordsRunnable(const nsAString& aDeviceAddress,
+  OnUpdateSdpRecordsRunnable(const nsAString& aObjectPath,
                              BluetoothProfileManagerBase* aManager)
-    : mDeviceAddress(aDeviceAddress)
-    , mManager(aManager)
+    : mManager(aManager)
   {
-    MOZ_ASSERT(!aDeviceAddress.IsEmpty());
+    MOZ_ASSERT(!aObjectPath.IsEmpty());
     MOZ_ASSERT(aManager);
+
+    mDeviceAddress = GetAddressFromObjectPath(aObjectPath);
   }
 
   nsresult
@@ -3453,12 +3454,6 @@ public:
     mManager->OnUpdateSdpRecords(mDeviceAddress);
 
     return NS_OK;
-  }
-
-  void
-  GetDeviceAddress(nsAString& aRetDeviceAddress)
-  {
-    aRetDeviceAddress = mDeviceAddress;
   }
 
 private:
@@ -3646,74 +3641,31 @@ public:
     MOZ_ASSERT(sDBusConnection);
     MOZ_ASSERT(!sAdapterPath.IsEmpty());
 
-    // We first guess that the device doesn't exist at all. So we use BlueZ
-    // API "CreateDevice" to create an object path for the BluetoothDevice
-    // object. "CreateDevice" will connect to the remote device and retrieve
-    // SDP records of the target.
-    NS_ConvertUTF16toUTF8 address(mDeviceAddress);
-    const char* cAddress = address.get();
+    const nsString objectPath =
+      GetObjectPathFromAddress(sAdapterPath, mDeviceAddress);
 
     // I choose to use raw pointer here because this is going to be passed as an
     // argument into SendWithReply() at once.
     OnUpdateSdpRecordsRunnable* callbackRunnable =
-      new OnUpdateSdpRecordsRunnable(mDeviceAddress, mBluetoothProfileManager);
+      new OnUpdateSdpRecordsRunnable(objectPath, mBluetoothProfileManager);
 
-    sDBusConnection->SendWithReply(
-      CreateDeviceCallback, callbackRunnable, -1,
-      BLUEZ_DBUS_BASE_IFC,
-      NS_ConvertUTF16toUTF8(sAdapterPath).get(),
-      DBUS_ADAPTER_IFACE,
-      "CreateDevice",
-      DBUS_TYPE_STRING, &cAddress,
-      DBUS_TYPE_INVALID);
+    sDBusConnection->SendWithReply(DiscoverServicesCallback,
+                                   (void*)callbackRunnable, -1,
+                                   BLUEZ_DBUS_BASE_IFC,
+                                   NS_ConvertUTF16toUTF8(objectPath).get(),
+                                   DBUS_DEVICE_IFACE,
+                                   "DiscoverServices",
+                                   DBUS_TYPE_STRING, &EmptyCString(),
+                                   DBUS_TYPE_INVALID);
   }
 
 protected:
-  static void CreateDeviceCallback(DBusMessage* aMsg, void* aData)
-  {
-    MOZ_ASSERT(!NS_IsMainThread()); // I/O thread
-
-    nsAutoString errorString;
-    OnUpdateSdpRecordsRunnable* r =
-      static_cast<OnUpdateSdpRecordsRunnable*>(aData);
-
-    if (IsDBusMessageError(aMsg, nullptr, errorString)) {
-      // If the device already exists it comes here. If we want to refresh its
-      // SDP records then we have to do "DiscoverServices"
-      BT_LOGR("%s", NS_ConvertUTF16toUTF8(errorString).get());
-
-      nsString deviceAddress;
-      r->GetDeviceAddress(deviceAddress);
-
-      const nsString objectPath =
-        GetObjectPathFromAddress(sAdapterPath, deviceAddress);
-
-      sDBusConnection->SendWithReply(DiscoverServicesCallback,
-                                     aData, -1,
-                                     BLUEZ_DBUS_BASE_IFC,
-                                     NS_ConvertUTF16toUTF8(objectPath).get(),
-                                     DBUS_DEVICE_IFACE,
-                                     "DiscoverServices",
-                                     DBUS_TYPE_STRING, &EmptyCString(),
-                                     DBUS_TYPE_INVALID);
-      return;
-    }
-
-    NS_DispatchToMainThread(r);
-  }
-
   static void DiscoverServicesCallback(DBusMessage* aMsg, void* aData)
   {
     MOZ_ASSERT(!NS_IsMainThread()); // I/O thread
 
-    nsAutoString errorStr;
-
-    if (IsDBusMessageError(aMsg, nullptr, errorStr)) {
-      BT_LOGR("%s", NS_ConvertUTF16toUTF8(errorStr).get());
-    }
-
-    OnUpdateSdpRecordsRunnable* r =
-      static_cast<OnUpdateSdpRecordsRunnable*>(aData);
+    nsRefPtr<OnUpdateSdpRecordsRunnable> r(
+      static_cast<OnUpdateSdpRecordsRunnable*>(aData));
     NS_DispatchToMainThread(r);
   }
 
@@ -3728,7 +3680,8 @@ BluetoothDBusService::UpdateSdpRecords(const nsAString& aDeviceAddress,
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  DispatchToDBusThread(new UpdateSdpRecordsTask(aDeviceAddress, aManager));
+  Task* task = new UpdateSdpRecordsTask(aDeviceAddress, aManager);
+  DispatchToDBusThread(task);
 
   return true;
 }

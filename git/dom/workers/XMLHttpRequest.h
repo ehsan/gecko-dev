@@ -245,7 +245,7 @@ public:
   }
 
   void
-  UpdateState(const StateData& aStateData, bool aUseCachedArrayBufferResponse);
+  UpdateState(const StateData& aStateData);
 
   void
   NullResponseText()
@@ -262,12 +262,6 @@ public:
   bool MozSystem() const
   {
     return mMozSystem;
-  }
-
-  bool
-  SendInProgress() const
-  {
-    return mRooted;
   }
 
 private:
@@ -289,6 +283,12 @@ private:
   DispatchPrematureAbortEvent(EventTarget* aTarget,
                               const nsAString& aEventType, bool aUploadTarget,
                               ErrorResult& aRv);
+
+  bool
+  SendInProgress() const
+  {
+    return mRooted;
+  }
 
   void
   SendInternal(const nsAString& aStringBody,

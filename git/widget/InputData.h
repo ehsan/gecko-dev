@@ -11,7 +11,6 @@
 #include "nsTArray.h"
 #include "Units.h"
 #include "mozilla/EventForwards.h"
-#include "mozilla/TimeStamp.h"
 
 namespace mozilla {
 
@@ -49,9 +48,6 @@ public:
   // is platform-specific but it in the case of B2G and Fennec it is since
   // startup.
   uint32_t mTime;
-  // Set in parallel to mTime until we determine it is safe to drop
-  // platform-specific event times (see bug 77992).
-  TimeStamp mTimeStamp;
 
   Modifiers modifiers;
 
@@ -64,11 +60,9 @@ public:
   }
 
 protected:
-  InputData(InputType aInputType, uint32_t aTime, TimeStamp aTimeStamp,
-            Modifiers aModifiers)
+  InputData(InputType aInputType, uint32_t aTime, Modifiers aModifiers)
     : mInputType(aInputType),
       mTime(aTime),
-      mTimeStamp(aTimeStamp),
       modifiers(aModifiers)
   {
 
@@ -157,9 +151,8 @@ public:
     MULTITOUCH_CANCEL
   };
 
-  MultiTouchInput(MultiTouchType aType, uint32_t aTime, TimeStamp aTimeStamp,
-                  Modifiers aModifiers)
-    : InputData(MULTITOUCH_INPUT, aTime, aTimeStamp, aModifiers),
+  MultiTouchInput(MultiTouchType aType, uint32_t aTime, Modifiers aModifiers)
+    : InputData(MULTITOUCH_INPUT, aTime, aModifiers),
       mType(aType)
   {
 
@@ -201,12 +194,11 @@ public:
 
   PinchGestureInput(PinchGestureType aType,
                     uint32_t aTime,
-                    TimeStamp aTimeStamp,
                     const ScreenPoint& aFocusPoint,
                     float aCurrentSpan,
                     float aPreviousSpan,
                     Modifiers aModifiers)
-    : InputData(PINCHGESTURE_INPUT, aTime, aTimeStamp, aModifiers),
+    : InputData(PINCHGESTURE_INPUT, aTime, aModifiers),
       mType(aType),
       mFocusPoint(aFocusPoint),
       mCurrentSpan(aCurrentSpan),
@@ -256,10 +248,9 @@ public:
 
   TapGestureInput(TapGestureType aType,
                   uint32_t aTime,
-                  TimeStamp aTimeStamp,
                   const ScreenIntPoint& aPoint,
                   Modifiers aModifiers)
-    : InputData(TAPGESTURE_INPUT, aTime, aTimeStamp, aModifiers),
+    : InputData(TAPGESTURE_INPUT, aTime, aModifiers),
       mType(aType),
       mPoint(aPoint)
   {

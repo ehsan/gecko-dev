@@ -1208,11 +1208,9 @@ Promise::RunResolveTask(JS::Handle<JS::Value> aValue,
 
     mFeature = new PromiseReportRejectFeature(this);
     if (NS_WARN_IF(!worker->AddFeature(worker->GetJSContext(), mFeature))) {
-      // To avoid a false RemoveFeature().
-      mFeature = nullptr;
       // Worker is shutting down, report rejection immediately since it is
       // unlikely that reject callbacks will be added after this point.
-      MaybeReportRejectedOnce();
+      MaybeReportRejected();
     }
   }
 
