@@ -1396,7 +1396,7 @@ nsDOMStorage2::CanAccess(nsIPrincipal *aPrincipal)
   if (!aPrincipal)
     return PR_TRUE;
 
-  // Allow more powerful principals (e.g. system) to access the storage
+  // Allow system and all weaker principals access the storage
   PRBool subsumes;
   nsresult rv = aPrincipal->Subsumes(mPrincipal, &subsumes);
   if (NS_FAILED(rv))
