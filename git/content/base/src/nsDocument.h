@@ -1160,6 +1160,7 @@ protected:
                               bool aPersisted);
 
   virtual nsPIDOMWindow *GetWindowInternal() const;
+  virtual nsPIDOMWindow *GetInnerWindowInternal();
   virtual nsIScriptGlobalObject* GetScriptHandlingObjectInternal() const;
   virtual bool InternalAllowXULXBL();
 

@@ -9,10 +9,13 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Likely.h"
 #include "nsIWidget.h"
+#include "nsWidgetsCID.h"
 #include "nsViewManager.h"
 #include "nsIFrame.h"
 #include "nsGUIEvent.h"
-#include "nsPresArena.h"
+#include "nsIComponentManager.h"
+#include "nsGfxCIID.h"
+#include "nsIInterfaceRequestor.h"
 #include "nsXULPopupManager.h"
 #include "nsIWidgetListener.h"
 
@@ -131,16 +134,7 @@ nsView* nsView::GetViewFor(nsIWidget* aWidget)
 
 void nsView::Destroy()
 {
-  this->~nsView();
-
-  const uintptr_t POISON = nsPresArena::GetPoisonValue();
-  char* p = reinterpret_cast<char*>(this);
-  char* limit = p + sizeof(*this);
-  for (; p < limit; p += sizeof(uintptr_t)) {
-    *reinterpret_cast<uintptr_t*>(p) = POISON;
-  }
-
-  nsView::operator delete(this);
+  delete this;
 }
 
 void nsView::SetPosition(nscoord aX, nscoord aY)

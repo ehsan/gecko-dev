@@ -15,8 +15,4 @@ function testMonitorIntrinsic() {
   }
 }
 
-if (getBuildConfiguration().parallelJS) {
-  testMonitorIntrinsic();
-} else {
-  throw new TypeError();
-}
+testMonitorIntrinsic();

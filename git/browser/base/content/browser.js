@@ -5630,11 +5630,11 @@ var OfflineApps = {
       return;
     }
 
-    let browserWindow = this._getBrowserWindowForContentWindow(aContentWindow);
-    let browser = this._getBrowserForContentWindow(browserWindow,
+    var browserWindow = this._getBrowserWindowForContentWindow(aContentWindow);
+    var browser = this._getBrowserForContentWindow(browserWindow,
                                                    aContentWindow);
 
-    let currentURI = aContentWindow.document.documentURIObject;
+    var currentURI = aContentWindow.document.documentURIObject;
 
     // don't bother showing UI if the user has already made a decision
     if (Services.perms.testExactPermission(currentURI, "offline-app") != Services.perms.UNKNOWN_ACTION)
@@ -5649,40 +5649,44 @@ var OfflineApps = {
       // this pref isn't set by default, ignore failures
     }
 
-    let host = currentURI.asciiHost;
-    let notificationID = "offline-app-requested-" + host;
-    let notification = PopupNotifications.getNotification(notificationID, browser);
+    var host = currentURI.asciiHost;
+    var notificationBox = gBrowser.getNotificationBox(browser);
+    var notificationID = "offline-app-requested-" + host;
+    var notification = notificationBox.getNotificationWithValue(notificationID);
 
     if (notification) {
-      notification.options.documents.push(aContentWindow.document);
+      notification.documents.push(aContentWindow.document);
     } else {
-      let mainAction = {
+      var buttons = [{
         label: gNavigatorBundle.getString("offlineApps.allow"),
         accessKey: gNavigatorBundle.getString("offlineApps.allowAccessKey"),
         callback: function() {
-          for (let document of notification.options.documents) {
+          for (let document of notification.documents) {
             OfflineApps.allowSite(document);
           }
         }
-      };
-      let secondaryActions = [{
+      },{
         label: gNavigatorBundle.getString("offlineApps.never"),
         accessKey: gNavigatorBundle.getString("offlineApps.neverAccessKey"),
         callback: function() {
-          for (let document of notification.options.documents) {
+          for (let document of notification.documents) {
             OfflineApps.disallowSite(document);
           }
         }
+      },{
+        label: gNavigatorBundle.getString("offlineApps.notNow"),
+        accessKey: gNavigatorBundle.getString("offlineApps.notNowAccessKey"),
+        callback: function() { /* noop */ }
       }];
-      let message = gNavigatorBundle.getFormattedString("offlineApps.available",
+
+      const priority = notificationBox.PRIORITY_INFO_LOW;
+      var message = gNavigatorBundle.getFormattedString("offlineApps.available",
                                                         [ host ]);
-      let anchorID = "indexedDB-notification-icon";
-      let options= {
-        documents : [ aContentWindow.document ]
-      };
-      notification = PopupNotifications.show(browser, notificationID, message,
-                                             anchorID, mainAction,
-                                             secondaryActions, options);
+      notification =
+        notificationBox.appendNotification(message, notificationID,
+                                           "chrome://browser/skin/Info.png",
+                                           priority, buttons);
+      notification.documents = [ aContentWindow.document ];
     }
   },
 

@@ -1146,8 +1146,6 @@ CSSParserImpl::ParseRule(const nsAString&        aRule,
 // See Bug 723197
 #ifdef _MSC_VER
 #pragma optimize( "", off )
-#pragma warning( push )
-#pragma warning( disable : 4748 )
 #endif
 nsresult
 CSSParserImpl::ParseProperty(const nsCSSProperty aPropID,
@@ -1224,7 +1222,6 @@ CSSParserImpl::ParseProperty(const nsCSSProperty aPropID,
   return NS_OK;
 }
 #ifdef _MSC_VER
-#pragma warning( pop )
 #pragma optimize( "", on )
 #endif
 

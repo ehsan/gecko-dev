@@ -10,7 +10,6 @@
 #include "CompositableHost.h"
 #include "nsTArray.h"
 #include "nsXULAppAPI.h"
-#include "mozilla/layers/LayerManagerComposite.h"
 
 using namespace base;
 using namespace mozilla::ipc;

@@ -1189,8 +1189,7 @@ toolbar[iconsize="small"] #webrtc-status-button {
 }
 
 .popup-notification-icon[popupid="indexedDB-permissions-prompt"],
-.popup-notification-icon[popupid="indexedDB-quota-prompt"],
-.popup-notification-icon[popupid*="offline-app-requested"] {
+.popup-notification-icon[popupid="indexedDB-quota-prompt"] {
   list-style-image: url(chrome://global/skin/icons/question-64.png);
 }
 
@@ -2346,3 +2345,4 @@ chatbox {
   background: url("chrome://browser/skin/privatebrowsing-mask.png") center no-repeat;
   width: 40px;
 }
+

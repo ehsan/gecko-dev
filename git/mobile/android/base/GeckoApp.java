@@ -2407,7 +2407,7 @@ abstract public class GeckoApp
     protected void connectGeckoLayerClient() {
         mLayerView.getLayerClient().notifyGeckoReady();
 
-        mLayerView.addTouchInterceptor(this);
+        mLayerView.setTouchIntercepter(this);
     }
 
     public void setAccessibilityEnabled(boolean enabled) {
