@@ -633,7 +633,7 @@ js::TraceWeakMaps(WeakMapTracer *trc)
 extern JS_FRIEND_API(bool)
 js::AreGCGrayBitsValid(JSRuntime *rt)
 {
-    return rt->gc.areGrayBitsValid();
+    return rt->gc.grayBitsValid;
 }
 
 JS_FRIEND_API(bool)
@@ -863,7 +863,7 @@ JS::SetGCSliceCallback(JSRuntime *rt, GCSliceCallback callback)
 JS_FRIEND_API(bool)
 JS::WasIncrementalGC(JSRuntime *rt)
 {
-    return rt->gc.isIncrementalGc();
+    return rt->gc.isIncremental;
 }
 
 jschar *
@@ -887,19 +887,19 @@ JS::NotifyDidPaint(JSRuntime *rt)
 JS_FRIEND_API(bool)
 JS::IsIncrementalGCEnabled(JSRuntime *rt)
 {
-    return rt->gc.isIncrementalGCEnabled();
+    return rt->gc.isIncrementalGCEnabled() && rt->gcMode() == JSGC_MODE_INCREMENTAL;
 }
 
 JS_FRIEND_API(bool)
 JS::IsIncrementalGCInProgress(JSRuntime *rt)
 {
-    return rt->gc.isIncrementalGCInProgress();
+    return rt->gc.state() != gc::NO_INCREMENTAL && !rt->gc.verifyPreData;
 }
 
 JS_FRIEND_API(void)
 JS::DisableIncrementalGC(JSRuntime *rt)
 {
-    rt->gc.disallowIncrementalGC();
+    rt->gc.disableIncrementalGC();
 }
 
 JS::AutoDisableGenerationalGC::AutoDisableGenerationalGC(JSRuntime *rt)

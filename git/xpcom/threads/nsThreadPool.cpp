@@ -76,9 +76,6 @@ nsThreadPool::PutEvent(nsIRunnable* aEvent)
   {
     ReentrantMonitorAutoEnter mon(mEvents.GetReentrantMonitor());
 
-    if (NS_WARN_IF(mShutdown)) {
-      return NS_ERROR_NOT_AVAILABLE;
-    }
     LOG(("THRD-P(%p) put [%d %d %d]\n", this, mIdleCount, mThreads.Count(),
          mThreadLimit));
     MOZ_ASSERT(mIdleCount <= (uint32_t)mThreads.Count(), "oops");
@@ -267,10 +264,6 @@ NS_IMETHODIMP
 nsThreadPool::IsOnCurrentThread(bool* aResult)
 {
   ReentrantMonitorAutoEnter mon(mEvents.GetReentrantMonitor());
-  if (NS_WARN_IF(mShutdown)) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
   nsIThread* thread = NS_GetCurrentThread();
   for (uint32_t i = 0; i < static_cast<uint32_t>(mThreads.Count()); ++i) {
     if (mThreads[i] == thread) {

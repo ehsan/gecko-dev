@@ -33,6 +33,7 @@ public:
   };
 
   MediaStreamList(sipcc::PeerConnectionImpl* peerConnection, StreamType type);
+  virtual ~MediaStreamList();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(MediaStreamList)
@@ -45,8 +46,6 @@ public:
   uint32_t Length();
 
 private:
-  virtual ~MediaStreamList();
-
   nsRefPtr<sipcc::PeerConnectionImpl> mPeerConnection;
   StreamType mType;
 };

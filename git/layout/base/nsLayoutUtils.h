@@ -2278,8 +2278,6 @@ public:
                                           nsRect aDisplayPortBase,
                                           nsRect* aOutDisplayport);
 
-  static bool IsOutlineStyleAutoEnabled();
-
 private:
   static uint32_t sFontSizeInflationEmPerLine;
   static uint32_t sFontSizeInflationMinTwips;

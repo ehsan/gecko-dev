@@ -46,8 +46,7 @@ EncodedBufferCache::ExtractBlob(const nsAString &aContentType)
   nsCOMPtr<nsIDOMBlob> blob;
   if (mTempFileEnabled) {
     // generate new temporary file to write
-    blob = dom::DOMFile::CreateTemporaryFileBlob(mFD, 0, mDataSize,
-                                                 aContentType);
+    blob = new nsDOMTemporaryFileBlob(mFD, 0, mDataSize, aContentType);
     // fallback to memory blob
     mTempFileEnabled = false;
     mDataSize = 0;
@@ -62,7 +61,8 @@ EncodedBufferCache::ExtractBlob(const nsAString &aContentType)
                mEncodedBuffers.ElementAt(i).Length());
         offset += mEncodedBuffers.ElementAt(i).Length();
       }
-      blob = dom::DOMFile::CreateMemoryFile(blobData, mDataSize, aContentType);
+      blob = new nsDOMMemoryFile(blobData, mDataSize,
+                                 aContentType);
       mEncodedBuffers.Clear();
     } else
       return nullptr;

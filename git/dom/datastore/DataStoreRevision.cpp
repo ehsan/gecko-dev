@@ -53,7 +53,8 @@ DataStoreRevision::AddRevision(JSContext* aCx,
       break;
 
     default:
-      MOZ_CRASH("This should not happen");
+      MOZ_ASSUME_UNREACHABLE("This should not happen");
+      break;
   }
 
   JS::Rooted<JS::Value> value(aCx);
@@ -87,7 +88,8 @@ DataStoreRevision::HandleEvent(nsIDOMEvent* aEvent)
   }
 
   if (!type.EqualsASCII("success")) {
-    MOZ_CRASH("This should not happen");
+    MOZ_ASSUME_UNREACHABLE("This should not happen");
+    return NS_ERROR_FAILURE;
   }
 
   mRequest->RemoveEventListener(NS_LITERAL_STRING("success"), this, false);

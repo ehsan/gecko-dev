@@ -180,7 +180,7 @@ GetFileOrDirectoryTask::Work()
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  mTargetFile = DOMFile::CreateFromFile(file);
+  mTargetFile = new nsDOMFileFile(file);
 
   return NS_OK;
 }

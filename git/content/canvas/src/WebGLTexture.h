@@ -35,6 +35,10 @@ class WebGLTexture MOZ_FINAL
 public:
     WebGLTexture(WebGLContext *context);
 
+    ~WebGLTexture() {
+        DeleteOnce();
+    }
+
     void Delete();
 
     bool HasEverBeenBound() const { return mHasEverBeenBound; }
@@ -52,9 +56,6 @@ public:
     NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(WebGLTexture)
 
 protected:
-    ~WebGLTexture() {
-        DeleteOnce();
-    }
 
     friend class WebGLContext;
     friend class WebGLFramebuffer;

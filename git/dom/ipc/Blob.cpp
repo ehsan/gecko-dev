@@ -80,7 +80,7 @@ class BlobInputStreamTether : public nsIMultiplexInputStream,
                               public nsIIPCSerializableInputStream
 {
   nsCOMPtr<nsIInputStream> mStream;
-  nsRefPtr<DOMFileImplBase> mSourceBlob;
+  nsCOMPtr<nsIDOMBlob> mSourceBlob;
 
   nsIMultiplexInputStream* mWeakMultiplexStream;
   nsISeekableStream* mWeakSeekableStream;
@@ -93,8 +93,7 @@ public:
   NS_FORWARD_SAFE_NSISEEKABLESTREAM(mWeakSeekableStream)
   NS_FORWARD_SAFE_NSIIPCSERIALIZABLEINPUTSTREAM(mWeakSerializableStream)
 
-  BlobInputStreamTether(nsIInputStream* aStream,
-                        mozilla::dom::DOMFileImplBase* aSourceBlob)
+  BlobInputStreamTether(nsIInputStream* aStream, nsIDOMBlob* aSourceBlob)
   : mStream(aStream), mSourceBlob(aSourceBlob), mWeakMultiplexStream(nullptr),
     mWeakSeekableStream(nullptr), mWeakSerializableStream(nullptr)
   {
@@ -155,15 +154,14 @@ class RemoteInputStream : public nsIInputStream,
 {
   mozilla::Monitor mMonitor;
   nsCOMPtr<nsIInputStream> mStream;
-  nsRefPtr<mozilla::dom::DOMFileImplBase> mSourceBlob;
+  nsCOMPtr<nsIDOMBlob> mSourceBlob;
   nsISeekableStream* mWeakSeekableStream;
   ActorType mOrigin;
 
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
 
-  RemoteInputStream(mozilla::dom::DOMFileImplBase* aSourceBlob,
-                    ActorType aOrigin)
+  RemoteInputStream(nsIDOMBlob* aSourceBlob, ActorType aOrigin)
   : mMonitor("RemoteInputStream.mMonitor"), mSourceBlob(aSourceBlob),
     mWeakSeekableStream(nullptr), mOrigin(aOrigin)
   {
@@ -227,7 +225,7 @@ public:
     nsresult rv = BlockAndWaitForStream();
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsRefPtr<mozilla::dom::DOMFileImplBase> sourceBlob;
+    nsCOMPtr<nsIDOMBlob> sourceBlob;
     mSourceBlob.swap(sourceBlob);
 
     rv = mStream->Close();
@@ -488,10 +486,13 @@ private:
                  const OptionalFileDescriptorSet& aFDs) MOZ_OVERRIDE;
 };
 
-DOMFile*
+nsDOMFileBase*
 ToConcreteBlob(nsIDOMBlob* aBlob)
 {
-  return static_cast<DOMFile*>(aBlob);
+  // XXX This is only safe so long as all blob implementations in our tree
+  //     inherit nsDOMFileBase. If that ever changes then this will need to grow
+  //     a real interface or something.
+  return static_cast<nsDOMFileBase*>(aBlob);
 }
 
 } // anonymous namespace
@@ -702,8 +703,9 @@ private:
  * BlobChild::RemoteBlob Declaration
  ******************************************************************************/
 
-class BlobChild::RemoteBlob MOZ_FINAL : public DOMFileImplBase
-                                      , public nsIRemoteBlob
+class BlobChild::RemoteBlob MOZ_FINAL
+  : public nsDOMFile
+  , public nsIRemoteBlob
 {
   class StreamHelper;
   class SliceHelper;
@@ -715,21 +717,21 @@ public:
              const nsAString& aContentType,
              uint64_t aLength,
              uint64_t aModDate)
-    : DOMFileImplBase(aName, aContentType, aLength, aModDate)
+    : nsDOMFile(aName, aContentType, aLength, aModDate)
     , mActor(nullptr)
   {
     mImmutable = true;
   }
 
   RemoteBlob(const nsAString& aContentType, uint64_t aLength)
-    : DOMFileImplBase(aContentType, aLength)
+    : nsDOMFile(aContentType, aLength)
     , mActor(nullptr)
   {
     mImmutable = true;
   }
 
   RemoteBlob()
-    : DOMFileImplBase(EmptyString(), EmptyString(), UINT64_MAX, UINT64_MAX)
+    : nsDOMFile(EmptyString(), EmptyString(), UINT64_MAX, UINT64_MAX)
     , mActor(nullptr)
   {
     mImmutable = true;
@@ -748,10 +750,10 @@ public:
   CreateSlice(uint64_t aStart, uint64_t aLength, const nsAString& aContentType)
               MOZ_OVERRIDE;
 
-  virtual nsresult
+  NS_IMETHOD
   GetInternalStream(nsIInputStream** aStream) MOZ_OVERRIDE;
 
-  virtual nsresult
+  NS_IMETHOD
   GetLastModifiedDate(JSContext* cx,
                       JS::MutableHandle<JS::Value> aLastModifiedDate)
                       MOZ_OVERRIDE;
@@ -773,12 +775,12 @@ class BlobChild::RemoteBlob::StreamHelper MOZ_FINAL
 {
   mozilla::Monitor mMonitor;
   BlobChild* mActor;
-  nsRefPtr<mozilla::dom::DOMFileImplBase> mSourceBlob;
+  nsCOMPtr<nsIDOMBlob> mSourceBlob;
   nsRefPtr<RemoteInputStream> mInputStream;
   bool mDone;
 
 public:
-  StreamHelper(BlobChild* aActor, mozilla::dom::DOMFileImplBase* aSourceBlob)
+  StreamHelper(BlobChild* aActor, nsIDOMBlob* aSourceBlob)
     : mMonitor("BlobChild::RemoteBlob::StreamHelper::mMonitor")
     , mActor(aActor)
     , mSourceBlob(aSourceBlob)
@@ -993,7 +995,7 @@ private:
  * BlobChild::RemoteBlob Implementation
  ******************************************************************************/
 
-NS_IMPL_ISUPPORTS_INHERITED(BlobChild::RemoteBlob, DOMFileImplBase, nsIRemoteBlob)
+NS_IMPL_ISUPPORTS_INHERITED(BlobChild::RemoteBlob, nsDOMFile, nsIRemoteBlob)
 
 already_AddRefed<nsIDOMBlob>
 BlobChild::
@@ -1015,7 +1017,7 @@ RemoteBlob::CreateSlice(uint64_t aStart,
   return slice.forget();
 }
 
-nsresult
+NS_IMETHODIMP
 BlobChild::
 RemoteBlob::GetInternalStream(nsIInputStream** aStream)
 {
@@ -1027,7 +1029,7 @@ RemoteBlob::GetInternalStream(nsIInputStream** aStream)
   return helper->GetStream(aStream);
 }
 
-nsresult
+NS_IMETHODIMP
 BlobChild::
 RemoteBlob::GetLastModifiedDate(JSContext* cx,
                                 JS::MutableHandle<JS::Value> aLastModifiedDate)
@@ -1093,11 +1095,9 @@ BlobChild::BlobChild(nsIContentChild* aManager,
   MOZ_ASSERT(remoteBlob);
 
   remoteBlob->SetActor(this);
+  remoteBlob.forget(&mRemoteBlob);
 
-  nsRefPtr<DOMFile> blob = new DOMFile(remoteBlob);
-  blob.forget(&mBlob);
-
-  mRemoteBlob = remoteBlob;
+  mBlob = mRemoteBlob;
   mOwnsBlob = true;
 }
 
@@ -1357,7 +1357,7 @@ BlobChild::RecvResolveMystery(const ResolveMysteryParams& aParams)
     return false;
   }
 
-  DOMFile* blob = ToConcreteBlob(mBlob);
+  nsDOMFileBase* blob = ToConcreteBlob(mBlob);
 
   switch (aParams.type()) {
     case ResolveMysteryParams::TNormalBlobConstructorParams: {
@@ -1389,8 +1389,9 @@ BlobChild::RecvResolveMystery(const ResolveMysteryParams& aParams)
  * BlobParent::RemoteBlob Declaration
  ******************************************************************************/
 
-class BlobParent::RemoteBlob MOZ_FINAL : public mozilla::dom::DOMFileImplBase
-                                       , public nsIRemoteBlob
+class BlobParent::RemoteBlob MOZ_FINAL
+  : public nsDOMFile
+  , public nsIRemoteBlob
 {
   class StreamHelper;
   class SliceHelper;
@@ -1403,21 +1404,21 @@ public:
              const nsAString& aContentType,
              uint64_t aLength,
              uint64_t aModDate)
-    : DOMFileImplBase(aName, aContentType, aLength, aModDate)
+    : nsDOMFile(aName, aContentType, aLength, aModDate)
     , mActor(nullptr)
   {
     mImmutable = true;
   }
 
   RemoteBlob(const nsAString& aContentType, uint64_t aLength)
-    : DOMFileImplBase(aContentType, aLength)
+    : nsDOMFile(aContentType, aLength)
     , mActor(nullptr)
   {
     mImmutable = true;
   }
 
   RemoteBlob()
-    : DOMFileImplBase(EmptyString(), EmptyString(), UINT64_MAX, UINT64_MAX)
+    : nsDOMFile(EmptyString(), EmptyString(), UINT64_MAX, UINT64_MAX)
     , mActor(nullptr)
   {
     mImmutable = true;
@@ -1446,15 +1447,15 @@ public:
   CreateSlice(uint64_t aStart, uint64_t aLength, const nsAString& aContentType)
               MOZ_OVERRIDE;
 
-  virtual nsresult
+  NS_IMETHOD
   GetInternalStream(nsIInputStream** aStream) MOZ_OVERRIDE;
 
-  virtual nsresult
+  NS_IMETHOD
   GetLastModifiedDate(JSContext* cx,
                       JS::MutableHandle<JS::Value> aLastModifiedDate)
                       MOZ_OVERRIDE;
 
-  void*
+  virtual void*
   GetPBlob() MOZ_OVERRIDE;
 
 private:
@@ -1471,12 +1472,12 @@ class BlobParent::RemoteBlob::StreamHelper MOZ_FINAL
 {
   mozilla::Monitor mMonitor;
   BlobParent* mActor;
-  nsRefPtr<mozilla::dom::DOMFileImplBase> mSourceBlob;
+  nsCOMPtr<nsIDOMBlob> mSourceBlob;
   nsRefPtr<RemoteInputStream> mInputStream;
   bool mDone;
 
 public:
-  StreamHelper(BlobParent* aActor, mozilla::dom::DOMFileImplBase* aSourceBlob)
+  StreamHelper(BlobParent* aActor, nsIDOMBlob* aSourceBlob)
     : mMonitor("BlobParent::RemoteBlob::StreamHelper::mMonitor")
     , mActor(aActor)
     , mSourceBlob(aSourceBlob)
@@ -1693,8 +1694,7 @@ private:
  * BlobChild::RemoteBlob Implementation
  ******************************************************************************/
 
-NS_IMPL_ISUPPORTS_INHERITED(BlobParent::RemoteBlob, DOMFileImplBase,
-                            nsIRemoteBlob)
+NS_IMPL_ISUPPORTS_INHERITED(BlobParent::RemoteBlob, nsDOMFile, nsIRemoteBlob)
 
 already_AddRefed<nsIDOMBlob>
 BlobParent::
@@ -1716,7 +1716,7 @@ RemoteBlob::CreateSlice(uint64_t aStart,
   return slice.forget();
 }
 
-nsresult
+NS_IMETHODIMP
 BlobParent::
 RemoteBlob::GetInternalStream(nsIInputStream** aStream)
 {
@@ -1743,7 +1743,7 @@ RemoteBlob::GetInternalStream(nsIInputStream** aStream)
   return helper->GetStream(aStream);
 }
 
-nsresult
+NS_IMETHODIMP
 BlobParent::
 RemoteBlob::GetLastModifiedDate(JSContext* cx,
                                 JS::MutableHandle<JS::Value> aLastModifiedDate)
@@ -1810,11 +1810,9 @@ BlobParent::BlobParent(nsIContentParent* aManager,
 
   remoteBlob->SetActor(this);
   remoteBlob->MaybeSetInputStream(aParams);
+  remoteBlob.forget(&mRemoteBlob);
 
-  nsRefPtr<DOMFile> blob = new DOMFile(remoteBlob);
-  blob.forget(&mBlob);
-
-  mRemoteBlob = remoteBlob;
+  mBlob = mRemoteBlob;
   mOwnsBlob = true;
 }
 
@@ -2063,8 +2061,7 @@ BlobParent::RecvPBlobStreamConstructor(PBlobStreamParent* aActor)
   nsresult rv = mBlob->GetInternalStream(getter_AddRefs(stream));
   NS_ENSURE_SUCCESS(rv, false);
 
-  nsRefPtr<DOMFile> blob = static_cast<DOMFile*>(mBlob);
-  nsCOMPtr<nsIRemoteBlob> remoteBlob = do_QueryInterface(blob->Impl());
+  nsCOMPtr<nsIRemoteBlob> remoteBlob = do_QueryInterface(mBlob);
 
   nsCOMPtr<IPrivateRemoteInputStream> remoteStream;
   if (remoteBlob) {
@@ -2129,7 +2126,7 @@ BlobParent::RecvResolveMystery(const ResolveMysteryParams& aParams)
     return false;
   }
 
-  DOMFile* blob = ToConcreteBlob(mBlob);
+  nsDOMFileBase* blob = ToConcreteBlob(mBlob);
 
   switch (aParams.type()) {
     case ResolveMysteryParams::TNormalBlobConstructorParams: {

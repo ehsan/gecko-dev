@@ -880,10 +880,10 @@ static bool
 SaveStack(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    Rooted<JSObject*> stack(cx);
-    if (!JS::CaptureCurrentStack(cx, &stack))
+    Rooted<SavedFrame*> frame(cx);
+    if (!cx->compartment()->savedStacks().saveCurrentStack(cx, &frame))
         return false;
-    args.rval().setObject(*stack);
+    args.rval().setObject(*frame.get());
     return true;
 }
 

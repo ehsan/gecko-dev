@@ -12,7 +12,6 @@
 #include "nsAutoPtr.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/StaticPtr.h"
 
 class nsIFile;
 class nsIURI;
@@ -65,7 +64,7 @@ private:
   static void LoadSheet(nsIURI* aURI, nsRefPtr<mozilla::CSSStyleSheet>& aSheet,
                         bool aEnableUnsafeRules);
 
-  static mozilla::StaticRefPtr<nsLayoutStylesheetCache> gStyleCache;
+  static nsLayoutStylesheetCache* gStyleCache;
   static mozilla::css::Loader* gCSSLoader;
   nsRefPtr<mozilla::CSSStyleSheet> mScrollbarsSheet;
   nsRefPtr<mozilla::CSSStyleSheet> mFormsSheet;

@@ -462,8 +462,7 @@ GCMarker::GCMarker(JSRuntime *rt)
     unmarkedArenaStackTop(nullptr),
     markLaterArenas(0),
     grayBufferState(GRAY_BUFFER_UNUSED),
-    started(false),
-    strictCompartmentChecking(false)
+    started(false)
 {
 }
 
@@ -691,6 +690,8 @@ GCMarker::sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const
 void
 js::SetMarkStackLimit(JSRuntime *rt, size_t limit)
 {
-    rt->gc.setMarkStackLimit(limit);
+    JS_ASSERT(!rt->isHeapBusy());
+    AutoStopVerifyingBarriers pauseVerification(rt, false);
+    rt->gc.marker.setMaxCapacity(limit);
 }
 

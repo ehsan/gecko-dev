@@ -145,7 +145,7 @@ static gint
 ensure_hpaned_widget()
 {
     if (!gHPanedWidget) {
-        gHPanedWidget = gtk_paned_new(GTK_ORIENTATION_HORIZONTAL);
+        gHPanedWidget = gtk_hpaned_new();
         setup_widget_prototype(gHPanedWidget);
     }
     return MOZ_GTK_SUCCESS;
@@ -155,7 +155,7 @@ static gint
 ensure_vpaned_widget()
 {
     if (!gVPanedWidget) {
-        gVPanedWidget = gtk_paned_new(GTK_ORIENTATION_VERTICAL);
+        gVPanedWidget = gtk_vpaned_new();
         setup_widget_prototype(gVPanedWidget);
     }
     return MOZ_GTK_SUCCESS;
@@ -205,11 +205,11 @@ static gint
 ensure_scrollbar_widget()
 {
     if (!gVertScrollbarWidget) {
-        gVertScrollbarWidget = gtk_scrollbar_new(GTK_ORIENTATION_VERTICAL, NULL);
+        gVertScrollbarWidget = gtk_vscrollbar_new(NULL);
         setup_widget_prototype(gVertScrollbarWidget);
     }
     if (!gHorizScrollbarWidget) {
-        gHorizScrollbarWidget = gtk_scrollbar_new(GTK_ORIENTATION_HORIZONTAL, NULL);
+        gHorizScrollbarWidget = gtk_hscrollbar_new(NULL);
         setup_widget_prototype(gHorizScrollbarWidget);
     }
     return MOZ_GTK_SUCCESS;
@@ -229,11 +229,11 @@ static gint
 ensure_scale_widget()
 {
   if (!gHScaleWidget) {
-    gHScaleWidget = gtk_scale_new(GTK_ORIENTATION_HORIZONTAL, NULL);
+    gHScaleWidget = gtk_hscale_new(NULL);
     setup_widget_prototype(gHScaleWidget);
   }
   if (!gVScaleWidget) {
-    gVScaleWidget = gtk_scale_new(GTK_ORIENTATION_VERTICAL, NULL);
+    gVScaleWidget = gtk_vscale_new(NULL);
     setup_widget_prototype(gVScaleWidget);
   }
   return MOZ_GTK_SUCCESS;
@@ -748,17 +748,17 @@ moz_gtk_radio_get_metrics(gint* indicator_size, gint* indicator_spacing)
 gint
 moz_gtk_get_focus_outline_size(gint* focus_h_width, gint* focus_v_width)
 {
+    ensure_entry_widget();
+    GtkWidget* w = gEntryWidget;
     gboolean interior_focus;
     gint focus_width = 0;
-
-    ensure_entry_widget();
-    gtk_widget_style_get(gEntryWidget,
+    gtk_widget_style_get(w,
                          "interior-focus", &interior_focus,
                          "focus-line-width", &focus_width,
                          NULL);
     if (interior_focus) {
         GtkBorder border;
-        GtkStyleContext *style = gtk_widget_get_style_context(gEntryWidget);
+        GtkStyleContext *style = gtk_widget_get_style_context(w);
         gtk_style_context_get_border(style, 0, &border);
         *focus_h_width = border.left + focus_width;
         *focus_v_width = border.top + focus_width;
@@ -1672,7 +1672,7 @@ moz_gtk_combo_box_paint(cairo_t *cr, GdkRectangle* rect,
                                 rect, &arrow_rect, direction, ishtml);
     /* Now arrow_rect contains the inner rect ; we want to correct the width
      * to what the arrow needs (see gtk_combo_box_size_allocate) */
-    gtk_widget_get_preferred_size(gComboBoxArrowWidget, NULL, &arrow_req);
+    gtk_widget_size_request(gComboBoxArrowWidget, &arrow_req);
     if (direction == GTK_TEXT_DIR_LTR)
         arrow_rect.x += arrow_rect.width - arrow_req.width;
     arrow_rect.width = arrow_req.width;
@@ -2088,10 +2088,9 @@ gint
 moz_gtk_get_tab_thickness(void)
 {
     GtkBorder border;
-    GtkStyleContext * style;
 
     ensure_tab_widget();
-    style = gtk_widget_get_style_context(gTabWidget);
+    GtkStyleContext * style = gtk_widget_get_style_context(gTabWidget);
     gtk_style_context_add_class(style, GTK_STYLE_CLASS_NOTEBOOK);
     gtk_style_context_get_border(style, 0, &border);
 
@@ -2423,7 +2422,7 @@ moz_gtk_menu_separator_paint(cairo_t *cr, GdkRectangle* rect,
     ensure_menu_separator_widget();
     gtk_widget_set_direction(gMenuSeparatorWidget, direction);
 
-    border_width = gtk_container_get_border_width(GTK_CONTAINER(gMenuSeparatorWidget));
+    border_width = gtk_container_get_border_width(gMenuSeparatorWidget);
     gtk_widget_style_get(gMenuSeparatorWidget,
                          "wide-separators",    &wide_separators,
                          "separator-height",   &separator_height,
@@ -2761,7 +2760,7 @@ moz_gtk_get_widget_border(GtkThemeWidgetType widget, gint* left, gint* top,
                 }
             }
 
-            gtk_widget_get_preferred_size(gComboBoxArrowWidget, NULL, &arrow_req);
+            gtk_widget_size_request(gComboBoxArrowWidget, &arrow_req);
 
             if (direction == GTK_TEXT_DIR_RTL)
                 *left += separator_width + arrow_req.width;
@@ -2932,7 +2931,7 @@ moz_gtk_get_combo_box_entry_button_size(gint* width, gint* height)
     GtkRequisition requisition;
     ensure_combo_box_entry_widgets();
 
-    gtk_widget_get_preferred_size(gComboBoxEntryButtonWidget, NULL, &requisition);
+    gtk_widget_size_request(gComboBoxEntryButtonWidget, &requisition);
     *width = requisition.width;
     *height = requisition.height;
 
@@ -2960,7 +2959,7 @@ moz_gtk_get_arrow_size(gint* width, gint* height)
     GtkRequisition requisition;
     ensure_button_arrow_widget();
 
-    gtk_widget_get_preferred_size(gButtonArrowWidget, NULL, &requisition);
+    gtk_widget_size_request(gButtonArrowWidget, &requisition);
     *width = requisition.width;
     *height = requisition.height;
 

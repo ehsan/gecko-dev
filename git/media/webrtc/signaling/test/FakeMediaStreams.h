@@ -105,6 +105,7 @@ class Fake_MediaPeriodic : public nsITimerCallback {
 public:
 Fake_MediaPeriodic(Fake_MediaStream *aStream) : mStream(aStream),
                                                 mCount(0) {}
+  virtual ~Fake_MediaPeriodic() {}
   void Detach() {
     mStream = nullptr;
   }
@@ -115,8 +116,6 @@ Fake_MediaPeriodic(Fake_MediaStream *aStream) : mStream(aStream),
   NS_DECL_NSITIMERCALLBACK
 
 protected:
-  virtual ~Fake_MediaPeriodic() {}
-
   Fake_MediaStream *mStream;
   int mCount;
 };
@@ -212,16 +211,15 @@ class Fake_SourceMediaStream : public Fake_MediaStream {
 
 class Fake_DOMMediaStream : public nsIDOMMediaStream
 {
-protected:
-  virtual ~Fake_DOMMediaStream() {
-    // Note: memory leak
-    mMediaStream->Stop();
-  }
-
 public:
   Fake_DOMMediaStream() : mMediaStream(new Fake_MediaStream()) {}
   Fake_DOMMediaStream(Fake_MediaStream *stream) :
       mMediaStream(stream) {}
+
+  virtual ~Fake_DOMMediaStream() {
+    // Note: memory leak
+    mMediaStream->Stop();
+  }
 
   NS_DECL_THREADSAFE_ISUPPORTS
 

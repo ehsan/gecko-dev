@@ -16,7 +16,7 @@ class gfxContext;
 struct gfxRect;
 struct gfxRGBA;
 struct gfxCornerSizes;
-class gfxMatrix;
+struct gfxMatrix;
 
 namespace mozilla {
   namespace gfx {

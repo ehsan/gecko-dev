@@ -374,7 +374,7 @@ public:
     if (!mNextFile) {
       return NS_ERROR_FAILURE;
     }
-    nsRefPtr<DOMFile> domFile = DOMFile::CreateFromFile(mNextFile);
+    nsRefPtr<nsDOMFileFile> domFile = new nsDOMFileFile(mNextFile);
     nsCString relDescriptor;
     nsresult rv =
       mNextFile->GetRelativeDescriptor(mTopDirsParent, relDescriptor);
@@ -387,10 +387,7 @@ public:
     MOZ_ASSERT(length >= 0);
     if (length > 0) {
       // Note that we leave the trailing "/" on the path.
-      DOMFileImplFile* fileImpl =
-        static_cast<DOMFileImplFile*>(domFile->Impl());
-      MOZ_ASSERT(fileImpl);
-      fileImpl->SetPath(Substring(path, 0, uint32_t(length)));
+      domFile->SetPath(Substring(path, 0, uint32_t(length)));
     }
     *aResult = domFile.forget().downcast<nsIDOMFile>().take();
     LookupAndCacheNext();
@@ -2321,7 +2318,7 @@ HTMLInputElement::MozSetFileNameArray(const Sequence< nsString >& aFileNames)
     }
 
     if (file) {
-      nsCOMPtr<nsIDOMFile> domFile = DOMFile::CreateFromFile(file);
+      nsCOMPtr<nsIDOMFile> domFile = new nsDOMFileFile(file);
       files.AppendElement(domFile);
     } else {
       continue; // Not much we can do if the file doesn't exist

@@ -217,22 +217,12 @@ class GCRuntime
         JS_ASSERT(inUnsafeRegion > 0);
         --inUnsafeRegion;
     }
-
-    bool isStrictProxyCheckingEnabled() { return disableStrictProxyCheckingCount == 0; }
-    void disableStrictProxyChecking() { ++disableStrictProxyCheckingCount; }
-    void enableStrictProxyChecking() {
-        JS_ASSERT(disableStrictProxyCheckingCount > 0);
-        --disableStrictProxyCheckingCount;
-    }
 #endif
 
     void setAlwaysPreserveCode() { alwaysPreserveCode = true; }
 
-    bool isIncrementalGCAllowed() { return incrementalAllowed; }
-    void disallowIncrementalGC() { incrementalAllowed = false; }
-
-    bool isIncrementalGCEnabled() { return mode == JSGC_MODE_INCREMENTAL && incrementalAllowed; }
-    bool isIncrementalGCInProgress() { return state() != gc::NO_INCREMENTAL && !verifyPreData; }
+    bool isIncrementalGCEnabled() { return incrementalEnabled; }
+    void disableIncrementalGC() { incrementalEnabled = false; }
 
     bool isGenerationalGCEnabled() { return generationalDisabled == 0; }
     void disableGenerationalGC();
@@ -266,33 +256,6 @@ class GCRuntime
 
     JS::Zone *getCurrentZoneGroup() { return currentZoneGroup; }
     void setFoundBlackGrayEdges() { foundBlackGrayEdges = true; }
-
-    uint64_t gcNumber() { return number; }
-    void incGcNumber() { ++number; }
-
-    bool isIncrementalGc() { return isIncremental; }
-    bool isFullGc() { return isFull; }
-
-    bool shouldCleanUpEverything() { return cleanUpEverything; }
-
-    bool areGrayBitsValid() { return grayBitsValid; }
-    void setGrayBitsInvalid() { grayBitsValid = false; }
-
-    bool isGcNeeded() { return isNeeded; }
-
-    double computeHeapGrowthFactor(size_t lastBytes);
-    size_t computeTriggerBytes(double growthFactor, size_t lastBytes, JSGCInvocationKind gckind);
-    size_t allocationThreshold() { return allocThreshold; }
-
-    JSGCMode gcMode() const { return mode; }
-    void setGCMode(JSGCMode m) {
-        mode = m;
-        marker.setGCMode(mode);
-    }
-
-    inline void updateOnChunkFree(const ChunkInfo &info);
-    inline void updateOnFreeArenaAlloc(const ChunkInfo &info);
-    inline void updateOnArenaFree(const ChunkInfo &info);
 
 #ifdef JS_GC_ZEAL
     void startVerifyPreBarriers();
@@ -390,10 +353,6 @@ class GCRuntime
     js::gc::StoreBuffer   storeBuffer;
 #endif
 
-    js::gcstats::Statistics stats;
-
-    js::GCMarker          marker;
-
     js::RootedValueMap    rootsHash;
 
     /* This is updated by both the main and GC helper threads. */
@@ -402,11 +361,11 @@ class GCRuntime
     size_t                maxBytes;
     size_t                maxMallocBytes;
 
-  private:
     /*
      * Number of the committed arenas in all GC chunks including empty chunks.
      */
     mozilla::Atomic<uint32_t, mozilla::ReleaseAcquire>   numArenasFreeCommitted;
+    js::GCMarker          marker;
     void                  *verifyPreData;
     void                  *verifyPostData;
     bool                  chunkAllocationSinceLastGC;
@@ -416,7 +375,7 @@ class GCRuntime
 
     JSGCMode              mode;
 
-    size_t                allocThreshold;
+    size_t                allocationThreshold;
     bool                  highFrequencyGC;
     uint64_t              highFrequencyTimeThreshold;
     uint64_t              highFrequencyLowLimitBytes;
@@ -429,7 +388,7 @@ class GCRuntime
     uint64_t              decommitThreshold;
 
     /* During shutdown, the GC needs to clean up every possible object. */
-    bool                  cleanUpEverything;
+    bool                  shouldCleanUpEverything;
 
     /*
      * The gray bits can become invalid if UnmarkGray overflows the stack. A
@@ -444,10 +403,12 @@ class GCRuntime
      */
     volatile uintptr_t    isNeeded;
 
+    js::gcstats::Statistics stats;
+
     /* Incremented on every GC slice. */
     uint64_t              number;
 
-    /* The number at the time of the most recent GC's first slice. */
+    /* The   number at the time of the most recent GC's first slice. */
     uint64_t              startNumber;
 
     /* Whether the currently running GC can finish in multiple slices. */
@@ -460,13 +421,24 @@ class GCRuntime
     JS::gcreason::Reason  triggerReason;
 
     /*
+     * If this is true, all marked objects must belong to a compartment being
+     * GCed. This is used to look for compartment bugs.
+     */
+    bool                  strictCompartmentChecking;
+
+#ifdef DEBUG
+    /*
      * If this is 0, all cross-compartment proxies must be registered in the
      * wrapper map. This checking must be disabled temporarily while creating
      * new wrappers. When non-zero, this records the recursion depth of wrapper
      * creation.
      */
-    mozilla::DebugOnly<uintptr_t>  disableStrictProxyCheckingCount;
+    uintptr_t             disableStrictProxyCheckingCount;
+#else
+    uintptr_t             unused1;
+#endif
 
+  private:
     /*
      * The current incremental GC phase. This is also used internally in
      * non-incremental GC.
@@ -521,7 +493,7 @@ class GCRuntime
      * We disable incremental GC if we encounter a js::Class with a trace hook
      * that does not implement write barriers.
      */
-    bool                  incrementalAllowed;
+    bool                  incrementalEnabled;
 
     /*
      * GGC can be enabled from the command line while testing.

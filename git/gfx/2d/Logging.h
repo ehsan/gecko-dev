@@ -166,11 +166,11 @@ public:
           mDepth(0),
           mStartOfLine(true),
           mConditionedOnPref(false),
-          mPrefFunction(nullptr) {}
+          mPref(nullptr) {}
 
   template <typename T>
   TreeLog& operator<<(const T& aObject) {
-    if (mConditionedOnPref && !mPrefFunction()) {
+    if (mConditionedOnPref && !*mPref) {
       return *this;
     }
     if (mStartOfLine) {
@@ -190,9 +190,9 @@ public:
   void IncreaseIndent() { ++mDepth; }
   void DecreaseIndent() { --mDepth; }
 
-  void ConditionOnPrefFunction(bool(*aPrefFunction)()) {
+  void ConditionOnPref(bool* aPref) {
     mConditionedOnPref = true;
-    mPrefFunction = aPrefFunction;
+    mPref = aPref;
   }
 private:
   Log<LOG_DEBUG> mLog;
@@ -200,7 +200,7 @@ private:
   uint32_t mDepth;
   bool mStartOfLine;
   bool mConditionedOnPref;
-  bool (*mPrefFunction)();
+  bool* mPref;
 
   template <typename T>
   static bool EndsInNewline(const T& aObject) {

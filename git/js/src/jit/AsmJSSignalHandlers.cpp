@@ -6,17 +6,14 @@
 
 #include "jit/AsmJSSignalHandlers.h"
 
-#include "mozilla/DebugOnly.h"
-
 #include "assembler/assembler/MacroAssembler.h"
 #include "jit/AsmJSModule.h"
-#include "vm/Runtime.h"
 
 using namespace js;
 using namespace js::jit;
+using namespace mozilla;
 
 using JS::GenericNaN;
-using mozilla::DebugOnly;
 
 #if defined(XP_WIN)
 # define XMM_sig(p,i) ((p)->Xmm##i)
@@ -1034,25 +1031,14 @@ js::EnsureAsmJSSignalHandlersInstalled(JSRuntime *rt)
 // js::HandleExecutionInterrupt. The memory is un-protected from the signal
 // handler after control flow is redirected.
 void
-js::RequestInterruptForAsmJSCode(JSRuntime *rt, int interruptModeRaw)
+js::RequestInterruptForAsmJSCode(JSRuntime *rt)
 {
-    switch (JSRuntime::InterruptMode(interruptModeRaw)) {
-      case JSRuntime::RequestInterruptMainThread:
-      case JSRuntime::RequestInterruptAnyThread:
-        break;
-      case JSRuntime::RequestInterruptAnyThreadDontStopIon:
-      case JSRuntime::RequestInterruptAnyThreadForkJoin:
-        // It is ok to wait for asm.js execution to complete; we aren't trying
-        // to break an iloop or anything. Avoid the overhead of protecting all
-        // the code and taking a fault.
-        return;
-    }
+    JS_ASSERT(rt->currentThreadOwnsInterruptLock());
 
     AsmJSActivation *activation = rt->mainThread.asmJSActivationStackFromAnyThread();
     if (!activation)
         return;
 
-    JS_ASSERT(rt->currentThreadOwnsInterruptLock());
     activation->module().protectCode(rt);
 }
 

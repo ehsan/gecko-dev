@@ -271,7 +271,7 @@ JSCompartment *
 TopmostIonActivationCompartment(JSRuntime *rt);
 
 #ifdef JSGC_GENERATIONAL
-template<typename T>
+void UpdateJitActivationsForMinorGC(JSRuntime *rt, JSTracer *trc);
 void UpdateJitActivationsForMinorGC(PerThreadData *ptd, JSTracer *trc);
 #endif
 

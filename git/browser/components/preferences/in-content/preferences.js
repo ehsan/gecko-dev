@@ -21,8 +21,6 @@ addEventListener("DOMContentLoaded", function onLoad() {
 
 function init_all() {
   document.documentElement.instantApply = true;
-
-  gSubDialog.init();
   gMainPane.init();
   gPrivacyPane.init();
   gAdvancedPane.init();
@@ -30,7 +28,6 @@ function init_all() {
   gContentPane.init();
   gSyncPane.init();
   gSecurityPane.init();
-
   var initFinished = new CustomEvent("Initialized", {
   'bubbles': true,
   'cancelable': true
@@ -56,10 +53,6 @@ function init_all() {
   // notifying observers that the UI is now ready.
   Services.obs.notifyObservers(window, "advanced-pane-loaded", null);
 }
-
-window.addEventListener("unload", function onUnload() {
-  gSubDialog.uninit();
-});
 
 function onHashChange() {
   gotoPref();

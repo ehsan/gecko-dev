@@ -52,10 +52,6 @@ class nsIJSID;
 
 namespace mozilla {
 
-namespace dom {
-class DOMFile;
-}
-
 // A helper for building up an ArrayBuffer object's data
 // before creating the ArrayBuffer itself.  Will do doubling
 // based reallocation, up to an optional maximum growth given.
@@ -671,7 +667,7 @@ protected:
   nsCOMPtr<nsIDOMBlob> mResponseBlob;
   // Non-null only when we are able to get a os-file representation of the
   // response, i.e. when loading from a file.
-  nsRefPtr<mozilla::dom::DOMFile> mDOMFile;
+  nsRefPtr<nsDOMFile> mDOMFile;
   // We stream data to mBlobSet when response type is "blob" or "moz-blob"
   // and mDOMFile is null.
   nsAutoPtr<BlobSet> mBlobSet;

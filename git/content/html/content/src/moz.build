@@ -177,7 +177,7 @@ LOCAL_INCLUDES += [
     '/dom/xbl',
     '/editor/libeditor/base',
     '/editor/libeditor/text',
-    '/editor/txmgr',
+    '/editor/txmgr/src',
     '/layout/forms',
     '/layout/generic',
     '/layout/style',

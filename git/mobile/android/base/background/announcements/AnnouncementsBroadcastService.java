@@ -122,8 +122,7 @@ public class AnnouncementsBroadcastService extends BackgroundService {
 
     // Intent can be null. Bug 1025937.
     if (intent == null) {
-      Logger.debug(LOG_TAG, "Short-circuiting on null intent.");
-      return;
+        Logger.debug(LOG_TAG, "Short-circuiting on null intent.");
     }
 
     final String action = intent.getAction();

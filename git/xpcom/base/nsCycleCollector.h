@@ -18,14 +18,8 @@ namespace mozilla {
 
 class CycleCollectedJSRuntime;
 
-// Called back from DeferredFinalize.  Should add 'thing' to the array of smart
-// pointers in 'pointers', creating the array if 'pointers' is null, and return
-// the array.
+// See the comments in nsContentUtils.h for explanations of these functions.
 typedef void* (*DeferredFinalizeAppendFunction)(void* aPointers, void* aThing);
-
-// Called to finalize a number of objects. Slice is the number of objects
-// to finalize, or if it's UINT32_MAX, all objects should be finalized.
-// Return value indicates whether it finalized all objects in the buffer.
 typedef bool (*DeferredFinalizeFunction)(uint32_t aSlice, void* aData);
 
 }

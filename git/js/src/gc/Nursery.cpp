@@ -34,10 +34,7 @@
 
 using namespace js;
 using namespace gc;
-
-using mozilla::ArrayLength;
-using mozilla::PodCopy;
-using mozilla::PodZero;
+using namespace mozilla;
 
 //#define PROFILE_NURSERY
 
@@ -336,7 +333,7 @@ class MinorCollectionTracer : public JSTracer
         savedRuntimeNeedBarrier(rt->needsBarrier()),
         disableStrictProxyChecking(rt)
     {
-        rt->gc.incGcNumber();
+        rt->gc.number++;
 
         /*
          * We disable the runtime needsBarrier() check so that pre-barriers do
@@ -836,7 +833,7 @@ js::Nursery::collect(JSRuntime *rt, JS::gcreason::Reason reason, TypeObjectList 
     // Update any slot or element pointers whose destination has been tenured.
     TIME_START(updateJitActivations);
 #ifdef JS_ION
-    js::jit::UpdateJitActivationsForMinorGC<Nursery>(&rt->mainThread, &trc);
+    js::jit::UpdateJitActivationsForMinorGC(rt, &trc);
 #endif
     TIME_END(updateJitActivations);
 

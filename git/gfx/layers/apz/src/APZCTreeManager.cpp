@@ -34,6 +34,9 @@ namespace layers {
 
 float APZCTreeManager::sDPI = 160.0;
 
+// Pref that enables printing of the APZC tree for debugging.
+static bool gPrintApzcTree = false;
+
 APZCTreeManager::APZCTreeManager()
     : mTreeLock("APZCTreeLock"),
       mInOverscrolledApzc(false),
@@ -43,7 +46,8 @@ APZCTreeManager::APZCTreeManager()
 {
   MOZ_ASSERT(NS_IsMainThread());
   AsyncPanZoomController::InitializeGlobalState();
-  mApzcTreeLog.ConditionOnPrefFunction(gfxPrefs::APZPrintTree);
+  Preferences::AddBoolVarCache(&gPrintApzcTree, "apz.printtree", gPrintApzcTree);
+  mApzcTreeLog.ConditionOnPref(&gPrintApzcTree);
 }
 
 APZCTreeManager::~APZCTreeManager()

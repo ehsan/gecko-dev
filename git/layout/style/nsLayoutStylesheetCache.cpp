@@ -241,7 +241,7 @@ void
 nsLayoutStylesheetCache::Shutdown()
 {
   NS_IF_RELEASE(gCSSLoader);
-  gStyleCache = nullptr;
+  NS_IF_RELEASE(gStyleCache);
 }
 
 MOZ_DEFINE_MALLOC_SIZE_OF(LayoutStylesheetCacheMallocSizeOf)
@@ -361,7 +361,7 @@ nsLayoutStylesheetCache::nsLayoutStylesheetCache()
 nsLayoutStylesheetCache::~nsLayoutStylesheetCache()
 {
   mozilla::UnregisterWeakMemoryReporter(this);
-  MOZ_ASSERT(!gStyleCache);
+  gStyleCache = nullptr;
 }
 
 void
@@ -377,6 +377,8 @@ nsLayoutStylesheetCache::EnsureGlobal()
 
   gStyleCache = new nsLayoutStylesheetCache();
   if (!gStyleCache) return;
+
+  NS_ADDREF(gStyleCache);
 
   gStyleCache->InitMemoryReporter();
 
@@ -449,8 +451,8 @@ nsLayoutStylesheetCache::LoadSheet(nsIURI* aURI,
   }
 }
 
-mozilla::StaticRefPtr<nsLayoutStylesheetCache>
-nsLayoutStylesheetCache::gStyleCache;
+nsLayoutStylesheetCache*
+nsLayoutStylesheetCache::gStyleCache = nullptr;
 
 mozilla::css::Loader*
 nsLayoutStylesheetCache::gCSSLoader = nullptr;

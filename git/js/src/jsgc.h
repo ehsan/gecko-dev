@@ -1315,12 +1315,15 @@ IsInsideGGCNursery(const gc::Cell *cell);
 class AutoDisableProxyCheck
 {
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER;
-    gc::GCRuntime &gc;
+    uintptr_t &count;
 
   public:
     explicit AutoDisableProxyCheck(JSRuntime *rt
                                    MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
-    ~AutoDisableProxyCheck();
+
+    ~AutoDisableProxyCheck() {
+        count--;
+    }
 };
 #else
 struct AutoDisableProxyCheck

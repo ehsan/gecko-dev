@@ -117,7 +117,8 @@ DataStoreDB::HandleEvent(nsIDOMEvent* aEvent)
     return NS_OK;
   }
 
-  MOZ_CRASH("This should not happen");
+  MOZ_ASSUME_UNREACHABLE("This should not happen");
+  return NS_OK;
 }
 
 nsresult

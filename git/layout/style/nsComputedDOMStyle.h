@@ -91,6 +91,9 @@ public:
                      const nsAString& aPseudoElt,
                      nsIPresShell* aPresShell,
                      StyleType aStyleType);
+  virtual ~nsComputedDOMStyle();
+
+  static void Shutdown();
 
   virtual nsINode *GetParentObject() MOZ_OVERRIDE
   {
@@ -131,8 +134,6 @@ public:
   static void UnregisterPrefChangeCallbacks();
 
 private:
-  virtual ~nsComputedDOMStyle();
-
   void AssertFlushedPendingReflows() {
     NS_ASSERTION(mFlushedPendingReflows,
                  "property getter should have been marked layout-dependent");
@@ -621,6 +622,14 @@ private:
   bool mFlushedPendingReflows;
 #endif
 };
+
+namespace mozilla {
+template<>
+struct HasDangerousPublicDestructor<nsComputedDOMStyle>
+{
+  static const bool value = true;
+};
+}
 
 already_AddRefed<nsComputedDOMStyle>
 NS_NewComputedDOMStyle(mozilla::dom::Element* aElement,

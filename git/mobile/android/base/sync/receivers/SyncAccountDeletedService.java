@@ -35,7 +35,6 @@ public class SyncAccountDeletedService extends IntentService {
     // Intent can, in theory, be null. Bug 1025937.
     if (intent == null) {
       Logger.debug(LOG_TAG, "Short-circuiting on null intent.");
-      return;
     }
 
     final Context context = this;

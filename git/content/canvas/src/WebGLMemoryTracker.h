@@ -25,6 +25,7 @@ class WebGLMemoryTracker : public nsIMemoryReporter
     NS_DECL_NSIMEMORYREPORTER
 
     WebGLMemoryTracker();
+    virtual ~WebGLMemoryTracker();
     static StaticRefPtr<WebGLMemoryTracker> sUniqueInstance;
 
     // Here we store plain pointers, not RefPtrs: we don't want the
@@ -56,8 +57,6 @@ class WebGLMemoryTracker : public nsIMemoryReporter
     }
 
   private:
-    virtual ~WebGLMemoryTracker();
-
     static int64_t GetTextureMemoryUsed() {
         const ContextsArrayType & contexts = Contexts();
         int64_t result = 0;

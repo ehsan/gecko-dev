@@ -498,31 +498,15 @@ NS_IMPL_ISUPPORTS(nsStreamTransportService,
 NS_IMETHODIMP
 nsStreamTransportService::Dispatch(nsIRunnable *task, uint32_t flags)
 {
-    nsCOMPtr<nsIThreadPool> pool;
-    {
-        mozilla::MutexAutoLock lock(mShutdownLock);
-        if (mIsShutdown) {
-            return NS_ERROR_NOT_INITIALIZED;
-        }
-        pool = mPool;
-    }
-    NS_ENSURE_TRUE(pool, NS_ERROR_NOT_INITIALIZED);
-    return pool->Dispatch(task, flags);
+    NS_ENSURE_TRUE(mPool, NS_ERROR_NOT_INITIALIZED);
+    return mPool->Dispatch(task, flags);
 }
 
 NS_IMETHODIMP
 nsStreamTransportService::IsOnCurrentThread(bool *result)
 {
-    nsCOMPtr<nsIThreadPool> pool;
-    {
-        mozilla::MutexAutoLock lock(mShutdownLock);
-        if (mIsShutdown) {
-            return NS_ERROR_NOT_INITIALIZED;
-        }
-        pool = mPool;
-    }
-    NS_ENSURE_TRUE(pool, NS_ERROR_NOT_INITIALIZED);
-    return pool->IsOnCurrentThread(result);
+    NS_ENSURE_TRUE(mPool, NS_ERROR_NOT_INITIALIZED);
+    return mPool->IsOnCurrentThread(result);
 }
 
 NS_IMETHODIMP
@@ -560,11 +544,6 @@ nsStreamTransportService::Observe(nsISupports *subject, const char *topic,
                                   const char16_t *data)
 {
   NS_ASSERTION(strcmp(topic, "xpcom-shutdown-threads") == 0, "oops");
-
-  {
-    mozilla::MutexAutoLock lock(mShutdownLock);
-    mIsShutdown = true;
-  }
 
   if (mPool) {
     mPool->Shutdown();

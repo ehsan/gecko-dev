@@ -24,6 +24,7 @@ class WebGLExtensionBase
 {
 public:
     WebGLExtensionBase(WebGLContext*);
+    virtual ~WebGLExtensionBase();
 
     WebGLContext *GetParentObject() const {
         return Context();
@@ -35,8 +36,6 @@ public:
     NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(WebGLExtensionBase)
 
 protected:
-    virtual ~WebGLExtensionBase();
-
     bool mIsLost;
 };
 

@@ -31,7 +31,7 @@ function TestGenerator(g, expected_values_for_next,
     function testSend(thunk) {
         var iter = thunk();
         for (var i = 0; i < expected_values_for_send.length; i++) {
-            assertIteratorResult(iter.next(send_val),
+            assertIteratorResult(i ? iter.next(send_val) : iter.next(),
                                  expected_values_for_send[i],
                                  i == expected_values_for_send.length - 1);
         }

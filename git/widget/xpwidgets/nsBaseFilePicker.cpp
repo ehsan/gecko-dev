@@ -25,7 +25,6 @@
 #include "nsBaseFilePicker.h"
 
 using namespace mozilla::widget;
-using namespace mozilla::dom;
 
 #define FILEPICKER_TITLES "chrome://global/locale/filepicker.properties"
 #define FILEPICKER_FILTERS "chrome://global/content/filepicker.properties"
@@ -94,7 +93,7 @@ public:
       return NS_ERROR_FAILURE;
     }
 
-    nsCOMPtr<nsIDOMFile> domFile = DOMFile::CreateFromFile(localFile);
+    nsCOMPtr<nsIDOMFile> domFile = new nsDOMFileFile(localFile);
     domFile.forget(aResult);
     return NS_OK;
   }
@@ -314,7 +313,7 @@ nsBaseFilePicker::GetDomfile(nsIDOMFile** aDomfile)
     return NS_OK;
   }
 
-  nsRefPtr<DOMFile> domFile = DOMFile::CreateFromFile(localFile);
+  nsRefPtr<nsDOMFileFile> domFile = new nsDOMFileFile(localFile);
   domFile.forget(aDomfile);
   return NS_OK;
 }

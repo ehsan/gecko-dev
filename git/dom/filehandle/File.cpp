@@ -15,22 +15,24 @@ namespace dom {
 
 using indexedDB::IndexedDatabaseManager;
 
-// Create as a file
-FileImpl::FileImpl(const nsAString& aName, const nsAString& aContentType,
-                   uint64_t aLength, nsIFile* aFile, FileHandle* aFileHandle)
-  : DOMFileImplBase(aName, aContentType, aLength),
-    mFile(aFile), mFileHandle(aFileHandle), mWholeFile(true), mStoredFile(false)
+  // Create as a file
+File::File(const nsAString& aName, const nsAString& aContentType,
+           uint64_t aLength, nsIFile* aFile, FileHandle* aFileHandle)
+: nsDOMFileCC(aName, aContentType, aLength),
+  mFile(aFile), mFileHandle(aFileHandle),
+  mWholeFile(true), mStoredFile(false)
 {
   MOZ_ASSERT(mFile, "Null file!");
   MOZ_ASSERT(mFileHandle, "Null file handle!");
 }
 
 // Create as a stored file
-FileImpl::FileImpl(const nsAString& aName, const nsAString& aContentType,
-                   uint64_t aLength, nsIFile* aFile, FileHandle* aFileHandle,
-                   indexedDB::FileInfo* aFileInfo)
-  : DOMFileImplBase(aName, aContentType, aLength),
-    mFile(aFile), mFileHandle(aFileHandle), mWholeFile(true), mStoredFile(true)
+File::File(const nsAString& aName, const nsAString& aContentType,
+           uint64_t aLength, nsIFile* aFile, FileHandle* aFileHandle,
+           FileInfo* aFileInfo)
+: nsDOMFileCC(aName, aContentType, aLength),
+  mFile(aFile), mFileHandle(aFileHandle),
+  mWholeFile(true), mStoredFile(true)
 {
   MOZ_ASSERT(mFile, "Null file!");
   MOZ_ASSERT(mFileHandle, "Null file handle!");
@@ -38,17 +40,17 @@ FileImpl::FileImpl(const nsAString& aName, const nsAString& aContentType,
 }
 
 // Create slice
-FileImpl::FileImpl(const FileImpl* aOther, uint64_t aStart, uint64_t aLength,
-                   const nsAString& aContentType)
-  : DOMFileImplBase(aContentType, aOther->mStart + aStart, aLength),
-    mFile(aOther->mFile), mFileHandle(aOther->mFileHandle),
-    mWholeFile(false), mStoredFile(aOther->mStoredFile)
+File::File(const File* aOther, uint64_t aStart, uint64_t aLength,
+           const nsAString& aContentType)
+: nsDOMFileCC(aContentType, aOther->mStart + aStart, aLength),
+  mFile(aOther->mFile), mFileHandle(aOther->mFileHandle),
+  mWholeFile(false), mStoredFile(aOther->mStoredFile)
 {
   MOZ_ASSERT(mFile, "Null file!");
   MOZ_ASSERT(mFileHandle, "Null file handle!");
 
   if (mStoredFile) {
-    indexedDB::FileInfo* fileInfo;
+    FileInfo* fileInfo;
 
     if (IndexedDatabaseManager::IsClosed()) {
       fileInfo = aOther->GetFileInfo();
@@ -62,26 +64,21 @@ FileImpl::FileImpl(const FileImpl* aOther, uint64_t aStart, uint64_t aLength,
   }
 }
 
-FileImpl::~FileImpl()
+File::~File()
 {
 }
 
-void
-FileImpl::Unlink()
-{
-  FileImpl* tmp = this;
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mFileHandle);
-}
+NS_IMPL_CYCLE_COLLECTION_INHERITED(File, nsDOMFileCC,
+                                   mFileHandle)
 
-void
-FileImpl::Traverse(nsCycleCollectionTraversalCallback &cb)
-{
-  FileImpl* tmp = this;
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFileHandle);
-}
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(File)
+NS_INTERFACE_MAP_END_INHERITING(nsDOMFileCC)
 
-nsresult
-FileImpl::GetInternalStream(nsIInputStream** aStream)
+NS_IMPL_ADDREF_INHERITED(File, nsDOMFileCC)
+NS_IMPL_RELEASE_INHERITED(File, nsDOMFileCC)
+
+NS_IMETHODIMP
+File::GetInternalStream(nsIInputStream **aStream)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -93,19 +90,18 @@ FileImpl::GetInternalStream(nsIInputStream** aStream)
 }
 
 already_AddRefed<nsIDOMBlob>
-FileImpl::CreateSlice(uint64_t aStart, uint64_t aLength,
-                      const nsAString& aContentType)
+File::CreateSlice(uint64_t aStart, uint64_t aLength,
+                  const nsAString& aContentType)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   nsCOMPtr<nsIDOMBlob> t =
-    new DOMFileCC(new FileImpl(this, aStart, aLength, aContentType));
-
+    new File(this, aStart, aLength, aContentType);
   return t.forget();
 }
 
-nsresult
-FileImpl::GetMozFullPathInternal(nsAString& aFilename)
+NS_IMETHODIMP
+File::GetMozFullPathInternal(nsAString &aFilename)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(mIsFile, "Should only be called on files");

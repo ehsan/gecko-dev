@@ -225,9 +225,7 @@ public:
     }
   }
 
-  void ResampleChunks(SpeexResamplerState* aResampler,
-                      uint32_t aInRate,
-                      uint32_t aOutRate);
+  void ResampleChunks(SpeexResamplerState* aResampler);
 
   void AppendFrames(already_AddRefed<ThreadSharedObject> aBuffer,
                     const nsTArray<const float*>& aChannelData,
@@ -287,15 +285,6 @@ public:
       }
     }
     return 0;
-  }
-
-  bool IsNull() {
-    for (ChunkIterator ci(*this); !ci.IsEnded(); ci.Next()) {
-      if (!ci->IsNull()) {
-        return false;
-      }
-    }
-    return true;
   }
 
   static Type StaticType() { return AUDIO; }

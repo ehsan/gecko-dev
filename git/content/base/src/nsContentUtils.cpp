@@ -5973,8 +5973,7 @@ nsContentUtils::CreateBlobBuffer(JSContext* aCx,
   nsCOMPtr<nsIDOMBlob> blob;
   if (blobData) {
     memcpy(blobData, aData.BeginReading(), blobLen);
-    blob = mozilla::dom::DOMFile::CreateMemoryFile(blobData, blobLen,
-                                                   EmptyString());
+    blob = new nsDOMMemoryFile(blobData, blobLen, EmptyString());
   } else {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -6064,6 +6063,22 @@ nsContentUtils::AllocClassMatchingInfo(nsINode* aRootNode,
     aRootNode->OwnerDoc()->GetCompatibilityMode() == eCompatibility_NavQuirks ?
     eIgnoreCase : eCaseMatters;
   return info;
+}
+
+// static
+void
+nsContentUtils::DeferredFinalize(nsISupports* aSupports)
+{
+  cyclecollector::DeferredFinalize(aSupports);
+}
+
+// static
+void
+nsContentUtils::DeferredFinalize(mozilla::DeferredFinalizeAppendFunction aAppendFunc,
+                                 mozilla::DeferredFinalizeFunction aFunc,
+                                 void* aThing)
+{
+  cyclecollector::DeferredFinalize(aAppendFunc, aFunc, aThing);
 }
 
 // static

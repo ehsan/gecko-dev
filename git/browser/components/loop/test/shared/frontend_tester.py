@@ -75,13 +75,13 @@ class BaseTestFrontendUnits(MarionetteTestCase):
         commonPath = os.path.commonprefix([__file__, os.getcwd()])
 
         # Now get the relative path between the two
-        self.relPath = os.path.relpath(os.path.dirname(__file__), commonPath)
+        relPath = os.path.relpath(os.path.dirname(__file__), commonPath)
 
-        self.relPath = urllib.pathname2url(os.path.join(self.relPath, srcdir_path))
+        relPath = urllib.pathname2url(os.path.join(relPath, srcdir_path))
 
         # Finally join the relative path with the given src path
         self.server_prefix = urlparse.urljoin("http://localhost:" + str(self.port),
-                                              self.relPath)
+                                              relPath)
 
     def check_page(self, page):
 
@@ -103,26 +103,15 @@ class BaseTestFrontendUnits(MarionetteTestCase):
         #from ipdb import set_trace
         #set_trace()
 
-        raise AssertionError(self.get_failure_details(page))
+        raise AssertionError(self.get_failure_details())
 
-    def get_failure_details(self, page):
+    def get_failure_details(self):
         fail_nodes = self.marionette.find_elements("css selector",
                                                    '.test.fail')
-        fullPageUrl = urlparse.urljoin(self.relPath, page)
-
-        details = ["%s: %d failure(s) encountered:" % (fullPageUrl, len(fail_nodes))]
-
+        details = ["%d failure(s) encountered:" % len(fail_nodes)]
         for node in fail_nodes:
-            errorText = node.find_element("css selector", '.error').text
-
-            # We have to work our own failure message here, as we could be reporting multiple failures.
-            # XXX Ideally we'd also give the full test tree for <test name> - that requires walking
-            # up the DOM tree.
-
-            # Format: TEST-UNEXPECTED-FAIL | <filename> | <test name> - <test error>
             details.append(
-                "TEST-UNEXPECTED-FAIL | %s | %s - %s" % \
-                (fullPageUrl, node.find_element("tag name", 'h2').text.split("\n")[0], errorText.split("\n")[0]))
+                node.find_element("tag name", 'h2').text.split("\n")[0])
             details.append(
-                errorText)
+                node.find_element("css selector", '.error').text)
         return "\n".join(details)

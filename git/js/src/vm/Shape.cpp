@@ -1729,7 +1729,7 @@ EmptyShape::getInitialShape(ExclusiveContext *cx, const Class *clasp, TaggedProt
         return nullptr;
 
 #ifdef JSGC_GENERATIONAL
-    if (cx->isJSContext()) {
+    if (cx->hasNursery()) {
         if ((protoRoot.isObject() && IsInsideNursery(protoRoot.toObject())) ||
             IsInsideNursery(parentRoot.get()) ||
             IsInsideNursery(metadataRoot.get()))

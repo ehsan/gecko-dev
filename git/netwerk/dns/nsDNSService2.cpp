@@ -676,9 +676,8 @@ nsDNSService::AsyncResolve(const nsACString  &hostname,
 
     const nsACString *hostPtr = &hostname;
 
-    nsAutoCString strLocalhost(NS_LITERAL_CSTRING("localhost"));
     if (localDomain) {
-        hostPtr = &strLocalhost;
+        hostPtr = &(NS_LITERAL_CSTRING("localhost"));
     }
 
     nsresult rv;
@@ -786,9 +785,8 @@ nsDNSService::Resolve(const nsACString &hostname,
 
     const nsACString *hostPtr = &hostname;
 
-    nsAutoCString strLocalhost(NS_LITERAL_CSTRING("localhost"));
     if (localDomain) {
-        hostPtr = &strLocalhost;
+        hostPtr = &(NS_LITERAL_CSTRING("localhost"));
     }
 
     nsresult rv;

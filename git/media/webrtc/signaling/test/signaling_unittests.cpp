@@ -240,9 +240,6 @@ enum mediaPipelineFlags
 
 class TestObserver : public AFakePCObserver
 {
-protected:
-  ~TestObserver() {}
-
 public:
   TestObserver(sipcc::PeerConnectionImpl *peerConnection,
                const std::string &aName) :
@@ -690,13 +687,12 @@ class ParsedSDP {
 // into it happen on the main thread.
 class PCDispatchWrapper : public nsSupportsWeakReference
 {
- protected:
-  virtual ~PCDispatchWrapper() {}
-
  public:
   PCDispatchWrapper(sipcc::PeerConnectionImpl *peerConnection) {
     pc_ = peerConnection;
   }
+
+  virtual ~PCDispatchWrapper() {}
 
   NS_DECL_THREADSAFE_ISUPPORTS
 

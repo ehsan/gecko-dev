@@ -83,7 +83,7 @@ int RunGTestFunc()
 
   PR_SetEnv("XPCOM_DEBUG_BREAK=stack-and-abort");
 
-  ScopedXPCOM xpcom("GTest");
+  ScopedXPCOM xpcom("AsyncPanZoomController");
 
 #ifdef MOZ_CRASHREPORTER
   nsCOMPtr<nsICrashReporter> crashreporter;
