@@ -665,16 +665,10 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
     void pushValue(ValueOperand val);
     void popValue(ValueOperand val);
     void pushValue(const Value &val) {
-        jsval_layout jv = JSVAL_TO_IMPL(val);
-        push(Imm32(jv.s.tag));
-        if (val.isGCThing())
-            push(ImmGCPtr(reinterpret_cast<gc::Cell *>(val.toGCThing())));
-        else
-            push(Imm32(jv.s.payload.i32));
+        JS_NOT_REACHED("NYI");
     }
     void pushValue(JSValueType type, Register reg) {
-        push(ImmTag(JSVAL_TYPE_TO_TAG(type)));
-        ma_push(reg);
+        JS_NOT_REACHED("NYI");
     }
     void storePayload(const Value &val, Operand dest);
     void storePayload(Register src, Operand dest);
@@ -715,9 +709,7 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM
         adjustFrame(STACK_SLOT_SIZE);
     }
     void Push(const FloatRegister &t) {
-        VFPRegister r = VFPRegister(t);
-        ma_vpush(VFPRegister(t));
-        adjustFrame(r.size());
+        JS_NOT_REACHED("NYI");
     }
     void Pop(const Register &reg) {
         ma_pop(reg);

@@ -63,14 +63,13 @@ class DeferredJumpTable : public DeferredData
 {
     LTableSwitch *lswitch;
     BufferOffset off;
-    MacroAssembler *masm;
   public:
-    DeferredJumpTable(LTableSwitch *lswitch, BufferOffset off_, MacroAssembler *masm_)
-        : lswitch(lswitch), off(off_), masm(masm_)
+    DeferredJumpTable(LTableSwitch *lswitch, BufferOffset off_)
+        : lswitch(lswitch), off(off_)
     { }
 
     void copy(IonCode *code, uint8 *ignore__) const {
-        void **jumpData = (void **)(((char*)code->raw()) + masm->actualOffset(off).getOffset());
+        void **jumpData = (void **)(((char*)code->raw()) + off.getOffset());
         int numCases =  lswitch->mir()->numCases();
         // For every case write the pointer to the start in the table
         for (int j = 0; j < numCases; j++) {
@@ -78,7 +77,7 @@ class DeferredJumpTable : public DeferredData
             Label *caseheader = caseblock->label();
 
             uint32 offset = caseheader->offset();
-            *jumpData = (void *)(code->raw() + masm->actualOffset((uint8*)offset));
+            *jumpData = (void *)(code->raw() + offset);
             jumpData++;
         }
     }
@@ -766,7 +765,7 @@ CodeGeneratorARM::visitTableSwitch(LTableSwitch *ins)
     // table.  there is presently no code in place to enforce this.
     masm.ma_ldr(DTRAddr(pc, DtrRegImmShift(tempReg, LSL, 2)), pc, Offset, Assembler::Unsigned);
     masm.ma_b(defaultcase);
-    DeferredJumpTable *d = new DeferredJumpTable(ins, masm.nextOffset(), &masm);
+    DeferredJumpTable *d = new DeferredJumpTable(ins, masm.nextOffset());
     masm.as_jumpPool(cases);
 
     if (!masm.addDeferredData(d, 0))
