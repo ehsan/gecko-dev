@@ -731,6 +731,10 @@ var gPluginHandler = {
       let principal = contentWindow.document.nodePrincipal;
       Services.perms.addFromPrincipal(principal, aPluginInfo.permissionString,
                                       permission, expireType, expireTime);
+
+      if (aNewState == "block") {
+        return;
+      }
     }
 
     // Manually activate the plugins that would have been automatically
@@ -748,23 +752,19 @@ var gPluginHandler = {
       }
       if (aPluginInfo.permissionString == pluginHost.getPermissionStringForType(plugin.actualType)) {
         pluginFound = true;
-        if (aNewState == "block") {
-          plugin.reload(true);
-        } else {
-          if (gPluginHandler.canActivatePlugin(plugin)) {
-            let overlay = this.getPluginUI(plugin, "main");
-            if (overlay) {
-              overlay.removeEventListener("click", gPluginHandler._overlayClickListener, true);
-            }
-            plugin.playPlugin();
+        if (gPluginHandler.canActivatePlugin(plugin)) {
+          let overlay = this.getPluginUI(plugin, "main");
+          if (overlay) {
+            overlay.removeEventListener("click", gPluginHandler._overlayClickListener, true);
           }
+          plugin.playPlugin();
         }
       }
     }
 
     // If there are no instances of the plugin on the page any more, what the
     // user probably needs is for us to allow and then refresh.
-    if (aNewState != "block" && !pluginFound) {
+    if (!pluginFound) {
       browser.reload();
     }
   },

@@ -128,10 +128,8 @@ ApzcPinch(AsyncPanZoomController* aApzc, int aFocusX, int aFocusY, float aScale)
   aApzc->HandleInputEvent(PinchGestureInput(PinchGestureInput::PINCHGESTURE_END,
                                             0,
                                             ScreenPoint(aFocusX, aFocusY),
-                                            // note: negative values here tell APZC
-                                            //       not to turn the pinch into a pan
-                                            -1.0,
-                                            -1.0));
+                                            10.0 * aScale,
+                                            10.0 * aScale));
 }
 
 TEST(AsyncPanZoomController, Constructor) {
