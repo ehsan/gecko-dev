@@ -749,11 +749,10 @@ function openVarPopup(aPanel, aCoords, aWaitForFetchedProperties) {
   let fetchedProperties = aWaitForFetchedProperties
     ? waitForDebuggerEvents(aPanel, events.FETCHED_BUBBLE_PROPERTIES)
     : promise.resolve(null);
-  let updatedFrame = waitForDebuggerEvents(aPanel, events.FETCHED_SCOPES);
 
   let { left, top } = editor.getCoordsFromPosition(aCoords);
   bubble._findIdentifier(left, top);
-  return promise.all([popupShown, fetchedProperties, updatedFrame]).then(waitForTick);
+  return promise.all([popupShown, fetchedProperties]).then(waitForTick);
 }
 
 // Simulates the mouse hovering a variable in the debugger
