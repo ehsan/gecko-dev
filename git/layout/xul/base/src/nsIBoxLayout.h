@@ -35,47 +35,51 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/**
+#ifndef nsIBoxLayout_h___
+#define nsIBoxLayout_h___
 
-  Eric D Vaughan
-  A frame that can have multiple children. Only one child may be displayed at one time. So the
-  can be flipped though like a deck of cards.
- 
-**/
+#include "nsISupports.h"
+#include "nsIFrame.h"
 
-#ifndef nsGridRowGroupFrame_h___
-#define nsGridRowGroupFrame_h___
+class nsBoxLayout;
+class nsBoxLayoutState;
+class nsRenderingContext;
+class nsIGridPart;
+struct nsRect;
 
-#include "nsBoxFrame.h"
+// 6a529924-c73d-4fae-af7a-0e8084e701d5
+#define NS_IBOX_LAYOUT_IID \
+{ 0x6a529924, 0xc73d, 0x4fae, \
+ { 0xaf, 0x7a, 0x0e, 0x80, 0x84, 0xe7, 0x01, 0xd5 } }
 
-/**
- * A frame representing a grid row (or column) group, which is usually
- * an element that is a child of a grid and contains all the rows (or
- * all the columns).  However, multiple levels of groups are allowed, so
- * the parent or child could instead be another group.
- */
-class nsGridRowGroupFrame : public nsBoxFrame
-{
+class nsIBoxLayout : public nsISupports {
+
 public:
-  NS_DECL_FRAMEARENA_HELPERS
 
-#ifdef NS_DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const
-  {
-      return MakeFrameName(NS_LITERAL_STRING("nsGridRowGroup"), aResult);
-  }
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_IBOX_LAYOUT_IID)
+
+  NS_IMETHOD Layout(nsIBox* aBox, nsBoxLayoutState& aState)=0;
+
+  virtual nsSize GetPrefSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState)=0;
+  virtual nsSize GetMinSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState)=0;
+  virtual nsSize GetMaxSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState)=0;
+  virtual nscoord GetAscent(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState)=0;
+
+  // FIXME: Bug 507416.  The Children* notifications don't actually
+  // use all those arguments.  Can we just simplify the signatures?
+  virtual void ChildrenInserted(nsIBox* aBox, nsBoxLayoutState& aState,
+                                nsIBox* aPrevBox,
+                                const nsFrameList::Slice& aNewChildren)=0;
+  virtual void ChildrenAppended(nsIBox* aBox, nsBoxLayoutState& aState,
+                                const nsFrameList::Slice& aNewChildren)=0;
+  virtual void ChildrenRemoved(nsIBox* aBox, nsBoxLayoutState& aState, nsIBox* aChildList)=0;
+  virtual void ChildrenSet(nsIBox* aBox, nsBoxLayoutState& aState, nsIBox* aChildList)=0;
+  virtual void IntrinsicWidthsDirty(nsIBox* aBox, nsBoxLayoutState& aState)=0;
+
+  // Returns this if it is an nsIGridPart, not refcounted
+  virtual nsIGridPart* AsGridPart() = 0;
+};
+
+NS_DEFINE_STATIC_IID_ACCESSOR(nsIBoxLayout, NS_IBOX_LAYOUT_IID)
+
 #endif
-
-  nsGridRowGroupFrame(nsIPresShell* aPresShell,
-                      nsStyleContext* aContext,
-                      nsIBoxLayout* aLayoutManager):
-    nsBoxFrame(aPresShell, aContext, PR_FALSE, aLayoutManager) {}
-
-  virtual nscoord GetFlex(nsBoxLayoutState& aBoxLayoutState);
-
-}; // class nsGridRowGroupFrame
-
-
-
-#endif
-

@@ -74,6 +74,7 @@
 #include "nsContentUtils.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsEventStateManager.h"
+#include "nsIBoxLayout.h"
 #include "nsIPopupBoxObject.h"
 #include "nsPIWindowRoot.h"
 #include "nsIReflowCallback.h"

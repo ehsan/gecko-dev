@@ -67,7 +67,7 @@
 #include "nsIDocument.h"
 #include "nsEventListenerManager.h"
 #include "nsIFrame.h"
-#include "nsMenuFrame.h"
+#include "nsIMenuFrame.h"
 #include "nsIHTMLDocument.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsISelectionPrivate.h"
@@ -688,13 +688,16 @@ nsRootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
         return; // Tree with nothing selected
       }
 #endif
+      nsIFrame* menuFrame = accessible->GetFrame();
+      if (!menuFrame)
+        return;
 
-      nsMenuFrame* menuFrame = do_QueryFrame(accessible->GetFrame());
-      if (menuFrame)
+      nsIMenuFrame* imenuFrame = do_QueryFrame(menuFrame);
+      if (imenuFrame)
         fireFocus = PR_TRUE;
-      // QI failed for nsMenuFrame means it's not on menu bar
-      if (menuFrame && menuFrame->IsOnMenuBar() &&
-                       !menuFrame->IsOnActiveMenuBar()) {
+      // QI failed for nsIMenuFrame means it's not on menu bar
+      if (imenuFrame && imenuFrame->IsOnMenuBar() &&
+                       !imenuFrame->IsOnActiveMenuBar()) {
         // It is a top level menuitem. Only fire a focus event when the menu bar
         // is active.
         return;

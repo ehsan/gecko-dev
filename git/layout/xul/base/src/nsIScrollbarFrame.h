@@ -20,6 +20,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
+ *   Original Author: David W. Hyatt (hyatt@netscape.com)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -35,47 +36,24 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/**
+#ifndef nsIScrollbarFrame_h___
+#define nsIScrollbarFrame_h___
 
-  Eric D Vaughan
-  A frame that can have multiple children. Only one child may be displayed at one time. So the
-  can be flipped though like a deck of cards.
- 
-**/
+#include "nsQueryFrame.h"
 
-#ifndef nsGridRowGroupFrame_h___
-#define nsGridRowGroupFrame_h___
+class nsIScrollbarMediator;
 
-#include "nsBoxFrame.h"
-
-/**
- * A frame representing a grid row (or column) group, which is usually
- * an element that is a child of a grid and contains all the rows (or
- * all the columns).  However, multiple levels of groups are allowed, so
- * the parent or child could instead be another group.
- */
-class nsGridRowGroupFrame : public nsBoxFrame
+class nsIScrollbarFrame : public nsQueryFrame
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
+  NS_DECL_QUERYFRAME_TARGET(nsIScrollbarFrame)
+  
+  // Sets the scrollbar mediator content. We will try to get its primary frame
+  // and then QI that to nsIScrollbarMediator as necessary.
+  virtual void SetScrollbarMediatorContent(nsIContent* aMediator) = 0;
 
-#ifdef NS_DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const
-  {
-      return MakeFrameName(NS_LITERAL_STRING("nsGridRowGroup"), aResult);
-  }
-#endif
-
-  nsGridRowGroupFrame(nsIPresShell* aPresShell,
-                      nsStyleContext* aContext,
-                      nsIBoxLayout* aLayoutManager):
-    nsBoxFrame(aPresShell, aContext, PR_FALSE, aLayoutManager) {}
-
-  virtual nscoord GetFlex(nsBoxLayoutState& aBoxLayoutState);
-
-}; // class nsGridRowGroupFrame
-
-
+  // Do NOT hold on to this.
+  virtual nsIScrollbarMediator* GetScrollbarMediator() = 0;
+};
 
 #endif
-
