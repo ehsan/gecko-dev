@@ -323,7 +323,8 @@ VerifyEncodedOCSPResponse(TrustDomain& trustDomain, const struct CertID& certID,
       return Result::ERROR_OCSP_UNKNOWN_CERT;
   }
 
-  return NotReached("unknown CertStatus", Result::ERROR_OCSP_UNKNOWN_CERT);
+  PR_NOT_REACHED("unknown CertStatus");
+  return Result::ERROR_OCSP_UNKNOWN_CERT;
 }
 
 // OCSPResponse ::= SEQUENCE {
@@ -887,7 +888,7 @@ CreateEncodedOCSPRequest(TrustDomain& trustDomain, const struct CertID& certID,
     + 2                             //     requestList
     + 2                             //       Request
     + 2                             //         reqCert (CertID)
-    + sizeof(hashAlgorithm)         //           hashAlgorithm
+    + PR_ARRAY_SIZE(hashAlgorithm)  //           hashAlgorithm
     + 2 + hashLen                   //           issuerNameHash
     + 2 + hashLen                   //           issuerKeyHash
     + 2;                            //           serialNumber (header)
@@ -917,7 +918,7 @@ CreateEncodedOCSPRequest(TrustDomain& trustDomain, const struct CertID& certID,
   *d++ = 0x30; *d++ = totalLen - 10u; //         reqCert (CertID SEQUENCE)
 
   // reqCert.hashAlgorithm
-  for (size_t i = 0; i < sizeof(hashAlgorithm); ++i) {
+  for (size_t i = 0; i < PR_ARRAY_SIZE(hashAlgorithm); ++i) {
     *d++ = hashAlgorithm[i];
   }
 
@@ -951,7 +952,7 @@ CreateEncodedOCSPRequest(TrustDomain& trustDomain, const struct CertID& certID,
     ++d;
   } while (!serialNumber.AtEnd());
 
-  assert(d == out + totalLen);
+  PR_ASSERT(d == out + totalLen);
 
   return Success;
 }

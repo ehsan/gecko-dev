@@ -415,7 +415,9 @@ OutputParser.prototype = {
     */
   _appendURL: function(match, url, options={}) {
     if (options.urlClass) {
-      this._appendTextNode("url(\"");
+      // We use single quotes as this works inside html attributes (e.g. the
+      // markup view).
+      this._appendTextNode("url('");
 
       let href = url;
       if (options.baseURI) {
@@ -428,9 +430,9 @@ OutputParser.prototype = {
         href: href
       }, url);
 
-      this._appendTextNode("\")");
+      this._appendTextNode("')");
     } else {
-      this._appendTextNode("url(\"" + url + "\")");
+      this._appendTextNode("url('" + url + "')");
     }
   },
 

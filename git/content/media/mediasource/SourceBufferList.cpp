@@ -158,7 +158,9 @@ SourceBufferList::GetHighestBufferedEndTime()
   MOZ_ASSERT(NS_IsMainThread());
   double highestEnd = 0;
   for (uint32_t i = 0; i < mSourceBuffers.Length(); ++i) {
-    highestEnd = std::max(highestEnd, mSourceBuffers[i]->GetBufferedEnd());
+    double start, end;
+    mSourceBuffers[i]->GetBufferedStartEndTime(&start, &end);
+    highestEnd = std::max(highestEnd, end);
   }
   return highestEnd;
 }

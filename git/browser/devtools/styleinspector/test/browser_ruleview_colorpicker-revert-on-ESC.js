@@ -41,7 +41,7 @@ function* testPressingEscapeRevertsChanges(swatch, ruleView) {
   is(swatch.style.backgroundColor, "rgb(0, 0, 0)",
     "The color swatch's background was updated");
   is(getRuleViewProperty(ruleView, "body", "background-color").valueSpan.textContent,
-    "#000", "The text of the background-color css property was updated");
+    "rgba(0, 0, 0, 1)", "The text of the background-color css property was updated");
 
   let spectrum = yield cPicker.spectrum;
 

@@ -749,9 +749,7 @@ PivotContext.prototype = {
       if (this._includeInvisible) {
         include = true;
       } else {
-        // Need to account for aria-hidden, so can't just check for INVISIBLE
-        // state.
-        include = Utils.getAttributes(child).hidden !== 'true';
+        include = !(Utils.getState(child).contains(States.INVISIBLE));
       }
       if (include) {
         if (aPreorder) {

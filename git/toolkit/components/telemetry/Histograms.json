@@ -359,7 +359,6 @@
     "description": "XUL cache was disabled"
   },
   "MEMORY_RESIDENT": {
-    "alert_emails": ["memshrink-telemetry-alerts@mozilla.com"],
     "expires_in_version": "never",
     "kind": "exponential",
     "low": "32 * 1024",
@@ -369,7 +368,6 @@
     "description": "Resident memory size (KB)"
   },
   "MEMORY_VSIZE": {
-    "alert_emails": ["memshrink-telemetry-alerts@mozilla.com"],
     "expires_in_version": "never",
     "kind": "exponential",
     "low": "32 * 1024",
@@ -379,7 +377,6 @@
     "description": "Virtual memory size (KB)"
   },
   "MEMORY_VSIZE_MAX_CONTIGUOUS": {
-    "alert_emails": ["memshrink-telemetry-alerts@mozilla.com"],
     "expires_in_version": "never",
     "kind": "exponential",
     "low": "32 * 1024",
@@ -389,7 +386,6 @@
     "description": "Maximum-sized block of contiguous virtual memory (KB)"
   },
   "MEMORY_JS_COMPARTMENTS_SYSTEM": {
-    "alert_emails": ["memshrink-telemetry-alerts@mozilla.com"],
     "expires_in_version": "never",
     "kind": "exponential",
     "high": "1000",
@@ -398,7 +394,6 @@
     "description": "Total JavaScript compartments used for add-ons and internals."
   },
   "MEMORY_JS_COMPARTMENTS_USER": {
-    "alert_emails": ["memshrink-telemetry-alerts@mozilla.com"],
     "expires_in_version": "never",
     "kind": "exponential",
     "high": "1000",
@@ -407,7 +402,6 @@
     "description": "Total JavaScript compartments used for web pages"
   },
   "MEMORY_JS_MAIN_RUNTIME_TEMPORARY_PEAK": {
-    "alert_emails": ["memshrink-telemetry-alerts@mozilla.com"],
     "expires_in_version": "never",
     "kind": "exponential",
     "low": 1024,
@@ -417,7 +411,6 @@
     "description": "Peak memory used by the main JSRuntime to store transient data (KB)"
   },
   "MEMORY_JS_GC_HEAP": {
-    "alert_emails": ["memshrink-telemetry-alerts@mozilla.com"],
     "expires_in_version": "never",
     "kind": "exponential",
     "low": 1024,
@@ -427,7 +420,6 @@
     "description": "Memory used by the garbage-collected JavaScript heap (KB)"
   },
   "MEMORY_STORAGE_SQLITE": {
-    "alert_emails": ["memshrink-telemetry-alerts@mozilla.com"],
     "expires_in_version": "never",
     "kind": "exponential",
     "low": 1024,
@@ -437,7 +429,6 @@
     "description": "Memory used by SQLite (KB)"
   },
   "MEMORY_IMAGES_CONTENT_USED_UNCOMPRESSED": {
-    "alert_emails": ["memshrink-telemetry-alerts@mozilla.com"],
     "expires_in_version": "never",
     "kind": "exponential",
     "low": 1024,
@@ -447,7 +438,6 @@
     "description": "Memory used for uncompressed, in-use content images (KB)"
   },
   "MEMORY_HEAP_ALLOCATED": {
-    "alert_emails": ["memshrink-telemetry-alerts@mozilla.com"],
     "expires_in_version": "never",
     "kind": "exponential",
     "low": 1024,
@@ -457,7 +447,6 @@
     "description": "Heap memory allocated (KB)"
   },
   "MEMORY_HEAP_COMMITTED_UNUSED": {
-    "alert_emails": ["memshrink-telemetry-alerts@mozilla.com"],
     "expires_in_version": "never",
     "kind": "exponential",
     "low": 1024,
@@ -467,7 +456,6 @@
     "description": "Committed, unused heap memory (KB)"
   },
   "MEMORY_HEAP_COMMITTED_UNUSED_RATIO": {
-    "alert_emails": ["memshrink-telemetry-alerts@mozilla.com"],
     "expires_in_version": "never",
     "kind": "linear",
     "high": "100",
@@ -475,7 +463,6 @@
     "description": "Ratio of committed, unused memory to allocated memory in the heap (percentage)."
   },
   "GHOST_WINDOWS": {
-    "alert_emails": ["memshrink-telemetry-alerts@mozilla.com"],
     "expires_in_version": "never",
     "kind": "exponential",
     "high": "128",
@@ -484,7 +471,6 @@
     "description": "Number of ghost windows"
   },
   "MEMORY_FREE_PURGED_PAGES_MS": {
-    "alert_emails": ["memshrink-telemetry-alerts@mozilla.com"],
     "expires_in_version": "never",
     "kind": "exponential",
     "high": "1024",
@@ -494,7 +480,6 @@
     "cpp_guard": "XP_MACOSX"
   },
   "LOW_MEMORY_EVENTS_VIRTUAL": {
-    "alert_emails": ["memshrink-telemetry-alerts@mozilla.com"],
     "expires_in_version": "never",
     "kind": "exponential",
     "high": "1024",
@@ -504,7 +489,6 @@
     "cpp_guard": "XP_WIN"
   },
   "LOW_MEMORY_EVENTS_PHYSICAL": {
-    "alert_emails": ["memshrink-telemetry-alerts@mozilla.com"],
     "expires_in_version": "never",
     "kind": "exponential",
     "high": "1024",
@@ -514,7 +498,6 @@
     "cpp_guard": "XP_WIN"
   },
   "LOW_MEMORY_EVENTS_COMMIT_SPACE": {
-    "alert_emails": ["memshrink-telemetry-alerts@mozilla.com"],
     "expires_in_version": "never",
     "kind": "exponential",
     "high": "1024",
@@ -4628,7 +4611,6 @@
     "description": "Time (ms) it takes to figure out extension last modified time"
   },
   "TELEMETRY_MEMORY_REPORTER_MS": {
-    "alert_emails": ["memshrink-telemetry-alerts@mozilla.com"],
     "expires_in_version": "never",
     "kind": "exponential",
     "high": "5000",

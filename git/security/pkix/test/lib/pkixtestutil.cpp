@@ -59,10 +59,10 @@ deleteCharArray(char* chars)
 FILE*
 OpenFile(const char* dir, const char* filename, const char* mode)
 {
-  assert(dir);
-  assert(*dir);
-  assert(filename);
-  assert(*filename);
+  PR_ASSERT(dir);
+  PR_ASSERT(*dir);
+  PR_ASSERT(filename);
+  PR_ASSERT(*filename);
 
   ScopedPtr<char, deleteCharArray>
     path(new (nothrow) char[strlen(dir) + 1 + strlen(filename) + 1]);
@@ -171,8 +171,8 @@ public:
   // lifetime that extends at least to where Squash is called.
   Result Add(const SECItem* item)
   {
-    assert(item);
-    assert(item->data);
+    PR_ASSERT(item);
+    PR_ASSERT(item->data);
 
     if (numItems >= MaxSequenceItems) {
       return Result::FATAL_ERROR_INVALID_ARGS;
@@ -189,7 +189,7 @@ public:
 
   SECItem* Squash(PLArenaPool* arena, uint8_t tag)
   {
-    assert(arena);
+    PR_ASSERT(arena);
 
     size_t lengthLength = length < 128 ? 1
                         : length < 256 ? 2
@@ -367,7 +367,7 @@ BitString(PLArenaPool* arena, const SECItem* rawBytes, bool corrupt)
   prefixed->data[0] = 0;
   memcpy(prefixed->data + 1, rawBytes->data, rawBytes->len);
   if (corrupt) {
-    assert(prefixed->len > 8);
+    PR_ASSERT(prefixed->len > 8);
     prefixed->data[8]++;
   }
   return EncodeNested(arena, der::BIT_STRING, prefixed);
@@ -376,7 +376,7 @@ BitString(PLArenaPool* arena, const SECItem* rawBytes, bool corrupt)
 static SECItem*
 Boolean(PLArenaPool* arena, bool value)
 {
-  assert(arena);
+  PR_ASSERT(arena);
   SECItem* result(SECITEM_AllocItem(arena, nullptr, 3));
   if (!result) {
     return nullptr;
@@ -424,7 +424,7 @@ enum TimeEncoding { UTCTime = 0, GeneralizedTime = 1 };
 static SECItem*
 PRTimeToEncodedTime(PLArenaPool* arena, PRTime time, TimeEncoding encoding)
 {
-  assert(encoding == UTCTime || encoding == GeneralizedTime);
+  PR_ASSERT(encoding == UTCTime || encoding == GeneralizedTime);
 
   PRExplodedTime exploded;
   PR_ExplodeTime(time, PR_GMTParameters, &exploded);
@@ -518,9 +518,9 @@ SignedData(PLArenaPool* arena, const SECItem* tbsData,
            SECKEYPrivateKey* privKey, SECOidTag hashAlg,
            bool corrupt, /*optional*/ SECItem const* const* certs)
 {
-  assert(arena);
-  assert(tbsData);
-  assert(privKey);
+  PR_ASSERT(arena);
+  PR_ASSERT(tbsData);
+  PR_ASSERT(privKey);
   if (!arena || !tbsData || !privKey) {
     PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
     return nullptr;
@@ -601,7 +601,7 @@ static SECItem*
 Extension(PLArenaPool* arena, SECOidTag extnIDTag,
           ExtensionCriticality criticality, Output& value)
 {
-  assert(arena);
+  PR_ASSERT(arena);
   if (!arena) {
     PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
     return nullptr;
@@ -642,7 +642,7 @@ Extension(PLArenaPool* arena, SECOidTag extnIDTag,
 SECItem*
 MaybeLogOutput(SECItem* result, const char* suffix)
 {
-  assert(suffix);
+  PR_ASSERT(suffix);
 
   if (!result) {
     return nullptr;
@@ -693,11 +693,11 @@ GenerateKeyPair(/*out*/ ScopedSECKEYPublicKey& publicKey,
                                       nullptr);
     if (privateKey) {
       publicKey = publicKeyTemp;
-      assert(publicKey);
+      PR_ASSERT(publicKey);
       return SECSuccess;
     }
 
-    assert(!publicKeyTemp);
+    PR_ASSERT(!publicKeyTemp);
 
     if (PR_GetError() != SEC_ERROR_PKCS11_FUNCTION_FAILED) {
       return SECFailure;
@@ -736,9 +736,9 @@ CreateEncodedCertificate(PLArenaPool* arena, long version,
                          SECOidTag signatureHashAlg,
                          /*out*/ ScopedSECKEYPrivateKey& privateKeyResult)
 {
-  assert(arena);
-  assert(issuerNameDER);
-  assert(subjectNameDER);
+  PR_ASSERT(arena);
+  PR_ASSERT(issuerNameDER);
+  PR_ASSERT(subjectNameDER);
   if (!arena || !issuerNameDER || !subjectNameDER) {
     PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
     return nullptr;
@@ -796,10 +796,10 @@ TBSCertificate(PLArenaPool* arena, long versionValue,
                const SECKEYPublicKey* subjectPublicKey,
                /*optional*/ SECItem const* const* extensions)
 {
-  assert(arena);
-  assert(issuer);
-  assert(subject);
-  assert(subjectPublicKey);
+  PR_ASSERT(arena);
+  PR_ASSERT(issuer);
+  PR_ASSERT(subject);
+  PR_ASSERT(subjectPublicKey);
   if (!arena || !issuer || !subject || !subjectPublicKey) {
     PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
     return nullptr;
@@ -935,7 +935,7 @@ CreateEncodedBasicConstraints(PLArenaPool* arena, bool isCA,
                               /*optional*/ long* pathLenConstraintValue,
                               ExtensionCriticality criticality)
 {
-  assert(arena);
+  PR_ASSERT(arena);
   if (!arena) {
     PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
     return nullptr;
@@ -968,8 +968,8 @@ SECItem*
 CreateEncodedEKUExtension(PLArenaPool* arena, SECOidTag const* ekus,
                           size_t ekusCount, ExtensionCriticality criticality)
 {
-  assert(arena);
-  assert(ekus);
+  PR_ASSERT(arena);
+  PR_ASSERT(ekus);
   if (!arena || (!ekus && ekusCount != 0)) {
     PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
     return nullptr;

@@ -47,6 +47,8 @@
 
 using namespace mozilla;
 
+#define IS_SECURE(state) ((state & 0xFFFF) == STATE_IS_SECURE)
+
 #if defined(PR_LOGGING)
 //
 // Log module for nsSecureBrowserUI logging...
@@ -339,8 +341,7 @@ static nsresult IsChildOfDomWindow(nsIDOMWindow *parent, nsIDOMWindow *child,
   return NS_OK;
 }
 
-static uint32_t GetSecurityStateFromSecurityInfoAndRequest(nsISupports* info,
-                                                           nsIRequest* request)
+static uint32_t GetSecurityStateFromSecurityInfo(nsISupports *info)
 {
   nsresult res;
   uint32_t securityState;
@@ -360,32 +361,7 @@ static uint32_t GetSecurityStateFromSecurityInfoAndRequest(nsISupports* info,
                                          res));
     securityState = nsIWebProgressListener::STATE_IS_BROKEN;
   }
-
-  if (securityState != nsIWebProgressListener::STATE_IS_INSECURE) {
-    // A secure connection does not yield a secure per-uri channel if the
-    // scheme is plain http.
-
-    nsCOMPtr<nsIURI> uri;
-    nsCOMPtr<nsIChannel> channel(do_QueryInterface(request));
-    if (channel) {
-      channel->GetURI(getter_AddRefs(uri));
-    } else {
-      nsCOMPtr<imgIRequest> imgRequest(do_QueryInterface(request));
-      if (imgRequest) {
-        imgRequest->GetURI(getter_AddRefs(uri));
-      }
-    }
-    if (uri) {
-      bool isHttp, isFtp;
-      if ((NS_SUCCEEDED(uri->SchemeIs("http", &isHttp)) && isHttp) ||
-          (NS_SUCCEEDED(uri->SchemeIs("ftp", &isFtp)) && isFtp)) {
-        PR_LOG(gSecureDocLog, PR_LOG_DEBUG, ("SecureUI: GetSecurityState: - "
-                                             "channel scheme is insecure.\n"));
-        securityState = nsIWebProgressListener::STATE_IS_INSECURE;
-      }
-    }
-  }
-
+  
   PR_LOG(gSecureDocLog, PR_LOG_DEBUG, ("SecureUI: GetSecurityState: - Returning %d\n", 
                                        securityState));
   return securityState;
@@ -500,8 +476,7 @@ nsSecureBrowserUIImpl::EvaluateAndUpdateSecurityState(nsIRequest* aRequest,
   bool updateStatus = false;
   nsCOMPtr<nsISSLStatus> temp_SSLStatus;
 
-    temp_NewToplevelSecurityState =
-      GetSecurityStateFromSecurityInfoAndRequest(info, aRequest);
+    temp_NewToplevelSecurityState = GetSecurityStateFromSecurityInfo(info);
 
     PR_LOG(gSecureDocLog, PR_LOG_DEBUG,
            ("SecureUI:%p: OnStateChange: remember mNewToplevelSecurityState => %x\n", this,
@@ -552,13 +527,11 @@ nsSecureBrowserUIImpl::EvaluateAndUpdateSecurityState(nsIRequest* aRequest,
 }
 
 void
-nsSecureBrowserUIImpl::UpdateSubrequestMembers(nsISupports* securityInfo,
-                                               nsIRequest* request)
+nsSecureBrowserUIImpl::UpdateSubrequestMembers(nsISupports *securityInfo)
 {
   // For wyciwyg channels in subdocuments we only update our
   // subrequest state members.
-  uint32_t reqState = GetSecurityStateFromSecurityInfoAndRequest(securityInfo,
-                                                                 request);
+  uint32_t reqState = GetSecurityStateFromSecurityInfo(securityInfo);
 
   // the code above this line should run without a lock
   ReentrantMonitorAutoEnter lock(mReentrantMonitor);
@@ -954,7 +927,7 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
   {
     PR_LOG(gSecureDocLog, PR_LOG_DEBUG,
            ("SecureUI:%p: OnStateChange: seeing STOP with security state: %d\n", this,
-            GetSecurityStateFromSecurityInfoAndRequest(securityInfo, aRequest)
+            GetSecurityStateFromSecurityInfo(securityInfo)
             ));
   }
 #endif
@@ -1254,7 +1227,7 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
 
     if (allowSecurityStateChange && requestHasTransferedData)
     {  
-      UpdateSubrequestMembers(securityInfo, aRequest);
+      UpdateSubrequestMembers(securityInfo);
       
       // Care for the following scenario:
       // A new top level document load might have already started,
@@ -1487,7 +1460,7 @@ nsSecureBrowserUIImpl::OnLocationChange(nsIWebProgress* aWebProgress,
   }
 
   // For channels in subdocuments we only update our subrequest state members.
-  UpdateSubrequestMembers(securityInfo, aRequest);
+  UpdateSubrequestMembers(securityInfo);
 
   // Care for the following scenario:
 

@@ -235,9 +235,6 @@ enum LanguageSpecificCasingBehavior {
 static LanguageSpecificCasingBehavior
 GetCasingFor(const nsIAtom* aLang)
 {
-  if (!aLang) {
-      return eLSCB_None;
-  }
   if (aLang == nsGkAtoms::tr ||
       aLang == nsGkAtoms::az ||
       aLang == nsGkAtoms::ba ||
@@ -251,19 +248,9 @@ GetCasingFor(const nsIAtom* aLang)
   if (aLang == nsGkAtoms::el) {
     return eLSCB_Greek;
   }
-  if (aLang == nsGkAtoms::ga) {
+  if (aLang == nsGkAtoms::ga_ie) {
     return eLSCB_Irish;
   }
-
-  // Is there a region subtag we should ignore?
-  nsAtomString langStr(const_cast<nsIAtom*>(aLang));
-  int index = langStr.FindChar('-');
-  if (index > 0) {
-    langStr.Truncate(index);
-    nsCOMPtr<nsIAtom> truncatedLang = do_GetAtom(langStr);
-    return GetCasingFor(truncatedLang);
-  }
-
   return eLSCB_None;
 }
 
