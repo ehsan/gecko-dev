@@ -80,7 +80,7 @@ function test()
     }
 
     var key = {};
-    var map = new WeakMap();
+    var map = WeakMap();
 
     check(function() !map.has(key));
     map.set(key, 42);

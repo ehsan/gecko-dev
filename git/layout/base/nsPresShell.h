@@ -405,13 +405,10 @@ protected:
   nsresult DidCauseReflow();
   friend class nsAutoCauseReflowNotifier;
 
-  nsresult DispatchEventToDOM(mozilla::WidgetEvent* aEvent,
-                              nsEventStatus* aStatus,
-                              nsPresShellEventCB* aEventCB);
-  void DispatchTouchEventToDOM(mozilla::WidgetEvent* aEvent,
-                               nsEventStatus* aStatus,
-                               nsPresShellEventCB* aEventCB,
-                               bool aTouchIsNew);
+  void DispatchTouchEvent(mozilla::WidgetEvent* aEvent,
+                          nsEventStatus* aStatus,
+                          nsPresShellEventCB* aEventCB,
+                          bool aTouchIsNew);
 
   void     WillDoReflow();
 
@@ -735,7 +732,7 @@ protected:
 
   nsRevocableEventPtr<nsRunnableMethod<PresShell> > mUpdateImageVisibilityEvent;
 
-  void ClearVisibleImagesList(uint32_t aNonvisibleAction);
+  void ClearVisibleImagesList();
   static void ClearImageVisibilityVisited(nsView* aView, bool aClear);
   static void MarkImagesInListVisible(const nsDisplayList& aList);
   void MarkImagesInSubtreeVisible(nsIFrame* aFrame, const nsRect& aRect);

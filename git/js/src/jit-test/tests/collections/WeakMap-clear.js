@@ -1,5 +1,5 @@
 var key = {};
-var wm = new WeakMap();
+var wm = WeakMap();
 
 assertEq(wm.has(key), false);
 // Clearing an already empty WeakMap

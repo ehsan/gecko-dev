@@ -248,11 +248,13 @@ MediaSource::RemoveSourceBuffer(SourceBuffer& aSourceBuffer, ErrorResult& aRv)
     aRv.Throw(NS_ERROR_DOM_NOT_FOUND_ERR);
     return;
   }
-
-  sourceBuffer->AbortBufferAppend();
-  // TODO:
-  // abort stream append loop (if running)
-
+  if (sourceBuffer->Updating()) {
+    // TODO:
+    // abort stream append loop (if running)
+    // set updating to false
+    // fire "abort" at sourceBuffer
+    // fire "updateend" at sourceBuffer
+  }
   // TODO:
   // For all sourceBuffer audioTracks, videoTracks, textTracks:
   //     set sourceBuffer to null

@@ -220,7 +220,7 @@ function isShumwayEnabledFor(actions) {
 function getVersionInfo() {
   var deferred = Promise.defer();
   var versionInfo = {
-    geckoVersion: 'unknown',
+    version: 'unknown',
     geckoBuildID: 'unknown',
     shumwayVersion: 'unknown'
   };
@@ -230,30 +230,18 @@ function getVersionInfo() {
     versionInfo.geckoVersion = appInfo.version;
     versionInfo.geckoBuildID = appInfo.appBuildID;
   } catch (e) {
-    log('Error encountered while getting platform version info: ' + e);
+    log('Error encountered while getting platform version info:', e);
   }
-  var xhr = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"]
-    .createInstance(Ci.nsIXMLHttpRequest);
-  xhr.open('GET', 'resource://shumway/version.txt', true);
-  xhr.overrideMimeType('text/plain');
-  xhr.onload = function () {
-    try {
-      // Trying to merge version.txt lines into something like:
-      //   "version (sha) details"
-      var lines = xhr.responseText.split(/\n/g);
-      lines[1] = '(' + lines[1] + ')';
-      versionInfo.shumwayVersion = lines.join(' ');
-    } catch (e) {
-      log('Error while parsing version info: ' + e);
-    }
+  try {
+    var addonId = "shumway@research.mozilla.org";
+    AddonManager.getAddonByID(addonId, function(addon) {
+      versionInfo.shumwayVersion = addon ? addon.version : 'n/a';
+      deferred.resolve(versionInfo);
+    });
+  } catch (e) {
+    log('Error encountered while getting Shumway version info:', e);
     deferred.resolve(versionInfo);
-  };
-  xhr.onerror = function () {
-    log('Error while reading version info: ' + xhr.error);
-    deferred.resolve(versionInfo);
-  };
-  xhr.send();
-
+  }
   return deferred.promise;
 }
 
@@ -766,7 +754,6 @@ function activateShumwayScripts(window, requestListener) {
 }
 
 function initExternalCom(wrappedWindow, wrappedObject, targetWindow) {
-  var traceExternalInterface = getBoolPref('shumway.externalInterface.trace', false);
   if (!wrappedWindow.__flash__initialized) {
     wrappedWindow.__flash__initialized = true;
     wrappedWindow.__flash__toXML = function __flash__toXML(obj) {
@@ -799,32 +786,29 @@ function initExternalCom(wrappedWindow, wrappedObject, targetWindow) {
       }
     };
     wrappedWindow.__flash__eval = function (expr) {
-      traceExternalInterface && this.console.log('__flash__eval: ' + expr);
+      this.console.log('__flash__eval: ' + expr);
       // allowScriptAccess protects page from unwanted swf scripts,
       // we can execute script in the page context without restrictions.
-      var result = this.eval(expr);
-      traceExternalInterface && this.console.log('__flash__eval (result): ' + result);
-      return result;
+      return this.eval(expr);
     }.bind(wrappedWindow);
     wrappedWindow.__flash__call = function (expr) {
-      traceExternalInterface && this.console.log('__flash__call (ignored): ' + expr);
+      this.console.log('__flash__call (ignored): ' + expr);
     };
   }
   wrappedObject.__flash__registerCallback = function (functionName) {
-    traceExternalInterface && wrappedWindow.console.log('__flash__registerCallback: ' + functionName);
+    wrappedWindow.console.log('__flash__registerCallback: ' + functionName);
     Components.utils.exportFunction(function () {
       var args = Array.prototype.slice.call(arguments, 0);
-      traceExternalInterface && wrappedWindow.console.log('__flash__callIn: ' + functionName);
+      wrappedWindow.console.log('__flash__callIn: ' + functionName);
       var result;
       if (targetWindow.wrappedJSObject.onExternalCallback) {
         result = targetWindow.wrappedJSObject.onExternalCallback({functionName: functionName, args: args});
-        traceExternalInterface && wrappedWindow.console.log('__flash__callIn (result): ' + result);
       }
       return wrappedWindow.eval(result);
     }, this, { defineAs: functionName });
   };
   wrappedObject.__flash__unregisterCallback = function (functionName) {
-    traceExternalInterface && wrappedWindow.console.log('__flash__unregisterCallback: ' + functionName);
+    wrappedWindow.console.log('__flash__unregisterCallback: ' + functionName);
     delete this[functionName];
   };
 }
@@ -925,11 +909,7 @@ ShumwayStreamConverterBase.prototype = {
       throw new Error('Movie url is not specified');
     }
 
-    if (objectParams.base) {
-        baseUrl = Services.io.newURI(objectParams.base, null, pageUrl).spec;
-    } else {
-        baseUrl = pageUrl;
-    }
+    baseUrl = objectParams.base || pageUrl;
 
     var movieParams = {};
     if (objectParams.flashvars) {

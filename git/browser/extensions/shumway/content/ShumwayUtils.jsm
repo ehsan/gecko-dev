@@ -17,7 +17,6 @@ var EXPORTED_SYMBOLS = ["ShumwayUtils"];
 
 const PREF_PREFIX = 'shumway.';
 const PREF_DISABLED = PREF_PREFIX + 'disabled';
-const PREF_WHITELIST = PREF_PREFIX + 'swf.whitelist';
 
 let Cc = Components.classes;
 let Ci = Components.interfaces;
@@ -44,7 +43,6 @@ let ShumwayUtils = {
   _registered: false,
 
   init: function init() {
-    this.migratePreferences();
     if (this.enabled)
       this._ensureRegistered();
     else
@@ -56,19 +54,6 @@ let ShumwayUtils = {
 
     // Listen for when shumway is completely disabled.
     Services.prefs.addObserver(PREF_DISABLED, this, false);
-  },
-
-  migratePreferences: function migratePreferences() {
-    // At one point we had shumway.disabled set to true by default,
-    // and we are trying to replace it with shumway.swf.whitelist:
-    // checking if the user already changed it before to reset
-    // the whitelist to '*'.
-    if (Services.prefs.prefHasUserValue(PREF_DISABLED) &&
-        !Services.prefs.prefHasUserValue(PREF_WHITELIST) &&
-        !getBoolPref(PREF_DISABLED, false)) {
-      // The user is already using Shumway -- enabling all web sites.
-      Services.prefs.setCharPref(PREF_WHITELIST, '*');
-    }
   },
 
   // nsIObserver

@@ -44,6 +44,7 @@
 
 #include "jscompartmentinlines.h"
 #include "jsgcinlines.h"
+#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
 using namespace js;
@@ -470,7 +471,7 @@ jit::LazyLinkTopActivation(JSContext *cx)
     IonBuilder *builder = it.script()->ionScript()->pendingBuilder();
     it.script()->setPendingIonBuilder(cx, nullptr);
 
-    AutoEnterAnalysis enterTypes(cx);
+    types::AutoEnterAnalysis enterTypes(cx);
     RootedScript script(cx, builder->script());
 
     // Remove from pending.
@@ -748,7 +749,7 @@ IonScript::IonScript()
 }
 
 IonScript *
-IonScript::New(JSContext *cx, RecompileInfo recompileInfo,
+IonScript::New(JSContext *cx, types::RecompileInfo recompileInfo,
                uint32_t frameSlots, uint32_t argumentSlots, uint32_t frameSize,
                size_t snapshotsListSize, size_t snapshotsRVATableSize,
                size_t recoversSize, size_t bailoutEntries,
@@ -1599,7 +1600,7 @@ AttachFinishedCompilations(JSContext *cx)
     if (!ion)
         return;
 
-    AutoEnterAnalysis enterTypes(cx);
+    types::AutoEnterAnalysis enterTypes(cx);
     AutoLockHelperThreadState lock;
 
     GlobalHelperThreadState::IonBuilderVector &finished = HelperThreadState().ionFinishedList();
@@ -1757,7 +1758,7 @@ TrackAllProperties(JSContext *cx, JSObject *obj)
     MOZ_ASSERT(obj->isSingleton());
 
     for (Shape::Range<NoGC> range(obj->lastProperty()); !range.empty(); range.popFront())
-        EnsureTrackPropertyTypes(cx, obj, range.front().propid());
+        types::EnsureTrackPropertyTypes(cx, obj, range.front().propid());
 }
 
 static void
@@ -1838,7 +1839,7 @@ IonCompile(JSContext *cx, JSScript *script,
 
     JitContext jctx(cx, temp);
 
-    AutoEnterAnalysis enter(cx);
+    types::AutoEnterAnalysis enter(cx);
 
     if (!cx->compartment()->ensureJitCompartmentExists(cx))
         return AbortReason_Alloc;
@@ -1871,7 +1872,7 @@ IonCompile(JSContext *cx, JSScript *script,
             return AbortReason_Alloc;
     }
 
-    CompilerConstraintList *constraints = NewCompilerConstraintList(*temp);
+    types::CompilerConstraintList *constraints = types::NewCompilerConstraintList(*temp);
     if (!constraints)
         return AbortReason_Alloc;
 
@@ -2644,8 +2645,8 @@ jit::InvalidateAll(FreeOp *fop, Zone *zone)
 
 
 void
-jit::Invalidate(TypeZone &types, FreeOp *fop,
-                const RecompileInfoVector &invalid, bool resetUses,
+jit::Invalidate(types::TypeZone &types, FreeOp *fop,
+                const types::RecompileInfoVector &invalid, bool resetUses,
                 bool cancelOffThread)
 {
     JitSpew(JitSpew_IonInvalidate, "Start invalidation.");
@@ -2654,7 +2655,7 @@ jit::Invalidate(TypeZone &types, FreeOp *fop,
     // to the traversal which frames have been invalidated.
     size_t numInvalidations = 0;
     for (size_t i = 0; i < invalid.length(); i++) {
-        const CompilerOutput *co = invalid[i].compilerOutput(types);
+        const types::CompilerOutput *co = invalid[i].compilerOutput(types);
         if (!co)
             continue;
         MOZ_ASSERT(co->isValid());
@@ -2687,7 +2688,7 @@ jit::Invalidate(TypeZone &types, FreeOp *fop,
     // IonScript will be immediately destroyed. Otherwise, it will be held live
     // until its last invalidated frame is destroyed.
     for (size_t i = 0; i < invalid.length(); i++) {
-        CompilerOutput *co = invalid[i].compilerOutput(types);
+        types::CompilerOutput *co = invalid[i].compilerOutput(types);
         if (!co)
             continue;
         MOZ_ASSERT(co->isValid());
@@ -2715,7 +2716,7 @@ jit::Invalidate(TypeZone &types, FreeOp *fop,
 }
 
 void
-jit::Invalidate(JSContext *cx, const RecompileInfoVector &invalid, bool resetUses,
+jit::Invalidate(JSContext *cx, const types::RecompileInfoVector &invalid, bool resetUses,
                 bool cancelOffThread)
 {
     jit::Invalidate(cx->zone()->types, cx->runtime()->defaultFreeOp(), invalid, resetUses,
@@ -2726,7 +2727,7 @@ bool
 jit::IonScript::invalidate(JSContext *cx, bool resetUses, const char *reason)
 {
     JitSpew(JitSpew_IonInvalidate, " Invalidate IonScript %p: %s", this, reason);
-    RecompileInfoVector list;
+    types::RecompileInfoVector list;
     if (!list.append(recompileInfo()))
         return false;
     Invalidate(cx, list, resetUses, true);
@@ -2759,7 +2760,7 @@ jit::Invalidate(JSContext *cx, JSScript *script, bool resetUses, bool cancelOffT
         js_free(buf);
     }
 
-    RecompileInfoVector scripts;
+    types::RecompileInfoVector scripts;
     MOZ_ASSERT(script->hasIonScript());
     if (!scripts.append(script->ionScript()->recompileInfo()))
         return false;
@@ -2771,11 +2772,11 @@ jit::Invalidate(JSContext *cx, JSScript *script, bool resetUses, bool cancelOffT
 static void
 FinishInvalidationOf(FreeOp *fop, JSScript *script, IonScript *ionScript)
 {
-    TypeZone &types = script->zone()->types;
+    types::TypeZone &types = script->zone()->types;
 
     // Note: If the script is about to be swept, the compiler output may have
     // already been destroyed.
-    if (CompilerOutput *output = ionScript->recompileInfo().compilerOutput(types))
+    if (types::CompilerOutput *output = ionScript->recompileInfo().compilerOutput(types))
         output->invalidate();
 
     // If this script has Ion code on the stack, invalidated() will return

@@ -301,6 +301,9 @@ class ExclusiveContext : public ContextFriendFields,
     }
 
     // Zone local methods that can be used freely from an ExclusiveContext.
+    types::ObjectGroup *getNewGroup(const Class *clasp, TaggedProto proto,
+                                    JSObject *associated = nullptr);
+    types::ObjectGroup *getLazySingletonGroup(const Class *clasp, TaggedProto proto);
     inline js::LifoAlloc &typeLifoAlloc();
 
     // Current global. This is only safe to use within the scope of the
@@ -465,6 +468,10 @@ struct JSContext : public js::ExclusiveContext,
 
     void minorGC(JS::gcreason::Reason reason) {
         runtime_->gc.minorGC(this, reason);
+    }
+
+    void gcIfNeeded() {
+        runtime_->gc.gcIfNeeded(this);
     }
 
   public:

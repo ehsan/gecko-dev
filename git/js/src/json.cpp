@@ -29,6 +29,7 @@
 
 using namespace js;
 using namespace js::gc;
+using namespace js::types;
 
 using mozilla::IsFinite;
 using mozilla::Maybe;
@@ -835,20 +836,20 @@ json_parse(JSContext *cx, unsigned argc, Value *vp)
     if (!str)
         return false;
 
-    JSLinearString *linear = str->ensureLinear(cx);
-    if (!linear)
+    JSFlatString *flat = str->ensureFlat(cx);
+    if (!flat)
         return false;
 
-    AutoStableStringChars linearChars(cx);
-    if (!linearChars.init(cx, linear))
+    AutoStableStringChars flatChars(cx);
+    if (!flatChars.init(cx, flat))
         return false;
 
-    HandleValue reviver = args.get(1);
+    RootedValue reviver(cx, args.get(1));
 
     /* Steps 2-5. */
-    return linearChars.isLatin1()
-           ? ParseJSONWithReviver(cx, linearChars.latin1Range(), reviver, args.rval())
-           : ParseJSONWithReviver(cx, linearChars.twoByteRange(), reviver, args.rval());
+    return flatChars.isLatin1()
+           ? ParseJSONWithReviver(cx, flatChars.latin1Range(), reviver, args.rval())
+           : ParseJSONWithReviver(cx, flatChars.twoByteRange(), reviver, args.rval());
 }
 
 /* ES5 15.12.3. */

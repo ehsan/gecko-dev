@@ -45,24 +45,26 @@ let gTests = [
   {
     setPref("identity.fxaccounts.remote.signup.uri",
             "https://example.com/browser/browser/base/content/test/general/accounts_testRemoteCommands.html");
-    let tab = yield promiseNewTabLoadEvent("about:accounts");
-    let mm = tab.linkedBrowser.messageManager;
+    yield promiseNewTabLoadEvent("about:accounts");
 
     let deferred = Promise.defer();
 
     let results = 0;
     try {
-      mm.addMessageListener("test:response", function responseHandler(msg) {
-        let data = msg.data.data;
-        if (data.type == "testResult") {
-          ok(data.pass, data.info);
+      let win = gBrowser.contentWindow;
+      win.addEventListener("message", function testLoad(e) {
+        if (e.data.type == "testResult") {
+          ok(e.data.pass, e.data.info);
           results++;
-        } else if (data.type == "testsComplete") {
-          is(results, data.count, "Checking number of results received matches the number of tests that should have run");
-          mm.removeMessageListener("test:response", responseHandler);
+        }
+        else if (e.data.type == "testsComplete") {
+          is(results, e.data.count, "Checking number of results received matches the number of tests that should have run");
+          win.removeEventListener("message", testLoad, false, true);
           deferred.resolve();
         }
-      });
+
+      }, false, true);
+
     } catch(e) {
       ok(false, "Failed to get all commands");
       deferred.reject();
@@ -215,10 +217,10 @@ let gTests = [
     yield OS.File.writeAtomic(fxAccountsStorage, JSON.stringify(signedInUser));
     info("Wrote file " + fxAccountsStorage);
 
-    // this is a little subtle - we load about:robots so we get a non-remote
-    // tab, then we send a message which does both (a) load the URL we want and
-    // (b) mocks the default profile path used by about:accounts.
-    let tab = yield promiseNewTabLoadEvent("about:robots");
+    // this is a little subtle - we load about:blank so we get a tab, then
+    // we send a message which does both (a) load the URL we want and (b) mocks
+    // the default profile path used by about:accounts.
+    let tab = yield promiseNewTabLoadEvent("about:blank?");
     let readyPromise = promiseOneMessage(tab, "test:load-with-mocked-profile-path-response");
 
     let mm = tab.linkedBrowser.messageManager;
@@ -259,7 +261,7 @@ let gTests = [
     mockDir.createUnique(Ci.nsIFile.DIRECTORY_TYPE, FileUtils.PERMS_DIRECTORY);
     // but leave it empty, so we don't think a user is logged in.
 
-    let tab = yield promiseNewTabLoadEvent("about:robots");
+    let tab = yield promiseNewTabLoadEvent("about:blank?");
     let readyPromise = promiseOneMessage(tab, "test:load-with-mocked-profile-path-response");
 
     let mm = tab.linkedBrowser.messageManager;

@@ -7,8 +7,6 @@
 #ifndef jit_LIR_Common_h
 #define jit_LIR_Common_h
 
-#include "jsutil.h"
-
 #include "jit/AtomicOp.h"
 #include "jit/shared/Assembler-shared.h"
 
@@ -1484,9 +1482,6 @@ class LJSCallInstructionHelper : public LCallInstructionHelper<Defs, Operands, T
 {
   public:
     uint32_t argslot() const {
-        static const uint32_t alignment = JitStackAlignment / sizeof(Value);
-        if (alignment > 1)
-            return AlignBytes(mir()->numStackArgs(), alignment);
         return mir()->numStackArgs();
     }
     MCall *mir() const {
@@ -5029,14 +5024,13 @@ class LClampIToUint8 : public LInstructionHelper<1, 1, 0>
     }
 };
 
-class LClampDToUint8 : public LInstructionHelper<1, 1, 1>
+class LClampDToUint8 : public LInstructionHelper<1, 1, 0>
 {
   public:
     LIR_HEADER(ClampDToUint8)
 
-    LClampDToUint8(const LAllocation &in, const LDefinition &temp) {
+    explicit LClampDToUint8(const LAllocation &in) {
         setOperand(0, in);
-        setTemp(0, temp);
     }
 };
 

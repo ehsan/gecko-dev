@@ -490,7 +490,7 @@ public class BrowserApp extends GeckoApp
                 break;
         }
 
-        if (HardwareUtils.isTablet() && msg == TabEvents.SELECTED) {
+        if (NewTabletUI.isEnabled(this) && msg == TabEvents.SELECTED) {
             updateEditingModeForTab(tab);
         }
 
@@ -716,7 +716,7 @@ public class BrowserApp extends GeckoApp
             GuestSession.handleIntent(this, intent);
         }
 
-        if (HardwareUtils.isTablet()) {
+        if (NewTabletUI.isEnabled(this)) {
             findViewById(R.id.new_tablet_tab_strip).setVisibility(View.VISIBLE);
         }
 
@@ -788,7 +788,7 @@ public class BrowserApp extends GeckoApp
         mSharedPreferencesHelper = new SharedPreferencesHelper(appContext);
         mOrderedBroadcastHelper = new OrderedBroadcastHelper(appContext);
         mBrowserHealthReporter = new BrowserHealthReporter();
-        mReadingListHelper = new ReadingListHelper(appContext, getProfile());
+        mReadingListHelper = new ReadingListHelper(appContext);
 
         if (AppConstants.MOZ_ANDROID_BEAM) {
             NfcAdapter nfc = NfcAdapter.getDefaultAdapter(this);
@@ -2312,7 +2312,7 @@ public class BrowserApp extends GeckoApp
      * temporarily selected tab is visible to users.
      */
     private void selectTargetTabForEditingMode() {
-        if (HardwareUtils.isTablet()) {
+        if (NewTabletUI.isEnabled(this)) {
             return;
         }
 
@@ -2836,7 +2836,7 @@ public class BrowserApp extends GeckoApp
     public void openOptionsMenu() {
         // Disable menu access (for hardware buttons) when the software menu button is inaccessible.
         // Note that the software button is always accessible on new tablet.
-        if (mBrowserToolbar.isEditing() && !HardwareUtils.isTablet()) {
+        if (mBrowserToolbar.isEditing() && !NewTabletUI.isEnabled(this)) {
             return;
         }
 

@@ -3,9 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-[Pref="dom.icc.enabled",
- CheckPermissions="mobileconnection",
- AvailableIn="CertifiedApps"]
+[Pref="dom.icc.enabled"]
 interface MozIccManager : EventTarget
 {
   /**
@@ -69,9 +67,6 @@ interface MozIccManager : EventTarget
 
   /** REFRESH performed with additional EFs read */
   const unsigned short STK_RESULT_PRFRMD_WITH_ADDITIONAL_EFS_READ   = 0x03;
-
-  /** Command performed successfully, but icon could not be displayed */
-  const unsigned short STK_RESULT_PRFRMD_ICON_NOT_DISPLAYED         = 0x04;
 
   /** Command performed successfully, limited service */
   const unsigned short STK_RESULT_PRFRMD_LIMITED_SERVICE            = 0x06;

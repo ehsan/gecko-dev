@@ -446,9 +446,6 @@ PluginContent.prototype = {
                        .add(pluginRect.width * pluginRect.height);
 
       let state = this._getPluginInfo(plugin).fallbackType;
-      if (state === null) {
-        state = Ci.nsIObjectLoadingContent.PLUGIN_UNSUPPORTED;
-      }
       Services.telemetry.getHistogramById('FLASH_PLUGIN_STATES')
                        .add(state);
     }

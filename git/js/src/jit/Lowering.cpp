@@ -13,6 +13,7 @@
 #include "jit/MIR.h"
 #include "jit/MIRGraph.h"
 
+#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 #include "jsopcodeinlines.h"
 
@@ -383,24 +384,12 @@ void
 LIRGenerator::lowerCallArguments(MCall *call)
 {
     uint32_t argc = call->numStackArgs();
-
-    // Align the arguments of a call such that the callee would keep the same
-    // alignment as the caller.
-    uint32_t baseSlot = 0;
-    static const uint32_t alignment = JitStackAlignment / sizeof(Value);
-    if (alignment > 1)
-        baseSlot = AlignBytes(argc, alignment);
-    else
-        baseSlot = argc;
-
-    // Save the maximum number of argument, such that we can have one unique
-    // frame size.
-    if (baseSlot > maxargslots_)
-        maxargslots_ = baseSlot;
+    if (argc > maxargslots_)
+        maxargslots_ = argc;
 
     for (size_t i = 0; i < argc; i++) {
         MDefinition *arg = call->getArg(i);
-        uint32_t argslot = baseSlot - i;
+        uint32_t argslot = argc - i;
 
         // Values take a slow path.
         if (arg->type() == MIRType_Value) {
@@ -1402,7 +1391,7 @@ static void
 MaybeSetRecoversInput(S *mir, T *lir)
 {
     MOZ_ASSERT(lir->mirRaw() == mir);
-    if (!mir->fallible() || !lir->snapshot())
+    if (!mir->fallible())
         return;
 
     if (lir->output()->policy() != LDefinition::MUST_REUSE_INPUT)
@@ -1646,7 +1635,7 @@ LIRGenerator::visitStart(MStart *start)
     LStart *lir = new(alloc()) LStart;
     assignSnapshot(lir, Bailout_InitialState);
 
-    if (start->startType() == MStart::StartType_Default && lir->snapshot())
+    if (start->startType() == MStart::StartType_Default)
         lirGraph_.setEntrySnapshot(lir->snapshot());
     add(lir);
 }
@@ -2294,7 +2283,7 @@ LIRGenerator::visitTypeBarrier(MTypeBarrier *ins)
     // Requesting a non-GC pointer is safe here since we never re-enter C++
     // from inside a type barrier test.
 
-    const TemporaryTypeSet *types = ins->resultTypeSet();
+    const types::TemporaryTypeSet *types = ins->resultTypeSet();
     bool needTemp = !types->unknownObject() && types->getObjectCount() > 0;
 
     MIRType inputType = ins->getOperand(0)->type();
@@ -2324,7 +2313,7 @@ LIRGenerator::visitTypeBarrier(MTypeBarrier *ins)
     }
 
     // Handle typebarrier with specific ObjectGroup/SingleObjects.
-    if (inputType == MIRType_Object && !types->hasType(TypeSet::AnyObjectType()) &&
+    if (inputType == MIRType_Object && !types->hasType(types::Type::AnyObjectType()) &&
         ins->barrierKind() != BarrierKind::TypeTagOnly)
     {
         LDefinition tmp = needTemp ? temp() : LDefinition::BogusTemp();
@@ -2345,7 +2334,7 @@ LIRGenerator::visitMonitorTypes(MMonitorTypes *ins)
     // Requesting a non-GC pointer is safe here since we never re-enter C++
     // from inside a type check.
 
-    const TemporaryTypeSet *types = ins->typeSet();
+    const types::TemporaryTypeSet *types = ins->typeSet();
     bool needTemp = !types->unknownObject() && types->getObjectCount() > 0;
     LDefinition tmp = needTemp ? temp() : tempToUnbox();
 
@@ -2895,9 +2884,7 @@ LIRGenerator::visitClampToUint8(MClampToUint8 *ins)
         break;
 
       case MIRType_Double:
-        // LClampDToUint8 clobbers its input register. Making it available as
-        // a temp copy describes this behavior to the register allocator.
-        define(new(alloc()) LClampDToUint8(useRegisterAtStart(in), tempCopy(in, 0)), ins);
+        define(new(alloc()) LClampDToUint8(useRegisterAtStart(in)), ins);
         break;
 
       case MIRType_Value:

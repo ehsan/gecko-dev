@@ -519,7 +519,7 @@ already_AddRefed<MediaSource>
 HTMLMediaElement::GetMozMediaSourceObject() const
 {
   nsRefPtr<MediaSource> source;
-  if (mLoadingSrc && IsMediaSourceURI(mLoadingSrc)) {
+  if (IsMediaSourceURI(mLoadingSrc)) {
     NS_GetSourceForMediaSourceURI(mLoadingSrc, getter_AddRefs(source));
   }
   return source.forget();
@@ -3252,10 +3252,7 @@ void HTMLMediaElement::CheckProgress(bool aHaveNewProgress)
 
   if (now - mDataTime >= TimeDuration::FromMilliseconds(STALL_MS)) {
     DispatchAsyncEvent(NS_LITERAL_STRING("stalled"));
-
-    if (IsMediaSourceURI(mLoadingSrc)) {
-      ChangeDelayLoadStatus(false);
-    }
+    ChangeDelayLoadStatus(false);
 
     NS_ASSERTION(mProgressTimer, "detected stalled without timer");
     // Stop timer events, which prevents repeated stalled events until there

@@ -7,6 +7,7 @@
 #include "jit/JitFrames-inl.h"
 
 #include "jsfun.h"
+#include "jsinfer.h"
 #include "jsobj.h"
 #include "jsscript.h"
 
@@ -30,14 +31,13 @@
 #include "vm/Interpreter.h"
 #include "vm/SPSProfiler.h"
 #include "vm/TraceLogging.h"
-#include "vm/TypeInference.h"
 
+#include "jsinferinlines.h"
 #include "jsscriptinlines.h"
 #include "gc/Nursery-inl.h"
 #include "jit/JitFrameIterator-inl.h"
 #include "vm/Debugger-inl.h"
 #include "vm/Probes-inl.h"
-#include "vm/TypeInference-inl.h"
 
 namespace js {
 namespace jit {
@@ -304,6 +304,7 @@ JitFrameIterator::operator++()
         type_ = JitFrame_BaselineStub;
     returnAddressToFp_ = current()->returnAddress();
     current_ = prev;
+
 
     return *this;
 }
@@ -2115,7 +2116,7 @@ SnapshotIterator::computeInstructionResults(JSContext *cx, RInstructionResults *
 
         // Use AutoEnterAnalysis to avoid invoking the object metadata callback,
         // which could try to walk the stack while bailing out.
-        AutoEnterAnalysis enter(cx);
+        types::AutoEnterAnalysis enter(cx);
 
         // Fill with the results of recover instructions.
         SnapshotIterator s(*this);
@@ -3061,9 +3062,6 @@ AssertJitStackInvariants(JSContext *cx)
                   "The rectifier frame should keep the alignment");
 
                 size_t expectedFrameSize = 0
-#if defined(JS_CODEGEN_X86)
-                    + sizeof(void *) /* frame pointer */
-#endif
                     + sizeof(Value) * (frames.callee()->nargs() + 1 /* |this| argument */ )
                     + sizeof(JitFrameLayout);
                 MOZ_RELEASE_ASSERT(frameSize >= expectedFrameSize,
@@ -3071,17 +3069,6 @@ AssertJitStackInvariants(JSContext *cx)
                 MOZ_RELEASE_ASSERT(expectedFrameSize + JitStackAlignment > frameSize,
                   "The frame size is optimal");
             }
-
-            if (frames.isIonJS()) {
-                // Ideally, we should not have such requirement, but keep the
-                // alignment-delta as part of the Safepoint such that we can pad
-                // accordingly when making out-of-line calls.  In the mean time,
-                // let us have check-points where we can garantee that
-                // everything can properly be aligned before adding complexity.
-                MOZ_RELEASE_ASSERT(frames.ionScript()->frameSize() % JitStackAlignment == 0,
-                  "Ensure that if the Ion frame is aligned, then the spill base is also aligned");
-            }
-
         }
 
         MOZ_RELEASE_ASSERT(frames.type() == JitFrame_Entry,

@@ -8,6 +8,7 @@
 
 #include "nsContentUtils.h"
 
+#include "mozilla/dom/Promise.h"
 #include "mozilla/dom/WorkerScope.h"
 #include "mozilla/dom/workers/bindings/ServiceWorker.h"
 

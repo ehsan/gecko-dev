@@ -308,11 +308,12 @@ NeckoChild::RecvAsyncAuthPromptForNestedFrame(const TabId& aNestedFrameId,
                                               const nsString& aRealm,
                                               const uint64_t& aCallbackId)
 {
-  nsRefPtr<dom::TabChild> tabChild = dom::TabChild::FindTabChild(aNestedFrameId);
-  if (!tabChild) {
+  auto iter = dom::TabChild::NestedTabChildMap().find(aNestedFrameId);
+  if (iter == dom::TabChild::NestedTabChildMap().end()) {
     MOZ_CRASH();
     return false;
   }
+  dom::TabChild* tabChild = iter->second;
   tabChild->SendAsyncAuthPrompt(aUri, aRealm, aCallbackId);
   return true;
 }

@@ -24,14 +24,11 @@ function spawnTest () {
   }
 
   yield startRecording(panel);
+  busyWait(100);
 
-  yield Promise.all([
-    once(OverviewView, EVENTS.FRAMERATE_GRAPH_RENDERED),
-    once(OverviewView, EVENTS.MARKERS_GRAPH_RENDERED),
-    once(OverviewView, EVENTS.OVERVIEW_RENDERED)
-  ]);
-
+  let rendered = once(OverviewView, EVENTS.OVERVIEW_RENDERED);
   yield stopRecording(panel);
+  yield rendered;
 
   // Get/set the time interval and wait for the event propagation.
 
@@ -40,9 +37,9 @@ function spawnTest () {
   yield notified;
 
   let firstInterval = OverviewView.getTimeInterval();
-  ok(firstInterval.startTime - 10 < Number.EPSILON,
+  is(firstInterval.startTime, 10,
     "The interval's start time was properly set.");
-  ok(firstInterval.endTime - 20 < Number.EPSILON,
+  is(firstInterval.endTime, 20,
     "The interval's end time was properly set.");
 
   // Get/set another time interval and make sure there's no event propagation.

@@ -46,18 +46,16 @@ class AppendDataRunnable : public nsRunnable {
 public:
   AppendDataRunnable(SourceBuffer* aSourceBuffer,
                      LargeDataBuffer* aData,
-                     double aTimestampOffset,
-                     uint32_t aUpdateID)
+                     double aTimestampOffset)
   : mSourceBuffer(aSourceBuffer)
   , mData(aData)
   , mTimestampOffset(aTimestampOffset)
-  , mUpdateID(aUpdateID)
   {
   }
 
   NS_IMETHOD Run() MOZ_OVERRIDE MOZ_FINAL {
 
-    mSourceBuffer->AppendData(mData, mTimestampOffset, mUpdateID);
+    mSourceBuffer->AppendData(mData, mTimestampOffset);
 
     return NS_OK;
   }
@@ -66,7 +64,6 @@ private:
   nsRefPtr<SourceBuffer> mSourceBuffer;
   nsRefPtr<LargeDataBuffer> mData;
   double mTimestampOffset;
-  uint32_t mUpdateID;
 };
 
 class RangeRemovalRunnable : public nsRunnable {
@@ -217,23 +214,20 @@ SourceBuffer::Abort(ErrorResult& aRv)
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
-  AbortBufferAppend();
+  Abort();
   mTrackBuffer->ResetParserState();
   mAppendWindowStart = 0;
   mAppendWindowEnd = PositiveInfinity<double>();
-  // Discard the current decoder so no new data will be added to it.
+
   MSE_DEBUG("SourceBuffer(%p)::Abort() Discarding decoder", this);
-  mTrackBuffer->DiscardCurrentDecoder();
+  mTrackBuffer->DiscardDecoder();
 }
 
 void
-SourceBuffer::AbortBufferAppend()
+SourceBuffer::Abort()
 {
   if (mUpdating) {
-    mPendingAppend.DisconnectIfExists();
-    // TODO: Abort segment parser loop, and stream append loop algorithms.
-    // cancel any pending buffer append.
-    mTrackBuffer->AbortAppendData();
+    // TODO: Abort segment parser loop, buffer append, and stream append loop algorithms.
     AbortUpdating();
   }
 }
@@ -275,8 +269,6 @@ SourceBuffer::RangeRemoval(double aStart, double aEnd)
 void
 SourceBuffer::DoRangeRemoval(double aStart, double aEnd)
 {
-  MSE_DEBUG("SourceBuffer(%p)::DoRangeRemoval (updating:%d)",
-            this, mUpdating);
   if (!mUpdating) {
     // abort was called in between.
     return;
@@ -295,7 +287,7 @@ SourceBuffer::Detach()
 {
   MOZ_ASSERT(NS_IsMainThread());
   MSE_DEBUG("SourceBuffer(%p)::Detach", this);
-  AbortBufferAppend();
+  Abort();
   if (mTrackBuffer) {
     mTrackBuffer->Detach();
   }
@@ -320,7 +312,6 @@ SourceBuffer::SourceBuffer(MediaSource* aMediaSource, const nsACString& aType)
   , mTimestampOffset(0)
   , mAppendMode(SourceBufferAppendMode::Segments)
   , mUpdating(false)
-  , mUpdateID(0)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aMediaSource);
@@ -372,7 +363,6 @@ SourceBuffer::StartUpdating()
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!mUpdating);
   mUpdating = true;
-  mUpdateID++;
   QueueAsyncSimpleEvent("updatestart");
 }
 
@@ -407,11 +397,9 @@ SourceBuffer::AbortUpdating()
 void
 SourceBuffer::CheckEndTime()
 {
-  MOZ_ASSERT(NS_IsMainThread());
   // Check if we need to update mMediaSource duration
   double endTime = GetBufferedEnd();
-  double duration = mMediaSource->Duration();
-  if (endTime > duration) {
+  if (endTime > mMediaSource->Duration()) {
     mMediaSource->SetDuration(endTime, MSRangeRemovalAction::SKIP);
   }
 }
@@ -430,15 +418,14 @@ SourceBuffer::AppendData(const uint8_t* aData, uint32_t aLength, ErrorResult& aR
   MOZ_ASSERT(mAppendMode == SourceBufferAppendMode::Segments,
              "We don't handle timestampOffset for sequence mode yet");
   nsRefPtr<nsIRunnable> task =
-    new AppendDataRunnable(this, data, mTimestampOffset, mUpdateID);
+    new AppendDataRunnable(this, data, mTimestampOffset);
   NS_DispatchToMainThread(task);
 }
 
 void
-SourceBuffer::AppendData(LargeDataBuffer* aData, double aTimestampOffset,
-                         uint32_t aUpdateID)
+SourceBuffer::AppendData(LargeDataBuffer* aData, double aTimestampOffset)
 {
-  if (!mUpdating || aUpdateID != mUpdateID) {
+  if (!mUpdating) {
     // The buffer append algorithm has been interrupted by abort().
     //
     // If the sequence appendBuffer(), abort(), appendBuffer() occurs before
@@ -449,53 +436,22 @@ SourceBuffer::AppendData(LargeDataBuffer* aData, double aTimestampOffset,
   }
 
   MOZ_ASSERT(mMediaSource);
-  MOZ_ASSERT(!mPendingAppend.Exists());
 
-  if (!aData->Length()) {
-    StopUpdating();
-    return;
-  }
+  if (aData->Length()) {
+    if (!mTrackBuffer->AppendData(aData, aTimestampOffset * USECS_PER_S)) {
+      AppendError(true);
+      return;
+    }
 
-  mPendingAppend.Begin(mTrackBuffer->AppendData(aData, aTimestampOffset * USECS_PER_S)
-                       ->RefableThen(NS_GetCurrentThread(), __func__, this,
-                                     &SourceBuffer::AppendDataCompletedWithSuccess,
-                                     &SourceBuffer::AppendDataErrored));
-}
+    if (mTrackBuffer->HasInitSegment()) {
+      mMediaSource->QueueInitializationEvent();
+    }
 
-void
-SourceBuffer::AppendDataCompletedWithSuccess(bool aGotMedia)
-{
-  mPendingAppend.Complete();
-  if (!mUpdating) {
-    // The buffer append algorithm has been interrupted by abort().
-    return;
-  }
-
-  if (mTrackBuffer->HasInitSegment()) {
-    mMediaSource->QueueInitializationEvent();
-  }
-
-  if (aGotMedia) {
     CheckEndTime();
   }
 
   StopUpdating();
-}
-
-void
-SourceBuffer::AppendDataErrored(nsresult aError)
-{
-  mPendingAppend.Complete();
-  switch (aError) {
-    case NS_ERROR_ABORT:
-      // Nothing further to do as the trackbuffer has been shutdown.
-      // or append was aborted and abort() has handled all the events.
-      break;
-    default:
-      AppendError(true);
-      break;
-  }
-}
+ }
 
 void
 SourceBuffer::AppendError(bool aDecoderError)

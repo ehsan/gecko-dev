@@ -164,7 +164,8 @@ loop.conversation = (function(mozL10n) {
     });
 
     // Obtain the windowId and pass it through
-    var locationHash = loop.shared.utils.locationData().hash;
+    var helper = new loop.shared.utils.Helper();
+    var locationHash = helper.locationData().hash;
     var windowId;
 
     var hash = locationHash.match(/#(.*)/);

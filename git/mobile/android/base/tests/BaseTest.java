@@ -103,7 +103,7 @@ abstract class BaseTest extends BaseRobocopTest {
         super.setUp();
 
         mDevice = new Device();
-        mDatabaseHelper = new DatabaseHelper(getActivity(), mAsserter);
+        mDatabaseHelper = new DatabaseHelper(mActivity, mAsserter);
 
         // Ensure Robocop tests have access to network, and are run with Display powered on.
         throwIfHttpGetFails();
@@ -732,7 +732,7 @@ abstract class BaseTest extends BaseRobocopTest {
     }
 
     public final void runOnUiThreadSync(Runnable runnable) {
-        RobocopUtils.runOnUiThreadSync(getActivity(), runnable);
+        RobocopUtils.runOnUiThreadSync(mActivity, runnable);
     }
 
     /* Tap the "star" (bookmark) button to bookmark or un-bookmark the current page */

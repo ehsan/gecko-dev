@@ -266,7 +266,6 @@ public:
     mTexture = aTexture;
     mHandle = aSharedHandle;
     mDesc = aDesc;
-    gfxWindowsPlatform::sD3D9SharedTextureUsed += mDesc.Width * mDesc.Height * 4;
   }
 
   virtual gfx::IntSize GetSize() const

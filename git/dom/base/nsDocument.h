@@ -1461,8 +1461,6 @@ public:
   bool ContainsEMEContent();
 #endif
 
-  bool ContainsMSEContent();
-
 protected:
   already_AddRefed<nsIPresShell> doCreateShell(nsPresContext* aContext,
                                                nsViewManager* aViewManager,

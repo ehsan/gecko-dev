@@ -24,7 +24,6 @@ const MODE_TRUNCATE = FileUtils.MODE_TRUNCATE;
 // nsSearchService.js uses Services.appinfo.name to build a salt for a hash.
 var XULRuntime = Components.classesByID["{95d89e3e-a169-41a3-8e56-719978e15b12}"]
                            .getService(Ci.nsIXULRuntime);
-
 var XULAppInfo = {
   vendor: "Mozilla",
   name: "XPCShell",
@@ -35,8 +34,7 @@ var XULAppInfo = {
   platformBuildID: "2007010101",
   inSafeMode: false,
   logConsoleErrors: true,
-  // mirror OS from the base impl as some of the "location" tests rely on it
-  OS: XULRuntime.OS,
+  OS: "XPCShell",
   XPCOMABI: "noarch-spidermonkey",
   // mirror processType from the base implementation
   processType: XULRuntime.processType,
@@ -304,30 +302,6 @@ let addTestEngines = Task.async(function* (aItems) {
 
   return engines;
 });
-
-/**
- * Installs a test engine into the test profile.
- */
-function installTestEngine() {
-  removeMetadata();
-  removeCacheFile();
-
-  do_check_false(Services.search.isInitialized);
-
-  let engineDummyFile = gProfD.clone();
-  engineDummyFile.append("searchplugins");
-  engineDummyFile.append("test-search-engine.xml");
-  let engineDir = engineDummyFile.parent;
-  engineDir.create(Ci.nsIFile.DIRECTORY_TYPE, FileUtils.PERMS_DIRECTORY);
-
-  do_get_file("data/engine.xml").copyTo(engineDir, "engine.xml");
-
-  do_register_cleanup(function() {
-    removeMetadata();
-    removeCacheFile();
-  });
-}
-
 
 /**
  * Returns a promise that is resolved when an observer notification from the

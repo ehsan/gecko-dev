@@ -43,6 +43,7 @@
 #include "jsatominlines.h"
 #include "jsboolinlines.h"
 #include "jsfuninlines.h"
+#include "jsinferinlines.h"
 #include "jsscriptinlines.h"
 
 #include "jit/JitFrames-inl.h"
@@ -54,6 +55,7 @@
 
 using namespace js;
 using namespace js::gc;
+using namespace js::types;
 
 using mozilla::DebugOnly;
 using mozilla::NumberEqualsInt32;
@@ -409,6 +411,11 @@ js::RunScript(JSContext *cx, RunState &state)
 {
     JS_CHECK_RECURSION(cx, return false);
 
+#ifdef NIGHTLY_BUILD
+    if (AssertOnScriptEntryHook hook = cx->runtime()->assertOnScriptEntryHook_)
+        (*hook)(cx, state.script());
+#endif
+
     SPSEntryMarker marker(cx->runtime(), state.script());
 
     state.script()->ensureNonLazyCanonicalFunction(cx);
@@ -441,11 +448,11 @@ js::RunScript(JSContext *cx, RunState &state)
     return Interpret(cx, state);
 }
 
-struct AutoGCIfRequested
+struct AutoGCIfNeeded
 {
-    JSRuntime *runtime;
-    explicit AutoGCIfRequested(JSRuntime *rt) : runtime(rt) {}
-    ~AutoGCIfRequested() { runtime->gc.gcIfRequested(); }
+    JSContext *cx_;
+    explicit AutoGCIfNeeded(JSContext *cx) : cx_(cx) {}
+    ~AutoGCIfNeeded() { cx_->gcIfNeeded(); }
 };
 
 /*
@@ -461,7 +468,7 @@ js::Invoke(JSContext *cx, CallArgs args, MaybeConstruct construct)
     MOZ_ASSERT(!cx->zone()->types.activeAnalysis);
 
     /* Perform GC if necessary on exit from the function. */
-    AutoGCIfRequested gcIfRequested(cx->runtime());
+    AutoGCIfNeeded gcIfNeeded(cx);
 
     /* MaybeConstruct is a subset of InitialFrameFlags */
     InitialFrameFlags initial = (InitialFrameFlags) construct;
@@ -502,7 +509,7 @@ js::Invoke(JSContext *cx, CallArgs args, MaybeConstruct construct)
         if (!iter.done() && iter.hasScript()) {
             JSScript *script = iter.script();
             jsbytecode *pc = iter.pc();
-            if (ObjectGroup::useSingletonForNewObject(cx, script, pc))
+            if (UseSingletonForNewObject(cx, script, pc))
                 state.setCreateSingleton();
         }
     }
@@ -1320,7 +1327,7 @@ static MOZ_ALWAYS_INLINE bool
 SetObjectElementOperation(JSContext *cx, Handle<JSObject*> obj, HandleId id, const Value &value,
                           bool strict, JSScript *script = nullptr, jsbytecode *pc = nullptr)
 {
-    TypeScript::MonitorAssign(cx, obj, id);
+    types::TypeScript::MonitorAssign(cx, obj, id);
 
     if (obj->isNative() && JSID_IS_INT(id)) {
         uint32_t length = obj->as<NativeObject>().getDenseInitializedLength();
@@ -2557,7 +2564,7 @@ CASE(JSOP_FUNCALL)
     }
 
     InitialFrameFlags initial = construct ? INITIAL_CONSTRUCT : INITIAL_NONE;
-    bool createSingleton = ObjectGroup::useSingletonForNewObject(cx, script, REGS.pc);
+    bool createSingleton = UseSingletonForNewObject(cx, script, REGS.pc);
 
     TypeMonitorCall(cx, args, construct);
 
@@ -3079,22 +3086,17 @@ CASE(JSOP_NEWINIT)
     MOZ_ASSERT(i == JSProto_Array || i == JSProto_Object);
 
     RootedObject &obj = rootObject0;
-    NewObjectKind newKind = GenericObject;
+    NewObjectKind newKind;
     if (i == JSProto_Array) {
-        if (ObjectGroup::useSingletonForAllocationSite(script, REGS.pc, &ArrayObject::class_))
-            newKind = SingletonObject;
+        newKind = UseSingletonForInitializer(script, REGS.pc, &ArrayObject::class_);
         obj = NewDenseEmptyArray(cx, nullptr, newKind);
     } else {
         gc::AllocKind allocKind = GuessObjectGCKind(0);
-        if (ObjectGroup::useSingletonForAllocationSite(script, REGS.pc, &PlainObject::class_))
-            newKind = SingletonObject;
+        newKind = UseSingletonForInitializer(script, REGS.pc, &PlainObject::class_);
         obj = NewBuiltinClassInstance<PlainObject>(cx, allocKind, newKind);
     }
-    if (!obj || !ObjectGroup::setAllocationSiteObjectGroup(cx, script, REGS.pc, obj,
-                                                           newKind == SingletonObject))
-    {
+    if (!obj || !SetInitializerObjectGroup(cx, script, REGS.pc, obj, newKind))
         goto error;
-    }
 
     PUSH_OBJECT(*obj);
 }
@@ -3104,15 +3106,10 @@ CASE(JSOP_NEWARRAY)
 {
     unsigned count = GET_UINT24(REGS.pc);
     RootedObject &obj = rootObject0;
-    NewObjectKind newKind = GenericObject;
-    if (ObjectGroup::useSingletonForAllocationSite(script, REGS.pc, &ArrayObject::class_))
-        newKind = SingletonObject;
+    NewObjectKind newKind = UseSingletonForInitializer(script, REGS.pc, &ArrayObject::class_);
     obj = NewDenseFullyAllocatedArray(cx, count, nullptr, newKind);
-    if (!obj || !ObjectGroup::setAllocationSiteObjectGroup(cx, script, REGS.pc, obj,
-                                                           newKind == SingletonObject))
-    {
+    if (!obj || !SetInitializerObjectGroup(cx, script, REGS.pc, obj, newKind))
         goto error;
-    }
 
     PUSH_OBJECT(*obj);
 }
@@ -3121,7 +3118,7 @@ END_CASE(JSOP_NEWARRAY)
 CASE(JSOP_NEWARRAY_COPYONWRITE)
 {
     RootedObject &baseobj = rootObject0;
-    baseobj = ObjectGroup::getOrFixupCopyOnWriteObject(cx, script, REGS.pc);
+    baseobj = types::GetOrFixupCopyOnWriteObject(cx, script, REGS.pc);
     if (!baseobj)
         goto error;
 
@@ -3140,15 +3137,10 @@ CASE(JSOP_NEWOBJECT)
     baseobj = script->getObject(REGS.pc);
 
     RootedObject &obj = rootObject1;
-    NewObjectKind newKind = GenericObject;
-    if (ObjectGroup::useSingletonForAllocationSite(script, REGS.pc, baseobj->getClass()))
-        newKind = SingletonObject;
+    NewObjectKind newKind = UseSingletonForInitializer(script, REGS.pc, baseobj->getClass());
     obj = CopyInitializerObject(cx, baseobj.as<PlainObject>(), newKind);
-    if (!obj || !ObjectGroup::setAllocationSiteObjectGroup(cx, script, REGS.pc, obj,
-                                                           newKind == SingletonObject))
-    {
+    if (!obj || !SetInitializerObjectGroup(cx, script, REGS.pc, obj, newKind))
         goto error;
-    }
 
     PUSH_OBJECT(*obj);
 }
@@ -3786,6 +3778,17 @@ js::GetAndClearException(JSContext *cx, MutableHandleValue res)
 
 template <bool strict>
 bool
+js::SetProperty(JSContext *cx, HandleObject obj, HandleId id, const Value &value)
+{
+    RootedValue v(cx, value);
+    return SetProperty(cx, obj, obj, id, &v, strict);
+}
+
+template bool js::SetProperty<true> (JSContext *cx, HandleObject obj, HandleId id, const Value &value);
+template bool js::SetProperty<false>(JSContext *cx, HandleObject obj, HandleId id, const Value &value);
+
+template <bool strict>
+bool
 js::DeleteProperty(JSContext *cx, HandleValue v, HandlePropertyName name, bool *bp)
 {
     RootedObject obj(cx, ToObjectFromStack(cx, v));
@@ -3961,7 +3964,8 @@ js::RunOnceScriptPrologue(JSContext *cx, HandleScript script)
     if (!script->functionNonDelazifying()->getGroup(cx))
         return false;
 
-    MarkObjectGroupFlags(cx, script->functionNonDelazifying(), OBJECT_FLAG_RUNONCE_INVALIDATED);
+    types::MarkObjectGroupFlags(cx, script->functionNonDelazifying(),
+                                types::OBJECT_FLAG_RUNONCE_INVALIDATED);
     return true;
 }
 

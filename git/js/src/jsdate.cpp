@@ -46,6 +46,7 @@
 #include "jsobjinlines.h"
 
 using namespace js;
+using namespace js::types;
 
 using mozilla::ArrayLength;
 using mozilla::IsFinite;

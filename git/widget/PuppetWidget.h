@@ -59,12 +59,14 @@ public:
   NS_IMETHOD Create(nsIWidget*        aParent,
                     nsNativeWidget    aNativeParent,
                     const nsIntRect&  aRect,
+                    nsDeviceContext*  aContext,
                     nsWidgetInitData* aInitData = nullptr) MOZ_OVERRIDE;
 
   void InitIMEState();
 
   virtual already_AddRefed<nsIWidget>
   CreateChild(const nsIntRect  &aRect,
+              nsDeviceContext  *aContext,
               nsWidgetInitData *aInitData = nullptr,
               bool             aForceUseIWidgetParent = false) MOZ_OVERRIDE;
 
@@ -124,8 +126,8 @@ public:
   { return NS_ERROR_UNEXPECTED; }
   
   // PuppetWidgets are always at <0, 0>.
-  virtual mozilla::LayoutDeviceIntPoint WidgetToScreenOffset() MOZ_OVERRIDE
-  { return mozilla::LayoutDeviceIntPoint(0, 0); }
+  virtual nsIntPoint WidgetToScreenOffset() MOZ_OVERRIDE
+  { return nsIntPoint(0, 0); }
 
   void InitEvent(WidgetGUIEvent& aEvent, nsIntPoint* aPoint = nullptr);
 
@@ -219,11 +221,11 @@ private:
   nsresult NotifyIMEOfEditorRect();
   nsresult NotifyIMEOfPositionChange();
 
-  bool GetEditorRect(mozilla::LayoutDeviceIntRect& aEditorRect);
+  bool GetEditorRect(nsIntRect& aEditorRect);
   bool GetCompositionRects(uint32_t& aStartOffset,
-                           nsTArray<mozilla::LayoutDeviceIntRect>& aRectArray,
+                           nsTArray<nsIntRect>& aRectArray,
                            uint32_t& aTargetCauseOffset);
-  bool GetCaretRect(mozilla::LayoutDeviceIntRect& aCaretRect, uint32_t aCaretOffset);
+  bool GetCaretRect(nsIntRect& aCaretRect, uint32_t aCaretOffset);
   uint32_t GetCaretOffset();
 
   class PaintTask : public nsRunnable {

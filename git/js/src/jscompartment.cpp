@@ -28,6 +28,7 @@
 #include "jsatominlines.h"
 #include "jsfuninlines.h"
 #include "jsgcinlines.h"
+#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 
 using namespace js;
@@ -544,6 +545,13 @@ JSCompartment::sweepInnerViews()
 }
 
 void
+JSCompartment::sweepObjectGroupTables()
+{
+    sweepNewObjectGroupTable(newObjectGroups);
+    sweepNewObjectGroupTable(lazyObjectGroups);
+}
+
+void
 JSCompartment::sweepSavedStacks()
 {
     savedStacks_.sweep(runtimeFromAnyThread());
@@ -644,9 +652,10 @@ JSCompartment::sweepCrossCompartmentWrappers()
 void JSCompartment::fixupAfterMovingGC()
 {
     fixupGlobal();
+    fixupNewObjectGroupTable(newObjectGroups);
+    fixupNewObjectGroupTable(lazyObjectGroups);
     fixupInitialShapeTable();
     fixupBaseShapeTable();
-    objectGroups.fixupTablesAfterMovingGC();
 }
 
 void
@@ -679,11 +688,15 @@ JSCompartment::clearTables()
     MOZ_ASSERT(enumerators->next() == enumerators);
     MOZ_ASSERT(regExps.empty());
 
-    objectGroups.clearTables();
+    types.clearTables();
     if (baseShapes.initialized())
         baseShapes.clear();
     if (initialShapes.initialized())
         initialShapes.clear();
+    if (newObjectGroups.initialized())
+        newObjectGroups.clear();
+    if (lazyObjectGroups.initialized())
+        lazyObjectGroups.clear();
     if (savedStacks_.initialized())
         savedStacks_.clear();
 }
@@ -803,11 +816,12 @@ JSCompartment::addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf,
                                       size_t *savedStacksSet)
 {
     *compartmentObject += mallocSizeOf(this);
-    objectGroups.addSizeOfExcludingThis(mallocSizeOf, tiAllocationSiteTables,
-                                        tiArrayTypeTables, tiObjectTypeTables,
-                                        compartmentTables);
+    types.addSizeOfExcludingThis(mallocSizeOf, tiAllocationSiteTables,
+                                 tiArrayTypeTables, tiObjectTypeTables);
     *compartmentTables += baseShapes.sizeOfExcludingThis(mallocSizeOf)
-                        + initialShapes.sizeOfExcludingThis(mallocSizeOf);
+                        + initialShapes.sizeOfExcludingThis(mallocSizeOf)
+                        + newObjectGroups.sizeOfExcludingThis(mallocSizeOf)
+                        + lazyObjectGroups.sizeOfExcludingThis(mallocSizeOf);
     *innerViewsArg += innerViews.sizeOfExcludingThis(mallocSizeOf);
     if (lazyArrayBuffers)
         *lazyArrayBuffersArg += lazyArrayBuffers->sizeOfIncludingThis(mallocSizeOf);

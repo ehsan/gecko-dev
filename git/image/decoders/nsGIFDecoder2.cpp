@@ -48,7 +48,6 @@ mailing address.
 #include "gfxPlatform.h"
 #include "qcms.h"
 #include <algorithm>
-#include "mozilla/Telemetry.h"
 
 namespace mozilla {
 namespace image {

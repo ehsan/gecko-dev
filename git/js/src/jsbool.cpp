@@ -23,6 +23,7 @@
 #include "vm/BooleanObject-inl.h"
 
 using namespace js;
+using namespace js::types;
 
 const Class BooleanObject::class_ = {
     "Boolean",

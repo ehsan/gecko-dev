@@ -249,9 +249,7 @@ Connection.prototype = {
         this.status == Connection.Status.CONNECTING) {
       this.log("disconnecting");
       this._setStatus(Connection.Status.DISCONNECTING);
-      if (this._client) {
-        this._client.close();
-      }
+      this._client.close();
     }
   },
 

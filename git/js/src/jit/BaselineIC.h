@@ -430,7 +430,6 @@ class ICEntry
     _(GetProp_Native)           \
     _(GetProp_NativeDoesNotExist) \
     _(GetProp_NativePrototype)  \
-    _(GetProp_UnboxedPrototype) \
     _(GetProp_Unboxed)          \
     _(GetProp_TypedObject)      \
     _(GetProp_CallScripted)     \
@@ -836,7 +835,6 @@ class ICStub
           case GetElem_Dense:
           case GetElem_Arguments:
           case GetProp_NativePrototype:
-          case GetProp_UnboxedPrototype:
           case GetProp_Native:
 #endif
             return true;
@@ -3578,7 +3576,7 @@ class ICSetElem_DenseAdd : public ICUpdatedStub
   protected:
     HeapPtrObjectGroup group_;
 
-    ICSetElem_DenseAdd(JitCode *stubCode, ObjectGroup *group, size_t protoChainDepth);
+    ICSetElem_DenseAdd(JitCode *stubCode, types::ObjectGroup *group, size_t protoChainDepth);
 
   public:
     static size_t offsetOfGroup() {
@@ -3613,7 +3611,7 @@ class ICSetElem_DenseAddImpl : public ICSetElem_DenseAdd
     static const size_t NumShapes = ProtoChainDepth + 1;
     mozilla::Array<HeapPtrShape, NumShapes> shapes_;
 
-    ICSetElem_DenseAddImpl(JitCode *stubCode, ObjectGroup *group,
+    ICSetElem_DenseAddImpl(JitCode *stubCode, types::ObjectGroup *group,
                            const AutoShapeVector *shapes)
       : ICSetElem_DenseAdd(stubCode, group, ProtoChainDepth)
     {
@@ -3624,7 +3622,7 @@ class ICSetElem_DenseAddImpl : public ICSetElem_DenseAdd
 
   public:
     static inline ICSetElem_DenseAddImpl *New(ICStubSpace *space, JitCode *code,
-                                              ObjectGroup *group,
+                                              types::ObjectGroup *group,
                                               const AutoShapeVector *shapes)
     {
         if (!code)
@@ -3788,15 +3786,6 @@ class ICGetName_Fallback : public ICMonitoredFallbackStub
         if (!code)
             return nullptr;
         return space->allocate<ICGetName_Fallback>(code);
-    }
-
-    static const size_t UNOPTIMIZABLE_ACCESS_BIT = 0;
-
-    void noteUnoptimizableAccess() {
-        extra_ |= (1u << UNOPTIMIZABLE_ACCESS_BIT);
-    }
-    bool hadUnoptimizableAccess() const {
-        return extra_ & (1u << UNOPTIMIZABLE_ACCESS_BIT);
     }
 
     class Compiler : public ICStubCompiler {
@@ -4274,17 +4263,23 @@ class ICGetProp_StringLength : public ICStub
     };
 };
 
-// Base class for native GetProp stubs.
+// Base class for GetProp_Native and GetProp_NativePrototype stubs.
 class ICGetPropNativeStub : public ICMonitoredStub
 {
+    // Object shape (lastProperty).
+    HeapPtrShape shape_;
+
     // Fixed or dynamic slot offset.
     uint32_t offset_;
 
   protected:
     ICGetPropNativeStub(ICStub::Kind kind, JitCode *stubCode, ICStub *firstMonitorStub,
-                        uint32_t offset);
+                        HandleShape shape, uint32_t offset);
 
   public:
+    HeapPtrShape &shape() {
+        return shape_;
+    }
     uint32_t offset() const {
         return offset_;
     }
@@ -4293,6 +4288,9 @@ class ICGetPropNativeStub : public ICMonitoredStub
     }
     bool hasPreliminaryObject() const {
         return extra_;
+    }
+    static size_t offsetOfShape() {
+        return offsetof(ICGetPropNativeStub, shape_);
     }
     static size_t offsetOfOffset() {
         return offsetof(ICGetPropNativeStub, offset_);
@@ -4304,13 +4302,9 @@ class ICGetProp_Native : public ICGetPropNativeStub
 {
     friend class ICStubSpace;
 
-    // Object shape (lastProperty).
-    HeapPtrShape shape_;
-
     ICGetProp_Native(JitCode *stubCode, ICStub *firstMonitorStub, HandleShape shape,
                      uint32_t offset)
-      : ICGetPropNativeStub(GetProp_Native, stubCode, firstMonitorStub, offset),
-        shape_(shape)
+      : ICGetPropNativeStub(GetProp_Native, stubCode, firstMonitorStub, shape, offset)
     {}
 
   public:
@@ -4321,13 +4315,6 @@ class ICGetProp_Native : public ICGetPropNativeStub
         if (!code)
             return nullptr;
         return space->allocate<ICGetProp_Native>(code, firstMonitorStub, shape, offset);
-    }
-
-    HeapPtrShape &shape() {
-        return shape_;
-    }
-    static size_t offsetOfShape() {
-        return offsetof(ICGetProp_Native, shape_);
     }
 
     static ICGetProp_Native *Clone(JSContext *cx, ICStubSpace *space, ICStub *firstMonitorStub,
@@ -4342,9 +4329,6 @@ class ICGetProp_NativePrototype : public ICGetPropNativeStub
     friend class ICStubSpace;
 
   protected:
-    // Object shape (lastProperty).
-    HeapPtrShape shape_;
-
     // Holder and its shape.
     HeapPtrObject holder_;
     HeapPtrShape holderShape_;
@@ -4369,17 +4353,11 @@ class ICGetProp_NativePrototype : public ICGetPropNativeStub
                                             ICGetProp_NativePrototype &other);
 
   public:
-    HeapPtrShape &shape() {
-        return shape_;
-    }
     HeapPtrObject &holder() {
         return holder_;
     }
     HeapPtrShape &holderShape() {
         return holderShape_;
-    }
-    static size_t offsetOfShape() {
-        return offsetof(ICGetProp_NativePrototype, shape_);
     }
     static size_t offsetOfHolder() {
         return offsetof(ICGetProp_NativePrototype, holder_);
@@ -4389,64 +4367,8 @@ class ICGetProp_NativePrototype : public ICGetPropNativeStub
     }
 };
 
-// Stub for accessing a property on an unboxed object's native prototype. Note
-// that due to the shape teleporting optimization, we only have to guard on the
-// object's type and the holder's shape.
-class ICGetProp_UnboxedPrototype : public ICGetPropNativeStub
-{
-    friend class ICStubSpace;
 
-  protected:
-    // Object group.
-    HeapPtrObjectGroup group_;
-
-    // Holder and its shape.
-    HeapPtrObject holder_;
-    HeapPtrShape holderShape_;
-
-    ICGetProp_UnboxedPrototype(JitCode *stubCode, ICStub *firstMonitorStub,
-                               HandleObjectGroup group,
-                               uint32_t offset, HandleObject holder, HandleShape holderShape);
-
-  public:
-    static inline ICGetProp_UnboxedPrototype *New(ICStubSpace *space, JitCode *code,
-                                                  ICStub *firstMonitorStub,
-                                                  HandleObjectGroup group,
-                                                  uint32_t offset, HandleObject holder,
-                                                  HandleShape holderShape)
-    {
-        if (!code)
-            return nullptr;
-        return space->allocate<ICGetProp_UnboxedPrototype>(code, firstMonitorStub, group, offset,
-                                                           holder, holderShape);
-    }
-
-    static ICGetProp_UnboxedPrototype *Clone(JSContext *cx, ICStubSpace *space,
-                                             ICStub *firstMonitorStub,
-                                             ICGetProp_UnboxedPrototype &other);
-
-  public:
-    HeapPtrObjectGroup &group() {
-        return group_;
-    }
-    HeapPtrObject &holder() {
-        return holder_;
-    }
-    HeapPtrShape &holderShape() {
-        return holderShape_;
-    }
-    static size_t offsetOfGroup() {
-        return offsetof(ICGetProp_UnboxedPrototype, group_);
-    }
-    static size_t offsetOfHolder() {
-        return offsetof(ICGetProp_UnboxedPrototype, holder_);
-    }
-    static size_t offsetOfHolderShape() {
-        return offsetof(ICGetProp_UnboxedPrototype, holderShape_);
-    }
-};
-
-// Compiler for native GetProp stubs.
+// Compiler for GetProp_Native and GetProp_NativePrototype stubs.
 class ICGetPropNativeCompiler : public ICStubCompiler
 {
     bool isCallProp_;
@@ -4490,7 +4412,19 @@ class ICGetPropNativeCompiler : public ICStubCompiler
         inputDefinitelyObject_(inputDefinitelyObject)
     {}
 
-    ICGetPropNativeStub *getStub(ICStubSpace *space);
+    ICGetPropNativeStub *getStub(ICStubSpace *space) {
+        RootedShape shape(cx, obj_->lastProperty());
+        if (kind == ICStub::GetProp_Native) {
+            MOZ_ASSERT(obj_ == holder_);
+            return ICGetProp_Native::New(space, getStubCode(), firstMonitorStub_, shape, offset_);
+        }
+
+        MOZ_ASSERT(obj_ != holder_);
+        MOZ_ASSERT(kind == ICStub::GetProp_NativePrototype);
+        RootedShape holderShape(cx, holder_->lastProperty());
+        return ICGetProp_NativePrototype::New(space, getStubCode(), firstMonitorStub_, shape,
+                                              offset_, holder_, holderShape);
+    }
 };
 
 template <size_t ProtoChainDepth> class ICGetProp_NativeDoesNotExistImpl;
@@ -4642,7 +4576,7 @@ class ICGetProp_Unboxed : public ICMonitoredStub
 
       public:
         Compiler(JSContext *cx, ICStub *firstMonitorStub,
-                 ObjectGroup *group, uint32_t fieldOffset, JSValueType fieldType)
+                 types::ObjectGroup *group, uint32_t fieldOffset, JSValueType fieldType)
           : ICStubCompiler(cx, ICStub::GetProp_Unboxed),
             firstMonitorStub_(firstMonitorStub),
             group_(cx, group),
@@ -5602,7 +5536,7 @@ class ICSetProp_Unboxed : public ICUpdatedStub
         }
 
       public:
-        Compiler(JSContext *cx, ObjectGroup *group, uint32_t fieldOffset,
+        Compiler(JSContext *cx, types::ObjectGroup *group, uint32_t fieldOffset,
                  JSValueType fieldType)
           : ICStubCompiler(cx, ICStub::SetProp_Unboxed),
             group_(cx, group),
@@ -5692,7 +5626,7 @@ class ICSetProp_TypedObject : public ICUpdatedStub
         }
 
       public:
-        Compiler(JSContext *cx, Shape *shape, ObjectGroup *group, uint32_t fieldOffset,
+        Compiler(JSContext *cx, Shape *shape, types::ObjectGroup *group, uint32_t fieldOffset,
                  SimpleTypeDescr *fieldDescr)
           : ICStubCompiler(cx, ICStub::SetProp_TypedObject),
             shape_(cx, shape),

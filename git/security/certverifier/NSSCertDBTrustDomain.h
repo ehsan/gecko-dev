@@ -54,7 +54,7 @@ public:
 
   NSSCertDBTrustDomain(SECTrustType certDBTrustType, OCSPFetching ocspFetching,
                        OCSPCache& ocspCache, void* pinArg,
-                       CertVerifier::OcspGetConfig ocspGETConfig,
+                       CertVerifier::ocsp_get_config ocspGETConfig,
                        CertVerifier::PinningMode pinningMode,
                        bool forEV,
           /*optional*/ const char* hostname = nullptr,
@@ -116,7 +116,7 @@ private:
   const OCSPFetching mOCSPFetching;
   OCSPCache& mOCSPCache; // non-owning!
   void* mPinArg; // non-owning!
-  const CertVerifier::OcspGetConfig mOCSPGetConfig;
+  const CertVerifier::ocsp_get_config mOCSPGetConfig;
   CertVerifier::PinningMode mPinningMode;
   const unsigned int mMinimumNonECCBits;
   const char* mHostname; // non-owning - only used for pinning checks

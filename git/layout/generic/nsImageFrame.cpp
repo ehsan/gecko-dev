@@ -79,7 +79,6 @@
 using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::gfx;
-using namespace mozilla::image;
 using namespace mozilla::layers;
 
 // sizes (pixels) for image icon, padding and border frame
@@ -1404,17 +1403,8 @@ nsDisplayImage::Paint(nsDisplayListBuilder* aBuilder,
   if (aBuilder->IsPaintingToWindow()) {
     flags |= imgIContainer::FLAG_HIGH_QUALITY_SCALING;
   }
-
-  DrawResult result = static_cast<nsImageFrame*>(mFrame)->
+  static_cast<nsImageFrame*>(mFrame)->
     PaintImage(*aCtx, ToReferenceFrame(), mVisibleRect, mImage, flags);
-
-  nsDisplayItemGenericImageGeometry::UpdateDrawResult(this, result);
-}
-
-nsDisplayItemGeometry*
-nsDisplayImage::AllocateGeometry(nsDisplayListBuilder* aBuilder)
-{
-  return new nsDisplayItemGenericImageGeometry(this, aBuilder);
 }
 
 void
@@ -1422,11 +1412,7 @@ nsDisplayImage::ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
                                           const nsDisplayItemGeometry* aGeometry,
                                           nsRegion* aInvalidRegion)
 {
-  auto geometry =
-    static_cast<const nsDisplayItemGenericImageGeometry*>(aGeometry);
-
-  if (aBuilder->ShouldSyncDecodeImages() &&
-      geometry->LastDrawResult() != DrawResult::SUCCESS) {
+  if (aBuilder->ShouldSyncDecodeImages() && mImage && !mImage->IsDecoded()) {
     bool snap;
     aInvalidRegion->Or(*aInvalidRegion, GetBounds(aBuilder, &snap));
   }
@@ -1572,12 +1558,6 @@ nsDisplayImage::ConfigureLayer(ImageLayer *aLayer, const nsIntPoint& aOffset)
   mImage->GetHeight(&imageHeight);
 
   NS_ASSERTION(imageWidth != 0 && imageHeight != 0, "Invalid image size!");
-  if (imageWidth > 0 && imageHeight > 0) {
-    // We're actually using the ImageContainer. Let our frame know that it
-    // should consider itself to have painted successfully.
-    nsDisplayItemGenericImageGeometry::UpdateDrawResult(this,
-                                                        DrawResult::SUCCESS);
-  }
 
   const gfxRect destRect = GetDestRect();
 
@@ -1588,7 +1568,7 @@ nsDisplayImage::ConfigureLayer(ImageLayer *aLayer, const nsIntPoint& aOffset)
   aLayer->SetBaseTransform(gfx::Matrix4x4::From2D(transform));
 }
 
-DrawResult
+void
 nsImageFrame::PaintImage(nsRenderingContext& aRenderingContext, nsPoint aPt,
                          const nsRect& aDirtyRect, imgIContainer* aImage,
                          uint32_t aFlags)
@@ -1613,11 +1593,10 @@ nsImageFrame::PaintImage(nsRenderingContext& aRenderingContext, nsPoint aPt,
                                                      StylePosition(),
                                                      &anchorPoint);
 
-  DrawResult result =
-    nsLayoutUtils::DrawSingleImage(*aRenderingContext.ThebesContext(),
-      PresContext(), aImage,
-      nsLayoutUtils::GetGraphicsFilterForFrame(this), dest, aDirtyRect,
-      nullptr, aFlags, &anchorPoint);
+  nsLayoutUtils::DrawSingleImage(*aRenderingContext.ThebesContext(),
+    PresContext(), aImage,
+    nsLayoutUtils::GetGraphicsFilterForFrame(this), dest, aDirtyRect,
+    nullptr, aFlags, &anchorPoint);
 
   nsImageMap* map = GetImageMap();
   if (map) {
@@ -1638,8 +1617,6 @@ nsImageFrame::PaintImage(nsRenderingContext& aRenderingContext, nsPoint aPt,
     nsLayoutUtils::InitDashPattern(strokeOptions, NS_STYLE_BORDER_STYLE_DOTTED);
     map->Draw(this, *drawTarget, black, strokeOptions);
   }
-
-  return result;
 }
 
 void

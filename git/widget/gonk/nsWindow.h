@@ -57,6 +57,7 @@ public:
     NS_IMETHOD Create(nsIWidget *aParent,
                       void *aNativeParent,
                       const nsIntRect &aRect,
+                      nsDeviceContext *aContext,
                       nsWidgetInitData *aInitData);
     NS_IMETHOD Destroy(void);
 
@@ -85,7 +86,7 @@ public:
     {
         return NS_OK;
     }
-    virtual mozilla::LayoutDeviceIntPoint WidgetToScreenOffset();
+    virtual nsIntPoint WidgetToScreenOffset();
     void DispatchTouchInputViaAPZ(mozilla::MultiTouchInput& aInput);
     NS_IMETHOD DispatchEvent(mozilla::WidgetGUIEvent* aEvent,
                              nsEventStatus& aStatus);

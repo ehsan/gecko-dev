@@ -14,7 +14,7 @@ function spawnTest () {
 
   let selected = DetailsView.whenViewSelected(JsCallTreeView);
   let notified = DetailsView.once(EVENTS.DETAILS_VIEW_SELECTED);
-  yield DetailsView.selectView("js-calltree");
+  DetailsView.selectView("js-calltree");
   yield Promise.all([selected, notified]);
 
   ok(DetailsView.isViewSelected(JsCallTreeView),
@@ -22,7 +22,7 @@ function spawnTest () {
 
   selected = DetailsView.whenViewSelected(JsFlameGraphView);
   notified = DetailsView.once(EVENTS.DETAILS_VIEW_SELECTED);
-  yield DetailsView.selectView("js-flamegraph");
+  DetailsView.selectView("js-flamegraph");
   yield Promise.all([selected, notified]);
 
   ok(DetailsView.isViewSelected(JsFlameGraphView),
@@ -30,7 +30,7 @@ function spawnTest () {
 
   selected = DetailsView.whenViewSelected(WaterfallView);
   notified = DetailsView.once(EVENTS.DETAILS_VIEW_SELECTED);
-  yield DetailsView.selectView("waterfall");
+  DetailsView.selectView("waterfall");
   yield Promise.all([selected, notified]);
 
   ok(DetailsView.isViewSelected(WaterfallView),

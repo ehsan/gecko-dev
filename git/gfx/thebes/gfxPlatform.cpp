@@ -135,6 +135,10 @@ static qcms_transform *gCMSRGBATransform = nullptr;
 static bool gCMSInitialized = false;
 static eCMSMode gCMSMode = eCMSMode_Off;
 
+static bool gCMSIntentInitialized = false;
+static int gCMSIntent = QCMS_INTENT_DEFAULT;
+
+
 static void ShutdownCMS();
 
 #include "mozilla/gfx/2D.h"
@@ -1748,7 +1752,9 @@ gfxPlatform::OffMainThreadCompositingEnabled()
 eCMSMode
 gfxPlatform::GetCMSMode()
 {
-    if (!gCMSInitialized) {
+    if (gCMSInitialized == false) {
+        gCMSInitialized = true;
+
         int32_t mode = gfxPrefs::CMSMode();
         if (mode >= 0 && mode < eCMSMode_AllCount) {
             gCMSMode = static_cast<eCMSMode>(mode);
@@ -1758,7 +1764,6 @@ gfxPlatform::GetCMSMode()
         if (enableV4) {
             qcms_enable_iccv4();
         }
-        gCMSInitialized = true;
     }
     return gCMSMode;
 }
@@ -1766,19 +1771,25 @@ gfxPlatform::GetCMSMode()
 int
 gfxPlatform::GetRenderingIntent()
 {
-  // gfxPrefs.h is using 0 as the default for the rendering
-  // intent preference, based on that being the value for
-  // QCMS_INTENT_DEFAULT.  Assert here to catch if that ever
-  // changes and we can then figure out what to do about it.
-  MOZ_ASSERT(QCMS_INTENT_DEFAULT == 0);
+    if (!gCMSIntentInitialized) {
+        gCMSIntentInitialized = true;
 
-  /* Try to query the pref system for a rendering intent. */
-  int32_t pIntent = gfxPrefs::CMSRenderingIntent();
-  if ((pIntent < QCMS_INTENT_MIN) || (pIntent > QCMS_INTENT_MAX)) {
-    /* If the pref is out of range, use embedded profile. */
-    pIntent = -1;
-  }
-  return pIntent;
+        // gfxPrefs.h is using 0 as the default for the rendering
+        // intent preference, based on that being the value for
+        // QCMS_INTENT_DEFAULT.  Assert here to catch if that ever
+        // changes and we can then figure out what to do about it.
+        MOZ_ASSERT(QCMS_INTENT_DEFAULT == 0);
+
+        /* Try to query the pref system for a rendering intent. */
+        int32_t pIntent = gfxPrefs::CMSRenderingIntent();
+        if ((pIntent >= QCMS_INTENT_MIN) && (pIntent <= QCMS_INTENT_MAX)) {
+            gCMSIntent = pIntent;
+        } else {
+            /* If the pref is out of range, use embedded profile. */
+            gCMSIntent = -1;
+        }
+    }
+    return gCMSIntent;
 }
 
 void
@@ -1976,6 +1987,7 @@ static void ShutdownCMS()
     }
 
     // Reset the state variables
+    gCMSIntent = -2;
     gCMSMode = eCMSMode_Off;
     gCMSInitialized = false;
 }

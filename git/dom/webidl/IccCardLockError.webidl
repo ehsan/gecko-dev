@@ -4,9 +4,7 @@
  */
 
 [Constructor(DOMString errorName, short retryCount),
- Pref="dom.icc.enabled",
- CheckPermissions="mobileconnection",
- AvailableIn="CertifiedApps"]
+ Pref="dom.icc.enabled"]
 interface IccCardLockError : DOMError {
   readonly attribute short retryCount;
 };

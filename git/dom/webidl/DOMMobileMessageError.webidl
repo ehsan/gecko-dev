@@ -4,9 +4,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-[Pref="dom.sms.enabled",
- CheckPermissions="sms",
- AvailableIn="CertifiedApps"]
+[Pref="dom.sms.enabled"]
 interface DOMMobileMessageError : DOMError {
   readonly attribute (MozSmsMessage or MozMmsMessage) data;
 };

@@ -542,13 +542,6 @@ let AutoCompletePopup = {
     });
   },
 
-  destroy: function() {
-    let controller = Cc["@mozilla.org/satchel/form-fill-controller;1"]
-                       .getService(Ci.nsIFormFillController);
-
-    controller.detachFromBrowser(docShell);
-  },
-
   get input () { return this._input; },
   get overrideValue () { return null; },
   set selectedIndex (index) { },
@@ -595,7 +588,3 @@ if (initData.length) {
     setTimeout(() => AutoCompletePopup.init(), 0);
   }
 }
-
-addEventListener("unload", function() {
-  AutoCompletePopup.destroy();
-});

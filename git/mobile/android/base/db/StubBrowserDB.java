@@ -170,10 +170,6 @@ public class StubBrowserDB implements BrowserDB {
         return null;
     }
 
-    public Cursor getReadingListUnfetched(ContentResolver cr) {
-        return null;
-    }
-
     @RobocopTarget
     public boolean isBookmark(ContentResolver cr, String uri) {
         return false;
@@ -199,9 +195,6 @@ public class StubBrowserDB implements BrowserDB {
     }
 
     public void addReadingListItem(ContentResolver cr, ContentValues values) {
-    }
-
-    public void updateReadingListItem(ContentResolver cr, ContentValues values) {
     }
 
     public void removeReadingListItemWithURL(ContentResolver cr, String uri) {

@@ -17,17 +17,13 @@ interface Request {
   readonly attribute USVString url;
   [SameObject] readonly attribute Headers headers;
 
-  readonly attribute RequestContext context;
+  // FIXME(nsm) Bug 1119037: readonly attribute RequestContext context;
   readonly attribute DOMString referrer;
   readonly attribute RequestMode mode;
   readonly attribute RequestCredentials credentials;
   readonly attribute RequestCache cache;
 
   [NewObject] Request clone();
-
-  // Bug 1124638 - Allow chrome callers to set the context.
-  [ChromeOnly]
-  void setContext(RequestContext context);
 };
 Request implements Body;
 
@@ -40,13 +36,7 @@ dictionary RequestInit {
   RequestCache cache;
 };
 
-enum RequestContext {
-  "audio", "beacon", "cspreport", "download", "embed", "eventsource", "favicon", "fetch",
-  "font", "form", "frame", "hyperlink", "iframe", "image", "imageset", "import",
-  "internal", "location", "manifest", "object", "ping", "plugin", "prefetch", "script",
-  "serviceworker", "sharedworker", "subresource", "style", "track", "video", "worker",
-  "xmlhttprequest", "xslt"
-};
+// FIXME(nsm): Bug 1119037 Implement RequestContext.
 
 // cors-with-forced-preflight is internal to the Fetch spec, but adding it here
 // allows us to use the various conversion conveniences offered by the WebIDL

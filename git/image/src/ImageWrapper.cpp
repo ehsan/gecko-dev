@@ -199,7 +199,7 @@ ImageWrapper::GetImageContainer(LayerManager* aManager,
   return mInnerImage->GetImageContainer(aManager, _retval);
 }
 
-NS_IMETHODIMP_(DrawResult)
+NS_IMETHODIMP
 ImageWrapper::Draw(gfxContext* aContext,
                    const nsIntSize& aSize,
                    const ImageRegion& aRegion,

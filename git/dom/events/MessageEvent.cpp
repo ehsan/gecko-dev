@@ -200,12 +200,6 @@ MessageEvent::SetPorts(MessagePortList* aPorts)
   mPorts = aPorts;
 }
 
-void
-MessageEvent::SetSource(mozilla::dom::MessagePort* aPort)
-{
-  mPortSource = aPort;
-}
-
 } // namespace dom
 } // namespace mozilla
 

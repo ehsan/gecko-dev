@@ -12,7 +12,6 @@
 
 #include "libGLESv2/angletypes.h"
 #include "libGLESv2/Caps.h"
-#include "libGLESv2/Error.h"
 
 #include <vector>
 
@@ -178,7 +177,7 @@ inline void SetBufferData(ID3D11DeviceContext *context, ID3D11Buffer *constantBu
     context->Unmap(constantBuffer, 0);
 }
 
-gl::Error GetAttachmentRenderTarget(gl::FramebufferAttachment *attachment, RenderTarget11 **outRT);
+RenderTarget11 *GetAttachmentRenderTarget(gl::FramebufferAttachment *attachment);
 
 Workarounds GenerateWorkarounds();
 

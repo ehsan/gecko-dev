@@ -91,6 +91,7 @@ public:
     NS_IMETHOD Create(nsIWidget        *aParent,
                       nsNativeWidget   aNativeParent,
                       const nsIntRect  &aRect,
+                      nsDeviceContext *aContext,
                       nsWidgetInitData *aInitData);
     NS_IMETHOD Destroy(void);
 
@@ -123,7 +124,7 @@ public:
     {
         return NS_OK;
     }
-    virtual mozilla::LayoutDeviceIntPoint WidgetToScreenOffset();
+    virtual nsIntPoint WidgetToScreenOffset();
     NS_IMETHOD DispatchEvent(mozilla::WidgetGUIEvent* aEvent,
                              nsEventStatus& aStatus);
     NS_IMETHOD CaptureRollupEvents(nsIRollupListener *aListener,

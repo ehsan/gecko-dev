@@ -2,7 +2,7 @@
 
 load(libdir + "iteration.js");
 
-var set = new Set("abcd");
+var set = Set("abcd");
 var iter = set[Symbol.iterator]();
 var log = "";
 for (let x of iter) {

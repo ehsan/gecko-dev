@@ -158,8 +158,7 @@ class CreateSyncPatch(Step):
         local_tree.add_new(os.path.relpath(state.tests_path,
                                            local_tree.root))
         updated = local_tree.update_patch(include=[state.tests_path,
-                                                   state.metadata_path])
-        local_tree.commit_patch()
+                                         state.metadata_path])
 
         if not updated:
             self.logger.info("Nothing to sync")

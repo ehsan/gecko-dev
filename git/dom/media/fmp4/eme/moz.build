@@ -7,14 +7,14 @@
 EXPORTS += [
     'EMEAudioDecoder.h',
     'EMEDecoderModule.h',
-    'EMEVideoDecoder.h',
+    'EMEH264Decoder.h',
     'SamplesWaitingForKey.h',
 ]
 
 UNIFIED_SOURCES += [
     'EMEAudioDecoder.cpp',
     'EMEDecoderModule.cpp',
-    'EMEVideoDecoder.cpp',
+    'EMEH264Decoder.cpp',
     'SamplesWaitingForKey.cpp',
 ]
 

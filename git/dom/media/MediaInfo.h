@@ -36,28 +36,17 @@ struct TrackInfo {
 
 // Stores info relevant to presenting media frames.
 class VideoInfo {
-private:
-  VideoInfo(int32_t aWidth, int32_t aHeight, bool aHasVideo)
-    : mDisplay(aWidth, aHeight)
-    , mStereoMode(StereoMode::MONO)
-    , mHasVideo(aHasVideo)
-    , mIsHardwareAccelerated(false)
-  {
-  }
-
 public:
   VideoInfo()
-    : VideoInfo(0, 0, false)
+    : mDisplay(0,0)
+    , mStereoMode(StereoMode::MONO)
+    , mHasVideo(false)
+    , mIsHardwareAccelerated(false)
   {
     // TODO: TrackInfo should be initialized by its specific codec decoder.
     // This following call should be removed once we have that implemented.
     mTrackInfo.Init(NS_LITERAL_STRING("2"), NS_LITERAL_STRING("main"),
     EmptyString(), EmptyString(), true);
-  }
-
-  VideoInfo(int32_t aWidth, int32_t aHeight)
-    : VideoInfo(aWidth, aHeight, true)
-  {
   }
 
   // Size in pixels at which the video is rendered. This is after it has

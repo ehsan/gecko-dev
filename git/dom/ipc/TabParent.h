@@ -24,7 +24,6 @@
 #include "js/TypeDecls.h"
 
 class nsFrameLoader;
-class nsIFrameLoader;
 class nsIContent;
 class nsIPrincipal;
 class nsIURI;
@@ -173,9 +172,9 @@ public:
                                          const bool& aCausedByComposition) MOZ_OVERRIDE;
     virtual bool RecvNotifyIMESelectedCompositionRect(
                    const uint32_t& aOffset,
-                   InfallibleTArray<LayoutDeviceIntRect>&& aRects,
+                   InfallibleTArray<nsIntRect>&& aRects,
                    const uint32_t& aCaretOffset,
-                   const LayoutDeviceIntRect& aCaretRect) MOZ_OVERRIDE;
+                   const nsIntRect& aCaretRect) MOZ_OVERRIDE;
     virtual bool RecvNotifyIMESelection(const uint32_t& aSeqno,
                                         const uint32_t& aAnchor,
                                         const uint32_t& aFocus,
@@ -184,11 +183,11 @@ public:
     virtual bool RecvNotifyIMETextHint(const nsString& aText) MOZ_OVERRIDE;
     virtual bool RecvNotifyIMEMouseButtonEvent(const widget::IMENotification& aEventMessage,
                                                bool* aConsumedByIME) MOZ_OVERRIDE;
-    virtual bool RecvNotifyIMEEditorRect(const LayoutDeviceIntRect& aRect) MOZ_OVERRIDE;
+    virtual bool RecvNotifyIMEEditorRect(const nsIntRect& aRect) MOZ_OVERRIDE;
     virtual bool RecvNotifyIMEPositionChange(
-                   const LayoutDeviceIntRect& aEditorRect,
-                   InfallibleTArray<LayoutDeviceIntRect>&& aCompositionRects,
-                   const LayoutDeviceIntRect& aCaretRect) MOZ_OVERRIDE;
+                   const nsIntRect& aEditoRect,
+                   InfallibleTArray<nsIntRect>&& aCompositionRects,
+                   const nsIntRect& aCaretRect) MOZ_OVERRIDE;
     virtual bool RecvEndIMEComposition(const bool& aCancel,
                                        nsString* aComposition) MOZ_OVERRIDE;
     virtual bool RecvGetInputContext(int32_t* aIMEEnabled,
@@ -235,7 +234,7 @@ public:
     // XXX/cjones: it's not clear what we gain by hiding these
     // message-sending functions under a layer of indirection and
     // eating the return values
-    void Show(const nsIntSize& size, bool aParentIsActive);
+    void Show(const nsIntSize& size);
     void UpdateDimensions(const nsIntRect& rect, const nsIntSize& size,
                           const nsIntPoint& chromeDisp);
     void UpdateFrame(const layers::FrameMetrics& aFrameMetrics);
@@ -329,9 +328,6 @@ public:
     bool SendSelectionEvent(mozilla::WidgetSelectionEvent& event);
 
     static TabParent* GetFrom(nsFrameLoader* aFrameLoader);
-    static TabParent* GetFrom(nsIFrameLoader* aFrameLoader);
-    static TabParent* GetFrom(nsITabParent* aTabParent);
-    static TabParent* GetFrom(PBrowserParent* aTabParent);
     static TabParent* GetFrom(nsIContent* aContent);
     static TabId GetTabIdFrom(nsIDocShell* docshell);
 
@@ -418,10 +414,10 @@ protected:
     uint32_t mIMESeqno;
 
     uint32_t mIMECompositionRectOffset;
-    InfallibleTArray<LayoutDeviceIntRect> mIMECompositionRects;
+    InfallibleTArray<nsIntRect> mIMECompositionRects;
     uint32_t mIMECaretOffset;
-    LayoutDeviceIntRect mIMECaretRect;
-    LayoutDeviceIntRect mIMEEditorRect;
+    nsIntRect mIMECaretRect;
+    nsIntRect mIMEEditorRect;
 
     // The number of event series we're currently capturing.
     int32_t mEventCaptureDepth;
@@ -445,15 +441,19 @@ private:
     // When true, we create a pan/zoom controller for our frame and
     // notify it of input events targeting us.
     bool UseAsyncPanZoom();
-    // Update state prior to routing an APZ-aware event to the child process.
+    // If we have a render frame currently, notify it that we're about
+    // to dispatch |aEvent| to our child.  If there's a relevant
+    // transform in place, |aEvent| will be transformed in-place so that
+    // it is ready to be dispatched to content.
     // |aOutTargetGuid| will contain the identifier
     // of the APZC instance that handled the event. aOutTargetGuid may be
     // null.
     // |aOutInputBlockId| will contain the identifier of the input block
     // that this event was added to, if there was one. aOutInputBlockId may
     // be null.
-    void ApzAwareEventRoutingToChild(ScrollableLayerGuid* aOutTargetGuid,
-                                     uint64_t* aOutInputBlockId);
+    nsEventStatus MaybeForwardEventToRenderFrame(WidgetInputEvent& aEvent,
+                                                 ScrollableLayerGuid* aOutTargetGuid,
+                                                 uint64_t* aOutInputBlockId);
     // The offset for the child process which is sampled at touch start. This
     // means that the touch events are relative to where the frame was at the
     // start of the touch. We need to look for a better solution to this

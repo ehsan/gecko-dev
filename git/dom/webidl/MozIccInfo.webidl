@@ -4,9 +4,7 @@
 
 enum IccType {"sim", "usim", "csim", "ruim"};
 
-[Pref="dom.icc.enabled",
- CheckPermissions="mobileconnection",
- AvailableIn="CertifiedApps"]
+[Pref="dom.icc.enabled"]
 interface MozIccInfo {
   /**
    * Integrated Circuit Card Type.
@@ -44,9 +42,7 @@ interface MozIccInfo {
   readonly attribute boolean isDisplaySpnRequired;
 };
 
-[Pref="dom.icc.enabled",
- CheckPermissions="mobileconnection",
- AvailableIn="CertifiedApps"]
+[Pref="dom.icc.enabled"]
 interface MozGsmIccInfo : MozIccInfo {
   /**
    * Mobile Station ISDN Number (MSISDN) of the subscriber, aka
@@ -55,9 +51,7 @@ interface MozGsmIccInfo : MozIccInfo {
   readonly attribute DOMString? msisdn;
 };
 
-[Pref="dom.icc.enabled",
- CheckPermissions="mobileconnection",
- AvailableIn="CertifiedApps"]
+[Pref="dom.icc.enabled"]
 interface MozCdmaIccInfo : MozIccInfo {
   /**
    * Mobile Directory Number (MDN) of the subscriber, aka his phone number.

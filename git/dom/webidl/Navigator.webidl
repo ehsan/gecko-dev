@@ -260,7 +260,7 @@ partial interface Navigator {
 
 #ifdef MOZ_WEBSMS_BACKEND
 partial interface Navigator {
-  [CheckPermissions="sms", Pref="dom.sms.enabled", AvailableIn="CertifiedApps"]
+  [CheckPermissions="sms", Pref="dom.sms.enabled"]
   readonly attribute MozMobileMessageManager? mozMobileMessage;
 };
 #endif
@@ -300,20 +300,17 @@ partial interface Navigator {
 };
 
 partial interface Navigator {
-  [Throws, Pref="dom.cellbroadcast.enabled", CheckPermissions="cellbroadcast",
-   AvailableIn="CertifiedApps", UnsafeInPrerendering]
+  [Throws, Pref="dom.cellbroadcast.enabled", CheckPermissions="cellbroadcast", UnsafeInPrerendering]
   readonly attribute MozCellBroadcast mozCellBroadcast;
 };
 
 partial interface Navigator {
-  [Throws, Pref="dom.voicemail.enabled", CheckPermissions="voicemail",
-   AvailableIn="CertifiedApps", UnsafeInPrerendering]
+  [Throws, Pref="dom.voicemail.enabled", CheckPermissions="voicemail", UnsafeInPrerendering]
   readonly attribute MozVoicemail mozVoicemail;
 };
 
 partial interface Navigator {
-  [Throws, Pref="dom.icc.enabled", CheckPermissions="mobileconnection",
-   AvailableIn="CertifiedApps", UnsafeInPrerendering]
+  [Throws, Pref="dom.icc.enabled", CheckPermissions="mobileconnection", UnsafeInPrerendering]
   readonly attribute MozIccManager? mozIccManager;
 };
 

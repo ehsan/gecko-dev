@@ -66,6 +66,7 @@ public:
     NS_IMETHOD Create(nsIWidget *aParent,
                       nsNativeWidget aNativeParent,
                       const nsIntRect &aRect,
+                      nsDeviceContext *aContext,
                       nsWidgetInitData *aInitData);
     NS_IMETHOD Destroy(void);
     NS_IMETHOD ConfigureChildren(const nsTArray<nsIWidget::Configuration>&);
@@ -99,7 +100,7 @@ public:
     NS_IMETHOD Invalidate(const nsIntRect &aRect);
     NS_IMETHOD SetFocus(bool aRaise = false);
     NS_IMETHOD GetScreenBounds(nsIntRect &aRect);
-    virtual mozilla::LayoutDeviceIntPoint WidgetToScreenOffset();
+    virtual nsIntPoint WidgetToScreenOffset();
     NS_IMETHOD DispatchEvent(mozilla::WidgetGUIEvent* aEvent,
                              nsEventStatus& aStatus);
     nsEventStatus DispatchEvent(mozilla::WidgetGUIEvent* aEvent);

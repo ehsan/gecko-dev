@@ -277,8 +277,8 @@ typedef NSInteger NSEventGestureAxis;
 
 - (BOOL)isCoveringTitlebar;
 
-- (NSColor*)vibrancyFillColorForThemeGeometryType:(nsITheme::ThemeGeometryType)aThemeGeometryType;
-- (NSColor*)vibrancyFontSmoothingBackgroundColorForThemeGeometryType:(nsITheme::ThemeGeometryType)aThemeGeometryType;
+- (NSColor*)vibrancyFillColorForWidgetType:(uint8_t)aWidgetType;
+- (NSColor*)vibrancyFontSmoothingBackgroundColorForWidgetType:(uint8_t)aWidgetType;
 
 // Simple gestures support
 //
@@ -355,6 +355,7 @@ public:
   NS_IMETHOD              Create(nsIWidget *aParent,
                                  nsNativeWidget aNativeParent,
                                  const nsIntRect &aRect,
+                                 nsDeviceContext *aContext,
                                  nsWidgetInitData *aInitData = nullptr) MOZ_OVERRIDE;
 
   NS_IMETHOD              Destroy() MOZ_OVERRIDE;
@@ -400,7 +401,7 @@ public:
 
   virtual void*           GetNativeData(uint32_t aDataType) MOZ_OVERRIDE;
   virtual nsresult        ConfigureChildren(const nsTArray<Configuration>& aConfigurations) MOZ_OVERRIDE;
-  virtual mozilla::LayoutDeviceIntPoint WidgetToScreenOffset() MOZ_OVERRIDE;
+  virtual nsIntPoint      WidgetToScreenOffset() MOZ_OVERRIDE;
   virtual bool            ShowsResizeIndicator(nsIntRect* aResizerRect) MOZ_OVERRIDE;
 
   static  bool            ConvertStatus(nsEventStatus aStatus)
@@ -501,8 +502,8 @@ public:
   }
 
   void              ClearVibrantAreas();
-  NSColor*          VibrancyFillColorForThemeGeometryType(nsITheme::ThemeGeometryType aThemeGeometryType);
-  NSColor*          VibrancyFontSmoothingBackgroundColorForThemeGeometryType(nsITheme::ThemeGeometryType aThemeGeometryType);
+  NSColor*          VibrancyFillColorForWidgetType(uint8_t aWidgetType);
+  NSColor*          VibrancyFontSmoothingBackgroundColorForWidgetType(uint8_t aWidgetType);
 
   // unit conversion convenience functions
   int32_t           CocoaPointsToDevPixels(CGFloat aPts) const {

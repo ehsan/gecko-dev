@@ -1226,11 +1226,6 @@ MapObject::construct(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     CallArgs args = CallArgsFromVp(argc, vp);
-
-    // FIXME: bug 1083752
-    if (!WarnIfNotConstructing(cx, args, "Map"))
-        return false;
-
     if (!args.get(0).isNullOrUndefined()) {
         RootedValue adderVal(cx);
         if (!GetProperty(cx, obj, obj, cx->names().set, &adderVal))
@@ -1875,11 +1870,6 @@ SetObject::construct(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     CallArgs args = CallArgsFromVp(argc, vp);
-
-    // FIXME: bug 1083752
-    if (!WarnIfNotConstructing(cx, args, "Set"))
-        return false;
-
     if (!args.get(0).isNullOrUndefined()) {
         RootedValue adderVal(cx);
         if (!GetProperty(cx, obj, obj, cx->names().add, &adderVal))

@@ -18,13 +18,14 @@
 #include "vm/Interpreter.h"
 #include "vm/TraceLogging.h"
 
+#include "jsinferinlines.h"
+
 #include "jit/BaselineFrame-inl.h"
 #include "jit/JitFrames-inl.h"
 #include "vm/Debugger-inl.h"
 #include "vm/Interpreter-inl.h"
 #include "vm/NativeObject-inl.h"
 #include "vm/StringObject-inl.h"
-#include "vm/TypeInference-inl.h"
 
 using namespace js;
 using namespace js::jit;
@@ -98,7 +99,7 @@ InvokeFunction(JSContext *cx, HandleObject obj0, uint32_t argc, Value *argv, Val
     if (obj->is<JSFunction>()) {
         jsbytecode *pc;
         RootedScript script(cx, cx->currentScript(&pc));
-        TypeScript::Monitor(cx, script, pc, rv.get());
+        types::TypeScript::Monitor(cx, script, pc, rv.get());
     }
 
     *rval = rv;
@@ -329,7 +330,7 @@ ArrayPopDense(JSContext *cx, HandleObject obj, MutableHandleValue rval)
     // have to monitor the return value.
     rval.set(argv[0]);
     if (rval.isUndefined())
-        TypeScript::Monitor(cx, rval);
+        types::TypeScript::Monitor(cx, rval);
     return true;
 }
 
@@ -379,7 +380,7 @@ ArrayShiftDense(JSContext *cx, HandleObject obj, MutableHandleValue rval)
     // have to monitor the return value.
     rval.set(argv[0]);
     if (rval.isUndefined())
-        TypeScript::Monitor(cx, rval);
+        types::TypeScript::Monitor(cx, rval);
     return true;
 }
 
@@ -582,7 +583,7 @@ GetIntrinsicValue(JSContext *cx, HandlePropertyName name, MutableHandleValue rva
     // purposes, as its side effect is not observable from JS. We are
     // guaranteed to bail out after this function, but because of its AliasSet,
     // type info will not be reflowed. Manually monitor here.
-    TypeScript::Monitor(cx, rval);
+    types::TypeScript::Monitor(cx, rval);
 
     return true;
 }
@@ -1287,7 +1288,7 @@ MarkShapeFromIon(JSRuntime *rt, Shape **shapep)
 }
 
 void
-MarkObjectGroupFromIon(JSRuntime *rt, ObjectGroup **groupp)
+MarkObjectGroupFromIon(JSRuntime *rt, types::ObjectGroup **groupp)
 {
     gc::MarkObjectGroupUnbarriered(&rt->gc.marker, groupp, "write barrier");
 }

@@ -8,9 +8,8 @@
 #define vm_UnboxedObject_h
 
 #include "jsgc.h"
+#include "jsinfer.h"
 #include "jsobj.h"
-
-#include "vm/TypeInference.h"
 
 namespace js {
 
@@ -36,7 +35,7 @@ UnboxedTypeNeedsPreBarrier(JSValueType type)
 }
 
 // Class describing the layout of an UnboxedPlainObject.
-class UnboxedLayout : public mozilla::LinkedListElement<UnboxedLayout>
+class UnboxedLayout
 {
   public:
     struct Property {
@@ -45,7 +44,7 @@ class UnboxedLayout : public mozilla::LinkedListElement<UnboxedLayout>
         JSValueType type;
 
         Property()
-          : name(nullptr), offset(UINT32_MAX), type(JSVAL_TYPE_MAGIC)
+          : name(nullptr), offset(0), type(JSVAL_TYPE_MAGIC)
         {}
     };
 
@@ -59,7 +58,7 @@ class UnboxedLayout : public mozilla::LinkedListElement<UnboxedLayout>
     size_t size_;
 
     // Any 'new' script information associated with this layout.
-    TypeNewScript *newScript_;
+    types::TypeNewScript *newScript_;
 
     // List for use in tracing objects with this layout. This has the same
     // structure as the trace list on a TypeDescr.
@@ -81,11 +80,11 @@ class UnboxedLayout : public mozilla::LinkedListElement<UnboxedLayout>
         return properties_;
     }
 
-    TypeNewScript *newScript() const {
+    types::TypeNewScript *newScript() const {
         return newScript_;
     }
 
-    void setNewScript(TypeNewScript *newScript, bool writeBarrier = true);
+    void setNewScript(types::TypeNewScript *newScript, bool writeBarrier = true);
 
     const int32_t *traceList() const {
         return traceList_;
@@ -183,7 +182,7 @@ class UnboxedPlainObject : public JSObject
 // preliminary objects and their group to the new unboxed representation.
 bool
 TryConvertToUnboxedLayout(JSContext *cx, Shape *templateShape,
-                          ObjectGroup *group, PreliminaryObjectArray *objects);
+                          types::ObjectGroup *group, types::PreliminaryObjectArray *objects);
 
 inline gc::AllocKind
 UnboxedLayout::getAllocKind() const

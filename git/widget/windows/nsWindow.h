@@ -94,6 +94,7 @@ public:
   NS_IMETHOD              Create(nsIWidget *aParent,
                                  nsNativeWidget aNativeParent,
                                  const nsIntRect &aRect,
+                                 nsDeviceContext *aContext,
                                  nsWidgetInitData *aInitData = nullptr);
   NS_IMETHOD              Destroy();
   NS_IMETHOD              SetParent(nsIWidget *aNewParent);
@@ -135,7 +136,7 @@ public:
   virtual void            FreeNativeData(void * data, uint32_t aDataType);
   NS_IMETHOD              SetTitle(const nsAString& aTitle);
   NS_IMETHOD              SetIcon(const nsAString& aIconSpec);
-  virtual mozilla::LayoutDeviceIntPoint WidgetToScreenOffset();
+  virtual nsIntPoint      WidgetToScreenOffset();
   virtual nsIntSize       ClientToWindowSize(const nsIntSize& aClientSize);
   NS_IMETHOD              DispatchEvent(mozilla::WidgetGUIEvent* aEvent,
                                         nsEventStatus& aStatus);

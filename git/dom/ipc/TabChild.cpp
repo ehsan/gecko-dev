@@ -746,27 +746,15 @@ private:
     }
 };
 
-namespace {
 StaticRefPtr<TabChild> sPreallocatedTab;
 
+/*static*/
 std::map<TabId, nsRefPtr<TabChild>>&
-NestedTabChildMap()
+TabChild::NestedTabChildMap()
 {
   MOZ_ASSERT(NS_IsMainThread());
   static std::map<TabId, nsRefPtr<TabChild>> sNestedTabChildMap;
   return sNestedTabChildMap;
-}
-} // anonymous namespace
-
-already_AddRefed<TabChild>
-TabChild::FindTabChild(const TabId& aTabId)
-{
-  auto iter = NestedTabChildMap().find(aTabId);
-  if (iter == NestedTabChildMap().end()) {
-    return nullptr;
-  }
-  nsRefPtr<TabChild> tabChild = iter->second;
-  return tabChild.forget();
 }
 
 /*static*/ void
@@ -880,7 +868,6 @@ TabChild::TabChild(nsIContentChild* aManager,
   , mDPI(0)
   , mDefaultScale(0)
   , mIPCOpen(true)
-  , mParentIsActive(false)
 {
   if (!sActiveDurationMsSet) {
     Preferences::AddIntVarCache(&sActiveDurationMs,
@@ -1097,7 +1084,8 @@ TabChild::Init()
   mWidget->Create(
     nullptr, 0,              // no parents
     nsIntRect(nsIntPoint(0, 0), nsIntSize(0, 0)),
-    nullptr                  // HandleWidgetEvent
+    nullptr,                 // HandleWidgetEvent
+    nullptr                  // nsDeviceContext
   );
 
   baseWindow->InitWindow(0, mWidget, 0, 0, 0, 0);
@@ -1890,8 +1878,7 @@ TabChild::DoFakeShow(const ScrollingBehavior& aScrolling,
                      PRenderFrameChild* aRenderFrame)
 {
   ShowInfo info(EmptyString(), false, false, 0, 0);
-  RecvShow(nsIntSize(0, 0), info, aScrolling, aTextureFactoryIdentifier,
-           aLayersId, aRenderFrame, mParentIsActive);
+  RecvShow(nsIntSize(0, 0), info, aScrolling, aTextureFactoryIdentifier, aLayersId, aRenderFrame);
   mDidFakeShow = true;
 }
 
@@ -1993,14 +1980,12 @@ TabChild::RecvShow(const nsIntSize& aSize,
                    const ScrollingBehavior& aScrolling,
                    const TextureFactoryIdentifier& aTextureFactoryIdentifier,
                    const uint64_t& aLayersId,
-                   PRenderFrameChild* aRenderFrame,
-                   const bool& aParentIsActive)
+                   PRenderFrameChild* aRenderFrame)
 {
     MOZ_ASSERT((!mDidFakeShow && aRenderFrame) || (mDidFakeShow && !aRenderFrame));
 
     if (mDidFakeShow) {
         ApplyShowInfo(aInfo);
-        RecvParentActivated(aParentIsActive);
         return true;
     }
 
@@ -2026,7 +2011,6 @@ TabChild::RecvShow(const nsIntSize& aSize,
 
     bool res = InitTabChildGlobal();
     ApplyShowInfo(aInfo);
-    RecvParentActivated(aParentIsActive);
     return res;
 }
 
@@ -2277,8 +2261,6 @@ bool TabChild::RecvDeactivate()
 
 bool TabChild::RecvParentActivated(const bool& aActivated)
 {
-  mParentIsActive = aActivated;
-
   nsFocusManager* fm = nsFocusManager::GetFocusManager();
   NS_ENSURE_TRUE(fm, true);
 
@@ -3348,15 +3330,6 @@ TabChild::GetTabId(uint64_t* aId)
   return NS_OK;
 }
 
-void
-TabChild::SetTabId(const TabId& aTabId)
-{
-  MOZ_ASSERT(mUniqueId == 0);
-
-  mUniqueId = aTabId;
-  NestedTabChildMap()[mUniqueId] = this;
-}
-
 bool
 TabChild::DoSendBlockingMessage(JSContext* aCx,
                                 const nsAString& aMessage,
@@ -3487,20 +3460,19 @@ TabChild::DeallocPPluginWidgetChild(mozilla::plugins::PPluginWidgetChild* aActor
     return true;
 }
 
-nsresult
-TabChild::CreatePluginWidget(nsIWidget* aParent, nsIWidget** aOut)
+already_AddRefed<nsIWidget>
+TabChild::CreatePluginWidget(nsIWidget* aParent)
 {
-  *aOut = nullptr;
   mozilla::plugins::PluginWidgetChild* child =
     static_cast<mozilla::plugins::PluginWidgetChild*>(SendPPluginWidgetConstructor());
   if (!child) {
     NS_ERROR("couldn't create PluginWidgetChild");
-    return NS_ERROR_UNEXPECTED;
+    return nullptr;
   }
   nsCOMPtr<nsIWidget> pluginWidget = nsIWidget::CreatePluginProxyWidget(this, child);
   if (!pluginWidget) {
     NS_ERROR("couldn't create PluginWidgetProxy");
-    return NS_ERROR_UNEXPECTED;
+    return nullptr;
   }
 
   nsWidgetInitData initData;
@@ -3509,12 +3481,11 @@ TabChild::CreatePluginWidget(nsIWidget* aParent, nsIWidget** aOut)
   initData.clipChildren = true;
   initData.clipSiblings = true;
   nsresult rv = pluginWidget->Create(aParent, nullptr, nsIntRect(nsIntPoint(0, 0),
-                                     nsIntSize(0, 0)), &initData);
+                                     nsIntSize(0, 0)), nullptr, &initData);
   if (NS_FAILED(rv)) {
     NS_WARNING("Creating native plugin widget on the chrome side failed.");
   }
-  pluginWidget.forget(aOut);
-  return rv;
+  return pluginWidget.forget();
 }
 
 TabChildGlobal::TabChildGlobal(TabChildBase* aTabChild)

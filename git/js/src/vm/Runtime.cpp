@@ -164,6 +164,9 @@ JSRuntime::JSRuntime(JSRuntime *parentRuntime)
     negativeInfinityValue(DoubleValue(NegativeInfinity<double>())),
     positiveInfinityValue(DoubleValue(PositiveInfinity<double>())),
     emptyString(nullptr),
+#ifdef NIGHTLY_BUILD
+    assertOnScriptEntryHook_(nullptr),
+#endif
     spsProfiler(thisFromCtor()),
     profilingScripts(false),
     suppressProfilerSampling(false),
@@ -525,7 +528,7 @@ InvokeInterruptCallback(JSContext *cx)
 {
     MOZ_ASSERT(cx->runtime()->requestDepth >= 1);
 
-    cx->runtime()->gc.gcIfRequested();
+    cx->gcIfNeeded();
 
     // A worker thread may have requested an interrupt after finishing an Ion
     // compilation.

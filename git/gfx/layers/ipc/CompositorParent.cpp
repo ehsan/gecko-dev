@@ -416,7 +416,6 @@ CompositorParent::CompositorParent(nsIWidget* aWidget,
   , mOverrideComposeReadiness(false)
   , mForceCompositionTask(nullptr)
   , mCompositorThreadHolder(sCompositorThreadHolder)
-  , mCompositorVsyncObserver(nullptr)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(CompositorThread(),
@@ -578,7 +577,7 @@ CompositorParent::RecvMakeSnapshot(const SurfaceDescriptor& aInSnapshot,
 bool
 CompositorParent::RecvFlushRendering()
 {
-  if (mCompositorVsyncObserver && mCompositorVsyncObserver->NeedsComposite()) {
+  if (gfxPrefs::VsyncAlignedCompositor() && mCompositorVsyncObserver->NeedsComposite()) {
     mCompositorVsyncObserver->SetNeedsComposite(false);
     CancelCurrentCompositeTask();
     ForceComposeToTarget(nullptr);
@@ -719,7 +718,7 @@ CompositorParent::ForceComposition()
 void
 CompositorParent::CancelCurrentCompositeTask()
 {
-  if (mCompositorVsyncObserver) {
+  if (gfxPrefs::VsyncAlignedCompositor()) {
     mCompositorVsyncObserver->CancelCurrentCompositeTask();
   } else if (mCurrentCompositeTask) {
     mCurrentCompositeTask->Cancel();
@@ -832,7 +831,7 @@ CalculateCompositionFrameRate()
 void
 CompositorParent::ScheduleSoftwareTimerComposition()
 {
-  MOZ_ASSERT(!mCompositorVsyncObserver);
+  MOZ_ASSERT(!gfxPrefs::VsyncAlignedCompositor());
 
   if (mCurrentCompositeTask) {
     return;
@@ -875,7 +874,7 @@ CompositorParent::ScheduleComposition()
     return;
   }
 
-  if (mCompositorVsyncObserver) {
+  if (gfxPrefs::VsyncAlignedCompositor()) {
     mCompositorVsyncObserver->SetNeedsComposite(true);
   } else {
     ScheduleSoftwareTimerComposition();
@@ -885,7 +884,7 @@ CompositorParent::ScheduleComposition()
 void
 CompositorParent::CompositeCallback(TimeStamp aScheduleTime)
 {
-  if (mCompositorVsyncObserver) {
+  if (gfxPrefs::VsyncAlignedCompositor()) {
     // Align OMTA to vsync time.
     // TODO: ensure it aligns with the refresh / start time of
     // animations
@@ -1098,7 +1097,7 @@ CompositorParent::ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
     // conditions.
     bool needTestComposite = mIsTesting && root &&
                              (mCurrentCompositeTask ||
-                             (mCompositorVsyncObserver &&
+                             (gfxPrefs::VsyncAlignedCompositor() &&
                               mCompositorVsyncObserver->NeedsComposite()));
     if (needTestComposite) {
       AutoResolveRefLayers resolve(mCompositionManager);
@@ -1132,7 +1131,7 @@ CompositorParent::SetTestSampleTime(LayerTransactionParent* aLayerTree,
   mTestTime = aTime;
 
   bool testComposite = mCompositionManager && (mCurrentCompositeTask ||
-                                               (mCompositorVsyncObserver
+                                               (gfxPrefs::VsyncAlignedCompositor()
                                                && mCompositorVsyncObserver->NeedsComposite()));
 
   // Update but only if we were already scheduled to animate

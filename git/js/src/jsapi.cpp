@@ -88,6 +88,7 @@
 
 #include "jsatominlines.h"
 #include "jsfuninlines.h"
+#include "jsinferinlines.h"
 #include "jsscriptinlines.h"
 
 #include "vm/Interpreter-inl.h"
@@ -96,6 +97,7 @@
 
 using namespace js;
 using namespace js::gc;
+using namespace js::types;
 
 using mozilla::Maybe;
 using mozilla::PodCopy;
@@ -225,6 +227,179 @@ AssertHeapIsIdleOrStringIsFlat(JSContext *cx, JSString *str)
      * is a flat string, since that will not cause allocation.
      */
     MOZ_ASSERT_IF(cx->runtime()->isHeapBusy(), str->isFlat());
+}
+
+JS_PUBLIC_API(bool)
+JS_ConvertArguments(JSContext *cx, const CallArgs &args, const char *format, ...)
+{
+    va_list ap;
+    bool ok;
+
+    AssertHeapIsIdle(cx);
+
+    va_start(ap, format);
+    ok = JS_ConvertArgumentsVA(cx, args, format, ap);
+    va_end(ap);
+    return ok;
+}
+
+JS_PUBLIC_API(bool)
+JS_ConvertArgumentsVA(JSContext *cx, const CallArgs &args, const char *format, va_list ap)
+{
+    unsigned index = 0;
+    bool required;
+    char c;
+    double d;
+    JSString *str;
+    RootedObject obj(cx);
+    RootedValue val(cx);
+
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+    assertSameCompartment(cx, args);
+    required = true;
+    while ((c = *format++) != '\0') {
+        if (isspace(c))
+            continue;
+        if (c == '/') {
+            required = false;
+            continue;
+        }
+        if (index == args.length()) {
+            if (required) {
+                if (JSFunction *fun = ReportIfNotFunction(cx, args.calleev())) {
+                    char numBuf[12];
+                    JS_snprintf(numBuf, sizeof numBuf, "%u", args.length());
+                    JSAutoByteString funNameBytes;
+                    if (const char *name = GetFunctionNameBytes(cx, fun, &funNameBytes)) {
+                        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
+                                             JSMSG_MORE_ARGS_NEEDED,
+                                             name, numBuf, (args.length() == 1) ? "" : "s");
+                    }
+                }
+                return false;
+            }
+            break;
+        }
+        MutableHandleValue arg = args[index++];
+        switch (c) {
+          case 'b':
+            *va_arg(ap, bool *) = ToBoolean(arg);
+            break;
+          case 'c':
+            if (!ToUint16(cx, arg, va_arg(ap, uint16_t *)))
+                return false;
+            break;
+          case 'i':
+          case 'j': // "j" was broken, you should not use it.
+            if (!ToInt32(cx, arg, va_arg(ap, int32_t *)))
+                return false;
+            break;
+          case 'u':
+            if (!ToUint32(cx, arg, va_arg(ap, uint32_t *)))
+                return false;
+            break;
+          case 'd':
+            if (!ToNumber(cx, arg, va_arg(ap, double *)))
+                return false;
+            break;
+          case 'I':
+            if (!ToNumber(cx, arg, &d))
+                return false;
+            *va_arg(ap, double *) = ToInteger(d);
+            break;
+          case 'S':
+            str = ToString<CanGC>(cx, arg);
+            if (!str)
+                return false;
+            arg.setString(str);
+            *va_arg(ap, JSString **) = str;
+            break;
+          case 'o':
+            if (arg.isNullOrUndefined()) {
+                obj = nullptr;
+            } else {
+                obj = ToObject(cx, arg);
+                if (!obj)
+                    return false;
+            }
+            arg.setObjectOrNull(obj);
+            *va_arg(ap, JSObject **) = obj;
+            break;
+          case 'f':
+            obj = ReportIfNotFunction(cx, arg);
+            if (!obj)
+                return false;
+            arg.setObject(*obj);
+            *va_arg(ap, JSFunction **) = &obj->as<JSFunction>();
+            break;
+          case 'v':
+            *va_arg(ap, jsval *) = arg;
+            break;
+          case '*':
+            break;
+          default:
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_BAD_CHAR, format);
+            return false;
+        }
+    }
+    return true;
+}
+
+JS_PUBLIC_API(bool)
+JS_ConvertValue(JSContext *cx, HandleValue value, JSType type, MutableHandleValue vp)
+{
+    bool ok;
+    RootedObject obj(cx);
+    JSString *str;
+    double d;
+
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+    assertSameCompartment(cx, value);
+    switch (type) {
+      case JSTYPE_VOID:
+        vp.setUndefined();
+        ok = true;
+        break;
+      case JSTYPE_OBJECT:
+        if (value.isNullOrUndefined()) {
+            obj.set(nullptr);
+        } else {
+            obj = ToObject(cx, value);
+            if (!obj)
+                return false;
+        }
+        ok = true;
+        break;
+      case JSTYPE_FUNCTION:
+        vp.set(value);
+        obj = ReportIfNotFunction(cx, vp);
+        ok = (obj != nullptr);
+        break;
+      case JSTYPE_STRING:
+        str = ToString<CanGC>(cx, value);
+        ok = (str != nullptr);
+        if (ok)
+            vp.setString(str);
+        break;
+      case JSTYPE_NUMBER:
+        ok = ToNumber(cx, value, &d);
+        if (ok)
+            vp.setDouble(d);
+        break;
+      case JSTYPE_BOOLEAN:
+        vp.setBoolean(ToBoolean(value));
+        return true;
+      default: {
+        char numBuf[12];
+        JS_snprintf(numBuf, sizeof numBuf, "%d", (int)type);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_BAD_TYPE, numBuf);
+        ok = false;
+        break;
+      }
+    }
+    return ok;
 }
 
 JS_PUBLIC_API(bool)
@@ -2301,7 +2476,7 @@ DefineProperty(JSContext *cx, HandleObject obj, const char *name, HandleValue va
 
     RootedId id(cx);
     if (attrs & JSPROP_INDEX) {
-        id = INT_TO_JSID(intptr_t(name));
+        id.set(INT_TO_JSID(intptr_t(name)));
         attrs &= ~JSPROP_INDEX;
     } else {
         JSAtom *atom = Atomize(cx, name, strlen(name));
@@ -2484,17 +2659,17 @@ JS_DefineUCProperty(JSContext *cx, HandleObject obj, const char16_t *name, size_
 
 JS_PUBLIC_API(JSObject *)
 JS_DefineObject(JSContext *cx, HandleObject obj, const char *name, const JSClass *jsclasp,
-                unsigned attrs)
+                HandleObject proto, unsigned attrs)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    assertSameCompartment(cx, obj);
+    assertSameCompartment(cx, obj, proto);
 
     const Class *clasp = Valueify(jsclasp);
     if (!clasp)
         clasp = &PlainObject::class_;    /* default class is Object */
 
-    RootedObject nobj(cx, NewObjectWithClassProto(cx, clasp, nullptr, obj));
+    RootedObject nobj(cx, NewObjectWithClassProto(cx, clasp, proto, obj));
     if (!nobj)
         return nullptr;
 
@@ -2622,6 +2797,46 @@ JS::ParsePropertyDescriptorObject(JSContext *cx,
     return true;
 }
 
+static bool
+GetPropertyDescriptorById(JSContext *cx, HandleObject obj, HandleId id,
+                          MutableHandle<PropertyDescriptor> desc)
+{
+    RootedObject obj2(cx);
+    RootedShape shape(cx);
+
+    if (!LookupProperty(cx, obj, id, &obj2, &shape))
+        return false;
+
+    desc.clear();
+    if (!shape)
+        return true;
+
+    desc.object().set(obj2);
+    if (obj2->isNative()) {
+        if (IsImplicitDenseOrTypedArrayElement(shape)) {
+            desc.setEnumerable();
+            desc.value().set(obj2->as<NativeObject>().getDenseOrTypedArrayElement(JSID_TO_INT(id)));
+        } else {
+            desc.setAttributes(shape->attributes());
+            desc.setGetter(shape->getter());
+            desc.setSetter(shape->setter());
+            MOZ_ASSERT(desc.value().isUndefined());
+            if (shape->hasSlot())
+                desc.value().set(obj2->as<NativeObject>().getSlot(shape->slot()));
+        }
+
+        return true;
+    }
+
+    // When we hit a proxy during lookup, the property might be
+    // on the prototype of the proxy, thus use getPropertyDescriptor.
+    if (obj2->is<ProxyObject>())
+        return Proxy::getPropertyDescriptor(cx, obj2, id, desc);
+
+    // Assume other non-natives (i.e. TypedObjects) behave in a sane way.
+    return GetOwnPropertyDescriptor(cx, obj2, id, desc);
+}
+
 JS_PUBLIC_API(bool)
 JS_GetOwnPropertyDescriptorById(JSContext *cx, HandleObject obj, HandleId id,
                                 MutableHandle<JSPropertyDescriptor> desc)
@@ -2647,7 +2862,7 @@ JS_PUBLIC_API(bool)
 JS_GetPropertyDescriptorById(JSContext *cx, HandleObject obj, HandleId id,
                              MutableHandle<JSPropertyDescriptor> desc)
 {
-    return GetPropertyDescriptor(cx, obj, id, desc);
+    return GetPropertyDescriptorById(cx, obj, id, desc);
 }
 
 JS_PUBLIC_API(bool)
@@ -5523,9 +5738,7 @@ JS_GetGlobalJitCompilerOption(JSRuntime *rt, JSJitCompilerOption opt)
       case JSJITCOMPILER_BASELINE_WARMUP_TRIGGER:
         return jit::js_JitOptions.baselineWarmUpThreshold;
       case JSJITCOMPILER_ION_WARMUP_TRIGGER:
-        return jit::js_JitOptions.forcedDefaultIonWarmUpThreshold.isSome()
-             ? jit::js_JitOptions.forcedDefaultIonWarmUpThreshold.ref()
-             : jit::OptimizationInfo::CompilerWarmupThreshold;
+        return jit::js_JitOptions.forcedDefaultIonWarmUpThreshold;
       case JSJITCOMPILER_ION_ENABLE:
         return JS::RuntimeOptionsRef(rt).ion();
       case JSJITCOMPILER_BASELINE_ENABLE:

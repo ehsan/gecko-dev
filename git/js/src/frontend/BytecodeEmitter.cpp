@@ -540,8 +540,8 @@ EmitLoopEntry(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *nextpn)
 }
 
 /*
- * If op is JOF_TYPESET (see the type barriers comment in TypeInference.h),
- * reserve a type set to store its result.
+ * If op is JOF_TYPESET (see the type barriers comment in jsinfer.h), reserve
+ * a type set to store its result.
  */
 static inline void
 CheckTypeSet(ExclusiveContext *cx, BytecodeEmitter *bce, JSOp op)
@@ -1902,7 +1902,7 @@ BindNameToSlotHelper(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
      * has no object to stand in the static scope chain, 2. to minimize memory
      * bloat where a single live function keeps its whole global script
      * alive.), ScopeCoordinateToTypeSet is not able to find the var/let's
-     * associated TypeSet.
+     * associated types::TypeSet.
      */
     if (skip) {
         BytecodeEmitter *bceSkipped = bce;
@@ -3704,7 +3704,7 @@ EmitDestructuringOpsObjectHelper(ExclusiveContext *cx, BytecodeEmitter *bce, Par
                 // used PNK_NUMBER instead, but also watch for ids which TI treats
                 // as indexes for simplification of downstream analysis.
                 jsid id = NameToId(name);
-                if (id != IdToTypeId(id)) {
+                if (id != types::IdToTypeId(id)) {
                     if (!EmitTree(cx, bce, key))                       // ... OBJ OBJ KEY
                         return false;
                 } else {
@@ -4295,7 +4295,7 @@ ParseNode::getConstantValue(ExclusiveContext *cx, AllowConstantObjects allowObje
         }
         MOZ_ASSERT(idx == count);
 
-        ObjectGroup::fixArrayGroup(cx, obj);
+        types::FixArrayGroup(cx, obj);
         vp.setObject(*obj);
         return true;
       }
@@ -4358,7 +4358,7 @@ ParseNode::getConstantValue(ExclusiveContext *cx, AllowConstantObjects allowObje
             }
         }
 
-        ObjectGroup::fixPlainObjectGroup(cx, obj);
+        types::FixObjectGroup(cx, obj);
         vp.setObject(*obj);
         return true;
       }
@@ -6622,7 +6622,7 @@ EmitObject(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             // used PNK_NUMBER instead, but also watch for ids which TI treats
             // as indexes for simpliciation of downstream analysis.
             jsid id = NameToId(key->pn_atom->asPropertyName());
-            if (id != IdToTypeId(id)) {
+            if (id != types::IdToTypeId(id)) {
                 if (!EmitTree(cx, bce, key))
                     return false;
                 isIndex = true;
@@ -7250,13 +7250,13 @@ frontend::EmitTree(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
                 if (!pn->getConstantValue(cx, ParseNode::DontAllowNestedObjects, &value))
                     return false;
                 if (!value.isMagic(JS_GENERIC_MAGIC)) {
-                    // Note: the group of the template object might not yet reflect
+                    // Note: the type of the template object might not yet reflect
                     // that the object has copy on write elements. When the
                     // interpreter or JIT compiler fetches the template, it should
-                    // use ObjectGroup::getOrFixupCopyOnWriteObject to make sure the
-                    // group for the template is accurate. We don't do this here as we
-                    // want to use ObjectGroup::allocationSiteGroup, which requires a
-                    // finished script.
+                    // use types::GetOrFixupCopyOnWriteObject to make sure the type
+                    // for the template is accurate. We don't do this here as we
+                    // want to use types::InitObject, which requires a finished
+                    // script.
                     NativeObject *obj = &value.toObject().as<NativeObject>();
                     if (!ObjectElements::MakeElementsCopyOnWrite(cx, obj))
                         return false;
