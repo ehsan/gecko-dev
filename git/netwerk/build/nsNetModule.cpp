@@ -635,10 +635,8 @@ static void nsNetShutdown()
     // Release DNS service reference.
     nsDNSPrefetch::Shutdown();
 
-#ifdef NECKO_PROTOCOL_websocket
     // Release the Websocket Admission Manager
     mozilla::net::nsWebSocketHandler::Shutdown();
-#endif // NECKO_PROTOCOL_websocket
 }
 
 NS_DEFINE_NAMED_CID(NS_IOSERVICE_CID);

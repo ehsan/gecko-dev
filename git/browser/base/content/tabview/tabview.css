@@ -72,9 +72,6 @@ body {
 
 .tab-title {
   position: absolute;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .stacked .tab-title {

@@ -52,7 +52,7 @@
 #include "nsIDOMKeyEvent.h"
 #include "nsIDOMNSMouseEvent.h"
 #include "nsIDOMDataTransfer.h"
-#include "nsIDOMEventTarget.h"
+#include "nsPIDOMEventTarget.h"
 #include "nsWeakPtr.h"
 #include "nsIWidget.h"
 #include "nsTArray.h"
@@ -533,11 +533,6 @@ class nsHashKey;
 #define NS_OPEN                      (NS_OPENCLOSE_EVENT_START)
 #define NS_CLOSE                     (NS_OPENCLOSE_EVENT_START+1)
 
-// Device motion and orientation
-#define NS_DEVICE_ORIENTATION_START  4900
-#define NS_DEVICE_ORIENTATION        (NS_DEVICE_ORIENTATION_START)
-#define NS_DEVICE_MOTION             (NS_DEVICE_ORIENTATION_START+1)
-
 /**
  * Return status for event processors, nsEventStatus, is defined in
  * nsEvent.h.
@@ -607,9 +602,9 @@ public:
   // Additional type info for user defined events
   nsCOMPtr<nsIAtom>     userType;
   // Event targets, needed by DOM Events
-  nsCOMPtr<nsIDOMEventTarget> target;
-  nsCOMPtr<nsIDOMEventTarget> currentTarget;
-  nsCOMPtr<nsIDOMEventTarget> originalTarget;
+  nsCOMPtr<nsPIDOMEventTarget> target;
+  nsCOMPtr<nsPIDOMEventTarget> currentTarget;
+  nsCOMPtr<nsPIDOMEventTarget> originalTarget;
 };
 
 /**

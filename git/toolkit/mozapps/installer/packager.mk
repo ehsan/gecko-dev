@@ -82,25 +82,6 @@ endif
 SDK_SUFFIX    = $(PKG_SUFFIX)
 SDK           = $(SDK_PATH)$(PKG_BASENAME).sdk$(SDK_SUFFIX)
 
-# JavaScript Shell packaging
-ifndef LIBXUL_SDK
-JSSHELL_BINS  = \
-  $(DIST)/bin/js$(BIN_SUFFIX) \
-  $(NULL)
-ifndef MOZ_NATIVE_NSPR
-JSSHELL_BINS += $(DIST)/bin/$(LIB_PREFIX)nspr4$(DLL_SUFFIX)
-ifeq ($(OS_ARCH),WINNT)
-JSSHELL_BINS += $(DIST)/bin/mozcrt19$(DLL_SUFFIX)
-else
-JSSHELL_BINS += \
-  $(DIST)/bin/$(LIB_PREFIX)plds4$(DLL_SUFFIX) \
-  $(DIST)/bin/$(LIB_PREFIX)plc4$(DLL_SUFFIX) \
-  $(NULL)
-endif
-endif # MOZ_NATIVE_NSPR
-MAKE_JSSHELL  = $(ZIP) -9j $(PKG_JSSHELL) $(JSSHELL_BINS)
-endif # LIBXUL_SDK
-
 MAKE_PACKAGE	= $(error What is a $(MOZ_PKG_FORMAT) package format?);
 _ABS_DIST = $(call core_abspath,$(DIST))
 JARLOG_DIR = $(call core_abspath,$(DEPTH)/jarlog/)
@@ -138,13 +119,17 @@ ifeq ($(MOZ_PKG_FORMAT),SFX7Z)
 PKG_SUFFIX	= .exe
 INNER_MAKE_PACKAGE	= rm -f app.7z && \
   mv $(MOZ_PKG_DIR) core && \
+  (if [ -f ../optional_file_list.txt ]; then mkdir optional; xargs -I {} -a ../optional_file_list.txt mv -t optional/ core/{}; fi;) && \
   $(CYGWIN_WRAPPER) 7z a -r -t7z app.7z -mx -m0=BCJ2 -m1=LZMA:d24 \
     -m2=LZMA:d19 -m3=LZMA:d19 -mb0:1 -mb0s1:2 -mb0s2:3 && \
   mv core $(MOZ_PKG_DIR) && \
+  (if [ -d optional ]; then mv optional/* $(MOZ_PKG_DIR); rm -rf optional; fi;) && \
   cat $(SFX_HEADER) app.7z > $(PACKAGE) && \
   chmod 0755 $(PACKAGE)
 INNER_UNMAKE_PACKAGE	= $(CYGWIN_WRAPPER) 7z x $(UNPACKAGE) core && \
-  mv core $(MOZ_PKG_DIR)
+  rm -f ../optional_file_list.txt && \
+  mv core $(MOZ_PKG_DIR) && \
+  (if [ -d optional ]; then ls -1 optional > ../optional_file_list.txt; cp -rp optional/* $(MOZ_PKG_DIR); rm -rf optional; fi;)
 endif
 
 #Create an RPM file
@@ -167,7 +152,7 @@ RPM_CMD = \
   echo Creating RPM && \
   mkdir -p $(RPMBUILD_SOURCEDIR) && \
   $(PYTHON) $(topsrcdir)/config/Preprocessor.py \
-	-DMOZ_APP_NAME=$(MOZ_APP_NAME) \
+  	-DMOZ_APP_NAME=$(MOZ_APP_NAME) \
 	-DMOZ_APP_DISPLAYNAME=$(MOZ_APP_DISPLAYNAME) \
 	< $(RPM_INCIDENTALS)/mozilla.desktop \
 	> $(RPMBUILD_SOURCEDIR)/$(MOZ_APP_NAME).desktop && \
@@ -687,12 +672,6 @@ endif
 ifdef MOZ_PKG_REMOVALS
 	$(SYSINSTALL) $(IFLAGS1) $(MOZ_PKG_REMOVALS_GEN) $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)
 endif # MOZ_PKG_REMOVALS
-ifndef LIBXUL_SDK
-# Package JavaScript Shell
-	@echo "Packaging JavaScript Shell..."
-	$(RM) $(PKG_JSSHELL)
-	$(MAKE_JSSHELL)
-endif # LIBXUL_SDK
 
 make-package: stage-package $(PACKAGE_XULRUNNER) make-sourcestamp-file
 	@echo "Compressing..."
@@ -803,11 +782,9 @@ UPLOAD_FILES= \
   $(call QUOTED_WILDCARD,$(DIST)/$(PKG_PATH)$(SYMBOL_ARCHIVE_BASENAME).zip) \
   $(call QUOTED_WILDCARD,$(DIST)/$(SDK)) \
   $(call QUOTED_WILDCARD,$(MOZ_SOURCESTAMP_FILE)) \
-  $(call QUOTED_WILDCARD,$(PKG_JSSHELL)) \
   $(if $(UPLOAD_EXTRA_FILES), $(foreach f, $(UPLOAD_EXTRA_FILES), $(wildcard $(DIST)/$(f))))
 
 checksum:
-	mkdir -p `dirname $(CHECKSUM_FILE)`
 	@$(PYTHON) $(MOZILLA_DIR)/build/checksums.py \
 		-o $(CHECKSUM_FILE) \
 		-d $(CHECKSUM_ALGORITHM) \
@@ -822,16 +799,6 @@ upload: checksum
 	$(PYTHON) $(MOZILLA_DIR)/build/upload.py --base-path $(DIST) \
 		$(UPLOAD_FILES) \
 		$(CHECKSUM_FILE)
-
-ifeq (WINNT,$(OS_TARGET))
-CODESIGHS_PACKAGE = $(INSTALLER_PACKAGE)
-else
-CODESIGHS_PACKAGE = $(DIST)/$(PACKAGE)
-endif
-
-codesighs:
-	$(PYTHON) $(topsrcdir)/tools/codesighs/codesighs.py \
-	  "$(DIST)/$(MOZ_PKG_DIR)" "$(CODESIGHS_PACKAGE)"
 
 ifndef MOZ_PKG_SRCDIR
 MOZ_PKG_SRCDIR = $(topsrcdir)

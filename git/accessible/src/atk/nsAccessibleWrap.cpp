@@ -450,9 +450,10 @@ nsAccessibleWrap::CreateMaiInterfaces(void)
         interfacesBits |= 1 << MAI_INTERFACE_IMAGE;
     }
 
-  // HyperLinkAccessible
-  if (IsLink())
-    interfacesBits |= 1 << MAI_INTERFACE_HYPERLINK_IMPL;
+    // HyperLinkAccessible
+    if (IsHyperLink()) {
+       interfacesBits |= 1 << MAI_INTERFACE_HYPERLINK_IMPL;
+    }
 
     if (!nsAccUtils::MustPrune(this)) {  // These interfaces require children
       //nsIAccessibleHypertext
@@ -1081,7 +1082,7 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
         nsString newName;
         accessible->GetName(newName);
         NS_ConvertUTF16toUTF8 utf8Name(newName);
-        if (!atkObj->name || !utf8Name.Equals(atkObj->name))
+        if (!utf8Name.Equals(atkObj->name))
           atk_object_set_name(atkObj, utf8Name.get());
 
         break;

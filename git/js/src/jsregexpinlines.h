@@ -481,10 +481,7 @@ RegExp::compileHelper(JSContext *cx, JSLinearString &pattern)
 
 #if ENABLE_YARR_JIT && defined(JS_METHODJIT)
     if (EnableYarrJIT(cx) && !yarrPattern.m_containsBackreferences) {
-        bool ok = cx->compartment->ensureJaegerCompartmentExists(cx);
-        if (!ok)
-            return false;
-        JSC::Yarr::JSGlobalData globalData(cx->compartment->jaegerCompartment()->execAlloc());
+        JSC::Yarr::JSGlobalData globalData(cx->compartment->jaegerCompartment->execAlloc());
         JSC::Yarr::jitCompile(yarrPattern, &globalData, codeBlock);
         if (!codeBlock.isFallBack())
             return true;

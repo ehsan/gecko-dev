@@ -49,8 +49,6 @@
 #include "gfxColor.h"
 #include "gfxPattern.h"
 
-#include "mozilla/gfx/2D.h"
-
 #if defined(DEBUG) || defined(PR_LOGGING)
 #  include <stdio.h>            // FILE
 #  include "prlog.h"
@@ -425,15 +423,6 @@ public:
   virtual already_AddRefed<gfxASurface>
     CreateOptimalSurface(const gfxIntSize &aSize,
                          gfxASurface::gfxImageFormat imageFormat);
-
-  /**
-   * Creates a DrawTarget which is optimized for inter-operating with this
-   * layermanager.
-   */
-  virtual TemporaryRef<mozilla::gfx::DrawTarget>
-    CreateDrawTarget(const mozilla::gfx::IntSize &aSize,
-                     mozilla::gfx::SurfaceFormat aFormat);
-
 
   /**
    * Return the name of the layer manager's backend.
@@ -1210,14 +1199,13 @@ class THEBES_API CanvasLayer : public Layer {
 public:
   struct Data {
     Data()
-      : mSurface(nsnull), mGLContext(nsnull)
-      , mDrawTarget(nsnull), mGLBufferIsPremultiplied(PR_FALSE)
+      : mSurface(nsnull), mGLContext(nsnull),
+        mGLBufferIsPremultiplied(PR_FALSE)
     { }
 
     /* One of these two must be specified, but never both */
     gfxASurface* mSurface;  // a gfx Surface for the canvas contents
     mozilla::gl::GLContext* mGLContext; // a GL PBuffer Context
-    mozilla::gfx::DrawTarget *mDrawTarget; // a DrawTarget for the canvas contents
 
     /* The size of the canvas content */
     nsIntSize mSize;

@@ -52,7 +52,6 @@
 #include "nsCOMPtr.h"
 
 #include "nsNetUtil.h"
-#include "nsStreamUtils.h"
 #include "nsIHttpChannel.h"
 #include "nsICachingChannel.h"
 #include "nsIInterfaceRequestor.h"
@@ -188,13 +187,29 @@ public:
 
   NS_IMETHOD GetKind(PRInt32 *kind)
   {
-    *kind = KIND_HEAP;
+    *kind = MR_HEAP;
     return NS_OK;
   }
 
-  NS_IMETHOD GetUnits(PRInt32 *units)
+  NS_IMETHOD GetDescription(char **desc)
   {
-    *units = UNITS_BYTES;
+    if (mType == ChromeUsedRaw) {
+      *desc = strdup("Memory used by in-use chrome images (compressed data).");
+    } else if (mType == ChromeUsedUncompressed) {
+      *desc = strdup("Memory used by in-use chrome images (uncompressed data).");
+    } else if (mType == ChromeUnusedRaw) {
+      *desc = strdup("Memory used by not in-use chrome images (compressed data).");
+    } else if (mType == ChromeUnusedUncompressed) {
+      *desc = strdup("Memory used by not in-use chrome images (uncompressed data).");
+    } else if (mType == ContentUsedRaw) {
+      *desc = strdup("Memory used by in-use content images (compressed data).");
+    } else if (mType == ContentUsedUncompressed) {
+      *desc = strdup("Memory used by in-use content images (uncompressed data).");
+    } else if (mType == ContentUnusedRaw) {
+      *desc = strdup("Memory used by not in-use content images (compressed data).");
+    } else if (mType == ContentUnusedUncompressed) {
+      *desc = strdup("Memory used by not in-use content images (uncompressed data).");
+    }
     return NS_OK;
   }
 
@@ -236,7 +251,7 @@ public:
     return PL_DHASH_NEXT;
   }
 
-  NS_IMETHOD GetAmount(PRInt64 *amount)
+  NS_IMETHOD GetMemoryUsed(PRInt64 *memoryUsed)
   {
     EnumArg arg(mType);
     if (mType & CHROME_BIT) {
@@ -245,29 +260,7 @@ public:
       imgLoader::sCache.EnumerateRead(EnumEntries, &arg);
     }
 
-    *amount = arg.value;
-    return NS_OK;
-  }
-
-  NS_IMETHOD GetDescription(char **desc)
-  {
-    if (mType == ChromeUsedRaw) {
-      *desc = strdup("Memory used by in-use chrome images (compressed data).");
-    } else if (mType == ChromeUsedUncompressed) {
-      *desc = strdup("Memory used by in-use chrome images (uncompressed data).");
-    } else if (mType == ChromeUnusedRaw) {
-      *desc = strdup("Memory used by not in-use chrome images (compressed data).");
-    } else if (mType == ChromeUnusedUncompressed) {
-      *desc = strdup("Memory used by not in-use chrome images (uncompressed data).");
-    } else if (mType == ContentUsedRaw) {
-      *desc = strdup("Memory used by in-use content images (compressed data).");
-    } else if (mType == ContentUsedUncompressed) {
-      *desc = strdup("Memory used by in-use content images (uncompressed data).");
-    } else if (mType == ContentUnusedRaw) {
-      *desc = strdup("Memory used by not in-use content images (compressed data).");
-    } else if (mType == ContentUnusedUncompressed) {
-      *desc = strdup("Memory used by not in-use content images (uncompressed data).");
-    }
+    *memoryUsed = arg.value;
     return NS_OK;
   }
 
@@ -2174,6 +2167,15 @@ NS_IMETHODIMP imgCacheValidator::OnStopRequest(nsIRequest *aRequest, nsISupports
 /** nsIStreamListener methods **/
 
 
+// XXX see bug 113959
+static NS_METHOD dispose_of_data(nsIInputStream* in, void* closure,
+                                 const char* fromRawSegment, PRUint32 toOffset,
+                                 PRUint32 count, PRUint32 *writeCount)
+{
+  *writeCount = count;
+  return NS_OK;
+}
+
 /* void onDataAvailable (in nsIRequest request, in nsISupports ctxt, in nsIInputStream inStr, in unsigned long sourceOffset, in unsigned long count); */
 NS_IMETHODIMP imgCacheValidator::OnDataAvailable(nsIRequest *aRequest, nsISupports *ctxt, nsIInputStream *inStr, PRUint32 sourceOffset, PRUint32 count)
 {
@@ -2189,7 +2191,7 @@ NS_IMETHODIMP imgCacheValidator::OnDataAvailable(nsIRequest *aRequest, nsISuppor
   if (!mDestListener) {
     // XXX see bug 113959
     PRUint32 _retval;
-    inStr->ReadSegments(NS_DiscardSegment, nsnull, count, &_retval);
+    inStr->ReadSegments(dispose_of_data, nsnull, count, &_retval);
     return NS_OK;
   }
 

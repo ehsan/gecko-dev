@@ -453,9 +453,7 @@ nsXMLHttpRequest::~nsXMLHttpRequest()
 void
 nsXMLHttpRequest::RootResultArrayBuffer()
 {
-  nsContentUtils::PreserveWrapper(
-    static_cast<nsIDOMEventTarget*>(
-      static_cast<nsDOMEventTargetHelper*>(this)), this);
+  nsContentUtils::PreserveWrapper(static_cast<nsPIDOMEventTarget*>(this), this);
 }
 
 /**
@@ -1275,7 +1273,7 @@ nsXMLHttpRequest::CreateReadystatechangeEvent(nsIDOMEvent** aDOMEvent)
 }
 
 void
-nsXMLHttpRequest::DispatchProgressEvent(nsDOMEventTargetHelper* aTarget,
+nsXMLHttpRequest::DispatchProgressEvent(nsPIDOMEventTarget* aTarget,
                                         const nsAString& aType,
                                         PRBool aUseLSEventWrapper,
                                         PRBool aLengthComputable,
@@ -2493,11 +2491,6 @@ nsXMLHttpRequest::SetRequestHeader(const nsACString& header,
     }
   }
 
-  PRUint16 state;
-  rv = GetReadyState(&state);
-  if (NS_FAILED(rv) || state != OPENED)
-    return NS_ERROR_IN_PROGRESS;
-
   if (!mChannel)             // open() initializes mChannel, and open()
     return NS_ERROR_FAILURE; // must be called before first setRequestHeader()
 
@@ -2560,16 +2553,7 @@ nsXMLHttpRequest::SetRequestHeader(const nsACString& header,
   }
 
   // We need to set, not add to, the header.
-  rv = httpChannel->SetRequestHeader(header, value, PR_FALSE);
-  if (NS_SUCCEEDED(rv)) {
-    // We'll want to duplicate this header for any replacement channels (eg. on redirect)
-    RequestHeader reqHeader = {
-      nsCString(header), nsCString(value)
-    };
-    mModifiedRequestHeaders.AppendElement(reqHeader);
-  }
-
-  return rv;
+  return httpChannel->SetRequestHeader(header, value, PR_FALSE);
 }
 
 /* readonly attribute long readyState; */
@@ -2828,22 +2812,10 @@ nsXMLHttpRequest::OnRedirectVerifyCallback(nsresult result)
   NS_ASSERTION(mRedirectCallback, "mRedirectCallback not set in callback");
   NS_ASSERTION(mNewRedirectChannel, "mNewRedirectChannel not set in callback");
 
-  if (NS_SUCCEEDED(result)) {
+  if (NS_SUCCEEDED(result))
     mChannel = mNewRedirectChannel;
-
-    nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(mChannel));
-    if (httpChannel) {
-      // Ensure all original headers are duplicated for the new channel (bug #553888)
-      for (PRUint32 i = mModifiedRequestHeaders.Length(); i > 0; ) {
-        --i;
-        httpChannel->SetRequestHeader(mModifiedRequestHeaders[i].header,
-                                      mModifiedRequestHeaders[i].value,
-                                      PR_FALSE);
-      }
-    }
-  } else {
+  else
     mErrorLoad = PR_TRUE;
-  }
 
   mNewRedirectChannel = nsnull;
 

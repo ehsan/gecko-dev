@@ -74,7 +74,7 @@ public:
                                          nsIOSurface *surf, 
                                          CGColorSpaceRef aColorSpace, 
                                          int aX, int aY,
-                                         size_t aWidth, size_t aHeight);
+                                         int aWidth, int aHeight);
 private:
   void Destroy();
 

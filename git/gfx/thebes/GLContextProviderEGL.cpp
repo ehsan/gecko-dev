@@ -1767,6 +1767,7 @@ GetVendor()
 already_AddRefed<GLContext>
 GLContextProviderEGL::CreateForWindow(nsIWidget *aWidget)
 {
+    EGLContext context;
     EGLConfig config;
 
     if (!sEGLLibrary.EnsureInitialized()) {
@@ -2163,13 +2164,14 @@ ContentTypeToGLFormat(gfxASurface::gfxContentType aCType)
 already_AddRefed<GLContext>
 GLContextProviderEGL::CreateForNativePixmapSurface(gfxASurface* aSurface)
 {
+    EGLSurface surface = nsnull;
+    EGLContext context = nsnull;
+    EGLConfig config = nsnull;
+
     if (!sEGLLibrary.EnsureInitialized())
         return nsnull;
 
 #ifdef MOZ_X11
-    EGLSurface surface = nsnull;
-    EGLConfig config = nsnull;
-
     if (aSurface->GetType() != gfxASurface::SurfaceTypeXlib) {
         // Not implemented
         return nsnull;
@@ -2191,6 +2193,9 @@ GLContextProviderEGL::CreateForNativePixmapSurface(gfxASurface* aSurface)
 
     return glContext.forget().get();
 #else
+    (void)surface;
+    (void)context;
+
     // Not implemented
     return nsnull;
 #endif

@@ -81,19 +81,13 @@ class nsDOMWorkerScope : public nsDOMWorkerMessageHandler,
 
 public:
   NS_DECL_ISUPPORTS_INHERITED
-
-  // nsIDOMEventHandler
-  NS_FORWARD_INTERNAL_NSIDOMEVENTTARGET(nsDOMWorkerMessageHandler::)
+  NS_DECL_NSIDOMEVENTTARGET
+  // nsIDOMNSEventTarget
   NS_IMETHOD AddEventListener(const nsAString& aType,
                               nsIDOMEventListener* aListener,
                               PRBool aUseCapture,
                               PRBool aWantsUntrusted,
                               PRUint8 optional_argc);
-  NS_IMETHOD RemoveEventListener(const nsAString& aType,
-                                 nsIDOMEventListener* aListener,
-                                 PRBool aUseCapture);
-  NS_IMETHOD DispatchEvent(nsIDOMEvent* aEvent,
-                           PRBool* _retval);
   NS_DECL_NSIWORKERGLOBALSCOPE
   NS_DECL_NSIWORKERSCOPE
   NS_DECL_NSIXPCSCRIPTABLE
@@ -168,20 +162,13 @@ class nsDOMWorker : public nsDOMWorkerMessageHandler,
 
 public:
   NS_DECL_ISUPPORTS_INHERITED
-
-  // nsIDOMEventHandler
-  NS_FORWARD_INTERNAL_NSIDOMEVENTTARGET(nsDOMWorkerMessageHandler::)
+  NS_DECL_NSIDOMEVENTTARGET
+  // nsIDOMNSEventTarget
   NS_IMETHOD AddEventListener(const nsAString& aType,
                               nsIDOMEventListener* aListener,
                               PRBool aUseCapture,
                               PRBool aWantsUntrusted,
                               PRUint8 optional_argc);
-  NS_IMETHOD RemoveEventListener(const nsAString& aType,
-                                 nsIDOMEventListener* aListener,
-                                 PRBool aUseCapture);
-  NS_IMETHOD DispatchEvent(nsIDOMEvent* aEvent,
-                           PRBool* _retval);
-
   NS_DECL_NSIABSTRACTWORKER
   NS_DECL_NSIWORKER
   NS_DECL_NSITIMERCALLBACK

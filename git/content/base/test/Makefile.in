@@ -59,10 +59,6 @@ CPP_UNIT_TESTS = \
 XPCSHELL_TESTS = \
                unit \
                $(NULL)
-# FIXME/bug 575918: out-of-process xpcshell is broken on OS X
-ifneq ($(OS_ARCH),Darwin)
-XPCSHELL_TESTS += unit_ipc
-endif
 
 include $(topsrcdir)/config/rules.mk
 
@@ -502,7 +498,6 @@ _TEST_FILES2 = \
 		somedatas.resource \
 		somedatas.resource^headers^ \
 		delayedServerEvents.sjs \
-		test_bug666604.html \
 		$(NULL)
 
 _CHROME_FILES =	\

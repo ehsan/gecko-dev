@@ -398,7 +398,7 @@ nsMenuFrame::GetAdditionalChildListName(PRInt32 aIndex) const
   if (NS_MENU_POPUP_LIST_INDEX == aIndex) {
     return nsGkAtoms::popupList;
   }
-  return nsnull;
+  return nsBoxFrame::GetAdditionalChildListName(aIndex);
 }
 
 void
@@ -871,24 +871,6 @@ nsMenuFrame::IsMenu()
   return mIsMenu;
 }
 
-nsMenuListType
-nsMenuFrame::GetParentMenuListType()
-{
-  if (mMenuParent && mMenuParent->IsMenu()) {
-    nsMenuPopupFrame* popupFrame = static_cast<nsMenuPopupFrame*>(mMenuParent);
-    nsIFrame* parentMenu = popupFrame->GetParent();
-    if (parentMenu) {
-      nsCOMPtr<nsIDOMXULMenuListElement> menulist = do_QueryInterface(parentMenu->GetContent());
-      if (menulist) {
-        PRBool isEditable = PR_FALSE;
-        menulist->GetEditable(&isEditable);
-        return isEditable ? eEditableMenuList : eReadonlyMenuList;
-      }
-    }
-  }
-  return eNotMenuList;
-}
-
 nsresult
 nsMenuFrame::Notify(nsITimer* aTimer)
 {
@@ -1216,9 +1198,18 @@ nsMenuFrame::ShouldBlink()
     return PR_FALSE;
 
   // Don't blink in editable menulists.
-  if (GetParentMenuListType() == eEditableMenuList)
-    return PR_FALSE;
-
+  if (mMenuParent && mMenuParent->IsMenu()) {
+    nsMenuPopupFrame* popupFrame = static_cast<nsMenuPopupFrame*>(mMenuParent);
+    nsIFrame* parentMenu = popupFrame->GetParent();
+    if (parentMenu) {
+      nsCOMPtr<nsIDOMXULMenuListElement> menulist = do_QueryInterface(parentMenu->GetContent());
+      if (menulist) {
+        PRBool isEditable = PR_FALSE;
+        menulist->GetEditable(&isEditable);
+        return !isEditable;
+      }
+    }
+  }
   return PR_TRUE;
 }
 
@@ -1384,26 +1375,13 @@ nsMenuFrame::SizeToPopup(nsBoxLayoutState& aState, nsSize& aSize)
       if (!mPopupFrame)
         return PR_FALSE;
       tmpSize = mPopupFrame->GetPrefSize(aState);
-
-      // Produce a size such that:
-      //  (1) the menu and its popup can be the same width
-      //  (2) there's enough room in the menu for the content and its
-      //      border-padding
-      //  (3) there's enough room in the popup for the content and its
-      //      scrollbar
-      nsMargin borderPadding;
-      GetBorderAndPadding(borderPadding);
+      aSize.width = tmpSize.width;
 
       // if there is a scroll frame, add the desired width of the scrollbar as well
       nsIScrollableFrame* scrollFrame = do_QueryFrame(mPopupFrame->GetFirstChild(nsnull));
-      nscoord scrollbarWidth = 0;
       if (scrollFrame) {
-        scrollbarWidth =
-          scrollFrame->GetDesiredScrollbarSizes(&aState).LeftRight();
+        aSize.width += scrollFrame->GetDesiredScrollbarSizes(&aState).LeftRight();
       }
-
-      aSize.width =
-        tmpSize.width + NS_MAX(borderPadding.LeftRight(), scrollbarWidth);
 
       return PR_TRUE;
     }

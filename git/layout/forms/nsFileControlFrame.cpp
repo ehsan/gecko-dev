@@ -54,6 +54,7 @@
 #include "nsIDOMElement.h"
 #include "nsIDOMDocument.h"
 #include "nsIDocument.h"
+#include "nsIDOMMouseListener.h"
 #include "nsIPresShell.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
@@ -70,8 +71,9 @@
 #include "nsContentUtils.h"
 #include "nsDisplayList.h"
 #include "nsIDOMNSUIEvent.h"
+#include "nsIDOMEventGroup.h"
+#include "nsIDOM3EventTarget.h"
 #include "nsIDOMHTMLInputElement.h"
-#include "nsEventListenerManager.h"
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
 #endif
@@ -149,23 +151,27 @@ nsFileControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
   // remove mMouseListener as a mouse event listener (bug 40533, bug 355931)
   NS_NAMED_LITERAL_STRING(click, "click");
 
-  nsContentUtils::DestroyAnonymousContent(&mCapture);
+  nsCOMPtr<nsIDOMEventGroup> systemGroup;
+  mContent->GetSystemEventGroup(getter_AddRefs(systemGroup));
 
-  nsEventListenerManager* elm = mBrowse->GetListenerManager(PR_FALSE);
-  if (elm) {
-    elm->RemoveEventListenerByType(mMouseListener, click,
-                                   NS_EVENT_FLAG_BUBBLE |
-                                   NS_EVENT_FLAG_SYSTEM_EVENT);
+  nsCOMPtr<nsIDOM3EventTarget> dom3Capture = do_QueryInterface(mCapture);
+  if (dom3Capture) {
+    nsContentUtils::DestroyAnonymousContent(&mCapture);
   }
-  nsContentUtils::DestroyAnonymousContent(&mBrowse);
 
-  elm = mTextContent->GetListenerManager(PR_FALSE);
-  if (elm) {
-    elm->RemoveEventListenerByType(mMouseListener, click,
-                                   NS_EVENT_FLAG_BUBBLE |
-                                   NS_EVENT_FLAG_SYSTEM_EVENT);
+  nsCOMPtr<nsIDOM3EventTarget> dom3Browse = do_QueryInterface(mBrowse);
+  if (dom3Browse) {
+    dom3Browse->RemoveGroupedEventListener(click, mMouseListener, PR_FALSE,
+                                           systemGroup);
+    nsContentUtils::DestroyAnonymousContent(&mBrowse);
   }
-  nsContentUtils::DestroyAnonymousContent(&mTextContent);
+  nsCOMPtr<nsIDOM3EventTarget> dom3TextContent =
+    do_QueryInterface(mTextContent);
+  if (dom3TextContent) {
+    dom3TextContent->RemoveGroupedEventListener(click, mMouseListener, PR_FALSE,
+                                                systemGroup);
+    nsContentUtils::DestroyAnonymousContent(&mTextContent);
+  }
 
   mCaptureMouseListener->ForgetFrame();
   mMouseListener->ForgetFrame();
@@ -274,13 +280,15 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
                                mMouseListener, PR_FALSE);
 
   NS_NAMED_LITERAL_STRING(click, "click");
-  nsEventListenerManager* manager = mTextContent->GetListenerManager(PR_TRUE);
-  NS_ENSURE_STATE(manager);
+  nsCOMPtr<nsIDOMEventGroup> systemGroup;
+  mContent->GetSystemEventGroup(getter_AddRefs(systemGroup));
+  nsCOMPtr<nsIDOM3EventTarget> dom3TextContent =
+    do_QueryInterface(mTextContent);
+  NS_ENSURE_STATE(dom3TextContent);
   // Register as an event listener of the textbox
   // to open file dialog on mouse click
-  manager->AddEventListenerByType(mMouseListener, click,
-                                  NS_EVENT_FLAG_BUBBLE |
-                                  NS_EVENT_FLAG_SYSTEM_EVENT);
+  dom3TextContent->AddGroupedEventListener(click, mMouseListener, PR_FALSE,
+                                           systemGroup);
 
   // Create the browse button
   nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::input, nsnull,
@@ -350,15 +358,12 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
   if (mCapture && !aElements.AppendElement(mCapture))
     return NS_ERROR_OUT_OF_MEMORY;
 
-  nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(mBrowse);
-  NS_ENSURE_STATE(target);
-  manager = target->GetListenerManager(PR_TRUE);
-  NS_ENSURE_STATE(manager);
+  nsCOMPtr<nsIDOM3EventTarget> dom3Browse = do_QueryInterface(mBrowse);
+  NS_ENSURE_STATE(dom3Browse);
   // Register as an event listener of the button
   // to open file dialog on mouse click
-  manager->AddEventListenerByType(mMouseListener, click,
-                                  NS_EVENT_FLAG_BUBBLE |
-                                  NS_EVENT_FLAG_SYSTEM_EVENT);
+  dom3Browse->AddGroupedEventListener(click, mMouseListener, PR_FALSE,
+                                      systemGroup);
 
   SyncAttr(kNameSpaceID_None, nsGkAtoms::size,     SYNC_TEXT);
   SyncDisabledState();
@@ -390,7 +395,7 @@ PRBool ShouldProcessMouseClick(nsIDOMEvent* aMouseEvent)
   // only allow the left button
   nsCOMPtr<nsIDOMMouseEvent> mouseEvent = do_QueryInterface(aMouseEvent);
   nsCOMPtr<nsIDOMNSUIEvent> uiEvent = do_QueryInterface(aMouseEvent);
-  NS_ENSURE_TRUE(mouseEvent && uiEvent, PR_FALSE);
+  NS_ENSURE_STATE(uiEvent);
   PRBool defaultPrevented = PR_FALSE;
   uiEvent->GetPreventDefault(&defaultPrevented);
   if (defaultPrevented) {
@@ -414,7 +419,7 @@ PRBool ShouldProcessMouseClick(nsIDOMEvent* aMouseEvent)
  * This is called when our capture button is clicked
  */
 NS_IMETHODIMP
-nsFileControlFrame::CaptureMouseListener::HandleEvent(nsIDOMEvent* aMouseEvent)
+nsFileControlFrame::CaptureMouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
 {
   nsresult rv;
 
@@ -502,25 +507,29 @@ nsFileControlFrame::CaptureMouseListener::HandleEvent(nsIDOMEvent* aMouseEvent)
 }
 
 /**
+ * This is called when our browse button is clicked
+ */
+NS_IMETHODIMP
+nsFileControlFrame::BrowseMouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
+{
+  NS_ASSERTION(mFrame, "We should have been unregistered");
+  if (!ShouldProcessMouseClick(aMouseEvent))
+    return NS_OK;
+  
+  nsHTMLInputElement* input =
+    nsHTMLInputElement::FromContent(mFrame->GetContent());
+  return input ? input->FireAsyncClickHandler() : NS_OK;
+}
+
+/**
  * This is called when we receive any registered events on the control.
- * We've only registered for drop, dragover and click events.
+ * We've only registered for drop, dragover and click events, and click events
+ * already call MouseClick() for us. Here, we handle file drops.
  */
 NS_IMETHODIMP
 nsFileControlFrame::BrowseMouseListener::HandleEvent(nsIDOMEvent* aEvent)
 {
   NS_ASSERTION(mFrame, "We should have been unregistered");
-
-  nsAutoString eventType;
-  aEvent->GetType(eventType);
-  if (eventType.EqualsLiteral("click")) {
-    if (!ShouldProcessMouseClick(aEvent))
-      return NS_OK;
-    
-    nsHTMLInputElement* input =
-      nsHTMLInputElement::FromContent(mFrame->GetContent());
-    return input ? input->FireAsyncClickHandler() : NS_OK;
-  }
-
   nsCOMPtr<nsIDOMNSUIEvent> uiEvent = do_QueryInterface(aEvent);
   NS_ENSURE_STATE(uiEvent);
   PRBool defaultPrevented = PR_FALSE;
@@ -534,6 +543,8 @@ nsFileControlFrame::BrowseMouseListener::HandleEvent(nsIDOMEvent* aEvent)
     return NS_OK;
   }
 
+  nsAutoString eventType;
+  aEvent->GetType(eventType);
   if (eventType.EqualsLiteral("dragover")) {
     // Prevent default if we can accept this drag data
     aEvent->PreventDefault();
@@ -831,5 +842,6 @@ nsFileControlFrame::ParseAcceptAttribute(AcceptAttrCallback aCallback,
 ////////////////////////////////////////////////////////////
 // Mouse listener implementation
 
-NS_IMPL_ISUPPORTS1(nsFileControlFrame::MouseListener,
+NS_IMPL_ISUPPORTS2(nsFileControlFrame::MouseListener,
+                   nsIDOMMouseListener,
                    nsIDOMEventListener)

@@ -411,12 +411,11 @@ nsHTMLEditor::GrabberClicked()
     mMouseMotionListenerP = new ResizerMouseMotionListener(this);
     if (!mMouseMotionListenerP) {return NS_ERROR_NULL_POINTER;}
 
-    nsCOMPtr<nsIDOMEventTarget> piTarget = GetDOMEventTarget();
+    nsCOMPtr<nsPIDOMEventTarget> piTarget = GetPIDOMEventTarget();
     NS_ENSURE_TRUE(piTarget, NS_ERROR_FAILURE);
 
-    res = piTarget->AddEventListener(NS_LITERAL_STRING("mousemove"),
-                                     mMouseMotionListenerP,
-                                     PR_FALSE, PR_FALSE);
+    res = piTarget->AddEventListenerByIID(mMouseMotionListenerP,
+                                          NS_GET_IID(nsIDOMMouseMotionListener));
     NS_ASSERTION(NS_SUCCEEDED(res),
                  "failed to register mouse motion listener");
   }
@@ -442,15 +441,14 @@ nsHTMLEditor::EndMoving()
 
     mPositioningShadow = nsnull;
   }
-  nsCOMPtr<nsIDOMEventTarget> piTarget = GetDOMEventTarget();
+  nsCOMPtr<nsPIDOMEventTarget> piTarget = GetPIDOMEventTarget();
 
   if (piTarget && mMouseMotionListenerP) {
 #ifdef DEBUG
     nsresult res =
 #endif
-    piTarget->RemoveEventListener(NS_LITERAL_STRING("mousemove"),
-                                  mMouseMotionListenerP,
-                                  PR_FALSE);
+    piTarget->RemoveEventListenerByIID(mMouseMotionListenerP,
+                                       NS_GET_IID(nsIDOMMouseMotionListener));
     NS_ASSERTION(NS_SUCCEEDED(res), "failed to remove mouse motion listener");
   }
   mMouseMotionListenerP = nsnull;

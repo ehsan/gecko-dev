@@ -49,6 +49,9 @@
 #include "mozilla/dom/Element.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMDocumentFragment.h"
+#include "nsIDOMEventTarget.h"
+#include "nsIDOM3EventTarget.h"
+#include "nsIDOMNSEventTarget.h"
 #include "nsIDOMNSElement.h"
 #include "nsILinkHandler.h"
 #include "nsContentUtils.h"
@@ -77,7 +80,7 @@ class nsIDOMCSSStyleDeclaration;
 class nsIURI;
 class nsINodeInfo;
 class nsIControllers;
-class nsEventListenerManager;
+class nsIEventListenerManager;
 class nsIScrollableFrame;
 class nsContentList;
 class nsDOMTokenList;
@@ -201,6 +204,77 @@ private:
 #define NS_EVENT_TEAROFF_CACHE_SIZE 4
 
 /**
+ * nsDOMEventRTTearoff is a tearoff class used by nsGenericElement and
+ * nsGenericDOMDataNode classes for implementing the interfaces
+ * nsIDOMEventTarget, nsIDOM3EventTarget and nsIDOMNSEventTarget.
+ *
+ * Use the method nsDOMEventRTTearoff::Create() to create one of these babies.
+ * @see nsDOMEventRTTearoff::Create
+ */
+
+class nsDOMEventRTTearoff : public nsIDOMEventTarget,
+                            public nsIDOM3EventTarget,
+                            public nsIDOMNSEventTarget
+{
+private:
+  // This class uses a caching scheme so we don't let users of this
+  // class create new instances with 'new', in stead the callers
+  // should use the static method
+  // nsDOMEventRTTearoff::Create(). That's why the constructor and
+  // destrucor of this class is private.
+
+  nsDOMEventRTTearoff(nsINode *aNode);
+
+  static nsDOMEventRTTearoff *mCachedEventTearoff[NS_EVENT_TEAROFF_CACHE_SIZE];
+  static PRUint32 mCachedEventTearoffCount;
+
+  /**
+   * This method gets called by Release() when it's time to delete the
+   * this object, in stead of always deleting the object we'll put the
+   * object in the cache if unless the cache is already full.
+   */
+  void LastRelease();
+
+  nsresult GetDOM3EventTarget(nsIDOM3EventTarget **aTarget);
+
+public:
+  virtual ~nsDOMEventRTTearoff();
+
+  /**
+   * Use this static method to create instances of nsDOMEventRTTearoff.
+   * @param aContent the content to create a tearoff for
+   */
+  static nsDOMEventRTTearoff *Create(nsINode *aNode);
+
+  /**
+   * Call before shutdown to clear the cache and free memory for this class.
+   */
+  static void Shutdown();
+
+  // nsISupports
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+
+  // nsIDOMEventTarget
+  NS_DECL_NSIDOMEVENTTARGET
+
+  // nsIDOM3EventTarget
+  NS_DECL_NSIDOM3EVENTTARGET
+
+  // nsIDOMNSEventTarget
+  NS_DECL_NSIDOMNSEVENTTARGET
+
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsDOMEventRTTearoff,
+                                           nsIDOMEventTarget)
+
+private:
+  /**
+   * Strong reference back to the content object from where an instance of this
+   * class was 'torn off'
+   */
+  nsCOMPtr<nsINode> mNode;
+};
+
+/**
  * A tearoff class for nsGenericElement to implement NodeSelector
  */
 class nsNodeSelectorTearoff : public nsIDOMNodeSelector
@@ -254,6 +328,21 @@ public:
   virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                                  PRBool aNotify);
   virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify);
+  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
+  virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
+  virtual nsresult DispatchDOMEvent(nsEvent* aEvent, nsIDOMEvent* aDOMEvent,
+                                    nsPresContext* aPresContext,
+                                    nsEventStatus* aEventStatus);
+  virtual nsIEventListenerManager* GetListenerManager(PRBool aCreateIfNotFound);
+  virtual nsresult AddEventListenerByIID(nsIDOMEventListener *aListener,
+                                         const nsIID& aIID);
+  virtual nsresult RemoveEventListenerByIID(nsIDOMEventListener *aListener,
+                                            const nsIID& aIID);
+  virtual nsresult GetSystemEventGroup(nsIDOMEventGroup** aGroup);
+  virtual nsIScriptContext* GetContextForEventHandlers(nsresult* aRv)
+  {
+    return nsContentUtils::GetContextForEventHandlers(this, aRv);
+  }
   NS_IMETHOD GetTextContent(nsAString &aTextContent)
   {
     nsContentUtils::GetNodeTextContent(this, PR_TRUE, aTextContent);
@@ -400,6 +489,7 @@ public:
   NS_IMETHOD GetAttributes(nsIDOMNamedNodeMap** aAttributes);
   NS_IMETHOD GetNamespaceURI(nsAString& aNamespaceURI);
   NS_IMETHOD GetPrefix(nsAString& aPrefix);
+  NS_IMETHOD Normalize();
   NS_IMETHOD IsSupported(const nsAString& aFeature,
                          const nsAString& aVersion, PRBool* aReturn);
   NS_IMETHOD HasAttributes(PRBool* aHasAttributes);
@@ -479,6 +569,14 @@ public:
   nsresult LeaveLink(nsPresContext* aPresContext);
 
   /**
+   * Take two text nodes and append the second to the first.
+   * @param aFirst the node which will contain first + second [INOUT]
+   * @param aSecond the node which will be appended
+   */
+  nsresult JoinTextNodes(nsIContent* aFirst,
+                         nsIContent* aSecond);
+
+  /**
    * Check whether a spec feature/version is supported.
    * @param aObject the object, which should support the feature,
    *        for example nsIDOMNode or nsIDOMDOMImplementation
@@ -511,6 +609,12 @@ public:
                                      nsIDOMNodeList **aReturn);
 
   /**
+   * Default event prehandling for content objects. Handles event retargeting.
+   */
+  static nsresult doPreHandleEvent(nsIContent* aContent,
+                                   nsEventChainPreVisitor& aVisitor);
+
+  /**
    * Method to create and dispatch a left-click event loosely based on
    * aSourceEvent. If aFullDispatch is true, the event will be dispatched
    * through the full dispatching of the presshell of the aPresContext; if it's
@@ -530,7 +634,6 @@ public:
    * event.
    * If aPresContext is nsnull, this does nothing.
    */
-  using nsIContent::DispatchEvent;
   static nsresult DispatchEvent(nsPresContext* aPresContext,
                                 nsEvent* aEvent,
                                 nsIContent* aTarget,
@@ -778,11 +881,11 @@ protected:
   }
 
   /**
-   * Hook to allow subclasses to produce a different nsEventListenerManager if
+   * Hook to allow subclasses to produce a different nsIEventListenerManager if
    * needed for attachment of attribute-defined handlers
    */
   virtual nsresult
-    GetEventListenerManagerForAttr(nsEventListenerManager** aManager,
+    GetEventListenerManagerForAttr(nsIEventListenerManager** aManager,
                                    nsISupports** aTarget,
                                    PRBool* aDefer);
 

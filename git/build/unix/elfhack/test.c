@@ -79,7 +79,6 @@ DEF(several)
 DEF(times)
 
 #else
-#pragma GCC visibility push(default)
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -110,7 +109,7 @@ const char *strings2[] = {
 
 static int ret = 1;
 
-int print_status() {
+__attribute__((visibility("default"))) int print_status() {
     fprintf(stderr, "%s\n", ret ? "FAIL" : "PASS");
     return ret;
 }
@@ -150,5 +149,4 @@ __attribute__((constructor)) void test() {
     end_test();
 }
 
-#pragma GCC visibility pop
 #endif

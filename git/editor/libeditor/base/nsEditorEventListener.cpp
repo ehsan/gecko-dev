@@ -44,7 +44,7 @@
 #include "nsIDOMEvent.h"
 #include "nsIDOMNSEvent.h"
 #include "nsIDOMDocument.h"
-#include "nsIDOMEventTarget.h"
+#include "nsPIDOMEventTarget.h"
 #include "nsIDocument.h"
 #include "nsIPresShell.h"
 #include "nsISelection.h"
@@ -56,7 +56,8 @@
 #include "nsIEditorMailSupport.h"
 #include "nsILookAndFeel.h"
 #include "nsFocusManager.h"
-#include "nsEventListenerManager.h"
+#include "nsIEventListenerManager.h"
+#include "nsIDOMEventGroup.h"
 #include "mozilla/Preferences.h"
 
 // Drag & Drop, Clipboard
@@ -68,6 +69,7 @@
 #include "nsISupportsPrimitives.h"
 #include "nsIDOMNSRange.h"
 #include "nsEditorUtils.h"
+#include "nsIDOMEventTarget.h"
 #include "nsISelectionPrivate.h"
 #include "nsIDOMDragEvent.h"
 #include "nsIFocusManager.h"
@@ -123,80 +125,67 @@ nsEditorEventListener::InstallToEditor()
 {
   NS_PRECONDITION(mEditor, "The caller must set mEditor");
 
-  nsCOMPtr<nsIDOMEventTarget> piTarget = mEditor->GetDOMEventTarget();
+  nsCOMPtr<nsPIDOMEventTarget> piTarget = mEditor->GetPIDOMEventTarget();
   NS_ENSURE_TRUE(piTarget, NS_ERROR_FAILURE);
 
   nsresult rv;
 
   // register the event listeners with the listener manager
-  nsEventListenerManager* elmP = piTarget->GetListenerManager(PR_TRUE);
+  nsCOMPtr<nsIDOMEventGroup> sysGroup;
+  piTarget->GetSystemEventGroup(getter_AddRefs(sysGroup));
+  NS_ENSURE_STATE(sysGroup);
+  nsIEventListenerManager* elmP = piTarget->GetListenerManager(PR_TRUE);
   NS_ENSURE_STATE(elmP);
 
-  rv = elmP->AddEventListenerByType(this,
+  nsCOMPtr<nsIDOMEventListener> listenerBase;
+  CallQueryInterface(this, getter_AddRefs(listenerBase));
+
+  rv = elmP->AddEventListenerByType(listenerBase,
                                     NS_LITERAL_STRING("keypress"),
                                     NS_EVENT_FLAG_BUBBLE |
-                                    NS_PRIV_EVENT_UNTRUSTED_PERMITTED |
-                                    NS_EVENT_FLAG_SYSTEM_EVENT);
+                                    NS_PRIV_EVENT_UNTRUSTED_PERMITTED,
+                                    sysGroup);
   NS_ENSURE_SUCCESS(rv, rv);
   // See bug 455215, we cannot use the standard dragstart event yet
-  rv = elmP->AddEventListenerByType(this,
+  rv = elmP->AddEventListenerByType(listenerBase,
                                     NS_LITERAL_STRING("draggesture"),
-                                    NS_EVENT_FLAG_BUBBLE |
-                                    NS_EVENT_FLAG_SYSTEM_EVENT);
+                                    NS_EVENT_FLAG_BUBBLE, sysGroup);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = elmP->AddEventListenerByType(this,
+  rv = elmP->AddEventListenerByType(listenerBase,
                                     NS_LITERAL_STRING("dragenter"),
-                                    NS_EVENT_FLAG_BUBBLE |
-                                    NS_EVENT_FLAG_SYSTEM_EVENT);
+                                    NS_EVENT_FLAG_BUBBLE, sysGroup);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = elmP->AddEventListenerByType(this,
+  rv = elmP->AddEventListenerByType(listenerBase,
                                     NS_LITERAL_STRING("dragover"),
-                                    NS_EVENT_FLAG_BUBBLE |
-                                    NS_EVENT_FLAG_SYSTEM_EVENT);
+                                    NS_EVENT_FLAG_BUBBLE, sysGroup);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = elmP->AddEventListenerByType(this,
+  rv = elmP->AddEventListenerByType(listenerBase,
                                     NS_LITERAL_STRING("dragexit"),
-                                    NS_EVENT_FLAG_BUBBLE |
-                                    NS_EVENT_FLAG_SYSTEM_EVENT);
+                                    NS_EVENT_FLAG_BUBBLE, sysGroup);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = elmP->AddEventListenerByType(this,
+  rv = elmP->AddEventListenerByType(listenerBase,
                                     NS_LITERAL_STRING("drop"),
-                                    NS_EVENT_FLAG_BUBBLE |
-                                    NS_EVENT_FLAG_SYSTEM_EVENT);
+                                    NS_EVENT_FLAG_BUBBLE, sysGroup);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = elmP->AddEventListenerByType(this,
-                                    NS_LITERAL_STRING("mousedown"),
-                                    NS_EVENT_FLAG_CAPTURE);
+
+  rv = elmP->AddEventListenerByIID(listenerBase,
+                                   NS_GET_IID(nsIDOMMouseListener),
+                                   NS_EVENT_FLAG_CAPTURE);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = elmP->AddEventListenerByType(this,
-                                    NS_LITERAL_STRING("mouseup"),
-                                    NS_EVENT_FLAG_CAPTURE);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = elmP->AddEventListenerByType(this,
-                                    NS_LITERAL_STRING("click"),
-                                    NS_EVENT_FLAG_CAPTURE);
-  NS_ENSURE_SUCCESS(rv, rv);
+
   // Focus event doesn't bubble so adding the listener to capturing phase.
   // Make sure this works after bug 235441 gets fixed.
-  rv = elmP->AddEventListenerByType(this,
-                                    NS_LITERAL_STRING("blur"),
-                                    NS_EVENT_FLAG_CAPTURE);
+  rv = elmP->AddEventListenerByIID(listenerBase,
+                                   NS_GET_IID(nsIDOMFocusListener),
+                                   NS_EVENT_FLAG_CAPTURE);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = elmP->AddEventListenerByType(this,
-                                    NS_LITERAL_STRING("focus"),
-                                    NS_EVENT_FLAG_CAPTURE);
+
+  rv = piTarget->AddEventListenerByIID(listenerBase,
+                                       NS_GET_IID(nsIDOMTextListener));
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = elmP->AddEventListenerByType(this,
-                                    NS_LITERAL_STRING("text"),
-                                    NS_EVENT_FLAG_BUBBLE);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = elmP->AddEventListenerByType(this,
-                                    NS_LITERAL_STRING("compositionstart"),
-                                    NS_EVENT_FLAG_BUBBLE);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = elmP->AddEventListenerByType(this,
-                                    NS_LITERAL_STRING("compositionend"),
-                                    NS_EVENT_FLAG_BUBBLE);
+
+  rv = piTarget->AddEventListenerByIID(listenerBase,
+                                       NS_GET_IID(nsIDOMCompositionListener));
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -215,65 +204,57 @@ nsEditorEventListener::Disconnect()
 void
 nsEditorEventListener::UninstallFromEditor()
 {
-  nsCOMPtr<nsIDOMEventTarget> piTarget = mEditor->GetDOMEventTarget();
+  nsCOMPtr<nsPIDOMEventTarget> piTarget = mEditor->GetPIDOMEventTarget();
   if (!piTarget) {
     return;
   }
 
-  nsEventListenerManager* elmP =
+  nsCOMPtr<nsIEventListenerManager> elmP =
     piTarget->GetListenerManager(PR_TRUE);
   if (!elmP) {
     return;
   }
+  nsCOMPtr<nsIDOMEventGroup> sysGroup;
+  piTarget->GetSystemEventGroup(getter_AddRefs(sysGroup));
+  if (!sysGroup) {
+    return;
+  }
 
-  elmP->RemoveEventListenerByType(this,
+  nsCOMPtr<nsIDOMEventListener> listenerBase;
+  CallQueryInterface(this, getter_AddRefs(listenerBase));
+
+  elmP->RemoveEventListenerByType(listenerBase,
                                   NS_LITERAL_STRING("keypress"),
-                                  NS_EVENT_FLAG_BUBBLE |
-                                  NS_EVENT_FLAG_SYSTEM_EVENT);
-  elmP->RemoveEventListenerByType(this,
+                                  NS_EVENT_FLAG_BUBBLE, sysGroup);
+  elmP->RemoveEventListenerByType(listenerBase,
                                   NS_LITERAL_STRING("draggesture"),
-                                  NS_EVENT_FLAG_BUBBLE |
-                                  NS_EVENT_FLAG_SYSTEM_EVENT);
-  elmP->RemoveEventListenerByType(this,
+                                  NS_EVENT_FLAG_BUBBLE, sysGroup);
+  elmP->RemoveEventListenerByType(listenerBase,
                                   NS_LITERAL_STRING("dragenter"),
-                                  NS_EVENT_FLAG_BUBBLE |
-                                  NS_EVENT_FLAG_SYSTEM_EVENT);
-  elmP->RemoveEventListenerByType(this,
+                                  NS_EVENT_FLAG_BUBBLE, sysGroup);
+  elmP->RemoveEventListenerByType(listenerBase,
                                   NS_LITERAL_STRING("dragover"),
-                                  NS_EVENT_FLAG_BUBBLE |
-                                  NS_EVENT_FLAG_SYSTEM_EVENT);
-  elmP->RemoveEventListenerByType(this,
+                                  NS_EVENT_FLAG_BUBBLE, sysGroup);
+  elmP->RemoveEventListenerByType(listenerBase,
                                   NS_LITERAL_STRING("dragexit"),
-                                  NS_EVENT_FLAG_BUBBLE |
-                                  NS_EVENT_FLAG_SYSTEM_EVENT);
-  elmP->RemoveEventListenerByType(this,
+                                  NS_EVENT_FLAG_BUBBLE, sysGroup);
+  elmP->RemoveEventListenerByType(listenerBase,
                                   NS_LITERAL_STRING("drop"),
-                                  NS_EVENT_FLAG_BUBBLE |
-                                  NS_EVENT_FLAG_SYSTEM_EVENT);
-  elmP->RemoveEventListenerByType(this,
-                                  NS_LITERAL_STRING("mousedown"),
-                                  NS_EVENT_FLAG_CAPTURE);
-  elmP->RemoveEventListenerByType(this,
-                                  NS_LITERAL_STRING("mouseup"),
-                                  NS_EVENT_FLAG_CAPTURE);
-  elmP->RemoveEventListenerByType(this,
-                                  NS_LITERAL_STRING("click"),
-                                  NS_EVENT_FLAG_CAPTURE);
-  elmP->RemoveEventListenerByType(this,
-                                  NS_LITERAL_STRING("blur"),
-                                  NS_EVENT_FLAG_CAPTURE);
-  elmP->RemoveEventListenerByType(this,
-                                  NS_LITERAL_STRING("focus"),
-                                  NS_EVENT_FLAG_CAPTURE);
-  elmP->RemoveEventListenerByType(this,
-                                  NS_LITERAL_STRING("text"),
-                                  NS_EVENT_FLAG_BUBBLE);
-  elmP->RemoveEventListenerByType(this,
-                                  NS_LITERAL_STRING("compositionstart"),
-                                  NS_EVENT_FLAG_BUBBLE);
-  elmP->RemoveEventListenerByType(this,
-                                  NS_LITERAL_STRING("compositionend"),
-                                  NS_EVENT_FLAG_BUBBLE);
+                                  NS_EVENT_FLAG_BUBBLE, sysGroup);
+
+  elmP->RemoveEventListenerByIID(listenerBase,
+                                 NS_GET_IID(nsIDOMMouseListener),
+                                 NS_EVENT_FLAG_CAPTURE);
+
+  elmP->RemoveEventListenerByIID(listenerBase,
+                                 NS_GET_IID(nsIDOMFocusListener),
+                                 NS_EVENT_FLAG_CAPTURE);
+
+  piTarget->RemoveEventListenerByIID(listenerBase,
+                                     NS_GET_IID(nsIDOMTextListener));
+
+  piTarget->RemoveEventListenerByIID(listenerBase,
+                                     NS_GET_IID(nsIDOMCompositionListener));
 }
 
 already_AddRefed<nsIPresShell>
@@ -288,7 +269,18 @@ nsEditorEventListener::GetPresShell()
  *  nsISupports implementation
  */
 
-NS_IMPL_ISUPPORTS1(nsEditorEventListener, nsIDOMEventListener)
+NS_IMPL_ADDREF(nsEditorEventListener)
+NS_IMPL_RELEASE(nsEditorEventListener)
+
+NS_INTERFACE_MAP_BEGIN(nsEditorEventListener)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMKeyListener)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMTextListener)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMCompositionListener)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMMouseListener)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMFocusListener)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIDOMEventListener, nsIDOMKeyListener)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMKeyListener)
+NS_INTERFACE_MAP_END
 
 /**
  *  nsIDOMEventListener implementation
@@ -299,11 +291,10 @@ nsEditorEventListener::HandleEvent(nsIDOMEvent* aEvent)
 {
   NS_ENSURE_TRUE(mEditor, NS_ERROR_NOT_AVAILABLE);
 
-  nsAutoString eventType;
-  aEvent->GetType(eventType);
-
   nsCOMPtr<nsIDOMDragEvent> dragEvent = do_QueryInterface(aEvent);
   if (dragEvent) {
+    nsAutoString eventType;
+    aEvent->GetType(eventType);
     if (eventType.EqualsLiteral("draggesture"))
       return DragGesture(dragEvent);
     if (eventType.EqualsLiteral("dragenter"))
@@ -315,26 +306,26 @@ nsEditorEventListener::HandleEvent(nsIDOMEvent* aEvent)
     if (eventType.EqualsLiteral("drop"))
       return Drop(dragEvent);
   }
+  return NS_OK;
+}
 
-  if (eventType.EqualsLiteral("keypress"))
-    return KeyPress(aEvent);
-  if (eventType.EqualsLiteral("mousedown"))
-    return MouseDown(aEvent);
-  if (eventType.EqualsLiteral("mouseup"))
-    return MouseUp(aEvent);
-  if (eventType.EqualsLiteral("click"))
-    return MouseClick(aEvent);
-  if (eventType.EqualsLiteral("focus"))
-    return Focus(aEvent);
-  if (eventType.EqualsLiteral("blur"))
-    return Blur(aEvent);
-  if (eventType.EqualsLiteral("text"))
-    return HandleText(aEvent);
-  if (eventType.EqualsLiteral("compositionstart"))
-    return HandleStartComposition(aEvent);
-  if (eventType.EqualsLiteral("compositionend"))
-    return HandleEndComposition(aEvent);
+/**
+ * nsIDOMKeyListener implementation
+ */
 
+NS_IMETHODIMP
+nsEditorEventListener::KeyDown(nsIDOMEvent* aKeyEvent)
+{
+  // WARNING: If you change this method, you comment out next line.
+  // NS_ENSURE_TRUE(mEditor, NS_ERROR_NOT_AVAILABLE);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsEditorEventListener::KeyUp(nsIDOMEvent* aKeyEvent)
+{
+  // WARNING: If you change this method, you comment out next line.
+  // NS_ENSURE_TRUE(mEditor, NS_ERROR_NOT_AVAILABLE);
   return NS_OK;
 }
 
@@ -374,6 +365,10 @@ nsEditorEventListener::KeyPress(nsIDOMEvent* aKeyEvent)
 
   return mEditor->HandleKeyPressEvent(keyEvent);
 }
+
+/**
+ * nsIDOMMouseListener implementation
+ */
 
 NS_IMETHODIMP
 nsEditorEventListener::MouseClick(nsIDOMEvent* aMouseEvent)
@@ -465,6 +460,42 @@ nsEditorEventListener::MouseDown(nsIDOMEvent* aMouseEvent)
   mEditor->ForceCompositionEnd();
   return NS_OK;
 }
+
+NS_IMETHODIMP
+nsEditorEventListener::MouseUp(nsIDOMEvent* aMouseEvent)
+{
+  // WARNING: If you change this method, you comment out next line.
+  // NS_ENSURE_TRUE(mEditor, NS_ERROR_NOT_AVAILABLE);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsEditorEventListener::MouseDblClick(nsIDOMEvent* aMouseEvent)
+{
+  // WARNING: If you change this method, you comment out next line.
+  // NS_ENSURE_TRUE(mEditor, NS_ERROR_NOT_AVAILABLE);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsEditorEventListener::MouseOver(nsIDOMEvent* aMouseEvent)
+{
+  // WARNING: If you change this method, you comment out next line.
+  // NS_ENSURE_TRUE(mEditor, NS_ERROR_NOT_AVAILABLE);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsEditorEventListener::MouseOut(nsIDOMEvent* aMouseEvent)
+{
+  // WARNING: If you change this method, you comment out next line.
+  // NS_ENSURE_TRUE(mEditor, NS_ERROR_NOT_AVAILABLE);
+  return NS_OK;
+}
+
+/**
+ * nsIDOMTextListener implementation
+ */
 
 NS_IMETHODIMP
 nsEditorEventListener::HandleText(nsIDOMEvent* aTextEvent)
@@ -748,6 +779,10 @@ nsEditorEventListener::CanDrop(nsIDOMDragEvent* aEvent)
   return PR_TRUE;
 }
 
+/**
+ * nsIDOMCompositionListener implementation
+ */
+
 NS_IMETHODIMP
 nsEditorEventListener::HandleStartComposition(nsIDOMEvent* aCompositionEvent)
 {
@@ -772,6 +807,10 @@ nsEditorEventListener::HandleEndComposition(nsIDOMEvent* aCompositionEvent)
 
   return mEditor->EndIMEComposition();
 }
+
+/**
+ * nsIDOMFocusListener implementation
+ */
 
 NS_IMETHODIMP
 nsEditorEventListener::Focus(nsIDOMEvent* aEvent)

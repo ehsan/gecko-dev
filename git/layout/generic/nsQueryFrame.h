@@ -184,7 +184,6 @@ public:
     nsPageFrame_id,
     nsPlaceholderFrame_id,
     nsPopupSetFrame_id,
-    nsPositionedInlineFrame_id,
     nsProgressFrame_id,
     nsProgressMeterFrame_id,
     nsResizerFrame_id,

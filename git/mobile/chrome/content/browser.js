@@ -1759,8 +1759,6 @@ const ContentTouchHandler = {
           let event = document.createEvent("Events");
           event.initEvent("CancelTouchSequence", true, false);
           document.dispatchEvent(event);
-        } else {
-          SelectionHelper.showPopup(contextMenu);
         }
         break;
       case "Browser:CaptureEvents": {
@@ -2194,10 +2192,6 @@ IdentityHandler.prototype = {
    * Click handler for the identity-box element in primary chrome.
    */
   handleIdentityButtonEvent: function(aEvent) {
-    let broadcaster = document.getElementById("bcast_uidiscovery");
-    if (broadcaster && broadcaster.getAttribute("mode") == "discovery")
-      return;
-
     aEvent.stopPropagation();
 
     if ((aEvent.type == "click" && aEvent.button != 0) ||

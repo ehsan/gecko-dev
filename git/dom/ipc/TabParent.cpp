@@ -514,10 +514,8 @@ bool
 TabParent::RecvGetIMEEnabled(PRUint32* aValue)
 {
   nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (!widget) {
-    *aValue = nsIWidget::IME_STATUS_DISABLED;
+  if (!widget)
     return true;
-  }
 
   IMEContext context;
   widget->GetInputMode(context);

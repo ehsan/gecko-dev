@@ -859,11 +859,21 @@ nsSliderFrame::SetInitialChildList(nsIAtom*        aListName,
 }
 
 nsresult
-nsSliderMediator::HandleEvent(nsIDOMEvent* aEvent)
+nsSliderMediator::MouseDown(nsIDOMEvent* aMouseEvent)
 {
   // Only process the event if the thumb is not being dragged.
   if (mSlider && !mSlider->isDraggingThumb())
-    return mSlider->MouseDown(aEvent);
+    return mSlider->MouseDown(aMouseEvent);
+
+  return NS_OK;
+}
+
+nsresult
+nsSliderMediator::MouseUp(nsIDOMEvent* aMouseEvent)
+{
+  // Only process the event if the thumb is not being dragged.
+  if (mSlider && !mSlider->isDraggingThumb())
+    return mSlider->MouseUp(aMouseEvent);
 
   return NS_OK;
 }
@@ -875,14 +885,11 @@ nsSliderFrame::MouseDown(nsIDOMEvent* aMouseEvent)
   printf("Begin dragging\n");
 #endif
 
-  nsCOMPtr<nsIDOMMouseEvent> mouseEvent(do_QueryInterface(aMouseEvent));
-  if (!mouseEvent)
-    return NS_OK;
-
   if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::disabled,
                             nsGkAtoms::_true, eCaseMatters))
     return NS_OK;
 
+  nsCOMPtr<nsIDOMMouseEvent> mouseEvent(do_QueryInterface(aMouseEvent));
   PRUint16 button = 0;
   mouseEvent->GetButton(&button);
   if (!(button == 0 || (button == 1 && gMiddlePref)))
@@ -948,6 +955,16 @@ nsSliderFrame::MouseDown(nsIDOMEvent* aMouseEvent)
   return NS_OK;
 }
 
+nsresult
+nsSliderFrame::MouseUp(nsIDOMEvent* aMouseEvent)
+{
+#ifdef DEBUG_SLIDER
+  printf("Finish dragging\n");
+#endif
+
+  return NS_OK;
+}
+
 void
 nsSliderFrame::DragThumb(PRBool aGrabMouseEvents)
 {
@@ -981,8 +998,7 @@ nsSliderFrame::AddListener()
   nsIFrame* thumbFrame = mFrames.FirstChild();
   if (thumbFrame) {
     thumbFrame->GetContent()->
-      AddEventListener(NS_LITERAL_STRING("mousedown"), mMediator, PR_FALSE,
-                       PR_FALSE);
+      AddEventListenerByIID(mMediator, NS_GET_IID(nsIDOMMouseListener));
   }
 }
 
@@ -996,7 +1012,7 @@ nsSliderFrame::RemoveListener()
     return;
 
   thumbFrame->GetContent()->
-    RemoveEventListener(NS_LITERAL_STRING("mousedown"), mMediator, PR_FALSE);
+    RemoveEventListenerByIID(mMediator, NS_GET_IID(nsIDOMMouseListener));
 }
 
 NS_IMETHODIMP
@@ -1138,5 +1154,6 @@ void nsSliderFrame::Notify(void)
     }
 }
 
-NS_IMPL_ISUPPORTS1(nsSliderMediator,
+NS_IMPL_ISUPPORTS2(nsSliderMediator,
+                   nsIDOMMouseListener,
                    nsIDOMEventListener)

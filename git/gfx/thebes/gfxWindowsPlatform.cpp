@@ -73,14 +73,10 @@
 
 #include <string>
 
-using namespace mozilla::gfx;
-
 #ifdef CAIRO_HAS_D2D_SURFACE
 #include "gfxD2DSurface.h"
 
 #include <d3d10_1.h>
-
-#include "mozilla/gfx/2D.h"
 
 #include "nsIMemoryReporter.h"
 #include "nsMemory.h"
@@ -89,37 +85,85 @@ using namespace mozilla::gfx;
 using namespace mozilla;
 
 #ifdef CAIRO_HAS_D2D_SURFACE
-
-NS_MEMORY_REPORTER_IMPLEMENT(
-    D2DCache,
-    "gfx-d2d-surfacecache",
-    KIND_OTHER,
-    UNITS_BYTES,
-    cairo_d2d_get_image_surface_cache_usage,
-    "Memory used by the Direct2D internal surface cache.")
-
-namespace
+class D2DCacheReporter :
+    public nsIMemoryReporter
 {
+public:
+    D2DCacheReporter()
+    { }
 
-PRInt64 GetD2DSurfaceVramUsage() {
-  cairo_device_t *device =
-      gfxWindowsPlatform::GetPlatform()->GetD2DDevice();
-  if (device) {
-      return cairo_d2d_get_surface_vram_usage(device);
-  }
-  return 0;
-}
+    NS_DECL_ISUPPORTS
 
-} // anonymous namespace
+    NS_IMETHOD GetProcess(char **process) {
+        *process = strdup("");
+        return NS_OK;
+    }
 
-NS_MEMORY_REPORTER_IMPLEMENT(
-    D2DVram,
-    "gfx-d2d-surfacevram",
-    KIND_OTHER,
-    UNITS_BYTES,
-    GetD2DSurfaceVramUsage,
-    "Video memory used by D2D surfaces")
+    NS_IMETHOD GetPath(char **memoryPath) {
+        *memoryPath = strdup("gfx-d2d-surfacecache");
+        return NS_OK;
+    }
 
+    NS_IMETHOD GetKind(PRInt32 *kind) {
+        *kind = MR_OTHER;
+        return NS_OK;
+    }
+
+    NS_IMETHOD GetDescription(char **desc) {
+        *desc = strdup("Memory used by the Direct2D internal surface cache.");
+        return NS_OK;
+    }
+
+    NS_IMETHOD GetMemoryUsed(PRInt64 *memoryUsed) {
+        *memoryUsed = cairo_d2d_get_image_surface_cache_usage();
+        return NS_OK;
+    }
+}; 
+
+NS_IMPL_ISUPPORTS1(D2DCacheReporter, nsIMemoryReporter)
+
+class D2DVRAMReporter :
+    public nsIMemoryReporter
+{
+public:
+    D2DVRAMReporter()
+    { }
+
+    NS_DECL_ISUPPORTS
+
+    NS_IMETHOD GetProcess(char **process) {
+        *process = strdup("");
+        return NS_OK;
+    }
+
+    NS_IMETHOD GetPath(char **memoryPath) {
+        *memoryPath = strdup("gfx-d2d-surfacevram");
+        return NS_OK;
+    }
+
+    NS_IMETHOD GetKind(PRInt32 *kind) {
+        *kind = MR_OTHER;
+        return NS_OK;
+    }
+
+    NS_IMETHOD GetDescription(char **desc) {
+        *desc = strdup("Video memory used by D2D surfaces");
+        return NS_OK;
+    }
+
+    NS_IMETHOD GetMemoryUsed(PRInt64 *memoryUsed) {
+        cairo_device_t *device =
+            gfxWindowsPlatform::GetPlatform()->GetD2DDevice();
+        if (device) {
+            *memoryUsed = cairo_d2d_get_surface_vram_usage(device);
+        } else {
+            *memoryUsed = 0;
+        }
+        return NS_OK;
+    }
+};
+
+NS_IMPL_ISUPPORTS1(D2DVRAMReporter, nsIMemoryReporter)
 #endif
 
 #define GFX_USE_CLEARTYPE_ALWAYS "gfx.font_rendering.cleartype.always_use_for_content"
@@ -179,8 +223,8 @@ gfxWindowsPlatform::gfxWindowsPlatform()
     mScreenDC = GetDC(NULL);
 
 #ifdef CAIRO_HAS_D2D_SURFACE
-    NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(D2DCache));
-    NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(D2DVram));
+    NS_RegisterMemoryReporter(new D2DCacheReporter());
+    NS_RegisterMemoryReporter(new D2DVRAMReporter());
     mD2DDevice = nsnull;
 #endif
 
@@ -358,10 +402,8 @@ gfxWindowsPlatform::VerifyD2DDevice(PRBool aAttemptForce)
         mD2DDevice = cairo_d2d_create_device();
     }
 
-    if (mD2DDevice) {
+    if (mD2DDevice)
         reporter.SetSuccessful();
-        mozilla::gfx::Factory::SetDirect3D10Device(cairo_d2d_device_get_device(mD2DDevice));
-    }
 #endif
 }
 
@@ -439,48 +481,6 @@ gfxWindowsPlatform::CreateOffscreenSurface(const gfxIntSize& size,
     NS_IF_ADDREF(surf);
 
     return surf;
-}
-
-RefPtr<ScaledFont>
-gfxWindowsPlatform::GetScaledFontForFont(gfxFont *aFont)
-{
-  if(mUseDirectWrite) {
-    gfxDWriteFont *font = static_cast<gfxDWriteFont*>(aFont);
-
-    NativeFont nativeFont;
-    nativeFont.mType = NATIVE_FONT_DWRITE_FONT_FACE;
-    nativeFont.mFont = font->GetFontFace();
-    RefPtr<ScaledFont> scaledFont =
-      mozilla::gfx::Factory::CreateScaledFontForNativeFont(nativeFont, font->GetAdjustedSize());
-
-    return scaledFont;
-  }
-}
-
-already_AddRefed<gfxASurface>
-gfxWindowsPlatform::GetThebesSurfaceForDrawTarget(DrawTarget *aTarget)
-{
-#ifdef XP_WIN
-  if (aTarget->GetType() == BACKEND_DIRECT2D) {
-    RefPtr<ID3D10Texture2D> texture =
-      static_cast<ID3D10Texture2D*>(aTarget->GetNativeSurface(NATIVE_SURFACE_D3D10_TEXTURE));
-
-    if (!texture) {
-      return gfxPlatform::GetThebesSurfaceForDrawTarget(aTarget);
-    }
-
-    aTarget->Flush();
-
-    nsRefPtr<gfxASurface> surf =
-      new gfxD2DSurface(texture, ContentForFormat(aTarget->GetFormat()));
-
-    surf->SetData(&kDrawTarget, aTarget, NULL);
-
-    return surf.forget();
-  }
-#endif
-
-  return gfxPlatform::GetThebesSurfaceForDrawTarget(aTarget);
 }
 
 nsresult

@@ -63,7 +63,6 @@
 #include "nsIMemoryReporter.h"
 
 #include "mozilla/FunctionTimer.h"
-#include "mozilla/Util.h"
 
 namespace {
 
@@ -133,17 +132,17 @@ namespace storage {
 //// Memory Reporting
 
 static PRInt64
-GetStorageSQLiteMemoryUsed()
+GetStorageSQLiteMemoryUsed(void *)
 {
   return ::sqlite3_memory_used();
 }
 
 NS_MEMORY_REPORTER_IMPLEMENT(StorageSQLiteMemoryUsed,
     "explicit/storage/sqlite",
-    KIND_HEAP,
-    UNITS_BYTES,
+    MR_HEAP,
+    "Memory used by SQLite.",
     GetStorageSQLiteMemoryUsed,
-    "Memory used by SQLite.")
+    nsnull)
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Helpers
@@ -294,7 +293,7 @@ Service::~Service()
   if (rc != SQLITE_OK)
     NS_WARNING("sqlite3 did not shutdown cleanly.");
 
-  DebugOnly<bool> shutdownObserved = !sXPConnect;
+  bool shutdownObserved = !sXPConnect;
   NS_ASSERTION(shutdownObserved, "Shutdown was not observed!");
 
   gService = nsnull;

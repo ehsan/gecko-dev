@@ -110,7 +110,7 @@ XXX keep these in sync with all the attributes starting
 */
 const CAPABILITIES = [
   "Subframes", "Plugins", "Javascript", "MetaRedirects", "Images",
-  "DNSPrefetch", "Auth", "WindowControl"
+  "DNSPrefetch", "Auth"
 ];
 
 // These keys are for internal use only - they shouldn't be part of the JSON
@@ -2933,7 +2933,8 @@ SessionStoreService.prototype = {
         // force session history to update its internal index and call reload
         // instead of gotoIndex. See bug 597315.
         browser.webNavigation.sessionHistory.getEntryAtIndex(activeIndex, true);
-        browser.webNavigation.sessionHistory.reloadCurrentEntry();
+        browser.webNavigation.sessionHistory.
+          QueryInterface(Ci.nsISHistory).reloadCurrentEntry();
       }
       catch (ex) {
         // ignore page load errors

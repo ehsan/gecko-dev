@@ -63,6 +63,8 @@
 #include "nsIDocShellTreeItem.h"
 #include "nsIDOMClientInformation.h"
 #include "nsIDOMEventTarget.h"
+#include "nsIDOM3EventTarget.h"
+#include "nsIDOMNSEventTarget.h"
 #include "nsIDOMNavigator.h"
 #include "nsIDOMNavigatorGeolocation.h"
 #include "nsIDOMNavigatorDesktopNotification.h"
@@ -81,7 +83,7 @@
 #include "nsPIDOMWindow.h"
 #include "nsIDOMModalContentWindow.h"
 #include "nsIScriptSecurityManager.h"
-#include "nsEventListenerManager.h"
+#include "nsIEventListenerManager.h"
 #include "nsIDOMDocument.h"
 #ifndef MOZ_DISABLE_DOMCRYPTO
 #include "nsIDOMCrypto.h"
@@ -101,6 +103,7 @@
 #include "nsIDOMStorageEvent.h"
 #include "nsIDOMStorageIndexedDB.h"
 #include "nsIDOMOfflineResourceList.h"
+#include "nsPIDOMEventTarget.h"
 #include "nsIArray.h"
 #include "nsIContent.h"
 #include "nsIIDBFactory.h"
@@ -195,13 +198,10 @@ struct nsTimeout : PRCList
   // True if this is one of the timeouts that are currently running
   PRPackedBool mRunning;
 
-  // True if this is a repeating/interval timer
-  PRPackedBool mIsInterval;
-
   // Returned as value of setTimeout()
   PRUint32 mPublicId;
 
-  // Interval in milliseconds
+  // Non-zero interval in milliseconds if repetitive timeout
   PRUint32 mInterval;
 
   // mWhen and mTimeRemaining can't be in a union, sadly, because they
@@ -276,6 +276,9 @@ class nsGlobalWindow : public nsPIDOMWindow,
                        public nsIDOMJSWindow,
                        public nsIScriptObjectPrincipal,
                        public nsIDOMEventTarget,
+                       public nsPIDOMEventTarget,
+                       public nsIDOM3EventTarget,
+                       public nsIDOMNSEventTarget,
                        public nsIDOMStorageWindow,
                        public nsIDOMStorageIndexedDB,
                        public nsSupportsWeakReference,
@@ -290,7 +293,6 @@ public:
 
   typedef mozilla::TimeStamp TimeStamp;
   typedef mozilla::TimeDuration TimeDuration;
-  typedef nsDataHashtable<nsUint64HashKey, nsGlobalWindow*> WindowByIdTable;
 
   // public methods
   nsPIDOMWindow* GetPrivateParent();
@@ -338,6 +340,12 @@ public:
   // nsIDOMEventTarget
   NS_DECL_NSIDOMEVENTTARGET
 
+  // nsIDOM3EventTarget
+  NS_DECL_NSIDOM3EVENTTARGET
+
+  // nsIDOMNSEventTarget
+  NS_DECL_NSIDOMNSEVENTTARGET
+  
   // nsIDOMWindow_2_0_BRANCH
   NS_DECL_NSIDOMWINDOW_2_0_BRANCH
 
@@ -345,8 +353,7 @@ public:
   virtual NS_HIDDEN_(nsPIDOMWindow*) GetPrivateRoot();
   virtual NS_HIDDEN_(void) ActivateOrDeactivate(PRBool aActivate);
   virtual NS_HIDDEN_(void) SetActive(PRBool aActive);
-  virtual NS_HIDDEN_(void) SetIsBackground(PRBool aIsBackground);
-  virtual NS_HIDDEN_(void) SetChromeEventHandler(nsIDOMEventTarget* aChromeEventHandler);
+  virtual NS_HIDDEN_(void) SetChromeEventHandler(nsPIDOMEventTarget* aChromeEventHandler);
 
   virtual NS_HIDDEN_(void) SetOpenerScriptPrincipal(nsIPrincipal* aPrincipal);
   virtual NS_HIDDEN_(nsIPrincipal*) GetOpenerScriptPrincipal();
@@ -368,6 +375,29 @@ public:
   }
 
   virtual NS_HIDDEN_(PRBool) WouldReuseInnerWindow(nsIDocument *aNewDocument);
+
+  virtual NS_HIDDEN_(nsPIDOMEventTarget*) GetTargetForDOMEvent()
+  {
+    return static_cast<nsPIDOMEventTarget*>(GetOuterWindowInternal());
+  }
+  virtual NS_HIDDEN_(nsPIDOMEventTarget*) GetTargetForEventTargetChain()
+  {
+    return IsInnerWindow() ?
+      this : static_cast<nsPIDOMEventTarget*>(GetCurrentInnerWindowInternal());
+  }
+  virtual NS_HIDDEN_(nsresult) PreHandleEvent(nsEventChainPreVisitor& aVisitor);
+  virtual NS_HIDDEN_(nsresult) PostHandleEvent(nsEventChainPostVisitor& aVisitor);
+  virtual NS_HIDDEN_(nsresult) DispatchDOMEvent(nsEvent* aEvent,
+                                                nsIDOMEvent* aDOMEvent,
+                                                nsPresContext* aPresContext,
+                                                nsEventStatus* aEventStatus);
+  virtual NS_HIDDEN_(nsIEventListenerManager*) GetListenerManager(PRBool aCreateIfNotFound);
+  virtual NS_HIDDEN_(nsresult) AddEventListenerByIID(nsIDOMEventListener *aListener,
+                                                     const nsIID& aIID);
+  virtual NS_HIDDEN_(nsresult) RemoveEventListenerByIID(nsIDOMEventListener *aListener,
+                                                        const nsIID& aIID);
+  virtual NS_HIDDEN_(nsresult) GetSystemEventGroup(nsIDOMEventGroup** aGroup);
+  virtual NS_HIDDEN_(nsIScriptContext*) GetContextForEventHandlers(nsresult* aRv);
 
   virtual NS_HIDDEN_(void) SetDocShell(nsIDocShell* aDocShell);
   virtual NS_HIDDEN_(nsresult) SetNewDocument(nsIDocument *aDocument,
@@ -536,27 +566,12 @@ public:
   }
 
   static nsGlobalWindow* GetOuterWindowWithId(PRUint64 aWindowID) {
-    nsGlobalWindow* outerWindow = sWindowsById->Get(aWindowID);
-    return outerWindow && !outerWindow->IsInnerWindow() ? outerWindow : nsnull;
+    return sOuterWindowsById ? sOuterWindowsById->Get(aWindowID) : nsnull;
   }
 
   static bool HasIndexedDBSupport();
 
   static bool HasPerformanceSupport();
-
-  static WindowByIdTable* GetWindowsTable() {
-    return sWindowsById;
-  }
-
-  PRInt64 SizeOf() const {
-    PRInt64 size = sizeof(*this);
-
-    if (IsInnerWindow() && mDoc) {
-      size += mDoc->SizeOf();
-    }
-
-    return size;
-  }
 
 private:
   // Enable updates for the accelerometer.
@@ -668,7 +683,6 @@ protected:
   // JS specific timeout functions (JS args grabbed from context).
   nsresult SetTimeoutOrInterval(PRBool aIsInterval, PRInt32* aReturn);
   nsresult ClearTimeoutOrInterval();
-  nsresult ResetTimersForNonBackgroundWindow();
 
   // The timeout implementation functions.
   void RunTimeout(nsTimeout *aTimeout);
@@ -917,7 +931,7 @@ protected:
                                                  // whether to clear scope
 
   // These member variable are used only on inner windows.
-  nsRefPtr<nsEventListenerManager> mListenerManager;
+  nsCOMPtr<nsIEventListenerManager> mListenerManager;
   PRCList                       mTimeouts;
   // If mTimeoutInsertionPoint is non-null, insertions should happen after it.
   nsTimeout*                    mTimeoutInsertionPoint;
@@ -980,7 +994,8 @@ protected:
   friend class PostMessageEvent;
   static nsIDOMStorageList* sGlobalStorageList;
 
-  static WindowByIdTable* sWindowsById;
+  typedef nsDataHashtable<nsUint64HashKey, nsGlobalWindow*> WindowByIdTable;
+  static WindowByIdTable* sOuterWindowsById;
 };
 
 /*

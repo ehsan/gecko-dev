@@ -46,6 +46,7 @@
 #include "nsIContent.h"
 #include "nsIPresShell.h"
 #include "nsIDocument.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "prmem.h"
@@ -108,9 +109,7 @@ static const char* const sEventNames[] = {
   "transitionend",
   "animationstart",
   "animationend",
-  "animationiteration",
-  "devicemotion",
-  "deviceorientation"
+  "animationiteration"
 };
 
 static char *sPopupAllowedEvents;
@@ -281,14 +280,16 @@ NS_METHOD nsDOMEvent::GetType(nsAString& aType)
 }
 
 static nsresult
-GetDOMEventTarget(nsIDOMEventTarget* aTarget,
+GetDOMEventTarget(nsPIDOMEventTarget* aTarget,
                   nsIDOMEventTarget** aDOMTarget)
 {
-  nsIDOMEventTarget* realTarget =
+  nsPIDOMEventTarget* realTarget =
     aTarget ? aTarget->GetTargetForDOMEvent() : aTarget;
+  if (realTarget) {
+    return CallQueryInterface(realTarget, aDOMTarget);
+  }
 
-  NS_IF_ADDREF(*aDOMTarget = realTarget);
-
+  *aDOMTarget = nsnull;
   return NS_OK;
 }
 
@@ -1363,10 +1364,6 @@ const char* nsDOMEvent::GetEventName(PRUint32 aEventType)
     return sEventNames[eDOMEvents_animationend];
   case NS_ANIMATION_ITERATION:
     return sEventNames[eDOMEvents_animationiteration];
-  case NS_DEVICE_MOTION:
-    return sEventNames[eDOMEvents_devicemotion];
-  case NS_DEVICE_ORIENTATION:
-    return sEventNames[eDOMEvents_deviceorientation];
   default:
     break;
   }
