@@ -5972,7 +5972,10 @@ PresShell::HandleEvent(nsIView         *aView,
 #endif
 
   // key and IME events must be targeted at the presshell for the focused frame
-  if (!sDontRetargetEvents && NS_IsEventTargetedAtFocusedWindow(aEvent)) {
+  if (!sDontRetargetEvents &&
+      (NS_IS_KEY_EVENT(aEvent) || NS_IS_IME_EVENT(aEvent) ||
+       NS_IS_QUERY_CONTENT_EVENT(aEvent) || NS_IS_SELECTION_EVENT(aEvent) ||
+       NS_IS_CONTEXT_MENU_KEY(aEvent))) {
     nsIFocusManager* fm = nsFocusManager::GetFocusManager();
     if (!fm)
       return NS_ERROR_FAILURE;
@@ -6057,7 +6060,10 @@ PresShell::HandleEvent(nsIView         *aView,
 
   nsIFrame* frame = static_cast<nsIFrame*>(aView->GetClientData());
 
-  PRBool dispatchUsingCoordinates = NS_IsEventUsingCoordinates(aEvent);
+  PRBool dispatchUsingCoordinates =
+      !NS_IS_KEY_EVENT(aEvent) && !NS_IS_IME_EVENT(aEvent) &&
+      !NS_IS_CONTEXT_MENU_KEY(aEvent) && !NS_IS_FOCUS_EVENT(aEvent) &&
+      !NS_IS_PLUGIN_EVENT(aEvent);
 
   // if this event has no frame, we need to retarget it at a parent
   // view that has a frame.

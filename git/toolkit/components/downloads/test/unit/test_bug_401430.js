@@ -48,7 +48,8 @@ const resultFileName = "test\u00e3\u041b\u3056" + Date.now() + ".doc";
 
 function checkResult() {
   // delete the saved file (this doesn't affect the "recent documents" list)
-  var resultFile = do_get_file(resultFileName);
+  var resultFile = dirSvc.get("ProfD", Ci.nsIFile);
+  resultFile.append(resultFileName);
   resultFile.remove(false);
 
   do_check_true(checkRecentDocsFor(resultFileName));
@@ -117,9 +118,5 @@ function run_test()
   dm.addListener(listener);
   dm.addListener(getDownloadListener());
 
-  // need to save the file to the CWD, because the profile dir is in $TEMP,
-  // and Windows apparently doesn't like putting things from $TEMP into
-  // the recent files list.
-  var dl = addDownload({resultFileName: resultFileName,
-			targetFile: do_get_file(resultFileName, true)});
+  var dl = addDownload({resultFileName: resultFileName});
 }

@@ -302,13 +302,13 @@ treecol[dragging="true"] {
   color: ThreeDHighlight !important;
 }
 
-treecol[insertafter="true"]:-moz-locale-dir(ltr),
-treecol[insertbefore="true"]:-moz-locale-dir(rtl) {
+tree:-moz-locale-dir(ltr) treecol[insertafter="true"],
+tree:-moz-locale-dir(rtl) treecol[insertbefore="true"] {
   -moz-border-right-colors: ThreeDDarkShadow ThreeDShadow;
 }
 
-treecol[insertafter="true"]:-moz-locale-dir(rtl),
-treecol[insertbefore="true"]:-moz-locale-dir(ltr) {
+tree:-moz-locale-dir(rtl) treecol[insertafter="true"],
+tree:-moz-locale-dir(ltr) treecol[insertbefore="true"] {
   -moz-border-left-colors: ThreeDDarkShadow ThreeDShadow;
 }
 

@@ -78,26 +78,23 @@ TriStateBool    nsWindowCE::sShowSIPButton        = TRI_UNKNOWN;
  **************************************************************/
 
 #ifdef WINCE_HAVE_SOFTKB
-void nsWindowCE::NotifySoftKbObservers(LPRECT visRect)
+void nsWindowCE::NotifySoftKbObservers()
 {
-  if (!visRect) {
-    SIPINFO sipInfo;
-    memset(&sipInfo, 0, sizeof(SIPINFO));
-    sipInfo.cbSize = sizeof(SIPINFO);
-    if (SipGetInfo(&sipInfo)) 
-      visRect = &(sipInfo.rcVisibleDesktop);
-    else
-      return;
-  }
-  
-  
   nsCOMPtr<nsIObserverService> observerService = do_GetService("@mozilla.org/observer-service;1");
   if (observerService) {
+    SIPINFO sipInfo;
     wchar_t rectBuf[256];
-    _snwprintf(rectBuf, 256, L"{\"left\": %d, \"top\": %d,"
-               L" \"right\": %d, \"bottom\": %d}", 
-               visRect->left, visRect->top, visRect->right, visRect->bottom);
-    observerService->NotifyObservers(nsnull, "softkb-change", rectBuf);
+    memset(&sipInfo, 0, sizeof(SIPINFO));
+    sipInfo.cbSize = sizeof(SIPINFO);
+    if (SipGetInfo(&sipInfo)) {
+      _snwprintf(rectBuf, 256, L"{\"left\": %d, \"top\": %d,"
+                 L" \"right\": %d, \"bottom\": %d}", 
+                 sipInfo.rcVisibleDesktop.left, 
+                 sipInfo.rcVisibleDesktop.top, 
+                 sipInfo.rcVisibleDesktop.right, 
+                 sipInfo.rcVisibleDesktop.bottom);
+      observerService->NotifyObservers(nsnull, "softkb-change", rectBuf);
+    }
   }
 }
 
@@ -134,28 +131,10 @@ void nsWindowCE::ToggleSoftKB(PRBool show)
     GetWindowRect(hWndSIP, &sipRect);
     int sipH = sipRect.bottom - sipRect.top;
     int sipW = sipRect.right - sipRect.left;
-    sipRect.left = (sX - sipW)/2;
-    sipRect.top =  sY - sipH;
-    sipRect.bottom = sY;
-    sipRect.right = sipRect.left + sipW;
-    MoveWindow(hWndSIP, (sX - sipW)/2, sY - sipH, sipW, sipH, TRUE);
-    SIPINFO sipInfo;
-    RECT visRect;
-    visRect.top = 0;
-    visRect.left = 0;
-    visRect.bottom = show ? sipRect.top : sY;
-    visRect.right = sX;
-    sipInfo.cbSize = sizeof(SIPINFO);
-    sipInfo.fdwFlags = SIPF_DOCKED | SIPF_LOCKED | (show ? SIPF_ON : SIPF_OFF);
-    sipInfo.rcSipRect = sipRect;
-    sipInfo.rcVisibleDesktop = visRect;
-    sipInfo.dwImDataSize = 0;
-    sipInfo.pvImData = NULL;
-    SipSetInfo(&sipInfo);
-    NotifySoftKbObservers(&visRect);
-  } else {
-    NotifySoftKbObservers();
-  }
+    MoveWindow(hWndSIP, (sX - sipW)/2, sY - sipH, sX, sY, TRUE);
+  } 
+
+  NotifySoftKbObservers();
 }
 
 void nsWindowCE::CreateSoftKeyMenuBar(HWND wnd)
