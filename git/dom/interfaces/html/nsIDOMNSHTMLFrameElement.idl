@@ -37,30 +37,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsIDOMHTMLElement.idl"
+#include "domstubs.idl"
 
-/**
- * The nsIDOMHTMLFrameElement interface is the interface to a [X]HTML
- * frame element.
- *
- * This interface is trying to follow the DOM Level 2 HTML specification:
- * http://www.w3.org/TR/DOM-Level-2-HTML/
- *
- * with changes from the work-in-progress WHATWG HTML specification:
- * http://www.whatwg.org/specs/web-apps/current-work/
- */
-
-[scriptable, uuid(6e141f6c-c22e-4b3c-9835-b234913dfd38)]
-interface nsIDOMHTMLFrameElement : nsIDOMHTMLElement
+[scriptable, uuid(d67bd267-f984-4993-b378-95851b71f0a3)]
+interface nsIDOMNSHTMLFrameElement : nsISupports
 {
-           attribute DOMString        frameBorder;
-           attribute DOMString        longDesc;
-           attribute DOMString        marginHeight;
-           attribute DOMString        marginWidth;
-           attribute DOMString        name;
-           attribute boolean          noResize;
-           attribute DOMString        scrolling;
-           attribute DOMString        src;
-  // Introduced in DOM Level 2:
-  readonly attribute nsIDOMDocument   contentDocument;
+  readonly attribute nsIDOMWindow     contentWindow;
 };

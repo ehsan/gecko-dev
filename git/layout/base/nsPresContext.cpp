@@ -46,6 +46,7 @@
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocShell.h"
 #include "nsIContentViewer.h"
+#include "nsIDocumentViewer.h"
 #include "nsPIDOMWindow.h"
 #include "nsStyleSet.h"
 #include "nsImageLoader.h"
@@ -1734,9 +1735,10 @@ nsPresContext::EnsureVisible()
     nsCOMPtr<nsIContentViewer> cv;
     docShell->GetContentViewer(getter_AddRefs(cv));
     // Make sure this is the content viewer we belong with
-    if (cv) {
+    nsCOMPtr<nsIDocumentViewer> docV(do_QueryInterface(cv));
+    if (docV) {
       nsRefPtr<nsPresContext> currentPresContext;
-      cv->GetPresContext(getter_AddRefs(currentPresContext));
+      docV->GetPresContext(getter_AddRefs(currentPresContext));
       if (currentPresContext == this) {
         // OK, this is us.  We want to call Show() on the content viewer.
         cv->Show();

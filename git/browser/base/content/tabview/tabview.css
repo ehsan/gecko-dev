@@ -132,6 +132,10 @@ input.name:focus {
   position: absolute;
 }
 
+.info-item {
+  position: absolute;
+}
+
 /* Trenches
 ----------------------------------*/
 

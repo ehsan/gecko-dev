@@ -1,4 +1,4 @@
-/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -12,16 +12,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is mozilla.org code.
+ * The Original Code is Mozilla Communicator client code.
  *
  * The Initial Developer of the Original Code is
  * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2000
+ * Portions created by the Initial Developer are Copyright (C) 1998
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Vidur Apparao <vidur@netscape.com> (original author)
- *   Johnny Stenback <jst@netscape.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -37,30 +35,46 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsIDOMHTMLElement.idl"
+/* container for a document and its presentation */
+
+#ifndef nsIDocumentViewer_h___
+#define nsIDocumentViewer_h___
+
+#include "nsIContentViewer.h"
+
+class nsIDocument;
+class nsPresContext;
+class nsIPresShell;
+class nsIStyleSheet;
+class nsIView;
+
+class nsDOMNavigationTiming;
+
+#define NS_IDOCUMENT_VIEWER_IID \
+  { 0x5a5c9a1d, 0x49c4, 0x4f3f, \
+    { 0x80, 0xcd, 0x12, 0x09, 0x5b, 0x1e, 0x1f, 0x61 } }
 
 /**
- * The nsIDOMHTMLFrameElement interface is the interface to a [X]HTML
- * frame element.
- *
- * This interface is trying to follow the DOM Level 2 HTML specification:
- * http://www.w3.org/TR/DOM-Level-2-HTML/
- *
- * with changes from the work-in-progress WHATWG HTML specification:
- * http://www.whatwg.org/specs/web-apps/current-work/
+ * A document viewer is a kind of content viewer that uses NGLayout
+ * to manage the presentation of the content.
  */
-
-[scriptable, uuid(6e141f6c-c22e-4b3c-9835-b234913dfd38)]
-interface nsIDOMHTMLFrameElement : nsIDOMHTMLElement
+class nsIDocumentViewer : public nsIContentViewer
 {
-           attribute DOMString        frameBorder;
-           attribute DOMString        longDesc;
-           attribute DOMString        marginHeight;
-           attribute DOMString        marginWidth;
-           attribute DOMString        name;
-           attribute boolean          noResize;
-           attribute DOMString        scrolling;
-           attribute DOMString        src;
-  // Introduced in DOM Level 2:
-  readonly attribute nsIDOMDocument   contentDocument;
+public:
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_IDOCUMENT_VIEWER_IID)
+  
+  NS_IMETHOD GetPresShell(nsIPresShell** aResult) = 0;
+  
+  NS_IMETHOD GetPresContext(nsPresContext** aResult) = 0;
+
+  NS_IMETHOD SetDocumentInternal(nsIDocument* aDocument,
+                                 bool aForceReuseInnerWindow) = 0;
+
+  virtual nsIView* FindContainerView() = 0;
+
+  virtual void SetNavigationTiming(nsDOMNavigationTiming* timing) = 0;
 };
+
+NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocumentViewer, NS_IDOCUMENT_VIEWER_IID)
+
+#endif /* nsIDocumentViewer_h___ */
