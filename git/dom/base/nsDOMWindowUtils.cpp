@@ -308,8 +308,9 @@ MaybeReflowForInflationScreenWidthChange(nsPresContext *aPresContext)
             nsCOMPtr<nsIPresShell> shell;
             nsCOMPtr<nsIContentViewer> cv = do_QueryInterface(array[i]);
             cv->GetPresShell(getter_AddRefs(shell));
-            if (shell) {
-              nsIFrame *rootFrame = shell->GetRootFrame();
+            nsFrameManager *fm = shell->FrameManager();
+            if (fm) {
+              nsIFrame *rootFrame = fm->GetRootFrame();
               if (rootFrame) {
                 shell->FrameNeedsReflow(rootFrame, nsIPresShell::eResize,
                                         NS_FRAME_IS_DIRTY);
@@ -2450,17 +2451,6 @@ nsDOMWindowUtils::SetScrollPositionClampingScrollPortSize(float aWidth, float aH
   presShell->SetScrollPositionClampingScrollPortSize(
     nsPresContext::CSSPixelsToAppUnits(aWidth),
     nsPresContext::CSSPixelsToAppUnits(aHeight));
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::SetIsApp(bool aValue)
-{
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
-  NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
-
-  static_cast<nsGlobalWindow*>(window.get())->SetIsApp(aValue);
 
   return NS_OK;
 }
