@@ -305,6 +305,7 @@ MobileConnectionProvider.prototype = {
 
   voice: null,
   data: null,
+  iccId: null,
   networkSelectionMode: Ci.nsIMobileConnection.NETWORK_SELECTION_MODE_UNKNOWN,
   radioState: Ci.nsIMobileConnection.MOBILE_RADIO_STATE_UNKNOWN,
   lastKnownNetwork: null,
@@ -583,6 +584,15 @@ MobileConnectionProvider.prototype = {
         this.deliverListenerEvent("notifyDataChanged");
       }
     }
+  },
+
+  updateIccId: function(aIccId) {
+    if (this.iccId === aIccId) {
+      return;
+    }
+
+    this.iccId = aIccId;
+    this.deliverListenerEvent("notifyIccChanged");
   },
 
   updateRadioState: function(aRadioState) {
@@ -1131,6 +1141,14 @@ MobileConnectionService.prototype = {
 
     this.getItemByServiceId(aClientId)
         .deliverListenerEvent("notifyOtaStatusChanged", [aStatus]);
+  },
+
+  notifyIccChanged: function(aClientId, aIccId) {
+    if (DEBUG) {
+      debug("notifyIccChanged for " + aClientId + ": " + aIccId);
+    }
+
+    this.getItemByServiceId(aClientId).updateIccId(aIccId);
   },
 
   notifyRadioStateChanged: function(aClientId, aRadioState) {

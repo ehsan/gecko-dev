@@ -1238,7 +1238,7 @@ BluetoothOppManager::CheckPutFinal(uint32_t aNumRead)
 bool
 BluetoothOppManager::IsConnected()
 {
-  return mConnected;
+  return (mConnected && !mSendTransferCompleteFlag);
 }
 
 void

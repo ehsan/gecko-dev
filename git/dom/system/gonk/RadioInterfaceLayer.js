@@ -2228,12 +2228,6 @@ RadioInterface.prototype = {
     let oldSpn = this.rilContext.iccInfo ? this.rilContext.iccInfo.spn : null;
 
     if (!message || !message.iccid) {
-      // If iccInfo is already `null`, don't have to clear it and send
-      // RIL:IccInfoChanged.
-      if (!this.rilContext.iccInfo) {
-        return;
-      }
-
       // Card is not detected, clear iccInfo to null.
       this.rilContext.iccInfo = null;
     } else {
@@ -2259,6 +2253,11 @@ RadioInterface.prototype = {
     gMessageManager.sendIccMessage("RIL:IccInfoChanged",
                                    this.clientId,
                                    message.iccid ? message : null);
+
+    // In bug 864489, icc related code will be move to gonk IccProvider, we may
+    // need a better way to notify icc change to MobileConnectionService.
+    gMobileConnectionService.notifyIccChanged(this.clientId,
+                                              message.iccid || null);
 
     // Update lastKnownSimMcc.
     if (message.mcc) {
@@ -3147,7 +3146,16 @@ RILNetworkInterface.prototype = {
       throw Cr.NS_ERROR_UNEXPECTED;
     }
 
-    return this.apnSetting.mmsc || "";
+    let mmsc = this.apnSetting.mmsc;
+    if (!mmsc) {
+      try {
+        mmsc = Services.prefs.getCharPref("ril.mms.mmsc");
+      } catch (e) {
+        mmsc = "";
+      }
+    }
+
+    return mmsc;
   },
 
   get mmsProxy() {
@@ -3156,7 +3164,16 @@ RILNetworkInterface.prototype = {
       throw Cr.NS_ERROR_UNEXPECTED;
     }
 
-    return this.apnSetting.mmsproxy || "";
+    let proxy = this.apnSetting.mmsproxy;
+    if (!proxy) {
+      try {
+        proxy = Services.prefs.getCharPref("ril.mms.mmsproxy");
+      } catch (e) {
+        proxy = "";
+      }
+    }
+
+    return proxy;
   },
 
   get mmsPort() {
@@ -3165,9 +3182,16 @@ RILNetworkInterface.prototype = {
       throw Cr.NS_ERROR_UNEXPECTED;
     }
 
-    // Note: Port 0 is reserved, so we treat it as invalid as well.
-    // See http://www.iana.org/assignments/port-numbers
-    return this.apnSetting.mmsport || -1;
+    let port = this.apnSetting.mmsport;
+    if (!port) {
+      try {
+        port = Services.prefs.getIntPref("ril.mms.mmsport");
+      } catch (e) {
+        port = -1;
+      }
+    }
+
+    return port;
   },
 
   // Helpers

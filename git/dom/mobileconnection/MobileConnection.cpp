@@ -5,7 +5,6 @@
 #include "mozilla/dom/MobileConnection.h"
 
 #include "MobileConnectionCallback.h"
-#include "mozilla/AsyncEventDispatcher.h"
 #include "mozilla/dom/CFStateChangeEvent.h"
 #include "mozilla/dom/DataErrorEvent.h"
 #include "mozilla/dom/MozClirModeEvent.h"
@@ -19,12 +18,7 @@
 #include "nsIVariant.h"
 #include "nsJSON.h"
 #include "nsJSUtils.h"
-#include "nsRadioInterfaceLayer.h"
 #include "nsServiceManagerUtils.h"
-
-#ifdef MOZ_B2G_RIL
-#include "nsIIccInfo.h"
-#endif // MOZ_B2G_RIL
 
 #define MOBILECONN_ERROR_INVALID_PARAMETER NS_LITERAL_STRING("InvalidParameter")
 #define MOBILECONN_ERROR_INVALID_PASSWORD  NS_LITERAL_STRING("InvalidPassword")
@@ -49,18 +43,12 @@ using namespace mozilla::dom;
 using namespace mozilla::dom::mobileconnection;
 
 class MobileConnection::Listener MOZ_FINAL : public nsIMobileConnectionListener
-#ifdef MOZ_B2G_RIL
-                                           , public nsIIccListener
-#endif // MOZ_B2G_RIL
 {
   MobileConnection* mMobileConnection;
 
 public:
   NS_DECL_ISUPPORTS
   NS_FORWARD_SAFE_NSIMOBILECONNECTIONLISTENER(mMobileConnection)
-#ifdef MOZ_B2G_RIL
-  NS_FORWARD_SAFE_NSIICCLISTENER(mMobileConnection)
-#endif // MOZ_B2G_RIL
 
   explicit Listener(MobileConnection* aMobileConnection)
     : mMobileConnection(aMobileConnection)
@@ -81,12 +69,7 @@ private:
   }
 };
 
-#ifdef MOZ_B2G_RIL
-NS_IMPL_ISUPPORTS(MobileConnection::Listener, nsIMobileConnectionListener,
-                  nsIIccListener)
-#else
 NS_IMPL_ISUPPORTS(MobileConnection::Listener, nsIMobileConnectionListener)
-#endif // MOZ_B2G_RIL
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(MobileConnection)
 
@@ -118,7 +101,6 @@ NS_IMPL_RELEASE_INHERITED(MobileConnection, DOMEventTargetHelper)
 
 MobileConnection::MobileConnection(nsPIDOMWindow* aWindow, uint32_t aClientId)
   : DOMEventTargetHelper(aWindow)
-  , mClientId(aClientId)
 {
   nsCOMPtr<nsIMobileConnectionService> service =
     do_GetService(NS_MOBILE_CONNECTION_SERVICE_CONTRACTID);
@@ -130,17 +112,10 @@ MobileConnection::MobileConnection(nsPIDOMWindow* aWindow, uint32_t aClientId)
     return;
   }
 
-  nsresult rv = service->GetItemByServiceId(mClientId,
+  nsresult rv = service->GetItemByServiceId(aClientId,
                                             getter_AddRefs(mMobileConnection));
-#ifdef MOZ_B2G_RIL
-  mIcc = do_GetService(NS_RILCONTENTHELPER_CONTRACTID);
-
-  if (NS_FAILED(rv) || !mMobileConnection || !mIcc) {
-    NS_WARNING("Could not acquire nsIMobileConnection or nsIIccProvider!");
-#else
   if (NS_FAILED(rv) || !mMobileConnection) {
     NS_WARNING("Could not acquire nsIMobileConnection!");
-#endif // MOZ_B2G_RIL
     return;
   }
 
@@ -154,13 +129,6 @@ MobileConnection::MobileConnection(nsPIDOMWindow* aWindow, uint32_t aClientId)
                      "Failed registering mobile connection messages with service");
     UpdateVoice();
     UpdateData();
-
-#ifdef MOZ_B2G_RIL
-    rv = mIcc->RegisterIccMsg(mClientId, mListener);
-    NS_WARN_IF_FALSE(NS_SUCCEEDED(rv),
-                     "Failed registering icc messages with service");
-    UpdateIccId();
-#endif // MOZ_B2G_RIL
   }
 }
 
@@ -171,12 +139,6 @@ MobileConnection::Shutdown()
     if (mMobileConnection) {
       mMobileConnection->UnregisterListener(mListener);
     }
-
-#ifdef MOZ_B2G_RIL
-    if (mIcc) {
-      mIcc->UnregisterIccMsg(mClientId, mListener);
-    }
-#endif // MOZ_B2G_RIL
 
     mListener->Disconnect();
     mListener = nullptr;
@@ -237,29 +199,6 @@ MobileConnection::UpdateData()
   nsCOMPtr<nsIMobileConnectionInfo> info;
   mMobileConnection->GetData(getter_AddRefs(info));
   mData->Update(info);
-}
-
-bool
-MobileConnection::UpdateIccId()
-{
-#ifdef MOZ_B2G_RIL
-  nsAutoString iccId;
-  nsCOMPtr<nsIIccInfo> iccInfo;
-  if (mIcc &&
-      NS_SUCCEEDED(mIcc->GetIccInfo(mClientId, getter_AddRefs(iccInfo))) &&
-      iccInfo) {
-    iccInfo->GetIccid(iccId);
-  } else {
-    iccId.SetIsVoid(true);
-  }
-
-  if (!mIccId.Equals(iccId)) {
-    mIccId = iccId;
-    return true;
-  }
-#endif // MOZ_B2G_RIL
-
-  return false;
 }
 
 nsresult
@@ -383,7 +322,13 @@ MobileConnection::Data() const
 void
 MobileConnection::GetIccId(nsString& aRetVal) const
 {
-  aRetVal = mIccId;
+  aRetVal.SetIsVoid(true);
+
+  if (!mMobileConnection) {
+    return;
+  }
+
+  mMobileConnection->GetIccId(aRetVal);
 }
 
 Nullable<MobileNetworkSelectionMode>
@@ -1085,6 +1030,16 @@ MobileConnection::NotifyOtaStatusChanged(const nsAString& aStatus)
 }
 
 NS_IMETHODIMP
+MobileConnection::NotifyIccChanged()
+{
+  if (!CheckPermission("mobileconnection")) {
+    return NS_OK;
+  }
+
+  return DispatchTrustedEvent(NS_LITERAL_STRING("iccchange"));
+}
+
+NS_IMETHODIMP
 MobileConnection::NotifyRadioStateChanged()
 {
   if (!CheckPermission("mobileconnection")) {
@@ -1129,42 +1084,3 @@ MobileConnection::NotifyNetworkSelectionModeChanged()
 {
   return NS_OK;
 }
-
-#ifdef MOZ_B2G_RIL
-// nsIIccListener
-
-NS_IMETHODIMP
-MobileConnection::NotifyStkCommand(const nsAString& aMessage)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-MobileConnection::NotifyStkSessionEnd()
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-MobileConnection::NotifyCardStateChanged()
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-MobileConnection::NotifyIccInfoChanged()
-{
-  if (!CheckPermission("mobileconnection")) {
-    return NS_OK;
-  }
-
-  if (!UpdateIccId()) {
-    return NS_OK;
-  }
-
-  nsRefPtr<AsyncEventDispatcher> asyncDispatcher =
-    new AsyncEventDispatcher(this, NS_LITERAL_STRING("iccchange"), false);
-
-  return asyncDispatcher->PostDOMEvent();
-}
-#endif // MOZ_B2G_RIL
