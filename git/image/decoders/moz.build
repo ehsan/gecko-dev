@@ -23,7 +23,7 @@ if toolkit == 'cocoa':
 elif toolkit == 'android':
     DIRS += ['icon/android', 'icon']
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'EXIF.cpp',
     'nsBMPDecoder.cpp',
     'nsGIFDecoder2.cpp',

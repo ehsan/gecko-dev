@@ -79,7 +79,7 @@ private:
   UpdateValue(int32_t                  aSign,
               int32_t                  aPseudoUnit,
               const nsCSSValue&        aCSSValue,
-              const nsHTMLReflowMetrics& aDesiredSize,
+              const nsBoundingMetrics& aBoundingMetrics,
               nscoord&                 aValueToUpdate) const;
 };
 

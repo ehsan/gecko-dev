@@ -51,9 +51,6 @@ GetThreadLog()
   return sLog;
 }
 #endif
-#ifdef LOG
-#undef LOG
-#endif
 #define LOG(args) PR_LOG(GetThreadLog(), PR_LOG_DEBUG, args)
 
 NS_DECL_CI_INTERFACE_GETTER(nsThread)

@@ -908,156 +908,140 @@ struct GCChunkHasher {
 
 typedef HashSet<js::gc::Chunk *, GCChunkHasher, SystemAllocPolicy> GCChunkSet;
 
-static const size_t NON_INCREMENTAL_MARK_STACK_BASE_CAPACITY = 4096;
-static const size_t INCREMENTAL_MARK_STACK_BASE_CAPACITY = 32768;
-
 template<class T>
 struct MarkStack {
-    T *stack_;
-    T *tos_;
-    T *end_;
+    T *stack;
+    T *tos;
+    T *limit;
 
-    // The capacity we start with and reset() to.
-    size_t baseCapacity_;
-    size_t maxCapacity_;
+    T *ballast;
+    T *ballastLimit;
 
-    MarkStack(size_t maxCapacity)
-      : stack_(nullptr),
-        tos_(nullptr),
-        end_(nullptr),
-        baseCapacity_(0),
-        maxCapacity_(maxCapacity)
-    {}
+    size_t sizeLimit;
+
+    MarkStack(size_t sizeLimit)
+      : stack(nullptr),
+        tos(nullptr),
+        limit(nullptr),
+        ballast(nullptr),
+        ballastLimit(nullptr),
+        sizeLimit(sizeLimit) { }
 
     ~MarkStack() {
-        js_free(stack_);
+        if (stack != ballast)
+            js_free(stack);
+        js_free(ballast);
     }
 
-    size_t capacity() { return end_ - stack_; }
+    bool init(size_t ballastcap) {
+        JS_ASSERT(!stack);
 
-    ptrdiff_t position() const { return tos_ - stack_; }
+        if (ballastcap == 0)
+            return true;
 
-    void setStack(T *stack, size_t tosIndex, size_t capacity) {
-        stack_ = stack;
-        tos_ = stack + tosIndex;
-        end_ = stack + capacity;
-    }
-
-    void setBaseCapacity(JSGCMode mode) {
-        switch (mode) {
-          case JSGC_MODE_GLOBAL:
-          case JSGC_MODE_COMPARTMENT:
-            baseCapacity_ = NON_INCREMENTAL_MARK_STACK_BASE_CAPACITY;
-            break;
-          case JSGC_MODE_INCREMENTAL:
-            baseCapacity_ = INCREMENTAL_MARK_STACK_BASE_CAPACITY;
-            break;
-          default:
-            MOZ_ASSUME_UNREACHABLE("bad gc mode");
-        }
-
-        if (baseCapacity_ > maxCapacity_)
-            baseCapacity_ = maxCapacity_;
-    }
-
-    bool init(JSGCMode gcMode) {
-        setBaseCapacity(gcMode);
-
-        JS_ASSERT(!stack_);
-        T *newStack = js_pod_malloc<T>(baseCapacity_);
-        if (!newStack)
+        ballast = js_pod_malloc<T>(ballastcap);
+        if (!ballast)
             return false;
-
-        setStack(newStack, 0, baseCapacity_);
+        ballastLimit = ballast + ballastcap;
+        initFromBallast();
         return true;
     }
 
-    void setMaxCapacity(size_t maxCapacity) {
-        JS_ASSERT(isEmpty());
-        maxCapacity_ = maxCapacity;
-        if (baseCapacity_ > maxCapacity_)
-            baseCapacity_ = maxCapacity_;
+    void initFromBallast() {
+        stack = ballast;
+        limit = ballastLimit;
+        if (size_t(limit - stack) > sizeLimit)
+            limit = stack + sizeLimit;
+        tos = stack;
+    }
 
+    void setSizeLimit(size_t size) {
+        JS_ASSERT(isEmpty());
+
+        sizeLimit = size;
         reset();
     }
 
     bool push(T item) {
-        if (tos_ == end_) {
+        if (tos == limit) {
             if (!enlarge())
                 return false;
         }
-        JS_ASSERT(tos_ < end_);
-        *tos_++ = item;
+        JS_ASSERT(tos < limit);
+        *tos++ = item;
         return true;
     }
 
     bool push(T item1, T item2, T item3) {
-        T *nextTos = tos_ + 3;
-        if (nextTos > end_) {
+        T *nextTos = tos + 3;
+        if (nextTos > limit) {
             if (!enlarge())
                 return false;
-            nextTos = tos_ + 3;
+            nextTos = tos + 3;
         }
-        JS_ASSERT(nextTos <= end_);
-        tos_[0] = item1;
-        tos_[1] = item2;
-        tos_[2] = item3;
-        tos_ = nextTos;
+        JS_ASSERT(nextTos <= limit);
+        tos[0] = item1;
+        tos[1] = item2;
+        tos[2] = item3;
+        tos = nextTos;
         return true;
     }
 
     bool isEmpty() const {
-        return tos_ == stack_;
+        return tos == stack;
     }
 
     T pop() {
         JS_ASSERT(!isEmpty());
-        return *--tos_;
+        return *--tos;
+    }
+
+    ptrdiff_t position() const {
+        return tos - stack;
     }
 
     void reset() {
-        if (capacity() == baseCapacity_) {
-            // No size change; keep the current stack.
-            setStack(stack_, 0, baseCapacity_);
-            return;
-        }
-
-        T *newStack = (T *)js_realloc(stack_, sizeof(T) * baseCapacity_);
-        if (!newStack) {
-            // If the realloc fails, just keep using the existing stack; it's
-            // not ideal but better than failing.
-            newStack = stack_;
-            baseCapacity_ = capacity();
-        }
-        setStack(newStack, 0, baseCapacity_);
+        if (stack != ballast)
+            js_free(stack);
+        initFromBallast();
+        JS_ASSERT(stack == ballast);
     }
 
     bool enlarge() {
-        if (capacity() == maxCapacity_)
+        size_t tosIndex = tos - stack;
+        size_t cap = limit - stack;
+        if (cap == sizeLimit)
             return false;
+        size_t newcap = cap * 2;
+        if (newcap == 0)
+            newcap = 32;
+        if (newcap > sizeLimit)
+            newcap = sizeLimit;
 
-        size_t newCapacity = capacity() * 2;
-        if (newCapacity > maxCapacity_)
-            newCapacity = maxCapacity_;
-
-        size_t tosIndex = position();
-
-        T *newStack = (T *)js_realloc(stack_, sizeof(T) * newCapacity);
-        if (!newStack)
-            return false;
-
-        setStack(newStack, tosIndex, newCapacity);
+        T *newStack;
+        if (stack == ballast) {
+            newStack = js_pod_malloc<T>(newcap);
+            if (!newStack)
+                return false;
+            for (T *src = stack, *dst = newStack; src < tos; )
+                *dst++ = *src++;
+        } else {
+            newStack = (T *)js_realloc(stack, sizeof(T) * newcap);
+            if (!newStack)
+                return false;
+        }
+        stack = newStack;
+        tos = stack + tosIndex;
+        limit = newStack + newcap;
         return true;
     }
 
-    void setGCMode(JSGCMode gcMode) {
-        // The mark stack won't be resized until the next call to reset(), but
-        // that will happen at the end of the next GC.
-        setBaseCapacity(gcMode);
-    }
-
     size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const {
-        return mallocSizeOf(stack_);
+        size_t n = 0;
+        if (stack != ballast)
+            n += mallocSizeOf(stack);
+        n += mallocSizeOf(ballast);
+        return n;
     }
 };
 
@@ -1101,6 +1085,8 @@ struct SliceBudget {
     }
 };
 
+static const size_t MARK_STACK_LENGTH = 32768;
+
 struct GrayRoot {
     void *thing;
     JSGCTraceKind kind;
@@ -1141,10 +1127,10 @@ struct GCMarker : public JSTracer {
 
   public:
     explicit GCMarker(JSRuntime *rt);
-    bool init(JSGCMode gcMode);
+    bool init();
 
-    void setMaxCapacity(size_t maxCap) { stack.setMaxCapacity(maxCap); }
-    size_t maxCapacity() const { return stack.maxCapacity_; }
+    void setSizeLimit(size_t size) { stack.setSizeLimit(size); }
+    size_t sizeLimit() const { return stack.sizeLimit; }
 
     void start();
     void stop();
@@ -1219,8 +1205,6 @@ struct GCMarker : public JSTracer {
     void markBufferedGrayRoots(JS::Zone *zone);
 
     static void GrayCallback(JSTracer *trc, void **thing, JSGCTraceKind kind);
-
-    void setGCMode(JSGCMode mode) { stack.setGCMode(mode); }
 
     size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const;
 

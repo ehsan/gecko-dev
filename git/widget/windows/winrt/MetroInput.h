@@ -142,7 +142,7 @@ public:
   HRESULT OnRightTapped(IGestureRecognizer* aSender,
                         IRightTappedEventArgs* aArgs);
 
-  void HandleTap(const Point& aPoint, unsigned int aTapCount);
+  void HandleSingleTap(const Point& aPoint);
   void HandleLongTap(const Point& aPoint);
 
 private:
