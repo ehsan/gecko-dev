@@ -507,7 +507,7 @@ str_uneval(JSContext *cx, uintN argc, Value *vp)
 {
     JSString *str;
 
-    str = js_ValueToSource(cx, argc != 0 ? vp[2] : undefinedValue());
+    str = js_ValueToSource(cx, argc != 0 ? vp[2] : Value(UndefinedTag()));
     if (!str)
         return JS_FALSE;
     vp->setString(str);
@@ -1799,7 +1799,7 @@ FindReplaceLength(JSContext *cx, ReplaceData &rdata, size_t *sizep)
         /* Push lambda and its 'this' parameter. */
         Value *sp = rdata.args.getvp();
         sp++->setObject(*lambda);
-        sp++->setNull();
+        sp++->setObjectOrNull(lambda->getParent());
 
         /* Push $&, $1, $2, ... */
         if (!PushRegExpSubstr(cx, cx->regExpStatics.lastMatch, sp))
@@ -3014,7 +3014,7 @@ js_InitStringClass(JSContext *cx, JSObject *obj)
         return NULL;
     proto->setPrimitiveThis(StringTag(cx->runtime->emptyString));
     if (!js_DefineNativeProperty(cx, proto, ATOM_TO_JSID(cx->runtime->atomState.lengthAtom),
-                                 undefinedValue(), NULL, NULL,
+                                 UndefinedTag(), NULL, NULL,
                                  JSPROP_READONLY | JSPROP_PERMANENT | JSPROP_SHARED, 0, 0,
                                  NULL)) {
         return JS_FALSE;

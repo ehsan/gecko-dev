@@ -876,13 +876,13 @@ function jsTestDriverEnd()
 
 function jit(on)
 {
-  if (on && !options().match(/tracejit/))
+  if (on && !options().match(/jit/))
   {
-    options('tracejit');
+    options('jit');
   }
-  else if (!on && options().match(/tracejit/))
+  else if (!on && options().match(/jit/))
   {
-    options('tracejit');
+    options('jit');
   }
 }
 

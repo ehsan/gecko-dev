@@ -80,7 +80,7 @@
 #include "jscntxtinlines.h"
 
 #ifdef XP_WIN
-# include "jswin.h"
+# include <windows.h>
 #elif defined(XP_OS2)
 # define INCL_DOSMEMMGR
 # include <os2.h>
@@ -169,7 +169,7 @@ StackSpace::finish()
 #elif defined(XP_OS2)
     DosFreeMem(base);
 #else
-    munmap((caddr_t)base, CAPACITY_BYTES);
+    munmap(base, CAPACITY_BYTES);
 #endif
 }
 
@@ -508,40 +508,6 @@ FrameRegsIter::operator++()
     return *this;
 }
 
-JS_REQUIRES_STACK
-AllFramesIter::AllFramesIter(JSContext *cx)
-{
-#ifdef JS_THREADSAFE
-    JS_ASSERT(CURRENT_THREAD_IS_ME(cx->thread));
-#endif
-
-    curcs = cx->stack().getCurrentCallStack();
-    if (!curcs) {
-        curfp = NULL;
-        return;
-    }
-
-    curfp = curcs->getCurrentFrame();
-}
-
-AllFramesIter &
-AllFramesIter::operator++()
-{
-    JS_ASSERT(!done());
-
-    if (curfp == curcs->getInitialFrame()) {
-        curcs = curcs->getPreviousInThread();
-        if (curcs)
-            curfp = curcs->getCurrentFrame();
-        else
-            curfp = NULL;
-    } else {
-        curfp = curfp->down;
-    }
-
-    return *this;
-}
-
 bool
 JSThreadData::init()
 {
@@ -554,9 +520,6 @@ JSThreadData::init()
         return false;
 #ifdef JS_TRACER
     InitJIT(&traceMonitor);
-#endif
-#ifdef JS_METHODJIT
-    jmData.Initialize();
 #endif
     dtoaState = js_NewDtoaState();
     if (!dtoaState) {
@@ -585,9 +548,6 @@ JSThreadData::finish()
     propertyCache.~PropertyCache();
 #if defined JS_TRACER
     FinishJIT(&traceMonitor);
-#endif
-#if defined JS_METHODJIT
-    jmData.Finish();
 #endif
     stackSpace.finish();
 }
@@ -620,9 +580,6 @@ JSThreadData::purge(JSContext *cx)
      */
     if (cx->runtime->gcRegenShapes)
         traceMonitor.needFlush = JS_TRUE;
-#endif
-#ifdef JS_METHODJIT
-    jmData.purge(cx);
 #endif
 
     /* Destroy eval'ed scripts. */
@@ -2113,7 +2070,7 @@ js_ReportValueErrorFlags(JSContext *cx, uintN flags, const uintN errorNumber,
 
     JS_ASSERT(js_ErrorFormatString[errorNumber].argCount >= 1);
     JS_ASSERT(js_ErrorFormatString[errorNumber].argCount <= 3);
-    bytes = js::DecompileValueGenerator(cx, spindex, v, fallback);
+    bytes = DecompileValueGenerator(cx, spindex, v, fallback);
     if (!bytes)
         return JS_FALSE;
 
@@ -2147,15 +2104,14 @@ js_GetErrorMessage(void *userRef, const char *locale, const uintN errorNumber)
 JSBool
 js_InvokeOperationCallback(JSContext *cx)
 {
-    JS_ASSERT(cx->interruptFlags & JSContext::INTERRUPT_OPERATION_CALLBACK);
+    JS_ASSERT(cx->operationCallbackFlag);
 
     /*
      * Reset the callback flag first, then yield. If another thread is racing
      * us here we will accumulate another callback request which will be
      * serviced at the next opportunity.
      */
-    JS_ATOMIC_CLEAR_MASK((jsword*)&cx->interruptFlags,
-                         JSContext::INTERRUPT_OPERATION_CALLBACK);
+    cx->operationCallbackFlag = 0;
 
     /*
      * Unless we are going to run the GC, we automatically yield the current
@@ -2196,15 +2152,6 @@ js_InvokeOperationCallback(JSContext *cx)
      */
 
     return !cb || cb(cx);
-}
-
-JSBool
-js_HandleExecutionInterrupt(JSContext *cx)
-{
-    JSBool result = JS_TRUE;
-    if (cx->interruptFlags & JSContext::INTERRUPT_OPERATION_CALLBACK)
-        result = js_InvokeOperationCallback(cx) && result;
-    return result;
 }
 
 void

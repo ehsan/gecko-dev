@@ -849,7 +849,7 @@ JS_SetWatchPoint(JSContext *cx, JSObject *obj, jsid id,
         if (pobj->isNative()) {
             valroot.set(SPROP_HAS_VALID_SLOT(sprop, pobj->scope())
                         ? pobj->lockedGetSlot(sprop->slot)
-                        : undefinedValue());
+                        : Value(UndefinedTag()));
             getter = sprop->getter();
             setter = sprop->setter();
             attrs = sprop->attributes();
@@ -2110,7 +2110,7 @@ js_ResumeVtune(JSContext *cx, JSObject *obj,
  *
  */
 #if defined(XP_WIN)
-#include "jswin.h"
+#include <windows.h>
 #else
 #include <sys/time.h>
 #endif
