@@ -13,7 +13,6 @@
 #include "nsCOMPtr.h"
 #include "nsString.h"
 #include "nsTArray.h"
-#include "mozilla/net/RtspChannelChild.h"
 
 namespace mozilla {
 namespace net {
@@ -71,8 +70,6 @@ class RtspControllerChild : public nsIStreamingProtocolController
   uint32_t mTotalTracks;
   // Current suspension depth for this channel object
   uint32_t mSuspendCount;
-  // Detach channel-controller relationship.
-  void ReleaseChannel();
 };
 } // namespace net
 } // namespace mozilla

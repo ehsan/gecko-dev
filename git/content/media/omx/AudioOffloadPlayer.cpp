@@ -47,10 +47,6 @@ PRLogModuleInfo* gAudioOffloadPlayerLog;
 #define AUDIO_OFFLOAD_LOG(type, msg)
 #endif
 
-// maximum time in paused state when offloading audio decompression.
-// When elapsed, the AudioSink is destroyed to allow the audio DSP to power down.
-static const uint64_t OFFLOAD_PAUSE_MAX_MSECS = 60000ll;
-
 AudioOffloadPlayer::AudioOffloadPlayer(MediaOmxDecoder* aObserver) :
   mObserver(aObserver),
   mInputBuffer(nullptr),
@@ -82,7 +78,9 @@ AudioOffloadPlayer::AudioOffloadPlayer(MediaOmxDecoder* aObserver) :
 
 AudioOffloadPlayer::~AudioOffloadPlayer()
 {
-  Reset();
+  if (mStarted) {
+    Reset();
+  }
   AudioSystem::releaseAudioSessionId(mSessionId);
 }
 
@@ -109,6 +107,12 @@ status_t AudioOffloadPlayer::Start(bool aSourceAlreadyStarted)
     if (err != OK) {
       return err;
     }
+  }
+
+  MediaSource::ReadOptions options;
+  if (mSeeking) {
+    options.setSeekTo(mSeekTimeUs);
+    mSeeking = false;
   }
 
   sp<MetaData> format = mSource->getFormat();
@@ -173,24 +177,21 @@ status_t AudioOffloadPlayer::Start(bool aSourceAlreadyStarted)
   return err;
 }
 
-status_t AudioOffloadPlayer::ChangeState(MediaDecoder::PlayState aState)
+void AudioOffloadPlayer::ChangeState(MediaDecoder::PlayState aState)
 {
   MOZ_ASSERT(NS_IsMainThread());
   mPlayState = aState;
 
   switch (mPlayState) {
-    case MediaDecoder::PLAY_STATE_PLAYING: {
-      status_t err = Play();
-      if (err != OK) {
-        return err;
-      }
+    case MediaDecoder::PLAY_STATE_PLAYING:
+      Play();
       StartTimeUpdate();
-    } break;
+      break;
 
     case MediaDecoder::PLAY_STATE_SEEKING: {
       int64_t seekTimeUs
           = mObserver->GetSeekTime();
-      SeekTo(seekTimeUs, true);
+      SeekTo(seekTimeUs);
       mObserver->ResetSeekTime();
     } break;
 
@@ -208,70 +209,33 @@ status_t AudioOffloadPlayer::ChangeState(MediaDecoder::PlayState aState)
     default:
       break;
   }
-  return OK;
-}
-
-static void ResetCallback(nsITimer* aTimer, void* aClosure)
-{
-  AudioOffloadPlayer* player = static_cast<AudioOffloadPlayer*>(aClosure);
-  if (player) {
-    player->Reset();
-  }
 }
 
 void AudioOffloadPlayer::Pause(bool aPlayPendingSamples)
 {
   MOZ_ASSERT(NS_IsMainThread());
+  CHECK(mStarted);
+  CHECK(mAudioSink.get());
 
-  if (mStarted) {
-    CHECK(mAudioSink.get());
-    if (aPlayPendingSamples) {
-      mAudioSink->Stop();
-    } else {
-      mAudioSink->Pause();
-    }
-    mPlaying = false;
+  if (aPlayPendingSamples) {
+    mAudioSink->Stop();
+  } else {
+    mAudioSink->Pause();
   }
-
-  if (mResetTimer) {
-    return;
-  }
-  mResetTimer = do_CreateInstance("@mozilla.org/timer;1");
-  mResetTimer->InitWithFuncCallback(ResetCallback,
-                                    this,
-                                    OFFLOAD_PAUSE_MAX_MSECS,
-                                    nsITimer::TYPE_ONE_SHOT);
+  mPlaying = false;
 }
 
 status_t AudioOffloadPlayer::Play()
 {
   MOZ_ASSERT(NS_IsMainThread());
-
-  if (mResetTimer) {
-    mResetTimer->Cancel();
-    mResetTimer = nullptr;
-  }
+  CHECK(mStarted);
+  CHECK(mAudioSink.get());
 
   status_t err = OK;
+  err = mAudioSink->Start();
 
-  if (!mStarted) {
-    // Last pause timed out and offloaded audio sink was reset. Start it again
-    err = Start(false);
-    if (err != OK) {
-      return err;
-    }
-    // Seek to last play position only when there was no seek during last pause
-    if (!mSeeking) {
-      SeekTo(mPositionTimeMediaUs);
-    }
-  }
-
-  if (!mPlaying) {
-    CHECK(mAudioSink.get());
-    err = mAudioSink->Start();
-    if (err == OK) {
-      mPlaying = true;
-    }
+  if (err == OK) {
+    mPlaying = true;
   }
 
   return err;
@@ -279,10 +243,7 @@ status_t AudioOffloadPlayer::Play()
 
 void AudioOffloadPlayer::Reset()
 {
-  if (!mStarted) {
-    return;
-  }
-
+  CHECK(mStarted);
   CHECK(mAudioSink.get());
 
   AUDIO_OFFLOAD_LOG(PR_LOG_DEBUG, ("reset: mPlaying=%d mReachedEOS=%d",
@@ -312,18 +273,19 @@ void AudioOffloadPlayer::Reset()
     mInputBuffer->release();
     mInputBuffer = nullptr;
   }
-  mSource->stop();
 
   IPCThreadState::self()->flushCommands();
   StopTimeUpdate();
 
+  mSeeking = false;
+  mSeekTimeUs = 0;
   mReachedEOS = false;
   mStarted = false;
   mPlaying = false;
   mStartPosUs = 0;
 }
 
-status_t AudioOffloadPlayer::SeekTo(int64_t aTimeUs, bool aDispatchSeekEvents)
+status_t AudioOffloadPlayer::SeekTo(int64_t aTimeUs)
 {
   MOZ_ASSERT(NS_IsMainThread());
   CHECK(mAudioSink.get());
@@ -337,33 +299,26 @@ status_t AudioOffloadPlayer::SeekTo(int64_t aTimeUs, bool aDispatchSeekEvents)
   mPositionTimeMediaUs = -1;
   mSeekTimeUs = aTimeUs;
   mStartPosUs = aTimeUs;
-  mDispatchSeekEvents = aDispatchSeekEvents;
 
-  if (mDispatchSeekEvents) {
-    nsCOMPtr<nsIRunnable> nsEvent = NS_NewRunnableMethod(mObserver,
-        &MediaDecoder::SeekingStarted);
-    NS_DispatchToMainThread(nsEvent, NS_DISPATCH_NORMAL);
-  }
+  nsCOMPtr<nsIRunnable> nsEvent = NS_NewRunnableMethod(mObserver,
+      &MediaDecoder::SeekingStarted);
+  NS_DispatchToMainThread(nsEvent, NS_DISPATCH_NORMAL);
 
   if (mPlaying) {
     mAudioSink->Pause();
-    mAudioSink->Flush();
-    mAudioSink->Start();
+  }
 
+  mAudioSink->Flush();
+
+  if (mPlaying) {
+    mAudioSink->Start();
   } else {
     mSeekDuringPause = true;
+    AUDIO_OFFLOAD_LOG(PR_LOG_DEBUG, ("Fake seek complete during pause"));
 
-    if (mStarted) {
-      mAudioSink->Flush();
-    }
-
-    if (mDispatchSeekEvents) {
-      mDispatchSeekEvents = false;
-      AUDIO_OFFLOAD_LOG(PR_LOG_DEBUG, ("Fake seek complete during pause"));
-      nsCOMPtr<nsIRunnable> nsEvent = NS_NewRunnableMethod(mObserver,
-          &MediaDecoder::SeekingStopped);
-      NS_DispatchToMainThread(nsEvent, NS_DISPATCH_NORMAL);
-    }
+    nsCOMPtr<nsIRunnable> nsEvent = NS_NewRunnableMethod(mObserver,
+        &MediaDecoder::SeekingStopped);
+    NS_DispatchToMainThread(nsEvent, NS_DISPATCH_NORMAL);
   }
 
   return OK;
@@ -383,9 +338,6 @@ int64_t AudioOffloadPlayer::GetMediaTimeUs()
   int64_t playPosition = 0;
   if (mSeeking) {
     return mSeekTimeUs;
-  }
-  if (!mStarted) {
-    return mPositionTimeMediaUs;
   }
 
   playPosition = GetOutputPlayPositionUs_l();
@@ -475,6 +427,8 @@ size_t AudioOffloadPlayer::FillBuffer(void* aData, size_t aSize)
     return 0;
   }
 
+  bool postSeekComplete = false;
+
   size_t sizeDone = 0;
   size_t sizeRemaining = aSize;
   while (sizeRemaining > 0) {
@@ -492,7 +446,9 @@ size_t AudioOffloadPlayer::FillBuffer(void* aData, size_t aSize)
           mInputBuffer->release();
           mInputBuffer = nullptr;
         }
+
         mSeeking = false;
+        postSeekComplete = true;
       }
     }
 
@@ -535,31 +491,31 @@ size_t AudioOffloadPlayer::FillBuffer(void* aData, size_t aSize)
             kKeyTime, &mPositionTimeMediaUs));
       }
 
+      // need to adjust the mStartPosUs for offload decoding since parser
+      // might not be able to get the exact seek time requested.
       if (refreshSeekTime) {
+        if (postSeekComplete) {
 
-        if (mDispatchSeekEvents && !mSeekDuringPause) {
-          mDispatchSeekEvents = false;
-          AUDIO_OFFLOAD_LOG(PR_LOG_DEBUG, ("FillBuffer posting SEEK_COMPLETE"));
-          nsCOMPtr<nsIRunnable> nsEvent = NS_NewRunnableMethod(mObserver,
-              &MediaDecoder::SeekingStopped);
-          NS_DispatchToMainThread(nsEvent, NS_DISPATCH_NORMAL);
+          if (!mSeekDuringPause) {
+            AUDIO_OFFLOAD_LOG(PR_LOG_DEBUG, ("FillBuffer posting SEEK_COMPLETE"));
+            nsCOMPtr<nsIRunnable> nsEvent = NS_NewRunnableMethod(mObserver,
+                &MediaDecoder::SeekingStopped);
+            NS_DispatchToMainThread(nsEvent, NS_DISPATCH_NORMAL);
+          } else {
+            // Callback is already called for seek during pause. Just reset the
+            // flag
+            AUDIO_OFFLOAD_LOG(PR_LOG_DEBUG, ("Not posting seek complete as its"
+                " already faked"));
+            mSeekDuringPause = false;
+          }
 
-        } else if (mSeekDuringPause) {
-          // Callback is already called for seek during pause. Just reset the
-          // flag
-          AUDIO_OFFLOAD_LOG(PR_LOG_DEBUG, ("Not posting seek complete as its"
-              " already faked"));
-          mSeekDuringPause = false;
+          NotifyPositionChanged();
+          postSeekComplete = false;
         }
 
-        NotifyPositionChanged();
-
-        // need to adjust the mStartPosUs for offload decoding since parser
-        // might not be able to get the exact seek time requested.
         mStartPosUs = mPositionTimeMediaUs;
         AUDIO_OFFLOAD_LOG(PR_LOG_DEBUG, ("Adjust seek time to: %.2f",
             mStartPosUs / 1E6));
-
         // clear seek time with mLock locked and once we have valid
         // mPositionTimeMediaUs
         // before clearing mSeekTimeUs check if a new seek request has been

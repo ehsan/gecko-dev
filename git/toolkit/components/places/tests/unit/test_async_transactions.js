@@ -454,7 +454,8 @@ add_task(function* test_move_items_to_folder() {
   ensureUndoState([[bkm_b_txn, bkm_a_txn, folder_a_txn]], 0);
 
   let moveTxn = PT.MoveItem({ GUID:          bkm_a_info.GUID
-                            , newParentGUID: folder_a_info.GUID });
+                            , newParentGUID: folder_a_info.GUID
+                            , newIndex:      bmsvc.DEFAULT_INDEX });
   yield PT.transact(moveTxn);
 
   let ensureDo = () => {
