@@ -3577,12 +3577,11 @@ mjit::Compiler::updateElemCounts(jsbytecode *pc, FrameEntry *obj, FrameEntry *id
 
     if (obj->mightBeType(JSVAL_TYPE_OBJECT)) {
         types::StackTypeSet *types = frame.extra(obj).types;
-        if (types && types->getTypedArrayType() != TypedArray::TYPE_MAX) {
+        if (types && !types->hasObjectFlags(cx, types::OBJECT_FLAG_NON_TYPED_ARRAY) &&
+            types->getTypedArrayType() != TypedArray::TYPE_MAX) {
             count = PCCounts::ELEM_OBJECT_TYPED;
-        } else if (types && types->getKnownClass() == &ArrayClass &&
-                   !types->hasObjectFlags(cx, types::OBJECT_FLAG_SPARSE_INDEXES |
-                                          types::OBJECT_FLAG_LENGTH_OVERFLOW)) {
-            if (!types->hasObjectFlags(cx, types::OBJECT_FLAG_NON_PACKED))
+        } else if (types && !types->hasObjectFlags(cx, types::OBJECT_FLAG_NON_DENSE_ARRAY)) {
+            if (!types->hasObjectFlags(cx, types::OBJECT_FLAG_NON_PACKED_ARRAY))
                 count = PCCounts::ELEM_OBJECT_PACKED;
             else
                 count = PCCounts::ELEM_OBJECT_DENSE;
@@ -5082,12 +5081,11 @@ mjit::Compiler::jsop_getprop(HandlePropertyName name, JSValueType knownType,
         types::StackTypeSet *types = analysis->poppedTypes(PC, 0);
 
         /*
-         * Check if we are accessing the 'length' property of an array whose
-         * length is known to fit in an int32_t.
+         * Check if we are accessing the 'length' property of a known dense array.
+         * Note that if the types are known to indicate dense arrays, their lengths
+         * must fit in an int32_t.
          */
-        if (types->getKnownClass() == &ArrayClass &&
-            !types->hasObjectFlags(cx, types::OBJECT_FLAG_LENGTH_OVERFLOW))
-        {
+        if (!types->hasObjectFlags(cx, types::OBJECT_FLAG_NON_DENSE_ARRAY)) {
             frame.forgetMismatchedObject(top);
             bool isObject = top->isTypeKnown();
             if (!isObject) {
@@ -5116,7 +5114,7 @@ mjit::Compiler::jsop_getprop(HandlePropertyName name, JSValueType knownType,
          * Check if we're accessing the 'length' property of a typed array.
          * The typed array length always fits in an int32_t.
          */
-        if (types->getTypedArrayType() != TypedArray::TYPE_MAX) {
+        if (!types->hasObjectFlags(cx, types::OBJECT_FLAG_NON_TYPED_ARRAY)) {
             if (top->isConstant()) {
                 JSObject *obj = &top->getValue().toObject();
                 uint32_t length = TypedArray::length(obj);
@@ -6795,15 +6793,14 @@ mjit::Compiler::jsop_instanceof()
     RegisterID tmp = frame.allocReg();
     RegisterID obj = frame.tempRegForData(rhs);
 
-    masm.loadPtr(Address(obj, JSObject::offsetOfType()), tmp);
+    masm.loadBaseShape(obj, tmp);
     Jump notFunction = masm.branchPtr(Assembler::NotEqual,
-                                      Address(tmp, offsetof(types::TypeObject, clasp)),
+                                      Address(tmp, BaseShape::offsetOfClass()),
                                       ImmPtr(&FunctionClass));
 
     stubcc.linkExit(notFunction, Uses(2));
 
     /* Test for bound functions. */
-    masm.loadBaseShape(obj, tmp);
     Jump isBound = masm.branchTest32(Assembler::NonZero,
                                      Address(tmp, BaseShape::offsetOfFlags()),
                                      Imm32(BaseShape::BOUND_FUNCTION));
@@ -7412,7 +7409,7 @@ mjit::Compiler::constructThis()
          * prototype. Only do this if the type is actually known as a possible
          * 'this' type of the script.
          */
-        types::TypeObject *type = proto->getNewType(cx, &ObjectClass, fun);
+        types::TypeObject *type = proto->getNewType(cx, fun);
         if (!type)
             return false;
         if (!types::TypeScript::ThisTypes(script_)->hasType(types::Type::ObjectType(type)))
@@ -7599,12 +7596,11 @@ mjit::Compiler::jsop_in()
         types::StackTypeSet *types = analysis->poppedTypes(PC, 0);
 
         if (obj->mightBeType(JSVAL_TYPE_OBJECT) &&
-            types->getKnownClass() == &ArrayClass &&
-            !types->hasObjectFlags(cx, types::OBJECT_FLAG_SPARSE_INDEXES) &&
+            !types->hasObjectFlags(cx, types::OBJECT_FLAG_NON_DENSE_ARRAY) &&
             !types::ArrayPrototypeHasIndexedProperty(cx, outerScript))
         {
             frame.forgetMismatchedObject(obj);
-            bool isPacked = !types->hasObjectFlags(cx, types::OBJECT_FLAG_NON_PACKED);
+            bool isPacked = !types->hasObjectFlags(cx, types::OBJECT_FLAG_NON_PACKED_ARRAY);
 
             if (!obj->isTypeKnown()) {
                 Jump guard = frame.testObject(Assembler::NotEqual, obj);

@@ -76,26 +76,20 @@ public:
         mBrowserApp(aBrowserApp), mPoints(aPoints), mTabId(aTabId), mBuffer(aBuffer) {}
 
     virtual nsresult Run() {
-        jobject buffer = mBuffer->GetObject();
         nsCOMPtr<nsIDOMWindow> domWindow;
         nsCOMPtr<nsIBrowserTab> tab;
         mBrowserApp->GetBrowserTab(mTabId, getter_AddRefs(tab));
-        if (!tab) {
-            AndroidBridge::Bridge()->SendThumbnail(buffer, mTabId, false);
-            return NS_ERROR_FAILURE;
-        }
+        if (!tab)
+            return NS_OK;
 
         tab->GetWindow(getter_AddRefs(domWindow));
-        if (!domWindow) {
-            AndroidBridge::Bridge()->SendThumbnail(buffer, mTabId, false);
-            return NS_ERROR_FAILURE;
-        }
+        if (!domWindow)
+            return NS_OK;
 
         NS_ASSERTION(mPoints.Length() == 1, "Thumbnail event does not have enough coordinates");
 
-        nsresult rv = AndroidBridge::Bridge()->CaptureThumbnail(domWindow, mPoints[0].x, mPoints[0].y, mTabId, buffer);
-        AndroidBridge::Bridge()->SendThumbnail(buffer, mTabId, NS_SUCCEEDED(rv));
-        return rv;
+        AndroidBridge::Bridge()->CaptureThumbnail(domWindow, mPoints[0].x, mPoints[0].y, mTabId, mBuffer->GetObject());
+        return NS_OK;
     }
 private:
     nsCOMPtr<nsIAndroidBrowserApp> mBrowserApp;

@@ -65,7 +65,7 @@ interface IPeerConnectionObserver : nsISupports
   void foundIceCandidate(in string candidate);
 };
 
-[scriptable, uuid(cc8327f5-66f4-42f4-820d-9a9db0474b6e)]
+[scriptable, uuid(c86903c7-0a2e-42b4-903c-1518f03b9ba5)]
 interface IPeerConnection : nsISupports
 {
   const unsigned long kHintAudio = 0x00000001;
@@ -88,8 +88,7 @@ interface IPeerConnection : nsISupports
   const unsigned short kDataChannelPartialReliableTimed = 2;
 
   /* Must be called first. Observer events will be dispatched on the thread provided */
-  [implicit_jscontext] void initialize(in IPeerConnectionObserver observer, in nsIDOMWindow window,
-                  [optional] in jsval iceServers,
+  void initialize(in IPeerConnectionObserver observer, in nsIDOMWindow window,
                   [optional] in nsIThread thread);
 
   /* JSEP calls */

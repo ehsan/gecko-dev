@@ -188,6 +188,7 @@ let FormAssistant = {
     addMessageListener("Forms:Select:Choice", this);
     addMessageListener("Forms:Input:Value", this);
     addMessageListener("Forms:Select:Blur", this);
+    Services.obs.addObserver(this, "xpcom-shutdown", false);
   },
 
   ignoredInputTypes: new Set([
@@ -342,6 +343,12 @@ let FormAssistant = {
         break;
       }
     }
+  },
+
+  observe: function fa_observe(subject, topic, data) {
+    Services.obs.removeObserver(this, "xpcom-shutdown");
+    removeMessageListener("Forms:Select:Choice", this);
+    removeMessageListener("Forms:Input:Value", this);
   },
 
   showKeyboard: function fa_showKeyboard(target) {

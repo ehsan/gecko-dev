@@ -11,10 +11,6 @@
 #include "jsprvtd.h"
 #include "jsalloc.h"
 
-// For js::gc::AutoSuppressGC
-#include "jsgc.h"
-#include "jsgcinlines.h"
-
 #include "js/Vector.h"
 
 #include <errno.h>
@@ -207,7 +203,6 @@ class JSAPITest
 
     bool fail(JSAPITestString msg = JSAPITestString(), const char *filename = "-", int lineno = 0) {
         if (JS_IsExceptionPending(cx)) {
-            js::gc::AutoSuppressGC gcoff(cx);
             js::RootedValue v(cx);
             JS_GetPendingException(cx, v.address());
             JS_ClearPendingException(cx);

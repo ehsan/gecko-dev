@@ -50,8 +50,6 @@ using namespace js;
 using namespace js::gc;
 using namespace js::frontend;
 
-typedef Rooted<GlobalObject *> RootedGlobalObject;
-
 /* static */ unsigned
 Bindings::argumentsVarIndex(JSContext *cx, InternalBindingsHandle bindings)
 {
@@ -2370,7 +2368,7 @@ js::CloneFunctionScript(JSContext *cx, HandleFunction original, HandleFunction c
     clone->setScript(cscript);
     cscript->setFunction(clone);
 
-    RootedGlobalObject global(cx, script->compileAndGo ? &script->global() : NULL);
+    GlobalObject *global = script->compileAndGo ? &script->global() : NULL;
 
     script = clone->nonLazyScript();
     CallNewScriptHook(cx, script, clone);

@@ -325,6 +325,14 @@ DASHDecoder::OnReadMPDBufferCompleted()
   }
   mMPDReaderThread = nullptr;
 
+  // Close the MPD resource.
+  rv = mResource ? mResource->Close() : NS_ERROR_NULL_POINTER;
+  if (NS_FAILED(rv)) {
+    LOG("Media Resource did not close correctly! rv [%x]", rv);
+    NetworkError();
+    return;
+  }
+
   // Start parsing the MPD data and loading the media.
   rv = ParseMPDBuffer();
   if (NS_FAILED(rv)) {
@@ -381,7 +389,7 @@ DASHDecoder::CreateRepDecoders()
 
   // Global settings for the presentation.
   int64_t startTime = mMPDManager->GetStartTime();
-  SetDuration(mMPDManager->GetDuration());
+  mDuration = mMPDManager->GetDuration();
   NS_ENSURE_TRUE(startTime >= 0 && mDuration > 0, NS_ERROR_ILLEGAL_VALUE);
 
   // For each audio/video stream, create a |ChannelMediaResource| object.
@@ -631,12 +639,6 @@ DASHDecoder::LoadRepresentations()
       mVideoRepDecoders[i]->SetStateMachine(mDecoderStateMachine);
     }
   }
-
-  // Ensure decoder is set to play if its already been requested.
-  if (mPlayState == PLAY_STATE_PLAYING) {
-    mNextState = PLAY_STATE_PLAYING;
-  }
-
   // Now that subreaders are init'd, it's ok to init state machine.
   return InitializeStateMachine(nullptr);
 }
@@ -756,7 +758,7 @@ DASHDecoder::NotifyDownloadEnded(DASHRepDecoder* aRepDecoder,
     }
     decoder->LoadNextByteRange();
   } else if (aStatus == NS_BINDING_ABORTED) {
-    LOG("Media download has been cancelled by the user: aStatus[%x]", aStatus);
+    LOG("MPD download has been cancelled by the user: aStatus [%x].", aStatus);
     if (mOwner) {
       mOwner->LoadAborted();
     }
@@ -773,60 +775,9 @@ DASHDecoder::LoadAborted()
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
 
   if (!mNotifiedLoadAborted && mOwner) {
-    LOG1("Load Aborted! Notifying media element.");
     mOwner->LoadAborted();
     mNotifiedLoadAborted = true;
-  }
-}
-
-void
-DASHDecoder::Suspend()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  // Suspend MPD download if not yet complete.
-  if (!mMPDManager && mResource) {
-    LOG1("Suspending MPD download.");
-    mResource->Suspend(true);
-    return;
-  }
-
-  // Otherwise, forward |Suspend| to active rep decoders.
-  if (AudioRepDecoder()) {
-    LOG("Suspending download for audio decoder [%p].", AudioRepDecoder());
-    AudioRepDecoder()->Suspend();
-  }
-  if (VideoRepDecoder()) {
-    LOG("Suspending download for video decoder [%p].", VideoRepDecoder());
-    VideoRepDecoder()->Suspend();
-  }
-}
-
-void
-DASHDecoder::Resume(bool aForceBuffering)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  // Resume MPD download if not yet complete.
-  if (!mMPDManager) {
-    if (mResource) {
-      LOG1("Resuming MPD download.");
-      mResource->Resume();
-    }
-    if (aForceBuffering) {
-      ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
-      if (mDecoderStateMachine) {
-        mDecoderStateMachine->StartBuffering();
-      }
-    }
-  }
-
-  // Otherwise, forward |Resume| to active rep decoders.
-  if (AudioRepDecoder()) {
-    LOG("Resuming download for audio decoder [%p].", AudioRepDecoder());
-    AudioRepDecoder()->Resume(aForceBuffering);
-  }
-  if (VideoRepDecoder()) {
-    LOG("Resuming download for video decoder [%p].", VideoRepDecoder());
-    VideoRepDecoder()->Resume(aForceBuffering);
+    LOG1("Load Aborted! Notifying media element.");
   }
 }
 
@@ -834,8 +785,6 @@ void
 DASHDecoder::Shutdown()
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-
-  LOG1("Shutting down.");
 
   // Notify reader of shutdown first.
   if (mDASHReader) {
@@ -1127,10 +1076,6 @@ DASHDecoder::IsDecoderAllowedToDownloadData(DASHRepDecoder* aRepDecoder)
   NS_ASSERTION(aRepDecoder, "DASHRepDecoder pointer is null.");
 
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
-  LOG("Checking aRepDecoder [%p] with AudioRepDecoder [%p] metadataReadCount "
-      "[%d] and VideoRepDecoder [%p] metadataReadCount [%d]",
-      aRepDecoder, AudioRepDecoder(), mAudioMetadataReadCount,
-      VideoRepDecoder(), mVideoMetadataReadCount);
   // Only return true if |aRepDecoder| is active and metadata for all
   // representations has been downloaded.
   return ((aRepDecoder == AudioRepDecoder() && mAudioMetadataReadCount == 0) ||

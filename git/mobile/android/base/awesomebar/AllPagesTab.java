@@ -305,12 +305,7 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
         }
 
         public void filter(String searchTerm) {
-            boolean changed = !mSearchTerm.equals(searchTerm);
             mSearchTerm = searchTerm;
-
-            if (changed)
-                mCursorAdapter.notifyDataSetChanged();
-
             getFilter().filter(searchTerm);
         }
 
@@ -571,7 +566,7 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
             boolean suggestionsPrompted = suggest.getBoolean("prompted");
             JSONArray engines = data.getJSONArray("searchEngines");
 
-            ArrayList<SearchEngine> searchEngines = new ArrayList<SearchEngine>();
+            mSearchEngines = new ArrayList<SearchEngine>();
             for (int i = 0; i < engines.length(); i++) {
                 JSONObject engineJSON = engines.getJSONObject(i);
                 String name = engineJSON.getString("name");
@@ -579,7 +574,7 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
                 Bitmap icon = BitmapUtils.getBitmapFromDataURI(iconURI);
                 if (name.equals(suggestEngine) && suggestTemplate != null) {
                     // suggest engine should be at the front of the list
-                    searchEngines.add(0, new SearchEngine(name, icon));
+                    mSearchEngines.add(0, new SearchEngine(name, icon));
 
                     // The only time Tabs.getInstance().getSelectedTab() should
                     // be null is when we're restoring after a crash. We should
@@ -589,11 +584,9 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
                     if (tab == null || !tab.isPrivate())
                         mSuggestClient = new SuggestClient(GeckoApp.mAppContext, suggestTemplate, SUGGESTION_TIMEOUT, SUGGESTION_MAX);
                 } else {
-                    searchEngines.add(new SearchEngine(name, icon));
+                    mSearchEngines.add(new SearchEngine(name, icon));
                 }
             }
-
-            mSearchEngines = searchEngines;
             mCursorAdapter.notifyDataSetChanged();
 
             // show suggestions opt-in if user hasn't been prompted

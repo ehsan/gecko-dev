@@ -14,9 +14,9 @@ BEGIN_TEST(testJSEvaluateScript)
 
     static const char src[] = "var x = 5;";
 
-    js::RootedValue retval(cx);
+    JS::Value retval;
     CHECK(JS_EvaluateScript(cx, obj, src, sizeof(src) - 1, __FILE__, __LINE__,
-                            retval.address()));
+                            &retval));
 
     JSBool hasProp = JS_TRUE;
     CHECK(JS_AlreadyHasOwnProperty(cx, obj, "x", &hasProp));
@@ -32,7 +32,7 @@ BEGIN_TEST(testJSEvaluateScript)
     static const char src2[] = "var y = 5;";
 
     CHECK(JS_EvaluateScript(cx, obj, src2, sizeof(src2) - 1, __FILE__, __LINE__,
-                            retval.address()));
+                            &retval));
 
     hasProp = JS_FALSE;
     CHECK(JS_AlreadyHasOwnProperty(cx, obj, "y", &hasProp));

@@ -36,9 +36,10 @@ DynamicsCompressorNode::DynamicsCompressorNode(AudioContext* aContext)
 }
 
 JSObject*
-DynamicsCompressorNode::WrapObject(JSContext* aCx, JSObject* aScope)
+DynamicsCompressorNode::WrapObject(JSContext* aCx, JSObject* aScope,
+                                   bool* aTriedToWrap)
 {
-  return DynamicsCompressorNodeBinding::Wrap(aCx, aScope, this);
+  return DynamicsCompressorNodeBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 }

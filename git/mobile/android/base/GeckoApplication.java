@@ -41,7 +41,7 @@ public class GeckoApplication extends Application {
     }
 
     protected void onActivityResume(GeckoActivity activity) {
-        if (GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning))
+        if (GeckoApp.checkLaunchState(GeckoApp.LaunchState.GeckoRunning))
             GeckoAppShell.sendEventToGecko(GeckoEvent.createResumeEvent(true));
         GeckoConnectivityReceiver.getInstance().start();
         GeckoNetworkManager.getInstance().start();

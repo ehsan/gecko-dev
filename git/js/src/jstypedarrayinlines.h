@@ -225,7 +225,7 @@ DataViewObject::create(JSContext *cx, uint32_t byteOffset, uint32_t byteLength,
         return NULL;
 
     if (proto) {
-        types::TypeObject *type = proto->getNewType(cx, &DataViewClass);
+        types::TypeObject *type = proto->getNewType(cx);
         if (!type)
             return NULL;
         obj->setType(type);

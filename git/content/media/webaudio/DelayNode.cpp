@@ -21,14 +21,15 @@ NS_IMPL_RELEASE_INHERITED(DelayNode, AudioNode)
 
 DelayNode::DelayNode(AudioContext* aContext, double aMaxDelay)
   : AudioNode(aContext)
-  , mDelay(new AudioParam(aContext, 0.0f, 0.0f, float(aMaxDelay)))
+  , mDelay(new AudioParam(aContext, 0.0f, 0.0f, aMaxDelay))
 {
 }
 
 JSObject*
-DelayNode::WrapObject(JSContext* aCx, JSObject* aScope)
+DelayNode::WrapObject(JSContext* aCx, JSObject* aScope,
+                      bool* aTriedToWrap)
 {
-  return DelayNodeBinding::Wrap(aCx, aScope, this);
+  return DelayNodeBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 }

@@ -6,8 +6,13 @@ MARIONETTE_TIMEOUT = 10000;
 let Cc = SpecialPowers.Cc;
 let Ci = SpecialPowers.Ci;
 
+// Get system worker manager.
+let systemWorkerManager = Cc["@mozilla.org/telephony/system-worker-manager;1"];
+ok(systemWorkerManager);
+
 // Get RadioIntefaceLayer interface.
-let RIL = Cc["@mozilla.org/ril;1"].getService(Ci.nsIRadioInterfaceLayer);
+let RIL = systemWorkerManager.getService(Ci.nsIInterfaceRequestor).
+          getInterface(Ci.nsIRadioInterfaceLayer);
 ok(RIL);
 
 // Check voicemail information accessible.

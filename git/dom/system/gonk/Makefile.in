@@ -45,7 +45,6 @@ XPIDLSRCS = \
   nsIWorkerHolder.idl \
   nsIAudioChannelManager.idl \
   nsINavigatorAudioChannelManager.idl \
-  nsISystemWorkerManager.idl \
   $(NULL)
 
 LOCAL_INCLUDES = \

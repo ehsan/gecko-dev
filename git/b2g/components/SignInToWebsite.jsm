@@ -180,8 +180,7 @@ let Pipe = {
       let detail = {
         type: kReceivedIdentityAssertion,
         showUI: aGaiaOptions.showUI || false,
-        id: kReceivedIdentityAssertion + "-" + uuid,
-        requestId: aRpOptions.id 
+        id: kReceivedIdentityAssertion + "-" + uuid
       };
       log('telling gaia to close the dialog');
       // tell gaia to close the dialog
@@ -249,8 +248,7 @@ let Pipe = {
     let detail = {
       type: kOpenIdentityDialog,
       showUI: aGaiaOptions.showUI || false,
-      id: kOpenIdentityDialog + "-" + uuid,
-      requestId: aRpOptions.id
+      id: kOpenIdentityDialog + "-" + uuid
     };
 
     GaiaInterface.sendChromeEvent(detail);

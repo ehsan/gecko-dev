@@ -161,9 +161,8 @@ CallObject *
 CallObject::createTemplateObject(JSContext *cx, HandleScript script)
 {
     RootedShape shape(cx, script->bindings.callObjShape());
-    JS_ASSERT(shape->getObjectClass() == &CallClass);
 
-    RootedTypeObject type(cx, cx->compartment->getNewType(cx, &CallClass, NULL));
+    RootedTypeObject type(cx, cx->compartment->getNewType(cx, NULL));
     if (!type)
         return NULL;
 
@@ -287,7 +286,7 @@ Class js::DeclEnvClass = {
 DeclEnvObject *
 DeclEnvObject::createTemplateObject(JSContext *cx, HandleFunction fun)
 {
-    RootedTypeObject type(cx, cx->compartment->getNewType(cx, &DeclEnvClass, NULL));
+    RootedTypeObject type(cx, cx->compartment->getNewType(cx, NULL));
     if (!type)
         return NULL;
 
@@ -331,7 +330,7 @@ DeclEnvObject::create(JSContext *cx, HandleObject enclosing, HandleFunction call
 WithObject *
 WithObject::create(JSContext *cx, HandleObject proto, HandleObject enclosing, uint32_t depth)
 {
-    RootedTypeObject type(cx, proto->getNewType(cx, &WithClass));
+    RootedTypeObject type(cx, proto->getNewType(cx));
     if (!type)
         return NULL;
 
@@ -615,9 +614,8 @@ ClonedBlockObject *
 ClonedBlockObject::create(JSContext *cx, Handle<StaticBlockObject *> block, AbstractFramePtr frame)
 {
     assertSameCompartment(cx, frame);
-    JS_ASSERT(block->getClass() == &BlockClass);
 
-    RootedTypeObject type(cx, block->getNewType(cx, &BlockClass));
+    RootedTypeObject type(cx, block->getNewType(cx));
     if (!type)
         return NULL;
 
@@ -676,7 +674,7 @@ ClonedBlockObject::copyUnaliasedValues(AbstractFramePtr frame)
 StaticBlockObject *
 StaticBlockObject::create(JSContext *cx)
 {
-    RootedTypeObject type(cx, cx->compartment->getNewType(cx, &BlockClass, NULL));
+    RootedTypeObject type(cx, cx->compartment->getNewType(cx, NULL));
     if (!type)
         return NULL;
 

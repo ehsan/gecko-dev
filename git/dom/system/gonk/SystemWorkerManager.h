@@ -19,7 +19,7 @@
 #define mozilla_dom_system_b2g_systemworkermanager_h__
 
 #include "nsIInterfaceRequestor.h"
-#include "nsISystemWorkerManager.h"
+#include "nsIRadioInterfaceLayer.h"
 #include "nsIObserver.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
@@ -35,14 +35,12 @@ namespace dom {
 namespace gonk {
 
 class SystemWorkerManager : public nsIObserver,
-                            public nsIInterfaceRequestor,
-                            public nsISystemWorkerManager
+                            public nsIInterfaceRequestor
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
   NS_DECL_NSIINTERFACEREQUESTOR
-  NS_DECL_NSISYSTEMWORKERMANAGER
 
   nsresult Init();
   void Shutdown();
@@ -57,11 +55,13 @@ private:
   SystemWorkerManager();
   ~SystemWorkerManager();
 
+  nsresult InitRIL(JSContext *cx);
 #ifdef MOZ_WIDGET_GONK
   nsresult InitNetd(JSContext *cx);
 #endif
   nsresult InitWifi(JSContext *cx);
 
+  nsCOMPtr<nsIRadioInterfaceLayer> mRIL;
 #ifdef MOZ_WIDGET_GONK
   nsCOMPtr<nsIWorkerHolder> mNetdWorker;
 #endif

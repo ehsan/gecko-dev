@@ -969,8 +969,8 @@ void MediaDecoder::NotifyPrincipalChanged()
 
 void MediaDecoder::NotifyBytesConsumed(int64_t aBytes)
 {
-  ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
   NS_ENSURE_TRUE_VOID(mDecoderStateMachine);
+  ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
   MOZ_ASSERT(OnStateMachineThread() || mDecoderStateMachine->OnDecodeThread());
   if (!mIgnoreProgressData) {
     mDecoderPosition += aBytes;
@@ -1372,7 +1372,8 @@ void MediaDecoder::SetPreservesPitch(bool aPreservesPitch)
 }
 
 bool MediaDecoder::OnDecodeThread() const {
-  return mDecoderStateMachine ? mDecoderStateMachine->OnDecodeThread() : false;
+  NS_ENSURE_TRUE(mDecoderStateMachine, false);
+  return mDecoderStateMachine->OnDecodeThread();
 }
 
 ReentrantMonitor& MediaDecoder::GetReentrantMonitor() {

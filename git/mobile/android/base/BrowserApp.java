@@ -971,7 +971,7 @@ abstract public class BrowserApp extends GeckoApp
         if (aMenu == null)
             return false;
 
-        if (!GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning))
+        if (!checkLaunchState(LaunchState.GeckoRunning))
             aMenu.findItem(R.id.settings).setEnabled(false);
 
         Tab tab = Tabs.getInstance().getSelectedTab();

@@ -904,8 +904,9 @@ nsGonkCameraControl::StartRecordingImpl(StartRecordingTask* aStartRecording)
 class RecordingComplete : public nsRunnable
 {
 public:
-  RecordingComplete(DeviceStorageFile* aFile)
+  RecordingComplete(DeviceStorageFile* aFile, nsACString& aType)
     : mFile(aFile)
+    , mType(aType)
   { }
 
   ~RecordingComplete() { }
@@ -914,13 +915,16 @@ public:
   {
     MOZ_ASSERT(NS_IsMainThread());
 
+    nsString data;
+    CopyASCIItoUTF16(mType, data);
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-    obs->NotifyObservers(mFile, "file-watcher-notify", NS_LITERAL_STRING("modified").get());
+    obs->NotifyObservers(mFile, "file-watcher-notify", data.get());
     return NS_OK;
   }
 
 private:
   nsRefPtr<DeviceStorageFile> mFile;
+  nsCString mType;
 };
 
 nsresult
@@ -933,7 +937,8 @@ nsGonkCameraControl::StopRecordingImpl(StopRecordingTask* aStopRecording)
   mRecorder = nullptr;
 
   // notify DeviceStorage that the new video file is closed and ready
-  nsCOMPtr<nsIRunnable> recordingComplete = new RecordingComplete(mVideoFile);
+  nsCString type(mRecorderProfile->GetFileMimeType());
+  nsCOMPtr<nsIRunnable> recordingComplete = new RecordingComplete(mVideoFile, type);
   return NS_DispatchToMainThread(recordingComplete, NS_DISPATCH_NORMAL);
 }
 

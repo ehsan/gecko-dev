@@ -464,10 +464,11 @@ class JSObject : public js::ObjectImpl
 
     inline void setType(js::types::TypeObject *newType);
 
-    js::types::TypeObject *getNewType(JSContext *cx, js::Class *clasp, JSFunction *fun = NULL);
+    js::types::TypeObject *getNewType(JSContext *cx, JSFunction *fun = NULL,
+                                      bool isDOM = false);
 
 #ifdef DEBUG
-    bool hasNewType(js::Class *clasp, js::types::TypeObject *newType);
+    bool hasNewType(js::types::TypeObject *newType);
 #endif
 
     /*
@@ -481,10 +482,10 @@ class JSObject : public js::ObjectImpl
      * Mark an object as requiring its default 'new' type to have unknown
      * properties.
      */
-    static bool setNewTypeUnknown(JSContext *cx, js::Class *clasp, JS::HandleObject obj);
+    static bool setNewTypeUnknown(JSContext *cx, JS::HandleObject obj);
 
     /* Set a new prototype for an object with a singleton type. */
-    bool splicePrototype(JSContext *cx, js::Class *clasp, js::Handle<js::TaggedProto> proto);
+    bool splicePrototype(JSContext *cx, js::Handle<js::TaggedProto> proto);
 
     /*
      * For bootstrapping, whether to splice a prototype for Function.prototype
@@ -810,11 +811,11 @@ class JSObject : public js::ObjectImpl
 
     /* Change the given property into a sibling with the same id in this scope. */
     static js::UnrootedShape changeProperty(JSContext *cx, js::HandleObject obj,
-                                            js::HandleShape shape, unsigned attrs, unsigned mask,
+                                            js::RawShape shape, unsigned attrs, unsigned mask,
                                             JSPropertyOp getter, JSStrictPropertyOp setter);
 
     static inline bool changePropertyAttributes(JSContext *cx, js::HandleObject obj,
-                                                js::HandleShape shape, unsigned attrs);
+                                                js::Shape *shape, unsigned attrs);
 
     /* Remove the property named by id from this object. */
     bool removeProperty(JSContext *cx, jsid id);
@@ -1272,10 +1273,6 @@ extern bool
 LookupName(JSContext *cx, HandlePropertyName name, HandleObject scopeChain,
            MutableHandleObject objp, MutableHandleObject pobjp, MutableHandleShape propp);
 
-extern bool
-LookupNameNoGC(JSContext *cx, PropertyName *name, JSObject *scopeChain,
-               JSObject **objp, JSObject **pobjp, Shape **propp);
-
 /*
  * Like LookupName except returns the global object if 'name' is not found in
  * any preceding non-global scope.
@@ -1345,12 +1342,13 @@ GetMethod(JSContext *cx, HandleObject obj, PropertyName *name, unsigned getHow, 
  * store the property value in *vp.
  */
 extern bool
-HasDataProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp);
+HasDataProperty(JSContext *cx, HandleObject obj, HandleId id, Value *vp);
 
 inline bool
-HasDataProperty(JSContext *cx, JSObject *obj, PropertyName *name, Value *vp)
+HasDataProperty(JSContext *cx, HandleObject obj, PropertyName *name, Value *vp)
 {
-    return HasDataProperty(cx, obj, NameToId(name), vp);
+    RootedId id(cx, NameToId(name));
+    return HasDataProperty(cx, obj, id, vp);
 }
 
 extern JSBool
@@ -1433,8 +1431,7 @@ js_GetClassPrototype(JSContext *cx, JSProtoKey protoKey, js::MutableHandleObject
 namespace js {
 
 extern bool
-SetClassAndProto(JSContext *cx, HandleObject obj,
-                 Class *clasp, Handle<TaggedProto> proto, bool checkForCycles);
+SetProto(JSContext *cx, HandleObject obj, Handle<TaggedProto> proto, bool checkForCycles);
 
 extern JSObject *
 NonNullObject(JSContext *cx, const Value &v);

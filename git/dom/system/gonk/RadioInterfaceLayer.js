@@ -135,10 +135,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "gTimeService",
                                    "@mozilla.org/time/timeservice;1",
                                    "nsITimeService");
 
-XPCOMUtils.defineLazyServiceGetter(this, "gSystemWorkerManager",
-                                   "@mozilla.org/telephony/system-worker-manager;1",
-                                   "nsISystemWorkerManager");
-
 XPCOMUtils.defineLazyGetter(this, "WAP", function () {
   let WAP = {};
   Cu.import("resource://gre/modules/WapPushManager.js", WAP);
@@ -320,17 +316,17 @@ function RadioInterfaceLayer() {
   // pass debug pref to ril_worker
   this.worker.postMessage({rilMessageType: "setDebugEnabled",
                            enabled: debugPref});
-
-  gSystemWorkerManager.registerRilWorker(this.worker);
 }
 RadioInterfaceLayer.prototype = {
 
   classID:   RADIOINTERFACELAYER_CID,
   classInfo: XPCOMUtils.generateCI({classID: RADIOINTERFACELAYER_CID,
                                     classDescription: "RadioInterfaceLayer",
-                                    interfaces: [Ci.nsIRadioInterfaceLayer]}),
+                                    interfaces: [Ci.nsIWorkerHolder,
+                                                 Ci.nsIRadioInterfaceLayer]}),
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIRadioInterfaceLayer,
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIWorkerHolder,
+                                         Ci.nsIRadioInterfaceLayer,
                                          Ci.nsIObserver,
                                          Ci.nsISettingsServiceCallback]),
 

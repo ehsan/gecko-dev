@@ -258,26 +258,6 @@ class ReftestOptions(OptionParser):
 
     self.set_defaults(**defaults)
 
-  def verifyCommonOptions(self, options, reftest):
-    if options.totalChunks is not None and options.thisChunk is None:
-      self.error("thisChunk must be specified when totalChunks is specified")
-
-    if options.totalChunks:
-      if not 1 <= options.thisChunk <= options.totalChunks:
-        self.error("thisChunk must be between 1 and totalChunks")
-
-    if options.logFile:
-      options.logFile = reftest.getFullPath(options.logFile)
-
-    if options.xrePath is not None:
-      if not os.access(options.xrePath, os.F_OK):
-        self.error("--xre-path '%s' not found" % options.xrePath)
-      if not os.path.isdir(options.xrePath):
-        self.error("--xre-path '%s' is not a directory" % options.xrePath)
-      options.xrePath = reftest.getFullPath(options.xrePath)
-
-    return options
-
 def main():
   automation = Automation()
   parser = ReftestOptions(automation)
@@ -288,8 +268,6 @@ def main():
     print >>sys.stderr, "No reftest.list specified."
     sys.exit(1)
 
-  options = parser.verifyCommonOptions(options, reftest)
-
   options.app = reftest.getFullPath(options.app)
   if not os.path.exists(options.app):
     print """Error: Path %(app)s doesn't exist.
@@ -299,12 +277,27 @@ Are you executing $objdir/_tests/reftest/runreftest.py?""" \
 
   if options.xrePath is None:
     options.xrePath = os.path.dirname(options.app)
+  else:
+    # allow relative paths
+    options.xrePath = reftest.getFullPath(options.xrePath)
 
   if options.symbolsPath and not isURL(options.symbolsPath):
     options.symbolsPath = reftest.getFullPath(options.symbolsPath)
   options.utilityPath = reftest.getFullPath(options.utilityPath)
 
-  sys.exit(reftest.runTests(args[0], options))
+  if options.totalChunks is not None and options.thisChunk is None:
+    print "thisChunk must be specified when totalChunks is specified"
+    sys.exit(1)
 
+  if options.totalChunks:
+    if not 1 <= options.thisChunk <= options.totalChunks:
+      print "thisChunk must be between 1 and totalChunks"
+      sys.exit(1)
+  
+  if options.logFile:
+    options.logFile = reftest.getFullPath(options.logFile)
+
+  sys.exit(reftest.runTests(args[0], options))
+  
 if __name__ == "__main__":
   main()

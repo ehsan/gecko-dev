@@ -28,7 +28,6 @@ using namespace std;
 #include "nsStaticComponents.h"
 #include "nsIDOMRTCPeerConnection.h"
 #include "nsWeakReference.h"
-#include "nricectx.h"
 
 #include "mtransport_test_utils.h"
 MtransportTestUtils *test_utils;
@@ -506,9 +505,7 @@ class SignalingAgent {
     pObserver = new TestObserver(pc);
     ASSERT_TRUE(pObserver);
 
-    sipcc::RTCConfiguration cfg;
-    cfg.addServer("23.21.150.121", 3478);
-    ASSERT_EQ(pc->Initialize(pObserver, nullptr, cfg, thread), NS_OK);
+    ASSERT_EQ(pc->Initialize(pObserver, nullptr, thread), NS_OK);
 
   }
 

@@ -18,10 +18,9 @@ Class js::ModuleClass = {
 Module *
 js_NewModule(JSContext *cx, JSAtom *atom)
 {
-    RootedObject object(cx, NewBuiltinClassInstance(cx, &ModuleClass));
-    if (!object)
+    RootedModule module(cx, &NewBuiltinClassInstance(cx, &ModuleClass)->asModule());
+    if (module == NULL)
         return NULL;
-    RootedModule module(cx, &object->asModule());
     module->setAtom(atom);
     module->setScript(NULL);
     return module;

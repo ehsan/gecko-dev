@@ -13,9 +13,8 @@ static int emptyTrapCallCount = 0;
 
 static JSTrapStatus
 EmptyTrapHandler(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
-                 jsval closureArg)
+                 jsval closure)
 {
-    js::RootedValue closure(cx, closureArg);
     JS_GC(JS_GetRuntime(cx));
     if (JSVAL_IS_STRING(closure))
         ++emptyTrapCallCount;

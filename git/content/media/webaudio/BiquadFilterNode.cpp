@@ -37,9 +37,10 @@ BiquadFilterNode::BiquadFilterNode(AudioContext* aContext)
 }
 
 JSObject*
-BiquadFilterNode::WrapObject(JSContext* aCx, JSObject* aScope)
+BiquadFilterNode::WrapObject(JSContext* aCx, JSObject* aScope,
+                             bool* aTriedToWrap)
 {
-  return BiquadFilterNodeBinding::Wrap(aCx, aScope, this);
+  return BiquadFilterNodeBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 }

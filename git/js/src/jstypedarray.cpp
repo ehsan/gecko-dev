@@ -392,11 +392,11 @@ ArrayBufferObject::create(JSContext *cx, uint32_t nbytes, uint8_t *contents)
 {
     SkipRoot skip(cx, &contents);
 
-    RootedObject obj(cx, NewBuiltinClassInstance(cx, &ArrayBufferClass));
+    RootedObject obj(cx, NewBuiltinClassInstance(cx, &ArrayBufferObject::protoClass));
     if (!obj)
         return NULL;
     JS_ASSERT(obj->getAllocKind() == gc::FINALIZE_OBJECT16_BACKGROUND);
-    JS_ASSERT(obj->getClass() == &ArrayBufferClass);
+    JS_ASSERT(obj->getClass() == &ArrayBufferObject::protoClass);
 
     js::Shape *empty = EmptyShape::getInitialShape(cx, &ArrayBufferClass,
                                                    obj->getProto(), obj->getParent(),
@@ -1547,7 +1547,7 @@ class TypedArrayTemplate
         JS_ASSERT(obj->getAllocKind() == gc::FINALIZE_OBJECT8_BACKGROUND);
 
         if (proto) {
-            types::TypeObject *type = proto->getNewType(cx, obj->getClass());
+            types::TypeObject *type = proto->getNewType(cx);
             if (!type)
                 return NULL;
             obj->setType(type);

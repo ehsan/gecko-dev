@@ -143,7 +143,6 @@ class UpvarCookie
     F(XMLELEM) \
     F(XMLLIST) \
     F(YIELD) \
-    F(GENEXP) \
     F(ARRAYCOMP) \
     F(ARRAYPUSH) \
     F(LEXICALSCOPE) \
@@ -225,8 +224,7 @@ enum ParseNodeKind {
  *                                   PNK_RETURN for expression closure, or
  *                                   PNK_SEQ for expression closure with
  *                                     destructured formal parameters
- *                                   PNK_LEXICALSCOPE for implicit function
- *                                     in generator-expression
+ *                                   PNK_CALL see isGeneratorExpr def below
  *                          pn_cookie: static level and var index for function
  *                          pn_dflags: PND_* definition/use flags (see below)
  *                          pn_blockid: block id number
@@ -373,8 +371,6 @@ enum ParseNodeKind {
  * PNK_CALL     list        pn_head: list of call, arg1, arg2, ... argN
  *                          pn_count: 1 + N (where N is number of args)
  *                          call is a MEMBER expr naming a callable object
- * PNK_GENEXP   list        Exactly like PNK_CALL, used for the implicit call
- *                          in the desugaring of a generator-expression.
  * PNK_ARRAY    list        pn_head: list of pn_count array element exprs
  *                          [,,] holes are represented by PNK_COMMA nodes
  *                          pn_xflags: PN_ENDCOMMA if extra comma at end
@@ -680,7 +676,7 @@ struct ParseNode {
      * kind and op, and op must be left-associative.
      */
     static ParseNode *
-    append(ParseNodeKind tt, JSOp op, ParseNode *left, ParseNode *right, Parser *parser);
+    append(ParseNodeKind tt, JSOp op, ParseNode *left, ParseNode *right);
 
     /*
      * Either append right to left, if left meets the conditions necessary to
@@ -832,6 +828,9 @@ struct ParseNode {
     bool isBound() const        { return test(PND_BOUND); }
     bool isImplicitArguments() const { return test(PND_IMPLICITARGUMENTS); }
 
+    void become(ParseNode *pn2);
+    void clear();
+
     /* True if pn is a parsenode representing a literal constant. */
     bool isLiteral() const {
         return isKind(PNK_NUMBER) ||
@@ -850,8 +849,20 @@ struct ParseNode {
 #endif
 
 #ifdef JS_HAS_GENERATOR_EXPRS
+    /*
+     * True if this node is a desugared generator expression.
+     */
+    bool isGeneratorExpr() const {
+        if (isKind(PNK_CALL)) {
+            ParseNode *callee = this->pn_head;
+            if (callee->getKind() == PNK_FUNCTION && callee->pn_body->getKind() == PNK_LEXICALSCOPE)
+                return true;
+        }
+        return false;
+    }
+
     ParseNode *generatorExpr() const {
-        JS_ASSERT(isKind(PNK_GENEXP));
+        JS_ASSERT(isGeneratorExpr());
         ParseNode *callee = this->pn_head;
         ParseNode *body = callee->pn_body;
         JS_ASSERT(body->isKind(PNK_LEXICALSCOPE));
@@ -1013,15 +1024,7 @@ struct TernaryNode : public ParseNode {
 #endif
 };
 
-struct ListNode : public ParseNode
-{
-    ListNode(ParseNodeKind kind, JSOp op, ParseNode *kid)
-      : ParseNode(kind, op, PN_LIST)
-    {
-        pn_pos = kid->pn_pos;
-        initList(kid);
-    }
-
+struct ListNode : public ParseNode {
     static inline ListNode *create(ParseNodeKind kind, Parser *parser) {
         return (ListNode *) ParseNode::create(kind, PN_LIST, parser);
     }

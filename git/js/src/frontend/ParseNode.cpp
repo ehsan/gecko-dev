@@ -26,6 +26,54 @@ JS_STATIC_ASSERT(pn_offsetof(pn_link) == pn_offsetof(dn_uses));
 
 #undef pn_offsetof
 
+void
+ParseNode::become(ParseNode *pn2)
+{
+    JS_ASSERT(!pn_defn);
+    JS_ASSERT(!pn2->isDefn());
+
+    JS_ASSERT(!pn_used);
+    if (pn2->isUsed()) {
+        ParseNode **pnup = &pn2->pn_lexdef->dn_uses;
+        while (*pnup != pn2)
+            pnup = &(*pnup)->pn_link;
+        *pnup = this;
+        pn_link = pn2->pn_link;
+        pn_used = true;
+        pn2->pn_link = NULL;
+        pn2->pn_used = false;
+    }
+
+    pn_type = pn2->pn_type;
+    pn_op = pn2->pn_op;
+    pn_arity = pn2->pn_arity;
+    pn_parens = pn2->pn_parens;
+    pn_u = pn2->pn_u;
+
+    /*
+     * If any pointers are pointing to pn2, change them to point to this
+     * instead, since pn2 will be cleared and probably recycled.
+     */
+    if (pn_arity == PN_LIST && !pn_head) {
+        /* Empty list: fix up the pn_tail pointer. */
+        JS_ASSERT(pn_count == 0);
+        JS_ASSERT(pn_tail == &pn2->pn_head);
+        pn_tail = &pn_head;
+    }
+
+    pn2->clear();
+}
+
+void
+ParseNode::clear()
+{
+    pn_type = PNK_LIMIT;
+    setOp(JSOP_NOP);
+    pn_used = pn_defn = false;
+    pn_arity = PN_NULLARY;
+    pn_parens = false;
+}
+
 #ifdef DEBUG
 void
 ParseNode::checkListConsistency()
@@ -264,44 +312,40 @@ ParseNode::create(ParseNodeKind kind, ParseNodeArity arity, Parser *parser)
 }
 
 ParseNode *
-ParseNode::append(ParseNodeKind kind, JSOp op, ParseNode *left, ParseNode *right, Parser *parser)
+ParseNode::append(ParseNodeKind kind, JSOp op, ParseNode *left, ParseNode *right)
 {
     if (!left || !right)
         return NULL;
 
     JS_ASSERT(left->isKind(kind) && left->isOp(op) && (js_CodeSpec[op].format & JOF_LEFTASSOC));
 
-    ListNode *list;
-    if (left->pn_arity == PN_LIST) {
-        list = &left->as<ListNode>();
-    } else {
+    if (left->pn_arity != PN_LIST) {
         ParseNode *pn1 = left->pn_left, *pn2 = left->pn_right;
-        list = parser->new_<ListNode>(kind, op, pn1);
-        if (!list)
-            return NULL;
-        list->append(pn2);
+        left->setArity(PN_LIST);
+        left->pn_parens = false;
+        left->initList(pn1);
+        left->append(pn2);
         if (kind == PNK_ADD) {
             if (pn1->isKind(PNK_STRING))
-                list->pn_xflags |= PNX_STRCAT;
+                left->pn_xflags |= PNX_STRCAT;
             else if (!pn1->isKind(PNK_NUMBER))
-                list->pn_xflags |= PNX_CANTFOLD;
+                left->pn_xflags |= PNX_CANTFOLD;
             if (pn2->isKind(PNK_STRING))
-                list->pn_xflags |= PNX_STRCAT;
+                left->pn_xflags |= PNX_STRCAT;
             else if (!pn2->isKind(PNK_NUMBER))
-                list->pn_xflags |= PNX_CANTFOLD;
+                left->pn_xflags |= PNX_CANTFOLD;
         }
     }
-
-    list->append(right);
-    list->pn_pos.end = right->pn_pos.end;
+    left->append(right);
+    left->pn_pos.end = right->pn_pos.end;
     if (kind == PNK_ADD) {
         if (right->isKind(PNK_STRING))
-            list->pn_xflags |= PNX_STRCAT;
+            left->pn_xflags |= PNX_STRCAT;
         else if (!right->isKind(PNK_NUMBER))
-            list->pn_xflags |= PNX_CANTFOLD;
+            left->pn_xflags |= PNX_CANTFOLD;
     }
 
-    return list;
+    return left;
 }
 
 ParseNode *
@@ -316,7 +360,7 @@ ParseNode::newBinaryOrAppend(ParseNodeKind kind, JSOp op, ParseNode *left, Parse
      * a list to reduce js::FoldConstants and js::frontend::EmitTree recursion.
      */
     if (left->isKind(kind) && left->isOp(op) && (js_CodeSpec[op].format & JOF_LEFTASSOC))
-        return append(kind, op, left, right, parser);
+        return append(kind, op, left, right);
 
     /*
      * Fold constant addition immediately, to conserve node space and, what's

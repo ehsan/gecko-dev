@@ -188,30 +188,15 @@ FoldBinaryNumeric(JSContext *cx, JSOp op, ParseNode *pn1, ParseNode *pn2,
     return true;
 }
 
-// Remove a ParseNode, **pnp, from a parse tree, putting another ParseNode,
-// *pn, in its place.
-//
-// pnp points to a ParseNode pointer. This must be the only pointer that points
-// to the parse node being replaced. The replacement, *pn, is unchanged except
-// for its pn_next pointer; updating that is necessary if *pn's new parent is a
-// list node.
-void
-ReplaceNode(ParseNode **pnp, ParseNode *pn)
-{
-    pn->pn_next = (*pnp)->pn_next;
-    *pnp = pn;
-}
-
 #if JS_HAS_XML_SUPPORT
 
 static bool
-FoldXMLConstants(JSContext *cx, ParseNode **pnp, Parser *parser)
+FoldXMLConstants(JSContext *cx, ParseNode *pn, Parser *parser)
 {
-    ParseNode *pn = *pnp;
     JS_ASSERT(pn->isArity(PN_LIST));
     ParseNodeKind kind = pn->getKind();
-    ParseNode **listp = &pn->pn_head;
-    ParseNode *pn1 = *listp;
+    ParseNode **pnp = &pn->pn_head;
+    ParseNode *pn1 = *pnp;
     RootedString accum(cx);
     RootedString str(cx);
     if ((pn->pn_xflags & PNX_CANTFOLD) == 0) {
@@ -269,7 +254,7 @@ FoldXMLConstants(JSContext *cx, ParseNode **pnp, Parser *parser)
 
           cantfold:
           default:
-            JS_ASSERT(*listp == pn1);
+            JS_ASSERT(*pnp == pn1);
             if ((kind == PNK_XMLSTAGO || kind == PNK_XMLPTAGC) &&
                 (i & 1) ^ (j & 1)) {
 #ifdef DEBUG_brendanXXX
@@ -291,11 +276,11 @@ FoldXMLConstants(JSContext *cx, ParseNode **pnp, Parser *parser)
                 pn1->pn_atom = AtomizeString(cx, accum);
                 if (!pn1->pn_atom)
                     return false;
-                JS_ASSERT(listp != &pn1->pn_next);
-                *listp = pn1;
+                JS_ASSERT(pnp != &pn1->pn_next);
+                *pnp = pn1;
             }
-            listp = &pn2->pn_next;
-            pn1 = *listp;
+            pnp = &pn2->pn_next;
+            pn1 = *pnp;
             accum = NULL;
             continue;
         }
@@ -332,7 +317,7 @@ FoldXMLConstants(JSContext *cx, ParseNode **pnp, Parser *parser)
                 return false;
         }
 
-        JS_ASSERT(*listp == pn1);
+        JS_ASSERT(*pnp == pn1);
         while (pn1->pn_next) {
             pn1 = parser->freeTree(pn1);
             --pn->pn_count;
@@ -343,8 +328,8 @@ FoldXMLConstants(JSContext *cx, ParseNode **pnp, Parser *parser)
         pn1->pn_atom = AtomizeString(cx, accum);
         if (!pn1->pn_atom)
             return false;
-        JS_ASSERT(listp != &pn1->pn_next);
-        *listp = pn1;
+        JS_ASSERT(pnp != &pn1->pn_next);
+        *pnp = pn1;
     }
 
     if (pn1 && pn->pn_count == 1) {
@@ -356,7 +341,7 @@ FoldXMLConstants(JSContext *cx, ParseNode **pnp, Parser *parser)
          * extra "<" and "/>" bracketing at runtime.
          */
         if (!(pn->pn_xflags & PNX_XMLROOT)) {
-            ReplaceNode(pnp, pn1);
+            pn->become(pn1);
         } else if (kind == PNK_XMLPTAGC) {
             pn->setKind(PNK_XMLELEM);
             pn->setOp(JSOP_TOXML);
@@ -413,17 +398,16 @@ Boolish(ParseNode *pn)
 }
 
 bool
-frontend::FoldConstants(JSContext *cx, ParseNode **pnp, Parser *parser, bool inGenexpLambda,
+frontend::FoldConstants(JSContext *cx, ParseNode *pn, Parser *parser, bool inGenexpLambda,
                         bool inCond)
 {
-    ParseNode *pn = *pnp;
     ParseNode *pn1 = NULL, *pn2 = NULL, *pn3 = NULL;
 
     JS_CHECK_RECURSION(cx, return false);
 
     switch (pn->getArity()) {
       case PN_FUNC:
-        if (!FoldConstants(cx, &pn->pn_body, parser, pn->pn_funbox->inGenexpLambda))
+        if (!FoldConstants(cx, pn->pn_body, parser, pn->pn_funbox->inGenexpLambda))
             return false;
         break;
 
@@ -433,71 +417,60 @@ frontend::FoldConstants(JSContext *cx, ParseNode **pnp, Parser *parser, bool inG
         bool cond = inCond && (pn->isKind(PNK_OR) || pn->isKind(PNK_AND));
 
         /* Don't fold a parenthesized call expression. See bug 537673. */
-        ParseNode **listp = &pn->pn_head;
-        if ((pn->isKind(PNK_CALL) || pn->isKind(PNK_NEW)) && (*listp)->isInParens())
-            listp = &(*listp)->pn_next;
-
-        for (; *listp; listp = &(*listp)->pn_next) {
-            if (!FoldConstants(cx, listp, parser, inGenexpLambda, cond))
-                return false;
-        }
-
-        /* If the last node in the list was replaced, pn_tail points into the wrong node. */
-        pn->pn_tail = listp;
+        pn1 = pn2 = pn->pn_head;
+        if ((pn->isKind(PNK_CALL) || pn->isKind(PNK_NEW)) && pn2->isInParens())
+            pn2 = pn2->pn_next;
 
         /* Save the list head in pn1 for later use. */
-        pn1 = pn->pn_head;
-        pn2 = NULL;
+        for (; pn2; pn2 = pn2->pn_next) {
+            if (!FoldConstants(cx, pn2, parser, inGenexpLambda, cond))
+                return false;
+        }
         break;
       }
 
       case PN_TERNARY:
         /* Any kid may be null (e.g. for (;;)). */
-        if (pn->pn_kid1) {
-            if (!FoldConstants(cx, &pn->pn_kid1, parser, inGenexpLambda, pn->isKind(PNK_IF)))
-                return false;
-        }
         pn1 = pn->pn_kid1;
-
-        if (pn->pn_kid2) {
-            if (!FoldConstants(cx, &pn->pn_kid2, parser, inGenexpLambda, pn->isKind(PNK_FORHEAD)))
+        pn2 = pn->pn_kid2;
+        pn3 = pn->pn_kid3;
+        if (pn1 && !FoldConstants(cx, pn1, parser, inGenexpLambda, pn->isKind(PNK_IF)))
+            return false;
+        if (pn2) {
+            if (!FoldConstants(cx, pn2, parser, inGenexpLambda, pn->isKind(PNK_FORHEAD)))
                 return false;
-            if (pn->isKind(PNK_FORHEAD) && pn->pn_kid2->isOp(JSOP_TRUE)) {
-                parser->freeTree(pn->pn_kid2);
+            if (pn->isKind(PNK_FORHEAD) && pn2->isOp(JSOP_TRUE)) {
+                parser->freeTree(pn2);
                 pn->pn_kid2 = NULL;
             }
         }
-        pn2 = pn->pn_kid2;
-
-        if (pn->pn_kid3) {
-            if (!FoldConstants(cx, &pn->pn_kid3, parser, inGenexpLambda))
-                return false;
-        }
-        pn3 = pn->pn_kid3;
+        if (pn3 && !FoldConstants(cx, pn3, parser, inGenexpLambda))
+            return false;
         break;
 
       case PN_BINARY:
-        /* Propagate inCond through logical connectives. */
-        if (pn->isKind(PNK_OR) || pn->isKind(PNK_AND)) {
-            if (!FoldConstants(cx, &pn->pn_left, parser, inGenexpLambda, inCond))
-                return false;
-            if (!FoldConstants(cx, &pn->pn_right, parser, inGenexpLambda, inCond))
-                return false;
-        } else {
-            /* First kid may be null (for default case in switch). */
-            if (pn->pn_left) {
-                bool isWhile = pn->isKind(PNK_WHILE);
-                if (!FoldConstants(cx, &pn->pn_left, parser, inGenexpLambda, isWhile))
-                    return false;
-            }
-            if (!FoldConstants(cx, &pn->pn_right, parser, inGenexpLambda, pn->isKind(PNK_DOWHILE)))
-                return false;
-        }
         pn1 = pn->pn_left;
         pn2 = pn->pn_right;
+
+        /* Propagate inCond through logical connectives. */
+        if (pn->isKind(PNK_OR) || pn->isKind(PNK_AND)) {
+            if (!FoldConstants(cx, pn1, parser, inGenexpLambda, inCond))
+                return false;
+            if (!FoldConstants(cx, pn2, parser, inGenexpLambda, inCond))
+                return false;
+            break;
+        }
+
+        /* First kid may be null (for default case in switch). */
+        if (pn1 && !FoldConstants(cx, pn1, parser, inGenexpLambda, pn->isKind(PNK_WHILE)))
+            return false;
+        if (!FoldConstants(cx, pn2, parser, inGenexpLambda, pn->isKind(PNK_DOWHILE)))
+            return false;
         break;
 
       case PN_UNARY:
+        pn1 = pn->pn_kid;
+
         /*
          * Kludge to deal with typeof expressions: because constant folding
          * can turn an expression into a name node, we have to check here,
@@ -507,14 +480,11 @@ frontend::FoldConstants(JSContext *cx, ParseNode **pnp, Parser *parser, bool inG
          * null. This assumption does not hold true for other unary
          * expressions.
          */
-        if (pn->isOp(JSOP_TYPEOF) && !pn->pn_kid->isKind(PNK_NAME))
+        if (pn->isOp(JSOP_TYPEOF) && !pn1->isKind(PNK_NAME))
             pn->setOp(JSOP_TYPEOFEXPR);
 
-        if (pn->pn_kid) {
-            if (!FoldConstants(cx, &pn->pn_kid, parser, inGenexpLambda, pn->isOp(JSOP_NOT)))
-                return false;
-        }
-        pn1 = pn->pn_kid;
+        if (pn1 && !FoldConstants(cx, pn1, parser, inGenexpLambda, pn->isOp(JSOP_NOT)))
+            return false;
         break;
 
       case PN_NAME:
@@ -525,12 +495,11 @@ frontend::FoldConstants(JSContext *cx, ParseNode **pnp, Parser *parser, bool inG
          * dot in the chain.
          */
         if (!pn->isUsed()) {
-            ParseNode **lhsp = &pn->pn_expr;
-            while (*lhsp && (*lhsp)->isArity(PN_NAME) && !(*lhsp)->isUsed())
-                lhsp = &(*lhsp)->pn_expr;
-            if (*lhsp && !FoldConstants(cx, lhsp, parser, inGenexpLambda))
+            pn1 = pn->pn_expr;
+            while (pn1 && pn1->isArity(PN_NAME) && !pn1->isUsed())
+                pn1 = pn1->pn_expr;
+            if (pn1 && !FoldConstants(cx, pn1, parser, inGenexpLambda))
                 return false;
-            pn1 = *lhsp;
         }
         break;
 
@@ -572,10 +541,8 @@ frontend::FoldConstants(JSContext *cx, ParseNode **pnp, Parser *parser, bool inG
             break;
 #endif
 
-        if (pn2 && !pn2->isDefn()) {
-            ReplaceNode(pnp, pn2);
-            pn = pn2;
-        }
+        if (pn2 && !pn2->isDefn())
+            pn->become(pn2);
         if (!pn2 || (pn->isKind(PNK_SEMI) && !pn->pn_kid)) {
             /*
              * False condition and no else, or an empty then-statement was
@@ -588,6 +555,7 @@ frontend::FoldConstants(JSContext *cx, ParseNode **pnp, Parser *parser, bool inG
             pn->setArity(PN_LIST);
             pn->makeEmpty();
         }
+        parser->freeTree(pn2);
         if (pn3 && pn3 != pn2)
             parser->freeTree(pn3);
         break;
@@ -596,13 +564,13 @@ frontend::FoldConstants(JSContext *cx, ParseNode **pnp, Parser *parser, bool inG
       case PNK_AND:
         if (inCond) {
             if (pn->isArity(PN_LIST)) {
-                ParseNode **listp = &pn->pn_head;
-                JS_ASSERT(*listp == pn1);
+                ParseNode **pnp = &pn->pn_head;
+                JS_ASSERT(*pnp == pn1);
                 uint32_t orig = pn->pn_count;
                 do {
                     Truthiness t = Boolish(pn1);
                     if (t == Unknown) {
-                        listp = &pn1->pn_next;
+                        pnp = &pn1->pn_next;
                         continue;
                     }
                     if ((t == Truthy) == pn->isKind(PNK_OR)) {
@@ -617,10 +585,10 @@ frontend::FoldConstants(JSContext *cx, ParseNode **pnp, Parser *parser, bool inG
                     JS_ASSERT((t == Truthy) == pn->isKind(PNK_AND));
                     if (pn->pn_count == 1)
                         break;
-                    *listp = pn1->pn_next;
+                    *pnp = pn1->pn_next;
                     parser->freeTree(pn1);
                     --pn->pn_count;
-                } while ((pn1 = *listp) != NULL);
+                } while ((pn1 = *pnp) != NULL);
 
                 // We may have to change arity from LIST to BINARY.
                 pn1 = pn->pn_head;
@@ -632,8 +600,8 @@ frontend::FoldConstants(JSContext *cx, ParseNode **pnp, Parser *parser, bool inG
                     pn->pn_left = pn1;
                     pn->pn_right = pn2;
                 } else if (pn->pn_count == 1) {
-                    ReplaceNode(pnp, pn1);
-                    pn = pn1;
+                    pn->become(pn1);
+                    parser->freeTree(pn1);
                 } else if (orig != pn->pn_count) {
                     // Adjust list tail.
                     pn2 = pn1->pn_next;
@@ -646,13 +614,11 @@ frontend::FoldConstants(JSContext *cx, ParseNode **pnp, Parser *parser, bool inG
                 if (t != Unknown) {
                     if ((t == Truthy) == pn->isKind(PNK_OR)) {
                         parser->freeTree(pn2);
-                        ReplaceNode(pnp, pn1);
-                        pn = pn1;
+                        pn->become(pn1);
                     } else {
                         JS_ASSERT((t == Truthy) == pn->isKind(PNK_AND));
                         parser->freeTree(pn1);
-                        ReplaceNode(pnp, pn2);
-                        pn = pn2;
+                        pn->become(pn2);
                     }
                 }
             }
@@ -851,8 +817,7 @@ frontend::FoldConstants(JSContext *cx, ParseNode **pnp, Parser *parser, bool inG
             parser->freeTree(pn1);
         } else if (pn1->isKind(PNK_TRUE) || pn1->isKind(PNK_FALSE)) {
             if (pn->isOp(JSOP_NOT)) {
-                ReplaceNode(pnp, pn1);
-                pn = pn1;
+                pn->become(pn1);
                 if (pn->isKind(PNK_TRUE)) {
                     pn->setKind(PNK_FALSE);
                     pn->setOp(JSOP_FALSE);
@@ -860,6 +825,7 @@ frontend::FoldConstants(JSContext *cx, ParseNode **pnp, Parser *parser, bool inG
                     pn->setKind(PNK_TRUE);
                     pn->setOp(JSOP_TRUE);
                 }
+                parser->freeTree(pn1);
             }
         }
         break;
@@ -873,9 +839,8 @@ frontend::FoldConstants(JSContext *cx, ParseNode **pnp, Parser *parser, bool inG
       case PNK_XMLNAME:
         if (pn->isArity(PN_LIST)) {
             JS_ASSERT(pn->isKind(PNK_XMLLIST) || pn->pn_count != 0);
-            if (!FoldXMLConstants(cx, pnp, parser))
+            if (!FoldXMLConstants(cx, pn, parser))
                 return false;
-            pn = *pnp;
         }
         break;
 

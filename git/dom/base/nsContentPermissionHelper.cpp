@@ -154,9 +154,7 @@ ContentPermissionRequestParent::Recvprompt()
 void
 ContentPermissionRequestParent::ActorDestroy(ActorDestroyReason why)
 {
-  if (mProxy) {
-    mProxy->OnParentDestroyed();
-  }
+  mProxy->OnParentDestroyed();
 }
 
 } // namespace dom

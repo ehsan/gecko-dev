@@ -5,8 +5,12 @@
 
 #include "mozilla/dom/sms/SmsMessage.h"
 #include "SmsService.h"
+#include "SystemWorkerManager.h"
 #include "jsapi.h"
+#include "nsIInterfaceRequestorUtils.h"
 #include "SmsSegmentInfo.h"
+
+using mozilla::dom::gonk::SystemWorkerManager;
 
 namespace mozilla {
 namespace dom {
@@ -16,8 +20,13 @@ NS_IMPL_ISUPPORTS1(SmsService, nsISmsService)
 
 SmsService::SmsService()
 {
-  mRIL = do_GetService("@mozilla.org/ril;1");
-  NS_WARN_IF_FALSE(mRIL, "This shouldn't fail!");
+  nsIInterfaceRequestor* ireq = SystemWorkerManager::GetInterfaceRequestor();
+  NS_WARN_IF_FALSE(ireq, "The SystemWorkerManager has not been created!");
+
+  if (ireq) {
+    mRIL = do_GetInterface(ireq);
+    NS_WARN_IF_FALSE(mRIL, "This shouldn't fail!");
+  }
 }
 
 NS_IMETHODIMP

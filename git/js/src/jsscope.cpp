@@ -75,20 +75,20 @@ ShapeTable::init(JSRuntime *rt, UnrootedShape lastProp)
     return true;
 }
 
-bool
-Shape::makeOwnBaseShape(JSContext *cx)
+/* static */ bool
+Shape::makeOwnBaseShape(JSContext *cx, HandleShape shape)
 {
-    JS_ASSERT(!base()->isOwned());
-    assertSameCompartmentDebugOnly(cx, compartment());
+    JS_ASSERT(!shape->base()->isOwned());
+    assertSameCompartmentDebugOnly(cx, shape->compartment());
 
-    UnrootedBaseShape nbase = js_NewGCBaseShape<DONT_ALLOW_GC>(cx);
+    UnrootedBaseShape nbase = js_NewGCBaseShape(cx);
     if (!nbase)
         return false;
 
-    new (nbase) BaseShape(StackBaseShape(this));
-    nbase->setOwned(base()->toUnowned());
+    new (nbase) BaseShape(StackBaseShape(shape));
+    nbase->setOwned(shape->base()->toUnowned());
 
-    this->base_ = nbase;
+    shape->base_ = nbase;
 
     return true;
 }
@@ -115,9 +115,9 @@ Shape::handoffTableTo(UnrootedShape shape)
 }
 
 /* static */ bool
-Shape::hashify(JSContext *cx, Shape *shape)
+Shape::hashify(JSContext *cx, HandleShape shape)
 {
-    AutoAssertNoGC nogc;
+    AssertCanGC();
     JS_ASSERT(!shape->hasTable());
 
     if (!shape->ensureOwnBaseShape(cx))
@@ -735,10 +735,10 @@ JSObject::putProperty(JSContext *cx, HandleObject obj, HandleId id,
 }
 
 /* static */ UnrootedShape
-JSObject::changeProperty(JSContext *cx, HandleObject obj, HandleShape shape, unsigned attrs,
-                         unsigned mask, PropertyOp getter, StrictPropertyOp setter)
+JSObject::changeProperty(JSContext *cx, HandleObject obj, RawShape shape, unsigned attrs, unsigned mask,
+                         PropertyOp getter, StrictPropertyOp setter)
 {
-    JS_ASSERT(obj->nativeContains(cx, shape));
+    JS_ASSERT(obj->nativeContainsNoAllocation(*shape));
 
     attrs |= shape->attrs & mask;
 
@@ -857,7 +857,7 @@ JSObject::removeProperty(JSContext *cx, jsid id_)
              */
             UnrootedShape aprop = self->lastProperty();
             for (int n = 50; --n >= 0 && aprop->parent; aprop = aprop->parent)
-                JS_ASSERT_IF(aprop != shape, self->nativeContains(cx, aprop));
+                JS_ASSERT_IF(aprop != shape, self->nativeContainsNoAllocation(*aprop));
 #endif
         }
 
@@ -935,7 +935,7 @@ JSObject::replaceWithNewEquivalentShape(JSContext *cx, Shape *oldShape, Shape *n
     JS_ASSERT(cx->compartment == oldShape->compartment());
     JS_ASSERT_IF(oldShape != lastProperty(),
                  inDictionaryMode() &&
-                 nativeLookup(cx, oldShape->propidRef()) == oldShape);
+                 nativeLookupNoAllocation(oldShape->propidRef()) == oldShape);
 
     JSObject *self = this;
 
@@ -1140,7 +1140,7 @@ BaseShape::getUnowned(JSContext *cx, const StackBaseShape &base)
 
     StackBaseShape::AutoRooter root(cx, &base);
 
-    UnrootedBaseShape nbase_ = js_NewGCBaseShape<ALLOW_GC>(cx);
+    UnrootedBaseShape nbase_ = js_NewGCBaseShape(cx);
     if (!nbase_)
         return NULL;
 
@@ -1268,7 +1268,7 @@ NewObjectCache::invalidateEntriesForShape(JSContext *cx, HandleShape shape, Hand
         kind = GetBackgroundAllocKind(kind);
 
     Rooted<GlobalObject *> global(cx, &shape->getObjectParent()->global());
-    Rooted<types::TypeObject *> type(cx, proto->getNewType(cx, clasp));
+    Rooted<types::TypeObject *> type(cx, proto->getNewType(cx));
 
     EntryIndex entry;
     if (lookupGlobal(clasp, global, kind, &entry))

@@ -1430,9 +1430,11 @@ SmsDatabaseService.prototype = {
   }
 };
 
-XPCOMUtils.defineLazyServiceGetter(SmsDatabaseService.prototype, "mRIL",
-                                   "@mozilla.org/ril;1",
-                                   "nsIRadioInterfaceLayer");
+XPCOMUtils.defineLazyGetter(SmsDatabaseService.prototype, "mRIL", function () {
+    return Cc["@mozilla.org/telephony/system-worker-manager;1"]
+              .getService(Ci.nsIInterfaceRequestor)
+              .getInterface(Ci.nsIRadioInterfaceLayer);
+});
 
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory([SmsDatabaseService]);
 

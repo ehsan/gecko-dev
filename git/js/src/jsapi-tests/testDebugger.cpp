@@ -42,8 +42,8 @@ nonStrictThisHook(JSContext *cx, JSStackFrame *fp, JSBool before, JSBool *ok, vo
 {
     if (before) {
         bool *allWrapped = (bool *) closure;
-        js::RootedValue thisv(cx);
-        JS_GetFrameThis(cx, fp, thisv.address());
+        jsval thisv;
+        JS_GetFrameThis(cx, fp, &thisv);
         *allWrapped = *allWrapped && !JSVAL_IS_PRIMITIVE(thisv);
     }
     return NULL;
@@ -80,8 +80,8 @@ strictThisHook(JSContext *cx, JSStackFrame *fp, JSBool before, JSBool *ok, void 
 {
     if (before) {
         bool *anyWrapped = (bool *) closure;
-        js::RootedValue thisv(cx);
-        JS_GetFrameThis(cx, fp, thisv.address());
+        jsval thisv;
+        JS_GetFrameThis(cx, fp, &thisv);
         *anyWrapped = *anyWrapped || !JSVAL_IS_PRIMITIVE(thisv);
     }
     return NULL;
@@ -231,8 +231,8 @@ bool testIndirectEval(JS::HandleObject scope, const char *code)
         CHECK(JS_CallFunctionName(cx, scope, "eval", 1, argv, &v));
     }
 
-    js::RootedValue hitsv(cx);
-    EVAL("hits", hitsv.address());
+    jsval hitsv;
+    EVAL("hits", &hitsv);
     CHECK_SAME(hitsv, INT_TO_JSVAL(1));
     return true;
 }

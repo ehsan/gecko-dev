@@ -108,27 +108,6 @@ def revert(hg_dir, excludes=()):
         if path not in excludes:
             os.remove(path)
 
-###
-
-def generate_packages_txt():
-    """
-    generate a packages.txt file appropriate for
-    http://mxr.mozilla.org/mozilla-central/source/build/virtualenv/populate_virtualenv.py
-
-    See also:
-    http://mxr.mozilla.org/mozilla-central/source/build/virtualenv/packages.txt
-    """
-
-    prefix = 'testing/mozbase/' # relative path from topsrcdir
-
-    # gather the packages
-    packages = setup_development.mozbase_packages
-
-    # write them in the appropriate format
-    path = os.path.join(here, 'packages.txt')
-    with file(path, 'w') as f:
-        for package in sorted(packages):
-            f.write("%s.pth:%s%s\n" % (package, prefix, package))
 
 ### version-related functions
 
@@ -213,13 +192,7 @@ def main(args=sys.argv[1:]):
                                    formatter=PlainDescriptionFormatter())
     parser.add_option('-o', '--output', dest='output',
                       help="specify the output file; otherwise will be in the current directory with a name based on the hash")
-    parser.add_option('--packages', dest='output_packages',
-                      default=False, action='store_true',
-                      help="generate packages.txt and exit")
     options, args = parser.parse_args(args)
-    if options.output_packages:
-        generate_packages_txt()
-        parser.exit()
     if args:
         versions = parse_versions(*args)
     else:
@@ -330,9 +303,6 @@ def main(args=sys.argv[1:]):
             # replace the directory
             remove(os.path.join(here, directory))
             call(['cp', '-r', directory, here], cwd=src)
-
-        # regenerate mozbase's packages.txt
-        generate_packages_txt()
 
         # generate the diff and write to output file
         call(['hg', 'addremove'], cwd=hg_root)

@@ -151,8 +151,6 @@ private:
   Mutex mLock;
 };
 
-static std::map<NPP, nsNPAPIPluginInstance*> sPluginNPPMap;
-
 #endif
 
 using namespace mozilla;
@@ -192,19 +190,11 @@ nsNPAPIPluginInstance::nsNPAPIPluginInstance()
   mNPP.ndata = this;
 
   PLUGIN_LOG(PLUGIN_LOG_BASIC, ("nsNPAPIPluginInstance ctor: this=%p\n",this));
-
-#ifdef MOZ_WIDGET_ANDROID
-  sPluginNPPMap[&mNPP] = this;
-#endif
 }
 
 nsNPAPIPluginInstance::~nsNPAPIPluginInstance()
 {
   PLUGIN_LOG(PLUGIN_LOG_BASIC, ("nsNPAPIPluginInstance dtor: this=%p\n",this));
-
-#ifdef MOZ_WIDGET_ANDROID
-  sPluginNPPMap.erase(&mNPP);
-#endif
 
   if (mMIMEType) {
     PR_Free((void *)mMIMEType);
@@ -1060,17 +1050,6 @@ void nsNPAPIPluginInstance::SetInverted(bool aInverted)
     return;
 
   mInverted = aInverted;
-}
-
-nsNPAPIPluginInstance* nsNPAPIPluginInstance::GetFromNPP(NPP npp)
-{
-  std::map<NPP, nsNPAPIPluginInstance*>::iterator it;
-
-  it = sPluginNPPMap.find(npp);
-  if (it == sPluginNPPMap.end())
-    return nullptr;
-
-  return it->second;
 }
 
 #endif

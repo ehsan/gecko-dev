@@ -824,7 +824,7 @@ fun_toSource(JSContext *cx, unsigned argc, Value *vp)
 JSBool
 js_fun_call(JSContext *cx, unsigned argc, Value *vp)
 {
-    RootedValue fval(cx, vp[1]);
+    Value fval = vp[1];
 
     if (!js_IsCallable(fval)) {
         ReportIncompatibleMethod(cx, CallReceiverFromVp(vp), &FunctionClass);
@@ -832,8 +832,10 @@ js_fun_call(JSContext *cx, unsigned argc, Value *vp)
     }
 
     Value *argv = vp + 2;
-    RootedValue thisv(cx, UndefinedValue());
-    if (argc != 0) {
+    Value thisv;
+    if (argc == 0) {
+        thisv.setUndefined();
+    } else {
         thisv = argv[0];
 
         argc--;
@@ -1059,7 +1061,7 @@ JSFunction::initializeLazyScript(JSContext *cx)
 JSBool
 js::CallOrConstructBoundFunction(JSContext *cx, unsigned argc, Value *vp)
 {
-    RootedFunction fun(cx, vp[0].toObject().toFunction());
+    JSFunction *fun = vp[0].toObject().toFunction();
     JS_ASSERT(fun->isBoundFunction());
 
     bool constructing = IsConstructing(vp);
@@ -1378,6 +1380,8 @@ js::Function(JSContext *cx, unsigned argc, Value *vp)
     }
 #endif
 
+    JS::Anchor<JSString *> strAnchor(NULL);
+
     RootedString str(cx);
     if (!args.length())
         str = cx->runtime->emptyString;
@@ -1388,8 +1392,7 @@ js::Function(JSContext *cx, unsigned argc, Value *vp)
     JSStableString *stable = str->ensureStable(cx);
     if (!stable)
         return false;
-
-    JS::Anchor<JSString *> strAnchor(str);
+    strAnchor.set(str);
     StableCharPtr chars = stable->chars();
     size_t length = stable->length();
 
@@ -1568,7 +1571,7 @@ js_DefineFunction(JSContext *cx, HandleObject obj, HandleId id, Native native,
 void
 js::ReportIncompatibleMethod(JSContext *cx, CallReceiver call, Class *clasp)
 {
-    RootedValue thisv(cx, call.thisv());
+    Value thisv = call.thisv();
 
 #ifdef DEBUG
     if (thisv.isObject()) {

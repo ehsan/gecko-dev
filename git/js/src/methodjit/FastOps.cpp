@@ -1340,24 +1340,22 @@ mjit::Compiler::jsop_setelem(bool popGuaranteed)
     if (cx->typeInferenceEnabled()) {
         types::StackTypeSet *types = analysis->poppedTypes(PC, 2);
 
-        if (types->getKnownClass() == &ArrayClass &&
-            !types->hasObjectFlags(cx, types::OBJECT_FLAG_SPARSE_INDEXES |
-                                   types::OBJECT_FLAG_LENGTH_OVERFLOW) &&
-            !types::ArrayPrototypeHasIndexedProperty(cx, outerScript))
-        {
+        if (!types->hasObjectFlags(cx, types::OBJECT_FLAG_NON_DENSE_ARRAY) &&
+            !types::ArrayPrototypeHasIndexedProperty(cx, outerScript)) {
             // Inline dense array path.
             jsop_setelem_dense();
             return true;
         }
 
 #ifdef JS_METHODJIT_TYPED_ARRAY
-        int atype = types->getTypedArrayType();
         if ((value->mightBeType(JSVAL_TYPE_INT32) || value->mightBeType(JSVAL_TYPE_DOUBLE)) &&
-            atype != TypedArray::TYPE_MAX)
-        {
+            !types->hasObjectFlags(cx, types::OBJECT_FLAG_NON_TYPED_ARRAY)) {
             // Inline typed array path.
-            jsop_setelem_typed(atype);
-            return true;
+            int atype = types->getTypedArrayType();
+            if (atype != TypedArray::TYPE_MAX) {
+                jsop_setelem_typed(atype);
+                return true;
+            }
         }
 #endif
     }
@@ -1950,24 +1948,24 @@ mjit::Compiler::jsop_getelem()
         }
 
         if (obj->mightBeType(JSVAL_TYPE_OBJECT) &&
-            types->getKnownClass() == &ArrayClass &&
-            !types->hasObjectFlags(cx, types::OBJECT_FLAG_SPARSE_INDEXES |
-                                   types::OBJECT_FLAG_LENGTH_OVERFLOW) &&
-            !types::ArrayPrototypeHasIndexedProperty(cx, outerScript))
-        {
+            !types->hasObjectFlags(cx, types::OBJECT_FLAG_NON_DENSE_ARRAY) &&
+            !types::ArrayPrototypeHasIndexedProperty(cx, outerScript)) {
             // Inline dense array path.
-            bool packed = !types->hasObjectFlags(cx, types::OBJECT_FLAG_NON_PACKED);
+            bool packed = !types->hasObjectFlags(cx, types::OBJECT_FLAG_NON_PACKED_ARRAY);
             jsop_getelem_dense(packed);
             return true;
         }
 
 #ifdef JS_METHODJIT_TYPED_ARRAY
-        int atype = types->getTypedArrayType();
-        if (obj->mightBeType(JSVAL_TYPE_OBJECT) && atype != TypedArray::TYPE_MAX) {
+        if (obj->mightBeType(JSVAL_TYPE_OBJECT) &&
+            !types->hasObjectFlags(cx, types::OBJECT_FLAG_NON_TYPED_ARRAY)) {
             // Inline typed array path.
-            if (jsop_getelem_typed(atype))
-                return true;
-            // Fallthrough to the normal GETELEM path.
+            int atype = types->getTypedArrayType();
+            if (atype != TypedArray::TYPE_MAX) {
+                if (jsop_getelem_typed(atype))
+                    return true;
+                // Fallthrough to the normal GETELEM path.
+            }
         }
 #endif
     }

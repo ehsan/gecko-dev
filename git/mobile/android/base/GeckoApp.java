@@ -187,9 +187,36 @@ abstract public class GeckoApp
 
     private String mPrivateBrowsingSession;
 
+    public enum LaunchState {Launching, WaitForDebugger,
+                             Launched, GeckoRunning, GeckoExiting};
+    private static LaunchState sLaunchState = LaunchState.Launching;
+
     abstract public int getLayout();
     abstract public boolean hasTabsSideBar();
     abstract protected String getDefaultProfileName();
+
+    public static boolean checkLaunchState(LaunchState checkState) {
+        synchronized(sLaunchState) {
+            return sLaunchState == checkState;
+        }
+    }
+
+    static void setLaunchState(LaunchState setState) {
+        synchronized(sLaunchState) {
+            sLaunchState = setState;
+        }
+    }
+
+    // if mLaunchState is equal to checkState this sets mLaunchState to setState
+    // and return true. Otherwise we return false.
+    static boolean checkAndSetLaunchState(LaunchState checkState, LaunchState setState) {
+        synchronized(sLaunchState) {
+            if (sLaunchState != checkState)
+                return false;
+            sLaunchState = setState;
+            return true;
+        }
+    }
 
     void toggleChrome(final boolean aShow) { }
 
@@ -547,10 +574,13 @@ abstract public class GeckoApp
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
             case R.id.quit:
-                if (GeckoThread.checkAndSetLaunchState(GeckoThread.LaunchState.GeckoRunning, GeckoThread.LaunchState.GeckoExiting)) {
-                    GeckoAppShell.notifyGeckoOfEvent(GeckoEvent.createBroadcastEvent("Browser:Quit", null));
-                } else {
-                    System.exit(0);
+                synchronized(sLaunchState) {
+                    if (sLaunchState == LaunchState.GeckoRunning)
+                        GeckoAppShell.notifyGeckoOfEvent(
+                            GeckoEvent.createBroadcastEvent("Browser:Quit", null));
+                    else
+                        System.exit(0);
+                    sLaunchState = LaunchState.GeckoExiting;
                 }
                 return true;
             default:
@@ -829,6 +859,8 @@ abstract public class GeckoApp
                 handlePageShow(tabId);
             } else if (event.equals("Gecko:Ready")) {
                 mGeckoReadyStartupTimer.stop();
+                setLaunchState(GeckoApp.LaunchState.GeckoRunning);
+                GeckoAppShell.sendPendingEventsToGecko();
                 connectGeckoLayerClient();
             } else if (event.equals("ToggleChrome:Hide")) {
                 toggleChrome(false);
@@ -1738,13 +1770,13 @@ abstract public class GeckoApp
             sGeckoThread = new GeckoThread(intent, passedUri);
         }
         if (!ACTION_DEBUG.equals(action) &&
-            GeckoThread.checkAndSetLaunchState(GeckoThread.LaunchState.Launching, GeckoThread.LaunchState.Launched)) {
+            checkAndSetLaunchState(LaunchState.Launching, LaunchState.Launched)) {
             sGeckoThread.start();
         } else if (ACTION_DEBUG.equals(action) &&
-            GeckoThread.checkAndSetLaunchState(GeckoThread.LaunchState.Launching, GeckoThread.LaunchState.WaitForDebugger)) {
+            checkAndSetLaunchState(LaunchState.Launching, LaunchState.WaitForDebugger)) {
             mMainHandler.postDelayed(new Runnable() {
                 public void run() {
-                    GeckoThread.setLaunchState(GeckoThread.LaunchState.Launching);
+                    setLaunchState(LaunchState.Launching);
                     sGeckoThread.start();
                 }
             }, 1000 * 5 /* 5 seconds */);
@@ -1841,14 +1873,14 @@ abstract public class GeckoApp
                     GeckoAppShell.setSelectedLocale(localeCode);
                 */
 
-                if (!GeckoThread.checkLaunchState(GeckoThread.LaunchState.Launched)) {
+                if (!checkLaunchState(LaunchState.Launched)) {
                     return;
                 }
             }
         }, 50);
 
         if (mIsRestoringActivity) {
-            GeckoThread.setLaunchState(GeckoThread.LaunchState.GeckoRunning);
+            setLaunchState(GeckoApp.LaunchState.GeckoRunning);
             Tab selectedTab = Tabs.getInstance().getSelectedTab();
             if (selectedTab != null)
                 Tabs.getInstance().notifyListeners(selectedTab, Tabs.TabEvents.SELECTED);
@@ -2011,7 +2043,7 @@ abstract public class GeckoApp
 
     @Override
     protected void onNewIntent(Intent intent) {
-        if (GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoExiting)) {
+        if (checkLaunchState(LaunchState.GeckoExiting)) {
             // We're exiting and shouldn't try to do anything else just incase
             // we're hung for some reason we'll force the process to exit
             System.exit(0);
@@ -2029,7 +2061,7 @@ abstract public class GeckoApp
         if ((intent.getFlags() & Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0)
             return;
 
-        if (GeckoThread.checkLaunchState(GeckoThread.LaunchState.Launched)) {
+        if (checkLaunchState(LaunchState.Launched)) {
             Uri data = intent.getData();
             Bundle bundle = intent.getExtras();
             // if the intent has data (i.e. a URI to be opened) and the scheme

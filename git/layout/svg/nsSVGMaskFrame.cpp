@@ -11,9 +11,7 @@
 #include "gfxImageSurface.h"
 #include "nsRenderingContext.h"
 #include "nsSVGEffects.h"
-#include "mozilla/dom/SVGMaskElement.h"
-
-using namespace mozilla::dom;
+#include "nsSVGMaskElement.h"
 
 //----------------------------------------------------------------------
 // Implementation
@@ -41,17 +39,17 @@ nsSVGMaskFrame::ComputeMaskAlpha(nsRenderingContext *aContext,
   }
   AutoMaskReferencer maskRef(this);
 
-  SVGMaskElement *mask = static_cast<SVGMaskElement*>(mContent);
+  nsSVGMaskElement *mask = static_cast<nsSVGMaskElement*>(mContent);
 
   uint16_t units =
-    mask->mEnumAttributes[SVGMaskElement::MASKUNITS].GetAnimValue();
+    mask->mEnumAttributes[nsSVGMaskElement::MASKUNITS].GetAnimValue();
   gfxRect bbox;
   if (units == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
     bbox = nsSVGUtils::GetBBox(aParent);
   }
 
   gfxRect maskArea = nsSVGUtils::GetRelativeRect(units,
-    &mask->mLengthAttributes[SVGMaskElement::ATTR_X], bbox, aParent);
+    &mask->mLengthAttributes[nsSVGMaskElement::X], bbox, aParent);
 
   gfxContext *gfx = aContext->ThebesContext();
 
@@ -203,11 +201,11 @@ nsSVGMaskFrame::GetCanvasTM(uint32_t aFor)
 {
   NS_ASSERTION(mMaskParentMatrix, "null parent matrix");
 
-  SVGMaskElement *mask = static_cast<SVGMaskElement*>(mContent);
+  nsSVGMaskElement *mask = static_cast<nsSVGMaskElement*>(mContent);
 
   return nsSVGUtils::AdjustMatrixForUnits(
     mMaskParentMatrix ? *mMaskParentMatrix : gfxMatrix(),
-    &mask->mEnumAttributes[SVGMaskElement::MASKCONTENTUNITS],
+    &mask->mEnumAttributes[nsSVGMaskElement::MASKCONTENTUNITS],
     mMaskParent);
 }
 

@@ -13,8 +13,6 @@ var gSmallTests = [
   { name:"seek.webm", type:"video/webm", width:320, height:240, duration:3.966 },
   { name:"detodos.opus", type:"audio/ogg; codecs=opus", duration:2.9135 },
   { name:"gizmo.mp4", type:"video/mp4", duration:5.56 },
-  { name:"dash-manifest.mpd", type:"application/dash+xml",
-    width:320, height:180, duration:3.966 },
   { name:"bogus.duh", type:"bogus/duh" }
 ];
 
@@ -303,7 +301,6 @@ var gSeekTests = [
   { name:"detodos.opus", type:"audio/ogg; codecs=opus", duration:2.9135 },
   { name:"gizmo.mp4", type:"video/mp4", duration:5.56 },
   { name:"owl.mp3", type:"audio/mpeg", duration:3.29 },
-  { name:"dash-manifest.mpd", type:"application/dash+xml", duration:3.966 },
   { name:"bogus.duh", type:"bogus/duh", duration:123 }
 ];
 
@@ -482,7 +479,7 @@ function checkMetadata(msg, e, test) {
 // installed video backends.
 function getPlayableVideo(candidates) {
   var v = document.createElement("video");
-  var resources = candidates.filter(function(x){return (/^video/.test(x.type) || /^application\/dash\+xml/.test(x.type)) && v.canPlayType(x.type);});
+  var resources = candidates.filter(function(x){return /^video/.test(x.type) && v.canPlayType(x.type);});
   if (resources.length > 0)
     return resources[0];
   return null;
@@ -494,15 +491,6 @@ function getPlayableAudio(candidates) {
   if (resources.length > 0)
     return resources[0];
   return null;
-}
-
-// Returns the type of element that should be created for the given mimetype.
-function getMajorMimeType(mimetype) {
-  if (/^video/.test(mimetype) || /^application\/dash\+xml/.test(mimetype)) {
-    return "video";
-  } else {
-    return "audio";
-  }
 }
 
 // Number of tests to run in parallel. Warning: Each media element requires

@@ -264,12 +264,19 @@ js::ObjectImpl::slotInRange(uint32_t slot, SentinelAllowed sentinel) const
 MOZ_NEVER_INLINE
 #endif
 UnrootedShape
-js::ObjectImpl::nativeLookup(JSContext *cx, jsid id)
+js::ObjectImpl::nativeLookup(JSContext *cx, HandleId id)
 {
-    AutoAssertNoGC nogc;
+    AssertCanGC();
     MOZ_ASSERT(isNative());
     Shape **spp;
     return Shape::search(cx, lastProperty(), id, &spp);
+}
+
+UnrootedShape
+js::ObjectImpl::nativeLookupNoAllocation(jsid id)
+{
+    MOZ_ASSERT(isNative());
+    return Shape::searchNoAllocation(lastProperty(), id);
 }
 
 void
@@ -279,7 +286,7 @@ js::ObjectImpl::markChildren(JSTracer *trc)
 
     MarkShape(trc, &shape_, "shape");
 
-    Class *clasp = type_->clasp;
+    Class *clasp = shape_->getObjectClass();
     JSObject *obj = asObjectPtr();
     if (clasp->trace)
         clasp->trace(trc, obj);

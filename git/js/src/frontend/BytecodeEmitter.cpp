@@ -1501,9 +1501,6 @@ CheckSideEffects(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, bool *answe
              */
             for (pn2 = pn->pn_head; pn2; pn2 = pn2->pn_next)
                 ok &= CheckSideEffects(cx, bce, pn2, answer);
-        } else if (pn->isKind(PNK_GENEXP)) {
-            /* Generator-expressions are harmless if the result is ignored. */
-            *answer = false;
         } else {
             /*
              * All invocation operations (construct: PNK_NEW, call: PNK_CALL)
@@ -5409,8 +5406,7 @@ EmitCallOrNew(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrdiff_t top)
         break;
     }
     if (!callop) {
-        JSOp thisop = pn->isKind(PNK_GENEXP) ? JSOP_THIS : JSOP_UNDEFINED;
-        if (Emit1(cx, bce, thisop) < 0)
+        if (Emit1(cx, bce, JSOP_UNDEFINED) < 0)
             return false;
         if (Emit1(cx, bce, JSOP_NOTEARG) < 0)
             return false;
@@ -6423,7 +6419,6 @@ frontend::EmitTree(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
       case PNK_NEW:
       case PNK_CALL:
-      case PNK_GENEXP:
         ok = EmitCallOrNew(cx, bce, pn, top);
         break;
 

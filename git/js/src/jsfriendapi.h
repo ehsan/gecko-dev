@@ -314,7 +314,6 @@ SizeOfDataIfCDataObject(JSMallocSizeOfFun mallocSizeOf, JSObject *obj);
 namespace shadow {
 
 struct TypeObject {
-    Class       *clasp;
     JSObject    *proto;
 };
 
@@ -384,7 +383,7 @@ extern JS_FRIEND_DATA(js::Class) ObjectClass;
 inline js::Class *
 GetObjectClass(RawObject obj)
 {
-    return reinterpret_cast<const shadow::Object*>(obj)->type->clasp;
+    return reinterpret_cast<const shadow::Object*>(obj)->shape->base->clasp;
 }
 
 inline JSClass *

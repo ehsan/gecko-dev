@@ -507,9 +507,8 @@ MarkNonNativePropertyFound(MutableHandleShape propp)
     propp.set(reinterpret_cast<Shape*>(1));
 }
 
-template <AllowGC allowGC>
 static inline void
-MarkDenseElementFound(typename MaybeRooted<Shape*, allowGC>::MutableHandleType propp)
+MarkDenseElementFound(MutableHandleShape propp)
 {
     propp.set(reinterpret_cast<Shape*>(1));
 }

@@ -924,8 +924,8 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::MIPSRegiste
     }
 
     void loadObjClass(RegisterID obj, RegisterID dest) {
-        loadPtr(Address(obj, JSObject::offsetOfType()), dest);
-        loadPtr(Address(dest, offsetof(types::TypeObject, clasp)), dest);
+        loadBaseShape(obj, dest);
+        loadPtr(Address(dest, BaseShape::offsetOfClass()), dest);
     }
 
     Jump testClass(Condition cond, RegisterID claspReg, js::Class *clasp) {
@@ -933,8 +933,8 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::MIPSRegiste
     }
 
     Jump testObjClass(Condition cond, RegisterID obj, RegisterID temp, js::Class *clasp) {
-        loadPtr(Address(obj, JSObject::offsetOfType()), temp);
-        return branchPtr(cond, Address(temp, offsetof(types::TypeObject, clasp)), ImmPtr(clasp));
+        loadBaseShape(obj, temp);
+        return branchPtr(cond, Address(temp, BaseShape::offsetOfClass()), ImmPtr(clasp));
     }
 
     Jump testFunction(Condition cond, RegisterID fun, RegisterID temp) {
