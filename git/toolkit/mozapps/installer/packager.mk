@@ -95,9 +95,6 @@ MOZ_INTERNAL_SIGNING_FORMAT =
 endif
 SDK_SUFFIX    = $(PKG_SUFFIX)
 SDK           = $(SDK_PATH)$(PKG_BASENAME).sdk$(SDK_SUFFIX)
-ifdef UNIVERSAL_BINARY
-SDK           = $(SDK_PATH)$(PKG_BASENAME)-$(TARGET_CPU).sdk$(SDK_SUFFIX)
-endif
 
 # JavaScript Shell packaging
 ifndef LIBXUL_SDK
