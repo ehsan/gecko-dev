@@ -680,6 +680,7 @@ pref("browser.EULA.version", 3);
 pref("browser.EULA.override", true);
 #endif
 
+pref("browser.sessionstore.enabled", true);
 pref("browser.sessionstore.resume_from_crash", true);
 pref("browser.sessionstore.resume_session_once", false);
 

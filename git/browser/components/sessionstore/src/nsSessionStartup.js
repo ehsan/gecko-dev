@@ -98,6 +98,10 @@ SessionStartup.prototype = {
     this._prefBranch = Cc["@mozilla.org/preferences-service;1"].
                        getService(Ci.nsIPrefService).getBranch("browser.");
 
+    // if the service is disabled, do not init 
+    if (!this._prefBranch.getBoolPref("sessionstore.enabled"))
+      return;
+
     // get file references
     var dirService = Cc["@mozilla.org/file/directory_service;1"].
                      getService(Ci.nsIProperties);
@@ -108,7 +112,7 @@ SessionStartup.prototype = {
     var resumeFromCrash = this._prefBranch.getBoolPref("sessionstore.resume_from_crash");
     if ((resumeFromCrash || this._doResumeSession()) && this._sessionFile.exists()) {
       // get string containing session state
-      this._iniString = this._readStateFile(this._sessionFile);
+      this._iniString = this._readFile(this._sessionFile);
       if (this._iniString) {
         try {
           // parse the session state into JS objects
@@ -321,25 +325,6 @@ SessionStartup.prototype = {
   },
 
 /* ........ Storage API .............. */
-
-  /**
-   * Reads a session state file into a string and lets
-   * observers modify the state before it's being used
-   *
-   * @param aFile is any nsIFile
-   * @returns a session state string
-   */
-  _readStateFile: function sss_readStateFile(aFile) {
-    var stateString = Cc["@mozilla.org/supports-string;1"].
-                        createInstance(Ci.nsISupportsString);
-    stateString.data = this._readFile(aFile) || "";
-    
-    var observerService = Cc["@mozilla.org/observer-service;1"].
-                          getService(Ci.nsIObserverService);
-    observerService.notifyObservers(stateString, "sessionstore-state-read", "");
-    
-    return stateString.data;
-  },
 
   /**
    * reads a file into a string
