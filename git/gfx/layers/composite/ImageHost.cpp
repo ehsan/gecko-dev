@@ -31,7 +31,6 @@ ImageHost::ImageHost(const TextureInfo& aTextureInfo)
   : CompositableHost(aTextureInfo)
   , mFrontBuffer(nullptr)
   , mHasPictureRect(false)
-  , mLocked(false)
 {}
 
 ImageHost::~ImageHost() {}
@@ -82,17 +81,24 @@ ImageHost::Composite(EffectChain& aEffectChain,
   mFrontBuffer->SetCompositor(GetCompositor());
   mFrontBuffer->SetCompositableBackendSpecificData(GetCompositableBackendSpecificData());
 
-  AutoLockCompositableHost autoLock(this);
+  AutoLockTextureHost autoLock(mFrontBuffer);
   if (autoLock.Failed()) {
     NS_WARNING("failed to lock front buffer");
     return;
   }
-  RefPtr<NewTextureSource> source = GetTextureSource();
+  RefPtr<NewTextureSource> source = mFrontBuffer->GetTextureSources();
   if (!source) {
     return;
   }
 
-  RefPtr<TexturedEffect> effect = GenEffect(aFilter);
+  bool isAlphaPremultiplied = true;
+  if (mFrontBuffer->GetFlags() & TextureFlags::NON_PREMULTIPLIED)
+    isAlphaPremultiplied = false;
+
+  RefPtr<TexturedEffect> effect = CreateTexturedEffect(mFrontBuffer->GetFormat(),
+                                                       source,
+                                                       aFilter,
+                                                       isAlphaPremultiplied);
   if (!effect) {
     return;
   }
@@ -236,49 +242,6 @@ ImageHost::GetAsSurface()
   return mFrontBuffer->GetAsSurface();
 }
 #endif
-
-bool
-ImageHost::Lock()
-{
-  MOZ_ASSERT(!mLocked);
-  if (!mFrontBuffer->Lock()) {
-    return false;
-  }
-  mLocked = true;
-  return true;
-}
-
-void
-ImageHost::Unlock()
-{
-  MOZ_ASSERT(mLocked);
-  mFrontBuffer->Unlock();
-  mLocked = false;
-}
-
-TemporaryRef<NewTextureSource>
-ImageHost::GetTextureSource()
-{
-  MOZ_ASSERT(mLocked);
-  return mFrontBuffer->GetTextureSources();
-}
-
-TemporaryRef<TexturedEffect>
-ImageHost::GenEffect(const gfx::Filter& aFilter)
-{
-  RefPtr<NewTextureSource> source = GetTextureSource();
-  if (!source) {
-    return nullptr;
-  }
-  bool isAlphaPremultiplied = true;
-  if (mFrontBuffer->GetFlags() & TextureFlags::NON_PREMULTIPLIED)
-    isAlphaPremultiplied = false;
-
-  return CreateTexturedEffect(mFrontBuffer->GetFormat(),
-                              source,
-                              aFilter,
-                              isAlphaPremultiplied);
-}
 
 }
 }

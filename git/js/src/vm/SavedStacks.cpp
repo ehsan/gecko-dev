@@ -396,13 +396,13 @@ SavedStacks::init()
 }
 
 bool
-SavedStacks::saveCurrentStack(JSContext *cx, MutableHandleSavedFrame frame, unsigned maxFrameCount)
+SavedStacks::saveCurrentStack(JSContext *cx, MutableHandleSavedFrame frame)
 {
     JS_ASSERT(initialized());
     JS_ASSERT(&cx->compartment()->savedStacks() == this);
 
     ScriptFrameIter iter(cx);
-    return insertFrames(cx, iter, frame, maxFrameCount);
+    return insertFrames(cx, iter, frame);
 }
 
 void
@@ -476,8 +476,7 @@ SavedStacks::sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf)
 }
 
 bool
-SavedStacks::insertFrames(JSContext *cx, ScriptFrameIter &iter, MutableHandleSavedFrame frame,
-                          unsigned maxFrameCount)
+SavedStacks::insertFrames(JSContext *cx, ScriptFrameIter &iter, MutableHandleSavedFrame frame)
 {
     if (iter.done()) {
         frame.set(nullptr);
@@ -498,20 +497,8 @@ SavedStacks::insertFrames(JSContext *cx, ScriptFrameIter &iter, MutableHandleSav
     // script and callee should keep compartment alive.
     JSCompartment *compartment = iter.compartment();
     RootedSavedFrame parentFrame(cx);
-
-    // If maxFrameCount is zero, then there's no limit on the number of frames.
-    if (maxFrameCount == 0) {
-        if (!insertFrames(cx, ++iter, &parentFrame, 0))
-            return false;
-    } else if (maxFrameCount == 1) {
-        // Since we were only asked to save one frame, the SavedFrame we're
-        // building here should have no parent, even if there are older frames
-        // on the stack.
-        parentFrame = nullptr;
-    } else {
-        if (!insertFrames(cx, ++iter, &parentFrame, maxFrameCount - 1))
-            return false;
-    }
+    if (!insertFrames(cx, ++iter, &parentFrame))
+        return false;
 
     AutoLocationValueRooter location(cx);
     if (!getLocation(cx, script, pc, &location))

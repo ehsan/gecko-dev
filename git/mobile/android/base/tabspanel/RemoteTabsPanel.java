@@ -99,25 +99,25 @@ class RemoteTabsPanel extends FrameLayout implements PanelView {
     }
 
     private PanelView inflatePanel(final RemotePanelType panelType) {
-        final PanelView view;
+        final LayoutInflater inflater = LayoutInflater.from(getContext());
+        final View inflatedView;
         switch (panelType) {
             case SETUP:
-                view = new RemoteTabsSetupPanel(getContext());
+                inflatedView = inflater.inflate(R.layout.remote_tabs_setup_panel, null);
                 break;
 
             case VERIFICATION:
-                view = new RemoteTabsVerificationPanel(getContext());
+                inflatedView = inflater.inflate(R.layout.remote_tabs_verification_panel, null);
                 break;
 
             case CONTAINER:
-                final LayoutInflater inflater = LayoutInflater.from(getContext());
-                view = (PanelView) inflater.inflate(R.layout.remote_tabs_container_panel, null);
+                inflatedView = inflater.inflate(R.layout.remote_tabs_container_panel, null);
                 break;
 
             default:
                 throw new IllegalArgumentException("Unknown panelType, " + panelType);
         }
 
-        return view;
+        return (PanelView) inflatedView;
     }
 }

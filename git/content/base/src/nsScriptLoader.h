@@ -25,12 +25,6 @@ namespace JS {
   class SourceBufferHolder;
 }
 
-namespace mozilla {
-namespace dom {
-class AutoJSAPI;
-}
-}
-
 //////////////////////////////////////////////////////////////
 // Script loader implementation
 //////////////////////////////////////////////////////////////
@@ -318,8 +312,7 @@ private:
                           void **aOffThreadToken);
 
   already_AddRefed<nsIScriptGlobalObject> GetScriptGlobalObject();
-  void FillCompileOptionsForRequest(const mozilla::dom::AutoJSAPI &jsapi,
-                                    nsScriptLoadRequest *aRequest,
+  void FillCompileOptionsForRequest(nsScriptLoadRequest *aRequest,
                                     JS::Handle<JSObject *> aScopeChain,
                                     JS::CompileOptions *aOptions);
 

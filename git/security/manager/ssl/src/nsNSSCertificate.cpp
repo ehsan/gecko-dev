@@ -19,6 +19,7 @@
 #include "nsPKCS12Blob.h"
 #include "nsPK11TokenDB.h"
 #include "nsIX509Cert.h"
+#include "nsIX509Cert3.h"
 #include "nsNSSASN1Object.h"
 #include "nsString.h"
 #include "nsXPIDLString.h"
@@ -67,6 +68,8 @@ NSSCleanupAutoPtrClass_WithParam(PLArenaPool, PORT_FreeArena, FalseParam, false)
 
 NS_IMPL_ISUPPORTS(nsNSSCertificate,
                   nsIX509Cert,
+                  nsIX509Cert2,
+                  nsIX509Cert3,
                   nsIIdentityInfo,
                   nsISerializable,
                   nsIClassInfo)
@@ -1138,9 +1141,9 @@ nsNSSCertificate::ExportAsCMS(uint32_t chainMode,
     return NS_ERROR_FAILURE;
 
   switch (chainMode) {
-    case nsIX509Cert::CMS_CHAIN_MODE_CertOnly:
-    case nsIX509Cert::CMS_CHAIN_MODE_CertChain:
-    case nsIX509Cert::CMS_CHAIN_MODE_CertChainWithRoot:
+    case nsIX509Cert3::CMS_CHAIN_MODE_CertOnly:
+    case nsIX509Cert3::CMS_CHAIN_MODE_CertChain:
+    case nsIX509Cert3::CMS_CHAIN_MODE_CertChainWithRoot:
       break;
     default:
       return NS_ERROR_INVALID_ARG;
@@ -1175,15 +1178,15 @@ nsNSSCertificate::ExportAsCMS(uint32_t chainMode,
   // Since CERT_CertChainFromCert() also includes the certificate itself,
   // we have to start at the issuing cert (to avoid duplicate certs
   // in the SignedData).
-  if (chainMode == nsIX509Cert::CMS_CHAIN_MODE_CertChain ||
-      chainMode == nsIX509Cert::CMS_CHAIN_MODE_CertChainWithRoot) {
+  if (chainMode == nsIX509Cert3::CMS_CHAIN_MODE_CertChain ||
+      chainMode == nsIX509Cert3::CMS_CHAIN_MODE_CertChainWithRoot) {
     ScopedCERTCertificate issuerCert(
         CERT_FindCertIssuer(mCert.get(), PR_Now(), certUsageAnyCA));
     // the issuerCert of a self signed root is the cert itself,
     // so make sure we're not adding duplicates, again
     if (issuerCert && issuerCert != mCert.get()) {
       bool includeRoot =
-        (chainMode == nsIX509Cert::CMS_CHAIN_MODE_CertChainWithRoot);
+        (chainMode == nsIX509Cert3::CMS_CHAIN_MODE_CertChainWithRoot);
       ScopedCERTCertificateList certChain(
           CERT_CertChainFromCert(issuerCert, certUsageAnyCA, includeRoot));
       if (certChain) {
@@ -1374,7 +1377,11 @@ nsNSSCertificate::Equals(nsIX509Cert* other, bool* result)
   NS_ENSURE_ARG(other);
   NS_ENSURE_ARG(result);
 
-  ScopedCERTCertificate cert(other->GetCert());
+  nsCOMPtr<nsIX509Cert2> other2 = do_QueryInterface(other);
+  if (!other2)
+    return NS_ERROR_FAILURE;
+
+  ScopedCERTCertificate cert(other2->GetCert());
   *result = (mCert.get() == cert.get());
   return NS_OK;
 }
@@ -1545,7 +1552,10 @@ nsNSSCertList::AddCert(nsIX509Cert* aCert)
   if (isAlreadyShutDown()) {
     return NS_ERROR_NOT_AVAILABLE;
   }
-  CERTCertificate* cert = aCert->GetCert();
+  nsCOMPtr<nsIX509Cert2> nssCert = do_QueryInterface(aCert);
+  CERTCertificate* cert;
+
+  cert = nssCert->GetCert();
   if (!cert) {
     NS_ERROR("Somehow got nullptr for mCertificate in nsNSSCertificate.");
     return NS_ERROR_FAILURE;
@@ -1567,7 +1577,8 @@ nsNSSCertList::DeleteCert(nsIX509Cert* aCert)
   if (isAlreadyShutDown()) {
     return NS_ERROR_NOT_AVAILABLE;
   }
-  CERTCertificate* cert = aCert->GetCert();
+  nsCOMPtr<nsIX509Cert2> nssCert = do_QueryInterface(aCert);
+  CERTCertificate* cert = nssCert->GetCert();
   CERTCertListNode* node;
 
   if (!cert) {
@@ -1594,9 +1605,8 @@ CERTCertList*
 nsNSSCertList::DupCertList(CERTCertList* aCertList,
                            const nsNSSShutDownPreventionLock& /*proofOfLock*/)
 {
-  if (!aCertList) {
+  if (!aCertList)
     return nullptr;
-  }
 
   CERTCertList* newList = CERT_NewCertList();
 

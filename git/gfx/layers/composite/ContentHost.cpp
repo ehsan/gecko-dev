@@ -35,6 +35,27 @@ ContentHostBase::~ContentHostBase()
 {
 }
 
+struct AutoLockContentHost
+{
+  AutoLockContentHost(ContentHostBase* aHost)
+    : mHost(aHost)
+  {
+    mSucceeded = mHost->Lock();
+  }
+
+  ~AutoLockContentHost()
+  {
+    if (mSucceeded) {
+      mHost->Unlock();
+    }
+  }
+
+  bool Failed() { return !mSucceeded; }
+
+  ContentHostBase* mHost;
+  bool mSucceeded;
+};
+
 void
 ContentHostBase::Composite(EffectChain& aEffectChain,
                            float aOpacity,
@@ -46,7 +67,7 @@ ContentHostBase::Composite(EffectChain& aEffectChain,
 {
   NS_ASSERTION(aVisibleRegion, "Requires a visible region");
 
-  AutoLockCompositableHost lock(this);
+  AutoLockContentHost lock(this);
   if (lock.Failed()) {
     return;
   }
@@ -57,8 +78,9 @@ ContentHostBase::Composite(EffectChain& aEffectChain,
   if (!source) {
     return;
   }
+  RefPtr<TexturedEffect> effect =
+    CreateTexturedEffect(source, sourceOnWhite, aFilter, true);
 
-  RefPtr<TexturedEffect> effect = GenEffect(aFilter);
   if (!effect) {
     return;
   }
@@ -207,16 +229,6 @@ ContentHostBase::Composite(EffectChain& aEffectChain,
                                    aTransform, mFlashCounter);
 }
 
-TemporaryRef<TexturedEffect>
-ContentHostBase::GenEffect(const gfx::Filter& aFilter)
-{
-  RefPtr<NewTextureSource> source = GetTextureSource();
-  RefPtr<NewTextureSource> sourceOnWhite = GetTextureSourceOnWhite();
-  if (!source) {
-    return nullptr;
-  }
-  return CreateTexturedEffect(source, sourceOnWhite, aFilter, true);
-}
 
 void
 ContentHostTexture::UseTextureHost(TextureHost* aTexture)

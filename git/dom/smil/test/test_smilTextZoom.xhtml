@@ -58,16 +58,16 @@ function main()
     verifyStyle(rect, "stroke-width", "5px");
     svg.setCurrentTime(1);
     verifyStyle(text, "font-size",    "20px");
-    verifyStyle(rect, "stroke-width", "20");
+    verifyStyle(rect, "stroke-width", "20px");
     svg.setCurrentTime(1.5);
     verifyStyle(text, "font-size",    "30px");
-    verifyStyle(rect, "stroke-width", "30");
+    verifyStyle(rect, "stroke-width", "30px");
     svg.setCurrentTime(2);
     verifyStyle(text, "font-size",    "40px");
-    verifyStyle(rect, "stroke-width", "40");
+    verifyStyle(rect, "stroke-width", "40px");
     svg.setCurrentTime(3);
     verifyStyle(text, "font-size",    "40px");
-    verifyStyle(rect, "stroke-width", "40");
+    verifyStyle(rect, "stroke-width", "40px");
   } catch (e) {
     // If anything goes wrong, make sure we restore textZoom before bubbling
     // the exception upwards, so that we don't mess up subsequent tests.
