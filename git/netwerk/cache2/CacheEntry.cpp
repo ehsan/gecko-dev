@@ -1133,14 +1133,11 @@ NS_IMETHODIMP CacheEntry::AsyncDoom(nsICacheEntryDoomCallback *aCallback)
 
     mIsDoomed = true;
     mDoomCallback = aCallback;
+    BackgroundOp(Ops::DOOM);
   }
 
-  // This immediately removes the entry from the master hashtable and also
-  // immediately dooms the file.  This way we make sure that any consumer
-  // after this point asking for the same entry won't get
-  //   a) this entry
-  //   b) a new entry with the same file
-  PurgeAndDoom();
+  // Immediately remove the entry from the storage hash table
+  CacheStorageService::Self()->RemoveEntry(this);
 
   return NS_OK;
 }
@@ -1406,6 +1403,8 @@ void CacheEntry::PurgeAndDoom()
 {
   LOG(("CacheEntry::PurgeAndDoom [this=%p]", this));
 
+  MOZ_ASSERT(CacheStorageService::IsOnManagementThread());
+
   CacheStorageService::Self()->RemoveEntry(this);
   DoomAlreadyRemoved();
 }
@@ -1414,45 +1413,36 @@ void CacheEntry::DoomAlreadyRemoved()
 {
   LOG(("CacheEntry::DoomAlreadyRemoved [this=%p]", this));
 
-  mozilla::MutexAutoLock lock(mLock);
-
   mIsDoomed = true;
 
-  // This schedules dooming of the file, dooming is ensured to happen
-  // sooner than demand to open the same file made after this point
-  // so that we don't get this file for any newer opened entry(s).
-  DoomFile();
+  if (!CacheStorageService::IsOnManagementThread()) {
+    mozilla::MutexAutoLock lock(mLock);
 
-  // Must force post here since may be indirectly called from
-  // InvokeCallbacks of this entry and we don't want reentrancy here.
-  BackgroundOp(Ops::CALLBACKS, true);
-  // Process immediately when on the management thread.
-  BackgroundOp(Ops::UNREGISTER);
-}
+    BackgroundOp(Ops::DOOM);
+    return;
+  }
 
-void CacheEntry::DoomFile()
-{
-  nsresult rv = NS_ERROR_NOT_AVAILABLE;
+  CacheStorageService::Self()->UnregisterEntry(this);
+
+  {
+    mozilla::MutexAutoLock lock(mLock);
+
+    if (mCallbacks.Length()) {
+      // Must force post here since may be indirectly called from
+      // InvokeCallbacks of this entry and we don't want reentrancy here.
+      BackgroundOp(Ops::CALLBACKS, true);
+    }
+  }
 
   if (NS_SUCCEEDED(mFileStatus)) {
-    // Always calls the callback asynchronously.
-    rv = mFile->Doom(mDoomCallback ? this : nullptr);
+    nsresult rv = mFile->Doom(mDoomCallback ? this : nullptr);
     if (NS_SUCCEEDED(rv)) {
       LOG(("  file doomed"));
       return;
     }
-    
-    if (NS_ERROR_FILE_NOT_FOUND == rv) {
-      // File is set to be just memory-only, notify the callbacks
-      // and pretend dooming has succeeded.  From point of view of
-      // the entry it actually did - the data is gone and cannot be
-      // reused.
-      rv = NS_OK;
-    }
   }
 
-  // Always posts to the main thread.
-  OnFileDoomed(rv);
+  OnFileDoomed(NS_OK);
 }
 
 void CacheEntry::BackgroundOp(uint32_t aOperations, bool aForceAsync)
@@ -1506,10 +1496,10 @@ void CacheEntry::BackgroundOp(uint32_t aOperations, bool aForceAsync)
     CacheStorageService::Self()->RegisterEntry(this);
   }
 
-  if (aOperations & Ops::UNREGISTER) {
-    LOG(("CacheEntry UNREGISTER [this=%p]", this));
+  if (aOperations & Ops::DOOM) {
+    LOG(("CacheEntry DOOM [this=%p]", this));
 
-    CacheStorageService::Self()->UnregisterEntry(this);
+    DoomAlreadyRemoved();
   }
 
   if (aOperations & Ops::CALLBACKS) {

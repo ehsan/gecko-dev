@@ -101,14 +101,14 @@ Axis::Axis(AsyncPanZoomController* aAsyncPanZoomController)
   : mPos(0),
     mVelocity(0.0f),
     mAcceleration(0),
-    mAxisLocked(false),
+    mScrollingDisabled(false),
     mAsyncPanZoomController(aAsyncPanZoomController)
 {
   InitAxisPrefs();
 }
 
 void Axis::UpdateWithTouchAtDevicePoint(int32_t aPos, const TimeDuration& aTimeDelta) {
-  float newVelocity = mAxisLocked ? 0 : (mPos - aPos) / aTimeDelta.ToMilliseconds();
+  float newVelocity = mScrollingDisabled ? 0 : (mPos - aPos) / aTimeDelta.ToMilliseconds();
 
   bool curVelocityBelowThreshold = fabsf(newVelocity) < gVelocityThreshold;
   bool directionChange = (mVelocity > 0) != (newVelocity > 0);
@@ -132,20 +132,12 @@ void Axis::UpdateWithTouchAtDevicePoint(int32_t aPos, const TimeDuration& aTimeD
 void Axis::StartTouch(int32_t aPos) {
   mStartPos = aPos;
   mPos = aPos;
-  mAxisLocked = false;
+  mScrollingDisabled = false;
 }
 
-float Axis::AdjustDisplacement(float aDisplacement, float& aOverscrollAmountOut,
-                               bool aScrollingDisabled) {
-  if (mAxisLocked) {
+float Axis::AdjustDisplacement(float aDisplacement, float& aOverscrollAmountOut) {
+  if (mScrollingDisabled) {
     aOverscrollAmountOut = 0;
-    return 0;
-  }
-
-  if (aScrollingDisabled) {
-    // Scrolling is disabled on this axis, stop scrolling.
-    aOverscrollAmountOut = aDisplacement;
-    mAcceleration = 0;
     return 0;
   }
 
@@ -200,7 +192,7 @@ void Axis::CancelTouch() {
 }
 
 bool Axis::Scrollable() {
-    if (mAxisLocked) {
+    if (mScrollingDisabled) {
         return false;
     }
     return GetCompositionLength() < GetPageLength();
@@ -299,7 +291,7 @@ float Axis::ScaleWillOverscrollAmount(float aScale, float aFocus) {
 }
 
 float Axis::GetVelocity() {
-  return mAxisLocked ? 0 : mVelocity;
+  return mScrollingDisabled ? 0 : mVelocity;
 }
 
 float Axis::GetAccelerationFactor() {

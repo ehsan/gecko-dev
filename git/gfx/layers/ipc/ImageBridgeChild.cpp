@@ -897,8 +897,7 @@ ImageBridgeChild::AllocGrallocBuffer(const IntSize& aSize,
 }
 
 PTextureChild*
-ImageBridgeChild::AllocPTextureChild(const SurfaceDescriptor&,
-                                     const TextureFlags&)
+ImageBridgeChild::AllocPTextureChild()
 {
   return TextureClient::CreateIPDLActor();
 }
@@ -910,10 +909,9 @@ ImageBridgeChild::DeallocPTextureChild(PTextureChild* actor)
 }
 
 PTextureChild*
-ImageBridgeChild::CreateTexture(const SurfaceDescriptor& aSharedData,
-                                TextureFlags aFlags)
+ImageBridgeChild::CreateEmptyTextureChild()
 {
-  return SendPTextureConstructor(aSharedData, aFlags);
+  return SendPTextureConstructor();
 }
 
 static void RemoveTextureSync(TextureClient* aTexture, ReentrantMonitor* aBarrier, bool* aDone)

@@ -148,8 +148,7 @@ public:
    */
   void Connect(CompositableClient* aCompositable);
 
-  virtual PTextureChild* CreateTexture(const SurfaceDescriptor& aSharedData,
-                                       TextureFlags aFlags) MOZ_OVERRIDE;
+  virtual PTextureChild* CreateEmptyTextureChild() MOZ_OVERRIDE;
 
   virtual void CreatedSingleBuffer(CompositableClient* aCompositable,
                                    const SurfaceDescriptor& aDescriptor,

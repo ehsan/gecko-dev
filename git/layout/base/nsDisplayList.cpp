@@ -623,10 +623,10 @@ static void RecordFrameMetrics(nsIFrame* aForFrame,
   if (scrollableFrame) {
     nsRect contentBounds = scrollableFrame->GetScrollRange();
     if (scrollableFrame->GetScrollbarStyles().mVertical == NS_STYLE_OVERFLOW_HIDDEN) {
-      metrics.SetDisableScrollingY(true);
+      contentBounds.height = 0;
     }
     if (scrollableFrame->GetScrollbarStyles().mHorizontal == NS_STYLE_OVERFLOW_HIDDEN) {
-      metrics.SetDisableScrollingX(true);
+      contentBounds.width = 0;
     }
     contentBounds.width += scrollableFrame->GetScrollPortRect().width;
     contentBounds.height += scrollableFrame->GetScrollPortRect().height;
