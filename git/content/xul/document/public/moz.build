@@ -17,5 +17,5 @@ if CONFIG['MOZ_XUL']:
         'nsIXULDocument.h',
     ]
 
-XPIDL_MODULE = 'xuldoc'
+MODULE = 'xuldoc'
 

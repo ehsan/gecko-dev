@@ -4,6 +4,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+MODULE = 'libpixman'
+
 EXPORTS += [
     'pixman-version.h',
     'pixman.h',
@@ -24,6 +26,8 @@ if CONFIG['OS_ARCH'] != 'Darwin' and CONFIG['GNU_CC']:
             'pixman-arm-simd-asm-scaled.S',
             'pixman-arm-simd-asm.S',
         ]
+
+LIBXUL_LIBRARY = True
 
 SOURCES += [
     'pixman-access-accessors.c',
@@ -60,4 +64,5 @@ SOURCES += [
 
 MSVC_ENABLE_PGO = True
 
-FINAL_LIBRARY = 'gkmedias'
+LIBRARY_NAME = 'mozlibpixman'
+

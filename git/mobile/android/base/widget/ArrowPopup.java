@@ -114,10 +114,6 @@ public class ArrowPopup extends PopupWindow {
             arrowLayoutParams.setMargins(leftMargin, 0, 0, 0);
         }
 
-        if (isShowing()) {
-            update(mAnchor, offset, -mYOffset, -1, -1);
-        } else {
-            showAsDropDown(mAnchor, offset, -mYOffset);
-        }
+        showAsDropDown(mAnchor, offset, -mYOffset);
     }
 }

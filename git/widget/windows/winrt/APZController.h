@@ -25,11 +25,6 @@ class APZController :
   typedef mozilla::layers::ScrollableLayerGuid ScrollableLayerGuid;
 
 public:
-  APZController() :
-    mWidgetListener(nullptr)
-  {
-  }
-
   // GeckoContentController interface
   virtual void RequestContentRepaint(const FrameMetrics& aFrameMetrics);
   virtual void HandleDoubleTap(const mozilla::CSSIntPoint& aPoint);
@@ -59,7 +54,6 @@ public:
 
 private:
   nsIWidgetListener* mWidgetListener;
-  ScrollableLayerGuid mLastScrollLayerGuid;
   CSSIntPoint mLastScrollOffset;
 };
 

@@ -2128,7 +2128,8 @@ RecordShutdownEndTimeStamp() {
   // calling _exit, but on a debug build or when the user forces a full
   // shutdown this is called as late as possible, so we have to
   // white list this write as write poisoning will be enabled.
-  MozillaRegisterDebugFILE(f);
+  int fd = fileno(f);
+  MozillaRegisterDebugFD(fd);
 
   TimeStamp now = TimeStamp::Now();
   MOZ_ASSERT(now >= gRecordedShutdownStartTime);

@@ -616,12 +616,10 @@ ProxyAutoConfig::SetupJS()
   bool isDataURI = nsDependentCSubstring(mPACURI, 0, 5).LowerCaseEqualsASCII("data:", 5);
 
   sRunning = this;
-  JS::Rooted<JSObject *> global(mJSRuntime->Context(), mJSRuntime->Global());
-  JS::CompileOptions options(mJSRuntime->Context());
-  options.setFileAndLine(mPACURI.get(), 1);
-  JSScript *script = JS_CompileScript(mJSRuntime->Context(), global,
+  JSScript *script = JS_CompileScript(mJSRuntime->Context(),
+                                      mJSRuntime->Global(),
                                       mPACScript.get(), mPACScript.Length(),
-                                      options);
+                                      mPACURI.get(), 1);
   if (!script ||
       !JS_ExecuteScript(mJSRuntime->Context(), mJSRuntime->Global(), script, nullptr)) {
     nsString alertMessage(NS_LITERAL_STRING("PAC file failed to install from "));

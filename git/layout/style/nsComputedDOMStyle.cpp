@@ -673,7 +673,7 @@ nsComputedDOMStyle::GetPropertyCSSValue(const nsAString& aPropertyName, ErrorRes
         topWithPseudoElementData = topWithPseudoElementData->GetParent();
       }
       NS_ASSERTION(nsCSSPseudoElements::PseudoElementContainsElements(
-                     topWithPseudoElementData->GetPseudoType()),
+                     topWithPseudoElementData->GetPseudo()),
                    "we should be in a pseudo-element that is expected to "
                    "contain elements");
     }
@@ -1612,7 +1612,7 @@ nsComputedDOMStyle::DoGetFontVariantLigatures()
     nsAutoString valueStr;
 
     nsStyleUtil::AppendBitmaskCSSValue(eCSSProperty_font_variant_ligatures,
-      intValue, NS_FONT_VARIANT_LIGATURES_NONE,
+      intValue, NS_FONT_VARIANT_LIGATURES_COMMON,
       NS_FONT_VARIANT_LIGATURES_NO_CONTEXTUAL, valueStr);
     val->SetString(valueStr);
   }

@@ -16,6 +16,8 @@ XPIDL_SOURCES += [
 
 XPIDL_MODULE = 'content_xslt'
 
+MODULE = 'content'
+
 EXPORTS += [
     'nsIDocumentTransformer.h',
 ]

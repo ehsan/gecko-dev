@@ -59,7 +59,17 @@ struct BidiParagraphData {
     mPrevContent = nullptr;
     mParagraphDepth = 0;
 
-    mParaLevel = nsBidiPresUtils::BidiLevelFromStyle(aBlockFrame->StyleContext());
+    bool styleDirectionIsRTL =
+      (NS_STYLE_DIRECTION_RTL == aBlockFrame->StyleVisibility()->mDirection);
+    if (aBlockFrame->StyleTextReset()->mUnicodeBidi &
+        NS_STYLE_UNICODE_BIDI_PLAINTEXT) {
+      // unicode-bidi: plaintext: the Bidi algorithm will determine the
+      // directionality of the paragraph according to the first strong
+      // directional character, defaulting to LTR if there is none.
+      mParaLevel = NSBIDI_DEFAULT_LTR;
+    } else {
+      mParaLevel = styleDirectionIsRTL ? NSBIDI_RTL : NSBIDI_LTR;
+    }
 
     mIsVisual = aBlockFrame->PresContext()->IsVisualMode();
     if (mIsVisual) {
@@ -1803,7 +1813,7 @@ nsBidiPresUtils::CalculateCharType(nsBidi* aBidiEngine,
 
 nsresult nsBidiPresUtils::ProcessText(const PRUnichar*       aText,
                                       int32_t                aLength,
-                                      nsBidiLevel            aBaseLevel,
+                                      nsBidiDirection        aBaseDirection,
                                       nsPresContext*         aPresContext,
                                       BidiProcessor&         aprocessor,
                                       Mode                   aMode,
@@ -1818,7 +1828,7 @@ nsresult nsBidiPresUtils::ProcessText(const PRUnichar*       aText,
 
   nsAutoString textBuffer(aText, aLength);
 
-  nsresult rv = aBidiEngine->SetPara(aText, aLength, aBaseLevel, nullptr);
+  nsresult rv = aBidiEngine->SetPara(aText, aLength, aBaseDirection, nullptr);
   if (NS_FAILED(rv))
     return rv;
 
@@ -1843,8 +1853,7 @@ nsresult nsBidiPresUtils::ProcessText(const PRUnichar*       aText,
   }
 
   for (i = 0; i < runCount; i++) {
-    nsBidiDirection dir;
-    rv = aBidiEngine->GetVisualRun(i, &start, &length, &dir);
+    rv = aBidiEngine->GetVisualRun(i, &start, &length, &aBaseDirection);
     if (NS_FAILED(rv))
       return rv;
 
@@ -2053,7 +2062,7 @@ private:
 
 nsresult nsBidiPresUtils::ProcessTextForRenderingContext(const PRUnichar*       aText,
                                                          int32_t                aLength,
-                                                         nsBidiLevel            aBaseLevel,
+                                                         nsBidiDirection        aBaseDirection,
                                                          nsPresContext*         aPresContext,
                                                          nsRenderingContext&   aRenderingContext,
                                                          nsRenderingContext&   aTextRunConstructionContext,
@@ -2066,7 +2075,7 @@ nsresult nsBidiPresUtils::ProcessTextForRenderingContext(const PRUnichar*       
 {
   nsIRenderingContextBidiProcessor processor(&aRenderingContext, &aTextRunConstructionContext, nsPoint(aX, aY));
   nsBidi bidiEngine;
-  return ProcessText(aText, aLength, aBaseLevel, aPresContext, processor,
+  return ProcessText(aText, aLength, aBaseDirection, aPresContext, processor,
                      aMode, aPosResolve, aPosResolveCount, aWidth, &bidiEngine);
 }
 
@@ -2187,21 +2196,5 @@ void nsBidiPresUtils::CopyLogicalToVisual(const nsAString& aSource,
     CopyUnicodeTo(aSource.BeginReading(fromBegin), aSource.EndReading(fromEnd),
                   aDest);
   }
-}
-
-/* static */
-nsBidiLevel
-nsBidiPresUtils::BidiLevelFromStyle(nsStyleContext* aStyleContext)
-{
-  if (aStyleContext->StyleTextReset()->mUnicodeBidi &
-      NS_STYLE_UNICODE_BIDI_PLAINTEXT) {
-    return NSBIDI_DEFAULT_LTR;
-  }
-
-  if (aStyleContext->StyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL) {
-    return NSBIDI_RTL;
-  }
-
-  return NSBIDI_LTR;
 }
 #endif // IBMBIDI

@@ -6,3 +6,5 @@
 
 DIRS += ['public', 'src']
 
+MODULE = 'appshell'
+

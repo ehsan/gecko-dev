@@ -9,7 +9,7 @@ XPIDL_SOURCES += [
     'nsIScriptableUnescapeHTML.idl',
 ]
 
-XPIDL_MODULE = 'html5'
+MODULE = 'html5'
 
 EXPORTS += [
     'jArray.h',
@@ -83,6 +83,9 @@ UNIFIED_SOURCES += [
     'nsParserUtils.cpp',
 ]
 
+LIBRARY_NAME = 'html5p_s'
+
+LIBXUL_LIBRARY = True
+
 MSVC_ENABLE_PGO = True
 
-FINAL_LIBRARY = 'gklayout'

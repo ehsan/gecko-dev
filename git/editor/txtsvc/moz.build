@@ -6,3 +6,5 @@
 
 PARALLEL_DIRS += ['public', 'src']
 
+MODULE = 'txtsvc'
+

@@ -13,7 +13,7 @@ XPIDL_SOURCES += [
     'nsIXULWindow.idl',
 ]
 
-XPIDL_MODULE = 'appshell'
+MODULE = 'appshell'
 
 EXPORTS += [
     'nsAppShellCID.h',

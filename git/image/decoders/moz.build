@@ -23,7 +23,9 @@ if toolkit == 'cocoa':
 elif toolkit == 'android':
     DIRS += ['icon/android', 'icon']
 
-UNIFIED_SOURCES += [
+MODULE = 'imgdecoders'
+
+SOURCES += [
     'EXIF.cpp',
     'nsBMPDecoder.cpp',
     'nsGIFDecoder2.cpp',
@@ -33,7 +35,11 @@ UNIFIED_SOURCES += [
     'nsPNGDecoder.cpp',
 ]
 
+LIBRARY_NAME = 'imgdecoders_s'
+
 FAIL_ON_WARNINGS = True
+
+LIBXUL_LIBRARY = True
 
 SOURCES += [
     'iccjpeg.c',
@@ -43,5 +49,3 @@ SOURCES += [
 LOCAL_INCLUDES += [
     '/image/src',
 ]
-
-FINAL_LIBRARY = 'imglib2'

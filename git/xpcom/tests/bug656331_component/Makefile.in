@@ -5,6 +5,8 @@
 
 # Blatantly copied from xpcom/tests/component.
 
+FORCE_SHARED_LIB = 1
+
 unittestlocation = xpcom/tests/unit
 
 MANIFEST = bug656331.manifest

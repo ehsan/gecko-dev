@@ -43,6 +43,8 @@ if CONFIG['OS_ARCH'] == 'WINNT':
 
 XPIDL_MODULE = 'xpcom_ds'
 
+MODULE = 'xpcom'
+
 EXPORTS += [
     'nsArray.h',
     'nsAtomService.h',
@@ -70,7 +72,7 @@ EXPORTS.mozilla += [
     'TimeStamp.h',
 ]
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'nsArray.cpp',
     'nsAtomService.cpp',
     'nsAtomTable.cpp',
@@ -80,20 +82,15 @@ UNIFIED_SOURCES += [
     'nsINIParserImpl.cpp',
     'nsObserverList.cpp',
     'nsObserverService.cpp',
+    'nsPersistentProperties.cpp',
     'nsProperties.cpp',
+    'nsStaticNameTable.cpp',
     'nsStringEnumerator.cpp',
     'nsSupportsArray.cpp',
     'nsSupportsArrayEnumerator.cpp',
     'nsSupportsPrimitives.cpp',
     'nsVariant.cpp',
     'TimeStamp.cpp',
-]
-
-# These two files cannot be built in unified mode because they use the
-# PL_ARENA_CONST_ALIGN_MASK macro with plarena.h.
-SOURCES += [
-    'nsPersistentProperties.cpp',
-    'nsStaticNameTable.cpp',
 ]
 
 if CONFIG['OS_ARCH'] == 'WINNT':
@@ -116,10 +113,12 @@ EXTRA_COMPONENTS += [
     'nsINIProcessor.manifest',
 ]
 
+LIBRARY_NAME = 'xpcomds_s'
+
+LIBXUL_LIBRARY = True
+
 MSVC_ENABLE_PGO = True
 
 LOCAL_INCLUDES += [
     '../io',
 ]
-
-FINAL_LIBRARY = 'xpcom_core'

@@ -481,10 +481,8 @@ protected:
           }
         } else if (origBytes[nBytes] == 0xc7) {
           // MOV r/m64, imm32
-          if (origBytes[nBytes + 1] == 0x44) {
-            // MOV [r64+disp8], imm32
-            // ModR/W + SIB + disp8 + imm32
-            nBytes += 8;
+          if ((origBytes[nBytes + 1] & 0xf8) == 0x40) {
+            nBytes += 6;
           } else {
             return;
           }

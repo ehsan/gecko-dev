@@ -6,7 +6,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "JavaScriptShared.h"
-#include "mozilla/dom/BindingUtils.h"
 #include "jsfriendapi.h"
 #include "xpcprivate.h"
 
@@ -58,30 +57,20 @@ ObjectStore::remove(ObjectId id)
 }
 
 ObjectIdCache::ObjectIdCache()
-  : table_(nullptr)
+  : table_(SystemAllocPolicy())
 {
-}
-
-ObjectIdCache::~ObjectIdCache()
-{
-    if (table_) {
-        dom::AddForDeferredFinalization<ObjectIdTable, nsAutoPtr>(table_);
-        table_ = nullptr;
-    }
 }
 
 bool
 ObjectIdCache::init()
 {
-    MOZ_ASSERT(!table_);
-    table_ = new ObjectIdTable(SystemAllocPolicy());
-    return table_ && table_->init(32);
+    return table_.init(32);
 }
 
 void
 ObjectIdCache::trace(JSTracer *trc)
 {
-    for (ObjectIdTable::Range r(table_->all()); !r.empty(); r.popFront()) {
+    for (ObjectIdTable::Range r(table_.all()); !r.empty(); r.popFront()) {
         JSObject *obj = r.front().key;
         JS_CallObjectTracer(trc, &obj, "ipc-id");
         MOZ_ASSERT(obj == r.front().key);
@@ -91,7 +80,7 @@ ObjectIdCache::trace(JSTracer *trc)
 ObjectId
 ObjectIdCache::find(JSObject *obj)
 {
-    ObjectIdTable::Ptr p = table_->lookup(obj);
+    ObjectIdTable::Ptr p = table_.lookup(obj);
     if (!p)
         return 0;
     return p->value;
@@ -100,9 +89,9 @@ ObjectIdCache::find(JSObject *obj)
 bool
 ObjectIdCache::add(JSContext *cx, JSObject *obj, ObjectId id)
 {
-    if (!table_->put(obj, id))
+    if (!table_.put(obj, id))
         return false;
-    JS_StoreObjectPostBarrierCallback(cx, keyMarkCallback, obj, table_);
+    JS_StoreObjectPostBarrierCallback(cx, keyMarkCallback, obj, this);
     return true;
 }
 
@@ -111,18 +100,18 @@ ObjectIdCache::add(JSContext *cx, JSObject *obj, ObjectId id)
  * been moved.
  */
 /* static */ void
-ObjectIdCache::keyMarkCallback(JSTracer *trc, void *keyArg, void *dataArg) {
-    JSObject *key = static_cast<JSObject*>(keyArg);
-    ObjectIdTable* table = static_cast<ObjectIdTable*>(dataArg);
+ObjectIdCache::keyMarkCallback(JSTracer *trc, void *k, void *d) {
+    JSObject *key = static_cast<JSObject*>(k);
+    ObjectIdCache* self = static_cast<ObjectIdCache*>(d);
     JSObject *prior = key;
     JS_CallObjectTracer(trc, &key, "ObjectIdCache::table_ key");
-    table->rekeyIfMoved(prior, key);
+    self->table_.rekeyIfMoved(prior, key);
 }
 
 void
 ObjectIdCache::remove(JSObject *obj)
 {
-    table_->remove(obj);
+    table_.remove(obj);
 }
 
 bool

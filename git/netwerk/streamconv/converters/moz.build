@@ -4,7 +4,9 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-UNIFIED_SOURCES += [
+MODULE = 'necko'
+
+SOURCES += [
     'mozTXTToHTMLConv.cpp',
     'nsDirIndex.cpp',
     'nsDirIndexParser.cpp',
@@ -16,18 +18,21 @@ UNIFIED_SOURCES += [
 ]
 
 if 'ftp' in CONFIG['NECKO_PROTOCOLS']:
-    UNIFIED_SOURCES += [
+    SOURCES += [
         'nsFTPDirListingConv.cpp',
         'ParseFTPList.cpp',
     ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] != 'cocoa':
-    UNIFIED_SOURCES += [
+    SOURCES += [
         'nsBinHexDecoder.cpp',
     ]
 
+LIBRARY_NAME = 'nkcnvts_s'
+
 FAIL_ON_WARNINGS = True
+
+LIBXUL_LIBRARY = True
 
 MSVC_ENABLE_PGO = True
 
-FINAL_LIBRARY = 'necko'

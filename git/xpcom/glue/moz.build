@@ -11,6 +11,8 @@ DIRS += ['standalone', 'nomozalloc']
 if CONFIG['OS_ARCH'] == 'WINNT':
     DIRS += ['staticruntime']
 
+MODULE = 'xpcom'
+
 EXPORTS += [
     'MainThreadUtils.h',
     'nsArrayEnumerator.h',
@@ -87,10 +89,10 @@ EXPORTS.mozilla.threads += [
 
 include('objs.mozbuild')
 
-UNIFIED_SOURCES += xpcom_gluens_src_cppsrcs
-UNIFIED_SOURCES += xpcom_glue_src_cppsrcs
+SOURCES += xpcom_gluens_src_cppsrcs
+SOURCES += xpcom_glue_src_cppsrcs
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'GenericModule.cpp',
     'nsStringAPI.cpp',
 ]

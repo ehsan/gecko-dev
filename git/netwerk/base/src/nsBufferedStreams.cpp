@@ -629,7 +629,7 @@ nsBufferedOutputStream::Flush()
     nsresult rv;
     uint32_t amt;
     if (!mStream) {
-        // Stream already cancelled/flushed; probably because of previous error.
+        // Stream already cancelled/flushed; probably because of error.
         return NS_OK;
     }
     rv = Sink()->Write(mBuffer, mFillPoint, &amt);

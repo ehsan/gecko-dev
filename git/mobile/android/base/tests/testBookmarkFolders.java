@@ -1,7 +1,6 @@
 package org.mozilla.gecko.tests;
 
 import org.mozilla.gecko.*;
-import org.mozilla.gecko.sync.Utils;
 
 import com.jayway.android.robotium.solo.Condition;
 
@@ -15,6 +14,7 @@ import android.widget.ListAdapter;
 import android.widget.ListView;
 import android.widget.TextView;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -140,7 +140,15 @@ public class testBookmarkFolders extends AboutHomeTest {
         Long desktopFolderId = mDatabaseHelper.getFolderIdFromGuid("toolbar");
 
         // Generate a Guid for the bookmark
-        final String generatedGuid = Utils.generateGuid();
+        String generatedGuid = null;
+        try {
+            ClassLoader classLoader = getActivity().getClassLoader();
+            Class syncUtilityClass = classLoader.loadClass("org.mozilla.gecko.sync.Utils");
+            Method generateGuid = syncUtilityClass.getMethod("generateGuid", (Class[]) null);
+            generatedGuid = (String)generateGuid.invoke(null);
+        } catch (Exception e) {
+            mAsserter.dumpLog("Exception in setUpDesktopBookmarks" + e);
+        }
         mAsserter.ok((generatedGuid != null), "Generating a random Guid for the bookmark", "We could not generate a Guid for the bookmark");
 
         // Insert the bookmark

@@ -4,7 +4,9 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-UNIFIED_SOURCES += [
+MODULE = 'accessibility'
+
+SOURCES += [
     'XULAlertAccessible.cpp',
     'XULColorPickerAccessible.cpp',
     'XULComboboxAccessible.cpp',
@@ -18,6 +20,10 @@ UNIFIED_SOURCES += [
     'XULTreeAccessible.cpp',
     'XULTreeGridAccessible.cpp',
 ]
+
+LIBRARY_NAME = 'accessibility_xul_s'
+
+LIBXUL_LIBRARY = True
 
 LOCAL_INCLUDES += [
     '../../../layout/generic',
@@ -46,5 +52,3 @@ else:
     LOCAL_INCLUDES += [
         '../other',
     ]
-
-FINAL_LIBRARY = 'xul'

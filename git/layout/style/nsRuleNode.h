@@ -304,7 +304,7 @@ private:
                          const PLDHashEntryHdr *aHdr,
                          const void *aKey);
 
-  static const PLDHashTableOps ChildrenHashOps;
+  static PLDHashTableOps ChildrenHashOps;
 
   static PLDHashOperator
   EnqueueRuleNodeChildren(PLDHashTable *table, PLDHashEntryHdr *hdr,

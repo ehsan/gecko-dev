@@ -4,6 +4,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+MODULE = 'skia'
+
 EXPORTS.skia += [
     'include/config/SkUserConfig.h',
     'include/core/Sk64.h',
@@ -149,69 +151,57 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
     EXPORTS.skia += [
         'include/ports/SkTypeface_mac.h',
     ]
-    UNIFIED_SOURCES += [
+    SOURCES += [
+        'src/ports/SkFontHost_mac.cpp',
         'src/ports/SkThread_pthread.cpp',
         'src/ports/SkTime_Unix.cpp',
         'src/utils/mac/SkStream_mac.cpp',
         'src/utils/SkThreadUtils_pthread.cpp',
         'src/utils/SkThreadUtils_pthread_mach.cpp',
     ]
-    # left out of UNIFIED_SOURCES for now to avoid having to patch skia. Should revisit eventually.
-    SOURCES += [
-        'src/ports/SkFontHost_mac.cpp',
-    ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
     EXPORTS.skia += [
         'include/config/sk_stdint.h',
         'include/ports/SkTypeface_win.h',
     ]
-    UNIFIED_SOURCES += [
-        'src/ports/SkThread_win.cpp',
-        'src/ports/SkTime_win.cpp',
-        'src/utils/SkThreadUtils_win.cpp',
-    ]
-    # left out of UNIFIED_SOURCES for now to avoid having to patch skia. Should revisit eventually.
     SOURCES += [
         'src/ports/SkFontHost_sandbox_none.cpp',
         'src/ports/SkFontHost_win.cpp',
+        'src/ports/SkThread_win.cpp',
+        'src/ports/SkTime_win.cpp',
+        'src/utils/SkThreadUtils_win.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_GTK']:
     EXPORTS.skia += [
         'include/ports/SkTypeface_cairo.h',
     ]
-    UNIFIED_SOURCES += [
+    SOURCES += [
+        'src/ports/SkFontHost_cairo.cpp',
+        'src/ports/SkFontHost_FreeType_common.cpp',
         'src/ports/SkThread_pthread.cpp',
         'src/ports/SkTime_Unix.cpp',
         'src/utils/SkOSFile.cpp',
         'src/utils/SkThreadUtils_pthread.cpp',
     ]
-    # left out of UNIFIED_SOURCES for now to avoid having to patch skia. Should revisit eventually.
-    SOURCES += [
-        'src/ports/SkFontHost_cairo.cpp',
-        'src/ports/SkFontHost_FreeType_common.cpp',
-    ]
     if CONFIG['OS_TARGET'] in ('Linux', 'FreeBSD', 'NetBSD'):
-        UNIFIED_SOURCES += [
+        SOURCES += [
             'src/utils/SkThreadUtils_pthread_linux.cpp',
         ]
     else:
-        UNIFIED_SOURCES += [
+        SOURCES += [
             'src/utils/SkThreadUtils_pthread_other.cpp',
         ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'qt':
-    UNIFIED_SOURCES += [
-        'src/utils/SkOSFile.cpp',
-    ]
-    # left out of UNIFIED_SOURCES for now to avoid having to patch skia. Should revisit eventually.
     SOURCES += [
         'src/ports/SkFontHost_cairo.cpp',
         'src/ports/SkFontHost_FreeType_common.cpp',
+        'src/utils/SkOSFile.cpp',
     ]
     if CONFIG['OS_TARGET'] == 'Linux':
         EXPORTS.skia += [
             'include/ports/SkTypeface_cairo.h',
         ]
-        UNIFIED_SOURCES += [
+        SOURCES += [
             'src/ports/SkThread_pthread.cpp',
             'src/ports/SkTime_Unix.cpp',
             'src/utils/SkThreadUtils_pthread.cpp',
@@ -223,9 +213,13 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] in ('android', 'gonk'):
     EXPORTS.skia += [
         'include/ports/SkTypeface_cairo.h',
     ]
-    UNIFIED_SOURCES += [
+    SOURCES += [
         'src/images/SkImageRef_ashmem.cpp',
         'src/ports/SkDebug_android.cpp',
+        'src/ports/SkFontHost_cairo.cpp',
+        'src/ports/SkFontHost_FreeType.cpp',
+        'src/ports/SkFontHost_FreeType_common.cpp',
+        'src/ports/SkFontHost_linux.cpp',
         'src/ports/SkThread_pthread.cpp',
         'src/ports/SkTime_Unix.cpp',
         'src/utils/android/ashmem.cpp',
@@ -233,22 +227,12 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] in ('android', 'gonk'):
         'src/utils/SkThreadUtils_pthread.cpp',
         'src/utils/SkThreadUtils_pthread_other.cpp',
     ]
-    # left out of UNIFIED_SOURCES for now to avoid having to patch skia. Should revisit eventually.
-    SOURCES += [
-        'src/ports/SkFontHost_cairo.cpp',
-        'src/ports/SkFontHost_FreeType.cpp',
-        'src/ports/SkFontHost_FreeType_common.cpp',
-        'src/ports/SkFontHost_linux.cpp',
-    ]
 else:
-    UNIFIED_SOURCES += [
+    SOURCES += [
         'src/ports/SkDebug_stdio.cpp',
     ]
 
 if CONFIG['INTEL_ARCHITECTURE']:
-    # We need to build SSE2-enabled files separately so that we're able
-    # to pass -msse2 for them. We won't be able to unify them with the rest,
-    # but we should at least be able to unify them with each other.
     SOURCES += [
         'src/opts/opts_check_SSE2.cpp',
         'src/opts/SkBitmapProcState_opts_SSE2.cpp',
@@ -261,24 +245,20 @@ if CONFIG['INTEL_ARCHITECTURE']:
             'src/opts/SkBitmapProcState_opts_SSSE3.cpp',
         ]
 elif CONFIG['CPU_ARCH'] == 'arm' and CONFIG['GNU_CC']:
-        UNIFIED_SOURCES += [
+        SOURCES += [
             'src/opts/opts_check_arm.cpp',
+            'src/opts/SkBitmapProcState_opts_arm.cpp',
             'src/opts/SkBlitRow_opts_arm.cpp',
         ]
-        SOURCES += [
-            'src/opts/SkBitmapProcState_opts_arm.cpp',
-        ]
 else:
-    UNIFIED_SOURCES += [
+    SOURCES += [
+        'src/opts/SkBitmapProcState_opts_none.cpp',
         'src/opts/SkBlitRow_opts_none.cpp',
         'src/opts/SkUtils_opts_none.cpp',
     ]
-    SOURCES += [
-        'src/opts/SkBitmapProcState_opts_none.cpp',
-    ]
 
 if CONFIG['MOZ_ENABLE_SKIA_GPU']:
-    UNIFIED_SOURCES += [
+    SOURCES += [
         'src/gpu/effects/GrConfigConversionEffect.cpp',
         'src/gpu/effects/GrConvolutionEffect.cpp',
         'src/gpu/effects/GrSimpleTextureEffect.cpp',
@@ -362,7 +342,7 @@ if CONFIG['MOZ_ENABLE_SKIA_GPU']:
         'src/gpu/SkGrTexturePixelRef.cpp',
     ]
 
-UNIFIED_SOURCES += [
+SOURCES += [
         'src/core/Sk64.cpp',
         'src/core/SkAAClip.cpp',
         'src/core/SkAdvancedTypefaceMetrics.cpp',
@@ -376,12 +356,19 @@ UNIFIED_SOURCES += [
         'src/core/SkBitmapHeap.cpp',
         'src/core/SkBitmapProcShader.cpp',
         'src/core/SkBitmapProcState.cpp',
+        'src/core/SkBitmapProcState_matrixProcs.cpp',
         'src/core/SkBitmapSampler.cpp',
         'src/core/SkBlitMask_D32.cpp',
         'src/core/SkBlitRow_D16.cpp',
         'src/core/SkBlitRow_D32.cpp',
         'src/core/SkBlitRow_D4444.cpp',
         'src/core/SkBlitter.cpp',
+        'src/core/SkBlitter_4444.cpp',
+        'src/core/SkBlitter_A1.cpp',
+        'src/core/SkBlitter_A8.cpp',
+        'src/core/SkBlitter_ARGB32.cpp',
+        'src/core/SkBlitter_RGB16.cpp',
+        'src/core/SkBlitter_Sprite.cpp',
         'src/core/SkBuffer.cpp',
         'src/core/SkCanvas.cpp',
         'src/core/SkChunkAlloc.cpp',
@@ -456,6 +443,10 @@ UNIFIED_SOURCES += [
         'src/core/SkScalar.cpp',
         'src/core/SkScalerContext.cpp',
         'src/core/SkScan.cpp',
+        'src/core/SkScan_Antihair.cpp',
+        'src/core/SkScan_AntiPath.cpp',
+        'src/core/SkScan_Hairline.cpp',
+        'src/core/SkScan_Path.cpp',
         'src/core/SkShader.cpp',
         'src/core/SkSpriteBlitter_ARGB32.cpp',
         'src/core/SkSpriteBlitter_RGB16.cpp',
@@ -481,6 +472,8 @@ UNIFIED_SOURCES += [
         'src/effects/gradients/SkLinearGradient.cpp',
         'src/effects/gradients/SkRadialGradient.cpp',
         'src/effects/gradients/SkSweepGradient.cpp',
+        'src/effects/gradients/SkTwoPointConicalGradient.cpp',
+        'src/effects/gradients/SkTwoPointRadialGradient.cpp',
         'src/effects/Sk1DPathEffect.cpp',
         'src/effects/Sk2DPathEffect.cpp',
         'src/effects/SkAvoidXfermode.cpp',
@@ -541,6 +534,7 @@ UNIFIED_SOURCES += [
         'src/utils/SkBase64.cpp',
         'src/utils/SkBitmapTransformer.cpp',
         'src/utils/SkBitSet.cpp',
+        'src/utils/SkCondVar.cpp',
         'src/utils/SkCountdown.cpp',
         'src/utils/SkDeferredCanvas.cpp',
         'src/utils/SkPictureUtils.cpp',
@@ -548,41 +542,16 @@ UNIFIED_SOURCES += [
         'src/utils/SkThreadPool.cpp',
 ]
 
-# left out of UNIFIED_SOURCES for now to avoid having to patch skia. Should revisit eventually.
-SOURCES += [
-        'src/core/SkBitmapProcState_matrixProcs.cpp',
-        'src/core/SkBlitter_4444.cpp',
-        'src/core/SkBlitter_A1.cpp',
-        'src/core/SkBlitter_A8.cpp',
-        'src/core/SkBlitter_ARGB32.cpp',
-        'src/core/SkBlitter_RGB16.cpp',
-        'src/core/SkBlitter_Sprite.cpp',
-        'src/core/SkScan_Antihair.cpp',
-        'src/core/SkScan_AntiPath.cpp',
-        'src/core/SkScan_Hairline.cpp',
-        'src/core/SkScan_Path.cpp',
-        'src/effects/gradients/SkTwoPointConicalGradient.cpp',
-        'src/effects/gradients/SkTwoPointRadialGradient.cpp',
-]
-
-# On Windows, SkCondVar needs to be built separately because it relies on
-# windows.h providing such functions as InitializeConditionVariable.
-if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
-    SOURCES += [
-        'src/utils/SkCondVar.cpp',
-    ]
-else:
-    UNIFIED_SOURCES += [
-        'src/utils/SkCondVar.cpp',
-    ]
-
-
-# left out of UNIFIED_SOURCES for now; that's not C++ anyway, nothing else to unify it with
 if not CONFIG['INTEL_ARCHITECTURE'] and CONFIG['CPU_ARCH'] == 'arm' and CONFIG['GNU_CC']:
     SOURCES += [
         'src/opts/memset.arm.S',
     ]
 
+LIBRARY_NAME = 'skia'
+
+LIBXUL_LIBRARY = True
+
 MSVC_ENABLE_PGO = True
 
-FINAL_LIBRARY = 'gkmedias'
+EXPORT_LIBRARY = True
+

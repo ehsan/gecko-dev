@@ -8,10 +8,13 @@ XPIDL_SOURCES += [
     'nsIFindService.idl',
 ]
 
-XPIDL_MODULE = 'mozfind'
+MODULE = 'mozfind'
 
 SOURCES += [
     'nsFindService.cpp',
 ]
 
-FINAL_LIBRARY = 'toolkitcomps'
+LIBRARY_NAME = 'mozfind_s'
+
+LIBXUL_LIBRARY = True
+

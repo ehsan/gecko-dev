@@ -7,3 +7,5 @@
 DIRS += ['idl', 'locales', 'hunspell', 'src']
 TEST_DIRS += ['tests/chrome']
 
+MODULE = 'spellchecker'
+

@@ -3275,9 +3275,11 @@ nsTreeBodyFrame::PaintCell(int32_t              aRowIndex,
     nsRect elementRect(currX, cellRect.y, remainingWidth, cellRect.height);
     nsRect dirtyRect;
     if (dirtyRect.IntersectRect(aDirtyRect, elementRect)) {
+      bool textRTL = cellContext->StyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL;
       switch (aColumn->GetType()) {
         case nsITreeColumn::TYPE_TEXT:
-          PaintText(aRowIndex, aColumn, elementRect, aPresContext, aRenderingContext, aDirtyRect, currX);
+          PaintText(aRowIndex, aColumn, elementRect, aPresContext, aRenderingContext, aDirtyRect, currX,
+                    textRTL);
           break;
         case nsITreeColumn::TYPE_CHECKBOX:
           PaintCheckbox(aRowIndex, aColumn, elementRect, aPresContext, aRenderingContext, aDirtyRect);
@@ -3292,7 +3294,8 @@ nsTreeBodyFrame::PaintCell(int32_t              aRowIndex,
               break;
             case nsITreeView::PROGRESS_NONE:
             default:
-              PaintText(aRowIndex, aColumn, elementRect, aPresContext, aRenderingContext, aDirtyRect, currX);
+              PaintText(aRowIndex, aColumn, elementRect, aPresContext, aRenderingContext, aDirtyRect, currX,
+                        textRTL);
               break;
           }
           break;
@@ -3552,7 +3555,8 @@ nsTreeBodyFrame::PaintText(int32_t              aRowIndex,
                            nsPresContext*      aPresContext,
                            nsRenderingContext& aRenderingContext,
                            const nsRect&        aDirtyRect,
-                           nscoord&             aCurrX)
+                           nscoord&             aCurrX,
+                           bool                 aTextRTL)
 {
   NS_PRECONDITION(aColumn && aColumn->GetFrame(), "invalid column passed");
 
@@ -3635,7 +3639,8 @@ nsTreeBodyFrame::PaintText(int32_t              aRowIndex,
     fontMet->GetStrikeout(offset, size);
     aRenderingContext.FillRect(textRect.x, textRect.y + baseline - offset, textRect.width, size);
   }
-  nsStyleContext* cellContext = GetPseudoStyleContext(nsCSSAnonBoxes::moztreecell);
+  uint8_t direction = aTextRTL ? NS_STYLE_DIRECTION_RTL :
+                                 NS_STYLE_DIRECTION_LTR;
 
   gfxContext* ctx = aRenderingContext.ThebesContext();
   if (opacity != 1.0f) {
@@ -3643,7 +3648,7 @@ nsTreeBodyFrame::PaintText(int32_t              aRowIndex,
   }
 
   nsLayoutUtils::DrawString(this, &aRenderingContext, text.get(), text.Length(),
-                            textRect.TopLeft() + nsPoint(0, baseline), cellContext);
+                            textRect.TopLeft() + nsPoint(0, baseline), direction);
 
   if (opacity != 1.0f) {
     ctx->PopGroupToSource();

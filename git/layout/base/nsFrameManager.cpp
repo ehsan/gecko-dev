@@ -65,7 +65,7 @@ PlaceholderMapMatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
   return entry->placeholderFrame->GetOutOfFlowFrame() == key;
 }
 
-static const PLDHashTableOps PlaceholderMapOps = {
+static PLDHashTableOps PlaceholderMapOps = {
   PL_DHashAllocTable,
   PL_DHashFreeTable,
   PL_DHashVoidPtrKeyStub,

@@ -13,5 +13,5 @@ XPIDL_SOURCES += [
     'nsPICommandUpdater.idl',
 ]
 
-XPIDL_MODULE = 'commandhandler'
+MODULE = 'commandhandler'
 

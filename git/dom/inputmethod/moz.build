@@ -10,6 +10,8 @@ XPIDL_SOURCES += [
 
 XPIDL_MODULE = 'dom_inputmethod'
 
+MODULE = 'dom'
+
 EXTRA_COMPONENTS += [
     'InputMethod.manifest',
     'MozKeyboard.js',
@@ -18,3 +20,7 @@ EXTRA_COMPONENTS += [
 EXTRA_JS_MODULES += [
     'Keyboard.jsm',
 ]
+
+FAIL_ON_WARNINGS = True
+
+LIBXUL_LIBRARY = True

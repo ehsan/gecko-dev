@@ -11,17 +11,22 @@ XPIDL_SOURCES += [
     'nsIStartupCache.idl',
 ]
 
-XPIDL_MODULE = 'startupcache'
+MODULE = 'startupcache'
 
 EXPORTS.mozilla.scache += [
     'StartupCache.h',
     'StartupCacheUtils.h',
 ]
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'StartupCache.cpp',
     'StartupCacheModule.cpp',
     'StartupCacheUtils.cpp',
 ]
 
-FINAL_LIBRARY = 'xul'
+LIBRARY_NAME = 'startupcache'
+
+LIBXUL_LIBRARY = True
+
+EXPORT_LIBRARY = True
+

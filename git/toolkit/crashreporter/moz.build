@@ -57,6 +57,8 @@ if CONFIG['MOZ_CRASHREPORTER_INJECTOR']:
 
 TEST_TOOL_DIRS += ['test']
 
+MODULE = 'crashreporter'
+
 EXPORTS += [
     'nsExceptionHandler.h',
 ]
@@ -76,8 +78,11 @@ EXTRA_JS_MODULES += [
     'KeyValueParser.jsm',
 ]
 
+LIBXUL_LIBRARY = True
+
 MSVC_ENABLE_PGO = True
+
+LIBRARY_NAME = 'exception_handler_s'
 
 include('/ipc/chromium/chromium-config.mozbuild')
 
-FINAL_LIBRARY = 'xulapp_s'

@@ -523,7 +523,8 @@ class ParseNode
         } binary;
         struct {                        /* one kid if unary */
             ParseNode   *kid;
-            bool        prologue;       /* directive prologue member (as
+            bool        hidden;         /* hidden genexp-induced JSOP_YIELD
+                                           or directive prologue member (as
                                            pn_prologue) */
         } unary;
         struct {                        /* name, labeled statement, etc. */
@@ -574,7 +575,8 @@ class ParseNode
 #define pn_pval         pn_u.binary.pval
 #define pn_iflags       pn_u.binary.iflags
 #define pn_kid          pn_u.unary.kid
-#define pn_prologue     pn_u.unary.prologue
+#define pn_hidden       pn_u.unary.hidden
+#define pn_prologue     pn_u.unary.hidden
 #define pn_atom         pn_u.name.atom
 #define pn_objbox       pn_u.name.objbox
 #define pn_expr         pn_u.name.expr

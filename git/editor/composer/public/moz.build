@@ -8,5 +8,5 @@ XPIDL_SOURCES += [
     'nsIEditingSession.idl',
 ]
 
-XPIDL_MODULE = 'composer'
+MODULE = 'composer'
 

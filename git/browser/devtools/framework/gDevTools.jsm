@@ -52,7 +52,6 @@ DevTools.prototype = {
    * - id: Unique identifier for this tool (string|required)
    * - visibilityswitch: Property name to allow us to hide this tool from the
    *                     DevTools Toolbox.
-   *                     A falsy value indicates that it cannot be hidden.
    * - icon: URL pointing to a graphic which will be used as the src for an
    *         16x16 img tag (string|required)
    * - url: URL pointing to a XUL/XHTML document containing the user interface
@@ -70,13 +69,8 @@ DevTools.prototype = {
       throw new Error("Invalid definition.id");
     }
 
-    // Make sure that additional tools will always be able to be hidden.
-    // When being called from main.js, defaultTools has not yet been exported.
-    // But, we can assume that in this case, it is a default tool.
-    if (devtools.defaultTools && devtools.defaultTools.indexOf(toolDefinition) == -1) {
-      toolDefinition.visibilityswitch = "devtools." + toolId + ".enabled";
-    }
-
+    toolDefinition.visibilityswitch = toolDefinition.visibilityswitch ||
+        "devtools." + toolId + ".enabled";
     this._tools.set(toolId, toolDefinition);
 
     this.emit("tool-registered", toolId);
@@ -145,7 +139,7 @@ DevTools.prototype = {
     let tool = this._tools.get(toolId);
     if (!tool) {
       return null;
-    } else if (!tool.visibilityswitch) {
+    } else if (tool.id == "options") {
       return tool;
     }
 
@@ -559,8 +553,7 @@ let gDevToolsBrowser = {
 
     // Skip if the tool is disabled.
     try {
-      if (toolDefinition.visibilityswitch &&
-         !Services.prefs.getBoolPref(toolDefinition.visibilityswitch)) {
+      if (!Services.prefs.getBoolPref(toolDefinition.visibilityswitch)) {
         return;
       }
     } catch(e) {}

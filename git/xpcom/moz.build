@@ -41,6 +41,8 @@ TEST_TOOL_DIRS += [
 if CONFIG['DEHYDRA_PATH']:
     DIRS += ['analysis']
 
+MODULE = 'xpcom'
+
 CONFIGURE_DEFINE_FILES += [
     'xpcom-config.h',
     'xpcom-private.h',

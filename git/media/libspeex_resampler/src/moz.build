@@ -4,6 +4,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+MODULE = 'speex_resampler'
+
 EXPORTS.speex += [
     'speex_config_types.h',
     'speex_resampler.h',
@@ -14,10 +16,12 @@ SOURCES += [
   'sse_detect.cpp',
 ]
 
+LIBRARY_NAME = 'speex_resampler'
+
 SOURCES += [
     'resample.c',
 ]
 
 MSVC_ENABLE_PGO = True
 
-FINAL_LIBRARY = 'gkmedias'
+FORCE_STATIC_LIB = True

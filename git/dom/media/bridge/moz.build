@@ -8,7 +8,7 @@ XPIDL_SOURCES += [
     'IPeerConnection.idl',
 ]
 
-XPIDL_MODULE = 'peerconnection'
+MODULE = 'peerconnection'
 
 SOURCES += [
     'MediaModule.cpp',
@@ -25,4 +25,9 @@ LOCAL_INCLUDES += [
     '/media/webrtc/signaling/src/sipcc/include',
 ]
 
-FINAL_LIBRARY = 'xul'
+LIBRARY_NAME = 'peerconnection'
+
+LIBXUL_LIBRARY = True
+
+EXPORT_LIBRARY = True
+

@@ -7,3 +7,5 @@
 DIRS += ['public', 'src']
 TEST_DIRS += ['test']
 
+MODULE = 'zipwriter'
+

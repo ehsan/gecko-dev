@@ -9,6 +9,8 @@
 if CONFIG['OS_ARCH'] == 'WINNT':
     DIRS += ['staticruntime']
 
+MODULE = 'xpcom'
+
 include('../objs.mozbuild')
 
 SOURCES += xpcom_glue_src_cppsrcs

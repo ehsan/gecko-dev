@@ -1003,6 +1003,7 @@ nsHtml5TreeBuilder::startTag(nsHtml5ElementName* elementName, nsHtml5HtmlAttribu
             case NS_HTML5TREE_BUILDER_STYLE:
             case NS_HTML5TREE_BUILDER_SCRIPT:
             case NS_HTML5TREE_BUILDER_TITLE:
+            case NS_HTML5TREE_BUILDER_COMMAND:
             case NS_HTML5TREE_BUILDER_TEMPLATE: {
               NS_HTML5_BREAK(inbodyloop);
             }
@@ -1396,6 +1397,7 @@ nsHtml5TreeBuilder::startTag(nsHtml5ElementName* elementName, nsHtml5HtmlAttribu
               NS_HTML5_BREAK(starttagloop);
             }
             case NS_HTML5TREE_BUILDER_BASE:
+            case NS_HTML5TREE_BUILDER_COMMAND:
             case NS_HTML5TREE_BUILDER_LINK_OR_BASEFONT_OR_BGSOUND: {
               appendVoidElementToCurrentMayFoster(elementName, attributes);
               selfClosing = false;
@@ -1864,7 +1866,7 @@ nsHtml5TreeBuilder::startTag(nsHtml5ElementName* elementName, nsHtml5HtmlAttribu
             NS_HTML5_BREAK(starttagloop);
           }
           case NS_HTML5TREE_BUILDER_NOFRAMES: {
-            startTagGenericRawText(elementName, attributes);
+            startTagScriptInHead(elementName, attributes);
             attributes = nullptr;
             NS_HTML5_BREAK(starttagloop);
           }
@@ -2948,7 +2950,8 @@ nsHtml5TreeBuilder::endTag(nsHtml5ElementName* elementName)
       }
       case NS_HTML5TREE_BUILDER_AFTER_AFTER_FRAMESET: {
         errStrayEndTag(name);
-        NS_HTML5_BREAK(endtagloop);
+        mode = NS_HTML5TREE_BUILDER_IN_FRAMESET;
+        continue;
       }
       case NS_HTML5TREE_BUILDER_TEXT: {
         pop();
@@ -3708,6 +3711,7 @@ void
 nsHtml5TreeBuilder::pushHeadPointerOntoStack()
 {
   MOZ_ASSERT(!!headPointer);
+  MOZ_ASSERT(!fragment);
   MOZ_ASSERT(mode == NS_HTML5TREE_BUILDER_AFTER_HEAD);
 
   silentPush(new nsHtml5StackNode(nsHtml5ElementName::ELT_HEAD, headPointer));
@@ -4124,15 +4128,15 @@ nsHtml5TreeBuilder::flushCharacters()
         charBufferLen = 0;
         return;
       }
-      int32_t tablePos = findLastOrRoot(NS_HTML5TREE_BUILDER_TABLE);
-      int32_t templatePos = findLastOrRoot(NS_HTML5TREE_BUILDER_TEMPLATE);
-      if (templatePos >= tablePos) {
-        appendCharacters(stack[templatePos]->node, charBuffer, 0, charBufferLen);
+      int32_t eltPos = findLastOrRoot(NS_HTML5TREE_BUILDER_TABLE);
+      nsHtml5StackNode* node = stack[eltPos];
+      nsIContent** elt = node->node;
+      if (!eltPos) {
+        appendCharacters(elt, charBuffer, 0, charBufferLen);
         charBufferLen = 0;
         return;
       }
-      nsHtml5StackNode* tableElt = stack[tablePos];
-      insertFosterParentedCharacters(charBuffer, 0, charBufferLen, tableElt->node, stack[tablePos - 1]->node);
+      insertFosterParentedCharacters(charBuffer, 0, charBufferLen, elt, stack[eltPos - 1]->node);
       charBufferLen = 0;
       return;
     }

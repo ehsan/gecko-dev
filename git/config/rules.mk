@@ -212,6 +212,12 @@ ifneq (,$(filter OS2 WINNT,$(OS_ARCH)))
 IMPORT_LIBRARY		:= $(LIB_PREFIX)$(SHARED_LIBRARY_NAME).$(IMPORT_LIB_SUFFIX)
 endif
 
+ifeq (OS2,$(OS_ARCH))
+ifdef SHORT_LIBNAME
+SHARED_LIBRARY_NAME	:= $(SHORT_LIBNAME)
+endif
+endif
+
 ifdef MAKE_FRAMEWORK
 SHARED_LIBRARY		:= $(SHARED_LIBRARY_NAME)
 else
@@ -504,7 +510,7 @@ endif
 
 ifeq ($(OS_ARCH),NetBSD)
 ifneq (,$(filter arc cobalt hpcmips mipsco newsmips pmax sgimips,$(OS_TEST)))
-ifneq (,$(filter layout/%,$(relativesrcdir)))
+ifeq ($(MODULE),layout)
 OS_CFLAGS += -Wa,-xgot
 OS_CXXFLAGS += -Wa,-xgot
 endif
@@ -1683,6 +1689,7 @@ FREEZE_VARIABLES = \
   DIRS \
   LIBRARY \
   MODULE \
+  SHORT_LIBNAME \
   TIERS \
   EXTRA_COMPONENTS \
   EXTRA_PP_COMPONENTS \

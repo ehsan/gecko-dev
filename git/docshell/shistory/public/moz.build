@@ -14,5 +14,5 @@ XPIDL_SOURCES += [
     'nsISHTransaction.idl',
 ]
 
-XPIDL_MODULE = 'shistory'
+MODULE = 'shistory'
 

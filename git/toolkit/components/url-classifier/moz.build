@@ -15,7 +15,7 @@ XPIDL_SOURCES += [
     'nsIUrlListManager.idl',
 ]
 
-XPIDL_MODULE = 'url-classifier'
+MODULE = 'url-classifier'
 
 SOURCES += [
     'ChunkSet.cpp',
@@ -42,6 +42,8 @@ EXTRA_PP_COMPONENTS += [
     'nsUrlClassifierListManager.js',
 ]
 
+LIBRARY_NAME = 'urlclassifier_s'
+
 EXTRA_JS_MODULES += [
     'SafeBrowsing.jsm',
 ]
@@ -54,6 +56,6 @@ EXPORTS += [
 
 FAIL_ON_WARNINGS = True
 
-MSVC_ENABLE_PGO = True
+LIBXUL_LIBRARY = True
 
-FINAL_LIBRARY = 'toolkitcomps'
+MSVC_ENABLE_PGO = True

@@ -4,7 +4,9 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-UNIFIED_SOURCES += [
+MODULE = 'spellchecker'
+
+SOURCES += [
     'mozEnglishWordUtils.cpp',
     'mozGenericWordUtils.cpp',
     'mozInlineSpellChecker.cpp',
@@ -17,4 +19,7 @@ UNIFIED_SOURCES += [
 
 LIBRARY_NAME = 'spellchecker'
 
-FINAL_LIBRARY = 'xul'
+LIBXUL_LIBRARY = True
+
+EXPORT_LIBRARY = True
+

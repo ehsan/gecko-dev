@@ -105,15 +105,8 @@ function testToggleTools() {
   let toolNodes = panelWin.document.querySelectorAll("#default-tools-box > checkbox:not([unsupported])");
   let enabledTools = Array.prototype.filter.call(toolNodes, node => node.checked);
 
-  let toggleableTools = gDevTools.getDefaultTools().filter(tool=>tool.visibilityswitch);
-  for (let node of toolNodes) {
-    let id = node.getAttribute("id");
-    ok (toggleableTools.some(tool=>tool.id === id),
-      "There should be a toggle checkbox for: " + id);
-  }
-
   // Store modified pref names so that they can be cleared on error.
-  for (let tool of toggleableTools) {
+  for (let tool of gDevTools.getDefaultTools()) {
     let pref = tool.visibilityswitch;
     modifiedPrefs.push(pref);
   }

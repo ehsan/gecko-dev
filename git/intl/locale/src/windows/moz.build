@@ -4,6 +4,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+MODULE = 'locale'
+
 SOURCES += [
     'nsCollationWin.cpp',
     'nsDateTimeFormatWin.cpp',
@@ -11,4 +13,7 @@ SOURCES += [
     'nsWinCharset.cpp',
 ]
 
-FINAL_LIBRARY = 'i18n'
+LIBRARY_NAME = 'platlocale_s'
+
+LIBXUL_LIBRARY = True
+

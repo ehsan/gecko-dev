@@ -14,6 +14,8 @@ XPIDL_SOURCES += [
 
 XPIDL_MODULE = 'layout_xul_tree'
 
+MODULE = 'layout'
+
 EXPORTS += [
     'nsTreeColFrame.h',
     'nsTreeUtils.h',
@@ -31,6 +33,9 @@ UNIFIED_SOURCES += [
     'nsTreeUtils.cpp',
 ]
 
+LIBRARY_NAME = 'gkxultree_s'
+
 FAIL_ON_WARNINGS = True
 
-FINAL_LIBRARY = 'gklayout'
+LIBXUL_LIBRARY = True
+

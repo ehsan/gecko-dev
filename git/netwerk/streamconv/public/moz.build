@@ -15,5 +15,7 @@ XPIDL_SOURCES += [
 
 XPIDL_MODULE = 'necko_strconv'
 
+MODULE = 'necko'
+
 FAIL_ON_WARNINGS = True
 

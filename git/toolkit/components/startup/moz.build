@@ -8,6 +8,8 @@ DIRS += ['public']
 
 TEST_DIRS += ['tests/browser']
 
+MODULE = 'toolkitcomps'
+
 EXPORTS.mozilla += [
     'StartupTimeline.h',
 ]
@@ -36,4 +38,7 @@ else:
         'nsUserInfoUnix.cpp',
     ]
 
-FINAL_LIBRARY = 'toolkitcomps'
+LIBRARY_NAME = 'appstartup_s'
+
+LIBXUL_LIBRARY = True
+
