@@ -1252,9 +1252,6 @@ function BrowserStartup() {
 
   BookmarksMenuButton.init();
 
-  // initialize the private browsing UI
-  gPrivateBrowsingUI.init();
-
   setTimeout(delayedStartup, 0, isLoadingBlank, mustLoadSidebar);
 }
 
@@ -1540,6 +1537,9 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   placesContext.addEventListener("popupshowing", updateEditUIVisibility, false);
   placesContext.addEventListener("popuphiding", updateEditUIVisibility, false);
 #endif
+
+  // initialize the private browsing UI
+  gPrivateBrowsingUI.init();
 
   gBrowser.mPanelContainer.addEventListener("InstallBrowserTheme", LightWeightThemeWebInstaller, false, true);
   gBrowser.mPanelContainer.addEventListener("PreviewBrowserTheme", LightWeightThemeWebInstaller, false, true);
@@ -7484,8 +7484,11 @@ let gPrivateBrowsingUI = {
     }
     else if (aTopic == "private-browsing-transition-complete") {
       if (this._disableUIOnToggle) {
-        document.getElementById("Tools:PrivateBrowsing")
-                .removeAttribute("disabled");
+        // use setTimeout here in order to make the code testable
+        setTimeout(function() {
+          document.getElementById("Tools:PrivateBrowsing")
+                  .removeAttribute("disabled");
+        }, 0);
       }
     }
   },
