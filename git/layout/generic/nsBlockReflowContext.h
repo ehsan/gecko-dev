@@ -78,7 +78,7 @@ public:
                     nsLineBox*               aLine,
                     nsCollapsingMargin&      aBottomMarginResult /* out */,
                     nsRect&                  aInFlowBounds,
-                    nsOverflowAreas&         aOverflowAreas,
+                    nsRect&                  aCombinedRect,
                     nsReflowStatus           aReflowStatus);
 
   nsCollapsingMargin& GetCarriedOutBottomMargin() {

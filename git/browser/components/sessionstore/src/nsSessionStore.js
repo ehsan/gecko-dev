@@ -2214,11 +2214,7 @@ SessionStoreService.prototype = {
         tabbrowser.pinTab(tabs[t]);
       else
         tabbrowser.unpinTab(tabs[t]);
-
-      if (winData.tabs[t].hidden)
-        tabbrowser.hideTab(tabs[t]);
-      else
-        tabbrowser.showTab(tabs[t]);
+      tabs[t].hidden = winData.tabs[t].hidden;
     }
 
     // If overwriting tabs, we want to remove __SS_restoring from the browser.
@@ -2380,11 +2376,7 @@ SessionStoreService.prototype = {
         tabbrowser.pinTab(tab);
       else
         tabbrowser.unpinTab(tab);
-
-      if (tabData.hidden)
-        tabbrowser.hideTab(tab);
-      else
-        tabbrowser.showTab(tab);
+      tab.hidden = tabData.hidden;
 
       tabData._tabStillLoading = true;
 
@@ -3515,7 +3507,7 @@ SessionStoreService.prototype = {
    * @returns aString that has been updated with the new title
    */
   _replaceLoadingTitle : function sss_replaceLoadingTitle(aString, aTabbrowser, aTab) {
-    if (aString == aTabbrowser.mStringBundle.getString("tabs.connecting")) {
+    if (aString == aTabbrowser.mStringBundle.getString("tabs.loading")) {
       aTabbrowser.setTabTitle(aTab);
       [aString, aTab.label] = [aTab.label, aString];
     }
