@@ -2,6 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+const BROWSER_SUGGEST_PREF = "browser.search.suggest.enabled";
+const XPCOM_SHUTDOWN_TOPIC              = "xpcom-shutdown";
+const NS_PREFBRANCH_PREFCHANGE_TOPIC_ID = "nsPref:changed";
+
 const { classes: Cc, interfaces: Ci, utils: Cu, results: Cr } = Components;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -24,6 +28,8 @@ function SuggestAutoComplete() {
 SuggestAutoComplete.prototype = {
 
   _init: function() {
+    this._addObservers();
+    this._suggestEnabled = Services.prefs.getBoolPref(BROWSER_SUGGEST_PREF);
     this._suggestionController = new SearchSuggestionController(obj => this.onResultsReturned(obj));
   },
 
@@ -32,6 +38,11 @@ SuggestAutoComplete.prototype = {
     let bundle = Services.strings.createBundle("chrome://global/locale/search/search.properties");
     return this._suggestionLabel = bundle.GetStringFromName("suggestion_label");
   },
+
+  /**
+   * Search suggestions will be shown if this._suggestEnabled is true.
+   */
+  _suggestEnabled: null,
 
   /**
    * The object implementing nsIAutoCompleteObserver that we notify when
@@ -165,6 +176,32 @@ SuggestAutoComplete.prototype = {
    */
   stopSearch: function() {
     this._suggestionController.stop();
+  },
+
+  /**
+   * nsIObserver
+   */
+  observe: function SAC_observe(aSubject, aTopic, aData) {
+    switch (aTopic) {
+      case NS_PREFBRANCH_PREFCHANGE_TOPIC_ID:
+        this._suggestEnabled = Services.prefs.getBoolPref(BROWSER_SUGGEST_PREF);
+        break;
+      case XPCOM_SHUTDOWN_TOPIC:
+        this._removeObservers();
+        break;
+    }
+  },
+
+  _addObservers: function SAC_addObservers() {
+    Services.prefs.addObserver(BROWSER_SUGGEST_PREF, this, false);
+
+    Services.obs.addObserver(this, XPCOM_SHUTDOWN_TOPIC, false);
+  },
+
+  _removeObservers: function SAC_removeObservers() {
+    Services.prefs.removeObserver(BROWSER_SUGGEST_PREF, this);
+
+    Services.obs.removeObserver(this, XPCOM_SHUTDOWN_TOPIC);
   },
 
   // nsISupports

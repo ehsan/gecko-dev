@@ -13,6 +13,7 @@ const DEFAULT_MAX_CHILDREN = 100;
 const COLLAPSE_ATTRIBUTE_LENGTH = 120;
 const COLLAPSE_DATA_URL_REGEX = /^data.+base64/;
 const COLLAPSE_DATA_URL_LENGTH = 60;
+const CONTAINER_FLASHING_DURATION = 500;
 const NEW_SELECTION_HIGHLIGHTER_TIMER = 1000;
 
 const {UndoStack} = require("devtools/shared/undo");
@@ -111,11 +112,6 @@ function MarkupView(aInspector, aFrame, aControllerWindow) {
 exports.MarkupView = MarkupView;
 
 MarkupView.prototype = {
-  /**
-   * How long does a node flash when it mutates (in ms).
-   */
-  CONTAINER_FLASHING_DURATION: 500,
-
   _selectedContainer: null,
 
   _initTooltips: function() {
@@ -1582,7 +1578,7 @@ MarkupContainer.prototype = {
       }
       this._flashMutationTimer = contentWin.setTimeout(() => {
         this.flashed = false;
-      }, this.markup.CONTAINER_FLASHING_DURATION);
+      }, CONTAINER_FLASHING_DURATION);
     }
   },
 
