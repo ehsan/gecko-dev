@@ -465,12 +465,7 @@ XPCJSRuntime::AddXPConnectRoots(nsCycleCollectionTraversalCallback &cb)
 
     JSContext *iter = nullptr, *acx;
     while ((acx = JS_ContextIterator(GetJSRuntime(), &iter))) {
-        // Add the context to the CC graph only if traversing it would
-        // end up doing something.
-        JSObject* global = JS_GetGlobalObject(acx);
-        if (global && xpc_IsGrayGCThing(global)) {
-            cb.NoteNativeRoot(acx, nsXPConnect::JSContextParticipant());
-        }
+        cb.NoteNativeRoot(acx, nsXPConnect::JSContextParticipant());
     }
 
     XPCAutoLock lock(mMapLock);
