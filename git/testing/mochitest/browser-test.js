@@ -168,7 +168,7 @@ Tester.prototype = {
                          "\tTodo: " + todoCount + "\n");
       } else {
         this.dumper.dump("TEST-UNEXPECTED-FAIL | (browser-test.js) | " +
-                         "No tests to run. Did you pass an invalid --test-path?\n");
+                         "No tests to run. Did you pass an invalid --test-path?");
       }
   
       this.dumper.dump("\n*** End BrowserChrome Test Results ***\n");
@@ -188,7 +188,7 @@ Tester.prototype = {
       if (this.currentTest)
         this.currentTest.addResult(new testMessage(msg));
       else
-        this.dumper.dump("TEST-INFO | (browser-test.js) | " + msg.replace(/\n$/, "") + "\n");
+        this.dumper.dump("TEST-INFO | (browser-test.js) | " + msg);
     } catch (ex) {
       // Swallow exception so we don't lead to another error being reported,
       // throwing us into an infinite loop
@@ -469,10 +469,6 @@ function testScope(aTester, aTest) {
 
   this.expectUncaughtException = function test_expectUncaughtException() {
     self.SimpleTest.expectUncaughtException();
-  };
-
-  this.ignoreAllUncaughtExceptions = function test_ignoreAllUncaughtExceptions() {
-    self.SimpleTest.ignoreAllUncaughtExceptions();
   };
 
   this.finish = function test_finish() {

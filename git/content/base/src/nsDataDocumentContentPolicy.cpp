@@ -51,17 +51,6 @@
 
 NS_IMPL_ISUPPORTS1(nsDataDocumentContentPolicy, nsIContentPolicy)
 
-// Helper method for ShouldLoad()
-// Checks a URI for the given flags.  Returns true if the URI has the flags,
-// and false if not (or if we weren't able to tell).
-static bool
-HasFlags(nsIURI* aURI, PRUint32 aURIFlags)
-{
-  bool hasFlags;
-  nsresult rv = NS_URIChainHasFlags(aURI, aURIFlags, &hasFlags);
-  return NS_SUCCEEDED(rv) && hasFlags;
-}
-
 NS_IMETHODIMP
 nsDataDocumentContentPolicy::ShouldLoad(PRUint32 aContentType,
                                         nsIURI *aContentLocation,
@@ -98,26 +87,23 @@ nsDataDocumentContentPolicy::ShouldLoad(PRUint32 aContentType,
   }
 
   if (doc->IsBeingUsedAsImage()) {
-    // We only allow SVG images to load content from URIs that are local and
-    // also satisfy one of the following conditions:
-    //  - URI inherits security context, e.g. data URIs
-    //   OR
-    //  - URI loadable by subsumers, e.g. moz-filedata URIs
-    // Any URI that doesn't meet these requirements will be rejected below.
-    if (!HasFlags(aContentLocation,
-                  nsIProtocolHandler::URI_IS_LOCAL_RESOURCE) ||
-        (!HasFlags(aContentLocation,
-                   nsIProtocolHandler::URI_INHERITS_SECURITY_CONTEXT) &&
-         !HasFlags(aContentLocation,
-                   nsIProtocolHandler::URI_LOADABLE_BY_SUBSUMERS))) {
+    // Only allow SVG-as-an-image to load local resources that inherit security
+    // context (basically just data: URIs), to prevent data leakage.
+    bool hasFlags;
+    nsresult rv =
+      NS_URIChainHasFlags(aContentLocation,
+                          nsIProtocolHandler::URI_IS_LOCAL_RESOURCE |
+                          nsIProtocolHandler::URI_INHERITS_SECURITY_CONTEXT,
+                          &hasFlags);
+    if (NS_FAILED(rv) || !hasFlags) {
+      // resource is not local (or we couldn't tell) - reject!
       *aDecision = nsIContentPolicy::REJECT_TYPE;
 
-      // Report error, if we can.
+      // report error, if we can.
       if (node) {
         nsIPrincipal* requestingPrincipal = node->NodePrincipal();
         nsRefPtr<nsIURI> principalURI;
-        nsresult rv =
-          requestingPrincipal->GetURI(getter_AddRefs(principalURI));
+        rv = requestingPrincipal->GetURI(getter_AddRefs(principalURI));
         if (NS_SUCCEEDED(rv) && principalURI) {
           nsScriptSecurityManager::ReportError(
             nsnull, NS_LITERAL_STRING("CheckSameOriginError"), principalURI,
@@ -128,8 +114,8 @@ nsDataDocumentContentPolicy::ShouldLoad(PRUint32 aContentType,
                doc->GetDocumentURI()) {
       // Check for (& disallow) recursive image-loads
       bool isRecursiveLoad;
-      nsresult rv = aContentLocation->EqualsExceptRef(doc->GetDocumentURI(),
-                                                      &isRecursiveLoad);
+      rv = aContentLocation->EqualsExceptRef(doc->GetDocumentURI(),
+                                             &isRecursiveLoad);
       if (NS_FAILED(rv) || isRecursiveLoad) {
         NS_WARNING("Refusing to recursively load image");
         *aDecision = nsIContentPolicy::REJECT_TYPE;
@@ -138,12 +124,12 @@ nsDataDocumentContentPolicy::ShouldLoad(PRUint32 aContentType,
     return NS_OK;
   }
 
-  // Allow all loads for non-resource documents
-  if (!doc->IsResourceDoc()) {
+  // Allow all loads for non-external-resource documents
+  if (!doc->GetDisplayDocument()) {
     return NS_OK;
   }
 
-  // For resource documents, blacklist some load types
+  // For external resources, blacklist some load types
   if (aContentType == nsIContentPolicy::TYPE_OBJECT ||
       aContentType == nsIContentPolicy::TYPE_DOCUMENT ||
       aContentType == nsIContentPolicy::TYPE_SUBDOCUMENT ||

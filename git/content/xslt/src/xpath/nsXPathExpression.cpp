@@ -196,9 +196,9 @@ nsXPathExpression::EvalContextImpl::getVariable(PRInt32 aNamespace,
     return NS_ERROR_INVALID_ARG;
 }
 
-bool nsXPathExpression::EvalContextImpl::isStripSpaceAllowed(const txXPathNode& aNode)
+MBool nsXPathExpression::EvalContextImpl::isStripSpaceAllowed(const txXPathNode& aNode)
 {
-    return false;
+    return MB_FALSE;
 }
 
 void* nsXPathExpression::EvalContextImpl::getPrivateContext()

@@ -403,12 +403,10 @@ void ValidateWriter::checkAccSet(LOpcode op, LIns *base, int32_t disp, AccSet ac
       //
       // base = <JSObject>
       // ins  = ldp.obj<field> base[offsetof(JSObject, <field>)]
-      #define OK_OBJ_FIELD_OFF(ldop, fieldoff) \
+      #define OK_OBJ_FIELD(ldop, field) \
             ((op == (ldop)) && \
-            (disp == fieldoff) && \
+            (disp == offsetof(JSObject, field)) && \
             couldBeObjectOrString(base))
-
-      #define OK_OBJ_FIELD(ldop, field) OK_OBJ_FIELD_OFF(ldop, offsetof(JSObject, field))
 
       case ACCSET_OBJ_CLASP:
         ok = OK_OBJ_FIELD(LIR_ldp, clasp);
@@ -443,8 +441,7 @@ void ValidateWriter::checkAccSet(LOpcode op, LIns *base, int32_t disp, AccSet ac
         break;
 
       case ACCSET_OBJ_CAPACITY:
-        ok = OK_OBJ_FIELD(LIR_ldi, capacity) ||
-             OK_OBJ_FIELD_OFF(LIR_ldi, (int32_t)JSObject::offsetOfInitializedLength());
+        ok = OK_OBJ_FIELD(LIR_ldi, capacity) || OK_OBJ_FIELD(LIR_ldi, initializedLength);
         break;
 
       case ACCSET_OBJ_SLOTS:

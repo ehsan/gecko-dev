@@ -757,7 +757,7 @@ function onToolbarDragStart(aEvent)
 function onToolbarDragOver(aEvent)
 {
   var documentId = gToolboxDocument.documentElement.id;
-  if (!aEvent.dataTransfer.types.contains("text/toolbarwrapper-id/" + documentId.toLowerCase()))
+  if (!aEvent.dataTransfer.types.contains("text/toolbarwrapper-id/" + documentId))
     return;
 
   var toolbar = aEvent.target;
@@ -917,7 +917,7 @@ function onToolbarDrop(aEvent)
 function onPaletteDragOver(aEvent)
 {
   var documentId = gToolboxDocument.documentElement.id;
-  if (aEvent.dataTransfer.types.contains("text/toolbarwrapper-id/" + documentId.toLowerCase()))
+  if (aEvent.dataTransfer.types.contains("text/toolbarwrapper-id/" + documentId))
     aEvent.preventDefault();
 }
 

@@ -132,10 +132,6 @@ function run_test() {
   check_startup_changes(AddonManager.STARTUP_CHANGE_DISABLED, []);
   check_startup_changes(AddonManager.STARTUP_CHANGE_ENABLED, []);
 
-  let file = gProfD.clone();
-  file.append("extensions.sqlite");
-  do_check_false(file.exists());
-
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
                                "addon2@tests.mozilla.org",
                                "addon3@tests.mozilla.org",
@@ -186,10 +182,6 @@ function run_test_1() {
   check_startup_changes(AddonManager.STARTUP_CHANGE_DISABLED, []);
   check_startup_changes(AddonManager.STARTUP_CHANGE_ENABLED, []);
   do_check_true(gCachePurged);
-
-  let file = gProfD.clone();
-  file.append("extensions.sqlite");
-  do_check_true(file.exists());
 
   AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
                                "addon2@tests.mozilla.org",

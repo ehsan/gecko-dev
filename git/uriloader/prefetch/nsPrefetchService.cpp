@@ -898,8 +898,7 @@ nsPrefetchService::OnStateChange(nsIWebProgress* aWebProgress,
 NS_IMETHODIMP
 nsPrefetchService::OnLocationChange(nsIWebProgress* aWebProgress,
                                     nsIRequest* aRequest,
-                                    nsIURI *location,
-                                    PRUint32 aFlags)
+                                    nsIURI *location)
 {
     NS_NOTREACHED("notification excluded in AddProgressListener(...)");
     return NS_OK;

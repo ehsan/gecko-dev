@@ -1,6 +1,5 @@
 function test() {
   waitForExplicitFinish();
-  ignoreAllUncaughtExceptions();
 
   testCustomize(window, finish);
 }

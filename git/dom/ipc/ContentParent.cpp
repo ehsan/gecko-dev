@@ -106,8 +106,6 @@
 
 #ifdef ANDROID
 #include "gfxAndroidPlatform.h"
-#endif
-#ifdef MOZ_WIDGET_ANDROID
 #include "AndroidBridge.h"
 #endif
 
@@ -638,7 +636,7 @@ ContentParent::RecvClipboardHasText(bool* hasText)
 bool
 ContentParent::RecvGetSystemColors(const PRUint32& colorsCount, InfallibleTArray<PRUint32>* colors)
 {
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
     NS_ASSERTION(AndroidBridge::Bridge() != nsnull, "AndroidBridge is not available");
     if (AndroidBridge::Bridge() == nsnull) {
         // Do not fail - the colors won't be right, but it's not critical
@@ -657,7 +655,7 @@ ContentParent::RecvGetSystemColors(const PRUint32& colorsCount, InfallibleTArray
 bool
 ContentParent::RecvGetIconForExtension(const nsCString& aFileExt, const PRUint32& aIconSize, InfallibleTArray<PRUint8>* bits)
 {
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
     NS_ASSERTION(AndroidBridge::Bridge() != nsnull, "AndroidBridge is not available");
     if (AndroidBridge::Bridge() == nsnull) {
         // Do not fail - just no icon will be shown
@@ -676,7 +674,7 @@ ContentParent::RecvGetShowPasswordSetting(bool* showPassword)
 {
     // default behavior is to show the last password character
     *showPassword = true;
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
     NS_ASSERTION(AndroidBridge::Bridge() != nsnull, "AndroidBridge is not available");
     if (AndroidBridge::Bridge() != nsnull)
         *showPassword = AndroidBridge::Bridge()->GetShowPasswordSetting();

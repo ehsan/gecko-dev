@@ -92,13 +92,13 @@ struct ArgumentsData
      * arguments.callee, or MagicValue(JS_ARGS_HOLE) if arguments.callee has
      * been modified.
      */
-    HeapValue   callee;
+    js::Value   callee;
 
     /*
      * Values of the arguments for this object, or MagicValue(JS_ARGS_HOLE) if
      * the indexed argument has been modified.
      */
-    HeapValue   slots[1];
+    js::Value   slots[1];
 };
 
 /*
@@ -183,9 +183,9 @@ class ArgumentsObject : public ::JSObject
     friend struct mjit::ic::GetElementIC;
 #endif
 
-    void initInitialLength(uint32 length);
+    void setInitialLength(uint32 length);
 
-    void initData(ArgumentsData *data);
+    void setCalleeAndData(JSObject &callee, ArgumentsData *data);
 
   public:
     /* Create an arguments object for the given callee function. */

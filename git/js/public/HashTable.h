@@ -260,6 +260,7 @@ class HashTable : private AllocPolicy
 
   private:
     uint32      hashShift;      /* multiplicative hash shift */
+    uint32      tableCapacity;  /* = JS_BIT(sHashBits - hashShift) */
     uint32      entryCount;     /* number of entries in table */
     uint32      gen;            /* entry storage generation number */
     uint32      removedCount;   /* removed entry sentinels in table */
@@ -267,6 +268,7 @@ class HashTable : private AllocPolicy
 
     void setTableSizeLog2(unsigned sizeLog2) {
         hashShift = sHashBits - sizeLog2;
+        tableCapacity = JS_BIT(sizeLog2);
     }
 
 #ifdef DEBUG
@@ -412,7 +414,7 @@ class HashTable : private AllocPolicy
     ~HashTable()
     {
         if (table)
-            destroyTable(*this, table, capacity());
+            destroyTable(*this, table, tableCapacity);
     }
 
   private:
@@ -425,11 +427,10 @@ class HashTable : private AllocPolicy
     }
 
     bool overloaded() {
-        return entryCount + removedCount >= ((sMaxAlphaFrac * capacity()) >> 8);
+        return entryCount + removedCount >= ((sMaxAlphaFrac * tableCapacity) >> 8);
     }
 
     bool underloaded() {
-        uint32 tableCapacity = capacity();
         return tableCapacity > sMinSize &&
                entryCount <= ((sMinAlphaFrac * tableCapacity) >> 8);
     }
@@ -545,7 +546,7 @@ class HashTable : private AllocPolicy
     {
         /* Look, but don't touch, until we succeed in getting new entry store. */
         Entry *oldTable = table;
-        uint32 oldCap = capacity();
+        uint32 oldCap = tableCapacity;
         uint32 newLog2 = sHashBits - hashShift + deltaLog2;
         uint32 newCapacity = JS_BIT(newLog2);
         if (newCapacity > sMaxCapacity) {
@@ -603,9 +604,8 @@ class HashTable : private AllocPolicy
     void clear()
     {
         if (tl::IsPodType<Entry>::result) {
-            memset(table, 0, sizeof(*table) * capacity());
+            memset(table, 0, sizeof(*table) * tableCapacity);
         } else {
-            uint32 tableCapacity = capacity();
             for (Entry *e = table, *end = table + tableCapacity; e != end; ++e)
                 *e = Move(Entry());
         }
@@ -623,7 +623,7 @@ class HashTable : private AllocPolicy
         if (!table)
             return;
         
-        destroyTable(*this, table, capacity());
+        destroyTable(*this, table, tableCapacity);
         table = NULL;
         gen++;
         entryCount = 0;
@@ -634,7 +634,7 @@ class HashTable : private AllocPolicy
     }
 
     Range all() const {
-        return Range(table, table + capacity());
+        return Range(table, table + tableCapacity);
     }
 
     bool empty() const {
@@ -646,7 +646,7 @@ class HashTable : private AllocPolicy
     }
 
     uint32 capacity() const {
-        return JS_BIT(sHashBits - hashShift);
+        return tableCapacity;
     }
 
     uint32 generation() const {
@@ -660,7 +660,7 @@ class HashTable : private AllocPolicy
     size_t sizeOf(JSUsableSizeFun usf, bool countMe) const {
         size_t usable = usf(table) + (countMe ? usf((void*)this) : 0);
         return usable ? usable
-                      : (capacity() * sizeof(Entry)) + (countMe ? sizeof(HashTable) : 0);
+                      : (tableCapacity * sizeof(Entry)) + (countMe ? sizeof(HashTable) : 0);
     }
 
     Ptr lookup(const Lookup &l) const {
@@ -701,7 +701,7 @@ class HashTable : private AllocPolicy
             if (overloaded()) {
                 /* Compress if a quarter or more of all entries are removed. */
                 int deltaLog2;
-                if (removedCount >= (capacity() >> 2)) {
+                if (removedCount >= (tableCapacity >> 2)) {
                     METER(stats.compresses++);
                     deltaLog2 = 0;
                 } else {
@@ -912,10 +912,7 @@ class HashMapEntry
 
   public:
     HashMapEntry() : key(), value() {}
-
-    template<typename KeyInput, typename ValueInput>
-    HashMapEntry(const KeyInput &k, const ValueInput &v) : key(k), value(v) {}
-
+    HashMapEntry(const Key &k, const Value &v) : key(k), value(v) {}
     HashMapEntry(MoveRef<HashMapEntry> rhs) 
       : key(Move(rhs->key)), value(Move(rhs->value)) { }
     void operator=(MoveRef<HashMapEntry> rhs) {
@@ -1051,8 +1048,7 @@ class HashMap
         return impl.lookupForAdd(l);
     }
 
-    template<typename KeyInput, typename ValueInput>
-    bool add(AddPtr &p, const KeyInput &k, const ValueInput &v) {
+    bool add(AddPtr &p, const Key &k, const Value &v) {
         Entry *pentry;
         if (!impl.add(p, &pentry))
             return false;
@@ -1078,8 +1074,7 @@ class HashMap
         return true;
     }
 
-    template<typename KeyInput, typename ValueInput>
-    bool relookupOrAdd(AddPtr &p, const KeyInput &k, const ValueInput &v) {
+    bool relookupOrAdd(AddPtr &p, const Key &k, const Value &v) {
         return impl.relookupOrAdd(p, k, Entry(k, v));
     }
 
@@ -1142,8 +1137,7 @@ class HashMap
     }
 
     /* Overwrite existing value with v. Return NULL on oom. */
-    template<typename KeyInput, typename ValueInput>
-    Entry *put(const KeyInput &k, const ValueInput &v) {
+    Entry *put(const Key &k, const Value &v) {
         AddPtr p = lookupForAdd(k);
         if (p) {
             p->value = v;

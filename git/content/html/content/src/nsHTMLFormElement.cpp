@@ -1843,8 +1843,7 @@ nsHTMLFormElement::OnProgressChange(nsIWebProgress* aWebProgress,
 NS_IMETHODIMP
 nsHTMLFormElement::OnLocationChange(nsIWebProgress* aWebProgress,
                                     nsIRequest* aRequest,
-                                    nsIURI* location,
-                                    PRUint32 aFlags)
+                                    nsIURI* location)
 {
   NS_NOTREACHED("notification excluded in AddProgressListener(...)");
   return NS_OK;

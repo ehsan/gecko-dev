@@ -39,10 +39,6 @@
 #if !defined jsjaeger_h__ && defined JS_METHODJIT
 #define jsjaeger_h__
 
-#ifdef JSGC_INCREMENTAL
-#define JSGC_INCREMENTAL_MJ
-#endif
-
 #include "jscntxt.h"
 #include "jscompartment.h"
 
@@ -110,26 +106,9 @@ struct VMFrame
         } call;
     } u;
 
-    static size_t offsetOfLazyArgsObj() {
-        return offsetof(VMFrame, u.call.lazyArgsObj);
-    }
-
-    static size_t offsetOfDynamicArgc() {
-        return offsetof(VMFrame, u.call.dynamicArgc);
-    }
-
     VMFrame      *previous;
     void         *scratch;
     FrameRegs    regs;
-
-    static size_t offsetOfRegsSp() {
-        return offsetof(VMFrame, regs.sp);
-    }
-
-    static size_t offsetOfRegsPc() {
-        return offsetof(VMFrame, regs.pc);
-    }
-
     JSContext    *cx;
     Value        *stackLimit;
     StackFrame   *entryfp;
@@ -749,7 +728,7 @@ struct InlineFrame
 {
     InlineFrame *parent;
     jsbytecode *parentpc;
-    HeapPtrFunction fun;
+    JSFunction *fun;
 
     // Total distance between the start of the outer JSStackFrame and the start
     // of this frame, in multiples of sizeof(Value).

@@ -49,14 +49,8 @@
 #include "jspubtd.h"
 #include "jslock.h"
 
-#include "gc/Barrier.h"
 #include "js/HashTable.h"
 #include "vm/String.h"
-
-struct JSIdArray {
-    jsint length;
-    js::HeapId vector[1];    /* actually, length jsid words */
-};
 
 /* Engine-internal extensions of jsid */
 

@@ -83,7 +83,7 @@
 #include <CoreFoundation/CoreFoundation.h>
 #endif
 
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
 #include "AndroidBridge.h"
 #endif
 
@@ -1178,7 +1178,7 @@ nsDownloadManager::GetDefaultDownloadsDirectory(nsILocalFile **aResult)
     rv = dirService->Get(NS_UNIX_XDG_DOCUMENTS_DIR,
                          NS_GET_IID(nsILocalFile),
                          getter_AddRefs(downloadDir));
-#elif defined(MOZ_WIDGET_ANDROID)
+#elif defined(ANDROID)
     // Android doesn't have a $HOME directory, and by default we only have
     // write access to /data/data/org.mozilla.{$APP} and /sdcard
     char* downloadDirPath = getenv("DOWNLOADS_DIRECTORY");
@@ -2254,7 +2254,7 @@ nsDownload::SetState(DownloadState aState)
         }
       }
 
-#if defined(XP_WIN) || defined(XP_MACOSX) || defined(MOZ_WIDGET_ANDROID)
+#if defined(XP_WIN) || defined(XP_MACOSX) || defined(ANDROID)
       nsCOMPtr<nsIFileURL> fileURL = do_QueryInterface(mTarget);
       nsCOMPtr<nsIFile> file;
       nsAutoString path;
@@ -2288,7 +2288,7 @@ nsDownload::SetState(DownloadState aState)
                                                observedObject, NULL, TRUE);
         ::CFRelease(observedObject);
 #endif
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
         nsCOMPtr<nsIMIMEInfo> mimeInfo;
         nsCAutoString contentType;
         GetMIMEInfo(getter_AddRefs(mimeInfo));
@@ -2482,8 +2482,7 @@ nsDownload::OnProgressChange(nsIWebProgress *aWebProgress,
 
 NS_IMETHODIMP
 nsDownload::OnLocationChange(nsIWebProgress *aWebProgress,
-                             nsIRequest *aRequest, nsIURI *aLocation,
-                             PRUint32 aFlags)
+                             nsIRequest *aRequest, nsIURI *aLocation)
 {
   return NS_OK;
 }

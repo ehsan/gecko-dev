@@ -128,7 +128,7 @@ ifdef MOZ_X11
 CPPSRCS += nsX11ErrorHandler.cpp
 endif
 
-ifeq ($(MOZ_WIDGET_TOOLKIT),android)
+ifeq ($(OS_TARGET),Android)
 CPPSRCS += nsAndroidStartup.cpp
 DEFINES += -DANDROID_PACKAGE_NAME='"$(ANDROID_PACKAGE_NAME)"'
 endif

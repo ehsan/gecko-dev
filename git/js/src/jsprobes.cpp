@@ -36,7 +36,6 @@
 #ifdef MOZ_ETW
 #include "jswin.h"
 #include <evntprov.h>
-#include <sys/types.h>
 
 /* Generated from ETWProvider.man */
 #include "ETWProvider.h"
@@ -50,11 +49,11 @@
 #include "jsfun.h"
 #include "jsinterp.h"
 #include "jsobj.h"
-#include "jsprobes.h"
 #include "jsscript.h"
 #include "jsstr.h"
 
-#include "jsobjinlines.h"
+#include "jsprobes.h"
+#include <sys/types.h>
 
 #define TYPEOF(cx,v)    (JSVAL_IS_NULL(v) ? JSTYPE_NULL : JS_TypeOfValue(cx,v))
 

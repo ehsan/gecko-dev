@@ -96,7 +96,7 @@ txFormatNumberFunctionCall::evaluate(txIEvalContext* aContext,
         rv = mParams[2]->evaluateToString(aContext, formatQName);
         NS_ENSURE_SUCCESS(rv, rv);
 
-        rv = formatName.init(formatQName, mMappings, false);
+        rv = formatName.init(formatQName, mMappings, MB_FALSE);
         NS_ENSURE_SUCCESS(rv, rv);
     }
 
@@ -139,10 +139,10 @@ txFormatNumberFunctionCall::evaluate(txIEvalContext* aContext,
 
     PRUint32 pos = 0;
     PRUint32 formatLen = formatStr.Length();
-    bool inQuote;
+    MBool inQuote;
 
     // Get right subexpression
-    inQuote = false;
+    inQuote = MB_FALSE;
     if (Double::isNeg(value)) {
         while (pos < formatLen &&
                (inQuote ||
@@ -162,7 +162,7 @@ txFormatNumberFunctionCall::evaluate(txIEvalContext* aContext,
 
     // Parse the format string
     FormatParseState pState = Prefix;
-    inQuote = false;
+    inQuote = MB_FALSE;
 
     PRUnichar c = 0;
     while (pos < formatLen && pState != Finished) {
@@ -327,8 +327,8 @@ txFormatNumberFunctionCall::evaluate(txIEvalContext* aContext,
                   (intDigits-1)/groupSize); // group separators
 
     PRInt32 i = bufIntDigits + maxFractionSize - 1;
-    bool carry = (i+1 < buflen) && (buf[i+1] >= '5');
-    bool hasFraction = false;
+    MBool carry = (i+1 < buflen) && (buf[i+1] >= '5');
+    MBool hasFraction = MB_FALSE;
 
     PRUint32 resPos = res.Length()-1;
 
@@ -348,7 +348,7 @@ txFormatNumberFunctionCall::evaluate(txIEvalContext* aContext,
         }
 
         if (hasFraction || digit != 0 || i < bufIntDigits+minFractionSize) {
-            hasFraction = true;
+            hasFraction = MB_TRUE;
             res.SetCharAt((PRUnichar)(digit + format->mZeroDigit),
                           resPos--);
         }
@@ -448,7 +448,7 @@ txDecimalFormat::txDecimalFormat() : mInfinity(NS_LITERAL_STRING("Infinity")),
     mPatternSeparator = ';';
 }
 
-bool txDecimalFormat::isEqual(txDecimalFormat* other)
+MBool txDecimalFormat::isEqual(txDecimalFormat* other)
 {
     return mDecimalSeparator == other->mDecimalSeparator &&
            mGroupingSeparator == other->mGroupingSeparator &&

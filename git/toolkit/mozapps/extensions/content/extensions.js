@@ -1909,7 +1909,7 @@ var gDiscoverView = {
     this._browser.loadURIWithFlags(aURL, flags);
   },
 
-  onLocationChange: function(aWebProgress, aRequest, aLocation, aFlags) {
+  onLocationChange: function(aWebProgress, aRequest, aLocation) {
     // Ignore the about:blank load
     if (aLocation.spec == "about:blank")
       return;
@@ -2859,7 +2859,6 @@ var gDetailView = {
 
     var xhr = new XMLHttpRequest();
     xhr.open("GET", this._addon.optionsURL, false);
-    xhr.responseType = "document";
     xhr.send();
 
     var xml = xhr.responseXML;

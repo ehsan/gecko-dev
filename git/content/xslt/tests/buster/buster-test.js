@@ -221,7 +221,7 @@ runItem.prototype =
     onProgressChange: function(aProg, b,c,d,e,f)
     {
     },
-    onLocationChange: function(aProg, aRequest, aURI, aFlags)
+    onLocationChange: function(aProg, aRequest, aURI)
     {
     },
     onStatusChange: function(aProg, aRequest, aStatus, aMessage)

@@ -467,7 +467,7 @@ mjit::Compiler::compileArrayPush(FrameEntry *thisValue, FrameEntry *arg)
     Int32Key key = Int32Key::FromRegister(lengthReg);
 
     /* Test for 'length == initializedLength' */
-    Jump initlenGuard = masm.guardArrayExtent(JSObject::offsetOfInitializedLength(),
+    Jump initlenGuard = masm.guardArrayExtent(offsetof(JSObject, initializedLength),
                                               objReg, key, Assembler::NotEqual);
     stubcc.linkExit(initlenGuard, Uses(3));
 
@@ -481,7 +481,7 @@ mjit::Compiler::compileArrayPush(FrameEntry *thisValue, FrameEntry *arg)
 
     masm.bumpKey(key, 1);
     masm.store32(lengthReg, Address(objReg, offsetof(JSObject, privateData)));
-    masm.store32(lengthReg, Address(objReg, JSObject::offsetOfInitializedLength()));
+    masm.store32(lengthReg, Address(objReg, offsetof(JSObject, initializedLength)));
 
     stubcc.leave();
     stubcc.masm.move(Imm32(1), Registers::ArgReg1);
@@ -503,12 +503,6 @@ mjit::Compiler::compileArrayPopShift(FrameEntry *thisValue, bool isPacked, bool 
     /* Filter out silly cases. */
     if (thisValue->isConstant())
         return Compile_InlineAbort;
-
-#ifdef JSGC_INCREMENTAL_MJ
-    /* Write barrier. */
-    if (cx->compartment->needsBarrier())
-        return Compile_InlineAbort;
-#endif
 
     RegisterID objReg = frame.tempRegForData(thisValue);
     frame.pinReg(objReg);
@@ -539,7 +533,7 @@ mjit::Compiler::compileArrayPopShift(FrameEntry *thisValue, bool isPacked, bool 
 
     /* Test for 'length == initializedLength' */
     Int32Key key = Int32Key::FromRegister(lengthReg);
-    Jump initlenGuard = masm.guardArrayExtent(JSObject::offsetOfInitializedLength(),
+    Jump initlenGuard = masm.guardArrayExtent(offsetof(JSObject, initializedLength),
                                               objReg, key, Assembler::NotEqual);
     stubcc.linkExit(initlenGuard, Uses(3));
 
@@ -575,7 +569,7 @@ mjit::Compiler::compileArrayPopShift(FrameEntry *thisValue, bool isPacked, bool 
     }
 
     masm.store32(lengthReg, Address(objReg, offsetof(JSObject, privateData)));
-    masm.store32(lengthReg, Address(objReg, JSObject::offsetOfInitializedLength()));
+    masm.store32(lengthReg, Address(objReg, offsetof(JSObject, initializedLength)));
 
     if (!isArrayPop)
         INLINE_STUBCALL(stubs::ArrayShift, REJOIN_NONE);
@@ -674,13 +668,13 @@ mjit::Compiler::compileArrayConcat(types::TypeSet *thisTypes, types::TypeSet *ar
 
     RegisterID objReg = frame.tempRegForData(thisValue);
     masm.load32(Address(objReg, offsetof(JSObject, privateData)), reg);
-    Jump initlenOneGuard = masm.guardArrayExtent(JSObject::offsetOfInitializedLength(),
+    Jump initlenOneGuard = masm.guardArrayExtent(offsetof(JSObject, initializedLength),
                                                  objReg, key, Assembler::NotEqual);
     stubcc.linkExit(initlenOneGuard, Uses(3));
 
     objReg = frame.tempRegForData(argValue);
     masm.load32(Address(objReg, offsetof(JSObject, privateData)), reg);
-    Jump initlenTwoGuard = masm.guardArrayExtent(JSObject::offsetOfInitializedLength(),
+    Jump initlenTwoGuard = masm.guardArrayExtent(offsetof(JSObject, initializedLength),
                                                  objReg, key, Assembler::NotEqual);
     stubcc.linkExit(initlenTwoGuard, Uses(3));
 
@@ -791,7 +785,7 @@ mjit::Compiler::compileArrayWithArgs(uint32 argc)
     }
 
     masm.storePtr(ImmIntPtr(intptr_t(argc)),
-                  Address(result, JSObject::offsetOfInitializedLength()));
+                  Address(result, offsetof(JSObject, initializedLength)));
 
     stubcc.leave();
 

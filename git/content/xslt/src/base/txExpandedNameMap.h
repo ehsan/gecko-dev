@@ -95,7 +95,7 @@ protected:
         {
         }
 
-        bool next()
+        MBool next()
         {
             return ++mCurrentPos < mMap.mItems.Length();
         }

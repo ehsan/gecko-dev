@@ -3165,7 +3165,7 @@ var bookmarksButtonObserver = {
                                                      , "loadInSidebar"
                                                      , "folderPicker"
                                                      , "keyword" ]
-                                       }, window);
+                                       });
     } catch(ex) { }
   },
 
@@ -4586,7 +4586,7 @@ var XULBrowserWindow = {
     }
   },
 
-  onLocationChange: function (aWebProgress, aRequest, aLocationURI, aFlags) {
+  onLocationChange: function (aWebProgress, aRequest, aLocationURI) {
     var location = aLocationURI ? aLocationURI.spec : "";
     this._hostChanged = true;
 
@@ -5052,8 +5052,7 @@ var TabsProgressListener = {
     }
   },
 
-  onLocationChange: function (aBrowser, aWebProgress, aRequest, aLocationURI,
-                              aFlags) {
+  onLocationChange: function (aBrowser, aWebProgress, aRequest, aLocationURI) {
     // Filter out any sub-frame loads
     if (aBrowser.contentWindow == aWebProgress.DOMWindow)
       FullZoom.onLocationChange(aLocationURI, false, aBrowser);
@@ -5794,7 +5793,7 @@ function contentAreaClick(event, isPanelClick)
                                                      , "location"
                                                      , "folderPicker"
                                                      , "keyword" ]
-                                       }, window);
+                                       });
       event.preventDefault();
       return true;
     }
@@ -6841,7 +6840,7 @@ function AddKeywordForSearchField() {
                                    , hiddenRows: [ "location"
                                                  , "loadInSidebar"
                                                  , "folderPicker" ]
-                                   }, window);
+                                   });
 }
 
 function SwitchDocumentDirection(aWindow) {

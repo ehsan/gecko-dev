@@ -624,7 +624,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
             addPtr(Imm32(sizeof(StackFrame) + frameDepth * sizeof(jsval)),
                    JSFrameReg,
                    Registers::ClobberInCall);
-            storePtr(Registers::ClobberInCall, FrameAddress(VMFrame::offsetOfRegsSp()));
+            storePtr(Registers::ClobberInCall, FrameAddress(offsetof(VMFrame, regs.sp)));
         }
     }
 
@@ -645,7 +645,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
         storePtr(JSFrameReg, FrameAddress(VMFrame::offsetOfFp));
 
         /* PC -> regs->pc :( */
-        storePtr(ImmPtr(pc), FrameAddress(VMFrame::offsetOfRegsPc()));
+        storePtr(ImmPtr(pc), FrameAddress(offsetof(VMFrame, regs.pc)));
 
         if (inlining) {
             /* inlined -> regs->inlined :( */
@@ -663,7 +663,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
 
         /* Store fp and pc */
         storePtr(JSFrameReg, FrameAddress(VMFrame::offsetOfFp));
-        storePtr(ImmPtr(pc), FrameAddress(VMFrame::offsetOfRegsPc()));
+        storePtr(ImmPtr(pc), FrameAddress(offsetof(VMFrame, regs.pc)));
 
         if (inlining) {
             /* ABI calls cannot be made from inlined frames. */
@@ -771,7 +771,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
         JS_ASSERT(objReg != typeReg);
 
         FastArrayLoadFails fails;
-        fails.rangeCheck = guardArrayExtent(JSObject::offsetOfInitializedLength(),
+        fails.rangeCheck = guardArrayExtent(offsetof(JSObject, initializedLength),
                                             objReg, key, BelowOrEqual);
 
         RegisterID dslotsReg = objReg;
@@ -1285,7 +1285,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
          * slots first.
          */
         if (templateObject->isDenseArray()) {
-            JS_ASSERT(!templateObject->initializedLength());
+            JS_ASSERT(!templateObject->initializedLength);
             addPtr(Imm32(-thingSize + sizeof(JSObject)), result);
             storePtr(result, Address(result, -(int)sizeof(JSObject) + JSObject::offsetOfSlots()));
             addPtr(Imm32(-(int)sizeof(JSObject)), result);
@@ -1328,19 +1328,12 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
         storeDouble(Registers::FPConversionTemp, Address(scratch));
     }
 
-    /* Add one to the accumulator 'counter'. */
-    void bumpCounter(double *counter, RegisterID scratch)
-    {
-        addCounter(&oneDouble, counter, scratch);
-    }
-
     /* Bump the stub call count for script/pc if they are being counted. */
     void bumpStubCounter(JSScript *script, jsbytecode *pc, RegisterID scratch)
     {
         if (script->pcCounters) {
-            OpcodeCounts counts = script->getCounts(pc);
-            double *counter = &counts.get(OpcodeCounts::BASE_METHODJIT_STUBS);
-            bumpCounter(counter, scratch);
+            double *counter = &script->pcCounters.get(JSPCCounters::METHODJIT_STUBS, pc - script->code);
+            addCounter(&oneDouble, counter, scratch);
         }
     }
 

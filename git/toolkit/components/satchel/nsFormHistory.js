@@ -55,7 +55,6 @@ FormHistory.prototype = {
     QueryInterface   : XPCOMUtils.generateQI([Ci.nsIFormHistory2,
                                               Ci.nsIObserver,
                                               Ci.nsIFrameMessageListener,
-                                              Ci.nsISupportsWeakReference,
                                               ]),
 
     debug          : true,
@@ -125,7 +124,9 @@ FormHistory.prototype = {
 
 
     init : function() {
-        Services.prefs.addObserver("browser.formfill.", this, true);
+        let self = this;
+
+        Services.prefs.addObserver("browser.formfill.", this, false);
 
         this.updatePrefs();
 
@@ -137,8 +138,8 @@ FormHistory.prototype = {
         this.messageManager.addMessageListener("FormHistory:FormSubmitEntries", this);
 
         // Add observers
-        Services.obs.addObserver(this, "idle-daily", true);
-        Services.obs.addObserver(this, "formhistory-expire-now", true);
+        Services.obs.addObserver(this, "idle-daily", false);
+        Services.obs.addObserver(this, "formhistory-expire-now", false);
     },
 
     /* ---- message listener ---- */

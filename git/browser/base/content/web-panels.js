@@ -72,7 +72,7 @@ var panelProgressListener = {
     }
     ,
 
-    onLocationChange : function(aWebProgress, aRequest, aLocation, aFlags) {
+    onLocationChange : function(aWebProgress, aRequest, aLocation) {
         UpdateBackForwardCommands(getPanelBrowser().webNavigation);
     },
 

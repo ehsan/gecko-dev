@@ -180,7 +180,7 @@ var progressListener = {
       }
     },
 
-	  onLocationChange: function(aWebProgress, aRequest, aLocation, aFlags)
+	  onLocationChange: function(aWebProgress, aRequest, aLocation)
     {
       // we can ignore this notification
     },

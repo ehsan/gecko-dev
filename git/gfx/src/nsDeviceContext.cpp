@@ -76,11 +76,7 @@ static nsSystemFontsMac *gSystemFonts = nsnull;
 #include "nsSystemFontsQt.h"
 #include "gfxPDFSurface.h"
 static nsSystemFontsQt *gSystemFonts = nsnull;
-#elif defined(MOZ_WIDGET_ANDROID)
-#include "nsSystemFontsAndroid.h"
-#include "gfxPDFSurface.h"
-static nsSystemFontsAndroid *gSystemFonts = nsnull;
-#elif defined(MOZ_WIDGET_GONK)
+#elif defined(ANDROID)
 #include "nsSystemFontsAndroid.h"
 #include "gfxPDFSurface.h"
 static nsSystemFontsAndroid *gSystemFonts = nsnull;

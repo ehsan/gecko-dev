@@ -115,7 +115,7 @@ static inline bool
 TryIncrementAllocKind(AllocKind *kindp)
 {
     size_t next = size_t(*kindp) + 2;
-    if (next >= size_t(FINALIZE_OBJECT_LIMIT))
+    if (next > size_t(FINALIZE_OBJECT_LAST))
         return false;
     *kindp = AllocKind(next);
     return true;
@@ -167,7 +167,7 @@ GCPoke(JSContext *cx, Value oldval)
 
 #ifdef JS_GC_ZEAL
     /* Schedule a GC to happen "soon" after a GC poke. */
-    if (cx->runtime->gcZeal() >= js::gc::ZealPokeThreshold)
+    if (cx->runtime->gcZeal())
         cx->runtime->gcNextScheduled = 1;
 #endif
 }
@@ -351,11 +351,8 @@ NewGCThing(JSContext *cx, js::gc::AllocKind kind, size_t thingSize)
         js::gc::RunDebugGC(cx);
 #endif
 
-    JSCompartment *comp = cx->compartment;
-    void *t = comp->arenas.allocateFromFreeList(kind, thingSize);
-    if (!t)
-        t = js::gc::ArenaLists::refillFreeList(cx, kind);
-    return static_cast<T *>(t);
+    void *t = cx->compartment->arenas.allocateFromFreeList(kind, thingSize);
+    return static_cast<T *>(t ? t : js::gc::ArenaLists::refillFreeList(cx, kind));
 }
 
 inline JSObject *
@@ -391,8 +388,10 @@ inline JSFunction*
 js_NewGCFunction(JSContext *cx)
 {
     JSFunction *fun = NewGCThing<JSFunction>(cx, js::gc::FINALIZE_FUNCTION, sizeof(JSFunction));
-    if (fun)
-        fun->earlyInit(JSObject::FUN_CLASS_RESERVED_SLOTS);
+    if (fun) {
+        fun->capacity = JSObject::FUN_CLASS_RESERVED_SLOTS;
+        fun->lastProp = NULL; /* Stops fun from being scanned until initializated. */
+    }
     return fun;
 }
 

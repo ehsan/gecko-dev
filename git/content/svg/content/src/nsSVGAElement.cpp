@@ -145,10 +145,6 @@ nsSVGAElement::BindToTree(nsIDocument *aDocument, nsIContent *aParent,
                                               aBindingParent,
                                               aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
-  
-  if (aDocument) {
-    aDocument->RegisterPendingLinkUpdate(this);
-  }
 
   return NS_OK;
 }
@@ -159,11 +155,6 @@ nsSVGAElement::UnbindFromTree(bool aDeep, bool aNullParent)
   // If this link is ever reinserted into a document, it might
   // be under a different xml:base, so forget the cached state now.
   Link::ResetLinkState(false);
-  
-  nsIDocument* doc = GetCurrentDoc();
-  if (doc) {
-    doc->UnregisterPendingLinkUpdate(this);
-  }
 
   nsSVGAElementBase::UnbindFromTree(aDeep, aNullParent);
 }
@@ -172,6 +163,12 @@ nsLinkState
 nsSVGAElement::GetLinkState() const
 {
   return Link::GetLinkState();
+}
+
+void
+nsSVGAElement::RequestLinkStateUpdate()
+{
+  UpdateLinkState(Link::LinkState());
 }
 
 already_AddRefed<nsIURI>

@@ -346,7 +346,7 @@ Wrapper::defaultValue(JSContext *cx, JSObject *wrapper, JSType hint, Value *vp)
 void
 Wrapper::trace(JSTracer *trc, JSObject *wrapper)
 {
-    MarkValue(trc, wrapper->getReservedSlotRef(JSSLOT_PROXY_PRIVATE), "wrappedObject");
+    MarkObject(trc, *wrappedObject(wrapper), "wrappedObject");
 }
 
 JSObject *
@@ -844,8 +844,7 @@ CrossCompartmentWrapper::defaultValue(JSContext *cx, JSObject *wrapper, JSType h
 void
 CrossCompartmentWrapper::trace(JSTracer *trc, JSObject *wrapper)
 {
-    MarkCrossCompartmentValue(trc, wrapper->getReservedSlotRef(JSSLOT_PROXY_PRIVATE),
-                              "wrappedObject");
+    MarkCrossCompartmentObject(trc, *wrappedObject(wrapper), "wrappedObject");
 }
 
 CrossCompartmentWrapper CrossCompartmentWrapper::singleton(0u);
@@ -863,9 +862,9 @@ SecurityWrapper<Base>::nativeCall(JSContext *cx, JSObject *wrapper, Class *clasp
                                   CallArgs args)
 {
     /* Let ProxyHandler report the error. */
-    DebugOnly<bool> ret = ProxyHandler::nativeCall(cx, wrapper, clasp, native, args);
-    JS_ASSERT(!ret);
-    return false;
+    bool ret = ProxyHandler::nativeCall(cx, wrapper, clasp, native, args);
+    JS_ASSERT(!ret && cx->isExceptionPending());
+    return ret;
 }
 
 template <class Base>
