@@ -550,11 +550,6 @@ protected:
         AssemblerType::relinkJump(jump.dataLocation(), destination.dataLocation());
     }
 
-    static bool canRepatchJump(CodeLocationJump jump, CodeLocationLabel destination)
-    {
-        return AssemblerType::canRelinkJump(jump.dataLocation(), destination.dataLocation());
-    }
-
     static void repatchNearCall(CodeLocationNearCall nearCall, CodeLocationLabel destination)
     {
         AssemblerType::relinkCall(nearCall.dataLocation(), destination.executableAddress());

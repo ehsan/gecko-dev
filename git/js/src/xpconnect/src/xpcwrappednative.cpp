@@ -1202,11 +1202,8 @@ XPCWrappedNative::FinishInit(XPCCallContext &ccx)
     mThread = do_GetCurrentThread();
 
     if(HasProto() && GetProto()->ClassIsMainThreadOnly() && !NS_IsMainThread())
-    {
         DEBUG_ReportWrapperThreadSafetyError(ccx,
             "MainThread only wrapper created on the wrong thread", this);
-        return JS_FALSE;
-    }
 #endif
 
     // A hack for bug 517665, increase the probability for GC.
@@ -1514,8 +1511,7 @@ XPCWrappedNative::ReparentWrapperIfFound(XPCCallContext& ccx,
     if (!XPCPerThreadData::IsMainThread(ccx) ||
         (wrapper &&
          wrapper->GetProto() &&
-         !wrapper->GetProto()->ClassIsMainThreadOnly()))
-    {
+         !wrapper->GetProto()->ClassIsMainThreadOnly())) {
         return NS_ERROR_FAILURE;
     }
 

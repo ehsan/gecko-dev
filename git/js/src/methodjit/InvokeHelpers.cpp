@@ -49,6 +49,7 @@
 #include "jsbool.h"
 #include "assembler/assembler/MacroAssemblerCodeRef.h"
 #include "assembler/assembler/CodeLocation.h"
+#include "assembler/assembler/RepatchBuffer.h"
 #include "jsiter.h"
 #include "jstypes.h"
 #include "methodjit/StubCalls.h"
@@ -56,7 +57,6 @@
 #include "jspropertycache.h"
 #include "methodjit/MonoIC.h"
 #include "jsanalyze.h"
-#include "methodjit/BaseCompiler.h"
 
 #include "jsinterpinlines.h"
 #include "jspropertycacheinlines.h"
@@ -890,14 +890,16 @@ FinishExcessFrames(VMFrame &f, JSStackFrame *entryFrame)
 
 #if JS_MONOIC
 static void
-UpdateTraceHintSingle(Repatcher &repatcher, JSC::CodeLocationJump jump, JSC::CodeLocationLabel target)
+UpdateTraceHintSingle(JSC::CodeLocationJump jump, JSC::CodeLocationLabel target)
 {
     /*
      * Hack: The value that will be patched is before the executable address,
      * so to get protection right, just unprotect the general region around
      * the jump.
      */
-    repatcher.relink(jump, target);
+    uint8 *addr = (uint8 *)(jump.executableAddress());
+    JSC::RepatchBuffer repatch(addr - 64, 128);
+    repatch.relink(jump, target);
 
     JaegerSpew(JSpew_PICs, "relinking trace hint %p to %p\n",
                jump.executableAddress(), target.executableAddress());
@@ -906,11 +908,10 @@ UpdateTraceHintSingle(Repatcher &repatcher, JSC::CodeLocationJump jump, JSC::Cod
 static void
 DisableTraceHint(VMFrame &f, ic::TraceICInfo &tic)
 {
-    Repatcher repatcher(f.jit());
-    UpdateTraceHintSingle(repatcher, tic.traceHint, tic.jumpTarget);
+    UpdateTraceHintSingle(tic.traceHint, tic.jumpTarget);
 
     if (tic.hasSlowTraceHint)
-        UpdateTraceHintSingle(repatcher, tic.slowTraceHint, tic.jumpTarget);
+        UpdateTraceHintSingle(tic.slowTraceHint, tic.jumpTarget);
 }
 
 static void
@@ -923,12 +924,10 @@ EnableTraceHintAt(JSScript *script, js::mjit::JITScript *jit, jsbytecode *pc, ui
 
     JaegerSpew(JSpew_PICs, "Enabling trace IC %u in script %p\n", index, script);
 
-    Repatcher repatcher(jit);
-
-    UpdateTraceHintSingle(repatcher, tic.traceHint, tic.stubEntry);
+    UpdateTraceHintSingle(tic.traceHint, tic.stubEntry);
 
     if (tic.hasSlowTraceHint)
-        UpdateTraceHintSingle(repatcher, tic.slowTraceHint, tic.stubEntry);
+        UpdateTraceHintSingle(tic.slowTraceHint, tic.stubEntry);
 }
 #endif
 

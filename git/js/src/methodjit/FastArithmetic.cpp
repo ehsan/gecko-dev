@@ -73,12 +73,8 @@ mjit::Compiler::tryBinaryConstantFold(JSContext *cx, FrameState &frame, JSOp op,
       case JSOP_SUB:
       case JSOP_MUL:
       case JSOP_DIV:
-        needInt = false;
-        break;
-
       case JSOP_MOD:
-        needInt = (L.isInt32() && R.isInt32() &&
-                   L.toInt32() >= 0 && R.toInt32() > 0);
+        needInt = false;
         break;
 
       case JSOP_RSH:
@@ -133,12 +129,10 @@ mjit::Compiler::tryBinaryConstantFold(JSContext *cx, FrameState &frame, JSOp op,
         }
         break;
       case JSOP_MOD:
-        if (needInt)
-            nL %= nR;
-        else if (dR == 0)
+        if (dL == 0)
             dL = js_NaN;
         else
-            dL = js_fmod(dL, dR);
+            dL = js_fmod(dR, dL);
         break;
 
       case JSOP_RSH:
@@ -834,10 +828,6 @@ mjit::Compiler::jsop_mod()
 #if defined(JS_CPU_X86)
     FrameEntry *lhs = frame.peek(-2);
     FrameEntry *rhs = frame.peek(-1);
-
-    if (tryBinaryConstantFold(cx, frame, JSOP_MOD, lhs, rhs))
-        return;
-
     if ((lhs->isTypeKnown() && lhs->getKnownType() != JSVAL_TYPE_INT32) ||
         (rhs->isTypeKnown() && rhs->getKnownType() != JSVAL_TYPE_INT32))
 #endif

@@ -86,7 +86,7 @@ static const jsbytecode emptyScriptCode[] = {JSOP_STOP, SRC_NULL};
     false,      /* debugMode */
 #endif
     const_cast<jsbytecode*>(emptyScriptCode),
-    {0, jsatomid(0)}, NULL, NULL, 0, 0, 0,
+    {0, NULL}, NULL, NULL, 0, 0, 0,
     0,          /* nClosedArgs */
     0,          /* nClosedVars */
     NULL, {NULL},
@@ -480,7 +480,7 @@ script_finalize(JSContext *cx, JSObject *obj)
 {
     JSScript *script = (JSScript *) obj->getPrivate();
     if (script)
-        js_DestroyScriptFromGC(cx, script, NULL);
+        js_DestroyScript(cx, script);
 }
 
 static void
@@ -1301,8 +1301,8 @@ js_CallDestroyScriptHook(JSContext *cx, JSScript *script)
         hook(cx, script, cx->debugHooks->destroyScriptHookData);
 }
 
-static void
-DestroyScript(JSContext *cx, JSScript *script, JSThreadData *data)
+void
+js_DestroyScript(JSContext *cx, JSScript *script)
 {
     if (script == JSScript::emptyScript()) {
         JS_RUNTIME_UNMETER(cx->runtime, liveEmptyScripts);
@@ -1359,16 +1359,7 @@ DestroyScript(JSContext *cx, JSScript *script, JSThreadData *data)
     }
 
 #ifdef JS_TRACER
-# ifdef JS_THREADSAFE
-    if (data) {
-        PurgeScriptFragments(&data->traceMonitor, script);
-    } else {
-        for (ThreadDataIter i(cx->runtime); !i.empty(); i.popFront())
-            PurgeScriptFragments(&i.threadData()->traceMonitor, script);
-    }
-# else
-    PurgeScriptFragments(&JS_TRACE_MONITOR(cx), script);
-# endif
+    PurgeScriptFragments(cx, script);
 #endif
 
 #if defined(JS_METHODJIT)
@@ -1379,20 +1370,6 @@ DestroyScript(JSContext *cx, JSScript *script, JSThreadData *data)
     cx->free(script);
 
     JS_RUNTIME_UNMETER(cx->runtime, liveScripts);
-}
-
-void
-js_DestroyScript(JSContext *cx, JSScript *script)
-{
-    JS_ASSERT(!cx->runtime->gcRunning);
-    DestroyScript(cx, script, JS_THREAD_DATA(cx));
-}
-
-void
-js_DestroyScriptFromGC(JSContext *cx, JSScript *script, JSThreadData *data)
-{
-    JS_ASSERT(cx->runtime->gcRunning);
-    DestroyScript(cx, script, data);
 }
 
 void

@@ -713,8 +713,7 @@ nsEditorEventListener::CanDrop(nsIDOMDragEvent* aEvent)
   // is the same as the drag source.
   nsCOMPtr<nsIDOMNode> sourceNode;
   dataTransferNS->GetMozSourceNode(getter_AddRefs(sourceNode));
-  if (!sourceNode)
-    return PR_TRUE;
+  NS_ENSURE_TRUE(sourceNode, PR_TRUE);
 
   // There is a source node, so compare the source documents and this document.
   // Disallow drops on the same document.
