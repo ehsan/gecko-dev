@@ -1166,9 +1166,6 @@ pref("devtools.scratchpad.recentFilesMax", 10);
 pref("devtools.styleeditor.enabled", true);
 pref("devtools.styleeditor.transitions", true);
 
-// Enable the Shader Editor.
-pref("devtools.shadereditor.enabled", false);
-
 // Enable tools for Chrome development.
 pref("devtools.chrome.enabled", false);
 

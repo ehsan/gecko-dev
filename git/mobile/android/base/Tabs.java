@@ -71,12 +71,10 @@ public class Tabs implements GeckoEventListener {
     private final Runnable mPersistTabsRunnable = new Runnable() {
         @Override
         public void run() {
-            try {
-                boolean syncIsSetup = SyncAccounts.syncAccountsExist(getAppContext());
-                if (syncIsSetup) {
-                    TabsAccessor.persistLocalTabs(getContentResolver(), getTabsInOrder());
-                }
-            } catch (SecurityException se) {} // will fail without android.permission.GET_ACCOUNTS
+            boolean syncIsSetup = SyncAccounts.syncAccountsExist(getAppContext());
+            if (syncIsSetup) {
+                TabsAccessor.persistLocalTabs(getContentResolver(), getTabsInOrder());
+            }
         }
     };
 

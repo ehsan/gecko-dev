@@ -226,7 +226,6 @@ Editor.prototype = {
         this.showContextMenu(doc, ev.screenX, ev.screenY);
       }, false);
 
-      cm.on("focus", () => this.emit("focus"));
       cm.on("change", () => this.emit("change"));
       cm.on("gutterClick", (cm, line) => this.emit("gutterClick", line));
       cm.on("cursorActivity", (cm) => this.emit("cursorActivity"));

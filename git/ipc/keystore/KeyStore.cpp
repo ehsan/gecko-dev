@@ -46,6 +46,9 @@ KeyStoreConnector::Create()
     return -1;
   }
 
+  // Allow access of wpa_supplicant(different user, differnt group)
+  chmod(KEYSTORE_SOCKET_PATH, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH);
+
   return fd;
 }
 
@@ -72,15 +75,6 @@ KeyStoreConnector::CreateAddr(bool aIsServer,
 bool
 KeyStoreConnector::SetUp(int aFd)
 {
-  return true;
-}
-
-bool
-KeyStoreConnector::SetUpListenSocket(int aFd)
-{
-  // Allow access of wpa_supplicant(different user, differnt group)
-  chmod(KEYSTORE_SOCKET_PATH, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH);
-
   return true;
 }
 
