@@ -466,20 +466,13 @@ Subscribable.prototype = {
 let Utils = {
   // ___ Logging
 
-  useConsole: true, // as opposed to dump
-  showTime: false,
-
   // ----------
   // Function: log
   // Prints the given arguments to the JavaScript error console as a message.
   // Pass as many arguments as you want, it'll print them all.
   log: function() {
     var text = this.expandArgumentsForLog(arguments);
-    var prefix = this.showTime ? Date.now() + ': ' : '';
-    if (this.useConsole)    
-      Services.console.logStringMessage(prefix + text);
-    else
-      dump(prefix + text + '\n');
+    Services.console.logStringMessage(text);
   },
 
   // ----------
@@ -488,11 +481,7 @@ let Utils = {
   // Pass as many arguments as you want, it'll print them all.
   error: function() {
     var text = this.expandArgumentsForLog(arguments);
-    var prefix = this.showTime ? Date.now() + ': ' : '';
-    if (this.useConsole)    
-      Cu.reportError(prefix + "tabview error: " + text);
-    else
-      dump(prefix + "TABVIEW ERROR: " + text + '\n');
+    Cu.reportError("tabview error: " + text);
   },
 
   // ----------
