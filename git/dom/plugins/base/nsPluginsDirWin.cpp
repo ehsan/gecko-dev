@@ -208,7 +208,7 @@ static bool CanLoadPlugin(const PRUnichar* aBinaryPath)
   return canLoad;
 #else
   // Assume correct binaries for unhandled cases.
-  return true;
+  return PR_TRUE;
 #endif
 }
 
@@ -219,7 +219,7 @@ bool nsPluginsDir::IsPluginFile(nsIFile* file)
 {
   nsCAutoString path;
   if (NS_FAILED(file->GetNativePath(path)))
-    return false;
+    return PR_FALSE;
 
   const char *cPath = path.get();
 
@@ -241,12 +241,12 @@ bool nsPluginsDir::IsPluginFile(nsIFile* file)
       // don't load OJI-based Java plugins
       if (!PL_strncasecmp(filename, "npoji", 5) ||
           !PL_strncasecmp(filename, "npjava", 6))
-        return false;
-      return true;
+        return PR_FALSE;
+      return PR_TRUE;
     }
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 /* nsPluginFile implementation */
@@ -283,7 +283,7 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary **outLibrary)
     return NS_ERROR_FILE_INVALID_PATH;
 
   if (Substring(pluginFolderPath, idx).LowerCaseEqualsLiteral("\\np32dsw.dll")) {
-    protectCurrentDirectory = false;
+    protectCurrentDirectory = PR_FALSE;
   }
 
   pluginFolderPath.SetLength(idx);

@@ -297,7 +297,7 @@ PluginPRLibrary::IsRemoteDrawingCoreAnimation(NPP instance, bool *aDrawing)
 {
   nsNPAPIPluginInstance* inst = (nsNPAPIPluginInstance*)instance->ndata;
   NS_ENSURE_TRUE(inst, NS_ERROR_NULL_POINTER);
-  *aDrawing = false; 
+  *aDrawing = PR_FALSE; 
   return NS_OK;
 }
 #endif

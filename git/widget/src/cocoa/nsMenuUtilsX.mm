@@ -70,11 +70,11 @@ void nsMenuUtilsX::DispatchCommandTo(nsIContent* aTargetContent)
     // pressed keys, but this is a big old edge case anyway. -dwh
     if (pEvent &&
         NS_SUCCEEDED(command->InitCommandEvent(NS_LITERAL_STRING("command"),
-                                               true, true,
+                                               PR_TRUE, PR_TRUE,
                                                doc->GetWindow(), 0,
-                                               false, false, false,
-                                               false, nsnull))) {
-      pEvent->SetTrusted(true);
+                                               PR_FALSE, PR_FALSE, PR_FALSE,
+                                               PR_FALSE, nsnull))) {
+      pEvent->SetTrusted(PR_TRUE);
       bool dummy;
       target->DispatchEvent(event, &dummy);
     }

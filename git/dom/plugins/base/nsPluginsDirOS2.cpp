@@ -172,7 +172,7 @@ bool nsPluginsDir::IsPluginFile(nsIFile* file)
 {
     nsCAutoString leaf;
     if (NS_FAILED(file->GetNativeLeafName(leaf)))
-        return false;
+        return PR_FALSE;
 
     const char *leafname = leaf.get();
     
@@ -183,10 +183,10 @@ bool nsPluginsDir::IsPluginFile(nsIFile* file)
           (0 == strnicmp( &(leafname[len - 4]), ".dll", 4)) &&
           (0 == strnicmp( leafname, "np", 2)))
       {
-        return true;
+        return PR_TRUE;
       }
     }
-    return false;
+    return PR_FALSE;
 }
 
 // nsPluginFile implementation

@@ -114,7 +114,7 @@ nsStandaloneNativeMenu::MenuWillOpen(bool * aResult)
   // its submenus.
   UpdateMenu(mMenu);
 
-  *aResult = true;
+  *aResult = PR_TRUE;
   return NS_OK;
 }
 
