@@ -69,7 +69,6 @@ _BROWSER_FILES = \
 		browser_inspector_changes.js \
 		browser_inspector_ruleviewstore.js \
 		browser_inspector_duplicate_ruleview.js \
-		browser_inspector_invalidate.js \
 		head.js \
 		$(NULL)
 

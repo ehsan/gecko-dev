@@ -3,11 +3,8 @@
 
 // Tests that the DOM Template engine works properly
 
-let tempScope = {};
-Cu.import("resource:///modules/devtools/Templater.jsm", tempScope);
-Cu.import("resource:///modules/devtools/Promise.jsm", tempScope);
-let template = tempScope.template;
-let Promise = tempScope.Promise;
+Cu.import("resource:///modules/devtools/Templater.jsm");
+Cu.import("resource:///modules/devtools/Promise.jsm");
 
 function test() {
   addTab("http://example.com/browser/browser/devtools/shared/test/browser_templater_basic.html", function() {
