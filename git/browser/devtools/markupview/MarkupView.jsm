@@ -149,24 +149,10 @@ MarkupView.prototype = {
         this.navigate(this._containers.get(this._rootNode.firstChild));
         break;
       case Ci.nsIDOMKeyEvent.DOM_VK_LEFT:
-        if (this._selectedContainer.expanded) {
-          this.collapseNode(this._selectedContainer.node);
-        } else {
-          let parent = this._selectionWalker().parentNode();
-          if (parent) {
-            this.navigate(parent.container);
-          }
-        }
+        this.collapseNode(this._selectedContainer.node);
         break;
       case Ci.nsIDOMKeyEvent.DOM_VK_RIGHT:
-        if (!this._selectedContainer.expanded) {
-          this.expandNode(this._selectedContainer.node);
-        } else {
-          let next = this._selectionWalker().nextNode();
-          if (next) {
-            this.navigate(next.container);
-          }
-        }
+        this.expandNode(this._selectedContainer.node);
         break;
       case Ci.nsIDOMKeyEvent.DOM_VK_UP:
         let prev = this._selectionWalker().previousNode();

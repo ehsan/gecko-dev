@@ -38,7 +38,6 @@ MACH_MODULES = [
     'python/mozbuild/mozbuild/frontend/mach_commands.py',
     'testing/mochitest/mach_commands.py',
     'testing/xpcshell/mach_commands.py',
-    'tools/mach_commands.py',
 ]
 
 def bootstrap(topsrcdir):
