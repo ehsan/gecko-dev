@@ -762,9 +762,8 @@ function isPlainTextField(element) {
     return false;
   }
 
-  return element instanceof HTMLTextAreaElement ||
-         (element instanceof HTMLInputElement &&
-          element.mozIsTextField(false));
+  return element instanceof HTMLInputElement ||
+         element instanceof HTMLTextAreaElement;
 }
 
 function getJSON(element, focusCounter) {

@@ -13,7 +13,6 @@ from automationutils import replaceBackSlashes
 from mozdevice import devicemanagerADB, devicemanagerSUT, devicemanager
 from zipfile import ZipFile
 import shutil
-import mozfile
 import mozinfo
 
 here = os.path.dirname(os.path.abspath(__file__))
@@ -134,17 +133,6 @@ class RemoteXPCShellTestThread(xpcshell.XPCShellTestThread):
         self.device.killProcess("xpcshell")
         return outputFile
 
-    def checkForCrashes(self,
-                        dump_directory,
-                        symbols_path,
-                        test_name=None):
-        with mozfile.TemporaryDirectory() as dumpDir:
-            self.device.getDirectory(self.remoteMinidumpDir, dumpDir)
-            crashed = xpcshell.XPCShellTestThread.checkForCrashes(self, dumpDir, symbols_path, test_name)
-            self.device.removeDir(self.remoteMinidumpDir)
-            self.device.mkDir(self.remoteMinidumpDir)
-        return crashed
-
     def communicate(self, proc):
         f = open(proc, "r")
         contents = f.read()
@@ -210,7 +198,6 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
         self.remoteScriptsDir = self.remoteTestRoot
         self.remoteComponentsDir = remoteJoin(self.remoteTestRoot, "c")
         self.remoteModulesDir = remoteJoin(self.remoteTestRoot, "m")
-        self.remoteMinidumpDir = remoteJoin(self.remoteTestRoot, "minidumps")
         self.profileDir = remoteJoin(self.remoteTestRoot, "p")
         self.remoteDebugger = options.debugger
         self.remoteDebuggerArgs = options.debuggerArgs
@@ -232,7 +219,6 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
             self.setupUtilities()
             self.setupModules()
             self.setupTestDir()
-        self.setupMinidumpDir()
         self.remoteAPK = None
         if options.localAPK:
             self.remoteAPK = remoteJoin(self.remoteBinDir, os.path.basename(options.localAPK))
@@ -250,7 +236,6 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
             'pathMapping': self.pathMapping,
             'profileDir': self.profileDir,
             'remoteTmpDir': self.remoteTmpDir,
-            'remoteMinidumpDir': self.remoteMinidumpDir,
         }
         if self.remoteAPK:
             self.mobileArgs['remoteAPK'] = self.remoteAPK
@@ -290,7 +275,6 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
         self.env["TMPDIR"] = self.remoteTmpDir
         self.env["HOME"] = self.profileDir
         self.env["XPCSHELL_TEST_TEMP_DIR"] = self.remoteTmpDir
-        self.env["XPCSHELL_MINIDUMP_DIR"] = self.remoteMinidumpDir
         if self.options.setup:
             self.pushWrapper()
 
@@ -416,11 +400,6 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
         except TypeError:
             # Foopies have an older mozdevice ver without retryLimit
             self.device.pushDir(self.xpcDir, self.remoteScriptsDir)
-
-    def setupMinidumpDir(self):
-        if self.device.dirExists(self.remoteMinidumpDir):
-            self.device.removeDir(self.remoteMinidumpDir)
-        self.device.mkDir(self.remoteMinidumpDir)
 
     def buildTestList(self):
         xpcshell.XPCShellTests.buildTestList(self)

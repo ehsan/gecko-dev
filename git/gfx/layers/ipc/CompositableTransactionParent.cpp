@@ -36,17 +36,6 @@ CompositableHost* AsCompositable(const T& op)
   return static_cast<CompositableParent*>(op.compositableParent())->GetCompositableHost();
 }
 
-// This function can in some cases fail and return false without it being a bug.
-// This can theoretically happen if the ImageBridge sends frames before
-// we created the layer tree. Since we can't enforce that the layer
-// tree is already created before ImageBridge operates, there isn't much
-// we can do about it, but in practice it is very rare.
-// Typically when a tab with a video is dragged from a window to another,
-// there can be a short time when the video is still sending frames
-// asynchonously while the layer tree is not reconstructed. It's not a
-// big deal.
-// Note that Layers transactions do not need to call this because they always
-// schedule the composition, in LayerManagerComposite::EndTransaction.
 template<typename T>
 bool ScheduleComposition(const T& op)
 {
@@ -144,7 +133,7 @@ CompositableParentManager::ReceiveCompositableUpdate(const CompositableOperation
                                          op.textureId(), newBack));
         }
 
-        if (IsAsync() && shouldRecomposite) {
+        if (shouldRecomposite) {
           ScheduleComposition(op);
         }
       }
@@ -232,8 +221,8 @@ CompositableParentManager::ReceiveCompositableUpdate(const CompositableOperation
       MOZ_ASSERT(tex.get());
       compositable->UseTextureHost(tex);
 
-      if (IsAsync()) {
-        ScheduleComposition(op);
+      if (!ScheduleComposition(op)) {
+        NS_WARNING("could not find a compositor to schedule composition");
       }
       break;
     }

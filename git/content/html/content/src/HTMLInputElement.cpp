@@ -3236,14 +3236,6 @@ HTMLInputElement::StartRangeThumbDrag(WidgetGUIEvent* aEvent)
   nsIPresShell::SetCapturingContent(this, CAPTURE_IGNOREALLOWED |
                                           CAPTURE_RETARGETTOELEMENT);
   nsRangeFrame* rangeFrame = do_QueryFrame(GetPrimaryFrame());
-
-  // Before we change the value, record the current value so that we'll
-  // correctly send a 'change' event if appropriate. We need to do this here
-  // because the 'focus' event is handled after the 'mousedown' event that
-  // we're being called for (i.e. too late to update mFocusedValue, since we'll
-  // have changed it by then).
-  GetValueInternal(mFocusedValue);
-
   SetValueOfRangeForUserEvent(rangeFrame->GetValueAtEventPoint(aEvent));
 }
 
@@ -3391,8 +3383,7 @@ HTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
   if (aVisitor.mEvent->message == NS_FOCUS_CONTENT ||
       aVisitor.mEvent->message == NS_BLUR_CONTENT) {
     if (aVisitor.mEvent->message == NS_FOCUS_CONTENT &&
-        MayFireChangeOnBlur() &&
-        !mIsDraggingRange) { // StartRangeThumbDrag already set mFocusedValue
+        MayFireChangeOnBlur()) {
       GetValueInternal(mFocusedValue);
     }
 

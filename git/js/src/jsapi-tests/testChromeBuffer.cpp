@@ -6,11 +6,11 @@
 
 #include "jsapi-tests/tests.h"
 
-static JSPrincipals system_principals = {
+JSPrincipals system_principals = {
     1
 };
 
-static const JSClass global_class = {
+const JSClass global_class = {
     "global",
     JSCLASS_IS_GLOBAL | JSCLASS_GLOBAL_FLAGS,
     JS_PropertyStub,
@@ -22,10 +22,10 @@ static const JSClass global_class = {
     JS_ConvertStub
 };
 
-static JSObject *trusted_glob = nullptr;
-static JSObject *trusted_fun = nullptr;
+JSObject *trusted_glob = nullptr;
+JSObject *trusted_fun = nullptr;
 
-static bool
+bool
 CallTrusted(JSContext *cx, unsigned argc, jsval *vp)
 {
     if (!JS_SaveFrameChain(cx))

@@ -623,8 +623,7 @@ CompositorD3D11::DrawQuad(const gfx::Rect& aRect,
 }
 
 void
-CompositorD3D11::BeginFrame(const nsIntRegion& aInvalidRegion,
-                            const Rect* aClipRectIn,
+CompositorD3D11::BeginFrame(const Rect* aClipRectIn,
                             const gfxMatrix& aTransform,
                             const Rect& aRenderBounds,
                             Rect* aClipRectOut,

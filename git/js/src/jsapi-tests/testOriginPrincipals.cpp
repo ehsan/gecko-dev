@@ -5,9 +5,16 @@
 #include "js/OldDebugAPI.h"
 #include "jsapi-tests/tests.h"
 
-static JSPrincipals *sOriginPrincipalsInErrorReporter = nullptr;
-static JSPrincipals prin1 = { 1 };
-static JSPrincipals prin2 = { 1 };
+JSPrincipals *sOriginPrincipalsInErrorReporter = nullptr;
+
+static void
+ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
+{
+    sOriginPrincipalsInErrorReporter = report->originPrincipals;
+}
+
+JSPrincipals prin1 = { 1 };
+JSPrincipals prin2 = { 1 };
 
 BEGIN_TEST(testOriginPrincipals)
 {
@@ -42,12 +49,6 @@ BEGIN_TEST(testOriginPrincipals)
      *   CHECK(testError("throw 3"));
      */
     return true;
-}
-
-static void
-ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
-{
-    sOriginPrincipalsInErrorReporter = report->originPrincipals;
 }
 
 bool
