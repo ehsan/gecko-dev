@@ -101,7 +101,7 @@ DOMRequest::FireSuccess(JS::Handle<JS::Value> aResult)
   NS_ASSERTION(mResult == JSVAL_VOID, "mResult shouldn't have been set!");
 
   mDone = true;
-  if (aResult.isGCThing()) {
+  if (JSVAL_IS_GCTHING(aResult)) {
     RootResultVal();
   }
   mResult = aResult;

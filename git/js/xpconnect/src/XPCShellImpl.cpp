@@ -544,7 +544,7 @@ Parent(JSContext *cx, unsigned argc, jsval *vp)
     }
 
     Value v = args[0];
-    if (v.isPrimitive()) {
+    if (JSVAL_IS_PRIMITIVE(v)) {
         JS_ReportError(cx, "Only objects have parents!");
         return false;
     }

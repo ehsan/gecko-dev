@@ -493,7 +493,7 @@ js::Invoke(JSContext *cx, CallArgs args, MaybeConstruct construct)
 
     bool ok = RunScript(cx, state);
 
-    JS_ASSERT_IF(ok && construct, args.rval().isObject());
+    JS_ASSERT_IF(ok && construct, !args.rval().isPrimitive());
     return ok;
 }
 
@@ -1932,7 +1932,7 @@ CASE(JSOP_ITER)
     MutableHandleValue res = REGS.stackHandleAt(-1);
     if (!ValueToIterator(cx, flags, res))
         goto error;
-    JS_ASSERT(res.isObject());
+    JS_ASSERT(!res.isPrimitive());
 }
 END_CASE(JSOP_ITER)
 

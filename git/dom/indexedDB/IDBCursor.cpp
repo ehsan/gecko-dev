@@ -517,12 +517,12 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(IDBCursor)
   NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
-  NS_ASSERTION(tmp->mHaveCachedKey || tmp->mCachedKey.isUndefined(),
+  NS_ASSERTION(tmp->mHaveCachedKey || JSVAL_IS_VOID(tmp->mCachedKey),
                "Should have a cached key");
   NS_ASSERTION(tmp->mHaveCachedPrimaryKey ||
-               tmp->mCachedPrimaryKey.isUndefined(),
+               JSVAL_IS_VOID(tmp->mCachedPrimaryKey),
                "Should have a cached primary key");
-  NS_ASSERTION(tmp->mHaveCachedValue || tmp->mCachedValue.isUndefined(),
+  NS_ASSERTION(tmp->mHaveCachedValue || JSVAL_IS_VOID(tmp->mCachedValue),
                "Should have a cached value");
   NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mScriptOwner)
   NS_IMPL_CYCLE_COLLECTION_TRACE_JSVAL_MEMBER_CALLBACK(mCachedKey)

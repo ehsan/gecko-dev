@@ -185,7 +185,7 @@ public:
 
   bool init(JSContext* aContext, const JS::Value &v)
   {
-      return init(aContext, v.toString());
+      return init(aContext, JSVAL_TO_STRING(v));
   }
 
   void init(JSFlatString* fstr)
