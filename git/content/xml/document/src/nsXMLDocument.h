@@ -39,6 +39,9 @@
 #define nsXMLDocument_h___
 
 #include "nsDocument.h"
+#include "nsIInterfaceRequestor.h"
+#include "nsIInterfaceRequestorUtils.h"
+#include "nsIChannelEventSink.h"
 #include "nsIDOMXMLDocument.h"
 #include "nsIScriptContext.h"
 #include "nsHTMLStyleSheet.h"
@@ -49,7 +52,9 @@ class nsIDOMNode;
 class nsIURI;
 class nsIChannel;
 
-class nsXMLDocument : public nsDocument
+class nsXMLDocument : public nsDocument,
+                      public nsIInterfaceRequestor,
+                      public nsIChannelEventSink
 {
 public:
   nsXMLDocument(const char* aContentType = "application/xml");
@@ -69,6 +74,12 @@ public:
                                      nsIContentSink* aSink = nsnull);
 
   virtual void EndLoad();
+
+  // nsIInterfaceRequestor
+  NS_DECL_NSIINTERFACEREQUESTOR
+
+  // nsIHTTPEventSink
+  NS_DECL_NSICHANNELEVENTSINK
 
   // nsIDOMXMLDocument
   NS_DECL_NSIDOMXMLDOCUMENT

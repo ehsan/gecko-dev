@@ -86,6 +86,7 @@ BackstagePass::NewResolve(nsIXPConnectWrappedNative *wrapper,
 NS_IMETHODIMP 
 BackstagePass::GetInterfaces(PRUint32 *aCount, nsIID * **aArray)
 {
+    nsresult rv = NS_OK;
     PRUint32 count = 1;
 #ifndef XPCONNECT_STANDALONE
     ++count;

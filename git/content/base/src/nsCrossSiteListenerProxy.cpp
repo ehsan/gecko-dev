@@ -351,11 +351,9 @@ nsCrossSiteListenerProxy::OnChannelRedirect(nsIChannel *aOldChannel,
 nsresult
 nsCrossSiteListenerProxy::UpdateChannel(nsIChannel* aChannel)
 {
-  nsCOMPtr<nsIURI> uri, originalURI;
+  nsCOMPtr<nsIURI> uri;
   nsresult rv = aChannel->GetURI(getter_AddRefs(uri));
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = aChannel->GetOriginalURI(getter_AddRefs(originalURI));
-  NS_ENSURE_SUCCESS(rv, rv);  
 
   // Check that the uri is ok to load
   rv = nsContentUtils::GetSecurityManager()->
@@ -363,18 +361,8 @@ nsCrossSiteListenerProxy::UpdateChannel(nsIChannel* aChannel)
                               nsIScriptSecurityManager::STANDARD);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (originalURI != uri) {
-    rv = nsContentUtils::GetSecurityManager()->
-      CheckLoadURIWithPrincipal(mRequestingPrincipal, originalURI,
-                                nsIScriptSecurityManager::STANDARD);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
   if (!mHasBeenCrossSite &&
-      NS_SUCCEEDED(mRequestingPrincipal->CheckMayLoad(uri, PR_FALSE)) &&
-      (originalURI == uri ||
-       NS_SUCCEEDED(mRequestingPrincipal->CheckMayLoad(originalURI,
-                                                       PR_FALSE)))) {
+      NS_SUCCEEDED(mRequestingPrincipal->CheckMayLoad(uri, PR_FALSE))) {
     return NS_OK;
   }
 

@@ -666,7 +666,6 @@ nsresult nsHTMLMediaElement::InitializeDecoder(const nsAString& aURISpec)
     mDecoder->ElementAvailable(this);
     rv = mDecoder->Load(uri, nsnull, nsnull);
     if (NS_FAILED(rv)) {
-      mDecoder->Shutdown();
       mDecoder = nsnull;
     }
   }
