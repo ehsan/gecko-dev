@@ -45,7 +45,6 @@
 #include "nsAccUtils.h"
 #include "nsCoreUtils.h"
 #include "Relation.h"
-#include "Role.h"
 #include "States.h"
 
 #include "mozilla/dom/Element.h"
@@ -143,10 +142,10 @@ nsRootAccessible::GetName(nsAString& aName)
   return document->GetTitle(aName);
 }
 
-role
+PRUint32
 nsRootAccessible::NativeRole()
 {
-  // If it's a <dialog> or <wizard>, use roles::DIALOG instead
+  // If it's a <dialog> or <wizard>, use nsIAccessibleRole::ROLE_DIALOG instead
   dom::Element *root = mDocument->GetRootElement();
   if (root) {
     nsCOMPtr<nsIDOMElement> rootElement(do_QueryInterface(root));
@@ -154,7 +153,7 @@ nsRootAccessible::NativeRole()
       nsAutoString name;
       rootElement->GetLocalName(name);
       if (name.EqualsLiteral("dialog") || name.EqualsLiteral("wizard")) {
-        return roles::DIALOG; // Always at the root
+        return nsIAccessibleRole::ROLE_DIALOG; // Always at the root
       }
     }
   }
@@ -503,7 +502,7 @@ nsRootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
     HandlePopupShownEvent(accessible);
   }
   else if (eventType.EqualsLiteral("DOMMenuInactive")) {
-    if (accessible->Role() == roles::MENUPOPUP) {
+    if (accessible->Role() == nsIAccessibleRole::ROLE_MENUPOPUP) {
       nsEventShell::FireEvent(nsIAccessibleEvent::EVENT_MENUPOPUP_END,
                               accessible);
     }
@@ -650,16 +649,16 @@ nsRootAccessible::RelationByType(PRUint32 aType)
 void
 nsRootAccessible::HandlePopupShownEvent(nsAccessible* aAccessible)
 {
-  roles::Role role = aAccessible->Role();
+  PRUint32 role = aAccessible->Role();
 
-  if (role == roles::MENUPOPUP) {
+  if (role == nsIAccessibleRole::ROLE_MENUPOPUP) {
     // Don't fire menupopup events for combobox and autocomplete lists.
     nsEventShell::FireEvent(nsIAccessibleEvent::EVENT_MENUPOPUP_START,
                             aAccessible);
     return;
   }
 
-  if (role == roles::TOOLTIP) {
+  if (role == nsIAccessibleRole::ROLE_TOOLTIP) {
     // There is a single <xul:tooltip> node which Mozilla moves around.
     // The accessible for it stays the same no matter where it moves. 
     // AT's expect to get an EVENT_SHOW for the tooltip. 
@@ -668,15 +667,15 @@ nsRootAccessible::HandlePopupShownEvent(nsAccessible* aAccessible)
     return;
   }
 
-  if (role == roles::COMBOBOX_LIST) {
+  if (role == nsIAccessibleRole::ROLE_COMBOBOX_LIST) {
     // Fire expanded state change event for comboboxes and autocompeletes.
     nsAccessible* combobox = aAccessible->Parent();
     if (!combobox)
       return;
 
-    roles::Role comboboxRole = combobox->Role();
-    if (comboboxRole == roles::COMBOBOX || 
-	comboboxRole == roles::AUTOCOMPLETE) {
+    PRUint32 comboboxRole = combobox->Role();
+    if (comboboxRole == nsIAccessibleRole::ROLE_COMBOBOX ||
+        comboboxRole == nsIAccessibleRole::ROLE_AUTOCOMPLETE) {
       nsRefPtr<AccEvent> event =
         new AccStateChangeEvent(combobox, states::EXPANDED, true);
       if (event)

@@ -44,7 +44,6 @@
 #include "nsDocAccessible.h"
 #include "nsEventShell.h"
 #include "Relation.h"
-#include "Role.h"
 #include "States.h"
 
 #include "nsITreeSelection.h"
@@ -582,20 +581,22 @@ nsXULTreeGridAccessible::IsProbablyForLayout(bool *aIsProbablyForLayout)
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeGridAccessible: nsAccessible implementation
 
-role
+PRUint32
 nsXULTreeGridAccessible::NativeRole()
 {
   nsCOMPtr<nsITreeColumns> treeColumns;
   mTree->GetColumns(getter_AddRefs(treeColumns));
   if (!treeColumns) {
     NS_ERROR("No treecolumns object for tree!");
-    return roles::NOTHING;
+    return nsIAccessibleRole::ROLE_NOTHING;
   }
 
   nsCOMPtr<nsITreeColumn> primaryColumn;
   treeColumns->GetPrimaryColumn(getter_AddRefs(primaryColumn));
 
-  return primaryColumn ? roles::TREE_TABLE : roles::TABLE;
+  return primaryColumn ?
+    static_cast<PRUint32>(nsIAccessibleRole::ROLE_TREE_TABLE) :
+    static_cast<PRUint32>(nsIAccessibleRole::ROLE_TABLE);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -662,10 +663,10 @@ nsXULTreeGridRowAccessible::Shutdown()
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeGridRowAccessible: nsAccessible implementation
 
-role
+PRUint32
 nsXULTreeGridRowAccessible::NativeRole()
 {
-  return roles::ROW;
+  return nsIAccessibleRole::ROLE_ROW;
 }
 
 NS_IMETHODIMP
@@ -1196,10 +1197,10 @@ nsXULTreeGridCellAccessible::GetAttributesInternal(nsIPersistentProperties *aAtt
   return NS_OK;
 }
 
-role
+PRUint32
 nsXULTreeGridCellAccessible::NativeRole()
 {
-  return roles::GRID_CELL;
+  return nsIAccessibleRole::ROLE_GRID_CELL;
 }
 
 PRUint64

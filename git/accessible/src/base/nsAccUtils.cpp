@@ -39,9 +39,8 @@
 #include "nsCoreUtils.h"
 #include "nsAccUtils.h"
 
-#include "nsIAccessibleTypes.h"
-#include "Role.h"
 #include "States.h"
+#include "nsIAccessibleTypes.h"
 
 #include "nsAccessibilityService.h"
 #include "nsARIAMap.h"
@@ -105,17 +104,18 @@ nsAccUtils::SetAccGroupAttrs(nsIPersistentProperties *aAttributes,
 PRInt32
 nsAccUtils::GetDefaultLevel(nsAccessible *aAccessible)
 {
-  roles::Role role = aAccessible->Role();
+  PRUint32 role = aAccessible->Role();
 
-  if (role == roles::OUTLINEITEM)
+  if (role == nsIAccessibleRole::ROLE_OUTLINEITEM)
     return 1;
 
-  if (role == roles::ROW) {
+  if (role == nsIAccessibleRole::ROLE_ROW) {
     nsAccessible* parent = aAccessible->Parent();
-    // It is a row inside flatten treegrid. Group level is always 1 until it
-    // is overriden by aria-level attribute.
-    if (parent && parent->Role() == roles::TREE_TABLE) 
+    if (parent && parent->Role() == nsIAccessibleRole::ROLE_TREE_TABLE) {
+      // It is a row inside flatten treegrid. Group level is always 1 until it
+      // is overriden by aria-level attribute.
       return 1;
+    }
   }
 
   return 0;

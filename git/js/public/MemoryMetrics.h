@@ -183,16 +183,12 @@ struct IterateData
     DestroyNameCallback destroyNameCb;
 };
 
-#ifdef JS_THREADSAFE
-
 extern JS_PUBLIC_API(bool)
 CollectCompartmentStatsForRuntime(JSRuntime *rt, IterateData *data);
 
 extern JS_PUBLIC_API(bool)
 GetExplicitNonHeapForRuntime(JSRuntime *rt, int64_t *amount,
                              JSMallocSizeOfFun mallocSizeOf);
-
-#endif /* JS_THREADSAFE */
 
 extern JS_PUBLIC_API(void)
 SizeOfCompartmentTypeInferenceData(JSContext *cx, JSCompartment *compartment,

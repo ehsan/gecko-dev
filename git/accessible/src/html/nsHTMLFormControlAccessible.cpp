@@ -38,11 +38,10 @@
 
 #include "nsHTMLFormControlAccessible.h"
 
+#include "Relation.h"
+#include "States.h"
 #include "nsAccUtils.h"
 #include "nsTextEquivUtils.h"
-#include "Relation.h"
-#include "Role.h"
-#include "States.h"
 
 #include "nsIAccessibleRelation.h"
 #include "nsIDOMDocument.h"
@@ -73,10 +72,10 @@ nsHTMLCheckboxAccessible::
 {
 }
 
-role
+PRUint32
 nsHTMLCheckboxAccessible::NativeRole()
 {
-  return roles::CHECKBUTTON;
+  return nsIAccessibleRole::ROLE_CHECKBUTTON;
 }
 
 PRUint8
@@ -304,10 +303,10 @@ nsHTMLButtonAccessible::NativeState()
   return state;
 }
 
-role
+PRUint32
 nsHTMLButtonAccessible::NativeRole()
 {
-  return roles::PUSHBUTTON;
+  return nsIAccessibleRole::ROLE_PUSHBUTTON;
 }
 
 nsresult
@@ -388,10 +387,10 @@ nsHTML4ButtonAccessible::DoAction(PRUint8 aIndex)
   return NS_OK;
 }
 
-role
+PRUint32
 nsHTML4ButtonAccessible::NativeRole()
 {
-  return roles::PUSHBUTTON;
+  return nsIAccessibleRole::ROLE_PUSHBUTTON;
 }
 
 PRUint64
@@ -430,15 +429,14 @@ nsHTMLTextFieldAccessible::
 
 NS_IMPL_ISUPPORTS_INHERITED3(nsHTMLTextFieldAccessible, nsAccessible, nsHyperTextAccessible, nsIAccessibleText, nsIAccessibleEditableText)
 
-role
+PRUint32
 nsHTMLTextFieldAccessible::NativeRole()
 {
   if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
                             nsGkAtoms::password, eIgnoreCase)) {
-    return roles::PASSWORD_TEXT;
+    return nsIAccessibleRole::ROLE_PASSWORD_TEXT;
   }
-  
-  return roles::ENTRY;
+  return nsIAccessibleRole::ROLE_ENTRY;
 }
 
 nsresult
@@ -646,7 +644,8 @@ nsHTMLTextFieldAccessible::IsWidget() const
 nsAccessible*
 nsHTMLTextFieldAccessible::ContainerWidget() const
 {
-  return mParent && mParent->Role() == roles::AUTOCOMPLETE ? mParent : nsnull;
+  return mParent && mParent->Role() == nsIAccessibleRole::ROLE_AUTOCOMPLETE ?
+    mParent : nsnull;
 }
 
 
@@ -661,12 +660,12 @@ nsHTMLFileInputAccessible(nsIContent* aContent, nsIWeakReference* aShell) :
   mFlags |= eHTMLFileInputAccessible;
 }
 
-role
+PRUint32
 nsHTMLFileInputAccessible::NativeRole()
 {
   // JAWS wants a text container, others don't mind. No specific role in
   // AT APIs.
-  return roles::TEXT_CONTAINER;
+  return nsIAccessibleRole::ROLE_TEXT_CONTAINER;
 }
 
 nsresult
@@ -685,7 +684,7 @@ nsHTMLFileInputAccessible::HandleAccEvent(AccEvent* aEvent)
        event->GetState() == states::HASPOPUP ||
        event->GetState() == states::INVALID)) {
     nsAccessible* input = GetChildAt(0);
-    if (input && input->Role() == roles::ENTRY) {
+    if (input && input->Role() == nsIAccessibleRole::ROLE_ENTRY) {
       nsRefPtr<AccStateChangeEvent> childEvent =
         new AccStateChangeEvent(input, event->GetState(),
                                 event->IsStateEnabled(),
@@ -694,7 +693,7 @@ nsHTMLFileInputAccessible::HandleAccEvent(AccEvent* aEvent)
     }
 
     nsAccessible* button = GetChildAt(1);
-    if (button && button->Role() == roles::PUSHBUTTON) {
+    if (button && button->Role() == nsIAccessibleRole::ROLE_PUSHBUTTON) {
       nsRefPtr<AccStateChangeEvent> childEvent =
         new AccStateChangeEvent(button, event->GetState(),
                                 event->IsStateEnabled(),
@@ -715,10 +714,10 @@ nsHTMLGroupboxAccessible::
 {
 }
 
-role
+PRUint32
 nsHTMLGroupboxAccessible::NativeRole()
 {
-  return roles::GROUPING;
+  return nsIAccessibleRole::ROLE_GROUPING;
 }
 
 nsIContent*
@@ -783,16 +782,16 @@ nsHTMLLegendAccessible::RelationByType(PRUint32 aType)
     return rel;
 
   nsAccessible* groupbox = Parent();
-  if (groupbox && groupbox->Role() == roles::GROUPING)
+  if (groupbox && groupbox->Role() == nsIAccessibleRole::ROLE_GROUPING)
     rel.AppendTarget(groupbox);
 
   return rel;
 }
 
-role
+PRUint32
 nsHTMLLegendAccessible::NativeRole()
 {
-  return roles::LABEL;
+  return nsIAccessibleRole::ROLE_LABEL;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -817,10 +816,10 @@ nsHTMLFigureAccessible::GetAttributesInternal(nsIPersistentProperties* aAttribut
   return NS_OK;
 }
 
-role
+PRUint32
 nsHTMLFigureAccessible::NativeRole()
 {
-  return roles::FIGURE;
+  return nsIAccessibleRole::ROLE_FIGURE;
 }
 
 nsresult
@@ -875,10 +874,10 @@ nsHTMLFigcaptionAccessible::
 {
 }
 
-role
+PRUint32
 nsHTMLFigcaptionAccessible::NativeRole()
 {
-  return roles::CAPTION;
+  return nsIAccessibleRole::ROLE_CAPTION;
 }
 
 Relation

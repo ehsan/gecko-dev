@@ -39,9 +39,8 @@
 #ifndef _nsAccessible_H_
 #define _nsAccessible_H_
 
-#include "mozilla/a11y/Role.h"
-#include "mozilla/a11y/States.h"
 #include "nsAccessNodeWrap.h"
+#include "mozilla/a11y/States.h"
 
 #include "nsIAccessible.h"
 #include "nsIAccessibleHyperLink.h"
@@ -156,9 +155,9 @@ public:
   virtual nsresult GetNameInternal(nsAString& aName);
 
   /**
-   * Return enumerated accessible role (see constants in Role.h).
+   * Return enumerated accessible role (see constants in nsIAccessibleRole).
    */
-  inline mozilla::a11y::role Role()
+  inline PRUint32 Role()
   {
     if (!mRoleMapEntry || mRoleMapEntry->roleRule != kUseMapRole)
       return NativeRole();
@@ -168,21 +167,21 @@ public:
 
   /**
    * Return accessible role specified by ARIA (see constants in
-   * roles).
+   * nsIAccessibleRole).
    */
-  inline mozilla::a11y::role ARIARole()
+  inline PRUint32 ARIARole()
   {
     if (!mRoleMapEntry || mRoleMapEntry->roleRule != kUseMapRole)
-      return mozilla::a11y::roles::NOTHING;
+      return nsIAccessibleRole::ROLE_NOTHING;
 
     return ARIARoleInternal();
   }
 
   /**
    * Returns enumerated accessible role from native markup (see constants in
-   * Role.h). Doesn't take into account ARIA roles.
+   * nsIAccessibleRole). Doesn't take into account ARIA roles.
    */
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
 
   /**
    * Return all states of accessible (including ARIA states).
@@ -673,7 +672,7 @@ protected:
   /**
    * Return ARIA role (helper method).
    */
-  mozilla::a11y::role ARIARoleInternal();
+  PRUint32 ARIARoleInternal();
 
   virtual nsIFrame* GetBoundsFrame();
   virtual void GetBoundsRect(nsRect& aRect, nsIFrame** aRelativeFrame);
