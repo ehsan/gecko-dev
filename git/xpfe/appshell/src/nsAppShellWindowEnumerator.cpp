@@ -22,10 +22,22 @@
 // static helper functions
 //
 
+static nsresult GetDOMWindow(nsIXULWindow* inWindow,
+                             nsCOMPtr<nsIDOMWindow> &outDOMWindow);
 static nsCOMPtr<nsIDOMNode> GetDOMNodeFromDocShell(nsIDocShell *aShell);
 static void GetAttribute(nsIXULWindow *inWindow, const nsAString &inAttribute,
                          nsAString &outValue);
 static void GetWindowType(nsIXULWindow* inWindow, nsString &outType);
+
+// fetch the nsIDOMWindow(Internal) from a XUL Window
+nsresult GetDOMWindow(nsIXULWindow *aWindow, nsCOMPtr<nsIDOMWindow> &aDOMWindow)
+{
+  nsCOMPtr<nsIDocShell> docShell;
+
+  aWindow->GetDocShell(getter_AddRefs(docShell));
+  aDOMWindow = do_GetInterface(docShell);
+  return aDOMWindow ? NS_OK : NS_ERROR_FAILURE;
+}
 
 nsCOMPtr<nsIDOMNode> GetDOMNodeFromDocShell(nsIDocShell *aShell)
 {
@@ -212,7 +224,7 @@ NS_IMETHODIMP nsASDOMWindowEnumerator::GetNext(nsISupports **retval)
   *retval = nullptr;
   while (mCurrentPosition) {
     nsCOMPtr<nsIDOMWindow> domWindow;
-    nsWindowMediator::GetDOMWindow(mCurrentPosition->mWindow, domWindow);
+    GetDOMWindow(mCurrentPosition->mWindow, domWindow);
     mCurrentPosition = FindNext();
     if (domWindow)
       return CallQueryInterface(domWindow, retval);

@@ -14,7 +14,7 @@ EXPORTS.mozilla += [
 
 XPCSHELL_TESTS_MANIFESTS += ['tests/unit/xpcshell.ini']
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'nsAppStartup.cpp',
     'StartupTimeline.cpp',
 ]
@@ -24,16 +24,15 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'os2':
         'nsUserInfoOS2.cpp',
     ]
 elif CONFIG['OS_ARCH'] == 'WINNT':
-    # This file cannot be built in unified mode because of name clashes with Windows headers.
     SOURCES += [
         'nsUserInfoWin.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
-    UNIFIED_SOURCES += [
+    SOURCES += [
         'nsUserInfoMac.mm',
     ]
 else:
-    UNIFIED_SOURCES += [
+    SOURCES += [
         'nsUserInfoUnix.cpp',
     ]
 

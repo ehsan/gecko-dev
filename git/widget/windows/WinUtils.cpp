@@ -35,9 +35,6 @@
 #include "nsIThread.h"
 #include "MainThreadUtils.h"
 #include "gfxColor.h"
-#ifdef MOZ_METRO
-#include "winrt/MetroInput.h"
-#endif // MOZ_METRO
 
 #ifdef NS_ENABLE_TSF
 #include <textstor.h>
@@ -1180,17 +1177,6 @@ WinUtils::SetupKeyModifiersSequence(nsTArray<KeyPair>* aArray,
   }
 }
 
-/* static */
-bool
-WinUtils::ShouldHideScrollbars()
-{
-#ifdef MOZ_METRO
-  if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Metro) {
-    return widget::winrt::MetroInput::IsInputModeImprecise();
-  }
-#endif // MOZ_METRO
-  return false;
-}
 
 } // namespace widget
 } // namespace mozilla

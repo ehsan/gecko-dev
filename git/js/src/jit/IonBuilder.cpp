@@ -715,9 +715,6 @@ IonBuilder::build()
     if (!traverseBytecode())
         return false;
 
-    if (!maybeAddOsrTypeBarriers())
-        return false;
-
     if (!processIterators())
         return false;
 
@@ -1207,7 +1204,7 @@ IonBuilder::traverseBytecode()
                 if (status == ControlStatus_Abort)
                     return abort("Aborted while processing control flow");
                 if (!current)
-                    return true;
+                    return maybeAddOsrTypeBarriers();
                 continue;
             }
 
@@ -1235,7 +1232,7 @@ IonBuilder::traverseBytecode()
             if (status == ControlStatus_Abort)
                 return abort("Aborted while processing control flow");
             if (!current)
-                return true;
+                return maybeAddOsrTypeBarriers();
         }
 
 #ifdef DEBUG
@@ -1314,7 +1311,7 @@ IonBuilder::traverseBytecode()
         current->updateTrackedPc(pc);
     }
 
-    return true;
+    return maybeAddOsrTypeBarriers();
 }
 
 IonBuilder::ControlStatus
@@ -8006,7 +8003,7 @@ IonBuilder::annotateGetPropertyCache(MDefinition *obj, MGetPropertyCache *getPro
             continue;
 
         JSObject *singleton = testSingletonProperty(typeObj->proto().toObject(), name);
-        if (!singleton || !singleton->is<JSFunction>())
+        if (!singleton)
             continue;
 
         // Don't add cases corresponding to non-observed pushes

@@ -986,8 +986,7 @@ DeprecatedContentClientSingleBuffered::SyncFrontBufferToBackBuffer()
     backBuffer = mDeprecatedTextureClientOnWhite->LockDrawTarget();
   }
   if (!backBuffer) {
-    NS_WARN_IF_FALSE(!mDeprecatedTextureClientOnWhite,
-                     "Could not lock texture client (on white)");
+    NS_WARNING("Could not lock texture client (on white)");
     return;
   }
 

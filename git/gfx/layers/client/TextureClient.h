@@ -368,7 +368,7 @@ public:
 
 protected:
   ipc::Shmem mShmem;
-  RefPtr<ISurfaceAllocator> mAllocator;
+  ISurfaceAllocator* mAllocator;
   bool mAllocated;
 };
 
