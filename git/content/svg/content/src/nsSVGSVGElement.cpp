@@ -811,10 +811,10 @@ nsSVGSVGElement::GetTransformToElement(nsIDOMSVGElement *element,
   if (NS_FAILED(rv)) return rv;
 
   // the easiest way to do this (if likely to increase rounding error):
-  rv = GetScreenCTM(getter_AddRefs(ourScreenCTM));
-  if (NS_FAILED(rv)) return rv;
-  rv = target->GetScreenCTM(getter_AddRefs(targetScreenCTM));
-  if (NS_FAILED(rv)) return rv;
+  GetScreenCTM(getter_AddRefs(ourScreenCTM));
+  if (!ourScreenCTM) return NS_ERROR_DOM_SVG_MATRIX_NOT_INVERTABLE;
+  target->GetScreenCTM(getter_AddRefs(targetScreenCTM));
+  if (!targetScreenCTM) return NS_ERROR_DOM_SVG_MATRIX_NOT_INVERTABLE;
   rv = targetScreenCTM->Inverse(getter_AddRefs(tmp));
   if (NS_FAILED(rv)) return rv;
   return tmp->Multiply(ourScreenCTM, _retval);  // addrefs, so we don't
@@ -1133,8 +1133,8 @@ nsSVGSVGElement::GetLength(PRUint8 aCtxType)
     w = viewbox.width;
     h = viewbox.height;
   } else {
-    nsSVGSVGElement *ctx = GetCtx();
-    if (ctx) {
+    if (nsSVGUtils::IsInnerSVG(this)) {
+      nsSVGSVGElement *ctx = GetCtx();
       w = mLengthAttributes[WIDTH].GetAnimValue(ctx);
       h = mLengthAttributes[HEIGHT].GetAnimValue(ctx);
     } else {

@@ -55,6 +55,7 @@
 #include "nsXULElement.h"
 #endif
 #include "nsBindingManager.h"
+#include "nsGenericHTMLElement.h"
 
 // This macro expects the ownerDocument of content_ to be in scope as
 // |nsIDocument* doc|
@@ -222,12 +223,23 @@ nsNodeUtils::LastRelease(nsINode* aNode)
     // the properties may want to use the owner document of the nsINode.
     static_cast<nsIDocument*>(aNode)->PropertyTable()->DeleteAllProperties();
   }
-  else if (aNode->HasProperties()) {
-    // Strong reference to the document so that deleting properties can't
-    // delete the document.
-    nsCOMPtr<nsIDocument> document = aNode->GetOwnerDoc();
-    if (document) {
-      document->PropertyTable()->DeleteAllPropertiesFor(aNode);
+  else {
+    if (aNode->HasProperties()) {
+      // Strong reference to the document so that deleting properties can't
+      // delete the document.
+      nsCOMPtr<nsIDocument> document = aNode->GetOwnerDoc();
+      if (document) {
+        document->PropertyTable()->DeleteAllPropertiesFor(aNode);
+      }
+    }
+
+    // I wonder whether it's faster to do the HasFlag check first....
+    if (aNode->IsNodeOfType(nsINode::eHTML_FORM_CONTROL) &&
+        aNode->HasFlag(ADDED_TO_FORM)) {
+      // Tell the form (if any) this node is going away.  Don't
+      // notify, since we're being destroyed in any case.
+      static_cast<nsGenericHTMLFormElement*>(aNode)->ClearForm(PR_TRUE,
+                                                               PR_FALSE);
     }
   }
   aNode->UnsetFlags(NODE_HAS_PROPERTIES);
@@ -452,8 +464,9 @@ nsNodeUtils::CloneNodeImpl(nsINode *aNode, PRBool aDeep, nsIDOMNode **aResult)
 
 class AdoptFuncData {
 public:
-  AdoptFuncData(nsIDOMElement *aElement, nsNodeInfoManager *aNewNodeInfoManager,
-                JSContext *aCx, JSObject *aOldScope, JSObject *aNewScope,
+  AdoptFuncData(nsGenericElement *aElement,
+                nsNodeInfoManager *aNewNodeInfoManager, JSContext *aCx,
+                JSObject *aOldScope, JSObject *aNewScope,
                 nsCOMArray<nsINode> &aNodesWithProperties)
     : mElement(aElement),
       mNewNodeInfoManager(aNewNodeInfoManager),
@@ -464,7 +477,7 @@ public:
   {
   }
 
-  nsIDOMElement *mElement;
+  nsGenericElement *mElement;
   nsNodeInfoManager *mNewNodeInfoManager;
   JSContext *mCx;
   JSObject *mOldScope;
@@ -483,7 +496,7 @@ AdoptFunc(nsAttrHashKey::KeyType aKey, nsIDOMNode *aData, void* aUserArg)
   // If we were passed an element we need to clone the attribute nodes and
   // insert them into the element.
   PRBool clone = data->mElement != nsnull;
-  nsCOMPtr<nsIDOMNode> node;
+  nsCOMPtr<nsINode> node;
   nsresult rv = nsNodeUtils::CloneAndAdopt(attr, clone, PR_TRUE,
                                            data->mNewNodeInfoManager,
                                            data->mCx, data->mOldScope,
@@ -508,14 +521,14 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
                            JSContext *aCx, JSObject *aOldScope,
                            JSObject *aNewScope,
                            nsCOMArray<nsINode> &aNodesWithProperties,
-                           nsINode *aParent, nsIDOMNode **aResult)
+                           nsINode *aParent, nsINode **aResult)
 {
   NS_PRECONDITION((!aClone && aNewNodeInfoManager) || !aCx,
                   "If cloning or not getting a new nodeinfo we shouldn't "
                   "rewrap");
   NS_PRECONDITION(!aCx || (aOldScope && aNewScope), "Must have scopes");
-  NS_PRECONDITION(!aParent || !aNode->IsNodeOfType(nsINode::eDOCUMENT),
-                  "Can't insert document nodes into a parent");
+  NS_PRECONDITION(!aParent || aNode->IsNodeOfType(nsINode::eCONTENT),
+                  "Can't insert document or attribute nodes into a parent");
 
   *aResult = nsnull;
 
@@ -566,10 +579,8 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
     if (aParent) {
       // If we're cloning we need to insert the cloned children into the cloned
       // parent.
-      nsCOMPtr<nsIContent> cloneContent = do_QueryInterface(clone, &rv);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      rv = aParent->AppendChildTo(cloneContent, PR_FALSE);
+      rv = aParent->AppendChildTo(static_cast<nsIContent*>(clone.get()),
+                                  PR_FALSE);
       NS_ENSURE_SUCCESS(rv, rv);
     }
     else if (aDeep && clone->IsNodeOfType(nsINode::eDOCUMENT)) {
@@ -632,16 +643,13 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
     // aNode's attributes.
     const nsDOMAttributeMap *map = elem->GetAttributeMap();
     if (map) {
-      nsCOMPtr<nsIDOMElement> element;
-      if (aClone) {
-        // If we're cloning we need to insert the cloned attribute nodes into
-        // the cloned element.
-        element = do_QueryInterface(clone, &rv);
-        NS_ENSURE_SUCCESS(rv, rv);
-      }
-
-      AdoptFuncData data(element, nodeInfoManager, aCx, aOldScope,
-                         aNewScope, aNodesWithProperties);
+      // If we're cloning we need to insert the cloned attribute nodes into the
+      // cloned element. We assume that the clone of an nsGenericElement is also
+      // an nsGenericElement.
+      nsGenericElement* elemClone =
+        aClone ? static_cast<nsGenericElement*>(clone.get()) : nsnull;
+      AdoptFuncData data(elemClone, nodeInfoManager, aCx, aOldScope, aNewScope,
+                         aNodesWithProperties);
 
       PRUint32 count = map->Enumerate(AdoptFunc, &data);
       NS_ENSURE_TRUE(count == map->Count(), NS_ERROR_FAILURE);
@@ -673,17 +681,17 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
     // aNode's children.
     PRUint32 i, length = aNode->GetChildCount();
     for (i = 0; i < length; ++i) {
-      nsCOMPtr<nsIDOMNode> child;
+      nsCOMPtr<nsINode> child;
       rv = CloneAndAdopt(aNode->GetChildAt(i), aClone, PR_TRUE, nodeInfoManager,
                          aCx, aOldScope, aNewScope, aNodesWithProperties,
                          clone, getter_AddRefs(child));
       NS_ENSURE_SUCCESS(rv, rv);
       if (isDeepDocumentClone) {
-        nsCOMPtr<nsIContent> content = do_QueryInterface(child);
-        if (content) {
-          static_cast<nsDocument*>(clone.get())->
-            RegisterNamedItems(content);
-        }
+        NS_ASSERTION(child->IsNodeOfType(nsINode::eCONTENT),
+                     "A clone of a child of a node is not nsIContent?");
+
+        nsIContent* content = static_cast<nsIContent*>(child.get());
+        static_cast<nsDocument*>(clone.get())->RegisterNamedItems(content);
       }
     }
   }
@@ -700,7 +708,7 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
   // cloning, so kids of the new node aren't confused about whether they're
   // in a document.
 #ifdef MOZ_XUL
-  if (aClone && !aParent && aNode->IsNodeOfType(nsINode::eXUL)) {
+  if (aClone && !aParent && aNode->IsNodeOfType(nsINode::eELEMENT) && static_cast<nsIContent*>(aNode)->IsXUL()) {
     nsXULElement *xulElem = static_cast<nsXULElement*>(elem);
     if (!xulElem->mPrototype || xulElem->IsInDoc()) {
       clone->SetFlags(NODE_FORCE_XBL_BINDINGS);
@@ -717,7 +725,9 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
     NS_ENSURE_TRUE(ok, NS_ERROR_OUT_OF_MEMORY);
   }
 
-  return clone ? CallQueryInterface(clone, aResult) : NS_OK;
+  clone.forget(aResult);
+
+  return NS_OK;
 }
 
 

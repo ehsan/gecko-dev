@@ -88,6 +88,7 @@ CMMSRCS = \
 		nsPrintSessionX.mm \
 		nsIdleServiceX.mm \
 		nsAccelerometerX.mm \
+		nsCocoaTextInputHandler.mm \
 		$(NULL)
 
 XPIDLSRCS	+= \
