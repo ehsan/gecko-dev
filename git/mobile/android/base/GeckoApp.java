@@ -614,11 +614,8 @@ abstract public class GeckoApp
 
                 if (lastHistoryEntry.mUri.equals(mLastUri))
                     return;
-
-                ViewportMetrics viewportMetrics = mSoftwareLayerClient.getGeckoViewportMetrics();
-                if (viewportMetrics != null)
-                    mLastViewport = viewportMetrics.toJSON();
-
+   
+                mLastViewport = mSoftwareLayerClient.getGeckoViewportMetrics().toJSON();
                 mLastUri = lastHistoryEntry.mUri;
                 mLastTitle = lastHistoryEntry.mTitle;
                 Bitmap bitmap = mSoftwareLayerClient.getBitmap();
