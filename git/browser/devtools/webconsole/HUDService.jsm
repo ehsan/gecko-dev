@@ -1362,11 +1362,6 @@ function HUD_SERVICE()
 HUD_SERVICE.prototype =
 {
   /**
-   * Last value entered
-   */
-  lastInputValue: "",
-
-  /**
    * L10N shortcut function
    *
    * @param string aName

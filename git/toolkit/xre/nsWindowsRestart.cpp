@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   Robert Strong <robert.bugzilla@gmail.com>
- *   Brian R. Bondy <netzen@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -50,9 +49,21 @@
 
 #include <shellapi.h>
 
-// Needed for CreateEnvironmentBlock
-#include <userenv.h>
-#pragma comment(lib, "userenv.lib")
+#ifndef ERROR_ELEVATION_REQUIRED
+#define ERROR_ELEVATION_REQUIRED 740L
+#endif
+
+BOOL (WINAPI *pCreateProcessWithTokenW)(HANDLE,
+                                        DWORD,
+                                        LPCWSTR,
+                                        LPWSTR,
+                                        DWORD,
+                                        LPVOID,
+                                        LPCWSTR,
+                                        LPSTARTUPINFOW,
+                                        LPPROCESS_INFORMATION);
+
+BOOL (WINAPI *pIsUserAnAdmin)(VOID);
 
 /**
  * Get the length that the string will take and takes into account the
@@ -151,7 +162,7 @@ static PRUnichar* ArgToString(PRUnichar *d, const PRUnichar *s)
  *
  * argv is UTF8
  */
-PRUnichar*
+static PRUnichar*
 MakeCommandLine(int argc, PRUnichar **argv)
 {
   int i;
@@ -220,14 +231,10 @@ FreeAllocStrings(int argc, PRUnichar **argv)
  */
 
 BOOL
-WinLaunchChild(const PRUnichar *exePath, 
-               int argc, PRUnichar **argv, 
-               HANDLE userToken = NULL);
+WinLaunchChild(const PRUnichar *exePath, int argc, PRUnichar **argv);
 
 BOOL
-WinLaunchChild(const PRUnichar *exePath, 
-               int argc, char **argv, 
-               HANDLE userToken)
+WinLaunchChild(const PRUnichar *exePath, int argc, char **argv)
 {
   PRUnichar** argvConverted = new PRUnichar*[argc];
   if (!argvConverted)
@@ -241,73 +248,34 @@ WinLaunchChild(const PRUnichar *exePath,
     }
   }
 
-  BOOL ok = WinLaunchChild(exePath, argc, argvConverted, userToken);
+  BOOL ok = WinLaunchChild(exePath, argc, argvConverted);
   FreeAllocStrings(argc, argvConverted);
   return ok;
 }
 
 BOOL
-WinLaunchChild(const PRUnichar *exePath, 
-               int argc, 
-               PRUnichar **argv, 
-               HANDLE userToken)
+WinLaunchChild(const PRUnichar *exePath, int argc, PRUnichar **argv)
 {
   PRUnichar *cl;
   BOOL ok;
 
   cl = MakeCommandLine(argc, argv);
-  if (!cl) {
+  if (!cl)
     return FALSE;
-  }
 
-  STARTUPINFOW si = {0};
-  si.cb = sizeof(STARTUPINFOW);
-  si.lpDesktop = L"winsta0\\Default";
+  STARTUPINFOW si = {sizeof(si), 0};
   PROCESS_INFORMATION pi = {0};
 
-  DWORD creationFlags = 0;
-#ifdef DEBUG
-  creationFlags |= CREATE_NEW_CONSOLE;
-#endif
-  if (userToken == NULL) {
-    ok = CreateProcessW(exePath,
-                        cl,
-                        NULL,  // no special security attributes
-                        NULL,  // no special thread attributes
-                        FALSE, // don't inherit filehandles
-                        creationFlags,
-                        NULL,  // inherit my environment
-                        NULL,  // use my current directory
-                        &si,
-                        &pi);
-  } else {
-    // Create an environment block for the process we're about to start using
-    // the user's token.
-    LPVOID environmentBlock = NULL;
-    if (!CreateEnvironmentBlock(&environmentBlock, userToken, TRUE)) {
-      environmentBlock = NULL;
-    }
-
-    ok = CreateProcessAsUserW(userToken, 
-                              exePath,
-                              cl,
-                              NULL,  // no special security attributes
-                              NULL,  // no special thread attributes
-                              FALSE, // don't inherit filehandles
-                              CREATE_DEFAULT_ERROR_MODE |
-#ifdef DEBUG
-                              CREATE_NEW_CONSOLE |
-#endif
-                              CREATE_UNICODE_ENVIRONMENT,                              
-                              environmentBlock,
-                              NULL,  // use my current directory
-                              &si,
-                              &pi);
-
-    if (environmentBlock) {
-      DestroyEnvironmentBlock(environmentBlock);
-    }
-  }
+  ok = CreateProcessW(exePath,
+                      cl,
+                      NULL,  // no special security attributes
+                      NULL,  // no special thread attributes
+                      FALSE, // don't inherit filehandles
+                      0,     // No special process creation flags
+                      NULL,  // inherit my environment
+                      NULL,  // use my current directory
+                      &si,
+                      &pi);
 
   if (ok) {
     CloseHandle(pi.hProcess);
@@ -315,14 +283,15 @@ WinLaunchChild(const PRUnichar *exePath,
   } else {
     LPVOID lpMsgBuf = NULL;
     FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-                  FORMAT_MESSAGE_FROM_SYSTEM |
-                  FORMAT_MESSAGE_IGNORE_INSERTS,
-                  NULL,
-                  GetLastError(),
-                  MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                  (LPTSTR) &lpMsgBuf,
-                  0,
-                  NULL);
+		  FORMAT_MESSAGE_FROM_SYSTEM |
+		  FORMAT_MESSAGE_IGNORE_INSERTS,
+		  NULL,
+		  GetLastError(),
+		  MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+		  (LPTSTR) &lpMsgBuf,
+		  0,
+		  NULL
+		  );
     wprintf(L"Error restarting: %s\n", lpMsgBuf ? lpMsgBuf : L"(null)");
     if (lpMsgBuf)
       LocalFree(lpMsgBuf);
@@ -332,4 +301,3 @@ WinLaunchChild(const PRUnichar *exePath,
 
   return ok;
 }
-
