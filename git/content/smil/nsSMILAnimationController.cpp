@@ -799,16 +799,9 @@ nsSMILAnimationController::GetTargetIdentifierForAnimation(
   bool isCSS = false;
   if (attributeType == eSMILTargetAttrType_auto) {
     if (attributeNamespaceID == kNameSpaceID_None) {
-      // width/height are special as they may be attributes or for
-      // outer-<svg> elements, mapped into style.
-      if (attributeName == nsGkAtoms::width ||
-          attributeName == nsGkAtoms::height) {
-        isCSS = targetElem->GetNameSpaceID() != kNameSpaceID_SVG;
-      } else {
-        nsCSSProperty prop =
-          nsCSSProps::LookupProperty(nsDependentAtomString(attributeName));
-        isCSS = nsSMILCSSProperty::IsPropertyAnimatable(prop);
-      }
+      nsCSSProperty prop =
+        nsCSSProps::LookupProperty(nsDependentAtomString(attributeName));
+      isCSS = nsSMILCSSProperty::IsPropertyAnimatable(prop);
     }
   } else {
     isCSS = (attributeType == eSMILTargetAttrType_CSS);

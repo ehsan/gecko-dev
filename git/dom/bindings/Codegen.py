@@ -1140,7 +1140,7 @@ class CallbackObjectUnwrapper:
       ${codeOnFailure}
     }""").substitute(self.substitution)
 
-def getArgumentConversionTemplate(type, descriptor, invalidEnumValueFatal=True):
+def getArgumentConversionTemplate(type, descriptor):
     if type.isSequence() or type.isArray():
         raise TypeError("Can't handle sequence or array arguments yet")
 
@@ -1267,17 +1267,12 @@ def getArgumentConversionTemplate(type, descriptor, invalidEnumValueFatal=True):
             "  %(enumtype)s ${name};\n"
             "  {\n"
             "    bool ok;\n"
-            "    int index = FindEnumStringIndex(cx, ${argVal}, %(values)s, &ok);\n"
+            "    ${name} = static_cast<%(enumtype)s>(FindEnumStringIndex(cx, ${argVal}, %(values)s, &ok));\n"
             "    if (!ok) {\n"
             "      return false;\n"
             "    }\n"
-            "    if (index < 0) {\n"
-            "      return %(failureCode)s;\n"
-            "    }\n"
-            "    ${name} = static_cast<%(enumtype)s>(index);\n"
             "  }" % { "enumtype" : enum + "::value",
-                        "values" : enum + "::strings",
-                   "failureCode" : "Throw<false>(cx, NS_ERROR_XPC_BAD_CONVERT_JS)" if invalidEnumValueFatal else "true" })
+                      "values" : enum + "::strings" })
 
     if type.isCallback():
         # XXXbz we're going to assume that callback types are always
@@ -1411,8 +1406,7 @@ class CGArgumentConverter(CGThing):
     argument list, and the argv and argc strings and generates code to
     unwrap the argument to the right native type.
     """
-    def __init__(self, argument, index, argv, argc, descriptorProvider,
-                 invalidEnumValueFatal=True):
+    def __init__(self, argument, index, argv, argc, descriptorProvider):
         CGThing.__init__(self)
         self.argument = argument
         # XXXbz should optional jsval args get JSVAL_VOID? What about
@@ -1447,15 +1441,13 @@ class CGArgumentConverter(CGThing):
                 argument.type.unroll().inner.identifier.name)
             self.descriptor = descriptor
             self.replacementVariables["typeName"] = descriptor.nativeType
-        self.invalidEnumValueFatal = invalidEnumValueFatal
 
     def define(self):
         return string.Template(
             re.sub(unindenter,
                    "",
                    getArgumentConversionTemplate(self.argument.type,
-                                                 self.descriptor,
-                                                 invalidEnumValueFatal=self.invalidEnumValueFatal))
+                                                 self.descriptor))
             ).substitute(self.replacementVariables)
 
 def getWrapTemplateForTypeImpl(type, result, descriptorProvider,
@@ -1696,8 +1688,7 @@ class CGPerSignatureCall(CGThing):
         else:
             cgThings = []
         cgThings.extend([CGArgumentConverter(arguments[i], i, self.getArgv(),
-                                             self.getArgc(), self.descriptor,
-                                             invalidEnumValueFatal=self.invalidEnumValueFatal()) for
+                                             self.getArgc(), self.descriptor) for
                          i in range(argConversionStartsAt, self.argCount)])
 
         cgThings.append(CGCallGenerator(
@@ -1713,8 +1704,6 @@ class CGPerSignatureCall(CGThing):
         return "\nJS::Value* argv = JS_ARGV(cx, vp);\n"
     def getArgc(self):
         return "argc"
-    def invalidEnumValueFatal(self):
-        return True
 
     def isFallible(self):
         return not 'infallible' in self.extendedAttributes
@@ -2157,9 +2146,6 @@ class CGSetterCall(CGGetterSetterCall):
                     "}")
         # We just get our stuff from vp
         return ""
-    def invalidEnumValueFatal(self):
-        return False
-
 
 class CGAbstractBindingMethod(CGAbstractStaticMethod):
     """

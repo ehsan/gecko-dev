@@ -254,7 +254,6 @@ nsSMILCSSProperty::IsPropertyAnimatable(nsCSSProperty aPropID)
     case eCSSProperty_font_style:
     case eCSSProperty_font_variant:
     case eCSSProperty_font_weight:
-    case eCSSProperty_height:
     case eCSSProperty_image_rendering:
     case eCSSProperty_letter_spacing:
     case eCSSProperty_lighting_color:
@@ -283,7 +282,6 @@ nsSMILCSSProperty::IsPropertyAnimatable(nsCSSProperty aPropID)
     case eCSSProperty_text_decoration_line:
     case eCSSProperty_text_rendering:
     case eCSSProperty_visibility:
-    case eCSSProperty_width:
     case eCSSProperty_word_spacing:
       return true;
 
