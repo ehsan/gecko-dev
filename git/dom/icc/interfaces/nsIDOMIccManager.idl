@@ -1,10 +1,13 @@
-/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-[Pref="dom.icc.enabled"]
-interface MozIccManager : EventTarget
+#include "nsIDOMEventTarget.idl"
+
+interface nsIDOMMozIcc;
+
+[scriptable, builtinclass, uuid(67e40e8e-35ee-40a4-a5b8-414588675133)]
+interface nsIDOMMozIccManager : nsIDOMEventTarget
 {
   /**
    * STK menu presentation types.
@@ -228,8 +231,7 @@ interface MozIccManager : EventTarget
   /**
    * Array of iccIds that are currently detected.
    */
-  [Cached, Pure]
-  readonly attribute sequence<DOMString> iccIds;
+  readonly attribute jsval iccIds;  // DOMString[]
 
   /**
    * Get ICC object by iccId.
@@ -239,15 +241,15 @@ interface MozIccManager : EventTarget
    *
    * @return see MozIcc.webidl for the detail.
    */
-  nsISupports getIccById(DOMString iccId);
+  nsISupports getIccById(in DOMString iccId);
 
   /**
    * 'oniccdetected' event is notified whenever a new ICC is detected.
    */
-  attribute EventHandler oniccdetected;
+  [implicit_jscontext] attribute jsval oniccdetected;
 
   /**
    * 'oniccundetected' event is notified whenever an ICC becomes undetected.
    */
-  attribute EventHandler oniccundetected;
+  [implicit_jscontext] attribute jsval oniccundetected;
 };

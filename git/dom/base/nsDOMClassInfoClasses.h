@@ -90,6 +90,10 @@ DOMCI_CLASS(MozCSSKeyframesRule)
 
 DOMCI_CLASS(CSSPageRule)
 
+#ifdef MOZ_B2G_RIL
+DOMCI_CLASS(MozIccManager)
+#endif
+
 DOMCI_CLASS(CSSFontFeatureValuesRule)
 
 DOMCI_CLASS(UserDataHandler)

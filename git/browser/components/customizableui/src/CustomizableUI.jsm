@@ -297,12 +297,11 @@ let CustomizableUIInternal = {
 
     let areaIsKnown = gAreas.has(aName);
     let props = areaIsKnown ? gAreas.get(aName) : new Map();
-    const kImmutableProperties = new Set(["type", "legacy", "overflowable"]);
+    if (areaIsKnown && aProperties["type"] &&
+        props.get("type") != aProperties["type"]) {
+      throw new Error("An area cannot change types");
+    }
     for (let key in aProperties) {
-      if (areaIsKnown && kImmutableProperties.has(key) &&
-          props.get(key) != aProperties[key]) {
-        throw new Error("An area cannot change the property for '" + key + "'");
-      }
       //XXXgijs for special items, we need to make sure they have an appropriate ID
       // so we aren't perpetually in a non-default state:
       if (key == "defaultPlacements" && Array.isArray(aProperties[key])) {
@@ -3459,8 +3458,8 @@ function WidgetSingleWrapper(aWidget, aNode) {
     this[prop] = aWidget[prop];
   }
 
-  const kNodeProps = ["label", "tooltiptext"];
-  for (let prop of kNodeProps) {
+  const nodeProps = ["label", "tooltiptext"];
+  for (let prop of nodeProps) {
     let propertyName = prop;
     // Look at the node for these, instead of the widget data, to ensure the
     // wrapper always reflects this live instance.

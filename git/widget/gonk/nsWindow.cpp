@@ -194,6 +194,9 @@ nsWindow::DoDraw(void)
     while (targetWindow->GetLastChild())
         targetWindow = (nsWindow *)targetWindow->GetLastChild();
 
+    nsIntRegion region = sTopWindows[0]->mDirtyRegion;
+    sTopWindows[0]->mDirtyRegion.SetEmpty();
+
     nsIWidgetListener* listener = targetWindow->GetWidgetListener();
     if (listener) {
         listener->WillPaintWindow(targetWindow);
@@ -213,7 +216,7 @@ nsWindow::DoDraw(void)
 
         {
             nsRefPtr<gfxContext> ctx = new gfxContext(targetSurface);
-            gfxUtils::PathFromRegion(ctx, sVirtualBounds);
+            gfxUtils::PathFromRegion(ctx, region);
             ctx->Clip();
 
             // No double-buffering needed.
@@ -223,13 +226,13 @@ nsWindow::DoDraw(void)
 
             listener = targetWindow->GetWidgetListener();
             if (listener) {
-                listener->PaintWindow(targetWindow, sVirtualBounds);
+                listener->PaintWindow(targetWindow, region);
             }
         }
 
         if (!sUsingOMTC) {
             targetSurface->Flush();
-            Framebuffer::Present(sVirtualBounds);
+            Framebuffer::Present(region);
         }
     } else {
         NS_RUNTIMEABORT("Unexpected layer manager type");
@@ -422,6 +425,7 @@ nsWindow::Invalidate(const nsIntRect &aRect)
     if (top != sTopWindows[0] && this != sTopWindows[0])
         return NS_OK;
 
+    mDirtyRegion.Or(mDirtyRegion, aRect);
     gDrawRequest = true;
     mozilla::NotifyEvent();
     return NS_OK;

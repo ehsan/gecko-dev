@@ -117,6 +117,7 @@ public:
 protected:
     nsWindow* mParent;
     bool mVisible;
+    nsIntRegion mDirtyRegion;
     InputContext mInputContext;
     nsCOMPtr<nsIIdleServiceInternal> mIdleService;
 

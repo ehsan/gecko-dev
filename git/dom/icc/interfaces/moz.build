@@ -6,6 +6,7 @@
 
 XPIDL_SOURCES += [
     'nsIDOMIccInfo.idl',
+    'nsIDOMIccManager.idl',
     'nsIIccProvider.idl',
 ]
 

@@ -7,7 +7,8 @@ package org.mozilla.gecko.webapp;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URI;
+import java.net.MalformedURLException;
+import java.net.URL;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -18,11 +19,17 @@ import org.mozilla.gecko.GeckoThread;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
+import org.mozilla.gecko.webapp.ApkResources;
+import org.mozilla.gecko.webapp.InstallHelper;
 import org.mozilla.gecko.webapp.InstallHelper.InstallCallback;
 
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager.NameNotFoundException;
+import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
@@ -38,7 +45,7 @@ import android.widget.TextView;
 public class WebappImpl extends GeckoApp implements InstallCallback {
     private static final String LOGTAG = "GeckoWebappImpl";
 
-    private URI mOrigin;
+    private URL mOrigin;
     private TextView mTitlebarText = null;
     private View mTitlebar = null;
 
@@ -265,11 +272,11 @@ public class WebappImpl extends GeckoApp implements InstallCallback {
                         return;
                     }
 
-                    final URI uri;
+                    final URL url;
 
                     try {
-                        uri = new URI(urlString);
-                    } catch (java.net.URISyntaxException ex) {
+                        url = new URL(urlString);
+                    } catch (java.net.MalformedURLException ex) {
                         mTitlebarText.setText(urlString);
 
                         // If we can't parse the url, and its an app protocol hide
@@ -283,10 +290,10 @@ public class WebappImpl extends GeckoApp implements InstallCallback {
                         return;
                     }
 
-                    if (mOrigin != null && mOrigin.getHost().equals(uri.getHost())) {
+                    if (mOrigin != null && mOrigin.getHost().equals(url.getHost())) {
                         mTitlebar.setVisibility(View.GONE);
                     } else {
-                        mTitlebarText.setText(uri.getScheme() + "://" + uri.getHost());
+                        mTitlebarText.setText(url.getProtocol() + "://" + url.getHost());
                         mTitlebar.setVisibility(View.VISIBLE);
                     }
                 }
@@ -343,8 +350,8 @@ public class WebappImpl extends GeckoApp implements InstallCallback {
 
     private void setOrigin(String origin) {
         try {
-            mOrigin = new URI(origin);
-        } catch (java.net.URISyntaxException ex) {
+            mOrigin = new URL(origin);
+        } catch (java.net.MalformedURLException ex) {
             // If this isn't an app: URL, just settle for not having an origin.
             if (!origin.startsWith("app://")) {
                 return;
@@ -356,8 +363,8 @@ public class WebappImpl extends GeckoApp implements InstallCallback {
                 Uri data = getIntent().getData();
                 if (data != null) {
                     try {
-                        mOrigin = new URI(data.toString());
-                    } catch (java.net.URISyntaxException ex2) {
+                        mOrigin = new URL(data.toString());
+                    } catch (java.net.MalformedURLException ex2) {
                         Log.e(LOGTAG, "Unable to parse intent URL: ", ex);
                     }
                 }
