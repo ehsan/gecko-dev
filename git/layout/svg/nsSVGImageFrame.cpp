@@ -438,8 +438,8 @@ nsSVGImageFrame::GetFrameForPoint(const nsPoint &aPoint)
                GetRasterImageTransform(nativeWidth, nativeHeight,
                                        FOR_HIT_TESTING),
                0, 0, nativeWidth, nativeHeight,
-               PresContext()->AppUnitsToFloatCSSPixels(aPoint.x),
-               PresContext()->AppUnitsToFloatCSSPixels(aPoint.y))) {
+               PresContext()->AppUnitsToDevPixels(aPoint.x),
+               PresContext()->AppUnitsToDevPixels(aPoint.y))) {
         return nullptr;
       }
     }

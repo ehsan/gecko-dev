@@ -161,11 +161,11 @@ this.WebappManager = {
         }
 
         DOMApplicationRegistry.confirmInstall(aData, localDir,
-          (aApp, aManifest, aZipPath) => Task.spawn((function*() {
+          (aManifest, aZipPath) => Task.spawn((function*() {
             try {
-              yield nativeApp.install(aApp, aManifest, aZipPath);
+              yield nativeApp.install(aManifest, aZipPath);
               yield this.installations[manifestURL].promise;
-              notifyInstallSuccess(aApp, nativeApp, bundle);
+              notifyInstallSuccess(aData.app, nativeApp, bundle);
             } catch (ex) {
               Cu.reportError("Error installing webapp: " + ex);
               // TODO: Notify user that the installation has failed

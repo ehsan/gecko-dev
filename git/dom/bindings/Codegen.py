@@ -492,7 +492,7 @@ def PrototypeIDAndDepth(descriptor):
 def UseHolderForUnforgeable(descriptor):
     return (descriptor.concrete and
             descriptor.proxy and
-            any(m for m in descriptor.interface.members if (m.isAttr() or m.isMethod()) and m.isUnforgeable()))
+            any(m for m in descriptor.interface.members if m.isAttr() and m.isUnforgeable()))
 
 
 def CallOnUnforgeableHolder(descriptor, code, isXrayCheck=None,
@@ -1987,8 +1987,7 @@ class MethodDefiner(PropertyDefiner):
     """
     A class for defining methods on a prototype object.
     """
-    def __init__(self, descriptor, name, static, unforgeable=False):
-        assert not (static and unforgeable)
+    def __init__(self, descriptor, name, static):
         PropertyDefiner.__init__(self, descriptor, name)
 
         # FIXME https://bugzilla.mozilla.org/show_bug.cgi?id=772822
@@ -1999,7 +1998,6 @@ class MethodDefiner(PropertyDefiner):
         if descriptor.interface.hasInterfacePrototypeObject() or static:
             methods = [m for m in descriptor.interface.members if
                        m.isMethod() and m.isStatic() == static and
-                       m.isUnforgeable() == unforgeable and
                        not m.isIdentifierLess()]
         else:
             methods = []
@@ -2108,8 +2106,6 @@ class MethodDefiner(PropertyDefiner):
                 "condition": MemberCondition(None, None)
             })
 
-        self.unforgeable = unforgeable
-
         if static:
             if not descriptor.interface.hasInterfaceObject():
                 # static methods go on the interface object
@@ -2125,10 +2121,6 @@ class MethodDefiner(PropertyDefiner):
 
         def condition(m, d):
             return m["condition"]
-
-        def flags(m):
-            unforgeable = " | JSPROP_PERMANENT" if self.unforgeable else ""
-            return m["flags"] + unforgeable
 
         def specData(m):
             if "selfHostedName" in m:
@@ -2165,7 +2157,7 @@ class MethodDefiner(PropertyDefiner):
                     else:
                         jitinfo = "nullptr"
 
-            return (m["name"], accessor, jitinfo, m["length"], flags(m), selfHostedName)
+            return (m["name"], accessor, jitinfo, m["length"], m["flags"], selfHostedName)
 
         return self.generatePrefableArray(
             array, name,
@@ -2295,8 +2287,6 @@ class PropertyArrays():
                                        static=True)
         self.methods = MethodDefiner(descriptor, "Methods", static=False)
         self.attrs = AttrDefiner(descriptor, "Attributes", static=False)
-        self.unforgeableMethods = MethodDefiner(descriptor, "UnforgeableMethods",
-                                                static=False, unforgeable=True)
         self.unforgeableAttrs = AttrDefiner(descriptor, "UnforgeableAttributes",
                                             static=False, unforgeable=True)
         self.consts = ConstDefiner(descriptor, "Constants")
@@ -2304,7 +2294,7 @@ class PropertyArrays():
     @staticmethod
     def arrayNames():
         return ["staticMethods", "staticAttrs", "methods", "attrs",
-                "unforgeableMethods", "unforgeableAttrs", "consts"]
+                "unforgeableAttrs", "consts"]
 
     def hasChromeOnly(self):
         return any(getattr(self, a).hasChromeOnly() for a in self.arrayNames())
@@ -2784,9 +2774,7 @@ def InitUnforgeablePropertiesOnObject(descriptor, obj, properties, failureReturn
     """
     properties is a PropertyArrays instance
     """
-    unforgeables = []
-
-    defineUnforgeableAttrs = fill(
+    defineUnforgeables = fill(
         """
         if (!DefineUnforgeableAttributes(aCx, ${obj}, %s)) {
           return${rv};
@@ -2794,27 +2782,17 @@ def InitUnforgeablePropertiesOnObject(descriptor, obj, properties, failureReturn
         """,
         obj=obj,
         rv=" " + failureReturnValue if failureReturnValue else "")
-    defineUnforgeableMethods = fill(
-        """
-        if (!DefineUnforgeableMethods(aCx, ${obj}, %s)) {
-          return${rv};
-        }
-        """,
-        obj=obj,
-        rv=" " + failureReturnValue if failureReturnValue else "")
 
-    unforgeableMembers = [
-        (defineUnforgeableAttrs, properties.unforgeableAttrs),
-        (defineUnforgeableMethods, properties.unforgeableMethods)
-    ]
-    for (template, array) in unforgeableMembers:
-        if array.hasNonChromeOnly():
-            unforgeables.append(CGGeneric(template % array.variableName(False)))
-        if array.hasChromeOnly():
-            unforgeables.append(
-                CGIfWrapper(CGGeneric(template % array.variableName(True)),
-                            "nsContentUtils::ThreadsafeIsCallerChrome()"))
-
+    unforgeableAttrs = properties.unforgeableAttrs
+    unforgeables = []
+    if unforgeableAttrs.hasNonChromeOnly():
+        unforgeables.append(CGGeneric(defineUnforgeables %
+                                      unforgeableAttrs.variableName(False)))
+    if unforgeableAttrs.hasChromeOnly():
+        unforgeables.append(
+            CGIfWrapper(CGGeneric(defineUnforgeables %
+                                  unforgeableAttrs.variableName(True)),
+                        "nsContentUtils::ThreadsafeIsCallerChrome()"))
     return CGList(unforgeables)
 
 

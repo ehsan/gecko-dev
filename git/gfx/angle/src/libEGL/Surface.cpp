@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2002-2014 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2012 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -9,8 +9,6 @@
 // Implements EGLSurface and related functionality. [EGL 1.4] section 2.2 page 3.
 
 #include <tchar.h>
-
-#include <algorithm>
 
 #include "libEGL/Surface.h"
 
@@ -22,10 +20,12 @@
 #include "libEGL/main.h"
 #include "libEGL/Display.h"
 
+#include <algorithm>
+
 namespace egl
 {
 
-Surface::Surface(Display *display, const Config *config, HWND window, EGLint fixedSize, EGLint width, EGLint height, EGLint postSubBufferSupported) 
+Surface::Surface(Display *display, const Config *config, HWND window, EGLint postSubBufferSupported) 
     : mDisplay(display), mConfig(config), mWindow(window), mPostSubBufferSupported(postSubBufferSupported)
 {
     mRenderer = mDisplay->getRenderer();
@@ -39,10 +39,9 @@ Surface::Surface(Display *display, const Config *config, HWND window, EGLint fix
     mRenderBuffer = EGL_BACK_BUFFER;
     mSwapBehavior = EGL_BUFFER_PRESERVED;
     mSwapInterval = -1;
-    mWidth = width;
-    mHeight = height;
+    mWidth = -1;
+    mHeight = -1;
     setSwapInterval(1);
-    mFixedSize = fixedSize;
 
     subclassWindow();
 }
@@ -62,8 +61,6 @@ Surface::Surface(Display *display, const Config *config, HANDLE shareHandle, EGL
     mSwapBehavior = EGL_BUFFER_PRESERVED;
     mSwapInterval = -1;
     setSwapInterval(1);
-    // This constructor is for offscreen surfaces, which are always fixed-size.
-    mFixedSize = EGL_TRUE;
 }
 
 Surface::~Surface()
@@ -99,7 +96,7 @@ bool Surface::resetSwapChain()
     int width;
     int height;
 
-    if (!mFixedSize)
+    if (mWindow)
     {
         RECT windowRect;
         if (!GetClientRect(getWindowHandle(), &windowRect))
@@ -143,7 +140,7 @@ bool Surface::resizeSwapChain(int backbufferWidth, int backbufferHeight)
     ASSERT(backbufferWidth >= 0 && backbufferHeight >= 0);
     ASSERT(mSwapChain);
 
-    EGLint status = mSwapChain->resize(std::max(1, backbufferWidth), std::max(1, backbufferHeight));
+    EGLint status = mSwapChain->resize(backbufferWidth, backbufferHeight);
 
     if (status == EGL_CONTEXT_LOST)
     {
@@ -166,7 +163,7 @@ bool Surface::resetSwapChain(int backbufferWidth, int backbufferHeight)
     ASSERT(backbufferWidth >= 0 && backbufferHeight >= 0);
     ASSERT(mSwapChain);
 
-    EGLint status = mSwapChain->reset(std::max(1, backbufferWidth), std::max(1, backbufferHeight), mSwapInterval);
+    EGLint status = mSwapChain->reset(backbufferWidth, backbufferHeight, mSwapInterval);
 
     if (status == EGL_CONTEXT_LOST)
     {
@@ -292,7 +289,6 @@ void Surface::unsubclassWindow()
     if(parentWndFunc)
     {
         LONG_PTR prevWndFunc = SetWindowLongPtr(mWindow, GWLP_WNDPROC, parentWndFunc);
-        UNUSED_ASSERTION_VARIABLE(prevWndFunc);
         ASSERT(prevWndFunc == reinterpret_cast<LONG_PTR>(SurfaceWindowProc));
     }
 
@@ -304,26 +300,16 @@ void Surface::unsubclassWindow()
 bool Surface::checkForOutOfDateSwapChain()
 {
     RECT client;
-    int clientWidth = getWidth();
-    int clientHeight = getHeight();
-    bool sizeDirty = false;
-    if (!mFixedSize && !IsIconic(getWindowHandle()))
+    if (!GetClientRect(getWindowHandle(), &client))
     {
-        // The window is automatically resized to 150x22 when it's minimized, but the swapchain shouldn't be resized
-        // because that's not a useful size to render to.
-        if (!GetClientRect(getWindowHandle(), &client))
-        {
-            ASSERT(false);
-            return false;
-        }
-
-        // Grow the buffer now, if the window has grown. We need to grow now to avoid losing information.
-        clientWidth = client.right - client.left;
-        clientHeight = client.bottom - client.top;
-        sizeDirty = clientWidth != getWidth() || clientHeight != getHeight();
+        ASSERT(false);
+        return false;
     }
 
-    bool wasDirty = (mSwapIntervalDirty || sizeDirty);
+    // Grow the buffer now, if the window has grown. We need to grow now to avoid losing information.
+    int clientWidth = client.right - client.left;
+    int clientHeight = client.bottom - client.top;
+    bool sizeDirty = clientWidth != getWidth() || clientHeight != getHeight();
 
     if (mSwapIntervalDirty)
     {
@@ -334,7 +320,7 @@ bool Surface::checkForOutOfDateSwapChain()
         resizeSwapChain(clientWidth, clientHeight);
     }
 
-    if (wasDirty)
+    if (mSwapIntervalDirty || sizeDirty)
     {
         if (static_cast<egl::Surface*>(getCurrentDrawSurface()) == this)
         {
@@ -359,8 +345,18 @@ bool Surface::postSubBuffer(EGLint x, EGLint y, EGLint width, EGLint height)
         // Spec is not clear about how this should be handled.
         return true;
     }
-
+    
     return swapRect(x, y, width, height);
+}
+
+EGLint Surface::getWidth() const
+{
+    return mWidth;
+}
+
+EGLint Surface::getHeight() const
+{
+    return mHeight;
 }
 
 EGLint Surface::isPostSubBufferSupported() const
@@ -379,42 +375,12 @@ void Surface::setSwapInterval(EGLint interval)
     {
         return;
     }
-
+    
     mSwapInterval = interval;
     mSwapInterval = std::max(mSwapInterval, mRenderer->getMinSwapInterval());
     mSwapInterval = std::min(mSwapInterval, mRenderer->getMaxSwapInterval());
 
     mSwapIntervalDirty = true;
-}
-
-EGLint Surface::getConfigID() const
-{
-    return mConfig->mConfigID;
-}
-
-EGLint Surface::getWidth() const
-{
-    return mWidth;
-}
-
-EGLint Surface::getHeight() const
-{
-    return mHeight;
-}
-
-EGLint Surface::getPixelAspectRatio() const
-{
-    return mPixelAspectRatio;
-}
-
-EGLenum Surface::getRenderBuffer() const
-{
-    return mRenderBuffer;
-}
-
-EGLenum Surface::getSwapBehavior() const
-{
-    return mSwapBehavior;
 }
 
 EGLenum Surface::getTextureFormat() const
@@ -435,11 +401,6 @@ void Surface::setBoundTexture(gl::Texture2D *texture)
 gl::Texture2D *Surface::getBoundTexture() const
 {
     return mTexture;
-}
-
-EGLint Surface::isFixedSize() const
-{
-    return mFixedSize;
 }
 
 EGLenum Surface::getFormat() const

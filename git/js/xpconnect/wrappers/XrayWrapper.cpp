@@ -392,12 +392,11 @@ public:
         RootedObject holder(cx, ensureHolder(cx, wrapper));
         JSProtoKey key = getProtoKey(holder);
         if (isPrototype(holder)) {
-            JSProtoKey parentKey = js::ParentKeyForStandardClass(key);
-            if (parentKey == JSProto_Null) {
+            if (key == JSProto_Object) {
                 protop.set(nullptr);
                 return true;
             }
-            key = parentKey;
+            key = JSProto_Object;
         }
 
         {
@@ -458,7 +457,7 @@ inline bool
 SilentFailure(JSContext *cx, HandleId id, const char *reason)
 {
 #ifdef DEBUG
-    nsAutoJSString name;
+    nsDependentJSString name;
     if (!name.init(cx, id))
         return false;
     AutoFilename filename;
@@ -617,8 +616,9 @@ JSXrayTraits::resolveOwnProperty(JSContext *cx, const Wrapper &jsWrapper,
 
     // Grab the JSClass. We require all Xrayable classes to have a ClassSpec.
     const js::Class *clasp = js::GetObjectClass(target);
+    JSProtoKey protoKey = JSCLASS_CACHED_PROTO_KEY(clasp);
+    MOZ_ASSERT(protoKey == getProtoKey(holder));
     MOZ_ASSERT(clasp->spec.defined());
-    JSProtoKey protoKey = getProtoKey(holder);
 
     // Handle the 'constructor' property.
     if (id == GetRTIdByIndex(cx, XPCJSRuntime::IDX_CONSTRUCTOR)) {
@@ -637,11 +637,6 @@ JSXrayTraits::resolveOwnProperty(JSContext *cx, const Wrapper &jsWrapper,
         desc.value().setObject(*constructor);
         return true;
     }
-
-    // Bail out for dependent classes, since all the rest of the properties we'll
-    // resolve here will live on the parent prototype.
-    if (js::StandardClassIsDependent(protoKey))
-        return true;
 
     // Compute the property name we're looking for. We'll handle indexed
     // properties when we start supporting arrays.
@@ -872,17 +867,8 @@ JSXrayTraits::enumerateNames(JSContext *cx, HandleObject wrapper, unsigned flags
 
     // Grab the JSClass. We require all Xrayable classes to have a ClassSpec.
     const js::Class *clasp = js::GetObjectClass(target);
+    MOZ_ASSERT(JSCLASS_CACHED_PROTO_KEY(clasp) == getProtoKey(holder));
     MOZ_ASSERT(clasp->spec.defined());
-    JSProtoKey protoKey = getProtoKey(holder);
-
-    // Add the 'constructor' property.
-    if (!props.append(GetRTIdByIndex(cx, XPCJSRuntime::IDX_CONSTRUCTOR)))
-        return false;
-
-    // Bail out for dependent classes, since all the rest of the properties we'll
-    // resolve here will live on the parent prototype.
-    if (js::StandardClassIsDependent(protoKey))
-        return true;
 
     // Intern all the strings, and pass theme to the caller.
     for (const JSFunctionSpec *fs = clasp->spec.prototypeFunctions; fs && fs->name; ++fs) {
@@ -907,7 +893,8 @@ JSXrayTraits::enumerateNames(JSContext *cx, HandleObject wrapper, unsigned flags
             return false;
     }
 
-    return true;
+    // Add the 'constructor' property.
+    return props.append(GetRTIdByIndex(cx, XPCJSRuntime::IDX_CONSTRUCTOR));
 }
 
 JSObject*
@@ -2252,9 +2239,9 @@ XrayWrapper<Base, Traits>::getPropertyDescriptor(JSContext *cx, HandleObject wra
         JSID_IS_STRING(id) &&
         (win = AsWindow(cx, wrapper)))
     {
-        nsAutoJSString name;
-        if (!name.init(cx, JSID_TO_STRING(id)))
-            return false;
+        // Note - The infallibleInit() depends on the JSID_IS_STRING check above.
+        nsDependentJSString name;
+        name.infallibleInit(id);
         nsCOMPtr<nsIDOMWindow> childDOMWin = win->GetChildWindow(name);
         if (childDOMWin) {
             nsGlobalWindow *cwin = static_cast<nsGlobalWindow*>(childDOMWin.get());

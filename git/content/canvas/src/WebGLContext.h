@@ -1385,6 +1385,7 @@ public:
     NS_DECL_NSIDOMEVENTLISTENER
 
     WebGLObserver(WebGLContext* aContext);
+    ~WebGLObserver();
 
     void Destroy();
 
@@ -1395,8 +1396,6 @@ public:
     void UnregisterMemoryPressureEvent();
 
 private:
-    ~WebGLObserver();
-
     WebGLContext* mContext;
 };
 

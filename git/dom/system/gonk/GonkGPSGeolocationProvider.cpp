@@ -850,10 +850,8 @@ GonkGPSGeolocationProvider::Handle(const nsAString& aName,
       NS_ENSURE_TRUE(cx, NS_OK);
 
       // NB: No need to enter a compartment to read the contents of a string.
-      nsAutoJSString apn;
-      if (!apn.init(cx, aResult.toString())) {
-        return NS_ERROR_FAILURE;
-      }
+      nsDependentJSString apn;
+      apn.init(cx, aResult.toString());
       if (!apn.IsEmpty()) {
         SetAGpsDataConn(apn);
       }

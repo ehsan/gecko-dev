@@ -14,7 +14,7 @@
 
 #include <cstddef>
 
-#include <GLES3/gl3.h>
+#define GL_APICALL
 #include <GLES2/gl2.h>
 
 #include "common/debug.h"
@@ -47,7 +47,7 @@ class RefCountObjectBindingPointer
 
   public:
     GLuint id() const { return (mObject != NULL) ? mObject->id() : 0; }
-    bool operator!() const { return (get() == NULL); }
+    bool operator ! () const { return (get() == NULL); }
 
   private:
     RefCountObject *mObject;
@@ -59,65 +59,7 @@ class BindingPointer : public RefCountObjectBindingPointer
   public:
     void set(ObjectType *newObject) { RefCountObjectBindingPointer::set(newObject); }
     ObjectType *get() const { return static_cast<ObjectType*>(RefCountObjectBindingPointer::get()); }
-    ObjectType *operator->() const { return get(); }
-};
-
-template <class ObjectType>
-class FramebufferTextureBindingPointer : public RefCountObjectBindingPointer
-{
-public:
-    FramebufferTextureBindingPointer() : mType(GL_NONE), mMipLevel(0), mLayer(0) { }
-
-    void set(ObjectType *newObject, GLenum type, GLint mipLevel, GLint layer)
-    {
-        RefCountObjectBindingPointer::set(newObject);
-        mType = type;
-        mMipLevel = mipLevel;
-        mLayer = layer;
-    }
-
-    ObjectType *get() const { return static_cast<ObjectType*>(RefCountObjectBindingPointer::get()); }
-    ObjectType *operator->() const { return get(); }
-
-    GLenum type() const { return mType; }
-    GLint mipLevel() const { return mMipLevel; }
-    GLint layer() const { return mLayer; }
-
-private:
-    GLenum mType;
-    GLint mMipLevel;
-    GLint mLayer;
-};
-
-template <class ObjectType>
-class OffsetBindingPointer : public RefCountObjectBindingPointer
-{
-  public:
-    OffsetBindingPointer() : mOffset(0), mSize(0) { }
-
-    void set(ObjectType *newObject)
-    {
-        RefCountObjectBindingPointer::set(newObject);
-        mOffset = 0;
-        mSize = 0;
-    }
-
-    void set(ObjectType *newObject, GLintptr offset, GLsizeiptr size)
-    {
-        RefCountObjectBindingPointer::set(newObject);
-        mOffset = offset;
-        mSize = size;
-    }
-
-    GLintptr getOffset() const { return mOffset; }
-    GLsizeiptr getSize() const { return mSize; }
-
-    ObjectType *get() const { return static_cast<ObjectType*>(RefCountObjectBindingPointer::get()); }
-    ObjectType *operator->() const { return get(); }
-
-  private:
-    GLintptr mOffset;
-    GLsizeiptr mSize;
+    ObjectType *operator -> () const { return get(); }
 };
 
 #endif   // COMMON_REFCOUNTOBJECT_H_

@@ -45,17 +45,17 @@ NativeApp.prototype = {
    * @param aZipPath {String} path to the zip file for packaged apps (undefined
    *                          for hosted apps)
    */
-  install: Task.async(function*(aApp, aManifest, aZipPath) {
+  install: Task.async(function*(aManifest, aZipPath) {
     if (this._dryRun) {
       return;
     }
 
     // If the application is already installed, this is a reinstallation.
-    if (WebappOSUtils.getInstallPath(aApp)) {
-      return yield this.prepareUpdate(aApp, aManifest, aZipPath);
+    if (WebappOSUtils.getInstallPath(this.app)) {
+      return yield this.prepareUpdate(aManifest, aZipPath);
     }
 
-    this._setData(aApp, aManifest);
+    this._setData(aManifest);
 
     let localAppDir = getFile(this._rootInstallDir);
     if (!localAppDir.isWritable()) {
@@ -106,14 +106,14 @@ NativeApp.prototype = {
    * @param aZipPath {String} path to the zip file for packaged apps (undefined
    *                          for hosted apps)
    */
-  prepareUpdate: Task.async(function*(aApp, aManifest, aZipPath) {
+  prepareUpdate: Task.async(function*(aManifest, aZipPath) {
     if (this._dryRun) {
       return;
     }
 
-    this._setData(aApp, aManifest);
+    this._setData(aManifest);
 
-    let [ oldUniqueName, installDir ] = WebappOSUtils.getLaunchTarget(aApp);
+    let [ oldUniqueName, installDir ] = WebappOSUtils.getLaunchTarget(this.app);
     if (!installDir) {
       throw ERR_NOT_INSTALLED;
     }
@@ -147,12 +147,12 @@ NativeApp.prototype = {
   /**
    * Applies an update.
    */
-  applyUpdate: Task.async(function*(aApp) {
+  applyUpdate: Task.async(function*() {
     if (this._dryRun) {
       return;
     }
 
-    let installDir = WebappOSUtils.getInstallPath(aApp);
+    let installDir = WebappOSUtils.getInstallPath(this.app);
     let updateDir = OS.Path.join(installDir, "update");
 
     let backupDir = yield this._backupInstallation(installDir);

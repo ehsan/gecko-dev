@@ -23,11 +23,9 @@ namespace js {
 
 class ErrorObject : public JSObject
 {
-    static JSObject *
-    createProto(JSContext *cx, JSProtoKey key);
-
-    static JSObject *
-    createConstructor(JSContext *cx, JSProtoKey key);
+    static ErrorObject *
+    createProto(JSContext *cx, JS::Handle<GlobalObject*> global, JSExnType type,
+                JS::HandleObject proto);
 
     /* For access to createProto. */
     friend JSObject *

@@ -298,18 +298,30 @@ nsFilterInstance::ComputeNeededBoxes()
 
 nsresult
 nsFilterInstance::BuildSourcePaint(SourceInfo *aSource,
+                                   gfxASurface* aTargetSurface,
                                    DrawTarget* aTargetDT)
 {
   nsIntRect neededRect = aSource->mNeededBounds;
 
-  RefPtr<DrawTarget> offscreenDT =
-    gfxPlatform::GetPlatform()->CreateOffscreenContentDrawTarget(
+  RefPtr<DrawTarget> offscreenDT;
+  nsRefPtr<gfxASurface> offscreenSurface;
+  nsRefPtr<gfxContext> ctx;
+  if (aTargetSurface) {
+    offscreenSurface = gfxPlatform::GetPlatform()->CreateOffscreenSurface(
+      neededRect.Size().ToIntSize(), gfxContentType::COLOR_ALPHA);
+    if (!offscreenSurface || offscreenSurface->CairoStatus()) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+    ctx = new gfxContext(offscreenSurface);
+  } else {
+    offscreenDT = gfxPlatform::GetPlatform()->CreateOffscreenContentDrawTarget(
       ToIntSize(neededRect.Size()), SurfaceFormat::B8G8R8A8);
-  if (!offscreenDT) {
-    return NS_ERROR_OUT_OF_MEMORY;
+    if (!offscreenDT) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+    ctx = new gfxContext(offscreenDT);
   }
 
-  nsRefPtr<gfxContext> ctx = new gfxContext(offscreenDT);
   ctx->Translate(-neededRect.TopLeft());
 
   nsRefPtr<nsRenderingContext> tmpCtx(new nsRenderingContext());
@@ -336,46 +348,63 @@ nsFilterInstance::BuildSourcePaint(SourceInfo *aSource,
   }
   gfx->Restore();
 
-
-  aSource->mSourceSurface = offscreenDT->Snapshot();
+  if (offscreenSurface) {
+    aSource->mSourceSurface =
+      gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(aTargetDT, offscreenSurface);
+  } else {
+    aSource->mSourceSurface = offscreenDT->Snapshot();
+  }
   aSource->mSurfaceRect = ToIntRect(neededRect);
 
   return NS_OK;
 }
 
 nsresult
-nsFilterInstance::BuildSourcePaints(DrawTarget* aTargetDT)
+nsFilterInstance::BuildSourcePaints(gfxASurface* aTargetSurface,
+                                    DrawTarget* aTargetDT)
 {
   nsresult rv = NS_OK;
 
   if (!mFillPaint.mNeededBounds.IsEmpty()) {
-    rv = BuildSourcePaint(&mFillPaint, aTargetDT);
+    rv = BuildSourcePaint(&mFillPaint, aTargetSurface, aTargetDT);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
   if (!mStrokePaint.mNeededBounds.IsEmpty()) {
-    rv = BuildSourcePaint(&mStrokePaint, aTargetDT);
+    rv = BuildSourcePaint(&mStrokePaint, aTargetSurface, aTargetDT);
     NS_ENSURE_SUCCESS(rv, rv);
   }
   return  rv;
 }
 
 nsresult
-nsFilterInstance::BuildSourceImage(DrawTarget* aTargetDT)
+nsFilterInstance::BuildSourceImage(gfxASurface* aTargetSurface,
+                                   DrawTarget* aTargetDT)
 {
   nsIntRect neededRect = mSourceGraphic.mNeededBounds;
   if (neededRect.IsEmpty()) {
     return NS_OK;
   }
 
-  RefPtr<DrawTarget> offscreenDT =
-    gfxPlatform::GetPlatform()->CreateOffscreenContentDrawTarget(
+  RefPtr<DrawTarget> offscreenDT;
+  nsRefPtr<gfxASurface> offscreenSurface;
+  nsRefPtr<gfxContext> ctx;
+  if (aTargetSurface) {
+    offscreenSurface = gfxPlatform::GetPlatform()->CreateOffscreenSurface(
+      neededRect.Size().ToIntSize(), gfxContentType::COLOR_ALPHA);
+    if (!offscreenSurface || offscreenSurface->CairoStatus()) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+    ctx = new gfxContext(offscreenSurface);
+  } else {
+    offscreenDT = gfxPlatform::GetPlatform()->CreateOffscreenContentDrawTarget(
       ToIntSize(neededRect.Size()), SurfaceFormat::B8G8R8A8);
-  if (!offscreenDT) {
-    return NS_ERROR_OUT_OF_MEMORY;
+    if (!offscreenDT) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+    ctx = new gfxContext(offscreenDT);
   }
 
-  nsRefPtr<gfxContext> ctx = new gfxContext(offscreenDT);
   ctx->Translate(-neededRect.TopLeft());
 
   nsRefPtr<nsRenderingContext> tmpCtx(new nsRenderingContext());
@@ -402,7 +431,16 @@ nsFilterInstance::BuildSourceImage(DrawTarget* aTargetDT)
   tmpCtx->ThebesContext()->Multiply(deviceToFilterSpace);
   mPaintCallback->Paint(tmpCtx, mTargetFrame, &dirty, mTransformRoot);
 
-  mSourceGraphic.mSourceSurface = offscreenDT->Snapshot();
+  RefPtr<SourceSurface> sourceGraphicSource;
+
+  if (offscreenSurface) {
+    sourceGraphicSource =
+      gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(aTargetDT, offscreenSurface);
+  } else {
+    sourceGraphicSource = offscreenDT->Snapshot();
+  }
+
+  mSourceGraphic.mSourceSurface = sourceGraphicSource;
   mSourceGraphic.mSurfaceRect = ToIntRect(neededRect);
    
   return NS_OK;
@@ -419,18 +457,34 @@ nsFilterInstance::Render(gfxContext* aContext)
   }
 
   Matrix oldDTMatrix;
-  RefPtr<DrawTarget> dt = aContext->GetDrawTarget();
-  oldDTMatrix = dt->GetTransform();
-  Matrix matrix = ToMatrix(ctm);
-  matrix.Translate(filterRect.x, filterRect.y);
-  dt->SetTransform(matrix * oldDTMatrix);
+  nsRefPtr<gfxASurface> resultImage;
+  RefPtr<DrawTarget> dt;
+  if (aContext->IsCairo()) {
+    resultImage =
+      gfxPlatform::GetPlatform()->CreateOffscreenSurface(filterRect.Size().ToIntSize(),
+                                                         gfxContentType::COLOR_ALPHA);
+    if (!resultImage || resultImage->CairoStatus())
+      return NS_ERROR_OUT_OF_MEMORY;
+
+    // Create a Cairo DrawTarget around resultImage.
+    dt = gfxPlatform::GetPlatform()->CreateDrawTargetForSurface(
+           resultImage, ToIntSize(filterRect.Size()));
+  } else {
+    // When we have a DrawTarget-backed context, we can call DrawFilter
+    // directly on the target DrawTarget and don't need a temporary DT.
+    dt = aContext->GetDrawTarget();
+    oldDTMatrix = dt->GetTransform();
+    Matrix matrix = ToMatrix(ctm);
+    matrix.Translate(filterRect.x, filterRect.y);
+    dt->SetTransform(matrix * oldDTMatrix);
+  }
 
   ComputeNeededBoxes();
 
-  nsresult rv = BuildSourceImage(dt);
+  nsresult rv = BuildSourceImage(resultImage, dt);
   if (NS_FAILED(rv))
     return rv;
-  rv = BuildSourcePaints(dt);
+  rv = BuildSourcePaints(resultImage, dt);
   if (NS_FAILED(rv))
     return rv;
 
@@ -444,7 +498,16 @@ nsFilterInstance::Render(gfxContext* aContext)
     mStrokePaint.mSourceSurface, mStrokePaint.mSurfaceRect,
     mInputImages);
 
-  dt->SetTransform(oldDTMatrix);
+  if (resultImage) {
+    aContext->Save();
+    aContext->Multiply(ctm);
+    aContext->Translate(filterRect.TopLeft());
+    aContext->SetSource(resultImage);
+    aContext->Paint();
+    aContext->Restore();
+  } else {
+    dt->SetTransform(oldDTMatrix);
+  }
 
   return NS_OK;
 }

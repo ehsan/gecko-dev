@@ -409,7 +409,7 @@ bool PACDnsResolve(JSContext *cx, unsigned int argc, JS::Value *vp)
   if (!JS_ConvertArguments(cx, args, "S", arg1.address()))
     return false;
 
-  nsAutoJSString hostName;
+  nsDependentJSString hostName;
   nsAutoCString dottedDecimal;
 
   if (!hostName.init(cx, arg1))
@@ -458,11 +458,11 @@ bool PACProxyAlert(JSContext *cx, unsigned int argc, JS::Value *vp)
   if (!JS_ConvertArguments(cx, args, "S", arg1.address()))
     return false;
 
-  nsAutoJSString message;
+  nsDependentJSString message;
   if (!message.init(cx, arg1))
     return false;
 
-  nsAutoString alertMessage;
+  nsString alertMessage;
   alertMessage.SetCapacity(32 + message.Length());
   alertMessage += NS_LITERAL_STRING("PAC-alert: ");
   alertMessage += message;
@@ -706,7 +706,7 @@ ProxyAutoConfig::GetProxyForURI(const nsCString &aTestURI,
     bool ok = JS_CallFunctionName(cx, global, "FindProxyForURL", args, &rval);
 
     if (ok && rval.isString()) {
-      nsAutoJSString pacString;
+      nsDependentJSString pacString;
       if (pacString.init(cx, rval.toString())) {
         CopyUTF16toUTF8(pacString, result);
         rv = NS_OK;

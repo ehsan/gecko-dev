@@ -10,7 +10,6 @@
 #define LIBGLESV2_BINARYSTREAM_H_
 
 #include "common/angleutils.h"
-#include "common/mathutil.h"
 
 namespace gl
 {
@@ -26,49 +25,42 @@ class BinaryInputStream
         mLength = length;
     }
 
-    // readInt will generate an error for bool types
-    template <class IntT>
-    IntT readInt()
+    template <typename T>
+    void read(T *v, size_t num)
     {
-        int value;
-        read(&value);
-        return static_cast<IntT>(value);
+        union
+        {
+            T dummy;  // Compilation error for non-trivial types
+        } dummy;
+        (void) dummy;
+
+        if (mError)
+        {
+            return;
+        }
+
+        size_t length = num * sizeof(T);
+
+        if (mOffset + length > mLength)
+        {
+            mError = true;
+            return;
+        }
+
+        memcpy(v, mData + mOffset, length);
+        mOffset += length;
     }
 
-    template <class IntT>
-    void readInt(IntT *outValue)
+    template <typename T>
+    void read(T * v)
     {
-        *outValue = readInt<IntT>();
+        read(v, 1);
     }
 
-    bool readBool()
-    {
-        int value;
-        read(&value);
-        return (value > 0);
-    }
-
-    void readBool(bool *outValue)
-    {
-        *outValue = readBool();
-    }
-
-    void readBytes(unsigned char outArray[], size_t count)
-    {
-        read<unsigned char>(outArray, count);
-    }
-
-    std::string readString()
-    {
-        std::string outString;
-        readString(&outString);
-        return outString;
-    }
-
-    void readString(std::string *v)
+    void read(std::string *v)
     {
         size_t length;
-        readInt(&length);
+        read(&length);
 
         if (mError)
         {
@@ -117,30 +109,6 @@ class BinaryInputStream
     size_t mOffset;
     const char *mData;
     size_t mLength;
-
-    template <typename T>
-    void read(T *v, size_t num)
-    {
-        META_ASSERT(std::is_fundamental<T>::value);
-
-        size_t length = num * sizeof(T);
-
-        if (mOffset + length > mLength)
-        {
-            mError = true;
-            return;
-        }
-
-        memcpy(v, mData + mOffset, length);
-        mOffset += length;
-    }
-
-    template <typename T>
-    void read(T *v)
-    {
-        read(v, 1);
-    }
-
 };
 
 class BinaryOutputStream
@@ -150,24 +118,31 @@ class BinaryOutputStream
     {
     }
 
-    // writeInt also handles bool types
-    template <class IntT>
-    void writeInt(IntT param)
+    template <typename T>
+    void write(const T *v, size_t num)
     {
-        ASSERT(rx::IsIntegerCastSafe<int>(param));
-        int intValue = static_cast<int>(param);
-        write(&intValue, 1);
+        union
+        {
+            T dummy;  // Compilation error for non-trivial types
+        } dummy;
+        (void) dummy;
+
+        const char *asBytes = reinterpret_cast<const char*>(v);
+        mData.insert(mData.end(), asBytes, asBytes + num * sizeof(T));
     }
 
-    void writeString(const std::string &v)
+    template <typename T>
+    void write(const T &v)
     {
-        writeInt(v.length());
-        write(v.c_str(), v.length());
+        write(&v, 1);
     }
 
-    void writeBytes(unsigned char *bytes, size_t count)
+    void write(const std::string &v)
     {
-        write(bytes, count);
+        size_t length = v.length();
+        write(length);
+
+        write(v.c_str(), length);
     }
 
     size_t length() const
@@ -183,15 +158,6 @@ class BinaryOutputStream
   private:
     DISALLOW_COPY_AND_ASSIGN(BinaryOutputStream);
     std::vector<char> mData;
-
-    template <typename T>
-    void write(const T *v, size_t num)
-    {
-        META_ASSERT(std::is_fundamental<T>::value);
-        const char *asBytes = reinterpret_cast<const char*>(v);
-        mData.insert(mData.end(), asBytes, asBytes + num * sizeof(T));
-    }
-
 };
 }
 

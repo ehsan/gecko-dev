@@ -212,9 +212,7 @@ nsHTMLReflowState::nsHTMLReflowState(nsPresContext*           aPresContext,
                             aParentReflowState.mPercentHeightObserver->NeedsToObserve(*this))
                            ? aParentReflowState.mPercentHeightObserver : nullptr;
 
-  if ((aFlags & DUMMY_PARENT_REFLOW_STATE) ||
-      (parentReflowState->mFlags.mDummyParentReflowState &&
-       frame->GetType() == nsGkAtoms::tableFrame)) {
+  if (aFlags & DUMMY_PARENT_REFLOW_STATE) {
     mFlags.mDummyParentReflowState = true;
   }
 

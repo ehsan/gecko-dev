@@ -22,6 +22,7 @@ class nsCollationMacUC MOZ_FINAL : public nsICollation {
 
 public: 
   nsCollationMacUC();
+  ~nsCollationMacUC(); 
 
   // nsISupports interface
   NS_DECL_ISUPPORTS
@@ -30,8 +31,6 @@ public:
   NS_DECL_NSICOLLATION
 
 protected:
-  ~nsCollationMacUC(); 
-
   nsresult ConvertLocale(nsILocale* aNSLocale, LocaleRef* aMacLocale);
   nsresult StrengthToOptions(const int32_t aStrength,
                              UCCollateOptions* aOptions);
