@@ -43,7 +43,10 @@ li.container {
 .expander {
   position: absolute;
   -moz-appearance: treetwisty;
-  padding: 11px 0;
+  top: 0;
+  left: 0;
+  width: 14px;
+  height: 14px;
 }
 
 .expander[expanded] {

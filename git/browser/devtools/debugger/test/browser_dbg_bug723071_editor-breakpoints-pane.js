@@ -160,17 +160,17 @@ function test()
 
       executeSoon(function()
       {
-        line = 6;
+        line = 4;
         gPane.addBreakpoint({url: gScripts.selected, line: line},
           function(cl, err) {
           onBreakpointAdd.call({ increment: increment, line: line }, cl, err);
 
-          line = 7;
+          line = 5;
           gPane.addBreakpoint({url: gScripts.selected, line: line},
             function(cl, err) {
             onBreakpointAdd.call({ increment: increment, line: line }, cl, err);
 
-            line = 8;
+            line = 6;
             gPane.addBreakpoint({url: gScripts.selected, line: line},
               function(cl, err) {
               onBreakpointAdd.call({ increment: increment, line: line }, cl, err);

@@ -37,14 +37,12 @@ function testFrameParameters()
 
       var frames = gDebugger.DebuggerView.StackFrames._frames,
           localScope = gDebugger.DebuggerView.Properties._vars.firstChild,
-          localNodes = localScope.childNodes[1].childNodes,
-          localNonEnums = localScope.childNodes[2].childNodes; // .nonenums
+          localNodes = localScope.querySelector(".details").childNodes;
 
       dump("Got our variables:\n");
       dump("frames     - " + frames.constructor + "\n");
       dump("localScope - " + localScope.constructor + "\n");
       dump("localNodes - " + localNodes.constructor + "\n");
-      dump("localNonEnums - " + localNonEnums.constructor + "\n");
 
       is(gDebugger.DebuggerController.activeThread.state, "paused",
         "Should only be getting stack frames while paused.");
@@ -52,8 +50,8 @@ function testFrameParameters()
       is(frames.querySelectorAll(".dbg-stackframe").length, 3,
         "Should have three frames.");
 
-      is(localNodes.length + localNonEnums.length, 11,
-        "The localScope and localNonEnums should contain all the created variable elements.");
+      is(localNodes.length, 11,
+        "The localScope should contain all the created variable elements.");
 
       is(localNodes[0].querySelector(".value").getAttribute("value"), "[object Proxy]",
         "Should have the right property value for 'this'.");
@@ -81,8 +79,8 @@ function testFrameParameters()
         }
         window.clearInterval(intervalID);
         is(localNodes[0].querySelector(".property > .title > .key")
-                        .getAttribute("value"), "InstallTrigger",
-          "Should have the right property name for InstallTrigger.");
+                        .getAttribute("value"), "Array",
+          "Should have the right property name for Array.");
         ok(localNodes[0].querySelector(".property > .title > .value")
                         .getAttribute("value").search(/object/) != -1,
           "Array should be an object.");

@@ -2107,7 +2107,7 @@ BreakpointsView.prototype = {
   enableBreakpoint:
   function DVB_enableBreakpoint(aTarget, aCallback, aNoCheckboxUpdate) {
     let { breakpointUrl: url, breakpointLine: line } = aTarget;
-    let breakpoint = DebuggerController.Breakpoints.getBreakpoint(url, line);
+    let breakpoint = DebuggerController.Breakpoints.getBreakpoint(url, line)
 
     if (!breakpoint) {
       if (!aNoCheckboxUpdate) {
@@ -2585,16 +2585,9 @@ PropertiesView.prototype = {
     // Compute the id of the element if not specified.
     aId = aId || (aScope.id + "->" + aName + "-variable");
 
-    let parent;
-    if (aFlags && !aFlags.enumerable) {
-      parent = aScope.childNodes[2];
-    }
-    else {
-      parent = aScope.childNodes[1];
-    }
-
     // Contains generic nodes and functionality.
-    let element = this._createPropertyElement(aName, aId, "variable", parent);
+    let element = this._createPropertyElement(aName, aId, "variable",
+                                              aScope.getElementsByClassName("details")[0]);
 
     // Make sure the element was created successfully.
     if (!element) {
@@ -2796,7 +2789,6 @@ PropertiesView.prototype = {
         if (value !== undefined) {
           this._addProperty(aVar, [i, value], desc);
         }
-
         if (getter !== undefined || setter !== undefined) {
           let prop = this._addProperty(aVar, [i]).expand();
           prop.getter = this._addProperty(prop, ["get", getter], desc);
@@ -2842,16 +2834,9 @@ PropertiesView.prototype = {
     // Compute the id of the element if not specified.
     aId = aId || (aVar.id + "->" + aProperty[0] + "-property");
 
-    let parent;
-    if (aFlags && !aFlags.enumerable) {
-      parent = aVar.childNodes[2];
-    }
-    else {
-      parent = aVar.childNodes[1];
-    }
-
     // Contains generic nodes and functionality.
-    let element = this._createPropertyElement(aName, aId, "property", parent);
+    let element = this._createPropertyElement(aName, aId, "property",
+                                              aVar.getElementsByClassName("details")[0]);
 
     // Make sure the element was created successfully.
     if (!element) {
@@ -3127,7 +3112,6 @@ PropertiesView.prototype = {
 
     let title = document.createElement("box");
     let details = document.createElement("vbox");
-    let nonEnum = document.createElement("vbox");
 
     // Create a scope node to contain all the elements.
     element.id = aId;
@@ -3147,7 +3131,6 @@ PropertiesView.prototype = {
 
     // The node element which will contain any added scope variables.
     details.className = "details";
-    nonEnum.className = "details nonenum";
 
     // Add the click event handler for the title, or arrow and name.
     if (aClass === "scope") {
@@ -3163,7 +3146,6 @@ PropertiesView.prototype = {
 
     element.appendChild(title);
     element.appendChild(details);
-    element.appendChild(nonEnum);
 
     aParent.appendChild(element);
 
@@ -3210,19 +3192,12 @@ PropertiesView.prototype = {
       arrow.setAttribute("open", "");
       details.setAttribute("open", "");
 
-      if (Prefs.nonEnumVisible) {
-        nonEnum.setAttribute("open", "");
-      }
-
       if (!aSkipAnimationFlag) {
         details.setAttribute("animated", "");
-        nonEnum.setAttribute("animated", "");
       }
-
       if ("function" === typeof element.onexpand) {
         element.onexpand(element);
       }
-
       return element;
     };
 
@@ -3235,12 +3210,9 @@ PropertiesView.prototype = {
       if (element._preventCollapse) {
         return;
       }
-
       arrow.removeAttribute("open");
       details.removeAttribute("open");
       details.removeAttribute("animated");
-      nonEnum.removeAttribute("open");
-      nonEnum.removeAttribute("animated");
 
       if ("function" === typeof element.oncollapse) {
         element.oncollapse(element);
@@ -3268,12 +3240,9 @@ PropertiesView.prototype = {
      *         The same element.
      */
     element.showArrow = function DVP_element_showArrow() {
-      let len = details.childNodes.length + nonEnum.childNodes.length;
-
-      if (element._forceShowArrow || len) {
+      if (element._forceShowArrow || details.childNodes.length) {
         arrow.style.visibility = "visible";
       }
-
       return element;
     };
 
@@ -3358,19 +3327,13 @@ PropertiesView.prototype = {
     element.empty = function DVP_element_empty() {
       // This details node won't have any elements, so hide the arrow.
       arrow.style.visibility = "hidden";
-
       while (details.firstChild) {
         details.removeChild(details.firstChild);
-      }
-
-      while (nonEnum.firstChild) {
-        nonEnum.removeChild(nonEnum.firstChild);
       }
 
       if ("function" === typeof element.onempty) {
         element.onempty(element);
       }
-
       return element;
     };
 
@@ -3468,7 +3431,7 @@ PropertiesView.prototype = {
 
       let node = aParent.parentNode;
       let arrow = node.getElementsByClassName("arrow")[0];
-      let children = node.querySelectorAll(".details > vbox").length;
+      let children = node.getElementsByClassName("details")[0].childNodes.length;
 
       // If the parent details node has at least one element, set the
       // expand/collapse arrow visible.
@@ -3586,31 +3549,10 @@ PropertiesView.prototype = {
    */
   _vars: null,
 
-  _onShowNonEnums: function DVP__onShowNonEnums() {
-    let option = document.getElementById("show-nonenum");
-    Prefs.nonEnumVisible = option.checked;
-
-    let els = document.getElementsByClassName("nonenum").iterator();
-    for (let el of els) {
-      if (el.parentNode.expanded) {
-        if (Prefs.nonEnumVisible) {
-          el.setAttribute("open", "");
-        } else {
-          el.removeAttribute("open");
-          el.removeAttribute("animated");
-        }
-      }
-    }
-  },
-
   /**
    * Initialization function, called when the debugger is initialized.
    */
   initialize: function DVP_initialize() {
-    let showNonEnums = document.getElementById("show-nonenum");
-    showNonEnums.addEventListener("click", this._onShowNonEnums, false);
-    showNonEnums.checked = Prefs.nonEnumVisible;
-
     this._vars = DebuggerView._variables;
 
     this.emptyText();

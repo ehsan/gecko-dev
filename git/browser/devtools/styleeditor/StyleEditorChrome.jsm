@@ -350,12 +350,10 @@ StyleEditorChrome.prototype = {
       if (!aEditor.sourceEditor) {
         // If a line or column was specified we move the caret appropriately.
         if (setCaret) {
-          let self = this;
           aEditor.addActionListener({
             onAttach: function SEC_selectSheet_onAttach()
             {
               aEditor.removeActionListener(this);
-              self.selectedStyleSheetIndex = aEditor.styleSheetIndex;
               aEditor.sourceEditor.setCaretPosition(aLine - 1, aCol - 1);
             }
           });
@@ -369,7 +367,6 @@ StyleEditorChrome.prototype = {
           aEditor.sourceEditor.setCaretPosition(aLine - 1, aCol - 1);
         }
       }
-      this.selectedStyleSheetIndex = aEditor.styleSheetIndex;
     }.bind(this);
 
     if (!this.editors.length) {
