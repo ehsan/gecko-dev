@@ -165,7 +165,7 @@ NS_IMETHODIMP
 SmsIPCService::Send(uint32_t aServiceId,
                     const nsAString& aNumber,
                     const nsAString& aMessage,
-                    bool aSilent,
+                    const bool aSilent,
                     nsIMobileMessageCallback* aRequest)
 {
   return SendRequest(SendMessageRequest(SendSmsMessageRequest(aServiceId,

@@ -16,8 +16,7 @@
 #include "EncodedBufferCache.h"
 #include "nsIDOMFile.h"
 #include "mozilla/dom/BlobEvent.h"
-#include "nsIPrincipal.h"
-#include "nsMimeTypes.h"
+
 
 #include "mozilla/dom/AudioStreamTrack.h"
 #include "mozilla/dom/VideoStreamTrack.h"
@@ -321,19 +320,7 @@ private:
 
     // Allocate encoder and bind with union stream.
     // At this stage, the API doesn't allow UA to choose the output mimeType format.
-
-    nsCOMPtr<nsIDocument> doc = mRecorder->GetOwner()->GetExtantDoc();
-    uint16_t appStatus = nsIPrincipal::APP_STATUS_NOT_INSTALLED;
-    if (doc) {
-      doc->NodePrincipal()->GetAppStatus(&appStatus);
-    }
-    // Only allow certificated application can assign AUDIO_3GPP
-    if (appStatus == nsIPrincipal::APP_STATUS_CERTIFIED &&
-         mRecorder->mMimeType.EqualsLiteral(AUDIO_3GPP)) {
-      mEncoder = MediaEncoder::CreateEncoder(NS_LITERAL_STRING(AUDIO_3GPP), aTrackTypes);
-    } else {
-      mEncoder = MediaEncoder::CreateEncoder(NS_LITERAL_STRING(""), aTrackTypes);
-    }
+    mEncoder = MediaEncoder::CreateEncoder(NS_LITERAL_STRING(""), aTrackTypes);
 
     if (!mEncoder) {
       DoSessionEndTask(NS_ERROR_ABORT);
@@ -592,9 +579,7 @@ MediaRecorder::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 
 /* static */ already_AddRefed<MediaRecorder>
 MediaRecorder::Constructor(const GlobalObject& aGlobal,
-                           DOMMediaStream& aStream,
-                           const MediaRecorderOptions& aInitDict,
-                           ErrorResult& aRv)
+                           DOMMediaStream& aStream, ErrorResult& aRv)
 {
   nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(aGlobal.GetAsSupports());
   if (!sgo) {
@@ -609,7 +594,6 @@ MediaRecorder::Constructor(const GlobalObject& aGlobal,
   }
 
   nsRefPtr<MediaRecorder> object = new MediaRecorder(aStream, ownerWindow);
-  object->SetMimeType(aInitDict.mMimeType);
   return object.forget();
 }
 

@@ -97,10 +97,10 @@ SmsService::GetSegmentInfoForText(const nsAString& aText,
 }
 
 NS_IMETHODIMP
-SmsService::Send(uint32_t aServiceId,
+SmsService::Send(uint32_t         aServiceId,
                  const nsAString& aNumber,
                  const nsAString& aMessage,
-                 bool aSilent,
+                 const bool       aSilent,
                  nsIMobileMessageCallback* aRequest)
 {
   nsCOMPtr<nsIRadioInterface> radioInterface;

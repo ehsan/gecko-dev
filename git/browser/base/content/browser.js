@@ -4440,8 +4440,7 @@ var TabsInTitlebar = {
       let tabsToolbar = $("TabsToolbar");
       let fullTabsHeight = rect(tabsToolbar).height;
       // Buttons first:
-      let captionButtonsBoxWidth = rect($("titlebar-buttonbox-container")).width;
-
+      let captionButtonsBoxWidth = rect($("titlebar-buttonbox")).width;
 #ifdef XP_MACOSX
       let fullscreenButtonWidth = rect($("titlebar-fullscreen-button")).width;
       // No need to look up the menubar stuff on OS X:

@@ -28,12 +28,12 @@ NS_IMPL_ADDREF(MobileMessageThread)
 NS_IMPL_RELEASE(MobileMessageThread)
 
 /* static */ nsresult
-MobileMessageThread::Create(uint64_t aId,
+MobileMessageThread::Create(const uint64_t aId,
                             const JS::Value& aParticipants,
-                            uint64_t aTimestamp,
+                            const JS::Value& aTimestamp,
                             const nsAString& aLastMessageSubject,
                             const nsAString& aBody,
-                            uint64_t aUnreadCount,
+                            const uint64_t aUnreadCount,
                             const nsAString& aLastMessageType,
                             JSContext* aCx,
                             nsIDOMMozMobileMessageThread** aThread)
@@ -76,10 +76,25 @@ MobileMessageThread::Create(uint64_t aId,
     }
   }
 
-  // Set |timestamp|;
-  data.timestamp() = aTimestamp;
+  // We support both a Date object and a millisecond timestamp as a number.
+  if (aTimestamp.isObject()) {
+    JS::Rooted<JSObject*> obj(aCx, &aTimestamp.toObject());
+    if (!JS_ObjectIsDate(aCx, obj)) {
+      return NS_ERROR_INVALID_ARG;
+    }
+    data.timestamp() = js_DateGetMsecSinceEpoch(obj);
+  } else {
+    if (!aTimestamp.isNumber()) {
+      return NS_ERROR_INVALID_ARG;
+    }
+    double number = aTimestamp.toNumber();
+    if (static_cast<uint64_t>(number) != number) {
+      return NS_ERROR_INVALID_ARG;
+    }
+    data.timestamp() = static_cast<uint64_t>(number);
+  }
 
-  // Set |lastMessageType|.
+  // Set |aLastMessageType|.
   {
     MessageType lastMessageType;
     if (aLastMessageType.Equals(MESSAGE_TYPE_SMS)) {
@@ -97,12 +112,12 @@ MobileMessageThread::Create(uint64_t aId,
   return NS_OK;
 }
 
-MobileMessageThread::MobileMessageThread(uint64_t aId,
+MobileMessageThread::MobileMessageThread(const uint64_t aId,
                                          const nsTArray<nsString>& aParticipants,
-                                         uint64_t aTimestamp,
+                                         const uint64_t aTimestamp,
                                          const nsString& aLastMessageSubject,
                                          const nsString& aBody,
-                                         uint64_t aUnreadCount,
+                                         const uint64_t aUnreadCount,
                                          MessageType aLastMessageType)
   : mData(aId, aParticipants, aTimestamp, aLastMessageSubject, aBody,
           aUnreadCount, aLastMessageType)

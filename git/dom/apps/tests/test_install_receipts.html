@@ -35,8 +35,8 @@ function go() {
 function continueTest() {
   try {
     gGenerator.next();
-  } catch (e if e instanceof StopIteration) {
-    finish();
+  } catch (e) {
+    dump("Got exception: " + e + "\n");
   }
 }
 
@@ -201,6 +201,10 @@ function runTest() {
     continueTest();
   }
   yield undefined;
+
+  // All done.
+  ok(true, "All done");
+  finish();
 }
 
 addLoadEvent(go);

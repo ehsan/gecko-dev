@@ -448,7 +448,7 @@ ContentParent::PreallocateAppProcess()
         new ContentParent(/* app = */ nullptr,
                           /* isForBrowserElement = */ false,
                           /* isForPreallocated = */ true,
-                          PROCESS_PRIORITY_PREALLOC);
+                          PROCESS_PRIORITY_BACKGROUND);
     process->Init();
     return process.forget();
 }
@@ -1453,7 +1453,7 @@ ContentParent::ContentParent(ContentParent* aTemplate,
     // memory priority, which it has inherited from this process.
     ProcessPriority priority;
     if (IsPreallocated()) {
-        priority = PROCESS_PRIORITY_PREALLOC;
+        priority = PROCESS_PRIORITY_BACKGROUND;
     } else {
         priority = PROCESS_PRIORITY_FOREGROUND;
     }
