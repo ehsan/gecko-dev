@@ -216,6 +216,7 @@ nsLayoutStatics::Initialize()
 
   nsMathMLOperators::AddRefTable();
 
+  nsEditProperty::RegisterAtoms();
   nsTextServicesDocument::RegisterAtoms();
 
 #ifdef DEBUG

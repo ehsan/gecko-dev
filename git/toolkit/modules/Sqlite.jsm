@@ -139,14 +139,14 @@ XPCOMUtils.defineLazyGetter(this, "Barriers", () => {
         // We are waiting for the connections to close. The interesting
         // status is therefore the list of connections still pending.
         return { description: "Waiting for connections to close",
-                 state: Barriers.connections.state };
+                 status: Barriers.connections.status };
       }
 
       // We are still in the first stage: waiting for the barrier
       // to be lifted. The interesting status is therefore that of
       // the barrier.
       return { description: "Waiting for the barrier to be lifted",
-               state: Barriers.shutdown.state };
+               status: Barriers.shutdown.status };
   });
 
   return Barriers;

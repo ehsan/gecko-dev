@@ -637,9 +637,6 @@ bool ARTSPConnection::receiveRTSPResponse() {
         return true;
     }
 
-    /*
-     * Status-Line = RTSP-Version SP Status-Code SP Reason-Phrase CRLF
-     */
     sp<ARTSPResponse> response = new ARTSPResponse;
     response->mStatusLine = statusLine;
 
@@ -657,16 +654,14 @@ bool ARTSPConnection::receiveRTSPResponse() {
     bool isRequest = false;
 
     if (!IsRTSPVersion(AString(response->mStatusLine, 0, space1))) {
-        /*
-         * Request-Line = Method SP Request-URI SP RTSP-Version CRLF
-         */
-        if (!IsRTSPVersion(AString(response->mStatusLine, space2 + 1,
-                                   response->mStatusLine.size() - space2 - 1))) {
-            /* Neither an RTSP response or request */
-            return false;
-        }
+        CHECK(IsRTSPVersion(
+                    AString(
+                        response->mStatusLine,
+                        space2 + 1,
+                        response->mStatusLine.size() - space2 - 1)));
 
         isRequest = true;
+
         response->mStatusCode = 0;
     } else {
         AString statusCodeStr(

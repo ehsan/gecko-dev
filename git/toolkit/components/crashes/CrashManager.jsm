@@ -368,21 +368,6 @@ this.CrashManager.prototype = Object.freeze({
   },
 
   /**
-   * Record the remote ID for a crash.
-   *
-   * @param crashID (string) Crash ID. Likely a UUID.
-   * @param remoteID (Date) Server/Breakpad ID.
-   *
-   * @return boolean True if the remote ID was recorded.
-   */
-  setRemoteCrashID: Task.async(function* (crashID, remoteID) {
-    let store = yield this._getStore();
-    if (store.setRemoteCrashID(crashID, remoteID)) {
-      yield store.save();
-    }
-  }),
-
-  /**
    * Record the occurrence of a submission attempt for a crash.
    *
    * @param crashID (string) Crash ID. Likely a UUID.
@@ -1020,7 +1005,6 @@ CrashStore.prototype = Object.freeze({
     if (!this._data.crashes.has(id)) {
       this._data.crashes.set(id, {
         id: id,
-        remoteID: null,
         type: type,
         crashDate: date,
         submissions: new Map(),
@@ -1046,19 +1030,6 @@ CrashStore.prototype = Object.freeze({
    */
   addCrash: function (processType, crashType, id, date) {
     return !!this._ensureCrashRecord(processType, crashType, id, date);
-  },
-
-  /**
-   * @return boolean True if the remote ID was recorded and false if not.
-   */
-  setRemoteCrashID: function (crashID, remoteID) {
-    let crash = this._data.crashes.get(crashID);
-    if (!crash || !remoteID) {
-      return false;
-    }
-
-    crash.remoteID = remoteID;
-    return true;
   },
 
   getCrashesOfType: function (processType, crashType) {
@@ -1153,10 +1124,6 @@ function CrashRecord(o) {
 CrashRecord.prototype = Object.freeze({
   get id() {
     return this._o.id;
-  },
-
-  get remoteID() {
-    return this._o.remoteID;
   },
 
   get crashDate() {

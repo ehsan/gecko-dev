@@ -299,6 +299,7 @@ function RTCPeerConnection() {
   this._onReplaceTrackSuccess = null;
   this._onReplaceTrackFailure = null;
 
+  this._pendingType = null;
   this._localType = null;
   this._remoteType = null;
   this._trickleIce = false;
@@ -418,27 +419,32 @@ RTCPeerConnection.prototype = {
    */
   _queueOrRun: function(obj) {
     this._checkClosed();
-
-    if (this._pending) {
-      // We are waiting for a callback before doing any more work.
-      this._queue.push(obj);
-    } else {
-      this._pending = obj.wait;
+    if (!this._pending) {
+      if (obj.type !== undefined) {
+        this._pendingType = obj.type;
+      }
       obj.func.apply(this, obj.args);
+      if (obj.wait) {
+        this._pending = true;
+      }
+    } else {
+      this._queue.push(obj);
     }
   },
 
   // Pick the next item from the queue and run it.
   _executeNext: function() {
-
-    // Maybe _pending should be a string, and we should
-    // take a string arg and make sure they match to detect errors?
-    this._pending = false;
-
-    while (this._queue.length && !this._pending) {
+    if (this._queue.length) {
       let obj = this._queue.shift();
-      // Doesn't re-queue since _pending is false
-      this._queueOrRun(obj);
+      if (obj.type !== undefined) {
+        this._pendingType = obj.type;
+      }
+      obj.func.apply(this, obj.args);
+      if (!obj.wait) {
+        this._executeNext();
+      }
+    } else {
+      this._pending = false;
     }
   },
 
@@ -598,8 +604,6 @@ RTCPeerConnection.prototype = {
   },
 
   setLocalDescription: function(desc, onSuccess, onError) {
-    this._localType = desc.type;
-
     let type;
     switch (desc.type) {
       case "offer":
@@ -618,7 +622,8 @@ RTCPeerConnection.prototype = {
     this._queueOrRun({
       func: this._setLocalDescription,
       args: [type, desc.sdp, onSuccess, onError],
-      wait: true
+      wait: true,
+      type: desc.type
     });
   },
 
@@ -629,8 +634,6 @@ RTCPeerConnection.prototype = {
   },
 
   setRemoteDescription: function(desc, onSuccess, onError) {
-    this._remoteType = desc.type;
-
     let type;
     switch (desc.type) {
       case "offer":
@@ -649,7 +652,8 @@ RTCPeerConnection.prototype = {
     this._queueOrRun({
       func: this._setRemoteDescription,
       args: [type, desc.sdp, onSuccess, onError],
-      wait: true
+      wait: true,
+      type: desc.type
     });
   },
 
@@ -687,6 +691,8 @@ RTCPeerConnection.prototype = {
       if (!setRemoteComplete || !idpComplete || !onSuccess) {
         return;
       }
+      this._remoteType = this._pendingType;
+      this._pendingType = null;
       this.callCB(onSuccess);
       onSuccess = null;
       this._executeNext();
@@ -769,7 +775,7 @@ RTCPeerConnection.prototype = {
     this._onAddIceCandidateSuccess = onSuccess || null;
     this._onAddIceCandidateError = onError || null;
 
-    this._queueOrRun({ func: this._addIceCandidate, args: [cand], wait: false });
+    this._queueOrRun({ func: this._addIceCandidate, args: [cand], wait: true });
   },
 
   _addIceCandidate: function(cand) {
@@ -945,7 +951,7 @@ RTCPeerConnection.prototype = {
     this._queueOrRun({
       func: this._getStats,
       args: [selector, onSuccess, onError],
-      wait: false
+      wait: true
     });
   },
 
@@ -1107,52 +1113,58 @@ PeerConnectionObserver.prototype = {
   },
 
   onSetLocalDescriptionSuccess: function() {
+    this._dompc._localType = this._dompc._pendingType;
+    this._dompc._pendingType = null;
     this._dompc.callCB(this._dompc._onSetLocalDescriptionSuccess);
+
+    if (this._dompc._iceGatheringState == "complete") {
+        // If we are not trickling or we completed gathering prior
+        // to setLocal, then trigger a call of onicecandidate here.
+        this.foundIceCandidate(null);
+    }
+
     this._dompc._executeNext();
   },
 
   onSetRemoteDescriptionSuccess: function() {
-    // This function calls _executeNext() for us
     this._dompc._onSetRemoteDescriptionSuccess();
   },
 
   onSetLocalDescriptionError: function(code, message) {
-    this._localType = null;
+    this._dompc._pendingType = null;
     this._dompc.callCB(this._dompc._onSetLocalDescriptionFailure,
                        new RTCError(code, message));
     this._dompc._executeNext();
   },
 
   onSetRemoteDescriptionError: function(code, message) {
-    this._remoteType = null;
+    this._dompc._pendingType = null;
     this._dompc.callCB(this._dompc._onSetRemoteDescriptionFailure,
                        new RTCError(code, message));
     this._dompc._executeNext();
   },
 
   onAddIceCandidateSuccess: function() {
+    this._dompc._pendingType = null;
     this._dompc.callCB(this._dompc._onAddIceCandidateSuccess);
     this._dompc._executeNext();
   },
 
   onAddIceCandidateError: function(code, message) {
+    this._dompc._pendingType = null;
     this._dompc.callCB(this._dompc._onAddIceCandidateError,
                        new RTCError(code, message));
     this._dompc._executeNext();
   },
 
   onIceCandidate: function(level, mid, candidate) {
-    if (candidate == "") {
-      this.foundIceCandidate(null);
-    } else {
-      this.foundIceCandidate(new this._dompc._win.mozRTCIceCandidate(
-          {
-              candidate: candidate,
-              sdpMid: mid,
-              sdpMLineIndex: level - 1
-          }
-      ));
-    }
+    this.foundIceCandidate(new this._dompc._win.mozRTCIceCandidate(
+        {
+            candidate: candidate,
+            sdpMid: mid,
+            sdpMLineIndex: level - 1
+        }
+    ));
   },
 
 
@@ -1223,6 +1235,20 @@ PeerConnectionObserver.prototype = {
   //
   handleIceGatheringStateChange: function(gatheringState) {
     this._dompc.changeIceGatheringState(gatheringState);
+
+    if (gatheringState === "complete") {
+      if (!this._dompc._trickleIce) {
+        // If we are not trickling, then the queue is in a pending state
+        // waiting for ICE gathering and executeNext frees it
+        this._dompc._executeNext();
+      }
+      else if (this._dompc.localDescription) {
+        // If we are trickling but we have already done setLocal,
+        // then we need to send a final foundIceCandidate(null) to indicate
+        // that we are done gathering.
+        this.foundIceCandidate(null);
+      }
+    }
   },
 
   onStateChange: function(state) {

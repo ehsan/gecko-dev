@@ -39,27 +39,17 @@ ServiceWorkerContainer::ServiceWorkerContainer(nsPIDOMWindow* aWindow)
 
 ServiceWorkerContainer::~ServiceWorkerContainer()
 {
-  RemoveReadyPromise();
 }
 
 void
 ServiceWorkerContainer::DisconnectFromOwner()
 {
-  RemoveReadyPromise();
+  nsCOMPtr<nsIServiceWorkerManager> swm = mozilla::services::GetServiceWorkerManager();
+  MOZ_ASSERT(swm);
+
+  swm->RemoveReadyPromise(GetOwner());
+
   DOMEventTargetHelper::DisconnectFromOwner();
-}
-
-void
-ServiceWorkerContainer::RemoveReadyPromise()
-{
-  nsCOMPtr<nsPIDOMWindow> window = GetOwner();
-  if (window) {
-    nsCOMPtr<nsIServiceWorkerManager> swm =
-      mozilla::services::GetServiceWorkerManager();
-    MOZ_ASSERT(swm);
-
-    swm->RemoveReadyPromise(window);
-  }
 }
 
 JSObject*

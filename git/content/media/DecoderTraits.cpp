@@ -48,10 +48,6 @@
 #endif
 #endif
 #ifdef NECKO_PROTOCOL_rtsp
-#if ANDROID_VERSION >= 18
-#include "RtspMediaCodecDecoder.h"
-#include "RtspMediaCodecReader.h"
-#endif
 #include "RtspOmxDecoder.h"
 #include "RtspOmxReader.h"
 #endif
@@ -559,13 +555,7 @@ InstantiateDecoder(const nsACString& aType, MediaDecoderOwner* aOwner)
 #endif
 #ifdef NECKO_PROTOCOL_rtsp
   if (IsRtspSupportedType(aType)) {
-#if ANDROID_VERSION >= 18
-    decoder = MediaDecoder::IsOmxAsyncEnabled()
-      ? static_cast<MediaDecoder*>(new RtspMediaCodecDecoder())
-      : static_cast<MediaDecoder*>(new RtspOmxDecoder());
-#else
     decoder = new RtspOmxDecoder();
-#endif
     return decoder.forget();
   }
 #endif

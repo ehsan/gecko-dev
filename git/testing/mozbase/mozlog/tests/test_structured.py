@@ -1,12 +1,10 @@
 # -*- coding: utf-8 -*-
 import argparse
-import json
 import optparse
 import os
-import StringIO
-import sys
 import unittest
-
+import StringIO
+import json
 import mozfile
 
 from mozlog.structured import (
@@ -501,15 +499,6 @@ class TestCommandline(unittest.TestCase):
         args, _ = parser.parse_args(["--log-raw=-"])
         logger = commandline.setup_logging("test_optparse", args, {})
         self.assertEqual(len(logger.handlers), 1)
-        self.assertIsInstance(logger.handlers[0], handlers.StreamHandler)
-
-    def test_setup_logging_optparse_unicode(self):
-        parser = optparse.OptionParser()
-        commandline.add_logging_group(parser)
-        args, _ = parser.parse_args([u"--log-raw=-"])
-        logger = commandline.setup_logging("test_optparse_unicode", args, {})
-        self.assertEqual(len(logger.handlers), 1)
-        self.assertEqual(logger.handlers[0].stream, sys.stdout)
         self.assertIsInstance(logger.handlers[0], handlers.StreamHandler)
 
     def test_logging_defaultlevel(self):

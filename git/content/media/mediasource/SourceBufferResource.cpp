@@ -190,15 +190,17 @@ SourceBufferResource::~SourceBufferResource()
   MOZ_COUNT_DTOR(SourceBufferResource);
 }
 
-SourceBufferResource::SourceBufferResource(const nsACString& aType)
-  : mType(aType)
+SourceBufferResource::SourceBufferResource(nsIPrincipal* aPrincipal,
+                                           const nsACString& aType)
+  : mPrincipal(aPrincipal)
+  , mType(aType)
   , mMonitor("mozilla::SourceBufferResource::mMonitor")
   , mOffset(0)
   , mClosed(false)
   , mEnded(false)
 {
-  SBR_DEBUG("SourceBufferResource(%p)::SourceBufferResource(aType=%s)",
-            this, nsCString(aType).get());
+  SBR_DEBUG("SourceBufferResource(%p)::SourceBufferResource(aPrincipal=%p, aType=%s)",
+            this, aPrincipal, nsCString(aType).get());
   MOZ_COUNT_CTOR(SourceBufferResource);
 }
 

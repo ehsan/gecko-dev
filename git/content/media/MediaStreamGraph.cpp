@@ -1310,14 +1310,12 @@ MediaStreamGraphImpl::Process(GraphTime aFrom, GraphTime aTo)
     // Only playback audio and video in real-time mode
     if (mRealtime) {
       CreateOrDestroyAudioStreams(aFrom, stream);
-      if (CurrentDriver()->AsAudioCallbackDriver()) {
-        TrackTicks ticksPlayedForThisStream = PlayAudio(stream, aFrom, aTo);
-        if (!ticksPlayed) {
-          ticksPlayed = ticksPlayedForThisStream;
-        } else {
-          MOZ_ASSERT(!ticksPlayedForThisStream || ticksPlayedForThisStream == ticksPlayed,
-              "Each stream should have the same number of frame.");
-        }
+      TrackTicks ticksPlayedForThisStream = PlayAudio(stream, aFrom, aTo);
+      if (!ticksPlayed) {
+        ticksPlayed = ticksPlayedForThisStream;
+      } else {
+        MOZ_ASSERT(!ticksPlayedForThisStream || ticksPlayedForThisStream == ticksPlayed,
+            "Each stream should have the same number of frame.");
       }
       PlayVideo(stream);
     }

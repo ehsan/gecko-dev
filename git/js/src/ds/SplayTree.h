@@ -138,7 +138,7 @@ class SplayTree
     template <class Op>
     void forEach(Op op)
     {
-        forEachInner<Op>(op, root);
+        forEachInner(op, root);
     }
 
   private:
@@ -245,9 +245,9 @@ class SplayTree
         if (!node)
             return;
 
-        forEachInner<Op>(op, node->left);
+        forEachInner(op, node->left);
         op(node->item);
-        forEachInner<Op>(op, node->right);
+        forEachInner(op, node->right);
     }
 
     Node *checkCoherency(Node *node, Node *minimum)

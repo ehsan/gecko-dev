@@ -407,7 +407,7 @@ CreateSamplingRestrictedDrawable(gfxDrawable* aDrawable,
     nsRefPtr<gfxContext> tmpCtx = new gfxContext(target);
     tmpCtx->SetOperator(OptimalFillOperator());
     aDrawable->Draw(tmpCtx, needed - needed.TopLeft(), true,
-                    GraphicsFilter::FILTER_FAST, 1.0, gfxMatrix().Translate(needed.TopLeft()));
+                    GraphicsFilter::FILTER_FAST, gfxMatrix().Translate(needed.TopLeft()));
     RefPtr<SourceSurface> surface = target->Snapshot();
 
     nsRefPtr<gfxDrawable> drawable = new gfxSurfaceDrawable(surface, size, gfxMatrix().Translate(-needed.TopLeft()));
@@ -567,8 +567,7 @@ gfxUtils::DrawPixelSnapped(gfxContext*         aContext,
                            const ImageRegion&  aRegion,
                            const SurfaceFormat aFormat,
                            GraphicsFilter      aFilter,
-                           uint32_t            aImageFlags,
-                           gfxFloat            aOpacity)
+                           uint32_t            aImageFlags)
 {
     PROFILER_LABEL("gfxUtils", "DrawPixelSnapped",
       js::ProfileEntry::Category::GRAPHICS);
@@ -618,7 +617,7 @@ gfxUtils::DrawPixelSnapped(gfxContext*         aContext,
     }
 #endif
 
-    drawable->Draw(aContext, aRegion.Rect(), doTile, aFilter, aOpacity);
+    drawable->Draw(aContext, aRegion.Rect(), doTile, aFilter);
 }
 
 /* static */ int

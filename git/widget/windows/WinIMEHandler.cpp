@@ -173,8 +173,6 @@ IMEHandler::NotifyIME(nsWindow* aWindow,
       case NOTIFY_IME_OF_BLUR:
         return nsTextStore::OnFocusChange(false, aWindow,
                  aWindow->GetInputContext().mIMEState);
-      case NOTIFY_IME_OF_MOUSE_BUTTON_EVENT:
-        return nsTextStore::OnMouseButtonEvent(aIMENotification);
       case REQUEST_TO_COMMIT_COMPOSITION:
         if (nsTextStore::IsComposingOn(aWindow)) {
           nsTextStore::CommitComposition(false);

@@ -1,6 +1,3 @@
-if (!this.SharedArrayBuffer || !isAsmJSCompilationAvailable())
-  quit();
-
 Random = {
     weighted: function(wa) {
         var a = [];

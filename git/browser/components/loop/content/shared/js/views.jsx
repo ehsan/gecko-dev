@@ -278,7 +278,13 @@ loop.shared.views = (function(_, OT, l10n) {
      */
     _streamCreated: function(event) {
       var incoming = this.getDOMNode().querySelector(".remote");
-      this.props.model.subscribe(event.stream, incoming, this.publisherConfig);
+      event.streams.forEach(function(stream) {
+        if (stream.connection.connectionId !==
+            this.props.model.session.connection.connectionId) {
+          this.props.model.session.subscribe(stream, incoming,
+                                             this.publisherConfig);
+        }
+      }, this);
     },
 
     /**
@@ -315,7 +321,7 @@ loop.shared.views = (function(_, OT, l10n) {
         });
       }.bind(this));
 
-      this.props.model.publish(this.publisher);
+      this.props.model.session.publish(this.publisher);
     },
 
     /**
@@ -544,8 +550,7 @@ loop.shared.views = (function(_, OT, l10n) {
         <FeedbackLayout title={l10n.get("feedback_thank_you_heading")}>
           <p className="info thank-you">{
             l10n.get("feedback_window_will_close_in", {
-              countdown: this.state.countdown,
-              num: this.state.countdown
+              countdown: this.state.countdown
             })}</p>
         </FeedbackLayout>
       );

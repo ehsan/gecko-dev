@@ -235,10 +235,6 @@ this.AccessFu = { // jshint ignore:line
   },
 
   _output: function _output(aPresentationData, aBrowser) {
-    if (!Utils.isAliveAndVisible(
-      Utils.AccRetrieval.getAccessibleFor(aBrowser))) {
-      return;
-    }
     for (let presenter of aPresentationData) {
       if (!presenter) {
         continue;

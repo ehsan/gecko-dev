@@ -88,9 +88,7 @@ void GraphDriver::UpdateStateComputedTime(GraphTime aStateComputedTime)
   // The next state computed time can be the same as the previous, here: it
   // means the driver would be have been blocking indefinitly, but the graph has
   // been woken up right after having been to sleep.
-  if (aStateComputedTime < mStateComputedTime) {
-    printf("State time can't go backward %ld < %ld.\n", static_cast<long>(aStateComputedTime), static_cast<long>(mStateComputedTime));
-  }
+  MOZ_ASSERT(aStateComputedTime >= mStateComputedTime, "State time can't go backward.");
 
   mStateComputedTime = aStateComputedTime;
 }

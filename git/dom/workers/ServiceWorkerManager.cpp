@@ -1851,7 +1851,6 @@ NS_IMETHODIMP
 ServiceWorkerManager::AddRegistrationEventListener(nsIURI* aDocumentURI, nsIDOMEventTarget* aListener)
 {
   MOZ_ASSERT(aDocumentURI);
-  AssertIsOnMainThread();
   nsRefPtr<ServiceWorkerDomainInfo> domainInfo = GetDomainInfo(aDocumentURI);
   if (!domainInfo) {
     nsCString domain;
@@ -1876,7 +1875,6 @@ ServiceWorkerManager::AddRegistrationEventListener(nsIURI* aDocumentURI, nsIDOME
 NS_IMETHODIMP
 ServiceWorkerManager::RemoveRegistrationEventListener(nsIURI* aDocumentURI, nsIDOMEventTarget* aListener)
 {
-  AssertIsOnMainThread();
   MOZ_ASSERT(aDocumentURI);
   nsRefPtr<ServiceWorkerDomainInfo> domainInfo = GetDomainInfo(aDocumentURI);
   if (!domainInfo) {

@@ -3,28 +3,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include <stdio.h>                      // for printf
+
 #include "InsertTextTxn.h"
-
-#include "mozilla/dom/Selection.h"      // Selection local var
-#include "mozilla/dom/Text.h"           // mTextNode
-#include "nsAString.h"                  // nsAString parameter
+#include "nsAString.h"
 #include "nsDebug.h"                    // for NS_ASSERTION, etc
-#include "nsEditor.h"                   // mEditor
 #include "nsError.h"                    // for NS_OK, etc
+#include "nsIDOMCharacterData.h"        // for nsIDOMCharacterData
+#include "nsIEditor.h"                  // for nsIEditor
+#include "nsISelection.h"               // for nsISelection
+#include "nsISupportsUtils.h"           // for NS_ADDREF_THIS, NS_RELEASE
+#include "nsITransaction.h"             // for nsITransaction
 
-using namespace mozilla;
-using namespace mozilla::dom;
-
-class nsITransaction;
-
-InsertTextTxn::InsertTextTxn(Text& aTextNode, uint32_t aOffset,
-                             const nsAString& aStringToInsert,
-                             nsEditor& aEditor)
+InsertTextTxn::InsertTextTxn()
   : EditTxn()
-  , mTextNode(&aTextNode)
-  , mOffset(aOffset)
-  , mStringToInsert(aStringToInsert)
-  , mEditor(aEditor)
 {
 }
 
@@ -33,83 +25,129 @@ InsertTextTxn::~InsertTextTxn()
 }
 
 NS_IMPL_CYCLE_COLLECTION_INHERITED(InsertTextTxn, EditTxn,
-                                   mTextNode)
+                                   mElement)
 
 NS_IMPL_ADDREF_INHERITED(InsertTextTxn, EditTxn)
 NS_IMPL_RELEASE_INHERITED(InsertTextTxn, EditTxn)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(InsertTextTxn)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsITransaction, InsertTextTxn)
+  if (aIID.Equals(InsertTextTxn::GetCID())) {
+    *aInstancePtr = (void*)(InsertTextTxn*)this;
+    NS_ADDREF_THIS();
+    return NS_OK;
+  } else
 NS_INTERFACE_MAP_END_INHERITING(EditTxn)
 
-
-NS_IMETHODIMP
-InsertTextTxn::DoTransaction()
+NS_IMETHODIMP InsertTextTxn::Init(nsIDOMCharacterData *aElement,
+                                  uint32_t             aOffset,
+                                  const nsAString     &aStringToInsert,
+                                  nsIEditor           *aEditor)
 {
-  nsresult res = mTextNode->InsertData(mOffset, mStringToInsert);
-  NS_ENSURE_SUCCESS(res, res);
+#if 0
+      nsAutoString text;
+      aElement->GetData(text);
+      printf("InsertTextTxn: Offset to insert at = %d. Text of the node to insert into:\n", aOffset);
+      wprintf(text.get());
+      printf("\n");
+#endif
 
-  // Only set selection to insertion point if editor gives permission
-  if (mEditor.GetShouldTxnSetSelection()) {
-    nsRefPtr<Selection> selection = mEditor.GetSelection();
+  NS_ASSERTION(aElement && aEditor, "bad args");
+  NS_ENSURE_TRUE(aElement && aEditor, NS_ERROR_NULL_POINTER);
+
+  mElement = do_QueryInterface(aElement);
+  mOffset = aOffset;
+  mStringToInsert = aStringToInsert;
+  mEditor = aEditor;
+  return NS_OK;
+}
+
+NS_IMETHODIMP InsertTextTxn::DoTransaction(void)
+{
+  NS_ASSERTION(mElement && mEditor, "bad state");
+  if (!mElement || !mEditor) { return NS_ERROR_NOT_INITIALIZED; }
+
+  nsresult result = mElement->InsertData(mOffset, mStringToInsert);
+  NS_ENSURE_SUCCESS(result, result);
+
+  // only set selection to insertion point if editor gives permission
+  bool bAdjustSelection;
+  mEditor->ShouldTxnSetSelection(&bAdjustSelection);
+  if (bAdjustSelection)
+  {
+    nsCOMPtr<nsISelection> selection;
+    result = mEditor->GetSelection(getter_AddRefs(selection));
+    NS_ENSURE_SUCCESS(result, result);
     NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
-    res = selection->Collapse(mTextNode,
-                              mOffset + mStringToInsert.Length());
-    NS_ASSERTION(NS_SUCCEEDED(res),
-                 "Selection could not be collapsed after insert");
-  } else {
-    // Do nothing - DOM Range gravity will adjust selection
+    result = selection->Collapse(mElement, mOffset+mStringToInsert.Length());
+    NS_ASSERTION((NS_SUCCEEDED(result)), "selection could not be collapsed after insert.");
+  }
+  else
+  {
+    // do nothing - dom range gravity will adjust selection
   }
 
-  return NS_OK;
+  return result;
 }
 
-NS_IMETHODIMP
-InsertTextTxn::UndoTransaction()
+NS_IMETHODIMP InsertTextTxn::UndoTransaction(void)
 {
-  return mTextNode->DeleteData(mOffset, mStringToInsert.Length());
+  NS_ASSERTION(mElement && mEditor, "bad state");
+  if (!mElement || !mEditor) { return NS_ERROR_NOT_INITIALIZED; }
+
+  uint32_t length = mStringToInsert.Length();
+  return mElement->DeleteData(mOffset, length);
 }
 
-NS_IMETHODIMP
-InsertTextTxn::Merge(nsITransaction* aTransaction, bool* aDidMerge)
+NS_IMETHODIMP InsertTextTxn::Merge(nsITransaction *aTransaction, bool *aDidMerge)
 {
-  if (!aTransaction || !aDidMerge) {
-    return NS_OK;
+  // set out param default value
+  if (aDidMerge)
+    *aDidMerge = false;
+  nsresult result = NS_OK;
+  if (aDidMerge && aTransaction)
+  {
+    // if aTransaction is a InsertTextTxn, and if the selection hasn't changed, 
+    // then absorb it
+    InsertTextTxn *otherInsTxn = nullptr;
+    aTransaction->QueryInterface(InsertTextTxn::GetCID(), (void **)&otherInsTxn);
+    if (otherInsTxn)
+    {
+      if (IsSequentialInsert(otherInsTxn))
+      {
+        nsAutoString otherData;
+        otherInsTxn->GetData(otherData);
+        mStringToInsert += otherData;
+        *aDidMerge = true;
+      }
+      NS_RELEASE(otherInsTxn);
+    }
   }
-  // Set out param default value
-  *aDidMerge = false;
-
-  // If aTransaction is a InsertTextTxn, and if the selection hasn't changed,
-  // then absorb it
-  nsRefPtr<InsertTextTxn> otherInsTxn = do_QueryObject(aTransaction);
-  if (otherInsTxn && IsSequentialInsert(*otherInsTxn)) {
-    nsAutoString otherData;
-    otherInsTxn->GetData(otherData);
-    mStringToInsert += otherData;
-    *aDidMerge = true;
-  }
-
-  return NS_OK;
+  return result;
 }
 
-NS_IMETHODIMP
-InsertTextTxn::GetTxnDescription(nsAString& aString)
+NS_IMETHODIMP InsertTextTxn::GetTxnDescription(nsAString& aString)
 {
   aString.AssignLiteral("InsertTextTxn: ");
   aString += mStringToInsert;
   return NS_OK;
 }
 
-/* ============ private methods ================== */
+/* ============ protected methods ================== */
 
-void
-InsertTextTxn::GetData(nsString& aResult)
+NS_IMETHODIMP InsertTextTxn::GetData(nsString& aResult)
 {
   aResult = mStringToInsert;
+  return NS_OK;
 }
 
-bool
-InsertTextTxn::IsSequentialInsert(InsertTextTxn& aOtherTxn)
+bool InsertTextTxn::IsSequentialInsert(InsertTextTxn *aOtherTxn)
 {
-  return aOtherTxn.mTextNode == mTextNode &&
-         aOtherTxn.mOffset == mOffset + mStringToInsert.Length();
+  NS_ASSERTION(aOtherTxn, "null param");
+  if (aOtherTxn && aOtherTxn->mElement == mElement)
+  {
+    // here, we need to compare offsets.
+    int32_t length = mStringToInsert.Length();
+    if (aOtherTxn->mOffset == (mOffset + length))
+      return true;
+  }
+  return false;
 }

@@ -38,7 +38,6 @@ ServiceWorkerRegistration::ServiceWorkerRegistration(nsPIDOMWindow* aWindow,
                                                      const nsAString& aScope)
   : DOMEventTargetHelper(aWindow)
   , mScope(aScope)
-  , mListeningForEvents(false)
 {
   MOZ_ASSERT(aWindow);
   MOZ_ASSERT(aWindow->IsInnerWindow());
@@ -48,7 +47,6 @@ ServiceWorkerRegistration::ServiceWorkerRegistration(nsPIDOMWindow* aWindow,
 
 ServiceWorkerRegistration::~ServiceWorkerRegistration()
 {
-  StopListeningForEvents();
 }
 
 void
@@ -178,21 +176,15 @@ ServiceWorkerRegistration::StartListeningForEvents()
   nsCOMPtr<nsIServiceWorkerManager> swm = do_GetService(SERVICEWORKERMANAGER_CONTRACTID);
   if (swm) {
     swm->AddRegistrationEventListener(GetDocumentURI(), this);
-    mListeningForEvents = true;
   }
 }
 
 void
 ServiceWorkerRegistration::StopListeningForEvents()
 {
-  if (!mListeningForEvents) {
-    return;
-  }
-
   nsCOMPtr<nsIServiceWorkerManager> swm = do_GetService(SERVICEWORKERMANAGER_CONTRACTID);
   if (swm) {
     swm->RemoveRegistrationEventListener(GetDocumentURI(), this);
-    mListeningForEvents = false;
   }
 }
 

@@ -30,7 +30,8 @@ CSF_IMPLEMENT_WRAP(CC_SIPCCCall, cc_call_handle_t);
 
 CC_SIPCCCall::CC_SIPCCCall (cc_call_handle_t aCallHandle) :
             callHandle(aCallHandle),
-            pMediaData(new CC_SIPCCCallMediaData(nullptr, false, false, -1))
+            pMediaData(new CC_SIPCCCallMediaData(nullptr, false, false, -1)),
+            m_lock("CC_SIPCCCall")
 {
     CSFLogInfo( logTag, "Creating  CC_SIPCCCall %u", callHandle );
 
@@ -163,6 +164,7 @@ bool CC_SIPCCCall::endCall()
 bool CC_SIPCCCall::sendDigit (cc_digit_t digit)
 {
 	AudioTermination * pAudio = VcmSIPCCBinding::getAudioTermination();
+	mozilla::MutexAutoLock lock(m_lock);
 
     // Convert public digit (as enum or char) to RFC2833 form.
 	int digitId = -1;
@@ -343,6 +345,7 @@ bool CC_SIPCCCall::setAudioMute(bool mute)
 	pMediaData->audioMuteState = mute;
 	// we need to set the mute status of all audio streams in the map
 	{
+		mozilla::MutexAutoLock lock(m_lock);
 		for (StreamMapType::iterator entry =  pMediaData->streamMap.begin(); entry !=  pMediaData->streamMap.end(); entry++)
 	    {
 			if (entry->second.isVideo == false)
@@ -376,6 +379,7 @@ bool CC_SIPCCCall::setVideoMute(bool mute)
 	pMediaData->videoMuteState = mute;
 	// we need to set the mute status of all audio streams in the map
 	{
+		mozilla::MutexAutoLock lock(m_lock);
 		for (StreamMapType::iterator entry =  pMediaData->streamMap.begin(); entry !=  pMediaData->streamMap.end(); entry++)
 	    {
 			if (entry->second.isVideo == true)
@@ -408,6 +412,7 @@ void CC_SIPCCCall::addStream(int streamId, bool isVideo)
 	CSFLogInfo( logTag, "addStream: %d video=%s callhandle=%u",
         streamId, isVideo ? "TRUE" : "FALSE", callHandle);
 	{
+		mozilla::MutexAutoLock lock(m_lock);
 		pMediaData->streamMap[streamId].isVideo = isVideo;
 	}
 	// The new stream needs to be given any properties that the call has for it.
@@ -472,6 +477,8 @@ void CC_SIPCCCall::addStream(int streamId, bool isVideo)
 
 void CC_SIPCCCall::removeStream(int streamId)
 {
+	mozilla::MutexAutoLock lock(m_lock);
+
 	if ( pMediaData->streamMap.erase(streamId) != 1)
 	{
 		CSFLogError( logTag, "removeStream stream that was never in the streamMap: %d", streamId);
@@ -484,6 +491,7 @@ bool CC_SIPCCCall::setVolume(int volume)
 
     AudioTermination * pAudio = VcmSIPCCBinding::getAudioTermination();
 	{
+    	mozilla::MutexAutoLock lock(m_lock);
 		for (StreamMapType::iterator entry =  pMediaData->streamMap.begin(); entry !=  pMediaData->streamMap.end(); entry++)
 	    {
 			if (entry->second.isVideo == false)
@@ -532,6 +540,7 @@ void CC_SIPCCCall::createOffer (cc_media_options_t *options, Timecard *tc) {
  */
 void CC_SIPCCCall::createAnswer (Timecard *tc) {
     CCAPI_CreateAnswer(callHandle, tc);
+
 }
 
 void CC_SIPCCCall::setLocalDescription(cc_jsep_action_t action,
@@ -574,13 +583,4 @@ void CC_SIPCCCall::addICECandidate(const std::string & candidate,
                                    Timecard *tc) {
   CCAPI_AddICECandidate(callHandle, candidate.c_str(), mid.c_str(),
                         (cc_level_t) level, tc);
-}
-
-
-void CC_SIPCCCall::foundICECandidate(const std::string & candidate,
-                                     const std::string & mid,
-                                     unsigned short level,
-                                     Timecard *tc) {
-  CCAPI_FoundICECandidate(callHandle, candidate.c_str(), mid.c_str(),
-                          (cc_level_t) level, tc);
 }

@@ -166,9 +166,7 @@ let CommandUtils = {
           command.state.onChange(target, onChange);
           onChange("", { target: target });
           document.defaultView.addEventListener("unload", () => {
-            if (command.state.offChange) {
-              command.state.offChange(target, onChange);
-            }
+            command.state.offChange(target, onChange);
           }, false);
         }
 

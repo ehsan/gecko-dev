@@ -2127,8 +2127,7 @@ nsFrameSelection::HandleTableSelection(nsINode* aParentContent,
         return NS_OK;
 
 #ifdef DEBUG_TABLE_SELECTION
-      printf(" mStartSelectedCell = %p, mEndSelectedCell = %p, childContent = %p \n",
-             mStartSelectedCell.get(), mEndSelectedCell.get(), childContent);
+printf(" mStartSelectedCell = %x, mEndSelectedCell = %x, childContent = %x \n", mStartSelectedCell, mEndSelectedCell, childContent);
 #endif
       // aTarget can be any "cell mode",
       //  so we can easily drag-select rows and columns 
@@ -2298,8 +2297,7 @@ printf("aTarget == %d\n", aTarget);
     else
     {
 #ifdef DEBUG_TABLE_SELECTION
-      printf("HandleTableSelection: Mouse UP event. mDragSelectingCells=%d, mStartSelectedCell=%p\n",
-             mDragSelectingCells, mStartSelectedCell.get());
+printf("HandleTableSelection: Mouse UP event. mDragSelectingCells=%d, mStartSelectedCell=%d\n", mDragSelectingCells, mStartSelectedCell);
 #endif
       // First check if we are extending a block selection
       int32_t rangeCount;
@@ -2333,8 +2331,7 @@ printf("aTarget == %d\n", aTarget);
       if (!doMouseUpAction)
       {
 #ifdef DEBUG_TABLE_SELECTION
-        printf("HandleTableSelection: Ending cell selection on mouseup: mAppendStartSelectedCell=%p\n",
-               mAppendStartSelectedCell.get());
+printf("HandleTableSelection: Ending cell selection on mouseup: mAppendStartSelectedCell=%d\n", mAppendStartSelectedCell);
 #endif
         return NS_OK;
       }

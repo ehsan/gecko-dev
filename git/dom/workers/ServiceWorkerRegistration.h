@@ -86,7 +86,6 @@ private:
   nsRefPtr<workers::ServiceWorker> mActiveWorker;
 
   const nsString mScope;
-  bool mListeningForEvents;
 };
 
 } // namespace dom

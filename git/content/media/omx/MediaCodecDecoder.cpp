@@ -6,6 +6,8 @@
 
 #include "MediaCodecDecoder.h"
 
+#include <stagefright/MediaSource.h>
+
 #include "MediaCodecReader.h"
 #include "MediaDecoderStateMachine.h"
 

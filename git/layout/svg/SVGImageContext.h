@@ -19,16 +19,12 @@ namespace mozilla {
 class SVGImageContext
 {
 public:
-  SVGImageContext()
-    : mGlobalOpacity(1.0)
-  { }
+  SVGImageContext() { }
 
   SVGImageContext(nsIntSize aViewportSize,
-                  Maybe<SVGPreserveAspectRatio> aPreserveAspectRatio,
-                  gfxFloat aOpacity = 1.0)
+                  Maybe<SVGPreserveAspectRatio> aPreserveAspectRatio)
     : mViewportSize(aViewportSize)
     , mPreserveAspectRatio(aPreserveAspectRatio)
-    , mGlobalOpacity(aOpacity)
   { }
 
   const nsIntSize& GetViewportSize() const {
@@ -39,14 +35,9 @@ public:
     return mPreserveAspectRatio;
   }
 
-  gfxFloat GetGlobalOpacity() const {
-    return mGlobalOpacity;
-  }
-
   bool operator==(const SVGImageContext& aOther) const {
     return mViewportSize == aOther.mViewportSize &&
-           mPreserveAspectRatio == aOther.mPreserveAspectRatio &&
-           mGlobalOpacity == aOther.mGlobalOpacity;
+           mPreserveAspectRatio == aOther.mPreserveAspectRatio;
   }
 
   bool operator!=(const SVGImageContext& aOther) const {
@@ -56,8 +47,7 @@ public:
   uint32_t Hash() const {
     return HashGeneric(mViewportSize.width,
                        mViewportSize.height,
-                       mPreserveAspectRatio.map(HashPAR).valueOr(0),
-                       HashBytes(&mGlobalOpacity, sizeof(gfxFloat)));
+                       mPreserveAspectRatio.map(HashPAR).valueOr(0));
   }
 
 private:
@@ -67,7 +57,6 @@ private:
 
   nsIntSize                     mViewportSize;
   Maybe<SVGPreserveAspectRatio> mPreserveAspectRatio;
-  gfxFloat                      mGlobalOpacity;
 };
 
 } // namespace mozilla
