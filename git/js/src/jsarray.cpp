@@ -2453,7 +2453,7 @@ array_pop_dense(JSContext *cx, HandleObject obj, CallArgs &args)
     uint32_t index = obj->getArrayLength();
     if (index == 0) {
         args.rval().setUndefined();
-        return true;
+        return JS_TRUE;
     }
 
     index--;
@@ -2461,24 +2461,17 @@ array_pop_dense(JSContext *cx, HandleObject obj, CallArgs &args)
     JSBool hole;
     RootedValue elt(cx);
     if (!GetElement(cx, obj, index, &hole, elt.address()))
-        return false;
+        return JS_FALSE;
 
     if (!hole && DeleteArrayElement(cx, obj, index, true) < 0)
-        return false;
+        return JS_FALSE;
+    if (obj->getDenseArrayInitializedLength() > index)
+        obj->setDenseArrayInitializedLength(index);
+
+    obj->setArrayLength(cx, index);
 
     args.rval() = elt;
-    
-    // obj may not be a dense array any more, e.g. if the element was a missing
-    // and a getter supplied by the prototype modified the object.
-    if (obj->isDenseArray()) {
-        if (obj->getDenseArrayInitializedLength() > index)
-            obj->setDenseArrayInitializedLength(index);
-
-        obj->setArrayLength(cx, index);
-        return true;
-    }
-    
-    return js_SetLengthProperty(cx, obj, index);
+    return JS_TRUE;
 }
 
 JSBool

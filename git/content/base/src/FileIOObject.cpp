@@ -6,6 +6,7 @@
 #include "FileIOObject.h"
 #include "nsDOMFile.h"
 #include "nsDOMError.h"
+#include "nsIPrivateDOMEvent.h"
 #include "nsIDOMEvent.h"
 #include "nsIDOMProgressEvent.h"
 #include "nsComponentManagerUtils.h"
@@ -37,7 +38,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(FileIOObject,
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(abort)
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(error)
   NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(progress)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mError)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(FileIOObject,
@@ -46,7 +46,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(FileIOObject,
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(abort)
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(error)
   NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(progress)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mError)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 FileIOObject::FileIOObject()
@@ -111,7 +110,10 @@ FileIOObject::DispatchProgressEvent(const nsAString& aType)
                                                getter_AddRefs(event));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  event->SetTrusted(true);
+  nsCOMPtr<nsIPrivateDOMEvent> privevent(do_QueryInterface(event));
+  NS_ENSURE_TRUE(privevent, NS_ERROR_UNEXPECTED);
+
+  privevent->SetTrusted(true);
   nsCOMPtr<nsIDOMProgressEvent> progress = do_QueryInterface(event);
   NS_ENSURE_TRUE(progress, NS_ERROR_UNEXPECTED);
 

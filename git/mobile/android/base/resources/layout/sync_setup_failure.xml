@@ -27,17 +27,22 @@
     android:orientation="horizontal" >
 
     <Button
-      style="@style/SyncButton"
+      android:layout_width="fill_parent"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
       android:onClick="tryAgainClickHandler"
       android:text="@string/sync_button_tryagain" />
 
     <Button
-      style="@style/SyncButton"
+      android:layout_width="fill_parent"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
       android:onClick="manualClickHandler"
       android:text="@string/sync_button_manual" />
-
      <Button
-      style="@style/SyncButton"
+      android:layout_width="fill_parent"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
       android:onClick="cancelClickHandler"
       android:text="@string/sync_button_cancel" />
   </LinearLayout>

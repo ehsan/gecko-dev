@@ -6,7 +6,7 @@
 #include "nsProfileDirServiceProvider.h"
 #include "nsProfileStringTypes.h"
 #include "nsProfileLock.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsISupportsUtils.h"
@@ -81,11 +81,11 @@ nsProfileDirServiceProvider::SetProfileDir(nsIFile* aProfileDir,
 #ifdef MOZ_PROFILELOCKING
   // Lock the non-shared sub-dir if we are sharing,
   // the whole profile dir if we are not.
-  nsCOMPtr<nsIFile> dirToLock;
+  nsCOMPtr<nsILocalFile> dirToLock;
   if (mSharingEnabled)
-    dirToLock = mNonSharedProfileDir;
+    dirToLock = do_QueryInterface(mNonSharedProfileDir);
   else
-    dirToLock = mProfileDir;
+    dirToLock = do_QueryInterface(mProfileDir);
   rv = mProfileDirLock->Lock(dirToLock, nsnull);
   if (NS_FAILED(rv))
     return rv;

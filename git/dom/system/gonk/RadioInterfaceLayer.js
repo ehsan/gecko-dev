@@ -47,9 +47,7 @@ const RIL_IPC_MSG_NAMES = [
   "RIL:GetAvailableNetworks",
   "RIL:GetCardLock",
   "RIL:UnlockCardLock",
-  "RIL:SetCardLock",
-  "RIL:SendUSSD",
-  "RIL:CancelUSSD"
+  "RIL:SetCardLock"
 ];
 
 XPCOMUtils.defineLazyServiceGetter(this, "gSmsService",
@@ -157,14 +155,14 @@ function RadioInterfaceLayer() {
     voice:          {connected: false,
                      emergencyCallsOnly: false,
                      roaming: false,
-                     network: null,
+                     operator: null,
                      type: null,
                      signalStrength: null,
                      relSignalStrength: null},
     data:          {connected: false,
                      emergencyCallsOnly: false,
                      roaming: false,
-                     network: null,
+                     operator: null,
                      type: null,
                      signalStrength: null,
                      relSignalStrength: null},
@@ -257,12 +255,6 @@ RadioInterfaceLayer.prototype = {
         break;
       case "RIL:SetCardLock":
         this.setCardLock(msg.json);
-        break;
-      case "RIL:SendUSSD":
-        this.sendUSSD(msg.json);
-        break;
-      case "RIL:CancelUSSD":
-        this.cancelUSSD(msg.json);
         break;
     }
   },
@@ -383,16 +375,6 @@ RadioInterfaceLayer.prototype = {
       case "celllocationchanged":
         this.radioState.cell = message;
         break;
-      case "ussdreceived":
-        debug("ussdreceived " + JSON.stringify(message));
-        this.handleUSSDReceived(message);
-        break;
-      case "sendussd":
-        this.handleSendUSSD(message);
-        break;
-      case "cancelussd":
-        this.handleCancelUSSD(message);
-        break;
       default:
         throw new Error("Don't know about this message type: " + message.type);
     }
@@ -405,7 +387,7 @@ RadioInterfaceLayer.prototype = {
       voiceInfo.connected = false;
       voiceInfo.emergencyCallsOnly = false;
       voiceInfo.roaming = false;
-      voiceInfo.network = null;
+      voiceInfo.operator = null;
       voiceInfo.type = null;
       voiceInfo.signalStrength = null;
       voiceInfo.relSignalStrength = null;
@@ -475,26 +457,15 @@ RadioInterfaceLayer.prototype = {
     ppmm.sendAsyncMessage("RIL:DataInfoChanged", this.radioState.data);
   },
 
-  networkChanged: function networkChanged(srcNetwork, destNetwork) {
-    return !destNetwork ||
-      destNetwork.longName != srcNetwork.longName ||
-      destNetwork.shortName != srcNetwork.shortName ||
-      destNetwork.mnc != srcNetwork.mnc ||
-      destNetwork.mcc != srcNetwork.mcc;
-  },
-
   handleOperatorChange: function handleOperatorChange(message) {
-    let voice = this.radioState.voice;
-    let data = this.radioState.data;
-
-    if (this.networkChanged(message, voice.network)) {
-      voice.network = message;
-      ppmm.sendAsyncMessage("RIL:VoiceInfoChanged", voice);
+    let operator = message.alphaLong;
+    if (operator != this.radioState.voice.operator) {
+      this.radioState.voice.operator = operator;
+      ppmm.sendAsyncMessage("RIL:VoiceInfoChanged", this.radioState.voice);
     }
-
-    if (this.networkChanged(message, data.network)) {
-      data.network = message;
-      ppmm.sendAsyncMessage("RIL:DataInfoChanged", data);
+    if (operator != this.radioState.data.operator) {
+      this.radioState.data.operator = operator;
+      ppmm.sendAsyncMessage("RIL:DataInfoChanged", this.radioState.data);
     }
   },
 
@@ -819,25 +790,6 @@ RadioInterfaceLayer.prototype = {
     ppmm.sendAsyncMessage("RIL:UnlockCardLock:Return:OK", message);
   },
 
-  handleUSSDReceived: function handleUSSDReceived(ussd) {
-    debug("handleUSSDReceived " + JSON.stringify(ussd));
-    ppmm.sendAsyncMessage("RIL:UssdReceived", ussd);
-  },
-
-  handleSendUSSD: function handleSendUSSD(message) {
-    debug("handleSendUSSD " + JSON.stringify(message));
-    let messageType = message.success ? "RIL:SendUssd:Return:OK" :
-                                        "RIL:SendUssd:Return:KO";
-    ppmm.sendAsyncMessage(messageType, message);
-  },
-
-  handleCancelUSSD: function handleCancelUSSD(message) {
-    debug("handleCancelUSSD " + JSON.stringify(message));
-    let messageType = message.success ? "RIL:CancelUssd:Return:OK" :
-                                        "RIL:CancelUssd:Return:KO";
-    ppmm.sendAsyncMessage(messageType, message);
-  },
-
   // nsIObserver
 
   observe: function observe(subject, topic, data) {
@@ -937,18 +889,6 @@ RadioInterfaceLayer.prototype = {
 
   getAvailableNetworks: function getAvailableNetworks(requestId) {
     this.worker.postMessage({type: "getAvailableNetworks", requestId: requestId});
-  },
-
-  sendUSSD: function sendUSSD(message) {
-    debug("SendUSSD " + JSON.stringify(message));
-    message.type = "sendUSSD";
-    this.worker.postMessage(message);
-  },
-
-  cancelUSSD: function cancelUSSD(message) {
-    debug("Cancel pending USSD");
-    message.type = "cancelUSSD";
-    this.worker.postMessage(message);
   },
 
   get microphoneMuted() {

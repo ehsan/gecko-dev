@@ -615,8 +615,7 @@ nsBindingManager::SetWrappedJS(nsIContent* aContent, nsIXPConnectWrappedJS* aWra
 
 void
 nsBindingManager::RemovedFromDocumentInternal(nsIContent* aContent,
-                                              nsIDocument* aOldDocument,
-                                              nsIContent* aContentBindingParent)
+                                              nsIDocument* aOldDocument)
 {
   NS_PRECONDITION(aOldDocument != nsnull, "no old document");
 
@@ -627,7 +626,7 @@ nsBindingManager::RemovedFromDocumentInternal(nsIContent* aContent,
   // table.
   nsRefPtr<nsXBLBinding> binding = GetBinding(aContent);
   if (aContent->HasFlag(NODE_IS_INSERTION_PARENT)) {
-    nsRefPtr<nsXBLBinding> parentBinding = GetBinding(aContentBindingParent);
+    nsRefPtr<nsXBLBinding> parentBinding = GetBinding(aContent->GetBindingParent());
     if (parentBinding) {
       parentBinding->RemoveInsertionParent(aContent);
       // Clear insertion parent only if we don't have a binding which

@@ -125,11 +125,10 @@ WeakMap_has(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    JSObject *thisObj;
-    if (!NonGenericMethodGuard(cx, args, WeakMap_has, &WeakMapClass, &thisObj))
-        return false;
-    if (!thisObj)
-        return true;
+    bool ok;
+    JSObject *obj = NonGenericMethodGuard(cx, args, WeakMap_has, &WeakMapClass, &ok);
+    if (!obj)
+        return ok;
 
     if (args.length() < 1) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_MORE_ARGS_NEEDED,
@@ -140,7 +139,7 @@ WeakMap_has(JSContext *cx, unsigned argc, Value *vp)
     if (!key)
         return false;
 
-    ObjectValueMap *map = GetObjectMap(thisObj);
+    ObjectValueMap *map = GetObjectMap(obj);
     if (map) {
         ObjectValueMap::Ptr ptr = map->lookup(key);
         if (ptr) {
@@ -158,11 +157,10 @@ WeakMap_get(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    JSObject *thisObj;
-    if (!NonGenericMethodGuard(cx, args, WeakMap_get, &WeakMapClass, &thisObj))
-        return false;
-    if (!thisObj)
-        return true;
+    bool ok;
+    JSObject *obj = NonGenericMethodGuard(cx, args, WeakMap_get, &WeakMapClass, &ok);
+    if (!obj)
+        return ok;
 
     if (args.length() < 1) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_MORE_ARGS_NEEDED,
@@ -173,7 +171,7 @@ WeakMap_get(JSContext *cx, unsigned argc, Value *vp)
     if (!key)
         return false;
 
-    ObjectValueMap *map = GetObjectMap(thisObj);
+    ObjectValueMap *map = GetObjectMap(obj);
     if (map) {
         ObjectValueMap::Ptr ptr = map->lookup(key);
         if (ptr) {
@@ -191,11 +189,10 @@ WeakMap_delete(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    JSObject *thisObj;
-    if (!NonGenericMethodGuard(cx, args, WeakMap_delete, &WeakMapClass, &thisObj))
-        return false;
-    if (!thisObj)
-        return true;
+    bool ok;
+    JSObject *obj = NonGenericMethodGuard(cx, args, WeakMap_delete, &WeakMapClass, &ok);
+    if (!obj)
+        return ok;
 
     if (args.length() < 1) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_MORE_ARGS_NEEDED,
@@ -206,7 +203,7 @@ WeakMap_delete(JSContext *cx, unsigned argc, Value *vp)
     if (!key)
         return false;
 
-    ObjectValueMap *map = GetObjectMap(thisObj);
+    ObjectValueMap *map = GetObjectMap(obj);
     if (map) {
         ObjectValueMap::Ptr ptr = map->lookup(key);
         if (ptr) {
@@ -225,11 +222,10 @@ WeakMap_set(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    JSObject *thisObj;
-    if (!NonGenericMethodGuard(cx, args, WeakMap_set, &WeakMapClass, &thisObj))
-        return false;
-    if (!thisObj)
-        return true;
+    bool ok;
+    JSObject *obj = NonGenericMethodGuard(cx, args, WeakMap_set, &WeakMapClass, &ok);
+    if (!obj)
+        return ok;
 
     if (args.length() < 1) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_MORE_ARGS_NEEDED,
@@ -242,14 +238,14 @@ WeakMap_set(JSContext *cx, unsigned argc, Value *vp)
 
     Value value = (args.length() > 1) ? args[1] : UndefinedValue();
 
-    ObjectValueMap *map = GetObjectMap(thisObj);
+    ObjectValueMap *map = GetObjectMap(obj);
     if (!map) {
-        map = cx->new_<ObjectValueMap>(cx, thisObj);
+        map = cx->new_<ObjectValueMap>(cx, obj);
         if (!map->init()) {
             cx->delete_(map);
             goto out_of_memory;
         }
-        thisObj->setPrivate(map);
+        obj->setPrivate(map);
     }
 
     if (!map->put(key, value))

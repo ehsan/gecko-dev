@@ -14,7 +14,7 @@
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
 #include "nsIWebBrowserChrome2.h"
-#include "nsIEmbeddingSiteWindow.h"
+#include "nsIEmbeddingSiteWindow2.h"
 #include "nsIWebBrowserChromeFocus.h"
 #include "nsIWidget.h"
 #include "nsIDOMEventListener.h"
@@ -128,7 +128,7 @@ protected:
 class TabChild : public PBrowserChild,
                  public nsFrameScriptExecutor,
                  public nsIWebBrowserChrome2,
-                 public nsIEmbeddingSiteWindow,
+                 public nsIEmbeddingSiteWindow2,
                  public nsIWebBrowserChromeFocus,
                  public nsIInterfaceRequestor,
                  public nsIWindowProvider,
@@ -147,6 +147,7 @@ public:
     NS_DECL_NSIWEBBROWSERCHROME
     NS_DECL_NSIWEBBROWSERCHROME2
     NS_DECL_NSIEMBEDDINGSITEWINDOW
+    NS_DECL_NSIEMBEDDINGSITEWINDOW2
     NS_DECL_NSIWEBBROWSERCHROMEFOCUS
     NS_DECL_NSIINTERFACEREQUESTOR
     NS_DECL_NSIWINDOWPROVIDER
@@ -246,17 +247,6 @@ private:
     bool InitWidget(const nsIntSize& size);
     void DestroyWindow();
 
-    // Call RecvShow(nsIntSize(0, 0)) and block future calls to RecvShow().
-    void DoFakeShow();
-
-    nsresult
-    BrowserFrameProvideWindow(nsIDOMWindow* aOpener,
-                              nsIURI* aURI,
-                              const nsAString& aName,
-                              const nsACString& aFeatures,
-                              bool* aWindowIsNew,
-                              nsIDOMWindow** aReturn);
-
     nsCOMPtr<nsIWebNavigation> mWebNav;
     nsCOMPtr<nsIWidget> mWidget;
     RenderFrameChild* mRemoteFrame;
@@ -264,7 +254,6 @@ private:
     PRUint32 mChromeFlags;
     nsIntRect mOuterRect;
     nscolor mLastBackgroundColor;
-    bool mDidFakeShow;
 
     DISALLOW_EVIL_CONSTRUCTORS(TabChild);
 };

@@ -243,13 +243,6 @@ public final class Tab {
 
         Log.i(LOGTAG, "Updated title: " + mTitle + " for tab with id: " + mId);
         updateHistory(mUrl, mTitle);
-        final Tab tab = this;
-
-        GeckoAppShell.getMainHandler().post(new Runnable() {
-            public void run() {
-                Tabs.getInstance().notifyListeners(tab, Tabs.TabEvents.TITLE);
-            }
-        });
     }
 
     private void updateHistory(final String uri, final String title) {
@@ -328,7 +321,7 @@ public final class Tab {
 
         // Only update the favicon if it's bigger than the current favicon.
         // We use -1 to represent icons with sizes="any".
-        if (size == -1 || size >= mFaviconSize) {
+        if (size == -1 || size > mFaviconSize) {
             mFaviconUrl = faviconUrl;
             mFaviconSize = size;
             Log.i(LOGTAG, "Updated favicon URL for tab with id: " + mId);
@@ -393,15 +386,22 @@ public final class Tab {
         if (!mReaderEnabled)
             return;
 
-        GeckoEvent e = GeckoEvent.createBroadcastEvent("Reader:Add", String.valueOf(getId()));
-        GeckoAppShell.sendEventToGecko(e);
+        GeckoAppShell.getHandler().post(new Runnable() {
+            public void run() {
+                String url = getURL();
+                if (url == null)
+                    return;
+
+                BrowserDB.addReadingListItem(mContentResolver, getTitle(), url);
+            }
+        });
     }
 
     public void readerMode() {
         if (!mReaderEnabled)
             return;
 
-        GeckoApp.mAppContext.loadUrl("about:reader?url=" + getURL());
+        // Do nothing for now
     }
 
     public boolean doReload() {

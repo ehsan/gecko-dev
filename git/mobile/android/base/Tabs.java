@@ -5,8 +5,6 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.db.BrowserDB;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -17,7 +15,6 @@ import org.json.JSONObject;
 import android.content.ContentResolver;
 import android.os.SystemClock;
 import android.util.Log;
-import android.widget.Toast;
 
 public class Tabs implements GeckoEventListener {
     private static final String LOGTAG = "GeckoTabs";
@@ -41,7 +38,6 @@ public class Tabs implements GeckoEventListener {
         GeckoAppShell.registerGeckoEventListener("Tab:Select", this);
         GeckoAppShell.registerGeckoEventListener("Session:RestoreBegin", this);
         GeckoAppShell.registerGeckoEventListener("Session:RestoreEnd", this);
-        GeckoAppShell.registerGeckoEventListener("Reader:Added", this);
     }
 
     public int getCount() {
@@ -59,14 +55,17 @@ public class Tabs implements GeckoEventListener {
         int parentId = params.getInt("parentId");
         String title = params.getString("title");
 
-        final Tab tab = new Tab(id, url, external, parentId, title);
+        Tab tab = new Tab(id, url, external, parentId, title);
         tabs.put(id, tab);
         order.add(tab);
 
         if (!mRestoringSession) {
             GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
                 public void run() {
-                    notifyListeners(tab, TabEvents.ADDED);
+                    GeckoApp.mBrowserToolbar.updateTabCountAndAnimate(getCount());
+                    GeckoApp.mBrowserToolbar.updateBackButton(false);
+                    GeckoApp.mBrowserToolbar.updateForwardButton(false);
+                    GeckoApp.mAppContext.invalidateOptionsMenu();
                 }
             });
         }
@@ -94,16 +93,24 @@ public class Tabs implements GeckoEventListener {
         if (tab == null)
             return null;
 
+        if ("about:home".equals(tab.getURL()))
+            GeckoApp.mAppContext.showAboutHome();
+        else
+            GeckoApp.mAppContext.hideAboutHome();
+
         selectedTab = tab;
         GeckoApp.mAppContext.mMainHandler.post(new Runnable() { 
             public void run() {
                 GeckoApp.mFormAssistPopup.hide();
                 if (isSelectedTab(tab)) {
                     String url = tab.getURL();
+                    GeckoApp.mBrowserToolbar.refresh();
+                    GeckoApp.mAppContext.invalidateOptionsMenu();
+                    GeckoApp.mDoorHangerPopup.updatePopup();
                     notifyListeners(tab, TabEvents.SELECTED);
 
                     if (oldTab != null)
-                        notifyListeners(oldTab, TabEvents.UNSELECTED);
+                        GeckoApp.mAppContext.hidePlugins(oldTab);
                 }
             }
         });
@@ -163,6 +170,9 @@ public class Tabs implements GeckoEventListener {
         GeckoApp.mAppContext.mMainHandler.post(new Runnable() { 
             public void run() {
                 notifyListeners(tab, TabEvents.CLOSED);
+                GeckoApp.mBrowserToolbar.updateTabCountAndAnimate(Tabs.getInstance().getCount());
+                GeckoApp.mDoorHangerPopup.updatePopup();
+                GeckoApp.mAppContext.hidePlugins(tab);
                 tab.onDestroy();
             }
         });
@@ -253,43 +263,13 @@ public class Tabs implements GeckoEventListener {
                 mRestoringSession = false;
                 GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
                     public void run() {
-                        notifyListeners(null, TabEvents.RESTORED);
+                        GeckoApp.mBrowserToolbar.refresh();
                     }
                 });
-            } else if (event.equals("Reader:Added")) {
-                final boolean success = message.getBoolean("success");
-                final String title = message.getString("title");
-                final String url = message.getString("url");
-                handleReaderAdded(success, title, url);
             }
         } catch (Exception e) { 
             Log.i(LOGTAG, "handleMessage throws " + e + " for message: " + event);
         }
-    }
-
-    void handleReaderAdded(boolean success, final String title, final String url) {
-        if (!success) {
-            GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
-                public void run() {
-                    Toast.makeText(GeckoApp.mAppContext,
-                                   R.string.reading_list_failed, Toast.LENGTH_SHORT).show();
-                }
-            });
-            return;
-        }
-
-        GeckoAppShell.getHandler().post(new Runnable() {
-            public void run() {
-                BrowserDB.addReadingListItem(GeckoApp.mAppContext.getContentResolver(), title, url);
-
-                GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
-                    public void run() {
-                        Toast.makeText(GeckoApp.mAppContext,
-                                       R.string.reading_list_added, Toast.LENGTH_SHORT).show();
-                    }
-                });
-            }
-        });
     }
 
     public void refreshThumbnails() {
@@ -305,7 +285,7 @@ public class Tabs implements GeckoEventListener {
     }
 
     public interface OnTabsChangedListener {
-        public void onTabChanged(Tab tab, TabEvents msg, Object data);
+        public void onTabChanged(Tab tab, TabEvents msg);
     }
     
     private static ArrayList<OnTabsChangedListener> mTabsChangedListeners;
@@ -328,30 +308,20 @@ public class Tabs implements GeckoEventListener {
         CLOSED,
         START,
         LOADED,
-        LOAD_ERROR,
         STOP,
         FAVICON,
         THUMBNAIL,
         TITLE,
-        SELECTED,
-        UNSELECTED,
-        ADDED,
-        RESTORED,
-        LOCATION_CHANGE
+        SELECTED
     }
 
     public void notifyListeners(Tab tab, TabEvents msg) {
-        notifyListeners(tab, msg, "");
-    }
-
-    public void notifyListeners(Tab tab, TabEvents msg, Object data) {
         if (mTabsChangedListeners == null)
             return;
 
         Iterator<OnTabsChangedListener> items = mTabsChangedListeners.iterator();
         while (items.hasNext()) {
-            items.next().onTabChanged(tab, msg, data);
+            items.next().onTabChanged(tab, msg);
         }
     }
-
 }

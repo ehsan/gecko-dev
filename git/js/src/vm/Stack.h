@@ -36,10 +36,9 @@ class ScriptFrameIter;
 class AllFramesIter;
 
 class ArgumentsObject;
+class ScopeCoordinate;
 class ScopeObject;
 class StaticBlockObject;
-
-struct ScopeCoordinate;
 
 #ifdef JS_METHODJIT
 namespace mjit {
@@ -416,7 +415,7 @@ class StackFrame
 #ifdef JS_METHODJIT
     friend class mjit::CallCompiler;
     friend class mjit::GetPropCompiler;
-    friend struct mjit::ic::GetElementIC;
+    friend class mjit::ic::GetElementIC;
 #endif
 
     /*
@@ -979,7 +978,8 @@ class StackFrame
         NoPostBarrier = false
     };
     template <class T, class U, TriggerPostBarriers doPostBarrier>
-    void copyFrameAndValues(JSContext *cx, T *vp, StackFrame *otherfp, U *othervp, Value *othersp);
+    void copyFrameAndValues(JSContext *cx, StackFrame *fp, T *vp,
+                            StackFrame *otherfp, U *othervp, Value *othersp);
 
     JSGenerator *maybeSuspendedGenerator(JSRuntime *rt);
 

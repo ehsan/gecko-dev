@@ -876,8 +876,12 @@ void nsBaseWidget::CreateCompositor()
     AsyncChannel::Side childSide = mozilla::ipc::AsyncChannel::Child;
     mCompositorChild->Open(parentChannel, childMessageLoop, childSide);
     PRInt32 maxTextureSize;
-    PLayersChild* shadowManager =
-      mCompositorChild->SendPLayersConstructor(LayerManager::LAYERS_OPENGL, &maxTextureSize);
+    PLayersChild* shadowManager;
+    if (mUseAcceleratedRendering) {
+      shadowManager = mCompositorChild->SendPLayersConstructor(LayerManager::LAYERS_OPENGL, &maxTextureSize);
+    } else {
+      shadowManager = mCompositorChild->SendPLayersConstructor(LayerManager::LAYERS_BASIC, &maxTextureSize);
+    }
 
     if (shadowManager) {
       ShadowLayerForwarder* lf = lm->AsShadowForwarder();
@@ -887,7 +891,10 @@ void nsBaseWidget::CreateCompositor()
         return;
       }
       lf->SetShadowManager(shadowManager);
-      lf->SetParentBackendType(LayerManager::LAYERS_OPENGL);
+      if (mUseAcceleratedRendering)
+        lf->SetParentBackendType(LayerManager::LAYERS_OPENGL);
+      else
+        lf->SetParentBackendType(LayerManager::LAYERS_BASIC);
       lf->SetMaxTextureSize(maxTextureSize);
 
       mLayerManager = lm;
@@ -1231,7 +1238,7 @@ nsBaseWidget::OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta,
  * Returns true if the icon file exists and can be read.
  */
 static bool
-ResolveIconNameHelper(nsIFile *aFile,
+ResolveIconNameHelper(nsILocalFile *aFile,
                       const nsAString &aIconName,
                       const nsAString &aIconSuffix)
 {
@@ -1253,7 +1260,7 @@ ResolveIconNameHelper(nsIFile *aFile,
 void
 nsBaseWidget::ResolveIconName(const nsAString &aIconName,
                               const nsAString &aIconSuffix,
-                              nsIFile **aResult)
+                              nsILocalFile **aResult)
 { 
   *aResult = nsnull;
 
@@ -1273,7 +1280,7 @@ nsBaseWidget::ResolveIconName(const nsAString &aIconName,
       dirs->GetNext(getter_AddRefs(element));
       if (!element)
         continue;
-      nsCOMPtr<nsIFile> file = do_QueryInterface(element);
+      nsCOMPtr<nsILocalFile> file = do_QueryInterface(element);
       if (!file)
         continue;
       if (ResolveIconNameHelper(file, aIconName, aIconSuffix)) {
@@ -1285,8 +1292,8 @@ nsBaseWidget::ResolveIconName(const nsAString &aIconName,
 
   // then check the main app chrome directory
 
-  nsCOMPtr<nsIFile> file;
-  dirSvc->Get(NS_APP_CHROME_DIR, NS_GET_IID(nsIFile),
+  nsCOMPtr<nsILocalFile> file;
+  dirSvc->Get(NS_APP_CHROME_DIR, NS_GET_IID(nsILocalFile),
               getter_AddRefs(file));
   if (file && ResolveIconNameHelper(file, aIconName, aIconSuffix))
     NS_ADDREF(*aResult = file);
@@ -1329,18 +1336,9 @@ static void InitOnlyOnce()
   // X11 (else it would crash).
   sUseOffMainThreadCompositing = (PR_GetEnv("MOZ_USE_OMTC") != NULL);
 #else
-  sUseOffMainThreadCompositing = Preferences::GetBool(
+  sUseOffMainThreadCompositing = mozilla::Preferences::GetBool(
         "layers.offmainthreadcomposition.enabled", 
         false);
-  // Until https://bugzilla.mozilla.org/show_bug.cgi?id=745148 lands,
-  // we use either omtc or content processes, but not both.  Prefer
-  // OOP content to omtc.  (Currently, this only affects b2g.)
-  //
-  // See https://bugzilla.mozilla.org/show_bug.cgi?id=761962 .
-  if (!Preferences::GetBool("dom.ipc.tabs.disabled", true)) {
-    // Disable omtc if OOP content isn't force-disabled.
-    sUseOffMainThreadCompositing = false;
-  }
 #endif
 }
 

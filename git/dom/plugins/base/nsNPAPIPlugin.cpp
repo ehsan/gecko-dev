@@ -19,7 +19,6 @@
 #include "nsNPAPIPlugin.h"
 #include "nsNPAPIPluginInstance.h"
 #include "nsNPAPIPluginStreamListener.h"
-#include "nsPluginStreamListenerPeer.h"
 #include "nsIServiceManager.h"
 #include "nsThreadUtils.h"
 #include "mozilla/Preferences.h"
@@ -534,12 +533,11 @@ nsNPAPIPlugin::RetainStream(NPStream *pstream, nsISupports **aRetainedPeer)
     return NPERR_GENERIC_ERROR;
   }
 
-  nsIStreamListener* streamListener = listener->GetStreamListenerPeer();
-  if (!streamListener) {
+  nsPluginStreamListenerPeer* peer = listener->GetStreamListenerPeer();
+  if (!peer)
     return NPERR_GENERIC_ERROR;
-  }
 
-  *aRetainedPeer = streamListener;
+  *aRetainedPeer = (nsISupports*) peer;
   NS_ADDREF(*aRetainedPeer);
   return NS_OK;
 }
@@ -2512,10 +2510,10 @@ _requestread(NPStream *pstream, NPByteRange *rangeList)
   if (streamtype != NP_SEEK)
     return NPERR_STREAM_NOT_SEEKABLE;
 
-  if (!streamlistener->mStreamListenerPeer)
+  if (!streamlistener->mStreamInfo)
     return NPERR_GENERIC_ERROR;
 
-  nsresult rv = streamlistener->mStreamListenerPeer->RequestRead((NPByteRange *)rangeList);
+  nsresult rv = streamlistener->mStreamInfo->RequestRead((NPByteRange *)rangeList);
   if (NS_FAILED(rv))
     return NPERR_GENERIC_ERROR;
 

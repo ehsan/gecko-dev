@@ -78,7 +78,6 @@ class nsARefreshObserver;
 class nsAccessibilityService;
 #endif
 class nsIWidget;
-class nsArenaMemoryStats;
 
 typedef short SelectionType;
 typedef PRUint64 nsFrameState;
@@ -1232,26 +1231,10 @@ public:
   virtual void DispatchSynthMouseMove(nsGUIEvent *aEvent, bool aFlushOnHoverChange) = 0;
 
   virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
-                                   nsArenaMemoryStats *aArenaObjectsSize,
-                                   size_t *aPresShellSize,
+                                   size_t *aArenasSize,
                                    size_t *aStyleSetsSize,
                                    size_t *aTextRunsSize,
-                                   size_t *aPresContextSize) = 0;
-
-  /**
-   * Methods that retrieve the cached font inflation preferences.
-   */
-  PRUint32 FontSizeInflationEmPerLine() const {
-    return mFontSizeInflationEmPerLine;
-  }
-
-  PRUint32 FontSizeInflationMinTwips() const {
-    return mFontSizeInflationMinTwips;
-  }
-
-  PRUint32 FontSizeInflationLineThreshold() const {
-    return mFontSizeInflationLineThreshold;
-  }
+                                   size_t *aPresContextSize) const = 0;
 
   /**
    * Refresh observer management.
@@ -1379,12 +1362,6 @@ protected:
   bool                      mScrollPositionClampingScrollPortSizeSet : 1;
 
   static nsIContent*        gKeyDownTarget;
-
-  // Cached font inflation values. This is done to prevent changing of font
-  // inflation until a page is reloaded.
-  PRUint32 mFontSizeInflationEmPerLine;
-  PRUint32 mFontSizeInflationMinTwips;
-  PRUint32 mFontSizeInflationLineThreshold;
 };
 
 /**

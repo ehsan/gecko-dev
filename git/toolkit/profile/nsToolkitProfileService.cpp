@@ -20,7 +20,7 @@
 #include "nsIToolkitProfileService.h"
 #include "nsIToolkitProfile.h"
 #include "nsIFactory.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsISimpleEnumerator.h"
 
 #ifdef XP_MACOSX
@@ -54,16 +54,16 @@ public:
 
 private:
     nsToolkitProfile(const nsACString& aName,
-                     nsIFile* aRootDir,
-                     nsIFile* aLocalDir,
+                     nsILocalFile* aRootDir,
+                     nsILocalFile* aLocalDir,
                      nsToolkitProfile* aPrev,
                      bool aForExternalApp);
 
     friend class nsToolkitProfileLock;
 
     nsCString                  mName;
-    nsCOMPtr<nsIFile>          mRootDir;
-    nsCOMPtr<nsIFile>          mLocalDir;
+    nsCOMPtr<nsILocalFile>     mRootDir;
+    nsCOMPtr<nsILocalFile>     mLocalDir;
     nsIProfileLock*            mLock;
     bool                       mForExternalApp;
 };
@@ -75,7 +75,7 @@ public:
     NS_DECL_NSIPROFILELOCK
 
     nsresult Init(nsToolkitProfile* aProfile, nsIProfileUnlocker* *aUnlocker);
-    nsresult Init(nsIFile* aDirectory, nsIFile* aLocalDirectory,
+    nsresult Init(nsILocalFile* aDirectory, nsILocalFile* aLocalDirectory,
                   nsIProfileUnlocker* *aUnlocker);
 
     nsToolkitProfileLock() { }
@@ -83,8 +83,8 @@ public:
 
 private:
     nsCOMPtr<nsToolkitProfile> mProfile;
-    nsCOMPtr<nsIFile> mDirectory;
-    nsCOMPtr<nsIFile> mLocalDirectory;
+    nsCOMPtr<nsILocalFile> mDirectory;
+    nsCOMPtr<nsILocalFile> mLocalDirectory;
 
     nsProfileLock mLock;
 };
@@ -121,8 +121,8 @@ private:
 
     NS_HIDDEN_(nsresult) Init();
 
-    nsresult CreateProfileInternal(nsIFile* aRootDir,
-                                   nsIFile* aLocalDir,
+    nsresult CreateProfileInternal(nsILocalFile* aRootDir,
+                                   nsILocalFile* aLocalDir,
                                    const nsACString& aName,
                                    const nsACString* aProfileName,
                                    const nsACString* aAppName,
@@ -133,9 +133,9 @@ private:
 
     nsRefPtr<nsToolkitProfile>  mFirst;
     nsCOMPtr<nsIToolkitProfile> mChosen;
-    nsCOMPtr<nsIFile>           mAppData;
-    nsCOMPtr<nsIFile>           mTempData;
-    nsCOMPtr<nsIFile>           mListFile;
+    nsCOMPtr<nsILocalFile>      mAppData;
+    nsCOMPtr<nsILocalFile>      mTempData;
+    nsCOMPtr<nsILocalFile>      mListFile;
     bool mDirty;
     bool mStartWithLast;
     bool mStartOffline;
@@ -157,8 +157,8 @@ private:
 };
 
 nsToolkitProfile::nsToolkitProfile(const nsACString& aName,
-                                   nsIFile* aRootDir,
-                                   nsIFile* aLocalDir,
+                                   nsILocalFile* aRootDir,
+                                   nsILocalFile* aLocalDir,
                                    nsToolkitProfile* aPrev,
                                    bool aForExternalApp) :
     mPrev(aPrev),
@@ -182,14 +182,14 @@ nsToolkitProfile::nsToolkitProfile(const nsACString& aName,
 NS_IMPL_ISUPPORTS1(nsToolkitProfile, nsIToolkitProfile)
 
 NS_IMETHODIMP
-nsToolkitProfile::GetRootDir(nsIFile* *aResult)
+nsToolkitProfile::GetRootDir(nsILocalFile* *aResult)
 {
     NS_ADDREF(*aResult = mRootDir);
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsToolkitProfile::GetLocalDir(nsIFile* *aResult)
+nsToolkitProfile::GetLocalDir(nsILocalFile* *aResult)
 {
     NS_ADDREF(*aResult = mLocalDir);
     return NS_OK;
@@ -291,7 +291,7 @@ nsToolkitProfileLock::Init(nsToolkitProfile* aProfile, nsIProfileUnlocker* *aUnl
 }
 
 nsresult
-nsToolkitProfileLock::Init(nsIFile* aDirectory, nsIFile* aLocalDirectory,
+nsToolkitProfileLock::Init(nsILocalFile* aDirectory, nsILocalFile* aLocalDirectory,
                            nsIProfileUnlocker* *aUnlocker)
 {
     nsresult rv;
@@ -307,7 +307,7 @@ nsToolkitProfileLock::Init(nsIFile* aDirectory, nsIFile* aLocalDirectory,
 }
 
 NS_IMETHODIMP
-nsToolkitProfileLock::GetDirectory(nsIFile* *aResult)
+nsToolkitProfileLock::GetDirectory(nsILocalFile* *aResult)
 {
     if (!mDirectory) {
         NS_ERROR("Not initialized, or unlocked!");
@@ -319,7 +319,7 @@ nsToolkitProfileLock::GetDirectory(nsIFile* *aResult)
 }
 
 NS_IMETHODIMP
-nsToolkitProfileLock::GetLocalDirectory(nsIFile* *aResult)
+nsToolkitProfileLock::GetLocalDirectory(nsILocalFile* *aResult)
 {
     if (!mLocalDirectory) {
         NS_ERROR("Not initialized, or unlocked!");
@@ -442,7 +442,7 @@ nsToolkitProfileService::Init()
             continue;
         }
 
-        nsCOMPtr<nsIFile> rootDir;
+        nsCOMPtr<nsILocalFile> rootDir;
         rv = NS_NewNativeLocalFile(EmptyCString(), true,
                                    getter_AddRefs(rootDir));
         NS_ENSURE_SUCCESS(rv, rv);
@@ -454,7 +454,7 @@ nsToolkitProfileService::Init()
         }
         if (NS_FAILED(rv)) continue;
 
-        nsCOMPtr<nsIFile> localDir;
+        nsCOMPtr<nsILocalFile> localDir;
         if (isRelative) {
             rv = NS_NewNativeLocalFile(EmptyCString(), true,
                                        getter_AddRefs(localDir));
@@ -581,15 +581,15 @@ nsToolkitProfileService::GetProfileByName(const nsACString& aName,
 }
 
 NS_IMETHODIMP
-nsToolkitProfileService::LockProfilePath(nsIFile* aDirectory,
-                                         nsIFile* aLocalDirectory,
+nsToolkitProfileService::LockProfilePath(nsILocalFile* aDirectory,
+                                         nsILocalFile* aLocalDirectory,
                                          nsIProfileLock* *aResult)
 {
     return NS_LockProfilePath(aDirectory, aLocalDirectory, nsnull, aResult);
 }
 
 nsresult
-NS_LockProfilePath(nsIFile* aPath, nsIFile* aTempPath,
+NS_LockProfilePath(nsILocalFile* aPath, nsILocalFile* aTempPath,
                    nsIProfileUnlocker* *aUnlocker, nsIProfileLock* *aResult)
 {
     nsCOMPtr<nsToolkitProfileLock> lock = new nsToolkitProfileLock();
@@ -634,7 +634,7 @@ nsToolkitProfileService::CreateDefaultProfileForApp(const nsACString& aProfileNa
                                                     nsIToolkitProfile** aResult)
 {
     NS_ENSURE_STATE(!aProfileName.IsEmpty() || !aAppName.IsEmpty());
-    nsCOMPtr<nsIFile> appData;
+    nsCOMPtr<nsILocalFile> appData;
     nsresult rv =
         gDirServiceProvider->GetUserDataDirectory(getter_AddRefs(appData),
                                                   false,
@@ -660,7 +660,7 @@ nsToolkitProfileService::CreateDefaultProfileForApp(const nsACString& aProfileNa
     NS_ENSURE_SUCCESS(rv, rv);
     NS_ENSURE_STATE(*aResult);
   
-    nsCOMPtr<nsIFile> rootDir;
+    nsCOMPtr<nsILocalFile> rootDir;
     (*aResult)->GetRootDir(getter_AddRefs(rootDir));
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -694,8 +694,8 @@ nsToolkitProfileService::CreateDefaultProfileForApp(const nsACString& aProfileNa
 }
 
 NS_IMETHODIMP
-nsToolkitProfileService::CreateProfile(nsIFile* aRootDir,
-                                       nsIFile* aLocalDir,
+nsToolkitProfileService::CreateProfile(nsILocalFile* aRootDir,
+                                       nsILocalFile* aLocalDir,
                                        const nsACString& aName,
                                        nsIToolkitProfile** aResult)
 {
@@ -704,8 +704,8 @@ nsToolkitProfileService::CreateProfile(nsIFile* aRootDir,
 }
 
 nsresult
-nsToolkitProfileService::CreateProfileInternal(nsIFile* aRootDir,
-                                               nsIFile* aLocalDir,
+nsToolkitProfileService::CreateProfileInternal(nsILocalFile* aRootDir,
+                                               nsILocalFile* aLocalDir,
                                                const nsACString& aName,
                                                const nsACString* aProfileName,
                                                const nsACString* aAppName,
@@ -723,7 +723,7 @@ nsToolkitProfileService::CreateProfileInternal(nsIFile* aRootDir,
         }
     }
 
-    nsCOMPtr<nsIFile> rootDir (aRootDir);
+    nsCOMPtr<nsILocalFile> rootDir (aRootDir);
 
     nsCAutoString dirName;
     if (!rootDir) {
@@ -746,7 +746,7 @@ nsToolkitProfileService::CreateProfileInternal(nsIFile* aRootDir,
         }
     }
 
-    nsCOMPtr<nsIFile> localDir (aLocalDir);
+    nsCOMPtr<nsILocalFile> localDir (aLocalDir);
 
     if (!localDir) {
         if (aRootDir) {
@@ -985,7 +985,7 @@ NS_NewToolkitProfileService(nsIToolkitProfileService* *aResult)
 }
 
 nsresult
-XRE_GetFileFromPath(const char *aPath, nsIFile* *aResult)
+XRE_GetFileFromPath(const char *aPath, nsILocalFile* *aResult)
 {
 #if defined(XP_MACOSX)
     PRInt32 pathLen = strlen(aPath);
@@ -998,7 +998,7 @@ XRE_GetFileFromPath(const char *aPath, nsIFile* *aResult)
     if (!fullPath)
         return NS_ERROR_FAILURE;
 
-    nsCOMPtr<nsIFile> lf;
+    nsCOMPtr<nsILocalFile> lf;
     nsresult rv = NS_NewNativeLocalFile(EmptyCString(), true,
                                         getter_AddRefs(lf));
     if (NS_SUCCEEDED(rv)) {

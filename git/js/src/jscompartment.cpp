@@ -356,7 +356,7 @@ JSCompartment::markCrossCompartmentWrappers(JSTracer *trc)
 
     for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront()) {
         Value v = e.front().value;
-        if (e.front().key.kind == CrossCompartmentKey::ObjectWrapper) {
+        if (v.isObject()) {
             JSObject *wrapper = &v.toObject();
 
             /*
@@ -539,14 +539,13 @@ JSCompartment::sweepCrossCompartmentWrappers()
 {
     /* Remove dead wrappers from the table. */
     for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront()) {
-        CrossCompartmentKey key = e.front().key;
-        bool keyMarked = IsCellMarked(&key.wrapped);
+        Value key = e.front().key;
+        bool keyMarked = IsValueMarked(&key);
         bool valMarked = IsValueMarked(e.front().value.unsafeGet());
-        bool dbgMarked = !key.debugger || IsObjectMarked(&key.debugger);
-        JS_ASSERT_IF(!keyMarked && valMarked, key.kind == CrossCompartmentKey::StringWrapper);
-        if (!keyMarked || !valMarked || !dbgMarked)
+        JS_ASSERT_IF(!keyMarked && valMarked, key.isString());
+        if (!keyMarked || !valMarked)
             e.removeFront();
-        else
+        else if (key != e.front().key)
             e.rekeyFront(key);
     }
 }

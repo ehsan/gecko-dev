@@ -14,7 +14,6 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsString.h"
 #include "nsIWeakReference.h"
-#include "mozilla/Attributes.h"
 
 #ifdef MOZ_LOGGING
 // Uncomment the next line to force logging on in release builds
@@ -24,7 +23,7 @@
 
 class nsDocumentOpenInfo;
 
-class nsURILoader MOZ_FINAL : public nsIURILoader
+class nsURILoader : public nsIURILoader
 {
 public:
   NS_DECL_NSIURILOADER

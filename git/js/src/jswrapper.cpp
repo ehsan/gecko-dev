@@ -706,7 +706,7 @@ CrossCompartmentWrapper::nativeCall(JSContext *cx, JSObject *wrapper, Class *cla
             return false;
     }
 
-    if (!CallJSNative(cx, native, dstArgs))
+    if (!DirectWrapper::nativeCall(cx, wrapper, clasp, native, dstArgs))
         return false;
 
     srcArgs.rval() = dstArgs.rval();
@@ -1048,8 +1048,8 @@ js::NukeChromeCrossCompartmentWrappersForGlobal(JSContext *cx, JSObject *obj,
         for (WrapperMap::Enum e(pmap); !e.empty(); e.popFront()) {
             // Some cross-compartment wrappers are for strings.  We're not
             // interested in those.
-            const CrossCompartmentKey &k = e.front().key;
-            if (k.kind != CrossCompartmentKey::ObjectWrapper)
+            const Value &k = e.front().key;
+            if (k.isString())
                 continue;
 
             JSObject *wobj = &e.front().value.get().toObject();

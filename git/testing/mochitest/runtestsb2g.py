@@ -40,15 +40,10 @@ class B2GOptions(MochitestOptions):
                     help = "host:port to use when connecting to Marionette")
         defaults["marionette"] = None
 
-        self.add_option("--emulator", action="store",
-                    type="string", dest = "emulator",
-                    help = "Architecture of emulator to use: x86 or arm")
-        defaults["emulator"] = None
-
-        self.add_option("--no-window", action="store_true",
-                    dest = "noWindow",
-                    help = "Pass --no-window to the emulator")
-        defaults["noWindow"] = False
+        self.add_option("--emulator", action="store_true",
+                    dest = "emulator",
+                    help = "True if using a b2g emulator")
+        defaults["emulator"] = False
 
         self.add_option("--adbpath", action="store",
                     type = "string", dest = "adbPath",
@@ -191,37 +186,20 @@ class B2GMochitest(Mochitest):
         self.remoteProfile = options.remoteTestRoot + '/profile'
         self._automation.setRemoteProfile(self.remoteProfile)
         self.remoteLog = options.remoteLogFile
-        self.userJS = '/data/local/user.js'
-        self.testDir = '/data/local/tests'
-        self.remoteMozillaPath = '/data/b2g/mozilla'
-        self.remoteProfilesIniPath = os.path.join(self.remoteMozillaPath, 'profiles.ini')
+        self.remoteProfilesIniPath = '/data/b2g/mozilla/profiles.ini'
         self.originalProfilesIni = None
 
     def cleanup(self, manifest, options):
-        # Restore the original profiles.ini.
+        self._dm.getFile(self.remoteLog, self.localLog)
+        self._dm.removeFile(self.remoteLog)
+        self._dm.removeDir(self.remoteProfile)
+
         if self.originalProfilesIni:
             try:
-                if not options.emulator:
-                    self.restoreProfilesIni()
+                self.restoreProfilesIni()
                 os.remove(self.originalProfilesIni)
             except:
                 pass
-
-        if not options.emulator:
-            self._dm.getFile(self.remoteLog, self.localLog)
-            self._dm.removeFile(self.remoteLog)
-            self._dm.removeDir(self.remoteProfile)
-
-            # Restore the original user.js.
-            self._dm.checkCmdAs(['shell', 'rm', '-f', self.userJS])
-            if self._dm.useDDCopy:
-                self._dm.checkCmdAs(['shell', 'dd', 'if=%s.orig' % self.userJS, 'of=%s' % self.userJS])
-            else:
-                self._dm.checkCmdAs(['shell', 'cp', '%s.orig' % self.userJS, self.userJS])
-
-            # We've restored the original profile, so reboot the device so that
-            # it gets picked up.
-            self._automation.rebootDevice()
 
         if options.pidFile != "":
             try:
@@ -229,6 +207,10 @@ class B2GMochitest(Mochitest):
                 os.remove(options.pidFile + ".xpcshell.pid")
             except:
                 print "Warning: cleaning up pidfile '%s' was unsuccessful from the test harness" % options.pidFile
+
+        # We've restored the original profile, so reboot the device so that
+        # it gets picked up.
+        self._automation.rebootDevice()
 
     def findPath(self, paths, filename = None):
         for path in paths:
@@ -301,6 +283,7 @@ class B2GMochitest(Mochitest):
     def buildProfile(self, options):
         if self.localProfile:
             options.profilePath = self.localProfile
+        print 'buildProfile', repr(options)
         manifest = Mochitest.buildProfile(self, options)
         self.localProfile = options.profilePath
 
@@ -335,10 +318,6 @@ class B2GMochitest(Mochitest):
             config.write(configfile)
 
         self._dm.pushFile(newProfilesIni, self.remoteProfilesIniPath)
-        try:
-            os.remove(newProfilesIni)
-        except:
-            pass
 
     def buildURLOptions(self, options, env):
         self.localLog = options.logFile
@@ -355,22 +334,12 @@ class B2GMochitest(Mochitest):
         # Set the B2G homepage as a static local page, since wi-fi generally
         # isn't available as soon as the device boots.
         f = open(os.path.join(options.profilePath, "user.js"), "a")
-        f.write('user_pref("browser.homescreenURL", "data:text/html,<h1>mochitest-plain should start soon</h1>");\n')
+        f.write('user_pref("browser.homescreenURL", "data:text/html,mochitest-plain should start soon");\n')
         f.close()
 
-        # Copy the profile to the device.
         self._dm.removeDir(self.remoteProfile)
         if self._dm.pushDir(options.profilePath, self.remoteProfile) == None:
             raise devicemanager.FileError("Unable to copy profile to device.")
-
-        # In B2G, user.js is always read from /data/local, not the profile
-        # directory.  Backup the original user.js first so we can restore it.
-        self._dm.checkCmdAs(['shell', 'rm', '-f', '%s.orig' % self.userJS])
-        if self._dm.useDDCopy:
-            self._dm.checkCmdAs(['shell', 'dd', 'if=%s' % self.userJS, 'of=%s.orig' % self.userJS])
-        else:
-            self._dm.checkCmdAs(['shell', 'cp', self.userJS, '%s.orig' % self.userJS])
-        self._dm.pushFile(os.path.join(options.profilePath, "user.js"), self.userJS)
 
         self.updateProfilesIni(self.remoteProfile)
 
@@ -386,12 +355,7 @@ def main():
     options, args = parser.parse_args()
 
     # create our Marionette instance
-    kwargs = {}
-    if options.emulator:
-        kwargs['emulator'] = options.emulator
-        auto.setEmulator(True)
-        if options.noWindow:
-            kwargs['noWindow'] = True
+    kwargs = {'emulator': options.emulator}
     if options.b2gPath:
         kwargs['homedir'] = options.b2gPath
     if options.marionette:
@@ -418,10 +382,6 @@ def main():
     auto.setProduct("b2g")
 
     mochitest = B2GMochitest(auto, dm, options)
-
-    # Create /data/local/tests, to force its use by DeviceManagerADB;
-    # B2G won't run correctly with the profile installed to /mnt/sdcard.
-    dm.mkDirs(mochitest.testDir)
 
     options = parser.verifyOptions(options, mochitest)
     if (options == None):

@@ -1210,10 +1210,6 @@ mjit::Compiler::markUndefinedLocal(uint32_t offset, uint32_t i)
         Lifetime *lifetime = analysis->liveness(slot).live(offset);
         if (lifetime)
             masm.storeValue(UndefinedValue(), local);
-#ifdef DEBUG
-        else
-            masm.storeValue(ObjectValueCrashOnTouch(), local);
-#endif
     }
 }
 
@@ -1226,14 +1222,6 @@ mjit::Compiler::markUndefinedLocals()
      */
     for (uint32_t i = 0; i < script->nfixed; i++)
         markUndefinedLocal(0, i);
-
-#ifdef DEBUG
-    uint32_t depth = ssa.getFrame(a->inlineIndex).depth;
-    for (uint32_t i = script->nfixed; i < script->nslots; i++) {
-        Address local(JSFrameReg, sizeof(StackFrame) + (depth + i) * sizeof(Value));
-        masm.storeValue(ObjectValueCrashOnTouch(), local);
-    }
-#endif
 }
 
 CompileStatus
@@ -5136,7 +5124,7 @@ mjit::Compiler::testSingletonPropertyTypes(FrameEntry *top, HandleId id, bool *t
 
     RootedObject proto(cx);
     if (!js_GetClassPrototype(cx, globalObj, key, proto.address(), NULL))
-        return false;
+        return NULL;
 
     return testSingletonProperty(proto, id);
 }
@@ -5801,7 +5789,7 @@ mjit::Compiler::jsop_bindname(PropertyName *name)
 void
 mjit::Compiler::jsop_aliasedArg(unsigned arg, bool get, bool poppedAfter)
 {
-    RegisterID reg = frame.allocReg(Registers::SavedRegs).reg();
+    RegisterID reg = frame.allocReg();
     masm.loadPtr(Address(JSFrameReg, StackFrame::offsetOfArgsObj()), reg);
     size_t dataOff = ArgumentsObject::getDataSlotOffset();
     masm.loadPrivate(Address(reg, dataOff), reg);
@@ -5830,7 +5818,7 @@ mjit::Compiler::jsop_aliasedArg(unsigned arg, bool get, bool poppedAfter)
 void
 mjit::Compiler::jsop_aliasedVar(ScopeCoordinate sc, bool get, bool poppedAfter)
 {
-    RegisterID reg = frame.allocReg(Registers::SavedRegs).reg();
+    RegisterID reg = frame.allocReg();
     masm.loadPtr(Address(JSFrameReg, StackFrame::offsetOfScopeChain()), reg);
     for (unsigned i = 0; i < sc.hops; i++)
         masm.loadPayload(Address(reg, ScopeObject::offsetOfEnclosingScope()), reg);

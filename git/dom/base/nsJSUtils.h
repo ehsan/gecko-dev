@@ -13,8 +13,6 @@
  * the generated code itself.
  */
 
-#include "mozilla/Assertions.h"
-
 #include "nsISupports.h"
 #include "jsapi.h"
 #include "nsString.h"
@@ -66,18 +64,9 @@ public:
   }
 
   /**
-   * Ditto for flat strings.
-   */
-  explicit nsDependentJSString(JSFlatString* fstr)
-    : nsDependentString(JS_GetFlatStringChars(fstr),
-                        JS_GetStringLength(JS_FORGET_STRING_FLATNESS(fstr)))
-  {
-  }
-
-  /**
    * For all other strings, the nsDependentJSString object should be default
    * constructed, which leaves it empty (this->IsEmpty()), and initialized with
-   * one of the init() methods below.
+   * one of the fallible init() methods below.
    */
 
   nsDependentJSString()
@@ -100,12 +89,6 @@ public:
   JSBool init(JSContext* aContext, const jsval &v)
   {
       return init(aContext, JSVAL_TO_STRING(v));
-  }
-
-  void init(JSFlatString* fstr)
-  {
-      MOZ_ASSERT(IsEmpty(), "init() on initialized string");
-      new(this) nsDependentJSString(fstr);
   }
 
   ~nsDependentJSString()

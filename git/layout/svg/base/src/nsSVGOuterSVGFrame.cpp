@@ -626,15 +626,8 @@ nsSVGOuterSVGFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   nsresult rv = DisplayBorderBackgroundOutline(aBuilder, aLists);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsDisplayList replacedContent;
-
-  rv = replacedContent.AppendNewToTop(
+  return aLists.Content()->AppendNewToTop(
       new (aBuilder) nsDisplaySVG(aBuilder, this));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  WrapReplacedContentForBorderRadius(aBuilder, &replacedContent, aLists);
-
-  return NS_OK;
 }
 
 void

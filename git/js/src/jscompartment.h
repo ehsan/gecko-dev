@@ -52,54 +52,20 @@ class DtoaCache {
 /* If HashNumber grows, need to change WrapperHasher. */
 JS_STATIC_ASSERT(sizeof(HashNumber) == 4);
 
-struct CrossCompartmentKey
-{
-    enum Kind {
-        ObjectWrapper,
-        StringWrapper,
-        DebuggerScript,
-        DebuggerObject,
-        DebuggerEnvironment
-    };
-
-    Kind kind;
-    JSObject *debugger;
-    js::gc::Cell *wrapped;
-
-    CrossCompartmentKey()
-      : kind(ObjectWrapper), debugger(NULL), wrapped(NULL) {}
-    CrossCompartmentKey(JSObject *wrapped)
-      : kind(ObjectWrapper), debugger(NULL), wrapped(wrapped) {}
-    CrossCompartmentKey(JSString *wrapped)
-      : kind(StringWrapper), debugger(NULL), wrapped(wrapped) {}
-    CrossCompartmentKey(Value wrapped)
-      : kind(wrapped.isString() ? StringWrapper : ObjectWrapper),
-        debugger(NULL),
-        wrapped((js::gc::Cell *)wrapped.toGCThing()) {}
-    CrossCompartmentKey(const RootedValue &wrapped)
-      : kind(wrapped.raw().isString() ? StringWrapper : ObjectWrapper),
-        debugger(NULL),
-        wrapped((js::gc::Cell *)wrapped.raw().toGCThing()) {}
-    CrossCompartmentKey(Kind kind, JSObject *dbg, js::gc::Cell *wrapped)
-      : kind(kind), debugger(dbg), wrapped(wrapped) {}
-};
-
 struct WrapperHasher
 {
-    typedef CrossCompartmentKey Lookup;
+    typedef Value Lookup;
 
-    static HashNumber hash(const CrossCompartmentKey &key) {
-        JS_ASSERT(!IsPoisonedPtr(key.wrapped));
-        return uint32_t(uintptr_t(key.wrapped)) | uint32_t(key.kind);
+    static HashNumber hash(Value key) {
+        JS_ASSERT(!IsPoisonedValue(key));
+        uint64_t bits = JSVAL_TO_IMPL(key).asBits;
+        return uint32_t(bits) ^ uint32_t(bits >> 32);
     }
 
-    static bool match(const CrossCompartmentKey &l, const CrossCompartmentKey &k) {
-        return l.kind == k.kind && l.debugger == k.debugger && l.wrapped == k.wrapped;
-    }
+    static bool match(const Value &l, const Value &k) { return l == k; }
 };
 
-typedef HashMap<CrossCompartmentKey, ReadBarrieredValue,
-                WrapperHasher, SystemAllocPolicy> WrapperMap;
+typedef HashMap<Value, ReadBarrieredValue, WrapperHasher, SystemAllocPolicy> WrapperMap;
 
 } /* namespace js */
 

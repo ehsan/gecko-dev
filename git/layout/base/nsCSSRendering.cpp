@@ -804,7 +804,8 @@ nsCSSRendering::FindNonTransparentBackgroundFrame(nsIFrame* aFrame,
 
   nsIFrame* frame = nsnull;
   if (aStartAtParent) {
-    frame = nsLayoutUtils::GetParentOrPlaceholderFor(aFrame);
+    frame = nsLayoutUtils::GetParentOrPlaceholderFor(
+              aFrame->PresContext()->FrameManager(), aFrame);
   }
   if (!frame) {
     frame = aFrame;
@@ -819,7 +820,8 @@ nsCSSRendering::FindNonTransparentBackgroundFrame(nsIFrame* aFrame,
     if (frame->IsThemed())
       break;
 
-    nsIFrame* parent = nsLayoutUtils::GetParentOrPlaceholderFor(frame);
+    nsIFrame* parent = nsLayoutUtils::GetParentOrPlaceholderFor(
+                         frame->PresContext()->FrameManager(), frame);
     if (!parent)
       break;
 
@@ -4091,8 +4093,6 @@ nsImageRenderer::IsRasterImage()
 already_AddRefed<mozilla::layers::ImageContainer>
 nsImageRenderer::GetContainer()
 {
-  if (mType != eStyleImageType_Image)
-    return nsnull;
   nsCOMPtr<imgIContainer> img;
   nsresult rv = mImage->GetImageData()->GetImage(getter_AddRefs(img));
   if (NS_FAILED(rv) || !img)

@@ -156,7 +156,7 @@ obj_setProto(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, Value 
 static bool
 MarkSharpObjects(JSContext *cx, HandleObject obj, JSIdArray **idap, JSSharpInfo *value)
 {
-    JS_CHECK_RECURSION(cx, return false);
+    JS_CHECK_RECURSION(cx, return NULL);
 
     JSIdArray *ida;
 
@@ -1436,17 +1436,6 @@ obj_lookupGetter(JSContext *cx, unsigned argc, Value *vp)
     RootedObject obj(cx, ToObject(cx, &vp[1]));
     if (!obj)
         return JS_FALSE;
-    if (obj->isProxy()) {
-        // The vanilla getter lookup code below requires that the object is
-        // native. Handle proxies separately.
-        vp->setUndefined();
-        PropertyDescriptor desc;
-        if (!Proxy::getPropertyDescriptor(cx, obj, id, false, &desc))
-            return JS_FALSE;
-        if ((desc.attrs & JSPROP_GETTER) && desc.getter)
-            *vp = CastAsObjectJsval(desc.getter);
-        return JS_TRUE;
-    }
     JSObject *pobj;
     JSProperty *prop;
     if (!obj->lookupGeneric(cx, id, &pobj, &prop))
@@ -1471,17 +1460,6 @@ obj_lookupSetter(JSContext *cx, unsigned argc, Value *vp)
     RootedObject obj(cx, ToObject(cx, &vp[1]));
     if (!obj)
         return JS_FALSE;
-    if (obj->isProxy()) {
-        // The vanilla setter lookup code below requires that the object is
-        // native. Handle proxies separately.
-        vp->setUndefined();
-        PropertyDescriptor desc;
-        if (!Proxy::getPropertyDescriptor(cx, obj, id, false, &desc))
-            return JS_FALSE;
-        if ((desc.attrs & JSPROP_SETTER) && desc.setter)
-            *vp = CastAsObjectJsval(desc.setter);
-        return JS_TRUE;
-    }
     JSObject *pobj;
     JSProperty *prop;
     if (!obj->lookupGeneric(cx, id, &pobj, &prop))
@@ -1952,7 +1930,7 @@ DefinePropertyOnObject(JSContext *cx, HandleObject obj, HandleId id, const PropD
 
     JS_ASSERT(obj == obj2);
 
-    Rooted<const Shape *> shape(cx, reinterpret_cast<Shape *>(current));
+    const Shape *shape = reinterpret_cast<Shape *>(current);
     do {
         if (desc.isAccessorDescriptor()) {
             if (!shape->isAccessorDescriptor())
@@ -2555,7 +2533,7 @@ JSObject::sealOrFreeze(JSContext *cx, ImmutabilityType it)
 
             last = cx->propertyTree().getChild(cx, last, self->numFixedSlots(), child);
             if (!last)
-                return false;
+                return NULL;
         }
 
         JS_ASSERT(self->lastProperty()->slotSpan() == last->slotSpan());
@@ -3062,8 +3040,10 @@ Detecting(JSContext *cx, jsbytecode *pc)
 }
 
 /*
- * Infer lookup flags from the currently executing bytecode, returning
- * defaultFlags if a currently executing bytecode cannot be determined.
+ * Infer lookup flags from the currently executing bytecode. This does
+ * not attempt to infer JSRESOLVE_WITH, because the current bytecode
+ * does not indicate whether we are in a with statement. Return defaultFlags
+ * if a currently executing bytecode cannot be determined.
  */
 unsigned
 js_InferFlags(JSContext *cx, unsigned defaultFlags)
@@ -4994,7 +4974,7 @@ js_NativeSet(JSContext *cx, JSObject *obj, const Shape *shape, bool added, bool 
     Rooted<const Shape *> shapeRoot(cx, shape);
 
     int32_t sample = cx->runtime->propertyRemovals;
-    if (!shapeRoot->set(cx, RootedObject(cx, obj), strict, vp))
+    if (!shape->set(cx, RootedObject(cx, obj), strict, vp))
         return false;
 
     /*

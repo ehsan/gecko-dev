@@ -90,27 +90,3 @@ wrap(wcsdup)(const wchar_t *src)
 #endif /* XP_WIN */
 
 #endif
-
-#ifdef MOZ_JEMALLOC
-/* Override some jemalloc defaults */
-const char *je_malloc_conf = "narenas:1,lg_chunk:20";
-
-#ifdef ANDROID
-#include <android/log.h>
-
-static void
-_je_malloc_message(void *cbopaque, const char *s)
-{
-  __android_log_print(ANDROID_LOG_INFO, "GeckoJemalloc", "%s", s);
-}
-
-void (*je_malloc_message)(void *, const char *s) = _je_malloc_message;
-#endif
-
-#include <mozilla/Assertions.h>
-
-void moz_abort() {
-  MOZ_CRASH();
-}
-
-#endif /* MOZ_JEMALLOC */

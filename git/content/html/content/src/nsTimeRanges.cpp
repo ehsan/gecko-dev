@@ -75,10 +75,6 @@ nsTimeRanges::Normalize()
     // This merges the intervals.
     TimeRange current(mRanges[0]);
     for (PRUint32 i = 1; i < mRanges.Length(); i++) {
-      if (current.mStart <= mRanges[i].mStart &&
-          current.mEnd >= mRanges[i].mEnd) {
-        continue;
-      }
       if (current.mEnd >= mRanges[i].mStart) {
         current.mEnd = mRanges[i].mEnd;
       } else {

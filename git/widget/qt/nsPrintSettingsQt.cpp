@@ -7,7 +7,7 @@
 #include <QPrinter>
 #include <QDebug>
 #include "nsPrintSettingsQt.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsCRTGlue.h"
 
 NS_IMPL_ISUPPORTS_INHERITED1(nsPrintSettingsQt,
@@ -209,7 +209,7 @@ nsPrintSettingsQt::GetToFileName(PRUnichar** aToFileName)
 NS_IMETHODIMP
 nsPrintSettingsQt::SetToFileName(const PRUnichar* aToFileName)
 {
-    nsCOMPtr<nsIFile> file;
+    nsCOMPtr<nsILocalFile> file;
     nsresult rv = NS_NewLocalFile(nsDependentString(aToFileName), true,
                                 getter_AddRefs(file));
     NS_ENSURE_SUCCESS(rv, rv);

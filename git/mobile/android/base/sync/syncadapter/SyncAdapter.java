@@ -68,29 +68,25 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
     mAccountManager = AccountManager.get(context);
   }
 
-  public static SharedPreferences getGlobalPrefs(Context context) {
-    return context.getSharedPreferences("sync.prefs.global", SHARED_PREFERENCES_MODE);
-  }
-
-  public static void purgeGlobalPrefs(Context context) {
-    getGlobalPrefs(context).edit().clear().commit();
+  private SharedPreferences getGlobalPrefs() {
+    return mContext.getSharedPreferences("sync.prefs.global", SHARED_PREFERENCES_MODE);
   }
 
   /**
    * Backoff.
    */
   public synchronized long getEarliestNextSync() {
-    SharedPreferences sharedPreferences = getGlobalPrefs(mContext);
+    SharedPreferences sharedPreferences = getGlobalPrefs();
     return sharedPreferences.getLong(PREFS_EARLIEST_NEXT_SYNC, 0);
   }
   public synchronized void setEarliestNextSync(long next) {
-    SharedPreferences sharedPreferences = getGlobalPrefs(mContext);
+    SharedPreferences sharedPreferences = getGlobalPrefs();
     Editor edit = sharedPreferences.edit();
     edit.putLong(PREFS_EARLIEST_NEXT_SYNC, next);
     edit.commit();
   }
   public synchronized void extendEarliestNextSync(long next) {
-    SharedPreferences sharedPreferences = getGlobalPrefs(mContext);
+    SharedPreferences sharedPreferences = getGlobalPrefs();
     if (sharedPreferences.getLong(PREFS_EARLIEST_NEXT_SYNC, 0) >= next) {
       return;
     }
@@ -100,17 +96,17 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
   }
 
   public synchronized boolean getShouldInvalidateAuthToken() {
-    SharedPreferences sharedPreferences = getGlobalPrefs(mContext);
+    SharedPreferences sharedPreferences = getGlobalPrefs();
     return sharedPreferences.getBoolean(PREFS_INVALIDATE_AUTH_TOKEN, false);
   }
   public synchronized void clearShouldInvalidateAuthToken() {
-    SharedPreferences sharedPreferences = getGlobalPrefs(mContext);
+    SharedPreferences sharedPreferences = getGlobalPrefs();
     Editor edit = sharedPreferences.edit();
     edit.remove(PREFS_INVALIDATE_AUTH_TOKEN);
     edit.commit();
   }
   public synchronized void setShouldInvalidateAuthToken() {
-    SharedPreferences sharedPreferences = getGlobalPrefs(mContext);
+    SharedPreferences sharedPreferences = getGlobalPrefs();
     Editor edit = sharedPreferences.edit();
     edit.putBoolean(PREFS_INVALIDATE_AUTH_TOKEN, true);
     edit.commit();
@@ -249,7 +245,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
 
     // Pick up log level changes. Do this here so that we don't do extra work
     // if we're not going to be syncing.
-    Logger.resetLogging();
+    Logger.refreshLogLevels();
 
     // TODO: don't clear the auth token unless we have a sync error.
     Log.i(LOG_TAG, "Got onPerformSync. Extras bundle is " + extras);
@@ -519,12 +515,12 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
   }
 
   public synchronized boolean getClusterURLIsStale() {
-    SharedPreferences sharedPreferences = getGlobalPrefs(mContext);
+    SharedPreferences sharedPreferences = getGlobalPrefs();
     return sharedPreferences.getBoolean(PREFS_CLUSTER_URL_IS_STALE, false);
   }
 
   public synchronized void setClusterURLIsStale(boolean clusterURLIsStale) {
-    SharedPreferences sharedPreferences = getGlobalPrefs(mContext);
+    SharedPreferences sharedPreferences = getGlobalPrefs();
     Editor edit = sharedPreferences.edit();
     edit.putBoolean(PREFS_CLUSTER_URL_IS_STALE, clusterURLIsStale);
     edit.commit();

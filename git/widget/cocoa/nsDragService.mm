@@ -370,7 +370,7 @@ nsDragService::GetData(nsITransferable* aTransferable, PRUint32 aItemIndex)
       [filePath getCharacters:clipboardDataPtr];
       clipboardDataPtr[stringLength] = 0; // null terminate
 
-      nsCOMPtr<nsIFile> file;
+      nsCOMPtr<nsILocalFile> file;
       nsresult rv = NS_NewLocalFile(nsDependentString(clipboardDataPtr), true, getter_AddRefs(file));
       free(clipboardDataPtr);
       if (NS_FAILED(rv))
@@ -426,7 +426,7 @@ nsDragService::GetData(nsITransferable* aTransferable, PRUint32 aItemIndex)
     // in is accomplished with a file path drag instead of the image data itself.
     /*
     if (flavorStr.EqualsLiteral(kPNGImageMime) || flavorStr.EqualsLiteral(kJPEGImageMime) ||
-        flavorStr.EqualsLiteral(kJPGImageMime) || flavorStr.EqualsLiteral(kGIFImageMime)) {
+        flavorStr.EqualsLiteral(kGIFImageMime)) {
 
     }
     */

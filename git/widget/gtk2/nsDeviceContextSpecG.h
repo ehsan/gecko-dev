@@ -57,8 +57,8 @@ protected:
   GtkPrintSettings* mGtkPrintSettings;
   GtkPageSetup*     mGtkPageSetup;
 
-  nsCString         mSpoolName;
-  nsCOMPtr<nsIFile> mSpoolFile;
+  nsCString              mSpoolName;
+  nsCOMPtr<nsILocalFile> mSpoolFile;
 
 };
 

@@ -35,6 +35,7 @@ class StringBuffer
     CharBuffer cb;
 
     JSContext *context() const { return cb.allocPolicy().context(); }
+    jschar *extractWellSized();
 
     StringBuffer(const StringBuffer &other) MOZ_DELETE;
     void operator=(const StringBuffer &other) MOZ_DELETE;
@@ -86,13 +87,6 @@ class StringBuffer
 
     /* Identical to finishString() except that an atom is created. */
     JSAtom *finishAtom();
-
-    /*
-     * Creates a raw string from the characters in this buffer.  The string is
-     * exactly the characters in this buffer: it is *not* null-terminated
-     * unless the last appended character was |(jschar)0|.
-     */
-    jschar *extractWellSized();
 };
 
 inline bool

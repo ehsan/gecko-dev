@@ -56,9 +56,7 @@ JumpListBuilder::JumpListBuilder() :
                    IID_ICustomDestinationList, getter_AddRefs(mJumpListMgr));
 
   // Make a lazy thread for any IO
-  mIOThread = new LazyIdleThread(DEFAULT_THREAD_TIMEOUT_MS,
-                                 NS_LITERAL_CSTRING("Jump List"),
-                                 LazyIdleThread::ManualShutdown);
+  mIOThread = new LazyIdleThread(DEFAULT_THREAD_TIMEOUT_MS, LazyIdleThread::ManualShutdown);
   Preferences::AddStrongObserver(this, kPrefTaskbarEnabled);
 }
 
@@ -612,7 +610,7 @@ NS_IMETHODIMP AsyncWriteIconToDisk::Run()
                                   getter_AddRefs(iconStream));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIFile> icoFile
+  nsCOMPtr<nsILocalFile> icoFile
     = do_CreateInstance("@mozilla.org/file/local;1");
   NS_ENSURE_TRUE(icoFile, NS_ERROR_FAILURE);
   rv = icoFile->InitWithPath(mIconPath);
@@ -657,7 +655,7 @@ AsyncDeleteIconFromDisk::AsyncDeleteIconFromDisk(const nsAString &aIconPath)
 NS_IMETHODIMP AsyncDeleteIconFromDisk::Run()
 {
   // Construct the parent path of the passed in path
-  nsCOMPtr<nsIFile> icoFile = do_CreateInstance("@mozilla.org/file/local;1");
+  nsCOMPtr<nsILocalFile> icoFile = do_CreateInstance("@mozilla.org/file/local;1");
   NS_ENSURE_TRUE(icoFile, NS_ERROR_FAILURE);
   nsresult rv = icoFile->InitWithPath(mIconPath);
   NS_ENSURE_SUCCESS(rv, rv);

@@ -5,6 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <QApplication>
+#include <QSound>
 
 #include <string.h>
 
@@ -355,8 +356,8 @@ NS_IMETHODIMP nsSound::PlaySystemSound(const nsAString &aSoundAlias)
     nsresult rv;
     nsCOMPtr <nsIURI> fileURI;
 
-    // create a nsIFile and then a nsIFileURL from that
-    nsCOMPtr <nsIFile> soundFile;
+    // create a nsILocalFile and then a nsIFileURL from that
+    nsCOMPtr <nsILocalFile> soundFile;
     rv = NS_NewLocalFile(aSoundAlias, true, 
                          getter_AddRefs(soundFile));
     NS_ENSURE_SUCCESS(rv,rv);

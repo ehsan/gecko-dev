@@ -1076,10 +1076,7 @@ EmitEnterBlock(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, JSOp op)
 
         JS_ASSERT(dn->isDefn());
         JS_ASSERT(unsigned(dn->frameSlot() + depthPlusFixed) < JS_BIT(16));
-        if (!dn->pn_cookie.set(cx, dn->pn_cookie.level(),
-                               uint16_t(dn->frameSlot() + depthPlusFixed)))
-            return false;
-
+        dn->pn_cookie.set(dn->pn_cookie.level(), uint16_t(dn->frameSlot() + depthPlusFixed));
 #ifdef DEBUG
         for (ParseNode *pnu = dn->dn_uses; pnu; pnu = pnu->pn_link) {
             JS_ASSERT(pnu->pn_lexdef == dn);
@@ -1160,10 +1157,10 @@ TryConvertToGname(BytecodeEmitter *bce, ParseNode *pn, JSOp *op)
  * and stores, given the compile-time information in bce and a PNK_NAME node pn.
  * It returns false on error, true on success.
  *
- * The caller can test pn->pn_cookie.isFree() to tell whether optimization
- * occurred, in which case BindNameToSlot also updated pn->pn_op.  If
- * pn->pn_cookie.isFree() is still true on return, pn->pn_op still may have
- * been optimized, e.g., from JSOP_NAME to JSOP_CALLEE.  Whether or not
+ * The caller can inspect pn->pn_cookie for FREE_UPVAR_COOKIE to tell whether
+ * optimization occurred, in which case BindNameToSlot also updated pn->pn_op.
+ * If pn->pn_cookie is still FREE_UPVAR_COOKIE on return, pn->pn_op still may
+ * have been optimized, e.g., from JSOP_NAME to JSOP_CALLEE.  Whether or not
  * pn->pn_op was modified, if this function finds an argument or local variable
  * name, PND_CONST will be set in pn_dflags for read-only properties after a
  * successful return.
@@ -1172,7 +1169,7 @@ TryConvertToGname(BytecodeEmitter *bce, ParseNode *pn, JSOp *op)
  * to update the special cases in EmitFor (for-in) and EmitAssignment (= and
  * op=, e.g. +=).
  */
-static bool
+static JSBool
 BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
     Definition *dn;
@@ -1183,7 +1180,7 @@ BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
     /* Idempotency tests come first, since we may be called more than once. */
     if (pn->pn_dflags & PND_BOUND)
-        return true;
+        return JS_TRUE;
 
     /* No cookie initialized for callee; it is pre-bound by definition. */
     JS_ASSERT(!pn->isOp(JSOP_CALLEE));
@@ -1197,17 +1194,17 @@ BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         dn = pn->pn_lexdef;
         JS_ASSERT(dn->isDefn());
         if (pn->isDeoptimized())
-            return true;
+            return JS_TRUE;
         pn->pn_dflags |= (dn->pn_dflags & PND_CONST);
     } else {
         if (!pn->isDefn())
-            return true;
+            return JS_TRUE;
         dn = (Definition *) pn;
     }
 
     op = pn->getOp();
     if (op == JSOP_NOP)
-        return true;
+        return JS_TRUE;
 
     JS_ASSERT(JOF_OPTYPE(op) == JOF_ATOM);
     RootedAtom atom(cx, pn->pn_atom);
@@ -1234,7 +1231,7 @@ BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             else
                 pn->setOp(JSOP_FALSE);
             pn->pn_dflags |= PND_BOUND;
-            return true;
+            return JS_TRUE;
         }
         break;
       default:
@@ -1244,7 +1241,7 @@ BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
                 if (!js_AtomToPrintableString(cx, atom, &name) ||
                     !ReportStrictModeError(cx, bce->tokenStream(), pn, JSMSG_READ_ONLY, name.ptr()))
                 {
-                    return false;
+                    return JS_FALSE;
                 }
             }
             pn->setOp(op = JSOP_NAME);
@@ -1261,7 +1258,7 @@ BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
              * bug 470758.
              */
             if (bce->inForInit)
-                return true;
+                return JS_TRUE;
 
             JS_ASSERT(caller->isScriptFrame());
 
@@ -1272,24 +1269,24 @@ BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             if (caller->isGlobalFrame() && TryConvertToGname(bce, pn, &op)) {
                 pn->setOp(op);
                 pn->pn_dflags |= PND_BOUND;
-                return true;
+                return JS_TRUE;
             }
 
             /*
              * Out of tricks, so we must rely on PICs to optimize named
              * accesses from direct eval called from function code.
              */
-            return true;
+            return JS_TRUE;
         }
 
         /* Optimize accesses to undeclared globals. */
         if (!TryConvertToGname(bce, pn, &op))
-            return true;
+            return JS_TRUE;
 
         pn->setOp(op);
         pn->pn_dflags |= PND_BOUND;
 
-        return true;
+        return JS_TRUE;
     }
 
     uint16_t level = cookie.level();
@@ -1297,7 +1294,7 @@ BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
     const unsigned skip = bce->sc->staticLevel - level;
     if (skip != 0)
-        return true;
+        return JS_TRUE;
 
     /*
      * We are compiling a function body and may be able to optimize name
@@ -1306,7 +1303,7 @@ BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
      */
     switch (dn_kind) {
       case Definition::UNKNOWN:
-        return true;
+        return JS_TRUE;
 
       case Definition::LET:
         switch (op) {
@@ -1370,7 +1367,7 @@ BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
             pn->setOp(op);
             pn->pn_dflags |= PND_BOUND;
-            return true;
+            return JS_TRUE;
         }
         /* FALL THROUGH */
 
@@ -1394,10 +1391,9 @@ BindNameToSlot(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
     JS_ASSERT(!pn->isOp(op));
     pn->setOp(op);
-    if (!pn->pn_cookie.set(bce->sc->context, 0, cookie.slot()))
-        return false;
+    pn->pn_cookie.set(0, cookie.slot());
     pn->pn_dflags |= PND_BOUND;
-    return true;
+    return JS_TRUE;
 }
 
 /*
@@ -3727,8 +3723,6 @@ ParseNode::getConstantValue(JSContext *cx, bool strictChecks, Value *vp)
       case PNK_NULL:
         vp->setNull();
         return true;
-      case PNK_SPREAD:
-        return false;
       case PNK_RB: {
         JS_ASSERT(isOp(JSOP_NEWINIT) && !(pn_xflags & PNX_NONCONST));
 
@@ -4848,18 +4842,28 @@ EmitFunc(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
     {
         FunctionBox *funbox = pn->pn_funbox;
-        SharedContext sc(cx, /* scopeChain = */ NULL, fun, funbox, bce->sc->staticLevel + 1);
-        sc.cxFlags = funbox->cxFlags;
-        if (bce->sc->funMightAliasLocals())
-            sc.setFunMightAliasLocals();  // inherit funMightAliasLocals from parent
-        sc.bindings.transfer(cx, &funbox->bindings);
-
+        SharedContext sc(cx, /* scopeChain = */ NULL, fun, funbox);
         BytecodeEmitter bce2(bce->parser, &sc, pn->pn_pos.begin.lineno,
                              /* noScriptRval = */ false, /* needsScriptGlobal = */ false);
         if (!bce2.init())
             return false;
+
+        sc.cxFlags = funbox->cxFlags;
+        if (bce->sc->funMightAliasLocals())
+            sc.setFunMightAliasLocals();  // inherit funMightAliasLocals from parent
+
+        sc.bindings.transfer(cx, &funbox->bindings);
         bce2.parent = bce;
         bce2.globalScope = bce->globalScope;
+
+        /*
+         * js::frontend::SetStaticLevel limited static nesting depth to fit in
+         * 16 bits and to reserve the all-ones value, thereby reserving the
+         * magic FREE_UPVAR_COOKIE value. Note the bce2.staticLevel assignment
+         * below.
+         */
+        JS_ASSERT(bce->sc->staticLevel < JS_BITMASK(16) - 1);
+        sc.staticLevel = bce->sc->staticLevel + 1;
 
         /* We measured the max scope depth when we parsed the function. */
         if (!EmitFunctionScript(cx, &bce2, pn->pn_body))
@@ -5606,10 +5610,7 @@ EmitSyntheticStatements(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn, ptrd
     JS_ASSERT(pn->isArity(PN_LIST));
     StmtInfo stmtInfo(cx);
     PushStatement(bce->sc, &stmtInfo, STMT_SEQ, top);
-    ParseNode *pn2 = pn->pn_head;
-    if (pn->pn_xflags & PNX_DESTRUCT)
-        pn2 = pn2->pn_next;
-    for (; pn2; pn2 = pn2->pn_next) {
+    for (ParseNode *pn2 = pn->pn_head; pn2; pn2 = pn2->pn_next) {
         if (!EmitTree(cx, bce, pn2))
             return false;
     }
@@ -5805,51 +5806,29 @@ EmitArray(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     if (!(pn->pn_xflags & PNX_NONCONST) && pn->pn_head && bce->checkSingletonContext())
         return EmitSingletonInitialiser(cx, bce, pn);
 
-    int32_t nspread = 0;
-    for (ParseNode *elt = pn->pn_head; elt; elt = elt->pn_next) {
-        if (elt->isKind(PNK_SPREAD))
-            nspread++;
-    }
-
     ptrdiff_t off = EmitN(cx, bce, JSOP_NEWARRAY, 3);
     if (off < 0)
         return false;
     CheckTypeSet(cx, bce, JSOP_NEWARRAY);
     jsbytecode *pc = bce->code(off);
-
-    // For arrays with spread, this is a very pessimistic allocation, the
-    // minimum possible final size.
-    SET_UINT24(pc, pn->pn_count - nspread);
+    SET_UINT24(pc, pn->pn_count);
 
     ParseNode *pn2 = pn->pn_head;
     jsatomid atomIndex;
-    if (nspread && !EmitNumberOp(cx, 0, bce))
-        return false;
     for (atomIndex = 0; pn2; atomIndex++, pn2 = pn2->pn_next) {
-        if (!nspread && !EmitNumberOp(cx, atomIndex, bce))
+        if (!EmitNumberOp(cx, atomIndex, bce))
             return false;
         if (pn2->isKind(PNK_COMMA) && pn2->isArity(PN_NULLARY)) {
             if (Emit1(cx, bce, JSOP_HOLE) < 0)
                 return false;
         } else {
-            ParseNode *expr = pn2->isKind(PNK_SPREAD) ? pn2->pn_kid : pn2;
-            if (!EmitTree(cx, bce, expr))
+            if (!EmitTree(cx, bce, pn2))
                 return false;
         }
-        if (pn2->isKind(PNK_SPREAD)) {
-            if (Emit1(cx, bce, JSOP_SPREAD) < 0)
-                return false;
-        } else if (Emit1(cx, bce, nspread ? JSOP_INITELEM_INC : JSOP_INITELEM) < 0) {
+        if (Emit1(cx, bce, JSOP_INITELEM) < 0)
             return false;
-        }
     }
     JS_ASSERT(atomIndex == pn->pn_count);
-    if (nspread) {
-        if (NewSrcNote(cx, bce, SRC_CONTINUE) < 0)
-            return false;
-        if (Emit1(cx, bce, JSOP_POP) < 0)
-            return false;
-    }
 
     if (pn->pn_xflags & PNX_ENDCOMMA) {
         /* Emit a source note so we know to decompile an extra comma. */

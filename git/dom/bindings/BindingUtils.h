@@ -60,19 +60,20 @@ IsDOMClass(const JSClass* clasp)
   return clasp->flags & JSCLASS_IS_DOMJSCLASS;
 }
 
-inline bool
-IsDOMClass(const js::Class* clasp)
-{
-  return clasp->flags & JSCLASS_IS_DOMJSCLASS;
-}
-
 template <class T>
 inline T*
-UnwrapDOMObject(JSObject* obj)
+UnwrapDOMObject(JSObject* obj, const JSClass* clasp)
 {
-  MOZ_ASSERT(IsDOMClass(JS_GetClass(obj)));
+  MOZ_ASSERT(IsDOMClass(clasp));
+  MOZ_ASSERT(JS_GetClass(obj) == clasp);
 
-  JS::Value val = js::GetReservedSlot(obj, DOM_OBJECT_SLOT);
+  size_t slot = DOMJSClass::FromJSClass(clasp)->mNativeSlot;
+  MOZ_ASSERT((slot == DOM_OBJECT_SLOT &&
+              !(clasp->flags & JSCLASS_DOM_GLOBAL)) ||
+             (slot == DOM_GLOBAL_OBJECT_SLOT &&
+              (clasp->flags & JSCLASS_DOM_GLOBAL)));
+
+  JS::Value val = js::GetReservedSlot(obj, slot);
   // XXXbz/khuey worker code tries to unwrap interface objects (which have
   // nothing here).  That needs to stop.
   // XXX We don't null-check UnwrapObject's result; aren't we going to crash
@@ -82,6 +83,13 @@ UnwrapDOMObject(JSObject* obj)
   }
   
   return static_cast<T*>(val.toPrivate());
+}
+
+template <class T>
+inline T*
+UnwrapDOMObject(JSObject* obj, const js::Class* clasp)
+{
+  return UnwrapDOMObject<T>(obj, Jsvalify(clasp));
 }
 
 // Some callers don't want to set an exception when unwrappin fails
@@ -121,7 +129,7 @@ UnwrapObject(JSContext* cx, JSObject* obj, U& value)
   DOMJSClass* domClass = DOMJSClass::FromJSClass(clasp);
   if (domClass->mInterfaceChain[PrototypeTraits<PrototypeID>::Depth] ==
       PrototypeID) {
-    value = UnwrapDOMObject<T>(obj);
+    value = UnwrapDOMObject<T>(obj, clasp);
     return NS_OK;
   }
 
@@ -331,7 +339,7 @@ WrapNewBindingObject(JSContext* cx, JSObject* scope, T* value, JS::Value* vp)
 }
 
 // Helper for smart pointers (nsAutoPtr/nsRefPtr/nsCOMPtr).
-template <template <typename> class SmartPtr, class T>
+template <template <class> class SmartPtr, class T>
 inline bool
 WrapNewBindingObject(JSContext* cx, JSObject* scope, const SmartPtr<T>& value,
                      JS::Value* vp)
@@ -362,7 +370,7 @@ HandleNewBindingWrappingFailure(JSContext* cx, JSObject* scope, T* value,
 }
 
 // Helper for smart pointers (nsAutoPtr/nsRefPtr/nsCOMPtr).
-template <template <typename> class SmartPtr, class T>
+template <template <class> class SmartPtr, class T>
 MOZ_ALWAYS_INLINE bool
 HandleNewBindingWrappingFailure(JSContext* cx, JSObject* scope,
                                 const SmartPtr<T>& value, JS::Value* vp)
@@ -439,7 +447,7 @@ struct ParentObject {
     mWrapperCache(GetWrapperCache(aObject))
   {}
 
-  template<class T, template<typename> class SmartPtr>
+  template<class T, template<class> class SmartPtr>
   ParentObject(const SmartPtr<T>& aObject) :
     mObject(aObject.get()),
     mWrapperCache(GetWrapperCache(aObject.get()))
@@ -571,16 +579,6 @@ WrapNativeParent(JSContext* cx, JSObject* scope, const T& p)
          NULL;
 }
 
-static inline bool
-InternJSString(JSContext* cx, jsid& id, const char* chars)
-{
-  if (JSString *str = ::JS_InternString(cx, chars)) {
-    id = INTERNED_STRING_TO_JSID(cx, str);
-    return true;
-  }
-  return false;
-}
-
 // Spec needs a name property
 template <typename Spec>
 static bool
@@ -593,9 +591,12 @@ InitIds(JSContext* cx, Prefable<Spec>* prefableSpecs, jsid* ids)
     // because this is only done once per application runtime.
     Spec* spec = prefableSpecs->specs;
     do {
-      if (!InternJSString(cx, *ids, spec->name)) {
+      JSString *str = ::JS_InternString(cx, spec->name);
+      if (!str) {
         return false;
       }
+
+      *ids = INTERNED_STRING_TO_JSID(cx, str);
     } while (++ids, (++spec)->name);
 
     // We ran out of ids for that pref.  Put a JSID_VOID in on the id

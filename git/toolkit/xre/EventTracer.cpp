@@ -83,8 +83,6 @@ bool sExit = false;
  */
 void TracerThread(void *arg)
 {
-  PR_SetCurrentThreadName("Event Tracer");
-
   // These are the defaults. They can be overridden by environment vars.
   // This should be set to the maximum latency we'd like to allow
   // for responsiveness.

@@ -642,8 +642,6 @@ protected:
     nsresult EnsureCommandHandler();
 
     nsIChannel* GetCurrentDocChannel();
-
-    bool ShouldBlockLoadingForBackButton();
 protected:
     // Override the parent setter from nsDocLoader
     virtual nsresult SetDocLoaderParent(nsDocLoader * aLoader);
@@ -661,8 +659,6 @@ protected:
     private:
         nsRefPtr<nsDocShell> mDocShell;
     };
-
-    bool JustStartedNetworkLoad();
 
     // hash of session storages, keyed by domain
     nsInterfaceHashtable<nsCStringHashKey, nsIDOMStorage> mStorages;

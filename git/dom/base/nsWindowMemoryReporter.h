@@ -12,7 +12,6 @@
 #include "nsWeakReference.h"
 #include "nsAutoPtr.h"
 #include "mozilla/TimeStamp.h"
-#include "nsArenaMemoryStats.h"
 
 // This should be used for any nsINode sub-class that has fields of its own
 // that it needs to measure;  any sub-class that doesn't use it will inherit
@@ -28,14 +27,9 @@ public:
     mMallocSizeOf = aMallocSizeOf;
   }
   nsMallocSizeOfFun mMallocSizeOf;
-  nsArenaMemoryStats mArenaStats;
-  size_t mDOMElementNodes;
-  size_t mDOMTextNodes;
-  size_t mDOMCDATANodes;
-  size_t mDOMCommentNodes;
-  size_t mDOMOther;
+  size_t mDOM;
   size_t mStyleSheets;
-  size_t mLayoutPresShell;
+  size_t mLayoutArenas;
   size_t mLayoutStyleSets;
   size_t mLayoutTextRuns;
   size_t mLayoutPresContext;

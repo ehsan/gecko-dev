@@ -64,6 +64,7 @@ EXPORTS_$(binding_include_path) = \
   PrototypeList.h \
   RegisterBindings.h \
   Nullable.h \
+  PrimitiveConversions.h \
   TypedArray.h \
   BindingUtils.h \
   $(exported_binding_headers) \
@@ -82,7 +83,6 @@ bindinggen_dependencies := \
   Bindings.conf \
   Configuration.py \
   Codegen.py \
-  parser/WebIDL.py \
   ParserResults.pkl \
   $(GLOBAL_DEPS) \
   $(NULL)
@@ -120,7 +120,6 @@ globalgen_dependencies := \
   Bindings.conf \
   Configuration.py \
   Codegen.py \
-  parser/WebIDL.py \
   $(CACHE_DIR)/.done \
   $(GLOBAL_DEPS) \
   $(NULL)
@@ -146,9 +145,3 @@ GARBAGE += \
   webidlyacc.py \
   parser.out \
   $(NULL)
-
-# Make sure all binding header files are created during the export stage, so we
-# don't have issues with .cpp files being compiled before we've generated the
-# headers they depend on.  This is really only needed for the test files, since
-# the non-test headers are all exported above anyway.
-export:: $(binding_header_files)

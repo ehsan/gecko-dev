@@ -1,4 +1,4 @@
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsStringGlue.h"
 
 #include <stdio.h>
@@ -9,7 +9,7 @@
 #include "nsISimpleEnumerator.h"
 #include "nsCOMPtr.h"
 
-bool LoopInDir(nsIFile* file)
+bool LoopInDir(nsILocalFile* file)
 {
     nsresult rv;
     nsCOMPtr<nsISimpleEnumerator> entries;
@@ -25,7 +25,7 @@ bool LoopInDir(nsIFile* file)
         if(!sup)
             return false;
         
-        nsCOMPtr<nsIFile> file = do_QueryInterface(sup);
+        nsCOMPtr<nsILocalFile> file = do_QueryInterface(sup);
         if(!file)
             return false;
     
@@ -44,7 +44,8 @@ bool LoopInDir(nsIFile* file)
 
 		if (isDir)
         {
-           LoopInDir(file);   
+           nsCOMPtr<nsILocalFile> lfile = do_QueryInterface(file);
+           LoopInDir(lfile);   
         }        
     }
     return true;
@@ -56,7 +57,7 @@ main(int argc, char* argv[])
 {
     nsresult rv;
     {
-        nsCOMPtr<nsIFile> topDir;
+        nsCOMPtr<nsILocalFile> topDir;
 
         nsCOMPtr<nsIServiceManager> servMan;
         rv = NS_InitXPCOM2(getter_AddRefs(servMan), nsnull, nsnull);

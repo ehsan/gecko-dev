@@ -36,6 +36,8 @@
 #include "nsSMILTypes.h"
 #include "nsIContentIterator.h"
 
+nsresult NS_NewContentIterator(nsIContentIterator** aInstancePtrResult);
+
 using namespace mozilla;
 using namespace mozilla::dom;
 
@@ -1273,8 +1275,7 @@ nsSVGSVGElement::
   SVGPreserveAspectRatio* pAROverridePtr = new SVGPreserveAspectRatio(aPAR);
   nsresult rv = SetProperty(nsGkAtoms::overridePreserveAspectRatio,
                             pAROverridePtr,
-                            ReleasePreserveAspectRatioPropertyValue,
-                            true);
+                            ReleasePreserveAspectRatioPropertyValue);
   NS_ABORT_IF_FALSE(rv != NS_PROPTABLE_PROP_OVERWRITTEN,
                     "Setting override value when it's already set...?"); 
 
@@ -1386,8 +1387,7 @@ nsSVGSVGElement::SetViewBoxProperty(const nsSVGViewBoxRect& aViewBox)
   nsSVGViewBoxRect* pViewBoxOverridePtr = new nsSVGViewBoxRect(aViewBox);
   nsresult rv = SetProperty(nsGkAtoms::viewBox,
                             pViewBoxOverridePtr,
-                            ReleaseViewBoxPropertyValue,
-                            true);
+                            ReleaseViewBoxPropertyValue);
   NS_ABORT_IF_FALSE(rv != NS_PROPTABLE_PROP_OVERWRITTEN,
                     "Setting override value when it's already set...?"); 
 
@@ -1420,9 +1420,7 @@ nsSVGSVGElement::ClearViewBoxProperty()
 bool
 nsSVGSVGElement::SetZoomAndPanProperty(PRUint16 aValue)
 {
-  nsresult rv = SetProperty(nsGkAtoms::zoomAndPan,
-                            reinterpret_cast<void*>(aValue),
-                            nsnull, true);
+  nsresult rv = SetProperty(nsGkAtoms::zoomAndPan, reinterpret_cast<void*>(aValue));
   NS_ABORT_IF_FALSE(rv != NS_PROPTABLE_PROP_OVERWRITTEN,
                     "Setting override value when it's already set...?"); 
 

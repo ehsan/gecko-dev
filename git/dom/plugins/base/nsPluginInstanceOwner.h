@@ -299,7 +299,6 @@ private:
 #ifdef MOZ_WIDGET_ANDROID
   void SendSize(int width, int height);
 
-  gfxRect GetPluginRect();
   bool AddPluginView(const gfxRect& aRect = gfxRect(0, 0, 0, 0));
   void RemovePluginView();
 

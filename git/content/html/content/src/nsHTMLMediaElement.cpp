@@ -56,6 +56,8 @@
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsIAppShell.h"
 #include "nsWidgetsCID.h"
+
+#include "nsIPrivateDOMEvent.h"
 #include "nsIDOMNotifyAudioAvailableEvent.h"
 #include "nsMediaFragmentURIParser.h"
 #include "nsURIHashKey.h"
@@ -1272,7 +1274,7 @@ NS_IMETHODIMP nsHTMLMediaElement::SetCurrentTime(double aCurrentTime)
   LOG(PR_LOG_DEBUG, ("%p SetCurrentTime(%f) starting seek", this, aCurrentTime));
   nsresult rv = mDecoder->Seek(clampedTime);
   // Start a new range at position we seeked to.
-  mCurrentPlayRangeStart = mDecoder->GetCurrentTime();
+  mCurrentPlayRangeStart = clampedTime;
 
   // We changed whether we're seeking so we need to AddRemoveSelfReference.
   AddRemoveSelfReference();

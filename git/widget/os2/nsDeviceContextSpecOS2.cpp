@@ -20,7 +20,7 @@
 
 #include "nsOS2Uni.h"
 
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsIFileStreams.h"
 #include "gfxPDFSurface.h"
@@ -358,7 +358,7 @@ NS_IMETHODIMP nsDeviceContextSpecOS2::GetSurfaceForPrinter(gfxASurface **surface
     width  /= TWIPS_PER_POINT_FLOAT;
     height /= TWIPS_PER_POINT_FLOAT;
 
-    nsCOMPtr<nsIFile> file = do_CreateInstance("@mozilla.org/file/local;1");
+    nsCOMPtr<nsILocalFile> file = do_CreateInstance("@mozilla.org/file/local;1");
     rv = file->InitWithPath(filename);
     if (NS_FAILED(rv))
       return rv;

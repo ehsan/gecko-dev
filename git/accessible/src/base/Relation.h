@@ -9,9 +9,6 @@
 
 #include "AccIterator.h"
 
-namespace mozilla {
-namespace a11y {
-
 /**
  * This class is used to return Relation objects from functions.  A copy
  * constructor doesn't work here because we need to mutate the old relation to
@@ -119,9 +116,6 @@ private:
   nsAutoPtr<AccIterable> mFirstIter;
   AccIterable* mLastIter;
 };
-
-} // namespace a11y
-} // namespace mozilla
 
 #endif
 

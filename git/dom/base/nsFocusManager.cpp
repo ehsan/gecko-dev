@@ -44,19 +44,16 @@
 #include "nsIBaseWindow.h"
 #include "nsIViewManager.h"
 #include "nsFrameSelection.h"
-#include "mozilla/Selection.h"
+#include "nsTypedSelection.h"
 #include "nsXULPopupManager.h"
 #include "nsIDOMNodeFilter.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIPrincipal.h"
-#include "mozAutoDocUpdate.h"
-#include "nsFrameLoader.h"
-#include "nsIObserverService.h"
-#include "nsIScriptError.h"
-
 #include "mozilla/dom/Element.h"
-#include "mozilla/LookAndFeel.h"
+#include "mozAutoDocUpdate.h"
 #include "mozilla/Preferences.h"
+#include "mozilla/LookAndFeel.h"
+#include "nsIScriptError.h"
 
 #ifdef MOZ_XUL
 #include "nsIDOMXULTextboxElement.h"

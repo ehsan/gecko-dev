@@ -3829,9 +3829,7 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
       case JSOP_ENDINIT:
         break;
 
-      case JSOP_INITELEM:
-      case JSOP_INITELEM_INC:
-      case JSOP_SPREAD: {
+      case JSOP_INITELEM: {
         const SSAValue &objv = poppedValue(pc, 2);
         jsbytecode *initpc = script->code + objv.pushedOffset();
         TypeObject *initializer = GetInitializerType(cx, script, initpc);
@@ -3852,23 +3850,12 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
                 } else if (state.hasHole) {
                     if (!initializer->unknownProperties())
                         initializer->setFlags(cx, OBJECT_FLAG_NON_PACKED_ARRAY);
-                } else if (op == JSOP_SPREAD) {
-                    // Iterator could put arbitrary things into the array.
-                    types->addType(cx, Type::UnknownType());
                 } else {
                     poppedTypes(pc, 0)->addSubset(cx, types);
                 }
             }
         } else {
             pushed[0].addType(cx, Type::UnknownType());
-        }
-        switch (op) {
-          case JSOP_SPREAD:
-          case JSOP_INITELEM_INC:
-            poppedTypes(pc, 1)->addSubset(cx, &pushed[1]);
-            break;
-          default:
-            break;
         }
         state.hasGetSet = false;
         state.hasHole = false;
@@ -5259,8 +5246,6 @@ NestingPrologue(JSContext *cx, StackFrame *fp)
             MarkTypeObjectFlags(cx, fp->fun(), OBJECT_FLAG_REENTRANT_FUNCTION);
         }
 
-        /* Extensibility guards in the frontend guarantee the slots won't move. */
-        JS_ASSERT(!script->funHasExtensibleScope);
         nesting->activeCall = &fp->callObj();
         nesting->argArray = Valueify(nesting->activeCall->argArray());
         nesting->varArray = Valueify(nesting->activeCall->varArray());
@@ -5523,18 +5508,15 @@ JSObject::shouldSplicePrototype(JSContext *cx)
 }
 
 bool
-JSObject::splicePrototype(JSContext *cx, JSObject *proto_)
+JSObject::splicePrototype(JSContext *cx, JSObject *proto)
 {
-    RootedObject proto(cx, proto_);
-    RootedObject self(cx, this);
-
     /*
      * For singleton types representing only a single JSObject, the proto
      * can be rearranged as needed without destroying type information for
      * the old or new types. Note that type constraints propagating properties
      * from the old prototype are not removed.
      */
-    JS_ASSERT_IF(cx->typeInferenceEnabled(), self->hasSingletonType());
+    JS_ASSERT_IF(cx->typeInferenceEnabled(), hasSingletonType());
 
     /* Inner objects may not appear on prototype chains. */
     JS_ASSERT_IF(proto, !proto->getClass()->ext.outerObject);
@@ -5543,7 +5525,7 @@ JSObject::splicePrototype(JSContext *cx, JSObject *proto_)
      * Force type instantiation when splicing lazy types. This may fail,
      * in which case inference will be disabled for the compartment.
      */
-    TypeObject *type = self->getType(cx);
+    TypeObject *type = getType(cx);
     TypeObject *protoType = NULL;
     if (proto) {
         protoType = proto->getType(cx);
@@ -5555,7 +5537,7 @@ JSObject::splicePrototype(JSContext *cx, JSObject *proto_)
         TypeObject *type = proto ? proto->getNewType(cx) : cx->compartment->getEmptyType(cx);
         if (!type)
             return false;
-        self->type_ = type;
+        type_ = type;
         return true;
     }
 

@@ -12,7 +12,6 @@
 #include "nsAutoPtr.h"
 #include "nsString.h"
 #include "nsWeakReference.h"
-#include "mozilla/Attributes.h"
 
 class nsOfflineCacheUpdate;
 
@@ -35,9 +34,9 @@ namespace docshell {
   NS_SCRIPTABLE NS_IMETHOD RemoveObserver(nsIOfflineCacheUpdateObserver *aObserver) { return !_to ? NS_ERROR_NULL_POINTER : _to->RemoveObserver(aObserver); } \
   NS_SCRIPTABLE NS_IMETHOD GetByteProgress(PRUint64 * _result) { return !_to ? NS_ERROR_NULL_POINTER : _to->GetByteProgress(_result); }
 
-class OfflineCacheUpdateGlue MOZ_FINAL : public nsSupportsWeakReference
-                                       , public nsIOfflineCacheUpdate
-                                       , public nsIOfflineCacheUpdateObserver
+class OfflineCacheUpdateGlue : public nsSupportsWeakReference
+                             , public nsIOfflineCacheUpdate
+                             , public nsIOfflineCacheUpdateObserver
 {
 public:
     NS_DECL_ISUPPORTS
@@ -51,7 +50,7 @@ public:
     NS_SCRIPTABLE NS_IMETHOD Init(nsIURI *aManifestURI, 
                                   nsIURI *aDocumentURI, 
                                   nsIDOMDocument *aDocument,
-                                  nsIFile *aCustomProfileDir);
+                                  nsILocalFile *aCustomProfileDir);
 
     NS_DECL_NSIOFFLINECACHEUPDATEOBSERVER
 

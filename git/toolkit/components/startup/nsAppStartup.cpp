@@ -8,7 +8,7 @@
 #include "nsIAppShellService.h"
 #include "nsPIDOMWindow.h"
 #include "nsIInterfaceRequestor.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsIObserverService.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
@@ -709,8 +709,6 @@ JiffiesSinceBoot(const char *file)
 static void
 ThreadedCalculateProcessCreationTimestamp(void *aClosure)
 {
-  PR_SetCurrentThreadName("Startup Timer");
-
   PRTime now = PR_Now();
   long hz = sysconf(_SC_CLK_TCK);
   if (!hz)

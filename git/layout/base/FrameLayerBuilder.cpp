@@ -59,14 +59,9 @@ public:
 
 namespace {
 
-class RefCountedRegion : public RefCounted<RefCountedRegion> {
-public:
-  nsRegion mRegion;
-};
-
-static void DestroyRefCountedRegion(void* aPropertyValue)
+static void DestroyRegion(void* aPropertyValue)
 {
-  static_cast<RefCountedRegion*>(aPropertyValue)->Release();
+  delete static_cast<nsRegion*>(aPropertyValue);
 }
 
 /**
@@ -83,7 +78,7 @@ static void DestroyRefCountedRegion(void* aPropertyValue)
  * When the property value is null, the region is infinite --- i.e. all
  * areas of the ThebesLayers should be invalidated.
  */
-NS_DECLARE_FRAME_PROPERTY(ThebesLayerInvalidRegionProperty, DestroyRefCountedRegion)
+NS_DECLARE_FRAME_PROPERTY(ThebesLayerInvalidRegionProperty, DestroyRegion)
 
 static void DestroyPoint(void* aPropertyValue)
 {
@@ -680,13 +675,8 @@ FrameLayerBuilder::WillEndTransaction(LayerManager* aManager)
                "Some frame must have a layer!");
 }
 
-/**
- * If *aThebesLayerInvalidRegion is non-null, use it as this frame's
- * region property. Otherwise set it to the frame's region property.
- */
 static void
-SetHasContainerLayer(nsIFrame* aFrame, nsPoint aOffsetToRoot,
-                     RefCountedRegion** aThebesLayerInvalidRegion)
+SetHasContainerLayer(nsIFrame* aFrame, nsPoint aOffsetToRoot)
 {
   aFrame->AddStateBits(NS_FRAME_HAS_CONTAINER_LAYER);
   for (nsIFrame* f = aFrame;
@@ -702,24 +692,6 @@ SetHasContainerLayer(nsIFrame* aFrame, nsPoint aOffsetToRoot,
     *lastPaintOffset = aOffsetToRoot;
   } else {
     props.Set(ThebesLayerLastPaintOffsetProperty(), new nsPoint(aOffsetToRoot));
-  }
-
-  // Reset or create the invalid region now so we can start collecting
-  // new dirty areas.
-  if (*aThebesLayerInvalidRegion) {
-    (*aThebesLayerInvalidRegion)->AddRef();
-    props.Set(ThebesLayerInvalidRegionProperty(), *aThebesLayerInvalidRegion);
-  } else {
-    RefCountedRegion* invalidRegion = static_cast<RefCountedRegion*>
-      (props.Get(ThebesLayerInvalidRegionProperty()));
-    if (invalidRegion) {
-      invalidRegion->mRegion.SetEmpty();
-    } else {
-      invalidRegion = new RefCountedRegion();
-      invalidRegion->AddRef();
-      props.Set(ThebesLayerInvalidRegionProperty(), invalidRegion);
-    }
-    *aThebesLayerInvalidRegion = invalidRegion;
   }
 }
 
@@ -750,7 +722,19 @@ FrameLayerBuilder::UpdateDisplayItemDataForFrame(DisplayItemDataEntry* aEntry,
     return PL_DHASH_REMOVE;
   }
 
-  if (!newDisplayItems->HasNonEmptyContainerLayer()) {
+  if (newDisplayItems->HasNonEmptyContainerLayer()) {
+    // Reset or create the invalid region now so we can start collecting
+    // new dirty areas.
+    // Note that the NS_FRAME_HAS_CONTAINER_LAYER bit is set in
+    // BuildContainerLayerFor, so we don't need to set it here.
+    nsRegion* invalidRegion = static_cast<nsRegion*>
+      (props.Get(ThebesLayerInvalidRegionProperty()));
+    if (invalidRegion) {
+      invalidRegion->SetEmpty();
+    } else {
+      props.Set(ThebesLayerInvalidRegionProperty(), new nsRegion());
+    }
+  } else {
     SetNoContainerLayer(f);
   }
 
@@ -777,6 +761,10 @@ FrameLayerBuilder::StoreNewDisplayItemData(DisplayItemDataEntry* aEntry,
 
   newEntry->mData.SwapElements(aEntry->mData);
   props.Set(LayerManagerDataProperty(), data);
+
+  if (f->GetStateBits() & NS_FRAME_HAS_CONTAINER_LAYER) {
+    props.Set(ThebesLayerInvalidRegionProperty(), new nsRegion());
+  }
   return PL_DHASH_REMOVE;
 }
 
@@ -1143,7 +1131,11 @@ ContainerState::ThebesLayerData::UpdateCommonClipCount(
 already_AddRefed<ImageContainer>
 ContainerState::ThebesLayerData::CanOptimizeImageLayer()
 {
+#ifdef MOZ_ENABLE_MASK_LAYERS
   if (!mImage) {
+#else
+  if (!mImage || !mItemClip.mRoundedClipRects.IsEmpty()) {
+#endif
     return nsnull;
   }
 
@@ -1173,6 +1165,10 @@ ContainerState::PopThebesLayerData()
       gfx3DMatrix transform = imageLayer->GetTransform()*
         gfx3DMatrix::ScalingMatrix(mParameters.mXScale, mParameters.mYScale, 1.0f);
       imageLayer->SetTransform(transform);
+#ifndef MOZ_ENABLE_MASK_LAYERS
+      NS_ASSERTION(data->mItemClip.mRoundedClipRects.IsEmpty(),
+                   "How did we get rounded clip rects here?");
+#endif
       if (data->mItemClip.mHaveClipRect) {
         nsIntRect clip = ScaleToNearestPixels(data->mItemClip.mClipRect);
         imageLayer->IntersectClipRect(clip);
@@ -1254,6 +1250,7 @@ ContainerState::PopThebesLayerData()
     }
     userData->mForcedBackgroundColor = backgroundColor;
 
+#ifdef MOZ_ENABLE_MASK_LAYERS
     // use a mask layer for rounded rect clipping
     PRInt32 commonClipCount = data->mCommonClipCount;
     NS_ASSERTION(commonClipCount >= 0, "Inconsistent clip count.");
@@ -1265,6 +1262,7 @@ ContainerState::PopThebesLayerData()
   } else {
     // mask layer for image and color layers
     SetupMaskLayer(layer, data->mItemClip);
+#endif
   }
   PRUint32 flags;
   if (isOpaque && !data->mForceTransparentSurface) {
@@ -1627,7 +1625,13 @@ ContainerState::ProcessDisplayItems(const nsDisplayList& aList,
     // Assign the item to a layer
     if (layerState == LAYER_ACTIVE_FORCE ||
         layerState == LAYER_ACTIVE_EMPTY ||
+#ifdef MOZ_ENABLE_MASK_LAYERS
         layerState == LAYER_ACTIVE) {
+#else
+        (layerState == LAYER_ACTIVE &&
+         (aClip.mRoundedClipRects.IsEmpty() ||
+          !aClip.IsRectClippedByRoundedCorner(item->GetVisibleRect())))) {
+#endif
 
       // LAYER_ACTIVE_EMPTY means the layer is created just for its metadata.
       // We should never see an empty layer with any visible content!
@@ -1689,11 +1693,13 @@ ContainerState::ProcessDisplayItems(const nsDisplayList& aList,
       }
       RestrictVisibleRegionForLayer(ownLayer, itemVisibleRect);
 
+#ifdef MOZ_ENABLE_MASK_LAYERS
       // rounded rectangle clipping using mask layers
       // (must be done after visible rect is set on layer)
       if (aClip.IsRectClippedByRoundedCorner(itemContent)) {
           SetupMaskLayer(ownLayer, aClip);
       }
+#endif
 
       ContainerLayer* oldContainer = ownLayer->GetParent();
       if (oldContainer && oldContainer != mContainerLayer) {
@@ -2019,22 +2025,26 @@ ApplyThebesLayerInvalidation(nsDisplayListBuilder* aBuilder,
                              ContainerState& aState,
                              nsPoint* aCurrentOffset)
 {
+  FrameProperties props = aContainerFrame->Properties();
+  nsPoint* offsetAtLastPaint = static_cast<nsPoint*>
+    (props.Get(ThebesLayerLastPaintOffsetProperty()));
   *aCurrentOffset = aContainerItem ? aContainerItem->ToReferenceFrame()
     : aBuilder->ToReferenceFrame(aContainerFrame);
 
-  FrameProperties props = aContainerFrame->Properties();
-  RefCountedRegion* invalidThebesContent = static_cast<RefCountedRegion*>
+  nsRegion* invalidThebesContent = static_cast<nsRegion*>
     (props.Get(ThebesLayerInvalidRegionProperty()));
   if (invalidThebesContent) {
+    nsPoint offset = offsetAtLastPaint ? *offsetAtLastPaint : *aCurrentOffset;
+    invalidThebesContent->MoveBy(offset);
     const FrameLayerBuilder::ContainerParameters& scaleParameters = aState.ScaleParameters();
-    aState.AddInvalidThebesContent(invalidThebesContent->mRegion.
+    aState.AddInvalidThebesContent(invalidThebesContent->
       ScaleToOutsidePixels(scaleParameters.mXScale, scaleParameters.mYScale,
                            aState.GetAppUnitsPerDevPixel()));
     // We have to preserve the current contents of invalidThebesContent
     // because there might be multiple container layers for the same
     // frame and we need to invalidate the ThebesLayer children of all
-    // of them. Also, multiple calls to ApplyThebesLayerInvalidation for the
-    // same layer can share the same region.
+    // of them.
+    invalidThebesContent->MoveBy(-offset);
   } else {
     // The region was deleted to indicate that everything should be
     // invalidated.
@@ -2109,8 +2119,7 @@ FrameLayerBuilder::BuildContainerLayerFor(nsDisplayListBuilder* aBuilder,
     nsPoint currentOffset;
     ApplyThebesLayerInvalidation(aBuilder, aContainerFrame, aContainerItem, state,
                                  &currentOffset);
-    RefCountedRegion* thebesLayerInvalidRegion = nsnull;
-    SetHasContainerLayer(aContainerFrame, currentOffset, &thebesLayerInvalidRegion);
+    SetHasContainerLayer(aContainerFrame, currentOffset);
 
     nsAutoTArray<nsIFrame*,4> mergedFrames;
     if (aContainerItem) {
@@ -2126,7 +2135,7 @@ FrameLayerBuilder::BuildContainerLayerFor(nsDisplayListBuilder* aBuilder,
       }
       ApplyThebesLayerInvalidation(aBuilder, mergedFrame, nsnull, state,
                                    &currentOffset);
-      SetHasContainerLayer(mergedFrame, currentOffset, &thebesLayerInvalidRegion);
+      SetHasContainerLayer(mergedFrame, currentOffset);
     }
   }
 
@@ -2186,19 +2195,12 @@ FrameLayerBuilder::GetLeafLayerFor(nsDisplayListBuilder* aBuilder,
 FrameLayerBuilder::InvalidateThebesLayerContents(nsIFrame* aFrame,
                                                  const nsRect& aRect)
 {
-  FrameProperties props = aFrame->Properties();
-  RefCountedRegion* invalidThebesContent = static_cast<RefCountedRegion*>
-    (props.Get(ThebesLayerInvalidRegionProperty()));
+  nsRegion* invalidThebesContent = static_cast<nsRegion*>
+    (aFrame->Properties().Get(ThebesLayerInvalidRegionProperty()));
   if (!invalidThebesContent)
     return;
-
-  nsPoint* offsetAtLastPaint = static_cast<nsPoint*>
-    (props.Get(ThebesLayerLastPaintOffsetProperty()));
-  NS_ASSERTION(offsetAtLastPaint,
-               "This must have been set up along with ThebesLayerInvalidRegionProperty");
-  invalidThebesContent->mRegion.Or(invalidThebesContent->mRegion,
-          aRect + *offsetAtLastPaint);
-  invalidThebesContent->mRegion.SimplifyOutward(20);
+  invalidThebesContent->Or(*invalidThebesContent, aRect);
+  invalidThebesContent->SimplifyOutward(20);
 }
 
 /**
@@ -2812,6 +2814,7 @@ void
 ContainerState::SetupMaskLayer(Layer *aLayer, const FrameLayerBuilder::Clip& aClip,
                                PRUint32 aRoundedRectClipCount) 
 {
+#ifdef MOZ_ENABLE_MASK_LAYERS
   nsIntRect boundingRect = aLayer->GetEffectiveVisibleRegion().GetBounds();
   // don't build an unnecessary mask
   if (aClip.mRoundedClipRects.IsEmpty() ||
@@ -2906,6 +2909,7 @@ ContainerState::SetupMaskLayer(Layer *aLayer, const FrameLayerBuilder::Clip& aCl
   userData->mBounds = aLayer->GetEffectiveVisibleRegion().GetBounds();
 
   aLayer->SetMaskLayer(maskLayer);
+#endif
   return;
 }
 

@@ -285,7 +285,7 @@ Snapshot(JSContext *cx, JSObject *obj_, unsigned flags, AutoIdVector *props)
 {
     IdSet ht(cx);
     if (!ht.init(32))
-        return false;
+        return NULL;
 
     RootedObject obj(cx, obj_), pobj(cx);
     pobj = obj;
@@ -828,13 +828,12 @@ iterator_next(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    RootedObject thisObj(cx);
-    if (!NonGenericMethodGuard(cx, args, iterator_next, &IteratorClass, thisObj.address()))
-        return false;
-    if (!thisObj)
-        return true;
+    bool ok;
+    RootedObject obj(cx, NonGenericMethodGuard(cx, args, iterator_next, &IteratorClass, &ok));
+    if (!obj)
+        return ok;
 
-    if (!js_IteratorMore(cx, thisObj, &args.rval()))
+    if (!js_IteratorMore(cx, obj, &args.rval()))
         return false;
 
     if (!args.rval().toBoolean()) {
@@ -842,7 +841,7 @@ iterator_next(JSContext *cx, unsigned argc, Value *vp)
         return false;
     }
 
-    return js_IteratorNext(cx, thisObj, &args.rval());
+    return js_IteratorNext(cx, obj, &args.rval());
 }
 
 #define JSPROP_ROPERM   (JSPROP_READONLY | JSPROP_PERMANENT)
@@ -886,7 +885,7 @@ js::ValueToIterator(JSContext *cx, unsigned flags, Value *vp)
          * but it's "web JS" compatible. ES5 fixed for-in to match this de-facto
          * standard.
          */
-        if (flags & JSITER_ENUMERATE) {
+        if ((flags & JSITER_ENUMERATE)) {
             if (!js_ValueToObjectOrNull(cx, *vp, obj.address()))
                 return false;
             /* fall through */
@@ -1331,7 +1330,7 @@ generator_finalize(FreeOp *fop, JSObject *obj)
 }
 
 static void
-MarkGeneratorFrame(JSTracer *trc, JSGenerator *gen)
+MarkGenerator(JSTracer *trc, JSGenerator *gen)
 {
     MarkValueRange(trc,
                    HeapValueify(gen->fp->generatorArgsSnapshotBegin()),
@@ -1349,31 +1348,7 @@ GeneratorWriteBarrierPre(JSContext *cx, JSGenerator *gen)
 {
     JSCompartment *comp = cx->compartment;
     if (comp->needsBarrier())
-        MarkGeneratorFrame(comp->barrierTracer(), gen);
-}
-
-/*
- * Only mark generator frames/slots when the generator is not active on the
- * stack or closed. Barriers when copying onto the stack or closing preserve
- * gc invariants.
- */
-static bool
-GeneratorHasMarkableFrame(JSGenerator *gen)
-{
-    return gen->state == JSGEN_NEWBORN || gen->state == JSGEN_OPEN;
-}
-
-/*
- * When a generator is closed, the GC things reachable from the contained frame
- * and slots become unreachable and thus require a write barrier.
- */
-static void
-SetGeneratorClosed(JSContext *cx, JSGenerator *gen)
-{
-    JS_ASSERT(gen->state != JSGEN_CLOSED);
-    if (GeneratorHasMarkableFrame(gen))
-        GeneratorWriteBarrierPre(cx, gen);
-    gen->state = JSGEN_CLOSED;
+        MarkGenerator(comp->barrierTracer(), gen);
 }
 
 static void
@@ -1383,8 +1358,8 @@ generator_trace(JSTracer *trc, JSObject *obj)
     if (!gen)
         return;
 
-    if (GeneratorHasMarkableFrame(gen))
-        MarkGeneratorFrame(trc, gen);
+    if (gen->state == JSGEN_NEWBORN || gen->state == JSGEN_OPEN)
+        MarkGenerator(trc, gen);
 }
 
 Class js::GeneratorClass = {
@@ -1468,14 +1443,11 @@ js_NewGenerator(JSContext *cx)
     /* Copy from the stack to the generator's floating frame. */
     gen->regs.rebaseFromTo(stackRegs, *genfp);
     genfp->copyFrameAndValues<HeapValue, Value, StackFrame::DoPostBarrier>(
-                              cx, genvp, stackfp, stackvp, stackRegs.sp);
+                              cx, genfp, genvp, stackfp, stackvp, stackRegs.sp);
 
     obj->setPrivate(gen);
     return obj;
 }
-
-static void
-SetGeneratorClosed(JSContext *cx, JSGenerator *gen);
 
 typedef enum JSGeneratorOp {
     JSGENOP_NEXT,
@@ -1540,7 +1512,7 @@ SendToGenerator(JSContext *cx, JSGeneratorOp op, JSObject *obj,
     {
         GeneratorFrameGuard gfg;
         if (!cx->stack.pushGeneratorFrame(cx, gen, &gfg)) {
-            SetGeneratorClosed(cx, gen);
+            gen->state = JSGEN_CLOSED;
             return JS_FALSE;
         }
 
@@ -1570,7 +1542,7 @@ SendToGenerator(JSContext *cx, JSGeneratorOp op, JSObject *obj,
     }
 
     gen->fp->clearReturnValue();
-    SetGeneratorClosed(cx, gen);
+    gen->state = JSGEN_CLOSED;
     if (ok) {
         /* Returned, explicitly or by falling off the end. */
         if (op == JSGENOP_CLOSE)
@@ -1610,13 +1582,12 @@ generator_op(JSContext *cx, Native native, JSGeneratorOp op, Value *vp, unsigned
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    JSObject *thisObj;
-    if (!NonGenericMethodGuard(cx, args, native, &GeneratorClass, &thisObj))
-        return false;
-    if (!thisObj)
-        return true;
+    bool ok;
+    JSObject *obj = NonGenericMethodGuard(cx, args, native, &GeneratorClass, &ok);
+    if (!obj)
+        return ok;
 
-    JSGenerator *gen = (JSGenerator *) thisObj->getPrivate();
+    JSGenerator *gen = (JSGenerator *) obj->getPrivate();
     if (!gen) {
         /* This happens when obj is the generator prototype. See bug 352885. */
         goto closed_generator;
@@ -1638,7 +1609,7 @@ generator_op(JSContext *cx, Native native, JSGeneratorOp op, Value *vp, unsigned
 
           default:
             JS_ASSERT(op == JSGENOP_CLOSE);
-            SetGeneratorClosed(cx, gen);
+            gen->state = JSGEN_CLOSED;
             args.rval().setUndefined();
             return true;
         }
@@ -1659,7 +1630,7 @@ generator_op(JSContext *cx, Native native, JSGeneratorOp op, Value *vp, unsigned
     }
 
     bool undef = ((op == JSGENOP_SEND || op == JSGENOP_THROW) && args.length() != 0);
-    if (!SendToGenerator(cx, op, thisObj, gen, undef ? args[0] : UndefinedValue()))
+    if (!SendToGenerator(cx, op, obj, gen, undef ? args[0] : UndefinedValue()))
         return false;
 
     args.rval() = gen->fp->returnValue();

@@ -116,7 +116,6 @@
 #include "nsThreadUtils.h"
 #include "nsTArray.h"
 #include "mozilla/Services.h"
-#include "mozilla/Attributes.h"
 #include "nsICycleCollectorListener.h"
 #include "nsIXPConnect.h"
 #include "nsIJSRuntimeService.h"
@@ -1265,7 +1264,7 @@ struct CCGraphDescriber
   Type mType;
 };
 
-class nsCycleCollectorLogger MOZ_FINAL : public nsICycleCollectorListener
+class nsCycleCollectorLogger : public nsICycleCollectorListener
 {
 public:
     nsCycleCollectorLogger() :
@@ -3019,8 +3018,6 @@ class nsCycleCollectorRunner : public nsRunnable
 public:
     NS_IMETHOD Run()
     {
-        PR_SetCurrentThreadName("XPCOM CC");
-
 #ifdef XP_WIN
         TlsSetValue(gTLSThreadIDIndex,
                     (void*) mozilla::threads::CycleCollector);

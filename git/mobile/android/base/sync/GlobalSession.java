@@ -167,9 +167,9 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
   }
 
   protected void registerCommands() {
-    final CommandProcessor processor = CommandProcessor.getProcessor();
+    CommandProcessor processor = CommandProcessor.getProcessor();
 
-    processor.registerCommand("resetEngine", new CommandRunner(1) {
+    processor.registerCommand("resetEngine", new CommandRunner() {
       @Override
       public void executeCommand(List<String> args) {
         HashSet<String> names = new HashSet<String>();
@@ -178,14 +178,14 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
       }
     });
 
-    processor.registerCommand("resetAll", new CommandRunner(0) {
+    processor.registerCommand("resetAll", new CommandRunner() {
       @Override
       public void executeCommand(List<String> args) {
         resetAllStages();
       }
     });
 
-    processor.registerCommand("wipeEngine", new CommandRunner(1) {
+    processor.registerCommand("wipeEngine", new CommandRunner() {
       @Override
       public void executeCommand(List<String> args) {
         HashSet<String> names = new HashSet<String>();
@@ -194,17 +194,17 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
       }
     });
 
-    processor.registerCommand("wipeAll", new CommandRunner(0) {
+    processor.registerCommand("wipeAll", new CommandRunner() {
       @Override
       public void executeCommand(List<String> args) {
         wipeAllStages();
       }
     });
 
-    processor.registerCommand("displayURI", new CommandRunner(3) {
+    processor.registerCommand("displayURI", new CommandRunner() {
       @Override
       public void executeCommand(List<String> args) {
-        CommandProcessor.displayURI(args, context);
+        CommandProcessor.getProcessor().displayURI(args, getContext());
       }
     });
   }
@@ -380,7 +380,7 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
       return false;
     }
 
-    if (Logger.shouldLogVerbose(LOG_TAG)) {
+    if (Logger.logVerbose(LOG_TAG)) {
       Logger.trace(LOG_TAG, "Uploading updated meta/global record since there are engines requesting upload: " +
           Utils.toCommaSeparatedString(enginesToUpdate.keySet()));
     }
@@ -648,7 +648,7 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
     if (config.enabledEngineNames == null) {
       Logger.warn(LOG_TAG, "meta/global reported no enabled engine names!");
     } else {
-      if (Logger.shouldLogVerbose(LOG_TAG)) {
+      if (Logger.logVerbose(LOG_TAG)) {
         Logger.trace(LOG_TAG, "Persisting enabled engine names '" +
             Utils.toCommaSeparatedString(config.enabledEngineNames) + "' from meta/global.");
       }

@@ -9,6 +9,7 @@
 #include "nsCacheDevice.h"
 #include "nsIApplicationCache.h"
 #include "nsIApplicationCacheService.h"
+#include "nsILocalFile.h"
 #include "nsIObserver.h"
 #include "mozIStorageConnection.h"
 #include "mozIStorageFunction.h"
@@ -164,11 +165,11 @@ public:
    * Preference accessors
    */
 
-  void                    SetCacheParentDirectory(nsIFile * parentDir);
+  void                    SetCacheParentDirectory(nsILocalFile * parentDir);
   void                    SetCapacity(PRUint32  capacity);
 
-  nsIFile *               BaseDirectory() { return mBaseDirectory; }
-  nsIFile *               CacheDirectory() { return mCacheDirectory; }
+  nsILocalFile *          BaseDirectory() { return mBaseDirectory; }
+  nsILocalFile *          CacheDirectory() { return mCacheDirectory; }
   PRUint32                CacheCapacity() { return mCacheCapacity; }
   PRUint32                CacheSize();
   PRUint32                EntryCount();
@@ -252,8 +253,8 @@ private:
   nsCOMPtr<mozIStorageStatement>  mStatement_EnumerateGroups;
   nsCOMPtr<mozIStorageStatement>  mStatement_EnumerateGroupsTimeOrder;
 
-  nsCOMPtr<nsIFile>               mBaseDirectory;
-  nsCOMPtr<nsIFile>               mCacheDirectory;
+  nsCOMPtr<nsILocalFile>          mBaseDirectory;
+  nsCOMPtr<nsILocalFile>          mCacheDirectory;
   PRUint32                        mCacheCapacity; // in bytes
   PRInt32                         mDeltaCounter;
 

@@ -5,7 +5,7 @@
 
 #include "nsISupports.idl"
 
-interface nsIFile;
+interface nsILocalFile;
 interface nsIToolkitProfile;
 interface nsIProfileUnlocker;
 
@@ -19,7 +19,7 @@ interface nsIProfileLock : nsISupports
     /**
      * The main profile directory.
      */
-    readonly attribute nsIFile directory;
+    readonly attribute nsILocalFile directory;
     
     /**
      * A directory corresponding to the main profile directory that exists for
@@ -29,7 +29,7 @@ interface nsIProfileLock : nsISupports
      *
      * In some cases, this directory may just be the main profile directory.
      */
-    readonly attribute nsIFile localDirectory;
+    readonly attribute nsILocalFile localDirectory;
 
     /**
      * The timestamp of an existing profile lock at lock time.
@@ -53,13 +53,13 @@ interface nsIToolkitProfile : nsISupports
     /**
      * The location of the profile directory.
      */
-    readonly attribute nsIFile rootDir;
+    readonly attribute nsILocalFile rootDir;
 
     /**
      * The location of the profile local directory, which may be the same as
      * the root directory.  See nsIProfileLock::localDirectory.
      */
-    readonly attribute nsIFile localDir;
+    readonly attribute nsILocalFile localDir;
 
     /**
      * The name of the profile.

@@ -8,7 +8,7 @@
 #include "prmem.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsDirectoryServiceUtils.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsNetUtil.h"
 #include "nsPluginHost.h"
 #include "nsNPAPIPlugin.h"
@@ -137,6 +137,7 @@ nsNPAPIPluginStreamListener::nsNPAPIPluginStreamListener(nsNPAPIPluginInstance* 
 : mStreamBuffer(nsnull),
 mNotifyURL(aURL ? PL_strdup(aURL) : nsnull),
 mInst(inst),
+mStreamListenerPeer(nsnull),
 mStreamBufferSize(0),
 mStreamBufferByteCount(0),
 mStreamType(NP_NORMAL),
@@ -214,7 +215,7 @@ nsNPAPIPluginStreamListener::CleanUpStream(NPReason reason)
   if (!mInst || !mInst->CanFireNotifications())
     return rv;
   
-  mStreamListenerPeer = nsnull;
+  mStreamInfo = NULL;
   
   PluginDestructionGuard guard(mInst);
 
@@ -278,7 +279,7 @@ nsNPAPIPluginStreamListener::CallURLNotify(NPReason reason)
 }
 
 nsresult
-nsNPAPIPluginStreamListener::OnStartBinding(nsPluginStreamListenerPeer* streamPeer)
+nsNPAPIPluginStreamListener::OnStartBinding(nsIPluginStreamInfo* pluginInfo)
 {
   if (!mInst || !mInst->CanFireNotifications())
     return NS_ERROR_FAILURE;
@@ -302,18 +303,18 @@ nsNPAPIPluginStreamListener::OnStartBinding(nsPluginStreamListenerPeer* streamPe
   PRUint16 streamType = NP_NORMAL;
   NPError error;
 
-  streamPeer->GetURL(&mNPStreamWrapper->mNPStream.url);
-  streamPeer->GetLength((PRUint32*)&(mNPStreamWrapper->mNPStream.end));
-  streamPeer->GetLastModified((PRUint32*)&(mNPStreamWrapper->mNPStream.lastmodified));
-  streamPeer->IsSeekable(&seekable);
-  streamPeer->GetContentType(&contentType);
+  pluginInfo->GetURL(&mNPStreamWrapper->mNPStream.url);
+  pluginInfo->GetLength((PRUint32*)&(mNPStreamWrapper->mNPStream.end));
+  pluginInfo->GetLastModified((PRUint32*)&(mNPStreamWrapper->mNPStream.lastmodified));
+  pluginInfo->IsSeekable(&seekable);
+  pluginInfo->GetContentType(&contentType);
   
   if (!mResponseHeaders.IsEmpty()) {
     mResponseHeaderBuf = PL_strdup(mResponseHeaders.get());
     mNPStreamWrapper->mNPStream.headers = mResponseHeaderBuf;
   }
   
-  mStreamListenerPeer = streamPeer;
+  mStreamInfo = pluginInfo;
   
   NPPAutoPusher nppPusher(npp);
   
@@ -359,22 +360,31 @@ nsNPAPIPluginStreamListener::SuspendRequest()
 {
   NS_ASSERTION(!mIsSuspended,
                "Suspending a request that's already suspended!");
-
+  
+  nsCOMPtr<nsINPAPIPluginStreamInfo> pluginInfoNPAPI =
+  do_QueryInterface(mStreamInfo);
+  
+  if (!pluginInfoNPAPI) {
+    return;
+  }
+  
   nsresult rv = StartDataPump();
   if (NS_FAILED(rv))
     return;
   
   mIsSuspended = true;
-
-  if (mStreamListenerPeer) {
-   mStreamListenerPeer->SuspendRequests();
-  }
+  
+  pluginInfoNPAPI->SuspendRequests();
 }
 
 void
 nsNPAPIPluginStreamListener::ResumeRequest()
 {
-  mStreamListenerPeer->ResumeRequests();
+  nsCOMPtr<nsINPAPIPluginStreamInfo> pluginInfoNPAPI =
+  do_QueryInterface(mStreamInfo);
+  
+  pluginInfoNPAPI->ResumeRequests();
+  
   mIsSuspended = false;
 }
 
@@ -426,7 +436,7 @@ nsNPAPIPluginStreamListener::PluginInitJSLoadInProgress()
 // and the length will be the number of bytes available in our
 // internal buffer.
 nsresult
-nsNPAPIPluginStreamListener::OnDataAvailable(nsPluginStreamListenerPeer* streamPeer,
+nsNPAPIPluginStreamListener::OnDataAvailable(nsIPluginStreamInfo* pluginInfo,
                                              nsIInputStream* input,
                                              PRUint32 length)
 {
@@ -436,7 +446,7 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsPluginStreamListenerPeer* streamP
   PluginDestructionGuard guard(mInst);
   
   // Just in case the caller switches plugin info on us.
-  mStreamListenerPeer = streamPeer;
+  mStreamInfo = pluginInfo;
 
   nsNPAPIPlugin* plugin = mInst->GetPlugin();
   if (!plugin || !plugin->GetLibrary())
@@ -456,7 +466,7 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsPluginStreamListenerPeer* streamP
     // consecutive Read() calls form input stream into our buff.
     
     PRUint32 contentLength;
-    streamPeer->GetLength(&contentLength);
+    pluginInfo->GetLength(&contentLength);
     
     mStreamBufferSize = NS_MAX(length, contentLength);
     
@@ -476,7 +486,7 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsPluginStreamListenerPeer* streamP
   mInst->GetNPP(&npp);
   
   PRInt32 streamPosition;
-  streamPeer->GetStreamOffset(&streamPosition);
+  pluginInfo->GetStreamOffset(&streamPosition);
   PRInt32 streamOffset = streamPosition;
   
   if (input) {
@@ -491,7 +501,7 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsPluginStreamListenerPeer* streamP
     //
     // Note: there is a special case when data flow should be
     // temporarily stopped if NPP_WriteReady returns 0 (bug #89270)
-    streamPeer->SetStreamOffset(streamOffset);
+    pluginInfo->SetStreamOffset(streamOffset);
     
     // set new end in case the content is compressed
     // initial end is less than end of decompressed stream
@@ -685,10 +695,10 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsPluginStreamListenerPeer* streamP
     // NPN_RequestRead() call.
     
     PRInt32 postWriteStreamPosition;
-    streamPeer->GetStreamOffset(&postWriteStreamPosition);
+    pluginInfo->GetStreamOffset(&postWriteStreamPosition);
     
     if (postWriteStreamPosition == streamOffset) {
-      streamPeer->SetStreamOffset(streamPosition);
+      pluginInfo->SetStreamOffset(streamPosition);
     }
   }
   
@@ -696,7 +706,7 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsPluginStreamListenerPeer* streamP
 }
 
 nsresult
-nsNPAPIPluginStreamListener::OnFileAvailable(nsPluginStreamListenerPeer* streamPeer, 
+nsNPAPIPluginStreamListener::OnFileAvailable(nsIPluginStreamInfo* pluginInfo, 
                                              const char* fileName)
 {
   if (!mInst || !mInst->CanFireNotifications())
@@ -726,7 +736,7 @@ nsNPAPIPluginStreamListener::OnFileAvailable(nsPluginStreamListenerPeer* streamP
 }
 
 nsresult
-nsNPAPIPluginStreamListener::OnStopBinding(nsPluginStreamListenerPeer* streamPeer, 
+nsNPAPIPluginStreamListener::OnStopBinding(nsIPluginStreamInfo* pluginInfo, 
                                            nsresult status)
 {
   StopDataPump();
@@ -734,8 +744,9 @@ nsNPAPIPluginStreamListener::OnStopBinding(nsPluginStreamListenerPeer* streamPee
   if (NS_FAILED(status)) {
     // The stream was destroyed, or died for some reason. Make sure we
     // cancel the underlying request.
-    if (mStreamListenerPeer) {
-      mStreamListenerPeer->CancelRequests(status);
+    nsCOMPtr<nsINPAPIPluginStreamInfo> pluginInfoNPAPI = do_QueryInterface(mStreamInfo);
+    if (pluginInfoNPAPI) {
+      pluginInfoNPAPI->CancelRequests(status);
     }
   }
   
@@ -777,7 +788,7 @@ nsNPAPIPluginStreamListener::Notify(nsITimer *aTimer)
   
   PRInt32 oldStreamBufferByteCount = mStreamBufferByteCount;
   
-  nsresult rv = OnDataAvailable(mStreamListenerPeer, nsnull, mStreamBufferByteCount);
+  nsresult rv = OnDataAvailable(mStreamInfo, nsnull, mStreamBufferByteCount);
   
   if (NS_FAILED(rv)) {
     // We ran into an error, no need to keep firing this timer then.

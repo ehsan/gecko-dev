@@ -7,7 +7,7 @@
 #include "nsISupports.idl"
 
 interface nsIArray;
-interface nsIFile;
+interface nsILocalFile;
 
 /**
  * Application caches can store a set of namespace entries that affect
@@ -195,5 +195,5 @@ interface nsIApplicationCache : nsISupports
      * If set, this offline cache is placed in a different directory
      * than the current application profile.
      */
-    readonly attribute nsIFile cacheDirectory;
+    readonly attribute nsILocalFile cacheDirectory;
 };

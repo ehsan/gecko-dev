@@ -222,8 +222,6 @@ static int assembleCmdLine(char *const *argv, PRUnichar **wideCmdLine,
 
 void PR_CALLBACK nsProcess::Monitor(void *arg)
 {
-    PR_SetCurrentThreadName("RunProcess");
-
     nsRefPtr<nsProcess> process = dont_AddRef(static_cast<nsProcess*>(arg));
 #if defined(PROCESSMODEL_WINAPI)
     DWORD dwRetVal;

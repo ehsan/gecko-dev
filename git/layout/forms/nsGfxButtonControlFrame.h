@@ -69,6 +69,7 @@ protected:
 
   virtual bool IsInput() { return true; }
 private:
+  nsSize mSuggestedSize;
   nsCOMPtr<nsIContent> mTextContent;
 };
 

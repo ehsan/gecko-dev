@@ -29,8 +29,6 @@ ifdef TARGET_XPCOM_ABI
 DEFINES += -DTARGET_XPCOM_ABI=\"$(TARGET_XPCOM_ABI)\"
 endif
 
-DEFINES += -DXPCOM_GLUE
-STL_FLAGS=
 
 CPPSRCS = nsXULRunnerApp.cpp
 
@@ -38,7 +36,6 @@ LOCAL_INCLUDES += \
   -I$(topsrcdir)/toolkit/xre \
   -I$(topsrcdir)/toolkit/profile \
   -I$(topsrcdir)/xpcom/base \
-  -I$(topsrcdir)/xpcom/build \
   $(NULL)
 
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
@@ -47,7 +44,9 @@ endif
 
 LIBS += \
   $(EXTRA_DSO_LIBS) \
-  $(XPCOM_STANDALONE_GLUE_LDOPTS) \
+  $(DIST)/lib/$(LIB_PREFIX)xpcomglue_s.$(LIB_SUFFIX) \
+  $(XPCOM_LIBS) \
+  $(NSPR_LIBS) \
   $(NULL)
 
 ifndef MOZ_WINCONSOLE

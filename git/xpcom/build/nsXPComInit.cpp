@@ -57,7 +57,7 @@
 #include "nsEnvironment.h"
 #include "nsVersionComparatorImpl.h"
 
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsLocalFile.h"
 #if defined(XP_UNIX) || defined(XP_OS2)
 #include "nsNativeCharsetUtils.h"
@@ -117,8 +117,6 @@ extern nsresult nsStringInputStreamConstructor(nsISupports *, REFNSIID, void **)
 #include "mozilla/MapsMemoryReporter.h"
 #include "mozilla/AvailableMemoryTracker.h"
 #include "mozilla/ClearOnShutdown.h"
-
-#include "mozilla/VisualEventTracer.h"
 
 using base::AtExitManager;
 using mozilla::ipc::BrowserProcessSubThread;
@@ -314,8 +312,6 @@ NS_InitXPCOM2(nsIServiceManager* *result,
 {
     NS_TIME_FUNCTION;
 
-    PR_SetCurrentThreadName("Main Thread");
-
     nsresult rv = NS_OK;
 
      // We are not shutting down
@@ -508,8 +504,6 @@ NS_InitXPCOM2(nsIServiceManager* *result,
     mozilla::HangMonitor::Startup();
 
     mozilla::Telemetry::Init();
-
-    mozilla::eventtracer::Init();
 
     return NS_OK;
 }
@@ -722,8 +716,6 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
     Omnijar::CleanUp();
 
     HangMonitor::Shutdown();
-
-    eventtracer::Shutdown();
 
     NS_LogTerm();
 

@@ -4,7 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/Hal.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsString.h"
 
 #include "AndroidBridge.h"

@@ -821,7 +821,7 @@ DoIncDec(JSContext *cx, JSScript *script, jsbytecode *pc, const Value &v, Value 
     }
 
     double d;
-    if (!ToNumber(cx, v, &d))
+    if (!ToNumber(cx, *slot, &d))
         return false;
 
     double sum = d + (cs.format & JOF_INC ? 1 : -1);
@@ -1059,11 +1059,11 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
 
 # define DO_OP()            JS_BEGIN_MACRO                                    \
                                 CHECK_PCCOUNT_INTERRUPTS();                   \
+                                js::gc::MaybeVerifyBarriers(cx);              \
                                 JS_EXTENSION_(goto *jumpTable[op]);           \
                             JS_END_MACRO
 # define DO_NEXT_OP(n)      JS_BEGIN_MACRO                                    \
                                 TypeCheckNextBytecode(cx, script, n, regs);   \
-                                js::gc::MaybeVerifyBarriers(cx);              \
                                 op = (JSOp) *(regs.pc += (n));                \
                                 DO_OP();                                      \
                             JS_END_MACRO
@@ -1438,6 +1438,7 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode)
 
 /* No-ops for ease of decompilation. */
 ADD_EMPTY_CASE(JSOP_NOP)
+ADD_EMPTY_CASE(JSOP_UNUSED0)
 ADD_EMPTY_CASE(JSOP_UNUSED1)
 ADD_EMPTY_CASE(JSOP_UNUSED2)
 ADD_EMPTY_CASE(JSOP_UNUSED3)
@@ -1447,6 +1448,7 @@ ADD_EMPTY_CASE(JSOP_UNUSED10)
 ADD_EMPTY_CASE(JSOP_UNUSED11)
 ADD_EMPTY_CASE(JSOP_UNUSED12)
 ADD_EMPTY_CASE(JSOP_UNUSED13)
+ADD_EMPTY_CASE(JSOP_UNUSED14)
 ADD_EMPTY_CASE(JSOP_UNUSED15)
 ADD_EMPTY_CASE(JSOP_UNUSED17)
 ADD_EMPTY_CASE(JSOP_UNUSED18)
@@ -2327,11 +2329,11 @@ BEGIN_CASE(JSOP_GETXPROP)
 BEGIN_CASE(JSOP_LENGTH)
 BEGIN_CASE(JSOP_CALLPROP)
 {
-    RootedValue rval(cx);
-    if (!GetPropertyOperation(cx, regs.pc, regs.sp[-1], rval.address()))
+    Value rval;
+    if (!GetPropertyOperation(cx, regs.pc, regs.sp[-1], &rval))
         goto error;
 
-    TypeScript::Monitor(cx, script, regs.pc, rval.reference());
+    TypeScript::Monitor(cx, script, regs.pc, rval);
 
     regs.sp[-1] = rval;
     assertSameCompartment(cx, regs.sp[-1]);
@@ -3154,7 +3156,6 @@ BEGIN_CASE(JSOP_INITPROP)
 }
 END_CASE(JSOP_INITPROP);
 
-BEGIN_CASE(JSOP_INITELEM_INC)
 BEGIN_CASE(JSOP_INITELEM)
 {
     /* Pop the element's value into rval. */
@@ -3189,43 +3190,10 @@ BEGIN_CASE(JSOP_INITELEM)
         if (!obj->defineGeneric(cx, id, rref, NULL, NULL, JSPROP_ENUMERATE))
             goto error;
     }
-    if (op == JSOP_INITELEM_INC) {
-        JS_ASSERT(obj->isArray());
-        if (JSID_TO_INT(id) == INT32_MAX) {
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                                 JSMSG_SPREAD_TOO_LARGE);
-            goto error;
-        }
-        regs.sp[-2].setInt32(JSID_TO_INT(id) + 1);
-        regs.sp--;
-    } else {
-        regs.sp -= 2;
-    }
+    regs.sp -= 2;
 }
 END_CASE(JSOP_INITELEM)
 
-BEGIN_CASE(JSOP_SPREAD)
-{
-    int32_t count = regs.sp[-2].toInt32();
-    RootedObject arr(cx, &regs.sp[-3].toObject());
-    const Value iterable = regs.sp[-1];
-    ForOfIterator iter(cx, iterable);
-    while (iter.next()) {
-        if (count == INT32_MAX) {
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                                 JSMSG_SPREAD_TOO_LARGE);
-            goto error;
-        }
-        if (!arr->defineElement(cx, count++, iter.value(), NULL, NULL, JSPROP_ENUMERATE))
-            goto error;
-    }
-    if (!iter.close())
-        goto error;
-    regs.sp[-2].setInt32(count);
-    regs.sp--;
-}
-END_CASE(JSOP_SPREAD)
-    
 {
 BEGIN_CASE(JSOP_GOSUB)
     PUSH_BOOLEAN(false);

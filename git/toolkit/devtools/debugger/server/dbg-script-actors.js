@@ -170,10 +170,8 @@ ThreadActor.prototype = {
       this.conn.send(packet);
       return this._nest();
     } catch(e) {
-      let msg = "Got an exception during TA__pauseAndRespond: " + e +
-                ": " + e.stack;
-      Cu.reportError(msg);
-      dumpn(msg);
+      Cu.reportError("Got an exception during TA__pauseAndRespond: " + e +
+                     ": " + e.stack);
       return undefined;
     }
   },
@@ -396,11 +394,7 @@ ThreadActor.prototype = {
   },
 
   /**
-   * Set a breakpoint using the jsdbg2 API. If the line on which the breakpoint
-   * is being set contains no code, then the breakpoint will slide down to the
-   * next line that has runnable code. In this case the server breakpoint cache
-   * will be updated, so callers that iterate over the breakpoint cache should
-   * take that into account.
+   * Set a breakpoint using the jsdbg2 API.
    *
    * @param object aLocation
    *        The location of the breakpoint as specified in the protocol.
@@ -424,20 +418,16 @@ ThreadActor.prototype = {
     }
 
     let location = { url: aLocation.url, line: aLocation.line };
-    // Get the list of cached breakpoints in this URL.
-    let scriptBreakpoints = this._breakpointStore[location.url];
     let bpActor;
-    if (scriptBreakpoints &&
-        scriptBreakpoints[location.line] &&
-        scriptBreakpoints[location.line].actor) {
-      bpActor = scriptBreakpoints[location.line].actor;
+    if (this._breakpointStore[location.url] &&
+        this._breakpointStore[location.url][location.line] &&
+        this._breakpointStore[location.url][location.line].actor) {
+      bpActor = this._breakpointStore[location.url][location.line].actor;
     }
     if (!bpActor) {
       bpActor = new BreakpointActor(this, location);
       this._hooks.addToBreakpointPool(bpActor);
-      if (scriptBreakpoints[location.line]) {
-        scriptBreakpoints[location.line].actor = bpActor;
-      }
+      this._breakpointStore[location.url][location.line].actor = bpActor;
     }
 
     if (!script) {
@@ -458,23 +448,15 @@ ThreadActor.prototype = {
     if (offsets.length == 0) {
       // No code at that line in any script, skipping forward.
       let lines = script.getAllOffsets();
-      let oldLine = aLocation.line;
-      for (let line = oldLine; line < lines.length; ++line) {
+      for (let line = aLocation.line; line < lines.length; ++line) {
         if (lines[line]) {
           for (let i = 0; i < lines[line].length; i++) {
             script.setBreakpoint(lines[line][i], bpActor);
             codeFound = true;
           }
-          actualLocation = {
-            url: aLocation.url,
-            line: line,
-            column: aLocation.column
-          };
+          actualLocation = aLocation;
+          actualLocation.line = line;
           bpActor.location = actualLocation;
-          // Update the cache as well.
-          scriptBreakpoints[line] = scriptBreakpoints[oldLine];
-          scriptBreakpoints[line].line = line;
-          delete scriptBreakpoints[oldLine];
           break;
         }
       }
@@ -517,7 +499,9 @@ ThreadActor.prototype = {
   onScripts: function TA_onScripts(aRequest) {
     // Get the script list from the debugger.
     for (let s of this.dbg.findScripts()) {
-      this._addScript(s);
+      if (s.url.indexOf("chrome://") != 0) {
+        this._addScript(s);
+      }
     }
     // Build the cache.
     let scripts = [];
@@ -931,10 +915,6 @@ ThreadActor.prototype = {
    *        The source script that will be stored.
    */
   _addScript: function TA__addScript(aScript) {
-    // Ignore XBL bindings for content debugging.
-    if (aScript.url.indexOf("chrome://") == 0) {
-      return;
-    }
     // Use a sparse array for storing the scripts for each URL in order to
     // optimize retrieval.
     if (!this._scripts[aScript.url]) {
@@ -945,10 +925,7 @@ ThreadActor.prototype = {
     // Set any stored breakpoints.
     let existing = this._breakpointStore[aScript.url];
     if (existing) {
-      // Iterate over the lines backwards, so that sliding breakpoints don't
-      // affect the loop.
-      for (let line = existing.length - 1; line >= 0; line--) {
-        let bp = existing[line];
+      for (let bp of existing) {
         if (bp) {
           this._setBreakpoint(bp);
         }
@@ -1563,19 +1540,11 @@ EnvironmentActor.prototype = {
       // TODO: this part should be removed in favor of the commented-out part
       // below when getVariableDescriptor lands.
       let desc = {
+        value: this.obj.getVariable(name),
         configurable: false,
         writable: true,
         enumerable: true
       };
-      try {
-        desc.value = this.obj.getVariable(name);
-      } catch (e) {
-        // Avoid "Debugger scope is not live" errors for |arguments|, introduced
-        // in bug 746601.
-        if (name != "arguments") {
-          throw e;
-        }
-      }
       //let desc = this.obj.getVariableDescriptor(name);
       let descForm = {
         enumerable: true,

@@ -6,7 +6,7 @@
 #include "nsITransfer.idl"
 
 interface nsIURI;
-interface nsIFile;
+interface nsILocalFile;
 interface nsIObserver;
 interface nsICancelable;
 interface nsIWebProgressListener;
@@ -30,7 +30,7 @@ interface nsIDownload : nsITransfer {
     /**
      * The target of a download is always a file on the local file system.
      */
-    readonly attribute nsIFile targetFile;
+    readonly attribute nsILocalFile targetFile;
 
     /**
      * The percentage of transfer completed.

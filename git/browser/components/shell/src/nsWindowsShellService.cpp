@@ -213,9 +213,9 @@ GetHelperPath(nsAutoString& aPath)
     do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIFile> appHelper;
+  nsCOMPtr<nsILocalFile> appHelper;
   rv = directoryService->Get(NS_XPCOM_CURRENT_PROCESS_DIR,
-                             NS_GET_IID(nsIFile),
+                             NS_GET_IID(nsILocalFile),
                              getter_AddRefs(appHelper));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -321,20 +321,11 @@ nsWindowsShellService::ShortcutMaintenance()
   return LaunchHelper(appHelperPath);
 }
 
-static bool
-IsWin8OrLater()
-{
-  OSVERSIONINFOW osInfo;
-  osInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFOW);
-  GetVersionExW(&osInfo);
-  return osInfo.dwMajorVersion > 6 || 
-         osInfo.dwMajorVersion >= 6 && osInfo.dwMinorVersion >= 2;
-}
-
 bool
 nsWindowsShellService::IsDefaultBrowserVista(bool* aIsDefaultBrowser)
 {
   IApplicationAssociationRegistration* pAAR;
+  
   HRESULT hr = CoCreateInstance(CLSID_ApplicationAssociationRegistration,
                                 NULL,
                                 CLSCTX_INPROC,
@@ -347,20 +338,6 @@ nsWindowsShellService::IsDefaultBrowserVista(bool* aIsDefaultBrowser)
                                     APP_REG_NAME,
                                     &res);
     *aIsDefaultBrowser = res;
-
-    if (*aIsDefaultBrowser && IsWin8OrLater()) {
-      // Make sure the Prog ID matches what we have
-      LPWSTR registeredApp;
-      hr = pAAR->QueryCurrentDefault(L"http", AT_URLPROTOCOL, AL_EFFECTIVE,
-                                     &registeredApp);
-      if (SUCCEEDED(hr)) {
-        LPCWSTR firefoxHTTPProgID = L"FirefoxURL";
-        *aIsDefaultBrowser = !wcsicmp(registeredApp, firefoxHTTPProgID);
-        CoTaskMemFree(registeredApp);
-      } else {
-        *aIsDefaultBrowser = false;
-      }
-    }
 
     pAAR->Release();
     return true;
@@ -377,12 +354,7 @@ nsWindowsShellService::IsDefaultBrowser(bool aStartupCheck,
   // default browser dialog).
   if (aStartupCheck)
     mCheckedThisSession = true;
-  return IsDefaultBrowser(aIsDefaultBrowser);
-}
 
-nsresult
-nsWindowsShellService::IsDefaultBrowser(bool* aIsDefaultBrowser)
-{
   *aIsDefaultBrowser = true;
 
   PRUnichar exePath[MAX_BUF];
@@ -572,51 +544,9 @@ nsWindowsShellService::GetCanSetDesktopBackground(bool* aResult)
   return NS_OK;
 }
 
-static nsresult
-DynSHOpenWithDialog(HWND hwndParent, const OPENASINFO *poainfo)
-{
-  typedef HRESULT (WINAPI * SHOpenWithDialogPtr)(HWND hwndParent,
-                                                 const OPENASINFO *poainfo);
-  static SHOpenWithDialogPtr SHOpenWithDialogFn = NULL;
-  if (!SHOpenWithDialogFn) {
-    // shell32.dll is in the knownDLLs list so will always be loaded from the
-    // system32 directory.
-    static const PRUnichar kSehllLibraryName[] =  L"shell32.dll";
-    HMODULE shellDLL = ::LoadLibraryW(kSehllLibraryName);
-    if (!shellDLL) {
-      return NS_ERROR_FAILURE;
-    }
-
-    SHOpenWithDialogFn =
-      (SHOpenWithDialogPtr)GetProcAddress(shellDLL, "SHOpenWithDialog");
-    FreeLibrary(shellDLL);
-
-    if (!SHOpenWithDialogFn) {
-      return NS_ERROR_FAILURE;
-    }
-  }
-
-  return SUCCEEDED(SHOpenWithDialogFn(hwndParent, poainfo)) ? NS_OK :
-                                                              NS_ERROR_FAILURE;
-}
-
 NS_IMETHODIMP
 nsWindowsShellService::SetDefaultBrowser(bool aClaimAllTypes, bool aForAllUsers)
 {
-  if (IsWin8OrLater()) {
-    OPENASINFO info;
-    info.pcszFile = L"http";
-    info.pcszClass = NULL;
-    info.oaifInFlags = OAIF_FORCE_REGISTRATION | 
-                       OAIF_URL_PROTOCOL |
-                       OAIF_REGISTER_EXT;
-    nsresult rv = DynSHOpenWithDialog(NULL, &info);
-    NS_ENSURE_SUCCESS(rv, rv);
-    bool isDefaultBrowser = false;
-    return SUCCEEDED(IsDefaultBrowser(&isDefaultBrowser)) && 
-           isDefaultBrowser ? S_OK : NS_ERROR_FAILURE;
-  }
-
   nsAutoString appHelperPath;
   if (NS_FAILED(GetHelperPath(appHelperPath)))
     return NS_ERROR_FAILURE;
@@ -1112,7 +1042,7 @@ nsWindowsShellService::LaunchPrefetchClearCommand(nsITimer *aTimer, void*)
 #endif
 
 NS_IMETHODIMP
-nsWindowsShellService::OpenApplicationWithURI(nsIFile* aApplication,
+nsWindowsShellService::OpenApplicationWithURI(nsILocalFile* aApplication,
                                               const nsACString& aURI)
 {
   nsresult rv;
@@ -1131,7 +1061,7 @@ nsWindowsShellService::OpenApplicationWithURI(nsIFile* aApplication,
 }
 
 NS_IMETHODIMP
-nsWindowsShellService::GetDefaultFeedReader(nsIFile** _retval)
+nsWindowsShellService::GetDefaultFeedReader(nsILocalFile** _retval)
 {
   *_retval = nsnull;
 
@@ -1160,7 +1090,7 @@ nsWindowsShellService::GetDefaultFeedReader(nsIFile** _retval)
     path = Substring(path, 0, path.FindChar(' '));
   }
 
-  nsCOMPtr<nsIFile> defaultReader =
+  nsCOMPtr<nsILocalFile> defaultReader =
     do_CreateInstance("@mozilla.org/file/local;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 

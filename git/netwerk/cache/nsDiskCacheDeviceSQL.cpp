@@ -253,7 +253,7 @@ nsOfflineCacheDeviceInfo::GetUsageReport(char ** usageReport)
   buffer.AssignLiteral("  <tr>\n"
                        "    <th>Cache Directory:</th>\n"
                        "    <td>");
-  nsIFile *cacheDir = mDevice->CacheDirectory();
+  nsILocalFile *cacheDir = mDevice->CacheDirectory();
   if (!cacheDir)
     return NS_OK;
 
@@ -630,7 +630,7 @@ nsApplicationCache::GetClientID(nsACString &out)
 }
 
 NS_IMETHODIMP
-nsApplicationCache::GetCacheDirectory(nsIFile **out)
+nsApplicationCache::GetCacheDirectory(nsILocalFile **out)
 {
   if (mDevice->BaseDirectory())
       NS_ADDREF(*out = mDevice->BaseDirectory());
@@ -2350,7 +2350,7 @@ nsOfflineCacheDevice::GetGroupForCache(const nsACString &clientID,
  */
 
 void
-nsOfflineCacheDevice::SetCacheParentDirectory(nsIFile *parentDir)
+nsOfflineCacheDevice::SetCacheParentDirectory(nsILocalFile *parentDir)
 {
   if (Initialized())
   {

@@ -24,9 +24,7 @@
 @APPNAME@/Contents/Info.plist
 @APPNAME@/Contents/PkgInfo
 @APPNAME@/Contents/Resources/
-#ifdef MOZ_SIGNING
 @APPNAME@/Contents/_CodeSignature/CodeResources
-#endif
 #endif
 
 [@AB_CD@]
@@ -60,11 +58,9 @@
 #ifndef MOZ_STATIC_JS
 @BINPATH@/@DLL_PREFIX@mozjs@DLL_SUFFIX@
 #endif
-#ifndef MOZ_NATIVE_NSPR
 @BINPATH@/@DLL_PREFIX@nspr4@DLL_SUFFIX@
 @BINPATH@/@DLL_PREFIX@plc4@DLL_SUFFIX@
 @BINPATH@/@DLL_PREFIX@plds4@DLL_SUFFIX@
-#endif
 @BINPATH@/@DLL_PREFIX@xpcom@DLL_SUFFIX@
 #ifdef XP_MACOSX
 @BINPATH@/XUL
@@ -113,9 +109,7 @@
 #endif
 @BINPATH@/platform.ini
 #ifndef XP_OS2
-#ifndef MOZ_NATIVE_SQLITE
 @BINPATH@/@DLL_PREFIX@mozsqlite3@DLL_SUFFIX@
-#endif
 #else
 @BINPATH@/mozsqlt3@DLL_SUFFIX@
 #endif
@@ -188,7 +182,6 @@
 #ifdef MOZ_B2G_RIL
 @BINPATH@/components/dom_mms.xpt
 #endif
-@BINPATH@/components/dom_browserelement.xpt
 @BINPATH@/components/dom_power.xpt
 @BINPATH@/components/dom_range.xpt
 @BINPATH@/components/dom_settings.xpt
@@ -474,8 +467,6 @@
 #ifdef MOZ_SAFE_BROWSING
 @BINPATH@/components/nsSafebrowsingApplication.manifest
 @BINPATH@/components/nsSafebrowsingApplication.js
-#endif
-#ifdef MOZ_URL_CLASSIFIER
 @BINPATH@/components/nsURLClassifier.manifest
 @BINPATH@/components/nsUrlClassifierHashCompleter.js
 @BINPATH@/components/nsUrlClassifierListManager.js
@@ -533,12 +524,8 @@
 @BINPATH@/greprefs.js
 @BINPATH@/defaults/autoconfig/platform.js
 @BINPATH@/defaults/autoconfig/prefcalls.js
-#ifndef LIBXUL_SDK
 ; Warning: changing the path to channel-prefs.js can cause bugs (Bug 756325)
 @BINPATH@/defaults/pref/channel-prefs.js
-#else
-@BINPATH@/@PREF_DIR@/channel-prefs.js
-#endif
 @BINPATH@/defaults/profile/prefs.js
 
 ; [Layout Engine Resources]
@@ -590,7 +577,6 @@
 ; NSS libraries are signed in the staging directory,
 ; meaning their .chk files are created there directly.
 ;
-#ifndef MOZ_NATIVE_NSS
 @BINPATH@/@DLL_PREFIX@freebl3@DLL_SUFFIX@
 @BINPATH@/@DLL_PREFIX@nss3@DLL_SUFFIX@
 @BINPATH@/@DLL_PREFIX@nssckbi@DLL_SUFFIX@
@@ -601,7 +587,6 @@
 @BINPATH@/@DLL_PREFIX@smime3@DLL_SUFFIX@
 @BINPATH@/@DLL_PREFIX@softokn3@DLL_SUFFIX@
 @BINPATH@/@DLL_PREFIX@ssl3@DLL_SUFFIX@
-#endif
 @BINPATH@/chrome/pippki@JAREXT@
 @BINPATH@/chrome/pippki.manifest
 @BINPATH@/components/pipboot.xpt

@@ -5,7 +5,7 @@
 
 #include "nsISupports.idl"
 
-interface nsIFile;
+interface nsILocalFile;
 interface nsIURI;
 
 /**
@@ -21,7 +21,7 @@ interface nsIPlacesImportExportService: nsISupports
   /**
    * Saves the current bookmarks hierarchy to a bookmarks.html file.
    */
-  void exportHTMLToFile(in nsIFile aFile);
+  void exportHTMLToFile(in nsILocalFile aFile);
 
   /**
    * Backup the bookmarks.html file.

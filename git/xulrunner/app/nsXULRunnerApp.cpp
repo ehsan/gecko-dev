@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsXULAppAPI.h"
-#include "nsXPCOMGlue.h"
 #include <stdio.h>
 #include <stdlib.h>
 #ifdef XP_WIN
@@ -13,7 +11,7 @@
 #include "nsXULAppAPI.h"
 #include "nsXPCOMGlue.h"
 #include "nsAppRunner.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsIXULAppInstall.h"
 #include "nsCOMPtr.h"
 #include "nsMemory.h"
@@ -28,12 +26,6 @@
 #ifdef XP_WIN
 #include "nsWindowsWMain.cpp"
 #endif
-
-#include "BinaryPath.h"
-
-#include "nsXPCOMPrivate.h" // for MAXPATHLEN and XPCOM_DLL
-
-using namespace mozilla;
 
 /**
  * Output a string to the user.  This method is really only meant to be used to
@@ -50,16 +42,27 @@ static void Output(bool isError, const char *fmt, ... )
   va_start(ap, fmt);
 
 #if (defined(XP_WIN) && !MOZ_WINCONSOLE)
-  PRUnichar msg[2048];
-  _vsnwprintf(msg, sizeof(msg)/sizeof(msg[0]), NS_ConvertUTF8toUTF16(fmt).get(), ap);
-
-  UINT flags = MB_OK;
-  if (isError)
-    flags |= MB_ICONERROR;
-  else
-    flags |= MB_ICONINFORMATION;
+  char *msg = PR_vsmprintf(fmt, ap);
+  if (msg)
+  {
+    UINT flags = MB_OK;
+    if (isError)
+      flags |= MB_ICONERROR;
+    else
+      flags |= MB_ICONINFORMATION;
     
-  MessageBoxW(NULL, msg, L"XULRunner", flags);
+    wchar_t wide_msg[2048];
+    MultiByteToWideChar(CP_ACP,
+			0,
+			msg,
+			-1,
+			wide_msg,
+			sizeof(wide_msg) / sizeof(wchar_t));
+    
+    MessageBoxW(NULL, wide_msg, L"XULRunner", flags);
+
+    PR_smprintf_free(msg);
+  }
 #else
   vfprintf(stderr, fmt, ap);
 #endif
@@ -76,12 +79,12 @@ static bool IsArg(const char* arg, const char* s)
   {
     if (*++arg == '-')
       ++arg;
-    return !strcasecmp(arg, s);
+    return !PL_strcasecmp(arg, s);
   }
 
 #if defined(XP_WIN) || defined(XP_OS2)
   if (*arg == '/')
-    return !strcasecmp(++arg, s);
+    return !PL_strcasecmp(++arg, s);
 #endif
 
   return false;
@@ -97,8 +100,8 @@ GetGREVersion(const char *argv0,
   if (aVersion)
     aVersion->Assign("<Error>");
 
-  nsCOMPtr<nsIFile> iniFile;
-  nsresult rv = BinaryPath::GetFile(argv0, getter_AddRefs(iniFile));
+  nsCOMPtr<nsILocalFile> iniFile;
+  nsresult rv = XRE_GetBinaryPath(argv0, getter_AddRefs(iniFile));
   if (NS_FAILED(rv))
     return rv;
 
@@ -149,26 +152,13 @@ static void Usage(const char *argv0)
            milestone.get());
 }
 
-XRE_GetFileFromPathType XRE_GetFileFromPath;
-XRE_CreateAppDataType XRE_CreateAppData;
-XRE_FreeAppDataType XRE_FreeAppData;
-XRE_mainType XRE_main;
-
-static const nsDynamicFunctionLoad kXULFuncs[] = {
-    { "XRE_GetFileFromPath", (NSFuncPtr*) &XRE_GetFileFromPath },
-    { "XRE_CreateAppData", (NSFuncPtr*) &XRE_CreateAppData },
-    { "XRE_FreeAppData", (NSFuncPtr*) &XRE_FreeAppData },
-    { "XRE_main", (NSFuncPtr*) &XRE_main },
-    { nsnull, nsnull }
-};
-
 static nsresult
 GetXULRunnerDir(const char *argv0, nsIFile* *aResult)
 {
   nsresult rv;
 
-  nsCOMPtr<nsIFile> appFile;
-  rv = BinaryPath::GetFile(argv0, getter_AddRefs(appFile));
+  nsCOMPtr<nsILocalFile> appFile;
+  rv = XRE_GetBinaryPath(argv0, getter_AddRefs(appFile));
   if (NS_FAILED(rv)) {
     Output(true, "Could not find XULRunner application path.\n");
     return rv;
@@ -187,8 +177,8 @@ InstallXULApp(nsIFile* aXULRunnerDir,
               const char *aInstallTo,
               const char *aLeafName)
 {
-  nsCOMPtr<nsIFile> appLocation;
-  nsCOMPtr<nsIFile> installTo;
+  nsCOMPtr<nsILocalFile> appLocation;
+  nsCOMPtr<nsILocalFile> installTo;
   nsString leafName;
 
   nsresult rv = XRE_GetFileFromPath(aAppLocation, getter_AddRefs(appLocation));
@@ -232,7 +222,7 @@ InstallXULApp(nsIFile* aXULRunnerDir,
 class AutoAppData
 {
 public:
-  AutoAppData(nsIFile* aINIFile) : mAppData(nsnull) {
+  AutoAppData(nsILocalFile* aINIFile) : mAppData(nsnull) {
     nsresult rv = XRE_CreateAppData(aINIFile, &mAppData);
     if (NS_FAILED(rv))
       mAppData = nsnull;
@@ -251,25 +241,6 @@ private:
 
 int main(int argc, char* argv[])
 {
-  char exePath[MAXPATHLEN];
-  nsresult rv = mozilla::BinaryPath::Get(argv[0], exePath);
-  if (NS_FAILED(rv)) {
-    Output(true, "Couldn't calculate the application directory.\n");
-    return 255;
-  }
-
-  char *lastSlash = strrchr(exePath, XPCOM_FILE_PATH_SEPARATOR[0]);
-  if (!lastSlash || (size_t(lastSlash - exePath) > MAXPATHLEN - sizeof(XPCOM_DLL) - 1))
-    return 255;
-
-  strcpy(++lastSlash, XPCOM_DLL);
-
-  rv = XPCOMGlueStartup(exePath);
-  if (NS_FAILED(rv)) {
-    Output(true, "Couldn't load XPCOM.\n");
-    return 255;
-  }
-
   if (argc > 1 && (IsArg(argv[1], "h") ||
                    IsArg(argv[1], "help") ||
                    IsArg(argv[1], "?")))
@@ -288,15 +259,9 @@ int main(int argc, char* argv[])
     return 0;
   }
 
-  rv = XPCOMGlueLoadXULFunctions(kXULFuncs);
-  if (NS_FAILED(rv)) {
-    Output(true, "Couldn't load XRE functions.\n");
-    return 255;
-  }
-
   if (argc > 1) {
     nsCAutoString milestone;
-    rv = GetGREVersion(argv[0], &milestone, nsnull);
+    nsresult rv = GetGREVersion(argv[0], &milestone, nsnull);
     if (NS_FAILED(rv))
       return 2;
 
@@ -341,7 +306,7 @@ int main(int argc, char* argv[])
     }
   }
 
-  const char *appDataFile = getenv("XUL_APP_FILE");
+  const char *appDataFile = PR_GetEnv("XUL_APP_FILE");
 
   if (!(appDataFile && *appDataFile)) {
     if (argc < 2) {
@@ -365,12 +330,12 @@ int main(int argc, char* argv[])
     --argc;
 
     static char kAppEnv[MAXPATHLEN];
-    snprintf(kAppEnv, MAXPATHLEN, "XUL_APP_FILE=%s", appDataFile);
-    putenv(kAppEnv);
+    PR_snprintf(kAppEnv, MAXPATHLEN, "XUL_APP_FILE=%s", appDataFile);
+    PR_SetEnv(kAppEnv);
   }
 
-  nsCOMPtr<nsIFile> appDataLF;
-  rv = XRE_GetFileFromPath(appDataFile, getter_AddRefs(appDataLF));
+  nsCOMPtr<nsILocalFile> appDataLF;
+  nsresult rv = XRE_GetFileFromPath(appDataFile, getter_AddRefs(appDataLF));
   if (NS_FAILED(rv)) {
     Output(true, "Error: unrecognized application.ini path.\n");
     return 2;

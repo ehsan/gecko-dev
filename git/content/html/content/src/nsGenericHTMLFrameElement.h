@@ -6,11 +6,9 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsGenericHTMLElement.h"
-#include "nsIFrameLoader.h"
+#include "nsIDOMHTMLFrameElement.h"
 #include "nsIMozBrowserFrame.h"
 #include "nsIDOMEventListener.h"
-
-#include "nsFrameLoader.h"
 
 /**
  * A helper class for frame elements
@@ -25,7 +23,6 @@ public:
     : nsGenericHTMLElement(aNodeInfo)
     , mNetworkCreated(aFromParser == mozilla::dom::FROM_PARSER_NETWORK)
     , mBrowserFrameListenersRegistered(false)
-    , mFrameLoaderCreationDisallowed(false)
   {
   }
 
@@ -100,5 +97,4 @@ protected:
   bool                    mNetworkCreated;
 
   bool                    mBrowserFrameListenersRegistered;
-  bool                    mFrameLoaderCreationDisallowed;
 };

@@ -13,7 +13,7 @@
 class nsITransferable;
 class nsIClipboardOwner;
 class nsIWidget;
-class nsIFile;
+class nsILocalFile;
 struct IDataObject;
 
 /**
@@ -57,7 +57,7 @@ protected:
   static bool FindURLFromNativeURL ( IDataObject* inDataObject, UINT inIndex, void** outData, PRUint32* outDataLen ) ;
   static bool FindUnicodeFromPlainText ( IDataObject* inDataObject, UINT inIndex, void** outData, PRUint32* outDataLen ) ;
   static bool FindPlatformHTML ( IDataObject* inDataObject, UINT inIndex, void** outData, PRUint32* outDataLen );
-  static void ResolveShortcut ( nsIFile* inFileName, nsACString& outURL ) ;
+  static void ResolveShortcut ( nsILocalFile* inFileName, nsACString& outURL ) ;
 
   nsIWidget         * mWindow;
 

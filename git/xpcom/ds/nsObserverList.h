@@ -14,7 +14,6 @@
 #include "nsIWeakReference.h"
 #include "nsHashKeys.h"
 #include "nsISimpleEnumerator.h"
-#include "mozilla/Attributes.h"
 
 struct ObserverRef
 {
@@ -68,7 +67,7 @@ private:
   nsTArray<ObserverRef> mObservers;
 };
 
-class nsObserverEnumerator MOZ_FINAL : public nsISimpleEnumerator
+class nsObserverEnumerator : public nsISimpleEnumerator
 {
 public:
     NS_DECL_ISUPPORTS

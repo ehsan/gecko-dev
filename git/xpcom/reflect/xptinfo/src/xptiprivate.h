@@ -22,7 +22,7 @@
 #include "xptinfo.h"
 
 #include "nsIServiceManager.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsIDirectoryService.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsAppDirectoryServiceDefs.h"
@@ -30,7 +30,6 @@
 
 #include "mozilla/ReentrantMonitor.h"
 #include "mozilla/Mutex.h"
-#include "mozilla/Attributes.h"
 
 #include "nsCRT.h"
 #include "nsMemory.h"
@@ -135,10 +134,10 @@ public:
     // Directory stuff...
 
     PRUint32 GetDirectoryCount();
-    nsresult GetCloneOfDirectoryAt(PRUint32 i, nsIFile** dir);
-    nsresult GetDirectoryAt(PRUint32 i, nsIFile** dir);
-    bool     FindDirectory(nsIFile* dir, PRUint32* index);
-    bool     FindDirectoryOfFile(nsIFile* file, PRUint32* index);
+    nsresult GetCloneOfDirectoryAt(PRUint32 i, nsILocalFile** dir);
+    nsresult GetDirectoryAt(PRUint32 i, nsILocalFile** dir);
+    bool     FindDirectory(nsILocalFile* dir, PRUint32* index);
+    bool     FindDirectoryOfFile(nsILocalFile* file, PRUint32* index);
     bool     DirectoryAtMatchesPersistentDescriptor(PRUint32 i, const char* desc);
 
 private:
@@ -328,7 +327,7 @@ private:
     char                    mName[1];     // Always last. Sized to fit.
 };
 
-class xptiInterfaceInfo MOZ_FINAL : public nsIInterfaceInfo
+class xptiInterfaceInfo : public nsIInterfaceInfo
 {
 public:
     NS_DECL_ISUPPORTS
@@ -396,7 +395,7 @@ private:
 
 /***************************************************************************/
 
-class xptiInterfaceInfoManager MOZ_FINAL
+class xptiInterfaceInfoManager 
     : public nsIInterfaceInfoSuperManager
 {
     NS_DECL_ISUPPORTS

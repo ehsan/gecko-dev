@@ -2211,11 +2211,3 @@ nsFrameLoader::GetOwnerElement(nsIDOMElement **aElement)
   ownerElement.forget(aElement);
   return NS_OK;
 }
-
-void
-nsFrameLoader::SetRemoteBrowser(nsITabParent* aTabParent)
-{
-  MOZ_ASSERT(!mRemoteBrowser);
-  MOZ_ASSERT(!mCurrentRemoteFrame);
-  mRemoteBrowser = static_cast<TabParent*>(aTabParent);
-}

@@ -194,7 +194,7 @@ FileManager::Invalidate()
 already_AddRefed<nsIFile>
 FileManager::GetDirectory()
 {
-  nsCOMPtr<nsIFile> directory =
+  nsCOMPtr<nsILocalFile> directory =
     do_CreateInstance(NS_LOCAL_FILE_CONTRACTID);
   NS_ENSURE_TRUE(directory, nsnull);
 

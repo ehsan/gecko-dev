@@ -202,11 +202,10 @@ ReportException(JSContext *cx)
     }
 }
 
-class ToStringHelper
-{
+class ToStringHelper {
   public:
     ToStringHelper(JSContext *aCx, jsval v, bool aThrow = false)
-      : cx(aCx)
+      : cx(aCx), mThrow(aThrow)
     {
         mStr = JS_ValueToString(cx, v);
         if (!aThrow && !mStr)
@@ -226,6 +225,7 @@ class ToStringHelper
   private:
     JSContext *cx;
     JSString *mStr;
+    bool mThrow;
     JSAutoByteString mBytes;
 };
 
@@ -2143,7 +2143,7 @@ DumpStack(JSContext *cx, unsigned argc, Value *vp)
 
     uint32_t index = 0;
     for (; !iter.done(); ++index, ++iter) {
-        RootedValue v(cx);
+        Value v;
         if (iter.isNonEvalFunctionFrame() || iter.isNativeCall()) {
             v = iter.calleev();
         } else if (iter.isEvalFrame()) {
@@ -2151,9 +2151,9 @@ DumpStack(JSContext *cx, unsigned argc, Value *vp)
         } else {
             v = StringValue(globalStr);
         }
-        if (!JS_WrapValue(cx, v.address()))
+        if (!JS_WrapValue(cx, &v))
             return false;
-        if (!JS_SetElement(cx, arr, index, v.address()))
+        if (!JS_SetElement(cx, arr, index, &v))
             return false;
     }
 
@@ -2927,8 +2927,6 @@ KillWatchdog()
 static void
 WatchdogMain(void *arg)
 {
-    PR_SetCurrentThreadName("JS Watchdog");
-
     JSRuntime *rt = (JSRuntime *) arg;
 
     PR_Lock(gWatchdogLock);

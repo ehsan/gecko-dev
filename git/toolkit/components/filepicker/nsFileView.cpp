@@ -9,7 +9,7 @@
 #include "nsITreeSelection.h"
 #include "nsITreeColumns.h"
 #include "nsITreeBoxObject.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsString.h"
 #include "nsReadableUtils.h"
 #include "nsCRT.h"
@@ -60,7 +60,7 @@ nsFileResult::nsFileResult(const nsAString& aSearchString,
   else {
     PRInt32 slashPos = mSearchString.RFindChar('/');
     mSearchResult = RESULT_FAILURE;
-    nsCOMPtr<nsIFile> directory;
+    nsCOMPtr<nsILocalFile> directory;
     nsDependentSubstring parent(Substring(mSearchString, 0, slashPos + 1));
     if (!parent.IsEmpty() && parent.First() == '/')
       NS_NewLocalFile(parent, true, getter_AddRefs(directory));
@@ -79,7 +79,7 @@ nsFileResult::nsFileResult(const nsAString& aSearchString,
     while (NS_SUCCEEDED(dirEntries->HasMoreElements(&hasMore)) && hasMore) {
       nsCOMPtr<nsISupports> nextItem;
       dirEntries->GetNext(getter_AddRefs(nextItem));
-      nsCOMPtr<nsIFile> nextFile(do_QueryInterface(nextItem));
+      nsCOMPtr<nsILocalFile> nextFile(do_QueryInterface(nextItem));
       nsAutoString fileName;
       nextFile->GetLeafName(fileName);
       if (StringBeginsWith(fileName, prefix)) {

@@ -386,10 +386,6 @@ public class GeckoAppShell
         // Enable fixed position layers
         GeckoAppShell.putenv("MOZ_ENABLE_FIXED_POSITION_LAYERS=1");
 
-        // setup the app-specific cache path
-        f = context.getCacheDir();
-        GeckoAppShell.putenv("CACHE_DIRECTORY=" + f.getPath());
-
         putLocaleEnv();
     }
 
@@ -807,35 +803,6 @@ public class GeckoAppShell
                 intent.putExtra("duplicate", false);
 
                 intent.setAction("com.android.launcher.action.INSTALL_SHORTCUT");
-                GeckoApp.mAppContext.sendBroadcast(intent);
-            }
-        });
-    }
-
-    public static void removeShortcut(final String aTitle, final String aURI, final String aType) {
-        getHandler().post(new Runnable() {
-            public void run() {
-                Log.w(LOGTAG, "removeShortcut for " + aURI + " [" + aTitle + "] > " + aType);
-        
-                // the intent to be launched by the shortcut
-                Intent shortcutIntent = new Intent();
-                if (aType.equalsIgnoreCase(SHORTCUT_TYPE_WEBAPP)) {
-                    shortcutIntent.setAction(GeckoApp.ACTION_WEBAPP);
-                } else {
-                    shortcutIntent.setAction(GeckoApp.ACTION_BOOKMARK);
-                }
-                shortcutIntent.setData(Uri.parse(aURI));
-                shortcutIntent.setClassName(GeckoApp.mAppContext,
-                                            GeckoApp.mAppContext.getPackageName() + ".App");
-        
-                Intent intent = new Intent();
-                intent.putExtra(Intent.EXTRA_SHORTCUT_INTENT, shortcutIntent);
-                if (aTitle != null)
-                    intent.putExtra(Intent.EXTRA_SHORTCUT_NAME, aTitle);
-                else
-                    intent.putExtra(Intent.EXTRA_SHORTCUT_NAME, aURI);
-
-                intent.setAction("com.android.launcher.action.UNINSTALL_SHORTCUT");
                 GeckoApp.mAppContext.sendBroadcast(intent);
             }
         });
@@ -1551,13 +1518,13 @@ public class GeckoAppShell
     public static void addPluginView(View view,
                                      int x, int y,
                                      int w, int h,
-                                     boolean isFullScreen)
+                                     boolean isFullScreen, int orientation)
 {
         ImmutableViewportMetrics pluginViewport;
 
-        Log.i(LOGTAG, "addPluginView:" + view + " @ x:" + x + " y:" + y + " w:" + w + " h:" + h + " fullscreen: " + isFullScreen);
+        Log.i(LOGTAG, "addPluginView:" + view + " @ x:" + x + " y:" + y + " w:" + w + " h:" + h + "fullscreen: " + isFullScreen + " orientation: " + orientation);
         
-        GeckoApp.mAppContext.addPluginView(view, new Rect(x, y, x + w, y + h), isFullScreen);
+        GeckoApp.mAppContext.addPluginView(view, new Rect(x, y, x + w, y + h), isFullScreen, orientation);
     }
 
     public static void removePluginView(View view, boolean isFullScreen) {
@@ -2266,9 +2233,5 @@ public class GeckoAppShell
                 (int)FloatMath.ceil(sx), (int)FloatMath.ceil(sy),
                 (int)FloatMath.floor(sw), (int)FloatMath.floor(sh),
                 dx, dy, dw, dh, GeckoAppShell.SCREENSHOT_WHOLE_PAGE));
-    }
-
-    public static void notifyWakeLockChanged(String topic, String state) {
-        GeckoApp.mAppContext.notifyWakeLockChanged(topic, state);
     }
 }

@@ -11,12 +11,11 @@
 #include "nsICollation.h"
 #include "nsICharsetConverterManager.h"
 #include "nsCOMPtr.h"
-#include "mozilla/Attributes.h"
 
 
 // Create a collation interface for an input locale.
 // 
-class nsCollationFactory MOZ_FINAL : public nsICollationFactory {
+class nsCollationFactory: public nsICollationFactory {
 
 public: 
   NS_DECL_ISUPPORTS 

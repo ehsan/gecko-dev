@@ -699,7 +699,7 @@ struct MessageWindow {
         COPYDATASTRUCT *cds = (COPYDATASTRUCT*)lp;
         DosGetSharedMem( (PVOID)cds, PAG_READ|PAG_WRITE );
 
-        nsCOMPtr<nsIFile> workingDir;
+        nsCOMPtr<nsILocalFile> workingDir;
 
         // a "1" or greater indicates that the other process's working
         // directory follows the commandline string - locate & convert it

@@ -8,7 +8,7 @@
 #include "nsIPlacesImportExportService.h"
 
 #include "nsCOMPtr.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsIOutputStream.h"
 #include "nsIFaviconService.h"
 #include "nsIAnnotationService.h"

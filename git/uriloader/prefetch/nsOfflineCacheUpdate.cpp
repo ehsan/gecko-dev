@@ -37,7 +37,6 @@
 #include "prlog.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Attributes.h"
 
 #include "nsXULAppAPI.h"
 
@@ -89,9 +88,9 @@ DropReferenceFromURL(nsIURI * aURI)
 // nsManifestCheck
 //-----------------------------------------------------------------------------
 
-class nsManifestCheck MOZ_FINAL : public nsIStreamListener
-                                , public nsIChannelEventSink
-                                , public nsIInterfaceRequestor
+class nsManifestCheck : public nsIStreamListener
+                      , public nsIChannelEventSink
+                      , public nsIInterfaceRequestor
 {
 public:
     nsManifestCheck(nsOfflineCacheUpdate *aUpdate,
@@ -356,7 +355,7 @@ nsOfflineCacheUpdateItem::OpenChannel(nsOfflineCacheUpdate *aUpdate)
         rv = cachingChannel->SetCacheForOfflineUse(true);
         NS_ENSURE_SUCCESS(rv, rv);
 
-        nsCOMPtr<nsIFile> cacheDirectory;
+        nsCOMPtr<nsILocalFile> cacheDirectory;
         rv = mApplicationCache->GetCacheDirectory(getter_AddRefs(cacheDirectory));
         NS_ENSURE_SUCCESS(rv, rv);
 
@@ -516,7 +515,7 @@ nsOfflineCacheUpdateItem::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
             NS_ENSURE_SUCCESS(rv, rv);
         }
 
-        nsCOMPtr<nsIFile> cacheDirectory;
+        nsCOMPtr<nsILocalFile> cacheDirectory;
         rv = mApplicationCache->GetCacheDirectory(getter_AddRefs(cacheDirectory));
         NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1195,7 +1194,7 @@ nsresult
 nsOfflineCacheUpdate::Init(nsIURI *aManifestURI,
                            nsIURI *aDocumentURI,
                            nsIDOMDocument *aDocument,
-                           nsIFile *aCustomProfileDir)
+                           nsILocalFile *aCustomProfileDir)
 {
     nsresult rv;
 

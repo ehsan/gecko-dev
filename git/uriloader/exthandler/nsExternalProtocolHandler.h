@@ -12,12 +12,11 @@
 #include "nsString.h"
 #include "nsWeakReference.h"
 #include "nsIExternalProtocolService.h"
-#include "mozilla/Attributes.h"
 
 class nsIURI;
 
 // protocol handlers need to support weak references if we want the netlib nsIOService to cache them.
-class nsExternalProtocolHandler MOZ_FINAL : public nsIExternalProtocolHandler, public nsSupportsWeakReference
+class nsExternalProtocolHandler : public nsIExternalProtocolHandler, public nsSupportsWeakReference
 {
 public:
 	NS_DECL_ISUPPORTS

@@ -25,7 +25,6 @@
 #include "jsfriendapi.h"
 #include "js/MemoryMetrics.h"
 #include "mozilla/dom/DOMJSClass.h"
-#include "mozilla/dom/BindingUtils.h"
 
 #include "nsJSPrincipals.h"
 
@@ -359,6 +358,15 @@ TraceJSHolder(JSDHashTable *table, JSDHashEntryHdr *hdr, uint32_t number,
 }
 
 static PLDHashOperator
+TraceExpandos(XPCWrappedNative *wn, JSObject *&expando, void *aClosure)
+{
+    if (wn->IsWrapperExpired())
+        return PL_DHASH_REMOVE;
+    JS_CALL_OBJECT_TRACER(static_cast<JSTracer *>(aClosure), expando, "expando object");
+    return PL_DHASH_NEXT;
+}
+
+static PLDHashOperator
 TraceDOMExpandos(nsPtrHashKey<JSObject> *expando, void *aClosure)
 {
     JS_CALL_OBJECT_TRACER(static_cast<JSTracer *>(aClosure), expando->GetKey(),
@@ -392,6 +400,8 @@ void XPCJSRuntime::TraceXPConnectRoots(JSTracer *trc)
     XPCCompartmentSet &set = GetCompartmentSet();
     for (XPCCompartmentRange r = set.all(); !r.empty(); r.popFront()) {
         CompartmentPrivate *priv = GetCompartmentPrivate(r.front());
+        if (priv->expandoMap)
+            priv->expandoMap->Enumerate(TraceExpandos, trc);
         if (priv->domExpandoMap)
             priv->domExpandoMap->EnumerateEntries(TraceDOMExpandos, trc);
     }
@@ -455,20 +465,29 @@ XPCJSRuntime::SuspectWrappedNative(XPCWrappedNative *wrapper,
 }
 
 static PLDHashOperator
+SuspectExpandos(XPCWrappedNative *wrapper, JSObject *expando, void *arg)
+{
+    Closure* closure = static_cast<Closure*>(arg);
+    XPCJSRuntime::SuspectWrappedNative(wrapper, *closure->cb);
+
+    return PL_DHASH_NEXT;
+}
+
+static PLDHashOperator
 SuspectDOMExpandos(nsPtrHashKey<JSObject> *key, void *arg)
 {
     Closure *closure = static_cast<Closure*>(arg);
     JSObject* obj = key->GetKey();
     nsISupports* native = nsnull;
     if (js::IsProxy(obj)) {
-        NS_ASSERTION(dom::binding::instanceIsProxy(obj),
+        NS_ASSERTION(mozilla::dom::binding::instanceIsProxy(obj),
                      "Not a DOM proxy?");
         native = static_cast<nsISupports*>(js::GetProxyPrivate(obj).toPrivate());
     }
     else {
-        NS_ASSERTION(dom::DOMJSClass::FromJSClass(JS_GetClass(obj))->mDOMObjectIsISupports,
+        NS_ASSERTION(mozilla::dom::DOMJSClass::FromJSClass(JS_GetClass(obj))->mDOMObjectIsISupports,
                      "Someone added a wrapper for a non-nsISupports native to DOMExpandos!");
-        native = dom::UnwrapDOMObject<nsISupports>(obj);
+        native = static_cast<nsISupports*>(js::GetReservedSlot(obj, DOM_OBJECT_SLOT).toPrivate());
     }
     closure->cb->NoteXPCOMRoot(native);
     return PL_DHASH_NEXT;
@@ -527,10 +546,12 @@ XPCJSRuntime::AddXPConnectRoots(nsCycleCollectionTraversalCallback &cb)
         JS_DHashTableEnumerate(&mJSHolders, NoteJSHolder, &closure);
     }
 
-    // Suspect objects with expando objects.
+    // Suspect wrapped natives with expando objects.
     XPCCompartmentSet &set = GetCompartmentSet();
     for (XPCCompartmentRange r = set.all(); !r.empty(); r.popFront()) {
         CompartmentPrivate *priv = GetCompartmentPrivate(r.front());
+        if (priv->expandoMap)
+            priv->expandoMap->EnumerateRead(SuspectExpandos, &closure);
         if (priv->domExpandoMap)
             priv->domExpandoMap->EnumerateEntries(SuspectDOMExpandos, &closure);
     }
@@ -576,6 +597,14 @@ DoDeferredRelease(nsTArray<T> &array)
         array.RemoveElementAt(count-1);
         NS_RELEASE(wrapper);
     }
+}
+
+static PLDHashOperator
+SweepExpandos(XPCWrappedNative *wn, JSObject *&expando, void *arg)
+{
+    return JS_IsAboutToBeFinalized(wn->GetFlatJSObjectPreserveColor())
+           ? PL_DHASH_REMOVE
+           : PL_DHASH_NEXT;
 }
 
 /* static */ void
@@ -659,6 +688,8 @@ XPCJSRuntime::FinalizeCallback(JSFreeOp *fop, JSFinalizeStatus status, JSBool is
                 CompartmentPrivate *priv = GetCompartmentPrivate(r.front());
                 if (priv->waiverWrapperMap)
                     priv->waiverWrapperMap->Sweep();
+                if (priv->expandoMap)
+                    priv->expandoMap->Enumerate(SweepExpandos, NULL);
             }
 
             self->mDoingFinalization = true;
@@ -885,8 +916,6 @@ class AutoLockWatchdog {
 void
 XPCJSRuntime::WatchdogMain(void *arg)
 {
-    PR_SetCurrentThreadName("JS Watchdog");
-
     XPCJSRuntime* self = static_cast<XPCJSRuntime*>(arg);
 
     // Lock lasts until we return
@@ -1220,7 +1249,7 @@ GetJSUserCompartmentCount()
 // easily report them via telemetry, so we live with the small risk of
 // inconsistencies.
 NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSSystemCompartmentCount,
-    "js-compartments/system",
+    "js-compartments-system",
     KIND_OTHER,
     nsIMemoryReporter::UNITS_COUNT,
     GetJSSystemCompartmentCount,
@@ -1230,7 +1259,7 @@ NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSSystemCompartmentCount,
     "but such cases should be rare.")
 
 NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSUserCompartmentCount,
-    "js-compartments/user",
+    "js-compartments-user",
     KIND_OTHER,
     nsIMemoryReporter::UNITS_COUNT,
     GetJSUserCompartmentCount,
@@ -1663,7 +1692,7 @@ class JSCompartmentsMultiReporter : public nsIMemoryMultiReporter
         for (size_t i = 0; i < paths.length(); i++)
             // These ones don't need a description, hence the "".
             REPORT(nsCString(paths[i]),
-                   nsIMemoryReporter::KIND_OTHER,
+                   nsIMemoryReporter::KIND_SUMMARY,
                    nsIMemoryReporter::UNITS_COUNT,
                    1, "");
 

@@ -8,6 +8,7 @@
 #include "base/string_util.h"
 
 #include "nsIFile.h"
+#include "nsILocalFile.h"
 
 #include "nsCOMPtr.h"
 #include "nsServiceManagerUtils.h"
@@ -40,7 +41,7 @@ ScopedXREEmbed::Start()
 #  error Sorry
 #endif
 
-  nsCOMPtr<nsIFile> localFile;
+  nsCOMPtr<nsILocalFile> localFile;
   nsresult rv = XRE_GetBinaryPath(path.c_str(), getter_AddRefs(localFile));
   if (NS_FAILED(rv))
     return;

@@ -8,7 +8,6 @@
  */
 
 #include "mozilla/Util.h"
-#include "mozilla/Attributes.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -98,8 +97,8 @@ using namespace mozilla;
 
 /* directory enumerator */
 class
-nsDirEnumeratorUnix MOZ_FINAL : public nsISimpleEnumerator,
-                                public nsIDirectoryEnumerator
+nsDirEnumeratorUnix : public nsISimpleEnumerator,
+                      public nsIDirectoryEnumerator
 {
     public:
     nsDirEnumeratorUnix();
@@ -205,7 +204,7 @@ nsDirEnumeratorUnix::GetNextFile(nsIFile **_retval)
         return NS_OK;
     }
 
-    nsCOMPtr<nsIFile> file = new nsLocalFile();
+    nsCOMPtr<nsILocalFile> file = new nsLocalFile();
     if (!file)
         return NS_ERROR_OUT_OF_MEMORY;
 
@@ -700,7 +699,8 @@ nsLocalFile::CopyDirectoryTo(nsIFile *newParent)
             nsCOMPtr<nsIFile> destClone;
             rv = newParent->Clone(getter_AddRefs(destClone));
             if (NS_SUCCEEDED(rv)) {
-                if (NS_FAILED(rv = entry->CopyToNative(destClone, EmptyCString()))) {
+                nsCOMPtr<nsILocalFile> newDir(do_QueryInterface(destClone));
+                if (NS_FAILED(rv = entry->CopyToNative(newDir, EmptyCString()))) {
 #ifdef DEBUG
                     nsresult rv2;
                     nsCAutoString pathName;
@@ -780,7 +780,7 @@ nsLocalFile::CopyToNative(nsIFile *newParent, const nsACString &newName)
         if (!newFile)
             return NS_ERROR_OUT_OF_MEMORY;
 
-        nsCOMPtr<nsIFile> fileRef(newFile); // release on exit
+        nsCOMPtr<nsILocalFile> fileRef(newFile); // release on exit
 
         rv = newFile->InitWithNativePath(newPathName);
         if (NS_FAILED(rv))
@@ -1320,7 +1320,7 @@ nsLocalFile::GetParent(nsIFile **aParent)
     char c = *slashp;
     *slashp = '\0';
 
-    nsCOMPtr<nsIFile> localFile;
+    nsCOMPtr<nsILocalFile> localFile;
     nsresult rv = NS_NewNativeLocalFile(nsDependentCString(buffer), true,
                                         getter_AddRefs(localFile));
 
@@ -1601,9 +1601,12 @@ nsLocalFile::GetNativeTarget(nsACString &_retval)
             nsCOMPtr<nsIFile> parent;
             if (NS_FAILED(rv = self->GetParent(getter_AddRefs(parent))))
                 break;
-            if (NS_FAILED(rv = parent->AppendRelativeNativePath(nsDependentCString(target))))
+            nsCOMPtr<nsILocalFile> localFile(do_QueryInterface(parent, &rv));
+            if (NS_FAILED(rv))
                 break;
-            if (NS_FAILED(rv = parent->GetNativePath(_retval)))
+            if (NS_FAILED(rv = localFile->AppendRelativeNativePath(nsDependentCString(target))))
+                break;
+            if (NS_FAILED(rv = localFile->GetNativePath(_retval)))
                 break;
             self = parent;
         } else {
@@ -1876,7 +1879,7 @@ nsLocalFile::Launch()
 }
 
 nsresult
-NS_NewNativeLocalFile(const nsACString &path, bool followSymlinks, nsIFile **result)
+NS_NewNativeLocalFile(const nsACString &path, bool followSymlinks, nsILocalFile **result)
 {
     nsLocalFile *file = new nsLocalFile();
     if (!file)
@@ -2000,7 +2003,7 @@ nsLocalFile::GetHashCode(PRUint32 *aResult)
 }
 
 nsresult 
-NS_NewLocalFile(const nsAString &path, bool followLinks, nsIFile* *result)
+NS_NewLocalFile(const nsAString &path, bool followLinks, nsILocalFile* *result)
 {
     nsCAutoString buf;
     nsresult rv = NS_CopyUnicodeToNative(path, buf);
@@ -2244,7 +2247,7 @@ nsLocalFile::SetFileCreator(OSType aFileCreator)
 }
   
 NS_IMETHODIMP
-nsLocalFile::LaunchWithDoc(nsIFile *aDocToLoad, bool aLaunchInBackground)
+nsLocalFile::LaunchWithDoc(nsILocalFile *aDocToLoad, bool aLaunchInBackground)
 {    
   bool isExecutable;
   nsresult rv = IsExecutable(&isExecutable);
@@ -2287,7 +2290,7 @@ nsLocalFile::LaunchWithDoc(nsIFile *aDocToLoad, bool aLaunchInBackground)
 }
 
 NS_IMETHODIMP
-nsLocalFile::OpenDocWithApp(nsIFile *aAppToOpenWith, bool aLaunchInBackground)
+nsLocalFile::OpenDocWithApp(nsILocalFile *aAppToOpenWith, bool aLaunchInBackground)
 {
   FSRef docFSRef;
   nsresult rv = GetFSRef(&docFSRef);

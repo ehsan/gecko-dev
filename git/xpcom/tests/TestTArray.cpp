@@ -16,7 +16,7 @@
 #include "nsDirectoryServiceUtils.h"
 #include "nsComponentManagerUtils.h"
 #include "nsXPCOM.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 
 using namespace mozilla;
 

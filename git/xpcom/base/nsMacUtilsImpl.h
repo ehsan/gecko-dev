@@ -8,9 +8,8 @@
 
 #include "nsIMacUtils.h"
 #include "nsString.h"
-#include "mozilla/Attributes.h"
 
-class nsMacUtilsImpl MOZ_FINAL : public nsIMacUtils
+class nsMacUtilsImpl : public nsIMacUtils
 {
 public:
   NS_DECL_ISUPPORTS

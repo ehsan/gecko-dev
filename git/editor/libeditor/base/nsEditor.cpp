@@ -39,6 +39,7 @@
 #include "nsCaret.h"
 #include "nsIWidget.h"
 #include "nsIPlaintextEditor.h"
+#include "nsIPrivateDOMEvent.h"
 #include "nsGUIEvent.h"
 
 #include "nsIFrame.h"  // Needed by IME code
@@ -327,7 +328,7 @@ nsEditor::InstallEventListeners()
                  NS_ERROR_NOT_INITIALIZED);
 
   // Initialize the event target.
-  nsCOMPtr<nsIContent> rootContent = GetRoot();
+  nsCOMPtr<nsIContent> rootContent = do_QueryInterface(GetRoot());
   NS_ENSURE_TRUE(rootContent, NS_ERROR_NOT_AVAILABLE);
   mEventTarget = do_QueryInterface(rootContent->GetParent());
   NS_ENSURE_TRUE(mEventTarget, NS_ERROR_NOT_AVAILABLE);
@@ -597,8 +598,8 @@ nsEditor::GetSelection(nsISelection **aSelection)
   return selcon->GetSelection(nsISelectionController::SELECTION_NORMAL, aSelection);  // does an addref
 }
 
-Selection*
-nsEditor::GetSelection()
+nsTypedSelection*
+nsEditor::GetTypedSelection()
 {
   nsCOMPtr<nsISelection> sel;
   nsresult res = GetSelection(getter_AddRefs(sel));
@@ -1533,73 +1534,55 @@ nsEditor::ReplaceContainer(nsIDOMNode *inNode,
                            bool aCloneAttributes)
 {
   NS_ENSURE_TRUE(inNode && outNode, NS_ERROR_NULL_POINTER);
-
-  nsCOMPtr<nsINode> node = do_QueryInterface(inNode);
-  NS_ENSURE_STATE(node);
-
-  nsCOMPtr<dom::Element> element;
-  nsresult rv = ReplaceContainer(node, getter_AddRefs(element), aNodeType,
-                                 aAttribute, aValue, aCloneAttributes);
-  *outNode = element ? element->AsDOMNode() : nsnull;
-  return rv;
-}
-
-nsresult
-nsEditor::ReplaceContainer(nsINode* aNode,
-                           dom::Element** outNode,
-                           const nsAString& aNodeType,
-                           const nsAString* aAttribute,
-                           const nsAString* aValue,
-                           bool aCloneAttributes)
-{
-  MOZ_ASSERT(aNode);
-  MOZ_ASSERT(outNode);
-
-  *outNode = nsnull;
-
-  nsCOMPtr<nsIContent> parent = aNode->GetParent();
-  NS_ENSURE_STATE(parent);
-
-  PRInt32 offset = parent->IndexOf(aNode);
-
-  // create new container
-  //new call to use instead to get proper HTML element, bug# 39919
-  nsresult res = CreateHTMLContent(aNodeType, outNode);
+  nsCOMPtr<nsIDOMNode> parent;
+  PRInt32 offset;
+  nsresult res = GetNodeLocation(inNode, address_of(parent), &offset);
   NS_ENSURE_SUCCESS(res, res);
 
-  nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(*outNode);
-  
-  nsIDOMNode* inNode = aNode->AsDOMNode();
+  // create new container
+  nsCOMPtr<nsIContent> newContent;
 
+  //new call to use instead to get proper HTML element, bug# 39919
+  res = CreateHTMLContent(aNodeType, getter_AddRefs(newContent));
+  nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(newContent);
+  NS_ENSURE_SUCCESS(res, res);
+    *outNode = do_QueryInterface(elem);
+  
   // set attribute if needed
-  if (aAttribute && aValue && !aAttribute->IsEmpty()) {
+  if (aAttribute && aValue && !aAttribute->IsEmpty())
+  {
     res = elem->SetAttribute(*aAttribute, *aValue);
     NS_ENSURE_SUCCESS(res, res);
   }
-  if (aCloneAttributes) {
-    res = CloneAttributes(elem, inNode);
+  if (aCloneAttributes)
+  {
+    nsCOMPtr<nsIDOMNode>newNode = do_QueryInterface(elem);
+    res = CloneAttributes(newNode, inNode);
     NS_ENSURE_SUCCESS(res, res);
   }
   
   // notify our internal selection state listener
   // (Note: A nsAutoSelectionReset object must be created
   //  before calling this to initialize mRangeUpdater)
-  nsAutoReplaceContainerSelNotify selStateNotify(mRangeUpdater, inNode, elem);
+  nsAutoReplaceContainerSelNotify selStateNotify(mRangeUpdater, inNode, *outNode);
   {
     nsAutoTxnsConserveSelection conserveSelection(this);
-    while (aNode->HasChildren()) {
-      nsCOMPtr<nsIDOMNode> child = aNode->GetFirstChild()->AsDOMNode();
-
+    nsCOMPtr<nsIDOMNode> child;
+    bool bHasMoreChildren;
+    inNode->HasChildNodes(&bHasMoreChildren);
+    while (bHasMoreChildren)
+    {
+      inNode->GetFirstChild(getter_AddRefs(child));
       res = DeleteNode(child);
       NS_ENSURE_SUCCESS(res, res);
 
-      res = InsertNode(child, elem, -1);
+      res = InsertNode(child, *outNode, -1);
       NS_ENSURE_SUCCESS(res, res);
+      inNode->HasChildNodes(&bHasMoreChildren);
     }
   }
-
   // insert new container into tree
-  res = InsertNode(elem, parent->AsDOMNode(), offset);
+  res = InsertNode( *outNode, parent, offset);
   NS_ENSURE_SUCCESS(res, res);
   
   // delete old container
@@ -1611,39 +1594,47 @@ nsEditor::ReplaceContainer(nsINode* aNode,
 //                  the parent of inNode
 //
 nsresult
-nsEditor::RemoveContainer(nsIDOMNode* aNode)
+nsEditor::RemoveContainer(nsINode* aNode)
 {
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
+  nsCOMPtr<nsIDOMNode> node = do_QueryInterface(aNode);
   return RemoveContainer(node);
 }
 
 nsresult
-nsEditor::RemoveContainer(nsINode* aNode)
+nsEditor::RemoveContainer(nsIDOMNode *inNode)
 {
-  NS_ENSURE_TRUE(aNode, NS_ERROR_NULL_POINTER);
-
-  nsINode* parent = aNode->GetNodeParent();
-  NS_ENSURE_STATE(parent);
-
-  PRInt32 offset = parent->IndexOf(aNode);
+  NS_ENSURE_TRUE(inNode, NS_ERROR_NULL_POINTER);
+  nsCOMPtr<nsIDOMNode> parent;
+  PRInt32 offset;
+  
+  nsresult res = GetNodeLocation(inNode, address_of(parent), &offset);
+  NS_ENSURE_SUCCESS(res, res);
   
   // loop through the child nodes of inNode and promote them
   // into inNode's parent.
-  PRUint32 nodeOrigLen = aNode->GetChildCount();
+  bool bHasMoreChildren;
+  inNode->HasChildNodes(&bHasMoreChildren);
+  nsCOMPtr<nsIDOMNodeList> nodeList;
+  res = inNode->GetChildNodes(getter_AddRefs(nodeList));
+  NS_ENSURE_SUCCESS(res, res);
+  NS_ENSURE_TRUE(nodeList, NS_ERROR_NULL_POINTER);
+  PRUint32 nodeOrigLen;
+  nodeList->GetLength(&nodeOrigLen);
 
   // notify our internal selection state listener
-  nsAutoRemoveContainerSelNotify selNotify(mRangeUpdater, aNode, parent, offset, nodeOrigLen);
+  nsAutoRemoveContainerSelNotify selNotify(mRangeUpdater, inNode, parent, offset, nodeOrigLen);
                                    
-  while (aNode->HasChildren()) {
-    nsIContent* child = aNode->GetLastChild();
-    nsresult rv = DeleteNode(child->AsDOMNode());
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = InsertNode(child->AsDOMNode(), parent->AsDOMNode(), offset);
-    NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIDOMNode> child;
+  while (bHasMoreChildren)
+  {
+    inNode->GetLastChild(getter_AddRefs(child));
+    res = DeleteNode(child);
+    NS_ENSURE_SUCCESS(res, res);
+    res = InsertNode(child, parent, offset);
+    NS_ENSURE_SUCCESS(res, res);
+    inNode->HasChildNodes(&bHasMoreChildren);
   }
-
-  return DeleteNode(aNode->AsDOMNode());
+  return DeleteNode(inNode);
 }
 
 
@@ -1661,41 +1652,24 @@ nsEditor::InsertContainerAbove( nsIDOMNode *inNode,
                                 const nsAString *aValue)
 {
   NS_ENSURE_TRUE(inNode && outNode, NS_ERROR_NULL_POINTER);
-
-  nsCOMPtr<nsIContent> node = do_QueryInterface(inNode);
-  NS_ENSURE_STATE(node);
-
-  nsCOMPtr<dom::Element> element;
-  nsresult rv = InsertContainerAbove(node, getter_AddRefs(element), aNodeType,
-                                     aAttribute, aValue);
-  *outNode = element ? element->AsDOMNode() : nsnull;
-  return rv;
-}
-
-nsresult
-nsEditor::InsertContainerAbove(nsIContent* aNode,
-                               dom::Element** aOutNode,
-                               const nsAString& aNodeType,
-                               const nsAString* aAttribute,
-                               const nsAString* aValue)
-{
-  MOZ_ASSERT(aNode);
-
-  nsCOMPtr<nsIContent> parent = aNode->GetParent();
-  NS_ENSURE_STATE(parent);
-  PRInt32 offset = parent->IndexOf(aNode);
-
-  // create new container
-  nsCOMPtr<dom::Element> newContent;
-
-  //new call to use instead to get proper HTML element, bug# 39919
-  nsresult res = CreateHTMLContent(aNodeType, getter_AddRefs(newContent));
+  nsCOMPtr<nsIDOMNode> parent;
+  PRInt32 offset;
+  nsresult res = GetNodeLocation(inNode, address_of(parent), &offset);
   NS_ENSURE_SUCCESS(res, res);
 
+  // create new container
+  nsCOMPtr<nsIContent> newContent;
+
+  //new call to use instead to get proper HTML element, bug# 39919
+  res = CreateHTMLContent(aNodeType, getter_AddRefs(newContent));
+  nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(newContent);
+  NS_ENSURE_SUCCESS(res, res);
+  *outNode = do_QueryInterface(elem);
+  
   // set attribute if needed
-  if (aAttribute && aValue && !aAttribute->IsEmpty()) {
-    nsIDOMNode* elem = newContent->AsDOMNode();
-    res = static_cast<nsIDOMElement*>(elem)->SetAttribute(*aAttribute, *aValue);
+  if (aAttribute && aValue && !aAttribute->IsEmpty())
+  {
+    res = elem->SetAttribute(*aAttribute, *aValue);
     NS_ENSURE_SUCCESS(res, res);
   }
   
@@ -1703,19 +1677,17 @@ nsEditor::InsertContainerAbove(nsIContent* aNode,
   nsAutoInsertContainerSelNotify selNotify(mRangeUpdater);
   
   // put inNode in new parent, outNode
-  res = DeleteNode(aNode->AsDOMNode());
+  res = DeleteNode(inNode);
   NS_ENSURE_SUCCESS(res, res);
 
   {
     nsAutoTxnsConserveSelection conserveSelection(this);
-    res = InsertNode(aNode->AsDOMNode(), newContent->AsDOMNode(), 0);
+    res = InsertNode(inNode, *outNode, 0);
     NS_ENSURE_SUCCESS(res, res);
   }
 
   // put new parent in doc
-  res = InsertNode(newContent->AsDOMNode(), parent->AsDOMNode(), offset);
-  newContent.forget(aOutNode);
-  return res;  
+  return InsertNode(*outNode, parent, offset);
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -1938,9 +1910,8 @@ NS_IMETHODIMP
 nsEditor::DumpContentTree()
 {
 #ifdef DEBUG
-  if (mRootElement) {
-    mRootElement->List(stdout);
-  }
+  nsCOMPtr<nsIContent> root = do_QueryInterface(mRootElement);
+  if (root)  root->List(stdout);
 #endif
   return NS_OK;
 }
@@ -2140,7 +2111,7 @@ nsEditor::GetPreferredIMEState(IMEState *aState)
     return NS_OK;
   }
 
-  nsCOMPtr<nsIContent> content = GetRoot();
+  nsCOMPtr<nsIContent> content = do_QueryInterface(GetRoot());
   NS_ENSURE_TRUE(content, NS_ERROR_FAILURE);
 
   nsIFrame* frame = content->GetPrimaryFrame();
@@ -3785,19 +3756,40 @@ nsEditor::IsMozEditorBogusNode(nsIContent *element)
                               kMOZEditorBogusNodeValue, eCaseMatters);
 }
 
-PRUint32
-nsEditor::CountEditableChildren(nsINode* aNode)
+nsresult
+nsEditor::CountEditableChildren(nsIDOMNode *aNode, PRUint32 &outCount) 
 {
-  MOZ_ASSERT(aNode);
-  PRUint32 count = 0;
-  for (nsIContent* child = aNode->GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
-    if (IsEditable(child)) {
-      ++count;
+  outCount = 0;
+  if (!aNode) { return NS_ERROR_NULL_POINTER; }
+  nsresult res=NS_OK;
+  bool hasChildNodes;
+  aNode->HasChildNodes(&hasChildNodes);
+  if (hasChildNodes)
+  {
+    nsCOMPtr<nsIDOMNodeList>nodeList;
+    res = aNode->GetChildNodes(getter_AddRefs(nodeList));
+    if (NS_SUCCEEDED(res) && nodeList) 
+    {
+      PRUint32 i;
+      PRUint32 len;
+      nodeList->GetLength(&len);
+      for (i=0 ; i<len; i++)
+      {
+        nsCOMPtr<nsIDOMNode> child;
+        res = nodeList->Item((PRInt32)i, getter_AddRefs(child));
+        if ((NS_SUCCEEDED(res)) && (child))
+        {
+          if (IsEditable(child))
+          {
+            outCount++;
+          }
+        }
+      }
     }
+    else if (!nodeList)
+      res = NS_ERROR_NULL_POINTER;
   }
-  return count;
+  return res;
 }
 
 //END nsEditor static utility methods
@@ -5042,7 +5034,7 @@ nsresult nsEditor::ClearSelection()
 }
 
 nsresult
-nsEditor::CreateHTMLContent(const nsAString& aTag, dom::Element** aContent)
+nsEditor::CreateHTMLContent(const nsAString& aTag, nsIContent** aContent)
 {
   nsCOMPtr<nsIDocument> doc = GetDocument();
   NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
@@ -5055,8 +5047,7 @@ nsEditor::CreateHTMLContent(const nsAString& aTag, dom::Element** aContent)
     return NS_ERROR_FAILURE;
   }
 
-  return doc->CreateElem(aTag, nsnull, kNameSpaceID_XHTML,
-                         reinterpret_cast<nsIContent**>(aContent));
+  return doc->CreateElem(aTag, nsnull, kNameSpaceID_XHTML, aContent);
 }
 
 nsresult
@@ -5385,8 +5376,9 @@ nsEditor::IsModifiableNode(nsINode *aNode)
 nsKeyEvent*
 nsEditor::GetNativeKeyEvent(nsIDOMKeyEvent* aDOMKeyEvent)
 {
-  NS_ENSURE_TRUE(aDOMKeyEvent, nsnull);
-  nsEvent* nativeEvent = aDOMKeyEvent->GetInternalNSEvent();
+  nsCOMPtr<nsIPrivateDOMEvent> privDOMEvent = do_QueryInterface(aDOMKeyEvent);
+  NS_ENSURE_TRUE(privDOMEvent, nsnull);
+  nsEvent* nativeEvent = privDOMEvent->GetInternalNSEvent();
   NS_ENSURE_TRUE(nativeEvent, nsnull);
   NS_ENSURE_TRUE(nativeEvent->eventStructType == NS_KEY_EVENT, nsnull);
   return static_cast<nsKeyEvent*>(nativeEvent);

@@ -99,7 +99,8 @@
     style="@style/SyncBottom"
     android:orientation="horizontal" >
     <Button
-      style="@style/SyncButton"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
       android:onClick="cancelClickHandler"
       android:text="@string/sync_button_cancel" />
   </LinearLayout>

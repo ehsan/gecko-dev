@@ -14,7 +14,6 @@
 #include "nsIPhonetic.h"
 
 #include "nsIControllers.h"
-#include "nsIStringBundle.h"
 #include "nsFocusManager.h"
 #include "nsPIDOMWindow.h"
 #include "nsContentCID.h"
@@ -37,6 +36,7 @@
 #include "nsIServiceManager.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsDOMError.h"
+#include "nsIPrivateDOMEvent.h"
 #include "nsIEditor.h"
 #include "nsGUIEvent.h"
 #include "nsIIOService.h"
@@ -66,13 +66,12 @@
 #include "nsIRadioGroupContainer.h"
 
 // input type=file
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsNetUtil.h"
 #include "nsDOMFile.h"
 #include "nsIFilePicker.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsIContentPrefService.h"
-#include "nsIMIMEService.h"
 #include "nsIObserverService.h"
 #include "nsIPopupWindowManager.h"
 #include "nsGlobalWindow.h"
@@ -271,7 +270,19 @@ AsyncClickHandler::Run()
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (mInput->HasAttr(kNameSpaceID_None, nsGkAtoms::accept)) {
-    mInput->SetFilePickerFiltersFromAccept(filePicker);
+    PRInt32 filters = mInput->GetFilterFromAccept();
+
+    if (filters) {
+      // We add |filterAll| to be sure the user always has a sane fallback.
+      filePicker->AppendFilters(filters | nsIFilePicker::filterAll);
+
+      // If the accept attribute asked for a filter, we need to make it default.
+      // |filterAll| will always use index=0 so we need to set index=1 as the
+      // current filter.
+      filePicker->SetFilterIndex(1);
+    } else {
+      filePicker->AppendFilters(nsIFilePicker::filterAll);
+    }
   } else {
     filePicker->AppendFilters(nsIFilePicker::filterAll);
   }
@@ -286,14 +297,17 @@ AsyncClickHandler::Run()
 
     oldFiles[0]->GetMozFullPathInternal(path);
 
-    nsCOMPtr<nsIFile> localFile;
+    nsCOMPtr<nsILocalFile> localFile;
     rv = NS_NewLocalFile(path, false, getter_AddRefs(localFile));
 
     if (NS_SUCCEEDED(rv)) {
       nsCOMPtr<nsIFile> parentFile;
       rv = localFile->GetParent(getter_AddRefs(parentFile));
       if (NS_SUCCEEDED(rv)) {
-        filePicker->SetDisplayDirectory(parentFile);
+        nsCOMPtr<nsILocalFile> parentLocalFile = do_QueryInterface(parentFile, &rv);
+        if (parentLocalFile) {
+          filePicker->SetDisplayDirectory(parentLocalFile);
+        }
       }
     }
 
@@ -309,7 +323,7 @@ AsyncClickHandler::Run()
     }
   } else {
     // Attempt to retrieve the last used directory from the content pref service
-    nsCOMPtr<nsIFile> localFile;
+    nsCOMPtr<nsILocalFile> localFile;
     nsHTMLInputElement::gUploadLastDir->FetchLastUsedDirectory(doc->GetDocumentURI(),
                                                                getter_AddRefs(localFile));
     if (!localFile) {
@@ -344,7 +358,7 @@ AsyncClickHandler::Run()
     bool loop = true;
     while (NS_SUCCEEDED(iter->HasMoreElements(&loop)) && loop) {
       iter->GetNext(getter_AddRefs(tmp));
-      nsCOMPtr<nsIFile> localFile = do_QueryInterface(tmp);
+      nsCOMPtr<nsILocalFile> localFile = do_QueryInterface(tmp);
       if (localFile) {
         nsString unicodePath;
         rv = localFile->GetPath(unicodePath);
@@ -363,7 +377,7 @@ AsyncClickHandler::Run()
     }
   }
   else {
-    nsCOMPtr<nsIFile> localFile;
+    nsCOMPtr<nsILocalFile> localFile;
     rv = filePicker->GetFile(getter_AddRefs(localFile));
     if (localFile) {
       nsString unicodePath;
@@ -416,7 +430,7 @@ nsHTMLInputElement::DestroyUploadLastDir() {
 }
 
 nsresult
-UploadLastDir::FetchLastUsedDirectory(nsIURI* aURI, nsIFile** aFile)
+UploadLastDir::FetchLastUsedDirectory(nsIURI* aURI, nsILocalFile** aFile)
 {
   NS_PRECONDITION(aURI, "aURI is null");
   NS_PRECONDITION(aFile, "aFile is null");
@@ -438,7 +452,7 @@ UploadLastDir::FetchLastUsedDirectory(nsIURI* aURI, nsIFile** aFile)
     nsString prefStr;
     pref->GetAsAString(prefStr);
 
-    nsCOMPtr<nsIFile> localFile = do_CreateInstance(NS_LOCAL_FILE_CONTRACTID);
+    nsCOMPtr<nsILocalFile> localFile = do_CreateInstance(NS_LOCAL_FILE_CONTRACTID);
     if (!localFile)
       return NS_ERROR_OUT_OF_MEMORY;
     localFile->InitWithPath(prefStr);
@@ -448,7 +462,7 @@ UploadLastDir::FetchLastUsedDirectory(nsIURI* aURI, nsIFile** aFile)
 }
 
 nsresult
-UploadLastDir::StoreLastUsedDirectory(nsIURI* aURI, nsIFile* aFile)
+UploadLastDir::StoreLastUsedDirectory(nsIURI* aURI, nsILocalFile* aFile)
 {
   NS_PRECONDITION(aURI, "aURI is null");
   NS_PRECONDITION(aFile, "aFile is null");
@@ -457,6 +471,7 @@ UploadLastDir::StoreLastUsedDirectory(nsIURI* aURI, nsIFile* aFile)
   if (!parentFile) {
     return NS_OK;
   }
+  nsCOMPtr<nsILocalFile> localFile = do_QueryInterface(parentFile);
 
   // Attempt to get the CPS, if it's not present we'll just return
   nsCOMPtr<nsIContentPrefService> contentPrefService =
@@ -1050,8 +1065,10 @@ nsHTMLInputElement::MozSetFileNameArray(const PRUnichar **aFileNames, PRUint32 a
 
     if (!file) {
       // this is no "file://", try as local file
+      nsCOMPtr<nsILocalFile> localFile;
       NS_NewLocalFile(nsDependentString(aFileNames[i]),
-                      false, getter_AddRefs(file));
+                      false, getter_AddRefs(localFile));
+      file = do_QueryInterface(localFile);
     }
 
     if (file) {
@@ -2859,7 +2876,11 @@ FireEventForAccessibility(nsIDOMHTMLInputElement* aTarget,
                                                   NS_LITERAL_STRING("Events"),
                                                   getter_AddRefs(event)))) {
     event->InitEvent(aEventType, true, true);
-    event->SetTrusted(true);
+
+    nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(event));
+    if (privateEvent) {
+      privateEvent->SetTrusted(true);
+    }
 
     nsEventDispatcher::DispatchDOMEvent(aTarget, nsnull, event, aPresContext, nsnull);
   }
@@ -4081,153 +4102,6 @@ nsHTMLInputElement::FieldSetDisabledChanged(bool aNotify)
   UpdateBarredFromConstraintValidation();
 
   nsGenericHTMLFormElement::FieldSetDisabledChanged(aNotify);
-}
-
-void
-nsHTMLInputElement::SetFilePickerFiltersFromAccept(nsIFilePicker* filePicker)
-{
-  // We always add |filterAll|
-  filePicker->AppendFilters(nsIFilePicker::filterAll);
-
-  NS_ASSERTION(HasAttr(kNameSpaceID_None, nsGkAtoms::accept),
-               "You should not call SetFilePickerFiltersFromAccept if the"
-               " element has no accept attribute!");
-
-  // Services to retrieve image/*, audio/*, video/* filters
-  nsCOMPtr<nsIStringBundleService> stringService =
-    mozilla::services::GetStringBundleService();
-  if (!stringService) {
-    return;
-  }
-  nsCOMPtr<nsIStringBundle> filterBundle;
-  if (NS_FAILED(stringService->CreateBundle("chrome://global/content/filepicker.properties",
-                                            getter_AddRefs(filterBundle)))) {
-    return;
-  }
-
-  // Service to retrieve mime type information for mime types filters
-  nsCOMPtr<nsIMIMEService> mimeService = do_GetService("@mozilla.org/mime;1");
-  if (!mimeService) {
-    return;
-  }
-
-  nsAutoString accept;
-  GetAttr(kNameSpaceID_None, nsGkAtoms::accept, accept);
-
-  HTMLSplitOnSpacesTokenizer tokenizer(accept, ',');
-
-  nsTArray<nsFilePickerFilter> filters;
-  nsString allExtensionsList;
-
-  // Retrieve all filters
-  while (tokenizer.hasMoreTokens()) {
-    const nsDependentSubstring& token = tokenizer.nextToken();
-
-    if (token.IsEmpty()) {
-      continue;
-    }
-
-    PRInt32 filterMask = 0;
-    nsString filterName;
-    nsString extensionListStr;
-
-    // First, check for image/audio/video filters...
-    if (token.EqualsLiteral("image/*")) {
-      filterMask = nsIFilePicker::filterImages;
-      filterBundle->GetStringFromName(NS_LITERAL_STRING("imageFilter").get(),
-                                      getter_Copies(extensionListStr));
-    } else if (token.EqualsLiteral("audio/*")) {
-      filterMask = nsIFilePicker::filterAudio;
-      filterBundle->GetStringFromName(NS_LITERAL_STRING("audioFilter").get(),
-                                      getter_Copies(extensionListStr));
-    } else if (token.EqualsLiteral("video/*")) {
-      filterMask = nsIFilePicker::filterVideo;
-      filterBundle->GetStringFromName(NS_LITERAL_STRING("videoFilter").get(),
-                                      getter_Copies(extensionListStr));
-    } else {
-      //... if no image/audio/video filter is found, check mime types filters
-      nsCOMPtr<nsIMIMEInfo> mimeInfo;
-      if (NS_FAILED(mimeService->GetFromTypeAndExtension(
-                      NS_ConvertUTF16toUTF8(token),
-                      EmptyCString(), // No extension
-                      getter_AddRefs(mimeInfo))) ||
-          !mimeInfo) {
-        continue;
-      }
-
-      // Get mime type name
-      nsCString mimeTypeName;
-      mimeInfo->GetType(mimeTypeName);
-      CopyUTF8toUTF16(mimeTypeName, filterName);
-
-      // Get extension list
-      nsCOMPtr<nsIUTF8StringEnumerator> extensions;
-      mimeInfo->GetFileExtensions(getter_AddRefs(extensions));
-
-      bool hasMore;
-      while (NS_SUCCEEDED(extensions->HasMore(&hasMore)) && hasMore) {
-        nsCString extension;
-        if (NS_FAILED(extensions->GetNext(extension))) {
-          continue;
-        }
-        if (!extensionListStr.IsEmpty()) {
-          extensionListStr.AppendLiteral("; ");
-        }
-        extensionListStr += NS_LITERAL_STRING("*.") +
-                            NS_ConvertUTF8toUTF16(extension);
-      }
-    }
-
-    if (!filterMask && (extensionListStr.IsEmpty() || filterName.IsEmpty())) {
-      // No valid filter found
-      continue;
-    }
-
-    // If we arrived here, that means we have a valid filter: let's create it
-    // and add it to our list, if no similar filter is already present
-    nsFilePickerFilter filter;
-    if (filterMask) {
-      filter = nsFilePickerFilter(filterMask);
-    } else {
-      filter = nsFilePickerFilter(filterName, extensionListStr);
-    }
-
-    if (!filters.Contains(filter)) {
-      if (!allExtensionsList.IsEmpty()) {
-        allExtensionsList.AppendLiteral("; ");
-      }
-      allExtensionsList += extensionListStr;
-      filters.AppendElement(filter);
-    }
-  }
-
-  // Add "All Supported Types" filter
-  if (filters.Length() > 1) {
-    nsXPIDLString title;
-    nsContentUtils::GetLocalizedString(nsContentUtils::eFORMS_PROPERTIES,
-                                       "AllSupportedTypes", title);
-    filePicker->AppendFilter(title, allExtensionsList);
-  }
-
-  // Add each filter, and check if all filters are trusted
-  bool allFilterAreTrusted = true;
-  for (PRUint32 i = 0; i < filters.Length(); ++i) {
-    const nsFilePickerFilter& filter = filters[i];
-    if (filter.mFilterMask) {
-      filePicker->AppendFilters(filter.mFilterMask);
-    } else {
-      filePicker->AppendFilter(filter.mTitle, filter.mFilter);
-    }
-    allFilterAreTrusted &= filter.mIsTrusted;
-  }
-
-  // If all filters are trusted, select the first filter as default;
-  // otherwise filterAll will remain the default filter
-  if (filters.Length() >= 1 && allFilterAreTrusted) {
-    // |filterAll| will always use index=0 so we need to set index=1 as the
-    // current filter.
-    filePicker->SetFilterIndex(1);
-  }
 }
 
 PRInt32

@@ -284,7 +284,7 @@ CompileRegExpObject(JSContext *cx, RegExpObjectBuilder &builder, CallArgs args)
     RegExpStatics *res = cx->regExpStatics();
     RegExpObject *reobj = builder.build(escapedSourceStr, RegExpFlag(flags | res->getFlags()));
     if (!reobj)
-        return false;
+        return NULL;
 
     args.rval() = ObjectValue(*reobj);
     return true;
@@ -295,13 +295,12 @@ regexp_compile(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    JSObject *thisObj;
-    if (!NonGenericMethodGuard(cx, args, regexp_compile, &RegExpClass, &thisObj))
-        return false;
-    if (!thisObj)
-        return true;
+    bool ok;
+    JSObject *obj = NonGenericMethodGuard(cx, args, regexp_compile, &RegExpClass, &ok);
+    if (!obj)
+        return ok;
 
-    RegExpObjectBuilder builder(cx, &thisObj->asRegExp());
+    RegExpObjectBuilder builder(cx, &obj->asRegExp());
     return CompileRegExpObject(cx, builder, args);
 }
 
@@ -334,13 +333,12 @@ regexp_toString(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    JSObject *thisObj;
-    if (!NonGenericMethodGuard(cx, args, regexp_toString, &RegExpClass, &thisObj))
-        return false;
-    if (!thisObj)
-        return true;
+    bool ok;
+    JSObject *obj = NonGenericMethodGuard(cx, args, regexp_toString, &RegExpClass, &ok);
+    if (!obj)
+        return ok;
 
-    JSString *str = thisObj->asRegExp().toString(cx);
+    JSString *str = obj->asRegExp().toString(cx);
     if (!str)
         return false;
 
@@ -542,13 +540,12 @@ ExecuteRegExp(JSContext *cx, Native native, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     /* Step 1. */
-    JSObject *thisObj;
-    if (!NonGenericMethodGuard(cx, args, native, &RegExpClass, &thisObj))
-        return false;
-    if (!thisObj)
-        return true;
+    bool ok;
+    JSObject *obj = NonGenericMethodGuard(cx, args, native, &RegExpClass, &ok);
+    if (!obj)
+        return ok;
 
-    Rooted<RegExpObject*> reobj(cx, &thisObj->asRegExp());
+    Rooted<RegExpObject*> reobj(cx, &obj->asRegExp());
 
     RegExpGuard re;
     if (StartsWithGreedyStar(reobj->getSource())) {

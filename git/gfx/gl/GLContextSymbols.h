@@ -354,7 +354,9 @@ struct GLContextSymbols
     typedef GLenum (GLAPIENTRY * PFNGLGETGRAPHICSRESETSTATUS) (void);
     PFNGLGETGRAPHICSRESETSTATUS fGetGraphicsResetStatus;
 
-    // ARB_sync
+    /*
+     * ARB_sync extension
+     */
     typedef GLsync (GLAPIENTRY * PFNGLFENCESYNC) (GLenum condition, GLbitfield flags);
     PFNGLFENCESYNC fFenceSync;
     typedef realGLboolean (GLAPIENTRY * PFNGLISSYNC) (GLsync sync);
@@ -369,10 +371,6 @@ struct GLContextSymbols
     PFNGLGETINTEGER64V fGetInteger64v;
     typedef void (GLAPIENTRY * PFNGLGETSYNCIV) (GLsync sync, GLenum pname, GLsizei bufSize, GLsizei *length, GLint *values);
     PFNGLGETSYNCIV fGetSynciv;
-
-    // OES_egl_image
-    typedef void (GLAPIENTRY * PFNGLIMAGETARGETTEXTURE2D)(GLenum target, GLeglImage image);
-    PFNGLIMAGETARGETTEXTURE2D fImageTargetTexture2D;
 };
 
 }

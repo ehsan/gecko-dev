@@ -5,7 +5,7 @@
 #include "nsDeviceStorage.h"
 #include "DOMRequest.h"
 #include "nsServiceManagerUtils.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsIDirectoryEnumerator.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsIDOMFile.h"
@@ -16,7 +16,6 @@
 #include "nsIPrincipal.h"
 #include "mozilla/Preferences.h"
 #include "nsJSUtils.h"
-#include "DictionaryHelpers.h"
 
 using namespace mozilla::dom;
 
@@ -134,7 +133,7 @@ nsDOMDeviceStorage::SetRootFileForType(const nsAString& aType, const PRInt32 aIn
 {
   PRInt32 typeResult = DEVICE_STORAGE_TYPE_DEFAULT;
 
-  nsCOMPtr<nsIFile> f;
+  nsCOMPtr<nsILocalFile> f;
   nsCOMPtr<nsIProperties> dirService = do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID);
   NS_ASSERTION(dirService, "Must have directory service");
 
@@ -150,11 +149,11 @@ nsDOMDeviceStorage::SetRootFileForType(const nsAString& aType, const PRInt32 aIn
     }
 #elif defined (MOZ_WIDGET_COCOA)
     if (aIndex == 0) {
-      dirService->Get(NS_OSX_PICTURE_DOCUMENTS_DIR, NS_GET_IID(nsIFile), getter_AddRefs(f));
+      dirService->Get(NS_OSX_PICTURE_DOCUMENTS_DIR, NS_GET_IID(nsILocalFile), getter_AddRefs(f));
     }
 #elif defined (XP_UNIX)
     if (aIndex == 0) {
-      dirService->Get(NS_UNIX_XDG_PICTURES_DIR, NS_GET_IID(nsIFile), getter_AddRefs(f));
+      dirService->Get(NS_UNIX_XDG_PICTURES_DIR, NS_GET_IID(nsILocalFile), getter_AddRefs(f));
     }
 #endif
   }
@@ -171,11 +170,11 @@ nsDOMDeviceStorage::SetRootFileForType(const nsAString& aType, const PRInt32 aIn
     }
 #elif defined (MOZ_WIDGET_COCOA)
     if (aIndex == 0) {
-      dirService->Get(NS_OSX_MOVIE_DOCUMENTS_DIR, NS_GET_IID(nsIFile), getter_AddRefs(f));
+      dirService->Get(NS_OSX_MOVIE_DOCUMENTS_DIR, NS_GET_IID(nsILocalFile), getter_AddRefs(f));
     }
 #elif defined (XP_UNIX)
     if (aIndex == 0) {
-      dirService->Get(NS_UNIX_XDG_VIDEOS_DIR, NS_GET_IID(nsIFile), getter_AddRefs(f));
+      dirService->Get(NS_UNIX_XDG_VIDEOS_DIR, NS_GET_IID(nsILocalFile), getter_AddRefs(f));
     }
 #endif
   }
@@ -192,11 +191,11 @@ nsDOMDeviceStorage::SetRootFileForType(const nsAString& aType, const PRInt32 aIn
     }
 #elif defined (MOZ_WIDGET_COCOA)
     if (aIndex == 0) {
-      dirService->Get(NS_OSX_MUSIC_DOCUMENTS_DIR, NS_GET_IID(nsIFile), getter_AddRefs(f));
+      dirService->Get(NS_OSX_MUSIC_DOCUMENTS_DIR, NS_GET_IID(nsILocalFile), getter_AddRefs(f));
     }
 #elif defined (XP_UNIX)
     if (aIndex == 0) {
-      dirService->Get(NS_UNIX_XDG_MUSIC_DIR, NS_GET_IID(nsIFile), getter_AddRefs(f));
+      dirService->Get(NS_UNIX_XDG_MUSIC_DIR, NS_GET_IID(nsILocalFile), getter_AddRefs(f));
     }
 #endif
   }
@@ -206,12 +205,12 @@ nsDOMDeviceStorage::SetRootFileForType(const nsAString& aType, const PRInt32 aIn
 
     // Temp directory
     if (aType.Equals(NS_LITERAL_STRING("temp")) && aIndex == 0) {
-      dirService->Get(NS_OS_TEMP_DIR, NS_GET_IID(nsIFile), getter_AddRefs(f));
+      dirService->Get(NS_OS_TEMP_DIR, NS_GET_IID(nsILocalFile), getter_AddRefs(f));
     }
 
     // Profile directory
     else if (aType.Equals(NS_LITERAL_STRING("profile")) && aIndex == 0) {
-      dirService->Get(NS_APP_USER_PROFILE_50_DIR, NS_GET_IID(nsIFile), getter_AddRefs(f));
+      dirService->Get(NS_APP_USER_PROFILE_50_DIR, NS_GET_IID(nsILocalFile), getter_AddRefs(f));
     }
   } 
 
@@ -308,8 +307,7 @@ public:
   nsDOMDeviceStorageCursor(nsIDOMWindow* aWindow,
                            nsIURI* aURI,
                            DeviceStorageFile* aFile,
-                           bool aEditable,
-                           PRUint64 aSince);
+                           bool aEditable);
 
 private:
   ~nsDOMDeviceStorageCursor();
@@ -321,7 +319,6 @@ protected:
   nsRefPtr<DeviceStorageFile> mFile;
   nsCOMPtr<nsIURI> mURI;
   bool mEditable;
-  PRUint64 mSince;
 
   // to access mFiles
   friend class InitCursorEvent;
@@ -501,30 +498,16 @@ public:
   void collectFiles(DeviceStorageFile* aFile)
   {
       // TODO - we may want to do this incrementally.
-    if (!aFile) {
+    if (!aFile)
       return;
-    }
 
     nsCOMPtr<nsISimpleEnumerator> e;
     aFile->mFile->GetDirectoryEntries(getter_AddRefs(e));
-
-    if (!e) {
-      return;
-    }
 
     nsCOMPtr<nsIDirectoryEnumerator> files = do_QueryInterface(e);
     nsCOMPtr<nsIFile> f;
 
     while (NS_SUCCEEDED(files->GetNextFile(getter_AddRefs(f))) && f) {
-      nsDOMDeviceStorageCursor* cursor = static_cast<nsDOMDeviceStorageCursor*>(mRequest.get());
-
-      PRInt64 msecs;
-      f->GetLastModifiedTime(&msecs);
-
-      if (msecs < (PRInt64) cursor->mSince) {
-        continue;
-      }
-
       bool isDir;
       f->IsDirectory(&isDir);
 
@@ -551,6 +534,7 @@ public:
         collectFiles(dsf);
       }
       else if (isFile) {
+        nsDOMDeviceStorageCursor* cursor = static_cast<nsDOMDeviceStorageCursor*>(mRequest.get());
         cursor->mFiles.AppendElement(dsf);
       }
     }
@@ -577,14 +561,12 @@ NS_IMPL_RELEASE_INHERITED(nsDOMDeviceStorageCursor, DOMRequest)
 nsDOMDeviceStorageCursor::nsDOMDeviceStorageCursor(nsIDOMWindow* aWindow,
                                                    nsIURI* aURI,
                                                    DeviceStorageFile* aFile,
-                                                   bool aEditable,
-                                                   PRUint64 aSince)
+                                                   bool aEditable)
   : DOMRequest(aWindow)
   , mOkToCallContinue(false)
   , mFile(aFile)
   , mURI(aURI)
   , mEditable(aEditable)
-  , mSince(aSince)
 {
 }
 
@@ -1261,84 +1243,34 @@ nsDOMDeviceStorage::Delete(const JS::Value & aPath, JSContext* aCx, nsIDOMDOMReq
 }
 
 NS_IMETHODIMP
-nsDOMDeviceStorage::Enumerate(const JS::Value & aName,
-                             const JS::Value & aOptions,
-                             JSContext* aCx,
-                             PRUint8 aArgc,
-                             nsIDOMDeviceStorageCursor** aRetval)
+nsDOMDeviceStorage::Enumerate(const nsAString & aPath,
+                              nsIDOMDeviceStorageCursor * *_retval NS_OUTPARAM)
 {
-  return EnumerateInternal(aName, aOptions, aCx, aArgc, false, aRetval);
+  return EnumerateInternal(aPath, _retval, false);
 }
 
 NS_IMETHODIMP
-nsDOMDeviceStorage::EnumerateEditable(const JS::Value & aName,
-                                     const JS::Value & aOptions,
-                                     JSContext* aCx,
-                                     PRUint8 aArgc,
-                                     nsIDOMDeviceStorageCursor** aRetval)
+nsDOMDeviceStorage::EnumerateEditable(const nsAString & aPath,
+                                      nsIDOMDeviceStorageCursor * *_retval NS_OUTPARAM)
 {
-  return EnumerateInternal(aName, aOptions, aCx, aArgc, true, aRetval);
-}
-
-
-static PRTime
-ExtractDateFromOptions(JSContext* aCx, const JS::Value& aOptions)
-{
-  PRTime result = 0;
-  DeviceStorageEnumerationParameters params;
-  if (!JSVAL_IS_VOID(aOptions) && !aOptions.isNull()) {
-    nsresult rv = params.Init(aCx, &aOptions);
-    if (NS_SUCCEEDED(rv) && !JSVAL_IS_VOID(params.since) && !params.since.isNull() && params.since.isObject()) {
-      JSObject* obj = JSVAL_TO_OBJECT(params.since);
-      if (JS_ObjectIsDate(aCx, obj) && js_DateIsValid(aCx, obj)) {
-        result = js_DateGetMsecSinceEpoch(aCx, obj);
-      }
-    }
-  }
-  return result;
+  return EnumerateInternal(aPath, _retval, true);
 }
 
 nsresult
-nsDOMDeviceStorage::EnumerateInternal(const JS::Value & aName,
-                                     const JS::Value & aOptions,
-                                     JSContext* aCx,
-                                     PRUint8 aArgc,
-                                     bool aEditable,
-                                     nsIDOMDeviceStorageCursor** aRetval)
+nsDOMDeviceStorage::EnumerateInternal(const nsAString & aPath,
+                                      nsIDOMDeviceStorageCursor * *_retval NS_OUTPARAM,
+                                      bool aEditable)
 {
   nsCOMPtr<nsPIDOMWindow> win = do_QueryReferent(mOwner);
   if (!win)
     return NS_ERROR_UNEXPECTED;
 
-  PRTime since = 0;
-  nsString path;
-  path.SetIsVoid(true);
+  nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(mFile, aPath);
 
-  if (aArgc > 0) {
-    // inspect the first value to see if it is a string
-    if (JSVAL_IS_STRING(aName)) {
-      JSString* jsstr = JS_ValueToString(aCx, aName);
-      nsDependentJSString jspath;
-      jspath.init(aCx, jsstr);
-      path.Assign(jspath);
-    } else if (!JSVAL_IS_PRIMITIVE(aName)) {
-      // it also might be an options object
-      since = ExtractDateFromOptions(aCx, aName);
-    } else {
-      return NS_ERROR_FAILURE;
-    }
-      
-    if (aArgc == 2 && (JSVAL_IS_VOID(aOptions) || aOptions.isNull() || !aOptions.isObject())) {
-      return NS_ERROR_FAILURE;
-    }
-    since = ExtractDateFromOptions(aCx, aOptions);
-  }
-  
-  nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(mFile, path);
-  nsRefPtr<nsDOMDeviceStorageCursor> cursor = new nsDOMDeviceStorageCursor(win, mURI, dsf, aEditable, since);
+  nsRefPtr<nsDOMDeviceStorageCursor> cursor = new nsDOMDeviceStorageCursor(win, mURI, dsf, aEditable);
+  NS_ADDREF(*_retval = cursor);
+
   nsRefPtr<DeviceStorageCursorRequest> r = new DeviceStorageCursorRequest(cursor);
-
-  NS_ADDREF(*aRetval = cursor);
 
   if (mozilla::Preferences::GetBool("device.storage.prompt.testing", false)) {
     r->Allow();

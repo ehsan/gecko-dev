@@ -287,9 +287,9 @@ SetPropertyOperation(JSContext *cx, jsbytecode *pc, const Value &lval, const Val
                 /* Fast path for, e.g., plain Object instance properties. */
                 obj->nativeSetSlotWithType(cx, shape, rval);
             } else {
-                RootedValue rref(cx, rval);
+                Value rref = rval;
                 bool strict = cx->stack.currentScript()->strictModeCode;
-                if (!js_NativeSet(cx, obj, shape, false, strict, rref.address()))
+                if (!js_NativeSet(cx, obj, shape, false, strict, &rref))
                     return false;
             }
             return true;

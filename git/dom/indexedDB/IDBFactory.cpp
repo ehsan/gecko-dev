@@ -8,7 +8,7 @@
 
 #include "IDBFactory.h"
 
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsIPrincipal.h"
 #include "nsIScriptContext.h"
 
@@ -164,7 +164,7 @@ IDBFactory::GetConnection(const nsAString& aDatabaseFilePath)
   NS_ASSERTION(StringEndsWith(aDatabaseFilePath, NS_LITERAL_STRING(".sqlite")),
                "Bad file path!");
 
-  nsCOMPtr<nsIFile> dbFile(do_CreateInstance(NS_LOCAL_FILE_CONTRACTID));
+  nsCOMPtr<nsILocalFile> dbFile(do_CreateInstance(NS_LOCAL_FILE_CONTRACTID));
   NS_ENSURE_TRUE(dbFile, nsnull);
 
   nsresult rv = dbFile->InitWithPath(aDatabaseFilePath);
@@ -416,7 +416,10 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IDBFactory)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(IDBFactory)
-  NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mOwningObject)
+  if (tmp->mOwningObject) {
+    NS_IMPL_CYCLE_COLLECTION_TRACE_JS_CALLBACK(tmp->mOwningObject,
+                                               "mOwningObject")
+  }
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 DOMCI_DATA(IDBFactory, IDBFactory)

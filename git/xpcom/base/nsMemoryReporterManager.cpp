@@ -11,7 +11,6 @@
 #include "nsArrayEnumerator.h"
 #include "nsISimpleEnumerator.h"
 #include "mozilla/Telemetry.h"
-#include "mozilla/Attributes.h"
 
 using namespace mozilla;
 
@@ -688,7 +687,7 @@ struct MemoryReport {
 #ifdef DEBUG
 // This is just a wrapper for PRInt64 that implements nsISupports, so it can be
 // passed to nsIMemoryMultiReporter::CollectReports.
-class PRInt64Wrapper MOZ_FINAL : public nsISupports {
+class PRInt64Wrapper : public nsISupports {
 public:
     NS_DECL_ISUPPORTS
     PRInt64Wrapper() : mValue(0) { }
@@ -696,7 +695,7 @@ public:
 };
 NS_IMPL_ISUPPORTS0(PRInt64Wrapper)
 
-class ExplicitNonHeapCountingCallback MOZ_FINAL : public nsIMemoryMultiReporterCallback
+class ExplicitNonHeapCountingCallback : public nsIMemoryMultiReporterCallback
 {
 public:
     NS_DECL_ISUPPORTS

@@ -15,10 +15,7 @@ webidl_files = \
   $(NULL)
 
 ifdef ENABLE_TESTS
-test_webidl_files := \
-  TestCodeGen.webidl \
-  TestDictionary.webidl \
-  $(NULL)
+test_webidl_files := TestCodeGen.webidl
 else
 test_webidl_files := $(NULL)
 endif

@@ -426,7 +426,7 @@ js::CloneInterpretedFunction(JSContext *cx, JSFunction *srcFun)
     if (!clone->clearType(cx))
         return NULL;
 
-    JSScript *clonedScript = CloneScript(cx, RootedScript(cx, srcFun->script()));
+    JSScript *clonedScript = CloneScript(cx, srcFun->script());
     if (!clonedScript)
         return NULL;
 
@@ -1295,7 +1295,7 @@ js_CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent,
          * functions.
          */
         if (clone->isInterpreted()) {
-            RootedScript script(cx, clone->script());
+            JSScript *script = clone->script();
             JS_ASSERT(script);
             JS_ASSERT(script->compartment() == fun->compartment());
             JS_ASSERT(script->compartment() != cx->compartment);

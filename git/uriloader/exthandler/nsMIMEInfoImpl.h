@@ -126,13 +126,13 @@ class nsMIMEInfoBase : public nsIMIMEInfo {
                                                    const nsString &aArg);
 
     /**
-     * Given a file: nsIURI, return the associated nsIFile
+     * Given a file: nsIURI, return the associated nsILocalFile
      *
      * @param  aURI      the file: URI in question
-     * @param  aFile     the associated nsIFile (out param)
+     * @param  aFile     the associated nsILocalFile (out param)
      */
     static NS_HIDDEN_(nsresult) GetLocalFileFromURI(nsIURI *aURI,
-                                                    nsIFile **aFile);
+                                                    nsILocalFile **aFile);
 
     // member variables
     nsTArray<nsCString>    mExtensions; ///< array of file extensions associated w/ this MIME obj

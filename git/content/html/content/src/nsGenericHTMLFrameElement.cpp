@@ -7,6 +7,7 @@
 
 #include "nsGenericHTMLFrameElement.h"
 #include "nsIWebProgress.h"
+#include "nsIPrivateDOMEvent.h"
 #include "nsIDOMCustomEvent.h"
 #include "nsIVariant.h"
 #include "nsIInterfaceRequestorUtils.h"
@@ -98,7 +99,7 @@ nsGenericHTMLFrameElement::GetContentWindow(nsIDOMWindow** aContentWindow)
 nsresult
 nsGenericHTMLFrameElement::EnsureFrameLoader()
 {
-  if (!GetParent() || !IsInDoc() || mFrameLoader || mFrameLoaderCreationDisallowed) {
+  if (!GetParent() || !IsInDoc() || mFrameLoader) {
     // If frame loader is there, we just keep it around, cached
     return NS_OK;
   }
@@ -110,16 +111,6 @@ nsGenericHTMLFrameElement::EnsureFrameLoader()
     return NS_OK;
   }
 
-  return NS_OK;
-}
-
-nsresult
-nsGenericHTMLFrameElement::CreateRemoteFrameLoader(nsITabParent* aTabParent)
-{
-  MOZ_ASSERT(!mFrameLoader);
-  EnsureFrameLoader();
-  NS_ENSURE_STATE(mFrameLoader);
-  mFrameLoader->SetRemoteBrowser(aTabParent);
   return NS_OK;
 }
 
@@ -304,23 +295,5 @@ nsGenericHTMLFrameElement::GetReallyIsBrowser(bool *aOut)
 
   // Otherwise, succeed.
   *aOut = true;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsGenericHTMLFrameElement::DisallowCreateFrameLoader()
-{
-  MOZ_ASSERT(!mFrameLoader);
-  MOZ_ASSERT(!mFrameLoaderCreationDisallowed);
-  mFrameLoaderCreationDisallowed = true;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsGenericHTMLFrameElement::AllowCreateFrameLoader()
-{
-  MOZ_ASSERT(!mFrameLoader);
-  MOZ_ASSERT(mFrameLoaderCreationDisallowed);
-  mFrameLoaderCreationDisallowed = false;
   return NS_OK;
 }

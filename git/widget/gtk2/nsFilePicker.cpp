@@ -10,7 +10,7 @@
 #include "nsIFileURL.h"
 #include "nsIURI.h"
 #include "nsIWidget.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsIStringBundle.h"
 
 #include "nsArrayEnumerator.h"
@@ -33,7 +33,7 @@ using namespace mozilla;
 
 #define MAX_PREVIEW_SIZE 180
 
-nsIFile *nsFilePicker::mPrevDisplayDirectory = nsnull;
+nsILocalFile *nsFilePicker::mPrevDisplayDirectory = nsnull;
 
 // XXXdholbert -- this function is duplicated in nsPrintDialogGTK.cpp
 // and needs to be unified in some generic utility class.
@@ -188,12 +188,12 @@ nsFilePicker::~nsFilePicker()
 void
 ReadMultipleFiles(gpointer filename, gpointer array)
 {
-  nsCOMPtr<nsIFile> localfile;
+  nsCOMPtr<nsILocalFile> localfile;
   nsresult rv = NS_NewNativeLocalFile(nsDependentCString(static_cast<char*>(filename)),
                                       false,
                                       getter_AddRefs(localfile));
   if (NS_SUCCEEDED(rv)) {
-    nsCOMArray<nsIFile>& files = *static_cast<nsCOMArray<nsIFile>*>(array);
+    nsCOMArray<nsILocalFile>& files = *static_cast<nsCOMArray<nsILocalFile>*>(array);
     files.AppendObject(localfile);
   }
 
@@ -224,13 +224,14 @@ nsFilePicker::ReadValuesFromFileChooser(GtkWidget *file_chooser)
   g_slist_free(filter_list);
 
   // Remember last used directory.
-  nsCOMPtr<nsIFile> file;
+  nsCOMPtr<nsILocalFile> file;
   GetFile(getter_AddRefs(file));
   if (file) {
     nsCOMPtr<nsIFile> dir;
     file->GetParent(getter_AddRefs(dir));
-    if (dir) {
-      dir.swap(mPrevDisplayDirectory);
+    nsCOMPtr<nsILocalFile> localDir(do_QueryInterface(dir));
+    if (localDir) {
+      localDir.swap(mPrevDisplayDirectory);
     }
   }
 }
@@ -318,7 +319,7 @@ nsFilePicker::SetFilterIndex(PRInt32 aFilterIndex)
 }
 
 NS_IMETHODIMP
-nsFilePicker::GetFile(nsIFile **aFile)
+nsFilePicker::GetFile(nsILocalFile **aFile)
 {
   NS_ENSURE_ARG_POINTER(aFile);
 
@@ -483,7 +484,7 @@ nsFilePicker::Show(PRInt16 *aReturn)
     ReadValuesFromFileChooser(file_chooser);
     *aReturn = nsIFilePicker::returnOK;
     if (mMode == nsIFilePicker::modeSave) {
-      nsCOMPtr<nsIFile> file;
+      nsCOMPtr<nsILocalFile> file;
       GetFile(getter_AddRefs(file));
       if (file) {
         bool exists = false;

@@ -316,11 +316,10 @@ public:
   }
 
   void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
-                           nsArenaMemoryStats *aArenaObjectsSize,
-                           size_t *aPresShellSize,
+                           size_t *aArenasSize,
                            size_t *aStyleSetsSize,
                            size_t *aTextRunsSize,
-                           size_t *aPresContextSize);
+                           size_t *aPresContextSize) const;
   size_t SizeOfTextRuns(nsMallocSizeOfFun aMallocSizeOf) const;
 
   // This data is stored as a content property (nsGkAtoms::scrolling) on
@@ -378,15 +377,6 @@ protected:
 
   // Helper for ScrollContentIntoView
   void DoScrollContentIntoView();
-
-  /**
-   * Initialize cached font inflation preference values.
-   *
-   * @see nsLayoutUtils::sFontSizeInflationEmPerLine
-   * @see nsLayoutUtils::sFontSizeInflationMinTwips
-   * @see nsLayoutUtils::sFontSizeInflationLineThreshold
-   */
-  void SetupFontInflation();
 
   friend struct AutoRenderingStateSaveRestore;
   friend struct RenderingState;

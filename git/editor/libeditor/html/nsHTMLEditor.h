@@ -277,6 +277,7 @@ public:
   virtual bool TagCanContainTag(nsIAtom* aParentTag, nsIAtom* aChildTag);
   
   /** returns true if aNode is a container */
+  virtual bool IsContainer(nsINode* aNode);
   virtual bool IsContainer(nsIDOMNode *aNode);
 
   /** make the given selection span the entire document */
@@ -325,6 +326,13 @@ public:
                               PRInt32 *ioOffset, 
                               bool aNoEmptyNodes);
   virtual already_AddRefed<nsIDOMNode> FindUserSelectAllNode(nsIDOMNode* aNode);
+
+  /** returns the absolute position of the end points of aSelection
+    * in the document as a text stream.
+    */
+  nsresult GetTextSelectionOffsets(nsISelection *aSelection,
+                                   PRInt32 &aStartOffset, 
+                                   PRInt32 &aEndOffset);
 
   // Use this to assure that selection is set after attribute nodes when 
   //  trying to collapse selection at begining of a block node
@@ -446,7 +454,7 @@ protected:
   bool AllCellsInRowSelected(nsIDOMElement *aTable, PRInt32 aRowIndex, PRInt32 aNumberOfColumns);
   bool AllCellsInColumnSelected(nsIDOMElement *aTable, PRInt32 aColIndex, PRInt32 aNumberOfRows);
 
-  bool IsEmptyCell(mozilla::dom::Element* aCell);
+  bool     IsEmptyCell(nsIDOMElement *aCell);
 
   // Most insert methods need to get the same basic context data
   // Any of the pointers may be null if you don't need that datum (for more efficiency)

@@ -84,6 +84,7 @@ using namespace mozilla::widget;
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsXPIDLString.h"
 #include "nsIFile.h"
+#include "nsILocalFile.h"
 
 /* SetCursor(imgIContainer*) */
 #include <gdk/gdk.h>
@@ -1739,7 +1740,7 @@ nsWindow::SetIcon(const nsAString& aIconSpec)
         AppendUTF16toUTF8(aIconSpec, iconName);
     }
     
-    nsCOMPtr<nsIFile> iconFile;
+    nsCOMPtr<nsILocalFile> iconFile;
     nsCAutoString path;
 
     gint *iconSizes =

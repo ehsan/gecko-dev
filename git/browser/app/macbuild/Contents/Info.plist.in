@@ -214,7 +214,5 @@
 	</dict>
   <key>NSSupportsAutomaticGraphicsSwitching</key>
   <true/>
-  <key>NSPrincipalClass</key>
-  <string>GeckoNSApplication</string>
 </dict>
 </plist>

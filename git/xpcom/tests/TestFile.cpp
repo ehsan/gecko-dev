@@ -8,7 +8,7 @@
 
 #include "TestHarness.h"
 
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsDirectoryServiceUtils.h"
 
@@ -23,13 +23,18 @@ static bool VerifyResult(nsresult aRV, const char* aMsg)
     return true;
 }
 
-static already_AddRefed<nsIFile> NewFile(nsIFile* aBase)
+static already_AddRefed<nsILocalFile> NewFile(nsIFile* aBase)
 {
     nsresult rv;
-    nsCOMPtr<nsIFile> file =
+    nsCOMPtr<nsILocalFile> file =
         do_CreateInstance(NS_LOCAL_FILE_CONTRACTID, &rv);
-    VerifyResult(rv, "Creating nsIFile");
-    rv = file->InitWithFile(aBase);
+    VerifyResult(rv, "Creating nsILocalFile");
+    nsCOMPtr<nsILocalFile> localBase = do_QueryInterface(aBase);
+    if (!localBase) {
+        fail("%s Base directory not a local file", gFunction);
+        return nsnull;
+    }
+    rv = file->InitWithFile(localBase);
     VerifyResult(rv, "InitWithFile");
     return file.forget();
 }
@@ -54,7 +59,7 @@ static nsCString FixName(const char* aName)
 static bool TestInvalidFileName(nsIFile* aBase, const char* aName)
 {
     gFunction = "TestInvalidFileName";
-    nsCOMPtr<nsIFile> file = NewFile(aBase);
+    nsCOMPtr<nsILocalFile> file = NewFile(aBase);
     if (!file)
         return false;
 
@@ -73,7 +78,7 @@ static bool TestInvalidFileName(nsIFile* aBase, const char* aName)
 static bool TestCreate(nsIFile* aBase, const char* aName, PRInt32 aType, PRInt32 aPerm)
 {
     gFunction = "TestCreate";
-    nsCOMPtr<nsIFile> file = NewFile(aBase);
+    nsCOMPtr<nsILocalFile> file = NewFile(aBase);
     if (!file)
         return false;
 
@@ -112,7 +117,7 @@ static bool TestCreate(nsIFile* aBase, const char* aName, PRInt32 aType, PRInt32
 static bool TestCreateUnique(nsIFile* aBase, const char* aName, PRInt32 aType, PRInt32 aPerm)
 {
     gFunction = "TestCreateUnique";
-    nsCOMPtr<nsIFile> file = NewFile(aBase);
+    nsCOMPtr<nsILocalFile> file = NewFile(aBase);
     if (!file)
         return false;
 
@@ -153,12 +158,12 @@ static bool TestCreateUnique(nsIFile* aBase, const char* aName, PRInt32 aType, P
     return true;
 }
 
-// Test nsIFile::OpenNSPRFileDesc with DELETE_ON_CLOSE, verifying that the file exists
+// Test nsILocalFile::OpenNSPRFileDesc with DELETE_ON_CLOSE, verifying that the file exists
 // and did not exist before, and leaving it there for future tests
 static bool TestDeleteOnClose(nsIFile* aBase, const char* aName, PRInt32 aFlags, PRInt32 aPerm)
 {
     gFunction = "TestDeleteOnClose";
-    nsCOMPtr<nsIFile> file = NewFile(aBase);
+    nsCOMPtr<nsILocalFile> file = NewFile(aBase);
     if (!file)
         return false;
 
@@ -177,7 +182,7 @@ static bool TestDeleteOnClose(nsIFile* aBase, const char* aName, PRInt32 aFlags,
     }
 
     PRFileDesc* fileDesc;
-    rv = file->OpenNSPRFileDesc(aFlags | nsIFile::DELETE_ON_CLOSE, aPerm, &fileDesc);  
+    rv = file->OpenNSPRFileDesc(aFlags | nsILocalFile::DELETE_ON_CLOSE, aPerm, &fileDesc);  
     if (!VerifyResult(rv, "OpenNSPRFileDesc"))
         return false;
     PRStatus status = PR_Close(fileDesc);
@@ -201,7 +206,7 @@ static bool TestDeleteOnClose(nsIFile* aBase, const char* aName, PRInt32 aFlags,
 static bool TestRemove(nsIFile* aBase, const char* aName, bool aRecursive)
 {
     gFunction = "TestDelete";
-    nsCOMPtr<nsIFile> file = NewFile(aBase);
+    nsCOMPtr<nsILocalFile> file = NewFile(aBase);
     if (!file)
         return false;
 
@@ -239,7 +244,7 @@ static bool TestRemove(nsIFile* aBase, const char* aName, bool aRecursive)
 static bool TestMove(nsIFile* aBase, nsIFile* aDestDir, const char* aName, const char* aNewName)
 {
     gFunction = "TestMove";
-    nsCOMPtr<nsIFile> file = NewFile(aBase);
+    nsCOMPtr<nsILocalFile> file = NewFile(aBase);
     if (!file)
         return false;
 
@@ -257,7 +262,7 @@ static bool TestMove(nsIFile* aBase, nsIFile* aDestDir, const char* aName, const
         return false;
     }
 
-    nsCOMPtr<nsIFile> newFile = NewFile(file);
+    nsCOMPtr<nsILocalFile> newFile = NewFile(file);
     nsCString newName = FixName(aNewName);
     rv = newFile->MoveToNative(aDestDir, newName);
     if (!VerifyResult(rv, "MoveToNative"))
@@ -302,7 +307,7 @@ static bool TestMove(nsIFile* aBase, nsIFile* aDestDir, const char* aName, const
 static bool TestCopy(nsIFile* aBase, nsIFile* aDestDir, const char* aName, const char* aNewName)
 {
     gFunction = "TestCopy";
-    nsCOMPtr<nsIFile> file = NewFile(aBase);
+    nsCOMPtr<nsILocalFile> file = NewFile(aBase);
     if (!file)
         return false;
 
@@ -320,7 +325,7 @@ static bool TestCopy(nsIFile* aBase, nsIFile* aDestDir, const char* aName, const
         return false;
     }
 
-    nsCOMPtr<nsIFile> newFile = NewFile(file);
+    nsCOMPtr<nsILocalFile> newFile = NewFile(file);
     nsCString newName = FixName(aNewName);
     rv = newFile->CopyToNative(aDestDir, newName);
     if (!VerifyResult(rv, "MoveToNative"))
@@ -364,7 +369,7 @@ static bool TestCopy(nsIFile* aBase, nsIFile* aDestDir, const char* aName, const
 static bool TestParent(nsIFile* aBase, nsIFile* aStart)
 {
     gFunction = "TestParent";
-    nsCOMPtr<nsIFile> file = NewFile(aStart);
+    nsCOMPtr<nsILocalFile> file = NewFile(aStart);
     if (!file)
         return false;
 
@@ -387,7 +392,7 @@ static bool TestParent(nsIFile* aBase, nsIFile* aStart)
 static bool TestNormalizeNativePath(nsIFile* aBase, nsIFile* aStart)
 {
     gFunction = "TestNormalizeNativePath";
-    nsCOMPtr<nsIFile> file = NewFile(aStart);
+    nsCOMPtr<nsILocalFile> file = NewFile(aStart);
     if (!file)
         return false;
 
@@ -441,7 +446,7 @@ int main(int argc, char** argv)
         return 1;
 
     // Initialize subdir object for later use
-    nsCOMPtr<nsIFile> subdir = NewFile(base);
+    nsCOMPtr<nsILocalFile> subdir = NewFile(base);
     if (!subdir)
         return 1;
     rv = subdir->AppendNative(nsDependentCString("subdir"));

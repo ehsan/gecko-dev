@@ -338,20 +338,13 @@ QueryInterface(JSContext* cx, unsigned argc, JS::Value* vp)
   if (thisv == JSVAL_NULL)
     return false;
 
-  // Get the object. It might be a security wrapper, in which case we do a checked
-  // unwrap.
-  JSObject* origObj = JSVAL_TO_OBJECT(thisv);
-  JSObject* obj = js::UnwrapObjectChecked(cx, origObj);
-  if (!obj)
-      return false;
-
+  JSObject* obj = JSVAL_TO_OBJECT(thisv);
   JSClass* clasp = js::GetObjectJSClass(obj);
-  if (!IsDOMClass(clasp) ||
-      !DOMJSClass::FromJSClass(clasp)->mDOMObjectIsISupports) {
+  if (!IsDOMClass(clasp)) {
     return Throw<true>(cx, NS_ERROR_FAILURE);
   }
 
-  nsISupports* native = UnwrapDOMObject<nsISupports>(obj);
+  nsISupports* native = UnwrapDOMObject<nsISupports>(obj, clasp);
 
   if (argc < 1) {
     return Throw<true>(cx, NS_ERROR_XPC_NOT_ENOUGH_ARGS);
@@ -377,9 +370,9 @@ QueryInterface(JSContext* cx, unsigned argc, JS::Value* vp)
       return Throw<true>(cx, rv);
     }
 
-    return WrapObject(cx, origObj, ci, &NS_GET_IID(nsIClassInfo), vp);
+    return WrapObject(cx, obj, ci, &NS_GET_IID(nsIClassInfo), vp);
   }
-
+  
   // Lie, otherwise we need to check classinfo or QI
   *vp = thisv;
   return true;

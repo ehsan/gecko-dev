@@ -6,7 +6,7 @@
 
 #include "nsArrayEnumerator.h"
 #include "nsCOMArray.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsIVariant.h"
 #include "nsMIMEInfoWin.h"
 #include "nsNetUtil.h"
@@ -36,12 +36,16 @@ nsresult
 nsMIMEInfoWin::LaunchDefaultWithFile(nsIFile* aFile)
 {
   // Launch the file, unless it is an executable.
+  nsCOMPtr<nsILocalFile> local(do_QueryInterface(aFile));
+  if (!local)
+    return NS_ERROR_FAILURE;
+
   bool executable = true;
-  aFile->IsExecutable(&executable);
+  local->IsExecutable(&executable);
   if (executable)
     return NS_ERROR_FAILURE;
 
-  return aFile->Launch();
+  return local->Launch();
 }
 
 NS_IMETHODIMP
@@ -84,7 +88,9 @@ nsMIMEInfoWin::LaunchWithFile(nsIFile* aFile)
 
         // executable is rundll32, everything else is a list of parameters, 
         // including the dll handler.
-        if (!GetDllLaunchInfo(executable, aFile, args, false))
+        nsCOMPtr<nsILocalFile> locFile(do_QueryInterface(aFile));
+
+        if (!GetDllLaunchInfo(executable, locFile, args, false))
           return NS_ERROR_INVALID_ARG;
 
         WCHAR rundll32Path[MAX_PATH + sizeof(RUNDLL32_EXE) / sizeof(WCHAR) + 1] = {L'\0'};
@@ -278,7 +284,7 @@ nsMIMEInfoWin::LoadUriInternal(nsIURI * aURL)
 bool nsMIMEInfoWin::GetLocalHandlerApp(const nsAString& aCommandHandler,
                                          nsCOMPtr<nsILocalHandlerApp>& aApp)
 {
-  nsCOMPtr<nsIFile> locfile;
+  nsCOMPtr<nsILocalFile> locfile;
   nsresult rv = 
     NS_NewLocalFile(aCommandHandler, true, getter_AddRefs(locfile));
   if (NS_FAILED(rv))
@@ -362,15 +368,19 @@ bool nsMIMEInfoWin::GetAppsVerbCommandHandler(const nsAString& appExeName,
 // back to the full handler path based on the dll.
 // (dll, targetfile, return args, open/edit)
 bool nsMIMEInfoWin::GetDllLaunchInfo(nsIFile * aDll,
-                                       nsIFile * aFile,
+                                       nsILocalFile * aFile,
                                        nsAString& args,
                                        bool edit)
 {
   if (!aDll || !aFile) 
     return false;
 
+  nsCOMPtr<nsILocalFile> localDll(do_QueryInterface(aDll));
+  if (!localDll)
+    return false;
+
   nsString appExeName;
-  aDll->GetLeafName(appExeName);
+  localDll->GetLeafName(appExeName);
 
   nsCOMPtr<nsIWindowsRegKey> appKey = 
     do_CreateInstance("@mozilla.org/windows-registry-key;1");

@@ -344,8 +344,11 @@
     <tooltip id="bhTooltip"/>
 
     <panel id="customizeToolbarSheetPopup"
-           noautohide="true"
-           sheetstyle="&dialog.dimensions;"/>
+           noautohide="true">
+      <iframe id="customizeToolbarSheetIFrame"
+              style="&dialog.dimensions;"
+              hidden="true"/>
+    </panel>
 
     <tooltip id="tabbrowser-tab-tooltip" onpopupshowing="gBrowser.createTooltip(event);"/>
 
@@ -1047,7 +1050,7 @@
                          hidden="true"
                          command="Tools:Inspect"/>
           <toolbarbutton id="developer-toolbar-responsiveui"
-                         label="&responsiveDesignTool.label;"
+                         label="&responsiveUI.label;"
                          class="devtools-toolbarbutton"
                          hidden="true"
                          command="Tools:ResponsiveUI"/>

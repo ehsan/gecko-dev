@@ -3841,7 +3841,7 @@ WebGLContext::ReadPixels(WebGLint x, WebGLint y, WebGLsizei width,
         return;
     }
 
-    if (mCanvasElement->IsWriteOnly() && !nsContentUtils::IsCallerTrustedForRead()) {
+    if (HTMLCanvasElement()->IsWriteOnly() && !nsContentUtils::IsCallerTrustedForRead()) {
         GenerateWarning("readPixels: Not allowed");
         return rv.Throw(NS_ERROR_DOM_SECURITY_ERR);
     }
@@ -3933,6 +3933,8 @@ WebGLContext::ReadPixels(WebGLint x, WebGLint y, WebGLsizei width,
         // prevent readback of arbitrary video memory through uninitialized renderbuffers!
         if (!mBoundFramebuffer->CheckAndInitializeRenderbuffers())
             return ErrorInvalidFramebufferOperation("readPixels: incomplete framebuffer");
+    } else {
+        EnsureBackbufferClearedAsNeeded();
     }
     // Now that the errors are out of the way, on to actually reading
 
@@ -4341,7 +4343,7 @@ WebGLContext::SurfaceFromElementResultToImageSurface(nsLayoutUtils::SurfaceFromE
     // validated for cross-domain use.
     if (!res.mCORSUsed) {
         bool subsumes;
-        nsresult rv = mCanvasElement->NodePrincipal()->Subsumes(res.mPrincipal, &subsumes);
+        nsresult rv = HTMLCanvasElement()->NodePrincipal()->Subsumes(res.mPrincipal, &subsumes);
         if (NS_FAILED(rv) || !subsumes) {
             GenerateWarning("It is forbidden to load a WebGL texture from a cross-domain element that has not been validated with CORS. "
                                 "See https://developer.mozilla.org/en/WebGL/Cross-Domain_Textures");

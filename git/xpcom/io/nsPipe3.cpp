@@ -2,7 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/Attributes.h"
 #include "mozilla/ReentrantMonitor.h"
 #include "nsIPipe.h"
 #include "nsIEventTarget.h"
@@ -188,7 +187,7 @@ private:
 
 //-----------------------------------------------------------------------------
 
-class nsPipe MOZ_FINAL : public nsIPipe
+class nsPipe : public nsIPipe
 {
 public:
     friend class nsPipeInputStream;

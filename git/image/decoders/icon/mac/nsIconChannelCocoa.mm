@@ -210,12 +210,14 @@ nsresult nsIconChannel::MakeInputStream(nsIInputStream** _retval, bool nonBlocki
   nsresult rv = ExtractIconInfoFromUrl(getter_AddRefs(fileloc), &desiredImageSize, contentType, fileExt);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  // ensure that we DO NOT resolve aliases, very important for file views
+  nsCOMPtr<nsILocalFile> localFile = do_QueryInterface(fileloc);
+  if (localFile)
+    localFile->SetFollowLinks(false);
+
   bool fileExists = false;
-  if (fileloc) {
-    // ensure that we DO NOT resolve aliases, very important for file views
-    fileloc->SetFollowLinks(false);
-    fileloc->Exists(&fileExists);
-  }
+  if (fileloc)
+    localFile->Exists(&fileExists);
 
   NSImage* iconImage = nil;
   

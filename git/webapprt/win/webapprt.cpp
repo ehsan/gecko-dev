@@ -12,7 +12,7 @@
 #include <windows.h>
 
 // Mozilla headers (alphabetical)
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsINIParser.h"
 #include "nsWindowsWMain.cpp"   // we want a wmain entry point
 #include "nsXPCOMGlue.h"
@@ -101,7 +101,7 @@ namespace {
         : mAppData(NULL) { }
 
       nsresult
-      create(nsIFile* aINIFile)
+      create(nsILocalFile* aINIFile)
       {
         return XRE_CreateAppData(aINIFile, &mAppData);
       }
@@ -266,7 +266,7 @@ namespace {
       // Get the path to the runtime.
       char rtPath[MAXPATHLEN];
       rv = joinPath(rtPath, greDir, kWEBAPPRT_PATH, MAXPATHLEN);
-      NS_ENSURE_SUCCESS(rv, false);
+      NS_ENSURE_SUCCESS(rv, rv);
 
       // Get the path to the runtime's INI file.
       char rtIniPath[MAXPATHLEN];
@@ -274,27 +274,26 @@ namespace {
       NS_ENSURE_SUCCESS(rv, false);
 
       // Load the runtime's INI from its path.
-      nsCOMPtr<nsIFile> rtINI;
+      nsCOMPtr<nsILocalFile> rtINI;
       rv = XRE_GetFileFromPath(rtIniPath, getter_AddRefs(rtINI));
       NS_ENSURE_SUCCESS(rv, false);
 
-      bool exists;
-      rv = rtINI->Exists(&exists);
-      if (NS_FAILED(rv) || !exists)
+      if (!rtINI) {
         return false;
+      }
 
       ScopedXREAppData webShellAppData;
       rv = webShellAppData.create(rtINI);
-      NS_ENSURE_SUCCESS(rv, false);
+      NS_ENSURE_SUCCESS(rv, rv);
 
       SetAllocatedString(webShellAppData->profile, profile);
       SetAllocatedString(webShellAppData->name, profile);
 
-      nsCOMPtr<nsIFile> directory;
+      nsCOMPtr<nsILocalFile> directory;
       rv = XRE_GetFileFromPath(rtPath, getter_AddRefs(directory));
       NS_ENSURE_SUCCESS(rv, false);
 
-      nsCOMPtr<nsIFile> xreDir;
+      nsCOMPtr<nsILocalFile> xreDir;
       rv = XRE_GetFileFromPath(greDir, getter_AddRefs(xreDir));
       NS_ENSURE_SUCCESS(rv, false);
 
@@ -503,7 +502,8 @@ main(int argc, char* argv[])
 
   // Second attempt at loading Firefox binaries:
   //   Get the location of Firefox from the registry
-  if (GetFirefoxDirFromRegistry(firefoxDir)) {
+  rv = GetFirefoxDirFromRegistry(firefoxDir);
+  if (NS_SUCCEEDED(rv)) {
     if (AttemptLoadFromDir(firefoxDir)) {
       // XXX: Write gre dir location to webapp.ini
       return 0;

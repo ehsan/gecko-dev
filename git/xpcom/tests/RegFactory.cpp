@@ -9,7 +9,7 @@
 #include "nsIComponentRegistrar.h"
 #include "nsIComponentManager.h"
 #include "nsIServiceManager.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsCOMPtr.h"
 #include "nsString.h"
 
@@ -37,7 +37,7 @@ void print_err(nsresult err)
 
 nsresult Register(nsIComponentRegistrar* registrar, const char *path) 
 { 
-  nsCOMPtr<nsIFile> file;
+  nsCOMPtr<nsILocalFile> file;
   nsresult rv =
     NS_NewLocalFile(
       NS_ConvertUTF8toUTF16(path),

@@ -20,6 +20,7 @@
 #include "nsIComponentManager.h"
 #include "nsIComponentRegistrar.h"
 #include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsIFileStreams.h"
 #include "nsMemory.h"
 #include "nsIComponentRegistrar.h"
@@ -38,7 +39,7 @@ typedef struct Allocation {
 } Allocation;
 
 nsresult
-StressTest(nsIFile *  localFile, PRInt32  testNumber, bool readWrite)
+StressTest(nsILocalFile *  localFile, PRInt32  testNumber, bool readWrite)
 {
     nsresult  rv = NS_OK;
 
@@ -190,7 +191,7 @@ main(void)
     srand(now);
 
     nsCOMPtr<nsIFile>       file;
-    nsCOMPtr<nsIFile>  localFile;
+    nsCOMPtr<nsILocalFile>  localFile;
     nsresult  rv = NS_OK;
     {
         // Start up XPCOM
@@ -226,7 +227,7 @@ main(void)
         rv = file->Delete(false);
         if (NS_FAILED(rv) && rv != NS_ERROR_FILE_NOT_FOUND) goto exit;
 
-        // Need nsIFile to open
+        // Need nsILocalFile to open
 	localFile = do_QueryInterface(file, &rv);
         if (NS_FAILED(rv)) {
             printf("do_QueryInterface(file) failed : 0x%.8x\n", rv);

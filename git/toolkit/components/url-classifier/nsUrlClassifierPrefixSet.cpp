@@ -13,6 +13,7 @@
 #include "nsIUrlClassifierPrefixSet.h"
 #include "nsIRandomGenerator.h"
 #include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsToolkitCompsCID.h"
 #include "nsTArray.h"
 #include "nsThreadUtils.h"
@@ -449,9 +450,12 @@ NS_IMETHODIMP
 nsUrlClassifierPrefixSet::LoadFromFile(nsIFile * aFile)
 {
   nsresult rv;
+  nsCOMPtr<nsILocalFile> file(do_QueryInterface(aFile, &rv));
+  NS_ENSURE_SUCCESS(rv, rv);
+
   AutoFDClose fileFd;
-  rv = aFile->OpenNSPRFileDesc(PR_RDONLY | nsIFile::OS_READAHEAD,
-                               0, &fileFd.rwget());
+  rv = file->OpenNSPRFileDesc(PR_RDONLY | nsILocalFile::OS_READAHEAD,
+                              0, &fileFd.rwget());
   NS_ENSURE_SUCCESS(rv, rv);
 
   return LoadFromFd(fileFd);
@@ -507,10 +511,12 @@ nsUrlClassifierPrefixSet::StoreToFile(nsIFile * aFile)
   }
 
   nsresult rv;
+  nsCOMPtr<nsILocalFile> file(do_QueryInterface(aFile, &rv));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   AutoFDClose fileFd;
-  rv = aFile->OpenNSPRFileDesc(PR_RDWR | PR_TRUNCATE | PR_CREATE_FILE,
-                               0644, &fileFd.rwget());
+  rv = file->OpenNSPRFileDesc(PR_RDWR | PR_TRUNCATE | PR_CREATE_FILE,
+                              0644, &fileFd.rwget());
   NS_ENSURE_SUCCESS(rv, rv);
 
   MutexAutoLock lock(mPrefixSetLock);

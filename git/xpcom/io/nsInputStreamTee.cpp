@@ -7,7 +7,6 @@
 #include "prlog.h"
 
 #include "mozilla/Mutex.h"
-#include "mozilla/Attributes.h"
 #include "nsIInputStreamTee.h"
 #include "nsIInputStream.h"
 #include "nsIOutputStream.h"
@@ -25,7 +24,7 @@ static PRLogModuleInfo* gInputStreamTeeLog = PR_NewLogModule("nsInputStreamTee")
 #define LOG(args)
 #endif
 
-class nsInputStreamTee MOZ_FINAL : public nsIInputStreamTee
+class nsInputStreamTee : public nsIInputStreamTee
 {
 public:
     NS_DECL_ISUPPORTS

@@ -77,16 +77,9 @@ rpc protocol PContent
     manages PStorage;
     manages PTestShell;
 
-both:
-    // Depending on exactly how the new browser is being created, it might be
-    // created from either the child or parent process!
-    //
-    // The child creates the PBrowser as part of
-    // TabChild::BrowserFrameProvideWindow, and the parent creates the PBrowser
-    // as part of ContentParent::CreateTab.
-    async PBrowser(PRUint32 chromeFlags);
-
 child:
+    PBrowser(PRUint32 chromeFlags);
+
     PMemoryReportRequest();
 
     PTestShell();
