@@ -56,26 +56,11 @@ LIRGeneratorShared::lowerTypedPhiInput(MPhi *phi, uint32_t inputPosition, LBlock
     lir->setOperand(inputPosition, LUse(operand->virtualRegister(), LUse::ANY));
 }
 
-LRecoverInfo *
-LIRGeneratorShared::getRecoverInfo(MResumePoint *rp)
-{
-    if (cachedRecoverInfo_ && cachedRecoverInfo_->mir() == rp)
-        return cachedRecoverInfo_;
-
-    LRecoverInfo *recoverInfo = LRecoverInfo::New(gen, rp);
-    cachedRecoverInfo_ = recoverInfo;
-    return recoverInfo;
-}
-
 #ifdef JS_NUNBOX32
 LSnapshot *
 LIRGeneratorShared::buildSnapshot(LInstruction *ins, MResumePoint *rp, BailoutKind kind)
 {
-    LRecoverInfo *recover = getRecoverInfo(rp);
-    if (!recover)
-        return nullptr;
-
-    LSnapshot *snapshot = LSnapshot::New(gen, recover, kind);
+    LSnapshot *snapshot = LSnapshot::New(gen, rp, kind);
     if (!snapshot)
         return nullptr;
 
@@ -129,11 +114,7 @@ LIRGeneratorShared::buildSnapshot(LInstruction *ins, MResumePoint *rp, BailoutKi
 LSnapshot *
 LIRGeneratorShared::buildSnapshot(LInstruction *ins, MResumePoint *rp, BailoutKind kind)
 {
-    LRecoverInfo *recover = getRecoverInfo(rp);
-    if (!recover)
-        return nullptr;
-
-    LSnapshot *snapshot = LSnapshot::New(gen, recover, kind);
+    LSnapshot *snapshot = LSnapshot::New(gen, rp, kind);
     if (!snapshot)
         return nullptr;
 

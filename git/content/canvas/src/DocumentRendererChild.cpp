@@ -7,9 +7,8 @@
 #include "base/basictypes.h"
 
 #include "gfx2DGlue.h"
+#include "gfxImageSurface.h"
 #include "gfxPattern.h"
-#include "mozilla/gfx/2D.h"
-#include "mozilla/RefPtr.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDOMWindow.h"
 #include "nsIDocShell.h"
@@ -27,7 +26,6 @@
 #include "mozilla/gfx/Matrix.h"
 
 using namespace mozilla;
-using namespace mozilla::gfx;
 using namespace mozilla::ipc;
 
 DocumentRendererChild::DocumentRendererChild()
@@ -74,13 +72,12 @@ DocumentRendererChild::RenderDocument(nsIDOMWindow *window,
     // Draw directly into the output array.
     data.SetLength(renderSize.width * renderSize.height * 4);
 
-    RefPtr<DrawTarget> dt =
-        Factory::CreateDrawTargetForData(BackendType::CAIRO,
-                                         reinterpret_cast<uint8_t*>(data.BeginWriting()),
-                                         IntSize(renderSize.width, renderSize.height),
-                                         4 * renderSize.width,
-                                         SurfaceFormat::B8G8R8A8);
-    nsRefPtr<gfxContext> ctx = new gfxContext(dt);
+    nsRefPtr<gfxImageSurface> surf =
+        new gfxImageSurface(reinterpret_cast<uint8_t*>(data.BeginWriting()),
+                            gfxIntSize(renderSize.width, renderSize.height),
+                            4 * renderSize.width,
+                            gfxImageFormat::ARGB32);
+    nsRefPtr<gfxContext> ctx = new gfxContext(surf);
     ctx->SetMatrix(mozilla::gfx::ThebesMatrix(transform));
 
     nsCOMPtr<nsIPresShell> shell = presContext->PresShell();

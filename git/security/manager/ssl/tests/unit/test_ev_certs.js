@@ -21,8 +21,6 @@ let certList = [
   // Test for successful EV validation
   'int-ev-valid',
   'ev-valid',
-  'ev-valid-anypolicy-int',
-  'int-ev-valid-anypolicy-int',
   'no-ocsp-url-cert', // a cert signed by the EV auth that has no OCSP url
                       // but that contains a valid CRLDP.
 
@@ -138,17 +136,6 @@ function add_tests_in_mode(useMozillaPKIX)
     ocspResponder.stop(run_next_test);
   });
 
-
-  add_test(function () {
-    clearOCSPCache();
-
-    let ocspResponder = start_ocsp_responder(
-                          isDebugBuild ? ["int-ev-valid-anypolicy-int", "ev-valid-anypolicy-int"]
-                                       : ["ev-valid-anypolicy-int"]);
-    check_ee_for_ev("ev-valid-anypolicy-int", isDebugBuild);
-    ocspResponder.stop(run_next_test);
-  });
-
   add_test(function() {
     clearOCSPCache();
     let ocspResponder = start_ocsp_responder(["non-ev-root"]);
@@ -218,7 +205,6 @@ function add_tests_in_mode(useMozillaPKIX)
                                      : SEC_ERROR_EXTENSION_NOT_FOUND));
   });
 
-
   // Test the EV continues to work with flags after successful EV verification
   add_test(function () {
     clearOCSPCache();
@@ -245,7 +231,6 @@ function add_tests_in_mode(useMozillaPKIX)
       failingOcspResponder.stop(run_next_test);
     });
   });
-
 }
 
 // bug 950240: add FLAG_MUST_BE_EV to CertVerifier::VerifyCert
@@ -273,4 +258,3 @@ function check_no_ocsp_requests(cert_name, expected_error) {
   do_check_eq(identityInfo.isExtendedValidation, false);
   ocspResponder.stop(run_next_test);
 }
-

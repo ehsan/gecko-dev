@@ -2839,14 +2839,6 @@ public:
     return mTextStyle->mHyphens;
   }
 
-  virtual already_AddRefed<gfxContext> GetContext() {
-    return GetReferenceRenderingContext(GetFrame(), nullptr);
-  }
-
-  virtual uint32_t GetAppUnitsPerDevUnit() {
-    return mTextRun->GetAppUnitsPerDevUnit();
-  }
-
   void GetSpacingInternal(uint32_t aStart, uint32_t aLength, Spacing* aSpacing,
                           bool aIgnoreTabs);
 
@@ -3202,9 +3194,16 @@ gfxFloat
 PropertyProvider::GetHyphenWidth()
 {
   if (mHyphenWidth < 0) {
-    mHyphenWidth = GetFontGroup()->GetHyphenWidth(this);
+    mHyphenWidth = mLetterSpacing;
+    nsRefPtr<gfxContext> context(GetReferenceRenderingContext(GetFrame(),
+                                                              nullptr));
+    if (context) {
+      mHyphenWidth +=
+        GetFontGroup()->GetHyphenWidth(context,
+                                       mTextRun->GetAppUnitsPerDevUnit());
+    }
   }
-  return mHyphenWidth + mLetterSpacing;
+  return mHyphenWidth;
 }
 
 void
