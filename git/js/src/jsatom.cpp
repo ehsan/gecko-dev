@@ -224,7 +224,7 @@ js_FinishAtomState(JSRuntime *rt)
 }
 
 bool
-js::InitCommonAtoms(JSContext *cx)
+js_InitCommonAtoms(JSContext *cx)
 {
     JSAtomState *state = &cx->runtime->atomState;
     JSAtom **atoms = state->commonAtomsStart();
@@ -242,19 +242,19 @@ js::InitCommonAtoms(JSContext *cx)
 }
 
 void
-js::FinishCommonAtoms(JSRuntime *rt)
+js_FinishCommonAtoms(JSContext *cx)
 {
-    rt->emptyString = NULL;
-    rt->atomState.junkAtoms();
+    cx->runtime->emptyString = NULL;
+    cx->runtime->atomState.junkAtoms();
 }
 
 void
-js::MarkAtomState(JSTracer *trc, bool markAll)
+js_TraceAtomState(JSTracer *trc)
 {
     JSRuntime *rt = trc->runtime;
     JSAtomState *state = &rt->atomState;
 
-    if (markAll) {
+    if (rt->gcKeepAtoms) {
         for (AtomSet::Range r = state->atoms.all(); !r.empty(); r.popFront()) {
             JSAtom *tmp = r.front().asPtr();
             MarkStringRoot(trc, &tmp, "locked_atom");
@@ -274,7 +274,7 @@ js::MarkAtomState(JSTracer *trc, bool markAll)
 }
 
 void
-js::SweepAtomState(JSRuntime *rt)
+js_SweepAtomState(JSRuntime *rt)
 {
     JSAtomState *state = &rt->atomState;
 

@@ -414,7 +414,6 @@ nsXPConnect::Collect(PRUint32 reason, PRUint32 kind)
         return;
 
     JSContext *cx = ccx.GetJSContext();
-    JSRuntime *rt = GetRuntime()->GetJSRuntime();
 
     // We want to scan the current thread for GC roots only if it was in a
     // request prior to the Collect call to avoid false positives during the
@@ -424,7 +423,6 @@ nsXPConnect::Collect(PRUint32 reason, PRUint32 kind)
     js::AutoSkipConservativeScan ascs(cx);
     MOZ_ASSERT(reason < js::gcreason::NUM_REASONS);
     js::gcreason::Reason gcreason = (js::gcreason::Reason)reason;
-    js::PrepareForFullGC(rt);
     if (kind == nsGCShrinking) {
         js::ShrinkingGC(cx, gcreason);
     } else if (kind == nsGCIncremental) {

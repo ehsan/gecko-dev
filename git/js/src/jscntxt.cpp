@@ -207,7 +207,7 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
 #endif
         bool ok = rt->staticStrings.init(cx);
         if (ok)
-            ok = InitCommonAtoms(cx);
+            ok = js_InitCommonAtoms(cx);
 
 #ifdef JS_THREADSAFE
         JS_EndRequest(cx);
@@ -270,19 +270,17 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
             c->types.print(cx, false);
 
         /* Unpin all common atoms before final GC. */
-        FinishCommonAtoms(cx->runtime);
+        js_FinishCommonAtoms(cx);
 
         /* Clear debugging state to remove GC roots. */
         for (CompartmentsIter c(rt); !c.done(); c.next())
             c->clearTraps(cx);
         JS_ClearAllWatchPoints(cx);
 
-        PrepareForFullGC(rt);
-        GC(cx, GC_NORMAL, gcreason::LAST_CONTEXT);
+        GC(cx, true, GC_NORMAL, gcreason::LAST_CONTEXT);
     } else if (mode == JSDCM_FORCE_GC) {
         JS_ASSERT(!rt->gcRunning);
-        PrepareForFullGC(rt);
-        GC(cx, GC_NORMAL, gcreason::DESTROY_CONTEXT);
+        GC(cx, true, GC_NORMAL, gcreason::DESTROY_CONTEXT);
     } else if (mode == JSDCM_MAYBE_GC) {
         JS_ASSERT(!rt->gcRunning);
         JS_MaybeGC(cx);
@@ -885,7 +883,7 @@ js_InvokeOperationCallback(JSContext *cx)
     JS_ATOMIC_SET(&rt->interrupt, 0);
 
     if (rt->gcIsNeeded)
-        GCSlice(cx, GC_NORMAL, rt->gcTriggerReason);
+        GCSlice(cx, rt->gcFullIsNeeded, GC_NORMAL, rt->gcTriggerReason);
 
 #ifdef JS_THREADSAFE
     /*

@@ -143,8 +143,6 @@ template<> class AnchorPermitted<const JSFunction *> { };
 template<> class AnchorPermitted<JSString *> { };
 template<> class AnchorPermitted<const JSString *> { };
 template<> class AnchorPermitted<Value> { };
-template<> class AnchorPermitted<const JSScript *> { };
-template<> class AnchorPermitted<JSScript *> { };
 
 template<typename T>
 class Anchor: AnchorPermitted<T>
@@ -156,12 +154,12 @@ class Anchor: AnchorPermitted<T>
     T &get() { return hold; }
     const T &get() const { return hold; }
     void set(const T &t) { hold = t; }
-    void operator=(const T &t) { hold = t; }
     void clear() { hold = 0; }
   private:
     T hold;
-    Anchor(const Anchor &) MOZ_DELETE;
-    const Anchor &operator=(const Anchor &) MOZ_DELETE;
+    /* Anchors should not be assigned or passed to functions. */
+    Anchor(const Anchor &);
+    const Anchor &operator=(const Anchor &);
 };
 
 #ifdef __GNUC__
@@ -5531,10 +5529,10 @@ JS_NewObjectForConstructor(JSContext *cx, JSClass *clasp, const jsval *vp);
 #define JS_DEFAULT_ZEAL_FREQ 100
 
 extern JS_PUBLIC_API(void)
-JS_SetGCZeal(JSContext *cx, uint8_t zeal, uint32_t frequency);
+JS_SetGCZeal(JSContext *cx, uint8_t zeal, uint32_t frequency, JSBool compartment);
 
 extern JS_PUBLIC_API(void)
-JS_ScheduleGC(JSContext *cx, uint32_t count);
+JS_ScheduleGC(JSContext *cx, uint32_t count, JSBool compartment);
 #endif
 
 /*
