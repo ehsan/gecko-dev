@@ -495,10 +495,6 @@ RecycleFuncNameKids(JSParseNode *pn, JSTreeContext *tc)
     }
 }
 
-/*
- * Allocate a JSParseNode from tc's node freelist or, failing that, from cx's
- * temporary arena.
- */
 static JSParseNode *
 NewOrRecycledNode(JSTreeContext *tc)
 {
@@ -573,10 +569,24 @@ NewOrRecycledNode(JSTreeContext *tc)
     return pn;
 }
 
-/* used only by static create methods of subclasses */
+static inline void
+InitParseNode(JSParseNode *pn, JSTokenType type, JSOp op, JSParseNodeArity arity)
+{
+    pn->pn_type = type;
+    pn->pn_op = op;
+    pn->pn_arity = arity;
+    pn->pn_parens = false;
+    JS_ASSERT(!pn->pn_used);
+    JS_ASSERT(!pn->pn_defn);
+    pn->pn_next = pn->pn_link = NULL;
+}
 
-JSParseNode *
-JSParseNode::create(JSParseNodeArity arity, JSTreeContext *tc)
+/*
+ * Allocate a JSParseNode from tc's node freelist or, failing that, from cx's
+ * temporary arena.
+ */
+static JSParseNode *
+NewParseNode(JSParseNodeArity arity, JSTreeContext *tc)
 {
     JSParseNode *pn;
     JSToken *tp;
@@ -585,14 +595,38 @@ JSParseNode::create(JSParseNodeArity arity, JSTreeContext *tc)
     if (!pn)
         return NULL;
     tp = &CURRENT_TOKEN(&tc->compiler->tokenStream);
-    pn->init(tp->type, JSOP_NOP, arity);
+    InitParseNode(pn, tp->type, JSOP_NOP, arity);
     pn->pn_pos = tp->pos;
     return pn;
 }
 
-JSParseNode *
-JSParseNode::newBinaryOrAppend(JSTokenType tt, JSOp op, JSParseNode *left, JSParseNode *right,
-                               JSTreeContext *tc)
+static inline void
+InitNameNodeCommon(JSParseNode *pn, JSTreeContext *tc)
+{
+    pn->pn_expr = NULL;
+    pn->pn_cookie = FREE_UPVAR_COOKIE;
+    pn->pn_dflags = tc->atTopLevel() ? PND_TOPLEVEL : 0;
+    if (!tc->topStmt || tc->topStmt->type == STMT_BLOCK)
+        pn->pn_dflags |= PND_BLOCKCHILD;
+    pn->pn_blockid = tc->blockid();
+}
+
+static JSParseNode *
+NewNameNode(JSContext *cx, JSAtom *atom, JSTreeContext *tc)
+{
+    JSParseNode *pn;
+
+    pn = NewParseNode(PN_NAME, tc);
+    if (pn) {
+        pn->pn_atom = atom;
+        InitNameNodeCommon(pn, tc);
+    }
+    return pn;
+}
+
+static JSParseNode *
+NewBinary(JSTokenType tt, JSOp op, JSParseNode *left, JSParseNode *right,
+          JSTreeContext *tc)
 {
     JSParseNode *pn, *pn1, *pn2;
 
@@ -653,41 +687,13 @@ JSParseNode::newBinaryOrAppend(JSTokenType tt, JSOp op, JSParseNode *left, JSPar
     pn = NewOrRecycledNode(tc);
     if (!pn)
         return NULL;
-    pn->init(tt, op, PN_BINARY);
+    InitParseNode(pn, tt, op, PN_BINARY);
     pn->pn_pos.begin = left->pn_pos.begin;
     pn->pn_pos.end = right->pn_pos.end;
     pn->pn_left = left;
     pn->pn_right = right;
-    return (BinaryNode *)pn;
+    return pn;
 }
-
-namespace js {
-
-inline void
-NameNode::initCommon(JSTreeContext *tc)
-{
-    pn_expr = NULL;
-    pn_cookie = FREE_UPVAR_COOKIE;
-    pn_dflags = tc->atTopLevel() ? PND_TOPLEVEL : 0;
-    if (!tc->topStmt || tc->topStmt->type == STMT_BLOCK)
-        pn_dflags |= PND_BLOCKCHILD;
-    pn_blockid = tc->blockid();
-}
-
-NameNode *
-NameNode::create(JSAtom *atom, JSTreeContext *tc)
-{
-    JSParseNode *pn;
-
-    pn = JSParseNode::create(PN_NAME, tc);
-    if (pn) {
-        pn->pn_atom = atom;
-        ((NameNode *)pn)->initCommon(tc);
-    }
-    return (NameNode *)pn;
-}
-
-} /* namespace js */
 
 #if JS_HAS_GETTER_SETTER
 static JSTokenType
@@ -1254,7 +1260,8 @@ CheckStrictAssignment(JSContext *cx, JSTreeContext *tc, JSParseNode *lhs)
  * pn is NULL.
  */
 bool
-CheckStrictBinding(JSContext *cx, JSTreeContext *tc, JSAtom *atom, JSParseNode *pn)
+CheckStrictBinding(JSContext *cx, JSTreeContext *tc, JSAtom *atom, 
+                   JSParseNode *pn)
 {
     if (!tc->needStrictChecks())
         return true;
@@ -1275,7 +1282,7 @@ CheckStrictBinding(JSContext *cx, JSTreeContext *tc, JSAtom *atom, JSParseNode *
  * formals are legit given fun's strictness level, return true. Otherwise,
  * report an error and return false. Use pn for error position reporting,
  * unless we can find something more accurate in tc's decls.
- *
+ * 
  * In some cases the code to parse the argument list will already have noticed
  * the duplication; we could try to use that knowledge instead of re-checking
  * here. But since the strictness of the function's body determines what
@@ -1352,7 +1359,7 @@ FunctionBody(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
     if (CURRENT_TOKEN(ts).type == TOK_LC) {
         pn = Statements(cx, ts, tc);
     } else {
-        pn = UnaryNode::create(tc);
+        pn = NewParseNode(PN_UNARY, tc);
         if (pn) {
             pn->pn_kid = AssignExpr(cx, ts, tc);
             if (!pn->pn_kid) {
@@ -1398,7 +1405,8 @@ MakePlaceholder(JSParseNode *pn, JSTreeContext *tc)
     if (!ale)
         return NULL;
 
-    JSDefinition *dn = (JSDefinition *)NameNode::create(pn->pn_atom, tc);
+    JSDefinition *dn = (JSDefinition *)
+        NewNameNode(tc->compiler->context, pn->pn_atom, tc);
     if (!dn)
         return NULL;
 
@@ -1580,7 +1588,7 @@ DefineArg(JSParseNode *pn, JSAtom *atom, uintN i, JSTreeContext *tc)
      * but having TOK_NAME type and JSOP_NOP op. Insert it in a TOK_ARGSBODY
      * list node returned via pn->pn_body.
      */
-    argpn = NameNode::create(atom, tc);
+    argpn = NewNameNode(tc->compiler->context, atom, tc);
     if (!argpn)
         return false;
     JS_ASSERT(PN_TYPE(argpn) == TOK_NAME && PN_OP(argpn) == JSOP_NOP);
@@ -1592,7 +1600,7 @@ DefineArg(JSParseNode *pn, JSAtom *atom, uintN i, JSTreeContext *tc)
 
     argsbody = pn->pn_body;
     if (!argsbody) {
-        argsbody = ListNode::create(tc);
+        argsbody = NewParseNode(PN_LIST, tc);
         if (!argsbody)
             return false;
         argsbody->pn_type = TOK_ARGSBODY;
@@ -1637,7 +1645,7 @@ JSCompiler::compileFunctionBody(JSContext *cx, JSFunction *fun, JSPrincipals *pr
 
     /* FIXME: make Function format the source for a function definition. */
     jsc.tokenStream.tokens[0].type = TOK_NAME;
-    JSParseNode *fn = FunctionNode::create(&funcg);
+    JSParseNode *fn = NewParseNode(PN_FUNC, &funcg);
     if (fn) {
         fn->pn_body = NULL;
         fn->pn_cookie = FREE_UPVAR_COOKIE;
@@ -2020,7 +2028,7 @@ JSCompiler::markFunArgs(JSFunctionBox *funbox, uintN tcflags)
                          * funarg if it is immediately applied. However, if its
                          * name is used in an escaping function nested within
                          * it, then it must become flagged as a funarg again.
-                         * See bug 545980.
+                         * See bug 545980. 
                          */
                         afunbox = funbox;
                         uintN calleeLevel = UPVAR_FRAME_SKIP(lexdep->pn_cookie);
@@ -2618,7 +2626,7 @@ LeaveFunction(JSParseNode *fn, JSTreeContext *funtc, JSTreeContext *tc,
         if (funtc->lexdeps.count - foundCallee != 0) {
             JSParseNode *body = fn->pn_body;
 
-            fn->pn_body = NameSetNode::create(tc);
+            fn->pn_body = NewParseNode(PN_NAMESET, tc);
             if (!fn->pn_body)
                 return false;
 
@@ -2655,7 +2663,7 @@ FunctionDef(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
 #if JS_HAS_GETTER_SETTER
     op = CURRENT_TOKEN(ts).t_op;
 #endif
-    pn = FunctionNode::create(tc);
+    pn = NewParseNode(PN_FUNC, tc);
     if (!pn)
         return NULL;
     pn->pn_body = NULL;
@@ -2852,7 +2860,7 @@ FunctionDef(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
                  * anonymous positional parameter into the destructuring
                  * left-hand-side expression and accumulate it in list.
                  */
-                rhs = NameNode::create(cx->runtime->atomState.emptyAtom, &funtc);
+                rhs = NewNameNode(cx, cx->runtime->atomState.emptyAtom, &funtc);
                 if (!rhs)
                     return NULL;
                 rhs->pn_type = TOK_NAME;
@@ -2860,11 +2868,11 @@ FunctionDef(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
                 rhs->pn_cookie = MAKE_UPVAR_COOKIE(funtc.staticLevel, slot);
                 rhs->pn_dflags |= PND_BOUND;
 
-                item = JSParseNode::newBinaryOrAppend(TOK_ASSIGN, JSOP_NOP, lhs, rhs, &funtc);
+                item = NewBinary(TOK_ASSIGN, JSOP_NOP, lhs, rhs, &funtc);
                 if (!item)
                     return NULL;
                 if (!list) {
-                    list = ListNode::create(&funtc);
+                    list = NewParseNode(PN_LIST, &funtc);
                     if (!list)
                         return NULL;
                     list->pn_type = TOK_COMMA;
@@ -2881,7 +2889,7 @@ FunctionDef(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
                 if (!DefineArg(pn, atom, fun->nargs, &funtc))
                     return NULL;
 #ifdef JS_HAS_DESTRUCTURING
-                /*
+                /* 
                  * ECMA-262 requires us to support duplicate parameter names, but if the
                  * parameter list includes destructuring, we consider the code to have
                  * opted in to higher standards, and forbid duplicates. We may see a
@@ -2967,7 +2975,7 @@ FunctionDef(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
         if (body->pn_arity != PN_LIST) {
             JSParseNode *block;
 
-            block = ListNode::create(tc);
+            block = NewParseNode(PN_LIST, tc);
             if (!block)
                 return NULL;
             block->pn_type = TOK_SEQ;
@@ -2977,7 +2985,7 @@ FunctionDef(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
             body = block;
         }
 
-        item = UnaryNode::create(tc);
+        item = NewParseNode(PN_UNARY, tc);
         if (!item)
             return NULL;
 
@@ -3026,7 +3034,7 @@ FunctionDef(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
          * Edition 3 would have it).  Backward compatibility must trump all,
          * unless JSOPTION_ANONFUNFIX is set.
          */
-        result = UnaryNode::create(tc);
+        result = NewParseNode(PN_UNARY, tc);
         if (!result)
             return NULL;
         result->pn_type = TOK_SEMI;
@@ -3127,7 +3135,7 @@ Statements(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
 
     JS_CHECK_RECURSION(cx, return NULL);
 
-    pn = ListNode::create(tc);
+    pn = NewParseNode(PN_LIST, tc);
     if (!pn)
         return NULL;
     pn->pn_type = TOK_LC;
@@ -3436,7 +3444,7 @@ BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
             JSParseNode *pnu = pn;
 
             if (pn->pn_defn) {
-                pnu = NameNode::create(atom, tc);
+                pnu = NewNameNode(cx, atom, tc);
                 if (!pnu)
                     return JS_FALSE;
             }
@@ -3473,7 +3481,7 @@ BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
                 pn = ALE_DEFN(ale);
                 tc->lexdeps.rawRemove(tc->compiler, ale, hep);
             } else {
-                JSParseNode *pn2 = NameNode::create(atom, tc);
+                JSParseNode *pn2 = NewNameNode(cx, atom, tc);
                 if (!pn2)
                     return JS_FALSE;
 
@@ -4307,7 +4315,7 @@ ReturnOrYield(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
         return NULL;
     }
 
-    pn = UnaryNode::create(tc);
+    pn = NewParseNode(PN_UNARY, tc);
     if (!pn)
         return NULL;
 
@@ -4373,7 +4381,7 @@ PushLexicalScope(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
     JSObject *obj;
     JSObjectBox *blockbox;
 
-    pn = LexicalScopeNode::create(tc);
+    pn = NewParseNode(PN_NAME, tc);
     if (!pn)
         return NULL;
 
@@ -4408,7 +4416,7 @@ LetBlock(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc, JSBool statement)
     JS_ASSERT(CURRENT_TOKEN(ts).type == TOK_LET);
 
     /* Create the let binary node. */
-    pnlet = BinaryNode::create(tc);
+    pnlet = NewParseNode(PN_BINARY, tc);
     if (!pnlet)
         return NULL;
 
@@ -4435,7 +4443,7 @@ LetBlock(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc, JSBool statement)
          * need to wrap the TOK_LET node in a TOK_SEMI node so that we pop
          * the return value of the expression.
          */
-        pn = UnaryNode::create(tc);
+        pn = NewParseNode(PN_UNARY, tc);
         if (!pn)
             return NULL;
         pn->pn_type = TOK_SEMI;
@@ -4514,7 +4522,7 @@ NewBindingNode(JSAtom *atom, JSTreeContext *tc, bool let = false)
     }
 
     /* Make a new node for this declarator name (or destructuring pattern). */
-    pn = NameNode::create(atom, tc);
+    pn = NewNameNode(tc->compiler->context, atom, tc);
     if (!pn)
         return NULL;
     return pn;
@@ -4630,7 +4638,7 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
 
       case TOK_IF:
         /* An IF node has three kids: condition, then, and optional else. */
-        pn = TernaryNode::create(tc);
+        pn = NewParseNode(PN_TERNARY, tc);
         if (!pn)
             return NULL;
         pn1 = Condition(cx, ts, tc);
@@ -4664,7 +4672,7 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
         JSParseNode *pn5, *saveBlock;
         JSBool seenDefault = JS_FALSE;
 
-        pn = BinaryNode::create(tc);
+        pn = NewParseNode(PN_BINARY, tc);
         if (!pn)
             return NULL;
         MUST_MATCH_TOKEN(TOK_LP, JSMSG_PAREN_BEFORE_SWITCH);
@@ -4684,7 +4692,7 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
         js_PushStatement(tc, &stmtInfo, STMT_SWITCH, -1);
 
         /* pn2 is a list of case nodes. The default case has pn_left == NULL */
-        pn2 = ListNode::create(tc);
+        pn2 = NewParseNode(PN_LIST, tc);
         if (!pn2)
             return NULL;
         pn2->makeEmpty();
@@ -4705,7 +4713,7 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
                 /* FALL THROUGH */
 
               case TOK_CASE:
-                pn3 = BinaryNode::create(tc);
+                pn3 = NewParseNode(PN_BINARY, tc);
                 if (!pn3)
                     return NULL;
                 if (tt == TOK_CASE) {
@@ -4731,7 +4739,7 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
             }
             MUST_MATCH_TOKEN(TOK_COLON, JSMSG_COLON_AFTER_CASE);
 
-            pn4 = ListNode::create(tc);
+            pn4 = NewParseNode(PN_LIST, tc);
             if (!pn4)
                 return NULL;
             pn4->pn_type = TOK_LC;
@@ -4776,7 +4784,7 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
       }
 
       case TOK_WHILE:
-        pn = BinaryNode::create(tc);
+        pn = NewParseNode(PN_BINARY, tc);
         if (!pn)
             return NULL;
         js_PushStatement(tc, &stmtInfo, STMT_WHILE_LOOP, -1);
@@ -4793,7 +4801,7 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
         return pn;
 
       case TOK_DO:
-        pn = BinaryNode::create(tc);
+        pn = NewParseNode(PN_BINARY, tc);
         if (!pn)
             return NULL;
         js_PushStatement(tc, &stmtInfo, STMT_DO_LOOP, -1);
@@ -4828,7 +4836,7 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
 #endif
 
         /* A FOR node is binary, left is loop control and right is the body. */
-        pn = BinaryNode::create(tc);
+        pn = NewParseNode(PN_BINARY, tc);
         if (!pn)
             return NULL;
         js_PushStatement(tc, &stmtInfo, STMT_FOR_LOOP, -1);
@@ -4964,7 +4972,7 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
                     || pn2->pn_type == TOK_ASSIGN
 #endif
                     ) {
-                    pnseq = ListNode::create(tc);
+                    pnseq = NewParseNode(PN_LIST, tc);
                     if (!pnseq)
                         return NULL;
                     pnseq->pn_type = TOK_SEQ;
@@ -4976,7 +4984,7 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
                          * Hoist just the 'i' from 'for (let x = i in o)' to
                          * before the loop, glued together via pnseq.
                          */
-                        pn3 = UnaryNode::create(tc);
+                        pn3 = NewParseNode(PN_UNARY, tc);
                         if (!pn3)
                             return NULL;
                         pn3->pn_type = TOK_SEMI;
@@ -5022,7 +5030,7 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
 #endif
                         {
                             JS_ASSERT(pn2->pn_type == TOK_NAME);
-                            pn1 = NameNode::create(pn2->pn_atom, tc);
+                            pn1 = NewNameNode(cx, pn2->pn_atom, tc);
                             if (!pn1)
                                 return NULL;
                             pn1->pn_type = TOK_NAME;
@@ -5096,7 +5104,7 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
                 tc->topStmt = save;
 #endif
 
-            pn2 = JSParseNode::newBinaryOrAppend(TOK_IN, JSOP_NOP, pn1, pn2, tc);
+            pn2 = NewBinary(TOK_IN, JSOP_NOP, pn1, pn2, tc);
             if (!pn2)
                 return NULL;
             pn->pn_left = pn2;
@@ -5132,7 +5140,7 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
             }
 
             /* Build the FORHEAD node to use as the left kid of pn. */
-            pn4 = TernaryNode::create(tc);
+            pn4 = NewParseNode(PN_TERNARY, tc);
             if (!pn4)
                 return NULL;
             pn4->pn_type = TOK_FORHEAD;
@@ -5195,7 +5203,7 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
          *
          * finally nodes are TOK_LC Statement lists.
          */
-        pn = TernaryNode::create(tc);
+        pn = NewParseNode(PN_TERNARY, tc);
         if (!pn)
             return NULL;
         pn->pn_op = JSOP_NOP;
@@ -5212,7 +5220,7 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
         catchList = NULL;
         tt = js_GetToken(cx, ts);
         if (tt == TOK_CATCH) {
-            catchList = ListNode::create(tc);
+            catchList = NewParseNode(PN_LIST, tc);
             if (!catchList)
                 return NULL;
             catchList->pn_type = TOK_RESERVED;
@@ -5246,7 +5254,7 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
                  * where lhs is a name or a destructuring left-hand side.
                  * (the latter is legal only #ifdef JS_HAS_CATCH_GUARD)
                  */
-                pn2 = TernaryNode::create(tc);
+                pn2 = NewParseNode(PN_TERNARY, tc);
                 if (!pn2)
                     return NULL;
                 pnblock->pn_expr = pn2;
@@ -5341,7 +5349,7 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
       }
 
       case TOK_THROW:
-        pn = UnaryNode::create(tc);
+        pn = NewParseNode(PN_UNARY, tc);
         if (!pn)
             return NULL;
 
@@ -5377,7 +5385,7 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
         return NULL;
 
       case TOK_BREAK:
-        pn = NullaryNode::create(tc);
+        pn = NewParseNode(PN_NULLARY, tc);
         if (!pn)
             return NULL;
         if (!MatchLabel(cx, ts, pn))
@@ -5410,7 +5418,7 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
         break;
 
       case TOK_CONTINUE:
-        pn = NullaryNode::create(tc);
+        pn = NewParseNode(PN_NULLARY, tc);
         if (!pn)
             return NULL;
         if (!MatchLabel(cx, ts, pn))
@@ -5468,7 +5476,7 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
             return NULL;
         }
 
-        pn = BinaryNode::create(tc);
+        pn = NewParseNode(PN_BINARY, tc);
         if (!pn)
             return NULL;
         MUST_MATCH_TOKEN(TOK_LP, JSMSG_PAREN_BEFORE_WITH);
@@ -5598,7 +5606,7 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
 #endif
 
             /* Create a new lexical scope node for these statements. */
-            pn1 = LexicalScopeNode::create(tc);
+            pn1 = NewParseNode(PN_NAME, tc);
             if (!pn1)
                 return NULL;
 
@@ -5654,7 +5662,7 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
 
       case TOK_EOL:
       case TOK_SEMI:
-        pn = UnaryNode::create(tc);
+        pn = NewParseNode(PN_UNARY, tc);
         if (!pn)
             return NULL;
         pn->pn_type = TOK_SEMI;
@@ -5662,7 +5670,7 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
 
 #if JS_HAS_DEBUGGER_KEYWORD
       case TOK_DEBUGGER:
-        pn = NullaryNode::create(tc);
+        pn = NewParseNode(PN_NULLARY, tc);
         if (!pn)
             return NULL;
         pn->pn_type = TOK_DEBUGGER;
@@ -5672,7 +5680,7 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
 
 #if JS_HAS_XML_SUPPORT
       case TOK_DEFAULT:
-        pn = UnaryNode::create(tc);
+        pn = NewParseNode(PN_UNARY, tc);
         if (!pn)
             return NULL;
         if (!js_MatchToken(cx, ts, TOK_NAME) ||
@@ -5749,7 +5757,7 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
             return pn2;
         }
 
-        pn = UnaryNode::create(tc);
+        pn = NewParseNode(PN_UNARY, tc);
         if (!pn)
             return NULL;
         pn->pn_type = TOK_SEMI;
@@ -5838,7 +5846,7 @@ Variables(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc, bool inLetHead)
     }
 
     data.op = let ? JSOP_NOP : CURRENT_TOKEN(ts).t_op;
-    pn = ListNode::create(tc);
+    pn = NewParseNode(PN_LIST, tc);
     if (!pn)
         return NULL;
     pn->pn_op = data.op;
@@ -5896,7 +5904,7 @@ Variables(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc, bool inLetHead)
             if (!init || !UndominateInitializers(pn2, init, tc))
                 return NULL;
 
-            pn2 = JSParseNode::newBinaryOrAppend(TOK_ASSIGN, JSOP_NOP, pn2, init, tc);
+            pn2 = NewBinary(TOK_ASSIGN, JSOP_NOP, pn2, init, tc);
             if (!pn2)
                 return NULL;
             pn->append(pn2);
@@ -5991,7 +5999,7 @@ Expr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
 
     pn = AssignExpr(cx, ts, tc);
     if (pn && js_MatchToken(cx, ts, TOK_COMMA)) {
-        pn2 = ListNode::create(tc);
+        pn2 = NewParseNode(PN_LIST, tc);
         if (!pn2)
             return NULL;
         pn2->pn_pos.begin = pn->pn_pos.begin;
@@ -6077,7 +6085,7 @@ AssignExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
         rhs = AssignExpr(cx, ts, tc);
         if (!rhs || !CheckDestructuring(cx, NULL, pn, rhs, tc))
             return NULL;
-        return JSParseNode::newBinaryOrAppend(TOK_ASSIGN, op, pn, rhs, tc);
+        return NewBinary(TOK_ASSIGN, op, pn, rhs, tc);
 #endif
       case TOK_LP:
         if (!MakeSetCall(cx, pn, tc, JSMSG_BAD_LEFTSIDE_OF_ASS))
@@ -6114,7 +6122,7 @@ AssignExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
         }
     }
 
-    return JSParseNode::newBinaryOrAppend(TOK_ASSIGN, op, pn, rhs, tc);
+    return NewBinary(TOK_ASSIGN, op, pn, rhs, tc);
 }
 
 static JSParseNode *
@@ -6126,7 +6134,7 @@ CondExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
     pn = OrExpr(cx, ts, tc);
     if (pn && js_MatchToken(cx, ts, TOK_HOOK)) {
         pn1 = pn;
-        pn = TernaryNode::create(tc);
+        pn = NewParseNode(PN_TERNARY, tc);
         if (!pn)
             return NULL;
         /*
@@ -6161,7 +6169,7 @@ OrExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
 
     pn = AndExpr(cx, ts, tc);
     while (pn && js_MatchToken(cx, ts, TOK_OR))
-        pn = JSParseNode::newBinaryOrAppend(TOK_OR, JSOP_OR, pn, AndExpr(cx, ts, tc), tc);
+        pn = NewBinary(TOK_OR, JSOP_OR, pn, AndExpr(cx, ts, tc), tc);
     return pn;
 }
 
@@ -6172,7 +6180,7 @@ AndExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
 
     pn = BitOrExpr(cx, ts, tc);
     while (pn && js_MatchToken(cx, ts, TOK_AND))
-        pn = JSParseNode::newBinaryOrAppend(TOK_AND, JSOP_AND, pn, BitOrExpr(cx, ts, tc), tc);
+        pn = NewBinary(TOK_AND, JSOP_AND, pn, BitOrExpr(cx, ts, tc), tc);
     return pn;
 }
 
@@ -6183,7 +6191,8 @@ BitOrExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
 
     pn = BitXorExpr(cx, ts, tc);
     while (pn && js_MatchToken(cx, ts, TOK_BITOR)) {
-        pn = JSParseNode::newBinaryOrAppend(TOK_BITOR, JSOP_BITOR, pn, BitXorExpr(cx, ts, tc), tc);
+        pn = NewBinary(TOK_BITOR, JSOP_BITOR, pn, BitXorExpr(cx, ts, tc),
+                       tc);
     }
     return pn;
 }
@@ -6195,8 +6204,8 @@ BitXorExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
 
     pn = BitAndExpr(cx, ts, tc);
     while (pn && js_MatchToken(cx, ts, TOK_BITXOR)) {
-        pn = JSParseNode::newBinaryOrAppend(TOK_BITXOR, JSOP_BITXOR, pn, BitAndExpr(cx, ts, tc),
-                                            tc);
+        pn = NewBinary(TOK_BITXOR, JSOP_BITXOR, pn, BitAndExpr(cx, ts, tc),
+                       tc);
     }
     return pn;
 }
@@ -6208,7 +6217,7 @@ BitAndExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
 
     pn = EqExpr(cx, ts, tc);
     while (pn && js_MatchToken(cx, ts, TOK_BITAND))
-        pn = JSParseNode::newBinaryOrAppend(TOK_BITAND, JSOP_BITAND, pn, EqExpr(cx, ts, tc), tc);
+        pn = NewBinary(TOK_BITAND, JSOP_BITAND, pn, EqExpr(cx, ts, tc), tc);
     return pn;
 }
 
@@ -6221,7 +6230,7 @@ EqExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
     pn = RelExpr(cx, ts, tc);
     while (pn && js_MatchToken(cx, ts, TOK_EQOP)) {
         op = CURRENT_TOKEN(ts).t_op;
-        pn = JSParseNode::newBinaryOrAppend(TOK_EQOP, op, pn, RelExpr(cx, ts, tc), tc);
+        pn = NewBinary(TOK_EQOP, op, pn, RelExpr(cx, ts, tc), tc);
     }
     return pn;
 }
@@ -6251,7 +6260,7 @@ RelExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
             js_MatchToken(cx, ts, TOK_INSTANCEOF))) {
         tt = CURRENT_TOKEN(ts).type;
         op = CURRENT_TOKEN(ts).t_op;
-        pn = JSParseNode::newBinaryOrAppend(tt, op, pn, ShiftExpr(cx, ts, tc), tc);
+        pn = NewBinary(tt, op, pn, ShiftExpr(cx, ts, tc), tc);
     }
     /* Restore previous state of inForInit flag. */
     tc->flags |= inForInitFlag;
@@ -6268,7 +6277,7 @@ ShiftExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
     pn = AddExpr(cx, ts, tc);
     while (pn && js_MatchToken(cx, ts, TOK_SHOP)) {
         op = CURRENT_TOKEN(ts).t_op;
-        pn = JSParseNode::newBinaryOrAppend(TOK_SHOP, op, pn, AddExpr(cx, ts, tc), tc);
+        pn = NewBinary(TOK_SHOP, op, pn, AddExpr(cx, ts, tc), tc);
     }
     return pn;
 }
@@ -6286,7 +6295,7 @@ AddExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
             js_MatchToken(cx, ts, TOK_MINUS))) {
         tt = CURRENT_TOKEN(ts).type;
         op = (tt == TOK_PLUS) ? JSOP_ADD : JSOP_SUB;
-        pn = JSParseNode::newBinaryOrAppend(tt, op, pn, MulExpr(cx, ts, tc), tc);
+        pn = NewBinary(tt, op, pn, MulExpr(cx, ts, tc), tc);
     }
     return pn;
 }
@@ -6304,7 +6313,7 @@ MulExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
             js_MatchToken(cx, ts, TOK_DIVOP))) {
         tt = CURRENT_TOKEN(ts).type;
         op = CURRENT_TOKEN(ts).t_op;
-        pn = JSParseNode::newBinaryOrAppend(tt, op, pn, UnaryExpr(cx, ts, tc), tc);
+        pn = NewBinary(tt, op, pn, UnaryExpr(cx, ts, tc), tc);
     }
     return pn;
 }
@@ -6397,7 +6406,7 @@ UnaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
       case TOK_UNARYOP:
       case TOK_PLUS:
       case TOK_MINUS:
-        pn = UnaryNode::create(tc);
+        pn = NewParseNode(PN_UNARY, tc);
         if (!pn)
             return NULL;
         pn->pn_type = TOK_UNARYOP;      /* PLUS and MINUS are binary */
@@ -6411,7 +6420,7 @@ UnaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
 
       case TOK_INC:
       case TOK_DEC:
-        pn = UnaryNode::create(tc);
+        pn = NewParseNode(PN_UNARY, tc);
         if (!pn)
             return NULL;
         pn2 = MemberExpr(cx, ts, tc, JS_TRUE);
@@ -6423,7 +6432,7 @@ UnaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
         break;
 
       case TOK_DELETE:
-        pn = UnaryNode::create(tc);
+        pn = NewParseNode(PN_UNARY, tc);
         if (!pn)
             return NULL;
         pn2 = UnaryExpr(cx, ts, tc);
@@ -6471,7 +6480,7 @@ UnaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
             ts->flags &= ~TSF_OPERAND;
             if (tt == TOK_INC || tt == TOK_DEC) {
                 (void) js_GetToken(cx, ts);
-                pn2 = UnaryNode::create(tc);
+                pn2 = NewParseNode(PN_UNARY, tc);
                 if (!pn2)
                     return NULL;
                 if (!SetIncOpKid(cx, ts, tc, pn2, pn, tt, JS_FALSE))
@@ -6665,7 +6674,8 @@ CompExprTransplanter::transplant(JSParseNode *pn)
                     if (dn->pn_pos >= root->pn_pos) {
                         tc->parent->lexdeps.remove(tc->compiler, atom);
                     } else {
-                        JSDefinition *dn2 = (JSDefinition *)NameNode::create(dn->pn_atom, tc);
+                        JSDefinition *dn2 = (JSDefinition *)
+                            NewNameNode(tc->compiler->context, dn->pn_atom, tc);
                         if (!dn2)
                             return false;
 
@@ -6783,7 +6793,7 @@ ComprehensionTail(JSParseNode *kid, uintN blockid, JSTreeContext *tc,
          * index to count each block-local let-variable on the left-hand side
          * of the IN.
          */
-        pn2 = BinaryNode::create(tc);
+        pn2 = NewParseNode(PN_BINARY, tc);
         if (!pn2)
             return NULL;
 
@@ -6872,7 +6882,7 @@ ComprehensionTail(JSParseNode *kid, uintN blockid, JSTreeContext *tc,
           default:;
         }
 
-        pn2->pn_left = JSParseNode::newBinaryOrAppend(TOK_IN, JSOP_NOP, pn3, pn4, tc);
+        pn2->pn_left = NewBinary(TOK_IN, JSOP_NOP, pn3, pn4, tc);
         if (!pn2->pn_left)
             return NULL;
         *pnp = pn2;
@@ -6880,7 +6890,7 @@ ComprehensionTail(JSParseNode *kid, uintN blockid, JSTreeContext *tc,
     } while (js_MatchToken(cx, ts, TOK_FOR));
 
     if (js_MatchToken(cx, ts, TOK_IF)) {
-        pn2 = TernaryNode::create(tc);
+        pn2 = NewParseNode(PN_TERNARY, tc);
         if (!pn2)
             return NULL;
         pn2->pn_kid1 = Condition(cx, ts, tc);
@@ -6890,7 +6900,7 @@ ComprehensionTail(JSParseNode *kid, uintN blockid, JSTreeContext *tc,
         pnp = &pn2->pn_kid2;
     }
 
-    pn2 = UnaryNode::create(tc);
+    pn2 = NewParseNode(PN_UNARY, tc);
     if (!pn2)
         return NULL;
     pn2->pn_type = type;
@@ -6932,7 +6942,7 @@ GeneratorExpr(JSParseNode *pn, JSParseNode *kid, JSTreeContext *tc)
     pn->pn_hidden = true;
 
     /* Make a new node for the desugared generator function. */
-    JSParseNode *genfn = FunctionNode::create(tc);
+    JSParseNode *genfn = NewParseNode(PN_FUNC, tc);
     if (!genfn)
         return NULL;
     genfn->pn_type = TOK_FUNCTION;
@@ -6988,7 +6998,7 @@ GeneratorExpr(JSParseNode *pn, JSParseNode *kid, JSTreeContext *tc)
      * Our result is a call expression that invokes the anonymous generator
      * function object.
      */
-    JSParseNode *result = ListNode::create(tc);
+    JSParseNode *result = NewParseNode(PN_LIST, tc);
     if (!result)
         return NULL;
     result->pn_type = TOK_LP;
@@ -7029,7 +7039,7 @@ ArgumentList(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
 #endif
 #if JS_HAS_GENERATOR_EXPRS
             if (js_MatchToken(cx, ts, TOK_FOR)) {
-                JSParseNode *pn = UnaryNode::create(tc);
+                JSParseNode *pn = NewParseNode(PN_UNARY, tc);
                 if (!pn)
                     return JS_FALSE;
                 argNode = GeneratorExpr(pn, argNode, tc);
@@ -7085,7 +7095,7 @@ MemberExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
     tt = js_GetToken(cx, ts);
     ts->flags &= ~TSF_OPERAND;
     if (tt == TOK_NEW) {
-        pn = ListNode::create(tc);
+        pn = NewParseNode(PN_LIST, tc);
         if (!pn)
             return NULL;
         pn2 = MemberExpr(cx, ts, tc, JS_FALSE);
@@ -7127,7 +7137,7 @@ MemberExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
 
     while ((tt = js_GetToken(cx, ts)) > TOK_EOF) {
         if (tt == TOK_DOT) {
-            pn2 = NameNode::create(NULL, tc);
+            pn2 = NewNameNode(cx, NULL, tc);
             if (!pn2)
                 return NULL;
 #if JS_HAS_XML_SUPPORT
@@ -7175,7 +7185,7 @@ MemberExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
             pn2->pn_pos.end = CURRENT_TOKEN(ts).pos.end;
 #if JS_HAS_XML_SUPPORT
         } else if (tt == TOK_DBLDOT) {
-            pn2 = BinaryNode::create(tc);
+            pn2 = NewParseNode(PN_BINARY, tc);
             if (!pn2)
                 return NULL;
             ts->flags |= TSF_OPERAND | TSF_KEYWORD_IS_NAME;
@@ -7201,7 +7211,7 @@ MemberExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
             pn2->pn_pos.end = CURRENT_TOKEN(ts).pos.end;
 #endif
         } else if (tt == TOK_LB) {
-            pn2 = BinaryNode::create(tc);
+            pn2 = NewParseNode(PN_BINARY, tc);
             if (!pn2)
                 return NULL;
             pn3 = Expr(cx, ts, tc);
@@ -7240,7 +7250,7 @@ MemberExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
                 pn2->pn_right = pn3;
             } while (0);
         } else if (allowCallSyntax && tt == TOK_LP) {
-            pn2 = ListNode::create(tc);
+            pn2 = NewParseNode(PN_LIST, tc);
             if (!pn2)
                 return NULL;
             pn2->pn_op = JSOP_CALL;
@@ -7372,7 +7382,7 @@ PropertySelector(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
 {
     JSParseNode *pn;
 
-    pn = NullaryNode::create(tc);
+    pn = NewParseNode(PN_NULLARY, tc);
     if (!pn)
         return NULL;
     if (pn->pn_type == TOK_STAR) {
@@ -7397,7 +7407,7 @@ QualifiedSuffix(JSContext *cx, JSTokenStream *ts, JSParseNode *pn,
     JSTokenType tt;
 
     JS_ASSERT(CURRENT_TOKEN(ts).type == TOK_DBLCOLON);
-    pn2 = NameNode::create(NULL, tc);
+    pn2 = NewNameNode(cx, NULL, tc);
     if (!pn2)
         return NULL;
 
@@ -7461,7 +7471,7 @@ AttributeIdentifier(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
     JSTokenType tt;
 
     JS_ASSERT(CURRENT_TOKEN(ts).type == TOK_AT);
-    pn = UnaryNode::create(tc);
+    pn = NewParseNode(PN_UNARY, tc);
     if (!pn)
         return NULL;
     pn->pn_op = JSOP_TOATTRNAME;
@@ -7493,7 +7503,7 @@ XMLExpr(JSContext *cx, JSTokenStream *ts, JSBool inTag, JSTreeContext *tc)
     uintN oldflag;
 
     JS_ASSERT(CURRENT_TOKEN(ts).type == TOK_LC);
-    pn = UnaryNode::create(tc);
+    pn = NewParseNode(PN_UNARY, tc);
     if (!pn)
         return NULL;
 
@@ -7528,7 +7538,7 @@ XMLAtomNode(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
     JSParseNode *pn;
     JSToken *tp;
 
-    pn = NullaryNode::create(tc);
+    pn = NewParseNode(PN_NULLARY, tc);
     if (!pn)
         return NULL;
     tp = &CURRENT_TOKEN(ts);
@@ -7575,7 +7585,7 @@ XMLNameExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
             pn = pn2;
         } else {
             if (!list) {
-                list = ListNode::create(tc);
+                list = NewParseNode(PN_LIST, tc);
                 if (!list)
                     return NULL;
                 list->pn_type = TOK_XMLNAME;
@@ -7642,7 +7652,7 @@ XMLTagContent(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
         if (!pn2)
             return NULL;
         if (!list) {
-            list = ListNode::create(tc);
+            list = NewParseNode(PN_LIST, tc);
             if (!list)
                 return NULL;
             list->pn_type = tagtype;
@@ -7769,7 +7779,7 @@ XMLElementOrList(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
     JS_CHECK_RECURSION(cx, return NULL);
 
     JS_ASSERT(CURRENT_TOKEN(ts).type == TOK_XMLSTAGO);
-    pn = ListNode::create(tc);
+    pn = NewParseNode(PN_LIST, tc);
     if (!pn)
         return NULL;
 
@@ -7818,7 +7828,7 @@ XMLElementOrList(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
                 if (!XML_FOLDABLE(pn2))
                     pn->pn_xflags |= PNX_CANTFOLD;
                 pn2 = pn;
-                pn = ListNode::create(tc);
+                pn = NewParseNode(PN_LIST, tc);
                 if (!pn)
                     return NULL;
             }
@@ -7866,7 +7876,7 @@ XMLElementOrList(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
 
             /* Make a TOK_XMLETAGO list with pn2 as its single child. */
             JS_ASSERT(pn2->pn_type == TOK_XMLNAME || pn2->pn_type == TOK_LC);
-            list = ListNode::create(tc);
+            list = NewParseNode(PN_LIST, tc);
             if (!list)
                 return NULL;
             list->pn_type = TOK_XMLETAGO;
@@ -8011,7 +8021,7 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
         ts->flags |= TSF_KEYWORD_IS_NAME;
         if (js_MatchToken(cx, ts, TOK_DBLCOLON)) {
             ts->flags &= ~TSF_KEYWORD_IS_NAME;
-            pn2 = NullaryNode::create(tc);
+            pn2 = NewParseNode(PN_NULLARY, tc);
             if (!pn2)
                 return NULL;
             pn2->pn_type = TOK_FUNCTION;
@@ -8032,7 +8042,7 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
         JSBool matched;
         jsuint index;
 
-        pn = ListNode::create(tc);
+        pn = NewParseNode(PN_LIST, tc);
         if (!pn)
             return NULL;
         pn->pn_type = TOK_RB;
@@ -8065,7 +8075,7 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
                 if (tt == TOK_COMMA) {
                     /* So CURRENT_TOKEN gets TOK_COMMA and not TOK_LB. */
                     js_MatchToken(cx, ts, TOK_COMMA);
-                    pn2 = NullaryNode::create(tc);
+                    pn2 = NewParseNode(PN_NULLARY, tc);
                     pn->pn_xflags |= PNX_HOLEY;
                 } else {
                     pn2 = AssignExpr(cx, ts, tc);
@@ -8172,7 +8182,7 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
          */
         JSAutoAtomList seen(tc->compiler);
 
-        pn = ListNode::create(tc);
+        pn = NewParseNode(PN_LIST, tc);
         if (!pn)
             return NULL;
         pn->pn_type = TOK_RC;
@@ -8187,7 +8197,7 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
             ts->flags &= ~TSF_KEYWORD_IS_NAME;
             switch (tt) {
               case TOK_NUMBER:
-                pn3 = NullaryNode::create(tc);
+                pn3 = NewParseNode(PN_NULLARY, tc);
                 if (!pn3)
                     return NULL;
                 pn3->pn_dval = CURRENT_TOKEN(ts).t_dval;
@@ -8215,7 +8225,7 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
                         goto property_name;
                     }
                     atom = CURRENT_TOKEN(ts).t_atom;
-                    pn3 = NameNode::create(atom, tc);
+                    pn3 = NewNameNode(cx, atom, tc);
                     if (!pn3)
                         return NULL;
 
@@ -8223,14 +8233,14 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
                     CURRENT_TOKEN(ts).t_op = JSOP_NOP;
                     CURRENT_TOKEN(ts).type = TOK_FUNCTION;
                     pn2 = FunctionExpr(cx, ts, tc);
-                    pn2 = JSParseNode::newBinaryOrAppend(TOK_COLON, op, pn3, pn2, tc);
+                    pn2 = NewBinary(TOK_COLON, op, pn3, pn2, tc);
                     goto skip;
                 }
               property_name:
 #endif
               case TOK_STRING:
                 atom = CURRENT_TOKEN(ts).t_atom;
-                pn3 = NullaryNode::create(tc);
+                pn3 = NewParseNode(PN_NULLARY, tc);
                 if (!pn3)
                     return NULL;
                 pn3->pn_atom = atom;
@@ -8275,12 +8285,12 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
                 pnval = pn3;
                 if (pnval->pn_type == TOK_NAME) {
                     pnval->pn_arity = PN_NAME;
-                    ((NameNode *)pnval)->initCommon(tc);
+                    InitNameNodeCommon(pnval, tc);
                 }
 #endif
             }
 
-            pn2 = JSParseNode::newBinaryOrAppend(TOK_COLON, op, pn3, pnval, tc);
+            pn2 = NewBinary(TOK_COLON, op, pn3, pnval, tc);
 #if JS_HAS_GETTER_SETTER
           skip:
 #endif
@@ -8292,7 +8302,7 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
              * In strict mode code, check for duplicate property names.  Treat
              * getters and setters as distinct attributes of each property.  A
              * plain old value conflicts with a getter or a setter.
-             */
+             */ 
             if (tc->needStrictChecks()) {
                 unsigned attributesMask;
                 if (op == JSOP_INITPROP) {
@@ -8323,7 +8333,7 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
                         return NULL;
                     ALE_SET_INDEX(ale, attributesMask);
                 }
-            }
+            }                    
 
             tt = js_GetToken(cx, ts);
             if (tt == TOK_RC)
@@ -8351,7 +8361,7 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
 
 #if JS_HAS_SHARP_VARS
       case TOK_DEFSHARP:
-        pn = UnaryNode::create(tc);
+        pn = NewParseNode(PN_UNARY, tc);
         if (!pn)
             return NULL;
         pn->pn_num = (jsint) CURRENT_TOKEN(ts).t_dval;
@@ -8377,7 +8387,7 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
 
       case TOK_USESHARP:
         /* Check for forward/dangling references at runtime, to allow eval. */
-        pn = NullaryNode::create(tc);
+        pn = NewParseNode(PN_NULLARY, tc);
         if (!pn)
             return NULL;
         if (!tc->ensureSharpSlots())
@@ -8429,7 +8439,7 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
       case TOK_XMLCOMMENT:
       case TOK_XMLPI:
 #endif
-        pn = NullaryNode::create(tc);
+        pn = NewParseNode(PN_NULLARY, tc);
         if (!pn)
             return NULL;
         pn->pn_atom = CURRENT_TOKEN(ts).t_atom;
@@ -8442,7 +8452,7 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
         break;
 
       case TOK_NAME:
-        pn = NameNode::create(CURRENT_TOKEN(ts).t_atom, tc);
+        pn = NewNameNode(cx, CURRENT_TOKEN(ts).t_atom, tc);
         if (!pn)
             return NULL;
         JS_ASSERT(CURRENT_TOKEN(ts).t_op == JSOP_NAME);
@@ -8579,7 +8589,7 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
       {
         JSObject *obj;
 
-        pn = NullaryNode::create(tc);
+        pn = NewParseNode(PN_NULLARY, tc);
         if (!pn)
             return NULL;
 
@@ -8603,7 +8613,7 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
       }
 
       case TOK_NUMBER:
-        pn = NullaryNode::create(tc);
+        pn = NewParseNode(PN_NULLARY, tc);
         if (!pn)
             return NULL;
         pn->pn_op = JSOP_DOUBLE;
@@ -8611,7 +8621,7 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
         break;
 
       case TOK_PRIMARY:
-        pn = NullaryNode::create(tc);
+        pn = NewParseNode(PN_NULLARY, tc);
         if (!pn)
             return NULL;
         pn->pn_op = CURRENT_TOKEN(ts).t_op;
@@ -8660,7 +8670,7 @@ ParenExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
             return NULL;
         }
         if (!pn1) {
-            pn1 = UnaryNode::create(tc);
+            pn1 = NewParseNode(PN_UNARY, tc);
             if (!pn1)
                 return NULL;
         }
