@@ -106,10 +106,10 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     // On x86_64, the upper 32 bits do not necessarily only contain the type.
     Operand ToUpper32(Operand base) {
         switch (base.kind()) {
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             return Operand(Register::FromCode(base.base()), base.disp() + 4);
 
-          case Operand::MEM_SCALE:
+          case Operand::SCALE:
             return Operand(Register::FromCode(base.base()), Register::FromCode(base.index()),
                            base.scale(), base.disp() + 4);
 
@@ -509,31 +509,19 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     }
 
     void branch32(Condition cond, const AbsoluteAddress &lhs, Imm32 rhs, Label *label) {
-        if (JSC::X86Assembler::isAddressImmediate(lhs.addr)) {
-            branch32(cond, Operand(lhs), rhs, label);
-        } else {
-            mov(ImmPtr(lhs.addr), ScratchReg);
-            branch32(cond, Address(ScratchReg, 0), rhs, label);
-        }
+        mov(ImmPtr(lhs.addr), ScratchReg);
+        branch32(cond, Address(ScratchReg, 0), rhs, label);
     }
     void branch32(Condition cond, const AbsoluteAddress &lhs, Register rhs, Label *label) {
-        if (JSC::X86Assembler::isAddressImmediate(lhs.addr)) {
-            branch32(cond, Operand(lhs), rhs, label);
-        } else {
-            mov(ImmPtr(lhs.addr), ScratchReg);
-            branch32(cond, Address(ScratchReg, 0), rhs, label);
-        }
+        mov(ImmPtr(lhs.addr), ScratchReg);
+        branch32(cond, Address(ScratchReg, 0), rhs, label);
     }
 
     // Specialization for AbsoluteAddress.
     void branchPtr(Condition cond, const AbsoluteAddress &addr, const Register &ptr, Label *label) {
         JS_ASSERT(ptr != ScratchReg);
-        if (JSC::X86Assembler::isAddressImmediate(addr.addr)) {
-            branchPtr(cond, Operand(addr), ptr, label);
-        } else {
-            mov(ImmPtr(addr.addr), ScratchReg);
-            branchPtr(cond, Operand(ScratchReg, 0x0), ptr, label);
-        }
+        mov(ImmPtr(addr.addr), ScratchReg);
+        branchPtr(cond, Operand(ScratchReg, 0x0), ptr, label);
     }
 
     void branchPrivatePtr(Condition cond, Address lhs, ImmPtr ptr, Label *label) {
@@ -605,12 +593,8 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         movq(imm, dest);
     }
     void loadPtr(const AbsoluteAddress &address, Register dest) {
-        if (JSC::X86Assembler::isAddressImmediate(address.addr)) {
-            movq(Operand(address), dest);
-        } else {
-            mov(ImmPtr(address.addr), ScratchReg);
-            movq(Operand(ScratchReg, 0x0), dest);
-        }
+        mov(ImmPtr(address.addr), ScratchReg);
+        movq(Operand(ScratchReg, 0x0), dest);
     }
     void loadPtr(const Address &address, Register dest) {
         movq(Operand(address), dest);
@@ -647,12 +631,8 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         movq(src, dest);
     }
     void storePtr(const Register &src, const AbsoluteAddress &address) {
-        if (JSC::X86Assembler::isAddressImmediate(address.addr)) {
-            movq(src, Operand(address));
-        } else {
-            mov(ImmPtr(address.addr), ScratchReg);
-            movq(src, Operand(ScratchReg, 0x0));
-        }
+        mov(ImmPtr(address.addr), ScratchReg);
+        movq(src, Operand(ScratchReg, 0x0));
     }
     void rshiftPtr(Imm32 imm, Register dest) {
         shrq(imm, dest);
@@ -1085,12 +1065,8 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     }
 
     void inc64(AbsoluteAddress dest) {
-        if (JSC::X86Assembler::isAddressImmediate(dest.addr)) {
-            addPtr(Imm32(1), Operand(dest));
-        } else {
-            mov(ImmPtr(dest.addr), ScratchReg);
-            addPtr(Imm32(1), Address(ScratchReg, 0));
-        }
+        mov(ImmPtr(dest.addr), ScratchReg);
+        addPtr(Imm32(1), Address(ScratchReg, 0));
     }
 
     // If source is a double, load it into dest. If source is int32,

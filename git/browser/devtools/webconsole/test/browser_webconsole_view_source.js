@@ -10,33 +10,37 @@ function test() {
   addTab(TEST_URI);
   browser.addEventListener("load", function onLoad() {
     browser.removeEventListener("load", onLoad, true);
-    openConsole(null, testViewSource);
+    openConsole(null, function(hud) {
+      executeSoon(function() {
+        testViewSource(hud);
+      });
+    });
   }, true);
 }
 
 function testViewSource(hud) {
   let button = content.document.querySelector("button");
+  button = XPCNativeWrapper.unwrap(button);
   ok(button, "we have the button on the page");
 
   expectUncaughtException();
-  EventUtils.sendMouseEvent({ type: "click" }, button, content);
+  EventUtils.sendMouseEvent({ type: "click" }, button, XPCNativeWrapper.unwrap(content));
 
-  waitForMessages({
-    webconsole: hud,
-    messages: [{
-      text: "fooBazBaz is not defined",
-      category: CATEGORY_JS,
-      severity: SEVERITY_ERROR,
-    }],
-  }).then(([result]) => {
-    let msg = [...result.matched][0];
-    ok(msg, "error message");
-    let locationNode = msg.querySelector(".location");
-    ok(locationNode, "location node");
+  waitForSuccess({
+    name: "find the location node",
+    validatorFn: function()
+    {
+      return hud.outputNode.querySelector(".webconsole-location");
+    },
+    successFn: function()
+    {
+      let locationNode = hud.outputNode.querySelector(".webconsole-location");
 
-    Services.ww.registerNotification(observer);
+      Services.ww.registerNotification(observer);
 
-    EventUtils.sendMouseEvent({ type: "click" }, locationNode);
+      EventUtils.sendMouseEvent({ type: "click" }, locationNode);
+    },
+    failureFn: finishTest,
   });
 }
 

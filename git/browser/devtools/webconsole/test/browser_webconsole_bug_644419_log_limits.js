@@ -156,16 +156,14 @@ function loadImage() {
   waitForMessages({
     webconsole: hud,
     messages: [{
-      text: "test-image.png",
-      url: "test-image.png?_fubar=10",
+      text: "test-image.png?_fubar=10",
       category: CATEGORY_NETWORK,
       severity: SEVERITY_LOG,
     }],
   }).then(() => {
-    let msgs = outputNode.querySelectorAll(".message[category=network]");
-    is(msgs.length, 10, "number of network messages");
-    isnot(msgs[0].url.indexOf("fubar=1"), -1, "first network message");
-    isnot(msgs[1].url.indexOf("fubar=2"), -1, "second network message");
+    testLogEntry(outputNode, "test-image.png?_fubar=0", "first message is pruned", false, true);
+    findLogEntry("test-image.png?_fubar=1");
+    // Check if the sentinel entry is still there.
     findLogEntry("testing Net limits");
 
     Services.prefs.clearUserPref("devtools.hud.loglimit.network");

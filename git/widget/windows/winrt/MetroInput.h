@@ -264,6 +264,7 @@ private:
 
   // Async event callbacks
   void DeliverNextQueuedEventIgnoreStatus();
+  nsEventStatus DeliverNextQueuedEvent();
   nsEventStatus DeliverNextQueuedTouchEvent();
 
   // Misc. specialty async callbacks

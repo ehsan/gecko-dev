@@ -49,7 +49,7 @@ class gfxUserFontData;
 class gfxShapedText;
 class gfxShapedWord;
 class gfxSVGGlyphs;
-class gfxTextContextPaint;
+class gfxTextObjectPaint;
 
 class nsILanguageAtomService;
 
@@ -228,7 +228,35 @@ class gfxFontEntry {
 public:
     NS_INLINE_DECL_REFCOUNTING(gfxFontEntry)
 
-    gfxFontEntry(const nsAString& aName, bool aIsStandardFace = false);
+    gfxFontEntry(const nsAString& aName, bool aIsStandardFace = false) :
+        mName(aName), mItalic(false), mFixedPitch(false),
+        mIsProxy(false), mIsValid(true), 
+        mIsBadUnderlineFont(false), mIsUserFont(false),
+        mIsLocalUserFont(false), mStandardFace(aIsStandardFace),
+        mSymbolFont(false),
+        mIgnoreGDEF(false),
+        mIgnoreGSUB(false),
+        mSVGInitialized(false),
+        mHasSpaceFeaturesInitialized(false),
+        mHasSpaceFeatures(false),
+        mHasSpaceFeaturesKerning(false),
+        mHasSpaceFeaturesNonKerning(false),
+        mHasSpaceFeaturesSubDefault(false),
+        mCheckedForGraphiteTables(false),
+        mHasCmapTable(false),
+        mGrFaceInitialized(false),
+        mWeight(500), mStretch(NS_FONT_STRETCH_NORMAL),
+        mUVSOffset(0), mUVSData(nullptr),
+        mUserFontData(nullptr),
+        mSVGGlyphs(nullptr),
+        mLanguageOverride(NO_FONT_LANGUAGE_OVERRIDE),
+        mHBFace(nullptr),
+        mGrFace(nullptr),
+        mGrFaceRefCnt(0)
+    {
+        memset(&mHasSpaceFeaturesSub, 0, sizeof(mHasSpaceFeaturesSub));
+    }
+
     virtual ~gfxFontEntry();
 
     // unique name for the face, *not* the family; not necessarily the
@@ -296,15 +324,12 @@ public:
     // can be safely dereferenced.
     virtual nsresult ReadCMAP();
 
-    bool TryGetSVGData(gfxFont* aFont);
+    bool TryGetSVGData();
     bool HasSVGGlyph(uint32_t aGlyphId);
     bool GetSVGGlyphExtents(gfxContext *aContext, uint32_t aGlyphId,
                             gfxRect *aResult);
     bool RenderSVGGlyph(gfxContext *aContext, uint32_t aGlyphId, int aDrawMode,
-                        gfxTextContextPaint *aContextPaint);
-    // Call this when glyph geometry or rendering has changed
-    // (e.g. animated SVG glyphs)
-    void NotifyGlyphsChanged();
+                        gfxTextObjectPaint *aObjectPaint);
 
     virtual bool MatchesGenericFamily(const nsACString& aGeneric) const {
         return true;
@@ -389,10 +414,6 @@ public:
     // Caller must call gfxFontEntry::ReleaseGrFace when finished with it.
     gr_face* GetGrFace();
     virtual void ReleaseGrFace(gr_face* aFace);
-
-    // Called to notify that aFont is being destroyed. Needed when we're tracking
-    // the fonts belonging to this font entry.
-    void NotifyFontDestroyed(gfxFont* aFont);
     
     // For memory reporting
     virtual void SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
@@ -434,10 +455,9 @@ public:
     nsRefPtr<gfxCharacterMap> mCharacterMap;
     uint32_t         mUVSOffset;
     nsAutoArrayPtr<uint8_t> mUVSData;
-    nsAutoPtr<gfxUserFontData> mUserFontData;
-    nsAutoPtr<gfxSVGGlyphs> mSVGGlyphs;
-    // list of gfxFonts that are using SVG glyphs
-    nsTArray<gfxFont*> mFontsUsingSVGGlyphs;
+    gfxUserFontData* mUserFontData;
+    gfxSVGGlyphs    *mSVGGlyphs;
+
     nsTArray<gfxFontFeature> mFeatureSettings;
     uint32_t         mLanguageOverride;
 
@@ -448,7 +468,34 @@ protected:
     friend class gfxFontFamily;
     friend class gfxSingleFaceMacFontFamily;
 
-    gfxFontEntry();
+    gfxFontEntry() :
+        mItalic(false), mFixedPitch(false),
+        mIsProxy(false), mIsValid(true), 
+        mIsBadUnderlineFont(false),
+        mIsUserFont(false),
+        mIsLocalUserFont(false),
+        mStandardFace(false),
+        mSymbolFont(false),
+        mIgnoreGDEF(false),
+        mIgnoreGSUB(false),
+        mSVGInitialized(false),
+        mHasSpaceFeaturesInitialized(false),
+        mHasSpaceFeatures(false),
+        mHasSpaceFeaturesKerning(false),
+        mHasSpaceFeaturesNonKerning(false),
+        mHasSpaceFeaturesSubDefault(false),
+        mCheckedForGraphiteTables(false),
+        mHasCmapTable(false),
+        mGrFaceInitialized(false),
+        mWeight(500), mStretch(NS_FONT_STRETCH_NORMAL),
+        mUVSOffset(0), mUVSData(nullptr),
+        mUserFontData(nullptr),
+        mSVGGlyphs(nullptr),
+        mLanguageOverride(NO_FONT_LANGUAGE_OVERRIDE),
+        mHBFace(nullptr),
+        mGrFace(nullptr),
+        mGrFaceRefCnt(0)
+    { }
 
     virtual gfxFont *CreateFontInstance(const gfxFontStyle *aFontStyle, bool aNeedsBold) {
         NS_NOTREACHED("oops, somebody didn't override CreateFontInstance");
@@ -1113,10 +1160,6 @@ public:
 
     enum { INVALID_WIDTH = 0xFFFF };
 
-    void NotifyGlyphsChanged() {
-        mTightGlyphExtents.Clear();
-    }
-
     // returns INVALID_WIDTH => not a contained glyph
     // Otherwise the glyph has no before-bearing or vertical bearings,
     // and the result is its width measured from the baseline origin, in
@@ -1512,7 +1555,7 @@ public:
      * that there is no spacing.
      * @param aDrawMode specifies whether the fill or stroke of the glyph should be
      * drawn, or if it should be drawn into the current path
-     * @param aContextPaint information about how to construct the fill and
+     * @param aObjectPaint information about how to construct the fill and
      * stroke pattern. Can be nullptr if we are not stroking the text, which
      * indicates that the current source from aContext should be used for filling
      * 
@@ -1525,7 +1568,7 @@ public:
      */
     virtual void Draw(gfxTextRun *aTextRun, uint32_t aStart, uint32_t aEnd,
                       gfxContext *aContext, DrawMode aDrawMode, gfxPoint *aBaselineOrigin,
-                      Spacing *aSpacing, gfxTextContextPaint *aContextPaint,
+                      Spacing *aSpacing, gfxTextObjectPaint *aObjectPaint,
                       gfxTextRunDrawCallbacks *aCallbacks);
 
     /**
@@ -1652,9 +1695,6 @@ public:
         }
     }
 
-    // Glyph rendering/geometry has changed, so invalidate data as necessary.
-    void NotifyGlyphsChanged();
-
     virtual void SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
                                      FontCacheSizes*   aSizes) const;
     virtual void SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
@@ -1678,39 +1718,7 @@ public:
         return mKerningSet && !mKerningEnabled;
     }
 
-    /**
-     * Subclass this object to be notified of glyph changes. Delete the object
-     * when no longer needed.
-     */
-    class GlyphChangeObserver {
-    public:
-        virtual ~GlyphChangeObserver()
-        {
-            if (mFont) {
-                mFont->RemoveGlyphChangeObserver(this);
-            }
-        }
-        // This gets called when the gfxFont dies.
-        void ForgetFont() { mFont = nullptr; }
-        virtual void NotifyGlyphsChanged() = 0;
-    protected:
-        GlyphChangeObserver(gfxFont *aFont) : mFont(aFont)
-        {
-            mFont->AddGlyphChangeObserver(this);
-        }
-        gfxFont* mFont;
-    };
-    friend class GlyphChangeObserver;
-
-    bool GlyphsMayChange()
-    {
-        // Currently only fonts with SVG glyphs can have animated glyphs
-        return mFontEntry->TryGetSVGData(this);
-    }
-
 protected:
-    void AddGlyphChangeObserver(GlyphChangeObserver *aObserver);
-    void RemoveGlyphChangeObserver(GlyphChangeObserver *aObserver);
 
     bool HasSubstitutionRulesWithSpaceLookups(int32_t aRunScript) {
         NS_ASSERTION(GetFontEntry()->mHasSpaceFeaturesInitialized,
@@ -1917,7 +1925,6 @@ protected:
     nsExpirationState          mExpirationState;
     gfxFontStyle               mStyle;
     nsAutoTArray<gfxGlyphExtents*,1> mGlyphExtentsArray;
-    nsAutoPtr<nsTHashtable<nsPtrHashKey<GlyphChangeObserver> > > mGlyphChangeObservers;
 
     gfxFloat                   mAdjustedSize;
 
@@ -1962,9 +1969,9 @@ protected:
     void SanitizeMetrics(gfxFont::Metrics *aMetrics, bool aIsBadUnderlineFont);
 
     bool RenderSVGGlyph(gfxContext *aContext, gfxPoint aPoint, DrawMode aDrawMode,
-                        uint32_t aGlyphId, gfxTextContextPaint *aContextPaint);
+                        uint32_t aGlyphId, gfxTextObjectPaint *aObjectPaint);
     bool RenderSVGGlyph(gfxContext *aContext, gfxPoint aPoint, DrawMode aDrawMode,
-                        uint32_t aGlyphId, gfxTextContextPaint *aContextPaint,
+                        uint32_t aGlyphId, gfxTextObjectPaint *aObjectPaint,
                         gfxTextRunDrawCallbacks *aCallbacks,
                         bool& aEmittedGlyphs);
 
@@ -2818,7 +2825,7 @@ public:
               gfxFont::DrawMode aDrawMode,
               uint32_t aStart, uint32_t aLength,
               PropertyProvider *aProvider,
-              gfxFloat *aAdvanceWidth, gfxTextContextPaint *aContextPaint,
+              gfxFloat *aAdvanceWidth, gfxTextObjectPaint *aObjectPaint,
               gfxTextRunDrawCallbacks *aCallbacks = nullptr);
 
     /**
@@ -3245,7 +3252,7 @@ private:
     // **** drawing helper ****
     void DrawGlyphs(gfxFont *aFont, gfxContext *aContext,
                     gfxFont::DrawMode aDrawMode, gfxPoint *aPt,
-                    gfxTextContextPaint *aContextPaint, uint32_t aStart,
+                    gfxTextObjectPaint *aObjectPaint, uint32_t aStart,
                     uint32_t aEnd, PropertyProvider *aProvider,
                     uint32_t aSpacingStart, uint32_t aSpacingEnd,
                     gfxTextRunDrawCallbacks *aCallbacks);

@@ -390,10 +390,8 @@ interface TestExampleInterface {
   void passNullableUnionWithDefaultValue12(optional (unrestricted float or DOMString)? arg = null);
 
   //(CanvasPattern or CanvasGradient) receiveUnion();
-  //(object or long) receiveUnion2();
   //(CanvasPattern? or CanvasGradient) receiveUnionContainingNull();
   //(CanvasPattern or CanvasGradient)? receiveNullableUnion();
-  //(object or long)? receiveNullableUnion2();
 
   //attribute (CanvasPattern or CanvasGradient) writableUnion;
   //attribute (CanvasPattern? or CanvasGradient) writableUnionContainingNull;

@@ -8,6 +8,7 @@
 
 #include <ostream>
 #include "GeckoProfilerImpl.h"
+#include "JSAObjectBuilder.h"
 #include "platform.h"
 #include "mozilla/Mutex.h"
 
@@ -67,10 +68,10 @@ public:
   friend std::ostream& operator<<(std::ostream& stream,
                                   const ThreadProfile& profile);
   void ToStreamAsJSON(std::ostream& stream);
-  JSObject *ToJSObject(JSContext *aCx);
+  JSCustomObject *ToJSObject(JSContext *aCx);
   PseudoStack* GetPseudoStack();
   mozilla::Mutex* GetMutex();
-  template <typename Builder> void BuildJSObject(Builder& b, typename Builder::ObjectHandle profile);
+  void BuildJSObject(JSAObjectBuilder& b, JSCustomObject* profile);
 
   bool IsMainThread() const { return mIsMainThread; }
   const char* Name() const { return mName; }

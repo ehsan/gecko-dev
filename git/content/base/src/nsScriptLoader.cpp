@@ -775,7 +775,7 @@ nsScriptLoader::AttemptAsyncScriptParse(nsScriptLoadRequest* aRequest)
   JS::Rooted<JSObject*> global(cx, unrootedGlobal);
 
   JS::CompileOptions options(cx);
-  FillCompileOptionsForRequest(aRequest, global, &options);
+  FillCompileOptionsForRequest(aRequest, &options);
 
   if (!JS::CanCompileOffThread(cx, options)) {
     return NS_ERROR_FAILURE;
@@ -915,9 +915,7 @@ nsIScriptContext *
 nsScriptLoader::GetScriptContext(JSObject **aGlobal)
 {
   nsPIDOMWindow *pwin = mDocument->GetInnerWindow();
-  if (!pwin) {
-    return nullptr;
-  }
+  NS_ASSERTION(pwin, "shouldn't be called with a null inner window");
 
   nsCOMPtr<nsIScriptGlobalObject> globalObject = do_QueryInterface(pwin);
   NS_ASSERTION(globalObject, "windows must be global objects");
@@ -934,7 +932,6 @@ nsScriptLoader::GetScriptContext(JSObject **aGlobal)
 
 void
 nsScriptLoader::FillCompileOptionsForRequest(nsScriptLoadRequest *aRequest,
-                                             JS::Handle<JSObject *> scopeChain,
                                              JS::CompileOptions *aOptions)
 {
   // It's very important to use aRequest->mURI, not the final URI of the channel
@@ -943,7 +940,6 @@ nsScriptLoader::FillCompileOptionsForRequest(nsScriptLoadRequest *aRequest,
 
   aOptions->setFileAndLine(aRequest->mURL.get(), aRequest->mLineNo);
   aOptions->setVersion(JSVersion(aRequest->mJSVersion));
-  aOptions->setCompileAndGo(JS_IsGlobalObject(scopeChain));
   if (aRequest->mOriginPrincipal) {
     aOptions->setOriginPrincipals(nsJSPrincipals::get(aRequest->mOriginPrincipal));
   }
@@ -992,7 +988,7 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
   JSVersion version = JSVersion(aRequest->mJSVersion);
   if (version != JSVERSION_UNKNOWN) {
     JS::CompileOptions options(cx);
-    FillCompileOptionsForRequest(aRequest, global, &options);
+    FillCompileOptionsForRequest(aRequest, &options);
     rv = context->EvaluateString(aScript, global,
                                  options, /* aCoerceToString = */ false, nullptr,
                                  aOffThreadToken);

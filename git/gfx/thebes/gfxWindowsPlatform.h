@@ -246,8 +246,7 @@ public:
         kWindowsServer2003 = 0x50002,
         kWindowsVista = 0x60000,
         kWindows7 = 0x60001,
-        kWindows8 = 0x60002,
-        kWindows8_1 = 0x60003
+        kWindows8 = 0x60002
     };
 
     static int32_t WindowsOSVersion(int32_t *aBuildNum = nullptr);

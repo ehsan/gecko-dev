@@ -91,10 +91,9 @@ void TableTicker::HandleSaveRequest()
   NS_DispatchToMainThread(runnable);
 }
 
-template <typename Builder>
-typename Builder::Object TableTicker::GetMetaJSCustomObject(Builder& b)
+JSCustomObject* TableTicker::GetMetaJSCustomObject(JSAObjectBuilder& b)
 {
-  typename Builder::RootedObject meta(b.context(), b.CreateObject());
+  JSCustomObject *meta = b.CreateObject();
 
   b.DefineProperty(meta, "version", 2);
   b.DefineProperty(meta, "interval", interval());
@@ -160,47 +159,42 @@ void TableTicker::ToStreamAsJSON(std::ostream& stream)
 JSObject* TableTicker::ToJSObject(JSContext *aCx)
 {
   JSObjectBuilder b(aCx);
-  JS::RootedObject profile(aCx, b.CreateObject());
+  JSCustomObject* profile = b.CreateObject();
   BuildJSObject(b, profile);
-  return profile;
+  JSObject* jsProfile = b.GetJSObject(profile);
+
+  return jsProfile;
 }
 
-template <typename Builder>
 struct SubprocessClosure {
-  SubprocessClosure(Builder *aBuilder, typename Builder::ArrayHandle aThreads)
-    : mBuilder(aBuilder), mThreads(aThreads)
-  {}
-
-  Builder* mBuilder;
-  typename Builder::ArrayHandle mThreads;
+  JSAObjectBuilder* mBuilder;
+  JSCustomArray* mThreads;
 };
 
-template <typename Builder>
 void SubProcessCallback(const char* aProfile, void* aClosure)
 {
   // Called by the observer to get their profile data included
   // as a sub profile
-  SubprocessClosure<Builder>* closure = (SubprocessClosure<Builder>*)aClosure;
+  SubprocessClosure* closure = (SubprocessClosure*)aClosure;
 
   closure->mBuilder->ArrayPush(closure->mThreads, aProfile);
 }
 
 #if defined(SPS_OS_android) && !defined(MOZ_WIDGET_GONK)
-template <typename Builder>
 static
-typename Builder::Object BuildJavaThreadJSObject(Builder& b)
+JSCustomObject* BuildJavaThreadJSObject(JSAObjectBuilder& b)
 {
-  typename Builder::RootedObject javaThread(b.context(), b.CreateObject());
+  JSCustomObject* javaThread = b.CreateObject();
   b.DefineProperty(javaThread, "name", "Java Main Thread");
 
-  typename Builder::RootedArray samples(b.context(), b.CreateArray());
+  JSCustomArray *samples = b.CreateArray();
   b.DefineProperty(javaThread, "samples", samples);
 
   int sampleId = 0;
   while (true) {
     int frameId = 0;
-    typename Builder::RootedObject sample(b.context());
-    typename Builder::RootedArray frames(b.context());
+    JSCustomObject *sample = nullptr;
+    JSCustomArray *frames = nullptr;
     while (true) {
       nsCString result;
       bool hasFrame = AndroidBridge::Bridge()->GetFrameNameJavaProfiling(0, sampleId, frameId, result);
@@ -219,7 +213,7 @@ typename Builder::Object BuildJavaThreadJSObject(Builder& b)
         double sampleTime = AndroidBridge::Bridge()->GetSampleTimeJavaProfiling(0, sampleId);
         b.DefineProperty(sample, "time", sampleTime);
       }
-      typename Builder::RootedObject frame(b.context(), b.CreateObject());
+      JSCustomObject *frame = b.CreateObject();
       b.DefineProperty(frame, "location", result.BeginReading());
       b.ArrayPush(frames, frame);
       frameId++;
@@ -234,18 +228,17 @@ typename Builder::Object BuildJavaThreadJSObject(Builder& b)
 }
 #endif
 
-template <typename Builder>
-void TableTicker::BuildJSObject(Builder& b, typename Builder::ObjectHandle profile)
+void TableTicker::BuildJSObject(JSAObjectBuilder& b, JSCustomObject* profile)
 {
   // Put shared library info
   b.DefineProperty(profile, "libs", GetSharedLibraryInfoString().c_str());
 
   // Put meta data
-  typename Builder::RootedObject meta(b.context(), GetMetaJSCustomObject(b));
+  JSCustomObject *meta = GetMetaJSCustomObject(b);
   b.DefineProperty(profile, "meta", meta);
 
   // Lists the samples for each ThreadProfile
-  typename Builder::RootedArray threads(b.context(), b.CreateArray());
+  JSCustomArray *threads = b.CreateArray();
   b.DefineProperty(profile, "threads", threads);
 
   SetPaused(true);
@@ -260,7 +253,7 @@ void TableTicker::BuildJSObject(Builder& b, typename Builder::ObjectHandle profi
 
       MutexAutoLock lock(*sRegisteredThreads->at(i)->Profile()->GetMutex());
 
-      typename Builder::RootedObject threadSamples(b.context(), b.CreateObject());
+      JSCustomObject* threadSamples = b.CreateObject();
       sRegisteredThreads->at(i)->Profile()->BuildJSObject(b, threadSamples);
       b.ArrayPush(threads, threadSamples);
     }
@@ -270,7 +263,7 @@ void TableTicker::BuildJSObject(Builder& b, typename Builder::ObjectHandle profi
   if (ProfileJava()) {
     AndroidBridge::Bridge()->PauseJavaProfiling();
 
-    typename Builder::RootedObject javaThread(b.context(), BuildJavaThreadJSObject(b));
+    JSCustomObject* javaThread = BuildJavaThreadJSObject(b);
     b.ArrayPush(threads, javaThread);
 
     AndroidBridge::Bridge()->UnpauseJavaProfiling();
@@ -281,10 +274,12 @@ void TableTicker::BuildJSObject(Builder& b, typename Builder::ObjectHandle profi
 
   // Send a event asking any subprocesses (plugins) to
   // give us their information
-  SubprocessClosure<Builder> closure(&b, threads);
+  SubprocessClosure closure;
+  closure.mBuilder = &b;
+  closure.mThreads = threads;
   nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
   if (os) {
-    nsRefPtr<ProfileSaveEvent> pse = new ProfileSaveEvent(SubProcessCallback<Builder>, &closure);
+    nsRefPtr<ProfileSaveEvent> pse = new ProfileSaveEvent(SubProcessCallback, &closure);
     os->NotifyObservers(pse, "profiler-subprocess", nullptr);
   }
 }

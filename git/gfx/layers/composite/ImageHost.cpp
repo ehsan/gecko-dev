@@ -241,8 +241,7 @@ DeprecatedImageHostSingle::MakeDeprecatedTextureHost(TextureIdentifier aTextureI
 {
   mDeprecatedTextureHost = DeprecatedTextureHost::CreateDeprecatedTextureHost(aSurface.type(),
                                                 mTextureInfo.mDeprecatedTextureHostFlags,
-                                                mTextureInfo.mTextureFlags,
-                                                this);
+                                                mTextureInfo.mTextureFlags);
 
   NS_ASSERTION(mDeprecatedTextureHost, "Failed to create texture host");
 

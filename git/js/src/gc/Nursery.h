@@ -44,10 +44,10 @@ class BaselineCompiler;
 class Nursery
 {
   public:
-    static const int NumNurseryChunks = 16;
-    static const int LastNurseryChunk = NumNurseryChunks - 1;
-    static const size_t Alignment = gc::ChunkSize;
-    static const size_t NurserySize = gc::ChunkSize * NumNurseryChunks;
+    const static int NumNurseryChunks = 16;
+    const static int LastNurseryChunk = NumNurseryChunks - 1;
+    const static size_t Alignment = gc::ChunkSize;
+    const static size_t NurserySize = gc::ChunkSize * NumNurseryChunks;
 
     explicit Nursery(JSRuntime *rt)
       : runtime_(rt),
@@ -138,8 +138,8 @@ class Nursery
     HugeSlotsSet hugeSlots;
 
     /* The marking bitmap for the fallback marker. */
-    static const size_t ThingAlignment = sizeof(JS::Value);
-    static const size_t FallbackBitmapBits = NurserySize / ThingAlignment;
+    const static size_t ThingAlignment = sizeof(JS::Value);
+    const static size_t FallbackBitmapBits = NurserySize / ThingAlignment;
     BitArray<FallbackBitmapBits> fallbackBitmap;
 
 #ifdef DEBUG
@@ -147,16 +147,16 @@ class Nursery
      * In DEBUG builds, these bytes indicate the state of an unused segment of
      * nursery-allocated memory.
      */
-    static const uint8_t FreshNursery = 0x2a;
-    static const uint8_t SweptNursery = 0x2b;
-    static const uint8_t AllocatedThing = 0x2c;
+    const static uint8_t FreshNursery = 0x2a;
+    const static uint8_t SweptNursery = 0x2b;
+    const static uint8_t AllocatedThing = 0x2c;
 #endif
 
     /* The maximum number of slots allowed to reside inline in the nursery. */
-    static const size_t MaxNurserySlots = 100;
+    const static size_t MaxNurserySlots = 100;
 
     /* The amount of space in the mapped nursery available to allocations. */
-    static const size_t NurseryChunkUsableSize = gc::ChunkSize - sizeof(JSRuntime *);
+    const static size_t NurseryChunkUsableSize = gc::ChunkSize - sizeof(JSRuntime *);
 
     struct NurseryChunkLayout {
         char data[NurseryChunkUsableSize];

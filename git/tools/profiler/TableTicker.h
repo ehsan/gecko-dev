@@ -157,7 +157,7 @@ class TableTicker: public Sampler {
 
   void ToStreamAsJSON(std::ostream& stream);
   virtual JSObject *ToJSObject(JSContext *aCx);
-  template <typename Builder> typename Builder::Object GetMetaJSCustomObject(Builder& b);
+  JSCustomObject *GetMetaJSCustomObject(JSAObjectBuilder& b);
 
   bool HasUnwinderThread() const { return mUnwinderThread; }
   bool ProfileJS() const { return mProfileJS; }
@@ -176,7 +176,7 @@ protected:
   // Not implemented on platforms which do not support backtracing
   void doNativeBacktrace(ThreadProfile &aProfile, TickSample* aSample);
 
-  template <typename Builder> void BuildJSObject(Builder& b, typename Builder::ObjectHandle profile);
+  void BuildJSObject(JSAObjectBuilder& b, JSCustomObject* profile);
 
   // This represent the application's main thread (SAMPLER_INIT)
   ThreadProfile* mPrimaryThreadProfile;

@@ -48,7 +48,8 @@ if (Services.prefs.getBoolPref("browser.tabs.remote")) {
 
 let AboutHomeListener = {
   init: function(chromeGlobal) {
-    chromeGlobal.addEventListener('AboutHomeLoad', () => this.onPageLoad(), false, true);
+    let self = this;
+    chromeGlobal.addEventListener('AboutHomeLoad', function(e) { self.onPageLoad(); }, false, true);
   },
 
   handleEvent: function(aEvent) {
