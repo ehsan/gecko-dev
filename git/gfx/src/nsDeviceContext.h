@@ -17,7 +17,6 @@
 #include "nsISupports.h"                // for NS_INLINE_DECL_REFCOUNTING
 #include "nsMathUtils.h"                // for NS_round
 #include "nscore.h"                     // for PRUnichar, nsAString
-#include "mozilla/AppUnits.h"           // for AppUnits
 
 class gfxASurface;
 class gfxUserFontSet;
@@ -66,7 +65,7 @@ public:
      * Gets the number of app units in one CSS pixel; this number is global,
      * not unique to each device context.
      */
-    static int32_t AppUnitsPerCSSPixel() { return mozilla::AppUnitsPerCSSPixel(); }
+    static int32_t AppUnitsPerCSSPixel() { return 60; }
 
     /**
      * Gets the number of app units in one device pixel; this number

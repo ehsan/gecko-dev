@@ -510,9 +510,7 @@ var SelectionHandler = {
       // Remove our listener before we clear the selection
       selection.QueryInterface(Ci.nsISelectionPrivate).removeSelectionListener(this);
       // Clear selection without clearing the anchorNode or focusNode
-      if (selection.rangeCount != 0) {
-        selection.collapseToStart();
-      }
+      selection.collapseToStart();
     }
   },
 

@@ -536,8 +536,6 @@ interface TestInterface {
   void dontEnforceRangeOrClamp(byte arg);
   void doEnforceRange([EnforceRange] byte arg);
   void doClamp([Clamp] byte arg);
-  [EnforceRange] attribute byte enforcedByte;
-  [Clamp] attribute byte clampedByte;
 
   // Typedefs
   const myLong myLongConstant = 5;
@@ -709,8 +707,6 @@ dictionary Dict : ParentDict {
   long a;
   long b = 8;
   long z = 9;
-  [EnforceRange] unsigned long enforcedUnsignedLong;
-  [Clamp] unsigned long clampedUnsignedLong;
   DOMString str;
   DOMString empty = "";
   TestEnum otherEnum = "b";
@@ -740,8 +736,6 @@ dictionary Dict : ParentDict {
   unrestricted double  negativeInfUrDouble = -Infinity;
   unrestricted double  nanUrDouble = NaN;
 
-  (float or DOMString) floatOrString = "str";
-
   ArrayBuffer arrayBuffer;
   ArrayBuffer? nullableArrayBuffer;
   Uint8Array uint8Array;
@@ -770,7 +764,6 @@ dictionary DictContainingSequence {
   sequence<object?>? ourSequence7;
   sequence<object>? ourSequence8 = null;
   sequence<object?>? ourSequence9 = null;
-  sequence<(float or DOMString)> ourSequence10;
 };
 
 dictionary DictForConstructor {

@@ -49,7 +49,7 @@ static eNormalLineHeightControl sNormalLineHeightControl = eUninitialized;
 // use for measuring things.
 nsHTMLReflowState::nsHTMLReflowState(nsPresContext*       aPresContext,
                                      nsIFrame*            aFrame,
-                                     nsRenderingContext*  aRenderingContext,
+                                     nsRenderingContext* aRenderingContext,
                                      const nsSize&        aAvailableSpace,
                                      uint32_t             aFlags)
   : nsCSSOffsetState(aFrame, aRenderingContext)
@@ -72,9 +72,7 @@ nsHTMLReflowState::nsHTMLReflowState(nsPresContext*       aPresContext,
     mFlags.mDummyParentReflowState = true;
   }
 
-  if (!(aFlags & CALLER_WILL_INIT)) {
-    Init(aPresContext);
-  }
+  Init(aPresContext);
 }
 
 static bool CheckNextInFlowParenthood(nsIFrame* aFrame, nsIFrame* aParent)
@@ -123,7 +121,6 @@ FontSizeInflationListMarginAdjustment(const nsIFrame* aFrame)
 
   return 0;
 }
-
 // Initialize a reflow state for a child frame's reflow. Some state
 // is copied from the parent reflow state; the remaining state is
 // computed.
@@ -133,7 +130,7 @@ nsHTMLReflowState::nsHTMLReflowState(nsPresContext*           aPresContext,
                                      const nsSize&            aAvailableSpace,
                                      nscoord                  aContainingBlockWidth,
                                      nscoord                  aContainingBlockHeight,
-                                     uint32_t                 aFlags)
+                                     bool                     aInit)
   : nsCSSOffsetState(aFrame, aParentReflowState.rendContext)
   , mBlockDelta(0)
   , mReflowDepth(aParentReflowState.mReflowDepth + 1)
@@ -178,15 +175,11 @@ nsHTMLReflowState::nsHTMLReflowState(nsPresContext*           aPresContext,
   mFlags.mDummyParentReflowState = false;
 
   mDiscoveredClearance = nullptr;
-  mPercentHeightObserver = (aParentReflowState.mPercentHeightObserver &&
-                            aParentReflowState.mPercentHeightObserver->NeedsToObserve(*this))
+  mPercentHeightObserver = (aParentReflowState.mPercentHeightObserver && 
+                            aParentReflowState.mPercentHeightObserver->NeedsToObserve(*this)) 
                            ? aParentReflowState.mPercentHeightObserver : nullptr;
 
-  if (aFlags & DUMMY_PARENT_REFLOW_STATE) {
-    mFlags.mDummyParentReflowState = true;
-  }
-
-  if (!(aFlags & CALLER_WILL_INIT)) {
+  if (aInit) {
     Init(aPresContext, aContainingBlockWidth, aContainingBlockHeight);
   }
 }
@@ -1845,7 +1838,7 @@ nsHTMLReflowState::InitConstraints(nsPresContext* aPresContext,
 
   // If this is a reflow root, then set the computed width and
   // height equal to the available space
-  if (nullptr == parentReflowState || mFlags.mDummyParentReflowState) {
+  if (nullptr == parentReflowState) {
     // XXXldb This doesn't mean what it used to!
     InitOffsets(aContainingBlockWidth,
                 VerticalOffsetPercentBasis(frame, aContainingBlockWidth,

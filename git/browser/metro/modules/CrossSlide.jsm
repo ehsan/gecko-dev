@@ -240,20 +240,14 @@ CrossSlideHandler.prototype = {
    */
   _fireProgressEvent: function CrossSliding_fireEvent(aState, aEvent) {
     if (!this.drag)
-      return;
+        return;
     let event = this.node.ownerDocument.createEvent("Events");
-    let crossAxisName = this.drag.crossAxis;
+    let crossAxis = this.drag.crossAxis;
     event.initEvent("MozCrossSliding", true, true);
     event.crossSlidingState = aState;
-    if ('position' in this.drag) {
-      event.position = this.drag.position;
-      if (crossAxisName) {
-        event.direction = crossAxisName;
-        if('origin' in this.drag) {
-          event.delta = this.drag.position[crossAxisName] - this.drag.origin[crossAxisName];
-        }
-      }
-    }
+    event.position = this.drag.position;
+    event.direction = this.drag.crossAxis;
+    event.delta = this.drag.position[crossAxis] - this.drag.origin[crossAxis];
     aEvent.target.dispatchEvent(event);
   },
 
