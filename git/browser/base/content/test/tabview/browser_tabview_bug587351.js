@@ -1,6 +1,3 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set sw=2 ts=8 et tw=80 : */
-
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -14,16 +11,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is mozilla.org code.
+ * The Original Code is a test for bug 587351.
  *
  * The Initial Developer of the Original Code is
- *  The Mozilla Foundation
- * Portions created by the Initial Developer are Copyright (C) 2009
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Jason Duell <jduell.mcbugs@gmail.com>
- *   Honza Bambas <honzab@firemni.cz>
+ * Raymond Lee <raymond@appcoast.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -39,49 +35,38 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozilla_net_HttpChannelCallbackWrapper_h
-#define mozilla_net_HttpChannelCallbackWrapper_h
+let newTab;
 
-#include "nsHttp.h"
-#include "mozilla/net/NeckoCommon.h"
-#include "PHttpChannelParams.h"
-#include "nsIParentChannel.h"
-#include "nsIInterfaceRequestor.h"
-#include "nsIChannelEventSink.h"
-#include "nsIRedirectResultListener.h"
-#include "nsIProgressEventSink.h"
+function test() {
+  waitForExplicitFinish();
 
-using namespace mozilla::dom;
+  newTab = gBrowser.addTab();
 
-class nsICacheEntryDescriptor;
+  window.addEventListener("tabviewshown", onTabViewWindowLoaded, false);
+  TabView.toggle();
+}
 
-namespace mozilla {
-namespace net {
+function onTabViewWindowLoaded() {
+  window.removeEventListener("tabviewshown", onTabViewWindowLoaded, false);
 
-class HttpChannelParent;
+  let contentWindow = document.getElementById("tab-view").contentWindow;
+  is(contentWindow.GroupItems.groupItems.length, 1, "Has one group only");
 
-class HttpChannelParentListener : public nsIInterfaceRequestor
-                                 , public nsIChannelEventSink
-                                 , public nsIRedirectResultListener
-                                 , public nsIStreamListener
-{
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIINTERFACEREQUESTOR
-  NS_DECL_NSICHANNELEVENTSINK
-  NS_DECL_NSIREDIRECTRESULTLISTENER
-  NS_DECL_NSIREQUESTOBSERVER
-  NS_DECL_NSISTREAMLISTENER
+  let tabItems = contentWindow.GroupItems.groupItems[0].getChildren();
+  ok(tabItems.length, 2, "There are two tabItems in the group");
 
-  HttpChannelParentListener(HttpChannelParent* aInitialChannel);
-  virtual ~HttpChannelParentListener();
+  is(tabItems[1].tab, newTab, "The second tabItem is linked to the new tab");
 
-private:
-  nsCOMPtr<nsIParentChannel> mActiveChannel;
-  PRUint32 mRedirectChannelId;
-};
+  EventUtils.sendMouseEvent({ type: "mousedown", button: 1 }, tabItems[1].container, contentWindow);
+  EventUtils.sendMouseEvent({ type: "mouseup", button: 1 }, tabItems[1].container, contentWindow);
 
-} // namespace net
-} // namespace mozilla
+  ok(tabItems.length, 1, "There is only one tabItem in the group");
 
-#endif // mozilla_net_HttpChannelParent_h
+  let endGame = function() {
+    window.removeEventListener("tabviewhidden", endGame, false);
+
+    finish();
+  };
+  window.addEventListener("tabviewhidden", endGame, false);
+  TabView.toggle();
+}

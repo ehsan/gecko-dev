@@ -1,6 +1,3 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set sw=2 ts=8 et tw=80 : */
-
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -14,16 +11,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is mozilla.org code.
+ * The Original Code is tabview bug 596781 test.
  *
  * The Initial Developer of the Original Code is
- *  The Mozilla Foundation
- * Portions created by the Initial Developer are Copyright (C) 2009
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Jason Duell <jduell.mcbugs@gmail.com>
- *   Honza Bambas <honzab@firemni.cz>
+ * Raymond Lee <raymond@appcoast.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -39,49 +35,41 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozilla_net_HttpChannelCallbackWrapper_h
-#define mozilla_net_HttpChannelCallbackWrapper_h
+let newTab;
 
-#include "nsHttp.h"
-#include "mozilla/net/NeckoCommon.h"
-#include "PHttpChannelParams.h"
-#include "nsIParentChannel.h"
-#include "nsIInterfaceRequestor.h"
-#include "nsIChannelEventSink.h"
-#include "nsIRedirectResultListener.h"
-#include "nsIProgressEventSink.h"
+function test() {
+  waitForExplicitFinish();
 
-using namespace mozilla::dom;
+  newTab = gBrowser.addTab();
+  gBrowser.pinTab(newTab);
 
-class nsICacheEntryDescriptor;
+  window.addEventListener("tabviewshown", onTabViewWindowLoaded, false);
+  TabView.toggle();
+}
 
-namespace mozilla {
-namespace net {
+function onTabViewWindowLoaded() {
+  window.removeEventListener("tabviewshown", onTabViewWindowLoaded, false);
+  ok(TabView.isVisible(), "Tab View is visible");
 
-class HttpChannelParent;
+  let contentWindow = document.getElementById("tab-view").contentWindow;
 
-class HttpChannelParentListener : public nsIInterfaceRequestor
-                                 , public nsIChannelEventSink
-                                 , public nsIRedirectResultListener
-                                 , public nsIStreamListener
-{
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIINTERFACEREQUESTOR
-  NS_DECL_NSICHANNELEVENTSINK
-  NS_DECL_NSIREDIRECTRESULTLISTENER
-  NS_DECL_NSIREQUESTOBSERVER
-  NS_DECL_NSISTREAMLISTENER
+  is(contentWindow.GroupItems.groupItems.length, 1, "Only one group exists"); 
+  is(gBrowser.tabs.length, 2, "Only one tab exists");
+  ok(newTab.pinned, "The original tab is pinned");
 
-  HttpChannelParentListener(HttpChannelParent* aInitialChannel);
-  virtual ~HttpChannelParentListener();
+  let groupItem = contentWindow.GroupItems.groupItems[0];
+  is(groupItem.$closeButton[0].style.display, "none", 
+     "The close button is hidden");
 
-private:
-  nsCOMPtr<nsIParentChannel> mActiveChannel;
-  PRUint32 mRedirectChannelId;
-};
+  gBrowser.unpinTab(newTab);
+  is(groupItem.$closeButton[0].style.display, "", 
+     "The close button is visible");
 
-} // namespace net
-} // namespace mozilla
-
-#endif // mozilla_net_HttpChannelParent_h
+  function onTabViewHidden() {
+    window.removeEventListener("tabviewhidden", onTabViewHidden, false);
+    gBrowser.removeTab(newTab);
+    finish();
+  }
+  window.addEventListener("tabviewhidden", onTabViewHidden, false);
+  TabView.toggle();
+}
