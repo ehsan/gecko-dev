@@ -11864,8 +11864,6 @@ TraceRecorder::record_JSOP_GETELEM()
             }
             JS_ASSERT(v_ins);
             set(&lval, v_ins);
-            if (call)
-                set(&idx, obj_ins);
             return ARECORD_CONTINUE;
         }
         RETURN_STOP_A("can't reach arguments object's frame");
@@ -12128,8 +12126,8 @@ TraceRecorder::upvar(JSScript* script, JSUpvarArray* uva, uintN index, jsval& v)
     jsval& vr = js_GetUpvar(cx, script->staticLevel, cookie);
     v = vr;
 
-    if (LIns* ins = get(&vr))
-        return ins;
+    if (known(&vr))
+        return get(&vr);
 
     /*
      * The upvar is not in the current trace, so get the upvar value exactly as
