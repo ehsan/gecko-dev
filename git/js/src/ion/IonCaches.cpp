@@ -3019,7 +3019,7 @@ IsCacheableScopeChain(JSObject *scopeChain, JSObject *holder)
         }
     }
 
-    MOZ_ASSUME_UNREACHABLE("Invalid scope chain");
+    MOZ_ASSUME_UNREACHABLE();
 }
 
 JSObject *

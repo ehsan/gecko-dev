@@ -59,7 +59,8 @@ function testTimerIndependenceInTabs(hud) {
 }
 
 function testTimerIndependenceInSameTab() {
-  let hud = HUDService.getHudByWindow(content);
+  let hudId = HUDService.getHudIdByWindow(content);
+  let hud = HUDService.hudReferences[hudId];
   outputNode = hud.outputNode;
 
   waitForSuccess({
@@ -86,7 +87,8 @@ function testTimerIndependenceInSameTab() {
 }
 
 function testTimerIndependenceInSameTabAgain() {
-  let hud = HUDService.getHudByWindow(content);
+  let hudId = HUDService.getHudIdByWindow(content);
+  let hud = HUDService.hudReferences[hudId];
   outputNode = hud.outputNode;
 
   executeSoon(function() {

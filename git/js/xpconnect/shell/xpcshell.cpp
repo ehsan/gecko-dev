@@ -1450,6 +1450,9 @@ nsXPCFunctionThisTranslator::TranslateThis(nsISupports *aInitialThis,
 
 #endif
 
+// ContextCallback calls are chained
+static JSContextCallback gOldJSContextCallback;
+
 void
 XPCShellErrorReporter(JSContext *cx, const char *message, JSErrorReport *rep)
 {
@@ -1463,9 +1466,12 @@ XPCShellErrorReporter(JSContext *cx, const char *message, JSErrorReport *rep)
     xpc::SystemErrorReporterExternal(cx, message, rep);
 }
 
-static bool
+static JSBool
 ContextCallback(JSContext *cx, unsigned contextOp)
 {
+    if (gOldJSContextCallback && !gOldJSContextCallback(cx, contextOp))
+        return false;
+
     if (contextOp == JSCONTEXT_NEW) {
         JS_SetErrorReporter(cx, XPCShellErrorReporter);
         JS_SetOperationCallback(cx, XPCShellOperationCallback);
@@ -1640,7 +1646,7 @@ main(int argc, char **argv, char **envp)
             return 1;
         }
 
-        rtsvc->RegisterContextCallback(ContextCallback);
+        gOldJSContextCallback = JS_SetContextCallback(rt, ContextCallback);
 
         cx = JS_NewContext(rt, 8192);
         if (!cx) {

@@ -12,17 +12,7 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js").Promise;
 Cu.import("resource:///modules/devtools/VariablesView.jsm");
 Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "devtools",
-  "resource://gre/modules/devtools/Loader.jsm");
-
-Object.defineProperty(this, "WebConsoleUtils", {
-  get: function() {
-    return devtools.require("devtools/toolkit/webconsole/utils").Utils;
-  },
-  configurable: true,
-  enumerable: true
-});
+Cu.import("resource://gre/modules/devtools/WebConsoleUtils.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "VARIABLES_SORTING_ENABLED", () =>
   Services.prefs.getBoolPref("devtools.debugger.ui.variables-sorting-enabled")

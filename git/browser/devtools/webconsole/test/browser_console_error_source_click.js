@@ -16,7 +16,7 @@ function test()
   addTab(TEST_URI);
   browser.addEventListener("load", function onLoad() {
     browser.removeEventListener("load", onLoad, true);
-    HUDService.toggleBrowserConsole().then(browserConsoleOpened);
+    HUDConsoleUI.toggleBrowserConsole().then(browserConsoleOpened);
   }, true);
 
   function browserConsoleOpened(aHud)

@@ -311,11 +311,10 @@ Download.prototype = {
       }
     }
 
-    // This function propagates download properties from the DownloadSaver
+    // This function propragates download properties from the DownloadSaver
     // object, unless it comes in late from a download attempt that was
     // replaced by a new one.
-    function DS_setProperties(aOptions)
-    {
+    function DS_setDownloadProperties(aOptions) {
       if (this._currentAttempt && this._currentAttempt != currentAttempt) {
         return;
       }
@@ -360,7 +359,7 @@ Download.prototype = {
       try {
         // Execute the actual download through the saver object.
         yield this.saver.execute(DS_setProgressBytes.bind(this),
-                                 DS_setProperties.bind(this));
+                                 DS_setDownloadProperties.bind(this));
 
         // Update the status properties for a successful download.
         this.progress = 100;
@@ -1019,7 +1018,7 @@ DownloadSaver.prototype = {
    *        transferred (or -1 if unknown), the third indicates whether the
    *        partially downloaded data can be used when restarting the download
    *        if it fails or is canceled.
-   * @param aSetPropertiesFn
+   * @parem aSetPropertiesFn
    *        This function may be called by the saver to report information
    *        about new download properties discovered by the saver during the
    *        download process. It takes an object where the keys represents
@@ -1234,13 +1233,13 @@ DownloadCopySaver.prototype = {
             onStartRequest: function (aRequest, aContext) {
               backgroundFileSaver.onStartRequest(aRequest, aContext);
 
-              aSetPropertiesFn({ contentType: channel.contentType });
-
               // Ensure we report the value of "Content-Length", if available,
               // even if the download doesn't generate any progress events
               // later.
-              if (channel.contentLength >= 0) {
-                aSetProgressBytesFn(0, channel.contentLength);
+              if (aRequest instanceof Ci.nsIChannel &&
+                  aRequest.contentLength >= 0) {
+                aSetProgressBytesFn(0, aRequest.contentLength);
+                aSetPropertiesFn({ contentType: aRequest.contentType });
               }
 
               if (keepPartialData) {

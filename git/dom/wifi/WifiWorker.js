@@ -1224,46 +1224,36 @@ var WifiManager = (function() {
                                      null);
 
         prepareForStartup(function() {
-          gNetworkManager.setWifiOperationMode(ifname,
-                                               WIFI_FIRMWARE_STATION,
-                                               function (status) {
-            if (status) {
+          loadDriver(function (status) {
+            if (status < 0) {
               callback(status);
               manager.state = "UNINITIALIZED";
               return;
             }
 
-            loadDriver(function (status) {
-              if (status < 0) {
-                callback(status);
-                manager.state = "UNINITIALIZED";
-                return;
-              }
-
-              function doStartSupplicant() {
-                cancelWaitForDriverReadyTimer();
-                startSupplicant(function (status) {
-                  if (status < 0) {
-                    unloadDriver(function() {
-                      callback(status);
-                    });
-                    manager.state = "UNINITIALIZED";
-                    return;
-                  }
-
-                  manager.supplicantStarted = true;
-                  enableInterface(ifname, function (ok) {
-                    callback(ok ? 0 : -1);
+            function doStartSupplicant() {
+              cancelWaitForDriverReadyTimer();
+              startSupplicant(function (status) {
+                if (status < 0) {
+                  unloadDriver(function() {
+                    callback(status);
                   });
-                });
-              }
+                  manager.state = "UNINITIALIZED";
+                  return;
+                }
 
-              // Driver startup on certain platforms takes longer than it takes for us
-              // to return from loadDriver, so wait 2 seconds before starting
-              // the supplicant to give it a chance to start.
-              createWaitForDriverReadyTimer(doStartSupplicant);
-           });
-          });
+                manager.supplicantStarted = true;
+                enableInterface(ifname, function (ok) {
+                  callback(ok ? 0 : -1);
+                });
+              });
+            }
+
+            // Driver startup on certain platforms takes longer than it takes for us
+            // to return from loadDriver, so wait 2 seconds before starting
+            // the supplicant to give it a chance to start.
+            createWaitForDriverReadyTimer(doStartSupplicant);
+         });
         });
       });
     } else {

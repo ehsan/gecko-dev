@@ -26,13 +26,8 @@
     #include <stdlib.h>
     #include <dlfcn.h>
     #include "audio_device_utility_android.h"
-    #include "audio_device_opensles.h"
+    #include "audio_device_opensles_android.h"
     #include "audio_device_jni_android.h"
-#elif defined(WEBRTC_GONK)
-    #include <stdlib.h>
-    #include <dlfcn.h>
-    #include "audio_device_utility_linux.h"
-    #include "audio_device_opensles.h"
 #elif defined(WEBRTC_ANDROID)
     #include <stdlib.h>
     #include "audio_device_utility_android.h"
@@ -265,7 +260,7 @@ int32_t AudioDeviceModuleImpl::CreatePlatformSpecificObjects()
 
     // Create the *Android OpenSLES* implementation of the Audio Device
     //
-#if defined(WEBRTC_ANDROID_OPENSLES) || defined(WEBRTC_GONK)
+#if defined(WEBRTC_ANDROID_OPENSLES)
     // Check if the OpenSLES library is available before going further.
     void* opensles_lib = dlopen("libOpenSLES.so", RTLD_LAZY);
     if (opensles_lib) {
@@ -280,14 +275,11 @@ int32_t AudioDeviceModuleImpl::CreatePlatformSpecificObjects()
         }
     }
 
-#if !defined(WEBRTC_GONK)
     if (ptrAudioDevice != NULL)
     {
         // Create the Android implementation of the Device Utility.
         ptrAudioDeviceUtility = new AudioDeviceUtilityAndroid(Id());
     }
-#endif
-
 #endif
 #if defined(WEBRTC_ANDROID_OPENSLES) or defined(WEBRTC_ANDROID)
     // Fall back to this case if on Android 2.2/OpenSLES not available.

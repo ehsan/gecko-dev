@@ -166,18 +166,6 @@ function updateUpStreamFail(params) {
   return true;
 }
 
-function wifiOperationModeFail(params) {
-  // Notify the main thread.
-  postMessage(params);
-  return true;
-}
-
-function wifiOperationModeSuccess(params) {
-  // Notify the main thread.
-  postMessage(params);
-  return true;
-}
-
 /**
  * Get network interface properties from the system property table.
  *
@@ -810,18 +798,6 @@ function getNetworkInterfaceStats(params) {
   params.date = new Date();
 
   chain(params, gNetworkInterfaceStatsChain, networkInterfaceStatsFail);
-  return true;
-}
-
-let gWifiOperationModeChain = [wifiFirmwareReload,
-                               wifiOperationModeSuccess];
-
-/**
- * handling main thread's reload Wifi firmware request
- */
-function setWifiOperationMode(params) {
-  debug("setWifiOperationMode: " + params.ifname + " " + params.mode);
-  chain(params, gWifiOperationModeChain, wifiOperationModeFail);
   return true;
 }
 

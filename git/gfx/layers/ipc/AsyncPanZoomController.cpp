@@ -1169,7 +1169,6 @@ void AsyncPanZoomController::NotifyLayersUpdated(const FrameMetrics& aLayerMetri
 
   mLastContentPaintMetrics = aLayerMetrics;
 
-  bool isDefault = mFrameMetrics.IsDefault();
   mFrameMetrics.mMayHaveTouchListeners = aLayerMetrics.mMayHaveTouchListeners;
 
   // TODO: Once a mechanism for calling UpdateScrollOffset() when content does
@@ -1208,7 +1207,7 @@ void AsyncPanZoomController::NotifyLayersUpdated(const FrameMetrics& aLayerMetri
     needContentRepaint |= (previousResolution != newResolution);
   }
 
-  if (aIsFirstPaint || isDefault) {
+  if (aIsFirstPaint || mFrameMetrics.IsDefault()) {
     mPaintThrottler.ClearHistory();
     mPaintThrottler.SetMaxDurations(gNumPaintDurationSamples);
 
@@ -1218,7 +1217,7 @@ void AsyncPanZoomController::NotifyLayersUpdated(const FrameMetrics& aLayerMetri
     // XXX If this is the very first time we're getting a layers update we need to
     // trigger another repaint, or the B2G browser shows stale content. This needs
     // to be investigated and fixed.
-    needContentRepaint |= (isDefault && !aLayerMetrics.IsDefault());
+    needContentRepaint |= (mFrameMetrics.IsDefault() && !aLayerMetrics.IsDefault());
 
     mFrameMetrics = aLayerMetrics;
     mState = NOTHING;

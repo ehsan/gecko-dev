@@ -751,9 +751,12 @@ public:
     if (aContext != mStyleContext) {
       nsStyleContext* oldStyleContext = mStyleContext;
       mStyleContext = aContext;
-      aContext->AddRef();
-      DidSetStyleContext(oldStyleContext);
-      oldStyleContext->Release();
+      if (aContext) {
+        aContext->AddRef();
+        DidSetStyleContext(oldStyleContext);
+      }
+      if (oldStyleContext)
+        oldStyleContext->Release();
     }
   }
 
@@ -766,9 +769,12 @@ public:
   void SetStyleContextWithoutNotification(nsStyleContext* aContext)
   {
     if (aContext != mStyleContext) {
-      mStyleContext->Release();
+      if (mStyleContext)
+        mStyleContext->Release();
       mStyleContext = aContext;
-      aContext->AddRef();
+      if (aContext) {
+        aContext->AddRef();
+      }
     }
   }
 

@@ -947,11 +947,10 @@ void nsBaseWidget::CreateCompositor(int aWidth, int aHeight)
   PLayerTransactionChild* shadowManager;
   mozilla::layers::LayersBackend backendHint = GetPreferredCompositorBackend();
 
-  bool success;
   shadowManager = mCompositorChild->SendPLayerTransactionConstructor(
-    backendHint, 0, &textureFactoryIdentifier, &success);
+    backendHint, 0, &textureFactoryIdentifier);
 
-  if (success) {
+  if (shadowManager) {
     ShadowLayerForwarder* lf = lm->AsShadowForwarder();
     if (!lf) {
       delete lm;
@@ -966,6 +965,7 @@ void nsBaseWidget::CreateCompositor(int aWidth, int aHeight)
     return;
   }
 
+  // Failed to create a compositor!
   NS_WARNING("Failed to create an OMT compositor.");
   DestroyCompositor();
   // Compositor child had the only reference to LayerManager and will have

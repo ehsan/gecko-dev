@@ -580,11 +580,11 @@ public:
   static int32_t AppUnitsPerCSSInch() { return nsDeviceContext::AppUnitsPerCSSInch(); }
 
   static nscoord CSSPixelsToAppUnits(int32_t aPixels)
-  { return NSToCoordRoundWithClamp(float(aPixels) *
-             float(nsDeviceContext::AppUnitsPerCSSPixel())); }
+  { return NSIntPixelsToAppUnits(aPixels,
+                                 nsDeviceContext::AppUnitsPerCSSPixel()); }
 
   static nscoord CSSPixelsToAppUnits(float aPixels)
-  { return NSToCoordRoundWithClamp(aPixels *
+  { return NSFloatPixelsToAppUnits(aPixels,
              float(nsDeviceContext::AppUnitsPerCSSPixel())); }
 
   static int32_t AppUnitsToIntCSSPixels(nscoord aAppUnits)

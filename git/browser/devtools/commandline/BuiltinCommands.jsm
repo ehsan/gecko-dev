@@ -19,12 +19,14 @@ Cu.import("resource://gre/modules/osfile.jsm");
 Cu.import("resource://gre/modules/devtools/gcli.jsm");
 Cu.import("resource:///modules/devtools/shared/event-emitter.js");
 
-let devtools = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
-let Telemetry = devtools.require("devtools/shared/telemetry");
+var require = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.require;
+let Telemetry = require("devtools/shared/telemetry");
 let telemetry = new Telemetry();
 
 XPCOMUtils.defineLazyModuleGetter(this, "gDevTools",
                                   "resource:///modules/devtools/gDevTools.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "devtools",
+                                  "resource://gre/modules/devtools/Loader.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
                                   "resource:///modules/devtools/AppCacheUtils.jsm");
 
@@ -797,13 +799,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
 /* CmdConsole -------------------------------------------------------------- */
 
 (function(module) {
-  Object.defineProperty(this, "HUDService", {
-    get: function() {
-      return devtools.require("devtools/webconsole/hudservice");
-    },
-    configurable: true,
-    enumerable: true
-  });
+  XPCOMUtils.defineLazyModuleGetter(this, "HUDService",
+                                    "resource:///modules/HUDService.jsm");
 
   /**
    * 'console' command

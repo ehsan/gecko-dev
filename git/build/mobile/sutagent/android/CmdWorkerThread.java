@@ -139,10 +139,6 @@ public class CmdWorkerThread extends Thread
                     SUTAgentAndroid.log(dc, message);
 
                     outputLine = dc.processCommand(inputLine, out, in, cmdOut);
-                    if (outputLine == null)
-                        {
-                        outputLine = "";
-                        }
                     if (outputLine.length() > 0)
                         {
                         out.print(outputLine + "\n" + prompt);

@@ -152,12 +152,10 @@ public:
     mozilla::dom::ConstructorEnabled* aConstructorEnabled);
 
   typedef PLDHashOperator
-  (* NameEnumerator)(const nsAString& aGlobalName, void* aClosure);
+  (* GlobalNameEnumerator)(const nsAString& aGlobalName, void* aClosure);
 
-  void EnumerateGlobalNames(NameEnumerator aEnumerator,
+  void EnumerateGlobalNames(GlobalNameEnumerator aEnumerator,
                             void* aClosure);
-  void EnumerateNavigatorNames(NameEnumerator aEnumerator,
-                               void* aClosure);
 
   size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
 
