@@ -918,7 +918,9 @@ pref("dom.ipc.plugins.enabled.x86_64", true);
 pref("dom.ipc.plugins.enabled", true);
 #endif
 
-pref("browser.tabs.remote", false);
+#ifdef MOZ_E10S_COMPAT
+pref("browser.tabs.remote", true);
+#endif
 
 // This pref governs whether we attempt to work around problems caused by
 // plugins using OS calls to manipulate the cursor while running out-of-
@@ -1082,7 +1084,6 @@ pref("devtools.netmonitor.enabled", true);
 
 // The default Network Monitor UI settings
 pref("devtools.netmonitor.panes-network-details-width", 450);
-pref("devtools.netmonitor.panes-network-details-height", 450);
 
 // Enable the Tilt inspector
 pref("devtools.tilt.enabled", true);
@@ -1127,8 +1128,6 @@ pref("devtools.webconsole.filter.error", true);
 pref("devtools.webconsole.filter.warn", true);
 pref("devtools.webconsole.filter.info", true);
 pref("devtools.webconsole.filter.log", true);
-pref("devtools.webconsole.filter.secerror", true);
-pref("devtools.webconsole.filter.secwarn", true);
 
 // Text size in the Web Console. Use 0 for the system default size.
 pref("devtools.webconsole.fontSize", 0);

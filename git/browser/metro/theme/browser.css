@@ -894,7 +894,6 @@ setting[type="radio"] > vbox {
   margin: 0px;
 }
 
-
 /* Browser Content Areas ----------------------------------------------------- */
 
 /* Hide the browser while the start UI is visible */
@@ -915,10 +914,6 @@ setting[type="radio"] > vbox {
 
 #panel-container {
   padding: 60px 40px;
-}
-
-#panel-container[viewstate="snapped"] .canSnapTiles .richgrid-item-content {
-  -moz-box-orient: horizontal;
 }
 
 #panel-close-button {
@@ -949,17 +944,9 @@ setting[type="radio"] > vbox {
   margin: 0;
 }
 
-#panel-container[viewstate="snapped"] #panel-view-switcher {
-  font-size: @metro_font_large@;
-}
-
 #panel-items {
   padding-top: 20px;
   -moz-padding-start: 88px;
-}
-
-#panel-container[viewstate="snapped"] #panel-items {
-  padding-left: 0px;
 }
 
 /* Console Section - Panel UI ---------------------------------------------- */

@@ -94,6 +94,7 @@
 #include "nsIFormControl.h"
 
 #include "nsBidiUtils.h"
+#include "mozilla/dom/DirectionalityUtils.h"
 
 #include "nsIDOMUserDataHandler.h"
 #include "nsIDOMXPathEvaluator.h"
@@ -1322,6 +1323,7 @@ nsIDocument::nsIDocument()
     mAllowDNSPrefetch(true),
     mIsBeingUsedAsImage(false),
     mHasLinksToUpdate(false),
+    mDirectionality(eDir_LTR),
     mPartID(0)
 {
   SetInDocument();
@@ -5780,7 +5782,7 @@ nsIDocument::GetLocation() const
 }
 
 Element*
-nsIDocument::GetHtmlElement() const
+nsIDocument::GetHtmlElement()
 {
   Element* rootElement = GetRootElement();
   if (rootElement && rootElement->IsHTML(nsGkAtoms::html))
@@ -6239,7 +6241,16 @@ nsDocument::GetAnimationController()
   return mAnimationController;
 }
 
-static const char* dirAttributes[] = { "ltr", "rtl", "auto", 0 };
+struct DirTable {
+  const char* mName;
+  uint8_t     mValue;
+};
+
+static const DirTable dirAttributes[] = {
+  {"ltr", IBMBIDI_TEXTDIRECTION_LTR},
+  {"rtl", IBMBIDI_TEXTDIRECTION_RTL},
+  {0}
+};
 
 /**
  * Retrieve the "direction" property of the document.
@@ -6256,16 +6267,11 @@ nsDocument::GetDir(nsAString& aDirection)
 void
 nsIDocument::GetDir(nsAString& aDirection) const
 {
-  aDirection.Truncate();
-  Element* rootElement = GetHtmlElement();
-  if (rootElement) {
-    nsAutoString dir;
-    rootElement->GetAttr(kNameSpaceID_None, nsGkAtoms::dir, dir);
-    for (uint32_t i = 0; dirAttributes[i]; ++i) {
-      if (dir.LowerCaseEqualsASCII(dirAttributes[i])) {
-        aDirection.AssignASCII(dirAttributes[i]);
-        return;
-      }
+  uint32_t options = GetBidiOptions();
+  for (const DirTable* elt = dirAttributes; elt->mName; elt++) {
+    if (GET_BIDI_OPTION_DIRECTION(options) == elt->mValue) {
+      CopyASCIItoUTF16(elt->mName, aDirection);
+      return;
     }
   }
 }
@@ -6278,17 +6284,45 @@ nsIDocument::GetDir(nsAString& aDirection) const
 NS_IMETHODIMP
 nsDocument::SetDir(const nsAString& aDirection)
 {
-  nsIDocument::SetDir(aDirection);
-  return NS_OK;
+  ErrorResult rv;
+  nsIDocument::SetDir(aDirection, rv);
+  return rv.ErrorCode();
 }
 
 void
-nsIDocument::SetDir(const nsAString& aDirection)
+nsIDocument::SetDir(const nsAString& aDirection, ErrorResult& rv)
 {
-  Element* rootElement = GetHtmlElement();
-  if (rootElement) {
-    rootElement->SetAttr(kNameSpaceID_None, nsGkAtoms::dir,
-                         aDirection, true);
+  uint32_t options = GetBidiOptions();
+
+  for (const DirTable* elt = dirAttributes; elt->mName; elt++) {
+    if (aDirection == NS_ConvertASCIItoUTF16(elt->mName)) {
+      if (GET_BIDI_OPTION_DIRECTION(options) != elt->mValue) {
+        SET_BIDI_OPTION_DIRECTION(options, elt->mValue);
+        nsIPresShell *shell = GetShell();
+        if (shell) {
+          nsPresContext *context = shell->GetPresContext();
+          if (!context) {
+            rv.Throw(NS_ERROR_UNEXPECTED);
+            return;
+          }
+          context->SetBidi(options, true);
+        } else {
+          // No presentation; just set it on ourselves
+          SetBidiOptions(options);
+        }
+        Directionality dir = elt->mValue == IBMBIDI_TEXTDIRECTION_RTL ?
+                               eDir_RTL : eDir_LTR;
+        SetDocumentDirectionality(dir);
+        // Set the directionality of the root element and its descendants, if any
+        Element* rootElement = GetRootElement();
+        if (rootElement) {
+          rootElement->SetDirectionality(dir, true);
+          SetDirectionalityOnDescendants(rootElement, dir);
+        }
+      }
+
+      break;
+    }
   }
 }
 

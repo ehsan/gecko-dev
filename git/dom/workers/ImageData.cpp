@@ -18,7 +18,7 @@ namespace {
 class ImageData
 {
   static JSClass sClass;
-  static const JSPropertySpec sProperties[];
+  static JSPropertySpec sProperties[];
 
   enum SLOT {
     SLOT_width = 0,
@@ -139,7 +139,7 @@ JSClass ImageData::sClass = {
   JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize
 };
 
-const JSPropertySpec ImageData::sProperties[] = {
+JSPropertySpec ImageData::sProperties[] = {
   // These properties are read-only per spec, which means that sets must throw
   // in strict mode and silently fail otherwise. This is a problem for workers
   // in general (because js_GetterOnlyPropertyStub throws unconditionally). The

@@ -1419,7 +1419,6 @@
                     addListener(this.fullscreenButton, "command", this.toggleFullscreen);
                     addListener(this.clickToPlay, "click", this.clickToPlayClickHandler);
                     addListener(this.controlsSpacer, "click", this.clickToPlayClickHandler);
-                    addListener(this.controlsSpacer, "dblclick", this.toggleFullscreen);
 
                     if (this.isAudioOnly) {
                       this.controlBar.classList.add("audio");

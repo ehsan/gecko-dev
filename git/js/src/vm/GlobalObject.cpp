@@ -559,9 +559,9 @@ js::DefinePropertiesAndBrand(JSContext *cx, JSObject *obj_,
 {
     RootedObject obj(cx, obj_);
 
-    if (ps && !JS_DefineProperties(cx, obj, ps))
+    if (ps && !JS_DefineProperties(cx, obj, const_cast<JSPropertySpec*>(ps)))
         return false;
-    if (fs && !JS_DefineFunctions(cx, obj, fs))
+    if (fs && !JS_DefineFunctions(cx, obj, const_cast<JSFunctionSpec*>(fs)))
         return false;
     return true;
 }

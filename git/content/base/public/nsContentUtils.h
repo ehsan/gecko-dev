@@ -795,7 +795,6 @@ public:
     eBRAND_PROPERTIES,
     eCOMMON_DIALOG_PROPERTIES,
     eMATHML_PROPERTIES,
-    eSECURITY_PROPERTIES,
     PropertiesFile_COUNT
   };
   static nsresult ReportToConsole(uint32_t aErrorFlags,
