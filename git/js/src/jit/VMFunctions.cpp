@@ -365,6 +365,8 @@ NewInitObjectWithClassPrototype(JSContext *cx, HandleObject templateObject)
 bool
 ArraySpliceDense(JSContext *cx, HandleObject obj, uint32_t start, uint32_t deleteCount)
 {
+    JS_ASSERT(obj->is<ArrayObject>());
+
     JS::AutoValueArray<4> argv(cx);
     argv[0].setUndefined();
     argv[1].setObject(*obj);

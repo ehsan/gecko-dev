@@ -26,7 +26,7 @@
 #include "GeckoProfiler.h"
 #include "mozilla/gfx/Tools.h"
 #include "mozilla/gfx/2D.h"
-#include "gfxPrefs.h"
+#include "mozilla/Preferences.h"
 
 #include <algorithm>
 
@@ -3705,7 +3705,14 @@ FrameLayerBuilder::PaintItems(nsTArray<ClippedDisplayItem>& aItems,
  */
 static bool ShouldDrawRectsSeparately(gfxContext* aContext, DrawRegionClip aClip)
 {
-  if (!gfxPrefs::LayoutPaintRectsSeparately() ||
+  static bool sPaintRectsSeparately;
+  static bool sPaintRectsSeparatelyPrefCached = false;
+  if (!sPaintRectsSeparatelyPrefCached) {
+    mozilla::Preferences::AddBoolVarCache(&sPaintRectsSeparately, "layout.paint_rects_separately", false);
+    sPaintRectsSeparatelyPrefCached = true;
+  }
+
+  if (!sPaintRectsSeparately ||
       aContext->IsCairo() ||
       aClip == DrawRegionClip::CLIP_NONE) {
     return false;

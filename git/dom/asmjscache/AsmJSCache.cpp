@@ -1323,22 +1323,23 @@ AllocEntryParent(OpenMode aOpenMode,
                  WriteParams aWriteParams,
                  nsIPrincipal* aPrincipal)
 {
-  nsRefPtr<ParentProcessRunnable> runnable =
+  ParentProcessRunnable* runnable =
     new ParentProcessRunnable(aPrincipal, aOpenMode, aWriteParams);
+
+  // AddRef to keep the runnable alive until DeallocEntryParent.
+  runnable->AddRef();
 
   nsresult rv = NS_DispatchToMainThread(runnable);
   NS_ENSURE_SUCCESS(rv, nullptr);
 
-  // Transfer ownership to IPDL.
-  return runnable.forget().take();
+  return runnable;
 }
 
 void
 DeallocEntryParent(PAsmJSCacheEntryParent* aActor)
 {
-  // Transfer ownership back from IPDL.
-  nsRefPtr<ParentProcessRunnable> op =
-    dont_AddRef(static_cast<ParentProcessRunnable*>(aActor));
+  // Match the AddRef in AllocEntryParent.
+  static_cast<ParentProcessRunnable*>(aActor)->Release();
 }
 
 namespace {

@@ -21,14 +21,13 @@
 #include "nsITimer.h"
 #include "nsIURI.h"
 #include "nsIUsageCallback.h"
-#include "nsPIDOMWindow.h"
 
 #include <algorithm>
 #include "GeckoProfiler.h"
 #include "mozilla/Atomics.h"
 #include "mozilla/CondVar.h"
 #include "mozilla/dom/asmjscache/AsmJSCache.h"
-#include "mozilla/dom/FileService.h"
+#include "mozilla/dom/file/FileService.h"
 #include "mozilla/dom/indexedDB/Client.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/LazyIdleThread.h"
@@ -90,7 +89,7 @@
 
 USING_QUOTA_NAMESPACE
 using namespace mozilla::dom;
-using mozilla::dom::FileService;
+using mozilla::dom::file::FileService;
 
 static_assert(
   static_cast<uint32_t>(StorageType::Persistent) ==
@@ -2419,7 +2418,7 @@ QuotaManager::Observe(nsISupports* aSubject,
           }
         }
 
-        StorageMatcher<nsTArray<nsCOMPtr<nsIOfflineStorage>>> liveStorages;
+        StorageMatcher<nsTArray<nsCOMPtr<nsIFileStorage> > > liveStorages;
         liveStorages.Find(mLiveStorages, &indexes);
 
         if (!liveStorages.IsEmpty()) {
@@ -2796,7 +2795,7 @@ QuotaManager::RunSynchronizedOp(nsIOfflineStorage* aStorage,
 
   if (service) {
     // Have to copy here in case a transaction service needs a list too.
-    nsTArray<nsCOMPtr<nsIOfflineStorage>> array;
+    nsTArray<nsCOMPtr<nsIFileStorage> > array;
 
     for (uint32_t index = startIndex; index < endIndex; index++)  {
       if (!storages[index].IsEmpty() &&

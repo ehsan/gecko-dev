@@ -9,6 +9,7 @@
 #include "nsIConsoleService.h"
 #include "nsIDiskSpaceWatcher.h"
 #include "nsIFile.h"
+#include "nsIFileStorage.h"
 #include "nsIObserverService.h"
 #include "nsIScriptError.h"
 

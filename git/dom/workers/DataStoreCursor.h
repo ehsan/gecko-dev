@@ -25,10 +25,7 @@ class WorkerDataStore;
 class WorkerDataStoreCursor MOZ_FINAL
 {
 public:
-  NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(WorkerDataStoreCursor)
-  NS_DECL_CYCLE_COLLECTION_NATIVE_CLASS(WorkerDataStoreCursor)
-
-  WorkerDataStoreCursor(WorkerDataStore* aWorkerStore);
+  NS_INLINE_DECL_REFCOUNTING(WorkerDataStoreCursor)
 
   // WebIDL (internal functions)
 
@@ -56,9 +53,6 @@ protected:
 
 private:
   nsMainThreadPtrHandle<DataStoreCursor> mBackingCursor;
-
-  // Keep track of the WorkerDataStore which owns this WorkerDataStoreCursor.
-  nsRefPtr<WorkerDataStore> mWorkerStore;
 };
 
 } //namespace workers
