@@ -106,9 +106,7 @@ public:
   virtual Rect GetStrokedBounds(const StrokeOptions &aStrokeOptions,
                                 const Matrix &aTransform = Matrix()) const
   { return mPath->GetStrokedBounds(aStrokeOptions, aTransform); }
-
-  virtual void StreamToSink(PathSink *aSink) const { mPath->StreamToSink(aSink); }
-
+  
   virtual FillRule GetFillRule() const { return mFillRule; }
 
   void StorePath(std::ostream &aStream) const;

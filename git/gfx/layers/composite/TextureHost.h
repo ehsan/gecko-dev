@@ -799,19 +799,11 @@ private:
 class CompositingRenderTarget : public TextureSource
 {
 public:
-  CompositingRenderTarget(const gfx::IntPoint& aOrigin)
-    : mOrigin(aOrigin)
-  {}
   virtual ~CompositingRenderTarget() {}
 
 #ifdef MOZ_DUMP_PAINTING
   virtual already_AddRefed<gfxImageSurface> Dump(Compositor* aCompositor) { return nullptr; }
 #endif
-
-  const gfx::IntPoint& GetOrigin() { return mOrigin; }
-
-private:
-  gfx::IntPoint mOrigin;
 };
 
 /**

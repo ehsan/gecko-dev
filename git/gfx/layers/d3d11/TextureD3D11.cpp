@@ -39,9 +39,7 @@ CreateDeprecatedTextureHostD3D11(SurfaceDescriptorType aDescriptorType,
 }
 
 
-CompositingRenderTargetD3D11::CompositingRenderTargetD3D11(ID3D11Texture2D* aTexture,
-                                                           const gfx::IntPoint& aOrigin)
-  : CompositingRenderTarget(aOrigin)
+CompositingRenderTargetD3D11::CompositingRenderTargetD3D11(ID3D11Texture2D* aTexture)
 {
   MOZ_ASSERT(aTexture);
   

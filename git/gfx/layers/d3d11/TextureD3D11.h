@@ -52,8 +52,7 @@ class CompositingRenderTargetD3D11 : public CompositingRenderTarget,
                                      public TextureSourceD3D11
 {
 public:
-  CompositingRenderTargetD3D11(ID3D11Texture2D* aTexture,
-                               const gfx::IntPoint& aOrigin);
+  CompositingRenderTargetD3D11(ID3D11Texture2D* aTexture);
 
   virtual TextureSourceD3D11* AsSourceD3D11() MOZ_OVERRIDE { return this; }
 

@@ -78,7 +78,8 @@ ImageLayerComposite::GetLayer()
 }
 
 void
-ImageLayerComposite::RenderLayer(const nsIntRect& aClipRect)
+ImageLayerComposite::RenderLayer(const nsIntPoint& aOffset,
+                                 const nsIntRect& aClipRect)
 {
   if (!mImageHost || !mImageHost->IsAttached()) {
     return;
@@ -103,6 +104,7 @@ ImageLayerComposite::RenderLayer(const nsIntRect& aClipRect)
   mImageHost->Composite(effectChain,
                         GetEffectiveOpacity(),
                         transform,
+                        gfx::Point(aOffset.x, aOffset.y),
                         gfx::ToFilter(mFilter),
                         clipRect);
 }

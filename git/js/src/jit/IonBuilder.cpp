@@ -5952,8 +5952,8 @@ ClassHasResolveHook(JSCompartment *comp, const Class *clasp, PropertyName *name)
     return true;
 }
 
-JSObject *
-IonBuilder::testSingletonProperty(JSObject *obj, PropertyName *name)
+bool
+IonBuilder::testSingletonProperty(JSObject *obj, JSObject *singleton, PropertyName *name)
 {
     // We would like to completely no-op property/global accesses which can
     // produce only a particular JSObject. When indicating the access result is
@@ -5971,26 +5971,26 @@ IonBuilder::testSingletonProperty(JSObject *obj, PropertyName *name)
 
     while (obj) {
         if (!ClassHasEffectlessLookup(obj->getClass()))
-            return nullptr;
+            return false;
 
         types::TypeObjectKey *objType = types::TypeObjectKey::get(obj);
         if (objType->unknownProperties())
-            return nullptr;
+            return false;
 
         types::HeapTypeSetKey property = objType->property(NameToId(name), context());
         if (property.isOwnProperty(constraints())) {
             if (obj->hasSingletonType())
-                return property.singleton(constraints());
-            return nullptr;
+                return property.singleton(constraints()) == singleton;
+            return false;
         }
 
         if (ClassHasResolveHook(compartment, obj->getClass(), name))
-            return nullptr;
+            return false;
 
         obj = obj->getProto();
     }
 
-    return nullptr;
+    return false;
 }
 
 bool
@@ -6014,7 +6014,7 @@ IonBuilder::testSingletonPropertyTypes(MDefinition *obj, JSObject *singleton, Pr
 
     JSObject *objectSingleton = types ? types->getSingleton() : nullptr;
     if (objectSingleton)
-        return testSingletonProperty(objectSingleton, name) == singleton;
+        return testSingletonProperty(objectSingleton, singleton, name);
 
     JSProtoKey key;
     switch (obj->type()) {
@@ -6058,7 +6058,7 @@ IonBuilder::testSingletonPropertyTypes(MDefinition *obj, JSObject *singleton, Pr
 
             if (JSObject *proto = object->proto().toObjectOrNull()) {
                 // Test this type.
-                if (testSingletonProperty(proto, name) != singleton)
+                if (!testSingletonProperty(proto, singleton, name))
                     return false;
             } else {
                 // Can't be on the prototype chain with no prototypes...
@@ -6070,12 +6070,12 @@ IonBuilder::testSingletonPropertyTypes(MDefinition *obj, JSObject *singleton, Pr
         return true;
       }
       default:
-        return false;
+        return true;
     }
 
     JSObject *proto = GetClassPrototypePure(&script()->global(), key);
     if (proto)
-        return testSingletonProperty(proto, name) == singleton;
+        return testSingletonProperty(proto, singleton, name);
 
     return false;
 }
@@ -6213,7 +6213,7 @@ IonBuilder::getStaticName(JSObject *staticObject, PropertyName *name, bool *psuc
     if (!barrier) {
         if (singleton) {
             // Try to inline a known constant value.
-            if (testSingletonProperty(staticObject, name) == singleton)
+            if (testSingletonProperty(staticObject, singleton, name))
                 return pushConstant(ObjectValue(*singleton));
         }
         if (knownType == JSVAL_TYPE_UNDEFINED)
@@ -6310,9 +6310,14 @@ IonBuilder::setStaticName(JSObject *staticObject, PropertyName *name)
     // If the property has a known type, we may be able to optimize typed stores by not
     // storing the type tag.
     MIRType slotType = MIRType_None;
-    JSValueType knownType = property.knownTypeTag(constraints());
-    if (knownType != JSVAL_TYPE_UNKNOWN)
-        slotType = MIRTypeFromValueType(knownType);
+    {
+        Shape *shape = staticObject->nativeLookup(cx, id);
+        if (!shape || !shape->hasSlot() || !staticObject->getSlot(shape->slot()).isUndefined()) {
+            JSValueType knownType = property.knownTypeTag(constraints());
+            if (knownType != JSVAL_TYPE_UNKNOWN)
+                slotType = MIRTypeFromValueType(knownType);
+        }
+    }
 
     bool needsBarrier = property.needsBarrier(constraints());
     return storeSlot(obj, property.maybeTypes()->definiteSlot(), NumFixedSlots(staticObject),
@@ -7719,7 +7724,25 @@ IonBuilder::annotateGetPropertyCache(MDefinition *obj, MGetPropertyCache *getPro
         if (ownTypes.isOwnProperty(constraints()))
             continue;
 
-        JSObject *singleton = testSingletonProperty(typeObj->proto().toObject(), name);
+        JSObject *singleton = nullptr;
+        JSObject *proto = typeObj->proto().toObject();
+        while (true) {
+            types::TypeObjectKey *protoType = types::TypeObjectKey::get(proto);
+            if (!protoType->unknownProperties()) {
+                types::HeapTypeSetKey property = protoType->property(NameToId(name));
+
+                singleton = property.singleton(constraints());
+                if (singleton) {
+                    if (singleton->is<JSFunction>())
+                        break;
+                    singleton = nullptr;
+                }
+            }
+            TaggedProto taggedProto = proto->getTaggedProto();
+            if (!taggedProto.isObject())
+                break;
+            proto = taggedProto.toObject();
+        }
         if (!singleton)
             continue;
 

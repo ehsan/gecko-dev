@@ -2153,7 +2153,7 @@ gfxContext::ChangeTransform(const Matrix &aNewMatrix, bool aUpdatePatternTransfo
 
   if (aUpdatePatternTransform && (state.pattern || state.sourceSurface)
       && !state.patternTransformChanged) {
-    state.patternTransform = GetDTTransform();
+    state.patternTransform = mTransform;
     state.patternTransformChanged = true;
   }
 

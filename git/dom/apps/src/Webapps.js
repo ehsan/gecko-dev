@@ -79,28 +79,27 @@ WebappsRegistry.prototype = {
     return uri.prePath;
   },
 
-  // Checks that the URL scheme is appropriate (http or https) and
-  // asynchronously fire an error on the DOM Request if it isn't.
-  _validateURL: function(aURL, aRequest) {
+  _validateURL: function(aURL) {
     let uri;
     let res;
-
     try {
       uri = Services.io.newURI(aURL, null, null);
       if (uri.schemeIs("http") || uri.schemeIs("https")) {
         res = uri.spec;
       }
     } catch(e) {
-      Services.DOMRequest.fireErrorAsync(aRequest, "INVALID_URL");
-      return false;
+      throw new Components.Exception(
+        "INVALID_URL: '" + aURL + "'", Cr.NS_ERROR_FAILURE
+      );
     }
 
-    // The scheme is incorrect, fire DOMRequest error.
+    // The scheme is incorrect, throw an exception.
     if (!res) {
-      Services.DOMRequest.fireErrorAsync(aRequest, "INVALID_URL");
-      return false;
+      throw new Components.Exception(
+        "INVALID_URL_SCHEME: '" + uri.scheme + "'; must be 'http' or 'https'",
+        Cr.NS_ERROR_FAILURE
+      );
     }
-
     return uri.spec;
   },
 
@@ -114,7 +113,13 @@ WebappsRegistry.prototype = {
       return true;
     }
 
-    Services.DOMRequest.fireErrorAsync(aRequest, "BACKGROUND_APP");
+    let runnable = {
+      run: function run() {
+        Services.DOMRequest.fireError(aRequest, "BACKGROUND_APP");
+      }
+    }
+    Services.tm.currentThread.dispatch(runnable,
+                                       Ci.nsIThread.DISPATCH_NORMAL);
     return false;
   },
 
@@ -150,11 +155,11 @@ WebappsRegistry.prototype = {
   // mozIDOMApplicationRegistry implementation
 
   install: function(aURL, aParams) {
+    let uri = this._validateURL(aURL);
+
     let request = this.createRequest();
 
-    let uri = this._validateURL(aURL, request);
-
-    if (uri && this._ensureForeground(request)) {
+    if (this._ensureForeground(request)) {
       this.addMessageListeners("Webapps:Install:Return:KO");
       cpmm.sendAsyncMessage("Webapps:Install",
                             this._prepareInstall(uri, request, aParams, false));
@@ -213,11 +218,11 @@ WebappsRegistry.prototype = {
   },
 
   installPackage: function(aURL, aParams) {
+    let uri = this._validateURL(aURL);
+
     let request = this.createRequest();
 
-    let uri = this._validateURL(aURL, request);
-
-    if (uri && this._ensureForeground(request)) {
+    if (this._ensureForeground(request)) {
       this.addMessageListeners("Webapps:Install:Return:KO");
       cpmm.sendAsyncMessage("Webapps:InstallPackage",
                             this._prepareInstall(uri, request, aParams, true));
@@ -466,7 +471,13 @@ WebappsApplication.prototype = {
           requestID: this.getRequestId(request) }
       );
     } else {
-      Services.DOMRequest.fireErrorAsync(request, "NO_CLEARABLE_BROWSER");
+      let runnable = {
+        run: function run() {
+          Services.DOMRequest.fireError(request, "NO_CLEARABLE_BROWSER");
+        }
+      }
+      Services.tm.currentThread.dispatch(runnable,
+                                         Ci.nsIThread.DISPATCH_NORMAL);
     }
     return request;
   },
@@ -740,7 +751,7 @@ WebappsApplicationMgmt.prototype = {
     var msg = aMessage.json;
     let req = this.getRequest(msg.requestID);
     // We want Webapps:Install:Return:OK and Webapps:Uninstall:Broadcast:Return:OK
-    // to be broadcasted to all instances of mozApps.mgmt.
+    // to be boradcasted to all instances of mozApps.mgmt.
     if (!((msg.oid == this._id && req) ||
           aMessage.name == "Webapps:Install:Return:OK" ||
           aMessage.name == "Webapps:Uninstall:Broadcast:Return:OK")) {

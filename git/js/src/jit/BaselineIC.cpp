@@ -7439,18 +7439,6 @@ GetTemplateObjectForNative(JSContext *cx, HandleScript script, jsbytecode *pc,
         return true;
     }
 
-    if (native == intrinsic_NewDenseArray) {
-        res.set(NewDenseUnallocatedArray(cx, 0, nullptr, TenuredObject));
-        if (!res)
-            return false;
-
-        types::TypeObject *type = types::TypeScript::InitObject(cx, script, pc, JSProto_Array);
-        if (!type)
-            return false;
-        res->setType(type);
-        return true;
-    }
-
     if (native == js::array_concat) {
         if (args.thisv().isObject() && args.thisv().toObject().is<ArrayObject>() &&
             !args.thisv().toObject().hasSingletonType())
@@ -7461,18 +7449,6 @@ GetTemplateObjectForNative(JSContext *cx, HandleScript script, jsbytecode *pc,
             res->setType(args.thisv().toObject().type());
             return true;
         }
-    }
-
-    if (native == js::str_split && args.length() == 1 && args[0].isString()) {
-        res.set(NewDenseUnallocatedArray(cx, 0, nullptr, TenuredObject));
-        if (!res)
-            return false;
-
-        types::TypeObject *type = types::TypeScript::InitObject(cx, script, pc, JSProto_Array);
-        if (!type)
-            return false;
-        res->setType(type);
-        return true;
     }
 
     if (native == js_String) {

@@ -553,14 +553,11 @@ nsConvertToActualKeyGenParams(uint32_t keyGenMech, char *params,
               next_input, name, name_len, value, value_len,
               next_input))
       {
-        // use only the first specified curve
-        if (!curve && PL_strncmp(name, "curve", std::min(name_len, 5)) == 0)
+        if (PL_strncmp(name, "curve", std::min(name_len, 5)) == 0)
         {
           curve = PL_strndup(value, value_len);
         }
-        // use only the first specified popcert
-        else if (!keyPairInfo->ecPopCert &&
-                 PL_strncmp(name, "popcert", std::min(name_len, 7)) == 0)
+        else if (PL_strncmp(name, "popcert", std::min(name_len, 7)) == 0)
         {
           char *certstr = PL_strndup(value, value_len);
           if (certstr) {

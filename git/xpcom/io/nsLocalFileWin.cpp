@@ -48,7 +48,6 @@
 #include "nsTraceRefcntImpl.h"
 #include "nsXPCOMCIDInternal.h"
 #include "nsThreadUtils.h"
-#include "nsXULAppAPI.h"
 
 using namespace mozilla;
 
@@ -205,9 +204,7 @@ private:
         SHELLEXECUTEINFOW seinfo;
         memset(&seinfo, 0, sizeof(seinfo));
         seinfo.cbSize = sizeof(SHELLEXECUTEINFOW);
-        if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Metro) {
-          seinfo.fMask  = SEE_MASK_FLAG_LOG_USAGE;
-        }
+        seinfo.fMask  = 0;
         seinfo.hwnd   = nullptr;
         seinfo.lpVerb = nullptr;
         seinfo.lpFile = mResolvedPath.get();
