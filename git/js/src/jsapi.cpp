@@ -3956,6 +3956,7 @@ JS_PUBLIC_API(JSBool)
 JS_NextProperty(JSContext *cx, JSObject *iterobj, jsid *idp)
 {
     jsint i;
+    JSObject *obj;
     const Shape *shape;
     JSIdArray *ida;
 
@@ -3964,9 +3965,15 @@ JS_NextProperty(JSContext *cx, JSObject *iterobj, jsid *idp)
     i = iterobj->getSlot(JSSLOT_ITER_INDEX).toInt32();
     if (i < 0) {
         /* Native case: private data is a property tree node pointer. */
-        JS_ASSERT(iterobj->getParent()->isNative());
+        obj = iterobj->getParent();
+        JS_ASSERT(obj->isNative());
         shape = (Shape *) iterobj->getPrivate();
 
+        /*
+         * If the next property mapped by obj in the property tree ancestor
+         * line is not enumerable, or it's an alias, skip it and keep on trying
+         * to find an enumerable property that is still in obj.
+         */
         while (shape->previous() && (!shape->enumerable() || shape->isAlias()))
             shape = shape->previous();
 
