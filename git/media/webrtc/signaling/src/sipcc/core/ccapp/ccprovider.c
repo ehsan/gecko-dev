@@ -581,9 +581,9 @@ static void updateVideoPref( unsigned int event, line_t line_id, callid_t call_i
  *    digits - memory to return the first param
  *  Returns:
  */
-static void getDigits(string_t data, char *digits, unsigned int buffer_length) {
+void getDigits(string_t data, char *digits) {
    char *endptr;
-   unsigned int len=0;
+   int len=0;
 
    digits[0]=0;
 
@@ -593,11 +593,6 @@ static void getDigits(string_t data, char *digits, unsigned int buffer_length) {
            len = endptr - data;
        } else {
            len = strlen(data);
-       }
-
-       /* prevent len from writing past buffer size */
-       if (len >= buffer_length) {
-        len = buffer_length - 1;
        }
 
        if ( len) {
@@ -697,7 +692,7 @@ processSessionEvent (line_t line_id, callid_t call_id, unsigned int event, sdp_d
            break;
          case CC_FEATURE_DIALSTR:
              if (CheckAndGetAvailableLine(&line_id, &call_id) == TRUE) {
-                 getDigits(data, digits, sizeof(digits));
+                 getDigits(data, digits);
                  if (strlen(digits) == 0) {
                     //if dial string is empty then go offhook
                     cc_offhook(CC_SRC_UI, call_id, line_id);
@@ -784,7 +779,7 @@ processSessionEvent (line_t line_id, callid_t call_id, unsigned int event, sdp_d
                  break;
              }
 
-             getDigits(data, digits, sizeof(digits));
+             getDigits(data,digits);
 
              dp_int_init_dialing_data(line_id, call_id);
              dp_int_dial_immediate(line_id, call_id, TRUE,
@@ -895,7 +890,7 @@ processSessionEvent (line_t line_id, callid_t call_id, unsigned int event, sdp_d
 		     }// DON'T ADD BREAK HERE. EVENT IS PASSED BELOW
 	 case CC_FEATURE_B2BCONF:
 	 case CC_FEATURE_XFER:
-		     getDigits(data, digits, sizeof(digits));
+		     getDigits(data,digits);
 		     if ( strlen(digits)) {
 			cc_feature_data_t ftr_data;
 			CCAPP_DEBUG(DEB_F_PREFIX"conf: sid=%s.", DEB_F_PREFIX_ARGS(SIP_CC_PROV, fname),data);

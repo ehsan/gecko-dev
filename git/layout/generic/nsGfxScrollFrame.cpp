@@ -3768,9 +3768,7 @@ nsGfxScrollFrameInner::LayoutScrollbars(nsBoxLayoutState& aState,
     AdjustScrollbarRectForResizer(mOuter, presContext, hRect, hasResizer, false);
   }
 
-  if (!LookAndFeel::GetInt(LookAndFeel::eIntID_AllowOverlayScrollbarsOverlap)) {
-    AdjustOverlappingScrollbars(vRect, hRect);
-  }
+  AdjustOverlappingScrollbars(vRect, hRect);
   if (mVScrollbarBox) {
     nsBoxFrame::LayoutChildAt(aState, mVScrollbarBox, vRect);
   }

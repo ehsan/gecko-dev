@@ -1277,14 +1277,7 @@ public class GeckoAppShell
                 if (android.os.Build.VERSION.SDK_INT >= 11) {
                     android.content.ClipboardManager cm = (android.content.ClipboardManager)
                         context.getSystemService(Context.CLIPBOARD_SERVICE);
-                    ClipData clip = ClipData.newPlainText("Text", text);
-                    try {
-                        cm.setPrimaryClip(clip);
-                    } catch (NullPointerException e) {
-                        // Bug 776223: This is a Samsung clipboard bug. setPrimaryClip() can throw
-                        // a NullPointerException if Samsung's /data/clipboard directory is full.
-                        // Fortunately, the text is still successfully copied to the clipboard.
-                    }
+                    cm.setPrimaryClip(ClipData.newPlainText("Text", text));
                 } else {
                     android.text.ClipboardManager cm = (android.text.ClipboardManager)
                         context.getSystemService(Context.CLIPBOARD_SERVICE);

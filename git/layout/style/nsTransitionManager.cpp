@@ -451,11 +451,6 @@ nsTransitionManager::StyleContextChanged(dom::Element *aElement,
                       aNewStyleContext->HasPseudoElementData(),
                   "pseudo type mismatch");
 
-  if (!mPresContext->IsDynamic()) {
-    // For print or print preview, ignore transitions.
-    return nullptr;
-  }
-
   // NOTE: Things in this function (and ConsiderStartingTransition)
   // should never call PeekStyleData because we don't preserve gotten
   // structs across reframes.
@@ -895,11 +890,6 @@ nsTransitionManager::WalkTransitionRule(ElementDependentRuleProcessorData* aData
   ElementTransitions *et =
     GetElementTransitions(aData->mElement, aPseudoType, false);
   if (!et) {
-    return;
-  }
-
-  if (!mPresContext->IsDynamic()) {
-    // For print or print preview, ignore animations.
     return;
   }
 

@@ -5,6 +5,7 @@ var assert = require('assert'),
     tls = require('tls'),request
     Buffer = require('buffer').Buffer;
 
+
 suite('A SPDY Server', function() {
   var server;
   setup(function(done) {
@@ -25,9 +26,7 @@ suite('A SPDY Server', function() {
       host: 'localhost',
       port: 8081,
       path: '/',
-      method: 'GET',
-      agent: false,
-      rejectUnauthorized: false
+      method: 'GET'
     }, function(res) {
       assert.equal(res.statusCode, 200);
       done();
@@ -38,9 +37,9 @@ suite('A SPDY Server', function() {
     var socket = tls.connect(
       8081,
       'localhost',
-      { NPNProtocols: ['spdy/2'], rejectUnauthorized: false },
+      { NPNProtocols: ['spdy/2'] },
       function() {
-        var deflate = spdy.utils.createDeflate(2),
+        var deflate = spdy.utils.createDeflate(),
             chunks = [],
             length = 0;
 
@@ -133,10 +132,6 @@ suite('A SPDY Server', function() {
         });
       }
     );
-
-    socket.on('error', function(err) {
-      console.error('Socket error: ' + err);
-    });
 
     server.on('request', function(req, res) {
       assert.equal(req.url, '/');

@@ -57,16 +57,6 @@ XPCOMUtils.defineLazyGetter(this, "Sanitizer", function() {
   return Sanitizer;
 });
 
-XPCOMUtils.defineLazyGetter(this, "Prompt", function() {
-  let temp = {};
-  Cu.import("resource://gre/modules/Prompt.jsm", temp);
-  return temp.Prompt;
-});
-
-XPCOMUtils.defineLazyServiceGetter(this, "uuidgen",
-                                   "@mozilla.org/uuid-generator;1",
-                                   "nsIUUIDGenerator");
-
 // Lazily-loaded browser scripts:
 [
   ["HelperApps", "chrome://browser/content/HelperApps.js"],
@@ -248,7 +238,6 @@ var BrowserApp = {
   _tabs: [],
   _selectedTab: null,
   _prefObservers: [],
-  _promptHandlers: {},
 
   get isTablet() {
     let sysInfo = Cc["@mozilla.org/system-info;1"].getService(Ci.nsIPropertyBag2);
@@ -298,7 +287,6 @@ var BrowserApp = {
     Services.obs.addObserver(this, "FormHistory:Init", false);
     Services.obs.addObserver(this, "gather-telemetry", false);
     Services.obs.addObserver(this, "keyword-search", false);
-    Services.obs.addObserver(this, "Prompt:Reply", false);
 
     Services.obs.addObserver(this, "sessionstore-state-purge-complete", false);
 
@@ -1424,18 +1412,6 @@ var BrowserApp = {
         browser.contentDocument.mozCancelFullScreen();
         break;
 
-      case "Prompt:Reply":
-        {
-            let data = JSON.parse(aData);
-            let guid = data.guid;
-            let handler = this._promptHandlers[guid];
-            if (!handler)
-              break;
-            this._promptHandlers[guid];
-            handler(data);
-        }
-        break;
-
       case "Viewport:Change":
         if (this.isBrowserContentDocumentDisplayed())
           this.selectedTab.setViewport(JSON.parse(aData));
@@ -1500,12 +1476,9 @@ var BrowserApp = {
   // selecting selIndex(if fromIndex<=selIndex<=toIndex)
   showHistory: function(fromIndex, toIndex, selIndex) {
     let browser = this.selectedBrowser;
-    let guid = uuidgen.generateUUID().toString();
     let result = {
       type: "Prompt:Show",
       multiple: false,
-      async: true,
-      guid: guid,
       selected: [],
       listitems: []
     };
@@ -1522,13 +1495,11 @@ var BrowserApp = {
       result.listitems.push(item);
       result.selected.push(i == selIndex);
     }
-    this._promptHandlers[guid] = function (data) {
-        let selected = data.button;
-        if (selected == -1)
-          return;
-        browser.gotoIndex(toIndex-selected);
-    };
-    sendMessageToJava(result);
+    let data = JSON.parse(sendMessageToJava(result));
+    let selected = data.button;
+    if (selected == -1)
+      return;
+    browser.gotoIndex(toIndex-selected);
   },
 };
 

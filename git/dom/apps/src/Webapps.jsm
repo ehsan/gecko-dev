@@ -1459,7 +1459,6 @@ this.DOMApplicationRegistry = {
 
         app.name = manifest.name;
         app.csp = manifest.csp || "";
-        app.updateTime = Date.now();
       } else {
         manifest = new ManifestHelper(aOldManifest, app.origin);
       }

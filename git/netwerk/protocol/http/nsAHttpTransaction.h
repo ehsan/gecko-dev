@@ -16,8 +16,6 @@ class nsIEventTarget;
 class nsITransport;
 class nsHttpRequestHead;
 class nsHttpPipeline;
-class nsHttpTransaction;
-class nsILoadGroupConnectionInfo;
 
 //----------------------------------------------------------------------------
 // Abstract base class for a HTTP transaction:
@@ -102,12 +100,6 @@ public:
     virtual nsresult SetPipelinePosition(int32_t) = 0;
     virtual int32_t  PipelinePosition() = 0;
 
-    // Occasionally the abstract interface has to give way to base implementations
-    // to respect differences between spdy, pipelines, etc..
-    // These Query* (and IsNUllTransaction()) functions provide a way to do
-    // that without using xpcom or rtti. Any calling code that can't deal with
-    // a null response from one of them probably shouldn't be using nsAHttpTransaction
-
     // If we used rtti this would be the result of doing
     // dynamic_cast<nsHttpPipeline *>(this).. i.e. it can be nullptr for
     // non pipeline implementations of nsAHttpTransaction
@@ -117,9 +109,6 @@ public:
     // A null transaction is expected to return BASE_STREAM_CLOSED on all of
     // its IO functions all the time.
     virtual bool IsNullTransaction() { return false; }
-
-    // return the load group connection information associated with the transaction
-    virtual nsILoadGroupConnectionInfo *LoadGroupConnectionInfo() { return nullptr; }
 
     // Every transaction is classified into one of the types below. When using
     // HTTP pipelines, only transactions with the same type appear on the same
@@ -188,7 +177,7 @@ public:
     // commitment now but might in the future and forceCommitment is not true .
     // (forceCommitment requires a hard failure or OK at this moment.)
     //
-    // SpdySession uses this to make sure frames are atomic.
+    // Spdy uses this to make sure frames are atomic.
     virtual nsresult CommitToSegmentSize(uint32_t size, bool forceCommitment)
     {
         return NS_ERROR_FAILURE;

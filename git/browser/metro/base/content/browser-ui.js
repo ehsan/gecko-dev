@@ -594,6 +594,8 @@ var BrowserUI = {
       }
       Elements.windowState.setAttribute("viewstate", currViewState);
     }
+    // content navigator helper
+    document.getElementById("content-navigator").contentHasChanged();
   },
 
   _titleChanged: function(aBrowser) {
@@ -759,7 +761,7 @@ var BrowserUI = {
     }
 
     // Check content helper
-    let contentHelper = Elements.contentNavigator;
+    let contentHelper = document.getElementById("content-navigator");
     if (contentHelper.isActive) {
       contentHelper.model.hide();
       return;

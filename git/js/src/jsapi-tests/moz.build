@@ -26,7 +26,6 @@ CPP_SOURCES += [
     'testDefineProperty.cpp',
     'testEnclosingFunction.cpp',
     'testErrorCopying.cpp',
-    'testException.cpp',
     'testExternalStrings.cpp',
     'testFindSCCs.cpp',
     'testFuncCallback.cpp',
