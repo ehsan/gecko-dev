@@ -326,7 +326,7 @@ DAVCollection.prototype = {
     let ret = null;
 
     this._log.debug("Getting active lock token");
-    this.PROPFIND("lock",
+    this.PROPFIND("",
                   "<?xml version=\"1.0\" encoding=\"utf-8\" ?>" +
                   "<D:propfind xmlns:D='DAV:'>" +
                   "  <D:prop><D:lockdiscovery/></D:prop>" +
