@@ -861,8 +861,8 @@ let UI = {
         if (this.restoredClosedTab) {
           // when the tab view UI is being displayed, update the thumb for the 
           // restored closed tab after the page load
-          tab.linkedBrowser.addEventListener("load", function onLoad(event) {
-            tab.linkedBrowser.removeEventListener("load", onLoad, true);
+          tab.linkedBrowser.addEventListener("load", function (event) {
+            tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
             TabItems._update(tab);
           }, true);
         }
@@ -1003,9 +1003,6 @@ let UI = {
     [
 #ifdef XP_UNIX
       "redo",
-#endif
-#ifdef XP_MACOSX
-      "fullScreen",
 #endif
       "closeWindow", "tabview", "undoCloseTab", "undoCloseWindow",
       "privatebrowsing"

@@ -1724,13 +1724,6 @@ public:
    * ontouch* event handler DOM attributes.
    */
   static void InitializeTouchEventTable();
-
-  static nsresult Btoa(const nsAString& aBinaryData,
-                       nsAString& aAsciiBase64String);
-
-  static nsresult Atob(const nsAString& aAsciiString,
-                       nsAString& aBinaryData);
-  
 private:
   static PRBool InitializeEventTable();
 

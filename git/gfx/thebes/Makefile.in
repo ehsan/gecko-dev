@@ -142,7 +142,6 @@ EXPORTS	+= \
 endif
 
 CPPSRCS	= \
-	gfx3DMatrix.cpp \
 	gfxASurface.cpp \
 	gfxAlphaRecovery.cpp \
 	gfxBlur.cpp \
@@ -338,11 +337,7 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 ifdef MOZ_PLATFORM_MAEMO
 GL_PROVIDER = EGL
 else
-ifdef MOZ_EGL_XRENDER_COMPOSITE
-GL_PROVIDER = EGL
-else
 GL_PROVIDER = GLX
-endif
 endif
 endif
 

@@ -1514,6 +1514,7 @@ struct nsStyleDisplay {
   // initial are replaced by an actual list of transform functions, or
   // null, as appropriate.) (owned by the style rule)
   const nsCSSValueList *mSpecifiedTransform; // [reset]
+  nsStyleTransformMatrix mTransform; // [reset] The stored transform matrix
   nsStyleCoord mTransformOrigin[2]; // [reset] percent, coord, calc
 
   nsAutoTArray<nsTransition, 1> mTransitions; // [reset]
@@ -1551,21 +1552,13 @@ struct nsStyleDisplay {
            NS_STYLE_DISPLAY_TABLE == mDisplay;
   }
 
-  static PRBool IsDisplayTypeInlineOutside(PRUint8 aDisplay) {
-    return NS_STYLE_DISPLAY_INLINE == aDisplay ||
-           NS_STYLE_DISPLAY_INLINE_BLOCK == aDisplay ||
-           NS_STYLE_DISPLAY_INLINE_TABLE == aDisplay ||
-           NS_STYLE_DISPLAY_INLINE_BOX == aDisplay ||
-           NS_STYLE_DISPLAY_INLINE_GRID == aDisplay ||
-           NS_STYLE_DISPLAY_INLINE_STACK == aDisplay;
-  }
-
   PRBool IsInlineOutside() const {
-    return IsDisplayTypeInlineOutside(mDisplay);
-  }
-
-  PRBool IsOriginalDisplayInlineOutside() const {
-    return IsDisplayTypeInlineOutside(mOriginalDisplay);
+    return NS_STYLE_DISPLAY_INLINE == mDisplay ||
+           NS_STYLE_DISPLAY_INLINE_BLOCK == mDisplay ||
+           NS_STYLE_DISPLAY_INLINE_TABLE == mDisplay ||
+           NS_STYLE_DISPLAY_INLINE_BOX == mDisplay ||
+           NS_STYLE_DISPLAY_INLINE_GRID == mDisplay ||
+           NS_STYLE_DISPLAY_INLINE_STACK == mDisplay;
   }
 
   PRBool IsFloating() const {

@@ -13,13 +13,7 @@ DIST_INSTALL = 1
 
 EXPORTS      = qcms.h qcmstypes.h
 
-CSRCS = \
-  chain.c \
-  iccread.c \
-  matrix.c \
-  transform.c \
-  transform_util.c \
-  $(NULL)
+CSRCS = iccread.c transform.c
 
 ifeq (86,$(findstring 86,$(OS_TEST)))
 CSRCS += transform-sse2.c

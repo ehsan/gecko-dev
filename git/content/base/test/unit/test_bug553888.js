@@ -58,11 +58,6 @@ function headerCheckHandler(metadata, response) {
   } catch(e) {
     do_throw("No header present after redirect");
   }
-  try {
-    metadata.getHeader("X-Unwanted-Header");
-    do_throw("Unwanted header present after redirect");
-  } catch (x) {
-  }
   response.setStatusLine(metadata.httpVersion, 200, "OK");
   response.setHeader("Content-Type", "text/plain");
   response.write("");
@@ -77,18 +72,11 @@ function run_test() {
   do_test_pending();
   var request = Components.classes["@mozilla.org/xmlextras/xmlhttprequest;1"]
                 .createInstance(Components.interfaces.nsIXMLHttpRequest);
-  request.open("GET", redirectURL, true);
+  request.open("GET", redirectURL, false);
   request.setRequestHeader("X-Custom-Header", "present");
-  request.onreadystatechange = function() {
-    if (request.readyState == 4) {
-      do_check_eq(request.status, 200);
-      server.stop(do_test_finished);
-    }
-  };
-  request.send();
-  try {
-    request.setRequestHeader("X-Unwanted-Header", "present");
-    do_throw("Shouldn't be able to set a header after send");
-  } catch (x) {
-  }    
+  request.send(null);
+
+  do_check_eq(request.status, 200);
+
+  server.stop(do_test_finished);
 }

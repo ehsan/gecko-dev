@@ -79,7 +79,6 @@
 #endif
 
 using namespace js;
-using namespace js::unicode;
 
 #define JS_KEYWORD(keyword, type, op, version) \
     const char js_##keyword##_str[] = #keyword;
@@ -143,12 +142,12 @@ js_IsIdentifier(JSLinearString *str)
     if (length == 0)
         return JS_FALSE;
     jschar c = *chars;
-    if (!IsIdentifierStart(c))
+    if (!JS_ISIDSTART(c))
         return JS_FALSE;
     const jschar *end = chars + length;
     while (++chars != end) {
         c = *chars;
-        if (!IsIdentifierPart(c))
+        if (!JS_ISIDENT(c))
             return JS_FALSE;
     }
     return JS_TRUE;
@@ -228,18 +227,6 @@ TokenStream::init(const jschar *base, size_t length, const char *fn, uintN ln, J
     maybeStrSpecial[unsigned(LINE_SEPARATOR & 0xff)] = true;
     maybeStrSpecial[unsigned(PARA_SEPARATOR & 0xff)] = true;
     maybeStrSpecial[unsigned(EOF & 0xff)] = true;
-
-    /*
-     * Set |ln| as the beginning line number of the ungot "current token", so
-     * that js::Parser::statements (and potentially other such methods, in the
-     * future) can create parse nodes with good source coordinates before they
-     * explicitly get any tokens.
-     *
-     * Switching the parser/lexer so we always get the next token ahead of the
-     * parser needing it (the so-called "pump-priming" model) might be a better
-     * way to address the dependency from statements on the current token.
-     */
-    tokens[0].pos.begin.lineno = tokens[0].pos.end.lineno = ln;
     return true;
 }
 
@@ -658,7 +645,7 @@ TokenStream::getXMLEntity()
     if (length > 2 && bp[1] == '#') {
         /* Match a well-formed XML Character Reference. */
         i = 2;
-        if (length > 3 && (bp[i] == 'x' || bp[i] == 'X')) {
+        if (length > 3 && JS_TOLOWER(bp[i]) == 'x') {
             if (length > 9)     /* at most 6 hex digits allowed */
                 goto badncr;
             while (++i < length) {
@@ -766,7 +753,7 @@ TokenStream::getXMLTextOrTag(TokenKind *ttp, Token **tpp)
                 continue;
             }
 
-            if (!IsXMLSpace(c))
+            if (!JS_ISXMLSPACE(c))
                 tt = TOK_XMLTEXT;
             if (!tokenbuf.append(c))
                 goto error;
@@ -793,12 +780,10 @@ TokenStream::getXMLTextOrTag(TokenKind *ttp, Token **tpp)
         JS_ASSERT(flags & TSF_XMLTAGMODE);
         tp = newToken(0);
         c = getChar();
-        if (c != EOF && IsXMLSpace(c)) {
+        if (JS_ISXMLSPACE(c)) {
             do {
                 c = getChar();
-                if (c == EOF)
-                    break;
-            } while (IsXMLSpace(c));
+            } while (JS_ISXMLSPACE(c));
             ungetChar(c);
             tp->pos.end.lineno = lineno;
             tt = TOK_XMLSPACE;
@@ -811,19 +796,19 @@ TokenStream::getXMLTextOrTag(TokenKind *ttp, Token **tpp)
         }
 
         tokenbuf.clear();
-        if (IsXMLNamespaceStart(c)) {
+        if (JS_ISXMLNSSTART(c)) {
             JSBool sawColon = JS_FALSE;
 
             if (!tokenbuf.append(c))
                 goto error;
-            while ((c = getChar()) != EOF && IsXMLNamePart(c)) {
+            while ((c = getChar()) != EOF && JS_ISXMLNAME(c)) {
                 if (c == ':') {
                     int nextc;
 
                     if (sawColon ||
                         (nextc = peekChar(),
                          ((flags & TSF_XMLONLYMODE) || nextc != '{') &&
-                         !IsXMLNamePart(nextc))) {
+                         !JS_ISXMLNAME(nextc))) {
                         ReportCompileErrorNumber(cx, this, NULL, JSREPORT_ERROR,
                                                  JSMSG_BAD_XML_QNAME);
                         goto error;
@@ -1027,20 +1012,20 @@ TokenStream::getXMLMarkup(TokenKind *ttp, Token **tpp)
             if (c == EOF)
                 goto bad_xml_markup;
             if (inTarget) {
-                if (IsXMLSpace(c)) {
+                if (JS_ISXMLSPACE(c)) {
                     if (tokenbuf.empty())
                         goto bad_xml_markup;
                     inTarget = JS_FALSE;
                 } else {
                     if (!(tokenbuf.empty()
-                          ? IsXMLNamespaceStart(c)
-                          : IsXMLNamespacePart(c))) {
+                          ? JS_ISXMLNSSTART(c)
+                          : JS_ISXMLNS(c))) {
                         goto bad_xml_markup;
                     }
                     ++targetLength;
                 }
             } else {
-                if (contentIndex < 0 && !IsXMLSpace(c))
+                if (contentIndex < 0 && !JS_ISXMLSPACE(c))
                     contentIndex = tokenbuf.length();
             }
             if (!tokenbuf.append(c))
@@ -1115,7 +1100,7 @@ TokenStream::peekUnicodeEscape(int *result)
 bool
 TokenStream::matchUnicodeEscapeIdStart(int32 *cp)
 {
-    if (peekUnicodeEscape(cp) && IsIdentifierStart(*cp)) {
+    if (peekUnicodeEscape(cp) && JS_ISIDSTART(*cp)) {
         skipChars(5);
         return true;
     }
@@ -1125,7 +1110,7 @@ TokenStream::matchUnicodeEscapeIdStart(int32 *cp)
 bool
 TokenStream::matchUnicodeEscapeIdent(int32 *cp)
 {
-    if (peekUnicodeEscape(cp) && IsIdentifierPart(*cp)) {
+    if (peekUnicodeEscape(cp) && JS_ISIDENT(*cp)) {
         skipChars(5);
         return true;
     }
@@ -1152,7 +1137,7 @@ TokenStream::getAtLine()
         cp[3] == 'n' &&
         cp[4] == 'e') {
         skipChars(5);
-        while ((c = getChar()) != '\n' && c != EOF && IsSpaceOrBOM2(c))
+        while ((c = getChar()) != '\n' && JS_ISSPACE_OR_BOM((jschar)c))
             continue;
         if (JS7_ISDEC(c)) {
             line = JS7_UNDEC(c);
@@ -1164,7 +1149,7 @@ TokenStream::getAtLine()
                 }
                 line = temp;
             }
-            while (c != '\n' && c != EOF && IsSpaceOrBOM2(c))
+            while (c != '\n' && JS_ISSPACE_OR_BOM((jschar)c))
                 c = getChar();
             i = 0;
             if (c == '"') {
@@ -1178,8 +1163,10 @@ TokenStream::getAtLine()
                     filenameBuf[i++] = (char) c;
                 }
                 if (c == '"') {
-                    while ((c = getChar()) != '\n' && c != EOF && IsSpaceOrBOM2(c))
+                    while ((c = getChar()) != '\n' &&
+                           JS_ISSPACE_OR_BOM((jschar)c)) {
                         continue;
+                    }
                 }
             }
             filenameBuf[i] = '\0';
@@ -1260,7 +1247,7 @@ TokenStream::putIdentInTokenbuf(const jschar *identStart)
     tokenbuf.clear();
     for (;;) {
         c = getCharIgnoreEOL();
-        if (!IsIdentifierPart(c)) {
+        if (!JS_ISIDENT(c)) {
             if (c != '\\' || !matchUnicodeEscapeIdent(&qc))
                 break;
             c = qc;
@@ -1357,14 +1344,13 @@ TokenStream::getTokenInternal()
     }
 
     c = userbuf.getRawChar();
-    JS_ASSERT(c != EOF);
 
     /*
      * Chars not in the range 0..127 are rare.  Getting them out of the way
      * early allows subsequent checking to be faster.
      */
     if (JS_UNLIKELY(c >= 128)) {
-        if (IsSpaceOrBOM2(c)) {
+        if (JS_ISSPACE_OR_BOM(c)) {
             if (c == LINE_SEPARATOR || c == PARA_SEPARATOR) {
                 updateLineInfoForEOL();
                 updateFlagsForEOL();
@@ -1375,9 +1361,7 @@ TokenStream::getTokenInternal()
 
         tp = newToken(-1);
 
-        /* '$' and '_' don't pass IsLetter, but they're < 128 so never appear here. */
-        JS_STATIC_ASSERT('$' < 128 && '_' < 128);
-        if (IsLetter(c)) {
+        if (JS_ISLETTER(c)) {
             identStart = userbuf.addressOfNextRawChar() - 1;
             hadUnicodeEscape = false;
             goto identifier;
@@ -1432,9 +1416,7 @@ TokenStream::getTokenInternal()
       identifier:
         for (;;) {
             c = getCharIgnoreEOL();
-            if (c == EOF)
-                break;
-            if (!IsIdentifierPart(c)) {
+            if (!JS_ISIDENT(c)) {
                 if (c != '\\' || !matchUnicodeEscapeIdent(&qc))
                     break;
                 hadUnicodeEscape = true;
@@ -1676,7 +1658,7 @@ TokenStream::getTokenInternal()
         }
         ungetCharIgnoreEOL(c);
 
-        if (c != EOF && IsIdentifierStart(c)) {
+        if (JS_ISIDSTART(c)) {
             ReportCompileErrorNumber(cx, this, NULL, JSREPORT_ERROR, JSMSG_IDSTART_AFTER_NUMBER);
             goto error;
         }
@@ -1772,7 +1754,7 @@ TokenStream::getTokenInternal()
         }
         ungetCharIgnoreEOL(c);
 
-        if (c != EOF && IsIdentifierStart(c)) {
+        if (JS_ISIDSTART(c)) {
             ReportCompileErrorNumber(cx, this, NULL, JSREPORT_ERROR, JSMSG_IDSTART_AFTER_NUMBER);
             goto error;
         }

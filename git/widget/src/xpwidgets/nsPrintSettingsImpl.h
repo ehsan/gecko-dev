@@ -98,7 +98,7 @@ protected:
 
   PRInt16       mPrintFrameTypeUsage;
   PRInt16       mPrintFrameType;
-  PRInt16       mHowToEnableFrameUI;
+  PRBool        mHowToEnableFrameUI;
   PRBool        mIsCancelled;
   PRBool        mPrintSilent;
   PRBool        mPrintPreview;

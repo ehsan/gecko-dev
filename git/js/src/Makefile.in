@@ -178,7 +178,6 @@ CPPSRCS		= \
 		jsstr.cpp \
 		jstypedarray.cpp \
 		jsutil.cpp \
-		jswatchpoint.cpp \
 		jsweakmap.cpp \
 		jswrapper.cpp \
 		jsxdrapi.cpp \
@@ -189,7 +188,6 @@ CPPSRCS		= \
 		Stack.cpp \
 		String.cpp \
 		ParseMaps.cpp \
-		Unicode.cpp \
 		$(NULL)
 
 # Changes to internal header files, used externally, massively slow down
@@ -278,7 +276,6 @@ EXPORTS_vm = \
 		Stack.h \
 		String.h \
 		StringObject.h \
-		Unicode.h  \
 		$(NULL)
 
 ###############################################
@@ -488,20 +485,11 @@ CPPSRCS += \
     Library.cpp \
     $(NULL)
 
-ifdef MOZ_NATIVE_FFI
-LOCAL_INCLUDES = $(MOZ_FFI_CFLAGS)
-else
-LOCAL_INCLUDES = -Ictypes/libffi/include
-endif
-
-LOCAL_INCLUDES += \
+LOCAL_INCLUDES = \
+    -Ictypes/libffi/include \
     -I. \
     $(NULL)
 
-
-ifdef MOZ_NATIVE_FFI
-EXTRA_DSO_LDOPTS += $(MOZ_FFI_LIBS)
-else
 ifeq ($(OS_ARCH),OS2)
 SHARED_LIBRARY_LIBS += \
     ctypes/libffi/.libs/ffi.a \
@@ -510,7 +498,6 @@ else
 SHARED_LIBRARY_LIBS += \
     ctypes/libffi/.libs/libffi.$(LIB_SUFFIX) \
     $(NULL)
-endif
 endif
 
 endif # JS_HAS_CTYPES
@@ -600,7 +587,6 @@ endif
 include $(topsrcdir)/config/rules.mk
 
 ifdef JS_HAS_CTYPES
-ifndef MOZ_NATIVE_FFI
 # Build libffi proper as part of the 'exports' target, so things get built
 # in the right order.
 export::
@@ -608,7 +594,6 @@ export::
 
 distclean clean::
 		$(call SUBMAKE,$@,ctypes/libffi)
-endif
 endif
 
 # Because the SpiderMonkey can be distributed and built independently
@@ -675,7 +660,7 @@ check-malloc-function-usage: $(filter-out %jsalloc.h %jscntxt.h %jsutil.h, $(ALL
 
 	# We desire these numbers to go down, not up. See "User guide to memory
 	# management within SpiderMonkey" in jsutil.h.
-	$(srcdir)/config/check_source_count.py OffTheBooks:: 59 \
+	$(srcdir)/config/check_source_count.py OffTheBooks:: 58 \
 		"in Makefile.in" "{cx,rt}->{new_,new_array,malloc_,calloc_,realloc_}" $^
 	# This should go to zero, if possible.
 	$(srcdir)/config/check_source_count.py UnwantedForeground:: 31 \
@@ -756,6 +741,12 @@ DEFINES		+= -DEXPORT_JS_API
 # we need to declare "exported" mfbt symbols on its behalf when we use
 # its headers.
 DEFINES		+= -DIMPL_MFBT
+
+# Some platforms that have stdint.h include it in system headers.  So
+# to reliably get limit macros defined, we'd always have to define the
+# one below before including any header, but that's obscure and
+# fragile, so we do it here.
+DEFINES		+= -D__STDC_LIMIT_MACROS
 
 INCLUDES	+= -I$(srcdir)
 

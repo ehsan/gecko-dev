@@ -491,7 +491,7 @@ NS_IMETHODIMP
 nsFormFillController::SelectTextRange(PRInt32 aStartIndex, PRInt32 aEndIndex)
 {
  if (mFocusedInput)
-    mFocusedInput->SetSelectionRange(aStartIndex, aEndIndex, EmptyString());
+    mFocusedInput->SetSelectionRange(aStartIndex, aEndIndex);
   return NS_OK;
 }
 

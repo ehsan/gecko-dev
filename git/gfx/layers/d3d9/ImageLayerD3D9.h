@@ -124,12 +124,9 @@ public:
   void FreeTextures();
   PRBool HasData() { return mHasData; }
 
-  PRUint32 GetDataSize() { return mBuffer ? mBufferSize : 0; }
-
   virtual already_AddRefed<gfxASurface> GetAsSurface();
 
   nsAutoArrayPtr<PRUint8> mBuffer;
-  PRUint32 mBufferSize;
   LayerManagerD3D9 *mManager;
   Data mData;
   gfxIntSize mSize;

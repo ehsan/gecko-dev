@@ -282,10 +282,6 @@ NotificationController::WillRefresh(mozilla::TimeStamp aTime)
       return;
   }
 
-  // Process invalidation list of the document after all accessible tree
-  // modification are done.
-  mDocument->ProcessInvalidationList();
-
   // If a generic notification occurs after this point then we may be allowed to
   // process it synchronously.
   mObservingState = eRefreshObserving;
@@ -374,8 +370,8 @@ NotificationController::CoalesceEvents()
             return;
           }
         } else if (tailEvent->mEventType == nsIAccessibleEvent::EVENT_SHOW) {
-          if (thisEvent->mAccessible->Parent() ==
-              tailEvent->mAccessible->Parent()) {
+          if (thisEvent->mAccessible->GetParent() ==
+              tailEvent->mAccessible->GetParent()) {
             tailEvent->mEventRule = thisEvent->mEventRule;
 
             // Coalesce text change events for show events.

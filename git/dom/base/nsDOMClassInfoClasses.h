@@ -114,6 +114,7 @@ DOMCI_CLASS(HTMLHtmlElement)
 DOMCI_CLASS(HTMLIFrameElement)
 DOMCI_CLASS(HTMLImageElement)
 DOMCI_CLASS(HTMLInputElement)
+DOMCI_CLASS(HTMLIsIndexElement)
 DOMCI_CLASS(HTMLLIElement)
 DOMCI_CLASS(HTMLLabelElement)
 DOMCI_CLASS(HTMLLegendElement)
@@ -461,6 +462,9 @@ DOMCI_CLASS(MozTouchEvent)
 
 DOMCI_CLASS(MathMLElement)
 
+DOMCI_CLASS(Worker)
+DOMCI_CLASS(ChromeWorker)
+
 // WebGL
 DOMCI_CLASS(WebGLRenderingContext)
 DOMCI_CLASS(WebGLBuffer)
@@ -493,7 +497,7 @@ DOMCI_CLASS(DesktopNotification)
 DOMCI_CLASS(DesktopNotificationCenter)
 
 // WebSocket
-DOMCI_CLASS(MozWebSocket)
+DOMCI_CLASS(WebSocket)
 DOMCI_CLASS(CloseEvent)
 
 DOMCI_CLASS(IDBFactory)

@@ -591,11 +591,10 @@ ContentParent::RecvGetIconForExtension(const nsCString& aFileExt, const PRUint32
     return true;
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS4(ContentParent,
+NS_IMPL_THREADSAFE_ISUPPORTS3(ContentParent,
                               nsIObserver,
                               nsIThreadObserver,
-                              nsIDOMGeoPositionCallback,
-                              nsIDeviceMotionListener)
+                              nsIDOMGeoPositionCallback)
 
 NS_IMETHODIMP
 ContentParent::Observe(nsISupports* aSubject,

@@ -1445,12 +1445,6 @@ RemoteCommandLine(const char* aDesktopStartupID)
 }
 #endif // MOZ_ENABLE_XREMOTE
 
-void
-XRE_InitOmnijar(nsILocalFile* greOmni, nsILocalFile* appOmni)
-{
-  mozilla::Omnijar::Init(greOmni, appOmni);
-}
-
 nsresult
 XRE_GetBinaryPath(const char* argv0, nsILocalFile* *aResult)
 {

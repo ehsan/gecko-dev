@@ -373,8 +373,7 @@ XRE_API(nsresult,
 enum NSLocationType
 {
   NS_COMPONENT_LOCATION,
-  NS_SKIN_LOCATION,
-  NS_BOOTSTRAPPED_LOCATION
+  NS_SKIN_LOCATION
 };
 
 XRE_API(nsresult,
@@ -573,8 +572,4 @@ XRE_API(void,
 XRE_API(void,
         XRE_TelemetryAccumulate, (int aID, PRUint32 aSample))
 
-
-XRE_API(void,
-        XRE_InitOmnijar, (nsILocalFile* greOmni,
-                          nsILocalFile* appOmni))
 #endif // _nsXULAppAPI_h__

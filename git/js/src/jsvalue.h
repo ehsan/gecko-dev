@@ -852,14 +852,6 @@ PrivateValue(void *ptr)
     return v;
 }
 
-static JS_ALWAYS_INLINE Value
-PrivateUint32Value(uint32 ui)
-{
-    Value v;
-    v.setPrivateUint32(ui);
-    return v;
-}
-
 static JS_ALWAYS_INLINE void
 ClearValueRange(Value *vec, uintN len, bool useHoles)
 {
@@ -1024,15 +1016,9 @@ struct ClassExtension {
     JSObjectOp          innerObject;
     JSIteratorOp        iteratorObject;
     void               *unused;
-
-    /*
-     * isWrappedNative is true only if the class is an XPCWrappedNative.
-     * WeakMaps use this to override the wrapper disposal optimization.
-     */
-    bool                isWrappedNative;
 };
 
-#define JS_NULL_CLASS_EXT   {NULL,NULL,NULL,NULL,NULL,false}
+#define JS_NULL_CLASS_EXT   {NULL,NULL,NULL,NULL,NULL}
 
 struct ObjectOps {
     js::LookupPropOp        lookupProperty;

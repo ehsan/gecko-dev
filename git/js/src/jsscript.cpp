@@ -286,46 +286,6 @@ Bindings::trace(JSTracer *trc)
 
 } /* namespace js */
 
-static void
-volatile_memcpy(volatile char *dst, void *src, size_t n)
-{
-    for (size_t i = 0; i < n; i++)
-        dst[i] = ((char *)src)[i];
-}
-
-static void
-CheckScript(JSScript *script, JSScript *prev)
-{
-    volatile char dbg1[sizeof(JSScript)], dbg2[sizeof(JSScript)];
-    if (script->cookie1 != JS_SCRIPT_COOKIE || script->cookie2 != JS_SCRIPT_COOKIE) {
-        volatile_memcpy(dbg1, script, sizeof(JSScript));
-        if (prev)
-            volatile_memcpy(dbg2, prev, sizeof(JSScript));
-    }
-    JS_OPT_ASSERT(script->cookie1 == JS_SCRIPT_COOKIE && script->cookie2 == JS_SCRIPT_COOKIE);
-}
-
-static void
-CheckScriptOwner(JSScript *script, JSObject *owner)
-{
-    if (script->ownerObject != owner) {
-        volatile char scriptData[sizeof(JSScript)];
-        volatile char owner1Data[sizeof(JSObject)], owner2Data[sizeof(JSObject)];
-        volatile char savedOwner[sizeof(JSObject *)];
-
-        volatile_memcpy(scriptData, script, sizeof(JSScript));
-        volatile_memcpy(savedOwner, &owner, sizeof(JSObject *));
-        if (script->ownerObject != JS_NEW_SCRIPT && script->ownerObject != JS_CACHED_SCRIPT)
-            volatile_memcpy(owner1Data, script->ownerObject, sizeof(JSObject));
-        if (owner != JS_NEW_SCRIPT && owner != JS_CACHED_SCRIPT)
-            volatile_memcpy(owner2Data, owner, sizeof(JSObject));
-    }
-    JS_OPT_ASSERT(script->ownerObject == owner);
-
-    if (owner != JS_NEW_SCRIPT && owner != JS_CACHED_SCRIPT)
-        JS_OPT_ASSERT(script->compartment == owner->compartment());
-}
-
 #if JS_HAS_XDR
 
 enum ScriptBits {
@@ -788,7 +748,7 @@ script_finalize(JSContext *cx, JSObject *obj)
 {
     JSScript *script = (JSScript *) obj->getPrivate();
     if (script)
-        js_DestroyScriptFromGC(cx, script, obj);
+        js_DestroyScriptFromGC(cx, script);
 }
 
 static void
@@ -796,7 +756,7 @@ script_trace(JSTracer *trc, JSObject *obj)
 {
     JSScript *script = (JSScript *) obj->getPrivate();
     if (script)
-        js_TraceScript(trc, script, obj);
+        js_TraceScript(trc, script);
 }
 
 Class js_ScriptClass = {
@@ -981,7 +941,6 @@ JSScript::NewScript(JSContext *cx, uint32 length, uint32 nsrcnotes, uint32 natom
 
     PodZero(script);
     script->cookie1 = script->cookie2 = JS_SCRIPT_COOKIE;
-    script->ownerObject = JS_NEW_SCRIPT;
     script->length = length;
     script->version = version;
     new (&script->bindings) Bindings(cx, emptyCallShape);
@@ -1253,7 +1212,6 @@ JSScript::NewScriptFromCG(JSContext *cx, JSCodeGenerator *cg)
             JS_ASSERT(script->bindings.countUpvars() == 0);
 #endif
         fun->u.i.script = script;
-        script->setOwnerObject(fun);
 #ifdef CHECK_SCRIPT_OWNER
         script->owner = NULL;
 #endif
@@ -1278,13 +1236,6 @@ JSScript::totalSize()
            length * sizeof(jsbytecode) +
            numNotes() * sizeof(jssrcnote) -
            (uint8 *) this;
-}
-
-void
-JSScript::setOwnerObject(JSObject *owner)
-{
-    CheckScriptOwner(this, JS_NEW_SCRIPT);
-    ownerObject = owner;
 }
 
 /*
@@ -1325,6 +1276,25 @@ js_CallDestroyScriptHook(JSContext *cx, JSScript *script)
     JS_ClearScriptTraps(cx, script);
 }
 
+static void
+volatile_memcpy(volatile char *dst, void *src, size_t n)
+{
+    for (size_t i = 0; i < n; i++)
+        dst[i] = ((char *)src)[i];
+}
+
+static void
+CheckScript(JSScript *script, JSScript *prev)
+{
+    volatile char dbg1[sizeof(JSScript)], dbg2[sizeof(JSScript)];
+    if (script->cookie1 != JS_SCRIPT_COOKIE || script->cookie2 != JS_SCRIPT_COOKIE) {
+        volatile_memcpy(dbg1, script, sizeof(JSScript));
+        if (prev)
+            volatile_memcpy(dbg2, prev, sizeof(JSScript));
+        *(int*)0 = 0;
+    }
+}
+
 namespace js {
 
 void
@@ -1342,10 +1312,9 @@ CheckCompartmentScripts(JSCompartment *comp)
 } /* namespace js */
 
 static void
-DestroyScript(JSContext *cx, JSScript *script, JSObject *owner)
+DestroyScript(JSContext *cx, JSScript *script)
 {
     CheckScript(script, NULL);
-    CheckScriptOwner(script, owner);
 
     if (script->principals)
         JSPRINCIPALS_DROP(cx, script->principals);
@@ -1411,30 +1380,28 @@ js_DestroyScript(JSContext *cx, JSScript *script)
 {
     JS_ASSERT(!cx->runtime->gcRunning);
     js_CallDestroyScriptHook(cx, script);
-    DestroyScript(cx, script, JS_NEW_SCRIPT);
+    DestroyScript(cx, script);
 }
 
 void
-js_DestroyScriptFromGC(JSContext *cx, JSScript *script, JSObject *owner)
+js_DestroyScriptFromGC(JSContext *cx, JSScript *script)
 {
     JS_ASSERT(cx->runtime->gcRunning);
     js_CallDestroyScriptHook(cx, script);
-    DestroyScript(cx, script, owner);
+    DestroyScript(cx, script);
 }
 
 void
 js_DestroyCachedScript(JSContext *cx, JSScript *script)
 {
     JS_ASSERT(cx->runtime->gcRunning);
-    DestroyScript(cx, script, JS_CACHED_SCRIPT);
+    DestroyScript(cx, script);
 }
 
 void
-js_TraceScript(JSTracer *trc, JSScript *script, JSObject *owner)
+js_TraceScript(JSTracer *trc, JSScript *script)
 {
     CheckScript(script, NULL);
-    if (owner)
-        CheckScriptOwner(script, owner);
 
     JSRuntime *rt = trc->context->runtime;
     if (rt->gcCheckCompartment && script->compartment != rt->gcCheckCompartment)
@@ -1479,7 +1446,6 @@ js_NewScriptObject(JSContext *cx, JSScript *script)
         return NULL;
     obj->setPrivate(script);
     script->u.object = obj;
-    script->setOwnerObject(obj);
 
     /*
      * Clear the object's proto, to avoid entraining stuff. Once we no longer use the parent

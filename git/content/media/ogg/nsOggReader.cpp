@@ -369,7 +369,7 @@ nsresult nsOggReader::DecodeVorbis(ogg_packet* aPacket) {
   ogg_int64_t endSample = aPacket->granulepos;
   while ((samples = vorbis_synthesis_pcmout(&mVorbisState->mDsp, &pcm)) > 0) {
     mVorbisState->ValidateVorbisPacketSamples(aPacket, samples);
-    nsAutoArrayPtr<SoundDataValue> buffer(new SoundDataValue[samples * channels]);
+    SoundDataValue* buffer = new SoundDataValue[samples * channels];
     for (PRUint32 j = 0; j < channels; ++j) {
       VorbisPCMValue* channel = pcm[j];
       for (PRUint32 i = 0; i < PRUint32(samples); ++i) {
@@ -379,12 +379,13 @@ nsresult nsOggReader::DecodeVorbis(ogg_packet* aPacket) {
 
     PRInt64 duration = mVorbisState->Time((PRInt64)samples);
     PRInt64 startTime = mVorbisState->Time(endSample - samples);
-    mAudioQueue.Push(new SoundData(mPageOffset,
-                                   startTime,
-                                   duration,
-                                   samples,
-                                   buffer.forget(),
-                                   channels));
+    SoundData* s = new SoundData(mPageOffset,
+                                 startTime,
+                                 duration,
+                                 samples,
+                                 buffer,
+                                 channels);
+    mAudioQueue.Push(s);
     endSample -= samples;
     if (vorbis_synthesis_read(&mVorbisState->mDsp, samples) != 0) {
       return NS_ERROR_FAILURE;
@@ -837,10 +838,7 @@ nsOggReader::SelectSeekRange(const nsTArray<SeekRange>& ranges,
       return ranges[i];
     }
   }
-  if (aExact || eo == -1) {
-    return SeekRange();
-  }
-  return SeekRange(so, eo, st, et);
+  return aExact ? SeekRange() : SeekRange(so, eo, st, et);
 }
 
 nsOggReader::IndexedSeekResult nsOggReader::RollbackIndexedSeek(PRInt64 aOffset)
@@ -1098,18 +1096,17 @@ PageSync(nsMediaStream* aStream,
       NS_ASSERTION(buffer, "Must have a buffer");
 
       // Read from the file into the buffer
-      PRInt64 bytesToRead = NS_MIN(static_cast<PRInt64>(PAGE_STEP),
-                                   aEndOffset - readHead);
-      NS_ASSERTION(bytesToRead <= PR_UINT32_MAX, "bytesToRead range check");
+      PRUint32 bytesToRead =
+        static_cast<PRUint32>(NS_MIN(static_cast<PRInt64>(PAGE_STEP),
+                                     aEndOffset - readHead));
       if (bytesToRead <= 0) {
         return PAGE_SYNC_END_OF_RANGE;
       }
       nsresult rv = NS_OK;
       if (aCachedDataOnly) {
-        rv = aStream->ReadFromCache(buffer, readHead,
-                                    static_cast<PRUint32>(bytesToRead));
+        rv = aStream->ReadFromCache(buffer, readHead, bytesToRead);
         NS_ENSURE_SUCCESS(rv,PAGE_SYNC_ERROR);
-        bytesRead = static_cast<PRUint32>(bytesToRead);
+        bytesRead = bytesToRead;
       } else {
         rv = aStream->Seek(nsISeekableStream::NS_SEEK_SET, readHead);
         NS_ENSURE_SUCCESS(rv,PAGE_SYNC_ERROR);
@@ -1253,7 +1250,7 @@ nsresult nsOggReader::SeekBisection(PRInt64 aTarget,
 
       NS_ASSERTION(guess >= startOffset + startLength, "Guess must be after range start");
       NS_ASSERTION(guess < endOffset, "Guess must be before range end");
-      NS_ASSERTION(guess != previousGuess, "Guess should be different to previous");
+      NS_ASSERTION(guess != previousGuess, "Guess should be differnt to previous");
       previousGuess = guess;
 
       hops++;

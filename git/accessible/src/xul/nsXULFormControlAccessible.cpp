@@ -573,9 +573,8 @@ nsXULToolbarButtonAccessible::GetPositionAndSizeInternal(PRInt32 *aPosInSet,
   PRInt32 setSize = 0;
   PRInt32 posInSet = 0;
 
-  nsAccessible* parent = Parent();
-  if (!parent)
-    return;
+  nsAccessible* parent(GetParent());
+  NS_ENSURE_TRUE(parent,);
 
   PRInt32 childCount = parent->GetChildCount();
   for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {

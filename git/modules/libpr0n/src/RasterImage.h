@@ -375,7 +375,6 @@ private:
    */
   void DeleteImgFrame(PRUint32 framenum);
 
-  imgFrame* GetImgFrameNoDecode(PRUint32 framenum);
   imgFrame* GetImgFrame(PRUint32 framenum);
   imgFrame* GetDrawableImgFrame(PRUint32 framenum);
   imgFrame* GetCurrentImgFrame();

@@ -621,9 +621,9 @@ nsHyperTextAccessible::DOMPointToHypertextOffset(nsINode *aNode,
   }
 
   // From the descendant, go up and get the immediate child of this hypertext
-  nsAccessible* childAccAtOffset = nsnull;
+  nsAccessible *childAccAtOffset = nsnull;
   while (descendantAcc) {
-    nsAccessible* parentAcc = descendantAcc->Parent();
+    nsAccessible *parentAcc = descendantAcc->GetParent();
     if (parentAcc == this) {
       childAccAtOffset = descendantAcc;
       break;
