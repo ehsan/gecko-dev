@@ -1419,7 +1419,7 @@ TraceRecorder::set(jsval* p, LIns* i, bool initializing)
 }
 
 LIns*
-TraceRecorder::get(jsval* p)
+TraceRecorder::get(jsval* p) const
 {
     return tracker.get(p);
 }
@@ -1536,6 +1536,18 @@ bool TraceRecorder::selectCallablePeerFragment(Fragment** first)
     return (*first)->code();
 }
 
+uint8 
+TraceRecorder::determineSlotType(jsval* vp) const
+{
+    uint8 m;
+    LIns* i = get(vp);
+    m = isNumber(*vp)
+        ? (isPromoteInt(i) ? JSVAL_INT : JSVAL_DOUBLE)
+        : JSVAL_TAG(*vp);
+    JS_ASSERT((m != JSVAL_INT) || isInt32(*vp));
+    return m;
+}
+
 SideExit*
 TraceRecorder::snapshot(ExitType exitType)
 {
@@ -1577,12 +1589,7 @@ TraceRecorder::snapshot(ExitType exitType)
        interpreter is using. For numbers we have to check what kind of store we used last
        (integer or double) to figure out what the side exit show reflect in its typemap. */
     FORALL_SLOTS(cx, ngslots, traceMonitor->globalSlots->data(), callDepth,
-        LIns* i = get(vp);
-        *m = isNumber(*vp)
-               ? (isPromoteInt(i) ? JSVAL_INT : JSVAL_DOUBLE)
-               : JSVAL_TAG(*vp);
-        JS_ASSERT((*m != JSVAL_INT) || isInt32(*vp));
-        ++m;
+        *m++ = determineSlotType(vp);
     );
     JS_ASSERT(unsigned(m - exit.typeMap) == ngslots + stackSlots);
     return &exit;
@@ -3458,7 +3465,7 @@ TraceRecorder::test_property_cache_direct_slot(JSObject* obj, LIns* obj_ins, uin
         return true;
     }
 
-    /* If modifying the slot, insist on obj being the directly addressed object. */
+    /* Insist if setting on obj being the directly addressed object. */
     uint32 setflags = (js_CodeSpec[*cx->fp->regs->pc].format & (JOF_SET | JOF_INCDEC));
     if (setflags && obj2 != obj)
         ABORT_TRACE("JOF_SET opcode hit prototype chain");
@@ -4624,7 +4631,6 @@ KNOWN_NATIVE_DECL(js_math_ceil)
 KNOWN_NATIVE_DECL(js_math_cos)
 KNOWN_NATIVE_DECL(js_math_floor)
 KNOWN_NATIVE_DECL(js_math_log)
-KNOWN_NATIVE_DECL(js_math_max)
 KNOWN_NATIVE_DECL(js_math_pow)
 KNOWN_NATIVE_DECL(js_math_random)
 KNOWN_NATIVE_DECL(js_math_sin)
@@ -4680,7 +4686,6 @@ TraceRecorder::record_JSOP_CALL()
         { js_math_ceil,                F_Math_ceil,            "",    "d",    INFALLIBLE },
         { js_math_random,              F_Math_random,          "R",    "",    INFALLIBLE },
         { js_math_log,                 F_Math_log,             "",    "d",    INFALLIBLE },
-        { js_math_max,                 F_Math_max,             "",    "dd",   INFALLIBLE },
         { js_num_parseInt,             F_ParseInt,             "C",   "s",    INFALLIBLE },
         { js_num_parseInt,             F_ParseIntDouble,       "",    "d",    INFALLIBLE },
         { js_num_parseFloat,           F_ParseFloat,           "C",   "s",    INFALLIBLE },
