@@ -527,14 +527,16 @@ nsWindow::Create(nsIWidget *aParent,
                  nsIToolkit *aToolkit,
                  nsWidgetInitData *aInitData)
 {
-  if (aInitData)
-    mUnicodeWidget = aInitData->mUnicode;
+  nsWidgetInitData defaultInitData;
+  if (!aInitData)
+    aInitData = &defaultInitData;
 
-  nsIWidget *baseParent = aInitData &&
-                         (aInitData->mWindowType == eWindowType_dialog ||
+  mUnicodeWidget = aInitData->mUnicode;
+
+  nsIWidget *baseParent = aInitData->mWindowType == eWindowType_dialog ||
                           aInitData->mWindowType == eWindowType_toplevel ||
-                          aInitData->mWindowType == eWindowType_invisible) ?
-                         nsnull : aParent;
+                          aInitData->mWindowType == eWindowType_invisible ?
+                          nsnull : aParent;
 
   mIsTopWidgetWindow = (nsnull == baseParent);
   mBounds.width = aRect.width;
@@ -552,11 +554,8 @@ nsWindow::Create(nsIWidget *aParent,
     mParent = aNativeParent ? GetNSWindowPtr((HWND)aNativeParent) : nsnull;
   }
 
-  if (nsnull != aInitData) {
-    mPopupType = aInitData->mPopupHint;
-  }
-
-  mContentType = aInitData ? aInitData->mContentType : eContentTypeInherit;
+  mPopupType = aInitData->mPopupHint;
+  mContentType = aInitData->mContentType;
 
   DWORD style = WindowStyle();
   DWORD extendedStyle = WindowExStyle();
@@ -571,7 +570,7 @@ nsWindow::Create(nsIWidget *aParent,
   } else if (mWindowType == eWindowType_invisible) {
     // Make sure CreateWindowEx succeeds at creating a toplevel window
     style &= ~0x40000000; // WS_CHILDWINDOW
-  } else if (nsnull != aInitData) {
+  } else {
     // See if the caller wants to explictly set clip children and clip siblings
     if (aInitData->clipChildren) {
       style |= WS_CLIPCHILDREN;
@@ -584,7 +583,7 @@ nsWindow::Create(nsIWidget *aParent,
   }
 
   mWnd = ::CreateWindowExW(extendedStyle,
-                           aInitData && aInitData->mDropShadow ?
+                           aInitData->mDropShadow ?
                            WindowPopupClass() : WindowClass(),
                            L"",
                            style,
@@ -678,6 +677,10 @@ NS_METHOD nsWindow::Destroy()
     mLayerManager->Destroy();
   }
   mLayerManager = nsnull;
+
+  /* We should clear our cached resources now and not wait for the GC to
+   * delete the nsWindow. */
+  ClearCachedResources();
 
   // The DestroyWindow function destroys the specified window. The function sends WM_DESTROY
   // and WM_NCDESTROY messages to the window to deactivate it and remove the keyboard focus
@@ -839,7 +842,7 @@ DWORD nsWindow::WindowStyle()
 
     case eWindowType_popup:
       style = WS_POPUP;
-      if (mTransparencyMode != eTransparencyGlass) {
+      if (!HasGlass()) {
         style |= WS_OVERLAPPED;
       }
       break;
@@ -1062,6 +1065,22 @@ nsIWidget* nsWindow::GetParent(void)
   return GetParentWindow(PR_FALSE);
 }
 
+float nsWindow::GetDPI()
+{
+  HDC dc = ::GetDC(mWnd);
+  if (!dc)
+    return 96.0f;
+
+  double heightInches = ::GetDeviceCaps(dc, VERTSIZE)/MM_PER_INCH_FLOAT;
+  int heightPx = ::GetDeviceCaps(dc, VERTRES);
+  ::ReleaseDC(mWnd, dc);
+  if (heightInches < 0.25) {
+    // Something's broken
+    return 96.0f;
+  }
+  return float(heightPx/heightInches);
+}
+
 nsWindow* nsWindow::GetParentWindow(PRBool aIncludeOwner)
 {
   if (mIsTopWidgetWindow) {
@@ -1147,11 +1166,9 @@ NS_METHOD nsWindow::Show(PRBool bState)
   // SetWindowPos would get the correct answer.
   mIsVisible = bState;
 
-#ifdef CAIRO_HAS_D2D_SURFACE
   if (!mIsVisible && wasVisible) {
-      ClearD2DSurface();
+      ClearCachedResources();
   }
-#endif
 
   if (mWnd) {
     if (bState) {
@@ -1275,7 +1292,7 @@ NS_METHOD nsWindow::IsVisible(PRBool & bState)
 void nsWindow::ClearThemeRegion()
 {
 #ifndef WINCE
-  if (nsUXThemeData::sIsVistaOrLater && mTransparencyMode != eTransparencyGlass &&
+  if (nsUXThemeData::sIsVistaOrLater && !HasGlass() &&
       mWindowType == eWindowType_popup && (mPopupType == ePopupTypeTooltip || mPopupType == ePopupTypePanel)) {
     SetWindowRgn(mWnd, NULL, false);
   }
@@ -1290,7 +1307,7 @@ void nsWindow::SetThemeRegion()
   // so default constants are used for part and state. At some point we might need part and
   // state values from nsNativeThemeWin's GetThemePartAndState, but currently windows that
   // change shape based on state haven't come up.
-  if (nsUXThemeData::sIsVistaOrLater && mTransparencyMode != eTransparencyGlass &&
+  if (nsUXThemeData::sIsVistaOrLater && !HasGlass() &&
       mWindowType == eWindowType_popup && (mPopupType == ePopupTypeTooltip || mPopupType == ePopupTypePanel)) {
     HRGN hRgn = nsnull;
     RECT rect = {0,0,mBounds.width,mBounds.height};
@@ -2447,7 +2464,7 @@ namespace {
 void nsWindow::UpdatePossiblyTransparentRegion(const nsIntRegion &aDirtyRegion,
                                                const nsIntRegion &aPossiblyTransparentRegion) {
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-  if (mTransparencyMode != eTransparencyGlass)
+  if (!HasGlass())
     return;
 
   HWND hWnd = GetTopLevelHWND(mWnd, PR_TRUE);
@@ -2508,19 +2525,31 @@ void nsWindow::UpdateGlass()
 {
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
   HWND hWnd = GetTopLevelHWND(mWnd, PR_TRUE);
+  MARGINS margins = mGlassMargins;
 
   // DWMNCRP_USEWINDOWSTYLE - The non-client rendering area is
   //                          rendered based on the window style.
   // DWMNCRP_ENABLED        - The non-client area rendering is
   //                          enabled; the window style is ignored.
   DWMNCRENDERINGPOLICY policy = DWMNCRP_USEWINDOWSTYLE;
-  if (mTransparencyMode == eTransparencyGlass) {
+  switch (mTransparencyMode) {
+  case eTransparencyBorderlessGlass:
+    {
+      const PRInt32 kGlassMarginAdjustment = 2;
+      margins.cxLeftWidth += kGlassMarginAdjustment;
+      margins.cyTopHeight += kGlassMarginAdjustment;
+      margins.cxRightWidth += kGlassMarginAdjustment;
+      margins.cyBottomHeight += kGlassMarginAdjustment;
+    }
+    // Fall through
+  case eTransparencyGlass:
     policy = DWMNCRP_ENABLED;
+    break;
   }
 
   // Extends the window frame behind the client area
   if(nsUXThemeData::CheckForCompositor()) {
-    nsUXThemeData::dwmExtendFrameIntoClientAreaPtr(hWnd, &mGlassMargins);
+    nsUXThemeData::dwmExtendFrameIntoClientAreaPtr(hWnd, &margins);
     nsUXThemeData::dwmSetWindowAttributePtr(hWnd, DWMWA_NCRENDERING_POLICY, &policy, sizeof policy);
   }
 #endif // #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
@@ -7619,7 +7648,7 @@ void nsWindow::SetWindowTranslucencyInner(nsTransparencyMode aMode)
   ::SetWindowLongPtrW(hWnd, GWL_EXSTYLE, exStyle);
 
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-  if (mTransparencyMode == eTransparencyGlass)
+  if (HasGlass())
     memset(&mGlassMargins, 0, sizeof mGlassMargins);
 #endif // #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
   mTransparencyMode = aMode;
@@ -7904,30 +7933,28 @@ VOID CALLBACK nsWindow::HookTimerForPopups(HWND hwnd, UINT uMsg, UINT idEvent, D
 }
 #endif // WinCE
 
-#ifdef CAIRO_HAS_D2D_SURFACE
-BOOL CALLBACK nsWindow::ClearD2DSurfaceCallback(HWND aWnd, LPARAM aMsg)
+BOOL CALLBACK nsWindow::ClearResourcesCallback(HWND aWnd, LPARAM aMsg)
 {
     nsWindow *window = nsWindow::GetNSWindowPtr(aWnd);
     if (window) {
-        window->ClearD2DSurface();
+        window->ClearCachedResources();
     }  
     return TRUE;
 }
 
 void
-nsWindow::ClearD2DSurface()
+nsWindow::ClearCachedResources()
 {
+#ifdef CAIRO_HAS_D2D_SURFACE
     mD2DWindowSurface = nsnull;
-    if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() ==
-        gfxWindowsPlatform::RENDER_DIRECT2D) {
-        // The layer manager holds onto a bunch of buffers created with create
-        // similar surface. This can consume quite a bit of VMEM for each tab,
-        // if a window is hidden we clear the layer manager to conserve VRAM.
-        mLayerManager = nsnull;
-    }
-    ::EnumChildWindows(mWnd, nsWindow::ClearD2DSurfaceCallback, NULL);
-}
 #endif
+    if (mLayerManager &&
+        mLayerManager->GetBackendType() == LayerManager::LAYERS_BASIC) {
+      static_cast<BasicLayerManager*>(mLayerManager.get())->
+        ClearCachedResources();
+    }
+    ::EnumChildWindows(mWnd, nsWindow::ClearResourcesCallback, NULL);
+}
 
 static PRBool IsDifferentThreadWindow(HWND aWnd)
 {
