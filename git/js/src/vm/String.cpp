@@ -178,32 +178,32 @@ AllocChars(JSString *str, size_t length, CharT **chars, size_t *capacity)
 }
 
 bool
-JSRope::copyLatin1CharsZ(ExclusiveContext *cx, ScopedJSFreePtr<Latin1Char> &out) const
+JSRope::copyLatin1CharsZ(ThreadSafeContext *cx, ScopedJSFreePtr<Latin1Char> &out) const
 {
     return copyCharsInternal<Latin1Char>(cx, out, true);
 }
 
 bool
-JSRope::copyTwoByteCharsZ(ExclusiveContext *cx, ScopedJSFreePtr<char16_t> &out) const
+JSRope::copyTwoByteCharsZ(ThreadSafeContext *cx, ScopedJSFreePtr<char16_t> &out) const
 {
     return copyCharsInternal<char16_t>(cx, out, true);
 }
 
 bool
-JSRope::copyLatin1Chars(ExclusiveContext *cx, ScopedJSFreePtr<Latin1Char> &out) const
+JSRope::copyLatin1Chars(ThreadSafeContext *cx, ScopedJSFreePtr<Latin1Char> &out) const
 {
     return copyCharsInternal<Latin1Char>(cx, out, false);
 }
 
 bool
-JSRope::copyTwoByteChars(ExclusiveContext *cx, ScopedJSFreePtr<char16_t> &out) const
+JSRope::copyTwoByteChars(ThreadSafeContext *cx, ScopedJSFreePtr<char16_t> &out) const
 {
     return copyCharsInternal<char16_t>(cx, out, false);
 }
 
 template <typename CharT>
 bool
-JSRope::copyCharsInternal(ExclusiveContext *cx, ScopedJSFreePtr<CharT> &out,
+JSRope::copyCharsInternal(ThreadSafeContext *cx, ScopedJSFreePtr<CharT> &out,
                           bool nullTerminate) const
 {
     /*
@@ -461,7 +461,7 @@ JSRope::flatten(ExclusiveContext *maybecx)
 
 template <AllowGC allowGC>
 JSString *
-js::ConcatStrings(ExclusiveContext *cx,
+js::ConcatStrings(ThreadSafeContext *cx,
                   typename MaybeRooted<JSString*, allowGC>::HandleType left,
                   typename MaybeRooted<JSString*, allowGC>::HandleType right)
 {
@@ -485,34 +485,34 @@ js::ConcatStrings(ExclusiveContext *cx,
                            ? JSFatInlineString::latin1LengthFits(wholeLength)
                            : JSFatInlineString::twoByteLengthFits(wholeLength);
     if (canUseFatInline && cx->isJSContext()) {
-        JSFatInlineString *str = NewGCFatInlineString<allowGC>(cx);
+        Latin1Char *latin1Buf;
+        char16_t *twoByteBuf;
+        JSInlineString *str = isLatin1
+            ? AllocateFatInlineString<allowGC>(cx, wholeLength, &latin1Buf)
+            : AllocateFatInlineString<allowGC>(cx, wholeLength, &twoByteBuf);
         if (!str)
             return nullptr;
 
         AutoCheckCannotGC nogc;
-        JSLinearString *leftLinear = left->ensureLinear(cx);
-        if (!leftLinear)
-            return nullptr;
-        JSLinearString *rightLinear = right->ensureLinear(cx);
-        if (!rightLinear)
+        ScopedThreadSafeStringInspector leftInspector(left);
+        ScopedThreadSafeStringInspector rightInspector(right);
+        if (!leftInspector.ensureChars(cx, nogc) || !rightInspector.ensureChars(cx, nogc))
             return nullptr;
 
         if (isLatin1) {
-            Latin1Char *buf = str->initLatin1(wholeLength);
-            PodCopy(buf, leftLinear->latin1Chars(nogc), leftLen);
-            PodCopy(buf + leftLen, rightLinear->latin1Chars(nogc), rightLen);
-            buf[wholeLength] = 0;
+            PodCopy(latin1Buf, leftInspector.latin1Chars(), leftLen);
+            PodCopy(latin1Buf + leftLen, rightInspector.latin1Chars(), rightLen);
+            latin1Buf[wholeLength] = 0;
         } else {
-            char16_t *buf = str->initTwoByte(wholeLength);
-            if (leftLinear->hasTwoByteChars())
-                PodCopy(buf, leftLinear->twoByteChars(nogc), leftLen);
+            if (leftInspector.hasTwoByteChars())
+                PodCopy(twoByteBuf, leftInspector.twoByteChars(), leftLen);
             else
-                CopyAndInflateChars(buf, leftLinear->latin1Chars(nogc), leftLen);
-            if (rightLinear->hasTwoByteChars())
-                PodCopy(buf + leftLen, rightLinear->twoByteChars(nogc), rightLen);
+                CopyAndInflateChars(twoByteBuf, leftInspector.latin1Chars(), leftLen);
+            if (rightInspector.hasTwoByteChars())
+                PodCopy(twoByteBuf + leftLen, rightInspector.twoByteChars(), rightLen);
             else
-                CopyAndInflateChars(buf + leftLen, rightLinear->latin1Chars(nogc), rightLen);
-            buf[wholeLength] = 0;
+                CopyAndInflateChars(twoByteBuf + leftLen, rightInspector.latin1Chars(), rightLen);
+            twoByteBuf[wholeLength] = 0;
         }
 
         return str;
@@ -522,10 +522,10 @@ js::ConcatStrings(ExclusiveContext *cx,
 }
 
 template JSString *
-js::ConcatStrings<CanGC>(ExclusiveContext *cx, HandleString left, HandleString right);
+js::ConcatStrings<CanGC>(ThreadSafeContext *cx, HandleString left, HandleString right);
 
 template JSString *
-js::ConcatStrings<NoGC>(ExclusiveContext *cx, JSString *left, JSString *right);
+js::ConcatStrings<NoGC>(ThreadSafeContext *cx, JSString *left, JSString *right);
 
 template <typename CharT>
 JSFlatString *
@@ -622,6 +622,55 @@ JSFlatString::isIndexSlow(const Latin1Char *s, size_t length, uint32_t *indexp);
 
 template bool
 JSFlatString::isIndexSlow(const char16_t *s, size_t length, uint32_t *indexp);
+
+bool
+ScopedThreadSafeStringInspector::ensureChars(ThreadSafeContext *cx, const AutoCheckCannotGC &nogc)
+{
+    if (state_ != Uninitialized)
+        return true;
+
+    if (cx->isExclusiveContext()) {
+        JSLinearString *linear = str_->ensureLinear(cx->asExclusiveContext());
+        if (!linear)
+            return false;
+        if (linear->hasTwoByteChars()) {
+            state_ = TwoByte;
+            twoByteChars_ = linear->twoByteChars(nogc);
+        } else {
+            state_ = Latin1;
+            latin1Chars_ = linear->latin1Chars(nogc);
+        }
+    } else {
+        if (str_->isLinear()) {
+            if (str_->hasLatin1Chars()) {
+                state_ = Latin1;
+                latin1Chars_ = str_->asLinear().latin1Chars(nogc);
+            } else {
+                state_ = TwoByte;
+                twoByteChars_ = str_->asLinear().twoByteChars(nogc);
+            }
+        } else {
+            if (str_->hasLatin1Chars()) {
+                ScopedJSFreePtr<Latin1Char> chars;
+                if (!str_->asRope().copyLatin1Chars(cx, chars))
+                    return false;
+                state_ = Latin1;
+                latin1Chars_ = chars;
+                scopedChars_ = chars.forget();
+            } else {
+                ScopedJSFreePtr<char16_t> chars;
+                if (!str_->asRope().copyTwoByteChars(cx, chars))
+                    return false;
+                state_ = TwoByte;
+                twoByteChars_ = chars;
+                scopedChars_ = chars.forget();
+            }
+        }
+    }
+
+    MOZ_ASSERT(state_ != Uninitialized);
+    return true;
+}
 
 /*
  * Set up some tools to make it easier to generate large tables. After constant
@@ -875,7 +924,7 @@ CanStoreCharsAsLatin1(const Latin1Char *s, size_t length)
 
 template <AllowGC allowGC>
 static MOZ_ALWAYS_INLINE JSInlineString *
-NewFatInlineStringDeflated(ExclusiveContext *cx, mozilla::Range<const char16_t> chars)
+NewFatInlineStringDeflated(ThreadSafeContext *cx, mozilla::Range<const char16_t> chars)
 {
     size_t len = chars.length();
     Latin1Char *storage;
@@ -893,7 +942,7 @@ NewFatInlineStringDeflated(ExclusiveContext *cx, mozilla::Range<const char16_t> 
 
 template <AllowGC allowGC>
 static JSFlatString *
-NewStringDeflated(ExclusiveContext *cx, const char16_t *s, size_t n)
+NewStringDeflated(ThreadSafeContext *cx, const char16_t *s, size_t n)
 {
     if (JSFatInlineString::latin1LengthFits(n))
         return NewFatInlineStringDeflated<allowGC>(cx, mozilla::Range<const char16_t>(s, n));
@@ -918,14 +967,14 @@ NewStringDeflated(ExclusiveContext *cx, const char16_t *s, size_t n)
 
 template <AllowGC allowGC>
 static JSFlatString *
-NewStringDeflated(ExclusiveContext *cx, const Latin1Char *s, size_t n)
+NewStringDeflated(ThreadSafeContext *cx, const Latin1Char *s, size_t n)
 {
     MOZ_CRASH("Shouldn't be called for Latin1 chars");
 }
 
 template <AllowGC allowGC, typename CharT>
 JSFlatString *
-js::NewStringDontDeflate(ExclusiveContext *cx, CharT *chars, size_t length)
+js::NewStringDontDeflate(ThreadSafeContext *cx, CharT *chars, size_t length)
 {
     if (length == 1) {
         char16_t c = chars[0];
@@ -951,20 +1000,20 @@ js::NewStringDontDeflate(ExclusiveContext *cx, CharT *chars, size_t length)
 }
 
 template JSFlatString *
-js::NewStringDontDeflate<CanGC>(ExclusiveContext *cx, char16_t *chars, size_t length);
+js::NewStringDontDeflate<CanGC>(ThreadSafeContext *cx, char16_t *chars, size_t length);
 
 template JSFlatString *
-js::NewStringDontDeflate<NoGC>(ExclusiveContext *cx, char16_t *chars, size_t length);
+js::NewStringDontDeflate<NoGC>(ThreadSafeContext *cx, char16_t *chars, size_t length);
 
 template JSFlatString *
-js::NewStringDontDeflate<CanGC>(ExclusiveContext *cx, Latin1Char *chars, size_t length);
+js::NewStringDontDeflate<CanGC>(ThreadSafeContext *cx, Latin1Char *chars, size_t length);
 
 template JSFlatString *
-js::NewStringDontDeflate<NoGC>(ExclusiveContext *cx, Latin1Char *chars, size_t length);
+js::NewStringDontDeflate<NoGC>(ThreadSafeContext *cx, Latin1Char *chars, size_t length);
 
 template <AllowGC allowGC, typename CharT>
 JSFlatString *
-js::NewString(ExclusiveContext *cx, CharT *chars, size_t length)
+js::NewString(ThreadSafeContext *cx, CharT *chars, size_t length)
 {
     if (IsSame<CharT, char16_t>::value && CanStoreCharsAsLatin1(chars, length)) {
         if (length == 1) {
@@ -988,22 +1037,22 @@ js::NewString(ExclusiveContext *cx, CharT *chars, size_t length)
 }
 
 template JSFlatString *
-js::NewString<CanGC>(ExclusiveContext *cx, char16_t *chars, size_t length);
+js::NewString<CanGC>(ThreadSafeContext *cx, char16_t *chars, size_t length);
 
 template JSFlatString *
-js::NewString<NoGC>(ExclusiveContext *cx, char16_t *chars, size_t length);
+js::NewString<NoGC>(ThreadSafeContext *cx, char16_t *chars, size_t length);
 
 template JSFlatString *
-js::NewString<CanGC>(ExclusiveContext *cx, Latin1Char *chars, size_t length);
+js::NewString<CanGC>(ThreadSafeContext *cx, Latin1Char *chars, size_t length);
 
 template JSFlatString *
-js::NewString<NoGC>(ExclusiveContext *cx, Latin1Char *chars, size_t length);
+js::NewString<NoGC>(ThreadSafeContext *cx, Latin1Char *chars, size_t length);
 
 namespace js {
 
 template <AllowGC allowGC, typename CharT>
 JSFlatString *
-NewStringCopyNDontDeflate(ExclusiveContext *cx, const CharT *s, size_t n)
+NewStringCopyNDontDeflate(ThreadSafeContext *cx, const CharT *s, size_t n)
 {
     if (JSFatInlineString::lengthFits<CharT>(n))
         return NewFatInlineString<allowGC>(cx, mozilla::Range<const CharT>(s, n));
@@ -1024,20 +1073,20 @@ NewStringCopyNDontDeflate(ExclusiveContext *cx, const CharT *s, size_t n)
 }
 
 template JSFlatString *
-NewStringCopyNDontDeflate<CanGC>(ExclusiveContext *cx, const char16_t *s, size_t n);
+NewStringCopyNDontDeflate<CanGC>(ThreadSafeContext *cx, const char16_t *s, size_t n);
 
 template JSFlatString *
-NewStringCopyNDontDeflate<NoGC>(ExclusiveContext *cx, const char16_t *s, size_t n);
+NewStringCopyNDontDeflate<NoGC>(ThreadSafeContext *cx, const char16_t *s, size_t n);
 
 template JSFlatString *
-NewStringCopyNDontDeflate<CanGC>(ExclusiveContext *cx, const Latin1Char *s, size_t n);
+NewStringCopyNDontDeflate<CanGC>(ThreadSafeContext *cx, const Latin1Char *s, size_t n);
 
 template JSFlatString *
-NewStringCopyNDontDeflate<NoGC>(ExclusiveContext *cx, const Latin1Char *s, size_t n);
+NewStringCopyNDontDeflate<NoGC>(ThreadSafeContext *cx, const Latin1Char *s, size_t n);
 
 template <AllowGC allowGC, typename CharT>
 JSFlatString *
-NewStringCopyN(ExclusiveContext *cx, const CharT *s, size_t n)
+NewStringCopyN(ThreadSafeContext *cx, const CharT *s, size_t n)
 {
     if (IsSame<CharT, char16_t>::value && CanStoreCharsAsLatin1(s, n))
         return NewStringDeflated<allowGC>(cx, s, n);
@@ -1046,15 +1095,15 @@ NewStringCopyN(ExclusiveContext *cx, const CharT *s, size_t n)
 }
 
 template JSFlatString *
-NewStringCopyN<CanGC>(ExclusiveContext *cx, const char16_t *s, size_t n);
+NewStringCopyN<CanGC>(ThreadSafeContext *cx, const char16_t *s, size_t n);
 
 template JSFlatString *
-NewStringCopyN<NoGC>(ExclusiveContext *cx, const char16_t *s, size_t n);
+NewStringCopyN<NoGC>(ThreadSafeContext *cx, const char16_t *s, size_t n);
 
 template JSFlatString *
-NewStringCopyN<CanGC>(ExclusiveContext *cx, const Latin1Char *s, size_t n);
+NewStringCopyN<CanGC>(ThreadSafeContext *cx, const Latin1Char *s, size_t n);
 
 template JSFlatString *
-NewStringCopyN<NoGC>(ExclusiveContext *cx, const Latin1Char *s, size_t n);
+NewStringCopyN<NoGC>(ThreadSafeContext *cx, const Latin1Char *s, size_t n);
 
 } /* namespace js */

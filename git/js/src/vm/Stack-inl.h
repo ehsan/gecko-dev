@@ -805,9 +805,9 @@ AbstractFramePtr::popWith(JSContext *cx) const
     asBaselineFrame()->popWith(cx);
 }
 
-Activation::Activation(JSContext *cx, Kind kind)
+Activation::Activation(ThreadSafeContext *cx, Kind kind)
   : cx_(cx),
-    compartment_(cx->compartment()),
+    compartment_(cx->compartment_),
     prev_(cx->perThreadData->activation_),
     prevProfiling_(prev_ ? prev_->mostRecentProfiling() : nullptr),
     savedFrameChain_(0),

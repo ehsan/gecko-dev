@@ -30,8 +30,7 @@ public:
   // GMPDecryptorProxy
   virtual nsresult Init(GMPDecryptorProxyCallback* aCallback) MOZ_OVERRIDE;
 
-  virtual void CreateSession(uint32_t aCreateSessionToken,
-                             uint32_t aPromiseId,
+  virtual void CreateSession(uint32_t aPromiseId,
                              const nsCString& aInitDataType,
                              const nsTArray<uint8_t>& aInitData,
                              GMPSessionType aSessionType) MOZ_OVERRIDE;
@@ -65,8 +64,8 @@ private:
 
   // PGMPDecryptorParent
 
-  virtual bool RecvSetSessionId(const uint32_t& aCreateSessionToken,
-                                const nsCString& aSessionId) MOZ_OVERRIDE;
+  virtual bool RecvResolveNewSessionPromise(const uint32_t& aPromiseId,
+                                            const nsCString& aSessionId) MOZ_OVERRIDE;
 
   virtual bool RecvResolveLoadSessionPromise(const uint32_t& aPromiseId,
                                              const bool& aSuccess) MOZ_OVERRIDE;

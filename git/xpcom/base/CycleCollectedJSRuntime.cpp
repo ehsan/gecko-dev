@@ -346,8 +346,8 @@ JSGCThingParticipant::Traverse(void* aPtr,
     reinterpret_cast<char*>(this) - offsetof(CycleCollectedJSRuntime,
                                              mGCThingCycleCollectorGlobal));
 
-  JS::GCCellPtr cellPtr(aPtr, js::GCThingTraceKind(aPtr));
-  runtime->TraverseGCThing(CycleCollectedJSRuntime::TRAVERSE_FULL, cellPtr, aCb);
+  runtime->TraverseGCThing(CycleCollectedJSRuntime::TRAVERSE_FULL,
+                           aPtr, js::GCThingTraceKind(aPtr), aCb);
   return NS_OK;
 }
 
@@ -382,12 +382,13 @@ struct TraversalTracer : public JSTracer
 };
 
 static void
-NoteJSChild(JSTracer* aTrc, JS::GCCellPtr aThing)
+NoteJSChild(JSTracer* aTrc, void* aThing, JSGCTraceKind aTraceKind)
 {
+  JS::GCCellPtr thing(aThing, aTraceKind);
   TraversalTracer* tracer = static_cast<TraversalTracer*>(aTrc);
 
   // Don't traverse non-gray objects, unless we want all traces.
-  if (!JS::GCThingIsMarkedGray(aThing) && !tracer->mCb.WantAllTraces()) {
+  if (!JS::GCThingIsMarkedGray(thing) && !tracer->mCb.WantAllTraces()) {
     return;
   }
 
@@ -399,7 +400,7 @@ NoteJSChild(JSTracer* aTrc, JS::GCCellPtr aThing)
    * shape parent pointers. The special JSTRACE_SHAPE case below handles
    * parent pointers iteratively, rather than recursively, to avoid overflow.
    */
-  if (AddToCCKind(aThing.kind())) {
+  if (AddToCCKind(aTraceKind)) {
     if (MOZ_UNLIKELY(tracer->mCb.WantDebugInfo())) {
       // based on DumpNotify in jsapi.cpp
       if (tracer->debugPrinter()) {
@@ -416,30 +417,29 @@ NoteJSChild(JSTracer* aTrc, JS::GCCellPtr aThing)
         tracer->mCb.NoteNextEdgeName(static_cast<const char*>(tracer->debugPrintArg()));
       }
     }
-    if (aThing.isObject()) {
-      tracer->mCb.NoteJSObject(aThing.toObject());
+    if (thing.isObject()) {
+      tracer->mCb.NoteJSObject(thing.toObject());
     } else {
-      tracer->mCb.NoteJSScript(aThing.toScript());
+      tracer->mCb.NoteJSScript(thing.toScript());
     }
-  } else if (aThing.isShape()) {
+  } else if (aTraceKind == JSTRACE_SHAPE) {
     JS_TraceShapeCycleCollectorChildren(aTrc, aThing);
-  } else if (!aThing.isString()) {
-    JS_TraceChildren(aTrc, aThing.asCell(), aThing.kind());
+  } else if (aTraceKind != JSTRACE_STRING) {
+    JS_TraceChildren(aTrc, aThing, aTraceKind);
   }
 }
 
 static void
 NoteJSChildTracerShim(JSTracer* aTrc, void** aThingp, JSGCTraceKind aTraceKind)
 {
-  JS::GCCellPtr thing(*aThingp, aTraceKind);
-  NoteJSChild(aTrc, thing);
+  NoteJSChild(aTrc, *aThingp, aTraceKind);
 }
 
 static void
 NoteJSChildGrayWrapperShim(void* aData, JS::GCCellPtr aThing)
 {
   TraversalTracer* trc = static_cast<TraversalTracer*>(aData);
-  NoteJSChild(trc, aThing);
+  NoteJSChild(trc, aThing.asCell(), aThing.kind());
 }
 
 /*
@@ -546,7 +546,8 @@ CycleCollectedJSRuntime::UnmarkSkippableJSHolders()
 }
 
 void
-CycleCollectedJSRuntime::DescribeGCThing(bool aIsMarked, JS::GCCellPtr aThing,
+CycleCollectedJSRuntime::DescribeGCThing(bool aIsMarked, void* aThing,
+                                         JSGCTraceKind aTraceKind,
                                          nsCycleCollectionTraversalCallback& aCb) const
 {
   if (!aCb.WantDebugInfo()) {
@@ -556,8 +557,8 @@ CycleCollectedJSRuntime::DescribeGCThing(bool aIsMarked, JS::GCCellPtr aThing,
 
   char name[72];
   uint64_t compartmentAddress = 0;
-  if (aThing.isObject()) {
-    JSObject* obj = aThing.toObject();
+  if (aTraceKind == JSTRACE_OBJECT) {
+    JSObject* obj = static_cast<JSObject*>(aThing);
     compartmentAddress = (uint64_t)js::GetObjectCompartment(obj);
     const js::Class* clasp = js::GetObjectClass(obj);
 
@@ -581,7 +582,7 @@ CycleCollectedJSRuntime::DescribeGCThing(bool aIsMarked, JS::GCCellPtr aThing,
       JS_snprintf(name, sizeof(name), "JS Object (%s)", clasp->name);
     }
   } else {
-    JS_snprintf(name, sizeof(name), "JS %s", JS::GCTraceKindToAscii(aThing.kind()));
+    JS_snprintf(name, sizeof(name), "JS %s", JS::GCTraceKindToAscii(aTraceKind));
   }
 
   // Disable printing global for objects while we figure out ObjShrink fallout.
@@ -589,12 +590,13 @@ CycleCollectedJSRuntime::DescribeGCThing(bool aIsMarked, JS::GCCellPtr aThing,
 }
 
 void
-CycleCollectedJSRuntime::NoteGCThingJSChildren(JS::GCCellPtr aThing,
+CycleCollectedJSRuntime::NoteGCThingJSChildren(void* aThing,
+                                               JSGCTraceKind aTraceKind,
                                                nsCycleCollectionTraversalCallback& aCb) const
 {
   MOZ_ASSERT(mJSRuntime);
   TraversalTracer trc(mJSRuntime, aCb);
-  JS_TraceChildren(&trc, aThing.asCell(), aThing.kind());
+  JS_TraceChildren(&trc, aThing, aTraceKind);
 }
 
 void
@@ -630,13 +632,15 @@ CycleCollectedJSRuntime::NoteGCThingXPCOMChildren(const js::Class* aClasp,
 }
 
 void
-CycleCollectedJSRuntime::TraverseGCThing(TraverseSelect aTs, JS::GCCellPtr aThing,
+CycleCollectedJSRuntime::TraverseGCThing(TraverseSelect aTs, void* aThing,
+                                         JSGCTraceKind aTraceKind,
                                          nsCycleCollectionTraversalCallback& aCb)
 {
-  bool isMarkedGray = JS::GCThingIsMarkedGray(aThing);
+  MOZ_ASSERT(aTraceKind == js::GCThingTraceKind(aThing));
+  bool isMarkedGray = JS::GCThingIsMarkedGray(JS::GCCellPtr(aThing, aTraceKind));
 
   if (aTs == TRAVERSE_FULL) {
-    DescribeGCThing(!isMarkedGray, aThing, aCb);
+    DescribeGCThing(!isMarkedGray, aThing, aTraceKind, aCb);
   }
 
   // If this object is alive, then all of its children are alive. For JS objects,
@@ -648,11 +652,11 @@ CycleCollectedJSRuntime::TraverseGCThing(TraverseSelect aTs, JS::GCCellPtr aThin
   }
 
   if (aTs == TRAVERSE_FULL) {
-    NoteGCThingJSChildren(aThing, aCb);
+    NoteGCThingJSChildren(aThing, aTraceKind, aCb);
   }
 
-  if (aThing.isObject()) {
-    JSObject* obj = aThing.toObject();
+  if (aTraceKind == JSTRACE_OBJECT) {
+    JSObject* obj = static_cast<JSObject*>(aThing);
     NoteGCThingXPCOMChildren(js::GetObjectClass(obj), obj, aCb);
   }
 }
@@ -706,7 +710,7 @@ CycleCollectedJSRuntime::TraverseObjectShim(void* aData, JS::GCCellPtr aThing)
 
   MOZ_ASSERT(aThing.isObject());
   closure->self->TraverseGCThing(CycleCollectedJSRuntime::TRAVERSE_CPP,
-                                 aThing, closure->cb);
+                                 aThing.asCell(), JSTRACE_OBJECT, closure->cb);
 }
 
 void

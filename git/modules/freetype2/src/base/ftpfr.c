@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    FreeType API for accessing PFR-specific data (body).                 */
 /*                                                                         */
-/*  Copyright 2002-2004, 2008, 2010, 2013, 2014 by                         */
+/*  Copyright 2002-2004, 2008, 2010, 2013 by                               */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -50,7 +50,7 @@
 
 
     if ( !face )
-      return FT_THROW( Invalid_Face_Handle );
+      return FT_THROW( Invalid_Argument );
 
     service = ft_pfr_check( face );
     if ( service )
@@ -106,9 +106,6 @@
 
 
     if ( !face )
-      return FT_THROW( Invalid_Face_Handle );
-
-    if ( !avector )
       return FT_THROW( Invalid_Argument );
 
     service = ft_pfr_check( face );
@@ -133,15 +130,11 @@
     FT_Service_PfrMetrics  service;
 
 
-    if ( !face )
-      return FT_THROW( Invalid_Face_Handle );
-
-    if ( !aadvance )
-      return FT_THROW( Invalid_Argument );
-
     service = ft_pfr_check( face );
     if ( service )
+    {
       error = service->get_advance( face, gindex, aadvance );
+    }
     else
       /* XXX: TODO: PROVIDE ADVANCE-LOADING METHOD TO ALL FONT DRIVERS */
       error = FT_THROW( Invalid_Argument );

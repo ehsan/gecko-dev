@@ -32,7 +32,8 @@ NativeObject::fixedData(size_t nslots) const
 NativeObject::changePropertyAttributes(JSContext *cx, HandleNativeObject obj,
                                        HandleShape shape, unsigned attrs)
 {
-    return !!changeProperty(cx, obj, shape, attrs, 0, shape->getter(), shape->setter());
+    return !!changeProperty<SequentialExecution>(cx, obj, shape, attrs, 0,
+                                                 shape->getter(), shape->setter());
 }
 
 inline void
@@ -73,6 +74,15 @@ NativeObject::clearShouldConvertDoubleElements()
 {
     MOZ_ASSERT(is<ArrayObject>() && !hasEmptyElements());
     getElementsHeader()->clearShouldConvertDoubleElements();
+}
+
+inline bool
+NativeObject::setDenseElementIfHasType(uint32_t index, const Value &val)
+{
+    if (!types::HasTypePropertyId(this, JSID_VOID, val))
+        return false;
+    setDenseElementMaybeConvertDouble(index, val);
+    return true;
 }
 
 inline void
@@ -128,7 +138,7 @@ NativeObject::markDenseElementsNotPacked(ExclusiveContext *cx)
 }
 
 inline void
-NativeObject::ensureDenseInitializedLengthNoPackedCheck(ExclusiveContext *cx, uint32_t index,
+NativeObject::ensureDenseInitializedLengthNoPackedCheck(ThreadSafeContext *cx, uint32_t index,
                                                         uint32_t extra)
 {
     MOZ_ASSERT(cx->isThreadLocal(this));
@@ -162,8 +172,16 @@ NativeObject::ensureDenseInitializedLength(ExclusiveContext *cx, uint32_t index,
     ensureDenseInitializedLengthNoPackedCheck(cx, index, extra);
 }
 
+inline void
+NativeObject::ensureDenseInitializedLengthPreservePackedFlag(ThreadSafeContext *cx,
+                                                             uint32_t index, uint32_t extra)
+{
+    MOZ_ASSERT(!writeToIndexWouldMarkNotPacked(index));
+    ensureDenseInitializedLengthNoPackedCheck(cx, index, extra);
+}
+
 NativeObject::EnsureDenseResult
-NativeObject::extendDenseElements(ExclusiveContext *cx,
+NativeObject::extendDenseElements(ThreadSafeContext *cx,
                                   uint32_t requiredCapacity, uint32_t extra)
 {
     MOZ_ASSERT(cx->isThreadLocal(this));
@@ -203,12 +221,9 @@ NativeObject::extendDenseElements(ExclusiveContext *cx,
 }
 
 inline NativeObject::EnsureDenseResult
-NativeObject::ensureDenseElements(ExclusiveContext *cx, uint32_t index, uint32_t extra)
+NativeObject::ensureDenseElementsNoPackedCheck(ThreadSafeContext *cx, uint32_t index, uint32_t extra)
 {
     MOZ_ASSERT(isNative());
-
-    if (writeToIndexWouldMarkNotPacked(index))
-        markDenseElementsNotPacked(cx);
 
     if (!maybeCopyElementsForWrite(cx))
         return ED_FAILED;
@@ -245,6 +260,22 @@ NativeObject::ensureDenseElements(ExclusiveContext *cx, uint32_t index, uint32_t
 
     ensureDenseInitializedLengthNoPackedCheck(cx, index, extra);
     return ED_OK;
+}
+
+inline NativeObject::EnsureDenseResult
+NativeObject::ensureDenseElements(ExclusiveContext *cx, uint32_t index, uint32_t extra)
+{
+    if (writeToIndexWouldMarkNotPacked(index))
+        markDenseElementsNotPacked(cx);
+    return ensureDenseElementsNoPackedCheck(cx, index, extra);
+}
+
+inline NativeObject::EnsureDenseResult
+NativeObject::ensureDenseElementsPreservePackedFlag(ThreadSafeContext *cx, uint32_t index,
+                                                    uint32_t extra)
+{
+    MOZ_ASSERT(!writeToIndexWouldMarkNotPacked(index));
+    return ensureDenseElementsNoPackedCheck(cx, index, extra);
 }
 
 inline Value

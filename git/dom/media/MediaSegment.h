@@ -143,11 +143,11 @@ protected:
  */
 template <class C, class Chunk> class MediaSegmentBase : public MediaSegment {
 public:
-  virtual MediaSegment* CreateEmptyClone() const MOZ_OVERRIDE
+  virtual MediaSegment* CreateEmptyClone() const
   {
     return new C();
   }
-  virtual void AppendFrom(MediaSegment* aSource) MOZ_OVERRIDE
+  virtual void AppendFrom(MediaSegment* aSource)
   {
     NS_ASSERTION(aSource->GetType() == C::StaticType(), "Wrong type");
     AppendFromInternal(static_cast<C*>(aSource));
@@ -157,7 +157,7 @@ public:
     AppendFromInternal(aSource);
   }
   virtual void AppendSlice(const MediaSegment& aSource,
-                           StreamTime aStart, StreamTime aEnd) MOZ_OVERRIDE
+                           StreamTime aStart, StreamTime aEnd)
   {
     NS_ASSERTION(aSource.GetType() == C::StaticType(), "Wrong type");
     AppendSliceInternal(static_cast<const C&>(aSource), aStart, aEnd);
@@ -170,7 +170,7 @@ public:
    * Replace the first aDuration ticks with null media data, because the data
    * will not be required again.
    */
-  virtual void ForgetUpTo(StreamTime aDuration) MOZ_OVERRIDE
+  virtual void ForgetUpTo(StreamTime aDuration)
   {
     if (mChunks.IsEmpty() || aDuration <= 0) {
       return;
@@ -188,7 +188,7 @@ public:
     mChunks.InsertElementAt(0)->SetNull(aDuration);
     mDuration += aDuration;
   }
-  virtual void FlushAfter(StreamTime aNewEnd) MOZ_OVERRIDE
+  virtual void FlushAfter(StreamTime aNewEnd)
   {
     if (mChunks.IsEmpty()) {
       return;
@@ -211,7 +211,7 @@ public:
     }
     mDuration = aNewEnd;
   }
-  virtual void InsertNullDataAtStart(StreamTime aDuration) MOZ_OVERRIDE
+  virtual void InsertNullDataAtStart(StreamTime aDuration)
   {
     if (aDuration <= 0) {
       return;
@@ -226,7 +226,7 @@ public:
 #endif
     mDuration += aDuration;
   }
-  virtual void AppendNullData(StreamTime aDuration) MOZ_OVERRIDE
+  virtual void AppendNullData(StreamTime aDuration)
   {
     if (aDuration <= 0) {
       return;
@@ -238,7 +238,7 @@ public:
     }
     mDuration += aDuration;
   }
-  virtual void ReplaceWithDisabled() MOZ_OVERRIDE
+  virtual void ReplaceWithDisabled()
   {
     if (GetType() != AUDIO) {
       MOZ_CRASH("Disabling unknown segment type");
@@ -247,7 +247,7 @@ public:
     Clear();
     AppendNullData(duration);
   }
-  virtual void Clear() MOZ_OVERRIDE
+  virtual void Clear()
   {
     mDuration = 0;
     mChunks.Clear();

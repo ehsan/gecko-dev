@@ -29,8 +29,9 @@ public:
   void RemovePlayPending(dom::AnimationPlayer& aPlayer);
   bool IsWaitingToPlay(dom::AnimationPlayer const& aPlayer) const;
 
-  void StartPendingPlayersOnNextTick(const TimeStamp& aReadyTime);
-  void StartPendingPlayersNow();
+  // Causes any pending players to resume at |aReadyTime| by first
+  // fast-forwarding their timeline to the corresponding time.
+  void StartPendingPlayers(const TimeStamp& aReadyTime);
   bool HasPendingPlayers() const { return mPlayPendingSet.Count() > 0; }
 
 private:

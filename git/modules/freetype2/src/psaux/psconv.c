@@ -124,7 +124,7 @@
       if ( IS_PS_SPACE( *p ) || *p OP 0x80 )
         break;
 
-      c = ft_char_table[*p & 0x7F];
+      c = ft_char_table[*p & 0x7f];
 
       if ( c < 0 || c >= base )
         break;
@@ -245,13 +245,12 @@
         if ( IS_PS_SPACE( *p ) || *p OP 0x80 )
           break;
 
-        c = ft_char_table[*p & 0x7F];
+        c = ft_char_table[*p & 0x7f];
 
         if ( c < 0 || c >= 10 )
           break;
 
-        /* only add digit if we don't overflow */
-        if ( divider < 0xCCCCCCCL && decimal < 0xCCCCCCCL )
+        if ( decimal < 0xCCCCCCCL )
         {
           decimal = decimal * 10 + c;
 
@@ -521,7 +520,7 @@
       if ( *p OP 0x80 )
         break;
 
-      c = ft_char_table[*p & 0x7F];
+      c = ft_char_table[*p & 0x7f];
 
       if ( (unsigned)c >= 16 )
         break;

@@ -94,17 +94,21 @@ function test() {
 }
 
 function runNextSpinTest() {
-  var test = spinTests.shift();
-  if (!test) {
-    SimpleTest.finish();
-    return;
+  try {
+    var [index, test] = spinTests.next();
+    test();
+  } catch(e) {
+    if (e == StopIteration) {
+      SimpleTest.finish();
+      return; // We're all done
+    }
+    throw e;
   }
-  test();
 }
 
 const SETTIMEOUT_DELAY = 500;
 
-var spinTests = [
+var spinTests = Iterator([
   // Test spining when the mouse button is kept depressed on the spin-up
   // button, then moved over the spin-down button:
   function() {
@@ -188,7 +192,7 @@ var spinTests = [
     }, false);
     synthesizeMouse(input, SPIN_DOWN_X, SPIN_DOWN_Y, { type: "mousedown" });
   }
-];
+]);
 
 </script>
 </pre>

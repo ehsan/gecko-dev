@@ -81,9 +81,9 @@ private:
 
   private:
     // Forbidden
-    MessageHandler() = delete;
-    MessageHandler(const MessageHandler &rhs) = delete;
-    const MessageHandler &operator=(const MessageHandler &rhs) = delete;
+    MessageHandler() MOZ_DELETE;
+    MessageHandler(const MessageHandler &rhs) MOZ_DELETE;
+    const MessageHandler &operator=(const MessageHandler &rhs) MOZ_DELETE;
 
     GonkVideoDecoderManager *mManager;
   };
@@ -100,9 +100,9 @@ private:
 
   private:
     // Forbidden
-    VideoResourceListener() = delete;
-    VideoResourceListener(const VideoResourceListener &rhs) = delete;
-    const VideoResourceListener &operator=(const VideoResourceListener &rhs) = delete;
+    VideoResourceListener() MOZ_DELETE;
+    VideoResourceListener(const VideoResourceListener &rhs) MOZ_DELETE;
+    const VideoResourceListener &operator=(const VideoResourceListener &rhs) MOZ_DELETE;
 
     GonkVideoDecoderManager *mManager;
   };

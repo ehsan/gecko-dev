@@ -1040,7 +1040,7 @@ namespace jit {
 class Activation
 {
   protected:
-    JSContext *cx_;
+    ThreadSafeContext *cx_;
     JSCompartment *compartment_;
     Activation *prev_;
     Activation *prevProfiling_;
@@ -1061,11 +1061,11 @@ class Activation
     enum Kind { Interpreter, Jit, ForkJoin, AsmJS };
     Kind kind_;
 
-    inline Activation(JSContext *cx, Kind kind_);
+    inline Activation(ThreadSafeContext *cx, Kind kind_);
     inline ~Activation();
 
   public:
-    JSContext *cx() const {
+    ThreadSafeContext *cx() const {
         return cx_;
     }
     JSCompartment *compartment() const {
@@ -1134,8 +1134,8 @@ class Activation
     }
 
   private:
-    Activation(const Activation &other) = delete;
-    void operator=(const Activation &other) = delete;
+    Activation(const Activation &other) MOZ_DELETE;
+    void operator=(const Activation &other) MOZ_DELETE;
 };
 
 // This variable holds a special opcode value which is greater than all normal
@@ -1286,6 +1286,7 @@ class JitActivation : public Activation
 
   public:
     explicit JitActivation(JSContext *cx, bool active = true);
+    explicit JitActivation(ForkJoinContext *cx);
     ~JitActivation();
 
     bool isActive() const {
@@ -1529,7 +1530,7 @@ class FrameIter
     // the heap, so this structure should not contain any GC things.
     struct Data
     {
-        JSContext * cx_;
+        ThreadSafeContext * cx_;
         SavedOption         savedOption_;
         ContextOption       contextOption_;
         JSPrincipals *      principals_;
@@ -1545,13 +1546,13 @@ class FrameIter
         unsigned ionInlineFrameNo_;
         AsmJSFrameIterator asmJSFrames_;
 
-        Data(JSContext *cx, SavedOption savedOption, ContextOption contextOption,
+        Data(ThreadSafeContext *cx, SavedOption savedOption, ContextOption contextOption,
              JSPrincipals *principals);
         Data(const Data &other);
     };
 
-    MOZ_IMPLICIT FrameIter(JSContext *cx, SavedOption = STOP_AT_SAVED);
-    FrameIter(JSContext *cx, ContextOption, SavedOption);
+    MOZ_IMPLICIT FrameIter(ThreadSafeContext *cx, SavedOption = STOP_AT_SAVED);
+    FrameIter(ThreadSafeContext *cx, ContextOption, SavedOption);
     FrameIter(JSContext *cx, ContextOption, SavedOption, JSPrincipals *);
     FrameIter(const FrameIter &iter);
     MOZ_IMPLICIT FrameIter(const Data &data);
@@ -1685,13 +1686,13 @@ class ScriptFrameIter : public FrameIter
     }
 
   public:
-    explicit ScriptFrameIter(JSContext *cx, SavedOption savedOption = STOP_AT_SAVED)
+    explicit ScriptFrameIter(ThreadSafeContext *cx, SavedOption savedOption = STOP_AT_SAVED)
       : FrameIter(cx, savedOption)
     {
         settle();
     }
 
-    ScriptFrameIter(JSContext *cx,
+    ScriptFrameIter(ThreadSafeContext *cx,
                     ContextOption cxOption,
                     SavedOption savedOption)
       : FrameIter(cx, cxOption, savedOption)
@@ -1735,14 +1736,14 @@ class NonBuiltinFrameIter : public FrameIter
     void settle();
 
   public:
-    explicit NonBuiltinFrameIter(JSContext *cx,
+    explicit NonBuiltinFrameIter(ThreadSafeContext *cx,
                                  FrameIter::SavedOption opt = FrameIter::STOP_AT_SAVED)
       : FrameIter(cx, opt)
     {
         settle();
     }
 
-    NonBuiltinFrameIter(JSContext *cx,
+    NonBuiltinFrameIter(ThreadSafeContext *cx,
                         FrameIter::ContextOption contextOption,
                         FrameIter::SavedOption savedOption)
       : FrameIter(cx, contextOption, savedOption)
@@ -1776,15 +1777,14 @@ class NonBuiltinScriptFrameIter : public ScriptFrameIter
     void settle();
 
   public:
-    explicit NonBuiltinScriptFrameIter(JSContext *cx,
-                                       ScriptFrameIter::SavedOption opt =
-                                       ScriptFrameIter::STOP_AT_SAVED)
+    explicit NonBuiltinScriptFrameIter(ThreadSafeContext *cx,
+                              ScriptFrameIter::SavedOption opt = ScriptFrameIter::STOP_AT_SAVED)
       : ScriptFrameIter(cx, opt)
     {
         settle();
     }
 
-    NonBuiltinScriptFrameIter(JSContext *cx,
+    NonBuiltinScriptFrameIter(ThreadSafeContext *cx,
                               ScriptFrameIter::ContextOption contextOption,
                               ScriptFrameIter::SavedOption savedOption)
       : ScriptFrameIter(cx, contextOption, savedOption)
@@ -1819,7 +1819,7 @@ class NonBuiltinScriptFrameIter : public ScriptFrameIter
 class AllFramesIter : public ScriptFrameIter
 {
   public:
-    explicit AllFramesIter(JSContext *cx)
+    explicit AllFramesIter(ThreadSafeContext *cx)
       : ScriptFrameIter(cx, ScriptFrameIter::ALL_CONTEXTS, ScriptFrameIter::GO_THROUGH_SAVED)
     {}
 };

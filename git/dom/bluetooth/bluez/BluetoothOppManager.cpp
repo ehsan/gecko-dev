@@ -503,8 +503,8 @@ BluetoothOppManager::ConfirmReceivingFile(bool aConfirm)
 
   if (success && mPutFinalFlag) {
     mSuccessFlag = true;
-    RestoreReceivedFileAndNotify();
     FileTransferComplete();
+    NotifyAboutFileChange();
   }
 
   ReplyToPut(mPutFinalFlag, success);
@@ -573,8 +573,7 @@ BluetoothOppManager::AfterOppDisconnected()
     mReadFileThread->Shutdown();
     mReadFileThread = nullptr;
   }
-
-  // Release the mount lock if file transfer completed
+  // Release the Mount lock if file transfer completed
   if (mMountLock) {
     // The mount lock will be implicitly unlocked
     mMountLock = nullptr;
@@ -582,14 +581,8 @@ BluetoothOppManager::AfterOppDisconnected()
 }
 
 void
-BluetoothOppManager::RestoreReceivedFileAndNotify()
+BluetoothOppManager::RecoverFileName()
 {
-  // Remove the empty dummy file
-  if (mDummyDsFile && mDummyDsFile->mFile) {
-    mDummyDsFile->mFile->Remove(false);
-    mDummyDsFile = nullptr;
-  }
-
   // Remove the trailing ".part" file name from mDsFile by two steps
   // 1. mDsFile->SetPath() so that the notification sent to Gaia will carry
   //    correct information of the file.
@@ -603,9 +596,16 @@ BluetoothOppManager::RestoreReceivedFileAndNotify()
     mDsFile->SetPath(path);
     mDsFile->mFile->RenameTo(nullptr, mFileName);
   }
+}
 
-  // Notify about change of received file
-  NotifyAboutFileChange();
+void
+BluetoothOppManager::DeleteDummyFile()
+{
+  // Remove the empty temp file
+  if (mDummyDsFile && mDummyDsFile->mFile) {
+    mDummyDsFile->mFile->Remove(false);
+    mDummyDsFile = nullptr;
+  }
 }
 
 void
@@ -621,11 +621,7 @@ BluetoothOppManager::DeleteReceivedFile()
     mDsFile = nullptr;
   }
 
-  // Remove the empty dummy file
-  if (mDummyDsFile && mDummyDsFile->mFile) {
-    mDummyDsFile->mFile->Remove(false);
-    mDummyDsFile = nullptr;
-  }
+  DeleteDummyFile();
 }
 
 bool
@@ -981,8 +977,12 @@ BluetoothOppManager::ServerDataHandler(UnixSocketRawData* aMessage)
     // Success to receive a file and notify completion
     if (mPutFinalFlag) {
       mSuccessFlag = true;
-      RestoreReceivedFileAndNotify();
+
+      DeleteDummyFile();
+      RecoverFileName();
+
       FileTransferComplete();
+      NotifyAboutFileChange();
     }
   } else if (opCode == ObexRequestCode::Get ||
              opCode == ObexRequestCode::GetFinal ||

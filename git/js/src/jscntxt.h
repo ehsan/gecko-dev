@@ -21,6 +21,15 @@
 
 struct DtoaState;
 
+extern void
+js_ReportOutOfMemory(js::ThreadSafeContext *cx);
+
+extern void
+js_ReportAllocationOverflow(js::ThreadSafeContext *cx);
+
+extern void
+js_ReportOverRecursed(js::ThreadSafeContext *cx);
+
 namespace js {
 
 namespace jit {
@@ -151,6 +160,11 @@ struct ThreadSafeContext : ContextFriendFields,
 {
     friend struct StackBaseShape;
     friend class Activation;
+    friend UnownedBaseShape *BaseShape::lookupUnowned(ThreadSafeContext *cx,
+                                                      const StackBaseShape &base);
+    friend Shape *NativeObject::lookupChildProperty(ThreadSafeContext *cx,
+                                                    HandleNativeObject obj, HandleShape parent,
+                                                    StackShape &child);
 
   public:
     enum ContextKind {
@@ -264,7 +278,7 @@ struct ThreadSafeContext : ContextFriendFields,
     }
 
     void reportAllocationOverflow() {
-        js_ReportAllocationOverflow(asExclusiveContext());
+        js_ReportAllocationOverflow(this);
     }
 
     // Accessors for immutable runtime data.
@@ -954,6 +968,18 @@ bool intrinsic_UnsafeGetInt32FromReservedSlot(JSContext *cx, unsigned argc, Valu
 bool intrinsic_UnsafeGetStringFromReservedSlot(JSContext *cx, unsigned argc, Value *vp);
 bool intrinsic_UnsafeGetBooleanFromReservedSlot(JSContext *cx, unsigned argc, Value *vp);
 bool intrinsic_IsPackedArray(JSContext *cx, unsigned argc, Value *vp);
+
+bool intrinsic_ShouldForceSequential(JSContext *cx, unsigned argc, Value *vp);
+bool intrinsic_NewParallelArray(JSContext *cx, unsigned argc, Value *vp);
+bool intrinsic_ForkJoinGetSlice(JSContext *cx, unsigned argc, Value *vp);
+bool intrinsic_InParallelSection(JSContext *cx, unsigned argc, Value *vp);
+
+bool intrinsic_ObjectIsTypedObject(JSContext *cx, unsigned argc, Value *vp);
+bool intrinsic_ObjectIsTransparentTypedObject(JSContext *cx, unsigned argc, Value *vp);
+bool intrinsic_ObjectIsOpaqueTypedObject(JSContext *cx, unsigned argc, Value *vp);
+bool intrinsic_ObjectIsTypeDescr(JSContext *cx, unsigned argc, Value *vp);
+bool intrinsic_TypeDescrIsSimpleType(JSContext *cx, unsigned argc, Value *vp);
+bool intrinsic_TypeDescrIsArrayType(JSContext *cx, unsigned argc, Value *vp);
 
 bool intrinsic_IsSuspendedStarGenerator(JSContext *cx, unsigned argc, Value *vp);
 bool intrinsic_IsArrayIterator(JSContext *cx, unsigned argc, Value *vp);

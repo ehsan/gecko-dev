@@ -109,10 +109,4 @@ partial interface MozNFCTag {
 
   [ChromeOnly]
   void notifyLost();
-
-  /**
-   * Send raw command to tag and receive the response.
-   */
-  [ChromeOnly, Throws]
-  Promise<Uint8Array> transceive(NFCTechType tech, Uint8Array command);
 };
