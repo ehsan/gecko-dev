@@ -39,7 +39,6 @@
 #include "nsJSEnvironment.h"
 #include "nsJSUtils.h"
 #include "nsNetUtil.h"
-#include "nsProxyRelease.h"
 #include "nsSandboxFlags.h"
 #include "nsThreadUtils.h"
 #include "xpcpublic.h"
@@ -2445,18 +2444,6 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
   if (aParent) {
     aParent->AssertIsOnWorkerThread();
 
-    // If the parent is going away give up now.
-    Status currentStatus;
-    {
-      MutexAutoLock lock(aParent->mMutex);
-      currentStatus = aParent->mStatus;
-    }
-
-    if (currentStatus > Running) {
-      JS_ReportError(aCx, "Cannot create child workers from the close handler!");
-      return nullptr;
-    }
-
     parentContext = aCx;
 
     // Domain is the only thing we can touch here. The rest will be handled by
@@ -2621,30 +2608,6 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
     rv =
       scriptloader::ChannelFromScriptURLWorkerThread(aCx, aParent, scriptURL,
                                                      getter_AddRefs(channel));
-
-    // Now that we've spun the loop there's no guarantee that our parent is
-    // still alive.  We may have received control messages initiating shutdown.
-
-    Status currentStatus;
-    {
-      MutexAutoLock lock(aParent->mMutex);
-      currentStatus = aParent->mStatus;
-    }
-
-    if (currentStatus > Running) {
-      nsCOMPtr<nsIThread> mainThread;
-      NS_GetMainThread(getter_AddRefs(mainThread));
-      if (!mainThread) {
-        MOZ_CRASH();
-      }
-
-      nsIChannel* rawChannel;
-      channel.forget(&rawChannel);
-      // If this fails we accept the leak.
-      NS_ProxyRelease(mainThread, rawChannel);
-
-      return nullptr;
-    }
   }
   else {
     rv =
@@ -3309,17 +3272,16 @@ WorkerPrivate::AddChildWorker(JSContext* aCx, ParentType* aChildWorker)
 {
   AssertIsOnWorkerThread();
 
-#ifdef DEBUG
+  Status currentStatus;
   {
-    Status currentStatus;
-    {
     MutexAutoLock lock(mMutex);
     currentStatus = mStatus;
-    }
-
-    MOZ_ASSERT(currentStatus == Running);
   }
-#endif
+
+  if (currentStatus > Running) {
+    JS_ReportError(aCx, "Cannot create child workers from the close handler!");
+    return false;
+  }
 
   NS_ASSERTION(!mChildWorkers.Contains(aChildWorker),
                "Already know about this one!");

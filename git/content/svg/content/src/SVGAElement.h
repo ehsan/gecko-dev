@@ -7,6 +7,7 @@
 #define mozilla_dom_SVGAElement_h
 
 #include "Link.h"
+#include "nsIDOMSVGURIReference.h"
 #include "nsILink.h"
 #include "nsSVGString.h"
 #include "mozilla/dom/SVGGraphicsElement.h"
@@ -21,6 +22,7 @@ typedef SVGGraphicsElement SVGAElementBase;
 
 class SVGAElement MOZ_FINAL : public SVGAElementBase,
                               public nsIDOMSVGElement,
+                              public nsIDOMSVGURIReference,
                               public nsILink,
                               public Link
 {
@@ -28,12 +30,13 @@ protected:
   SVGAElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   friend nsresult (::NS_NewSVGAElement(nsIContent **aResult,
                                        already_AddRefed<nsINodeInfo> aNodeInfo));
-  virtual JSObject* WrapNode(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *cx, JSObject *scope, bool *triedToWrap) MOZ_OVERRIDE;
 
 public:
   // interfaces:
 
   NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIDOMSVGURIREFERENCE
 
   // XXX: I wish we could use virtual inheritance
   NS_FORWARD_NSIDOMNODE_TO_NSINODE

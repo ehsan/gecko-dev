@@ -1742,9 +1742,11 @@ nsCSSFontFaceStyleDecl::GetParentObject()
 }
 
 JSObject*
-nsCSSFontFaceStyleDecl::WrapObject(JSContext *cx, JSObject *scope)
+nsCSSFontFaceStyleDecl::WrapObject(JSContext *cx, JSObject *scope,
+                                   bool *triedToWrap)
 {
-  return mozilla::dom::CSSStyleDeclarationBinding::Wrap(cx, scope, this);
+  return mozilla::dom::CSSStyleDeclarationBinding::Wrap(cx, scope, this,
+                                                        triedToWrap);
 }
 
 // -------------------------------------------

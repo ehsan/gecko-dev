@@ -1920,6 +1920,10 @@ ReportJSRuntimeExplicitTreeStats(const JS::RuntimeStats &rtStats,
                   nsIMemoryReporter::KIND_HEAP, rtStats.runtime.mathCache,
                   "Memory used for the math cache.");
 
+    RREPORT_BYTES(rtPath + NS_LITERAL_CSTRING("runtime/script-filenames"),
+                  nsIMemoryReporter::KIND_HEAP, rtStats.runtime.scriptFilenames,
+                  "Memory used for the table holding script filenames.");
+
     RREPORT_BYTES(rtPath + NS_LITERAL_CSTRING("runtime/script-data"),
                   nsIMemoryReporter::KIND_HEAP, rtStats.runtime.scriptData,
                   "Memory used for the table holding script data shared in "
@@ -1927,7 +1931,7 @@ ReportJSRuntimeExplicitTreeStats(const JS::RuntimeStats &rtStats,
 
     RREPORT_BYTES(rtPath + NS_LITERAL_CSTRING("runtime/script-sources"),
                   nsIMemoryReporter::KIND_HEAP, rtStats.runtime.scriptSources,
-                  "Memory use for storing JavaScript source code and filenames.");
+                  "Memory use for storing JavaScript source code.");
 
     if (rtTotalOut) {
         *rtTotalOut = rtTotal;

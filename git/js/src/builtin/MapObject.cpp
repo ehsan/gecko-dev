@@ -229,18 +229,8 @@ class OrderedHashTable
      * The effect on live Ranges is the same as removing all entries; in
      * particular, those Ranges are still live and will see any entries added
      * after a successful clear().
-     *
-     * The DoNotCallDestructors specialization is for use during a GC when the
-     * OrderedHashTable contains pointers to GC things in other arenas. Since
-     * it is invalid to touch objects in other arenas during sweeping, we need
-     * to not trigger destructors on the pointers contained in the table in
-     * this case.
      */
-    enum CallDestructors {
-        DoNotCallDtors = false,
-        DoCallDtors = true
-    };
-    bool clear(CallDestructors callDestructors = DoCallDtors) {
+    bool clear() {
         if (dataLength != 0) {
             Data **oldHashTable = hashTable;
             Data *oldData = data;
@@ -254,9 +244,7 @@ class OrderedHashTable
             }
 
             alloc.free_(oldHashTable);
-            if (callDestructors)
-                destroyData(oldData, oldDataLength);
-            alloc.free_(oldData);
+            freeData(oldData, oldDataLength);
             for (Range *r = ranges; r; r = r->next)
                 r->onClear();
         }
@@ -702,8 +690,7 @@ class OrderedHashMap
     Entry *get(const Key &key)                      { return impl.get(key); }
     bool put(const Key &key, const Value &value)    { return impl.put(Entry(key, value)); }
     bool remove(const Key &key, bool *foundp)       { return impl.remove(key, foundp); }
-    bool clear()                                    { return impl.clear(Impl::DoCallDtors); }
-    bool clearWithoutCallingDestructors()           { return impl.clear(Impl::DoNotCallDtors); }
+    bool clear()                                    { return impl.clear(); }
 };
 
 template <class T, class OrderedHashPolicy, class AllocPolicy>
@@ -730,8 +717,7 @@ class OrderedHashSet
     Range all()                                     { return impl.all(); }
     bool put(const T &value)                        { return impl.put(value); }
     bool remove(const T &value, bool *foundp)       { return impl.remove(value, foundp); }
-    bool clear()                                    { return impl.clear(Impl::DoCallDtors); }
-    bool clearWithoutCallingDestructors()           { return impl.clear(Impl::DoNotCallDtors); }
+    bool clear()                                    { return impl.clear(); }
 };
 
 }  // namespace js
@@ -1073,10 +1059,8 @@ MapObject::mark(JSTracer *trc, RawObject obj)
 void
 MapObject::finalize(FreeOp *fop, RawObject obj)
 {
-    if (ValueMap *map = obj->asMap().getData()) {
-        map->clearWithoutCallingDestructors();
+    if (ValueMap *map = obj->asMap().getData())
         fop->delete_(map);
-    }
 }
 
 JSBool
@@ -1527,10 +1511,8 @@ void
 SetObject::finalize(FreeOp *fop, RawObject obj)
 {
     SetObject *setobj = static_cast<SetObject *>(obj);
-    if (ValueSet *set = setobj->getData()) {
-        set->clearWithoutCallingDestructors();
+    if (ValueSet *set = setobj->getData())
         fop->delete_(set);
-    }
 }
 
 JSBool

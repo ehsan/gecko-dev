@@ -261,8 +261,8 @@ nsDOMTokenList::Stringify(nsAString& aResult)
 }
 
 JSObject*
-nsDOMTokenList::WrapObject(JSContext *cx, JSObject *scope)
+nsDOMTokenList::WrapObject(JSContext *cx, JSObject *scope, bool *triedToWrap)
 {
-  return DOMTokenListBinding::Wrap(cx, scope, this);
+  return DOMTokenListBinding::Wrap(cx, scope, this, triedToWrap);
 }
 

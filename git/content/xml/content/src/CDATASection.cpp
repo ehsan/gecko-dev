@@ -44,9 +44,9 @@ NS_IMPL_ISUPPORTS_INHERITED4(CDATASection, nsGenericDOMDataNode, nsIDOMNode,
                              nsIDOMCDATASection)
 
 JSObject*
-CDATASection::WrapNode(JSContext *aCx, JSObject *aScope)
+CDATASection::WrapNode(JSContext *aCx, JSObject *aScope, bool *aTriedToWrap)
 {
-  return CDATASectionBinding::Wrap(aCx, aScope, this);
+  return CDATASectionBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 bool

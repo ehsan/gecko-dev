@@ -23,6 +23,7 @@ class nsIAtom;
 class nsIDocument;
 class nsIScriptContext;
 class nsSupportsHashtable;
+class nsFixedSizeAllocator;
 class nsXBLProtoImplField;
 class nsXBLBinding;
 class nsCSSStyleSheet;
@@ -282,6 +283,11 @@ public:
   void Traverse(nsCycleCollectionTraversalCallback &cb) const;
   void UnlinkJSObjects();
   void Trace(TraceCallback aCallback, void *aClosure) const;
+
+// Static members
+  static uint32_t gRefCnt;
+ 
+  static nsFixedSizeAllocator* kAttrPool;
 
 // Internal member functions.
 // XXXbz GetImmediateChild needs to be public to be called by SetAttrs,

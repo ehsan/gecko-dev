@@ -22,9 +22,9 @@ HTMLFontElement::~HTMLFontElement()
 }
 
 JSObject*
-HTMLFontElement::WrapNode(JSContext *aCx, JSObject *aScope)
+HTMLFontElement::WrapNode(JSContext *aCx, JSObject *aScope, bool *aTriedToWrap)
 {
-  return HTMLFontElementBinding::Wrap(aCx, aScope, this);
+  return HTMLFontElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 NS_IMPL_ADDREF_INHERITED(HTMLFontElement, Element)

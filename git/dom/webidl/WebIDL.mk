@@ -116,7 +116,6 @@ webidl_files = \
   HTMLTimeElement.webidl \
   HTMLTitleElement.webidl \
   HTMLUListElement.webidl \
-  IDBVersionChangeEvent.webidl \
   ImageData.webidl \
   LinkStyle.webidl \
   LocalMediaStream.webidl \
@@ -134,7 +133,6 @@ webidl_files = \
   PerformanceNavigation.webidl \
   PerformanceTiming.webidl \
   ProcessingInstruction.webidl \
-  Range.webidl \
   Rect.webidl \
   RGBColor.webidl \
   RTCConfiguration.webidl \

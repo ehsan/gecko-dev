@@ -1,7 +1,7 @@
 
 #include "PlatformMacros.h"
 
-#if !defined(SPS_OS_windows)
+#if !defined(SPS_PLAT_x86_windows)
 # include "common/module.h"
 # include "processor/cfi_frame_info.h"
 #endif
@@ -16,7 +16,7 @@
 # include "common/linux/dump_symbols.h"
 #elif defined(SPS_PLAT_amd64_darwin) || defined(SPS_PLAT_x86_darwin)
 # include "shim_mac_dump_syms.h"
-#elif defined(SPS_OS_windows)
+#elif defined(SPS_PLAT_x86_windows)
   /* This is all stubbed out anyway, so don't do anything. */
 #else
 # error "Unknown platform"
@@ -28,7 +28,7 @@
 namespace google_breakpad {
 
 LocalDebugInfoSymbolizer::~LocalDebugInfoSymbolizer() {
-# if !defined(SPS_OS_windows)
+# if !defined(SPS_PLAT_x86_windows)
   for (SymbolMap::iterator it = symbols_.begin();
        it != symbols_.end();
        ++it) {
@@ -50,7 +50,7 @@ LocalDebugInfoSymbolizer::FillSourceLineInfo(const CodeModules* modules,
   }
   frame->module = module;
 
-# if !defined(SPS_OS_windows)
+# if !defined(SPS_PLAT_x86_windows)
   Module* debug_info_module = NULL;
   SymbolMap::const_iterator it = symbols_.find(module->code_file());
   if (it == symbols_.end()) {
@@ -90,7 +90,7 @@ LocalDebugInfoSymbolizer::FillSourceLineInfo(const CodeModules* modules,
       frame->function_name = ex->name;
     }
   }
-# endif /* !defined(SPS_OS_windows) */
+# endif /* !defined(SPS_PLAT_x86_windows) */
   return kNoError;
 }
 
@@ -102,7 +102,7 @@ WindowsFrameInfo* LocalDebugInfoSymbolizer::FindWindowsFrameInfo(
   return NULL;
 }
 
-#if !defined(SPS_OS_windows)
+#if !defined(SPS_PLAT_x86_windows)
 // Taken wholesale from source_line_resolver_base.cc
 bool ParseCFIRuleSet(const string& rule_set, CFIFrameInfo* frame_info) {
   CFIFrameInfoParseHandler handler(frame_info);
@@ -129,7 +129,7 @@ static void ConvertCFI(const Module::RuleMap& rule_map,
 
 CFIFrameInfo* LocalDebugInfoSymbolizer::FindCFIFrameInfo(
     const StackFrame* frame) {
-#if defined(SPS_OS_windows)
+#if defined(SPS_PLAT_x86_windows)
   return NULL;
 #else
   if (!frame || !frame->module) return NULL;
@@ -154,7 +154,7 @@ CFIFrameInfo* LocalDebugInfoSymbolizer::FindCFIFrameInfo(
     ConvertCFI(delta_it->second, rules.get());
   }
   return rules.release();
-#endif /* defined(SPS_OS_windows) */
+#endif /* defined(SPS_PLAT_x86_windows) */
 }
 
 }  // namespace google_breakpad

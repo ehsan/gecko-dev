@@ -30,9 +30,9 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(DOMSVGAnimatedLengthList)
 NS_INTERFACE_MAP_END
 
 JSObject*
-DOMSVGAnimatedLengthList::WrapObject(JSContext* aCx, JSObject* aScope)
+DOMSVGAnimatedLengthList::WrapObject(JSContext* aCx, JSObject* aScope, bool* aTriedToWrap)
 {
-  return dom::SVGAnimatedLengthListBinding::Wrap(aCx, aScope, this);
+  return dom::SVGAnimatedLengthListBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 already_AddRefed<DOMSVGLengthList>

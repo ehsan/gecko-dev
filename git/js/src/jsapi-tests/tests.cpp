@@ -6,7 +6,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "tests.h"
-#include "js/RootingAPI.h"
+#include "gc/Root.h"
 #include "jsobj.h"
 #include <stdio.h>
 

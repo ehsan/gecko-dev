@@ -21,12 +21,12 @@ exports.testStringBundle = function(test) {
                      getService(Ci.nsIStringBundleService).
                      createBundle(url, appLocale);
 
-  let (name = "CheckMessage") {
+  let (name = "Yes") {
     test.assertEqual(strings.get(name), stringBundle.GetStringFromName(name),
                      "getting a string returns the string");
   }
 
-  let (name = "CreateWrapperDenied", args = ["foo"]) {
+  let (name = "ExtensionCapability", args = ["foo"]) {
     test.assertEqual(strings.get(name, args),
                      stringBundle.formatStringFromName(name, args, args.length),
                      "getting a formatted string returns the formatted string");

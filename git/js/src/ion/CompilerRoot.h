@@ -9,8 +9,7 @@
 #define jsion_ion_gc_h__
 
 #include "jscntxt.h"
-
-#include "js/RootingAPI.h"
+#include "gc/Root.h"
 
 namespace js {
 namespace ion {

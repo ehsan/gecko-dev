@@ -244,9 +244,10 @@ HTMLFieldSetElement::NotifyElementsForFirstLegendChange(bool aNotify)
 }
 
 JSObject*
-HTMLFieldSetElement::WrapNode(JSContext* aCx, JSObject* aScope)
+HTMLFieldSetElement::WrapNode(JSContext* aCx, JSObject* aScope,
+                              bool* aTriedToWrap)
 {
-  return HTMLFieldSetElementBinding::Wrap(aCx, aScope, this);
+  return HTMLFieldSetElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 } // namespace dom

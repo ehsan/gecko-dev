@@ -21,9 +21,10 @@ namespace dom {
 // you will see the phrases "rowgroup" and "section" used interchangably
 
 JSObject*
-HTMLTableSectionElement::WrapNode(JSContext *aCx, JSObject *aScope)
+HTMLTableSectionElement::WrapNode(JSContext *aCx, JSObject *aScope,
+                                  bool *aTriedToWrap)
 {
-  return HTMLTableSectionElementBinding::Wrap(aCx, aScope, this);
+  return HTMLTableSectionElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(HTMLTableSectionElement,

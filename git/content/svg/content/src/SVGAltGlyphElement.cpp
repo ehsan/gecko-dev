@@ -13,9 +13,9 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGAltGlyphElement::WrapNode(JSContext *aCx, JSObject *aScope)
+SVGAltGlyphElement::WrapNode(JSContext *aCx, JSObject *aScope, bool *aTriedToWrap)
 {
-  return SVGAltGlyphElementBinding::Wrap(aCx, aScope, this);
+  return SVGAltGlyphElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 nsSVGElement::StringInfo SVGAltGlyphElement::sStringInfo[1] =
@@ -27,9 +27,10 @@ nsSVGElement::StringInfo SVGAltGlyphElement::sStringInfo[1] =
 //----------------------------------------------------------------------
 // nsISupports methods
 
-NS_IMPL_ISUPPORTS_INHERITED3(SVGAltGlyphElement, SVGAltGlyphElementBase,
+NS_IMPL_ISUPPORTS_INHERITED4(SVGAltGlyphElement, SVGAltGlyphElementBase,
                              nsIDOMNode, nsIDOMElement,
-                             nsIDOMSVGElement)
+                             nsIDOMSVGElement,
+                             nsIDOMSVGURIReference)
 
 //----------------------------------------------------------------------
 // Implementation
@@ -44,6 +45,16 @@ SVGAltGlyphElement::SVGAltGlyphElement(already_AddRefed<nsINodeInfo> aNodeInfo)
 // nsIDOMNode methods
 
 NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGAltGlyphElement)
+
+//----------------------------------------------------------------------
+// nsIDOMSVGURIReference methods
+
+/* readonly attribute nsIDOMSVGAnimatedString href; */
+NS_IMETHODIMP SVGAltGlyphElement::GetHref(nsIDOMSVGAnimatedString * *aHref)
+{
+  *aHref = Href().get();
+  return NS_OK;
+}
 
 already_AddRefed<nsIDOMSVGAnimatedString>
 SVGAltGlyphElement::Href()

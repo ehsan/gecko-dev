@@ -70,8 +70,6 @@ const SETTINGS_WIFI_IP                 = "tethering.wifi.ip";
 const SETTINGS_WIFI_PREFIX             = "tethering.wifi.prefix";
 const SETTINGS_WIFI_DHCPSERVER_STARTIP = "tethering.wifi.dhcpserver.startip";
 const SETTINGS_WIFI_DHCPSERVER_ENDIP   = "tethering.wifi.dhcpserver.endip";
-const SETTINGS_WIFI_DNS1               = "tethering.wifi.dns1";
-const SETTINGS_WIFI_DNS2               = "tethering.wifi.dns2";
 
 // Settings DB path for USB tethering.
 const SETTINGS_USB_ENABLED             = "tethering.usb.enabled";
@@ -79,26 +77,6 @@ const SETTINGS_USB_IP                  = "tethering.usb.ip";
 const SETTINGS_USB_PREFIX              = "tethering.usb.prefix";
 const SETTINGS_USB_DHCPSERVER_STARTIP  = "tethering.usb.dhcpserver.startip";
 const SETTINGS_USB_DHCPSERVER_ENDIP    = "tethering.usb.dhcpserver.endip";
-const SETTINGS_USB_DNS1                = "tethering.usb.dns1";
-const SETTINGS_USB_DNS2                = "tethering.usb.dns2";
-
-// Default value for WIFI tethering.
-const DEFAULT_WIFI_IP                  = "192.168.1.1";
-const DEFAULT_WIFI_PREFIX              = "24";
-const DEFAULT_WIFI_DHCPSERVER_STARTIP  = "192.168.1.10";
-const DEFAULT_WIFI_DHCPSERVER_ENDIP    = "192.168.1.30";
-const DEFAULT_WIFI_SSID                = "FirefoxHotspot";
-const DEFAULT_WIFI_SECURITY_TYPE       = "open";
-const DEFAULT_WIFI_SECURITY_PASSWORD   = "1234567890";
-
-// Default value for USB tethering.
-const DEFAULT_USB_IP                   = "192.168.0.1";
-const DEFAULT_USB_PREFIX               = "24";
-const DEFAULT_USB_DHCPSERVER_STARTIP   = "192.168.0.10";
-const DEFAULT_USB_DHCPSERVER_ENDIP     = "192.168.0.30";
-
-const DEFAULT_DNS1                     = "8.8.8.8";
-const DEFAULT_DNS2                     = "8.8.4.4";
 
 const MANUAL_PROXY_CONFIGURATION = 1;
 
@@ -156,7 +134,8 @@ function NetworkManager() {
   this._tetheringInterface[TETHERING_TYPE_WIFI] = {externalInterface: DEFAULT_3G_INTERFACE_NAME,
                                                    internalInterface: DEFAULT_WIFI_INTERFACE_NAME};
 
-  this.initTetheringSettings();
+  this.tetheringSettings[SETTINGS_WIFI_ENABLED] = false;
+  this.tetheringSettings[SETTINGS_USB_ENABLED] = false;
 
   let settingsLock = gSettingsService.createLock();
   // Read wifi tethering data from settings DB.
@@ -167,15 +146,11 @@ function NetworkManager() {
   settingsLock.get(SETTINGS_WIFI_PREFIX, this);
   settingsLock.get(SETTINGS_WIFI_DHCPSERVER_STARTIP, this);
   settingsLock.get(SETTINGS_WIFI_DHCPSERVER_ENDIP, this);
-  settingsLock.get(SETTINGS_WIFI_DNS1, this);
-  settingsLock.get(SETTINGS_WIFI_DNS2, this);
   // Read usb tethering data from settings DB.
   settingsLock.get(SETTINGS_USB_IP, this);
   settingsLock.get(SETTINGS_USB_PREFIX, this);
   settingsLock.get(SETTINGS_USB_DHCPSERVER_STARTIP, this);
   settingsLock.get(SETTINGS_USB_DHCPSERVER_ENDIP, this);
-  settingsLock.get(SETTINGS_USB_DNS1, this);
-  settingsLock.get(SETTINGS_USB_DNS2, this);
 
   this.setAndConfigureActive();
 
@@ -551,26 +526,6 @@ NetworkManager.prototype = {
 
   tetheringSettings: {},
 
-  initTetheringSettings: function initTetheringSettings() {
-    this.tetheringSettings[SETTINGS_WIFI_ENABLED] = false;
-    this.tetheringSettings[SETTINGS_USB_ENABLED] = false;
-    this.tetheringSettings[SETTINGS_WIFI_SSID] = DEFAULT_WIFI_SSID;
-    this.tetheringSettings[SETTINGS_WIFI_SECURITY_TYPE] = DEFAULT_WIFI_SECURITY_TYPE;
-    this.tetheringSettings[SETTINGS_WIFI_SECURITY_PASSWORD] = DEFAULT_WIFI_SECURITY_PASSWORD;
-    this.tetheringSettings[SETTINGS_WIFI_IP] = DEFAULT_WIFI_IP;
-    this.tetheringSettings[SETTINGS_WIFI_PREFIX] = DEFAULT_WIFI_PREFIX;
-    this.tetheringSettings[SETTINGS_WIFI_DHCPSERVER_STARTIP] = DEFAULT_WIFI_DHCPSERVER_STARTIP;
-    this.tetheringSettings[SETTINGS_WIFI_DHCPSERVER_ENDIP] = DEFAULT_WIFI_DHCPSERVER_ENDIP;
-    this.tetheringSettings[SETTINGS_WIFI_DNS1] = DEFAULT_DNS1;
-    this.tetheringSettings[SETTINGS_WIFI_DNS2] = DEFAULT_DNS2;
-    this.tetheringSettings[SETTINGS_USB_IP] = DEFAULT_USB_IP;
-    this.tetheringSettings[SETTINGS_USB_PREFIX] = DEFAULT_USB_PREFIX;
-    this.tetheringSettings[SETTINGS_USB_DHCPSERVER_STARTIP] = DEFAULT_USB_DHCPSERVER_STARTIP;
-    this.tetheringSettings[SETTINGS_USB_DHCPSERVER_ENDIP] = DEFAULT_USB_DHCPSERVER_ENDIP;
-    this.tetheringSettings[SETTINGS_USB_DNS1] = DEFAULT_DNS1;
-    this.tetheringSettings[SETTINGS_USB_DNS2] = DEFAULT_DNS2;
-  },
-
   handle: function handle(aName, aResult) {
     switch(aName) {
       case SETTINGS_USB_ENABLED:
@@ -587,17 +542,11 @@ NetworkManager.prototype = {
       case SETTINGS_WIFI_PREFIX:
       case SETTINGS_WIFI_DHCPSERVER_STARTIP:
       case SETTINGS_WIFI_DHCPSERVER_ENDIP:
-      case SETTINGS_WIFI_DNS1:
-      case SETTINGS_WIFI_DNS2:
       case SETTINGS_USB_IP:
       case SETTINGS_USB_PREFIX:
       case SETTINGS_USB_DHCPSERVER_STARTIP:
       case SETTINGS_USB_DHCPSERVER_ENDIP:
-      case SETTINGS_USB_DNS1:
-      case SETTINGS_USB_DNS2:
-        if (aResult) {
-          this.tetheringSettings[aName] = aResult;
-        }
+        this.tetheringSettings[aName] = aResult;
         debug("'" + aName + "'" + " is now " + this.tetheringSettings[aName]);
         break;
     };
@@ -637,9 +586,17 @@ NetworkManager.prototype = {
       this._tetheringInterface[TETHERING_TYPE_USB].externalInterface = this.active.name
     } else {
       let mobile = this.getNetworkInterface(Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE);
-      if (mobile) {
-        this._tetheringInterface[TETHERING_TYPE_USB].externalInterface = mobile.name;
+      if (!mobile) {
+        let params = {
+          enable: enable,
+          resultCode: NETD_COMMAND_ERROR,
+          resultReason: "Mobile interface is not registered"
+        };
+        this.usbTetheringResultReport(params);
+        debug("Can't enable usb tethering - no active network interface.");
+        return;
       }
+      this._tetheringInterface[TETHERING_TYPE_USB].externalInterface = mobile.name;
     }
     this.tetheringSettings[SETTINGS_USB_ENABLED] = true;
     this.enableUsbRndis(true, this.enableUsbRndisResult);
@@ -653,8 +610,6 @@ NetworkManager.prototype = {
     let prefix;
     let dhcpStartIp;
     let dhcpEndIp;
-    let dns1;
-    let dns2;
     let internalInterface = tetheringinterface.internalInterface;
     let externalInterface = tetheringinterface.externalInterface;
 
@@ -665,8 +620,6 @@ NetworkManager.prototype = {
     prefix = this.tetheringSettings[SETTINGS_WIFI_PREFIX];
     dhcpStartIp = this.tetheringSettings[SETTINGS_WIFI_DHCPSERVER_STARTIP];
     dhcpEndIp = this.tetheringSettings[SETTINGS_WIFI_DHCPSERVER_ENDIP];
-    dns1 = this.tetheringSettings[SETTINGS_WIFI_DNS1];
-    dns2 = this.tetheringSettings[SETTINGS_WIFI_DNS2];
 
     // Check the format to prevent netd from crash.
     if (!ssid || ssid == "") {
@@ -701,8 +654,8 @@ NetworkManager.prototype = {
       prefix: prefix,
       startIp: dhcpStartIp,
       endIp: dhcpEndIp,
-      dns1: dns1,
-      dns2: dns2,
+      dns1: "",
+      dns2: "",
       internalIfname: internalInterface,
       externalIfname: externalInterface,
       enable: enable,
@@ -716,8 +669,6 @@ NetworkManager.prototype = {
     let prefix;
     let dhcpStartIp;
     let dhcpEndIp;
-    let dns1;
-    let dns2;
     let internalInterface = tetheringinterface.internalInterface;
     let externalInterface = tetheringinterface.externalInterface;
 
@@ -725,8 +676,6 @@ NetworkManager.prototype = {
     prefix = this.tetheringSettings[SETTINGS_USB_PREFIX];
     dhcpStartIp = this.tetheringSettings[SETTINGS_USB_DHCPSERVER_STARTIP];
     dhcpEndIp = this.tetheringSettings[SETTINGS_USB_DHCPSERVER_ENDIP];
-    dns1 = this.tetheringSettings[SETTINGS_USB_DNS1];
-    dns2 = this.tetheringSettings[SETTINGS_USB_DNS2];
 
     // Using the default values here until application support these settings.
     if (interfaceIp == "" || prefix == "" ||
@@ -741,8 +690,8 @@ NetworkManager.prototype = {
       prefix: prefix,
       startIp: dhcpStartIp,
       endIp: dhcpEndIp,
-      dns1: dns1,
-      dns2: dns2,
+      dns1: "",
+      dns2: "",
       internalIfname: internalInterface,
       externalIfname: externalInterface,
       enable: enable,
@@ -783,12 +732,14 @@ NetworkManager.prototype = {
     this._tetheringInterface[TETHERING_TYPE_WIFI].internalInterface = network.name;
 
     let mobile = this.getNetworkInterface(Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE);
-    // Update the real interface name
-    if (mobile) {
-      this._tetheringInterface[TETHERING_TYPE_WIFI].externalInterface = mobile.name;
+    if (!mobile) {
+      this.notifyError(true, callback, "mobile interface is not registered");
+      return;
     }
     // Clear this flag to prevent unexpected action.
     this.waitForConnectionReadyCallback = null;
+
+    this._tetheringInterface[TETHERING_TYPE_WIFI].externalInterface = mobile.name;
 
     let params = this.getWifiTetheringParameters(enable, this._tetheringInterface[TETHERING_TYPE_WIFI]);
     if (!params) {

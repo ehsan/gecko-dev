@@ -40,9 +40,7 @@ DummyMeasurement.prototype = {
 
 
 this.DummyProvider = function DummyProvider(name="DummyProvider") {
-  Object.defineProperty(this, "name", {
-    value: name,
-  });
+  this.name = name;
 
   this.measurementTypes = [DummyMeasurement];
 
@@ -60,8 +58,6 @@ this.DummyProvider = function DummyProvider(name="DummyProvider") {
 
 DummyProvider.prototype = {
   __proto__: Metrics.Provider.prototype,
-
-  name: "DummyProvider",
 
   collectConstantData: function () {
     this.collectConstantCount++;
@@ -103,8 +99,6 @@ this.DummyConstantProvider = function () {
 
 DummyConstantProvider.prototype = {
   __proto__: DummyProvider.prototype,
-
-  name: "DummyConstantProvider",
 
   pullOnly: true,
 };

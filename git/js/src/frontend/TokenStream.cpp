@@ -207,6 +207,8 @@ TokenStream::TokenStream(JSContext *cx, const CompileOptions &options,
 
 TokenStream::~TokenStream()
 {
+    if (flags & TSF_OWNFILENAME)
+        js_free((void *) filename);
     if (sourceMap)
         js_free(sourceMap);
     if (originPrincipals)
@@ -695,35 +697,82 @@ CharsMatch(const jschar *p, const char *q) {
 }
 
 bool
-TokenStream::getAtSourceMappingURL(bool isMultiline)
+TokenStream::getAtLine()
 {
-    /* Match comments of the form "//@ sourceMappingURL=<url>" or
-     * "/\* //@ sourceMappingURL=<url> *\/"
-     *
-     * To avoid a crashing bug in IE, several JavaScript transpilers
-     * wrap single line comments containing a source mapping URL
-     * inside a multiline comment to avoid a crashing bug in IE. To
-     * avoid potentially expensive lookahead and backtracking, we
-     * only check for this case if we encounter an '@' character.
+    int c;
+    jschar cp[5];
+    unsigned i, line, temp;
+    char filenameBuf[1024];
+
+    /*
+     * Hack for source filters such as the Mozilla XUL preprocessor:
+     * "//@line 123\n" sets the number of the *next* line after the
+     * comment to 123.  If we reach here, we've already seen "//".
      */
-    jschar peeked[18];
+    if (peekChars(5, cp) && CharsMatch(cp, "@line")) {
+        skipChars(5);
+        while ((c = getChar()) != '\n' && c != EOF && IsSpaceOrBOM2(c))
+            continue;
+        if (JS7_ISDEC(c)) {
+            line = JS7_UNDEC(c);
+            while ((c = getChar()) != EOF && JS7_ISDEC(c)) {
+                temp = 10 * line + JS7_UNDEC(c);
+                if (temp < line) {
+                    /* Ignore overlarge line numbers. */
+                    return true;
+                }
+                line = temp;
+            }
+            while (c != '\n' && c != EOF && IsSpaceOrBOM2(c))
+                c = getChar();
+            i = 0;
+            if (c == '"') {
+                while ((c = getChar()) != EOF && c != '"') {
+                    if (c == '\n') {
+                        ungetChar(c);
+                        return true;
+                    }
+                    if ((c >> 8) != 0 || i >= sizeof filenameBuf - 1)
+                        return true;
+                    filenameBuf[i++] = (char) c;
+                }
+                if (c == '"') {
+                    while ((c = getChar()) != '\n' && c != EOF && IsSpaceOrBOM2(c))
+                        continue;
+                }
+            }
+            filenameBuf[i] = '\0';
+            if (c == EOF || c == '\n') {
+                if (i > 0) {
+                    if (flags & TSF_OWNFILENAME)
+                        js_free((void *) filename);
+                    filename = JS_strdup(cx, filenameBuf);
+                    if (!filename)
+                        return false;
+                    flags |= TSF_OWNFILENAME;
+                }
+                lineno = line;
+            }
+        }
+        ungetChar(c);
+    }
+    return true;
+}
+
+bool
+TokenStream::getAtSourceMappingURL()
+{
+    /* Match comments of the form "//@ sourceMappingURL=<url>" */
+
+    jschar peeked[19];
     int32_t c;
 
-    if (peekChars(18, peeked) && CharsMatch(peeked, " sourceMappingURL=")) {
-        skipChars(18);
+    if (peekChars(19, peeked) && CharsMatch(peeked, "@ sourceMappingURL=")) {
+        skipChars(19);
         tokenbuf.clear();
 
         while ((c = peekChar()) && c != EOF && !IsSpaceOrBOM2(c)) {
             getChar();
-            /*
-             * Source mapping URLs can occur in both single- and multiline
-             * comments. If we're currently inside a multiline comment, we also
-             * need to recognize multiline comment terminators.
-             */
-            if (isMultiline && c == '*' && peekChar() == '/') {
-                ungetChar('*');
-                break;
-            }
             tokenbuf.append(c);
         }
 
@@ -1440,7 +1489,10 @@ TokenStream::getTokenInternal()
          * Look for a single-line comment.
          */
         if (matchChar('/')) {
-            if (matchChar('@') && !getAtSourceMappingURL(false))
+            if (cx->hasAtLineOption() && !getAtLine())
+                goto error;
+
+            if (!getAtSourceMappingURL())
                 goto error;
 
   skipline:
@@ -1466,8 +1518,7 @@ TokenStream::getTokenInternal()
             unsigned linenoBefore = lineno;
             while ((c = getChar()) != EOF &&
                    !(c == '*' && matchChar('/'))) {
-                if (c == '@' && !getAtSourceMappingURL(true))
-                   goto error;
+                /* Ignore all characters until comment close. */
             }
             if (c == EOF) {
                 reportError(JSMSG_UNTERMINATED_COMMENT);

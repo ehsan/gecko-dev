@@ -64,9 +64,9 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-DocumentType::WrapNode(JSContext *cx, JSObject *scope)
+DocumentType::WrapNode(JSContext *cx, JSObject *scope, bool *triedToWrap)
 {
-  return DocumentTypeBinding::Wrap(cx, scope, this);
+  return DocumentTypeBinding::Wrap(cx, scope, this, triedToWrap);
 }
 
 DocumentType::DocumentType(already_AddRefed<nsINodeInfo> aNodeInfo,

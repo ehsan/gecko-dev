@@ -6,6 +6,7 @@
 #ifndef mozilla_dom_SVGAltGlyphElement_h
 #define mozilla_dom_SVGAltGlyphElement_h
 
+#include "nsIDOMSVGURIReference.h"
 #include "mozilla/dom/SVGTextPositioningElement.h"
 #include "nsSVGString.h"
 
@@ -18,18 +19,20 @@ namespace dom {
 typedef SVGTextPositioningElement SVGAltGlyphElementBase;
 
 class SVGAltGlyphElement MOZ_FINAL : public SVGAltGlyphElementBase,
-                                     public nsIDOMSVGElement
+                                     public nsIDOMSVGElement,
+                                     public nsIDOMSVGURIReference
 {
 protected:
   friend nsresult (::NS_NewSVGAltGlyphElement(nsIContent **aResult,
                                               already_AddRefed<nsINodeInfo> aNodeInfo));
   SVGAltGlyphElement(already_AddRefed<nsINodeInfo> aNodeInfo);
-  virtual JSObject* WrapNode(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapNode(JSContext *cx, JSObject *scope, bool *triedToWrap) MOZ_OVERRIDE;
 
 public:
   // interfaces:
 
   NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIDOMSVGURIREFERENCE
 
   // xxx If xpcom allowed virtual inheritance we wouldn't need to
   // forward here :-(

@@ -7,6 +7,7 @@
 #include "nsGkAtoms.h"
 #include "gfxContext.h"
 #include "mozilla/dom/SVGRectElementBinding.h"
+#include "mozilla/dom/SVGAnimatedLength.h"
 #include <algorithm>
 
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(Rect)
@@ -14,12 +15,10 @@ NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(Rect)
 namespace mozilla {
 namespace dom {
 
-class SVGAnimatedLength;
-
 JSObject*
-SVGRectElement::WrapNode(JSContext *aCx, JSObject *aScope)
+SVGRectElement::WrapNode(JSContext *aCx, JSObject *aScope, bool *aTriedToWrap)
 {
-  return SVGRectElementBinding::Wrap(aCx, aScope, this);
+  return SVGRectElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 nsSVGElement::LengthInfo SVGRectElement::sLengthInfo[6] =

@@ -6,9 +6,11 @@
 #include "mozilla/Util.h"
 
 #include "mozilla/dom/SVGImageElement.h"
+#include "mozilla/dom/SVGAnimatedLength.h"
 #include "nsCOMPtr.h"
 #include "nsIURI.h"
 #include "nsNetUtil.h"
+#include "imgIContainer.h"
 #include "imgINotificationObserver.h"
 #include "gfxContext.h"
 #include "mozilla/dom/SVGImageElementBinding.h"
@@ -20,9 +22,9 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGImageElement::WrapNode(JSContext *aCx, JSObject *aScope)
+SVGImageElement::WrapNode(JSContext *aCx, JSObject *aScope, bool *aTriedToWrap)
 {
-  return SVGImageElementBinding::Wrap(aCx, aScope, this);
+  return SVGImageElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 nsSVGElement::LengthInfo SVGImageElement::sLengthInfo[4] =
@@ -41,10 +43,10 @@ nsSVGElement::StringInfo SVGImageElement::sStringInfo[1] =
 //----------------------------------------------------------------------
 // nsISupports methods
 
-NS_IMPL_ISUPPORTS_INHERITED6(SVGImageElement, SVGImageElementBase,
+NS_IMPL_ISUPPORTS_INHERITED7(SVGImageElement, SVGImageElementBase,
                              nsIDOMNode, nsIDOMElement,
                              nsIDOMSVGElement,
-                             imgINotificationObserver,
+                             nsIDOMSVGURIReference, imgINotificationObserver,
                              nsIImageLoadingContent, imgIOnloadBlocker)
 
 //----------------------------------------------------------------------
@@ -102,6 +104,17 @@ SVGImageElement::PreserveAspectRatio()
   nsRefPtr<DOMSVGAnimatedPreserveAspectRatio> ratio;
   mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(getter_AddRefs(ratio), this);
   return ratio.forget();
+}
+
+//----------------------------------------------------------------------
+// nsIDOMSVGURIReference methods:
+
+/* readonly attribute nsIDOMSVGAnimatedString href; */
+NS_IMETHODIMP
+SVGImageElement::GetHref(nsIDOMSVGAnimatedString * *aHref)
+{
+  *aHref = Href().get();
+  return NS_OK;
 }
 
 already_AddRefed<nsIDOMSVGAnimatedString>

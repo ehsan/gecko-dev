@@ -384,6 +384,9 @@ pref("privacy.item.geolocation", true);
 pref("privacy.item.siteSettings", true);
 pref("privacy.item.syncAccount", true);
 
+// URL to the Learn More link XXX this is the firefox one.  Bug 495578 fixes this.
+pref("browser.geolocation.warning.infoURL", "http://www.mozilla.com/%LOCALE%/firefox/geolocation/");
+
 // enable geo
 pref("geo.enabled", true);
 
@@ -679,8 +682,8 @@ pref("memory.free_dirty_pages", true);
 
 pref("layout.imagevisibility.enabled", false);
 
-// Enable the dynamic toolbar
-pref("browser.chrome.dynamictoolbar", true);
+// Disable the dynamic toolbar
+pref("browser.chrome.dynamictoolbar", false);
 
 #ifdef MOZ_PKG_SPECIAL
 // Disable webgl on ARMv6 because running the reftests takes

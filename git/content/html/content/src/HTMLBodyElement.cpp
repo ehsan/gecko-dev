@@ -194,9 +194,9 @@ HTMLBodyElement::~HTMLBodyElement()
 }
 
 JSObject*
-HTMLBodyElement::WrapNode(JSContext *aCx, JSObject *aScope)
+HTMLBodyElement::WrapNode(JSContext *aCx, JSObject *aScope, bool *aTriedToWrap)
 {
-  return HTMLBodyElementBinding::Wrap(aCx, aScope, this);
+  return HTMLBodyElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 NS_IMPL_ADDREF_INHERITED(HTMLBodyElement, Element)

@@ -14,9 +14,9 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGPolygonElement::WrapNode(JSContext *aCx, JSObject *aScope)
+SVGPolygonElement::WrapNode(JSContext *aCx, JSObject *aScope, bool *aTriedToWrap)
 {
-  return SVGPolygonElementBinding::Wrap(aCx, aScope, this);
+  return SVGPolygonElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 //----------------------------------------------------------------------

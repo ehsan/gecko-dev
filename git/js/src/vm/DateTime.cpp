@@ -127,13 +127,7 @@ UTCToLocalStandardOffsetSeconds()
 void
 js::DateTimeInfo::updateTimeZoneAdjustment()
 {
-    /*
-     * The difference between local standard time and UTC will never change for
-     * a given time zone.
-     */
-    utcToLocalStandardOffsetSeconds = UTCToLocalStandardOffsetSeconds();
-
-    double newTZA = utcToLocalStandardOffsetSeconds * msPerSecond;
+    double newTZA = UTCToLocalStandardOffsetSeconds() * msPerSecond;
     if (newTZA == localTZA_)
         return;
 
@@ -183,7 +177,7 @@ js::DateTimeInfo::computeDSTOffsetMilliseconds(int64_t utcSeconds)
     if (!ComputeLocalTime(static_cast<time_t>(utcSeconds), &tm))
         return 0;
 
-    int32_t dayoff = int32_t((utcSeconds + utcToLocalStandardOffsetSeconds) % SecondsPerDay);
+    int32_t dayoff = int32_t((utcSeconds + UTCToLocalStandardOffsetSeconds()) % SecondsPerDay);
     int32_t tmoff = tm.tm_sec + (tm.tm_min * SecondsPerMinute) + (tm.tm_hour * SecondsPerHour);
 
     int32_t diff = tmoff - dayoff;

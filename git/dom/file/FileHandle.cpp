@@ -202,7 +202,7 @@ GetFileHelper::GetSuccessResult(JSContext* aCx, jsval* aVal)
 
 /* virtual */
 JSObject*
-FileHandle::WrapObject(JSContext* aCx, JSObject* aScope)
+FileHandle::WrapObject(JSContext* aCx, JSObject* aScope, bool* aTriedToWrap)
 {
-  return FileHandleBinding::Wrap(aCx, aScope, this);
+  return FileHandleBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }

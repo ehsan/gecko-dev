@@ -200,12 +200,6 @@ Loop::isInLoop(MDefinition *ins)
 }
 
 bool
-Loop::isBeforeLoop(MDefinition *ins)
-{
-    return ins->block()->id() < header_->id();
-}
-
-bool
 Loop::isLoopInvariant(MInstruction *ins)
 {
     if (!isHoistable(ins)) {
@@ -214,13 +208,10 @@ Loop::isLoopInvariant(MInstruction *ins)
         return false;
     }
 
-    // Don't hoist if this instruction depends on a store inside or after the loop.
-    // Note: "after the loop" can sound strange, but Alias Analysis doesn't look
-    // at the control flow. Therefore it doesn't match the definition here, that a block
-    // is in the loop when there is a (directed) path from the block to the loop header.
-    if (ins->dependency() && !isBeforeLoop(ins->dependency())) {
+    // Don't hoist if this instruction depends on a store inside the loop.
+    if (ins->dependency() && isInLoop(ins->dependency())) {
         if (IonSpewEnabled(IonSpew_LICM)) {
-            fprintf(IonSpewFile, "depends on store inside or after loop: ");
+            fprintf(IonSpewFile, "depends on store inside loop: ");
             ins->dependency()->printName(IonSpewFile);
             fprintf(IonSpewFile, "\n");
         }

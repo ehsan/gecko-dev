@@ -10,9 +10,8 @@
 #ifndef jsion_c1spewer_h__
 #define jsion_c1spewer_h__
 
+#include "gc/Root.h"
 #include "jsscript.h"
-
-#include "js/RootingAPI.h"
 
 namespace js {
 namespace ion {

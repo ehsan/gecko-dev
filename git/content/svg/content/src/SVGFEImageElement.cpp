@@ -16,9 +16,9 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGFEImageElement::WrapNode(JSContext *aCx, JSObject *aScope)
+SVGFEImageElement::WrapNode(JSContext *aCx, JSObject *aScope, bool *aTriedToWrap)
 {
-  return SVGFEImageElementBinding::Wrap(aCx, aScope, this);
+  return SVGFEImageElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 nsSVGElement::StringInfo SVGFEImageElement::sStringInfo[2] =
@@ -34,8 +34,9 @@ NS_IMPL_ADDREF_INHERITED(SVGFEImageElement,SVGFEImageElementBase)
 NS_IMPL_RELEASE_INHERITED(SVGFEImageElement,SVGFEImageElementBase)
 
 NS_INTERFACE_TABLE_HEAD(SVGFEImageElement)
-  NS_NODE_INTERFACE_TABLE6(SVGFEImageElement, nsIDOMNode, nsIDOMElement,
+  NS_NODE_INTERFACE_TABLE7(SVGFEImageElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement,
+                           nsIDOMSVGURIReference,
                            imgINotificationObserver, nsIImageLoadingContent,
                            imgIOnloadBlocker)
 NS_INTERFACE_MAP_END_INHERITING(SVGFEImageElementBase)
@@ -180,6 +181,17 @@ SVGFEImageElement::IntrinsicState() const
 // nsIDOMNode methods
 
 NS_IMPL_ELEMENT_CLONE_WITH_INIT(SVGFEImageElement)
+
+//----------------------------------------------------------------------
+// nsIDOMSVGURIReference methods:
+
+/* readonly attribute nsIDOMSVGAnimatedString href; */
+NS_IMETHODIMP
+SVGFEImageElement::GetHref(nsIDOMSVGAnimatedString * *aHref)
+{
+  *aHref = Href().get();
+  return NS_OK;
+}
 
 already_AddRefed<nsIDOMSVGAnimatedString>
 SVGFEImageElement::Href()

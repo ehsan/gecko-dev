@@ -2346,7 +2346,7 @@ nsINode::QuerySelectorAll(const nsAString& aSelector, ErrorResult& aResult)
 }
 
 JSObject*
-nsINode::WrapObject(JSContext *aCx, JSObject *aScope)
+nsINode::WrapObject(JSContext *aCx, JSObject *aScope, bool *aTriedToWrap)
 {
   MOZ_ASSERT(IsDOMBinding());
 
@@ -2364,10 +2364,11 @@ nsINode::WrapObject(JSContext *aCx, JSObject *aScope)
       !hasHadScriptHandlingObject &&
       !nsContentUtils::IsCallerChrome()) {
     Throw<true>(aCx, NS_ERROR_UNEXPECTED);
+    *aTriedToWrap = true;
     return nullptr;
   }
 
-  JSObject* obj = WrapNode(aCx, aScope);
+  JSObject* obj = WrapNode(aCx, aScope, aTriedToWrap);
   if (obj && ChromeOnlyAccess() &&
       !nsContentUtils::IsSystemPrincipal(NodePrincipal()))
   {

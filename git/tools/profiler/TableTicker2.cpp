@@ -631,7 +631,7 @@ void TableTicker2::Tick(TickSample* sample)
     mc.__ss.__esp = (uint32_t)sample->sp;
     mc.__ss.__ebp = (uint32_t)sample->fp;
     void* ucV = (void*)&uc;
-#   elif defined(SPS_OS_windows)
+#   elif defined(SPS_PLAT_x86_windows)
     /* Totally fake this up so it at least builds.  No idea if we can
        even ever get here on Windows. */
     void* ucV = NULL;
@@ -786,7 +786,7 @@ void mozilla_sampler_init2()
 
 # if defined(SPS_PLAT_amd64_linux) || defined(SPS_PLAT_arm_android) \
      || defined(SPS_PLAT_x86_linux) || defined(SPS_PLAT_x86_android) \
-     || defined(SPS_PLAT_x86_windows) || defined(SPS_PLAT_amd64_windows) /* no idea if windows is correct */
+     || defined(SPS_PLAT_x86_windows) /* no idea if x86-win is correct */
   // On Linuxes, register this thread (temporarily) for profiling
   int aLocal;
   uwt__register_thread_for_profiling( &aLocal );

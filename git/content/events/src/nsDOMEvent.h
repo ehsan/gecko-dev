@@ -79,9 +79,9 @@ public:
     return mOwner;
   }
 
-  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope, bool* aTriedToWrap)
   {
-    return mozilla::dom::EventBinding::Wrap(aCx, aScope, this);
+    return mozilla::dom::EventBinding::Wrap(aCx, aScope, this, aTriedToWrap);
   }
 
   // nsIDOMEvent Interface
@@ -174,11 +174,6 @@ public:
     bool d;
     GetDefaultPrevented(&d);
     return d;
-  }
-
-  bool MultipleActionsPrevented()
-  {
-    return mEvent->mFlags.mMultipleActionsPrevented;
   }
 
   bool IsTrusted()

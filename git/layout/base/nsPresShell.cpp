@@ -2914,7 +2914,7 @@ PresShell::GoToAnchor(const nsAString& aAnchorName, bool aScroll)
     // Even if select anchor pref is false, we must still move the
     // caret there. That way tabbing will start from the new
     // location
-    nsRefPtr<nsIDOMRange> jumpToRange = new nsRange(mDocument);
+    nsRefPtr<nsIDOMRange> jumpToRange = new nsRange();
     while (content && content->GetFirstChild()) {
       content = content->GetFirstChild();
     }
@@ -4816,7 +4816,7 @@ PresShell::RenderNode(nsIDOMNode* aNode,
   if (!node->IsInDoc())
     return nullptr;
   
-  nsRefPtr<nsRange> range = new nsRange(node);
+  nsRefPtr<nsRange> range = new nsRange();
   if (NS_FAILED(range->SelectNode(aNode)))
     return nullptr;
 
@@ -6952,10 +6952,6 @@ PresShell::DispatchTouchEvent(nsEvent *aEvent,
                                 &newEvent, nullptr, &tmpStatus, aEventCB);
     if (nsEventStatus_eConsumeNoDefault == tmpStatus) {
       preventDefault = true;
-    }
-
-    if (newEvent.mFlags.mMultipleActionsPrevented) {
-      touchEvent->mFlags.mMultipleActionsPrevented = true;
     }
 
     if (contentPresShell) {

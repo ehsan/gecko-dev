@@ -280,10 +280,11 @@ public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
   // nsWrapperCache
-  JSObject *WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE
+  JSObject *WrapObject(JSContext *cx, JSObject *scope, bool *triedToWrap)
   {
     NS_ASSERTION(IsOuterWindow(),
                  "Inner window supports nsWrapperCache, fix WrapObject!");
+    *triedToWrap = true;
     return EnsureInnerWindow() ? GetWrapper() : nullptr;
   }
 

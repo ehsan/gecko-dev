@@ -5,6 +5,7 @@
 
 #include "SVGOrientSMILType.h"
 #include "nsSMILValue.h"
+#include "nsSVGViewBox.h"
 #include "nsSVGAngle.h"
 #include "nsDebug.h"
 #include "mozilla/dom/SVGMarkerElement.h"

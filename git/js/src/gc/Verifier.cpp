@@ -311,30 +311,6 @@ JS::CheckStackRoots(JSContext *cx)
 
 #ifdef JS_GC_ZEAL
 
-static void
-DisableGGCForVerification(JSRuntime *rt)
-{
-#ifdef JSGC_GENERATIONAL
-    if (rt->gcVerifyPreData || rt->gcVerifyPostData)
-        return;
-
-    if (rt->gcStoreBuffer.isEnabled())
-        rt->gcStoreBuffer.disable();
-#endif
-}
-
-static void
-EnableGGCAfterVerification(JSRuntime *rt)
-{
-#ifdef JSGC_GENERATIONAL
-    if (rt->gcVerifyPreData || rt->gcVerifyPostData)
-        return;
-
-    if (rt->gcGenerationalEnabled)
-        rt->gcStoreBuffer.enable();
-#endif
-}
-
 /*
  * Write barrier verification
  *
@@ -477,8 +453,6 @@ gc::StartVerifyPreBarriers(JSRuntime *rt)
         return;
     }
 
-    DisableGGCForVerification(rt);
-
     AutoPrepareForTracing prep(rt);
 
     for (GCChunkSet::Range r(rt->gcChunkSet.all()); !r.empty(); r.popFront())
@@ -545,9 +519,8 @@ gc::StartVerifyPreBarriers(JSRuntime *rt)
 
 oom:
     rt->gcIncrementalState = NO_INCREMENTAL;
-    js_delete(trc);
-    rt->gcVerifyPreData = NULL;
-    EnableGGCAfterVerification(rt);
+    trc->~VerifyPreTracer();
+    js_free(trc);
 }
 
 static bool
@@ -652,9 +625,8 @@ gc::EndVerifyPreBarriers(JSRuntime *rt)
     rt->gcMarker.reset();
     rt->gcMarker.stop();
 
-    js_delete(trc);
-
-    EnableGGCAfterVerification(rt);
+    trc->~VerifyPreTracer();
+    js_free(trc);
 }
 
 /*** Post-Barrier Verifyier ***/
@@ -681,26 +653,23 @@ gc::StartVerifyPostBarriers(JSRuntime *rt)
     {
         return;
     }
-
-    DisableGGCForVerification(rt);
-
     VerifyPostTracer *trc = js_new<VerifyPostTracer>();
     rt->gcVerifyPostData = trc;
     rt->gcNumber++;
     trc->number = rt->gcNumber;
     trc->count = 0;
 
-    if (!rt->gcVerifierNursery.enable())
+    if (!rt->gcNursery.clear())
         goto oom;
 
-    if (!rt->gcStoreBuffer.enable())
+    if (!rt->gcStoreBuffer.clear())
         goto oom;
 
     return;
 oom:
-    js_delete(trc);
+    trc->~VerifyPostTracer();
+    js_free(trc);
     rt->gcVerifyPostData = NULL;
-    EnableGGCAfterVerification(rt);
 #endif
 }
 
@@ -726,7 +695,7 @@ PostVerifierVisitEdge(JSTracer *jstrc, void **thingp, JSGCTraceKind kind)
     JSRuntime *rt = dst->runtime();
 
     /* Filter out non cross-generational edges. */
-    if (!rt->gcVerifierNursery.isInside(dst))
+    if (!rt->gcNursery.isInside(dst))
         return;
 
     /*
@@ -767,19 +736,19 @@ js::gc::EndVerifyPostBarriers(JSRuntime *rt)
         for (size_t kind = 0; kind < FINALIZE_LIMIT; ++kind) {
             for (CellIterUnderGC cells(c, AllocKind(kind)); !cells.done(); cells.next()) {
                 Cell *src = cells.getCell();
-                if (!rt->gcVerifierNursery.isInside(src))
+                if (!rt->gcNursery.isInside(src))
                     JS_TraceChildren(trc, src, MapAllocToTraceKind(AllocKind(kind)));
             }
         }
     }
 
 oom:
-    js_delete(trc);
+    trc->~VerifyPostTracer();
+    js_free(trc);
     rt->gcVerifyPostData = NULL;
-    rt->gcVerifierNursery.disable();
+    rt->gcNursery.disable();
     rt->gcStoreBuffer.disable();
     rt->gcStoreBuffer.releaseVerificationData();
-    EnableGGCAfterVerification(rt);
 #endif
 }
 
@@ -859,19 +828,17 @@ void
 js::gc::FinishVerifier(JSRuntime *rt)
 {
     if (VerifyPreTracer *trc = (VerifyPreTracer *)rt->gcVerifyPreData) {
-        js_delete(trc);
-        rt->gcVerifyPreData = NULL;
+        trc->~VerifyPreTracer();
+        js_free(trc);
     }
 #ifdef JSGC_GENERATIONAL
     if (VerifyPostTracer *trc = (VerifyPostTracer *)rt->gcVerifyPostData) {
-        js_delete(trc);
-        rt->gcVerifierNursery.disable();
+        trc->~VerifyPostTracer();
+        js_free(trc);
+        rt->gcNursery.disable();
         rt->gcStoreBuffer.disable();
-        rt->gcStoreBuffer.releaseVerificationData();
-        rt->gcVerifyPostData = NULL;
     }
 #endif
-    EnableGGCAfterVerification(rt);
 }
 
 #endif /* JS_GC_ZEAL */

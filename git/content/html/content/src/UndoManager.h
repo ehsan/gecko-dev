@@ -54,9 +54,11 @@ public:
     return mHostNode;
   }
 
-  JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE
+  JSObject* WrapObject(JSContext* aCx, JSObject* aScope,
+                       bool* aTriedToWrap)
   {
-    return mozilla::dom::UndoManagerBinding::Wrap(aCx, aScope, this);
+    return mozilla::dom::UndoManagerBinding::Wrap(aCx, aScope, this,
+                                                  aTriedToWrap);
   }
 
   nsITransactionManager* GetTransactionManager();

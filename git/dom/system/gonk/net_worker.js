@@ -550,12 +550,8 @@ function setWifiTethering(params) {
   let enable = params.enable;
   let interfaceProperties = getIFProperties(params.externalIfname);
 
-  if (interfaceProperties.dns1_str) {
-    params.dns1 = interfaceProperties.dns1_str;
-  }
-  if (interfaceProperties.dns2_str) {
-    params.dns2 = interfaceProperties.dns2_str;
-  }
+  params.dns1 = interfaceProperties.dns1_str;
+  params.dns2 = interfaceProperties.dns2_str;
   dumpParams(params, "WIFI");
 
   if (enable) {
@@ -593,13 +589,8 @@ function setUSBTethering(params) {
   let enable = params.enable;
   let interfaceProperties = getIFProperties(params.externalIfname);
 
-  if (interfaceProperties.dns1_str) {
-    params.dns1 = interfaceProperties.dns1_str;
-  }
-  if (interfaceProperties.dns2_str) {
-    params.dns2 = interfaceProperties.dns2_str;
-  }
-
+  params.dns1 = interfaceProperties.dns1_str;
+  params.dns2 = interfaceProperties.dns2_str;
   dumpParams(params, "USB");
 
   if (enable) {

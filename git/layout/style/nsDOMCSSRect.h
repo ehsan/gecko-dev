@@ -39,7 +39,7 @@ public:
 
   nsISupports* GetParentObject() const { return nullptr; }
 
-  virtual JSObject* WrapObject(JSContext* cx, JSObject* scope)
+  virtual JSObject* WrapObject(JSContext* cx, JSObject* scope, bool* tried)
     MOZ_OVERRIDE MOZ_FINAL;
 
 private:

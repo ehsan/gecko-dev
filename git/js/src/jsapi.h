@@ -25,11 +25,11 @@
 #include "jspubtd.h"
 #include "jsutil.h"
 
+#include "gc/Root.h"
 #include "js/Anchor.h"
 #include "js/CharacterEncoding.h"
 #include "js/HashTable.h"
 #include "js/PropertyKey.h"
-#include "js/RootingAPI.h"
 #include "js/Utility.h"
 #include "js/Value.h"
 #include "js/Vector.h"
@@ -129,6 +129,7 @@ class JS_PUBLIC_API(AutoGCRooter) {
         STRINGVECTOR =-17, /* js::AutoStringVector */
         SCRIPTVECTOR =-18, /* js::AutoScriptVector */
         PROPDESC =    -19, /* js::PropDesc::AutoRooter */
+        SHAPERANGE =  -20, /* js::Shape::Range::AutoRooter */
         STACKSHAPE =  -21, /* js::StackShape::AutoRooter */
         STACKBASESHAPE=-22,/* js::StackBaseShape::AutoRooter */
         GETTERSETTER =-24, /* js::AutoRooterGetterSetter */
@@ -2092,8 +2093,10 @@ JS_StringToVersion(const char *string);
                                                    script once only; enables
                                                    compile-time scope chain
                                                    resolution of consts. */
-
-/* JS_BIT(5) is currently unused. */
+#define JSOPTION_ATLINE         JS_BIT(5)       /* //@line number ["filename"]
+                                                   option supported for the
+                                                   XUL preprocessor and kindred
+                                                   beasts. */
 
 /* JS_BIT(6) is currently unused. */
 

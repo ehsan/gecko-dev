@@ -27,9 +27,9 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(DOMSVGAnimatedTransformList)
 NS_INTERFACE_MAP_END
 
 JSObject*
-DOMSVGAnimatedTransformList::WrapObject(JSContext* aCx, JSObject* aScope)
+DOMSVGAnimatedTransformList::WrapObject(JSContext* aCx, JSObject* aScope, bool* aTriedToWrap)
 {
-  return mozilla::dom::SVGAnimatedTransformListBinding::Wrap(aCx, aScope, this);
+  return mozilla::dom::SVGAnimatedTransformListBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 //----------------------------------------------------------------------

@@ -13,49 +13,7 @@
 #include "gc/StoreBuffer.h"
 #include "vm/ObjectImpl-inl.h"
 
-using namespace js;
 using namespace js::gc;
-
-/*** SlotEdge ***/
-
-JS_ALWAYS_INLINE HeapSlot *
-StoreBuffer::SlotEdge::slotLocation() const
-{
-    if (kind == HeapSlot::Element) {
-        if (offset >= object->getDenseInitializedLength())
-            return NULL;
-        return (HeapSlot *)&object->getDenseElement(offset);
-    }
-    if (offset >= object->slotSpan())
-        return NULL;
-    return &object->getSlotRef(offset);
-}
-
-JS_ALWAYS_INLINE void *
-StoreBuffer::SlotEdge::deref() const
-{
-    HeapSlot *loc = slotLocation();
-    return (loc && loc->isGCThing()) ? loc->toGCThing() : NULL;
-}
-
-JS_ALWAYS_INLINE void *
-StoreBuffer::SlotEdge::location() const
-{
-    return (void *)slotLocation();
-}
-
-template <typename NurseryType>
-JS_ALWAYS_INLINE bool
-StoreBuffer::SlotEdge::inRememberedSet(NurseryType *nursery) const
-{
-    return !nursery->isInside(object) && nursery->isInside(deref());
-}
-
-JS_ALWAYS_INLINE bool
-StoreBuffer::SlotEdge::isNullEdge() const
-{
-    return !deref();
-}
 
 /*** MonoTypeBuffer ***/
 
@@ -77,9 +35,8 @@ StoreBuffer::MonoTypeBuffer<T>::disable()
 }
 
 template <typename T>
-template <typename NurseryType>
 void
-StoreBuffer::MonoTypeBuffer<T>::compactNotInSet(NurseryType *nursery)
+StoreBuffer::MonoTypeBuffer<T>::compactNotInSet()
 {
     T *insert = base;
     for (T *v = base; v != pos; ++v) {
@@ -93,10 +50,7 @@ template <typename T>
 void
 StoreBuffer::MonoTypeBuffer<T>::compact()
 {
-#ifdef JS_GC_ZEAL
-    if (owner->runtime->gcVerifyPostData)
-        compactNotInSet(&owner->runtime->gcVerifierNursery);
-#endif
+    compactNotInSet();
 }
 
 template <typename T>

@@ -22,4 +22,9 @@ class nsDataHashtable :
   public nsBaseHashtable<KeyClass,DataType,DataType>
 { };
 
+template<class KeyClass,class DataType>
+class nsDataHashtableMT :
+  public nsBaseHashtableMT<KeyClass,DataType,DataType>
+{ };
+
 #endif // nsDataHashtable_h__

@@ -6,8 +6,10 @@
 #include "mozilla/Util.h"
 
 #include "DOMSVGAnimatedTransformList.h"
+#include "nsIDOMMutationEvent.h"
 #include "nsCOMPtr.h"
 #include "nsGkAtoms.h"
+#include "mozilla/dom/SVGAnimatedLength.h"
 #include "mozilla/dom/SVGPatternElement.h"
 #include "mozilla/dom/SVGPatternElementBinding.h"
 
@@ -17,9 +19,9 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGPatternElement::WrapNode(JSContext *aCx, JSObject *aScope)
+SVGPatternElement::WrapNode(JSContext *aCx, JSObject *aScope, bool *aTriedToWrap)
 {
-  return SVGPatternElementBinding::Wrap(aCx, aScope, this);
+  return SVGPatternElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 //--------------------- Patterns ------------------------
@@ -52,9 +54,10 @@ nsSVGElement::StringInfo SVGPatternElement::sStringInfo[1] =
 //----------------------------------------------------------------------
 // nsISupports methods
 
-NS_IMPL_ISUPPORTS_INHERITED3(SVGPatternElement, SVGPatternElementBase,
+NS_IMPL_ISUPPORTS_INHERITED4(SVGPatternElement, SVGPatternElementBase,
                              nsIDOMNode, nsIDOMElement,
-                             nsIDOMSVGElement)
+                             nsIDOMSVGElement,
+                             nsIDOMSVGURIReference)
 
 //----------------------------------------------------------------------
 // Implementation
@@ -133,6 +136,17 @@ already_AddRefed<SVGAnimatedLength>
 SVGPatternElement::Height()
 {
   return mLengthAttributes[ATTR_HEIGHT].ToDOMAnimatedLength(this);
+}
+
+//----------------------------------------------------------------------
+// nsIDOMSVGURIReference methods:
+
+/* readonly attribute nsIDOMSVGAnimatedString href; */
+NS_IMETHODIMP
+SVGPatternElement::GetHref(nsIDOMSVGAnimatedString * *aHref)
+{
+  *aHref = Href().get();
+  return NS_OK;
 }
 
 already_AddRefed<nsIDOMSVGAnimatedString>

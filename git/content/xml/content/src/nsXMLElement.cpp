@@ -33,9 +33,9 @@ NS_IMPL_ADDREF_INHERITED(nsXMLElement, Element)
 NS_IMPL_RELEASE_INHERITED(nsXMLElement, Element)
 
 JSObject*
-nsXMLElement::WrapNode(JSContext *aCx, JSObject *aScope)
+nsXMLElement::WrapNode(JSContext *aCx, JSObject *aScope, bool *aTriedToWrap)
 {
-  return ElementBinding::Wrap(aCx, aScope, this);
+  return ElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 NS_IMPL_ELEMENT_CLONE(nsXMLElement)

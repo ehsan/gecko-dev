@@ -282,9 +282,10 @@ HTMLStyleElement::GetStyleSheetInfo(nsAString& aTitle,
 }
 
 JSObject*
-HTMLStyleElement::WrapNode(JSContext *aCx, JSObject *aScope)
+HTMLStyleElement::WrapNode(JSContext *aCx, JSObject *aScope,
+                           bool *aTriedToWrap)
 {
-  return HTMLStyleElementBinding::Wrap(aCx, aScope, this);
+  return HTMLStyleElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 } // namespace dom

@@ -50,7 +50,7 @@ public:
         return Context();
     }
 
-    virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
+    virtual JSObject* WrapObject(JSContext *cx, JSObject *scope, bool *triedToWrap);
 
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
     NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(WebGLRenderbuffer)

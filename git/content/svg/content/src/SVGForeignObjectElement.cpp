@@ -6,6 +6,7 @@
 #include "mozilla/Util.h"
 
 #include "nsCOMPtr.h"
+#include "mozilla/dom/SVGAnimatedLength.h"
 #include "mozilla/dom/SVGForeignObjectElement.h"
 #include "mozilla/dom/SVGForeignObjectElementBinding.h"
 
@@ -15,9 +16,9 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGForeignObjectElement::WrapNode(JSContext *aCx, JSObject *aScope)
+SVGForeignObjectElement::WrapNode(JSContext *aCx, JSObject *aScope, bool *aTriedToWrap)
 {
-  return SVGForeignObjectElementBinding::Wrap(aCx, aScope, this);
+  return SVGForeignObjectElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 nsSVGElement::LengthInfo SVGForeignObjectElement::sLengthInfo[4] =

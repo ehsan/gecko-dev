@@ -10,6 +10,7 @@
 
 #include "nsDebug.h"
 #include "nsGUIEvent.h"
+#include "nsPluginSafety.h"
 #include "nsPluginNativeWindow.h"
 #include "nsThreadUtils.h"
 #include "nsAutoPtr.h"

@@ -105,8 +105,8 @@ public:
 
   virtual int32_t IndexOf(nsIContent *aContent, bool aDoFlush);
 
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope)
-    MOZ_OVERRIDE = 0;
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+                               bool *triedToWrap) = 0;
 
 protected:
   nsTArray< nsCOMPtr<nsIContent> > mElements;
@@ -129,7 +129,8 @@ public:
   {
     return mRoot;
   }
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+                               bool *triedToWrap);
 
 private:
   // This has to be a strong reference, the root might go away before the list.
@@ -260,7 +261,8 @@ public:
 
   // nsWrapperCache
   using nsWrapperCache::GetWrapperPreserveColor;
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+                               bool *triedToWrap);
 
   // nsIDOMHTMLCollection
   NS_DECL_NSIDOMHTMLCOLLECTION
@@ -537,7 +539,8 @@ public:
 #endif
   }
 
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+                               bool *triedToWrap);
 
 #ifdef DEBUG
   static const ContentListType sType;
@@ -561,7 +564,8 @@ public:
 #endif
   }
 
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+                               bool *triedToWrap);
 
 #ifdef DEBUG
   static const ContentListType sType;

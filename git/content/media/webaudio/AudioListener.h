@@ -14,7 +14,6 @@
 #include "nsAutoPtr.h"
 #include "ThreeDPoint.h"
 #include "AudioContext.h"
-#include "PannerNode.h"
 
 struct JSContext;
 
@@ -38,38 +37,36 @@ public:
     return mContext;
   }
 
-  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope,
+                               bool* aTriedToWrap);
 
-  double DopplerFactor() const
+  float DopplerFactor() const
   {
     return mDopplerFactor;
   }
-  void SetDopplerFactor(double aDopplerFactor)
+  void SetDopplerFactor(float aDopplerFactor)
   {
     mDopplerFactor = aDopplerFactor;
-    SendDoubleParameterToStream(PannerNode::LISTENER_DOPPLER_FACTOR, mDopplerFactor);
   }
 
-  double SpeedOfSound() const
+  float SpeedOfSound() const
   {
     return mSpeedOfSound;
   }
-  void SetSpeedOfSound(double aSpeedOfSound)
+  void SetSpeedOfSound(float aSpeedOfSound)
   {
     mSpeedOfSound = aSpeedOfSound;
-    SendDoubleParameterToStream(PannerNode::LISTENER_SPEED_OF_SOUND, mSpeedOfSound);
   }
 
-  void SetPosition(double aX, double aY, double aZ)
+  void SetPosition(float aX, float aY, float aZ)
   {
     mPosition.x = aX;
     mPosition.y = aY;
     mPosition.z = aZ;
-    SendThreeDPointParameterToStream(PannerNode::LISTENER_POSITION, mPosition);
   }
 
-  void SetOrientation(double aX, double aY, double aZ,
-                      double aXUp, double aYUp, double aZUp)
+  void SetOrientation(float aX, float aY, float aZ,
+                      float aXUp, float aYUp, float aZUp)
   {
     mOrientation.x = aX;
     mOrientation.y = aY;
@@ -77,27 +74,14 @@ public:
     mUpVector.x = aXUp;
     mUpVector.y = aYUp;
     mUpVector.z = aZUp;
-    SendThreeDPointParameterToStream(PannerNode::LISTENER_ORIENTATION, mOrientation);
-    SendThreeDPointParameterToStream(PannerNode::LISTENER_UPVECTOR, mUpVector);
   }
 
-  void SetVelocity(double aX, double aY, double aZ)
+  void SetVelocity(float aX, float aY, float aZ)
   {
     mVelocity.x = aX;
     mVelocity.y = aY;
     mVelocity.z = aZ;
-    SendThreeDPointParameterToStream(PannerNode::LISTENER_VELOCITY, mVelocity);
   }
-
-  void RegisterPannerNode(PannerNode* aPannerNode);
-  void UnregisterPannerNode(PannerNode* aPannerNode)
-  {
-    mPanners.RemoveElement(aPannerNode);
-  }
-
-private:
-  void SendDoubleParameterToStream(uint32_t aIndex, double aValue);
-  void SendThreeDPointParameterToStream(uint32_t aIndex, const ThreeDPoint& aValue);
 
 private:
   nsRefPtr<AudioContext> mContext;
@@ -105,9 +89,8 @@ private:
   ThreeDPoint mOrientation;
   ThreeDPoint mUpVector;
   ThreeDPoint mVelocity;
-  double mDopplerFactor;
-  double mSpeedOfSound;
-  nsTArray<PannerNode*> mPanners;
+  float mDopplerFactor;
+  float mSpeedOfSound;
 };
 
 }

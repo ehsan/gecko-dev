@@ -9,9 +9,12 @@
 #include "DOMSVGPointList.h"
 #include "gfxPoint.h"
 #include "nsAutoPtr.h"
+#include "nsCycleCollectionParticipant.h"
 #include "nsDebug.h"
 #include "nsISVGPoint.h"
+#include "nsTArray.h"
 #include "SVGPoint.h"
+#include "nsWrapperCache.h"
 #include "mozilla/Attributes.h"
 
 class nsSVGElement;

@@ -18,7 +18,6 @@
 #undef SPS_PLAT_amd64_darwin
 #undef SPS_PLAT_x86_darwin
 #undef SPS_PLAT_x86_windows
-#undef SPS_PLAT_amd64_windows
 
 #undef SPS_ARCH_arm
 #undef SPS_ARCH_x86
@@ -34,17 +33,12 @@
 #  define SPS_ARCH_amd64 1
 #  define SPS_OS_linux 1
 
-#elif defined(__ANDROID__) && defined(__arm__)
+#elif defined(__linux__) && defined(__arm__) && defined(ANDROID)
 #  define SPS_PLAT_arm_android 1
 #  define SPS_ARCH_arm 1
 #  define SPS_OS_android 1
 
-#elif defined(__ANDROID__) && defined(__i386__)
-#  define SPS_PLAT_x86_android 1
-#  define SPS_ARCH_x86 1
-#  define SPS_OS_android 1
-
-#elif defined(__linux__) && defined(__i386__)
+#elif defined(__linux__) && defined(__i386__) && !defined(ANDROID)
 #  define SPS_PLAT_x86_linux 1
 #  define SPS_ARCH_x86 1
 #  define SPS_OS_linux 1
@@ -59,15 +53,15 @@
 #  define SPS_ARCH_x86 1
 #  define SPS_OS_darwin 1
 
-#elif defined(_MSC_VER) && defined(_M_IX86)
+#elif defined(_MSC_VER) && defined(_WIN32) && !defined(_WIN64)
 #  define SPS_PLAT_x86_windows 1
 #  define SPS_ARCH_x86 1
 #  define SPS_OS_windows 1
 
-#elif defined(_MSC_VER) && defined(_M_X64)
-#  define SPS_PLAT_amd64_windows 1
-#  define SPS_ARCH_amd64 1
-#  define SPS_OS_windows 1
+#elif defined(__linux__) && defined(__i386__) && defined(ANDROID)
+#  define SPS_PLAT_x86_android 1
+#  define SPS_ARCH_x86 1
+#  define SPS_OS_android 1
 
 #else
 #  error "Unsupported platform"

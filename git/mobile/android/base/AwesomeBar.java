@@ -272,7 +272,7 @@ public class AwesomeBar extends GeckoActivity {
         if (showReadingList) {
             BookmarksTab bookmarksTab = mAwesomeTabs.getBookmarksTab();
             bookmarksTab.setShowReadingList(true);
-            mAwesomeTabs.setCurrentItemByTag(bookmarksTab.getTag());
+            mAwesomeTabs.setCurrentTabByTag(bookmarksTab.getTag());
         }
     }
 

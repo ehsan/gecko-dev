@@ -13,9 +13,9 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGViewElement::WrapNode(JSContext *aCx, JSObject *aScope)
+SVGViewElement::WrapNode(JSContext *aCx, JSObject *aScope, bool *aTriedToWrap)
 {
-  return SVGViewElementBinding::Wrap(aCx, aScope, this);
+  return SVGViewElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 nsSVGElement::StringListInfo SVGViewElement::sStringListInfo[1] =

@@ -7,9 +7,10 @@
 #include "nsSMILValue.h"
 #include "nsMathUtils.h"
 #include "nsDebug.h"
+#include <math.h>
 
 namespace mozilla {
-
+  
 /*static*/ SVGNumberPairSMILType SVGNumberPairSMILType::sSingleton;
 
 void

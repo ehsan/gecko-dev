@@ -537,8 +537,6 @@ var BrowserUI = {
         break;
       case "metro_viewstate_changed":
         this._adjustDOMforViewState();
-        if (aData == "snapped")
-          FlyoutPanelsUI.hide();
         break;
     }
   },

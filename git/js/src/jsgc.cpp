@@ -979,6 +979,9 @@ js_InitGC(JSRuntime *rt, uint32_t maxbytes)
 #endif
 
 #ifdef JSGC_GENERATIONAL
+    if (!rt->gcNursery.enable())
+        return false;
+
     if (!rt->gcStoreBuffer.enable())
         return false;
 #endif
@@ -3851,8 +3854,10 @@ EndSweepPhase(JSRuntime *rt, JSGCInvocationKind gckind, bool lastGC)
          * script and calls rt->destroyScriptHook, the hook can still access the
          * script's filename. See bug 323267.
          */
-        if (rt->gcIsFull)
+        if (rt->gcIsFull) {
+            SweepScriptFilenames(rt);
             SweepScriptData(rt);
+        }
 
         /* Clear out any small pools that we're hanging on to. */
         if (JSC::ExecutableAllocator *execAlloc = rt->maybeExecAlloc())

@@ -453,9 +453,10 @@ HTMLObjectElement::CopyInnerTo(Element* aDest)
 }
 
 JSObject*
-HTMLObjectElement::WrapNode(JSContext* aCx, JSObject* aScope)
+HTMLObjectElement::WrapNode(JSContext* aCx, JSObject* aScope,
+                            bool* aTriedToWrap)
 {
-  JSObject* obj = HTMLObjectElementBinding::Wrap(aCx, aScope, this);
+  JSObject* obj = HTMLObjectElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
   if (!obj) {
     return nullptr;
   }

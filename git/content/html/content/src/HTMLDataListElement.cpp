@@ -16,9 +16,10 @@ HTMLDataListElement::~HTMLDataListElement()
 }
 
 JSObject*
-HTMLDataListElement::WrapNode(JSContext *aCx, JSObject *aScope)
+HTMLDataListElement::WrapNode(JSContext *aCx, JSObject *aScope,
+                              bool *aTriedToWrap)
 {
-  return HTMLDataListElementBinding::Wrap(aCx, aScope, this);
+  return HTMLDataListElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(HTMLDataListElement,

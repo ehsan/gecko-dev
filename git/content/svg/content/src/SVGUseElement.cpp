@@ -5,6 +5,7 @@
 
 #include "mozilla/Util.h"
 
+#include "mozilla/dom/SVGAnimatedLength.h"
 #include "mozilla/dom/SVGUseElement.h"
 #include "mozilla/dom/SVGUseElementBinding.h"
 #include "nsGkAtoms.h"
@@ -20,9 +21,9 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGUseElement::WrapNode(JSContext *aCx, JSObject *aScope)
+SVGUseElement::WrapNode(JSContext *aCx, JSObject *aScope, bool *aTriedToWrap)
 {
-  return SVGUseElementBinding::Wrap(aCx, aScope, this);
+  return SVGUseElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -62,8 +63,9 @@ NS_IMPL_ADDREF_INHERITED(SVGUseElement,SVGUseElementBase)
 NS_IMPL_RELEASE_INHERITED(SVGUseElement,SVGUseElementBase)
 
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(SVGUseElement)
-  NS_NODE_INTERFACE_TABLE4(SVGUseElement, nsIDOMNode, nsIDOMElement,
+  NS_NODE_INTERFACE_TABLE5(SVGUseElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement,
+                           nsIDOMSVGURIReference,
                            nsIMutationObserver)
 NS_INTERFACE_MAP_END_INHERITING(SVGUseElementBase)
 
@@ -116,6 +118,16 @@ SVGUseElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
   }
 
   return NS_FAILED(rv1) ? rv1 : rv2;
+}
+
+//----------------------------------------------------------------------
+// nsIDOMSVGURIReference methods
+
+/* readonly attribute nsIDOMSVGAnimatedString href; */
+  NS_IMETHODIMP SVGUseElement::GetHref(nsIDOMSVGAnimatedString * *aHref)
+{
+  *aHref = Href().get();
+  return NS_OK;
 }
 
 already_AddRefed<nsIDOMSVGAnimatedString>

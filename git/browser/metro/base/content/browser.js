@@ -1233,7 +1233,7 @@ var PopupBlockerObserver = {
       case "mousedown":
         let box = Browser.getNotificationBox();
         let notification = box.getNotificationWithValue("popup-blocked");
-        if (notification && !notification.contains(aEvent.target))
+        if (notification)
           box.removeNotification(notification);
         break;
     }
@@ -1276,17 +1276,17 @@ var PopupBlockerObserver = {
             {
               isDefault: false,
               label: strings.GetStringFromName("popupButtonAllowOnce2"),
-              accessKey: "",
+              accessKey: null,
               callback: function() { PopupBlockerObserver.showPopupsForSite(); }
             },
             {
               label: strings.GetStringFromName("popupButtonAlwaysAllow3"),
-              accessKey: "",
+              accessKey: null,
               callback: function() { PopupBlockerObserver.allowPopupsForSite(true); }
             },
             {
               label: strings.GetStringFromName("popupButtonNeverWarn3"),
-              accessKey: "",
+              accessKey: null,
               callback: function() { PopupBlockerObserver.allowPopupsForSite(false); }
             }
           ];

@@ -11,8 +11,8 @@
 using namespace mozilla;
 
 JSObject*
-WebGLFramebuffer::WrapObject(JSContext *cx, JSObject *scope) {
-    return dom::WebGLFramebufferBinding::Wrap(cx, scope, this);
+WebGLFramebuffer::WrapObject(JSContext *cx, JSObject *scope, bool *triedToWrap) {
+    return dom::WebGLFramebufferBinding::Wrap(cx, scope, this, triedToWrap);
 }
 
 WebGLFramebuffer::WebGLFramebuffer(WebGLContext *context)

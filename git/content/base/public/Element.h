@@ -887,8 +887,8 @@ public:
                            nsIDOMHTMLCollection** aResult);
   void GetClassList(nsISupports** aClassList);
 
-  virtual JSObject* WrapObject(JSContext *aCx,
-                               JSObject *aScope) MOZ_FINAL MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext *aCx, JSObject *aScope,
+                               bool *aTriedToWrap) MOZ_FINAL;
 
   /**
    * Locate an nsIEditor rooted at this content node, if there is one.

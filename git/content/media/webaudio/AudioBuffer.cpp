@@ -84,9 +84,10 @@ AudioBuffer::InitializeBuffers(uint32_t aNumberOfChannels, JSContext* aJSContext
 }
 
 JSObject*
-AudioBuffer::WrapObject(JSContext* aCx, JSObject* aScope)
+AudioBuffer::WrapObject(JSContext* aCx, JSObject* aScope,
+                        bool* aTriedToWrap)
 {
-  return AudioBufferBinding::Wrap(aCx, aScope, this);
+  return AudioBufferBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 void

@@ -6,6 +6,7 @@
 #include "SVGMotionSMILPathUtils.h"
 #include "nsCharSeparatedTokenizer.h"
 #include "nsContentUtils.h"
+#include "nsSVGElement.h"
 #include "SVGContentUtils.h"
 #include "SVGLength.h"
 

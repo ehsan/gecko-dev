@@ -1007,8 +1007,7 @@ bool sps_version2()
        || defined(SPS_PLAT_x86_linux)
     allow2 = true;
 #   elif defined(SPS_PLAT_amd64_darwin) || defined(SPS_PLAT_x86_darwin) \
-         || defined(SPS_PLAT_x86_windows) || defined(SPS_PLAT_x86_android) \
-         || defined(SPS_PLAT_amd64_windows)
+         || defined(SPS_PLAT_x86_windows) || defined(SPS_PLAT_x86_android)
     allow2 = false;
 #   else
 #     error "Unknown platform"

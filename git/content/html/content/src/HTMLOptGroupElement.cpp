@@ -157,9 +157,10 @@ HTMLOptGroupElement::IntrinsicState() const
 }
 
 JSObject*
-HTMLOptGroupElement::WrapNode(JSContext* aCx, JSObject* aScope)
+HTMLOptGroupElement::WrapNode(JSContext* aCx, JSObject* aScope,
+                              bool* aTriedToWrap)
 {
-  return HTMLOptGroupElementBinding::Wrap(aCx, aScope, this);
+  return HTMLOptGroupElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 } // namespace dom

@@ -32,7 +32,7 @@
 #include "ProfileEntry2.h"
 #include "UnwinderThread2.h"
 
-#if !defined(SPS_OS_windows)
+#if !defined(SPS_PLAT_x86_windows)
 # include <sys/time.h>
 # include <unistd.h>
 # include <pthread.h>
@@ -62,7 +62,7 @@
 
 
 // The 'else' of this covers the entire rest of the file
-#if defined(SPS_OS_windows)
+#if defined(SPS_PLAT_x86_windows)
 
 //////////////////////////////////////////////////////////
 //// BEGIN externally visible functions (WINDOWS STUBS)
@@ -1763,4 +1763,4 @@ void do_breakpad_unwind_Buffer(/*OUT*/PCandSP** pairs,
   delete context;
 }
 
-#endif /* defined(SPS_OS_windows) */
+#endif /* defined(SPS_PLAT_x86_windows) */

@@ -12,6 +12,7 @@
 #include "nsNetUtil.h"
 #include "nsPluginHost.h"
 #include "nsNPAPIPlugin.h"
+#include "nsPluginSafety.h"
 #include "nsPluginLogging.h"
 #include "nsPluginStreamListenerPeer.h"
 

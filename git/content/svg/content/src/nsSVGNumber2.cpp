@@ -6,6 +6,7 @@
 #include "nsError.h"
 #include "nsSVGAttrTearoffTable.h"
 #include "nsSVGNumber2.h"
+#include "nsTextFormatter.h"
 #include "prdtoa.h"
 #include "nsMathUtils.h"
 #include "nsContentUtils.h" // NS_ENSURE_FINITE

@@ -203,7 +203,7 @@ InitTypedArrayDataPointer(JSObject *obj, ArrayBufferObject *buffer, size_t byteO
      */
     obj->initPrivate(buffer->dataPointer() + byteOffset);
 #ifdef JSGC_GENERATIONAL
-    if (IsInsideNursery(obj->runtime(), buffer))
+    if (obj->runtime()->gcNursery.isInside(buffer))
         obj->runtime()->gcStoreBuffer.putGeneric(TypedArrayPrivateRef(obj, buffer, byteOffset));
 #endif
 }

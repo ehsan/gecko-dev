@@ -449,7 +449,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
                 }
                 break;
             case RESTORED:
-                updateTabCount(Tabs.getInstance().getDisplayCount());
+                updateTabCount(Tabs.getInstance().getCount());
                 break;
             case SELECTED:
                 mAnimateSiteSecurity = false;
@@ -463,7 +463,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
                 break;
             case CLOSED:
             case ADDED:
-                updateTabCountAndAnimate(Tabs.getInstance().getDisplayCount());
+                updateTabCountAndAnimate(Tabs.getInstance().getCount());
                 if (Tabs.getInstance().isSelectedTab(tab)) {
                     updateBackButton(tab.canDoBack());
                     updateForwardButton(tab.canDoForward());
@@ -530,27 +530,6 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         } else {
             startVisibilityAnimation();
         }
-    }
-
-    /**
-     * Animate the visibility of the toolbar, but take into account the
-     * velocity of what's moving underneath the toolbar. If that velocity
-     * is greater than the default animation velocity, it will determine
-     * the direction of the toolbar animation. Velocity is specified in
-     * pixels per 1/60 seconds (a 60Hz frame).
-     */
-    public void animateVisibilityWithVelocityBias(boolean show, float velocity) {
-        // Work out the default animation velocity. This assumes a linear
-        // animation which is incorrect, but the animation is short enough that
-        // there's very little difference.
-        float defaultVelocity =
-            mLayout.getHeight() / ((VISIBILITY_ANIMATION_DURATION / 1000.0f) * 60);
-
-        if (Math.abs(velocity) > defaultVelocity) {
-            show = (velocity > 0) ? false : true;
-        }
-
-        animateVisibility(show, 0);
     }
 
     public void cancelVisibilityAnimation() {
@@ -1179,7 +1158,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
     }
 
     public void requestFocusFromTouch() {
-        mAwesomeBar.requestFocusFromTouch();
+        mLayout.requestFocusFromTouch();
     }
 
     public void updateBackButton(boolean enabled) {
@@ -1334,7 +1313,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
             setSecurityMode(tab.getSecurityMode());
             setReaderMode(tab.getReaderEnabled());
             setShadowVisibility(true);
-            updateTabCount(Tabs.getInstance().getDisplayCount());
+            updateTabCount(Tabs.getInstance().getCount());
             updateBackButton(tab.canDoBack());
             updateForwardButton(tab.canDoForward());
 
