@@ -138,8 +138,6 @@ EXTRA_DSO_LDOPTS += \
                 $(MOZ_STARTUP_NOTIFICATION_LIBS) \
 		$(XLDFLAGS) \
 		$(XLIBS) \
-		$(XEXT_LIBS) \
-		$(XCOMPOSITE_LIBS) \
 		$(MOZ_GTK2_LIBS) \
 		-lthebes \
 		$(LCMS_LIBS) \

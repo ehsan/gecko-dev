@@ -1247,15 +1247,15 @@ nsWindowWatcher::FindWindowEntry(nsIDOMWindow *aWindow)
 
 nsresult nsWindowWatcher::RemoveWindow(nsWatcherWindowEntry *inInfo)
 {
-  PRUint32  ctr,
-            count = mEnumeratorList.Length();
+  PRInt32  ctr,
+           count = mEnumeratorList.Count();
   nsresult rv;
 
   {
     // notify the enumerators
     nsAutoLock lock(mListLock);
     for (ctr = 0; ctr < count; ++ctr) 
-      mEnumeratorList[ctr]->WindowRemoved(inInfo);
+      ((nsWatcherWindowEnumerator*)mEnumeratorList[ctr])->WindowRemoved(inInfo);
 
     // remove the element from the list
     if (inInfo == mOldestWindow)
@@ -1342,7 +1342,7 @@ PRBool
 nsWindowWatcher::AddEnumerator(nsWatcherWindowEnumerator* inEnumerator)
 {
   // (requires a lock; assumes it's called by someone holding the lock)
-  return mEnumeratorList.AppendElement(inEnumerator) != nsnull;
+  return mEnumeratorList.AppendElement(inEnumerator);
 }
 
 PRBool
