@@ -642,6 +642,7 @@ nsHTMLCSSUtils::GetComputedStyle(dom::Element* aElement)
   MOZ_ASSERT(aElement);
 
   nsIDocument* doc = aElement->GetCurrentDoc();
+  NS_ASSERTION(doc, "Trying to compute style of detached element");
   NS_ENSURE_TRUE(doc, nullptr);
 
   nsIPresShell* presShell = doc->GetShell();

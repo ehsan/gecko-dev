@@ -123,7 +123,7 @@ protected:
 
     bool FillStatCache();
 
-    nsresult CreateAndKeepOpen(PRUint32 type, int flags,
+    nsresult CreateAndKeepOpen(PRUint32 type, PRIntn flags,
                                PRUint32 permissions, PRFileDesc **_retval);
 };
 

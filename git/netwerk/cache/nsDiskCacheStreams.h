@@ -58,7 +58,7 @@ private:
 
 
     void        Close();
-    nsresult    OpenCacheFile(int flags, PRFileDesc ** fd);
+    nsresult    OpenCacheFile(PRIntn flags, PRFileDesc ** fd);
     nsresult    ReadCacheBlocks();
     nsresult    FlushBufferToFile();
     void        UpdateFileSize();

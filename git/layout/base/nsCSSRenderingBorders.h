@@ -71,7 +71,7 @@ struct nsCSSBorderRenderer {
                       gfxCornerSizes& aBorderRadii,
                       const nscolor* aBorderColors,
                       nsBorderColors* const* aCompositeColors,
-                      int aSkipSides,
+                      PRIntn aSkipSides,
                       nscolor aBackgroundColor);
 
   gfxCornerSizes mBorderCornerDimensions;
@@ -98,7 +98,7 @@ struct nsCSSBorderRenderer {
   PRInt32 mAUPP;
 
   // misc -- which sides to skip, the background color
-  int mSkipSides;
+  PRIntn mSkipSides;
   nscolor mBackgroundColor;
 
   // calculated values
@@ -151,7 +151,7 @@ struct nsCSSBorderRenderer {
                        const gfxRect& aInnerRect,
                        const gfxCornerSizes& aBorderRadii,
                        const gfxFloat *aBorderSizes,
-                       int aSides,
+                       PRIntn aSides,
                        const gfxRGBA& aColor);
 
   //
@@ -160,10 +160,10 @@ struct nsCSSBorderRenderer {
 
   // draw the border for the given sides, using the style of the first side
   // present in the bitmask
-  void DrawBorderSides (int aSides);
+  void DrawBorderSides (PRIntn aSides);
 
   // function used by the above to handle -moz-border-colors
-  void DrawBorderSidesCompositeColors(int aSides, const nsBorderColors *compositeColors);
+  void DrawBorderSidesCompositeColors(PRIntn aSides, const nsBorderColors *compositeColors);
 
   // draw the given dashed side
   void DrawDashedSide (mozilla::css::Side aSide);

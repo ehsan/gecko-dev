@@ -324,7 +324,7 @@ private: // data
 
   static imgCacheTable sChromeCache;
   static imgCacheQueue sChromeCacheQueue;
-  static double sCacheTimeWeight;
+  static PRFloat64 sCacheTimeWeight;
   static PRUint32 sCacheMaxSize;
 
   nsCString mAcceptHeader;

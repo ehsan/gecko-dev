@@ -489,7 +489,7 @@ protected:
   void InitChildReflowState(nsHTMLReflowState& aReflowState);
 
   /** implement abstract method on nsContainerFrame */
-  virtual int GetSkipSides() const;
+  virtual PRIntn GetSkipSides() const;
 
 public:
   bool IsRowInserted() const;

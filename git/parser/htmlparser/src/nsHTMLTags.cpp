@@ -299,7 +299,7 @@ HTMLTagsHashCodeUCPtr(const void *key)
   return HashString(static_cast<const PRUnichar*>(key));
 }
 
-static int
+static PRIntn
 HTMLTagsKeyCompareUCPtr(const void *key1, const void *key2)
 {
   const PRUnichar *str1 = (const PRUnichar *)key1;

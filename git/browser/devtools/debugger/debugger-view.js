@@ -32,11 +32,8 @@ let DebuggerView = {
 
   /**
    * Initializes the SourceEditor instance.
-   *
-   * @param function aCallback
-   *        Called after the editor finishes initializing.
    */
-  initializeEditor: function DV_initializeEditor(aCallback) {
+  initializeEditor: function DV_initializeEditor() {
     let placeholder = document.getElementById("editor");
 
     let config = {
@@ -48,10 +45,7 @@ let DebuggerView = {
     };
 
     this.editor = new SourceEditor();
-    this.editor.init(placeholder, config, function() {
-      this._onEditorLoad();
-      aCallback();
-    }.bind(this));
+    this.editor.init(placeholder, config, this._onEditorLoad.bind(this));
   },
 
   /**
@@ -480,7 +474,7 @@ ScriptsView.prototype = {
       for (let i = 0, l = scripts.itemCount; i < l; i++) {
         scripts.getItemAtIndex(i).hidden = false;
       }
-    } else if (this._prevSearchedFile !== file) {
+    } else {
       let found = false;
 
       for (let i = 0, l = scripts.itemCount; i < l; i++) {
@@ -508,18 +502,15 @@ ScriptsView.prototype = {
         scripts.removeAttribute("tooltiptext");
       }
     }
-    if (this._prevSearchedLine !== line && line > -1) {
+    if (line > -1) {
       editor.setCaretPosition(line - 1);
     }
-    if (this._prevSearchedToken !== token && token.length > 0) {
+    if (token.length) {
       let offset = editor.find(token, { ignoreCase: true });
       if (offset > -1) {
         editor.setSelection(offset, offset + token.length)
       }
     }
-    this._prevSearchedFile = file;
-    this._prevSearchedLine = line;
-    this._prevSearchedToken = token;
   },
 
   /**

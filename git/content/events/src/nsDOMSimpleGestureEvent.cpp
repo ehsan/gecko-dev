@@ -50,7 +50,7 @@ nsDOMSimpleGestureEvent::GetDirection(PRUint32 *aDirection)
 
 /* readonly attribute float delta; */
 NS_IMETHODIMP
-nsDOMSimpleGestureEvent::GetDelta(double *aDelta)
+nsDOMSimpleGestureEvent::GetDelta(PRFloat64 *aDelta)
 {
   NS_ENSURE_ARG_POINTER(aDelta);
   *aDelta = static_cast<nsSimpleGestureEvent*>(mEvent)->delta;
@@ -83,7 +83,7 @@ nsDOMSimpleGestureEvent::InitSimpleGestureEvent(const nsAString& aTypeArg,
                                                 PRUint16 aButton,
                                                 nsIDOMEventTarget* aRelatedTarget,
                                                 PRUint32 aDirectionArg,
-                                                double aDeltaArg,
+                                                PRFloat64 aDeltaArg,
                                                 PRUint32 aClickCountArg)
 {
   nsresult rv = nsDOMMouseEvent::InitMouseEvent(aTypeArg,

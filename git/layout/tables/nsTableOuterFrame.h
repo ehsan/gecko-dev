@@ -157,7 +157,7 @@ protected:
   /** Always returns 0, since the outer table frame has no border of its own
     * The inner table frame can answer this question in a meaningful way.
     * @see nsContainerFrame::GetSkipSides */
-  virtual int GetSkipSides() const;
+  virtual PRIntn GetSkipSides() const;
 
   PRUint8 GetCaptionSide(); // NS_STYLE_CAPTION_SIDE_* or NO_SIDE
 
@@ -226,7 +226,7 @@ private:
   nsFrameList   mCaptionFrames;
 };
 
-inline int nsTableOuterFrame::GetSkipSides() const
+inline PRIntn nsTableOuterFrame::GetSkipSides() const
 { return 0; }
 
 #endif
