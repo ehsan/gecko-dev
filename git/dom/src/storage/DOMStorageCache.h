@@ -70,11 +70,8 @@ public:
   NS_IMETHOD_(void) Release(void);
 
   DOMStorageCache(const nsACString* aScope);
-
-protected:
   virtual ~DOMStorageCache();
 
-public:
   void Init(DOMStorageManager* aManager, bool aPersistent, nsIPrincipal* aPrincipal,
             const nsACString& aQuotaScope);
 

@@ -36,14 +36,11 @@ public:
   {
     MOZ_COUNT_CTOR(DOMCameraControlListener::DOMCallback);
   }
-
-protected:
   virtual ~DOMCallback()
   {
     MOZ_COUNT_DTOR(DOMCameraControlListener::DOMCallback);
   }
 
-public:
   virtual void RunCallback(nsDOMCameraControl* aDOMCameraControl) = 0;
 
   NS_IMETHOD

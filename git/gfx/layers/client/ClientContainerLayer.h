@@ -32,8 +32,6 @@ public:
     MOZ_COUNT_CTOR(ClientContainerLayer);
     mSupportsComponentAlphaChildren = true;
   }
-
-protected:
   virtual ~ClientContainerLayer()
   {
     while (mFirstChild) {
@@ -43,7 +41,6 @@ protected:
     MOZ_COUNT_DTOR(ClientContainerLayer);
   }
 
-public:
   virtual void RenderLayer()
   {
     if (GetMaskLayer()) {
@@ -151,14 +148,11 @@ public:
   {
     MOZ_COUNT_CTOR(ClientRefLayer);
   }
-
-protected:
   virtual ~ClientRefLayer()
   {
     MOZ_COUNT_DTOR(ClientRefLayer);
   }
 
-public:
   virtual Layer* AsLayer() { return this; }
   virtual ShadowableLayer* AsShadowableLayer() { return this; }
 

@@ -50,11 +50,8 @@ public:
                          ShadowLayersManager* aLayersManager,
                          uint64_t aId,
                          ProcessId aOtherProcess);
-
-protected:
   ~LayerTransactionParent();
 
-public:
   void Destroy();
 
   LayerManagerComposite* layer_manager() const { return mLayerManager; }

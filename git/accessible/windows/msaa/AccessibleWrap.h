@@ -34,6 +34,7 @@ class AccessibleWrap : public Accessible,
 public: // construction, destruction
   AccessibleWrap(nsIContent* aContent, DocAccessible* aDoc) :
     Accessible(aContent, aDoc) { }
+  virtual ~AccessibleWrap() { }
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -175,7 +176,6 @@ public: // construction, destruction
   static IDispatch *NativeAccessible(nsIAccessible *aXPAccessible);
 
 protected:
-  virtual ~AccessibleWrap() { }
 
   /**
    * Creates ITypeInfo for LIBID_Accessibility if it's needed and returns it.

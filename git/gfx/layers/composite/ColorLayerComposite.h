@@ -30,15 +30,12 @@ public:
     MOZ_COUNT_CTOR(ColorLayerComposite);
     mImplData = static_cast<LayerComposite*>(this);
   }
-
-protected:
   ~ColorLayerComposite()
   {
     MOZ_COUNT_DTOR(ColorLayerComposite);
     Destroy();
   }
 
-public:
   // LayerComposite Implementation
   virtual Layer* GetLayer() MOZ_OVERRIDE { return this; }
 

@@ -115,7 +115,7 @@ enum FourCC {
   FOURCC_H264 = FOURCC('H', '2', '6', '4'),
 
   // Match any fourcc.
-  FOURCC_ANY = -1,
+  FOURCC_ANY  = 0xFFFFFFFF,
 };
 
 enum FourCCBpp {

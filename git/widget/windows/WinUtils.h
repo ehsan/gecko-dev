@@ -23,7 +23,6 @@
 #include "nsIDownloader.h"
 #include "nsIURI.h"
 #include "nsIWidget.h"
-#include "nsIThread.h"
 
 #include "mozilla/Attributes.h"
 
@@ -68,6 +67,7 @@ class nsWindow;
 class nsWindowBase;
 struct KeyPair;
 struct nsIntRect;
+class nsIThread;
 
 namespace mozilla {
 namespace widget {
@@ -394,8 +394,6 @@ public:
                         const bool aURLShortcut);
   nsresult OnFaviconDataNotAvailable(void);
 private:
-  ~AsyncFaviconDataReady() {}
-
   nsCOMPtr<nsIURI> mNewURI;
   nsCOMPtr<nsIThread> mIOThread;
   const bool mURLShortcut;
@@ -417,10 +415,9 @@ public:
                           uint8_t *aData, uint32_t aDataLen, uint32_t aStride,
                           uint32_t aWidth, uint32_t aHeight,
                           const bool aURLShortcut);
-
-private:
   virtual ~AsyncEncodeAndWriteIcon();
 
+private:
   nsAutoString mIconPath;
   nsAutoArrayPtr<uint8_t> mBuffer;
   HMODULE sDwmDLL;
@@ -438,10 +435,9 @@ public:
   NS_DECL_NSIRUNNABLE
 
   AsyncDeleteIconFromDisk(const nsAString &aIconPath);
-
-private:
   virtual ~AsyncDeleteIconFromDisk();
 
+private:
   nsAutoString mIconPath;
 };
 
@@ -452,10 +448,8 @@ public:
   NS_DECL_NSIRUNNABLE
 
   AsyncDeleteAllFaviconsFromDisk(bool aIgnoreRecent = false);
-
-private:
   virtual ~AsyncDeleteAllFaviconsFromDisk();
-
+private:
   int32_t mIcoNoDeleteSeconds;
   bool mIgnoreRecent;
 };

@@ -7839,14 +7839,12 @@ class PostMessageEvent : public nsRunnable
     {
       MOZ_COUNT_CTOR(PostMessageEvent);
     }
-
-protected:
+    
     ~PostMessageEvent()
     {
       MOZ_COUNT_DTOR(PostMessageEvent);
     }
 
-public:
     JSAutoStructuredCloneBuffer& Buffer()
     {
       return mBuffer;

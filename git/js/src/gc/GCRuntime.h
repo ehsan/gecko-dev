@@ -367,7 +367,6 @@ class GCRuntime
     void requestInterrupt(JS::gcreason::Reason reason);
     bool gcCycle(bool incremental, int64_t budget, JSGCInvocationKind gckind,
                  JS::gcreason::Reason reason);
-    gcstats::ZoneGCStats scanZonesBeforeGC();
     void budgetIncrementalGC(int64_t *budget);
     void resetIncrementalGC(const char *reason);
     void incrementalCollectSlice(int64_t budget, JS::gcreason::Reason reason,
@@ -419,6 +418,8 @@ class GCRuntime
 
     /* List of compartments and zones (protected by the GC lock). */
     js::gc::ZoneVector    zones;
+
+    js::gc::SystemPageAllocator pageAllocator;
 
 #ifdef JSGC_GENERATIONAL
     js::Nursery           nursery;

@@ -34,8 +34,6 @@ public:
   NS_DECL_ISUPPORTS;
 
 private:
-  ~WinWakeLockListener() {}
-
   NS_IMETHOD Callback(const nsAString& aTopic, const nsAString& aState) {
     bool isLocked = mLockedTopics.Contains(aTopic);
     bool shouldLock = aState.EqualsLiteral("locked-foreground");

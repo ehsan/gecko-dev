@@ -3346,7 +3346,7 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
             otherprocess = p.callOtherProcess()
             isparent = ExprLiteral.TRUE
         else:
-            otherprocess = ExprLiteral.ZERO
+            otherprocess = ExprLiteral.NULL
             isparent = ExprLiteral.FALSE
         fatalerror.addstmts([
             _ipcFatalError(actorname, msgparam, otherprocess, isparent)

@@ -93,59 +93,6 @@ OpenFile(const char* dir, const char* filename, const char* mode)
   return file.release();
 }
 
-SECStatus
-TamperOnce(SECItem& item,
-           const uint8_t* from, size_t fromLen,
-           const uint8_t* to, size_t toLen)
-{
-  if (!item.data || !from || !to || fromLen != toLen) {
-    PR_NOT_REACHED("invalid args to TamperOnce");
-    PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
-    return SECFailure;
-  }
-
-  if (fromLen < 8) {
-    PR_NOT_REACHED("invalid parameter to TamperOnce; fromLen must be at least 8");
-    PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
-    return SECFailure;
-  }
-
-  uint8_t* p = item.data;
-  size_t remaining = item.len;
-  bool alreadyFoundMatch = false;
-  for (;;) {
-    uint8_t* foundFirstByte = static_cast<uint8_t*>(memchr(p, from[0],
-                                                           remaining));
-    if (!foundFirstByte) {
-      if (alreadyFoundMatch) {
-        return SECSuccess;
-      }
-      PR_SetError(SEC_ERROR_BAD_DATA, 0);
-      return SECFailure;
-    }
-    remaining -= (foundFirstByte - p);
-    if (remaining < fromLen) {
-      if (alreadyFoundMatch) {
-        return SECSuccess;
-      }
-      PR_SetError(SEC_ERROR_BAD_DATA, 0);
-      return SECFailure;
-    }
-    if (!memcmp(foundFirstByte, from, fromLen)) {
-      if (alreadyFoundMatch) {
-        PR_SetError(SEC_ERROR_BAD_DATA, 0);
-        return SECFailure;
-      }
-      alreadyFoundMatch = true;
-      memmove(foundFirstByte, to, toLen);
-      p = foundFirstByte + toLen;
-    } else {
-      p = foundFirstByte + 1;
-      --remaining;
-    }
-  }
-}
-
 class Output
 {
 public:
@@ -157,22 +104,22 @@ public:
 
   // Makes a shallow copy of the input item. All input items must have a
   // lifetime that extends at least to where Squash is called.
-  Result Add(const SECItem* item)
+  der::Result Add(const SECItem* item)
   {
     PR_ASSERT(item);
     PR_ASSERT(item->data);
 
     if (numItems >= MaxSequenceItems) {
-      return Fail(SEC_ERROR_INVALID_ARGS);
+      return der::Fail(SEC_ERROR_INVALID_ARGS);
     }
     if (length + item->len > 65535) {
-      return Fail(SEC_ERROR_INVALID_ARGS);
+      return der::Fail(SEC_ERROR_INVALID_ARGS);
     }
 
     contents[numItems] = item;
     numItems++;
     length += item->len;
-    return Success;
+    return der::Success;
   }
 
   SECItem* Squash(PLArenaPool* arena, uint8_t tag)
@@ -265,7 +212,7 @@ static SECItem*
 EncodeNested(PLArenaPool* arena, uint8_t tag, const SECItem* inner)
 {
   Output output;
-  if (output.Add(inner) != Success) {
+  if (output.Add(inner) != der::Success) {
     return nullptr;
   }
   return output.Squash(arena, tag);
@@ -557,17 +504,17 @@ SignedData(PLArenaPool* arena, const SECItem* tbsData,
   }
 
   Output output;
-  if (output.Add(tbsData) != Success) {
+  if (output.Add(tbsData) != der::Success) {
     return nullptr;
   }
-  if (output.Add(signatureAlgorithm) != Success) {
+  if (output.Add(signatureAlgorithm) != der::Success) {
     return nullptr;
   }
-  if (output.Add(signatureNested) != Success) {
+  if (output.Add(signatureNested) != der::Success) {
     return nullptr;
   }
   if (certsNested) {
-    if (output.Add(certsNested) != Success) {
+    if (output.Add(certsNested) != der::Success) {
       return nullptr;
     }
   }
@@ -598,13 +545,13 @@ Extension(PLArenaPool* arena, SECOidTag extnIDTag,
   if (!extnID) {
     return nullptr;
   }
-  if (output.Add(extnID) != Success) {
+  if (output.Add(extnID) != der::Success) {
     return nullptr;
   }
 
   if (criticality == ExtensionCriticality::Critical) {
     SECItem* critical(Boolean(arena, true));
-    if (output.Add(critical) != Success) {
+    if (output.Add(critical) != der::Success) {
       return nullptr;
     }
   }
@@ -617,7 +564,7 @@ Extension(PLArenaPool* arena, SECOidTag extnIDTag,
   if (!extnValue) {
     return nullptr;
   }
-  if (output.Add(extnValue) != Success) {
+  if (output.Add(extnValue) != der::Success) {
     return nullptr;
   }
 
@@ -803,12 +750,12 @@ TBSCertificate(PLArenaPool* arena, long versionValue,
     if (!version) {
       return nullptr;
     }
-    if (output.Add(version) != Success) {
+    if (output.Add(version) != der::Success) {
       return nullptr;
     }
   }
 
-  if (output.Add(serialNumber) != Success) {
+  if (output.Add(serialNumber) != der::Success) {
     return nullptr;
   }
 
@@ -816,11 +763,11 @@ TBSCertificate(PLArenaPool* arena, long versionValue,
   if (!signature) {
     return nullptr;
   }
-  if (output.Add(signature) != Success) {
+  if (output.Add(signature) != der::Success) {
     return nullptr;
   }
 
-  if (output.Add(issuer) != Success) {
+  if (output.Add(issuer) != der::Success) {
     return nullptr;
   }
 
@@ -838,10 +785,10 @@ TBSCertificate(PLArenaPool* arena, long versionValue,
       return nullptr;
     }
     Output validityOutput;
-    if (validityOutput.Add(notBefore) != Success) {
+    if (validityOutput.Add(notBefore) != der::Success) {
       return nullptr;
     }
-    if (validityOutput.Add(notAfter) != Success) {
+    if (validityOutput.Add(notAfter) != der::Success) {
       return nullptr;
     }
     validity = validityOutput.Squash(arena, der::SEQUENCE);
@@ -849,11 +796,11 @@ TBSCertificate(PLArenaPool* arena, long versionValue,
       return nullptr;
     }
   }
-  if (output.Add(validity) != Success) {
+  if (output.Add(validity) != der::Success) {
     return nullptr;
   }
 
-  if (output.Add(subject) != Success) {
+  if (output.Add(subject) != der::Success) {
     return nullptr;
   }
 
@@ -865,14 +812,14 @@ TBSCertificate(PLArenaPool* arena, long versionValue,
   if (!subjectPublicKeyInfo) {
     return nullptr;
   }
-  if (output.Add(subjectPublicKeyInfo.get()) != Success) {
+  if (output.Add(subjectPublicKeyInfo.get()) != der::Success) {
     return nullptr;
   }
 
   if (extensions) {
     Output extensionsOutput;
     while (*extensions) {
-      if (extensionsOutput.Add(*extensions) != Success) {
+      if (extensionsOutput.Add(*extensions) != der::Success) {
         return nullptr;
       }
       ++extensions;
@@ -887,7 +834,7 @@ TBSCertificate(PLArenaPool* arena, long versionValue,
     if (!extensions) {
       return nullptr;
     }
-    if (output.Add(extensionsWrapped) != Success) {
+    if (output.Add(extensionsWrapped) != der::Success) {
       return nullptr;
     }
   }
@@ -929,7 +876,7 @@ CreateEncodedBasicConstraints(PLArenaPool* arena, bool isCA,
   Output value;
 
   if (isCA) {
-    if (value.Add(Boolean(arena, true)) != Success) {
+    if (value.Add(Boolean(arena, true)) != der::Success) {
       return nullptr;
     }
   }
@@ -939,7 +886,7 @@ CreateEncodedBasicConstraints(PLArenaPool* arena, bool isCA,
     if (!pathLenConstraint) {
       return nullptr;
     }
-    if (value.Add(pathLenConstraint) != Success) {
+    if (value.Add(pathLenConstraint) != der::Success) {
       return nullptr;
     }
   }
@@ -966,7 +913,7 @@ CreateEncodedEKUExtension(PLArenaPool* arena, SECOidTag const* ekus,
     if (!encodedEKUOID) {
       return nullptr;
     }
-    if (value.Add(encodedEKUOID) != Success) {
+    if (value.Add(encodedEKUOID) != der::Success) {
       return nullptr;
     }
   }
@@ -1030,11 +977,11 @@ CreateEncodedOCSPResponse(OCSPResponseContext& context)
   }
 
   Output output;
-  if (output.Add(responseStatus) != Success) {
+  if (output.Add(responseStatus) != der::Success) {
     return nullptr;
   }
   if (responseBytesNested) {
-    if (output.Add(responseBytesNested) != Success) {
+    if (output.Add(responseBytesNested) != der::Success) {
       return nullptr;
     }
   }
@@ -1067,10 +1014,10 @@ ResponseBytes(OCSPResponseContext& context)
   }
 
   Output output;
-  if (output.Add(&id_pkix_ocsp_basic) != Success) {
+  if (output.Add(&id_pkix_ocsp_basic) != der::Success) {
     return nullptr;
   }
-  if (output.Add(responseNested) != Success) {
+  if (output.Add(responseNested) != der::Success) {
     return nullptr;
   }
   return output.Squash(context.arena, der::SEQUENCE);
@@ -1104,7 +1051,7 @@ static SECItem*
 OCSPExtension(OCSPResponseContext& context, OCSPResponseExtension* extension)
 {
   Output output;
-  if (output.Add(&extension->id) != Success) {
+  if (output.Add(&extension->id) != der::Success) {
     return nullptr;
   }
   if (extension->critical) {
@@ -1114,7 +1061,7 @@ OCSPExtension(OCSPResponseContext& context, OCSPResponseExtension* extension)
       const_cast<uint8_t*>(trueEncoded),
       PR_ARRAY_SIZE(trueEncoded)
     };
-    if (output.Add(&critical) != Success) {
+    if (output.Add(&critical) != der::Success) {
       return nullptr;
     }
   }
@@ -1123,7 +1070,7 @@ OCSPExtension(OCSPResponseContext& context, OCSPResponseExtension* extension)
   if (!value) {
     return nullptr;
   }
-  if (output.Add(value) != Success) {
+  if (output.Add(value) != der::Success) {
     return nullptr;
   }
   return output.Squash(context.arena, der::SEQUENCE);
@@ -1142,7 +1089,7 @@ Extensions(OCSPResponseContext& context)
     if (!extensionEncoded) {
       return nullptr;
     }
-    if (output.Add(extensionEncoded) != Success) {
+    if (output.Add(extensionEncoded) != der::Success) {
       return nullptr;
     }
   }
@@ -1190,17 +1137,17 @@ ResponseData(OCSPResponseContext& context)
   }
 
   Output output;
-  if (output.Add(responderID) != Success) {
+  if (output.Add(responderID) != der::Success) {
     return nullptr;
   }
-  if (output.Add(producedAtEncoded) != Success) {
+  if (output.Add(producedAtEncoded) != der::Success) {
     return nullptr;
   }
-  if (output.Add(responsesNested) != Success) {
+  if (output.Add(responsesNested) != der::Success) {
     return nullptr;
   }
   if (responseExtensions) {
-    if (output.Add(responseExtensions) != Success) {
+    if (output.Add(responseExtensions) != der::Success) {
       return nullptr;
     }
   }
@@ -1295,17 +1242,17 @@ SingleResponse(OCSPResponseContext& context)
   }
 
   Output output;
-  if (output.Add(certID) != Success) {
+  if (output.Add(certID) != der::Success) {
     return nullptr;
   }
-  if (output.Add(certStatus) != Success) {
+  if (output.Add(certStatus) != der::Success) {
     return nullptr;
   }
-  if (output.Add(thisUpdateEncoded) != Success) {
+  if (output.Add(thisUpdateEncoded) != der::Success) {
     return nullptr;
   }
   if (nextUpdateEncodedNested) {
-    if (output.Add(nextUpdateEncodedNested) != Success) {
+    if (output.Add(nextUpdateEncodedNested) != der::Success) {
       return nullptr;
     }
   }
@@ -1355,16 +1302,16 @@ CertID(OCSPResponseContext& context)
   }
 
   Output output;
-  if (output.Add(hashAlgorithm) != Success) {
+  if (output.Add(hashAlgorithm) != der::Success) {
     return nullptr;
   }
-  if (output.Add(issuerNameHash) != Success) {
+  if (output.Add(issuerNameHash) != der::Success) {
     return nullptr;
   }
-  if (output.Add(issuerKeyHash) != Success) {
+  if (output.Add(issuerKeyHash) != der::Success) {
     return nullptr;
   }
-  if (output.Add(serialNumber) != Success) {
+  if (output.Add(serialNumber) != der::Success) {
     return nullptr;
   }
   return output.Squash(context.arena, der::SEQUENCE);

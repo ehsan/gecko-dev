@@ -223,8 +223,6 @@ static StaticAutoPtr<nsTArray<nsCOMPtr<nsITimer> > > sPluginTimers;
 
 class PluginTimerCallBack MOZ_FINAL : public nsITimerCallback
 {
-  ~PluginTimerCallBack() {}
-
 public:
   PluginTimerCallBack(nsIContent* aContent) : mContent(aContent) {}
 
@@ -1562,9 +1560,9 @@ nsAccessibilityService::CreateAccessibleByFrameType(nsIFrame* aFrame,
     case eHTMLTableRowType: {
       // Accessible HTML table row may be a child of tbody/tfoot/thead of
       // accessible HTML table or a direct child of accessible of HTML table.
-      Accessible* table = aContext->IsTable() ? aContext : nullptr;
-      if (!table && aContext->Parent() && aContext->Parent()->IsTable())
-        table = aContext->Parent();
+      Accessible* table = aContext->IsTable() ?
+        aContext :
+        (aContext->Parent()->IsTable() ? aContext->Parent() : nullptr);
 
       if (table) {
         nsIContent* parentContent = aContent->GetParent();

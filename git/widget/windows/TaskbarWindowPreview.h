@@ -24,10 +24,9 @@ class TaskbarWindowPreview : public TaskbarPreview,
                              public nsITaskbarOverlayIconController,
                              public nsSupportsWeakReference
 {
-  virtual ~TaskbarWindowPreview();
-
 public:
   TaskbarWindowPreview(ITaskbarList4 *aTaskbar, nsITaskbarPreviewController *aController, HWND aHWND, nsIDocShell *aShell);
+  virtual ~TaskbarWindowPreview();
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSITASKBARWINDOWPREVIEW

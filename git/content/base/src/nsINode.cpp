@@ -21,7 +21,6 @@
 #include "mozilla/Likely.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Telemetry.h"
-#include "mozilla/TimeStamp.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/Event.h"
 #include "mozilla/dom/ShadowRoot.h"
@@ -92,7 +91,6 @@
 #include "nsUnicharUtils.h"
 #include "nsXBLBinding.h"
 #include "nsXBLPrototypeBinding.h"
-#include "mozilla/Preferences.h"
 #include "prprf.h"
 #include "xpcpublic.h"
 #include "nsCSSRuleProcessor.h"
@@ -2760,11 +2758,3 @@ nsINode::GetParentElementCrossingShadowRoot() const
 
   return nullptr;
 }
-
-bool
-nsINode::HasBoxQuadsSupport(JSContext* aCx, JSObject* /* unused */)
-{
-  return xpc::AccessCheck::isChrome(js::GetContextCompartment(aCx)) ||
-         Preferences::GetBool("layout.css.getBoxQuads.enabled");
-}
-

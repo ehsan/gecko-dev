@@ -186,10 +186,8 @@ class TiledContentHost : public ContentHost,
 public:
   TiledContentHost(const TextureInfo& aTextureInfo);
 
-protected:
   ~TiledContentHost();
 
-public:
   virtual LayerRenderState GetRenderState() MOZ_OVERRIDE
   {
     return LayerRenderState();

@@ -21,11 +21,8 @@ class WaveReader : public MediaDecoderReader
 {
 public:
   WaveReader(AbstractMediaDecoder* aDecoder);
-
-protected:
   ~WaveReader();
 
-public:
   virtual nsresult Init(MediaDecoderReader* aCloneDonor);
   virtual bool DecodeAudioData();
   virtual bool DecodeVideoFrame(bool &aKeyframeSkip,

@@ -1239,7 +1239,7 @@ static const VMFunction DeepCloneObjectLiteralInfo =
 bool
 BaselineCompiler::emit_JSOP_OBJECT()
 {
-    if (JS::CompartmentOptionsRef(cx).cloneSingletons()) {
+    if (JS::CompartmentOptionsRef(cx).cloneSingletons(cx)) {
         RootedObject obj(cx, script->getObject(GET_UINT32_INDEX(pc)));
         if (!obj)
             return false;

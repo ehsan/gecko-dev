@@ -49,11 +49,8 @@ class OggReader : public MediaDecoderReader
 {
 public:
   OggReader(AbstractMediaDecoder* aDecoder);
-
-protected:
   ~OggReader();
 
-public:
   virtual nsresult Init(MediaDecoderReader* aCloneDonor);
   virtual nsresult ResetDecode();
   virtual bool DecodeAudioData();
