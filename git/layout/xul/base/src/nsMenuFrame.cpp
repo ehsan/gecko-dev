@@ -170,11 +170,10 @@ public:
     } else if (mAttr == nsGkAtoms::acceltext) {
       // someone reset the accelText attribute,
       // so clear the bit that says *we* set it
-      frame->RemoveStateBits(NS_STATE_ACCELTEXT_IS_DERIVED);
-      frame->BuildAcceleratorText(PR_TRUE);
-    }
-    else if (mAttr == nsGkAtoms::key) {
-      frame->BuildAcceleratorText(PR_TRUE);
+      frame->AddStateBits(NS_STATE_ACCELTEXT_IS_DERIVED);
+      frame->BuildAcceleratorText();
+    } else if (mAttr == nsGkAtoms::key) {
+      frame->BuildAcceleratorText();
     } else if (mAttr == nsGkAtoms::type || mAttr == nsGkAtoms::name) {
       frame->UpdateMenuType(frame->PresContext());
     }
@@ -225,7 +224,6 @@ nsMenuFrame::nsMenuFrame(nsIPresShell* aShell, nsStyleContext* aContext):
   nsBoxFrame(aShell, aContext),
     mIsMenu(PR_FALSE),
     mChecked(PR_FALSE),
-    mIgnoreAccelTextChange(PR_FALSE),
     mType(eMenuType_Normal),
     mMenuParent(nsnull),
     mPopupFrame(nsnull),
@@ -336,7 +334,7 @@ nsMenuFrame::Init(nsIContent*      aContent,
     gModifierSeparator = new nsString(modifierSeparator);    
   }
 
-  BuildAcceleratorText(PR_FALSE);
+  BuildAcceleratorText();
   nsIReflowCallback* cb = new nsASyncMenuInitialization(this);
   NS_ENSURE_TRUE(cb, NS_ERROR_OUT_OF_MEMORY);
   PresContext()->PresShell()->PostReflowCallback(cb);
@@ -701,11 +699,6 @@ nsMenuFrame::AttributeChanged(PRInt32 aNameSpaceID,
                               nsIAtom* aAttribute,
                               PRInt32 aModType)
 {
-  if (aAttribute == nsGkAtoms::acceltext && mIgnoreAccelTextChange) {
-    // Reset the flag so that only one change is ignored.
-    mIgnoreAccelTextChange = PR_FALSE;
-    return NS_OK;
-  }
 
   if (aAttribute == nsGkAtoms::checked ||
       aAttribute == nsGkAtoms::acceltext ||
@@ -1022,7 +1015,7 @@ nsMenuFrame::UpdateMenuSpecialState(nsPresContext* aPresContext)
 }
 
 void 
-nsMenuFrame::BuildAcceleratorText(PRBool aNotify)
+nsMenuFrame::BuildAcceleratorText()
 {
   nsAutoString accelText;
 
@@ -1038,7 +1031,7 @@ nsMenuFrame::BuildAcceleratorText(PRBool aNotify)
 
   // If anything below fails, just leave the accelerator text blank.
   nsWeakFrame weakFrame(this);
-  mContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::acceltext, aNotify);
+  mContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::acceltext, PR_FALSE);
   ENSURE_TRUE(weakFrame.IsAlive());
 
   // See if we have a key node and use that instead.
@@ -1163,12 +1156,8 @@ nsMenuFrame::BuildAcceleratorText(PRBool aNotify)
   nsMemory::Free(str);
 
   accelText += accelString;
-
-  mIgnoreAccelTextChange = PR_TRUE;
-  mContent->SetAttr(kNameSpaceID_None, nsGkAtoms::acceltext, accelText, aNotify);
-  ENSURE_TRUE(weakFrame.IsAlive());
-
-  mIgnoreAccelTextChange = PR_FALSE;
+  
+  mContent->SetAttr(kNameSpaceID_None, nsGkAtoms::acceltext, accelText, PR_FALSE);
 }
 
 void

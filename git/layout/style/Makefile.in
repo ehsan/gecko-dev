@@ -74,10 +74,13 @@ EXPORTS		= \
 		nsDOMCSSDeclaration.h \
 		nsICSSDeclaration.h \
 		nsICSSGroupRule.h \
+		nsICSSImportRule.h \
 		nsICSSLoaderObserver.h \
+		nsICSSNameSpaceRule.h \
 		nsICSSPseudoComparator.h \
 		nsICSSRule.h \
 		nsICSSRuleList.h \
+		nsICSSStyleRule.h \
 		nsICSSStyleRuleDOMWrapper.h \
 		nsIStyleRule.h \
 		nsIStyleRuleProcessor.h \
@@ -100,10 +103,7 @@ EXPORTS		= \
 
 EXPORTS_mozilla/css = \
 		Declaration.h \
-		ImportRule.h \
 		Loader.h \
-		NameSpaceRule.h \
-		StyleRule.h \
 		$(NULL)
 
 CPPSRCS		= \
@@ -120,6 +120,7 @@ CPPSRCS		= \
 		nsCSSRules.cpp \
 		nsCSSScanner.cpp \
 		nsCSSStruct.cpp \
+		nsCSSStyleRule.cpp \
 		nsCSSStyleSheet.cpp \
 		nsCSSValue.cpp \
 		nsComputedDOMStyle.cpp \
@@ -144,7 +145,6 @@ CPPSRCS		= \
 		nsStyleTransformMatrix.cpp \
 		nsStyleUtil.cpp \
 		nsTransitionManager.cpp \
-		StyleRule.cpp \
 		$(NULL)
 
 FORCE_STATIC_LIB = 1

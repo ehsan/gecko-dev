@@ -518,9 +518,12 @@ TabParent::RecvGetIMEEnabled(PRUint32* aValue)
   if (!widget)
     return true;
 
+  nsIWidget_MOZILLA_2_0_BRANCH* widget2 = static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(widget.get());
   IMEContext context;
-  widget->GetInputMode(context);
-  *aValue = context.mStatus;
+  if (widget2) {
+    widget2->GetInputMode(context);
+    *aValue = context.mStatus;
+  }
   return true;
 }
 
@@ -531,11 +534,13 @@ TabParent::RecvSetInputMode(const PRUint32& aValue, const nsString& aType, const
   if (!widget || !AllowContentIME())
     return true;
 
+  nsIWidget_MOZILLA_2_0_BRANCH* widget2 = static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(widget.get());
+
   IMEContext context;
   context.mStatus = aValue;
   context.mHTMLInputType.Assign(aType);
   context.mActionHint.Assign(aAction);
-  widget->SetInputMode(context);
+  widget2->SetInputMode(context);
 
   nsCOMPtr<nsIObserverService> observerService = mozilla::services::GetObserverService();
   if (!observerService)

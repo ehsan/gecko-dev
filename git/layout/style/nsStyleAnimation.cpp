@@ -42,7 +42,7 @@
 #include "nsStyleAnimation.h"
 #include "nsCOMArray.h"
 #include "nsIStyleRule.h"
-#include "mozilla/css/StyleRule.h"
+#include "nsICSSStyleRule.h"
 #include "nsString.h"
 #include "nsStyleContext.h"
 #include "nsStyleSet.h"
@@ -1778,7 +1778,7 @@ nsStyleAnimation::AddWeighted(nsCSSProperty aProperty,
   return PR_FALSE;
 }
 
-already_AddRefed<css::StyleRule>
+already_AddRefed<nsICSSStyleRule>
 BuildStyleRule(nsCSSProperty aProperty,
                nsIContent* aTargetElement,
                const nsAString& aSpecifiedValue,
@@ -1870,8 +1870,8 @@ StyleWithDeclarationAdded(nsCSSProperty aProperty,
     return nsnull;
   }
 
-  // Parse specified value into a temporary StyleRule
-  nsRefPtr<css::StyleRule> styleRule =
+  // Parse specified value into a temporary nsICSSStyleRule
+  nsCOMPtr<nsICSSStyleRule> styleRule =
     BuildStyleRule(aProperty, aTargetElement, aSpecifiedValue, aUseSVGMode);
   if (!styleRule) {
     return nsnull;

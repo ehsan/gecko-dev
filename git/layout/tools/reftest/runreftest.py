@@ -139,7 +139,6 @@ class RefTest(object):
       profileDir = mkdtemp()
       self.createReftestProfile(options, profileDir)
       self.copyExtraFilesToProfile(options, profileDir)
-      self.installExtensionsToProfile(options, profileDir)
 
       # browser environment
       browserEnv = self.buildBrowserEnv(options, profileDir)
@@ -173,13 +172,6 @@ class RefTest(object):
         shutil.copytree(abspath, dest)
       else:
         shutil.copy(abspath, dest)
-
-  def installExtensionsToProfile(self, options, profileDir):
-    "Install the specified extensions on the command line to the testing profile."
-    for f in options.extensionsToInstall:
-      abspath = self.getFullPath(f)
-      extensionID = f[:f.rfind(".")]
-      self.automation.installExtension(abspath, profileDir, extensionID)
 
 
 class ReftestOptions(OptionParser):
@@ -240,13 +232,6 @@ class ReftestOptions(OptionParser):
                     dest = "skipSlowTests", action = "store_true",
                     help = "skip tests marked as slow when running")
     defaults["skipSlowTests"] = False
-
-    self.add_option("--install-extension",
-                    action = "append", dest = "extensionsToInstall",
-                    help = "install the specified extension in the testing profile."
-                           "The extension file's name should be <id>.xpi where <id> is"
-                           "the extension's id as indicated in its install.rdf.")
-    defaults["extensionsToInstall"] = []
 
     self.set_defaults(**defaults)
 

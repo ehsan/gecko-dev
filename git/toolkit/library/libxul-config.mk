@@ -111,9 +111,6 @@ ifneq (Android,$(OS_TARGET))
 OS_LIBS += -lrt
 endif
 endif
-ifeq (WINNT,$(OS_ARCH))
-OS_LIBS += dbghelp.lib
-endif
 endif
 
 STATIC_LIBS += \
@@ -154,7 +151,6 @@ COMPONENT_LIBS += \
 	pipboot \
 	pipnss \
 	appcomps \
-	composer \
 	$(NULL)
 
 ifdef MOZ_IPC
@@ -231,6 +227,12 @@ endif
 ifdef MOZ_UNIVERSALCHARDET
 COMPONENT_LIBS += universalchardet
 DEFINES += -DMOZ_UNIVERSALCHARDET
+endif
+
+ifndef MOZ_PLAINTEXT_EDITOR_ONLY
+COMPONENT_LIBS += composer
+else
+DEFINES += -DMOZ_PLAINTEXT_EDITOR_ONLY
 endif
 
 ifdef MOZ_RDF

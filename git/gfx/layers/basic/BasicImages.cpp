@@ -293,7 +293,7 @@ public:
   typedef gfxASurface::gfxImageFormat gfxImageFormat;
 
   BasicImageContainer() :
-    ImageContainer(nsnull),
+    ImageContainer(nsnull), mMonitor("BasicImageContainer"),
     mScaleHint(-1, -1),
     mOffscreenFormat(gfxASurface::ImageFormatUnknown)
   {}
@@ -309,6 +309,7 @@ public:
   virtual LayerManager::LayersBackend GetBackendType() { return LayerManager::LAYERS_BASIC; }
 
 protected:
+  Monitor mMonitor;
   nsRefPtr<Image> mImage;
   gfxIntSize mScaleHint;
   gfxImageFormat mOffscreenFormat;
@@ -350,7 +351,6 @@ BasicImageContainer::SetCurrentImage(Image* aImage)
 {
   MonitorAutoEnter mon(mMonitor);
   mImage = aImage;
-  CurrentImageChanged();
 }
 
 already_AddRefed<Image>

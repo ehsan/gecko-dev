@@ -126,8 +126,8 @@ nsHTMLCanvasElement::GetWidthHeight()
   return size;
 }
 
-NS_IMPL_UINT_ATTR_DEFAULT_VALUE(nsHTMLCanvasElement, Width, width, DEFAULT_CANVAS_WIDTH)
-NS_IMPL_UINT_ATTR_DEFAULT_VALUE(nsHTMLCanvasElement, Height, height, DEFAULT_CANVAS_HEIGHT)
+NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLCanvasElement, Width, width, DEFAULT_CANVAS_WIDTH)
+NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLCanvasElement, Height, height, DEFAULT_CANVAS_HEIGHT)
 NS_IMPL_BOOL_ATTR(nsHTMLCanvasElement, MozOpaque, moz_opaque)
 
 nsresult
@@ -190,7 +190,7 @@ nsHTMLCanvasElement::ParseAttribute(PRInt32 aNamespaceID,
 {
   if (aNamespaceID == kNameSpaceID_None &&
       (aAttribute == nsGkAtoms::width || aAttribute == nsGkAtoms::height)) {
-    return aResult.ParseNonNegativeIntValue(aValue);
+    return aResult.ParseIntWithBounds(aValue, 0);
   }
 
   return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
@@ -648,11 +648,8 @@ nsHTMLCanvasElement::InvalidateFrame(const gfxRect* damageRect)
   if (!frame)
     return;
 
-  frame->MarkLayersActive();
-
-  nsRect invalRect;
-  nsRect contentArea = frame->GetContentRect();
   if (damageRect) {
+    nsRect contentArea(frame->GetContentRect());
     nsIntSize size = GetWidthHeight();
 
     // damageRect and size are in CSS pixels; contentArea is in appunits
@@ -664,16 +661,16 @@ nsHTMLCanvasElement::InvalidateFrame(const gfxRect* damageRect)
     realRect.RoundOut();
 
     // then make it a nsRect
-    invalRect = nsRect(realRect.X(), realRect.Y(),
-                       realRect.Width(), realRect.Height());
-  } else {
-    invalRect = nsRect(nsPoint(0, 0), contentArea.Size());
-  }
-  invalRect.MoveBy(contentArea.TopLeft() - frame->GetPosition());
+    nsRect invalRect(realRect.X(), realRect.Y(),
+                     realRect.Width(), realRect.Height());
 
-  Layer* layer = frame->InvalidateLayer(invalRect, nsDisplayItem::TYPE_CANVAS);
-  if (layer) {
-    static_cast<CanvasLayer*>(layer)->Updated();
+    // account for border/padding
+    invalRect.MoveBy(contentArea.TopLeft() - frame->GetPosition());
+
+    frame->InvalidateLayer(invalRect, nsDisplayItem::TYPE_CANVAS);
+  } else {
+    nsRect r(frame->GetContentRect() - frame->GetPosition());
+    frame->InvalidateLayer(r, nsDisplayItem::TYPE_CANVAS);
   }
 }
 
@@ -702,14 +699,13 @@ nsHTMLCanvasElement::GetIsOpaque()
 }
 
 already_AddRefed<CanvasLayer>
-nsHTMLCanvasElement::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
-                                    CanvasLayer *aOldLayer,
+nsHTMLCanvasElement::GetCanvasLayer(CanvasLayer *aOldLayer,
                                     LayerManager *aManager)
 {
   if (!mCurrentContext)
     return nsnull;
 
-  return mCurrentContext->GetCanvasLayer(aBuilder, aOldLayer, aManager);
+  return mCurrentContext->GetCanvasLayer(aOldLayer, aManager);
 }
 
 void

@@ -2042,11 +2042,7 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
       inst->IsWindowless(&windowless);
       NPBool needXEmbed = PR_FALSE;
       if (!windowless) {
-        res = inst->GetValueFromPlugin(NPPVpluginNeedsXEmbed, &needXEmbed);
-        // If the call returned an error code make sure we still use our default value.
-        if (NS_FAILED(res)) {
-          needXEmbed = PR_FALSE;
-        }
+        inst->GetValueFromPlugin(NPPVpluginNeedsXEmbed, &needXEmbed);
       }
       if (windowless || needXEmbed) {
         (*(Display **)result) = mozilla::DefaultXDisplay();

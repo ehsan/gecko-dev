@@ -49,11 +49,7 @@
 #include "nsString.h"
 #include "nsGenericElement.h"
 
-namespace mozilla {
-namespace css {
-class StyleRule;
-}
-}
+class nsICSSStyleRule;
 
 typedef nsGenericElement nsStyledElementBase;
 
@@ -74,8 +70,8 @@ public:
   virtual nsIAtom* DoGetID() const;
   virtual const nsAttrValue* DoGetClasses() const;
 
-  virtual mozilla::css::StyleRule* GetInlineStyleRule();
-  NS_IMETHOD SetInlineStyleRule(mozilla::css::StyleRule* aStyleRule, PRBool aNotify);
+  virtual nsICSSStyleRule* GetInlineStyleRule();
+  NS_IMETHOD SetInlineStyleRule(nsICSSStyleRule* aStyleRule, PRBool aNotify);
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,

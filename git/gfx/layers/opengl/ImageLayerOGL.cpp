@@ -51,6 +51,8 @@ using namespace mozilla::gl;
 namespace mozilla {
 namespace layers {
 
+using mozilla::MutexAutoLock;
+
 /**
  * This is an event used to unref a GLContext on the main thread and
  * optionally delete a texture associated with that context.
@@ -190,6 +192,7 @@ RecycleBin::GetTexture(TextureType aType, const gfxIntSize& aSize,
 ImageContainerOGL::ImageContainerOGL(LayerManagerOGL *aManager)
   : ImageContainer(aManager)
   , mRecycleBin(new RecycleBin())
+  , mActiveImageLock("mozilla.layers.ImageContainerOGL.mActiveImageLock")
 {
 }
 
@@ -231,11 +234,10 @@ ImageContainerOGL::SetCurrentImage(Image *aImage)
   nsRefPtr<Image> oldImage;
 
   {
-    MonitorAutoEnter mon(mMonitor);
+    MutexAutoLock lock(mActiveImageLock);
 
     oldImage = mActiveImage.forget();
     mActiveImage = aImage;
-    CurrentImageChanged();
   }
 
   // Make sure oldImage is released outside the lock, so it can take our
@@ -245,7 +247,7 @@ ImageContainerOGL::SetCurrentImage(Image *aImage)
 already_AddRefed<Image>
 ImageContainerOGL::GetCurrentImage()
 {
-  MonitorAutoEnter mon(mMonitor);
+  MutexAutoLock lock(mActiveImageLock);
 
   nsRefPtr<Image> retval = mActiveImage;
   return retval.forget();
@@ -254,7 +256,7 @@ ImageContainerOGL::GetCurrentImage()
 already_AddRefed<gfxASurface>
 ImageContainerOGL::GetCurrentAsSurface(gfxIntSize *aSize)
 {
-  MonitorAutoEnter mon(mMonitor);
+  MutexAutoLock lock(mActiveImageLock);
 
   if (!mActiveImage) {
     *aSize = gfxIntSize(0,0);
@@ -312,7 +314,7 @@ ImageContainerOGL::GetCurrentAsSurface(gfxIntSize *aSize)
 gfxIntSize
 ImageContainerOGL::GetCurrentSize()
 {
-  MonitorAutoEnter mon(mMonitor);
+  MutexAutoLock lock(mActiveImageLock);
   if (!mActiveImage) {
     return gfxIntSize(0,0);
   }
@@ -500,7 +502,6 @@ ImageLayerOGL::RenderLayer(int,
      gl()->fBindTexture(LOCAL_GL_TEXTURE_RECTANGLE_ARB, 0);
 #endif
   }
-  GetContainer()->NotifyPaintedImage(image);
 }
 
 static void

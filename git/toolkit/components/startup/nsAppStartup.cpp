@@ -165,8 +165,10 @@ nsAppStartup::Init()
 // nsAppStartup->nsISupports
 //
 
-NS_IMPL_THREADSAFE_ISUPPORTS5(nsAppStartup,
+NS_IMPL_THREADSAFE_ISUPPORTS7(nsAppStartup,
                               nsIAppStartup,
+                              nsIAppStartup2,
+                              nsIAppStartup_MOZILLA_2_0,
                               nsIWindowCreator,
                               nsIWindowCreator2,
                               nsIObserver,

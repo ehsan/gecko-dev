@@ -68,7 +68,7 @@ nsresult nsRawReader::ResetDecode()
   return nsBuiltinDecoderReader::ResetDecode();
 }
 
-nsresult nsRawReader::ReadMetadata(nsVideoInfo* aInfo)
+nsresult nsRawReader::ReadMetadata()
 {
   NS_ASSERTION(mDecoder->OnStateMachineThread(),
                "Should be on state machine thread.");
@@ -134,8 +134,6 @@ nsresult nsRawReader::ReadMetadata(nsVideoInfo* aInfo)
                                            (mFrameSize * mFrameRate));
   }
 
-  *aInfo = mInfo;
-
   return NS_OK;
 }
 
@@ -176,11 +174,6 @@ PRBool nsRawReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
   NS_ASSERTION(mDecoder->OnStateMachineThread() || mDecoder->OnDecodeThread(),
                "Should be on state machine thread or decode thread.");
 
-  // Record number of frames decoded and parsed. Automatically update the
-  // stats counters using the AutoNotifyDecoded stack-based class.
-  PRUint32 parsed = 0, decoded = 0;
-  nsMediaDecoder::AutoNotifyDecoded autoNotify(mDecoder, parsed, decoded);
-
   if (!mFrameSize)
     return PR_FALSE; // Metadata read failed.  We should refuse to play.
 
@@ -205,8 +198,6 @@ PRBool nsRawReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
     if (!ReadFromStream(stream, buffer, length)) {
       return PR_FALSE;
     }
-
-    parsed++;
 
     if (currentFrameTime >= aTimeThreshold)
       break;
@@ -246,7 +237,6 @@ PRBool nsRawReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
 
   mVideoQueue.Push(v);
   mCurrentFrame++;
-  decoded++;
   currentFrameTime += 1000 / mFrameRate;
 
   return PR_TRUE;

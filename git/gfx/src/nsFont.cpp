@@ -52,6 +52,7 @@ nsFont::nsFont(const char* aName, PRUint8 aStyle, PRUint8 aVariant,
   style = aStyle;
   systemFont = PR_FALSE;
   variant = aVariant;
+  familyNameQuirks = PR_FALSE;
   weight = aWeight;
   stretch = aStretch;
   decorations = aDecoration;
@@ -75,6 +76,7 @@ nsFont::nsFont(const nsString& aName, PRUint8 aStyle, PRUint8 aVariant,
   style = aStyle;
   systemFont = PR_FALSE;
   variant = aVariant;
+  familyNameQuirks = PR_FALSE;
   weight = aWeight;
   stretch = aStretch;
   decorations = aDecoration;
@@ -94,6 +96,7 @@ nsFont::nsFont(const nsFont& aOther)
   style = aOther.style;
   systemFont = aOther.systemFont;
   variant = aOther.variant;
+  familyNameQuirks = aOther.familyNameQuirks;
   weight = aOther.weight;
   stretch = aOther.stretch;
   decorations = aOther.decorations;
@@ -115,6 +118,7 @@ PRBool nsFont::BaseEquals(const nsFont& aOther) const
 {
   if ((style == aOther.style) &&
       (systemFont == aOther.systemFont) &&
+      (familyNameQuirks == aOther.familyNameQuirks) &&
       (weight == aOther.weight) &&
       (stretch == aOther.stretch) &&
       (size == aOther.size) &&
@@ -143,6 +147,7 @@ nsFont& nsFont::operator=(const nsFont& aOther)
   style = aOther.style;
   systemFont = aOther.systemFont;
   variant = aOther.variant;
+  familyNameQuirks = aOther.familyNameQuirks;
   weight = aOther.weight;
   stretch = aOther.stretch;
   decorations = aOther.decorations;

@@ -191,6 +191,7 @@ nsresult EvaluateAdminConfigScript(const char *js_buffer, size_t length,
                                    PRBool bCallbacks, PRBool skipFirstLine)
 {
     JSBool ok;
+    jsval result;
 
     if (skipFirstLine) {
         /* In order to protect the privacy of the JavaScript preferences file 
@@ -225,7 +226,7 @@ nsresult EvaluateAdminConfigScript(const char *js_buffer, size_t length,
 
     JS_BeginRequest(autoconfig_cx);
     ok = JS_EvaluateScript(autoconfig_cx, autoconfig_glob,
-                           js_buffer, length, filename, 0, nsnull);
+                           js_buffer, length, filename, 0, &result);
     JS_EndRequest(autoconfig_cx);
 
     JS_MaybeGC(autoconfig_cx);

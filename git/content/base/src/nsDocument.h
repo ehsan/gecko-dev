@@ -517,7 +517,8 @@ class nsDocument : public nsIDocument,
                    public nsIScriptObjectPrincipal,
                    public nsIRadioGroupContainer_MOZILLA_2_0_BRANCH,
                    public nsIApplicationCacheContainer,
-                   public nsStubMutationObserver
+                   public nsStubMutationObserver,
+                   public nsIDOMNSDocument_MOZILLA_2_0_BRANCH
 {
 public:
   typedef mozilla::dom::Element Element;
@@ -813,6 +814,7 @@ public:
 
   // nsIDOMNSDocument
   NS_DECL_NSIDOMNSDOCUMENT
+  NS_DECL_NSIDOMNSDOCUMENT_MOZILLA_2_0_BRANCH
 
   // nsIDOMDocumentEvent
   NS_DECL_NSIDOMDOCUMENTEVENT
@@ -976,9 +978,7 @@ public:
   virtual void SetChangeScrollPosWhenScrollingToRef(PRBool aValue);
 
   already_AddRefed<nsContentList>
-  GetElementsByTagName(const nsAString& aTagName) {
-    return NS_GetContentList(this, kNameSpaceID_Unknown, aTagName);
-  }
+    GetElementsByTagName(const nsAString& aTagName);
   already_AddRefed<nsContentList>
     GetElementsByTagNameNS(const nsAString& aNamespaceURI,
                            const nsAString& aLocalName);
@@ -990,8 +990,6 @@ public:
   virtual NS_HIDDEN_(nsresult) AddImage(imgIRequest* aImage);
   virtual NS_HIDDEN_(nsresult) RemoveImage(imgIRequest* aImage);
   virtual NS_HIDDEN_(nsresult) SetImageLockingState(PRBool aLocked);
-
-  virtual nsresult GetMozCurrentStateObject(nsIVariant** aResult);
 
 protected:
   friend class nsNodeUtils;
@@ -1058,7 +1056,7 @@ protected:
                               const nsAString& aType,
                               PRBool aPersisted);
 
-  virtual nsPIDOMWindow *GetWindowInternal() const;
+  virtual nsPIDOMWindow *GetWindowInternal();
   virtual nsPIDOMWindow *GetInnerWindowInternal();
   virtual nsIScriptGlobalObject* GetScriptHandlingObjectInternal() const;
   virtual PRBool InternalAllowXULXBL();
@@ -1206,11 +1204,6 @@ private:
   // aSheetSet as the preferred set in the CSSLoader.
   void EnableStyleSheetsForSetInternal(const nsAString& aSheetSet,
                                        PRBool aUpdateCSSLoader);
-
-  // Revoke any pending notifications due to mozRequestAnimationFrame calls
-  void RevokeAnimationFrameNotifications();
-  // Reschedule any notifications we need to handle mozRequestAnimationFrame
-  void RescheduleAnimationFrameNotifications();
 
   // These are not implemented and not supported.
   nsDocument(const nsDocument& aOther);

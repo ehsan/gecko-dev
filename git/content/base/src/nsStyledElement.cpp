@@ -47,7 +47,7 @@
 #include "nsDOMCSSAttrDeclaration.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIDocument.h"
-#include "mozilla/css/StyleRule.h"
+#include "nsICSSStyleRule.h"
 #include "nsCSSParser.h"
 #include "mozilla/css/Loader.h"
 #include "nsIDOMMutationEvent.h"
@@ -56,8 +56,6 @@
 #ifdef MOZ_SVG
 #include "nsIDOMSVGStylable.h"
 #endif
-
-namespace css = mozilla::css;
 
 //----------------------------------------------------------------------
 // nsIContent methods
@@ -159,7 +157,7 @@ nsStyledElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aAttribute,
 }
 
 NS_IMETHODIMP
-nsStyledElement::SetInlineStyleRule(css::StyleRule* aStyleRule, PRBool aNotify)
+nsStyledElement::SetInlineStyleRule(nsICSSStyleRule* aStyleRule, PRBool aNotify)
 {
   SetFlags(NODE_MAY_HAVE_STYLE);
   PRBool modification = PR_FALSE;
@@ -197,7 +195,7 @@ nsStyledElement::SetInlineStyleRule(css::StyleRule* aStyleRule, PRBool aNotify)
                           aNotify, nsnull);
 }
 
-css::StyleRule*
+nsICSSStyleRule*
 nsStyledElement::GetInlineStyleRule()
 {
   if (!HasFlag(NODE_MAY_HAVE_STYLE)) {
@@ -322,12 +320,12 @@ nsStyledElement::ParseStyleAttribute(const nsAString& aValue,
     }
 
     if (isCSS) {
-      css::Loader* cssLoader = doc->CSSLoader();
+      mozilla::css::Loader* cssLoader = doc->CSSLoader();
       nsCSSParser cssParser(cssLoader);
       if (cssParser) {
         nsCOMPtr<nsIURI> baseURI = GetBaseURI();
 
-        nsRefPtr<css::StyleRule> rule;
+        nsCOMPtr<nsICSSStyleRule> rule;
         cssParser.ParseStyleAttribute(aValue, doc->GetDocumentURI(),
                                       baseURI,
                                       NodePrincipal(),

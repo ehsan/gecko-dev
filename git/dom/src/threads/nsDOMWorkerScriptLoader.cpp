@@ -269,7 +269,8 @@ nsDOMWorkerScriptLoader::ExecuteScripts(JSContext* aCx)
     uint32 oldOpts =
       JS_SetOptions(aCx, JS_GetOptions(aCx) | JSOPTION_DONT_REPORT_UNCAUGHT);
 
-    PRBool success = JS_ExecuteScript(aCx, global, script, NULL);
+    jsval val;
+    PRBool success = JS_ExecuteScript(aCx, global, script, &val);
 
     JS_SetOptions(aCx, oldOpts);
 
@@ -822,8 +823,7 @@ nsDOMWorkerScriptLoader::ScriptCompiler::Run()
   // Because we may have nested calls to this function we don't want the
   // execution to automatically report errors. We let them propagate instead.
   uint32 oldOpts =
-    JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_DONT_REPORT_UNCAUGHT |
-                      JSOPTION_NO_SCRIPT_RVAL);
+    JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_DONT_REPORT_UNCAUGHT);
 
   JSPrincipals* principal = nsDOMWorkerSecurityManager::WorkerPrincipal();
 

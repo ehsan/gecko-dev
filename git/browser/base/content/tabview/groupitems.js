@@ -282,13 +282,6 @@ function GroupItem(listOfEls, options) {
 // ----------
 GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   // ----------
-  // Function: toString
-  // Prints [GroupItem id=id] for debug use
-  toString: function GroupItem_toString() {
-    return "[GroupItem id=" + this.id + "]";
-  },
-
-  // ----------
   // Variable: defaultName
   // The prompt text for the title field.
   defaultName: tabviewString('groupItem.defaultName'),
@@ -1798,13 +1791,6 @@ let GroupItems = {
   _autoclosePaused: false,
   minGroupHeight: 110,
   minGroupWidth: 125,
-
-  // ----------
-  // Function: toString
-  // Prints [GroupItems] for debug use
-  toString: function GroupItems_toString() {
-    return "[GroupItems count=" + this.groupItems.length + "]";
-  },
 
   // ----------
   // Function: init

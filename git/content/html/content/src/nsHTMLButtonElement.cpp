@@ -137,6 +137,11 @@ public:
   virtual nsXPCClassInfo* GetClassInfo();
 
 protected:
+  virtual PRBool AcceptAutofocus() const
+  {
+    return PR_TRUE;
+  }
+
   PRUint8 mType;
   PRPackedBool mHandlingClick;
   PRPackedBool mDisabledChanged;

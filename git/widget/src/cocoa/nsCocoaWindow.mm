@@ -933,15 +933,6 @@ nsCocoaWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
 }
 
 LayerManager*
-nsCocoaWindow::GetLayerManager(bool *aAllowRetaining)
-{
-  if (mPopupContentView) {
-    return mPopupContentView->GetLayerManager(aAllowRetaining);
-  }
-  return nsnull;
-}
-
-LayerManager*
 nsCocoaWindow::GetLayerManager(LayerManagerPersistence, bool* aAllowRetaining)
 {
   if (mPopupContentView) {

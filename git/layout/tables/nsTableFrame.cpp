@@ -2316,9 +2316,9 @@ nsTableFrame::RemoveFrame(nsIAtom*        aListName,
       ResetRowIndices(nsFrameList::Slice(mFrames, nsnull, nsnull));
       nsRect damageArea;
       cellMap->RebuildConsideringCells(nsnull, nsnull, 0, 0, PR_FALSE, damageArea);
-
-      MatchCellMapToColCache(cellMap);
     }
+
+    MatchCellMapToColCache(cellMap);
   }
   // for now, just bail and recalc all of the collapsing borders
   // as the cellmap changes we need to recalc
@@ -4263,14 +4263,15 @@ BCMapCellIterator::First(BCMapCellInfo& aMapInfo)
         static_cast<BCCellData*>(mCellMap->GetDataAt(mAreaStart.y -
                                                       mRowGroupStart,
                                                       mAreaStart.x));
-      if (cellData && (cellData->IsOrig() || cellData->IsDead())) {
+      if (cellData && cellData->IsOrig()) {
         aMapInfo.SetInfo(mRow, mAreaStart.x, cellData, this);
-        return;
       }
       else {
         NS_ASSERTION(((0 == mAreaStart.x) && (mRowGroupStart == mAreaStart.y)) ,
                      "damage area expanded incorrectly");
+        mAtEnd = PR_TRUE;
       }
+      break;
     }
     SetNewRowGroup(PR_TRUE); // sets mAtEnd
   }

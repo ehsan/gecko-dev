@@ -81,10 +81,9 @@ NS_IMPL_ISUPPORTS1(nsHTMLStyleSheet::HTMLColorRule, nsIStyleRule)
 nsHTMLStyleSheet::HTMLColorRule::MapRuleInfoInto(nsRuleData* aRuleData)
 {
   if (aRuleData->mSIDs & NS_STYLE_INHERIT_BIT(Color)) {
-    nsCSSValue* color = aRuleData->ValueForColor();
-    if (color->GetUnit() == eCSSUnit_Null &&
+    if (aRuleData->mColorData->mColor.GetUnit() == eCSSUnit_Null &&
         aRuleData->mPresContext->UseDocumentColors())
-      color->SetColorValue(mColor);
+      aRuleData->mColorData->mColor.SetColorValue(mColor);
   }
 }
 
@@ -115,10 +114,10 @@ nsHTMLStyleSheet::GenericTableRule::List(FILE* out, PRInt32 aIndent) const
 nsHTMLStyleSheet::TableTHRule::MapRuleInfoInto(nsRuleData* aRuleData)
 {
   if (aRuleData->mSIDs & NS_STYLE_INHERIT_BIT(Text)) {
-    nsCSSValue* textAlign = aRuleData->ValueForTextAlign();
-    if (textAlign->GetUnit() == eCSSUnit_Null) {
-      textAlign->SetIntValue(NS_STYLE_TEXT_ALIGN_MOZ_CENTER_OR_INHERIT,
-                             eCSSUnit_Enumerated);
+    if (aRuleData->mTextData->mTextAlign.GetUnit() == eCSSUnit_Null) {
+      aRuleData->mTextData->mTextAlign.
+        SetIntValue(NS_STYLE_TEXT_ALIGN_MOZ_CENTER_OR_INHERIT,
+                    eCSSUnit_Enumerated);
     }
   }
 }

@@ -1071,9 +1071,11 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
         // If |exception| is non-null, then our caller wants us to propagate
         // any exceptions out to our caller. Ensure that the engine doesn't
         // eagerly report the exception.
-        uint32 oldopts = JS_GetOptions(cx);
-        JS_SetOptions(cx, oldopts | JSOPTION_NO_SCRIPT_RVAL |
-                          (exception ? JSOPTION_DONT_REPORT_UNCAUGHT : 0));
+        uint32 oldopts = 0;
+        if (exception) {
+            oldopts = JS_GetOptions(cx);
+            JS_SetOptions(cx, oldopts | JSOPTION_DONT_REPORT_UNCAUGHT);
+        }
 
         if (realFile) {
 #ifdef HAVE_PR_MEMMAP
@@ -1187,10 +1189,12 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
         // exception on this context.
         // NB: The caller must stick exception into a rooted slot (probably on
         // its context) as soon as possible to avoid GC hazards.
-        JS_SetOptions(cx, oldopts);
-        if (!script && exception) {
-            JS_GetPendingException(cx, exception);
-            JS_ClearPendingException(cx);
+        if (exception) {
+            JS_SetOptions(cx, oldopts);
+            if (!script) {
+                JS_GetPendingException(cx, exception);
+                JS_ClearPendingException(cx);
+            }
         }
     }
 
@@ -1237,7 +1241,8 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
     // See bug 384168.
     *aGlobal = global;
 
-    if (!JS_ExecuteScriptVersion(cx, global, script, NULL, JSVERSION_LATEST)) {
+    jsval retval;
+    if (!JS_ExecuteScriptVersion(cx, global, script, &retval, JSVERSION_LATEST)) {
 #ifdef DEBUG_shaver_off
         fprintf(stderr, "mJCL: failed to execute %s\n", nativePath.get());
 #endif

@@ -52,6 +52,7 @@
 #include "nsISVGValue.h"
 #include "nsISVGValueObserver.h"
 #include "nsWeakReference.h"
+#include "nsICSSStyleRule.h"
 
 #ifdef MOZ_SMIL
 #include "nsISMILAttr.h"
@@ -253,7 +254,7 @@ protected:
   void UpdateContentStyleRule();
 #ifdef MOZ_SMIL
   void UpdateAnimatedContentStyleRule();
-  mozilla::css::StyleRule* GetAnimatedContentStyleRule();
+  nsICSSStyleRule* GetAnimatedContentStyleRule();
 #endif // MOZ_SMIL
 
   nsISVGValue* GetMappedAttribute(PRInt32 aNamespaceID, nsIAtom* aName);
@@ -496,7 +497,7 @@ private:
     GetModificationDataForObservable(nsISVGValue* aObservable,
                                      nsISVGValue::modificationType aModType);
 
-  nsRefPtr<mozilla::css::StyleRule> mContentStyleRule;
+  nsCOMPtr<nsICSSStyleRule> mContentStyleRule;
   nsAttrAndChildArray mMappedAttributes;
 
   PRPackedBool mSuppressNotification;

@@ -75,13 +75,6 @@ function Point(a, y) {
 
 Point.prototype = {
   // ----------
-  // Function: toString
-  // Prints [Point (x,y)] for debug use
-  toString: function Point_toString() {
-    return "[Point (" + this.x + "," + this.y + ")]";
-  },
-
-  // ----------
   // Function: distance
   // Returns the distance from this point to the given <Point>.
   distance: function Point_distance(point) {
@@ -116,13 +109,6 @@ function Rect(a, top, width, height) {
 };
 
 Rect.prototype = {
-  // ----------
-  // Function: toString
-  // Prints [Rect (left,top,width,height)] for debug use
-  toString: function Rect_toString() {
-    return "[Rect (" + this.left + "," + this.top + "," +
-            this.width + "," + this.height + ")]";
-  },
 
   get right() this.left + this.width,
   set right(value) {
@@ -296,13 +282,6 @@ function Range(min, max) {
 };
 
 Range.prototype = {
-  // ----------
-  // Function: toString
-  // Prints [Range (min,max)] for debug use
-  toString: function Range_toString() {
-    return "[Range (" + this.min + "," + this.max + ")]";
-  },
-
   // Variable: extent
   // Equivalent to max-min
   get extent() {
@@ -484,13 +463,6 @@ Subscribable.prototype = {
 // Singelton with common utility functions.
 let Utils = {
   defaultFaviconURL: "chrome://mozapps/skin/places/defaultFavicon.png",
-
-  // ----------
-  // Function: toString
-  // Prints [Utils] for debug use
-  toString: function Utils_toString() {
-    return "[Utils]";
-  },
 
   // ___ Logging
   useConsole: true, // as opposed to dump
