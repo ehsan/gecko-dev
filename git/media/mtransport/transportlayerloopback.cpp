@@ -57,7 +57,7 @@ nsresult TransportLayerLoopback::Init() {
 void TransportLayerLoopback::Connect(TransportLayerLoopback* peer) {
   peer_ = peer;
 
-  TL_SET_STATE(TS_OPEN);
+  SetState(TS_OPEN);
 }
 
 TransportResult

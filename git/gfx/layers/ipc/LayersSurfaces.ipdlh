@@ -18,7 +18,6 @@ using mozilla::gl::SharedTextureShareType from "GLContextTypes.h";
 using mozilla::gfx::SurfaceStreamHandle from "SurfaceTypes.h";
 using mozilla::gfx::SurfaceFormat from "mozilla/gfx/Types.h";
 using mozilla::gfx::IntSize from "mozilla/gfx/Point.h";
-using gfxImageFormat from "gfxTypes.h";
 
 namespace mozilla {
 namespace layers {
@@ -138,7 +137,7 @@ struct YCbCrImage {
 struct RGBImage {
   Shmem data;
   nsIntRect picture;
-  gfxImageFormat rgbFormat;
+  uint32_t rgbFormat;
   uint64_t owner;
 };
 
@@ -146,7 +145,7 @@ struct MemoryImage {
   uintptr_t data;
   IntSize size;
   uint32_t stride;
-  gfxImageFormat format;
+  uint32_t format;
 };
 
 /**

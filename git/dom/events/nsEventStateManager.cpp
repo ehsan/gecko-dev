@@ -1701,8 +1701,10 @@ nsEventStateManager::HandleCrossProcessEvent(WidgetEvent* aEvent,
       aEvent->message == NS_TOUCH_START) {
     // If this event only has one target, and it's remote, add it to
     // the array.
-    nsIFrame* frame = GetEventTarget();
-    nsIContent* target = frame ? frame->GetContent() : nullptr;
+    nsIContent* target = mCurrentTargetContent;
+    if (!target && aTargetFrame) {
+      target = aTargetFrame->GetContent();
+    }
     if (IsRemoteTarget(target)) {
       targets.AppendElement(target);
     }

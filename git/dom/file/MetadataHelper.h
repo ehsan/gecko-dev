@@ -85,8 +85,7 @@ public:
   DoAsyncRun(nsISupports* aStream) MOZ_OVERRIDE;
 
   nsresult
-  GetSuccessResult(JSContext* aCx,
-                   JS::MutableHandle<JS::Value> aVal) MOZ_OVERRIDE;
+  GetSuccessResult(JSContext* aCx, JS::Value* aVal) MOZ_OVERRIDE;
 
 protected:
   class AsyncMetadataGetter : public AsyncHelper

@@ -26,7 +26,7 @@ MetadataHelper::DoAsyncRun(nsISupports* aStream)
 
 nsresult
 MetadataHelper::GetSuccessResult(JSContext* aCx,
-                                 JS::MutableHandle<JS::Value> aVal)
+                                 JS::Value* aVal)
 {
   JS::Rooted<JSObject*> obj(aCx, JS_NewObject(aCx, nullptr, JS::NullPtr(),
                                               JS::NullPtr()));
@@ -52,7 +52,8 @@ MetadataHelper::GetSuccessResult(JSContext* aCx,
     }
   }
 
-  aVal.setObject(*obj);
+  *aVal = OBJECT_TO_JSVAL(obj);
+
   return NS_OK;
 }
 

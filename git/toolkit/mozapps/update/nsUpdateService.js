@@ -196,8 +196,7 @@ const PING_BGUC_INVALID_DEFAULT_URL          = 2;
 const PING_BGUC_INVALID_CUSTOM_URL           = 3;
 // Invalid url for app.update.url.override user preference (no notification)
 const PING_BGUC_INVALID_OVERRIDE_URL         = 4;
-// Unable to check for updates per gCanCheckForUpdates and hasUpdateMutex()
-// (no notification)
+// Unable to check for updates per gCanCheckForUpdates (no notification)
 const PING_BGUC_UNABLE_TO_CHECK              = 5;
 // Already has an active update in progress (no notification)
 const PING_BGUC_HAS_ACTIVEUPDATE             = 6;
@@ -259,14 +258,13 @@ const PING_BGUC_ADDON_UPDATES_FOR_INCOMPAT   = 29;
 const PING_BGUC_ADDON_HAVE_INCOMPAT          = 30;
 
 var gLocale = null;
-var gUpdateMutexHandle = null;
 
 #ifdef MOZ_WIDGET_GONK
-var gSDCardMountLock = null;
-
 XPCOMUtils.defineLazyGetter(this, "gExtStorage", function aus_gExtStorage() {
     return Services.env.get("EXTERNAL_STORAGE");
 });
+
+var gSDCardMountLock = null;
 #endif
 
 XPCOMUtils.defineLazyModuleGetter(this, "UpdateChannel",
@@ -485,13 +483,10 @@ function closeHandle(handle) {
 /**
  * Creates a mutex.
  *
- * @param  aName
- *         The name for the mutex.
- * @param  aAllowExisting
- *         If false the function will close the handle and return null.
- * @return The Win32 handle to the mutex.
+ * @param aAllowExisting false if the function should fail if the mutex exists
+ * @return The Win32 handle to the mutex
  */
-function createMutex(aName, aAllowExisting) {
+function createMutex(name, aAllowExisting) {
   if (aAllowExisting === undefined) {
     aAllowExisting = true;
   }
@@ -506,7 +501,7 @@ function createMutex(aName, aAllowExisting) {
                                  ctypes.int32_t, /* initial owner */
                                  ctypes.jschar.ptr); /* name */
 
-  var handle = CreateMutexW(null, INITIAL_OWN, aName);
+  var handle = CreateMutexW(null, INITIAL_OWN, name);
   var alreadyExists = ctypes.winLastError == ERROR_ALREADY_EXISTS;
   if (handle && !handle.isNull() && !aAllowExisting && alreadyExists) {
     closeHandle(handle);
@@ -559,11 +554,11 @@ function getPerInstallationMutexName(aGlobal) {
  */
 function hasUpdateMutex() {
 #ifdef XP_WIN
-  if (!gUpdateMutexHandle) {
-    gUpdateMutexHandle = createMutex(getPerInstallationMutexName(true), false);
+  if (!this._updateMutexHandle) {
+    this._updateMutexHandle = createMutex(getPerInstallationMutexName(true), false);
   }
 
-  return !!gUpdateMutexHandle;
+  return !!this._updateMutexHandle;
 #else
   return true;
 #endif // XP_WIN
@@ -673,6 +668,13 @@ XPCOMUtils.defineLazyGetter(this, "gCanApplyUpdates", function aus_gCanApplyUpda
       return false;
     }
   } // if (!useService)
+
+  if (!hasUpdateMutex()) {
+    LOG("gCanApplyUpdates - unable to apply updates because another instance" +
+        "of the application is already handling updates for this " +
+        "installation.");
+    return false;
+  }
 
   LOG("gCanApplyUpdates - able to apply updates");
   submitHasPermissionsTelemetryPing(true);
@@ -790,6 +792,13 @@ XPCOMUtils.defineLazyGetter(this, "gCanCheckForUpdates", function aus_gCanCheckF
   if (!gOSVersion) {
     LOG("gCanCheckForUpdates - unable to check for updates, unknown OS " +
         "version");
+    return false;
+  }
+
+  if (!hasUpdateMutex()) {
+    LOG("gCanCheckForUpdates - unable to apply updates because another " +
+        "instance of the application is already handling updates for this " +
+        "installation.");
     return false;
   }
 
@@ -2602,7 +2611,7 @@ UpdateService.prototype = {
       else if (!getPref("getBoolPref", PREF_APP_UPDATE_ENABLED, true)) {
         this._backgroundUpdateCheckCodePing(PING_BGUC_PREF_DISABLED);
       }
-      else if (!(gCanCheckForUpdates && hasUpdateMutex())) {
+      else if (!gCanCheckForUpdates) {
         this._backgroundUpdateCheckCodePing(PING_BGUC_UNABLE_TO_CHECK);
       }
       else if (!this.backgroundChecker._enabled) {
@@ -2750,7 +2759,7 @@ UpdateService.prototype = {
       return;
     }
 
-    if (!(gCanApplyUpdates && hasUpdateMutex())) {
+    if (!gCanApplyUpdates) {
       LOG("UpdateService:_selectAndInstallUpdate - the user is unable to " +
           "apply updates... prompting");
       this._showPrompt(update);
@@ -2961,8 +2970,7 @@ UpdateService.prototype = {
     if (--this._updateCheckCount > 0)
       return;
 
-    if (this._incompatibleAddons.length > 0 ||
-        !(gCanApplyUpdates && hasUpdateMutex())) {
+    if (this._incompatibleAddons.length > 0 || !gCanApplyUpdates) {
       LOG("UpdateService:onUpdateEnded - prompting because there are " +
           "incompatible add-ons");
       this._showPrompt(this._update);
@@ -2997,14 +3005,14 @@ UpdateService.prototype = {
    * See nsIUpdateService.idl
    */
   get canCheckForUpdates() {
-    return gCanCheckForUpdates && hasUpdateMutex();
+    return gCanCheckForUpdates;
   },
 
   /**
    * See nsIUpdateService.idl
    */
   get canApplyUpdates() {
-    return gCanApplyUpdates && hasUpdateMutex();
+    return gCanApplyUpdates;
   },
 
   /**
@@ -3790,7 +3798,7 @@ Checker.prototype = {
     }
 
     return getPref("getBoolPref", PREF_APP_UPDATE_ENABLED, true) &&
-           gCanCheckForUpdates && hasUpdateMutex() && this._enabled;
+           gCanCheckForUpdates && this._enabled;
   },
 
   /**

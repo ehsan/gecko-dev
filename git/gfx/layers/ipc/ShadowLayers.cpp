@@ -685,13 +685,13 @@ ShadowLayerForwarder::GetDescriptorSurfaceImageFormat(
   }
 
   nsRefPtr<gfxASurface> surface = OpenDescriptor(aMode, aDescriptor);
-  NS_ENSURE_TRUE(surface, gfxImageFormat::Unknown);
+  NS_ENSURE_TRUE(surface, gfxImageFormatUnknown);
 
   nsRefPtr<gfxImageSurface> img = surface->GetAsImageSurface();
-  NS_ENSURE_TRUE(img, gfxImageFormat::Unknown);
+  NS_ENSURE_TRUE(img, gfxImageFormatUnknown);
 
   format = img->Format();
-  NS_ASSERTION(format != gfxImageFormat::Unknown,
+  NS_ASSERTION(format != gfxImageFormatUnknown,
                "ImageSurface RGB format should be known");
 
   *aSurface = surface.forget().get();
@@ -814,7 +814,7 @@ AutoOpenSurface::ImageFormat()
     nsRefPtr<gfxImageSurface> img = mSurface->GetAsImageSurface();
     if (img) {
       gfxImageFormat format = img->Format();
-      NS_ASSERTION(format != gfxImageFormat::Unknown,
+      NS_ASSERTION(format != gfxImageFormatUnknown,
                    "ImageSurface RGB format should be known");
 
       return format;

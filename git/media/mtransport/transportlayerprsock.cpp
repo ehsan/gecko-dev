@@ -54,7 +54,7 @@ void TransportLayerPrsock::Import(PRFileDesc *fd, nsresult *result) {
     return;
   }
 
-  TL_SET_STATE(TS_OPEN);
+  SetState(TS_OPEN);
 
   *result = NS_OK;
 }
@@ -81,7 +81,7 @@ int TransportLayerPrsock::SendPacket(const unsigned char *data, size_t len) {
 
 
   MOZ_MTLOG(ML_DEBUG, LAYER_INFO << "Write error; channel closed");
-  TL_SET_STATE(TS_ERROR);
+  SetState(TS_ERROR);
   return TE_ERROR;
 }
 
@@ -101,13 +101,13 @@ void TransportLayerPrsock::OnSocketReady(PRFileDesc *fd, int16_t outflags) {
     SignalPacketReceived(this, buf, rv);
   } else if (rv == 0) {
     MOZ_MTLOG(ML_DEBUG, LAYER_INFO << "Read 0 bytes; channel closed");
-    TL_SET_STATE(TS_CLOSED);
+    SetState(TS_CLOSED);
   } else {
     PRErrorCode err = PR_GetError();
 
     if (err != PR_WOULD_BLOCK_ERROR) {
       MOZ_MTLOG(ML_DEBUG, LAYER_INFO << "Read error; channel closed");
-      TL_SET_STATE(TS_ERROR);
+      SetState(TS_ERROR);
     }
   }
 }

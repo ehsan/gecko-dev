@@ -138,12 +138,12 @@ nsImageToPixbuf::SurfaceToPixbuf(gfxASurface* aSurface, int32_t aWidth, int32_t 
     }
 
     nsRefPtr<gfxImageSurface> imgSurface;
-    if (aSurface->GetType() == gfxSurfaceType::Image) {
+    if (aSurface->GetType() == gfxSurfaceTypeImage) {
         imgSurface = static_cast<gfxImageSurface*>
                                 (static_cast<gfxASurface*>(aSurface));
     } else {
         imgSurface = new gfxImageSurface(gfxIntSize(aWidth, aHeight),
-					 gfxImageFormat::ARGB32);
+					 gfxImageFormatARGB32);
                                        
         if (!imgSurface)
             return nullptr;

@@ -4346,7 +4346,7 @@ nsLayoutUtils::DrawPixelSnapped(nsRenderingContext* aRenderingContext,
   gfxUtils::DrawPixelSnapped(ctx, aDrawable,
                              drawingParams.mUserSpaceToImageSpace, subimage,
                              sourceRect, imageRect, drawingParams.mFillRect,
-                             gfxImageFormat::ARGB32, aFilter);
+                             gfxImageFormatARGB32, aFilter);
 }
 
 /* static */ nsresult
@@ -4943,7 +4943,7 @@ nsLayoutUtils::SurfaceFromElement(HTMLCanvasElement* aElement,
       nsRefPtr<gfxImageSurface> image = new gfxImageSurface(data->GetData(),
                                                             gfxIntSize(size.width, size.height),
                                                             data->Stride(),
-                                                            gfxImageFormat::ARGB32);
+                                                            gfxImageFormatARGB32);
       ctx = new gfxContext(image);
     }
     // XXX shouldn't use the external interface, but maybe we can layerify this

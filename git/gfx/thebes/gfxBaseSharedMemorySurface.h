@@ -19,7 +19,7 @@ typedef struct _cairo_user_data_key cairo_user_data_key_t;
 struct SharedImageInfo {
     int32_t width;
     int32_t height;
-    gfxImageFormat format;
+    int32_t format;
     int32_t readCount;
 };
 
@@ -104,7 +104,7 @@ public:
     static bool IsSharedImage(gfxASurface *aSurface)
     {
         return (aSurface
-                && aSurface->GetType() == gfxSurfaceType::Image
+                && aSurface->GetType() == gfxSurfaceTypeImage
                 && aSurface->GetData(&SHM_KEY));
     }
 
