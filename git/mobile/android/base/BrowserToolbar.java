@@ -15,9 +15,8 @@ import org.mozilla.gecko.util.HardwareUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.UiAsyncTask;
 
-import org.mozilla.gecko.PrefsHelper;
-
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.Color;
@@ -61,9 +60,11 @@ import java.util.List;
 
 public class BrowserToolbar implements Tabs.OnTabsChangedListener,
                                        GeckoMenu.ActionItemBarPresenter,
-                                       Animation.AnimationListener {
+                                       Animation.AnimationListener,
+                                       SharedPreferences.OnSharedPreferenceChangeListener {
     private static final String LOGTAG = "GeckoToolbar";
-    public static final String PREF_TITLEBAR_MODE = "browser.chrome.titlebarMode";
+    public static final String PREFS_NAME = "BrowserToolbar";
+    public static final String PREFS_SHOW_URL = "ShowUrl";
     private GeckoRelativeLayout mLayout;
     private LayoutParams mAwesomeBarParams;
     private View mAwesomeBarContent;
@@ -123,8 +124,6 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
 
     private boolean mShowUrl;
 
-    private Integer mPrefObserverId;
-
     public BrowserToolbar(BrowserApp activity) {
         // BrowserToolbar is attached to BrowserApp only.
         mActivity = activity;
@@ -136,36 +135,23 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
         mAnimatingEntry = false;
         mShowUrl = false;
 
-        // listen to the title bar pref.
-        mPrefObserverId = PrefsHelper.getPref(PREF_TITLEBAR_MODE, new PrefsHelper.PrefHandlerBase() {
+        (new UiAsyncTask<Void, Void, Void>(ThreadUtils.getBackgroundHandler()) {
             @Override
-            public void prefValue(String pref, String str) {
-                int value = Integer.parseInt(str);
-                boolean shouldShowUrl = (value == 1);
+            public synchronized Void doInBackground(Void... params) {
+                SharedPreferences settings = mActivity.getSharedPreferences(PREFS_NAME, 0);
+                settings.registerOnSharedPreferenceChangeListener(BrowserToolbar.this);
+                mShowUrl = settings.getBoolean(PREFS_SHOW_URL, false);
+                return null;
+            }
 
-                if (shouldShowUrl == mShowUrl) {
-                    return;
+            @Override
+            public void onPostExecute(Void v) {
+                Tab tab = Tabs.getInstance().getSelectedTab();
+                if (tab != null) {
+                    setTitle(tab.getDisplayTitle());
                 }
-                mShowUrl = shouldShowUrl;
-
-                ThreadUtils.postToUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        Tab tab = Tabs.getInstance().getSelectedTab();
-                        if (tab != null) {
-                            setTitle(tab.getDisplayTitle());
-                        }
-                    }
-                });
             }
-
-            @Override
-            public boolean isObserver() {
-                // We want to be notified of changes to be able to switch mode
-                // without restarting.
-                return true;
-            }
-        });
+        }).execute();
 
         Resources res = mActivity.getResources();
         mUrlColor = new ForegroundColorSpan(res.getColor(R.color.url_bar_urltext));
@@ -1169,10 +1155,6 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
     }
 
     public void onDestroy() {
-        if (mPrefObserverId != null) {
-             PrefsHelper.removeObserver(mPrefObserverId);
-             mPrefObserverId = null;
-        }
         Tabs.unregisterOnTabsChangedListener(this);
     }
 
@@ -1195,5 +1177,15 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
             mMenuPopup.dismiss();
 
         return true;
+    }
+
+    public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+        if (key.equals(PREFS_SHOW_URL)) {
+            mShowUrl = sharedPreferences.getBoolean(key, false);
+            Tab tab = Tabs.getInstance().getSelectedTab();
+            if (tab != null) {
+                setTitle(tab.getDisplayTitle());
+            }
+        }
     }
 }

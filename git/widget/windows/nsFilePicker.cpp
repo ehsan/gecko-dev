@@ -1157,7 +1157,6 @@ nsBaseWinFilePicker::SetDefaultString(const nsAString& aString)
   // Then, we need to replace illegal characters. At this stage, we cannot
   // replace the backslash as the string might represent a file path.
   mDefaultFilePath.ReplaceChar(FILE_ILLEGAL_CHARACTERS, '-');
-  mDefaultFilename.ReplaceChar(FILE_ILLEGAL_CHARACTERS, '-');
 
   return NS_OK;
 }

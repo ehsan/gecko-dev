@@ -177,11 +177,6 @@ var Appbar = {
   },
 
   showContextualActions: function(aVerbs) {
-    if (aVerbs.length)
-      this.appbar.setAttribute("contextual", "true");
-    else
-      this.appbar.removeAttribute("contextual");
-
     let doc = document;
     // button element id to action verb lookup
     let buttonsMap = new Map();

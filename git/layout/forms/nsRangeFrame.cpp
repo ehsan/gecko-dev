@@ -244,7 +244,8 @@ nsRangeFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   nsPresContext *presContext = PresContext();
   const nsStyleDisplay *disp = StyleDisplay();
   if ((!IsThemed(disp) ||
-       !presContext->GetTheme()->ThemeDrawsFocusForWidget(disp->mAppearance)) &&
+       !presContext->GetTheme()->
+         ThemeDrawsFocusForWidget(presContext, this, disp->mAppearance)) &&
       IsVisibleForPainting(aBuilder)) {
     aLists.Content()->AppendNewToTop(
       new (aBuilder) nsDisplayRangeFocusRing(aBuilder, this));
