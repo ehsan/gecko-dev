@@ -84,12 +84,12 @@ struct ParseContext                 /* tree context for semantic checks */
     }
 
     uint32_t numArgs() const {
-        JS_ASSERT(sc->inFunction());
+        JS_ASSERT(sc->isFunction);
         return args_.length();
     }
 
     uint32_t numVars() const {
-        JS_ASSERT(sc->inFunction());
+        JS_ASSERT(sc->isFunction);
         return vars_.length();
     }
 
@@ -151,7 +151,7 @@ struct ParseContext                 /* tree context for semantic checks */
      *  - Sometimes a script's bindings are accessed at runtime to retrieve the
      *    contents of the lexical scope (e.g., from the debugger).
      */
-    bool generateFunctionBindings(JSContext *cx, Bindings *bindings) const;
+    bool generateFunctionBindings(JSContext *cx, InternalHandle<Bindings*> bindings) const;
 
   public:
     ParseNode       *yieldNode;     /* parse node for a yield expression that might
@@ -303,7 +303,7 @@ struct Parser : private AutoGCRooter
      */
     ObjectBox *newObjectBox(JSObject *obj);
 
-    FunctionBox *newFunctionBox(JSObject *obj, ParseContext *pc, StrictMode sms);
+    FunctionBox *newFunctionBox(JSFunction *fun, ParseContext *pc, StrictMode sms);
 
     /*
      * Create a new function object given parse context (pc) and a name (which

@@ -100,9 +100,9 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
         return NULL;
     parser.sct = &sct;
 
-    SharedContext sc(cx, scopeChain, /* funbox = */ NULL, StrictModeFromContext(cx));
+    GlobalSharedContext globalsc(cx, scopeChain, StrictModeFromContext(cx));
 
-    ParseContext pc(&parser, &sc, staticLevel, /* bodyid = */ 0);
+    ParseContext pc(&parser, &globalsc, staticLevel, /* bodyid = */ 0);
     if (!pc.init())
         return NULL;
 
@@ -114,7 +114,8 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
 
     // Global/eval script bindings are always empty (all names are added to the
     // scope dynamically via JSOP_DEFFUN/VAR).
-    if (!script->bindings.initWithTemporaryStorage(cx, 0, 0, NULL))
+    InternalHandle<Bindings*> bindings(script, &script->bindings);
+    if (!Bindings::initWithTemporaryStorage(cx, bindings, 0, 0, NULL))
         return NULL;
 
     // We can specialize a bit for the given scope chain if that scope chain is the global object.
@@ -122,14 +123,14 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
     JS_ASSERT_IF(globalScope, globalScope->isNative());
     JS_ASSERT_IF(globalScope, JSCLASS_HAS_GLOBAL_FLAG_AND_SLOTS(globalScope->getClass()));
 
-    BytecodeEmitter bce(/* parent = */ NULL, &parser, &sc, script, callerFrame, !!globalScope,
+    BytecodeEmitter bce(/* parent = */ NULL, &parser, &globalsc, script, callerFrame, !!globalScope,
                         options.lineno, options.selfHostingMode);
     if (!bce.init())
         return NULL;
 
     /* If this is a direct call to eval, inherit the caller's strictness.  */
     if (callerFrame && callerFrame->script()->strictModeCode)
-        sc.strictModeState = StrictMode::STRICT;
+        globalsc.strictModeState = StrictMode::STRICT;
 
     if (options.compileAndGo) {
         if (source) {
@@ -174,7 +175,7 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain, StackFrame *call
         if (!ok)
             return NULL;
     }
-    JS_ASSERT(sc.strictModeState != StrictMode::UNKNOWN);
+    JS_ASSERT(globalsc.strictModeState != StrictMode::UNKNOWN);
     for (;;) {
         TokenKind tt = tokenStream.peekToken(TSF_OPERAND);
         if (tt <= TOK_EOF) {
@@ -276,12 +277,10 @@ frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun, CompileOptions 
 
     StrictMode sms = StrictModeFromContext(cx);
     FunctionBox *funbox = parser.newFunctionBox(fun, /* outerpc = */ NULL, sms);
-
-    SharedContext funsc(cx, /* scopeChain = */ NULL, funbox, sms);
     fun->setArgCount(formals.length());
 
     unsigned staticLevel = 0;
-    ParseContext funpc(&parser, &funsc, staticLevel, /* bodyid = */ 0);
+    ParseContext funpc(&parser, funbox, staticLevel, /* bodyid = */ 0);
     if (!funpc.init())
         return false;
 
@@ -327,10 +326,11 @@ frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun, CompileOptions 
     if (!script)
         return false;
 
-    if (!funpc.generateFunctionBindings(cx, &script->bindings))
+    InternalHandle<Bindings*> bindings(script, &script->bindings);
+    if (!funpc.generateFunctionBindings(cx, bindings))
         return false;
 
-    BytecodeEmitter funbce(/* parent = */ NULL, &parser, &funsc, script, /* callerFrame = */ NULL,
+    BytecodeEmitter funbce(/* parent = */ NULL, &parser, funbox, script, /* callerFrame = */ NULL,
                            /* hasGlobalScope = */ false, options.lineno);
     if (!funbce.init())
         return false;

@@ -964,11 +964,6 @@ class MethodDefiner(PropertyDefiner):
                                 "length": 1,
                                 "flags": "0",
                                 "pref": None })
-            self.regular.append({"name": 'QueryInterface',
-                                 "methodInfo": False,
-                                 "length": 1,
-                                 "flags": "0",
-                                 "pref": None })
 
         if static:
             if not descriptor.interface.hasInterfaceObject():
@@ -1017,14 +1012,20 @@ class AttrDefiner(PropertyDefiner):
             return "JSPROP_SHARED | JSPROP_ENUMERATE | JSPROP_NATIVE_ACCESSORS"
 
         def getter(attr):
-            return ("{(JSPropertyOp)genericGetter, &%(name)s_getterinfo}"
-                    % {"name" : attr.identifier.name})
+            native = ("genericLenientGetter" if attr.hasLenientThis()
+                      else "genericGetter")
+            return ("{(JSPropertyOp)%(native)s, &%(name)s_getterinfo}"
+                    % {"name" : attr.identifier.name,
+                       "native" : native})
 
         def setter(attr):
             if attr.readonly:
                 return "JSOP_NULLWRAPPER"
-            return ("{(JSStrictPropertyOp)genericSetter, &%(name)s_setterinfo}"
-                    % {"name" : attr.identifier.name})
+            native = ("genericLenientSetter" if attr.hasLenientThis()
+                      else "genericSetter")
+            return ("{(JSStrictPropertyOp)%(native)s, &%(name)s_setterinfo}"
+                    % {"name" : attr.identifier.name,
+                       "native" : native})
 
         def specData(attr):
             return (attr.identifier.name, flags(attr), getter(attr),
@@ -3391,8 +3392,14 @@ class CGAbstractBindingMethod(CGAbstractStaticMethod):
     function to do the rest of the work.  This function should return a
     CGThing which is already properly indented.
     """
-    def __init__(self, descriptor, name, args):
+    def __init__(self, descriptor, name, args, unwrapFailureCode=None):
         CGAbstractStaticMethod.__init__(self, descriptor, name, "JSBool", args)
+
+        if unwrapFailureCode is None:
+            self.unwrapFailureCode = ("return Throw<%s>(cx, rv);" %
+                                      toStringBool(not descriptor.workers))
+        else:
+            self.unwrapFailureCode = unwrapFailureCode
 
     def definition_body(self):
         # Our descriptor might claim that we're not castable, simply because
@@ -3400,9 +3407,9 @@ class CGAbstractBindingMethod(CGAbstractStaticMethod):
         # know that we're the real deal.  So fake a descriptor here for
         # consumption by FailureFatalCastableObjectUnwrapper.
         unwrapThis = CGIndenter(CGGeneric(
-            str(FailureFatalCastableObjectUnwrapper(
+            str(CastableObjectUnwrapper(
                         FakeCastableDescriptor(self.descriptor),
-                        "obj", "self"))))
+                        "obj", "self", self.unwrapFailureCode))))
         return CGList([ self.getThis(), unwrapThis,
                         self.generate_code() ], "\n").define()
 
@@ -3459,10 +3466,20 @@ class CGGenericGetter(CGAbstractBindingMethod):
     """
     A class for generating the C++ code for an IDL attribute getter.
     """
-    def __init__(self, descriptor):
+    def __init__(self, descriptor, lenientThis=False):
         args = [Argument('JSContext*', 'cx'), Argument('unsigned', 'argc'),
                 Argument('JS::Value*', 'vp')]
-        CGAbstractBindingMethod.__init__(self, descriptor, 'genericGetter', args)
+        if lenientThis:
+            name = "genericLenientGetter"
+            unwrapFailureCode = (
+                "MOZ_ASSERT(!JS_IsExceptionPending(cx));\n"
+                "JS_SET_RVAL(cx, vp, JS::UndefinedValue());\n"
+                "return true;")
+        else:
+            name = "genericGetter"
+            unwrapFailureCode = None
+        CGAbstractBindingMethod.__init__(self, descriptor, name, args,
+                                         unwrapFailureCode)
 
     def generate_code(self):
         return CGIndenter(CGGeneric(
@@ -3486,7 +3503,16 @@ class CGSpecializedGetter(CGAbstractStaticMethod):
 
     def definition_body(self):
         name = self.attr.identifier.name
-        nativeName = "Get" + MakeNativeName(self.descriptor.binaryNames.get(name, name))
+        nativeName = MakeNativeName(self.descriptor.binaryNames.get(name, name))
+        # resultOutParam does not depend on whether resultAlreadyAddRefed is set
+        (_, resultOutParam) = getRetvalDeclarationForType(self.attr.type,
+                                                          self.descriptor,
+                                                          False)
+        infallible = ('infallible' in
+                      self.descriptor.getExtendedAttributes(self.attr,
+                                                            getter=True))
+        if resultOutParam or self.attr.type.nullable() or not infallible:
+            nativeName = "Get" + nativeName
         return CGIndenter(CGGetterCall(self.attr.type, nativeName,
                                        self.descriptor, self.attr)).define()
 
@@ -3494,10 +3520,19 @@ class CGGenericSetter(CGAbstractBindingMethod):
     """
     A class for generating the C++ code for an IDL attribute setter.
     """
-    def __init__(self, descriptor):
+    def __init__(self, descriptor, lenientThis=False):
         args = [Argument('JSContext*', 'cx'), Argument('unsigned', 'argc'),
                 Argument('JS::Value*', 'vp')]
-        CGAbstractBindingMethod.__init__(self, descriptor, 'genericSetter', args)
+        if lenientThis:
+            name = "genericLenientSetter"
+            unwrapFailureCode = (
+                "MOZ_ASSERT(!JS_IsExceptionPending(cx));\n"
+                "return true;")
+        else:
+            name = "genericSetter"
+            unwrapFailureCode = None
+        CGAbstractBindingMethod.__init__(self, descriptor, name, args,
+                                         unwrapFailureCode)
 
     def generate_code(self):
         return CGIndenter(CGGeneric(
@@ -4727,7 +4762,7 @@ class CGDOMJSProxyHandler_getOwnPropertyNames(ClassMethod):
     def getBody(self):
         indexedGetter = self.descriptor.operations['IndexedGetter']
         if indexedGetter:
-            addIndices = """uint32_t length = UnwrapProxy(proxy)->GetLength();
+            addIndices = """uint32_t length = UnwrapProxy(proxy)->Length();
 MOZ_ASSERT(int32_t(length) >= 0);
 for (int32_t i = 0; i < int32_t(length); ++i) {
   if (!props.append(INT_TO_JSID(i))) {
@@ -4987,10 +5022,11 @@ class CGDOMJSProxyHandler(CGClass):
                          methods=methods)
 
 def stripTrailingWhitespace(text):
+    tail = '\n' if text.endswith('\n') else ''
     lines = text.splitlines()
     for i in range(len(lines)):
         lines[i] = lines[i].rstrip()
-    return '\n'.join(lines)
+    return '\n'.join(lines) + tail
 
 class CGDescriptor(CGThing):
     def __init__(self, descriptor):
@@ -5000,7 +5036,8 @@ class CGDescriptor(CGThing):
 
         cgThings = []
         if descriptor.interface.hasInterfacePrototypeObject():
-            hasMethod, hasGetter, hasSetter = False, False, False
+            (hasMethod, hasGetter, hasLenientGetter,
+             hasSetter, hasLenientSetter) = False, False, False, False, False
             for m in descriptor.interface.members:
                 if m.isMethod() and not m.isStatic() and not m.isIdentifierLess():
                     cgThings.append(CGSpecializedMethod(descriptor, m))
@@ -5008,14 +5045,24 @@ class CGDescriptor(CGThing):
                     hasMethod = True
                 elif m.isAttr():
                     cgThings.append(CGSpecializedGetter(descriptor, m))
-                    hasGetter = True
+                    if m.hasLenientThis():
+                        hasLenientGetter = True
+                    else:
+                        hasGetter = True
                     if not m.readonly:
                         cgThings.append(CGSpecializedSetter(descriptor, m))
-                        hasSetter = True
+                        if m.hasLenientThis():
+                            hasLenientSetter = True
+                        else:
+                            hasSetter = True
                     cgThings.append(CGMemberJITInfo(descriptor, m))
             if hasMethod: cgThings.append(CGGenericMethod(descriptor))
             if hasGetter: cgThings.append(CGGenericGetter(descriptor))
+            if hasLenientGetter: cgThings.append(CGGenericGetter(descriptor,
+                                                                 lenientThis=True))
             if hasSetter: cgThings.append(CGGenericSetter(descriptor))
+            if hasLenientSetter: cgThings.append(CGGenericSetter(descriptor,
+                                                                 lenientThis=True))
 
         if descriptor.concrete and not descriptor.proxy:
             if not descriptor.workers and descriptor.wrapperCache:

@@ -147,7 +147,7 @@ pref("app.update.silent", false);
 
 // If set to true, the Update Service will apply updates in the background
 // when it finishes downloading them.
-pref("app.update.stage.enabled", true);
+pref("app.update.staging.enabled", true);
 
 // Update service URL:
 pref("app.update.url", "https://aus3.mozilla.org/update/3/%PRODUCT%/%VERSION%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/update.xml");
@@ -849,6 +849,10 @@ pref("browser.zoom.updateBackgroundTabs", true);
 
 // The breakpad report server to link to in about:crashes
 pref("breakpad.reportURL", "http://crash-stats.mozilla.com/report/index/");
+
+// Override submission of plugin hang reports to a different processing server
+pref("toolkit.crashreporter.pluginHangSubmitURL",
+     "https://hang-reports.mozilla.org/submit");
 
 // base URL for web-based support pages
 pref("app.support.baseURL", "http://support.mozilla.org/1/firefox/%VERSION%/%OS%/%LOCALE%/");

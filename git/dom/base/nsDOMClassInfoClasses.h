@@ -484,9 +484,6 @@ DOMCI_CLASS(FormData)
 DOMCI_CLASS(DesktopNotification)
 DOMCI_CLASS(DesktopNotificationCenter)
 
-// WebSocket
-DOMCI_CLASS(WebSocket)
-
 DOMCI_CLASS(IDBFactory)
 DOMCI_CLASS(IDBFileHandle)
 DOMCI_CLASS(IDBRequest)
@@ -544,3 +541,5 @@ DOMCI_CLASS(FileRequest)
 DOMCI_CLASS(LockedFile)
 
 DOMCI_CLASS(MozActivity)
+
+DOMCI_CLASS(MozTimeManager)
