@@ -161,9 +161,10 @@ static struct sock_filter seccomp_filter[] = {
 #endif
   ALLOW_SYSCALL(rt_sigprocmask),
 
-  // Used by profiler.  Also used for raise(), which causes problems
-  // with Android KitKat abort(); see bug 1004832.
+  /* System calls used by the profiler */
+#ifdef MOZ_PROFILING
   ALLOW_SYSCALL(tgkill),
+#endif
 
   /* B2G specific low-frequency syscalls */
 #ifdef MOZ_WIDGET_GONK

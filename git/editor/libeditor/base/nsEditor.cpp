@@ -31,7 +31,6 @@
 #include "mozilla/TextComposition.h"    // for TextComposition
 #include "mozilla/TextEvents.h"
 #include "mozilla/dom/Element.h"        // for Element, nsINode::AsElement
-#include "mozilla/dom/Text.h"
 #include "mozilla/mozalloc.h"           // for operator new, etc
 #include "nsAString.h"                  // for nsAString_internal::Length, etc
 #include "nsCCUncollectableMarker.h"    // for nsCCUncollectableMarker
@@ -1380,13 +1379,6 @@ NS_IMETHODIMP nsEditor::CreateNode(const nsAString& aTag,
 }
 
 
-nsresult
-nsEditor::InsertNode(nsIContent* aContent, nsINode* aParent, int32_t aPosition)
-{
-  MOZ_ASSERT(aContent && aParent);
-  return InsertNode(GetAsDOMNode(aContent), GetAsDOMNode(aParent), aPosition);
-}
-
 NS_IMETHODIMP nsEditor::InsertNode(nsIDOMNode * aNode,
                                    nsIDOMNode * aParent,
                                    int32_t      aPosition)
@@ -1579,16 +1571,15 @@ nsEditor::ReplaceContainer(nsINode* aNode,
   int32_t offset = parent->IndexOf(aNode);
 
   // create new container
-  ErrorResult rv;
-  *outNode = CreateHTMLContent(aNodeType, rv).take();
-  NS_ENSURE_SUCCESS(rv.ErrorCode(), rv.ErrorCode());
+  //new call to use instead to get proper HTML element, bug# 39919
+  nsresult res = CreateHTMLContent(aNodeType, outNode);
+  NS_ENSURE_SUCCESS(res, res);
 
   nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(*outNode);
   
   nsIDOMNode* inNode = aNode->AsDOMNode();
 
   // set attribute if needed
-  nsresult res;
   if (aAttribute && aValue && !aAttribute->IsEmpty()) {
     res = elem->SetAttribute(*aAttribute, *aValue);
     NS_ENSURE_SUCCESS(res, res);
@@ -1703,12 +1694,13 @@ nsEditor::InsertContainerAbove(nsIContent* aNode,
   int32_t offset = parent->IndexOf(aNode);
 
   // create new container
-  ErrorResult rv;
-  nsCOMPtr<Element> newContent = CreateHTMLContent(aNodeType, rv);
-  NS_ENSURE_SUCCESS(rv.ErrorCode(), rv.ErrorCode());
+  nsCOMPtr<dom::Element> newContent;
+
+  //new call to use instead to get proper HTML element, bug# 39919
+  nsresult res = CreateHTMLContent(aNodeType, getter_AddRefs(newContent));
+  NS_ENSURE_SUCCESS(res, res);
 
   // set attribute if needed
-  nsresult res;
   if (aAttribute && aValue && !aAttribute->IsEmpty()) {
     nsIDOMNode* elem = newContent->AsDOMNode();
     res = static_cast<nsIDOMElement*>(elem)->SetAttribute(*aAttribute, *aValue);
@@ -2442,16 +2434,6 @@ nsEditor::InsertTextImpl(const nsAString& aStringToInsert,
   return NS_OK;
 }
 
-
-nsresult nsEditor::InsertTextIntoTextNodeImpl(const nsAString& aStringToInsert,
-                                              Text* aTextNode,
-                                              int32_t aOffset,
-                                              bool aSuppressIME)
-{
-  return InsertTextIntoTextNodeImpl(aStringToInsert,
-      static_cast<nsIDOMCharacterData*>(GetAsDOMNode(aTextNode)),
-      aOffset, aSuppressIME);
-}
 
 nsresult nsEditor::InsertTextIntoTextNodeImpl(const nsAString& aStringToInsert, 
                                               nsIDOMCharacterData *aTextNode, 
@@ -3499,14 +3481,8 @@ nsEditor::IsDescendantOfEditorRoot(nsINode* aNode)
   return nsContentUtils::ContentIsDescendantOf(aNode, root);
 }
 
-bool
-nsEditor::IsContainer(nsINode* aNode)
-{
-  return aNode ? true : false;
-}
-
-bool
-nsEditor::IsContainer(nsIDOMNode* aNode)
+bool 
+nsEditor::IsContainer(nsIDOMNode *aNode)
 {
   return aNode ? true : false;
 }
@@ -3577,14 +3553,11 @@ nsEditor::IsEditable(nsIDOMNode *aNode)
 }
 
 bool
-nsEditor::IsEditable(nsINode* aNode)
+nsEditor::IsEditable(nsIContent *aNode)
 {
   NS_ENSURE_TRUE(aNode, false);
 
-  if (!aNode->IsNodeOfType(nsINode::eCONTENT) || IsMozEditorBogusNode(aNode) ||
-      !IsModifiableNode(aNode)) {
-    return false;
-  }
+  if (IsMozEditorBogusNode(aNode) || !IsModifiableNode(aNode)) return false;
 
   // see if it has a frame.  If so, we'll edit it.
   // special case for textnodes: frame must have width.
@@ -3604,12 +3577,11 @@ nsEditor::IsEditable(nsINode* aNode)
 }
 
 bool
-nsEditor::IsMozEditorBogusNode(nsINode* element)
+nsEditor::IsMozEditorBogusNode(nsIContent *element)
 {
-  return element && element->IsElement() &&
-         element->AsElement()->AttrValueIs(kNameSpaceID_None,
-             kMOZEditorBogusNodeAttrAtom, kMOZEditorBogusNodeValue,
-             eCaseMatters);
+  return element &&
+         element->AttrValueIs(kNameSpaceID_None, kMOZEditorBogusNodeAttrAtom,
+                              kMOZEditorBogusNodeValue, eCaseMatters);
 }
 
 uint32_t
@@ -4764,31 +4736,22 @@ nsresult nsEditor::ClearSelection()
   return selection->RemoveAllRanges();  
 }
 
-already_AddRefed<Element>
-nsEditor::CreateHTMLContent(const nsAString& aTag, ErrorResult& rv)
+nsresult
+nsEditor::CreateHTMLContent(const nsAString& aTag, dom::Element** aContent)
 {
   nsCOMPtr<nsIDocument> doc = GetDocument();
-  if (!doc) {
-    rv.Throw(NS_ERROR_FAILURE);
-    return nullptr;
-  }
+  NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
 
   // XXX Wallpaper over editor bug (editor tries to create elements with an
   //     empty nodename).
   if (aTag.IsEmpty()) {
     NS_ERROR("Don't pass an empty tag to nsEditor::CreateHTMLContent, "
              "check caller.");
-    rv.Throw(NS_ERROR_FAILURE);
-    return nullptr;
+    return NS_ERROR_FAILURE;
   }
 
-  nsCOMPtr<nsIContent> ret;
-  nsresult res = doc->CreateElem(aTag, nullptr, kNameSpaceID_XHTML,
-                                 getter_AddRefs(ret));
-  if (NS_FAILED(res)) {
-    rv.Throw(res);
-  }
-  return dont_AddRef(ret.forget().take()->AsElement());
+  return doc->CreateElem(aTag, nullptr, kNameSpaceID_XHTML,
+                         reinterpret_cast<nsIContent**>(aContent));
 }
 
 nsresult

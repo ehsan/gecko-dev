@@ -1380,10 +1380,7 @@ nsXULPopupManager::FirePopupHidingEvent(nsIContent* aPopup,
       // able to see it. If there is a next popup, indicating that mutliple popups
       // are rolling up, don't wait and hide the popup right away since the effect
       // would likely be undesirable. This also does a quick check to see if the
-      // popup has a transition defined, and skips the wait if not. Transitions
-      // are currently disabled on Linux due to rendering issues on certain
-      // configurations.
-#ifndef MOZ_WIDGET_GTK
+      // popup has a transition defined, and skips the wait if not.
       if (!aNextPopup && aPopup->HasAttr(kNameSpaceID_None, nsGkAtoms::animate) &&
           popupFrame->StyleDisplay()->mTransitionPropertyCount > 0) {
         nsAutoString animate;
@@ -1400,7 +1397,6 @@ nsXULPopupManager::FirePopupHidingEvent(nsIContent* aPopup,
           return;
         }
       }
-#endif
 
       HidePopupCallback(aPopup, popupFrame, aNextPopup, aLastPopup,
                         aPopupType, aDeselectMenu);

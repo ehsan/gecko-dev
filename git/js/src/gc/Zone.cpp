@@ -248,6 +248,12 @@ Zone::createJitZone(JSContext *cx)
 #endif
 
 JS::Zone *
+js::ZoneOfObject(const JSObject &obj)
+{
+    return obj.zone();
+}
+
+JS::Zone *
 js::ZoneOfObjectFromAnyThread(const JSObject &obj)
 {
     return obj.zoneFromAnyThread();
@@ -261,13 +267,4 @@ Zone::hasMarkedCompartments()
             return true;
     }
     return false;
-}
-
-JS::Zone *
-js::ZoneOfValue(const JS::Value &value)
-{
-    JS_ASSERT(value.isMarkable());
-    if (value.isObject())
-        return value.toObject().zone();
-    return static_cast<js::gc::Cell *>(value.toGCThing())->tenuredZone();
 }

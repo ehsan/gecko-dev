@@ -635,7 +635,7 @@
       <method name="handleEvent">
         <parameter name="aEvent"/>
         <body><![CDATA[
-          if (aEvent.type == "resize") {
+          if (aEvent.type == "resize" && aEvent.eventPhase == aEvent.BUBBLING_PHASE) {
             this.resize();
           }
         ]]></body>
@@ -682,10 +682,10 @@
         this.nub.removeAttribute("activity");
       ]]></handler>
       <handler event="load"><![CDATA[
-        window.addEventListener("resize", this, true);
+        window.addEventListener("resize", this);
       ]]></handler>
       <handler event="unload"><![CDATA[
-        window.removeEventListener("resize", this, true);
+        window.removeEventListener("resize", this);
       ]]></handler>
 
       <handler event="dragstart"><![CDATA[
