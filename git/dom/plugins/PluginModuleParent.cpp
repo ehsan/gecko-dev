@@ -647,11 +647,11 @@ PluginModuleParent::NP_Shutdown(NPError* error)
 }
 
 nsresult
-PluginModuleParent::NP_GetMIMEDescription(const char** mimeDesc)
+PluginModuleParent::NP_GetMIMEDescription(char** mimeDesc)
 {
     PLUGIN_LOG_DEBUG_METHOD;
 
-    *mimeDesc = "application/x-foobar";
+    *mimeDesc = (char*)"application/x-foobar";
     return NS_OK;
 }
 

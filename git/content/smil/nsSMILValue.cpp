@@ -39,27 +39,26 @@
 #include "nsSMILValue.h"
 #include "nsDebug.h"
 
-//----------------------------------------------------------------------
-// Public methods
-
 nsSMILValue::nsSMILValue(const nsISMILType* aType)
-  : mType(&nsSMILNullType::sSingleton)
+: mU(),
+  mType(&nsSMILNullType::sSingleton)
 {
-  if (!aType) {
-    NS_ERROR("Trying to construct nsSMILValue with null mType pointer");
-    return;
-  }
+  if (!aType) return;
 
-  InitAndCheckPostcondition(aType);
+  nsresult rv = aType->Init(*this);
+  NS_POSTCONDITION(mType == aType || (NS_FAILED(rv) && IsNull()),
+    "Post-condition of Init failed. nsSMILValue is invalid");
 }
 
 nsSMILValue::nsSMILValue(const nsSMILValue& aVal)
-  : mType(&nsSMILNullType::sSingleton)
+:
+  mU(),
+  mType(&nsSMILNullType::sSingleton)
 {
-  nsresult rv = InitAndCheckPostcondition(aVal.mType);
-  if (NS_FAILED(rv))
-    return;
-
+  nsresult rv = aVal.mType->Init(*this);
+  NS_POSTCONDITION(mType == aVal.mType || (NS_FAILED(rv) && IsNull()),
+    "Post-condition of Init failed. nsSMILValue is invalid");
+  if (NS_FAILED(rv)) return;
   mType->Assign(*this, aVal);
 }
 
@@ -70,9 +69,12 @@ nsSMILValue::operator=(const nsSMILValue& aVal)
     return *this;
 
   if (mType != aVal.mType) {
-    nsresult rv = DestroyAndReinit(aVal.mType);
-    if (NS_FAILED(rv))
-      return *this; // Initialization failed; return early
+    mType->Destroy(*this);
+    NS_POSTCONDITION(IsNull(), "nsSMILValue not null after destroying");
+    nsresult rv = aVal.mType->Init(*this);
+    NS_POSTCONDITION(mType == aVal.mType || (NS_FAILED(rv) && IsNull()),
+      "Post-condition of Init failed. nsSMILValue is invalid");
+    if (NS_FAILED(rv)) return *this;
   }
 
   mType->Assign(*this, aVal);
@@ -83,6 +85,8 @@ nsSMILValue::operator=(const nsSMILValue& aVal)
 nsresult
 nsSMILValue::Add(const nsSMILValue& aValueToAdd, PRUint32 aCount)
 {
+  if (aValueToAdd.IsNull()) return NS_OK;
+
   if (aValueToAdd.mType != mType) {
     NS_ERROR("Trying to add incompatible types");
     return NS_ERROR_FAILURE;
@@ -94,6 +98,9 @@ nsSMILValue::Add(const nsSMILValue& aValueToAdd, PRUint32 aCount)
 nsresult
 nsSMILValue::SandwichAdd(const nsSMILValue& aValueToAdd)
 {
+  if (aValueToAdd.IsNull())
+    return NS_OK;
+
   if (aValueToAdd.mType != mType) {
     NS_ERROR("Trying to add incompatible types");
     return NS_ERROR_FAILURE;
@@ -124,39 +131,14 @@ nsSMILValue::Interpolate(const nsSMILValue& aEndVal,
   }
 
   if (aResult.mType != mType) {
-    // Outparam has wrong type
-    nsresult rv = aResult.DestroyAndReinit(mType);
-    if (NS_FAILED(rv))
-      return rv;
+    aResult.mType->Destroy(aResult);
+    NS_POSTCONDITION(aResult.IsNull(), "nsSMILValue not null after destroying");
+    nsresult rv = mType->Init(aResult);
+    NS_POSTCONDITION(aResult.mType == mType
+      || (NS_FAILED(rv) && aResult.IsNull()),
+      "Post-condition of Init failed. nsSMILValue is invalid");
+    if (NS_FAILED(rv)) return rv;
   }
 
   return mType->Interpolate(*this, aEndVal, aUnitDistance, aResult);
-}
-
-//----------------------------------------------------------------------
-// Helper methods
-
-// Wrappers for nsISMILType::Init & ::Destroy that verify their postconditions
-nsresult
-nsSMILValue::InitAndCheckPostcondition(const nsISMILType* aNewType)
-{
-  nsresult rv = aNewType->Init(*this);
-  NS_ABORT_IF_FALSE(mType == aNewType || (NS_FAILED(rv) && IsNull()),
-                    "Post-condition of Init failed. nsSMILValue is invalid");
-  return rv;
-}
-                
-void
-nsSMILValue::DestroyAndCheckPostcondition()
-{
-  mType->Destroy(*this);
-  NS_ABORT_IF_FALSE(IsNull(), "Post-condition of Destroy failed. "
-                    "nsSMILValue not null after destroying");
-}
-
-nsresult
-nsSMILValue::DestroyAndReinit(const nsISMILType* aNewType)
-{
-  DestroyAndCheckPostcondition();
-  return InitAndCheckPostcondition(aNewType);
 }

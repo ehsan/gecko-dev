@@ -133,7 +133,7 @@ class nsHtml5ExecutorFlusher : public nsRunnable
     {}
     NS_IMETHODIMP Run()
     {
-      mExecutor->Flush(PR_FALSE);
+      mExecutor->Flush();
       return NS_OK;
     }
 };

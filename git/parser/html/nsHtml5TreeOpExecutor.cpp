@@ -57,6 +57,10 @@
 #include "nsHtml5TreeBuilder.h"
 #include "nsHtml5StreamParser.h"
 
+#define NS_HTML5_TREE_OP_EXECUTOR_MAX_QUEUE_TIME 3000UL // milliseconds
+#define NS_HTML5_TREE_OP_EXECUTOR_DEFAULT_QUEUE_LENGTH 200
+#define NS_HTML5_TREE_OP_EXECUTOR_MIN_QUEUE_LENGTH 100
+
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsHtml5TreeOpExecutor)
 
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHtml5TreeOpExecutor)
@@ -75,41 +79,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsHtml5TreeOpExecutor, nsContentSink)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mOwnedElements)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-PRInt32 nsHtml5TreeOpExecutor::sTreeOpQueueLengthLimit = 200;
-PRInt32 nsHtml5TreeOpExecutor::sTreeOpQueueMaxTime = 100; // milliseconds
-PRInt32 nsHtml5TreeOpExecutor::sTreeOpQueueMinLength = 100;
-PRInt32 nsHtml5TreeOpExecutor::sTreeOpQueueMaxLength = 4500;
-
-// static
-void
-nsHtml5TreeOpExecutor::InitializeStatics()
-{
-  // Changes to the initial max length pref are intentionally allowed
-  // to reset the run-time-calibrated value.
-  nsContentUtils::AddIntPrefVarCache("html5.opqueue.initiallengthlimit", 
-                                     &sTreeOpQueueLengthLimit);
-  nsContentUtils::AddIntPrefVarCache("html5.opqueue.maxtime", 
-                                     &sTreeOpQueueMaxTime);
-  nsContentUtils::AddIntPrefVarCache("html5.opqueue.minlength",
-                                     &sTreeOpQueueMinLength);
-  nsContentUtils::AddIntPrefVarCache("html5.opqueue.maxlength",
-                                     &sTreeOpQueueMaxLength);
-  // Now do some sanity checking to prevent breaking the app via
-  // about:config so badly that it can't be recovered via about:config.
-  if (sTreeOpQueueMinLength <= 0) {
-    sTreeOpQueueMinLength = 200;
-  }
-  if (sTreeOpQueueLengthLimit < sTreeOpQueueMinLength) {
-    sTreeOpQueueLengthLimit = sTreeOpQueueMinLength;
-  }
-  if (sTreeOpQueueMaxLength < sTreeOpQueueMinLength) {
-    sTreeOpQueueMaxLength = sTreeOpQueueMinLength;
-  }
-  if (sTreeOpQueueMaxTime <= 0) {
-    sTreeOpQueueMaxTime = 200;
-  }
-}
 
 nsHtml5TreeOpExecutor::nsHtml5TreeOpExecutor()
 {
@@ -166,7 +135,8 @@ nsHtml5TreeOpExecutor::DidBuildModel(PRBool aTerminated)
   printf("TOKENIZER-SAFE SCRIPTS: %d\n", sTokenSafeDocWrites);
   printf("TREEBUILDER-SAFE SCRIPTS: %d\n", sTreeSafeDocWrites);
 #endif
-#ifdef DEBUG_NS_HTML5_TREE_OP_EXECUTOR_FLUSH
+#ifdef DEBUG_hsivonen
+  printf("MAX INSERTION BATCH LEN: %d\n", sInsertionBatchMaxLength);
   printf("MAX NOTIFICATION BATCH LEN: %d\n", sAppendBatchMaxSize);
   if (sAppendBatchExaminations != 0) {
     printf("AVERAGE SLOTS EXAMINED: %d\n", sAppendBatchSlotsExamined / sAppendBatchExaminations);
@@ -299,23 +269,8 @@ nsHtml5TreeOpExecutor::UpdateStyleSheet(nsIContent* aElement)
   BeginDocUpdate();
 }
 
-class nsHtml5ExecutorReflusher : public nsRunnable
-{
-  private:
-    nsRefPtr<nsHtml5TreeOpExecutor> mExecutor;
-  public:
-    nsHtml5ExecutorReflusher(nsHtml5TreeOpExecutor* aExecutor)
-      : mExecutor(aExecutor)
-    {}
-    NS_IMETHODIMP Run()
-    {
-      mExecutor->Flush(PR_FALSE);
-      return NS_OK;
-    }
-};
-
 void
-nsHtml5TreeOpExecutor::Flush(PRBool aForceWholeQueue)
+nsHtml5TreeOpExecutor::Flush()
 {
   if (!mParser) {
     mOpQueue.Clear(); // clear in order to be able to assert in destructor
@@ -339,35 +294,14 @@ nsHtml5TreeOpExecutor::Flush(PRBool aForceWholeQueue)
   BeginDocUpdate();
 
   PRIntervalTime flushStart = 0;
-  PRUint32 numberOfOpsToFlush = mOpQueue.Length();
-  PRBool reflushNeeded = PR_FALSE;
-
-#ifdef DEBUG_NS_HTML5_TREE_OP_EXECUTOR_FLUSH
-  if (numberOfOpsToFlush > sOpQueueMaxLength) {
-    sOpQueueMaxLength = numberOfOpsToFlush;
+  PRUint32 opQueueLength = mOpQueue.Length();
+  if (opQueueLength > NS_HTML5_TREE_OP_EXECUTOR_MIN_QUEUE_LENGTH) { // avoid computing averages with too few ops
+    flushStart = PR_IntervalNow();
   }
-  printf("QUEUE LENGTH: %d\n", numberOfOpsToFlush);
-  printf("MAX QUEUE LENGTH: %d\n", sOpQueueMaxLength);
-#endif
-
-  if (aForceWholeQueue) {
-    if (numberOfOpsToFlush > (PRUint32)sTreeOpQueueMinLength) {
-      flushStart = PR_IntervalNow(); // compute averages only if enough ops
-    }    
-  } else {
-    if (numberOfOpsToFlush > (PRUint32)sTreeOpQueueMinLength) {
-      flushStart = PR_IntervalNow(); // compute averages only if enough ops
-      if (numberOfOpsToFlush > (PRUint32)sTreeOpQueueLengthLimit) {
-        numberOfOpsToFlush = (PRUint32)sTreeOpQueueLengthLimit;
-        reflushNeeded = PR_TRUE;
-      }
-    }
-  }
-
-  mElementsSeenInThisAppendBatch.SetCapacity(numberOfOpsToFlush * 2);
-
+  mElementsSeenInThisAppendBatch.SetCapacity(opQueueLength * 2);
+  // XXX alloc failure
   const nsHtml5TreeOperation* start = mOpQueue.Elements();
-  const nsHtml5TreeOperation* end = start + numberOfOpsToFlush;
+  const nsHtml5TreeOperation* end = start + opQueueLength;
   for (nsHtml5TreeOperation* iter = (nsHtml5TreeOperation*)start; iter < end; ++iter) {
     if (NS_UNLIKELY(!mParser)) {
       // The previous tree op caused a call to nsIParser::Terminate();
@@ -377,29 +311,22 @@ nsHtml5TreeOpExecutor::Flush(PRBool aForceWholeQueue)
     iter->Perform(this, &scriptElement);
   }
 
-  if (NS_LIKELY(mParser)) {
-    mOpQueue.RemoveElementsAt(0, numberOfOpsToFlush);  
-  } else {
-    mOpQueue.Clear(); // only for diagnostics in the destructor of this class
+#ifdef DEBUG_hsivonen
+  if (mOpQueue.Length() > sInsertionBatchMaxLength) {
+    sInsertionBatchMaxLength = opQueueLength;
   }
-  
+#endif
+  mOpQueue.Clear();
   if (flushStart) {
     PRUint32 delta = PR_IntervalToMilliseconds(PR_IntervalNow() - flushStart);
-    sTreeOpQueueLengthLimit = delta ?
-      (PRUint32)(((PRUint64)sTreeOpQueueMaxTime * (PRUint64)numberOfOpsToFlush)
-                 / delta) :
-      sTreeOpQueueMaxLength; // if the delta is less than one ms, use max
-    if (sTreeOpQueueLengthLimit < sTreeOpQueueMinLength) {
-      // both are signed and sTreeOpQueueMinLength is always positive, so this
-      // also takes care of the theoretical overflow of sTreeOpQueueLengthLimit
-      sTreeOpQueueLengthLimit = sTreeOpQueueMinLength;
+    sTreeOpQueueMaxLength = delta ?
+      (PRUint32)((NS_HTML5_TREE_OP_EXECUTOR_MAX_QUEUE_TIME * (PRUint64)opQueueLength) / delta) :
+      0;
+    if (sTreeOpQueueMaxLength < NS_HTML5_TREE_OP_EXECUTOR_MIN_QUEUE_LENGTH) {
+      sTreeOpQueueMaxLength = NS_HTML5_TREE_OP_EXECUTOR_MIN_QUEUE_LENGTH;
     }
-    if (sTreeOpQueueLengthLimit > sTreeOpQueueMaxLength) {
-      sTreeOpQueueLengthLimit = sTreeOpQueueMaxLength;
-    }
-#ifdef DEBUG_NS_HTML5_TREE_OP_EXECUTOR_FLUSH
-    printf("FLUSH DURATION (millis): %d\n", delta);
-    printf("QUEUE NEW MAX LENGTH: %d\n", sTreeOpQueueLengthLimit);      
+#ifdef DEBUG_hsivonen
+    printf("QUEUE MAX LENGTH: %d\n", sTreeOpQueueMaxLength);
 #endif
   }
 
@@ -407,21 +334,12 @@ nsHtml5TreeOpExecutor::Flush(PRBool aForceWholeQueue)
 
   mFlushState = eNotFlushing;
 
-  if (NS_UNLIKELY(!mParser)) {
+  if (!mParser) {
     return;
   }
 
   if (scriptElement) {
-    NS_ASSERTION(!reflushNeeded, "Got scriptElement when queue not fully flushed.");
     RunScript(scriptElement); // must be tail call when mFlushState is eNotFlushing
-  } else if (reflushNeeded) {
-#ifdef DEBUG_NS_HTML5_TREE_OP_EXECUTOR_FLUSH
-    printf("REFLUSH SCHEDULED.\n");
-#endif
-    nsCOMPtr<nsIRunnable> flusher = new nsHtml5ExecutorReflusher(this);  
-    if (NS_FAILED(NS_DispatchToMainThread(flusher))) {
-      NS_WARNING("failed to dispatch executor flush event");
-    }
   }
 }
 
@@ -661,8 +579,9 @@ nsHtml5TreeOpExecutor::InitializeDocWriteParserState(nsAHtml5TreeBuilderState* a
   static_cast<nsHtml5Parser*> (mParser.get())->InitializeDocWriteParserState(aState, aLine);
 }
 
-#ifdef DEBUG_NS_HTML5_TREE_OP_EXECUTOR_FLUSH
-PRUint32 nsHtml5TreeOpExecutor::sOpQueueMaxLength = 0;
+PRUint32 nsHtml5TreeOpExecutor::sTreeOpQueueMaxLength = NS_HTML5_TREE_OP_EXECUTOR_DEFAULT_QUEUE_LENGTH;
+#ifdef DEBUG_hsivonen
+PRUint32 nsHtml5TreeOpExecutor::sInsertionBatchMaxLength = 0;
 PRUint32 nsHtml5TreeOpExecutor::sAppendBatchMaxSize = 0;
 PRUint32 nsHtml5TreeOpExecutor::sAppendBatchSlotsExamined = 0;
 PRUint32 nsHtml5TreeOpExecutor::sAppendBatchExaminations = 0;

@@ -76,11 +76,6 @@ public:
     void* mPtr;
   } mU;
   const nsISMILType* mType;
-
-protected:
-  nsresult InitAndCheckPostcondition(const nsISMILType* aNewType);
-  void     DestroyAndCheckPostcondition();
-  nsresult DestroyAndReinit(const nsISMILType* aNewType);
 };
 
 #endif  // NS_SMILVALUE_H_

@@ -78,19 +78,14 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     NS_DECL_ISUPPORTS_INHERITED
     NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsHtml5TreeOpExecutor, nsContentSink)
 
-    static void InitializeStatics();
-
   private:
-#ifdef DEBUG_NS_HTML5_TREE_OP_EXECUTOR_FLUSH
-    static PRUint32    sOpQueueMaxLength;
+#ifdef DEBUG_hsivonen
+    static PRUint32    sInsertionBatchMaxLength;
     static PRUint32    sAppendBatchMaxSize;
     static PRUint32    sAppendBatchSlotsExamined;
     static PRUint32    sAppendBatchExaminations;
 #endif
-    static PRInt32                      sTreeOpQueueLengthLimit;
-    static PRInt32                      sTreeOpQueueMaxTime;
-    static PRInt32                      sTreeOpQueueMinLength;
-    static PRInt32                      sTreeOpQueueMaxLength;
+    static PRUint32                      sTreeOpQueueMaxLength;
 
     /**
      * Whether EOF needs to be suppressed
@@ -246,7 +241,7 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
       const nsIContentPtr* first = mElementsSeenInThisAppendBatch.Elements();
       const nsIContentPtr* last = first + mElementsSeenInThisAppendBatch.Length() - 1;
       for (const nsIContentPtr* iter = last; iter >= first; --iter) {
-#ifdef DEBUG_NS_HTML5_TREE_OP_EXECUTOR_FLUSH
+#ifdef DEBUG_hsivonen
         sAppendBatchSlotsExamined++;
 #endif
         if (*iter == aParent) {
@@ -261,7 +256,7 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
       if (newParent) {
         mPendingNotifications.AppendElement(aParent);
       }
-#ifdef DEBUG_NS_HTML5_TREE_OP_EXECUTOR_FLUSH
+#ifdef DEBUG_hsivonen
       sAppendBatchExaminations++;
 #endif
     }
@@ -275,7 +270,7 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
         iter->Fire();
       }
       mPendingNotifications.Clear();
-#ifdef DEBUG_NS_HTML5_TREE_OP_EXECUTOR_FLUSH
+#ifdef DEBUG_hsivonen
       if (mElementsSeenInThisAppendBatch.Length() > sAppendBatchMaxSize) {
         sAppendBatchMaxSize = mElementsSeenInThisAppendBatch.Length();
       }
@@ -316,7 +311,7 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     nsresult Init(nsIDocument* aDoc, nsIURI* aURI,
                   nsISupports* aContainer, nsIChannel* aChannel);
                   
-    void Flush(PRBool aForceWholeQueue);
+    void Flush();
 
     void MaybeSuspend();
 

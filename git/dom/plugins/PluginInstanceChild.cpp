@@ -476,7 +476,6 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow,
         return false;
 
     if (aWindow.type == NPWindowTypeWindow) {
-#ifdef MOZ_WIDGET_GTK2
         if (GdkWindow* socket_window = gdk_window_lookup(aWindow.window)) {
             // A GdkWindow for the socket already exists.  Need to
             // workaround https://bugzilla.gnome.org/show_bug.cgi?id=607061
@@ -485,7 +484,6 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow,
                               "moz-existed-before-set-window",
                               GUINT_TO_POINTER(1));
         }
-#endif
     }
 
     *rv = mPluginIface->setwindow(&mData, &mWindow);

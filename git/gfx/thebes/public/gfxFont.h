@@ -246,7 +246,6 @@ protected:
     friend class gfxMacPlatformFontList;
     friend class gfxFcFontEntry;
     friend class gfxFontFamily;
-    friend class gfxSingleFaceMacFontFamily;
 
     gfxFontEntry() :
         mItalic(PR_FALSE), mFixedPitch(PR_FALSE),
@@ -285,6 +284,9 @@ struct FontSearch {
     nsRefPtr<gfxFontEntry> mBestMatch;
 };
 
+// helper class for adding other family names back into font cache
+class AddOtherFamilyNameFunctor;
+
 class gfxFontFamily {
 public:
     THEBES_INLINE_DECL_REFCOUNTING(gfxFontFamily)
@@ -293,7 +295,6 @@ public:
         mName(aName),
         mOtherFamilyNamesInitialized(PR_FALSE),
         mHasOtherFamilyNames(PR_FALSE),
-        mFaceNamesInitialized(PR_FALSE),
         mHasStyles(PR_FALSE),
         mIsSimpleFamily(PR_FALSE),
         mIsBadUnderlineFamily(PR_FALSE)
@@ -327,12 +328,7 @@ public:
     void FindFontForChar(FontSearch *aMatchData);
 
     // read in other family names, if any, and use functor to add each into cache
-    virtual void ReadOtherFamilyNames(gfxPlatformFontList *aPlatformFontList);
-
-    // read in other localized family names, fullnames and Postscript names
-    // for all faces and append to lookup tables
-    virtual void ReadFaceNames(gfxPlatformFontList *aPlatformFontList,
-                               PRBool aNeedFullnamePostscriptNames);
+    virtual void ReadOtherFamilyNames(AddOtherFamilyNameFunctor& aOtherFamilyFunctor);
 
     // find faces belonging to this family (platform implementations override this;
     // should be made pure virtual once all subclasses have been updated)
@@ -374,8 +370,8 @@ protected:
     virtual PRBool FindWeightsForStyle(gfxFontEntry* aFontsForWeights[],
                                        PRBool anItalic, PRInt16 aStretch);
 
-    PRBool ReadOtherFamilyNamesForFace(gfxPlatformFontList *aPlatformFontList,
-                                       nsTArray<PRUint8>& aNameTable,
+    PRBool ReadOtherFamilyNamesForFace(AddOtherFamilyNameFunctor& aOtherFamilyFunctor,
+                                       gfxFontEntry *aFontEntry,
                                        PRBool useFullName = PR_FALSE);
 
     // set whether this font family is in "bad" underline offset blacklist.
@@ -392,7 +388,6 @@ protected:
     nsTArray<nsRefPtr<gfxFontEntry> >  mAvailableFonts;
     PRPackedBool mOtherFamilyNamesInitialized;
     PRPackedBool mHasOtherFamilyNames;
-    PRPackedBool mFaceNamesInitialized;
     PRPackedBool mHasStyles;
     PRPackedBool mIsSimpleFamily;
     PRPackedBool mIsBadUnderlineFamily;

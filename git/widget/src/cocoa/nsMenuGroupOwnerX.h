@@ -76,6 +76,9 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIMUTATIONOBSERVER
 
+  virtual nsresult InsertMenuAtIndex(nsMenuX* aMenu, PRUint32 aIndex);
+  virtual void RemoveMenuAtIndex(PRUint32 aIndex);
+
 protected:
   nsChangeObserver* LookupContentChangeObserver(nsIContent* aContent);
 
@@ -90,4 +93,4 @@ protected:
   nsDataHashtable<nsUint32HashKey, nsMenuItemX *> mCommandToMenuObjectTable;
 };
 
-#endif // nsMenuGroupOwner_h_
+#endif // nsMenuBarX_h_

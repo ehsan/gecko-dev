@@ -100,9 +100,6 @@ public:
   void PluginCrashed();
 #endif
 
-  void SetIsDefaultPlugin();
-  PRBool IsDefaultPlugin();
-
 protected:
   // Ensures that the static CALLBACKS is properly initialized
   static void CheckClassInitialized(void);
@@ -119,8 +116,6 @@ protected:
 
   // Browser-side callbacks that the plugin calls.
   static NPNetscapeFuncs CALLBACKS;
-
-  PRBool mIsDefaultPlugin;
 };
 
 namespace mozilla {
