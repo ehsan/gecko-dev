@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-// Extension communication object
+// Extension communication object... as it used in pdf.js
 var FirefoxCom = (function FirefoxComClosure() {
   return {
     /**

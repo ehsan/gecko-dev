@@ -29,7 +29,7 @@ let Cu = Components.utils;
 
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 Cu.import('resource://gre/modules/Services.jsm');
-Cu.import('resource://shumway/ShumwayStreamConverter.jsm');
+Cu.import('resource://shumway.components/FlashStreamConverter.js');
 
 let Svc = {};
 XPCOMUtils.defineLazyServiceGetter(Svc, 'mime',
@@ -51,30 +51,44 @@ function log(str) {
   dump(str + '\n');
 }
 
-// Register/unregister a constructor as a factory.
+// Register/unregister a constructor as a component.
 function Factory() {}
+
 Factory.prototype = {
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIFactory]),
+  _targetConstructor: null,
+
   register: function register(targetConstructor) {
+    this._targetConstructor = targetConstructor;
     var proto = targetConstructor.prototype;
-    this._classID = proto.classID;
-
-    var factory = XPCOMUtils._getFactory(targetConstructor);
-    this._factory = factory;
-
     var registrar = Cm.QueryInterface(Ci.nsIComponentRegistrar);
     registrar.registerFactory(proto.classID, proto.classDescription,
-                              proto.contractID, factory);
+                              proto.contractID, this);
   },
 
   unregister: function unregister() {
+    var proto = this._targetConstructor.prototype;
     var registrar = Cm.QueryInterface(Ci.nsIComponentRegistrar);
-    registrar.unregisterFactory(this._classID, this._factory);
-    this._factory = null;
+    registrar.unregisterFactory(proto.classID, this);
+    this._targetConstructor = null;
+  },
+
+  // nsIFactory
+  createInstance: function createInstance(aOuter, iid) {
+    if (aOuter !== null)
+      throw Cr.NS_ERROR_NO_AGGREGATION;
+    return (new (this._targetConstructor)).QueryInterface(iid);
+  },
+
+  // nsIFactory
+  lockFactory: function lockFactory(lock) {
+    // No longer used as of gecko 1.7.
+    throw Cr.NS_ERROR_NOT_IMPLEMENTED;
   }
 };
 
-let converterFactory = new Factory();
-let overlayConverterFactory = new Factory();
+let factory1 = new Factory();
+let factory2 = new Factory();
 
 let ShumwayUtils = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver]),
@@ -99,7 +113,8 @@ let ShumwayUtils = {
   },
   
   /**
-   * shumway is only enabled if the global switch enabling is true.
+   * shumway is only enabled if it is both selected as the pdf viewer and if the 
+   * global switch enabling it is true.
    * @return {boolean} Wether or not it's enabled.
    */
   get enabled() {
@@ -111,8 +126,8 @@ let ShumwayUtils = {
       return;
 
     // Load the component and register it.
-    converterFactory.register(ShumwayStreamConverter);
-    overlayConverterFactory.register(ShumwayStreamOverlayConverter);
+    factory1.register(FlashStreamConverter1);
+    factory2.register(FlashStreamConverter2);
 
     var ignoreCTP = getBoolPref(PREF_IGNORE_CTP, true);
 
@@ -128,8 +143,8 @@ let ShumwayUtils = {
       return;
 
     // Remove the contract/component.
-    converterFactory.unregister();
-    overlayConverterFactory.unregister();
+    factory1.unregister();
+    factory2.unregister();
 
     Svc.pluginHost.unregisterPlayPreviewMimeType(SWF_CONTENT_TYPE);
 
