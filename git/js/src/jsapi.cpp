@@ -1629,36 +1629,6 @@ JS_EnumerateStandardClasses(JSContext *cx, JSObject *obj)
 }
 
 static JSIdArray *
-NewIdArray(JSContext *cx, jsint length)
-{
-    JSIdArray *ida;
-
-    ida = (JSIdArray *)
-          JS_malloc(cx, offsetof(JSIdArray, vector) + length * sizeof(jsval));
-    if (ida)
-        ida->length = length;
-    return ida;
-}
-
-/*
- * Unlike realloc(3), this function frees ida on failure.
- */
-static JSIdArray *
-SetIdArrayLength(JSContext *cx, JSIdArray *ida, jsint length)
-{
-    JSIdArray *rida;
-
-    rida = (JSIdArray *)
-           JS_realloc(cx, ida,
-                      offsetof(JSIdArray, vector) + length * sizeof(jsval));
-    if (!rida)
-        JS_DestroyIdArray(cx, ida);
-    else
-        rida->length = length;
-    return rida;
-}
-
-static JSIdArray *
 AddAtomToArray(JSContext *cx, JSAtom *atom, JSIdArray *ida, jsint *ip)
 {
     jsint i, length;
@@ -1666,7 +1636,7 @@ AddAtomToArray(JSContext *cx, JSAtom *atom, JSIdArray *ida, jsint *ip)
     i = *ip;
     length = ida->length;
     if (i >= length) {
-        ida = SetIdArrayLength(cx, ida, JS_MAX(length * 2, 8));
+        ida = js_SetIdArrayLength(cx, ida, JS_MAX(length * 2, 8));
         if (!ida)
             return NULL;
         JS_ASSERT(i < ida->length);
@@ -1701,7 +1671,7 @@ JS_EnumerateResolvedStandardClasses(JSContext *cx, JSObject *obj,
     if (ida) {
         i = ida->length;
     } else {
-        ida = NewIdArray(cx, 8);
+        ida = js_NewIdArray(cx, 8);
         if (!ida)
             return NULL;
         i = 0;
@@ -1743,8 +1713,8 @@ JS_EnumerateResolvedStandardClasses(JSContext *cx, JSObject *obj,
         }
     }
 
-    /* Trim to exact length. */
-    return SetIdArrayLength(cx, ida, i);
+    /* Trim to exact length via js_SetIdArrayLength. */
+    return js_SetIdArrayLength(cx, ida, i);
 }
 
 #undef CLASP
@@ -3951,7 +3921,7 @@ JS_Enumerate(JSContext *cx, JSObject *obj)
         n = 8;
 
     /* Create an array of jsids large enough to hold all the properties */
-    ida = NewIdArray(cx, n);
+    ida = js_NewIdArray(cx, n);
     if (!ida)
         goto error;
 
@@ -3966,14 +3936,14 @@ JS_Enumerate(JSContext *cx, JSObject *obj)
             break;
 
         if (i == ida->length) {
-            ida = SetIdArrayLength(cx, ida, ida->length * 2);
+            ida = js_SetIdArrayLength(cx, ida, ida->length * 2);
             if (!ida)
                 goto error;
             vector = &ida->vector[0];
         }
         vector[i++] = id;
     }
-    return SetIdArrayLength(cx, ida, i);
+    return js_SetIdArrayLength(cx, ida, i);
 
 error:
     if (iter_state != JSVAL_NULL)

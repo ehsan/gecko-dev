@@ -69,7 +69,7 @@
 /***************************************************************************
  * stack based helper class for restoring selection after table edit
  */
-class NS_STACK_CLASS nsSetSelectionAfterTableEdit
+class nsSetSelectionAfterTableEdit
 {
   private:
     nsCOMPtr<nsITableEditor> mEd;
@@ -99,7 +99,7 @@ class NS_STACK_CLASS nsSetSelectionAfterTableEdit
 };
 
 // Stack-class to turn on/off selection batching for table selection
-class NS_STACK_CLASS nsSelectionBatcher
+class nsSelectionBatcher
 {
 private:
   nsCOMPtr<nsISelectionPrivate> mSelection;

@@ -395,7 +395,7 @@ js_ComputeGlobalThis(JSContext *cx, JSBool lazy, jsval *argv);
 extern const uint16 js_PrimitiveTestFlags[];
 
 #define PRIMITIVE_THIS_TEST(fun,thisv)                                        \
-    (JS_ASSERT(!JSVAL_IS_VOID(thisv)),                                        \
+    (JS_ASSERT(thisv != JSVAL_VOID),                                          \
      JSFUN_THISP_TEST(JSFUN_THISP_FLAGS((fun)->flags),                        \
                       js_PrimitiveTestFlags[JSVAL_TAG(thisv) - 1]))
 
@@ -506,13 +506,6 @@ js_OnUnknownMethod(JSContext *cx, jsval *vp);
  */
 extern JSBool
 js_DoIncDec(JSContext *cx, const JSCodeSpec *cs, jsval *vp, jsval *vp2);
-
-/*
- * Opcode tracing helper. When len is not 0, cx->fp->regs->pc[-len] gives the
- * previous opcode.
- */
-extern void
-js_TraceOpcode(JSContext *cx, jsint len);
 
 /*
  * JS_OPMETER helper functions.

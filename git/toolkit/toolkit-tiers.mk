@@ -78,6 +78,10 @@ endif
 # tier "gecko" - core components
 #
 
+ifdef NS_TRACE_MALLOC
+tier_gecko_dirs += tools/trace-malloc/lib
+endif
+
 tier_gecko_dirs += \
 		js/src/xpconnect \
 		intl/chardet \

@@ -124,7 +124,7 @@
  * Also provide a setEnabled implementation.
  */
 @interface TextViewWithPlaceHolder : NSTextView {
-  NSMutableAttributedString *mPlaceHolderString;
+  NSAttributedString *mPlaceHolderString;
 }
 
 - (BOOL)becomeFirstResponder;
@@ -132,7 +132,6 @@
 - (BOOL)resignFirstResponder;  
 - (void)setPlaceholder:(NSString*)placeholder;
 - (void)insertTab:(id)sender;
-- (void)insertBacktab:(id)sender;
 - (void)setEnabled:(BOOL)enabled;
 - (void)dealloc;
 

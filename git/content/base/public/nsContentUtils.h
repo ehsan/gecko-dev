@@ -58,7 +58,6 @@
 #include "nsIScriptGlobalObject.h"
 #include "nsIDOMEvent.h"
 #include "nsTArray.h"
-#include "nsTextFragment.h"
 
 struct nsNativeKeyEvent; // Don't include nsINativeKeyBindings.h here: it will force strange compilation error!
 
@@ -99,7 +98,6 @@ class nsIPref;
 class nsVoidArray;
 struct JSRuntime;
 class nsICaseConversion;
-class nsIUGenCategory;
 class nsIWidget;
 class nsPIDOMWindow;
 #ifdef MOZ_XTF
@@ -366,16 +364,10 @@ public:
                                                    PRBool aTrimTrailing = PR_TRUE);
 
   /**
-   * Returns true if aChar is of class Ps, Pi, Po, Pf, or Pe.
+   * Returns true if aChar is of class Ps, Pi, Po, Pf, or Pe. (Does not
+   * currently handle non-BMP characters.)
    */
-  static PRBool IsPunctuationMark(PRUint32 aChar);
-  static PRBool IsPunctuationMarkAt(const nsTextFragment* aFrag, PRUint32 aOffset);
- 
-  /**
-   * Returns true if aChar is of class Lu, Ll, Lt, Lm, Lo, Nd, Nl or No
-   */
-  static PRBool IsAlphanumeric(PRUint32 aChar);
-  static PRBool IsAlphanumericAt(const nsTextFragment* aFrag, PRUint32 aOffset);
+  static PRBool IsPunctuationMark(PRUnichar aChar);
 
   /*
    * Is the character an HTML whitespace character?
@@ -583,11 +575,6 @@ public:
   static nsICaseConversion* GetCaseConv()
   {
     return sCaseConv;
-  }
-
-  static nsIUGenCategory* GetGenCat()
-  {
-    return sGenCat;
   }
 
   /**
@@ -1224,12 +1211,6 @@ public:
   static PRBool URIIsLocalFile(nsIURI *aURI);
 
   /**
-   * If aContent is an HTML element with a DOM level 0 'name', then
-   * return the name. Otherwise return null.
-   */
-  static nsIAtom* IsNamedItem(nsIContent* aContent);
-
-  /**
    * Get the application manifest URI for this context.  The manifest URI
    * is specified in the manifest= attribute of the root element of the
    * toplevel window.
@@ -1365,7 +1346,6 @@ private:
   static nsILineBreaker* sLineBreaker;
   static nsIWordBreaker* sWordBreaker;
   static nsICaseConversion* sCaseConv;
-  static nsIUGenCategory* sGenCat;
 
   // Holds pointers to nsISupports* that should be released at shutdown
   static nsVoidArray* sPtrsToPtrsToRelease;
@@ -1393,7 +1373,7 @@ private:
   nsContentUtils::DropJSObjects(NS_CYCLE_COLLECTION_UPCAST(obj, clazz))
 
 
-class NS_STACK_CLASS nsCxPusher
+class nsCxPusher
 {
 public:
   nsCxPusher();

@@ -78,6 +78,10 @@ public:
   // nsIDOMNode interface
   NS_IMETHOD CloneNode(PRBool aDeep, nsIDOMNode** aReturn);
 
+  // nsIDOMDocument interface
+  NS_IMETHOD GetElementById(const nsAString& aElementId,
+                            nsIDOMElement** aReturn);
+
   // nsIInterfaceRequestor
   NS_DECL_NSIINTERFACEREQUESTOR
 

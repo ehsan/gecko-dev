@@ -73,7 +73,6 @@ protected:
     static nscolor sButtonInnerDarkBorder;
     static nscolor sOddCellBackground;
     static PRUnichar sInvisibleCharacter;
-    static float   sCaretRatio;
 
     static void InitLookAndFeel();
     void InitWidget() {

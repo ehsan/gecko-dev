@@ -55,7 +55,6 @@ class nsILanguageAtomService;
 struct nsRuleData;
 class nsIStyleRule;
 struct nsCSSStruct;
-struct nsCSSValueList;
 // Copy of typedef that's in nsCSSStruct.h, for compilation speed.
 typedef nsCSSStruct nsRuleDataStruct;
 
@@ -671,12 +670,6 @@ protected:
   NS_HIDDEN_(const void*) GetSVGData(nsStyleContext* aContext);
   NS_HIDDEN_(const void*) GetSVGResetData(nsStyleContext* aContext);
 #endif
-
-  NS_HIDDEN_(already_AddRefed<nsCSSShadowArray>)
-                          GetShadowData(nsCSSValueList* aList,
-                                        nsStyleContext* aContext,
-                                        PRBool aUsesSpread,
-                                        PRBool& inherited);
 
 private:
   nsRuleNode(nsPresContext* aPresContext, nsRuleNode* aParent,

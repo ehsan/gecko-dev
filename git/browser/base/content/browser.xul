@@ -364,14 +364,19 @@
                          oncommand="return FeedHandler.subscribeToFeed(null, event);"
                          onclick="checkForMiddleClick(this, event);"/>
             </button>
-            <image id="star-button"
+#ifdef MOZ_SAFE_BROWSING
+            <image id="safebrowsing-urlbar-icon" tooltiptext="&safeb.urlbaricon.tooltip;"
+                   level="safe"
                    class="urlbar-icon"
-                   onclick="PlacesStarButton.onClick(event);"/>
-            <image id="go-button"
-                   chromedir="&locale.dir;"
-                   class="urlbar-icon"
-                   tooltiptext="&goEndCap.tooltip;"
-                   onclick="handleURLBarCommand(event);"/>
+                   onclick="goDoCommand('safebrowsing-show-warning')"/>
+#endif
+          <image id="star-button"
+                 class="urlbar-icon"
+                 onclick="PlacesStarButton.onClick(event);"/>
+          <image id="go-button" chromedir="&locale.dir;"
+                 class="urlbar-icon"
+                 tooltiptext="&goEndCap.tooltip;"
+                 onclick="handleURLBarCommand(event);"/>
           </hbox>
         </textbox>
       </toolbaritem>
@@ -392,10 +397,8 @@
       </toolbaritem>
 
       <toolbaritem flex="1" id="personal-bookmarks" title="&bookmarksItem.title;">
-         <hbox id="bookmarksBarContent" flex="1"
-               type="places"
-               place="place:folder=TOOLBAR"
-               context="placesContext"
+         <hbox id="bookmarksBarContent" flex="1" type="places"
+               context="placesContext" asyncinit="true"
                onclick="BookmarksEventHandler.onClick(event);"
                oncommand="BookmarksEventHandler.onCommand(event);"
                onpopupshowing="BookmarksEventHandler.onPopupShowing(event);"

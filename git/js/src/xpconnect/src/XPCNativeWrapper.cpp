@@ -218,12 +218,10 @@ EnsureLegalActivity(JSContext *cx, JSObject *obj)
     return JS_TRUE;
   }
 
-  nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
-  if (!ssm) {
-    // If there's no security manager, then we're not running in a browser
-    // context: allow access.
-    return JS_TRUE;
-  }
+  XPCCallContext ccx(JS_CALLER, cx);
+  nsIXPCSecurityManager *sm = ccx.GetXPCContext()->
+    GetAppropriateSecurityManager(nsIXPCSecurityManager::HOOK_CALL_METHOD);
+  nsCOMPtr<nsIScriptSecurityManager> ssm(do_QueryInterface(sm));
 
   // A last ditch effort to allow access: if the currently-running code
   // has UniversalXPConnect privileges, then allow access.

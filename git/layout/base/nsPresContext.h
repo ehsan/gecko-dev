@@ -62,8 +62,8 @@
 #include "nsInterfaceHashtable.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsChangeHint.h"
-// This also pulls in gfxTypes.h, which we cannot include directly.
-#include "gfxRect.h"
+// XXX we need only gfxTypes.h, but we cannot include it directly.
+#include "gfxPoint.h"
 class nsImageLoader;
 #ifdef IBMBIDI
 class nsBidiPresUtils;
@@ -519,12 +519,6 @@ public:
 
   gfxFloat AppUnitsToGfxUnits(nscoord aAppUnits) const
   { return mDeviceContext->AppUnitsToGfxUnits(aAppUnits); }
-
-  gfxRect AppUnitsToGfxUnits(const nsRect& aAppRect) const
-  { return gfxRect(AppUnitsToGfxUnits(aAppRect.x),
-                   AppUnitsToGfxUnits(aAppRect.y),
-                   AppUnitsToGfxUnits(aAppRect.width),
-                   AppUnitsToGfxUnits(aAppRect.height)); }
 
   nscoord TwipsToAppUnits(PRInt32 aTwips) const
   { return NSToCoordRound(NS_TWIPS_TO_INCHES(aTwips) *

@@ -119,7 +119,7 @@ NS_INTERFACE_MAP_BEGIN(nsContentAreaDragDrop)
 NS_INTERFACE_MAP_END
 
 
-class NS_STACK_CLASS nsTransferableFactory
+class nsTransferableFactory
 {
 public:
   nsTransferableFactory(nsIDOMEvent* inMouseEvent,

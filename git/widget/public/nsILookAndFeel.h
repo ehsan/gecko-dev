@@ -300,11 +300,7 @@ public:
     eMetricFloat_ListHorizontalInsidePadding,
     eMetricFloat_ButtonVerticalInsidePadding,
     eMetricFloat_ButtonHorizontalInsidePadding,
-    eMetricFloat_IMEUnderlineRelativeSize,
-
-    // The width/height ratio of the cursor. If used, the CaretWidth int metric
-    // should be added to the calculated caret width.
-    eMetricFloat_CaretAspectRatio
+    eMetricFloat_IMEUnderlineRelativeSize
   } nsMetricFloatID;
 
   NS_IMETHOD GetColor(const nsColorID aID, nscolor &aColor) = 0;

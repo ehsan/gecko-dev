@@ -268,7 +268,7 @@ void nsWatcherWindowEnumerator::WindowRemoved(nsWatcherWindowEntry *inInfo) {
  ********************** JSContextAutoPopper *********************
  ****************************************************************/
 
-class NS_STACK_CLASS JSContextAutoPopper {
+class JSContextAutoPopper {
 public:
   JSContextAutoPopper();
   ~JSContextAutoPopper();

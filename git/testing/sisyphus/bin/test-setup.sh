@@ -59,7 +59,7 @@ $SCRIPT -p product -b branch
 variable            description
 ===============     ===========================================================
 -p product          required. one of firefox thunderbird
--b branch           required. one of 1.8.0 1.8.1 1.9.0 1.9.1
+-b branch           required. one of 1.8.0 1.8.1 1.9.0
 -u url              optional. url where to download build
 -f filepath         optional. location to save downloaded build or to find
                     previously downloaded build. If not specified, the
@@ -129,7 +129,12 @@ while getopts $options optname ;
 done
 
 # include environment variables
-loaddata $datafiles
+if [[ -n "$datafiles" ]]; then
+    for datafile in $datafiles; do 
+        cat $datafile | sed 's|^|data: |'
+        source $datafile
+    done
+fi
 
 TEST_PRODUCT=$product
 TEST_BRANCH=$branch
@@ -143,7 +148,6 @@ TEST_EXTENSIONDIR=$extensiondir
 TEST_DATAFILES=$datafiles
 
 dumpenvironment
-dumphardware
 
 if [[ -z "$product" || -z "$branch" ]]; then
     echo "product and branch are required"
