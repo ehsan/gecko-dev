@@ -77,7 +77,6 @@ Tracker.prototype = {
     this._log = Log4Moz.repository.getLogger(this._logName);
     this._score = 0;
     this._ignored = [];
-    this.ignoreAll = false;
     this.loadChangedIDs();
   },
 
@@ -172,7 +171,7 @@ Tracker.prototype = {
       this._log.warn("Attempted to add undefined ID to tracker");
       return false;
     }
-    if (this.ignoreAll || (id in this._ignored))
+    if (id in this._ignored)
       return false;
     if (!this.changedIDs[id]) {
       this._log.debug("Adding changed ID " + id);
@@ -187,7 +186,7 @@ Tracker.prototype = {
       this._log.warn("Attempted to remove undefined ID to tracker");
       return false;
     }
-    if (this.ignoreAll || (id in this._ignored))
+    if (id in this._ignored)
       return false;
     if (this.changedIDs[id]) {
       this._log.debug("Removing changed ID " + id);
