@@ -210,14 +210,14 @@ public:
   gfxASurface             *GetThebesSurface();
 
 #ifdef MOZ_XUL
-  virtual void            SetTransparencyMode(nsTransparencyMode aMode);
-  virtual nsTransparencyMode GetTransparencyMode();
+  NS_IMETHOD              SetHasTransparentBackground(PRBool aTransparent);
+  NS_IMETHOD              GetHasTransparentBackground(PRBool& aTransparent);
 private:
-  void                    SetWindowTranslucencyInner(nsTransparencyMode aMode);
-  nsTransparencyMode      GetWindowTranslucencyInner() const { return mTransparencyMode; }
+  nsresult                SetWindowTranslucencyInner(PRBool aTransparent);
+  PRBool                  GetWindowTranslucencyInner() { return mIsTransparent; }
   void                    ResizeTranslucentWindow(PRInt32 aNewWidth, PRInt32 aNewHeight, PRBool force = PR_FALSE);
   nsresult                UpdateTranslucentWindow();
-  void                    SetupTranslucentWindowMemoryBitmap(nsTransparencyMode aMode);
+  nsresult                SetupTranslucentWindowMemoryBitmap(PRBool aTransparent);
 public:
 #endif
 
@@ -327,26 +327,9 @@ protected:
   BOOL                    OnIMEQueryCharPosition(LPARAM aData, LRESULT *oResult);
 
   void                    GetCompositionString(HIMC aHIMC, DWORD aIndex, nsString* aStrUnicode);
-
-  /**
-   *  ResolveIMECaretPos
-   *  Convert the caret rect of a composition event to another widget's
-   *  coordinate system.
-   *
-   *  @param aReferenceWidget The origin widget of aCursorRect.
-   *                          Typically, this is mReferenceWidget of the
-   *                          composing events. If the aCursorRect is in screen
-   *                          coordinates, set nsnull.
-   *  @param aCursorRect      The cursor rect.
-   *  @param aNewOriginWidget aOutRect will be in this widget's coordinates. If
-   *                          this is nsnull, aOutRect will be in screen
-   *                          coordinates.
-   *  @param aOutRect         The converted cursor rect.
-   */
-  void                    ResolveIMECaretPos(nsIWidget* aReferenceWidget,
-                                             nsRect&    aCursorRect,
-                                             nsIWidget* aNewOriginWidget,
-                                             nsRect&    aOutRect);
+  void                    ResolveIMECaretPos(nsWindow* aClient,
+                                             nsRect&   aEventResult,
+                                             nsRect&   aResult);
 
   virtual PRBool          DispatchKeyEvent(PRUint32 aEventType, WORD aCharCode,
                             const nsTArray<nsAlternativeCharCode>* aAlternativeChars,
@@ -412,9 +395,11 @@ protected:
   static PRInt32    sIMECompClauseArrayLength;
   static PRInt32    sIMECompClauseArraySize;
   static long       sIMECursorPosition;
+  static PRUnichar* sIMEReconvertUnicode; // reconvert string
 
   // For describing composing frame
   static RECT*      sIMECompCharPos;
+  static PRInt32    sIMECaretHeight;
 
   static PRBool     sIsInEndSession;
 
@@ -434,8 +419,9 @@ protected:
   nsRefPtr<gfxWindowsSurface> mTransparentSurface;
 
   HDC           mMemoryDC;
-  nsTransparencyMode mTransparencyMode;
+  PRPackedBool  mIsTransparent;
 #endif
+  PRPackedBool  mHasAeroGlass;
   PRPackedBool  mIsTopWidgetWindow;
   PRPackedBool  mHas3DBorder;
   PRPackedBool  mIsShiftDown;

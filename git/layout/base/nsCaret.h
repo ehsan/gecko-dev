@@ -63,7 +63,8 @@ class nsCaret : public nsISelectionListener
     enum EViewCoordinates {
       eTopLevelWindowCoordinates,
       eRenderingViewCoordinates,
-      eClosestViewCoordinates
+      eClosestViewCoordinates,
+      eIMECoordinates
     };
 
   public:

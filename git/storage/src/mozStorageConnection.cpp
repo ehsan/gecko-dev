@@ -70,16 +70,12 @@ PRLogModuleInfo* gStorageLog = nsnull;
 
 #define PREF_TS_SYNCHRONOUS "toolkit.storage.synchronous"
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(mozStorageConnection, mozIStorageConnection)
+NS_IMPL_ISUPPORTS1(mozStorageConnection, mozIStorageConnection)
 
-mozStorageConnection::mozStorageConnection(mozIStorageService* aService) :
-    mDBConn(nsnull)
-,   mTransactionMutex(nsAutoLock::NewLock("TransactionMutex"))
-,   mTransactionInProgress(PR_FALSE)
-,   mFunctionsMutex(nsAutoLock::NewLock("FunctionsMutex"))
-,   mProgressHandlerMutex(nsAutoLock::NewLock("ProgressHandlerMutex"))
-,   mProgressHandler(nsnull)
-,   mStorageService(aService)
+mozStorageConnection::mozStorageConnection(mozIStorageService* aService)
+    : mDBConn(nsnull), mTransactionInProgress(PR_FALSE),
+      mProgressHandler(nsnull),
+      mStorageService(aService)
 {
     mFunctions.Init();
 }
@@ -87,9 +83,6 @@ mozStorageConnection::mozStorageConnection(mozIStorageService* aService) :
 mozStorageConnection::~mozStorageConnection()
 {
     (void)Close();
-    nsAutoLock::DestroyLock(mTransactionMutex);
-    nsAutoLock::DestroyLock(mFunctionsMutex);
-    nsAutoLock::DestroyLock(mProgressHandlerMutex);
 }
 
 #ifdef PR_LOGGING
@@ -108,9 +101,6 @@ NS_IMETHODIMP
 mozStorageConnection::Initialize(nsIFile *aDatabaseFile)
 {
     NS_ASSERTION (!mDBConn, "Initialize called on already opened database!");
-    NS_ENSURE_TRUE(mTransactionMutex, NS_ERROR_OUT_OF_MEMORY);
-    NS_ENSURE_TRUE(mFunctionsMutex, NS_ERROR_OUT_OF_MEMORY);
-    NS_ENSURE_TRUE(mProgressHandlerMutex, NS_ERROR_OUT_OF_MEMORY);
 
     int srv;
     nsresult rv;
@@ -225,12 +215,8 @@ mozStorageConnection::Close()
                                         leafName.get()));
 #endif
 
-    {
-        nsAutoLock mutex(mProgressHandlerMutex);
-        if (mProgressHandler)
-            sqlite3_progress_handler(mDBConn, 0, NULL, NULL);
-    }
-
+    if (mProgressHandler)
+        sqlite3_progress_handler(mDBConn, 0, NULL, NULL);
     int srv = sqlite3_close(mDBConn);
     if (srv != SQLITE_OK)
         NS_WARNING("sqlite3_close failed. There are probably outstanding statements!");
@@ -431,7 +417,6 @@ mozStorageConnection::IndexExists(const nsACString& aIndexName, PRBool* _retval)
 NS_IMETHODIMP
 mozStorageConnection::GetTransactionInProgress(PRBool *_retval)
 {
-    nsAutoLock mutex(mTransactionMutex);
     *_retval = mTransactionInProgress;
     return NS_OK;
 }
@@ -440,13 +425,17 @@ mozStorageConnection::GetTransactionInProgress(PRBool *_retval)
 NS_IMETHODIMP
 mozStorageConnection::BeginTransaction()
 {
-    return BeginTransactionAs(mozIStorageConnection::TRANSACTION_DEFERRED);
+    if (mTransactionInProgress)
+        return NS_ERROR_FAILURE;
+    nsresult rv = ExecuteSimpleSQL (NS_LITERAL_CSTRING("BEGIN TRANSACTION"));
+    if (NS_SUCCEEDED(rv))
+        mTransactionInProgress = PR_TRUE;
+    return rv;
 }
 
 NS_IMETHODIMP
 mozStorageConnection::BeginTransactionAs(PRInt32 aTransactionType)
 {
-    nsAutoLock mutex(mTransactionMutex);
     if (mTransactionInProgress)
         return NS_ERROR_FAILURE;
     nsresult rv;
@@ -471,7 +460,6 @@ mozStorageConnection::BeginTransactionAs(PRInt32 aTransactionType)
 NS_IMETHODIMP
 mozStorageConnection::CommitTransaction()
 {
-    nsAutoLock mutex(mTransactionMutex);
     if (!mTransactionInProgress)
         return NS_ERROR_FAILURE;
     nsresult rv = ExecuteSimpleSQL (NS_LITERAL_CSTRING("COMMIT TRANSACTION"));
@@ -483,7 +471,6 @@ mozStorageConnection::CommitTransaction()
 NS_IMETHODIMP
 mozStorageConnection::RollbackTransaction()
 {
-    nsAutoLock mutex(mTransactionMutex);
     if (!mTransactionInProgress)
         return NS_ERROR_FAILURE;
     nsresult rv = ExecuteSimpleSQL (NS_LITERAL_CSTRING("ROLLBACK TRANSACTION"));
@@ -536,7 +523,6 @@ mozStorageConnection::s_FindFuncEnum(const nsACString &aKey,
 PRBool
 mozStorageConnection::FindFunctionByInstance(nsISupports *aInstance)
 {
-    // The lock should already be held by calling functions
     FindFuncEnumArgs args = { aInstance, PR_FALSE };
     mFunctions.EnumerateRead(s_FindFuncEnum, &args);
     return args.mFound;
@@ -677,7 +663,6 @@ mozStorageConnection::CreateFunction(const nsACString &aFunctionName,
     // do we already have this function defined?
     // Check for name only because simple function can
     // be defined multiple times with different names (aliases).
-    nsAutoLock mutex(mFunctionsMutex);
     NS_ENSURE_FALSE(mFunctions.Get (aFunctionName, NULL), NS_ERROR_FAILURE);
 
     int srv = sqlite3_create_function (mDBConn,
@@ -753,7 +738,6 @@ mozStorageConnection::CreateAggregateFunction(const nsACString &aFunctionName,
 
     // do we already have this function defined?
     // Check for name.
-    nsAutoLock mutex(mFunctionsMutex);
     NS_ENSURE_FALSE(mFunctions.Get (aFunctionName, NULL), NS_ERROR_FAILURE);
 
     // Aggregate functions are stateful, so we cannot have
@@ -786,7 +770,6 @@ mozStorageConnection::RemoveFunction(const nsACString &aFunctionName)
 {
     if (!mDBConn) return NS_ERROR_NOT_INITIALIZED;
 
-    nsAutoLock mutex(mFunctionsMutex);
     NS_ENSURE_TRUE(mFunctions.Get (aFunctionName, NULL), NS_ERROR_FAILURE);
 
     int srv = sqlite3_create_function (mDBConn,
@@ -822,7 +805,6 @@ mozStorageConnection::SetProgressHandler(PRInt32 aGranularity,
     if (!mDBConn) return NS_ERROR_NOT_INITIALIZED;
 
     // Return previous one
-    nsAutoLock mutex(mProgressHandlerMutex);
     NS_IF_ADDREF(*aOldHandler = mProgressHandler);
 
     if (!aHandler || aGranularity <= 0) {
@@ -841,7 +823,6 @@ mozStorageConnection::RemoveProgressHandler(mozIStorageProgressHandler **aOldHan
     if (!mDBConn) return NS_ERROR_NOT_INITIALIZED;
 
     // Return previous one
-    nsAutoLock mutex(mProgressHandlerMutex);
     NS_IF_ADDREF(*aOldHandler = mProgressHandler);
 
     mProgressHandler = nsnull;
@@ -853,7 +834,6 @@ mozStorageConnection::RemoveProgressHandler(mozIStorageProgressHandler **aOldHan
 int
 mozStorageConnection::ProgressHandler()
 {
-    nsAutoLock mutex(mProgressHandlerMutex);
     if (mProgressHandler) {
         PRBool res;
         nsresult rv = mProgressHandler->OnProgress(this, &res);

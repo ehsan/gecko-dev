@@ -758,6 +758,18 @@ nsFormFillController::HandleQueryComposition(nsIDOMEvent* aCompositionEvent)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsFormFillController::HandleQueryReconversion(nsIDOMEvent* aCompositionEvent)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsFormFillController::HandleQueryCaretRect(nsIDOMEvent* aCompostionEvent)
+{
+  return NS_OK;
+}
+
 ////////////////////////////////////////////////////////////////////////
 //// nsIDOMFormListener
 
