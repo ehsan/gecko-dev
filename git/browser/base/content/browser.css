@@ -979,7 +979,7 @@ chatbox:-moz-full-screen-ancestor > .chat-titlebar {
 
 /* Combobox dropdown renderer */
 #ContentSelectDropdown {
-  -moz-binding: url("chrome://global/content/bindings/popup.xml#popup-scrollbars");
+  max-height: 400px;
 }
 
 .contentSelectDropdown-optgroup {
