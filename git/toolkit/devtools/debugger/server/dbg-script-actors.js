@@ -29,8 +29,8 @@ function ThreadActor(aHooks, aGlobal)
   this._state = "detached";
   this._frameActors = [];
   this._environmentActors = [];
+  this._hooks = {};
   this._hooks = aHooks;
-  this._sources = {};
   this.global = aGlobal;
 
   /**
@@ -100,7 +100,6 @@ ThreadActor.prototype = {
     this.conn.removeActorPool(this._threadLifetimePool || undefined);
     this._threadLifetimePool = null;
     this._scripts = {};
-    this._sources = {};
   },
 
   /**
@@ -651,20 +650,14 @@ ThreadActor.prototype = {
   },
 
   /**
-   * Get the script and source lists from the debugger.
-   */
-  _discoverScriptsAndSources: function TA__discoverScriptsAndSources() {
-    for (let s of this.dbg.findScripts()) {
-      this._addScript(s);
-    }
-  },
-
-  /**
    * Handle a protocol request to return the list of loaded scripts.
    */
   onScripts: function TA_onScripts(aRequest) {
-    this._discoverScriptsAndSources();
-
+    // Get the script list from the debugger.
+    for (let s of this.dbg.findScripts()) {
+      this._addScript(s);
+    }
+    // Build the cache.
     let scripts = [];
     for (let url in this._scripts) {
       for (let i = 0; i < this._scripts[url].length; i++) {
@@ -676,24 +669,15 @@ ThreadActor.prototype = {
           url: url,
           startLine: i,
           lineCount: this._scripts[url][i].lineCount,
-          source: this._getSource(url).form()
+          source: this.sourceGrip(this._scripts[url][i], this)
         };
         scripts.push(script);
       }
     }
 
-    return {
-      from: this.actorID,
-      scripts: scripts
-    };
-  },
-
-  onSources: function TA_onSources(aRequest) {
-    this._discoverScriptsAndSources();
-    let urls = Object.getOwnPropertyNames(this._sources);
-    return {
-      sources: [this._getSource(url).form() for (url of urls)]
-    };
+    let packet = { from: this.actorID,
+                   scripts: scripts };
+    return packet;
   },
 
   /**
@@ -1115,10 +1099,10 @@ ThreadActor.prototype = {
       return this.threadLifetimePool.sourceActors[aScript.url].grip();
     }
 
-    let actor = new SourceActor(aScript.url, this);
+    let actor = new SourceActor(aScript, this);
     this.threadLifetimePool.addActor(actor);
     this.threadLifetimePool.sourceActors[aScript.url] = actor;
-    return actor.form();
+    return actor.grip();
   },
 
   // JS Debugger API hooks.
@@ -1191,29 +1175,28 @@ ThreadActor.prototype = {
         url: aScript.url,
         startLine: aScript.startLine,
         lineCount: aScript.lineCount,
-        source: this._getSource(aScript.url).form()
+        source: this.sourceGrip(aScript, this)
       });
     }
   },
 
   /**
-   * Check if scripts from the provided source URL are allowed to be stored in
-   * the cache.
+   * Check if the provided script is allowed to be stored in the cache.
    *
-   * @param aSourceUrl String
-   *        The url of the script's source that will be stored.
+   * @param aScript Debugger.Script
+   *        The source script that will be stored.
    * @returns true, if the script can be added, false otherwise.
    */
-  _allowSource: function TA__allowScript(aSourceUrl) {
+  _allowScript: function TA__allowScript(aScript) {
     // Ignore anything we don't have a URL for (eval scripts, for example).
-    if (!aSourceUrl)
+    if (!aScript.url)
       return false;
     // Ignore XBL bindings for content debugging.
-    if (aSourceUrl.indexOf("chrome://") == 0) {
+    if (aScript.url.indexOf("chrome://") == 0) {
       return false;
     }
     // Ignore about:* pages for content debugging.
-    if (aSourceUrl.indexOf("about:") == 0) {
+    if (aScript.url.indexOf("about:") == 0) {
       return false;
     }
     return true;
@@ -1227,14 +1210,9 @@ ThreadActor.prototype = {
    * @returns true, if the script was added, false otherwise.
    */
   _addScript: function TA__addScript(aScript) {
-    if (!this._allowSource(aScript.url)) {
+    if (!this._allowScript(aScript)) {
       return false;
     }
-
-    // TODO bug 637572: we should be dealing with sources directly, not
-    // inferring them through scripts.
-    this._addSource(aScript.url);
-
     // Use a sparse array for storing the scripts for each URL in order to
     // optimize retrieval.
     if (!this._scripts[aScript.url]) {
@@ -1302,49 +1280,7 @@ ThreadActor.prototype = {
       }
     }
     return retval;
-  },
-
-  /**
-   * Add a source to the current set of sources.
-   *
-   * Right now this takes an url, but in the future it should
-   * take a Debugger.Source.
-   *
-   * @param string the source URL.
-   * @returns a SourceActor representing the source.
-   */
-  _addSource: function TA__addSource(aURL) {
-    if (!this._allowSource(aURL)) {
-      return false;
-    }
-
-    if (aURL in this._sources) {
-      return true;
-    }
-
-    let actor = new SourceActor(aURL, this);
-    this.threadLifetimePool.addActor(actor);
-    this._sources[aURL] = actor;
-
-    this.conn.send({
-      from: this.actorID,
-      type: "newSource",
-      source: actor.form()
-    });
-
-    return true;
-  },
-
-  /**
-   * Get the source actor for the given URL.
-   */
-  _getSource: function TA__getSource(aUrl) {
-    let source = this._sources[aUrl];
-    if (!source) {
-      throw new Error("No source for '" + aUrl + "'");
-    }
-    return source;
-  },
+  }
 
 };
 
@@ -1358,7 +1294,6 @@ ThreadActor.prototype.requestTypes = {
   "releaseMany": ThreadActor.prototype.onReleaseMany,
   "setBreakpoint": ThreadActor.prototype.onSetBreakpoint,
   "scripts": ThreadActor.prototype.onScripts,
-  "sources": ThreadActor.prototype.onSources,
   "threadGrips": ThreadActor.prototype.onThreadGrips
 };
 
@@ -1438,14 +1373,14 @@ PauseScopedActor.prototype = {
 /**
  * A SourceActor provides information about the source of a script.
  *
- * @param aUrl String
- *        The url of the source we are representing.
+ * @param aScript Debugger.Script
+ *        The script whose source we are representing.
  * @param aThreadActor ThreadActor
  *        The current thread actor.
  */
-function SourceActor(aUrl, aThreadActor) {
+function SourceActor(aScript, aThreadActor) {
   this._threadActor = aThreadActor;
-  this._url = aUrl;
+  this._script = aScript;
 }
 
 SourceActor.prototype = {
@@ -1454,12 +1389,8 @@ SourceActor.prototype = {
 
   get threadActor() { return this._threadActor; },
 
-  form: function SA_form() {
-    return {
-      actor: this.actorID,
-      url: this._url
-      // TODO bug 637572: introductionScript
-    };
+  grip: function SA_grip() {
+    return this.actorID;
   },
 
   disconnect: function LSA_disconnect() {
@@ -1487,7 +1418,7 @@ SourceActor.prototype = {
         return {
           "from": this.actorID,
           "error": "loadSourceError",
-          "message": "Could not load the source for " + this._url + "."
+          "message": "Could not load the source for " + this._script.url + "."
         };
       }.bind(this));
   },
@@ -1527,9 +1458,8 @@ SourceActor.prototype = {
    */
   _loadSource: function SA__loadSource() {
     let deferred = defer();
+    let url = this._script.url;
     let scheme;
-    let url = this._url;
-
     try {
       scheme = Services.io.extractScheme(url);
     } catch (e) {
@@ -2427,10 +2357,10 @@ update(ChromeDebuggerActor.prototype, {
   actorPrefix: "chromeDebugger",
 
   /**
-   * Override the eligibility check for scripts and sources to make sure every
-   * script and source with a URL is stored when debugging chrome.
+   * Override the eligibility check for scripts to make sure every script with a
+   * URL is stored when debugging chrome.
    */
-  _allowSource: function(aSourceURL) !!aSourceURL,
+  _allowScript: function(aScript) !!aScript.url,
 
    /**
    * An object that will be used by ThreadActors to tailor their behavior

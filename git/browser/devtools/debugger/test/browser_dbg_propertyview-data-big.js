@@ -92,11 +92,7 @@ function testWithFrame()
               for (let i = 0; i < arrayNodes.length; i++) {
                 let node = arrayNodes[i];
                 let name = node.querySelector(".name").getAttribute("value");
-                // Don't make the test runner dump to the console for every test
-                // unless something goes wrong.
-                if (name !== i + "") {
-                  ok(false, "The array items aren't in the correct order.");
-                }
+                is(name, i + "", "The array items aren't in the correct order.");
               }
 
               closeDebuggerAndFinish();

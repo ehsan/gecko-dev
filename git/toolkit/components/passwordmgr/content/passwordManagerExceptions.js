@@ -27,15 +27,13 @@ var rejectsTreeView = {
   isSorted: function() { return false; },
   isContainer : function(index) {return false;},
   cycleHeader : function(column) {},
-  getRowProperties : function(row){ return ""; },
-  getColumnProperties : function(column){ return ""; },
-  getCellProperties : function(row,column){
+  getRowProperties : function(row,prop){},
+  getColumnProperties : function(column,prop){},
+  getCellProperties : function(row,column,prop){
     if (column.element.getAttribute("id") == "rejectCol")
-      return "ltr";
-
-    return "";
+      prop.AppendElement(kLTRAtom);
   }
-};
+ };
 
 function Reject(number, host) {
   this.number = number;

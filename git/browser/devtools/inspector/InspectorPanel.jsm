@@ -506,37 +506,16 @@ InspectorPanel.prototype = {
     // Set the pseudo classes
     for (let name of ["hover", "active", "focus"]) {
       let menu = this.panelDoc.getElementById("node-menu-pseudo-" + name);
-
-      if (this.selection.isElementNode()) {
-        let checked = DOMUtils.hasPseudoClassLock(this.selection.node, ":" + name);
-        menu.setAttribute("checked", checked);
-        menu.removeAttribute("disabled");
-      } else {
-        menu.setAttribute("disabled", "true");
-      }
+      let checked = DOMUtils.hasPseudoClassLock(this.selection.node, ":" + name);
+      menu.setAttribute("checked", checked);
     }
 
     // Disable delete item if needed
     let deleteNode = this.panelDoc.getElementById("node-menu-delete");
-    if (this.selection.isRoot() || this.selection.isDocumentTypeNode()) {
+    if (this.selection.isRoot()) {
       deleteNode.setAttribute("disabled", "true");
     } else {
       deleteNode.removeAttribute("disabled");
-    }
-
-    // Disable / enable "Copy Unique Selector", "Copy inner HTML" &
-    // "Copy outer HTML" as appropriate
-    let unique = this.panelDoc.getElementById("node-menu-copyuniqueselector");
-    let copyInnerHTML = this.panelDoc.getElementById("node-menu-copyinner");
-    let copyOuterHTML = this.panelDoc.getElementById("node-menu-copyouter");
-    if (this.selection.isElementNode()) {
-      unique.removeAttribute("disabled");
-      copyInnerHTML.removeAttribute("disabled");
-      copyOuterHTML.removeAttribute("disabled");
-    } else {
-      unique.setAttribute("disabled", "true");
-      copyInnerHTML.setAttribute("disabled", "true");
-      copyOuterHTML.setAttribute("disabled", "true");
     }
   },
 

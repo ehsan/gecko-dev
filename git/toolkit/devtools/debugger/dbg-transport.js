@@ -219,9 +219,9 @@ LocalDebuggerTransport.prototype = {
         dumpn("Got: " + JSON.stringify(aPacket, null, 2));
       }
       this._deepFreeze(aPacket);
-      let other = this.other;
+      let self = this;
       Services.tm.currentThread.dispatch({run: function() {
-        other.hooks.onPacket(aPacket);
+        self.other.hooks.onPacket(aPacket);
       }}, 0);
     } catch(e) {
       let msg = "Error handling incoming packet: " + e + " - " + e.stack;
