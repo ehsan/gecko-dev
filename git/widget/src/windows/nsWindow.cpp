@@ -274,10 +274,8 @@ int             nsWindow::sTrimOnMinimize         = 2;
 PRBool          nsWindow::sDefaultTrackPointHack  = PR_FALSE;
 // Default value for general window class (used when the pref is the empty string).
 const char*     nsWindow::sDefaultMainWindowClass = kClassNameGeneral;
-// Whether to enable the Elantech swipe gesture hack.
-PRBool          nsWindow::sUseElantechSwipeHack  = PR_FALSE;
-// Whether to enable the Elantech pinch-to-zoom gesture hack.
-PRBool          nsWindow::sUseElantechPinchHack  = PR_FALSE;
+// Whether to enable the Elantech gesture hack.
+PRBool          nsWindow::sUseElantechGestureHacks = PR_FALSE;
 
 // If we're using D3D9, this will not be allowed during initial 5 seconds.
 bool            nsWindow::sAllowD3D9              = false;
@@ -2527,7 +2525,7 @@ void nsWindow::UpdateOpaqueRegion(const nsIntRegion &aOpaqueRegion)
     if (mCustomNonClient) {
       // The minimum glass height must be the caption buttons height,
       // otherwise the buttons are drawn incorrectly.
-      largest.y = NS_MAX<PRUint32>(largest.y,
+      largest.y = PR_MAX(largest.y,
                          nsUXThemeData::sCommandButtons[CMDBUTTONIDX_BUTTONBOX].cy);
     }
     margins.cyTopHeight = largest.y;
@@ -3370,7 +3368,7 @@ nsWindow::OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta,
   // on the document of SystemParametersInfo in MSDN.
   const PRUint32 kSystemDefaultScrollingSpeed = 3;
 
-  PRInt32 absOriginDelta = NS_ABS(aOriginalDelta);
+  PRInt32 absOriginDelta = PR_ABS(aOriginalDelta);
 
   // Compute the simple overridden speed.
   PRInt32 absComputedOverriddenDelta;
@@ -3428,7 +3426,7 @@ nsWindow::OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta,
   }
 
   absComputedOverriddenDelta =
-    NS_MIN(absComputedOverriddenDelta, absDeltaLimit);
+    PR_MIN(absComputedOverriddenDelta, absDeltaLimit);
 
   aOverriddenDelta = (aOriginalDelta > 0) ? absComputedOverriddenDelta :
                                             -absComputedOverriddenDelta;
@@ -4310,7 +4308,6 @@ DisplaySystemMenu(HWND hWnd, nsSizeMode sizeMode, PRBool isRtl, PRInt32 x, PRInt
     mii.fState = MF_GRAYED;
     switch(sizeMode) {
       case nsSizeMode_Fullscreen:
-        SetMenuItemInfo(hMenu, SC_RESTORE, FALSE, &mii);
         // intentional fall through
       case nsSizeMode_Maximized:
         SetMenuItemInfo(hMenu, SC_SIZE, FALSE, &mii);
@@ -4458,35 +4455,6 @@ nsWindow::ProcessMessageForPlugin(const MSG &aMsg,
   if (!eventDispatched)
     aCallDefWndProc = !DispatchPluginEvent(aMsg);
   DispatchPendingEvents();
-  return PR_TRUE;
-}
-
-static void ForceFontUpdate()
-{
-  // update device context font cache
-  // Dirty but easiest way:
-  // Changing nsIPrefBranch entry which triggers callbacks
-  // and flows into calling mDeviceContext->FlushFontCache()
-  // to update the font cache in all the instance of Browsers
-  static const char kPrefName[] = "font.internaluseonly.changed";
-  PRBool fontInternalChange =
-    Preferences::GetBool(kPrefName, PR_FALSE);
-  Preferences::SetBool(kPrefName, !fontInternalChange);
-}
-
-static PRBool CleartypeSettingChanged()
-{
-  static int currentQuality = -1;
-  BYTE quality = cairo_win32_get_system_text_quality();
-
-  if (currentQuality == quality)
-    return PR_FALSE;
-
-  if (currentQuality < 0) {
-    currentQuality = quality;
-    return PR_FALSE;
-  }
-  currentQuality = quality;
   return PR_TRUE;
 }
 
@@ -4652,7 +4620,15 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
         fontEnum->UpdateFontList(&didChange);
         //didChange is TRUE only if new font langGroup is added to the list.
         if (didChange)  {
-          ForceFontUpdate();
+          // update device context font cache
+          // Dirty but easiest way:
+          // Changing nsIPrefBranch entry which triggers callbacks
+          // and flows into calling mDeviceContext->FlushFontCache()
+          // to update the font cache in all the instance of Browsers
+          const char* kPrefName = "font.internaluseonly.changed";
+          PRBool fontInternalChange =
+            Preferences::GetBool(kPrefName, PR_FALSE);
+          Preferences::SetBool(kPrefName, !fontInternalChange);
         }
       } //if (NS_SUCCEEDED(rv))
     }
@@ -4835,13 +4811,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       break;
 
     case WM_PAINT:
-      if (CleartypeSettingChanged()) {
-        ForceFontUpdate();
-        gfxFontCache *fc = gfxFontCache::GetCache();
-        if (fc) {
-          fc->Flush();
-        }
-      }
       *aRetValue = (int) OnPaint(NULL, 0);
       result = PR_TRUE;
       break;
@@ -5075,17 +5044,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       }
       break;
 
-    case WM_NCLBUTTONDBLCLK:
-      DispatchMouseEvent(NS_MOUSE_DOUBLECLICK, 0, lParamToClient(lParam),
-                         PR_FALSE, nsMouseEvent::eLeftButton,
-                         MOUSE_INPUT_SOURCE());
-      result = 
-        DispatchMouseEvent(NS_MOUSE_BUTTON_UP, 0, lParamToClient(lParam),
-                           PR_FALSE, nsMouseEvent::eLeftButton,
-                           MOUSE_INPUT_SOURCE());
-      DispatchPendingEvents();
-      break;
-
     case WM_APPCOMMAND:
     {
       PRUint32 appCommand = GET_APPCOMMAND_LPARAM(lParam);
@@ -5267,6 +5225,13 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
         DisplaySystemMenu(mWnd, mSizeMode, mIsRTL,
                           MOZ_SYSCONTEXT_X_POS,
                           MOZ_SYSCONTEXT_Y_POS);
+        result = PR_TRUE;
+      }
+      if (filteredWParam == SC_RESTORE &&
+          mSizeMode == nsSizeMode_Fullscreen) {
+        // Windows can handle restoring a normal window, but it doesn't
+        // understand our full screen mode.
+        MakeFullScreen(PR_FALSE);
         result = PR_TRUE;
       }
     }
@@ -6653,7 +6618,7 @@ LRESULT nsWindow::OnKeyDown(const MSG &aMsg,
     aMsg.wParam != VK_PROCESSKEY ? aMsg.wParam : ::ImmGetVirtualKey(mWnd);
   gKbdLayout.OnKeyDown(virtualKeyCode);
 
-  if (sUseElantechSwipeHack) {
+  if (sUseElantechGestureHacks) {
     PerformElantechSwipeGestureHack(virtualKeyCode, aModKeyState);
   }
 
@@ -6937,8 +6902,8 @@ LRESULT nsWindow::OnKeyDown(const MSG &aMsg,
   }
 
   if (numOfUniChars > 0 || numOfShiftedChars > 0 || numOfUnshiftedChars > 0) {
-    PRUint32 num = NS_MAX(numOfUniChars,
-                          NS_MAX(numOfShiftedChars, numOfUnshiftedChars));
+    PRUint32 num = PR_MAX(numOfUniChars,
+                          PR_MAX(numOfShiftedChars, numOfUnshiftedChars));
     PRUint32 skipUniChars = num - numOfUniChars;
     PRUint32 skipShiftedChars = num - numOfShiftedChars;
     PRUint32 skipUnshiftedChars = num - numOfUnshiftedChars;
@@ -6996,11 +6961,9 @@ LRESULT nsWindow::OnKeyUp(const MSG &aMsg,
 {
   UINT virtualKeyCode = aMsg.wParam;
 
-  if (sUseElantechSwipeHack) {
+  if (sUseElantechGestureHacks) {
     PerformElantechSwipeGestureHack(virtualKeyCode, aModKeyState);
-  }
 
-  if (sUseElantechPinchHack) {
     // Version 8 of the Elantech touchpad driver sends these messages for
     // zoom gestures:
     //
@@ -7613,7 +7576,7 @@ PRBool nsWindow::HandleScrollingPlugins(UINT aMsg, WPARAM aWParam,
   // is another app's window or no window under the
   // pointer.
 
-  if (sUseElantechPinchHack && IsElantechHelperWindow(destWnd)) {
+  if (sUseElantechGestureHacks && IsElantechHelperWindow(destWnd)) {
     // The Elantech driver places a window right underneath the cursor
     // when sending a WM_MOUSEWHEEL event to us as part of a pinch-to-zoom
     // gesture.  We detect that here, and search for our window that would
@@ -8887,8 +8850,8 @@ IsObsoleteSynapticsDriver()
   return majorVersion < 15;
 }
 
-static PRInt32
-GetElantechDriverMajorVersion()
+static PRBool
+IsObsoleteElantechDriver()
 {
   PRUnichar buf[40];
   // The driver version is found in one of these two registry keys.
@@ -8911,17 +8874,18 @@ GetElantechDriverMajorVersion()
   // or at the start of the string.
   for (PRUnichar* p = buf; *p; p++) {
     if (*p >= L'0' && *p <= L'9' && (p == buf || *(p - 1) == L' ')) {
-      return wcstol(p, NULL, 10);
+      int majorVersion = wcstol(p, NULL, 10);
+      // Versions 7 and 8 need the hack.
+      if (majorVersion == 7 || majorVersion == 8)
+        return PR_TRUE;
     }
   }
 
-  return 0;
+  return PR_FALSE;
 }
 
 void nsWindow::InitInputWorkaroundPrefDefaults()
 {
-  PRUint32 elantechDriverVersion = GetElantechDriverMajorVersion();
-
   if (HasRegistryKey(HKEY_CURRENT_USER, L"Software\\Lenovo\\TrackPoint")) {
     sDefaultTrackPointHack = PR_TRUE;
   } else if (HasRegistryKey(HKEY_CURRENT_USER, L"Software\\Lenovo\\UltraNav")) {
@@ -8934,11 +8898,9 @@ void nsWindow::InitInputWorkaroundPrefDefaults()
     sDefaultTrackPointHack = PR_TRUE;
   }
 
-  PRBool useElantechGestureHacks =
+  sUseElantechGestureHacks =
     GetInputWorkaroundPref("ui.elantech_gesture_hacks.enabled",
-                           elantechDriverVersion != 0);
-  sUseElantechSwipeHack = useElantechGestureHacks && elantechDriverVersion <= 7;
-  sUseElantechPinchHack = useElantechGestureHacks && elantechDriverVersion <= 8;
+                           IsObsoleteElantechDriver());
 }
 
 LPARAM nsWindow::lParamToScreen(LPARAM lParam)

@@ -93,10 +93,12 @@ public:
 
   // ShadowThebesLayer impl
   virtual void SetFrontBuffer(const OptionalThebesBuffer& aNewFront,
-                              const nsIntRegion& aValidRegion);
+                              const nsIntRegion& aValidRegion,
+                              float aXResolution, float aYResolution);
   virtual void
   Swap(const ThebesBuffer& aNewFront, const nsIntRegion& aUpdatedRegion,
        ThebesBuffer* aNewBack, nsIntRegion* aNewBackValidRegion,
+       float* aNewXResolution, float* aNewYResolution,
        OptionalThebesBuffer* aReadOnlyFront, nsIntRegion* aFrontUpdatedRegion);
   virtual void DestroyFrontBuffer();
 

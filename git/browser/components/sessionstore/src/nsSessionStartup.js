@@ -147,12 +147,6 @@ SessionStartup.prototype = {
       initialState && initialState.session && initialState.session.state &&
       initialState.session.state == STATE_RUNNING_STR;
 
-    // Report shutdown success via telemetry. Shortcoming here are
-    // being-killed-by-OS-shutdown-logic, shutdown freezing after
-    // session restore was written, etc.
-    let Telemetry = Cc["@mozilla.org/base/telemetry;1"].getService(Ci.nsITelemetry);
-    Telemetry.getHistogramById("SHUTDOWN_OK").add(!lastSessionCrashed);
-
     // set the startup type
     if (lastSessionCrashed && resumeFromCrash)
       this._sessionType = Ci.nsISessionStartup.RECOVER_SESSION;
@@ -163,16 +157,18 @@ SessionStartup.prototype = {
     else
       this._iniString = null; // reset the state string
 
-    // wait for the first browser window to open
-    // Don't reset the initial window's default args (i.e. the home page(s))
-    // if all stored tabs are pinned.
-    if (this.doRestore() &&
-        (!initialState.windows ||
-        !initialState.windows.every(function (win)
-           win.tabs.every(function (tab) tab.pinned))))
-      Services.obs.addObserver(this, "domwindowopened", true);
+    if (this.doRestore()) {
+      // wait for the first browser window to open
 
-    Services.obs.addObserver(this, "sessionstore-windows-restored", true);
+      // Don't reset the initial window's default args (i.e. the home page(s))
+      // if all stored tabs are pinned.
+      if (!initialState.windows ||
+          !initialState.windows.every(function (win)
+             win.tabs.every(function (tab) tab.pinned)))
+        Services.obs.addObserver(this, "domwindowopened", true);
+
+      Services.obs.addObserver(this, "sessionstore-windows-restored", true);
+    }
   },
 
   /**
@@ -204,9 +200,18 @@ SessionStartup.prototype = {
       break;
     case "sessionstore-windows-restored":
       Services.obs.removeObserver(this, "sessionstore-windows-restored");
-      // free _iniString after nsSessionStore is done with it
+      // We only want to start listening for the purge notification after we've
+      // sessionstore has finished its initial startup. That way we won't observe
+      // the purge notification & clear the old session before sessionstore loads
+      // it (in the case of a crash).
+      Services.obs.addObserver(this, "browser:purge-session-history", true);
+      break;
+    case "browser:purge-session-history":
+      // reset all state on sanitization
       this._iniString = null;
       this._sessionType = Ci.nsISessionStartup.NO_SESSION;
+      // no need in repeating this, since startup state won't change
+      Services.obs.removeObserver(this, "browser:purge-session-history");
       break;
     }
   },

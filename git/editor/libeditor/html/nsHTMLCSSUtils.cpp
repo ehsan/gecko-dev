@@ -40,6 +40,9 @@
 #include "nsHTMLEditor.h"
 #include "nsCOMPtr.h"
 #include "nsHTMLEditUtils.h"
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
+#include "nsIServiceManager.h"
 #include "nsEditProperty.h"
 #include "ChangeCSSInlineStyleTxn.h"
 #include "nsIDOMElement.h"
@@ -54,9 +57,6 @@
 #include "nsColor.h"
 #include "nsAttrName.h"
 #include "nsAutoPtr.h"
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 static
 void ProcessBValue(const nsAString * aInputString, nsAString & aOutputString,
@@ -302,7 +302,12 @@ nsHTMLCSSUtils::nsHTMLCSSUtils(nsHTMLEditor* aEditor)
   , mIsCSSPrefChecked(PR_FALSE)
 {
   // let's retrieve the value of the "CSS editing" pref
-  mIsCSSPrefChecked = Preferences::GetBool("editor.use_css", mIsCSSPrefChecked);
+  nsresult result = NS_OK;
+  nsCOMPtr<nsIPrefBranch> prefBranch =
+    do_GetService(NS_PREFSERVICE_CONTRACTID, &result);
+  if (NS_SUCCEEDED(result) && prefBranch) {
+    prefBranch->GetBoolPref("editor.use_css", &mIsCSSPrefChecked);
+  }
 }
 
 nsHTMLCSSUtils::~nsHTMLCSSUtils()
@@ -645,42 +650,60 @@ nsHTMLCSSUtils::IsCSSInvertable(nsIAtom *aProperty, const nsAString *aAttribute)
 }
 
 // Get the default browser background color if we need it for GetCSSBackgroundColorState
-void
+nsresult
 nsHTMLCSSUtils::GetDefaultBackgroundColor(nsAString & aColor)
 {
-  if (Preferences::GetBool("editor.use_custom_colors", PR_FALSE)) {
-    nsresult rv = Preferences::GetString("editor.background_color", &aColor);
-    // XXX Why don't you validate the pref value?
-    if (NS_FAILED(rv)) {
-      NS_WARNING("failed to get editor.background_color");
-      aColor.AssignLiteral("#ffffff");  // Default to white
+  nsresult result;
+  nsCOMPtr<nsIPrefBranch> prefBranch =
+    do_GetService(NS_PREFSERVICE_CONTRACTID, &result);
+  NS_ENSURE_SUCCESS(result, result);
+  aColor.AssignLiteral("#ffffff");
+  nsXPIDLCString returnColor;
+  if (prefBranch) {
+    PRBool useCustomColors;
+    result = prefBranch->GetBoolPref("editor.use_custom_colors", &useCustomColors);
+    NS_ENSURE_SUCCESS(result, result);
+    if (useCustomColors) {
+      result = prefBranch->GetCharPref("editor.background_color",
+                                       getter_Copies(returnColor));
+      NS_ENSURE_SUCCESS(result, result);
     }
-    return;
+    else {
+      PRBool useSystemColors;
+      result = prefBranch->GetBoolPref("browser.display.use_system_colors", &useSystemColors);
+      NS_ENSURE_SUCCESS(result, result);
+      if (!useSystemColors) {
+        result = prefBranch->GetCharPref("browser.display.background_color",
+                                         getter_Copies(returnColor));
+        NS_ENSURE_SUCCESS(result, result);
+      }
+    }
   }
-
-  if (Preferences::GetBool("browser.display.use_system_colors", PR_FALSE)) {
-    return;
+  if (returnColor) {
+    CopyASCIItoUTF16(returnColor, aColor);
   }
-
-  nsresult rv =
-    Preferences::GetString("browser.display.background_color", &aColor);
-  // XXX Why don't you validate the pref value?
-  if (NS_FAILED(rv)) {
-    NS_WARNING("failed to get browser.display.background_color");
-    aColor.AssignLiteral("#ffffff");  // Default to white
-  }
+  return NS_OK;
 }
 
 // Get the default length unit used for CSS Indent/Outdent
-void
+nsresult
 nsHTMLCSSUtils::GetDefaultLengthUnit(nsAString & aLengthUnit)
 {
-  nsresult rv =
-    Preferences::GetString("editor.css.default_length_unit", &aLengthUnit);
-  // XXX Why don't you validate the pref value?
-  if (NS_FAILED(rv)) {
-    aLengthUnit.AssignLiteral("px");
+  nsresult result;
+  nsCOMPtr<nsIPrefBranch> prefBranch =
+    do_GetService(NS_PREFSERVICE_CONTRACTID, &result);
+  NS_ENSURE_SUCCESS(result, result);
+  aLengthUnit.AssignLiteral("px");
+  if (NS_SUCCEEDED(result) && prefBranch) {
+    nsXPIDLCString returnLengthUnit;
+    result = prefBranch->GetCharPref("editor.css.default_length_unit",
+                                     getter_Copies(returnLengthUnit));
+    NS_ENSURE_SUCCESS(result, result);
+    if (returnLengthUnit) {
+      CopyASCIItoUTF16(returnLengthUnit, aLengthUnit);
+    }
   }
+  return NS_OK;
 }
 
 // Unfortunately, CSSStyleDeclaration::GetPropertyCSSValue is not yet implemented...

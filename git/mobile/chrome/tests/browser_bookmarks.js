@@ -120,11 +120,7 @@ gTests.push({
 
     // Create a listener for the opening bookmark
     waitForPageShow(function() {
-      if (Services.appinfo.OS == "Android")
-        todo_is(gCurrentTest._currentTab.browser.currentURI.spec, testURL_01, "Opened the right bookmark");
-      else
-        is(gCurrentTest._currentTab.browser.currentURI.spec, testURL_01, "Opened the right bookmark");
-
+      is(gCurrentTest._currentTab.browser.currentURI.spec, testURL_01, "Opened the right bookmark");
       Browser.closeTab(gCurrentTest._currentTab);
 
       runNextTest();

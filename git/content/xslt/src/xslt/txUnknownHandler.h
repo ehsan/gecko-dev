@@ -50,7 +50,11 @@ public:
     txUnknownHandler(txExecutionState* aEs);
     virtual ~txUnknownHandler();
 
-    TX_DECL_TXAXMLEVENTHANDLER
+    nsresult endDocument(nsresult aResult);
+    nsresult startElement(nsIAtom* aPrefix, nsIAtom* aName,
+                          nsIAtom* aLowercaseName, PRInt32 aNsID);
+    nsresult startElement(nsIAtom* aPrefix, const nsSubstring& aLocalName,
+                          const PRInt32 aNsID);
 
 private:
     nsresult createHandlerAndFlush(PRBool aHTMLRoot,
@@ -63,10 +67,6 @@ private:
      * The right fix may need a txOutputFormat here.
      */
     txExecutionState* mEs;
-
-    // If mFlushed is true then we've replaced mEs->mResultHandler with a
-    // different handler and we should forward to that handler.
-    PRBool mFlushed;
 };
 
 #endif /* txUnknownHandler_h___ */

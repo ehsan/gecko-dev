@@ -1020,6 +1020,10 @@ nsFrameConstructorState::PushAbsoluteContainingBlock(nsIFrame* aNewAbsoluteConta
    */
   mFixedPosIsAbsPos = (aNewAbsoluteContainingBlock &&
                        aNewAbsoluteContainingBlock->GetStyleDisplay()->HasTransform());
+
+  if (aNewAbsoluteContainingBlock) {
+    aNewAbsoluteContainingBlock->MarkAsAbsoluteContainingBlock();
+  }
 }
 
 void
@@ -1215,7 +1219,14 @@ nsFrameConstructorState::ProcessFrameInsertions(nsAbsoluteItems& aFrameItems,
   nsresult rv = NS_OK;
   if (childList.IsEmpty() &&
       (containingBlock->GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
-    rv = containingBlock->SetInitialChildList(aChildListName, aFrameItems);
+    // If we're injecting absolutely positioned frames, inject them on the
+    // absolute containing block
+    if (aChildListName == containingBlock->GetAbsoluteListName()) {
+      rv = containingBlock->GetAbsoluteContainingBlock()->
+           SetInitialChildList(containingBlock, aChildListName, aFrameItems);
+    } else {
+      rv = containingBlock->SetInitialChildList(aChildListName, aFrameItems);
+    }
   } else {
     // Note that whether the frame construction context is doing an append or
     // not is not helpful here, since it could be appending to some frame in
@@ -1233,7 +1244,7 @@ nsFrameConstructorState::ProcessFrameInsertions(nsAbsoluteItems& aFrameItems,
     if (!lastChild ||
         nsLayoutUtils::CompareTreePosition(lastChild, firstNewFrame, containingBlock) < 0) {
       // no lastChild, or lastChild comes before the new children, so just append
-      rv = containingBlock->AppendFrames(aChildListName, aFrameItems);
+      rv = mFrameManager->AppendFrames(containingBlock, aChildListName, aFrameItems);
     } else {
       // try the other children
       nsIFrame* insertionPoint = nsnull;
@@ -1248,8 +1259,8 @@ nsFrameConstructorState::ProcessFrameInsertions(nsAbsoluteItems& aFrameItems,
         }
         insertionPoint = f;
       }
-      rv = containingBlock->InsertFrames(aChildListName, insertionPoint,
-                                         aFrameItems);
+      rv = mFrameManager->InsertFrames(containingBlock, aChildListName,
+                                       insertionPoint, aFrameItems);
     }
   }
 
@@ -1524,9 +1535,8 @@ nsCSSFrameConstructor::CreateGeneratedContent(nsFrameConstructorState& aState,
     // XXX Check if it's an image type we can handle...
 
     nsCOMPtr<nsINodeInfo> nodeInfo;
-    nodeInfo = mDocument->NodeInfoManager()->
-      GetNodeInfo(nsGkAtoms::mozgeneratedcontentimage, nsnull,
-                  kNameSpaceID_XHTML, nsIDOMNode::ELEMENT_NODE);
+    nodeInfo = mDocument->NodeInfoManager()->GetNodeInfo(nsGkAtoms::mozgeneratedcontentimage, nsnull,
+                                                         kNameSpaceID_XHTML);
 
     nsCOMPtr<nsIContent> content;
     NS_NewGenConImageContent(getter_AddRefs(content), nodeInfo.forget(),
@@ -1589,6 +1599,8 @@ nsCSSFrameConstructor::CreateGeneratedContent(nsFrameConstructorState& aState,
       nsCounterUseNode* node =
         new nsCounterUseNode(counters, aContentIndex,
                              type == eStyleContentType_Counters);
+      if (!node)
+        return nsnull;
 
       nsGenConInitializer* initializer =
         new nsGenConInitializer(node, counterList,
@@ -1608,6 +1620,8 @@ nsCSSFrameConstructor::CreateGeneratedContent(nsFrameConstructorState& aState,
     {
       nsQuoteNode* node =
         new nsQuoteNode(type, aContentIndex);
+      if (!node)
+        return nsnull;
 
       nsGenConInitializer* initializer =
         new nsGenConInitializer(node, &mQuoteList,
@@ -1698,8 +1712,7 @@ nsCSSFrameConstructor::CreateGeneratedContentItem(nsFrameConstructorState& aStat
   nsIAtom* elemName = aPseudoElement == nsCSSPseudoElements::ePseudo_before ?
     nsGkAtoms::mozgeneratedcontentbefore : nsGkAtoms::mozgeneratedcontentafter;
   nodeInfo = mDocument->NodeInfoManager()->GetNodeInfo(elemName, nsnull,
-                                                       kNameSpaceID_None,
-                                                       nsIDOMNode::ELEMENT_NODE);
+                                                       kNameSpaceID_None);
   nsCOMPtr<nsIContent> container;
   nsresult rv = NS_NewXMLElement(getter_AddRefs(container), nodeInfo.forget());
   if (NS_FAILED(rv))
@@ -2542,6 +2555,8 @@ nsCSSFrameConstructor::ConstructRootFrame(nsIFrame** aNewFrame)
 
   // The viewport is the containing block for 'fixed' elements
   mFixedContainingBlock = viewportFrame;
+  // Make it an absolute container for fixed-pos elements
+  mFixedContainingBlock->MarkAsAbsoluteContainingBlock();
 
   *aNewFrame = viewportFrame;
   return NS_OK;
@@ -2826,6 +2841,8 @@ nsCSSFrameConstructor::ConstructPageFrame(nsIPresShell*  aPresShell,
   pageContentFrame->Init(nsnull, aPageFrame, prevPageContentFrame);
   SetInitialSingleChild(aPageFrame, pageContentFrame);
   mFixedContainingBlock = pageContentFrame;
+  // Make it an absolute container for fixed-pos elements
+  mFixedContainingBlock->MarkAsAbsoluteContainingBlock();
 
   nsRefPtr<nsStyleContext> canvasPseudoStyle;
   canvasPseudoStyle = styleSet->ResolveAnonymousBoxStyle(nsCSSAnonBoxes::canvas,
@@ -5053,7 +5070,9 @@ nsCSSFrameConstructor::AddFrameConstructionItemsInternal(nsFrameConstructorState
     PRBool resolveStyle;
 
     nsAutoPtr<PendingBinding> newPendingBinding(new PendingBinding());
-
+    if (!newPendingBinding) {
+      return;
+    }
     nsresult rv = xblService->LoadBindings(aContent, display->mBinding->GetURI(),
                                            display->mBinding->mOriginPrincipal,
                                            PR_FALSE,
@@ -5513,7 +5532,7 @@ nsCSSFrameConstructor::GetAbsoluteContainingBlock(nsIFrame* aFrame)
 #ifdef MOZ_XUL
             nsGkAtoms::XULLabelFrame == frameType ||
 #endif
-            nsGkAtoms::positionedInlineFrame == frameType) {
+            (nsGkAtoms::inlineFrame == frameType && wrappedFrame->IsAbsoluteContainer())) {
           containingBlock = wrappedFrame;
         } else if (nsGkAtoms::fieldSetFrame == frameType) {
           // If the positioned frame is a fieldset, use the area frame inside it.
@@ -7668,13 +7687,13 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
       }
     }
     if (aChange & nsChangeHint_UpdateOpacityLayer) {
-      aFrame->MarkLayersActive(nsChangeHint_UpdateOpacityLayer);
+      aFrame->MarkLayersActive();
       aFrame->InvalidateLayer(aFrame->GetVisualOverflowRectRelativeToSelf(),
                               nsDisplayItem::TYPE_OPACITY);
     }
     
     if (aChange & nsChangeHint_UpdateTransformLayer) {
-      aFrame->MarkLayersActive(nsChangeHint_UpdateTransformLayer);
+      aFrame->MarkLayersActive();
       // Invalidate the old transformed area. The new transformed area
       // will be invalidated by nsFrame::FinishAndStoreOverflowArea.
       aFrame->InvalidateTransformLayer();
@@ -8465,13 +8484,6 @@ nsCSSFrameConstructor::CreateContinuingFrame(nsPresContext* aPresContext,
 #endif  
   } else if (nsGkAtoms::columnSetFrame == frameType) {
     newFrame = NS_NewColumnSetFrame(shell, styleContext, 0);
-
-    if (newFrame) {
-      newFrame->Init(content, aParentFrame, aFrame);
-    }
-  
-  } else if (nsGkAtoms::positionedInlineFrame == frameType) {
-    newFrame = NS_NewPositionedInlineFrame(shell, styleContext);
 
     if (newFrame) {
       newFrame->Init(content, aParentFrame, aFrame);
@@ -9390,6 +9402,10 @@ nsCSSFrameConstructor::CreateNeededTablePseudos(nsFrameConstructorState& aState,
                                 nsnull,
                                 wrapperStyle.forget(),
                                 PR_TRUE);
+
+    if (!newItem) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
 
     // Here we're cheating a tad... technically, table-internal items should be
     // inline if aParentFrame is inline, but they'll get wrapped in an
@@ -10706,11 +10722,7 @@ nsCSSFrameConstructor::ConstructInline(nsFrameConstructorState& aState,
     NS_STYLE_DISPLAY_INLINE == aDisplay->mDisplay &&
     (NS_STYLE_POSITION_RELATIVE == aDisplay->mPosition ||
      aDisplay->HasTransform());
-  if (positioned) {
-    newFrame = NS_NewPositionedInlineFrame(mPresShell, styleContext);
-  } else {
-    newFrame = NS_NewInlineFrame(mPresShell, styleContext);
-  }
+  newFrame = NS_NewInlineFrame(mPresShell, styleContext);
 
   // Initialize the frame
   InitAndRestoreFrame(aState, content, aParentFrame, nsnull, newFrame);
@@ -10719,7 +10731,7 @@ nsCSSFrameConstructor::ConstructInline(nsFrameConstructorState& aState,
                                                   // because the object's destructor is significant
                                                   // this is part of the fix for bug 42372
 
-  if (positioned) {                            
+  if (positioned) {
     // Relatively positioned frames becomes a container for child
     // frames that are positioned
     aState.PushAbsoluteContainingBlock(newFrame, absoluteSaveState);
@@ -10818,16 +10830,14 @@ nsCSSFrameConstructor::CreateIBSiblings(nsFrameConstructorState& aState,
 
     // Now grab the initial inlines in aChildItems and put them into an inline
     // frame
-    nsIFrame* inlineFrame;
-    if (aIsPositioned) {
-      inlineFrame = NS_NewPositionedInlineFrame(mPresShell, styleContext);
-    }
-    else {
-      inlineFrame = NS_NewInlineFrame(mPresShell, styleContext);
-    }
+    nsIFrame* inlineFrame = NS_NewInlineFrame(mPresShell, styleContext);
 
     InitAndRestoreFrame(aState, content, parentFrame, nsnull, inlineFrame,
                         PR_FALSE);
+
+    if (aIsPositioned) {
+      inlineFrame->MarkAsAbsoluteContainingBlock();
+    }
 
     if (aChildItems.NotEmpty()) {
       nsFrameList::FrameLinkEnumerator firstBlock(aChildItems);

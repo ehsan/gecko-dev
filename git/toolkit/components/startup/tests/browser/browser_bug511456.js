@@ -35,6 +35,9 @@
  * 
  * ***** END LICENSE BLOCK ***** */
 
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+
 const PROMPT_URL = "chrome://global/content/commonDialog.xul";
 const TEST_URL = "http://example.com/browser/toolkit/components/startup/tests/browser/beforeunload.html";
 
@@ -69,7 +72,6 @@ var Watcher = {
                        .getInterface(Components.interfaces.nsIDOMWindowInternal);
     var self = this;
     domwindow.addEventListener("load", function() {
-      domwindow.removeEventListener("load", arguments.callee, false);
       self.windowLoad(domwindow);
     }, false);
   },
@@ -94,7 +96,6 @@ function test() {
   var win2 = window.openDialog(location, "", "chrome,all,dialog=no", "about:blank");
   win2.addEventListener("load", function() {
     win2.removeEventListener("load", arguments.callee, false);
-
     gBrowser.selectedTab = gBrowser.addTab(TEST_URL);
     gBrowser.selectedBrowser.addEventListener("DOMContentLoaded", function() {
       if (window.content.location.href != TEST_URL)

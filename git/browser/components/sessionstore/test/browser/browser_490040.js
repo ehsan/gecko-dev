@@ -35,8 +35,22 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+function browserWindowsCount() {
+  let count = 0;
+  let e = Services.wm.getEnumerator("navigator:browser");
+  while (e.hasMoreElements()) {
+    if (!e.getNext().closed)
+      ++count;
+  }
+  return count;
+}
+
 function test() {
   /** Test for Bug 490040 **/
+  is(browserWindowsCount(), 1, "Only one browser window should be open initially");
+
+  let ss = Cc["@mozilla.org/browser/sessionstore;1"].
+           getService(Ci.nsISessionStore);
 
   waitForExplicitFinish();
 
@@ -147,7 +161,9 @@ function test() {
       testWithState(state);
     }
     else {
-      gPrefService.clearUserPref("browser.sessionstore.max_windows_undo");
+      if (gPrefService.prefHasUserValue("browser.sessionstore.max_windows_undo"))
+        gPrefService.clearUserPref("browser.sessionstore.max_windows_undo");
+      is(browserWindowsCount(), 1, "Only one browser window should be open eventually");
       finish();
     }
   }

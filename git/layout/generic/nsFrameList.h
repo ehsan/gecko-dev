@@ -274,7 +274,7 @@ public:
   void List(FILE* out) const;
 #endif
 
-  static void Init();
+  static nsresult Init();
   static void Shutdown() { delete sEmptyList; }
   static const nsFrameList& EmptyList() { return *sEmptyList; }
 

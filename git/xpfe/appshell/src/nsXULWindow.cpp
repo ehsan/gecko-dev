@@ -77,6 +77,8 @@
 #include "nsIScreenManager.h"
 #include "nsIScreen.h"
 #include "nsIScrollable.h"
+#include "nsIPrefService.h"
+#include "nsIPrefBranch.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIWindowWatcher.h"
 #include "nsIURI.h"
@@ -90,10 +92,6 @@
 #include "nsWebShellWindow.h" // get rid of this one, too...
 
 #include "prenv.h"
-
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 #define SIZEMODE_NORMAL     NS_LITERAL_STRING("normal")
 #define SIZEMODE_MAXIMIZED  NS_LITERAL_STRING("maximized")
@@ -602,11 +600,8 @@ NS_IMETHODIMP nsXULWindow::SetSize(PRInt32 aCX, PRInt32 aCY, PRBool aRepaint)
   NS_ENSURE_SUCCESS(mWindow->Resize(aCX, aCY, aRepaint), NS_ERROR_FAILURE);
   if (!mChromeLoaded) {
     // If we're called before the chrome is loaded someone obviously wants this
-    // window at this size & in the normal size mode (since it is the only mode
-    // in which setting dimensions makes sense). We don't persist this one-time
-    // size.
+    // window at this size. We don't persist this one-time size.
     mIgnoreXULSize = PR_TRUE;
-    mIgnoreXULSizeMode = PR_TRUE;
     return NS_OK;
   }
   PersistentAttributesDirty(PAD_SIZE);
@@ -635,7 +630,6 @@ NS_IMETHODIMP nsXULWindow::SetPositionAndSize(PRInt32 aX, PRInt32 aY,
     // window at this size and position. We don't persist this one-time setting.
     mIgnoreXULPosition = PR_TRUE;
     mIgnoreXULSize = PR_TRUE;
-    mIgnoreXULSizeMode = PR_TRUE;
     return NS_OK;
   }
   PersistentAttributesDirty(PAD_POSITION | PAD_SIZE);
@@ -1784,14 +1778,19 @@ NS_IMETHODIMP nsXULWindow::CreateNewContentWindow(PRInt32 aChromeFlags,
 
   nsCOMPtr<nsIURI> uri;
 
-  nsAdoptingCString urlStr = Preferences::GetCString("browser.chromeURL");
-  if (urlStr.IsEmpty()) {
-    urlStr.AssignLiteral("chrome://navigator/content/navigator.xul");
-  }
+  nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
+  if (prefs) {
+    nsXPIDLCString urlStr;
+    nsresult prefres;
+    prefres = prefs->GetCharPref("browser.chromeURL", getter_Copies(urlStr));
+    if (NS_SUCCEEDED(prefres) && urlStr.IsEmpty())
+      prefres = NS_ERROR_FAILURE;
+    if (NS_FAILED(prefres))
+      urlStr.AssignLiteral("chrome://navigator/content/navigator.xul");
 
-  nsCOMPtr<nsIIOService> service(do_GetService(NS_IOSERVICE_CONTRACTID));
-  if (service) {
-    service->NewURI(urlStr, nsnull, nsnull, getter_AddRefs(uri));
+    nsCOMPtr<nsIIOService> service(do_GetService(NS_IOSERVICE_CONTRACTID));
+    if (service)
+      service->NewURI(urlStr, nsnull, nsnull, getter_AddRefs(uri));
   }
   NS_ENSURE_TRUE(uri, NS_ERROR_FAILURE);
 

@@ -189,12 +189,13 @@ public:
     eDOMEvents_MozTouchMove,
     eDOMEvents_MozTouchUp,
     eDOMEvents_MozScrolledAreaChanged,
-    eDOMEvents_transitionend,
+    eDOMEvents_transitionend
+#ifdef MOZ_CSS_ANIMATIONS
+    ,
     eDOMEvents_animationstart,
     eDOMEvents_animationend,
-    eDOMEvents_animationiteration,
-    eDOMEvents_devicemotion,
-    eDOMEvents_deviceorientation
+    eDOMEvents_animationiteration
+#endif
   };
 
   nsDOMEvent(nsPresContext* aPresContext, nsEvent* aEvent);

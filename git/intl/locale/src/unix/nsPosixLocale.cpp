@@ -35,17 +35,28 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "nsISupports.h"
 #include "nscore.h"
 #include "nsString.h"
 #include "nsPosixLocale.h"
+#include "nsLocaleCID.h"
 #include "prprf.h"
 #include "plstr.h"
 #include "nsReadableUtils.h"
 
-static PRBool
-ParseLocaleString(const char* locale_string, char* language, char* country, char* extra, char separator);
+/* nsPosixLocale ISupports */
+NS_IMPL_ISUPPORTS1(nsPosixLocale, nsIPosixLocale)
 
-nsresult 
+nsPosixLocale::nsPosixLocale(void)
+{
+}
+
+nsPosixLocale::~nsPosixLocale(void)
+{
+
+}
+
+NS_IMETHODIMP 
 nsPosixLocale::GetPlatformLocale(const nsAString& locale, nsACString& posixLocale)
 {
   char  country_code[MAX_COUNTRY_CODE_LEN+1];
@@ -85,7 +96,7 @@ nsPosixLocale::GetPlatformLocale(const nsAString& locale, nsACString& posixLocal
   return NS_ERROR_FAILURE;
 }
 
-nsresult
+NS_IMETHODIMP
 nsPosixLocale::GetXPLocale(const char* posixLocale, nsAString& locale)
 {
   char  country_code[MAX_COUNTRY_CODE_LEN+1];
@@ -129,8 +140,8 @@ nsPosixLocale::GetXPLocale(const char* posixLocale, nsAString& locale)
 
 //
 // returns PR_FALSE/PR_TRUE depending on if it was of the form LL-CC.Extra
-static PRBool
-ParseLocaleString(const char* locale_string, char* language, char* country, char* extra, char separator)
+PRBool
+nsPosixLocale::ParseLocaleString(const char* locale_string, char* language, char* country, char* extra, char separator)
 {
   const char *src = locale_string;
   char modifier[MAX_EXTRA_LEN+1];

@@ -36,7 +36,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 const EXPORTED_SYMBOLS = ["XPCOMUtils", "Services", "NetUtil", "PlacesUtils",
-                          "FileUtils", "Utils", "Svc", "Str"];
+                          "Utils", "Svc", "Str"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -48,7 +48,6 @@ Cu.import("resource://services-sync/ext/Observers.js");
 Cu.import("resource://services-sync/ext/Preferences.js");
 Cu.import("resource://services-sync/ext/StringBundle.js");
 Cu.import("resource://services-sync/log4moz.js");
-Cu.import("resource://services-sync/status.js");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/PlacesUtils.jsm");
@@ -849,7 +848,7 @@ let Utils = {
     try {
       return Services.io.newURI(URIString, null, null);
     } catch (e) {
-      let log = Log4Moz.repository.getLogger("Sync.Utils");
+      let log = Log4Moz.repository.getLogger("Service.Util");
       log.debug("Could not create URI: " + Utils.exceptionStr(e));
       return null;
     }
@@ -935,29 +934,16 @@ let Utils = {
   },
 
   /**
-   * Execute a function on the next event loop tick.
-   * 
-   * @param callback
-   *        Function to invoke.
-   * @param thisObj [optional]
-   *        Object to bind the callback to.
-   */
-  nextTick: function nextTick(callback, thisObj) {
-    if (thisObj) {
-      callback = callback.bind(thisObj);
-    }
-    Services.tm.currentThread.dispatch(callback, Ci.nsIThread.DISPATCH_NORMAL);
-  },
-
-  /**
    * Return a timer that is scheduled to call the callback after waiting the
    * provided time or as soon as possible. The timer will be set as a property
    * of the provided object with the given timer name.
    */
-  namedTimer: function delay(callback, wait, thisObj, name) {
-    if (!thisObj || !name) {
-      throw "You must provide both an object and a property name for the timer!";
-    }
+  delay: function delay(callback, wait, thisObj, name) {
+    // Default to running right away
+    wait = wait || 0;
+
+    // Use a dummy object if one wasn't provided
+    thisObj = thisObj || {};
 
     // Delay an existing timer if it exists
     if (name in thisObj && thisObj[name] instanceof Ci.nsITimer) {
@@ -1201,18 +1187,6 @@ let Utils = {
     });
     // In the common case, checkAppReady just returns true
     return (Utils.checkAppReady = function() true)();
-  },
-
-  /**
-   * Return a value for a backoff interval.  Maximum is eight hours, unless
-   * Status.backoffInterval is higher.
-   *
-   */
-  calculateBackoff: function calculateBackoff(attempts, base_interval) {
-    let backoffInterval = attempts *
-                          (Math.floor(Math.random() * base_interval) +
-                           base_interval);
-    return Math.max(Math.min(backoffInterval, MAXIMUM_BACKOFF_INTERVAL), Status.backoffInterval);
   }
 };
 

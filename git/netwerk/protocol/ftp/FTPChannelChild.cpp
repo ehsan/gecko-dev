@@ -56,8 +56,8 @@ namespace mozilla {
 namespace net {
 
 FTPChannelChild::FTPChannelChild(nsIURI* uri)
-: mIPCOpen(false)
-, mEventQ(static_cast<nsIFTPChannel*>(this))
+: ChannelEventQueue<FTPChannelChild>(this)
+, mIPCOpen(false)
 , mCanceled(false)
 , mSuspendCount(0)
 , mIsPending(PR_FALSE)
@@ -251,9 +251,9 @@ FTPChannelChild::RecvOnStartRequest(const PRInt32& aContentLength,
                                     const nsCString& aEntityID,
                                     const IPC::URI& aURI)
 {
-  if (mEventQ.ShouldEnqueue()) {
-    mEventQ.Enqueue(new FTPStartRequestEvent(this, aContentLength, aContentType,
-                                             aLastModified, aEntityID, aURI));
+  if (ShouldEnqueue()) {
+    EnqueueEvent(new FTPStartRequestEvent(this, aContentLength, aContentType,
+                                          aLastModified, aEntityID, aURI));
   } else {
     DoOnStartRequest(aContentLength, aContentType, aLastModified,
                      aEntityID, aURI);
@@ -280,7 +280,7 @@ FTPChannelChild::DoOnStartRequest(const PRInt32& aContentLength,
   uri->GetSpec(spec);
   nsBaseChannel::URI()->SetSpec(spec);
 
-  AutoEventEnqueuer ensureSerialDispatch(mEventQ);
+  AutoEventEnqueuer ensureSerialDispatch(this);
   nsresult rv = mListener->OnStartRequest(this, mListenerContext);
   if (NS_FAILED(rv))
     Cancel(rv);
@@ -304,8 +304,8 @@ FTPChannelChild::RecvOnDataAvailable(const nsCString& data,
                                      const PRUint32& offset,
                                      const PRUint32& count)
 {
-  if (mEventQ.ShouldEnqueue()) {
-    mEventQ.Enqueue(new FTPDataAvailableEvent(this, data, offset, count));
+  if (ShouldEnqueue()) {
+    EnqueueEvent(new FTPDataAvailableEvent(this, data, offset, count));
   } else {
     DoOnDataAvailable(data, offset, count);
   }
@@ -337,7 +337,7 @@ FTPChannelChild::DoOnDataAvailable(const nsCString& data,
     return;
   }
 
-  AutoEventEnqueuer ensureSerialDispatch(mEventQ);
+  AutoEventEnqueuer ensureSerialDispatch(this);
   rv = mListener->OnDataAvailable(this, mListenerContext,
                                   stringStream, offset, count);
   if (NS_FAILED(rv))
@@ -359,8 +359,8 @@ class FTPStopRequestEvent : public ChannelEvent
 bool
 FTPChannelChild::RecvOnStopRequest(const nsresult& statusCode)
 {
-  if (mEventQ.ShouldEnqueue()) {
-    mEventQ.Enqueue(new FTPStopRequestEvent(this, statusCode));
+  if (ShouldEnqueue()) {
+    EnqueueEvent(new FTPStopRequestEvent(this, statusCode));
   } else {
     DoOnStopRequest(statusCode);
   }
@@ -379,7 +379,7 @@ FTPChannelChild::DoOnStopRequest(const nsresult& statusCode)
   { // Ensure that all queued ipdl events are dispatched before
     // we initiate protocol deletion below.
     mIsPending = PR_FALSE;
-    AutoEventEnqueuer ensureSerialDispatch(mEventQ);
+    AutoEventEnqueuer ensureSerialDispatch(this);
     (void)mListener->OnStopRequest(this, mListenerContext, statusCode);
     mListener = nsnull;
     mListenerContext = nsnull;
@@ -407,8 +407,8 @@ class FTPCancelEarlyEvent : public ChannelEvent
 bool
 FTPChannelChild::RecvCancelEarly(const nsresult& statusCode)
 {
-  if (mEventQ.ShouldEnqueue()) {
-    mEventQ.Enqueue(new FTPCancelEarlyEvent(this, statusCode));
+  if (ShouldEnqueue()) {
+    EnqueueEvent(new FTPCancelEarlyEvent(this, statusCode));
   } else {
     DoCancelEarly(statusCode);
   }
@@ -453,8 +453,8 @@ class FTPDeleteSelfEvent : public ChannelEvent
 bool
 FTPChannelChild::RecvDeleteSelf()
 {
-  if (mEventQ.ShouldEnqueue()) {
-    mEventQ.Enqueue(new FTPDeleteSelfEvent(this));
+  if (ShouldEnqueue()) {
+    EnqueueEvent(new FTPDeleteSelfEvent(this));
   } else {
     DoDeleteSelf();
   }
@@ -485,10 +485,8 @@ NS_IMETHODIMP
 FTPChannelChild::Suspend()
 {
   NS_ENSURE_TRUE(mIPCOpen, NS_ERROR_NOT_AVAILABLE);
-  if (!mSuspendCount++) {
-    SendSuspend();
-    mEventQ.Suspend();
-  }
+  mSuspendCount++;
+  SendSuspend();
   return NS_OK;
 }
 
@@ -496,10 +494,12 @@ NS_IMETHODIMP
 FTPChannelChild::Resume()
 {
   NS_ENSURE_TRUE(mIPCOpen, NS_ERROR_NOT_AVAILABLE);
-
-  if (!--mSuspendCount) {
-    SendResume();
-    mEventQ.Resume();    // TODO: make this async: see HttpChannelChild::Resume
+  SendResume();
+  --mSuspendCount;
+  if (!mSuspendCount) {
+    if (mQueuePhase == PHASE_UNQUEUED)
+      mQueuePhase = PHASE_FINISHED_QUEUEING;
+    FlushEventQueue();
   }
   return NS_OK;
 }

@@ -562,8 +562,8 @@ nsXFormsSelectableItemAccessible::DoAction(PRUint8 aIndex)
   return NS_OK;
 }
 
-bool
-nsXFormsSelectableItemAccessible::IsSelected()
+PRBool
+nsXFormsSelectableItemAccessible::IsItemSelected()
 {
   nsresult rv;
 

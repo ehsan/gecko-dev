@@ -51,7 +51,6 @@
 #include "nsISupportsImpl.h"
 
 typedef struct _cairo cairo_t;
-template <typename T> class FallibleTArray;
 
 /**
  * This is the main class for doing actual drawing. It is initialized using
@@ -466,12 +465,7 @@ public:
 
     void SetDash(gfxLineType ltype);
     void SetDash(gfxFloat *dashes, int ndash, gfxFloat offset);
-    // Return true if dashing is set, false if it's not enabled or the
-    // context is in an error state.  |offset| can be NULL to mean
-    // "don't care".
-    bool CurrentDash(FallibleTArray<gfxFloat>& dashes, gfxFloat* offset) const;
-    // Returns 0.0 if dashing isn't enabled.
-    gfxFloat CurrentDashOffset() const;
+    //void getDash() const;
 
     /**
      * Sets the line width that's used for line drawing.

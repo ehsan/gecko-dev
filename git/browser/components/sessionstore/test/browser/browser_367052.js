@@ -36,7 +36,10 @@
 
 function test() {
   /** Test for Bug 367052 **/
-
+  
+  // test setup
+  let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
+  let tabbrowser = gBrowser;
   waitForExplicitFinish();
   
   // make sure that the next closed tab will increase getClosedTabCount
@@ -45,7 +48,7 @@ function test() {
   let closedTabCount = ss.getClosedTabCount(window);
   
   // restore a blank tab
-  let tab = gBrowser.addTab("about:");
+  let tab = tabbrowser.addTab("about:");
   tab.linkedBrowser.addEventListener("load", function(aEvent) {
     this.removeEventListener("load", arguments.callee, true);
     
@@ -57,7 +60,7 @@ function test() {
       this.removeEventListener("load", arguments.callee, true);
       ok(history.count == 0, "the tab was restored without any history whatsoever");
       
-      gBrowser.removeTab(tab);
+      tabbrowser.removeTab(tab);
       ok(ss.getClosedTabCount(window) == closedTabCount,
          "The closed blank tab wasn't added to Recently Closed Tabs");
       

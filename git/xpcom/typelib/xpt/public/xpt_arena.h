@@ -82,9 +82,6 @@ XPT_NotifyDoneLoading(XPTArena *arena);
 XPT_PUBLIC_API(void)
 XPT_ArenaFree(XPTArena *arena, void* block);
 
-XPT_PUBLIC_API(size_t)
-XPT_SizeOfArena(XPTArena *arena);
-
 /* --------------------------------------------------------- */
 
 #define XPT_MALLOC(_arena, _bytes) \

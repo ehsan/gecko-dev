@@ -44,7 +44,17 @@
 
 const TEST_URI = "http://www.mozilla.org/";
 
-function onLibraryReady(organizer) {
+var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+         getService(Ci.nsIWindowWatcher);
+
+function windowObserver(aSubject, aTopic, aData) {
+  if (aTopic != "domwindowopened")
+    return;
+  ww.unregisterNotification(windowObserver);
+  var organizer = aSubject.QueryInterface(Ci.nsIDOMWindow);
+  organizer.addEventListener("load", function onLoad(event) {
+    organizer.removeEventListener("load", onLoad, false);
+    executeSoon(function () {
       // Check left pane.
       ok(PlacesUIUtils.leftPaneFolderId > 0,
          "Left pane folder correctly created");
@@ -73,6 +83,8 @@ function onLibraryReady(organizer) {
       organizer.close();
       // No need to cleanup anything, we have a correct left pane now.
       finish();
+    });
+  }, false);
 }
 
 function test() {
@@ -121,5 +133,10 @@ function test() {
   is(version, PlacesUIUtils.ORGANIZER_LEFTPANE_VERSION - 1, "Left pane version correctly set");
 
   // Open Library, this will upgrade our left pane version.
-  openLibrary(onLibraryReady);
+  ww.registerNotification(windowObserver);
+  ww.openWindow(null,
+                "chrome://browser/content/places/places.xul",
+                "",
+                "chrome,toolbar=yes,dialog=no,resizable",
+                null);
 }

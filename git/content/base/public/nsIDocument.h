@@ -20,7 +20,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Ms2ger <ms2ger@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -95,6 +94,7 @@ class nsIDOMDocument;
 class nsIDOMDocumentType;
 class nsScriptLoader;
 class nsIContentSink;
+class nsIScriptEventManager;
 class nsHTMLStyleSheet;
 class nsHTMLCSSStyleSheet;
 class nsILayoutHistoryState;
@@ -110,7 +110,6 @@ class nsFrameLoader;
 class nsIBoxObject;
 class imgIRequest;
 class nsISHEntry;
-class nsDOMNavigationTiming;
 
 namespace mozilla {
 namespace css {
@@ -124,9 +123,9 @@ class Element;
 } // namespace mozilla
 
 
-#define NS_IDOCUMENT_IID \
-{ 0x18e4d4bd, 0x006b, 0x4008, \
-  { 0x90, 0x05, 0x27, 0x57, 0x35, 0xf0, 0xd4, 0x85 } }
+#define NS_IDOCUMENT_IID      \
+{ 0x2ec7872f, 0x97c3, 0x43de, \
+  { 0x81, 0x0a, 0x8f, 0x18, 0xa0, 0xa0, 0xdf, 0x30 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -838,6 +837,8 @@ public:
     return container;
   }
 
+  virtual nsIScriptEventManager* GetScriptEventManager() = 0;
+
   /**
    * Set and get XML declaration. If aVersion is null there is no declaration.
    * aStandalone takes values -1, 0 and 1 indicating respectively that there
@@ -862,7 +863,7 @@ public:
 
   virtual PRBool IsScriptEnabled() = 0;
 
-  virtual void AddXMLEventsContent(nsIContent * aXMLEventsElement) = 0;
+  virtual nsresult AddXMLEventsContent(nsIContent * aXMLEventsElement) = 0;
 
   /**
    * Create an element with the specified name, prefix and namespace ID.
@@ -1517,24 +1518,7 @@ public:
 
   virtual nsresult GetStateObject(nsIVariant** aResult) = 0;
 
-  virtual nsDOMNavigationTiming* GetNavigationTiming() const = 0;
-
-  virtual nsresult SetNavigationTiming(nsDOMNavigationTiming* aTiming) = 0;
-
   virtual Element* FindImageMap(const nsAString& aNormalizedMapName) = 0;
-
-#define DEPRECATED_OPERATION(_op) e##_op,
-  enum DeprecatedOperations {
-#include "nsDeprecatedOperationList.h"
-    eDeprecatedOperationCount
-  };
-#undef DEPRECATED_OPERATION
-  void WarnOnceAbout(DeprecatedOperations aOperation);
-
-  PRInt64 SizeOf() const;
-
-private:
-  PRUint32 mWarnedAbout;
 
 protected:
   ~nsIDocument()

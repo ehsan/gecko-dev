@@ -61,13 +61,6 @@
 #include FT_LCD_FILTER_H
 #endif
 
-#define _GNU_SOURCE /* for RTLD_DEFAULT */
-#include <dlfcn.h>
-
-#ifndef RTLD_DEFAULT
-#define RTLD_DEFAULT ((void *) 0)
-#endif
-
 /* Fontconfig version older than 2.6 didn't have these options */
 #ifndef FC_LCD_FILTER
 #define FC_LCD_FILTER	"lcdfilter"
@@ -87,9 +80,6 @@
 #define FT_LCD_FILTER_LIGHT	2
 #define FT_LCD_FILTER_LEGACY	16
 #endif
-
-typedef FT_Error (*setLcdFilterFunc)(FT_Library, int);
-static setLcdFilterFunc setLcdFilter;
 
 #define DOUBLE_TO_26_6(d) ((FT_F26Dot6)((d) * 64.0))
 #define DOUBLE_FROM_26_6(t) ((double)(t) / 64.0)
@@ -1342,7 +1332,6 @@ _render_glyph_outline (FT_Face                    face,
     } else {
 
 	int bitmap_size;
-        static int initialized_setLcdFilter = 0;
 
 	switch (render_mode) {
 	case FT_RENDER_MODE_LCD:
@@ -1366,18 +1355,15 @@ _render_glyph_outline (FT_Face                    face,
 	    break;
 	    }
 
-        if (!initialized_setLcdFilter) {
-          initialized_setLcdFilter = 1;
-          setLcdFilter = (setLcdFilterFunc) dlsym(RTLD_DEFAULT, "FT_Library_SetLcdFilter");
-        }
-
-	if (setLcdFilter)
-          setLcdFilter (library, lcd_filter);
+#if HAVE_FT_LIBRARY_SETLCDFILTER
+	FT_Library_SetLcdFilter (library, lcd_filter);
+#endif
 
 	fterror = FT_Render_Glyph (face->glyph, render_mode);
 
-	if (setLcdFilter)
-          setLcdFilter (library, FT_LCD_FILTER_NONE);
+#if HAVE_FT_LIBRARY_SETLCDFILTER
+	FT_Library_SetLcdFilter (library, FT_LCD_FILTER_NONE);
+#endif
 
 	if (fterror != 0)
 		return _cairo_error (CAIRO_STATUS_NO_MEMORY);

@@ -406,6 +406,14 @@ DefinePropertyIfFound(XPCCallContext& ccx,
                                          nsnull, propFlags);
         }
 
+#ifdef XPC_IDISPATCH_SUPPORT
+        // Check to see if there's an IDispatch tearoff     
+        if(wrapperToReflectInterfaceNames &&
+            XPCIDispatchExtension::DefineProperty(ccx, obj, 
+                id, wrapperToReflectInterfaceNames, propFlags, resolved))
+            return JS_TRUE;
+#endif
+        
         if(resolved)
             *resolved = JS_FALSE;
         return JS_TRUE;
@@ -626,6 +634,13 @@ XPC_WN_Shared_Enumerate(JSContext *cx, JSObject *obj)
     for(PRUint16 i = 0; i < interface_count; i++)
     {
         XPCNativeInterface* iface = interfaceArray[i];
+#ifdef XPC_IDISPATCH_SUPPORT
+        if(iface->GetIID()->Equals(NSID_IDISPATCH))
+        {
+            XPCIDispatchExtension::Enumerate(ccx, obj, wrapper);
+            continue;
+        }
+#endif
         PRUint16 member_count = iface->GetMemberCount();
         for(PRUint16 k = 0; k < member_count; k++)
         {
@@ -1688,6 +1703,13 @@ XPC_WN_Shared_Proto_Enumerate(JSContext *cx, JSObject *obj)
     return JS_TRUE;
 }
 
+static JSBool
+XPC_WN_Shared_Proto_Convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp)
+{
+    // XXX ?
+    return JS_TRUE;
+}
+
 static void
 XPC_WN_Shared_Proto_Finalize(JSContext *cx, JSObject *obj)
 {
@@ -1749,7 +1771,7 @@ js::Class XPC_WN_ModsAllowed_WithCall_Proto_JSClass = {
     js::StrictPropertyStub,         // setProperty;
     XPC_WN_Shared_Proto_Enumerate,  // enumerate;
     XPC_WN_ModsAllowed_Proto_Resolve, // resolve;
-    js::ConvertStub,                // convert;
+    JS_VALUEIFY(js::ConvertOp, XPC_WN_Shared_Proto_Convert), // convert;
     XPC_WN_Shared_Proto_Finalize,   // finalize;
 
     /* Optionally non-null members start here. */
@@ -1776,7 +1798,7 @@ js::Class XPC_WN_ModsAllowed_NoCall_Proto_JSClass = {
     js::StrictPropertyStub,         // setProperty;
     XPC_WN_Shared_Proto_Enumerate,  // enumerate;
     XPC_WN_ModsAllowed_Proto_Resolve,// resolve;
-    js::ConvertStub,                 // convert;
+    JS_VALUEIFY(js::ConvertOp, XPC_WN_Shared_Proto_Convert), // convert;
     XPC_WN_Shared_Proto_Finalize,    // finalize;
 
     /* Optionally non-null members start here. */
@@ -1866,7 +1888,7 @@ js::Class XPC_WN_NoMods_WithCall_Proto_JSClass = {
     JS_VALUEIFY(js::StrictPropertyOp, XPC_WN_OnlyIWrite_Proto_SetPropertyStub), // setProperty;
     XPC_WN_Shared_Proto_Enumerate,                                              // enumerate;
     XPC_WN_NoMods_Proto_Resolve,                                                // resolve;
-    js::ConvertStub,                                                            // convert;
+    JS_VALUEIFY(js::ConvertOp, XPC_WN_Shared_Proto_Convert),                    // convert;
     XPC_WN_Shared_Proto_Finalize,                                               // finalize;
 
     /* Optionally non-null members start here. */
@@ -1893,7 +1915,7 @@ js::Class XPC_WN_NoMods_NoCall_Proto_JSClass = {
     JS_VALUEIFY(js::StrictPropertyOp, XPC_WN_OnlyIWrite_Proto_SetPropertyStub), // setProperty;
     XPC_WN_Shared_Proto_Enumerate,                                              // enumerate;
     XPC_WN_NoMods_Proto_Resolve,                                                // resolve;
-    js::ConvertStub,                                                            // convert;
+    JS_VALUEIFY(js::ConvertOp, XPC_WN_Shared_Proto_Convert),                    // convert;
     XPC_WN_Shared_Proto_Finalize,                                               // finalize;
 
     /* Optionally non-null members start here. */

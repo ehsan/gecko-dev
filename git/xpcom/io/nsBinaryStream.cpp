@@ -60,7 +60,6 @@
 #include "nsISerializable.h"
 #include "nsIClassInfo.h"
 #include "nsComponentManagerUtils.h"
-#include "nsIURI.h" // for NS_IURI_IID
 
 NS_IMPL_ISUPPORTS3(nsBinaryOutputStream, nsIObjectOutputStream, nsIBinaryOutputStream, nsIOutputStream)
 
@@ -759,26 +758,6 @@ nsBinaryInputStream::ReadObject(PRBool aIsStrongRef, nsISupports* *aObject)
 
     rv = ReadID(&iid);
     NS_ENSURE_SUCCESS(rv, rv);
-
-    // HACK: Intercept old (pre-gecko6) nsIURI IID, and replace with
-    // the updated IID, so that we're QI'ing to an actual interface.
-    // (As soon as we drop support for upgrading from pre-gecko6, we can
-    // remove this chunk.)
-    static const nsIID oldURIiid =
-        { 0x7a22cc0, 0xce5, 0x11d3,
-          { 0x93, 0x31, 0x0, 0x10, 0x4b, 0xa0, 0xfd, 0x40 }};
-
-    // hackaround for bug 670542
-    static const nsIID oldURIiid2 =
-        { 0xd6d04c36, 0x0fa4, 0x4db3,
-          { 0xbe, 0x05, 0x4a, 0x18, 0x39, 0x71, 0x03, 0xe2 }};
-
-    if (iid.Equals(oldURIiid) ||
-        iid.Equals(oldURIiid2)) {
-        const nsIID newURIiid = NS_IURI_IID;
-        iid = newURIiid;
-    }
-    // END HACK
 
     nsCOMPtr<nsISupports> object = do_CreateInstance(cid, &rv);
     NS_ENSURE_SUCCESS(rv, rv);

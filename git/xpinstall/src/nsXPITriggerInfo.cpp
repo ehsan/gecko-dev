@@ -284,9 +284,8 @@ XPITriggerEvent::Run()
     }
 
     nsCOMPtr<nsIPrincipal> principal;
-    nsresult rv = secman->GetSubjectPrincipal(getter_AddRefs(principal));
-
-    if (NS_FAILED(rv) || !principal)
+    secman->GetSubjectPrincipal(getter_AddRefs(principal));
+    if (!principal)
     {
          JS_ReportError(cx, "Could not get principal from script security manager");
          return 0;

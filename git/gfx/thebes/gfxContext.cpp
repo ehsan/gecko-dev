@@ -545,28 +545,7 @@ gfxContext::SetDash(gfxFloat *dashes, int ndash, gfxFloat offset)
 {
     cairo_set_dash(mCairo, dashes, ndash, offset);
 }
-
-bool
-gfxContext::CurrentDash(FallibleTArray<gfxFloat>& dashes, gfxFloat* offset) const
-{
-    int count = cairo_get_dash_count(mCairo);
-    if (count <= 0 || !dashes.SetLength(count)) {
-        return false;
-    }
-    cairo_get_dash(mCairo, dashes.Elements(), offset);
-    return true;
-}
-
-gfxFloat
-gfxContext::CurrentDashOffset() const
-{
-    if (cairo_get_dash_count(mCairo) <= 0) {
-        return 0.0;
-    }
-    gfxFloat offset;
-    cairo_get_dash(mCairo, NULL, &offset);
-    return offset;
-}
+//void getDash() const;
 
 void
 gfxContext::SetLineWidth(gfxFloat width)

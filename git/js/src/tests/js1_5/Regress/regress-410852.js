@@ -7,7 +7,9 @@
 
 //-----------------------------------------------------------------------------
 var BUGNUMBER = 410852;
-var summary = 'Valgrind errors in jsemit.cpp';
+var summary = 'Valgrind errors in jsemit.c';
+var actual = '';
+var expect = 'SyntaxError: syntax error';
 
 
 //-----------------------------------------------------------------------------
@@ -28,11 +30,11 @@ function test()
   }
   catch(ex)
   {
-    print(ex + "");
-    assertEq(ex instanceof SyntaxError, true, "wrong error: " + ex);
+    actual = ex + '';
+    print(actual);
   }
 
-  reportCompare(true, true, summary);
+  reportCompare(expect, actual, summary);
 
   exitFunc ('test');
 }

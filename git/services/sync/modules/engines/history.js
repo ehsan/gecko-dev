@@ -60,7 +60,7 @@ function HistoryRec(collection, id) {
 }
 HistoryRec.prototype = {
   __proto__: CryptoWrapper.prototype,
-  _logName: "Sync.Record.History",
+  _logName: "Record.History",
   ttl: HISTORY_TTL
 };
 
@@ -419,8 +419,14 @@ HistoryTracker.prototype = {
     }
   },
 
+  _GUIDForUri: function _GUIDForUri(uri, create) {
+    // Isn't indirection fun...
+    return Engines.get("history")._store.GUIDForUri(uri, create);
+  },
+
   QueryInterface: XPCOMUtils.generateQI([
     Ci.nsINavHistoryObserver,
+    Ci.nsINavHistoryObserver_MOZILLA_1_9_1_ADDITIONS,
     Ci.nsISupportsWeakReference
   ]),
 
@@ -428,37 +434,42 @@ HistoryTracker.prototype = {
   onEndUpdateBatch: function HT_onEndUpdateBatch() {},
   onPageChanged: function HT_onPageChanged() {},
   onTitleChanged: function HT_onTitleChanged() {},
-  onDeleteVisits: function () {},
-  onDeleteURI: function () {},
 
-  /* Every add is worth 1 point.
-   * OnBeforeDeleteURI will triggger a sync for MULTI-DEVICE (see below)
-   * Clearing all history will trigger a sync for MULTI-DEVICE (see below)
+  /* Every add or remove is worth 1 point.
+   * Clearing the whole history is worth 50 points (see below)
    */
-  _upScoreXLarge: function HT__upScoreXLarge() {
-    this.score += SCORE_INCREMENT_XLARGE;
+  _upScore: function BMT__upScore() {
+    this.score += 1;
   },
 
-  onVisit: function HT_onVisit(uri, vid, time, session, referrer, trans, guid) {
+  onVisit: function HT_onVisit(uri, vid, time, session, referrer, trans) {
     if (this.ignoreAll)
       return;
     this._log.trace("onVisit: " + uri.spec);
-    if (this.addChangedID(guid)) {
-      this.score += SCORE_INCREMENT_SMALL;
-    }
+    let self = this;
+    Utils.delay(function() {
+      if (self.addChangedID(self._GUIDForUri(uri, true))) {
+        self._upScore();
+      }
+    }, 0);
   },
-
-  onBeforeDeleteURI: function onBeforeDeleteURI(uri, guid, reason) {
-    if (this.ignoreAll || reason == Ci.nsINavHistoryObserver.REASON_EXPIRED)
+  onDeleteVisits: function onDeleteVisits() {
+  },
+  onPageExpired: function HT_onPageExpired(uri, time, entry) {
+  },
+  onBeforeDeleteURI: function onBeforeDeleteURI(uri) {
+    if (this.ignoreAll)
       return;
     this._log.trace("onBeforeDeleteURI: " + uri.spec);
-    if (this.addChangedID(guid)) {
-      this._upScoreXLarge();
+    let self = this;
+    if (this.addChangedID(this._GUIDForUri(uri, true))) {
+      this._upScore();
     }
   },
-
+  onDeleteURI: function HT_onDeleteURI(uri) {
+  },
   onClearHistory: function HT_onClearHistory() {
     this._log.trace("onClearHistory");
-    this._upScoreXLarge();
+    this.score += 500;
   }
 };

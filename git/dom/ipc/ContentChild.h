@@ -138,8 +138,7 @@ public:
 
     virtual bool RecvAddPermission(const IPC::Permission& permission);
 
-    virtual bool RecvDeviceMotionChanged(const long int& type,
-                                         const double& x, const double& y,
+    virtual bool RecvAccelerationChanged(const double& x, const double& y,
                                          const double& z);
 
     virtual bool RecvScreenSizeChanged(const gfxIntSize &size);

@@ -211,8 +211,7 @@ private:
         
         nsresult SetupStreams(nsISocketTransport **,
                               nsIAsyncInputStream **,
-                              nsIAsyncOutputStream **,
-                              PRBool isBackup);
+                              nsIAsyncOutputStream **);
         nsresult SetupPrimaryStreams();
         nsresult SetupBackupStreams();
         void     SetupBackupTimer();

@@ -66,6 +66,7 @@ VPATH += $(srcdir)/..
 VPATH += $(srcdir)/../compiler
 VPATH += $(srcdir)/../compiler/preprocessor
 VPATH += $(srcdir)/../common
+VPATH += $(srcdir)/geometry
 
 # Translator/compiler first
 
@@ -127,6 +128,8 @@ endif
 
 CPPSRCS	+= \
 	debug.cpp \
+	IndexDataManager.cpp \
+	VertexDataManager.cpp \
 	Blit.cpp \
 	Buffer.cpp \
 	Context.cpp \

@@ -64,6 +64,8 @@
 #include "nsIRangeUtils.h"
 #include "nsIDOMCharacterData.h"
 #include "nsIEnumerator.h"
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
 #include "nsIDOMNamedNodeMap.h"
 #include "nsIRange.h"
 
@@ -76,13 +78,10 @@
 #include "nsUnicharUtils.h"
 
 #include "nsFrameSelection.h"
+#include "nsIDOM3Node.h"
 #include "nsContentUtils.h"
 #include "nsTArray.h"
 #include "nsIHTMLDocument.h"
-
-#include "mozilla/Preferences.h"
-
-using namespace mozilla;
 
 //const static char* kMOZEditorBogusNodeAttr="MOZ_EDITOR_BOGUS_NODE";
 //const static char* kMOZEditorBogusNodeValue="TRUE";
@@ -243,15 +242,26 @@ nsHTMLEditRules::Init(nsPlaintextEditor *aEditor)
   NS_ENSURE_SUCCESS(res, res);
 
   // cache any prefs we care about
-  static const char kPrefName[] =
-    "editor.html.typing.returnInEmptyListItemClosesList";
-  nsAdoptingCString returnInEmptyLIKillsList =
-    Preferences::GetCString(kPrefName);
+  nsCOMPtr<nsIPrefBranch> prefBranch =
+    do_GetService(NS_PREFSERVICE_CONTRACTID, &res);
+  NS_ENSURE_SUCCESS(res, res);
 
-  // only when "false", becomes FALSE.  Otherwise (including empty), TRUE.
-  // XXX Why was this pref designed as a string and not bool?
-  mReturnInEmptyLIKillsList = !returnInEmptyLIKillsList.EqualsLiteral("false");
+  char *returnInEmptyLIKillsList = 0;
+  res = prefBranch->GetCharPref("editor.html.typing.returnInEmptyListItemClosesList",
+                                &returnInEmptyLIKillsList);
 
+  if (NS_SUCCEEDED(res) && returnInEmptyLIKillsList)
+  {
+    if (!strncmp(returnInEmptyLIKillsList, "false", 5))
+      mReturnInEmptyLIKillsList = PR_FALSE; 
+    else
+      mReturnInEmptyLIKillsList = PR_TRUE; 
+  }
+  else
+  {
+    mReturnInEmptyLIKillsList = PR_TRUE; 
+  }
+  
   // make a utility range for use by the listenter
   mUtilRange = do_CreateInstance("@mozilla.org/content/range;1");
   NS_ENSURE_TRUE(mUtilRange, NS_ERROR_NULL_POINTER);
@@ -388,6 +398,26 @@ nsHTMLEditRules::AfterEdit(PRInt32 action, nsIEditor::EDirection aDirection)
 
     // free up selectionState range item
     (mHTMLEditor->mRangeUpdater).DropRangeItem(&mRangeItem);
+
+    /* After inserting text the cursor Bidi level must be set to the level of the inserted text.
+     * This is difficult, because we cannot know what the level is until after the Bidi algorithm
+     * is applied to the whole paragraph.
+     *
+     * So we set the cursor Bidi level to UNDEFINED here, and the caret code will set it correctly later
+     */
+    if (action == nsEditor::kOpInsertText
+        || action == nsEditor::kOpInsertIMEText) {
+
+      nsCOMPtr<nsISelection> selection;
+      nsresult res = mHTMLEditor->GetSelection(getter_AddRefs(selection));
+      NS_ENSURE_SUCCESS(res, res);
+      nsCOMPtr<nsISelectionPrivate> privateSelection(do_QueryInterface(selection));
+      nsRefPtr<nsFrameSelection> frameSelection;
+      privateSelection->GetFrameSelection(getter_AddRefs(frameSelection));
+      if (frameSelection) {
+        frameSelection->UndefineCaretBidiLevel();
+      }
+    }
 
     // Reset the contenteditable count to its previous value
     if (mRestoreContentEditableCount) {
@@ -4914,9 +4944,8 @@ nsHTMLEditRules::CheckForEmptyBlock(nsIDOMNode *aStartNode,
       NS_ENSURE_SUCCESS(res, res);
     }
   }
-
-  nsCOMPtr<nsIContent> emptyContent = do_QueryInterface(emptyBlock);
-  if (emptyBlock && emptyContent->IsEditable())
+  
+  if (emptyBlock)
   {
     nsCOMPtr<nsIDOMNode> blockParent;
     PRInt32 offset;

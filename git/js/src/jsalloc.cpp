@@ -42,13 +42,13 @@
 namespace js {
 
 void *
-TempAllocPolicy::onOutOfMemory(void *p, size_t nbytes)
+ContextAllocPolicy::onOutOfMemory(void *p, size_t nbytes)
 {
     return cx->runtime->onOutOfMemory(p, nbytes, cx);
 }
 
 void
-TempAllocPolicy::reportAllocOverflow() const
+ContextAllocPolicy::reportAllocOverflow() const
 {
     js_ReportAllocationOverflow(cx);
 }

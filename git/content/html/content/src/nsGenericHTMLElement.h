@@ -580,7 +580,7 @@ protected:
                                 const nsAString* aValue, PRBool aNotify);
 
   virtual nsresult
-    GetEventListenerManagerForAttr(nsEventListenerManager** aManager,
+    GetEventListenerManagerForAttr(nsIEventListenerManager** aManager,
                                    nsISupports** aTarget,
                                    PRBool* aDefer);
 

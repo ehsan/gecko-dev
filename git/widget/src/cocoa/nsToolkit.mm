@@ -271,10 +271,9 @@ nsToolkit::RegisterForAllProcessMouseEvents()
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
   // Don't do this for apps that (like Camino) use native context menus.
-#ifdef MOZ_USE_NATIVE_POPUP_WINDOWS
-  return;
-#endif /* MOZ_USE_NATIVE_POPUP_WINDOWS */
-
+  if (Preferences::GetBool("ui.use_native_popup_windows", PR_FALSE)) {
+    return;
+  }
   if (!mEventMonitorHandler) {
     EventTypeSpec kEvents[] = {{kEventClassMouse, kEventMouseMoved}};
     InstallEventHandler(GetEventMonitorTarget(), EventMonitorHandler,
