@@ -2103,7 +2103,6 @@ JSScript::applySpeculationFailed(JSContext *cx)
 
 #ifdef JS_METHODJIT
     if (hasJITCode()) {
-        mjit::ExpandInlineFrames(cx->compartment);
         mjit::Recompiler::clearStackReferences(cx->runtime->defaultFreeOp(), this);
         mjit::ReleaseScriptCode(cx->runtime->defaultFreeOp(), this);
     }

@@ -129,13 +129,12 @@ CSPService::ShouldLoad(PRUint32 aContentType,
                      NS_ConvertUTF16toUTF8(policy).get()));
 #endif
             // obtain the enforcement decision
-            // (don't pass aExtra, we use that slot for redirects)
             csp->ShouldLoad(aContentType,
                             aContentLocation,
                             aRequestOrigin,
                             aRequestContext,
                             aMimeTypeGuess,
-                            nsnull,
+                            aExtra,
                             aDecision);
         }
     }
@@ -253,15 +252,13 @@ CSPService::AsyncOnChannelRedirect(nsIChannel *oldChannel,
   // If not, cancel the load now.
   nsCOMPtr<nsIURI> newUri;
   newChannel->GetURI(getter_AddRefs(newUri));
-  nsCOMPtr<nsIURI> originalUri;
-  oldChannel->GetOriginalURI(getter_AddRefs(originalUri));
   PRInt16 aDecision = nsIContentPolicy::ACCEPT;
   csp->ShouldLoad(loadType,        // load type per nsIContentPolicy (PRUint32)
                   newUri,          // nsIURI
                   nsnull,          // nsIURI
                   nsnull,          // nsISupports
                   EmptyCString(),  // ACString - MIME guess
-                  originalUri,     // nsISupports - extra
+                  nsnull,          // nsISupports - extra
                   &aDecision);
 
 #ifdef PR_LOGGING

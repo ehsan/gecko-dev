@@ -20,15 +20,12 @@ import org.mozilla.gecko.sync.SyncConfigurationException;
 import org.mozilla.gecko.sync.SyncException;
 import org.mozilla.gecko.sync.ThreadPool;
 import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.sync.config.AccountPickler;
-import org.mozilla.gecko.sync.crypto.CryptoException;
 import org.mozilla.gecko.sync.crypto.KeyBundle;
 import org.mozilla.gecko.sync.delegates.ClientsDataDelegate;
 import org.mozilla.gecko.sync.delegates.GlobalSessionCallback;
 import org.mozilla.gecko.sync.net.ConnectionMonitorThread;
 import org.mozilla.gecko.sync.setup.Constants;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
-import org.mozilla.gecko.sync.setup.SyncAccounts.SyncAccountParameters;
 import org.mozilla.gecko.sync.stage.GlobalSyncStage.Stage;
 
 import android.accounts.Account;
@@ -38,7 +35,6 @@ import android.accounts.AccountManagerFuture;
 import android.accounts.AuthenticatorException;
 import android.accounts.OperationCanceledException;
 import android.content.AbstractThreadedSyncAdapter;
-import android.content.ContentResolver;
 import android.content.ContentProviderClient;
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -234,12 +230,6 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
     this.syncResult   = syncResult;
     this.localAccount = account;
 
-    Log.i(LOG_TAG,
-        "Syncing account named " + account.name +
-        " for client named '" + getClientName() +
-        "' with client guid " + getAccountGUID() +
-        " (sync account has " + getClientsCount() + " clients).");
-
     thisSyncIsForced = (extras != null) && (extras.getBoolean("force", false));
     long delay = delayMilliseconds();
     if (delay > 0) {
@@ -317,11 +307,13 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
             return;
           }
 
+          KeyBundle keyBundle = new KeyBundle(username, syncKey);
+
           // Support multiple accounts by mapping each server/account pair to a branch of the
           // shared preferences space.
           String prefsPath = Utils.getPrefsPath(username, serverURL);
           self.performSync(account, extras, authority, provider, syncResult,
-              username, password, prefsPath, serverURL, syncKey);
+              username, password, prefsPath, serverURL, keyBundle);
         } catch (Exception e) {
           self.handleException(e, syncResult);
           return;
@@ -386,48 +378,22 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
    * @throws NonObjectJSONException
    * @throws ParseException
    * @throws IOException
-   * @throws CryptoException
    */
   protected void performSync(Account account, Bundle extras, String authority,
                              ContentProviderClient provider,
                              SyncResult syncResult,
-                             String username,
-                             String password,
+                             String username, String password,
                              String prefsPath,
-                             String serverURL,
-                             String syncKey)
+                             String serverURL, KeyBundle keyBundle)
                                  throws NoSuchAlgorithmException,
                                         SyncConfigurationException,
                                         IllegalArgumentException,
                                         AlreadySyncingException,
                                         IOException, ParseException,
-                                        NonObjectJSONException, CryptoException {
+                                        NonObjectJSONException {
     Log.i(LOG_TAG, "Performing sync.");
 
-    /**
-     * Bug 769745: pickle Sync account parameters to JSON file. Un-pickle in
-     * <code>SyncAccounts.syncAccountsExist</code>.
-     */
-    try {
-      // Constructor can throw on nulls, which should not happen -- but let's be safe.
-      final SyncAccountParameters params = new SyncAccountParameters(mContext, mAccountManager,
-        account.name, // Un-encoded, like "test@mozilla.com".
-        syncKey,
-        password,
-        serverURL,
-        null, // We'll re-fetch cluster URL; not great, but not harmful.
-        getClientName(),
-        getAccountGUID());
-
-        final boolean syncAutomatically = ContentResolver.getSyncAutomatically(account, authority);
-
-        AccountPickler.pickle(mContext, Constants.ACCOUNT_PICKLE_FILENAME, params, syncAutomatically);
-    } catch (IllegalArgumentException e) {
-      // Do nothing.
-    }
-
     // TODO: default serverURL.
-    final KeyBundle keyBundle = new KeyBundle(username, syncKey);
     GlobalSession globalSession = new GlobalSession(SyncConfiguration.DEFAULT_USER_API,
                                                     serverURL, username, password, prefsPath,
                                                     keyBundle, this, this.mContext, extras, this);

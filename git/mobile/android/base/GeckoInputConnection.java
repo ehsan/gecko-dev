@@ -503,16 +503,14 @@ public class GeckoInputConnection
         return (InputMethodManager) context.getSystemService(Context.INPUT_METHOD_SERVICE);
     }
 
-    protected void notifyTextChange(InputMethodManager imm, String text,
-                                    int start, int oldEnd, int newEnd) {
+    public void notifyTextChange(InputMethodManager imm, String text,
+                                 int start, int oldEnd, int newEnd) {
         if (!mBatchMode) {
             if (!text.contentEquals(mEditable)) {
                 if (DEBUG) Log.d(LOGTAG, String.format(
                                  ". . . notifyTextChange: current mEditable=\"%s\"",
                                  mEditable.toString()));
-                // Editable will be updated by IME event
-                if (!hasCompositionString())
-                    setEditable(text);
+                setEditable(text);
             }
         }
 
