@@ -2172,7 +2172,7 @@ FrameLayerBuilder::CheckDOMModified()
   return true;
 }
 
-#ifdef MOZ_DUMP_PAINTING
+#ifdef DEBUG
 void
 FrameLayerBuilder::DumpRetainedLayerTree()
 {

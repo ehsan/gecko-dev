@@ -102,7 +102,6 @@ protected:
   bool CheckAccessKeyEventDetail(nsIDOMEvent* aEvent);
   nsSMILTimeValue ConvertBetweenTimeContainers(const nsSMILTimeValue& aSrcTime,
                                       const nsSMILTimeContainer* aSrcContainer);
-  bool ApplyOffset(nsSMILTimeValue& aTime) const;
 
   nsSMILTimedElement*           mOwner;
   bool                          mIsBegin; // Indicates if *we* are a begin spec,

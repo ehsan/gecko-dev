@@ -1068,7 +1068,7 @@ gfxContext::RoundedRectangle(const gfxRect& rect,
     cairo_close_path (mCairo);
 }
 
-#ifdef MOZ_DUMP_PAINTING
+#ifdef DEBUG
 void
 gfxContext::WriteAsPNG(const char* aFile)
 { 

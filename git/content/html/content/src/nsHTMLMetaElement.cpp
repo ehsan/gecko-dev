@@ -150,5 +150,7 @@ nsHTMLMetaElement::CreateAndDispatchEvent(nsIDocument* aDoc,
 
   nsRefPtr<nsPLDOMEvent> event = new nsPLDOMEvent(this, aEventName, true,
                                                   true);
-  event->PostDOMEvent();
+  if (event) {
+    event->PostDOMEvent();
+  }
 }

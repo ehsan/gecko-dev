@@ -15,7 +15,7 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
+ *   Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2011
  * the Initial Developer. All Rights Reserved.
  *
@@ -45,20 +45,23 @@ XBL_SerializeFunction(nsIScriptContext* aContext,
                       nsIObjectOutputStream* aStream,
                       JSObject* aFunctionObject)
 {
-  JSContext* cx = aContext->GetNativeContext();
+  nsresult rv;
+
+  JSContext* cx = (JSContext*) aContext->GetNativeContext();
   JSXDRState *xdr = ::JS_XDRNewMem(cx, JSXDR_ENCODE);
   if (!xdr)
     return NS_ERROR_OUT_OF_MEMORY;
-  xdr->userdata = static_cast<void*>(aStream);
+  xdr->userdata = (void*) aStream;
+
+  jsval funval = OBJECT_TO_JSVAL(aFunctionObject);
 
   JSAutoRequest ar(cx);
-  nsresult rv;
-  if (!JS_XDRFunctionObject(xdr, &aFunctionObject)) {
+  if (! ::JS_XDRFunctionObject(xdr, &aFunctionObject)) {
     rv = NS_ERROR_FAILURE;
   } else {
     uint32 size;
     const char* data = reinterpret_cast<const char*>
-                                       (JS_XDRMemGetData(xdr, &size));
+                                         (::JS_XDRMemGetData(xdr, &size));
     NS_ASSERTION(data, "no decoded JSXDRState data!");
 
     rv = aStream->Write32(size);
@@ -66,7 +69,7 @@ XBL_SerializeFunction(nsIScriptContext* aContext,
       rv = aStream->WriteBytes(data, size);
   }
 
-  JS_XDRDestroy(xdr);
+  ::JS_XDRDestroy(xdr);
 
   return rv;
 }
@@ -75,9 +78,12 @@ XBL_SerializeFunction(nsIScriptContext* aContext,
 nsresult
 XBL_DeserializeFunction(nsIScriptContext* aContext,
                         nsIObjectInputStream* aStream,
-                        JSObject** aFunctionObject)
+                        void* aHolder,
+                        void **aScriptObject)
 {
-  *aFunctionObject = nsnull;
+  *aScriptObject = nsnull;
+
+  JSObject* functionObject = nsnull;
 
   PRUint32 size;
   nsresult rv = aStream->Read32(&size);
@@ -89,26 +95,29 @@ XBL_DeserializeFunction(nsIScriptContext* aContext,
   if (NS_FAILED(rv))
     return rv;
 
-  JSContext* cx = aContext->GetNativeContext();
-  JSXDRState *xdr = JS_XDRNewMem(cx, JSXDR_DECODE);
+  JSContext* cx = (JSContext*) aContext->GetNativeContext();
+  JSXDRState *xdr = ::JS_XDRNewMem(cx, JSXDR_DECODE);
   if (!xdr) {
     rv = NS_ERROR_OUT_OF_MEMORY;
   } else {
-    xdr->userdata = static_cast<void*>(aStream);
+    xdr->userdata = (void*) aStream;
     JSAutoRequest ar(cx);
-    JS_XDRMemSetData(xdr, data, size);
+    ::JS_XDRMemSetData(xdr, data, size);
 
-    if (!JS_XDRFunctionObject(xdr, aFunctionObject)) {
+    if (! ::JS_XDRFunctionObject(xdr, &functionObject)) {
       rv = NS_ERROR_FAILURE;
     }
 
     uint32 junk;
-    data = static_cast<char*>(JS_XDRMemGetData(xdr, &junk));
-    JS_XDRMemSetData(xdr, NULL, 0);
-    JS_XDRDestroy(xdr);
+    data = (char*) ::JS_XDRMemGetData(xdr, &junk);
+    ::JS_XDRMemSetData(xdr, NULL, 0);
+    ::JS_XDRDestroy(xdr);
   }
 
   nsMemory::Free(data);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  *aScriptObject = functionObject;
+
   return rv;
 }

@@ -3163,6 +3163,7 @@ var bookmarksButtonObserver = {
                                        , hiddenRows: [ "description"
                                                      , "location"
                                                      , "loadInSidebar"
+                                                     , "folderPicker"
                                                      , "keyword" ]
                                        }, window);
     } catch(ex) { }
@@ -5791,6 +5792,7 @@ function contentAreaClick(event, isPanelClick)
                                        , loadBookmarkInSidebar: true
                                        , hiddenRows: [ "description"
                                                      , "location"
+                                                     , "folderPicker"
                                                      , "keyword" ]
                                        }, window);
       event.preventDefault();
@@ -6837,9 +6839,8 @@ function AddKeywordForSearchField() {
                                    , postData: postData
                                    , charSet: charset
                                    , hiddenRows: [ "location"
-                                                 , "description"
-                                                 , "tags"
-                                                 , "loadInSidebar" ]
+                                                 , "loadInSidebar"
+                                                 , "folderPicker" ]
                                    }, window);
 }
 

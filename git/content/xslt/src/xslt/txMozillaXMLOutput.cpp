@@ -63,7 +63,6 @@
 #include "nsIStyleSheetLinkingElement.h"
 #include "nsIDocumentTransformer.h"
 #include "mozilla/css/Loader.h"
-#include "mozilla/dom/Element.h"
 #include "nsICharsetAlias.h"
 #include "nsIHTMLContentSink.h"
 #include "nsContentUtils.h"
@@ -304,7 +303,9 @@ txMozillaXMLOutput::endElement()
     NS_ASSERTION(mCurrentNode->IsElement(), "borked mCurrentNode");
     NS_ENSURE_TRUE(mCurrentNode->IsElement(), NS_ERROR_UNEXPECTED);
 
-    Element* element = mCurrentNode->AsElement();
+    nsIContent* element = static_cast<nsIContent*>
+                                     (static_cast<nsINode*>
+                                                 (mCurrentNode));
 
     // Handle html-elements
     if (!mNoFixup) {
@@ -317,21 +318,21 @@ txMozillaXMLOutput::endElement()
         PRInt32 ns = element->GetNameSpaceID();
         nsIAtom* localName = element->Tag();
 
-        if ((ns == kNameSpaceID_XHTML && (localName == nsGkAtoms::title ||
+        if ((ns == kNameSpaceID_XHTML && (localName == nsGkAtoms::script ||
+                                          localName == nsGkAtoms::title ||
                                           localName == nsGkAtoms::object ||
                                           localName == nsGkAtoms::applet ||
                                           localName == nsGkAtoms::select ||
                                           localName == nsGkAtoms::textarea)) ||
-            (ns == kNameSpaceID_SVG && localName == nsGkAtoms::title)) {
-            element->DoneAddingChildren(true);
-        } else if ((ns == kNameSpaceID_XHTML || ns == kNameSpaceID_SVG) &&
-                   localName == nsGkAtoms::script) {
-            nsCOMPtr<nsIScriptElement> sele = do_QueryInterface(element);
-            NS_ABORT_IF_FALSE(sele, "script elements need to implement nsIScriptElement");
-            bool block = sele->AttemptToExecute();
+            (ns == kNameSpaceID_SVG && (localName == nsGkAtoms::script ||
+                                        localName == nsGkAtoms::title))) {
+
+            rv = element->DoneAddingChildren(true);
+
             // If the act of insertion evaluated the script, we're fine.
             // Else, add this script element to the array of loading scripts.
-            if (block) {
+            if (rv == NS_ERROR_HTMLPARSER_BLOCK) {
+                nsCOMPtr<nsIScriptElement> sele = do_QueryInterface(element);
                 rv = mNotifier->AddScriptElement(sele);
                 NS_ENSURE_SUCCESS(rv, rv);
             }
@@ -555,12 +556,12 @@ txMozillaXMLOutput::startElementInternal(nsIAtom* aPrefix,
     mOpenedElementIsHTML = false;
 
     // Create the element
-    nsCOMPtr<nsINodeInfo> ni =
-        mNodeInfoManager->GetNodeInfo(aLocalName, aPrefix, aNsID,
-                                      nsIDOMNode::ELEMENT_NODE);
+    nsCOMPtr<nsINodeInfo> ni;
+    ni = mNodeInfoManager->GetNodeInfo(aLocalName, aPrefix, aNsID,
+                                       nsIDOMNode::ELEMENT_NODE);
     NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
 
-    NS_NewElement(getter_AddRefs(mOpenedElement), ni.forget(),
+    NS_NewElement(getter_AddRefs(mOpenedElement), aNsID, ni.forget(),
                   mCreatingNewDocument ?
                   FROM_PARSER_XSLT : FROM_PARSER_FRAGMENT);
 

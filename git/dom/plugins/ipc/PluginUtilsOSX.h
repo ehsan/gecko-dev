@@ -94,7 +94,8 @@ public:
 
 private:
   void *mCALayer;
-  nsRefPtr<nsCARenderer> mCARenderer;
+  nsRefPtr<nsCARenderer> mFrontRenderer;
+  nsRefPtr<nsCARenderer> mBackRenderer;
   nsRefPtr<nsIOSurface> mFrontSurface;
   nsRefPtr<nsIOSurface> mBackSurface;
 };

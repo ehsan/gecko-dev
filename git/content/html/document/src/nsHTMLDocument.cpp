@@ -950,8 +950,10 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
 
   // Set the parser as the stream listener for the document loader...
   if (mParser) {
-    nsCOMPtr<nsIStreamListener> listener = mParser->GetStreamListener();
-    listener.forget(aDocListener);
+    rv = mParser->GetStreamListener(aDocListener);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
 
 #ifdef DEBUG_charset
     printf(" charset = %s source %d\n",

@@ -4421,7 +4421,9 @@ nsDocument::CreateElementNS(const nsAString& aNamespaceURI,
                                                      getter_AddRefs(nodeInfo));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return NS_NewElement(aReturn, nodeInfo.forget(), NOT_FROM_PARSER);
+  PRInt32 ns = nodeInfo->NamespaceID();
+  return NS_NewElement(aReturn, ns,
+                       nodeInfo.forget(), NOT_FROM_PARSER);
 }
 
 NS_IMETHODIMP
@@ -6752,7 +6754,8 @@ nsDocument::CreateElem(const nsAString& aName, nsIAtom *aPrefix, PRInt32 aNamesp
                                 getter_AddRefs(nodeInfo));
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-  return NS_NewElement(aResult, nodeInfo.forget(), NOT_FROM_PARSER);
+  return NS_NewElement(aResult, aNamespaceID, nodeInfo.forget(),
+                       NOT_FROM_PARSER);
 }
 
 bool

@@ -501,6 +501,7 @@ static JSBool
 obj_toSource(JSContext *cx, uintN argc, Value *vp)
 {
     JSBool ok;
+    JSHashEntry *he;
     JSIdArray *ida;
     jschar *chars, *ochars, *vsharp;
     const jschar *idstrchars, *vchars;
@@ -526,10 +527,10 @@ obj_toSource(JSContext *cx, uintN argc, Value *vp)
     if (!obj)
         return false;
 
-    JSHashEntry *he = js_EnterSharpObject(cx, obj, &ida, &chars);
-    if (!he)
-        return false;
-
+    if (!(he = js_EnterSharpObject(cx, obj, &ida, &chars))) {
+        ok = JS_FALSE;
+        goto out;
+    }
     if (!ida) {
         /*
          * We didn't enter -- obj is already "sharp", meaning we've visited it
@@ -815,21 +816,25 @@ obj_toSource(JSContext *cx, uintN argc, Value *vp)
     if (!ok) {
         if (chars)
             Foreground::free_(chars);
-        return false;
+        goto out;
     }
 
     if (!chars) {
         JS_ReportOutOfMemory(cx);
-        return false;
+        ok = JS_FALSE;
+        goto out;
     }
   make_string:
     str = js_NewString(cx, chars, nchars);
     if (!str) {
         cx->free_(chars);
-        return false;
+        ok = JS_FALSE;
+        goto out;
     }
     vp->setString(str);
-    return true;
+    ok = JS_TRUE;
+  out:
+    return ok;
 
   overflow:
     cx->free_(vsharp);

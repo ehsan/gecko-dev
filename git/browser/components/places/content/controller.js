@@ -309,6 +309,7 @@ PlacesController.prototype = {
                                        , hiddenRows: [ "description"
                                                      , "keyword"
                                                      , "location"
+                                                     , "folderPicker"
                                                      , "loadInSidebar" ]
                                        , uri: NetUtil.newURI(node.uri)
                                        , title: node.title
@@ -720,7 +721,6 @@ PlacesController.prototype = {
                                      , type: itemType
                                      , itemId: itemId
                                      , readOnly: isRootItem
-                                     , hiddenRows: [ "folderPicker" ]
                                      }, window.top);
   },
 

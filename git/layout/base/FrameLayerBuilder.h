@@ -237,7 +237,7 @@ public:
                               const nsIntRegion& aRegionToInvalidate,
                               void* aCallbackData);
 
-#ifdef MOZ_DUMP_PAINTING
+#ifdef DEBUG
   /**
    * Dumps this FrameLayerBuilder's retained layer manager's retained
    * layer tree to stderr.

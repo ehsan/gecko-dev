@@ -745,8 +745,12 @@ nsHtml5TreeOpExecutor::RunScript(nsIContent* aScriptElement)
   }
 
   if (sele->GetScriptDeferred() || sele->GetScriptAsync()) {
-    DebugOnly<bool> block = sele->AttemptToExecute();
-    NS_ASSERTION(!block, "Defer or async script tried to block.");
+    #ifdef DEBUG
+    nsresult rv = 
+    #endif
+    aScriptElement->DoneAddingChildren(true); // scripts ignore the argument
+    NS_ASSERTION(rv != NS_ERROR_HTMLPARSER_BLOCK, 
+                 "Defer or async script tried to block.");
     return;
   }
   
@@ -763,12 +767,13 @@ nsHtml5TreeOpExecutor::RunScript(nsIContent* aScriptElement)
 
   // Copied from nsXMLContentSink
   // Now tell the script that it's ready to go. This may execute the script
-  // or return true, or neither if the script doesn't need executing.
-  bool block = sele->AttemptToExecute();
+  // or return NS_ERROR_HTMLPARSER_BLOCK. Or neither if the script doesn't
+  // need executing.
+  nsresult rv = aScriptElement->DoneAddingChildren(true);
 
   // If the act of insertion evaluated the script, we're fine.
   // Else, block the parser till the script has loaded.
-  if (block) {
+  if (rv == NS_ERROR_HTMLPARSER_BLOCK) {
     mScriptElements.AppendObject(sele);
     if (mParser) {
       mParser->BlockParser();

@@ -15,7 +15,7 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
+ *   Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2011
  * the Initial Developer. All Rights Reserved.
  *
@@ -113,6 +113,7 @@ XBL_SerializeFunction(nsIScriptContext* aContext,
 nsresult
 XBL_DeserializeFunction(nsIScriptContext* aContext,
                         nsIObjectInputStream* aStream,
-                        JSObject** aFunctionObject);
+                        void* aHolder,
+                        void **aScriptObject);
 
 #endif // nsXBLSerialize_h__

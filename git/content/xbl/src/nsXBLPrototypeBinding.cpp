@@ -78,11 +78,12 @@
 #include "nsXBLResourceLoader.h"
 #include "mozilla/dom/Element.h"
 
+using namespace mozilla;
+
 #ifdef MOZ_XUL
 #include "nsXULElement.h"
 #endif
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 // Helper Classes =====================================================================
@@ -868,7 +869,7 @@ nsresult
 nsXBLPrototypeBinding::InitClass(const nsCString& aClassName,
                                  JSContext * aContext, JSObject * aGlobal,
                                  JSObject * aScriptObject,
-                                 JSObject** aClassObject)
+                                 void ** aClassObject)
 {
   NS_ENSURE_ARG_POINTER(aClassObject); 
 
@@ -1903,7 +1904,9 @@ nsXBLPrototypeBinding::ReadContentNode(nsIObjectInputStream* aStream,
   }
   else {
 #endif
-    NS_NewElement(getter_AddRefs(content), nodeInfo.forget(), NOT_FROM_PARSER);
+    nsCOMPtr<nsINodeInfo> ni = nodeInfo;
+    NS_NewElement(getter_AddRefs(content), nodeInfo->NamespaceID(),
+                  ni.forget(), mozilla::dom::NOT_FROM_PARSER);
 
     for (PRUint32 i = 0; i < attrCount; i++) {
       rv = ReadNamespace(aStream, namespaceID);

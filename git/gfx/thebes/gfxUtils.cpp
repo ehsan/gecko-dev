@@ -49,7 +49,6 @@
 
 using namespace mozilla;
 using namespace mozilla::layers;
-using namespace mozilla::gfx;
 
 static PRUint8 sUnpremultiplyTable[256*256];
 static PRUint8 sPremultiplyTable[256*256];
@@ -656,41 +655,3 @@ gfxUtils::ConvertYCbCrToRGB(const PlanarYCbCrImage::Data& aData,
                                yuvtype);
   }
 }
-
-#ifdef MOZ_DUMP_PAINTING
-/* static */ void
-gfxUtils::WriteAsPNG(DrawTarget* aDT, const char* aFile)
-{
-  aDT->Flush();
-  nsRefPtr<gfxASurface> surf = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(aDT);
-  if (surf) {
-    surf->WriteAsPNG(aFile);
-  } else {
-    NS_WARNING("Failed to get Thebes surface!");
-  }
-}
-
-/* static */ void
-gfxUtils::DumpAsDataURL(DrawTarget* aDT)
-{
-  aDT->Flush();
-  nsRefPtr<gfxASurface> surf = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(aDT);
-  if (surf) {
-    surf->DumpAsDataURL();
-  } else {
-    NS_WARNING("Failed to get Thebes surface!");
-  }
-}
-
-/* static */ void
-gfxUtils::CopyAsDataURL(DrawTarget* aDT)
-{
-  aDT->Flush();
-  nsRefPtr<gfxASurface> surf = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(aDT);
-  if (surf) {
-    surf->CopyAsDataURL();
-  } else {
-    NS_WARNING("Failed to get Thebes surface!");
-  }
-}
-#endif
