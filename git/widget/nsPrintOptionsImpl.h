@@ -7,15 +7,11 @@
 #ifndef nsPrintOptionsImpl_h__
 #define nsPrintOptionsImpl_h__
 
-#include "mozilla/embedding/PPrinting.h"
 #include "nsCOMPtr.h"
 #include "nsIPrintOptions.h"
 #include "nsIPrintSettingsService.h"
 #include "nsString.h"
 #include "nsFont.h"
-
-class nsIPrintSettings;
-class nsIWebBrowserPrint;
 
 /**
  *   Class nsPrintOptions

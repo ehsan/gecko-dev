@@ -354,13 +354,9 @@ partial interface Navigator {
 
 #ifdef MOZ_MEDIA_NAVIGATOR
 callback NavigatorUserMediaSuccessCallback = void (MediaStream stream);
-callback NavigatorUserMediaErrorCallback = void (MediaStreamError error);
+callback NavigatorUserMediaErrorCallback = void (DOMString error);
 
 partial interface Navigator {
-  [Throws, Func="Navigator::HasUserMediaSupport"]
-  readonly attribute MediaDevices mediaDevices;
-
-  // Deprecated. Use mediaDevices.getUserMedia instead.
   [Throws, Func="Navigator::HasUserMediaSupport"]
   void mozGetUserMedia(MediaStreamConstraints constraints,
                        NavigatorUserMediaSuccessCallback successCallback,

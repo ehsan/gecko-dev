@@ -25,7 +25,7 @@ import android.util.Log;
 public class RestrictedProfiles {
     private static final String LOGTAG = "GeckoRestrictedProfiles";
 
-    private static volatile Boolean inGuest = null;
+    private static Boolean inGuest = null;
 
     @SuppressWarnings("serial")
     private static final List<String> BANNED_SCHEMES = new ArrayList<String>() {{
@@ -35,16 +35,6 @@ public class RestrictedProfiles {
         add("jar");
         add("wyciwyg");
     }};
-
-    /**
-     * This is a hack to allow non-GeckoApp activities to safely call into
-     * RestrictedProfiles without reworking this class or GeckoProfile.
-     *
-     * It can be removed after Bug 1077590 lands.
-     */
-    public static void initWithProfile(GeckoProfile profile) {
-        inGuest = profile.inGuestMode();
-    }
 
     private static boolean getInGuest() {
         if (inGuest == null) {
@@ -96,8 +86,9 @@ public class RestrictedProfiles {
     }
 
     @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR1)
-    private static Bundle getRestrictions(final Context context) {
-        final UserManager mgr = (UserManager) context.getSystemService(Context.USER_SERVICE);
+    @RobocopTarget
+    private static Bundle getRestrictions() {
+        final UserManager mgr = (UserManager) GeckoAppShell.getContext().getSystemService(Context.USER_SERVICE);
         return mgr.getUserRestrictions();
     }
 
@@ -110,17 +101,17 @@ public class RestrictedProfiles {
      *
      * Returns true otherwise.
      */
-    private static boolean getRestriction(final Context context, final String name) {
+    private static boolean getRestriction(final String name) {
         // Early versions don't support restrictions at all,
         // so no action can be restricted.
         if (Versions.preJBMR2) {
             return false;
         }
 
-        return getRestrictions(context).getBoolean(name, false);
+        return getRestrictions().getBoolean(name, false);
     }
 
-    private static boolean canLoadUrl(final Context context, final String url) {
+    private static boolean canLoadUrl(final String url) {
         // Null URLs are always permitted.
         if (url == null) {
             return true;
@@ -129,7 +120,7 @@ public class RestrictedProfiles {
         try {
             // If we're not in guest mode, and the system restriction isn't in place, everything is allowed.
             if (!getInGuest() &&
-                !getRestriction(context, Restriction.DISALLOW_BROWSE_FILES.name)) {
+                !getRestriction(Restriction.DISALLOW_BROWSE_FILES.name)) {
                 return true;
             }
         } catch (IllegalArgumentException ex) {
@@ -154,10 +145,6 @@ public class RestrictedProfiles {
 
     @WrapElementForJNI
     public static boolean isUserRestricted() {
-        return isUserRestricted(GeckoAppShell.getContext());
-    }
-
-    private static boolean isUserRestricted(final Context context) {
         // Guest mode is supported in all Android versions.
         if (getInGuest()) {
             return true;
@@ -167,19 +154,15 @@ public class RestrictedProfiles {
             return false;
         }
 
-        return !getRestrictions(context).isEmpty();
+        return !getRestrictions().isEmpty();
     }
 
-    public static boolean isAllowed(final Context context, final Restriction action) {
-        return isAllowed(context, action.id, null);
+    public static boolean isAllowed(Restriction action) {
+        return isAllowed(action.id, null);
     }
 
     @WrapElementForJNI
     public static boolean isAllowed(int action, String url) {
-        return isAllowed(GeckoAppShell.getContext(), action, url);
-    }
-
-    private static boolean isAllowed(final Context context, int action, String url) {
         final Restriction restriction;
         try {
             restriction = geckoActionToRestriction(action);
@@ -192,7 +175,7 @@ public class RestrictedProfiles {
 
         if (getInGuest()) {
             if (Restriction.DISALLOW_BROWSE_FILES == restriction) {
-                return canLoadUrl(context, url);
+                return canLoadUrl(url);
             }
 
             // Guest users can't do anything.
@@ -200,15 +183,11 @@ public class RestrictedProfiles {
         }
 
         // NOTE: Restrictions hold the opposite intention, so we need to flip it.
-        return !getRestriction(context, restriction.name);
+        return !getRestriction(restriction.name);
     }
 
     @WrapElementForJNI
     public static String getUserRestrictions() {
-        return getUserRestrictions(GeckoAppShell.getContext());
-    }
-
-    private static String getUserRestrictions(final Context context) {
         // Guest mode is supported in all Android versions
         if (getInGuest()) {
             StringBuilder builder = new StringBuilder("{ ");
@@ -226,7 +205,7 @@ public class RestrictedProfiles {
         }
 
         final JSONObject json = new JSONObject();
-        final Bundle restrictions = getRestrictions(context);
+        final Bundle restrictions = getRestrictions();
         final Set<String> keys = restrictions.keySet();
 
         for (String key : keys) {

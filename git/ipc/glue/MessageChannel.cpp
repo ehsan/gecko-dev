@@ -659,7 +659,7 @@ MessageChannel::OnMessageReceivedFromLink(const Message& aMsg)
 bool
 MessageChannel::Send(Message* aMsg, Message* aReply)
 {
-    // See comment in DispatchSyncMessage.
+    // See comment in DispatchUrgentMessage.
     MaybeScriptBlocker scriptBlocker(this, true);
 
     // Sanity checks.
@@ -1055,7 +1055,7 @@ MessageChannel::DispatchSyncMessage(const Message& aMsg)
 {
     AssertWorkerThread();
 
-    nsAutoPtr<Message> reply;
+    Message *reply = nullptr;
 
     int prio = aMsg.priority();
 
@@ -1079,10 +1079,11 @@ MessageChannel::DispatchSyncMessage(const Message& aMsg)
         AutoSetValue<bool> blocked(blockingVar, true);
         AutoSetValue<bool> sync(mDispatchingSyncMessage, true);
         AutoSetValue<int> prioSet(mDispatchingSyncMessagePriority, prio);
-        rv = mListener->OnMessageReceived(aMsg, *getter_Transfers(reply));
+        rv = mListener->OnMessageReceived(aMsg, reply);
     }
 
     if (!MaybeHandleError(rv, aMsg, "DispatchSyncMessage")) {
+        delete reply;
         reply = new Message();
         reply->set_sync();
         reply->set_priority(aMsg.priority());
@@ -1092,9 +1093,8 @@ MessageChannel::DispatchSyncMessage(const Message& aMsg)
     reply->set_seqno(aMsg.seqno());
 
     MonitorAutoLock lock(*mMonitor);
-    if (ChannelConnected == mChannelState) {
-        mLink->SendMessage(reply.forget());
-    }
+    if (ChannelConnected == mChannelState)
+        mLink->SendMessage(reply);
 }
 
 void
@@ -1169,13 +1169,14 @@ MessageChannel::DispatchInterruptMessage(const Message& aMsg, size_t stackDepth)
     SyncStackFrame frame(this, true);
 #endif
 
-    nsAutoPtr<Message> reply;
+    Message* reply = nullptr;
 
     ++mRemoteStackDepthGuess;
-    Result rv = mListener->OnCallReceived(aMsg, *getter_Transfers(reply));
+    Result rv = mListener->OnCallReceived(aMsg, reply);
     --mRemoteStackDepthGuess;
 
     if (!MaybeHandleError(rv, aMsg, "DispatchInterruptMessage")) {
+        delete reply;
         reply = new Message();
         reply->set_interrupt();
         reply->set_reply();
@@ -1184,9 +1185,8 @@ MessageChannel::DispatchInterruptMessage(const Message& aMsg, size_t stackDepth)
     reply->set_seqno(aMsg.seqno());
 
     MonitorAutoLock lock(*mMonitor);
-    if (ChannelConnected == mChannelState) {
-        mLink->SendMessage(reply.forget());
-    }
+    if (ChannelConnected == mChannelState)
+        mLink->SendMessage(reply);
 }
 
 void

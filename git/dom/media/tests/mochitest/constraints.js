@@ -14,19 +14,19 @@ var common_tests = [
   { message: "unknown required constraint on video fails",
     constraints: { video: { somethingUnknown:0, require:["somethingUnknown"] },
                    fake: true },
-    error: "NotFoundError" },
+    error: "NO_DEVICES_FOUND" },
   { message: "unknown required constraint on audio fails",
     constraints: { audio: { somethingUnknown:0, require:["somethingUnknown"] },
                    fake: true },
-    error: "NotFoundError" },
+    error: "NO_DEVICES_FOUND" },
   { message: "video overconstrained by facingMode fails",
     constraints: { video: { facingMode:'left', require:["facingMode"] },
                    fake: true },
-    error: "NotFoundError" },
+    error: "NO_DEVICES_FOUND" },
   { message: "audio overconstrained by facingMode fails",
     constraints: { audio: { facingMode:'left', require:["facingMode"] },
                    fake: true },
-    error: "NotFoundError" },
+    error: "NO_DEVICES_FOUND" },
   { message: "Success-path: optional video facingMode + audio ignoring facingMode",
     constraints: { fake: true,
                    audio: { facingMode:'left',
@@ -48,27 +48,29 @@ var common_tests = [
 
 /**
  * Starts the test run by running through each constraint
- * test by verifying that the right resolution and rejection is fired.
+ * test by verifying that the right callback and error message is fired.
  */
 
 function testConstraints(tests) {
-  function testgum(p, test) {
-    return p.then(function() {
-      return navigator.mediaDevices.getUserMedia(test.constraints);
-    })
-    .then(function() {
-      is(null, test.error, test.message);
-    }, function(reason) {
-      is(reason.name, test.error, test.message + ": " + reason.message);
-    });
-  }
+  var i = 0;
+  next();
 
-  var p = new Promise(function(resolve) { resolve(); });
-  tests.forEach(function(test) {
-    p = testgum(p, test);
-  });
-  p.catch(function(reason) {
-    ok(false, "Unexpected failure: " + reason.message);
-  })
-  .then(SimpleTest.finish);
-}
+  function Success() {
+    ok(!tests[i].error, tests[i].message);
+    i++;
+    next();
+  }
+  function Failure(err) {
+    ok(tests[i].error? (err === tests[i].error) : false,
+       tests[i].message + " (err=" + err + ")");
+    i++;
+    next();
+  }
+  function next() {
+    if (i < tests.length) {
+      navigator.mozGetUserMedia(tests[i].constraints, Success, Failure);
+    } else {
+      SimpleTest.finish();
+    }
+  }
+};

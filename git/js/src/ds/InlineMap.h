@@ -42,8 +42,9 @@ class InlineMap
     InlineElem      inl[InlineElems];
     WordMap         map;
 
-    static_assert(ZeroIsReserved<K>::result,
-                  "zero as tombstone requires that zero keys be invalid");
+    void checkStaticInvariants() {
+        JS_STATIC_ASSERT(ZeroIsReserved<K>::result);
+    }
 
     bool usingMap() const {
         return inlNext > InlineElems;
@@ -80,7 +81,10 @@ class InlineMap
     }
 
   public:
-    explicit InlineMap() : inlNext(0), inlCount(0) { }
+    explicit InlineMap()
+      : inlNext(0), inlCount(0) {
+        checkStaticInvariants(); /* Force the template to instantiate the static invariants. */
+    }
 
     class Entry
     {

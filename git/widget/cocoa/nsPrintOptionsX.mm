@@ -29,7 +29,7 @@ nsPrintOptionsX::ReadPrefs(nsIPrintSettings* aPS, const nsAString& aPrinterName,
     return NS_ERROR_NO_INTERFACE;
   rv = printSettingsX->ReadPageFormatFromPrefs();
   
-  return NS_OK;
+  return rv;
 }
 
 nsresult nsPrintOptionsX::_CreatePrintSettings(nsIPrintSettings **_retval)
