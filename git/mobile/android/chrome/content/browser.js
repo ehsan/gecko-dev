@@ -1,40 +1,7 @@
 // -*- Mode: js2; tab-width: 2; indent-tabs-mode: nil; js2-basic-offset: 2; js2-skip-preprocessor-directives: t; -*-
-/*
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Mobile Browser.
- *
- * The Initial Developer of the Original Code is
- * Mozilla Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2011
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
 let Cc = Components.classes;
@@ -46,6 +13,7 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm")
 Cu.import("resource://gre/modules/AddonManager.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
+Cu.import("resource://gre/modules/accessibility/AccessFu.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "PluralForm", function() {
   Cu.import("resource://gre/modules/PluralForm.jsm");
@@ -223,6 +191,7 @@ var BrowserApp = {
 
     NativeWindow.init();
     Downloads.init();
+    FindHelper.init();
     FormAssistant.init();
     OfflineApps.init();
     IndexedDB.init();
@@ -235,6 +204,7 @@ var BrowserApp = {
     ActivityObserver.init();
     WebappsUI.init();
     RemoteDebugger.init();
+    AccessFu.attach(window);
 
     // Init LoginManager
     Cc["@mozilla.org/login-manager;1"].getService(Ci.nsILoginManager);
@@ -423,6 +393,7 @@ var BrowserApp = {
   shutdown: function shutdown() {
     NativeWindow.uninit();
     FormAssistant.uninit();
+    FindHelper.uninit();
     OfflineApps.uninit();
     IndexedDB.uninit();
     ViewportHandler.uninit();
@@ -1868,7 +1839,9 @@ Tab.prototype = {
     this.userScrollPos.x = win.scrollX;
     this.userScrollPos.y = win.scrollY;
     this.setResolution(aViewport.zoom, false);
-    this.setDisplayPort(aViewport.displayPort);
+
+    if (aViewport.displayPort)
+      this.setDisplayPort(aViewport.displayPort);
   },
 
   setResolution: function(aZoom, aForce) {
@@ -1884,20 +1857,10 @@ Tab.prototype = {
   },
 
   getPageSize: function(aDocument, aDefaultWidth, aDefaultHeight) {
-    if (aDocument instanceof SVGDocument) {
-      let rect = aDocument.rootElement.getBoundingClientRect();
-      // we need to add rect.left and rect.top twice so that the SVG is drawn
-      // centered on the page; if we add it only once then the SVG will be
-      // on the bottom-right of the page and if we don't add it at all then
-      // we end up with a cropped SVG (see bug 712065)
-      return [Math.ceil(rect.left + rect.width + rect.left),
-              Math.ceil(rect.top + rect.height + rect.top)];
-    } else {
-      let body = aDocument.body || { scrollWidth: aDefaultWidth, scrollHeight: aDefaultHeight };
-      let html = aDocument.documentElement || { scrollWidth: aDefaultWidth, scrollHeight: aDefaultHeight };
-      return [Math.max(body.scrollWidth, html.scrollWidth),
-              Math.max(body.scrollHeight, html.scrollHeight)];
-    }
+    let body = aDocument.body || { scrollWidth: aDefaultWidth, scrollHeight: aDefaultHeight };
+    let html = aDocument.documentElement || { scrollWidth: aDefaultWidth, scrollHeight: aDefaultHeight };
+    return [Math.max(body.scrollWidth, html.scrollWidth),
+      Math.max(body.scrollHeight, html.scrollHeight)];
   },
 
   getViewport: function() {
@@ -2046,18 +2009,36 @@ Tab.prototype = {
             list.push("[" + rel + "]");
         }
 
+        // We want to get the largest icon size possible for our UI.
+        let maxSize = 0;
+
+        // We use the sizes attribute if available
+        // see http://www.whatwg.org/specs/web-apps/current-work/multipage/links.html#rel-icon
+        if (target.hasAttribute("sizes")) {
+          let sizes = target.getAttribute("sizes").toLowerCase();
+
+          if (sizes == "any") {
+            // Since Java expects an integer, use -1 to represent icons with sizes="any"
+            maxSize = -1; 
+          } else {
+            let tokens = sizes.split(" ");
+            tokens.forEach(function(token) {
+              // TODO: check for invalid tokens
+              let [w, h] = token.split("x");
+              maxSize = Math.max(maxSize, Math.max(w, h));
+            });
+          }
+        }
+
         let json = {
           type: "DOMLinkAdded",
           tabID: this.id,
           href: resolveGeckoURI(target.href),
           charset: target.ownerDocument.characterSet,
           title: target.title,
-          rel: list.join(" ")
+          rel: list.join(" "),
+          size: maxSize
         };
-
-        // rel=icon can also have a sizes attribute
-        if (target.hasAttribute("sizes"))
-          json.sizes = target.getAttribute("sizes");
 
         sendMessageToJava({ gecko: json });
         break;
@@ -2246,6 +2227,8 @@ Tab.prototype = {
     if (contentWin != contentWin.top)
         return;
 
+    this._hostChanged = true;
+
     let fixedURI = aLocationURI;
     try {
       fixedURI = URIFixup.createExposableURI(aLocationURI);
@@ -2288,26 +2271,29 @@ Tab.prototype = {
     }
   },
 
+  // Properties used to cache security state used to update the UI
+  _state: null,
+  _hostChanged: false, // onLocationChange will flip this bit
+
   onSecurityChange: function(aWebProgress, aRequest, aState) {
-    let mode = "unknown";
-    if (aState & Ci.nsIWebProgressListener.STATE_IDENTITY_EV_TOPLEVEL)
-      mode = "identified";
-    else if (aState & Ci.nsIWebProgressListener.STATE_SECURE_HIGH)
-      mode = "verified";
-    else if (aState & Ci.nsIWebProgressListener.STATE_IS_BROKEN)
-      mode = "mixed";
-    else
-      mode = "unknown";
+    // Don't need to do anything if the data we use to update the UI hasn't changed
+    if (this._state == aState && !this._hostChanged)
+      return;
+
+    this._state = aState;
+    this._hostChanged = false;
+
+    let identity = IdentityHandler.checkIdentity(aState, this.browser);
 
     let message = {
       gecko: {
         type: "Content:SecurityChange",
         tabID: this.id,
-        mode: mode
+        identity: identity
       }
     };
 
-     sendMessageToJava(message);
+    sendMessageToJava(message);
   },
 
   onProgressChange: function(aWebProgress, aRequest, aCurSelfProgress, aMaxSelfProgress, aCurTotalProgress, aMaxTotalProgress) {
@@ -2551,7 +2537,7 @@ Tab.prototype = {
           // call above does so at the end of the updateViewportSize function. As long
           // as that is happening, we don't need to do it again here.
 
-          if (contentDocument instanceof ImageDocument) {
+          if (contentDocument.mozSyntheticDocument) {
             // for images, scale to fit width. this needs to happen *after* the call
             // to updateMetadata above, because that call sets the CSS viewport which
             // will affect the page size (i.e. contentDocument.body.scroll*) that we
@@ -2604,6 +2590,7 @@ var BrowserEventHandler = {
 
     BrowserApp.deck.addEventListener("DOMUpdatePageReport", PopupBlockerObserver.onUpdatePageReport, false);
     BrowserApp.deck.addEventListener("touchstart", this, false);
+    BrowserApp.deck.addEventListener("click", SelectHelper, true);
   },
 
   handleEvent: function(aEvent) {
@@ -2700,7 +2687,7 @@ var BrowserEventHandler = {
       this._cancelTapHighlight();
     } else if (aTopic == "Gesture:SingleTap") {
       let element = this._highlightElement;
-      if (element && !SelectHelper.handleClick(element)) {
+      if (element) {
         try {
           let data = JSON.parse(aData);
 
@@ -2737,8 +2724,7 @@ var BrowserEventHandler = {
       return;
     }
 
-    win = element.ownerDocument.defaultView;
-    while (element && win.getComputedStyle(element,null).display == "inline")
+    while (element && !this._shouldZoomToElement(element))
       element = element.parentNode;
 
     if (!element) {
@@ -2780,6 +2766,17 @@ var BrowserEventHandler = {
       rect.w = bRect.width; rect.h = availHeight;
       sendMessageToJava({ gecko: rect });
     }
+  },
+
+  _shouldZoomToElement: function(aElement) {
+    let win = aElement.ownerDocument.defaultView;
+    if (win.getComputedStyle(aElement, null).display == "inline")
+      return false;
+    if (aElement instanceof Ci.nsIDOMHTMLLIElement)
+      return false;
+    if (aElement instanceof Ci.nsIDOMHTMLQuoteElement)
+      return false;
+    return true;
   },
 
   _firstScrollEvent: false,
@@ -3179,6 +3176,104 @@ var ErrorPageEventHandler = {
         }
         break;
       }
+    }
+  }
+};
+
+var FindHelper = {
+  _find: null,
+  _findInProgress: false,
+  _targetTab: null,
+  _initialViewport: null,
+  _viewportChanged: false,
+
+  init: function() {
+    Services.obs.addObserver(this, "FindInPage:Find", false);
+    Services.obs.addObserver(this, "FindInPage:Prev", false);
+    Services.obs.addObserver(this, "FindInPage:Next", false);
+    Services.obs.addObserver(this, "FindInPage:Closed", false);
+  },
+
+  uninit: function() {
+    Services.obs.removeObserver(this, "FindInPage:Find", false);
+    Services.obs.removeObserver(this, "FindInPage:Prev", false);
+    Services.obs.removeObserver(this, "FindInPage:Next", false);
+    Services.obs.removeObserver(this, "FindInPage:Closed", false);
+  },
+
+  observe: function(aMessage, aTopic, aData) {
+    switch(aTopic) {
+      case "FindInPage:Find":
+        this.doFind(aData);
+        break;
+
+      case "FindInPage:Prev":
+        this.findAgain(aData, true);
+        break;
+
+      case "FindInPage:Next":
+        this.findAgain(aData, false);
+        break;
+
+      case "FindInPage:Closed":
+        this.findClosed();
+        break;
+    }
+  },
+
+  doFind: function(aSearchString) {
+    if (!this._findInProgress) {
+      this._findInProgress = true;
+      this._targetTab = BrowserApp.selectedTab;
+      this._find = Cc["@mozilla.org/typeaheadfind;1"].createInstance(Ci.nsITypeAheadFind);
+      this._find.init(this._targetTab.browser.docShell);
+      this._initialViewport = JSON.stringify(this._targetTab.getViewport());
+      this._viewportChanged = false;
+    }
+
+    let result = this._find.find(aSearchString, false);
+    this.handleResult(result);
+  },
+
+  findAgain: function(aString, aFindBackwards) {
+    // This can happen if the user taps next/previous after re-opening the search bar
+    if (!this._findInProgress) {
+      this.doFind(aString);
+      return;
+    }
+
+    let result = this._find.findAgain(aFindBackwards, false);
+    this.handleResult(result);
+  },
+
+  findClosed: function() {
+    if (!this._findInProgress) {
+      // this should never happen
+      Cu.reportError("Warning: findClosed() called while _findInProgress is false!");
+      // fall through and clean up anyway
+    }
+
+    this._find.collapseSelection();
+    this._find = null;
+    this._findInProgress = false;
+    this._targetTab = null;
+    this._initialViewport = null;
+    this._viewportChanged = false;
+  },
+
+  handleResult: function(aResult) {
+    if (aResult == Ci.nsITypeAheadFind.FIND_NOTFOUND) {
+      if (this._viewportChanged) {
+        if (this._targetTab != BrowserApp.selectedTab) {
+          // this should never happen
+          Cu.reportError("Warning: selected tab changed during find!");
+          // fall through and restore viewport on the initial tab anyway
+        }
+        this._targetTab.setViewport(JSON.parse(this._initialViewport));
+        this._targetTab.sendViewportUpdate();
+      }
+    } else {
+      this._viewportChanged = true;
     }
   }
 };
@@ -4698,6 +4793,159 @@ var CharacterEncoding = {
   }
 };
 
+var IdentityHandler = {
+  // Mode strings used to control CSS display
+  IDENTITY_MODE_IDENTIFIED       : "identified", // High-quality identity information
+  IDENTITY_MODE_DOMAIN_VERIFIED  : "verified",   // Minimal SSL CA-signed domain verification
+  IDENTITY_MODE_UNKNOWN          : "unknown",  // No trusted identity information
+
+  // Cache the most recent SSLStatus and Location seen in getIdentityStrings
+  _lastStatus : null,
+  _lastLocation : null,
+
+  /**
+   * Helper to parse out the important parts of _lastStatus (of the SSL cert in
+   * particular) for use in constructing identity UI strings
+  */
+  getIdentityData : function() {
+    let result = {};
+    let status = this._lastStatus.QueryInterface(Components.interfaces.nsISSLStatus);
+    let cert = status.serverCert;
+
+    // Human readable name of Subject
+    result.subjectOrg = cert.organization;
+
+    // SubjectName fields, broken up for individual access
+    if (cert.subjectName) {
+      result.subjectNameFields = {};
+      cert.subjectName.split(",").forEach(function(v) {
+        let field = v.split("=");
+        this[field[0]] = field[1];
+      }, result.subjectNameFields);
+
+      // Call out city, state, and country specifically
+      result.city = result.subjectNameFields.L;
+      result.state = result.subjectNameFields.ST;
+      result.country = result.subjectNameFields.C;
+    }
+
+    // Human readable name of Certificate Authority
+    result.caOrg =  cert.issuerOrganization || cert.issuerCommonName;
+    result.cert = cert;
+
+    return result;
+  },
+
+  getIdentityMode: function getIdentityMode(aState) {
+    if (aState & Ci.nsIWebProgressListener.STATE_IDENTITY_EV_TOPLEVEL)
+      return this.IDENTITY_MODE_IDENTIFIED;
+
+    if (aState & Ci.nsIWebProgressListener.STATE_SECURE_HIGH)
+      return this.IDENTITY_MODE_DOMAIN_VERIFIED;
+
+    return this.IDENTITY_MODE_UNKNOWN;
+  },
+
+  /**
+   * Determine the identity of the page being displayed by examining its SSL cert
+   * (if available). Return the data needed to update the UI.
+   */
+  checkIdentity: function checkIdentity(aState, aBrowser) {
+    this._lastStatus = aBrowser.securityUI
+                               .QueryInterface(Components.interfaces.nsISSLStatusProvider)
+                               .SSLStatus;
+
+    // Don't pass in the actual location object, since it can cause us to 
+    // hold on to the window object too long.  Just pass in the fields we
+    // care about. (bug 424829)
+    let locationObj = {};
+    try {
+      let location = aBrowser.contentWindow.location;
+      locationObj.host = location.host;
+      locationObj.hostname = location.hostname;
+      locationObj.port = location.port;
+    } catch (ex) {
+      // Can sometimes throw if the URL being visited has no host/hostname,
+      // e.g. about:blank. The _state for these pages means we won't need these
+      // properties anyways, though.
+    }
+    this._lastLocation = locationObj;
+
+    let mode = this.getIdentityMode(aState);
+    let result = { mode: mode };
+
+    // We can't to do anything else for pages without identity data
+    if (mode == this.IDENTITY_MODE_UNKNOWN)
+      return result;
+
+    // Ideally we'd just make this a Java string
+    result.encrypted = Strings.browser.GetStringFromName("identity.encrypted2");
+    result.host = this.getEffectiveHost();
+
+    let iData = this.getIdentityData();
+    result.verifier = Strings.browser.formatStringFromName("identity.identified.verifier", [iData.caOrg], 1);
+
+    // If the cert is identified, then we can populate the results with credentials
+    if (mode == this.IDENTITY_MODE_IDENTIFIED) {
+      result.owner = iData.subjectOrg;
+
+      // Build an appropriate supplemental block out of whatever location data we have
+      let supplemental = "";
+      if (iData.city)
+        supplemental += iData.city + "\n";
+      if (iData.state && iData.country)
+        supplemental += Strings.browser.formatStringFromName("identity.identified.state_and_country", [iData.state, iData.country], 2);
+      else if (iData.state) // State only
+        supplemental += iData.state;
+      else if (iData.country) // Country only
+        supplemental += iData.country;
+      result.supplemental = supplemental;
+
+      return result;
+    }
+    
+    // Otherwise, we don't know the cert owner
+    result.owner = Strings.browser.GetStringFromName("identity.ownerUnknown2");
+
+    // Cache the override service the first time we need to check it
+    if (!this._overrideService)
+      this._overrideService = Cc["@mozilla.org/security/certoverride;1"].getService(Ci.nsICertOverrideService);
+
+    // Check whether this site is a security exception. XPConnect does the right
+    // thing here in terms of converting _lastLocation.port from string to int, but
+    // the overrideService doesn't like undefined ports, so make sure we have
+    // something in the default case (bug 432241).
+    // .hostname can return an empty string in some exceptional cases -
+    // hasMatchingOverride does not handle that, so avoid calling it.
+    // Updating the tooltip value in those cases isn't critical.
+    // FIXME: Fixing bug 646690 would probably makes this check unnecessary
+    if (this._lastLocation.hostname &&
+        this._overrideService.hasMatchingOverride(this._lastLocation.hostname,
+                                                  (this._lastLocation.port || 443),
+                                                  iData.cert, {}, {}))
+      result.verifier = Strings.browser.GetStringFromName("identity.identified.verified_by_you");
+
+    return result;
+  },
+
+  /**
+   * Return the eTLD+1 version of the current hostname
+   */
+  getEffectiveHost: function getEffectiveHost() {
+    if (!this._IDNService)
+      this._IDNService = Cc["@mozilla.org/network/idn-service;1"]
+                         .getService(Ci.nsIIDNService);
+    try {
+      let baseDomain = Services.eTLD.getBaseDomainFromHost(this._lastLocation.hostname);
+      return this._IDNService.convertToDisplayIDN(baseDomain, {});
+    } catch (e) {
+      // If something goes wrong (e.g. hostname is an IP address) just fail back
+      // to the full domain.
+      return this._lastLocation.hostname;
+    }
+  }
+};
+
 function OverscrollController(aTab) {
   this.tab = aTab;
 }
@@ -4864,19 +5112,21 @@ var ActivityObserver = {
 };
 
 var WebappsUI = {
-  init: function() {
+  init: function init() {
     Cu.import("resource://gre/modules/Webapps.jsm");
 
     Services.obs.addObserver(this, "webapps-ask-install", false);
     Services.obs.addObserver(this, "webapps-launch", false);
+    Services.obs.addObserver(this, "webapps-sync-install", false);
   },
   
-  uninit: function() {
+  uninit: function unint() {
     Services.obs.removeObserver(this, "webapps-ask-install");
     Services.obs.removeObserver(this, "webapps-launch");
+    Services.obs.removeObserver(this, "webapps-sync-install");
   },
   
-  observe: function(aSubject, aTopic, aData) {
+  observe: function observe(aSubject, aTopic, aData) {
     let data = JSON.parse(aData);
     switch (aTopic) {
       case "webapps-ask-install":
@@ -4890,23 +5140,81 @@ var WebappsUI = {
           this.openURL(manifest.fullLaunchPath(), data.origin);
         }).bind(this));
         break;
+      case "webapps-sync-install":
+        // Wait until we know the app install worked, then make a homescreen shortcut
+        DOMApplicationRegistry.getManifestFor(data.origin, (function(aManifest) {
+	   if (!aManifest)
+	     return;
+          let manifest = new DOMApplicationManifest(aManifest, data.origin);
+
+          // Add a homescreen shortcut
+          this.createShortcut(manifest.name, manifest.fullLaunchPath(), manifest.iconURLForSize("64"), "webapp");
+
+          // Create a system notification allowing the user to launch the app
+          let observer = {
+            observe: function (aSubject, aTopic) {
+              if (aTopic == "alertclickcallback")
+                WebappsUI.openURL(manifest.fullLaunchPath(), aData.origin);
+            }
+          };
+    
+          let message = Strings.browser.GetStringFromName("webapps.alertSuccess");
+          let alerts = Cc["@mozilla.org/alerts-service;1"].getService(Ci.nsIAlertsService);
+          alerts.showAlertNotification("drawable://alert_app", manifest.name, message, true, "", observer, "webapp");
+        }).bind(this));
+        break;
     }
   },
   
-  doInstall: function(aData) {
+  doInstall: function doInstall(aData) {
     let manifest = new DOMApplicationManifest(aData.app.manifest, aData.app.origin);
     let name = manifest.name ? manifest.name : manifest.fullLaunchPath();
     if (Services.prompt.confirm(null, Strings.browser.GetStringFromName("webapps.installTitle"), name))
       DOMApplicationRegistry.confirmInstall(aData);
+    else
+      DOMApplicationRegistry.denyInstall(aData);
   },
   
-  openURL: function(aURI, aOrigin) {
+  openURL: function openURL(aURI, aOrigin) {
     let uri = Services.io.newURI(aURI, null, null);
     if (!uri)
       return;
 
     let bwin = window.QueryInterface(Ci.nsIDOMChromeWindow).browserDOMWindow;
     bwin.openURI(uri, null, Ci.nsIBrowserDOMWindow.OPEN_SWITCHTAB, Ci.nsIBrowserDOMWindow.OPEN_NEW);
+  },
+
+  createShortcut: function createShortcut(aTitle, aURL, aIconURL, aType) {
+    // The images are 64px, but Android will resize as needed.
+    // Bigger is better than too small.
+    const kIconSize = 64;
+
+    let canvas = document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
+
+    function _createShortcut() {
+      let icon = canvas.toDataURL("image/png", "");
+      canvas = null;
+      try {
+        let shell = Cc["@mozilla.org/browser/shell-service;1"].createInstance(Ci.nsIShellService);
+        shell.createShortcut(aTitle, aURL, icon, aType);
+      } catch(e) {
+        Cu.reportError(e);
+      }
+    }
+
+    canvas.width = canvas.height = kIconSize;
+    let ctx = canvas.getContext("2d");
+
+    let favicon = new Image();
+    favicon.onload = function() {
+      ctx.drawImage(favicon, 0, 0, kIconSize, kIconSize);
+      _createShortcut();
+    }
+    favicon.onerror = function() {
+      Cu.reportError("CreateShortcut: favicon image load error");
+    }
+  
+    favicon.src = aIconURL;
   }
 }
 
@@ -4950,6 +5258,30 @@ var RemoteDebugger = {
     return Services.prefs.getBoolPref("remote-debugger.enabled");
   },
 
+  /**
+   * Prompt the user to accept or decline the incoming connection.
+   *
+   * @return true if the connection should be permitted, false otherwise
+   */
+  _allowConnection: function rd_allowConnection() {
+    let title = Strings.browser.GetStringFromName("remoteIncomingPromptTitle");
+    let msg = Strings.browser.GetStringFromName("remoteIncomingPromptMessage");
+    let btn = Strings.browser.GetStringFromName("remoteIncomingPromptDisable");
+    let prompt = Services.prompt;
+    let flags = prompt.BUTTON_POS_0 * prompt.BUTTON_TITLE_OK +
+                prompt.BUTTON_POS_1 * prompt.BUTTON_TITLE_CANCEL +
+                prompt.BUTTON_POS_2 * prompt.BUTTON_TITLE_IS_STRING +
+                prompt.BUTTON_POS_1_DEFAULT;
+    let result = prompt.confirmEx(null, title, msg, flags, null, null, btn, null, { value: false });
+    if (result == 0)
+      return true;
+    if (result == 2) {
+      this._stop();
+      Services.prefs.setBoolPref("remote-debugger.enabled", false);
+    }
+    return false;
+  },
+
   _restart: function rd_restart() {
     this._stop();
     this._start();
@@ -4958,7 +5290,7 @@ var RemoteDebugger = {
   _start: function rd_start() {
     try {
       if (!DebuggerServer.initialized) {
-        DebuggerServer.init();
+        DebuggerServer.init(this._allowConnection);
         DebuggerServer.addActors("chrome://browser/content/dbg-browser-actors.js");
       }
 

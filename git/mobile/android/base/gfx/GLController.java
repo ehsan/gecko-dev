@@ -1,39 +1,7 @@
 /* -*- Mode: Java; c-basic-offset: 4; tab-width: 20; indent-tabs-mode: nil; -*-
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Android code.
- *
- * The Initial Developer of the Original Code is Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2011-2012
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Patrick Walton <pcwalton@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 package org.mozilla.gecko.gfx;
 
@@ -61,10 +29,7 @@ public class GLController {
     private EGL10 mEGL;
     private EGLDisplay mEGLDisplay;
     private EGLConfig mEGLConfig;
-    private EGLContext mEGLContext;
     private EGLSurface mEGLSurface;
-
-    private GL mGL;
 
     private static final int LOCAL_EGL_OPENGL_ES2_BIT = 4;
 
@@ -87,10 +52,8 @@ public class GLController {
         mGLVersion = version;
     }
 
-    public GL getGL()                       { return mEGLContext.getGL(); }
     public EGLDisplay getEGLDisplay()       { return mEGLDisplay;         }
     public EGLConfig getEGLConfig()         { return mEGLConfig;          }
-    public EGLContext getEGLContext()       { return mEGLContext;         }
     public EGLSurface getEGLSurface()       { return mEGLSurface;         }
     public LayerView getView()              { return mView;               }
 
@@ -109,9 +72,7 @@ public class GLController {
 
         mEGLDisplay = null;
         mEGLConfig = null;
-        mEGLContext = null;
         mEGLSurface = null;
-        mGL = null;
         return true;
     }
 
@@ -143,9 +104,6 @@ public class GLController {
     synchronized void surfaceChanged(int newWidth, int newHeight) {
         mWidth = newWidth;
         mHeight = newHeight;
-        if (mGL != null) {
-          mView.getRenderer().onSurfaceChanged((GL10)mGL, mWidth, mHeight);
-        }
         mSurfaceValid = true;
         notifyAll();
     }
@@ -160,20 +118,13 @@ public class GLController {
 
         mEGLConfig = chooseConfig();
 
-        int[] attribList = { EGL_CONTEXT_CLIENT_VERSION, mGLVersion, EGL10.EGL_NONE };
-        mEGLContext = mEGL.eglCreateContext(mEGLDisplay, mEGLConfig, EGL10.EGL_NO_CONTEXT,
-                                            attribList);
-        if (mEGLContext == null || mEGLContext == EGL10.EGL_NO_CONTEXT) {
-            throw new GLControllerException("createContext() failed " +
-                                            getEGLError());
-        }
-
-        mGL = mEGLContext.getGL();
-
-        if (mView.getRenderer() != null) {
-            mView.getRenderer().onSurfaceCreated((GL10)mGL, mEGLConfig);
-            mView.getRenderer().onSurfaceChanged((GL10)mGL, mWidth, mHeight);
-        }
+        // updating the state in the view/controller/client should be
+        // done on the main UI thread, not the GL renderer thread
+        mView.post(new Runnable() {
+            public void run() {
+                mView.setViewportSize(new IntSize(mWidth, mHeight));
+            }
+        });
     }
 
     private EGLConfig chooseConfig() {

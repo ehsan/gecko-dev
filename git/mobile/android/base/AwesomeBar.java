@@ -1,41 +1,7 @@
 /* -*- Mode: Java; c-basic-offset: 4; tab-width: 20; indent-tabs-mode: nil; -*-
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Android code.
- *
- * The Initial Developer of the Original Code is Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2011
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Vladimir Vukicevic <vladimir@pobox.com>
- *   Wes Johnston <wjohnston@mozilla.com>
- *   Mark Finkle <mfinkle@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 package org.mozilla.gecko;
 
@@ -45,11 +11,11 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ContentResolver;
 import android.content.Context;
-import android.content.res.Resources;
 import android.content.res.Configuration;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.Spanned;
@@ -79,6 +45,7 @@ import java.net.URLEncoder;
 import java.util.Map;
 
 import org.mozilla.gecko.db.BrowserContract.Bookmarks;
+import org.mozilla.gecko.db.BrowserContract.Combined;
 import org.mozilla.gecko.db.BrowserDB.URLColumns;
 import org.mozilla.gecko.db.BrowserDB;
 
@@ -134,22 +101,6 @@ public class AwesomeBar extends GeckoActivity implements GeckoEventListener {
                 openUserEnteredAndFinish(mText.getText().toString());
             }
         });
-
-        Resources resources = getResources();
-        
-        int padding[] = { mText.getPaddingLeft(),
-                          mText.getPaddingTop(),
-                          mText.getPaddingRight(),
-                          mText.getPaddingBottom() };
-
-        GeckoStateListDrawable states = new GeckoStateListDrawable();
-        states.initializeFilter(GeckoApp.mBrowserToolbar.getHighlightColor());
-        states.addState(new int[] { android.R.attr.state_focused }, resources.getDrawable(R.drawable.address_bar_url_pressed));
-        states.addState(new int[] { android.R.attr.state_pressed }, resources.getDrawable(R.drawable.address_bar_url_pressed));
-        states.addState(new int[] { }, resources.getDrawable(R.drawable.address_bar_url_default));
-        mText.setBackgroundDrawable(states);
-
-        mText.setPadding(padding[0], padding[1], padding[2], padding[3]);
 
         Intent intent = getIntent();
         String currentUrl = intent.getStringExtra(CURRENT_URL_KEY);
@@ -475,8 +426,11 @@ public class AwesomeBar extends GeckoActivity implements GeckoEventListener {
             // The history list is backed by a SimpleExpandableListAdapter
             @SuppressWarnings("rawtypes")
             Map map = (Map) exList.getExpandableListAdapter().getChild(groupPosition, childPosition);
-            mContextMenuSubject = new ContextMenuSubject(-1, (String)map.get(URLColumns.URL),
-                    (byte[]) map.get(URLColumns.FAVICON), (String)map.get(URLColumns.TITLE), null);
+            mContextMenuSubject = new ContextMenuSubject((Integer) map.get(Combined.HISTORY_ID),
+                                                         (String) map.get(URLColumns.URL),
+                                                         (byte[]) map.get(URLColumns.FAVICON),
+                                                         (String) map.get(URLColumns.TITLE),
+                                                         null);
         } else {
             if (!(menuInfo instanceof AdapterView.AdapterContextMenuInfo)) {
                 Log.e(LOGTAG, "menuInfo is not AdapterContextMenuInfo");
@@ -501,12 +455,15 @@ public class AwesomeBar extends GeckoActivity implements GeckoEventListener {
                 if (keywordCol != -1)
                     keyword = cursor.getString(keywordCol);
 
-                mContextMenuSubject = new ContextMenuSubject(cursor.getInt(cursor.getColumnIndexOrThrow(Bookmarks._ID)),
+                // Use the bookmark id for the Bookmarks tab and the history id for the Top Sites tab 
+                int id = (list == findViewById(R.id.bookmarks_list)) ? cursor.getInt(cursor.getColumnIndexOrThrow(Bookmarks._ID)) :
+                                                                       cursor.getInt(cursor.getColumnIndexOrThrow(Combined.HISTORY_ID));
+
+                mContextMenuSubject = new ContextMenuSubject(id,
                                                              cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.URL)),
                                                              cursor.getBlob(cursor.getColumnIndexOrThrow(URLColumns.FAVICON)),
                                                              cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.TITLE)),
-                                                             keyword
-                );
+                                                             keyword);
             }
         }
 
@@ -519,6 +476,12 @@ public class AwesomeBar extends GeckoActivity implements GeckoEventListener {
         if (list != findViewById(R.id.bookmarks_list)) {
             menu.findItem(R.id.remove_bookmark).setVisible(false);
             menu.findItem(R.id.edit_bookmark).setVisible(false);
+
+            // Hide "Remove" item if there isn't a valid history ID
+            if (mContextMenuSubject.id < 0)
+                menu.findItem(R.id.remove_history).setVisible(false);
+        } else {
+            menu.findItem(R.id.remove_history).setVisible(false);
         }
 
         menu.setHeaderTitle(mContextMenuSubject.title);
@@ -607,7 +570,14 @@ public class AwesomeBar extends GeckoActivity implements GeckoEventListener {
                 break;
             }
             case R.id.remove_bookmark: {
-                (new GeckoAsyncTask<Void, Void, Void>() {
+                (new AsyncTask<Void, Void, Void>() {
+                    private boolean mInReadingList;
+
+                    @Override
+                    public void onPreExecute() {
+                        mInReadingList = mAwesomeTabs.isInReadingList();
+                    }
+
                     @Override
                     public Void doInBackground(Void... params) {
                         BrowserDB.removeBookmark(mResolver, id);
@@ -616,7 +586,26 @@ public class AwesomeBar extends GeckoActivity implements GeckoEventListener {
 
                     @Override
                     public void onPostExecute(Void result) {
-                        Toast.makeText(AwesomeBar.this, R.string.bookmark_removed, Toast.LENGTH_SHORT).show();
+                        int messageId = R.string.bookmark_removed;
+                        if (mInReadingList)
+                            messageId = R.string.reading_list_removed;
+
+                        Toast.makeText(AwesomeBar.this, messageId, Toast.LENGTH_SHORT).show();
+                    }
+                }).execute();
+                break;
+            }
+            case R.id.remove_history: {
+                (new GeckoAsyncTask<Void, Void, Void>() {
+                    @Override
+                    public Void doInBackground(Void... params) {
+                        BrowserDB.removeHistoryEntry(mResolver, id);
+                        return null;
+                    }
+
+                    @Override
+                    public void onPostExecute(Void result) {
+                        Toast.makeText(AwesomeBar.this, R.string.history_removed, Toast.LENGTH_SHORT).show();
                     }
                 }).execute();
                 break;

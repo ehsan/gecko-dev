@@ -1,46 +1,14 @@
 /* -*- Mode: Java; c-basic-offset: 4; tab-width: 20; indent-tabs-mode: nil; -*-
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Android code.
- *
- * The Initial Developer of the Original Code is Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2009-2010
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Lucas Rocha <lucasr@mozilla.com>
- *   Margaret Leibovic <margaret.leibovic@gmail.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 package org.mozilla.gecko;
 
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.res.Resources;
+import android.database.ContentObserver;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -82,6 +50,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import org.mozilla.gecko.db.BrowserContract.Bookmarks;
+import org.mozilla.gecko.db.BrowserContract.Combined;
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.db.BrowserDB.URLColumns;
 
@@ -98,9 +67,9 @@ public class AwesomeBarTabs extends TabHost {
     private boolean mInflated;
     private LayoutInflater mInflater;
     private OnUrlOpenListener mUrlOpenListener;
-    private View.OnTouchListener mListTouchListener;
     private JSONArray mSearchEngines;
     private ContentResolver mContentResolver;
+    private ContentObserver mContentObserver;
 
     private BookmarksQueryTask mBookmarksQueryTask;
     private HistoryQueryTask mHistoryQueryTask;
@@ -108,6 +77,8 @@ public class AwesomeBarTabs extends TabHost {
     private AwesomeBarCursorAdapter mAllPagesCursorAdapter;
     private BookmarksListAdapter mBookmarksAdapter;
     private SimpleExpandableListAdapter mHistoryAdapter;
+
+    private boolean mInReadingList;
 
     // FIXME: This value should probably come from a
     // prefs key (just like XUL-based fennec)
@@ -122,6 +93,7 @@ public class AwesomeBarTabs extends TabHost {
         public TextView titleView;
         public TextView urlView;
         public ImageView faviconView;
+        public ImageView starView;
     }
 
     private class HistoryListAdapter extends SimpleExpandableListAdapter {
@@ -145,6 +117,7 @@ public class AwesomeBarTabs extends TabHost {
                 viewHolder.titleView = (TextView) convertView.findViewById(R.id.title);
                 viewHolder.urlView = (TextView) convertView.findViewById(R.id.url);
                 viewHolder.faviconView = (ImageView) convertView.findViewById(R.id.favicon);
+                viewHolder.starView = (ImageView) convertView.findViewById(R.id.bookmark_star);
 
                 convertView.setTag(viewHolder);
             } else {
@@ -172,6 +145,13 @@ public class AwesomeBarTabs extends TabHost {
                 Bitmap bitmap = BitmapFactory.decodeByteArray(b, 0, b.length);
                 viewHolder.faviconView.setImageBitmap(bitmap);
             }
+
+            Integer bookmarkId = (Integer) historyItem.get(Combined.BOOKMARK_ID);
+
+            // The bookmark id will be 0 (null in database) when the url
+            // is not a bookmark.
+            int visibility = (bookmarkId == 0 ? View.GONE : View.VISIBLE);
+            viewHolder.starView.setVisibility(visibility);
 
             return convertView;
         }
@@ -206,6 +186,8 @@ public class AwesomeBarTabs extends TabHost {
                 mBookmarksQueryTask.cancel(false);
 
             Pair<Integer, String> folderPair = mParentStack.getFirst();
+            mInReadingList = (folderPair.first == Bookmarks.FIXED_READING_LIST_ID);
+
             mBookmarksQueryTask = new BookmarksQueryTask(folderPair.first, folderPair.second);
             mBookmarksQueryTask.execute();
         }
@@ -263,6 +245,8 @@ public class AwesomeBarTabs extends TabHost {
                 return mResources.getString(R.string.bookmarks_folder_toolbar);
             else if (guid.equals(Bookmarks.UNFILED_FOLDER_GUID))
                 return mResources.getString(R.string.bookmarks_folder_unfiled);
+            else if (guid.equals(Bookmarks.READING_LIST_FOLDER_GUID))
+                return mResources.getString(R.string.bookmarks_folder_reading_list);
 
             // If for some reason we have a folder with a special GUID, but it's not one of
             // the special folders we expect in the UI, just return the title from the DB.
@@ -301,6 +285,15 @@ public class AwesomeBarTabs extends TabHost {
                 updateUrl(viewHolder.urlView, cursor);
                 updateFavicon(viewHolder.faviconView, cursor);
             } else {
+                int guidIndex = cursor.getColumnIndexOrThrow(Bookmarks.GUID);
+                String guid = cursor.getString(guidIndex);
+
+                if (guid.equals(Bookmarks.READING_LIST_FOLDER_GUID)) {
+                    viewHolder.faviconView.setImageResource(R.drawable.reading_list);
+                } else {
+                    viewHolder.faviconView.setImageResource(R.drawable.folder);
+                }
+
                 viewHolder.titleView.setText(getFolderTitle(position));
             }
 
@@ -486,6 +479,8 @@ public class AwesomeBarTabs extends TabHost {
             String url = cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.URL));
             String title = cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.TITLE));
             byte[] favicon = cursor.getBlob(cursor.getColumnIndexOrThrow(URLColumns.FAVICON));
+            Integer bookmarkId = cursor.getInt(cursor.getColumnIndexOrThrow(Combined.BOOKMARK_ID));
+            Integer historyId = cursor.getInt(cursor.getColumnIndexOrThrow(Combined.HISTORY_ID));
 
             // Use the URL instead of an empty title for consistency with the normal URL
             // bar view - this is the equivalent of getDisplayTitle() in Tab.java
@@ -497,6 +492,9 @@ public class AwesomeBarTabs extends TabHost {
 
             if (favicon != null)
                 historyItem.put(URLColumns.FAVICON, favicon);
+
+            historyItem.put(Combined.BOOKMARK_ID, bookmarkId);
+            historyItem.put(Combined.HISTORY_ID, historyId);
 
             return historyItem;
         }
@@ -565,6 +563,17 @@ public class AwesomeBarTabs extends TabHost {
                 new int[] { R.id.title },
                 result.second
             );
+
+            if (mContentObserver == null) {
+                // Register an observer to update the history tab contents if they change.
+                mContentObserver = new ContentObserver(GeckoAppShell.getHandler()) {
+                    public void onChange(boolean selfChange) {
+                        mHistoryQueryTask = new HistoryQueryTask();
+                        mHistoryQueryTask.execute();
+                    }
+                };
+                BrowserDB.registerHistoryObserver(mContentResolver, mContentObserver);
+            }
 
             final ExpandableListView historyList =
                     (ExpandableListView) findViewById(R.id.history_list);
@@ -655,6 +664,7 @@ public class AwesomeBarTabs extends TabHost {
                 viewHolder.titleView = (TextView) convertView.findViewById(R.id.title);
                 viewHolder.urlView = (TextView) convertView.findViewById(R.id.url);
                 viewHolder.faviconView = (ImageView) convertView.findViewById(R.id.favicon);
+                viewHolder.starView = (ImageView) convertView.findViewById(R.id.bookmark_star);
 
                 convertView.setTag(viewHolder);
             } else {
@@ -670,6 +680,7 @@ public class AwesomeBarTabs extends TabHost {
                 updateTitle(viewHolder.titleView, cursor);
                 updateUrl(viewHolder.urlView, cursor);
                 updateFavicon(viewHolder.faviconView, cursor);
+                updateBookmarkStar(viewHolder.starView, cursor);
             } else {
                 bindSearchEngineView(position - resultCount, viewHolder);
             }
@@ -708,6 +719,7 @@ public class AwesomeBarTabs extends TabHost {
             viewHolder.urlView.setText(searchText);
             Drawable drawable = getDrawableFromDataURI(iconURI);
             viewHolder.faviconView.setImageDrawable(drawable);
+            viewHolder.starView.setVisibility(View.GONE);
         }
     };
 
@@ -720,7 +732,10 @@ public class AwesomeBarTabs extends TabHost {
         mInflated = false;
         mSearchEngines = new JSONArray();
         mContentResolver = context.getContentResolver();
+        mContentObserver = null;
         mInflater = (LayoutInflater) mContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+
+        mInReadingList = false;
     }
 
     @Override
@@ -779,7 +794,7 @@ public class AwesomeBarTabs extends TabHost {
         View indicatorView = mInflater.inflate(R.layout.awesomebar_tab_indicator, null);
         Drawable background = indicatorView.getBackground();
         try {
-            background.setColorFilter(new LightingColorFilter(Color.WHITE, GeckoApp.mBrowserToolbar.getHighlightColor()));
+            background.setColorFilter(new LightingColorFilter(Color.WHITE, 0xFFFF9500));
         } catch (Exception e) {
             Log.d(LOGTAG, "background.setColorFilter failed " + e);            
         }
@@ -862,6 +877,12 @@ public class AwesomeBarTabs extends TabHost {
         return imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
     }
 
+    private String getReaderForUrl(String url) {
+        // FIXME: still need to define the final way to open items from
+        // reading list. For now, we're using an about:reader page.
+        return "about:reader?url=" + url;
+    }
+
     private void handleBookmarkItemClick(AdapterView<?> parent, View view, int position, long id) {
         int headerCount = ((ListView) parent).getHeaderViewsCount();
         // If we tap on the header view, there's nothing to do
@@ -887,8 +908,13 @@ public class AwesomeBarTabs extends TabHost {
 
         // Otherwise, just open the URL
         String url = cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.URL));
-        if (mUrlOpenListener != null)
+        if (mUrlOpenListener != null) {
+            if (mInReadingList) {
+                url = getReaderForUrl(url);
+            }
+
             mUrlOpenListener.onUrlOpen(url);
+        }
     }
 
     private void handleHistoryItemClick(int groupPosition, int childPosition) {
@@ -910,8 +936,14 @@ public class AwesomeBarTabs extends TabHost {
         if (item instanceof Cursor) {
             Cursor cursor = (Cursor) item;
             String url = cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.URL));
-            if (mUrlOpenListener != null)
+            if (mUrlOpenListener != null) {
+                int display = cursor.getInt(cursor.getColumnIndexOrThrow(Combined.DISPLAY));
+                if (display == Combined.DISPLAY_READER) {
+                    url = getReaderForUrl(url);
+                }
+
                 mUrlOpenListener.onUrlOpen(url);
+            }
         } else {
             if (mUrlOpenListener != null)
                 mUrlOpenListener.onSearch((String)item);
@@ -949,6 +981,16 @@ public class AwesomeBarTabs extends TabHost {
         urlView.setText(url);
     }
 
+    private void updateBookmarkStar(ImageView starView, Cursor cursor) {
+        int bookmarkIdIndex = cursor.getColumnIndexOrThrow(Combined.BOOKMARK_ID);
+        long id = cursor.getLong(bookmarkIdIndex);
+
+        // The bookmark id will be 0 (null in database) when the url
+        // is not a bookmark.
+        int visibility = (id == 0 ? View.GONE : View.VISIBLE);
+        starView.setVisibility(visibility);
+    }
+
     public void setOnUrlOpenListener(OnUrlOpenListener listener) {
         mUrlOpenListener = listener;
     }
@@ -963,6 +1005,9 @@ public class AwesomeBarTabs extends TabHost {
             if (bookmarksCursor != null)
                 bookmarksCursor.close();
         }
+
+        if (mContentObserver != null)
+            BrowserDB.unregisterContentObserver(mContentResolver, mContentObserver);
     }
 
     public void filter(String searchTerm) {
@@ -990,6 +1035,10 @@ public class AwesomeBarTabs extends TabHost {
                 mAllPagesCursorAdapter.notifyDataSetChanged();
             }
         });
+    }
+
+    public boolean isInReadingList() {
+        return mInReadingList;
     }
 
     @Override

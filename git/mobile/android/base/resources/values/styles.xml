@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+
 <resources>
 
     <!-- Layout -->
@@ -31,7 +35,7 @@
     <style name="BrowserToolbar">
         <item name="android:layout_width">fill_parent</item>
         <item name="android:layout_height">wrap_content</item>
-        <item name="android:orientation">vertical</item>
+        <item name="android:orientation">horizontal</item>
         <item name="android:background">#000000</item>
     </style>
 
@@ -53,6 +57,13 @@
     <style name="AddressBar.ImageButton" parent="AddressBar.Button">
         <item name="android:scaleType">fitCenter</item>
         <item name="android:background">@android:color/transparent</item>
+    </style>
+
+    <!-- Address bar - Image Button - Unused -->
+    <style name="AddressBar.ImageButton.Unused">
+        <item name="android:layout_width">0dip</item>
+        <item name="android:layout_height">0dip</item>
+        <item name="android:visibility">gone</item>
     </style>
 
     <!-- AwesomeBar -->
@@ -84,6 +95,29 @@
         <item name="android:layout_width">fill_parent</item>
         <item name="android:layout_height">48dip</item>
         <item name="android:background">@drawable/tabs_tray_bg_repeat</item>
+    </style>
+
+    <!-- Find bar -->
+    <style name="FindBar">
+        <item name="android:layout_width">fill_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:background">#000000</item>
+        <item name="android:paddingLeft">3dip</item>
+        <item name="android:paddingRight">3dip</item>
+        <item name="android:paddingTop">6dip</item>
+        <item name="android:paddingBottom">6dip</item>
+    </style>
+
+    <!-- Find bar - Image Button -->
+    <style name="FindBar.ImageButton">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginLeft">5dip</item>
+        <item name="android:layout_marginRight">5dip</item>
+        <item name="android:scaleType">fitCenter</item>
+        <item name="android:layout_centerVertical">true</item>
+        <item name="android:background">@android:color/transparent</item>
     </style>
 
 </resources>

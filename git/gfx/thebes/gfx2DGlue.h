@@ -1,4 +1,9 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+
+#include "gfxPlatform.h"
 #include "gfxRect.h"
 #include "gfxMatrix.h"
 #include "gfxContext.h"
@@ -184,32 +189,6 @@ inline gfxASurface::gfxContentType ContentForFormat(const SurfaceFormat &aFormat
   default:
     return gfxASurface::CONTENT_COLOR_ALPHA;
   }
-}
-
-inline SurfaceFormat FormatForContent(gfxASurface::gfxContentType aContent)
-{
-  switch (aContent) {
-  case gfxASurface::CONTENT_COLOR:
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
-    return FORMAT_R5G6B5;
-#else
-    return FORMAT_B8G8R8X8;
-#endif
-  case gfxASurface::CONTENT_ALPHA:
-    return FORMAT_A8;
-  default:
-    return FORMAT_B8G8R8A8;
-  }
-}
-
-inline SurfaceFormat SurfaceFormatForImageFormat(gfxASurface::gfxImageFormat aFormat)
-{
-  return FormatForContent(gfxASurface::ContentFromFormat(aFormat));
-}
-
-inline gfxASurface::gfxImageFormat ImageFormatForSurfaceFormat(SurfaceFormat aFormat)
-{
-  return gfxASurface::FormatFromContent(mozilla::gfx::ContentForFormat(aFormat));
 }
 
 inline CompositionOp CompositionOpForOp(gfxContext::GraphicsOperator aOp)

@@ -1,40 +1,7 @@
 /* -*- Mode: Java; c-basic-offset: 4; tab-width: 4; indent-tabs-mode: nil; -*-
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Android code.
- *
- * The Initial Developer of the Original Code is Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2010
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Vladimir Vukicevic <vladimir@pobox.com>
- *   Sriram Ramasubramanian <sriram@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 package org.mozilla.gecko;
 
@@ -48,6 +15,7 @@ import org.mozilla.gecko.gfx.ScreenshotLayer;
 import org.mozilla.gecko.FloatUtils;
 import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
 import org.mozilla.gecko.gfx.ViewportMetrics;
+import org.mozilla.gecko.gfx.RectUtils;
 
 import java.io.*;
 import java.lang.reflect.*;
@@ -73,8 +41,6 @@ import android.webkit.MimeTypeMap;
 import android.media.MediaScannerConnection;
 import android.media.MediaScannerConnection.MediaScannerConnectionClient;
 import android.provider.Settings;
-import android.view.accessibility.AccessibilityManager;
-import android.view.accessibility.AccessibilityEvent;
 import android.opengl.GLES20;
 
 import android.util.*;
@@ -118,8 +84,7 @@ public class GeckoAppShell
     public static final String SHORTCUT_TYPE_BOOKMARK = "bookmark";
 
     static public final int SCREENSHOT_THUMBNAIL = 0;
-    static public final int SCREENSHOT_WHOLE_PAGE = 1;
-    static public final int SCREENSHOT_UPDATE = 2;
+    static public final int SCREENSHOT_CHECKERBOARD = 1;
 
     static public final int RESTORE_NONE = 0;
     static public final int RESTORE_OOM = 1;
@@ -133,11 +98,6 @@ public class GeckoAppShell
     private static Boolean sNSSLibsLoaded = false;
     private static Boolean sLibsSetup = false;
     private static File sGREDir = null;
-    private static RectF sCheckerboardPageRect;
-    private static float sLastCheckerboardWidthRatio, sLastCheckerboardHeightRatio;
-    private static RepaintRunnable sRepaintRunnable = new RepaintRunnable();
-    static private int sMaxTextureSize = 0;
-
     private static Map<String, CopyOnWriteArrayList<GeckoEventListener>> mEventListeners
             = new HashMap<String, CopyOnWriteArrayList<GeckoEventListener>>();
 
@@ -157,6 +117,7 @@ public class GeckoAppShell
     private static Sensor gGyroscopeSensor = null;
     private static Sensor gOrientationSensor = null;
     private static Sensor gProximitySensor = null;
+    private static Sensor gLightSensor = null;
 
     private static boolean mLocationHighAccuracy = false;
 
@@ -240,6 +201,8 @@ public class GeckoAppShell
 
     public static native SurfaceBits getSurfaceBits(Surface surface);
 
+    public static native void onFullScreenPluginHidden(View view);
+
     private static class GeckoMediaScannerClient implements MediaScannerConnectionClient {
         private String mFile = "";
         private String mMimeType = "";
@@ -320,21 +283,26 @@ public class GeckoAppShell
 
         File cacheFile = getCacheDir(context);
         putenv("GRE_HOME=" + getGREDir(context).getPath());
-        File[] files = cacheFile.listFiles();
-        if (files != null) {
-            Iterator<File> cacheFiles = Arrays.asList(files).iterator();
-            while (cacheFiles.hasNext()) {
-                File libFile = cacheFiles.next();
-                if (libFile.getName().endsWith(".so"))
-                    libFile.delete();
-            }
-        }
 
         // setup the libs cache
         String linkerCache = System.getenv("MOZ_LINKER_CACHE");
-        if (System.getenv("MOZ_LINKER_CACHE") == null) {
-            GeckoAppShell.putenv("MOZ_LINKER_CACHE=" + cacheFile.getPath());
+        if (linkerCache == null) {
+            linkerCache = cacheFile.getPath();
+            GeckoAppShell.putenv("MOZ_LINKER_CACHE=" + linkerCache);
         }
+
+        if (GeckoApp.mAppContext != null &&
+            GeckoApp.mAppContext.linkerExtract()) {
+            GeckoAppShell.putenv("MOZ_LINKER_EXTRACT=1");
+            // Ensure that the cache dir is world-writable
+            File cacheDir = new File(linkerCache);
+            if (cacheDir.isDirectory()) {
+                cacheDir.setWritable(true, false);
+                cacheDir.setExecutable(true, false);
+                cacheDir.setReadable(true, false);
+            }
+        }
+
         sLibsSetup = true;
     }
 
@@ -407,6 +375,9 @@ public class GeckoAppShell
         // setup the downloads path
         f = Environment.getDownloadCacheDirectory();
         GeckoAppShell.putenv("EXTERNAL_STORAGE=" + f.getPath());
+
+        // Enable fixed position layers
+        GeckoAppShell.putenv("MOZ_ENABLE_FIXED_POSITION_LAYERS=1");
 
         putLocaleEnv();
     }
@@ -557,42 +528,7 @@ public class GeckoAppShell
     // Called by AndroidBridge using JNI
     public static void notifyScreenShot(final ByteBuffer data, final int tabId, final int x, final int y,
                                         final int width, final int height, final int token) {
-        getHandler().post(new Runnable() {
-            public void run() {
-                try {
-                    final Tab tab = Tabs.getInstance().getTab(tabId);
-                    if (tab == null)
-                        return;
-
-                    if (!Tabs.getInstance().isSelectedTab(tab) && SCREENSHOT_THUMBNAIL != token)
-                        return;
-
-                    Bitmap b = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565);
-                    b.copyPixelsFromBuffer(data);
-                    switch (token) {
-                    case SCREENSHOT_WHOLE_PAGE:
-                        GeckoApp.mAppContext.getLayerController()
-                            .getView().getRenderer()
-                            .setCheckerboardBitmap(b, sCheckerboardPageRect);
-                        break;
-                    case SCREENSHOT_UPDATE:
-                        GeckoApp.mAppContext.getLayerController().getView().getRenderer().
-                            updateCheckerboardBitmap(
-                                b, sLastCheckerboardWidthRatio * x,
-                                sLastCheckerboardHeightRatio * y,
-                                sLastCheckerboardWidthRatio * width,
-                                sLastCheckerboardHeightRatio * height,
-                                sCheckerboardPageRect);
-                        break;
-                    case SCREENSHOT_THUMBNAIL:
-                        GeckoApp.mAppContext.processThumbnail(tab, b, null);
-                        break;
-                    }
-                } finally {
-                    freeDirectBuffer(data);
-                }
-            }
-        });
+        ScreenshotHandler.notifyScreenShot(data, tabId, x, y, width, height, token);
     }
 
     private static CountDownLatch sGeckoPendingAcks = null;
@@ -685,7 +621,15 @@ public class GeckoAppShell
             if(gProximitySensor == null)
                 gProximitySensor = sm.getDefaultSensor(Sensor.TYPE_PROXIMITY);
             if (gProximitySensor != null)
-                sm.registerListener(GeckoApp.mAppContext, gProximitySensor, sDefaultSensorHint);
+                sm.registerListener(GeckoApp.mAppContext, gProximitySensor, SensorManager.SENSOR_DELAY_NORMAL);
+            break;
+
+        case GeckoHalDefines.SENSOR_LIGHT:
+            Log.i(LOGTAG, "Enabling SENSOR_LIGHT");
+            if(gLightSensor == null)
+                gLightSensor = sm.getDefaultSensor(Sensor.TYPE_LIGHT);
+            if (gLightSensor != null)
+                sm.registerListener(GeckoApp.mAppContext, gLightSensor, SensorManager.SENSOR_DELAY_NORMAL);
             break;
 
         case GeckoHalDefines.SENSOR_LINEAR_ACCELERATION:
@@ -729,6 +673,12 @@ public class GeckoAppShell
             Log.i(LOGTAG, "Disabling SENSOR_PROXIMITY");
             if (gProximitySensor != null)
                 sm.unregisterListener(GeckoApp.mAppContext, gProximitySensor);
+            break;
+
+        case GeckoHalDefines.SENSOR_LIGHT:
+            Log.i(LOGTAG, "Disabling SENSOR_LIGHT");
+            if (gLightSensor != null)
+                sm.unregisterListener(GeckoApp.mAppContext, gLightSensor);
             break;
 
         case GeckoHalDefines.SENSOR_LINEAR_ACCELERATION:
@@ -1525,18 +1475,19 @@ public class GeckoAppShell
 
     public static void addPluginView(View view,
                                      int x, int y,
-                                     int w, int h)
+                                     int w, int h,
+                                     boolean isFullScreen, int orientation)
 {
         ImmutableViewportMetrics pluginViewport;
 
-        Log.i(LOGTAG, "addPluginView:" + view + " @ x:" + x + " y:" + y + " w:" + w + " h:" + h);
+        Log.i(LOGTAG, "addPluginView:" + view + " @ x:" + x + " y:" + y + " w:" + w + " h:" + h + "fullscreen: " + isFullScreen + " orientation: " + orientation);
         
-        GeckoApp.mAppContext.addPluginView(view, new Rect(x, y, x + w, y + h));
+        GeckoApp.mAppContext.addPluginView(view, new Rect(x, y, x + w, y + h), isFullScreen, orientation);
     }
 
-    public static void removePluginView(View view) {
-        Log.i(LOGTAG, "removePluginView:" + view);
-        GeckoApp.mAppContext.removePluginView(view);
+    public static void removePluginView(View view, boolean isFullScreen) {
+        Log.i(LOGTAG, "removePluginView:" + view + " fullscreen: " + isFullScreen);
+        GeckoApp.mAppContext.removePluginView(view, isFullScreen);
     }
 
     public static Surface createSurface() {
@@ -1823,16 +1774,6 @@ public class GeckoAppShell
                 return promptServiceResult;
             }
 
-            if (type.equals("Accessibility:IsEnabled")) {
-                JSONObject ret = new JSONObject();
-                AccessibilityManager accessibilityManager =
-                    (AccessibilityManager) GeckoApp.mAppContext.getSystemService(Context.ACCESSIBILITY_SERVICE);
-                try {
-                    ret.put("enabled", accessibilityManager.isEnabled());
-                } catch (Exception ex) { }
-                return ret.toString();
-            }
-
             CopyOnWriteArrayList<GeckoEventListener> listeners;
             synchronized (mEventListeners) {
                 listeners = mEventListeners.get(type);
@@ -1973,29 +1914,6 @@ public class GeckoAppShell
             }
         }
         return false;
-    }
-
-    public static void emitGeckoAccessibilityEvent (int eventType, String[] textList, String description, boolean enabled, boolean checked, boolean password) {
-        AccessibilityManager accessibilityManager =
-            (AccessibilityManager) GeckoApp.mAppContext.getSystemService(Context.ACCESSIBILITY_SERVICE);
-
-        if (!accessibilityManager.isEnabled())
-            return;
-
-        LayerController layerController = GeckoApp.mAppContext.getLayerController();
-        LayerView layerView = layerController.getView();
-
-        AccessibilityEvent event = AccessibilityEvent.obtain(eventType);
-        event.setClassName(layerView.getClass().getName());
-        event.setPackageName(GeckoApp.mAppContext.getPackageName());
-        event.setEnabled(enabled);
-        event.setChecked(checked);
-        event.setPassword(password);
-        event.setContentDescription(description);
-        for (String text: textList)
-            event.getText().add(text);
-
-        accessibilityManager.sendAccessibilityEvent(event);
     }
 
     public static void viewSizeChanged() {
@@ -2176,6 +2094,26 @@ public class GeckoAppShell
         if (!GeckoApp.mAppContext.showFilePicker(aMimeType, new AsyncResultHandler(id)))
             GeckoAppShell.notifyFilePickerResult("", id);
     }
+    public static void screenshotWholePage(Tab tab) {
+        ScreenshotHandler.screenshotWholePage(tab);
+    }
+
+    // Called by AndroidBridge using JNI
+    public static void notifyPaintedRect(float top, float left, float bottom, float right) {
+        ScreenshotHandler.notifyPaintedRect(top, left, bottom, right);
+    }
+}
+
+class ScreenshotHandler {
+    private static Queue<PendingScreenshot> sPendingScreenshots = new LinkedList<PendingScreenshot>();
+    private static RectF sCheckerboardPageRect;
+    private static float sLastCheckerboardWidthRatio, sLastCheckerboardHeightRatio;
+    private static RepaintRunnable sRepaintRunnable = new RepaintRunnable();
+    private static int sMaxTextureSize = 0;
+    private static final String LOGTAG = "GeckoScreenshot";
+    private static boolean sDisableScreenshot = false;
+    private static ByteBuffer sWholePageScreenshotBuffer;
+    private static int sCheckerboardBufferWidth, sCheckerboardBufferHeight;
 
     static class RepaintRunnable implements Runnable {
         private boolean mIsRepaintRunnablePosted = false;
@@ -2198,25 +2136,40 @@ public class GeckoAppShell
                 mIsRepaintRunnablePosted = false;
             }
 
+
             Tab tab = Tabs.getInstance().getSelectedTab();
-            GeckoAppShell.screenshotWholePage(tab);
+            ImmutableViewportMetrics viewport = GeckoApp.mAppContext.getLayerController().getViewportMetrics();
+            
+            if (RectUtils.fuzzyEquals(sCheckerboardPageRect, viewport.getCssPageRect())) {
+                float width = right - left;
+                float height = bottom - top;
+                scheduleCheckerboardScreenshotEvent(tab.getId(), 
+                                                    (int)left, (int)top, (int)width, (int)height, 
+                                                    (int)(sLastCheckerboardWidthRatio * left), 
+                                                    (int)(sLastCheckerboardHeightRatio * top),
+                                                    (int)(sLastCheckerboardWidthRatio * width),
+                                                    (int)(sLastCheckerboardHeightRatio * height),
+                                                    sCheckerboardBufferWidth, sCheckerboardBufferHeight);
+            } else {
+                GeckoAppShell.screenshotWholePage(tab);
+            }
         }
 
         void addRectToRepaint(float top, float left, float bottom, float right) {
             synchronized(this) {
-                mDirtyTop = Math.min(top, mDirtyTop);
-                mDirtyLeft = Math.min(left, mDirtyLeft);
-                mDirtyBottom = Math.max(bottom, mDirtyBottom);
-                mDirtyRight = Math.max(right, mDirtyRight);
+                ImmutableViewportMetrics viewport = GeckoApp.mAppContext.getLayerController().getViewportMetrics();
+                mDirtyTop = Math.max(sCheckerboardPageRect.top, Math.min(top, mDirtyTop));
+                mDirtyLeft = Math.max(sCheckerboardPageRect.left, Math.min(left, mDirtyLeft));
+                mDirtyBottom = Math.min(sCheckerboardPageRect.bottom, Math.max(bottom, mDirtyBottom));
+                mDirtyRight = Math.min(sCheckerboardPageRect.right, Math.max(right, mDirtyRight));
                 if (!mIsRepaintRunnablePosted) {
-                    getHandler().postDelayed(this, 5000);
+                    GeckoAppShell.getHandler().postDelayed(this, 5000);
                     mIsRepaintRunnablePosted = true;
                 }
             }
         }
     }
 
-    // Called by AndroidBridge using JNI
     public static void notifyPaintedRect(float top, float left, float bottom, float right) {
         sRepaintRunnable.addRectToRepaint(top, left, bottom, right);
     }
@@ -2225,7 +2178,15 @@ public class GeckoAppShell
         return Math.max(Math.min(max, val), min);
     }
 
+    // Invoked via reflection from robocop test
+    public static void disableScreenshot() {
+        sDisableScreenshot = true;
+    }
+
     public static void screenshotWholePage(Tab tab) {
+        if (sDisableScreenshot) {
+            return;
+        }
         if (GeckoApp.mAppContext.isApplicationInBackground())
             return;
 
@@ -2235,7 +2196,9 @@ public class GeckoAppShell
             sMaxTextureSize = maxTextureSize[0];
             if (sMaxTextureSize == 0)
                 return;
+            sWholePageScreenshotBuffer = GeckoAppShell.allocateDirectBuffer(ScreenshotLayer.getMaxNumPixels() * 2 /* 16 bpp */);
         }
+
         ImmutableViewportMetrics viewport = GeckoApp.mAppContext.getLayerController().getViewportMetrics();
         Log.i(LOGTAG, "Taking whole-screen screenshot, viewport: " + viewport);
         // source width and height to screenshot
@@ -2243,6 +2206,8 @@ public class GeckoAppShell
         float sy = viewport.cssPageRectTop;
         float sw = viewport.cssPageRectRight - viewport.cssPageRectLeft;
         float sh = viewport.cssPageRectBottom - viewport.cssPageRectTop;
+        if (sw == 0 || sh == 0)
+            return;
         int maxPixels = Math.min(ScreenshotLayer.getMaxNumPixels(), sMaxTextureSize * sMaxTextureSize);
         // 2Mb of 16bit image data
         // may be bumped by up to 4x for power of 2 alignment
@@ -2256,14 +2221,98 @@ public class GeckoAppShell
         int dy = 0;
         int dw = clamp(minTextureSize, idealDstWidth, sMaxTextureSize);
         int dh = maxPixels / dw;
+        sCheckerboardBufferWidth = dw;
+        sCheckerboardBufferHeight = dh;
 
         sLastCheckerboardWidthRatio = dw / sw;
         sLastCheckerboardHeightRatio = dh / sh;
         sCheckerboardPageRect = viewport.getCssPageRect();
+        scheduleCheckerboardScreenshotEvent(tab.getId(), (int)sx, (int)sy, (int)sw, (int)sh, dx, dy, dw, dh, dw, dh);
+    }
 
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createScreenshotEvent(tab.getId(),
-                (int)FloatMath.ceil(sx), (int)FloatMath.ceil(sy),
-                (int)FloatMath.floor(sw), (int)FloatMath.floor(sh),
-                dx, dy, dw, dh, GeckoAppShell.SCREENSHOT_WHOLE_PAGE));
+    static void scheduleCheckerboardScreenshotEvent(int tabId, int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh, int bw, int bh) {
+        float totalSize = sw * sh;
+        int numSlices = (int) Math.ceil(totalSize / 100000);
+        if (numSlices == 0)
+            return;
+        int srcSliceSize = (int) Math.ceil(sh / numSlices);
+        int dstSliceSize = (int) Math.ceil(dh / numSlices);
+        for (int i = 0; i < numSlices; i++) {
+            GeckoEvent event =
+                GeckoEvent.createScreenshotEvent(tabId, 
+                                                 sx, sy + srcSliceSize * i,  sw, srcSliceSize, 
+                                                 dx, dy + dstSliceSize * i,  dw, dstSliceSize, bw, bh,
+                                                 GeckoAppShell.SCREENSHOT_CHECKERBOARD,
+                                                 sWholePageScreenshotBuffer);
+            synchronized(sPendingScreenshots) {
+                sPendingScreenshots.add(new PendingScreenshot(tabId, event));
+                if (sPendingScreenshots.size() == 1)
+                    sendNextEventToGecko();
+            }
+        }
+    }
+
+    static void sendNextEventToGecko() {
+        synchronized(sPendingScreenshots) {
+            if (sPendingScreenshots.isEmpty())
+                return;
+            GeckoAppShell.sendEventToGecko(sPendingScreenshots.element().getEvent());
+        }
+    }
+    
+    static class PendingScreenshot {
+        private final GeckoEvent mEvent;
+        private final int mTabId;
+
+        PendingScreenshot(int tabId, GeckoEvent event) {
+            mTabId = tabId;
+            mEvent = event;
+        }
+
+        GeckoEvent getEvent() {
+            return mEvent;
+        }
+
+    }
+
+    public static void notifyScreenShot(final ByteBuffer data, final int tabId, final int x, final int y,
+                                        final int width, final int height, final int token) {
+
+        GeckoAppShell.getHandler().post(new Runnable() {
+            public void run() {
+                final Tab tab = Tabs.getInstance().getTab(tabId);
+                if (tab == null) {
+                    if (token == GeckoAppShell.SCREENSHOT_CHECKERBOARD) {
+                        synchronized(sPendingScreenshots) {
+                            sPendingScreenshots.remove();
+                            sendNextEventToGecko();
+                        }
+                    }
+                    return;
+                }
+                switch (token) {
+                    case GeckoAppShell.SCREENSHOT_CHECKERBOARD:
+                    {
+                        GeckoApp.mAppContext.getLayerController()
+                            .getView().getRenderer()
+                            .setCheckerboardBitmap(data, width, height, sCheckerboardPageRect);
+                        synchronized(sPendingScreenshots) {
+                            sPendingScreenshots.remove();
+                            sendNextEventToGecko();
+                        }
+                        break;
+                    }
+                    case GeckoAppShell.SCREENSHOT_THUMBNAIL:
+                    {
+                        if (Tabs.getInstance().isSelectedTab(tab)) {
+                            Bitmap b = tab.getThumbnailBitmap();
+                            b.copyPixelsFromBuffer(data);
+                            GeckoApp.mAppContext.processThumbnail(tab, b, null);
+                        }
+                        break;
+                    }
+                }
+            }
+        });
     }
 }

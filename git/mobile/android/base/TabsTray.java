@@ -61,6 +61,8 @@ public class TabsTray extends GeckoActivity implements Tabs.OnTabsChangedListene
         mWaitingForClose = false;
 
         mList = (ListView) findViewById(R.id.list);
+        mList.setItemsCanFocus(true);
+
         mList.setRecyclerListener(new RecyclerListener() {
             @Override
             public void onMovedToScrapHeap(View view) {

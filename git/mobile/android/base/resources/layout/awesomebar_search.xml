@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
                 style="@style/AwesomeBar"
                 android:background="@drawable/tabs_tray_bg_repeat">
@@ -6,12 +10,14 @@
     <view class="org.mozilla.gecko.AwesomeBar$AwesomeBarEditText"
           android:id="@+id/awesomebar_text"
           style="@style/AddressBar.Button"
+          android:background="@drawable/address_bar_url"
           android:layout_margin="4dip"
           android:layout_alignParentBottom="true"
           android:layout_centerVertical="true"
           android:paddingLeft="15dip"
           android:paddingRight="40dip"
           android:hint="@string/awesomebar_default_text"
+          android:textColorHighlight="@color/url_bar_text_highlight"
           android:inputType="textUri|textNoSuggestions"
           android:imeOptions="actionSearch"
           android:selectAllOnFocus="true"

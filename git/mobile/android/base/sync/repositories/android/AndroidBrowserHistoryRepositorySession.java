@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 package org.mozilla.gecko.sync.repositories.android;
 
@@ -214,7 +214,7 @@ public class AndroidBrowserHistoryRepositorySession extends AndroidBrowserReposi
       // Something failed; most pessimistic action is to declare that all insertions failed.
       // TODO: perform the bulkInsert in a transaction and rollback unless all insertions succeed?
       for (HistoryRecord failed : outgoing) {
-        delegate.onRecordStoreFailed(new RuntimeException("Failed to insert history item with guid " + failed.guid + "."));
+        delegate.onRecordStoreFailed(new RuntimeException("Failed to insert history item with guid " + failed.guid + "."), failed.guid);
       }
       return;
     }
@@ -234,7 +234,7 @@ public class AndroidBrowserHistoryRepositorySession extends AndroidBrowserReposi
         throw e;
       }
       trackRecord(succeeded);
-      delegate.onRecordStoreSucceeded(succeeded); // At this point, we are really inserted.
+      delegate.onRecordStoreSucceeded(succeeded.guid); // At this point, we are really inserted.
     }
   }
 

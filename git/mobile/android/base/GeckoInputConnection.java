@@ -1,40 +1,7 @@
 /* -*- Mode: Java; c-basic-offset: 4; tab-width: 20; indent-tabs-mode: nil; -*-
- * ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Android code.
- *
- * The Initial Developer of the Original Code is Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2010
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Michael Wu <mwu@mozilla.com>
- *   Alex Pakhotin <alexp@mozilla.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either the GNU General Public License Version 2 or later (the "GPL"), or
- * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 package org.mozilla.gecko;
 
@@ -146,6 +113,9 @@ public class GeckoInputConnection
 
     @Override
     public boolean commitText(CharSequence text, int newCursorPosition) {
+        if (mCommittingText)
+            Log.e(LOGTAG, "Please report this bug:", new IllegalStateException("commitText, but already committing text?!"));
+
         mCommittingText = true;
         replaceText(text, newCursorPosition, false);
         mCommittingText = false;
@@ -159,6 +129,7 @@ public class GeckoInputConnection
 
     @Override
     public boolean finishComposingText() {
+        // finishComposingText() is sometimes called even when we are not composing text.
         if (hasCompositionString()) {
             if (DEBUG) Log.d(LOGTAG, ". . . finishComposingText: endComposition");
             endComposition();
@@ -292,6 +263,7 @@ public class GeckoInputConnection
 
     @Override
     public boolean setComposingText(CharSequence text, int newCursorPosition) {
+        // setComposingText will likely be called multiple times while we are composing text.
         clampSelection();
         return super.setComposingText(text, newCursorPosition);
     }
@@ -559,7 +531,7 @@ public class GeckoInputConnection
         }
     }
 
-    public void reset() {
+    protected void resetCompositionState() {
         mCompositionStart = NO_COMPOSITION_STRING;
         mBatchMode = false;
         mUpdateRequest = null;
@@ -595,7 +567,8 @@ public class GeckoInputConnection
             }
         }
 
-        if (!hasCompositionString()) {
+        boolean startCompositionString = !hasCompositionString();
+        if (startCompositionString) {
             if (DEBUG) Log.d(LOGTAG, ". . . onTextChanged: IME_COMPOSITION_BEGIN");
             GeckoAppShell.sendEventToGecko(
                 GeckoEvent.createIMEEvent(GeckoEvent.IME_COMPOSITION_BEGIN, 0, 0));
@@ -622,7 +595,7 @@ public class GeckoInputConnection
 
         // End composition if all characters in the word have been deleted.
         // This fixes autocomplete results not appearing.
-        if (count == 0)
+        if (count == 0 || (startCompositionString && mCommittingText))
             endComposition();
 
         // Block this thread until all pending events are processed
@@ -665,8 +638,13 @@ public class GeckoInputConnection
 
     private void endComposition() {
         if (DEBUG) Log.d(LOGTAG, "IME: endComposition: IME_COMPOSITION_END");
+
+        if (!hasCompositionString())
+           Log.e(LOGTAG, "Please report this bug:", new IllegalStateException("endComposition, but not composing text?!"));
+
         GeckoAppShell.sendEventToGecko(
             GeckoEvent.createIMEEvent(GeckoEvent.IME_COMPOSITION_END, 0, 0));
+
         mCompositionStart = NO_COMPOSITION_STRING;
     }
 
@@ -769,7 +747,9 @@ public class GeckoInputConnection
             outAttrs.inputType = InputType.TYPE_CLASS_PHONE;
         else if (mIMETypeHint.equalsIgnoreCase("number") ||
                  mIMETypeHint.equalsIgnoreCase("range"))
-            outAttrs.inputType = InputType.TYPE_CLASS_NUMBER;
+            outAttrs.inputType = InputType.TYPE_CLASS_NUMBER |
+                                 InputType.TYPE_NUMBER_FLAG_SIGNED |
+                                 InputType.TYPE_NUMBER_FLAG_DECIMAL;
         else if (mIMETypeHint.equalsIgnoreCase("datetime") ||
                  mIMETypeHint.equalsIgnoreCase("datetime-local"))
             outAttrs.inputType = InputType.TYPE_CLASS_DATETIME |
@@ -802,7 +782,14 @@ public class GeckoInputConnection
                                    | EditorInfo.IME_FLAG_NO_FULLSCREEN;
         }
 
-        reset();
+        // onCreateInputConnection() can be called during composition when input focus
+        // is restored from a VKB popup window (such as for entering accented characters)
+        // back to our IME. We want to commit our active composition string. Bug 756429
+        if (hasCompositionString()) {
+            endComposition();
+        }
+
+        resetCompositionState();
         return this;
     }
 
@@ -951,9 +938,9 @@ public class GeckoInputConnection
         case NOTIFY_IME_RESETINPUTSTATE:
             if (DEBUG) Log.d(LOGTAG, ". . . notifyIME: reset");
 
-            // Composition event is already fired from widget.
-            // So reset IME flags.
-            reset();
+            // Gecko just cancelled the current composition from underneath us,
+            // so abandon our active composition string WITHOUT committing it!
+            resetCompositionState();
 
             // Don't use IMEStateUpdater for reset.
             // Because IME may not work showSoftInput()
@@ -1079,12 +1066,11 @@ public class GeckoInputConnection
         Selection.setSelection(mEditable, contents.length());
     }
 
-    private boolean hasCompositionString() {
+    protected final boolean hasCompositionString() {
         return mCompositionStart != NO_COMPOSITION_STRING;
     }
-}
 
-class DebugGeckoInputConnection extends GeckoInputConnection {
+private static final class DebugGeckoInputConnection extends GeckoInputConnection {
     public DebugGeckoInputConnection(View targetView) {
         super(targetView);
     }
@@ -1215,9 +1201,12 @@ class DebugGeckoInputConnection extends GeckoInputConnection {
     }
 
     @Override
-    public void reset() {
-        Log.d(LOGTAG, "IME: reset");
-        super.reset();
+    protected void resetCompositionState() {
+        Log.d(LOGTAG, "IME: resetCompositionState");
+        if (hasCompositionString()) {
+            Log.d(LOGTAG, "resetCompositionState() is abandoning an active composition string");
+        }
+        super.resetCompositionState();
     }
 
     @Override
@@ -1282,11 +1271,6 @@ class DebugGeckoInputConnection extends GeckoInputConnection {
         Log.d(LOGTAG, String.format("IME: >notifyIME(type=%d, state=%d)", type, state));
         super.notifyIME(type, state);
     }
+}
 
-    @Override
-    public void notifyIMEChange(String text, int start, int end, int newEnd) {
-        Log.d(LOGTAG, String.format("IME: >notifyIMEChange(\"%s\", start=%d, end=%d, newEnd=%d)",
-                                    text, start, end, newEnd));
-        super.notifyIMEChange(text, start, end, newEnd);
-    }
 }

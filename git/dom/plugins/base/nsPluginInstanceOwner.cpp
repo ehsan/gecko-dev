@@ -1,48 +1,8 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 // vim:set ts=2 sts=2 sw=2 et cin:
-/* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
- *
- * The contents of this file are subject to the Mozilla Public License Version
- * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- * http://www.mozilla.org/MPL/
- *
- * Software distributed under the License is distributed on an "AS IS" basis,
- * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
- * for the specific language governing rights and limitations under the
- * License.
- *
- * The Original Code is Mozilla Communicator client code.
- *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
- * the Initial Developer. All Rights Reserved.
- *
- * Contributor(s):
- *   Pierre Phaneuf <pp@ludusdesign.com>
- *   Jacek Piskozub <piskozub@iopan.gda.pl>
- *   Leon Sha <leon.sha@sun.com>
- *   Roland Mainz <roland.mainz@informatik.med.uni-giessen.de>
- *   Robert O'Callahan <roc+moz@cs.cmu.edu>
- *   Christian Biesinger <cbiesinger@web.de>
- *   Josh Aas <josh@mozilla.com>
- *   Mats Palmgren <matspal@gmail.com>
- *
- * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
- * in which case the provisions of the GPL or the LGPL are applicable instead
- * of those above. If you wish to allow use of your version of this file only
- * under the terms of either the GPL or the LGPL, and not to allow others to
- * use your version of this file under the terms of the MPL, indicate your
- * decision by deleting the provisions above and replace them with the notice
- * and other provisions required by the GPL or the LGPL. If you do not delete
- * the provisions above, a recipient may use your version of this file under
- * the terms of any one of the MPL, the GPL or the LGPL.
- *
- * ***** END LICENSE BLOCK ***** */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifdef MOZ_WIDGET_QT
 #include <QWidget>
@@ -100,6 +60,7 @@ using mozilla::DefaultXDisplay;
 #include "nsIScrollableFrame.h"
 #include "nsIImageLoadingContent.h"
 #include "nsIObjectLoadingContent.h"
+#include "nsIDocShell.h"
 
 #include "nsContentCID.h"
 #include "nsWidgetsCID.h"
@@ -126,6 +87,10 @@ static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 #include "ANPBase.h"
 #include "AndroidBridge.h"
 #include "AndroidMediaLayer.h"
+#include "nsWindow.h"
+
+static nsPluginInstanceOwner* sFullScreenInstance = nsnull;
+
 using namespace mozilla::dom;
 
 #include <android/log.h>
@@ -344,7 +309,9 @@ nsPluginInstanceOwner::nsPluginInstanceOwner()
 
 #ifdef MOZ_WIDGET_ANDROID
   mInverted = false;
+  mFullScreen = false;
   mLayer = nsnull;
+  mJavaView = nsnull;
 #endif
 }
 
@@ -404,10 +371,12 @@ nsPluginInstanceOwner::~nsPluginInstanceOwner()
   }
 }
 
-NS_IMPL_ISUPPORTS3(nsPluginInstanceOwner,
+NS_IMPL_ISUPPORTS5(nsPluginInstanceOwner,
                    nsIPluginInstanceOwner,
                    nsIPluginTagInfo,
-                   nsIDOMEventListener)
+                   nsIDOMEventListener,
+                   nsIPrivacyTransitionObserver,
+                   nsISupportsWeakReference)
 
 nsresult
 nsPluginInstanceOwner::SetInstance(nsNPAPIPluginInstance *aInstance)
@@ -426,6 +395,17 @@ nsPluginInstanceOwner::SetInstance(nsNPAPIPluginInstance *aInstance)
   }
 
   mInstance = aInstance;
+
+  nsCOMPtr<nsIDocument> doc;
+  GetDocument(getter_AddRefs(doc));
+  if (doc) {
+    nsCOMPtr<nsPIDOMWindow> domWindow = doc->GetWindow();
+    if (domWindow) {
+      nsCOMPtr<nsIDocShell> docShell = domWindow->GetDocShell();
+      if (docShell)
+        docShell->AddWeakPrivacyTransitionObserver(this);
+    }
+  }
 
   return NS_OK;
 }
@@ -1030,9 +1010,9 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetDocumentEncoding(const char* *result)
     if (!gCharsetMap) {
       const int NUM_CHARSETS = sizeof(charsets) / sizeof(moz2javaCharset);
       gCharsetMap = new nsDataHashtable<nsDepCharHashKey, const char*>();
-      if (!gCharsetMap || !gCharsetMap->Init(NUM_CHARSETS))
+      if (!gCharsetMap)
         return NS_ERROR_OUT_OF_MEMORY;
-
+      gCharsetMap->Init(NUM_CHARSETS);
       for (PRUint16 i = 0; i < NUM_CHARSETS; i++) {
         gCharsetMap->Put(charsets[i].mozName, charsets[i].javaName);
       }
@@ -1751,31 +1731,39 @@ void nsPluginInstanceOwner::SendSize(int width, int height)
   mInstance->HandleEvent(&event, nsnull);
 }
 
-bool nsPluginInstanceOwner::AddPluginView(const gfxRect& aRect)
+bool nsPluginInstanceOwner::AddPluginView(const gfxRect& aRect /* = gfxRect(0, 0, 0, 0) */)
 {
-  void* javaSurface = mInstance->GetJavaSurface();
-  if (!javaSurface) {
-    mInstance->RequestJavaSurface();
-    return false;
+  if (!mJavaView) {
+    mJavaView = mInstance->GetJavaSurface();
+  
+    if (!mJavaView)
+      return false;
+
+    mJavaView = (void*)AndroidBridge::GetJNIEnv()->NewGlobalRef((jobject)mJavaView);
   }
 
   if (AndroidBridge::Bridge())
-    AndroidBridge::Bridge()->AddPluginView((jobject)javaSurface, aRect);
+    AndroidBridge::Bridge()->AddPluginView((jobject)mJavaView, aRect, mFullScreen, mInstance->FullScreenOrientation());
+
+  if (mFullScreen)
+    sFullScreenInstance = this;
 
   return true;
 }
 
 void nsPluginInstanceOwner::RemovePluginView()
 {
-  if (!mInstance)
-    return;
-
-  void* surface = mInstance->GetJavaSurface();
-  if (!surface)
+  if (!mInstance || !mJavaView)
     return;
 
   if (AndroidBridge::Bridge())
-    AndroidBridge::Bridge()->RemovePluginView((jobject)surface);
+    AndroidBridge::Bridge()->RemovePluginView((jobject)mJavaView, mFullScreen);
+
+  AndroidBridge::GetJNIEnv()->DeleteGlobalRef((jobject)mJavaView);
+  mJavaView = nsnull;
+
+  if (mFullScreen)
+    sFullScreenInstance = nsnull;
 }
 
 void nsPluginInstanceOwner::Invalidate() {
@@ -1784,6 +1772,47 @@ void nsPluginInstanceOwner::Invalidate() {
   rect.right = mPluginWindow->width;
   rect.bottom = mPluginWindow->height;
   InvalidateRect(&rect);
+}
+
+void nsPluginInstanceOwner::RequestFullScreen() {
+  if (mFullScreen)
+    return;
+
+  // Remove whatever view we currently have (if any, fullscreen or otherwise)
+  RemovePluginView();
+
+  mFullScreen = true;
+  AddPluginView();
+
+  mInstance->NotifyFullScreen(mFullScreen);
+}
+
+void nsPluginInstanceOwner::ExitFullScreen() {
+  if (!mFullScreen)
+    return;
+
+  RemovePluginView();
+
+  mFullScreen = false;
+  
+  PRInt32 model = mInstance->GetANPDrawingModel();
+
+  if (model == kSurface_ANPDrawingModel) {
+    // We need to invalidate the plugin rect so Paint() gets called above.
+    // This will cause the view to be re-added. Gross.
+    Invalidate();
+  }
+
+  mInstance->NotifyFullScreen(mFullScreen);
+}
+
+void nsPluginInstanceOwner::ExitFullScreen(jobject view) {
+  JNIEnv* env = AndroidBridge::GetJNIEnv();
+
+  if (env && sFullScreenInstance && sFullScreenInstance->mInstance &&
+      env->IsSameObject(view, (jobject)sFullScreenInstance->mInstance->GetJavaSurface())) {
+    sFullScreenInstance->ExitFullScreen();
+  } 
 }
 
 #endif
@@ -2071,10 +2100,10 @@ nsPluginInstanceOwner::HandleEvent(nsIDOMEvent* aEvent)
 static unsigned int XInputEventState(const nsInputEvent& anEvent)
 {
   unsigned int state = 0;
-  if (anEvent.isShift) state |= ShiftMask;
-  if (anEvent.isControl) state |= ControlMask;
-  if (anEvent.isAlt) state |= Mod1Mask;
-  if (anEvent.isMeta) state |= Mod4Mask;
+  if (anEvent.IsShift()) state |= ShiftMask;
+  if (anEvent.IsControl()) state |= ControlMask;
+  if (anEvent.IsAlt()) state |= Mod1Mask;
+  if (anEvent.IsMeta()) state |= Mod4Mask;
   return state;
 }
 #endif
@@ -2897,7 +2926,7 @@ void nsPluginInstanceOwner::Paint(gfxContext* aContext,
                                   const gfxRect& aFrameRect,
                                   const gfxRect& aDirtyRect)
 {
-  if (!mInstance || !mObjectFrame || !mPluginDocumentActiveState)
+  if (!mInstance || !mObjectFrame || !mPluginDocumentActiveState || mFullScreen)
     return;
 
   PRInt32 model = mInstance->GetANPDrawingModel();
@@ -3442,7 +3471,6 @@ void* nsPluginInstanceOwner::FixUpPluginWindow(PRInt32 inPaintState)
   if (!mWidget || !mPluginWindow || !mInstance || !mObjectFrame)
     return nsnull;
 
-  NPDrawingModel drawingModel = GetDrawingModel();
   NPEventModel eventModel = GetEventModel();
 
   nsCOMPtr<nsIPluginWidget> pluginWidget = do_QueryInterface(mWidget);
@@ -3484,6 +3512,7 @@ void* nsPluginInstanceOwner::FixUpPluginWindow(PRInt32 inPaintState)
 
 #ifndef NP_NO_QUICKDRAW
   // set the port coordinates
+  NPDrawingModel drawingModel = GetDrawingModel();
   if (drawingModel == NPDrawingModelQuickDraw) {
     mPluginWindow->x = -static_cast<NP_Port*>(pluginPort)->portx;
     mPluginWindow->y = -static_cast<NP_Port*>(pluginPort)->porty;
@@ -3802,6 +3831,11 @@ void nsPluginInstanceOwner::FixUpURLS(const nsString &name, nsAString &value)
     if (!newURL.IsEmpty())
       value = newURL;
   }
+}
+
+NS_IMETHODIMP nsPluginInstanceOwner::PrivateModeChanged(bool aEnabled)
+{
+  return mInstance ? mInstance->PrivateModeStateChanged(aEnabled) : NS_OK;
 }
 
 // nsPluginDOMContextMenuListener class implementation

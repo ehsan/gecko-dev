@@ -241,6 +241,7 @@ public:
         if (destroyCallback)
             destroyCallback(pool->m_allocation.pages, pool->m_allocation.size);
         systemRelease(pool->m_allocation);
+        JS_ASSERT(m_pools.initialized());
         m_pools.remove(m_pools.lookup(pool));   // this asserts if |pool| is not in m_pools
     }
 
@@ -467,8 +468,6 @@ public:
     {
         sync_instruction_memory((caddr_t)code, size);
     }
-#else
-    #error "The cacheFlush support is missing on this platform."
 #endif
 
 private:
