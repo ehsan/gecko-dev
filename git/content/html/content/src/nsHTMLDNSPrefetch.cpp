@@ -395,8 +395,7 @@ nsHTMLDNSPrefetch::nsDeferrals::OnProgressChange(nsIWebProgress *aProgress,
 NS_IMETHODIMP
 nsHTMLDNSPrefetch::nsDeferrals::OnLocationChange(nsIWebProgress* aWebProgress,
                                                  nsIRequest* aRequest,
-                                                 nsIURI *location,
-                                                 PRUint32 aFlags)
+                                                 nsIURI *location)
 {
   return NS_OK;
 }

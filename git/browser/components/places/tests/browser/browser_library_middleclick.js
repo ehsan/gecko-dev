@@ -64,8 +64,7 @@ var gTabsListener = {
        "Tab has been opened in current browser window");
   },
 
-  onLocationChange: function(aBrowser, aWebProgress, aRequest, aLocationURI,
-                             aFlags) {
+  onLocationChange: function(aBrowser, aWebProgress, aRequest, aLocationURI) {
     var spec = aLocationURI.spec;
     ok(true, spec);
     // When a new tab is opened, location is first set to "about:blank", so

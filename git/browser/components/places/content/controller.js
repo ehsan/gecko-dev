@@ -309,11 +309,10 @@ PlacesController.prototype = {
                                        , hiddenRows: [ "description"
                                                      , "keyword"
                                                      , "location"
-                                                     , "folderPicker"
                                                      , "loadInSidebar" ]
                                        , uri: NetUtil.newURI(node.uri)
                                        , title: node.title
-                                       }, window.top);
+                                       }, window.top, true);
       break;
     }
   },
@@ -769,7 +768,7 @@ PlacesController.prototype = {
                                        , type: aType
                                        , defaultInsertionPoint: ip
                                        , hiddenRows: [ "folderPicker" ]
-                                       }, window.top);
+                                       }, window);
     if (performed) {
       // Select the new item.
       let insertedNodeId = PlacesUtils.bookmarks

@@ -1663,12 +1663,12 @@ private:
     // default parent for the XPCWrappedNatives that have us as the scope,
     // unless a PreCreate hook overrides it.  Note that this _may_ be null (see
     // constructor).
-    JS::HeapPtrObject                mGlobalJSObject;
+    JSObject*                        mGlobalJSObject;
 
     // Cached value of Object.prototype
-    JS::HeapPtrObject                mPrototypeJSObject;
+    JSObject*                        mPrototypeJSObject;
     // Cached value of Function.prototype
-    JS::HeapPtrObject                mPrototypeJSFunction;
+    JSObject*                        mPrototypeJSFunction;
     // Prototype to use for wrappers with no helper.
     JSObject*                        mPrototypeNoHelper;
 
@@ -2366,7 +2366,7 @@ private:
     }
 
     XPCWrappedNativeScope*   mScope;
-    JS::HeapPtrObject        mJSProtoObject;
+    JSObject*                mJSProtoObject;
     nsCOMPtr<nsIClassInfo>   mClassInfo;
     PRUint32                 mClassInfoFlags;
     XPCNativeSet*            mSet;
@@ -2525,7 +2525,10 @@ public:
          (XPCWrappedNativeProto*)
          (XPC_SCOPE_WORD(mMaybeProto) & ~XPC_SCOPE_MASK) : nsnull;}
 
-    void SetProto(XPCWrappedNativeProto* p);
+    void
+    SetProto(XPCWrappedNativeProto* p)
+        {NS_ASSERTION(!IsWrapperExpired(), "bad ptr!");
+         mMaybeProto = p;}
 
     XPCWrappedNativeScope*
     GetScope() const
@@ -2741,8 +2744,6 @@ public:
     void SetNeedsSOW() { mWrapperWord |= NEEDS_SOW; }
     JSBool NeedsCOW() { return !!(mWrapperWord & NEEDS_COW); }
     void SetNeedsCOW() { mWrapperWord |= NEEDS_COW; }
-    JSBool MightHaveExpandoObject() { return !!(mWrapperWord & MIGHT_HAVE_EXPANDO); }
-    void SetHasExpandoObject() { mWrapperWord |= MIGHT_HAVE_EXPANDO; }
 
     JSObject* GetWrapperPreserveColor() const
         {return (JSObject*)(mWrapperWord & (size_t)~(size_t)FLAG_MASK);}
@@ -2759,8 +2760,11 @@ public:
     }
     void SetWrapper(JSObject *obj)
     {
-        PRWord newval = PRWord(obj) | (mWrapperWord & FLAG_MASK);
-        JS_ModifyReference((void **)&mWrapperWord, (void *)newval);
+        PRWord needsSOW = NeedsSOW() ? NEEDS_SOW : 0;
+        PRWord needsCOW = NeedsCOW() ? NEEDS_COW : 0;
+        mWrapperWord = PRWord(obj) |
+                         needsSOW |
+                         needsCOW;
     }
 
     void NoteTearoffs(nsCycleCollectionTraversalCallback& cb);
@@ -2795,14 +2799,14 @@ protected:
     virtual ~XPCWrappedNative();
     void Destroy();
 
-    void UpdateScriptableInfo(XPCNativeScriptableInfo *si);
-
 private:
     enum {
         NEEDS_SOW = JS_BIT(0),
         NEEDS_COW = JS_BIT(1),
-        MIGHT_HAVE_EXPANDO = JS_BIT(2),
-        FLAG_MASK = JS_BITMASK(3)
+
+        LAST_FLAG = NEEDS_COW,
+
+        FLAG_MASK = 0x7
     };
 
 private:
@@ -4463,7 +4467,6 @@ struct CompartmentPrivate
                 return false;
             }
         }
-        wn->SetHasExpandoObject();
         return expandoMap->Put(wn, expando);
     }
 

@@ -73,6 +73,8 @@ endif
 
 LOCAL_INCLUDES += -I$(srcdir)/../../../../xptinfo/src
 
+# Force use of PIC
+FORCE_USE_PIC	= 1
 
 include $(topsrcdir)/config/config.mk
 

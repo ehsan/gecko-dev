@@ -48,7 +48,7 @@
 #include <QtGui/QWidget>
 #endif
 
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
 #include "AndroidBridge.h"
 #endif
 
@@ -92,7 +92,7 @@ nsShellService::CreateShortcut(const nsAString& aTitle, const nsAString& aURI, c
   if (!aTitle.Length() || !aURI.Length() || !aIconData.Length())
     return NS_ERROR_FAILURE;
 
-#if MOZ_WIDGET_ANDROID
+#if ANDROID
   mozilla::AndroidBridge::Bridge()->CreateShortcut(aTitle, aURI, aIconData, aIntent);
   return NS_OK;
 #else

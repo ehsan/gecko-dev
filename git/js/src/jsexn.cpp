@@ -69,10 +69,8 @@
 
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
-#include "jsstrinlines.h"
 
 #include "vm/Stack-inl.h"
-#include "vm/String-inl.h"
 
 using namespace mozilla;
 using namespace js;
@@ -115,7 +113,7 @@ Class js::ErrorClass = {
 };
 
 typedef struct JSStackTraceElem {
-    js::HeapPtrString   funName;
+    JSString            *funName;
     size_t              argc;
     const char          *filename;
     uintN               ulineno;
@@ -124,8 +122,8 @@ typedef struct JSStackTraceElem {
 typedef struct JSExnPrivate {
     /* A copy of the JSErrorReport originally generated. */
     JSErrorReport       *errorReport;
-    js::HeapPtrString   message;
-    js::HeapPtrString   filename;
+    JSString            *message;
+    JSString            *filename;
     uintN               lineno;
     size_t              stackDepth;
     intN                exnType;
@@ -330,12 +328,12 @@ InitExnPrivate(JSContext *cx, JSObject *exnObject, JSString *message,
                 return false;
             JSStackTraceElem &frame = frames.back();
             if (fp->isNonEvalFunctionFrame()) {
-                frame.funName.init(fp->fun()->atom ? fp->fun()->atom : cx->runtime->emptyString);
+                frame.funName = fp->fun()->atom ? fp->fun()->atom : cx->runtime->emptyString;
                 frame.argc = fp->numActualArgs();
                 if (!fp->forEachCanonicalActualArg(AppendArg(values)))
                     return false;
             } else {
-                frame.funName.init(NULL);
+                frame.funName = NULL;
                 frame.argc = 0;
             }
             if (fp->isScriptFrame()) {
@@ -359,9 +357,6 @@ InitExnPrivate(JSContext *cx, JSObject *exnObject, JSString *message,
     if (!priv)
         return false;
 
-    /* Initialize to zero so that write barriers don't witness undefined values. */
-    memset(priv, 0, nbytes);
-
     if (report) {
         /*
          * Construct a new copy of the error report struct. We can't use the
@@ -378,8 +373,8 @@ InitExnPrivate(JSContext *cx, JSObject *exnObject, JSString *message,
         priv->errorReport = NULL;
     }
 
-    priv->message.init(message);
-    priv->filename.init(filename);
+    priv->message = message;
+    priv->filename = filename;
     priv->lineno = lineno;
     priv->stackDepth = frames.length();
     priv->exnType = exnType;
@@ -427,9 +422,8 @@ exn_trace(JSTracer *trc, JSObject *obj)
         }
         vp = GetStackTraceValueBuffer(priv);
         for (i = 0; i != vcount; ++i, ++vp) {
-            /* This value is read-only, so it's okay for it to be Unbarriered. */
             v = *vp;
-            MarkValueUnbarriered(trc, v, "stack trace argument");
+            JS_CALL_VALUE_TRACER(trc, v, "stack trace argument");
         }
     }
 }
@@ -500,6 +494,8 @@ exn_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
             if (!stack)
                 return false;
 
+            /* Allow to GC all things that were used to build stack trace. */
+            priv->stackDepth = 0;
             prop = js_stack_str;
             v = STRING_TO_JSVAL(stack);
             attrs = JSPROP_ENUMERATE;
@@ -1346,11 +1342,11 @@ js_CopyErrorObject(JSContext *cx, JSObject *errobj, JSObject *scope)
     } else {
         copy->errorReport = NULL;
     }
-    copy->message.init(priv->message);
+    copy->message = priv->message;
     if (!cx->compartment->wrap(cx, &copy->message))
         return NULL;
     JS::Anchor<JSString *> messageAnchor(copy->message);
-    copy->filename.init(priv->filename);
+    copy->filename = priv->filename;
     if (!cx->compartment->wrap(cx, &copy->filename))
         return NULL;
     JS::Anchor<JSString *> filenameAnchor(copy->filename);

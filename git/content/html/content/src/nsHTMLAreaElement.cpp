@@ -99,6 +99,7 @@ public:
   virtual bool IsLink(nsIURI** aURI) const;
   virtual void GetLinkTarget(nsAString& aTarget);
   virtual nsLinkState GetLinkState() const;
+  virtual void RequestLinkStateUpdate();
   virtual already_AddRefed<nsIURI> GetHrefURI() const;
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
@@ -212,10 +213,7 @@ nsHTMLAreaElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               bool aCompileEventHandlers)
 {
   Link::ResetLinkState(false);
-  if (aDocument) {
-    aDocument->RegisterPendingLinkUpdate(this);
-  }
-  
+
   return nsGenericHTMLElement::BindToTree(aDocument, aParent,
                                                  aBindingParent,
                                                  aCompileEventHandlers);
@@ -227,11 +225,6 @@ nsHTMLAreaElement::UnbindFromTree(bool aDeep, bool aNullParent)
   // If this link is ever reinserted into a document, it might
   // be under a different xml:base, so forget the cached state now.
   Link::ResetLinkState(false);
-  
-  nsIDocument* doc = GetCurrentDoc();
-  if (doc) {
-    doc->UnregisterPendingLinkUpdate(this);
-  }
 
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
 }
@@ -319,6 +312,12 @@ nsLinkState
 nsHTMLAreaElement::GetLinkState() const
 {
   return Link::GetLinkState();
+}
+
+void
+nsHTMLAreaElement::RequestLinkStateUpdate()
+{
+  UpdateLinkState(Link::LinkState());
 }
 
 already_AddRefed<nsIURI>

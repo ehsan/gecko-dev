@@ -145,9 +145,8 @@ void
 BasicPlanarYCbCrImage::SetData(const Data& aData)
 {
   // Do some sanity checks to prevent integer overflow
-  if (aData.mYSize.width > PlanarYCbCrImage::MAX_DIMENSION ||
-      aData.mYSize.height > PlanarYCbCrImage::MAX_DIMENSION) {
-    NS_ERROR("Illegal image source width or height");
+  if (aData.mYSize.width > 16384 || aData.mYSize.height > 16384) {
+    NS_ERROR("Illegal width or height");
     return;
   }
   
@@ -160,11 +159,6 @@ BasicPlanarYCbCrImage::SetData(const Data& aData)
 
   gfxIntSize size(mScaleHint);
   gfxUtils::GetYCbCrToRGBDestFormatAndSize(aData, format, size);
-  if (size.width > PlanarYCbCrImage::MAX_DIMENSION ||
-      size.height > PlanarYCbCrImage::MAX_DIMENSION) {
-    NS_ERROR("Illegal image dest width or height");
-    return;
-  }
 
   mStride = gfxASurface::FormatStrideForWidth(format, size.width);
   mBuffer = AllocateBuffer(size.height * mStride);

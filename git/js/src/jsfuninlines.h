@@ -97,18 +97,4 @@ CloneFunctionObject(JSContext *cx, JSFunction *fun, JSObject *parent,
     return js_CloneFunctionObject(cx, fun, parent, proto);
 }
 
-inline void
-JSFunction::setScript(JSScript *script_)
-{
-    JS_ASSERT(isInterpreted());
-    script() = script_;
-}
-
-inline void
-JSFunction::initScript(JSScript *script_)
-{
-    JS_ASSERT(isInterpreted());
-    script().init(script_);
-}
-
 #endif /* jsfuninlines_h___ */

@@ -89,13 +89,6 @@ HasRegExpMetaChars(const jschar *chars, size_t length)
     return false;
 }
 
-inline size_t *
-RegExpObject::addressOfPrivateRefCount() const
-{
-    JS_ASSERT(getPrivate());
-    return getPrivate()->addressOfRefCount();
-}
-
 inline void
 RegExpObject::setPrivate(RegExpPrivate *rep)
 {
@@ -137,7 +130,7 @@ RegExpObject::purge(JSContext *cx)
 {
     if (RegExpPrivate *rep = getPrivate()) {
         rep->decref(cx);
-        privateData = NULL;
+        setPrivate(NULL);
     }
 }
 
@@ -154,14 +147,13 @@ inline bool
 RegExpObject::init(JSContext *cx, JSLinearString *source, RegExpFlag flags)
 {
     if (nativeEmpty()) {
-        const js::Shape *shape = cx->compartment->initialRegExpShape;
-        if (!shape) {
-            shape = assignInitialShape(cx);
-            if (!shape)
+        const js::Shape **shapep = &cx->compartment->initialRegExpShape;
+        if (!*shapep) {
+            *shapep = assignInitialShape(cx);
+            if (!*shapep)
                 return false;
-            cx->compartment->initialRegExpShape = shape;
         }
-        setLastProperty(shape);
+        setLastProperty(*shapep);
         JS_ASSERT(!nativeEmpty());
     }
 
@@ -185,128 +177,10 @@ RegExpObject::init(JSContext *cx, JSLinearString *source, RegExpFlag flags)
     return true;
 }
 
-inline bool
-RegExpMatcher::reset(JSLinearString *patstr, JSString *opt)
-{
-    AlreadyIncRefed<RegExpPrivate> priv = RegExpPrivate::create(cx, patstr, opt, NULL);
-    if (!priv)
-        return false;
-    arc.reset(priv);
-    return true;
-}
-
-inline void
-RegExpObject::setLastIndex(const Value &v)
-{
-    setSlot(LAST_INDEX_SLOT, v);
-}
-
-inline void
-RegExpObject::setLastIndex(double d)
-{
-    setSlot(LAST_INDEX_SLOT, NumberValue(d));
-}
-
-inline void
-RegExpObject::zeroLastIndex()
-{
-    setSlot(LAST_INDEX_SLOT, Int32Value(0));
-}
-
-inline void
-RegExpObject::setSource(JSLinearString *source)
-{
-    setSlot(SOURCE_SLOT, StringValue(source));
-}
-
-inline void
-RegExpObject::setIgnoreCase(bool enabled)
-{
-    setSlot(IGNORE_CASE_FLAG_SLOT, BooleanValue(enabled));
-}
-
-inline void
-RegExpObject::setGlobal(bool enabled)
-{
-    setSlot(GLOBAL_FLAG_SLOT, BooleanValue(enabled));
-}
-
-inline void
-RegExpObject::setMultiline(bool enabled)
-{
-    setSlot(MULTILINE_FLAG_SLOT, BooleanValue(enabled));
-}
-
-inline void
-RegExpObject::setSticky(bool enabled)
-{
-    setSlot(STICKY_FLAG_SLOT, BooleanValue(enabled));
-}
-
 /* RegExpPrivate inlines. */
 
-inline RegExpPrivateCache *
-detail::RegExpPrivate::getOrCreateCache(JSContext *cx)
-{
-    if (RegExpPrivateCache *cache = cx->threadData()->getOrCreateRegExpPrivateCache(cx->runtime))
-        return cache;
-
-    js_ReportOutOfMemory(cx);
-    return NULL;
-}
-
-inline bool
-detail::RegExpPrivate::cacheLookup(JSContext *cx, JSAtom *atom, RegExpFlag flags,
-                                   AlreadyIncRefed<RegExpPrivate> *result)
-{
-    RegExpPrivateCache *cache = getOrCreateCache(cx);
-    if (!cache)
-        return false;
-
-    if (RegExpPrivateCache::Ptr p = cache->lookup(atom)) {
-        NeedsIncRef<RegExpPrivate> cached(p->value);
-        if (cached->getFlags() == flags) {
-            cached->incref(cx);
-            *result = AlreadyIncRefed<RegExpPrivate>(cached.get());
-            return true;
-        }
-    }
-
-    JS_ASSERT(result->null());
-    return true;
-}
-
-inline bool
-detail::RegExpPrivate::cacheInsert(JSContext *cx, JSAtom *atom, RegExpPrivate *priv)
-{
-    JS_ASSERT(priv);
-
-    /*
-     * Note: allocation performed since lookup may cause a garbage collection,
-     * so we have to re-lookup the cache (and inside the cache) after the
-     * allocation is performed.
-     */
-    RegExpPrivateCache *cache = getOrCreateCache(cx);
-    if (!cache)
-        return false;
-
-    if (RegExpPrivateCache::AddPtr addPtr = cache->lookupForAdd(atom)) {
-        /* We clobber existing entries with the same source (but different flags). */
-        JS_ASSERT(addPtr->value->getFlags() != priv->getFlags());
-        addPtr->value = priv;
-    } else {
-        if (!cache->add(addPtr, atom, priv)) {
-            js_ReportOutOfMemory(cx);
-            return false;
-        }
-    }
-
-    return true;
-}
-
-inline AlreadyIncRefed<detail::RegExpPrivate>
-detail::RegExpPrivate::create(JSContext *cx, JSLinearString *source, RegExpFlag flags,
-                              TokenStream *ts)
+inline AlreadyIncRefed<RegExpPrivate>
+RegExpPrivate::create(JSContext *cx, JSLinearString *source, RegExpFlag flags, TokenStream *ts)
 {
     typedef AlreadyIncRefed<RegExpPrivate> RetType;
 
@@ -316,8 +190,6 @@ detail::RegExpPrivate::create(JSContext *cx, JSLinearString *source, RegExpFlag 
      * low hit rate (both hit ratio and absolute number of hits).
      */
     bool cacheable = source->isAtom();
-    if (!cacheable)
-        return RetType(RegExpPrivate::createUncached(cx, source, flags, ts));
 
     /*
      * Refcount note: not all |RegExpPrivate|s are cached so we need to
@@ -326,28 +198,58 @@ detail::RegExpPrivate::create(JSContext *cx, JSLinearString *source, RegExpFlag 
      * remove itself from the cache.
      */
 
-    JSAtom *sourceAtom = &source->asAtom();
+    JSRuntime *rt = cx->runtime;
+    RegExpPrivateCache *cache = NULL; /* Quell "may be used uninitialized". */
+    RegExpPrivateCache::AddPtr addPtr;
+    if (cacheable) {
+        cache = cx->threadData()->getOrCreateRegExpPrivateCache(rt);
+        if (!cache) {
+            js_ReportOutOfMemory(cx);
+            return RetType(NULL);
+        }
 
-    AlreadyIncRefed<RegExpPrivate> cached;
-    if (!cacheLookup(cx, sourceAtom, flags, &cached))
+        addPtr = cache->lookupForAdd(&source->asAtom());
+        if (addPtr) {
+            RegExpPrivate *cached = addPtr->value;
+            if (cached->getFlags() == flags) {
+                cached->incref(cx);
+                return RetType(cached);
+            }
+            /* Note: on flag mismatch, we clobber the existing entry. */
+        }
+    }
+
+    JSLinearString *flatSource = source->ensureLinear(cx);
+    if (!flatSource)
         return RetType(NULL);
 
-    if (cached)
-        return cached;
-
-    RegExpPrivate *priv = RegExpPrivate::createUncached(cx, source, flags, ts);
-    if (!priv)
+    RegExpPrivate *self = cx->new_<RegExpPrivate>(flatSource, flags);
+    if (!self)
         return RetType(NULL);
 
-    if (!cacheInsert(cx, sourceAtom, priv))
+    if (!self->compile(cx, ts)) {
+        Foreground::delete_(self);
         return RetType(NULL);
+    }
 
-    return RetType(priv);
+    if (cacheable) {
+        if (addPtr) {
+            JS_ASSERT(addPtr->key == &self->getSource()->asAtom());
+            addPtr->value = self;
+        } else {
+            if (!cache->add(addPtr, &source->asAtom(), self)) {
+                js_ReportOutOfMemory(cx);
+                return RetType(NULL);
+            }
+        }
+    }
+
+    return RetType(self);
 }
 
 /* This function should be deleted once bad Android platforms phase out. See bug 604774. */
 inline bool
-detail::RegExpPrivateCode::isJITRuntimeEnabled(JSContext *cx)
+RegExpPrivateCode::isJITRuntimeEnabled(JSContext *cx)
 {
 #if defined(ANDROID) && defined(JS_TRACER) && defined(JS_METHODJIT)
     return cx->traceJitEnabled || cx->methodJitEnabled;
@@ -357,8 +259,8 @@ detail::RegExpPrivateCode::isJITRuntimeEnabled(JSContext *cx)
 }
 
 inline bool
-detail::RegExpPrivateCode::compile(JSContext *cx, JSLinearString &pattern, TokenStream *ts,
-                                   uintN *parenCount, RegExpFlag flags)
+RegExpPrivateCode::compile(JSContext *cx, JSLinearString &pattern, TokenStream *ts,
+                           uintN *parenCount, RegExpFlag flags)
 {
 #if ENABLE_YARR_JIT
     /* Parse the pattern. */
@@ -407,8 +309,12 @@ detail::RegExpPrivateCode::compile(JSContext *cx, JSLinearString &pattern, Token
 }
 
 inline bool
-detail::RegExpPrivate::compile(JSContext *cx, TokenStream *ts)
+RegExpPrivate::compile(JSContext *cx, TokenStream *ts)
 {
+    /* Flatten source early for the rest of compilation. */
+    if (!source->ensureLinear(cx))
+        return false;
+
     if (!sticky())
         return code.compile(cx, *source, ts, &parenCount, getFlags());
 
@@ -434,8 +340,8 @@ detail::RegExpPrivate::compile(JSContext *cx, TokenStream *ts)
 }
 
 inline RegExpRunStatus
-detail::RegExpPrivateCode::execute(JSContext *cx, const jschar *chars, size_t length, size_t start,
-                                   int *output, size_t outputCount)
+RegExpPrivateCode::execute(JSContext *cx, const jschar *chars, size_t length, size_t start,
+                           int *output, size_t outputCount)
 {
     int result;
 #if ENABLE_YARR_JIT
@@ -463,19 +369,14 @@ detail::RegExpPrivateCode::execute(JSContext *cx, const jschar *chars, size_t le
 }
 
 inline void
-detail::RegExpPrivate::incref(JSContext *cx)
+RegExpPrivate::incref(JSContext *cx)
 {
     ++refCount;
 }
 
 inline void
-detail::RegExpPrivate::decref(JSContext *cx)
+RegExpPrivate::decref(JSContext *cx)
 {
-#ifdef JS_THREADSAFE
-    JS_OPT_ASSERT_IF(cx->runtime->gcHelperThread.getThread(),
-                     PR_GetCurrentThread() != cx->runtime->gcHelperThread.getThread());
-#endif
-
     if (--refCount != 0)
         return;
 
@@ -486,13 +387,7 @@ detail::RegExpPrivate::decref(JSContext *cx)
             cache->remove(ptr);
     }
 
-#ifdef DEBUG
-    this->~RegExpPrivate();
-    memset(this, 0xcd, sizeof(*this));
-    cx->free_(this);
-#else
     cx->delete_(this);
-#endif
 }
 
 } /* namespace js */

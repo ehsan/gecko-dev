@@ -41,7 +41,6 @@
 #define ANDROID_STUB_H
 
 #include "dlfcn.h"
-#ifdef ANDROID_VERSION
 #if ANDROID_VERSION < 8
 /* because dladdr isn't supported in android 2.1 and older.
  * however, it exists in the android repos so.. maybe someday. */
@@ -50,7 +49,6 @@ typedef struct {
 } Dl_info;
 
 #define dladdr(foo, bar) 0
-#endif
 #endif
 
 /* sysinfo is defined but not implemented.

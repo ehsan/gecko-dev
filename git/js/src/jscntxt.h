@@ -460,13 +460,11 @@ struct JSRuntime
     /* We access this without the GC lock, however a race will not affect correctness */
     volatile uint32     gcNumFreeArenas;
     uint32              gcNumber;
-    js::GCMarker        *gcIncrementalTracer;
-    void                *gcVerifyData;
+    js::GCMarker        *gcMarkingTracer;
     bool                gcChunkAllocationSinceLastGC;
     int64               gcNextFullGCTime;
     int64               gcJitReleaseTime;
     JSGCMode            gcMode;
-    volatile jsuword    gcBarrierFailed;
     volatile jsuword    gcIsNeeded;
     js::WeakMapBase     *gcWeakMapList;
     js::gcstats::Statistics gcStats;
@@ -524,9 +522,6 @@ struct JSRuntime
      * Additionally, if gzZeal_ == 1 then we perform GCs in select places
      * (during MaybeGC and whenever a GC poke happens). This option is mainly
      * useful to embedders.
-     *
-     * We use gcZeal_ == 4 to enable write barrier verification. See the comment
-     * in jsgc.cpp for more information about this.
      */
 #ifdef JS_GC_ZEAL
     int                 gcZeal_;
@@ -538,7 +533,7 @@ struct JSRuntime
 
     bool needZealousGC() {
         if (gcNextScheduled > 0 && --gcNextScheduled == 0) {
-            if (gcZeal() >= js::gc::ZealAllocThreshold && gcZeal() < js::gc::ZealVerifierThreshold)
+            if (gcZeal() >= 2)
                 gcNextScheduled = gcZealFrequency;
             return true;
         }
@@ -550,7 +545,6 @@ struct JSRuntime
 #endif
 
     JSGCCallback        gcCallback;
-    JSGCFinishedCallback gcFinishedCallback;
 
   private:
     /*
@@ -1133,7 +1127,6 @@ struct JSContext
     bool hasStrictOption() const { return hasRunOption(JSOPTION_STRICT); }
     bool hasWErrorOption() const { return hasRunOption(JSOPTION_WERROR); }
     bool hasAtLineOption() const { return hasRunOption(JSOPTION_ATLINE); }
-    bool hasJITHardeningOption() const { return !hasRunOption(JSOPTION_SOFTEN); }
 
     js::LifoAlloc &tempLifoAlloc() { return JS_THREAD_DATA(this)->tempLifoAlloc; }
     inline js::LifoAlloc &typeLifoAlloc();
@@ -2221,6 +2214,18 @@ namespace js {
 /************************************************************************/
 
 static JS_ALWAYS_INLINE void
+ClearValueRange(Value *vec, uintN len, bool useHoles)
+{
+    if (useHoles) {
+        for (uintN i = 0; i < len; i++)
+            vec[i].setMagic(JS_ARRAY_HOLE);
+    } else {
+        for (uintN i = 0; i < len; i++)
+            vec[i].setUndefined();
+    }
+}
+
+static JS_ALWAYS_INLINE void
 MakeRangeGCSafe(Value *vec, size_t len)
 {
     PodZero(vec, len);
@@ -2409,22 +2414,25 @@ class AutoShapeVector : public AutoVectorRooter<const Shape *>
 
 class AutoValueArray : public AutoGCRooter
 {
-    const js::Value *start_;
+    js::Value *start_;
     unsigned length_;
 
   public:
-    AutoValueArray(JSContext *cx, const js::Value *start, unsigned length
+    AutoValueArray(JSContext *cx, js::Value *start, unsigned length
                    JS_GUARD_OBJECT_NOTIFIER_PARAM)
         : AutoGCRooter(cx, VALARRAY), start_(start), length_(length)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
-    const Value *start() const { return start_; }
+    Value *start() const { return start_; }
     unsigned length() const { return length_; }
 
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
+
+JSIdArray *
+NewIdArray(JSContext *cx, jsint length);
 
 /*
  * Allocation policy that uses JSRuntime::malloc_ and friends, so that

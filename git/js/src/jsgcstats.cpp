@@ -47,7 +47,6 @@
 #include "jscompartment.h"
 
 #include "jsgcinlines.h"
-#include "jsobjinlines.h"
 
 using namespace mozilla;
 using namespace js;

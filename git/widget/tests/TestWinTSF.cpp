@@ -189,8 +189,7 @@ TestApp::OnProgressChange(nsIWebProgress *aWebProgress,
 NS_IMETHODIMP
 TestApp::OnLocationChange(nsIWebProgress *aWebProgress,
                            nsIRequest *aRequest,
-                           nsIURI *aLocation,
-                           PRUint32 aFlags)
+                           nsIURI *aLocation)
 {
   return NS_OK;
 }

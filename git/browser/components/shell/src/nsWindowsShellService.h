@@ -59,6 +59,8 @@ public:
 protected:
   bool      IsDefaultBrowserVista(bool* aIsDefaultBrowser);
 
+  bool      GetMailAccountKey(HKEY* aResult);
+
 private:
   bool      mCheckedThisSession;
 };

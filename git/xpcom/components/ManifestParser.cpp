@@ -52,7 +52,7 @@
 #include <gtk/gtk.h>
 #endif
 
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
 #include "AndroidBridge.h"
 #endif
 
@@ -502,7 +502,7 @@ ParseManifestCommon(NSLocationType aType, nsILocalFile* aFile,
   nsTextFormatter::ssprintf(osVersion, NS_LITERAL_STRING("%ld.%ld").get(),
                                        gtk_major_version,
                                        gtk_minor_version);
-#elif defined(MOZ_WIDGET_ANDROID)
+#elif defined(ANDROID)
   if (mozilla::AndroidBridge::Bridge()) {
     mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build$VERSION", "RELEASE", osVersion);
   }

@@ -1554,8 +1554,6 @@ nsDocument::nsDocument(const char* aContentType)
 
   // Start out mLastStyleSheetSet as null, per spec
   SetDOMStringToNull(mLastStyleSheetSet);
-  
-  mLinksToUpdate.Init();
 }
 
 static PLDHashOperator
@@ -1954,8 +1952,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
   if (tmp->mAnimationController) {
     tmp->mAnimationController->Unlink();
   }
-
-  tmp->mPendingTitleChangeEvent.Revoke();
   
   tmp->mInUnlinkOrDeletion = false;
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -3226,7 +3222,6 @@ nsDocument::DeleteShell()
   if (IsEventHandlingEnabled()) {
     RevokeAnimationFrameNotifications();
   }
-
   mPresShell = nsnull;
 }
 
@@ -7975,41 +7970,6 @@ nsIDocument::EnumerateFreezableElements(FreezableElementEnumerator aEnumerator,
   mFreezableElements->EnumerateEntries(EnumerateFreezables, &data);
 }
 
-void
-nsIDocument::RegisterPendingLinkUpdate(Link* aLink)
-{
-  mLinksToUpdate.PutEntry(aLink);
-  mHasLinksToUpdate = true;
-}
-
-void
-nsIDocument::UnregisterPendingLinkUpdate(Link* aLink)
-{
-  if (!mHasLinksToUpdate)
-    return;
-    
-  mLinksToUpdate.RemoveEntry(aLink);
-}
-  
-static PLDHashOperator
-EnumeratePendingLinkUpdates(nsPtrHashKey<Link>* aEntry, void* aData)
-{
-  aEntry->GetKey()->GetElement()->UpdateLinkState(aEntry->GetKey()->LinkState());
-  return PL_DHASH_NEXT;
-}
-
-void
-nsIDocument::FlushPendingLinkUpdates() 
-{
-  if (!mHasLinksToUpdate)
-    return;
-    
-  nsAutoScriptBlocker scriptBlocker;
-  mLinksToUpdate.EnumerateEntries(EnumeratePendingLinkUpdates, nsnull);
-  mLinksToUpdate.Clear();
-  mHasLinksToUpdate = false;
-}
-
 already_AddRefed<nsIDocument>
 nsIDocument::CreateStaticClone(nsISupports* aCloneContainer)
 {
@@ -8574,6 +8534,19 @@ GetCommonAncestor(nsIDocument* aDoc1, nsIDocument* aDoc2)
   return parent;
 }
 
+// Returns the root document in a document hierarchy.
+static nsIDocument*
+GetRootDocument(nsIDocument* aDoc)
+{
+  if (!aDoc)
+    return nsnull;
+  nsIDocument* doc = aDoc;
+  while (doc->GetParentDocument()) {
+    doc = doc->GetParentDocument();
+  }
+  return doc;
+}
+
 class nsCallRequestFullScreen : public nsRunnable
 {
 public:
@@ -8648,8 +8621,8 @@ nsDocument::RequestFullScreen(Element* aElement, bool aWasCallerChrome)
   }
 
   // Remember the root document, so that if a full-screen document is hidden
-  // we can reset full-screen state in the remaining visible full-screen documents.
-  sFullScreenRootDoc = do_GetWeakReference(nsContentUtils::GetRootDocument(this));
+  // we can reset full-screen state the remaining visible full-screen documents.
+  sFullScreenRootDoc = do_GetWeakReference(GetRootDocument(this));
 
   // Set the full-screen element. This sets the full-screen style on the
   // element, and the full-screen-ancestor styles on ancestors of the element

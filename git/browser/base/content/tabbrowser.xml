@@ -608,8 +608,7 @@
               this.mStatus = aStatus;
             },
 
-            onLocationChange: function (aWebProgress, aRequest, aLocation,
-                                        aFlags) {
+            onLocationChange: function (aWebProgress, aRequest, aLocation) {
               // OnLocationChange is called for both the top-level content
               // and the subframes.
               let topLevel = aWebProgress.DOMWindow == this.mBrowser.contentWindow;
@@ -642,8 +641,7 @@
 
               if (!this.mBlank) {
                 this._callProgressListeners("onLocationChange",
-                                            [aWebProgress, aRequest, aLocation,
-                                             aFlags]);
+                                            [aWebProgress, aRequest, aLocation]);
               }
 
               if (topLevel)
@@ -892,8 +890,7 @@
             var securityUI = this.mCurrentBrowser.securityUI;
 
             this._callProgressListeners(null, "onLocationChange",
-                                        [webProgress, null, loc, 0], true,
-                                        false);
+                                        [webProgress, null, loc], true, false);
 
             if (securityUI) {
               this._callProgressListeners(null, "onSecurityChange",

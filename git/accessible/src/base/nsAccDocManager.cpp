@@ -238,8 +238,7 @@ nsAccDocManager::OnProgressChange(nsIWebProgress *aWebProgress,
 
 NS_IMETHODIMP
 nsAccDocManager::OnLocationChange(nsIWebProgress *aWebProgress,
-                                  nsIRequest *aRequest, nsIURI *aLocation,
-                                  PRUint32 aFlags)
+                                  nsIRequest *aRequest, nsIURI *aLocation)
 {
   NS_NOTREACHED("notification excluded in AddProgressListener(...)");
   return NS_OK;

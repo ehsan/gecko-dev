@@ -748,7 +748,7 @@ struct nsPurpleBuffer
 private:
     struct Block {
         Block *mNext;
-        nsPurpleBufferEntry mEntries[255];
+        nsPurpleBufferEntry mEntries[128];
 
         Block() : mNext(nsnull) {}
     };

@@ -48,7 +48,7 @@ using namespace js::gc;
 inline HashNumber
 DefaultHasher<WatchKey>::hash(const Lookup &key)
 {
-    return DefaultHasher<JSObject *>::hash(key.object.get()) ^ HashId(key.id.get());
+    return DefaultHasher<JSObject *>::hash(key.object) ^ HashId(key.id);
 }
 
 class AutoEntryHolder {
@@ -177,7 +177,7 @@ WatchpointMap::triggerWatchpoint(JSContext *cx, JSObject *obj, jsid id, Value *v
 bool
 WatchpointMap::markAllIteratively(JSTracer *trc)
 {
-    JSRuntime *rt = trc->runtime;
+    JSRuntime *rt = trc->context->runtime;
     if (rt->gcCurrentCompartment) {
         WatchpointMap *wpmap = rt->gcCurrentCompartment->watchpointMap;
         return wpmap && wpmap->markIteratively(trc);
@@ -201,16 +201,16 @@ WatchpointMap::markIteratively(JSTracer *trc)
         bool objectIsLive = !IsAboutToBeFinalized(cx, e.key.object);
         if (objectIsLive || e.value.held) {
             if (!objectIsLive) {
-                MarkObject(trc, e.key.object, "held Watchpoint object");
+                MarkObject(trc, *e.key.object, "held Watchpoint object");
                 marked = true;
             }
 
-            const HeapId &id = e.key.id;
+            jsid id = e.key.id;
             JS_ASSERT(JSID_IS_STRING(id) || JSID_IS_INT(id));
             MarkId(trc, id, "WatchKey::id");
 
             if (e.value.closure && IsAboutToBeFinalized(cx, e.value.closure)) {
-                MarkObject(trc, e.value.closure, "Watchpoint::closure");
+                MarkObject(trc, *e.value.closure, "Watchpoint::closure");
                 marked = true;
             }
         }

@@ -51,7 +51,7 @@ CPPSRCS = \
   nsDeviceProtocolHandler.cpp \
   $(NULL)
 
-ifeq (android,$(MOZ_WIDGET_TOOLKIT))
+ifeq (Android,$(OS_TARGET))
 CPPSRCS += AndroidCaptureProvider.cpp \
            CameraStreamImpl.cpp \
            $(NULL)
