@@ -32,9 +32,6 @@ class DOMError : public nsISupports,
   nsString mName;
   nsString mMessage;
 
-protected:
-  virtual ~DOMError();
-
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMError)
@@ -52,6 +49,8 @@ public:
 
   DOMError(nsPIDOMWindow* aWindow, const nsAString& aName,
            const nsAString& aMessage);
+
+  virtual ~DOMError();
 
   nsPIDOMWindow* GetParentObject() const
   {

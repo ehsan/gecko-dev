@@ -43,10 +43,10 @@ public:
     , mClosure(aClosure)
   {}
 
-  NS_IMETHOD AddSubProfile(const char* aProfile);
-private:
   ~ProfileSaveEvent() {}
 
+  NS_IMETHOD AddSubProfile(const char* aProfile);
+private:
   AddSubProfileFunc mFunc;
   void* mClosure;
 };

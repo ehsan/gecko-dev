@@ -23,7 +23,6 @@ test(null);
 test(false);
 test(1);
 test("stringy");
-test(Symbol("symbolic"));
 test({});
 test([]);
 

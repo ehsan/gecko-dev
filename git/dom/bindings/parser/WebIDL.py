@@ -2634,34 +2634,6 @@ class IDLNullValue(IDLObject):
     def _getDependentObjects(self):
         return set()
 
-class IDLEmptySequenceValue(IDLObject):
-    def __init__(self, location):
-        IDLObject.__init__(self, location)
-        self.type = None
-        self.value = None
-
-    def coerceToType(self, type, location):
-        if type.isUnion():
-            # We use the flat member types here, because if we have a nullable
-            # member type, or a nested union, we want the type the value
-            # actually coerces to, not the nullable or nested union type.
-            for subtype in type.unroll().flatMemberTypes:
-                try:
-                    return self.coerceToType(subtype, location)
-                except:
-                    pass
-
-        if not type.isSequence():
-            raise WebIDLError("Cannot coerce empty sequence value to type %s." % type,
-                              [location])
-
-        emptySequenceValue = IDLEmptySequenceValue(self.location)
-        emptySequenceValue.type = type
-        return emptySequenceValue
-
-    def _getDependentObjects(self):
-        return set()
-
 class IDLUndefinedValue(IDLObject):
     def __init__(self, location):
         IDLObject.__init__(self, location)
@@ -3982,7 +3954,7 @@ class Parser(Tokenizer):
 
     def p_DictionaryMember(self, p):
         """
-            DictionaryMember : Type IDENTIFIER Default SEMICOLON
+            DictionaryMember : Type IDENTIFIER DefaultValue SEMICOLON
         """
         # These quack a lot like optional arguments, so just treat them that way.
         t = p[1]
@@ -3994,26 +3966,15 @@ class Parser(Tokenizer):
                            defaultValue=defaultValue, variadic=False,
                            dictionaryMember=True)
 
-    def p_Default(self, p):
+    def p_DefaultValue(self, p):
         """
-            Default : EQUALS DefaultValue
-                    |
+            DefaultValue : EQUALS ConstValue
+                         |
         """
         if len(p) > 1:
             p[0] = p[2]
         else:
             p[0] = None
-
-    def p_DefaultValue(self, p):
-        """
-            DefaultValue : ConstValue
-                         | LBRACKET RBRACKET
-        """
-        if len(p) == 2:
-            p[0] = p[1]
-        else:
-            assert len(p) == 3 # Must be []
-            p[0] = IDLEmptySequenceValue(self.getLocation(p, 1))
 
     def p_Exception(self, p):
         """
@@ -4473,7 +4434,7 @@ class Parser(Tokenizer):
 
     def p_Argument(self, p):
         """
-            Argument : ExtendedAttributeList Optional Type Ellipsis ArgumentName Default
+            Argument : ExtendedAttributeList Optional Type Ellipsis ArgumentName DefaultValue
         """
         t = p[3]
         assert isinstance(t, IDLType)
@@ -5044,14 +5005,8 @@ class Parser(Tokenizer):
         self.parser = yacc.yacc(module=self,
                                 outputdir=outputdir,
                                 tabmodule='webidlyacc',
-                                errorlog=yacc.NullLogger()
-                                # Pickling the grammar is a speedup in
-                                # some cases (older Python?) but a
-                                # significant slowdown in others.
-                                # We're not pickling for now, until it
-                                # becomes a speedup again.
-                                # , picklefile='WebIDLGrammar.pkl'
-                            )
+                                errorlog=yacc.NullLogger(),
+                                picklefile='WebIDLGrammar.pkl')
         self._globalScope = IDLScope(BuiltinLocation("<Global Scope>"), None, None)
         self._installBuiltins(self._globalScope)
         self._productions = []

@@ -40,6 +40,7 @@ public:
   // doesn't unlock the 'cpu' resource.
 
   WakeLock();
+  virtual ~WakeLock();
 
   // Initialize this wake lock on behalf of the given window.  Null windows are
   // allowed; a lock without an associated window is always considered
@@ -63,8 +64,6 @@ public:
   void Unlock(ErrorResult& aRv);
 
 private:
-  virtual ~WakeLock();
-
   void     DoUnlock();
   void     DoLock();
   void     AttachEventListener();

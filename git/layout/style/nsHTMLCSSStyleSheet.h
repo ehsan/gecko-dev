@@ -22,6 +22,7 @@ class nsHTMLCSSStyleSheet MOZ_FINAL : public nsIStyleRuleProcessor
 {
 public:
   nsHTMLCSSStyleSheet();
+  ~nsHTMLCSSStyleSheet();
 
   NS_DECL_ISUPPORTS
 
@@ -48,8 +49,6 @@ public:
   MiscContainer* LookupStyleAttr(const nsAString& aSerialized);
 
 private: 
-  ~nsHTMLCSSStyleSheet();
-
   nsHTMLCSSStyleSheet(const nsHTMLCSSStyleSheet& aCopy) MOZ_DELETE;
   nsHTMLCSSStyleSheet& operator=(const nsHTMLCSSStyleSheet& aCopy) MOZ_DELETE;
 

@@ -9,24 +9,26 @@
 
 #include "jsapi-tests/tests.h"
 
+using namespace JS;
+
 #ifdef JSGC_USE_EXACT_ROOTING
 
 BEGIN_TEST(testWeakMap_basicOperations)
 {
-    JS::RootedObject map(cx, JS::NewWeakMapObject(cx));
+    RootedObject map(cx, NewWeakMapObject(cx));
     CHECK(IsWeakMapObject(map));
 
-    JS::RootedObject key(cx, newKey());
+    RootedObject key(cx, newKey());
     CHECK(key);
     CHECK(!IsWeakMapObject(key));
 
-    JS::RootedValue r(cx);
+    RootedValue r(cx);
     CHECK(GetWeakMapEntry(cx, map, key, &r));
     CHECK(r.isUndefined());
 
     CHECK(checkSize(map, 0));
 
-    JS::RootedValue val(cx, JS::Int32Value(1));
+    RootedValue val(cx, Int32Value(1));
     CHECK(SetWeakMapEntry(cx, map, key, val));
 
     CHECK(GetWeakMapEntry(cx, map, key, &r));
@@ -53,9 +55,9 @@ JSObject *newKey()
 }
 
 bool
-checkSize(JS::HandleObject map, uint32_t expected)
+checkSize(HandleObject map, uint32_t expected)
 {
-    JS::RootedObject keys(cx);
+    RootedObject keys(cx);
     CHECK(JS_NondeterministicGetWeakMapKeys(cx, map, &keys));
 
     uint32_t length;
@@ -71,13 +73,13 @@ BEGIN_TEST(testWeakMap_keyDelegates)
     JS_SetGCParameter(rt, JSGC_MODE, JSGC_MODE_INCREMENTAL);
     JS_GC(rt);
 
-    JS::RootedObject map(cx, JS::NewWeakMapObject(cx));
+    RootedObject map(cx, NewWeakMapObject(cx));
     CHECK(map);
 
-    JS::RootedObject key(cx, newKey());
+    RootedObject key(cx, newKey());
     CHECK(key);
 
-    JS::RootedObject delegate(cx, newDelegate());
+    RootedObject delegate(cx, newDelegate());
     CHECK(delegate);
 
     SetKeyDelegate(key, delegate);
@@ -93,7 +95,7 @@ BEGIN_TEST(testWeakMap_keyDelegates)
 #endif
 
     /* Add our entry to the weakmap. */
-    JS::RootedValue val(cx, JS::Int32Value(1));
+    RootedValue val(cx, Int32Value(1));
     CHECK(SetWeakMapEntry(cx, map, key, val));
     CHECK(checkSize(map, 1));
 
@@ -157,7 +159,7 @@ JSObject *newKey()
         JS_NULL_OBJECT_OPS
     };
 
-    JS::RootedObject key(cx);
+    RootedObject key(cx);
     key = JS_NewObject(cx,
                        reinterpret_cast<const JSClass *>(&keyClass),
                        JS::NullPtr(),
@@ -170,17 +172,17 @@ JSObject *newKey()
     return key;
 }
 
-JSObject *newCCW(JS::HandleObject sourceZone, JS::HandleObject destZone)
+JSObject *newCCW(HandleObject sourceZone, HandleObject destZone)
 {
     /*
      * Now ensure that this zone will be swept first by adding a cross
      * compartment wrapper to a new objct in the same zone as the
      * delegate obejct.
      */
-    JS::RootedObject object(cx);
+    RootedObject object(cx);
     {
         JSAutoCompartment ac(cx, destZone);
-        object = JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr());
+        object = JS_NewObject(cx, nullptr, NullPtr(), NullPtr());
         if (!object)
             return nullptr;
     }
@@ -216,7 +218,7 @@ JSObject *newDelegate()
     options.setVersion(JSVERSION_LATEST);
     JS::RootedObject global(cx);
     global = JS_NewGlobalObject(cx, &delegateClass, nullptr, JS::FireOnNewGlobalHook, options);
-    JS_SetReservedSlot(global, 0, JS::Int32Value(42));
+    JS_SetReservedSlot(global, 0, Int32Value(42));
 
     /*
      * Ensure the delegate is not in the nursery because for the purpose of this
@@ -228,9 +230,9 @@ JSObject *newDelegate()
 }
 
 bool
-checkSize(JS::HandleObject map, uint32_t expected)
+checkSize(HandleObject map, uint32_t expected)
 {
-    JS::RootedObject keys(cx);
+    RootedObject keys(cx);
     CHECK(JS_NondeterministicGetWeakMapKeys(cx, map, &keys));
 
     uint32_t length;

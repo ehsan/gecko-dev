@@ -27,13 +27,12 @@ private:
   nsTransactionStack         *mTxnStack;
   nsRefPtr<nsTransactionItem> mTxnItem;
 
-protected:
-  virtual ~nsTransactionList();
-
 public:
 
   nsTransactionList(nsITransactionManager *aTxnMgr, nsTransactionStack *aTxnStack);
   nsTransactionList(nsITransactionManager *aTxnMgr, nsTransactionItem *aTxnItem);
+
+  virtual ~nsTransactionList();
 
   /* Macro for AddRef(), Release(), and QueryInterface() */
   NS_DECL_ISUPPORTS

@@ -11,4 +11,3 @@ var proxy = Proxy(Object.create(Object.create(null, {
 assertEq('foo' in proxy, true);
 assertEq('bar' in proxy, true);
 assertEq('baz' in proxy, false);
-assertEq(Symbol() in proxy, false);

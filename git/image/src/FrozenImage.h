@@ -31,6 +31,8 @@ class FrozenImage : public ImageWrapper
 public:
   NS_DECL_ISUPPORTS
 
+  virtual ~FrozenImage() { }
+
   virtual nsIntRect FrameRect(uint32_t aWhichFrame) MOZ_OVERRIDE;
   virtual void IncrementAnimationConsumers() MOZ_OVERRIDE;
   virtual void DecrementAnimationConsumers() MOZ_OVERRIDE;
@@ -58,7 +60,6 @@ public:
 
 protected:
   FrozenImage(Image* aImage) : ImageWrapper(aImage) { }
-  virtual ~FrozenImage() { }
 
 private:
   friend class ImageOps;

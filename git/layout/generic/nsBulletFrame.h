@@ -22,6 +22,7 @@ class nsBulletListener : public imgINotificationObserver
 {
 public:
   nsBulletListener();
+  virtual ~nsBulletListener();
 
   NS_DECL_ISUPPORTS
   NS_DECL_IMGINOTIFICATIONOBSERVER
@@ -29,8 +30,6 @@ public:
   void SetFrame(nsBulletFrame *frame) { mFrame = frame; }
 
 private:
-  virtual ~nsBulletListener();
-
   nsBulletFrame *mFrame;
 };
 

@@ -335,13 +335,14 @@ nsLayoutUtils::HasCurrentAnimations(nsIContent* aContent,
 }
 
 static gfxSize
-GetScaleForValue(const StyleAnimationValue& aValue, nsIFrame* aFrame)
+GetScaleForValue(const nsStyleAnimation::Value& aValue,
+                 nsIFrame* aFrame)
 {
   if (!aFrame) {
     NS_WARNING("No frame.");
     return gfxSize();
   }
-  if (aValue.GetUnit() != StyleAnimationValue::eUnit_Transform) {
+  if (aValue.GetUnit() != nsStyleAnimation::eUnit_Transform) {
     NS_WARNING("Expected a transform.");
     return gfxSize();
   }

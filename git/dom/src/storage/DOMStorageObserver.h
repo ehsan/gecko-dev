@@ -38,6 +38,8 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
 
+  virtual ~DOMStorageObserver() {}
+
   static nsresult Init();
   static nsresult Shutdown();
   static DOMStorageObserver* Self() { return sSelf; }
@@ -47,8 +49,6 @@ public:
   void Notify(const char* aTopic, const nsACString& aData = EmptyCString());
 
 private:
-  virtual ~DOMStorageObserver() {}
-
   static DOMStorageObserver* sSelf;
 
   // Weak references

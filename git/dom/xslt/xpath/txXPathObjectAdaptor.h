@@ -24,6 +24,7 @@ public:
                      "Don't create a txXPathObjectAdaptor if you don't have a "
                      "txAExprResult");
     }
+    virtual ~txXPathObjectAdaptor() {}
 
     NS_DECL_ISUPPORTS
 
@@ -36,8 +37,6 @@ protected:
     txXPathObjectAdaptor() : mValue(nullptr)
     {
     }
-
-    virtual ~txXPathObjectAdaptor() {}
 
     nsRefPtr<txAExprResult> mValue;
 };

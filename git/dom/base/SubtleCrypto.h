@@ -25,8 +25,6 @@ typedef ArrayBufferViewOrArrayBuffer KeyData;
 class SubtleCrypto MOZ_FINAL : public nsISupports,
                                public nsWrapperCache
 {
-  ~SubtleCrypto() {}
-
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(SubtleCrypto)

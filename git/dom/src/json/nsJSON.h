@@ -45,13 +45,12 @@ class nsJSON : public nsIJSON
 {
 public:
   nsJSON();
+  virtual ~nsJSON();
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIJSON
 
 protected:
-  virtual ~nsJSON();
-
   nsresult EncodeInternal(JSContext* cx,
                           const JS::Value& val,
                           nsJSONWriter* writer);
@@ -71,14 +70,13 @@ class nsJSONListener : public nsIStreamListener
 {
 public:
   nsJSONListener(JSContext *cx, JS::Value *rootVal, bool needsConverter);
+  virtual ~nsJSONListener();
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIREQUESTOBSERVER
   NS_DECL_NSISTREAMLISTENER
 
 protected:
-  virtual ~nsJSONListener();
-
   bool mNeedsConverter;
   JSContext *mCx;
   JS::Value *mRootVal;

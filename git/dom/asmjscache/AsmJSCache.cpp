@@ -1723,8 +1723,6 @@ GetBuildId(JS::BuildIdCharVector* aBuildID)
 
 class Client : public quota::Client
 {
-  ~Client() {}
-
 public:
   NS_IMETHOD_(MozExternalRefCountType)
   AddRef() MOZ_OVERRIDE;

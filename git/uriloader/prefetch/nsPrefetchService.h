@@ -99,6 +99,8 @@ public:
                    nsIURI *aReferrerURI,
                    nsIDOMNode *aSource);
 
+    ~nsPrefetchNode() {}
+
     nsresult OpenChannel();
     nsresult CancelChannel(nsresult error);
 
@@ -108,8 +110,6 @@ public:
     nsCOMPtr<nsIWeakReference>  mSource;
 
 private:
-    ~nsPrefetchNode() {}
-
     nsRefPtr<nsPrefetchService> mService;
     nsCOMPtr<nsIChannel>        mChannel;
     nsCOMPtr<nsIChannel>        mRedirectChannel;

@@ -46,6 +46,7 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
     NS_DECL_NSIOBSERVER
 
     mozJSComponentLoader();
+    virtual ~mozJSComponentLoader();
 
     // ModuleLoader
     const mozilla::Module* LoadModule(mozilla::FileLocation &aFile);
@@ -58,8 +59,6 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
     size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
 
  protected:
-    virtual ~mozJSComponentLoader();
-
     static mozJSComponentLoader* sSelf;
 
     nsresult ReallyInit();

@@ -24,6 +24,7 @@ public:
                       const nsAString& aCallID,
                       const MediaStreamConstraints& aConstraints,
                       bool aIsSecure);
+  virtual ~GetUserMediaRequest() {};
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(GetUserMediaRequest)
@@ -39,8 +40,6 @@ public:
   void GetConstraints(MediaStreamConstraints &result);
 
 private:
-  virtual ~GetUserMediaRequest() {}
-
   uint64_t mInnerWindowID, mOuterWindowID;
   const nsString mCallID;
   nsAutoPtr<MediaStreamConstraints> mConstraints;

@@ -144,10 +144,6 @@ js::ValueToStringBufferSlow(JSContext *cx, const Value &arg, StringBuffer &sb)
         return BooleanToStringBuffer(v.toBoolean(), sb);
     if (v.isNull())
         return sb.append(cx->names().null);
-    if (v.isSymbol()) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_SYMBOL_TO_STRING);
-        return false;
-    }
     JS_ASSERT(v.isUndefined());
     return sb.append(cx->names().undefined);
 }

@@ -149,6 +149,10 @@ public:
   {
   }
 
+  virtual ~CameraPermissionRequest()
+  {
+  }
+
   bool Recv__delete__(const bool& aAllow,
                       const InfallibleTArray<PermissionChoice>& choices);
 
@@ -158,10 +162,6 @@ public:
   }
 
 protected:
-  virtual ~CameraPermissionRequest()
-  {
-  }
-
   nsresult DispatchCallback(uint32_t aPermission);
   void CallAllow();
   void CallCancel();

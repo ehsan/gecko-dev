@@ -265,8 +265,6 @@ protected:
     AddStateBits(NS_STATE_SVG_POSITIONING_DIRTY);
   }
 
-  ~SVGTextFrame() {}
-
 public:
   NS_DECL_QUERYFRAME_TARGET(SVGTextFrame)
   NS_DECL_QUERYFRAME
@@ -696,13 +694,5 @@ private:
    */
   float mLengthAdjustScaleFactor;
 };
-
-namespace mozilla {
-template<>
-struct HasDangerousPublicDestructor<SVGTextFrame::MutationObserver>
-{
-  static const bool value = true;
-};
-}
 
 #endif

@@ -107,10 +107,8 @@ class SheetLoadData : public nsIRunnable,
                       public nsIUnicharStreamLoaderObserver,
                       public nsIThreadObserver
 {
-protected:
-  virtual ~SheetLoadData(void);
-
 public:
+  virtual ~SheetLoadData(void);
   // Data for loading a sheet linked from a document
   SheetLoadData(Loader* aLoader,
                 const nsSubstring& aTitle,

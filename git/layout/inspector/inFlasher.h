@@ -24,10 +24,9 @@ public:
   NS_DECL_INIFLASHER
 
   inFlasher();
-
-protected:
   virtual ~inFlasher();
 
+protected:
   void DrawOutline(nscoord aX, nscoord aY, nscoord aWidth, nscoord aHeight,
                    nsRenderingContext* aRenderContext,
                    bool aDrawBegin, bool aDrawEnd);

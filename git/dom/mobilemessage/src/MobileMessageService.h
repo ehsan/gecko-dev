@@ -22,8 +22,6 @@ public:
   static already_AddRefed<MobileMessageService> GetInstance();
 
 private:
-  ~MobileMessageService() {}
-
   static StaticRefPtr<MobileMessageService> sSingleton;
 
 };

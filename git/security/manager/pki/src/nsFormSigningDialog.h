@@ -14,10 +14,9 @@
 
 class nsFormSigningDialog MOZ_FINAL : public nsIFormSigningDialog
 {
-private:
-  ~nsFormSigningDialog();
 public:
   nsFormSigningDialog();
+  ~nsFormSigningDialog();
 
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIFORMSIGNINGDIALOG

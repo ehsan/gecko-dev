@@ -30,8 +30,6 @@ public:
   NS_DECL_NSIXPCSCRIPTABLE
 
 protected:
-  ~StatementParams() {}
-
   mozIStorageStatement *mStatement;
   uint32_t mParamCount;
 

@@ -18,7 +18,6 @@
 #include "nsXBLPrototypeBinding.h"
 #include "nsXBLProtoImplProperty.h"
 #include "nsIURI.h"
-#include "mozilla/AddonPathService.h"
 #include "mozilla/dom/XULElementBinding.h"
 #include "xpcpublic.h"
 #include "js/CharacterEncoding.h"
@@ -76,10 +75,9 @@ nsXBLProtoImpl::InstallImplementation(nsXBLPrototypeBinding* aPrototypeBinding,
 
   // First, start by entering the compartment of the XBL scope. This may or may
   // not be the same compartment as globalObject.
-  JSAddonId* addonId = MapURIToAddonID(aPrototypeBinding->BindingURI());
   JS::Rooted<JSObject*> globalObject(cx,
     GetGlobalForObjectCrossCompartment(targetClassObject));
-  JS::Rooted<JSObject*> scopeObject(cx, xpc::GetScopeForXBLExecution(cx, globalObject, addonId));
+  JS::Rooted<JSObject*> scopeObject(cx, xpc::GetXBLScopeOrGlobal(cx, globalObject));
   NS_ENSURE_TRUE(scopeObject, NS_ERROR_OUT_OF_MEMORY);
   JSAutoCompartment ac(cx, scopeObject);
 
@@ -134,25 +132,13 @@ nsXBLProtoImpl::InstallImplementation(nsXBLPrototypeBinding* aPrototypeBinding,
   if (propertyHolder != targetClassObject) {
     AssertSameCompartment(propertyHolder, scopeObject);
     AssertSameCompartment(targetClassObject, globalObject);
-    bool inContentXBLScope = xpc::IsInContentXBLScope(scopeObject);
     for (nsXBLProtoImplMember* curr = mMembers; curr; curr = curr->GetNext()) {
-      if (!inContentXBLScope || curr->ShouldExposeToUntrustedContent()) {
+      if (curr->ShouldExposeToUntrustedContent()) {
         JS::Rooted<jsid> id(cx);
         JS::TwoByteChars chars(curr->GetName(), NS_strlen(curr->GetName()));
         bool ok = JS_CharsToId(cx, chars, &id);
         NS_ENSURE_TRUE(ok, NS_ERROR_UNEXPECTED);
-
-        bool found;
-        ok = JS_HasPropertyById(cx, propertyHolder, id, &found);
-        NS_ENSURE_TRUE(ok, NS_ERROR_UNEXPECTED);
-        if (!found) {
-          // Some members don't install anything in InstallMember (e.g.,
-          // nsXBLProtoImplAnonymousMethod). We need to skip copying in
-          // those cases.
-          continue;
-        }
-
-        ok = JS_CopyPropertyFrom(cx, id, targetClassObject, propertyHolder);
+        JS_CopyPropertyFrom(cx, id, targetClassObject, propertyHolder);
         NS_ENSURE_TRUE(ok, NS_ERROR_UNEXPECTED);
       }
     }

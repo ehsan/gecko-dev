@@ -616,14 +616,6 @@ private:
   nsTArray<nsPropertiesTable> mPropertiesTableList;
 };
 
-namespace mozilla {
-template<>
-struct HasDangerousPublicDestructor<nsGlyphTableList>
-{
-  static const bool value = true;
-};
-}
-
 NS_IMPL_ISUPPORTS(nsGlyphTableList, nsIObserver)
 
 // -----------------------------------------------------------------------------

@@ -554,14 +554,10 @@ js::ReportUsageError(JSContext *cx, HandleObject callee, const char *msg)
     } else {
         JSString *str = usage.toString();
         JS::Anchor<JSString *> a_str(str);
-
-        if (!str->ensureFlat(cx))
+        const jschar *chars = JS_GetStringCharsZ(cx, str);
+        if (!chars)
             return;
-        AutoStableStringChars chars(cx);
-        if (!chars.initTwoByte(cx, str))
-            return;
-
-        JS_ReportError(cx, "%s. Usage: %hs", msg, chars.twoByteRange().start().get());
+        JS_ReportError(cx, "%s. Usage: %hs", msg, chars);
     }
 }
 

@@ -107,25 +107,7 @@ let emulator = (function() {
    */
   function clearCalls() {
     log("Clear existing calls.");
-
-    // Hang up all calls.
-    let hangUpPromises = [];
-
-    for (let call of telephony.calls) {
-      log(".. hangUp " + call.number);
-      hangUpPromises.push(hangUp(call));
-    }
-
-    for (let call of conference.calls) {
-      log(".. hangUp " + call.number);
-      hangUpPromises.push(hangUp(call));
-    }
-
-    return Promise.all(hangUpPromises)
-      .then(() => {
-        return emulator.run("gsm clear");
-      })
-      .then(waitForNoCall);
+    return emulator.run("gsm clear").then(waitForNoCall);
   }
 
   /**

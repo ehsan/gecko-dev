@@ -34,10 +34,9 @@ class TransportSecurityInfo : public nsITransportSecurityInfo,
                               public nsNSSShutDownObject,
                               public nsOnPK11LogoutCancelObject
 {
-protected:
-  virtual ~TransportSecurityInfo();
 public:
   TransportSecurityInfo();
+  virtual ~TransportSecurityInfo();
   
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSITRANSPORTSECURITYINFO

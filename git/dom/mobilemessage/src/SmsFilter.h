@@ -27,8 +27,6 @@ public:
   static nsresult NewSmsFilter(nsISupports** aSmsFilter);
 
 private:
-  ~SmsFilter() {}
-
   mobilemessage::SmsFilterData mData;
 };
 

@@ -41,6 +41,7 @@ class SVGDocumentWrapper MOZ_FINAL : public nsIStreamListener,
 {
 public:
   SVGDocumentWrapper();
+  ~SVGDocumentWrapper();
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSISTREAMLISTENER
@@ -145,8 +146,6 @@ public:
   void FlushLayout();
 
 private:
-  ~SVGDocumentWrapper();
-
   nsresult SetupViewer(nsIRequest *aRequest,
                        nsIContentViewer** aViewer,
                        nsILoadGroup** aLoadGroup);

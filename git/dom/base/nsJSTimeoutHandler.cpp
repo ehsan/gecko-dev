@@ -41,6 +41,7 @@ public:
   nsJSScriptTimeoutHandler(JSContext* aCx, nsGlobalWindow *aWindow,
                            const nsAString& aExpression, bool* aAllowEval,
                            ErrorResult& aError);
+  ~nsJSScriptTimeoutHandler();
 
   virtual const char16_t *GetHandlerText();
   virtual Function* GetCallback()
@@ -64,8 +65,6 @@ public:
   void ReleaseJSObjects();
 
 private:
-  ~nsJSScriptTimeoutHandler();
-
   // filename, line number and JS language version string of the
   // caller of setTimeout()
   nsCString mFileName;

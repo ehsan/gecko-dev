@@ -1091,7 +1091,6 @@ public:
 protected:
     class MemoryReporter MOZ_FINAL : public nsIMemoryReporter
     {
-        ~MemoryReporter() {}
     public:
         NS_DECL_ISUPPORTS
         NS_DECL_NSIMEMORYREPORTER
@@ -1101,7 +1100,6 @@ protected:
     class Observer MOZ_FINAL
         : public nsIObserver
     {
-        ~Observer() {}
     public:
         NS_DECL_ISUPPORTS
         NS_DECL_NSIOBSERVER

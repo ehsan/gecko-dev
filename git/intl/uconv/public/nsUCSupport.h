@@ -78,6 +78,11 @@ public:
    */
   nsBasicDecoderSupport();
 
+  /**
+   * Class destructor.
+   */
+  virtual ~nsBasicDecoderSupport();
+
   //--------------------------------------------------------------------
   // Interface nsIUnicodeDecoder [declaration]
 
@@ -86,11 +91,6 @@ public:
 
 protected:
   int32_t   mErrBehavior;
-
-  /**
-   * Class destructor.
-   */
-  virtual ~nsBasicDecoderSupport();
 };
 
 //----------------------------------------------------------------------
@@ -282,7 +282,6 @@ public:
    */
   nsBasicEncoder();
 
-protected:
   /**
    * Class destructor.
    */

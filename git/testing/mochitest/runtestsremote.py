@@ -322,7 +322,7 @@ class MochiRemote(Mochitest):
         if self.localProfile:
             options.profilePath = self.localProfile
         else:
-            options.profilePath = None
+            options.profilePath = tempfile.mkdtemp()
 
         def fixup():
             options.xrePath = remoteXrePath
@@ -661,7 +661,7 @@ def main():
             if mochitest.localProfile:
                 options.profilePath = mochitest.localProfile
                 os.system("rm -Rf %s" % options.profilePath)
-                options.profilePath = None
+                options.profilePath = tempfile.mkdtemp()
                 mochitest.localProfile = options.profilePath
 
             options.app = "am"

@@ -8,11 +8,7 @@
 #include <gtk/gtk.h>
 #include <gdk/gdkx.h>
 #include <errno.h>
-#include <stdlib.h>
-#include <string.h>
 
-#include "nsDebug.h"
-#include "nsString.h"
 #include "nsX11ErrorHandler.h"
 
 #include "prenv.h"

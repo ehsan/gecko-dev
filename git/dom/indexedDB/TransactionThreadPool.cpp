@@ -58,8 +58,6 @@ public:
                                    nsCOMPtr<nsIRunnable>& aFinishRunnable);
 
 private:
-  ~FinishTransactionRunnable() {}
-
   IDBTransaction* mTransaction;
   nsCOMPtr<nsIRunnable> mFinishRunnable;
 };

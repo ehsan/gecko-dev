@@ -22,9 +22,8 @@ public:
   NS_DECL_NSIINTERFACEREQUESTOR
 
   PipUIContext();
-
-protected:
   virtual ~PipUIContext();
+
 };
 
 //

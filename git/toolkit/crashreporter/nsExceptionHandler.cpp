@@ -146,11 +146,8 @@ typedef std::string xpstring;
 #endif
 #endif // XP_WIN32
 
-#ifndef XP_LINUX
 static const XP_CHAR dumpFileExtension[] = {'.', 'd', 'm', 'p',
                                             '\0'}; // .dmp
-#endif
-
 static const XP_CHAR extraFileExtension[] = {'.', 'e', 'x', 't',
                                              'r', 'a', '\0'}; // .extra
 
@@ -202,12 +199,6 @@ static const char kTimeSinceLastCrashParameter[] = "SecondsSinceLastCrash=";
 static const int kTimeSinceLastCrashParameterLen =
                                      sizeof(kTimeSinceLastCrashParameter)-1;
 
-static const char kOOMAllocationSizeParameter[] = "OOMAllocationSize=";
-static const int kOOMAllocationSizeParameterLen =
-  sizeof(kOOMAllocationSizeParameter)-1;
-
-
-#ifdef XP_WIN32
 static const char kSysMemoryParameter[] = "SystemMemoryUsePercentage=";
 static const int kSysMemoryParameterLen = sizeof(kSysMemoryParameter)-1;
 
@@ -218,6 +209,10 @@ static const int kTotalVirtualMemoryParameterLen =
 static const char kAvailableVirtualMemoryParameter[] = "AvailableVirtualMemory=";
 static const int kAvailableVirtualMemoryParameterLen =
   sizeof(kAvailableVirtualMemoryParameter)-1;
+
+static const char kOOMAllocationSizeParameter[] = "OOMAllocationSize=";
+static const int kOOMAllocationSizeParameterLen =
+  sizeof(kOOMAllocationSizeParameter)-1;
 
 static const char kTotalPageFileParameter[] = "TotalPageFile=";
 static const int kTotalPageFileParameterLen =
@@ -234,7 +229,6 @@ static const int kTotalPhysicalMemoryParameterLen =
 static const char kAvailablePhysicalMemoryParameter[] = "AvailablePhysicalMemory=";
 static const int kAvailablePhysicalMemoryParameterLen =
   sizeof(kAvailablePhysicalMemoryParameter)-1;
-#endif
 
 static const char kIsGarbageCollectingParameter[] = "IsGarbageCollecting=";
 static const int kIsGarbageCollectingParameterLen =

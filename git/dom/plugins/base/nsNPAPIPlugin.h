@@ -32,6 +32,7 @@ private:
 
 public:
   nsNPAPIPlugin();
+  virtual ~nsNPAPIPlugin();
 
   NS_DECL_ISUPPORTS
 
@@ -61,8 +62,6 @@ public:
   static nsresult RetainStream(NPStream *pstream, nsISupports **aRetainedPeer);
 
 protected:
-  virtual ~nsNPAPIPlugin();
-
   NPPluginFuncs mPluginFuncs;
   PluginLibrary* mLibrary;
 };

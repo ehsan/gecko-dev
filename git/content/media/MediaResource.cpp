@@ -348,6 +348,7 @@ ChannelMediaResource::OnStartRequest(nsIRequest* aRequest)
 
     mDecoder->SetInfinite(!dataIsBounded);
   }
+  mDecoder->SetTransportSeekable(seekable);
   mCacheStream.SetTransportSeekable(seekable);
 
   {

@@ -41,7 +41,6 @@ public:
   NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);
 
 private:
-  ~DataStoreRevision() {}
   nsRefPtr<DataStoreRevisionCallback> mCallback;
   nsRefPtr<indexedDB::IDBRequest> mRequest;
   nsString mRevisionID;

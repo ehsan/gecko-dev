@@ -39,13 +39,6 @@ class DeviceStorageFileSystem;
 namespace ipc {
 class FileDescriptor;
 }
-
-template<>
-struct HasDangerousPublicDestructor<DeviceStorageFile>
-{
-  static const bool value = true;
-};
-
 } // namespace mozilla
 
 class DeviceStorageFile MOZ_FINAL
@@ -152,8 +145,6 @@ private:
 class FileUpdateDispatcher MOZ_FINAL
   : public nsIObserver
 {
-  ~FileUpdateDispatcher() {}
-
  public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER

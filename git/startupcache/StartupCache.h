@@ -93,7 +93,6 @@ struct CacheEntry
 // refcount its listeners, so we'll let it refcount this instead.
 class StartupCacheListener MOZ_FINAL : public nsIObserver
 {
-  ~StartupCacheListener() {}
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIOBSERVER
 };
@@ -188,9 +187,7 @@ private:
 #ifdef DEBUG
 class StartupCacheDebugOutputStream MOZ_FINAL
   : public nsIObjectOutputStream
-{
-  ~StartupCacheDebugOutputStream() {}
-
+{  
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBJECTOUTPUTSTREAM
 
@@ -217,8 +214,6 @@ class StartupCacheDebugOutputStream MOZ_FINAL
 class StartupCacheWrapper MOZ_FINAL
   : public nsIStartupCache
 {
-  ~StartupCacheWrapper() {}
-
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSISTARTUPCACHE
 

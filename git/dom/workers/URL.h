@@ -27,13 +27,12 @@ class URL MOZ_FINAL : public mozilla::dom::URLSearchParamsObserver
 {
   typedef mozilla::dom::URLSearchParams URLSearchParams;
 
-  ~URL();
-
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS(URL)
 
   URL(WorkerPrivate* aWorkerPrivate, URLProxy* aURLProxy);
+  ~URL();
 
   nsISupports*
   GetParentObject() const

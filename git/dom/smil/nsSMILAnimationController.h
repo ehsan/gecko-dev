@@ -45,6 +45,7 @@ class nsSMILAnimationController : public nsSMILTimeContainer,
 {
 public:
   nsSMILAnimationController(nsIDocument* aDoc);
+  ~nsSMILAnimationController();
 
   // Clears mDocument pointer. (Called by our nsIDocument when it's going away)
   void Disconnect();
@@ -106,8 +107,6 @@ public:
   { return mAnimationElementTable.Count() != 0; }
 
 protected:
-  ~nsSMILAnimationController();
-
   // Typedefs
   typedef nsPtrHashKey<nsSMILTimeContainer> TimeContainerPtrKey;
   typedef nsTHashtable<TimeContainerPtrKey> TimeContainerHashtable;

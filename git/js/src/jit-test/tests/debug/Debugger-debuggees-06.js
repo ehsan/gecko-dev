@@ -17,7 +17,6 @@ check(false);
 check(1);
 check(NaN);
 check("ok");
-check(Symbol("ok"));
 
 // A Debugger.Object that belongs to a different Debugger object is invalid.
 var g = newGlobal();

@@ -51,6 +51,7 @@ public:
               int64_t aLastModifiedTime,
               bool fromExtension,
               bool aArgsAreUTF8 = false);
+  virtual ~nsPluginTag();
 
   void TryUnloadPlugin(bool inShutdown);
 
@@ -93,8 +94,6 @@ public:
   void          InvalidateBlocklistState();
 
 private:
-  virtual ~nsPluginTag();
-
   nsCString     mNiceFileName; // UTF-8
   uint16_t      mCachedBlocklistState;
   bool          mCachedBlocklistStateValid;

@@ -574,7 +574,6 @@ CycleCollectedJSRuntime::DescribeGCThing(bool aIsMarked, void* aThing,
     static const char trace_types[][11] = {
       "Object",
       "String",
-      "Symbol",
       "Script",
       "LazyScript",
       "IonCode",
