@@ -3778,6 +3778,22 @@ TraceRecorder::set(jsval* p, LIns* i, bool initializing, bool demote)
 }
 
 JS_REQUIRES_STACK LIns*
+TraceRecorder::attemptImport(jsval* p)
+{
+    if (LIns* i = tracker.get(p))
+        return i;
+
+    /* If the variable was not known, it could require a lazy import. */
+    CountSlotsVisitor countVisitor(p);
+    VisitStackSlots(countVisitor, cx, callDepth);
+
+    if (countVisitor.stopped() || size_t(p - cx->fp->slots) < cx->fp->script->nslots)
+        return get(p);
+
+    return NULL;
+}
+
+JS_REQUIRES_STACK LIns*
 TraceRecorder::get(jsval* p)
 {
     checkForGlobalObjectReallocation();
@@ -8369,12 +8385,13 @@ TraceRecorder::f2i(LIns* f)
         }
         if (ci == &js_String_p_charCodeAt_ci) {
             LIns* idx = fcallarg(f, 1);
-            // If the index is not already an integer, force it to be an integer.
-            idx = isPromote(idx)
-                ? demote(lir, idx)
-                : lir->insCall(&js_DoubleToInt32_ci, &idx);
-            LIns* args[] = { idx, fcallarg(f, 0) };
-            return lir->insCall(&js_String_p_charCodeAt_int_ci, args);
+            if (isPromote(idx)) {
+                LIns* args[] = { demote(lir, idx), fcallarg(f, 0) };
+                return lir->insCall(&js_String_p_charCodeAt_int_int_ci, args);
+            } else {
+                LIns* args[] = { idx, fcallarg(f, 0) };
+                return lir->insCall(&js_String_p_charCodeAt_double_int_ci, args);
+            }
         }
     }
     return lir->insCall(&js_DoubleToInt32_ci, &f);
@@ -12122,8 +12139,8 @@ TraceRecorder::upvar(JSScript* script, JSUpvarArray* uva, uintN index, jsval& v)
     jsval& vr = js_GetUpvar(cx, script->staticLevel, cookie);
     v = vr;
 
-    if (known(&vr))
-        return get(&vr);
+    if (LIns* ins = attemptImport(&vr))
+        return ins;
 
     /*
      * The upvar is not in the current trace, so get the upvar value exactly as
