@@ -23,8 +23,7 @@ var AwesomeScreen = {
       document.getElementById("syncsetup-container"),
 #endif
       document.getElementById("urlbar-container"),
-      document.getElementById("search-engines-popup"),
-      document.getElementById("context-popup")
+      document.getElementById("search-engines-popup")
     ]
   },
 

@@ -359,18 +359,6 @@ PluginInstanceChild::NPN_GetValue(NPNVariable aVar,
         return result;
     }
 
-    case NPNVdocumentOrigin: {
-        nsCString v;
-        NPError result;
-        if (!CallNPN_GetValue_NPNVdocumentOrigin(&v, &result)) {
-            return NPERR_GENERIC_ERROR;
-        }
-        if (result == NPERR_NO_ERROR) {
-            *static_cast<char**>(aValue) = ToNewCString(v);
-        }
-        return result;
-    }
-
     case NPNVWindowNPObject: // Intentional fall-through
     case NPNVPluginElementNPObject: {
         NPObject* object;
@@ -997,7 +985,7 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow)
 #ifdef MOZ_WIDGET_GTK2
     if (gtk_check_version(2,18,7) != NULL) { // older
         if (aWindow.type == NPWindowTypeWindow) {
-            GdkWindow* socket_window = gdk_window_lookup(static_cast<GdkNativeWindow>(aWindow.window));
+            GdkWindow* socket_window = gdk_window_lookup(aWindow.window);
             if (socket_window) {
                 // A GdkWindow for the socket already exists.  Need to
                 // workaround https://bugzilla.gnome.org/show_bug.cgi?id=607061
@@ -1051,7 +1039,7 @@ PluginInstanceChild::AnswerNPP_SetWindow(const NPRemoteWindow& aWindow)
           if (!CreatePluginWindow())
               return false;
 
-          ReparentPluginWindow(reinterpret_cast<HWND>(aWindow.window));
+          ReparentPluginWindow((HWND)aWindow.window);
           SizePluginWindow(aWindow.width, aWindow.height);
 
           mWindow.window = (void*)mPluginWindowHWND;
@@ -2861,7 +2849,6 @@ PluginInstanceChild::PaintRectToPlatformSurface(const nsIntRect& aRect,
         exposeEvent.major_code = 0;
         exposeEvent.minor_code = 0;
         mPluginIface->event(&mData, reinterpret_cast<void*>(&exposeEvent));
-        aSurface->MarkDirty(gfxRect(aRect.x, aRect.y, aRect.width, aRect.height));
     } else
 #endif
     {
@@ -2939,7 +2926,7 @@ PluginInstanceChild::PaintRectToSurface(const nsIntRect& aRect,
     }
 #endif
 
-    if (mIsTransparent && !CanPaintOnBackground()) {
+    if (aColor.a > 0.0) {
        // Clear surface content for transparent rendering
        nsRefPtr<gfxContext> ctx = new gfxContext(renderSurface);
        ctx->SetColor(aColor);

@@ -125,15 +125,6 @@ class Assembler : public ValueAssembler
         DataLabelPtr label;
     };
 
-    /* Need a temp reg that is not ArgReg1. */
-#if defined(JS_CPU_X86) || defined(JS_CPU_X64)
-    static const RegisterID ClobberInCall = JSC::X86Registers::ecx;
-#elif defined(JS_CPU_ARM)
-    static const RegisterID ClobberInCall = JSC::ARMRegisters::r2;
-#elif defined(JS_CPU_SPARC)
-    static const RegisterID ClobberInCall = JSC::SparcRegisters::l1;
-#endif
-
     /* :TODO: OOM */
     Label startLabel;
     Vector<CallPatch, 64, SystemAllocPolicy> callPatches;
@@ -553,14 +544,14 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
         }
     }
 
-    void storeArg(uint32 i, Imm32 imm) {
+    void storeArg(uint32 i, ImmPtr imm) {
         JS_ASSERT(callIsAligned);
         RegisterID to;
         if (Registers::regForArg(callConvention, i, &to)) {
             move(imm, to);
             availInCall.takeRegUnchecked(to);
         } else {
-            store32(imm, addressOfArg(i));
+            storePtr(imm, addressOfArg(i));
         }
     }
 
@@ -625,7 +616,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
 
 #undef STUB_CALL_TYPE
 
-    void setupInfallibleVMFrame(int32 frameDepth) {
+    void setupFrameDepth(int32 frameDepth) {
         // |frameDepth < 0| implies ic::SplatApplyArgs has been called which
         // means regs.sp has already been set in the VMFrame.
         if (frameDepth >= 0) {
@@ -633,9 +624,13 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
             // regs->sp = sp
             addPtr(Imm32(sizeof(StackFrame) + frameDepth * sizeof(jsval)),
                    JSFrameReg,
-                   ClobberInCall);
-            storePtr(ClobberInCall, FrameAddress(offsetof(VMFrame, regs.sp)));
+                   Registers::ClobberInCall);
+            storePtr(Registers::ClobberInCall, FrameAddress(offsetof(VMFrame, regs.sp)));
         }
+    }
+
+    void setupInfallibleVMFrame(int32 frameDepth) {
+        setupFrameDepth(frameDepth);
 
         // The JIT has moved Arg1 already, and we've guaranteed to not clobber
         // it. Move ArgReg0 into place now. setupFallibleVMFrame will not
@@ -662,6 +657,19 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
         }
 
         restoreStackBase();
+    }
+
+    void setupFallibleABICall(bool inlining, jsbytecode *pc, int32 frameDepth) {
+        setupFrameDepth(frameDepth);
+
+        /* Store fp and pc */
+        storePtr(JSFrameReg, FrameAddress(VMFrame::offsetOfFp));
+        storePtr(ImmPtr(pc), FrameAddress(offsetof(VMFrame, regs.pc)));
+
+        if (inlining) {
+            /* ABI calls cannot be made from inlined frames. */
+            storePtr(ImmPtr(NULL), FrameAddress(VMFrame::offsetOfInlined));
+        }
     }
 
     void restoreStackBase() {
@@ -867,6 +875,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
                      const js::Shape *shape,
                      RegisterID typeReg, RegisterID dataReg)
     {
+        JS_ASSERT(shape->hasSlot());
         if (shape->isMethod())
             loadValueAsComponents(ObjectValue(shape->methodObject()), typeReg, dataReg);
         else if (obj->isFixedSlot(shape->slot))
@@ -1239,7 +1248,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
         gc::AllocKind allocKind = templateObject->getAllocKind();
 
         JS_ASSERT(allocKind >= gc::FINALIZE_OBJECT0 && allocKind <= gc::FINALIZE_OBJECT_LAST);
-        int thingSize = (int)gc::Arena::thingSize(allocKind);
+        size_t thingSize = gc::Arena::thingSize(allocKind);
 
         JS_ASSERT(cx->typeInferenceEnabled());
         JS_ASSERT(!templateObject->hasSlotsArray());
@@ -1280,7 +1289,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::SparcRegist
         if (templateObject->isDenseArray()) {
             JS_ASSERT(!templateObject->initializedLength);
             addPtr(Imm32(-thingSize + sizeof(JSObject)), result);
-            storePtr(result, Address(result, -(int)sizeof(JSObject) + JSObject::offsetOfSlots()));
+            storePtr(result, Address(result, -sizeof(JSObject) + JSObject::offsetOfSlots()));
             addPtr(Imm32(-(int)sizeof(JSObject)), result);
         } else {
             JS_ASSERT(!templateObject->newType);

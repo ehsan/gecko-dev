@@ -37,7 +37,10 @@
 
 /* Platform specific code to invoke XPCOM methods on native objects */
 
+#ifdef __GNUC__            /* Gnu compiler. */
+
 #include "xptcprivate.h"
+#include "xptc_platforms_unixish_x86.h"
 #include "xptc_gcc_x86_unix.h"
 
 extern "C" {
@@ -66,6 +69,27 @@ invoke_copy_to_stack(PRUint32 paramCount, nsXPTCVariant* s, PRUint32* d)
 }
 } // extern "C"
 
+// NOTE! See xptc_gcc_x86_unix.h for the reason why this function exists.
+#if (__GNUC__ < 3 || (__GNUC__ == 3 && __GNUC_MINOR__ == 0))
+PRUint32
+xptc_invoke_copy_to_stack_keeper (void)
+{
+    PRUint32 dummy1;
+    void ATTRIBUTE_USED __attribute__ ((regparm(3))) (*dummy2)
+	(PRUint32, nsXPTCVariant*, PRUint32*) = invoke_copy_to_stack;
+
+// dummy2 references invoke_copy_to_stack, now we have to "use" it
+    __asm__ __volatile__ (
+	""
+	: "=&a" (dummy1)
+	: "g"   (dummy2)
+    );
+
+    return dummy1 & 0xF0F00000;
+}
+#endif
+
+
 /*
   EXPORT_XPCOM_API(nsresult)
   NS_InvokeByIndex_P(nsISupports* that, PRUint32 methodIndex,
@@ -80,6 +104,11 @@ invoke_copy_to_stack(PRUint32 paramCount, nsXPTCVariant* s, PRUint32* d)
   paramCount  = ebp + 0x10
   params      = ebp + 0x14
 
+  NOTE NOTE NOTE:
+  As of 2002-04-29 this function references no global variables nor does
+  it call non-static functions so preserving and loading the PIC register
+  is unnecessary. Define MOZ_PRESERVE_PIC if this changes. See mozilla
+  bug 140412 for details. However, avoid this if you can. It's slower.
 */
 /*
  * Hack for gcc for win32 and os2.  Functions used externally must be
@@ -113,6 +142,16 @@ __asm__ (
 #endif
 	"pushl %ebp\n\t"
 	"movl  %esp, %ebp\n\t"
+#ifdef MOZ_PRESERVE_PIC 
+	"pushl %ebx\n\t"
+	"call  0f\n\t"
+	".subsection 1\n"
+	"0:\n\t"
+	"movl (%esp), %ebx\n\t"
+	"ret\n\t"
+	".previous\n\t"
+	"addl  $_GLOBAL_OFFSET_TABLE_, %ebx\n\t"
+#endif
 	"movl  0x10(%ebp), %eax\n\t"
 	"leal  0(,%eax,8),%edx\n\t"
 	"movl  %esp, %ecx\n\t"
@@ -134,11 +173,30 @@ __asm__ (
 	"movl  0x14(%ebp), %edx\n\t"
 	"call  " SYMBOL_UNDERSCORE "invoke_copy_to_stack\n\t"
 	"movl  0x08(%ebp), %ecx\n\t"	/* 'that' */
+#ifdef CFRONT_STYLE_THIS_ADJUST
+	"movl  (%ecx), %edx\n\t"
+	"movl  0x0c(%ebp), %eax\n\t"    /* function index */
+	"shll  $3, %eax\n\t"	        /* *= 8 */
+	"addl  $8, %eax\n\t"	        /* += 8 skip first entry */
+	"addl  %eax, %edx\n\t"
+	"movswl (%edx), %eax\n\t"       /* 'this' offset */
+	"addl  %eax, %ecx\n\t"
+	"pushl %ecx\n\t"
+	"addl  $4, %edx\n\t"	        /* += 4, method pointer */
+#else /* THUNK_BASED_THIS_ADJUST */
 	"pushl %ecx\n\t"
 	"movl  (%ecx), %edx\n\t"
 	"movl  0x0c(%ebp), %eax\n\t"    /* function index */
+#if defined(__GXX_ABI_VERSION) && __GXX_ABI_VERSION >= 100 /* G++ V3 ABI */
 	"leal  (%edx,%eax,4), %edx\n\t"
+#else /* not G++ V3 ABI  */
+	"leal  8(%edx,%eax,4), %edx\n\t"
+#endif /* G++ V3 ABI */
+#endif
 	"call  *(%edx)\n\t"
+#ifdef MOZ_PRESERVE_PIC
+	"movl  -4(%ebp), %ebx\n\t"
+#endif
 	"movl  %ebp, %esp\n\t"
 	"popl  %ebp\n\t"
 	"ret\n"
@@ -146,3 +204,7 @@ __asm__ (
 	".size " SYMBOL_UNDERSCORE "NS_InvokeByIndex_P, . -" SYMBOL_UNDERSCORE "NS_InvokeByIndex_P\n\t"
 #endif
 );
+
+#else
+#error "can't find a compiler to use"
+#endif /* __GNUC__ */

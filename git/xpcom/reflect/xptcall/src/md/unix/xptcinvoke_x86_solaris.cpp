@@ -39,6 +39,7 @@
 /* Platform specific code to invoke XPCOM methods on native objects */
 
 #include "xptcprivate.h"
+#include "xptc_platforms_unixish_x86.h"
 
 extern "C" {
 

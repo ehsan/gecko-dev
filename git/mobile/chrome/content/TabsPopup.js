@@ -36,13 +36,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 var TabsPopup = {
-  init: function() {
-    Elements.tabs.addEventListener("TabOpen", this, true);
-    Elements.tabs.addEventListener("TabRemove", this, true);
-
-    this._updateTabsCount();
-  },
-
   get box() {
     delete this.box;
     return this.box = document.getElementById("tabs-sidebar");
@@ -75,14 +68,5 @@ var TabsPopup = {
       this.hide();
     else
       this.show();
-  },
-
-  _updateTabsCount: function() {
-    let cmd = document.getElementById("cmd_showTabs");
-    cmd.setAttribute("label", Browser.tabs.length);
-  },
-
-  handleEvent: function handleEvent(aEvent) {
-    this._updateTabsCount();
   }
 };

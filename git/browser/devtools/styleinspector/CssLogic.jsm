@@ -741,8 +741,6 @@ function CssSheet(aCssLogic, aDomSheet, aSystemSheet, aIndex)
 }
 
 CssSheet.prototype = {
-  _passId: null,
-
   /**
    * Get a source for a stylesheet, taking into account embedded stylesheets
    * for which we need to use document.defaultView.location.href rather than
@@ -952,8 +950,6 @@ function CssRule(aCssSheet, aDomRule, aElement)
 }
 
 CssRule.prototype = {
-  _passId: null,
-
   /**
    * Check if the parent stylesheet is allowed by the CssLogic.sourceFilter.
    *
@@ -1095,8 +1091,6 @@ function CssSelector(aCssRule, aSelector)
 }
 
 CssSelector.prototype = {
-  _matchId: null,
-
   /**
    * Retrieve the CssSelector source, which is the source of the CssSheet owning
    * the selector.

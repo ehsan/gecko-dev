@@ -1909,12 +1909,7 @@ nsCSSFrameConstructor::ConstructTable(nsFrameConstructorState& aState,
     innerFrame = NS_NewMathMLmtableFrame(mPresShell, styleContext);
   else
     innerFrame = NS_NewTableFrame(mPresShell, styleContext);
-
-  if (!innerFrame) {
-    newFrame->Destroy();
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-
+ 
   InitAndRestoreFrame(aState, content, newFrame, nsnull, innerFrame);
 
   // Put the newly created frames into the right child list
@@ -2484,9 +2479,9 @@ nsCSSFrameConstructor::ConstructDocElementFrame(Element*                 aDocEle
   // Figure out which frame has the main style for the document element,
   // assigning it to mRootElementStyleFrame.
   // Backgrounds should be propagated from that frame to the viewport.
-  mRootElementStyleFrame = contentFrame->GetParentStyleContextFrame();
-  bool isChild = mRootElementStyleFrame &&
-                 mRootElementStyleFrame->GetParent() == contentFrame;
+  PRBool isChild;
+  contentFrame->GetParentStyleContextFrame(state.mPresContext,
+          &mRootElementStyleFrame, &isChild);
   if (!isChild) {
     mRootElementStyleFrame = mRootElementFrame;
   }
@@ -5793,8 +5788,13 @@ nsCSSFrameConstructor::IsValidSibling(nsIFrame*              aSibling,
     // if we haven't already, construct a style context to find the display type of aContent
     if (UNSET_DISPLAY == aDisplay) {
       nsRefPtr<nsStyleContext> styleContext;
-      nsIFrame* styleParent = aSibling->GetParentStyleContextFrame();
-      if (!styleParent) {
+      nsIFrame* styleParent;
+      PRBool providerIsChild;
+      if (NS_FAILED(aSibling->
+                      GetParentStyleContextFrame(aSibling->PresContext(),
+                                                 &styleParent,
+                                                 &providerIsChild)) ||
+          !styleParent) {
         NS_NOTREACHED("Shouldn't happen");
         return PR_FALSE;
       }
@@ -6680,8 +6680,10 @@ nsCSSFrameConstructor::ContentAppended(nsIContent*     aContainer,
   if (captionItems.NotEmpty()) { // append the caption to the outer table
     NS_ASSERTION(nsGkAtoms::tableFrame == frameType, "how did that happen?");
     nsIFrame* outerTable = parentFrame->GetParent();
-    state.mFrameManager->AppendFrames(outerTable, nsIFrame::kCaptionList,
-                                      captionItems);
+    if (outerTable) {
+      state.mFrameManager->AppendFrames(outerTable, nsIFrame::kCaptionList,
+                                        captionItems);
+    }
   }
 
   if (frameItems.NotEmpty()) { // append the in-flow kids
@@ -10800,11 +10802,6 @@ nsCSSFrameConstructor::CreateIBSiblings(nsFrameConstructorState& aState,
   nsIFrame* parentFrame = aInitialInline->GetParent();
 
   // Resolve the right style context for our anonymous blocks.
-  // The distinction in styles is needed because of CSS 2.1, section
-  // 9.2.1.1, which says:
-  //   When such an inline box is affected by relative positioning, any
-  //   resulting translation also affects the block-level box contained
-  //   in the inline box.
   nsRefPtr<nsStyleContext> blockSC =
     mPresShell->StyleSet()->
       ResolveAnonymousBoxStyle(aIsPositioned ?

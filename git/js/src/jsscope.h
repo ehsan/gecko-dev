@@ -251,13 +251,13 @@ struct PropertyTable {
     /* Computes the size of the entries array for a given capacity. */
     static size_t sizeOfEntries(size_t cap) { return cap * sizeof(Shape *); }
 
-    /*
-     * This counts the PropertyTable object itself (which must be
-     * heap-allocated) and its |entries| array.
-     */
-    size_t sizeOf(JSUsableSizeFun usf) const {
-        size_t usable = usf((void*)this) + usf(entries);
-        return usable ? usable : sizeOfEntries(capacity()) + sizeof(PropertyTable);
+    size_t sizeOf(size_t(*mus)(void *)) const {
+        if (mus) {
+            size_t usable = mus((void*)this) + mus(entries);
+            if (usable)
+                return usable;
+        }
+        return sizeOfEntries(capacity()) + sizeof(PropertyTable);
     }
 
     /* Whether we need to grow.  We want to do this if the load factor is >= 0.75 */
@@ -357,7 +357,6 @@ struct Shape : public js::gc::Cell
 
   protected:
     mutable js::Shape   *parent;        /* parent node, reverse for..in order */
-    /* kids is valid when !inDictionary(), listp is valid when inDictionary(). */
     union {
         mutable js::KidsPointer kids;   /* null, single child, or a tagged ptr
                                            to many-kids data structure */
@@ -367,7 +366,7 @@ struct Shape : public js::gc::Cell
                                            else to obj->lastProp */
     };
 
-    static inline js::Shape **search(JSContext *cx, js::Shape **startp, jsid id,
+    static inline js::Shape **search(JSRuntime *rt, js::Shape **startp, jsid id,
                                      bool adding = false);
     static js::Shape *newDictionaryShape(JSContext *cx, const js::Shape &child, js::Shape **listp);
     static js::Shape *newDictionaryList(JSContext *cx, js::Shape **listp);
@@ -377,7 +376,7 @@ struct Shape : public js::gc::Cell
 
     js::Shape *getChild(JSContext *cx, const js::Shape &child, js::Shape **listp);
 
-    bool hashify(JSContext *cx);
+    bool hashify(JSRuntime *rt);
 
     void setTable(js::PropertyTable *t) const {
         JS_ASSERT_IF(t && t->freelist != SHAPE_INVALID_SLOT, t->freelist < slotSpan);
@@ -444,17 +443,6 @@ struct Shape : public js::gc::Cell
     js::PropertyTable *getTable() const {
         JS_ASSERT(hasTable());
         return table;
-    }
-
-    size_t sizeOfPropertyTable(JSUsableSizeFun usf) const {
-        return hasTable() ? getTable()->sizeOf(usf) : 0;
-    }
-
-    size_t sizeOfKids(JSUsableSizeFun usf) const {
-        /* Nb: |countMe| is true because the kids HashTable is on the heap. */
-        return (!inDictionary() && kids.isHash())
-             ? kids.toHash()->sizeOf(usf, /* countMe */true)
-             : 0;
     }
 
     bool isNative() const { return this != &sharedNonNative; }
@@ -704,14 +692,14 @@ js_GenerateShape(JSContext *cx);
 namespace js {
 
 JS_ALWAYS_INLINE js::Shape **
-Shape::search(JSContext *cx, js::Shape **startp, jsid id, bool adding)
+Shape::search(JSRuntime *rt, js::Shape **startp, jsid id, bool adding)
 {
     js::Shape *start = *startp;
     if (start->hasTable())
         return start->getTable()->search(id, adding);
 
     if (start->numLinearSearches == PropertyTable::MAX_LINEAR_SEARCHES) {
-        if (start->hashify(cx))
+        if (start->hashify(rt))
             return start->getTable()->search(id, adding);
         /* OOM!  Don't increment numLinearSearches, to keep hasTable() false. */
         JS_ASSERT(!start->hasTable());

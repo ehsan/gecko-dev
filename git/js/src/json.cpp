@@ -281,33 +281,12 @@ class CycleDetector
     JSObject *const obj;
 };
 
-template<typename KeyType>
-class KeyStringifier {
-};
-
-template<>
-class KeyStringifier<uint32> {
-  public:
-    static JSString *toString(JSContext *cx, uint32 index) {
-        return IndexToString(cx, index);
-    }
-};
-
-template<>
-class KeyStringifier<jsid> {
-  public:
-    static JSString *toString(JSContext *cx, jsid id) {
-        return IdToString(cx, id);
-    }
-};
-
 /*
  * ES5 15.12.3 Str, steps 2-4, extracted to enable preprocessing of property
  * values when stringifying objects in JO.
  */
-template<typename KeyType>
 static bool
-PreprocessValue(JSContext *cx, JSObject *holder, KeyType key, Value *vp, StringifyContext *scx)
+PreprocessValue(JSContext *cx, JSObject *holder, jsid key, Value *vp, StringifyContext *scx)
 {
     JSString *keyStr = NULL;
 
@@ -319,10 +298,11 @@ PreprocessValue(JSContext *cx, JSObject *holder, KeyType key, Value *vp, Stringi
             return false;
 
         if (js_IsCallable(toJSON)) {
-            keyStr = KeyStringifier<KeyType>::toString(cx, key);
+            keyStr = IdToString(cx, key);
             if (!keyStr)
                 return false;
 
+            LeaveTrace(cx);
             InvokeArgsGuard args;
             if (!cx->stack.pushInvokeArgs(cx, 1, &args))
                 return false;
@@ -340,7 +320,7 @@ PreprocessValue(JSContext *cx, JSObject *holder, KeyType key, Value *vp, Stringi
     /* Step 3. */
     if (scx->replacer && scx->replacer->isCallable()) {
         if (!keyStr) {
-            keyStr = KeyStringifier<KeyType>::toString(cx, key);
+            keyStr = IdToString(cx, key);
             if (!keyStr)
                 return false;
         }
@@ -516,16 +496,18 @@ JA(JSContext *cx, JSObject *obj, StringifyContext *scx)
 
         /* Steps 7-10. */
         Value outputValue;
-        for (uint32 i = 0; i < length; i++) {
+        for (jsuint i = 0; i < length; i++) {
+            jsid id = INT_TO_JSID(i);
+
             /*
              * Steps 8a-8c.  Again note how the call to the spec's Str method
              * is broken up into getting the property, running it past toJSON
              * and the replacer and maybe unboxing, and interpreting some
              * values as |null| in separate steps.
              */
-            if (!obj->getElement(cx, i, &outputValue))
+            if (!obj->getProperty(cx, id, &outputValue))
                 return JS_FALSE;
-            if (!PreprocessValue(cx, obj, i, &outputValue, scx))
+            if (!PreprocessValue(cx, obj, id, &outputValue, scx))
                 return JS_FALSE;
             if (IsFilteredValue(outputValue)) {
                 if (!scx->sb.append("null"))
@@ -665,7 +647,7 @@ js_Stringify(JSContext *cx, Value *vp, JSObject *replacer, Value space, StringBu
             for (; i < len; i++) {
                 /* Step 4b(iv)(2). */
                 Value v;
-                if (!replacer->getElement(cx, i, &v))
+                if (!replacer->getProperty(cx, INT_TO_JSID(i), &v))
                     return false;
 
                 jsid id;

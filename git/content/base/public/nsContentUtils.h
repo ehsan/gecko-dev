@@ -83,7 +83,6 @@ static fp_except_t oldmask = fpsetmask(~allmask);
 #include "nsHtml5Parser.h"
 #include "nsIFragmentContentSink.h"
 #include "nsMathUtils.h"
-#include "mozilla/TimeStamp.h"
 
 struct nsNativeKeyEvent; // Don't include nsINativeKeyBindings.h here: it will force strange compilation error!
 
@@ -190,7 +189,6 @@ class nsContentUtils
 {
   friend class nsAutoScriptBlockerSuppressNodeRemoved;
   typedef mozilla::dom::Element Element;
-  typedef mozilla::TimeDuration TimeDuration;
 
 public:
   static nsresult Init();
@@ -1722,13 +1720,6 @@ public:
    */
   static PRBool IsFullScreenKeyInputRestricted();
 
-  /**
-   * Returns the time limit on handling user input before
-   * nsEventStateManager::IsHandlingUserInput() stops returning PR_TRUE.
-   * This enables us to detect long running user-generated event handlers.
-   */
-  static TimeDuration HandlingUserInputTimeout();
-
   static void GetShiftText(nsAString& text);
   static void GetControlText(nsAString& text);
   static void GetMetaText(nsAString& text);
@@ -1896,7 +1887,6 @@ private:
   static PRBool sIsFullScreenApiEnabled;
   static PRBool sTrustedFullScreenOnly;
   static PRBool sFullScreenKeyInputRestricted;
-  static PRUint32 sHandlingInputTimeout;
 
   static nsHtml5Parser* sHTMLFragmentParser;
   static nsIParser* sXMLFragmentParser;

@@ -160,8 +160,10 @@ nsHTMLAreaAccessible::GetNameInternal(nsAString & aName)
   if (!aName.IsEmpty())
     return NS_OK;
 
-  if (!mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::alt, aName))
+  if (!mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::alt,
+                         aName)) {
     return GetValue(aName);
+  }
 
   return NS_OK;
 }

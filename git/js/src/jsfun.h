@@ -326,9 +326,9 @@ ClassMethodIsNative(JSContext *cx, JSObject *obj, Class *clasp, jsid methodid, N
     JS_ASSERT(obj->getClass() == clasp);
 
     Value v;
-    if (!HasDataProperty(cx, obj, methodid, &v)) {
+    if (!HasDataProperty(obj, methodid, &v)) {
         JSObject *proto = obj->getProto();
-        if (!proto || proto->getClass() != clasp || !HasDataProperty(cx, proto, methodid, &v))
+        if (!proto || proto->getClass() != clasp || !HasDataProperty(proto, methodid, &v))
             return false;
     }
 
@@ -503,10 +503,10 @@ js_PutCallObjectOnTrace(JSObject *scopeChain, uint32 nargs, js::Value *argv,
 
 namespace js {
 
-CallObject *
+JSObject *
 CreateFunCallObject(JSContext *cx, StackFrame *fp);
 
-CallObject *
+JSObject *
 CreateEvalCallObject(JSContext *cx, StackFrame *fp);
 
 extern JSBool

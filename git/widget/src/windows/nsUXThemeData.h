@@ -43,7 +43,7 @@
 #include <uxtheme.h>
 
 #include "nscore.h"
-#include "mozilla/LookAndFeel.h"
+#include "nsILookAndFeel.h"
 
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
 #include <dwmapi.h>
@@ -133,7 +133,7 @@ public:
   static PRBool sTitlebarInfoPopulatedAero;
   static PRBool sTitlebarInfoPopulatedThemed;
   static SIZE sCommandButtons[4];
-  static mozilla::LookAndFeel::WindowsTheme sThemeId;
+  static nsILookAndFeel::WindowsThemeIdentifier sThemeId;
   static PRBool sIsDefaultWindowsTheme;
 
   static void Initialize();
@@ -150,7 +150,7 @@ public:
   static void UpdateTitlebarInfo(HWND aWnd);
 
   static void UpdateNativeThemeInfo();
-  static mozilla::LookAndFeel::WindowsTheme GetNativeThemeId();
+  static nsILookAndFeel::WindowsThemeIdentifier GetNativeThemeId();
   static PRBool IsDefaultWindowTheme();
 
   static inline BOOL IsAppThemed() {

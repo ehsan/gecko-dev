@@ -159,9 +159,9 @@ StackFrame::stealFrameAndSlots(Value *vp, StackFrame *otherfp,
     if (hasArgsObj()) {
         ArgumentsObject &argsobj = argsObj();
         if (argsobj.isNormalArguments())
-            argsobj.setStackFrame(this);
+            argsobj.setPrivate(this);
         else
-            JS_ASSERT(!argsobj.maybeStackFrame());
+            JS_ASSERT(!argsobj.getPrivate());
         otherfp->flags_ &= ~HAS_ARGS_OBJ;
     }
 }
@@ -644,7 +644,6 @@ ContextStack::popSegment()
 bool
 ContextStack::pushInvokeArgs(JSContext *cx, uintN argc, InvokeArgsGuard *iag)
 {
-    LeaveTrace(cx);
     JS_ASSERT(argc <= StackSpace::ARGS_LENGTH_MAX);
 
     uintN nvars = 2 + argc;
@@ -1016,6 +1015,13 @@ StackIter::settleOnNewState()
         if (containsFrame && (!containsCall || (Value *)fp_ >= calls_->argv())) {
             /* Nobody wants to see dummy frames. */
             if (fp_->isDummyFrame()) {
+                popFrame();
+                continue;
+            }
+
+            /* Censor pushed-but-not-active frames from InvokeSessionGuard. */
+            if (containsCall && !calls_->active() && fp_->hasArgs() &&
+                calls_->argv() == fp_->actualArgs()) {
                 popFrame();
                 continue;
             }

@@ -554,13 +554,6 @@ var Browser = {
     this.tryUnfloatToolbar();
   },
 
-  /** Workaround to hide the tabstrip if it is partially visible (bug 524469 and bug 626660) */
-  hidePartialTabSidebar: function hidePartialSidebars() {
-    let [tabsVisibility,,,] = this.computeSidebarVisibility();
-    if (tabsVisibility > 0.0 && tabsVisibility < 1.0)
-      this.hideSidebars();
-  },
-
   hideTitlebar: function hideTitlebar() {
     let rect = Elements.browsers.getBoundingClientRect();
     this.pageScrollboxScroller.scrollBy(0, Math.round(rect.top));
@@ -731,6 +724,9 @@ var Browser = {
     newTab.chromeTab.dispatchEvent(event);
     newTab.browser.messageManager.sendAsyncMessage("Browser:TabOpen");
 
+    let cmd = document.getElementById("cmd_showTabs");
+    cmd.setAttribute("label", this._tabs.length - 1);
+
     return newTab;
   },
 
@@ -745,6 +741,9 @@ var Browser = {
     }
 
     tab.browser.messageManager.sendAsyncMessage("Browser:CanUnload", {});
+
+    let cmd = document.getElementById("cmd_showTabs");
+    cmd.setAttribute("label", this._tabs.length - 1);
   },
 
   _doCloseTab: function _doCloseTab(aTab) {
@@ -1039,7 +1038,7 @@ var Browser = {
   },
 
   tryFloatToolbar: function tryFloatToolbar(dx, dy) {
-    if (this.floatedWhileDragging || Util.isTablet())
+    if (this.floatedWhileDragging)
       return;
 
     let [leftvis, ritevis, leftw, ritew] = Browser.computeSidebarVisibility(dx, dy);
@@ -1290,7 +1289,7 @@ Browser.MainDragger.prototype = {
     let bcr = browser.getBoundingClientRect();
     this._contentView = browser.getViewAt(clientX - bcr.left, clientY - bcr.top);
     this._stopAtSidebar = 0;
-    this._panToolbars = !Util.isTablet();
+    this._panToolbars = !Elements.urlbarState.getAttribute("tablet");
     if (this._sidebarTimeout) {
       clearTimeout(this._sidebarTimeout);
       this._sidebarTimeout = null;
@@ -1797,7 +1796,7 @@ const ContentTouchHandler = {
           case "TapUp":
             if (aEvent.isClick) {
               if (!Browser.selectedTab.allowZoom) {
-                this.tapSingle(aEvent.clientX, aEvent.clientY, Util.modifierMaskFromEvent(aEvent));
+                this.tapSingle(aEvent.clientX, aEvent.clientY, aEvent.modifiers);
                 aEvent.preventDefault();
               }
             }
@@ -1909,7 +1908,7 @@ const ContentTouchHandler = {
     // or if the urlbar is showing
     this.canCancelPan = (aX >= rect.left + kSafetyX) && (aX <= rect.right - kSafetyX) &&
                         (aY >= rect.top  + kSafetyY) &&
-                        (bcr.top == 0 || Util.isTablet());
+                        (bcr.top == 0 || Elements.urlbarState.getAttribute("tablet"));
   },
 
   tapDown: function tapDown(aX, aY) {
@@ -2202,7 +2201,7 @@ IdentityHandler.prototype = {
 
       // Build an appropriate supplemental block out of whatever location data we have
       if (iData.city)
-        supplemental += iData.city + "\n";
+        supplemental += iData.city + " ";
       if (iData.state && iData.country)
         supplemental += Strings.browser.formatStringFromName("identity.identified.state_and_country", [iData.state, iData.country], 2);
       else if (iData.state) // State only
@@ -2236,17 +2235,13 @@ IdentityHandler.prototype = {
     this.setPopupMessages(this._identityBox.getAttribute("mode") || this.IDENTITY_MODE_UNKNOWN);
 
     this._identityPopup.hidden = false;
-    let anchorPos = "";
-    if (Util.isTablet())
-      anchorPos = "after_start";
-    else
-      this._identityPopup.top = BrowserUI.toolbarH - this._identityPopup.offset;
+    this._identityPopup.top = BrowserUI.toolbarH - this._identityPopup.offset;
+    this._identityPopup.anchorTo(this._identityBox);
 
     this._identityBox.setAttribute("open", "true");
 
     BrowserUI.pushPopup(this, [this._identityPopup, this._identityBox, Elements.toolbarContainer]);
     BrowserUI.lockToolbar();
-    this._identityPopup.anchorTo(this._identityBox, anchorPos);
   },
 
   hide: function ih_hide() {
@@ -2848,7 +2843,7 @@ Tab.prototype = {
   },
 
   create: function create(aURI, aParams) {
-    this._chromeTab = Elements.tabList.addTab();
+    this._chromeTab = document.getElementById("tabs").addTab();
     let browser = this._createBrowser(aURI, null);
 
     // Should we fully load the new browser, or wait until later
@@ -2857,17 +2852,15 @@ Tab.prototype = {
 
     try {
       let flags = aParams.flags || Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
-      let postData = "postData" in aParams ? aParams.postData.value : null;
-      let referrerURI = "referrerURI" in aParams ? aParams.referrerURI : null;
-      let charset = "charset" in aParams ? aParams.charset : null;
-      browser.loadURIWithFlags(aURI, flags, referrerURI, charset, postData);
+      let postData = aParams.postData ? aParams.postData.value : null;
+      browser.loadURIWithFlags(aURI, flags, aParams.referrerURI, aParams.charset, postData);
     } catch(e) {
       dump("Error: " + e + "\n");
     }
   },
 
   destroy: function destroy() {
-    Elements.tabList.removeTab(this._chromeTab);
+    document.getElementById("tabs").removeTab(this._chromeTab);
     this._chromeTab = null;
     this._destroyBrowser();
   },
@@ -2904,6 +2897,7 @@ Tab.prototype = {
     let notification = this._notification = document.createElement("notificationbox");
     notification.classList.add("inputHandler");
 
+    // Create the browser using the current width the dynamically size the height
     let browser = this._browser = document.createElement("browser");
     browser.setAttribute("class", "viewable-width viewable-height");
     this._chromeTab.linkedBrowser = browser;
@@ -3055,8 +3049,6 @@ Tab.prototype = {
     return this.metadata.allowZoom && !Util.isURLEmpty(this.browser.currentURI.spec);
   },
 
-  _thumbnailWindowId: null,
-
   updateThumbnail: function updateThumbnail(options) {
     let options = options || {};
     let browser = this._browser;
@@ -3093,7 +3085,7 @@ Tab.prototype = {
       browser.setAttribute("type", "content-primary");
       Elements.browsers.selectedPanel = notification;
       browser.active = true;
-      Elements.tabList.selectedTab = this._chromeTab;
+      document.getElementById("tabs").selectedTab = this._chromeTab;
       browser.focus();
     } else {
       browser.messageManager.sendAsyncMessage("Browser:Blur", { });
@@ -3159,18 +3151,15 @@ function rendererFactory(aBrowser, aCanvas) {
  */
 var ViewableAreaObserver = {
   get width() {
-    let width = this._width || window.innerWidth;
-    if (Util.isTablet()) {
-      let sidebarWidth = Math.round(Elements.tabs.getBoundingClientRect().width);
-      width -= sidebarWidth;
-    }
-    return width;
+    return this._width || window.innerWidth;
   },
 
   get height() {
     let height = (this._height || window.innerHeight);
-    if (Util.isTablet())
-      height -= BrowserUI.toolbarH;
+    if (Elements.urlbarState.getAttribute("tablet")) {
+      let toolbarHeight = Math.round(document.getElementById("toolbar-main").getBoundingClientRect().height);
+      height -= toolbarHeight;
+    }
     return height;
   },
 

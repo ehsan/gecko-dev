@@ -46,6 +46,9 @@ class nsIPrefBranch;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// number of permission types in nsIContentPolicy
+#define NUMBER_OF_TYPES 13
+
 class nsContentBlocker : public nsIContentPolicy,
                          public nsIObserver,
                          public nsSupportsWeakReference
@@ -72,7 +75,7 @@ private:
 
   nsCOMPtr<nsIPermissionManager> mPermissionManager;
   nsCOMPtr<nsIPrefBranch2> mPrefBranchInternal;
-  static PRUint8 mBehaviorPref[];
+  PRUint8 mBehaviorPref[NUMBER_OF_TYPES];
 };
 
 #define NS_CONTENTBLOCKER_CID \

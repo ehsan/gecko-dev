@@ -138,7 +138,8 @@ nsHTMLTableCellAccessible::GetAttributesInternal(nsIPersistentProperties *aAttri
 
   nsAutoString stringIdx;
   stringIdx.AppendInt(idx);
-  nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::tableCellIndex, stringIdx);
+  nsAccUtils::SetAccAttr(aAttributes, nsAccessibilityAtoms::tableCellIndex,
+                         stringIdx);
   return NS_OK;
 }
 
@@ -309,7 +310,7 @@ nsHTMLTableCellAccessible::GetHeaderCells(PRInt32 aRowOrColumnHeaderCell,
                                           nsIArray **aHeaderCells)
 {
   // Get header cells from @header attribute.
-  IDRefsIterator iter(mContent, nsGkAtoms::headers);
+  IDRefsIterator iter(mContent, nsAccessibilityAtoms::headers);
   nsIContent* headerCellElm = iter.NextElem();
   if (headerCellElm) {
     nsresult rv = NS_OK;
@@ -365,9 +366,9 @@ nsHTMLTableHeaderCellAccessible::NativeRole()
 {
   // Check value of @scope attribute.
   static nsIContent::AttrValuesArray scopeValues[] =
-    {&nsGkAtoms::col, &nsGkAtoms::row, nsnull};
+    {&nsAccessibilityAtoms::col, &nsAccessibilityAtoms::row, nsnull};
   PRInt32 valueIdx = 
-    mContent->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::scope,
+    mContent->FindAttrValueIn(kNameSpaceID_None, nsAccessibilityAtoms::scope,
                               scopeValues, eCaseMatters);
 
   switch (valueIdx) {
@@ -482,7 +483,7 @@ nsHTMLTableAccessible::GetNameInternal(nsAString& aName)
   }
 
   // If no caption then use summary as a name.
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::summary, aName);
+  mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::summary, aName);
   return NS_OK;
 }
 
@@ -1282,7 +1283,7 @@ nsHTMLTableAccessible::Description(nsString& aDescription)
                                                    &captionText);
 
       if (!captionText.IsEmpty()) { // summary isn't used as a name.
-        mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::summary,
+        mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::summary,
                           aDescription);
       }
     }
@@ -1380,7 +1381,7 @@ nsHTMLTableAccessible::IsProbablyForLayout(PRBool *aIsProbablyForLayout)
     RETURN_LAYOUT_ANSWER(PR_FALSE, "Has role attribute");
   }
 
-  if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::role)) {
+  if (mContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::role)) {
     // Role attribute is present, but overridden roles have already been dealt with.
     // Only landmarks and other roles that don't override the role from native
     // markup are left to deal with here.
@@ -1389,7 +1390,7 @@ nsHTMLTableAccessible::IsProbablyForLayout(PRBool *aIsProbablyForLayout)
   
   // Check for legitimate data table elements or attributes
   nsAutoString summary;
-  if ((mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::summary, summary) &&
+  if ((mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::summary, summary) &&
        !summary.IsEmpty()) || 
       HasDescendant(NS_LITERAL_STRING("caption"), PR_FALSE) ||
       HasDescendant(NS_LITERAL_STRING("th")) ||

@@ -38,6 +38,7 @@
 /* Implement shared vtbl methods. */
 
 #include "xptcprivate.h"
+#include "xptc_platforms_unixish_x86.h"
 #include "xptiprivate.h"
 
 static nsresult
@@ -96,6 +97,8 @@ PrepareAndDispatch(nsXPTCStubBase* self, uint32 methodIndex, PRUint32* args)
 
     return result;
 }
+
+#ifdef __GNUC__         /* Gnu Compiler. */
 
 #ifdef KEEP_STACK_16_BYTE_ALIGNED
 /* Make sure the stack is 16-byte aligned.  Do that by aligning to 16 bytes and
@@ -158,6 +161,10 @@ nsresult nsXPTCStubBase::Stub##n() \
 	); \
     return result; \
 }
+
+#else
+#error "can't find a compiler to use"
+#endif /* __GNUC__ */
 
 #define SENTINEL_ENTRY(n) \
 nsresult nsXPTCStubBase::Sentinel##n() \

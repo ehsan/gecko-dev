@@ -167,7 +167,6 @@ static bool constructObject(NPObject* npobj, const NPVariant* args, uint32_t arg
 static bool setSitesWithData(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool setSitesWithDataCapabilities(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getLastKeyText(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getNPNVdocumentOrigin(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 
 static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "npnEvaluateTest",
@@ -226,8 +225,7 @@ static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "constructObject",
   "setSitesWithData",
   "setSitesWithDataCapabilities",
-  "getLastKeyText",
-  "getNPNVdocumentOrigin"
+  "getLastKeyText"
 };
 static NPIdentifier sPluginMethodIdentifiers[ARRAY_LENGTH(sPluginMethodIdentifierNames)];
 static const ScriptableFunction sPluginMethodFunctions[] = {
@@ -287,8 +285,7 @@ static const ScriptableFunction sPluginMethodFunctions[] = {
   constructObject,
   setSitesWithData,
   setSitesWithDataCapabilities,
-  getLastKeyText,
-  getNPNVdocumentOrigin
+  getLastKeyText
 };
 
 STATIC_ASSERT(ARRAY_LENGTH(sPluginMethodIdentifierNames) ==
@@ -3475,24 +3472,5 @@ bool getLastKeyText(NPObject* npobj, const NPVariant* args, uint32_t argCount,
   NPP npp = static_cast<TestNPObject*>(npobj)->npp;
   InstanceData* id = static_cast<InstanceData*>(npp->pdata);
   STRINGZ_TO_NPVARIANT(NPN_StrDup(id->lastKeyText.c_str()), *result);
-  return true;
-}
-
-bool getNPNVdocumentOrigin(NPObject* npobj, const NPVariant* args, uint32_t argCount,
-                           NPVariant* result)
-{
-  if (argCount != 0) {
-    return false;
-  }
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-
-  char *origin = NULL;
-  NPError err = NPN_GetValue(npp, NPNVdocumentOrigin, &origin);
-  if (err != NPERR_NO_ERROR) {
-    return false;
-  }
-
-  STRINGZ_TO_NPVARIANT(origin, *result);
   return true;
 }

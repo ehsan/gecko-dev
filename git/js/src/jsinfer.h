@@ -55,7 +55,7 @@ namespace js {
     namespace analyze {
         class ScriptAnalysis;
     }
-    class GlobalObject;
+    struct GlobalObject;
 }
 
 namespace js {

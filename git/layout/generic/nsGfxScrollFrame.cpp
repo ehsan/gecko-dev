@@ -78,7 +78,7 @@
 #include "nsBidiUtils.h"
 #include "nsFrameManager.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/LookAndFeel.h"
+#include "nsILookAndFeel.h"
 #include "mozilla/dom/Element.h"
 #include "FrameLayerBuilder.h"
 #include "nsSMILKeySpline.h"
@@ -1462,8 +1462,11 @@ nsGfxScrollFrameInner::nsGfxScrollFrameInner(nsContainerFrame* aOuter,
   , mShouldBuildLayer(PR_FALSE)
 {
   // lookup if we're allowed to overlap the content from the look&feel object
-  mScrollbarsCanOverlapContent =
-    LookAndFeel::GetInt(LookAndFeel::eIntID_ScrollbarsCanOverlapContent) != 0;
+  PRInt32 canOverlap;
+  nsPresContext* presContext = mOuter->PresContext();
+  presContext->LookAndFeel()->
+    GetMetric(nsILookAndFeel::eMetric_ScrollbarsCanOverlapContent, canOverlap);
+  mScrollbarsCanOverlapContent = canOverlap;
   mScrollingActive = IsAlwaysActive();
 }
 

@@ -1171,7 +1171,7 @@ ParseNodeToQName(Parser *parser, JSParseNode *pn,
     JSObject *ns;
     JSLinearString *nsprefix;
 
-    JS_ASSERT(pn->isArity(PN_NULLARY));
+    JS_ASSERT(pn->pn_arity == PN_NULLARY);
     JSAtom *str = pn->pn_atom;
     start = str->chars();
     length = str->length();
@@ -1318,7 +1318,7 @@ ParseNodeToXML(Parser *parser, JSParseNode *pn,
     xml = NULL;
     if (!js_EnterLocalRootScope(cx))
         return NULL;
-    switch (pn->getKind()) {
+    switch (pn->pn_type) {
       case TOK_XMLELEM:
         length = inScopeNSes->length;
         pn2 = pn->pn_head;
@@ -1336,12 +1336,12 @@ ParseNodeToXML(Parser *parser, JSParseNode *pn,
         while ((pn2 = pn2->pn_next) != NULL) {
             if (!pn2->pn_next) {
                 /* Don't append the end tag! */
-                JS_ASSERT(pn2->isKind(TOK_XMLETAGO));
+                JS_ASSERT(pn2->pn_type == TOK_XMLETAGO);
                 break;
             }
 
             if ((flags & XSF_IGNORE_WHITESPACE) &&
-                n > 1 && pn2->isKind(TOK_XMLSPACE)) {
+                n > 1 && pn2->pn_type == TOK_XMLSPACE) {
                 --n;
                 continue;
             }
@@ -1392,7 +1392,7 @@ ParseNodeToXML(Parser *parser, JSParseNode *pn,
              * condition this on an XML.ignoreWhitespace setting when the list
              * constructor is XMLList (note XML/XMLList unification hazard).
              */
-            if (pn2->isKind(TOK_XMLSPACE)) {
+            if (pn2->pn_type == TOK_XMLSPACE) {
                 --n;
                 continue;
             }
@@ -1418,8 +1418,8 @@ ParseNodeToXML(Parser *parser, JSParseNode *pn,
       case TOK_XMLPTAGC:
         length = inScopeNSes->length;
         pn2 = pn->pn_head;
-        JS_ASSERT(pn2->isKind(TOK_XMLNAME));
-        if (pn2->isArity(PN_LIST))
+        JS_ASSERT(pn2->pn_type == TOK_XMLNAME);
+        if (pn2->pn_arity == PN_LIST)
             goto syntax;
 
         xml = js_NewXML(cx, JSXML_CLASS_ELEMENT);
@@ -1435,7 +1435,7 @@ ParseNodeToXML(Parser *parser, JSParseNode *pn,
             size_t length;
             const jschar *chars;
 
-            if (!pn2->isKind(TOK_XMLNAME) || !pn2->isArity(PN_NULLARY))
+            if (pn2->pn_type != TOK_XMLNAME || pn2->pn_arity != PN_NULLARY)
                 goto syntax;
 
             /* Enforce "Well-formedness constraint: Unique Att Spec". */
@@ -1455,7 +1455,7 @@ ParseNodeToXML(Parser *parser, JSParseNode *pn,
             JSAtom *atom = pn2->pn_atom;
             pn2 = pn2->pn_next;
             JS_ASSERT(pn2);
-            if (!pn2->isKind(TOK_XMLATTR))
+            if (pn2->pn_type != TOK_XMLATTR)
                 goto syntax;
 
             chars = atom->chars();
@@ -1552,7 +1552,7 @@ ParseNodeToXML(Parser *parser, JSParseNode *pn,
 
             pn2 = pn2->pn_next;
             JS_ASSERT(pn2);
-            JS_ASSERT(pn2->isKind(TOK_XMLATTR));
+            JS_ASSERT(pn2->pn_type == TOK_XMLATTR);
 
             attr = js_NewXML(cx, JSXML_CLASS_ATTRIBUTE);
             if (!attr)
@@ -1565,7 +1565,7 @@ ParseNodeToXML(Parser *parser, JSParseNode *pn,
         }
 
         /* Point tag closes its own namespace scope. */
-        if (pn->isKind(TOK_XMLPTAGC))
+        if (pn->pn_type == TOK_XMLPTAGC)
             XMLARRAY_TRUNCATE(cx, inScopeNSes, length);
         break;
 
@@ -1576,11 +1576,11 @@ ParseNodeToXML(Parser *parser, JSParseNode *pn,
       case TOK_XMLPI:
         str = pn->pn_atom;
         qn = NULL;
-        if (pn->isKind(TOK_XMLCOMMENT)) {
+        if (pn->pn_type == TOK_XMLCOMMENT) {
             if (flags & XSF_IGNORE_COMMENTS)
                 goto skip_child;
             xml_class = JSXML_CLASS_COMMENT;
-        } else if (pn->isKind(TOK_XMLPI)) {
+        } else if (pn->pn_type == TOK_XMLPI) {
             if (IS_XML(str)) {
                 Value v = StringValue(str);
                 JSAutoByteString bytes;
@@ -1609,7 +1609,7 @@ ParseNodeToXML(Parser *parser, JSParseNode *pn,
         if (!xml)
             goto fail;
         xml->name = qn;
-        if (pn->isKind(TOK_XMLSPACE))
+        if (pn->pn_type == TOK_XMLSPACE)
             xml->xml_flags |= XMLF_WHITESPACE_TEXT;
         xml->xml_value = str;
         break;
@@ -4734,34 +4734,6 @@ xml_lookupProperty(JSContext *cx, JSObject *obj, jsid id, JSObject **objp,
 }
 
 static JSBool
-xml_lookupElement(JSContext *cx, JSObject *obj, uint32 index, JSObject **objp,
-                  JSProperty **propp)
-{
-    JSXML *xml = reinterpret_cast<JSXML *>(obj->getPrivate());
-    if (!HasIndexedProperty(xml, index)) {
-        *objp = NULL;
-        *propp = NULL;
-        return true;
-    }
-
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-
-    const Shape *shape =
-        js_AddNativeProperty(cx, obj, id,
-                             Valueify(GetProperty), Valueify(PutProperty),
-                             SHAPE_INVALID_SLOT, JSPROP_ENUMERATE,
-                             0, 0);
-    if (!shape)
-        return false;
-
-    *objp = obj;
-    *propp = (JSProperty *) shape;
-    return true;
-}
-
-static JSBool
 xml_defineProperty(JSContext *cx, JSObject *obj, jsid id, const Value *v,
                    PropertyOp getter, StrictPropertyOp setter, uintN attrs)
 {
@@ -4776,16 +4748,6 @@ xml_defineProperty(JSContext *cx, JSObject *obj, jsid id, const Value *v,
 }
 
 static JSBool
-xml_defineElement(JSContext *cx, JSObject *obj, uint32 index, const Value *v,
-                  PropertyOp getter, StrictPropertyOp setter, uintN attrs)
-{
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return xml_defineProperty(cx, obj, id, v, getter, setter, attrs);
-}
-
-static JSBool
 xml_getProperty(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id, Value *vp)
 {
     if (JSID_IS_DEFAULT_XML_NAMESPACE(id)) {
@@ -4797,27 +4759,9 @@ xml_getProperty(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id, Value
 }
 
 static JSBool
-xml_getElement(JSContext *cx, JSObject *obj, JSObject *receiver, uint32 index, Value *vp)
-{
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return xml_getProperty(cx, obj, receiver, id, vp);
-}
-
-static JSBool
 xml_setProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp, JSBool strict)
 {
     return PutProperty(cx, obj, id, strict, Jsvalify(vp));
-}
-
-static JSBool
-xml_setElement(JSContext *cx, JSObject *obj, uint32 index, Value *vp, JSBool strict)
-{
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return xml_setProperty(cx, obj, id, vp, strict);
 }
 
 static JSBool
@@ -4829,15 +4773,6 @@ xml_getAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
 
     *attrsp = found ? JSPROP_ENUMERATE : 0;
     return JS_TRUE;
-}
-
-static JSBool
-xml_getElementAttributes(JSContext *cx, JSObject *obj, uint32 index, uintN *attrsp)
-{
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return xml_getAttributes(cx, obj, id, attrsp);
 }
 
 static JSBool
@@ -4853,15 +4788,6 @@ xml_setAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
         return false;
     }
     return true;
-}
-
-static JSBool
-xml_setElementAttributes(JSContext *cx, JSObject *obj, uint32 index, uintN *attrsp)
-{
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return xml_setAttributes(cx, obj, id, attrsp);
 }
 
 static JSBool
@@ -4903,33 +4829,6 @@ xml_deleteProperty(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool st
      * property, to purge the property cache and remove the scope entry.
      */
     if (!obj->nativeEmpty() && !js_DeleteProperty(cx, obj, id, rval, false))
-        return false;
-
-    rval->setBoolean(true);
-    return true;
-}
-
-static JSBool
-xml_deleteElement(JSContext *cx, JSObject *obj, uint32 index, Value *rval, JSBool strict)
-{
-    JSXML *xml = reinterpret_cast<JSXML *>(obj->getPrivate());
-    if (xml->xml_class != JSXML_CLASS_LIST) {
-        /* See NOTE in spec: this variation is reserved for future use. */
-        ReportBadXMLName(cx, DoubleValue(index));
-        return false;
-    }
-
-    /* ECMA-357 9.2.1.3. */
-    DeleteListElement(cx, xml, index);
-
-    /*
-     * If this object has its own (mutable) scope,  then we may have added a
-     * property to the scope in xml_lookupProperty for it to return to mean
-     * "found" and to provide a handle for access operations to call the
-     * property's getter or setter. But now it's time to remove any such
-     * property, to purge the property cache and remove the scope entry.
-     */
-    if (!obj->nativeEmpty() && !js_DeleteElement(cx, obj, index, rval, false))
         return false;
 
     rval->setBoolean(true);
@@ -5235,19 +5134,12 @@ JS_FRIEND_DATA(Class) js::XMLClass = {
     JS_NULL_CLASS_EXT,
     {
         xml_lookupProperty,
-        xml_lookupElement,
         xml_defineProperty,
-        xml_defineElement,
         xml_getProperty,
-        xml_getElement,
         xml_setProperty,
-        xml_setElement,
         xml_getAttributes,
-        xml_getElementAttributes,
         xml_setAttributes,
-        xml_setElementAttributes,
         xml_deleteProperty,
-        xml_deleteElement,
         xml_enumerate,
         xml_typeOf,
         xml_fix,

@@ -86,6 +86,9 @@
 #ifdef XP_WIN
 #include <windows.h>
 #endif
+#ifdef __SYMBIAN32__
+#include <unistd.h>
+#endif
 
 #include "nsIScriptSecurityManager.h"
 #include "nsIPrincipal.h"
@@ -1961,11 +1964,6 @@ main(int argc, char **argv, char **envp)
         {
             JSAutoEnterCompartment ac;
             if (!ac.enter(cx, glob)) {
-                JS_EndRequest(cx);
-                return 1;
-            }
-
-            if (!JS_InitReflect(cx, glob)) {
                 JS_EndRequest(cx);
                 return 1;
             }

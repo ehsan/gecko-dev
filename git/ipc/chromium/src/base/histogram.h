@@ -381,7 +381,6 @@ class Histogram {
                                    Flags flags);
 
   void Add(int value);
-  void Subtract(int value);
 
   // This method is an interface, used only by BooleanHistogram.
   virtual void AddBoolean(bool value);

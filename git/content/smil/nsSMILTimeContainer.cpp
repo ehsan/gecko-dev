@@ -261,7 +261,7 @@ nsSMILTimeContainer::GetNextMilestoneInParentTime(
 
   nsSMILTimeValue parentTime =
     ContainerToParentTime(mMilestoneEntries.Top().mMilestone.mTime);
-  if (!parentTime.IsDefinite())
+  if (!parentTime.IsResolved())
     return PR_FALSE;
 
   aNextMilestone = nsSMILMilestone(parentTime.GetMillis(),
@@ -279,7 +279,7 @@ nsSMILTimeContainer::PopMilestoneElementsAtMilestone(
     return PR_FALSE;
 
   nsSMILTimeValue containerTime = ParentToContainerTime(aMilestone.mTime);
-  if (!containerTime.IsDefinite())
+  if (!containerTime.IsResolved())
     return PR_FALSE;
 
   nsSMILMilestone containerMilestone(containerTime.GetMillis(),

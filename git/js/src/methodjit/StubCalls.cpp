@@ -182,9 +182,9 @@ stubs::SetName(VMFrame &f, JSAtom *origAtom)
                 {
 #ifdef DEBUG
                     if (entry->directHit()) {
-                        JS_ASSERT(obj->nativeContains(cx, *shape));
+                        JS_ASSERT(obj->nativeContains(*shape));
                     } else {
-                        JS_ASSERT(obj2->nativeContains(cx, *shape));
+                        JS_ASSERT(obj2->nativeContains(*shape));
                         JS_ASSERT(entry->vcapTag() == 1);
                         JS_ASSERT(entry->kshape != entry->vshape());
                         JS_ASSERT(!shape->hasSlot());
@@ -482,7 +482,7 @@ stubs::GetElem(VMFrame &f)
             if (arg < argsobj->initialLength()) {
                 copyFrom = &argsobj->element(arg);
                 if (!copyFrom->isMagic()) {
-                    if (StackFrame *afp = argsobj->maybeStackFrame())
+                    if (StackFrame *afp = (StackFrame *) argsobj->getPrivate())
                         copyFrom = &afp->canonicalActualArg(arg);
                     goto end_getelem;
                 }
@@ -597,18 +597,13 @@ stubs::SetElem(VMFrame &f)
                         break;
                     if ((jsuint)i >= obj->getArrayLength())
                         obj->setArrayLength(cx, i + 1);
-                    /*
-                     * Note: this stub is used for ENUMELEM, so watch out
-                     * before overwriting the op.
-                     */
-                    if (JSOp(*f.pc()) == JSOP_SETELEM)
-                        *f.pc() = JSOP_SETHOLE;
                 }
                 obj->setDenseArrayElementWithType(cx, i, rval);
                 goto end_setelem;
             } else {
-                if (JSOp(*f.pc()) == JSOP_SETELEM)
-                    *f.pc() = JSOP_SETHOLE;
+                if (!f.script()->ensureRanBytecode(cx))
+                    THROW();
+                f.script()->analysis()->getCode(f.pc()).arrayWriteHole = true;
             }
         }
     } while (0);

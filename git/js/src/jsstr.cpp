@@ -341,7 +341,7 @@ static JSFunctionSpec string_functions[] = {
 jschar      js_empty_ucstr[]  = {0};
 JSSubString js_EmptySubString = {0, js_empty_ucstr};
 
-static const uintN STRING_ELEMENT_ATTRS = JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT;
+#define STRING_ELEMENT_ATTRS (JSPROP_ENUMERATE|JSPROP_READONLY|JSPROP_PERMANENT)
 
 static JSBool
 str_enumerate(JSContext *cx, JSObject *obj)
@@ -351,9 +351,9 @@ str_enumerate(JSContext *cx, JSObject *obj)
         JSString *str1 = js_NewDependentString(cx, str, i, 1);
         if (!str1)
             return false;
-        if (!obj->defineElement(cx, i, StringValue(str1),
-                                PropertyStub, StrictPropertyStub,
-                                STRING_ELEMENT_ATTRS)) {
+        if (!obj->defineProperty(cx, INT_TO_JSID(i), StringValue(str1),
+                                 PropertyStub, StrictPropertyStub,
+                                 STRING_ELEMENT_ATTRS)) {
             return false;
         }
     }
@@ -375,8 +375,8 @@ str_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
         JSString *str1 = JSAtom::getUnitStringForElement(cx, str, size_t(slot));
         if (!str1)
             return JS_FALSE;
-        if (!obj->defineElement(cx, uint32(slot), StringValue(str1), NULL, NULL,
-                                STRING_ELEMENT_ATTRS)) {
+        if (!obj->defineProperty(cx, id, StringValue(str1), NULL, NULL,
+                                 STRING_ELEMENT_ATTRS)) {
             return JS_FALSE;
         }
         *objp = obj;
@@ -1510,7 +1510,7 @@ BuildFlatMatchArray(JSContext *cx, JSString *textstr, const FlatMatch &fm, Value
         return false;
     vp->setObject(*obj);
 
-    return obj->defineElement(cx, 0, StringValue(fm.pattern())) &&
+    return obj->defineProperty(cx, INT_TO_JSID(0), StringValue(fm.pattern())) &&
            obj->defineProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.indexAtom),
                                Int32Value(fm.match())) &&
            obj->defineProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.inputAtom),
@@ -1536,7 +1536,8 @@ MatchCallback(JSContext *cx, RegExpStatics *res, size_t count, void *p)
     }
 
     Value v;
-    return res->createLastMatch(cx, &v) && arrayobj->defineElement(cx, count, v);
+    return res->createLastMatch(cx, &v) &&
+           arrayobj->defineProperty(cx, INT_TO_JSID(count), v);
 }
 
 static JSBool
@@ -1621,7 +1622,8 @@ struct ReplaceData
     jsint              leftIndex;      /* left context index in str->chars */
     JSSubString        dollarStr;      /* for "$$" InterpretDollar result */
     bool               calledBack;     /* record whether callback has been called */
-    InvokeArgsGuard    args;           /* arguments for lambda call */
+    InvokeSessionGuard session;        /* arguments for repeated lambda Invoke call */
+    InvokeArgsGuard    singleShot;     /* arguments for single lambda Invoke call */
     StringBuffer       sb;             /* buffer built during DoMatch */
 };
 
@@ -1748,10 +1750,6 @@ FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t 
 
     JSObject *lambda = rdata.lambda;
     if (lambda) {
-        PreserveRegExpStatics staticsGuard(res);
-        if (!staticsGuard.init(cx))
-            return false;
-
         /*
          * In the lambda case, not only do we find the replacement string's
          * length, we compute repstr and return it via rdata for use within
@@ -1763,33 +1761,36 @@ FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t 
         uintN p = res->parenCount();
         uintN argc = 1 + p + 2;
 
-        InvokeArgsGuard &args = rdata.args;
-        if (!args.pushed() && !cx->stack.pushInvokeArgs(cx, argc, &args))
-            return false;
+        InvokeSessionGuard &session = rdata.session;
+        if (!session.started()) {
+            Value lambdav = ObjectValue(*lambda);
+            if (!session.start(cx, lambdav, UndefinedValue(), argc))
+                return false;
+        }
 
-        args.calleeHasBeenReset();
-        args.calleev() = ObjectValue(*lambda);
-        args.thisv() = UndefinedValue();
+        PreserveRegExpStatics staticsGuard(res);
+        if (!staticsGuard.init(cx))
+            return false;
 
         /* Push $&, $1, $2, ... */
         uintN argi = 0;
-        if (!res->createLastMatch(cx, &args[argi++]))
+        if (!res->createLastMatch(cx, &session[argi++]))
             return false;
 
         for (size_t i = 0; i < res->parenCount(); ++i) {
-            if (!res->createParen(cx, i + 1, &args[argi++]))
+            if (!res->createParen(cx, i + 1, &session[argi++]))
                 return false;
         }
 
         /* Push match index and input string. */
-        args[argi++].setInt32(res->matchStart());
-        args[argi].setString(rdata.str);
+        session[argi++].setInt32(res->matchStart());
+        session[argi].setString(rdata.str);
 
-        if (!Invoke(cx, args))
+        if (!session.invoke(cx))
             return false;
 
         /* root repstr: rdata is on the stack, so scanned by conservative gc. */
-        JSString *repstr = ValueToString_TestForStringInline(cx, args.rval());
+        JSString *repstr = ValueToString_TestForStringInline(cx, session.rval());
         if (!repstr)
             return false;
         rdata.repstr = repstr->ensureLinear(cx);
@@ -2073,6 +2074,7 @@ str_replace_flat_lambda(JSContext *cx, uintN argc, Value *vp, ReplaceData &rdata
                         const FlatMatch &fm)
 {
     JS_ASSERT(fm.match() >= 0);
+    LeaveTrace(cx);
 
     JSString *matchStr = js_NewDependentString(cx, rdata.str, fm.match(), fm.patternLength());
     if (!matchStr)
@@ -2080,10 +2082,10 @@ str_replace_flat_lambda(JSContext *cx, uintN argc, Value *vp, ReplaceData &rdata
 
     /* lambda(matchStr, matchStart, textstr) */
     static const uint32 lambdaArgc = 3;
-    if (!cx->stack.pushInvokeArgs(cx, lambdaArgc, &rdata.args))
+    if (!cx->stack.pushInvokeArgs(cx, lambdaArgc, &rdata.singleShot))
         return false;
 
-    CallArgs &args = rdata.args;
+    CallArgs &args = rdata.singleShot;
     args.calleev().setObject(*rdata.lambda);
     args.thisv().setUndefined();
 
@@ -2092,7 +2094,7 @@ str_replace_flat_lambda(JSContext *cx, uintN argc, Value *vp, ReplaceData &rdata
     sp[1].setInt32(fm.match());
     sp[2].setString(rdata.str);
 
-    if (!Invoke(cx, rdata.args))
+    if (!Invoke(cx, rdata.singleShot))
         return false;
 
     JSString *repstr = js_ValueToString(cx, args.rval());

@@ -592,6 +592,8 @@ static int
 js_SuspendThread(JSThinLock *tl)
 {
     JSFatLock *fl;
+    PRStatus stat;
+
     if (tl->fat == NULL)
         fl = tl->fat = GetFatlock(tl);
     else
@@ -600,7 +602,7 @@ js_SuspendThread(JSThinLock *tl)
     fl->susp++;
     PR_Lock(fl->slock);
     js_UnlockGlobal(tl);
-    DebugOnly<PRStatus> stat = PR_WaitCondVar(fl->svar, PR_INTERVAL_NO_TIMEOUT);
+    stat = PR_WaitCondVar(fl->svar, PR_INTERVAL_NO_TIMEOUT);
     JS_ASSERT(stat != PR_FAILURE);
     PR_Unlock(fl->slock);
     js_LockGlobal(tl);
@@ -620,11 +622,13 @@ static void
 js_ResumeThread(JSThinLock *tl)
 {
     JSFatLock *fl = tl->fat;
+    PRStatus stat;
+
     JS_ASSERT(fl != NULL);
     JS_ASSERT(fl->susp > 0);
     PR_Lock(fl->slock);
     js_UnlockGlobal(tl);
-    DebugOnly<PRStatus> stat = PR_NotifyCondVar(fl->svar);
+    stat = PR_NotifyCondVar(fl->svar);
     JS_ASSERT(stat != PR_FAILURE);
     PR_Unlock(fl->slock);
 }

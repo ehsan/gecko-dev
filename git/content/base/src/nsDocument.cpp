@@ -2878,7 +2878,7 @@ nsDocument::NodesFromRectHelper(float aX, float aY,
   if (!rootFrame)
     return NS_OK; // return nothing to premature XUL callers as a reminder to wait
 
-  nsAutoTArray<nsIFrame*,8> outFrames;
+  nsTArray<nsIFrame*> outFrames;
   nsLayoutUtils::GetFramesForArea(rootFrame, rect, outFrames,
                                   PR_TRUE, aIgnoreRootScrollFrame);
 
@@ -5670,13 +5670,6 @@ nsDocument::GetParentNode(nsIDOMNode** aParentNode)
 }
 
 NS_IMETHODIMP
-nsDocument::GetParentElement(nsIDOMElement** aParentElement)
-{
-  *aParentElement = nsnull;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsDocument::GetChildNodes(nsIDOMNodeList** aChildNodes)
 {
   return nsINode::GetChildNodes(aChildNodes);
@@ -6756,11 +6749,14 @@ nsDocument::RetrieveRelevantHeaders(nsIChannel *aChannel)
         }
       }
     } else {
-      nsCAutoString contentDisp;
-      rv = aChannel->GetContentDispositionHeader(contentDisp);
-      if (NS_SUCCEEDED(rv)) {
-        SetHeaderData(nsGkAtoms::headerContentDisposition,
-                      NS_ConvertASCIItoUTF16(contentDisp));
+      nsCOMPtr<nsIMultiPartChannel> partChannel = do_QueryInterface(aChannel);
+      if (partChannel) {
+        nsCAutoString contentDisp;
+        rv = partChannel->GetContentDisposition(contentDisp);
+        if (NS_SUCCEEDED(rv) && !contentDisp.IsEmpty()) {
+          SetHeaderData(nsGkAtoms::headerContentDisposition,
+                        NS_ConvertASCIItoUTF16(contentDisp));
+        }
       }
     }
   }

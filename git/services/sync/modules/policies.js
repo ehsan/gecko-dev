@@ -107,10 +107,8 @@ let SyncScheduler = {
   observe: function observe(subject, topic, data) {
     switch(topic) {
       case "weave:engine:score:updated":
-        if (Status.login == LOGIN_SUCCEEDED) {
-          Utils.namedTimer(this.calculateScore, SCORE_UPDATE_DELAY, this,
-                           "_scoreTimer");
-        }
+        Utils.namedTimer(this.calculateScore, SCORE_UPDATE_DELAY, this,
+                         "_scoreTimer");
         break;
       case "network:offline-status-changed":
         // Whether online or offline, we'll reschedule syncs
@@ -495,9 +493,9 @@ let ErrorHandler = {
         if (this.shouldReportError()) {
           this.resetFileLog(Svc.Prefs.get("log.appender.file.logOnError"),
                             LOG_PREFIX_ERROR);
-          this.notifyOnNextTick("weave:ui:login:error");
+          Svc.Obs.notify("weave:ui:login:error");
         } else {
-          this.notifyOnNextTick("weave:ui:clear-error");
+          Svc.Obs.notify("weave:ui:clear-error");
         }
 
         this.dontIgnoreErrors = false;
@@ -510,9 +508,9 @@ let ErrorHandler = {
         if (this.shouldReportError()) {
           this.resetFileLog(Svc.Prefs.get("log.appender.file.logOnError"),
                             LOG_PREFIX_ERROR);
-          this.notifyOnNextTick("weave:ui:sync:error");
+          Svc.Obs.notify("weave:ui:sync:error");
         } else {
-          this.notifyOnNextTick("weave:ui:sync:finish");
+          Svc.Obs.notify("weave:ui:sync:finish");
         }
 
         this.dontIgnoreErrors = false;
@@ -525,7 +523,7 @@ let ErrorHandler = {
 
           if (this.shouldReportError()) {
             this.dontIgnoreErrors = false;
-            this.notifyOnNextTick("weave:ui:sync:error");
+            Svc.Obs.notify("weave:ui:sync:error");
             break;
           }
         } else {
@@ -533,13 +531,9 @@ let ErrorHandler = {
                             LOG_PREFIX_SUCCESS);
         }
         this.dontIgnoreErrors = false;
-        this.notifyOnNextTick("weave:ui:sync:finish");
+        Svc.Obs.notify("weave:ui:sync:finish");
         break;
     }
-  },
-
-  notifyOnNextTick: function notifyOnNextTick(topic) {
-    Utils.nextTick(function() Svc.Obs.notify(topic));
   },
 
   /**
@@ -629,7 +623,7 @@ let ErrorHandler = {
       return true;
     }
 
-    return ([Status.login, Status.sync].indexOf(SERVER_MAINTENANCE) == -1 &&
+    return (Status.sync != SERVER_MAINTENANCE &&
             [Status.login, Status.sync].indexOf(LOGIN_FAILED_NETWORK_ERROR) == -1);
   },
 
@@ -656,11 +650,7 @@ let ErrorHandler = {
       case 504:
         Status.enforceBackoff = true;
         if (resp.status == 503 && resp.headers["retry-after"]) {
-          if (Weave.Service.isLoggedIn) {
-            Status.sync = SERVER_MAINTENANCE;
-          } else {
-            Status.login = SERVER_MAINTENANCE;
-          }
+          Status.sync = SERVER_MAINTENANCE;
           Svc.Obs.notify("weave:service:backoff:interval",
                          parseInt(resp.headers["retry-after"], 10));
         }
@@ -676,11 +666,7 @@ let ErrorHandler = {
       case Cr.NS_ERROR_PROXY_CONNECTION_REFUSED:
         // The constant says it's about login, but in fact it just
         // indicates general network error.
-        if (Weave.Service.isLoggedIn) {
-          Status.sync = LOGIN_FAILED_NETWORK_ERROR;
-        } else {
-          Status.login = LOGIN_FAILED_NETWORK_ERROR;
-        }
+        Status.sync = LOGIN_FAILED_NETWORK_ERROR;
         break;
     }
   },

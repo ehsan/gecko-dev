@@ -63,11 +63,6 @@ DEFINE_OLEGUID(IID_IPersistFile, 0x0000010BL, 0, 0);
 
 #include <sys/stat.h>
 
-typedef LPITEMIDLIST (WINAPI *ILCreateFromPathWPtr)(PCWSTR);
-typedef HRESULT (WINAPI *SHOpenFolderAndSelectItemsPtr)(PCIDLIST_ABSOLUTE, UINT, 
-                                                        PCUITEMID_CHILD_ARRAY,
-                                                        DWORD);
-
 class nsLocalFile : public nsILocalFileWin,
                     public nsIHashable
 {
@@ -135,12 +130,6 @@ private:
     nsresult HasFileAttribute(DWORD fileAttrib, PRBool *_retval);
     nsresult AppendInternal(const nsAFlatString &node,
                             PRBool multipleComponents);
-    nsresult RevealClassic(); // Reveals the path using explorer.exe cmdline
-    nsresult RevealUsingShell(); // Uses newer shell API to reveal the path
-
-    static ILCreateFromPathWPtr sILCreateFromPathW;
-    static SHOpenFolderAndSelectItemsPtr sSHOpenFolderAndSelectItems;
-    static PRLibrary *sLibShell;
 };
 
 #endif

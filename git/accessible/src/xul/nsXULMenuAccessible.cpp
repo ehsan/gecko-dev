@@ -54,13 +54,16 @@
 #include "nsIPresShell.h"
 #include "nsIContent.h"
 #include "nsGUIEvent.h"
+#include "nsILookAndFeel.h"
+#include "nsWidgetsCID.h"
 
 #include "mozilla/Preferences.h"
-#include "mozilla/LookAndFeel.h"
 #include "mozilla/dom/Element.h"
 
 using namespace mozilla;
 using namespace mozilla::a11y;
+
+static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULSelectableAccessible
@@ -286,13 +289,15 @@ nsXULMenuitemAccessible::NativeState()
   PRUint64 state = nsAccessible::NativeState();
 
   // Focused?
-  if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::menuactive))
+  if (mContent->HasAttr(kNameSpaceID_None,
+                        nsAccessibilityAtoms::_moz_menuactive))
     state |= states::FOCUSED;
 
   // Has Popup?
-  if (mContent->NodeInfo()->Equals(nsGkAtoms::menu, kNameSpaceID_XUL)) {
+  if (mContent->NodeInfo()->Equals(nsAccessibilityAtoms::menu,
+                                   kNameSpaceID_XUL)) {
     state |= states::HASPOPUP;
-    if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::open))
+    if (mContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::open))
       state |= states::EXPANDED;
     else
       state |= states::COLLAPSED;
@@ -300,17 +305,18 @@ nsXULMenuitemAccessible::NativeState()
 
   // Checkable/checked?
   static nsIContent::AttrValuesArray strings[] =
-    { &nsGkAtoms::radio, &nsGkAtoms::checkbox, nsnull };
+    { &nsAccessibilityAtoms::radio, &nsAccessibilityAtoms::checkbox, nsnull };
 
-  if (mContent->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::type, strings,
-                                eCaseMatters) >= 0) {
+  if (mContent->FindAttrValueIn(kNameSpaceID_None,
+                                nsAccessibilityAtoms::type,
+                                strings, eCaseMatters) >= 0) {
 
     // Checkable?
     state |= states::CHECKABLE;
 
     // Checked?
-    if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::checked,
-                              nsGkAtoms::_true, eCaseMatters))
+    if (mContent->AttrValueIs(kNameSpaceID_None, nsAccessibilityAtoms::checked,
+                              nsAccessibilityAtoms::_true, eCaseMatters))
       state |= states::CHECKED;
   }
 
@@ -354,8 +360,10 @@ nsXULMenuitemAccessible::NativeState()
   // and whose metric setting does allow disabled items to be focused.
   if (state & states::UNAVAILABLE) {
     // Honour the LookAndFeel metric.
-    PRInt32 skipDisabledMenuItems =
-      LookAndFeel::GetInt(LookAndFeel::eIntID_SkipNavigatingDisabledMenuItem);
+    nsCOMPtr<nsILookAndFeel> lookNFeel(do_GetService(kLookAndFeelCID));
+    PRInt32 skipDisabledMenuItems = 0;
+    lookNFeel->GetMetric(nsILookAndFeel::eMetric_SkipNavigatingDisabledMenuItem,
+                         skipDisabledMenuItems);
     // We don't want the focusable and selectable states for combobox items,
     // so exclude them here as well.
     if (skipDisabledMenuItems || isComboboxOption) {
@@ -370,14 +378,14 @@ nsXULMenuitemAccessible::NativeState()
 nsresult
 nsXULMenuitemAccessible::GetNameInternal(nsAString& aName)
 {
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::label, aName);
+  mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::label, aName);
   return NS_OK;
 }
 
 void
 nsXULMenuitemAccessible::Description(nsString& aDescription)
 {
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::description,
+  mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::description,
                     aDescription);
 }
 
@@ -390,7 +398,7 @@ nsXULMenuitemAccessible::AccessKey() const
   // We do not use nsCoreUtils::GetAccesskeyFor() because accesskeys for
   // menu are't registered by nsEventStateManager.
   nsAutoString accesskey;
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::accesskey,
+  mContent->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::accesskey,
                     accesskey);
   if (accesskey.IsEmpty())
     return KeyBinding();
@@ -502,13 +510,13 @@ nsXULMenuitemAccessible::NativeRole()
   if (mParent && mParent->Role() == nsIAccessibleRole::ROLE_COMBOBOX_LIST)
     return nsIAccessibleRole::ROLE_COMBOBOX_OPTION;
 
-  if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
-                            nsGkAtoms::radio, eCaseMatters)) {
+  if (mContent->AttrValueIs(kNameSpaceID_None, nsAccessibilityAtoms::type,
+                            nsAccessibilityAtoms::radio, eCaseMatters)) {
     return nsIAccessibleRole::ROLE_RADIO_MENU_ITEM;
   }
 
-  if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
-                            nsGkAtoms::checkbox,
+  if (mContent->AttrValueIs(kNameSpaceID_None, nsAccessibilityAtoms::type,
+                            nsAccessibilityAtoms::checkbox,
                             eCaseMatters)) {
     return nsIAccessibleRole::ROLE_CHECK_MENU_ITEM;
   }
@@ -630,7 +638,7 @@ nsXULMenupopupAccessible::NativeState()
 #ifdef DEBUG_A11Y
   // We are onscreen if our parent is active
   PRBool isActive = mContent->HasAttr(kNameSpaceID_None,
-                                      nsGkAtoms::menuactive);
+                                      nsAccessibilityAtoms::menuactive);
   if (!isActive) {
     nsAccessible* parent = Parent();
     if (!parent)
@@ -640,7 +648,7 @@ nsXULMenupopupAccessible::NativeState()
     NS_ENSURE_TRUE(parentContent, state);
 
     isActive = parentContent->HasAttr(kNameSpaceID_None,
-                                      nsGkAtoms::open);
+                                      nsAccessibilityAtoms::open);
   }
 
   NS_ASSERTION(isActive || states & states::INVISIBLE,
@@ -658,7 +666,7 @@ nsXULMenupopupAccessible::GetNameInternal(nsAString& aName)
 {
   nsIContent *content = mContent;
   while (content && aName.IsEmpty()) {
-    content->GetAttr(kNameSpaceID_None, nsGkAtoms::label, aName);
+    content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::label, aName);
     content = content->GetParent();
   }
 

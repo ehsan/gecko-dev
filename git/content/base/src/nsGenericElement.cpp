@@ -435,14 +435,6 @@ nsINode::GetParentNode(nsIDOMNode** aParentNode)
 }
 
 nsresult
-nsINode::GetParentElement(nsIDOMElement** aParentElement)
-{
-  *aParentElement = nsnull;
-  nsINode* parent = GetElementParent();
-  return parent ? CallQueryInterface(parent, aParentElement) : NS_OK;
-}
-
-nsresult
 nsINode::GetChildNodes(nsIDOMNodeList** aChildNodes)
 {
   *aChildNodes = GetChildNodesList();
@@ -5542,10 +5534,8 @@ nsGenericElement::SizeOf() const
 PRBool
 nsINode::Contains(const nsINode* aOther) const
 {
-  if (aOther == this) {
-    return PR_TRUE;
-  }
   if (!aOther ||
+      aOther == this ||
       GetOwnerDoc() != aOther->GetOwnerDoc() ||
       IsInDoc() != aOther->IsInDoc() ||
       !(aOther->IsElement() ||

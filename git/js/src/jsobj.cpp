@@ -2718,11 +2718,11 @@ obj_preventExtensions(JSContext *cx, uintN argc, Value *vp)
 }
 
 size_t
-JSObject::sizeOfSlotsArray(JSUsableSizeFun usf)
+JSObject::sizeOfSlotsArray(size_t(*mus)(void *))
 {
     if (!hasSlotsArray())
         return 0;
-    size_t usable = usf((void *)slots);
+    size_t usable = mus((void *)slots);
     return usable ? usable : numSlots() * sizeof(js::Value);
 }
 
@@ -3117,7 +3117,7 @@ js_CreateThisFromTrace(JSContext *cx, JSObject *ctor, uintN protoSlot)
     JS_ASSERT(ctor->isFunction());
     JS_ASSERT(ctor->getFunctionPrivate()->isInterpreted());
     jsid id = ATOM_TO_JSID(cx->runtime->atomState.classPrototypeAtom);
-    const Shape *shape = ctor->nativeLookup(cx, id);
+    const Shape *shape = ctor->nativeLookup(id);
     JS_ASSERT(shape->slot == protoSlot);
     JS_ASSERT(!shape->configurable());
     JS_ASSERT(!shape->isMethod());
@@ -3269,28 +3269,9 @@ with_LookupProperty(JSContext *cx, JSObject *obj, jsid id, JSObject **objp,
 }
 
 static JSBool
-with_LookupElement(JSContext *cx, JSObject *obj, uint32 index, JSObject **objp,
-                   JSProperty **propp)
-{
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return with_LookupProperty(cx, obj, id, objp, propp);
-}
-
-static JSBool
 with_GetProperty(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id, Value *vp)
 {
     return obj->getProto()->getProperty(cx, id, vp);
-}
-
-static JSBool
-with_GetElement(JSContext *cx, JSObject *obj, JSObject *receiver, uint32 index, Value *vp)
-{
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return with_GetProperty(cx, obj, receiver, id, vp);
 }
 
 static JSBool
@@ -3300,27 +3281,9 @@ with_SetProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp, JSBool strict
 }
 
 static JSBool
-with_SetElement(JSContext *cx, JSObject *obj, uint32 index, Value *vp, JSBool strict)
-{
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return with_SetProperty(cx, obj, id, vp, strict);
-}
-
-static JSBool
 with_GetAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
 {
     return obj->getProto()->getAttributes(cx, id, attrsp);
-}
-
-static JSBool
-with_GetElementAttributes(JSContext *cx, JSObject *obj, uint32 index, uintN *attrsp)
-{
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return with_GetAttributes(cx, obj, id, attrsp);
 }
 
 static JSBool
@@ -3330,27 +3293,9 @@ with_SetAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
 }
 
 static JSBool
-with_SetElementAttributes(JSContext *cx, JSObject *obj, uint32 index, uintN *attrsp)
-{
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return with_SetAttributes(cx, obj, id, attrsp);
-}
-
-static JSBool
 with_DeleteProperty(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool strict)
 {
     return obj->getProto()->deleteProperty(cx, id, rval, strict);
-}
-
-static JSBool
-with_DeleteElement(JSContext *cx, JSObject *obj, uint32 index, Value *rval, JSBool strict)
-{
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return with_DeleteProperty(cx, obj, id, rval, strict);
 }
 
 static JSBool
@@ -3393,19 +3338,12 @@ Class js::WithClass = {
     JS_NULL_CLASS_EXT,
     {
         with_LookupProperty,
-        with_LookupElement,
         NULL,             /* defineProperty */
-        NULL,             /* defineElement */
         with_GetProperty,
-        with_GetElement,
         with_SetProperty,
-        with_SetElement,
         with_GetAttributes,
-        with_GetElementAttributes,
         with_SetAttributes,
-        with_SetElementAttributes,
         with_DeleteProperty,
-        with_DeleteElement,
         with_Enumerate,
         with_TypeOf,
         NULL,             /* fix   */
@@ -3608,21 +3546,6 @@ JSObject::nonNativeSetProperty(JSContext *cx, jsid id, js::Value *vp, JSBool str
             return false;
     }
     return getOps()->setProperty(cx, this, id, vp, strict);
-}
-
-JSBool
-JSObject::nonNativeSetElement(JSContext *cx, uint32 index, js::Value *vp, JSBool strict)
-{
-    if (JS_UNLIKELY(watched())) {
-        jsid id;
-        if (!IndexToId(cx, index, &id))
-            return false;
-        JS_ASSERT(id == js_CheckForStringIndex(id));
-        WatchpointMap *wpmap = cx->compartment->watchpointMap;
-        if (wpmap && !wpmap->triggerWatchpoint(cx, this, id, vp))
-            return false;
-    }
-    return getOps()->setElement(cx, this, index, vp, strict);
 }
 
 bool
@@ -4130,7 +4053,7 @@ DefineStandardSlot(JSContext *cx, JSObject *obj, JSProtoKey key, JSAtom *atom,
         if (!obj->ensureClassReservedSlots(cx))
             return false;
 
-        const Shape *shape = obj->nativeLookup(cx, id);
+        const Shape *shape = obj->nativeLookup(id);
         if (!shape) {
             uint32 slot = 2 * JSProto_LIMIT + key;
             if (!js_SetReservedSlot(cx, obj, slot, v))
@@ -4506,7 +4429,7 @@ JSObject::growSlots(JSContext *cx, size_t newcap)
      * stack (and an eval, DEFFUN, etc. happens). We thus do not need to
      * worry about updating any active outer function args/vars.
      */
-    JS_ASSERT_IF(isCall(), asCall().maybeStackFrame() != NULL);
+    JS_ASSERT_IF(isCall(), maybeCallObjStackFrame() != NULL);
 
     /*
      * When an object with CAPACITY_DOUBLING_MAX or fewer slots needs to
@@ -4980,7 +4903,7 @@ PurgeProtoChain(JSContext *cx, JSObject *obj, jsid id)
             obj = obj->getProto();
             continue;
         }
-        shape = obj->nativeLookup(cx, id);
+        shape = obj->nativeLookup(id);
         if (shape) {
             PCMETER(JS_PROPERTY_CACHE(cx).pcpurges++);
             obj->shadowingShapeChange(cx, *shape);
@@ -5078,16 +5001,6 @@ JSBool
 js_DefineProperty(JSContext *cx, JSObject *obj, jsid id, const Value *value,
                   PropertyOp getter, StrictPropertyOp setter, uintN attrs)
 {
-    return !!DefineNativeProperty(cx, obj, id, *value, getter, setter, attrs, 0, 0);
-}
-
-JSBool
-js_DefineElement(JSContext *cx, JSObject *obj, uint32 index, const Value *value,
-                 PropertyOp getter, StrictPropertyOp setter, uintN attrs)
-{
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
     return !!DefineNativeProperty(cx, obj, id, *value, getter, setter, attrs, 0, 0);
 }
 
@@ -5229,7 +5142,7 @@ DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, const Value &value,
             }
         }
 
-        if (const Shape *existingShape = obj->nativeLookup(cx, id)) {
+        if (const Shape *existingShape = obj->nativeLookup(id)) {
             if (existingShape->hasSlot())
                 AbortRecordingIfUnexpectedGlobalWrite(cx, obj, existingShape->slot);
 
@@ -5381,7 +5294,7 @@ CallResolveOp(JSContext *cx, JSObject *start, JSObject *obj, jsid id, uintN flag
     }
 
     if (!obj->nativeEmpty()) {
-        if (const Shape *shape = obj->nativeLookup(cx, id)) {
+        if (const Shape *shape = obj->nativeLookup(id)) {
             *objp = obj;
             *propp = (JSProperty *) shape;
         }
@@ -5400,7 +5313,7 @@ LookupPropertyWithFlagsInline(JSContext *cx, JSObject *obj, jsid id, uintN flags
     /* Search scopes starting with obj and following the prototype link. */
     JSObject *start = obj;
     while (true) {
-        const Shape *shape = obj->nativeLookup(cx, id);
+        const Shape *shape = obj->nativeLookup(id);
         if (shape) {
             *objp = obj;
             *propp = (JSProperty *) shape;
@@ -5461,16 +5374,6 @@ js_LookupProperty(JSContext *cx, JSObject *obj, jsid id, JSObject **objp,
 {
     /* Convert string indices to integers if appropriate. */
     id = js_CheckForStringIndex(id);
-
-    return LookupPropertyWithFlagsInline(cx, obj, id, cx->resolveFlags, objp, propp);
-}
-
-JS_FRIEND_API(JSBool)
-js_LookupElement(JSContext *cx, JSObject *obj, uint32 index, JSObject **objp, JSProperty **propp)
-{
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
 
     return LookupPropertyWithFlagsInline(cx, obj, id, cx->resolveFlags, objp, propp);
 }
@@ -5699,20 +5602,27 @@ js_NativeGetInline(JSContext *cx, JSObject *receiver, JSObject *obj, JSObject *p
         return true;
     }
 
+    jsbytecode *pc;
+    JSScript *script = cx->stack.currentScript(&pc);
+    if (script) {
+        if (!script->ensureRanBytecode(cx))
+            return false;
+        analyze::Bytecode *code = script->analysis()->maybeCode(pc);
+        if (code)
+            code->accessGetter = true;
+    }
+
     sample = cx->runtime->propertyRemovals;
     if (!shape->get(cx, receiver, obj, pobj, vp))
         return false;
 
     if (pobj->containsSlot(slot) &&
         (JS_LIKELY(cx->runtime->propertyRemovals == sample) ||
-         pobj->nativeContains(cx, *shape))) {
+         pobj->nativeContains(*shape))) {
         if (!pobj->methodWriteBarrier(cx, *shape, *vp))
             return false;
         pobj->nativeSetSlot(slot, *vp);
     }
-
-    /* Record values produced by shapes without a default getter. */
-    AddTypePropertyId(cx, obj, shape->propid, *vp);
 
     return true;
 }
@@ -5772,7 +5682,7 @@ js_NativeSet(JSContext *cx, JSObject *obj, const Shape *shape, bool added, bool 
 
     if (obj->containsSlot(slot) &&
         (JS_LIKELY(cx->runtime->propertyRemovals == sample) ||
-         obj->nativeContains(cx, *shape))) {
+         obj->nativeContains(*shape))) {
         if (!added) {
             AbortRecordingIfUnexpectedGlobalWrite(cx, obj, slot);
             if (!obj->methodWriteBarrier(cx, *shape, *vp))
@@ -5898,17 +5808,6 @@ js_GetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uint32 getHow, Value
 JSBool
 js_GetProperty(JSContext *cx, JSObject *obj, JSObject *receiver, jsid id, Value *vp)
 {
-    /* This call site is hot -- use the always-inlined variant of js_GetPropertyHelper(). */
-    return js_GetPropertyHelperInline(cx, obj, receiver, id, JSGET_METHOD_BARRIER, vp);
-}
-
-JSBool
-js_GetElement(JSContext *cx, JSObject *obj, JSObject *receiver, uint32 index, Value *vp)
-{
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-
     /* This call site is hot -- use the always-inlined variant of js_GetPropertyHelper(). */
     return js_GetPropertyHelperInline(cx, obj, receiver, id, JSGET_METHOD_BARRIER, vp);
 }
@@ -6274,16 +6173,6 @@ js_SetPropertyHelper(JSContext *cx, JSObject *obj, jsid id, uintN defineHow,
 }
 
 JSBool
-js_SetElementHelper(JSContext *cx, JSObject *obj, uint32 index, uintN defineHow,
-                    Value *vp, JSBool strict)
-{
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return js_SetPropertyHelper(cx, obj, id, defineHow, vp, strict);
-}
-
-JSBool
 js_GetAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
 {
     JSProperty *prop;
@@ -6295,24 +6184,6 @@ js_GetAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
     }
     if (!obj->isNative())
         return obj->getAttributes(cx, id, attrsp);
-
-    const Shape *shape = (Shape *)prop;
-    *attrsp = shape->attributes();
-    return true;
-}
-
-JSBool
-js_GetElementAttributes(JSContext *cx, JSObject *obj, uint32 index, uintN *attrsp)
-{
-    JSProperty *prop;
-    if (!js_LookupElement(cx, obj, index, &obj, &prop))
-        return false;
-    if (!prop) {
-        *attrsp = 0;
-        return true;
-    }
-    if (!obj->isNative())
-        return obj->getElementAttributes(cx, index, attrsp);
 
     const Shape *shape = (Shape *)prop;
     *attrsp = shape->attributes();
@@ -6338,19 +6209,6 @@ js_SetAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
     return obj->isNative()
            ? js_SetNativeAttributes(cx, obj, (Shape *) prop, *attrsp)
            : obj->setAttributes(cx, id, attrsp);
-}
-
-JSBool
-js_SetElementAttributes(JSContext *cx, JSObject *obj, uint32 index, uintN *attrsp)
-{
-    JSProperty *prop;
-    if (!js_LookupElement(cx, obj, index, &obj, &prop))
-        return false;
-    if (!prop)
-        return true;
-    return obj->isNative()
-           ? js_SetNativeAttributes(cx, obj, (Shape *) prop, *attrsp)
-           : obj->setElementAttributes(cx, index, attrsp);
 }
 
 JSBool
@@ -6432,21 +6290,12 @@ js_DeleteProperty(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool str
     return obj->removeProperty(cx, id) && js_SuppressDeletedProperty(cx, obj, id);
 }
 
-JSBool
-js_DeleteElement(JSContext *cx, JSObject *obj, uint32 index, Value *rval, JSBool strict)
-{
-    jsid id;
-    if (!IndexToId(cx, index, &id))
-        return false;
-    return js_DeleteProperty(cx, obj, id, rval, strict);
-}
-
 namespace js {
 
 bool
-HasDataProperty(JSContext *cx, JSObject *obj, jsid methodid, Value *vp)
+HasDataProperty(JSObject *obj, jsid methodid, Value *vp)
 {
-    if (const Shape *shape = obj->nativeLookup(cx, methodid)) {
+    if (const Shape *shape = obj->nativeLookup(methodid)) {
         if (shape->hasDefaultGetterOrIsMethod() && obj->containsSlot(shape->slot)) {
             *vp = obj->nativeGetSlot(shape->slot);
             return true;

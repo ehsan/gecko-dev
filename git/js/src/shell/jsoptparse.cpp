@@ -376,9 +376,12 @@ OptionParser::parseArgs(int inputArgc, char **argv)
     for (size_t i = 1; i < argc; ++i) {
         char *arg = argv[i];
         Result r;
-        /* Note: solo dash option is actually a 'stdin' argument. */
-        if (arg[0] == '-' && arg[1] != '\0' && optionsAllowed) {
+        if (arg[0] == '-' && optionsAllowed) {
             /* Option. */
+            size_t arglen = strlen(arg);
+            if (arglen < 2) /* Do not permit solo dash option. */
+                return error("Invalid dash option");
+
             Option *opt;
             if (arg[1] == '-') {
                 /* Long option. */
@@ -399,7 +402,6 @@ OptionParser::parseArgs(int inputArgc, char **argv)
             /* Argument. */
             r = handleArg(argc, argv, &i, &optionsAllowed);
         }
-
         switch (r) {
           case Okay:
             break;

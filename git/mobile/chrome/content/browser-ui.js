@@ -64,7 +64,6 @@ let Elements = {};
   ["contentShowing",     "bcast_contentShowing"],
   ["urlbarState",        "bcast_urlbarState"],
   ["stack",              "stack"],
-  ["tabList",            "tabs"],
   ["tabs",               "tabs-container"],
   ["controls",           "browser-controls"],
   ["panelUI",            "panel-container"],
@@ -116,21 +115,17 @@ var BrowserUI = {
   },
 
   _titleChanged: function(aBrowser) {
-    let url = this.getDisplayURI(aBrowser);
-    let caption = aBrowser.contentTitle || url;
-
-    if (aBrowser.contentTitle == "" && !Util.isURLEmpty(aBrowser.userTypedValue))
-      caption = aBrowser.userTypedValue;
-    else if (Util.isURLEmpty(url))
-      caption = "";
-
-    let tab = Browser.getTabForBrowser(aBrowser);
-    if (tab)
-      tab.chromeTab.updateTitle(caption);
-
     let browser = Browser.selectedBrowser;
     if (browser && aBrowser != browser)
       return;
+
+    let url = this.getDisplayURI(browser);
+    let caption = browser.contentTitle || url;
+
+    if (browser.contentTitle == "" && !Util.isURLEmpty(browser.userTypedValue))
+      caption = browser.userTypedValue;
+    else if (Util.isURLEmpty(url))
+      caption = "";
 
     if (caption) {
       this._title.value = caption;
@@ -191,8 +186,6 @@ var BrowserUI = {
   },
 
   lockToolbar: function lockToolbar() {
-    if (Util.isTablet())
-      return;
     this._toolbarLocked++;
     document.getElementById("toolbar-moveable-container").top = "0";
     if (this._toolbarLocked == 1)
@@ -386,9 +379,14 @@ var BrowserUI = {
     return this._toolbarH;
   },
 
+  get sidebarW() {
+    delete this._sidebarW;
+    return this._sidebarW = Elements.controls.getBoundingClientRect().width;
+  },
+
   sizeControls: function(windowW, windowH) {
     // tabs
-    Elements.tabList.resize();
+    document.getElementById("tabs").resize();
     AwesomeScreen.doResize(windowW, windowH);
 
     // content navigator helper
@@ -430,9 +428,6 @@ var BrowserUI = {
 
     // listening AppCommand to handle special keys
     window.addEventListener("AppCommand", this, true);
-
-    // Initialize the number of tabs in toolbar
-    TabsPopup.init();
 
     // We can delay some initialization until after startup.  We wait until
     // the first page is shown, then dispatch a UIReadyDelayed event.
@@ -557,32 +552,11 @@ var BrowserUI = {
   },
 
   updateTabletLayout: function updateTabletLayout() {
-    let wasTablet = Elements.urlbarState.hasAttribute("tablet");
-    let isTablet = Util.isTablet({ forceUpdate: true });
-    if (wasTablet == isTablet)
-      return;
-
-    if (isTablet) {
-      this.unlockToolbar();
+    let tabletPref = Services.prefs.getIntPref("browser.ui.layout.tablet");
+    if (tabletPref == 1 || (tabletPref == -1 && Util.isTablet()))
       Elements.urlbarState.setAttribute("tablet", "true");
-    } else {
+    else
       Elements.urlbarState.removeAttribute("tablet");
-    }
-
-    // Tablet mode changes the size of the thumbnails
-    // in the tabs container. Hence we have to force a
-    // thumbnail update on all tabs.
-    setTimeout(function(self) {
-      self._updateAllTabThumbnails();
-    }, 0, this);
-  },
-
-  _updateAllTabThumbnails: function() {
-    let tabs = Browser.tabs;
-
-    tabs.forEach(function(tab) {
-      tab.updateThumbnail({ force: true });
-    });
   },
 
   update: function(aState) {
@@ -673,7 +647,6 @@ var BrowserUI = {
     // new page is opened, so a call to Browser.hideSidebars() fill this
     // requirement and fix the sidebars position.
     Browser.hideSidebars();
-    Elements.tabList.removeClosedTab();
 
     // Delay doing the fixup so the raw URI is passed to loadURIWithFlags
     // and the proper third-party fixup can be done
@@ -790,7 +763,6 @@ var BrowserUI = {
   selectTab: function selectTab(aTab) {
     AwesomeScreen.activePanel = null;
     Browser.selectedTab = aTab;
-    Elements.tabList.removeClosedTab();
   },
 
   undoCloseTab: function undoCloseTab(aIndex) {
@@ -917,14 +889,18 @@ var BrowserUI = {
         this._tabSelect(aEvent);
         break;
       case "TabOpen":
-        Elements.tabList.removeClosedTab();
-        Browser.hidePartialTabSidebar();
-        break;
       case "TabRemove":
-        Browser.hidePartialTabSidebar();
+      {
+        // Workaround to hide the tabstrip if it is partially visible
+        // See bug 524469 and bug 626660
+        let [tabsVisibility,,,] = Browser.computeSidebarVisibility();
+        if (tabsVisibility > 0.0 && tabsVisibility < 1.0)
+          Browser.hideSidebars();
+
         break;
-      case "PanFinished": {
-        let tabs = Elements.tabList;
+      }
+      case "PanFinished":
+        let tabs = document.getElementById("tabs");
         let [tabsVisibility,,oldLeftWidth, oldRightWidth] = Browser.computeSidebarVisibility();
         if (tabsVisibility == 0.0 && tabs.hasClosedTab) {
           let { x: x1, y: y1 } = Browser.getScrollboxPosition(Browser.controlsScrollboxScroller);
@@ -942,7 +918,6 @@ var BrowserUI = {
           Browser.tryFloatToolbar(0, 0);
         }
         break;
-      }
       case "SizeChanged":
         this.sizeControls(ViewableAreaObserver.width, ViewableAreaObserver.height);
         break;

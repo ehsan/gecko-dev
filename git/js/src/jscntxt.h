@@ -512,6 +512,14 @@ struct JSRuntime {
     volatile ptrdiff_t  gcMallocBytes;
 
   public:
+    js::GCChunkAllocator    *gcChunkAllocator;
+
+    void setCustomGCChunkAllocator(js::GCChunkAllocator *allocator) {
+        JS_ASSERT(allocator);
+        JS_ASSERT(state == JSRTS_DOWN);
+        gcChunkAllocator = allocator;
+    }
+
     /*
      * The trace operation and its data argument to trace embedding-specific
      * GC roots.
@@ -1092,7 +1100,7 @@ struct JSContext
      * Return:
      * - The override version, if there is an override version.
      * - The newest scripted frame's version, if there is such a frame.
-     * - The default version.
+     * - The default verion.
      *
      * Note: if this ever shows up in a profile, just add caching!
      */

@@ -1084,7 +1084,7 @@ Debugger::markCrossCompartmentDebuggerObjectReferents(JSTracer *tracer)
  * returns false.
  */
 bool
-Debugger::markAllIteratively(GCMarker *trc)
+Debugger::markAllIteratively(GCMarker *trc, JSGCInvocationKind gckind)
 {
     bool markedAny = false;
 

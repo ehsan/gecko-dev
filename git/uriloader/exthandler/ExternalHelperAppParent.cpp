@@ -72,7 +72,7 @@ ExternalHelperAppParent::ExternalHelperAppParent(
 void
 ExternalHelperAppParent::Init(ContentParent *parent,
                               const nsCString& aMimeContentType,
-                              const nsCString& aContentDispositionHeader,
+                              const nsCString& aContentDisposition,
                               const PRBool& aForceSave,
                               const IPC::URI& aReferrer)
 {
@@ -85,9 +85,7 @@ ExternalHelperAppParent::Init(ContentParent *parent,
   SetPropertyAsInt64(NS_CHANNEL_PROP_CONTENT_LENGTH, mContentLength);
   if (aReferrer)
     SetPropertyAsInterface(NS_LITERAL_STRING("docshell.internalReferrer"), aReferrer);
-  mContentDispositionHeader = aContentDispositionHeader;
-  NS_GetFilenameFromDisposition(mContentDispositionFilename, mContentDispositionHeader, mURI);
-  mContentDisposition = NS_GetContentDispositionFromHeader(mContentDispositionHeader, this);
+  SetContentDisposition(aContentDisposition);
   helperAppService->DoContent(aMimeContentType, this, nsnull,
                               aForceSave, getter_AddRefs(mListener));
 }
@@ -302,36 +300,6 @@ ExternalHelperAppParent::SetContentCharset(const nsACString& aContentCharset)
 }
 
 NS_IMETHODIMP
-ExternalHelperAppParent::GetContentDisposition(PRUint32 *aContentDisposition)
-{
-  if (mContentDispositionHeader.IsEmpty())
-    return NS_ERROR_NOT_AVAILABLE;
-
-  *aContentDisposition = mContentDisposition;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-ExternalHelperAppParent::GetContentDispositionFilename(nsAString& aContentDispositionFilename)
-{
-  if (mContentDispositionFilename.IsEmpty())
-    return NS_ERROR_NOT_AVAILABLE;
-
-  aContentDispositionFilename = mContentDispositionFilename;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-ExternalHelperAppParent::GetContentDispositionHeader(nsACString& aContentDispositionHeader)
-{
-  if (mContentDispositionHeader.IsEmpty())
-    return NS_ERROR_NOT_AVAILABLE;
-
-  aContentDispositionHeader = mContentDispositionHeader;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 ExternalHelperAppParent::GetContentLength(PRInt32 *aContentLength)
 {
   if (mContentLength > PR_INT32_MAX || mContentLength < 0)
@@ -373,6 +341,20 @@ NS_IMETHODIMP
 ExternalHelperAppParent::GetBaseChannel(nsIChannel* *aChannel)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+ExternalHelperAppParent::GetContentDisposition(nsACString& aContentDisposition)
+{
+  aContentDisposition = mContentDisposition;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+ExternalHelperAppParent::SetContentDisposition(const nsACString& aDisposition)
+{
+  mContentDisposition = aDisposition;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
