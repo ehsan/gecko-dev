@@ -821,36 +821,6 @@ CssLogic.sheetMediaAllowed = function CssLogic_sheetMediaAllowed(aDomObject)
 };
 
 /**
- * Return a shortened version of a style sheet's source.
- *
- * @param {CSSStyleSheet} aSheet the DOM object for the style sheet.
- */
-CssLogic.shortSource = function CssLogic_shortSource(aSheet)
-{
-    // Use a string like "inline" if there is no source href
-    if (!aSheet || !aSheet.href) {
-      return CssLogic.l10n("rule.sourceInline");
-    }
-
-    // We try, in turn, the filename, filePath, query string, whole thing
-    let url = Services.io.newURI(aSheet.href, null, null);
-    url = url.QueryInterface(Ci.nsIURL);
-    if (url.fileName) {
-      return url.fileName;
-    }
-
-    if (url.filePath) {
-      return url.filePath;
-    }
-
-    if (url.query) {
-      return url.query;
-    }
-
-    return this.domSheet.href;
-}
-
-/**
  * A safe way to access cached bits of information about a stylesheet.
  *
  * @constructor
@@ -915,7 +885,31 @@ CssSheet.prototype = {
       return this._shortSource;
     }
 
-    this._shortSource = CssLogic.shortSource(this.domSheet);
+    // Use a string like "inline" if there is no source href
+    if (!this.domSheet.href) {
+      this._shortSource = CssLogic.l10n("rule.sourceInline");
+      return this._shortSource;
+    }
+
+    // We try, in turn, the filename, filePath, query string, whole thing
+    let url = Services.io.newURI(this.domSheet.href, null, null);
+    url = url.QueryInterface(Ci.nsIURL);
+    if (url.fileName) {
+      this._shortSource = url.fileName;
+      return this._shortSource;
+    }
+
+    if (url.filePath) {
+      this._shortSource = url.filePath;
+      return this._shortSource;
+    }
+
+    if (url.query) {
+      this._shortSource = url.query;
+      return this._shortSource;
+    }
+
+    this._shortSource = this.domSheet.href;
     return this._shortSource;
   },
 

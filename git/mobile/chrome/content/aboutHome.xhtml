@@ -96,7 +96,6 @@
       </div>
       <div id="sync-setup">
         <a id="syncSetupSync" href="#" onclick="openSetupSyncWizard();">&aboutHome.setupSync;</a>
-        <a id="syncPairDevice" href="#" onclick="openPairDeviceWizard();">&aboutHome.syncPairDevice;</a>
       </div>
     </div>
   </div>
@@ -434,10 +433,8 @@
    function initSetupSync() {
      let services = getChromeWin().Services; 
      if (services.prefs.prefHasUserValue("services.sync.username")) {
-       syncConnected();
-     } else {
-       syncDisconnected();
-     }
+       document.getElementById("syncSetupSync").style.display = "none";
+     }    
      services.obs.addObserver(syncConnected, "weave:service:setup-complete", false);
      services.obs.addObserver(syncDisconnected, "weave:service:start-over", false);
    }
@@ -450,22 +447,15 @@
 
    function syncConnected() {
      document.getElementById("syncSetupSync").style.display = "none";
-     document.getElementById("syncPairDevice").style.display = "inline";
    }
 
    function syncDisconnected() {
      document.getElementById("syncSetupSync").style.display = "inline";
-     document.getElementById("syncPairDevice").style.display = "none";
    }
 
    function openSetupSyncWizard() {
      let chromeWin = getChromeWin();
      chromeWin.WeaveGlue.open();
-   }
-
-   function openPairDeviceWizard() {
-     let chromeWin = getChromeWin();
-     chromeWin.SyncPairDevice.open();
    }
 
    function initLightbox() {

@@ -303,6 +303,7 @@ NS_IMPL_THREADSAFE_RELEASE(Preferences)
 NS_INTERFACE_MAP_BEGIN(Preferences)
     NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIPrefService)
     NS_INTERFACE_MAP_ENTRY(nsIPrefService)
+    NS_INTERFACE_MAP_ENTRY(nsIPrefServiceInternal)
     NS_INTERFACE_MAP_ENTRY(nsIObserver)
     NS_INTERFACE_MAP_ENTRY(nsIPrefBranch)
     NS_INTERFACE_MAP_ENTRY(nsIPrefBranch2)
@@ -462,8 +463,9 @@ Preferences::SavePrefFile(nsIFile *aFile)
   return SavePrefFileInternal(aFile);
 }
 
-nsresult
-Preferences::ReadExtensionPrefs(nsIFile *aFile)
+/* part of nsIPrefServiceInternal */
+NS_IMETHODIMP
+Preferences::ReadExtensionPrefs(nsILocalFile *aFile)
 {
   nsresult rv;
   nsCOMPtr<nsIZipReader> reader = do_CreateInstance(kZipReaderCID, &rv);
@@ -511,35 +513,47 @@ Preferences::ReadExtensionPrefs(nsIFile *aFile)
   return rv;
 }
 
-void
+NS_IMETHODIMP
+Preferences::PrefHasUserValue(const nsACString& aPrefName, bool* aHasValue)
+{
+  *aHasValue = PREF_HasUserPref(aPrefName.BeginReading());
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 Preferences::SetPreference(const PrefTuple *aPref)
 {
-  pref_SetPrefTuple(*aPref, true);
+  return pref_SetPrefTuple(*aPref, true);
 }
 
-void
-Preferences::ClearContentPref(const char *aPref)
+NS_IMETHODIMP
+Preferences::ClearContentPref(const nsACString& aPrefName)
 {
-  PREF_ClearUserPref(aPref);
+  return PREF_ClearUserPref(aPrefName.BeginReading());
 }
 
-bool
-Preferences::MirrorPreference(const char *aPref, PrefTuple *aTuple)
+NS_IMETHODIMP
+Preferences::MirrorPreference(const nsACString& aPrefName, PrefTuple *aPref)
 {
-  PrefHashEntry *entry = pref_HashTableLookup(aPref);
-  if (!entry)
-    return false;
+  PrefHashEntry *pref = pref_HashTableLookup(PromiseFlatCString(aPrefName).get());
 
-  pref_GetTupleFromEntry(entry, aTuple);
-  return true;
+  if (!pref)
+    return NS_ERROR_NOT_AVAILABLE;
+
+  pref_GetTupleFromEntry(pref, aPref);
+
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 Preferences::MirrorPreferences(nsTArray<PrefTuple,
                                         nsTArrayInfallibleAllocator> *aArray)
 {
   aArray->SetCapacity(PL_DHASH_TABLE_SIZE(&gHashTable));
+
   PL_DHashTableEnumerate(&gHashTable, pref_MirrorPrefs, aArray);
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
