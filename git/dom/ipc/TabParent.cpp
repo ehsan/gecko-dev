@@ -50,7 +50,6 @@
 #include "nsViewManager.h"
 #include "nsIWidget.h"
 #include "nsIWindowWatcher.h"
-#include "nsOpenURIInFrameParams.h"
 #include "nsPIDOMWindow.h"
 #include "nsPIWindowWatcher.h"
 #include "nsPresShell.h"
@@ -442,16 +441,8 @@ TabParent::AnswerCreateWindow(const uint32_t& aChromeFlags,
   if (openLocation == nsIBrowserDOMWindow::OPEN_NEWTAB) {
     NS_ENSURE_TRUE(mBrowserDOMWindow, false);
 
-    bool isPrivate;
-    nsCOMPtr<nsILoadContext> loadContext = GetLoadContext();
-    loadContext->GetUsePrivateBrowsing(&isPrivate);
-
-    nsCOMPtr<nsIOpenURIInFrameParams> params = new nsOpenURIInFrameParams();
-    params->SetReferrer(aBaseURI);
-    params->SetIsPrivate(isPrivate);
-
     nsCOMPtr<nsIFrameLoaderOwner> frameLoaderOwner;
-    mBrowserDOMWindow->OpenURIInFrame(nullptr, params,
+    mBrowserDOMWindow->OpenURIInFrame(nullptr, nullptr,
                                       nsIBrowserDOMWindow::OPEN_NEWTAB,
                                       nsIBrowserDOMWindow::OPEN_NEW,
                                       getter_AddRefs(frameLoaderOwner));

@@ -10,8 +10,7 @@
  * liability, trademark and document use rules apply.
  */
 
-[Constructor(DOMString name, optional DOMString message = ""),
- Exposed=(Window,System)]
+[Constructor(DOMString name, optional DOMString message = "")]
 interface DOMError {
   [Constant]
   readonly attribute DOMString name;

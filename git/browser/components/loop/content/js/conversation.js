@@ -21,7 +21,7 @@ loop.conversation = (function(mozL10n) {
   var DesktopRoomView = loop.roomViews.DesktopRoomView;
 
   var IncomingCallView = React.createClass({displayName: 'IncomingCallView',
-    mixins: [sharedMixins.DropdownMenuMixin, sharedMixins.AudioMixin],
+    mixins: [sharedMixins.DropdownMenuMixin],
 
     propTypes: {
       model: React.PropTypes.object.isRequired,
@@ -185,14 +185,8 @@ loop.conversation = (function(mozL10n) {
    * incoming call views (bug 1088672).
    */
   var GenericFailureView = React.createClass({displayName: 'GenericFailureView',
-    mixins: [sharedMixins.AudioMixin],
-
     propTypes: {
       cancelCall: React.PropTypes.func.isRequired
-    },
-
-    componentDidMount: function() {
-      this.play("failure");
     },
 
     render: function() {
@@ -671,11 +665,7 @@ loop.conversation = (function(mozL10n) {
 
     window.addEventListener("unload", function(event) {
       // Handle direct close of dialog box via [x] control.
-      // XXX Move to the conversation models, when we transition
-      // incoming calls to flux (bug 1088672).
       navigator.mozLoop.calls.clearCallInProgress(windowId);
-
-      dispatcher.dispatch(new sharedActions.WindowUnload());
     });
 
     React.renderComponent(AppControllerView({

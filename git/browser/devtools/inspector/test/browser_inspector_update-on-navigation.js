@@ -9,11 +9,13 @@ const SCHEMA = "data:text/html;charset=UTF-8,";
 const URL_1 = SCHEMA + "<div id='one' style='color:red;'>ONE</div>";
 const URL_2 = SCHEMA + "<div id='two' style='color:green;'>TWO</div>";
 
-add_task(function* () {
+let test = asyncTest(function* () {
   let { inspector, toolbox } = yield openInspectorForURL(URL_1);
 
+  let firstNode = getNode("#one");
+
   assertMarkupViewIsLoaded();
-  yield selectNode("#one", inspector);
+  yield selectNode(firstNode, inspector);
 
   let willNavigate = toolbox.target.once("will-navigate");
   content.location = URL_2;
@@ -27,10 +29,13 @@ add_task(function* () {
   info("Waiting for new-root");
   yield inspector.once("new-root");
 
+  info("Checking that the page has node #two.");
+  let secondNode = getNode("#two");
+
   info("Navigation to page 2 was done, the inspector should be back up");
   assertMarkupViewIsLoaded();
 
-  yield selectNode("#two", inspector);
+  yield selectNode(secondNode, inspector);
 
   function assertMarkupViewIsLoaded() {
     let markupViewBox = inspector.panelDoc.getElementById("markup-box");

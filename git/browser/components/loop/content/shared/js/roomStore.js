@@ -99,10 +99,10 @@ loop.store = loop.store || {};
     maxRoomCreationSize: 2,
 
     /**
-     * The number of hours for which the room will exist - default 8 weeks
+     * The number of hours for which the room will exist.
      * @type {Number}
      */
-    defaultExpiresIn: 24 * 7 * 8,
+    defaultExpiresIn: 5,
 
     /**
      * Internal store state representation.

@@ -540,8 +540,6 @@ loop.shared.views = (function(_, OT, l10n) {
    * Feedback view.
    */
   var FeedbackView = React.createClass({displayName: 'FeedbackView',
-    mixins: [sharedMixins.AudioMixin],
-
     propTypes: {
       // A loop.FeedbackAPIClient instance
       feedbackApiClient: React.PropTypes.object.isRequired,
@@ -556,10 +554,6 @@ loop.shared.views = (function(_, OT, l10n) {
 
     getDefaultProps: function() {
       return {step: "start"};
-    },
-
-    componentDidMount: function() {
-      this.play("terminated");
     },
 
     reset: function() {

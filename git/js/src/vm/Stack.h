@@ -181,6 +181,7 @@ class AbstractFramePtr
     inline JSCompartment *compartment() const;
 
     inline bool hasCallObj() const;
+    inline bool isGeneratorFrame() const;
     inline bool isFunctionFrame() const;
     inline bool isGlobalFrame() const;
     inline bool isEvalFrame() const;
@@ -242,7 +243,7 @@ class NullFramePtr : public AbstractFramePtr
 /* Flags specified for a frame as it is constructed. */
 enum InitialFrameFlags {
     INITIAL_NONE           =          0,
-    INITIAL_CONSTRUCT      =       0x10, /* == InterpreterFrame::CONSTRUCTING, asserted below */
+    INITIAL_CONSTRUCT      =       0x20, /* == InterpreterFrame::CONSTRUCTING, asserted below */
 };
 
 enum ExecuteType {
@@ -281,9 +282,10 @@ class InterpreterFrame
          */
         DEBUGGER           =        0x8,
 
-        CONSTRUCTING       =       0x10,  /* frame is for a constructor invocation */
+        GENERATOR          =       0x10,  /* frame is associated with a generator */
+        CONSTRUCTING       =       0x20,  /* frame is for a constructor invocation */
 
-        /* (0x20, 0x40 and 0x80 are unused) */
+        /* (0x40 and 0x80 are unused) */
 
         /* Function prologue state */
         HAS_CALL_OBJ       =      0x100,  /* CallObject created for heavyweight fun */
@@ -756,10 +758,34 @@ class InterpreterFrame
         markReturnValue();
     }
 
-    void resumeGeneratorFrame(JSObject *scopeChain) {
-        MOZ_ASSERT(script()->isGenerator());
+    /*
+     * A "generator" frame is a function frame associated with a generator.
+     * Since generators are not executed LIFO, the VM copies a single abstract
+     * generator frame back and forth between the LIFO VM stack (when the
+     * generator is active) and a snapshot stored in JSGenerator (when the
+     * generator is inactive). A generator frame is comprised of an
+     * InterpreterFrame structure and the values that make up the arguments,
+     * locals, and expression stack. The layout in the JSGenerator snapshot
+     * matches the layout on the stack (see the "VM stack layout" comment
+     * above).
+     */
+
+    bool isGeneratorFrame() const {
+        bool ret = flags_ & GENERATOR;
+        MOZ_ASSERT_IF(ret, isNonEvalFunctionFrame());
+        return ret;
+    }
+
+    void initGeneratorFrame() const {
+        MOZ_ASSERT(!isGeneratorFrame());
         MOZ_ASSERT(isNonEvalFunctionFrame());
-        flags_ |= HAS_CALL_OBJ | HAS_SCOPECHAIN;
+        flags_ |= GENERATOR;
+    }
+
+    void resumeGeneratorFrame(HandleObject scopeChain) {
+        MOZ_ASSERT(!isGeneratorFrame());
+        MOZ_ASSERT(isNonEvalFunctionFrame());
+        flags_ |= GENERATOR | HAS_CALL_OBJ | HAS_SCOPECHAIN;
         scopeChain_ = scopeChain;
     }
 
@@ -1558,6 +1584,7 @@ class FrameIter
     bool isGlobalFrame() const;
     bool isEvalFrame() const;
     bool isNonEvalFunctionFrame() const;
+    bool isGeneratorFrame() const;
     bool hasArgs() const { return isNonEvalFunctionFrame(); }
 
     ScriptSource *scriptSource() const;

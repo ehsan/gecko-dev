@@ -2,8 +2,6 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-Components.utils.import("resource://gre/modules/Promise.jsm", this);
-
 let {AddonTestUtils} = Components.utils.import("resource://testing-common/AddonManagerTesting.jsm", {});
 let {HttpServer} = Components.utils.import("resource://testing-common/httpd.js", {});
 
