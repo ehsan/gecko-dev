@@ -93,6 +93,9 @@ PlatformDecoderModule::CreateCDMWrapper(CDMProxy* aProxy,
     if (!pdm) {
       return nullptr;
     }
+  } else {
+    NS_WARNING("CDM that decodes not yet supported!");
+    return nullptr;
   }
 
   return new EMEDecoderModule(aProxy,

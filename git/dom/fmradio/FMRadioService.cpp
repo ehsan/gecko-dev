@@ -6,7 +6,6 @@
 
 #include "FMRadioService.h"
 #include "mozilla/Hal.h"
-#include "mozilla/ClearOnShutdown.h"
 #include "nsIAudioManager.h"
 #include "AudioManager.h"
 #include "nsDOMClassInfo.h"
@@ -833,7 +832,6 @@ FMRadioService::Singleton()
 
   if (!sFMRadioService) {
     sFMRadioService = new FMRadioService();
-    ClearOnShutdown(&sFMRadioService);
   }
 
   return sFMRadioService;

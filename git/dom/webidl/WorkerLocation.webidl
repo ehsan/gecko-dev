@@ -12,6 +12,5 @@
  * this document.
  */
 
-[Exposed=Worker]
 interface WorkerLocation { };
 WorkerLocation implements URLUtilsReadOnly;

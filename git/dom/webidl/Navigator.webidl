@@ -30,7 +30,7 @@ Navigator implements NavigatorContentUtils;
 Navigator implements NavigatorStorageUtils;
 Navigator implements NavigatorFeatures;
 
-[NoInterfaceObject, Exposed=(Window,Worker)]
+[NoInterfaceObject]
 interface NavigatorID {
   // WebKit/Blink/Trident/Presto support this (hardcoded "Mozilla").
   [Constant]
@@ -53,11 +53,10 @@ interface NavigatorID {
 [NoInterfaceObject]
 interface NavigatorLanguage {
   readonly attribute DOMString? language;
-  [Pure, Cached, Frozen]
-  readonly attribute sequence<DOMString> languages;
+  [Pure, Cached, Frozen] readonly attribute sequence<DOMString> languages;
 };
 
-[NoInterfaceObject, Exposed=(Window,Worker)]
+[NoInterfaceObject]
 interface NavigatorOnLine {
   readonly attribute boolean onLine;
 };
@@ -121,8 +120,7 @@ interface NavigatorBattery {
 Navigator implements NavigatorBattery;
 
 // https://wiki.mozilla.org/WebAPI/DataStore
-[NoInterfaceObject,
- Exposed=(Window,Worker)]
+[NoInterfaceObject]
 interface NavigatorDataStore {
     [Throws, NewObject, Func="Navigator::HasDataStoreSupport"]
     Promise<sequence<DataStore>> getDataStores(DOMString name,

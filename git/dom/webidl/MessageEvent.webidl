@@ -9,8 +9,7 @@
 
 interface WindowProxy;
 
-[Constructor(DOMString type, optional MessageEventInit eventInitDict),
- Exposed=(Window,Worker)]
+[Constructor(DOMString type, optional MessageEventInit eventInitDict)]
 interface MessageEvent : Event {
   /**
    * Custom data associated with this event.

@@ -80,7 +80,6 @@ protected:
 public:
     virtual void Fence() = 0;
     virtual bool WaitSync() = 0;
-    virtual bool PollSync() = 0;
 
     // This function waits until the buffer is no longer being used.
     // To optimize the performance, some implementaions recycle SharedSurfaces

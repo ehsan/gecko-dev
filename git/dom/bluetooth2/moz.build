@@ -13,7 +13,6 @@ if CONFIG['MOZ_B2G_BT']:
         'BluetoothHidManager.cpp',
         'BluetoothManager.cpp',
         'BluetoothPairingHandle.cpp',
-        'BluetoothPairingListener.cpp',
         'BluetoothProfileController.cpp',
         'BluetoothReplyRunnable.cpp',
         'BluetoothService.cpp',
@@ -107,7 +106,6 @@ EXPORTS.mozilla.dom.bluetooth += [
     'BluetoothDiscoveryHandle.h',
     'BluetoothManager.h',
     'BluetoothPairingHandle.h',
-    'BluetoothPairingListener.h',
 ]
 
 IPDL_SOURCES += [

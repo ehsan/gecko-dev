@@ -12,8 +12,7 @@
 
 interface Blob;
 
-[Constructor,
- Exposed=Worker]
+[Constructor]
 interface FileReaderSync {
 
   // Synchronously return strings

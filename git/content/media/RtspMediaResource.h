@@ -222,11 +222,7 @@ public:
 protected:
   // Main thread access only.
   // These are called on the main thread by Listener.
-  nsresult OnMediaDataAvailable(uint8_t aIndex, const nsACString& aData,
-                                uint32_t aLength, uint32_t aOffset,
-                                nsIStreamingProtocolMetaData* aMeta);
-  nsresult OnConnected(uint8_t aIndex, nsIStreamingProtocolMetaData* aMeta);
-  nsresult OnDisconnected(uint8_t aIndex, nsresult aReason);
+  NS_DECL_NSISTREAMINGPROTOCOLLISTENER
 
   nsRefPtr<Listener> mListener;
 

@@ -52,13 +52,6 @@ public:
 
 #ifdef DEBUG
 
-  static size_t
-  SizeOfDeadlockDetector(MallocSizeOf aMallocSizeOf)
-  {
-    return sDeadlockDetector ?
-        sDeadlockDetector->SizeOfIncludingThis(aMallocSizeOf) : 0;
-  }
-
 private:
   // forward declaration for the following typedef
   struct DeadlockDetectorEntry;
@@ -84,16 +77,6 @@ private:
       , mAcquisitionContext(CallStack::kNone)
     {
       NS_ABORT_IF_FALSE(mName, "Name must be nonnull");
-    }
-
-    size_t
-    SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
-    {
-      // NB: |mName| is not reported as it's expected to be a static string.
-      //     If we switch to a nsString it should be added to the tally.
-      //     |mAcquisitionContext| has no measurable heap allocations in it.
-      size_t n = aMallocSizeOf(this);
-      return n;
     }
 
     /**
