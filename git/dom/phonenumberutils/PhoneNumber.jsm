@@ -270,8 +270,7 @@ this.PhoneNumber = (function (dataBase) {
       for (var n = 0; n < entry.length; ++n) {
         if (typeof entry[n] == "string")
           entry[n] = ParseMetaData(countryCode, entry[n]);
-        ret = ParseNationalNumber(number, entry[n])
-        if (ret)
+        if (ret = ParseNationalNumber(number, entry[n]))
           return ret;
       }
       return null;
@@ -313,8 +312,7 @@ this.PhoneNumber = (function (dataBase) {
     // prefix and flag the number as international.
     if (md.internationalPrefix.test(number)) {
       var possibleNumber = number.replace(md.internationalPrefix, "");
-      ret = ParseInternationalNumber(possibleNumber)
-      if (ret)
+      if (ret = ParseInternationalNumber(possibleNumber))
         return ret;
     }
 
@@ -325,8 +323,7 @@ this.PhoneNumber = (function (dataBase) {
       // Some regions have specific national prefix parse rules. Apply those.
       var withoutPrefix = number.replace(md.nationalPrefixForParsing,
                                          md.nationalPrefixTransformRule);
-      ret = ParseNationalNumber(withoutPrefix, md)
-      if (ret)
+      if (ret = ParseNationalNumber(withoutPrefix, md))
         return ret;
     } else {
       // If there is no specific national prefix rule, just strip off the
@@ -337,8 +334,7 @@ this.PhoneNumber = (function (dataBase) {
         return ret;
       }
     }
-    ret = ParseNationalNumber(number, md)
-    if (ret)
+    if (ret = ParseNationalNumber(number, md))
       return ret;
 
     // If the number matches the possible numbers of the current region,
@@ -348,8 +344,7 @@ this.PhoneNumber = (function (dataBase) {
 
     // Now lets see if maybe its an international number after all, but
     // without '+' or the international prefix.
-    ret = ParseInternationalNumber(number)
-    if (ret)
+    if (ret = ParseInternationalNumber(number))
       return ret;
 
     // We couldn't parse the number at all.
