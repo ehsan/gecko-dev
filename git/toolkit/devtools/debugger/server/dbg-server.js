@@ -47,7 +47,6 @@ const Ci = Components.interfaces;
 const Cc = Components.classes;
 const CC = Components.Constructor;
 const Cu = Components.utils;
-const Cr = Components.results;
 
 Cu.import("resource://gre/modules/Services.jsm");
 let wantLogging = Services.prefs.getBoolPref("devtools.debugger.log");
