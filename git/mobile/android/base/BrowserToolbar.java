@@ -377,19 +377,15 @@ public class BrowserToolbar extends GeckoRelativeLayout
                         menu.findItem(R.id.share).setVisible(false);
                         menu.findItem(R.id.add_to_launcher).setVisible(false);
                     }
-
-                    if (!tab.hasFeeds()) {
+                    if (!tab.getFeedsEnabled()) {
                         menu.findItem(R.id.subscribe).setVisible(false);
                     }
-
-                    menu.findItem(R.id.add_search_engine).setVisible(tab.hasOpenSearch());
                 } else {
                     // if there is no tab, remove anything tab dependent
                     menu.findItem(R.id.copyurl).setVisible(false);
                     menu.findItem(R.id.share).setVisible(false);
                     menu.findItem(R.id.add_to_launcher).setVisible(false);
                     menu.findItem(R.id.subscribe).setVisible(false);
-                    menu.findItem(R.id.add_search_engine).setVisible(false);
                 }
 
                 menu.findItem(R.id.share).setVisible(!GeckoProfile.get(getContext()).inGuestMode());

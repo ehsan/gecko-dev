@@ -129,6 +129,14 @@ public:
     return NS_ERROR_FAILURE;
   }
 
+#ifdef MOZ_DASH
+  virtual nsresult OpenByteRange(nsIStreamListener** aStreamListener,
+                                 MediaByteRange const &aByteRange)
+  {
+    return NS_ERROR_FAILURE;
+  }
+#endif
+
   virtual nsresult GetCachedRanges(nsTArray<MediaByteRange>& aRanges)
   {
     aRanges.AppendElement(MediaByteRange(0, mLength));

@@ -43,8 +43,7 @@ public class Tab {
     private Bitmap mFavicon;
     private String mFaviconUrl;
     private int mFaviconSize;
-    private boolean mHasFeeds;
-    private boolean mHasOpenSearch;
+    private boolean mFeedsEnabled;
     private JSONObject mIdentityData;
     private boolean mReaderEnabled;
     private BitmapDrawable mThumbnail;
@@ -99,8 +98,7 @@ public class Tab {
         mFavicon = null;
         mFaviconUrl = null;
         mFaviconSize = 0;
-        mHasFeeds = false;
-        mHasOpenSearch = false;
+        mFeedsEnabled = false;
         mIdentityData = null;
         mReaderEnabled = false;
         mEnteringReaderMode = false;
@@ -238,12 +236,8 @@ public class Tab {
         return mFaviconUrl;
     }
 
-    public boolean hasFeeds() {
-        return mHasFeeds;
-    }
-
-    public boolean hasOpenSearch() {
-        return mHasOpenSearch;
+    public boolean getFeedsEnabled() {
+        return mFeedsEnabled;
     }
 
     public String getSecurityMode() {
@@ -399,12 +393,8 @@ public class Tab {
         mFaviconSize = 0;
     }
 
-    public void setHasFeeds(boolean hasFeeds) {
-        mHasFeeds = hasFeeds;
-    }
-
-    public void setHasOpenSearch(boolean hasOpenSearch) {
-        mHasOpenSearch = hasOpenSearch;
+    public void setFeedsEnabled(boolean feedsEnabled) {
+        mFeedsEnabled = feedsEnabled;
     }
 
     public void updateIdentityData(JSONObject identityData) {
@@ -632,7 +622,7 @@ public class Tab {
 
         setContentType(message.getString("contentType"));
         clearFavicon();
-        setHasFeeds(false);
+        setFeedsEnabled(false);
         updateTitle(null);
         updateIdentityData(null);
         setReaderEnabled(false);

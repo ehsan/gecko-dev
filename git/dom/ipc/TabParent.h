@@ -23,7 +23,6 @@
 struct gfxMatrix;
 class nsFrameLoader;
 class nsIContent;
-class nsIPrincipal;
 class nsIURI;
 class nsIWidget;
 class CpowHolder;
@@ -122,17 +121,14 @@ public:
     virtual bool RecvSyncMessage(const nsString& aMessage,
                                  const ClonedMessageData& aData,
                                  const InfallibleTArray<CpowEntry>& aCpows,
-                                 const IPC::Principal& aPrincipal,
                                  InfallibleTArray<nsString>* aJSONRetVal);
     virtual bool AnswerRpcMessage(const nsString& aMessage,
                                   const ClonedMessageData& aData,
                                   const InfallibleTArray<CpowEntry>& aCpows,
-                                  const IPC::Principal& aPrincipal,
                                   InfallibleTArray<nsString>* aJSONRetVal);
     virtual bool RecvAsyncMessage(const nsString& aMessage,
                                   const ClonedMessageData& aData,
-                                  const InfallibleTArray<CpowEntry>& aCpows,
-                                  const IPC::Principal& aPrincipal);
+                                  const InfallibleTArray<CpowEntry>& aCpows);
     virtual bool RecvNotifyIMEFocus(const bool& aFocus,
                                     nsIMEUpdatePreference* aPreference,
                                     uint32_t* aSeqno);
@@ -258,7 +254,6 @@ protected:
                         bool aSync,
                         const StructuredCloneData* aCloneData,
                         CpowHolder* aCpows,
-                        nsIPrincipal* aPrincipal,
                         InfallibleTArray<nsString>* aJSONRetVal = nullptr);
 
     virtual bool Recv__delete__() MOZ_OVERRIDE;

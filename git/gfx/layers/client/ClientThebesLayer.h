@@ -105,8 +105,7 @@ protected:
               const nsIntRegion& aRegionToDraw,
               const nsIntRegion& aExtendedRegionToDraw,
               const nsIntRegion& aRegionToInvalidate,
-              bool aDidSelfCopy,
-              DrawRegionClip aClip);
+              bool aDidSelfCopy);
   
   void PaintThebes();
   

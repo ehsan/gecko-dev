@@ -2132,7 +2132,8 @@ nsCycleCollector::MarkRoots(GCGraphBuilder &aBuilder)
     }
 
     if (aBuilder.RanOutOfMemory()) {
-        MOZ_ASSERT(false, "Ran out of memory while building cycle collector graph");
+        MOZ_ASSERT(false,
+                     "Ran out of memory while building cycle collector graph");
         CC_TELEMETRY(_OOM, true);
     }
 }
@@ -2266,7 +2267,7 @@ nsCycleCollector::ScanRoots(nsICycleCollectorListener *aListener)
     GraphWalker<scanVisitor>(scanVisitor(mWhiteNodeCount, failed)).WalkFromRoots(mGraph);
 
     if (failed) {
-        NS_ASSERTION(false, "Ran out of memory in ScanRoots");
+        MOZ_ASSERT(false, "Ran out of memory in ScanRoots");
         CC_TELEMETRY(_OOM, true);
     }
 

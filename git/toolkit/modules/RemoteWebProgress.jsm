@@ -109,18 +109,6 @@ RemoteWebProgressManager.prototype = {
     return [deserialized, aState];
   },
 
-  _callProgressListeners: function(methodName, ...args) {
-    for (let p of this._progressListeners) {
-      if (p[methodName]) {
-        try {
-          p[methodName].apply(p, args);
-        } catch (ex) {
-          Cu.reportError("RemoteWebProgress failed to call " + methodName + ": " + ex + "\n");
-        }
-      }
-    }
-  },
-
   receiveMessage: function (aMessage) {
     let json = aMessage.json;
     let objects = aMessage.objects;
@@ -145,7 +133,9 @@ RemoteWebProgressManager.prototype = {
 
     switch (aMessage.name) {
     case "Content:StateChange":
-      this._callProgressListeners("onStateChange", webProgress, request, json.stateFlags, json.status);
+      for (let p of this._progressListeners) {
+        p.onStateChange(webProgress, request, json.stateFlags, json.status);
+      }
       break;
 
     case "Content:LocationChange":
@@ -160,7 +150,9 @@ RemoteWebProgressManager.prototype = {
         this._browser._imageDocument = null;
       }
 
-      this._callProgressListeners("onLocationChange", webProgress, request, location);
+      for (let p of this._progressListeners) {
+        p.onLocationChange(webProgress, request, location);
+      }
       break;
 
     case "Content:SecurityChange":
@@ -174,11 +166,15 @@ RemoteWebProgressManager.prototype = {
         this._browser._securityUI._update(status, state);
       }
 
-      this._callProgressListeners("onSecurityChange", webProgress, request, state);
+      for (let p of this._progressListeners) {
+        p.onSecurityChange(webProgress, request, state);
+      }
       break;
 
     case "Content:StatusChange":
-      this._callProgressListeners("onStatusChange", webProgress, request, json.status, json.message);
+      for (let p of this._progressListeners) {
+        p.onStatusChange(webProgress, request, json.status, json.message);
+      }
       break;
     }
   }

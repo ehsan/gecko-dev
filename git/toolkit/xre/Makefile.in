@@ -189,3 +189,6 @@ GARBAGE += platform.ini
 
 libs:: platform.ini
 	$(INSTALL) $^ $(DIST)/bin
+
+install::
+	$(INSTALL) $(IFLAGS1) $^ $(DESTDIR)$(mozappdir)

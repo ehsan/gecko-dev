@@ -115,10 +115,10 @@ protected:
   {
     EnsureSurface();
     if (!mSurface) {
-      mSurface = Factory::CreateWrappingDataSourceSurface(mThebesImage->Data(),
-                                                          mThebesImage->Stride(),
-                                                          mSize,
-                                                          mFormat);
+      mSurface = mCompositor->GetDrawTarget()->CreateSourceSurfaceFromData(mThebesImage->Data(),
+                                                                           mSize,
+                                                                           mThebesImage->Stride(),
+                                                                           mFormat);
     }
     return true;
   }

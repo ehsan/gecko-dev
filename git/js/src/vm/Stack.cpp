@@ -20,7 +20,6 @@
 #include "jit/IonFrameIterator-inl.h"
 #include "vm/Interpreter-inl.h"
 #include "vm/Probes-inl.h"
-#include "vm/ScopeObject-inl.h"
 
 using namespace js;
 
@@ -205,7 +204,7 @@ AssertDynamicScopeMatchesStaticScope(JSContext *cx, JSScript *script, JSObject *
 {
 #ifdef DEBUG
     RootedObject enclosingScope(cx, script->enclosingStaticScope());
-    for (StaticScopeIter<NoGC> i(enclosingScope); !i.done(); i++) {
+    for (StaticScopeIter i(cx, enclosingScope); !i.done(); i++) {
         if (i.hasDynamicScopeObject()) {
             /*
              * 'with' does not participate in the static scope of the script,
@@ -215,15 +214,15 @@ AssertDynamicScopeMatchesStaticScope(JSContext *cx, JSScript *script, JSObject *
                 scope = &scope->as<WithObject>().enclosingScope();
 
             switch (i.type()) {
-              case StaticScopeIter<NoGC>::BLOCK:
+              case StaticScopeIter::BLOCK:
                 JS_ASSERT(i.block() == scope->as<ClonedBlockObject>().staticBlock());
                 scope = &scope->as<ClonedBlockObject>().enclosingScope();
                 break;
-              case StaticScopeIter<NoGC>::FUNCTION:
+              case StaticScopeIter::FUNCTION:
                 JS_ASSERT(scope->as<CallObject>().callee().nonLazyScript() == i.funScript());
                 scope = &scope->as<CallObject>().enclosingScope();
                 break;
-              case StaticScopeIter<NoGC>::NAMED_LAMBDA:
+              case StaticScopeIter::NAMED_LAMBDA:
                 scope = &scope->as<DeclEnvObject>().enclosingScope();
                 break;
             }
