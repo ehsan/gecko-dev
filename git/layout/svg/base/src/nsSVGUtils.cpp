@@ -620,7 +620,7 @@ nsSVGUtils::FindFilterInvalidation(nsIFrame *aFrame, const nsRect& aRect)
         viewportFrame = GetOuterSVGFrame(aFrame);
       }
       if (viewportFrame->GetType() == nsGkAtoms::svgOuterSVGFrame) {
-        nsRect r = viewportFrame->GetOverflowRect();
+        nsRect r = viewportFrame->GetVisualOverflowRect();
         // GetOverflowRect is relative to our border box, but we need it
         // relative to our content box.
         r.MoveBy(viewportFrame->GetPosition() - viewportFrame->GetContentRect().TopLeft());
@@ -1564,3 +1564,17 @@ nsSVGRenderState::GetRenderingContext(nsIFrame *aFrame)
   return mRenderingContext;
 }
 
+/* static */ PRBool
+nsSVGUtils::RootSVGElementHasViewbox(const nsIContent *aRootSVGElem)
+{
+  if (aRootSVGElem->GetNameSpaceID() != kNameSpaceID_SVG ||
+      aRootSVGElem->Tag() != nsGkAtoms::svg) {
+    NS_ABORT_IF_FALSE(PR_FALSE, "Expecting an SVG <svg> node");
+    return PR_FALSE;
+  }
+
+  const nsSVGSVGElement *svgSvgElem =
+    static_cast<const nsSVGSVGElement*>(aRootSVGElem);
+
+  return svgSvgElem->HasValidViewbox();
+}
