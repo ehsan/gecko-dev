@@ -28,30 +28,24 @@ using namespace js::gc;
 using namespace mozilla;
 
 #if defined(DEBUG) && defined(JS_GC_ZEAL) && defined(JSGC_ROOT_ANALYSIS) && !defined(JS_THREADSAFE)
-#  if JS_STACK_GROWTH_DIRECTION > 0
-#    error "Root analysis is only supported on a descending stack."
-#  endif
 
 template <typename T>
 bool
-CheckNonAddressThing(uintptr_t *w, Rooted<T> *rootp)
+CheckNonAddressThing(uintptr_t *w, T *t)
 {
-    return w >= (uintptr_t*)rootp->address() && w < (uintptr_t*)(rootp->address() + 1);
+    return w >= (uintptr_t*)t && w < (uintptr_t*)(t + 1);
 }
 
 JS_ALWAYS_INLINE bool
-CheckStackRootThing(uintptr_t *w, Rooted<void *> *rootp, ThingRootKind kind)
+CheckStackRootThing(uintptr_t *w, void *address, ThingRootKind kind)
 {
     if (kind == THING_ROOT_BINDINGS)
-        return CheckNonAddressThing(w, reinterpret_cast<Rooted<Bindings> *>(rootp));
+        return CheckNonAddressThing(w, static_cast<Bindings*>(address));
 
     if (kind == THING_ROOT_PROPERTY_DESCRIPTOR)
-        return CheckNonAddressThing(w, reinterpret_cast<Rooted<PropertyDescriptor> *>(rootp));
+        return CheckNonAddressThing(w, static_cast<PropertyDescriptor*>(address));
 
-    if (kind == THING_ROOT_VALUE)
-        return CheckNonAddressThing(w, reinterpret_cast<Rooted<Value> *>(rootp));
-
-    return rootp->address() == static_cast<void*>(w);
+    return address == static_cast<void*>(w);
 }
 
 struct Rooter {
@@ -82,7 +76,7 @@ CheckStackRoot(JSRuntime *rt, uintptr_t *w, Rooter *begin, Rooter *end)
      */
 
     for (Rooter *p = begin; p != end; p++) {
-        if (CheckStackRootThing(w, p->rooter, p->kind))
+        if (CheckStackRootThing(w, p->rooter->address(), p->kind))
             return;
     }
 
@@ -128,7 +122,7 @@ CheckStackRootsRangeAndSkipIon(JSRuntime *rt, uintptr_t *begin, uintptr_t *end, 
      */
     uintptr_t *i = begin;
 
-#if defined(JS_ION)
+#if JS_STACK_GROWTH_DIRECTION < 0 && defined(JS_ION)
     for (ion::IonActivationIterator ion(rt); ion.more(); ++ion) {
         uintptr_t *ionMin, *ionEnd;
         ion.ionStackRange(ionMin, ionEnd);
@@ -183,15 +177,15 @@ SuppressCheckRoots(Vector<Rooter, 0, SystemAllocPolicy> &rooters)
     qsort(rooters.begin(), rooters.length(), sizeof(Rooter), CompareRooters);
 
     // Forward-declare a variable so its address can be used to mark the
-    // current top of the stack.
+    // current top of the stack
     unsigned int pos;
 
-    // Compute the hash of the current stack.
+    // Compute the hash of the current stack
     uint32_t hash = HashGeneric(&pos);
     for (unsigned int i = 0; i < Min(StackCheckDepth, rooters.length()); i++)
         hash = AddToHash(hash, rooters[rooters.length() - i - 1].rooter);
 
-    // Scan through the remembered stacks to find the current stack.
+    // Scan through the remembered stacks to find the current stack
     for (pos = 0; pos < numMemories; pos++) {
         if (stacks[pos] == hash) {
             // Skip this check. Technically, it is incorrect to not update the
@@ -201,7 +195,7 @@ SuppressCheckRoots(Vector<Rooter, 0, SystemAllocPolicy> &rooters)
         }
     }
 
-    // Replace the oldest remembered stack with our current stack.
+    // Replace the oldest remembered stack with our current stack
     stacks[oldestMemory] = hash;
     oldestMemory = (oldestMemory + 1) % NumStackMemories;
     if (numMemories < NumStackMemories)
@@ -253,9 +247,13 @@ JS::CheckStackRoots(JSContext *cx)
 
     JS_ASSERT(cgcd->hasStackToScan());
     uintptr_t *stackMin, *stackEnd;
+#if JS_STACK_GROWTH_DIRECTION > 0
+    stackMin = rt->nativeStackBase;
+    stackEnd = cgcd->nativeStackTop;
+#else
     stackMin = cgcd->nativeStackTop + 1;
     stackEnd = reinterpret_cast<uintptr_t *>(rt->nativeStackBase);
-    JS_ASSERT(stackMin <= stackEnd);
+#endif
 
     // Gather up all of the rooters
     Vector<Rooter, 0, SystemAllocPolicy> rooters;
@@ -277,7 +275,12 @@ JS::CheckStackRoots(JSContext *cx)
     for (Rooter *p = rooters.begin(); p != rooters.end(); p++) {
         if (p->rooter->scanned) {
             uintptr_t *addr = reinterpret_cast<uintptr_t*>(p->rooter);
-            if (stackEnd > addr) {
+#if JS_STACK_GROWTH_DIRECTION < 0
+            if (stackEnd > addr)
+#else
+            if (stackEnd < addr)
+#endif
+            {
                 stackEnd = addr;
                 firstScanned = p->rooter;
             }
@@ -289,19 +292,25 @@ JS::CheckStackRoots(JSContext *cx)
     Rooter *firstToScan = rooters.begin();
     if (firstScanned) {
         for (Rooter *p = rooters.begin(); p != rooters.end(); p++) {
-            if (p->rooter >= firstScanned) {
+#if JS_STACK_GROWTH_DIRECTION < 0
+            if (p->rooter >= firstScanned)
+#else
+            if (p->rooter <= firstScanned)
+#endif
+            {
                 Swap(*firstToScan, *p);
                 ++firstToScan;
             }
         }
     }
 
+    JS_ASSERT(stackMin <= stackEnd);
     CheckStackRootsRangeAndSkipIon(rt, stackMin, stackEnd, firstToScan, rooters.end());
     CheckStackRootsRange(rt, cgcd->registerSnapshot.words,
                          ArrayEnd(cgcd->registerSnapshot.words),
                          firstToScan, rooters.end());
 
-    // Mark all rooters as scanned.
+    // Mark all rooters as scanned
     for (Rooter *p = rooters.begin(); p != rooters.end(); p++)
         p->rooter->scanned = true;
 }

@@ -6586,9 +6586,9 @@ class MSetDOMProperty
   : public MAryInstruction<2>,
     public MixPolicy<ObjectPolicy<0>, BoxPolicy<1> >
 {
-    const JSJitSetterOp func_;
+    const JSJitPropertyOp func_;
 
-    MSetDOMProperty(const JSJitSetterOp func, MDefinition *obj, MDefinition *val)
+    MSetDOMProperty(const JSJitPropertyOp func, MDefinition *obj, MDefinition *val)
       : func_(func)
     {
         setOperand(0, obj);
@@ -6598,12 +6598,12 @@ class MSetDOMProperty
   public:
     INSTRUCTION_HEADER(SetDOMProperty)
 
-    static MSetDOMProperty *New(const JSJitSetterOp func, MDefinition *obj, MDefinition *val)
+    static MSetDOMProperty *New(const JSJitPropertyOp func, MDefinition *obj, MDefinition *val)
     {
         return new MSetDOMProperty(func, obj, val);
     }
 
-    const JSJitSetterOp fun() {
+    const JSJitPropertyOp fun() {
         return func_;
     }
 
@@ -6631,7 +6631,6 @@ class MGetDOMProperty
       : info_(jitinfo)
     {
         JS_ASSERT(jitinfo);
-        JS_ASSERT(jitinfo->type == JSJitInfo::Getter);
 
         setOperand(0, obj);
 
@@ -6658,8 +6657,8 @@ class MGetDOMProperty
         return new MGetDOMProperty(info, obj, guard);
     }
 
-    const JSJitGetterOp fun() {
-        return info_->getter;
+    const JSJitPropertyOp fun() {
+        return info_->op;
     }
     bool isInfallible() const {
         return info_->isInfallible;

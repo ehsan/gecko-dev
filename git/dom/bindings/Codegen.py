@@ -5104,7 +5104,7 @@ class CGGenericMethod(CGAbstractBindingMethod):
         return CGIndenter(CGGeneric(
             "const JSJitInfo *info = FUNCTION_VALUE_TO_JITINFO(JS_CALLEE(cx, vp));\n"
             "MOZ_ASSERT(info->type == JSJitInfo::Method);\n"
-            "JSJitMethodOp method = info->method;\n"
+            "JSJitMethodOp method = (JSJitMethodOp)info->op;\n"
             "return method(cx, obj, self, argc, vp);"))
 
 class CGSpecializedMethod(CGAbstractStaticMethod):
@@ -5240,7 +5240,7 @@ class CGGenericGetter(CGAbstractBindingMethod):
         return CGIndenter(CGGeneric(
             "const JSJitInfo *info = FUNCTION_VALUE_TO_JITINFO(JS_CALLEE(cx, vp));\n"
             "MOZ_ASSERT(info->type == JSJitInfo::Getter);\n"
-            "JSJitGetterOp getter = info->getter;\n"
+            "JSJitPropertyOp getter = info->op;\n"
             "return getter(cx, obj, self, vp);"))
 
 class CGSpecializedGetter(CGAbstractStaticMethod):
@@ -5324,7 +5324,7 @@ class CGGenericSetter(CGAbstractBindingMethod):
                 "JS::Value* argv = JS_ARGV(cx, vp);\n"
                 "const JSJitInfo *info = FUNCTION_VALUE_TO_JITINFO(JS_CALLEE(cx, vp));\n"
                 "MOZ_ASSERT(info->type == JSJitInfo::Setter);\n"
-                "JSJitSetterOp setter = info->setter;\n"
+                "JSJitPropertyOp setter = info->op;\n"
                 "if (!setter(cx, obj, self, argv)) {\n"
                 "  return false;\n"
                 "}\n"
@@ -5431,7 +5431,7 @@ class CGMemberJITInfo(CGThing):
                             "")
         return ("\n"
                 "static const JSJitInfo %s = {\n"
-                "  { %s },\n"
+                "  %s,\n"
                 "  %s,\n"
                 "  %s,\n"
                 "  JSJitInfo::%s,\n"
@@ -5445,9 +5445,7 @@ class CGMemberJITInfo(CGThing):
     def define(self):
         if self.member.isAttr():
             getterinfo = ("%s_getterinfo" % self.member.identifier.name)
-            # We need the cast here because JSJitGetterOp has a "void* self"
-            # while we have the right type.
-            getter = ("(JSJitGetterOp)get_%s" % self.member.identifier.name)
+            getter = ("(JSJitPropertyOp)get_%s" % self.member.identifier.name)
             getterinfal = "infallible" in self.descriptor.getExtendedAttributes(self.member, getter=True)
             getterconst = self.member.getExtendedAttribute("Constant")
             getterpure = getterconst or self.member.getExtendedAttribute("Pure")
@@ -5459,9 +5457,7 @@ class CGMemberJITInfo(CGThing):
                                         [self.member.type])
             if not self.member.readonly or self.member.getExtendedAttribute("PutForwards") is not None:
                 setterinfo = ("%s_setterinfo" % self.member.identifier.name)
-                # Actually a JSJitSetterOp, but JSJitGetterOp is first in the
-                # union.
-                setter = ("(JSJitGetterOp)set_%s" % self.member.identifier.name)
+                setter = ("(JSJitPropertyOp)set_%s" % self.member.identifier.name)
                 # Setters are always fallible, since they have to do a typed unwrap.
                 result += self.defineJitInfo(setterinfo, setter, "Setter",
                                              False, False, False,
@@ -5470,8 +5466,8 @@ class CGMemberJITInfo(CGThing):
         if self.member.isMethod():
             methodinfo = ("%s_methodinfo" % self.member.identifier.name)
             name = CppKeywords.checkMethodName(self.member.identifier.name)
-            # Actually a JSJitMethodOp, but JSJitGetterOp is first in the union.
-            method = ("(JSJitGetterOp)%s" % name)
+            # Actually a JSJitMethodOp, but JSJitPropertyOp by struct definition.
+            method = ("(JSJitPropertyOp)%s" % name)
 
             # Methods are infallible if they are infallible, have no arguments
             # to unwrap, and have a return type that's infallible to wrap up for
@@ -7504,15 +7500,13 @@ class CGDescriptor(CGThing):
 
         if descriptor.interface.hasInterfaceObject():
             cgThings.append(CGDefineDOMInterfaceMethod(descriptor))
-
-        if ((descriptor.interface.hasInterfaceObject() or descriptor.interface.getNavigatorProperty()) and
-            not descriptor.interface.isExternal() and
-            # Workers stuff is never pref-controlled
-            not descriptor.workers):
-            if descriptor.interface.getExtendedAttribute("PrefControlled") is not None:
-                cgThings.append(CGPrefEnabledNative(descriptor))
-            elif descriptor.interface.getExtendedAttribute("Pref") is not None:
-                cgThings.append(CGPrefEnabled(descriptor))
+            if (not descriptor.interface.isExternal() and
+                # Workers stuff is never pref-controlled
+                not descriptor.workers):
+                if descriptor.interface.getExtendedAttribute("PrefControlled") is not None:
+                    cgThings.append(CGPrefEnabledNative(descriptor))
+                elif descriptor.interface.getExtendedAttribute("Pref") is not None:
+                    cgThings.append(CGPrefEnabled(descriptor))
 
         if descriptor.concrete:
             if descriptor.proxy:

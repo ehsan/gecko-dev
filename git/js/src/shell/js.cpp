@@ -3507,6 +3507,28 @@ NewGlobal(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static JSBool
+ParseLegacyJSON(JSContext *cx, unsigned argc, jsval *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+
+    if (argc != 1 || !JSVAL_IS_STRING(args[0])) {
+        JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_INVALID_ARGS, "parseLegacyJSON");
+        return false;
+    }
+
+    JSString *str = JSVAL_TO_STRING(args[0]);
+
+    size_t length;
+    const jschar *chars = JS_GetStringCharsAndLength(cx, str, &length);
+    if (!chars)
+        return false;
+
+    RootedValue value(cx, NullValue());
+    return js::ParseJSONWithReviver(cx, StableCharPtr(chars, length), length,
+                                    value, args.rval(), LEGACY);
+}
+
+static JSBool
 EnableStackWalkingAssertion(JSContext *cx, unsigned argc, jsval *vp)
 {
     if (argc == 0 || !JSVAL_IS_BOOLEAN(JS_ARGV(cx, vp)[0])) {
@@ -3872,6 +3894,11 @@ static JSFunctionSpecWithHelp shell_functions[] = {
 "newGlobal([obj])",
 "  Return a new global object in a new compartment. If obj\n"
 "  is given, the compartment will be in the same zone as obj."),
+
+    JS_FN_HELP("parseLegacyJSON", ParseLegacyJSON, 1, 0,
+"parseLegacyJSON(str)",
+"  Parse str as legacy JSON, returning the result if the\n"
+"  parse succeeded and throwing a SyntaxError if not."),
 
     JS_FN_HELP("enableStackWalkingAssertion", EnableStackWalkingAssertion, 1, 0,
 "enableStackWalkingAssertion(enabled)",
@@ -4577,7 +4604,7 @@ dom_doFoo(JSContext* cx, JSHandleObject obj, void *self, unsigned argc, JS::Valu
 }
 
 const JSJitInfo dom_x_getterinfo = {
-    { (JSJitGetterOp)dom_get_x },
+    (JSJitPropertyOp)dom_get_x,
     0,        /* protoID */
     0,        /* depth */
     JSJitInfo::Getter,
@@ -4586,7 +4613,7 @@ const JSJitInfo dom_x_getterinfo = {
 };
 
 const JSJitInfo dom_x_setterinfo = {
-    { (JSJitGetterOp)dom_set_x },
+    (JSJitPropertyOp)dom_set_x,
     0,        /* protoID */
     0,        /* depth */
     JSJitInfo::Setter,
@@ -4595,7 +4622,7 @@ const JSJitInfo dom_x_setterinfo = {
 };
 
 const JSJitInfo doFoo_methodinfo = {
-    { (JSJitGetterOp)dom_doFoo },
+    (JSJitPropertyOp)dom_doFoo,
     0,        /* protoID */
     0,        /* depth */
     JSJitInfo::Method,
@@ -4657,7 +4684,7 @@ dom_genericGetter(JSContext *cx, unsigned argc, JS::Value *vp)
 
     const JSJitInfo *info = FUNCTION_VALUE_TO_JITINFO(JS_CALLEE(cx, vp));
     MOZ_ASSERT(info->type == JSJitInfo::Getter);
-    JSJitGetterOp getter = info->getter;
+    JSJitPropertyOp getter = info->op;
     return getter(cx, obj, val.toPrivate(), vp);
 }
 
@@ -4680,7 +4707,7 @@ dom_genericSetter(JSContext* cx, unsigned argc, JS::Value* vp)
 
     const JSJitInfo *info = FUNCTION_VALUE_TO_JITINFO(JS_CALLEE(cx, vp));
     MOZ_ASSERT(info->type == JSJitInfo::Setter);
-    JSJitSetterOp setter = info->setter;
+    JSJitPropertyOp setter = info->op;
     if (!setter(cx, obj, val.toPrivate(), argv))
         return false;
     JS_SET_RVAL(cx, vp, UndefinedValue());
@@ -4703,7 +4730,7 @@ dom_genericMethod(JSContext* cx, unsigned argc, JS::Value *vp)
 
     const JSJitInfo *info = FUNCTION_VALUE_TO_JITINFO(JS_CALLEE(cx, vp));
     MOZ_ASSERT(info->type == JSJitInfo::Method);
-    JSJitMethodOp method = info->method;
+    JSJitMethodOp method = (JSJitMethodOp)info->op;
     return method(cx, obj, val.toPrivate(), argc, vp);
 }
 

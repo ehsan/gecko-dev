@@ -60,8 +60,7 @@ nsDOMDataContainerEvent::SetData(const nsAString& aKey, nsIVariant *aData)
 
 void
 nsDOMDataContainerEvent::SetData(JSContext* aCx, const nsAString& aKey,
-                                 JS::Handle<JS::Value> aVal,
-                                 mozilla::ErrorResult& aRv)
+                                 JS::Value aVal, mozilla::ErrorResult& aRv)
 {
   if (!nsContentUtils::XPConnect()) {
     aRv = NS_ERROR_FAILURE;

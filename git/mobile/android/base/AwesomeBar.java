@@ -8,14 +8,15 @@ package org.mozilla.gecko;
 import org.mozilla.gecko.db.BrowserContract.Combined;
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.health.BrowserHealthRecorder;
 import org.mozilla.gecko.util.GamepadUtils;
 import org.mozilla.gecko.util.StringUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.UiAsyncTask;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
@@ -43,8 +44,6 @@ import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.TabWidget;
 import android.widget.Toast;
-
-import org.json.JSONObject;
 
 import java.net.URLEncoder;
 
@@ -107,7 +106,6 @@ public class AwesomeBar extends GeckoActivity
                 resultIntent.putExtra(URL_KEY, text);
                 resultIntent.putExtra(TARGET_KEY, mTarget);
                 resultIntent.putExtra(SEARCH_KEY, engine.name);
-                recordSearch(engine.identifier, "barsuggest");
                 finishWithResult(resultIntent);
             }
 
@@ -390,28 +388,6 @@ public class AwesomeBar extends GeckoActivity
         finishWithResult(resultIntent);
     }
 
-    /**
-     * Record in Health Report that a search has occurred.
-     *
-     * @param identifier
-     *        a search identifier, such as "partnername". Can be null.
-     * @param where
-     *        where the search was initialized; one of the values in
-     *        {@link BrowserHealthRecorder#SEARCH_LOCATIONS}.
-     */
-    private static void recordSearch(String identifier, String where) {
-        Log.i(LOGTAG, "Recording search: " + identifier + ", " + where);
-        try {
-            JSONObject message = new JSONObject();
-            message.put("type", BrowserHealthRecorder.EVENT_SEARCH);
-            message.put("location", where);
-            message.put("identifier", identifier);
-            GeckoAppShell.getEventDispatcher().dispatchEvent(message);
-        } catch (Exception e) {
-            Log.w(LOGTAG, "Error recording search.", e);
-        }
-    }
-
     private void openUserEnteredAndFinish(final String url) {
         final int index = url.indexOf(' ');
 
@@ -438,9 +414,6 @@ public class AwesomeBar extends GeckoActivity
                 final String searchUrl = (keywordUrl != null)
                                        ? keywordUrl.replace("%s", URLEncoder.encode(keywordSearch))
                                        : url;
-                if (keywordUrl != null) {
-                    recordSearch(null, "barkeyword");
-                }
                 openUrlAndFinish(searchUrl, "", true);
             }
         });
@@ -553,6 +526,62 @@ public class AwesomeBar extends GeckoActivity
         mContextMenuSubject = tab.getSubject(menu, view, menuInfo);
     }
 
+    private abstract class EditBookmarkTextWatcher implements TextWatcher {
+        protected AlertDialog mDialog;
+        protected EditBookmarkTextWatcher mPairedTextWatcher;
+        protected boolean mEnabled = true;
+
+        public EditBookmarkTextWatcher(AlertDialog aDialog) {
+            mDialog = aDialog;
+        }
+
+        public void setPairedTextWatcher(EditBookmarkTextWatcher aTextWatcher) {
+            mPairedTextWatcher = aTextWatcher;
+        }
+
+        public boolean isEnabled() {
+            return mEnabled;
+        }
+
+        @Override
+        public void onTextChanged(CharSequence s, int start, int before, int count) {
+            // Disable if the we're disabled or paired partner is disabled
+            boolean enabled = mEnabled && (mPairedTextWatcher == null || mPairedTextWatcher.isEnabled());
+            mDialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(enabled);
+        }
+
+        @Override
+        public void afterTextChanged(Editable s) {}
+        @Override
+        public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+    }
+
+    private class LocationTextWatcher extends EditBookmarkTextWatcher implements TextWatcher {
+        public LocationTextWatcher(AlertDialog aDialog) {
+            super(aDialog);
+        }
+
+        @Override
+        public void onTextChanged(CharSequence s, int start, int before, int count) {
+            // Disable if the location is empty
+            mEnabled = (s.toString().trim().length() > 0);
+            super.onTextChanged(s, start, before, count);
+        }
+    }
+
+    private class KeywordTextWatcher extends EditBookmarkTextWatcher implements TextWatcher {
+        public KeywordTextWatcher(AlertDialog aDialog) {
+            super(aDialog);
+        }
+
+        @Override
+        public void onTextChanged(CharSequence s, int start, int before, int count) {
+            // Disable if the keyword contains spaces
+            mEnabled = (s.toString().trim().indexOf(' ') == -1);
+            super.onTextChanged(s, start, before, count);
+       }
+    }
+
     @Override
     public boolean onContextItemSelected(MenuItem item) {
         if (mContextMenuSubject == null)
@@ -595,7 +624,60 @@ public class AwesomeBar extends GeckoActivity
                 break;
             }
             case R.id.edit_bookmark: {
-                new EditBookmarkDialog(this).show(id, title, url, keyword);
+                AlertDialog.Builder editPrompt = new AlertDialog.Builder(this);
+                final View editView = getLayoutInflater().inflate(R.layout.bookmark_edit, null);
+                editPrompt.setTitle(R.string.bookmark_edit_title);
+                editPrompt.setView(editView);
+
+                final EditText nameText = ((EditText) editView.findViewById(R.id.edit_bookmark_name));
+                final EditText locationText = ((EditText) editView.findViewById(R.id.edit_bookmark_location));
+                final EditText keywordText = ((EditText) editView.findViewById(R.id.edit_bookmark_keyword));
+                nameText.setText(title);
+                locationText.setText(url);
+                keywordText.setText(keyword);
+
+                editPrompt.setPositiveButton(R.string.button_ok, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int whichButton) {
+                        (new UiAsyncTask<Void, Void, Void>(ThreadUtils.getBackgroundHandler()) {
+                            @Override
+                            public Void doInBackground(Void... params) {
+                                String newUrl = locationText.getText().toString().trim();
+                                String newKeyword = keywordText.getText().toString().trim();
+                                BrowserDB.updateBookmark(getContentResolver(), id, newUrl, nameText.getText().toString(), newKeyword);
+                                return null;
+                            }
+
+                            @Override
+                            public void onPostExecute(Void result) {
+                                Toast.makeText(AwesomeBar.this, R.string.bookmark_updated, Toast.LENGTH_SHORT).show();
+                            }
+                        }).execute();
+                    }
+                });
+
+                editPrompt.setNegativeButton(R.string.button_cancel, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int whichButton) {
+                          // do nothing
+                      }
+                });
+
+                final AlertDialog dialog = editPrompt.create();
+
+                // Create our TextWatchers
+                LocationTextWatcher locationTextWatcher = new LocationTextWatcher(dialog);
+                KeywordTextWatcher keywordTextWatcher = new KeywordTextWatcher(dialog);
+
+                // Cross reference the TextWatchers
+                locationTextWatcher.setPairedTextWatcher(keywordTextWatcher);
+                keywordTextWatcher.setPairedTextWatcher(locationTextWatcher);
+
+                // Add the TextWatcher Listeners
+                locationText.addTextChangedListener(locationTextWatcher);
+                keywordText.addTextChangedListener(keywordTextWatcher);
+
+                dialog.show();
                 break;
             }
             case R.id.remove_bookmark: {

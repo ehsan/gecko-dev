@@ -2631,11 +2631,11 @@ ASTSerializer::property(ParseNode *pn, MutableHandleValue dst)
         kind = PROP_INIT;
         break;
 
-      case JSOP_INITPROP_GETTER:
+      case JSOP_GETTER:
         kind = PROP_GETTER;
         break;
 
-      case JSOP_INITPROP_SETTER:
+      case JSOP_SETTER:
         kind = PROP_SETTER;
         break;
 

@@ -37,8 +37,8 @@ class MochitestRunner(MozbuildObject):
     to hook up result parsing, etc.
     """
     def run_mochitest_test(self, suite=None, test_file=None, debugger=None,
-        debugger_args=None, shuffle=False, keep_open=False, rerun_failures=False,
-        no_autorun=False, repeat=0, run_until_failure=False, slow=False):
+        shuffle=False, keep_open=False, rerun_failures=False, no_autorun=False,
+        repeat=0, run_until_failure=False, slow=False):
         """Runs a mochitest.
 
         test_file is a path to a test file. It can be a relative path from the
@@ -50,8 +50,6 @@ class MochitestRunner(MozbuildObject):
 
         debugger is a program name or path to a binary (presumably a debugger)
         to run the test in. e.g. 'gdb'
-
-        debugger_args are the arguments passed to the debugger.
 
         shuffle is whether test order should be shuffled (defaults to false).
 
@@ -157,12 +155,6 @@ class MochitestRunner(MozbuildObject):
         if debugger:
             options.debugger = debugger
 
-        if debugger_args:
-            if options.debugger == None:
-                print("--debugger-args passed, but no debugger specified.")
-                return 1
-            options.debuggerArgs = debugger_args
-
         options = opts.verifyOptions(options, runner)
 
         if options is None:
@@ -214,10 +206,6 @@ def MochitestCommand(func):
     debugger = CommandArgument('--debugger', '-d', metavar='DEBUGGER',
         help='Debugger binary to run test in. Program name or path.')
     func = debugger(func)
-
-    debugger_args = CommandArgument('--debugger-args',
-        metavar='DEBUGGER_ARGS', help='Arguments to pass to the debugger.')
-    func = debugger_args(func)
 
     shuffle = CommandArgument('--shuffle', action='store_true',
         help='Shuffle execution order.')

@@ -42,7 +42,6 @@ JSCompartment::JSCompartment(Zone *zone)
     lastCodeRelease(0),
     analysisLifoAlloc(ANALYSIS_LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
     data(NULL),
-    objectMetadataCallback(NULL),
     lastAnimationTime(0),
     regExps(rt),
     propertyTree(thisForCtor()),

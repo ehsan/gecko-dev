@@ -41,6 +41,7 @@ EXPORTS += [
     'jsdhash.h',
     'jsfriendapi.h',
     'jslock.h',
+    'json.h',
     'jsperf.h',
     'jsprf.h',
     'jsprototypes.h',

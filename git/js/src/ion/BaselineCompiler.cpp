@@ -23,9 +23,6 @@ using namespace js::ion;
 BaselineCompiler::BaselineCompiler(JSContext *cx, HandleScript script)
   : BaselineCompilerSpecific(cx, script),
     return_(new HeapLabel())
-#ifdef JSGC_GENERATIONAL
-    , postBarrierSlot_(new HeapLabel())
-#endif
 {
 }
 
@@ -92,11 +89,6 @@ BaselineCompiler::compile()
 
     if (!emitEpilogue())
         return Method_Error;
-
-#ifdef JSGC_GENERATIONAL
-    if (!emitOutOfLinePostBarrierSlot())
-        return Method_Error;
-#endif
 
     if (masm.oom())
         return Method_Error;
@@ -271,40 +263,6 @@ BaselineCompiler::emitEpilogue()
     masm.ret();
     return true;
 }
-
-#ifdef JSGC_GENERATIONAL
-// On input:
-//  R2.scratchReg() contains object being written to.
-//  R1.scratchReg() contains slot index being written to.
-//  Otherwise, baseline stack will be synced, so all other registers are usable as scratch.
-// This calls:
-//    void PostWriteBarrier(JSRuntime *rt, JSObject *obj);
-bool
-BaselineCompiler::emitOutOfLinePostBarrierSlot()
-{
-    masm.bind(postBarrierSlot_);
-
-    Register objReg = R2.scratchReg();
-    GeneralRegisterSet regs(GeneralRegisterSet::All());
-    regs.take(objReg);
-    regs.take(BaselineFrameReg);
-    Register scratch = regs.takeAny();
-#if defined(JS_CPU_ARM)
-    // On ARM, save the link register before calling.  It contains the return
-    // address.  The |masm.ret()| later will pop this into |pc| to return.
-    masm.push(lr);
-#endif
-
-    masm.setupUnalignedABICall(2, scratch);
-    masm.movePtr(ImmWord(cx->runtime), scratch);
-    masm.passABIArg(scratch);
-    masm.passABIArg(objReg);
-    masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, PostWriteBarrier));
-
-    masm.ret();
-    return true;
-}
-#endif // JSGC_GENERATIONAL
 
 bool
 BaselineCompiler::emitIC(ICStub *stub, bool isForOp)
@@ -1718,36 +1676,23 @@ BaselineCompiler::emit_JSOP_DELPROP()
     return true;
 }
 
-void
-BaselineCompiler::getScopeCoordinateObject(Register reg)
+Address
+BaselineCompiler::getScopeCoordinateAddress(Register reg)
 {
     ScopeCoordinate sc(pc);
 
     masm.loadPtr(frame.addressOfScopeChain(), reg);
     for (unsigned i = sc.hops; i; i--)
         masm.extractObject(Address(reg, ScopeObject::offsetOfEnclosingScope()), reg);
-}
 
-Address
-BaselineCompiler::getScopeCoordinateAddressFromObject(Register objReg, Register reg)
-{
-    ScopeCoordinate sc(pc);
     Shape *shape = ScopeCoordinateToStaticScopeShape(cx, script, pc);
-
     Address addr;
     if (shape->numFixedSlots() <= sc.slot) {
-        masm.loadPtr(Address(objReg, JSObject::offsetOfSlots()), reg);
+        masm.loadPtr(Address(reg, JSObject::offsetOfSlots()), reg);
         return Address(reg, (sc.slot - shape->numFixedSlots()) * sizeof(Value));
     }
 
-    return Address(objReg, JSObject::getFixedSlotOffset(sc.slot));
-}
-
-Address
-BaselineCompiler::getScopeCoordinateAddress(Register reg)
-{
-    getScopeCoordinateObject(reg);
-    return getScopeCoordinateAddressFromObject(reg, reg);
+    return Address(reg, JSObject::getFixedSlotOffset(sc.slot));
 }
 
 bool
@@ -1775,34 +1720,13 @@ BaselineCompiler::emit_JSOP_CALLALIASEDVAR()
 bool
 BaselineCompiler::emit_JSOP_SETALIASEDVAR()
 {
-    // Keep rvalue in R0.
-    frame.popRegsAndSync(1);
-    Register objReg = R2.scratchReg();
+    // Sync everything except the top value, so that we can use R0 as scratch
+    // (storeValue does not touch it if the top value is in R0).
+    frame.syncStack(1);
 
-    getScopeCoordinateObject(objReg);
-    Address address = getScopeCoordinateAddressFromObject(objReg, R1.scratchReg());
+    Address address = getScopeCoordinateAddress(R2.scratchReg());
     masm.patchableCallPreBarrier(address, MIRType_Value);
-    masm.storeValue(R0, address);
-    frame.push(R0);
-
-#ifdef JSGC_GENERATIONAL
-    // Fully sync the stack if post-barrier is needed.
-    // Scope coordinate object is already in R2.scratchReg().
-    frame.syncStack(0);
-
-    Nursery &nursery = cx->runtime->gcNursery;
-    Label skipBarrier;
-    Label isTenured;
-    masm.branchTestObject(Assembler::NotEqual, R0, &skipBarrier);
-    masm.branchPtr(Assembler::Below, objReg, ImmWord(nursery.start()), &isTenured);
-    masm.branchPtr(Assembler::Below, objReg, ImmWord(nursery.end()), &skipBarrier);
-
-    masm.bind(&isTenured);
-    masm.call(postBarrierSlot_);
-
-    masm.bind(&skipBarrier);
-#endif
-
+    storeValue(frame.peek(-1), address, R0);
     return true;
 }
 
@@ -1958,78 +1882,6 @@ BaselineCompiler::emit_JSOP_DEFFUN()
     pushArg(ImmGCPtr(script));
 
     return callVM(DefFunOperationInfo);
-}
-
-typedef bool (*InitPropGetterSetterFn)(JSContext *, jsbytecode *, HandleObject, HandlePropertyName,
-                                       HandleValue);
-static const VMFunction InitPropGetterSetterInfo =
-    FunctionInfo<InitPropGetterSetterFn>(InitGetterSetterOperation);
-
-bool
-BaselineCompiler::emitInitPropGetterSetter()
-{
-    JS_ASSERT(JSOp(*pc) == JSOP_INITPROP_GETTER ||
-              JSOp(*pc) == JSOP_INITPROP_SETTER);
-
-    // Load value in R0, keep object on the stack.
-    frame.popRegsAndSync(1);
-    prepareVMCall();
-
-    pushArg(R0);
-    pushArg(ImmGCPtr(script->getName(pc)));
-    masm.extractObject(frame.addressOfStackValue(frame.peek(-1)), R0.scratchReg());
-    pushArg(R0.scratchReg());
-    pushArg(ImmWord(pc));
-
-    return callVM(InitPropGetterSetterInfo);
-}
-
-bool
-BaselineCompiler::emit_JSOP_INITPROP_GETTER()
-{
-    return emitInitPropGetterSetter();
-}
-
-bool
-BaselineCompiler::emit_JSOP_INITPROP_SETTER()
-{
-    return emitInitPropGetterSetter();
-}
-
-typedef bool (*InitElemGetterSetterFn)(JSContext *, jsbytecode *, HandleObject, HandleValue,
-                                       HandleValue);
-static const VMFunction InitElemGetterSetterInfo =
-    FunctionInfo<InitElemGetterSetterFn>(InitGetterSetterOperation);
-
-bool
-BaselineCompiler::emitInitElemGetterSetter()
-{
-    JS_ASSERT(JSOp(*pc) == JSOP_INITELEM_GETTER ||
-              JSOp(*pc) == JSOP_INITELEM_SETTER);
-
-    // Load index and value in R0 and R1, keep object on the stack.
-    frame.popRegsAndSync(2);
-    prepareVMCall();
-
-    pushArg(R1);
-    pushArg(R0);
-    masm.extractObject(frame.addressOfStackValue(frame.peek(-1)), R0.scratchReg());
-    pushArg(R0.scratchReg());
-    pushArg(ImmWord(pc));
-
-    return callVM(InitElemGetterSetterInfo);
-}
-
-bool
-BaselineCompiler::emit_JSOP_INITELEM_GETTER()
-{
-    return emitInitElemGetterSetter();
-}
-
-bool
-BaselineCompiler::emit_JSOP_INITELEM_SETTER()
-{
-    return emitInitElemGetterSetter();
 }
 
 bool

@@ -580,17 +580,9 @@ BrowserGlue.prototype = {
           (ss.sessionType == Ci.nsISessionStartup.RECOVER_SESSION);
       }
       catch (ex) { /* never mind; suppose SessionStore is broken */ }
-
-      let isDefault = shell.isDefaultBrowser(true, false); // startup check, check all assoc
-      try {
-        // Report default browser status on startup to telemetry
-        // so we can track whether we are the default.
-        Services.telemetry.getHistogramById("BROWSER_IS_USER_DEFAULT")
-                          .add(isDefault);
-      }
-      catch (ex) { /* Don't break the default prompt if telemetry is broken. */ }
-
-      if (shouldCheck && !isDefault && !willRecoverSession) {
+      if (shouldCheck &&
+          !shell.isDefaultBrowser(true, false) &&
+          !willRecoverSession) {
         Services.tm.mainThread.dispatch(function() {
           var win = this.getMostRecentBrowserWindow();
           var brandBundle = win.document.getElementById("bundle_brand");

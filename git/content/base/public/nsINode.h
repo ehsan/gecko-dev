@@ -68,7 +68,6 @@ template<typename T> class Optional;
 
 namespace JS {
 class Value;
-template<typename T> class Handle;
 }
 
 #define NODE_FLAG_BIT(n_) (1U << (n_))
@@ -813,7 +812,6 @@ public:
                                 const mozilla::dom::Nullable<bool>& aWantsUntrusted,
                                 mozilla::ErrorResult& aRv) MOZ_OVERRIDE;
   using nsIDOMEventTarget::AddSystemEventListener;
-  virtual nsIDOMWindow* GetOwnerGlobal() MOZ_OVERRIDE;
 
   /**
    * Adds a mutation observer to be notified when this node, or any of its
@@ -1582,8 +1580,7 @@ public:
   // HasAttributes is defined inline in Element.h.
   bool HasAttributes() const;
   nsDOMAttributeMap* GetAttributes();
-  JS::Value SetUserData(JSContext* aCx, const nsAString& aKey,
-                        JS::Handle<JS::Value> aData,
+  JS::Value SetUserData(JSContext* aCx, const nsAString& aKey, JS::Value aData,
                         nsIDOMUserDataHandler* aHandler,
                         mozilla::ErrorResult& aError);
   JS::Value GetUserData(JSContext* aCx, const nsAString& aKey,

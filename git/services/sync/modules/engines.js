@@ -776,7 +776,7 @@ SyncEngine.prototype = {
     this._log.trace("Downloading & applying server changes");
 
     // Figure out how many total items to fetch this sync; do less on mobile.
-    let batchSize = this.downloadLimit || Infinity;
+    let batchSize = Infinity;
     let isMobile = (Svc.Prefs.get("client.type") == "mobile");
 
     if (!newitems) {

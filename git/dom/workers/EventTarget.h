@@ -74,12 +74,6 @@ public:
   {
     return nullptr;
   }
-
-  JSObject* GetOwnerGlobal() const
-  {
-    // We have no windows
-    return nullptr;
-  }
 };
 
 END_WORKERS_NAMESPACE

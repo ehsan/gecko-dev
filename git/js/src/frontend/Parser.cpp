@@ -6699,9 +6699,9 @@ Parser<ParseHandler>::primaryExpr(TokenKind tt)
                 {
                     atom = tokenStream.currentToken().name();
                     if (atom == context->names().get) {
-                        op = JSOP_INITPROP_GETTER;
+                        op = JSOP_GETTER;
                     } else if (atom == context->names().set) {
-                        op = JSOP_INITPROP_SETTER;
+                        op = JSOP_SETTER;
                     } else {
                         pn3 = handler.newAtom(PNK_NAME, atom);
                         if (!pn3)
@@ -6747,8 +6747,6 @@ Parser<ParseHandler>::primaryExpr(TokenKind tt)
                         break;
                     }
 
-                    JS_ASSERT(op == JSOP_INITPROP_GETTER || op == JSOP_INITPROP_SETTER);
-
                     handler.setListFlag(pn, PNX_NONCONST);
 
                     /* NB: Getter function in { get x(){} } is unnamed. */
@@ -6756,7 +6754,7 @@ Parser<ParseHandler>::primaryExpr(TokenKind tt)
                     TokenStream::Position start(keepAtoms);
                     tokenStream.tell(&start);
                     pn2 = functionDef(funName, start, tokenStream.positionToOffset(start),
-                                      op == JSOP_INITPROP_GETTER ? Getter : Setter,
+                                      op == JSOP_GETTER ? Getter : Setter,
                                       Expression);
                     if (!pn2)
                         return null();
@@ -6840,9 +6838,9 @@ Parser<ParseHandler>::primaryExpr(TokenKind tt)
             AssignmentType assignType;
             if (op == JSOP_INITPROP) {
                 assignType = VALUE;
-            } else if (op == JSOP_INITPROP_GETTER) {
+            } else if (op == JSOP_GETTER) {
                 assignType = GET;
-            } else if (op == JSOP_INITPROP_SETTER) {
+            } else if (op == JSOP_SETTER) {
                 assignType = SET;
             } else {
                 JS_NOT_REACHED("bad opcode in object initializer");
