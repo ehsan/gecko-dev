@@ -5,7 +5,6 @@
 #include "DOMCameraManager.h"
 #include "nsDebug.h"
 #include "jsapi.h"
-#include "Navigator.h"
 #include "nsPIDOMWindow.h"
 #include "mozilla/Services.h"
 #include "nsContentPermissionHelper.h"
@@ -71,21 +70,12 @@ nsDOMCameraManager::~nsDOMCameraManager()
   DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
 }
 
-/* static */
 void
 nsDOMCameraManager::GetListOfCameras(nsTArray<nsString>& aList, ErrorResult& aRv)
 {
   aRv = ICameraControl::GetListOfCameras(aList);
 }
 
-/* static */
-bool
-nsDOMCameraManager::HasSupport(JSContext* aCx, JSObject* aGlobal)
-{
-  return Navigator::HasCameraSupport(aCx, aGlobal);
-}
-
-/* static */
 bool
 nsDOMCameraManager::CheckPermission(nsPIDOMWindow* aWindow)
 {
@@ -103,7 +93,7 @@ nsDOMCameraManager::CheckPermission(nsPIDOMWindow* aWindow)
   return true;
 }
 
-/* static */
+// static creator
 already_AddRefed<nsDOMCameraManager>
 nsDOMCameraManager::CreateInstance(nsPIDOMWindow* aWindow)
 {

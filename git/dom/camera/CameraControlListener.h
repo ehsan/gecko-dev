@@ -78,17 +78,13 @@ public:
   virtual void OnConfigurationChange(const CameraListenerConfiguration& aConfiguration) { }
 
   virtual void OnAutoFocusComplete(bool aAutoFocusSucceeded) { }
-  virtual void OnAutoFocusMoving(bool aIsMoving) { }
   virtual void OnTakePictureComplete(uint8_t* aData, uint32_t aLength, const nsAString& aMimeType) { }
-  virtual void OnFacesDetected(const nsTArray<ICameraControl::Face>& aFaces) { }
 
   enum CameraErrorContext
   {
     kInStartCamera,
     kInStopCamera,
     kInAutoFocus,
-    kInStartFaceDetection,
-    kInStopFaceDetection,
     kInTakePicture,
     kInStartRecording,
     kInStopRecording,

@@ -234,7 +234,7 @@ CustomizeMode.prototype = {
       this._showPanelCustomizationPlaceholders();
 
       yield this._wrapToolbarItems();
-      this.populatePalette();
+      yield this.populatePalette();
 
       this.visiblePalette.addEventListener("dragstart", this, true);
       this.visiblePalette.addEventListener("dragover", this, true);
@@ -647,7 +647,7 @@ CustomizeMode.prototype = {
     let fragment = this.document.createDocumentFragment();
     let toolboxPalette = this.window.gNavToolbox.palette;
 
-    try {
+    return Task.spawn(function() {
       let unusedWidgets = CustomizableUI.getUnusedWidgets(toolboxPalette);
       for (let widget of unusedWidgets) {
         let paletteItem = this.makePaletteItem(widget, "palette");
@@ -657,9 +657,7 @@ CustomizeMode.prototype = {
       this.visiblePalette.appendChild(fragment);
       this._stowedPalette = this.window.gNavToolbox.palette;
       this.window.gNavToolbox.palette = this.visiblePalette;
-    } catch (ex) {
-      ERROR(ex);
-    }
+    }.bind(this)).then(null, ERROR);
   },
 
   //XXXunf Maybe this should use -moz-element instead of wrapping the node?
@@ -987,7 +985,7 @@ CustomizeMode.prototype = {
       CustomizableUI.reset();
 
       yield this._wrapToolbarItems();
-      this.populatePalette();
+      yield this.populatePalette();
 
       this.persistCurrentSets(true);
 
@@ -1013,7 +1011,7 @@ CustomizeMode.prototype = {
       CustomizableUI.undoReset();
 
       yield this._wrapToolbarItems();
-      this.populatePalette();
+      yield this.populatePalette();
 
       this.persistCurrentSets(true);
 
@@ -1605,7 +1603,6 @@ CustomizeMode.prototype = {
     }
     this._updateToolbarCustomizationOutline(this.window);
     this._showPanelCustomizationPlaceholders();
-    DragPositionManager.stop();
   },
 
   _isUnwantedDragDrop: function(aEvent) {

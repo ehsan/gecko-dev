@@ -21,7 +21,6 @@ SOURCES += [
     'DOMCameraCapabilities.cpp',
     'DOMCameraControl.cpp',
     'DOMCameraControlListener.cpp',
-    'DOMCameraDetectedFace.cpp',
     'DOMCameraManager.cpp',
 ]
 

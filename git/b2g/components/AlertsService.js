@@ -17,11 +17,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "uuidGenerator",
                                    "@mozilla.org/uuid-generator;1",
                                    "nsIUUIDGenerator");
 
-XPCOMUtils.defineLazyServiceGetter(this, "notificationStorage",
-                                   "@mozilla.org/notificationStorage;1",
-                                   "nsINotificationStorage");
-
-
 XPCOMUtils.defineLazyGetter(this, "cpmm", function() {
   return Cc["@mozilla.org/childprocessmessagemanager;1"]
            .getService(Ci.nsIMessageSender);
@@ -83,7 +78,6 @@ AlertsService.prototype = {
       imageURL: aImageURL,
       lang: aDetails.lang || undefined,
       id: aDetails.id || undefined,
-      dbId: aDetails.dbId || undefined,
       dir: aDetails.dir || undefined,
       tag: aDetails.tag || undefined
     };
@@ -123,8 +117,7 @@ AlertsService.prototype = {
             lang: listener.lang,
             dir: listener.dir,
             id: listener.id,
-            tag: listener.tag,
-            dbId: listener.dbId
+            tag: listener.tag
           },
           Services.io.newURI(data.target, null, null),
           Services.io.newURI(listener.manifestURL, null, null));
@@ -133,9 +126,6 @@ AlertsService.prototype = {
 
     // we're done with this notification
     if (topic === "alertfinished") {
-      if (listener.dbId) {
-        notificationStorage.delete(listener.manifestURL, listener.dbId);
-      }
       delete this._listeners[data.uid];
     }
   }

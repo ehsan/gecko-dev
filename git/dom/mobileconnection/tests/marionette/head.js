@@ -270,22 +270,14 @@ function ensureMobileConnection(aAdditionalPermissions, aServiceId) {
  *
  * @param aEventName
  *        A string event name.
- * @param aServiceId [optional]
- *        A numeric DSDS service id. Default: the one indicated in
- *        start*TestCommon() or 0 if not indicated.
  *
  * @return A deferred promise.
  */
-function waitForManagerEvent(aEventName, aServiceId) {
+function waitForManagerEvent(aEventName) {
   let deferred = Promise.defer();
 
-  let mobileConn = mobileConnection;
-  if (aServiceId !== undefined) {
-    mobileConn = navigator.mozMobileConnections[aServiceId];
-  }
-
-  mobileConn.addEventListener(aEventName, function onevent(aEvent) {
-    mobileConn.removeEventListener(aEventName, onevent);
+  mobileConnection.addEventListener(aEventName, function onevent(aEvent) {
+    mobileConnection.removeEventListener(aEventName, onevent);
 
     ok(true, "MobileConnection event '" + aEventName + "' got.");
     deferred.resolve(aEvent);
@@ -391,32 +383,25 @@ function selectNetworkAutomaticallyAndWait() {
  *
  * @param aEnabled
  *        A boolean state.
- * @param aServiceId [optional]
- *        A numeric DSDS service id. Default: the one indicated in
- *        start*TestCommon() or 0 if not indicated.
  *
  * @return A deferred promise.
  */
-function setDataEnabledAndWait(aEnabled, aServiceId) {
+function setDataEnabledAndWait(aEnabled) {
   let deferred = Promise.defer();
 
   let promises = [];
-  promises.push(waitForManagerEvent("datachange", aServiceId));
+  promises.push(waitForManagerEvent("datachange"));
   promises.push(setDataEnabled(aEnabled));
   Promise.all(promises).then(function keepWaiting() {
-    let mobileConn = mobileConnection;
-    if (aServiceId !== undefined) {
-      mobileConn = navigator.mozMobileConnections[aServiceId];
-    }
     // To ignore some transient states, we only resolve that deferred promise
     // when the |connected| state equals to the expected one and never rejects.
-    let connected = mobileConn.data.connected;
+    let connected = mobileConnection.data.connected;
     if (connected == aEnabled) {
       deferred.resolve();
       return;
     }
 
-    return waitForManagerEvent("datachange", aServiceId).then(keepWaiting);
+    return waitForManagerEvent("datachange").then(keepWaiting);
   });
 
   return deferred.promise;
@@ -431,15 +416,12 @@ function setDataEnabledAndWait(aEnabled, aServiceId) {
  *        "voice" or "data".
  * @param aState
  *        "unregistered", "searching", "denied", "roaming", or "home".
- * @param aServiceId [optional]
- *        A numeric DSDS service id. Default: the one indicated in
- *        start*TestCommon() or 0 if not indicated.
  *
  * @return A deferred promise.
  */
-function setEmulatorVoiceDataStateAndWait(aWhich, aState, aServiceId) {
+function setEmulatorVoiceDataStateAndWait(aWhich, aState) {
   let promises = [];
-  promises.push(waitForManagerEvent(aWhich + "change", aServiceId));
+  promises.push(waitForManagerEvent(aWhich + "change"));
 
   let cmd = "gsm " + aWhich + " " + aState;
   promises.push(runEmulatorCmdSafe(cmd));
@@ -453,29 +435,20 @@ function setEmulatorVoiceDataStateAndWait(aWhich, aState, aServiceId) {
  *
  * @param aRoaming
  *        A boolean state.
- * @param aServiceId [optional]
- *        A numeric DSDS service id. Default: the one indicated in
- *        start*TestCommon() or 0 if not indicated.
  *
  * @return A deferred promise.
  */
-function setEmulatorRoamingAndWait(aRoaming, aServiceId) {
-  function doSetAndWait(aWhich, aRoaming, aServiceId) {
+function setEmulatorRoamingAndWait(aRoaming) {
+  function doSetAndWait(aWhich, aRoaming) {
     let state = (aRoaming ? "roaming" : "home");
-    return setEmulatorVoiceDataStateAndWait(aWhich, state, aServiceId)
-      .then(() => {
-        let mobileConn = mobileConnection;
-        if (aServiceId !== undefined) {
-          mobileConn = navigator.mozMobileConnections[aServiceId];
-        }
-        is(mobileConn[aWhich].roaming, aRoaming,
-                     aWhich + ".roaming")
-      });
+    return setEmulatorVoiceDataStateAndWait(aWhich, state)
+      .then(() => is(mobileConnection[aWhich].roaming, aRoaming,
+                     aWhich + ".roaming"));
   }
 
   // Set voice registration state first and then data registration state.
-  return doSetAndWait("voice", aRoaming, aServiceId)
-    .then(() => doSetAndWait("data", aRoaming, aServiceId));
+  return doSetAndWait("voice", aRoaming)
+    .then(() => doSetAndWait("data", aRoaming));
 }
 
 /**
@@ -613,23 +586,6 @@ function getNetworkManager() {
   return _networkManager;
 }
 
-let _numOfRadioInterfaces;
-
-/*
- * Get number of radio interfaces. Default is 1 if preference is not set.
- */
-function getNumOfRadioInterfaces() {
-  if (!_numOfRadioInterfaces) {
-    try {
-      _numOfRadioInterfaces = SpecialPowers.getIntPref("ril.numRadioInterfaces");
-    } catch (ex) {
-      _numOfRadioInterfaces = 1;  // Pref not set.
-    }
-  }
-
-  return _numOfRadioInterfaces;
-}
-
 /**
  * Flush permission settings and call |finish()|.
  */
@@ -682,32 +638,4 @@ function startTestCommon(aTestCaseMain, aAdditionalPermissions, aServiceId) {
     return ensureMobileConnection(aAdditionalPermissions, aServiceId)
       .then(aTestCaseMain);
   });
-}
-
-/**
- * Common test routine helper for multi-sim mobile connection tests. The test
- * ends immediately if the device tested is not multi-sim.
- *
- * This function ensures global |mobileConnection| variable is available during
- * the process and performs clean-ups as well.
- *
- * @param aTestCaseMain
- *        A function that takes one parameter -- mobileConnection.
- * @param aAdditonalPermissions [optional]
- *        An array of permission strings other than "mobileconnection" to be
- *        pushed. Default: empty string.
- * @param aServiceId [optional]
- *        A numeric DSDS service id. Default: 0.
- */
-function startDSDSTestCommon(aTestCaseMain, aAdditionalPermissions, aServiceId) {
-    if (getNumOfRadioInterfaces() > 1) {
-      startTestBase(function() {
-        return ensureMobileConnection(aAdditionalPermissions, aServiceId)
-          .then(aTestCaseMain);
-      });
-    } else {
-      log("Skipping DSDS tests on single SIM device.")
-      ok(true);  // We should run at least one test.
-      cleanUp();
-    }
 }

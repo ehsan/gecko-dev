@@ -6,6 +6,7 @@ package org.mozilla.gecko.tests;
 
 import java.util.Map;
 
+import org.mozilla.gecko.AppConstants;
 import org.mozilla.gecko.Assert;
 import org.mozilla.gecko.FennecInstrumentationTestRunner;
 import org.mozilla.gecko.FennecMochitestAssert;
@@ -38,7 +39,7 @@ public abstract class BaseRobocopTest extends ActivityInstrumentationTestCase2<A
      */
     @SuppressWarnings("unchecked")
     public BaseRobocopTest() {
-        this((Class<Activity>) TestConstants.BROWSER_INTENT_CLASS);
+        this((Class<Activity>) AppConstants.BROWSER_INTENT_CLASS);
     }
 
     /**

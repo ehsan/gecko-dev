@@ -4430,7 +4430,3 @@ pref("image.mozsamplesize.enabled", false);
 #ifndef MOZ_WIDGET_GONK
 pref("beacon.enabled", true);
 #endif
-
-// Camera prefs
-pref("camera.control.autofocus_moving_callback.enabled", false);
-pref("camera.control.face_detection.enabled", false);

@@ -79,8 +79,6 @@ public:
 
   virtual int      AutoFocus();
   virtual void     CancelAutoFocus();
-  virtual int      StartFaceDetection();
-  virtual int      StopFaceDetection();
   virtual int      TakePicture();
   virtual void     CancelTakePicture();
   virtual int      StartPreview();
