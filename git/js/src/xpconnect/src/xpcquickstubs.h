@@ -409,8 +409,8 @@ castNativeFromWrapper(JSContext *cx,
                       JSObject *obj,
                       JSObject *callee,
                       PRUint32 interfaceBit,
-                      nsISupports **pThisRef,
-                      jsval *pThisVal,
+                      nsISupports **pRef,
+                      jsval *pVal,
                       XPCLazyCallContext *lccx,
                       nsresult *rv NS_OUTPARAM)
 {
@@ -434,18 +434,16 @@ castNativeFromWrapper(JSContext *cx,
     }
 
     nsISupports *native;
-    JSObject *thisObj;
     if(wrapper)
     {
         native = wrapper->GetIdentityObject();
-        thisObj = wrapper->GetFlatJSObject();
+        cur = wrapper->GetFlatJSObject();
     }
     else
     {
         native = cur ?
                  static_cast<nsISupports*>(xpc_GetJSPrivate(cur)) :
                  nsnull;
-        thisObj = cur;
     }
 
     *rv = NS_ERROR_XPC_BAD_CONVERT_JS;
@@ -453,22 +451,22 @@ castNativeFromWrapper(JSContext *cx,
     if(!native)
         return nsnull;
 
-    NS_ASSERTION(IS_WRAPPER_CLASS(thisObj->getClass()), "Not a wrapper?");
+    NS_ASSERTION(IS_WRAPPER_CLASS(cur->getClass()), "Not a wrapper?");
 
     XPCNativeScriptableSharedJSClass *clasp =
-      (XPCNativeScriptableSharedJSClass*)thisObj->getClass();
+      (XPCNativeScriptableSharedJSClass*)cur->getClass();
     if(!(clasp->interfacesBitmap & (1 << interfaceBit)))
         return nsnull;
 
-    *pThisRef = nsnull;
-    *pThisVal = OBJECT_TO_JSVAL(thisObj);
+    *pRef = nsnull;
+    *pVal = OBJECT_TO_JSVAL(cur);
 
     if(lccx)
     {
         if(wrapper)
             lccx->SetWrapper(wrapper, tearoff);
         else
-            lccx->SetWrapper(obj);
+            lccx->SetWrapper(cur);
     }
 
     *rv = NS_OK;
@@ -562,6 +560,12 @@ xpc_qsVariantToJsval(XPCLazyCallContext &ccx,
                      nsIVariant *p,
                      jsval *rval);
 
+inline nsISupports*
+ToSupports(nsISupports *p)
+{
+    return p;
+}
+
 #ifdef DEBUG
 void
 xpc_qsAssertContextOK(JSContext *cx);
@@ -570,6 +574,18 @@ inline PRBool
 xpc_qsSameResult(nsISupports *result1, nsISupports *result2)
 {
     return SameCOMIdentity(result1, result2);
+}
+
+inline PRBool
+xpc_qsSameResult(const nsString &result1, const nsString &result2)
+{
+    return result1.Equals(result2);
+}
+
+inline PRBool
+xpc_qsSameResult(PRInt32 result1, PRInt32 result2)
+{
+    return result1 == result2;
 }
 
 #define XPC_QS_ASSERT_CONTEXT_OK(cx) xpc_qsAssertContextOK(cx)

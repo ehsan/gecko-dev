@@ -338,8 +338,7 @@ nsProtocolProxyService::Init()
     }
 
     // register for shutdown notification so we can clean ourselves up properly.
-    nsCOMPtr<nsIObserverService> obs =
-            do_GetService("@mozilla.org/observer-service;1");
+    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
     if (obs)
         obs->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_FALSE);
 
@@ -723,7 +722,7 @@ nsProtocolProxyService::DisableProxy(nsProxyInfo *pi)
     dsec += pi->mTimeout;
 
     // NOTE: The classic codebase would increase the timeout value
-    //       incrementally each time a subsequent failure occured.
+    //       incrementally each time a subsequent failure occurred.
     //       We could do the same, but it would require that we not
     //       remove proxy entries in IsProxyDisabled or otherwise
     //       change the way we are recording disabled proxies.

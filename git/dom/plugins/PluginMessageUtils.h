@@ -58,12 +58,6 @@
 #endif
 
 namespace mozilla {
-
-// XXX might want to move these to nscore.h or something, they can be
-// generally useful
-struct void_t { };
-struct null_t { };
-
 namespace plugins {
 
 enum ScriptableObjectType
@@ -75,6 +69,11 @@ enum ScriptableObjectType
 mozilla::ipc::RPCChannel::RacyRPCPolicy
 MediateRace(const mozilla::ipc::RPCChannel::Message& parent,
             const mozilla::ipc::RPCChannel::Message& child);
+
+std::string
+MungePluginDsoPath(const std::string& path);
+std::string
+UnmungePluginDsoPath(const std::string& munged);
 
 extern PRLogModuleInfo* gPluginLog;
 
@@ -210,8 +209,10 @@ NPNVariableToString(NPNVariable aVar)
 
 inline bool IsPluginThread()
 {
-  MessageLoop::Type type = MessageLoop::current()->type();
-  return type == MessageLoop::TYPE_UI;
+  MessageLoop* loop = MessageLoop::current();
+  if (!loop)
+      return false;
+  return (loop->type() == MessageLoop::TYPE_UI);
 }
 
 inline void AssertPluginThread()
@@ -643,32 +644,6 @@ struct ParamTraits<NPVariant>
     }
 
     NS_ERROR("Unsupported type!");
-  }
-};
-
-template<>
-struct ParamTraits<mozilla::void_t>
-{
-  typedef mozilla::void_t paramType;
-  static void Write(Message* aMsg, const paramType& aParam) { }
-  static bool
-  Read(const Message* aMsg, void** aIter, paramType* aResult)
-  {
-    *aResult = paramType();
-    return true;
-  }
-};
-
-template<>
-struct ParamTraits<mozilla::null_t>
-{
-  typedef mozilla::null_t paramType;
-  static void Write(Message* aMsg, const paramType& aParam) { }
-  static bool
-  Read(const Message* aMsg, void** aIter, paramType* aResult)
-  {
-    *aResult = paramType();
-    return true;
   }
 };
 

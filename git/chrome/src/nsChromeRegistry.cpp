@@ -75,7 +75,7 @@
 
 #include "nsIAtom.h"
 #include "nsICommandLine.h"
-#include "nsICSSStyleSheet.h"
+#include "nsCSSStyleSheet.h"
 #include "nsIConsoleService.h"
 #include "nsIDirectoryService.h"
 #include "nsIDocument.h"
@@ -524,7 +524,8 @@ nsChromeRegistry::Init()
     }
   }
 
-  nsCOMPtr<nsIObserverService> obsService (do_GetService("@mozilla.org/observer-service;1"));
+  nsCOMPtr<nsIObserverService> obsService =
+    mozilla::services::GetObserverService();
   if (obsService) {
     obsService->AddObserver(this, "command-line-startup", PR_TRUE);
     obsService->AddObserver(this, "profile-initial-state", PR_TRUE);
@@ -904,7 +905,7 @@ void
 nsChromeRegistry::FlushSkinCaches()
 {
   nsCOMPtr<nsIObserverService> obsSvc =
-    do_GetService("@mozilla.org/observer-service;1");
+    mozilla::services::GetObserverService();
   NS_ASSERTION(obsSvc, "Couldn't get observer service.");
 
   obsSvc->NotifyObservers(static_cast<nsIChromeRegistry*>(this),
@@ -958,13 +959,11 @@ nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindowInternal* aWindow)
     for (PRInt32 l = 0; l < agentSheets.Count(); ++l) {
       nsIStyleSheet *sheet = agentSheets[l];
 
-      nsCOMPtr<nsIURI> uri;
-      rv = sheet->GetSheetURI(getter_AddRefs(uri));
-      if (NS_FAILED(rv)) return rv;
+      nsIURI* uri = sheet->GetSheetURI();
 
       if (IsChromeURI(uri)) {
         // Reload the sheet.
-        nsCOMPtr<nsICSSStyleSheet> newSheet;
+        nsRefPtr<nsCSSStyleSheet> newSheet;
         rv = document->LoadChromeSheetSync(uri, PR_TRUE,
                                            getter_AddRefs(newSheet));
         if (NS_FAILED(rv)) return rv;
@@ -1003,12 +1002,12 @@ nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindowInternal* aWindow)
   // Iterate over our old sheets and kick off a sync load of the new
   // sheet if and only if it's a chrome URL.
   for (i = 0; i < count; i++) {
-    nsCOMPtr<nsICSSStyleSheet> sheet = do_QueryInterface(oldSheets[i]);
+    nsRefPtr<nsCSSStyleSheet> sheet = do_QueryObject(oldSheets[i]);
     nsIURI* uri = sheet ? sheet->GetOriginalURI() : nsnull;
 
     if (uri && IsChromeURI(uri)) {
       // Reload the sheet.
-      nsCOMPtr<nsICSSStyleSheet> newSheet;
+      nsRefPtr<nsCSSStyleSheet> newSheet;
       // XXX what about chrome sheets that have a title or are disabled?  This
       // only works by sheer dumb luck.
       document->LoadChromeSheetSync(uri, PR_FALSE, getter_AddRefs(newSheet));
@@ -1030,7 +1029,7 @@ void
 nsChromeRegistry::FlushAllCaches()
 {
   nsCOMPtr<nsIObserverService> obsSvc =
-    do_GetService("@mozilla.org/observer-service;1");
+    mozilla::services::GetObserverService();
   NS_ASSERTION(obsSvc, "Couldn't get observer service.");
 
   obsSvc->NotifyObservers((nsIChromeRegistry*) this,
@@ -1268,8 +1267,7 @@ nsChromeRegistry::WrappersEnabled(nsIURI *aURI)
                                                     & (nsACString&) package,
                                                     PL_DHASH_LOOKUP));
 
-  return PL_DHASH_ENTRY_IS_LIVE(entry) &&
-         entry->flags & PackageEntry::XPCNATIVEWRAPPERS;
+  return PL_DHASH_ENTRY_IS_LIVE(entry);
 }
 
 nsresult
@@ -1612,7 +1610,6 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
   nsresult rv;
 
   NS_NAMED_LITERAL_STRING(kPlatform, "platform");
-  NS_NAMED_LITERAL_STRING(kXPCNativeWrappers, "xpcnativewrappers");
   NS_NAMED_LITERAL_STRING(kContentAccessible, "contentaccessible");
   NS_NAMED_LITERAL_STRING(kApplication, "application");
   NS_NAMED_LITERAL_STRING(kAppVersion, "appversion");
@@ -1713,11 +1710,10 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
 
       EnsureLowerCase(package);
 
-      // NOTE: We check for platform and xpcnativewrappers modifiers on
-      // content packages, but they are *applied* to content|skin|locale.
+      // NOTE: We check for platform modifiers on content packages, but they
+      // are *applied* to content|skin|locale.
 
       PRBool platform = PR_FALSE;
-      PRBool xpcNativeWrappers = PR_TRUE;
       PRBool contentAccessible = PR_FALSE;
       TriState stAppVersion = eUnspecified;
       TriState stApp = eUnspecified;
@@ -1732,7 +1728,6 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
         ToLowerCase(wtoken);
 
         if (CheckFlag(kPlatform, wtoken, platform) ||
-            CheckFlag(kXPCNativeWrappers, wtoken, xpcNativeWrappers) ||
             CheckFlag(kContentAccessible, wtoken, contentAccessible) ||
             CheckStringFlag(kApplication, wtoken, appID, stApp) ||
             CheckStringFlag(kOs, wtoken, osTarget, stOs) ||
@@ -1774,8 +1769,6 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
 
       if (platform)
         entry->flags |= PackageEntry::PLATFORM_PACKAGE;
-      if (xpcNativeWrappers)
-        entry->flags |= PackageEntry::XPCNATIVEWRAPPERS;
       if (contentAccessible)
         entry->flags |= PackageEntry::CONTENT_ACCESSIBLE;
       if (xpc) {
@@ -1783,7 +1776,7 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
         urlp.Append(package);
         urlp.Append('/');
 
-        rv = xpc->FlagSystemFilenamePrefix(urlp.get(), xpcNativeWrappers);
+        rv = xpc->FlagSystemFilenamePrefix(urlp.get(), true);
         NS_ENSURE_SUCCESS(rv, rv);
       }
     }

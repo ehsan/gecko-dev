@@ -458,7 +458,10 @@ nsSVGPathElement::BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
 
     if (aValue) {
       nsSVGPathDataParserToInternal parser(&mPathData);
-      parser.Parse(*aValue);
+      nsresult rv = parser.Parse(*aValue);
+      if (NS_FAILED(rv)) {
+        ReportAttributeParseFailure(GetOwnerDoc(), aName, *aValue);
+      }
     } else {
       mPathData.Clear();
     }
@@ -466,6 +469,19 @@ nsSVGPathElement::BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
 
   return nsSVGPathElementBase::BeforeSetAttr(aNamespaceID, aName,
                                              aValue, aNotify);
+}
+
+NS_IMETHODIMP
+nsSVGPathElement::WillModifySVGObservable(nsISVGValue* observable,
+                                          nsISVGValue::modificationType aModType)
+{
+  nsCOMPtr<nsIDOMSVGPathSegList> list = do_QueryInterface(observable);
+
+  if (list && mSegments == list) {
+    return NS_OK;
+  }
+
+  return nsSVGPathElementBase::WillModifySVGObservable(observable, aModType);
 }
 
 NS_IMETHODIMP
@@ -498,13 +514,7 @@ nsSVGPathElement::DidModifySVGObservable(nsISVGValue* observable,
 already_AddRefed<gfxFlattenedPath>
 nsSVGPathElement::GetFlattenedPath(const gfxMatrix &aMatrix)
 {
-  gfxContext ctx(nsSVGUtils::GetThebesComputationalSurface());
-
-  ctx.SetMatrix(aMatrix);
-  mPathData.Playback(&ctx);
-  ctx.IdentityMatrix();
-
-  return ctx.GetFlattenedPath();
+  return mPathData.GetFlattenedPath(aMatrix);
 }
 
 //----------------------------------------------------------------------
@@ -976,7 +986,11 @@ nsSVGPathElement::GetMarkPoints(nsTArray<nsSVGMark> *aMarks)
     aMarks->ElementAt(aMarks->Length() - 1).angle = prevAngle;
 }
 
-
+void
+nsSVGPathElement::ConstructPath(gfxContext *aCtx)
+{
+  mPathData.Playback(aCtx);
+}
 
 //==================================================================
 // nsSVGPathList
@@ -1024,8 +1038,14 @@ nsSVGPathList::Playback(gfxContext *aCtx)
   }
 }
 
-void
-nsSVGPathElement::ConstructPath(gfxContext *aCtx)
+already_AddRefed<gfxFlattenedPath>
+nsSVGPathList::GetFlattenedPath(const gfxMatrix& aMatrix)
 {
-  mPathData.Playback(aCtx);
+  gfxContext ctx(nsSVGUtils::GetThebesComputationalSurface());
+
+  ctx.SetMatrix(aMatrix);
+  Playback(&ctx);
+  ctx.IdentityMatrix();
+
+  return ctx.GetFlattenedPath();
 }

@@ -110,37 +110,20 @@ public:
   nsresult InsertBefore(nsIDOMNode* aNewChild, nsIDOMNode* aRefChild,
                         nsIDOMNode** aReturn)
   {
-    NS_ENSURE_ARG_POINTER(aReturn);
-    *aReturn = nsnull;
-    return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
+    return ReplaceOrInsertBefore(PR_FALSE, aNewChild, aRefChild, aReturn);
   }
   nsresult ReplaceChild(nsIDOMNode* aNewChild, nsIDOMNode* aOldChild,
                         nsIDOMNode** aReturn)
   {
-    NS_ENSURE_ARG_POINTER(aReturn);
-    *aReturn = nsnull;
-
-    /*
-     * Data nodes can't have children.
-     */
-    return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
+    return ReplaceOrInsertBefore(PR_TRUE, aNewChild, aOldChild, aReturn);
   }
   nsresult RemoveChild(nsIDOMNode* aOldChild, nsIDOMNode** aReturn)
   {
-    NS_ENSURE_ARG_POINTER(aReturn);
-    *aReturn = nsnull;
-
-    /*
-     * Data nodes can't have children, i.e. aOldChild can't be a child of
-     * this node.
-     */
-    return NS_ERROR_DOM_NOT_FOUND_ERR;
+    return nsINode::RemoveChild(aOldChild, aReturn);
   }
   nsresult AppendChild(nsIDOMNode* aNewChild, nsIDOMNode** aReturn)
   {
-    NS_ENSURE_ARG_POINTER(aReturn);
-    *aReturn = nsnull;
-    return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
+    return InsertBefore(aNewChild, nsnull, aReturn);
   }
   nsresult GetNamespaceURI(nsAString& aNamespaceURI);
   nsresult GetLocalName(nsAString& aLocalName);
@@ -150,12 +133,6 @@ public:
   nsresult IsSupported(const nsAString& aFeature,
                        const nsAString& aVersion,
                        PRBool* aReturn);
-  nsresult GetBaseURI(nsAString& aURI);
-
-  nsresult LookupPrefix(const nsAString& aNamespaceURI,
-                        nsAString& aPrefix);
-  nsresult LookupNamespaceURI(const nsAString& aNamespacePrefix,
-                              nsAString& aNamespaceURI);
 
   // Implementation for nsIDOMCharacterData
   nsresult GetData(nsAString& aData) const;
@@ -191,6 +168,20 @@ public:
   virtual nsIScriptContext* GetContextForEventHandlers(nsresult* aRv)
   {
     return nsContentUtils::GetContextForEventHandlers(this, aRv);
+  }
+  virtual void GetTextContent(nsAString &aTextContent)
+  {
+#ifdef DEBUG
+    nsresult rv =
+#endif
+    GetNodeValue(aTextContent);
+    NS_ASSERTION(NS_SUCCEEDED(rv), "GetNodeValue() failed?");
+  }
+  virtual nsresult SetTextContent(const nsAString& aTextContent)
+  {
+    // Batch possible DOMSubtreeModified events.
+    mozAutoSubtreeModified subtree(GetOwnerDoc(), nsnull);
+    return SetNodeValue(aTextContent);
   }
 
   // Implementation for nsIContent
@@ -257,7 +248,7 @@ public:
   virtual already_AddRefed<nsIURI> GetBaseURI() const;
   virtual PRBool IsLink(nsIURI** aURI) const;
 
-  virtual nsIAtom* GetID() const;
+  virtual nsIAtom* DoGetID() const;
   virtual const nsAttrValue* DoGetClasses() const;
   NS_IMETHOD WalkContentStyleRules(nsRuleWalker* aRuleWalker);
   virtual nsICSSStyleRule* GetInlineStyleRule();
@@ -291,6 +282,13 @@ public:
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsGenericDOMDataNode)
 
 protected:
+  virtual mozilla::dom::Element* GetNameSpaceElement()
+  {
+    nsINode *parent = GetNodeParent();
+
+    return parent && parent->IsElement() ? parent->AsElement() : nsnull;
+  }
+
   /**
    * There are a set of DOM- and scripting-specific instance variables
    * that may only be instantiated when a content object is accessed
@@ -339,10 +337,6 @@ protected:
                                                PRInt32 aIndex,
                                                PRUint32 aCount);
 
-  nsresult GetWholeText(nsAString& aWholeText);
-
-  nsresult ReplaceWholeText(const nsAFlatString& aContent, nsIDOMText **aReturn);
-
   nsresult SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
                            const PRUnichar* aBuffer, PRUint32 aLength,
                            PRBool aNotify);
@@ -366,6 +360,23 @@ private:
   already_AddRefed<nsIAtom> GetCurrentValueAtom();
 };
 
+class nsGenericTextNode : public nsGenericDOMDataNode
+{
+public:
+  nsGenericTextNode(nsINodeInfo *aNodeInfo) : nsGenericDOMDataNode(aNodeInfo)
+  {
+  }
+
+  PRBool IsElementContentWhitespace()
+  {
+    return TextIsOnlyWhitespace();
+  }
+  nsresult GetWholeText(nsAString& aWholeText);
+
+  nsIContent* ReplaceWholeText(const nsAFlatString& aContent,
+                               nsresult *aResult);
+};
+
 /** Tearoff class for the nsIDOM3Text portion of nsGenericDOMDataNode. */
 class nsText3Tearoff : public nsIDOM3Text
 {
@@ -376,7 +387,7 @@ public:
 
   NS_DECL_CYCLE_COLLECTION_CLASS(nsText3Tearoff)
 
-  nsText3Tearoff(nsGenericDOMDataNode *aNode) : mNode(aNode)
+  nsText3Tearoff(nsGenericTextNode *aNode) : mNode(aNode)
   {
   }
 
@@ -384,7 +395,7 @@ protected:
   virtual ~nsText3Tearoff() {}
 
 private:
-  nsRefPtr<nsGenericDOMDataNode> mNode;
+  nsRefPtr<nsGenericTextNode> mNode;
 };
 
 //----------------------------------------------------------------------

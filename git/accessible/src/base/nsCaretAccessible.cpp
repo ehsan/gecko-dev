@@ -35,10 +35,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// NOTE: alphabetically ordered
-#include "nsAccessibilityService.h"
 #include "nsCaretAccessible.h"
+
+#include "nsAccessibilityService.h"
+#include "nsAccUtils.h"
+#include "nsCoreUtils.h"
 #include "nsIAccessibleEvent.h"
+
 #include "nsCaret.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMHTMLAnchorElement.h"
@@ -206,16 +209,11 @@ nsCaretAccessible::NotifySelectionChanged(nsIDOMDocument *aDoc,
 {
   NS_ENSURE_ARG(aDoc);
 
-  nsCOMPtr<nsIDOMNode> docNode(do_QueryInterface(aDoc));
-  nsCOMPtr<nsIAccessibleDocument> accDoc =
-    nsAccessNode::GetDocAccessibleFor(docNode);
+  nsCOMPtr<nsIDocument> document(do_QueryInterface(aDoc));
+  nsDocAccessible *docAccessible = GetAccService()->GetDocAccessible(document);
 
   // Don't fire events until document is loaded.
-  if (!accDoc)
-    return NS_OK;
-
-  nsCOMPtr<nsIAccessible> accForDoc(do_QueryInterface(accDoc));
-  if (nsAccUtils::State(accForDoc) & nsIAccessibleStates::STATE_BUSY)
+  if (!docAccessible || !docAccessible->IsContentLoaded())
     return NS_OK;
 
   nsCOMPtr<nsISelection2> sel2(do_QueryInterface(aSel));
@@ -318,7 +316,7 @@ nsCaretAccessible::GetCaretRect(nsIWidget **aOutWidget)
   lastAccessNode->GetDOMNode(getter_AddRefs(lastNodeWithCaret));
   NS_ENSURE_TRUE(lastNodeWithCaret, caretRect);
 
-  nsCOMPtr<nsIPresShell> presShell =
+  nsIPresShell *presShell =
     nsCoreUtils::GetPresShellFor(lastNodeWithCaret);
   NS_ENSURE_TRUE(presShell, caretRect);
 
@@ -368,7 +366,7 @@ nsCaretAccessible::GetSelectionControllerForNode(nsIDOMNode *aNode)
   if (!aNode)
     return nsnull;
 
-  nsCOMPtr<nsIPresShell> presShell = nsCoreUtils::GetPresShellFor(aNode);
+  nsIPresShell *presShell = nsCoreUtils::GetPresShellFor(aNode);
   if (!presShell)
     return nsnull;
 

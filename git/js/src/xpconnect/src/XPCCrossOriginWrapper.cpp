@@ -120,7 +120,7 @@ ThrowException(nsresult ex, JSContext *cx)
   return JS_FALSE;
 }
 
-// Get the (possibly non-existant) XOW off of an object
+// Get the (possibly nonexistent) XOW off of an object
 static inline
 JSObject *
 GetWrapper(JSObject *obj)
@@ -221,8 +221,35 @@ WrapperMoved(JSContext *cx, XPCWrappedNative *innerObj,
 // returns NS_ERROR_DOM_PROP_ACCESS_DENIED, returns another error code on
 // failure.
 nsresult
-CanAccessWrapper(JSContext *cx, JSObject *wrappedObj, JSBool *privilegeEnabled)
+CanAccessWrapper(JSContext *cx, JSObject *outerObj, JSObject *wrappedObj,
+                 JSBool *privilegeEnabled)
 {
+  // Fast path: If the wrapper and the wrapped object have the same global
+  // object (or if the wrapped object is a outer for the same inner that
+  // the wrapper is parented to), then we don't need to do any more work.
+
+  if (privilegeEnabled) {
+    *privilegeEnabled = JS_FALSE;
+  }
+
+  if (outerObj) {
+    JSObject *outerParent = outerObj->getParent();
+    JSObject *innerParent = wrappedObj->getParent();
+    if (!innerParent) {
+      innerParent = wrappedObj;
+      OBJ_TO_INNER_OBJECT(cx, innerParent);
+      if (!innerParent) {
+        return NS_ERROR_FAILURE;
+      }
+    } else {
+      innerParent = JS_GetGlobalForObject(cx, innerParent);
+    }
+
+    if (outerParent == innerParent) {
+      return NS_OK;
+    }
+  }
+
   // TODO bug 508928: Refactor this with the XOW security checking code.
   // Get the subject principal from the execution stack.
   nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
@@ -245,14 +272,6 @@ CanAccessWrapper(JSContext *cx, JSObject *wrappedObj, JSBool *privilegeEnabled)
 
   if (privilegeEnabled) {
     *privilegeEnabled = JS_FALSE;
-  }
-
-  // If we somehow end up being called from chrome, just allow full access.
-  // This can happen from components with xpcnativewrappers=no.
-  // Note that this is just an optimization to avoid getting the
-  // object principal in this case, since Subsumes() would return true.
-  if (isSystem) {
-    return NS_OK;
   }
 
   nsCOMPtr<nsIPrincipal> objectPrin;
@@ -363,8 +382,6 @@ WrapObject(JSContext *cx, JSObject *parent, jsval *vp, XPCWrappedNative* wn)
     return JS_TRUE;
   }
 
-  XPCJSRuntime *rt = nsXPConnect::GetRuntimeInstance();
-
   // The parent must be the inner global object for its scope.
   parent = JS_GetGlobalForObject(cx, parent);
 
@@ -379,8 +396,14 @@ WrapObject(JSContext *cx, JSObject *parent, jsval *vp, XPCWrappedNative* wn)
     }
   }
 
-  XPCWrappedNativeScope *parentScope =
-    XPCWrappedNativeScope::FindInJSObjectScope(cx, parent, nsnull, rt);
+  XPCWrappedNative *parentwn =
+    XPCWrappedNative::GetWrappedNativeOfJSObject(cx, parent);
+  XPCWrappedNativeScope *parentScope;
+  if (NS_LIKELY(parentwn)) {
+    parentScope = parentwn->GetScope();
+  } else {
+    parentScope = XPCWrappedNativeScope::FindInJSObjectScope(cx, parent);
+  }
 
 #ifdef DEBUG_mrbkap_off
   printf("Wrapping object at %p (%s) [%p]\n",
@@ -473,7 +496,7 @@ XPC_XOW_FunctionWrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
   // We disallow invalid XOWs that have no wrapped object. Otherwise,
   // if it isn't an XOW, then pass it through as-is.
 
-  wrappedObj = GetWrapper(obj);
+  outerObj = wrappedObj = GetWrapper(obj);
   if (wrappedObj) {
     wrappedObj = GetWrappedObject(cx, wrappedObj);
     if (!wrappedObj) {
@@ -499,7 +522,7 @@ XPC_XOW_FunctionWrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     return ThrowException(NS_ERROR_FAILURE, cx);
   }
 
-  nsresult rv = CanAccessWrapper(cx, JSVAL_TO_OBJECT(funToCall), nsnull);
+  nsresult rv = CanAccessWrapper(cx, outerObj, JSVAL_TO_OBJECT(funToCall), nsnull);
   if (NS_FAILED(rv) && rv != NS_ERROR_DOM_PROP_ACCESS_DENIED) {
     return ThrowException(rv, cx);
   }
@@ -579,13 +602,8 @@ XPC_XOW_AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
     return ThrowException(NS_ERROR_ILLEGAL_VALUE, cx);
   }
 
-  XPCCallContext ccx(JS_CALLER, cx);
-  if (!ccx.IsValid()) {
-    return ThrowException(NS_ERROR_FAILURE, cx);
-  }
-
   JSBool privilegeEnabled = JS_FALSE;
-  nsresult rv = CanAccessWrapper(cx, wrappedObj, &privilegeEnabled);
+  nsresult rv = CanAccessWrapper(cx, obj, wrappedObj, &privilegeEnabled);
   if (NS_FAILED(rv)) {
     if (rv == NS_ERROR_DOM_PROP_ACCESS_DENIED) {
       // Can't override properties on foreign objects.
@@ -606,12 +624,7 @@ XPC_XOW_DelProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
     return ThrowException(NS_ERROR_ILLEGAL_VALUE, cx);
   }
 
-  XPCCallContext ccx(JS_CALLER, cx);
-  if (!ccx.IsValid()) {
-    return ThrowException(NS_ERROR_FAILURE, cx);
-  }
-
-  nsresult rv = CanAccessWrapper(cx, wrappedObj, nsnull);
+  nsresult rv = CanAccessWrapper(cx, obj, wrappedObj, nsnull);
   if (NS_FAILED(rv)) {
     if (rv == NS_ERROR_DOM_PROP_ACCESS_DENIED) {
       // Can't delete properties on foreign objects.
@@ -649,12 +662,7 @@ XPC_XOW_GetOrSetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp,
     return ThrowException(NS_ERROR_ILLEGAL_VALUE, cx);
   }
 
-  XPCCallContext ccx(JS_CALLER, cx);
-  if (!ccx.IsValid()) {
-    return ThrowException(NS_ERROR_FAILURE, cx);
-  }
-
-  AUTO_MARK_JSVAL(ccx, vp);
+  js::AutoArrayRooter rooter(cx, 1, vp);
 
   JSObject *wrappedObj = GetWrappedObject(cx, obj);
   if (!wrappedObj) {
@@ -662,10 +670,15 @@ XPC_XOW_GetOrSetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp,
   }
 
   JSBool privilegeEnabled;
-  nsresult rv = CanAccessWrapper(cx, wrappedObj, &privilegeEnabled);
+  nsresult rv = CanAccessWrapper(cx, obj, wrappedObj, &privilegeEnabled);
   if (NS_FAILED(rv)) {
     if (rv != NS_ERROR_DOM_PROP_ACCESS_DENIED) {
       return JS_FALSE;
+    }
+
+    XPCCallContext ccx(JS_CALLER, cx);
+    if (!ccx.IsValid()) {
+      return ThrowException(NS_ERROR_FAILURE, cx);
     }
 
     // This is a request to get a property across origins. We need to
@@ -769,12 +782,7 @@ XPC_XOW_Enumerate(JSContext *cx, JSObject *obj)
     return JS_TRUE;
   }
 
-  XPCCallContext ccx(JS_CALLER, cx);
-  if (!ccx.IsValid()) {
-    return ThrowException(NS_ERROR_FAILURE, cx);
-  }
-
-  nsresult rv = CanAccessWrapper(cx, wrappedObj, nsnull);
+  nsresult rv = CanAccessWrapper(cx, obj, wrappedObj, nsnull);
   if (NS_FAILED(rv)) {
     if (rv == NS_ERROR_DOM_PROP_ACCESS_DENIED) {
       // Can't enumerate on foreign objects.
@@ -865,16 +873,16 @@ XPC_XOW_NewResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
     return JS_TRUE;
   }
 
-  XPCCallContext ccx(JS_CALLER, cx);
-  if (!ccx.IsValid()) {
-    return ThrowException(NS_ERROR_FAILURE, cx);
-  }
-
   JSBool privilegeEnabled;
-  nsresult rv = CanAccessWrapper(cx, wrappedObj, &privilegeEnabled);
+  nsresult rv = CanAccessWrapper(cx, obj, wrappedObj, &privilegeEnabled);
   if (NS_FAILED(rv)) {
     if (rv != NS_ERROR_DOM_PROP_ACCESS_DENIED) {
       return JS_FALSE;
+    }
+
+    XPCCallContext ccx(JS_CALLER, cx);
+    if (!ccx.IsValid()) {
+      return ThrowException(NS_ERROR_FAILURE, cx);
     }
 
     // We're dealing with a cross-origin lookup. Ensure that we're allowed to
@@ -964,7 +972,7 @@ XPC_XOW_Convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp)
   }
 
   // Note: JSTYPE_VOID and JSTYPE_STRING are equivalent.
-  nsresult rv = CanAccessWrapper(cx, wrappedObj, nsnull);
+  nsresult rv = CanAccessWrapper(cx, obj, wrappedObj, nsnull);
   if (NS_FAILED(rv) &&
       (rv != NS_ERROR_DOM_PROP_ACCESS_DENIED ||
        (type != JSTYPE_STRING && type != JSTYPE_VOID))) {
@@ -1033,12 +1041,7 @@ XPC_XOW_Call(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     return JS_TRUE;
   }
 
-  XPCCallContext ccx(JS_CALLER, cx);
-  if (!ccx.IsValid()) {
-    return ThrowException(NS_ERROR_FAILURE, cx);
-  }
-
-  nsresult rv = CanAccessWrapper(cx, wrappedObj, nsnull);
+  nsresult rv = CanAccessWrapper(cx, obj, wrappedObj, nsnull);
   if (NS_FAILED(rv)) {
     if (rv == NS_ERROR_DOM_PROP_ACCESS_DENIED) {
       // Can't call.
@@ -1070,12 +1073,7 @@ XPC_XOW_Construct(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     return JS_TRUE;
   }
 
-  XPCCallContext ccx(JS_CALLER, cx);
-  if (!ccx.IsValid()) {
-    return ThrowException(NS_ERROR_FAILURE, cx);
-  }
-
-  nsresult rv = CanAccessWrapper(cx, wrappedObj, nsnull);
+  nsresult rv = CanAccessWrapper(cx, realObj, wrappedObj, nsnull);
   if (NS_FAILED(rv)) {
     if (rv == NS_ERROR_DOM_PROP_ACCESS_DENIED) {
       // Can't construct.
@@ -1102,7 +1100,7 @@ XPC_XOW_HasInstance(JSContext *cx, JSObject *obj, jsval v, JSBool *bp)
     return ThrowException(NS_ERROR_FAILURE, cx);
   }
 
-  nsresult rv = CanAccessWrapper(cx, iface, nsnull);
+  nsresult rv = CanAccessWrapper(cx, obj, iface, nsnull);
   if (NS_FAILED(rv)) {
     if (rv == NS_ERROR_DOM_PROP_ACCESS_DENIED) {
       // Don't do this test across origins.
@@ -1188,7 +1186,7 @@ XPC_XOW_Iterator(JSContext *cx, JSObject *obj, JSBool keysonly)
     return nsnull;
   }
 
-  nsresult rv = CanAccessWrapper(cx, wrappedObj, nsnull);
+  nsresult rv = CanAccessWrapper(cx, obj, wrappedObj, nsnull);
   if (NS_FAILED(rv)) {
     if (rv == NS_ERROR_DOM_PROP_ACCESS_DENIED) {
       // Can't create iterators for foreign objects.
@@ -1253,7 +1251,7 @@ XPC_XOW_toString(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     return ThrowException(NS_ERROR_FAILURE, cx);
   }
 
-  nsresult rv = CanAccessWrapper(cx, wrappedObj, nsnull);
+  nsresult rv = CanAccessWrapper(cx, obj, wrappedObj, nsnull);
   if (rv == NS_ERROR_DOM_PROP_ACCESS_DENIED) {
     nsIScriptSecurityManager *ssm = GetSecurityManager();
     if (!ssm) {

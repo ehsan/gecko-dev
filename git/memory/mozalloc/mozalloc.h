@@ -41,21 +41,22 @@
 #ifndef mozilla_mozalloc_h
 #define mozilla_mozalloc_h
 
-
 /*
  * https://bugzilla.mozilla.org/show_bug.cgi?id=427099
  */
 
-/* 
- * NB: this header depends on the symbols malloc(), free(), and
- * std::bad_alloc.  But because this header is used in situations
- * where malloc/free have different visibility, we rely on code
- * including this header to provide the declarations of malloc/free.
- * I.e., we don't #include <stdlib.h> or <new> on purpose.
- */
+#include <stdlib.h>
+#include <string.h>
+#if defined(__cplusplus)
+#  include <new>
+#endif
 
-#if defined(XP_WIN) || (defined(XP_OS2) && defined(__declspec))
-#  define MOZALLOC_EXPORT __declspec(dllexport)
+
+#if defined(MOZALLOC_EXPORT)
+/* do nothing: it's been defined to __declspec(dllexport) by
+ * mozalloc*.cpp on platforms where that's required. */
+#elif defined(XP_WIN) || (defined(XP_OS2) && defined(__declspec))
+#  define MOZALLOC_EXPORT __declspec(dllimport)
 #elif defined(HAVE_VISIBILITY_ATTRIBUTE)
 /* Make sure symbols are still exported even if we're wrapped in a
  * |visibility push(hidden)| blanket. */
@@ -84,21 +85,6 @@
 #if defined(__cplusplus)
 extern "C" {
 #endif /* ifdef __cplusplus */
-
-
-/* 
- * If we don't have these system functions, but do have jemalloc
- * replacements, go ahead and declare them independently of jemalloc.
- * Trying to #include the jemalloc header causes redeclaration of some
- * system functions with different visibility.
- */
-/* FIXME/cjones: make something like the following work with jemalloc */
-#if 0
-#if !defined(HAVE_POSIX_MEMALIGN) && defined(HAVE_JEMALLOC_POSIX_MEMALIGN)
-MOZALLOC_IMPORT int posix_memalign(void **, size_t, size_t)
-    NS_WARN_UNUSED_RESULT;
-#endif
-#endif
 
 
 /*
@@ -145,6 +131,7 @@ MOZALLOC_EXPORT char* moz_xstrdup(const char* str)
 MOZALLOC_EXPORT char* moz_strdup(const char* str)
     NS_ATTR_MALLOC NS_WARN_UNUSED_RESULT;
 
+MOZALLOC_EXPORT size_t moz_malloc_usable_size(void *ptr);
 
 #if defined(HAVE_STRNDUP)
 MOZALLOC_EXPORT char* moz_xstrndup(const char* str, size_t strsize)
@@ -155,7 +142,7 @@ MOZALLOC_EXPORT char* moz_strndup(const char* str, size_t strsize)
 #endif /* if defined(HAVE_STRNDUP) */
 
 
-#if defined(HAVE_POSIX_MEMALIGN)
+#if defined(HAVE_POSIX_MEMALIGN) || defined(HAVE_JEMALLOC_POSIX_MEMALIGN)
 MOZALLOC_EXPORT int moz_xposix_memalign(void **ptr, size_t alignment, size_t size)
     NS_WARN_UNUSED_RESULT;
 
@@ -164,7 +151,7 @@ MOZALLOC_EXPORT int moz_posix_memalign(void **ptr, size_t alignment, size_t size
 #endif /* if defined(HAVE_POSIX_MEMALIGN) */
 
 
-#if defined(HAVE_MEMALIGN)
+#if defined(HAVE_MEMALIGN) || defined(HAVE_JEMALLOC_MEMALIGN)
 MOZALLOC_EXPORT void* moz_xmemalign(size_t boundary, size_t size)
     NS_ATTR_MALLOC NS_WARN_UNUSED_RESULT;
 
@@ -217,10 +204,18 @@ MOZALLOC_EXPORT void* moz_valloc(size_t size)
 #  define MOZALLOC_EXPORT_NEW
 #endif
 
+#ifdef ANDROID
+// Android doesn't fully support exceptions, so its <new> header
+// has operators that don't specify throw() at all.
+#define MOZALLOC_THROW_IF_HAS_EXCEPTIONS /**/
+#else
+#define MOZALLOC_THROW_IF_HAS_EXCEPTIONS throw()
+#endif
+
 #ifdef MOZ_CPP_EXCEPTIONS
 #define MOZALLOC_THROW_BAD_ALLOC throw(std::bad_alloc)
 #else
-#define MOZALLOC_THROW_BAD_ALLOC throw()
+#define MOZALLOC_THROW_BAD_ALLOC MOZALLOC_THROW_IF_HAS_EXCEPTIONS
 #endif
 
 MOZALLOC_EXPORT_NEW MOZALLOC_INLINE
@@ -230,7 +225,7 @@ void* operator new(size_t size) MOZALLOC_THROW_BAD_ALLOC
 }
 
 MOZALLOC_EXPORT_NEW MOZALLOC_INLINE
-void* operator new(size_t size, const std::nothrow_t&) throw()
+void* operator new(size_t size, const std::nothrow_t&) MOZALLOC_THROW_IF_HAS_EXCEPTIONS
 {
     return moz_malloc(size);
 }
@@ -242,31 +237,31 @@ void* operator new[](size_t size) MOZALLOC_THROW_BAD_ALLOC
 }
 
 MOZALLOC_EXPORT_NEW MOZALLOC_INLINE
-void* operator new[](size_t size, const std::nothrow_t&) throw()
+void* operator new[](size_t size, const std::nothrow_t&) MOZALLOC_THROW_IF_HAS_EXCEPTIONS
 {
     return moz_malloc(size);
 }
 
 MOZALLOC_EXPORT_NEW MOZALLOC_INLINE
-void operator delete(void* ptr) throw()
+void operator delete(void* ptr) MOZALLOC_THROW_IF_HAS_EXCEPTIONS
 {
     return moz_free(ptr);
 }
 
 MOZALLOC_EXPORT_NEW MOZALLOC_INLINE
-void operator delete(void* ptr, const std::nothrow_t&) throw()
+void operator delete(void* ptr, const std::nothrow_t&) MOZALLOC_THROW_IF_HAS_EXCEPTIONS
 {
     return moz_free(ptr);
 }
 
 MOZALLOC_EXPORT_NEW MOZALLOC_INLINE
-void operator delete[](void* ptr) throw()
+void operator delete[](void* ptr) MOZALLOC_THROW_IF_HAS_EXCEPTIONS
 {
     return moz_free(ptr);
 }
 
 MOZALLOC_EXPORT_NEW MOZALLOC_INLINE
-void operator delete[](void* ptr, const std::nothrow_t&) throw()
+void operator delete[](void* ptr, const std::nothrow_t&) MOZALLOC_THROW_IF_HAS_EXCEPTIONS
 {
     return moz_free(ptr);
 }
@@ -298,25 +293,25 @@ struct MOZALLOC_EXPORT fallible_t { };
 } /* namespace mozilla */
 
 MOZALLOC_INLINE
-void* operator new(size_t size, const mozilla::fallible_t&) throw()
+void* operator new(size_t size, const mozilla::fallible_t&) MOZALLOC_THROW_IF_HAS_EXCEPTIONS
 {
     return moz_malloc(size);
 }
 
 MOZALLOC_INLINE
-void* operator new[](size_t size, const mozilla::fallible_t&) throw()
+void* operator new[](size_t size, const mozilla::fallible_t&) MOZALLOC_THROW_IF_HAS_EXCEPTIONS
 {
     return moz_malloc(size);
 }
 
 MOZALLOC_INLINE
-void operator delete(void* ptr, const mozilla::fallible_t&) throw()
+void operator delete(void* ptr, const mozilla::fallible_t&) MOZALLOC_THROW_IF_HAS_EXCEPTIONS
 {
     moz_free(ptr);
 }
 
 MOZALLOC_INLINE
-void operator delete[](void* ptr, const mozilla::fallible_t&) throw()
+void operator delete[](void* ptr, const mozilla::fallible_t&) MOZALLOC_THROW_IF_HAS_EXCEPTIONS
 {
     moz_free(ptr);
 }

@@ -41,7 +41,7 @@
 #include "nsOggDecoder.h"
 #include <string.h>
 #include "nsTraceRefcnt.h"
-#include "nsOggHacks.h"
+#include "VideoUtils.h"
 
 /*
    The maximum height and width of the video. Used for
@@ -61,9 +61,19 @@ static PRBool AddOverflow(PRInt64 a, PRInt64 b, PRInt64& aResult);
 // in an integer overflow.
 static PRBool MulOverflow(PRInt64 a, PRInt64 b, PRInt64& aResult);
 
-// Defined in nsOggReader.cpp.
-extern PRBool MulOverflow32(PRUint32 a, PRUint32 b, PRUint32& aResult);
-
+static PRBool MulOverflow32(PRUint32 a, PRUint32 b, PRUint32& aResult)
+{
+  // 32 bit integer multiplication with overflow checking. Returns PR_TRUE
+  // if the multiplication was successful, or PR_FALSE if the operation resulted
+  // in an integer overflow.
+  PRUint64 a64 = a;
+  PRUint64 b64 = b;
+  PRUint64 r64 = a64 * b64;
+  if (r64 > PR_UINT32_MAX)
+     return PR_FALSE;
+  aResult = static_cast<PRUint32>(r64);
+  return PR_TRUE;
+}
 
 nsOggCodecState*
 nsOggCodecState::Create(ogg_page* aPage)
@@ -138,8 +148,7 @@ nsTheoraState::nsTheoraState(ogg_page* aBosPage) :
   mSetup(0),
   mCtx(0),
   mFrameDuration(0),
-  mFrameRate(0),
-  mAspectRatio(0)
+  mPixelAspectRatio(0)
 {
   MOZ_COUNT_CTOR(nsTheoraState);
   th_info_init(&mInfo);
@@ -162,22 +171,24 @@ PRBool nsTheoraState::Init() {
     return mActive = PR_FALSE;
   }
 
-  PRUint32 n = mInfo.fps_numerator;
-  PRUint32 d = mInfo.fps_denominator;
+  PRInt64 n = mInfo.fps_numerator;
+  PRInt64 d = mInfo.fps_denominator;
 
-  mFrameRate = (n == 0 || d == 0) ?
-    0.0 : static_cast<float>(n) / static_cast<float>(d);
-
-  PRUint32 c;
-  if (!MulOverflow32(1000, d, c)) {
+  PRInt64 f;
+  if (!MulOverflow(1000, d, f)) {
     return mActive = PR_FALSE;
   }
-  mFrameDuration = c / n;
+  f /= n;
+  if (f > PR_UINT32_MAX) {
+    return mActive = PR_FALSE;
+  }
+  mFrameDuration = static_cast<PRUint32>(f);
 
   n = mInfo.aspect_numerator;
+
   d = mInfo.aspect_denominator;
-  mAspectRatio = (n == 0 || d == 0) ?
-    1.0 : static_cast<float>(n) / static_cast<float>(d);
+  mPixelAspectRatio = (n == 0 || d == 0) ?
+    1.0f : static_cast<float>(n) / static_cast<float>(d);
 
   // Ensure the frame isn't larger than our prescribed maximum.
   PRUint32 pixels;

@@ -43,9 +43,14 @@
 #include "nsApplicationAccessible.h"
 
 #include "nsAccessibilityService.h"
+#include "nsAccUtils.h"
 
 #include "nsIComponentManager.h"
+#include "nsIDOMDocument.h"
+#include "nsIDOMWindow.h"
+#include "nsIWindowMediator.h"
 #include "nsServiceManagerUtils.h"
+#include "mozilla/Services.h"
 
 nsApplicationAccessible::nsApplicationAccessible() :
   nsAccessibleWrap(nsnull, nsnull)
@@ -59,6 +64,18 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsApplicationAccessible, nsAccessible,
                              nsIAccessibleApplication)
 
 ////////////////////////////////////////////////////////////////////////////////
+// nsIAccessNode
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetRootDocument(nsIAccessibleDocument **aRootDocument)
+{
+  NS_ENSURE_ARG_POINTER(aRootDocument);
+  *aRootDocument = nsnull;
+
+  return NS_OK;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // nsIAccessible
 
 NS_IMETHODIMP
@@ -67,7 +84,7 @@ nsApplicationAccessible::GetName(nsAString& aName)
   aName.Truncate();
 
   nsCOMPtr<nsIStringBundleService> bundleService =
-    do_GetService(NS_STRINGBUNDLE_CONTRACTID);
+    mozilla::services::GetStringBundleService();
 
   NS_ASSERTION(bundleService, "String bundle service must be present!");
   NS_ENSURE_STATE(bundleService);
@@ -189,7 +206,7 @@ nsApplicationAccessible::GetPlatformVersion(nsAString& aVersion)
 PRBool
 nsApplicationAccessible::IsDefunct()
 {
-  return nsAccessibilityService::gIsShutdown;
+  return nsAccessibilityService::IsShutdown();
 }
 
 nsresult
@@ -246,8 +263,42 @@ nsApplicationAccessible::InvalidateChildren()
 void
 nsApplicationAccessible::CacheChildren()
 {
-  // Nothing to do. Children are keeped up to dated by Add/RemoveRootAccessible
-  // method calls.
+  // CacheChildren is called only once for application accessible when its
+  // children are requested because empty InvalidateChldren() prevents its
+  // repeated calls.
+
+  // Basically children are kept updated by Add/RemoveRootAccessible method
+  // calls. However if there are open windows before accessibility was started
+  // then we need to make sure root accessibles for open windows are created so
+  // that all root accessibles are stored in application accessible children
+  // array.
+
+  nsCOMPtr<nsIWindowMediator> windowMediator =
+    do_GetService(NS_WINDOWMEDIATOR_CONTRACTID);
+
+  nsCOMPtr<nsISimpleEnumerator> windowEnumerator;
+  nsresult rv = windowMediator->GetEnumerator(nsnull,
+                                              getter_AddRefs(windowEnumerator));
+  if (NS_FAILED(rv))
+    return;
+
+  PRBool hasMore = PR_FALSE;
+  windowEnumerator->HasMoreElements(&hasMore);
+  while (hasMore) {
+    nsCOMPtr<nsISupports> window;
+    windowEnumerator->GetNext(getter_AddRefs(window));
+    nsCOMPtr<nsIDOMWindow> DOMWindow = do_QueryInterface(window);
+    if (DOMWindow) {
+      nsCOMPtr<nsIDOMDocument> DOMDocument;
+      DOMWindow->GetDocument(getter_AddRefs(DOMDocument));
+      if (DOMDocument) {
+        nsCOMPtr<nsIAccessible> accessible;
+        GetAccService()->GetAccessibleFor(DOMDocument,
+                                          getter_AddRefs(accessible));
+      }
+    }
+    windowEnumerator->HasMoreElements(&hasMore);
+  }
 }
 
 nsAccessible*
@@ -274,8 +325,7 @@ nsApplicationAccessible::AddRootAccessible(nsIAccessible *aRootAccessible)
 {
   NS_ENSURE_ARG_POINTER(aRootAccessible);
 
-  nsRefPtr<nsAccessible> rootAcc =
-    nsAccUtils::QueryObject<nsAccessible>(aRootAccessible);
+  nsRefPtr<nsAccessible> rootAcc = do_QueryObject(aRootAccessible);
 
   if (!mChildren.AppendElement(rootAcc))
     return NS_ERROR_FAILURE;

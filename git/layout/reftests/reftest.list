@@ -38,6 +38,9 @@ include bugs/reftest.list
 # canvas 2D
 include canvas/reftest.list
 
+# css default pseudo class tests
+include css-default/reftest.list
+
 # css @import tests
 include css-import/reftest.list
 
@@ -74,6 +77,9 @@ include ../../content/test/reftest/reftest.list
 
 # counters/
 include counters/reftest.list
+
+# dom/
+include dom/reftest.list
 
 # editor/
 include editor/reftest.list
@@ -132,11 +138,17 @@ include marquee/reftest.list
 # native-theme/
 include native-theme/reftest.list
 
+# netwerk/
+include ../../netwerk/test/reftest/reftest.list
+
 # object/
 include object/reftest.list
 
 # ogg-video/
 include ogg-video/reftest.list
+
+# parser/
+include ../../parser/htmlparser/tests/reftest/reftest.list
 
 # percent-overflow-sizing/
 include percent-overflow-sizing/reftest.list

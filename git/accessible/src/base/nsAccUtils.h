@@ -45,11 +45,16 @@
 #include "nsIAccessibleRole.h"
 #include "nsIAccessibleText.h"
 #include "nsIAccessibleTable.h"
-#include "nsARIAMap.h"
 
+#include "nsARIAMap.h"
+#include "nsAccessibilityService.h"
+#include "nsCoreUtils.h"
+
+#include "nsIContent.h"
+#include "nsIDocShell.h"
 #include "nsIDOMNode.h"
 #include "nsIPersistentProperties2.h"
-#include "nsIContent.h"
+#include "nsIPresShell.h"
 #include "nsPoint.h"
 
 class nsAccessNode;
@@ -143,6 +148,38 @@ public:
    * Return PR_TRUE if the ARIA property is defined, otherwise PR_FALSE
    */
   static PRBool HasDefinedARIAToken(nsIContent *aContent, nsIAtom *aAtom);
+
+  /**
+   * Return document accessible for the given presshell.
+   */
+  static nsDocAccessible *GetDocAccessibleFor(nsIWeakReference *aWeakShell)
+  {
+    nsCOMPtr<nsIPresShell> presShell(do_QueryReferent(aWeakShell));
+    return presShell ?
+      GetAccService()->GetDocAccessible(presShell->GetDocument()) : nsnull;
+  }
+
+  /**
+   * Return document accessible for the given DOM node.
+   */
+  static nsDocAccessible *GetDocAccessibleFor(nsIDOMNode *aNode)
+  {
+    nsIPresShell *presShell = nsCoreUtils::GetPresShellFor(aNode);
+    return presShell ?
+      GetAccService()->GetDocAccessible(presShell->GetDocument()) : nsnull;
+  }
+
+  /**
+   * Return document accessible for the given docshell.
+   */
+  static nsDocAccessible *GetDocAccessibleFor(nsIDocShellTreeItem *aContainer)
+  {
+    nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(aContainer));
+    nsCOMPtr<nsIPresShell> presShell;
+    docShell->GetPresShell(getter_AddRefs(presShell));
+    return presShell ?
+      GetAccService()->GetDocAccessible(presShell->GetDocument()) : nsnull;
+  }
 
   /**
    * Return true if the given DOM node contains accessible children.
@@ -319,120 +356,12 @@ public:
    */
   static PRBool GetLiveAttrValue(PRUint32 aRule, nsAString& aValue);
 
-  /**
-   * Query DestinationType from the given SourceType.
-   */
-  template<class DestinationType, class SourceType> static inline
-    already_AddRefed<DestinationType> QueryObject(SourceType *aObject)
-  {
-    DestinationType* object = nsnull;
-    if (aObject)
-      CallQueryInterface(aObject, &object);
-
-    return object;
-  }
-  template<class DestinationType, class SourceType> static inline
-    already_AddRefed<DestinationType> QueryObject(nsCOMPtr<SourceType>& aObject)
-  {
-    DestinationType* object = nsnull;
-    if (aObject)
-      CallQueryInterface(aObject, &object);
-
-    return object;
-  }
-  template<class DestinationType, class SourceType> static inline
-  already_AddRefed<DestinationType> QueryObject(nsRefPtr<SourceType>& aObject)
-  {
-    DestinationType* object = nsnull;
-    if (aObject)
-      CallQueryInterface(aObject.get(), &object);
-    
-    return object;
-  }
-
-  /**
-   * Query nsAccessNode from the given nsIAccessible.
-   */
-  static already_AddRefed<nsAccessNode>
-    QueryAccessNode(nsIAccessible *aAccessible)
-  {
-    nsAccessNode* accessNode = nsnull;
-    if (aAccessible)
-      CallQueryInterface(aAccessible, &accessNode);
-
-    return accessNode;
-  }
-
-  /**
-   * Query nsAccessNode from the given nsIAccessNode.
-   */
-  static already_AddRefed<nsAccessNode>
-    QueryAccessNode(nsIAccessNode *aAccessNode)
-  {
-    nsAccessNode* accessNode = nsnull;
-    if (aAccessNode)
-      CallQueryInterface(aAccessNode, &accessNode);
-    
-    return accessNode;
-  }
-
-  /**
-   * Query nsAccessNode from the given nsIAccessNode.
-   */
-  static already_AddRefed<nsAccessNode>
-    QueryAccessNode(nsIAccessibleDocument *aAccessibleDocument)
-  {
-    nsAccessNode* accessNode = nsnull;
-    if (aAccessibleDocument)
-      CallQueryInterface(aAccessibleDocument, &accessNode);
-    
-    return accessNode;
-  }
-
-  /**
-   * Query nsAccessible from the given nsIAccessible.
-   */
-  static already_AddRefed<nsAccessible>
-    QueryAccessible(nsIAccessible *aAccessible);
-
-  /**
-   * Query nsAccessible from the given nsIAccessNode.
-   */
-  static already_AddRefed<nsAccessible>
-    QueryAccessible(nsIAccessNode *aAccessNode);
-
-  /**
-   * Query nsHTMLTableAccessible from the given nsIAccessibleTable.
-   */
-  static already_AddRefed<nsHTMLTableAccessible>
-    QueryAccessibleTable(nsIAccessibleTable *aAccessibleTable);
-
-  /**
-   * Query nsDocAccessible from the given nsIAccessible.
-   */
-  static already_AddRefed<nsDocAccessible>
-    QueryAccessibleDocument(nsIAccessible *aAccessible);
-
-  /**
-   * Query nsDocAccessible from the given nsIAccessibleDocument.
-   */
-  static already_AddRefed<nsDocAccessible>
-    QueryAccessibleDocument(nsIAccessibleDocument *aAccessibleDocument);
-
-#ifdef MOZ_XUL
-  /**
-   * Query nsXULTreeAccessible from the given nsIAccessible.
-   */
-  static already_AddRefed<nsXULTreeAccessible>
-    QueryAccessibleTree(nsIAccessible *aAccessible);
-#endif
-
 #ifdef DEBUG_A11Y
   /**
    * Detect whether the given accessible object implements nsIAccessibleText,
    * when it is text or has text child node.
    */
-  static PRBool IsTextInterfaceSupportCorrect(nsIAccessible *aAccessible);
+  static PRBool IsTextInterfaceSupportCorrect(nsAccessible *aAccessible);
 #endif
 
   /**
@@ -446,9 +375,9 @@ public:
   }
 
   /**
-   * Return text length of the given accessible, return -1 on failure.
+   * Return text length of the given accessible, return 0 on failure.
    */
-  static PRInt32 TextLength(nsIAccessible *aAccessible);
+  static PRUint32 TextLength(nsAccessible *aAccessible);
 
   /**
    * Return true if the given accessible is embedded object.

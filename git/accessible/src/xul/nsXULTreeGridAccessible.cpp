@@ -38,8 +38,12 @@
 
 #include "nsXULTreeGridAccessibleWrap.h"
 
+#include "nsAccCache.h"
+#include "nsAccessibilityService.h"
+#include "nsAccUtils.h"
+#include "nsEventShell.h"
+
 #include "nsITreeSelection.h"
-#include "nsServiceManagerUtils.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeGridAccessible
@@ -354,8 +358,7 @@ nsXULTreeGridAccessible::GetCellAt(PRInt32 aRowIndex, PRInt32 aColumnIndex,
   if (!column)
     return NS_ERROR_INVALID_ARG;
 
-  nsRefPtr<nsXULTreeItemAccessibleBase> rowAcc =
-    nsAccUtils::QueryObject<nsXULTreeItemAccessibleBase>(rowAccessible);
+  nsRefPtr<nsXULTreeItemAccessibleBase> rowAcc = do_QueryObject(rowAccessible);
 
   NS_IF_ADDREF(*aCell = rowAcc->GetCellAccessible(column));
   return NS_OK;
@@ -701,8 +704,7 @@ nsXULTreeGridRowAccessible::GetIndexOf(nsIAccessible *aChild)
   if (IsDefunct())
     return -1;
 
-  nsRefPtr<nsXULTreeGridCellAccessible> cell =
-    nsAccUtils::QueryObject<nsXULTreeGridCellAccessible>(aChild);
+  nsRefPtr<nsXULTreeGridCellAccessible> cell = do_QueryObject(aChild);
 
   return cell ? cell->GetColumnIndex() : -1;
 }
@@ -753,8 +755,7 @@ nsXULTreeGridRowAccessible::RowInvalidated(PRInt32 aStartColIdx,
     if (column && !nsCoreUtils::IsColumnHidden(column)) {
       nsAccessible *cellAccessible = GetCellAccessible(column);
       if (cellAccessible) {
-        nsRefPtr<nsXULTreeGridCellAccessible> cellAcc =
-          nsAccUtils::QueryObject<nsXULTreeGridCellAccessible>(cellAccessible);
+        nsRefPtr<nsXULTreeGridCellAccessible> cellAcc = do_QueryObject(cellAccessible);
 
         cellAcc->CellInvalidated();
       }
@@ -1041,12 +1042,12 @@ nsXULTreeGridCellAccessible::GetColumnHeaderCells(nsIArray **aHeaderCells)
   nsCOMPtr<nsIDOMElement> columnElm;
   mColumn->GetElement(getter_AddRefs(columnElm));
 
-  nsCOMPtr<nsIAccessible> headerCell;
-  GetAccService()->GetAccessibleInWeakShell(columnElm, mWeakShell,
-                                            getter_AddRefs(headerCell));
+  nsAccessible *headerCell =
+    GetAccService()->GetAccessibleInWeakShell(columnElm, mWeakShell);
 
   if (headerCell)
-    headerCells->AppendElement(headerCell, PR_FALSE);
+    headerCells->AppendElement(static_cast<nsIAccessible*>(headerCell),
+                               PR_FALSE);
 
   NS_ADDREF(*aHeaderCells = headerCells);
   return NS_OK;
@@ -1283,8 +1284,7 @@ nsXULTreeGridCellAccessible::GetSiblingAtOffset(PRInt32 aOffset,
   if (!columnAtOffset)
     return nsnull;
 
-  nsRefPtr<nsXULTreeItemAccessibleBase> rowAcc =
-    nsAccUtils::QueryObject<nsXULTreeItemAccessibleBase>(mParent);
+  nsRefPtr<nsXULTreeItemAccessibleBase> rowAcc = do_QueryObject(mParent);
 
   return rowAcc->GetCellAccessible(columnAtOffset);
 }

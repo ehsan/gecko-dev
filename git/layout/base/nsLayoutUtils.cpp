@@ -43,6 +43,9 @@
 #include "nsIFormControlFrame.h"
 #include "nsPresContext.h"
 #include "nsIContent.h"
+#include "nsIDOMDocument.h"
+#include "nsIDOMHTMLDocument.h"
+#include "nsIDOMHTMLElement.h"
 #include "nsFrameList.h"
 #include "nsGkAtoms.h"
 #include "nsIAtom.h"
@@ -77,7 +80,7 @@
 #include "gfxTypes.h"
 #include "gfxUserFontSet.h"
 #include "nsTArray.h"
-#include "nsICanvasElement.h"
+#include "nsHTMLCanvasElement.h"
 #include "nsICanvasRenderingContextInternal.h"
 #include "gfxPlatform.h"
 #include "nsClientRect.h"
@@ -90,6 +93,7 @@
 #include "nsCOMPtr.h"
 #include "nsListControlFrame.h"
 #include "ImageLayers.h"
+#include "mozilla/dom/Element.h"
 
 #ifdef MOZ_SVG
 #include "nsSVGUtils.h"
@@ -103,6 +107,7 @@
 #endif
 
 using namespace mozilla::layers;
+using namespace mozilla::dom;
 
 /**
  * A namespace class for static layout utilities.
@@ -123,7 +128,7 @@ nsLayoutUtils::GetLastContinuationWithChild(nsIFrame* aFrame)
 /**
  * GetFirstChildFrame returns the first "real" child frame of a
  * given frame.  It will descend down into pseudo-frames (unless the
- * pseudo-frame is the :before generated frame).   
+ * pseudo-frame is the :before generated frame).
  * @param aFrame the frame
  * @param aFrame the frame's content node
  */
@@ -151,7 +156,7 @@ GetFirstChildFrame(nsIFrame*       aFrame,
 /**
  * GetLastChildFrame returns the last "real" child frame of a
  * given frame.  It will descend down into pseudo-frames (unless the
- * pseudo-frame is the :after generated frame).   
+ * pseudo-frame is the :after generated frame).
  * @param aFrame the frame
  * @param aFrame the frame's content node
  */
@@ -169,7 +174,7 @@ GetLastChildFrame(nsIFrame*       aFrame,
     // Get the frame's first continuation. This matters in case the frame has
     // been continued across multiple lines or split by BiDi resolution.
     lastChildFrame = lastChildFrame->GetFirstContinuation();
-    
+
     // If the last child frame is a pseudo-frame, then return its last child.
     // Note that the frame we create for the generated content is also a
     // pseudo-frame and so don't drill down in that case
@@ -284,7 +289,7 @@ nsLayoutUtils::GetBeforeFrame(nsIFrame* aFrame)
   NS_PRECONDITION(aFrame, "NULL frame pointer");
   NS_ASSERTION(!aFrame->GetPrevContinuation(),
                "aFrame must be first continuation");
-  
+
   nsIFrame* firstFrame = GetFirstChildFrame(aFrame, aFrame->GetContent());
 
   if (firstFrame && IsGeneratedContentFor(nsnull, firstFrame,
@@ -369,7 +374,7 @@ nsLayoutUtils::IsGeneratedContentFor(nsIContent* aContent,
     // Not the root of the generated content
     return PR_FALSE;
   }
-  
+
   if (aContent && parent->GetContent() != aContent) {
     return PR_FALSE;
   }
@@ -409,7 +414,7 @@ nsLayoutUtils::IsProperAncestorFrameCrossDoc(nsIFrame* aAncestorFrame, nsIFrame*
 {
   if (aFrame == aCommonAncestor)
     return PR_FALSE;
-  
+
   nsIFrame* parentFrame = GetCrossDocParentFrame(aFrame);
 
   while (parentFrame != aCommonAncestor) {
@@ -440,7 +445,7 @@ nsLayoutUtils::IsProperAncestorFrame(nsIFrame* aAncestorFrame, nsIFrame* aFrame,
   if (aFrame == aCommonAncestor) {
     return PR_FALSE;
   }
-  
+
   nsIFrame* parentFrame = aFrame->GetParent();
 
   while (parentFrame != aCommonAncestor) {
@@ -487,7 +492,7 @@ nsLayoutUtils::DoCompareTreePosition(nsIContent* aContent1,
     return DoCompareTreePosition(aContent1, aContent2,
                                  aIf1Ancestor, aIf2Ancestor, nsnull);
   }
-  
+
   int last1 = content1Ancestors.Length() - 1;
   int last2 = content2Ancestors.Length() - 1;
   nsINode* content1Ancestor = nsnull;
@@ -734,7 +739,7 @@ nsLayoutUtils::GetDOMEventCoordinatesRelativeTo(nsIDOMEvent* aDOMEvent, nsIFrame
 nsPoint
 nsLayoutUtils::GetEventCoordinatesRelativeTo(const nsEvent* aEvent, nsIFrame* aFrame)
 {
-  if (!aEvent || (aEvent->eventStructType != NS_MOUSE_EVENT && 
+  if (!aEvent || (aEvent->eventStructType != NS_MOUSE_EVENT &&
                   aEvent->eventStructType != NS_MOUSE_SCROLL_EVENT &&
                   aEvent->eventStructType != NS_DRAG_EVENT &&
                   aEvent->eventStructType != NS_SIMPLE_GESTURE_EVENT &&
@@ -776,7 +781,7 @@ nsLayoutUtils::GetEventCoordinatesRelativeTo(const nsEvent* aEvent, nsIFrame* aF
    */
   if (transformFound)
     return InvertTransformsToRoot(aFrame, widgetToView);
-  
+
   /* Otherwise, all coordinate systems are translations of one another,
    * so we can just subtract out the different.
    */
@@ -839,12 +844,12 @@ static void ConstrainToCoordValues(gfxFloat &aVal)
 
 nsRect
 nsLayoutUtils::RoundGfxRectToAppRect(const gfxRect &aRect, float aFactor)
-{ 
-  /* Get a new gfxRect whose units are app units by scaling by the specified factor. */ 
+{
+  /* Get a new gfxRect whose units are app units by scaling by the specified factor. */
   gfxRect scaledRect(aRect.pos.x * aFactor, aRect.pos.y * aFactor,
                      aRect.size.width * aFactor,
                      aRect.size.height * aFactor);
-  
+
   /* Round outward. */
   scaledRect.RoundOut();
 
@@ -853,7 +858,7 @@ nsLayoutUtils::RoundGfxRectToAppRect(const gfxRect &aRect, float aFactor)
   ConstrainToCoordValues(scaledRect.pos.y);
   ConstrainToCoordValues(scaledRect.size.width);
   ConstrainToCoordValues(scaledRect.size.height);
-  
+
   /* Now typecast everything back.  This is guaranteed to be safe. */
   return nsRect(nscoord(scaledRect.pos.x), nscoord(scaledRect.pos.y),
                 nscoord(scaledRect.size.width), nscoord(scaledRect.size.height));
@@ -867,7 +872,7 @@ nsLayoutUtils::MatrixTransformRect(const nsRect &aBounds,
                                                   NSAppUnitsToFloatPixels(aBounds.y, aFactor),
                                                   NSAppUnitsToFloatPixels(aBounds.width, aFactor),
                                                   NSAppUnitsToFloatPixels(aBounds.height, aFactor)));
-  
+
   return RoundGfxRectToAppRect(image, aFactor);
 }
 
@@ -945,7 +950,7 @@ static nsIntPoint GetWidgetOffset(nsIWidget* aWidget, nsIWidget*& aRootWidget) {
 }
 
 nsPoint
-nsLayoutUtils::TranslateWidgetToView(nsPresContext* aPresContext, 
+nsLayoutUtils::TranslateWidgetToView(nsPresContext* aPresContext,
                                      nsIWidget* aWidget, nsIntPoint aPt,
                                      nsIView* aView)
 {
@@ -1013,12 +1018,27 @@ nsLayoutUtils::GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt,
                                 PRBool aShouldIgnoreSuppression,
                                 PRBool aIgnoreRootScrollFrame)
 {
+  nsresult rv;
+  nsTArray<nsIFrame*> outFrames;
+  rv = GetFramesForArea(aFrame, nsRect(aPt, nsSize(1, 1)), outFrames,
+                        aShouldIgnoreSuppression, aIgnoreRootScrollFrame);
+  NS_ENSURE_SUCCESS(rv, nsnull);
+  return outFrames.Length() ? outFrames.ElementAt(0) : nsnull;
+}
+
+nsresult
+nsLayoutUtils::GetFramesForArea(nsIFrame* aFrame, const nsRect& aRect,
+                                nsTArray<nsIFrame*> &aOutFrames,
+                                PRBool aShouldIgnoreSuppression,
+                                PRBool aIgnoreRootScrollFrame)
+{
   nsDisplayListBuilder builder(aFrame, PR_TRUE, PR_FALSE);
   nsDisplayList list;
-  nsRect target(aPt, nsSize(1, 1));
+  nsRect target(aRect);
 
-  if (aShouldIgnoreSuppression)
+  if (aShouldIgnoreSuppression) {
     builder.IgnorePaintSuppression();
+  }
 
   if (aIgnoreRootScrollFrame) {
     nsIFrame* rootScrollFrame =
@@ -1034,19 +1054,19 @@ nsLayoutUtils::GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt,
     aFrame->BuildDisplayListForStackingContext(&builder, target, &list);
 
   builder.LeavePresShell(aFrame, target);
-  NS_ENSURE_SUCCESS(rv, nsnull);
+  NS_ENSURE_SUCCESS(rv, rv);
 
 #ifdef DEBUG
   if (gDumpEventList) {
-    fprintf(stderr, "Event handling --- (%d,%d):\n", aPt.x, aPt.y);
+    fprintf(stderr, "Event handling --- (%d,%d):\n", aRect.x, aRect.y);
     nsFrame::PrintDisplayList(&builder, list);
   }
 #endif
 
   nsDisplayItem::HitTestState hitTestState;
-  nsIFrame* result = list.HitTest(&builder, aPt, &hitTestState);
+  list.HitTest(&builder, target, &hitTestState, &aOutFrames);
   list.DeleteAll();
-  return result;
+  return NS_OK;
 }
 
 /**
@@ -1080,7 +1100,7 @@ PruneDisplayListForExtraPage(nsDisplayListBuilder* aBuilder,
         // property with a negative top.
         // The clip area needs to be moved because the frame geometry doesn't
         // put page content frames for adjacent pages vertically adjacent,
-        // there are page margins and dead space between them in print 
+        // there are page margins and dead space between them in print
         // preview, and in printing all pages are at (0,0)...
         // XXX we have no way to test this right now that I know of;
         // the 'clip' property requires an abs-pos element and we never
@@ -1157,6 +1177,9 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
   }
   if (aFlags & PAINT_SYNC_DECODE_IMAGES) {
     builder.SetSyncDecodeImages(PR_TRUE);
+  }
+  if (aFlags & PAINT_WIDGET_LAYERS) {
+    builder.SetPaintingToWindow(PR_TRUE);
   }
   nsresult rv;
 
@@ -1236,7 +1259,7 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
 
     widget->UpdatePossiblyTransparentRegion(dirtyWindowRegion, visibleWindowRegion);
   }
-  list.Paint(&builder, aRenderingContext, flags);
+  list.PaintRoot(&builder, aRenderingContext, flags);
   // Flush the list so we don't trigger the IsEmpty-on-destruction assertion
   list.DeleteAll();
   return NS_OK;
@@ -1365,7 +1388,8 @@ AddItemsToRegion(nsDisplayListBuilder* aBuilder, nsDisplayList* aList,
           }
         } else {
           // not moving.
-          if (item->IsUniform(aBuilder)) {
+          nscolor color;
+          if (item->IsUniform(aBuilder, &color)) {
             // If it's uniform, we don't need to invalidate where one part
             // of the item was copied to another part.
             exclude.IntersectRect(r, r + aDelta);
@@ -1498,7 +1522,7 @@ nsLayoutUtils::GetZIndex(nsIFrame* aFrame) {
  * It also keeps track of the part of the string that has already been measured
  * so it doesn't have to keep measuring the same text over and over
  *
- * @param "aBaseWidth" contains the width in twips of the portion 
+ * @param "aBaseWidth" contains the width in twips of the portion
  * of the text that has already been measured, and aBaseInx contains
  * the index of the text that has already been measured.
  *
@@ -1506,13 +1530,13 @@ nsLayoutUtils::GetZIndex(nsIFrame* aFrame) {
  * before the cursor aIndex contains the index of the text where the cursor falls
  */
 PRBool
-nsLayoutUtils::BinarySearchForPosition(nsIRenderingContext* aRendContext, 
+nsLayoutUtils::BinarySearchForPosition(nsIRenderingContext* aRendContext,
                         const PRUnichar* aText,
                         PRInt32    aBaseWidth,
                         PRInt32    aBaseInx,
-                        PRInt32    aStartInx, 
-                        PRInt32    aEndInx, 
-                        PRInt32    aCursorPos, 
+                        PRInt32    aStartInx,
+                        PRInt32    aEndInx,
+                        PRInt32    aCursorPos,
                         PRInt32&   aIndex,
                         PRInt32&   aTextWidth)
 {
@@ -1689,7 +1713,7 @@ nsLayoutUtils::GetFontMetricsForStyleContext(nsStyleContext* aStyleContext,
 {
   // pass the user font set object into the device context to pass along to CreateFontGroup
   gfxUserFontSet* fs = aStyleContext->PresContext()->GetUserFontSet();
-  
+
   return aStyleContext->PresContext()->DeviceContext()->GetMetricsFor(
                   aStyleContext->GetStyleFont()->mFont,
                   aStyleContext->GetStyleVisibility()->mLanguage,
@@ -1836,7 +1860,7 @@ static PRBool GetAbsoluteCoord(const nsStyleCoord& aStyle, nscoord& aResult)
 {
   if (eStyleUnit_Coord != aStyle.GetUnit())
     return PR_FALSE;
-  
+
   aResult = aStyle.GetCoordValue();
   return PR_TRUE;
 }
@@ -2052,7 +2076,7 @@ nsLayoutUtils::IntrinsicForContainer(nsIRenderingContext *aRenderingContext,
       }
     }
   }
-      
+
   if (aFrame->GetType() == nsGkAtoms::tableFrame) {
     // Tables can't shrink smaller than their intrinsic minimum width,
     // no matter what.
@@ -2284,7 +2308,7 @@ IsAutoHeight(const nsStyleCoord &aCoord, nscoord aCBHeight)
   nsStyleUnit unit = aCoord.GetUnit();
   return unit == eStyleUnit_Auto ||  // only for 'height'
          unit == eStyleUnit_None ||  // only for 'max-height'
-         (unit == eStyleUnit_Percent && 
+         (unit == eStyleUnit_Percent &&
           aCBHeight == NS_AUTOHEIGHT);
 }
 
@@ -2491,7 +2515,7 @@ nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(
         }
       } else if (tentWidth < minWidth) {
         if (tentHeight < minHeight) {
-          if (PRInt64(minWidth) * PRInt64(tentHeight) <= 
+          if (PRInt64(minWidth) * PRInt64(tentHeight) <=
               PRInt64(minHeight) * PRInt64(tentWidth)) {
             width = widthAtMinHeight;
             height = minHeight;
@@ -2609,7 +2633,7 @@ nsLayoutUtils::DrawString(const nsIFrame*      aFrame,
   }
   if (NS_FAILED(rv))
 #endif // IBMBIDI
-  { 
+  {
     aContext->SetTextRunRTL(PR_FALSE);
     aContext->DrawString(aString, aLength, aPoint.x, aPoint.y);
   }
@@ -2841,6 +2865,11 @@ nsLayoutUtils::GetClosestLayer(nsIFrame* aFrame)
 gfxPattern::GraphicsFilter
 nsLayoutUtils::GetGraphicsFilterForFrame(nsIFrame* aForFrame)
 {
+#ifdef MOZ_GFX_OPTIMIZE_MOBILE
+  gfxPattern::GraphicsFilter defaultFilter = gfxPattern::FILTER_NEAREST;
+#else
+  gfxPattern::GraphicsFilter defaultFilter = gfxPattern::FILTER_GOOD;
+#endif
 #ifdef MOZ_SVG
   nsIFrame *frame = nsCSSRendering::IsCanvasFrame(aForFrame) ?
     nsCSSRendering::FindBackgroundStyleFrame(aForFrame) : aForFrame;
@@ -2853,10 +2882,10 @@ nsLayoutUtils::GetGraphicsFilterForFrame(nsIFrame* aForFrame)
   case NS_STYLE_IMAGE_RENDERING_CRISPEDGES:
     return gfxPattern::FILTER_NEAREST;
   default:
-    return gfxPattern::FILTER_GOOD;
+    return defaultFilter;
   }
 #else
-  return gfxPattern::FILTER_GOOD;
+  return defaultFilter;
 #endif
 }
 
@@ -3037,7 +3066,7 @@ nsLayoutUtils::DrawSingleUnscaledImage(nsIRenderingContext* aRenderingContext,
   return DrawImageInternal(aRenderingContext, aImage, gfxPattern::FILTER_NEAREST,
                            dest, fill, aDest, aDirty, imageSize, aImageFlags);
 }
- 
+
 /* static */ nsresult
 nsLayoutUtils::DrawSingleImage(nsIRenderingContext* aRenderingContext,
                                imgIContainer*       aImage,
@@ -3109,7 +3138,7 @@ nsLayoutUtils::GetWholeImageDestination(const nsIntSize& aWholeImageSize,
 }
 
 void
-nsLayoutUtils::SetFontFromStyle(nsIRenderingContext* aRC, nsStyleContext* aSC) 
+nsLayoutUtils::SetFontFromStyle(nsIRenderingContext* aRC, nsStyleContext* aSC)
 {
   const nsStyleFont* font = aSC->GetStyleFont();
   const nsStyleVisibility* visibility = aSC->GetStyleVisibility();
@@ -3141,23 +3170,23 @@ nsLayoutUtils::HasNonZeroCorner(const nsStyleCorners& aCorners)
 }
 
 // aCorner is a "full corner" value, i.e. NS_CORNER_TOP_LEFT etc
-static PRBool IsCornerAdjacentToSide(PRUint8 aCorner, PRUint8 aSide)
+static PRBool IsCornerAdjacentToSide(PRUint8 aCorner, mozilla::css::Side aSide)
 {
-  PR_STATIC_ASSERT(NS_SIDE_TOP == NS_CORNER_TOP_LEFT);
-  PR_STATIC_ASSERT(NS_SIDE_RIGHT == NS_CORNER_TOP_RIGHT);
-  PR_STATIC_ASSERT(NS_SIDE_BOTTOM == NS_CORNER_BOTTOM_RIGHT);
-  PR_STATIC_ASSERT(NS_SIDE_LEFT == NS_CORNER_BOTTOM_LEFT);
-  PR_STATIC_ASSERT(NS_SIDE_TOP == ((NS_CORNER_TOP_RIGHT - 1)&3));
-  PR_STATIC_ASSERT(NS_SIDE_RIGHT == ((NS_CORNER_BOTTOM_RIGHT - 1)&3));
-  PR_STATIC_ASSERT(NS_SIDE_BOTTOM == ((NS_CORNER_BOTTOM_LEFT - 1)&3));
-  PR_STATIC_ASSERT(NS_SIDE_LEFT == ((NS_CORNER_TOP_LEFT - 1)&3));
+  PR_STATIC_ASSERT((int)NS_SIDE_TOP == NS_CORNER_TOP_LEFT);
+  PR_STATIC_ASSERT((int)NS_SIDE_RIGHT == NS_CORNER_TOP_RIGHT);
+  PR_STATIC_ASSERT((int)NS_SIDE_BOTTOM == NS_CORNER_BOTTOM_RIGHT);
+  PR_STATIC_ASSERT((int)NS_SIDE_LEFT == NS_CORNER_BOTTOM_LEFT);
+  PR_STATIC_ASSERT((int)NS_SIDE_TOP == ((NS_CORNER_TOP_RIGHT - 1)&3));
+  PR_STATIC_ASSERT((int)NS_SIDE_RIGHT == ((NS_CORNER_BOTTOM_RIGHT - 1)&3));
+  PR_STATIC_ASSERT((int)NS_SIDE_BOTTOM == ((NS_CORNER_BOTTOM_LEFT - 1)&3));
+  PR_STATIC_ASSERT((int)NS_SIDE_LEFT == ((NS_CORNER_TOP_LEFT - 1)&3));
 
   return aSide == aCorner || aSide == ((aCorner - 1)&3);
 }
 
 /* static */ PRBool
 nsLayoutUtils::HasNonZeroCornerOnSide(const nsStyleCorners& aCorners,
-                                      PRUint8 aSide)
+                                      mozilla::css::Side aSide)
 {
   PR_STATIC_ASSERT(NS_CORNER_TOP_LEFT_X/2 == NS_CORNER_TOP_LEFT);
   PR_STATIC_ASSERT(NS_CORNER_TOP_LEFT_Y/2 == NS_CORNER_TOP_LEFT);
@@ -3223,7 +3252,7 @@ nsLayoutUtils::IsPopup(nsIFrame* aFrame)
   // We're a popup if we're the list control frame dropdown for a combobox.
   if (frameType == nsGkAtoms::listControlFrame) {
     nsListControlFrame* listControlFrame = static_cast<nsListControlFrame*>(aFrame);
-      
+
     if (listControlFrame) {
       return listControlFrame->IsInDropDownMode();
     }
@@ -3361,12 +3390,11 @@ nsLayoutUtils::SurfaceFromElement(nsIDOMElement *aElement,
   PRBool wantImageSurface = (aSurfaceFlags & SFE_WANT_IMAGE_SURFACE) != 0;
 
   // If it's a <canvas>, we may be able to just grab its internal surface
-  nsCOMPtr<nsICanvasElement> canvas = do_QueryInterface(aElement);
-  if (node && canvas) {
-    PRUint32 w, h;
-    rv = canvas->GetSize(&w, &h);
-    if (NS_FAILED(rv))
-      return result;
+  nsCOMPtr<nsIDOMHTMLCanvasElement> domCanvas = do_QueryInterface(aElement);
+  if (node && domCanvas) {
+    nsHTMLCanvasElement *canvas = static_cast<nsHTMLCanvasElement*>(domCanvas.get());
+    nsIntSize nssize = canvas->GetSize();
+    gfxIntSize size(nssize.width, nssize.height);
 
     nsRefPtr<gfxASurface> surf;
 
@@ -3383,13 +3411,14 @@ nsLayoutUtils::SurfaceFromElement(nsIDOMElement *aElement,
 
     if (!surf) {
       if (wantImageSurface) {
-        surf = new gfxImageSurface(gfxIntSize(w, h), gfxASurface::ImageFormatARGB32);
+        surf = new gfxImageSurface(size, gfxASurface::ImageFormatARGB32);
       } else {
-        surf = gfxPlatform::GetPlatform()->CreateOffscreenSurface(gfxIntSize(w, h), gfxASurface::ImageFormatARGB32);
+        surf = gfxPlatform::GetPlatform()->CreateOffscreenSurface(size, gfxASurface::ImageFormatARGB32);
       }
-                
+
       nsRefPtr<gfxContext> ctx = new gfxContext(surf);
-      rv = canvas->RenderContexts(ctx, gfxPattern::FILTER_NEAREST);
+      // XXX shouldn't use the external interface, but maybe we can layerify this
+      rv = (static_cast<nsICanvasElementExternal*>(canvas))->RenderContextsExternal(ctx, gfxPattern::FILTER_NEAREST);
       if (NS_FAILED(rv))
         return result;
     }
@@ -3397,7 +3426,7 @@ nsLayoutUtils::SurfaceFromElement(nsIDOMElement *aElement,
     nsCOMPtr<nsIPrincipal> principal = node->NodePrincipal();
 
     result.mSurface = surf;
-    result.mSize = gfxIntSize(w, h);
+    result.mSize = size;
     result.mPrincipal = node->NodePrincipal();
     result.mIsWriteOnly = canvas->IsWriteOnly();
 
@@ -3476,7 +3505,7 @@ nsLayoutUtils::SurfaceFromElement(nsIDOMElement *aElement,
   rv = uri->SchemeIs("data", &isDataURI);
   if (NS_FAILED(rv))
     return result;
-    
+
   // Data URIs are always OK; set the principal
   // to null to indicate that.
   nsCOMPtr<nsIPrincipal> principal;
@@ -3535,6 +3564,40 @@ nsLayoutUtils::SurfaceFromElement(nsIDOMElement *aElement,
   return result;
 }
 
+/* static */
+nsIContent*
+nsLayoutUtils::GetEditableRootContentByContentEditable(nsIDocument* aDocument)
+{
+  // If the document is in designMode we should return NULL.
+  if (!aDocument || aDocument->HasFlag(NODE_IS_EDITABLE)) {
+    return nsnull;
+  }
+
+  // contenteditable only works with HTML document.
+  // Note: Use nsIDOMHTMLDocument rather than nsIHTMLDocument for getting the
+  //       body node because nsIDOMHTMLDocument::GetBody() does something
+  //       additional work for some cases and nsEditor uses them.
+  nsCOMPtr<nsIDOMHTMLDocument> domHTMLDoc = do_QueryInterface(aDocument);
+  if (!domHTMLDoc) {
+    return nsnull;
+  }
+
+  Element* rootElement = aDocument->GetRootElement();
+  if (rootElement && rootElement->IsEditable()) {
+    return rootElement;
+  }
+
+  // If there are no editable root element, check its <body> element.
+  // Note that the body element could be <frameset> element.
+  nsCOMPtr<nsIDOMHTMLElement> body;
+  nsresult rv = domHTMLDoc->GetBody(getter_AddRefs(body));
+  nsCOMPtr<nsIContent> content = do_QueryInterface(body);
+  if (NS_SUCCEEDED(rv) && content && content->IsEditable()) {
+    return content;
+  }
+  return nsnull;
+}
+
 nsSetAttrRunnable::nsSetAttrRunnable(nsIContent* aContent, nsIAtom* aAttrName,
                                      const nsAString& aValue)
   : mContent(aContent),
@@ -3542,6 +3605,15 @@ nsSetAttrRunnable::nsSetAttrRunnable(nsIContent* aContent, nsIAtom* aAttrName,
     mValue(aValue)
 {
   NS_ASSERTION(aContent && aAttrName, "Missing stuff, prepare to crash");
+}
+
+nsSetAttrRunnable::nsSetAttrRunnable(nsIContent* aContent, nsIAtom* aAttrName,
+                                     PRInt32 aValue)
+  : mContent(aContent),
+    mAttrName(aAttrName)
+{
+  NS_ASSERTION(aContent && aAttrName, "Missing stuff, prepare to crash");
+  mValue.AppendInt(aValue);
 }
 
 NS_IMETHODIMP

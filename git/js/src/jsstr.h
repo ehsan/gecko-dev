@@ -53,6 +53,7 @@
 #include "jsprvtd.h"
 #include "jshashtable.h"
 #include "jslock.h"
+#include "jsobj.h"
 
 JS_BEGIN_EXTERN_C
 
@@ -473,6 +474,12 @@ JS_ISSPACE(jschar c)
 /* Initialize the String class, returning its prototype object. */
 extern JSClass js_StringClass;
 
+inline bool
+JSObject::isString() const
+{
+    return getClass() == &js_StringClass;
+}
+
 extern JSObject *
 js_InitStringClass(JSContext *cx, JSObject *obj);
 
@@ -732,7 +739,7 @@ class DeflatedStringCache {
     {
         typedef JSString *Lookup;
 
-        static uint32 hash(JSString *str) {
+        static HashNumber hash(JSString *str) {
             /*
              * We hash only GC-allocated Strings. They are aligned on
              * sizeof(JSString) boundary so we can improve hashing by stripping
@@ -744,7 +751,7 @@ class DeflatedStringCache {
             jsuword ptr = reinterpret_cast<jsuword>(str);
             jsuword key = ptr >> ALIGN_LOG;
             JS_ASSERT((key << ALIGN_LOG) == ptr);
-            return uint32(key);
+            return HashNumber(key);
         }
 
         static bool match(JSString *s1, JSString *s2) {

@@ -57,6 +57,7 @@
 #include "nsMathUtils.h"
 #include "nsBidiUtils.h"
 #include "nsUnicodeRange.h"
+#include "nsCompressedCharMap.h"
 
 #include "cairo.h"
 #include "gfxFontTest.h"
@@ -99,6 +100,55 @@ PRBool gfxFontEntry::TestCharacterMap(PRUint32 aCh)
 }
 
 
+nsresult gfxFontEntry::InitializeUVSMap()
+{
+    // mUVSOffset will not be initialized
+    // until cmap is initialized.
+    if (!mCmapInitialized) {
+        ReadCMAP();
+    }
+
+    if (!mUVSOffset) {
+        return NS_ERROR_FAILURE;
+    }
+
+    if (!mUVSData) {
+        const PRUint32 kCmapTag = TRUETYPE_TAG('c','m','a','p');
+        nsAutoTArray<PRUint8,16384> buffer;
+        if (GetFontTable(kCmapTag, buffer) != NS_OK) {
+            mUVSOffset = 0; // don't bother to read the table again
+            return NS_ERROR_FAILURE;
+        }
+
+        PRUint8* uvsData;
+        nsresult rv = gfxFontUtils::ReadCMAPTableFormat14(
+                          buffer.Elements() + mUVSOffset,
+                          buffer.Length() - mUVSOffset,
+                          uvsData);
+        if (NS_FAILED(rv)) {
+            mUVSOffset = 0; // don't bother to read the table again
+            return rv;
+        }
+
+        mUVSData = uvsData;
+    }
+
+    return NS_OK;
+}
+
+
+PRUint16 gfxFontEntry::GetUVSGlyph(PRUint32 aCh, PRUint32 aVS)
+{
+    InitializeUVSMap();
+
+    if (mUVSData) {
+        return gfxFontUtils::MapUVSToGlyphFormat14(mUVSData, aCh, aVS);
+    }
+
+    return 0;
+}
+
+
 nsresult gfxFontEntry::ReadCMAP()
 {
     mCmapInitialized = PR_TRUE;
@@ -117,6 +167,7 @@ gfxFontEntry::FindOrMakeFont(const gfxFontStyle *aStyle, PRBool aNeedsBold)
 {
     // the font entry name is the psname, not the family name
     nsRefPtr<gfxFont> font = gfxFontCache::GetCache()->Lookup(Name(), aStyle);
+
     if (!font) {
         gfxFont *newFont = CreateFontInstance(aStyle, aNeedsBold);
         if (!newFont)
@@ -946,7 +997,9 @@ gfxFont::Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
             for (j = 0; j < glyphCount; ++j, ++details) {
                 double advance = details->mAdvance;
                 if (glyphData->IsMissing()) {
-                    if (!aDrawToPath) {
+                    // default ignorable characters will have zero advance width.
+                    // we don't have to draw the hexbox for them
+                    if (!aDrawToPath && advance > 0) {
                         double glyphX = x;
                         if (isRTL) {
                             glyphX -= advance;
@@ -1071,16 +1124,18 @@ gfxFont::Measure(gfxTextRun *aTextRun,
     // If aBoundingBoxType is TIGHT_HINTED_OUTLINE_EXTENTS
     // and the underlying cairo font may be antialiased,
     // we need to create a copy in order to avoid getting cached extents.
-    // This is inefficient, but only used by MathML layout at present.
+    // This is only used by MathML layout at present.
     if (aBoundingBoxType == TIGHT_HINTED_OUTLINE_EXTENTS &&
         mAntialiasOption != kAntialiasNone) {
-        nsAutoPtr<gfxFont> tempFont(CopyWithAntialiasOption(kAntialiasNone));
+        if (!mNonAAFont) {
+            mNonAAFont = CopyWithAntialiasOption(kAntialiasNone);
+        }
         // if font subclass doesn't implement CopyWithAntialiasOption(),
         // it will return null and we'll proceed to use the existing font
-        if (tempFont) {
-            return tempFont->Measure(aTextRun, aStart, aEnd,
-                                     TIGHT_HINTED_OUTLINE_EXTENTS,
-                                     aRefContext, aSpacing);
+        if (mNonAAFont) {
+            return mNonAAFont->Measure(aTextRun, aStart, aEnd,
+                                       TIGHT_HINTED_OUTLINE_EXTENTS,
+                                       aRefContext, aSpacing);
         }
     }
 
@@ -1483,13 +1538,47 @@ gfxFontGroup::BuildFontList()
 
     if (mFonts.Length() == 0) {
         PRBool needsBold;
-        gfxFontEntry *defaultFont = 
-            gfxPlatformFontList::PlatformFontList()->GetDefaultFont(&mStyle, needsBold);
+        gfxPlatformFontList *pfl = gfxPlatformFontList::PlatformFontList();
+        gfxFontEntry *defaultFont = pfl->GetDefaultFont(&mStyle, needsBold);
         NS_ASSERTION(defaultFont, "invalid default font returned by GetDefaultFont");
 
-        nsRefPtr<gfxFont> font = defaultFont->FindOrMakeFont(&mStyle, needsBold);
-        if (font) {
-            mFonts.AppendElement(font);
+        if (defaultFont) {
+            nsRefPtr<gfxFont> font = defaultFont->FindOrMakeFont(&mStyle,
+                                                                 needsBold);
+            if (font) {
+                mFonts.AppendElement(font);
+            }
+        }
+
+        if (mFonts.Length() == 0) {
+            // Try for a "font of last resort...."
+            // Because an empty font list would be Really Bad for later code
+            // that assumes it will be able to get valid metrics for layout,
+            // just look for the first usable font and put in the list.
+            // (see bug 554544)
+            nsAutoTArray<nsRefPtr<gfxFontFamily>,200> families;
+            pfl->GetFontFamilyList(families);
+            for (PRUint32 i = 0; i < families.Length(); ++i) {
+                gfxFontEntry *fe = families[i]->FindFontForStyle(mStyle,
+                                                                 needsBold);
+                if (fe) {
+                    nsRefPtr<gfxFont> font = fe->FindOrMakeFont(&mStyle,
+                                                                needsBold);
+                    if (font) {
+                        mFonts.AppendElement(font);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (mFonts.Length() == 0) {
+            // an empty font list at this point is fatal; we're not going to
+            // be able to do even the most basic layout operations
+            char msg[256]; // CHECK buffer length if revising message below
+            sprintf(msg, "unable to find a usable font (%.220s)",
+                    NS_ConvertUTF16toUTF8(mFamilies).get());
+            NS_RUNTIMEABORT(msg);
         }
     }
 
@@ -1649,7 +1738,7 @@ gfxFontGroup::ForEachFontInternal(const nsAString& aFamilies,
     nsXPIDLCString value;
 
     while (p < p_end) {
-        while (nsCRT::IsAsciiSpace(*p))
+        while (nsCRT::IsAsciiSpace(*p) || *p == kComma)
             if (++p == p_end)
                 return PR_TRUE;
 
@@ -1960,6 +2049,18 @@ gfxFontGroup::FindFontForChar(PRUint32 aCh, PRUint32 aPrevCh, PRUint32 aNextCh, 
             selectedFont = aPrevMatchedFont;
             return selectedFont.forget();
         }
+    }
+
+    // if this character is a variation selector,
+    // use the previous font regardless of whether it supports VS or not.
+    // otherwise the text run will be divided.
+    if (gfxFontUtils::IsVarSelector(aCh)) {
+        if (aPrevMatchedFont) {
+            selectedFont = aPrevMatchedFont;
+            return selectedFont.forget();
+        }
+        // VS alone. it's meaningless to search different fonts
+        return nsnull;
     }
 
     // 1. check fonts in the font group
@@ -3349,6 +3450,15 @@ gfxTextRun::SetGlyphs(PRUint32 aIndex, CompressedGlyph aGlyph,
     mCharacterGlyphs[aIndex] = aGlyph;
 }
 
+#include "ignorable.x-ccmap"
+DEFINE_X_CCMAP(gIgnorableCCMapExt, const);
+
+static inline PRBool
+IsDefaultIgnorable(PRUint32 aChar)
+{
+    return CCMAP_HAS_CHAR_EXT(gIgnorableCCMapExt, aChar);
+}
+
 void
 gfxTextRun::SetMissingGlyph(PRUint32 aIndex, PRUint32 aChar)
 {
@@ -3358,9 +3468,14 @@ gfxTextRun::SetMissingGlyph(PRUint32 aIndex, PRUint32 aChar)
 
     details->mGlyphID = aChar;
     GlyphRun *glyphRun = &mGlyphRuns[FindFirstGlyphRunContaining(aIndex)];
-    gfxFloat width = PR_MAX(glyphRun->mFont->GetMetrics().aveCharWidth,
-                            gfxFontMissingGlyphs::GetDesiredMinWidth(aChar));
-    details->mAdvance = PRUint32(width*GetAppUnitsPerDevUnit());
+    if (IsDefaultIgnorable(aChar)) {
+        // Setting advance width to zero will prevent drawing the hexbox
+        details->mAdvance = 0;
+    } else {
+        gfxFloat width = PR_MAX(glyphRun->mFont->GetMetrics().aveCharWidth,
+                                gfxFontMissingGlyphs::GetDesiredMinWidth(aChar));
+        details->mAdvance = PRUint32(width*GetAppUnitsPerDevUnit());
+    }
     details->mXOffset = 0;
     details->mYOffset = 0;
     mCharacterGlyphs[aIndex].SetMissing(1);

@@ -363,7 +363,7 @@ RDFContentSinkImpl::~RDFContentSinkImpl()
         // pop all the elements off the stack and release them.
         PRInt32 i = mContextStack->Length();
         while (0 < i--) {
-            nsIRDFResource* resource;
+            nsIRDFResource* resource = nsnull;
             RDFContentSinkState state;
             RDFContentSinkParseMode parseMode;
             PopContext(resource, state, parseMode);
@@ -1377,8 +1377,7 @@ RDFContentSinkImpl::SplitExpatName(const PRUnichar *aExpatName,
     }
 
     const nsDependentSubstring& nameSpaceURI = Substring(aExpatName, uriEnd);
-    *aLocalName = NS_NewAtom(NS_ConvertUTF16toUTF8(nameStart,
-                                                   pos - nameStart));
+    *aLocalName = NS_NewAtom(Substring(nameStart, pos));
     return nameSpaceURI;
 }
 

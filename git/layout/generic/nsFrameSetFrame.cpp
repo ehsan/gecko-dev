@@ -355,9 +355,15 @@ nsHTMLFramesetFrame::Init(nsIContent*      aContent,
 
   for (PRUint32 childX = 0; childX < numChildren; childX++) {
     if (mChildCount == numCells) { // we have more <frame> or <frameset> than cells
+      // Clear the lazy bits in the remaining children.
+      for (PRUint32 i = childX; i < numChildren; i++) {
+        mContent->GetChildAt(i)->UnsetFlags(NODE_DESCENDANTS_NEED_FRAMES |
+                                            NODE_NEEDS_FRAME);
+      }
       break;
     }
     nsIContent *child = mContent->GetChildAt(childX);
+    child->UnsetFlags(NODE_DESCENDANTS_NEED_FRAMES | NODE_NEEDS_FRAME);
 
     // IMPORTANT: This must match the conditions in
     // nsCSSFrameConstructor::ContentAppended/Inserted/Removed    
@@ -369,7 +375,8 @@ nsHTMLFramesetFrame::Init(nsIContent*      aContent,
       nsRefPtr<nsStyleContext> kidSC;
       nsresult result;
 
-      kidSC = shell->StyleSet()->ResolveStyleFor(child, mStyleContext);
+      kidSC = shell->StyleSet()->ResolveStyleFor(child->AsElement(),
+                                                 mStyleContext);
       if (tag == nsGkAtoms::frameset) {
         frame = NS_NewHTMLFramesetFrame(shell, kidSC);
         if (NS_UNLIKELY(!frame))
@@ -1625,8 +1632,10 @@ public:
 
   // REVIEW: see old GetFrameForPoint
   // Receives events in its bounds
-  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
-                            HitTestState* aState) { return mFrame; }
+  virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
+                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) {
+    aOutFrames->AppendElement(mFrame);
+  }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("FramesetBorder")

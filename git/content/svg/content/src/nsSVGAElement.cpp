@@ -167,8 +167,26 @@ nsSVGAElement::GetHrefURI() const
 }
 
 
+NS_IMETHODIMP_(PRBool)
+nsSVGAElement::IsAttributeMapped(const nsIAtom* name) const
+{
+  static const MappedAttributeEntry* const map[] = {
+    sFEFloodMap,
+    sFiltersMap,
+    sFontSpecificationMap,
+    sGradientStopMap,
+    sLightingEffectsMap,
+    sMarkersMap,
+    sTextContentElementsMap,
+    sViewportsMap
+  };
+
+  return FindAttributeDependence(name, map, NS_ARRAY_LENGTH(map)) ||
+    nsSVGAElementBase::IsAttributeMapped(name);
+}
+
 PRBool
-nsSVGAElement::IsFocusable(PRInt32 *aTabIndex)
+nsSVGAElement::IsFocusable(PRInt32 *aTabIndex, PRBool aWithMouse)
 {
   nsCOMPtr<nsIURI> uri;
   if (IsLink(getter_AddRefs(uri))) {

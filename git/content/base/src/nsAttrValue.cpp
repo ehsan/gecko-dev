@@ -388,24 +388,7 @@ nsAttrValue::ToString(nsAString& aResult) const
 #endif
     case eEnum:
     {
-      PRInt16 val = GetEnumValue();
-      PRUint32 allEnumBits =
-        cont ? cont->mEnumValue : static_cast<PRUint32>(GetIntInternal());
-      const EnumTable* table = sEnumTableArray->
-        ElementAt(allEnumBits & NS_ATTRVALUE_ENUMTABLEINDEX_MASK);
-      while (table->tag) {
-        if (table->value == val) {
-          aResult.AssignASCII(table->tag);
-          if (allEnumBits & NS_ATTRVALUE_ENUMTABLE_VALUE_NEEDS_TO_UPPER) {
-            ToUpperCase(aResult);
-          }
-          return;
-        }
-        table++;
-      }
-
-      NS_NOTREACHED("couldn't find value in EnumTable");
-
+      GetEnumString(aResult, PR_FALSE);
       break;
     }
     case ePercent:
@@ -468,6 +451,32 @@ nsAttrValue::GetColorValue(nscolor& aColor) const
 
   aColor = GetMiscContainer()->mColor;
   return PR_TRUE;
+}
+
+void
+nsAttrValue::GetEnumString(nsAString& aResult, PRBool aRealTag) const
+{
+  NS_PRECONDITION(Type() == eEnum, "wrong type");
+
+  PRUint32 allEnumBits =
+    (BaseType() == eIntegerBase) ? static_cast<PRUint32>(GetIntInternal())
+                                   : GetMiscContainer()->mEnumValue;
+  PRInt16 val = allEnumBits >> NS_ATTRVALUE_ENUMTABLEINDEX_BITS;
+  const EnumTable* table = sEnumTableArray->
+    ElementAt(allEnumBits & NS_ATTRVALUE_ENUMTABLEINDEX_MASK);
+
+  while (table->tag) {
+    if (table->value == val) {
+      aResult.AssignASCII(table->tag);
+      if (!aRealTag && allEnumBits & NS_ATTRVALUE_ENUMTABLE_VALUE_NEEDS_TO_UPPER) {
+        ToUpperCase(aResult);
+      }
+      return;
+    }
+    table++;
+  }
+
+  NS_NOTREACHED("couldn't find value in EnumTable");
 }
 
 PRInt32
@@ -958,46 +967,58 @@ nsAttrValue::SetIntValueAndType(PRInt32 aValue, ValueType aType,
 }
 
 PRBool
+nsAttrValue::GetEnumTableIndex(const EnumTable* aTable, PRInt16& aResult)
+{
+  PRInt16 index = sEnumTableArray->IndexOf(aTable);
+  if (index < 0) {
+    index = sEnumTableArray->Length();
+    NS_ASSERTION(index <= NS_ATTRVALUE_ENUMTABLEINDEX_MAXVALUE,
+        "too many enum tables");
+    if (!sEnumTableArray->AppendElement(aTable)) {
+      return PR_FALSE;
+    }
+  }
+
+  aResult = index;
+
+  return PR_TRUE;
+}
+
+PRBool
 nsAttrValue::ParseEnumValue(const nsAString& aValue,
                             const EnumTable* aTable,
                             PRBool aCaseSensitive)
 {
   ResetIfSet();
+  const EnumTable* tableEntry = aTable;
 
-  while (aTable->tag) {
-    if (aCaseSensitive ? aValue.EqualsASCII(aTable->tag) :
-                         aValue.LowerCaseEqualsASCII(aTable->tag)) {
-
-      // Find index of EnumTable
-      PRInt16 index = sEnumTableArray->IndexOf(aTable);
-      if (index < 0) {
-        index = sEnumTableArray->Length();
-        NS_ASSERTION(index <= NS_ATTRVALUE_ENUMTABLEINDEX_MAXVALUE,
-                     "too many enum tables");
-        if (!sEnumTableArray->AppendElement(aTable)) {
-          return PR_FALSE;
-        }
+  while (tableEntry->tag) {
+    if (aCaseSensitive ? aValue.EqualsASCII(tableEntry->tag) :
+                         aValue.LowerCaseEqualsASCII(tableEntry->tag)) {
+      PRInt16 index;
+      if (!GetEnumTableIndex(aTable, index)) {
+        return PR_FALSE;
       }
 
-      PRInt32 value = (aTable->value << NS_ATTRVALUE_ENUMTABLEINDEX_BITS) +
+      PRInt32 value = (tableEntry->value << NS_ATTRVALUE_ENUMTABLEINDEX_BITS) +
                       index;
 
-      PRBool equals = aCaseSensitive || aValue.EqualsASCII(aTable->tag);
+      PRBool equals = aCaseSensitive || aValue.EqualsASCII(tableEntry->tag);
       if (!equals) {
         nsAutoString tag;
-        tag.AssignASCII(aTable->tag);
+        tag.AssignASCII(tableEntry->tag);
         ToUpperCase(tag);
         if ((equals = tag.Equals(aValue))) {
           value |= NS_ATTRVALUE_ENUMTABLE_VALUE_NEEDS_TO_UPPER;
         }
       }
       SetIntValueAndType(value, eEnum, equals ? nsnull : &aValue);
-      NS_ASSERTION(GetEnumValue() == aTable->value,
+      NS_ASSERTION(GetEnumValue() == tableEntry->value,
                    "failed to store enum properly");
 
       return PR_TRUE;
     }
-    aTable++;
+    tableEntry++;
   }
 
   return PR_FALSE;
@@ -1069,13 +1090,28 @@ nsAttrValue::ParseNonNegativeIntValue(const nsAString& aString)
   PRInt32 ec;
   PRBool strict;
   PRInt32 originalVal = StringToInteger(aString, &strict, &ec);
-  if (NS_FAILED(ec)) {
+  if (NS_FAILED(ec) || originalVal < 0) {
     return PR_FALSE;
   }
 
-  PRInt32 val = PR_MAX(originalVal, -1);
-  strict = strict && (originalVal == val);
-  SetIntValueAndType(val, eInteger, strict ? nsnull : &aString);
+  SetIntValueAndType(originalVal, eInteger, nsnull);
+
+  return PR_TRUE;
+}
+
+PRBool
+nsAttrValue::ParsePositiveIntValue(const nsAString& aString)
+{
+  ResetIfSet();
+
+  PRInt32 ec;
+  PRBool strict;
+  PRInt32 originalVal = StringToInteger(aString, &strict, &ec);
+  if (NS_FAILED(ec) || originalVal <= 0) {
+    return PR_FALSE;
+  }
+
+  SetIntValueAndType(originalVal, eInteger, nsnull);
 
   return PR_TRUE;
 }
@@ -1106,6 +1142,10 @@ nsAttrValue::ParseColor(const nsAString& aString, nsIDocument* aDocument)
 {
   ResetIfSet();
 
+  // FIXME (partially, at least): HTML5's algorithm says we shouldn't do
+  // the whitespace compression, trimming, or the test for emptiness.
+  // (I'm a little skeptical that we shouldn't do the whitespace
+  // trimming; WebKit also does it.)
   nsAutoString colorStr(aString);
   colorStr.CompressWhitespace(PR_TRUE, PR_TRUE);
   if (colorStr.IsEmpty()) {
@@ -1116,8 +1156,8 @@ nsAttrValue::ParseColor(const nsAString& aString, nsIDocument* aDocument)
   // No color names begin with a '#'; in standards mode, all acceptable
   // numeric colors do.
   if (colorStr.First() == '#') {
-    colorStr.Cut(0, 1);
-    if (NS_HexToRGB(colorStr, &color)) {
+    nsDependentString withoutHash(colorStr.get() + 1, colorStr.Length() - 1);
+    if (NS_HexToRGB(withoutHash, &color)) {
       SetColorValue(color, aString);
       return PR_TRUE;
     }
@@ -1128,15 +1168,18 @@ nsAttrValue::ParseColor(const nsAString& aString, nsIDocument* aDocument)
     }
   }
 
-  if (aDocument->GetCompatibilityMode() != eCompatibility_NavQuirks) {
-    return PR_FALSE;
+  // FIXME (maybe): HTML5 says we should handle system colors.  This
+  // means we probably need another storage type, since we'd need to
+  // handle dynamic changes.  However, I think this is a bad idea:
+  // http://lists.whatwg.org/pipermail/whatwg-whatwg.org/2010-May/026449.html
+
+  // Use NS_LooseHexToRGB as a fallback if nothing above worked.
+  if (NS_LooseHexToRGB(colorStr, &color)) {
+    SetColorValue(color, aString);
+    return PR_TRUE;
   }
 
-  // In compatibility mode, try LooseHexToRGB as a fallback for either
-  // of the above two possibilities.
-  NS_LooseHexToRGB(colorStr, &color);
-  SetColorValue(color, aString);
-  return PR_TRUE;
+  return PR_FALSE;
 }
 
 PRBool nsAttrValue::ParseFloatValue(const nsAString& aString)

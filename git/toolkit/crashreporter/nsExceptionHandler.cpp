@@ -408,6 +408,9 @@ bool MinidumpCallback(const XP_CHAR* dump_path,
 static bool FPEFilter(void* context, EXCEPTION_POINTERS* exinfo,
                       MDRawAssertionInfo* assertion)
 {
+  if (!exinfo)
+    return true;
+
   PEXCEPTION_RECORD e = (PEXCEPTION_RECORD)exinfo->ExceptionRecord;
   switch (e->ExceptionCode) {
     case STATUS_FLOAT_DENORMAL_OPERAND:
@@ -1434,11 +1437,7 @@ OnChildProcessDumpRequested(void* aContext,
 static bool
 OOPInitialized()
 {
-#if defined(XP_MACOSX)
-  return true;
-#else
-  return crashServer != NULL;
-#endif
+  return pidToMinidump != NULL;
 }
 
 static void
@@ -1592,6 +1591,14 @@ SetRemoteExceptionHandler()
   return gExceptionHandler->IsOutOfProcess();
 }
 
+//--------------------------------------------------
+#elif defined(XP_MACOSX)
+void
+CreateNotificationPipeForChild()
+{
+  if (GetEnabled() && !OOPInitialized())
+    OOPInit();
+}
 #endif  // XP_WIN
 
 

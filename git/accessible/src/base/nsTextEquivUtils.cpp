@@ -39,7 +39,9 @@
 
 #include "nsTextEquivUtils.h"
 
+#include "nsAccessibilityService.h"
 #include "nsAccessible.h"
+#include "nsAccUtils.h"
 
 #include "nsIDOMXULLabeledControlEl.h"
 
@@ -139,7 +141,7 @@ nsTextEquivUtils::AppendTextEquivFromContent(nsIAccessible *aInitiatorAcc,
   gInitiatorAcc = aInitiatorAcc;
 
   nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(aContent));
-  nsCOMPtr<nsIPresShell> shell = nsCoreUtils::GetPresShellFor(DOMNode);
+  nsIPresShell *shell = nsCoreUtils::GetPresShellFor(DOMNode);
   if (!shell) {
     NS_ASSERTION(PR_TRUE, "There is no presshell!");
     gInitiatorAcc = nsnull;
@@ -156,9 +158,8 @@ nsTextEquivUtils::AppendTextEquivFromContent(nsIAccessible *aInitiatorAcc,
   PRBool goThroughDOMSubtree = PR_TRUE;
 
   if (isVisible) {
-    nsCOMPtr<nsIAccessible> accessible;
-    GetAccService()->GetAccessibleInShell(DOMNode, shell,
-                                               getter_AddRefs(accessible));
+    nsAccessible *accessible =
+      GetAccService()->GetAccessibleInShell(DOMNode, shell);
     if (accessible) {
       rv = AppendFromAccessible(accessible, aString);
       goThroughDOMSubtree = PR_FALSE;
@@ -235,16 +236,14 @@ nsresult
 nsTextEquivUtils::AppendFromAccessibleChildren(nsIAccessible *aAccessible,
                                                nsAString *aString)
 {
-  nsCOMPtr<nsIAccessible> accChild, accNextChild;
-  aAccessible->GetFirstChild(getter_AddRefs(accChild));
-
   nsresult rv = NS_OK_NO_NAME_CLAUSE_HANDLED;
-  while (accChild) {
-    rv = AppendFromAccessible(accChild, aString);
-    NS_ENSURE_SUCCESS(rv, rv);
 
-    accChild->GetNextSibling(getter_AddRefs(accNextChild));
-    accChild.swap(accNextChild);
+  nsRefPtr<nsAccessible> accessible(do_QueryObject(aAccessible));
+  PRInt32 childCount = accessible->GetChildCount();
+  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
+    nsAccessible *child = accessible->GetChildAt(childIdx);
+    rv = AppendFromAccessible(child, aString);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   return rv;
@@ -334,7 +333,7 @@ nsTextEquivUtils::AppendFromValue(nsIAccessible *aAccessible,
       NS_OK : NS_OK_NO_NAME_CLAUSE_HANDLED;
   }
 
-  nsRefPtr<nsAccessible> acc = nsAccUtils::QueryAccessible(aAccessible);
+  nsRefPtr<nsAccessible> acc = do_QueryObject(aAccessible);
   nsCOMPtr<nsIDOMNode> node;
   acc->GetDOMNode(getter_AddRefs(node));
   NS_ENSURE_STATE(node);

@@ -255,18 +255,19 @@ nsDOMStorageManager::Initialize()
 
   NS_ADDREF(gStorageManager);
 
-  nsCOMPtr<nsIObserverService> os = do_GetService("@mozilla.org/observer-service;1");
-  if (os) {
-    os->AddObserver(gStorageManager, "cookie-changed", PR_FALSE);
-    os->AddObserver(gStorageManager, "offline-app-removed", PR_FALSE);
-    os->AddObserver(gStorageManager, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_FALSE);
-    os->AddObserver(gStorageManager, "perm-changed", PR_FALSE);
+  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
+  if (!os)
+    return NS_OK;
 
-    nsCOMPtr<nsIPrivateBrowsingService> pbs =
-      do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
-    if (pbs)
-      pbs->GetPrivateBrowsingEnabled(&gStorageManager->mInPrivateBrowsing);
-  }
+  os->AddObserver(gStorageManager, "cookie-changed", PR_FALSE);
+  os->AddObserver(gStorageManager, "offline-app-removed", PR_FALSE);
+  os->AddObserver(gStorageManager, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_FALSE);
+  os->AddObserver(gStorageManager, "perm-changed", PR_FALSE);
+
+  nsCOMPtr<nsIPrivateBrowsingService> pbs =
+    do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
+  if (pbs)
+    pbs->GetPrivateBrowsingEnabled(&gStorageManager->mInPrivateBrowsing);
 
   return NS_OK;
 }
@@ -1273,8 +1274,7 @@ nsDOMStorage::SetDBValue(const nsAString& aKey,
       }
     }
 
-    nsCOMPtr<nsIObserverService> os =
-      do_GetService("@mozilla.org/observer-service;1");
+    nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
     os->NotifyObservers(window, "dom-storage-warn-quota-exceeded",
                         NS_ConvertUTF8toUTF16(mDomain).get());
   }
@@ -1299,7 +1299,7 @@ nsDOMStorage::SetSecure(const nsAString& aKey, PRBool aSecure)
 #endif
 
   nsSessionStorageEntry *entry = mItems.GetEntry(aKey);
-  NS_ASSERTION(entry, "Don't use SetSecure() with non-existing keys!");
+  NS_ASSERTION(entry, "Don't use SetSecure() with nonexistent keys!");
 
   if (entry) {
     entry->mItem->SetSecureInternal(aSecure);
@@ -1423,10 +1423,9 @@ nsDOMStorage::BroadcastChangeNotification(const nsSubstring &aKey,
                                           const nsSubstring &aOldValue,
                                           const nsSubstring &aNewValue)
 {
-  nsresult rv;
   nsCOMPtr<nsIObserverService> observerService =
-    do_GetService("@mozilla.org/observer-service;1", &rv);
-  if (NS_FAILED(rv)) {
+    mozilla::services::GetObserverService();
+  if (!observerService) {
     return;
   }
 
@@ -1616,8 +1615,8 @@ nsDOMStorage2::BroadcastChangeNotification(const nsSubstring &aKey,
   }
 
   nsCOMPtr<nsIObserverService> observerService =
-    do_GetService("@mozilla.org/observer-service;1", &rv);
-  if (NS_FAILED(rv)) {
+    mozilla::services::GetObserverService();
+  if (!observerService) {
     return;
   }
 
@@ -1980,16 +1979,27 @@ nsDOMStorageItem::ToString(nsAString& aStr)
   return GetValue(aStr);
 }
 
-DOMCI_DATA(StorageEvent, nsDOMStorageEvent)
+// Cycle collection implementation for nsDOMStorageEvent
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMStorageEvent)
 
-// QueryInterface implementation for nsDOMStorageEvent
-NS_INTERFACE_MAP_BEGIN(nsDOMStorageEvent)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMStorageEvent)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(StorageEvent)
-NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMStorageEvent, nsDOMEvent)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mStorageArea)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMStorageEvent, nsDOMEvent)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mStorageArea)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(nsDOMStorageEvent, nsDOMEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMStorageEvent, nsDOMEvent)
+
+DOMCI_DATA(StorageEvent, nsDOMStorageEvent)
+
+// QueryInterface implementation for nsDOMStorageEvent
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMStorageEvent)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMStorageEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(StorageEvent)
+NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
 
 /* readonly attribute DOMString key; */

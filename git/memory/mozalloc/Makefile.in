@@ -44,11 +44,28 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 VISIBILITY_FLAGS=
+STL_FLAGS	=
+ifdef _MSC_VER
+STL_FLAGS	= -D_HAS_EXCEPTIONS=0
+endif
 
 MODULE		= mozalloc
 LIBRARY_NAME	= mozalloc
 FORCE_SHARED_LIB= 1
 DIST_INSTALL 	= 1
+
+ifdef MOZ_MEMORY
+ifneq (,$(findstring mozalloc,$(WRAP_MALLOC_LIB)))
+EXTRA_DSO_LDOPTS += $(DIST)/lib/libjemalloc.a
+WRAP_MALLOC_LIB=
+WRAP_MALLOC_CFLAGS=
+DEFINES += -DWRAP_MALLOC_WITH_JEMALLOC
+CSRCS = ld_malloc_wrappers.c
+ifeq (,$(filter-out Linux,$(OS_TARGET)))
+EXTRA_DSO_LDOPTS += -lpthread
+endif
+endif
+endif
 
 ifeq (,$(filter-out WINCE,$(OS_ARCH)))
 # mozalloc gets its allocation methods from the shunt, which gets their 
@@ -62,11 +79,39 @@ DEFINES		+= -D_GNU_SOURCE
 endif
 
 EXPORTS_NAMESPACES 	= mozilla
-EXPORTS_mozilla 	= mozalloc.h mozalloc_macro_wrappers.h mozalloc_oom.h
+EXPORTS_mozilla 	=			\
+	mozalloc.h		 		\
+	mozalloc_abort.h			\
+	mozalloc_macro_wrappers.h 		\
+	mozalloc_oom.h				\
+	mozalloc_undef_macro_wrappers.h		\
+	$(NULL)
 
-CPPSRCS =					\
+CPPSRCS 		=			\
 	mozalloc.cpp				\
+	mozalloc_abort.cpp			\
 	mozalloc_oom.cpp			\
 	$(NULL)
+
+ifdef WRAP_STL_INCLUDES #{
+ifdef GNU_CXX #{
+EXPORTS_mozilla	+= throw_gcc.h
+else
+ifdef _MSC_VER #{
+EXPORTS_mozilla	+= throw_msvc.h
+ifdef MOZ_MSVC_STL_WRAP__Throw #{
+EXPORTS_mozilla	+= msvc_throw_wrapper.h
+CPPSRCS		+= msvc_throw_wrapper.cpp
+else
+ifdef MOZ_MSVC_STL_WRAP__RAISE #{
+EXPORTS_mozilla	+= msvc_raise_wrappers.h
+CPPSRCS		+= msvc_raise_wrappers.cpp
+else
+$(error Unknown STL wrapper tactic for MSVC)
+endif #}
+endif #}
+endif #}
+endif #}
+endif #}
 
 include $(topsrcdir)/config/rules.mk

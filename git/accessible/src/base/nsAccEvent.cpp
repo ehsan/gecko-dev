@@ -38,8 +38,14 @@
 
 #include "nsAccEvent.h"
 
+#include "nsAccessibilityService.h"
+#include "nsAccUtils.h"
 #include "nsApplicationAccessibleWrap.h"
 #include "nsDocAccessible.h"
+#include "nsIAccessibleText.h"
+#ifdef MOZ_XUL
+#include "nsXULTreeAccessible.h"
+#endif
 
 #include "nsIDOMDocument.h"
 #include "nsIEventStateManager.h"
@@ -47,9 +53,7 @@
 #include "nsIServiceManager.h"
 #ifdef MOZ_XUL
 #include "nsIDOMXULMultSelectCntrlEl.h"
-#include "nsXULTreeAccessible.h"
 #endif
-#include "nsIAccessibleText.h"
 #include "nsIContent.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
@@ -179,7 +183,7 @@ nsAccEvent::GetDocAccessible()
 {
   nsINode *node = GetNode();
   if (node)
-    return nsAccessNode::GetDocAccessibleFor(node->GetOwnerDoc());
+    return GetAccService()->GetDocAccessible(node->GetOwnerDoc());
 
   return nsnull;
 }
@@ -193,15 +197,10 @@ nsAccEvent::GetAccessibleByNode()
   if (!mNode)
     return nsnull;
 
-  nsCOMPtr<nsIAccessibilityService> accService = 
-    do_GetService("@mozilla.org/accessibilityService;1");
-  if (!accService)
-    return nsnull;
-
   nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mNode));
 
   nsCOMPtr<nsIAccessible> accessible;
-  accService->GetAccessibleFor(DOMNode, getter_AddRefs(accessible));
+  GetAccService()->GetAccessibleFor(DOMNode, getter_AddRefs(accessible));
 
 #ifdef MOZ_XUL
   // hack for xul tree table. We need a better way for firing delayed event
@@ -219,8 +218,7 @@ nsAccEvent::GetAccessibleByNode()
       PRInt32 treeIndex = -1;
       multiSelect->GetCurrentIndex(&treeIndex);
       if (treeIndex >= 0) {
-        nsRefPtr<nsXULTreeAccessible> treeAcc =
-          nsAccUtils::QueryAccessibleTree(accessible);
+        nsRefPtr<nsXULTreeAccessible> treeAcc = do_QueryObject(accessible);
         if (treeAcc)
           accessible = treeAcc->GetTreeItemAccessible(treeIndex);
       }
@@ -258,7 +256,7 @@ nsAccEvent::CaptureIsFromUserInput(EIsFromUserInput aIsFromUserInput)
   if (!targetNode)
     return;
 
-  nsCOMPtr<nsIPresShell> presShell = nsCoreUtils::GetPresShellFor(targetNode);
+  nsIPresShell *presShell = nsCoreUtils::GetPresShellFor(targetNode);
   if (!presShell) {
     NS_NOTREACHED("Threre should always be an pres shell for an event");
     return;
@@ -316,11 +314,16 @@ nsAccReorderEvent::HasAccessibleInReasonSubtree()
 NS_IMPL_ISUPPORTS_INHERITED1(nsAccStateChangeEvent, nsAccEvent,
                              nsIAccessibleStateChangeEvent)
 
+// Note: we pass in eAllowDupes to the base class because we don't currently
+// support correct state change coalescence (XXX Bug 569356). Also we need to
+// decide how to coalesce events created via accessible (instead of node).
 nsAccStateChangeEvent::
   nsAccStateChangeEvent(nsIAccessible *aAccessible,
                         PRUint32 aState, PRBool aIsExtraState,
-                        PRBool aIsEnabled):
-  nsAccEvent(::nsIAccessibleEvent::EVENT_STATE_CHANGE, aAccessible),
+                        PRBool aIsEnabled, PRBool aIsAsynch,
+                        EIsFromUserInput aIsFromUserInput):
+  nsAccEvent(nsIAccessibleEvent::EVENT_STATE_CHANGE, aAccessible, aIsAsynch,
+             aIsFromUserInput, eAllowDupes),
   mState(aState), mIsExtraState(aIsExtraState), mIsEnabled(aIsEnabled)
 {
 }
@@ -381,21 +384,24 @@ nsAccStateChangeEvent::IsEnabled(PRBool *aIsEnabled)
 NS_IMPL_ISUPPORTS_INHERITED1(nsAccTextChangeEvent, nsAccEvent,
                              nsIAccessibleTextChangeEvent)
 
+// Note: we pass in eAllowDupes to the base class because we don't support text
+// events coalescence. We fire delayed text change events in nsDocAccessible but
+// we continue to base the event off the accessible object rather than just the
+// node. This means we won't try to create an accessible based on the node when
+// we are ready to fire the event and so we will no longer assert at that point
+// if the node was removed from the document. Either way, the AT won't work with
+// a defunct accessible so the behaviour should be equivalent.
+// XXX revisit this when coalescence is faster (eCoalesceFromSameSubtree)
 nsAccTextChangeEvent::
   nsAccTextChangeEvent(nsIAccessible *aAccessible,
-                       PRInt32 aStart, PRUint32 aLength, PRBool aIsInserted,
+                       PRInt32 aStart, PRUint32 aLength,
+                       nsAString& aModifiedText, PRBool aIsInserted,
                        PRBool aIsAsynch, EIsFromUserInput aIsFromUserInput) :
   nsAccEvent(aIsInserted ? nsIAccessibleEvent::EVENT_TEXT_INSERTED : nsIAccessibleEvent::EVENT_TEXT_REMOVED,
-             aAccessible, aIsAsynch, aIsFromUserInput),
-  mStart(aStart), mLength(aLength), mIsInserted(aIsInserted)
+             aAccessible, aIsAsynch, aIsFromUserInput, eAllowDupes),
+  mStart(aStart), mLength(aLength), mIsInserted(aIsInserted),
+  mModifiedText(aModifiedText)
 {
-#ifdef XP_WIN
-  nsCOMPtr<nsIAccessibleText> textAccessible = do_QueryInterface(aAccessible);
-  NS_ASSERTION(textAccessible, "Should not be firing test change event for non-text accessible!!!");
-  if (textAccessible) {
-    textAccessible->GetText(aStart, aStart + aLength, mModifiedText);
-  }
-#endif
 }
 
 NS_IMETHODIMP

@@ -49,12 +49,19 @@ EXPORTS = \
   nsMediaDecoder.h \
   nsMediaStream.h \
   nsMediaCache.h \
+  nsBuiltinDecoder.h \
+  nsBuiltinDecoderStateMachine.h \
+  nsBuiltinDecoderReader.h \
+  VideoUtils.h \
   $(NULL)
 
 CPPSRCS = \
   nsMediaDecoder.cpp \
   nsMediaCache.cpp \
   nsMediaStream.cpp \
+  nsBuiltinDecoder.cpp \
+  nsBuiltinDecoderStateMachine.cpp \
+  nsBuiltinDecoderReader.cpp \
   $(NULL)
 
 ifdef MOZ_SYDNEYAUDIO
@@ -72,6 +79,10 @@ endif
 
 ifdef MOZ_WAVE
 PARALLEL_DIRS += wave
+endif
+
+ifdef MOZ_WEBM
+PARALLEL_DIRS += webm
 endif
 
 ifdef ENABLE_TESTS

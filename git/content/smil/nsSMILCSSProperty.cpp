@@ -46,6 +46,8 @@
 #include "nsIContent.h"
 #include "nsIDOMElement.h"
 
+using namespace mozilla::dom;
+
 // Helper function
 static PRBool
 GetCSSComputedValue(nsIContent* aElem,
@@ -85,7 +87,7 @@ GetCSSComputedValue(nsIContent* aElem,
 
 // Class Methods
 nsSMILCSSProperty::nsSMILCSSProperty(nsCSSProperty aPropID,
-                                     nsIContent* aElement)
+                                     Element* aElement)
   : mPropID(aPropID), mElement(aElement)
 {
   NS_ABORT_IF_FALSE(IsPropertyAnimatable(mPropID),
@@ -143,8 +145,8 @@ nsSMILCSSProperty::GetBaseValue() const
 
   // (4) Populate our nsSMILValue from the computed style
   if (didGetComputedVal) {
-    nsSMILCSSValueType::ValueFromString(mPropID, mElement, computedStyleVal,
-                                        PR_FALSE, baseValue);
+    nsSMILCSSValueType::ValueFromString(mPropID, mElement,
+                                        computedStyleVal, baseValue);
   }
   return baseValue;
 }
@@ -157,8 +159,7 @@ nsSMILCSSProperty::ValueFromString(const nsAString& aStr,
 {
   NS_ENSURE_TRUE(IsPropertyAnimatable(mPropID), NS_ERROR_FAILURE);
 
-  nsSMILCSSValueType::ValueFromString(mPropID, mElement, aStr,
-                                      PR_FALSE, aValue);
+  nsSMILCSSValueType::ValueFromString(mPropID, mElement, aStr, aValue);
   if (aValue.IsNull()) {
     return NS_ERROR_FAILURE;
   }

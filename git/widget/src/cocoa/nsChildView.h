@@ -42,7 +42,7 @@
 // formal protocols
 #include "mozView.h"
 #ifdef ACCESSIBILITY
-#include "nsIAccessible.h"
+#include "nsAccessible.h"
 #include "mozAccessibleProtocol.h"
 #endif
 
@@ -64,6 +64,7 @@
 
 #import <Carbon/Carbon.h>
 #import <Cocoa/Cocoa.h>
+#import <AppKit/NSOpenGL.h>
 
 class gfxASurface;
 class nsChildView;
@@ -105,8 +106,8 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
 // Support for pixel scroll deltas, not part of NSEvent.h
 // See http://lists.apple.com/archives/cocoa-dev/2007/Feb/msg00050.html
 @interface NSEvent (DeviceDelta)
-  - (float)deviceDeltaX;
-  - (float)deviceDeltaY;
+  - (CGFloat)deviceDeltaX;
+  - (CGFloat)deviceDeltaY;
 @end
 
 @interface ChildView : NSView<
@@ -146,6 +147,7 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
   // rects that were invalidated during a draw, so have pending drawing
   NSMutableArray* mPendingDirtyRects;
   BOOL mPendingFullDisplay;
+  BOOL mPendingDisplay;
 
   // Holds our drag service across multiple drag calls. The reference to the
   // service is obtained when the mouse enters the view and is released when
@@ -160,6 +162,9 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
   // class) -- for some reason TSMProcessRawKeyEvent() doesn't work with them.
   TSMDocumentID mPluginTSMDoc;
 #endif
+  BOOL mPluginComplexTextInputRequested;
+
+  NSOpenGLContext *mContext;
 
   // Simple gestures support
   //
@@ -208,6 +213,11 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
 #ifndef NP_NO_CARBON
 - (void) processPluginKeyEvent:(EventRef)aKeyEvent;
 #endif
+- (void)pluginRequestsComplexTextInputForCurrentEvent;
+
+- (void)update;
+- (void)lockFocus;
+- (void) _surfaceNeedsUpdate:(NSNotification*)notification;
 
 // Simple gestures support
 //
@@ -279,6 +289,8 @@ public:
   NS_IMETHOD              SetParent(nsIWidget* aNewParent);
   virtual nsIWidget*      GetParent(void);
 
+  LayerManager*           GetLayerManager();
+
   NS_IMETHOD              ConstrainPosition(PRBool aAllowSlop,
                                             PRInt32 *aX, PRInt32 *aY);
   NS_IMETHOD              Move(PRInt32 aX, PRInt32 aY);
@@ -339,6 +351,8 @@ public:
   NS_IMETHOD        SetPluginEventModel(int inEventModel);
   NS_IMETHOD        GetPluginEventModel(int* outEventModel);
 
+  NS_IMETHOD        StartComplexTextInputForCurrentEvent();
+
   virtual nsTransparencyMode GetTransparencyMode();
   virtual void                SetTransparencyMode(nsTransparencyMode aMode);
 
@@ -357,7 +371,7 @@ public:
   virtual PRBool    DispatchWindowEvent(nsGUIEvent& event);
   
 #ifdef ACCESSIBILITY
-  void              GetDocumentAccessible(nsIAccessible** aAccessible);
+  already_AddRefed<nsAccessible> GetDocumentAccessible();
 #endif
 
   virtual gfxASurface* GetThebesSurface();

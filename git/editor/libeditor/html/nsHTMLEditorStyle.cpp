@@ -51,7 +51,6 @@
 #include "nsISelectionPrivate.h"
 #include "nsIDOMHTMLImageElement.h"
 #include "nsISelectionController.h"
-#include "nsICSSStyleSheet.h"
 #include "nsIDocumentObserver.h"
 #include "TypeInState.h"
 
@@ -1143,7 +1142,7 @@ nsHTMLEditor::GetInlinePropertyBase(nsIAtom *aProperty,
           skipNode = PR_TRUE;
         }
       }
-      else if (content->IsNodeOfType(nsINode::eELEMENT))
+      else if (content->IsElement())
       { // handle non-text leaf nodes here
         skipNode = PR_TRUE;
       }

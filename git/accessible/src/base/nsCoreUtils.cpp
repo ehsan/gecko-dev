@@ -74,6 +74,10 @@
 
 static NS_DEFINE_IID(kRangeCID, NS_RANGE_CID);
 
+////////////////////////////////////////////////////////////////////////////////
+// nsCoreUtils
+////////////////////////////////////////////////////////////////////////////////
+
 PRBool
 nsCoreUtils::HasClickListener(nsIContent *aContent)
 {
@@ -238,7 +242,7 @@ nsCoreUtils::GetDOMElementFor(nsIDOMNode *aNode)
   nsCOMPtr<nsINode> node(do_QueryInterface(aNode));
   nsIDOMElement *element = nsnull;
 
-  if (node->IsNodeOfType(nsINode::eELEMENT))
+  if (node->IsElement())
     CallQueryInterface(node, &element);
 
   else if (node->IsNodeOfType(nsINode::eTEXT)) {
@@ -266,29 +270,22 @@ nsCoreUtils::GetDOMElementFor(nsIDOMNode *aNode)
   return element;
 }
 
-already_AddRefed<nsIDOMNode>
-nsCoreUtils::GetDOMNodeFromDOMPoint(nsIDOMNode *aNode, PRUint32 aOffset)
+nsINode *
+nsCoreUtils::GetDOMNodeFromDOMPoint(nsINode *aNode, PRUint32 aOffset)
 {
-  nsIDOMNode *resultNode = nsnull;
-
-  nsCOMPtr<nsIContent> content(do_QueryInterface(aNode));
-  if (content && content->IsNodeOfType(nsINode::eELEMENT)) {
-
-    PRUint32 childCount = content->GetChildCount();
+  if (aNode && aNode->IsElement()) {
+    PRUint32 childCount = aNode->GetChildCount();
     NS_ASSERTION(aOffset >= 0 && aOffset <= childCount,
                  "Wrong offset of the DOM point!");
 
     // The offset can be after last child of container node that means DOM point
     // is placed immediately after the last child. In this case use the DOM node
     // from the given DOM point is used as result node.
-    if (aOffset != childCount) {
-      CallQueryInterface(content->GetChildAt(aOffset), &resultNode);
-      return resultNode;
-    }
+    if (aOffset != childCount)
+      return aNode->GetChildAt(aOffset);
   }
 
-  NS_IF_ADDREF(resultNode = aNode);
-  return resultNode;
+  return aNode;
 }
 
 nsIContent*
@@ -317,25 +314,18 @@ nsCoreUtils::GetRoleContent(nsIDOMNode *aDOMNode)
 
 PRBool
 nsCoreUtils::IsAncestorOf(nsINode *aPossibleAncestorNode,
-                          nsINode *aPossibleDescendantNode)
+                          nsINode *aPossibleDescendantNode,
+                          nsINode *aRootNode)
 {
   NS_ENSURE_TRUE(aPossibleAncestorNode && aPossibleDescendantNode, PR_FALSE);
 
   nsINode *parentNode = aPossibleDescendantNode;
-  while ((parentNode = parentNode->GetNodeParent())) {
+  while ((parentNode = parentNode->GetNodeParent()) != aRootNode) {
     if (parentNode == aPossibleAncestorNode)
       return PR_TRUE;
   }
 
   return PR_FALSE;
-}
-
-PRBool
-nsCoreUtils::AreSiblings(nsINode *aNode1, nsINode *aNode2)
-{
-  NS_ENSURE_TRUE(aNode1 && aNode2, PR_FALSE);
-
-  return aNode1->GetNodeParent() == aNode2->GetNodeParent();
 }
 
 nsresult
@@ -501,6 +491,66 @@ nsCoreUtils::GetDocShellTreeItemFor(nsIDOMNode *aNode)
   return docShellTreeItem;
 }
 
+PRBool
+nsCoreUtils::IsDocumentBusy(nsIDocument *aDocument)
+{
+  nsCOMPtr<nsISupports> container = aDocument->GetContainer();
+  nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(container);
+  if (!docShell)
+    return PR_TRUE;
+
+  PRUint32 busyFlags = 0;
+  docShell->GetBusyFlags(&busyFlags);
+  return (busyFlags != nsIDocShell::BUSY_FLAGS_NONE);
+}
+
+PRBool
+nsCoreUtils::IsRootDocument(nsIDocument *aDocument)
+{
+  nsCOMPtr<nsISupports> container = aDocument->GetContainer();
+  nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem =
+    do_QueryInterface(container);
+  NS_ASSERTION(docShellTreeItem, "No document shell for document!");
+
+  nsCOMPtr<nsIDocShellTreeItem> parentTreeItem;
+  docShellTreeItem->GetParent(getter_AddRefs(parentTreeItem));
+
+  return !parentTreeItem;
+}
+
+PRBool
+nsCoreUtils::IsContentDocument(nsIDocument *aDocument)
+{
+  nsCOMPtr<nsISupports> container = aDocument->GetContainer();
+  nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem =
+    do_QueryInterface(container);
+  NS_ASSERTION(docShellTreeItem, "No document shell tree item for document!");
+
+  PRInt32 contentType;
+  docShellTreeItem->GetItemType(&contentType);
+  return (contentType == nsIDocShellTreeItem::typeContent);
+}
+
+PRBool
+nsCoreUtils::IsErrorPage(nsIDocument *aDocument)
+{
+  nsIURI *uri = aDocument->GetDocumentURI();
+  PRBool isAboutScheme = PR_FALSE;
+  uri->SchemeIs("about", &isAboutScheme);
+  if (!isAboutScheme)
+    return PR_FALSE;
+
+  nsCAutoString path;
+  uri->GetPath(path);
+
+  nsCAutoString::const_iterator start, end;
+  path.BeginReading(start);
+  path.EndReading(end);
+
+  NS_NAMED_LITERAL_CSTRING(neterror, "neterror");
+  return FindInReadable(neterror, start, end);
+}
+
 nsIFrame*
 nsCoreUtils::GetFrameFor(nsIDOMElement *aElm)
 {
@@ -520,25 +570,6 @@ nsCoreUtils::IsCorrectFrameType(nsIFrame *aFrame, nsIAtom *aAtom)
                "aAtom is null in call to IsCorrectFrameType!");
   
   return aFrame->GetType() == aAtom;
-}
-
-already_AddRefed<nsIPresShell>
-nsCoreUtils::GetPresShellFor(nsIDOMNode *aNode)
-{
-  nsCOMPtr<nsIDOMDocument> domDocument;
-  aNode->GetOwnerDocument(getter_AddRefs(domDocument));
-
-  nsCOMPtr<nsIDocument> doc(do_QueryInterface(domDocument));
-  if (!doc) // This is necessary when the node is the document node
-    doc = do_QueryInterface(aNode);
-
-  nsIPresShell *presShell = nsnull;
-  if (doc) {
-    presShell = doc->GetPrimaryShell();
-    NS_IF_ADDREF(presShell);
-  }
-
-  return presShell;
 }
 
 already_AddRefed<nsIDOMNode>
@@ -1149,4 +1180,38 @@ nsCoreUtils::GeneratePopupTree(nsIDOMNode *aNode, PRBool aIsAnon)
       return;
     }
   }
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+// nsAccessibleDOMStringList
+////////////////////////////////////////////////////////////////////////////////
+
+NS_IMPL_ISUPPORTS1(nsAccessibleDOMStringList, nsIDOMDOMStringList)
+
+NS_IMETHODIMP
+nsAccessibleDOMStringList::Item(PRUint32 aIndex, nsAString& aResult)
+{
+  if (aIndex >= mNames.Length())
+    SetDOMStringToNull(aResult);
+  else
+    aResult = mNames.ElementAt(aIndex);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsAccessibleDOMStringList::GetLength(PRUint32 *aLength)
+{
+  *aLength = mNames.Length();
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsAccessibleDOMStringList::Contains(const nsAString& aString, PRBool *aResult)
+{
+  *aResult = mNames.Contains(aString);
+
+  return NS_OK;
 }

@@ -55,6 +55,7 @@ DOMCI_CLASS(DocumentType)
 DOMCI_CLASS(DOMImplementation)
 DOMCI_CLASS(DOMException)
 DOMCI_CLASS(DOMTokenList)
+DOMCI_CLASS(DOMSettableTokenList)
 DOMCI_CLASS(DocumentFragment)
 DOMCI_CLASS(Element)
 DOMCI_CLASS(Attr)
@@ -88,7 +89,6 @@ DOMCI_CLASS(HTMLAppletElement)
 DOMCI_CLASS(HTMLAreaElement)
 DOMCI_CLASS(HTMLBRElement)
 DOMCI_CLASS(HTMLBaseElement)
-DOMCI_CLASS(HTMLBaseFontElement)
 DOMCI_CLASS(HTMLBodyElement)
 DOMCI_CLASS(HTMLButtonElement)
 DOMCI_CLASS(HTMLDListElement)
@@ -121,6 +121,7 @@ DOMCI_CLASS(HTMLOListElement)
 DOMCI_CLASS(HTMLObjectElement)
 DOMCI_CLASS(HTMLOptGroupElement)
 DOMCI_CLASS(HTMLOptionElement)
+DOMCI_CLASS(HTMLOutputElement)
 DOMCI_CLASS(HTMLParagraphElement)
 DOMCI_CLASS(HTMLParamElement)
 DOMCI_CLASS(HTMLPreElement)
@@ -230,9 +231,12 @@ DOMCI_CLASS(SVGDocument)
 
 // SVG element classes
 DOMCI_CLASS(SVGAElement)
+DOMCI_CLASS(SVGAltGlyphElement)
 #ifdef MOZ_SMIL
 DOMCI_CLASS(SVGAnimateElement)
 DOMCI_CLASS(SVGAnimateTransformElement)
+DOMCI_CLASS(SVGAnimateMotionElement)
+DOMCI_CLASS(SVGMpathElement)
 DOMCI_CLASS(SVGSetElement)
 #endif // MOZ_SMIL
 DOMCI_CLASS(SVGCircleElement)
@@ -385,11 +389,6 @@ DOMCI_CLASS(XMLHttpRequest)
 DOMCI_CLASS(ClientRect)
 DOMCI_CLASS(ClientRectList)
 
-// We are now trying to preserve binary compat in classinfo.  No more
-// putting things in those categories up there.  New entries are to be
-// added here, which is the end of the things that are currently on by
-// default.
-
 #ifdef MOZ_SVG
 DOMCI_CLASS(SVGForeignObjectElement)
 #endif
@@ -424,11 +423,13 @@ DOMCI_CLASS(GeoPositionError)
 DOMCI_CLASS(CSSFontFaceRule)
 DOMCI_CLASS(CSSFontFaceStyleDecl)
 
+#if defined(MOZ_MEDIA)
 // WhatWG Video Element
 DOMCI_CLASS(HTMLVideoElement)
 DOMCI_CLASS(HTMLSourceElement)
 DOMCI_CLASS(HTMLMediaError)
 DOMCI_CLASS(HTMLAudioElement)
+#endif
 
 DOMCI_CLASS(ProgressEvent)
 
@@ -448,6 +449,7 @@ DOMCI_CLASS(MathMLElement)
 #endif
 
 DOMCI_CLASS(Worker)
+DOMCI_CLASS(ChromeWorker)
 
 // WebGL
 DOMCI_CLASS(CanvasRenderingContextWebGL)
@@ -457,6 +459,7 @@ DOMCI_CLASS(WebGLProgram)
 DOMCI_CLASS(WebGLShader)
 DOMCI_CLASS(WebGLFramebuffer)
 DOMCI_CLASS(WebGLRenderbuffer)
+DOMCI_CLASS(WebGLUniformLocation)
 
 // WebGL Buffers
 DOMCI_CLASS(PaintRequest)
@@ -468,5 +471,6 @@ DOMCI_CLASS(PopStateEvent)
 DOMCI_CLASS(EventListenerInfo)
 
 DOMCI_CLASS(TransitionEvent)
+DOMCI_CLASS(ContentFrameMessageManager)
 
 DOMCI_CLASS(FormData)

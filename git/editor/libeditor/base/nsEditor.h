@@ -43,6 +43,7 @@
 #include "nsWeakReference.h"
 
 #include "nsIEditor.h"
+#include "nsIPlaintextEditor.h"
 #include "nsIEditorIMESupport.h"
 #include "nsIPhonetic.h"
 
@@ -57,7 +58,6 @@
 #include "nsIEditActionListener.h"
 #include "nsIEditorObserver.h"
 #include "nsIDocumentStateListener.h"
-#include "nsICSSStyleSheet.h"
 #include "nsIDOMElement.h"
 #include "nsSelectionState.h"
 #include "nsIEditorSpellCheck.h"
@@ -85,8 +85,10 @@ class RemoveStyleSheetTxn;
 class nsIFile;
 class nsISelectionController;
 class nsIDOMEventTarget;
+class nsCSSStyleSheet;
+class nsKeyEvent;
 
-#define kMOZEditorBogusNodeAttr NS_LITERAL_STRING("_moz_editor_bogus_node")
+#define kMOZEditorBogusNodeAttrAtom nsEditProperty::mozEditorBogusNode
 #define kMOZEditorBogusNodeValue NS_LITERAL_STRING("TRUE")
 
 /** implementation of an editor object.  it will be the controller/focal point 
@@ -259,11 +261,11 @@ protected:
 
   /** create a transaction for adding a style sheet
     */
-  NS_IMETHOD CreateTxnForAddStyleSheet(nsICSSStyleSheet* aSheet, AddStyleSheetTxn* *aTxn);
+  NS_IMETHOD CreateTxnForAddStyleSheet(nsCSSStyleSheet* aSheet, AddStyleSheetTxn* *aTxn);
 
   /** create a transaction for removing a style sheet
     */
-  NS_IMETHOD CreateTxnForRemoveStyleSheet(nsICSSStyleSheet* aSheet, RemoveStyleSheetTxn* *aTxn);
+  NS_IMETHOD CreateTxnForRemoveStyleSheet(nsCSSStyleSheet* aSheet, RemoveStyleSheetTxn* *aTxn);
   
   NS_IMETHOD DeleteText(nsIDOMCharacterData *aElement,
                         PRUint32             aOffset,
@@ -343,7 +345,7 @@ protected:
 
 
   // install the event listeners for the editor 
-  nsresult InstallEventListeners();
+  virtual nsresult InstallEventListeners();
 
   virtual nsresult CreateEventListeners();
 
@@ -355,7 +357,7 @@ protected:
    */
   PRBool GetDesiredSpellCheckState();
 
-  nsresult QueryComposition(nsTextEventReply* aReply);
+  nsKeyEvent* GetNativeKeyEvent(nsIDOMKeyEvent* aDOMKeyEvent);
 
 public:
 
@@ -568,6 +570,8 @@ public:
 
   PRBool GetShouldTxnSetSelection();
 
+  virtual nsresult HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent);
+
   nsresult HandleInlineSpellCheck(PRInt32 action,
                                     nsISelection *aSelection,
                                     nsIDOMNode *previousSelectedNode,
@@ -582,6 +586,81 @@ public:
   // Fast non-refcounting editor root element accessor
   nsIDOMElement *GetRoot();
 
+  // Accessor methods to flags
+  PRBool IsPlaintextEditor() const
+  {
+    return (mFlags & nsIPlaintextEditor::eEditorPlaintextMask) != 0;
+  }
+
+  PRBool IsSingleLineEditor() const
+  {
+    return (mFlags & nsIPlaintextEditor::eEditorSingleLineMask) != 0;
+  }
+
+  PRBool IsPasswordEditor() const
+  {
+    return (mFlags & nsIPlaintextEditor::eEditorPasswordMask) != 0;
+  }
+
+  PRBool IsReadonly() const
+  {
+    return (mFlags & nsIPlaintextEditor::eEditorReadonlyMask) != 0;
+  }
+
+  PRBool IsDisabled() const
+  {
+    return (mFlags & nsIPlaintextEditor::eEditorDisabledMask) != 0;
+  }
+
+  PRBool IsInputFiltered() const
+  {
+    return (mFlags & nsIPlaintextEditor::eEditorFilterInputMask) != 0;
+  }
+
+  PRBool IsMailEditor() const
+  {
+    return (mFlags & nsIPlaintextEditor::eEditorMailMask) != 0;
+  }
+
+  PRBool UseAsyncUpdate() const
+  {
+    return (mFlags & nsIPlaintextEditor::eEditorUseAsyncUpdatesMask) != 0;
+  }
+
+  PRBool IsWrapHackEnabled() const
+  {
+    return (mFlags & nsIPlaintextEditor::eEditorEnableWrapHackMask) != 0;
+  }
+
+  PRBool IsFormWidget() const
+  {
+    return (mFlags & nsIPlaintextEditor::eEditorWidgetMask) != 0;
+  }
+
+  PRBool NoCSS() const
+  {
+    return (mFlags & nsIPlaintextEditor::eEditorNoCSSMask) != 0;
+  }
+
+  PRBool IsInteractionAllowed() const
+  {
+    return (mFlags & nsIPlaintextEditor::eEditorAllowInteraction) != 0;
+  }
+
+  PRBool DontEchoPassword() const
+  {
+    return (mFlags & nsIPlaintextEditor::eEditorDontEchoPassword) != 0;
+  }
+
+  PRBool IsTabbable() const
+  {
+    return IsSingleLineEditor() || IsPasswordEditor() || IsFormWidget() ||
+           IsInteractionAllowed();
+  }
+
+  // Whether the editor has focus or not.
+  virtual PRBool HasFocus();
+
 protected:
 
   PRUint32        mModCount;		// number of modifications (for undo/redo stack)
@@ -589,7 +668,6 @@ protected:
   
   nsWeakPtr       mPresShellWeak;   // weak reference to the nsIPresShell
   nsWeakPtr       mSelConWeak;   // weak reference to the nsISelectionController
-  nsIViewManager *mViewManager;
   PRInt32         mUpdateCount;
   nsIViewManager::UpdateViewBatch mBatch;
 

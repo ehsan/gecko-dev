@@ -60,9 +60,11 @@
 #include "nsITransferable.h"
 #include "nsIVariant.h"
 
+#ifdef ACCESSIBILITY
+class nsAccessible;
+#endif
 class nsIRenderingContext;
 class nsIMenuItem;
-class nsIAccessible;
 class nsIContent;
 class nsIURI;
 class nsHashKey;
@@ -80,7 +82,6 @@ class nsHashKey;
 #define NS_INPUT_EVENT                     8
 #define NS_KEY_EVENT                       9
 #define NS_MOUSE_EVENT                    10
-#define NS_MENU_EVENT                     11
 #define NS_SCRIPT_ERROR_EVENT             12
 #define NS_TEXT_EVENT                     13
 #define NS_COMPOSITION_EVENT              14
@@ -111,6 +112,7 @@ class nsHashKey;
 #define NS_SELECTION_EVENT                38
 #define NS_CONTENT_COMMAND_EVENT          39
 #define NS_GESTURENOTIFY_EVENT            40
+#define NS_UISTATECHANGE_EVENT            41
 
 // These flags are sort of a mess. They're sort of shared between event
 // listener flags and event flags, but only some of them. You've been
@@ -192,15 +194,6 @@ class nsHashKey;
 
 #define NS_OS_TOOLBAR                   (NS_WINDOW_START + 36)
 
-// Menu item selected
-#define NS_MENU_SELECTED                (NS_WINDOW_START + 38)
-
-// Form control changed: currently == combo box selection changed
-// but could be expanded to mean textbox, checkbox changed, etc.
-// This is a GUI specific event that does not necessarily correspond
-// directly to a mouse click or a key press.
-#define NS_CONTROL_CHANGE                (NS_WINDOW_START + 39)
-
 // Indicates the display has changed depth
 #define NS_DISPLAYCHANGED                (NS_WINDOW_START + 40)
 
@@ -211,6 +204,10 @@ class nsHashKey;
 // toolkits responsibility to invalidate the window to 
 // ensure that it is drawn using the current system colors.
 #define NS_SYSCOLORCHANGED              (NS_WINDOW_START + 42)
+
+// Indicates that the ui state such as whether to show focus or
+// keyboard accelerator indicators has changed.
+#define NS_UISTATECHANGED               (NS_WINDOW_START + 43)
 
 #define NS_RESIZE_EVENT                 (NS_WINDOW_START + 60)
 #define NS_SCROLL_EVENT                 (NS_WINDOW_START + 61)
@@ -424,10 +421,10 @@ class nsHashKey;
 #define NS_SIMPLE_GESTURE_TAP            (NS_SIMPLE_GESTURE_EVENT_START+7)
 #define NS_SIMPLE_GESTURE_PRESSTAP       (NS_SIMPLE_GESTURE_EVENT_START+8)
 
-// Plug-in event. This is used when a plug-in has focus and when the native
-// event needs to be passed to the focused plug-in directly.
+// These are used to send events to plugins.
 #define NS_PLUGIN_EVENT_START   3600
-#define NS_PLUGIN_EVENT         (NS_PLUGIN_EVENT_START)
+#define NS_PLUGIN_EVENT                 (NS_PLUGIN_EVENT_START)
+#define NS_NON_RETARGETED_PLUGIN_EVENT  (NS_PLUGIN_EVENT_START+1)
 
 // Events to manipulate selection (nsSelectionEvent)
 #define NS_SELECTION_EVENT_START        3700
@@ -461,6 +458,12 @@ class nsHashKey;
 
 #define NS_TRANSITION_EVENT_START    4200
 #define NS_TRANSITION_END            (NS_TRANSITION_EVENT_START)
+
+enum UIStateChangeType {
+  UIStateChangeType_NoChange,
+  UIStateChangeType_Set,
+  UIStateChangeType_Clear
+};
 
 /**
  * Return status for event processors, nsEventStatus, is defined in
@@ -827,6 +830,7 @@ public:
   PRPackedBool userCancelled;
 };
 
+#ifdef ACCESSIBILITY
 /**
  * Accessible event
  */
@@ -836,12 +840,13 @@ class nsAccessibleEvent : public nsInputEvent
 public:
   nsAccessibleEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
     : nsInputEvent(isTrusted, msg, w, NS_ACCESSIBLE_EVENT),
-      accessible(nsnull)
+      mAccessible(nsnull)
   {
   }
 
-  nsIAccessible*  accessible;     
+  nsAccessible *mAccessible;
 };
+#endif
 
 /**
  * Keyboard event
@@ -998,21 +1003,6 @@ struct nsTextRange
 
 typedef nsTextRange* nsTextRangeArray;
 
-// XXX We should drop this struct because the results are provided by query
-// content events now, so, this struct finished the role.
-struct nsTextEventReply
-{
-  nsTextEventReply()
-    : mReferenceWidget(nsnull)
-  {
-  }
-
-  nsIntRect mCursorPosition;
-  nsIWidget* mReferenceWidget;
-};
-
-typedef struct nsTextEventReply nsTextEventReply;
-
 class nsTextEvent : public nsInputEvent
 {
 public:
@@ -1023,7 +1013,6 @@ public:
   }
 
   nsString          theText;
-  nsTextEventReply  theReply; // OBSOLETE
   PRUint32          rangeCount;
   // Note that the range array may not specify a caret position; in that
   // case there will be no range of type NS_TEXTRANGE_CARETPOSITION in the
@@ -1039,8 +1028,6 @@ public:
     : nsInputEvent(isTrusted, msg, w, NS_COMPOSITION_EVENT)
   {
   }
-
-  nsTextEventReply theReply; // OBSOLETE
 };
 
 /* Mouse Scroll Events: Line Scrolling, Pixel Scrolling and Common Event Flows
@@ -1271,26 +1258,6 @@ public:
 };
 
 /**
- * MenuItem event
- * 
- * When this event occurs the widget field in nsGUIEvent holds the "target"
- * for the event
- */
-
-class nsMenuEvent : public nsGUIEvent
-{
-public:
-  nsMenuEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
-    : nsGUIEvent(isTrusted, msg, w, NS_MENU_EVENT),
-      mMenuItem(nsnull), mCommand(0)
-  {
-  }
-
-  nsIMenuItem * mMenuItem;
-  PRUint32      mCommand;
-};
-
-/**
  * Form event
  * 
  * We hold the originating form control for form submit and reset events.
@@ -1376,6 +1343,20 @@ public:
 };
 
 
+class nsUIStateChangeEvent : public nsGUIEvent
+{
+public:
+  nsUIStateChangeEvent(PRBool isTrusted, PRUint32 msg, nsIWidget* w)
+    : nsGUIEvent(isTrusted, msg, w, NS_UISTATECHANGE_EVENT),
+      showAccelerators(UIStateChangeType_NoChange),
+      showFocusRings(UIStateChangeType_NoChange)
+  {
+  }
+
+  UIStateChangeType showAccelerators;
+  UIStateChangeType showFocusRings;
+};
+
 /**
  * Event status for D&D Event
  */
@@ -1400,6 +1381,10 @@ enum nsDragDropEventStatus {
         ((evnt)->message == NS_MOUSE_ENTER_SYNTH) || \
         ((evnt)->message == NS_MOUSE_EXIT_SYNTH) || \
         ((evnt)->message == NS_MOUSE_MOVE))
+
+#define NS_IS_MOUSE_EVENT_STRUCT(evnt) \
+       ((evnt)->eventStructType == NS_MOUSE_EVENT || \
+        (evnt)->eventStructType == NS_DRAG_EVENT)
 
 #define NS_IS_MOUSE_LEFT_CLICK(evnt) \
        ((evnt)->eventStructType == NS_MOUSE_EVENT && \
@@ -1461,6 +1446,9 @@ enum nsDragDropEventStatus {
 
 #define NS_IS_PLUGIN_EVENT(evnt) \
        (((evnt)->message == NS_PLUGIN_EVENT))
+
+#define NS_IS_NON_RETARGETED_PLUGIN_EVENT(evnt) \
+       (((evnt)->message == NS_NON_RETARGETED_PLUGIN_EVENT))
 
 #define NS_IS_TRUSTED_EVENT(event) \
   (((event)->flags & NS_EVENT_FLAG_TRUSTED) != 0)
@@ -1666,7 +1654,8 @@ inline PRBool NS_IsEventUsingCoordinates(nsEvent* aEvent)
 {
   return !NS_IS_KEY_EVENT(aEvent) && !NS_IS_IME_RELATED_EVENT(aEvent) &&
          !NS_IS_CONTEXT_MENU_KEY(aEvent) && !NS_IS_ACTIVATION_EVENT(aEvent) &&
-         !NS_IS_PLUGIN_EVENT(aEvent) && !NS_IS_CONTENT_COMMAND_EVENT(aEvent) &&
+         !NS_IS_PLUGIN_EVENT(aEvent) && !NS_IS_NON_RETARGETED_PLUGIN_EVENT(aEvent) &&
+         !NS_IS_CONTENT_COMMAND_EVENT(aEvent) &&
          aEvent->eventStructType != NS_ACCESSIBLE_EVENT;
 }
 

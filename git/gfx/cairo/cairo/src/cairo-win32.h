@@ -65,6 +65,9 @@ cairo_win32_surface_create_with_dib (cairo_format_t format,
 cairo_public HDC
 cairo_win32_surface_get_dc (cairo_surface_t *surface);
 
+cairo_public HDC
+cairo_win32_get_dc_with_clip (cairo_t *cr);
+
 cairo_public cairo_surface_t *
 cairo_win32_surface_get_image (cairo_surface_t *surface);
 
@@ -125,10 +128,11 @@ cairo_dwrite_font_face_create_for_dwrite_fontface(void *dwrite_font, void *dwrit
  * Create a D2D surface for an HWND
  *
  * \param wnd Handle for the window
+ * \param content Content of the window, should be COLOR_ALPHA for transparent windows
  * \return New cairo surface
  */
 cairo_public cairo_surface_t *
-cairo_d2d_surface_create_for_hwnd(HWND wnd);
+cairo_d2d_surface_create_for_hwnd(HWND wnd, cairo_content_t content);
 
 /**
  * Create a D2D surface of a certain size.

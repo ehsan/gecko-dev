@@ -27,6 +27,7 @@
  *   Masayuki Nakano <masayuki@d-toybox.com>
  *   Ningjie Chen <chenn@email.uc.edu>
  *   Jim Mathies <jmathies@mozilla.com>.
+ *   Mats Palmgren <matspal@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -51,6 +52,7 @@
 
 #include "nsBaseWidget.h"
 #include "nsdefs.h"
+#include "nsIdleService.h"
 #include "nsToolkit.h"
 #include "nsString.h"
 #include "nsTArray.h"
@@ -74,7 +76,7 @@
 
 #ifdef ACCESSIBILITY
 #include "OLEACC.H"
-#include "nsIAccessible.h"
+#include "nsAccessible.h"
 #endif
 
 #if !defined(WINCE)
@@ -218,8 +220,8 @@ public:
   void                    SuppressBlurEvents(PRBool aSuppress); // Called from nsFilePicker
   PRBool                  BlurEventsSuppressed();
 #ifdef ACCESSIBILITY
-  virtual PRBool          DispatchAccessibleEvent(PRUint32 aEventType, nsIAccessible** aAccessible, nsIntPoint* aPoint = nsnull);
-  already_AddRefed<nsIAccessible> GetRootAccessible();
+  nsAccessible* DispatchAccessibleEvent(PRUint32 aEventType);
+  nsAccessible* GetRootAccessible();
 #endif // ACCESSIBILITY
 
   /**
@@ -238,11 +240,9 @@ public:
    */
   virtual PRBool          AutoErase(HDC dc);
   nsIntPoint*             GetLastPoint() { return &mLastPoint; }
-  PRInt32                 GetNewCmdMenuId() { mMenuCmdId++; return mMenuCmdId; }
   PRBool                  GetIMEEnabled() { return mIMEEnabled; }
   // needed in nsIMM32Handler.cpp
   PRBool                  PluginHasFocus() { return mIMEEnabled == nsIWidget::IME_STATUS_PLUGIN; }
-  virtual void            SetUpForPaint(HDC aHDC);
 
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
   PRBool HasTaskbarIconBeenCreated() { return mHasTaskbarIconBeenCreated; }
@@ -341,7 +341,6 @@ protected:
                                     const MSG *aMsg = nsnull,
                                     PRBool *aEventDispatched = nsnull);
   virtual PRBool          OnScroll(UINT aMsg, WPARAM aWParam, LPARAM aLParam);
-  virtual HBRUSH          OnControlColor();
   PRBool                  OnGesture(WPARAM wParam, LPARAM lParam);
   PRBool                  OnHotKey(WPARAM wParam, LPARAM lParam);
   BOOL                    OnInputLangChange(HKL aHKL);
@@ -357,6 +356,12 @@ protected:
 #if !defined(WINCE)
   void                    OnWindowPosChanging(LPWINDOWPOS& info);
 #endif // !defined(WINCE)
+
+  /**
+   * Function that registers when the user has been active (used for detecting
+   * when the user is idle).
+   */
+  void                    UserActivity();
 
   /**
    * Methods for derived classes 
@@ -420,22 +425,20 @@ protected:
 #endif // ACCESSIBILITY
 
 protected:
+  nsCOMPtr<nsIWidget>   mParent;
   nsIntSize             mLastSize;
   nsIntPoint            mLastPoint;
   HWND                  mWnd;
   WNDPROC               mPrevWndProc;
   HBRUSH                mBrush;
   PRPackedBool          mIsTopWidgetWindow;
-  PRPackedBool          mHas3DBorder;
   PRPackedBool          mInDtor;
   PRPackedBool          mIsVisible;
   PRPackedBool          mIsInMouseCapture;
   PRPackedBool          mUnicodeWidget;
   PRPackedBool          mPainting;
-  char                  mLeadByte;
   PRUint32              mBlurSuppressLevel;
   nsContentType         mContentType;
-  PRInt32               mMenuCmdId;
   DWORD_PTR             mOldStyle;
   DWORD_PTR             mOldExStyle;
   HIMC                  mOldIMC;
@@ -461,6 +464,8 @@ protected:
 #ifdef MOZ_IPC
   static PRUint32       sOOPPPluginFocusEvent;
 #endif
+
+  nsCOMPtr<nsIdleService> mIdleService;
 
   // Hook Data Memebers for Dropdowns. sProcessHook Tells the
   // hook methods whether they should be processing the hook

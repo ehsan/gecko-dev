@@ -145,7 +145,7 @@ public:
     nsresult ReadCMAP();
 
     void FillLogFont(LOGFONTW *aLogFont, PRBool aItalic,
-                     PRUint16 aWeight, gfxFloat aSize);
+                     PRUint16 aWeight, gfxFloat aSize, PRBool aUseCleartype);
 
     static gfxWindowsFontType DetermineFontType(const NEWTEXTMETRICW& metrics, 
                                                 DWORD fontType)

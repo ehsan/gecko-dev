@@ -168,13 +168,19 @@ const COPYCOL_IMAGE = COL_IMAGE_ADDRESS;
 var gMetaView = new pageInfoTreeView(COPYCOL_META_CONTENT);
 var gImageView = new pageInfoTreeView(COPYCOL_IMAGE);
 
-gImageView.getCellProperties = function(row, col, props) {
-  var aserv = Components.classes[ATOM_CONTRACTID]
-                        .getService(Components.interfaces.nsIAtomService);
 
+var atomSvc = Components.classes["@mozilla.org/atom-service;1"]
+                        .getService(Components.interfaces.nsIAtomService);
+gImageView._ltrAtom = atomSvc.getAtom("ltr");
+gImageView._brokenAtom = atomSvc.getAtom("broken");
+
+gImageView.getCellProperties = function(row, col, props) {
   if (gImageView.data[row][COL_IMAGE_SIZE] == gStrings.unknown &&
       !/^https:/.test(gImageView.data[row][COL_IMAGE_ADDRESS]))
-    props.AppendElement(aserv.getAtom("broken"));
+    props.AppendElement(this._brokenAtom);
+
+  if (col.element.id == "image-address")
+    props.AppendElement(this._ltrAtom);
 };
 
 var gImageHash = { };
@@ -278,6 +284,10 @@ function onLoadPageInfo()
   gStrings.mediaEmbed = gBundle.getString("mediaEmbed");
   gStrings.mediaLink = gBundle.getString("mediaLink");
   gStrings.mediaInput = gBundle.getString("mediaInput");
+#ifdef MOZ_MEDIA
+  gStrings.mediaVideo = gBundle.getString("mediaVideo");
+  gStrings.mediaAudio = gBundle.getString("mediaAudio");
+#endif
 
   var args = "arguments" in window &&
              window.arguments.length >= 1 &&
@@ -622,6 +632,14 @@ function grabAll(elem)
     } catch (e) { }
   }
 #endif
+#ifdef MOZ_MEDIA
+  else if (elem instanceof HTMLVideoElement) {
+    addImage(elem.currentSrc, gStrings.mediaVideo, "", elem, false);
+  }
+  else if (elem instanceof HTMLAudioElement) {
+    addImage(elem.currentSrc, gStrings.mediaAudio, "", elem, false);
+  }
+#endif
   else if (elem instanceof HTMLLinkElement) {
     if (elem.rel && /\bicon\b/i.test(elem.rel))
       addImage(elem.href, gStrings.mediaLink, "", elem, false);
@@ -813,6 +831,7 @@ function makePreview(row)
   var item = getSelectedImage(imageTree);
   var url = gImageView.data[row][COL_IMAGE_ADDRESS];
   var isBG = gImageView.data[row][COL_IMAGE_BG];
+  var isAudio = false;
 
   setItemValue("imageurltext", url);
 
@@ -914,8 +933,8 @@ function makePreview(row)
   if (/^data:/.test(url) && /^image\//.test(mimeType))
     isProtocolAllowed = true;
 
-  var newImage = new Image();
-  newImage.setAttribute("id", "thepreviewimage");
+  var newImage = new Image;
+  newImage.id = "thepreviewimage";
   var physWidth = 0, physHeight = 0;
   var width = 0, height = 0;
 
@@ -956,6 +975,33 @@ function makePreview(row)
     document.getElementById("theimagecontainer").collapsed = false
     document.getElementById("brokenimagecontainer").collapsed = true;
   }
+#ifdef MOZ_MEDIA
+  else if (item instanceof HTMLVideoElement && isProtocolAllowed) {
+    newImage = document.createElementNS("http://www.w3.org/1999/xhtml", "video");
+    newImage.id = "thepreviewimage";
+    newImage.mozLoadFrom(item);
+    newImage.controls = true;
+    physWidth = item.videoWidth;
+    physHeight = item.videoHeight;
+    width = item.width != -1 ? item.width : physWidth;
+    height = item.height != -1 ? item.height : physHeight;
+    newImage.width = width;
+    newImage.height = height;
+
+    document.getElementById("theimagecontainer").collapsed = false;
+    document.getElementById("brokenimagecontainer").collapsed = true;
+  }
+  else if (item instanceof HTMLAudioElement && isProtocolAllowed) {
+    newImage = new Audio;
+    newImage.id = "thepreviewimage";
+    newImage.src = url;
+    newImage.controls = true;
+    isAudio = true;
+
+    document.getElementById("theimagecontainer").collapsed = false;
+    document.getElementById("brokenimagecontainer").collapsed = true;
+  }
+#endif
   else {
     // fallback image for protocols not allowed (e.g., data: or javascript:)
     // or elements not [yet] handled (e.g., object, embed).
@@ -964,7 +1010,7 @@ function makePreview(row)
   }
 
   var imageSize = "";
-  if (url) {
+  if (url && !isAudio) {
     if (width != physWidth || height != physHeight) {
       imageSize = gBundle.getFormattedString("mediaDimensionsScaled",
                                              [formatNumber(physWidth),

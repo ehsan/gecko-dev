@@ -312,6 +312,7 @@ user_pref("security.default_personal_cert", "Select Automatically"); // Need to 
 user_pref("network.http.prompt-temp-redirect", false);
 user_pref("media.cache_size", 100);
 user_pref("security.warn_viewing_mixed", false);
+user_pref("extensions.enabledScopes", 3);
 
 user_pref("geo.wifi.uri", "http://%(server)s/tests/dom/tests/mochitest/geolocation/network_geolocation.sjs");
 user_pref("geo.wifi.testing", true);
@@ -323,7 +324,6 @@ user_pref("urlclassifier.updateinterval", 172800);
 // Point the url-classifier to the local testing server for fast failures
 user_pref("browser.safebrowsing.provider.0.gethashURL", "http://%(server)s/safebrowsing-dummy/gethash");
 user_pref("browser.safebrowsing.provider.0.keyURL", "http://%(server)s/safebrowsing-dummy/newkey");
-user_pref("browser.safebrowsing.provider.0.lookupURL", "http://%(server)s/safebrowsing-dummy/lookup");
 user_pref("browser.safebrowsing.provider.0.updateURL", "http://%(server)s/safebrowsing-dummy/update");
 """ % { "server" : self.webServer + ":" + str(self.httpPort) }
     prefs.append(part)
@@ -639,7 +639,7 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
                                          stdout=subprocess.PIPE)
         logsource = stackFixerProcess.stdout
 
-      if self.IS_DEBUG_BUILD and self.IS_MAC:
+      if self.IS_DEBUG_BUILD and self.IS_MAC and False:
         # Import fix_macosx_stack.py from utilityPath
         sys.path.insert(0, utilityPath)
         import fix_macosx_stack as stackFixerModule

@@ -59,6 +59,9 @@
 #include "nsNodeInfoManager.h"
 #include "nsINodeInfo.h"
 #include "nsIPrincipal.h"
+#include "mozilla/dom/Element.h"
+
+using namespace mozilla::dom;
 
 nsresult
 NS_NewXBLContentSink(nsIXMLContentSink** aResult,
@@ -313,7 +316,7 @@ nsXBLContentSink::HandleEndElement(const PRUnichar *aName)
     if (nameSpaceID == kNameSpaceID_XBL) {
       if (mState == eXBL_Error) {
         // Check whether we've opened this tag before; we may not have if
-        // it was a real XBL tag before the error occured.
+        // it was a real XBL tag before the error occurred.
         if (!GetCurrentContent()->NodeInfo()->Equals(localName,
                                                      nameSpaceID)) {
           // OK, this tag was never opened as far as the XML sink is
@@ -868,7 +871,7 @@ nsresult
 nsXBLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                                 nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
                                 nsIContent** aResult, PRBool* aAppendContent,
-                                PRBool aFromParser)
+                                PRUint32 aFromParser)
 {
 #ifdef MOZ_XUL
   if (!aNodeInfo->NamespaceEquals(kNameSpaceID_XUL)) {
@@ -891,7 +894,10 @@ nsXBLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
 
   AddAttributesToXULPrototype(aAtts, aAttsCount, prototype);
 
-  return nsXULElement::Create(prototype, mDocument, PR_FALSE, aResult);
+  Element* result;
+  nsresult rv = nsXULElement::Create(prototype, mDocument, PR_FALSE, &result);
+  *aResult = result;
+  return rv;
 #endif
 }
 

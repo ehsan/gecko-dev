@@ -112,7 +112,7 @@ JSVAL_IS_OBJECT(jsval v)
 static JS_ALWAYS_INLINE JSBool
 JSVAL_IS_INT(jsval v)
 {
-    return v & JSVAL_INT;
+    return (JSBool)(v & JSVAL_INT);
 }
 
 static JS_ALWAYS_INLINE JSBool
@@ -270,7 +270,7 @@ BOOLEAN_TO_JSVAL(JSBool b)
 
 /* A private data pointer (2-byte-aligned) can be stored as an int jsval. */
 #define JSVAL_TO_PRIVATE(v)     ((void *)((v) & ~JSVAL_INT))
-#define PRIVATE_TO_JSVAL(p)     ((jsval)(p) | JSVAL_INT)
+#define PRIVATE_TO_JSVAL(p)     ((jsval)(ptrdiff_t)(p) | JSVAL_INT)
 
 /* Property attributes, set in JSPropertySpec and passed to API functions. */
 #define JSPROP_ENUMERATE        0x01    /* property is visible to for/in loop */
@@ -284,6 +284,8 @@ BOOLEAN_TO_JSVAL(JSBool b)
                                            object that delegates to a prototype
                                            containing this property */
 #define JSPROP_INDEX            0x80    /* name is actually (jsint) index */
+#define JSPROP_SHORTID          0x100   /* set in JSPropertyDescriptor.attrs
+                                           if getters/setters use a shortid */
 
 /* Function flags, set in JSFunctionSpec and passed to JS_NewFunction etc. */
 #define JSFUN_LAMBDA            0x08    /* expressed, not declared, function */
@@ -822,6 +824,9 @@ JS_GetScopeChain(JSContext *cx);
 
 extern JS_PUBLIC_API(JSObject *)
 JS_GetGlobalForObject(JSContext *cx, JSObject *obj);
+
+extern JS_PUBLIC_API(JSObject *)
+JS_GetGlobalForScopeChain(JSContext *cx);
 
 #ifdef JS_HAS_CTYPES
 /*
@@ -1395,12 +1400,18 @@ extern JS_PUBLIC_API(intN)
 JS_GetExternalStringGCType(JSRuntime *rt, JSString *str);
 
 /*
- * Sets maximum (if stack grows upward) or minimum (downward) legal stack byte
- * address in limitAddr for the thread or process stack used by cx.  To disable
- * stack size checking, pass 0 for limitAddr.
+ * Deprecated. Use JS_SetNativeStackQuoata instead.
  */
 extern JS_PUBLIC_API(void)
 JS_SetThreadStackLimit(JSContext *cx, jsuword limitAddr);
+
+/*
+ * Set the size of the native stack that should not be exceed. To disable
+ * stack size checking pass 0.
+ */
+extern JS_PUBLIC_API(void)
+JS_SetNativeStackQuota(JSContext *cx, size_t stackSize);
+
 
 /*
  * Set the quota on the number of bytes that stack-like data structures can
@@ -1467,7 +1478,7 @@ struct JSExtendedClass {
 #define JSCLASS_NEW_ENUMERATE           (1<<1)  /* has JSNewEnumerateOp hook */
 #define JSCLASS_NEW_RESOLVE             (1<<2)  /* has JSNewResolveOp hook */
 #define JSCLASS_PRIVATE_IS_NSISUPPORTS  (1<<3)  /* private is (nsISupports *) */
-#define JSCLASS_SHARE_ALL_PROPERTIES    (1<<4)  /* all properties are SHARED */
+/* (1<<4) was JSCLASS_SHARE_ALL_PROPERTIES, now obsolete. See bug 527805. */
 #define JSCLASS_NEW_RESOLVE_GETS_START  (1<<5)  /* JSNewResolveOp gets starting
                                                    object in prototype chain
                                                    passed in via *objp in/out
@@ -1509,13 +1520,13 @@ struct JSExtendedClass {
  * deleteable, for the most part.
  *
  * Implementing this efficiently requires that global objects have classes
- * with the following flags.  Failure to use JSCLASS_GLOBAL_FLAGS won't break
- * anything except the ECMA-262 "original prototype value" behavior, which was
- * broken for years in SpiderMonkey.  In other words, without these flags you
- * get backward compatibility.
+ * with the following flags. Failure to use JSCLASS_GLOBAL_FLAGS was
+ * prevously allowed, but is now an ES5 violation and thus unsupported.
  */
 #define JSCLASS_GLOBAL_FLAGS \
-    (JSCLASS_IS_GLOBAL | JSCLASS_HAS_RESERVED_SLOTS(JSProto_LIMIT))
+    (JSCLASS_IS_GLOBAL | JSCLASS_HAS_RESERVED_SLOTS(JSProto_LIMIT * 3 + 1))
+
+#define JSRESERVED_GLOBAL_COMPARTMENT (JSProto_LIMIT * 3)
 
 /* Fast access to the original value of each standard class's prototype. */
 #define JSCLASS_CACHED_PROTO_SHIFT      (JSCLASS_HIGH_FLAGS_SHIFT + 8)
@@ -1532,6 +1543,7 @@ struct JSExtendedClass {
 #define JSCLASS_NO_RESERVED_MEMBERS     0,0,0
 
 struct JSIdArray {
+    void *self;
     jsint length;
     jsid  vector[1];    /* actually, length jsid words */
 };
@@ -1693,6 +1705,9 @@ extern JS_PUBLIC_API(JSBool)
 JS_GetObjectId(JSContext *cx, JSObject *obj, jsid *idp);
 
 extern JS_PUBLIC_API(JSObject *)
+JS_NewGlobalObject(JSContext *cx, JSClass *clasp);
+
+extern JS_PUBLIC_API(JSObject *)
 JS_NewObject(JSContext *cx, JSClass *clasp, JSObject *proto, JSObject *parent);
 
 /*
@@ -1820,6 +1835,7 @@ struct JSPropertyDescriptor {
     uintN        attrs;
     JSPropertyOp getter;
     JSPropertyOp setter;
+    uintN        shortid;
     jsval        value;
 };
 

@@ -44,7 +44,6 @@
 #include "nsCSSProperty.h"
 #include "nscore.h" // For NS_OVERRIDE
 
-class nsPresContext;
 class nsIContent;
 class nsAString;
 
@@ -92,8 +91,6 @@ public:
    * @param       aTargetElement  The target element to whom the property/value
    *                              setting applies.
    * @param       aString         The string to be parsed as a CSS value.
-   * @param       aUseSVGMode     A flag to indicate whether we should parse
-   *                              |aString| in SVG mode.
    * @param [out] aValue          The nsSMILValue to be populated. Should
    *                              initially be null-typed.
    * @pre  aValue.IsNull()
@@ -102,7 +99,6 @@ public:
   static void ValueFromString(nsCSSProperty aPropID,
                               nsIContent* aTargetElement,
                               const nsAString& aString,
-                              PRBool aUseSVGMode,
                               nsSMILValue& aValue);
 
   /**

@@ -47,7 +47,7 @@
 #include "nsIDOMGetSVGDocument.h"
 #endif
 #include "nsIDOMHTMLObjectElement.h"
-#include "nsIFormSubmission.h"
+#include "nsFormSubmission.h"
 #include "nsIObjectFrame.h"
 #include "nsIPluginInstance.h"
 
@@ -59,7 +59,7 @@ class nsHTMLObjectElement : public nsGenericHTMLFormElement,
 #endif
 {
 public:
-  nsHTMLObjectElement(nsINodeInfo *aNodeInfo, PRBool aFromParser = PR_FALSE);
+  nsHTMLObjectElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser = 0);
   virtual ~nsHTMLObjectElement();
 
   // nsISupports
@@ -97,7 +97,7 @@ public:
   virtual PRUint32 GetDesiredIMEState();
 
   // Overriden nsIFormControl methods
-  NS_IMETHOD_(PRInt32) GetType() const
+  NS_IMETHOD_(PRUint32) GetType() const
   {
     return NS_FORM_OBJECT;
   }
@@ -144,7 +144,7 @@ NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Object)
 
 
 nsHTMLObjectElement::nsHTMLObjectElement(nsINodeInfo *aNodeInfo,
-                                         PRBool aFromParser)
+                                         PRUint32 aFromParser)
   : nsGenericHTMLFormElement(aNodeInfo),
     mIsDoneAddingChildren(!aFromParser)
 {
@@ -229,9 +229,8 @@ nsHTMLObjectElement::BindToTree(nsIDocument *aDocument,
 
   // If we already have all the children, start the load.
   if (mIsDoneAddingChildren) {
-    nsContentUtils::AddScriptRunner(
-      new nsRunnableMethod<nsHTMLObjectElement>(this,
-                                                &nsHTMLObjectElement::StartObjectLoad));
+    void (nsHTMLObjectElement::*start)() = &nsHTMLObjectElement::StartObjectLoad;
+    nsContentUtils::AddScriptRunner(NS_NewRunnableMethod(this, start));
   }
 
   return NS_OK;
@@ -361,7 +360,7 @@ NS_IMPL_STRING_ATTR(nsHTMLObjectElement, Height, height)
 NS_IMPL_INT_ATTR(nsHTMLObjectElement, Hspace, hspace)
 NS_IMPL_STRING_ATTR(nsHTMLObjectElement, Name, name)
 NS_IMPL_STRING_ATTR(nsHTMLObjectElement, Standby, standby)
-NS_IMPL_INT_ATTR(nsHTMLObjectElement, TabIndex, tabindex)
+NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLObjectElement, TabIndex, tabindex, 0)
 NS_IMPL_STRING_ATTR(nsHTMLObjectElement, Type, type)
 NS_IMPL_STRING_ATTR(nsHTMLObjectElement, UseMap, usemap)
 NS_IMPL_INT_ATTR(nsHTMLObjectElement, Vspace, vspace)

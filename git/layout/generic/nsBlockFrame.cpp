@@ -25,7 +25,7 @@
  *   Robert O'Callahan <roc+moz@cs.cmu.edu>
  *   L. David Baron <dbaron@dbaron.org>
  *   IBM Corporation
- *   Mats Palmgren <mats.palmgren@bredband.net>
+ *   Mats Palmgren <matspal@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -1249,8 +1249,10 @@ nsBlockFrame::ComputeFinalSize(const nsHTMLReflowState& aReflowState,
 #endif
 
   // Compute final width
-  aMetrics.width = borderPadding.left + aReflowState.ComputedWidth() +
-    borderPadding.right;
+  aMetrics.width =
+    NSCoordSaturatingAdd(NSCoordSaturatingAdd(borderPadding.left,
+                                              aReflowState.ComputedWidth()), 
+                         borderPadding.right);
 
   // Return bottom margin information
   // rbs says he hit this assertion occasionally (see bug 86947), so
@@ -1321,7 +1323,11 @@ nsBlockFrame::ComputeFinalSize(const nsHTMLReflowState& aReflowState,
                     && computedHeightLeftOver ),
                  "overflow container must not have computedHeightLeftOver");
 
-    aMetrics.height = borderPadding.top + computedHeightLeftOver + borderPadding.bottom;
+    aMetrics.height =
+      NSCoordSaturatingAdd(NSCoordSaturatingAdd(borderPadding.top,
+                                                computedHeightLeftOver),
+                           borderPadding.bottom);
+
     if (NS_FRAME_IS_NOT_COMPLETE(aState.mReflowStatus)
         && aMetrics.height < aReflowState.availableHeight) {
       // We ran out of height on this page but we're incomplete
@@ -2216,6 +2222,13 @@ nsBlockFrame::ReflowDirtyLines(nsBlockReflowState& aState)
         while (line != end_lines()) {
           rv = ReflowLine(aState, line, &keepGoing);
           NS_ENSURE_SUCCESS(rv, rv);
+
+          if (aState.mReflowState.WillReflowAgainForClearance()) {
+            line->MarkDirty();
+            keepGoing = PR_FALSE;
+            break;
+          }
+
           DumpLine(aState, line, deltaY, -1);
           if (!keepGoing) {
             if (0 == line->GetChildCount()) {
@@ -2229,7 +2242,6 @@ nsBlockFrame::ReflowDirtyLines(nsBlockReflowState& aState)
           }
 
           if (aState.mPresContext->CheckForInterrupt(this)) {
-            willReflowAgain = PR_TRUE;
             MarkLineDirtyForInterrupt(line);
             break;
           }
@@ -5160,13 +5172,6 @@ nsBlockFrame::DoRemoveFrame(nsIFrame* aDeletedFrame, PRUint32 aFlags)
     return NS_OK;
   }
 
-  // If next-in-flow is an overflow container, must remove it first
-  nsIFrame* next = aDeletedFrame->GetNextInFlow();
-  if (next && next->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER) {
-    static_cast<nsContainerFrame*>(next->GetParent())
-      ->DeleteNextInFlowChild(next->PresContext(), next, PR_FALSE);
-  }
-
   nsIPresShell* presShell = presContext->PresShell();
 
   // Find the line that contains deletedFrame
@@ -5262,8 +5267,17 @@ nsBlockFrame::DoRemoveFrame(nsIFrame* aDeletedFrame, PRUint32 aFlags)
     printf("DoRemoveFrame: %s line=%p frame=",
            searchingOverflowList?"overflow":"normal", line.get());
     nsFrame::ListTag(stdout, aDeletedFrame);
-    printf(" prevSibling=%p deletedNextContinuation=%p\n", prevSibling, deletedNextContinuation);
+    printf(" prevSibling=%p deletedNextContinuation=%p\n",
+           aDeletedFrame->GetPrevSibling(), deletedNextContinuation);
 #endif
+
+    // If next-in-flow is an overflow container, must remove it first.
+    if (deletedNextContinuation &&
+        deletedNextContinuation->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER) {
+      static_cast<nsContainerFrame*>(deletedNextContinuation->GetParent())
+        ->DeleteNextInFlowChild(presContext, deletedNextContinuation, PR_FALSE);
+      deletedNextContinuation = nsnull;
+    }
 
     aDeletedFrame->Destroy();
     aDeletedFrame = deletedNextContinuation;
@@ -6351,7 +6365,8 @@ nsBlockFrame::SetInitialChildList(nsIAtom*        aListName,
         CorrectStyleParentFrame(this,
           nsCSSPseudoElements::GetPseudoAtom(pseudoType))->GetStyleContext();
       nsRefPtr<nsStyleContext> kidSC = shell->StyleSet()->
-        ResolvePseudoElementStyle(mContent, pseudoType, parentStyle);
+        ResolvePseudoElementStyle(mContent->AsElement(), pseudoType,
+                                  parentStyle);
 
       // Create bullet frame
       nsBulletFrame* bullet = new (shell) nsBulletFrame(kidSC);
@@ -6891,30 +6906,7 @@ nsBlockFrame::ResolveBidi()
   if (!bidiUtils)
     return NS_ERROR_NULL_POINTER;
 
-  return bidiUtils->Resolve(this, IsVisualFormControl(presContext));
-}
-
-PRBool
-nsBlockFrame::IsVisualFormControl(nsPresContext* aPresContext)
-{
-  // We always use logical order on form controls, so that they will display
-  // correctly in native widgets in OSs with Bidi support.
-  // If the page uses logical ordering we can bail out immediately, but on
-  // visual pages we need to drill up in content to detect whether this block
-  // is a descendant of a form control.
-
-  if (!aPresContext->IsVisualMode()) {
-    return PR_FALSE;
-  }
-
-  nsIContent* content = GetContent();
-  for ( ; content; content = content->GetParent()) {
-    if (content->IsNodeOfType(nsINode::eHTML_FORM_CONTROL)) {
-      return PR_TRUE;
-    }
-  }
-  
-  return PR_FALSE;
+  return bidiUtils->Resolve(this);
 }
 #endif
 

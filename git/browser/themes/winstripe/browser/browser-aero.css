@@ -2,7 +2,6 @@
 %include browser.css
 %undef WINSTRIPE_AERO
 
-%if 0
 @media all and (-moz-windows-compositor) {
   #main-window:not(:-moz-lwtheme) {
     -moz-appearance: -moz-win-glass;
@@ -49,23 +48,17 @@
     background-color: white;
   }
 
-  #TabsToolbar:not(:-moz-lwtheme) {
-    margin-bottom: 0;
-    -moz-box-shadow: ThreeDDarkShadow 0 -1px inset;
-  }
-
-  .tabbrowser-tab:not(:-moz-lwtheme),
-  .tabbrowser-arrowscrollbox > .scrollbutton-up:not(:-moz-lwtheme),
-  .tabbrowser-arrowscrollbox > .scrollbutton-down:not(:-moz-lwtheme),
-  .tabs-newtab-button:not(:-moz-lwtheme),
-  .tabs-alltabs-button:not(:-moz-lwtheme) {
-    background-color: rgba(255,255,255,.5);
+  .tabbrowser-tab:not(:-moz-lwtheme):not([selected="true"]),
+  .tabs-newtab-button:not(:-moz-lwtheme) {
+    background-image: -moz-linear-gradient(left, transparent, transparent 1px,
+                                                 rgba(255,255,255,.4) 1px, rgba(255,255,255,.4));
     text-shadow: 0 1px 0 rgba(255,255,255,.4);
   }
 
-  .tabbrowser-tab[selected="true"]:not(:-moz-lwtheme) {
-    background-color: white;
-    text-shadow: none;
+  .tabbrowser-tab:not(:-moz-lwtheme):not([selected="true"]):hover,
+  .tabs-newtab-button:not(:-moz-lwtheme):hover {
+    background-image: -moz-linear-gradient(left, transparent, transparent 1px,
+                                                 rgba(255,255,255,.6) 1px, rgba(255,255,255,.6));
   }
 
   #allTabs-panel,
@@ -79,7 +72,6 @@
     text-shadow: white -1px -1px .5em, white -1px 1px .5em, white 1px 1px .5em, white 1px -1px .5em;
   }
 }
-%endif
 
 @media not all and (-moz-windows-compositor) {
   #print-preview-toolbar:not(:-moz-lwtheme) {

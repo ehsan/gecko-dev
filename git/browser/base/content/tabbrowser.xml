@@ -904,9 +904,23 @@
               this._tabAttrModified(this.mCurrentTab);
 
               // Change focus to the new browser unless the findbar is focused.
-              if (gFindBar.hidden ||
-                  gFindBar.getElement("findbar-textbox").getAttribute("focused") != "true")
-                newBrowser.focus();
+              if (!gFindBarInitialized ||
+                  gFindBar.hidden ||
+                  gFindBar.getElement("findbar-textbox").getAttribute("focused") != "true") {
+
+                var fm = Components.classes["@mozilla.org/focus-manager;1"].
+                           getService(Components.interfaces.nsIFocusManager);
+                var newFocusedElement = fm.getFocusedElementForWindow(window.content, true, {});
+
+                // for anchors, use FLAG_SHOWRING so that it is clear what link was
+                // last clicked when switching back to that tab
+                var focusFlags = fm.FLAG_NOSCROLL;
+                if (newFocusedElement &&
+                    (newFocusedElement instanceof HTMLAnchorElement ||
+                     newFocusedElement.getAttributeNS("http://www.w3.org/1999/xlink", "type") == "simple"))
+                  focusFlags |= fm.FLAG_SHOWRING;
+                fm.setFocus(newBrowser, focusFlags);
+              }
             }
           ]]>
         </body>
@@ -1030,6 +1044,7 @@
         <parameter name="aAllowThirdPartyFixup"/>
         <body>
           <![CDATA[
+            var aFromExternal;
             var aRelatedToCurrent;
             if (arguments.length == 2 &&
                 typeof arguments[1] == "object" &&
@@ -1040,6 +1055,7 @@
               aPostData             = params.postData;
               aLoadInBackground     = params.inBackground;
               aAllowThirdPartyFixup = params.allowThirdPartyFixup;
+              aFromExternal         = params.fromExternal;
               aRelatedToCurrent     = params.relatedToCurrent;
             }
 
@@ -1052,6 +1068,7 @@
                                   postData: aPostData,
                                   ownerTab: owner,
                                   allowThirdPartyFixup: aAllowThirdPartyFixup,
+                                  fromExternal: aFromExternal,
                                   relatedToCurrent: aRelatedToCurrent});
             if (!bgLoad)
               this.selectedTab = tab;
@@ -1121,6 +1138,7 @@
         <parameter name="aAllowThirdPartyFixup"/>
         <body>
           <![CDATA[
+            var aFromExternal;
             var aRelatedToCurrent;
             if (arguments.length == 2 &&
                 typeof arguments[1] == "object" &&
@@ -1131,6 +1149,7 @@
               aPostData             = params.postData;
               aOwner                = params.ownerTab;
               aAllowThirdPartyFixup = params.allowThirdPartyFixup;
+              aFromExternal         = params.fromExternal;
               aRelatedToCurrent     = params.relatedToCurrent;
             }
 
@@ -1213,6 +1232,7 @@
             this.mTabFilters[position] = filter;
 
             b._fastFind = this.fastFind;
+            b.droppedLinkHandler = handleDroppedLink;
 
             var uniqueId = "panel" + Date.now() + position;
             this.mPanelContainer.lastChild.id = uniqueId;
@@ -1255,9 +1275,11 @@
               // the document successfully loads
               b.userTypedValue = aURI;
 
-              let flags = aAllowThirdPartyFixup ?
-                          Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP :
-                          Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
+              let flags = Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
+              if (aAllowThirdPartyFixup)
+                flags |= Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP;
+              if (aFromExternal)
+                flags |= Ci.nsIWebNavigation.LOAD_FLAGS_FROM_EXTERNAL;
               try {
                 b.loadURIWithFlags(aURI, flags, aReferrerURI, aCharset, aPostData);
               }
@@ -1286,46 +1308,46 @@
       <parameter name="aAll"/>
       <body>
         <![CDATA[
-          var numTabs = this.tabs.length;
-          var reallyClose = true;
-          if (numTabs <= 1)
-            return reallyClose;
+          var tabsToClose = this.tabs.length;
+          if (!aAll)
+            --tabsToClose;
+          if (tabsToClose <= 1)
+            return true;
 
           const pref = "browser.tabs.warnOnClose";
           var shouldPrompt = Services.prefs.getBoolPref(pref);
 
-          if (shouldPrompt) {
-            let promptService = Services.prompt;
+          if (!shouldPrompt)
+            return true;
 
-            //default to true: if it were false, we wouldn't get this far
-            var warnOnClose = { value:true };
-            var bundle = this.mStringBundle;
-            var tabsToClose = numTabs;  //number of tabs to be removed
-            if (!aAll)
-              --tabsToClose;
+          var ps = Services.prompt;
 
-            var messageKey = (tabsToClose == 1) ? "tabs.closeWarningOneTab" : "tabs.closeWarningMultipleTabs";
-            var closeKey = (tabsToClose == 1) ? "tabs.closeButtonOne" : "tabs.closeButtonMultiple";
-            // focus the window before prompting.
-            // this will raise any minimized window, which will
-            // make it obvious which window the prompt is for and will
-            // solve the problem of windows "obscuring" the prompt.
-            // see bug #350299 for more details
-            window.focus();
-            var buttonPressed = promptService.confirmEx(window,
-                                                        bundle.getString('tabs.closeWarningTitle'),
-                                                        bundle.getFormattedString(messageKey, [tabsToClose]),
-                                                        (promptService.BUTTON_TITLE_IS_STRING * promptService.BUTTON_POS_0)
-                                                        + (promptService.BUTTON_TITLE_CANCEL * promptService.BUTTON_POS_1),
-                                                        bundle.getString(closeKey),
-                                                        null, null,
-                                                        bundle.getString('tabs.closeWarningPromptMe'),
-                                                        warnOnClose);
-            reallyClose = (buttonPressed == 0);
-            // don't set the pref unless they press OK and it's false
-            if (reallyClose && !warnOnClose.value)
-              Services.prefs.setBoolPref(pref, false);
-          }
+          // default to true: if it were false, we wouldn't get this far
+          var warnOnClose = { value: true };
+          var bundle = this.mStringBundle;
+
+          // focus the window before prompting.
+          // this will raise any minimized window, which will
+          // make it obvious which window the prompt is for and will
+          // solve the problem of windows "obscuring" the prompt.
+          // see bug #350299 for more details
+          window.focus();
+          var buttonPressed =
+            ps.confirmEx(window,
+                         bundle.getString("tabs.closeWarningTitle"),
+                         bundle.getFormattedString("tabs.closeWarningMultipleTabs",
+                                                   [tabsToClose]),
+                         (ps.BUTTON_TITLE_IS_STRING * ps.BUTTON_POS_0)
+                         + (ps.BUTTON_TITLE_CANCEL * ps.BUTTON_POS_1),
+                         bundle.getString("tabs.closeButtonMultiple"),
+                         null, null,
+                         bundle.getString('tabs.closeWarningPromptMe'),
+                         warnOnClose);
+          var reallyClose = (buttonPressed == 0);
+          // don't set the pref unless they press OK and it's false
+          if (reallyClose && !warnOnClose.value)
+            Services.prefs.setBoolPref(pref, false);
+
           return reallyClose;
         ]]>
       </body>
@@ -2137,17 +2159,6 @@
                 onget="return this.mCurrentBrowser.securityUI;"
                 readonly="true"/>
 
-      <method name="dragDropSecurityCheck">
-        <parameter name="aEvent"/>
-        <parameter name="aDragSession"/>
-        <parameter name="aUri"/>
-        <body>
-          <![CDATA[
-            nsDragAndDrop.dragDropSecurityCheck(aEvent, aDragSession, aUri);
-          ]]>
-        </body>
-      </method>
-
       <method name="_handleKeyEvent">
         <parameter name="aEvent"/>
         <body><![CDATA[
@@ -2156,65 +2167,50 @@
             return;
           }
 
-          if ('altKey' in aEvent && aEvent.altKey)
+          if (aEvent.altKey)
             return;
-#ifdef XP_MACOSX
-          if ('metaKey' in aEvent && aEvent.metaKey) {
-            var offset = 1;
-            switch (aEvent.charCode) {
-              case '}'.charCodeAt(0):
-                offset *= -1;
-              case '{'.charCodeAt(0):
-                if (window.getComputedStyle(this, null).direction == "ltr")
-                  offset *= -1;
 
-                this.tabContainer.advanceSelectedTab(offset, true);
-                aEvent.stopPropagation();
-                aEvent.preventDefault();
+          // We need to take care of FAYT-watching as long as the findbar
+          // isn't initialized.  The checks on aEvent are copied from
+          // _shouldFastFind (see findbar.xml).
+          if (!gFindBarInitialized &&
+              !(aEvent.ctrlKey || aEvent.metaKey) &&
+              !aEvent.getPreventDefault()) {
+            let charCode = aEvent.charCode;
+            if (charCode) {
+              let char = String.fromCharCode(charCode);
+              if (char == "'" || char == "/" ||
+                  Services.prefs.getBoolPref("accessibility.typeaheadfind")) {
+                gFindBar._onBrowserKeypress(aEvent);
                 return;
-            }
-            if ('shiftKey' in aEvent && aEvent.shiftKey)
-              return;
-#else
-          if (('ctrlKey' in aEvent && aEvent.ctrlKey) &&
-              !('shiftKey' in aEvent && aEvent.shiftKey) &&
-              !('metaKey' in aEvent && aEvent.metaKey)) {
-            if (aEvent.keyCode == KeyEvent.DOM_VK_F4 &&
-                this.mTabBox.handleCtrlPageUpDown) {
-              this.removeCurrentTab();
-
-              aEvent.stopPropagation();
-              aEvent.preventDefault();
-              return;
-            }
-#endif
-            if (aEvent.target == this) {
-              switch (aEvent.keyCode) {
-                case KeyEvent.DOM_VK_UP:
-                  this.moveTabBackward();
-                  break;
-                case KeyEvent.DOM_VK_DOWN:
-                  this.moveTabForward();
-                  break;
-                case KeyEvent.DOM_VK_RIGHT:
-                case KeyEvent.DOM_VK_LEFT:
-                  this.moveTabOver(aEvent);
-                  break;
-                case KeyEvent.DOM_VK_HOME:
-                  this.moveTabToStart();
-                  break;
-                case KeyEvent.DOM_VK_END:
-                  this.moveTabToEnd();
-                  break;
-                default:
-                  // Stop the keypress event for the above keyboard
-                  // shortcuts only.
-                  return;
               }
-              aEvent.stopPropagation();
-              aEvent.preventDefault();
             }
           }
+
+#ifdef XP_MACOSX
+          if (!aEvent.metaKey)
+            return;
+
+          var offset = 1;
+          switch (aEvent.charCode) {
+            case '}'.charCodeAt(0):
+              offset = -1;
+            case '{'.charCodeAt(0):
+              if (window.getComputedStyle(this, null).direction == "ltr")
+                offset *= -1;
+              this.tabContainer.advanceSelectedTab(offset, true);
+              aEvent.stopPropagation();
+              aEvent.preventDefault();
+          }
+#else
+          if (aEvent.ctrlKey && !aEvent.shiftKey && !aEvent.metaKey &&
+              aEvent.keyCode == KeyEvent.DOM_VK_F4 &&
+              this.mTabBox.handleCtrlPageUpDown) {
+            this.removeCurrentTab();
+            aEvent.stopPropagation();
+            aEvent.preventDefault();
+          }
+#endif
         ]]></body>
       </method>
 
@@ -2269,6 +2265,7 @@
           this._autoScrollPopup.id = "autoscroller";
           this.appendChild(this._autoScrollPopup);
           this.mCurrentBrowser.setAttribute("autoscrollpopup", this._autoScrollPopup.id);
+          this.mCurrentBrowser.droppedLinkHandler = handleDroppedLink;
         ]]>
       </constructor>
 
@@ -2440,19 +2437,9 @@
         <children/>
         <xul:toolbarbutton class="tabs-newtab-button"
                            command="cmd_newNavigatorTab"
+                           onclick="checkForMiddleClick(this, event);"
                            tooltiptext="&newTabButton.tooltip;"/>
       </xul:arrowscrollbox>
-      <xul:toolbarbutton class="tabs-newtab-button" anonid="newtab-button"
-                         command="cmd_newNavigatorTab"
-                         tooltiptext="&newTabButton.tooltip;"/>
-      <xul:toolbarbutton class="tabs-alltabs-button" anonid="alltabs-button"
-                         type="menu"
-                         tooltiptext="&listAllTabs.label;">
-        <xul:menupopup class="tabs-alltabs-popup" anonid="alltabs-popup"
-                       position="after_end"/>
-      </xul:toolbarbutton>
-      <xul:toolbarbutton anonid="tabs-closebutton"
-                         class="close-button tabs-closebutton"/>
     </content>
 
     <implementation implements="nsIDOMEventListener">
@@ -2510,10 +2497,6 @@
         document.getAnonymousElementByAttribute(this, "anonid", "arrowscrollbox");
       </field>
 
-      <field name="mTabstripClosebutton">
-        document.getAnonymousElementByAttribute(this, "anonid", "tabs-closebutton");
-      </field>
-
       <field name="_prefObserver"><![CDATA[({
         tabContainer: this,
 
@@ -2541,10 +2524,6 @@
 
       <field name="_dragOverDelay">350</field>
       <field name="_dragTime">0</field>
-
-      <field name="_supportedLinkDropTypes"><![CDATA[
-        ["text/x-moz-url", "text/uri-list", "text/plain", "application/x-moz-file"]
-      ]]></field>
 
       <field name="_container" readonly="true"><![CDATA[
         this.parentNode && this.parentNode.localName == "toolbar" ? this.parentNode : this;
@@ -2603,7 +2582,9 @@
             this.setAttribute("closebuttons", "noclose");
             break;
           }
-          this.mTabstripClosebutton.collapsed = this.mCloseButtons != 3;
+          var tabstripClosebutton = document.getElementById("tabs-closebutton");
+          if (tabstripClosebutton && tabstripClosebutton.parentNode == this._container)
+            tabstripClosebutton.collapsed = this.mCloseButtons != 3;
         ]]></body>
       </method>
 
@@ -2621,7 +2602,7 @@
             // of the tabstrip, we need to ensure that we stay
             // completely scrolled to the right side
             var tabStrip = this.mTabstrip;
-            if (tabStrip.scrollPosition + tabStrip.scrollClientSize >=
+            if (tabStrip.scrollPosition + tabStrip.scrollClientSize >
                 tabStrip.scrollSize)
               tabStrip.scrollByPixels(-1);
           } catch (e) {}
@@ -2644,11 +2625,6 @@
           }
         ]]></body>
       </method>
-
-      <field name="mAllTabsPopup">
-        document.getAnonymousElementByAttribute(this, 
-                                                "anonid", "alltabs-popup");
-      </field>
 
       <field name="_animateElement">
         this.mTabstrip._scrollButtonDown;
@@ -2742,11 +2718,9 @@
             }
           }
 
-          for (let i = 0; i < this._supportedLinkDropTypes.length; i++) {
-            if (types.contains(this._supportedLinkDropTypes[i])) {
-              // Here we need to to do this manually
-              return dt.effectAllowed = dt.dropEffect = "link";
-            }
+          if (browserDragAndDrop.canDropLink(event)) {
+            // Here we need to do this manually
+            return dt.effectAllowed = dt.dropEffect = "link";
           }
           return dt.effectAllowed = "none";
         ]]></body>
@@ -2765,6 +2739,12 @@
             this.mTabstrip.ensureElementIsVisible(t);
         ]]></body>
       </method>
+
+      <!-- Deprecated stuff, implemented for backwards compatibility. -->
+      <property name="mTabstripClosebutton" readonly="true"
+                onget="return document.getElementById('tabs-closebutton');"/>
+      <property name="mAllTabsPopup" readonly="true"
+                onget="return document.getElementById('alltabs-popup');"/>
     </implementation>
 
     <handlers>
@@ -2786,6 +2766,41 @@
           this.tabbrowser.removeTab(event.target);
 
         event.stopPropagation();
+      ]]></handler>
+
+      <handler event="keypress"><![CDATA[
+        if (event.altKey || event.shiftKey ||
+#ifdef XP_MACOSX
+            !event.metaKey)
+#else
+            !event.ctrlKey || event.metaKey)
+#endif
+          return;
+
+        switch (event.keyCode) {
+          case KeyEvent.DOM_VK_UP:
+            this.tabbrowser.moveTabBackward();
+            break;
+          case KeyEvent.DOM_VK_DOWN:
+            this.tabbrowser.moveTabForward();
+            break;
+          case KeyEvent.DOM_VK_RIGHT:
+          case KeyEvent.DOM_VK_LEFT:
+            this.tabbrowser.moveTabOver(event);
+            break;
+          case KeyEvent.DOM_VK_HOME:
+            this.tabbrowser.moveTabToStart();
+            break;
+          case KeyEvent.DOM_VK_END:
+            this.tabbrowser.moveTabToEnd();
+            break;
+          default:
+            // Stop the keypress event for the above keyboard
+            // shortcuts only.
+            return;
+        }
+        event.stopPropagation();
+        event.preventDefault();
       ]]></handler>
 
       <handler event="dragstart"><![CDATA[
@@ -2837,8 +2852,6 @@
               pixelsToScroll = tabStrip.scrollIncrement * -1;
               break;
             case "scrollbutton-down":
-            case "alltabs-button":
-            case "newtab-button":
               pixelsToScroll = tabStrip.scrollIncrement;
               break;
           }
@@ -2955,33 +2968,13 @@
           // it triggers will correctly update our URL bar.
           this.tabbrowser.selectedTab = newTab;
         } else {
-          let url;
-          for (let i = 0; i < this._supportedLinkDropTypes.length; i++) {
-            let dataType = this._supportedLinkDropTypes[i];
-            // uri-list: for now, support dropping of the first URL
-            // only
-            let isURLList = dataType == "text/uri-list";
-            let urlData = isURLList ?
-                          dt.mozGetDataAt("URL", 0) : dt.mozGetDataAt(dataType, 0);
-            if (urlData) {
-              url = transferUtils.retrieveURLFromData(urlData, isURLList ? "text/plain" : dataType);
-              break;
-            }
-          }
-          NS_ASSERT(url, "In the drop event, at least one mime-type should match our supported types");
+          let url = browserDragAndDrop.drop(event, { });
 
           // valid urls don't contain spaces ' '; if we have a space it isn't a valid url.
           // Also disallow dropping javascript: or data: urls--bail out
           if (!url || !url.length || url.indexOf(" ", 0) != -1 ||
               /^\s*(javascript|data):/.test(url))
             return;
-
-          // XXXmano: temporary fix until dragDropSecurityCheck make the
-          // drag-session an optional paramter
-          let dragService = Cc["@mozilla.org/widget/dragservice;1"].
-                            getService(Ci.nsIDragService);
-          let dragSession = dragService.getCurrentSession();
-          nsDragAndDrop.dragDropSecurityCheck(event, dragSession, url);
 
           let bgLoad = Services.prefs.getBoolPref("browser.tabs.loadInBackground");
 
@@ -3063,59 +3056,54 @@
     <handlers>
       <handler event="click" button="0"><![CDATA[
         var bindingParent = document.getBindingParent(this);
+        var tabContainer = bindingParent.parentNode;
+        /* The only sequence in which a second click event (i.e. dblclik)
+         * can be dispatched on an in-tab close button is when it is shown
+         * after the first click (i.e. the first click event was dispatched
+         * on the tab). This happens when we show the close button only on
+         * the active tab. (bug 352021)
+         * The only sequence in which a third click event can be dispatched
+         * on an in-tab close button is when the tab was opened with a
+         * double click on the tabbar. (bug 378344)
+         * In both cases, it is most likely that the close button area has
+         * been accidentally clicked, therefore we do not close the tab.
+         *
+         * We don't want to ignore processing of more than one click event,
+         * though, since the user might actually be repeatedly clicking to
+         * close many tabs at once.
+         */
+        if (event.detail > 1 && !this._ignoredClick) {
+          this._ignoredClick = true;
+          return;
+        }
 
-        if (bindingParent.localName == "tab") {
-          let tabContainer = bindingParent.parentNode;
-          /* The only sequence in which a second click event (i.e. dblclik)
-           * can be dispatched on an in-tab close button is when it is shown
-           * after the first click (i.e. the first click event was dispatched
-           * on the tab). This happens when we show the close button only on
-           * the active tab. (bug 352021)
-           * The only sequence in which a third click event can be dispatched
-           * on an in-tab close button is when the tab was opened with a
-           * double click on the tabbar. (bug 378344)
-           * In both cases, it is most likely that the close button area has
-           * been accidentally clicked, therefore we do not close the tab.
-           *
-           * We don't want to ignore processing of more than one click event,
-           * though, since the user might actually be repeatedly clicking to
-           * close many tabs at once.
-           */
-          if (event.detail > 1 && !this._ignoredClick) {
-            this._ignoredClick = true;
+        // Reset the "ignored click" flag
+        this._ignoredClick = false;
+
+        tabContainer.tabbrowser.removeTab(bindingParent);
+        this._blockDblClick = true;
+
+        /* XXXmano hack (see bug 343628):
+         * Since we're removing the event target, if the user
+         * double-clicks this button, the dblclick event will be dispatched
+         * with the tabbar as its event target (and explicit/originalTarget),
+         * which treats that as a mouse gesture for opening a new tab.
+         * In this context, we're manually blocking the dblclick event
+         * (see dblclick handler).
+         */
+        var self = this;
+        var clickedOnce = false;
+        function enableDblClick(event) {
+          if (event.detail == 1 && !clickedOnce) {
+            clickedOnce = true;
             return;
           }
-
-          // Reset the "ignored click" flag
-          this._ignoredClick = false;
-
-          tabContainer.tabbrowser.removeTab(bindingParent);
-          this._blockDblClick = true;
-
-          /* XXXmano hack (see bug 343628):
-           * Since we're removing the event target, if the user
-           * double-clicks this button, the dblclick event will be dispatched
-           * with the tabbar as its event target (and explicit/originalTarget),
-           * which treats that as a mouse gesture for opening a new tab.
-           * In this context, we're manually blocking the dblclick event
-           * (see dblclick handler).
-           */
-          let self = this;
-          let clickedOnce = false;
-          function enableDblClick(event) {
-            if (event.detail == 1 && !clickedOnce) {
-              clickedOnce = true;
-              return;
-            }
-            setTimeout(function() {
-              self._blockDblClick = false;
-            }, 0);
-            tabContainer.removeEventListener("click", enableDblClick, false);
-          }
-          tabContainer.addEventListener("click", enableDblClick, false);
+          setTimeout(function() {
+            self._blockDblClick = false;
+          }, 0);
+          tabContainer.removeEventListener("click", enableDblClick, false);
         }
-        else // "tabs"
-          bindingParent.tabbrowser.removeCurrentTab();
+        tabContainer.addEventListener("click", enableDblClick, false);
       ]]></handler>
 
       <handler event="dblclick" button="0" phase="capturing">
@@ -3198,8 +3186,7 @@
       <method name="_menuItemOnCommand">
         <parameter name="aEvent"/>
         <body><![CDATA[
-          var tabcontainer = document.getBindingParent(this);
-          tabcontainer.selectedItem = aEvent.target.tab;
+          gBrowser.selectedTab = aEvent.target.tab;
         ]]></body>
       </method>
 
@@ -3248,7 +3235,7 @@
 
       <method name="_updateTabsVisibilityStatus">
         <body><![CDATA[
-          var tabContainer = document.getBindingParent(this);
+          var tabContainer = gBrowser.tabContainer;
           // We don't want menu item decoration unless there is overflow.
           if (tabContainer.getAttribute("overflow") != "true")
             return;
@@ -3272,7 +3259,7 @@
             "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul", 
             "menuitem");
 
-          menuItem.setAttribute("class", "menuitem-iconic alltabs-item");
+          menuItem.setAttribute("class", "menuitem-iconic alltabs-item menuitem-with-favicon");
 
           this._setMenuitemAttributes(menuItem, aTab);
 
@@ -3312,7 +3299,7 @@
       <handler event="popupshowing">
       <![CDATA[
         // set up the menu popup
-        var tabcontainer = document.getBindingParent(this);
+        var tabcontainer = gBrowser.tabContainer;
         var tabs = tabcontainer.childNodes;
 
         // Listen for changes in the tab bar.
@@ -3336,7 +3323,7 @@
           menuItem.tab.mCorrespondingMenuitem = null;
           this.removeChild(menuItem);
         }
-        var tabcontainer = document.getBindingParent(this);
+        var tabcontainer = gBrowser.tabContainer;
         tabcontainer.mTabstrip.removeEventListener("scroll", this, false);
         tabcontainer.removeEventListener("TabOpen", this, false);
         tabcontainer.removeEventListener("TabAttrModified", this, false);

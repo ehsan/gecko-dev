@@ -39,7 +39,6 @@
 #include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
 #include "nsStyleConsts.h"
-#include "nsPresContext.h"
 #include "nsIDOMText.h"
 #include "nsIDocument.h"
 #include "nsIDOMHTMLDocument.h"
@@ -147,6 +146,7 @@ nsHTMLTitleElement::CharacterDataChanged(nsIDocument *aDocument,
 void
 nsHTMLTitleElement::ContentAppended(nsIDocument *aDocument,
                                     nsIContent *aContainer,
+                                    nsIContent *aFirstNewContent,
                                     PRInt32 aNewIndexInContainer)
 {
   SendTitleChangeEvent(PR_FALSE);

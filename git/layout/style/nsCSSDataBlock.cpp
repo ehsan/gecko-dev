@@ -218,7 +218,7 @@ ShouldStartImageLoads(nsRuleData *aRuleData, nsCSSProperty aProperty)
          nsCSSProps::PropHasFlags(aProperty, CSS_PROPERTY_START_IMAGE_LOADS);
 }
 
-nsresult
+void
 nsCSSCompressedDataBlock::MapRuleInfoInto(nsRuleData *aRuleData) const
 {
     // If we have no data for these structs, then return immediately.
@@ -226,7 +226,7 @@ nsCSSCompressedDataBlock::MapRuleInfoInto(nsRuleData *aRuleData) const
     // have to worry much less (although still some) about the speed of
     // the rest of the function.
     if (!(aRuleData->mSIDs & mStyleBits))
-        return NS_OK;
+        return;
 
     nsIDocument* doc = aRuleData->mPresContext->Document();
 
@@ -358,8 +358,6 @@ nsCSSCompressedDataBlock::MapRuleInfoInto(nsRuleData *aRuleData) const
         }
     }
     NS_ASSERTION(cursor == cursor_end, "inconsistent data");
-
-    return NS_OK;
 }
 
 const void*
@@ -610,7 +608,7 @@ nsCSSExpandedDataBlock::DoExpand(nsRefPtr<nsCSSCompressedDataBlock> *aBlock,
         // FIXME (maybe): We really don't need to clone the block
         // itself, just all the data inside it.
         *aBlock = (*aBlock)->Clone();
-        if (!aBlock) {
+        if (!*aBlock) {
             // Not much we can do; just lose the properties.
             NS_WARNING("out of memory");
             return;
@@ -714,10 +712,10 @@ nsCSSExpandedDataBlock::ComputeSizeResult
 nsCSSExpandedDataBlock::ComputeSize()
 {
     ComputeSizeResult result = {0, 0};
-    for (PRUint32 iHigh = 0; iHigh < nsCSSPropertySet::kChunkCount; ++iHigh) {
+    for (size_t iHigh = 0; iHigh < nsCSSPropertySet::kChunkCount; ++iHigh) {
         if (!mPropertiesSet.HasPropertyInChunk(iHigh))
             continue;
-        for (PRInt32 iLow = 0; iLow < nsCSSPropertySet::kBitsInChunk; ++iLow) {
+        for (size_t iLow = 0; iLow < nsCSSPropertySet::kBitsInChunk; ++iLow) {
             if (!mPropertiesSet.HasPropertyAt(iHigh, iLow))
                 continue;
             nsCSSProperty iProp = nsCSSPropertySet::CSSPropertyAt(iHigh, iLow);
@@ -808,10 +806,10 @@ nsCSSExpandedDataBlock::Compress(nsCSSCompressedDataBlock **aNormalBlock,
      * corresponding to the stored data in the expanded block, and then
      * clearing the data in the expanded block.
      */
-    for (PRUint32 iHigh = 0; iHigh < nsCSSPropertySet::kChunkCount; ++iHigh) {
+    for (size_t iHigh = 0; iHigh < nsCSSPropertySet::kChunkCount; ++iHigh) {
         if (!mPropertiesSet.HasPropertyInChunk(iHigh))
             continue;
-        for (PRInt32 iLow = 0; iLow < nsCSSPropertySet::kBitsInChunk; ++iLow) {
+        for (size_t iLow = 0; iLow < nsCSSPropertySet::kBitsInChunk; ++iLow) {
             if (!mPropertiesSet.HasPropertyAt(iHigh, iLow))
                 continue;
             nsCSSProperty iProp = nsCSSPropertySet::CSSPropertyAt(iHigh, iLow);
@@ -896,10 +894,10 @@ nsCSSExpandedDataBlock::Compress(nsCSSCompressedDataBlock **aNormalBlock,
 void
 nsCSSExpandedDataBlock::Clear()
 {
-    for (PRUint32 iHigh = 0; iHigh < nsCSSPropertySet::kChunkCount; ++iHigh) {
+    for (size_t iHigh = 0; iHigh < nsCSSPropertySet::kChunkCount; ++iHigh) {
         if (!mPropertiesSet.HasPropertyInChunk(iHigh))
             continue;
-        for (PRInt32 iLow = 0; iLow < nsCSSPropertySet::kBitsInChunk; ++iLow) {
+        for (size_t iLow = 0; iLow < nsCSSPropertySet::kBitsInChunk; ++iLow) {
             if (!mPropertiesSet.HasPropertyAt(iHigh, iLow))
                 continue;
             nsCSSProperty iProp = nsCSSPropertySet::CSSPropertyAt(iHigh, iLow);

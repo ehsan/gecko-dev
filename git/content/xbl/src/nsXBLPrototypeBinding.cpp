@@ -65,7 +65,6 @@
 #include "nsFixedSizeAllocator.h"
 #include "xptinfo.h"
 #include "nsIInterfaceInfoManager.h"
-#include "nsIPresShell.h"
 #include "nsIDocumentObserver.h"
 #include "nsGkAtoms.h"
 #include "nsXBLProtoImpl.h"
@@ -712,7 +711,7 @@ nsXBLPrototypeBinding::InstantiateInsertionPoints(nsXBLBinding* aBinding)
 nsIContent*
 nsXBLPrototypeBinding::GetInsertionPoint(nsIContent* aBoundElement,
                                          nsIContent* aCopyRoot,
-                                         nsIContent* aChild,
+                                         const nsIContent* aChild,
                                          PRUint32* aIndex)
 {
   if (!mInsertionPointTable)
@@ -1047,7 +1046,7 @@ nsXBLPrototypeBinding::GetRuleProcessor()
   return nsnull;
 }
 
-nsCOMArray<nsICSSStyleSheet>*
+nsXBLPrototypeResources::sheet_array_type*
 nsXBLPrototypeBinding::GetStyleSheets()
 {
   if (mResources) {

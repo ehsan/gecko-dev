@@ -77,7 +77,7 @@ typedef struct JSTrap {
     jsbytecode      *pc;
     JSOp            op;
     JSTrapHandler   handler;
-    void            *closure;
+    jsval           closure;
 } JSTrap;
 
 #define DBG_LOCK(rt)            JS_ACQUIRE_LOCK((rt)->debuggerLock)
@@ -142,7 +142,7 @@ js_UntrapScriptCode(JSContext *cx, JSScript *script)
 
 JS_PUBLIC_API(JSBool)
 JS_SetTrap(JSContext *cx, JSScript *script, jsbytecode *pc,
-           JSTrapHandler handler, void *closure)
+           JSTrapHandler handler, jsval closure)
 {
     JSTrap *junk, *trap, *twin;
     JSRuntime *rt;
@@ -168,7 +168,7 @@ JS_SetTrap(JSContext *cx, JSScript *script, jsbytecode *pc,
         trap = (JSTrap *) cx->malloc(sizeof *trap);
         if (!trap)
             return JS_FALSE;
-        trap->closure = NULL;
+        trap->closure = JSVAL_NULL;
         DBG_LOCK(rt);
         twin = (rt->debuggerMutations != sample)
                ? FindTrap(rt, script, pc)
@@ -220,7 +220,7 @@ DestroyTrapAndUnlock(JSContext *cx, JSTrap *trap)
 
 JS_PUBLIC_API(void)
 JS_ClearTrap(JSContext *cx, JSScript *script, jsbytecode *pc,
-             JSTrapHandler *handlerp, void **closurep)
+             JSTrapHandler *handlerp, jsval *closurep)
 {
     JSTrap *trap;
 
@@ -229,7 +229,7 @@ JS_ClearTrap(JSContext *cx, JSScript *script, jsbytecode *pc,
     if (handlerp)
         *handlerp = trap ? trap->handler : NULL;
     if (closurep)
-        *closurep = trap ? trap->closure : NULL;
+        *closurep = trap ? trap->closure : JSVAL_NULL;
     if (trap)
         DestroyTrapAndUnlock(cx, trap);
     else
@@ -295,10 +295,8 @@ js_MarkTraps(JSTracer *trc)
     for (JSTrap *trap = (JSTrap *) rt->trapList.next;
          &trap->links != &rt->trapList;
          trap = (JSTrap *) trap->links.next) {
-        if (trap->closure) {
-            JS_SET_TRACING_NAME(trc, "trap->closure");
-            js_CallValueTracerIfGCThing(trc, (jsval) trap->closure);
-        }
+        JS_SET_TRACING_NAME(trc, "trap->closure");
+        js_CallValueTracerIfGCThing(trc, trap->closure);
     }
 }
 
@@ -375,38 +373,38 @@ LeaveTraceRT(JSRuntime *rt)
 #endif
 
 JS_PUBLIC_API(JSBool)
-JS_SetInterrupt(JSRuntime *rt, JSTrapHandler handler, void *closure)
+JS_SetInterrupt(JSRuntime *rt, JSInterruptHook hook, void *closure)
 {
 #ifdef JS_TRACER
-    JS_LOCK_GC(rt);
-    bool wasInhibited = rt->debuggerInhibitsJIT();
+    {
+        AutoLockGC lock(rt);
+        bool wasInhibited = rt->debuggerInhibitsJIT();
 #endif
-    rt->globalDebugHooks.interruptHandler = handler;
-    rt->globalDebugHooks.interruptHandlerData = closure;
+        rt->globalDebugHooks.interruptHook = hook;
+        rt->globalDebugHooks.interruptHookData = closure;
 #ifdef JS_TRACER
-    JITInhibitingHookChange(rt, wasInhibited);
-    JS_UNLOCK_GC(rt);
+        JITInhibitingHookChange(rt, wasInhibited);
+    }
     LeaveTraceRT(rt);
 #endif
     return JS_TRUE;
 }
 
 JS_PUBLIC_API(JSBool)
-JS_ClearInterrupt(JSRuntime *rt, JSTrapHandler *handlerp, void **closurep)
+JS_ClearInterrupt(JSRuntime *rt, JSInterruptHook *hoop, void **closurep)
 {
 #ifdef JS_TRACER
-    JS_LOCK_GC(rt);
+    AutoLockGC lock(rt);
     bool wasInhibited = rt->debuggerInhibitsJIT();
 #endif
-    if (handlerp)
-        *handlerp = rt->globalDebugHooks.interruptHandler;
+    if (hoop)
+        *hoop = rt->globalDebugHooks.interruptHook;
     if (closurep)
-        *closurep = rt->globalDebugHooks.interruptHandlerData;
-    rt->globalDebugHooks.interruptHandler = 0;
-    rt->globalDebugHooks.interruptHandlerData = 0;
+        *closurep = rt->globalDebugHooks.interruptHookData;
+    rt->globalDebugHooks.interruptHook = 0;
+    rt->globalDebugHooks.interruptHookData = 0;
 #ifdef JS_TRACER
     JITInhibitingHookChange(rt, wasInhibited);
-    JS_UNLOCK_GC(rt);
 #endif
     return JS_TRUE;
 }
@@ -465,7 +463,7 @@ DropWatchPointAndUnlock(JSContext *cx, JSWatchPoint *wp, uintN flag)
     DBG_UNLOCK(cx->runtime);
     if (!setter) {
         JS_LOCK_OBJ(cx, wp->object);
-        scope = OBJ_SCOPE(wp->object);
+        scope = wp->object->scope();
 
         /*
          * If the property wasn't found on wp->object, or it isn't still being
@@ -506,10 +504,8 @@ js_TraceWatchPoints(JSTracer *trc, JSObject *obj)
          wp = (JSWatchPoint *)wp->links.next) {
         if (wp->object == obj) {
             wp->sprop->trace(trc);
-            if (wp->sprop->hasSetterValue() && wp->setter) {
-                JS_CALL_OBJECT_TRACER(trc, js_CastAsObject(wp->setter),
-                                      "wp->setter");
-            }
+            if (wp->sprop->hasSetterValue() && wp->setter)
+                JS_CALL_OBJECT_TRACER(trc, CastAsObject(wp->setter), "wp->setter");
             JS_SET_TRACING_NAME(trc, "wp->closure");
             js_CallValueTracerIfGCThing(trc, OBJECT_TO_JSVAL(wp->closure));
         }
@@ -555,7 +551,7 @@ FindWatchPoint(JSRuntime *rt, JSScope *scope, jsid id)
     for (wp = (JSWatchPoint *)rt->watchPointList.next;
          &wp->links != &rt->watchPointList;
          wp = (JSWatchPoint *)wp->links.next) {
-        if (OBJ_SCOPE(wp->object) == scope && wp->sprop->id == id)
+        if (wp->object->scope() == scope && wp->sprop->id == id)
             return wp;
     }
     return NULL;
@@ -591,7 +587,7 @@ js_GetWatchedSetter(JSRuntime *rt, JSScope *scope,
     for (wp = (JSWatchPoint *)rt->watchPointList.next;
          &wp->links != &rt->watchPointList;
          wp = (JSWatchPoint *)wp->links.next) {
-        if ((!scope || OBJ_SCOPE(wp->object) == scope) && wp->sprop == sprop) {
+        if ((!scope || wp->object->scope() == scope) && wp->sprop == sprop) {
             setter = wp->setter;
             break;
         }
@@ -604,148 +600,121 @@ js_GetWatchedSetter(JSRuntime *rt, JSScope *scope,
 JSBool
 js_watch_set(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
-    JSRuntime *rt;
-    JSWatchPoint *wp;
-    JSScopeProperty *sprop;
-    jsval propid, userid;
-    JSScope *scope;
-    JSBool ok;
-
-    rt = cx->runtime;
+    JSRuntime *rt = cx->runtime;
     DBG_LOCK(rt);
-    for (wp = (JSWatchPoint *)rt->watchPointList.next;
+    for (JSWatchPoint *wp = (JSWatchPoint *)rt->watchPointList.next;
          &wp->links != &rt->watchPointList;
          wp = (JSWatchPoint *)wp->links.next) {
-        sprop = wp->sprop;
+        JSScopeProperty *sprop = wp->sprop;
         if (wp->object == obj && SPROP_USERID(sprop) == id &&
             !(wp->flags & JSWP_HELD)) {
             wp->flags |= JSWP_HELD;
             DBG_UNLOCK(rt);
 
             JS_LOCK_OBJ(cx, obj);
-            propid = ID_TO_VALUE(sprop->id);
-            userid = SPROP_USERID(sprop);
-            scope = OBJ_SCOPE(obj);
+            jsval propid = ID_TO_VALUE(sprop->id);
+            jsval userid = SPROP_USERID(sprop);
+            JSScope *scope = obj->scope();
             JS_UNLOCK_OBJ(cx, obj);
 
             /* NB: wp is held, so we can safely dereference it still. */
-            ok = wp->handler(cx, obj, propid,
+            if (!wp->handler(cx, obj, propid,
                              SPROP_HAS_VALID_SLOT(sprop, scope)
                              ? obj->getSlotMT(cx, sprop->slot)
                              : JSVAL_VOID,
-                             vp, wp->closure);
-            if (ok) {
+                             vp, wp->closure)) {
+                DBG_LOCK(rt);
+                DropWatchPointAndUnlock(cx, wp, JSWP_HELD);
+                return JS_FALSE;
+            }
+
+            /*
+             * Create a pseudo-frame for the setter invocation so that any
+             * stack-walking security code under the setter will correctly
+             * identify the guilty party.  So that the watcher appears to
+             * be active to obj_eval and other such code, point frame.pc
+             * at the JSOP_STOP at the end of the script.
+             *
+             * The pseudo-frame is not created for fast natives as they
+             * are treated as interpreter frame extensions and always
+             * trusted.
+             */
+            JSObject *closure = wp->closure;
+            JSClass *clasp = closure->getClass();
+            JSFunction *fun;
+            JSScript *script;
+            if (clasp == &js_FunctionClass) {
+                fun = GET_FUNCTION_PRIVATE(cx, closure);
+                script = FUN_SCRIPT(fun);
+            } else if (clasp == &js_ScriptClass) {
+                fun = NULL;
+                script = (JSScript *) closure->getPrivate();
+            } else {
+                fun = NULL;
+                script = NULL;
+            }
+
+            uintN vplen = 2;
+            if (fun)
+                vplen += fun->minArgs() + (fun->isInterpreted() ? 0 : fun->u.n.extra);
+            uintN nfixed = script ? script->nfixed : 0;
+
+            /* Destructor pops frame. */
+            JSFrameRegs regs;
+            ExecuteFrameGuard frame;
+
+            if (fun && !fun->isFastNative()) {
                 /*
-                 * Create a pseudo-frame for the setter invocation so that any
-                 * stack-walking security code under the setter will correctly
-                 * identify the guilty party.  So that the watcher appears to
-                 * be active to obj_eval and other such code, point frame.pc
-                 * at the JSOP_STOP at the end of the script.
-                 *
-                 * The pseudo-frame is not created for fast natives as they
-                 * are treated as interpreter frame extensions and always
-                 * trusted.
+                 * Get a pointer to new frame/slots. This memory is not
+                 * "claimed", so the code before pushExecuteFrame must not
+                 * reenter the interpreter.
                  */
-                JSObject *closure;
-                JSClass *clasp;
-                JSFunction *fun;
-                JSScript *script;
-                JSBool injectFrame;
-                uintN nslots, slotsStart;
-                jsval smallv[5];
-                jsval *argv;
-                JSStackFrame frame;
-                JSFrameRegs regs;
-
-                closure = wp->closure;
-                clasp = OBJ_GET_CLASS(cx, closure);
-                if (clasp == &js_FunctionClass) {
-                    fun = GET_FUNCTION_PRIVATE(cx, closure);
-                    script = FUN_SCRIPT(fun);
-                } else if (clasp == &js_ScriptClass) {
-                    fun = NULL;
-                    script = (JSScript *) closure->getPrivate();
-                } else {
-                    fun = NULL;
-                    script = NULL;
+                JSStackFrame *down = js_GetTopStackFrame(cx);
+                if (!cx->stack().getExecuteFrame(cx, down, vplen, nfixed, frame)) {
+                    DBG_LOCK(rt);
+                    DropWatchPointAndUnlock(cx, wp, JSWP_HELD);
+                    return JS_FALSE;
                 }
 
-                slotsStart = nslots = 2;
-                injectFrame = JS_TRUE;
-                if (fun) {
-                    nslots += FUN_MINARGS(fun);
-                    if (!FUN_INTERPRETED(fun)) {
-                        nslots += fun->u.n.extra;
-                        injectFrame = !(fun->flags & JSFUN_FAST_NATIVE);
-                    }
+                /* Initialize slots/frame. */
+                jsval *vp = frame.getvp();
+                PodZero(vp, vplen);
+                vp[0] = OBJECT_TO_JSVAL(closure);
+                JSStackFrame *fp = frame.getFrame();
+                PodZero(fp->slots(), nfixed);
+                PodZero(fp);
+                fp->script = script;
+                fp->fun = fun;
+                fp->argv = vp + 2;
+                fp->scopeChain = closure->getParent();
 
-                    slotsStart = nslots;
-                }
-                if (script)
-                    nslots += script->nslots;
+                /* Initialize regs. */
+                regs.pc = script ? script->code : NULL;
+                regs.sp = fp->slots() + nfixed;
 
-                if (injectFrame) {
-                    if (nslots <= JS_ARRAY_LENGTH(smallv)) {
-                        argv = smallv;
-                    } else {
-                        argv = (jsval *) cx->malloc(nslots * sizeof(jsval));
-                        if (!argv) {
-                            DBG_LOCK(rt);
-                            DropWatchPointAndUnlock(cx, wp, JSWP_HELD);
-                            return JS_FALSE;
-                        }
-                    }
+                /* Officially push |fp|. |frame|'s destructor pops. */
+                cx->stack().pushExecuteFrame(cx, frame, regs, NULL);
 
-                    argv[0] = OBJECT_TO_JSVAL(closure);
-                    argv[1] = JSVAL_NULL;
-                    PodZero(argv + 2, nslots - 2);
-
-                    PodZero(&frame);
-                    frame.script = script;
-                    frame.regs = NULL;
-                    frame.fun = fun;
-                    frame.argv = argv + 2;
-                    frame.down = js_GetTopStackFrame(cx);
-                    frame.scopeChain = closure->getParent();
-                    if (script && script->nslots)
-                        frame.slots = argv + slotsStart;
-                    if (script) {
-                        JS_ASSERT(script->length >= JSOP_STOP_LENGTH);
-                        regs.pc = script->code + script->length
-                                  - JSOP_STOP_LENGTH;
-                        regs.sp = NULL;
-                        frame.regs = &regs;
-                        if (fun &&
-                            JSFUN_HEAVYWEIGHT_TEST(fun->flags) &&
-                            !js_GetCallObject(cx, &frame)) {
-                            if (argv != smallv)
-                                cx->free(argv);
-                            DBG_LOCK(rt);
-                            DropWatchPointAndUnlock(cx, wp, JSWP_HELD);
-                            return JS_FALSE;
-                        }
-                    }
-
-                    cx->fp = &frame;
-                }
-#ifdef __GNUC__
-                else
-                    argv = NULL;    /* suppress bogus gcc warnings */
-#endif
-                ok = !wp->setter ||
-                     (sprop->hasSetterValue()
-                      ? js_InternalCall(cx, obj,
-                                        js_CastAsObjectJSVal(wp->setter),
-                                        1, vp, vp)
-                      : wp->setter(cx, obj, userid, vp));
-                if (injectFrame) {
-                    /* Evil code can cause us to have an arguments object. */
-                    frame.putActivationObjects(cx);
-                    cx->fp = frame.down;
-                    if (argv != smallv)
-                        cx->free(argv);
+                /* Now that fp has been pushed, get the call object. */
+                if (script && fun && fun->isHeavyweight() &&
+                    !js_GetCallObject(cx, fp)) {
+                    DBG_LOCK(rt);
+                    DropWatchPointAndUnlock(cx, wp, JSWP_HELD);
+                    return JS_FALSE;
                 }
             }
+
+            JSBool ok = !wp->setter ||
+                        (sprop->hasSetterValue()
+                         ? js_InternalCall(cx, obj,
+                                           CastAsObjectJSVal(wp->setter),
+                                           1, vp, vp)
+                         : wp->setter(cx, obj, userid, vp));
+
+            /* Evil code can cause us to have an arguments object. */
+            if (frame.getFrame())
+                frame.getFrame()->putActivationObjects(cx);
+
             DBG_LOCK(rt);
             return DropWatchPointAndUnlock(cx, wp, JSWP_HELD) && ok;
         }
@@ -774,7 +743,7 @@ IsWatchedProperty(JSContext *cx, JSScopeProperty *sprop)
 {
     if (sprop->hasSetterValue()) {
         JSObject *funobj = sprop->setterObject();
-        if (!funobj->isFunction())
+        if (!funobj || !funobj->isFunction())
             return false;
 
         JSFunction *fun = GET_FUNCTION_PRIVATE(cx, funobj);
@@ -801,12 +770,12 @@ js_WrapWatchedSetter(JSContext *cx, jsid id, uintN attrs, JSPropertyOp setter)
     } else {
         atom = NULL;
     }
+
     wrapper = js_NewFunction(cx, NULL, js_watch_set_wrapper, 1, 0,
-                             js_CastAsObject(setter)->getParent(),
-                             atom);
+                             setter ? CastAsObject(setter)->getParent() : NULL, atom);
     if (!wrapper)
         return NULL;
-    return js_CastAsPropertyOp(FUN_OBJECT(wrapper));
+    return CastAsPropertyOp(FUN_OBJECT(wrapper));
 }
 
 JS_PUBLIC_API(JSBool)
@@ -826,17 +795,19 @@ JS_SetWatchPoint(JSContext *cx, JSObject *obj, jsval idval,
     JSPropertyOp watcher;
 
     origobj = obj;
-    obj = js_GetWrappedObject(cx, obj);
+    obj = obj->wrappedObject(cx);
     OBJ_TO_INNER_OBJECT(cx, obj);
     if (!obj)
         return JS_FALSE;
 
+    AutoValueRooter idroot(cx);
     if (JSVAL_IS_INT(idval)) {
         propid = INT_JSVAL_TO_JSID(idval);
     } else {
         if (!js_ValueToStringId(cx, idval, &propid))
             return JS_FALSE;
         propid = js_CheckForStringIndex(propid);
+        idroot.set(ID_TO_VALUE(propid));
     }
 
     /*
@@ -848,7 +819,7 @@ JS_SetWatchPoint(JSContext *cx, JSObject *obj, jsval idval,
 
     if (!obj->isNative()) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CANT_WATCH,
-                             OBJ_GET_CLASS(cx, obj)->name);
+                             obj->getClass()->name);
         return JS_FALSE;
     }
 
@@ -858,7 +829,7 @@ JS_SetWatchPoint(JSContext *cx, JSObject *obj, jsval idval,
     rt = cx->runtime;
     if (!sprop) {
         /* Check for a deleted symbol watchpoint, which holds its property. */
-        sprop = js_FindWatchPoint(rt, OBJ_SCOPE(obj), propid);
+        sprop = js_FindWatchPoint(rt, obj->scope(), propid);
         if (!sprop) {
             /* Make a new property in obj so we can watch for the first set. */
             if (!js_DefineNativeProperty(cx, obj, propid, JSVAL_VOID, NULL, NULL,
@@ -869,35 +840,35 @@ JS_SetWatchPoint(JSContext *cx, JSObject *obj, jsval idval,
         }
     } else if (pobj != obj) {
         /* Clone the prototype property so we can watch the right object. */
-        jsval value;
+        AutoValueRooter valroot(cx);
         JSPropertyOp getter, setter;
         uintN attrs, flags;
         intN shortid;
 
         if (pobj->isNative()) {
-            value = SPROP_HAS_VALID_SLOT(sprop, OBJ_SCOPE(pobj))
-                    ? LOCKED_OBJ_GET_SLOT(pobj, sprop->slot)
-                    : JSVAL_VOID;
+            valroot.set(SPROP_HAS_VALID_SLOT(sprop, pobj->scope())
+                        ? pobj->lockedGetSlot(sprop->slot)
+                        : JSVAL_VOID);
             getter = sprop->getter();
             setter = sprop->setter();
             attrs = sprop->attributes();
             flags = sprop->getFlags();
             shortid = sprop->shortid;
+            JS_UNLOCK_OBJ(cx, pobj);
         } else {
-            if (!pobj->getProperty(cx, propid, &value) ||
-                !pobj->getAttributes(cx, propid, prop, &attrs)) {
-                pobj->dropProperty(cx, prop);
+            if (!pobj->getProperty(cx, propid, valroot.addr()) ||
+                !pobj->getAttributes(cx, propid, &attrs)) {
                 return JS_FALSE;
             }
             getter = setter = NULL;
             flags = 0;
             shortid = 0;
         }
-        pobj->dropProperty(cx, prop);
 
         /* Recall that obj is native, whether or not pobj is native. */
-        if (!js_DefineNativeProperty(cx, obj, propid, value, getter, setter,
-                                     attrs, flags, shortid, &prop)) {
+        if (!js_DefineNativeProperty(cx, obj, propid, valroot.value(),
+                                     getter, setter, attrs, flags,
+                                     shortid, &prop)) {
             return JS_FALSE;
         }
         sprop = (JSScopeProperty *) prop;
@@ -905,11 +876,11 @@ JS_SetWatchPoint(JSContext *cx, JSObject *obj, jsval idval,
 
     /*
      * At this point, prop/sprop exists in obj, obj is locked, and we must
-     * obj->dropProperty(cx, prop) before returning.
+     * unlock the object before returning.
      */
     ok = JS_TRUE;
     DBG_LOCK(rt);
-    wp = FindWatchPoint(rt, OBJ_SCOPE(obj), propid);
+    wp = FindWatchPoint(rt, obj->scope(), propid);
     if (!wp) {
         DBG_UNLOCK(rt);
         watcher = js_WrapWatchedSetter(cx, propid, sprop->attributes(), sprop->setter());
@@ -926,7 +897,6 @@ JS_SetWatchPoint(JSContext *cx, JSObject *obj, jsval idval,
         wp->handler = NULL;
         wp->closure = NULL;
         wp->object = obj;
-        JS_ASSERT(sprop->setter() != js_watch_set || pobj != obj);
         wp->setter = sprop->setter();
         wp->flags = JSWP_LIVE;
 
@@ -949,7 +919,7 @@ JS_SetWatchPoint(JSContext *cx, JSObject *obj, jsval idval,
          * a watchpoint for (obj, propid).
          */
         DBG_LOCK(rt);
-        JS_ASSERT(!FindWatchPoint(rt, OBJ_SCOPE(obj), propid));
+        JS_ASSERT(!FindWatchPoint(rt, obj->scope(), propid));
         JS_APPEND_LINK(&wp->links, &rt->watchPointList);
         ++rt->debuggerMutations;
     }
@@ -958,7 +928,7 @@ JS_SetWatchPoint(JSContext *cx, JSObject *obj, jsval idval,
     DBG_UNLOCK(rt);
 
 out:
-    obj->dropProperty(cx, prop);
+    JS_UNLOCK_OBJ(cx, obj);
     return ok;
 }
 
@@ -1099,7 +1069,7 @@ JS_GetFrameScript(JSContext *cx, JSStackFrame *fp)
 JS_PUBLIC_API(jsbytecode *)
 JS_GetFramePC(JSContext *cx, JSStackFrame *fp)
 {
-    return fp->regs ? fp->regs->pc : NULL;
+    return fp->pc(cx);
 }
 
 JS_PUBLIC_API(JSStackFrame *)
@@ -1203,6 +1173,8 @@ JS_GetFrameObject(JSContext *cx, JSStackFrame *fp)
 JS_PUBLIC_API(JSObject *)
 JS_GetFrameScopeChain(JSContext *cx, JSStackFrame *fp)
 {
+    JS_ASSERT(cx->stack().contains(fp));
+
     /* Force creation of argument and call objects if not yet created */
     (void) JS_GetFrameCallObject(cx, fp);
     return js_GetScopeChain(cx, fp);
@@ -1211,6 +1183,8 @@ JS_GetFrameScopeChain(JSContext *cx, JSStackFrame *fp)
 JS_PUBLIC_API(JSObject *)
 JS_GetFrameCallObject(JSContext *cx, JSStackFrame *fp)
 {
+    JS_ASSERT(cx->stack().contains(fp));
+
     if (! fp->fun)
         return NULL;
 
@@ -1344,9 +1318,9 @@ JS_EvaluateUCInStackFrame(JSContext *cx, JSStackFrame *fp,
      * we use a static level that will cause us not to attempt to optimize
      * variable references made by this frame.
      */
-    script = JSCompiler::compileScript(cx, scobj, fp, JS_StackFramePrincipals(cx, fp),
-                                       TCF_COMPILE_N_GO, chars, length, NULL,
-                                       filename, lineno, NULL, JS_DISPLAY_SIZE);
+    script = Compiler::compileScript(cx, scobj, fp, JS_StackFramePrincipals(cx, fp),
+                                     TCF_COMPILE_N_GO, chars, length, NULL,
+                                     filename, lineno, NULL, JS_DISPLAY_SIZE);
 
     if (!script)
         return JS_FALSE;
@@ -1429,7 +1403,7 @@ JS_PropertyIterator(JSObject *obj, JSScopeProperty **iteratorp)
     JSScope *scope;
 
     sprop = *iteratorp;
-    scope = OBJ_SCOPE(obj);
+    scope = obj->scope();
 
     /* XXXbe minor(?) incompatibility: iterate in reverse definition order */
     sprop = sprop ? sprop->parent : scope->lastProperty();
@@ -1478,7 +1452,7 @@ JS_GetPropertyDesc(JSContext *cx, JSObject *obj, JSScopeProperty *sprop,
     }
     pd->alias = JSVAL_VOID;
 
-    JSScope *scope = OBJ_SCOPE(obj);
+    JSScope *scope = obj->scope();
     if (SPROP_HAS_VALID_SLOT(sprop, scope)) {
         JSScopeProperty *aprop;
         for (aprop = scope->lastProperty(); aprop; aprop = aprop->parent) {
@@ -1500,7 +1474,7 @@ JS_GetPropertyDescArray(JSContext *cx, JSObject *obj, JSPropertyDescArray *pda)
     JSPropertyDesc *pd;
     JSScopeProperty *sprop;
 
-    clasp = OBJ_GET_CLASS(cx, obj);
+    clasp = obj->getClass();
     if (!obj->isNative() || (clasp->flags & JSCLASS_NEW_ENUMERATE)) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                              JSMSG_CANT_DESCRIBE_PROPS, clasp->name);
@@ -1510,7 +1484,7 @@ JS_GetPropertyDescArray(JSContext *cx, JSObject *obj, JSPropertyDescArray *pda)
         return JS_FALSE;
 
     /* have no props, or object's scope has not mutated from that of proto */
-    scope = OBJ_SCOPE(obj);
+    scope = obj->scope();
     if (scope->entryCount == 0) {
         pda->length = 0;
         pda->array = NULL;
@@ -1564,7 +1538,7 @@ JS_PutPropertyDescArray(JSContext *cx, JSPropertyDescArray *pda)
 /************************************************************************/
 
 JS_PUBLIC_API(JSBool)
-JS_SetDebuggerHandler(JSRuntime *rt, JSTrapHandler handler, void *closure)
+JS_SetDebuggerHandler(JSRuntime *rt, JSDebuggerHandler handler, void *closure)
 {
     rt->globalDebugHooks.debuggerHandler = handler;
     rt->globalDebugHooks.debuggerHandlerData = closure;
@@ -1591,14 +1565,15 @@ JS_PUBLIC_API(JSBool)
 JS_SetCallHook(JSRuntime *rt, JSInterpreterHook hook, void *closure)
 {
 #ifdef JS_TRACER
-    JS_LOCK_GC(rt);
-    bool wasInhibited = rt->debuggerInhibitsJIT();
+    {
+        AutoLockGC lock(rt);
+        bool wasInhibited = rt->debuggerInhibitsJIT();
 #endif
-    rt->globalDebugHooks.callHook = hook;
-    rt->globalDebugHooks.callHookData = closure;
+        rt->globalDebugHooks.callHook = hook;
+        rt->globalDebugHooks.callHookData = closure;
 #ifdef JS_TRACER
-    JITInhibitingHookChange(rt, wasInhibited);
-    JS_UNLOCK_GC(rt);
+        JITInhibitingHookChange(rt, wasInhibited);
+    }
     if (hook)
         LeaveTraceRT(rt);
 #endif
@@ -1609,14 +1584,15 @@ JS_PUBLIC_API(JSBool)
 JS_SetObjectHook(JSRuntime *rt, JSObjectHook hook, void *closure)
 {
 #ifdef JS_TRACER
-    JS_LOCK_GC(rt);
-    bool wasInhibited = rt->debuggerInhibitsJIT();
+    {
+        AutoLockGC lock(rt);
+        bool wasInhibited = rt->debuggerInhibitsJIT();
 #endif
-    rt->globalDebugHooks.objectHook = hook;
-    rt->globalDebugHooks.objectHookData = closure;
+        rt->globalDebugHooks.objectHook = hook;
+        rt->globalDebugHooks.objectHookData = closure;
 #ifdef JS_TRACER
-    JITInhibitingHookChange(rt, wasInhibited);
-    JS_UNLOCK_GC(rt);
+        JITInhibitingHookChange(rt, wasInhibited);
+    }
     if (hook)
         LeaveTraceRT(rt);
 #endif
@@ -1624,7 +1600,7 @@ JS_SetObjectHook(JSRuntime *rt, JSObjectHook hook, void *closure)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_SetThrowHook(JSRuntime *rt, JSTrapHandler hook, void *closure)
+JS_SetThrowHook(JSRuntime *rt, JSThrowHook hook, void *closure)
 {
     rt->globalDebugHooks.throwHook = hook;
     rt->globalDebugHooks.throwHookData = closure;
@@ -1653,7 +1629,7 @@ JS_GetObjectTotalSize(JSContext *cx, JSObject *obj)
                   * sizeof obj->dslots[0];
     }
     if (obj->isNative()) {
-        scope = OBJ_SCOPE(obj);
+        scope = obj->scope();
         if (!scope->isSharedEmpty()) {
             nbytes += sizeof *scope;
             nbytes += SCOPE_CAPACITY(scope) * sizeof(JSScopeProperty *);
@@ -1790,16 +1766,11 @@ JS_IsSystemObject(JSContext *cx, JSObject *obj)
     return obj->isSystem();
 }
 
-JS_PUBLIC_API(JSObject *)
-JS_NewSystemObject(JSContext *cx, JSClass *clasp, JSObject *proto,
-                   JSObject *parent, JSBool system)
+JS_PUBLIC_API(JSBool)
+JS_MakeSystemObject(JSContext *cx, JSObject *obj)
 {
-    JSObject *obj;
-
-    obj = js_NewObject(cx, clasp, proto, parent);
-    if (obj && system)
-        obj->setSystem();
-    return obj;
+    obj->setSystem();
+    return true;
 }
 
 /************************************************************************/
@@ -1820,13 +1791,12 @@ JS_SetContextDebugHooks(JSContext *cx, const JSDebugHooks *hooks)
         LeaveTrace(cx);
 
 #ifdef JS_TRACER
-    JS_LOCK_GC(cx->runtime);
+    AutoLockGC lock(cx->runtime);
 #endif
     JSDebugHooks *old = const_cast<JSDebugHooks *>(cx->debugHooks);
     cx->debugHooks = hooks;
 #ifdef JS_TRACER
     cx->updateJITEnabled();
-    JS_UNLOCK_GC(cx->runtime);
 #endif
     return old;
 }
@@ -2280,9 +2250,9 @@ jstv_Filename(JSStackFrame *fp)
 inline uintN
 jstv_Lineno(JSContext *cx, JSStackFrame *fp)
 {
-    while (fp && fp->regs == NULL)
+    while (fp && fp->pc(cx) == NULL)
         fp = fp->down;
-    return (fp && fp->regs) ? js_FramePCToLineNumber(cx, fp) : 0;
+    return (fp && fp->pc(cx)) ? js_FramePCToLineNumber(cx, fp) : 0;
 }
 
 /* Collect states here and distribute to a matching buffer, if any */

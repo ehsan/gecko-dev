@@ -38,6 +38,10 @@
 
 #include "nsXFormsAccessible.h"
 
+#include "nsAccessibilityService.h"
+#include "nsAccUtils.h"
+#include "nsTextEquivUtils.h"
+
 #include "nscore.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIDOMElement.h"
@@ -105,10 +109,6 @@ nsXFormsAccessible::GetBoundChildElementValue(const nsAString& aTagName,
 void
 nsXFormsAccessible::CacheSelectChildren(nsIDOMNode *aContainerNode)
 {
-  nsIAccessibilityService *accService = GetAccService();
-  if (!accService)
-    return;
-
   nsCOMPtr<nsIDOMNode> container(aContainerNode);
   if (!container)
     container = mDOMNode;
@@ -131,11 +131,12 @@ nsXFormsAccessible::CacheSelectChildren(nsIDOMNode *aContainerNode)
     if (!child)
       continue;
 
-    accService->GetAttachedAccessibleFor(child, getter_AddRefs(accessible));
+    GetAccService()->GetAttachedAccessibleFor(child,
+                                              getter_AddRefs(accessible));
     if (!accessible)
       continue;
 
-    acc = nsAccUtils::QueryObject<nsAccessible>(accessible);
+    acc = do_QueryObject(accessible);
     mChildren.AppendElement(acc);
     acc->SetParent(this);
   }
@@ -337,9 +338,6 @@ nsXFormsSelectableAccessible::GetSelectedChildren(nsIArray **aAccessibles)
     do_CreateInstance(NS_ARRAY_CONTRACTID);
   NS_ENSURE_TRUE(accessibles, NS_ERROR_OUT_OF_MEMORY);
 
-  nsIAccessibilityService* accService = GetAccService();
-  NS_ENSURE_TRUE(accService, NS_ERROR_FAILURE);
-
   nsresult rv;
 
   if (mIsSelect1Element) {
@@ -352,7 +350,7 @@ nsXFormsSelectableAccessible::GetSelectedChildren(nsIArray **aAccessibles)
       return NS_OK;
 
     nsCOMPtr<nsIAccessible> accessible;
-    accService->GetAccessibleFor(item, getter_AddRefs(accessible));
+    GetAccService()->GetAccessibleFor(item, getter_AddRefs(accessible));
     NS_ENSURE_TRUE(accessible, NS_ERROR_FAILURE);
 
     accessibles->AppendElement(accessible, PR_FALSE);
@@ -379,7 +377,7 @@ nsXFormsSelectableAccessible::GetSelectedChildren(nsIArray **aAccessibles)
     NS_ENSURE_TRUE(item, NS_ERROR_FAILURE);
 
     nsCOMPtr<nsIAccessible> accessible;
-    accService->GetAccessibleFor(item, getter_AddRefs(accessible));
+    GetAccService()->GetAccessibleFor(item, getter_AddRefs(accessible));
     NS_ENSURE_TRUE(accessible, NS_ERROR_FAILURE);
 
     accessibles->AppendElement(accessible, PR_FALSE);
@@ -467,9 +465,6 @@ nsXFormsSelectableAccessible::RefSelection(PRInt32 aIndex,
   NS_ENSURE_ARG_POINTER(aAccessible);
   *aAccessible = nsnull;
 
-  nsIAccessibilityService* accService = GetAccService();
-  NS_ENSURE_TRUE(accService, NS_ERROR_FAILURE);
-
   nsresult rv;
   if (mIsSelect1Element) {
     if (aIndex != 0)
@@ -481,7 +476,7 @@ nsXFormsSelectableAccessible::RefSelection(PRInt32 aIndex,
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (item)
-      return accService->GetAccessibleFor(item, aAccessible);
+      return GetAccService()->GetAccessibleFor(item, aAccessible);
     return NS_OK;
   }
 
@@ -502,7 +497,7 @@ nsXFormsSelectableAccessible::RefSelection(PRInt32 aIndex,
   items->Item(aIndex, getter_AddRefs(item));
 
   nsCOMPtr<nsIAccessible> accessible;
-  return accService->GetAccessibleFor(item, getter_AddRefs(accessible));
+  return GetAccService()->GetAccessibleFor(item, getter_AddRefs(accessible));
 }
 
 NS_IMETHODIMP
@@ -558,39 +553,32 @@ already_AddRefed<nsIDOMNode>
 nsXFormsSelectableAccessible::GetItemByIndex(PRInt32 *aIndex,
                                              nsIAccessible *aAccessible)
 {
-  nsCOMPtr<nsIAccessible> accessible(aAccessible ? aAccessible : this);
+  nsRefPtr<nsAccessible> accessible(do_QueryObject(aAccessible));
+  if (!accessible)
+    accessible = this;
 
-  nsCOMPtr<nsIAccessible> curAccChild;
-  accessible->GetFirstChild(getter_AddRefs(curAccChild));
+  PRInt32 childCount = accessible->GetChildCount();
+  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
+    nsAccessible *child = accessible->GetChildAt(childIdx);
 
-  while (curAccChild) {
-    nsCOMPtr<nsIAccessNode> curAccNodeChild(do_QueryInterface(curAccChild));
-    if (curAccNodeChild) {
-      nsCOMPtr<nsIDOMNode> curChildNode;
-      curAccNodeChild->GetDOMNode(getter_AddRefs(curChildNode));
-      nsCOMPtr<nsIContent> curChildContent(do_QueryInterface(curChildNode));
-      if (curChildContent) {
-        nsCOMPtr<nsINodeInfo> nodeInfo = curChildContent->NodeInfo();
-        if (nodeInfo->NamespaceEquals(NS_LITERAL_STRING(NS_NAMESPACE_XFORMS))) {
-          if (nodeInfo->Equals(nsAccessibilityAtoms::item)) {
-            if (!*aIndex) {
-              nsIDOMNode *itemNode = nsnull;
-              curChildNode.swap(itemNode);
-              return itemNode;
-            }
-            --*aIndex;
-          } else if (nodeInfo->Equals(nsAccessibilityAtoms::choices)) {
-            nsIDOMNode *itemNode = GetItemByIndex(aIndex, curAccChild).get();
-            if (itemNode)
-              return itemNode;
-          }
-        }
+    nsCOMPtr<nsIDOMNode> childNode(child->GetDOMNode());
+    nsCOMPtr<nsIContent> childContent(do_QueryInterface(childNode));
+    if (!childContent)
+      continue;
+
+    nsINodeInfo *nodeInfo = childContent->NodeInfo();
+    if (nodeInfo->NamespaceEquals(NS_LITERAL_STRING(NS_NAMESPACE_XFORMS))) {
+      if (nodeInfo->Equals(nsAccessibilityAtoms::item)) {
+        if (!*aIndex)
+          return childNode.forget();
+
+        --*aIndex;
+      } else if (nodeInfo->Equals(nsAccessibilityAtoms::choices)) {
+        nsIDOMNode *itemNode = GetItemByIndex(aIndex, child).get();
+        if (itemNode)
+          return itemNode;
       }
     }
-
-    nsCOMPtr<nsIAccessible> nextAccChild;
-    curAccChild->GetNextSibling(getter_AddRefs(nextAccChild));
-    curAccChild.swap(nextAccChild);
   }
 
   return nsnull;

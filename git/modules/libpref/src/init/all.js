@@ -117,6 +117,9 @@ pref("browser.blink_allowed",               true);
 pref("browser.enable_automatic_image_resizing", false);
 pref("browser.enable_click_image_resizing", true);
 
+// See http://dev.w3.org/html5/spec/forms.html#attr-fe-autofocus
+pref("browser.autofocus", true);
+
 // See http://whatwg.org/specs/web-apps/current-work/#ping
 pref("browser.send_pings", false);
 pref("browser.send_pings.max_per_link", 1);           // limit the number of pings that are sent per link click
@@ -157,6 +160,9 @@ pref("media.ogg.enabled", true);
 #endif
 #ifdef MOZ_WAVE
 pref("media.wave.enabled", true);
+#endif
+#ifdef MOZ_WEBM
+pref("media.webm.enabled", true);
 #endif
 
 // Whether to autostart a media element with an |autoplay| attribute
@@ -520,7 +526,6 @@ pref("dom.disable_window_open_feature.titlebar",    false);
 pref("dom.disable_window_open_feature.close",       false);
 pref("dom.disable_window_open_feature.toolbar",     false);
 pref("dom.disable_window_open_feature.location",    false);
-pref("dom.disable_window_open_feature.directories", false);
 pref("dom.disable_window_open_feature.personalbar", false);
 pref("dom.disable_window_open_feature.menubar",     false);
 pref("dom.disable_window_open_feature.scrollbars",  false);
@@ -556,7 +561,7 @@ pref("javascript.options.strict",           false);
 #ifdef DEBUG
 pref("javascript.options.strict.debug",     true);
 #endif
-pref("javascript.options.relimit",          false);
+pref("javascript.options.relimit",          true);
 pref("javascript.options.jit.content",      true);
 pref("javascript.options.jit.chrome",       true);
 // This preference limits the memory usage of javascript.
@@ -694,6 +699,25 @@ pref("network.http.pipelining.maxrequests" , 4);
 // Prompt for 307 redirects
 pref("network.http.prompt-temp-redirect", true);
 
+// On networks deploying QoS, it is recommended that these be lockpref()'d,
+// since inappropriate marking can easily overwhelm bandwidth reservations
+// for certain services (i.e. EF for VoIP, AF4x for interactive video,
+// AF3x for broadcast/streaming video, etc)
+
+// default value for HTTP
+// in a DSCP environment this should be 40 (0x28, or AF11), per RFC-4594,
+// Section 4.8 "High-Throughput Data Service Class"
+pref("network.http.qos", 0);
+// ditto for Gopher
+pref("network.gopher.qos", 0);
+
+// default values for FTP
+// in a DSCP environment this should be 40 (0x28, or AF11), per RFC-4594,
+// Section 4.8 "High-Throughput Data Service Class", and 80 (0x50, or AF22)
+// per Section 4.7 "Low-Latency Data Service Class".
+pref("network.ftp.data.qos", 0);
+pref("network.ftp.control.qos", 0);
+
 // </http>
 
 // If false, remote JAR files that are served with a content type other than
@@ -738,7 +762,10 @@ pref("network.IDN.whitelist.jp", true);
 pref("network.IDN.whitelist.kr", true);
 pref("network.IDN.whitelist.li", true);
 pref("network.IDN.whitelist.lt", true);
+pref("network.IDN.whitelist.lu", true);
 pref("network.IDN.whitelist.no", true);
+pref("network.IDN.whitelist.nu", true);
+pref("network.IDN.whitelist.nz", true);
 pref("network.IDN.whitelist.pl", true);
 pref("network.IDN.whitelist.pr", true);
 pref("network.IDN.whitelist.se", true);
@@ -748,12 +775,21 @@ pref("network.IDN.whitelist.tm", true);
 pref("network.IDN.whitelist.tw", true);
 pref("network.IDN.whitelist.vn", true);
 
-// non-ccTLDs
+// IDN ccTLDs
+// sa, Saudi Arabia, .<al-Saudiah>
+pref("network.IDN.whitelist.xn--mgberp4a5d4ar", true); 
+// ru, Russian Federation, .<RF>
+pref("network.IDN.whitelist.xn--p1ai", true);
+// jo, Jordan, .<Al-Ordon>
+pref("network.IDN.whitelist.xn--mgbayh7gpa", true);
+
+// gTLDs
 pref("network.IDN.whitelist.biz", true);
 pref("network.IDN.whitelist.cat", true);
 pref("network.IDN.whitelist.info", true);
 pref("network.IDN.whitelist.museum", true);
 pref("network.IDN.whitelist.org", true);
+pref("network.IDN.whitelist.tel", true);
 
 // NOTE: Before these can be removed, one of bug 414812's tests must be updated
 //       or it will likely fail!  Please CC jwalden+bmo on the bug associated
@@ -883,6 +919,7 @@ pref("network.proxy.no_proxies_on",         "localhost, 127.0.0.1");
 pref("network.proxy.failover_timeout",      1800); // 30 minutes
 pref("network.online",                      true); //online/offline
 pref("network.cookie.cookieBehavior",       0); // 0-Accept, 1-dontAcceptForeign, 2-dontUse
+pref("network.cookie.thirdparty.sessionOnly", false);
 pref("network.cookie.lifetimePolicy",       0); // accept normally, 1-askBeforeAccepting, 2-acceptForSession,3-acceptForNDays
 pref("network.cookie.alwaysAcceptSessionCookies", false);
 pref("network.cookie.prefsMigrated",        false);
@@ -1593,6 +1630,14 @@ pref("font.size.fixed.zh-HK", 16);
 
 // We have special support for Monotype Symbol on Windows.
 pref("font.mathfont-family", "STIXNonUnicode, STIXSize1, STIXGeneral, Symbol, DejaVu Sans, Cambria Math");
+
+// cleartype settings - false implies default system settings 
+
+// use cleartype rendering for downloadable fonts (win xp only)
+pref("gfx.font_rendering.cleartype.use_for_downloadable_fonts", true);
+
+// use cleartype rendering for all fonts always (win xp only)
+pref("gfx.font_rendering.cleartype.always_use_for_content", false);
 
 pref("ui.key.menuAccessKeyFocuses", true);
 
@@ -2685,74 +2730,6 @@ pref("mousewheel.system_scroll_override_on_root_content.enabled", false);
 #endif
 #endif
 
-#if MOZ_WIDGET_TOOLKIT==photon
-
-// font names
-pref("font.name.serif.x-western", "serif");
-pref("font.name.sans-serif.x-western", "sans-serif");
-pref("font.name.monospace.x-western", "monospace");
-pref("font.name.cursive.x-western", "cursive");
-pref("font.name.fantasy.x-western", "fantasy");
-
-pref("font.name.serif.el", "serif");
-pref("font.name.sans-serif.el", "sans-serif");
-pref("font.name.monospace.el", "monospace");
-
-pref("font.name.serif.he", "serif");
-pref("font.name.sans-serif.he", "sans-serif");
-pref("font.name.monospace.he", "monospace");
-
-pref("font.name.serif.ja", "serif");
-pref("font.name.sans-serif.ja", "sans-serif");
-pref("font.name.monospace.ja", "monospace");
-
-pref("font.name.serif.ko", "serif");
-pref("font.name.sans-serif.ko", "sans-serif");
-pref("font.name.monospace.ko", "monospace");
-
-pref("font.name.serif.tr", "serif");
-pref("font.name.sans-serif.tr", "sans-serif");
-pref("font.name.monospace.tr", "monospace");
-
-pref("font.name.serif.x-baltic", "serif");
-pref("font.name.sans-serif.x-baltic", "sans-serif");
-pref("font.name.monospace.x-baltic", "monospace");
-
-pref("font.name.serif.x-central-euro", "serif");
-pref("font.name.sans-serif.x-central-euro", "sans-serif");
-pref("font.name.monospace.x-central-euro", "monospace");
-
-pref("font.name.serif.x-cyrillic", "serif");
-pref("font.name.sans-serif.x-cyrillic", "sans-serif");
-pref("font.name.monospace.x-cyrillic", "monospace");
-
-pref("font.name.serif.x-unicode", "serif");
-pref("font.name.sans-serif.x-unicode", "sans-serif");
-pref("font.name.monospace.x-unicode", "monospace");
-
-pref("font.name.serif.x-user-def", "serif");
-pref("font.name.sans-serif.x-user-def", "sans-serif");
-pref("font.name.monospace.x-user-def", "monospace");
-
-pref("font.name.serif.zh-CN", "serif");
-pref("font.name.sans-serif.zh-CN", "sans-serif");
-pref("font.name.monospace.zh-CN", "monospace");
-
-pref("font.size.variable.x-western", 14);
-pref("font.size.fixed.x-western", 12);
-
-pref("applications.telnet", "pterm telnet %h %p");
-pref("applications.tn3270", "pterm tn3270 %h");
-pref("applications.rlogin", "pterm rlogin %h");
-pref("applications.rlogin_with_user", "pterm rlogin %h -l %u");
-
-// print_extra_margin enables platforms to specify an extra gap or margin
-// around the content of the page for Print Preview only
-pref("print.print_extra_margin", 90); // twips (90 twips is an eigth of an inch)
-
-# photon
-#endif
-
 #if OS_ARCH==OpenVMS
 
 pref("mail.use_builtin_movemail", false);
@@ -2769,7 +2746,7 @@ pref("applications.rlogin_with_user", "create /term /detach \"rlogin %h -l %u\""
 
 /* PostScript module specific (see unix.js for additional configuration details) */
 pref("print.postscript.print_command", "print /delete");
-/* Print module independant */
+/* Print module independent */
 pref("print.print_command", "print /delete");
 pref("print.print_color", false);
 
@@ -2812,12 +2789,15 @@ pref("signon.rememberSignons",              true);
 pref("signon.SignonFileName",               "signons.txt"); // obsolete 
 pref("signon.SignonFileName2",              "signons2.txt"); // obsolete
 pref("signon.SignonFileName3",              "signons3.txt"); // obsolete
-pref("signon.autofillForms",                true); 
-pref("signon.debug",                        false); // logs to Error Console
+pref("signon.autofillForms",                true);
+pref("signon.autologin.proxy",              false);
+pref("signon.debug",                        false);
 
 // Satchel (Form Manager) prefs
 pref("browser.formfill.debug",            false);
 pref("browser.formfill.enable",           true);
+pref("browser.formfill.expire_days",      180);
+pref("browser.formfill.saveHttpsForms",   true);
 pref("browser.formfill.agedWeight",       2);
 pref("browser.formfill.bucketSize",       1);
 pref("browser.formfill.maxTimeGroupings", 25);
@@ -2861,6 +2841,15 @@ pref("gfx.color_management.mode", 0);
 // Initialize default render-mode.
 pref("mozilla.widget.render-mode", -1);
 
+// Initialize default accelerated layers
+pref("mozilla.widget.accelerated-layers", true);
+
+#ifdef XP_WIN
+#ifndef WINCE
+pref("mozilla.layers.prefer-opengl", false);
+#endif
+#endif
+
 // Enable/Disable the geolocation API for content
 pref("geo.enabled", true);
 
@@ -2868,21 +2857,25 @@ pref("geo.enabled", true);
 pref("accelerometer.enabled", true);
 
 // Enable/Disable HTML5 parser
-pref("html5.enable", false);
+pref("html5.enable", true);
 // Toggle which thread the HTML5 parser uses for stream parsing
 pref("html5.offmainthread", true);
-// Time in milliseconds between the start of the network stream and the 
-// first time the flush timer fires in the off-the-main-thread HTML5 parser.
-pref("html5.flushtimer.startdelay", 200);
-// Time in milliseconds between the return to non-speculating more and the 
-// first time the flush timer fires thereafter.
-pref("html5.flushtimer.continuedelay", 150);
-// Time in milliseconds between timer firings once the timer has starting 
-// firing.
-pref("html5.flushtimer.interval", 120);
+// Time in milliseconds between the time a network buffer is seen and the 
+// timer firing when the timer hasn't fired previously in this parse in the 
+// off-the-main-thread HTML5 parser.
+pref("html5.flushtimer.initialdelay", 120);
+// Time in milliseconds between the time a network buffer is seen and the 
+// timer firing when the timer has already fired previously in this parse.
+pref("html5.flushtimer.subsequentdelay", 120);
 
 // Push/Pop/Replace State prefs
 pref("browser.history.allowPushState", true);
 pref("browser.history.allowReplaceState", true);
 pref("browser.history.allowPopState", true);
 pref("browser.history.maxStateObjectSize", 655360);
+
+// XPInstall prefs
+pref("xpinstall.whitelist.required", true);
+
+pref("network.buffer.cache.count", 24);
+pref("network.buffer.cache.size",  32768);

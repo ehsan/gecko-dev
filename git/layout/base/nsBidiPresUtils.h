@@ -167,14 +167,10 @@ public:
    * descendants of a given block frame.
    *
    * @param aBlockFrame          The block frame
-   * @param aIsVisualFormControl [IN]  Set if we are in a form control on a
-   *                                   visual page.
-   *                                   @see nsBlockFrame::IsVisualFormControl
    *
    *  @lina 06/18/2000
    */
-  nsresult Resolve(nsBlockFrame*   aBlockFrame,
-                   PRBool          aIsVisualFormControl);
+  nsresult Resolve(nsBlockFrame* aBlockFrame);
 
   /**
    * Reorder this line using Bidi engine.
@@ -316,6 +312,12 @@ public:
                        nsBidiPositionResolve* aPosResolve,
                        PRInt32                aPosResolveCount,
                        nscoord*               aWidth);
+
+  /**
+   * Guess at how much memory is being used by this nsBidiPresUtils instance,
+   * including memory used by nsBidi.
+   */
+  PRUint32 EstimateMemoryUsed();
 
 private:
   nsresult ProcessTextForRenderingContext(const PRUnichar*       aText,

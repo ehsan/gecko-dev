@@ -463,6 +463,12 @@ public:
   /*unsafe*/
   nsresult CharacterExtendForDelete();
 
+  /** CharacterExtendForBackspace extends the selection backward (logically) to
+   * the previous character cell, so that the selected cell can be deleted.
+   */
+  /*unsafe*/
+  nsresult CharacterExtendForBackspace();
+
   /** WordMove will generally be called from the nsiselectioncontroller implementations.
    *  the effect being the selection will move one word left or right.
    * @param aForward move forward in document.
@@ -635,7 +641,11 @@ private:
 
   void ResizeBuffer(PRUint32 aNewBufSize);
 /*HELPER METHODS*/
-  nsresult     MoveCaret(PRUint32 aKeycode, PRBool aContinueSelection, nsSelectionAmount aAmount);
+  nsresult     MoveCaret(PRUint32 aKeycode, PRBool aContinueSelection,
+                         nsSelectionAmount aAmount);
+  nsresult     MoveCaret(PRUint32 aKeycode, PRBool aContinueSelection,
+                         nsSelectionAmount aAmount,
+                         PRBool aVisualMovement);
 
   nsresult     FetchDesiredX(nscoord &aDesiredX); //the x position requested by the Key Handling for up down
   void         InvalidateDesiredX(); //do not listen to mDesiredX you must get another.

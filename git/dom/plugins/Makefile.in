@@ -48,7 +48,6 @@ EXPORTS_NAMESPACES = mozilla
 
 EXPORTS_mozilla = \
   PluginLibrary.h \
-  PluginPRLibrary.h \
   $(NULL)
 
 ifdef MOZ_IPC
@@ -84,7 +83,7 @@ EXPORTS_mozilla/plugins = \
   PluginStreamParent.h \
   PluginMessageUtils.h \
   PluginProcessParent.h \
-  PluginThreadChild.h \
+  PluginProcessChild.h \
   StreamNotifyChild.h \
   StreamNotifyParent.h \
   $(NULL)
@@ -96,7 +95,19 @@ FORCE_STATIC_LIB = 1
 EXPORT_LIBRARY = 1
 ENABLE_CXX_EXCEPTIONS = 1
 
+ifeq ($(MOZ_ENABLE_QT),1)
+MOCSRCS = \
+  moc_NestedLoopTimer.cpp \
+  $(NULL)
+
+QTSRCS = \
+  NestedLoopTimer.cpp \
+  $(NULL)
+endif
+
 CPPSRCS = \
+  $(MOCSRCS) \
+  $(QTSRCS) \
   ChildAsyncCall.cpp \
   ChildTimer.cpp \
   PluginMessageUtils.cpp \
@@ -104,6 +115,7 @@ CPPSRCS = \
   PluginInstanceParent.cpp \
   PluginModuleChild.cpp \
   PluginModuleParent.cpp \
+  PluginProcessChild.cpp \
   PluginProcessParent.cpp \
   PluginScriptableObjectChild.cpp \
   PluginScriptableObjectParent.cpp \
@@ -111,8 +123,11 @@ CPPSRCS = \
   BrowserStreamParent.cpp \
   PluginStreamChild.cpp \
   PluginStreamParent.cpp \
-  PluginThreadChild.cpp \
   $(NULL)
+
+ifeq (WINNT,$(OS_ARCH))
+CPPSRCS += COMMessageFilter.cpp
+endif
 
 LOCAL_INCLUDES = \
   -I$(topsrcdir)/modules/plugin/base/public/ \

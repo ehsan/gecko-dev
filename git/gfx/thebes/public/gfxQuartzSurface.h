@@ -44,6 +44,8 @@
 
 #include <Carbon/Carbon.h>
 
+class gfxContext;
+
 class THEBES_API gfxQuartzSurface : public gfxASurface {
 public:
     gfxQuartzSurface(const gfxSize& size, gfxImageFormat format, PRBool aForPrinting = PR_FALSE);
@@ -52,9 +54,18 @@ public:
 
     virtual ~gfxQuartzSurface();
 
+    virtual already_AddRefed<gfxASurface> CreateSimilarSurface(gfxContentType aType,
+                                                               const gfxIntSize& aSize);
+    virtual PRBool AreSimilarSurfacesSensitiveToContentType()
+    {
+      return PR_FALSE;
+    }
+
     const gfxSize& GetSize() const { return mSize; }
 
     CGContextRef GetCGContext() { return mCGContext; }
+
+    CGContextRef GetCGContextWithClip(gfxContext *ctx);
 
     virtual PRInt32 GetDefaultContextFlags() const;
 

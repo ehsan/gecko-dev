@@ -175,8 +175,7 @@ public:
                            PRBool aNotify);
   virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                              PRBool aNotify);
-  virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
-  virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull)
+  virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull, PRBool aWithMouse = PR_FALSE)
   {
     PRBool isFocusable = PR_FALSE;
     IsHTMLFocusable(&isFocusable, aTabIndex);
@@ -208,8 +207,6 @@ public:
   void Compact() { mAttrsAndChildren.Compact(); }
 
   virtual void UpdateEditableState();
-
-  already_AddRefed<nsIURI> GetBaseURI() const;
 
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
@@ -502,12 +499,47 @@ public:
 
 protected:
   /**
+   * Add/remove this element to the documents name cache
+   */
+  void AddToNameTable(nsIAtom* aName) {
+    NS_ASSERTION(HasFlag(NODE_HAS_NAME), "Node lacking NODE_HAS_NAME flag");
+    nsIDocument* doc = GetCurrentDoc();
+    if (doc && !IsInAnonymousSubtree()) {
+      doc->AddToNameTable(this, aName);
+    }
+  }
+  void RemoveFromNameTable() {
+    if (HasFlag(NODE_HAS_NAME)) {
+      nsIDocument* doc = GetCurrentDoc();
+      if (doc) {
+        doc->RemoveFromNameTable(this, GetParsedAttr(nsGkAtoms::name)->
+                                         GetAtomValue());
+      }
+    }
+  }
+
+  /**
    * Register or unregister an access key to this element based on the
    * accesskey attribute.
-   * @param aDoReg true to register, false to unregister
    */
+  void RegAccessKey()
+  {
+    if (HasFlag(NODE_HAS_ACCESSKEY)) {
+      RegUnRegAccessKey(PR_TRUE);
+    }
+  }
+
+  void UnregAccessKey()
+  {
+    if (HasFlag(NODE_HAS_ACCESSKEY)) {
+      RegUnRegAccessKey(PR_FALSE);
+    }
+  }
+
+private:
   void RegUnRegAccessKey(PRBool aDoReg);
 
+protected:
   /**
    * Determine whether an attribute is an event (onclick, etc.)
    * @param aName the attribute
@@ -665,6 +697,19 @@ protected:
   NS_HIDDEN_(nsresult) GetURIListAttr(nsIAtom* aAttr, nsAString& aResult);
 
   /**
+   * Helper method for NS_IMPL_ENUM_ATTR_DEFAULT_VALUE.
+   * Gets the enum value string of an attribute and using a default value if
+   * the attribute is missing or the string is an invalid enum value.
+   *
+   * @param aType     the name of the attribute.
+   * @param aDefault  the default value if the attribute is missing or invalid.
+   * @param aResult   string corresponding to the value [out].
+   */
+  NS_HIDDEN_(nsresult) GetEnumAttr(nsIAtom* aAttr,
+                                   const char* aDefault,
+                                   nsAString& aResult);
+
+  /**
    * Locates the nsIEditor associated with this node.  In general this is
    * equivalent to GetEditorInternal(), but for designmode or contenteditable,
    * this may need to get an editor that's not actually on this element's
@@ -779,6 +824,12 @@ public:
   
   virtual PRBool IsSubmitControl() const;
 
+          PRBool IsTextControl(PRBool aExcludePassword) const;
+
+          PRBool IsSingleLineTextControl(PRBool aExcludePassword) const;
+
+          PRBool IsLabelableControl() const;
+
   // nsIContent
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
@@ -798,11 +849,21 @@ protected:
                                 const nsAString* aValue, PRBool aNotify);
 
   /**
+   * Returns if the element should react on autofocus attribute.
+   */
+  virtual PRBool AcceptAutofocus() const
+  {
+    return PR_FALSE;
+  }
+
+  /**
    * Returns true if the control can be disabled
    */
   PRBool CanBeDisabled() const;
 
   void UpdateEditableFormControlState();
+
+  PRBool IsSingleLineTextControlInternal(PRBool aExcludePassword, PRInt32 mType) const;
 
   // The focusability state of this form control.  eUnfocusable means that it
   // shouldn't be focused at all, eInactiveWindow means it's in an inactive
@@ -905,14 +966,14 @@ protected:
  */
 #define NS_IMPL_NS_NEW_HTML_ELEMENT(_elementName)                            \
 nsGenericHTMLElement*                                                        \
-NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo, PRBool aFromParser)\
+NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo, PRUint32 aFromParser)\
 {                                                                            \
   return new nsHTML##_elementName##Element(aNodeInfo);                       \
 }
 
 #define NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(_elementName)               \
 nsGenericHTMLElement*                                                        \
-NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo, PRBool aFromParser)\
+NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo, PRUint32 aFromParser)\
 {                                                                            \
   return new nsHTML##_elementName##Element(aNodeInfo, aFromParser);          \
 }
@@ -1066,6 +1127,48 @@ NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo, PRBool aFromParser)\
   }
 
 /**
+ * A macro to implement the getter and setter for a given content
+ * property that needs to set an enumerated string. The method
+ * uses a specific GetEnumAttr and the generic SetAttrHelper methods.
+ */
+#define NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(_class, _method, _atom, _default) \
+  NS_IMETHODIMP                                                           \
+  _class::Get##_method(nsAString& aValue)                                 \
+  {                                                                       \
+    return GetEnumAttr(nsGkAtoms::_atom, _default, aValue);               \
+  }                                                                       \
+  NS_IMETHODIMP                                                           \
+  _class::Set##_method(const nsAString& aValue)                           \
+  {                                                                       \
+    return SetAttrHelper(nsGkAtoms::_atom, aValue);                       \
+  }
+
+/**
+ * A macro to implement the getter and setter for a given content
+ * property that needs to set a positive integer. The method uses
+ * the generic GetAttr and SetAttr methods. This macro is much like
+ * the NS_IMPL_NON_NEGATIVE_INT_ATTR macro except the exception is
+ * thrown also when the value is equal to 0.
+ */
+#define NS_IMPL_POSITIVE_INT_ATTR(_class, _method, _atom)                 \
+  NS_IMPL_POSITIVE_INT_ATTR_DEFAULT_VALUE(_class, _method, _atom, 1)
+
+#define NS_IMPL_POSITIVE_INT_ATTR_DEFAULT_VALUE(_class, _method, _atom, _default)  \
+  NS_IMETHODIMP                                                           \
+  _class::Get##_method(PRInt32* aValue)                                   \
+  {                                                                       \
+    return GetIntAttr(nsGkAtoms::_atom, _default, aValue);                \
+  }                                                                       \
+  NS_IMETHODIMP                                                           \
+  _class::Set##_method(PRInt32 aValue)                                    \
+  {                                                                       \
+    if (aValue <= 0) {                                                    \
+      return NS_ERROR_DOM_INDEX_SIZE_ERR;                                 \
+    }                                                                     \
+    return SetIntAttr(nsGkAtoms::_atom, aValue);                          \
+  }
+
+/**
  * QueryInterface() implementation helper macros
  */
 
@@ -1202,7 +1305,15 @@ NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo, PRBool aFromParser)\
 #define NS_DECLARE_NS_NEW_HTML_ELEMENT(_elementName)              \
 nsGenericHTMLElement*                                             \
 NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo,         \
-                                  PRBool aFromParser = PR_FALSE);
+                                  PRUint32 aFromParser = 0);
+
+#define NS_DECLARE_NS_NEW_HTML_ELEMENT_AS_SHARED(_elementName)    \
+inline nsGenericHTMLElement*                                      \
+NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo,         \
+                                  PRUint32 aFromParser = 0)       \
+{                                                                 \
+  return NS_NewHTMLSharedElement(aNodeInfo, aFromParser);         \
+}
 
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Shared)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(SharedList)
@@ -1225,9 +1336,9 @@ NS_DECLARE_NS_NEW_HTML_ELEMENT(Form)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Frame)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(FrameSet)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(HR)
-NS_DECLARE_NS_NEW_HTML_ELEMENT(Head)
+NS_DECLARE_NS_NEW_HTML_ELEMENT_AS_SHARED(Head)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Heading)
-NS_DECLARE_NS_NEW_HTML_ELEMENT(Html)
+NS_DECLARE_NS_NEW_HTML_ELEMENT_AS_SHARED(Html)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(IFrame)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Image)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Input)
@@ -1240,6 +1351,7 @@ NS_DECLARE_NS_NEW_HTML_ELEMENT(Meta)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Object)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(OptGroup)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Option)
+NS_DECLARE_NS_NEW_HTML_ELEMENT(Output)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Paragraph)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Pre)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Script)

@@ -44,6 +44,7 @@
  */
 #include <stddef.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include "jsversion.h"
 #include "jsopcode.h"
 #include "jsprvtd.h"
@@ -254,16 +255,14 @@ enum TokenStreamFlags
     TSF_EOF = 0x02,             /* hit end of file */
     TSF_NEWLINES = 0x04,        /* tokenize newlines */
     TSF_OPERAND = 0x08,         /* looking for operand, not operator */
-    TSF_NLFLAG = 0x20,          /* last linebuf ended with \n */
-    TSF_CRFLAG = 0x40,          /* linebuf would have ended with \r */
+    TSF_UNEXPECTED_EOF = 0x10,  /* unexpected end of input, i.e. TOK_EOF not at top-level. */
+    TSF_KEYWORD_IS_NAME = 0x20, /* Ignore keywords and return TOK_NAME instead to the parser. */
+    TSF_STRICT_MODE_CODE = 0x40,/* Tokenize as appropriate for strict mode code. */
     TSF_DIRTYLINE = 0x80,       /* non-whitespace since start of line */
     TSF_OWNFILENAME = 0x100,    /* ts->filename is malloc'd */
     TSF_XMLTAGMODE = 0x200,     /* scanning within an XML tag in E4X */
     TSF_XMLTEXTMODE = 0x400,    /* scanning XMLText terminal from E4X */
     TSF_XMLONLYMODE = 0x800,    /* don't scan {expr} within text/tag */
-
-    /* Flag indicating unexpected end of input, i.e. TOK_EOF not at top-level. */
-    TSF_UNEXPECTED_EOF = 0x1000,
 
     /*
      * To handle the hard case of contiguous HTML comments, we want to clear the
@@ -284,13 +283,7 @@ enum TokenStreamFlags
      * It does not cope with malformed comment hiding hacks where --> is hidden
      * by C-style comments, or on a dirty line.  Such cases are already broken.
      */
-    TSF_IN_HTML_COMMENT = 0x2000,
-
-    /* Ignore keywords and return TOK_NAME instead to the parser. */
-    TSF_KEYWORD_IS_NAME = 0x4000,
-
-    /* Tokenize as appropriate for strict mode code.  */
-    TSF_STRICT_MODE_CODE = 0x8000
+    TSF_IN_HTML_COMMENT = 0x2000
 };
 
 #define t_op            u.s.op
@@ -299,7 +292,7 @@ enum TokenStreamFlags
 #define t_atom2         u.p.atom2
 #define t_dval          u.dval
 
-const size_t LINE_LIMIT = 256;  /* logical line buffer size limit
+const size_t LINE_LIMIT = 1024; /* logical line buffer size limit
                                    -- physical line length is unlimited */
 
 class TokenStream
@@ -307,6 +300,7 @@ class TokenStream
     static const size_t ntokens = 4;                /* 1 current + 2 lookahead, rounded
                                                        to power of 2 to avoid divmod by 3 */
     static const uintN ntokensMask = ntokens - 1;
+
   public:
     /*
      * To construct a TokenStream, first call the constructor, which is
@@ -332,43 +326,78 @@ class TokenStream
     JSContext *getContext() const { return cx; }
     bool onCurrentLine(const TokenPos &pos) const { return lineno == pos.end.lineno; }
     const Token &currentToken() const { return tokens[cursor]; }
-    const Token &getTokenAt(size_t index) const {
-        JS_ASSERT(index < ntokens);
-        return tokens[index];
-    }
     const JSCharBuffer &getTokenbuf() const { return tokenbuf; }
     const char *getFilename() const { return filename; }
     uintN getLineno() const { return lineno; }
 
-    /* Mutators. */
-    Token *mutableCurrentToken() { return &tokens[cursor]; }
-    bool reportCompileErrorNumberVA(JSParseNode *pn, uintN flags, uintN errorNumber, va_list ap);
+    /* Flag methods. */
+    void setStrictMode(bool enabled = true) { setFlag(enabled, TSF_STRICT_MODE_CODE); }
+    void setXMLTagMode(bool enabled = true) { setFlag(enabled, TSF_XMLTAGMODE); }
+    void setXMLOnlyMode(bool enabled = true) { setFlag(enabled, TSF_XMLONLYMODE); }
+    void setUnexpectedEOF(bool enabled = true) { setFlag(enabled, TSF_UNEXPECTED_EOF); }
+    bool isStrictMode() { return !!(flags & TSF_STRICT_MODE_CODE); }
+    bool isXMLTagMode() { return !!(flags & TSF_XMLTAGMODE); }
+    bool isXMLOnlyMode() { return !!(flags & TSF_XMLONLYMODE); }
+    bool isUnexpectedEOF() { return !!(flags & TSF_UNEXPECTED_EOF); }
+    bool isEOF() const { return !!(flags & TSF_EOF); }
+    bool isError() const { return !!(flags & TSF_ERROR); }
 
+    /* Mutators. */
+    bool reportCompileErrorNumberVA(JSParseNode *pn, uintN flags, uintN errorNumber, va_list ap);
+    void mungeCurrentToken(TokenKind newKind) { tokens[cursor].type = newKind; }
+    void mungeCurrentToken(JSOp newOp) { tokens[cursor].t_op = newOp; }
+    void mungeCurrentToken(TokenKind newKind, JSOp newOp) {
+        mungeCurrentToken(newKind);
+        mungeCurrentToken(newOp);
+    }
+
+  private:
+    /*
+     * Enables flags in the associated tokenstream for the object lifetime.
+     * Useful for lexically-scoped flag toggles.
+     */
+    class Flagger {
+        TokenStream * const parent;
+        uintN       flags;
+      public:
+        Flagger(TokenStream *parent, uintN withFlags) : parent(parent), flags(withFlags) {
+            parent->flags |= flags;
+        }
+
+        ~Flagger() { parent->flags &= ~flags; }
+    };
+    friend class Flagger;
+
+    void setFlag(bool enabled, TokenStreamFlags flag) {
+        if (enabled)
+            flags |= flag;
+        else
+            flags &= ~flag;
+    }
+
+  public:
     /*
      * Get the next token from the stream, make it the current token, and
      * return its kind.
      */
-    TokenKind getToken() {
+    TokenKind getToken(uintN withFlags = 0) {
+        Flagger flagger(this, withFlags);
         /* Check for a pushed-back token resulting from mismatching lookahead. */
         while (lookahead != 0) {
             JS_ASSERT(!(flags & TSF_XMLTEXTMODE));
             lookahead--;
             cursor = (cursor + 1) & ntokensMask;
             TokenKind tt = currentToken().type;
-            if (tt != TOK_EOL || (flags & TSF_NEWLINES))
+            JS_ASSERT(!(flags & TSF_NEWLINES));
+            if (tt != TOK_EOL)
                 return tt;
         }
 
         /* If there was a fatal error, keep returning TOK_ERROR. */
         if (flags & TSF_ERROR)
             return TOK_ERROR;
-        
-        return getTokenInternal();
-    }
 
-    Token *getMutableTokenAt(size_t index) {
-        JS_ASSERT(index < ntokens);
-        return &tokens[index];
+        return getTokenInternal();
     }
 
     /*
@@ -380,8 +409,10 @@ class TokenStream
         cursor = (cursor - 1) & ntokensMask;
     }
 
-    TokenKind peekToken() {
+    TokenKind peekToken(uintN withFlags = 0) {
+        Flagger flagger(this, withFlags);
         if (lookahead != 0) {
+            JS_ASSERT(lookahead == 1);
             return tokens[(cursor + lookahead) & ntokensMask].type;
         }
         TokenKind tt = getToken();
@@ -389,19 +420,19 @@ class TokenStream
         return tt;
     }
 
-    TokenKind peekTokenSameLine() {
+    TokenKind peekTokenSameLine(uintN withFlags = 0) {
+        Flagger flagger(this, withFlags);
         if (!onCurrentLine(currentToken().pos))
             return TOK_EOL;
-        flags |= TSF_NEWLINES;
-        TokenKind tt = peekToken();
-        flags &= ~TSF_NEWLINES;
+        TokenKind tt = peekToken(TSF_NEWLINES);
         return tt;
     }
 
     /*
      * Get the next token from the stream if its kind is |tt|.
      */
-    JSBool matchToken(TokenKind tt) {
+    JSBool matchToken(TokenKind tt, uintN withFlags = 0) {
+        Flagger flagger(this, withFlags);
         if (getToken() == tt)
             return JS_TRUE;
         ungetToken();
@@ -416,6 +447,8 @@ class TokenStream
     } TokenBuf;
 
     TokenKind getTokenInternal();     /* doesn't check for pushback or error flag. */
+    int fillUserbuf();
+    int32 getCharFillLinebuf();
     int32 getChar();
     void ungetChar(int32 c);
     Token *newToken(ptrdiff_t adjust);
@@ -446,25 +479,19 @@ class TokenStream
     Token               tokens[ntokens];/* circular token buffer */
     uintN               cursor;         /* index of last parsed token */
     uintN               lookahead;      /* count of lookahead tokens */
-
     uintN               lineno;         /* current line number */
     uintN               ungetpos;       /* next free char slot in ungetbuf */
     jschar              ungetbuf[6];    /* at most 6, for \uXXXX lookahead */
-  public:
     uintN               flags;          /* flags -- see above */
-  private:
-    uint32              linelen;        /* physical linebuf segment length */
     uint32              linepos;        /* linebuf offset in physical line */
+    uint32              lineposNext;    /* the next value of linepos */
     TokenBuf            linebuf;        /* line buffer for diagnostics */
-
     TokenBuf            userbuf;        /* user input buffer if !file */
     const char          *filename;      /* input filename or null */
     FILE                *file;          /* stdio stream if reading from file */
     JSSourceHandler     listener;       /* callback for source; eg debugger */
     void                *listenerData;  /* listener 'this' data */
     void                *listenerTSData;/* listener data for this TokenStream */
-    jschar              *saveEOL;       /* save next end of line in userbuf, to
-                                           optimize for very long lines */
     JSCharBuffer        tokenbuf;       /* current token string buffer */
 };
 

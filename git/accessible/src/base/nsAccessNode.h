@@ -43,57 +43,34 @@
 #ifndef _nsAccessNode_H_
 #define _nsAccessNode_H_
 
-#include "nsAccCache.h"
-#include "nsAccessibilityAtoms.h"
-#include "nsCoreUtils.h"
-#include "nsAccUtils.h"
-
-#include "nsIAccessibleTypes.h"
 #include "nsIAccessNode.h"
+#include "nsIAccessibleTypes.h"
+
+#include "a11yGeneric.h"
+
 #include "nsIContent.h"
 #include "nsIDOMNode.h"
 #include "nsINameSpaceManager.h"
 #include "nsIStringBundle.h"
+#include "nsRefPtrHashtable.h"
 #include "nsWeakReference.h"
-#include "nsAccessibilityService.h"
+
+class nsAccessNode;
+class nsApplicationAccessible;
+class nsDocAccessible;
+class nsIAccessibleDocument;
+class nsRootAccessible;
 
 class nsIPresShell;
 class nsPresContext;
-class nsIAccessibleDocument;
 class nsIFrame;
-class nsIDOMNodeList;
-class nsRootAccessible;
-class nsApplicationAccessible;
 class nsIDocShellTreeItem;
+
+typedef nsRefPtrHashtable<nsVoidPtrHashKey, nsAccessNode>
+  nsAccessNodeHashtable;
 
 #define ACCESSIBLE_BUNDLE_URL "chrome://global-platform/locale/accessible.properties"
 #define PLATFORM_KEYS_BUNDLE_URL "chrome://global-platform/locale/platformKeys.properties"
-
-// What we want is: NS_INTERFACE_MAP_ENTRY(self) for static IID accessors,
-// but some of our classes have an ambiguous base class of nsISupports which
-// prevents this from working (the default macro converts it to nsISupports,
-// then addrefs it, then returns it). Therefore, we expand the macro here and
-// change it so that it works. Yuck.
-#define NS_INTERFACE_MAP_STATIC_AMBIGUOUS(_class) \
-  if (aIID.Equals(NS_GET_IID(_class))) { \
-  NS_ADDREF(this); \
-  *aInstancePtr = this; \
-  return NS_OK; \
-  } else
-
-#define NS_OK_DEFUNCT_OBJECT \
-NS_ERROR_GENERATE_SUCCESS(NS_ERROR_MODULE_GENERAL, 0x22)
-
-#define NS_ENSURE_A11Y_SUCCESS(res, ret)                                  \
-  PR_BEGIN_MACRO                                                          \
-    nsresult __rv = res; /* Don't evaluate |res| more than once */        \
-    if (NS_FAILED(__rv)) {                                                \
-      NS_ENSURE_SUCCESS_BODY(res, ret)                                    \
-      return ret;                                                         \
-    }                                                                     \
-    if (__rv == NS_OK_DEFUNCT_OBJECT)                                     \
-      return ret;                                                         \
-  PR_END_MACRO
 
 #define NS_ACCESSNODE_IMPL_CID                          \
 {  /* 2b07e3d7-00b3-4379-aa0b-ea22e2c8ffda */           \
@@ -158,6 +135,11 @@ class nsAccessNode: public nsIAccessNode
     virtual nsIFrame* GetFrame();
 
   /**
+   * Return DOM node associated with this accessible.
+   */
+  nsIDOMNode *GetDOMNode() const { return mDOMNode; }
+
+  /**
    * Return the corresponding press shell for this accessible.
    */
   already_AddRefed<nsIPresShell> GetPresShell();
@@ -174,20 +156,6 @@ class nsAccessNode: public nsIAccessNode
    */
   PRBool IsInCache();
 #endif
-
-  /**
-   * Return cached document accessible.
-   */
-  static nsDocAccessible* GetDocAccessibleFor(nsIDocument *aDocument);
-  static nsDocAccessible* GetDocAccessibleFor(nsIWeakReference *aWeakShell);
-  static nsDocAccessible* GetDocAccessibleFor(nsIDOMNode *aNode);
-
-  /**
-   * Return document accessible.
-   */
-  static already_AddRefed<nsIAccessibleDocument>
-    GetDocAccessibleFor(nsIDocShellTreeItem *aContainer,
-                        PRBool aCanCreate = PR_FALSE);
 
 protected:
     nsresult MakeAccessNode(nsIDOMNode *aNode, nsIAccessNode **aAccessNode);
@@ -214,9 +182,6 @@ protected:
 
     static PRBool gIsCacheDisabled;
     static PRBool gIsFormFillEnabled;
-
-  static nsRefPtrHashtable<nsVoidPtrHashKey, nsDocAccessible>
-    gGlobalDocAccessibleCache;
 
 private:
   static nsApplicationAccessible *gApplicationAccessible;

@@ -60,7 +60,6 @@
 #include "nsNetUtil.h"
 #include "nsPLDOMEvent.h"
 
-#include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsIEventStateManager.h"
 #include "nsGUIEvent.h"
@@ -433,7 +432,7 @@ nsImageLoadingContent::RemoveObserver(imgIDecoderObserver* aObserver)
   }
 #ifdef DEBUG
   else {
-    NS_WARNING("Asked to remove non-existent observer");
+    NS_WARNING("Asked to remove nonexistent observer");
   }
 #endif
   return NS_OK;

@@ -66,6 +66,7 @@
 #include "nsIDOMHTMLAnchorElement.h"
 #include "nsIDOMHTMLInputElement.h"
 #include "nsIDOMNSHTMLInputElement.h"
+#include "nsIDOMNSHTMLLabelElement.h"
 #include "nsIDOMHTMLSelectElement.h"
 #include "nsIDOMHTMLTextAreaElement.h"
 #include "nsIDOMHTMLAreaElement.h"
@@ -153,6 +154,7 @@
 #endif
 #include "nsIController.h"
 #include "nsICommandParams.h"
+#include "mozilla/Services.h"
 
 #ifdef XP_MACOSX
 #import <ApplicationServices/ApplicationServices.h>
@@ -187,8 +189,7 @@ GetScrollableLineHeight(nsIFrame* aTargetFrame);
 static inline PRBool
 IsMouseEventReal(nsEvent* aEvent)
 {
-  NS_ABORT_IF_FALSE(aEvent->eventStructType == NS_MOUSE_EVENT,
-                    "Not a mouse event");
+  NS_ABORT_IF_FALSE(NS_IS_MOUSE_EVENT_STRUCT(aEvent), "Not a mouse event");
   // Return true if not synthesized.
   return static_cast<nsMouseEvent*>(aEvent)->reason == nsMouseEvent::eReal;
 }
@@ -272,10 +273,10 @@ NS_IMPL_ISUPPORTS1(nsUITimerCallback, nsITimerCallback)
 NS_IMETHODIMP
 nsUITimerCallback::Notify(nsITimer* aTimer)
 {
-  nsresult rv;
   nsCOMPtr<nsIObserverService> obs =
-      do_GetService("@mozilla.org/observer-service;1", &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
+    mozilla::services::GetObserverService();
+  if (!obs)
+    return NS_ERROR_FAILURE;
   if ((gMouseOrKeyboardEventCounter == mPreviousCount) || !aTimer) {
     gMouseOrKeyboardEventCounter = 0;
     obs->NotifyObservers(nsnull, "user-interaction-inactive", nsnull);
@@ -789,10 +790,10 @@ nsEventStateManager::nsEventStateManager()
 NS_IMETHODIMP
 nsEventStateManager::Init()
 {
-  nsresult rv;
   nsCOMPtr<nsIObserverService> observerService =
-           do_GetService("@mozilla.org/observer-service;1", &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
+    mozilla::services::GetObserverService();
+  if (!observerService)
+    return NS_ERROR_FAILURE;
 
   observerService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_TRUE);
 
@@ -832,7 +833,7 @@ nsEventStateManager::Init()
     prefBranch->AddObserver("dom.popup_allowed_events", this, PR_TRUE);
   }
 
-  return rv;
+  return NS_OK;
 }
 
 nsEventStateManager::~nsEventStateManager()
@@ -861,11 +862,9 @@ nsEventStateManager::~nsEventStateManager()
     // gets called from xpcom shutdown observer.  And we don't want to remove
     // from the service in that case.
 
-    nsresult rv;
-
     nsCOMPtr<nsIObserverService> observerService =
-             do_GetService("@mozilla.org/observer-service;1", &rv);
-    if (NS_SUCCEEDED(rv)) {
+      mozilla::services::GetObserverService();
+    if (observerService) {
       observerService->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID);
     }
   }
@@ -1047,7 +1046,7 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
        aEvent->eventStructType == NS_KEY_EVENT)) {
     if (gMouseOrKeyboardEventCounter == 0) {
       nsCOMPtr<nsIObserverService> obs =
-        do_GetService("@mozilla.org/observer-service;1");
+        mozilla::services::GetObserverService();
       if (obs) {
         obs->NotifyObservers(nsnull, "user-interaction-active", nsnull);
       }
@@ -1739,6 +1738,8 @@ nsEventStateManager::FireContextClick()
         PRInt32 type = formCtrl->GetType();
 
         allowedToDispatch = (type == NS_FORM_INPUT_TEXT ||
+                             type == NS_FORM_INPUT_SEARCH ||
+                             type == NS_FORM_INPUT_TEL ||
                              type == NS_FORM_INPUT_PASSWORD ||
                              type == NS_FORM_INPUT_FILE ||
                              type == NS_FORM_TEXTAREA);
@@ -2048,7 +2049,7 @@ nsEventStateManager::DetermineDragTarget(nsPresContext* aPresContext,
     if (NS_SUCCEEDED(dsti->GetItemType(&type)) &&
         type != nsIDocShellTreeItem::typeChrome) {
       // mGestureDownContent is the node where the mousedown event for the drag
-      // occured, and aSelectionTarget is the node to use when a selection is used
+      // occurred, and aSelectionTarget is the node to use when a selection is used
       nsresult rv =
         nsContentAreaDragDrop::GetDragData(window, mGestureDownContent,
                                            aSelectionTarget, mGestureDownAlt,
@@ -2749,9 +2750,33 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
           activeContent = mCurrentTarget->GetContent();
         }
 
+        nsIFrame* currFrame = mCurrentTarget;
+
+        // When a root content which isn't editable but has an editable HTML
+        // <body> element is clicked, we should redirect the focus to the
+        // the <body> element.  E.g., when an user click bottom of the editor
+        // where is outside of the <body> element, the <body> should be focused
+        // and the user can edit immediately after that.
+        //
+        // NOTE: The newFocus isn't editable that also means it's not in
+        // designMode.  In designMode, all contents are not focusable.
+        if (newFocus && !newFocus->IsEditable()) {
+          nsIDocument *doc = newFocus->GetCurrentDoc();
+          if (doc && newFocus == doc->GetRootElement()) {
+            nsIContent *bodyContent =
+              nsLayoutUtils::GetEditableRootContentByContentEditable(doc);
+            if (bodyContent) {
+              nsIFrame* bodyFrame = bodyContent->GetPrimaryFrame();
+              if (bodyFrame) {
+                currFrame = bodyFrame;
+                newFocus = bodyContent;
+              }
+            }
+          }
+        }
+
         // When the mouse is pressed, the default action is to focus the
         // target. Look for the nearest enclosing focusable frame.
-        nsIFrame* currFrame = mCurrentTarget;
         while (currFrame) {
           // If the mousedown happened inside a popup, don't
           // try to set focus on one of its containing elements
@@ -2795,7 +2820,10 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
             // focused frame
             EnsureDocument(mPresContext);
             if (mDocument) {
-              fm->ClearFocus(mDocument->GetWindow());
+#ifdef XP_MACOSX
+              if (!activeContent || !activeContent->IsXUL())
+#endif
+                fm->ClearFocus(mDocument->GetWindow());
               fm->SetFocusedWindow(mDocument->GetWindow());
             }
           }
@@ -3590,7 +3618,7 @@ nsEventStateManager::GenerateMouseEnterExit(nsGUIEvent* aEvent)
         // We're always over the document root, even if we're only
         // over dead space in a page (whose frame is not associated with
         // any content) or in print preview dead space
-        targetElement = mDocument->GetRootContent();
+        targetElement = mDocument->GetRootElement();
       }
       if (targetElement) {
         NotifyMouseOver(aEvent, targetElement);
@@ -3950,41 +3978,71 @@ nsEventStateManager::GetEventTargetContent(nsEvent* aEvent,
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsEventStateManager::GetContentState(nsIContent *aContent, PRInt32& aState)
+static already_AddRefed<nsIContent>
+GetLabelTarget(nsIContent* aLabel)
 {
-  aState = aContent->IntrinsicState();
+  nsCOMPtr<nsIDOMNSHTMLLabelElement> label = do_QueryInterface(aLabel);
+  if (!label)
+    return nsnull;
 
-  // Hierchical active:  Check the ancestor chain of mActiveContent to see
-  // if we are on it.
-  for (nsIContent* activeContent = mActiveContent; activeContent;
-       activeContent = activeContent->GetParent()) {
-    if (aContent == activeContent) {
-      aState |= NS_EVENT_STATE_ACTIVE;
-      break;
+  nsCOMPtr<nsIDOMHTMLElement> target;
+  label->GetControl(getter_AddRefs(target));
+  nsIContent* targetContent = nsnull;
+  if (target) {
+    CallQueryInterface(target, &targetContent);
+  }
+  return targetContent;
+}
+
+static bool
+IsAncestorOf(nsIContent* aPossibleAncestor, nsIContent* aPossibleDescendant,
+             PRBool aFollowLabels)
+{
+  for (; aPossibleDescendant; aPossibleDescendant = aPossibleDescendant->GetParent()) {
+    if (aPossibleAncestor == aPossibleDescendant)
+      return true;
+
+    if (aFollowLabels) {
+      nsCOMPtr<nsIContent> labelTarget = GetLabelTarget(aPossibleDescendant);
+      if (labelTarget == aPossibleAncestor)
+        return true;
     }
   }
-  // Hierchical hover:  Check the ancestor chain of mHoverContent to see
-  // if we are on it.
-  for (nsIContent* hoverContent = mHoverContent; hoverContent;
-       hoverContent = hoverContent->GetParent()) {
-    if (aContent == hoverContent) {
-      aState |= NS_EVENT_STATE_HOVER;
-      break;
-    }
+  return false;
+}
+
+PRInt32
+nsEventStateManager::GetContentState(nsIContent *aContent, PRBool aFollowLabels)
+{
+  PRInt32 state = aContent->IntrinsicState();
+
+  if (IsAncestorOf(aContent, mActiveContent, aFollowLabels)) {
+    state |= NS_EVENT_STATE_ACTIVE;
+  }
+  if (IsAncestorOf(aContent, mHoverContent, aFollowLabels)) {
+    state |= NS_EVENT_STATE_HOVER;
   }
 
   nsFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (fm && aContent == fm->GetFocusedContent()) {
-    aState |= NS_EVENT_STATE_FOCUS;
+  nsIContent* focusedContent = fm ? fm->GetFocusedContent() : nsnull;
+  if (aContent == focusedContent) {
+    state |= NS_EVENT_STATE_FOCUS;
+
+    nsIDocument* doc = focusedContent->GetOwnerDoc();
+    if (doc) {
+      nsPIDOMWindow* window = doc->GetWindow();
+      if (window && window->ShouldShowFocusRing()) {
+        state |= NS_EVENT_STATE_FOCUSRING;
+      }
+    }
   }
   if (aContent == mDragOverContent) {
-    aState |= NS_EVENT_STATE_DRAGOVER;
+    state |= NS_EVENT_STATE_DRAGOVER;
   }
   if (aContent == mURLTargetContent) {
-    aState |= NS_EVENT_STATE_URLTARGET;
+    state |= NS_EVENT_STATE_URLTARGET;
   }
-  return NS_OK;
+  return state;
 }
 
 static nsIContent* FindCommonAncestor(nsIContent *aNode1, nsIContent *aNode2)
@@ -4029,6 +4087,20 @@ static nsIContent* FindCommonAncestor(nsIContent *aNode1, nsIContent *aNode2)
     }
   }
   return nsnull;
+}
+
+static void
+NotifyAncestors(nsIDocument* aDocument, nsIContent* aStartNode,
+                nsIContent* aStopBefore, PRInt32 aState)
+{
+  while (aStartNode && aStartNode != aStopBefore) {
+    aDocument->ContentStatesChanged(aStartNode, nsnull, aState);
+    nsCOMPtr<nsIContent> labelTarget = GetLabelTarget(aStartNode);
+    if (labelTarget) {
+      aDocument->ContentStatesChanged(labelTarget, nsnull, aState);
+    }
+    aStartNode = aStartNode->GetParent();
+  }
 }
 
 PRBool
@@ -4095,7 +4167,8 @@ nsEventStateManager::SetContentState(nsIContent *aContent, PRInt32 aState)
     mHoverContent = aContent;
   }
 
-  if ((aState & NS_EVENT_STATE_FOCUS)) {
+  if (aState & NS_EVENT_STATE_FOCUS) {
+    aState |= NS_EVENT_STATE_FOCUSRING;
     notifyContent[2] = aContent;
     NS_IF_ADDREF(notifyContent[2]);
   }
@@ -4176,27 +4249,10 @@ nsEventStateManager::SetContentState(nsIContent *aContent, PRInt32 aState)
     if (doc1) {
       doc1->BeginUpdate(UPDATE_CONTENT_STATE);
 
-      // Notify all content from newActive to the commonActiveAncestor
-      while (newActive && newActive != commonActiveAncestor) {
-        doc1->ContentStatesChanged(newActive, nsnull, NS_EVENT_STATE_ACTIVE);
-        newActive = newActive->GetParent();
-      }
-      // Notify all content from oldActive to the commonActiveAncestor
-      while (oldActive && oldActive != commonActiveAncestor) {
-        doc1->ContentStatesChanged(oldActive, nsnull, NS_EVENT_STATE_ACTIVE);
-        oldActive = oldActive->GetParent();
-      }
-
-      // Notify all content from newHover to the commonHoverAncestor
-      while (newHover && newHover != commonHoverAncestor) {
-        doc1->ContentStatesChanged(newHover, nsnull, NS_EVENT_STATE_HOVER);
-        newHover = newHover->GetParent();
-      }
-      // Notify all content from oldHover to the commonHoverAncestor
-      while (oldHover && oldHover != commonHoverAncestor) {
-        doc1->ContentStatesChanged(oldHover, nsnull, NS_EVENT_STATE_HOVER);
-        oldHover = oldHover->GetParent();
-      }
+      NotifyAncestors(doc1, newActive, commonActiveAncestor, NS_EVENT_STATE_ACTIVE);
+      NotifyAncestors(doc1, oldActive, commonActiveAncestor, NS_EVENT_STATE_ACTIVE);
+      NotifyAncestors(doc1, newHover, commonHoverAncestor, NS_EVENT_STATE_HOVER);
+      NotifyAncestors(doc1, oldHover, commonHoverAncestor, NS_EVENT_STATE_HOVER);
 
       if (notifyContent[0]) {
         doc1->ContentStatesChanged(notifyContent[0], notifyContent[1],
@@ -4245,7 +4301,7 @@ nsEventStateManager::ContentRemoved(nsIDocument* aDocument, nsIContent* aContent
 {
   // inform the focus manager that the content is being removed. If this
   // content is focused, the focus will be removed without firing events.
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
+  nsFocusManager* fm = nsFocusManager::GetFocusManager();
   if (fm)
     fm->ContentRemoved(aDocument, aContent);
 
@@ -4253,14 +4309,14 @@ nsEventStateManager::ContentRemoved(nsIDocument* aDocument, nsIContent* aContent
       nsContentUtils::ContentIsDescendantOf(mHoverContent, aContent)) {
     // Since hover is hierarchical, set the current hover to the
     // content's parent node.
-    mHoverContent = aContent->GetParent();
+    SetContentState(aContent->GetParent(), NS_EVENT_STATE_HOVER);
   }
 
   if (mActiveContent &&
       nsContentUtils::ContentIsDescendantOf(mActiveContent, aContent)) {
     // Active is hierarchical, so set the current active to the
     // content's parent node.
-    mActiveContent = aContent->GetParent();
+    SetContentState(aContent->GetParent(), NS_EVENT_STATE_ACTIVE);
   }
 
   if (mDragOverContent &&

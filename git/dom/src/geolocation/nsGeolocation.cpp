@@ -50,6 +50,7 @@
 #include "nsIPrefService.h"
 #include "nsIPrefBranch2.h"
 #include "nsIJSContextStack.h"
+#include "mozilla/Services.h"
 
 #include <math.h>
 
@@ -57,8 +58,12 @@
 #include "WinMobileLocationProvider.h"
 #endif
 
-#ifdef MOZ_PLATFORM_MAEMO
+#ifdef MOZ_MAEMO_LIBLOCATION
 #include "MaemoLocationProvider.h"
+#endif
+
+#ifdef ANDROID
+#include "AndroidLocationProvider.h"
 #endif
 
 #include "nsIDOMDocument.h"
@@ -276,7 +281,7 @@ nsGeolocationRequest::Allow()
   }
 
   if (lastPosition && maximumAge > 0 &&
-      ( (PR_Now() / PR_USEC_PER_MSEC) - maximumAge <=
+      ( PRTime(PR_Now() / PR_USEC_PER_MSEC) - maximumAge <=
         PRTime(cachedPositionTime) )) {
     // okay, we can return a cached position
     mAllowed = PR_TRUE;
@@ -383,7 +388,7 @@ nsresult nsGeolocationService::Init()
     return NS_ERROR_FAILURE;
 
   // geolocation service can be enabled -> now register observer
-  nsCOMPtr<nsIObserverService> obs = do_GetService("@mozilla.org/observer-service;1");
+  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
   if (!obs)
     return NS_ERROR_FAILURE;
 
@@ -420,8 +425,14 @@ nsresult nsGeolocationService::Init()
     mProviders.AppendObject(provider);
 #endif
 
-#ifdef MOZ_PLATFORM_MAEMO
+#ifdef MOZ_MAEMO_LIBLOCATION
   provider = new MaemoLocationProvider();
+  if (provider)
+    mProviders.AppendObject(provider);
+#endif
+
+#ifdef ANDROID
+  provider = new AndroidLocationProvider();
   if (provider)
     mProviders.AppendObject(provider);
 #endif
@@ -439,7 +450,7 @@ nsGeolocationService::Observe(nsISupports* aSubject,
 {
   if (!strcmp("quit-application", aTopic))
   {
-    nsCOMPtr<nsIObserverService> obs = do_GetService("@mozilla.org/observer-service;1");
+    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
     if (obs) {
       obs->RemoveObserver(this, "quit-application");
     }
@@ -961,7 +972,7 @@ nsGeolocation::WindowOwnerStillExists()
   return PR_TRUE;
 }
 
-#ifndef WINCE_WINDOWS_MOBILE
+#if !defined(WINCE_WINDOWS_MOBILE) && !defined(MOZ_MAEMO_LIBLOCATION) && !defined(ANDROID)
 DOMCI_DATA(GeoPositionCoords, void)
 DOMCI_DATA(GeoPosition, void)
 #endif

@@ -42,7 +42,6 @@
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
-#include "nsIPresShell.h"
 #include "nsMappedAttributes.h"
 #include "nsIJSNativeInitializer.h"
 #include "nsSize.h"
@@ -157,7 +156,7 @@ protected:
 };
 
 nsGenericHTMLElement*
-NS_NewHTMLImageElement(nsINodeInfo *aNodeInfo, PRBool aFromParser)
+NS_NewHTMLImageElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser)
 {
   /*
    * nsHTMLImageElement's will be created without a nsINodeInfo passed in
@@ -562,8 +561,7 @@ nsHTMLImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     // loading.
     if (LoadingEnabled()) {
       nsContentUtils::AddScriptRunner(
-        new nsRunnableMethod<nsHTMLImageElement>(this,
-                                                 &nsHTMLImageElement::MaybeLoadImage));
+        NS_NewRunnableMethod(this, &nsHTMLImageElement::MaybeLoadImage));
     }
   }
 
