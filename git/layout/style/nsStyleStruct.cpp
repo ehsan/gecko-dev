@@ -1146,6 +1146,17 @@ nsChangeHint nsStylePosition::MaxDifference()
 }
 #endif
 
+/* static */ PRBool
+nsStylePosition::WidthCoordDependsOnContainer(const nsStyleCoord &aCoord)
+{
+  return aCoord.GetUnit() == eStyleUnit_Auto ||
+         aCoord.GetUnit() == eStyleUnit_Percent ||
+         (aCoord.IsCalcUnit() && aCoord.CalcHasPercent()) ||
+         (aCoord.GetUnit() == eStyleUnit_Enumerated &&
+          (aCoord.GetIntValue() == NS_STYLE_WIDTH_FIT_CONTENT ||
+           aCoord.GetIntValue() == NS_STYLE_WIDTH_AVAILABLE));
+}
+
 // --------------------
 // nsStyleTable
 //
@@ -1909,7 +1920,7 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
      */
     if (mTransform != aOther.mTransform)
       NS_UpdateHint(hint, NS_CombineHint(nsChangeHint_ReflowFrame,
-                                         nsChangeHint_RepaintFrame));
+                                         nsChangeHint_UpdateTransformLayer));
     
     for (PRUint8 index = 0; index < 2; ++index)
       if (mTransformOrigin[index] != aOther.mTransformOrigin[index]) {
@@ -1937,8 +1948,8 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
 nsChangeHint nsStyleDisplay::MaxDifference()
 {
   // All the parts of FRAMECHANGE are present above in CalcDifference.
-  return nsChangeHint(NS_STYLE_HINT_FRAMECHANGE |
-                      nsChangeHint_UpdateOpacityLayer);
+  return nsChangeHint(NS_STYLE_HINT_FRAMECHANGE | nsChangeHint_UpdateOpacityLayer |
+                      nsChangeHint_UpdateTransformLayer);
 }
 #endif
 

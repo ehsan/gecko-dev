@@ -15,14 +15,22 @@ const CHROMEROOT = "chrome://mochikit/content/" + RELATIVE_DIR;
 const MANAGER_URI = "about:addons";
 const INSTALL_URI = "chrome://mozapps/content/xpinstall/xpinstallConfirm.xul";
 const PREF_LOGGING_ENABLED = "extensions.logging.enabled";
+const PREF_SEARCH_MAXRESULTS = "extensions.getAddons.maxResults";
 
 var gPendingTests = [];
 var gTestsRun = 0;
 
 // Turn logging on for all tests
 Services.prefs.setBoolPref(PREF_LOGGING_ENABLED, true);
+// Turn off remote results in searches
+Services.prefs.setIntPref(PREF_SEARCH_MAXRESULTS, 0);
 registerCleanupFunction(function() {
   Services.prefs.clearUserPref(PREF_LOGGING_ENABLED);
+  try {
+    Services.prefs.clearUserPref(PREF_SEARCH_MAXRESULTS);
+  }
+  catch (e) {
+  }
 });
 
 function add_test(test) {
@@ -48,8 +56,8 @@ function get_addon_file_url(aFilename) {
   return fileurl.QueryInterface(Ci.nsIFileURL);
 }
 
-function wait_for_view_load(aManagerWindow, aCallback) {
-  if (!aManagerWindow.gViewController.isLoading) {
+function wait_for_view_load(aManagerWindow, aCallback, aForceWait) {
+  if (!aForceWait && !aManagerWindow.gViewController.isLoading) {
     aCallback(aManagerWindow);
     return;
   }
@@ -72,8 +80,11 @@ function wait_for_manager_load(aManagerWindow, aCallback) {
   }, false);
 }
 
-function open_manager(aView, aCallback) {
+function open_manager(aView, aCallback, aLoadCallback) {
   function setup_manager(aManagerWindow) {
+    if (aLoadCallback)
+      aLoadCallback(aManagerWindow);
+
     if (aView)
       aManagerWindow.loadView(aView);
 
@@ -86,6 +97,7 @@ function open_manager(aView, aCallback) {
   }
 
   if ("switchToTabHavingURI" in window) {
+    gBrowser.selectedTab = gBrowser.addTab();
     switchToTabHavingURI(MANAGER_URI, true, function(aBrowser) {
       setup_manager(aBrowser.contentWindow.wrappedJSObject);
     });
@@ -110,8 +122,22 @@ function close_manager(aManagerWindow, aCallback) {
   aManagerWindow.close();
 }
 
-function restart_manager(aManagerWindow, aView, aCallback) {
-  close_manager(aManagerWindow, function() { open_manager(aView, aCallback); });
+function restart_manager(aManagerWindow, aView, aCallback, aLoadCallback) {
+  if (!aManagerWindow) {
+    open_manager(aView, aCallback, aLoadCallback);
+    return;
+  }
+
+  close_manager(aManagerWindow, function() {
+    open_manager(aView, aCallback, aLoadCallback);
+  });
+}
+
+function is_element_visible(aWindow, aElement, aExpected, aMsg) {
+  isnot(aElement, null, "Element should not be null, when checking visibility");
+  var style = aWindow.getComputedStyle(aElement, "");
+  var visible = style.display != "none" && style.visibility == "visible";
+  is(visible, aExpected, aMsg);
 }
 
 function CategoryUtilities(aManagerWindow) {
@@ -346,6 +372,10 @@ MockProvider.prototype = {
       for (var prop in aAddonProp) {
         if (prop == "id")
           continue;
+        if (prop == "applyBackgroundUpdates") {
+          addon._applyBackgroundUpdates = aAddonProp[prop];
+          continue;
+        }
         addon[prop] = aAddonProp[prop];
       }
       this.addAddon(addon);
@@ -612,6 +642,7 @@ function MockAddon(aId, aName, aType, aOperationsRequiringRestart) {
   this.blocklistState = 0;
   this.appDisabled = false;
   this._userDisabled = false;
+  this._applyBackgroundUpdates = true;
   this.scope = AddonManager.SCOPE_PROFILE;
   this.isActive = true;
   this.creator = "";
@@ -646,6 +677,15 @@ MockAddon.prototype = {
     this._updateActiveState(currentActive, newActive);
 
     return val;
+  },
+  
+  get applyBackgroundUpdates() {
+    return this._applyBackgroundUpdates;
+  },
+  
+  set applyBackgroundUpdates(val) {
+    this._applyBackgroundUpdates = val;
+    AddonManagerPrivate.callAddonListeners("onPropertyChanged", this, ["applyBackgroundUpdates"]);
   },
 
   isCompatibleWith: function(aAppVersion, aPlatformVersion) {

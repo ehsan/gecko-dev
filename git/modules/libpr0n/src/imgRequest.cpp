@@ -83,6 +83,7 @@
 #include "nsIPrefBranch2.h"
 
 #include "imgDiscardTracker.h"
+#include "nsAsyncRedirectVerifyHelper.h"
 
 #define DISCARD_PREF "image.mem.discardable"
 #define DECODEONDRAW_PREF "image.mem.decodeondraw"
@@ -158,12 +159,13 @@ imgRequestPrefObserver::Observe(nsISupports     *aSubject,
 PRLogModuleInfo *gImgLog = PR_NewLogModule("imgRequest");
 #endif
 
-NS_IMPL_ISUPPORTS7(imgRequest,
+NS_IMPL_ISUPPORTS8(imgRequest,
                    imgIDecoderObserver, imgIContainerObserver,
                    nsIStreamListener, nsIRequestObserver,
                    nsISupportsWeakReference,
                    nsIChannelEventSink,
-                   nsIInterfaceRequestor)
+                   nsIInterfaceRequestor,
+                   nsIAsyncVerifyRedirectCallback)
 
 imgRequest::imgRequest() : 
   mCacheId(0), mValidator(nsnull), mImageSniffers("image-sniffing-services"),
@@ -563,17 +565,12 @@ NS_IMETHODIMP imgRequest::OnStartContainer(imgIRequest *request, imgIContainer *
   NS_ASSERTION(image, "imgRequest::OnStartContainer called with a null image!");
   if (!image) return NS_ERROR_UNEXPECTED;
 
-  // We only want to send onStartContainer once, but we might get multiple
-  // OnStartContainer calls (e.g. from multipart/x-mixed-replace). Therefore,
-  // we tell our status tracker about OnStartContainer *after* attempting to
-  // send the notifications. That way, if we have previously called
-  // OnStartContainer, the status tracker can notice.
+  mImage->GetStatusTracker().RecordStartContainer(image);
+
   nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mObservers);
   while (iter.HasMore()) {
     mImage->GetStatusTracker().SendStartContainer(iter.GetNext(), image);
   }
-
-  mImage->GetStatusTracker().RecordStartContainer(image);
 
   return NS_OK;
 }
@@ -1119,24 +1116,49 @@ imgRequest::GetInterface(const nsIID & aIID, void **aResult)
 }
 
 /** nsIChannelEventSink methods **/
-
-/* void onChannelRedirect (in nsIChannel oldChannel, in nsIChannel newChannel, in unsigned long flags); */
 NS_IMETHODIMP
-imgRequest::OnChannelRedirect(nsIChannel *oldChannel, nsIChannel *newChannel, PRUint32 flags)
+imgRequest::AsyncOnChannelRedirect(nsIChannel *oldChannel,
+                                   nsIChannel *newChannel, PRUint32 flags,
+                                   nsIAsyncVerifyRedirectCallback *callback)
 {
-  NS_ASSERTION(mRequest && mChannel, "Got an OnChannelRedirect after we nulled out mRequest!");
+  NS_ASSERTION(mRequest && mChannel, "Got a channel redirect after we nulled out mRequest!");
   NS_ASSERTION(mChannel == oldChannel, "Got a channel redirect for an unknown channel!");
   NS_ASSERTION(newChannel, "Got a redirect to a NULL channel!");
 
-  nsresult rv = NS_OK;
+  // Prepare for callback
+  mRedirectCallback = callback;
+  mNewRedirectChannel = newChannel;
+
   nsCOMPtr<nsIChannelEventSink> sink(do_GetInterface(mPrevChannelSink));
   if (sink) {
-    rv = sink->OnChannelRedirect(oldChannel, newChannel, flags);
-    if (NS_FAILED(rv))
-      return rv;
+    nsresult rv = sink->AsyncOnChannelRedirect(oldChannel, newChannel, flags,
+                                               this);
+    if (NS_FAILED(rv)) {
+        mRedirectCallback = nsnull;
+        mNewRedirectChannel = nsnull;
+    }
+    return rv;
+  }
+  
+  (void) OnRedirectVerifyCallback(NS_OK);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+imgRequest::OnRedirectVerifyCallback(nsresult result)
+{
+  NS_ASSERTION(mRedirectCallback, "mRedirectCallback not set in callback");
+  NS_ASSERTION(mNewRedirectChannel, "mNewRedirectChannel not set in callback");
+    
+  if (NS_FAILED(result)) {
+      mRedirectCallback->OnRedirectVerifyCallback(result);
+      mRedirectCallback = nsnull;
+      mNewRedirectChannel = nsnull;
+      return NS_OK;
   }
 
-  mChannel = newChannel;
+  mChannel = mNewRedirectChannel;
+  mNewRedirectChannel = nsnull;
 
   // Don't make any cache changes if we're going to point to the same thing. We
   // compare specs and not just URIs here because URIs that compare as
@@ -1149,17 +1171,23 @@ imgRequest::OnChannelRedirect(nsIChannel *oldChannel, nsIChannel *newChannel, PR
   // make sure we have a protocol that returns data rather than opens
   // an external application, e.g. mailto:
   nsCOMPtr<nsIURI> uri;
-  newChannel->GetURI(getter_AddRefs(uri));
+  mChannel->GetURI(getter_AddRefs(uri));
   PRBool doesNotReturnData = PR_FALSE;
-  rv = NS_URIChainHasFlags(uri, nsIProtocolHandler::URI_DOES_NOT_RETURN_DATA,
-                           &doesNotReturnData);
-  if (NS_FAILED(rv))
-    return rv;
-  if (doesNotReturnData)
-    return NS_ERROR_ABORT;
+  nsresult rv =
+    NS_URIChainHasFlags(uri, nsIProtocolHandler::URI_DOES_NOT_RETURN_DATA,
+                        &doesNotReturnData);
+
+  if (NS_SUCCEEDED(rv) && doesNotReturnData)
+    rv = NS_ERROR_ABORT;
+
+  if (NS_FAILED(rv)) {
+    mRedirectCallback->OnRedirectVerifyCallback(rv);
+    mRedirectCallback = nsnull;
+    return NS_OK;
+  }
 
   nsCOMPtr<nsIURI> newURI;
-  newChannel->GetOriginalURI(getter_AddRefs(newURI));
+  mChannel->GetOriginalURI(getter_AddRefs(newURI));
   nsCAutoString newspec;
   if (newURI)
     newURI->GetSpec(newspec);
@@ -1186,5 +1214,7 @@ imgRequest::OnChannelRedirect(nsIChannel *oldChannel, nsIChannel *newChannel, PR
     }
   }
 
-  return rv;
+  mRedirectCallback->OnRedirectVerifyCallback(NS_OK);
+  mRedirectCallback = nsnull;
+  return NS_OK;
 }

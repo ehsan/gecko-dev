@@ -878,7 +878,7 @@ toolbar[iconsize="small"] #fullscreen-button {
   -moz-border-start: 1px solid ThreeDShadow;
 }
 
-#identity-box:focus {
+#identity-box:-moz-focusring {
   outline: 1px dotted -moz-DialogText;
 }
 
@@ -1005,6 +1005,10 @@ toolbar[iconsize="small"] #fullscreen-button {
 .notification-anchor-icon {
   width: 16px;
   height: 16px;
+}
+
+.notification-anchor-icon:-moz-focusring {
+  outline: 1px dotted -moz-DialogText;
 }
 
 #geo-notification-icon {

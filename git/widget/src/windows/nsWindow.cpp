@@ -157,6 +157,7 @@
 #include "nsHashKeys.h"
 #include "nsString.h"
 #include "mozilla/Services.h"
+#include "nsNativeThemeWin.h"
 
 #if defined(WINCE)
 #include "nsWindowCE.h"
@@ -375,8 +376,8 @@ nsWindow::nsWindow() : nsBaseWidget()
   mIsTopWidgetWindow    = PR_FALSE;
   mUnicodeWidget        = PR_TRUE;
   mDisplayPanFeedback   = PR_FALSE;
+  mTouchWindow          = PR_FALSE;
   mCustomNonClient      = PR_FALSE;
-  mCompositorFlag       = PR_FALSE;
   mHideChrome           = PR_FALSE;
   mWindowType           = eWindowType_child;
   mBorderStyle          = eBorderStyle_default;
@@ -413,29 +414,32 @@ nsWindow::nsWindow() : nsBaseWidget()
   // Global initialization
   if (!sInstanceCount) {
 #if !defined(WINCE)
-  gKbdLayout.LoadLayout(::GetKeyboardLayout(0));
+    gKbdLayout.LoadLayout(::GetKeyboardLayout(0));
 #endif
 
-  // Init IME handler
-  nsIMM32Handler::Initialize();
+    // Init IME handler
+    nsIMM32Handler::Initialize();
 
 #ifdef NS_ENABLE_TSF
-  nsTextStore::Initialize();
+    nsTextStore::Initialize();
 #endif
 
 #if !defined(WINCE)
-  if (SUCCEEDED(::OleInitialize(NULL)))
-    sIsOleInitialized = TRUE;
-  NS_ASSERTION(sIsOleInitialized, "***** OLE is not initialized!\n");
+    if (SUCCEEDED(::OleInitialize(NULL)))
+      sIsOleInitialized = TRUE;
+    NS_ASSERTION(sIsOleInitialized, "***** OLE is not initialized!\n");
 #endif
 
 #if defined(HEAP_DUMP_EVENT)
-  InitHeapDump();
+    InitHeapDump();
 #endif
 
 #if !defined(WINCE)
-  InitTrackPointHack();
+    InitTrackPointHack();
 #endif
+
+    // Init titlebar button info for custom frames.
+    nsUXThemeData::InitTitlebarInfo();
   } // !sInstanceCount
 
   mIdleService = nsnull;
@@ -664,7 +668,10 @@ NS_METHOD nsWindow::Destroy()
    * On windows the LayerManagerOGL destructor wants the widget to be around for
    * cleanup. It also would like to have the HWND intact, so we NULL it here.
    */
-  mLayerManager = NULL;
+  if (mLayerManager) {
+    mLayerManager->Destroy();
+  }
+  mLayerManager = nsnull;
 
   // The DestroyWindow function destroys the specified window. The function sends WM_DESTROY
   // and WM_NCDESTROY messages to the window to deactivate it and remove the keyboard focus
@@ -1286,6 +1293,49 @@ void nsWindow::SetThemeRegion()
   }
 #endif
 }
+
+/**************************************************************
+ *
+ * SECTION: nsIWidget::RegisterTouchWindow,
+ * nsIWidget::UnregisterTouchWindow, and helper functions
+ *
+ * Used to register the native window to receive touch events
+ *
+ **************************************************************/
+
+NS_METHOD nsWindow::RegisterTouchWindow() {
+  mTouchWindow = PR_TRUE;
+#ifndef WINCE
+  mGesture.RegisterTouchWindow(mWnd);
+  ::EnumChildWindows(mWnd, nsWindow::RegisterTouchForDescendants, NULL);
+#endif
+  return NS_OK;
+}
+
+NS_METHOD nsWindow::UnregisterTouchWindow() {
+  mTouchWindow = PR_FALSE;
+#ifndef WINCE
+  mGesture.UnregisterTouchWindow(mWnd);
+  ::EnumChildWindows(mWnd, nsWindow::UnregisterTouchForDescendants, NULL);
+#endif
+  return NS_OK;
+}
+
+#ifndef WINCE
+BOOL CALLBACK nsWindow::RegisterTouchForDescendants(HWND aWnd, LPARAM aMsg) {
+  nsWindow* win = GetNSWindowPtr(aWnd);
+  if (win)
+    win->mGesture.RegisterTouchWindow(aWnd);
+  return TRUE;
+}
+
+BOOL CALLBACK nsWindow::UnregisterTouchForDescendants(HWND aWnd, LPARAM aMsg) {
+  nsWindow* win = GetNSWindowPtr(aWnd);
+  if (win)
+    win->mGesture.UnregisterTouchWindow(aWnd);
+  return TRUE;
+}
+#endif
 
 /**************************************************************
  *
@@ -1938,13 +1988,6 @@ nsWindow::UpdateNonClientMargins(PRInt32 aSizeMode, PRBool aReflowWindow)
   if (!mCustomNonClient)
     return PR_FALSE;
 
-  // XXX Temp disable margins until frame rendering is supported
-  mCompositorFlag = PR_TRUE;
-  if(!nsUXThemeData::CheckForCompositor()) {
-    mCompositorFlag = PR_FALSE;
-    return PR_FALSE;
-  }
-
   mNonClientOffset.top = mNonClientOffset.bottom =
     mNonClientOffset.left = mNonClientOffset.right = 0;
 
@@ -2055,6 +2098,63 @@ nsWindow::SetNonClientMargins(nsIntMargin &margins)
   }
 
   return NS_OK;
+}
+
+void
+nsWindow::InvalidateNonClientRegion()
+{
+  // +-+-----------------------+-+
+  // | | app non-client chrome | |
+  // | +-----------------------+ |
+  // | |   app client chrome   | | }
+  // | +-----------------------+ | }
+  // | |      app content      | | } area we don't want to invalidate
+  // | +-----------------------+ | }
+  // | |   app client chrome   | | }
+  // | +-----------------------+ | 
+  // +---------------------------+ <
+  //  ^                         ^    windows non-client chrome
+  // client area = app *
+  RECT rect;
+  GetWindowRect(mWnd, &rect);
+  MapWindowPoints(NULL, mWnd, (LPPOINT)&rect, 2);
+  HRGN winRgn = CreateRectRgnIndirect(&rect);
+
+  // Subtract app client chrome and app content leaving
+  // windows non-client chrome and app non-client chrome
+  // in winRgn.
+  GetWindowRect(mWnd, &rect);
+  rect.top += mCaptionHeight;
+  rect.right -= mHorResizeMargin;
+  rect.bottom -= mHorResizeMargin;
+  rect.left += mVertResizeMargin;
+  MapWindowPoints(NULL, mWnd, (LPPOINT)&rect, 2);
+  HRGN clientRgn = CreateRectRgnIndirect(&rect);
+  CombineRgn(winRgn, winRgn, clientRgn, RGN_DIFF);
+  DeleteObject(clientRgn);
+
+  // triggers ncpaint and paint events for the two areas
+  RedrawWindow(mWnd, NULL, winRgn, RDW_FRAME|RDW_INVALIDATE);
+  DeleteObject(winRgn);
+}
+
+HRGN
+nsWindow::ExcludeNonClientFromPaintRegion(HRGN aRegion)
+{
+  RECT rect;
+  HRGN rgn = NULL;
+  if (aRegion == (HRGN)1) { // undocumented value indicating a full refresh
+    GetWindowRect(mWnd, &rect);
+    rgn = CreateRectRgnIndirect(&rect);
+  } else {
+    rgn = aRegion;
+  }
+  GetClientRect(mWnd, &rect);
+  MapWindowPoints(mWnd, NULL, (LPPOINT)&rect, 2);
+  HRGN nonClientRgn = CreateRectRgnIndirect(&rect);
+  CombineRgn(rgn, rgn, nonClientRgn, RGN_DIFF);
+  DeleteObject(nonClientRgn);
+  return rgn;
 }
 
 /**************************************************************
@@ -3791,6 +3891,18 @@ PRBool nsWindow::DispatchPluginEvent(const MSG &aMsg)
   return DispatchWindowEvent(&event);
 }
 
+PRBool nsWindow::DispatchPluginEvent(UINT aMessage,
+                                     WPARAM aWParam,
+                                     LPARAM aLParam,
+                                     PRBool aDispatchPendingEvents)
+{
+  PRBool ret = DispatchPluginEvent(InitMSG(aMessage, aWParam, aLParam));
+  if (aDispatchPendingEvents) {
+    DispatchPendingEvents();
+  }
+  return ret;
+}
+
 void nsWindow::RemoveMessageAndDispatchPluginEvent(UINT aFirstMsg,
                                                    UINT aLastMsg)
 {
@@ -4376,15 +4488,8 @@ nsWindow::ProcessMessageForPlugin(const MSG &aMsg,
   *aResult = 0;
 
   aCallDefWndProc = PR_FALSE;
-  PRBool fallBackToNonPluginProcess = PR_FALSE;
   PRBool eventDispatched = PR_FALSE;
-  PRBool dispatchPendingEvents = PR_TRUE;
   switch (aMsg.message) {
-    case WM_INPUTLANGCHANGEREQUEST:
-    case WM_INPUTLANGCHANGE:
-      DispatchPluginEvent(aMsg);
-      return PR_FALSE; // go to non-plug-ins processing
-
     case WM_CHAR:
     case WM_SYSCHAR:
       *aResult = ProcessCharMessage(aMsg, &eventDispatched);
@@ -4409,24 +4514,6 @@ nsWindow::ProcessMessageForPlugin(const MSG &aMsg,
     case WM_PASTE:
     case WM_CLEAR:
     case WM_UNDO:
-
-    case WM_IME_STARTCOMPOSITION:
-    case WM_IME_COMPOSITION:
-    case WM_IME_ENDCOMPOSITION:
-    case WM_IME_CHAR:
-    case WM_IME_COMPOSITIONFULL:
-    case WM_IME_CONTROL:
-    case WM_IME_KEYDOWN:
-    case WM_IME_KEYUP:
-    case WM_IME_NOTIFY:
-    case WM_IME_REQUEST:
-    case WM_IME_SELECT:
-      break;
-
-    case WM_IME_SETCONTEXT:
-      // Don't synchronously dispatch when we receive WM_IME_SETCONTEXT
-      // because we get it during plugin destruction. (bug 491848)
-      dispatchPendingEvents = PR_FALSE;
       break;
 
     default:
@@ -4435,8 +4522,7 @@ nsWindow::ProcessMessageForPlugin(const MSG &aMsg,
 
   if (!eventDispatched)
     aCallDefWndProc = !DispatchPluginEvent(aMsg);
-  if (dispatchPendingEvents)
-    DispatchPendingEvents();
+  DispatchPendingEvents();
   return PR_TRUE;
 }
 
@@ -4478,7 +4564,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
   // Glass hit testing w/custom transparent margins
   LRESULT dwmHitResult;
   if (mCustomNonClient &&
-      mCompositorFlag &&
       nsUXThemeData::CheckForCompositor() &&
       nsUXThemeData::dwmDwmDefWindowProcPtr(mWnd, msg, wParam, lParam, &dwmHitResult)) {
     *aRetValue = dwmHitResult;
@@ -4619,7 +4704,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       // copies the valid information to the specified area within the new
       // client area. If the wParam parameter is FALSE, the application should
       // return zero.
-      if (mCustomNonClient && mCompositorFlag) {
+      if (mCustomNonClient) {
         if (!wParam) {
           result = PR_TRUE;
           *aRetValue = 0;
@@ -4659,7 +4744,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
        * composited desktop.
        */
 
-      if (!mCustomNonClient || !mCompositorFlag)
+      if (!mCustomNonClient)
         break;
 
       *aRetValue =
@@ -4667,6 +4752,87 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       result = PR_TRUE;
       break;
     }
+
+    case WM_SETTEXT:
+      /*
+       * WM_SETTEXT paints the titlebar area. Avoid this if we have a
+       * custom titlebar we paint ourselves.
+       */
+
+      if (mNonClientMargins.top == -1)
+        break;
+
+      {
+        // From msdn, the way around this is to disable the visible state
+        // temporarily. We need the text to be set but we don't want the
+        // redraw to occur.
+        DWORD style = GetWindowLong(mWnd, GWL_STYLE);
+        SetWindowLong(mWnd, GWL_STYLE, style & ~WS_VISIBLE);
+        *aRetValue = CallWindowProcW(GetPrevWindowProc(), mWnd,
+                                     msg, wParam, lParam);
+        SetWindowLong(mWnd, GWL_STYLE, style);
+        return PR_TRUE;
+      }
+
+    case WM_NCACTIVATE:
+    {
+      /*
+       * WM_NCACTIVATE paints nc areas. Avoid this and re-route painting
+       * through WM_NCPAINT via InvalidateNonClientRegion.
+       */
+
+      if (!mCustomNonClient)
+        break;
+
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+      // let the dwm handle nc painting on glass
+      if(nsUXThemeData::CheckForCompositor())
+        break;
+#endif
+
+      if (wParam == TRUE) {
+        // going active
+        *aRetValue = FALSE; // ignored
+        result = PR_TRUE;
+        // invalidate to trigger a paint
+        InvalidateNonClientRegion();
+        break;
+      } else {
+        // going inactive
+        *aRetValue = TRUE; // go ahead and deactive
+        result = PR_TRUE;
+        // invalidate to trigger a paint
+        InvalidateNonClientRegion();
+        break;
+      }
+    }
+
+    case WM_NCPAINT:
+    {
+      /*
+       * Reset the non-client paint region so that it excludes the
+       * non-client areas we paint manually. Then call defwndproc
+       * to do the actual painting.
+       */
+
+      if (!mCustomNonClient)
+        break;
+
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+      // let the dwm handle nc painting on glass
+      if(nsUXThemeData::CheckForCompositor())
+        break;
+#endif
+
+      HRGN paintRgn = ExcludeNonClientFromPaintRegion((HRGN)wParam);
+      LRESULT res = CallWindowProcW(GetPrevWindowProc(), mWnd,
+                                    msg, (WPARAM)paintRgn, lParam);
+      if (paintRgn != (HRGN)wParam)
+        DeleteObject(paintRgn);
+      *aRetValue = res;
+      result = PR_TRUE;
+    }
+    break;
 
 #ifndef WINCE
     case WM_POWERBROADCAST:
@@ -4838,10 +5004,10 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     case WM_CONTEXTMENU:
     {
       // if the context menu is brought up from the keyboard, |lParam|
-      // will be maxlong.
+      // will be -1.
       LPARAM pos;
       PRBool contextMenukey = PR_FALSE;
-      if (lParam == 0xFFFFFFFF)
+      if (lParam == -1)
       {
         contextMenukey = PR_TRUE;
         pos = lParamToClient(GetMessagePos());
@@ -5226,7 +5392,16 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     result = PR_TRUE;
     *aRetValue = TABLET_ROTATE_GESTURE_ENABLE;
     break;
-    
+
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
+  case WM_TOUCH:
+    result = OnTouch(wParam, lParam);
+    if (result) {
+      *aRetValue = 0;
+    }
+    break;
+#endif
+
   case WM_GESTURE:
     result = OnGesture(wParam, lParam);
     break;
@@ -5249,7 +5424,8 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
         nsEventStatus status;
         DispatchEvent(&gestureNotifyEvent, status);
         mDisplayPanFeedback = gestureNotifyEvent.displayPanFeedback;
-        mGesture.SetWinGestureSupport(mWnd, gestureNotifyEvent.panDirection);
+        if (!mTouchWindow)
+          mGesture.SetWinGestureSupport(mWnd, gestureNotifyEvent.panDirection);
       }
       result = PR_FALSE; //should always bubble to DefWindowProc
     }
@@ -5627,7 +5803,7 @@ LRESULT nsWindow::ProcessKeyUpMessage(const MSG &aMsg, PRBool *aEventDispatched)
     return FALSE;
   }
 
-  if (!nsIMM32Handler::IsComposing(this) &&
+  if (!nsIMM32Handler::IsComposingOn(this) &&
       (aMsg.message != WM_KEYUP || aMsg.wParam != VK_MENU)) {
     // Ignore VK_MENU if it's not a system key release, so that the menu bar does not trigger
     // This helps avoid triggering the menu bar for ALT key accelerators used in
@@ -5667,7 +5843,7 @@ LRESULT nsWindow::ProcessKeyDownMessage(const MSG &aMsg,
   LRESULT result = 0;
   if (modKeyState.mIsAltDown && nsIMM32Handler::IsStatusChanged()) {
     nsIMM32Handler::NotifyEndStatusChange();
-  } else if (!nsIMM32Handler::IsComposing(this)) {
+  } else if (!nsIMM32Handler::IsComposingOn(this)) {
     result = OnKeyDown(aMsg, modKeyState, aEventDispatched, nsnull);
   }
 
@@ -6082,6 +6258,45 @@ void nsWindow::UserActivity()
   }
 }
 
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
+PRBool nsWindow::OnTouch(WPARAM wParam, LPARAM lParam)
+{
+  PRUint32 cInputs = LOWORD(wParam);
+  PTOUCHINPUT pInputs = new TOUCHINPUT[cInputs];
+
+  if (mGesture.GetTouchInputInfo((HTOUCHINPUT)lParam, cInputs, pInputs)) {
+    for (PRUint32 i = 0; i < cInputs; i++) {
+      PRUint32 msg;
+      if (pInputs[i].dwFlags & TOUCHEVENTF_MOVE) {
+        msg = NS_MOZTOUCH_MOVE;
+      } else if (pInputs[i].dwFlags & TOUCHEVENTF_DOWN) {
+        msg = NS_MOZTOUCH_DOWN;
+      } else if (pInputs[i].dwFlags & TOUCHEVENTF_UP) {
+        msg = NS_MOZTOUCH_UP;
+      } else {
+        continue;
+      }
+
+      nsPointWin touchPoint;
+      touchPoint.x = TOUCH_COORD_TO_PIXEL(pInputs[i].x);
+      touchPoint.y = TOUCH_COORD_TO_PIXEL(pInputs[i].y);
+      touchPoint.ScreenToClient(mWnd);
+
+      nsMozTouchEvent touchEvent(PR_TRUE, msg, this, pInputs[i].dwID);
+      touchEvent.inputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_TOUCH;
+      touchEvent.refPoint = touchPoint;
+
+      nsEventStatus status;
+      DispatchEvent(&touchEvent, status);
+    }
+  }
+
+  delete [] pInputs;
+  mGesture.CloseTouchInputHandle((HTOUCHINPUT)lParam);
+  return PR_TRUE;
+}
+#endif
+
 // Gesture event processing. Handles WM_GESTURE events.
 #if !defined(WINCE)
 PRBool nsWindow::OnGesture(WPARAM wParam, LPARAM lParam)
@@ -6345,7 +6560,7 @@ LRESULT nsWindow::OnKeyDown(const MSG &aMsg,
 
   // Use only DOMKeyCode for XP processing.
   // Use aVirtualKeyCode for gKbdLayout and native processing.
-  UINT DOMKeyCode = nsIMM32Handler::IsComposing(this) ?
+  UINT DOMKeyCode = nsIMM32Handler::IsComposingOn(this) ?
                       virtualKeyCode : MapFromNativeToDOM(virtualKeyCode);
 
 #ifdef DEBUG
@@ -6635,7 +6850,7 @@ LRESULT nsWindow::OnKeyUp(const MSG &aMsg,
   PR_LOG(gWindowsLog, PR_LOG_ALWAYS,
          ("nsWindow::OnKeyUp VK=%d\n", virtualKeyCode));
 
-  if (!nsIMM32Handler::IsComposing(this)) {
+  if (!nsIMM32Handler::IsComposingOn(this)) {
     virtualKeyCode = MapFromNativeToDOM(virtualKeyCode);
   }
 
@@ -6677,7 +6892,7 @@ LRESULT nsWindow::OnCharRaw(UINT charCode, UINT aScanCode,
 
   wchar_t uniChar;
 
-  if (nsIMM32Handler::IsComposing(this)) {
+  if (nsIMM32Handler::IsComposingOn(this)) {
     ResetInputState();
   }
 
@@ -7283,11 +7498,7 @@ NS_IMETHODIMP nsWindow::ResetInputState()
   nsTextStore::CommitComposition(PR_FALSE);
 #endif //NS_ENABLE_TSF
 
-  nsIMEContext IMEContext(mWnd);
-  if (IMEContext.IsValid()) {
-    ::ImmNotifyIME(IMEContext.get(), NI_COMPOSITIONSTR, CPS_COMPLETE, NULL);
-    ::ImmNotifyIME(IMEContext.get(), NI_COMPOSITIONSTR, CPS_CANCEL, NULL);
-  }
+  nsIMM32Handler::CommitComposition(this);
   return NS_OK;
 }
 
@@ -7334,8 +7545,9 @@ NS_IMETHODIMP nsWindow::SetIMEEnabled(PRUint32 aState)
                                  aState == nsIWidget::IME_STATUS_PLUGIN)? 
                                 "Enabled": "Disabled");
 #endif 
-  if (nsIMM32Handler::IsComposing(this))
+  if (nsIMM32Handler::IsComposing()) {
     ResetInputState();
+  }
   mIMEEnabled = aState;
   PRBool enable = (aState == nsIWidget::IME_STATUS_ENABLED ||
                    aState == nsIWidget::IME_STATUS_PLUGIN);
@@ -7372,10 +7584,7 @@ NS_IMETHODIMP nsWindow::CancelIMEComposition()
   nsTextStore::CommitComposition(PR_TRUE);
 #endif //NS_ENABLE_TSF
 
-  nsIMEContext IMEContext(mWnd);
-  if (IMEContext.IsValid()) {
-    ::ImmNotifyIME(IMEContext.get(), NI_COMPOSITIONSTR, CPS_CANCEL, NULL);
-  }
+  nsIMM32Handler::CancelComposition(this);
   return NS_OK;
 }
 

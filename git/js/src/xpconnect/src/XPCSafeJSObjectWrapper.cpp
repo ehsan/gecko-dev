@@ -324,6 +324,12 @@ WrapObject(JSContext *cx, JSObject *scope, jsval v, jsval *vp)
     return ThrowException(NS_ERROR_FAILURE, cx);
   }
 
+  XPCWrappedNative *wn =
+    XPCWrappedNative::GetWrappedNativeOfJSObject(cx, objToWrap);
+  if (wn) {
+    CheckWindow(wn);
+  }
+
   JSObject *wrapperObj =
     JS_NewObjectWithGivenProto(cx, js::Jsvalify(&SJOWClass), nsnull, scope);
 
@@ -619,7 +625,7 @@ public:
 
 private:
   JSContext *cx;
-  JSRegExpStatics statics;
+  js::RegExpStatics statics;
   js::AutoStringRooter tvr;
   uint32 options;
   JSStackFrame *fp;
