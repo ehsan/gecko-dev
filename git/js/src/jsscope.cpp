@@ -1263,11 +1263,9 @@ js_AddScopeProperty(JSContext *cx, JSScope *scope, jsid id,
          */
         if (!JS_CLIST_IS_EMPTY(&cx->runtime->watchPointList) &&
             js_FindWatchPoint(cx->runtime, scope, id)) {
-            if (overwriting)
-                JS_PUSH_TEMP_ROOT_SPROP(cx, overwriting, &tvr);
+            JS_PUSH_TEMP_ROOT_SPROP(cx, overwriting, &tvr);
             setter = js_WrapWatchedSetter(cx, id, attrs, setter);
-            if (overwriting)
-                JS_POP_TEMP_ROOT(cx, &tvr);
+            JS_POP_TEMP_ROOT(cx, &tvr);
             if (!setter)
                 goto fail_overwrite;
         }

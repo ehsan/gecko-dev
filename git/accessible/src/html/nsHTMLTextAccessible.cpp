@@ -78,7 +78,9 @@ nsresult
 nsHTMLTextAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
   nsresult rv = nsTextAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode)
+    return NS_OK;
 
   nsCOMPtr<nsIAccessible> docAccessible = 
     do_QueryInterface(nsCOMPtr<nsIAccessibleDocument>(GetDocAccessible()));
@@ -136,19 +138,10 @@ NS_IMETHODIMP nsHTMLBRAccessible::GetRole(PRUint32 *aRole)
 nsresult
 nsHTMLBRAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  *aState = 0;
-
-  if (IsDefunct()) {
-    if (aExtraState)
-      *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
-
-    return NS_OK_DEFUNCT_OBJECT;
-  }
-
   *aState = nsIAccessibleStates::STATE_READONLY;
-  if (aExtraState)
-    *aExtraState = 0;
-
+  if (aExtraState) {
+    *aExtraState = mDOMNode ? 0 : nsIAccessibleStates::EXT_STATE_DEFUNCT;
+  }
   return NS_OK;
 }
 
@@ -197,11 +190,11 @@ nsresult
 nsHTMLLabelAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
   nsresult rv = nsTextAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
-
-  *aState &= (nsIAccessibleStates::STATE_LINKED |
-              nsIAccessibleStates::STATE_TRAVERSED); // Only use link states
-
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (mDOMNode) {
+    *aState &= (nsIAccessibleStates::STATE_LINKED |
+                nsIAccessibleStates::STATE_TRAVERSED); // Only use link states
+  }
   return NS_OK;
 }
 
@@ -253,7 +246,7 @@ nsresult
 nsHTMLLIAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
   nsresult rv = nsAccessibleWrap::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   *aState |= nsIAccessibleStates::STATE_READONLY;
   return NS_OK;
@@ -338,7 +331,7 @@ nsresult
 nsHTMLListBulletAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
   nsresult rv = nsLeafAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   *aState &= ~nsIAccessibleStates::STATE_FOCUSABLE;
   *aState |= nsIAccessibleStates::STATE_READONLY;
@@ -379,7 +372,7 @@ nsHTMLListAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
   nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
                                                             aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   *aState |= nsIAccessibleStates::STATE_READONLY;
   return NS_OK;
