@@ -4,122 +4,55 @@
 
 package org.mozilla.search;
 
-import android.app.Activity;
-import android.database.Cursor;
 import android.os.Bundle;
-import android.support.v4.app.Fragment;
-import android.support.v4.app.LoaderManager;
-import android.support.v4.content.CursorLoader;
-import android.support.v4.content.Loader;
-import android.support.v4.widget.SimpleCursorAdapter;
-import android.text.TextUtils;
-import android.view.LayoutInflater;
+import android.support.v4.app.ListFragment;
 import android.view.View;
-import android.view.ViewGroup;
-import android.widget.AdapterView;
-import android.widget.ListView;
+import android.widget.ArrayAdapter;
 
-import org.mozilla.gecko.db.BrowserContract.SearchHistory;
-import org.mozilla.search.autocomplete.AcceptsSearchQuery;
+import org.mozilla.search.stream.PreloadAgent;
 
 
 /**
- * This fragment is responsible for managing the card stream.
+ * This fragment is responsible for managing the card stream. Right now
+ * we only use this during pre-search, but we could also use it
+ * during post-search at some point.
  */
-public class PreSearchFragment extends Fragment {
+public class PreSearchFragment extends ListFragment {
 
-    private AcceptsSearchQuery searchListener;
-    private SimpleCursorAdapter cursorAdapter;
+    private ArrayAdapter<PreloadAgent.TmpItem> adapter;
 
-    private ListView listView;
-
-    private final String[] PROJECTION = new String[]{SearchHistory.QUERY, SearchHistory._ID};
-
-    private static final int LOADER_ID_SEARCH_HISTORY = 1;
-
+    /**
+     * Mandatory empty constructor for the fragment manager to instantiate the
+     * fragment (e.g. upon screen orientation changes).
+     */
     public PreSearchFragment() {
-        // Mandatory empty constructor for Android's Fragment.
     }
 
     @Override
-    public void onAttach(Activity activity) {
-        super.onAttach(activity);
-
-        if (activity instanceof AcceptsSearchQuery) {
-            searchListener = (AcceptsSearchQuery) activity;
-        } else {
-            throw new ClassCastException(activity.toString() + " must implement AcceptsSearchQuery.");
-        }
+    public void onViewCreated(View view, Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        getListView().setDivider(null);
     }
 
     @Override
-    public void onDetach() {
-        super.onDetach();
-        searchListener = null;
-    }
-
-    @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        getLoaderManager().initLoader(LOADER_ID_SEARCH_HISTORY, null, new SearchHistoryLoaderCallbacks());
-        cursorAdapter = new SimpleCursorAdapter(getActivity(), R.layout.search_card_history, null,
-                PROJECTION, new int[]{R.id.site_name}, 0);
-    }
-
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
-        getLoaderManager().destroyLoader(LOADER_ID_SEARCH_HISTORY);
-        cursorAdapter.swapCursor(null);
-        cursorAdapter = null;
-    }
-
-    @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedState) {
-        listView = (ListView) inflater.inflate(R.layout.search_fragment_pre_search, container, false);
-        listView.setAdapter(cursorAdapter);
-        listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                final Cursor c = cursorAdapter.getCursor();
-                if (c == null || !c.moveToPosition(position)) {
-                    return;
+    public void onActivityCreated(Bundle savedInstanceState) {
+        super.onActivityCreated(savedInstanceState);
+        if (null == adapter) {
+            adapter = new ArrayAdapter<PreloadAgent.TmpItem>(getActivity(), R.layout.search_card,
+                    R.id.card_title, PreloadAgent.ITEMS) {
+                /**
+                 * Return false here disables the ListView from highlighting the click events
+                 * for each of the items. Each card should handle its own click events.
+                 */
+                @Override
+                public boolean isEnabled(int position) {
+                    return false;
                 }
-                final String query = c.getString(c.getColumnIndexOrThrow(SearchHistory.QUERY));
-                if (!TextUtils.isEmpty(query)) {
-                    searchListener.onSearch(query);
-                }
-            }
-        });
-        return listView;
-    }
-
-    @Override
-    public void onDestroyView() {
-        super.onDestroyView();
-        listView.setAdapter(null);
-        listView = null;
-    }
-
-    private class SearchHistoryLoaderCallbacks implements LoaderManager.LoaderCallbacks<Cursor> {
-        @Override
-        public Loader<Cursor> onCreateLoader(int id, Bundle args) {
-            return new CursorLoader(getActivity(), SearchHistory.CONTENT_URI,
-                    PROJECTION, null, null, SearchHistory.DATE_LAST_VISITED + " DESC");
+            };
         }
 
-        @Override
-        public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
-            if (cursorAdapter != null) {
-                cursorAdapter.swapCursor(data);
-            }
-        }
-
-        @Override
-        public void onLoaderReset(Loader<Cursor> loader) {
-            if (cursorAdapter != null) {
-                cursorAdapter.swapCursor(null);
-            }
-        }
+        setListAdapter(adapter);
     }
+
+
 }

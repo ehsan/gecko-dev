@@ -69,11 +69,9 @@ let inputTests = [
 
   // 8
   {
-    input: "new String('hello')",
-    output: 'String [ "h", "e", "l", "l", "o" ]',
-    printOutput: "hello",
+    input: "new String('hello world')",
+    output: '"hello world"',
     inspectable: true,
-    variablesViewLabel: "String[5]"
   },
 ];
 

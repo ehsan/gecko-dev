@@ -30,8 +30,8 @@ public:
   };
 
   static BluetoothA2dpManager* Get();
-  static void InitA2dpInterface(BluetoothProfileResultHandler* aRes);
-  static void DeinitA2dpInterface(BluetoothProfileResultHandler* aRes);
+  static void InitA2dpInterface();
+  static void DeinitA2dpInterface();
   virtual ~BluetoothA2dpManager();
 
   // A2DP-specific functions
