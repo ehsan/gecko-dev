@@ -114,6 +114,8 @@ public:
 
     NS_IMETHOD GetDepth(PRUint32& aDepth);
 
+    NS_IMETHOD GetPaletteInfo(nsPaletteInfo& aPaletteInfo);
+
     NS_IMETHOD ConvertPixel(nscolor aColor, PRUint32& aPixel);
 
     NS_IMETHOD GetDeviceSurfaceDimensions(nscoord& aWidth, nscoord& aHeight);
