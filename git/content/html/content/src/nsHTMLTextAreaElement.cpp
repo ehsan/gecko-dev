@@ -131,7 +131,7 @@ public:
   NS_IMETHOD SaveState();
   virtual PRBool RestoreState(nsPresState* aState);
 
-  virtual void FieldSetDisabledChanged(PRInt32 aStates, PRBool aNotify);
+  virtual void FieldSetDisabledChanged(PRInt32 aStates);
 
   virtual PRInt32 IntrinsicState() const;
 
@@ -155,7 +155,6 @@ public:
   NS_IMETHOD_(void) UnbindFromFrame(nsTextControlFrame* aFrame);
   NS_IMETHOD CreateEditor();
   NS_IMETHOD_(nsIContent*) GetRootEditorNode();
-  NS_IMETHOD_(nsIContent*) CreatePlaceholderNode();
   NS_IMETHOD_(nsIContent*) GetPlaceholderNode();
   NS_IMETHOD_(void) UpdatePlaceholderText(PRBool aNotify);
   NS_IMETHOD_(void) SetPlaceholderClass(PRBool aVisible, PRBool aNotify);
@@ -425,14 +424,14 @@ nsHTMLTextAreaElement::IsHTMLFocusable(PRBool aWithMouse,
 
 NS_IMPL_STRING_ATTR(nsHTMLTextAreaElement, AccessKey, accesskey)
 NS_IMPL_BOOL_ATTR(nsHTMLTextAreaElement, Autofocus, autofocus)
-NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLTextAreaElement, Cols, cols, 20)
+NS_IMPL_INT_ATTR(nsHTMLTextAreaElement, Cols, cols)
 NS_IMPL_BOOL_ATTR(nsHTMLTextAreaElement, Disabled, disabled)
 NS_IMPL_NON_NEGATIVE_INT_ATTR(nsHTMLTextAreaElement, MaxLength, maxlength)
 NS_IMPL_STRING_ATTR(nsHTMLTextAreaElement, Name, name)
 NS_IMPL_BOOL_ATTR(nsHTMLTextAreaElement, ReadOnly, readonly)
 NS_IMPL_BOOL_ATTR(nsHTMLTextAreaElement, Required, required)
-NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLTextAreaElement, Rows, rows, 2)
-NS_IMPL_INT_ATTR(nsHTMLTextAreaElement, TabIndex, tabindex)
+NS_IMPL_INT_ATTR(nsHTMLTextAreaElement, Rows, rows)
+NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLTextAreaElement, TabIndex, tabindex, 0)
 NS_IMPL_STRING_ATTR(nsHTMLTextAreaElement, Wrap, wrap)
 NS_IMPL_STRING_ATTR(nsHTMLTextAreaElement, Placeholder, placeholder)
   
@@ -500,13 +499,6 @@ NS_IMETHODIMP_(nsIContent*)
 nsHTMLTextAreaElement::GetRootEditorNode()
 {
   return mState->GetRootNode();
-}
-
-NS_IMETHODIMP_(nsIContent*)
-nsHTMLTextAreaElement::CreatePlaceholderNode()
-{
-  NS_ENSURE_SUCCESS(mState->CreatePlaceholderNode(), nsnull);
-  return mState->GetPlaceholderNode();
 }
 
 NS_IMETHODIMP_(nsIContent*)
@@ -632,8 +624,6 @@ nsHTMLTextAreaElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
     NS_UpdateHint(retval, NS_STYLE_HINT_REFLOW);
   } else if (aAttribute == nsGkAtoms::wrap) {
     NS_UpdateHint(retval, nsChangeHint_ReconstructFrame);
-  } else if (aAttribute == nsGkAtoms::placeholder) {
-    NS_UpdateHint(retval, NS_STYLE_HINT_FRAMECHANGE);
   }
   return retval;
 }
@@ -1187,22 +1177,17 @@ nsHTMLTextAreaElement::SetCustomValidity(const nsAString& aError)
 PRBool
 nsHTMLTextAreaElement::IsTooLong()
 {
-  if (!HasAttr(kNameSpaceID_None, nsGkAtoms::maxlength) || !mValueChanged) {
+  if (!mValueChanged) {
     return PR_FALSE;
   }
 
   PRInt32 maxLength = -1;
-  GetMaxLength(&maxLength);
-
-  // Maxlength of -1 means parsing error.
-  if (maxLength == -1) {
-    return PR_FALSE;
-  }
-
   PRInt32 textLength = -1;
+
+  GetMaxLength(&maxLength);
   GetTextLength(&textLength);
 
-  return textLength > maxLength;
+  return maxLength >= 0 && textLength > maxLength;
 }
 
 PRBool
@@ -1405,12 +1390,12 @@ nsHTMLTextAreaElement::OnValueChanged(PRBool aNotify)
 }
 
 void
-nsHTMLTextAreaElement::FieldSetDisabledChanged(PRInt32 aStates, PRBool aNotify)
+nsHTMLTextAreaElement::FieldSetDisabledChanged(PRInt32 aStates)
 {
   UpdateValueMissingValidityState();
   UpdateBarredFromConstraintValidation();
 
   aStates |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID;
-  nsGenericHTMLFormElement::FieldSetDisabledChanged(aStates, aNotify);
+  nsGenericHTMLFormElement::FieldSetDisabledChanged(aStates);
 }
 

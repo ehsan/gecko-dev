@@ -939,7 +939,7 @@ nsObjectFrame::Reflow(nsPresContext*           aPresContext,
 
   // Get our desired size
   GetDesiredSize(aPresContext, aReflowState, aMetrics);
-  aMetrics.SetOverflowAreasToDesiredBounds();
+  aMetrics.mOverflowArea.SetRect(0, 0, aMetrics.width, aMetrics.height);
   FinishAndStoreOverflow(&aMetrics);
 
   // delay plugin instantiation until all children have
@@ -1267,12 +1267,8 @@ nsDisplayPlugin::ComputeVisibility(nsDisplayListBuilder* aBuilder,
 }
 
 PRBool
-nsDisplayPlugin::IsOpaque(nsDisplayListBuilder* aBuilder,
-                          PRBool* aForceTransparentSurface)
+nsDisplayPlugin::IsOpaque(nsDisplayListBuilder* aBuilder)
 {
-  if (aForceTransparentSurface) {
-    *aForceTransparentSurface = PR_FALSE;
-  }
   nsObjectFrame* f = static_cast<nsObjectFrame*>(mFrame);
   return f->IsOpaque();
 }

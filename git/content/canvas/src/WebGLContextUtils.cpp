@@ -43,8 +43,7 @@
 
 #include "prprf.h"
 
-#include "nsIJSContextStack.h"
-#include "jsapi.h"
+#include "nsIConsoleService.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIPrefBranch.h"
 #include "nsServiceManagerUtils.h"
@@ -214,17 +213,28 @@ WebGLContext::LogMessage(const char *fmt, ...)
 void
 WebGLContext::LogMessage(const char *fmt, va_list ap)
 {
-    if (!fmt) return;
-
     char buf[1024];
-    PR_vsnprintf(buf, 1024, fmt, ap);
 
-    // no need to print to stderr, as JS_ReportWarning takes care of this for us.
+    nsCOMPtr<nsIConsoleService> console(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
+    if (console) {
+        PR_vsnprintf(buf, 1024, fmt, ap);
+        console->LogStringMessage(NS_ConvertUTF8toUTF16(nsDependentCString(buf)).get());
+        fprintf(stderr, "%s\n", buf);
+    }
+}
 
-    nsCOMPtr<nsIJSContextStack> stack = do_GetService("@mozilla.org/js/xpc/ContextStack;1");
-    JSContext* ccx = nsnull;
-    if (stack && NS_SUCCEEDED(stack->Peek(&ccx)) && ccx)
-        JS_ReportWarning(ccx, "WebGL: %s", buf);
+void
+WebGLContext::LogMessage(bool display, const char *fmt, ...)
+{
+    if (!display)
+        return;
+
+    va_list ap;
+    va_start(ap, fmt);
+
+    LogMessage(fmt, ap);
+
+    va_end(ap);
 }
 
 void
@@ -239,15 +249,6 @@ WebGLContext::LogMessageIfVerbose(const char *fmt, ...)
     LogMessage(fmt, ap);
 
     va_end(ap);
-}
-
-void
-WebGLContext::LogMessageIfVerbose(const char *fmt, va_list ap)
-{
-    if (!mVerbose)
-        return;
-
-    LogMessage(fmt, ap);
 }
 
 nsresult
@@ -275,7 +276,8 @@ WebGLContext::SynthesizeGLError(WebGLenum err, const char *fmt, ...)
 {
     va_list va;
     va_start(va, fmt);
-    LogMessageIfVerbose(fmt, va);
+    if (fmt)
+        LogMessage(mVerbose, fmt, va);
     va_end(va);
 
     return SynthesizeGLError(err);
@@ -286,7 +288,8 @@ WebGLContext::ErrorInvalidEnum(const char *fmt, ...)
 {
     va_list va;
     va_start(va, fmt);
-    LogMessageIfVerbose(fmt, va);
+    if (fmt)
+        LogMessage(mVerbose, fmt, va);
     va_end(va);
 
     return SynthesizeGLError(LOCAL_GL_INVALID_ENUM);
@@ -297,7 +300,8 @@ WebGLContext::ErrorInvalidOperation(const char *fmt, ...)
 {
     va_list va;
     va_start(va, fmt);
-    LogMessageIfVerbose(fmt, va);
+    if (fmt)
+        LogMessage(mVerbose, fmt, va);
     va_end(va);
 
     return SynthesizeGLError(LOCAL_GL_INVALID_OPERATION);
@@ -308,7 +312,8 @@ WebGLContext::ErrorInvalidValue(const char *fmt, ...)
 {
     va_list va;
     va_start(va, fmt);
-    LogMessageIfVerbose(fmt, va);
+    if (fmt)
+        LogMessage(mVerbose, fmt, va);
     va_end(va);
 
     return SynthesizeGLError(LOCAL_GL_INVALID_VALUE);

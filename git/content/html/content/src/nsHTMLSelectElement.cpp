@@ -293,7 +293,9 @@ nsHTMLSelectElement::InsertOptionsIntoList(nsIContent* aOptions,
         option->GetSelected(&selected);
         if (selected) {
           // Clear all other options
-          if (!HasAttr(kNameSpaceID_None, nsGkAtoms::multiple)) {
+          PRBool isMultiple;
+          GetMultiple(&isMultiple);
+          if (!isMultiple) {
             SetOptionsSelectedByIndex(i, i, PR_TRUE, PR_TRUE, PR_TRUE, PR_TRUE, nsnull);
           }
 
@@ -699,7 +701,9 @@ nsHTMLSelectElement::GetOptions(nsIDOMHTMLOptionsCollection** aValue)
 NS_IMETHODIMP
 nsHTMLSelectElement::GetType(nsAString& aType)
 {
-  if (HasAttr(kNameSpaceID_None, nsGkAtoms::multiple)) {
+  PRBool isMultiple;
+  GetMultiple(&isMultiple);
+  if (isMultiple) {
     aType.AssignLiteral("select-multiple");
   }
   else {
@@ -914,6 +918,8 @@ nsHTMLSelectElement::SetOptionsSelectedByIndex(PRInt32 aStartIndex,
     *aChangedSomething = PR_FALSE;
   }
 
+  nsresult rv;
+
   // Don't bother if the select is disabled
   if (!aSetDisabled && IsDisabled()) {
     return NS_OK;
@@ -927,7 +933,11 @@ nsHTMLSelectElement::SetOptionsSelectedByIndex(PRInt32 aStartIndex,
   }
 
   // First, find out whether multiple items can be selected
-  PRBool isMultiple = HasAttr(kNameSpaceID_None, nsGkAtoms::multiple);
+  PRBool isMultiple;
+  rv = GetMultiple(&isMultiple);
+  if (NS_FAILED(rv)) {
+    isMultiple = PR_FALSE;
+  }
 
   // These variables tell us whether any options were selected
   // or deselected.
@@ -1219,7 +1229,7 @@ NS_IMPL_BOOL_ATTR(nsHTMLSelectElement, Multiple, multiple)
 NS_IMPL_STRING_ATTR(nsHTMLSelectElement, Name, name)
 NS_IMPL_POSITIVE_INT_ATTR_DEFAULT_VALUE(nsHTMLSelectElement, Size, size,
                                         GetDefaultSize())
-NS_IMPL_INT_ATTR(nsHTMLSelectElement, TabIndex, tabindex)
+NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLSelectElement, TabIndex, tabindex, 0)
 
 NS_IMETHODIMP
 nsHTMLSelectElement::Blur()
@@ -2098,11 +2108,11 @@ nsHTMLSelectElement::UpdateBarredFromConstraintValidation()
 }
 
 void
-nsHTMLSelectElement::FieldSetDisabledChanged(PRInt32 aStates, PRBool aNotify)
+nsHTMLSelectElement::FieldSetDisabledChanged(PRInt32 aStates)
 {
   UpdateBarredFromConstraintValidation();
 
   aStates |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID;
-  nsGenericHTMLFormElement::FieldSetDisabledChanged(aStates, aNotify);
+  nsGenericHTMLFormElement::FieldSetDisabledChanged(aStates);
 }
 

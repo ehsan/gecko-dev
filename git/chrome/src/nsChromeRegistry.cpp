@@ -161,7 +161,7 @@ NS_IMPL_RELEASE(nsChromeRegistry)
 already_AddRefed<nsIChromeRegistry>
 nsChromeRegistry::GetService()
 {
-  if (!gChromeRegistry)
+  if (!nsChromeRegistry::gChromeRegistry)
   {
     // We don't actually want this ref, we just want the service to
     // initialize if it hasn't already.
@@ -170,7 +170,7 @@ nsChromeRegistry::GetService()
     if (!gChromeRegistry)
       return NULL;
   }
-  NS_ADDREF(gChromeRegistry);
+  NS_IF_ADDREF(gChromeRegistry);
   return gChromeRegistry;
 }
 

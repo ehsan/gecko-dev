@@ -1543,24 +1543,6 @@ namespace nanojit
 
     void LirNameMap::addNameWithSuffix(LIns* ins, const char *name, int suffix,
                                        bool ignoreOneSuffix) {
-        NanoAssert(!names.containsKey(ins));
-        const int N = 100;
-        char name2[N];
-        if (suffix == 1 && ignoreOneSuffix) {
-            VMPI_snprintf(name2, N, "%s", name);                // don't add '1' suffix
-        } else if (VMPI_isdigit(name[VMPI_strlen(name)-1])) {
-            VMPI_snprintf(name2, N, "%s_%d", name, suffix);     // use '_' to avoid confusion
-        } else {
-            VMPI_snprintf(name2, N, "%s%d", name, suffix);      // normal case
-        }
-
-        char *copy = new (alloc) char[VMPI_strlen(name2)+1];
-        VMPI_strcpy(copy, name2);
-        Entry *e = new (alloc) Entry(copy);
-        names.put(ins, e);
-    }
-
-    void LirNameMap::addName(LIns* ins, const char* name) {
         // The lookup may succeed, ie. we may already have a name for this
         // instruction.  This can happen because of CSE.  Eg. if we have this:
         //
@@ -1575,10 +1557,25 @@ namespace nanojit
         // name "foo2".
         //
         if (!names.containsKey(ins)) {
-            Str* str = new (alloc) Str(alloc, name);
-            int suffix = namecounts.add(*str);
-            addNameWithSuffix(ins, name, suffix, /*ignoreOneSuffix*/true);
+            const int N = 100;
+            char name2[N];
+            if (suffix == 1 && ignoreOneSuffix) {
+                VMPI_snprintf(name2, N, "%s", name);                // don't add '1' suffix
+            } else if (VMPI_isdigit(name[VMPI_strlen(name)-1])) {
+                VMPI_snprintf(name2, N, "%s_%d", name, suffix);     // use '_' to avoid confusion
+            } else {
+                VMPI_snprintf(name2, N, "%s%d", name, suffix);      // normal case
+            }
+
+            char *copy = new (alloc) char[VMPI_strlen(name2)+1];
+            VMPI_strcpy(copy, name2);
+            Entry *e = new (alloc) Entry(copy);
+            names.put(ins, e);
         }
+    }
+
+    void LirNameMap::addName(LIns* ins, const char* name) {
+        addNameWithSuffix(ins, name, namecounts.add(name), /*ignoreOneSuffix*/true);
     }
 
     const char* LirNameMap::createName(LIns* ins) {
@@ -1589,14 +1586,12 @@ namespace nanojit
             } else
 #endif
             {
-                if (!names.containsKey(ins))
-                    addNameWithSuffix(ins, ins->callInfo()->_name, funccounts.add(ins->callInfo()),
-                                      /*ignoreOneSuffix*/false);
+                addNameWithSuffix(ins, ins->callInfo()->_name, funccounts.add(ins->callInfo()),
+                                  /*ignoreOneSuffix*/false);
             }
         } else {
-            if (!names.containsKey(ins))
-                addNameWithSuffix(ins, lirNames[ins->opcode()], lircounts.add(ins->opcode()),
-                                  /*ignoreOneSuffix*/false);
+            addNameWithSuffix(ins, lirNames[ins->opcode()], lircounts.add(ins->opcode()),
+                              /*ignoreOneSuffix*/false);
 
         }
         return names.get(ins)->name;

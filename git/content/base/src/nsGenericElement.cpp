@@ -3051,7 +3051,7 @@ nsGenericElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 }
 
 already_AddRefed<nsINodeList>
-nsGenericElement::GetChildren(PRUint32 aFilter)
+nsGenericElement::GetChildren(PRInt32 aChildType)
 {
   nsRefPtr<nsBaseContentList> list = new nsBaseContentList();
   if (!list) {
@@ -3076,7 +3076,7 @@ nsGenericElement::GetChildren(PRUint32 aFilter)
 
   nsIDocument* document = GetOwnerDoc();
   if (document) {
-    if (!(aFilter & eAllButXBL)) {
+    if (aChildType != eAllButXBL) {
       childList = document->BindingManager()->GetXBLChildNodesFor(this);
       if (!childList) {
         childList = GetChildNodesList();
@@ -3102,7 +3102,7 @@ nsGenericElement::GetChildren(PRUint32 aFilter)
     // Append native anonymous content to the end.
     nsIAnonymousContentCreator* creator = do_QueryFrame(frame);
     if (creator) {
-      creator->AppendAnonymousContentTo(*list, aFilter);
+      creator->AppendAnonymousContentTo(*list);
     }
 
     // Append :after generated content.
@@ -5276,13 +5276,12 @@ nsGenericElement::PreHandleEventForLinks(nsEventChainPreVisitor& aVisitor)
   // We do the status bar updates in PreHandleEvent so that the status bar gets
   // updated even if the event is consumed before we have a chance to set it.
   switch (aVisitor.mEvent->message) {
-  // Set the status bar similarly for mouseover and focus
+  // Set the status bar the same for focus and mouseover
   case NS_MOUSE_ENTER_SYNTH:
     aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
     // FALL THROUGH
   case NS_FOCUS_CONTENT:
-    if (aVisitor.mEvent->eventStructType != NS_FOCUS_EVENT ||
-        !static_cast<nsFocusEvent*>(aVisitor.mEvent)->isRefocus) {
+    {
       nsAutoString target;
       GetLinkTarget(target);
       nsContentUtils::TriggerLink(this, aVisitor.mPresContext, absURI, target,

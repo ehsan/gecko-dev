@@ -94,15 +94,6 @@ static JSConstDoubleSpec math_constants[] = {
     {0,0,0,{0,0,0}}
 };
 
-MathCache::MathCache() {
-    memset(table, 0, sizeof(table));
-
-    /* See comments in lookup(). */
-    JS_ASSERT(JSDOUBLE_IS_NEGZERO(-0.0));
-    JS_ASSERT(!JSDOUBLE_IS_NEGZERO(+0.0));
-    JS_ASSERT(hash(-0.0) != hash(+0.0));
-}
-
 Class js_MathClass = {
     js_Math_str,
     JSCLASS_HAS_CACHED_PROTO(JSProto_Math),
@@ -148,10 +139,7 @@ math_acos(JSContext *cx, uintN argc, Value *vp)
         return JS_TRUE;
     }
 #endif
-    MathCache *mathCache = JS_THREAD_DATA(cx)->getMathCache(cx);
-    if (!mathCache)
-        return JS_FALSE;
-    z = mathCache->lookup(acos, x);
+    z = acos(x);
     vp->setDouble(z);
     return JS_TRUE;
 }
@@ -173,10 +161,7 @@ math_asin(JSContext *cx, uintN argc, Value *vp)
         return JS_TRUE;
     }
 #endif
-    MathCache *mathCache = JS_THREAD_DATA(cx)->getMathCache(cx);
-    if (!mathCache)
-        return JS_FALSE;
-    z = mathCache->lookup(asin, x);
+    z = asin(x);
     vp->setDouble(z);
     return JS_TRUE;
 }
@@ -192,10 +177,7 @@ math_atan(JSContext *cx, uintN argc, Value *vp)
     }
     if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
-    MathCache *mathCache = JS_THREAD_DATA(cx)->getMathCache(cx);
-    if (!mathCache)
-        return JS_FALSE;
-    z = mathCache->lookup(atan, x);
+    z = atan(x);
     vp->setDouble(z);
     return JS_TRUE;
 }
@@ -285,26 +267,9 @@ math_cos(JSContext *cx, uintN argc, Value *vp)
     }
     if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
-    MathCache *mathCache = JS_THREAD_DATA(cx)->getMathCache(cx);
-    if (!mathCache)
-        return JS_FALSE;
-    z = mathCache->lookup(cos, x);
+    z = cos(x);
     vp->setDouble(z);
     return JS_TRUE;
-}
-
-static double
-math_exp_body(double d)
-{
-#ifdef _WIN32
-    if (!JSDOUBLE_IS_NaN(d)) {
-        if (d == js_PositiveInfinity)
-            return js_PositiveInfinity;
-        if (d == js_NegativeInfinity)
-            return 0.0;
-    }
-#endif
-    return exp(d);
 }
 
 static JSBool
@@ -318,10 +283,19 @@ math_exp(JSContext *cx, uintN argc, Value *vp)
     }
     if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
-    MathCache *mathCache = JS_THREAD_DATA(cx)->getMathCache(cx);
-    if (!mathCache)
-        return JS_FALSE;
-    z = mathCache->lookup(math_exp_body, x);
+#ifdef _WIN32
+    if (!JSDOUBLE_IS_NaN(x)) {
+        if (x == js_PositiveInfinity) {
+            vp->setDouble(js_PositiveInfinity);
+            return JS_TRUE;
+        }
+        if (x == js_NegativeInfinity) {
+            vp->setInt32(0);
+            return JS_TRUE;
+        }
+    }
+#endif
+    z = exp(x);
     vp->setNumber(z);
     return JS_TRUE;
 }
@@ -359,10 +333,7 @@ math_log(JSContext *cx, uintN argc, Value *vp)
         return JS_TRUE;
     }
 #endif
-    MathCache *mathCache = JS_THREAD_DATA(cx)->getMathCache(cx);
-    if (!mathCache)
-        return JS_FALSE;
-    z = mathCache->lookup(log, x);
+    z = log(x);
     vp->setNumber(z);
     return JS_TRUE;
 }
@@ -600,10 +571,7 @@ math_sin(JSContext *cx, uintN argc, Value *vp)
     }
     if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
-    MathCache *mathCache = JS_THREAD_DATA(cx)->getMathCache(cx);
-    if (!mathCache)
-        return JS_FALSE;
-    z = mathCache->lookup(sin, x);
+    z = sin(x);
     vp->setDouble(z);
     return JS_TRUE;
 }
@@ -619,10 +587,7 @@ math_sqrt(JSContext *cx, uintN argc, Value *vp)
     }
     if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
-    MathCache *mathCache = JS_THREAD_DATA(cx)->getMathCache(cx);
-    if (!mathCache)
-        return JS_FALSE;
-    z = mathCache->lookup(sqrt, x);
+    z = sqrt(x);
     vp->setDouble(z);
     return JS_TRUE;
 }
@@ -638,10 +603,7 @@ math_tan(JSContext *cx, uintN argc, Value *vp)
     }
     if (!ValueToNumber(cx, vp[2], &x))
         return JS_FALSE;
-    MathCache *mathCache = JS_THREAD_DATA(cx)->getMathCache(cx);
-    if (!mathCache)
-        return JS_FALSE;
-    z = mathCache->lookup(tan, x);
+    z = tan(x);
     vp->setDouble(z);
     return JS_TRUE;
 }
@@ -659,11 +621,9 @@ math_toSource(JSContext *cx, uintN argc, Value *vp)
 
 #define MATH_BUILTIN_1(name) MATH_BUILTIN_CFUN_1(name, name)
 #define MATH_BUILTIN_CFUN_1(name, cfun)                                       \
-    static jsdouble FASTCALL math_##name##_tn(MathCache *cache, jsdouble d) { \
-        return cache->lookup(cfun, d);                                        \
-    }                                                                         \
+    static jsdouble FASTCALL math_##name##_tn(jsdouble d) { return cfun(d); } \
     JS_DEFINE_TRCINFO_1(math_##name,                                          \
-        (2, (static, DOUBLE, math_##name##_tn, MATHCACHE, DOUBLE, 1, nanojit::ACCSET_NONE)))
+        (1, (static, DOUBLE, math_##name##_tn, DOUBLE, 1, nanojit::ACCSET_NONE)))
 
 MATH_BUILTIN_CFUN_1(abs, fabs)
 MATH_BUILTIN_1(atan)
@@ -673,44 +633,58 @@ MATH_BUILTIN_1(sqrt)
 MATH_BUILTIN_1(tan)
 
 static jsdouble FASTCALL
-math_acos_tn(MathCache *cache, jsdouble d)
+math_acos_tn(jsdouble d)
 {
 #if defined(SOLARIS) && defined(__GNUC__)
     if (d < -1 || 1 < d) {
         return js_NaN;
     }
 #endif
-    return cache->lookup(acos, d);
+    return acos(d);
 }
 
 static jsdouble FASTCALL
-math_asin_tn(MathCache *cache, jsdouble d)
+math_asin_tn(jsdouble d)
 {
 #if defined(SOLARIS) && defined(__GNUC__)
     if (d < -1 || 1 < d) {
         return js_NaN;
     }
 #endif
-    return cache->lookup(asin, d);
+    return asin(d);
 }
 
+#ifdef _WIN32
+
 static jsdouble FASTCALL
-math_exp_tn(MathCache *cache, jsdouble d)
+math_exp_tn(JSContext *cx, jsdouble d)
 {
-    return cache->lookup(math_exp_body, d);
+    if (!JSDOUBLE_IS_NaN(d)) {
+        if (d == js_PositiveInfinity)
+            return js_PositiveInfinity;
+        if (d == js_NegativeInfinity)
+            return 0.0;
+    }
+    return exp(d);
 }
 
 JS_DEFINE_TRCINFO_1(math_exp,
-    (2, (static, DOUBLE, math_exp_tn, MATHCACHE, DOUBLE,  1, nanojit::ACCSET_NONE)))
+    (2, (static, DOUBLE, math_exp_tn,  CONTEXT, DOUBLE,  1, nanojit::ACCSET_NONE)))
+
+#else
+
+MATH_BUILTIN_1(exp)
+
+#endif
 
 static jsdouble FASTCALL
-math_log_tn(MathCache *cache, jsdouble d)
+math_log_tn(jsdouble d)
 {
 #if defined(SOLARIS) && defined(__GNUC__)
     if (d < 0)
         return js_NaN;
 #endif
-    return cache->lookup(log, d);
+    return log(d);
 }
 
 static jsdouble FASTCALL
@@ -793,15 +767,15 @@ math_floor_tn(jsdouble x)
 }
 
 JS_DEFINE_TRCINFO_1(math_acos,
-    (2, (static, DOUBLE, math_acos_tn, MATHCACHE, DOUBLE, 1, nanojit::ACCSET_NONE)))
+    (1, (static, DOUBLE, math_acos_tn, DOUBLE,          1, nanojit::ACCSET_NONE)))
 JS_DEFINE_TRCINFO_1(math_asin,
-    (2, (static, DOUBLE, math_asin_tn, MATHCACHE, DOUBLE, 1, nanojit::ACCSET_NONE)))
+    (1, (static, DOUBLE, math_asin_tn, DOUBLE,          1, nanojit::ACCSET_NONE)))
 JS_DEFINE_TRCINFO_1(math_atan2,
     (2, (static, DOUBLE, math_atan2_kernel, DOUBLE, DOUBLE, 1, nanojit::ACCSET_NONE)))
 JS_DEFINE_TRCINFO_1(js_math_floor,
     (1, (static, DOUBLE, math_floor_tn, DOUBLE,         1, nanojit::ACCSET_NONE)))
 JS_DEFINE_TRCINFO_1(math_log,
-    (2, (static, DOUBLE, math_log_tn, MATHCACHE, DOUBLE,  1, nanojit::ACCSET_NONE)))
+    (1, (static, DOUBLE, math_log_tn, DOUBLE,           1, nanojit::ACCSET_NONE)))
 JS_DEFINE_TRCINFO_1(js_math_max,
     (2, (static, DOUBLE, math_max_tn, DOUBLE, DOUBLE,   1, nanojit::ACCSET_NONE)))
 JS_DEFINE_TRCINFO_1(js_math_min,

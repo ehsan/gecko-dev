@@ -58,20 +58,17 @@
 struct nsSMILTargetIdentifier
 {
   nsSMILTargetIdentifier()
-    : mElement(nsnull), mAttributeName(nsnull),
-      mAttributeNamespaceID(kNameSpaceID_Unknown), mIsCSS(PR_FALSE) {}
+    : mElement(nsnull), mAttributeName(nsnull), mIsCSS(PR_FALSE) {}
 
   inline PRBool Equals(const nsSMILTargetIdentifier& aOther) const
   {
-    return (aOther.mElement              == mElement &&
-            aOther.mAttributeName        == mAttributeName &&
-            aOther.mAttributeNamespaceID == mAttributeNamespaceID &&
-            aOther.mIsCSS                == mIsCSS);
+    return (aOther.mElement       == mElement &&
+            aOther.mAttributeName == mAttributeName &&
+            aOther.mIsCSS         == mIsCSS);
   }
 
   nsRefPtr<mozilla::dom::Element> mElement;
-  nsRefPtr<nsIAtom>    mAttributeName;
-  PRInt32              mAttributeNamespaceID;
+  nsRefPtr<nsIAtom>    mAttributeName; // XXX need to consider namespaces here
   PRPackedBool         mIsCSS;
 };
 

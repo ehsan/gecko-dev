@@ -106,7 +106,6 @@ nsBaseWidget::nsBaseWidget()
 , mBorderStyle(eBorderStyle_none)
 , mOnDestroyCalled(PR_FALSE)
 , mUseAcceleratedRendering(PR_FALSE)
-, mTemporarilyUseBasicLayerManager(PR_FALSE)
 , mBounds(0,0,0,0)
 , mOriginalBounds(nsnull)
 , mClipRectCount(0)
@@ -762,17 +761,6 @@ nsBaseWidget::AutoLayerManagerSetup::~AutoLayerManagerSetup()
   }
 }
 
-nsBaseWidget::AutoUseBasicLayerManager::AutoUseBasicLayerManager(nsBaseWidget* aWidget)
-  : mWidget(aWidget)
-{
-  mWidget->mTemporarilyUseBasicLayerManager = PR_TRUE;
-}
-
-nsBaseWidget::AutoUseBasicLayerManager::~AutoUseBasicLayerManager()
-{
-  mWidget->mTemporarilyUseBasicLayerManager = PR_FALSE;
-}
-
 PRBool
 nsBaseWidget::GetShouldAccelerate()
 {
@@ -806,7 +794,7 @@ nsBaseWidget::GetShouldAccelerate()
   return mUseAcceleratedRendering;
 }
 
-LayerManager* nsBaseWidget::GetLayerManager(bool* aAllowRetaining)
+LayerManager* nsBaseWidget::GetLayerManager()
 {
   if (!mLayerManager) {
     nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
@@ -828,18 +816,10 @@ LayerManager* nsBaseWidget::GetLayerManager(bool* aAllowRetaining)
       }
     }
     if (!mLayerManager) {
-      mBasicLayerManager = mLayerManager = CreateBasicLayerManager();
+      mLayerManager = CreateBasicLayerManager();
     }
   }
-  if (mTemporarilyUseBasicLayerManager && !mBasicLayerManager) {
-    mBasicLayerManager = CreateBasicLayerManager();
-  }
-  LayerManager* usedLayerManager = mTemporarilyUseBasicLayerManager ?
-                                     mBasicLayerManager : mLayerManager;
-  if (aAllowRetaining) {
-    *aAllowRetaining = (usedLayerManager == mLayerManager);
-  }
-  return usedLayerManager;
+  return mLayerManager;
 }
 
 BasicLayerManager* nsBaseWidget::CreateBasicLayerManager()

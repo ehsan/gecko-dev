@@ -150,14 +150,11 @@ public:
 
   NS_IMETHOD_(PRBool) IsHandlingUserInputExternal() { return IsHandlingUserInput(); }
   
-  nsPresContext* GetPresContext() { return mPresContext; }
-
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsEventStateManager,
                                            nsIEventStateManager)
 
   static nsIDocument* sMouseOverDocument;
 
-  static nsIEventStateManager* GetActiveEventStateManager() { return sActiveESM; }
 protected:
   void UpdateCursor(nsPresContext* aPresContext, nsEvent* aEvent, nsIFrame* aTargetFrame, nsEventStatus* aStatus);
   /**
@@ -414,7 +411,6 @@ protected:
   
   static void SetGlobalActiveContent(nsEventStateManager* aNewESM,
                                      nsIContent* aContent);
-  static void ClearGlobalActiveContent();
 
   // Functions used for click hold context menus
   PRBool mClickHoldContextMenu;

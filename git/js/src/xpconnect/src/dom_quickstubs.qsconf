@@ -411,16 +411,7 @@ members = [
     'nsIDOMXPathResult.singleNodeValue',
     'nsIDOMNSXPathExpression.evaluateWithContext',
 
-    # dom/interfaces/xul
-    'nsIDOMXULElement.*',
-
-    # layout/xul/base/public
-    'nsIBoxObject.x',
-    'nsIBoxObject.y',
-    'nsIBoxObject.screenX',
-    'nsIBoxObject.screenY',
-    'nsIBoxObject.width',
-    'nsIBoxObject.height',
+    # dom/interfaces/xul - None.
 
     # XHR
     'nsIXMLHttpRequest.*',
@@ -478,10 +469,6 @@ members = [
     'nsIIDBTransaction.*',
     'nsIIDBTransactionEvent.*',
     'nsIIDBFactory.*',
-    'nsIIDBVersionChangeEvent.*',
-    'nsIIDBVersionChangeRequest.*',
-    'nsIIndexedDatabaseUsageCallback.*',
-    'nsIIndexedDatabaseManager.*',
     ]
 
 # Most interfaces can be found by searching the includePath; to find
@@ -510,8 +497,6 @@ irregularFilenames = {
     'nsIWebGLRenderbuffer': 'nsICanvasRenderingContextWebGL',
     'nsIWebGLActiveInfo': 'nsICanvasRenderingContextWebGL',
     'nsIWebGLUniformLocation': 'nsICanvasRenderingContextWebGL',
-
-    'nsIIndexedDatabaseUsageCallback': 'nsIIndexedDatabaseManager',
     }
 
 customIncludes = [
