@@ -123,11 +123,6 @@ JS::detail::CallMethodIfWrapped(JSContext *cx, IsAcceptableThis test, NativeImpl
 #define JS_ADDRESSOF_VA_LIST(ap) (&(ap))
 #endif
 
-#ifdef JS_USE_JSID_STRUCT_TYPES
-const jsid JSID_VOID  = { size_t(JSID_TYPE_VOID) };
-const jsid JSID_EMPTY = { size_t(JSID_TYPE_OBJECT) };
-#endif
-
 const jsid voidIdValue = JSID_VOID;
 const jsid emptyIdValue = JSID_EMPTY;
 const HandleId JS::JSID_VOIDHANDLE = HandleId::fromMarkedLocation(&voidIdValue);
@@ -669,7 +664,7 @@ JS_Init(void)
         return false;
 
 #if defined(JS_ION)
-    if (!ion::InitializeIon())
+    if (!jit::InitializeIon())
         return false;
 #endif
 
@@ -1480,7 +1475,7 @@ static const JSStdName object_prototype_names[] = {
     {js_InitObjectClass,        EAGER_ATOM(hasOwnProperty), &JSObject::class_},
     {js_InitObjectClass,        EAGER_ATOM(isPrototypeOf), &JSObject::class_},
     {js_InitObjectClass,        EAGER_ATOM(propertyIsEnumerable), &JSObject::class_},
-#if OLD_GETTER_SETTER_METHODS
+#if JS_OLD_GETTER_SETTER_METHODS
     {js_InitObjectClass,        EAGER_ATOM(defineGetter), &JSObject::class_},
     {js_InitObjectClass,        EAGER_ATOM(defineSetter), &JSObject::class_},
     {js_InitObjectClass,        EAGER_ATOM(lookupGetter), &JSObject::class_},
@@ -5197,7 +5192,7 @@ JS::Evaluate(JSContext *cx, HandleObject obj, CompileOptions options,
 
     options.setCompileAndGo(obj->is<GlobalObject>());
     options.setNoScriptRval(!rval);
-    SourceCompressionToken sct(cx);
+    SourceCompressionTask sct(cx);
     RootedScript script(cx, frontend::CompileScript(cx, &cx->tempLifoAlloc(),
                                                     obj, NullPtr(), options,
                                                     chars, length, NULL, 0, &sct));
@@ -6441,19 +6436,19 @@ JS_PUBLIC_API(void)
 JS_SetGlobalCompilerOption(JSContext *cx, JSCompilerOption opt, uint32_t value)
 {
 #ifdef JS_ION
-    ion::IonOptions defaultValues;
+    jit::IonOptions defaultValues;
 
     switch (opt) {
       case JSCOMPILER_BASELINE_USECOUNT_TRIGGER:
         if (value == uint32_t(-1))
             value = defaultValues.baselineUsesBeforeCompile;
-        ion::js_IonOptions.baselineUsesBeforeCompile = value;
+        jit::js_IonOptions.baselineUsesBeforeCompile = value;
         break;
       case JSCOMPILER_ION_USECOUNT_TRIGGER:
         if (value == uint32_t(-1))
             value = defaultValues.usesBeforeCompile;
-        ion::js_IonOptions.usesBeforeCompile = value;
-        ion::js_IonOptions.eagerCompilation = (value == 0);
+        jit::js_IonOptions.usesBeforeCompile = value;
+        jit::js_IonOptions.eagerCompilation = (value == 0);
         break;
     }
 #endif

@@ -730,11 +730,13 @@ public:
     JS::Value GetQueryObject(JSContext* cx, WebGLQuery *query, WebGLenum pname);
 
 private:
+    // ANY_SAMPLES_PASSED(_CONSERVATIVE) slot
     WebGLRefPtr<WebGLQuery> mActiveOcclusionQuery;
+
+    // LOCAL_GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN slot
     WebGLRefPtr<WebGLQuery> mActiveTransformFeedbackQuery;
 
-    bool ValidateQueryTargetParameter(WebGLenum target, const char* infos);
-    WebGLRefPtr<WebGLQuery>& GetActiveQueryByTarget(WebGLenum target);
+    WebGLRefPtr<WebGLQuery>* GetQueryTargetSlot(WebGLenum target, const char* infos);
 
 // -----------------------------------------------------------------------------
 // Buffer Objects (WebGLContextBuffers.cpp)
@@ -870,6 +872,7 @@ private:
     void VertexAttrib4fv_base(WebGLuint idx, uint32_t arrayLength, const WebGLfloat* ptr);
 
     bool ValidateBufferFetching(const char *info);
+    bool BindArrayAttribToLocation0(WebGLProgram *program);
 
 // -----------------------------------------------------------------------------
 // PROTECTED

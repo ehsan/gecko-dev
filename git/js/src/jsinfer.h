@@ -99,7 +99,7 @@ class RootedBase<TaggedProto> : public TaggedProtoOperations<Rooted<TaggedProto>
 
 class CallObject;
 
-namespace ion {
+namespace jit {
     struct IonScript;
 }
 
@@ -1106,7 +1106,7 @@ struct TypeObject : gc::Cell
  * Entries for the per-compartment set of type objects which are the default
  * 'new' or the lazy types of some prototype.
  */
-struct TypeObjectEntry
+struct TypeObjectEntry : DefaultHasher<ReadBarriered<TypeObject> >
 {
     struct Lookup {
         Class *clasp;
@@ -1289,7 +1289,7 @@ struct CompilerOutput
     Kind kind() const { return static_cast<Kind>(kindInt); }
     void setKind(Kind k) { kindInt = k; }
 
-    ion::IonScript *ion() const;
+    jit::IonScript *ion() const;
 
     bool isValid() const;
 
